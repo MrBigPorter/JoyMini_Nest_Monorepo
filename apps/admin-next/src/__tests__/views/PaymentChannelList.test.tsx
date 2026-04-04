@@ -6,15 +6,15 @@ import {
   BaseTableMock,
   SchemaSearchFormMock,
   PageHeaderMock,
-  makeUseAntdTable,
+  SmartImageMock,
 } from '../mocks/view-helpers';
 
-const mockUseAntdTable = vi.hoisted(() => vi.fn());
+const mockUseQuery = vi.hoisted(() => vi.fn());
 
 // ── mocks ────────────────────────────────────────────────────────
 vi.mock('@repo/ui', () => repoUiMock);
-vi.mock('ahooks', () => ({
-  useAntdTable: (...args: unknown[]) => mockUseAntdTable(...args),
+vi.mock('@tanstack/react-query', () => ({
+  useQuery: (...args: unknown[]) => mockUseQuery(...args),
 }));
 vi.mock('@/components/scaffold/BaseTable', () => ({
   BaseTable: BaseTableMock,
@@ -25,6 +25,7 @@ vi.mock('@/components/scaffold/SchemaSearchForm', () => ({
 vi.mock('@/components/scaffold/PageHeader', () => ({
   PageHeader: PageHeaderMock,
 }));
+vi.mock('@/components/ui/SmartImage', () => ({ SmartImage: SmartImageMock }));
 vi.mock('@/store/useToastStore', () => ({
   useToastStore: (
     sel: (s: { addToast: ReturnType<typeof vi.fn> }) => unknown,
@@ -38,17 +39,23 @@ vi.mock('@/api', () => ({
     delete: vi.fn().mockResolvedValue({}),
   },
 }));
-vi.mock('@/views/payment-channel/PaymentChannelModal', () => ({
-  PaymentChannelModal: () => <div data-testid="payment-channel-modal" />,
-}));
+vi.mock('@/views/payment-channel/PaymentChannelModal', () => {
+  const PaymentChannelModal = () => <div data-testid="payment-channel-modal" />;
+  PaymentChannelModal.displayName = 'PaymentChannelModal';
+  return { PaymentChannelModal };
+});
 
 // ── subject ──────────────────────────────────────────────────────
-import { PaymentChannelList } from '@/views/PaymentChannelList';
+import { PaymentChannelList } from '@/components/payment/PaymentChannelListClient';
 
 describe('PaymentChannelList', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUseAntdTable.mockReturnValue(makeUseAntdTable([], 0));
+    mockUseQuery.mockReturnValue({
+      data: { list: [], total: 0 },
+      isFetching: false,
+      refetch: vi.fn(),
+    });
   });
 
   it('renders without crashing', () => {

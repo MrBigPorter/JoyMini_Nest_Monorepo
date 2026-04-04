@@ -47,8 +47,12 @@ function App() {
               "https://app.joyminis.com", //  安全：只允许主站接收结果，防止数据被截获
             );
           }}
-          onError={(error: any) => {
-            const errorMessage = error?.message || String(error);
+          onError={(livenessError: unknown) => {
+            const errorMessage = typeof livenessError === 'string' 
+              ? livenessError 
+              : livenessError instanceof Error 
+                ? livenessError.message 
+                : String(livenessError);
             window.parent.postMessage(
               { type: "LIVENESS_RESULT", success: false, error: errorMessage },
               "https://app.joyminis.com", //  同样指定目标域名

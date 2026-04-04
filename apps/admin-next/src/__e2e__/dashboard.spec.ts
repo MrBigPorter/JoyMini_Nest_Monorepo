@@ -15,14 +15,18 @@ test.describe('Dashboard — 首页', () => {
   });
 
   test('显示 4 个统计卡片', async ({ page }) => {
-    await expect(page.getByText('Total Deposits')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('Total Deposits')).toBeVisible({
+      timeout: 15_000,
+    });
     await expect(page.getByText('Total Withdrawals')).toBeVisible();
     await expect(page.getByText('Pending Withdrawals')).toBeVisible();
     await expect(page.getByText('Total Users')).toBeVisible();
   });
 
   test('Recent Orders 区块存在', async ({ page }) => {
-    await expect(page.getByText('Recent Orders')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('Recent Orders')).toBeVisible({
+      timeout: 15_000,
+    });
   });
 
   test('侧边栏有 Orders 链接', async ({ page }) => {

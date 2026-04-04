@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { ModalManager } from '@repo/ui';
 
 // Generic hook to handle list data with simulated delay
-export function useMockData<T>(initialData: T[]) {
+export function useMockData<T extends { id: string }>(initialData: T[]) {
   const [data, setData] = useState<T[]>(initialData);
   const [loading, setLoading] = useState(false);
 
@@ -24,7 +24,7 @@ export function useMockData<T>(initialData: T[]) {
     setLoading(true);
     setTimeout(() => {
       setData((prev) =>
-        prev.map((item: any) =>
+        prev.map((item: T) =>
           item.id === id ? { ...item, ...updatedItem } : item,
         ),
       );
@@ -36,7 +36,7 @@ export function useMockData<T>(initialData: T[]) {
     const runRemove = () => {
       setLoading(true);
       setTimeout(() => {
-        setData((prev) => prev.filter((item: any) => item.id !== id));
+        setData((prev) => prev.filter((item: T) => item.id !== id));
         setLoading(false);
       }, 500);
     };

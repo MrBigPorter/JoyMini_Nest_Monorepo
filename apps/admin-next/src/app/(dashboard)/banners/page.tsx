@@ -7,7 +7,22 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = { title: 'Banners' };
 
 import React, { Suspense } from 'react';
+import {
+  HydrationBoundary,
+  QueryClient,
+  dehydrate,
+} from '@tanstack/react-query';
 import { BannersClient } from '@/components/banners/BannersClient';
+import { serverGet } from '@/lib/serverFetch';
+import type { PaginatedResponse } from '@/api/types';
+import type { Banner } from '@/type/types';
+import {
+  BANNERS_LIST_TAG,
+  bannersListQueryKey,
+  buildBannersListParams,
+  parseBannersSearchParams,
+  type NextSearchParams,
+} from '@/lib/cache/banners-cache';
 
 function BannersPageSkeleton() {
   return (
@@ -24,10 +39,38 @@ function BannersPageSkeleton() {
   );
 }
 
-export default function BannersPage() {
+interface BannersPageProps {
+  searchParams?: Promise<NextSearchParams>;
+}
+
+export default async function BannersPage({ searchParams }: BannersPageProps) {
+  const resolvedSearchParams = (await searchParams) ?? {};
+  const queryClient = new QueryClient();
+  const queryInput = parseBannersSearchParams(resolvedSearchParams);
+
+  await queryClient.prefetchQuery({
+    queryKey: bannersListQueryKey(queryInput),
+    queryFn: async () => {
+      const res = await serverGet<PaginatedResponse<Banner>>(
+        '/v1/admin/banners/list',
+        buildBannersListParams(queryInput) as Record<
+          string,
+          string | number | boolean | undefined | null
+        >,
+        {
+          revalidate: 30,
+          tags: [BANNERS_LIST_TAG],
+        },
+      );
+      return { list: res.list, total: res.total };
+    },
+  });
+
   return (
     <Suspense fallback={<BannersPageSkeleton />}>
-      <BannersClient />
+      <HydrationBoundary state={dehydrate(queryClient)}>
+        <BannersClient />
+      </HydrationBoundary>
     </Suspense>
   );
 }

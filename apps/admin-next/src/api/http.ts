@@ -5,7 +5,12 @@ import axios, {
   CanceledError,
   InternalAxiosRequestConfig,
 } from 'axios';
-import type { ApiResponse, RequestConfig } from './types'; // 注意：这里不要写 .ts 后缀
+import type { ApiResponse, RequestConfig, RequestTraceConfig } from './types'; // 注意：这里不要写 .ts 后缀
+import {
+  SENTRY_SPAN_ATTR_KEY,
+  SENTRY_SPAN_NAME,
+} from '@/lib/sentry-span-constants';
+import { withHttpClientSpan } from '@/lib/sentry-span';
 import { useToastStore } from '@/store/useToastStore';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -19,10 +24,36 @@ class HttpClient {
   /** 单飞 refresh：并发 401 时只刷新一次 */
   private refreshPromise: Promise<string | null> | null = null;
 
+  // 重试配置
+  private readonly retryConfig = {
+    maxRetries: process.env.NODE_ENV === 'test' ? 0 : 3, // 测试环境不重试
+    retryDelay: (attemptIndex: number) =>
+      process.env.NODE_ENV === 'test'
+        ? 0 // 测试环境无延迟
+        : Math.min(1000 * 2 ** attemptIndex, 30000),
+    retryCondition: (error: any) => {
+      // 测试环境不重试
+      if (process.env.NODE_ENV === 'test') return false;
+      // 网络错误或5xx服务器错误时重试
+      return (
+        !error.response ||
+        (error.response.status >= 500 && error.response.status < 600)
+      );
+    },
+  };
+
   constructor() {
+    // 在SSR环境下，需要使用完整的URL
+    const baseURL =
+      typeof window === 'undefined'
+        ? process.env.INTERNAL_API_URL ||
+          process.env.API_BASE_URL ||
+          'http://localhost:3000/api'
+        : process.env.NEXT_PUBLIC_API_BASE_URL || '/api';
+
     this.instance = axios.create({
-      baseURL: process.env.NEXT_PUBLIC_API_BASE_URL || '/api',
-      timeout: 30_000,
+      baseURL,
+      timeout: typeof window === 'undefined' ? 5_000 : 30_000, // SSR环境使用更短的超时
       headers: {
         'Content-Type': 'application/json',
       },
@@ -121,8 +152,15 @@ class HttpClient {
           return this.handle401AndRetry(retryConfig);
         }
 
-        this.handleBizError(data);
-        return Promise.reject(data);
+        this.handleBizError(
+          data,
+          res.config as InternalAxiosRequestConfig & RequestConfig,
+        );
+        // 防止 unhandledrejection 事件被 Next.js dev overlay 捕获显示为红色堆栈。
+        // toast 已提示用户；promise 仍是 rejected 状态，onError 回调正常触发。
+        const bizRejection = Promise.reject(data);
+        bizRejection.catch(() => {});
+        return bizRejection;
       },
       async (error) => {
         if (error.config) {
@@ -145,7 +183,11 @@ class HttpClient {
           }
         }
         this.handleHttpError(error);
-        return Promise.reject(error);
+        // 防止 unhandledrejection 事件被 Next.js dev overlay 捕获显示为红色堆栈。
+        // toast 已提示用户；promise 仍是 rejected 状态，调用侧 try-catch / onError 正常触发。
+        const httpRejection = Promise.reject(error);
+        httpRejection.catch(() => {});
+        return httpRejection;
       },
     );
   }
@@ -158,14 +200,17 @@ class HttpClient {
   }
 
   private getToken(): string | null {
+    if (typeof window === 'undefined') return null;
     return localStorage.getItem('auth_token');
   }
 
   private getRefreshToken(): string | null {
+    if (typeof window === 'undefined') return null;
     return localStorage.getItem('refresh_token');
   }
 
   private setAuthTokens(accessToken: string, refreshToken?: string) {
+    if (typeof window === 'undefined') return;
     localStorage.setItem('auth_token', accessToken);
     if (refreshToken) {
       localStorage.setItem('refresh_token', refreshToken);
@@ -173,17 +218,24 @@ class HttpClient {
   }
 
   private getLanguage(): string {
+    if (typeof window === 'undefined') return 'en';
     return localStorage.getItem('lang') || 'en';
   }
 
   // ================= 错误处理 =================
 
-  private handleBizError(data: ApiResponse) {
+  private handleBizError(
+    data: ApiResponse,
+    config?: InternalAxiosRequestConfig & RequestConfig,
+  ) {
     // 401 单独处理，不再额外弹 toast
     if (data.code === 401) {
       void this.handleUnauthorized();
       return;
     }
+
+    // showError: false → 静默请求，不弹 toast
+    if (config?.showError === false) return;
 
     const fallbackMap: Record<number, string> = {
       400: 'Bad Request',
@@ -204,6 +256,12 @@ class HttpClient {
       return;
     }
 
+    // showError: false → 静默请求，不弹 toast
+    const reqConfig = error.config as
+      | (InternalAxiosRequestConfig & RequestConfig)
+      | undefined;
+    if (reqConfig?.showError === false) return;
+
     if (error.response) {
       const { status, data } = error.response;
 
@@ -218,6 +276,9 @@ class HttpClient {
 
       const msg = data?.message || `Server Error: ${error.message}`;
       this.toastError(msg);
+
+      // 403 权限错误：toast 已提示用户，不需要 console.error 污染控制台
+      if (status === 403) return;
     } else if (error.request) {
       this.toastError('No response from server, please check your network');
     } else {
@@ -310,7 +371,7 @@ class HttpClient {
           });
 
         return newAccessToken;
-      } catch (error) {
+      } catch {
         return null;
       } finally {
         this.refreshPromise = null;
@@ -326,6 +387,72 @@ class HttpClient {
     const { addToast } = useToastStore.getState();
     addToast('error', message);
   }
+
+  private traceRequest<T>(
+    method: string,
+    url: string,
+    config: RequestConfig | undefined,
+    fn: () => Promise<T>,
+  ): Promise<T> {
+    const trace = config?.trace;
+
+    if (trace === false) {
+      return fn();
+    }
+
+    const traceConfig: RequestTraceConfig | undefined =
+      typeof trace === 'object' ? trace : undefined;
+
+    if (traceConfig?.enabled === false) {
+      return fn();
+    }
+
+    return withHttpClientSpan(
+      traceConfig?.name ?? SENTRY_SPAN_NAME.HTTP_CLIENT_REQUEST,
+      {
+        [SENTRY_SPAN_ATTR_KEY.HTTP_METHOD]: method.toUpperCase(),
+        [SENTRY_SPAN_ATTR_KEY.HTTP_ROUTE]: url,
+        ...traceConfig?.attributes,
+      },
+      fn,
+    );
+  }
+
+  // ================= 重试逻辑 =================
+
+  private async withRetry<T>(
+    operation: () => Promise<T>,
+    retryConfig = this.retryConfig,
+  ): Promise<T> {
+    let lastError: any;
+
+    for (let attempt = 0; attempt <= retryConfig.maxRetries; attempt++) {
+      try {
+        return await operation();
+      } catch (error) {
+        lastError = error;
+
+        // 检查是否应该重试
+        if (
+          attempt === retryConfig.maxRetries ||
+          !retryConfig.retryCondition(error)
+        ) {
+          throw error;
+        }
+
+        // 等待重试延迟
+        const delay = retryConfig.retryDelay(attempt);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+
+        console.log(
+          `[HTTP] Retrying request (attempt ${attempt + 1}/${retryConfig.maxRetries})`,
+        );
+      }
+    }
+
+    throw lastError;
+  }
+
   // ================= 对外 HTTP 方法 =================
 
   public async get<T = any>(
@@ -349,12 +476,19 @@ class HttpClient {
       return existing as Promise<T>;
     }
 
-    const requestPromise = this.instance
-      .get<ApiResponse<T>>(url, mergedConfig)
-      .then((res) => res.data.data)
-      .finally(() => {
+    const requestPromise = this.traceRequest('get', url, config, async () => {
+      return this.withRetry(() =>
+        this.instance
+          .get<ApiResponse<T>>(url, mergedConfig)
+          .then((res) => res.data.data),
+      ).finally(() => {
         this.inflightGetRequests.delete(key);
       });
+    });
+
+    // 防止 unhandledrejection 事件被 Next.js dev overlay 捕获显示为红色堆栈。
+    // promise 仍然是 rejected 状态，useRequest 的 onError 回调正常触发。
+    requestPromise.catch(() => {});
 
     this.inflightGetRequests.set(key, requestPromise);
     return requestPromise;
@@ -365,7 +499,11 @@ class HttpClient {
     data?: any,
     config?: AxiosRequestConfig & RequestConfig,
   ): Promise<T> {
-    const res = await this.instance.post<ApiResponse<T>>(url, data, config);
+    const res = await this.traceRequest('post', url, config, () =>
+      this.withRetry(() =>
+        this.instance.post<ApiResponse<T>>(url, data, config),
+      ),
+    );
     return res.data.data;
   }
 
@@ -374,7 +512,11 @@ class HttpClient {
     data?: any,
     config?: AxiosRequestConfig & RequestConfig,
   ): Promise<T> {
-    const res = await this.instance.put<ApiResponse<T>>(url, data, config);
+    const res = await this.traceRequest('put', url, config, () =>
+      this.withRetry(() =>
+        this.instance.put<ApiResponse<T>>(url, data, config),
+      ),
+    );
     return res.data.data;
   }
 
@@ -383,7 +525,11 @@ class HttpClient {
     data?: any,
     config?: AxiosRequestConfig & RequestConfig,
   ): Promise<T> {
-    const res = await this.instance.patch<ApiResponse<T>>(url, data, config);
+    const res = await this.traceRequest('patch', url, config, () =>
+      this.withRetry(() =>
+        this.instance.patch<ApiResponse<T>>(url, data, config),
+      ),
+    );
     return res.data.data;
   }
 
@@ -391,7 +537,9 @@ class HttpClient {
     url: string,
     config?: AxiosRequestConfig & RequestConfig,
   ): Promise<T> {
-    const res = await this.instance.delete<ApiResponse<T>>(url, config);
+    const res = await this.traceRequest('delete', url, config, () =>
+      this.withRetry(() => this.instance.delete<ApiResponse<T>>(url, config)),
+    );
     return res.data.data;
   }
 
@@ -399,24 +547,34 @@ class HttpClient {
     url: string,
     file: File | FormData,
     onProgress?: (percent: number) => void,
+    config?: RequestConfig,
   ): Promise<T> {
     const formData = file instanceof FormData ? file : new FormData();
     if (file instanceof File) formData.append('file', file);
 
-    const res = await this.instance.post<ApiResponse<T>>(url, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-      onUploadProgress: (e_1) => {
-        if (onProgress && e_1.total) {
-          const percent_1 = Math.round((e_1.loaded * 100) / e_1.total);
-          onProgress(percent_1);
-        }
-      },
-    });
+    const res = await this.traceRequest('post', url, config, () =>
+      this.instance.post<ApiResponse<T>>(url, formData, {
+        ...config,
+        headers: { 'Content-Type': 'multipart/form-data' },
+        onUploadProgress: (e_1) => {
+          if (onProgress && e_1.total) {
+            const percent_1 = Math.round((e_1.loaded * 100) / e_1.total);
+            onProgress(percent_1);
+          }
+        },
+      }),
+    );
     return res.data.data;
   }
 
-  public async download(url: string, filename = 'download'): Promise<void> {
-    const res = await this.instance.get(url, { responseType: 'blob' });
+  public async download(
+    url: string,
+    filename = 'download',
+    config?: RequestConfig,
+  ): Promise<void> {
+    const res = await this.traceRequest('get', url, config, () =>
+      this.instance.get(url, { responseType: 'blob', ...config }),
+    );
     const blob = new Blob([res.data]);
     const link = document.createElement('a');
     link.href = window.URL.createObjectURL(blob);

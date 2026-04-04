@@ -45,7 +45,7 @@ export class GroupService {
   ) {}
 
   private orm(tx?: Tx) {
-    return (tx ?? this.prisma) as Tx;
+    return tx ?? this.prisma;
   }
 
   // ============================================================

@@ -7,7 +7,22 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = { title: 'Operation Logs' };
 
 import React, { Suspense } from 'react';
-import { OperationLogClient } from '@/components/operation-logs/OperationLogClient';
+import {
+  HydrationBoundary,
+  QueryClient,
+  dehydrate,
+} from '@tanstack/react-query';
+import { OperationLogsClient } from '@/components/operation-logs/OperationLogClient';
+import { serverGet } from '@/lib/serverFetch';
+import type { PaginatedResponse } from '@/api/types';
+import type { AdminOperationLog } from '@/type/types';
+import {
+  OPERATION_LOGS_LIST_TAG,
+  buildOperationLogsListParams,
+  operationLogsListQueryKey,
+  parseOperationLogsSearchParams,
+  type NextSearchParams,
+} from '@/lib/cache/operation-logs-cache';
 
 function OperationLogPageSkeleton() {
   return (
@@ -24,10 +39,44 @@ function OperationLogPageSkeleton() {
   );
 }
 
-export default function OperationLogsPage() {
+interface OperationLogsPageProps {
+  searchParams?: Promise<NextSearchParams>;
+}
+
+export default async function OperationLogsPage({
+  searchParams,
+}: OperationLogsPageProps) {
+  const resolvedSearchParams = (await searchParams) ?? {};
+  const queryClient = new QueryClient();
+
+  const queryInput = parseOperationLogsSearchParams(resolvedSearchParams);
+  await queryClient.prefetchQuery({
+    queryKey: operationLogsListQueryKey(queryInput),
+    queryFn: async () => {
+      const res = await serverGet<PaginatedResponse<AdminOperationLog>>(
+        '/v1/admin/operation-logs/list',
+        buildOperationLogsListParams(queryInput) as Record<
+          string,
+          string | number | boolean | undefined | null
+        >,
+        {
+          revalidate: 30,
+          tags: [OPERATION_LOGS_LIST_TAG],
+        },
+      );
+      // 如果返回null（401错误），返回空数据
+      if (!res) {
+        return { data: [], total: 0 };
+      }
+      return { data: res.list, total: res.total };
+    },
+  });
+
   return (
     <Suspense fallback={<OperationLogPageSkeleton />}>
-      <OperationLogClient />
+      <HydrationBoundary state={dehydrate(queryClient)}>
+        <OperationLogsClient />
+      </HydrationBoundary>
     </Suspense>
   );
 }

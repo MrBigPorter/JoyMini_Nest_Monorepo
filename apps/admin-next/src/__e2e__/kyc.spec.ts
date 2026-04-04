@@ -56,4 +56,3 @@ test.describe('KYC Management — /kyc', () => {
     }
   });
 });
-

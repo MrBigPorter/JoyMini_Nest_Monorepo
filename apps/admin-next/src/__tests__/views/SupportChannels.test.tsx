@@ -37,7 +37,7 @@ vi.mock('@/api', () => ({
   },
 }));
 
-import { SupportChannels } from '@/views/SupportChannels';
+import { SupportChannels } from '@/components/support-channels/SupportChannelsClient';
 
 describe('SupportChannels', () => {
   beforeEach(() => {
@@ -77,7 +77,9 @@ describe('SupportChannels', () => {
     render(<SupportChannels />);
     expect(screen.getByTestId('page-header')).toBeInTheDocument();
     expect(screen.getByText('Lucky Support')).toBeInTheDocument();
-    expect(screen.getByText('official_platform_support_v1')).toBeInTheDocument();
+    expect(
+      screen.getByText('official_platform_support_v1'),
+    ).toBeInTheDocument();
   });
 
   it('creates support channel from built-in business id', async () => {
@@ -142,4 +144,3 @@ describe('SupportChannels', () => {
     });
   });
 });
-

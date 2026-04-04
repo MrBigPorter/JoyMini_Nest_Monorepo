@@ -25,12 +25,12 @@ export class QueryOrderDto {
 
   @ApiPropertyOptional({
     description:
-      'Order status filter: 1 - Pending payment; 2 - Paid; 3 - Cancelled; 4 - Refunded',
-    example: 2,
+      'Order status filter: 1-Pending; 2-Processing; 3-Paid; 4-Cancelled; 5-Refunded; 6-Wait Group; 7-Ready to Ship; 8-Shipped; 9-Completed',
+    example: 7,
   })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
-  @IsIn([1, 2, 3, 4])
+  @IsIn([1, 2, 3, 4, 5, 6, 7, 8, 9])
   orderStatus?: number;
 }

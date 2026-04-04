@@ -19,6 +19,10 @@ export interface DrawResult {
   prizeValue?: number;
   isWin: boolean;
   userCouponId?: string;
+  /** 抽奖结果记录 ID */
+  resultId: string;
+  /** 抽奖时间戳（ms） */
+  drawnAt: number;
 }
 
 @Injectable()
@@ -117,7 +121,19 @@ export class LuckyDrawService {
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * pageSize,
         take: pageSize,
-        include: { activity: { select: { title: true, endAt: true } } },
+        include: {
+          activity: { select: { title: true, endAt: true } },
+          result: {
+            select: {
+              id: true,
+              createdAt: true,
+              prizeSnapshot: true,
+              prize: {
+                select: { prizeName: true, prizeType: true, prizeValue: true },
+              },
+            },
+          },
+        },
       }),
     ]);
     return {
@@ -131,6 +147,16 @@ export class LuckyDrawService {
         usedAt: t.usedAt?.getTime() ?? null,
         expireAt: t.expireAt?.getTime() ?? null,
         createdAt: t.createdAt.getTime(),
+        result: t.result
+          ? {
+              id: t.result.id,
+              createdAt: t.result.createdAt.getTime(),
+              prizeType: t.result.prize.prizeType,
+              prizeName: t.result.prize.prizeName,
+              prizeValue: t.result.prize.prizeValue?.toNumber() ?? null,
+              prizeSnapshot: t.result.prizeSnapshot,
+            }
+          : null,
       })),
       total,
       page,
@@ -148,7 +174,10 @@ export class LuckyDrawService {
         skip: (page - 1) * pageSize,
         take: pageSize,
         include: {
-          prize: { select: { prizeName: true, prizeType: true } },
+          prize: {
+            select: { prizeName: true, prizeType: true, prizeValue: true },
+          },
+          ticket: { select: { orderId: true } },
         },
       }),
     ]);
@@ -156,9 +185,11 @@ export class LuckyDrawService {
       list: list.map((r) => ({
         id: r.id,
         createdAt: r.createdAt.getTime(),
+        orderId: r.ticket.orderId,
         prizeId: r.prizeId,
         prizeName: r.prize.prizeName,
         prizeType: r.prize.prizeType,
+        prizeValue: r.prize.prizeValue?.toNumber() ?? null,
         prizeSnapshot: r.prizeSnapshot,
       })),
       total,
@@ -214,7 +245,8 @@ export class LuckyDrawService {
       let cumulative = 0;
       let selectedPrize = prizes[prizes.length - 1];
       for (const prize of prizes) {
-        cumulative += Math.round(prize.probability.toNumber() * 100);
+        // 概率是小数（如0.30表示30%），需要乘以PRECISION来匹配roll的范围
+        cumulative += Math.round(prize.probability.toNumber() * PRECISION);
         if (roll < cumulative) {
           selectedPrize = prize;
           break;
@@ -287,7 +319,7 @@ export class LuckyDrawService {
       }
 
       // 7. 写入抽奖结果
-      await tx.luckyDrawResult.create({
+      const drawResult = await tx.luckyDrawResult.create({
         data: {
           ticketId,
           userId,
@@ -297,6 +329,7 @@ export class LuckyDrawService {
             ...(fallbackReason ? { fallback: true, fallbackReason } : {}),
           },
         },
+        select: { id: true, createdAt: true },
       });
 
       return {
@@ -305,8 +338,60 @@ export class LuckyDrawService {
         prizeValue: selectedPrize.prizeValue?.toNumber(),
         isWin: selectedPrize.prizeType !== 4,
         userCouponId,
+        resultId: drawResult.id,
+        drawnAt: drawResult.createdAt.getTime(),
       };
     });
+  }
+
+  // =====================================================================
+  // 查询 — 按订单查票（订单详情页"抽/已抽/中奖"状态）
+  // =====================================================================
+  async getTicketByOrder(userId: string, orderId: string) {
+    const ticket = await this.prisma.luckyDrawTicket.findFirst({
+      where: { userId, orderId },
+      include: {
+        activity: { select: { title: true, endAt: true } },
+        result: {
+          select: {
+            id: true,
+            createdAt: true,
+            prizeSnapshot: true,
+            prize: {
+              select: { prizeName: true, prizeType: true, prizeValue: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!ticket) {
+      return { hasTicket: false as const };
+    }
+
+    return {
+      hasTicket: true as const,
+      ticket: {
+        id: ticket.id,
+        activityId: ticket.activityId,
+        activityTitle: ticket.activity?.title ?? null,
+        activityEndAt: ticket.activity?.endAt?.getTime() ?? null,
+        used: ticket.used,
+        usedAt: ticket.usedAt?.getTime() ?? null,
+        expireAt: ticket.expireAt?.getTime() ?? null,
+        createdAt: ticket.createdAt.getTime(),
+        result: ticket.result
+          ? {
+              id: ticket.result.id,
+              createdAt: ticket.result.createdAt.getTime(),
+              prizeType: ticket.result.prize.prizeType,
+              prizeName: ticket.result.prize.prizeName,
+              prizeValue: ticket.result.prize.prizeValue?.toNumber() ?? null,
+              prizeSnapshot: ticket.result.prizeSnapshot,
+            }
+          : null,
+      },
+    };
   }
 
   // =====================================================================

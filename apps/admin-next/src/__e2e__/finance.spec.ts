@@ -23,9 +23,9 @@ test.describe('Finance Center — /finance', () => {
   });
 
   test('显示 Finance Center 标题', async ({ page }) => {
-    await expect(
-      page.getByText(/finance center/i).first(),
-    ).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(/finance center/i).first()).toBeVisible({
+      timeout: 20_000,
+    });
   });
 
   test('显示 Pending Withdrawals 统计卡片', async ({ page }) => {

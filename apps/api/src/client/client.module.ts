@@ -20,6 +20,7 @@ import { NotificationModule } from '@api/client/notification/notification.module
 import { ClientCouponModule } from '@api/client/coupon/coupon.module';
 import { ClientLuckyDrawModule } from '@api/client/lucky-draw/lucky-draw.module';
 import { ClientFlashSaleModule } from '@api/client/flash-sale/flash-sale.module';
+import { ClientSystemConfigModule } from './system-config/system-config.module';
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { ClientFlashSaleModule } from '@api/client/flash-sale/flash-sale.module'
     ClientCouponModule,
     ClientLuckyDrawModule,
     ClientFlashSaleModule,
+    ClientSystemConfigModule, // 新增：客户端系统配置模块
   ],
   providers: [],
   controllers: [HealthController],

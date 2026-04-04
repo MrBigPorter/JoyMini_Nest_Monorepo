@@ -9,4 +9,3 @@ import { SupportChannelService } from './support-channel.service';
   providers: [SupportChannelService],
 })
 export class SupportChannelModule {}
-

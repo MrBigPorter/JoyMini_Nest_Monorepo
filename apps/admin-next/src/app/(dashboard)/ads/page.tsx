@@ -1,9 +1,14 @@
 import type { Metadata } from 'next';
-import React from 'react';
-import { AdsManagement } from '@/views/AdsManagement';
+import React, { Suspense } from 'react';
+import { AdsManagement } from '@/components/ads/AdsManagementClient';
+import { PageSkeleton } from '@/components/ui/PageSkeleton';
 
 export const metadata: Metadata = { title: 'Ads Management' };
 
 export default function AdsPage() {
-  return <AdsManagement />;
+  return (
+    <Suspense fallback={<PageSkeleton />}>
+      <AdsManagement />
+    </Suspense>
+  );
 }

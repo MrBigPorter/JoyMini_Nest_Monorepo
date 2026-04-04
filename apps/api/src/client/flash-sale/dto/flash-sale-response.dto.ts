@@ -20,7 +20,9 @@ export class FlashSaleSessionItemDto {
   @ApiProperty({ description: 'Number of products bound to the session' })
   productCount!: number;
 
-  @ApiProperty({ description: 'Milliseconds remaining before the session ends' })
+  @ApiProperty({
+    description: 'Milliseconds remaining before the session ends',
+  })
   remainingMs!: number;
 }
 
@@ -146,4 +148,3 @@ export class FlashSaleProductDetailResponseDto {
   @Type(() => FlashSaleTreasureDetailDto)
   product!: FlashSaleTreasureDetailDto;
 }
-

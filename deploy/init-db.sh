@@ -61,7 +61,7 @@ docker run --rm \
   --env DATABASE_URL="$DB_URL" \
   --entrypoint "" \
   "$BACKEND_IMAGE" \
-  ./apps/api/node_modules/.bin/prisma migrate deploy \
+  ./node_modules/.bin/prisma migrate deploy \
     --schema=apps/api/prisma/schema.prisma
 
 APPLIED=$(docker run --rm \
@@ -69,7 +69,7 @@ APPLIED=$(docker run --rm \
   --env DATABASE_URL="$DB_URL" \
   --entrypoint "" \
   "$BACKEND_IMAGE" \
-  ./apps/api/node_modules/.bin/prisma migrate status \
+  ./node_modules/.bin/prisma migrate status \
     --schema=apps/api/prisma/schema.prisma 2>&1 | grep -c 'Applied' || echo '?')
 echo "✅ 迁移完成 — ${APPLIED} 个迁移已应用"
 
@@ -132,7 +132,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "  💡 创建/重置超级管理员 (推荐方式):"
 echo ""
 echo "     docker exec -it lucky-backend-prod \\"
-echo "       node apps/api/dist/cli/create-admin.js"
+echo "       node apps/api/dist/scripts/cli/create-admin.js"
 echo ""
 echo "  📝 交互式输入用户名、显示名、密码 (密码不回显)"
 echo "  🔁 可重复运行 — 已存在则提示是否重置密码"

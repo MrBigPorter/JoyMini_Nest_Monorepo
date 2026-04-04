@@ -6,7 +6,7 @@ import { actSectionApi, productApi } from '@/api';
 import { actSectionWithProducts, Product } from '@/type/types';
 import { Button, ModalManager } from '@repo/ui';
 import { Input } from '@/components/UIComponents';
-import { createColumnHelper, ColumnDef } from '@tanstack/react-table';
+import type { ColumnDef } from '@tanstack/react-table';
 import { Link, Link2Off, Search } from 'lucide-react';
 import { useToastStore } from '@/store/useToastStore';
 import { BaseTable } from '@/components/scaffold/BaseTable';
@@ -19,6 +19,7 @@ interface Props {
 }
 
 export const ActSectionBindProductModal: React.FC<Props> = ({
+  onClose,
   onConfirm,
   editingData,
 }) => {
@@ -128,46 +129,47 @@ export const ActSectionBindProductModal: React.FC<Props> = ({
   }, []);
 
   // 3. 表格列定义
-  const columns: ColumnDef<Product>[] = useMemo(() => {
-    const columnHelper = createColumnHelper<Product>();
+  const columns = useMemo<ColumnDef<Product, unknown>[]>(() => {
     return [
-      columnHelper.accessor('treasureName', {
+      {
+        accessorKey: 'treasureName',
         header: 'Product Info',
-        cell: (info) => (
+        cell: ({ row }) => (
           <div className="flex items-center gap-3">
             <SmartImage
               width={40}
               height={40}
               layout="constrained"
-              src={info.row.original.treasureCoverImg}
+              src={row.original.treasureCoverImg}
               className="min-w-[40px] h-10 rounded object-cover bg-gray-100"
               alt=""
               loading="lazy"
             />
             <div className="text-sm font-medium line-clamp-1">
-              {info.getValue()}
+              {row.original.treasureName}
             </div>
           </div>
         ),
-      }),
-      columnHelper.accessor('unitAmount', {
+      },
+      {
+        accessorKey: 'unitAmount',
         header: 'Price',
-        cell: (info) => (
-          <span className="font-mono text-xs">₱{info.getValue()}</span>
+        cell: ({ row }) => (
+          <span className="font-mono text-xs">₱{row.original.unitAmount}</span>
         ),
-      }),
-      columnHelper.accessor((row) => existingIds.includes(row.treasureId), {
+      },
+      {
         id: 'actions',
         header: 'Actions',
         enableSorting: false,
-        cell: (info) => {
-          const isBinding = existingIds.includes(info.row.original.treasureId);
+        cell: ({ row }) => {
+          const isBinding = existingIds.includes(row.original.treasureId);
           return isBinding ? (
             <Button
-              isLoading={loading}
+              isLoading={unbindLoading}
               variant="ghost"
               size="sm"
-              onClick={() => unbind(info.row.original)}
+              onClick={() => unbind(row.original)}
             >
               <Link2Off size={16} />
             </Button>
@@ -178,7 +180,7 @@ export const ActSectionBindProductModal: React.FC<Props> = ({
               size="sm"
               onClick={() =>
                 bindProductByColum(editingData.id, {
-                  treasureIds: [info.row.original.treasureId],
+                  treasureIds: [row.original.treasureId],
                 })
               }
             >
@@ -186,14 +188,14 @@ export const ActSectionBindProductModal: React.FC<Props> = ({
             </Button>
           );
         },
-      }),
+      },
     ];
   }, [
     bindProductByColum,
     bindProductByColumLoading,
     editingData.id,
     existingIds,
-    loading,
+    unbindLoading,
     unbind,
   ]);
 
@@ -244,7 +246,9 @@ export const ActSectionBindProductModal: React.FC<Props> = ({
           <span className="font-bold text-blue-600">{selectedRows.length}</span>
           items
         </div>
-        <Button variant="ghost">Cancel</Button>
+        <Button variant="ghost" onClick={onClose}>
+          Cancel
+        </Button>
         <Button isLoading={loading} onClick={confirm}>
           Confirm Add
         </Button>

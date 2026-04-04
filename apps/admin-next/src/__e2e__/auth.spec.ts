@@ -28,9 +28,7 @@ test.describe('Auth — 认证流程', () => {
     await page.waitForURL(/\/login/, { timeout: 10_000 });
     await expect(page.getByLabel('Username')).toBeVisible({ timeout: 10_000 });
     await expect(page.getByLabel('Password')).toBeVisible();
-    await expect(
-      page.getByRole('button', { name: /sign in/i }),
-    ).toBeVisible();
+    await expect(page.getByRole('button', { name: /sign in/i })).toBeVisible();
   });
 
   test('输入错误密码时显示错误提示', async ({ page }) => {
@@ -56,7 +54,12 @@ test.describe('Auth — 认证流程', () => {
     await loginViaUI(page);
     // After login the page navigates to /; wait for DashboardLayout to render
     await waitForDashboard(page, 60_000);
-    await expect(page.locator('h1').filter({ hasText: /dashboard/i }).first()).toBeVisible({
+    await expect(
+      page
+        .locator('h1')
+        .filter({ hasText: /dashboard/i })
+        .first(),
+    ).toBeVisible({
       timeout: 10_000,
     });
   });
@@ -69,7 +72,9 @@ test.describe('Auth — 认证流程', () => {
     await waitForDashboard(page, 60_000);
     // Now that we are authenticated, visiting /login/ should redirect back to /
     await page.goto('/login/');
-    await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 30_000 });
+    await page.waitForURL((url) => !url.pathname.includes('/login'), {
+      timeout: 30_000,
+    });
     expect(page.url()).not.toContain('login');
   });
 });

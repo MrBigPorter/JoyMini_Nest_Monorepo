@@ -38,9 +38,7 @@ export const createProductSchema = z.object({
   shippingType: z.coerce.number(),
   weight: z.coerce.number().optional(),
 
-  groupSize: z.coerce
-    .number()
-    .min(2, 'Group size must be at least 2'),
+  groupSize: z.coerce.number().min(2, 'Group size must be at least 2'),
 
   groupTimeLimit: z.coerce
     .number()

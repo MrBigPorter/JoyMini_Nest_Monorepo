@@ -16,9 +16,7 @@ const InfoRow = ({
 }) => (
   <div className="flex flex-col gap-1">
     <span className="text-xs text-gray-500">{label}</span>
-    <div className="text-sm font-medium break-words">
-      {value || '-'}
-    </div>
+    <div className="text-sm font-medium break-words">{value || '-'}</div>
   </div>
 );
 

@@ -10,7 +10,7 @@ import {
   FormTextField,
 } from '@repo/ui';
 import { SearchFieldSchema } from '@/type/search';
-import { useMemo } from 'react';
+import { useMemo, useCallback } from 'react';
 
 // 泛型 T 限制为对象
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -30,6 +30,15 @@ export const SchemaSearchForm = <T extends Record<string, any>>({
   onReset,
   loading,
 }: Props<T>) => {
+  const cleanValues = useCallback((values: T) => {
+    return Object.fromEntries(
+      Object.entries(values).filter(
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        ([_, v]) => v !== '' && v !== undefined && v !== null && v !== 'ALL',
+      ),
+    ) as T;
+  }, []);
+
   // 1. 生成默认值对象
   const defaultValues = useMemo(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -42,6 +51,16 @@ export const SchemaSearchForm = <T extends Record<string, any>>({
     return defaults;
   }, [schema, initialValues]);
 
+  // reset 应回到 schema 默认值，而不是回到 URL 初始筛选
+  const resetValues = useMemo(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const defaults: any = {};
+    schema.forEach((field) => {
+      defaults[field.key] = field.defaultValue ?? '';
+    });
+    return defaults as T;
+  }, [schema]);
+
   // 2. 使用 React Hook Form 接管状态
   const form = useForm<T>({
     defaultValues,
@@ -49,19 +68,14 @@ export const SchemaSearchForm = <T extends Record<string, any>>({
 
   // 3. 搜索处理
   const onSubmit = (values: T) => {
-    // 过滤掉 undefined 或空字符串的值（可选，看后端需求，通常搜索时不传空值）
-    const cleanedValues = Object.fromEntries(
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      Object.entries(values).filter(([_, v]) => v !== '' && v !== undefined),
-    ) as T;
-    onSearch(cleanedValues);
+    onSearch(cleanValues(values));
   };
 
   // 4. 重置处理
   const handleReset = () => {
-    form.reset(defaultValues); // 重置表单 UI
+    form.reset(resetValues); // 重置到 schema 默认值
     onReset?.();
-    onSearch(defaultValues); // 立即触发一次空搜索
+    onSearch(cleanValues(resetValues));
   };
 
   // 5. 渲染字段

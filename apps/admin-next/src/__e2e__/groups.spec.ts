@@ -23,11 +23,15 @@ test.describe('Group Management — /groups', () => {
   });
 
   test('显示 Group 相关标题', async ({ page }) => {
-    await expect(page.locator('h1, h2, h3').first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('h1, h2, h3').first()).toBeVisible({
+      timeout: 20_000,
+    });
   });
 
   test('Group 内容区域渲染', async ({ page }) => {
-    const content = page.locator('table, [class*="card"], [class*="Card"], main > div').first();
+    const content = page
+      .locator('table, [class*="card"], [class*="Card"], main > div')
+      .first();
     await expect(content).toBeVisible({ timeout: 20_000 });
   });
 

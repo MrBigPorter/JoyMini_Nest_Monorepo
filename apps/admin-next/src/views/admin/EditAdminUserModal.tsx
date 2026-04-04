@@ -13,6 +13,7 @@ import {
   Switch,
 } from '@/components/UIComponents';
 import { useToastStore } from '@/store/useToastStore';
+import { useAuthStore } from '@/store/useAuthStore';
 import { AdminUpdateUser, AdminUser } from '@/type/types';
 import { userApi } from '@/api';
 
@@ -38,6 +39,19 @@ export const EditAdminUserModal: React.FC<EditAdminUserModalProps> = ({
   onSuccess,
 }) => {
   const addToast = useToastStore((state) => state.addToast);
+  const currentUserRole = useAuthStore((state) => state.userInfo?.role);
+  const isSuperAdmin = currentUserRole === 'SUPER_ADMIN';
+
+  // 非 SUPER_ADMIN 不能把账号设为 SUPER_ADMIN，也不能修改 SUPER_ADMIN 账号的 role
+  const isEditingSuper = editingUser?.role === 'SUPER_ADMIN';
+  const roleOptions = [
+    { label: 'Viewer', value: 'VIEWER' },
+    { label: 'Editor', value: 'EDITOR' },
+    { label: 'Admin', value: 'ADMIN' },
+    ...(isSuperAdmin ? [{ label: 'Super Admin', value: 'SUPER_ADMIN' }] : []),
+  ];
+  // 非 SUPER_ADMIN 编辑 SUPER_ADMIN 账号时，role 字段锁定（只读）
+  const roleDisabled = isEditingSuper && !isSuperAdmin;
 
   const {
     register,
@@ -93,14 +107,15 @@ export const EditAdminUserModal: React.FC<EditAdminUserModalProps> = ({
         />
         <Select
           label="Role"
+          disabled={roleDisabled}
           {...register('role')}
-          options={[
-            { label: 'Viewer', value: 'VIEWER' },
-            { label: 'Editor', value: 'EDITOR' },
-            { label: 'Admin', value: 'ADMIN' },
-            { label: 'Super Admin', value: 'SUPER_ADMIN' },
-          ]}
+          options={roleOptions}
         />
+        {roleDisabled && (
+          <p className="text-xs text-amber-500 -mt-2">
+            Only Super Admin can modify a Super Admin account&apos;s role.
+          </p>
+        )}
         <div className="flex items-center justify-between">
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
             Status
@@ -111,20 +126,20 @@ export const EditAdminUserModal: React.FC<EditAdminUserModalProps> = ({
             render={({ field }) => (
               <Switch
                 checked={field.value === 1}
+                disabled={roleDisabled}
                 onChange={(checked) => field.onChange(checked ? 1 : 0)}
               />
             )}
           />
         </div>
-
-        <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 dark:border-white/5">
-          <Button type="button" variant="ghost" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button type="submit" isLoading={isUpdating}>
-            Save Changes
-          </Button>
-        </div>
+        {roleDisabled && (
+          <p className="text-xs text-amber-500">
+            Only Super Admin can modify a Super Admin account.
+          </p>
+        )}
+        <Button type="submit" isLoading={isUpdating}>
+          Save Changes
+        </Button>
       </form>
     </Modal>
   );

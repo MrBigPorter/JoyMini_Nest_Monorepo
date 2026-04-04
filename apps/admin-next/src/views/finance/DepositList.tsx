@@ -8,6 +8,7 @@ import {
   ActionType,
 } from '@/components/scaffold/SmartTable';
 import { financeApi } from '@/api';
+import { revalidateFinanceAfterRechargeSync } from '@/lib/actions/finance-revalidate';
 import { RechargeListParams, RechargeOrder } from '@/type/types';
 import { DepositDetailModal } from './DepositDetailModal';
 import { DEPOSIT_STATUS_CONFIG, CHANNEL_OPTIONS } from './type';
@@ -17,6 +18,11 @@ import { Badge } from '@repo/ui';
 import { useToastStore } from '@/store/useToastStore';
 import { useRequest } from 'ahooks';
 import { RECHARGE_STATUS } from '@lucky/shared';
+import {
+  buildDepositsListParams,
+  depositsListQueryKey,
+  parseDepositsSearchParams,
+} from '@/lib/cache/finance-deposits-cache';
 
 // Assuming your RECHARGE_STATUS enum/const looks something like this:
 // const RECHARGE_STATUS = { PENDING: 0, SUCCESS: 1, FAILED: 2 };
@@ -33,6 +39,25 @@ export const DepositList: React.FC<DepositListProps> = ({
   const actionRef = useRef<ActionType>(null);
   const [syncingId, setSyncingId] = useState<string | null>(null); // State for loading effect
   const addToast = useToastStore((state) => state.addToast);
+
+  const normalizedInitialFormParams = useMemo(() => {
+    const input = initialFormParams ?? {};
+    return parseDepositsSearchParams({
+      page: typeof input.page === 'string' ? input.page : undefined,
+      pageSize: typeof input.pageSize === 'string' ? input.pageSize : undefined,
+      keyword: typeof input.keyword === 'string' ? input.keyword : undefined,
+      status: typeof input.status === 'string' ? input.status : undefined,
+      channel: typeof input.channel === 'string' ? input.channel : undefined,
+      startDate:
+        typeof input.startDate === 'string' ? input.startDate : undefined,
+      endDate: typeof input.endDate === 'string' ? input.endDate : undefined,
+    });
+  }, [initialFormParams]);
+
+  const hydrationQueryKey = useMemo(
+    () => depositsListQueryKey(normalizedInitialFormParams),
+    [normalizedInitialFormParams],
+  );
 
   // 1. View Details
   const handleViewDetail = useCallback((record: RechargeOrder) => {
@@ -51,6 +76,7 @@ export const DepositList: React.FC<DepositListProps> = ({
       onSuccess: (res) => {
         if (res.status === 'SYNCED_SUCCESS') {
           addToast('success', 'Order synced successfully! User credited.');
+          void revalidateFinanceAfterRechargeSync();
         } else if (res.status === 'SYNCED_EXPIRED') {
           addToast('info', 'Order expired on Xendit.');
           actionRef.current?.reload();
@@ -161,15 +187,8 @@ export const DepositList: React.FC<DepositListProps> = ({
         width: 180, // Increased width to fit buttons
         render: (_, row) => {
           const button = DEPOSIT_STATUS_CONFIG[row.rechargeStatus];
-          // Assuming 0 is PENDING. You might need to import your ENUM here.
           const isPending = row.rechargeStatus === RECHARGE_STATUS.PENDING;
 
-          console.log(
-            'Rendering action buttons for row:',
-            row,
-            'isPending:',
-            isPending,
-          );
           return (
             <div className="flex gap-2">
               <Button
@@ -250,16 +269,28 @@ export const DepositList: React.FC<DepositListProps> = ({
   );
 
   const requestDeposits = useCallback(async (params: RechargeListParams) => {
-    const requestData = { ...params };
-    delete (requestData as Record<string, unknown>).tab;
-    if (requestData.status === 'ALL') delete requestData.status;
-    if (requestData.dateRange) {
-      requestData.startDate = requestData.dateRange.from;
-      requestData.endDate = requestData.dateRange.to;
-      delete requestData.dateRange;
-    }
+    const input = params as Record<string, unknown>;
+    const dateRange = input.dateRange as
+      | { from?: string; to?: string }
+      | undefined;
+    const queryInput = parseDepositsSearchParams({
+      page: String(params.page ?? 1),
+      pageSize: String(params.pageSize ?? 10),
+      keyword: typeof input.keyword === 'string' ? input.keyword : undefined,
+      status:
+        typeof input.status === 'string' || typeof input.status === 'number'
+          ? String(input.status)
+          : undefined,
+      channel: typeof input.channel === 'string' ? input.channel : undefined,
+      startDate:
+        typeof input.startDate === 'string' ? input.startDate : dateRange?.from,
+      endDate:
+        typeof input.endDate === 'string' ? input.endDate : dateRange?.to,
+    });
 
-    const res = await financeApi.getDeposits(requestData);
+    const res = await financeApi.getDeposits(
+      buildDepositsListParams(queryInput) as RechargeListParams,
+    );
     return {
       data: res.list,
       total: res.total,
@@ -289,10 +320,12 @@ export const DepositList: React.FC<DepositListProps> = ({
         ref={actionRef}
         columns={columns}
         searchSchema={searchSchema}
-        initialFormParams={initialFormParams}
+        initialFormParams={normalizedInitialFormParams}
         onParamsChange={onParamsChange}
         request={requestDeposits}
         toolBarRender={toolBarRender}
+        enableHydration={true}
+        hydrationQueryKey={hydrationQueryKey}
       />
     </div>
   );

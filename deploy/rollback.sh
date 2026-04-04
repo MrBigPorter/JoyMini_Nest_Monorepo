@@ -10,7 +10,13 @@
 # ============================================================
 set -euo pipefail
 
-VPS_IP="***REDACTED***"
+VPS_IP="${VPS_IP:-}"
+if [ -z "$VPS_IP" ]; then
+    read -rp "请输入 VPS IP 地址: " VPS_IP
+fi
+if [ -z "$VPS_IP" ]; then
+    err "VPS_IP 不能为空"
+fi
 VPS_USER="root"
 VPS_DIR="/opt/lucky"
 SSH_TARGET="${VPS_USER}@${VPS_IP}"

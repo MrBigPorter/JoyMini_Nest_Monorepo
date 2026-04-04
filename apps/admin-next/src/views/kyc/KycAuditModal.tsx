@@ -52,6 +52,7 @@ const ImagePreviewModal = ({
         className="max-w-full max-h-full flex flex-col items-center"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* eslint-disable-next-line @next/next/no-img-element -- KYC lightbox: image dimensions are unknown at runtime */}
         <img
           src={src}
           alt={title}

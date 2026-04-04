@@ -542,7 +542,7 @@ export class FinanceService {
 
     //dluble check (Invoice + E-Wallet)
     let xenditInvoice;
-    let syncType = 'INVOICE';
+    const syncType = 'INVOICE';
 
     // first try to get invoice by thirdPartyOrderNo
     if (order.thirdPartyOrderNo) {

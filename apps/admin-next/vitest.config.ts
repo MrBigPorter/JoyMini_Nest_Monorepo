@@ -42,7 +42,11 @@ export default defineConfig({
         __dirname,
         './src/__tests__/mocks/next-dynamic.tsx',
       ),
+      // server-only 在测试环境中不做运行时检查（生产环境保护不变）
+      'server-only': path.resolve(
+        __dirname,
+        './src/__tests__/mocks/server-only.ts',
+      ),
     },
   },
 });
-

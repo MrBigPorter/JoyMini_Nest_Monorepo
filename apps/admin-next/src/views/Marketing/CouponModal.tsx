@@ -141,16 +141,17 @@ export const CouponModal: React.FC<CouponFormModalProps> = ({
         // CRITICAL FIX: Strip sensitive fields if the coupon is already issued
         // This prevents the backend's strict inequality check (e.g. 30 !== "30.00") from triggering a 400 error.
         if ((editingData?.issuedQuantity ?? 0) > 0) {
-          delete (data as any).couponType;
-          delete (data as any).discountType;
-          delete (data as any).discountValue;
-          delete (data as any).minPurchase;
-          delete (data as any).maxDiscount;
-          delete (data as any).validType;
-          delete (data as any).validDays;
-          delete (data as any).validStartAt;
-          delete (data as any).validEndAt;
-          delete (data as any).issueType;
+          const d = data as unknown as Record<string, unknown>;
+          delete d.couponType;
+          delete d.discountType;
+          delete d.discountValue;
+          delete d.minPurchase;
+          delete d.maxDiscount;
+          delete d.validType;
+          delete d.validDays;
+          delete d.validStartAt;
+          delete d.validEndAt;
+          delete d.issueType;
         }
 
         // Update API

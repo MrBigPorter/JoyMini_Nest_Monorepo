@@ -41,6 +41,8 @@ import {
 import { GoogleProvider } from '@api/client/auth/providers/google.provider';
 import { FacebookProvider } from '@api/client/auth/providers/facebook.provider';
 import { AppleProvider } from '@api/client/auth/providers/apple.provider';
+import { FirebaseProvider } from '@api/client/auth/providers/firebase.provider';
+import { FirebaseLoginDto } from '@api/client/auth/dto/firebase-login.dto';
 
 //@ApiTags('auth') Swagger 里把这些接口归到 auth 组。
 //@Controller('auth')：这组接口的前缀是 /auth/*。
@@ -52,6 +54,7 @@ export class AuthController {
     private readonly googleProvider: GoogleProvider,
     private readonly facebookProvider: FacebookProvider,
     private readonly appleProvider: AppleProvider,
+    private readonly firebaseProvider: FirebaseProvider,
   ) {}
 
   // 使用手机号登陆
@@ -187,6 +190,23 @@ export class AuthController {
     return this.auth.loginWithEmailCode(dto.email, dto.code, {
       ip: device.ip,
       ua: device.userAgent,
+    });
+  }
+
+  @Post('firebase')
+  @ApiOperation({ summary: 'Firebase unified login (Google/Facebook/Apple)' })
+  @Throttle({ otpRequest: { limit: 15, ttl: 60_000 } })
+  @ApiOkResponse({ type: OauthLoginResponseDto })
+  @HttpCode(HttpStatus.OK)
+  async loginWithFirebase(
+    @Body() dto: FirebaseLoginDto,
+    @CurrentDevice() device: DeviceInfo,
+  ) {
+    const result = await this.firebaseProvider.verifyIdToken(dto.idToken);
+    return this.auth.loginWithOauth(result.provider, result.profile, {
+      ip: device.ip,
+      ua: device.userAgent,
+      inviteCode: dto.inviteCode,
     });
   }
 }

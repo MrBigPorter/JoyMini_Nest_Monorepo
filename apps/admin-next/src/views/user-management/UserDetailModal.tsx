@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Image from 'next/image';
 import { useRequest } from 'ahooks';
 import { Button, cn } from '@repo/ui';
 import {
@@ -320,14 +321,16 @@ export const UserDetailModal: React.FC<Props> = ({ userId, reload, close }) => {
             <div className="relative">
               <div
                 className={cn(
-                  'h-28 w-28 rounded-[2rem] border-[6px] border-white dark:border-gray-800 shadow-2xl overflow-hidden mb-6 transition-all duration-500',
+                  'h-28 w-28 rounded-[2rem] border-[6px] border-white dark:border-gray-800 shadow-2xl overflow-hidden mb-6 transition-all duration-500 relative',
                   isFrozen ? 'grayscale opacity-70' : 'rotate-3 hover:rotate-0',
                 )}
               >
-                <img
+                <Image
+                  fill
                   src={data.avatar || '/default-avatar.png'}
-                  className="h-full w-full object-cover"
+                  className="object-cover"
                   alt="avatar"
+                  sizes="112px"
                 />
               </div>
               <div

@@ -7,4 +7,3 @@ import { RecaptchaService } from './recaptcha.service';
   exports: [RecaptchaService],
 })
 export class RecaptchaModule {}
-

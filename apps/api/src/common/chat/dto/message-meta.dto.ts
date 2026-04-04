@@ -105,4 +105,32 @@ export class MessageMetaDto {
   @IsOptional()
   @IsString()
   realAdminId?: string;
+
+  // =========================================================
+  // 新增：通话结束消息专用字段
+  // =========================================================
+  @ApiProperty({ description: '通话类型 (audio/video)', required: false })
+  @IsOptional()
+  @IsString()
+  callType?: string;
+
+  @ApiProperty({ description: '通话开始时间戳（毫秒）', required: false })
+  @IsOptional()
+  @IsNumber()
+  startedAt?: number;
+
+  @ApiProperty({ description: '通话会话ID', required: false })
+  @IsOptional()
+  @IsString()
+  sessionId?: string;
+
+  @ApiProperty({ description: '通话结束原因', required: false })
+  @IsOptional()
+  @IsString()
+  reason?: string;
+
+  @ApiProperty({ description: '是否为系统生成的通话结束消息', required: false })
+  @IsOptional()
+  @IsBoolean()
+  isSystemCallEnd?: boolean;
 }

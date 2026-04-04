@@ -2,6 +2,7 @@
   "name": "lucky-nest-monorepo",
   "private": true,
   "scripts": {
+    "prepare": "husky",
     "dev": "turbo run dev",
     "dev:api": "turbo run dev --filter=@lucky/api",
     "dev:admin": "turbo run dev --filter=admin",
@@ -11,6 +12,11 @@
     "test": "turbo run test",
     "clean": "turbo run clean && rimraf .turbo node_modules",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "lint:staged": "lint-staged --config lint-staged.config.mjs",
+    "prepush:light": "yarn workspace @repo/ui lint && yarn workspace @repo/ui check-types && yarn workspace @lucky/admin-next lint && yarn workspace @lucky/admin-next check-types",
+    "prepush:heavy": "yarn prepush:light",
+    "prepush:api": "yarn workspace @lucky/api lint",
+    "prepush:check": "yarn prepush:light",
     "check-types": "turbo run check-types",
     "gen:shop:api": "node packages/config/gen-codes.js shop api",
     "gen:shop:client": "node packages/config/gen-codes.js shop client",
@@ -42,24 +48,34 @@
     "pr:baseline": "docker exec -it lucky-backend-dev sh -lc 'mkdir -p apps/api/prisma/migrations/BASELINE && yarn workspace @lucky/api prisma migrate diff --from-empty --to-schema-datamodel apps/api/prisma/schema.prisma --script > apps/api/prisma/migrations/BASELINE/migration.sql && yarn workspace @lucky/api prisma migrate resolve --applied BASELINE && yarn workspace @lucky/api prisma migrate status'",
     "db:init:dev": "docker exec -it lucky-backend-dev sh -lc \"yarn workspace @lucky/api prisma migrate deploy && yarn workspace @lucky/api prisma generate && yarn workspace @lucky/api seed\"",
     "db:seed:dev": "docker exec -it lucky-backend-dev sh -lc \"yarn workspace @lucky/api seed\"",
-    "db:reset:dev": "docker exec -it lucky-backend-dev sh -lc \"yarn workspace @lucky/api prisma migrate reset --force && yarn workspace @lucky/api prisma generate\""
+    "db:reset:dev": "docker exec -it lucky-backend-dev sh -lc \"yarn workspace @lucky/api prisma migrate reset --force && yarn workspace @lucky/api prisma generate\"",
+    "perf:lighthouse": "yarn workspace @lucky/admin-next lighthouse:audit",
+    "perf:lighthouse:strict": "yarn workspace @lucky/admin-next lighthouse:audit:strict",
+    "perf:lhci": "yarn workspace @lucky/admin-next lhci"
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.57.2",
+    "@typescript-eslint/parser": "^8.57.2",
+    "husky": "^9.1.7",
     "jest": "^30.2.0",
+    "lint-staged": "^15.5.2",
     "prettier": "^3.6.2",
     "ts-jest": "^29.4.5",
     "turbo": "^2.5.8",
-    "typescript": "5.9.2"
+    "typescript": "5.5.4"
   },
   "engines": {
     "node": ">=18"
   },
   "resolutions": {
+    "typescript": "5.5.4",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "react-hook-form": "^7.71.2",
-    "@hookform/resolvers": "^5.2.2"
+    "@hookform/resolvers": "^5.2.2",
+    "@opentelemetry/instrumentation@npm:^0.212.0": "0.213.0",
+    "import-in-the-middle": "3.0.0"
   },
   "packageManager": "yarn@4.9.2",
   "workspaces": [

@@ -9,6 +9,7 @@ const mockRouterPush = vi.hoisted(() => vi.fn());
 const mockLogin = vi.hoisted(() => vi.fn());
 const mockAddToast = vi.hoisted(() => vi.fn());
 const mockAuthLogin = vi.hoisted(() => vi.fn());
+const mockAuthClearCookie = vi.hoisted(() => vi.fn());
 
 // ── mocks ────────────────────────────────────────────────────────
 vi.mock('framer-motion', () => framerMotionMock);
@@ -35,7 +36,7 @@ vi.mock('@/store/useToastStore', () => ({
     sel({ addToast: mockAddToast }),
 }));
 vi.mock('@/api', () => ({
-  authApi: { login: mockAuthLogin },
+  authApi: { login: mockAuthLogin, clearCookie: mockAuthClearCookie },
 }));
 
 // ── shared test fixtures ──────────────────────────────────────────
@@ -54,7 +55,9 @@ const MOCK_USER_INFO = {
 import { Login } from '@/views/Login';
 
 describe('Login page', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   it('renders username and password inputs', () => {
     render(<Login />);
@@ -154,5 +157,21 @@ describe('Login page', () => {
         expect.stringContaining('No access token'),
       ),
     );
+  });
+
+  it('renders with local token should auto-clear stale tokens', async () => {
+    localStorage.setItem('auth_token', 'stale-auth');
+    localStorage.setItem('refresh_token', 'stale-refresh');
+    sessionStorage.setItem('csrf_token', 'stale-csrf');
+    mockAuthClearCookie.mockResolvedValue({ ok: true });
+
+    render(<Login />);
+
+    await waitFor(() => {
+      expect(localStorage.getItem('auth_token')).toBeNull();
+      expect(localStorage.getItem('refresh_token')).toBeNull();
+      expect(sessionStorage.getItem('csrf_token')).toBeNull();
+      expect(mockAuthClearCookie).toHaveBeenCalled();
+    });
   });
 });

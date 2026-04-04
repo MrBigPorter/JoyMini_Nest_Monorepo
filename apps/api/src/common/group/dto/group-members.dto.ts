@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { ToNumber } from '@api/common/dto/transforms';
-import { IsInt, IsString, Max, Min } from 'class-validator';
+import { IsInt, Max, Min } from 'class-validator';
 
 export class GroupMembersDto {
   @ApiProperty({ description: 'page', example: 1, type: Number })

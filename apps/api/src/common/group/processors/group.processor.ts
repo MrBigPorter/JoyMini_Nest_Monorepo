@@ -45,15 +45,15 @@ export class GroupProcessor extends WorkerHost {
 
       // Step 2：发福利抽奖券（事务外，fire-and-forget，失败不影响主流程）
       setImmediate(() => {
-        this.luckyDrawService.issueTicketsForGroup(groupId).catch(
-          (e: unknown) => {
+        this.luckyDrawService
+          .issueTicketsForGroup(groupId)
+          .catch((e: unknown) => {
             this.logger.error(
               `[LuckyDraw] issueTicketsForGroup failed for group ${groupId}: ${
                 e instanceof Error ? e.message : String(e)
               }`,
             );
-          },
-        );
+          });
       });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);

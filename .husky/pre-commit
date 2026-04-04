@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+
+# Format staged files before commit to avoid CI Prettier noise.
+yarn lint:staged
+

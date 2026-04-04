@@ -1,43 +1,69 @@
 name: 🚀 Master Deployment Control
 
+run-name: >-
+  Master Deploy · ${{ github.ref_name }} ·
+  admin_cf=${{ inputs.deploy_admin_cloudflare }} api=${{ inputs.deploy_api }}
+
 on:
   workflow_dispatch:
     inputs:
-      deploy_admin:
-        description: '🌐 Deploy Admin Frontend (VPS — rollback channel)'
-        type: boolean
-        default: false
+      runner:
+        description: "🖥️ Runner (ubuntu-latest = GitHub托管 / self-hosted = 本地Mac算力)"
+        type: choice
+        options: [ubuntu-latest, self-hosted]
+        default: ubuntu-latest
       deploy_admin_cloudflare:
-        description: '☁️ Deploy Admin Frontend (Cloudflare Workers — default)'
+        description: "☁️ Deploy Admin Frontend (Cloudflare Workers — default)"
         type: boolean
         default: true
       deploy_api:
-        description: '⚙️ Deploy Backend API (VPS)'
+        description: "⚙️ Deploy Backend API (VPS)"
         type: boolean
         default: true
 
 permissions:
   contents: read
-  packages: write      # Required for GHCR (Docker) pushing
+  deployments: write
+  packages: write # Required for GHCR (Docker) pushing
+
+concurrency:
+  group: deploy-master-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  # 1. Calls the Admin deployment workflow
-  run-admin-deploy:
-    name: 🌐 Trigger Admin Deploy
-    if: ${{ inputs.deploy_admin == true }}
-    uses: ./.github/workflows/deploy-admin.yml
-    secrets: inherit
-
-  # 2. Calls the Admin Cloudflare deployment workflow
+  # Job 0 / 任务 0: Print deploy intent and context for traceability
+  preflight:
+    name: 🧭 Preflight Summary
+    runs-on: ${{ inputs.runner }}
+    steps:
+      - name: Write dispatch summary
+        run: |
+          {
+            echo "## Master Deploy Dispatch"
+            echo ""
+            echo "- Branch: \`${{ github.ref_name }}\`"
+            echo "- Commit: \`${{ github.sha }}\`"
+            echo "- Runner: \`${{ inputs.runner }}\`"
+            echo "- Deploy Admin (Cloudflare): \`${{ inputs.deploy_admin_cloudflare }}\`"
+            echo "- Deploy API (VPS): \`${{ inputs.deploy_api }}\`"
+            echo "- Triggered by: \`${{ github.actor }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+  # Job 1 / 任务 1: Call the Admin Cloudflare primary deployment workflow
   run-admin-cloudflare-deploy:
     name: ☁️ Trigger Admin Cloudflare Deploy
+    needs: preflight
     if: ${{ inputs.deploy_admin_cloudflare == true }}
     uses: ./.github/workflows/deploy-admin-cloudflare.yml
+    with:
+      runner: ${{ inputs.runner }}
     secrets: inherit
 
-  # 3. Calls the Backend deployment workflow
+  # Job 2 / 任务 2: Call the Backend VPS deployment workflow
   run-backend-deploy:
     name: ⚙️ Trigger Backend Deploy
+    needs: preflight
     if: ${{ inputs.deploy_api == true }}
     uses: ./.github/workflows/deploy-backend.yml
+    with:
+      runner: ${{ inputs.runner }}
     secrets: inherit

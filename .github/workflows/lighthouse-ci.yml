@@ -1,0 +1,145 @@
+name: Lighthouse CI
+
+# ============================================================
+# 触发条件：手动触发 + 部署成功后自动触发
+# Triggers: manual dispatch + auto after deploy succeeds
+# ============================================================
+on:
+  workflow_dispatch:
+    inputs:
+      runs_per_page:
+        description: "Runs per page (1=fast, 3=accurate)"
+        type: choice
+        options: ["1", "3"]
+        default: "1"
+  workflow_run:
+    workflows: ["Deploy Admin (Cloudflare)"]
+    types: [completed]
+    branches: [main]
+
+concurrency:
+  group: lighthouse-ci
+  cancel-in-progress: false
+
+jobs:
+  lighthouse:
+    name: Lighthouse Audit
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    steps:
+      - name: 1. Checkout
+        uses: actions/checkout@v4
+
+      - name: 2. Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 3. Enable Corepack (Yarn 4)
+        run: corepack enable && corepack prepare yarn@4.9.2 --activate
+
+      - name: 4. Install dependencies
+        run: yarn install
+
+      # ── Step 5: 登录生产 API 拿 Token ────────────────────────
+      # Login to production API (api.joyminis.com) and extract JWT
+      # Admin frontend (admin.joyminis.com) does not proxy /api,
+      # so we hit api.joyminis.com directly.
+      - name: 5. Get auth token from production API
+        id: auth
+        run: |
+          # Check if Secrets are configured
+          if [ -z "${{ secrets.LIGHTHOUSE_ADMIN_USERNAME }}" ] || [ -z "${{ secrets.LIGHTHOUSE_ADMIN_PASSWORD }}" ]; then
+            echo "::warning::LIGHTHOUSE_ADMIN_USERNAME or LIGHTHOUSE_ADMIN_PASSWORD not set. Skipping Lighthouse CI."
+            echo "See read/devops/LIGHTHOUSE_CI_SETUP_CN.md for setup instructions."
+            echo "token=SKIP" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST https://api.joyminis.com/api/v1/auth/admin/login \
+            -H 'Content-Type: application/json' \
+            -d "{\"username\":\"${{ secrets.LIGHTHOUSE_ADMIN_USERNAME }}\",\"password\":\"${{ secrets.LIGHTHOUSE_ADMIN_PASSWORD }}\"}")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -n -1)
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::Login failed with HTTP $HTTP_CODE: $BODY"
+            echo "See read/devops/LIGHTHOUSE_CI_SETUP_CN.md for troubleshooting."
+            exit 1
+          fi
+          TOKEN=$(echo "$BODY" | python3 -c "import sys,json; print(json.load(sys.stdin)['data']['tokens']['accessToken'])")
+          if [ -z "$TOKEN" ]; then
+            echo "::error::Failed to extract token from response"
+            exit 1
+          fi
+          # Mask token so it does not appear in logs
+          echo "::add-mask::$TOKEN"
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+
+      # ── Step 6: 运行 LHCI ────────────────────────────────────
+      # lhci autorun = collect (Chrome) + upload (temp storage) + assert (thresholds)
+      # LHCI_COOKIE is read by lighthouserc.mjs and injected as Cookie header
+      - name: 6. Run Lighthouse CI
+        if: steps.auth.outputs.token != 'SKIP'
+        env:
+          LHCI_COOKIE: auth_token=${{ steps.auth.outputs.token }}
+        run: |
+          npx lhci autorun \
+            --config=apps/admin-next/lighthouserc.js \
+            --collect.numberOfRuns=${{ inputs.runs_per_page || '1' }} && \
+          echo "LHCI_EXIT=0" >> "$GITHUB_ENV" || \
+          echo "LHCI_EXIT=1" >> "$GITHUB_ENV"
+
+      - name: 6b. Lighthouse CI Skipped (Secrets Not Configured)
+        if: steps.auth.outputs.token == 'SKIP'
+        run: |
+          echo "::notice::Lighthouse CI skipped — setup required. See read/devops/LIGHTHOUSE_CI_SETUP_CN.md"
+
+      # ── Step 7: 上传原始报告（30 天保留）────────────────────
+      # Upload raw HTML/JSON reports as artifacts (kept for 30 days)
+      - name: 7. Upload Lighthouse reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-reports-${{ github.run_number }}
+          path: .lighthouseci/
+          retention-days: 30
+
+      # ── Step 8: 写结果到 Actions Summary ─────────────────────
+      # Write a results table to the GitHub Actions run summary page
+      - name: 8. Write summary
+        if: always()
+        run: |
+          {
+            echo "## Lighthouse CI — ${{ github.ref_name }} @ \`${GITHUB_SHA:0:7}\`"
+            echo ""
+            echo "| Page | LCP (ms) | TBT (ms) | CLS | Score |"
+            echo "|------|---------:|---------:|----:|------:|"
+            python3 - <<'PYEOF'
+          import json, glob, statistics
+
+          files = sorted(glob.glob('.lighthouseci/lhr-*.json'))
+          pages = {}
+          for f in files:
+            with open(f) as fh:
+              lhr = json.load(fh)
+            url = lhr.get('requestedUrl', '')
+            path = url.replace('https://admin.joyminis.com', '') or '/'
+            pages.setdefault(path, []).append({
+              'lcp': lhr['audits']['largest-contentful-paint']['numericValue'],
+              'tbt': lhr['audits']['total-blocking-time']['numericValue'],
+              'cls': lhr['audits']['cumulative-layout-shift']['numericValue'],
+              'score': (lhr['categories']['performance']['score'] or 0) * 100,
+            })
+
+          for path in sorted(pages):
+            runs = pages[path]
+            lcp = round(statistics.median([r['lcp'] for r in runs]))
+            tbt = round(statistics.median([r['tbt'] for r in runs]))
+            cls = round(statistics.median([r['cls'] for r in runs]), 3)
+            score = round(statistics.median([r['score'] for r in runs]))
+            emoji = "✅" if lcp < 2500 else "⚠️" if lcp < 4000 else "❌"
+            print(f"| {emoji} {path} | {lcp} | {tbt} | {cls} | {score} |")
+          PYEOF
+          } >> "$GITHUB_STEP_SUMMARY"

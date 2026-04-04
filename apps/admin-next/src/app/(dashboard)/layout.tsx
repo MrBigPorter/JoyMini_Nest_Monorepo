@@ -2,7 +2,6 @@ import React from 'react';
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import type { Metadata } from 'next';
-import { Providers } from '@/components/Providers';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { routes } from '@/routes';
 import { TRANSLATIONS } from '@/constants';
@@ -17,7 +16,8 @@ export async function generateMetadata(): Promise<Metadata> {
   const pathname = (h.get('x-pathname') || '/').replace(/\/$/, '') || '/';
   const route = routes.find((r) => r.path === pathname);
   const title = route
-    ? (TRANSLATIONS.en[route.name as keyof typeof TRANSLATIONS.en] ?? route.name)
+    ? (TRANSLATIONS.en[route.name as keyof typeof TRANSLATIONS.en] ??
+      route.name)
     : undefined;
   return { title };
 }
@@ -35,9 +35,5 @@ export default async function AuthenticatedLayout({
     redirect('/login');
   }
 
-  return (
-    <Providers>
-      <DashboardLayout>{children}</DashboardLayout>
-    </Providers>
-  );
+  return <DashboardLayout>{children}</DashboardLayout>;
 }

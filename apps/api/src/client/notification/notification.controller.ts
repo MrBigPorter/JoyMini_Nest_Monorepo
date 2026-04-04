@@ -18,12 +18,12 @@ export class NotificationController {
   @Post('device/register')
   async registerDevice(
     @Body() body: RegisterDeviceDto,
-    @CurrentUserId() userId: any,
+    @CurrentUserId() userId: string | null,
   ) {
     await this.notificationService.registerDevice(
       body.token,
       body.platform,
-      userId,
+      userId ?? undefined,
     );
     return { success: true };
   }

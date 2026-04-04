@@ -1,7 +1,7 @@
 # ============================================================
 # Playwright E2E — 独立工作流
 # ============================================================
-# 触发: push main / PR → main
+# 触发: push main
 # 环境: GitHub Ubuntu runner（不占用生产服务器资源）
 # 产物: 测试失败时上传截图 + trace + HTML report
 #
@@ -12,14 +12,13 @@
 # Secrets 配置（在 GitHub 仓库 Settings → Secrets 添加）：
 #   E2E_ADMIN_USERNAME   登录用的管理员账号（默认 admin）
 #   E2E_ADMIN_PASSWORD   登录密码（必须配置，否则跳过）
+#   NEXT_PUBLIC_RECAPTCHA_SITE_KEY   （可选）注册申请页用；未配置时 E2E 走降级模式
 # ============================================================
 
 name: Playwright E2E
 
 on:
   push:
-    branches: [main]
-  pull_request:
     branches: [main]
 
 # 同一 ref 新推送时取消旧运行
@@ -33,10 +32,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # Step 1 / 步骤 1: Check required E2E secret and decide whether to run
       - name: Check E2E secret availability
         id: e2e_gate
         env:
           E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+          NEXT_PUBLIC_RECAPTCHA_SITE_KEY: ${{ secrets.NEXT_PUBLIC_RECAPTCHA_SITE_KEY }}
         run: |
           if [ -n "$E2E_ADMIN_PASSWORD" ]; then
             echo "enabled=true" >> "$GITHUB_OUTPUT"
@@ -45,55 +46,68 @@ jobs:
             echo "E2E_ADMIN_PASSWORD is not set, skip Playwright workflow"
           fi
 
-      # ── 代码检出 ────────────────────────────────────────────────
+          if [ -n "$NEXT_PUBLIC_RECAPTCHA_SITE_KEY" ]; then
+            echo "recaptcha_configured=true" >> "$GITHUB_OUTPUT"
+            echo "recaptcha_mode=configured" >> "$GITHUB_OUTPUT"
+          else
+            echo "recaptcha_configured=false" >> "$GITHUB_OUTPUT"
+            echo "recaptcha_mode=degraded" >> "$GITHUB_OUTPUT"
+            echo "NEXT_PUBLIC_RECAPTCHA_SITE_KEY is empty, register-apply reCAPTCHA path runs in degraded mode"
+          fi
+
+      # Step 2 / 步骤 2: Checkout repository source code
       - name: Checkout
         if: steps.e2e_gate.outputs.enabled == 'true'
         uses: actions/checkout@v4
 
-      # ── Node.js 环境 ─────────────────────────────────────────────
+      # Step 3 / 步骤 3: Setup Node.js runtime
       - name: Setup Node.js 20
         if: steps.e2e_gate.outputs.enabled == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
+      # Step 4 / 步骤 4: Install native build tools for modules like sharp/bcrypt
       - name: Install native build tools (bcrypt / sharp)
         if: steps.e2e_gate.outputs.enabled == 'true'
         run: sudo apt-get install -y python3 make g++ openssl
 
+      # Step 5 / 步骤 5: Enable Corepack and Yarn 4
       - name: Enable Corepack (Yarn 4)
         if: steps.e2e_gate.outputs.enabled == 'true'
         run: corepack enable && corepack prepare yarn@4.9.2 --activate
 
-      # ── 依赖安装 ─────────────────────────────────────────────────
+      # Step 6 / 步骤 6: Install workspace dependencies
       - name: Install dependencies
         if: steps.e2e_gate.outputs.enabled == 'true'
         run: yarn install --immutable
 
-      # ── 共享包构建（admin-next 依赖） ────────────────────────────
+      # Step 7 / 步骤 7: Build shared package dependency (@lucky/shared)
       - name: Build @lucky/shared
         if: steps.e2e_gate.outputs.enabled == 'true'
         run: node packages/shared/scripts/build.js
 
+      # Step 8 / 步骤 8: Build shared UI package dependency (@repo/ui)
       - name: Build @repo/ui
         if: steps.e2e_gate.outputs.enabled == 'true'
         run: node packages/ui/scripts/build.js
 
-      # ── Playwright 浏览器 ────────────────────────────────────────
+      # Step 9 / 步骤 9: Install Playwright Chromium browser and OS deps
       - name: Install Playwright Chromium + deps
         if: steps.e2e_gate.outputs.enabled == 'true'
         run: yarn workspace @lucky/admin-next playwright install chromium --with-deps
 
-      # ── 构建 admin-next ──────────────────────────────────────────
+      # Step 10 / 步骤 10: Build admin-next app for E2E run
       - name: Build admin-next (standalone)
         if: steps.e2e_gate.outputs.enabled == 'true'
         run: yarn workspace @lucky/admin-next build
         env:
           NODE_ENV: production
           NEXT_PUBLIC_API_BASE_URL: http://localhost:3001/api
+          NEXT_PUBLIC_RECAPTCHA_SITE_KEY: ${{ secrets.NEXT_PUBLIC_RECAPTCHA_SITE_KEY }}
           NEXT_PUBLIC_APP_ENV: production
 
-      # ── Mock API Server（模拟后端，不依赖真实数据库） ────────────
+      # Step 11 / 步骤 11: Start local mock API server (no real backend required)
       - name: Start mock API server (port 3001)
         if: steps.e2e_gate.outputs.enabled == 'true'
         run: |
@@ -134,7 +148,7 @@ jobs:
           MOCKEOF
           node /tmp/mock-api.js &
 
-      # ── 启动 Next.js standalone 服务 ─────────────────────────────
+      # Step 12 / 步骤 12: Start Next.js server and wait until ready
       - name: Start Next.js server (port 4001)
         if: steps.e2e_gate.outputs.enabled == 'true'
         run: |
@@ -144,7 +158,7 @@ jobs:
           PORT: 4001
           HOSTNAME: 0.0.0.0
 
-      # ── 运行 Playwright 测试 ─────────────────────────────────────
+      # Step 13 / 步骤 13: Run Playwright E2E test suite
       - name: Run Playwright E2E
         id: e2e
         if: steps.e2e_gate.outputs.enabled == 'true'
@@ -155,8 +169,7 @@ jobs:
           E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
           CI: true
 
-      # ── 产物上传（仅测试失败时）─────────────────────────────────
-      # 截图 + trace 是定位失败的核心工具，失败时必须上传
+      # Step 14 / 步骤 14: Upload failure screenshots for debugging
       - name: Upload screenshots (on failure)
         uses: actions/upload-artifact@v4
         if: failure() && steps.e2e_gate.outputs.enabled == 'true'
@@ -166,6 +179,7 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
+      # Step 15 / 步骤 15: Upload failure traces for deep diagnosis
       - name: Upload traces (on failure)
         uses: actions/upload-artifact@v4
         if: failure() && steps.e2e_gate.outputs.enabled == 'true'
@@ -175,7 +189,7 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
-      # HTML report 无论成功失败都上传（方便看通过率趋势）
+      # Step 16 / 步骤 16: Upload HTML report for all runs (success/failure)
       - name: Upload HTML report (always)
         uses: actions/upload-artifact@v4
         if: always() && steps.e2e_gate.outputs.enabled == 'true'
@@ -185,7 +199,7 @@ jobs:
           retention-days: 14
           if-no-files-found: ignore
 
-      # ── GitHub Step Summary ──────────────────────────────────────
+      # Step 17 / 步骤 17: Write E2E summary to GitHub Step Summary
       - name: Write E2E summary
         if: always()
         run: |
@@ -209,9 +223,14 @@ jobs:
           echo "| 浏览器 | Chromium |" >> $GITHUB_STEP_SUMMARY
           echo "| 触发 | \`${{ github.event_name }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Ref | \`${{ github.ref_name }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| reCAPTCHA | \`${{ steps.e2e_gate.outputs.recaptcha_mode }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| 产物 | playwright-html-report-${{ github.run_id }} |" >> $GITHUB_STEP_SUMMARY
           if [ "$STATUS" != "success" ]; then
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "> 📎 失败截图和 trace 见 Artifacts: \`playwright-screenshots-${{ github.run_id }}\`" >> $GITHUB_STEP_SUMMARY
           fi
 
+          if [ "${{ steps.e2e_gate.outputs.recaptcha_configured }}" != "true" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "> ℹ️ NEXT_PUBLIC_RECAPTCHA_SITE_KEY 未配置：注册申请页的 reCAPTCHA 链路在 E2E 中为降级模式。" >> $GITHUB_STEP_SUMMARY
+          fi

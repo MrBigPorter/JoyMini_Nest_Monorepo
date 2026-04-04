@@ -62,7 +62,7 @@ export class AvatarService {
             const row = Math.floor(index / columns);
             const col = index % columns;
             let x = gap + col * (cellSize + gap);
-            let y = gap + row * (cellSize + gap);
+            const y = gap + row * (cellSize + gap);
 
             if (count === 3 && index === 0) {
               x = (canvasSize - cellSize) / 2;

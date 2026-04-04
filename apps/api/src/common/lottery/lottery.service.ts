@@ -54,7 +54,7 @@ export class LotteryService {
 
     // 3. 密码学安全随机（比 Math.random 更难被预测）
     const idx = randomInt(0, tickets.length);
-    const winner = tickets[idx]!;
+    const winner = tickets[idx];
 
     // 4. 写入开奖结果（uk_lottery_group 唯一索引保证幂等）
     await db.lotteryResult.create({

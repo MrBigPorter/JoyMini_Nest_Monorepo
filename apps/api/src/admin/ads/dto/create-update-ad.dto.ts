@@ -65,4 +65,3 @@ export class CreateAdDto {
 }
 
 export class UpdateAdDto extends CreateAdDto {}
-

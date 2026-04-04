@@ -5,6 +5,7 @@ import {
   NestInterceptor,
   StreamableFile,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { randomUUID } from 'node:crypto';
@@ -15,7 +16,10 @@ import { SKIP_WRAP } from '@api/common/decorators/skip-wrap.decorator';
 export class ResponseWrapInterceptor implements NestInterceptor {
   constructor(private readonly reflector: Reflector) {}
 
-  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
+  intercept(
+    context: ExecutionContext,
+    next: CallHandler<unknown>,
+  ): Observable<unknown> {
     // 1. 检查是否有 @SkipWrap 装饰器
     const skip = this.reflector.getAllAndOverride<boolean>(SKIP_WRAP, [
       context.getHandler(),
@@ -28,17 +32,21 @@ export class ResponseWrapInterceptor implements NestInterceptor {
     }
 
     // 2. 获取或生成 trace id (tid)
-    const req = context.switchToHttp().getRequest();
-    const reqId = (req?.id ?? req?.headers?.['x-request-id']) as
-      | string
-      | undefined;
+    const req = context
+      .switchToHttp()
+      .getRequest<Request & { id?: string | number }>();
+    const rawReqId = req?.id ?? req?.headers?.['x-request-id'];
+    const reqId =
+      typeof rawReqId === 'string' || typeof rawReqId === 'number'
+        ? String(rawReqId)
+        : undefined;
 
     const makeTid = () =>
       reqId ? String(reqId) : randomUUID().replace(/-/g, '');
 
     // 3. 处理返回数据
     return next.handle().pipe(
-      map((data) => {
+      map((data: unknown) => {
         // ==================================================
         //  核心修复区域 START
         // ==================================================
@@ -60,7 +68,7 @@ export class ResponseWrapInterceptor implements NestInterceptor {
         // 情况 C: 如果数据已经是被包装过的对象 (防止双重包装)
         // (例如某些特殊逻辑手动返回了 standard response)
         if (
-          data &&
+          data !== null &&
           typeof data === 'object' &&
           'code' in data &&
           'data' in data

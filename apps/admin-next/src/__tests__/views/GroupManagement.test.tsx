@@ -3,16 +3,26 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import {
   repoUiMock,
-  makeUseRequest,
-  SmartTableMock,
   PageHeaderMock,
   SmartImageMock,
 } from '../mocks/view-helpers';
 
+const smartTablePropsSpy = vi.hoisted(() => vi.fn());
+
 // ── mocks ────────────────────────────────────────────────────────
 vi.mock('@repo/ui', () => repoUiMock);
 vi.mock('@/components/scaffold/SmartTable', () => ({
-  SmartTable: SmartTableMock,
+  SmartTable: Object.assign(
+    React.forwardRef(function SmartTableMock(
+      props: { headerTitle?: React.ReactNode },
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      _ref: React.ForwardedRef<unknown>,
+    ) {
+      smartTablePropsSpy(props);
+      return <div data-testid="smart-table">{props.headerTitle}</div>;
+    }),
+    { displayName: 'SmartTableMock' },
+  ),
 }));
 vi.mock('@/components/scaffold/PageHeader', () => ({
   PageHeader: PageHeaderMock,
@@ -42,7 +52,7 @@ vi.mock('@/store/useToastStore', () => ({
 }));
 
 // ── subject ──────────────────────────────────────────────────────
-import { GroupManagement } from '@/views/GroupManagement';
+import { GroupManagement } from '@/components/groups/GroupManagementClient';
 
 describe('GroupManagement', () => {
   beforeEach(() => {
@@ -63,5 +73,25 @@ describe('GroupManagement', () => {
   it('renders SmartTable', () => {
     render(<GroupManagement />);
     expect(screen.getByTestId('smart-table')).toBeInTheDocument();
+  });
+
+  it('accepts initialFormParams and onParamsChange with hydration enabled', () => {
+    const onParamsChange = vi.fn();
+
+    render(
+      <GroupManagement
+        initialFormParams={{ treasureId: 't-1', status: '1' }}
+        onParamsChange={onParamsChange}
+      />,
+    );
+
+    expect(smartTablePropsSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        initialFormParams: { treasureId: 't-1', status: '1' },
+        onParamsChange,
+        enableHydration: true,
+        hydrationQueryKey: ['groups', 1, 20, 't-1', 1, '0'],
+      }),
+    );
   });
 });

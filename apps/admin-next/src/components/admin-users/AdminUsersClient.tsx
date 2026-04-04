@@ -6,7 +6,7 @@
  */
 import React, { useCallback, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { AdminUserManagement } from '@/views/AdminUserManagement';
+import { AdminUserManagement } from './AdminUserManagementClient';
 
 export function AdminUsersClient() {
   const router = useRouter();
@@ -16,7 +16,7 @@ export function AdminUsersClient() {
   const urlFilterParams = useMemo(() => {
     const params: Record<string, string> = {};
     searchParams.forEach((value, key) => {
-      if (key !== 'page' && key !== 'pageSize' && value) {
+      if (value) {
         params[key] = value;
       }
     });
@@ -37,7 +37,9 @@ export function AdminUsersClient() {
           qs.set(key, String(value));
         }
       });
-      const newUrl = qs.toString() ? `/admin-users?${qs.toString()}` : '/admin-users';
+      const newUrl = qs.toString()
+        ? `/admin-users?${qs.toString()}`
+        : '/admin-users';
       router.replace(newUrl, { scroll: false });
     },
     [router],

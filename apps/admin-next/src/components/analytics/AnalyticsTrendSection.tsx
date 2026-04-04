@@ -62,15 +62,26 @@ function OrderTrendChart({ data }: { data: StatsTrend['orders'] }) {
 
   return (
     <ResponsiveContainer width="100%" height={220}>
-      <AreaChart data={chartData} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
+      <AreaChart
+        data={chartData}
+        margin={{ top: 4, right: 8, left: -10, bottom: 0 }}
+      >
         <defs>
           <linearGradient id="colorOrders" x1="0" y1="0" x2="0" y2="1">
             <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
             <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
           </linearGradient>
         </defs>
-        <CartesianGrid strokeDasharray="3 3" className="stroke-gray-100 dark:stroke-white/10" />
-        <XAxis dataKey="date" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+        <CartesianGrid
+          strokeDasharray="3 3"
+          className="stroke-gray-100 dark:stroke-white/10"
+        />
+        <XAxis
+          dataKey="date"
+          tick={{ fontSize: 11 }}
+          tickLine={false}
+          axisLine={false}
+        />
         <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
         <Tooltip
           contentStyle={{
@@ -101,9 +112,20 @@ function UserTrendChart({ data }: { data: StatsTrend['users'] }) {
 
   return (
     <ResponsiveContainer width="100%" height={220}>
-      <BarChart data={chartData} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" className="stroke-gray-100 dark:stroke-white/10" />
-        <XAxis dataKey="date" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+      <BarChart
+        data={chartData}
+        margin={{ top: 4, right: 8, left: -10, bottom: 0 }}
+      >
+        <CartesianGrid
+          strokeDasharray="3 3"
+          className="stroke-gray-100 dark:stroke-white/10"
+        />
+        <XAxis
+          dataKey="date"
+          tick={{ fontSize: 11 }}
+          tickLine={false}
+          axisLine={false}
+        />
         <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
         <Tooltip
           contentStyle={{
@@ -112,7 +134,12 @@ function UserTrendChart({ data }: { data: StatsTrend['users'] }) {
             boxShadow: '0 4px 20px rgba(0,0,0,0.12)',
           }}
         />
-        <Bar dataKey="users" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={24} />
+        <Bar
+          dataKey="users"
+          fill="#10b981"
+          radius={[4, 4, 0, 0]}
+          maxBarSize={24}
+        />
       </BarChart>
     </ResponsiveContainer>
   );
@@ -133,7 +160,9 @@ export function AnalyticsTrendSection() {
       <Card className="p-5">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h3 className="font-semibold text-gray-800 dark:text-white">Order Trend</h3>
+            <h3 className="font-semibold text-gray-800 dark:text-white">
+              Order Trend
+            </h3>
             <p className="text-xs text-gray-400">Daily order count</p>
           </div>
           <DaysToggle value={days} onChange={setDays} />
@@ -157,7 +186,9 @@ export function AnalyticsTrendSection() {
       <Card className="p-5">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h3 className="font-semibold text-gray-800 dark:text-white">User Registration</h3>
+            <h3 className="font-semibold text-gray-800 dark:text-white">
+              User Registration
+            </h3>
             <p className="text-xs text-gray-400">Daily new user count</p>
           </div>
           <DaysToggle value={days} onChange={setDays} />
@@ -179,4 +210,3 @@ export function AnalyticsTrendSection() {
     </div>
   );
 }
-

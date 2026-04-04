@@ -23,13 +23,15 @@ test.describe('Banner Management — /banners', () => {
   });
 
   test('显示 Banner 相关标题', async ({ page }) => {
-    await expect(
-      page.getByText(/banner/i).first(),
-    ).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(/banner/i).first()).toBeVisible({
+      timeout: 20_000,
+    });
   });
 
   test('Banner 表格渲染', async ({ page }) => {
-    await expect(page.locator('table').first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('table').first()).toBeVisible({
+      timeout: 20_000,
+    });
   });
 
   test('Search 按钮可点击', async ({ page }) => {
@@ -48,17 +50,23 @@ test.describe('Banner Management — /banners', () => {
   });
 
   test('Add Banner 按钮存在', async ({ page }) => {
-    const btn = page.getByRole('button', { name: /add banner/i })
-      .or(page.getByRole('button', { name: /create/i })).first();
+    const btn = page
+      .getByRole('button', { name: /add banner/i })
+      .or(page.getByRole('button', { name: /create/i }))
+      .first();
     await expect(btn).toBeVisible({ timeout: 15_000 });
   });
 
   test('点击 Add Banner 弹出创建弹窗', async ({ page }) => {
-    const btn = page.getByRole('button', { name: /add banner/i })
-      .or(page.getByRole('button', { name: /create/i })).first();
+    const btn = page
+      .getByRole('button', { name: /add banner/i })
+      .or(page.getByRole('button', { name: /create/i }))
+      .first();
     await expect(btn).toBeVisible({ timeout: 15_000 });
     await btn.click({ force: true });
-    await expect(page.locator('[role="dialog"]').or(page.locator('[data-state="open"]'))).toBeVisible({ timeout: 8_000 });
+    await expect(
+      page.locator('[role="dialog"]').or(page.locator('[data-state="open"]')),
+    ).toBeVisible({ timeout: 8_000 });
     await expectNoError(page);
   });
 });

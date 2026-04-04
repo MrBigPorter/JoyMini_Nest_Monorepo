@@ -3,6 +3,8 @@
 # ============================================================
 # 多阶段构建：安装依赖 → next build → standalone 产物 → 轻量 runner
 # 旧: output: 'export' + busybox (静态文件) → 已迁移到 Node.js 服务器
+# 当前生产主入口：Cloudflare Workers（deploy-admin-cloudflare.yml）
+# 本镜像用途：VPS 回滚/应急兜底（非默认主流量入口）
 # 用法: compose.prod.yml 中的 admin-next 服务
 # ============================================================
 
@@ -24,6 +26,7 @@ COPY .yarn ./.yarn
 
 COPY apps/admin-next/package.json          ./apps/admin-next/package.json
 COPY apps/api/package.json                 ./apps/api/package.json
+COPY apps/liveness-web/package.json        ./apps/liveness-web/package.json
 COPY packages/shared/package.json          ./packages/shared/package.json
 COPY packages/ui/package.json              ./packages/ui/package.json
 COPY packages/eslint-config/package.json   ./packages/eslint-config/package.json
@@ -43,10 +46,14 @@ RUN node packages/shared/scripts/build.js
 RUN node packages/ui/scripts/build.js
 
 # 5) 构建 (next build → output: 'standalone')
-ARG NEXT_PUBLIC_API_BASE_URL=https://api.joyminis.com
+ARG NEXT_PUBLIC_API_BASE_URL=https://api.joyminis.com/api
 ARG NEXT_PUBLIC_APP_ENV=production
+ARG NEXT_PUBLIC_DEPLOYED_AT=unknown
+ARG NEXT_PUBLIC_GIT_SHA=unknown
 ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
 ENV NEXT_PUBLIC_APP_ENV=$NEXT_PUBLIC_APP_ENV
+ENV NEXT_PUBLIC_DEPLOYED_AT=$NEXT_PUBLIC_DEPLOYED_AT
+ENV NEXT_PUBLIC_GIT_SHA=$NEXT_PUBLIC_GIT_SHA
 ENV NODE_ENV=production
 
 RUN yarn workspace @lucky/admin-next build

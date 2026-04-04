@@ -15,7 +15,13 @@
 set -euo pipefail
 
 # ---- 配置 ----
-VPS_IP="***REDACTED***"
+# 优先读环境变量 VPS_IP；若未设置则交互式询问
+if [ -z "${VPS_IP:-}" ]; then
+    read -rp "请输入 VPS IP 地址: " VPS_IP
+fi
+if [ -z "${VPS_IP:-}" ]; then
+    err "VPS_IP 不能为空"
+fi
 VPS_USER="root"
 VPS_DIR="/opt/lucky"
 SSH_TARGET="${VPS_USER}@${VPS_IP}"
@@ -23,6 +29,8 @@ SSH_TARGET="${VPS_USER}@${VPS_IP}"
 # 镜像名称
 BACKEND_IMAGE="lucky-backend-prod:latest"
 ADMIN_IMAGE="lucky-admin-next-prod:latest"
+ADMIN_BUILD_DEPLOYED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+ADMIN_BUILD_GIT_SHA="$(git rev-parse HEAD 2>/dev/null || echo local-dev)"
 
 # 颜色
 RED='\033[0;31m'
@@ -82,6 +90,7 @@ sync_configs() {
     scp deploy/.env.prod                    "$SSH_TARGET:$VPS_DIR/deploy/"
     scp deploy/init-db.sh                   "$SSH_TARGET:$VPS_DIR/deploy/"
     scp deploy/baseline-db.sh              "$SSH_TARGET:$VPS_DIR/deploy/"
+    scp deploy/install-turn.sh              "$SSH_TARGET:$VPS_DIR/deploy/"
     scp nginx/nginx.prod.conf               "$SSH_TARGET:$VPS_DIR/nginx/"
     scp nginx/whitelist.conf                "$SSH_TARGET:$VPS_DIR/nginx/"
     scp redis/redis.conf                    "$SSH_TARGET:$VPS_DIR/redis/"
@@ -122,8 +131,10 @@ if [ "$SKIP_BUILD" = false ]; then
         docker build \
             --platform linux/amd64 \
             -f apps/admin-next/Dockerfile.prod \
-            --build-arg NEXT_PUBLIC_API_BASE_URL=https://api.joyminis.com \
+            --build-arg NEXT_PUBLIC_API_BASE_URL=https://api.joyminis.com/api \
             --build-arg NEXT_PUBLIC_APP_ENV=production \
+            --build-arg NEXT_PUBLIC_DEPLOYED_AT="$ADMIN_BUILD_DEPLOYED_AT" \
+            --build-arg NEXT_PUBLIC_GIT_SHA="$ADMIN_BUILD_GIT_SHA" \
             -t "$ADMIN_IMAGE" \
             .
         log "✅ admin-next 镜像构建完成"
@@ -179,7 +190,7 @@ ssh "$SSH_TARGET" << REMOTE_SCRIPT
               --env-file deploy/.env.prod \
               --entrypoint "" \
               lucky-backend-prod:latest \
-              ./apps/api/node_modules/.bin/prisma migrate deploy \
+              ./node_modules/.bin/prisma migrate deploy \
                 --schema=apps/api/prisma/schema.prisma 2>&1) && MIGRATE_OK=true || MIGRATE_OK=false
 
             echo "\$MIGRATE_OUT"

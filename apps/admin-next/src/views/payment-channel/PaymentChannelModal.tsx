@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo } from 'react';
+import Image from 'next/image';
 import { useRequest } from 'ahooks';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -107,10 +108,13 @@ const MobilePreview = ({
           <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-white/5 flex items-center justify-between">
             <div className="flex items-center gap-3">
               {values.icon ? (
-                <img
+                <Image
                   src={values.icon}
-                  alt="icon"
+                  alt="Channel icon"
+                  width={40}
+                  height={40}
                   className="w-10 h-10 object-contain"
+                  unoptimized
                 />
               ) : (
                 <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
@@ -402,10 +406,13 @@ export const PaymentChannelModal: React.FC<Props> = ({
                   </div>
                   {watchedValues.icon && (
                     <div className="mt-6 w-9 h-9 border rounded flex items-center justify-center shrink-0 bg-gray-50">
-                      <img
+                      <Image
                         src={watchedValues.icon}
+                        alt="Channel icon"
+                        width={24}
+                        height={24}
                         className="w-6 h-6 object-contain"
-                        alt=""
+                        unoptimized
                       />
                     </div>
                   )}

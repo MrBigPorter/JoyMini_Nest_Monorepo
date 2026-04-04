@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { useAppStore } from '@/store/useAppStore';
+import { useAuthStore } from '@/store/useAuthStore';
 import { TRANSLATIONS } from '@/constants';
 import { routes } from '@/routes';
 import { Header } from './Header';
@@ -21,6 +22,12 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({
   const t = TRANSLATIONS[lang];
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const pathname = usePathname();
+  const fetchMe = useAuthStore((state) => state.fetchMe);
+
+  // page refresh 后从后端拉取最新 userInfo（恢复 role 等权限信息）
+  useEffect(() => {
+    void fetchMe();
+  }, [fetchMe]);
 
   // ── 页面信息 ─────────────────────────────────────────────────
   const pageInfo = useMemo(() => {

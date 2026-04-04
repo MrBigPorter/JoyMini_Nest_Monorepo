@@ -9,6 +9,12 @@ import { Reflector } from '@nestjs/core';
 import { Role } from '@lucky/shared';
 import { ROLES_KEY } from './roles.decorator';
 
+type UserLike = { role?: unknown };
+type RequestLike = { user?: unknown };
+
+const isUserLike = (value: unknown): value is UserLike =>
+  typeof value === 'object' && value !== null;
+
 /**
  * RolesGuard — 配合 @Roles() 使用，检查 request.user.role 是否在允许列表中。
  * 前置依赖：AdminJwtAuthGuard 已将 payload 挂到 request.user
@@ -28,21 +34,20 @@ export class RolesGuard implements CanActivate {
       return true;
     }
 
-    const request = context.switchToHttp().getRequest();
-    const user = request.user;
-
-    if (!user) {
+    const request = context.switchToHttp().getRequest<RequestLike>();
+    if (!isUserLike(request.user) || typeof request.user.role !== 'string') {
       throw new UnauthorizedException('User not authenticated');
     }
 
-    const hasRole = requiredRoles.includes(user.role as Role);
+    const userRole = request.user.role as Role;
+
+    const hasRole = requiredRoles.includes(userRole);
     if (!hasRole) {
       throw new ForbiddenException(
-        `Requires one of: [${requiredRoles.join(', ')}], but user has role: ${user.role}`,
+        `Requires one of: [${requiredRoles.join(', ')}], but user has role: ${userRole}`,
       );
     }
 
     return true;
   }
 }
-

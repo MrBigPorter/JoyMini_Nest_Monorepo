@@ -10,7 +10,22 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = { title: 'Users' };
 
 import React, { Suspense } from 'react';
+import {
+  HydrationBoundary,
+  QueryClient,
+  dehydrate,
+} from '@tanstack/react-query';
 import { UsersClient } from '@/components/users/UsersClient';
+import { serverGet } from '@/lib/serverFetch';
+import type { PaginatedResponse } from '@/api/types';
+import type { ClientUserListItem } from '@/type/types';
+import {
+  USERS_LIST_TAG,
+  buildUsersListParams,
+  parseUsersSearchParams,
+  usersListQueryKey,
+  type NextSearchParams,
+} from '@/lib/cache/users-cache';
 
 function UsersPageSkeleton() {
   return (
@@ -18,16 +33,47 @@ function UsersPageSkeleton() {
       <div className="h-9 w-64 rounded-lg bg-gray-100 dark:bg-white/10" />
       <div className="h-12 w-full rounded-xl bg-gray-100 dark:bg-white/10" />
       {Array.from({ length: 8 }).map((_, i) => (
-        <div key={i} className="h-14 w-full rounded-xl bg-gray-100 dark:bg-white/5" />
+        <div
+          key={i}
+          className="h-14 w-full rounded-xl bg-gray-100 dark:bg-white/5"
+        />
       ))}
     </div>
   );
 }
 
-export default function UsersPage() {
+interface UsersPageProps {
+  searchParams?: Promise<NextSearchParams>;
+}
+
+export default async function UsersPage({ searchParams }: UsersPageProps) {
+  const resolvedSearchParams = (await searchParams) ?? {};
+  const queryClient = new QueryClient();
+  const queryInput = parseUsersSearchParams(resolvedSearchParams);
+
+  await queryClient.prefetchQuery({
+    queryKey: usersListQueryKey(queryInput),
+    queryFn: async () => {
+      const res = await serverGet<PaginatedResponse<ClientUserListItem>>(
+        '/v1/admin/client-user/list',
+        buildUsersListParams(queryInput) as unknown as Record<
+          string,
+          string | number | boolean | undefined | null
+        >,
+        {
+          revalidate: 30,
+          tags: [USERS_LIST_TAG],
+        },
+      );
+      return { data: res.list, total: res.total };
+    },
+  });
+
   return (
     <Suspense fallback={<UsersPageSkeleton />}>
-      <UsersClient />
+      <HydrationBoundary state={dehydrate(queryClient)}>
+        <UsersClient />
+      </HydrationBoundary>
     </Suspense>
   );
 }

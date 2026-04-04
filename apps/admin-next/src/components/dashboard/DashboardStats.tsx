@@ -3,6 +3,7 @@
  * 服务端直接 fetch 财务统计 + 用户总数，零 loading 闪烁。
  * 被 page.tsx 用 <Suspense> 包裹，支持 Streaming SSR。
  */
+import 'server-only';
 import React from 'react';
 import {
   DollarSign,
@@ -14,6 +15,12 @@ import {
 } from 'lucide-react';
 import { Card } from '@/components/UIComponents';
 import { serverGet } from '@/lib/serverFetch';
+import {
+  SENTRY_SPAN_ATTR_KEY,
+  SENTRY_SPAN_NAME,
+} from '@/lib/sentry-span-constants';
+import { withSsrSpan } from '@/lib/sentry-span';
+import { FINANCE_STATS_TAG, FINANCE_TAG } from '@/lib/cache/finance-cache';
 import type { FinanceStatistics, ClientUserListItem } from '@/type/types';
 import type { PaginatedResponse } from '@/api/types';
 
@@ -75,16 +82,30 @@ function StatCard({
 
 // ── 主组件（async Server Component）─────────────────────────
 export async function DashboardStats() {
-  // 并行请求，任一失败则 fallback 为 null
-  const [finance, usersRes] = await Promise.all([
-    serverGet<FinanceStatistics>('/v1/admin/finance/statistics').catch(
-      () => null,
-    ),
-    serverGet<PaginatedResponse<ClientUserListItem>>(
-      '/v1/admin/client-user/list',
-      { page: 1, pageSize: 1 },
-    ).catch(() => null),
-  ]);
+  const [finance, usersRes] = await withSsrSpan(
+    SENTRY_SPAN_NAME.DASHBOARD_STATS_FETCH,
+    {
+      [SENTRY_SPAN_ATTR_KEY.APP_SECTION]: 'dashboard',
+    },
+    async () => {
+      // 并行请求，任一失败则 fallback 为 null
+      return Promise.all([
+        serverGet<FinanceStatistics>(
+          '/v1/admin/finance/statistics',
+          undefined,
+          {
+            revalidate: 60,
+            tags: ['dashboard:stats', FINANCE_TAG, FINANCE_STATS_TAG],
+          },
+        ).catch(() => null),
+        serverGet<PaginatedResponse<ClientUserListItem>>(
+          '/v1/admin/client-user/list',
+          { page: 1, pageSize: 1 },
+          { revalidate: 300, tags: ['dashboard:stats', 'admin:users'] },
+        ).catch(() => null),
+      ]);
+    },
+  );
 
   const totalUsers = usersRes?.total ?? 0;
 
@@ -136,4 +157,3 @@ export async function DashboardStats() {
     </div>
   );
 }
-

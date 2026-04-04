@@ -104,8 +104,8 @@ export const test = base.extend<CustomFixtures>({
     { auto: true, scope: 'test' },
   ],
 
-  gotoPage: async ({ page }, use) => {
-    await use(async (path: string) => {
+  gotoPage: async ({ page }, applyFixture) => {
+    await applyFixture(async (path: string) => {
       await page.goto(path);
       await page.waitForLoadState('domcontentloaded');
     });

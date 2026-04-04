@@ -6,7 +6,7 @@
  */
 import React, { useCallback, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { KycList } from '@/views/KycList';
+import { KycList } from './KycListClient';
 
 export function KycClient() {
   const router = useRouter();
@@ -27,7 +27,21 @@ export function KycClient() {
   const handleParamsChange = useCallback(
     (formData: Record<string, unknown>) => {
       const qs = new URLSearchParams();
+
+      const dateRange = formData.dateRange as
+        | { from?: string; to?: string }
+        | undefined;
+      const startDate =
+        typeof formData.startDate === 'string'
+          ? formData.startDate
+          : dateRange?.from;
+      const endDate =
+        typeof formData.endDate === 'string' ? formData.endDate : dateRange?.to;
+
       Object.entries(formData).forEach(([key, value]) => {
+        if (key === 'dateRange' || key === 'startDate' || key === 'endDate') {
+          return;
+        }
         if (
           value !== undefined &&
           value !== null &&
@@ -37,6 +51,14 @@ export function KycClient() {
           qs.set(key, String(value));
         }
       });
+
+      if (startDate) {
+        qs.set('startDate', startDate);
+      }
+      if (endDate) {
+        qs.set('endDate', endDate);
+      }
+
       const newUrl = qs.toString() ? `/kyc?${qs.toString()}` : '/kyc';
       router.replace(newUrl, { scroll: false });
     },

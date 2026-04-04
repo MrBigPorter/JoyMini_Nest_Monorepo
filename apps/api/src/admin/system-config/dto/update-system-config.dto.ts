@@ -4,4 +4,3 @@ export class UpdateSystemConfigDto {
   @IsString()
   value!: string;
 }
-

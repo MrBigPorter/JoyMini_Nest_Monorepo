@@ -1,13 +1,15 @@
-import { Exclude, Expose, Transform, Type } from 'class-transformer';
+import { Exclude, Expose, Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 import { DateToTimestamp, DecimalToString } from '@api/common/dto/transforms';
 
+@Exclude()
 export class OrderUserDto {
   @Expose() id!: string;
   @Expose() nickname!: string;
   @Expose() phone!: string;
 }
 
+@Exclude()
 export class OrderTreasureDto {
   @Expose() treasureId!: string;
   @Expose() treasureName!: string;

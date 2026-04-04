@@ -188,7 +188,7 @@ export class RegisterApplicationService {
       page,
       pageSize,
       totalPages: Math.ceil(total / pageSize),
-      list: list.map((item) => ({
+      list: list.map((item: any) => ({
         ...item,
         createdAt: item.createdAt.getTime(),
         reviewedAt: item.reviewedAt?.getTime() ?? null,
@@ -220,7 +220,7 @@ export class RegisterApplicationService {
       );
     }
 
-    await this.prisma.$transaction(async (ctx) => {
+    await this.prisma.$transaction(async (ctx: any) => {
       // Create AdminUser with VIEWER role (least privilege)
       await ctx.adminUser.create({
         data: {

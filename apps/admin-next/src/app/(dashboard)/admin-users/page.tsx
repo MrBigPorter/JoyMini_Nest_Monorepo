@@ -7,7 +7,22 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = { title: 'Admin Users' };
 
 import React, { Suspense } from 'react';
+import {
+  HydrationBoundary,
+  QueryClient,
+  dehydrate,
+} from '@tanstack/react-query';
 import { AdminUsersClient } from '@/components/admin-users/AdminUsersClient';
+import { serverGet } from '@/lib/serverFetch';
+import type { PaginatedResponse } from '@/api/types';
+import type { AdminUser } from '@/type/types';
+import {
+  ADMIN_USERS_LIST_TAG,
+  adminUsersListQueryKey,
+  buildAdminUsersListParams,
+  parseAdminUsersSearchParams,
+  type NextSearchParams,
+} from '@/lib/cache/admin-users-cache';
 
 function AdminUsersPageSkeleton() {
   return (
@@ -24,10 +39,40 @@ function AdminUsersPageSkeleton() {
   );
 }
 
-export default function AdminUsersPage() {
+interface AdminUsersPageProps {
+  searchParams?: Promise<NextSearchParams>;
+}
+
+export default async function AdminUsersPage({
+  searchParams,
+}: AdminUsersPageProps) {
+  const resolvedSearchParams = (await searchParams) ?? {};
+  const queryClient = new QueryClient();
+  const queryInput = parseAdminUsersSearchParams(resolvedSearchParams);
+
+  await queryClient.prefetchQuery({
+    queryKey: adminUsersListQueryKey(queryInput),
+    queryFn: async () => {
+      const res = await serverGet<PaginatedResponse<AdminUser>>(
+        '/v1/admin/user/list',
+        buildAdminUsersListParams(queryInput) as Record<
+          string,
+          string | number | boolean | undefined | null
+        >,
+        {
+          revalidate: 30,
+          tags: [ADMIN_USERS_LIST_TAG],
+        },
+      );
+      return { list: res.list, total: res.total };
+    },
+  });
+
   return (
     <Suspense fallback={<AdminUsersPageSkeleton />}>
-      <AdminUsersClient />
+      <HydrationBoundary state={dehydrate(queryClient)}>
+        <AdminUsersClient />
+      </HydrationBoundary>
     </Suspense>
   );
 }

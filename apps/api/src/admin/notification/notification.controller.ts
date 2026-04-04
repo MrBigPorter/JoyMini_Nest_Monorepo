@@ -1,11 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Post,
-  Query,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { AdminNotificationService } from './notification.service';
 import { QueryPushLogDto } from './dto/query-push-log.dto';
 import { AdminSendBroadcastDto } from './dto/send-broadcast.dto';
@@ -67,4 +60,3 @@ export class AdminNotificationController {
     return this.service.sendTargeted(dto, adminId);
   }
 }
-

@@ -84,27 +84,30 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     },
     ref,
   ) => {
-    const Comp = asChild ? Slot : motion.button;
-
-    const motionProps = !asChild
-      ? {
-          whileHover: { scale: 1.02, filter: "brightness(1.1)" },
-          whileTap: { scale: 0.95 },
-          transition: { type: "spring", stiffness: 400, damping: 17 },
-        }
-      : {};
+    if (asChild) {
+      return (
+        <Slot
+          className={cn(buttonVariants({ variant, size, className }))}
+          {...(props as Record<string, unknown>)}
+        >
+          {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+          {children}
+        </Slot>
+      );
+    }
 
     return (
-      <Comp
+      <motion.button
         className={cn(buttonVariants({ variant, size, className }))}
-        ref={ref as any}
+        ref={ref}
         disabled={isLoading || disabled} // loading 时自动禁用
-        {...motionProps}
-        {...(props as any)}
+        whileHover={{ scale: 1.02, filter: "brightness(1.1)" }}
+        whileTap={{ scale: 0.95 }}
+        {...(props as Record<string, unknown>)}
       >
         {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
         {children}
-      </Comp>
+      </motion.button>
     );
   },
 );

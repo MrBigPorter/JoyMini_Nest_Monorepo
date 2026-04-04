@@ -6,7 +6,7 @@ import {
   SmartTableMock,
   PageHeaderMock,
 } from '../../__tests__/mocks/view-helpers';
-import { OperationLogList } from '../OperationLogList';
+import { OperationLogList } from '@/components/operation-logs/OperationLogListClient';
 
 // ── hoisted mock variables ────────────────────────────────────────
 const mockGetList = vi.hoisted(() => vi.fn());

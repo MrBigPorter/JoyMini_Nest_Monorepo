@@ -1,6 +1,6 @@
 import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { GroupService } from '@api/common/group/group.service';
-import { GROUP_STATUS } from '@lucky/shared/dist/types/treasure';
+import { GROUP_STATUS } from '@lucky/shared';
 import { ApiOkResponse } from '@nestjs/swagger';
 import { GroupListForTreasureResponseDto } from '@api/common/group/dto/group-list-for-treasure-response.dto';
 import { plainToInstance } from 'class-transformer';
@@ -24,7 +24,7 @@ export class GroupClientController {
   @ApiOkResponse({ type: GroupListForTreasureResponseDto })
   async list(
     @Query() query: GroupListForTreasureDto,
-    @CurrentUserId() userId: any,
+    @CurrentUserId() userId: string | null,
   ) {
     //  强制设置：App 只能看进行中、且没过期的
     // 即使前端黑客传了 ?status=3，这里也会被覆盖成 1

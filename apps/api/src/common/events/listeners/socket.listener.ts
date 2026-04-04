@@ -1,4 +1,4 @@
-import { Role, SocketEvents } from '@lucky/shared';
+import { SocketEvents } from '@lucky/shared';
 import {
   CHAT_EVENTS,
   ConversationReadEvent,
@@ -26,6 +26,12 @@ export class SocketListener {
   // ===========================================================================
   @OnEvent(CHAT_EVENTS.MESSAGE_CREATED)
   async handleMessageCreated(event: MessageCreatedEvent) {
+    this.logger.debug(
+      `[SocketListener] MessageCreated event received: ` +
+        `messageId=${event.messageId}, conversationId=${event.conversationId}, ` +
+        `senderId=${event.senderId}, memberCount=${event.memberIds?.length || 0}`,
+    );
+
     const socketPayload = {
       id: event.messageId,
       conversationId: event.conversationId,
@@ -45,6 +51,19 @@ export class SocketListener {
     };
 
     //  A. 房间广播 (O(1))，保证聊天窗口内实时更新
+    this.logger.debug(
+      `[SocketListener] Dispatching to conversation room: ${event.conversationId}`,
+    );
+
+    // 👈 修改点：去掉了多余的 .sockets
+    const roomClients = this.eventsGateway['server']?.adapter?.rooms?.get(
+      event.conversationId,
+    );
+    const clientCount = roomClients ? roomClients.size : 0;
+    this.logger.debug(
+      `[SocketListener] Room ${event.conversationId} has ${clientCount} clients before dispatch`,
+    );
+
     this.eventsGateway.dispatch(
       event.conversationId,
       SocketEvents.CHAT_MESSAGE,
@@ -52,12 +71,15 @@ export class SocketListener {
     );
 
     //  B. 列表预览：只针对小群或在线个人进行分发
-    // 设定阈值（如500人），超过此人数的群不再执行 forEach 个人分发，靠“前台自愈”同步
+    // 设定阈值（如500人），超过此人数的群不再执行 forEach 个人分发，靠"前台自愈"同步
     if (
       event.memberIds &&
       event.memberIds.length > 0 &&
       event.memberIds.length <= this.LARGE_GROUP_THRESHOLD
     ) {
+      this.logger.debug(
+        `[SocketListener] Dispatching to ${event.memberIds.length - 1} members (excluding sender)`,
+      );
       event.memberIds.forEach((userId) => {
         if (userId !== event.senderId) {
           this.eventsGateway.dispatch(
@@ -67,9 +89,18 @@ export class SocketListener {
           );
         }
       });
+    } else if (
+      event.memberIds &&
+      event.memberIds.length > this.LARGE_GROUP_THRESHOLD
+    ) {
+      this.logger.debug(
+        `[SocketListener] Skipping member-by-member dispatch for large group (${event.memberIds.length} members > ${this.LARGE_GROUP_THRESHOLD} threshold)`,
+      );
     }
 
-    // SUPPORT 标准路径：通过 memberIds 分发即可，避免业务常量硬编码。
+    this.logger.debug(
+      `[SocketListener] MessageCreated event processed successfully for message: ${event.messageId}`,
+    );
   }
 
   // ===========================================================================
@@ -156,7 +187,7 @@ export class SocketListener {
         timestamp: Date.now(),
       };
 
-      supportAdmins.forEach((admin) => {
+      supportAdmins.forEach((admin: any) => {
         this.eventsGateway.dispatch(
           `user_${admin.id}`,
           'support_new_conversation',

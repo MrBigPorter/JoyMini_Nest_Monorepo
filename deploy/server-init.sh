@@ -3,12 +3,15 @@
 # VPS 一次性初始化脚本 (Ubuntu 22.04, 1GB RAM, 1 CPU)
 # ============================================================
 # 使用方法:
-#   scp deploy/server-init.sh root@***REDACTED***:/root/
-#   ssh root@***REDACTED*** 'chmod +x /root/server-init.sh && /root/server-init.sh'
+#   scp deploy/server-init.sh root@<VPS_IP>:/root/
+#   ssh root@<VPS_IP> 'chmod +x /root/server-init.sh && /root/server-init.sh'
 # ============================================================
 set -euo pipefail
 
-VPS_IP="***REDACTED***"
+VPS_IP="${VPS_IP:-}"
+if [ -z "$VPS_IP" ]; then
+    read -rp "请输入 VPS IP 地址: " VPS_IP
+fi
 PROJECT_DIR="/opt/lucky"
 SWAP_SIZE="1G"
 

@@ -33,7 +33,7 @@ export const staggerContainer: Variants = {
 };
 
 // --- Helper: CSV Export ---
-const exportToCSV = (data: any[], filename: string) => {
+const exportToCSV = (data: Record<string, unknown>[], filename: string) => {
   if (!data || !data.length) return;
 
   // Extract headers
@@ -156,6 +156,7 @@ export const Button: React.FC<ButtonProps> = ({
       whileTap={{ scale: 0.95 }}
       className={`${baseStyle} ${sizeStyles[size]} ${variants[variant]} ${className}`}
       disabled={isLoading}
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- motion.button onDrag type conflicts with HTMLButtonElement DragEventHandler
       {...(props as any)}
     >
       {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -166,7 +167,7 @@ export const Button: React.FC<ButtonProps> = ({
 
 // --- Export Button ---
 export const ExportButton: React.FC<{
-  data?: any[];
+  data?: Record<string, unknown>[];
   filename?: string;
   onClick?: () => void;
 }> = ({ data, filename = 'export', onClick }) => {
@@ -270,7 +271,8 @@ export const Switch: React.FC<{
   label?: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
-}> = ({ label, checked, onChange }) => (
+  disabled?: boolean;
+}> = ({ label, checked, onChange, disabled = false }) => (
   <div className="flex items-center justify-between">
     {label && (
       <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -281,10 +283,11 @@ export const Switch: React.FC<{
       type="button"
       role="switch"
       aria-checked={checked}
-      onClick={() => onChange(!checked)}
-      className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${
-        checked ? 'bg-primary-500' : 'bg-gray-200 dark:bg-gray-700'
-      }`}
+      disabled={disabled}
+      onClick={() => !disabled && onChange(!checked)}
+      className={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${
+        disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+      } ${checked ? 'bg-primary-500' : 'bg-gray-200 dark:bg-gray-700'}`}
     >
       <motion.span
         layout
@@ -463,6 +466,7 @@ export const ImageUpload: React.FC<{
           </div>
         ) : value ? (
           <div className="relative w-full h-full group">
+            {/* eslint-disable-next-line @next/next/no-img-element -- uploader preview: src is a blob URL, dimensions unknown */}
             <img
               src={value}
               alt="Uploaded"

@@ -3,6 +3,7 @@ import React from 'react';
 
 const dynamic = (
   importFn: () => Promise<{ default: React.ComponentType }>,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _options?: object,
 ): React.ComponentType => {
   // Return a lazy component that renders synchronously in tests

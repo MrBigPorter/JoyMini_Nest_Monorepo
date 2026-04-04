@@ -2,9 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { TreasureQueryDto } from '@api/client/treasure/dto/treasure-query.dto';
 import { RedisService } from '@api/common/redis/redis.service';
-import { TreasureFilterType } from '@lucky/shared';
+import { GROUP_STATUS, TreasureFilterType } from '@lucky/shared';
 import { Prisma } from '@prisma/client';
-import { GROUP_STATUS } from '@lucky/shared/dist/types/treasure';
 
 @Injectable()
 export class TreasureService {

@@ -8,7 +8,7 @@ import { Page, BrowserContext } from '@playwright/test';
 /** 测试用管理员账号，通过环境变量注入（本地 .env.test 或 CI secret） */
 export const TEST_ADMIN = {
   username: process.env.E2E_ADMIN_USERNAME || 'admin',
-  password: process.env.E2E_ADMIN_PASSWORD || 'Admin@123456',
+  password: process.env.E2E_ADMIN_PASSWORD || 'admin888',
 };
 
 export const BASE_URL =
@@ -21,10 +21,12 @@ export const BASE_URL =
 export async function loginViaUI(page: Page): Promise<void> {
   await page.goto('/login/');
   // Dismiss Next.js dev overlay if present
-  await page.evaluate(() => {
-    const el = document.querySelector('nextjs-portal');
-    if (el) el.remove();
-  }).catch(() => {});
+  await page
+    .evaluate(() => {
+      const el = document.querySelector('nextjs-portal');
+      if (el) el.remove();
+    })
+    .catch(() => {});
   await page.getByLabel('Username').fill(TEST_ADMIN.username);
   await page.getByLabel('Password').fill(TEST_ADMIN.password);
   await page.getByRole('button', { name: /sign in/i }).click({ force: true });
@@ -49,4 +51,3 @@ export async function injectToken(
     localStorage.setItem('auth_token', t);
   }, token);
 }
-

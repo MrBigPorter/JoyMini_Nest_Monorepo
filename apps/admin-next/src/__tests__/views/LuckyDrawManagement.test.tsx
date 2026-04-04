@@ -29,7 +29,7 @@ vi.mock('@/api', () => ({
   },
 }));
 
-import { LuckyDrawManagement } from '@/views/LuckyDrawManagement';
+import { LuckyDrawManagement } from '@/components/lucky-draw/LuckyDrawClient';
 
 const createActivity = (id: string, title: string) => ({
   id,
@@ -59,7 +59,7 @@ const mockLuckyDrawRequests = ({
       if (options && 'ready' in options) {
         return makeUseRequest({
           list: results ?? [],
-          total: total ?? (results?.length ?? 0),
+          total: total ?? results?.length ?? 0,
         });
       }
 
@@ -138,4 +138,3 @@ describe('LuckyDrawManagement activity count text', () => {
     expect(screen.getByText('No draw results yet.')).toBeInTheDocument();
   });
 });
-

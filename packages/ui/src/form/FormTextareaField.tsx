@@ -105,21 +105,25 @@ export function FormTextareaField<
                     )}
                     onChange={(e) => {
                       field.onChange(e);
-                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                      data?.onChange?.(e as any);
+                      data?.onChange?.(
+                        e as unknown as React.ChangeEvent<HTMLInputElement>,
+                      );
                     }}
                     onBlur={(e) => {
                       field.onBlur();
-                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                      data?.onBlur?.(e as any);
+                      data?.onBlur?.(
+                        e as unknown as React.FocusEvent<HTMLInputElement>,
+                      );
                     }}
                     onFocus={(e) => {
-                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                      data?.onFocus?.(e as any);
+                      data?.onFocus?.(
+                        e as unknown as React.FocusEvent<HTMLInputElement>,
+                      );
                     }}
                     onKeyDown={(e) => {
-                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                      data?.onKeyDown?.(e as any);
+                      data?.onKeyDown?.(
+                        e as unknown as React.KeyboardEvent<HTMLInputElement>,
+                      );
                     }}
                   />
                 </FormControl>

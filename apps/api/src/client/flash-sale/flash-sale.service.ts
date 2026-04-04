@@ -54,7 +54,7 @@ export class ClientFlashSaleService {
     });
 
     return {
-      list: sessions.map((session) => this.mapSession(session, nowMs)),
+      list: sessions.map((session: any) => this.mapSession(session, nowMs)),
     };
   }
 
@@ -99,7 +99,7 @@ export class ClientFlashSaleService {
 
     return {
       session: this.mapSession(session, nowMs),
-      list: products.map((product) => ({
+      list: products.map((product: any) => ({
         id: product.id,
         sessionId: product.sessionId,
         treasureId: product.treasureId,

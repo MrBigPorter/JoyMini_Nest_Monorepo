@@ -12,4 +12,3 @@ export class AdminTokenResponseDto {
   @ApiProperty({ type: AdminTokenPairDto })
   tokens!: AdminTokenPairDto;
 }
-

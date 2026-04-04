@@ -7,7 +7,22 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = { title: 'Group Buys' };
 
 import React, { Suspense } from 'react';
+import {
+  HydrationBoundary,
+  QueryClient,
+  dehydrate,
+} from '@tanstack/react-query';
 import { GroupsClient } from '@/components/groups/GroupsClient';
+import { serverGet } from '@/lib/serverFetch';
+import type { PaginatedResponse } from '@/api/types';
+import type { AdminGroupItem } from '@/type/types';
+import {
+  GROUPS_LIST_TAG,
+  buildGroupsListParams,
+  groupsListQueryKey,
+  parseGroupsSearchParams,
+  type NextSearchParams,
+} from '@/lib/cache/groups-cache';
 
 function GroupsPageSkeleton() {
   return (
@@ -24,10 +39,39 @@ function GroupsPageSkeleton() {
   );
 }
 
-export default function GroupsPage() {
+interface GroupsPageProps {
+  searchParams?: Promise<NextSearchParams>;
+}
+
+export default async function GroupsPage({ searchParams }: GroupsPageProps) {
+  const resolvedSearchParams = (await searchParams) ?? {};
+  const queryClient = new QueryClient();
+  const queryInput = parseGroupsSearchParams(resolvedSearchParams);
+
+  await queryClient.prefetchQuery({
+    queryKey: groupsListQueryKey(queryInput),
+    queryFn: async () => {
+      const res = await serverGet<PaginatedResponse<AdminGroupItem>>(
+        '/v1/admin/groups/list',
+        buildGroupsListParams(queryInput) as Record<
+          string,
+          string | number | boolean | undefined | null
+        >,
+        {
+          revalidate: 30,
+          tags: [GROUPS_LIST_TAG],
+        },
+      );
+
+      return { data: res.list, total: res.total };
+    },
+  });
+
   return (
     <Suspense fallback={<GroupsPageSkeleton />}>
-      <GroupsClient />
+      <HydrationBoundary state={dehydrate(queryClient)}>
+        <GroupsClient />
+      </HydrationBoundary>
     </Suspense>
   );
 }

@@ -14,7 +14,6 @@ import {
 import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '@api/common/jwt/jwt.guard';
 import { PermissionsGuard } from '@api/common/guards/permissions.guard';
-import { OpAction, OpModule, Role } from '@lucky/shared';
 import { ActSectionResponseDto } from '@api/admin/act-section/dto/act-section-response.dto';
 import { CreateActSectionDto } from '@api/admin/act-section/dto/create-act-section.dto';
 import { ActSectionService } from '@api/admin/act-section/act-section.service';
@@ -23,6 +22,16 @@ import { QueryActSectionDto } from '@api/admin/act-section/dto/query-act-section
 import { UpdateActSectionDto } from '@api/admin/act-section/dto/update-act-section.dto';
 import { BindSectionItemDto } from '@api/admin/act-section/dto/bind-section-item.dto';
 import { RequirePermission } from '@api/common/decorators/require-permission.decorator';
+
+const MARKETING_MODULE = 'marketing_management';
+const MARKETING_VIEW = 'view_activity';
+const MARKETING_CREATE = 'create_activity';
+const MARKETING_UPDATE = 'update_activity';
+const MARKETING_DELETE = 'delete_activity';
+
+const toTimestamp = (
+  value: Date | string | number | null | undefined,
+): number => (value ? new Date(value).getTime() : 0);
 
 @ApiTags('admin Act Section Management')
 @ApiBearerAuth()
@@ -38,7 +47,7 @@ export class ActSectionController {
    * @returns {Promise<ActSectionResponseDto>}
    */
   @Post('create')
-  @RequirePermission(OpModule.MARKETING, OpAction.MARKETING.CREATE)
+  @RequirePermission(MARKETING_MODULE, MARKETING_CREATE)
   @ApiOkResponse({ type: ActSectionResponseDto })
   async create(@Body() dto: CreateActSectionDto) {
     const data = await this.sectionService.create(dto);
@@ -51,14 +60,13 @@ export class ActSectionController {
    * @returns {Promise<ActSectionResponseDto[]>}
    */
   @Get('list')
-  @RequirePermission(OpModule.MARKETING, OpAction.MARKETING.VIEW)
+  @RequirePermission(MARKETING_MODULE, MARKETING_VIEW)
   @ApiOkResponse({ type: [ActSectionResponseDto] })
   async findAll(@Query() query: QueryActSectionDto) {
-    const { list, pageSize, page, total } =
-      await this.sectionService.findAll(query);
-    const cleanList = list.map((section: any) => {
+    const result = await this.sectionService.findAll(query);
+    const cleanList = result.list.map((section) => {
       const cleanItems = section.items
-        .map((item: any) => {
+        .map((item) => {
           const t = item.treasure;
           if (!t) return null;
           return {
@@ -76,26 +84,26 @@ export class ActSectionController {
             buyQuantityRate: t.buyQuantityRate ? Number(t.buyQuantityRate) : 0,
 
             // --- 时间处理 ---
-            createdAt: t.createdAt ? new Date(t.createdAt).getTime() : 0,
-            updatedAt: t.updatedAt ? new Date(t.updatedAt).getTime() : 0,
-            categories: t.categories || [],
+            createdAt: toTimestamp(t.createdAt),
+            updatedAt: toTimestamp(t.updatedAt),
+            categories: [],
           };
         })
-        .filter((i: any) => i !== null);
+        .filter((i): i is NonNullable<typeof i> => i !== null);
 
       return {
         ...section,
-        startAt: section.startAt ? new Date(section.startAt).getTime() : 0,
-        endAt: section.endAt ? new Date(section.endAt).getTime() : 0,
+        startAt: toTimestamp(section.startAt),
+        endAt: toTimestamp(section.endAt),
         items: cleanItems || [],
       };
     });
 
     return {
       list: cleanList,
-      page,
-      pageSize,
-      total: total,
+      page: result.page,
+      pageSize: result.pageSize,
+      total: result.total,
     };
   }
 
@@ -105,7 +113,7 @@ export class ActSectionController {
    * @returns {Promise<ActSectionResponseDto>}
    */
   @Get(':id')
-  @RequirePermission(OpModule.MARKETING, OpAction.MARKETING.VIEW)
+  @RequirePermission(MARKETING_MODULE, MARKETING_VIEW)
   @ApiOkResponse({ type: ActSectionResponseDto })
   async findOne(@Param('id') id: string) {
     return await this.sectionService.findOne(id);
@@ -118,7 +126,7 @@ export class ActSectionController {
    * @returns {Promise<ActSectionResponseDto>}
    */
   @Patch(':id')
-  @RequirePermission(OpModule.MARKETING, OpAction.MARKETING.UPDATE)
+  @RequirePermission(MARKETING_MODULE, MARKETING_UPDATE)
   @ApiOkResponse({ type: ActSectionResponseDto })
   async update(@Param('id') id: string, @Body() dto: UpdateActSectionDto) {
     const data = await this.sectionService.update(id, dto);
@@ -131,7 +139,7 @@ export class ActSectionController {
    * @returns {Promise<ActSectionResponseDto>}
    */
   @Delete(':id')
-  @RequirePermission(OpModule.MARKETING, OpAction.MARKETING.DELETE)
+  @RequirePermission(MARKETING_MODULE, MARKETING_DELETE)
   @ApiOkResponse({ type: ActSectionResponseDto })
   async remove(@Param('id') id: string) {
     const data = await this.sectionService.remove(id);
@@ -145,7 +153,7 @@ export class ActSectionController {
    * @returns {Promise<ActSectionResponseDto>}
    */
   @Post(':id/bind')
-  @RequirePermission(OpModule.MARKETING, OpAction.MARKETING.UPDATE)
+  @RequirePermission(MARKETING_MODULE, MARKETING_UPDATE)
   @ApiOkResponse({ type: ActSectionResponseDto })
   async bindTreasures(
     @Param('id') id: string,
@@ -162,7 +170,7 @@ export class ActSectionController {
    * @returns {Promise<ActSectionResponseDto>}
    */
   @Delete(':id/unbind/:treasureId')
-  @RequirePermission(OpModule.MARKETING, OpAction.MARKETING.UPDATE)
+  @RequirePermission(MARKETING_MODULE, MARKETING_UPDATE)
   @ApiOkResponse({ type: ActSectionResponseDto })
   async unbindTreasure(
     @Param('id') id: string,

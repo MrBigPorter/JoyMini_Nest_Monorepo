@@ -68,10 +68,7 @@ export class ApplicationsAdminController {
   @Patch(':id/approve')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Approve application (super admin only)' })
-  async approve(
-    @Param('id') id: string,
-    @CurrentUserId() reviewerId: string,
-  ) {
+  async approve(@Param('id') id: string, @CurrentUserId() reviewerId: string) {
     return this.svc.approve(id, reviewerId);
   }
 

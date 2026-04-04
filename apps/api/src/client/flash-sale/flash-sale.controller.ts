@@ -34,4 +34,3 @@ export class ClientFlashSaleController {
     return plainToInstance(FlashSaleProductDetailResponseDto, data);
   }
 }
-

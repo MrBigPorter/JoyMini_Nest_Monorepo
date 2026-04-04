@@ -6,7 +6,7 @@
  */
 import React, { useCallback, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { GroupManagement } from '@/views/GroupManagement';
+import { GroupManagement } from './GroupManagementClient';
 
 export function GroupsClient() {
   const router = useRouter();

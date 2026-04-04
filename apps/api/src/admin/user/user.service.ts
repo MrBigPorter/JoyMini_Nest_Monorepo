@@ -67,7 +67,7 @@ export class UserService {
       pageSize,
       page,
       totalPages: Math.ceil(total / pageSize),
-      list: list.map((item) => ({
+      list: list.map((item: any) => ({
         ...item,
         createdAt: item.createdAt.getTime(),
         lastLoginAt: item?.lastLoginAt?.getTime() || null,
@@ -126,6 +126,37 @@ export class UserService {
       (dto.status === ADMIN_USER_STATUS.INACTIVE || dto.role)
     ) {
       throw new ForbiddenException('cannot update yourself');
+    }
+
+    // 仅超级管理员可以把任意账号设置为 SUPER_ADMIN，阻断间接提权路径
+    if (dto.role === Role.SUPER_ADMIN) {
+      const operator = await this.prisma.adminUser.findUnique({
+        where: { id: userId },
+        select: { role: true },
+      });
+      if (!operator) throw new BadRequestException('operator not found');
+      if (operator.role !== Role.SUPER_ADMIN) {
+        throw new ForbiddenException('only super admin can assign super admin');
+      }
+    }
+
+    // 仅超级管理员可以修改超级管理员账号的任意字段（role/status/password/realName）
+    // 此检查放在 role/status/password 都生效，阻断所有提权/降级/重置密码攻击路径
+    const target = await this.prisma.adminUser.findUnique({
+      where: { id },
+      select: { role: true },
+    });
+    if (!target) throw new BadRequestException('admin not found');
+    if (target.role === Role.SUPER_ADMIN) {
+      const operator = await this.prisma.adminUser.findUnique({
+        where: { id: userId },
+        select: { role: true },
+      });
+      if (operator?.role !== Role.SUPER_ADMIN) {
+        throw new ForbiddenException(
+          'only super admin can modify super admin account',
+        );
+      }
     }
 
     if (dto.password) {
@@ -217,8 +248,9 @@ export class UserService {
         role === Role.SUPER_ADMIN
           ? ['*'] // 超级管理员拥有全部权限
           : [
-              ...((RolePermissions as Record<string, readonly string[]>)[role] ??
-                []),
+              ...((RolePermissions as Record<string, readonly string[]>)[
+                role
+              ] ?? []),
             ];
 
       // 将权限按模块分组

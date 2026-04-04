@@ -6,7 +6,7 @@
  */
 import React, { useCallback, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { BannerManagement } from '@/views/BannerManagement';
+import { BannerManagement } from './BannerManagementClient';
 
 export function BannersClient() {
   const router = useRouter();
@@ -16,7 +16,7 @@ export function BannersClient() {
   const urlFilterParams = useMemo(() => {
     const params: Record<string, string> = {};
     searchParams.forEach((value, key) => {
-      if (key !== 'page' && key !== 'pageSize' && value) {
+      if (value) {
         params[key] = value;
       }
     });

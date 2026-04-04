@@ -1,6 +1,3 @@
 {
-  "extends": "./packages/config/tsconfig.base.json",
-  "references": [
-    { "path": "./apps/mini-shop-admin" }
-  ]
+  "extends": "./packages/config/tsconfig.base.json"
 }

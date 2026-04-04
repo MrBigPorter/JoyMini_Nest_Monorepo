@@ -5,6 +5,7 @@
 
 import http from './http';
 import type { PaginatedResponse, PaginationParams } from './types';
+import type { RequestConfig } from './types';
 import {
   Product,
   Category,
@@ -195,7 +196,9 @@ export const orderApi = {
 
   // 更新订单状态
   updateState: (id: string, state: number) =>
-    http.patch<Order>(`/v1/admin/order/${id}/status`, state),
+    http.patch<Order>(`/v1/admin/order/${id}/status`, {
+      status: state,
+    }),
 
   // 删除order
   delete: (id: string) => http.delete<Order>(`/v1/admin/order/${id}`),
@@ -545,18 +548,31 @@ export const kycApi = {
  */
 export const authApi = {
   // 登录
+  // x-skip-auth-refresh: '1' 告知拦截器跳过 token refresh 逻辑
+  // 避免登录失败（凭证错误）时被误当作 token 过期，走 refresh → handleUnauthorized → window.location.href = '/login'
   login: (data: { username: string; password: string }) =>
-    http.post<LoginResponse>('/v1/auth/admin/login', data),
+    http.post<LoginResponse>('/v1/auth/admin/login', data, {
+      headers: { 'x-skip-auth-refresh': '1' },
+    }),
 
   // 登出
   logout: () => http.post('/v1/auth/admin/logout'),
 
   // 设置 HTTP-only Cookie（登录成功后调用，由后端写 httpOnly cookie）
   setCookie: (token: string) =>
-    http.post<{ ok: boolean }>('/v1/auth/admin/set-cookie', { token }),
+    http.post<{ ok: boolean }>(
+      '/v1/auth/admin/set-cookie',
+      { token },
+      { withCredentials: true, headers: { 'x-skip-auth-refresh': '1' } },
+    ),
 
   // 清除 HTTP-only Cookie（登出时调用）
-  clearCookie: () => http.post<{ ok: boolean }>('/v1/auth/admin/clear-cookie'),
+  clearCookie: () =>
+    http.post<{ ok: boolean }>(
+      '/v1/auth/admin/clear-cookie',
+      {},
+      { withCredentials: true, headers: { 'x-skip-auth-refresh': '1' } },
+    ),
 
   // 刷新 token
   refreshToken: (refreshToken: string) =>
@@ -568,6 +584,9 @@ export const authApi = {
   // 修改密码
   changePassword: (data: { oldPassword: string; newPassword: string }) =>
     http.post('/auth/change-password', data),
+
+  // 获取当前登录管理员信息（page refresh 后恢复 userInfo）
+  getMe: () => http.get<AdminUser>('/v1/auth/admin/me'),
 };
 
 /**
@@ -672,20 +691,26 @@ export const notificationApi = {
  */
 export const chatApi = {
   /** GET /v1/admin/chat/conversations — 会话列表 */
-  getConversations: (params: import('@/type/types').QueryConversationsParams) =>
+  getConversations: (
+    params: import('@/type/types').QueryConversationsParams,
+    config?: RequestConfig,
+  ) =>
     http.get<PaginatedResponse<import('@/type/types').ChatConversation>>(
       '/v1/admin/chat/conversations',
       params,
+      config,
     ),
 
   /** GET /v1/admin/chat/conversations/:id/messages — 消息历史 */
   getMessages: (
     conversationId: string,
     params: import('@/type/types').QueryMessagesParams,
+    config?: RequestConfig,
   ) =>
     http.get<import('@/type/types').ChatMessagesResult>(
       `/v1/admin/chat/conversations/${conversationId}/messages`,
       params,
+      config,
     ),
 
   /** POST /v1/admin/chat/conversations/:id/reply — 客服回复 */
@@ -837,11 +862,18 @@ export const systemConfigApi = {
     http.get<{ list: import('@/type/types').SystemConfigItem[] }>(
       '/v1/admin/system-config',
     ),
+  create: (data: { key: string; value: string }) =>
+    http.post<import('@/type/types').SystemConfigItem>(
+      '/v1/admin/system-config',
+      data,
+    ),
   update: (key: string, value: string) =>
     http.patch<import('@/type/types').SystemConfigItem>(
       `/v1/admin/system-config/${key}`,
       { value },
     ),
+  delete: (key: string) =>
+    http.delete<{ success: boolean }>(`/v1/admin/system-config/${key}`),
 };
 
 /**
@@ -872,7 +904,14 @@ export const applicationApi = {
 
   /** 待审批数量（侧边栏红点）*/
   pendingCount: () =>
-    http.get<{ count: number }>('/v1/admin/applications/pending-count'),
+    http.get<{ count: number }>(
+      '/v1/admin/applications/pending-count',
+      undefined,
+      {
+        trace: false,
+        showError: false, // 轮询请求，403（非 SUPER_ADMIN）静默处理，不弹 toast
+      },
+    ),
 
   /** 审批通过 */
   approve: (id: string) =>

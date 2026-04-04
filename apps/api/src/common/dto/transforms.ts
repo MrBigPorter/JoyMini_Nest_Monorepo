@@ -209,7 +209,7 @@ export function ToDate() {
     Transform(
       ({ value }) => {
         if (isEmpty(value)) return undefined;
-        const d = new Date(value as any);
+        const d = new Date(value);
         return isNaN(d.getTime()) ? undefined : d;
       },
       { toClassOnly: true },
@@ -267,7 +267,7 @@ export function DecimalToNumber(defaultValue: number | null = 0) {
       // Prisma.Decimal / Decimal.js 实例
       if (typeof value === 'object' && value !== null && 'toNumber' in value) {
         try {
-          return (value as any).toNumber();
+          return value.toNumber();
         } catch {
           return defaultValue;
         }

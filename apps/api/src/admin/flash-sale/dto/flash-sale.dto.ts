@@ -81,4 +81,3 @@ export class UpdateFlashSaleProductDto {
   @Min(0)
   sortOrder?: number;
 }
-

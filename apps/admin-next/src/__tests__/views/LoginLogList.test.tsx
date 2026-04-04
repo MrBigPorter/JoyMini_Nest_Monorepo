@@ -7,11 +7,14 @@ import {
   waitFor,
   within,
 } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-const mockUseRequest = vi.hoisted(() => vi.fn());
+const mockReplace = vi.hoisted(() => vi.fn());
+const mockGetList = vi.hoisted(() => vi.fn());
 
-vi.mock('ahooks', () => ({
-  useRequest: (...args: unknown[]) => mockUseRequest(...args),
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ replace: mockReplace }),
+  useSearchParams: () => new URLSearchParams(''),
 }));
 
 vi.mock('@/components/scaffold/PageHeader', () => ({
@@ -22,12 +25,11 @@ vi.mock('@/components/scaffold/PageHeader', () => ({
 
 vi.mock('@/api', () => ({
   loginLogApi: {
-    getList: vi.fn().mockResolvedValue({ list: [], total: 0 }),
+    getList: mockGetList,
   },
 }));
 
-import { loginLogApi } from '@/api';
-import { LoginLogList } from '@/views/LoginLogList';
+import { LoginLogList } from '@/components/login-logs/LoginLogsClient';
 
 const createLoginLog = (overrides?: Record<string, unknown>) => ({
   id: 'log-1',
@@ -47,49 +49,45 @@ const createLoginLog = (overrides?: Record<string, unknown>) => ({
   ...overrides,
 });
 
-const mockLoginLogRequest = ({
-  list,
-  total = list.length,
-  loading = false,
-}: {
-  list: ReturnType<typeof createLoginLog>[];
-  total?: number;
-  loading?: boolean;
-}) => {
-  const refresh = vi.fn();
-  mockUseRequest.mockImplementation((service: () => unknown) => {
-    void service();
-
-    return {
-      data: { list, total },
-      loading,
-      run: refresh,
-    };
+function renderWithQueryClient(ui: React.ReactElement) {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+      },
+    },
   });
 
-  return refresh;
-};
+  return render(
+    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
+  );
+}
 
 describe('LoginLogList', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetList.mockResolvedValue({ list: [], total: 0 });
   });
 
-  it('renders empty state when login logs are empty', () => {
-    mockLoginLogRequest({ list: [] });
-
-    render(<LoginLogList />);
+  it('renders empty state when login logs are empty', async () => {
+    renderWithQueryClient(<LoginLogList />);
 
     expect(screen.getByTestId('page-header')).toHaveTextContent('Login Logs');
-    expect(screen.getByText('No login logs found')).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(screen.getByText('No login logs found')).toBeInTheDocument();
+    });
   });
 
-  it('renders login log rows with key fields', () => {
-    mockLoginLogRequest({ list: [createLoginLog()] });
+  it('renders login log rows with key fields', async () => {
+    mockGetList.mockResolvedValue({ list: [createLoginLog()], total: 1 });
 
-    render(<LoginLogList />);
+    renderWithQueryClient(<LoginLogList />);
 
-    expect(screen.getByText('Alice')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Alice')).toBeInTheDocument();
+    });
+
     const row = screen.getByText('Alice').closest('tr');
     expect(row).not.toBeNull();
 
@@ -105,9 +103,11 @@ describe('LoginLogList', () => {
   });
 
   it('applies filters and sends updated query params', async () => {
-    mockLoginLogRequest({ list: [] });
+    renderWithQueryClient(<LoginLogList />);
 
-    render(<LoginLogList />);
+    await waitFor(() => {
+      expect(mockGetList).toHaveBeenCalledWith({ page: 1, pageSize: 20 });
+    });
 
     fireEvent.change(screen.getByPlaceholderText('User ID…'), {
       target: { value: 'user_1001' },
@@ -122,31 +122,34 @@ describe('LoginLogList', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Search' }));
 
     await waitFor(() => {
-      expect(loginLogApi.getList).toHaveBeenLastCalledWith({
+      expect(mockGetList).toHaveBeenLastCalledWith({
         page: 1,
         pageSize: 20,
         userId: 'user_1001',
         loginIp: '192.168.0.1',
         loginStatus: 1,
       });
+      expect(mockReplace).toHaveBeenCalledWith(
+        expect.stringContaining('userId=user_1001'),
+        { scroll: false },
+      );
     });
   });
 
-  it('triggers refresh action from toolbar', () => {
-    const refresh = mockLoginLogRequest({ list: [createLoginLog()] });
+  it('triggers refresh action from toolbar', async () => {
+    mockGetList.mockResolvedValue({ list: [createLoginLog()], total: 1 });
 
-    render(<LoginLogList />);
+    renderWithQueryClient(<LoginLogList />);
 
-    const searchButton = screen.getByRole('button', { name: 'Search' });
-    const toolbar = searchButton.parentElement;
-    expect(toolbar).not.toBeNull();
+    await waitFor(() => {
+      expect(screen.getByText('Alice')).toBeInTheDocument();
+    });
 
-    const refreshButton = within(toolbar as HTMLElement).getAllByRole(
-      'button',
-    )[1];
+    const buttons = screen.getAllByRole('button');
+    fireEvent.click(buttons[1]);
 
-    fireEvent.click(refreshButton);
-
-    expect(refresh).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(mockGetList).toHaveBeenCalledTimes(2);
+    });
   });
 });

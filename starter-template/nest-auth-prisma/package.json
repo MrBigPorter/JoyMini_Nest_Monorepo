@@ -1,0 +1,36 @@
+{
+  "name": "template-api",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "start:dev": "nest start --watch",
+    "build": "nest build",
+    "prisma:generate": "prisma generate --schema prisma/schema.prisma",
+    "prisma:migrate": "prisma migrate dev --schema prisma/schema.prisma"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.0.0",
+    "@nestjs/core": "^11.0.0",
+    "@nestjs/jwt": "^11.0.0",
+    "@nestjs/passport": "^11.0.0",
+    "@nestjs/platform-express": "^11.0.0",
+    "@prisma/client": "^6.18.0",
+    "bcryptjs": "^2.4.3",
+    "class-validator": "^0.14.1",
+    "cookie-parser": "^1.4.7",
+    "passport": "^0.7.0",
+    "passport-jwt": "^4.0.1",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.0",
+    "@types/cookie-parser": "^1.4.8",
+    "@types/express": "^5.0.3",
+    "@types/passport-jwt": "^4.0.1",
+    "prisma": "^6.18.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.2"
+  }
+}
+

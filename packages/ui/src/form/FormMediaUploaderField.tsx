@@ -33,7 +33,7 @@ type FormMediaUploaderFieldProps<
   | "renderRight"
 > & {
   maxFileCount?: number;
-  accept?: any; // 可以按需改成 react-dropzone 的 Accept 类型
+  accept?: Record<string, string[]>; // react-dropzone Accept type: { 'image/*': ['.png', '.jpg'] }
   showRemoveButton?: boolean;
   previewClassName?: string;
   labelClassName?: string;

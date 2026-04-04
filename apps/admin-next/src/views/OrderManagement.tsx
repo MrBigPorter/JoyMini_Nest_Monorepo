@@ -56,9 +56,9 @@ export const OrderManagement: React.FC = () => {
 
   // 2. Logic: Handle Status Updates
   const handleUpdateStatus = useCallback(
-    async (orderId: string, status: number, extraData: any = {}) => {
+    async (orderId: string, status: number) => {
       try {
-        await updateStatusApi(orderId, { status, ...extraData });
+        await updateStatusApi(orderId, status);
         addToast(
           'success',
           `Order status updated to ${ORDER_STATUS_LABEL[status]}`,
@@ -109,44 +109,43 @@ export const OrderManagement: React.FC = () => {
   );
 
   // 4. Interaction: Open Shipping Modal
-  const openShippingModal = (_orderId: string) => {
-    let _trackingNumber = '';
-    let _courierName = '';
-
-    ModalManager.open({
-      title: 'Ship Order',
-      renderChildren: ({ close }) => (
-        <div className="space-y-4">
-          <div>
-            <label className="text-sm font-medium">Courier Name</label>
-            <Input
-              onChange={(e) => (_courierName = e.target.value)}
-              placeholder="e.g. J&T, Lalamove"
-            />
+  const openShippingModal = useCallback(
+    (orderId: string) => {
+      ModalManager.open({
+        title: 'Ship Order',
+        renderChildren: ({ close }) => (
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">Courier Name</label>
+              <Input disabled placeholder="e.g. J&T, Lalamove" />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Tracking Number</label>
+              <Input disabled placeholder="e.g. 982173..." />
+            </div>
+            <p className="text-xs text-gray-500">
+              Shipping detail editing is not wired yet. Confirm will mark the
+              order as shipped.
+            </p>
+            <div className="flex justify-end gap-2 mt-4">
+              <Button variant="ghost" onClick={close}>
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  void handleUpdateStatus(orderId, ORDER_STATUS.SHIPPED);
+                  close();
+                }}
+              >
+                Confirm Shipment
+              </Button>
+            </div>
           </div>
-          <div>
-            <label className="text-sm font-medium">Tracking Number</label>
-            <Input
-              onChange={(e) => (_trackingNumber = e.target.value)}
-              placeholder="e.g. 982173..."
-            />
-          </div>
-          <div className="flex justify-end gap-2 mt-4">
-            <Button variant="ghost" onClick={close}>
-              Cancel
-            </Button>
-            {/*
-
-            onClick={handleUpdateStatus(orderId, ORDER_STATUS.SHIPPED, {
-                trackingNumber,
-                courierName,
-              })}*/}
-            <Button>Confirm Shipment</Button>
-          </div>
-        </div>
-      ),
-    });
-  };
+        ),
+      });
+    },
+    [handleUpdateStatus],
+  );
 
   // 5. Interaction: Order Details View
   const handleOrderDetails = useCallback(
@@ -227,11 +226,11 @@ export const OrderManagement: React.FC = () => {
         ),
       });
     },
-    [handleUpdateStatus],
+    [handleUpdateStatus, openShippingModal],
   );
 
   // 7. Table Configuration
-  const columns: ColumnDef<Order>[] = useMemo(() => {
+  const columns = useMemo(() => {
     const columnsHelper = createColumnHelper<Order>();
     return [
       columnsHelper.accessor('orderNo', {
@@ -342,7 +341,7 @@ export const OrderManagement: React.FC = () => {
           />
         </div>
         <BaseTable
-          columns={columns}
+          columns={columns as ColumnDef<Order, unknown>[]}
           data={tableProps.dataSource || []}
           rowKey="orderId"
           pagination={{

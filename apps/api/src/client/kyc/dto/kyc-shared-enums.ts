@@ -31,4 +31,3 @@ export const KYC_ID_CARD_TYPE_VALUES = [
   'CN_ID',
   'VN_ID',
 ] as const;
-

@@ -16,6 +16,17 @@ import {
   getRealIp,
   getUserAgent,
 } from '@api/common/utils/request.util';
+import type { Request } from 'express';
+
+const extractUserId = (request: Request): string | null => {
+  const reqWithUser = request as unknown as { user?: unknown };
+  if (!reqWithUser.user || typeof reqWithUser.user !== 'object') {
+    return null;
+  }
+
+  const rawId = (reqWithUser.user as Record<string, unknown>).id;
+  return typeof rawId === 'string' ? rawId : null;
+};
 
 @Injectable()
 export class DeviceSecurityGuard implements CanActivate {
@@ -40,9 +51,9 @@ export class DeviceSecurityGuard implements CanActivate {
     }
 
     // 2. 拿 User (必须在 JwtAuthGuard 后)
-    const request = context.switchToHttp().getRequest();
-    const user = request.user;
-    if (!user || !user.id) {
+    const request = context.switchToHttp().getRequest<Request>();
+    const userId = extractUserId(request);
+    if (!userId) {
       throw new UnauthorizedException();
     }
 
@@ -55,12 +66,12 @@ export class DeviceSecurityGuard implements CanActivate {
     };
 
     // 4. 执行风控
-    await this.deviceSecurityService.validateAndLogDevice(user.id, deviceInfo);
+    await this.deviceSecurityService.validateAndLogDevice(userId, deviceInfo);
 
     // 5. 严格模式额外检查
     if (level === DeviceSecurityLevel.STRICT_CHECK) {
       await this.deviceSecurityService.checkWithdrawEligibility(
-        user.id,
+        userId,
         deviceInfo.deviceId,
       );
     }

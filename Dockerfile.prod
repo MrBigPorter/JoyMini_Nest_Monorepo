@@ -23,7 +23,6 @@ COPY packages/eslint-config/package.json     ./packages/eslint-config/package.js
 COPY packages/typescript-config/package.json ./packages/typescript-config/package.json
 
 # 前端工作区 — yarn 需要知道它们存在，但不安装其依赖
-COPY apps/mini-shop-admin/package.json       ./apps/mini-shop-admin/package.json
 COPY apps/admin-next/package.json            ./apps/admin-next/package.json
 COPY apps/liveness-web/package.json          ./apps/liveness-web/package.json
 COPY packages/ui/package.json                ./packages/ui/package.json
@@ -37,15 +36,23 @@ COPY apps/api/ ./apps/api/
 COPY packages/ ./packages/
 COPY turbo.json tsconfig.json ./
 
-# 4) Prisma generate (prisma CLI 在 apps/api/node_modules/.bin/ 里)
+    # 4) Prisma generate (prisma CLI 提升到根 node_modules/.bin/prisma)
 RUN yarn workspace @lucky/api prisma generate
 
-# 5) Build API + 依赖包
-RUN yarn turbo run build --filter=@lucky/api
+    # 5) Build @lucky/shared (API imports from @lucky/shared/dist/*)
+    #    esbuild 不在 focus 范围内，直接用 tsc (typescript 是 @lucky/api 的 devDep，会被提升到根 node_modules)
+RUN node_modules/.bin/tsc -p packages/shared/tsconfig.json
 
-# 6) 编译 CLI 脚本 (独立 tsc, 不走 webpack, 产物放入 dist/cli/)
-#    生产使用: docker exec -it lucky-backend-prod node apps/api/dist/cli/create-admin.js
-RUN cd apps/api && node_modules/.bin/tsc -p tsconfig.cli.json
+    # 6) Build API + 依赖包
+RUN yarn workspace @lucky/api build
+
+    # 7) 编译 CLI 脚本 (独立 tsc, 不走 webpack, 产物放入 dist/cli/)
+    #    生产使用: docker exec -it lucky-backend-prod node apps/api/dist/cli/create-admin.js
+RUN node_modules/.bin/tsc -p apps/api/tsconfig.cli.json
+
+    # 8) 确保工作区级 node_modules 目录存在（yarn workspaces focus 在 Docker 中会把
+    #    所有包提升到根 node_modules，workspace 子目录可能不存在，导致 Pruner 的 COPY 失败）
+RUN mkdir -p apps/api/node_modules packages/shared/node_modules
 
 # ============================================================
 # Stage 2: Pruner — 裁剪 node_modules (中间层)

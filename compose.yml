@@ -34,13 +34,15 @@ services:
              LOCK_HASH=$$(md5sum /app/yarn.lock | cut -d' ' -f1) &&
              CACHE=/app/node_modules/.backend-install-hash &&
              if [ ! -f \"$$CACHE\" ] || [ \"$$(cat $$CACHE 2>/dev/null)\" != \"$$LOCK_HASH\" ]; then
-               echo '>>> yarn.lock changed - running install...' &&
+               echo '>>> dependency check triggered - running install...' &&
                yarn workspaces focus @lucky/api &&
                echo \"$$LOCK_HASH\" > \"$$CACHE\";
              else
                echo '>>> yarn.lock unchanged - skipping install';
              fi &&
              export PATH=/app/node_modules/.bin:$$PATH &&
+             echo '>>> Building @lucky/shared (JS + .d.ts)...' &&
+             node_modules/.bin/tsc -p /app/packages/shared/tsconfig.json &&
              echo '>>> Applying pending DB migrations...' &&
              yarn workspace @lucky/api pr:deploy &&
              yarn workspace @lucky/api start:dev"
@@ -70,9 +72,9 @@ services:
       sh -c "corepack enable &&
              LOCK_HASH=$$(md5sum /app/yarn.lock | cut -d' ' -f1) &&
              CACHE=/app/node_modules/.admin-install-hash &&
-             if [ ! -f \"$$CACHE\" ] || [ \"$$(cat $$CACHE 2>/dev/null)\" != \"$$LOCK_HASH\" ]; then
-               echo '>>> yarn.lock changed - running install...' &&
-               yarn workspaces focus @lucky/admin-next &&
+             if [ ! -f \"$$CACHE\" ] || [ \"$$(cat $$CACHE 2>/dev/null)\" != \"$$LOCK_HASH\" ] || ! yarn workspace @lucky/admin-next exec which next >/dev/null 2>&1; then
+               echo '>>> dependency check triggered - running install...' &&
+               yarn install &&
                echo \"$$LOCK_HASH\" > \"$$CACHE\";
              else
                echo '>>> yarn.lock unchanged - skipping install';
@@ -101,8 +103,14 @@ services:
       HOSTNAME: "0.0.0.0"
       # Google reCAPTCHA v3 Site Key (前端用，可公开)
       NEXT_PUBLIC_RECAPTCHA_SITE_KEY: ${NEXT_PUBLIC_RECAPTCHA_SITE_KEY:-}
+      # middleware clearAuthCookie 用：清除 auth_token 时需要指定正确的 cookie domain
+      AUTH_COOKIE_DOMAIN: .joyminis.com
     healthcheck:
-      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:4001/', r => process.exit(r.statusCode < 500 ? 0 : 1)).on('error', () => process.exit(1))\""]
+      test:
+        [
+          "CMD-SHELL",
+          'node -e "require(''http'').get(''http://localhost:4001/'', r => process.exit(r.statusCode < 500 ? 0 : 1)).on(''error'', () => process.exit(1))"',
+        ]
       interval: 10s
       timeout: 10s
       retries: 30
@@ -149,7 +157,11 @@ services:
       - redis_data:/data
       - ./redis/redis.conf:/etc/redis/redis.conf
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli -a ${REDIS_PASSWORD:-devpassword} ping | grep PONG"]
+      test:
+        [
+          "CMD-SHELL",
+          "redis-cli -a ${REDIS_PASSWORD:-devpassword} ping | grep PONG",
+        ]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -168,7 +180,11 @@ services:
     volumes:
       - db_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -h 127.0.0.1 -U $$POSTGRES_USER -d $$POSTGRES_DB",
+        ]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -176,7 +192,6 @@ services:
 
 networks:
   app:
-
 
 volumes:
   db_data:
@@ -189,4 +204,3 @@ volumes:
   pkg_eslint_nm:
   pkg_tsconfig_nm:
   pkg_config_nm:
-

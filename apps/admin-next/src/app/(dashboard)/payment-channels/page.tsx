@@ -1,13 +1,28 @@
 /**
  * Payment Channels Page — Server Component
- * Moved from /payment/channels → /payment-channels (flattened)
+ * Phase 6: URL searchParams 驱动 filter + 首屏预取
  */
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = { title: 'Payment Channels' };
 
 import React, { Suspense } from 'react';
+import {
+  HydrationBoundary,
+  QueryClient,
+  dehydrate,
+} from '@tanstack/react-query';
 import { PaymentChannelsClient } from '@/components/payment/PaymentChannelsClient';
+import { serverGet } from '@/lib/serverFetch';
+import type { PaginatedResponse } from '@/api/types';
+import type { PaymentChannel } from '@/type/types';
+import {
+  PAYMENT_CHANNELS_LIST_TAG,
+  paymentChannelsListQueryKey,
+  buildPaymentChannelsListParams,
+  parsePaymentChannelsSearchParams,
+  type NextSearchParams,
+} from '@/lib/cache/payment-channels-cache';
 
 function PaymentChannelsPageSkeleton() {
   return (
@@ -24,11 +39,44 @@ function PaymentChannelsPageSkeleton() {
   );
 }
 
-export default function PaymentChannelsPage() {
+interface PaymentChannelsPageProps {
+  searchParams?: Promise<NextSearchParams>;
+}
+
+export default async function PaymentChannelsPage({
+  searchParams,
+}: PaymentChannelsPageProps) {
+  const resolvedSearchParams = (await searchParams) ?? {};
+  const queryClient = new QueryClient();
+  const queryInput = parsePaymentChannelsSearchParams(resolvedSearchParams);
+
+  await queryClient.prefetchQuery({
+    queryKey: paymentChannelsListQueryKey(queryInput),
+    queryFn: async () => {
+      const res = await serverGet<PaginatedResponse<PaymentChannel>>(
+        '/v1/admin/payment/channels/list',
+        buildPaymentChannelsListParams(queryInput) as Record<
+          string,
+          string | number | boolean | undefined | null
+        >,
+        {
+          revalidate: 30,
+          tags: [PAYMENT_CHANNELS_LIST_TAG],
+        },
+      );
+      // 如果返回null（401错误），返回空数据
+      if (!res) {
+        return { list: [], total: 0 };
+      }
+      return { list: res.list, total: res.total };
+    },
+  });
+
   return (
     <Suspense fallback={<PaymentChannelsPageSkeleton />}>
-      <PaymentChannelsClient />
+      <HydrationBoundary state={dehydrate(queryClient)}>
+        <PaymentChannelsClient />
+      </HydrationBoundary>
     </Suspense>
   );
 }
-

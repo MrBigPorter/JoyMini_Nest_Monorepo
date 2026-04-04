@@ -25,7 +25,6 @@ export class SupportChannelService {
       ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
     };
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const [total, list] = await Promise.all([
       this.prisma.supportChannel.count({ where }),
       this.prisma.supportChannel.findMany({
@@ -130,7 +129,8 @@ export class SupportChannelService {
 
   async toggle(id: string, dto: ToggleSupportChannelDto) {
     const existing = await this.prisma.supportChannel.findUnique({
-      where: { id }, select: { id: true },
+      where: { id },
+      select: { id: true },
     });
     if (!existing)
       throw new NotFoundException(`Support channel ${id} not found`);
@@ -146,4 +146,3 @@ export class SupportChannelService {
     });
   }
 }
-

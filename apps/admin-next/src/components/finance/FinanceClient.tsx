@@ -6,7 +6,8 @@
  */
 import React, { useCallback, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { FinancePage } from '@/views/FinancePage';
+import { FinancePage } from './FinancePageClient';
+import { ErrorBoundary } from './ErrorBoundary';
 
 export function FinanceClient() {
   const router = useRouter();
@@ -28,12 +29,11 @@ export function FinanceClient() {
     (formData: Record<string, unknown>) => {
       const qs = new URLSearchParams();
 
-      // 先保留当前 URL 中除了表单字段之外的参数（比如 tab）
-      // 如果 formData 中传了新的 tab，则会被下面覆盖
+      // Keep current URL params first, then apply incoming changes.
+      // This avoids dropping filters when a child emits partial updates
+      // (e.g. FinancePage syncing only { tab } on mount/tab switch).
       searchParams.forEach((value, key) => {
-        if (key === 'tab') {
-          qs.set(key, value);
-        }
+        qs.set(key, value);
       });
 
       Object.entries(formData).forEach(([key, value]) => {
@@ -56,9 +56,11 @@ export function FinanceClient() {
   );
 
   return (
-    <FinancePage
-      initialFormParams={urlFilterParams}
-      onParamsChange={handleParamsChange}
-    />
+    <ErrorBoundary>
+      <FinancePage
+        initialFormParams={urlFilterParams}
+        onParamsChange={handleParamsChange}
+      />
+    </ErrorBoundary>
   );
 }

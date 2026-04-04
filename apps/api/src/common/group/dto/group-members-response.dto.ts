@@ -1,4 +1,3 @@
-import { GroupForTreasureItemDto } from '@api/common/group/dto/group-for-treasure-item.dto';
 import { ApiProperty } from '@nestjs/swagger';
 import { GroupMemberItemDto } from '@api/common/group/dto/group-member-item.dto';
 

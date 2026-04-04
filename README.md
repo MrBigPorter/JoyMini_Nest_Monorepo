@@ -32,3 +32,8 @@ yarn switch:admin:dns:execute
 yarn rollback:admin:dns
 yarn rollback:admin:dns:execute
 ```
+
+```bash
+epomix（原名 ai-digest）是一个专门为大模型准备代码的工具。它会自动遍历你所有的代码，生成一个项目的文件目录树，然后把所有前端、后端、脚本的核心源码合并成一个 repomix-output.txt 文件。
+npx repomix --ignore "**/.next/**,**/.open-next/**,**/node_modules/**,**/dist/**,**/.git/**,**/*.log,**/certs/**"
+```

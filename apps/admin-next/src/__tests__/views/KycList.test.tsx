@@ -4,9 +4,10 @@ import { render, screen } from '@testing-library/react';
 import {
   repoUiMock,
   repoUiBadgeMock,
-  SmartTableMock,
   PageHeaderMock,
 } from '../mocks/view-helpers';
+
+const smartTablePropsSpy = vi.hoisted(() => vi.fn());
 
 // ── mocks ────────────────────────────────────────────────────────
 vi.mock('@repo/ui', () => ({
@@ -35,7 +36,17 @@ vi.mock('@repo/ui', () => ({
 }));
 vi.mock('@repo/ui/components/ui/badge', () => repoUiBadgeMock);
 vi.mock('@/components/scaffold/SmartTable', () => ({
-  SmartTable: SmartTableMock,
+  SmartTable: Object.assign(
+    React.forwardRef(function SmartTableMock(
+      props: { headerTitle?: React.ReactNode },
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      _ref: React.ForwardedRef<unknown>,
+    ) {
+      smartTablePropsSpy(props);
+      return <div data-testid="smart-table">{props.headerTitle}</div>;
+    }),
+    { displayName: 'SmartTableMock' },
+  ),
 }));
 vi.mock('@/components/scaffold/PageHeader', () => ({
   PageHeader: PageHeaderMock,
@@ -72,7 +83,7 @@ vi.mock('@/views/kyc/KycFormModal', () => ({
 }));
 
 // ── subject ──────────────────────────────────────────────────────
-import { KycList } from '@/views/KycList';
+import { KycList } from '@/components/kyc/KycListClient';
 
 describe('KycList', () => {
   beforeEach(() => vi.clearAllMocks());
@@ -90,5 +101,30 @@ describe('KycList', () => {
   it('renders page header', () => {
     render(<KycList />);
     expect(screen.getByTestId('page-header')).toBeInTheDocument();
+  });
+
+  it('accepts initialFormParams and enables hydration', () => {
+    const onParamsChange = vi.fn();
+
+    render(
+      <KycList
+        initialFormParams={{ userId: 'u-1', kycStatus: '1' }}
+        onParamsChange={onParamsChange}
+      />,
+    );
+
+    expect(smartTablePropsSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        initialFormParams: {
+          page: 1,
+          pageSize: 10,
+          userId: 'u-1',
+          kycStatus: 1,
+        },
+        onParamsChange,
+        enableHydration: true,
+        hydrationQueryKey: ['kyc', 1, 10, 'u-1', 1, '', ''],
+      }),
+    );
   });
 });

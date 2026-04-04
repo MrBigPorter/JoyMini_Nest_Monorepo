@@ -1,19 +1,33 @@
 # ============================================================
-# 后端部署 — 推送 main 分支时自动触发 (包含 Telegram 通知)
+# 后端部署 — 推送 main/test 分支时自动触发 (包含 Telegram 通知)
 # ============================================================
 name: Deploy Backend
 
 on:
   push:
-    branches: [main]
+    branches: [main, test]
     paths:
-      - 'apps/api/**'
-      - 'packages/shared/**'
-      - 'packages/config/**'
-      - 'Dockerfile.prod'
-      - 'compose.prod.yml'
+      - "apps/api/**"
+      - "packages/shared/**"
+      - "packages/config/**"
+      - "Dockerfile.prod"
+      - "compose.prod.yml"
+      - "nginx/nginx.prod.conf"
+      - "nginx/whitelist.conf"
+      - ".github/workflows/deploy-backend.yml"
   workflow_dispatch:
+    inputs:
+      runner:
+        description: "🖥️ Runner (ubuntu-latest = GitHub托管 / self-hosted = 本地Mac算力)"
+        type: choice
+        options: [ubuntu-latest, self-hosted]
+        default: ubuntu-latest
   workflow_call:
+    inputs:
+      runner:
+        description: "Runner to use"
+        type: string
+        default: ubuntu-latest
 
 concurrency:
   group: deploy-backend
@@ -28,18 +42,21 @@ jobs:
   # 阶段一: 构建 + 推送镜像到 GHCR (兵工厂打包)
   # =========================================
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
     permissions:
       contents: read
       packages: write
 
     steps:
+      # Step 1 / 步骤 1: Checkout repository source code
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Step 2 / 步骤 2: Enable Docker Buildx builder
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # Step 3 / 步骤 3: Authenticate to GHCR for image push
       - name: Login to GHCR
         uses: docker/login-action@v3
         with:
@@ -47,6 +64,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Step 4 / 步骤 4: Generate Docker image tags/labels metadata
       - name: Docker meta (生成标签)
         id: meta
         uses: docker/metadata-action@v5
@@ -56,6 +74,7 @@ jobs:
             type=sha,prefix=
             type=raw,value=latest
 
+      # Step 5 / 步骤 5: Build backend image and push to GHCR
       - name: Build & Push
         uses: docker/build-push-action@v6
         with:
@@ -74,23 +93,99 @@ jobs:
   # =========================================
   deploy:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
     environment: production
 
     steps:
+      # Step 1 / 步骤 1: Checkout repo for deployment artifacts/scripts
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Sync deploy scripts to VPS
+      # Step 1.1 / 步骤 1.1: Validate SSH secrets and basic connectivity from current runner
+      - name: Validate SSH connectivity preflight
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+        run: |
+          set -euo pipefail
+
+          HOST="${SSH_HOST:-}"
+          PORT="${SSH_PORT:-22}"
+
+          if [ -z "$HOST" ]; then
+            echo "::error::SSH_HOST is empty. Please set repository/environment secret SSH_HOST."
+            exit 1
+          fi
+
+          echo "Preflight: probing ${HOST}:${PORT} from runner..."
+
+          OK=0
+          for i in 1 2 3; do
+            if nc -zvw5 "$HOST" "$PORT"; then
+              OK=1
+              echo "✅ SSH port reachable on attempt #$i"
+              break
+            fi
+            echo "⚠️ Attempt #$i failed, retrying in 5s..."
+            sleep 5
+          done
+
+          if [ "$OK" -ne 1 ]; then
+            echo "::error::Runner cannot reach ${HOST}:${PORT}."
+            echo "::error::Likely network path issue between GitHub runner and VPS (not key/auth issue yet)."
+            echo "::error::Check SSH_HOST/SSH_PORT secrets, VPS firewall/security group, or use self-hosted runner."
+            exit 1
+          fi
+
+      # Step 2 / 步骤 2: Sync deploy shell scripts to VPS (attempt 1)
+      - name: Sync deploy scripts to VPS (attempt 1)
+        id: scp_sync_1
+        continue-on-error: true
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT != '' && secrets.SSH_PORT || 22 }}
           source: "deploy/*.sh"
           target: /opt/lucky/deploy
           overwrite: true
+          timeout: 120s
+          command_timeout: 15m
+          debug: true
 
+      # Step 2.1 / 步骤 2.1: Retry scp once for transient network jitter
+      - name: Sync deploy scripts to VPS (retry once)
+        if: steps.scp_sync_1.outcome == 'failure'
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT != '' && secrets.SSH_PORT || 22 }}
+          source: "deploy/*.sh"
+          target: /opt/lucky/deploy
+          overwrite: true
+          timeout: 120s
+          command_timeout: 15m
+          debug: true
+
+      # Step 2.2 / 步骤 2.2: Sync nginx config to VPS
+      - name: Sync nginx config to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT != '' && secrets.SSH_PORT || 22 }}
+          source: "nginx/nginx.prod.conf,nginx/whitelist.conf"
+          target: /opt/lucky/nginx
+          strip_components: 1
+          overwrite: true
+          timeout: 120s
+          command_timeout: 15m
+
+      # Step 3 / 步骤 3: Pull image, migrate DB, restart service, health-check, and rollback via SSH
       - name: Deploy via SSH (登录服务器执行脚本)
         uses: appleboy/ssh-action@v1.2.0
         env:
@@ -101,20 +196,48 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT != '' && secrets.SSH_PORT || 22 }}
+          timeout: 120s
+          command_timeout: 30m
+          debug: true
           envs: GHCR_TOKEN,GHCR_USER,IMAGE
           script: |
             set -e
             cd /opt/lucky
 
+            retry() {
+              local max="$1"
+              local delay="$2"
+              shift 2
+              local n=1
+              while true; do
+                if "$@"; then
+                  return 0
+                fi
+                if [ "$n" -ge "$max" ]; then
+                  echo "❌ command failed after ${n} attempts: $*"
+                  return 1
+                fi
+                echo "⚠️ attempt ${n} failed, retry in ${delay}s: $*"
+                n=$((n + 1))
+                sleep "$delay"
+              done
+            }
+
             # 0. 确保同步后的脚本可执行
             chmod +x deploy/*.sh || true
 
+            # 0.1 预检 VPS 出海网络连通性（测 github 官网，避开 401 权限报错）
+            echo "→ 预检 GitHub 连通性..."
+            retry 4 5 curl -fsS --max-time 15 https://github.com >/dev/null
+
             # 1. 登录 GHCR
-            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            echo "→ 登录 GHCR..."
+            retry 4 8 sh -c 'echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin'
 
             # 2. 拉取新镜像
             echo "→ 拉取镜像: $IMAGE"
-            docker pull "$IMAGE"
+            retry 4 10 docker pull "$IMAGE"
 
             # 3. 运行数据库迁移 (临时容器 — 失败时不影响正在运行的后端!)
             echo "→ 运行数据库迁移..."
@@ -126,7 +249,7 @@ jobs:
               --env-file deploy/.env.prod \
               --entrypoint "" \
               "$IMAGE" \
-              ./apps/api/node_modules/.bin/prisma migrate deploy \
+              ./node_modules/.bin/prisma migrate deploy \
                 --schema=apps/api/prisma/schema.prisma
             echo "✅ 迁移完成"
 
@@ -172,24 +295,34 @@ jobs:
             # 9. 清理旧镜像
             docker image prune -f
 
+            # 10. 热重载 nginx 配置（如有变更，无需重启容器）
+            echo "→ 校验并重载 nginx 配置..."
+            if docker exec lucky-nginx-prod nginx -t 2>&1; then
+              docker exec lucky-nginx-prod nginx -s reload
+              echo "✅ nginx 配置重载成功"
+            else
+              echo "❌ nginx 配置语法错误！保留旧配置，请检查 nginx/nginx.prod.conf"
+              exit 1
+            fi
+
       # =========================================
       # 阶段三: Telegram 战报通知
       # =========================================
+      # Step 4 / 步骤 4: Send deployment status notification to Telegram
       - name: 📱 Send Telegram Notification
         if: always() # 无论成功失败，这步绝对不能丢！
         run: |
-          STATUS_EMOJI="✅ 成功 (Success)"
+          STATUS_EMOJI="✅ Success"
           if [ "${{ job.status }}" != "success" ]; then
-            STATUS_EMOJI="❌ 失败 (Failed)"
+            STATUS_EMOJI="❌ Failed"
           fi
-          
-          # 专门为后端定制的消息模板
-          MESSAGE="⚙️ *Lucky Backend 部署报告*
-          📌 *状态*: $STATUS_EMOJI
-          🏷️ *环境*: Production (VPS: ***REDACTED***)
-          🔗 *API*: [api.joyminis.com](https://api.joyminis.com/api/v1/health)
-          📝 *Commit ID*: \`${{ github.sha }}\`"
-          
+
+          MESSAGE="⚙️ *Lucky Backend Deployment Report*
+          📌 *Status*: $STATUS_EMOJI
+          🏷️ *Environment*: Production (VPS) — branch: \`${{ github.ref_name }}\`
+          🔗 *API Health*: [api.joyminis.com](https://api.joyminis.com/api/v1/health)
+          📝 *Commit*: \`${{ github.sha }}\`"
+
           curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage" \
             -d "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}" \
             -d "text=$MESSAGE" \

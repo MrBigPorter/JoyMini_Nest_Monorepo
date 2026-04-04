@@ -34,9 +34,10 @@ export class MediaService {
       });
 
       const response = await lastValueFrom(response$);
-      return response.data; // return image buffer
-    } catch (error: any) {
-      console.error('Google Maps Proxy Error:', error.message);
+      return response.data as Buffer; // return image buffer
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('Google Maps Proxy Error:', message);
       throw new InternalServerErrorException('Failed to fetch map');
     }
   }

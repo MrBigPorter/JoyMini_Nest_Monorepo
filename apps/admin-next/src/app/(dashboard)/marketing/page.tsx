@@ -1,13 +1,22 @@
 /**
  * Marketing Page — Server Component
- * Phase 3: URL searchParams 驱动 filter
+ * Phase 3: SSR 预取 + HydrationBoundary
  */
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = { title: 'Marketing' };
 
 import React, { Suspense } from 'react';
+import {
+  dehydrate,
+  HydrationBoundary,
+  QueryClient,
+} from '@tanstack/react-query';
 import { MarketingClient } from '@/components/marketing/MarketingClient';
+import {
+  prefetchMarketingList,
+  parseMarketingSearchParams,
+} from '@/lib/marketing-cache';
 
 function MarketingPageSkeleton() {
   return (
@@ -24,10 +33,27 @@ function MarketingPageSkeleton() {
   );
 }
 
-export default function MarketingPage() {
+interface MarketingPageProps {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}
+
+export default async function MarketingPage({
+  searchParams,
+}: MarketingPageProps) {
+  const queryClient = new QueryClient();
+  const params = await searchParams;
+
+  // 解析搜索参数
+  const queryParams = parseMarketingSearchParams(params);
+
+  // 预取优惠券列表数据
+  await prefetchMarketingList(queryClient, queryParams);
+
   return (
-    <Suspense fallback={<MarketingPageSkeleton />}>
-      <MarketingClient />
-    </Suspense>
+    <HydrationBoundary state={dehydrate(queryClient)}>
+      <Suspense fallback={<MarketingPageSkeleton />}>
+        <MarketingClient />
+      </Suspense>
+    </HydrationBoundary>
   );
 }

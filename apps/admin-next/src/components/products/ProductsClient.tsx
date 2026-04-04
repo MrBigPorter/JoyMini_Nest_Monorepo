@@ -6,7 +6,7 @@
  */
 import React, { useCallback, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ProductManagement } from '@/views/ProductManagement';
+import { ProductListClient } from './ProductListClient';
 
 export function ProductsClient() {
   const router = useRouter();
@@ -16,7 +16,7 @@ export function ProductsClient() {
   const urlFilterParams = useMemo(() => {
     const params: Record<string, string> = {};
     searchParams.forEach((value, key) => {
-      if (key !== 'page' && key !== 'pageSize' && value) {
+      if (value) {
         params[key] = value;
       }
     });
@@ -44,7 +44,7 @@ export function ProductsClient() {
   );
 
   return (
-    <ProductManagement
+    <ProductListClient
       initialFormParams={urlFilterParams}
       onParamsChange={handleParamsChange}
     />

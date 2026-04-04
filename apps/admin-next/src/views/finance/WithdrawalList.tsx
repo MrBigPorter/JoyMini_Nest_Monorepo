@@ -18,6 +18,11 @@ import {
 } from '@lucky/shared';
 import { EyeIcon, ShieldCheck, Wallet, Landmark } from 'lucide-react';
 import { FormSchema } from '@/type/search';
+import {
+  buildWithdrawalsListParams,
+  parseWithdrawalsSearchParams,
+  withdrawalsListQueryKey,
+} from '@/lib/cache/finance-withdrawals-cache';
 
 // 简单的渠道图标映射助手
 const ChannelIcon = ({ code, name }: { code?: string; name?: string }) => {
@@ -46,6 +51,24 @@ export const WithdrawalList: React.FC<WithdrawalListProps> = ({
   onParamsChange,
 }) => {
   const actionRef = useRef<ActionType>(null);
+
+  const normalizedInitialFormParams = useMemo(() => {
+    const input = initialFormParams ?? {};
+    return parseWithdrawalsSearchParams({
+      page: typeof input.page === 'string' ? input.page : undefined,
+      pageSize: typeof input.pageSize === 'string' ? input.pageSize : undefined,
+      keyword: typeof input.keyword === 'string' ? input.keyword : undefined,
+      status: typeof input.status === 'string' ? input.status : undefined,
+      startDate:
+        typeof input.startDate === 'string' ? input.startDate : undefined,
+      endDate: typeof input.endDate === 'string' ? input.endDate : undefined,
+    });
+  }, [initialFormParams]);
+
+  const hydrationQueryKey = useMemo(
+    () => withdrawalsListQueryKey(normalizedInitialFormParams),
+    [normalizedInitialFormParams],
+  );
 
   const handleAudit = useCallback((record: WithdrawOrder) => {
     ModalManager.open({
@@ -230,20 +253,27 @@ export const WithdrawalList: React.FC<WithdrawalListProps> = ({
   );
 
   const requestWithdrawals = useCallback(async (params: WithdrawListParams) => {
-    // 处理参数
-    const { dateRange, ...rest } = params;
-    const requestData = { ...rest };
-    delete (requestData as Record<string, unknown>).tab;
+    const input = params as Record<string, unknown>;
+    const dateRange = input.dateRange as
+      | { from?: string; to?: string }
+      | undefined;
+    const queryInput = parseWithdrawalsSearchParams({
+      page: String(params.page ?? 1),
+      pageSize: String(params.pageSize ?? 10),
+      keyword: typeof input.keyword === 'string' ? input.keyword : undefined,
+      status:
+        typeof input.status === 'string' || typeof input.status === 'number'
+          ? String(input.status)
+          : undefined,
+      startDate:
+        typeof input.startDate === 'string' ? input.startDate : dateRange?.from,
+      endDate:
+        typeof input.endDate === 'string' ? input.endDate : dateRange?.to,
+    });
 
-    if (requestData.status === 'ALL') delete requestData.status;
-
-    // 处理日期范围组件的返回值
-    if (dateRange?.to && dateRange.from) {
-      requestData.startDate = dateRange.from;
-      requestData.endDate = dateRange.to;
-    }
-
-    const res = await financeApi.getWithdrawals(requestData);
+    const res = await financeApi.getWithdrawals(
+      buildWithdrawalsListParams(queryInput) as WithdrawListParams,
+    );
     return {
       data: res.list,
       total: res.total,
@@ -259,9 +289,11 @@ export const WithdrawalList: React.FC<WithdrawalListProps> = ({
         ref={actionRef}
         columns={columns}
         searchSchema={searchSchema}
-        initialFormParams={initialFormParams}
+        initialFormParams={normalizedInitialFormParams}
         onParamsChange={onParamsChange}
         request={requestWithdrawals}
+        enableHydration={true}
+        hydrationQueryKey={hydrationQueryKey}
       />
     </div>
   );

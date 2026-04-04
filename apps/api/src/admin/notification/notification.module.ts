@@ -12,4 +12,3 @@ import { AdminNotificationService } from './notification.service';
   exports: [],
 })
 export class AdminNotificationModule {}
-

@@ -23,7 +23,7 @@ export const SmartImageImpl: React.FC<SmartImageProps> = ({
   className,
   imgClassName,
   alt = '',
-  layout = 'constrained',
+  layout,
   loading = 'lazy',
   ...props
 }) => {
@@ -56,6 +56,55 @@ export const SmartImageImpl: React.FC<SmartImageProps> = ({
     }
   }, [src]);
 
+  const imageClassName = cn(
+    'transition-opacity duration-500 ease-in-out',
+    status === 'loaded' ? 'opacity-100' : 'opacity-0',
+    imgClassName || 'w-full h-full object-cover',
+  );
+
+  const cdn = shouldEnableCdn ? ('cloudflare' as const) : undefined;
+
+  const commonImageProps = {
+    ref: imgRef,
+    src,
+    cdn,
+    loading,
+    onLoad: () => setStatus('loaded'),
+    onError: () => setStatus('error'),
+    className: imageClassName,
+  };
+
+  const mergeImageProps = (overrides: Partial<ImageProps>): ImageProps => {
+    return {
+      ...(props as ImageProps),
+      ...(commonImageProps as unknown as ImageProps),
+      ...overrides,
+    } as ImageProps;
+  };
+
+  const renderImage = () => {
+    if (!src) return null;
+
+    if (layout === 'fixed') {
+      const fixedProps = mergeImageProps({ layout: 'fixed', alt });
+      return <Image {...fixedProps} alt={alt} />;
+    }
+
+    if (layout === 'fullWidth') {
+      const fullWidthProps = mergeImageProps({ layout: 'fullWidth', alt });
+      return <Image {...fullWidthProps} alt={alt} />;
+    }
+
+    if (layout === 'constrained') {
+      const constrainedProps = mergeImageProps({ layout: 'constrained', alt });
+      return <Image {...constrainedProps} alt={alt} />;
+    }
+
+    const defaultProps = mergeImageProps({ alt });
+
+    return <Image {...defaultProps} alt={alt} />;
+  };
+
   return (
     <div
       className={cn(
@@ -87,29 +136,7 @@ export const SmartImageImpl: React.FC<SmartImageProps> = ({
       )}
 
       {/* --- 3. 正常图片 (@unpic) --- */}
-      {src && (
-        <Image
-          ref={imgRef}
-          src={src}
-          // 智能开关：开启传 'cloudflare'，关闭传 undefined (加载原图)
-          cdn={shouldEnableCdn ? 'cloudflare' : undefined}
-          layout={layout}
-          alt={alt}
-          loading={loading}
-          // 图片加载成功的回调
-          onLoad={() => setStatus('loaded')}
-          // 图片加载失败的回调
-          onError={() => setStatus('error')}
-          className={cn(
-            'transition-opacity duration-500 ease-in-out', // 淡入动画
-            // 加载完成前透明，加载完后显示
-            status === 'loaded' ? 'opacity-100' : 'opacity-0',
-            imgClassName || 'w-full h-full object-cover',
-          )}
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          {...(props as any)}
-        />
-      )}
+      {renderImage()}
     </div>
   );
 };

@@ -1,6 +1,12 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 
 const mockUseRequest = vi.hoisted(() => vi.fn());
 
@@ -22,7 +28,7 @@ vi.mock('@/api', () => ({
 }));
 
 import { systemConfigApi } from '@/api';
-import { SystemConfig } from '@/views/SystemConfig';
+import { SystemConfig } from '@/components/settings/SettingsClient';
 
 const createConfig = (key: string, value: string) => ({ key, value });
 
@@ -66,7 +72,9 @@ describe('SystemConfig', () => {
 
     render(<SystemConfig />);
 
-    expect(screen.getByTestId('page-header')).toHaveTextContent('System Config');
+    expect(screen.getByTestId('page-header')).toHaveTextContent(
+      'System Config',
+    );
     expect(screen.getByText('No config items found')).toBeInTheDocument();
     expect(screen.getByText('0 config items')).toBeInTheDocument();
   });
@@ -93,10 +101,12 @@ describe('SystemConfig', () => {
 
     render(<SystemConfig />);
 
-    const row = screen.getByText('Platform Name').closest('div[class*="justify-between"]');
+    const row = screen
+      .getByText('Platform Name')
+      .closest('div[class*="justify-between"]');
     expect(row).not.toBeNull();
 
-    const editButton = within(row as HTMLDivElement).getByRole('button');
+    const editButton = within(row as HTMLDivElement).getAllByRole('button')[0];
     fireEvent.click(editButton);
 
     const input = screen.getByDisplayValue('Lucky Nest');
@@ -113,4 +123,3 @@ describe('SystemConfig', () => {
     expect(screen.getByText('Lucky Nest Pro')).toBeInTheDocument();
   });
 });
-

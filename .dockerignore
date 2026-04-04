@@ -26,7 +26,8 @@ certs/
 nginx/
 redis/
 database/
-read/
+docs/read/
+starter-template/
 
 # ==========================================
 # 不需要打包的 App — 排除源码，保留 package.json (yarn 工作区解析需要)

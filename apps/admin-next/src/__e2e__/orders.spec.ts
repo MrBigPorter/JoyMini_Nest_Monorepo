@@ -29,7 +29,9 @@ test.describe('Order Management — /orders', () => {
   });
 
   test('订单表格渲染', async ({ page }) => {
-    await expect(page.locator('table').first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('table').first()).toBeVisible({
+      timeout: 20_000,
+    });
   });
 
   test('搜索框可以输入关键字', async ({ page }) => {

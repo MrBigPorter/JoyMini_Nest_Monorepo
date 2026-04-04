@@ -4,14 +4,14 @@ const config = {
   rootDir: 'src',
   testRegex: '.*\\.spec\\.ts$',
   transform: {
-    '^.+\\.(t|j)s$': [
+    '^.+\\.ts$': [
       'ts-jest',
       {
         tsconfig: '<rootDir>/../tsconfig.json',
       },
     ],
   },
-  collectCoverageFrom: ['**/*.(t|j)s'],
+  collectCoverageFrom: ['**/*.ts'],
   coverageDirectory: '../coverage',
   testEnvironment: 'node',
   testPathIgnorePatterns: ['/node_modules/', 'app.controller.spec.ts'],

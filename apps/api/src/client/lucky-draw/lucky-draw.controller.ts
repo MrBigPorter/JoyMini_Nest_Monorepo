@@ -13,6 +13,19 @@ export class ClientLuckyDrawController {
   constructor(private readonly luckyDraw: LuckyDrawService) {}
 
   /**
+   * GET /v1/lucky-draw/order/:orderId/ticket
+   * 根据订单 ID 查询该订单关联的抽奖券状态 + 结果
+   * 前端订单详情页用此接口判断"显示抽奖按钮 / 已抽过显示奖品"
+   */
+  @Get('order/:orderId/ticket')
+  getTicketByOrder(
+    @CurrentUserId() userId: string,
+    @Param('orderId') orderId: string,
+  ) {
+    return this.luckyDraw.getTicketByOrder(userId, orderId);
+  }
+
+  /**
    * GET /v1/lucky-draw/my-tickets
    * 当前用户的抽奖券列表
    */

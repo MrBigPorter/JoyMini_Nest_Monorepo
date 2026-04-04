@@ -45,6 +45,7 @@ export const Button: React.FC<ButtonProps> = ({
       whileTap={{ scale: 0.95 }}
       className={`${baseStyle} ${sizeStyles[size]} ${variants[variant]} ${className}`}
       disabled={isLoading}
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- motion.button onDrag type conflicts with HTMLButtonElement DragEventHandler
       {...(props as any)}
     >
       {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}

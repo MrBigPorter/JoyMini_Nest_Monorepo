@@ -45,4 +45,3 @@ export class QueryLoginLogDto {
   @IsString()
   endDate?: string;
 }
-

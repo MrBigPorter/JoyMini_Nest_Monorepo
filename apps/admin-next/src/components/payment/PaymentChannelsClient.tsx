@@ -6,7 +6,7 @@
  */
 import React, { useCallback, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { PaymentChannelList } from '@/views/PaymentChannelList';
+import { PaymentChannelList } from './PaymentChannelListClient';
 
 export function PaymentChannelsClient() {
   const router = useRouter();

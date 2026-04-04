@@ -11,8 +11,8 @@ export class SectionsController {
     // 捕获可能产生的锁繁忙异常
     try {
       return await this.svc.getHomeSections(isNaN(n) ? 10 : n);
-    } catch (error: any) {
-      if (error.message.includes('Lock busy')) {
+    } catch (error: unknown) {
+      if (error instanceof Error && error.message.includes('Lock busy')) {
         // 这里可以根据业务决定是返回 429 还是返回一个过期的缓存/空列表
         throw new HttpException('System is busy, please try again later', 429);
       }

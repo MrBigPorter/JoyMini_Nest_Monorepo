@@ -15,6 +15,9 @@ import { v4 as uuidv4 } from 'uuid';
 import { extname } from 'path';
 import * as mime from 'mime';
 
+const getMimeExtension = (mimeType: string): string | false =>
+  mime.extension(mimeType) as string | false;
+
 @Injectable()
 export class UploadService {
   private readonly s3Client: S3Client;
@@ -221,7 +224,7 @@ export class UploadService {
 
     try {
       // 签发 5 分钟有效的下载链接
-      return await getSignedUrl(this.s3Client as any, command, {
+      return await getSignedUrl(this.s3Client, command, {
         expiresIn: 300,
       });
     } catch (error) {
@@ -279,14 +282,14 @@ export class UploadService {
     // 根据 mimeType 简单推断后缀，或者直接生成 jpg
     // [修改点] 使用库自动获取后缀，如果没有找到则默认 .bin
     //  修复点：增加容错判断
-    let extension = 'bin';
+    let extension: string;
     try {
-      // 尝试多种获取方式
+      const resolvedExt = getMimeExtension(mimeType);
       extension =
-        (mime.extension
-          ? mime.extension(mimeType)
-          : (mime as any).getType(mimeType)) || 'jpg';
-    } catch (e) {
+        typeof resolvedExt === 'string' && resolvedExt.length > 0
+          ? resolvedExt
+          : 'jpg';
+    } catch {
       extension = 'jpg'; // 兜底为 jpg
     }
     const uniqueFileName = `${prefix}_${uuidv4()}.${extension}`;

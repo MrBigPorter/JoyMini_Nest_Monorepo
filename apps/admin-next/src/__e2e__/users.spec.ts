@@ -16,9 +16,9 @@ test.describe('User Management — /users', () => {
   });
 
   test('页面加载不崩溃，显示页面标题', async ({ page }) => {
-    await expect(
-      page.getByText(/client database/i),
-    ).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(/client database/i)).toBeVisible({
+      timeout: 20_000,
+    });
   });
 
   test('用户表格渲染（有表头行）', async ({ page }) => {
@@ -56,4 +56,3 @@ test.describe('User Management — /users', () => {
     await expectNoError(page);
   });
 });
-

@@ -23,13 +23,15 @@ test.describe('Marketing — Coupon List (/marketing)', () => {
   });
 
   test('显示优惠券相关标题', async ({ page }) => {
-    await expect(
-      page.getByText(/coupon/i).first(),
-    ).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(/coupon/i).first()).toBeVisible({
+      timeout: 20_000,
+    });
   });
 
   test('优惠券表格渲染', async ({ page }) => {
-    await expect(page.locator('table').first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('table').first()).toBeVisible({
+      timeout: 20_000,
+    });
   });
 
   test('Search 按钮可点击', async ({ page }) => {

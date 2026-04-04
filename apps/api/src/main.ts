@@ -10,6 +10,10 @@ import { requestId } from '@api/common/middleware/request-id';
 import { AllExceptionsFilter } from '@api/common/filters/all-exceptions.filter';
 import { ResponseWrapInterceptor } from '@api/common/interceptors/response-wrap.interceptor';
 import { ServerTimeInterceptor } from '@api/common/interceptors/server-time.interceptor';
+import {
+  CsrfMiddleware,
+  CsrfTokenMiddleware,
+} from '@api/common/middleware/csrf.middleware';
 
 const isProd = process.env.NODE_ENV === 'production';
 
@@ -43,6 +47,12 @@ async function bootstrap() {
 
   // 请求 ID
   app.use(requestId());
+
+  // CSRF 保护中间件
+  const csrfTokenMiddleware = new CsrfTokenMiddleware();
+  const csrfMiddleware = new CsrfMiddleware();
+  app.use(csrfTokenMiddleware.use.bind(csrfTokenMiddleware));
+  app.use(csrfMiddleware.use.bind(csrfMiddleware));
 
   // 安全 / cookie / CORS
   //禁用 Helmet 的跨域资源策略，否则 Nginx 的 CORS 头会被覆盖或冲突

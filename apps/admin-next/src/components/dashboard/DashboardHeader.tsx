@@ -11,7 +11,7 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { RefreshCw } from 'lucide-react';
-import { format } from 'date-fns';
+import { ClientDate } from '@/components/ui/ClientDate';
 
 export function DashboardHeader() {
   const router = useRouter();
@@ -34,7 +34,7 @@ export function DashboardHeader() {
           Dashboard
         </h1>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-          {format(new Date(), 'MMMM d, yyyy')} · Real-time overview
+          <ClientDate pattern="MMMM d, yyyy" /> · Real-time overview
         </p>
       </div>
       <button
@@ -47,4 +47,3 @@ export function DashboardHeader() {
     </div>
   );
 }
-

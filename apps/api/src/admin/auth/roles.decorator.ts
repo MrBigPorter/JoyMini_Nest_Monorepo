@@ -8,4 +8,3 @@ export const ROLES_KEY = 'roles';
  * @example @Roles(Role.SUPER_ADMIN, Role.ADMIN)
  */
 export const Roles = (...roles: Role[]) => SetMetadata(ROLES_KEY, roles);
-

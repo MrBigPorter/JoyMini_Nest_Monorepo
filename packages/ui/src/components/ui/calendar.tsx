@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import * as React from "react";
 import {
   ChevronDownIcon,
@@ -107,7 +108,6 @@ function Calendar({
 
 function CalendarDayButton({
   className,
-  day,
   modifiers,
   disabled,
   ...props

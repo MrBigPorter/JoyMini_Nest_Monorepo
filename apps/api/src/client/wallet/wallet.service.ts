@@ -1,25 +1,54 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { Prisma } from '@prisma/client';
-import {
-  BALANCE_TYPE,
-  TRANSACTION_STATUS,
-  TRANSACTION_TYPE,
-} from '@lucky/shared/dist/types/wallet';
 import { throwBiz } from '@api/common/exceptions/biz.exception';
 import { ERROR_KEYS } from '@api/common/error-codes.gen';
-import { BizPrefix, OrderNoHelper } from '@lucky/shared';
 
 const D = (n: number | string | Prisma.Decimal) => new Prisma.Decimal(n);
 type Tx = Prisma.TransactionClient | PrismaService;
+
+const TRANSACTION_TYPE = {
+  RECHARGE: 1,
+  CONSUMPTION: 2,
+  REFUND: 3,
+  REWARD: 4,
+  WITHDRAWAL: 5,
+  COIN_EXCHANGE: 6,
+} as const;
+
+const BALANCE_TYPE = {
+  CASH: 1,
+  COIN: 2,
+} as const;
+
+const TRANSACTION_STATUS = {
+  SUCCESS: 1,
+} as const;
+
+const generateTransactionNo = (): string => {
+  const now = new Date();
+  const datePart = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(
+    now.getDate(),
+  ).padStart(2, '0')}${String(now.getHours()).padStart(2, '0')}${String(
+    now.getMinutes(),
+  ).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}${String(
+    now.getMilliseconds(),
+  ).padStart(3, '0')}`;
+  const randomPart = `${Math.floor(Math.random() * 1_000_000)}`.padStart(
+    6,
+    '0',
+  );
+
+  return `TRF${datePart}${randomPart}`;
+};
 
 @Injectable()
 export class WalletService {
   constructor(private prisma: PrismaService) {}
 
   // Get ORM instance, either transaction or main prisma
-  private orm(tx?: Tx) {
-    return (tx ?? this.prisma) as any;
+  private orm(tx?: Tx): Tx {
+    return tx ?? this.prisma;
   }
 
   // Ensure a wallet exists for the given userId
@@ -105,7 +134,7 @@ export class WalletService {
     // 3.记录交易流水
     const txn = await db.walletTransaction.create({
       data: {
-        transactionNo: OrderNoHelper.generate(BizPrefix.TRANSFER),
+        transactionNo: generateTransactionNo(),
         userId,
         walletId: updateWallet.id,
         transactionType: type ?? TRANSACTION_TYPE.RECHARGE,
@@ -146,7 +175,8 @@ export class WalletService {
 
     // 2. 利用 update 的 where 条件做乐观锁，同时获取更新后的值
     // Prisma 的 update 如果条件不满足(如余额不足导致记录找不到)，会抛出 P2025 错误
-    let updatedWallet;
+    let updatedWallet: { id: string; realBalance: Prisma.Decimal } | null =
+      null;
     try {
       updatedWallet = await db.userWallet.update({
         where: { userId, realBalance: { gte: amt } }, // 数据库层面的余额检查
@@ -158,8 +188,14 @@ export class WalletService {
           realBalance: true,
         },
       });
-    } catch (e) {
+    } catch {
       throwBiz(ERROR_KEYS.INSUFFICIENT_BALANCE);
+      throw new BadRequestException('insufficient balance');
+    }
+
+    if (!updatedWallet) {
+      throwBiz(ERROR_KEYS.INSUFFICIENT_BALANCE);
+      throw new BadRequestException('insufficient balance');
     }
 
     const after = updatedWallet.realBalance;
@@ -168,7 +204,7 @@ export class WalletService {
     // 3.记录交易流水
     const txn = await db.walletTransaction.create({
       data: {
-        transactionNo: OrderNoHelper.generate(BizPrefix.TRANSFER),
+        transactionNo: generateTransactionNo(),
         userId,
         walletId: updatedWallet.id,
         transactionType: TRANSACTION_TYPE.CONSUMPTION,
@@ -224,7 +260,7 @@ export class WalletService {
 
     const txn = await db.walletTransaction.create({
       data: {
-        transactionNo: OrderNoHelper.generate(BizPrefix.TRANSFER),
+        transactionNo: generateTransactionNo(),
         userId,
         walletId: updateWallet.id,
         transactionType: type ?? TRANSACTION_TYPE.REWARD,
@@ -262,30 +298,36 @@ export class WalletService {
 
     await this.ensureWallet(userId, db);
 
-    const res = await db.userWallet.updateMany({
-      where: { userId, coinBalance: { gte: amt } },
-      data: {
-        coinBalance: { decrement: amt },
-      },
-    });
-
-    if (res.count !== 1) {
+    // 使用 update 而不是 updateMany，直接获取更新后的值（与 debitCash 保持一致）
+    let updatedWallet: { id: string; coinBalance: Prisma.Decimal } | null =
+      null;
+    try {
+      updatedWallet = await db.userWallet.update({
+        where: { userId, coinBalance: { gte: amt } },
+        data: {
+          coinBalance: { decrement: amt },
+        },
+        select: {
+          id: true,
+          coinBalance: true,
+        },
+      });
+    } catch {
       throw new BadRequestException('insufficient coin balance');
     }
 
-    const currentWallet = await db.userWallet.findUniqueOrThrow({
-      where: { userId },
-      select: { id: true, coinBalance: true },
-    });
+    if (!updatedWallet) {
+      throw new BadRequestException('insufficient coin balance');
+    }
 
-    const after = currentWallet.coinBalance;
+    const after = updatedWallet.coinBalance;
     const before = after.add(amt);
 
     const txn = await db.walletTransaction.create({
       data: {
-        transactionNo: OrderNoHelper.generate(BizPrefix.TRANSFER),
+        transactionNo: generateTransactionNo(),
         userId,
-        walletId: currentWallet.id,
+        walletId: updatedWallet.id,
         transactionType: TRANSACTION_TYPE.COIN_EXCHANGE,
         balanceType: BALANCE_TYPE.COIN,
         amount: amt.neg(), // negative amount for debit
@@ -352,7 +394,7 @@ export class WalletService {
 
     const txn = await db.walletTransaction.create({
       data: {
-        transactionNo: OrderNoHelper.generate(BizPrefix.TRANSFER),
+        transactionNo: generateTransactionNo(),
         userId,
         walletId: currentWallet.id,
         transactionType: TRANSACTION_TYPE.WITHDRAWAL,
@@ -413,7 +455,7 @@ export class WalletService {
 
     const txn = await db.walletTransaction.create({
       data: {
-        transactionNo: OrderNoHelper.generate(BizPrefix.TRANSFER),
+        transactionNo: generateTransactionNo(),
         userId,
         walletId: currentWallet.id,
         transactionType: TRANSACTION_TYPE.REFUND,

@@ -2,6 +2,17 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { QueryOperationLogDto } from './dto/query-operation-log.dto';
 import { Prisma } from '@prisma/client';
+import { TimeHelper } from '@lucky/shared';
+
+const GENERIC_ACTION_FILTERS = new Set([
+  'login',
+  'logout',
+  'create',
+  'update',
+  'delete',
+  'audit',
+  'export',
+]);
 
 export interface WriteLogParams {
   adminId: string;
@@ -52,15 +63,22 @@ export class OperationLogService {
 
     // Filter by action (operationType)
     if (action && action !== 'ALL') {
-      where.action = action;
+      const normalizedAction = action.trim();
+      const loweredAction = normalizedAction.toLowerCase();
+
+      where.action = GENERIC_ACTION_FILTERS.has(loweredAction)
+        ? { contains: loweredAction, mode: 'insensitive' }
+        : { equals: normalizedAction, mode: 'insensitive' };
     }
 
     // Filter by keyword (search in adminName, details, module)
     if (keyword) {
+      const trimmedKeyword = keyword.trim();
       where.OR = [
-        { adminName: { contains: keyword } },
-        { details: { contains: keyword } },
-        { module: { contains: keyword } },
+        { adminName: { contains: trimmedKeyword, mode: 'insensitive' } },
+        { details: { contains: trimmedKeyword, mode: 'insensitive' } },
+        { module: { contains: trimmedKeyword, mode: 'insensitive' } },
+        { action: { contains: trimmedKeyword, mode: 'insensitive' } },
       ];
     }
 
@@ -68,10 +86,10 @@ export class OperationLogService {
     if (startDate || endDate) {
       where.createdAt = {};
       if (startDate) {
-        where.createdAt.gte = new Date(startDate);
+        where.createdAt.gte = TimeHelper.getStartOfDay(startDate);
       }
       if (endDate) {
-        where.createdAt.lte = new Date(endDate);
+        where.createdAt.lte = TimeHelper.getEndOfDay(endDate);
       }
     }
 

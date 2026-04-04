@@ -6,6 +6,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Min,
 } from 'class-validator';
 
 // 0. 基础载荷 (所有信令的父类)
@@ -54,6 +55,24 @@ export class CallIceCandidateDto extends BaseCallDto {
 export class CallEndDto extends BaseCallDto {
   @IsEnum(CallEndReason)
   reason!: CallEndReason;
+
+  @IsString()
+  @IsOptional()
+  conversationId?: string;
+
+  @IsEnum(CallMediaType)
+  @IsOptional()
+  mediaType?: CallMediaType; // 通话类型：audio或video
+
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  duration?: number; // 通话时长（秒）
+
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  startedAt?: number; // 开始时间戳（毫秒）
 }
 
 //  5. 对方已响铃 (Ringing) - 仅需基础信息

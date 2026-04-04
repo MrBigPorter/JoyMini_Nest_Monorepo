@@ -1,0 +1,22 @@
+# 排除 Flutter 编译生成的垃圾
+build/
+.dart_tool/
+.fvm/
+ios/Pods/
+ios/.symlinks/
+
+# 排除 Next.js 编译缓存
+.next/
+out/
+
+# 排除版本控制和缓存
+.git/
+.idea/
+.vscode/
+.clineignore
+
+# 排除测试报告
+playwright-report/
+
+# 排除环境变量文件
+**/.env.local

@@ -238,14 +238,28 @@ export class ClientUserService {
    */
   async unbanDevice(deviceId: string) {
     try {
-      // 1. 从数据库中删除
-      await this.prismaService.deviceBlacklist.delete({
-        where: { deviceId },
-      });
+      // 1) 从黑名单删除 + 重置该设备历史绑定（频率从 0 重新计算）
+      const [, resetBindings] = await this.prismaService.$transaction([
+        this.prismaService.deviceBlacklist.delete({
+          where: { deviceId },
+        }),
+        this.prismaService.userDevice.deleteMany({
+          where: { deviceId },
+        }),
+      ]);
+
       // 关键：从 Redis 黑名单集合中移除
       // 必须与 DeviceSecurityService 中使用的 Key 保持一致
       await this.redisService.srem('security:device:blacklist', deviceId);
-      return { success: true };
+
+      // 2) 清理该设备活跃缓存，确保下次登录按“新设备”重新开始
+      const pattern = `security:device:active:*:${deviceId}`;
+      const keys = await this.redisService.keys(pattern);
+      if (keys.length > 0) {
+        await this.redisService.del(...keys);
+      }
+
+      return { success: true, resetBindings: resetBindings.count };
     } catch (error: any) {
       if (error.code === 'P2025') {
         throw new NotFoundException('Device is not banned');

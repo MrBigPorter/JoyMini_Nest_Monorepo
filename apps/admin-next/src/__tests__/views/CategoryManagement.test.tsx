@@ -41,7 +41,7 @@ const CATEGORIES_MOCK = [
 ];
 
 // ── subject ──────────────────────────────────────────────────────
-import { CategoryManagement } from '@/views/CategoryManagement';
+import { CategoryManagement } from '@/components/categories/CategoriesClient';
 
 describe('CategoryManagement', () => {
   beforeEach(() => {

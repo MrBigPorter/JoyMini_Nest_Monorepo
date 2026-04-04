@@ -1,17 +1,17 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
   repoUiMock,
-  makeUseAntdTable,
   makeUseRequest,
   BaseTableMock,
   SchemaSearchFormMock,
   PageHeaderMock,
 } from '../mocks/view-helpers';
 
-const mockUseAntdTable = vi.hoisted(() => vi.fn());
 const mockUseRequest = vi.hoisted(() => vi.fn());
+const mockGetUsers = vi.hoisted(() => vi.fn());
 
 vi.mock('@repo/ui', () => repoUiMock);
 vi.mock('@/components/scaffold/BaseTable', () => ({
@@ -24,12 +24,11 @@ vi.mock('@/components/scaffold/PageHeader', () => ({
   PageHeader: PageHeaderMock,
 }));
 vi.mock('ahooks', () => ({
-  useAntdTable: (...args: unknown[]) => mockUseAntdTable(...args),
   useRequest: (...args: unknown[]) => mockUseRequest(...args),
 }));
 vi.mock('@/api', () => ({
   userApi: {
-    getUsers: vi.fn().mockResolvedValue({ list: [], total: 0 }),
+    getUsers: mockGetUsers,
     createUser: vi.fn().mockResolvedValue({}),
     updateUser: vi.fn().mockResolvedValue({}),
     deleteUser: vi.fn().mockResolvedValue({}),
@@ -53,31 +52,63 @@ vi.mock('@/store/useToastStore', () => ({
   ) => sel({ addToast: vi.fn() }),
 }));
 
-import { AdminUserManagement } from '@/views/AdminUserManagement';
+import { AdminUserManagement } from '@/components/admin-users/AdminUserManagementClient';
+
+function renderWithQueryClient(ui: React.ReactElement) {
+  const queryClient = new QueryClient();
+  return render(
+    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
+  );
+}
 
 describe('AdminUserManagement', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUseAntdTable.mockReturnValue(makeUseAntdTable([], 0));
     mockUseRequest.mockReturnValue(makeUseRequest(undefined));
+    mockGetUsers.mockResolvedValue({ list: [], total: 0 });
   });
 
   it('renders without crashing', () => {
-    expect(render(<AdminUserManagement />).container.firstChild).not.toBeNull();
+    expect(
+      renderWithQueryClient(<AdminUserManagement />).container.firstChild,
+    ).not.toBeNull();
   });
 
   it('renders "Admin Users" page header', () => {
-    render(<AdminUserManagement />);
+    renderWithQueryClient(<AdminUserManagement />);
     expect(screen.getByTestId('page-header')).toHaveTextContent(/admin users/i);
   });
 
   it('renders the admin users table', () => {
-    render(<AdminUserManagement />);
+    renderWithQueryClient(<AdminUserManagement />);
     expect(screen.getByTestId('base-table')).toBeInTheDocument();
   });
 
   it('shows loading state gracefully', () => {
-    mockUseAntdTable.mockReturnValue(makeUseAntdTable([], 0, true));
-    expect(render(<AdminUserManagement />).container.firstChild).not.toBeNull();
+    mockGetUsers.mockImplementation(
+      () => new Promise(() => undefined) as Promise<never>,
+    );
+    expect(
+      renderWithQueryClient(<AdminUserManagement />).container.firstChild,
+    ).not.toBeNull();
+  });
+
+  it('requests admin users with normalized initial params', async () => {
+    renderWithQueryClient(
+      <AdminUserManagement
+        initialFormParams={{ username: 'porter', status: '1' }}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(mockGetUsers).toHaveBeenCalledWith(
+        expect.objectContaining({
+          page: 1,
+          pageSize: 10,
+          username: 'porter',
+          status: 1,
+        }),
+      );
+    });
   });
 });

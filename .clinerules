@@ -1,0 +1,49 @@
+# Lucky Nest Monorepo 核心规则
+
+## 1. 项目概述
+- 类型：Monorepo (Turborepo)
+- 前端：Next.js 15+ (App Router)
+- 后端：NestJS + Prisma + PostgreSQL
+- 状态管理：Zustand/Jotai
+- 样式：Tailwind CSS
+
+## 2. AI 协作规范
+- 重大变更需遵循 `docs/nestjs/AI_COLLABORATION_WORKFLOW.md` 流程
+- 金融支付模块变更需双重审核
+- 自动生成代码必须包含 `@generated` 标记
+
+## 3. 开发规范
+### 3.1 代码风格
+- TypeScript 严格模式
+- 函数长度 ≤ 50 行
+- 组件 Props 必须类型化
+- 禁止 `any` 类型
+
+### 3.2 Monorepo 规则
+- 共享代码放 `packages/` 目录
+- 严格语义化版本控制
+- 使用 Turborepo 任务缓存
+
+### 3.3 数据库操作
+- Prisma Schema 修改需同步迁移
+- 金额计算使用 Decimal.js
+- 数据验证使用 DTO + class-validator
+
+## 4. 测试要求
+- API端点：集成测试全覆盖
+- UI组件：核心组件测试全覆盖
+- E2E：Playwright 覆盖率 ≥ 60%
+
+## 5. 安全规范
+- 环境变量统一管理
+- 支付接口必须双重验证
+- 敏感数据加密存储
+
+## 6. 提交规范
+- 关联任务编号
+- 包含影响范围说明
+- 符合 Conventional Commits
+
+--- 
+最后更新：2026-04-02
+参考文档：docs/read/getting-started/ONBOARDING_CN.md

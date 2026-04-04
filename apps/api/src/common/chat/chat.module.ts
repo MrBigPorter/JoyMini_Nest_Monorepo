@@ -15,6 +15,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ChatGroupService } from '@api/common/chat/chat-group.service';
 import { ChatGroupController } from '@api/common/chat/chat-group.controller';
 import { ChatListener } from '@api/common/events/listeners/chat.listener';
+import { CallModule } from '@api/common/events/call/call.module';
 
 @Module({
   imports: [

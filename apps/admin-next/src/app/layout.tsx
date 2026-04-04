@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   keywords: ['JoyMini', 'admin', 'dashboard', 'e-commerce', 'management'],
   authors: [{ name: 'JoyMini', url: 'https://admin.joyminis.com' }],
   creator: 'JoyMini',
-  robots: { index: false, follow: false },
+  robots: { index: true, follow: true },
   openGraph: {
     title: 'JoyMini Admin',
     description:
@@ -40,9 +40,9 @@ export const metadata: Metadata = {
     images: ['/og-image.png'],
   },
   icons: {
-    icon: '/icon',
-    apple: '/apple-icon',
-    shortcut: '/icon',
+    icon: '/icon.svg',
+    apple: '/apple-icon.png',
+    shortcut: '/icon.svg',
   },
 };
 
@@ -57,6 +57,8 @@ export const viewport: Viewport = {
   ],
 };
 
+import { Providers } from '@/components/Providers';
+
 export default function RootLayout({
   children,
 }: {
@@ -65,6 +67,11 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <meta
+          name="build-time"
+          content={process.env.NEXT_PUBLIC_DEPLOYED_AT ?? ''}
+        />
+        <meta name="git-sha" content={process.env.NEXT_PUBLIC_GIT_SHA ?? ''} />
         {/*
           内联脚本：在 React hydrate 之前同步读 localStorage 中的 theme，
           立即设置 <html> class，避免白色闪屏（FOUC）。
@@ -75,9 +82,10 @@ export default function RootLayout({
             __html: `(function(){try{var s=JSON.parse(localStorage.getItem('app-store')||'{}');var t=(s.state&&s.state.theme)||'dark';document.documentElement.classList.add(t);}catch(e){document.documentElement.classList.add('dark');}})();`,
           }}
         />
-        <title></title>
       </head>
-      <body>{children}</body>
+      <body>
+        <Providers>{children}</Providers>
+      </body>
     </html>
   );
 }

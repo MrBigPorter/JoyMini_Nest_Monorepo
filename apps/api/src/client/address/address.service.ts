@@ -132,7 +132,7 @@ export class AddressService {
             isDefault: isDefault,
           },
         });
-      } catch (error: any) {
+      } catch (error: unknown) {
         if (
           error instanceof PrismaClientKnownRequestError &&
           error.code === 'P2025'
@@ -158,7 +158,7 @@ export class AddressService {
         },
       });
       return true;
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (
         error instanceof PrismaClientKnownRequestError &&
         error.code === 'P2025'

@@ -6,7 +6,7 @@
  */
 import React, { useCallback, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ActSectionManagement } from '@/views/ActSectionManagement';
+import { ActSectionManagement } from './ActSectionManagementClient';
 
 export function ActSectionClient() {
   const router = useRouter();

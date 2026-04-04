@@ -69,7 +69,7 @@ export class AdminLuckyDrawController {
 
   @Get('activities/:activityId/prizes')
   @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.EDITOR)
-  @ApiOperation({ summary: "List all prizes for an activity" })
+  @ApiOperation({ summary: 'List all prizes for an activity' })
   listPrizes(@Param('activityId') activityId: string) {
     return this.service.listPrizes(activityId);
   }
@@ -99,7 +99,7 @@ export class AdminLuckyDrawController {
 
   @Get('activities/:activityId/results')
   @Roles(Role.SUPER_ADMIN, Role.ADMIN)
-  @ApiOperation({ summary: "List draw results for an activity" })
+  @ApiOperation({ summary: 'List draw results for an activity' })
   listResults(
     @Param('activityId') activityId: string,
     @Query() paginateDto: PaginateDto,

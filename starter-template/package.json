@@ -1,0 +1,10 @@
+{
+  "name": "starter-template-pack",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Reusable scaffolding for Nest auth, Next SSR API client, CI/CD, and Docker",
+  "scripts": {
+    "list": "find . -maxdepth 4 -type f | sort"
+  }
+}
+

@@ -17,6 +17,8 @@ interface AuthState {
   logout: () => Promise<void>;
   checkAuth: () => void;
   setTokens: (token: string, refreshToken?: string | null) => void;
+  /** page refresh 后调用，从后端拉取最新 userInfo 并写入 store */
+  fetchMe: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -64,12 +66,28 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   logout: async () => {
     try {
-      await Promise.allSettled([authApi.logout(), authApi.clearCookie()]);
+      // 使用Promise.allSettled确保即使某些请求失败也能继续执行
+      const results = await Promise.allSettled([
+        authApi.logout(),
+        authApi.clearCookie(),
+      ]);
+
+      // 记录任何失败但不阻止退出登录流程
+      results.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          console.warn(
+            `[useAuthStore] logout API call ${index === 0 ? 'logout' : 'clearCookie'} failed:`,
+            result.reason,
+          );
+        }
+      });
     } catch (error) {
-      console.error('[useAuthStore] logout API failed', error);
+      console.error('[useAuthStore] logout unexpected error', error);
     } finally {
+      // 无论如何都清理本地存储和状态
       localStorage.removeItem('auth_token');
       localStorage.removeItem('refresh_token');
+      sessionStorage.removeItem('csrf_token');
       set({
         isAuthenticated: false,
         token: null,
@@ -77,7 +95,8 @@ export const useAuthStore = create<AuthState>((set) => ({
         userRole: 'viewer',
         userInfo: null,
       });
-      window.location.href = '/login';
+      // 使用replace而不是href避免历史记录问题
+      window.location.replace('/login');
     }
   },
 
@@ -98,6 +117,21 @@ export const useAuthStore = create<AuthState>((set) => ({
         refreshToken: null,
         userRole: 'viewer',
       });
+    }
+  },
+
+  fetchMe: async () => {
+    const token = localStorage.getItem('auth_token');
+    if (!token) return;
+    try {
+      const userInfo = await authApi.getMe();
+      set({
+        userInfo,
+        userRole: (userInfo.role as UserRole) ?? 'admin',
+        isAuthenticated: true,
+      });
+    } catch {
+      // token 过期或无效由 HTTP 拦截器处理，这里静默忽略
     }
   },
 }));

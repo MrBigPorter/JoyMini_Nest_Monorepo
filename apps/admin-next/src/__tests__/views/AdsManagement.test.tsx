@@ -39,7 +39,7 @@ vi.mock('@/api', () => ({
 
 import { adsApi } from '@/api';
 import { ModalManager } from '@repo/ui';
-import { AdsManagement } from '@/views/AdsManagement';
+import { AdsManagement } from '@/components/ads/AdsManagementClient';
 
 const createAd = (overrides?: Record<string, unknown>) => ({
   id: 'ad1',
@@ -82,7 +82,6 @@ describe('AdsManagement', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
-
 
   it('renders empty state when ad list is empty', () => {
     mockAdsRequest({ list: [] });
@@ -150,14 +149,12 @@ describe('AdsManagement', () => {
   it('deletes ad after confirmation and refreshes list', async () => {
     const refresh = mockAdsRequest({ list: [createAd()] });
     // Simulate user clicking "Confirm" in the modal
-    vi.mocked(ModalManager.open).mockImplementation(
-      (props) => {
-        props.onConfirm?.();
-        return {
-          close: vi.fn(),
-        };
-      },
-    );
+    vi.mocked(ModalManager.open).mockImplementation((props) => {
+      props.onConfirm?.();
+      return {
+        close: vi.fn(),
+      };
+    });
 
     render(<AdsManagement />);
 

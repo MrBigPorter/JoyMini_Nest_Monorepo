@@ -1,3 +1,4 @@
+import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -18,8 +19,7 @@ vi.mock('framer-motion', () => ({
     {},
     {
       get: (_target, tag: string) => {
-        const React = require('react');
-        return React.forwardRef(
+        const MotionTag = React.forwardRef(
           (
             {
               children,
@@ -49,6 +49,8 @@ vi.mock('framer-motion', () => ({
             );
           },
         );
+        MotionTag.displayName = `Motion${tag}`;
+        return MotionTag;
       },
     },
   ),

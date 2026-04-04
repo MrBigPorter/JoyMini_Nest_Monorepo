@@ -53,4 +53,3 @@ export class SupportChannelController {
     return this.service.toggle(id, dto);
   }
 }
-

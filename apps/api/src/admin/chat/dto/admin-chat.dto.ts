@@ -62,4 +62,3 @@ export class CloseConversationDto {
   @IsString()
   reason?: string;
 }
-

@@ -252,6 +252,34 @@ export class AuthService {
     }
   }
 
+  /**
+   * 获取当前登录管理员的信息（用于前端 page refresh 后恢复 userInfo）
+   */
+  async getAdminMe(userId: string) {
+    const admin = await this.prisma.adminUser.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        username: true,
+        realName: true,
+        role: true,
+        status: true,
+        lastLoginAt: true,
+      },
+    });
+    if (!admin) {
+      throw new UnauthorizedException('admin not found');
+    }
+    return {
+      id: admin.id,
+      username: admin.username,
+      realName: admin.realName,
+      role: admin.role,
+      status: admin.status,
+      lastLoginAt: admin.lastLoginAt ? admin.lastLoginAt.getTime() : null,
+    };
+  }
+
   private async loginAuth(
     ok: boolean,
     params: {

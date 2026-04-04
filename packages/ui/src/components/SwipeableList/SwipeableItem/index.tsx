@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import {
   motion,
   useDragControls,
@@ -21,10 +21,10 @@ export function SwipeableItem<T>({
   const x = useMotionValue(0);
   const actionsRef = useRef<HTMLDivElement>(null);
 
-  const close = () => {
+  const close = useCallback(() => {
     animate(x, 0, { type: "spring", stiffness: 400, damping: 40 });
     currentOpenItem = null;
-  };
+  }, [x]);
 
   useEffect(() => {
     const closeIfOpen = () => {
@@ -34,9 +34,9 @@ export function SwipeableItem<T>({
     };
     window.addEventListener("pointerdown", closeIfOpen);
     return () => window.removeEventListener("pointerdown", closeIfOpen);
-  }, []);
+  }, [close]);
 
-  const handleDragEnd = (_: any, info: { velocity: { x: number } }) => {
+  const handleDragEnd = (_: unknown, info: { velocity: { x: number } }) => {
     const actionsWidth = actionsRef.current?.offsetWidth || 0;
     if (info.velocity.x < -200 || x.get() < -actionsWidth / 2) {
       animate(x, -actionsWidth, {

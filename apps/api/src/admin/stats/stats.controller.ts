@@ -31,4 +31,3 @@ export class StatsController {
     return this.statsService.getTrend(isNaN(d) ? 30 : d);
   }
 }
-

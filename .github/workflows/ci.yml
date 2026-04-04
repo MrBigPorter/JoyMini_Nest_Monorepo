@@ -1,17 +1,18 @@
 # ============================================================
-# CI 检查 — PR 和 main 推送时运行
+# CI 检查 — main/test 推送 & PR 时运行
 # ============================================================
 # 流程: 安装依赖 → Prisma 生成 → Lint → 类型检查 → 单元测试 → E2E
-# 目的: 在代码合并前发现问题, 避免部署失败
+# 目的: PR 合并前强制通过质量门禁（需配合 GitHub 分支保护规则）
 # ============================================================
 
 name: CI
 
 on:
-  pull_request:
-    branches: [main]
   push:
-    branches: [main]
+    branches: [main, test] # dev push 不触发；如果 dev 有开放的 →main PR，仍会由 pull_request 事件触发
+  pull_request:
+    branches: [main] # PR 目标为 main 时触发，配合分支保护作为合并门禁
+    # Workflow note: dev->main PR updates also trigger this workflow.
 
 # 同一 PR 新提交时取消旧运行
 concurrency:
@@ -26,17 +27,21 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1) 拉取仓库代码
       - name: Checkout
         uses: actions/checkout@v4
 
+      # 2) 安装 Node.js 运行时
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
+      # 3) 安装原生依赖构建工具（供 bcrypt/sharp 等模块使用）
       - name: "Install build tools (native modules: bcrypt, sharp)"
         run: sudo apt-get install -y python3 make g++ openssl
 
+      # 4) 启用 Corepack 并固定 Yarn 4 版本
       - name: Enable Corepack (Yarn 4)
         run: corepack enable && corepack prepare yarn@4.9.2 --activate
 
@@ -59,7 +64,6 @@ jobs:
       #       node_modules
       #       apps/api/node_modules
       #       apps/admin-next/node_modules
-      #       apps/mini-shop-admin/node_modules
       #       apps/liveness-web/node_modules
       #       packages/*/node_modules
       #     key: nm-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
@@ -74,25 +78,31 @@ jobs:
       #       turbo-${{ github.ref_name }}-
       #       turbo-main-
 
+      # 5) 安装 monorepo 依赖（严格按 lockfile）
       - name: Install dependencies
         run: yarn install --immutable
 
       # Prisma generate 必须在类型检查前运行
+      # 6) 生成 Prisma Client（避免类型检查时报缺失）
       - name: Generate Prisma Client
         run: yarn workspace @lucky/api prisma generate
 
+      # 7) 执行 Lint（当前为软门禁，失败不阻断）
       - name: Lint
         run: yarn turbo run lint
         continue-on-error: true
 
+      # 8) 执行 TypeScript 类型检查（硬门禁）
       - name: Type Check
         run: yarn turbo run check-types
 
       # admin-next 单元测试 — 必须通过
+      # 9) 运行 admin-next 单测（硬门禁）
       - name: Unit Test — admin-next (required)
         run: yarn workspace @lucky/admin-next test
 
       # 其他包测试 — 允许跳过
+      # 10) 运行其他包测试（软门禁）
       - name: Unit Test — other packages (optional)
         run: yarn turbo run test --filter=!@lucky/admin-next
         continue-on-error: true
@@ -106,6 +116,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1) 先检查 E2E 必需 secret，决定后续步骤是否执行
       - name: Check E2E secret availability
         id: e2e_gate
         env:
@@ -118,16 +129,19 @@ jobs:
             echo "E2E_ADMIN_PASSWORD is not set, skip E2E job steps"
           fi
 
+      # 2) 拉取仓库代码（仅在 E2E 启用时）
       - name: Checkout
         if: steps.e2e_gate.outputs.enabled == 'true'
         uses: actions/checkout@v4
 
+      # 3) 安装 Node.js 运行时（仅在 E2E 启用时）
       - name: Setup Node.js
         if: steps.e2e_gate.outputs.enabled == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
+      # 4) 启用 Corepack 并固定 Yarn 4（仅在 E2E 启用时）
       - name: Enable Corepack (Yarn 4)
         if: steps.e2e_gate.outputs.enabled == 'true'
         run: corepack enable && corepack prepare yarn@4.9.2 --activate
@@ -153,6 +167,7 @@ jobs:
       #       packages/config/node_modules
       #     key: nm-e2e-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
 
+      # 5) 安装依赖（仅在 E2E 启用时）
       - name: Install dependencies
         if: steps.e2e_gate.outputs.enabled == 'true'
         run: yarn install --immutable
@@ -165,19 +180,23 @@ jobs:
       #     path: ~/.cache/ms-playwright
       #     key: playwright-${{ hashFiles('apps/admin-next/package.json') }}
 
+      # 6) 安装 Playwright 浏览器（仅在 E2E 启用时）
       - name: Install Playwright browsers
         if: steps.e2e_gate.outputs.enabled == 'true'
         run: yarn workspace @lucky/admin-next playwright install chromium --with-deps
 
       # 构建 Next.js（静态导出 + 本地 serve，无需后端）
+      # 7) 构建 shared 包（仅在 E2E 启用时）
       - name: Build @lucky/shared
         if: steps.e2e_gate.outputs.enabled == 'true'
         run: node packages/shared/scripts/build.js
 
+      # 8) 构建 UI 包（仅在 E2E 启用时）
       - name: Build @repo/ui
         if: steps.e2e_gate.outputs.enabled == 'true'
         run: node packages/ui/scripts/build.js
 
+      # 9) 构建 admin-next（仅在 E2E 启用时）
       - name: Build admin-next
         if: steps.e2e_gate.outputs.enabled == 'true'
         run: yarn workspace @lucky/admin-next build
@@ -188,6 +207,7 @@ jobs:
           NEXT_PUBLIC_APP_ENV: production
 
       # 启动 mock API server（先启动，让 Next.js 环境变量指向它）
+      # 10) 启动本地 mock API（仅在 E2E 启用时）
       - name: Start mock API server
         if: steps.e2e_gate.outputs.enabled == 'true'
         run: |
@@ -211,12 +231,14 @@ jobs:
           node /tmp/mock-api.js &
 
       # 启动 Next.js standalone 服务器 (output: 'standalone' — 不再用 serve out/)
+      # 11) 启动 Next.js 服务并等待端口就绪（仅在 E2E 启用时）
       - name: Start Next.js server
         if: steps.e2e_gate.outputs.enabled == 'true'
         run: |
           PORT=4001 yarn workspace @lucky/admin-next start &
           npx wait-on http://localhost:4001 --timeout 60000
 
+      # 12) 执行 Playwright E2E（软门禁）
       - name: Run Playwright E2E tests
         if: steps.e2e_gate.outputs.enabled == 'true'
         run: yarn workspace @lucky/admin-next e2e
@@ -224,8 +246,9 @@ jobs:
           PLAYWRIGHT_BASE_URL: http://localhost:4001
           E2E_ADMIN_USERNAME: ${{ secrets.E2E_ADMIN_USERNAME || 'admin' }}
           E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
-        continue-on-error: true  # E2E 失败不阻断 CI，但会在 Summary 中标注
+        continue-on-error: true # E2E 失败不阻断 CI，但会在 Summary 中标注
 
+      # 13) 上传 Playwright 报告到 Artifacts（仅在 E2E 启用时）
       - name: Upload Playwright report
         uses: actions/upload-artifact@v4
         if: always() && steps.e2e_gate.outputs.enabled == 'true'
@@ -234,6 +257,7 @@ jobs:
           path: apps/admin-next/playwright-report/
           retention-days: 7
 
+      # 14) 产出 E2E 摘要（无论是否执行 E2E）
       - name: E2E Summary
         if: always()
         run: |
@@ -245,4 +269,3 @@ jobs:
             echo "### 🎭 Playwright E2E Report" >> $GITHUB_STEP_SUMMARY
             echo "- **状态**: skipped (missing E2E_ADMIN_PASSWORD secret)" >> $GITHUB_STEP_SUMMARY
           fi
-

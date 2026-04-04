@@ -6,7 +6,7 @@
  */
 import React, { useCallback, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { AddressList } from '@/views/AddressList';
+import { AddressList } from './AddressListClient';
 
 export function AddressClient() {
   const router = useRouter();

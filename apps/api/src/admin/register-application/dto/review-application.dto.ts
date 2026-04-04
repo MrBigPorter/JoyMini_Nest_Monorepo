@@ -7,10 +7,11 @@ export enum ReviewAction {
 }
 
 export class ReviewApplicationDto {
-  @ApiPropertyOptional({ description: 'Rejection reason (required when rejecting)' })
+  @ApiPropertyOptional({
+    description: 'Rejection reason (required when rejecting)',
+  })
   @IsOptional()
   @IsString()
   @MaxLength(500)
   reviewNote?: string;
 }
-

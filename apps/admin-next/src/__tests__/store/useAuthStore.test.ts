@@ -7,6 +7,14 @@ vi.mock('@/api', () => ({
     setCookie: vi.fn().mockResolvedValue({ ok: true }),
     logout: vi.fn().mockResolvedValue(undefined),
     clearCookie: vi.fn().mockResolvedValue({ ok: true }),
+    getMe: vi.fn().mockResolvedValue({
+      id: 'mock-id',
+      username: 'admin',
+      realName: 'Admin',
+      role: 'SUPER_ADMIN',
+      status: 1,
+      lastLoginAt: null,
+    }),
   },
 }));
 
@@ -85,11 +93,11 @@ describe('useAuthStore', () => {
       localStorage.setItem('auth_token', 'existing-token');
       useAuthStore.setState({ isAuthenticated: true, token: 'existing-token' });
 
-      // 模拟 window.location.href
-      const originalLocation = window.location;
+      // 模拟 window.location.replace（jsdom 不支持直接调用）
+      const replaceMock = vi.fn();
       Object.defineProperty(window, 'location', {
         writable: true,
-        value: { ...originalLocation, href: '/' },
+        value: { href: '/', replace: replaceMock },
       });
 
       await act(async () => {
@@ -101,10 +109,7 @@ describe('useAuthStore', () => {
       expect(token).toBeNull();
       expect(localStorage.getItem('auth_token')).toBeNull();
       expect(localStorage.getItem('refresh_token')).toBeNull();
-      expect(window.location.href).toBe('/login');
-
-      // 还原
-      Object.defineProperty(window, 'location', { value: originalLocation });
+      expect(replaceMock).toHaveBeenCalledWith('/login');
     });
   });
 });

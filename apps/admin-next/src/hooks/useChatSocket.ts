@@ -35,19 +35,22 @@ interface UseChatSocketOptions {
   onConversationUpdated?: (conversationId?: string) => void;
 }
 
+/** Raw payload shape from socket dispatch events (fields unverified at runtime) */
+type RawSocketData = Record<string, unknown>;
+
 /** 将 socket dispatch 推送的 raw data 映射为 ChatMessage */
-function mapRawMessage(raw: Record<string, any>): ChatMessage {
+function mapRawMessage(raw: RawSocketData): ChatMessage {
   return {
-    id: raw.id ?? '',
-    seqId: raw.seqId ?? 0,
-    content: raw.content ?? '',
-    type: raw.type ?? 0,
-    isRecalled: raw.isRecalled ?? false,
+    id: (raw.id as string) ?? '',
+    seqId: (raw.seqId as number) ?? 0,
+    content: (raw.content as string) ?? '',
+    type: (raw.type as number) ?? 0,
+    isRecalled: (raw.isRecalled as boolean) ?? false,
     createdAt: typeof raw.createdAt === 'number' ? raw.createdAt : Date.now(),
-    meta: raw.meta ?? null,
-    senderId: raw.senderId ?? null,
-    sender: raw.sender ?? null,
-    isSystem: raw.isSystem ?? raw.senderId === null,
+    meta: (raw.meta as ChatMessage['meta']) ?? null,
+    senderId: (raw.senderId as string | null) ?? null,
+    sender: (raw.sender as ChatMessage['sender']) ?? null,
+    isSystem: (raw.isSystem as boolean) ?? raw.senderId === null,
   };
 }
 
@@ -75,6 +78,16 @@ export function useChatSocket({
     onConversationUpdatedRef.current = onConversationUpdated;
   }, [onConversationUpdated]);
 
+  // ── 从 JWT token 中解析 userId ──
+  const getUserIdFromToken = useCallback((token: string): string | null => {
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      return payload.sub || null;
+    } catch {
+      return null;
+    }
+  }, []);
+
   // ── 建立 Socket 连接（只执行一次） ──
   useEffect(() => {
     const token =
@@ -82,6 +95,7 @@ export function useChatSocket({
 
     if (!token) return;
 
+    const currentUserId = getUserIdFromToken(token);
     setStatus('connecting');
 
     /**
@@ -101,6 +115,13 @@ export function useChatSocket({
 
     socket.on('connect', () => {
       setStatus('connected');
+
+      // Admin 连接时自动加入自己的私有房间，用于接收新会话通知
+      if (currentUserId) {
+        const privateRoom = `user_${currentUserId}`;
+        socket.emit('join_chat', { conversationId: privateRoom });
+        currentRoomRef.current = privateRoom;
+      }
     });
 
     socket.on('disconnect', () => {
@@ -120,35 +141,38 @@ export function useChatSocket({
     });
 
     // 统一分发事件监听
-    socket.on(
-      'dispatch',
-      (payload: { type: string; data: Record<string, any> }) => {
-        switch (payload.type) {
-          case 'chat_message':
-            onMessageRef.current(mapRawMessage(payload.data));
-            onConversationUpdatedRef.current?.(payload.data.conversationId);
-            break;
+    socket.on('dispatch', (payload: { type: string; data: RawSocketData }) => {
+      switch (payload.type) {
+        case 'chat_message':
+          onMessageRef.current(mapRawMessage(payload.data));
+          onConversationUpdatedRef.current?.(
+            payload.data.conversationId as string | undefined,
+          );
+          break;
 
-          case 'message_recalled':
-            onRecalledRef.current({
-              conversationId: payload.data.conversationId,
-              messageId: payload.data.messageId,
-              seqId: payload.data.seqId,
-            });
-            break;
+        case 'message_recalled':
+          onRecalledRef.current({
+            conversationId: payload.data.conversationId as string,
+            messageId: payload.data.messageId as string,
+            seqId: payload.data.seqId as number | undefined,
+          });
+          break;
 
-          case 'conversation_updated':
-            onConversationUpdatedRef.current?.(payload.data.conversationId);
-            break;
+        case 'conversation_updated':
+          onConversationUpdatedRef.current?.(
+            payload.data.conversationId as string | undefined,
+          );
+          break;
 
-          // Flutter 用户首次点击「联系客服」时，后端推送到 admin 私有房间
-          // 触发 admin 侧会话列表刷新，无需等到用户发第一条消息
-          case 'support_new_conversation':
-            onConversationUpdatedRef.current?.(payload.data.conversationId);
-            break;
-        }
-      },
-    );
+        // Flutter 用户首次点击「联系客服」时，后端推送到 admin 私有房间
+        // 触发 admin 侧会话列表刷新，无需等到用户发第一条消息
+        case 'support_new_conversation':
+          onConversationUpdatedRef.current?.(
+            payload.data.conversationId as string | undefined,
+          );
+          break;
+      }
+    });
 
     return () => {
       socket.disconnect();
@@ -156,7 +180,7 @@ export function useChatSocket({
       currentRoomRef.current = null;
       setStatus('disconnected');
     };
-  }, []); // connect once on mount
+  }, [getUserIdFromToken]); // connect once on mount
 
   // ── 切换会话时 join/leave room ──
   useEffect(() => {

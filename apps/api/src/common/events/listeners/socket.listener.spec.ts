@@ -108,7 +108,9 @@ describe('SocketListener', () => {
     await listener.handleSupportConversationStarted(event);
 
     expect(findManyMock).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.objectContaining({ status: 1 }) }),
+      expect.objectContaining({
+        where: expect.objectContaining({ status: 1 }),
+      }),
     );
     expect(dispatchMock).toHaveBeenCalledWith(
       'user_admin_1',

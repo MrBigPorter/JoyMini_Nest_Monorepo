@@ -29,4 +29,5 @@ export interface SearchFieldSchema<T> {
   mode?: 'single' | 'range';
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type FormSchema<T = any> = SearchFieldSchema<T>;

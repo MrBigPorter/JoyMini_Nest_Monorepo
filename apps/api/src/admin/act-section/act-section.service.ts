@@ -192,9 +192,15 @@ export class ActSectionService {
           sectionId_treasureId: { sectionId, treasureId },
         },
       });
-    } catch (e) {
-      // @ts-ignore
-      if (e.code === 'P2025') return;
+    } catch (e: unknown) {
+      if (
+        typeof e === 'object' &&
+        e !== null &&
+        'code' in e &&
+        (e as { code?: unknown }).code === 'P2025'
+      ) {
+        return;
+      }
       throw e;
     }
   }

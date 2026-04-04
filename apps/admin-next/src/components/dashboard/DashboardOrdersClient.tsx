@@ -14,7 +14,7 @@ import type { BadgeColor } from '@/components/UIComponents';
 import { orderApi } from '@/api';
 import { SmartImage } from '@/components/ui/SmartImage';
 import { useRouter } from 'next/navigation';
-import { format } from 'date-fns';
+import { ClientDate } from '@/components/ui/ClientDate';
 
 const ORDER_STATUS: Record<number, { label: string; color: BadgeColor }> = {
   1: { label: 'Pending', color: 'yellow' },
@@ -29,7 +29,9 @@ export function DashboardOrdersClient() {
   const { data: ordersRes, isLoading } = useQuery({
     queryKey: ['dashboard-orders'],
     queryFn: () => orderApi.getList({ page: 1, pageSize: 5 }),
-    staleTime: 30_000,
+    staleTime: 30_000, // 30s 内不重新请求（秒级一致性）
+    gcTime: 5 * 60 * 1000, // 5min 后从内存清理（防泄漏）
+    refetchOnWindowFocus: true, // 切回窗口时自动检查是否需要刷新
   });
 
   const orders = ordersRes?.list ?? [];
@@ -122,9 +124,11 @@ export function DashboardOrdersClient() {
                       <Badge color={status.color}>{status.label}</Badge>
                     </td>
                     <td className="py-3 text-xs text-gray-400">
-                      {order.createdAt
-                        ? format(new Date(order.createdAt * 1000), 'MM-dd HH:mm')
-                        : '—'}
+                      <ClientDate
+                        value={order.createdAt}
+                        unit="s"
+                        pattern="MM-dd HH:mm"
+                      />
                     </td>
                   </tr>
                 );
@@ -136,4 +140,3 @@ export function DashboardOrdersClient() {
     </Card>
   );
 }
-

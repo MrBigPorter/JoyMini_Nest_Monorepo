@@ -23,9 +23,9 @@ test.describe('Category Management — /categories', () => {
   });
 
   test('显示 Categories 相关标题或内容', async ({ page }) => {
-    await expect(
-      page.getByText(/categor/i).first(),
-    ).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(/categor/i).first()).toBeVisible({
+      timeout: 20_000,
+    });
   });
 
   test('Add Category 按钮存在', async ({ page }) => {

@@ -205,7 +205,21 @@ export class NotificationService implements OnModuleInit {
   // ---------------------------------------------------------
   // 核心功能 4: [新增] 音视频通话专属锁屏唤醒 (纯 Data 推送)
   // ---------------------------------------------------------
-  async sendCallWakeUpPush(targetUserId: string, callData: any) {
+  async sendCallWakeUpPush(
+    targetUserId: string,
+    callData: {
+      /** 'call_invite' | 'call_end'，必须透传；不能硬编码为 'call_invite' */
+      type?: string;
+      sessionId?: string;
+      senderId?: string;
+      mediaType?: string;
+      /** CallKit 显示来电界面需要，若未传则自动从数据库查询 */
+      senderName?: string;
+      senderAvatar?: string;
+      /** 可选，用于拒接时 Flutter 发送 call_end 带上 conversationId */
+      conversationId?: string;
+    },
+  ) {
     // 1. 查找用户的所有设备 Token
     const devices = await this.prisma.device.findMany({
       where: { userId: targetUserId },
@@ -215,15 +229,36 @@ export class NotificationService implements OnModuleInit {
     if (!devices.length) return;
     const tokens = devices.map((d) => d.token);
 
-    // 2. 构造纯 Data 且最高优先级的 Payload
+    // 2. 补查发送方信息（CallKit 来电界面需要展示呼叫方姓名/头像）
+    let senderName = callData.senderName || '';
+    let senderAvatar = callData.senderAvatar || '';
+    if (callData.senderId && (!senderName || !senderAvatar)) {
+      try {
+        const sender = await this.prisma.user.findUnique({
+          where: { id: callData.senderId },
+          select: { nickname: true, avatar: true },
+        });
+        senderName = sender?.nickname || '';
+        senderAvatar = sender?.avatar || '';
+      } catch {
+        // 查询失败不阻断推送，保持空字符串
+      }
+    }
+
+    // 3. 构造纯 Data 且最高优先级的 Payload
     const message: admin.messaging.MulticastMessage = {
       tokens,
       //  命脉 1：绝对不能写 notification 字段！只能写 data！
       data: {
-        type: 'call_invite', // 告诉 Flutter 这是一个电话
+        // 使用事件携带的 type（call_invite / call_end），不能硬编码为 'call_invite'
+        // 若 handleCallEnd 触发此路径时硬编码为 'call_invite'，会让 App 看到幽灵来电屏幕
+        type: String(callData.type || 'call_invite'),
         sessionId: callData.sessionId || '',
         senderId: callData.senderId || '',
         mediaType: callData.mediaType || '',
+        senderName,
+        senderAvatar,
+        conversationId: callData.conversationId || '',
         timestamp: String(Date.now()), // Data 只能传字符串
       },
       //  命脉 2：安卓必须强制 High 优先级，穿透 Doze 锁屏休眠

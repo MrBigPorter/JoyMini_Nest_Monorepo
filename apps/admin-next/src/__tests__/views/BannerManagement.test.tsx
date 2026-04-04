@@ -1,9 +1,9 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
   repoUiMock,
-  makeUseAntdTable,
   makeUseRequest,
   BaseTableMock,
   SchemaSearchFormMock,
@@ -12,8 +12,8 @@ import {
 } from '../mocks/view-helpers';
 
 // ── hoisted mock variables ────────────────────────────────────────
-const mockUseAntdTable = vi.hoisted(() => vi.fn());
 const mockUseRequest = vi.hoisted(() => vi.fn());
+const mockGetList = vi.hoisted(() => vi.fn());
 
 // ── mocks ────────────────────────────────────────────────────────
 vi.mock('@repo/ui', () => repoUiMock);
@@ -28,12 +28,11 @@ vi.mock('@/components/scaffold/PageHeader', () => ({
 }));
 vi.mock('@/components/ui/SmartImage', () => ({ SmartImage: SmartImageMock }));
 vi.mock('ahooks', () => ({
-  useAntdTable: (...args: unknown[]) => mockUseAntdTable(...args),
   useRequest: (...args: unknown[]) => mockUseRequest(...args),
 }));
 vi.mock('@/api', () => ({
   bannerApi: {
-    getList: vi.fn().mockResolvedValue({ list: [], total: 0 }),
+    getList: mockGetList,
     delete: vi.fn().mockResolvedValue({}),
     updateState: vi.fn().mockResolvedValue({}),
     create: vi.fn().mockResolvedValue({}),
@@ -70,33 +69,61 @@ const BANNERS_MOCK = [
 ];
 
 // ── subject ──────────────────────────────────────────────────────
-import { BannerManagement } from '@/views/BannerManagement';
+import { BannerManagement } from '@/components/banners/BannerManagementClient';
+
+function renderWithQueryClient(ui: React.ReactElement) {
+  const queryClient = new QueryClient();
+  return render(
+    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
+  );
+}
 
 describe('BannerManagement', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUseAntdTable.mockReturnValue(makeUseAntdTable(BANNERS_MOCK, 2));
     mockUseRequest.mockReturnValue(makeUseRequest(undefined));
+    mockGetList.mockResolvedValue({ list: BANNERS_MOCK, total: 2 });
   });
 
   it('renders without crashing', () => {
-    const { container } = render(<BannerManagement />);
+    const { container } = renderWithQueryClient(<BannerManagement />);
     expect(container.firstChild).not.toBeNull();
   });
 
   it('renders the BaseTable', () => {
-    render(<BannerManagement />);
+    renderWithQueryClient(<BannerManagement />);
     expect(screen.getByTestId('base-table')).toBeInTheDocument();
   });
 
   it('renders page header', () => {
-    render(<BannerManagement />);
+    renderWithQueryClient(<BannerManagement />);
     expect(screen.getByTestId('page-header')).toBeInTheDocument();
   });
 
   it('shows loading state gracefully', () => {
-    mockUseAntdTable.mockReturnValue(makeUseAntdTable([], 0, true));
-    const { container } = render(<BannerManagement />);
+    mockGetList.mockImplementation(
+      () => new Promise(() => undefined) as Promise<never>,
+    );
+    const { container } = renderWithQueryClient(<BannerManagement />);
     expect(container.firstChild).not.toBeNull();
+  });
+
+  it('requests banners with normalized initial params', async () => {
+    renderWithQueryClient(
+      <BannerManagement
+        initialFormParams={{ title: 'Sale', bannerCate: '1' }}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(mockGetList).toHaveBeenCalledWith(
+        expect.objectContaining({
+          page: 1,
+          pageSize: 10,
+          title: 'Sale',
+          bannerCate: 1,
+        }),
+      );
+    });
   });
 });

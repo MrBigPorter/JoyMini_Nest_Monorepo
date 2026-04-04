@@ -254,4 +254,6 @@ export enum CallEndReason {
   BUSY = "busy", // 忙线
   TIMEOUT = "timeout", // 无人接听超时
   ERROR = "error", // 连接错误
+  MISSED = "missed", // 未接听（被叫未接听或响铃超时）
+  REJECTED = "rejected", // 已拒绝（被叫明确拒绝）
 }

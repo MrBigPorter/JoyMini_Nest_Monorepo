@@ -6,7 +6,7 @@
  * 用法:
  *   本地开发:  yarn workspace @lucky/api create-admin
  *   生产容器:  docker exec -it lucky-backend-prod \
- *                node apps/api/dist/cli/create-admin.js
+ *                node apps/api/dist/scripts/cli/create-admin.js
  * ============================================================
  */
 
@@ -18,7 +18,7 @@
  * 用法:
  *   本地开发:  yarn workspace @lucky/api create-admin
  *   生产容器:  docker exec -it lucky-backend-prod \
- *                node apps/api/dist/cli/create-admin.js
+ *                node apps/api/dist/scripts/cli/create-admin.js
  * ============================================================
  */
 import * as readline from 'readline';
@@ -161,6 +161,7 @@ async function main() {
     update: {
       password: hashedPassword,
       realName,
+      role: Role.SUPER_ADMIN, // ← 必须同步更新 role，否则旧 ADMIN 账号重置后仍无 SUPER_ADMIN 权限
       updatedAt: new Date(),
     },
     create: {

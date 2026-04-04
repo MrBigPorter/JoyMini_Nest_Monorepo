@@ -23,9 +23,9 @@ test.describe('Admin User Management — /admin-users', () => {
   });
 
   test('显示管理员相关标题', async ({ page }) => {
-    await expect(
-      page.getByText(/admin/i).first(),
-    ).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(/admin/i).first()).toBeVisible({
+      timeout: 20_000,
+    });
   });
 
   test('管理员表格渲染', async ({ page }) => {
@@ -70,4 +70,3 @@ test.describe('Admin User Management — /admin-users', () => {
     await expectNoError(page);
   });
 });
-

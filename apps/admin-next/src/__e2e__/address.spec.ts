@@ -22,7 +22,9 @@ test.describe('Address Management — /address', () => {
 
   test('显示页面主要内容', async ({ page }) => {
     // Address page uses SmartTable (not a <table>), check for any heading or content
-    await expect(page.locator('h1, h2, h3, main').first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('h1, h2, h3, main').first()).toBeVisible({
+      timeout: 20_000,
+    });
   });
 
   test('内容区域渲染（SmartTable or Card）', async ({ page }) => {

@@ -1,9 +1,14 @@
 import type { Metadata } from 'next';
-import React from 'react';
-import { FlashSaleManagement } from '@/views/FlashSaleManagement';
+import React, { Suspense } from 'react';
+import { FlashSaleManagement } from '@/components/flash-sale/FlashSaleClient';
+import { PageSkeleton } from '@/components/ui/PageSkeleton';
 
 export const metadata: Metadata = { title: 'Flash Sale' };
 
 export default function FlashSalePage() {
-  return <FlashSaleManagement />;
+  return (
+    <Suspense fallback={<PageSkeleton />}>
+      <FlashSaleManagement />
+    </Suspense>
+  );
 }

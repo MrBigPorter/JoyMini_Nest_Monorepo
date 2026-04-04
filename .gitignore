@@ -21,9 +21,14 @@ node_modules
 # Deploy env (含真实密钥，绝不提交)
 deploy/.env.dev
 deploy/.env.prod
+# Sentry build plugin token (含 auth token，绝不提交)
+.env.sentry-build-plugin
+apps/admin-next/.env.sentry-build-plugin
 
 # Docker 数据 (绝不提交)
 data/
+!apps/api/scripts/seed/data/
+!apps/api/scripts/seed/data/ph-address.ts
 backup.sql
 # Testing
 coverage
@@ -47,6 +52,10 @@ build
 dist
 **/generated/
 
+# Admin local artifacts
+apps/admin-next/reports/
+apps/admin-next/.env.sentry-build-plugin
+
 
 # Debug
 npm-debug.log*
@@ -58,4 +67,8 @@ yarn-error.log*
 *.pem
 .idea/
 *.tsbuildinfo
+repomix-output*
+tsconfig.tsbuildinfo
 
+# Lighthouse reports
+apps/admin-next/reports/

@@ -2,11 +2,9 @@ import {
   Controller,
   Get,
   Query,
-  Res,
   UseGuards,
   Header,
   StreamableFile,
-  InternalServerErrorException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -14,7 +12,6 @@ import {
   ApiQuery,
   ApiBearerAuth,
 } from '@nestjs/swagger';
-import { Response } from 'express';
 import { JwtAuthGuard } from '@api/common/jwt/jwt.guard';
 import { MediaService } from './media.service';
 
@@ -41,12 +38,8 @@ export class MediaController {
     @Query('lat') lat: number,
     @Query('lng') lng: number,
   ): Promise<StreamableFile> {
-    try {
-      const imageBuffer = await this.mediaService.getStaticMapProxy(lat, lng);
-      //  5. return StreamableFile, nest will handle the response
-      return new StreamableFile(imageBuffer);
-    } catch (error) {
-      throw new InternalServerErrorException('Failed to fetch map');
-    }
+    const imageBuffer = await this.mediaService.getStaticMapProxy(lat, lng);
+    //  5. return StreamableFile, nest will handle the response
+    return new StreamableFile(imageBuffer);
   }
 }

@@ -1,6 +1,5 @@
 import {
   Body,
-  ClassSerializerInterceptor,
   Controller,
   Delete,
   Get,
@@ -9,19 +8,17 @@ import {
   Post,
   Query,
   UseGuards,
-  UseInterceptors,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiExtraModels,
   ApiOkResponse,
-  ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '@api/common/jwt/jwt.guard';
 import { PermissionsGuard } from '@api/common/guards/permissions.guard';
 import { OrderService } from '@api/admin/order/order.service';
-import { OpAction, OpModule, Role } from '@lucky/shared';
+import { OpAction, OpModule } from '@lucky/shared';
 import { QueryOrderDto } from '@api/admin/order/dto/query-order.dto';
 import { OrderResponseDto } from '@api/admin/order/dto/order-response.dto';
 import { plainToInstance } from 'class-transformer';
@@ -71,8 +68,9 @@ export class OrderController {
   @ApiOkResponse({ type: OrderResponseDto })
   async findOne(@Param('id') id: string) {
     const order = await this.OrderService.finOne(id);
-    console.log(order);
-    return plainToInstance(OrderResponseDto, order);
+    return plainToInstance(OrderResponseDto, order, {
+      excludeExtraneousValues: true,
+    });
   }
 
   /**
@@ -89,7 +87,9 @@ export class OrderController {
     @Body() dto: UpdateOrderStatusDto,
   ) {
     const order = await this.OrderService.updateStatus(id, dto.status);
-    return plainToInstance(OrderResponseDto, order);
+    return plainToInstance(OrderResponseDto, order, {
+      excludeExtraneousValues: true,
+    });
   }
 
   /**
@@ -117,7 +117,9 @@ export class OrderController {
     @CurrentUserId() adminId: string,
   ) {
     const data = await this.OrderService.approveRefundByAdmin(adminId, orderId);
-    return plainToInstance(RefundResponseAdminDto, data);
+    return plainToInstance(RefundResponseAdminDto, data, {
+      excludeExtraneousValues: true,
+    });
   }
 
   /**
@@ -135,6 +137,8 @@ export class OrderController {
     @CurrentUserId() adminId: string,
   ) {
     const data = await this.OrderService.rejectRefundByAdmin(adminId, dto);
-    return plainToInstance(RefundResponseAdminDto, data);
+    return plainToInstance(RefundResponseAdminDto, data, {
+      excludeExtraneousValues: true,
+    });
   }
 }

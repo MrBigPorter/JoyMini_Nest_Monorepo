@@ -10,11 +10,22 @@ import {
 
 import { http as mswHttp, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
+import {
+  SENTRY_SPAN_ATTR_KEY,
+  SENTRY_SPAN_NAME,
+  SENTRY_SPAN_OP,
+} from '@/lib/sentry-span-constants';
 
 // ── mock stores ──────────────────────────────────────────────────
 const mockAddToast = vi.fn();
+const { startSpanMock } = vi.hoisted(() => ({
+  startSpanMock: vi.fn(),
+}));
 vi.mock('@/store/useToastStore', () => ({
   useToastStore: { getState: () => ({ addToast: mockAddToast }) },
+}));
+vi.mock('@sentry/nextjs', () => ({
+  startSpan: startSpanMock,
 }));
 
 // ── import HttpClient after mocks ────────────────────────────────
@@ -22,11 +33,16 @@ import { http } from '@/api/http';
 
 // ── MSW server — 拦截真实网络层，与哪个 axios 实例无关 ─────────────
 const server = setupServer();
-beforeAll(() => server.listen({ onUnhandledRequest: 'bypass' }));
+beforeAll(() => {
+  server.listen({ onUnhandledRequest: 'bypass' });
+  startSpanMock.mockImplementation(async (_options, callback) => callback());
+});
 afterAll(() => server.close());
 afterEach(() => {
   server.resetHandlers();
   mockAddToast.mockClear();
+  startSpanMock.mockClear();
+  startSpanMock.mockImplementation(async (_options, callback) => callback());
   localStorage.clear();
   // Must use a valid absolute URL as the base so that MSW's
   // toAbsoluteUrl(url, window.location.href) can resolve relative paths.
@@ -69,6 +85,62 @@ describe('http client — 成功响应', () => {
       data: [{ id: 1 }],
     });
     expect(await http.get('/users')).toEqual([{ id: 1 }]);
+    expect(startSpanMock).toHaveBeenCalledWith(
+      {
+        name: SENTRY_SPAN_NAME.HTTP_CLIENT_REQUEST,
+        op: SENTRY_SPAN_OP.HTTP_CLIENT,
+        attributes: {
+          [SENTRY_SPAN_ATTR_KEY.HTTP_METHOD]: 'GET',
+          [SENTRY_SPAN_ATTR_KEY.HTTP_ROUTE]: '/users',
+        },
+      },
+      expect.any(Function),
+    );
+  });
+
+  it('trace=false 时不创建 span', async () => {
+    mockGet('http://localhost/api/no-trace', {
+      code: 10000,
+      message: 'ok',
+      data: { ok: true },
+    });
+
+    expect(await http.get('/no-trace', undefined, { trace: false })).toEqual({
+      ok: true,
+    });
+    expect(startSpanMock).not.toHaveBeenCalled();
+  });
+
+  it('支持自定义 span 名称并合并自定义 attributes', async () => {
+    mockGet('http://localhost/api/custom-trace', {
+      code: 10000,
+      message: 'ok',
+      data: { ok: true },
+    });
+
+    await http.get('/custom-trace', undefined, {
+      trace: {
+        name: 'admin.http.custom_trace',
+        attributes: {
+          feature: 'settings',
+          action: 'load',
+        },
+      },
+    });
+
+    expect(startSpanMock).toHaveBeenCalledWith(
+      {
+        name: 'admin.http.custom_trace',
+        op: SENTRY_SPAN_OP.HTTP_CLIENT,
+        attributes: {
+          [SENTRY_SPAN_ATTR_KEY.HTTP_METHOD]: 'GET',
+          [SENTRY_SPAN_ATTR_KEY.HTTP_ROUTE]: '/custom-trace',
+          feature: 'settings',
+          action: 'load',
+        },
+      },
+      expect.any(Function),
+    );
   });
 
   it('POST 返回 data 字段', async () => {
@@ -111,6 +183,7 @@ describe('http client — 成功响应', () => {
     expect(first).toEqual({ id: 1 });
     expect(second).toEqual({ id: 1 });
     expect(hitCount).toBe(1);
+    expect(startSpanMock).toHaveBeenCalledTimes(1);
   });
 });
 

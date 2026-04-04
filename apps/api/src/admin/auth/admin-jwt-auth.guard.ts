@@ -6,6 +6,30 @@ import {
 } from '@nestjs/common';
 import * as jwt from 'jsonwebtoken';
 
+type AdminJwtPayload = {
+  sub?: string;
+  role?: string;
+  type?: string;
+  username?: string;
+};
+
+type RequestLike = {
+  headers?: Record<string, unknown>;
+  user?: {
+    id: string;
+    userId: string;
+    role: string;
+    type: string;
+    username: string;
+  };
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+const toStringOrEmpty = (value: unknown): string =>
+  typeof value === 'string' ? value : '';
+
 /**
  * Admin JWT Auth Guard
  * 验证 Admin token（用 ADMIN_JWT_SECRET 或 JWT_SECRET 签发）
@@ -14,7 +38,7 @@ import * as jwt from 'jsonwebtoken';
 @Injectable()
 export class AdminJwtAuthGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
-    const request = context.switchToHttp().getRequest();
+    const request = context.switchToHttp().getRequest<RequestLike>();
     const token = this.extractToken(request);
 
     if (!token) {
@@ -27,14 +51,19 @@ export class AdminJwtAuthGuard implements CanActivate {
       'please_change_me_very_secret';
 
     try {
-      const payload = jwt.verify(token, secret) as any;
+      const payloadUnknown: unknown = jwt.verify(token, secret);
+      const payload: AdminJwtPayload = isRecord(payloadUnknown)
+        ? payloadUnknown
+        : {};
+
+      const sub = toStringOrEmpty(payload.sub);
       // 挂载到 request.user，供 @CurrentUserId 等 decorator 使用
       request.user = {
-        id: payload.sub,
-        userId: payload.sub,
-        role: payload.role,
-        type: payload.type,
-        username: payload.username,
+        id: sub,
+        userId: sub,
+        role: toStringOrEmpty(payload.role),
+        type: toStringOrEmpty(payload.type),
+        username: toStringOrEmpty(payload.username),
       };
     } catch {
       throw new UnauthorizedException('Invalid or expired admin token');
@@ -43,12 +72,11 @@ export class AdminJwtAuthGuard implements CanActivate {
     return true;
   }
 
-  private extractToken(request: any): string | null {
+  private extractToken(request: RequestLike): string | null {
     const authHeader = request.headers?.authorization;
-    if (authHeader?.startsWith('Bearer ')) {
+    if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
       return authHeader.slice(7);
     }
     return null;
   }
 }
-

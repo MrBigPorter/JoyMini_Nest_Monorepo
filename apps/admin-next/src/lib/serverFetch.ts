@@ -5,9 +5,16 @@
  * - INTERNAL_API_URL 优先（Docker 内网，跳过公网往返）
  *   回退到 NEXT_PUBLIC_API_BASE_URL（本地开发 / 非 Docker）
  */
+import 'server-only';
 
 import { cookies } from 'next/headers';
 import type { ApiResponse } from '@/api/types';
+import {
+  SENTRY_SPAN_ATTR_KEY,
+  SENTRY_SPAN_NAME,
+  SENTRY_SPAN_OP,
+} from '@/lib/sentry-span-constants';
+import { withAppSpan } from '@/lib/sentry-span';
 
 function getBase(): string {
   return (
@@ -34,6 +41,8 @@ export type ServerFetchParams = Record<
 export interface ServerFetchOptions {
   /** Next.js 增量静态再生（ISR）秒数，false = no-store */
   revalidate?: number | false;
+  /** Next.js Data Cache 标签，用于 revalidateTag 精准失效 */
+  tags?: string[];
 }
 
 /**
@@ -46,32 +55,70 @@ export async function serverGet<T>(
   params?: ServerFetchParams,
   options?: ServerFetchOptions,
 ): Promise<T> {
-  const base = getBase();
-  const url = new URL(`${base}${path}`);
-
-  if (params) {
-    Object.entries(params).forEach(([k, v]) => {
-      if (v !== undefined && v !== null) url.searchParams.set(k, String(v));
-    });
-  }
-
   const revalidate =
     options?.revalidate === false ? 0 : (options?.revalidate ?? 30);
+  const tags = options?.tags;
 
-  const res = await fetch(url.toString(), {
-    headers: await buildHeaders(),
-    next: { revalidate },
-  } as RequestInit & { next?: { revalidate?: number } });
+  return withAppSpan(
+    {
+      name: SENTRY_SPAN_NAME.SERVER_FETCH_REQUEST,
+      op: SENTRY_SPAN_OP.HTTP_CLIENT,
+      attributes: {
+        [SENTRY_SPAN_ATTR_KEY.HTTP_METHOD]: 'GET',
+        [SENTRY_SPAN_ATTR_KEY.HTTP_ROUTE]: path,
+        [SENTRY_SPAN_ATTR_KEY.FETCH_REVALIDATE]: revalidate,
+      },
+    },
+    async () => {
+      const base = getBase();
+      const url = new URL(`${base}${path}`);
 
-  if (!res.ok) {
-    throw new Error(`[serverFetch] ${path} → HTTP ${res.status}`);
-  }
+      if (params) {
+        Object.entries(params).forEach(([k, v]) => {
+          if (v !== undefined && v !== null) url.searchParams.set(k, String(v));
+        });
+      }
 
-  const json: ApiResponse<T> = await res.json();
+      try {
+        const res = await fetch(url.toString(), {
+          headers: await buildHeaders(),
+          next: { revalidate, ...(tags ? { tags } : {}) },
+        } as RequestInit & { next?: { revalidate?: number; tags?: string[] } });
 
-  if (json.code !== 10000 && json.code !== 200) {
-    throw new Error(`[serverFetch] ${path} → ${json.message ?? 'API error'}`);
-  }
+        if (!res.ok) {
+          const errorText = await res.text().catch(() => '');
+          throw new Error(
+            `[serverFetch] ${path} → HTTP ${res.status}${errorText ? `: ${errorText.substring(0, 200)}` : ''}`,
+          );
+        }
 
-  return json.data;
+        const json: ApiResponse<T> = await res.json();
+
+        if (json.code !== 10000 && json.code !== 200) {
+          throw new Error(
+            `[serverFetch] ${path} → ${json.message ?? 'API error'} (code: ${json.code})`,
+          );
+        }
+
+        return json.data;
+      } catch (error) {
+        if (error instanceof Error) {
+          // 401 未授权 / 403 无权限 → 返回 null，让页面降级渲染，不崩溃
+          if (
+            error.message.includes('HTTP 401') ||
+            error.message.includes('HTTP 403')
+          ) {
+            console.warn(
+              `serverFetch: ${error.message.includes('HTTP 401') ? '401 Unauthorized' : '403 Forbidden'} for ${path}, returning null`,
+            );
+            return null as T;
+          }
+          console.error(`serverFetch error for ${path}:`, error.message);
+        } else {
+          console.error(`serverFetch unknown error for ${path}:`, error);
+        }
+        throw error;
+      }
+    },
+  );
 }

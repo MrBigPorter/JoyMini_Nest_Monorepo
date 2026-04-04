@@ -53,7 +53,7 @@ docker run --rm \
   "$BACKEND_IMAGE" \
   sh -c '
     set -e
-    PRISMA="./apps/api/node_modules/.bin/prisma"
+    PRISMA="./node_modules/.bin/prisma"
     SCHEMA="apps/api/prisma/schema.prisma"
     count=0
     failed=0
@@ -85,7 +85,7 @@ docker run --rm \
   --env DATABASE_URL="$DB_URL" \
   --entrypoint "" \
   "$BACKEND_IMAGE" \
-  ./apps/api/node_modules/.bin/prisma migrate status \
+  ./node_modules/.bin/prisma migrate status \
     --schema=apps/api/prisma/schema.prisma
 
 echo ""

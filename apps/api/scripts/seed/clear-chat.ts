@@ -48,3 +48,5 @@ main()
     // 务必断开连接防止进程挂起
     await prisma.$disconnect();
   });
+
+export {};

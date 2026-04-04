@@ -1,0 +1,21 @@
+# Build outputs
+out/
+.next/
+.turbo/
+.wrangler/
+open-next/
+
+# Dependencies
+node_modules/
+
+# Generated files
+*.min.js
+*.d.ts
+next-env.d.ts
+
+# Test coverage
+coverage/
+
+# Misc
+*.log
+.DS_Store

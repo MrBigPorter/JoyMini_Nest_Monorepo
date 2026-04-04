@@ -11,7 +11,9 @@ export function constTimeEqualHex(aHex: string, bHex: string): boolean {
     const pad = Buffer.alloc(a.length || 32); // 给个固定长度兜底
     try {
       timingSafeEqual(a, pad);
-    } catch {}
+    } catch {
+      // Intentionally ignore: mismatch path still does a compare attempt for timing consistency.
+    }
     return false;
   }
   return timingSafeEqual(a, b);

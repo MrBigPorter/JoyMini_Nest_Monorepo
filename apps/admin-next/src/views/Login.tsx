@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
@@ -15,12 +15,17 @@ import { ArrowRight, Lock, User } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { authApi } from '@/api';
 import { LoginResponse, UserRole } from '@/type/types';
+import { sanitizeInput, generateCsrfToken } from '@/lib/security-utils';
 
 const loginSchema = z.object({
-  username: z.string().min(1, { message: 'Username is required.' }),
+  username: z
+    .string()
+    .min(1, { message: 'Username is required.' })
+    .max(50, { message: 'Username too long.' }),
   password: z
     .string()
-    .min(6, { message: 'Password must be at least 6 characters.' }),
+    .min(6, { message: 'Password must be at least 6 characters.' })
+    .max(128, { message: 'Password too long.' }),
 });
 
 type LoginFormInputs = z.infer<typeof loginSchema>;
@@ -30,9 +35,35 @@ async function signIn(data: LoginFormInputs): Promise<LoginResponse> {
 }
 
 export const Login: React.FC = () => {
-  const router = useRouter(); // ← useRouter instead of useNavigate
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
   const loginAction = useAuthStore((state) => state.login);
   const addToast = useToastStore((state) => state.addToast);
+  const [csrfToken, setCsrfToken] = React.useState<string>('');
+
+  // 生成 CSRF Token
+  React.useEffect(() => {
+    const token = generateCsrfToken();
+    setCsrfToken(token);
+    // 存储到 sessionStorage 用于验证
+    sessionStorage.setItem('csrf_token', token);
+  }, []);
+
+  // 登录页挂载时，检测并清理本地残留 token（middleware 已清理 cookie）
+  React.useEffect(() => {
+    const hasLocalToken = Boolean(
+      localStorage.getItem('auth_token') ||
+      localStorage.getItem('refresh_token'),
+    );
+    if (!hasLocalToken) {
+      return;
+    }
+
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('refresh_token');
+    sessionStorage.removeItem('csrf_token');
+    void authApi.clearCookie().catch(() => {});
+  }, []);
 
   const {
     register,
@@ -53,18 +84,49 @@ export const Login: React.FC = () => {
           result.tokens.refreshToken ?? null,
         );
         addToast('success', 'Welcome back, Admin!');
-        router.push('/');
+        // 使用 startTransition 优化路由转换性能
+        startTransition(() => {
+          router.push('/');
+        });
       } else {
         addToast('error', 'Login failed: No access token received.');
       }
     },
-    onError: (error) => {
-      console.error('Login request failed:', error);
+    onError: (error: unknown) => {
+      // 后端统一响应格式: { code, message, data, tid }
+      // axios error 结构: { response: { data: { code, message } }, message: "Request failed..." }
+      let message = 'Login failed. Please try again.';
+
+      if (typeof error === 'object' && error !== null) {
+        // 优先取后端 response body 里的 message
+        const axiosError = error as {
+          response?: { data?: { message?: string; msg?: string } };
+          message?: string;
+        };
+        const apiMsg =
+          axiosError.response?.data?.message ?? axiosError.response?.data?.msg;
+        if (apiMsg) {
+          message = apiMsg;
+        } else if (axiosError.message) {
+          message = axiosError.message;
+        }
+      } else if (typeof error === 'string') {
+        message = error;
+      }
+
+      addToast('error', message);
     },
   });
 
-  const onSubmit = (data: LoginFormInputs) => {
-    runAsync(data);
+  // handleSubmit 内部已调用 e.preventDefault()，不会触发页面刷新
+  // try-catch 确保 runAsync 的异常不会变成 unhandled rejection 导致上层错误边界重载
+  const onSubmit = async (data: LoginFormInputs) => {
+    try {
+      // sanitizeInput 在 submit handler 里手动处理（禁止在 Zod schema 里用 .transform()）
+      await runAsync({ ...data, username: sanitizeInput(data.username) });
+    } catch {
+      // 错误已通过 useRequest 的 onError 处理并显示 toast，这里静默即可
+    }
   };
 
   return (
@@ -107,6 +169,9 @@ export const Login: React.FC = () => {
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+            {/* CSRF Token */}
+            <input type="hidden" name="_csrf" value={csrfToken} />
+
             <div className="space-y-4">
               <div className="relative group">
                 <User
@@ -142,7 +207,8 @@ export const Login: React.FC = () => {
             <Button
               type="submit"
               className="w-full py-3 text-lg shadow-xl shadow-primary-500/20"
-              isLoading={loading}
+              isLoading={loading || isPending}
+              disabled={loading || isPending}
             >
               <span className="relative z-10 flex items-center justify-center gap-2">
                 Sign In <ArrowRight size={18} />

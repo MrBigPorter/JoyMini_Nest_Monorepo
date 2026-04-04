@@ -53,8 +53,9 @@ export class ShareController {
       );
 
       return res.type('text/html').send(html);
-    } catch (error: any) {
-      this.logger.warn(`Share page failed for pid ${pid}: ${error.message}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Share page failed for pid ${pid}: ${message}`);
       return res.type('text/html').send(fallbackHtml);
     }
   }

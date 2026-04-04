@@ -130,7 +130,7 @@ export const FlashSaleBindProductModal: React.FC<Props> = ({
   // ── 列定义 ──────────────────────────────────────────────────────────────────
   const handleSelectionChange = useCallback(() => {}, []);
 
-  const columns: ColumnDef<Product>[] = useMemo(() => {
+  const columns = useMemo(() => {
     const col = createColumnHelper<Product>();
     return [
       col.accessor('treasureName', {
@@ -166,7 +166,8 @@ export const FlashSaleBindProductModal: React.FC<Props> = ({
         enableSorting: false,
         cell: (info) => {
           const isBound = boundIds.includes(info.row.original.treasureId);
-          const isSelected = pending?.treasureId === info.row.original.treasureId;
+          const isSelected =
+            pending?.treasureId === info.row.original.treasureId;
           return isBound ? (
             <Button
               isLoading={unbindLoading}
@@ -191,7 +192,7 @@ export const FlashSaleBindProductModal: React.FC<Props> = ({
           );
         },
       }),
-    ];
+    ] as ColumnDef<Product>[];
   }, [boundIds, doUnbind, pending?.treasureId, unbindLoading]);
 
   // ── Render ──────────────────────────────────────────────────────────────────
@@ -288,4 +289,3 @@ export const FlashSaleBindProductModal: React.FC<Props> = ({
     </div>
   );
 };
-

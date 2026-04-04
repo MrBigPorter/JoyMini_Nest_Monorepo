@@ -26,11 +26,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const ctx = host.switchToHttp();
 
     const req = ctx.getRequest<Request & { id?: string }>();
-    const res = ctx.getResponse();
+    const res = ctx.getResponse<{ headersSent?: boolean }>();
 
-    const reqId =
-      (req?.id as string | undefined) ||
-      (req?.headers?.['x-request-id'] as string | undefined);
+    const rawReqId = req?.id ?? req?.headers?.['x-request-id'];
+    const reqId = typeof rawReqId === 'string' ? rawReqId : undefined;
 
     const tid = reqId ?? randomUUID().replaceAll('-', '');
 
@@ -45,8 +44,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
     if (exception instanceof BizException) {
       status = exception.getStatus?.() ?? HttpStatus.BAD_REQUEST;
       code = exception.code;
-      key = exception.key as CodeKey;
-      message = MESSAGE[key];
+      key = exception.key;
+      message = MESSAGE[key] ?? MESSAGE.SYSTEM_ERROR;
       details = exception.extra;
 
       this.logger.error(
@@ -62,11 +61,12 @@ export class AllExceptionsFilter implements ExceptionFilter {
       const body = exception.getResponse();
 
       // 可能是字符串 / 对象 / 数组
-      let rawMessage: any;
+      let rawMessage: unknown;
       if (typeof body === 'string') {
         rawMessage = body;
       } else if (body && typeof body === 'object') {
-        rawMessage = (body as any).message ?? (body as any).error;
+        const payload = body as Record<string, unknown>;
+        rawMessage = payload.message ?? payload.error;
       }
 
       // 默认用 HTTP 状态码作为错误码
@@ -80,38 +80,48 @@ export class AllExceptionsFilter implements ExceptionFilter {
         details = rawMessage;
       } else {
         // 其他 HTTP 异常（比如手动 throw new BadRequestException('xxx')）
-        message = rawMessage ?? MESSAGE[key];
+        message = typeof rawMessage === 'string' ? rawMessage : MESSAGE[key];
 
         // 根据状态码做一些常用映射
         if (
-          status === HttpStatus.TOO_MANY_REQUESTS &&
+          status === Number(HttpStatus.TOO_MANY_REQUESTS) &&
           'TOO_MANY_REQUESTS' in CODE
         ) {
           key = 'TOO_MANY_REQUESTS' as CodeKey;
-          code = (CODE as any).TOO_MANY_REQUESTS;
+          code = CODE.TOO_MANY_REQUESTS;
         } else if (
-          status === HttpStatus.UNAUTHORIZED &&
+          status === Number(HttpStatus.UNAUTHORIZED) &&
           'UNAUTHORIZED' in CODE
         ) {
           key = 'UNAUTHORIZED' as CodeKey;
-          code = (CODE as any).UNAUTHORIZED;
+          code = CODE.UNAUTHORIZED;
         }
       }
+
+      const stack = exception.stack;
 
       this.logger.error(
         `HttpException caught: tid=${tid}, path=${req.method} ${req.url}, ` +
           `status=${status}, code=${code}, key=${key}, message=${message}, ` +
           `response=${JSON.stringify(body)}`,
-        (exception as any).stack,
+        stack,
       );
     }
 
     // ---------- 未知异常：直接当系统错误 ---------- //
     else {
+      const unknownMessage =
+        exception instanceof Error
+          ? exception.message
+          : typeof exception === 'string'
+            ? exception
+            : JSON.stringify(exception);
+      const stack = exception instanceof Error ? exception.stack : undefined;
+
       this.logger.error(
         `Unknown exception caught: tid=${tid}, path=${req.method} ${req.url}, ` +
-          `error=${(exception as any)?.message ?? exception}`,
-        (exception as any)?.stack,
+          `error=${unknownMessage}`,
+        stack,
       );
     }
 

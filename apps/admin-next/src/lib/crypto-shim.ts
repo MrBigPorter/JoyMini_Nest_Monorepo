@@ -8,16 +8,15 @@ export function createHash(algorithm: string) {
   return {
     update(data: string | Uint8Array) {
       // TextEncoder.encode() / slice() both produce an ArrayBuffer-backed Uint8Array
-      // at runtime; the dom.d.ts typing for encode() lags behind the new TS 5.7+ generics,
-      // so we cast explicitly to satisfy crypto.subtle.digest (requires BufferSource).
-      const bytes: Uint8Array<ArrayBuffer> =
+      // at runtime; we cast explicitly to satisfy crypto.subtle.digest (requires BufferSource).
+      const bytes: Uint8Array =
         typeof data === 'string'
-          ? (new TextEncoder().encode(data) as Uint8Array<ArrayBuffer>)
-          : data.slice(); // slice() returns Uint8Array<ArrayBuffer> per lib.es5.d.ts
+          ? new TextEncoder().encode(data)
+          : data.slice();
       this._data = bytes;
       return this;
     },
-    _data: new Uint8Array() as Uint8Array<ArrayBuffer>,
+    _data: new Uint8Array(),
     async digestAsync() {
       const hashBuffer = await globalThis.crypto.subtle.digest(
         algorithm.toUpperCase().replace('SHA', 'SHA-'),

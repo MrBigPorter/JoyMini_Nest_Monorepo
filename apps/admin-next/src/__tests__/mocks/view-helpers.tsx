@@ -11,7 +11,7 @@ export const framerMotionMock = {
     {},
     {
       get: (_t, tag: string) => {
-        return React.forwardRef(
+        const MotionTag = React.forwardRef(
           (
             {
               children,
@@ -42,6 +42,8 @@ export const framerMotionMock = {
             );
           },
         );
+        MotionTag.displayName = `Motion${tag}`;
+        return MotionTag;
       },
     },
   ),

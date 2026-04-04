@@ -7,7 +7,9 @@
     "baseUrl": "./",
     "paths": {
       "@api/*": ["src/*"],
-      "@common/*": ["../common/src/*"]
+      "@common/*": ["../common/src/*"],
+      "@lucky/shared": ["../../packages/shared/dist/index"],
+      "@lucky/shared/*": ["../../packages/shared/dist/*"]
     },
     "moduleResolution": "node",
     "strict": true,

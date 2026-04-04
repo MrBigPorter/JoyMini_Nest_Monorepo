@@ -320,7 +320,8 @@ export const BaseTable = <TData,>({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (row as any)[rowKey] ?? (row as any).id ?? (row as any).treasureId;
       if (id === undefined) {
-        return String(Math.random());
+        // 避免使用 Math.random() 防止 Hydration 错误，使用确定的 UUID 或空字符串
+        return `missing-id-${JSON.stringify(row).length}`;
       }
       return String(id);
     },

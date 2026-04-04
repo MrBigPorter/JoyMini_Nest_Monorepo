@@ -9,7 +9,12 @@ import {
 import { ToNumber } from '@api/common/dto/transforms';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
-const TREASURE_FILTER_TYPE_VALUES = ['ALL', 'ON_SALE', 'PRE_SALE', 'NOT_EXPIRED'] as const;
+const TREASURE_FILTER_TYPE_VALUES = [
+  'ALL',
+  'ON_SALE',
+  'PRE_SALE',
+  'NOT_EXPIRED',
+] as const;
 
 export class QueryTreasureDto {
   @ApiProperty({ description: 'page', example: 1, type: 'number' })

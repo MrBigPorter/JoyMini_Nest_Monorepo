@@ -7,7 +7,22 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = { title: 'KYC Review' };
 
 import React, { Suspense } from 'react';
+import {
+  HydrationBoundary,
+  QueryClient,
+  dehydrate,
+} from '@tanstack/react-query';
 import { KycClient } from '@/components/kyc/KycClient';
+import { serverGet } from '@/lib/serverFetch';
+import type { PaginatedResponse } from '@/api/types';
+import type { KycRecord } from '@/type/types';
+import {
+  KYC_LIST_TAG,
+  buildKycListParams,
+  kycListQueryKey,
+  parseKycSearchParams,
+  type NextSearchParams,
+} from '@/lib/cache/kyc-cache';
 
 function KycPageSkeleton() {
   return (
@@ -24,10 +39,38 @@ function KycPageSkeleton() {
   );
 }
 
-export default function KycPage() {
+interface KycPageProps {
+  searchParams?: Promise<NextSearchParams>;
+}
+
+export default async function KycPage({ searchParams }: KycPageProps) {
+  const resolvedSearchParams = (await searchParams) ?? {};
+  const queryClient = new QueryClient();
+  const queryInput = parseKycSearchParams(resolvedSearchParams);
+
+  await queryClient.prefetchQuery({
+    queryKey: kycListQueryKey(queryInput),
+    queryFn: async () => {
+      const res = await serverGet<PaginatedResponse<KycRecord>>(
+        '/v1/admin/kyc/records',
+        buildKycListParams(queryInput) as Record<
+          string,
+          string | number | boolean | undefined | null
+        >,
+        {
+          revalidate: 30,
+          tags: [KYC_LIST_TAG],
+        },
+      );
+      return { data: res.list, total: res.total };
+    },
+  });
+
   return (
     <Suspense fallback={<KycPageSkeleton />}>
-      <KycClient />
+      <HydrationBoundary state={dehydrate(queryClient)}>
+        <KycClient />
+      </HydrationBoundary>
     </Suspense>
   );
 }

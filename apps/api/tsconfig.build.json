@@ -1,10 +1,14 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": { "declaration": false },
+  "include": ["src/**/*"],
   "exclude": [
+    "node_modules",
+    "dist",
+    "test",
+    "scripts",
     "**/*.spec.ts",
     "**/*.test.ts",
-    "test",
     "**/*.e2e-spec.ts"
   ]
 }

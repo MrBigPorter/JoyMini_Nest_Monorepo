@@ -64,7 +64,17 @@ export class PushListener {
     targetId: string;
     sessionId: string;
     senderId: string;
-    mediaType: string;
+    mediaType?: string;
+    /** 'call_invite' | 'call_end' — 必须透传给 FCM payload，
+     *  否则 call_end 时会向 App 发送错误的 'call_invite' FCM，
+     *  导致 App 出现幽灵来电屏幕，后续来电无法正常接收 */
+    type?: string;
+    /** CallKit 来电界面显示的呼叫方姓名（由 notification.service 自动查补） */
+    senderName?: string;
+    /** CallKit 来电界面显示的呼叫方头像 URL */
+    senderAvatar?: string;
+    /** 可选，拒接时 Flutter 发 call_end 需要 */
+    conversationId?: string;
   }) {
     this.logger.debug(
       `[FCM] Processing call wake up for target: ${event.targetId}`,

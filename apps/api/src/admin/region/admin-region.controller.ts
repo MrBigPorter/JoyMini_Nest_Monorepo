@@ -1,5 +1,5 @@
 import { RegionService } from '@api/common/region/region.service';
-import { Controller, Get, Injectable, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, UseGuards } from '@nestjs/common';
 import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '@api/common/jwt/jwt.guard';
 import { ProvincesResponseDto } from '@api/admin/region/dto/provinces.response.dto';

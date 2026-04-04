@@ -22,6 +22,19 @@ export const RolePermissions = {
     `${OpModule.MARKETING}:${OpAction.MARKETING.VIEW}`, // ✅ 这样 ADMIN 就能调 findAll 了
     `${OpModule.MARKETING}:${OpAction.MARKETING.CREATE}`, // ✅ 这样 ADMIN 就能 create 了
     `${OpModule.MARKETING}:${OpAction.MARKETING.UPDATE}`,
+
+    //  4. 财务查看权限（只读，不含 manual_adjust 高危操作）
+    `${OpModule.FINANCE}:${OpAction.FINANCE.VIEW}`, // "finance_management:view_finance"
+    `${OpModule.FINANCE}:${OpAction.FINANCE.CHANNEL_VIEW}`, // 查看支付渠道
+
+    //  5. 产品（夺宝）管理权限
+    `${OpModule.TREASURE}:${OpAction.TREASURE.VIEW}`, // "treasure_management:view_treasure"
+    `${OpModule.TREASURE}:${OpAction.TREASURE.CREATE}`, // 创建产品
+    `${OpModule.TREASURE}:${OpAction.TREASURE.UPDATE}`, // 修改产品
+    `${OpModule.TREASURE}:${OpAction.TREASURE.ON_SHELF}`, // 上架
+    `${OpModule.TREASURE}:${OpAction.TREASURE.OFF_SHELF}`, // 下架
+    `${OpModule.TREASURE}:${OpAction.TREASURE.LOTTERY}`, // 强制开奖
+    `${OpModule.TREASURE}:${OpAction.TREASURE.DELETE}`, // 删除产品
   ],
 
   // ------------------------------------------

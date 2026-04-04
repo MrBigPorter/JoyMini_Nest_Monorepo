@@ -67,33 +67,40 @@ describe('SupportChannelService', () => {
   it('creates channel and bot user in one transaction', async () => {
     mockPrisma.supportChannel.findUnique.mockResolvedValue(null);
 
-    mockPrisma.$transaction.mockImplementation(async (fn: any) => {
-      const tx = {
-        user: {
-          create: jest.fn().mockResolvedValue({
-            id: 'bot_1',
-            nickname: 'Tech Support',
-            avatar: 'https://img/1.png',
-          }),
-        },
-        supportChannel: {
-          create: jest.fn().mockResolvedValue({
-            id: 'tech_support_v1',
-            name: 'Tech Support',
-            description: 'Technical',
-            botUserId: 'bot_1',
-            isActive: true,
-            botUser: {
+    mockPrisma.$transaction.mockImplementation(
+      (
+        fn: (tx: {
+          user: { create: jest.Mock };
+          supportChannel: { create: jest.Mock };
+        }) => unknown,
+      ) => {
+        const tx = {
+          user: {
+            create: jest.fn().mockResolvedValue({
               id: 'bot_1',
               nickname: 'Tech Support',
               avatar: 'https://img/1.png',
-              isRobot: true,
-            },
-          }),
-        },
-      };
-      return fn(tx);
-    });
+            }),
+          },
+          supportChannel: {
+            create: jest.fn().mockResolvedValue({
+              id: 'tech_support_v1',
+              name: 'Tech Support',
+              description: 'Technical',
+              botUserId: 'bot_1',
+              isActive: true,
+              botUser: {
+                id: 'bot_1',
+                nickname: 'Tech Support',
+                avatar: 'https://img/1.png',
+                isRobot: true,
+              },
+            }),
+          },
+        };
+        return fn(tx);
+      },
+    );
 
     const result = await service.create({
       id: 'tech_support_v1',
@@ -122,10 +129,8 @@ describe('SupportChannelService', () => {
 
   it('throws NotFound when toggling non-existing channel', async () => {
     mockPrisma.supportChannel.findUnique.mockResolvedValue(null);
-
     await expect(
       service.toggle('missing', { isActive: false }),
     ).rejects.toThrow(NotFoundException);
   });
 });
-

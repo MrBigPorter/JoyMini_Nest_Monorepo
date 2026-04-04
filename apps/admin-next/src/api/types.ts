@@ -2,7 +2,7 @@
  * HTTP 请求相关类型定义
  */
 
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   code: number;
   message: string;
   data: T;
@@ -12,7 +12,18 @@ export interface ApiResponse<T = any> {
 export interface ApiError {
   code: number;
   message: string;
-  details?: any;
+  details?: unknown;
+}
+
+export type TraceAttributeValue = string | number | boolean | null | undefined;
+
+export interface RequestTraceConfig {
+  /** false = disable tracing for this request */
+  enabled?: boolean;
+  /** Optional custom span name */
+  name?: string;
+  /** Optional extra attributes merged with default http.method/http.route */
+  attributes?: Record<string, TraceAttributeValue>;
 }
 
 export interface PaginationParams {
@@ -34,4 +45,5 @@ export interface RequestConfig {
   showLoading?: boolean;
   showError?: boolean;
   customErrorHandler?: (error: ApiError) => void;
+  trace?: boolean | RequestTraceConfig;
 }

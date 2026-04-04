@@ -80,21 +80,13 @@ test.describe('Register Apply page', () => {
   // ── 表单渲染 ──────────────────────────────────────────────────────
 
   test('渲染所有必填字段', async ({ page }) => {
-    await expect(
-      page.getByPlaceholder(/desired username/i),
-    ).toBeVisible({ timeout: 20_000 });
-    await expect(
-      page.getByPlaceholder(/full name/i),
-    ).toBeVisible();
-    await expect(
-      page.getByPlaceholder(/email address/i),
-    ).toBeVisible();
-    await expect(
-      page.getByPlaceholder(/password \(min/i),
-    ).toBeVisible();
-    await expect(
-      page.getByPlaceholder(/confirm password/i),
-    ).toBeVisible();
+    await expect(page.getByPlaceholder(/desired username/i)).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(page.getByPlaceholder(/full name/i)).toBeVisible();
+    await expect(page.getByPlaceholder(/email address/i)).toBeVisible();
+    await expect(page.getByPlaceholder(/password \(min/i)).toBeVisible();
+    await expect(page.getByPlaceholder(/confirm password/i)).toBeVisible();
   });
 
   test('Submit Application 按钮存在', async ({ page }) => {
@@ -127,9 +119,9 @@ test.describe('Register Apply page', () => {
     await page
       .getByRole('button', { name: /submit application/i })
       .click({ force: true });
-    await expect(
-      page.getByText(/do not match/i).first(),
-    ).toBeVisible({ timeout: 8_000 });
+    await expect(page.getByText(/do not match/i).first()).toBeVisible({
+      timeout: 8_000,
+    });
   });
 
   test('密码不含数字时显示强度错误', async ({ page }) => {
@@ -151,15 +143,18 @@ test.describe('Register Apply page', () => {
   test('用户名少于 3 个字符时显示长度错误', async ({ page }) => {
     await page.getByPlaceholder(/desired username/i).fill('ab');
     await page.getByPlaceholder(/full name/i).click(); // blur
-    await expect(
-      page.getByText(/at least 3 characters/i).first(),
-    ).toBeVisible({ timeout: 8_000 });
+    await expect(page.getByText(/at least 3 characters/i).first()).toBeVisible({
+      timeout: 8_000,
+    });
   });
 
   // ── 导航 ─────────────────────────────────────────────────────────
 
   test('点击 "Sign in" 链接跳转到 /login', async ({ page }) => {
-    await page.getByRole('link', { name: /sign in/i }).first().click();
+    await page
+      .getByRole('link', { name: /sign in/i })
+      .first()
+      .click();
     await page.waitForURL(/\/login/, { timeout: 10_000 });
     expect(page.url()).toContain('/login');
   });

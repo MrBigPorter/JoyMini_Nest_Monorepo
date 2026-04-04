@@ -15,14 +15,29 @@ import {
   OrderNoHelper,
   RECHARGE_STATUS,
   RelatedType,
+  TRANSACTION_STATUS,
   WITHDRAW_STATUS,
 } from '@lucky/shared';
 import { CreateRechargeDto } from '@api/client/wallet/dto/create-recharge.dto';
 import { WithdrawalHistoryQueryDto } from '@api/client/wallet/dto/withdrawal-history-query.dto';
 import { PaymentService } from '@api/common/payment/payment.service';
-import { TRANSACTION_STATUS } from '@lucky/shared/dist/types/wallet';
 import { GetRechargeHistoryDto } from '@api/client/wallet/dto/recharge.dto';
-import { PaymentChannelService } from '@api/common/payment-channel/payment-channel.service';
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+type InvoiceWebhookPayload = {
+  external_id: string;
+  status: string;
+  amount: number | string;
+  id: string;
+};
+
+type PayoutWebhookPayload = {
+  reference_id: string;
+  status: string;
+  failure_code?: string;
+};
 
 @Injectable()
 export class ClientWalletService {
@@ -33,22 +48,25 @@ export class ClientWalletService {
     private walletService: WalletService,
   ) {}
 
-  async handleUniversalWebhook(payload: any) {
+  async handleUniversalWebhook(payload: unknown) {
+    if (!isRecord(payload)) {
+      this.logger.warn(`[Webhook Router] Unknown payload format, ignored.`);
+      return { status: 'IGNORED', reason: 'Unknown Format' };
+    }
+
+    const event = typeof payload.event === 'string' ? payload.event : null;
+
     //  判定逻辑 1: 是否为代付/提现 (Payout)
     // 依据：Xendit Payout V2 API 回调一定包含 event 字段，且以 'payout.' 开头
-    if (
-      payload?.event &&
-      typeof payload?.event === 'string' &&
-      payload?.event?.startsWith('payout.')
-    ) {
+    if (event && event.startsWith('payout.')) {
       this.logger.log(
-        `[Webhook Router] Identified as PAYOUT (Event: ${payload.event})`,
+        `[Webhook Router] Identified as PAYOUT (Event: ${event})`,
       );
       return this.handlePayoutWebhook(payload.data);
     }
 
     // 判定逻辑 2: 依据 external_id
-    if (payload?.external_id) {
+    if (typeof payload.external_id === 'string') {
       this.logger.log(
         `[Webhook Router] Identified as INVOICE (Order: ${payload.external_id})`,
       );
@@ -64,11 +82,31 @@ export class ClientWalletService {
    * Handle recharge webhook from payment gateway
    * @param payload
    */
-  private async handleInvoiceWebhook(payload: any) {
-    const orderNo = payload.external_id;
-    const status = payload.status; // 'PAID', 'EXPIRED', etc.
+  private async handleInvoiceWebhook(payload: unknown) {
+    if (!isRecord(payload)) {
+      return { status: 'IGNORED', message: 'Invalid Payload' };
+    }
+
+    const orderNo =
+      typeof payload.external_id === 'string' ? payload.external_id : null;
+    const status = typeof payload.status === 'string' ? payload.status : null;
     const amount = payload.amount;
-    const transactionId = payload.id;
+    const transactionId = typeof payload.id === 'string' ? payload.id : null;
+
+    if (!orderNo || !status || !transactionId) {
+      return { status: 'IGNORED', message: 'Missing Required Fields' };
+    }
+
+    if (typeof amount !== 'number' && typeof amount !== 'string') {
+      return { status: 'IGNORED', message: 'Invalid Amount' };
+    }
+
+    const invoicePayload: InvoiceWebhookPayload = {
+      external_id: orderNo,
+      status,
+      amount,
+      id: transactionId,
+    };
 
     // double check prefix
     if (!orderNo || !orderNo.startsWith(BizPrefix.DEPOSIT)) {
@@ -83,7 +121,7 @@ export class ClientWalletService {
       return { status: 'IGNORED', message: `Status is ${status}` };
     }
 
-    const amountDecimal = new Prisma.Decimal(amount);
+    const amountDecimal = new Prisma.Decimal(invoicePayload.amount);
 
     return this.prismaService.$transaction(async (ctx) => {
       //状态抢先更新，防止并发问题
@@ -95,9 +133,9 @@ export class ClientWalletService {
         },
         data: {
           rechargeStatus: RECHARGE_STATUS.SUCCESS,
-          thirdPartyOrderNo: transactionId,
+          thirdPartyOrderNo: invoicePayload.id,
           paidAt: new Date(),
-          callbackData: payload,
+          callbackData: invoicePayload,
         },
       });
 
@@ -132,16 +170,22 @@ export class ClientWalletService {
         },
       });
 
+      if (!order) {
+        throw new InternalServerErrorException(
+          `Recharge order not found after update: ${orderNo}`,
+        );
+      }
+
       // Credit user's wallet
       await this.walletService.creditCash(
         {
-          userId: order?.userId as string,
+          userId: order.userId,
           amount: amountDecimal,
           related: {
-            id: order?.rechargeId as string,
+            id: order.rechargeId,
             type: RelatedType.RECHARGE,
           },
-          desc: `Recharge via Xendit. Txn: ${transactionId}`,
+          desc: `Recharge via Xendit. Txn: ${invoicePayload.id}`,
         },
         ctx,
       );
@@ -154,13 +198,31 @@ export class ClientWalletService {
    * Handle disbursement (withdrawal) webhook from payment gateway
    * @param payload
    */
-  private async handlePayoutWebhook(payload: any) {
-    const orderNo = payload.reference_id;
-    const status = payload.status; // 'COMPLETED', 'FAILED', etc.
-    const failureCode = payload.failure_code;
+  private async handlePayoutWebhook(payload: unknown) {
+    if (!isRecord(payload)) {
+      return { status: 'IGNORED', message: 'Invalid Payload' };
+    }
+
+    const orderNo =
+      typeof payload.reference_id === 'string' ? payload.reference_id : null;
+    const status = typeof payload.status === 'string' ? payload.status : null;
+    const failureCode =
+      typeof payload.failure_code === 'string'
+        ? payload.failure_code
+        : undefined;
+
+    if (!orderNo || !status) {
+      return { status: 'IGNORED', message: 'Missing Required Fields' };
+    }
+
+    const payoutPayload: PayoutWebhookPayload = {
+      reference_id: orderNo,
+      status,
+      failure_code: failureCode,
+    };
 
     // double check prefix
-    if (!orderNo || !orderNo.startsWith(BizPrefix.WITHDRAW)) {
+    if (!orderNo.startsWith(BizPrefix.WITHDRAW)) {
       this.logger.warn(`[Payout] Invalid OrderNo prefix: ${orderNo}`);
       return { status: 'IGNORED', message: 'Invalid Prefix' };
     }
@@ -241,7 +303,9 @@ export class ClientWalletService {
           },
         });
       } else if (status === 'FAILED') {
-        this.logger.warn(`Disbursement Failed for ${orderNo}: ${failureCode}`);
+        this.logger.warn(
+          `Disbursement Failed for ${orderNo}: ${payoutPayload.failure_code ?? 'UNKNOWN'}`,
+        );
         // Unfreeze the amount back to available balance
         await this.walletService.unfreezeCash(
           {
@@ -251,7 +315,7 @@ export class ClientWalletService {
               id: order.withdrawId,
               type: RelatedType.WITHDRAWAL,
             },
-            desc: `Withdrawal failed: ${failureCode}`,
+            desc: `Withdrawal failed: ${payoutPayload.failure_code ?? 'UNKNOWN'}`,
           },
           ctx,
         );
@@ -261,7 +325,7 @@ export class ClientWalletService {
           data: {
             withdrawStatus: WITHDRAW_STATUS.FAILED,
             completedAt: new Date(),
-            rejectReason: `Disbursement failed: ${failureCode}`,
+            rejectReason: `Disbursement failed: ${payoutPayload.failure_code ?? 'UNKNOWN'}`,
           },
         });
 
@@ -336,13 +400,13 @@ export class ClientWalletService {
     //检验提现金额是否在允许范围内
     if (channel.minAmount && amountNum < channel.minAmount.toNumber()) {
       throw new NotFoundException(
-        `Withdrawal amount is below the minimum of ${channel.minAmount}`,
+        `Withdrawal amount is below the minimum of ${channel.minAmount.toString()}`,
       );
     }
 
     if (channel.maxAmount && amountNum > channel.maxAmount.toNumber()) {
       throw new NotFoundException(
-        `Withdrawal amount exceeds the maximum of ${channel.maxAmount}`,
+        `Withdrawal amount exceeds the maximum of ${channel.maxAmount.toString()}`,
       );
     }
 
@@ -423,13 +487,13 @@ export class ClientWalletService {
     //检验充值金额是否在允许范围内
     if (channel.minAmount && amount.lessThan(channel.minAmount)) {
       throw new NotFoundException(
-        `Recharge amount is below the minimum of ${channel.minAmount}`,
+        `Recharge amount is below the minimum of ${channel.minAmount.toString()}`,
       );
     }
 
     if (channel.maxAmount && amount.greaterThan(channel.maxAmount)) {
       throw new NotFoundException(
-        `Recharge amount exceeds the maximum of ${channel.maxAmount}`,
+        `Recharge amount exceeds the maximum of ${channel.maxAmount.toString()}`,
       );
     }
 
@@ -456,25 +520,20 @@ export class ClientWalletService {
     });
 
     // Create payment link via payment gateway ,get xendit invoice url
-    try {
-      let paymentUrl = await this.paymentService.createRechargeLink(
-        order.rechargeNo,
-        amount.toNumber(),
-        redirectUrl,
-        channel.code,
-      );
-      // return { payUrl: order.payUrl, orderId: order.rechargeId };
-      return {
-        rechargeNo: order.rechargeNo,
-        rechargeAmount: order.rechargeAmount.toString(),
-        payUrl: paymentUrl,
-        rechargeStatus: order.rechargeStatus,
-        channelId: channel.id,
-      };
-    } catch (e) {
-      // In case of failure, we might want to handle it (e.g., log, cleanup)
-      throw e;
-    }
+    const paymentUrl = await this.paymentService.createRechargeLink(
+      order.rechargeNo,
+      amount.toNumber(),
+      redirectUrl,
+      channel.code,
+    );
+
+    return {
+      rechargeNo: order.rechargeNo,
+      rechargeAmount: order.rechargeAmount.toString(),
+      payUrl: paymentUrl,
+      rechargeStatus: order.rechargeStatus,
+      channelId: channel.id,
+    };
   }
 
   /**

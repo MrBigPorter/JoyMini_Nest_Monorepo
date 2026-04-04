@@ -176,20 +176,16 @@ export function FormDateField<TFieldValues extends FieldValues = FieldValues>({
                     >
                       <div className="bg-white dark:bg-zinc-950 border border-gray-200 dark:border-zinc-800 rounded-md shadow-xl overflow-hidden">
                         {/* --- 2. 日历组件 --- */}
-                        <Calendar
-                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                          mode={mode as any}
-                          selected={value}
-                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                          onSelect={(date: any) => {
-                            // date: Date | DateRange | undefined
-                            if (!date) {
-                              field.onChange(undefined);
-                              return;
-                            }
+                        {mode === "single" ? (
+                          <Calendar
+                            mode="single"
+                            selected={value instanceof Date ? value : undefined}
+                            onSelect={(date) => {
+                              if (!date) {
+                                field.onChange(undefined);
+                                return;
+                              }
 
-                            //  single + showTime：保留旧时间
-                            if (mode === "single" && date instanceof Date) {
                               const prev =
                                 value instanceof Date ? value : undefined;
                               const next = showTime
@@ -199,21 +195,33 @@ export function FormDateField<TFieldValues extends FieldValues = FieldValues>({
 
                               // single 且不显示时间：选完自动关闭
                               if (!showTime) setOpen(false);
-                              return;
+                            }}
+                            defaultMonth={
+                              value instanceof Date ? value : undefined
                             }
-
-                            // range：直接写回
-                            field.onChange(date);
-                          }}
-                          // 限制只能选 2 个日期 (针对 Range)
-                          defaultMonth={
-                            mode === "range"
-                              ? (value as DateRange)?.from
-                              : (value as Date)
-                          }
-                          numberOfMonths={mode === "range" ? 2 : 1}
-                          className="p-3"
-                        />
+                            numberOfMonths={1}
+                            className="p-3"
+                          />
+                        ) : (
+                          <Calendar
+                            mode="range"
+                            selected={
+                              value && !(value instanceof Date)
+                                ? (value as DateRange)
+                                : undefined
+                            }
+                            onSelect={(date) => {
+                              field.onChange(date);
+                            }}
+                            defaultMonth={
+                              value && !(value instanceof Date)
+                                ? (value as DateRange)?.from
+                                : undefined
+                            }
+                            numberOfMonths={2}
+                            className="p-3"
+                          />
+                        )}
 
                         {/* --- 3. 时间选择输入框 (仅支持 Single 模式) --- */}
                         {showTime && mode === "single" && (

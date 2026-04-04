@@ -153,7 +153,7 @@ export class AuthService {
     }
 
     // 交互式事务：原子消费 OTP + upsert 用户 + 日志 + 最后登录时间
-    const user = await this.prisma.$transaction(async (ctx) => {
+    const user = await this.prisma.$transaction(async (ctx: AuthTx) => {
       // 1) 原子把 VERIFIED → CONSUMED，只允许成功一次
       const consumed = await ctx.smsVerificationCode.updateMany({
         where: { id: opt?.id, verifyStatus: VERIFY_STATUS.VERIFIED },
@@ -249,7 +249,7 @@ export class AuthService {
     }
 
     const now = new Date();
-    const user = await this.prisma.$transaction(async (ctx) => {
+    const user = await this.prisma.$transaction(async (ctx: AuthTx) => {
       const oauthAccount = await ctx.oauthAccount.findUnique({
         where: {
           provider_providerUserId: {
@@ -604,7 +604,7 @@ export class AuthService {
     const pseudoPhone = this.buildEmailPseudoPhone(normalizedEmail);
     const pseudoPhoneMd5 = md5(pseudoPhone);
 
-    const user = await this.prisma.$transaction(async (ctx) => {
+    const user = await this.prisma.$transaction(async (ctx: AuthTx) => {
       const consumed = await ctx.smsVerificationCode.updateMany({
         where: {
           id: req.id,

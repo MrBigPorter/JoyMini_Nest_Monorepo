@@ -6,7 +6,7 @@
 #   echo "0 3 * * 1 /opt/lucky/deploy/renew-cert.sh >> /var/log/lucky-cert.log 2>&1" | crontab -
 #
 # 手动执行:
-#   ssh root@***REDACTED*** '/opt/lucky/deploy/renew-cert.sh'
+#   ssh root@<VPS_IP> '/opt/lucky/deploy/renew-cert.sh'
 # ============================================================
 set -euo pipefail
 

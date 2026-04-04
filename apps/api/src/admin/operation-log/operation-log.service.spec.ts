@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { OperationLogService } from './operation-log.service';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { QueryOperationLogDto } from './dto/query-operation-log.dto';
+import { TimeHelper } from '@lucky/shared';
 
 describe('OperationLogService', () => {
   let service: OperationLogService;
@@ -120,7 +121,9 @@ describe('OperationLogService', () => {
 
       expect(mockPrismaService.adminOperationLog.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { action: 'AUDIT' },
+          where: {
+            action: { contains: 'audit', mode: 'insensitive' },
+          },
         }),
       );
     });
@@ -142,7 +145,7 @@ describe('OperationLogService', () => {
       );
     });
 
-    it('should filter by keyword (adminName, details, module)', async () => {
+    it('should filter by keyword (adminName, details, module, action)', async () => {
       mockPrismaService.adminOperationLog.findMany.mockResolvedValue([]);
       mockPrismaService.adminOperationLog.count.mockResolvedValue(0);
 
@@ -158,9 +161,18 @@ describe('OperationLogService', () => {
         expect.objectContaining({
           where: {
             OR: [
-              { adminName: { contains: 'test' } },
-              { details: { contains: 'test' } },
-              { module: { contains: 'test' } },
+              {
+                adminName: { contains: 'test', mode: 'insensitive' },
+              },
+              {
+                details: { contains: 'test', mode: 'insensitive' },
+              },
+              {
+                module: { contains: 'test', mode: 'insensitive' },
+              },
+              {
+                action: { contains: 'test', mode: 'insensitive' },
+              },
             ],
           },
         }),
@@ -185,8 +197,8 @@ describe('OperationLogService', () => {
         expect.objectContaining({
           where: {
             createdAt: {
-              gte: new Date(startDate),
-              lte: new Date(endDate),
+              gte: TimeHelper.getStartOfDay(startDate),
+              lte: TimeHelper.getEndOfDay(endDate),
             },
           },
         }),
@@ -227,15 +239,24 @@ describe('OperationLogService', () => {
         expect.objectContaining({
           where: {
             adminId: 'admin-123',
-            action: 'UPDATE',
+            action: { contains: 'update', mode: 'insensitive' },
             OR: [
-              { adminName: { contains: 'product' } },
-              { details: { contains: 'product' } },
-              { module: { contains: 'product' } },
+              {
+                adminName: { contains: 'product', mode: 'insensitive' },
+              },
+              {
+                details: { contains: 'product', mode: 'insensitive' },
+              },
+              {
+                module: { contains: 'product', mode: 'insensitive' },
+              },
+              {
+                action: { contains: 'product', mode: 'insensitive' },
+              },
             ],
             createdAt: {
-              gte: new Date('2026-03-01'),
-              lte: new Date('2026-03-16'),
+              gte: TimeHelper.getStartOfDay('2026-03-01'),
+              lte: TimeHelper.getEndOfDay('2026-03-16'),
             },
           },
         }),

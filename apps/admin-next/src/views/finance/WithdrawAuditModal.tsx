@@ -4,6 +4,7 @@ import React, { useMemo, useState } from 'react';
 import { useRequest } from 'ahooks';
 import { Button, ModalManager } from '@repo/ui';
 import { financeApi } from '@/api';
+import { revalidateFinanceAfterWithdrawAudit } from '@/lib/actions/finance-revalidate';
 import {
   User,
   CreditCard,
@@ -45,9 +46,13 @@ export const WithdrawAuditModal: React.FC<Props> = ({ data, confirm }) => {
   const submitAudit = async (status: WithdrawStatus) => {
     try {
       await runAsync({ withdrawId: data.withdrawId, status, remark });
+      void revalidateFinanceAfterWithdrawAudit();
       confirm();
     } catch (e) {
-      console.error(e);
+      // 4xx 由 HTTP 拦截器统一 toast，此处不重复 console.error
+      const status = (e as { response?: { status?: number } })?.response
+        ?.status;
+      if (!status || status < 400 || status >= 500) console.error(e);
     }
   };
 

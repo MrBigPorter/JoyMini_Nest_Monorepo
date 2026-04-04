@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { useRequest } from 'ahooks';
 import { Modal, Input, Button } from '@/components/UIComponents';
 import { useToastStore } from '@/store/useToastStore';
+import { useAuthStore } from '@/store/useAuthStore';
 import { AdminUpdatePassword, AdminUser } from '@/type/types';
 import { userApi } from '@/api';
 
@@ -30,6 +31,10 @@ export const EditAdminPasswordModal: React.FC<EditAdminPasswordModalProps> = ({
   onSuccess,
 }) => {
   const addToast = useToastStore((state) => state.addToast);
+  const currentUserRole = useAuthStore((state) => state.userInfo?.role);
+  const isSuperAdmin = currentUserRole === 'SUPER_ADMIN';
+  // 非 SUPER_ADMIN 不能重置 SUPER_ADMIN 的密码
+  const resetLocked = editingUser?.role === 'SUPER_ADMIN' && !isSuperAdmin;
 
   const {
     register,
@@ -66,16 +71,22 @@ export const EditAdminPasswordModal: React.FC<EditAdminPasswordModalProps> = ({
       size="lg"
     >
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        <Input
-          label="Password"
-          error={errors.password?.message}
-          {...register('password')}
-        />
+        {resetLocked ? (
+          <p className="text-sm text-amber-500 py-4 text-center">
+            Only Super Admin can reset a Super Admin&apos;s password.
+          </p>
+        ) : (
+          <Input
+            label="Password"
+            error={errors.password?.message}
+            {...register('password')}
+          />
+        )}
         <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 dark:border-white/5">
           <Button type="button" variant="ghost" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="submit" isLoading={isUpdating}>
+          <Button type="submit" disabled={resetLocked} isLoading={isUpdating}>
             Save Changes
           </Button>
         </div>
