@@ -165,33 +165,336 @@ Completed major refactors (route cleanup, Stage 1~6 refactoring, IM Phase mainli
 4. **Code review**: Ensure code quality and consistency
 5. **Documentation**: Update relevant documentation
 
-### ⚠️ Next.js 15 Server Actions 开发注意事项
+### ⚠️ Next.js 15 Server Actions Development Notes
 
-#### 函数 Props 命名规范
+#### Function Props Naming Convention
 
-- 在 "use client" 组件中传递的函数 props 必须以 "Action" 结尾
-- 确保函数可以被序列化，在客户端和服务器端之间安全传递
-- 这是 Next.js 15 的新安全特性，防止函数 props 被错误地序列化
+- Function props passed in "use client" components must end with "Action"
+- Ensure functions can be serialized and safely passed between client and server
+- This is a new security feature in Next.js 15 to prevent function props from being incorrectly serialized
 
-#### 常见错误修复模式
+#### Common Error Fix Patterns
 
-- **修复前**: `onClose={() => setIsModalOpen(false)}`
-- **修复后**: `onCloseAction={() => setIsModalOpen(false)}`
-- **修复前**: `onSuccess={refresh}`
-- **修复后**: `onSuccessAction={refresh}`
+- **Before fix**: `onClose={() => setIsModalOpen(false)}`
+- **After fix**: `onCloseAction={() => setIsModalOpen(false)}`
+- **Before fix**: `onSuccess={refresh}`
+- **After fix**: `onSuccessAction={refresh}`
 
-#### API 定义规范
+#### API Definition Standards
 
-- 遵循现有 `authApi`、`uploadApi` 模式
-- 使用清晰的注释说明每个 API 方法的作用
-- 包含必要的请求头配置（如 `x-skip-auth-refresh: '1'`）
-- 使用 TypeScript 类型确保类型安全
+- Follow existing `authApi`, `uploadApi` patterns
+- Use clear comments to explain the purpose of each API method
+- Include necessary request header configurations (e.g., `x-skip-auth-refresh: '1'`)
+- Use TypeScript types to ensure type safety
 
-#### 组件接口一致性
+#### Component Interface Consistency
 
-- Modal 组件期望的 prop：`onCloseAction: () => void`
-- 调用方传递的 prop 必须匹配：`onCloseAction={() => setIsModalOpen(false)}`
-- 避免 TS2322 错误：属性 'onClose' 不存在于类型中
+- Modal component expects prop: `onCloseAction: () => void`
+- Caller must pass matching prop: `onCloseAction={() => setIsModalOpen(false)}`
+- Avoid TS2322 error: Property 'onClose' does not exist on type
+
+## 📚 Complete Development Standards and Work Guidelines
+
+### 🏗️ Part 1: Project Core Principles
+
+#### 1.1 Project Architecture
+
+- **Type**: Monorepo (Turborepo)
+- **Frontend**: Next.js 15+ (App Router)
+- **Backend**: NestJS + Prisma + PostgreSQL
+- **State Management**: Zustand/Jotai
+- **Styling**: Tailwind CSS
+
+#### 1.2 Code Quality
+
+- **TypeScript**: Strict mode, prohibit `any` type
+- **Function Length**: ≤ 50 lines
+- **Component Props**: Must be typed
+- **Code Review**: Follow project code review standards
+
+#### 1.3 Security Standards
+
+- **Environment Variables**: Unified management, do not commit sensitive information
+- **Payment Interfaces**: Must have dual verification
+- **Sensitive Data**: Encrypted storage
+- **API Security**: Follow project security standards
+
+#### 1.4 Quality Assurance
+
+- **Testing Requirements**: API endpoint integration test coverage, UI component core test coverage, E2E test Playwright coverage ≥ 60%
+- **Commit Standards**: Must associate task numbers, include impact scope description, conform to Conventional Commits format
+
+### ⚠️ Part 2: Key Considerations
+
+#### 2.1 Next.js 15 Server Actions
+
+- **Function Props Naming**: Must end with "Action"
+- **Serialization Safety**: Ensure functions can be safely passed between client and server
+- **Common Errors**: Avoid TS2322 type errors
+
+#### 2.2 UI Component Usage
+
+- **Standard Structure**: PageHeader + SchemaSearchForm + SmartTable + Pagination
+- **Component Library**: Must use `@repo/ui` standard components
+- **Style Standards**: Follow project design system
+
+#### 2.3 Database Operations
+
+- **Prisma**: Schema modifications require synchronous migration
+- **Amount Calculations**: Use Decimal.js
+- **Data Validation**: DTO + class-validator
+
+#### 2.4 AI Collaboration Process
+
+- **Major Changes**: Follow `docs/nestjs/AI_COLLABORATION_WORKFLOW.md` process
+- **Financial Payments**: Changes require dual approval
+- **Generated Code**: Must include `@generated` marker
+
+### 🔧 Part 3: Technical Standards
+
+#### 3.1 UI Component Usage Standards
+
+##### 3.1.1 Management Page Standard Structure
+
+All management pages must follow this structure:
+
+1. **PageHeader Component**: Page title area, including title, description, and action buttons
+2. **SchemaSearchForm Component**: Search and filter area (if needed)
+3. **SmartTable/BaseTable Component**: Data table with modern features
+4. **Pagination Component**: Pagination controls
+
+##### 3.1.2 Component Usage Standards
+
+- **Buttons**: Must use `@repo/ui`'s `Button` component, prohibit native `<button>`
+- **Cards**: Must use `Card` component (from `UIComponents`)
+- **Badges**: Must use `Badge` component (from `UIComponents`)
+- **Modals**: Must use `Modal` component (from `UIComponents`)
+- **Loading States**: Must use `Loader2` icon with appropriate loading indicators
+
+##### 3.1.3 Style Standards
+
+- **Colors**: Use project-standard Tailwind CSS color classes (e.g., `bg-primary`, `text-primary-foreground`)
+- **Spacing**: Use project-standard spacing system (e.g., `space-y-6`, `gap-4`, `p-6`)
+- **Border Radius**: Use `rounded-lg` as standard border radius
+- **Borders**: Use `border` and `border-input` class names
+- **Shadows**: Use `shadow-sm` or `shadow-md` as standard shadows
+
+##### 3.1.4 Responsive Design Standards
+
+- **Mobile**: Ensure all components display well on mobile devices
+- **Breakpoints**: Use standard breakpoints (`sm:`, `md:`, `lg:`)
+- **Layout**: Use `flex` and `grid` for responsive layouts
+- **Tables**: Use card-based layouts instead of tables on small screens
+
+#### 3.2 TypeScript Development Standards
+
+##### 3.2.1 Type Safety
+
+- **Prohibit any type**: Avoid using `any` type unless necessary
+- **Interface Definitions**: Define clear interfaces for all data
+- **Type Imports**: Use `import type` for type imports
+
+##### 3.2.2 Component Props
+
+- **Must be typed**: All component props must have explicit type definitions
+- **Next.js 15 Server Actions**: Function props must end with "Action"
+- **Avoid TS2322 errors**: Ensure prop types match component expectations
+
+##### 3.2.3 Common Type Issues
+
+- **SmartTable Component**: Use `dataIndex` instead of `key`, render function has 4 parameters
+- **ProColumns Type**: Check actual type definitions, don't assume property names
+- **Generic Usage**: Use generics correctly to ensure type safety
+
+#### 3.3 API Development Standards
+
+##### 3.3.1 Frontend-Backend Consistency
+
+- **Interface Definitions**: Use same interface definitions on frontend and backend
+- **Error Handling**: Unified error response format
+- **Data Validation**: Use DTO + class-validator for data validation
+
+##### 3.3.2 API Calls
+
+- **Error Handling**: All API calls must have error handling
+- **Loading States**: Display appropriate loading states
+- **Data Caching**: Consider using TanStack Query for data caching
+
+#### 3.4 Database Operation Standards
+
+- **Prisma Migrations**: Schema modifications must generate and execute migrations
+- **Transaction Handling**: Use transactions for related operations to ensure data consistency
+- **Index Optimization**: Add indexes for frequently queried fields
+
+#### 3.5 Error Handling Standards
+
+- **Unified Error Handling**: Use project-standard error handling patterns
+- **User Feedback**: Notify users of operation results via toast
+- **Error Logging**: Log error information for debugging
+
+### 🚨 Part 4: Common Problem Avoidance
+
+#### 4.1 UI Development Common Problems
+
+##### Problem 1: Not Using Standard Components
+
+- **Manifestation**: Using native HTML elements instead of project components
+- **Avoidance**: Always use `@repo/ui` component library
+- **Example**: Use `<Button>` instead of `<button>`
+
+##### Problem 2: Inconsistent Styling
+
+- **Manifestation**: Custom styles that don't match project design system
+- **Avoidance**: Use project-standard Tailwind CSS class names
+- **Example**: Use `bg-primary` instead of custom colors
+
+##### Problem 3: Missing Responsive Design
+
+- **Manifestation**: Poor display on mobile devices
+- **Avoidance**: Use responsive breakpoints and layouts
+- **Example**: Use `md:grid-cols-2` for responsive grid
+
+#### 4.2 Type Definition Common Problems
+
+##### Problem 1: Not Checking Type Definitions
+
+- **Manifestation**: Assuming component properties without checking type definitions
+- **Avoidance**: Check type definitions before using properties
+- **Example**: Check `SmartTableProps` interface definition
+
+##### Problem 2: Incorrect Property Names
+
+- **Manifestation**: Using wrong property names
+- **Avoidance**: Use correct property names based on type definitions
+- **Example**: Use `dataIndex` instead of `key`
+
+##### Problem 3: Function Signature Mismatch
+
+- **Manifestation**: Function parameter count or type mismatch
+- **Avoidance**: Check function type definitions
+- **Example**: `ProColumns` render function has 4 parameters
+
+#### 4.3 API Integration Common Problems
+
+##### Problem 1: Frontend-Backend Interface Inconsistency
+
+- **Manifestation**: API calls fail, data format errors
+- **Avoidance**: Ensure frontend and backend use same interface definitions
+- **Example**: Use same DTO definitions
+
+##### Problem 2: Missing Error Handling
+
+- **Manifestation**: Unhandled API errors, poor user experience
+- **Avoidance**: All API calls must have error handling
+- **Example**: Use try-catch for API error handling
+
+#### 4.4 Performance Optimization Common Problems
+
+##### Problem 1: Unnecessary Re-renders
+
+- **Manifestation**: Components frequently re-render, poor performance
+- **Avoidance**: Use React.memo, useMemo, useCallback
+- **Example**: Use useCallback to wrap event handler functions
+
+##### Problem 2: Inefficient Data Fetching
+
+- **Manifestation**: Repeated requests for same data
+- **Avoidance**: Use TanStack Query for data caching
+- **Example**: Use useQuery for data fetching
+
+### 📋 Part 5: Code Review Essentials
+
+#### 5.1 Must-Check Items
+
+1. **UI Component Usage**: Whether standard components are used
+2. **Type Safety**: Whether there are TypeScript errors
+3. **API Calls**: Whether error handling is present
+4. **Style Standards**: Whether design system is followed
+5. **Responsive Design**: Whether mobile devices are supported
+
+#### 5.2 Common Error Patterns
+
+1. **Using native HTML elements**: Should use project components
+2. **Using any type**: Should define specific types
+3. **Missing error handling**: Should add error handling
+4. **Hard-coded styles**: Should use design system class names
+
+#### 5.3 Best Practice Examples
+
+```typescript
+// ✅ Correct: Using standard components and type safety
+import { Button } from '@repo/ui';
+import { PageHeader } from '@/components/scaffold/PageHeader';
+import { SmartTable } from '@/components/scaffold/SmartTable';
+import type { ProColumns } from '@/components/scaffold/SmartTable/types';
+
+const columns: ProColumns[] = [
+  {
+    dataIndex: 'name',  // ✅ Correct property name
+    title: 'Name',
+    render: (dom, entity) => (  // ✅ Correct function signature
+      <div>{entity.name}</div>
+    ),
+  },
+];
+
+// ❌ Incorrect: Using native elements and wrong properties
+<button onClick={handleClick}>Click</button>  // ❌ Should use Button component
+<SmartTable key="id" ... />  // ❌ Should use rowKey
+```
+
+### 🎨 UI Component Usage Standards (Maintained Content)
+
+#### Management Page Standard Structure
+
+All management pages must follow this structure:
+
+1. Use `PageHeader` component as page title area
+2. Use `SchemaSearchForm` component as search and filter area
+3. Use `SmartTable` or `BaseTable` component as data table
+4. Use `Pagination` component as pagination control
+
+#### Component Usage Standards
+
+- **Buttons**: Must use `@repo/ui`'s `Button` component
+- **Cards**: Must use `Card` component (from `UIComponents`)
+- **Badges**: Must use `Badge` component (from `UIComponents`)
+- **Modals**: Must use `Modal` component (from `UIComponents`)
+- **Loading States**: Must use `Loader2` icon with appropriate loading indicators
+- **Input Fields**: Must use project-standard input field style class names
+
+#### Style Standards
+
+- **Colors**: Use project-standard Tailwind CSS color class names (e.g., `bg-primary`, `text-primary-foreground`)
+- **Spacing**: Use project-standard spacing system (e.g., `space-y-6`, `gap-4`, `p-6`)
+- **Border Radius**: Use `rounded-lg` as standard border radius
+- **Borders**: Use `border` and `border-input` class names
+- **Shadows**: Use `shadow-sm` or `shadow-md` as standard shadows
+
+#### Responsive Design Standards
+
+- **Mobile**: Ensure all components display well on mobile devices
+- **Breakpoints**: Use standard breakpoints (`sm:`, `md:`, `lg:`)
+- **Layout**: Use `flex` and `grid` for responsive layouts
+- **Tables**: Use card-based layouts instead of tables on small screens
+
+#### Blog System Specific Standards
+
+- **Blog Management Pages**: Must use `PageHeader` component, including title, description, and action buttons
+- **Blog Tables**: Must use `SmartTable` component, supporting search, filtering, and sorting
+- **Blog Forms**: Must use project-standard form styles and validation
+- **Rich Text Editor**: Must use integrated `RichTextEditor` component
+
+#### Common UI Problem Fix Patterns
+
+- **Before fix**: Custom titles and buttons
+- **After fix**: Use `PageHeader` component
+- **Before fix**: Basic HTML tables
+- **After fix**: Use `SmartTable` component
+- **Before fix**: Basic button elements
+- **After fix**: Use `@repo/ui`'s `Button` component
+- **Before fix**: Custom search boxes
+- **After fix**: Use `SchemaSearchForm` component
 
 ### 📚 Project Structure Reference
 

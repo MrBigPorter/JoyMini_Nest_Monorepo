@@ -16,6 +16,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { useToastStore } from '@/store/useToastStore';
+import { Card, Badge } from '@/components/UIComponents';
 import { blogApi } from '@/api';
 
 export default function CommentsPage() {
@@ -46,8 +47,6 @@ export default function CommentsPage() {
     } catch (error) {
       console.error('Failed to fetch comments:', error);
       addToast('error', 'Failed to load comments');
-      // Fallback to mock data
-      setComments(getMockComments());
     } finally {
       setIsLoading(false);
     }
@@ -65,7 +64,6 @@ export default function CommentsPage() {
     } catch (error) {
       console.error('Failed to fetch articles:', error);
       // Fallback to mock articles
-      setArticles(getMockArticles());
     }
   };
 
@@ -82,115 +80,6 @@ export default function CommentsPage() {
 
     return () => clearTimeout(timer);
   }, [search, statusFilter, articleFilter]);
-
-  const getMockComments = () => {
-    return [
-      {
-        id: '1',
-        author: 'John Doe',
-        email: 'john@example.com',
-        content:
-          'Great article! Very helpful for understanding Next.js 15 features.',
-        status: 'APPROVED',
-        article: {
-          id: '1',
-          title: 'Next.js 15 New Features Explained',
-          slug: 'nextjs-15-new-features',
-        },
-        createdAt: '2026-04-03 14:30',
-        ipAddress: '192.168.1.100',
-        userAgent: 'Chrome/120.0.0.0',
-      },
-      {
-        id: '2',
-        author: 'Jane Smith',
-        email: 'jane@example.com',
-        content:
-          'I have a question about the new caching strategy. Can you elaborate?',
-        status: 'PENDING',
-        article: {
-          id: '1',
-          title: 'Next.js 15 New Features Explained',
-          slug: 'nextjs-15-new-features',
-        },
-        createdAt: '2026-04-03 15:45',
-        ipAddress: '192.168.1.101',
-        userAgent: 'Firefox/119.0.0.0',
-      },
-      {
-        id: '3',
-        author: 'Mike Johnson',
-        email: 'mike@example.com',
-        content:
-          'Thanks for the TypeScript tips! This saved me hours of debugging.',
-        status: 'APPROVED',
-        article: {
-          id: '2',
-          title: 'TypeScript Advanced Type Techniques',
-          slug: 'typescript-advanced-type-tricks',
-        },
-        createdAt: '2026-04-02 09:15',
-        ipAddress: '192.168.1.102',
-        userAgent: 'Safari/17.0.0.0',
-      },
-      {
-        id: '4',
-        author: 'Sarah Wilson',
-        email: 'sarah@example.com',
-        content: 'Spam comment with promotional content.',
-        status: 'SPAM',
-        article: {
-          id: '3',
-          title: 'Tailwind CSS v4 Usage Guide',
-          slug: 'tailwind-css-v4-guide',
-        },
-        createdAt: '2026-04-01 11:20',
-        ipAddress: '192.168.1.103',
-        userAgent: 'Chrome/120.0.0.0',
-      },
-      {
-        id: '5',
-        author: 'Robert Brown',
-        email: 'robert@example.com',
-        content: 'I found a typo in the database optimization section.',
-        status: 'PENDING',
-        article: {
-          id: '4',
-          title: 'Database Optimization Practices',
-          slug: 'database-optimization-practices',
-        },
-        createdAt: '2026-03-31 16:40',
-        ipAddress: '192.168.1.104',
-        userAgent: 'Edge/120.0.0.0',
-      },
-      {
-        id: '6',
-        author: 'Anonymous',
-        email: null,
-        content: 'Inappropriate comment content.',
-        status: 'REJECTED',
-        article: {
-          id: '5',
-          title: 'Microservices Architecture Design',
-          slug: 'microservices-architecture-design',
-        },
-        createdAt: '2026-03-30 08:10',
-        ipAddress: '192.168.1.105',
-        userAgent: 'Unknown',
-      },
-    ];
-  };
-
-  const getMockArticles = () => {
-    return [
-      { id: 'all', title: 'All Articles' },
-      { id: '1', title: 'Next.js 15 New Features Explained' },
-      { id: '2', title: 'TypeScript Advanced Type Techniques' },
-      { id: '3', title: 'Tailwind CSS v4 Usage Guide' },
-      { id: '4', title: 'Database Optimization Practices' },
-      { id: '5', title: 'Microservices Architecture Design' },
-    ];
-  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {

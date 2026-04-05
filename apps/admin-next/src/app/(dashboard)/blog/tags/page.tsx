@@ -12,6 +12,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { useToastStore } from '@/store/useToastStore';
+import { Card } from '@/components/UIComponents';
 import { blogApi } from '@/api';
 
 export default function TagsPage() {
@@ -32,8 +33,6 @@ export default function TagsPage() {
     } catch (error) {
       console.error('Failed to fetch tags:', error);
       addToast('error', 'Failed to load tags');
-      // Fallback to mock data
-      setTags(getMockTags());
     } finally {
       setIsLoading(false);
     }
@@ -42,91 +41,6 @@ export default function TagsPage() {
   useEffect(() => {
     fetchTags();
   }, []);
-
-  const getMockTags = () => {
-    return [
-      {
-        id: '1',
-        name: 'Next.js',
-        slug: 'nextjs',
-        description: 'Articles about Next.js framework',
-        articleCount: 8,
-        usageCount: 42,
-        createdAt: '2026-03-15',
-        color: 'bg-blue-100 text-blue-800',
-      },
-      {
-        id: '2',
-        name: 'TypeScript',
-        slug: 'typescript',
-        description: 'Articles about TypeScript programming',
-        articleCount: 12,
-        usageCount: 65,
-        createdAt: '2026-03-18',
-        color: 'bg-indigo-100 text-indigo-800',
-      },
-      {
-        id: '3',
-        name: 'React',
-        slug: 'react',
-        description: 'Articles about React library',
-        articleCount: 15,
-        usageCount: 78,
-        createdAt: '2026-03-20',
-        color: 'bg-cyan-100 text-cyan-800',
-      },
-      {
-        id: '4',
-        name: 'Tailwind CSS',
-        slug: 'tailwind-css',
-        description: 'Articles about Tailwind CSS framework',
-        articleCount: 6,
-        usageCount: 32,
-        createdAt: '2026-03-22',
-        color: 'bg-teal-100 text-teal-800',
-      },
-      {
-        id: '5',
-        name: 'Database',
-        slug: 'database',
-        description: 'Articles about database technologies',
-        articleCount: 9,
-        usageCount: 45,
-        createdAt: '2026-03-25',
-        color: 'bg-emerald-100 text-emerald-800',
-      },
-      {
-        id: '6',
-        name: 'Performance',
-        slug: 'performance',
-        description: 'Articles about web performance optimization',
-        articleCount: 7,
-        usageCount: 38,
-        createdAt: '2026-03-28',
-        color: 'bg-amber-100 text-amber-800',
-      },
-      {
-        id: '7',
-        name: 'Security',
-        slug: 'security',
-        description: 'Articles about web security practices',
-        articleCount: 5,
-        usageCount: 28,
-        createdAt: '2026-03-30',
-        color: 'bg-red-100 text-red-800',
-      },
-      {
-        id: '8',
-        name: 'Architecture',
-        slug: 'architecture',
-        description: 'Articles about software architecture',
-        articleCount: 4,
-        usageCount: 22,
-        createdAt: '2026-04-01',
-        color: 'bg-purple-100 text-purple-800',
-      },
-    ];
-  };
 
   const filteredTags = tags.filter((tag) => {
     return !(

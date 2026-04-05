@@ -71,15 +71,12 @@ export default function BlogDashboardPage() {
       ]);
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error);
-      // Fallback to mock data
       setStats({
         totalArticles: 0,
         totalCategories: 0,
         totalTags: 0,
         pendingComments: 0,
       });
-      setRecentArticles(getMockRecentArticles());
-      setTopArticles(getMockTopArticles());
     } finally {
       setIsLoading(false);
     }
@@ -88,55 +85,6 @@ export default function BlogDashboardPage() {
   useEffect(() => {
     fetchDashboardData();
   }, []);
-
-  const getMockRecentArticles = () => {
-    return [
-      {
-        id: '1',
-        title: 'Next.js 15 New Features Explained',
-        status: 'PUBLISHED',
-        views: 1250,
-        comments: 24,
-        publishedAt: '2026-04-01',
-      },
-      {
-        id: '2',
-        title: 'TypeScript Advanced Type Techniques',
-        status: 'PUBLISHED',
-        views: 890,
-        comments: 18,
-        publishedAt: '2026-03-28',
-      },
-      {
-        id: '3',
-        title: 'Tailwind CSS v4 Usage Guide',
-        status: 'DRAFT',
-        views: 0,
-        comments: 0,
-        publishedAt: null,
-      },
-    ];
-  };
-
-  const getMockTopArticles = () => {
-    return [
-      {
-        title: 'Next.js 15 New Features Explained',
-        views: 1250,
-        growth: '+12%',
-      },
-      {
-        title: 'TypeScript Advanced Type Techniques',
-        views: 890,
-        growth: '+8%',
-      },
-      {
-        title: 'Database Optimization Practices',
-        views: 560,
-        growth: '+5%',
-      },
-    ];
-  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -158,7 +106,7 @@ export default function BlogDashboardPage() {
       description: 'Number of published articles',
       icon: FileText,
       color: 'blue',
-      href: '/dashboard/blog/articles',
+      href: '/blog/articles',
     },
     {
       title: 'Categories',
@@ -166,7 +114,7 @@ export default function BlogDashboardPage() {
       description: 'Number of article categories',
       icon: FolderTree,
       color: 'green',
-      href: '/dashboard/blog/categories',
+      href: '/blog/categories',
     },
     {
       title: 'Tags',
@@ -174,7 +122,7 @@ export default function BlogDashboardPage() {
       description: 'Number of article tags',
       icon: Tag,
       color: 'purple',
-      href: '/dashboard/blog/tags',
+      href: '/blog/tags',
     },
     {
       title: 'Pending Comments',
@@ -182,7 +130,7 @@ export default function BlogDashboardPage() {
       description: 'Comments awaiting moderation',
       icon: MessageSquare,
       color: 'amber',
-      href: '/dashboard/blog/comments',
+      href: '/blog/comments',
     },
   ];
 
@@ -190,28 +138,28 @@ export default function BlogDashboardPage() {
     {
       title: 'Write New Article',
       description: 'Create a new blog article',
-      href: '/dashboard/blog/articles/create',
+      href: '/blog/articles/create',
       icon: FileText,
       color: 'bg-blue-500',
     },
     {
       title: 'Manage Categories',
       description: 'Add or edit article categories',
-      href: '/dashboard/blog/categories',
+      href: '/blog/categories',
       icon: FolderTree,
       color: 'bg-green-500',
     },
     {
       title: 'Manage Tags',
       description: 'Add or edit article tags',
-      href: '/dashboard/blog/tags',
+      href: '/blog/tags',
       icon: Tag,
       color: 'bg-purple-500',
     },
     {
       title: 'Moderate Comments',
       description: 'Review user-submitted comments',
-      href: '/dashboard/blog/comments',
+      href: '/blog/comments',
       icon: MessageSquare,
       color: 'bg-amber-500',
     },
@@ -237,7 +185,7 @@ export default function BlogDashboardPage() {
         description="Manage blog articles, categories, tags, and comments"
         buttonText="Write New Article"
         buttonOnClick={() => {
-          window.location.href = '/dashboard/blog/articles/create';
+          window.location.href = '/blog/articles/create';
         }}
         buttonPrefixIcon={<FileText size={18} />}
       />
@@ -311,7 +259,7 @@ export default function BlogDashboardPage() {
         title="Recent Articles"
         action={
           <Link
-            href="/dashboard/blog/articles"
+            href="/blog/articles"
             className="text-sm font-medium text-primary-600 dark:text-primary-400 hover:underline"
           >
             View All

@@ -88,8 +88,6 @@ export default function EditArticlePage() {
       } catch (error) {
         console.error('Failed to fetch article:', error);
         addToast('error', 'Failed to load article data');
-        // Fallback to mock data
-        setTitle(mockArticle.title);
         setContent(mockArticle.content);
         setExcerpt(mockArticle.excerpt);
         setCategoryId(mockArticle.categoryId);
@@ -118,7 +116,7 @@ export default function EditArticlePage() {
       });
 
       addToast('success', 'Article updated successfully');
-      router.push('/dashboard/blog/articles');
+      router.push('/blog/articles');
     } catch (error) {
       console.error('Failed to update article:', error);
       addToast('error', 'Failed to update article');
@@ -153,7 +151,7 @@ export default function EditArticlePage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <Link
-            href="/dashboard/blog/articles"
+            href="/blog/articles"
             className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground"
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
@@ -369,7 +367,7 @@ export default function EditArticlePage() {
           </div>
           <div className="flex items-center space-x-4">
             <Link
-              href="/dashboard/blog/articles"
+              href="/blog/articles"
               className="px-4 py-2 text-sm font-medium rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground"
             >
               Cancel

@@ -23,6 +23,7 @@ import { CallModule } from '@api/common/events/call/call.module';
 import { EventsModule } from '@api/common/events/events.module';
 import { EmailModule } from '@api/common/email/email.module';
 import { RecaptchaModule } from '@api/common/recaptcha/recaptcha.module';
+import { BlogModule } from '@api/blog/blog.module';
 
 // 根模块（第2步，挂子模块、配置、JWT等）
 @Module({
@@ -127,6 +128,7 @@ import { RecaptchaModule } from '@api/common/recaptcha/recaptcha.module';
     EventsModule,
     EmailModule,
     RecaptchaModule,
+    BlogModule,
 
     // 其他模块：PrismaModule、ThrottlerModule、UsersModule、AuthModule 等
   ],

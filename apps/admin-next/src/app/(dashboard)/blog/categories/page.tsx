@@ -10,9 +10,19 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
+  Filter,
+  Download,
 } from 'lucide-react';
 import { useToastStore } from '@/store/useToastStore';
+import { Card } from '@/components/UIComponents';
+
 import { blogApi } from '@/api';
+import { PageHeader } from '@/components/scaffold/PageHeader';
+import { SmartTable } from '@/components/scaffold/SmartTable';
+import { Pagination } from '@/components/scaffold/Pagination';
+import { Button } from '@repo/ui';
+import { Modal } from '@/components/UIComponents';
+import type { ProColumns } from '@/components/scaffold/SmartTable/types';
 
 export default function CategoriesPage() {
   const [search, setSearch] = useState('');
@@ -32,8 +42,6 @@ export default function CategoriesPage() {
     } catch (error) {
       console.error('Failed to fetch categories:', error);
       addToast('error', 'Failed to load categories');
-      // Fallback to mock data
-      setCategories(getMockCategories());
     } finally {
       setIsLoading(false);
     }
@@ -43,51 +51,93 @@ export default function CategoriesPage() {
     fetchCategories();
   }, []);
 
-  const getMockCategories = () => {
-    return [
-      {
-        id: '1',
-        name: 'Technology',
-        slug: 'technology',
-        description: 'Articles about technology and programming',
-        articleCount: 12,
-        createdAt: '2026-03-15',
-      },
-      {
-        id: '2',
-        name: 'Lifestyle',
-        slug: 'lifestyle',
-        description: 'Articles about daily life and personal development',
-        articleCount: 8,
-        createdAt: '2026-03-20',
-      },
-      {
-        id: '3',
-        name: 'Learning',
+  // SmartTable列定义
+  const handleDeleteCategory = async (categoryId: string) => {
+    if (
+      !window.confirm(
+        'Are you sure you want to delete this category? This action cannot be undone.',
+      )
+    ) {
+      return;
+    }
 
-        slug: 'learning',
-        description: 'Articles about learning techniques and education',
-        articleCount: 5,
-        createdAt: '2026-03-25',
-      },
-      {
-        id: '4',
-        name: 'Database',
-        slug: 'database',
-        description: 'Articles about database design and optimization',
-        articleCount: 7,
-        createdAt: '2026-03-28',
-      },
-      {
-        id: '5',
-        name: 'Architecture',
-        slug: 'architecture',
-        description: 'Articles about system architecture and design patterns',
-        articleCount: 4,
-        createdAt: '2026-04-01',
-      },
-    ];
+    try {
+      await blogApi.deleteCategory(categoryId);
+      addToast('success', 'Category deleted successfully');
+      fetchCategories(); // Refresh the list
+    } catch (error) {
+      console.error('Failed to delete category:', error);
+      addToast('error', 'Failed to delete category');
+    }
   };
+
+  const categoryColumns: ProColumns[] = [
+    {
+      dataIndex: 'name',
+      title: 'Name',
+      render: (dom, category: any) => (
+        <div className="flex items-center">
+          <FolderTree className="mr-2 h-4 w-4 text-muted-foreground" />
+          <div className="font-medium">{category.name}</div>
+        </div>
+      ),
+    },
+    {
+      dataIndex: 'slug',
+      title: 'Slug',
+      render: (dom, category: any) => (
+        <code className="text-sm bg-muted px-2 py-1 rounded">
+          /{category.slug}
+        </code>
+      ),
+    },
+    {
+      dataIndex: 'description',
+      title: 'Description',
+      render: (dom, category: any) => (
+        <p className="text-sm text-muted-foreground max-w-md truncate">
+          {category.description || 'No description'}
+        </p>
+      ),
+    },
+    {
+      dataIndex: 'articleCount',
+      title: 'Articles',
+      render: (dom, category: any) => (
+        <span className="px-2 py-1 text-xs rounded-full bg-primary/10 text-primary">
+          {category.articleCount || 0} articles
+        </span>
+      ),
+    },
+    {
+      dataIndex: 'createdAt',
+      title: 'Created',
+      render: (dom, category: any) => (
+        <div className="text-sm text-muted-foreground">
+          {category.createdAt}
+        </div>
+      ),
+    },
+    {
+      dataIndex: 'actions',
+      title: 'Actions',
+      render: (dom, category: any) => (
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" size="sm">
+            <Edit className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleDeleteCategory(category.id)}
+            className="text-destructive hover:text-destructive"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+      ),
+    },
+  ];
 
   const filteredCategories = categories.filter((category) => {
     return !(
@@ -117,25 +167,6 @@ export default function CategoriesPage() {
     }
   };
 
-  const handleDeleteCategory = async (categoryId: string) => {
-    if (
-      !window.confirm(
-        'Are you sure you want to delete this category? This action cannot be undone.',
-      )
-    ) {
-      return;
-    }
-
-    try {
-      await blogApi.deleteCategory(categoryId);
-      addToast('success', 'Category deleted successfully');
-      fetchCategories(); // Refresh the list
-    } catch (error) {
-      console.error('Failed to delete category:', error);
-      addToast('error', 'Failed to delete category');
-    }
-  };
-
   if (isLoading && categories.length === 0) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -151,27 +182,16 @@ export default function CategoriesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">
-            Category Management
-          </h1>
-          <p className="text-muted-foreground mt-2">
-            Manage blog categories for organizing articles
-          </p>
-        </div>
-        <button
-          onClick={() => setIsCreating(true)}
-          className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90"
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          New Category
-        </button>
-      </div>
+      <PageHeader
+        title="Category Management"
+        description="Manage blog categories for organizing articles"
+        buttonText="New Category"
+        buttonOnClick={() => setIsCreating(true)}
+      />
 
       {/* Create Category Form */}
       {isCreating && (
-        <div className="rounded-lg border bg-card p-6">
+        <div className="rounded-lg border bg-card p-6 shadow-sm">
           <h2 className="text-lg font-semibold mb-4">Create New Category</h2>
           <form onSubmit={handleCreateCategory} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -218,29 +238,28 @@ export default function CategoriesPage() {
               />
             </div>
             <div className="flex items-center justify-end space-x-4 pt-4 border-t">
-              <button
+              <Button
                 type="button"
+                variant="outline"
                 onClick={() => setIsCreating(false)}
-                className="px-4 py-2 text-sm font-medium rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground"
               >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
                 type="submit"
                 disabled={!newCategoryName || !newCategorySlug}
-                className="px-4 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Create Category
-              </button>
+              </Button>
             </div>
           </form>
         </div>
       )}
 
       {/* Search */}
-      <div className="rounded-lg border bg-card p-6">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex-1">
+      <div className="rounded-lg border bg-card p-6 shadow-sm">
+        <div className="flex flex-col md:flex-row gap-4 items-center">
+          <div className="flex-1 w-full">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input
@@ -248,15 +267,25 @@ export default function CategoriesPage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search categories by name or description..."
-                className="w-full pl-9 pr-3 py-2 border border-input rounded-md bg-background text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="w-full pl-9 pr-3 py-2.5 border border-input rounded-lg bg-background text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 dark:bg-black/20 dark:border-white/10"
               />
             </div>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm">
+              <Filter className="h-4 w-4 mr-2" />
+              Filter
+            </Button>
+            <Button variant="outline" size="sm">
+              <Download className="h-4 w-4 mr-2" />
+              Export
+            </Button>
           </div>
         </div>
       </div>
 
       {/* Categories Table */}
-      <div className="rounded-lg border bg-card">
+      <div className="rounded-lg border bg-card shadow-sm">
         <div className="p-6 border-b">
           <h2 className="text-lg font-semibold">Category List</h2>
           <p className="text-sm text-muted-foreground mt-1">
@@ -264,77 +293,11 @@ export default function CategoriesPage() {
           </p>
         </div>
         <div className="p-6">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left py-3 px-4 text-sm font-medium">
-                    Name
-                  </th>
-                  <th className="text-left py-3 px-4 text-sm font-medium">
-                    Slug
-                  </th>
-                  <th className="text-left py-3 px-4 text-sm font-medium">
-                    Description
-                  </th>
-                  <th className="text-left py-3 px-4 text-sm font-medium">
-                    Articles
-                  </th>
-                  <th className="text-left py-3 px-4 text-sm font-medium">
-                    Created
-                  </th>
-                  <th className="text-right py-3 px-4 text-sm font-medium">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredCategories.map((category) => (
-                  <tr key={category.id} className="border-b hover:bg-muted/50">
-                    <td className="py-3 px-4">
-                      <div className="flex items-center">
-                        <FolderTree className="mr-2 h-4 w-4 text-muted-foreground" />
-                        <div className="font-medium">{category.name}</div>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4">
-                      <code className="text-sm bg-muted px-2 py-1 rounded">
-                        /{category.slug}
-                      </code>
-                    </td>
-                    <td className="py-3 px-4">
-                      <p className="text-sm text-muted-foreground">
-                        {category.description}
-                      </p>
-                    </td>
-                    <td className="py-3 px-4">
-                      <span className="px-2 py-1 text-xs rounded-full bg-primary/10 text-primary">
-                        {category.articleCount || 0} articles
-                      </span>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="text-sm text-muted-foreground">
-                        {category.createdAt}
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      <div className="flex justify-end gap-2">
-                        <button className="inline-flex items-center px-3 py-1.5 text-sm rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground">
-                          <Edit className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteCategory(category.id)}
-                          className="inline-flex items-center px-3 py-1.5 text-sm rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <SmartTable
+            dataSource={filteredCategories}
+            columns={categoryColumns}
+            rowKey="id"
+          />
         </div>
       </div>
 
@@ -345,23 +308,20 @@ export default function CategoriesPage() {
           {filteredCategories.length} categories
         </div>
         <div className="flex items-center space-x-2">
-          <button
-            className="px-3 py-1.5 text-sm rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled
-          >
+          <Button variant="outline" size="sm" disabled>
             <ChevronLeft className="h-4 w-4" />
-          </button>
-          <button className="px-3 py-1.5 text-sm rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground">
+          </Button>
+          <Button variant="outline" size="sm">
             1
-          </button>
-          <button className="px-3 py-1.5 text-sm rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground">
+          </Button>
+          <Button variant="outline" size="sm">
             <ChevronRight className="h-4 w-4" />
-          </button>
+          </Button>
         </div>
       </div>
 
       {/* Usage Tips */}
-      <div className="rounded-lg border bg-card p-6">
+      <div className="rounded-lg border bg-card p-6 shadow-sm">
         <h3 className="text-sm font-medium mb-3">Category Usage Tips</h3>
         <ul className="space-y-2 text-sm text-muted-foreground">
           <li className="flex items-start">

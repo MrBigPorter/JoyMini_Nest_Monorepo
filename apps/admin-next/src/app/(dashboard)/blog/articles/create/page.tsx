@@ -67,7 +67,7 @@ export default function CreateArticlePage() {
         status,
       });
       setIsSubmitting(false);
-      router.push('/dashboard/blog/articles');
+      router.push('/blog/articles');
     }, 1000);
   };
 
@@ -84,7 +84,7 @@ export default function CreateArticlePage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <Link
-            href="/dashboard/blog/articles"
+            href="/blog/articles"
             className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground"
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
@@ -251,7 +251,7 @@ export default function CreateArticlePage() {
         {/* Submit Buttons */}
         <div className="flex items-center justify-end space-x-4 pt-6 border-t">
           <Link
-            href="/dashboard/blog/articles"
+            href="/blog/articles"
             className="px-4 py-2 text-sm font-medium rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground"
           >
             Cancel

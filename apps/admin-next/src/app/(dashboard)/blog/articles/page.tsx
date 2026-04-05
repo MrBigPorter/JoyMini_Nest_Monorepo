@@ -59,9 +59,6 @@ export default function ArticlesPage() {
     } catch (error) {
       console.error('Failed to fetch articles:', error);
       addToast('error', 'Failed to load articles');
-      // Fallback to mock data
-      setArticles(getMockArticles());
-      setTotalArticles(getMockArticles().length);
       setTotalPages(1);
     } finally {
       setIsLoading(false);
@@ -84,76 +81,6 @@ export default function ArticlesPage() {
 
     return () => clearTimeout(timer);
   }, [search]);
-
-  const getMockArticles = () => {
-    return [
-      {
-        id: '1',
-        title: 'Next.js 15 New Features Explained',
-        slug: 'nextjs-15-new-features',
-        status: 'PUBLISHED',
-        author: 'Admin',
-        category: 'Technology',
-        tags: ['Next.js', 'React'],
-        views: 1250,
-        comments: 24,
-        publishedAt: '2026-04-01',
-        readTime: '8 min',
-      },
-      {
-        id: '2',
-        title: 'TypeScript Advanced Type Techniques',
-        slug: 'typescript-advanced-type-tricks',
-        status: 'PUBLISHED',
-        author: 'Admin',
-        category: 'Technology',
-        tags: ['TypeScript', 'JavaScript'],
-        views: 890,
-        comments: 18,
-        publishedAt: '2026-03-28',
-        readTime: '12 min',
-      },
-      {
-        id: '3',
-        title: 'Tailwind CSS v4 Usage Guide',
-        slug: 'tailwind-css-v4-guide',
-        status: 'DRAFT',
-        author: 'Admin',
-        category: 'Technology',
-        tags: ['CSS', 'Tailwind'],
-        views: 0,
-        comments: 0,
-        publishedAt: null,
-        readTime: '6 min',
-      },
-      {
-        id: '4',
-        title: 'Database Optimization Practices',
-        slug: 'database-optimization-practices',
-        status: 'PUBLISHED',
-        author: 'Admin',
-        category: 'Database',
-        tags: ['PostgreSQL', 'Performance'],
-        views: 560,
-        comments: 12,
-        publishedAt: '2026-03-25',
-        readTime: '15 min',
-      },
-      {
-        id: '5',
-        title: 'Microservices Architecture Design',
-        slug: 'microservices-architecture-design',
-        status: 'SCHEDULED',
-        author: 'Admin',
-        category: 'Architecture',
-        tags: ['Microservices', 'Architecture'],
-        views: 0,
-        comments: 0,
-        publishedAt: '2026-04-10',
-        readTime: '20 min',
-      },
-    ];
-  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -237,7 +164,7 @@ export default function ArticlesPage() {
         description="Manage blog articles including creation, editing, publishing, and deletion"
         buttonText="New Article"
         buttonOnClick={() => {
-          window.location.href = '/dashboard/blog/articles/create';
+          window.location.href = '/blog/articles/create';
         }}
         buttonPrefixIcon={<Plus size={18} />}
       />
@@ -409,7 +336,7 @@ export default function ArticlesPage() {
                         Preview
                       </Link>
                       <Link
-                        href={`/dashboard/blog/articles/${article.id}/edit`}
+                        href={`/blog/articles/${article.id}/edit`}
                         className="inline-flex items-center px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-gray-700 dark:text-gray-300"
                       >
                         <Edit className="h-4 w-4 mr-1" />
