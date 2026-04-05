@@ -192,7 +192,7 @@ export default function EditArticlePage() {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Enter article title"
-            className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="w-full px-3 py-2.5 border border-gray-200 dark:border-white/10 rounded-lg bg-gray-50 dark:bg-black/20 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 dark:text-white placeholder-gray-400 dark:placeholder-gray-600"
             required
           />
           <p className="text-xs text-muted-foreground">
@@ -211,7 +211,7 @@ export default function EditArticlePage() {
             onChange={(e) => setExcerpt(e.target.value)}
             placeholder="Enter article excerpt (optional)"
             rows={3}
-            className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="w-full px-3 py-2.5 border border-gray-200 dark:border-white/10 rounded-lg bg-gray-50 dark:bg-black/20 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 dark:text-white placeholder-gray-400 dark:placeholder-gray-600"
           />
           <p className="text-xs text-muted-foreground">
             Excerpt will be displayed on article list page
@@ -227,10 +227,10 @@ export default function EditArticlePage() {
                 key={category.id}
                 type="button"
                 onClick={() => setCategoryId(category.id)}
-                className={`inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 px-3 py-1.5 border ${
+                className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
                   categoryId === category.id
-                    ? 'bg-primary text-primary-foreground border-primary hover:bg-primary/90'
-                    : 'border-input bg-background hover:bg-accent hover:text-accent-foreground'
+                    ? 'border-primary bg-primary text-white hover:bg-primary/90'
+                    : 'border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-200'
                 }`}
               >
                 {category.name}
@@ -248,10 +248,10 @@ export default function EditArticlePage() {
                 key={tag.id}
                 type="button"
                 onClick={() => handleTagToggle(tag.id)}
-                className={`inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 px-3 py-1.5 border ${
+                className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
                   tagIds.includes(tag.id)
-                    ? 'bg-secondary text-secondary-foreground border-secondary hover:bg-secondary/80'
-                    : 'border-input bg-background hover:bg-accent hover:text-accent-foreground'
+                    ? 'border-secondary bg-secondary text-secondary-foreground hover:bg-secondary/80'
+                    : 'border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-200'
                 }`}
               >
                 {tag.name}
@@ -342,13 +342,13 @@ export default function EditArticlePage() {
             <Link
               href={`/blog/articles/${mockArticle.slug}`}
               target="_blank"
-              className="px-4 py-2 text-sm font-medium rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground"
+              className="px-4 py-2 text-sm font-medium rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-200 transition-colors"
             >
               View Live
             </Link>
             <button
               type="button"
-              className="px-4 py-2 text-sm font-medium rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground text-destructive"
+              className="px-4 py-2 text-sm font-medium rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors"
             >
               Delete Article
             </button>
@@ -356,14 +356,14 @@ export default function EditArticlePage() {
           <div className="flex items-center space-x-4">
             <Link
               href="/blog/articles"
-              className="px-4 py-2 text-sm font-medium rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground"
+              className="px-4 py-2 text-sm font-medium rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-200 transition-colors"
             >
               Cancel
             </Link>
             <button
               type="submit"
               disabled={isSubmitting || !title || !content}
-              className="px-4 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 text-sm font-medium rounded-lg bg-primary text-white hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {isSubmitting ? 'Saving...' : 'Save Changes'}
             </button>

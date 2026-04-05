@@ -9,6 +9,7 @@ import { useToastStore } from '@/store/useToastStore';
 import { uploadApi } from '@/api';
 import { RichTextEditor } from '@/components/blog/RichTextEditor';
 import { PageHeader } from '@/components/scaffold/PageHeader';
+import { Card } from '@/components/UIComponents';
 
 export default function CreateArticlePage() {
   const router = useRouter();
@@ -111,152 +112,154 @@ export default function CreateArticlePage() {
         tertiaryButtonVariant="success"
       />
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Title */}
-        <div className="space-y-2">
-          <label htmlFor="title" className="text-sm font-medium">
-            Article Title *
-          </label>
-          <input
-            id="title"
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Enter article title"
-            className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            required
-          />
-          <p className="text-xs text-muted-foreground">
-            Title will be used to generate URL slug
-          </p>
-        </div>
-
-        {/* Excerpt */}
-        <div className="space-y-2">
-          <label htmlFor="excerpt" className="text-sm font-medium">
-            Article Excerpt
-          </label>
-          <textarea
-            id="excerpt"
-            value={excerpt}
-            onChange={(e) => setExcerpt(e.target.value)}
-            placeholder="Enter article excerpt (optional)"
-            rows={3}
-            className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-          />
-          <p className="text-xs text-muted-foreground">
-            Excerpt will be displayed on article list page
-          </p>
-        </div>
-
-        {/* Category */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Category *</label>
-          <div className="flex flex-wrap gap-2">
-            {categories.map((category) => (
-              <button
-                key={category.id}
-                type="button"
-                onClick={() => setCategoryId(category.id)}
-                className={`inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 px-3 py-1.5 border ${
-                  categoryId === category.id
-                    ? 'bg-primary text-primary-foreground border-primary hover:bg-primary/90'
-                    : 'border-input bg-background hover:bg-accent hover:text-accent-foreground'
-                }`}
-              >
-                {category.name}
-              </button>
-            ))}
+      <Card>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Title */}
+          <div className="space-y-2">
+            <label htmlFor="title" className="text-sm font-medium">
+              Article Title *
+            </label>
+            <input
+              id="title"
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Enter article title"
+              className="w-full px-3 py-2.5 border border-gray-200 dark:border-white/10 rounded-lg bg-gray-50 dark:bg-black/20 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 dark:text-white placeholder-gray-400 dark:placeholder-gray-600"
+              required
+            />
+            <p className="text-xs text-muted-foreground">
+              Title will be used to generate URL slug
+            </p>
           </div>
-        </div>
 
-        {/* Tags */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Tags</label>
-          <div className="flex flex-wrap gap-2">
-            {tags.map((tag) => (
-              <button
-                key={tag.id}
-                type="button"
-                onClick={() => handleTagToggle(tag.id)}
-                className={`inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 px-3 py-1.5 border ${
-                  tagIds.includes(tag.id)
-                    ? 'bg-secondary text-secondary-foreground border-secondary hover:bg-secondary/80'
-                    : 'border-input bg-background hover:bg-accent hover:text-accent-foreground'
-                }`}
-              >
-                {tag.name}
-              </button>
-            ))}
+          {/* Excerpt */}
+          <div className="space-y-2">
+            <label htmlFor="excerpt" className="text-sm font-medium">
+              Article Excerpt
+            </label>
+            <textarea
+              id="excerpt"
+              value={excerpt}
+              onChange={(e) => setExcerpt(e.target.value)}
+              placeholder="Enter article excerpt (optional)"
+              rows={3}
+              className="w-full px-3 py-2.5 border border-gray-200 dark:border-white/10 rounded-lg bg-gray-50 dark:bg-black/20 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 dark:text-white placeholder-gray-400 dark:placeholder-gray-600"
+            />
+            <p className="text-xs text-muted-foreground">
+              Excerpt will be displayed on article list page
+            </p>
           </div>
-        </div>
 
-        {/* Content */}
-        <div className="space-y-2">
-          <RichTextEditor
-            value={content}
-            onChange={setContent}
-            label="Article Content *"
-            placeholder="Write your article content here..."
-            required
-            onUpload={handleEditorUpload}
-            error={!content ? 'Article content is required' : undefined}
-          />
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <div>Rich text editor with image upload support</div>
-            <div className="space-x-2">
-              <button
-                type="button"
-                className="hover:text-foreground"
-                onClick={() => {
-                  const newContent =
-                    content + '\n# Heading\n\nYour content here...';
-                  setContent(newContent);
-                }}
-              >
-                # Heading
-              </button>
-              <button
-                type="button"
-                className="hover:text-foreground"
-                onClick={() => {
-                  const newContent = content + ' **bold text** ';
-                  setContent(newContent);
-                }}
-              >
-                **Bold**
-              </button>
-              <button
-                type="button"
-                className="hover:text-foreground"
-                onClick={() => {
-                  const newContent = content + ' *italic text* ';
-                  setContent(newContent);
-                }}
-              >
-                *Italic*
-              </button>
+          {/* Category */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Category *</label>
+            <div className="flex flex-wrap gap-2">
+              {categories.map((category) => (
+                <button
+                  key={category.id}
+                  type="button"
+                  onClick={() => setCategoryId(category.id)}
+                  className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                    categoryId === category.id
+                      ? 'border-primary bg-primary text-white hover:bg-primary/90'
+                      : 'border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-200'
+                  }`}
+                >
+                  {category.name}
+                </button>
+              ))}
             </div>
           </div>
-        </div>
 
-        {/* Submit Buttons */}
-        <div className="flex items-center justify-end space-x-4 pt-6 border-t">
-          <Link
-            href="/blog/articles"
-            className="px-4 py-2 text-sm font-medium rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground"
-          >
-            Cancel
-          </Link>
-          <button
-            type="submit"
-            disabled={isSubmitting || !title || !content}
-            className="px-4 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isSubmitting ? 'Saving...' : 'Save Article'}
-          </button>
-        </div>
-      </form>
+          {/* Tags */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Tags</label>
+            <div className="flex flex-wrap gap-2">
+              {tags.map((tag) => (
+                <button
+                  key={tag.id}
+                  type="button"
+                  onClick={() => handleTagToggle(tag.id)}
+                  className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                    tagIds.includes(tag.id)
+                      ? 'border-secondary bg-secondary text-secondary-foreground hover:bg-secondary/80'
+                      : 'border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-200'
+                  }`}
+                >
+                  {tag.name}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Content */}
+          <div className="space-y-2">
+            <RichTextEditor
+              value={content}
+              onChange={setContent}
+              label="Article Content *"
+              placeholder="Write your article content here..."
+              required
+              onUpload={handleEditorUpload}
+              error={!content ? 'Article content is required' : undefined}
+            />
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <div>Rich text editor with image upload support</div>
+              <div className="space-x-2">
+                <button
+                  type="button"
+                  className="px-2 py-1 text-xs rounded border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-200 transition-colors"
+                  onClick={() => {
+                    const newContent =
+                      content + '\n# Heading\n\nYour content here...';
+                    setContent(newContent);
+                  }}
+                >
+                  # Heading
+                </button>
+                <button
+                  type="button"
+                  className="px-2 py-1 text-xs rounded border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-200 transition-colors"
+                  onClick={() => {
+                    const newContent = content + ' **bold text** ';
+                    setContent(newContent);
+                  }}
+                >
+                  **Bold**
+                </button>
+                <button
+                  type="button"
+                  className="px-2 py-1 text-xs rounded border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-200 transition-colors"
+                  onClick={() => {
+                    const newContent = content + ' *italic text* ';
+                    setContent(newContent);
+                  }}
+                >
+                  *Italic*
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Submit Buttons */}
+          <div className="flex items-center justify-end space-x-4 pt-6 border-t">
+            <Link
+              href="/blog/articles"
+              className="px-4 py-2 text-sm font-medium rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-200 transition-colors"
+            >
+              Cancel
+            </Link>
+            <button
+              type="submit"
+              disabled={isSubmitting || !title || !content}
+              className="px-4 py-2 text-sm font-medium rounded-lg bg-primary text-white hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {isSubmitting ? 'Saving...' : 'Save Article'}
+            </button>
+          </div>
+        </form>
+      </Card>
     </div>
   );
 }

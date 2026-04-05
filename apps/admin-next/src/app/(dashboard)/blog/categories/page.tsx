@@ -191,8 +191,7 @@ export default function CategoriesPage() {
 
       {/* Create Category Form */}
       {isCreating && (
-        <div className="rounded-lg border bg-card p-6 shadow-sm">
-          <h2 className="text-lg font-semibold mb-4">Create New Category</h2>
+        <Card title="Create New Category">
           <form onSubmit={handleCreateCategory} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -205,7 +204,7 @@ export default function CategoriesPage() {
                   value={newCategoryName}
                   onChange={(e) => setNewCategoryName(e.target.value)}
                   placeholder="Enter category name"
-                  className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-white/10 rounded-lg bg-gray-50 dark:bg-black/20 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 dark:text-white placeholder-gray-400 dark:placeholder-gray-600"
                   required
                 />
               </div>
@@ -219,7 +218,7 @@ export default function CategoriesPage() {
                   value={newCategorySlug}
                   onChange={(e) => setNewCategorySlug(e.target.value)}
                   placeholder="Enter URL slug"
-                  className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-white/10 rounded-lg bg-gray-50 dark:bg-black/20 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 dark:text-white placeholder-gray-400 dark:placeholder-gray-600"
                   required
                 />
               </div>
@@ -234,7 +233,7 @@ export default function CategoriesPage() {
                 onChange={(e) => setNewCategoryDescription(e.target.value)}
                 placeholder="Enter category description (optional)"
                 rows={3}
-                className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="w-full px-3 py-2 border border-gray-200 dark:border-white/10 rounded-lg bg-gray-50 dark:bg-black/20 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 dark:text-white placeholder-gray-400 dark:placeholder-gray-600"
               />
             </div>
             <div className="flex items-center justify-end space-x-4 pt-4 border-t">
@@ -253,11 +252,11 @@ export default function CategoriesPage() {
               </Button>
             </div>
           </form>
-        </div>
+        </Card>
       )}
 
       {/* Search */}
-      <div className="rounded-lg border bg-card p-6 shadow-sm">
+      <Card>
         <div className="flex flex-col md:flex-row gap-4 items-center">
           <div className="flex-1 w-full">
             <div className="relative">
@@ -267,7 +266,7 @@ export default function CategoriesPage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search categories by name or description..."
-                className="w-full pl-9 pr-3 py-2.5 border border-input rounded-lg bg-background text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 dark:bg-black/20 dark:border-white/10"
+                className="w-full pl-9 pr-3 py-2.5 border border-gray-200 dark:border-white/10 rounded-lg bg-gray-50 dark:bg-black/20 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 dark:text-white placeholder-gray-400 dark:placeholder-gray-600"
               />
             </div>
           </div>
@@ -282,24 +281,21 @@ export default function CategoriesPage() {
             </Button>
           </div>
         </div>
-      </div>
+      </Card>
 
       {/* Categories Table */}
-      <div className="rounded-lg border bg-card shadow-sm">
-        <div className="p-6 border-b">
-          <h2 className="text-lg font-semibold">Category List</h2>
-          <p className="text-sm text-muted-foreground mt-1">
+      <Card title="Category List">
+        <div className="mb-4">
+          <p className="text-sm text-muted-foreground">
             Total {filteredCategories.length} categories
           </p>
         </div>
-        <div className="p-6">
-          <SmartTable
-            dataSource={filteredCategories}
-            columns={categoryColumns}
-            rowKey="id"
-          />
-        </div>
-      </div>
+        <SmartTable
+          dataSource={filteredCategories}
+          columns={categoryColumns}
+          rowKey="id"
+        />
+      </Card>
 
       {/* Pagination */}
       <div className="flex items-center justify-between">
@@ -321,8 +317,7 @@ export default function CategoriesPage() {
       </div>
 
       {/* Usage Tips */}
-      <div className="rounded-lg border bg-card p-6 shadow-sm">
-        <h3 className="text-sm font-medium mb-3">Category Usage Tips</h3>
+      <Card title="Category Usage Tips">
         <ul className="space-y-2 text-sm text-muted-foreground">
           <li className="flex items-start">
             <div className="mr-2 mt-0.5">•</div>
@@ -346,7 +341,7 @@ export default function CategoriesPage() {
             </span>
           </li>
         </ul>
-      </div>
+      </Card>
     </div>
   );
 }

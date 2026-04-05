@@ -201,7 +201,7 @@ export default function CommentsPage() {
 
       {/* Stats */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-lg border bg-card p-6">
+        <Card>
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Total Comments</p>
@@ -209,8 +209,8 @@ export default function CommentsPage() {
             </div>
             <MessageSquare className="h-8 w-8 text-primary/50" />
           </div>
-        </div>
-        <div className="rounded-lg border bg-card p-6">
+        </Card>
+        <Card>
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Approved</p>
@@ -220,8 +220,8 @@ export default function CommentsPage() {
             </div>
             <Check className="h-8 w-8 text-green-500/50" />
           </div>
-        </div>
-        <div className="rounded-lg border bg-card p-6">
+        </Card>
+        <Card>
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Pending</p>
@@ -231,8 +231,8 @@ export default function CommentsPage() {
             </div>
             <MessageSquare className="h-8 w-8 text-amber-500/50" />
           </div>
-        </div>
-        <div className="rounded-lg border bg-card p-6">
+        </Card>
+        <Card>
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Spam</p>
@@ -240,11 +240,11 @@ export default function CommentsPage() {
             </div>
             <X className="h-8 w-8 text-red-500/50" />
           </div>
-        </div>
+        </Card>
       </div>
 
       {/* Search and Filters */}
-      <div className="rounded-lg border bg-card p-6">
+      <Card>
         <div className="flex flex-col md:flex-row gap-4">
           <div className="flex-1">
             <div className="relative">
@@ -254,7 +254,7 @@ export default function CommentsPage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search comments by content or author..."
-                className="w-full pl-9 pr-3 py-2 border border-input rounded-md bg-background text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="w-full pl-9 pr-3 py-2.5 border border-gray-200 dark:border-white/10 rounded-lg bg-gray-50 dark:bg-black/20 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 dark:text-white placeholder-gray-400 dark:placeholder-gray-600"
               />
             </div>
           </div>
@@ -262,7 +262,7 @@ export default function CommentsPage() {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-[140px] px-3 py-2 border border-input rounded-md bg-background text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="w-[140px] px-3 py-2.5 border border-gray-200 dark:border-white/10 rounded-lg bg-gray-50 dark:bg-black/20 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 dark:text-white"
             >
               <option value="all">All Status</option>
               <option value="APPROVED">Approved</option>
@@ -273,7 +273,7 @@ export default function CommentsPage() {
             <select
               value={articleFilter}
               onChange={(e) => setArticleFilter(e.target.value)}
-              className="w-[180px] px-3 py-2 border border-input rounded-md bg-background text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="w-[180px] px-3 py-2.5 border border-gray-200 dark:border-white/10 rounded-lg bg-gray-50 dark:bg-black/20 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 dark:text-white"
             >
               {articles.map((article) => (
                 <option key={article.id} value={article.id}>
@@ -283,108 +283,105 @@ export default function CommentsPage() {
             </select>
           </div>
         </div>
-      </div>
+      </Card>
 
       {/* Comments List */}
-      <div className="rounded-lg border bg-card">
-        <div className="p-6 border-b">
-          <h2 className="text-lg font-semibold">Comment List</h2>
-          <p className="text-sm text-muted-foreground mt-1">
+      <Card title="Comment List">
+        <div className="mb-4">
+          <p className="text-sm text-muted-foreground">
             Total {filteredComments.length} comments,{' '}
             {filteredComments.filter((c) => c.status === 'PENDING').length}{' '}
             pending moderation
           </p>
         </div>
-        <div className="p-6">
-          <div className="space-y-4">
-            {filteredComments.map((comment) => (
-              <div
-                key={comment.id}
-                className="rounded-lg border p-4 hover:shadow-sm transition-shadow"
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-start space-x-3">
-                    <div className="p-2 rounded-full bg-primary/10">
-                      <User className="h-4 w-4 text-primary" />
+        <div className="space-y-4">
+          {filteredComments.map((comment) => (
+            <div
+              key={comment.id}
+              className="rounded-xl border border-gray-100 dark:border-white/5 bg-white dark:bg-dark-800 p-6 hover:shadow-md transition-all duration-300 hover:border-gray-200 dark:hover:border-white/10"
+            >
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex items-start space-x-3">
+                  <div className="p-2 rounded-full bg-primary/10">
+                    <User className="h-4 w-4 text-primary" />
+                  </div>
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <h3 className="font-semibold">{comment.author}</h3>
+                      {comment.email && (
+                        <span className="text-sm text-muted-foreground">
+                          {comment.email}
+                        </span>
+                      )}
+                      {getStatusBadge(comment.status)}
                     </div>
-                    <div>
-                      <div className="flex items-center space-x-2">
-                        <h3 className="font-semibold">{comment.author}</h3>
-                        {comment.email && (
-                          <span className="text-sm text-muted-foreground">
-                            {comment.email}
-                          </span>
-                        )}
-                        {getStatusBadge(comment.status)}
+                    <div className="flex items-center space-x-4 mt-1 text-xs text-muted-foreground">
+                      <div className="flex items-center">
+                        <Calendar className="mr-1 h-3 w-3" />
+                        {comment.createdAt}
                       </div>
-                      <div className="flex items-center space-x-4 mt-1 text-xs text-muted-foreground">
-                        <div className="flex items-center">
-                          <Calendar className="mr-1 h-3 w-3" />
-                          {comment.createdAt}
-                        </div>
-                        <div>{comment.ipAddress}</div>
-                      </div>
+                      <div>{comment.ipAddress}</div>
                     </div>
                   </div>
-                  <div className="flex items-center space-x-1">
-                    {comment.status === 'PENDING' && (
-                      <>
-                        <button
-                          onClick={() => handleApproveComment(comment.id)}
-                          className="p-1.5 rounded-md border border-green-200 bg-green-50 text-green-700 hover:bg-green-100"
-                          title="Approve"
-                        >
-                          <Check className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleRejectComment(comment.id)}
-                          className="p-1.5 rounded-md border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
-                          title="Reject"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </>
-                    )}
-                    <button
-                      onClick={() => handleDeleteComment(comment.id)}
-                      className="p-1.5 rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground text-destructive"
-                      title="Delete"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
                 </div>
-
-                <div className="mb-3">
-                  <p className="text-sm">{comment.content}</p>
-                </div>
-
-                <div className="flex items-center justify-between border-t pt-3">
-                  <div className="flex items-center text-sm text-muted-foreground">
-                    <FileText className="mr-2 h-4 w-4" />
-                    <a
-                      href={`/blog/articles/${comment.article?.slug}`}
-                      target="_blank"
-                      className="text-primary hover:underline"
-                    >
-                      {comment.article?.title || 'Unknown Article'}
-                    </a>
-                  </div>
-                  <div className="flex items-center                    space-x-2">
-                    <button className="text-xs text-muted-foreground hover:text-foreground">
-                      <Eye className="mr-1 h-3 w-3 inline" />
-                      View Article
-                    </button>
-                    <button className="text-xs text-muted-foreground hover:text-foreground">
-                      Reply
-                    </button>
-                  </div>
+                <div className="flex items-center space-x-1">
+                  {comment.status === 'PENDING' && (
+                    <>
+                      <button
+                        onClick={() => handleApproveComment(comment.id)}
+                        className="p-1.5 rounded-lg border border-green-200 dark:border-green-800/30 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors"
+                        title="Approve"
+                      >
+                        <Check className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleRejectComment(comment.id)}
+                        className="p-1.5 rounded-lg border border-red-200 dark:border-red-800/30 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                        title="Reject"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </>
+                  )}
+                  <button
+                    onClick={() => handleDeleteComment(comment.id)}
+                    className="p-1.5 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors"
+                    title="Delete"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
                 </div>
               </div>
-            ))}
-          </div>
+
+              <div className="mb-3">
+                <p className="text-sm">{comment.content}</p>
+              </div>
+
+              <div className="flex items-center justify-between border-t pt-3">
+                <div className="flex items-center text-sm text-muted-foreground">
+                  <FileText className="mr-2 h-4 w-4" />
+                  <a
+                    href={`/blog/articles/${comment.article?.slug}`}
+                    target="_blank"
+                    className="text-primary hover:underline"
+                  >
+                    {comment.article?.title || 'Unknown Article'}
+                  </a>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <button className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-200 transition-colors">
+                    <Eye className="mr-1 h-3 w-3 inline" />
+                    View Article
+                  </button>
+                  <button className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-200 transition-colors">
+                    Reply
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
-      </div>
+      </Card>
 
       {/* Pagination */}
       <div className="flex items-center justify-between">
@@ -394,26 +391,25 @@ export default function CommentsPage() {
         </div>
         <div className="flex items-center space-x-2">
           <button
-            className="px-3 py-1.5 text-sm rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             disabled
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
-          <button className="px-3 py-1.5 text-sm rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground">
+          <button className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-200 transition-colors">
             1
           </button>
-          <button className="px-3 py-1.5 text-sm rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground">
+          <button className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-200 transition-colors">
             2
           </button>
-          <button className="px-3 py-1.5 text-sm rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground">
+          <button className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-200 transition-colors">
             <ChevronRight className="h-4 w-4" />
           </button>
         </div>
       </div>
 
       {/* Moderation Tips */}
-      <div className="rounded-lg border bg-card p-6">
-        <h3 className="text-sm font-medium mb-3">Comment Moderation Tips</h3>
+      <Card title="Comment Moderation Tips">
         <ul className="space-y-2 text-sm text-muted-foreground">
           <li className="flex items-start">
             <div className="mr-2 mt-0.5">•</div>
@@ -446,7 +442,7 @@ export default function CommentsPage() {
             </span>
           </li>
         </ul>
-      </div>
+      </Card>
     </div>
   );
 }

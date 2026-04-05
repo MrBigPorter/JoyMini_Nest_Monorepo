@@ -113,8 +113,7 @@ export default function TagsPage() {
 
       {/* Create Tag Form */}
       {isCreating && (
-        <div className="rounded-lg border bg-card p-6">
-          <h2 className="text-lg font-semibold mb-4">Create New Tag</h2>
+        <Card title="Create New Tag">
           <form onSubmit={handleCreateTag} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -127,7 +126,7 @@ export default function TagsPage() {
                   value={newTagName}
                   onChange={(e) => setNewTagName(e.target.value)}
                   placeholder="Enter tag name"
-                  className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-white/10 rounded-lg bg-gray-50 dark:bg-black/20 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 dark:text-white placeholder-gray-400 dark:placeholder-gray-600"
                   required
                 />
               </div>
@@ -141,7 +140,7 @@ export default function TagsPage() {
                   value={newTagSlug}
                   onChange={(e) => setNewTagSlug(e.target.value)}
                   placeholder="Enter URL slug"
-                  className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-white/10 rounded-lg bg-gray-50 dark:bg-black/20 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 dark:text-white placeholder-gray-400 dark:placeholder-gray-600"
                   required
                 />
               </div>
@@ -156,14 +155,14 @@ export default function TagsPage() {
                 onChange={(e) => setNewTagDescription(e.target.value)}
                 placeholder="Enter tag description (optional)"
                 rows={3}
-                className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="w-full px-3 py-2 border border-gray-200 dark:border-white/10 rounded-lg bg-gray-50 dark:bg-black/20 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 dark:text-white placeholder-gray-400 dark:placeholder-gray-600"
               />
             </div>
             <div className="flex items-center justify-end space-x-4 pt-4 border-t">
               <button
                 type="button"
                 onClick={() => setIsCreating(false)}
-                className="px-4 py-2 text-sm font-medium rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground"
+                className="px-4 py-2 text-sm font-medium rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-200 transition-colors"
               >
                 Cancel
               </button>
@@ -176,11 +175,11 @@ export default function TagsPage() {
               </button>
             </div>
           </form>
-        </div>
+        </Card>
       )}
 
       {/* Search and Stats */}
-      <div className="rounded-lg border bg-card p-6">
+      <Card>
         <div className="flex flex-col md:flex-row gap-4">
           <div className="flex-1">
             <div className="relative">
@@ -190,7 +189,7 @@ export default function TagsPage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search tags by name or description..."
-                className="w-full pl-9 pr-3 py-2 border border-input rounded-md bg-background text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="w-full pl-9 pr-3 py-2 border border-gray-200 dark:border-white/10 rounded-lg bg-gray-50 dark:bg-black/20 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 dark:text-white placeholder-gray-400 dark:placeholder-gray-600"
               />
             </div>
           </div>
@@ -209,80 +208,77 @@ export default function TagsPage() {
             </div>
           </div>
         </div>
-      </div>
+      </Card>
 
       {/* Tags Grid */}
-      <div className="rounded-lg border bg-card">
-        <div className="p-6 border-b">
-          <h2 className="text-lg font-semibold">Tag List</h2>
-          <p className="text-sm text-muted-foreground mt-1">
+      <Card title="Tag List">
+        <div className="mb-4">
+          <p className="text-sm text-muted-foreground">
             Total {filteredTags.length} tags
           </p>
         </div>
-        <div className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {filteredTags.map((tag) => (
-              <div
-                key={tag.id}
-                className="rounded-lg border bg-card p-4 hover:shadow-md transition-shadow"
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center">
-                    <div
-                      className={`p-2 rounded-lg ${
-                        tag.color === 'blue'
-                          ? 'bg-blue-100 text-blue-800'
-                          : tag.color === 'green'
-                            ? 'bg-green-100 text-green-800'
-                            : tag.color === 'purple'
-                              ? 'bg-purple-100 text-purple-800'
-                              : tag.color === 'red'
-                                ? 'bg-red-100 text-red-800'
-                                : tag.color === 'amber'
-                                  ? 'bg-amber-100 text-amber-800'
-                                  : 'bg-gray-100 text-gray-800'
-                      }`}
-                    >
-                      <TagIcon className="h-4 w-4" />
-                    </div>
-                    <div className="ml-3">
-                      <h3 className="font-semibold">{tag.name}</h3>
-                      <code className="text-xs text-muted-foreground">
-                        /{tag.slug}
-                      </code>
-                    </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {filteredTags.map((tag) => (
+            <div
+              key={tag.id}
+              className="rounded-lg border border-gray-100 dark:border-white/5 bg-card p-4 hover:shadow-md transition-shadow hover:border-gray-200 dark:hover:border-white/10"
+            >
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex items-center">
+                  <div
+                    className={`p-2 rounded-lg ${
+                      tag.color === 'blue'
+                        ? 'bg-blue-100 text-blue-800'
+                        : tag.color === 'green'
+                          ? 'bg-green-100 text-green-800'
+                          : tag.color === 'purple'
+                            ? 'bg-purple-100 text-purple-800'
+                            : tag.color === 'red'
+                              ? 'bg-red-100 text-red-800'
+                              : tag.color === 'amber'
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'bg-gray-100 text-gray-800'
+                    }`}
+                  >
+                    <TagIcon className="h-4 w-4" />
                   </div>
-                  <div className="flex items-center space-x-1">
-                    <button className="p-1 text-muted-foreground hover:text-foreground">
-                      <Edit className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteTag(tag.id)}
-                      className="p-1 text-muted-foreground hover:text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                  <div className="ml-3">
+                    <h3 className="font-semibold">{tag.name}</h3>
+                    <code className="text-xs text-muted-foreground">
+                      /{tag.slug}
+                    </code>
                   </div>
                 </div>
-                <p className="text-sm text-muted-foreground mb-4">
-                  {tag.description}
-                </p>
-                <div className="flex items-center justify-between text-xs">
-                  <div className="flex items-center space-x-3">
-                    <span className="px-2 py-1 rounded-full bg-primary/10 text-primary">
-                      {tag.articleCount || 0} articles
-                    </span>
-                    <span className="px-2 py-1 rounded-full bg-secondary/10 text-secondary">
-                      {tag.usageCount || 0} uses
-                    </span>
-                  </div>
-                  <div className="text-muted-foreground">{tag.createdAt}</div>
+                <div className="flex items-center space-x-1">
+                  <button className="p-1 text-muted-foreground hover:text-foreground">
+                    <Edit className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => handleDeleteTag(tag.id)}
+                    className="p-1 text-muted-foreground hover:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
                 </div>
               </div>
-            ))}
-          </div>
+              <p className="text-sm text-muted-foreground mb-4">
+                {tag.description}
+              </p>
+              <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center space-x-3">
+                  <span className="px-2 py-1 rounded-full bg-primary/10 text-primary">
+                    {tag.articleCount || 0} articles
+                  </span>
+                  <span className="px-2 py-1 rounded-full bg-secondary/10 text-secondary">
+                    {tag.usageCount || 0} uses
+                  </span>
+                </div>
+                <div className="text-muted-foreground">{tag.createdAt}</div>
+              </div>
+            </div>
+          ))}
         </div>
-      </div>
+      </Card>
 
       {/* Pagination */}
       <div className="flex items-center justify-between">
@@ -291,26 +287,25 @@ export default function TagsPage() {
         </div>
         <div className="flex items-center space-x-2">
           <button
-            className="px-3 py-1.5 text-sm rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             disabled
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
-          <button className="px-3 py-1.5 text-sm rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground">
+          <button className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-200 transition-colors">
             1
           </button>
-          <button className="px-3 py-1.5 text-sm rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground">
+          <button className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-200 transition-colors">
             2
           </button>
-          <button className="px-3 py-1.5 text-sm rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground">
+          <button className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-200 transition-colors">
             <ChevronRight className="h-4 w-4" />
           </button>
         </div>
       </div>
 
       {/* Usage Tips */}
-      <div className="rounded-lg border bg-card p-6">
-        <h3 className="text-sm font-medium mb-3">Tag Usage Tips</h3>
+      <Card title="Tag Usage Tips">
         <ul className="space-y-2 text-sm text-muted-foreground">
           <li className="flex items-start">
             <div className="mr-2 mt-0.5">•</div>
@@ -333,7 +328,7 @@ export default function TagsPage() {
             <span>Tags can be merged if you have similar ones</span>
           </li>
         </ul>
-      </div>
+      </Card>
     </div>
   );
 }
