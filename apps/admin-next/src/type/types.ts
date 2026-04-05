@@ -1076,11 +1076,16 @@ export interface AdminOperationLogListParams {
 export interface Article {
   id: string;
   title: string;
+  slug: string;
   category: 'announcement' | 'guide' | 'news';
-  status: 'published' | 'draft';
+  status: 'published' | 'draft' | 'scheduled';
   author: string;
   publishDate: string;
+  publishedAt: string;
   views: number;
+  readTime: number;
+  tags: string[];
+  comments: number;
 }
 
 export interface Faq {

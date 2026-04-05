@@ -17,6 +17,7 @@ import Link from 'next/link';
 import { PageHeader } from '@/components/scaffold/PageHeader';
 import { Card, Badge } from '@/components/UIComponents';
 import { blogApi } from '@/api';
+import { BlogArticleModal } from '@/views/blog/BlogArticleModal';
 
 export default function BlogDashboardPage() {
   const [stats, setStats] = useState({
@@ -28,6 +29,7 @@ export default function BlogDashboardPage() {
   const [recentArticles, setRecentArticles] = useState<any[]>([]);
   const [topArticles, setTopArticles] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isArticleModalOpen, setIsArticleModalOpen] = useState(false);
 
   const fetchDashboardData = async () => {
     setIsLoading(true);
@@ -51,24 +53,17 @@ export default function BlogDashboardPage() {
       // Set recent articles
       setRecentArticles(articlesRes.list?.slice(0, 3) || []);
 
-      // Set top articles (mock for now)
-      setTopArticles([
-        {
-          title: 'Next.js 15 New Features Explained',
-          views: 1250,
-          growth: '+12%',
-        },
-        {
-          title: 'TypeScript Advanced Type Techniques',
-          views: 890,
-          growth: '+8%',
-        },
-        {
-          title: 'Database Optimization Practices',
-          views: 560,
-          growth: '+5%',
-        },
-      ]);
+      // Set top articles based on views
+      const articlesWithViews =
+        articlesRes.list?.map((article: any) => ({
+          title: article.title,
+          views: article.views || 0,
+          growth: '+0%', // placeholder, can be calculated from historical data
+        })) || [];
+      const sorted = articlesWithViews
+        .sort((a, b) => b.views - a.views)
+        .slice(0, 3);
+      setTopArticles(sorted);
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error);
       setStats({
@@ -88,11 +83,11 @@ export default function BlogDashboardPage() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'PUBLISHED':
+      case 'published':
         return <Badge color="green">Published</Badge>;
-      case 'DRAFT':
+      case 'draft':
         return <Badge color="gray">Draft</Badge>;
-      case 'SCHEDULED':
+      case 'scheduled':
         return <Badge color="blue">Scheduled</Badge>;
       default:
         return <Badge color="gray">{status}</Badge>;
@@ -201,7 +196,7 @@ export default function BlogDashboardPage() {
         description="Manage blog articles, categories, tags, and comments"
         buttonText="Write New Article"
         buttonOnClick={() => {
-          window.location.href = '/blog/articles/create';
+          setIsArticleModalOpen(true);
         }}
         buttonPrefixIcon={<FileText size={18} />}
       />
@@ -418,6 +413,14 @@ export default function BlogDashboardPage() {
           </div>
         </Card>
       </div>
+      <BlogArticleModal
+        isOpen={isArticleModalOpen}
+        onCloseAction={() => setIsArticleModalOpen(false)}
+        onSuccessAction={() => {
+          fetchDashboardData();
+          setIsArticleModalOpen(false);
+        }}
+      />
     </div>
   );
 }

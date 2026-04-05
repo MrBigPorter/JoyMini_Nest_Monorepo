@@ -1,14 +1,26 @@
 'use client';
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
 import { Button, cn } from '@repo/ui';
-import { Plus } from 'lucide-react';
+import { Plus, ChevronLeft } from 'lucide-react';
+import { Breadcrumbs } from '@/components/UIComponents';
 
 interface PageHeaderProps {
   /** 页面大标题 */
   title: string;
   /** 页面描述/副标题 */
   description?: string;
+  /** 是否显示返回按钮 */
+  showBackButton?: boolean;
+  /** 返回按钮点击事件，未提供时默认使用 router.back() */
+  onBack?: () => void;
+  /** 返回按钮文本，默认为 "Back" */
+  backButtonLabel?: string;
+  /** 返回按钮图标，默认为 ChevronLeft */
+  backButtonIcon?: React.ReactNode;
+  /** 面包屑导航项（字符串数组） */
+  breadcrumbs?: string[];
   /** 中间区域 (搜索框/输入框)，会自动占据剩余空间 */
   searchBar?: React.ReactNode;
   /** 右侧操作区 (通常放按钮) */
@@ -51,6 +63,11 @@ interface PageHeaderProps {
 export const PageHeader: React.FC<PageHeaderProps> = ({
   title,
   description,
+  showBackButton = false,
+  onBack,
+  backButtonLabel = 'Back',
+  backButtonIcon = <ChevronLeft size={18} />,
+  breadcrumbs,
   searchBar, // 新增
   action,
   className,
@@ -66,11 +83,38 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
   tertiaryButtonIcon,
   tertiaryButtonVariant = 'primary',
 }) => {
+  const router = useRouter();
+
+  const handleBack = () => {
+    if (onBack) {
+      onBack();
+    } else {
+      router.back();
+    }
+  };
+
   return (
     // 1. 移除了 justify-between，改用 gap-4 控制间距
     <div className={cn('flex items-center gap-4 mb-6', className)}>
       {/* 2. 左侧标题区：添加 shrink-0 防止被压缩 */}
       <div className="shrink-0">
+        {(showBackButton || breadcrumbs) && (
+          <div className="flex items-center gap-2 mb-2">
+            {showBackButton && (
+              <Button
+                onClick={handleBack}
+                variant="ghost"
+                size="sm"
+                className="p-1 h-auto text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                aria-label={backButtonLabel}
+              >
+                {backButtonIcon}
+                <span className="sr-only">{backButtonLabel}</span>
+              </Button>
+            )}
+            {breadcrumbs && <Breadcrumbs items={breadcrumbs} />}
+          </div>
+        )}
         <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
           {title}
         </h1>

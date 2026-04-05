@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   FolderTree,
   Plus,
@@ -15,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useToastStore } from '@/store/useToastStore';
 import { Card } from '@/components/UIComponents';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { blogApi } from '@/api';
 import { PageHeader } from '@/components/scaffold/PageHeader';
@@ -30,26 +32,46 @@ export default function CategoriesPage() {
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategorySlug, setNewCategorySlug] = useState('');
   const [newCategoryDescription, setNewCategoryDescription] = useState('');
-  const [categories, setCategories] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const { addToast } = useToastStore();
+  const router = useRouter();
+  const queryClient = useQueryClient();
 
-  const fetchCategories = async () => {
-    setIsLoading(true);
-    try {
+  // 查询分类列表
+  const {
+    data: categoriesData,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ['blog', 'categories'],
+    queryFn: async () => {
       const response = await blogApi.getCategories();
-      setCategories(response.list || []);
-    } catch (error) {
+      return response;
+    },
+  });
+
+  // 从响应中提取数据
+  const categories = categoriesData?.list || [];
+
+  // 错误处理
+  useEffect(() => {
+    if (error) {
       console.error('Failed to fetch categories:', error);
       addToast('error', 'Failed to load categories');
-    } finally {
-      setIsLoading(false);
     }
-  };
+  }, [error, addToast]);
 
-  useEffect(() => {
-    fetchCategories();
-  }, []);
+  // 删除分类 mutation
+  const deleteCategoryMutation = useMutation({
+    mutationFn: (categoryId: string) => blogApi.deleteCategory(categoryId),
+    onSuccess: () => {
+      addToast('success', 'Category deleted successfully');
+      queryClient.invalidateQueries({ queryKey: ['blog', 'categories'] });
+    },
+    onError: (error: any) => {
+      console.error('Failed to delete category:', error);
+      addToast('error', 'Failed to delete category');
+    },
+  });
 
   // SmartTable列定义
   const handleDeleteCategory = async (categoryId: string) => {
@@ -60,15 +82,7 @@ export default function CategoriesPage() {
     ) {
       return;
     }
-
-    try {
-      await blogApi.deleteCategory(categoryId);
-      addToast('success', 'Category deleted successfully');
-      fetchCategories(); // Refresh the list
-    } catch (error) {
-      console.error('Failed to delete category:', error);
-      addToast('error', 'Failed to delete category');
-    }
+    deleteCategoryMutation.mutate(categoryId);
   };
 
   const categoryColumns: ProColumns[] = [
@@ -160,7 +174,7 @@ export default function CategoriesPage() {
       setNewCategorySlug('');
       setNewCategoryDescription('');
       setIsCreating(false);
-      fetchCategories(); // Refresh the list
+      queryClient.invalidateQueries({ queryKey: ['blog', 'categories'] }); // Refresh the list
     } catch (error) {
       console.error('Failed to create category:', error);
       addToast('error', 'Failed to create category');
@@ -185,6 +199,9 @@ export default function CategoriesPage() {
       <PageHeader
         title="Category Management"
         description="Manage blog categories for organizing articles"
+        showBackButton={true}
+        onBack={() => router.push('/blog')}
+        breadcrumbs={['Blog', 'Categories']}
         buttonText="New Category"
         buttonOnClick={() => setIsCreating(true)}
       />

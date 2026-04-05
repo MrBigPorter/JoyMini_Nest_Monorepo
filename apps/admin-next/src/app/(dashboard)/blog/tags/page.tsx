@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Tag as TagIcon,
   Plus,
@@ -25,6 +26,7 @@ export default function TagsPage() {
   const [tags, setTags] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { addToast } = useToastStore();
+  const router = useRouter();
 
   const fetchTags = async () => {
     setIsLoading(true);
@@ -106,6 +108,9 @@ export default function TagsPage() {
       <PageHeader
         title="Tag Management"
         description="Manage blog tags for categorizing and organizing articles"
+        showBackButton={true}
+        onBack={() => router.push('/blog')}
+        breadcrumbs={['Blog', 'Tags']}
         buttonText="New Tag"
         buttonOnClick={() => setIsCreating(true)}
         buttonPrefixIcon={<Plus size={18} />}

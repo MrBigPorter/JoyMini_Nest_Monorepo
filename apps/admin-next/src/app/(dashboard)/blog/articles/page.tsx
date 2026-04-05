@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   Plus,
   Search,
@@ -22,73 +23,115 @@ import { PageHeader } from '@/components/scaffold/PageHeader';
 import { Card, Badge } from '@/components/UIComponents';
 import { useToastStore } from '@/store/useToastStore';
 import { blogApi } from '@/api';
+import type { Article } from '@/type/types';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 export default function ArticlesPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
-  const [articles, setArticles] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalArticles, setTotalArticles] = useState(0);
   const { addToast } = useToastStore();
+  const router = useRouter();
+  const queryClient = useQueryClient();
 
   const pageSize = 10;
 
-  const fetchArticles = async () => {
-    setIsLoading(true);
-    try {
-      const params: any = {
-        page: currentPage,
-        pageSize,
-      };
-
-      if (statusFilter !== 'all') {
-        params.status = statusFilter;
-      }
-
-      if (search) {
-        params.search = search;
-      }
-
-      const response = await blogApi.getArticles(params);
-      setArticles(response.list || []);
-      setTotalArticles(response.total || 0);
-      setTotalPages(response.totalPages || 1);
-    } catch (error) {
-      console.error('Failed to fetch articles:', error);
-      addToast('error', 'Failed to load articles');
-      setTotalPages(1);
-    } finally {
-      setIsLoading(false);
-    }
+  // 构建查询参数
+  const queryParams = {
+    page: currentPage,
+    pageSize,
+    status: statusFilter !== 'all' ? statusFilter : undefined,
+    search: search || undefined,
   };
 
-  useEffect(() => {
-    fetchArticles();
-  }, [currentPage, statusFilter]);
+  // 查询文章列表
+  const {
+    data: articlesData,
+    isLoading,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: ['blog', 'articles', queryParams],
+    queryFn: async () => {
+      const response = await blogApi.getArticles(queryParams);
+      return response;
+    },
+  });
 
+  // 从响应中提取数据
+  const articles = articlesData?.list || [];
+  const totalArticles = articlesData?.total || 0;
+  const totalPages = articlesData?.totalPages || 1;
+
+  // 错误处理
   useEffect(() => {
-    // Debounce search
+    if (error) {
+      console.error('Failed to fetch articles:', error);
+      addToast('error', 'Failed to load articles');
+    }
+  }, [error, addToast]);
+
+  // 当搜索条件变化时，如果当前不是第一页，则跳转到第一页
+  useEffect(() => {
     const timer = setTimeout(() => {
-      if (currentPage === 1) {
-        fetchArticles();
-      } else {
+      if (currentPage !== 1) {
         setCurrentPage(1);
+      } else {
+        refetch();
       }
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [search]);
+  }, [search, refetch, currentPage]);
+
+  // 删除文章 mutation
+  const deleteArticleMutation = useMutation({
+    mutationFn: (id: string) => blogApi.deleteArticle(id),
+    onSuccess: () => {
+      addToast('success', 'Article deleted successfully');
+      // 使文章列表查询失效，触发重新获取
+      queryClient.invalidateQueries({ queryKey: ['blog', 'articles'] });
+    },
+    onError: (error: any) => {
+      console.error('Failed to delete article:', error);
+      addToast('error', 'Failed to delete article');
+    },
+  });
+
+  // 发布文章 mutation
+  const publishArticleMutation = useMutation({
+    mutationFn: (id: string) => blogApi.publishArticle(id),
+    onSuccess: () => {
+      addToast('success', 'Article published successfully');
+      queryClient.invalidateQueries({ queryKey: ['blog', 'articles'] });
+    },
+    onError: (error: any) => {
+      console.error('Failed to publish article:', error);
+      addToast('error', 'Failed to publish article');
+    },
+  });
+
+  // 取消发布文章 mutation
+  const unpublishArticleMutation = useMutation({
+    mutationFn: (id: string) => blogApi.unpublishArticle(id),
+    onSuccess: () => {
+      addToast('success', 'Article unpublished successfully');
+      queryClient.invalidateQueries({ queryKey: ['blog', 'articles'] });
+    },
+    onError: (error: any) => {
+      console.error('Failed to unpublish article:', error);
+      addToast('error', 'Failed to unpublish article');
+    },
+  });
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'PUBLISHED':
+      case 'published':
         return <Badge color="green">Published</Badge>;
-      case 'DRAFT':
+      case 'draft':
         return <Badge color="gray">Draft</Badge>;
-      case 'SCHEDULED':
+      case 'scheduled':
         return <Badge color="blue">Scheduled</Badge>;
       default:
         return <Badge color="gray">{status}</Badge>;
@@ -99,37 +142,15 @@ export default function ArticlesPage() {
     if (!confirm('Are you sure you want to delete this article?')) {
       return;
     }
-
-    try {
-      await blogApi.deleteArticle(id);
-      addToast('success', 'Article deleted successfully');
-      fetchArticles(); // Refresh the list
-    } catch (error) {
-      console.error('Failed to delete article:', error);
-      addToast('error', 'Failed to delete article');
-    }
+    deleteArticleMutation.mutate(id);
   };
 
   const handlePublishArticle = async (id: string) => {
-    try {
-      await blogApi.publishArticle(id);
-      addToast('success', 'Article published successfully');
-      fetchArticles(); // Refresh the list
-    } catch (error) {
-      console.error('Failed to publish article:', error);
-      addToast('error', 'Failed to publish article');
-    }
+    publishArticleMutation.mutate(id);
   };
 
   const handleUnpublishArticle = async (id: string) => {
-    try {
-      await blogApi.unpublishArticle(id);
-      addToast('success', 'Article unpublished successfully');
-      fetchArticles(); // Refresh the list
-    } catch (error) {
-      console.error('Failed to unpublish article:', error);
-      addToast('error', 'Failed to unpublish article');
-    }
+    unpublishArticleMutation.mutate(id);
   };
 
   const filteredArticles = articles.filter((article) => {
@@ -141,7 +162,7 @@ export default function ArticlesPage() {
 
   const categories = Array.from(new Set(articles.map((a) => a.category)));
 
-  const publishedArticles = articles.filter((a) => a.status === 'PUBLISHED');
+  const publishedArticles = articles.filter((a) => a.status === 'published');
   const totalViews = articles.reduce((sum, a) => sum + (a.views || 0), 0);
 
   if (isLoading && articles.length === 0) {
@@ -162,9 +183,12 @@ export default function ArticlesPage() {
       <PageHeader
         title="Article Management"
         description="Manage blog articles including creation, editing, publishing, and deletion"
+        showBackButton={true}
+        onBack={() => router.push('/blog')}
+        breadcrumbs={['Blog', 'Articles']}
         buttonText="New Article"
         buttonOnClick={() => {
-          window.location.href = '/blog/articles/create';
+          router.push('/blog/articles/create');
         }}
         buttonPrefixIcon={<Plus size={18} />}
       />
@@ -191,9 +215,9 @@ export default function ArticlesPage() {
               className="px-3 py-2.5 border border-gray-200 dark:border-white/10 rounded-lg bg-gray-50 dark:bg-black/20 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 dark:text-white"
             >
               <option value="all">All Status</option>
-              <option value="PUBLISHED">Published</option>
-              <option value="DRAFT">Draft</option>
-              <option value="SCHEDULED">Scheduled</option>
+              <option value="published">Published</option>
+              <option value="draft">Draft</option>
+              <option value="scheduled">Scheduled</option>
             </select>
             <select
               value={categoryFilter}
@@ -342,7 +366,7 @@ export default function ArticlesPage() {
                         <Edit className="h-4 w-4 mr-1" />
                         Edit
                       </Link>
-                      {article.status === 'PUBLISHED' ? (
+                      {article.status === 'published' ? (
                         <button
                           onClick={() => handleUnpublishArticle(article.id)}
                           className="inline-flex items-center px-3 py-1.5 text-sm rounded-lg border border-amber-200 dark:border-amber-500/20 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 transition-colors text-amber-600 dark:text-amber-400"

@@ -130,16 +130,20 @@ export const BaseSelect = React.forwardRef<HTMLButtonElement, BaseSelectProps>(
                       <SelectLabel className="px-2 py-1.5 text-xs font-semibold text-gray-500 dark:text-gray-400">
                         {group.label}
                       </SelectLabel>
-                      {group.items.map((item) => (
-                        <RenderSelectItem key={item.value} item={item} />
-                      ))}
+                      {group.items
+                        .filter((item) => item.value !== "")
+                        .map((item) => (
+                          <RenderSelectItem key={item.value} item={item} />
+                        ))}
                     </SelectGroup>
                     {index < options.length - 1 && <SelectSeparator />}
                   </React.Fragment>
                 ))
-              : (options as SelectOption[]).map((item) => (
-                  <RenderSelectItem key={item.value} item={item} />
-                ))}
+              : (options as SelectOption[])
+                  .filter((item) => item.value !== "")
+                  .map((item) => (
+                    <RenderSelectItem key={item.value} item={item} />
+                  ))}
           </SelectContent>
         </Select>
 

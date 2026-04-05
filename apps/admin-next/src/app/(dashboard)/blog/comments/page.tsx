@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   MessageSquare,
   Search,
@@ -28,6 +29,7 @@ export default function CommentsPage() {
   const [articles, setArticles] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { addToast } = useToastStore();
+  const router = useRouter();
 
   const fetchComments = async () => {
     setIsLoading(true);
@@ -197,6 +199,9 @@ export default function CommentsPage() {
       <PageHeader
         title="Comment Management"
         description="Moderate and manage user comments on blog articles"
+        showBackButton={true}
+        onBack={() => router.push('/blog')}
+        breadcrumbs={['Blog', 'Comments']}
       />
 
       {/* Stats */}

@@ -9,6 +9,15 @@ import { useToastStore } from '@/store/useToastStore';
 import { uploadApi, blogApi } from '@/api';
 import { RichTextEditor } from '@/components/blog/RichTextEditor';
 import { PageHeader } from '@/components/scaffold/PageHeader';
+import { Card } from '@/components/UIComponents';
+import { useBlogForm } from '@/hooks/useBlogForm';
+import { articleSchema, type ArticleFormInputs } from '@/schema/blog';
+import {
+  Form,
+  FormTextField,
+  FormTextareaField,
+  FormSelectField,
+} from '@repo/ui/form';
 
 export default function EditArticlePage() {
   const router = useRouter();
@@ -16,14 +25,45 @@ export default function EditArticlePage() {
   const { addToast } = useToastStore();
   const articleId = params.id as string;
 
-  const [title, setTitle] = useState('');
-  const [content, setContent] = useState('');
-  const [excerpt, setExcerpt] = useState('');
-  const [categoryId, setCategoryId] = useState('');
-  const [tagIds, setTagIds] = useState<string[]>([]);
-  const [status, setStatus] = useState('DRAFT');
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>(
+    [],
+  );
+  const [tags, setTags] = useState<{ id: string; name: string }[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState(false);
+  const [loadingTags, setLoadingTags] = useState(false);
+
+  // 表单
+  const onSubmit = async (data: ArticleFormInputs) => {
+    setIsSubmitting(true);
+    try {
+      await blogApi.updateArticle(articleId, data);
+      addToast('success', 'Article updated successfully');
+      router.push('/blog/articles');
+    } catch (error) {
+      console.error('Failed to update article:', error);
+      addToast('error', 'Failed to update article');
+      throw error;
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const form = useBlogForm({
+    schema: articleSchema,
+    defaultValues: {
+      title: '',
+      content: '',
+      excerpt: '',
+      categoryId: '',
+      tagIds: [],
+      status: 'draft',
+      featuredImage: '',
+    },
+    onSubmit,
+  });
+  const { submitHandler, errors, watch, setValue } = form;
 
   // 上传请求
   const upload = useRequest(uploadApi.uploadMedia, {
@@ -41,20 +81,28 @@ export default function EditArticlePage() {
     }
   };
 
-  // Mock data
-  const categories = [
-    { id: '1', name: 'Technology' },
-    { id: '2', name: 'Lifestyle' },
-    { id: '3', name: 'Learning' },
-  ];
-
-  const tags = [
-    { id: '1', name: 'Next.js' },
-    { id: '2', name: 'TypeScript' },
-    { id: '3', name: 'React' },
-    { id: '4', name: 'Tailwind CSS' },
-    { id: '5', name: 'Database' },
-  ];
+  // Fetch categories and tags from API
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoadingCategories(true);
+      setLoadingTags(true);
+      try {
+        const [categoriesRes, tagsRes] = await Promise.all([
+          blogApi.getCategories(),
+          blogApi.getTags(),
+        ]);
+        setCategories(categoriesRes.list || []);
+        setTags(tagsRes.list || []);
+      } catch (error) {
+        console.error('Failed to fetch categories/tags:', error);
+        addToast('error', 'Failed to load categories/tags');
+      } finally {
+        setLoadingCategories(false);
+        setLoadingTags(false);
+      }
+    };
+    fetchData();
+  }, [addToast]);
 
   // Mock article data (fallback)
   const mockArticle = {
@@ -65,7 +113,7 @@ export default function EditArticlePage() {
     excerpt: 'A comprehensive guide to the new features in Next.js 15',
     categoryId: '1',
     tagIds: ['1', '3'],
-    status: 'PUBLISHED',
+    status: 'published',
     slug: 'nextjs-15-new-features',
     author: 'Admin',
     views: 1250,
@@ -80,20 +128,27 @@ export default function EditArticlePage() {
 
       try {
         const article = await blogApi.getArticle(articleId);
-        setTitle(article.title);
-        setContent(article.content);
-        setExcerpt(article.excerpt || '');
-        setCategoryId(article.categoryId);
-        setTagIds(article.tagIds || []);
-        setStatus(article.status);
+        form.reset({
+          title: article.title,
+          content: article.content,
+          excerpt: article.excerpt || '',
+          categoryId: article.categoryId,
+          tagIds: article.tagIds || [],
+          status: article.status as ArticleFormInputs['status'],
+          featuredImage: article.featuredImage || '',
+        });
       } catch (error) {
         console.error('Failed to fetch article:', error);
         addToast('error', 'Failed to load article data');
-        setContent(mockArticle.content);
-        setExcerpt(mockArticle.excerpt);
-        setCategoryId(mockArticle.categoryId);
-        setTagIds(mockArticle.tagIds);
-        setStatus(mockArticle.status);
+        form.reset({
+          title: mockArticle.title,
+          content: mockArticle.content,
+          excerpt: mockArticle.excerpt,
+          categoryId: mockArticle.categoryId,
+          tagIds: mockArticle.tagIds,
+          status: mockArticle.status as ArticleFormInputs['status'],
+          featuredImage: '',
+        });
       } finally {
         setIsLoading(false);
       }
@@ -102,44 +157,19 @@ export default function EditArticlePage() {
     fetchArticle();
   }, [articleId]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-
-    try {
-      await blogApi.updateArticle(articleId, {
-        title,
-        content,
-        excerpt,
-        categoryId,
-        tagIds,
-        status,
-      });
-
-      addToast('success', 'Article updated successfully');
-      router.push('/blog/articles');
-    } catch (error) {
-      console.error('Failed to update article:', error);
-      addToast('error', 'Failed to update article');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   const handleSaveClick = () => {
-    // 创建一个模拟的form event来调用handleSubmit
     const mockEvent = {
       preventDefault: () => {},
     } as React.FormEvent;
-    handleSubmit(mockEvent);
+    submitHandler(mockEvent);
   };
 
   const handleTagToggle = (tagId: string) => {
-    setTagIds((prev) =>
-      prev.includes(tagId)
-        ? prev.filter((id) => id !== tagId)
-        : [...prev, tagId],
-    );
+    const currentTagIds = watch('tagIds') || [];
+    const newTagIds = currentTagIds.includes(tagId)
+      ? currentTagIds.filter((id) => id !== tagId)
+      : [...currentTagIds, tagId];
+    setValue('tagIds', newTagIds);
   };
 
   if (isLoading) {
@@ -160,6 +190,9 @@ export default function EditArticlePage() {
       <PageHeader
         title="Edit Article"
         description={`Edit blog article: ${mockArticle.slug}`}
+        showBackButton={true}
+        onBack={() => router.push('/blog/articles')}
+        breadcrumbs={['Blog', 'Articles', 'Edit']}
         buttonText="Save Changes"
         buttonOnClick={handleSaveClick}
         buttonPrefixIcon={
@@ -169,18 +202,18 @@ export default function EditArticlePage() {
             <Save size={18} />
           )
         }
-        buttonDisabled={isSubmitting || !title || !content}
+        buttonDisabled={isSubmitting || !watch('title') || !watch('content')}
         secondaryButtonText="Cancel"
         secondaryButtonOnClick={() => router.push('/blog/articles')}
         tertiaryButtonText={
-          status === 'PUBLISHED' ? 'Update Article' : 'Publish Changes'
+          watch('status') === 'published' ? 'Update Article' : 'Publish Changes'
         }
-        tertiaryButtonOnClick={() => setStatus('PUBLISHED')}
+        tertiaryButtonOnClick={() => setValue('status', 'published')}
         tertiaryButtonIcon={<Send size={18} />}
         tertiaryButtonVariant="success"
       />
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={submitHandler} className="space-y-6">
         {/* Title */}
         <div className="space-y-2">
           <label htmlFor="title" className="text-sm font-medium">
@@ -189,8 +222,8 @@ export default function EditArticlePage() {
           <input
             id="title"
             type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            value={watch('title')}
+            onChange={(e) => setValue('title', e.target.value)}
             placeholder="Enter article title"
             className="w-full px-3 py-2.5 border border-gray-200 dark:border-white/10 rounded-lg bg-gray-50 dark:bg-black/20 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 dark:text-white placeholder-gray-400 dark:placeholder-gray-600"
             required
@@ -207,8 +240,8 @@ export default function EditArticlePage() {
           </label>
           <textarea
             id="excerpt"
-            value={excerpt}
-            onChange={(e) => setExcerpt(e.target.value)}
+            value={watch('excerpt')}
+            onChange={(e) => setValue('excerpt', e.target.value)}
             placeholder="Enter article excerpt (optional)"
             rows={3}
             className="w-full px-3 py-2.5 border border-gray-200 dark:border-white/10 rounded-lg bg-gray-50 dark:bg-black/20 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 dark:text-white placeholder-gray-400 dark:placeholder-gray-600"
@@ -226,9 +259,9 @@ export default function EditArticlePage() {
               <button
                 key={category.id}
                 type="button"
-                onClick={() => setCategoryId(category.id)}
+                onClick={() => setValue('categoryId', category.id)}
                 className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
-                  categoryId === category.id
+                  watch('categoryId') === category.id
                     ? 'border-primary bg-primary text-white hover:bg-primary/90'
                     : 'border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-200'
                 }`}
@@ -249,7 +282,7 @@ export default function EditArticlePage() {
                 type="button"
                 onClick={() => handleTagToggle(tag.id)}
                 className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
-                  tagIds.includes(tag.id)
+                  (watch('tagIds') || []).includes(tag.id)
                     ? 'border-secondary bg-secondary text-secondary-foreground hover:bg-secondary/80'
                     : 'border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-200'
                 }`}
@@ -263,13 +296,15 @@ export default function EditArticlePage() {
         {/* Content */}
         <div className="space-y-2">
           <RichTextEditor
-            value={content}
-            onChange={setContent}
+            value={watch('content')}
+            onChange={(value) => setValue('content', value)}
             label="Article Content *"
             placeholder="Edit your article content here..."
             required
             onUpload={handleEditorUpload}
-            error={!content ? 'Article content is required' : undefined}
+            error={
+              !watch('content') ? 'Article content is required' : undefined
+            }
           />
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <div>Rich text editor with image upload support</div>
@@ -279,8 +314,8 @@ export default function EditArticlePage() {
                 className="hover:text-foreground"
                 onClick={() => {
                   const newContent =
-                    content + '\n# Heading\n\nYour content here...';
-                  setContent(newContent);
+                    watch('content') + '\n# Heading\n\nYour content here...';
+                  setValue('content', newContent);
                 }}
               >
                 # Heading
@@ -289,8 +324,8 @@ export default function EditArticlePage() {
                 type="button"
                 className="hover:text-foreground"
                 onClick={() => {
-                  const newContent = content + ' **bold text** ';
-                  setContent(newContent);
+                  const newContent = watch('content') + ' **bold text** ';
+                  setValue('content', newContent);
                 }}
               >
                 **Bold**
@@ -299,8 +334,8 @@ export default function EditArticlePage() {
                 type="button"
                 className="hover:text-foreground"
                 onClick={() => {
-                  const newContent = content + ' *italic text* ';
-                  setContent(newContent);
+                  const newContent = watch('content') + ' *italic text* ';
+                  setValue('content', newContent);
                 }}
               >
                 *Italic*
@@ -326,7 +361,7 @@ export default function EditArticlePage() {
             <div>
               <p className="text-xs text-muted-foreground">Status</p>
               <p className="text-lg font-semibold capitalize">
-                {status.toLowerCase()}
+                {watch('status').toLowerCase()}
               </p>
             </div>
             <div>
@@ -362,7 +397,7 @@ export default function EditArticlePage() {
             </Link>
             <button
               type="submit"
-              disabled={isSubmitting || !title || !content}
+              disabled={isSubmitting || !watch('title') || !watch('content')}
               className="px-4 py-2 text-sm font-medium rounded-lg bg-primary text-white hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {isSubmitting ? 'Saving...' : 'Save Changes'}
