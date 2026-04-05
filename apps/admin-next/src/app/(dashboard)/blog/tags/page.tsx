@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Tag as TagIcon,
   Plus,
@@ -9,7 +9,10 @@ import {
   Trash2,
   ChevronLeft,
   ChevronRight,
+  Loader2,
 } from 'lucide-react';
+import { useToastStore } from '@/store/useToastStore';
+import { blogApi } from '@/api';
 
 export default function TagsPage() {
   const [search, setSearch] = useState('');
@@ -17,90 +20,113 @@ export default function TagsPage() {
   const [newTagName, setNewTagName] = useState('');
   const [newTagSlug, setNewTagSlug] = useState('');
   const [newTagDescription, setNewTagDescription] = useState('');
+  const [tags, setTags] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const { addToast } = useToastStore();
 
-  // Mock data
-  const tags = [
-    {
-      id: '1',
-      name: 'Next.js',
-      slug: 'nextjs',
-      description: 'Articles about Next.js framework',
-      articleCount: 8,
-      usageCount: 42,
-      createdAt: '2026-03-15',
-      color: 'bg-blue-100 text-blue-800',
-    },
-    {
-      id: '2',
-      name: 'TypeScript',
-      slug: 'typescript',
-      description: 'Articles about TypeScript programming',
-      articleCount: 12,
-      usageCount: 65,
-      createdAt: '2026-03-18',
-      color: 'bg-indigo-100 text-indigo-800',
-    },
-    {
-      id: '3',
-      name: 'React',
-      slug: 'react',
-      description: 'Articles about React library',
-      articleCount: 15,
-      usageCount: 78,
-      createdAt: '2026-03-20',
-      color: 'bg-cyan-100 text-cyan-800',
-    },
-    {
-      id: '4',
-      name: 'Tailwind CSS',
-      slug: 'tailwind-css',
-      description: 'Articles about Tailwind CSS framework',
-      articleCount: 6,
-      usageCount: 32,
-      createdAt: '2026-03-22',
-      color: 'bg-teal-100 text-teal-800',
-    },
-    {
-      id: '5',
-      name: 'Database',
-      slug: 'database',
-      description: 'Articles about database technologies',
-      articleCount: 9,
-      usageCount: 45,
-      createdAt: '2026-03-25',
-      color: 'bg-emerald-100 text-emerald-800',
-    },
-    {
-      id: '6',
-      name: 'Performance',
-      slug: 'performance',
-      description: 'Articles about web performance optimization',
-      articleCount: 7,
-      usageCount: 38,
-      createdAt: '2026-03-28',
-      color: 'bg-amber-100 text-amber-800',
-    },
-    {
-      id: '7',
-      name: 'Security',
-      slug: 'security',
-      description: 'Articles about web security practices',
-      articleCount: 5,
-      usageCount: 28,
-      createdAt: '2026-03-30',
-      color: 'bg-red-100 text-red-800',
-    },
-    {
-      id: '8',
-      name: 'Architecture',
-      slug: 'architecture',
-      description: 'Articles about software architecture',
-      articleCount: 4,
-      usageCount: 22,
-      createdAt: '2026-04-01',
-      color: 'bg-purple-100 text-purple-800',
-    },
-  ];
+  const fetchTags = async () => {
+    setIsLoading(true);
+    try {
+      const response = await blogApi.getTags();
+      setTags(response.list || []);
+    } catch (error) {
+      console.error('Failed to fetch tags:', error);
+      addToast('error', 'Failed to load tags');
+      // Fallback to mock data
+      setTags(getMockTags());
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchTags();
+  }, []);
+
+  const getMockTags = () => {
+    return [
+      {
+        id: '1',
+        name: 'Next.js',
+        slug: 'nextjs',
+        description: 'Articles about Next.js framework',
+        articleCount: 8,
+        usageCount: 42,
+        createdAt: '2026-03-15',
+        color: 'bg-blue-100 text-blue-800',
+      },
+      {
+        id: '2',
+        name: 'TypeScript',
+        slug: 'typescript',
+        description: 'Articles about TypeScript programming',
+        articleCount: 12,
+        usageCount: 65,
+        createdAt: '2026-03-18',
+        color: 'bg-indigo-100 text-indigo-800',
+      },
+      {
+        id: '3',
+        name: 'React',
+        slug: 'react',
+        description: 'Articles about React library',
+        articleCount: 15,
+        usageCount: 78,
+        createdAt: '2026-03-20',
+        color: 'bg-cyan-100 text-cyan-800',
+      },
+      {
+        id: '4',
+        name: 'Tailwind CSS',
+        slug: 'tailwind-css',
+        description: 'Articles about Tailwind CSS framework',
+        articleCount: 6,
+        usageCount: 32,
+        createdAt: '2026-03-22',
+        color: 'bg-teal-100 text-teal-800',
+      },
+      {
+        id: '5',
+        name: 'Database',
+        slug: 'database',
+        description: 'Articles about database technologies',
+        articleCount: 9,
+        usageCount: 45,
+        createdAt: '2026-03-25',
+        color: 'bg-emerald-100 text-emerald-800',
+      },
+      {
+        id: '6',
+        name: 'Performance',
+        slug: 'performance',
+        description: 'Articles about web performance optimization',
+        articleCount: 7,
+        usageCount: 38,
+        createdAt: '2026-03-28',
+        color: 'bg-amber-100 text-amber-800',
+      },
+      {
+        id: '7',
+        name: 'Security',
+        slug: 'security',
+        description: 'Articles about web security practices',
+        articleCount: 5,
+        usageCount: 28,
+        createdAt: '2026-03-30',
+        color: 'bg-red-100 text-red-800',
+      },
+      {
+        id: '8',
+        name: 'Architecture',
+        slug: 'architecture',
+        description: 'Articles about software architecture',
+        articleCount: 4,
+        usageCount: 22,
+        createdAt: '2026-04-01',
+        color: 'bg-purple-100 text-purple-800',
+      },
+    ];
+  };
 
   const filteredTags = tags.filter((tag) => {
     return !(
@@ -110,28 +136,55 @@ export default function TagsPage() {
     );
   });
 
-  const handleCreateTag = (e: React.FormEvent) => {
+  const handleCreateTag = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Create tag:', {
-      name: newTagName,
-      slug: newTagSlug,
-      description: newTagDescription,
-    });
-    setNewTagName('');
-    setNewTagSlug('');
-    setNewTagDescription('');
-    setIsCreating(false);
+    try {
+      await blogApi.createTag({
+        name: newTagName,
+        slug: newTagSlug,
+        description: newTagDescription,
+      });
+      addToast('success', 'Tag created successfully');
+      setNewTagName('');
+      setNewTagSlug('');
+      setNewTagDescription('');
+      setIsCreating(false);
+      fetchTags(); // Refresh the list
+    } catch (error) {
+      console.error('Failed to create tag:', error);
+      addToast('error', 'Failed to create tag');
+    }
   };
 
-  const handleDeleteTag = (tagId: string) => {
+  const handleDeleteTag = async (tagId: string) => {
     if (
-      window.confirm(
+      !window.confirm(
         'Are you sure you want to delete this tag? This action cannot be undone.',
       )
     ) {
-      console.log('Delete tag:', tagId);
+      return;
+    }
+
+    try {
+      await blogApi.deleteTag(tagId);
+      addToast('success', 'Tag deleted successfully');
+      fetchTags(); // Refresh the list
+    } catch (error) {
+      console.error('Failed to delete tag:', error);
+      addToast('error', 'Failed to delete tag');
     }
   };
+
+  if (isLoading && tags.length === 0) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+          <p className="mt-4 text-sm text-muted-foreground">Loading tags...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -241,7 +294,7 @@ export default function TagsPage() {
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold">
-                {tags.reduce((sum, tag) => sum + tag.articleCount, 0)}
+                {tags.reduce((sum, tag) => sum + (tag.articleCount || 0), 0)}
               </div>
               <div className="text-xs text-muted-foreground">
                 Tagged Articles
@@ -268,7 +321,9 @@ export default function TagsPage() {
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center">
-                    <div className={`p-2 rounded-lg ${tag.color}`}>
+                    <div
+                      className={`p-2 rounded-lg ${tag.color || 'bg-gray-100 text-gray-800'}`}
+                    >
                       <TagIcon className="h-4 w-4" />
                     </div>
                     <div className="ml-3">
@@ -296,10 +351,10 @@ export default function TagsPage() {
                 <div className="flex items-center justify-between text-xs">
                   <div className="flex items-center space-x-3">
                     <span className="px-2 py-1 rounded-full bg-primary/10 text-primary">
-                      {tag.articleCount} articles
+                      {tag.articleCount || 0} articles
                     </span>
                     <span className="px-2 py-1 rounded-full bg-secondary/10 text-secondary">
-                      {tag.usageCount} uses
+                      {tag.usageCount || 0} uses
                     </span>
                   </div>
                   <div className="text-muted-foreground">{tag.createdAt}</div>

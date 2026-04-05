@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import {
   ArrowRight,
   FileText,
@@ -10,16 +11,150 @@ import {
   Users,
   Eye,
   Clock,
+  Loader2,
 } from 'lucide-react';
 import Link from 'next/link';
 import { PageHeader } from '@/components/scaffold/PageHeader';
 import { Card, Badge } from '@/components/UIComponents';
+import { blogApi } from '@/api';
 
 export default function BlogDashboardPage() {
-  const stats = [
+  const [stats, setStats] = useState({
+    totalArticles: 0,
+    totalCategories: 0,
+    totalTags: 0,
+    pendingComments: 0,
+  });
+  const [recentArticles, setRecentArticles] = useState<any[]>([]);
+  const [topArticles, setTopArticles] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const fetchDashboardData = async () => {
+    setIsLoading(true);
+    try {
+      // Fetch all data in parallel
+      const [articlesRes, categoriesRes, tagsRes, commentsRes] =
+        await Promise.all([
+          blogApi.getArticles({ page: 1, pageSize: 5 }),
+          blogApi.getCategories(),
+          blogApi.getTags(),
+          blogApi.getComments({ status: 'PENDING' }),
+        ]);
+
+      setStats({
+        totalArticles: articlesRes.total || 0,
+        totalCategories: categoriesRes.list?.length || 0,
+        totalTags: tagsRes.list?.length || 0,
+        pendingComments: commentsRes.list?.length || 0,
+      });
+
+      // Set recent articles
+      setRecentArticles(articlesRes.list?.slice(0, 3) || []);
+
+      // Set top articles (mock for now)
+      setTopArticles([
+        {
+          title: 'Next.js 15 New Features Explained',
+          views: 1250,
+          growth: '+12%',
+        },
+        {
+          title: 'TypeScript Advanced Type Techniques',
+          views: 890,
+          growth: '+8%',
+        },
+        {
+          title: 'Database Optimization Practices',
+          views: 560,
+          growth: '+5%',
+        },
+      ]);
+    } catch (error) {
+      console.error('Failed to fetch dashboard data:', error);
+      // Fallback to mock data
+      setStats({
+        totalArticles: 0,
+        totalCategories: 0,
+        totalTags: 0,
+        pendingComments: 0,
+      });
+      setRecentArticles(getMockRecentArticles());
+      setTopArticles(getMockTopArticles());
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  const getMockRecentArticles = () => {
+    return [
+      {
+        id: '1',
+        title: 'Next.js 15 New Features Explained',
+        status: 'PUBLISHED',
+        views: 1250,
+        comments: 24,
+        publishedAt: '2026-04-01',
+      },
+      {
+        id: '2',
+        title: 'TypeScript Advanced Type Techniques',
+        status: 'PUBLISHED',
+        views: 890,
+        comments: 18,
+        publishedAt: '2026-03-28',
+      },
+      {
+        id: '3',
+        title: 'Tailwind CSS v4 Usage Guide',
+        status: 'DRAFT',
+        views: 0,
+        comments: 0,
+        publishedAt: null,
+      },
+    ];
+  };
+
+  const getMockTopArticles = () => {
+    return [
+      {
+        title: 'Next.js 15 New Features Explained',
+        views: 1250,
+        growth: '+12%',
+      },
+      {
+        title: 'TypeScript Advanced Type Techniques',
+        views: 890,
+        growth: '+8%',
+      },
+      {
+        title: 'Database Optimization Practices',
+        views: 560,
+        growth: '+5%',
+      },
+    ];
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'PUBLISHED':
+        return <Badge color="green">Published</Badge>;
+      case 'DRAFT':
+        return <Badge color="gray">Draft</Badge>;
+      case 'SCHEDULED':
+        return <Badge color="blue">Scheduled</Badge>;
+      default:
+        return <Badge color="gray">{status}</Badge>;
+    }
+  };
+
+  const dashboardStats = [
     {
       title: 'Total Articles',
-      value: '0',
+      value: stats.totalArticles.toString(),
       description: 'Number of published articles',
       icon: FileText,
       color: 'blue',
@@ -27,7 +162,7 @@ export default function BlogDashboardPage() {
     },
     {
       title: 'Categories',
-      value: '0',
+      value: stats.totalCategories.toString(),
       description: 'Number of article categories',
       icon: FolderTree,
       color: 'green',
@@ -35,7 +170,7 @@ export default function BlogDashboardPage() {
     },
     {
       title: 'Tags',
-      value: '0',
+      value: stats.totalTags.toString(),
       description: 'Number of article tags',
       icon: Tag,
       color: 'purple',
@@ -43,7 +178,7 @@ export default function BlogDashboardPage() {
     },
     {
       title: 'Pending Comments',
-      value: '0',
+      value: stats.pendingComments.toString(),
       description: 'Comments awaiting moderation',
       icon: MessageSquare,
       color: 'amber',
@@ -82,45 +217,18 @@ export default function BlogDashboardPage() {
     },
   ];
 
-  const recentArticles = [
-    {
-      id: '1',
-      title: 'Next.js 15 New Features Explained',
-      status: 'PUBLISHED',
-      views: 1250,
-      comments: 24,
-      publishedAt: '2026-04-01',
-    },
-    {
-      id: '2',
-      title: 'TypeScript Advanced Type Techniques',
-      status: 'PUBLISHED',
-      views: 890,
-      comments: 18,
-      publishedAt: '2026-03-28',
-    },
-    {
-      id: '3',
-      title: 'Tailwind CSS v4 Usage Guide',
-      status: 'DRAFT',
-      views: 0,
-      comments: 0,
-      publishedAt: null,
-    },
-  ];
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'PUBLISHED':
-        return <Badge color="green">Published</Badge>;
-      case 'DRAFT':
-        return <Badge color="gray">Draft</Badge>;
-      case 'SCHEDULED':
-        return <Badge color="blue">Scheduled</Badge>;
-      default:
-        return <Badge color="gray">{status}</Badge>;
-    }
-  };
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+          <p className="mt-4 text-sm text-muted-foreground">
+            Loading blog dashboard...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -136,7 +244,7 @@ export default function BlogDashboardPage() {
 
       {/* Stats Overview */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat) => {
+        {dashboardStats.map((stat) => {
           const Icon = stat.icon;
           return (
             <Link key={stat.title} href={stat.href}>
@@ -248,13 +356,13 @@ export default function BlogDashboardPage() {
                   <td className="py-3 px-4">
                     <div className="flex items-center text-gray-600 dark:text-gray-300">
                       <Eye className="h-4 w-4 mr-1" />
-                      {article.views.toLocaleString()}
+                      {(article.views || 0).toLocaleString()}
                     </div>
                   </td>
                   <td className="py-3 px-4">
                     <div className="flex items-center text-gray-600 dark:text-gray-300">
                       <MessageSquare className="h-4 w-4 mr-1" />
-                      {article.comments}
+                      {article.comments || 0}
                     </div>
                   </td>
                   <td className="py-3 px-4 text-gray-600 dark:text-gray-300">
@@ -271,23 +379,7 @@ export default function BlogDashboardPage() {
       <div className="grid gap-6 lg:grid-cols-2">
         <Card title="Top Performing Articles">
           <div className="space-y-4">
-            {[
-              {
-                title: 'Next.js 15 New Features Explained',
-                views: 1250,
-                growth: '+12%',
-              },
-              {
-                title: 'TypeScript Advanced Type Techniques',
-                views: 890,
-                growth: '+8%',
-              },
-              {
-                title: 'Database Optimization Practices',
-                views: 560,
-                growth: '+5%',
-              },
-            ].map((article, index) => (
+            {topArticles.map((article, index) => (
               <div
                 key={index}
                 className="flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-white/5"

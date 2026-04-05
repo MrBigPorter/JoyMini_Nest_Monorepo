@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   FolderTree,
   Plus,
@@ -9,7 +9,10 @@ import {
   Trash2,
   ChevronLeft,
   ChevronRight,
+  Loader2,
 } from 'lucide-react';
+import { useToastStore } from '@/store/useToastStore';
+import { blogApi } from '@/api';
 
 export default function CategoriesPage() {
   const [search, setSearch] = useState('');
@@ -17,50 +20,74 @@ export default function CategoriesPage() {
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategorySlug, setNewCategorySlug] = useState('');
   const [newCategoryDescription, setNewCategoryDescription] = useState('');
+  const [categories, setCategories] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const { addToast } = useToastStore();
 
-  // Mock data
-  const categories = [
-    {
-      id: '1',
-      name: 'Technology',
-      slug: 'technology',
-      description: 'Articles about technology and programming',
-      articleCount: 12,
-      createdAt: '2026-03-15',
-    },
-    {
-      id: '2',
-      name: 'Lifestyle',
-      slug: 'lifestyle',
-      description: 'Articles about daily life and personal development',
-      articleCount: 8,
-      createdAt: '2026-03-20',
-    },
-    {
-      id: '3',
-      name: 'Learning',
-      slug: 'learning',
-      description: 'Articles about learning techniques and education',
-      articleCount: 5,
-      createdAt: '2026-03-25',
-    },
-    {
-      id: '4',
-      name: 'Database',
-      slug: 'database',
-      description: 'Articles about database design and optimization',
-      articleCount: 7,
-      createdAt: '2026-03-28',
-    },
-    {
-      id: '5',
-      name: 'Architecture',
-      slug: 'architecture',
-      description: 'Articles about system architecture and design patterns',
-      articleCount: 4,
-      createdAt: '2026-04-01',
-    },
-  ];
+  const fetchCategories = async () => {
+    setIsLoading(true);
+    try {
+      const response = await blogApi.getCategories();
+      setCategories(response.list || []);
+    } catch (error) {
+      console.error('Failed to fetch categories:', error);
+      addToast('error', 'Failed to load categories');
+      // Fallback to mock data
+      setCategories(getMockCategories());
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCategories();
+  }, []);
+
+  const getMockCategories = () => {
+    return [
+      {
+        id: '1',
+        name: 'Technology',
+        slug: 'technology',
+        description: 'Articles about technology and programming',
+        articleCount: 12,
+        createdAt: '2026-03-15',
+      },
+      {
+        id: '2',
+        name: 'Lifestyle',
+        slug: 'lifestyle',
+        description: 'Articles about daily life and personal development',
+        articleCount: 8,
+        createdAt: '2026-03-20',
+      },
+      {
+        id: '3',
+        name: 'Learning',
+
+        slug: 'learning',
+        description: 'Articles about learning techniques and education',
+        articleCount: 5,
+        createdAt: '2026-03-25',
+      },
+      {
+        id: '4',
+        name: 'Database',
+        slug: 'database',
+        description: 'Articles about database design and optimization',
+        articleCount: 7,
+        createdAt: '2026-03-28',
+      },
+      {
+        id: '5',
+        name: 'Architecture',
+        slug: 'architecture',
+        description: 'Articles about system architecture and design patterns',
+        articleCount: 4,
+        createdAt: '2026-04-01',
+      },
+    ];
+  };
 
   const filteredCategories = categories.filter((category) => {
     return !(
@@ -70,28 +97,57 @@ export default function CategoriesPage() {
     );
   });
 
-  const handleCreateCategory = (e: React.FormEvent) => {
+  const handleCreateCategory = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Create category:', {
-      name: newCategoryName,
-      slug: newCategorySlug,
-      description: newCategoryDescription,
-    });
-    setNewCategoryName('');
-    setNewCategorySlug('');
-    setNewCategoryDescription('');
-    setIsCreating(false);
+    try {
+      await blogApi.createCategory({
+        name: newCategoryName,
+        slug: newCategorySlug,
+        description: newCategoryDescription,
+      });
+      addToast('success', 'Category created successfully');
+      setNewCategoryName('');
+      setNewCategorySlug('');
+      setNewCategoryDescription('');
+      setIsCreating(false);
+      fetchCategories(); // Refresh the list
+    } catch (error) {
+      console.error('Failed to create category:', error);
+      addToast('error', 'Failed to create category');
+    }
   };
 
-  const handleDeleteCategory = (categoryId: string) => {
+  const handleDeleteCategory = async (categoryId: string) => {
     if (
-      window.confirm(
+      !window.confirm(
         'Are you sure you want to delete this category? This action cannot be undone.',
       )
     ) {
-      console.log('Delete category:', categoryId);
+      return;
+    }
+
+    try {
+      await blogApi.deleteCategory(categoryId);
+      addToast('success', 'Category deleted successfully');
+      fetchCategories(); // Refresh the list
+    } catch (error) {
+      console.error('Failed to delete category:', error);
+      addToast('error', 'Failed to delete category');
     }
   };
+
+  if (isLoading && categories.length === 0) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+          <p className="mt-4 text-sm text-muted-foreground">
+            Loading categories...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -253,7 +309,7 @@ export default function CategoriesPage() {
                     </td>
                     <td className="py-3 px-4">
                       <span className="px-2 py-1 text-xs rounded-full bg-primary/10 text-primary">
-                        {category.articleCount} articles
+                        {category.articleCount || 0} articles
                       </span>
                     </td>
                     <td className="py-3 px-4">

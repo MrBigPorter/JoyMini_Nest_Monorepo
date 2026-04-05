@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   MessageSquare,
   Search,
@@ -13,118 +13,184 @@ import {
   User,
   Calendar,
   FileText,
+  Loader2,
 } from 'lucide-react';
+import { useToastStore } from '@/store/useToastStore';
+import { blogApi } from '@/api';
 
 export default function CommentsPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [articleFilter, setArticleFilter] = useState('all');
+  const [comments, setComments] = useState<any[]>([]);
+  const [articles, setArticles] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const { addToast } = useToastStore();
 
-  // Mock data
-  const comments = [
-    {
-      id: '1',
-      author: 'John Doe',
-      email: 'john@example.com',
-      content:
-        'Great article! Very helpful for understanding Next.js 15 features.',
-      status: 'APPROVED',
-      article: {
+  const fetchComments = async () => {
+    setIsLoading(true);
+    try {
+      const params: any = {};
+      if (statusFilter !== 'all') {
+        params.status = statusFilter;
+      }
+      if (articleFilter !== 'all') {
+        params.articleId = articleFilter;
+      }
+      if (search) {
+        params.search = search;
+      }
+
+      const response = await blogApi.getComments(params);
+      setComments(response.list || []);
+    } catch (error) {
+      console.error('Failed to fetch comments:', error);
+      addToast('error', 'Failed to load comments');
+      // Fallback to mock data
+      setComments(getMockComments());
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchArticles = async () => {
+    try {
+      const response = await blogApi.getArticles({ pageSize: 50 });
+      const articleOptions =
+        response.list?.map((article: any) => ({
+          id: article.id,
+          title: article.title,
+        })) || [];
+      setArticles([{ id: 'all', title: 'All Articles' }, ...articleOptions]);
+    } catch (error) {
+      console.error('Failed to fetch articles:', error);
+      // Fallback to mock articles
+      setArticles(getMockArticles());
+    }
+  };
+
+  useEffect(() => {
+    fetchComments();
+    fetchArticles();
+  }, []);
+
+  useEffect(() => {
+    // Debounce search
+    const timer = setTimeout(() => {
+      fetchComments();
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [search, statusFilter, articleFilter]);
+
+  const getMockComments = () => {
+    return [
+      {
         id: '1',
-        title: 'Next.js 15 New Features Explained',
-        slug: 'nextjs-15-new-features',
+        author: 'John Doe',
+        email: 'john@example.com',
+        content:
+          'Great article! Very helpful for understanding Next.js 15 features.',
+        status: 'APPROVED',
+        article: {
+          id: '1',
+          title: 'Next.js 15 New Features Explained',
+          slug: 'nextjs-15-new-features',
+        },
+        createdAt: '2026-04-03 14:30',
+        ipAddress: '192.168.1.100',
+        userAgent: 'Chrome/120.0.0.0',
       },
-      createdAt: '2026-04-03 14:30',
-      ipAddress: '192.168.1.100',
-      userAgent: 'Chrome/120.0.0.0',
-    },
-    {
-      id: '2',
-      author: 'Jane Smith',
-      email: 'jane@example.com',
-      content:
-        'I have a question about the new caching strategy. Can you elaborate?',
-      status: 'PENDING',
-      article: {
-        id: '1',
-        title: 'Next.js 15 New Features Explained',
-        slug: 'nextjs-15-new-features',
-      },
-      createdAt: '2026-04-03 15:45',
-      ipAddress: '192.168.1.101',
-      userAgent: 'Firefox/119.0.0.0',
-    },
-    {
-      id: '3',
-      author: 'Mike Johnson',
-      email: 'mike@example.com',
-      content:
-        'Thanks for the TypeScript tips! This saved me hours of debugging.',
-      status: 'APPROVED',
-      article: {
+      {
         id: '2',
-        title: 'TypeScript Advanced Type Techniques',
-        slug: 'typescript-advanced-type-tricks',
+        author: 'Jane Smith',
+        email: 'jane@example.com',
+        content:
+          'I have a question about the new caching strategy. Can you elaborate?',
+        status: 'PENDING',
+        article: {
+          id: '1',
+          title: 'Next.js 15 New Features Explained',
+          slug: 'nextjs-15-new-features',
+        },
+        createdAt: '2026-04-03 15:45',
+        ipAddress: '192.168.1.101',
+        userAgent: 'Firefox/119.0.0.0',
       },
-      createdAt: '2026-04-02 09:15',
-      ipAddress: '192.168.1.102',
-      userAgent: 'Safari/17.0.0.0',
-    },
-    {
-      id: '4',
-      author: 'Sarah Wilson',
-      email: 'sarah@example.com',
-      content: 'Spam comment with promotional content.',
-      status: 'SPAM',
-      article: {
+      {
         id: '3',
-        title: 'Tailwind CSS v4 Usage Guide',
-        slug: 'tailwind-css-v4-guide',
+        author: 'Mike Johnson',
+        email: 'mike@example.com',
+        content:
+          'Thanks for the TypeScript tips! This saved me hours of debugging.',
+        status: 'APPROVED',
+        article: {
+          id: '2',
+          title: 'TypeScript Advanced Type Techniques',
+          slug: 'typescript-advanced-type-tricks',
+        },
+        createdAt: '2026-04-02 09:15',
+        ipAddress: '192.168.1.102',
+        userAgent: 'Safari/17.0.0.0',
       },
-      createdAt: '2026-04-01 11:20',
-      ipAddress: '192.168.1.103',
-      userAgent: 'Chrome/120.0.0.0',
-    },
-    {
-      id: '5',
-      author: 'Robert Brown',
-      email: 'robert@example.com',
-      content: 'I found a typo in the database optimization section.',
-      status: 'PENDING',
-      article: {
+      {
         id: '4',
-        title: 'Database Optimization Practices',
-        slug: 'database-optimization-practices',
+        author: 'Sarah Wilson',
+        email: 'sarah@example.com',
+        content: 'Spam comment with promotional content.',
+        status: 'SPAM',
+        article: {
+          id: '3',
+          title: 'Tailwind CSS v4 Usage Guide',
+          slug: 'tailwind-css-v4-guide',
+        },
+        createdAt: '2026-04-01 11:20',
+        ipAddress: '192.168.1.103',
+        userAgent: 'Chrome/120.0.0.0',
       },
-      createdAt: '2026-03-31 16:40',
-      ipAddress: '192.168.1.104',
-      userAgent: 'Edge/120.0.0.0',
-    },
-    {
-      id: '6',
-      author: 'Anonymous',
-      email: null,
-      content: 'Inappropriate comment content.',
-      status: 'REJECTED',
-      article: {
+      {
         id: '5',
-        title: 'Microservices Architecture Design',
-        slug: 'microservices-architecture-design',
+        author: 'Robert Brown',
+        email: 'robert@example.com',
+        content: 'I found a typo in the database optimization section.',
+        status: 'PENDING',
+        article: {
+          id: '4',
+          title: 'Database Optimization Practices',
+          slug: 'database-optimization-practices',
+        },
+        createdAt: '2026-03-31 16:40',
+        ipAddress: '192.168.1.104',
+        userAgent: 'Edge/120.0.0.0',
       },
-      createdAt: '2026-03-30 08:10',
-      ipAddress: '192.168.1.105',
-      userAgent: 'Unknown',
-    },
-  ];
+      {
+        id: '6',
+        author: 'Anonymous',
+        email: null,
+        content: 'Inappropriate comment content.',
+        status: 'REJECTED',
+        article: {
+          id: '5',
+          title: 'Microservices Architecture Design',
+          slug: 'microservices-architecture-design',
+        },
+        createdAt: '2026-03-30 08:10',
+        ipAddress: '192.168.1.105',
+        userAgent: 'Unknown',
+      },
+    ];
+  };
 
-  const articles = [
-    { id: 'all', title: 'All Articles' },
-    { id: '1', title: 'Next.js 15 New Features Explained' },
-    { id: '2', title: 'TypeScript Advanced Type Techniques' },
-    { id: '3', title: 'Tailwind CSS v4 Usage Guide' },
-    { id: '4', title: 'Database Optimization Practices' },
-    { id: '5', title: 'Microservices Architecture Design' },
-  ];
+  const getMockArticles = () => {
+    return [
+      { id: 'all', title: 'All Articles' },
+      { id: '1', title: 'Next.js 15 New Features Explained' },
+      { id: '2', title: 'TypeScript Advanced Type Techniques' },
+      { id: '3', title: 'Tailwind CSS v4 Usage Guide' },
+      { id: '4', title: 'Database Optimization Practices' },
+      { id: '5', title: 'Microservices Architecture Design' },
+    ];
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -172,24 +238,47 @@ export default function CommentsPage() {
     if (statusFilter !== 'all' && comment.status !== statusFilter) {
       return false;
     }
-    return !(articleFilter !== 'all' && comment.article.id !== articleFilter);
+    return !(articleFilter !== 'all' && comment.article?.id !== articleFilter);
   });
 
-  const handleApproveComment = (commentId: string) => {
-    console.log('Approve comment:', commentId);
+  const handleApproveComment = async (commentId: string) => {
+    try {
+      await blogApi.approveComment(commentId);
+      addToast('success', 'Comment approved successfully');
+      fetchComments(); // Refresh the list
+    } catch (error) {
+      console.error('Failed to approve comment:', error);
+      addToast('error', 'Failed to approve comment');
+    }
   };
 
-  const handleRejectComment = (commentId: string) => {
-    console.log('Reject comment:', commentId);
+  const handleRejectComment = async (commentId: string) => {
+    try {
+      await blogApi.rejectComment(commentId);
+      addToast('success', 'Comment rejected successfully');
+      fetchComments(); // Refresh the list
+    } catch (error) {
+      console.error('Failed to reject comment:', error);
+      addToast('error', 'Failed to reject comment');
+    }
   };
 
-  const handleDeleteComment = (commentId: string) => {
+  const handleDeleteComment = async (commentId: string) => {
     if (
-      window.confirm(
+      !window.confirm(
         'Are you sure you want to delete this comment? This action cannot be undone.',
       )
     ) {
-      console.log('Delete comment:', commentId);
+      return;
+    }
+
+    try {
+      await blogApi.deleteComment(commentId);
+      addToast('success', 'Comment deleted successfully');
+      fetchComments(); // Refresh the list
+    } catch (error) {
+      console.error('Failed to delete comment:', error);
+      addToast('error', 'Failed to delete comment');
     }
   };
 
@@ -199,6 +288,19 @@ export default function CommentsPage() {
     pending: comments.filter((c) => c.status === 'PENDING').length,
     spam: comments.filter((c) => c.status === 'SPAM').length,
   };
+
+  if (isLoading && comments.length === 0) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+          <p className="mt-4 text-sm text-muted-foreground">
+            Loading comments...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -279,10 +381,10 @@ export default function CommentsPage() {
               className="w-[140px] px-3 py-2 border border-input rounded-md bg-background text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               <option value="all">All Status</option>
-              <option value="approved">Approved</option>
-              <option value="pending">Pending</option>
-              <option value="spam">Spam</option>
-              <option value="rejected">Rejected</option>
+              <option value="APPROVED">Approved</option>
+              <option value="PENDING">Pending</option>
+              <option value="SPAM">Spam</option>
+              <option value="REJECTED">Rejected</option>
             </select>
             <select
               value={articleFilter}
@@ -377,14 +479,14 @@ export default function CommentsPage() {
                   <div className="flex items-center text-sm text-muted-foreground">
                     <FileText className="mr-2 h-4 w-4" />
                     <a
-                      href={`/blog/articles/${comment.article.slug}`}
+                      href={`/blog/articles/${comment.article?.slug}`}
                       target="_blank"
                       className="text-primary hover:underline"
                     >
-                      {comment.article.title}
+                      {comment.article?.title || 'Unknown Article'}
                     </a>
                   </div>
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center                    space-x-2">
                     <button className="text-xs text-muted-foreground hover:text-foreground">
                       <Eye className="mr-1 h-3 w-3 inline" />
                       View Article

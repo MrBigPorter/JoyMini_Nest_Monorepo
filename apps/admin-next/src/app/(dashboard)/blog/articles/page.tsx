@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   Plus,
@@ -16,122 +16,144 @@ import {
   User,
   FileText,
   MessageSquare,
+  Loader2,
 } from 'lucide-react';
 import { PageHeader } from '@/components/scaffold/PageHeader';
 import { Card, Badge } from '@/components/UIComponents';
+import { useToastStore } from '@/store/useToastStore';
+import { blogApi } from '@/api';
 
 export default function ArticlesPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
+  const [articles, setArticles] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalArticles, setTotalArticles] = useState(0);
+  const { addToast } = useToastStore();
 
-  // Mock data
-  const articles = [
-    {
-      id: '1',
-      title: 'Next.js 15 New Features Explained',
-      slug: 'nextjs-15-new-features',
-      status: 'PUBLISHED',
-      author: 'Admin',
-      category: 'Technology',
-      tags: ['Next.js', 'React'],
-      views: 1250,
-      comments: 24,
-      publishedAt: '2026-04-01',
-      readTime: '8 min',
-    },
-    {
-      id: '2',
-      title: 'TypeScript Advanced Type Techniques',
-      slug: 'typescript-advanced-type-tricks',
-      status: 'PUBLISHED',
-      author: 'Admin',
-      category: 'Technology',
-      tags: ['TypeScript', 'JavaScript'],
-      views: 890,
-      comments: 18,
-      publishedAt: '2026-03-28',
-      readTime: '12 min',
-    },
-    {
-      id: '3',
-      title: 'Tailwind CSS v4 Usage Guide',
-      slug: 'tailwind-css-v4-guide',
-      status: 'DRAFT',
-      author: 'Admin',
-      category: 'Technology',
-      tags: ['CSS', 'Tailwind'],
-      views: 0,
-      comments: 0,
-      publishedAt: null,
-      readTime: '6 min',
-    },
-    {
-      id: '4',
-      title: 'Database Optimization Practices',
-      slug: 'database-optimization-practices',
-      status: 'PUBLISHED',
-      author: 'Admin',
-      category: 'Database',
-      tags: ['PostgreSQL', 'Performance'],
-      views: 560,
-      comments: 12,
-      publishedAt: '2026-03-25',
-      readTime: '15 min',
-    },
-    {
-      id: '5',
-      title: 'Microservices Architecture Design',
-      slug: 'microservices-architecture-design',
-      status: 'SCHEDULED',
-      author: 'Admin',
-      category: 'Architecture',
-      tags: ['Microservices', 'Architecture'],
-      views: 0,
-      comments: 0,
-      publishedAt: '2026-04-10',
-      readTime: '20 min',
-    },
-    {
-      id: '6',
-      title: 'React Server Components Deep Dive',
-      slug: 'react-server-components-deep-dive',
-      status: 'PUBLISHED',
-      author: 'Admin',
-      category: 'Technology',
-      tags: ['React', 'Next.js'],
-      views: 320,
-      comments: 8,
-      publishedAt: '2026-03-20',
-      readTime: '10 min',
-    },
-    {
-      id: '7',
-      title: 'GraphQL vs REST API Comparison',
-      slug: 'graphql-vs-rest-api-comparison',
-      status: 'DRAFT',
-      author: 'Admin',
-      category: 'API',
-      tags: ['GraphQL', 'REST'],
-      views: 0,
-      comments: 0,
-      publishedAt: null,
-      readTime: '14 min',
-    },
-    {
-      id: '8',
-      title: 'Docker Container Best Practices',
-      slug: 'docker-container-best-practices',
-      status: 'PUBLISHED',
-      author: 'Admin',
-      category: 'DevOps',
-      tags: ['Docker', 'Containers'],
-      views: 420,
-      comments: 15,
-      publishedAt: '2026-03-15',
-      readTime: '11 min',
-    },
-  ];
+  const pageSize = 10;
+
+  const fetchArticles = async () => {
+    setIsLoading(true);
+    try {
+      const params: any = {
+        page: currentPage,
+        pageSize,
+      };
+
+      if (statusFilter !== 'all') {
+        params.status = statusFilter;
+      }
+
+      if (search) {
+        params.search = search;
+      }
+
+      const response = await blogApi.getArticles(params);
+      setArticles(response.list || []);
+      setTotalArticles(response.total || 0);
+      setTotalPages(response.totalPages || 1);
+    } catch (error) {
+      console.error('Failed to fetch articles:', error);
+      addToast('error', 'Failed to load articles');
+      // Fallback to mock data
+      setArticles(getMockArticles());
+      setTotalArticles(getMockArticles().length);
+      setTotalPages(1);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchArticles();
+  }, [currentPage, statusFilter]);
+
+  useEffect(() => {
+    // Debounce search
+    const timer = setTimeout(() => {
+      if (currentPage === 1) {
+        fetchArticles();
+      } else {
+        setCurrentPage(1);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const getMockArticles = () => {
+    return [
+      {
+        id: '1',
+        title: 'Next.js 15 New Features Explained',
+        slug: 'nextjs-15-new-features',
+        status: 'PUBLISHED',
+        author: 'Admin',
+        category: 'Technology',
+        tags: ['Next.js', 'React'],
+        views: 1250,
+        comments: 24,
+        publishedAt: '2026-04-01',
+        readTime: '8 min',
+      },
+      {
+        id: '2',
+        title: 'TypeScript Advanced Type Techniques',
+        slug: 'typescript-advanced-type-tricks',
+        status: 'PUBLISHED',
+        author: 'Admin',
+        category: 'Technology',
+        tags: ['TypeScript', 'JavaScript'],
+        views: 890,
+        comments: 18,
+        publishedAt: '2026-03-28',
+        readTime: '12 min',
+      },
+      {
+        id: '3',
+        title: 'Tailwind CSS v4 Usage Guide',
+        slug: 'tailwind-css-v4-guide',
+        status: 'DRAFT',
+        author: 'Admin',
+        category: 'Technology',
+        tags: ['CSS', 'Tailwind'],
+        views: 0,
+        comments: 0,
+        publishedAt: null,
+        readTime: '6 min',
+      },
+      {
+        id: '4',
+        title: 'Database Optimization Practices',
+        slug: 'database-optimization-practices',
+        status: 'PUBLISHED',
+        author: 'Admin',
+        category: 'Database',
+        tags: ['PostgreSQL', 'Performance'],
+        views: 560,
+        comments: 12,
+        publishedAt: '2026-03-25',
+        readTime: '15 min',
+      },
+      {
+        id: '5',
+        title: 'Microservices Architecture Design',
+        slug: 'microservices-architecture-design',
+        status: 'SCHEDULED',
+        author: 'Admin',
+        category: 'Architecture',
+        tags: ['Microservices', 'Architecture'],
+        views: 0,
+        comments: 0,
+        publishedAt: '2026-04-10',
+        readTime: '20 min',
+      },
+    ];
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -146,13 +168,44 @@ export default function ArticlesPage() {
     }
   };
 
+  const handleDeleteArticle = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this article?')) {
+      return;
+    }
+
+    try {
+      await blogApi.deleteArticle(id);
+      addToast('success', 'Article deleted successfully');
+      fetchArticles(); // Refresh the list
+    } catch (error) {
+      console.error('Failed to delete article:', error);
+      addToast('error', 'Failed to delete article');
+    }
+  };
+
+  const handlePublishArticle = async (id: string) => {
+    try {
+      await blogApi.publishArticle(id);
+      addToast('success', 'Article published successfully');
+      fetchArticles(); // Refresh the list
+    } catch (error) {
+      console.error('Failed to publish article:', error);
+      addToast('error', 'Failed to publish article');
+    }
+  };
+
+  const handleUnpublishArticle = async (id: string) => {
+    try {
+      await blogApi.unpublishArticle(id);
+      addToast('success', 'Article unpublished successfully');
+      fetchArticles(); // Refresh the list
+    } catch (error) {
+      console.error('Failed to unpublish article:', error);
+      addToast('error', 'Failed to unpublish article');
+    }
+  };
+
   const filteredArticles = articles.filter((article) => {
-    if (search && !article.title.toLowerCase().includes(search.toLowerCase())) {
-      return false;
-    }
-    if (statusFilter !== 'all' && article.status !== statusFilter) {
-      return false;
-    }
     if (categoryFilter !== 'all' && article.category !== categoryFilter) {
       return false;
     }
@@ -160,6 +213,22 @@ export default function ArticlesPage() {
   });
 
   const categories = Array.from(new Set(articles.map((a) => a.category)));
+
+  const publishedArticles = articles.filter((a) => a.status === 'PUBLISHED');
+  const totalViews = articles.reduce((sum, a) => sum + (a.views || 0), 0);
+
+  if (isLoading && articles.length === 0) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+          <p className="mt-4 text-sm text-muted-foreground">
+            Loading articles...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -269,11 +338,11 @@ export default function ArticlesPage() {
                       <div className="flex items-center gap-3 mt-2">
                         <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
                           <User className="h-3 w-3 mr-1" />
-                          {article.author}
+                          {article.author || 'Admin'}
                         </div>
                         <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
                           <Calendar className="h-3 w-3 mr-1" />
-                          {article.readTime}
+                          {article.readTime || '5 min'}
                         </div>
                       </div>
                     </div>
@@ -283,12 +352,12 @@ export default function ArticlesPage() {
                   </td>
                   <td className="py-4 px-4">
                     <span className="px-2.5 py-1 text-xs rounded-full bg-gray-100 dark:bg-white/5 text-gray-700 dark:text-gray-300">
-                      {article.category}
+                      {article.category || 'Uncategorized'}
                     </span>
                   </td>
                   <td className="py-4 px-4">
                     <div className="flex flex-wrap gap-1">
-                      {article.tags.map((tag) => (
+                      {(article.tags || []).map((tag: string) => (
                         <span
                           key={tag}
                           className="px-2 py-1 text-xs rounded-md border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-black/20 text-gray-600 dark:text-gray-300"
@@ -303,7 +372,7 @@ export default function ArticlesPage() {
                       <div className="flex items-center text-sm">
                         <Eye className="h-3 w-3 mr-1 text-gray-400" />
                         <span className="text-gray-700 dark:text-gray-300">
-                          {article.views.toLocaleString()}
+                          {(article.views || 0).toLocaleString()}
                         </span>
                         <span className="text-gray-500 dark:text-gray-400 ml-1">
                           views
@@ -312,7 +381,7 @@ export default function ArticlesPage() {
                       <div className="flex items-center text-sm">
                         <MessageSquare className="h-3 w-3 mr-1 text-gray-400" />
                         <span className="text-gray-700 dark:text-gray-300">
-                          {article.comments}
+                          {article.comments || 0}
                         </span>
                         <span className="text-gray-500 dark:text-gray-400 ml-1">
                           comments
@@ -340,13 +409,31 @@ export default function ArticlesPage() {
                         Preview
                       </Link>
                       <Link
-                        href={`/blog/articles/${article.id}/edit`}
+                        href={`/dashboard/blog/articles/${article.id}/edit`}
                         className="inline-flex items-center px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-gray-700 dark:text-gray-300"
                       >
                         <Edit className="h-4 w-4 mr-1" />
                         Edit
                       </Link>
-                      <button className="inline-flex items-center px-3 py-1.5 text-sm rounded-lg border border-red-200 dark:border-red-500/20 bg-red-50 dark:bg-red-500/10 hover:bg-red-100 dark:hover:bg-red-500/20 transition-colors text-red-600 dark:text-red-400">
+                      {article.status === 'PUBLISHED' ? (
+                        <button
+                          onClick={() => handleUnpublishArticle(article.id)}
+                          className="inline-flex items-center px-3 py-1.5 text-sm rounded-lg border border-amber-200 dark:border-amber-500/20 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 transition-colors text-amber-600 dark:text-amber-400"
+                        >
+                          Unpublish
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handlePublishArticle(article.id)}
+                          className="inline-flex items-center px-3 py-1.5 text-sm rounded-lg border border-green-200 dark:border-green-500/20 bg-green-50 dark:bg-green-500/10 hover:bg-green-100 dark:hover:bg-green-500/20 transition-colors text-green-600 dark:text-green-400"
+                        >
+                          Publish
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleDeleteArticle(article.id)}
+                        className="inline-flex items-center px-3 py-1.5 text-sm rounded-lg border border-red-200 dark:border-red-500/20 bg-red-50 dark:bg-red-500/10 hover:bg-red-100 dark:hover:bg-red-500/20 transition-colors text-red-600 dark:text-red-400"
+                      >
                         <Trash2 className="h-4 w-4 mr-1" />
                         Delete
                       </button>
@@ -361,26 +448,41 @@ export default function ArticlesPage() {
         {/* Pagination */}
         <div className="flex items-center justify-between mt-6 pt-6 border-t border-gray-100 dark:border-white/5">
           <div className="text-sm text-gray-500 dark:text-gray-400">
-            Showing 1 to {filteredArticles.length} of {filteredArticles.length}{' '}
+            Showing {(currentPage - 1) * pageSize + 1} to{' '}
+            {Math.min(currentPage * pageSize, totalArticles)} of {totalArticles}{' '}
             entries
           </div>
           <div className="flex items-center space-x-2">
             <button
+              onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
               className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
-            <button className="px-3 py-1.5 text-sm rounded-lg border border-primary-500 bg-primary-50 dark:bg-primary-500/10 text-primary-600 dark:text-primary-400">
-              1
-            </button>
-            <button className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
-              2
-            </button>
-            <button className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
-              3
-            </button>
-            <button className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              const pageNum = i + 1;
+              return (
+                <button
+                  key={pageNum}
+                  onClick={() => setCurrentPage(pageNum)}
+                  className={`px-3 py-1.5 text-sm rounded-lg border ${
+                    currentPage === pageNum
+                      ? 'border-primary-500 bg-primary-50 dark:bg-primary-500/10 text-primary-600 dark:text-primary-400'
+                      : 'border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors'
+                  }`}
+                >
+                  {pageNum}
+                </button>
+              );
+            })}
+            <button
+              onClick={() =>
+                setCurrentPage((prev) => Math.min(totalPages, prev + 1))
+              }
+              disabled={currentPage === totalPages}
+              className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
               <ChevronRight className="h-4 w-4" />
             </button>
           </div>
@@ -396,7 +498,7 @@ export default function ArticlesPage() {
                 Total Articles
               </p>
               <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">
-                {articles.length}
+                {totalArticles}
               </p>
             </div>
             <div className="p-3 rounded-full bg-blue-100 dark:bg-blue-500/10">
@@ -411,7 +513,7 @@ export default function ArticlesPage() {
                 Published Articles
               </p>
               <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">
-                {articles.filter((a) => a.status === 'PUBLISHED').length}
+                {publishedArticles.length}
               </p>
             </div>
             <div className="p-3 rounded-full bg-green-100 dark:bg-green-500/10">
@@ -426,7 +528,7 @@ export default function ArticlesPage() {
                 Total Views
               </p>
               <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">
-                {articles.reduce((sum, a) => sum + a.views, 0).toLocaleString()}
+                {totalViews.toLocaleString()}
               </p>
             </div>
             <div className="p-3 rounded-full bg-purple-100 dark:bg-purple-500/10">
