@@ -23,6 +23,29 @@ interface PageHeaderProps {
   buttonPrefixIcon?: React.ReactNode;
   /** 是否显示按钮图标，默认为 true */
   showButtonIcon?: boolean;
+  /** 按钮禁用状态 */
+  buttonDisabled?: boolean;
+  /** 次要按钮文本 */
+  secondaryButtonText?: string;
+  /** 次要按钮点击事件 */
+  secondaryButtonOnClick?: () => void;
+  /** 第三按钮文本 */
+  tertiaryButtonText?: string;
+  /** 第三按钮点击事件 */
+  tertiaryButtonOnClick?: () => void;
+  /** 第三按钮图标 */
+  tertiaryButtonIcon?: React.ReactNode;
+  /** 第三按钮变体 */
+  tertiaryButtonVariant?:
+    | 'outline'
+    | 'secondary'
+    | 'ghost'
+    | 'link'
+    | 'primary'
+    | 'danger'
+    | 'success'
+    | 'warning'
+    | 'info';
 }
 
 export const PageHeader: React.FC<PageHeaderProps> = ({
@@ -35,6 +58,13 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
   buttonOnClick,
   buttonPrefixIcon = <Plus size={18} />,
   showButtonIcon = true,
+  buttonDisabled = false,
+  secondaryButtonText,
+  secondaryButtonOnClick,
+  tertiaryButtonText,
+  tertiaryButtonOnClick,
+  tertiaryButtonIcon,
+  tertiaryButtonVariant = 'primary',
 }) => {
   return (
     // 1. 移除了 justify-between，改用 gap-4 控制间距
@@ -57,8 +87,36 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
       <div className="flex items-center gap-2 shrink-0">
         {action}
 
+        {/* 次要按钮 */}
+        {secondaryButtonText && secondaryButtonOnClick && (
+          <Button
+            onClick={secondaryButtonOnClick}
+            variant="outline"
+            className="gap-2.5"
+          >
+            {secondaryButtonText}
+          </Button>
+        )}
+
+        {/* 第三按钮 */}
+        {tertiaryButtonText && tertiaryButtonOnClick && (
+          <Button
+            onClick={tertiaryButtonOnClick}
+            variant={tertiaryButtonVariant}
+            className="gap-2.5"
+          >
+            {tertiaryButtonIcon && tertiaryButtonIcon}
+            {tertiaryButtonText}
+          </Button>
+        )}
+
+        {/* 主要按钮 */}
         {buttonText && buttonOnClick && (
-          <Button onClick={buttonOnClick} className="gap-2.5">
+          <Button
+            onClick={buttonOnClick}
+            disabled={buttonDisabled}
+            className="gap-2.5"
+          >
             {showButtonIcon && buttonPrefixIcon}
             {buttonText}
           </Button>

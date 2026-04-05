@@ -18,6 +18,7 @@ import {
 import { useToastStore } from '@/store/useToastStore';
 import { Card, Badge } from '@/components/UIComponents';
 import { blogApi } from '@/api';
+import { PageHeader } from '@/components/scaffold/PageHeader';
 
 export default function CommentsPage() {
   const [search, setSearch] = useState('');
@@ -193,16 +194,10 @@ export default function CommentsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">
-            Comment Management
-          </h1>
-          <p className="text-muted-foreground mt-2">
-            Moderate and manage user comments on blog articles
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="Comment Management"
+        description="Moderate and manage user comments on blog articles"
+      />
 
       {/* Stats */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

@@ -106,6 +106,10 @@ export default function BlogDashboardPage() {
       description: 'Number of published articles',
       icon: FileText,
       color: 'blue',
+      colorClasses: {
+        bg: 'bg-blue-100 dark:bg-blue-500/10',
+        text: 'text-blue-600 dark:text-blue-400',
+      },
       href: '/blog/articles',
     },
     {
@@ -114,6 +118,10 @@ export default function BlogDashboardPage() {
       description: 'Number of article categories',
       icon: FolderTree,
       color: 'green',
+      colorClasses: {
+        bg: 'bg-green-100 dark:bg-green-500/10',
+        text: 'text-green-600 dark:text-green-400',
+      },
       href: '/blog/categories',
     },
     {
@@ -122,6 +130,10 @@ export default function BlogDashboardPage() {
       description: 'Number of article tags',
       icon: Tag,
       color: 'purple',
+      colorClasses: {
+        bg: 'bg-purple-100 dark:bg-purple-500/10',
+        text: 'text-purple-600 dark:text-purple-400',
+      },
       href: '/blog/tags',
     },
     {
@@ -130,6 +142,10 @@ export default function BlogDashboardPage() {
       description: 'Comments awaiting moderation',
       icon: MessageSquare,
       color: 'amber',
+      colorClasses: {
+        bg: 'bg-amber-100 dark:bg-amber-500/10',
+        text: 'text-amber-600 dark:text-amber-400',
+      },
       href: '/blog/comments',
     },
   ];
@@ -209,12 +225,8 @@ export default function BlogDashboardPage() {
                       {stat.description}
                     </p>
                   </div>
-                  <div
-                    className={`p-3 rounded-full bg-${stat.color}-100 dark:bg-${stat.color}-500/10`}
-                  >
-                    <Icon
-                      className={`h-6 w-6 text-${stat.color}-600 dark:text-${stat.color}-400`}
-                    />
+                  <div className={`p-3 rounded-full ${stat.colorClasses.bg}`}>
+                    <Icon className={`h-6 w-6 ${stat.colorClasses.text}`} />
                   </div>
                 </div>
               </Card>

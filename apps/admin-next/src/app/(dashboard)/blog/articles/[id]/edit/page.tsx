@@ -2,12 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { ArrowLeft, Save, Eye, Send, Loader2 } from 'lucide-react';
+import { Save, Send, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRequest } from 'ahooks';
 import { useToastStore } from '@/store/useToastStore';
 import { uploadApi, blogApi } from '@/api';
 import { RichTextEditor } from '@/components/blog/RichTextEditor';
+import { PageHeader } from '@/components/scaffold/PageHeader';
 
 export default function EditArticlePage() {
   const router = useRouter();
@@ -125,6 +126,14 @@ export default function EditArticlePage() {
     }
   };
 
+  const handleSaveClick = () => {
+    // 创建一个模拟的form event来调用handleSubmit
+    const mockEvent = {
+      preventDefault: () => {},
+    } as React.FormEvent;
+    handleSubmit(mockEvent);
+  };
+
   const handleTagToggle = (tagId: string) => {
     setTagIds((prev) =>
       prev.includes(tagId)
@@ -148,49 +157,28 @@ export default function EditArticlePage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-          <Link
-            href="/blog/articles"
-            className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Articles
-          </Link>
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Edit Article</h1>
-            <p className="text-muted-foreground mt-2">
-              Edit blog article: {mockArticle.slug}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center space-x-2">
-          <button
-            type="button"
-            onClick={() => setStatus('DRAFT')}
-            className={`px-4 py-2 text-sm font-medium rounded-md border ${
-              status === 'DRAFT'
-                ? 'bg-primary text-primary-foreground border-primary'
-                : 'border-input bg-background hover:bg-accent hover:text-accent-foreground'
-            }`}
-          >
-            <Save className="mr-2 h-4 w-4 inline" />
-            Save Draft
-          </button>
-          <button
-            type="button"
-            onClick={() => setStatus('PUBLISHED')}
-            className={`px-4 py-2 text-sm font-medium rounded-md ${
-              status === 'PUBLISHED'
-                ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-                : 'border border-input bg-background hover:bg-accent hover:text-accent-foreground'
-            }`}
-          >
-            <Send className="mr-2 h-4 w-4 inline" />
-            {status === 'PUBLISHED' ? 'Update Article' : 'Publish Changes'}
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="Edit Article"
+        description={`Edit blog article: ${mockArticle.slug}`}
+        buttonText="Save Changes"
+        buttonOnClick={handleSaveClick}
+        buttonPrefixIcon={
+          isSubmitting ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Save size={18} />
+          )
+        }
+        buttonDisabled={isSubmitting || !title || !content}
+        secondaryButtonText="Cancel"
+        secondaryButtonOnClick={() => router.push('/blog/articles')}
+        tertiaryButtonText={
+          status === 'PUBLISHED' ? 'Update Article' : 'Publish Changes'
+        }
+        tertiaryButtonOnClick={() => setStatus('PUBLISHED')}
+        tertiaryButtonIcon={<Send size={18} />}
+        tertiaryButtonVariant="success"
+      />
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Title */}
@@ -239,9 +227,9 @@ export default function EditArticlePage() {
                 key={category.id}
                 type="button"
                 onClick={() => setCategoryId(category.id)}
-                className={`px-3 py-1.5 text-sm rounded-md border ${
+                className={`inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 px-3 py-1.5 border ${
                   categoryId === category.id
-                    ? 'bg-primary text-primary-foreground border-primary'
+                    ? 'bg-primary text-primary-foreground border-primary hover:bg-primary/90'
                     : 'border-input bg-background hover:bg-accent hover:text-accent-foreground'
                 }`}
               >
@@ -260,9 +248,9 @@ export default function EditArticlePage() {
                 key={tag.id}
                 type="button"
                 onClick={() => handleTagToggle(tag.id)}
-                className={`px-3 py-1.5 text-sm rounded-md border ${
+                className={`inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 px-3 py-1.5 border ${
                   tagIds.includes(tag.id)
-                    ? 'bg-secondary text-secondary-foreground border-secondary'
+                    ? 'bg-secondary text-secondary-foreground border-secondary hover:bg-secondary/80'
                     : 'border-input bg-background hover:bg-accent hover:text-accent-foreground'
                 }`}
               >

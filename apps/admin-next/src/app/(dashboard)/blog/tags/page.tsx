@@ -14,6 +14,7 @@ import {
 import { useToastStore } from '@/store/useToastStore';
 import { Card } from '@/components/UIComponents';
 import { blogApi } from '@/api';
+import { PageHeader } from '@/components/scaffold/PageHeader';
 
 export default function TagsPage() {
   const [search, setSearch] = useState('');
@@ -102,21 +103,13 @@ export default function TagsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Tag Management</h1>
-          <p className="text-muted-foreground mt-2">
-            Manage blog tags for categorizing and organizing articles
-          </p>
-        </div>
-        <button
-          onClick={() => setIsCreating(true)}
-          className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90"
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          New Tag
-        </button>
-      </div>
+      <PageHeader
+        title="Tag Management"
+        description="Manage blog tags for categorizing and organizing articles"
+        buttonText="New Tag"
+        buttonOnClick={() => setIsCreating(true)}
+        buttonPrefixIcon={<Plus size={18} />}
+      />
 
       {/* Create Tag Form */}
       {isCreating && (
@@ -236,7 +229,19 @@ export default function TagsPage() {
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center">
                     <div
-                      className={`p-2 rounded-lg ${tag.color || 'bg-gray-100 text-gray-800'}`}
+                      className={`p-2 rounded-lg ${
+                        tag.color === 'blue'
+                          ? 'bg-blue-100 text-blue-800'
+                          : tag.color === 'green'
+                            ? 'bg-green-100 text-green-800'
+                            : tag.color === 'purple'
+                              ? 'bg-purple-100 text-purple-800'
+                              : tag.color === 'red'
+                                ? 'bg-red-100 text-red-800'
+                                : tag.color === 'amber'
+                                  ? 'bg-amber-100 text-amber-800'
+                                  : 'bg-gray-100 text-gray-800'
+                      }`}
                     >
                       <TagIcon className="h-4 w-4" />
                     </div>
