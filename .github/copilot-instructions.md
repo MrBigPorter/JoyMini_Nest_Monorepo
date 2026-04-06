@@ -48,14 +48,93 @@
 **🎯 Next Steps (按优先级排序)**:
 
 ✅ **API Integration Completed**: All blog management pages now use real API (dashboard, article list, categories, tags, comments)
+✅ **分类下拉修复**: `blog_category_dropdown_fix.md` - 已完成
+✅ **预览页面修复**: `blog_preview_fix.md` - 已完成
+✅ **表单重构**: `blog-form-improvement.md` - 已完成
+✅ **模态框优化**: `blog-modal-improvement.md` - 已完成
 
-1. **✅ 分类下拉修复**: `blog_category_dropdown_fix.md` - 文章列表页分类筛选修复
-2. **✅ 预览页面修复**: `blog_preview_fix.md` - 博客预览404页面开发
-3. **✅ 表单重构**: `blog-form-improvement.md` - 统一表单组件与Zod验证
-4. **✅ 模态框优化**: `blog-modal-improvement.md` - 管理操作模态框化
-5. **TanStack Query**: Integrate for better data fetching and caching
-6. **Testing**: Test all blog management functionality with running API server
-7. **Public Blog Pages**: Start development of public blog display pages
+---
+
+## 🚀 下阶段: Frontend-Blog 独立博客客户端开发
+
+### 📅 项目开发安排表 (总时间: 7天)
+
+| 阶段      | 时间  | 任务                                              | 负责人 | 依赖文档                        |
+| --------- | ----- | ------------------------------------------------- | ------ | ------------------------------- |
+| **Day 1** | Day 1 | 项目初始化与基础配置                              |        | `FRONTEND_BLOG_ARCHITECTURE.md` |
+|           |       | ✅ 初始化 Next.js 15 项目                         |        |                                 |
+|           |       | ✅ Monorepo Turbo 集成配置                        |        |                                 |
+|           |       | ✅ TypeScript / ESLint / Prettier 继承配置        |        |                                 |
+|           |       | ✅ Tailwind CSS 主题继承 (复用admin-next)         |        |                                 |
+|           |       | ✅ 环境变量配置                                   |        |                                 |
+| **Day 2** | Day 2 | API层与核心工具                                   |        |                                 |
+|           |       | ✅ 移植admin-next http.ts 完整HTTP客户端          |        |                                 |
+|           |       | ✅ BlogApi 26+ 接口定义                           |        |                                 |
+|           |       | ✅ 类型定义 Article/Category/Tag/Comment          |        |                                 |
+|           |       | ✅ 工具函数移植 (sanitizeHtml / seo / dateFormat) |        |                                 |
+| **Day 3** | Day 3 | 核心页面开发                                      |        |                                 |
+|           |       | ✅ 首页布局 (Header/Footer/Sidebar)               |        |                                 |
+|           |       | ✅ 文章列表页                                     |        |                                 |
+|           |       | ✅ 文章详情页                                     |        |                                 |
+|           |       | ✅ 分类列表页                                     |        |                                 |
+| **Day 4** | Day 4 | 功能页面开发                                      |        |                                 |
+|           |       | ✅ 标签云页面                                     |        |                                 |
+|           |       | ✅ 搜索页面                                       |        |                                 |
+|           |       | ✅ 评论系统                                       |        |                                 |
+|           |       | ✅ 多语言i18n系统                                 |        |                                 |
+| **Day 5** | Day 5 | 优化与适配                                        |        |                                 |
+|           |       | ✅ 响应式布局适配                                 |        |                                 |
+|           |       | ✅ 深色/浅色主题切换                              |        |                                 |
+|           |       | ✅ SEO优化 (Meta标签/结构化数据)                  |        |                                 |
+|           |       | ✅ 性能优化 (图片/懒加载/缓存)                    |        |                                 |
+| **Day 6** | Day 6 | Capacitor App 集成                                |        |                                 |
+|           |       | ✅ Capacitor.js 配置                              |        |                                 |
+|           |       | ✅ iOS 项目初始化                                 |        |                                 |
+|           |       | ✅ Android 项目初始化                             |        |                                 |
+|           |       | ✅ 原生功能集成 (分享/推送)                       |        |                                 |
+| **Day 7** | Day 7 | 测试与发布                                        |        |                                 |
+|           |       | ✅ Web版本部署测试                                |        |                                 |
+|           |       | ✅ App 打包测试                                   |        |                                 |
+|           |       | ✅ 功能验收测试                                   |        |                                 |
+|           |       | ✅ 性能测试与优化                                 |        |                                 |
+
+### 🎯 每日交付标准
+
+✅ **Day 1 结束**: `yarn dev` 可以正常启动，页面可以访问
+✅ **Day 2 结束**: 所有API接口可以正常调用，返回真实数据
+✅ **Day 3 结束**: 核心页面可以浏览，文章可以正常显示
+✅ **Day 4 结束**: 所有功能完整可用，用户可以完整浏览博客
+✅ **Day 5 结束**: 多设备/多主题/多语言 完美适配
+✅ **Day 6 结束**: Xcode / Android Studio 可以正常编译运行App
+✅ **Day 7 结束**: 可以部署到生产环境
+
+---
+
+### ⚠️ 开发注意事项
+
+1. **100% 代码复用优先**: 所有可以从admin-next复制的代码直接复制，不要重写
+2. **保持视觉一致性**: 颜色/间距/圆角/阴影完全与admin-next保持一致
+3. **不重复发明轮子**: 所有组件优先使用 @repo/ui 共享组件库
+4. **遵循架构文档**: 严格按照 `docs/blog/FRONTEND_BLOG_ARCHITECTURE.md` 开发
+5. **静态导出兼容**: 所有代码必须兼容 `next export` 静态导出，不使用SSG/ISR特性
+
+---
+
+## 📊 当前进度
+
+1. **✅ 架构设计**: 100% 完成 (FRONTEND_BLOG_ARCHITECTURE.md v1.3.0)
+2. **✅ 后端API**: 100% 完成
+3. **✅ 管理后台**: 100% 完成
+4. **🔄 前端博客**: 0% 开始 (下一步立即执行)
+5. **🔄 App打包**: 未开始
+
+---
+
+### 🚀 立即执行任务
+
+1. **TanStack Query**: Integrate for better data fetching and caching
+2. **Testing**: Test all blog management functionality with running API server
+3. **✅ 初始化 frontend-blog 项目**: 创建 `apps/frontend-blog` 目录
 
 ---
 
