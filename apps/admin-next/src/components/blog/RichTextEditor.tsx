@@ -123,6 +123,7 @@ export const RichTextEditor = ({
         ) : (
           <ReactQuill
             ref={quillRef}
+            key={value}
             theme="snow"
             value={value || ''}
             onChange={onChange}

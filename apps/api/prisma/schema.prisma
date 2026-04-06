@@ -1548,11 +1548,14 @@ model BlogCategory {
 
 /// 博客标签
 model BlogTag {
-  id        String        @id @default(cuid()) @db.VarChar(32)
-  name      String        @db.VarChar(50)
-  slug      String        @unique @db.VarChar(50)
-  articles  BlogArticle[] @relation("BlogArticleTags")
-  createdAt DateTime      @default(now()) @map("created_at")
+  id          String        @id @default(cuid()) @db.VarChar(32)
+  name        String        @db.VarChar(50)
+  slug        String        @unique @db.VarChar(50)
+  color       String?       @default("#3b82f6") @db.VarChar(7)
+  description String?       @db.VarChar(300)
+  articles    BlogArticle[] @relation("BlogArticleTags")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @default(now()) @updatedAt @map("updated_at")
   
   @@index([slug], map: "idx_blog_tag_slug")
   @@map("blog_tags")

@@ -38,7 +38,6 @@ export const MediaUploaderRoot: React.FC<MediaUploaderProps> = ({
 
     // 防止死循环：只有当本地状态为空，且有初始值时才初始化
     if (!urlList.length && !fileList.length) return;
-    if (preview.length > 0) return;
 
     const fromUrl: PreviewFile[] = urlList.map((u, idx) => ({
       id: `url-${idx}`,

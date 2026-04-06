@@ -2,9 +2,9 @@
 
 import React, { useEffect } from 'react';
 import { Modal, Button } from '@/components/UIComponents';
-import { FormTextField, FormTextareaField } from '@repo/ui/form';
+import { Form, FormTextField, FormTextareaField } from '@repo/ui/form';
 import { useBlogForm } from '@/hooks/useBlogForm';
-import { categorySchema, type CategoryFormInputs } from '@/schema/blog';
+import { categorySchema } from '@/schema/blog';
 import { blogApi } from '@/api';
 import { useRequest } from 'ahooks';
 
@@ -36,6 +36,9 @@ export const BlogCategoryModal: React.FC<BlogCategoryModalProps> = ({
         onSuccessAction();
         onCloseAction();
       },
+      onError: (error) => {
+        console.error('Failed to create category:', error);
+      },
     },
   );
 
@@ -47,10 +50,13 @@ export const BlogCategoryModal: React.FC<BlogCategoryModalProps> = ({
         onSuccessAction();
         onCloseAction();
       },
+      onError: (error) => {
+        console.error('Failed to update category:', error);
+      },
     },
   );
 
-  const { register, submitHandler, isLoading, errors, reset } = useBlogForm({
+  const form = useBlogForm({
     schema: categorySchema,
     defaultValues: editingCategory || {
       name: '',
@@ -65,6 +71,7 @@ export const BlogCategoryModal: React.FC<BlogCategoryModalProps> = ({
       }
     },
   });
+  const { register, submitHandler, isLoading, reset } = form;
 
   useEffect(() => {
     if (isOpen) {
@@ -81,38 +88,40 @@ export const BlogCategoryModal: React.FC<BlogCategoryModalProps> = ({
       title={`${isEditing ? 'Edit' : 'Create'} Category`}
       size="md"
     >
-      <form onSubmit={submitHandler} className="space-y-4">
-        <FormTextField
-          label="Name"
-          placeholder="Enter category name"
-          required
-          {...register('name')}
-        />
-        <FormTextField
-          label="Slug"
-          placeholder="e.g., news-articles"
-          required
-          {...register('slug')}
-        />
-        <FormTextareaField
-          label="Description"
-          placeholder="Optional description"
-          {...register('description')}
-        />
-        <div className="flex justify-end space-x-3 pt-4">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onCloseAction}
-            disabled={loading}
-          >
-            Cancel
-          </Button>
-          <Button type="submit" isLoading={loading}>
-            {isEditing ? 'Update' : 'Create'}
-          </Button>
-        </div>
-      </form>
+      <Form {...form}>
+        <form onSubmit={submitHandler} className="space-y-4">
+          <FormTextField
+            label="Name"
+            placeholder="Enter category name"
+            required
+            {...register('name')}
+          />
+          <FormTextField
+            label="Slug"
+            placeholder="e.g., news-articles"
+            required
+            {...register('slug')}
+          />
+          <FormTextareaField
+            label="Description"
+            placeholder="Optional description"
+            {...register('description')}
+          />
+          <div className="flex justify-end space-x-3 pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onCloseAction}
+              disabled={loading}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" isLoading={loading}>
+              {isEditing ? 'Update' : 'Create'}
+            </Button>
+          </div>
+        </form>
+      </Form>
     </Modal>
   );
 };

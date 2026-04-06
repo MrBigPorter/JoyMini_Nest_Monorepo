@@ -53,7 +53,7 @@ export class BlogService {
         slug,
         content: dto.content,
         excerpt: dto.excerpt,
-        coverImage: dto.coverImage,
+        coverImage: dto.featuredImage,
         status: dto.status || ArticleStatus.DRAFT,
         authorId,
         categoryId: dto.categoryId,
@@ -92,7 +92,7 @@ export class BlogService {
         slug,
         content: dto.content,
         excerpt: dto.excerpt,
-        coverImage: dto.coverImage,
+        coverImage: dto.featuredImage,
         status: dto.status,
         categoryId: dto.categoryId,
         tags:
@@ -145,6 +145,7 @@ export class BlogService {
     categoryId?: string;
     tagId?: string;
     authorId?: string;
+    search?: string;
   }) {
     const {
       page = 1,
@@ -153,10 +154,20 @@ export class BlogService {
       categoryId,
       tagId,
       authorId,
+      search,
     } = params;
     const skip = (page - 1) * pageSize;
 
     const where: any = {};
+
+    if (search && search.trim()) {
+      const searchTerm = search.trim();
+      where.OR = [
+        { title: { contains: searchTerm, mode: 'insensitive' } },
+        { content: { contains: searchTerm, mode: 'insensitive' } },
+        { excerpt: { contains: searchTerm, mode: 'insensitive' } },
+      ];
+    }
 
     if (status) {
       where.status = status;
@@ -187,6 +198,7 @@ export class BlogService {
           title: true,
           slug: true,
           excerpt: true,
+          content: true,
           coverImage: true,
           status: true,
           viewCount: true,

@@ -1,71 +1,42 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  FolderTree,
-  Plus,
-  Search,
-  Edit,
-  Trash2,
-  ChevronLeft,
-  ChevronRight,
-  Loader2,
-  Filter,
-  Download,
-} from 'lucide-react';
+import { FolderTree, Edit, Trash2 } from 'lucide-react';
 import { useToastStore } from '@/store/useToastStore';
 import { Card } from '@/components/UIComponents';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { blogApi } from '@/api';
 import { PageHeader } from '@/components/scaffold/PageHeader';
 import { SmartTable } from '@/components/scaffold/SmartTable';
-import { Pagination } from '@/components/scaffold/Pagination';
-import { Button } from '@repo/ui';
-import { Modal } from '@/components/UIComponents';
-import type { ProColumns } from '@/components/scaffold/SmartTable/types';
+import { Button, ModalManager } from '@repo/ui';
+import { BlogCategoryModal } from '@/views/blog/BlogCategoryModal';
+import type {
+  ProColumns,
+  ActionType,
+} from '@/components/scaffold/SmartTable/types';
+import type { FormSchema } from '@/type/search';
 
 export default function CategoriesPage() {
-  const [search, setSearch] = useState('');
-  const [isCreating, setIsCreating] = useState(false);
-  const [newCategoryName, setNewCategoryName] = useState('');
-  const [newCategorySlug, setNewCategorySlug] = useState('');
-  const [newCategoryDescription, setNewCategoryDescription] = useState('');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<null | {
+    id: string;
+    name: string;
+    slug: string;
+    description?: string;
+  }>(null);
   const { addToast } = useToastStore();
   const router = useRouter();
   const queryClient = useQueryClient();
-
-  // 查询分类列表
-  const {
-    data: categoriesData,
-    isLoading,
-    error,
-  } = useQuery({
-    queryKey: ['blog', 'categories'],
-    queryFn: async () => {
-      const response = await blogApi.getCategories();
-      return response;
-    },
-  });
-
-  // 从响应中提取数据
-  const categories = categoriesData?.list || [];
-
-  // 错误处理
-  useEffect(() => {
-    if (error) {
-      console.error('Failed to fetch categories:', error);
-      addToast('error', 'Failed to load categories');
-    }
-  }, [error, addToast]);
+  const actionRef = useRef<ActionType>(null);
 
   // 删除分类 mutation
   const deleteCategoryMutation = useMutation({
     mutationFn: (categoryId: string) => blogApi.deleteCategory(categoryId),
     onSuccess: () => {
       addToast('success', 'Category deleted successfully');
-      queryClient.invalidateQueries({ queryKey: ['blog', 'categories'] });
+      actionRef.current?.reload();
     },
     onError: (error: any) => {
       console.error('Failed to delete category:', error);
@@ -74,15 +45,58 @@ export default function CategoriesPage() {
   });
 
   // SmartTable列定义
-  const handleDeleteCategory = async (categoryId: string) => {
-    if (
-      !window.confirm(
-        'Are you sure you want to delete this category? This action cannot be undone.',
-      )
-    ) {
-      return;
-    }
-    deleteCategoryMutation.mutate(categoryId);
+  const handleDeleteCategory = async (category: any) => {
+    ModalManager.open({
+      title: 'Delete Category?',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      renderChildren: (
+        <div className="space-y-3">
+          <p>
+            Are you sure you want to delete category{' '}
+            <span className="font-bold text-primary-600">{category.name}</span>?
+          </p>
+
+          <div className="text-sm text-amber-600 bg-amber-50 p-3 rounded-lg border border-amber-200">
+            <div className="font-semibold mb-1">
+              ⚠️ This action cannot be undone.
+            </div>
+            {category.articleCount > 0 && (
+              <div className="mt-2">
+                This category contains{' '}
+                <span className="font-bold">{category.articleCount}</span>{' '}
+                articles.
+                <br />
+                These articles will be moved to &#34;Uncategorized&#34;.
+              </div>
+            )}
+          </div>
+
+          <div className="text-xs text-gray-500 mt-2 bg-gray-50 p-2 rounded">
+            <div className="font-medium">Category Details:</div>
+            <div>
+              Slug: <code>/{category.slug}</code>
+            </div>
+            {category.description && (
+              <div className="mt-1">Description: {category.description}</div>
+            )}
+          </div>
+        </div>
+      ),
+      onConfirm: () => {
+        deleteCategoryMutation.mutate(category.id);
+      },
+    });
+  };
+
+  const handleEditCategory = (category: any) => {
+    setEditingCategory({
+      id: category.id,
+      name: category.name,
+      slug: category.slug,
+      description: category.description,
+    });
+    setIsModalOpen(true);
   };
 
   const categoryColumns: ProColumns[] = [
@@ -137,13 +151,17 @@ export default function CategoriesPage() {
       title: 'Actions',
       render: (dom, category: any) => (
         <div className="flex justify-end gap-2">
-          <Button variant="outline" size="sm">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleEditCategory(category)}
+          >
             <Edit className="h-4 w-4" />
           </Button>
           <Button
             variant="outline"
             size="sm"
-            onClick={() => handleDeleteCategory(category.id)}
+            onClick={() => handleDeleteCategory(category)}
             className="text-destructive hover:text-destructive"
           >
             <Trash2 className="h-4 w-4" />
@@ -153,46 +171,34 @@ export default function CategoriesPage() {
     },
   ];
 
-  const filteredCategories = categories.filter((category) => {
-    return !(
-      search &&
-      !category.name.toLowerCase().includes(search.toLowerCase()) &&
-      !category.description.toLowerCase().includes(search.toLowerCase())
-    );
-  });
+  // 搜索表单配置
+  const searchSchema: FormSchema[] = [
+    {
+      type: 'input',
+      key: 'search',
+      label: 'Search',
+      placeholder: 'Search by name or description...',
+    },
+  ];
 
-  const handleCreateCategory = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // 请求分类数据
+  const requestCategories = useCallback(async (params: any) => {
+    console.log('requestCategories called with params:', params);
     try {
-      await blogApi.createCategory({
-        name: newCategoryName,
-        slug: newCategorySlug,
-        description: newCategoryDescription,
+      const response = await blogApi.getCategories({
+        search: params.search,
       });
-      addToast('success', 'Category created successfully');
-      setNewCategoryName('');
-      setNewCategorySlug('');
-      setNewCategoryDescription('');
-      setIsCreating(false);
-      queryClient.invalidateQueries({ queryKey: ['blog', 'categories'] }); // Refresh the list
+      console.log('requestCategories response:', response);
+      return {
+        data: response.list || [],
+        total: response.list?.length || 0,
+        success: true,
+      };
     } catch (error) {
-      console.error('Failed to create category:', error);
-      addToast('error', 'Failed to create category');
+      console.error('Failed to fetch categories:', error);
+      return { data: [], total: 0, success: false };
     }
-  };
-
-  if (isLoading && categories.length === 0) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-          <p className="mt-4 text-sm text-muted-foreground">
-            Loading categories...
-          </p>
-        </div>
-      </div>
-    );
-  }
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -203,135 +209,37 @@ export default function CategoriesPage() {
         onBack={() => router.push('/blog')}
         breadcrumbs={['Blog', 'Categories']}
         buttonText="New Category"
-        buttonOnClick={() => setIsCreating(true)}
+        buttonOnClick={() => {
+          setEditingCategory(null);
+          setIsModalOpen(true);
+        }}
       />
 
-      {/* Create Category Form */}
-      {isCreating && (
-        <Card title="Create New Category">
-          <form onSubmit={handleCreateCategory} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label htmlFor="name" className="text-sm font-medium">
-                  Category Name *
-                </label>
-                <input
-                  id="name"
-                  type="text"
-                  value={newCategoryName}
-                  onChange={(e) => setNewCategoryName(e.target.value)}
-                  placeholder="Enter category name"
-                  className="w-full px-3 py-2 border border-gray-200 dark:border-white/10 rounded-lg bg-gray-50 dark:bg-black/20 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 dark:text-white placeholder-gray-400 dark:placeholder-gray-600"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <label htmlFor="slug" className="text-sm font-medium">
-                  URL Slug *
-                </label>
-                <input
-                  id="slug"
-                  type="text"
-                  value={newCategorySlug}
-                  onChange={(e) => setNewCategorySlug(e.target.value)}
-                  placeholder="Enter URL slug"
-                  className="w-full px-3 py-2 border border-gray-200 dark:border-white/10 rounded-lg bg-gray-50 dark:bg-black/20 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 dark:text-white placeholder-gray-400 dark:placeholder-gray-600"
-                  required
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <label htmlFor="description" className="text-sm font-medium">
-                Description
-              </label>
-              <textarea
-                id="description"
-                value={newCategoryDescription}
-                onChange={(e) => setNewCategoryDescription(e.target.value)}
-                placeholder="Enter category description (optional)"
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-200 dark:border-white/10 rounded-lg bg-gray-50 dark:bg-black/20 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 dark:text-white placeholder-gray-400 dark:placeholder-gray-600"
-              />
-            </div>
-            <div className="flex items-center justify-end space-x-4 pt-4 border-t">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setIsCreating(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={!newCategoryName || !newCategorySlug}
-              >
-                Create Category
-              </Button>
-            </div>
-          </form>
-        </Card>
-      )}
-
-      {/* Search */}
-      <Card>
-        <div className="flex flex-col md:flex-row gap-4 items-center">
-          <div className="flex-1 w-full">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search categories by name or description..."
-                className="w-full pl-9 pr-3 py-2.5 border border-gray-200 dark:border-white/10 rounded-lg bg-gray-50 dark:bg-black/20 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 dark:text-white placeholder-gray-400 dark:placeholder-gray-600"
-              />
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm">
-              <Filter className="h-4 w-4 mr-2" />
-              Filter
-            </Button>
-            <Button variant="outline" size="sm">
-              <Download className="h-4 w-4 mr-2" />
-              Export
-            </Button>
-          </div>
-        </div>
-      </Card>
+      <BlogCategoryModal
+        isOpen={isModalOpen}
+        onCloseAction={() => setIsModalOpen(false)}
+        editingCategory={editingCategory}
+        onSuccessAction={() => {
+          actionRef.current?.reload();
+        }}
+      />
 
       {/* Categories Table */}
       <Card title="Category List">
-        <div className="mb-4">
-          <p className="text-sm text-muted-foreground">
-            Total {filteredCategories.length} categories
-          </p>
-        </div>
         <SmartTable
-          dataSource={filteredCategories}
-          columns={categoryColumns}
+          ref={actionRef}
           rowKey="id"
+          columns={categoryColumns}
+          request={requestCategories}
+          searchSchema={searchSchema}
+          headerTitle={
+            <div className="flex items-center gap-2">
+              <FolderTree className="text-primary-500" size={20} />
+              <span className="font-semibold text-lg">Categories</span>
+            </div>
+          }
         />
       </Card>
-
-      {/* Pagination */}
-      <div className="flex items-center justify-between">
-        <div className="text-sm text-muted-foreground">
-          Showing 1 to {filteredCategories.length} of{' '}
-          {filteredCategories.length} categories
-        </div>
-        <div className="flex items-center space-x-2">
-          <Button variant="outline" size="sm" disabled>
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button variant="outline" size="sm">
-            1
-          </Button>
-          <Button variant="outline" size="sm">
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
 
       {/* Usage Tips */}
       <Card title="Category Usage Tips">

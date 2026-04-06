@@ -16,13 +16,13 @@ import { useToastStore } from '@/store/useToastStore';
 import { Card } from '@/components/UIComponents';
 import { blogApi } from '@/api';
 import { PageHeader } from '@/components/scaffold/PageHeader';
+import { BlogTagModal } from '@/views/blog/BlogTagModal';
+import { ModalManager } from '@repo/ui';
 
 export default function TagsPage() {
   const [search, setSearch] = useState('');
-  const [isCreating, setIsCreating] = useState(false);
-  const [newTagName, setNewTagName] = useState('');
-  const [newTagSlug, setNewTagSlug] = useState('');
-  const [newTagDescription, setNewTagDescription] = useState('');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingTag, setEditingTag] = useState<any>(null);
   const [tags, setTags] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { addToast } = useToastStore();
@@ -31,7 +31,7 @@ export default function TagsPage() {
   const fetchTags = async () => {
     setIsLoading(true);
     try {
-      const response = await blogApi.getTags();
+      const response = await blogApi.getTags({ search });
       setTags(response.list || []);
     } catch (error) {
       console.error('Failed to fetch tags:', error);
@@ -42,54 +42,42 @@ export default function TagsPage() {
   };
 
   useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchTags();
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const filteredTags = tags;
+
+  const handleEditTag = (tag: any) => {
+    setEditingTag(tag);
+    setIsModalOpen(true);
+  };
+
+  const handleModalSuccess = () => {
     fetchTags();
-  }, []);
-
-  const filteredTags = tags.filter((tag) => {
-    return !(
-      search &&
-      !tag.name.toLowerCase().includes(search.toLowerCase()) &&
-      !tag.description.toLowerCase().includes(search.toLowerCase())
-    );
-  });
-
-  const handleCreateTag = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      await blogApi.createTag({
-        name: newTagName,
-        slug: newTagSlug,
-        description: newTagDescription,
-      });
-      addToast('success', 'Tag created successfully');
-      setNewTagName('');
-      setNewTagSlug('');
-      setNewTagDescription('');
-      setIsCreating(false);
-      fetchTags(); // Refresh the list
-    } catch (error) {
-      console.error('Failed to create tag:', error);
-      addToast('error', 'Failed to create tag');
-    }
   };
 
   const handleDeleteTag = async (tagId: string) => {
-    if (
-      !window.confirm(
+    ModalManager.open({
+      title: '',
+      content:
         'Are you sure you want to delete this tag? This action cannot be undone.',
-      )
-    ) {
-      return;
-    }
-
-    try {
-      await blogApi.deleteTag(tagId);
-      addToast('success', 'Tag deleted successfully');
-      fetchTags(); // Refresh the list
-    } catch (error) {
-      console.error('Failed to delete tag:', error);
-      addToast('error', 'Failed to delete tag');
-    }
+      confirmText: 'Delete',
+      onCancel: () => {},
+      onConfirm: async () => {
+        try {
+          await blogApi.deleteTag(tagId);
+          addToast('success', 'Tag deleted successfully');
+          fetchTags(); // Refresh the list
+        } catch (error) {
+          console.error('Failed to delete tag:', error);
+          addToast('error', 'Failed to delete tag');
+        }
+      },
+    });
   };
 
   if (isLoading && tags.length === 0) {
@@ -112,76 +100,12 @@ export default function TagsPage() {
         onBack={() => router.push('/blog')}
         breadcrumbs={['Blog', 'Tags']}
         buttonText="New Tag"
-        buttonOnClick={() => setIsCreating(true)}
+        buttonOnClick={() => {
+          setEditingTag(null);
+          setIsModalOpen(true);
+        }}
         buttonPrefixIcon={<Plus size={18} />}
       />
-
-      {/* Create Tag Form */}
-      {isCreating && (
-        <Card title="Create New Tag">
-          <form onSubmit={handleCreateTag} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label htmlFor="name" className="text-sm font-medium">
-                  Tag Name *
-                </label>
-                <input
-                  id="name"
-                  type="text"
-                  value={newTagName}
-                  onChange={(e) => setNewTagName(e.target.value)}
-                  placeholder="Enter tag name"
-                  className="w-full px-3 py-2 border border-gray-200 dark:border-white/10 rounded-lg bg-gray-50 dark:bg-black/20 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 dark:text-white placeholder-gray-400 dark:placeholder-gray-600"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <label htmlFor="slug" className="text-sm font-medium">
-                  URL Slug *
-                </label>
-                <input
-                  id="slug"
-                  type="text"
-                  value={newTagSlug}
-                  onChange={(e) => setNewTagSlug(e.target.value)}
-                  placeholder="Enter URL slug"
-                  className="w-full px-3 py-2 border border-gray-200 dark:border-white/10 rounded-lg bg-gray-50 dark:bg-black/20 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 dark:text-white placeholder-gray-400 dark:placeholder-gray-600"
-                  required
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <label htmlFor="description" className="text-sm font-medium">
-                Description
-              </label>
-              <textarea
-                id="description"
-                value={newTagDescription}
-                onChange={(e) => setNewTagDescription(e.target.value)}
-                placeholder="Enter tag description (optional)"
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-200 dark:border-white/10 rounded-lg bg-gray-50 dark:bg-black/20 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 dark:text-white placeholder-gray-400 dark:placeholder-gray-600"
-              />
-            </div>
-            <div className="flex items-center justify-end space-x-4 pt-4 border-t">
-              <button
-                type="button"
-                onClick={() => setIsCreating(false)}
-                className="px-4 py-2 text-sm font-medium rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-200 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={!newTagName || !newTagSlug}
-                className="px-4 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Create Tag
-              </button>
-            </div>
-          </form>
-        </Card>
-      )}
 
       {/* Search and Stats */}
       <Card>
@@ -255,7 +179,10 @@ export default function TagsPage() {
                   </div>
                 </div>
                 <div className="flex items-center space-x-1">
-                  <button className="p-1 text-muted-foreground hover:text-foreground">
+                  <button
+                    onClick={() => handleEditTag(tag)}
+                    className="p-1 text-muted-foreground hover:text-foreground"
+                  >
                     <Edit className="h-4 w-4" />
                   </button>
                   <button
@@ -334,6 +261,13 @@ export default function TagsPage() {
           </li>
         </ul>
       </Card>
+
+      <BlogTagModal
+        isOpen={isModalOpen}
+        onCloseAction={() => setIsModalOpen(false)}
+        editingTag={editingTag}
+        onSuccessAction={handleModalSuccess}
+      />
     </div>
   );
 }

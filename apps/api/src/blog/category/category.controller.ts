@@ -6,6 +6,7 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
@@ -19,8 +20,8 @@ export class CategoryController {
 
   @Get()
   @ApiOperation({ summary: '获取分类列表 (公开)' })
-  async getCategories() {
-    return this.categoryService.getCategories();
+  async getCategories(@Query('search') search?: string) {
+    return this.categoryService.getCategories(true, search);
   }
 
   @Get(':id')

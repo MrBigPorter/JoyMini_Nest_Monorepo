@@ -1131,26 +1131,28 @@ export const blogApi = {
     tagId?: string;
     search?: string;
   }) => {
-    const data = await http.get<{
-      list: any[];
+    const response = await http.get<{
+      items: any[];
       total: number;
       page: number;
       pageSize: number;
+      totalPages: number;
     }>('/v1/admin/blog/articles', params);
     return {
-      list: data.list,
-      total: data.total,
-      page: data.page,
-      pageSize: data.pageSize,
-      totalPages: Math.max(
-        1,
-        Math.ceil(data.total / Math.max(data.pageSize, 1)),
-      ),
+      list: response.items,
+      total: response.total,
+      page: response.page,
+      pageSize: response.pageSize,
+      totalPages: response.totalPages,
     };
   },
 
   getArticle: async (id: string) => {
     return await http.get<any>(`/v1/admin/blog/articles/${id}`);
+  },
+
+  getArticleBySlug: async (slug: string) => {
+    return await http.get<any>(`/v1/admin/blog/articles/slug/${slug}`);
   },
 
   createArticle: async (payload: {
@@ -1177,7 +1179,7 @@ export const blogApi = {
       featuredImage?: string;
     },
   ) => {
-    return await http.put<any>(`/v1/admin/blog/articles/${id}`, payload);
+    return await http.patch<any>(`/v1/admin/blog/articles/${id}`, payload);
   },
 
   deleteArticle: async (id: string) => {
@@ -1198,21 +1200,24 @@ export const blogApi = {
     pageSize?: number;
     search?: string;
   }) => {
-    const data = await http.get<{
-      list: any[];
-      total: number;
-      page: number;
-      pageSize: number;
-    }>('/v1/admin/blog/categories', params);
+    const response = await http.get<any>('/v1/admin/blog/categories', params);
+    // Backend may return an array or a paginated object
+    const isArray = Array.isArray(response);
+    const list = isArray ? response : response.list || [];
+    const total = isArray ? response.length : response.total || list.length;
+    const page = isArray ? 1 : response.page || 1;
+    const pageSize = isArray ? total : response.pageSize || total;
+    // Map categories to include articleCount from _count.articles
+    const mappedList = list.map((category: any) => ({
+      ...category,
+      articleCount: category._count?.articles || 0,
+    }));
     return {
-      list: data.list,
-      total: data.total,
-      page: data.page,
-      pageSize: data.pageSize,
-      totalPages: Math.max(
-        1,
-        Math.ceil(data.total / Math.max(data.pageSize, 1)),
-      ),
+      list: mappedList,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.max(1, Math.ceil(total / Math.max(pageSize, 1))),
     };
   },
 
@@ -1238,7 +1243,7 @@ export const blogApi = {
       parentId?: string;
     },
   ) => {
-    return await http.put<any>(`/v1/admin/blog/categories/${id}`, payload);
+    return await http.patch<any>(`/v1/admin/blog/categories/${id}`, payload);
   },
 
   deleteCategory: async (id: string) => {
@@ -1251,21 +1256,24 @@ export const blogApi = {
     pageSize?: number;
     search?: string;
   }) => {
-    const data = await http.get<{
-      list: any[];
-      total: number;
-      page: number;
-      pageSize: number;
-    }>('/v1/admin/blog/tags', params);
+    const response = await http.get<any>('/v1/admin/blog/tags', params);
+    // Backend may return an array or a paginated object
+    const isArray = Array.isArray(response);
+    const list = isArray ? response : response.list || [];
+    const total = isArray ? response.length : response.total || list.length;
+    const page = isArray ? 1 : response.page || 1;
+    const pageSize = isArray ? total : response.pageSize || total;
+    // Map tags to include articleCount from _count.articles
+    const mappedList = list.map((tag: any) => ({
+      ...tag,
+      articleCount: tag._count?.articles || 0,
+    }));
     return {
-      list: data.list,
-      total: data.total,
-      page: data.page,
-      pageSize: data.pageSize,
-      totalPages: Math.max(
-        1,
-        Math.ceil(data.total / Math.max(data.pageSize, 1)),
-      ),
+      list: mappedList,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.max(1, Math.ceil(total / Math.max(pageSize, 1))),
     };
   },
 
@@ -1276,6 +1284,7 @@ export const blogApi = {
   createTag: async (payload: {
     name: string;
     slug?: string;
+    color?: string;
     description?: string;
   }) => {
     return await http.post<any>('/v1/admin/blog/tags', payload);
@@ -1289,7 +1298,7 @@ export const blogApi = {
       description?: string;
     },
   ) => {
-    return await http.put<any>(`/v1/admin/blog/tags/${id}`, payload);
+    return await http.patch<any>(`/v1/admin/blog/tags/${id}`, payload);
   },
 
   deleteTag: async (id: string) => {

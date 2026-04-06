@@ -8,30 +8,90 @@ export class TagService {
   /**
    * 创建标签
    */
-  async createTag(data: { name: string; slug?: string }) {
+
+  async createTag(data: {
+    name: string;
+    slug?: string;
+    color?: string;
+    description?: string;
+  }) {
+    // Validate input
+    if (!data.name || data.name.trim().length === 0) {
+      throw new Error('Tag name is required');
+    }
+
+    if (data.name.trim().length > 100) {
+      throw new Error('Tag name must be 100 characters or less');
+    }
+
+    if (data.color && !/^#[0-9A-Fa-f]{6}$/.test(data.color)) {
+      throw new Error('Invalid color format. Use hex format like #3b82f6');
+    }
+
+    if (data.description && data.description.length > 300) {
+      throw new Error('Tag description must be 300 characters or less');
+    }
+
+    // Generate slug if not provided
     let slug = data.slug;
     if (!slug) {
-      slug = data.name.toLowerCase().replace(/[^\w\s\u4e00-\u9fa5]/g, '');
+      // Convert to kebab-case and remove special characters
+      slug = data.name
+        .toLowerCase()
+        .replace(/[^\w\s\u4e00-\u9fa5]/g, '') // Remove special characters
+        .replace(/\s+/g, '-') // Replace spaces with hyphens
+        .replace(/-+/g, '-') // Replace multiple hyphens with single hyphen
+        .replace(/^-+|-+$/g, ''); // Remove leading/trailing hyphens
+    }
+
+    // Ensure slug is not empty after processing
+    if (!slug) {
+      throw new Error('Unable to generate slug from tag name');
+    }
+
+    // Check for duplicate slug and append number if needed
+    let finalSlug = slug;
+    let counter = 1;
+    while (true) {
+      const existingTag = await this.prisma.blogTag.findUnique({
+        where: { slug: finalSlug },
+      });
+
+      if (!existingTag) {
+        break;
+      }
+
+      finalSlug = `${slug}-${counter}`;
+      counter++;
     }
 
     return this.prisma.blogTag.create({
       data: {
-        name: data.name,
-        slug,
+        name: data.name.trim(),
+        slug: finalSlug,
+        color: data.color || undefined,
+        description: data.description?.trim(),
       },
-    });
+    } as any);
   }
 
   /**
    * 获取标签列表
    */
-  async getTags(includeCount = true, sortBy = 'articles') {
+  async getTags(includeCount = true, sortBy = 'articles', search?: string) {
     const orderBy =
       sortBy === 'articles'
         ? { articles: { _count: 'desc' as const } }
         : { name: 'asc' as const };
 
+    const where: any = {};
+    if (search && search.trim()) {
+      const searchTerm = search.trim();
+      where.name = { contains: searchTerm, mode: 'insensitive' };
+    }
+
     return this.prisma.blogTag.findMany({
+      where,
       orderBy,
       include: includeCount
         ? {

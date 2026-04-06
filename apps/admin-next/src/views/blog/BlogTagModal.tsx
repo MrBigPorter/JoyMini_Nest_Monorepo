@@ -2,9 +2,9 @@
 
 import React, { useEffect } from 'react';
 import { Modal, Button } from '@/components/UIComponents';
-import { FormTextField, FormTextareaField } from '@repo/ui/form';
+import { Form, FormTextField, FormTextareaField } from '@repo/ui/form';
 import { useBlogForm } from '@/hooks/useBlogForm';
-import { tagSchema, type TagFormInputs } from '@/schema/blog';
+import { tagSchema } from '@/schema/blog';
 import { blogApi } from '@/api';
 import { useRequest } from 'ahooks';
 
@@ -50,7 +50,7 @@ export const BlogTagModal: React.FC<BlogTagModalProps> = ({
     },
   );
 
-  const { register, submitHandler, isLoading, errors, reset } = useBlogForm({
+  const form = useBlogForm({
     schema: tagSchema,
     defaultValues: editingTag || {
       name: '',
@@ -59,20 +59,20 @@ export const BlogTagModal: React.FC<BlogTagModalProps> = ({
     },
     onSubmit: async (data) => {
       if (isEditing && editingTag) {
-        await updateTag(editingTag.id, data);
+        updateTag(editingTag.id, data);
       } else {
-        await createTag(data);
+        createTag(data);
       }
     },
   });
 
   useEffect(() => {
     if (isOpen) {
-      reset(editingTag || { name: '', color: '#3b82f6', description: '' });
+      form.reset(editingTag || { name: '', color: '#3b82f6', description: '' });
     }
-  }, [isOpen, editingTag, reset]);
+  }, [isOpen, editingTag, form]);
 
-  const loading = isCreating || isUpdating || isLoading;
+  const loading = isCreating || isUpdating || form.formState.isSubmitting;
 
   return (
     <Modal
@@ -81,37 +81,35 @@ export const BlogTagModal: React.FC<BlogTagModalProps> = ({
       title={`${isEditing ? 'Edit' : 'Create'} Tag`}
       size="md"
     >
-      <form onSubmit={submitHandler} className="space-y-4">
-        <FormTextField
-          label="Name"
-          placeholder="Enter tag name"
-          required
-          {...register('name')}
-        />
-        <FormTextField
-          label="Color"
-          placeholder="#3b82f6"
-          {...register('color')}
-        />
-        <FormTextareaField
-          label="Description"
-          placeholder="Optional description"
-          {...register('description')}
-        />
-        <div className="flex justify-end space-x-3 pt-4">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onCloseAction}
-            disabled={loading}
-          >
-            Cancel
-          </Button>
-          <Button type="submit" isLoading={loading}>
-            {isEditing ? 'Update' : 'Create'}
-          </Button>
-        </div>
-      </form>
+      <Form {...form}>
+        <form onSubmit={form.submitHandler} className="space-y-4">
+          <FormTextField
+            name="name"
+            label="Name"
+            placeholder="Enter tag name"
+            required
+          />
+          <FormTextField name="color" label="Color" placeholder="#3b82f6" />
+          <FormTextareaField
+            name="description"
+            label="Description"
+            placeholder="Optional description"
+          />
+          <div className="flex justify-end space-x-3 pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onCloseAction}
+              disabled={loading}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" isLoading={loading}>
+              {isEditing ? 'Update' : 'Create'}
+            </Button>
+          </div>
+        </form>
+      </Form>
     </Modal>
   );
 };

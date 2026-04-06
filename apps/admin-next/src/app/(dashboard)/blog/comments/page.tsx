@@ -8,6 +8,7 @@ import {
   Check,
   X,
   Trash2,
+  Edit,
   Eye,
   ChevronLeft,
   ChevronRight,
@@ -20,6 +21,7 @@ import { useToastStore } from '@/store/useToastStore';
 import { Card, Badge } from '@/components/UIComponents';
 import { blogApi } from '@/api';
 import { PageHeader } from '@/components/scaffold/PageHeader';
+import { BlogCommentModal } from '@/views/blog/BlogCommentModal';
 
 export default function CommentsPage() {
   const [search, setSearch] = useState('');
@@ -28,6 +30,8 @@ export default function CommentsPage() {
   const [comments, setComments] = useState<any[]>([]);
   const [articles, setArticles] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingComment, setEditingComment] = useState<any>(null);
   const { addToast } = useToastStore();
   const router = useRouter();
 
@@ -174,6 +178,15 @@ export default function CommentsPage() {
     }
   };
 
+  const handleEditComment = (comment: any) => {
+    setEditingComment(comment);
+    setIsModalOpen(true);
+  };
+
+  const handleModalSuccess = () => {
+    fetchComments();
+  };
+
   const stats = {
     total: comments.length,
     approved: comments.filter((c) => c.status === 'APPROVED').length,
@@ -246,6 +259,13 @@ export default function CommentsPage() {
             <X className="h-8 w-8 text-red-500/50" />
           </div>
         </Card>
+
+        <BlogCommentModal
+          isOpen={isModalOpen}
+          onCloseAction={() => setIsModalOpen(false)}
+          editingComment={editingComment}
+          onSuccessAction={handleModalSuccess}
+        />
       </div>
 
       {/* Search and Filters */}
@@ -349,6 +369,13 @@ export default function CommentsPage() {
                     </>
                   )}
                   <button
+                    onClick={() => handleEditComment(comment)}
+                    className="p-1.5 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-200 transition-colors"
+                    title="Edit"
+                  >
+                    <Edit className="h-4 w-4" />
+                  </button>
+                  <button
                     onClick={() => handleDeleteComment(comment.id)}
                     className="p-1.5 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors"
                     title="Delete"
@@ -367,7 +394,6 @@ export default function CommentsPage() {
                   <FileText className="mr-2 h-4 w-4" />
                   <a
                     href={`/blog/articles/${comment.article?.slug}`}
-                    target="_blank"
                     className="text-primary hover:underline"
                   >
                     {comment.article?.title || 'Unknown Article'}

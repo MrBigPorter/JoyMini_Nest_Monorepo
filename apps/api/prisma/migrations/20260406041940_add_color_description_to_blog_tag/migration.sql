@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "blog_tags" ADD COLUMN     "color" VARCHAR(7) DEFAULT '#3b82f6',
+ADD COLUMN     "description" VARCHAR(300),
+ADD COLUMN     "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;

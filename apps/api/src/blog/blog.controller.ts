@@ -30,7 +30,17 @@ export class BlogController {
     @Query('categoryId') categoryId?: string,
     @Query('tagId') tagId?: string,
     @Query('authorId') authorId?: string,
+    @Query('search') search?: string,
   ) {
+    console.log('BlogController: getArticles', {
+      page,
+      pageSize,
+      status,
+      categoryId,
+      tagId,
+      authorId,
+      search,
+    });
     return this.blogService.getArticles({
       page,
       pageSize,
@@ -38,6 +48,7 @@ export class BlogController {
       categoryId,
       tagId,
       authorId,
+      search,
     });
   }
 

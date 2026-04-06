@@ -158,7 +158,7 @@ export const routes: RouteConfig[] = [
     hidden: true,
   },
   {
-    path: '/blog/articles/[id]/edit',
+    path: '/blog/articles/edit/[id]',
     name: 'edit_article',
     icon: FileText,
     group: 'Catalog',

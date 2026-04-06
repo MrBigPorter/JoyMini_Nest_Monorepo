@@ -54,8 +54,18 @@ export class CategoryService {
   /**
    * 获取分类列表
    */
-  async getCategories(includeCount = true) {
+  async getCategories(includeCount = true, search?: string) {
+    const where: any = {};
+    if (search && search.trim()) {
+      const searchTerm = search.trim();
+      where.OR = [
+        { name: { contains: searchTerm, mode: 'insensitive' } },
+        { description: { contains: searchTerm, mode: 'insensitive' } },
+      ];
+    }
+
     return this.prisma.blogCategory.findMany({
+      where,
       orderBy: { name: 'asc' },
       include: includeCount
         ? {

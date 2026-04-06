@@ -72,7 +72,7 @@ export const ProductSelectorModal: React.FC<Props> = ({
         return;
       }
       creatActSection(values);
-    } catch (e) {
+    } catch {
       addToast('error', 'Failed to save product');
     }
   };

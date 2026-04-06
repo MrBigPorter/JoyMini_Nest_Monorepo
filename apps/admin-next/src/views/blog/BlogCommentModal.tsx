@@ -43,7 +43,7 @@ export const BlogCommentModal: React.FC<BlogCommentModalProps> = ({
     },
   );
 
-  const { register, submitHandler, isLoading, errors, reset } = useBlogForm({
+  const { register, submitHandler, isLoading, reset } = useBlogForm({
     schema: commentModerationSchema,
     defaultValues: editingComment || {
       status: 'PENDING',

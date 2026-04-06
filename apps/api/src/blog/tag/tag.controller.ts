@@ -20,8 +20,11 @@ export class TagController {
 
   @Get()
   @ApiOperation({ summary: '获取标签列表 (公开)' })
-  async getTags(@Query('sortBy') sortBy?: string) {
-    return this.tagService.getTags(true, sortBy);
+  async getTags(
+    @Query('sortBy') sortBy?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.tagService.getTags(true, sortBy, search);
   }
 
   @Get('popular')

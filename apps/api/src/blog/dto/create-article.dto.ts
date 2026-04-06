@@ -27,11 +27,11 @@ export class CreateArticleDto {
   @MaxLength(500)
   excerpt?: string;
 
-  @ApiPropertyOptional({ description: '封面图片 URL' })
+  @ApiPropertyOptional({ description: '特色图片 URL (featuredImage)' })
   @IsOptional()
   @IsString()
   @MaxLength(255)
-  coverImage?: string;
+  featuredImage?: string;
 
   @ApiPropertyOptional({
     description: '文章状态',

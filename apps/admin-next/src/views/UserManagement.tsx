@@ -86,7 +86,7 @@ export const UserManagement: React.FC = () => {
                     );
                     actionRef.current?.reload();
                     close();
-                  } catch (error) {
+                  } catch {
                     addToast('error', 'Operation failed');
                   }
                 }}

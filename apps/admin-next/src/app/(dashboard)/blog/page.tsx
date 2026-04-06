@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import {
-  ArrowRight,
   FileText,
   FolderTree,
   Tag,
@@ -10,7 +9,6 @@ import {
   TrendingUp,
   Users,
   Eye,
-  Clock,
   Loader2,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -26,8 +24,23 @@ export default function BlogDashboardPage() {
     totalTags: 0,
     pendingComments: 0,
   });
-  const [recentArticles, setRecentArticles] = useState<any[]>([]);
-  const [topArticles, setTopArticles] = useState<any[]>([]);
+  const [recentArticles, setRecentArticles] = useState<
+    Array<{
+      id: string;
+      title: string;
+      status: string;
+      views?: number;
+      comments?: number;
+      publishedAt?: string;
+    }>
+  >([]);
+  const [topArticles, setTopArticles] = useState<
+    Array<{
+      title: string;
+      views: number;
+      growth: string;
+    }>
+  >([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isArticleModalOpen, setIsArticleModalOpen] = useState(false);
 
@@ -55,7 +68,7 @@ export default function BlogDashboardPage() {
 
       // Set top articles based on views
       const articlesWithViews =
-        articlesRes.list?.map((article: any) => ({
+        articlesRes.list?.map((article: { title: string; views?: number }) => ({
           title: article.title,
           views: article.views || 0,
           growth: '+0%', // placeholder, can be calculated from historical data
@@ -145,37 +158,6 @@ export default function BlogDashboardPage() {
     },
   ];
 
-  const quickActions = [
-    {
-      title: 'Write New Article',
-      description: 'Create a new blog article',
-      href: '/blog/articles/create',
-      icon: FileText,
-      color: 'bg-blue-500',
-    },
-    {
-      title: 'Manage Categories',
-      description: 'Add or edit article categories',
-      href: '/blog/categories',
-      icon: FolderTree,
-      color: 'bg-green-500',
-    },
-    {
-      title: 'Manage Tags',
-      description: 'Add or edit article tags',
-      href: '/blog/tags',
-      icon: Tag,
-      color: 'bg-purple-500',
-    },
-    {
-      title: 'Moderate Comments',
-      description: 'Review user-submitted comments',
-      href: '/blog/comments',
-      icon: MessageSquare,
-      color: 'bg-amber-500',
-    },
-  ];
-
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -229,37 +211,6 @@ export default function BlogDashboardPage() {
           );
         })}
       </div>
-
-      {/* Quick Actions */}
-      <Card title="Quick Actions">
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {quickActions.map((action) => {
-            const Icon = action.icon;
-            return (
-              <Link key={action.title} href={action.href}>
-                <div className="group p-4 rounded-lg border border-gray-100 dark:border-white/5 hover:border-primary-500 dark:hover:border-primary-500 hover:shadow-md transition-all duration-300 cursor-pointer">
-                  <div className="flex items-center space-x-3">
-                    <div
-                      className={`p-2 rounded-lg ${action.color} text-white`}
-                    >
-                      <Icon className="h-5 w-5" />
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="font-medium text-gray-900 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400">
-                        {action.title}
-                      </h4>
-                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                        {action.description}
-                      </p>
-                    </div>
-                    <ArrowRight className="h-4 w-4 text-gray-400 dark:text-gray-500 group-hover:text-primary-500 transition-colors" />
-                  </div>
-                </div>
-              </Link>
-            );
-          })}
-        </div>
-      </Card>
 
       {/* Recent Articles */}
       <Card

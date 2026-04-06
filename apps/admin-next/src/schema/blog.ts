@@ -2,45 +2,67 @@ import { z } from 'zod';
 
 // Article
 export const articleSchema = z.object({
-  title: z.string().min(1, '标题不能为空').max(200, '标题最多200字符'),
-  content: z.string().min(1, '内容不能为空'),
-  excerpt: z.string().max(500, '摘要最多500字符').optional(),
+  title: z
+    .string()
+    .min(1, 'Title is required')
+    .max(200, 'Title must be at most 200 characters'),
+  content: z.string().min(1, 'Content is required'),
+  excerpt: z
+    .string()
+    .max(500, 'Excerpt must be at most 500 characters')
+    .optional(),
   categoryId: z.string().optional(),
   tagIds: z.array(z.string()).default([]),
-  status: z.enum(['draft', 'published', 'scheduled']).default('draft'),
+  status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).default('DRAFT'),
   featuredImage: z
-    .string()
-    .url('请提供有效的图片URL')
-    .optional()
-    .or(z.literal('')),
+    .union([
+      z.string().url('Please enter a valid image URL'),
+      z.instanceof(File),
+    ])
+    .optional(),
 });
 
 export type ArticleFormInputs = z.infer<typeof articleSchema>;
 
 // Category
 export const categorySchema = z.object({
-  name: z.string().min(1, '分类名称不能为空').max(50, '分类名称最多50字符'),
+  name: z
+    .string()
+    .min(1, 'Category name is required')
+    .max(50, 'Category name must be at most 50 characters'),
   slug: z
     .string()
-    .min(1, 'Slug不能为空')
-    .max(50, 'Slug最多50字符')
-    .regex(/^[a-z0-9\-]+$/, 'Slug只能包含小写字母、数字和连字符'),
-  description: z.string().max(500, '描述最多500字符').optional(),
+    .min(1, 'Slug is required')
+    .max(50, 'Slug must be at most 50 characters')
+    .regex(
+      /^[a-z0-9\-]+$/,
+      'Slug can only contain lowercase letters, numbers, and hyphens',
+    ),
+  description: z
+    .string()
+    .max(500, 'Description must be at most 500 characters')
+    .optional(),
 });
 
 export type CategoryFormInputs = z.infer<typeof categorySchema>;
 
 // Tag
 export const tagSchema = z.object({
-  name: z.string().min(1, '标签名称不能为空').max(30, '标签名称最多30字符'),
+  name: z
+    .string()
+    .min(1, 'Tag name is required')
+    .max(30, 'Tag name must be at most 30 characters'),
   color: z
     .string()
     .regex(
       /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/,
-      '颜色必须为十六进制格式，例如 #3b82f6',
+      'Color must be a valid hex code, e.g., #3b82f6',
     )
     .optional(),
-  description: z.string().max(300, '描述最多300字符').optional(),
+  description: z
+    .string()
+    .max(300, 'Description must be at most 300 characters')
+    .optional(),
 });
 
 export type TagFormInputs = z.infer<typeof tagSchema>;
@@ -48,7 +70,10 @@ export type TagFormInputs = z.infer<typeof tagSchema>;
 // Comment moderation
 export const commentModerationSchema = z.object({
   status: z.enum(['APPROVED', 'REJECTED', 'SPAM', 'PENDING']),
-  reply: z.string().max(1000, '回复内容最多1000字符').optional(),
+  reply: z
+    .string()
+    .max(1000, 'Reply must be at most 1000 characters')
+    .optional(),
 });
 
 export type CommentModerationInputs = z.infer<typeof commentModerationSchema>;
