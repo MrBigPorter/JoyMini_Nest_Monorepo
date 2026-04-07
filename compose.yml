@@ -120,6 +120,60 @@ services:
     networks: [app]
 
   # =========================================
+  # Blog 前端 (开发模式 — Next.js)
+  # =========================================
+  frontend-blog:
+    build:
+      context: .
+      dockerfile: apps/admin-next/Dockerfile.dev
+    container_name: lucky-frontend-blog-dev
+    command: >
+      sh -c "corepack enable &&
+             LOCK_HASH=$$(md5sum /app/yarn.lock | cut -d' ' -f1) &&
+             CACHE=/app/node_modules/.blog-install-hash &&
+             if [ ! -f \"$$CACHE\" ] || [ \"$$(cat $$CACHE 2>/dev/null)\" != \"$$LOCK_HASH\" ] || ! yarn workspace @lucky/frontend-blog exec which next >/dev/null 2>&1; then
+               echo '>>> dependency check triggered - running install...' &&
+               yarn install &&
+               echo \"$$LOCK_HASH\" > \"$$CACHE\";
+             else
+               echo '>>> yarn.lock unchanged - skipping install';
+             fi &&
+             echo '>>> Building @lucky/shared ...' &&
+             node /app/packages/shared/scripts/build.js &&
+             echo '>>> Building @repo/ui (pre-build for fast Next.js compilation)...' &&
+             node /app/packages/ui/scripts/build.js &&
+             yarn workspace @lucky/frontend-blog dev"
+    expose:
+      - "4002"
+    volumes:
+      - .:/app
+      - blog_next_nm:/app/node_modules
+      - blog_next_build:/app/apps/frontend-blog/.next
+      - pkg_shared_nm:/app/packages/shared/node_modules
+      - pkg_ui_nm:/app/packages/ui/node_modules
+      - pkg_eslint_nm:/app/packages/eslint-config/node_modules
+      - pkg_tsconfig_nm:/app/packages/typescript-config/node_modules
+      - pkg_config_nm:/app/packages/config/node_modules
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: /api
+      INTERNAL_API_URL: http://lucky-backend-dev:3000/api
+      NEXT_PUBLIC_APP_ENV: development
+      HOSTNAME: "0.0.0.0"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'node -e "require(''http'').get(''http://localhost:4002/'', r => process.exit(r.statusCode < 500 ? 0 : 1)).on(''error'', () => process.exit(1))"',
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 120s
+    depends_on:
+      - backend
+    networks: [app]
+
+  # =========================================
   # Nginx 反向代理
   # =========================================
   nginx:
@@ -199,6 +253,8 @@ volumes:
   backend_nm:
   admin_next_nm:
   admin_next_build:
+  blog_next_nm:
+  blog_next_build:
   pkg_shared_nm:
   pkg_ui_nm:
   pkg_eslint_nm:
