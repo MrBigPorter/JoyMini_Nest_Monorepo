@@ -18,11 +18,11 @@ interface ToastItem {
 
 interface ToastContextType {
   toasts: ToastItem[];
-  show: (message: string, options?: ToastOptions) => void;
-  success: (message: string, options?: Omit<ToastOptions, 'type'>) => void;
-  error: (message: string, options?: Omit<ToastOptions, 'type'>) => void;
-  warning: (message: string, options?: Omit<ToastOptions, 'type'>) => void;
-  info: (message: string, options?: Omit<ToastOptions, 'type'>) => void;
+  show: (message: string, options?: ToastOptions) => string;
+  success: (message: string, options?: Omit<ToastOptions, 'type'>) => string;
+  error: (message: string, options?: Omit<ToastOptions, 'type'>) => string;
+  warning: (message: string, options?: Omit<ToastOptions, 'type'>) => string;
+  info: (message: string, options?: Omit<ToastOptions, 'type'>) => string;
   hide: (id: string) => void;
   remove: (id: string) => void;
 }
