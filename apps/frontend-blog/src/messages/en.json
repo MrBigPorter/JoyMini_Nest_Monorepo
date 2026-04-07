@@ -1,0 +1,108 @@
+{
+  "common": {
+    "home": "Home",
+    "articles": "Articles",
+    "categories": "Categories",
+    "tags": "Tags",
+    "search": "Search",
+    "loadMore": "Load More",
+    "noResults": "No results found",
+    "back": "Back",
+    "backToHome": "Back to Home",
+    "backToCategories": "Back to categories",
+    "backToTags": "Back to tags",
+    "loading": "Loading...",
+    "error": "Failed to load, please try again later",
+    "articleCount": "{count} articles",
+    "totalTags": "{count} tags, {total} articles total",
+    "about": "About",
+    "bookmarks": "Bookmarks"
+  },
+  "home": {
+    "title": "Latest Articles",
+    "subtitle": "Explore our latest published content",
+    "empty": "No articles yet"
+  },
+  "article": {
+    "readTime": "Read time",
+    "views": "Views",
+    "comments": "Comments",
+    "share": "Share",
+    "relatedArticles": "Related Articles"
+  },
+  "auth": {
+    "email": "Email address",
+    "emailPlaceholder": "Enter your email address",
+    "password": "Password",
+    "passwordPlaceholder": "Enter your password",
+    "confirmPassword": "Confirm password",
+    "confirmPasswordPlaceholder": "Confirm your password",
+    "forgotPassword": "Forgot password?",
+    "orContinueWith": "Or continue with",
+    "login": {
+      "title": "Login",
+      "subtitle": "Login to your Tarsier Blog account",
+      "button": "Sign in",
+      "github": "Continue with GitHub",
+      "google": "Continue with Google",
+      "noAccount": "Don't have an account?",
+      "register": "Sign up"
+    },
+    "register": {
+      "title": "Sign up",
+      "subtitle": "Create your Tarsier Blog account",
+      "button": "Create account",
+      "github": "Sign up with GitHub",
+      "google": "Sign up with Google",
+      "hasAccount": "Already have an account?",
+      "login": "Sign in",
+      "confirmPassword": "Confirm password",
+      "confirmPasswordPlaceholder": "Confirm your password"
+    }
+  },
+  "comment": {
+    "title": "Comments",
+    "writeComment": "Write a comment",
+    "writeReply": "Write a reply",
+    "reply": "Reply",
+    "cancel": "Cancel",
+    "submit": "Submit",
+    "repliesCount": "{count} replies",
+    "loginRequired": "Please login to comment"
+  },
+  "categories": {
+    "title": "Categories",
+    "subtitle": "Browse all article categories",
+    "notFound": "Category not found"
+  },
+  "tags": {
+    "title": "Tags",
+    "subtitle": "Browse articles by topic",
+    "notFound": "Tag not found"
+  },
+  "search": {
+    "title": "Search Articles",
+    "subtitle": "Search through all articles",
+    "placeholder": "Search articles...",
+    "result": "Found {count} articles",
+    "emptyTitle": "Enter keywords to start searching",
+    "emptyDescription": "Search article titles, content or tags"
+  },
+  "bookmarks": {
+    "title": "My Bookmarks",
+    "subtitle": "All articles you have bookmarked",
+    "totalCount": "{count} articles bookmarked",
+    "empty": "No bookmarked articles yet"
+  },
+  "about": {
+    "title": "About Lucky Nest",
+    "subtitle": "Building the next generation user experience platform",
+    "visionTitle": "Our Vision",
+    "visionDescription": "Lucky Nest is a modern web application platform dedicated to creating the best user experience. We believe good software should be simple, elegant and efficient.\n\nThis blog is where we share our technical experience, product thinking and team stories. We hope our work can be helpful to you.",
+    "techStackTitle": "Tech Stack",
+    "teamTitle": "Team",
+    "contactTitle": "Contact Us",
+    "github": "GitHub",
+    "email": "Email Us"
+  }
+}

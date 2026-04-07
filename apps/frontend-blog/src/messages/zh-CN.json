@@ -1,0 +1,108 @@
+{
+  "common": {
+    "home": "首页",
+    "articles": "文章",
+    "categories": "分类",
+    "tags": "标签",
+    "search": "搜索",
+    "loadMore": "加载更多",
+    "noResults": "没有找到相关内容",
+    "back": "返回",
+    "backToHome": "返回首页",
+    "backToCategories": "返回分类列表",
+    "backToTags": "返回标签列表",
+    "loading": "加载中...",
+    "error": "加载失败，请稍后重试",
+    "articleCount": "{count} 篇文章",
+    "totalTags": "共 {count} 个标签，{total} 篇文章",
+    "about": "关于",
+    "bookmarks": "收藏"
+  },
+  "categories": {
+    "title": "文章分类",
+    "subtitle": "浏览所有文章分类，找到你感兴趣的内容",
+    "notFound": "该分类不存在"
+  },
+  "tags": {
+    "title": "标签云",
+    "subtitle": "按主题浏览所有文章标签",
+    "notFound": "该标签不存在"
+  },
+  "home": {
+    "title": "最新文章",
+    "subtitle": "探索我们最新发布的内容",
+    "empty": "暂无文章"
+  },
+  "article": {
+    "readTime": "阅读时间",
+    "views": "浏览",
+    "comments": "评论",
+    "share": "分享",
+    "relatedArticles": "相关文章"
+  },
+  "auth": {
+    "email": "邮箱地址",
+    "emailPlaceholder": "请输入邮箱地址",
+    "password": "密码",
+    "passwordPlaceholder": "请输入密码",
+    "confirmPassword": "确认密码",
+    "confirmPasswordPlaceholder": "请再次输入密码",
+    "forgotPassword": "忘记密码？",
+    "orContinueWith": "或者使用其他方式",
+    "login": {
+      "title": "登录",
+      "subtitle": "登录你的 Tarsier Blog 账户",
+      "button": "登录",
+      "github": "使用 GitHub 登录",
+      "google": "使用 Google 登录",
+      "noAccount": "还没有账户？",
+      "register": "立即注册"
+    },
+    "register": {
+      "title": "注册",
+      "subtitle": "创建你的 Tarsier Blog 账户",
+      "button": "创建账户",
+      "github": "使用 GitHub 注册",
+      "google": "使用 Google 注册",
+      "hasAccount": "已有账户？",
+      "login": "立即登录",
+      "confirmPassword": "确认密码",
+      "confirmPasswordPlaceholder": "请再次输入密码"
+    }
+  },
+  "comment": {
+    "title": "评论",
+    "writeComment": "发表评论",
+    "writeReply": "回复评论",
+    "reply": "回复",
+    "cancel": "取消",
+    "submit": "提交",
+    "repliesCount": "{count} 条回复",
+    "loginRequired": "请先登录后评论"
+  },
+  "search": {
+    "title": "搜索文章",
+    "subtitle": "搜索所有文章内容",
+    "placeholder": "输入搜索关键词...",
+    "result": "找到 {count} 条搜索结果",
+    "emptyTitle": "输入关键词开始搜索",
+    "emptyDescription": "搜索文章标题、内容或标签"
+  },
+  "bookmarks": {
+    "title": "我的收藏",
+    "subtitle": "你收藏的所有文章",
+    "totalCount": "共收藏 {count} 篇文章",
+    "empty": "暂无收藏文章"
+  },
+  "about": {
+    "title": "关于 Lucky Nest",
+    "subtitle": "我们正在打造下一代用户体验平台",
+    "visionTitle": "我们的愿景",
+    "visionDescription": "Lucky Nest 是一个现代化的 Web 应用平台，我们致力于打造最好的用户体验。我们相信好的软件应该是简单、优雅、高效的。\n\n这个博客是我们分享技术经验、产品思考和团队日常的地方。希望我们的工作能够对你有所帮助。",
+    "techStackTitle": "技术栈",
+    "teamTitle": "团队",
+    "contactTitle": "联系我们",
+    "github": "GitHub",
+    "email": "邮件联系"
+  }
+}
