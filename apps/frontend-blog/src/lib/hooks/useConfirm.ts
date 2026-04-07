@@ -1,6 +1,13 @@
 'use client';
 
-import { useState, useCallback, createContext, useContext, ReactNode, useMemo } from 'react';
+import {
+  useState,
+  useCallback,
+  createContext,
+  useContext,
+  ReactNode,
+  createElement,
+} from 'react';
 
 export interface ConfirmOptions {
   title?: string;
@@ -9,7 +16,6 @@ export interface ConfirmOptions {
   cancelText?: string;
   type?: 'danger' | 'warning' | 'info';
 }
-
 
 interface ConfirmState {
   visible: boolean;
@@ -45,38 +51,30 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const hide = useCallback(() => {
-    setState(prev => {
+    setState((prev) => {
       prev.resolve?.(false);
       return { visible: false, options: null, resolve: null };
     });
   }, []);
 
   const confirm = useCallback(() => {
-    setState(prev => {
+    setState((prev) => {
       prev.resolve?.(true);
       return { visible: false, options: null, resolve: null };
     });
   }, []);
 
   const cancel = useCallback(() => {
-    setState(prev => {
+    setState((prev) => {
       prev.resolve?.(false);
       return { visible: false, options: null, resolve: null };
     });
   }, []);
 
-  const contextValue = useMemo(() => ({
-    show,
-    hide,
-    confirm,
-    cancel,
-    state,
-  }), [show, hide, confirm, cancel, state]);
-
-  return (
-    <ConfirmContext.Provider value={contextValue}>
-      {children}
-    </ConfirmContext.Provider>
+  return createElement(
+    ConfirmContext.Provider,
+    { value: { show, hide, confirm, cancel, state } },
+    children,
   );
 }
 

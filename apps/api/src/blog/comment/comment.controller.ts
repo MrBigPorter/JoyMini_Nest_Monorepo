@@ -8,6 +8,7 @@ import {
   Param,
   Query,
   UseGuards,
+  UsePipes,
   Req,
   Ip,
   Headers,
@@ -15,17 +16,21 @@ import {
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { CommentService } from './comment.service';
 import { CommentStatus } from '@prisma/client';
-import { AdminJwtAuthGuard } from '@api/admin/auth/admin-jwt-auth.guard';
+import { JwtAuthGuard } from '@api/common/jwt/jwt.guard';
+import { PermissionsGuard } from '@api/common/guards/permissions.guard';
+import { RequirePermission } from '@api/common/decorators/require-permission.decorator';
+import { XssSanitizePipe } from '@api/common/pipes/xss-sanitize.pipe';
 
-@ApiTags('Blog - Comments')
+@ApiTags('Admin Blog - Comments')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('admin/blog/comments')
 export class CommentController {
   constructor(private readonly commentService: CommentService) {}
 
   @Get()
-  @ApiBearerAuth()
-  @UseGuards(AdminJwtAuthGuard)
   @ApiOperation({ summary: '获取所有评论列表 (管理员)' })
+  @RequirePermission('blog', 'view')
   async getAllComments(
     @Query('page') page?: number,
     @Query('pageSize') pageSize?: number,
@@ -42,6 +47,7 @@ export class CommentController {
 
   @Post()
   @ApiOperation({ summary: '提交评论 (公开接口)' })
+  @UsePipes(new XssSanitizePipe())
   async createComment(
     @Body()
     body: {
@@ -67,25 +73,22 @@ export class CommentController {
   }
 
   @Patch(':id/approve')
-  @ApiBearerAuth()
-  @UseGuards(AdminJwtAuthGuard)
   @ApiOperation({ summary: '审核通过评论' })
+  @RequirePermission('blog', 'update')
   async approveComment(@Param('id') id: string) {
     return this.commentService.approveComment(id);
   }
 
   @Patch(':id/reject')
-  @ApiBearerAuth()
-  @UseGuards(AdminJwtAuthGuard)
   @ApiOperation({ summary: '审核拒绝评论' })
+  @RequirePermission('blog', 'update')
   async rejectComment(@Param('id') id: string) {
     return this.commentService.rejectComment(id);
   }
 
   @Delete(':id')
-  @ApiBearerAuth()
-  @UseGuards(AdminJwtAuthGuard)
   @ApiOperation({ summary: '删除评论' })
+  @RequirePermission('blog', 'delete')
   async deleteComment(@Param('id') id: string) {
     return this.commentService.deleteComment(id);
   }

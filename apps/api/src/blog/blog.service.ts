@@ -323,4 +323,314 @@ export class BlogService {
       },
     });
   }
+
+  /**
+   * 获取博客统计数据
+   */
+  async getBlogStats() {
+    const [
+      totalArticles,
+      totalCategories,
+      totalTags,
+      totalViews,
+      totalComments,
+    ] = await Promise.all([
+      this.prisma.blogArticle.count({
+        where: { status: ArticleStatus.PUBLISHED },
+      }),
+      this.prisma.blogCategory.count(),
+      this.prisma.blogTag.count(),
+      this.prisma.blogArticle.aggregate({ _sum: { viewCount: true } }),
+      this.prisma.blogComment.count(),
+    ]);
+
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+
+    const weeklyPublishes = await this.prisma.blogArticle.count({
+      where: {
+        status: ArticleStatus.PUBLISHED,
+        publishedAt: { gte: oneWeekAgo },
+      },
+    });
+
+    return {
+      totalArticles,
+      totalCategories,
+      totalTags,
+      totalViews: totalViews._sum.viewCount || 0,
+      totalComments,
+      weeklyPublishes,
+    };
+  }
+
+  /**
+   * 获取热门标签
+   */
+  async getPopularTags(limit: number) {
+    return this.prisma.blogTag.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+  }
+
+  /**
+   * 获取文章归档
+   */
+  async getArticleArchive() {
+    const articles = await this.prisma.blogArticle.findMany({
+      where: { status: ArticleStatus.PUBLISHED },
+      select: {
+        id: true,
+        title: true,
+        slug: true,
+        publishedAt: true,
+        createdAt: true,
+      },
+      orderBy: { publishedAt: 'desc' },
+    });
+
+    const archive: Record<string, any> = {};
+
+    articles.forEach((article) => {
+      const date = article.publishedAt || article.createdAt;
+      const year = date.getFullYear();
+      const month = date.getMonth() + 1;
+      const key = `${year}-${month}`;
+
+      if (!archive[key]) {
+        archive[key] = {
+          year,
+          month,
+          count: 0,
+          articles: [],
+        };
+      }
+
+      archive[key].count++;
+      archive[key].articles.push(article);
+    });
+
+    return Object.values(archive);
+  }
+
+  /**
+   * 文章点赞
+   */
+  async likeArticle(slug: string, fingerprint: string) {
+    const article = await this.prisma.blogArticle.findUnique({
+      where: { slug },
+    });
+    if (!article) throw new NotFoundException('文章不存在');
+
+    // 这里后续可以添加指纹去重逻辑
+    return this.prisma.blogArticle.update({
+      where: { slug },
+      data: { likeCount: { increment: 1 } },
+      select: { likeCount: true },
+    });
+  }
+
+  /**
+   * 取消文章点赞
+   */
+  async unlikeArticle(slug: string, fingerprint: string) {
+    const article = await this.prisma.blogArticle.findUnique({
+      where: { slug },
+    });
+    if (!article) throw new NotFoundException('文章不存在');
+
+    return this.prisma.blogArticle.update({
+      where: { slug },
+      data: { likeCount: { decrement: 1 } },
+      select: { likeCount: true },
+    });
+  }
+
+  /**
+   * 检查点赞状态
+   */
+  async checkLikeStatus(slug: string, fingerprint: string) {
+    // 后续实现指纹检查逻辑
+    return { liked: false };
+  }
+
+  /**
+   * 创建评论
+   */
+  async createComment(slug: string, dto: any, userId?: string | null) {
+    const article = await this.prisma.blogArticle.findUnique({
+      where: { slug },
+    });
+    if (!article) throw new NotFoundException('文章不存在');
+
+    const commentData: any = {
+      articleId: article.id,
+      content: dto.content,
+      parentId: dto.parentId,
+    };
+
+    if (userId) {
+      commentData.userId = userId;
+    } else {
+      commentData.author = dto.author;
+      commentData.email = dto.email;
+      commentData.website = dto.website;
+    }
+
+    const comment = await this.prisma.blogComment.create({
+      data: commentData,
+    });
+
+    // 更新文章评论计数
+    await this.prisma.blogArticle.update({
+      where: { id: article.id },
+      data: { commentCount: { increment: 1 } },
+    });
+
+    return comment;
+  }
+
+  /**
+   * 获取热门文章
+   */
+  async getPopularArticles(limit = 10) {
+    return this.prisma.blogArticle.findMany({
+      where: { status: ArticleStatus.PUBLISHED },
+      orderBy: { viewCount: 'desc' },
+      take: limit,
+      select: {
+        id: true,
+        title: true,
+        slug: true,
+        coverImage: true,
+        viewCount: true,
+        publishedAt: true,
+      },
+    });
+  }
+
+  /**
+   * 获取相关文章
+   */
+  async getRelatedArticles(articleId: string, limit = 5) {
+    const article = await this.prisma.blogArticle.findUnique({
+      where: { id: articleId },
+      include: { tags: true },
+    });
+
+    if (!article) throw new NotFoundException('文章不存在');
+
+    const tagIds = article.tags.map((t) => t.id);
+
+    return this.prisma.blogArticle.findMany({
+      where: {
+        id: { not: articleId },
+        status: ArticleStatus.PUBLISHED,
+        tags: { some: { id: { in: tagIds } } },
+      },
+      orderBy: { publishedAt: 'desc' },
+      take: limit,
+      select: {
+        id: true,
+        title: true,
+        slug: true,
+        coverImage: true,
+        publishedAt: true,
+      },
+    });
+  }
+
+  /**
+   * 获取分类列表
+   */
+  async getCategories() {
+    return this.prisma.blogCategory.findMany({
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  /**
+   * 按Slug获取分类及文章
+   */
+  async getCategoryBySlugWithArticles(slug: string, params: any) {
+    const category = await this.prisma.blogCategory.findUnique({
+      where: { slug },
+    });
+    if (!category) throw new NotFoundException('分类不存在');
+
+    const articles = await this.getArticles({
+      ...params,
+      categoryId: category.id,
+    });
+
+    return { category, ...articles };
+  }
+
+  /**
+   * 获取标签列表
+   */
+  async getTags() {
+    return this.prisma.blogTag.findMany({
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  /**
+   * 按Slug获取标签及文章
+   */
+  async getTagBySlugWithArticles(slug: string, params: any) {
+    const tag = await this.prisma.blogTag.findUnique({ where: { slug } });
+    if (!tag) throw new NotFoundException('标签不存在');
+
+    const articles = await this.getArticles({
+      ...params,
+      tagId: tag.id,
+    });
+
+    return { tag, ...articles };
+  }
+
+  /**
+   * 获取文章评论
+   */
+  async getArticleComments(slug: string, params: any) {
+    const article = await this.prisma.blogArticle.findUnique({
+      where: { slug },
+    });
+    if (!article) throw new NotFoundException('文章不存在');
+
+    const { page = 1, pageSize = 20 } = params;
+    const skip = (page - 1) * pageSize;
+
+    const [items, total] = await Promise.all([
+      this.prisma.blogComment.findMany({
+        where: { articleId: article.id },
+        skip,
+        take: pageSize,
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.blogComment.count({
+        where: { articleId: article.id },
+      }),
+    ]);
+
+    return {
+      items,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
+    };
+  }
+
+  /**
+   * 搜索文章
+   */
+  async searchArticles(query: string, params: any) {
+    return this.getArticles({
+      ...params,
+      search: query,
+    });
+  }
 }

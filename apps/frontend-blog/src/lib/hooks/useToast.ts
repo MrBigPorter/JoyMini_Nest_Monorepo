@@ -1,13 +1,19 @@
 'use client';
 
-import { useState, useCallback, createContext, useContext, useMemo } from 'react';
+import {
+  useState,
+  useCallback,
+  createContext,
+  useContext,
+  ReactNode,
+  createElement,
+} from 'react';
 
 export interface ToastOptions {
   type?: 'success' | 'error' | 'warning' | 'info';
   duration?: number;
   title?: string;
 }
-
 
 interface ToastItem {
   id: string;
@@ -29,7 +35,7 @@ interface ToastContextType {
 
 const ToastContext = createContext<ToastContextType | null>(null);
 
-export function ToastProvider({ children }: { children: React.ReactNode }) {
+export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
 
   const show = useCallback((message: string, options: ToastOptions = {}) => {
@@ -41,61 +47,65 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       visible: true,
     };
 
-    setToasts(prev => [...prev, toast]);
+    setToasts((prev) => [...prev, toast]);
 
     setTimeout(() => {
-      setToasts(prev => prev.map(t => t.id === id ? { ...t, visible: false } : t));
+      setToasts((prev) =>
+        prev.map((t) => (t.id === id ? { ...t, visible: false } : t)),
+      );
       setTimeout(() => {
-        setToasts(prev => prev.filter(t => t.id !== id));
+        setToasts((prev) => prev.filter((t) => t.id !== id));
       }, 300);
     }, toast.options.duration);
 
     return id;
   }, []);
 
-  const success = useCallback((message: string, options?: Omit<ToastOptions, 'type'>) => {
-    return show(message, { ...options, type: 'success' });
-  }, [show]);
+  const success = useCallback(
+    (message: string, options?: Omit<ToastOptions, 'type'>) => {
+      return show(message, { ...options, type: 'success' });
+    },
+    [show],
+  );
 
-  const error = useCallback((message: string, options?: Omit<ToastOptions, 'type'>) => {
-    return show(message, { ...options, type: 'error', duration: 5000 });
-  }, [show]);
+  const error = useCallback(
+    (message: string, options?: Omit<ToastOptions, 'type'>) => {
+      return show(message, { ...options, type: 'error', duration: 5000 });
+    },
+    [show],
+  );
 
-  const warning = useCallback((message: string, options?: Omit<ToastOptions, 'type'>) => {
-    return show(message, { ...options, type: 'warning' });
-  }, [show]);
+  const warning = useCallback(
+    (message: string, options?: Omit<ToastOptions, 'type'>) => {
+      return show(message, { ...options, type: 'warning' });
+    },
+    [show],
+  );
 
-  const info = useCallback((message: string, options?: Omit<ToastOptions, 'type'>) => {
-    return show(message, { ...options, type: 'info' });
-  }, [show]);
+  const info = useCallback(
+    (message: string, options?: Omit<ToastOptions, 'type'>) => {
+      return show(message, { ...options, type: 'info' });
+    },
+    [show],
+  );
 
   const hide = useCallback((id: string) => {
-    setToasts(prev => prev.map(t => t.id === id ? { ...t, visible: false } : t));
+    setToasts((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, visible: false } : t)),
+    );
     setTimeout(() => {
-      setToasts(prev => prev.filter(t => t.id !== id));
+      setToasts((prev) => prev.filter((t) => t.id !== id));
     }, 300);
   }, []);
 
   const remove = useCallback((id: string) => {
-    setToasts(prev => prev.filter(t => t.id !== id));
+    setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  // 使用useMemo稳定context value，防止不必要的重渲染
-  const contextValue = useMemo(() => ({
-    toasts,
-    show,
-    success,
-    error,
-    warning,
-    info,
-    hide,
-    remove,
-  }), [toasts, show, success, error, warning, info, hide, remove]);
-
-  return (
-    <ToastContext.Provider value={contextValue}>
-      {children}
-    </ToastContext.Provider>
+  return createElement(
+    ToastContext.Provider,
+    { value: { toasts, show, success, error, warning, info, hide, remove } },
+    children,
   );
 }
 
