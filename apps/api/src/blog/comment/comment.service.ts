@@ -1,11 +1,19 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { CommentStatus } from '@prisma/client';
+import { AiService } from '@api/common/ai/ai.service';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 
 @Injectable()
 export class CommentService {
-  constructor(private prisma: PrismaService) {}
+  private readonly logger = new Logger(CommentService.name);
 
+  constructor(
+    private prisma: PrismaService,
+    private aiService: AiService,
+    @InjectQueue('blog-ai') private aiQueue: Queue,
+  ) {}
   /**
    * 创建评论 (公开接口)
    */
@@ -21,7 +29,8 @@ export class CommentService {
       userAgent?: string;
     },
   ) {
-    return this.prisma.blogComment.create({
+    // 1. 先保存评论到数据库
+    const comment = await this.prisma.blogComment.create({
       data: {
         articleId,
         author: data.nickname,
@@ -33,7 +42,32 @@ export class CommentService {
         ipAddress: data.ip,
         userAgent: data.userAgent,
       },
+      include: {
+        article: { select: { title: true } },
+      },
     });
+
+    // 2. 异步投递到AI处理队列，不阻塞用户请求
+    if (this.aiService.isAvailable()) {
+      this.aiQueue
+        .add(
+          'moderate-comment',
+          {
+            commentId: comment.id,
+            content: comment.content,
+            articleTitle: comment.article?.title,
+          },
+          {
+            delay: 1000, // 延迟1秒处理，避免高峰压力
+            attempts: 2,
+          },
+        )
+        .catch((err) => {
+          this.logger.warn('Failed to queue AI moderation', err);
+        });
+    }
+
+    return comment;
   }
 
   /**
