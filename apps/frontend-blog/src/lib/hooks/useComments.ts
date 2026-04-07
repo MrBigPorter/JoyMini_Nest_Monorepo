@@ -6,10 +6,13 @@ import { blogApi } from '@/lib/api/blogApi';
 /**
  * 获取文章评论列表 Hook
  */
-export function useComments(articleId: string, params?: {
-  page?: number;
-  pageSize?: number;
-}) {
+export function useComments(
+  articleId: string,
+  params?: {
+    page?: number;
+    pageSize?: number;
+  },
+) {
   return useQuery({
     queryKey: ['comments', articleId, params],
     queryFn: () => blogApi.getComments(articleId, params),

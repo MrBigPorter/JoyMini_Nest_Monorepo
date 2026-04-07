@@ -17,7 +17,6 @@ import {
   AdminQueryAddressDto,
   AdminUpdateAddressDto,
 } from '@api/admin/address/dto/admin-address.dto';
-import { QueryAddressListDto } from '@api/client/address/dto/address.dto';
 import { plainToInstance } from 'class-transformer';
 import { RequirePermission } from '@api/common/decorators/require-permission.decorator';
 import { OpAction, OpModule } from '@lucky/shared';

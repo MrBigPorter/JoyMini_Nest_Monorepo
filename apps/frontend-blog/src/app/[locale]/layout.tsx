@@ -1,3 +1,4 @@
+import type { Metadata, Viewport } from 'next';
 import { NextIntlClientProvider } from 'next-intl';
 import { setRequestLocale } from 'next-intl/server';
 import { readFileSync } from 'fs';
@@ -20,12 +21,12 @@ const inter = Inter({
 const locales = ['zh-CN', 'en'] as const;
 
 //  元数据放在语言层布局，以后可以支持多语言SEO标题
-export const metadata = {
+export const metadata: Metadata = {
   title: 'Tarsier Blog',
   description: 'Developer community from Bohol, Philippines',
 };
 
-export const viewport = {
+export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
@@ -74,9 +75,9 @@ export default async function LocaleLayout({
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
             <QueryProvider>
               <I18nProvider>
-              <Header />
-              <Sidebar />
-              <main className="pt-[var(--content-padding-top)] pb-[var(--content-padding-bottom)] min-h-screen md:ml-16 md:transition-all md:duration-300">
+                <Header />
+                <Sidebar />
+                <main className="pt-[var(--content-padding-top)] pb-[var(--content-padding-bottom)] min-h-screen md:ml-16 md:transition-all md:duration-300">
                   {children}
                 </main>
                 <BottomNavigation />

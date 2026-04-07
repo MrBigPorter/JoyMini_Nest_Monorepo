@@ -21,7 +21,7 @@ export default function Header() {
 
   // 极简语言切换 - 官方标准用法
   const switchLocale = (nextLocale: 'zh-CN' | 'en') => {
-    router.replace(pathname, { locale: nextLocale }, { scroll: false });
+    router.replace(pathname, { locale: nextLocale });
     setLangMenuOpen(false);
   };
 

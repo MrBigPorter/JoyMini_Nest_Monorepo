@@ -86,20 +86,18 @@ export function useArticles(params?: {
   return useQuery({
     queryKey: ['articles', params],
     queryFn: () => {
-      // 开发环境优先使用 Mock 数据
-      if (process.env.NODE_ENV === 'development') {
-        return new Promise((resolve) => {
-          setTimeout(() => {
-            resolve({
-              list: mockArticles,
-              total: mockArticles.length,
-              page: params?.page || 1,
-              pageSize: params?.pageSize || 10,
-            });
-          }, 500);
-        });
-      }
-      return blogApi.getArticles(params);
+      // TODO: 后端接口上线后移除 Mock
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          resolve({
+            list: mockArticles,
+            total: mockArticles.length,
+            page: params?.page || 1,
+            pageSize: params?.pageSize || 10,
+          });
+        }, 500);
+      });
+      // return blogApi.getArticles(params);
     },
     staleTime: 5 * 60 * 1000, // 5分钟缓存
   });

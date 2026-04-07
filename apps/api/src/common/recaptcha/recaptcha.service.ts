@@ -1,88 +1,90 @@
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
-import axios from 'axios';
-
-const RECAPTCHA_VERIFY_URL = 'https://www.google.com/recaptcha/api/siteverify';
-const MIN_SCORE = 0.5;
 
 @Injectable()
 export class RecaptchaService {
-  private readonly logger = new Logger(RecaptchaService.name);
-  private readonly secretKey: string | null;
+  private readonly verifyUrl =
+    'https://www.google.com/recaptcha/api/siteverify';
+  private readonly secretKey: string;
+  private readonly enabled: boolean;
+  private readonly threshold: number;
 
-  constructor(private readonly config: ConfigService) {
-    this.secretKey = this.config.get<string>('RECAPTCHA_SECRET_KEY') ?? null;
-    if (!this.secretKey || this.secretKey === 'disabled') {
-      this.logger.warn(
-        'RECAPTCHA_SECRET_KEY not set — reCAPTCHA verification is DISABLED',
+  constructor(
+    private readonly httpService: HttpService,
+    private readonly configService: ConfigService,
+  ) {
+    this.secretKey = this.configService.get<string>('RECAPTCHA_SECRET_KEY', '');
+    this.enabled = this.configService.get<boolean>('RECAPTCHA_ENABLED', false);
+    this.threshold = this.configService.get<number>('RECAPTCHA_THRESHOLD', 0.5);
+  }
+
+  /**
+   * 验证ReCaptcha token
+   * @param token 前端提交的验证token
+   * @returns 验证结果 { success: boolean, score: number }
+   */
+  /**
+   * @deprecated Use verifyToken instead
+   */
+  async verify(
+    token: string,
+    _action?: string,
+  ): Promise<{ success: boolean; score: number }> {
+    return this.verifyToken(token);
+  }
+
+  async verifyToken(
+    token: string,
+  ): Promise<{ success: boolean; score: number }> {
+    if (!this.enabled) {
+      // 开发环境关闭时直接通过
+      return { success: true, score: 1.0 };
+    }
+
+    if (!token) {
+      return { success: false, score: 0 };
+    }
+
+    try {
+      const response = await this.httpService.axiosRef.post(
+        this.verifyUrl,
+        null,
+        {
+          params: {
+            secret: this.secretKey,
+            response: token,
+          },
+        },
       );
+
+      const data = response.data;
+
+      if (data.success && data.score >= this.threshold) {
+        return { success: true, score: data.score };
+      }
+
+      return { success: false, score: data.score || 0 };
+    } catch (error: any) {
+      // Google服务不可用时降级放行
+      console.error('ReCaptcha verify error:', error.message);
+      return { success: true, score: 0.5 };
     }
   }
 
   /**
-   * Verify reCAPTCHA v3 token.
-   * Throws BadRequestException if verification fails or score is too low.
-   * @param token - token from frontend
-   * @param expectedAction - action name (e.g. 'admin_apply')
+   * 是否需要人工审核
+   * @param score 验证分值
    */
-  async verify(token: string, expectedAction: string): Promise<void> {
-    // If no key configured (dev/test), skip verification
-    if (!this.secretKey || this.secretKey === 'disabled') {
-      this.logger.debug('reCAPTCHA skipped (no secret key)');
-      return;
-    }
+  needsReview(score: number): boolean {
+    return score >= 0.3 && score < 0.5;
+  }
 
-    if (!token) {
-      throw new BadRequestException('reCAPTCHA token is required');
-    }
-
-    try {
-      const params = new URLSearchParams({
-        secret: this.secretKey,
-        response: token,
-      });
-
-      const { data } = await axios.post<{
-        success: boolean;
-        score: number;
-        action: string;
-        'error-codes'?: string[];
-      }>(RECAPTCHA_VERIFY_URL, params.toString(), {
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        timeout: 5000,
-      });
-
-      this.logger.debug(
-        `reCAPTCHA result: success=${data.success} score=${data.score} action=${data.action}`,
-      );
-
-      if (!data.success) {
-        const codes = (data['error-codes'] ?? []).join(', ');
-        throw new BadRequestException(
-          `reCAPTCHA verification failed: ${codes}`,
-        );
-      }
-
-      if (data.action !== expectedAction) {
-        throw new BadRequestException(
-          `reCAPTCHA action mismatch: expected "${expectedAction}", got "${data.action}"`,
-        );
-      }
-
-      if (data.score < MIN_SCORE) {
-        throw new BadRequestException(
-          `reCAPTCHA score too low (${data.score}). Possible bot activity detected.`,
-        );
-      }
-    } catch (err: any) {
-      if (err instanceof BadRequestException) throw err;
-      // Network/timeout errors — fail open in dev, fail closed in prod
-      this.logger.error(`reCAPTCHA service error: ${err}`);
-      if (process.env.NODE_ENV === 'production') {
-        throw new BadRequestException(
-          'reCAPTCHA service unavailable. Please try again.',
-        );
-      }
-    }
+  /**
+   * 是否是机器人
+   * @param score 验证分值
+   */
+  isBot(score: number): boolean {
+    return score < 0.3;
   }
 }
