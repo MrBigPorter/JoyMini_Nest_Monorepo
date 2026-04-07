@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, createContext, useContext, ReactNode } from 'react';
+import { useState, useCallback, createContext, useContext, ReactNode, useMemo } from 'react';
 
 export interface ConfirmOptions {
   title?: string;
@@ -65,8 +65,16 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const contextValue = useMemo(() => ({
+    show,
+    hide,
+    confirm,
+    cancel,
+    state,
+  }), [show, hide, confirm, cancel, state]);
+
   return (
-    <ConfirmContext.Provider value={{ show, hide, confirm, cancel, state }}>
+    <ConfirmContext.Provider value={contextValue}>
       {children}
     </ConfirmContext.Provider>
   );
