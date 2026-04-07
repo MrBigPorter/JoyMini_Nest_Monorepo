@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, createContext, useContext } from 'react';
+import { useState, useCallback, createContext, useContext, useMemo } from 'react';
 
 export interface ToastOptions {
   type?: 'success' | 'error' | 'warning' | 'info';
@@ -80,8 +80,20 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     setToasts(prev => prev.filter(t => t.id !== id));
   }, []);
 
+  // 使用useMemo稳定context value，防止不必要的重渲染
+  const contextValue = useMemo(() => ({
+    toasts,
+    show,
+    success,
+    error,
+    warning,
+    info,
+    hide,
+    remove,
+  }), [toasts, show, success, error, warning, info, hide, remove]);
+
   return (
-    <ToastContext.Provider value={{ toasts, show, success, error, warning, info, hide, remove }}>
+    <ToastContext.Provider value={contextValue}>
       {children}
     </ToastContext.Provider>
   );
