@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Modal, Button } from '@/components/UIComponents';
+import { Globe } from 'lucide-react';
 import {
   Form,
   FormTextField,
@@ -38,6 +39,8 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
   );
   const [tags, setTags] = useState<{ id: string; name: string }[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(false);
+  const [activeLanguageTab, setActiveLanguageTab] = useState<string>('zh');
+  const [isTranslating, setIsTranslating] = useState(false);
 
   // Fetch categories and tags
   useEffect(() => {
@@ -156,12 +159,22 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
           title: '',
           content: '',
           excerpt: '',
+          titleEn: '',
+          contentEn: '',
+          excerptEn: '',
           categoryId: '',
           tagIds: [],
           status: 'DRAFT',
           featuredImage: '',
         },
       );
+
+      // 如果文章有英文内容，自动切换到英文标签页
+      if (editingArticle?.titleEn || editingArticle?.contentEn) {
+        setActiveLanguageTab('en');
+      } else {
+        setActiveLanguageTab('zh');
+      }
     }
   }, [isOpen, editingArticle, reset]);
 
@@ -201,30 +214,143 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
     >
       <Form {...form}>
         <form onSubmit={submitHandler} className="space-y-6">
-          <FormTextField
-            name="title"
-            label="Title"
-            placeholder="Enter article title"
-            required
-          />
-          <div>
-            <label className="block text-sm font-medium mb-2">Content</label>
-            <RichTextEditor
-              value={watch('content')}
-              onChange={handleContentChange}
-              onUpload={handleEditorUpload}
-            />
-            {errors.content?.message && (
-              <p className="text-red-500 text-sm mt-1">
-                {errors.content.message}
-              </p>
+          {/* Language Switcher */}
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant={activeLanguageTab === 'zh' ? 'primary' : 'outline'}
+                size="sm"
+                onClick={() => setActiveLanguageTab('zh')}
+              >
+                🇨🇳 中文
+              </Button>
+              <Button
+                type="button"
+                variant={activeLanguageTab === 'en' ? 'primary' : 'outline'}
+                size="sm"
+                onClick={() => setActiveLanguageTab('en')}
+              >
+                🇺🇸 English
+              </Button>
+            </div>
+
+            {isEditing ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-2"
+                isLoading={isTranslating}
+                onClick={async () => {
+                  if (!editingArticle?.id) return;
+                  try {
+                    setIsTranslating(true);
+                    await blogApi.translateArticle(editingArticle.id);
+                    addToast('success', '翻译请求已发送，稍后将自动刷新');
+                    // 刷新文章数据
+                    setTimeout(async () => {
+                      const updatedArticle = await blogApi.getArticle(
+                        editingArticle.id,
+                      );
+                      // 先切换Tab再更新数据，保证富文本编辑器正确渲染
+                      setActiveLanguageTab('en');
+                      // 小延迟保证DOM更新完成
+                      setTimeout(() => {
+                        console.log('✅ 翻译返回数据:', {
+                          titleEn: updatedArticle.titleEn,
+                          contentEn: updatedArticle.contentEn,
+                          excerptEn: updatedArticle.excerptEn,
+                        });
+
+                        // ✅ 只更新三个英文字段，其他所有值完全不动
+                        setValue('titleEn', updatedArticle.titleEn);
+                        setValue('contentEn', updatedArticle.contentEn);
+                        setValue('excerptEn', updatedArticle.excerptEn);
+                      }, 100);
+                    }, 1500);
+                  } catch (error) {
+                    console.error('Translation failed:', error);
+                    addToast('error', '翻译失败，请稍后重试');
+                  } finally {
+                    setIsTranslating(false);
+                  }
+                }}
+              >
+                <Globe size={16} />
+                重新翻译
+              </Button>
+            ) : (
+              <div className="text-xs text-gray-500 flex items-center gap-1">
+                <Globe size={14} />
+                保存后自动翻译英文版本
+              </div>
             )}
           </div>
-          <FormTextareaField
-            name="excerpt"
-            label="Excerpt"
-            placeholder="Brief summary of the article"
-          />
+
+          {/* Language Specific Fields - 使用display隐藏而不是销毁组件 */}
+          <div
+            style={{ display: activeLanguageTab === 'zh' ? 'block' : 'none' }}
+            className="space-y-6"
+          >
+            <FormTextField
+              name="title"
+              label="标题"
+              placeholder="输入文章标题"
+              required
+            />
+            <div>
+              <label className="block text-sm font-medium mb-2">内容</label>
+              <RichTextEditor
+                value={watch('content')}
+                onChange={handleContentChange}
+                onUpload={handleEditorUpload}
+              />
+              {errors.content?.message && (
+                <p className="text-red-500 text-sm mt-1">
+                  {errors.content.message}
+                </p>
+              )}
+            </div>
+            <FormTextareaField
+              name="excerpt"
+              label="摘要"
+              placeholder="文章简要概述"
+            />
+          </div>
+
+          <div
+            style={{ display: activeLanguageTab === 'en' ? 'block' : 'none' }}
+            className="space-y-6"
+          >
+            <FormTextField
+              name="titleEn"
+              label="Title (English)"
+              placeholder="Enter article title in English"
+            />
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                Content (English)
+              </label>
+              <RichTextEditor
+                value={watch('contentEn') || ''}
+                onChange={(content) => setValue('contentEn', content)}
+                onUpload={handleEditorUpload}
+              />
+              {errors.contentEn?.message && (
+                <p className="text-red-500 text-sm mt-1">
+                  {errors.contentEn.message}
+                </p>
+              )}
+            </div>
+            <FormTextareaField
+              name="excerptEn"
+              label="Excerpt (English)"
+              placeholder="Brief summary in English"
+            />
+          </div>
+
+          {/* Common Fields - Always Visible */}
           <FormSelectField
             name="categoryId"
             label="Category"

@@ -52,4 +52,21 @@ export class CreateArticleDto {
   @IsArray()
   @IsString({ each: true })
   tagIds?: string[];
+
+  @ApiPropertyOptional({ description: '英文标题' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  titleEn?: string;
+
+  @ApiPropertyOptional({ description: '英文内容' })
+  @IsOptional()
+  @IsString()
+  contentEn?: string;
+
+  @ApiPropertyOptional({ description: '英文摘要' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  excerptEn?: string;
 }

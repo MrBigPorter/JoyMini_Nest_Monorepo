@@ -55,13 +55,19 @@ export class BlogService {
     const article = await this.prisma.blogArticle.create({
       data: {
         title: dto.title,
+        titleEn: dto.titleEn,
         slug,
         content: dto.content,
+        contentEn: dto.contentEn,
         excerpt: dto.excerpt,
+        excerptEn: dto.excerptEn,
         coverImage: dto.featuredImage,
         status: dto.status || ArticleStatus.DRAFT,
         authorId,
-        categoryId: dto.categoryId,
+        categoryId:
+          dto.categoryId && dto.categoryId.trim() !== ''
+            ? dto.categoryId
+            : null,
         tags: dto.tagIds
           ? {
               connect: dto.tagIds.map((id) => ({ id })),
@@ -106,12 +112,20 @@ export class BlogService {
       where: { id: articleId },
       data: {
         title: dto.title,
+        titleEn: dto.titleEn,
         slug,
         content: dto.content,
+        contentEn: dto.contentEn,
         excerpt: dto.excerpt,
+        excerptEn: dto.excerptEn,
         coverImage: dto.featuredImage,
         status: dto.status,
-        categoryId: dto.categoryId,
+        categoryId:
+          dto.categoryId !== undefined
+            ? dto.categoryId && dto.categoryId.trim() !== ''
+              ? dto.categoryId
+              : null
+            : undefined,
         tags:
           dto.tagIds !== undefined
             ? {
@@ -156,7 +170,7 @@ export class BlogService {
     });
 
     if (!article) {
-      throw new NotFoundException('文章不存在');
+      throw new NotFoundException('Article not found');
     }
 
     if (article.authorId !== authorId) {
@@ -267,7 +281,7 @@ export class BlogService {
     });
 
     if (!article) {
-      throw new NotFoundException('文章不存在');
+      throw new NotFoundException('Article not found');
     }
 
     if (incrementView) {
@@ -299,7 +313,7 @@ export class BlogService {
     });
 
     if (!article) {
-      throw new NotFoundException('文章不存在');
+      throw new NotFoundException('Article not found');
     }
 
     if (incrementView) {
@@ -452,7 +466,7 @@ export class BlogService {
     const article = await this.prisma.blogArticle.findUnique({
       where: { slug },
     });
-    if (!article) throw new NotFoundException('文章不存在');
+    if (!article) throw new NotFoundException('Article not found');
 
     // 这里后续可以添加指纹去重逻辑
     return this.prisma.blogArticle.update({
@@ -469,7 +483,7 @@ export class BlogService {
     const article = await this.prisma.blogArticle.findUnique({
       where: { slug },
     });
-    if (!article) throw new NotFoundException('文章不存在');
+    if (!article) throw new NotFoundException('Article not found');
 
     return this.prisma.blogArticle.update({
       where: { slug },
@@ -493,7 +507,7 @@ export class BlogService {
     const article = await this.prisma.blogArticle.findUnique({
       where: { slug },
     });
-    if (!article) throw new NotFoundException('文章不存在');
+    if (!article) throw new NotFoundException('Article not found');
 
     const commentData: any = {
       articleId: article.id,
@@ -550,7 +564,7 @@ export class BlogService {
       include: { tags: true },
     });
 
-    if (!article) throw new NotFoundException('文章不存在');
+    if (!article) throw new NotFoundException('Article not found');
 
     const tagIds = article.tags.map((t) => t.id);
 
@@ -629,7 +643,7 @@ export class BlogService {
     const article = await this.prisma.blogArticle.findUnique({
       where: { slug },
     });
-    if (!article) throw new NotFoundException('文章不存在');
+    if (!article) throw new NotFoundException('Article not found');
 
     const { page = 1, pageSize = 20 } = params;
     const skip = (page - 1) * pageSize;

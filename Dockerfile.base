@@ -7,6 +7,9 @@
 # Use the official Node.js 20 image as the base image. because it is the latest LTS version.
 FROM node:20-bullseye-slim
 
+#  修复 Node.js 20+ OpenSSL 3.0 与 Google Auth 兼容性问题
+ENV NODE_OPTIONS="--openssl-legacy-provider"
+
 WORKDIR /app
 
 # 构建原生模块所需工具 (sharp, bcrypt 等)

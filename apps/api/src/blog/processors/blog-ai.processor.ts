@@ -30,6 +30,8 @@ export class BlogAiProcessor extends WorkerHost {
         return this.processCommentModeration(job, job.data);
       case 'auto-reply':
         return this.processAutoReply(job.data);
+      case 'translate-article':
+        return this.processArticleTranslation(job.data);
       default:
         this.logger.warn(`Unknown job type: ${job.name}`);
     }
@@ -155,5 +157,97 @@ export class BlogAiProcessor extends WorkerHost {
   @OnWorkerEvent('completed')
   onCompleted(job: Job) {
     this.logger.debug(`Job ${job.id} completed successfully`);
+  }
+
+  private async processArticleTranslation(data: {
+    articleId: string;
+    targetLang: 'en' | 'zh';
+  }) {
+    this.logger.debug(
+      `Translating article: ${data.articleId} to ${data.targetLang}`,
+    );
+
+    try {
+      // 标记翻译中状态
+      await this.prisma.blogArticle.update({
+        where: { id: data.articleId },
+        data: {
+          translationStatus: 'TRANSLATING',
+        },
+      });
+
+      const article = await this.prisma.blogArticle.findUnique({
+        where: { id: data.articleId },
+      });
+
+      if (!article) {
+        this.logger.warn(`Article ${data.articleId} not found`);
+        return;
+      }
+
+      // 执行翻译 (使用串行执行而不是Promise.all避免并行请求同时失败)
+      const titleTranslated = await this.aiService.translateText(
+        article.title,
+        'en', //  强制翻译成英语
+      );
+      const contentTranslated = await this.aiService.translateMarkdown(
+        article.content,
+        'en', //  强制翻译成英语
+      );
+      const excerptTranslated = article.excerpt
+        ? await this.aiService.translateText(article.excerpt, 'en') // ✅ 强制翻译成英语
+        : null;
+
+      // 保存翻译结果
+      const updateData: any = {
+        translationStatus: 'COMPLETED',
+        translatedAt: new Date(),
+      };
+
+      if (data.targetLang === 'en') {
+        updateData.titleEn = titleTranslated;
+        updateData.contentEn = contentTranslated;
+        updateData.excerptEn = excerptTranslated;
+      }
+
+      await this.prisma.blogArticle.update({
+        where: { id: data.articleId },
+        data: updateData,
+      });
+
+      this.logger.log(`Article translation completed: ${data.articleId}`);
+    } catch (err) {
+      this.logger.error(
+        `Article translation failed for ${data.articleId}`,
+        err,
+      );
+
+      // 识别OpenSSL兼容错误，这是环境配置问题，不是代码问题
+      const isOpenSslError =
+        err instanceof Error &&
+        (err.message.includes('ERR_OSSL_UNSUPPORTED') ||
+          err.message.includes('DECODER routines::unsupported'));
+      if (isOpenSslError) {
+        this.logger.warn(
+          `Detected OpenSSL 3.0 compatibility error. Make sure NODE_OPTIONS=--openssl-legacy-provider is set for worker processes.`,
+        );
+      }
+
+      await this.prisma.blogArticle
+        .update({
+          where: { id: data.articleId },
+          data: {
+            translationStatus: 'FAILED',
+          },
+        })
+        .catch(() => {});
+
+      // 不要重新抛出错误，避免队列无限重试
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Unknown error',
+        articleId: data.articleId,
+      };
+    }
   }
 }

@@ -69,4 +69,11 @@ export class ArticleController {
   async unpublishArticle(@Param('id') id: string) {
     return this.articleService.unpublishArticle(id);
   }
+
+  @Post(':id/translate')
+  @ApiOperation({ summary: '手动触发文章翻译' })
+  @RequirePermission('blog', 'update')
+  async translateArticle(@Param('id') id: string) {
+    return this.articleService.translateArticle(id);
+  }
 }

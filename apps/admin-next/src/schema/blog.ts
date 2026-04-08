@@ -6,10 +6,19 @@ export const articleSchema = z.object({
     .string()
     .min(1, 'Title is required')
     .max(200, 'Title must be at most 200 characters'),
+  titleEn: z
+    .string()
+    .max(200, 'Title (EN) must be at most 200 characters')
+    .optional(),
   content: z.string().min(1, 'Content is required'),
+  contentEn: z.string().optional(),
   excerpt: z
     .string()
     .max(500, 'Excerpt must be at most 500 characters')
+    .optional(),
+  excerptEn: z
+    .string()
+    .max(500, 'Excerpt (EN) must be at most 500 characters')
     .optional(),
   categoryId: z.string().optional(),
   tagIds: z.array(z.string()).default([]),
