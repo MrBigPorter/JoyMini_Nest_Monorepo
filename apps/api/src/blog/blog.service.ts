@@ -6,10 +6,15 @@ import {
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { ArticleStatus } from '@prisma/client';
 import { CreateArticleDto, UpdateArticleDto } from './dto';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 
 @Injectable()
 export class BlogService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    @InjectQueue('blog-ai') private blogAiQueue: Queue,
+  ) {}
   /**
    * 生成唯一 Slug
    */
@@ -47,7 +52,7 @@ export class BlogService {
    */
   async createArticle(authorId: string, dto: CreateArticleDto) {
     const slug = await this.generateUniqueSlug(dto.title);
-    return this.prisma.blogArticle.create({
+    const article = await this.prisma.blogArticle.create({
       data: {
         title: dto.title,
         slug,
@@ -68,6 +73,18 @@ export class BlogService {
         tags: true,
       },
     });
+
+    // 异步投递翻译任务，不阻塞请求
+    this.blogAiQueue
+      .add('translate-article', {
+        articleId: article.id,
+        targetLang: 'en',
+      })
+      .catch((err) => {
+        // 静默失败，不影响主流程
+      });
+
+    return article;
   }
 
   /**
@@ -85,7 +102,7 @@ export class BlogService {
       slug = await this.generateUniqueSlug(dto.title, articleId);
     }
 
-    return this.prisma.blogArticle.update({
+    const updatedArticle = await this.prisma.blogArticle.update({
       where: { id: articleId },
       data: {
         title: dto.title,
@@ -107,6 +124,20 @@ export class BlogService {
         tags: true,
       },
     });
+
+    // 只有标题或内容有变更时才重新翻译
+    if (dto.title !== undefined || dto.content !== undefined) {
+      this.blogAiQueue
+        .add('translate-article', {
+          articleId: updatedArticle.id,
+          targetLang: 'en',
+        })
+        .catch((err) => {
+          // 静默失败
+        });
+    }
+
+    return updatedArticle;
   }
 
   /**
