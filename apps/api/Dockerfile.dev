@@ -6,6 +6,9 @@
 
 FROM lucky-monorepo-base
 
+# Article not found 修复 Node.js 20+ OpenSSL 3.0 与 Google Auth 兼容性问题
+ENV NODE_OPTIONS="--openssl-legacy-provider"
+
 WORKDIR /app
 
 # Dev 模式下源码通过 compose volume 挂载 (.:/app)

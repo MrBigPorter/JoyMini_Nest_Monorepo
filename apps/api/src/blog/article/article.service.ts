@@ -1,9 +1,14 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '@api/common/prisma/prisma.service';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 
 @Injectable()
 export class ArticleService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    @InjectQueue('blog-ai') private blogAiQueue: Queue,
+  ) {}
 
   /**
    * 获取文章列表
@@ -78,6 +83,15 @@ export class ArticleService {
         },
       });
     }
+
+    // 异步投递翻译任务
+    this.blogAiQueue
+      .add('translate-article', {
+        articleId: article.id,
+        targetLang: 'en',
+      })
+      .catch(() => {});
+
     return article;
   }
 
@@ -87,6 +101,9 @@ export class ArticleService {
       title?: string;
       content?: string;
       excerpt?: string;
+      titleEn?: string;
+      contentEn?: string;
+      excerptEn?: string;
       categoryId?: string;
       tagIds?: string[];
       status?: string;
@@ -104,6 +121,9 @@ export class ArticleService {
     if (data.title !== undefined) payload.title = data.title;
     if (data.content !== undefined) payload.content = data.content;
     if (data.excerpt !== undefined) payload.excerpt = data.excerpt;
+    if (data.titleEn !== undefined) payload.titleEn = data.titleEn;
+    if (data.contentEn !== undefined) payload.contentEn = data.contentEn;
+    if (data.excerptEn !== undefined) payload.excerptEn = data.excerptEn;
     if (data.categoryId !== undefined) payload.categoryId = data.categoryId;
     if (data.status !== undefined) payload.status = data.status;
     if (data.featuredImage !== undefined)
@@ -136,6 +156,16 @@ export class ArticleService {
         });
       }
     }
+    // 只有标题或内容变更时才重新翻译
+    if (data.title !== undefined || data.content !== undefined) {
+      this.blogAiQueue
+        .add('translate-article', {
+          articleId: id,
+          targetLang: 'en',
+        })
+        .catch(() => {});
+    }
+
     return updated;
   }
 
@@ -176,5 +206,27 @@ export class ArticleService {
       data: { status: 'DRAFT', publishedAt: null },
     });
     return updated;
+  }
+
+  async translateArticle(id: string) {
+    const existing = await this.prisma.blogArticle.findUnique({
+      where: { id },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('article not found');
+    }
+
+    // 投递翻译任务
+    await this.blogAiQueue.add('translate-article', {
+      articleId: id,
+      targetLang: 'en',
+    });
+
+    return {
+      success: true,
+      message: 'Translation task has been queued',
+      articleId: id,
+    };
   }
 }

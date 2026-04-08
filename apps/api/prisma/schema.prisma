@@ -1492,6 +1492,15 @@ enum CommentStatus {
   REJECTED
 }
 
+/// 翻译状态
+enum TranslationStatus {
+  PENDING
+  TRANSLATING
+  COMPLETED
+  MANUAL
+  FAILED
+}
+
 /// 博客文章
 model BlogArticle {
   id            String        @id @default(cuid()) @db.VarChar(32)
@@ -1507,6 +1516,15 @@ model BlogArticle {
   commentCount  Int           @default(0)
   featured      Boolean       @default(false)
   meta          Json?
+
+  // ========== 英文翻译 ==========
+  titleEn       String?       @db.VarChar(255)
+  contentEn     String?       @db.Text
+  excerptEn     String?       @db.Text
+
+  // ========== 翻译状态 ==========
+  translationStatus TranslationStatus @default(PENDING)
+  translatedAt    DateTime?
   
   authorId      String        @db.VarChar(32)
   author        AdminUser     @relation(fields: [authorId], references: [id], onDelete: Restrict)
@@ -1525,6 +1543,7 @@ model BlogArticle {
   @@index([createdAt], map: "idx_blog_article_created_at")
   @@index([authorId], map: "idx_blog_article_author_id")
   @@index([categoryId], map: "idx_blog_article_category_id")
+  @@index([translationStatus], map: "idx_blog_article_translation_status")
   @@map("blog_articles")
 }
 

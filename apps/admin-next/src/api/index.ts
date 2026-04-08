@@ -1186,6 +1186,11 @@ export const blogApi = {
     return await http.delete<any>(`/v1/admin/blog/articles/${id}`);
   },
 
+  // Translation
+  translateArticle: async (id: string) => {
+    return await http.post<any>(`/v1/admin/blog/articles/${id}/translate`);
+  },
+
   publishArticle: async (id: string) => {
     return await http.post<any>(`/v1/admin/blog/articles/${id}/publish`);
   },

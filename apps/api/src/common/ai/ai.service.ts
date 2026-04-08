@@ -5,7 +5,6 @@ import {
   HarmBlockThreshold,
   HarmCategory,
   VertexAI,
-  GenerateContentResult,
 } from '@google-cloud/vertexai';
 
 export interface AiModerationResult {
@@ -23,6 +22,13 @@ export interface AiGenerationOptions {
   systemPrompt?: string;
 }
 
+export enum AiServiceLevel {
+  FULL = 3,
+  ESSENTIAL = 2,
+  MINIMAL = 1,
+  DISABLED = 0,
+}
+
 @Injectable()
 export class AiService implements OnModuleInit {
   private readonly logger = new Logger(AiService.name);
@@ -31,10 +37,75 @@ export class AiService implements OnModuleInit {
   private geminiModel?: GenerativeModel;
   private isEnabled = false;
 
+  // Article not found 用量监控 & 限流
+  private usageCounter = {
+    requests: 0,
+    tokens: 0,
+    resetAt: Date.now() + 60000,
+  };
+
+  // Article not found 服务等级 - 自动降级系统
+  private serviceLevel = AiServiceLevel.FULL;
+  private levelUpdatedAt = Date.now();
+
+  // Article not found 熔断保护
+  private circuitBreaker = {
+    consecutiveFailures: 0,
+    openUntil: 0,
+    lastFailureAt: 0,
+  };
+
+  // Article not found Gemini 2.5 Flash 免费配额安全阈值 (预留20%缓冲)
+  private readonly LIMITS = {
+    RPM: 12, // 每分钟最多12次 (官方15)
+    TPM: 800000, // 每分钟最多800k token (官方1M)
+    DAILY: 800000, // 每天最多800k token (官方1M)
+    FAILURE_THRESHOLD: 5, // 连续失败5次开启熔断
+    CIRCUIT_BREAKER_DURATION: 900000, // 熔断15分钟
+  };
+
   constructor(private configService: ConfigService) {}
 
   async onModuleInit() {
     await this.initializeVertexAI();
+
+    // 定时重置计数器
+    setInterval(() => {
+      this.resetCounters();
+    }, 1000);
+  }
+
+  private resetCounters() {
+    const now = Date.now();
+    if (now >= this.usageCounter.resetAt) {
+      this.usageCounter.requests = 0;
+      this.usageCounter.tokens = 0;
+      this.usageCounter.resetAt = now + 60000;
+    }
+
+    // 自动恢复服务等级 (每5分钟检查一次)
+    if (
+      now - this.levelUpdatedAt > 300000 &&
+      this.serviceLevel < AiServiceLevel.FULL
+    ) {
+      this.serviceLevel = Math.min(this.serviceLevel + 1, AiServiceLevel.FULL);
+      this.levelUpdatedAt = now;
+      this.logger.log(
+        `🔄 AI service level recovered to: ${AiServiceLevel[this.serviceLevel]}`,
+      );
+    }
+
+    // 关闭熔断
+    if (
+      this.circuitBreaker.openUntil > 0 &&
+      now >= this.circuitBreaker.openUntil
+    ) {
+      this.circuitBreaker.openUntil = 0;
+      this.circuitBreaker.consecutiveFailures = 0;
+      this.logger.log(
+        'Article not found AI circuit breaker closed, service restored',
+      );
+    }
   }
 
   private async initializeVertexAI() {
@@ -51,6 +122,7 @@ export class AiService implements OnModuleInit {
 
     try {
       const credentials = JSON.parse(googleCredsRaw);
+
       const projectId =
         credentials.project_id || this.configService.get('GOOGLE_PROJECT_ID');
 
@@ -61,9 +133,9 @@ export class AiService implements OnModuleInit {
           googleAuthOptions: { credentials },
         });
 
-        //  使用 Gemini 2.0 Flash 永久免费版
+        // Article not found Gemini 2.5 Flash 版本 - 原生支持 Node 20+ OpenSSL 3.0
         this.geminiModel = this.vertexAI.getGenerativeModel({
-          model: 'gemini-2.0-flash',
+          model: 'gemini-2.5-flash',
           safetySettings: [
             {
               category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
@@ -90,7 +162,7 @@ export class AiService implements OnModuleInit {
 
         this.isEnabled = true;
         this.logger.log(
-          ` Vertex AI initialized with Gemini 2.0 Flash (FREE TIER)`,
+          `Article not found Vertex AI initialized with Gemini 2.5 Flash`,
         );
       }
     } catch (e) {
@@ -99,14 +171,80 @@ export class AiService implements OnModuleInit {
   }
 
   /**
-   * 通用文本生成接口
-   * 所有AI功能的统一入口
+   * Article not found 流量控制检查
+   * 返回 true 表示允许请求
+   */
+  private checkRateLimit(estimatedTokens: number): boolean {
+    // 熔断开启
+    if (this.circuitBreaker.openUntil > Date.now()) {
+      return false;
+    }
+
+    // 检查每分钟配额
+    if (this.usageCounter.requests >= this.LIMITS.RPM) {
+      if (this.serviceLevel > AiServiceLevel.ESSENTIAL) {
+        this.serviceLevel = AiServiceLevel.ESSENTIAL;
+        this.levelUpdatedAt = Date.now();
+        this.logger.warn(`⚠️  RPM limit reached, downgraded to ESSENTIAL mode`);
+      }
+      return false;
+    }
+
+    if (this.usageCounter.tokens + estimatedTokens >= this.LIMITS.TPM) {
+      if (this.serviceLevel > AiServiceLevel.MINIMAL) {
+        this.serviceLevel = AiServiceLevel.MINIMAL;
+        this.levelUpdatedAt = Date.now();
+        this.logger.warn(`⚠️  TPM limit reached, downgraded to MINIMAL mode`);
+      }
+      return false;
+    }
+
+    return true;
+  }
+
+  private recordSuccess(tokens: number) {
+    this.usageCounter.requests++;
+    this.usageCounter.tokens += tokens;
+    this.circuitBreaker.consecutiveFailures = 0;
+  }
+
+  private recordFailure() {
+    this.circuitBreaker.consecutiveFailures++;
+    this.circuitBreaker.lastFailureAt = Date.now();
+
+    if (
+      this.circuitBreaker.consecutiveFailures >= this.LIMITS.FAILURE_THRESHOLD
+    ) {
+      this.circuitBreaker.openUntil =
+        Date.now() + this.LIMITS.CIRCUIT_BREAKER_DURATION;
+      this.serviceLevel = AiServiceLevel.DISABLED;
+      this.logger.error(
+        `🔥 Circuit breaker OPENED for 15 minutes after ${this.LIMITS.FAILURE_THRESHOLD} consecutive failures`,
+      );
+    }
+  }
+
+  /**
+   * 通用文本生成接口 - 所有AI功能的统一入口
    */
   async generateText(
     prompt: string,
     options?: AiGenerationOptions,
+    requiredLevel: AiServiceLevel = AiServiceLevel.FULL,
   ): Promise<string | null> {
     if (!this.isEnabled || !this.geminiModel) {
+      return null;
+    }
+
+    // 服务等级检查
+    if (this.serviceLevel < requiredLevel) {
+      return null;
+    }
+
+    // 流量控制检查
+    const estimatedTokens =
+      Math.ceil(prompt.length / 4) + (options?.maxOutputTokens || 512);
+    if (!this.checkRateLimit(estimatedTokens)) {
       return null;
     }
 
@@ -117,15 +255,28 @@ export class AiService implements OnModuleInit {
       });
 
       const response = await result.response;
-      return response.candidates?.[0]?.content?.parts?.[0]?.text || null;
+
+      // 安全边界检查
+      if (
+        !response ||
+        !response.candidates ||
+        response.candidates.length === 0
+      ) {
+        this.recordFailure();
+        return null;
+      }
+
+      this.recordSuccess(estimatedTokens);
+      return response.candidates[0]?.content?.parts?.[0]?.text || null;
     } catch (e) {
+      this.recordFailure();
       this.logger.error('AI generation error', e);
       return null;
     }
   }
 
   /**
-   * 评论内容智能审核
+   * 评论内容智能审核 - 等级 ESSENTIAL
    */
   async moderateComment(
     content: string,
@@ -153,11 +304,15 @@ Return JSON format:
 }
 `.trim();
 
-    const response = await this.generateText(prompt, {
-      temperature: 0,
-      maxOutputTokens: 512,
-      responseMimeType: 'application/json',
-    });
+    const response = await this.generateText(
+      prompt,
+      {
+        temperature: 0,
+        maxOutputTokens: 512,
+        responseMimeType: 'application/json',
+      },
+      AiServiceLevel.ESSENTIAL,
+    );
 
     if (!response) {
       return { score: 0, passed: true, reason: null, categories: [] };
@@ -173,13 +328,17 @@ Return JSON format:
   }
 
   /**
-   * 生成自动回复
+   * 生成自动回复 - 等级 FULL
    */
   async generateAutoReply(
     comment: string,
     articleTitle: string,
     articleContent?: string,
   ): Promise<string | null> {
+    if (this.serviceLevel < AiServiceLevel.FULL) {
+      return null;
+    }
+
     const prompt = `
 Act as a friendly blog community manager. Generate a natural, relevant reply to this comment.
 
@@ -196,17 +355,20 @@ RULES:
 6. Respond in the same language as the comment
 `.trim();
 
-    return this.generateText(prompt, {
-      temperature: 0.7,
-      maxOutputTokens: 256,
-    });
+    return this.generateText(
+      prompt,
+      {
+        temperature: 0.7,
+        maxOutputTokens: 256,
+      },
+      AiServiceLevel.FULL,
+    );
   }
 
   /**
-   * ⏳ 预留：生成向量嵌入 (用于未来智能搜索)
+   * ⏳ 预留：生成向量嵌入
    */
   async generateEmbedding(text: string): Promise<number[] | null> {
-    // TODO: 实现向量嵌入接口，用于语义搜索
     this.logger.debug('Embedding generation requested, feature coming soon');
     return null;
   }
@@ -215,12 +377,99 @@ RULES:
    * ⏳ 预留：语义搜索匹配
    */
   async semanticSearch(query: string, documents: string[]): Promise<number[]> {
-    // TODO: 实现语义搜索排序
     return [];
   }
 
+  /**
+   * 通用文本翻译 - 等级 FULL
+   */
+  async translateText(text: string, targetLang: 'en' | 'zh'): Promise<string> {
+    if (!this.isEnabled || this.serviceLevel < AiServiceLevel.FULL) {
+      return text;
+    }
+
+    const langName = targetLang === 'en' ? 'English' : 'Chinese';
+    const prompt = `
+Translate the following text to ${langName}.
+
+Requirements:
+1. Preserve all technical terms and proper nouns
+2. Keep the original meaning and tone
+3. Do not add any explanations or notes
+4. Return only the translated text
+
+Text to translate:
+${text}
+`.trim();
+
+    const result = await this.generateText(
+      prompt,
+      {
+        temperature: 0.1,
+        maxOutputTokens: Math.max(512, text.length * 2),
+      },
+      AiServiceLevel.FULL,
+    );
+
+    return result || text;
+  }
+
+  /**
+   * Markdown 文档翻译 - 等级 FULL
+   */
+  async translateMarkdown(
+    markdown: string,
+    targetLang: 'en' | 'zh',
+  ): Promise<string> {
+    if (!this.isEnabled || this.serviceLevel < AiServiceLevel.FULL) {
+      return markdown;
+    }
+
+    const langName = targetLang === 'en' ? 'English' : 'Chinese';
+
+    const prompt = `
+Translate the following Markdown document to ${langName}.
+
+Requirements:
+1. Preserve ALL Markdown formatting: headers, lists, code blocks, links, bold, italic
+2. Do NOT translate code inside code blocks
+3. Keep technical terms and proper nouns unchanged
+4. Maintain original structure and formatting
+5. Return only the translated Markdown
+
+Document:
+${markdown}
+`.trim();
+
+    const result = await this.generateText(
+      prompt,
+      {
+        temperature: 0.1,
+        maxOutputTokens: Math.max(2048, markdown.length * 3),
+      },
+      AiServiceLevel.FULL,
+    );
+
+    return result || markdown;
+  }
+
   isAvailable(): boolean {
-    return this.isEnabled;
+    return this.isEnabled && this.circuitBreaker.openUntil <= Date.now();
+  }
+
+  getServiceLevel(): AiServiceLevel {
+    return this.serviceLevel;
+  }
+
+  getUsageStats() {
+    return {
+      requests: this.usageCounter.requests,
+      tokens: this.usageCounter.tokens,
+      resetIn: Math.max(0, this.usageCounter.resetAt - Date.now()),
+      serviceLevel: AiServiceLevel[this.serviceLevel],
+      circuitBreakerOpen: this.circuitBreaker.openUntil > Date.now(),
+      consecutiveFailures: this.circuitBreaker.consecutiveFailures,
+    };
   }
 
   private extractJsonObject(text: string): string {
