@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
-import { BullModule, InjectQueue } from '@nestjs/bullmq';
-import { Queue } from 'bullmq';
+import { BullModule } from '@nestjs/bullmq';
 import { CommentController } from './comment.controller';
 import { CommentService } from './comment.service';
 import { BlogAiProcessor } from '../processors/blog-ai.processor';
@@ -14,15 +13,7 @@ import { AiModule } from '@api/common/ai/ai.module';
     AiModule,
   ],
   controllers: [CommentController],
-  providers: [
-    CommentService,
-    BlogAiProcessor,
-    {
-      provide: 'BLOG_AI_QUEUE',
-      useFactory: (queue: Queue) => queue,
-      inject: [InjectQueue('blog-ai')],
-    },
-  ],
-  exports: [CommentService, 'BLOG_AI_QUEUE'],
+  providers: [CommentService, BlogAiProcessor],
+  exports: [CommentService],
 })
 export class CommentModule {}
