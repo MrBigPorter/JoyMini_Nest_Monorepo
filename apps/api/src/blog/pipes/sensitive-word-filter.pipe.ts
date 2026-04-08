@@ -6,7 +6,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 // @ts-ignore
-import * as AhoCorasick from 'ahocorasick';
+import AhoCorasick from 'ahocorasick';
 
 /**
  * 敏感词级别

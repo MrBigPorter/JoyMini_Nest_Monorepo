@@ -1,7 +1,12 @@
-import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
+import {
+  Processor,
+  WorkerHost,
+  OnWorkerEvent,
+  InjectQueue,
+} from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
-import { Job } from 'bullmq';
-import { AiService, AiModerationResult } from '@api/common/ai/ai.service';
+import { Job, Queue } from 'bullmq';
+import { AiService } from '@api/common/ai/ai.service';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { CommentStatus } from '@prisma/client';
 
@@ -14,6 +19,7 @@ export class BlogAiProcessor extends WorkerHost {
   constructor(
     private aiService: AiService,
     private prisma: PrismaService,
+    @InjectQueue('blog-ai') private blogAiQueue: Queue,
   ) {
     super();
   }
@@ -21,7 +27,7 @@ export class BlogAiProcessor extends WorkerHost {
   async process(job: Job): Promise<any> {
     switch (job.name) {
       case 'moderate-comment':
-        return this.processCommentModeration(job.data);
+        return this.processCommentModeration(job, job.data);
       case 'auto-reply':
         return this.processAutoReply(job.data);
       default:
@@ -29,11 +35,14 @@ export class BlogAiProcessor extends WorkerHost {
     }
   }
 
-  private async processCommentModeration(data: {
-    commentId: string;
-    content: string;
-    articleTitle?: string;
-  }) {
+  private async processCommentModeration(
+    job: Job,
+    data: {
+      commentId: string;
+      content: string;
+      articleTitle?: string;
+    },
+  ) {
     this.logger.debug(
       `Processing AI moderation for comment: ${data.commentId}`,
     );
@@ -51,16 +60,16 @@ export class BlogAiProcessor extends WorkerHost {
           aiModerationScore: result.score,
           aiModerationReason: result.reason,
           aiModerationCategories: result.categories.join(','),
+          aiModeratedAt: new Date(),
           status: result.passed
             ? CommentStatus.APPROVED
             : CommentStatus.REJECTED,
-          aiModeratedAt: new Date(),
         },
       });
 
       // 如果审核通过且有自动回复建议，延迟投递回复任务
       if (result.passed && result.autoReplySuggestion) {
-        await job.queue.add(
+        await this.blogAiQueue.add(
           'auto-reply',
           {
             commentId: data.commentId,
