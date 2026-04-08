@@ -1578,6 +1578,18 @@ model BlogComment {
   parent    BlogComment?   @relation("BlogCommentHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
   children  BlogComment[]  @relation("BlogCommentHierarchy")
   
+  /// AI 审核评分 0-100 分数越高违规风险越大
+  aiModerationScore     Int?        @map("ai_moderation_score") @db.SmallInt
+  /// AI 审核原因说明
+  aiModerationReason    String?     @map("ai_moderation_reason") @db.Text
+  /// AI 检测到的违规分类标签 逗号分隔
+  aiModerationCategories String?    @map("ai_moderation_categories") @db.VarChar(255)
+  /// AI 审核完成时间
+  aiModeratedAt         DateTime?   @map("ai_moderated_at")
+  
+  /// 是否为AI自动生成的回复
+  isAiGenerated         Boolean     @default(false) @map("is_ai_generated")
+
   createdAt DateTime       @default(now()) @map("created_at")
   updatedAt DateTime       @updatedAt @map("updated_at")
   
@@ -1585,5 +1597,6 @@ model BlogComment {
   @@index([status], map: "idx_blog_comment_status")
   @@index([createdAt], map: "idx_blog_comment_created_at")
   @@index([parentId], map: "idx_blog_comment_parent_id")
+  @@index([aiModerationScore], map: "idx_blog_comment_ai_score")
   @@map("blog_comments")
 }
