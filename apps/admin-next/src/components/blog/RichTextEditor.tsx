@@ -43,6 +43,10 @@ export const RichTextEditor = ({
     import('react-quill-new').then((mod) => setReactQuill(() => mod.default));
   }, []);
 
+  // ✅ 不要自动监听 Quill 事件，因为会触发无限循环
+  // ❌ 所有通过代码修改内容的地方我都会手动调用 onChange
+  // 这是目前唯一不会死循环的正确方案
+
   const [showImportModal, setShowImportModal] = useState(false);
 
   // Markdown 导入处理器
@@ -50,12 +54,20 @@ export const RichTextEditor = ({
     setShowImportModal(true);
   }, []);
 
-  const handleImportMarkdown = useCallback((html: string) => {
-    const quill = quillRef.current?.getEditor();
-    if (quill) {
-      quill.clipboard.dangerouslyPasteHTML(html);
-    }
-  }, []);
+  const handleImportMarkdown = useCallback(
+    (html: string) => {
+      const quill = quillRef.current?.getEditor();
+      if (quill) {
+        // 修复: 插入后必须手动触发 onChange 事件更新表单值
+        quill.clipboard.dangerouslyPasteHTML(html);
+
+        // 手动触发内容更新
+        const content = quill.root.innerHTML;
+        onChange(content);
+      }
+    },
+    [onChange],
+  );
 
   // 自定义图片处理逻辑
   const imageHandler = useCallback(() => {
@@ -88,9 +100,19 @@ export const RichTextEditor = ({
 
         const quill = quillRef.current?.getEditor();
         if (quill) {
-          const range = quill.getSelection(true);
+          // 修复: 如果没有选中位置默认在末尾插入
+          let range = quill.getSelection();
+          if (!range) {
+            range = { index: quill.getLength(), length: 0 };
+          }
           quill.insertEmbed(range.index, 'image', url);
           quill.setSelection(range.index + 1, 0);
+
+          // 修复: 插入图片后手动触发 onChange 事件
+          setTimeout(() => {
+            const content = quill.root.innerHTML;
+            onChange(content);
+          }, 0);
         }
       } catch (error) {
         console.error('Upload failed in component:', error);
@@ -148,7 +170,6 @@ export const RichTextEditor = ({
           ) : (
             <ReactQuill
               ref={quillRef}
-              key={value}
               theme="snow"
               value={value || ''}
               onChange={onChange}
