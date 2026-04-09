@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { Card } from '@/components/UIComponents';
 import { Badge } from '@repo/ui';
 import {
@@ -44,62 +45,76 @@ export default function BlogArticleContent({
     }
   };
 
+  // 预览语言切换
+  const [language, setLanguage] = useState<'zh' | 'en'>('zh');
+
+  // 动态选择语言内容
+  const title =
+    language === 'zh' ? article.title : article.titleEn || article.title;
+  const excerpt =
+    language === 'zh' ? article.excerpt : article.excerptEn || article.excerpt;
+  const content =
+    language === 'zh' ? article.content : article.contentEn || article.content;
+
   // Sanitize HTML on the client side
-  const safeContent = DOMPurify.sanitize(article.content || '', {
-    ALLOWED_TAGS: [
-      'h1',
-      'h2',
-      'h3',
-      'h4',
-      'h5',
-      'h6',
-      'p',
-      'br',
-      'strong',
-      'em',
-      'u',
-      's',
-      'blockquote',
-      'code',
-      'pre',
-      'ul',
-      'ol',
-      'li',
-      'a',
-      'img',
-      'figure',
-      'figcaption',
-      'table',
-      'thead',
-      'tbody',
-      'tr',
-      'th',
-      'td',
-      'div',
-      'span',
-      'hr',
-      'sub',
-      'sup',
-      'mark',
-      'del',
-      'ins',
-    ],
-    ALLOWED_ATTR: [
-      'href',
-      'target',
-      'rel',
-      'src',
-      'alt',
-      'title',
-      'width',
-      'height',
-      'class',
-      'style',
-      'data-*',
-      'id',
-    ],
-    ALLOW_DATA_ATTR: true,
-  });
+  const safeContent =
+    typeof window !== 'undefined'
+      ? DOMPurify.sanitize(content || '', {
+          ALLOWED_TAGS: [
+            'h1',
+            'h2',
+            'h3',
+            'h4',
+            'h5',
+            'h6',
+            'p',
+            'br',
+            'strong',
+            'em',
+            'u',
+            's',
+            'blockquote',
+            'code',
+            'pre',
+            'ul',
+            'ol',
+            'li',
+            'a',
+            'img',
+            'figure',
+            'figcaption',
+            'table',
+            'thead',
+            'tbody',
+            'tr',
+            'th',
+            'td',
+            'div',
+            'span',
+            'hr',
+            'sub',
+            'sup',
+            'mark',
+            'del',
+            'ins',
+          ],
+          ALLOWED_ATTR: [
+            'href',
+            'target',
+            'rel',
+            'src',
+            'alt',
+            'title',
+            'width',
+            'height',
+            'class',
+            'style',
+            'data-*',
+            'id',
+          ],
+          ALLOW_DATA_ATTR: true,
+        })
+      : content || '';
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
@@ -125,6 +140,34 @@ export default function BlogArticleContent({
             </div>
           )}
 
+          {/* 语言切换按钮 */}
+          <div className="flex justify-end mb-6">
+            <div className="inline-flex rounded-md border border-gray-200 dark:border-gray-700">
+              <button
+                type="button"
+                onClick={() => setLanguage('zh')}
+                className={`px-4 py-2 text-sm font-medium transition-colors ${
+                  language === 'zh'
+                    ? 'bg-primary-500 text-white'
+                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                }`}
+              >
+                🇨🇳 中文
+              </button>
+              <button
+                type="button"
+                onClick={() => setLanguage('en')}
+                className={`px-4 py-2 text-sm font-medium transition-colors ${
+                  language === 'en'
+                    ? 'bg-primary-500 text-white'
+                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                }`}
+              >
+                🇺🇸 English
+              </button>
+            </div>
+          </div>
+
           {/* Featured image */}
           {article.featuredImage && (
             <div className="mb-8 rounded-xl overflow-hidden">
@@ -138,7 +181,7 @@ export default function BlogArticleContent({
 
           {/* Title */}
           <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">
-            {article.title}
+            {title}
           </h1>
 
           {/* Meta information */}
@@ -176,10 +219,10 @@ export default function BlogArticleContent({
           </div>
 
           {/* Excerpt */}
-          {article.excerpt && (
+          {excerpt && (
             <div className="mb-8">
               <p className="text-lg text-gray-700 dark:text-gray-300 italic">
-                {article.excerpt}
+                {excerpt}
               </p>
             </div>
           )}
