@@ -18,6 +18,8 @@ import { RichTextEditor } from '@/components/blog/RichTextEditor';
 import { useToastStore } from '@/store/useToastStore';
 import { SmartImage } from '@/components/ui/SmartImage';
 import { Info } from 'lucide-react';
+import { Marked } from 'marked';
+import DOMPurify from 'dompurify';
 
 interface BlogArticleModalProps {
   isOpen: boolean;
@@ -25,6 +27,12 @@ interface BlogArticleModalProps {
   editingArticle?: (Partial<ArticleFormInputs> & { id: string }) | null;
   onSuccessAction: () => void;
 }
+
+const marked = new Marked({
+  gfm: true,
+  breaks: true,
+  silent: true, // 原样保留HTML标签，不做转码
+});
 
 export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
   isOpen,
@@ -139,7 +147,7 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
   useEffect(() => {
     console.log('content', editingArticle);
     if (isOpen) {
-      const mappedArticle = editingArticle
+      const mappedArticle: any = editingArticle
         ? {
             ...editingArticle,
             featuredImage:
@@ -151,20 +159,36 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
               )?.coverImage ||
               editingArticle.featuredImage ||
               '',
-            //  修复分类自动选择 - 确保categoryId是字符串
             categoryId:
               (editingArticle as any).categoryId ||
               (editingArticle as any)?.category?.id ||
               '',
           }
         : null;
+
+      //  关键修复：预处理内容，解决 MD 混用问题
+      let initContent =
+        (mappedArticle as any)?.contentMd || mappedArticle?.content || '';
+      let initContentEn =
+        (mappedArticle as any)?.contentMdEn || mappedArticle?.contentEn || '';
+
+      // 判断逻辑：如果内容存在，且不包含 HTML 标签特征，说明大概率是纯 Markdown
+      // 在将其放进 RichTextEditor 之前，强制转换为 HTML
+      if (initContent && !/<[a-z][\s\S]*>/i.test(initContent)) {
+        initContent = marked.parse(initContent) as string;
+      }
+      if (initContentEn && !/<[a-z][\s\S]*>/i.test(initContentEn)) {
+        initContentEn = marked.parse(initContentEn) as string;
+      }
+
       reset({
         title: mappedArticle?.title || '',
-        content: mappedArticle?.content || '',
+        content: initContent, // 使用预处理后的 HTML
         excerpt: mappedArticle?.excerpt || '',
         titleEn: mappedArticle?.titleEn || '',
-        contentEn: mappedArticle?.contentEn || '',
+        contentEn: initContentEn, // 使用预处理后的 HTML
         excerptEn: mappedArticle?.excerptEn || '',
+
         categoryId:
           (mappedArticle as any)?.categoryId ||
           (mappedArticle as any)?.category?.id ||
@@ -177,7 +201,6 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
         featuredImage: mappedArticle?.featuredImage || '',
       });
 
-      // 如果文章有英文内容，自动切换到英文标签页
       if (editingArticle?.titleEn || editingArticle?.contentEn) {
         setActiveLanguageTab('en');
       } else {
@@ -247,7 +270,6 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
                   🇺🇸 English
                 </Button>
               </div>
-
               {isEditing ? (
                 <Button
                   type="button"
@@ -494,12 +516,28 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
                     : watch('excerptEn') || watch('excerpt')}
                 </p>
                 <div
-                  className="prose prose-slate dark:prose-invert max-w-none"
+                  className="prose prose-slate dark:prose-invert prose-lg max-w-none"
                   dangerouslySetInnerHTML={{
-                    __html:
-                      previewLanguage === 'zh'
-                        ? watch('content')
-                        : watch('contentEn') || watch('content'),
+                    __html: (() => {
+                      const rawContent =
+                        previewLanguage === 'zh'
+                          ? watch('content')
+                          : watch('contentEn') || watch('content');
+
+                      if (!rawContent) return '';
+
+                      // marked 会自动同时处理 Markdown 和 HTML 混合内容
+                      const htmlContent = marked.parse(rawContent) as string;
+
+                      // 统一安全净化
+                      return typeof window !== 'undefined'
+                        ? DOMPurify.sanitize(htmlContent, {
+                            USE_PROFILES: { html: true },
+                            ADD_ATTR: ['target', 'rel'],
+                            FORBID_TAGS: ['style', 'script'],
+                          })
+                        : '';
+                    })(),
                   }}
                 />
               </div>
