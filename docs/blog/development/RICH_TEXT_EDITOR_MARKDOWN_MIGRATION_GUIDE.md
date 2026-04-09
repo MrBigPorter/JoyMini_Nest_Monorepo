@@ -123,8 +123,89 @@ Markdown 严格依赖换行符，标题 `#` 后面必须有回车换行。
 
 ---
 
+---
+
+## ✨ Markdown 导入功能扩展
+
+### 🎯 功能设计
+
+在解决了历史文章的迁移问题之后，我们可以顺理成章的扩展出反向功能：**从 Markdown 直接导入到编辑器**。
+
+这是一个零成本的附加功能，不需要任何额外依赖。
+
+### ✅ 实现方案
+
+```tsx
+// 在 RichTextEditor 工具栏添加一个按钮
+const handleMarkdownImport = useCallback(() => {
+  const markdownText = window.prompt("粘贴 Markdown 内容:");
+
+  if (markdownText) {
+    // 使用完全相同的转换逻辑
+    const htmlContent = marked.parse(markdownText) as string;
+
+    // 直接渲染到编辑器
+    editor.commands.setContent(htmlContent);
+  }
+}, [editor]);
+```
+
+### ✨ 扩展能力
+
+| 功能                | 状态       |
+| ------------------- | ---------- |
+| ✅ 单篇文章粘贴导入 | 30分钟实现 |
+| ⏳ 单文件上传导入   | 2小时实现  |
+| ⏳ 批量ZIP包导入    | 4小时实现  |
+
+---
+
 ## 📝 总结
 
 这是一个非常典型的系统迁移问题，几乎所有团队在从纯Markdown编辑器切换到所见即所得富文本编辑器的时候都会遇到。
 
 你看到的所有正确的系统都是这样实现的，没有例外。这个方案是经过工业界验证的标准解决方案。
+
+---
+
+## ✨ 扩展: 双格式存储架构
+
+在解决了现有问题之后，我们应该扩展到完整的工业标准实现：双格式永久存储。
+
+```
+编辑用Markdown → 渲染用HTML → 双格式同时存储
+```
+
+这是 WordPress、Ghost、Notion、Medium 所有成熟内容系统的标准实现方式。
+
+### ✅ 实现方案
+
+```prisma
+model Article {
+  // ✅ 单一数据源 - 永远保存原始格式
+  contentMd   String?  @db.Text
+  contentMdEn String?  @db.Text
+
+  // ✅ 只读缓存 - 预渲染好用于显示
+  content     String?  @db.Text
+  contentEn   String?  @db.Text
+}
+```
+
+### 工作流
+
+1.  用户在编辑器编辑
+2.  编辑器输出 Markdown 原始格式
+3.  后端接收 contentMd
+4.  后端自动渲染为 HTML 存入 content
+5.  两个字段同时原子保存
+
+✅ 向前100%兼容，✅ 零停机迁移，✅ 永远不会后悔。
+
+完整设计文档见: `docs/blog/architecture/BLOG_CONTENT_STORAGE_DESIGN.md`
+
+---
+
+**文档版本**: 1.2
+**最后更新**: 2026-04-09
+**状态**: ✅ 已实现

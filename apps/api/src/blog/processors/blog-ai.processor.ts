@@ -4,6 +4,7 @@ import {
   OnWorkerEvent,
   InjectQueue,
 } from '@nestjs/bullmq';
+import { Marked } from 'marked';
 import { Logger } from '@nestjs/common';
 import { Job, Queue } from 'bullmq';
 import { AiService } from '@api/common/ai/ai.service';
@@ -15,6 +16,7 @@ import { CommentStatus } from '@prisma/client';
 })
 export class BlogAiProcessor extends WorkerHost {
   private readonly logger = new Logger(BlogAiProcessor.name);
+  private readonly marked: Marked;
 
   constructor(
     private aiService: AiService,
@@ -22,6 +24,18 @@ export class BlogAiProcessor extends WorkerHost {
     @InjectQueue('blog-ai') private blogAiQueue: Queue,
   ) {
     super();
+    this.marked = new Marked({
+      gfm: true,
+      breaks: true,
+    });
+  }
+
+  /**
+   * Markdown 渲染为 HTML
+   */
+  private renderMarkdown(md: string | null | undefined): string {
+    if (!md) return '';
+    return this.marked.parse(md) as string;
   }
 
   async process(job: Job): Promise<any> {
@@ -190,8 +204,9 @@ export class BlogAiProcessor extends WorkerHost {
         article.title,
         'en', //  强制翻译成英语
       );
+      // 翻译 Markdown 源而不是 HTML
       const contentTranslated = await this.aiService.translateMarkdown(
-        article.content,
+        article.contentMd || article.content,
         'en', //  强制翻译成英语
       );
       const excerptTranslated = article.excerpt
@@ -206,7 +221,9 @@ export class BlogAiProcessor extends WorkerHost {
 
       if (data.targetLang === 'en') {
         updateData.titleEn = titleTranslated;
-        updateData.contentEn = contentTranslated;
+        updateData.contentMdEn = contentTranslated;
+        // 自动渲染英文HTML
+        updateData.contentEn = this.renderMarkdown(contentTranslated);
         updateData.excerptEn = excerptTranslated;
       }
 

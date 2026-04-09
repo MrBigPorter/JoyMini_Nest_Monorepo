@@ -1,4 +1,3 @@
-
 import React from "react";
 import { useFormItemContext } from "./FormItem.tsx";
 import { AutoCompleteOption, InputModeOption } from "./constants.ts";
@@ -36,11 +35,15 @@ export const FormInput = React.forwardRef<
   const errorId = `${id}-message`;
   const { value, defaultValue, ...restProps } = props;
 
+  // ✅ 修复React警告：input不能接受null作为value，统一转换为空字符串
+  const safeValue = value === null ? "" : value;
+  const safeDefaultValue = defaultValue === null ? "" : defaultValue;
+
   const valueProps =
-    value !== undefined
-      ? { value }
-      : defaultValue !== undefined
-        ? { defaultValue }
+    safeValue !== undefined
+      ? { value: safeValue }
+      : safeDefaultValue !== undefined
+        ? { defaultValue: safeDefaultValue }
         : {};
 
   return (

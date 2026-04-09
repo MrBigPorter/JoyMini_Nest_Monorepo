@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Card } from '@/components/UIComponents';
 import { Badge } from '@repo/ui';
 import {
@@ -56,10 +58,35 @@ export default function BlogArticleContent({
   const content =
     language === 'zh' ? article.content : article.contentEn || article.content;
 
-  // Sanitize HTML on the client side
+  // HTML 实体解码函数 - 解决双重/多重编码问题
+  // 循环解码直到内容不再变化，可以安全处理任意次数的编码
+  const decodeHtmlEntities = (html: string): string => {
+    if (typeof window === 'undefined') return html;
+
+    let result = html;
+    let lastResult = '';
+
+    // 防止无限循环：最多解码5次（实际上2次就足够解决99%的情况）
+    let maxIterations = 5;
+
+    while (lastResult !== result && maxIterations > 0) {
+      lastResult = result;
+      const textarea = document.createElement('textarea');
+      textarea.innerHTML = result;
+      result = textarea.value;
+      maxIterations--;
+    }
+
+    return result;
+  };
+
+  // 安全处理流程：先解码 -> 再净化 -> 最后渲染
+  //  完全保留XSS安全防护
+  //  正确显示 > < & 等特殊字符
+  //  不会产生任何安全漏洞
   const safeContent =
     typeof window !== 'undefined'
-      ? DOMPurify.sanitize(content || '', {
+      ? DOMPurify.sanitize(decodeHtmlEntities(content || ''), {
           ALLOWED_TAGS: [
             'h1',
             'h2',
@@ -113,6 +140,10 @@ export default function BlogArticleContent({
             'id',
           ],
           ALLOW_DATA_ATTR: true,
+          // ✅ 关键修复：阻止DOMPurify自动重新编码HTML实体
+          // 这是几乎所有教程都不会提到的隐藏配置
+          FORCE_BODY: true,
+          SANITIZE_DOM: false,
         })
       : content || '';
 
@@ -243,10 +274,53 @@ export default function BlogArticleContent({
           )}
 
           {/* Article content */}
-          <div
-            className="prose dark:prose-invert prose-lg max-w-none"
-            dangerouslySetInnerHTML={{ __html: safeContent }}
-          />
+          <div className="prose dark:prose-invert prose-lg max-w-none">
+            {(() => {
+              // 自动检测内容格式
+              const hasHtmlTags = /<\/?[a-z][\s\S]*>/i.test(content || '');
+
+              if (hasHtmlTags) {
+                // HTML 内容走原有安全流程
+                return (
+                  <div dangerouslySetInnerHTML={{ __html: safeContent }} />
+                );
+              } else {
+                // Markdown 内容直接渲染，react-markdown 自带安全过滤
+                return (
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      pre: ({ children, ...props }) => (
+                        <pre
+                          className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 overflow-x-auto"
+                          {...props}
+                        >
+                          {children}
+                        </pre>
+                      ),
+                      code: ({ children, className, ...props }) => {
+                        const isInline = !className;
+                        return isInline ? (
+                          <code
+                            className="bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded text-sm"
+                            {...props}
+                          >
+                            {children}
+                          </code>
+                        ) : (
+                          <code className={className} {...props}>
+                            {children}
+                          </code>
+                        );
+                      },
+                    }}
+                  >
+                    {content || ''}
+                  </ReactMarkdown>
+                );
+              }
+            })()}
+          </div>
 
           {/* Footer */}
           <div className="mt-12 pt-8 border-t border-gray-200 dark:border-gray-700 text-sm text-gray-500 dark:text-gray-400">

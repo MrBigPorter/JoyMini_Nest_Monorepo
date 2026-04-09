@@ -1507,6 +1507,7 @@ model BlogArticle {
   title         String        @db.VarChar(255)
   slug          String        @unique @db.VarChar(255)
   content       String        @db.Text
+  contentMd     String?       @db.Text
   excerpt       String?       @db.Text
   coverImage    String?       @db.VarChar(255)
   status        ArticleStatus @default(DRAFT)
@@ -1520,6 +1521,7 @@ model BlogArticle {
   // ========== 英文翻译 ==========
   titleEn       String?       @db.VarChar(255)
   contentEn     String?       @db.Text
+  contentMdEn   String?       @db.Text
   excerptEn     String?       @db.Text
 
   // ========== 翻译状态 ==========
