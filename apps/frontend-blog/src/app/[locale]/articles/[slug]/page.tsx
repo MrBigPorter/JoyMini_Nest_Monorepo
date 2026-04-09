@@ -7,6 +7,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import CommentList from '@/components/blog/CommentList';
+import { useState } from 'react';
 
 // Mock 数据
 const mockArticle = {
@@ -58,6 +59,21 @@ const welcome = () => {
 
 export default function ArticlePage() {
   const t = useTranslations();
+  const [language, setLanguage] = useState<'zh' | 'en'>('zh');
+
+  // 动态选择语言内容
+  const title =
+    language === 'zh'
+      ? mockArticle.title
+      : (mockArticle as any).titleEn || mockArticle.title;
+  const description =
+    language === 'zh'
+      ? mockArticle.description
+      : (mockArticle as any).descriptionEn || mockArticle.description;
+  const content =
+    language === 'zh'
+      ? mockArticle.content
+      : (mockArticle as any).contentEn || mockArticle.content;
 
   return (
     <div className="max-w-[720px] mx-auto px-4 py-8 md:py-12">
@@ -72,15 +88,41 @@ export default function ArticlePage() {
         </Link>
       </div>
 
+      {/* 语言切换按钮 */}
+      <div className="flex justify-end mb-6">
+        <div className="inline-flex rounded-md border border-gray-200 dark:border-gray-700">
+          <button
+            type="button"
+            onClick={() => setLanguage('zh')}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
+              language === 'zh'
+                ? 'bg-primary-500 text-white'
+                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+            }`}
+          >
+            🇨🇳 中文
+          </button>
+          <button
+            type="button"
+            onClick={() => setLanguage('en')}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
+              language === 'en'
+                ? 'bg-primary-500 text-white'
+                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+            }`}
+          >
+            🇺🇸 English
+          </button>
+        </div>
+      </div>
+
       {/* 文章头部 */}
       <header className="mb-10">
         <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-6">
-          {mockArticle.title}
+          {title}
         </h1>
 
-        <p className="text-lg text-muted-foreground mb-6">
-          {mockArticle.description}
-        </p>
+        <p className="text-lg text-muted-foreground mb-6">{description}</p>
 
         <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
           <div className="flex items-center gap-2">
@@ -118,7 +160,7 @@ export default function ArticlePage() {
             ),
           }}
         >
-          {mockArticle.content}
+          {content}
         </ReactMarkdown>
       </article>
 

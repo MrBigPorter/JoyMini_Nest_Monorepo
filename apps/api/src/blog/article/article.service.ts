@@ -16,7 +16,21 @@ export class ArticleService {
   async getArticles() {
     return this.prisma.blogArticle.findMany({
       orderBy: { createdAt: 'desc' },
-      include: {
+      select: {
+        id: true,
+        title: true,
+        titleEn: true,
+        content: true,
+        contentEn: true,
+        excerpt: true,
+        excerptEn: true,
+        slug: true,
+        status: true,
+        coverImage: true,
+        categoryId: true,
+        createdAt: true,
+        updatedAt: true,
+        publishedAt: true,
         author: { select: { id: true, username: true, realName: true } },
         category: true,
         tags: true,
@@ -30,7 +44,21 @@ export class ArticleService {
   async getArticle(id: string) {
     const article = await this.prisma.blogArticle.findUnique({
       where: { id },
-      include: {
+      select: {
+        id: true,
+        title: true,
+        titleEn: true,
+        content: true,
+        contentEn: true,
+        excerpt: true,
+        excerptEn: true,
+        slug: true,
+        status: true,
+        coverImage: true,
+        categoryId: true,
+        createdAt: true,
+        updatedAt: true,
+        publishedAt: true,
         author: { select: { id: true, username: true, realName: true } },
         category: true,
         tags: true,
@@ -108,6 +136,7 @@ export class ArticleService {
       tagIds?: string[];
       status?: string;
       featuredImage?: string;
+      coverImage?: string;
     },
   ) {
     // 检查文章是否存在
@@ -126,8 +155,11 @@ export class ArticleService {
     if (data.excerptEn !== undefined) payload.excerptEn = data.excerptEn;
     if (data.categoryId !== undefined) payload.categoryId = data.categoryId;
     if (data.status !== undefined) payload.status = data.status;
+
+    // 兼容两个字段名
+    if (data.coverImage !== undefined) payload.coverImage = data.coverImage;
     if (data.featuredImage !== undefined)
-      payload.featuredImage = data.featuredImage;
+      payload.coverImage = data.featuredImage;
     // 更新文章基础字段
     const updated = await this.prisma.blogArticle.update({
       where: { id },
