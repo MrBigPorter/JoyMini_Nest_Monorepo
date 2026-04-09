@@ -251,6 +251,18 @@
   fill: white !important;
 }
 
+/* 自定义 markdown 按钮 */
+.ql-toolbar.ql-snow button.ql-markdown {
+  width: auto !important;
+  padding: 4px 12px !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+}
+
+.ql-toolbar.ql-snow button.ql-markdown::before {
+  content: "Markdown";
+}
+
 /* 工具栏分隔线 */
 .ql-toolbar.ql-snow .ql-formats {
   margin-right: 8px !important;

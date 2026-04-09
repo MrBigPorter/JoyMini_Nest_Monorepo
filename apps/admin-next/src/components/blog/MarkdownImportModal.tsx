@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import { ImageTranslationTab } from './image-translation/ImageTranslationTab';
 import { ModalFixed } from '@repo/ui/components/Modal/ModalFixed';
 import { Marked } from 'marked';
 
@@ -59,6 +60,7 @@ export function MarkdownImportModal({
   onImport,
   onClose,
 }: MarkdownImportModalProps) {
+  const [activeTab, setActiveTab] = useState<'markdown' | 'image'>('markdown');
   const [markdown, setMarkdown] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [previewHtml, setPreviewHtml] = useState('');
@@ -100,6 +102,7 @@ export function MarkdownImportModal({
 
     try {
       const html = marked.parse(markdown) as string;
+
       onImport(html);
       onClose();
     } catch (err) {
@@ -118,45 +121,85 @@ export function MarkdownImportModal({
       enableClickOutsideClose={false}
       renderChildren={() => (
         <div className="flex flex-col gap-4">
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            {t('description')}
-          </p>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                {t('sourceLabel')}
-              </label>
-              <textarea
-                value={markdown}
-                onChange={handleMarkdownChange}
-                placeholder={t('placeholder')}
-                className="w-full h-[400px] p-3 font-mono text-sm bg-gray-50 dark:bg-black/30 border border-gray-200 dark:border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 resize-none"
-              />
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                {t('previewLabel')}
-              </label>
-              <div
-                className="w-full h-[400px] p-3 bg-white dark:bg-black/20 border border-gray-200 dark:border-white/10 rounded-lg overflow-y-auto prose dark:prose-invert prose-sm max-w-none"
-                dangerouslySetInnerHTML={{ __html: previewHtml }}
-              />
-            </div>
+          {/* Tab 导航 */}
+          <div className="flex border-b border-gray-200 dark:border-gray-700 -mx-4 px-4">
+            <button
+              type="button"
+              onClick={() => setActiveTab('markdown')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'markdown'
+                  ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
+            >
+              {isZh ? 'Markdown 文本' : 'Markdown Text'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('image')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'image'
+                  ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
+            >
+              {isZh ? '图片翻译' : 'Image Translation'}
+            </button>
           </div>
 
-          {error && (
-            <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                <path
-                  fillRule="evenodd"
-                  d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
-                  clipRule="evenodd"
-                />
-              </svg>
-              <span>{error}</span>
-            </div>
+          {activeTab === 'markdown' && (
+            <>
+              <div className="grid grid-cols-2 gap-4 mt-2">
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {t('sourceLabel')}
+                  </label>
+                  <textarea
+                    value={markdown}
+                    onChange={handleMarkdownChange}
+                    placeholder={t('placeholder')}
+                    className="w-full h-[400px] p-3 font-mono text-sm bg-gray-50 dark:bg-black/30 border border-gray-200 dark:border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 resize-none"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {t('previewLabel')}
+                  </label>
+                  <div
+                    className="w-full h-[400px] p-3 bg-white dark:bg-black/20 border border-gray-200 dark:border-white/10 rounded-lg overflow-y-auto prose dark:prose-invert prose-sm max-w-none"
+                    dangerouslySetInnerHTML={{ __html: previewHtml }}
+                  />
+                </div>
+              </div>
+
+              {error && (
+                <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400 mt-2">
+                  <svg
+                    className="w-4 h-4"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  <span>{error}</span>
+                </div>
+              )}
+            </>
+          )}
+
+          {activeTab === 'image' && (
+            <ImageTranslationTab
+              onImport={(html) => {
+                onImport(html);
+                onClose();
+              }}
+              isZh={isZh}
+            />
           )}
         </div>
       )}
