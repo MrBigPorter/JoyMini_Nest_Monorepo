@@ -54,6 +54,7 @@
     "perf:lhci": "yarn workspace @lucky/admin-next lhci"
   },
   "devDependencies": {
+    "@tailwindcss/typography": "^0.5.19",
     "@types/jest": "^30.0.0",
     "@typescript-eslint/eslint-plugin": "^8.57.2",
     "@typescript-eslint/parser": "^8.57.2",
@@ -83,6 +84,7 @@
     "packages/*"
   ],
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "rimraf": "^6.0.1"
   }
 }

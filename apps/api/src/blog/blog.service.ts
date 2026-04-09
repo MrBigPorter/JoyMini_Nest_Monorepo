@@ -8,13 +8,29 @@ import { ArticleStatus } from '@prisma/client';
 import { CreateArticleDto, UpdateArticleDto } from './dto';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
+import { Marked } from 'marked';
 
 @Injectable()
 export class BlogService {
+  private readonly marked: Marked;
+
   constructor(
     private prisma: PrismaService,
     @InjectQueue('blog-ai') private blogAiQueue: Queue,
-  ) {}
+  ) {
+    this.marked = new Marked({
+      gfm: true,
+      breaks: true,
+    });
+  }
+
+  /**
+   * Markdown 渲染为 HTML
+   */
+  private renderMarkdown(md: string | null | undefined): string {
+    if (!md) return '';
+    return this.marked.parse(md) as string;
+  }
   /**
    * 生成唯一 Slug
    */
@@ -57,8 +73,10 @@ export class BlogService {
         title: dto.title,
         titleEn: dto.titleEn,
         slug,
-        content: dto.content,
-        contentEn: dto.contentEn,
+        contentMd: dto.content,
+        content: this.renderMarkdown(dto.content),
+        contentMdEn: dto.contentEn,
+        contentEn: this.renderMarkdown(dto.contentEn),
         excerpt: dto.excerpt,
         excerptEn: dto.excerptEn,
         coverImage: dto.featuredImage,
@@ -114,8 +132,14 @@ export class BlogService {
         title: dto.title,
         titleEn: dto.titleEn,
         slug,
-        content: dto.content,
-        contentEn: dto.contentEn,
+        ...(dto.content !== undefined && {
+          contentMd: dto.content,
+          content: this.renderMarkdown(dto.content),
+        }),
+        ...(dto.contentEn !== undefined && {
+          contentMdEn: dto.contentEn,
+          contentEn: this.renderMarkdown(dto.contentEn),
+        }),
         excerpt: dto.excerpt,
         excerptEn: dto.excerptEn,
         coverImage: dto.featuredImage,
@@ -158,6 +182,25 @@ export class BlogService {
    * 检查文章作者权限
    */
   async checkArticleOwner(articleId: string, authorId: string) {
+    // 🔓 SuperAdmin 可以跳过所有权检查，操作任何文章
+    const adminUser = await this.prisma.adminUser.findUnique({
+      where: { id: authorId },
+      select: { role: true },
+    });
+
+    if (adminUser?.role === 'SUPER_ADMIN') {
+      // 超级管理员直接返回完整文章
+      const article = await this.prisma.blogArticle.findUnique({
+        where: { id: articleId },
+      });
+
+      if (!article) {
+        throw new NotFoundException('Article not found');
+      }
+
+      return article;
+    }
+
     const article = await this.prisma.blogArticle.findUnique({
       where: { id: articleId },
       select: {
@@ -246,7 +289,9 @@ export class BlogService {
           excerpt: true,
           excerptEn: true,
           content: true,
+          contentMd: true,
           contentEn: true,
+          contentMdEn: true,
           coverImage: true,
           status: true,
           viewCount: true,

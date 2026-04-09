@@ -183,10 +183,10 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
 
       reset({
         title: mappedArticle?.title || '',
-        content: initContent, // 使用预处理后的 HTML
+        content: initContent || '', // 确保永远不会是 null/undefined
         excerpt: mappedArticle?.excerpt || '',
         titleEn: mappedArticle?.titleEn || '',
-        contentEn: initContentEn, // 使用预处理后的 HTML
+        contentEn: initContentEn || '', // 确保永远不会是 null/undefined
         excerptEn: mappedArticle?.excerptEn || '',
 
         categoryId:
@@ -242,6 +242,7 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
 
   return (
     <Modal
+      size="lg"
       isOpen={isOpen}
       onCloseAction={onCloseAction}
       title={`${isEditing ? 'Edit' : 'Create'} Article`}

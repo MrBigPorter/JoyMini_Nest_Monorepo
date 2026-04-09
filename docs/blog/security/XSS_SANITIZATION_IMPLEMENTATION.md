@@ -133,6 +133,35 @@ FORBID_ATTR: [
 
 ---
 
+## ⚡ 工作流程
+
+```mermaid
+graph TD
+    U[用户输入] --> A[NestJS 全局拦截器]
+    A --> B{是否为危险请求方法}
+    B -->|GET/HEAD| Z[直接放行]
+    B -->|POST/PUT/PATCH| C[XssSanitizePipe]
+    C --> D[递归遍历所有字段]
+    D --> E{字段类型}
+    E -->|字符串| F[DOMPurify 净化]
+    E -->|对象/数组| D
+    E -->|数字/布尔/Null| G[原样保留]
+    F --> H[Trim 首尾空白]
+    G --> I[返回原始值]
+    H --> J[返回净化后值]
+    I --> K[重新组装对象结构]
+    J --> K
+    K --> L[传递给控制器]
+    L --> M[业务逻辑]
+    M --> N[保存到数据库]
+    N --> O[✅ 安全数据]
+
+    style C fill:#f9d71c,stroke:#333,stroke-width:2px
+    style F fill:#25d366,stroke:#333,stroke-width:2px
+```
+
+---
+
 ## 📌 部署说明
 
 ### 环境兼容性
@@ -166,3 +195,5 @@ if (process.env.DISABLE_XSS_FILTER === "true") {
 **文档版本**: 1.0
 **实施时间**: 2026-04-08
 **状态**: ✅ 已上线运行
+
+**最后更新**: 2026-04-08
