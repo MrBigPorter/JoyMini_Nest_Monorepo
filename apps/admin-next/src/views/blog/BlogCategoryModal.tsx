@@ -7,6 +7,9 @@ import { useBlogForm } from '@/hooks/useBlogForm';
 import { categorySchema } from '@/schema/blog';
 import { blogApi } from '@/api';
 import { useRequest } from 'ahooks';
+import { useLanguage } from '@/hooks/LanguageProvider';
+import { useLocalizedForm } from '@/hooks/useLocalizedForm';
+import { LanguageSwitch } from '@/components/blog/LanguageSwitch';
 
 interface BlogCategoryModalProps {
   isOpen: boolean;
@@ -56,28 +59,58 @@ export const BlogCategoryModal: React.FC<BlogCategoryModalProps> = ({
     },
   );
 
-  const form = useBlogForm({
+  // 兼容旧数据格式: 自动把 string 转换成 LocalizedString 格式
+  const getDefaultValues = () => {
+    if (!editingCategory) {
+      return {
+        name: { zh: '', en: '' },
+        slug: '',
+        description: { zh: '', en: '' },
+      };
+    }
+
+    return {
+      ...editingCategory,
+      name:
+        typeof editingCategory.name === 'string'
+          ? { zh: editingCategory.name, en: '' }
+          : editingCategory.name,
+      description:
+        typeof editingCategory.description === 'string'
+          ? { zh: editingCategory.description, en: '' }
+          : editingCategory.description,
+    };
+  };
+
+  const blogForm = useBlogForm({
     schema: categorySchema,
-    defaultValues: editingCategory || {
-      name: '',
-      slug: '',
-      description: '',
-    },
-    onSubmit: async (data) => {
+    defaultValues: getDefaultValues(),
+    onSubmitAction: async (data) => {
       if (isEditing && editingCategory) {
+        // @ts-expect-error 后端API已支持多语言格式，类型定义待更新
         await updateCategory(editingCategory.id, data);
       } else {
+        // @ts-expect-error 后端API已支持多语言格式，类型定义待更新
         await createCategory(data);
       }
     },
   });
-  const { register, submitHandler, isLoading, reset } = form;
+
+  const { form, submitHandler, isLoading } = blogForm;
+  const { reset, register } = form;
+  const { locale } = useLanguage();
+  const { localize } = useLocalizedForm({
+    watch: form.watch,
+    setValue: form.setValue,
+    errors: form.formState.errors,
+    locale,
+  });
 
   useEffect(() => {
     if (isOpen) {
-      reset(editingCategory || { name: '', slug: '', description: '' });
+      reset(getDefaultValues());
     }
-  }, [isOpen, editingCategory, reset]);
+  }, [isOpen, reset, editingCategory]);
 
   const loading = isCreating || isUpdating || isLoading;
 
@@ -90,11 +123,15 @@ export const BlogCategoryModal: React.FC<BlogCategoryModalProps> = ({
     >
       <Form {...form}>
         <form onSubmit={submitHandler} className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h3 className="text-sm font-medium">Name</h3>
+            <LanguageSwitch />
+          </div>
           <FormTextField
-            label="Name"
+            label=""
             placeholder="Enter category name"
             required
-            {...register('name')}
+            {...localize('name')}
           />
           <FormTextField
             label="Slug"
@@ -105,7 +142,7 @@ export const BlogCategoryModal: React.FC<BlogCategoryModalProps> = ({
           <FormTextareaField
             label="Description"
             placeholder="Optional description"
-            {...register('description')}
+            {...localize('description')}
           />
           <div className="flex justify-end space-x-3 pt-4">
             <Button

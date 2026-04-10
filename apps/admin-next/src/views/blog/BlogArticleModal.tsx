@@ -10,7 +10,9 @@ import {
   FormSelectField,
   FormMediaUploaderField,
 } from '@repo/ui/form';
-import { useBlogForm } from '@/hooks/useBlogForm';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useBlogFormSubmit } from '@/hooks/useBlogFormSubmit';
 import { articleSchema, type ArticleFormInputs } from '@/schema/blog';
 import { useLanguage, getLocalizedValue } from '@/hooks/LanguageProvider';
 import { useLocalizedForm } from '@/hooks/useLocalizedForm';
@@ -101,8 +103,8 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
     manual: true,
   });
 
-  const form = useBlogForm({
-    schema: articleSchema,
+  const form = useForm({
+    resolver: zodResolver(articleSchema),
     defaultValues: {
       title: {},
       content: {},
@@ -112,7 +114,10 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
       status: 'DRAFT',
       featuredImage: '',
     },
-    onSubmit: async (data) => {
+  });
+
+  const { handleSubmit } = useBlogFormSubmit({
+    onSubmitAction: async (data) => {
       try {
         let featuredImageUrl = data.featuredImage;
         // 如果 featuredImage 是 File 对象，则上传
@@ -138,7 +143,11 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
       }
     },
   });
-  const { submitHandler, isLoading, errors, reset, watch, setValue } = form;
+
+  const submitHandler = form.handleSubmit(handleSubmit);
+  const { reset, watch, setValue, formState } = form;
+  const isLoading = formState.isSubmitting;
+  const { errors } = formState;
 
   useEffect(() => {
     console.log('content', editingArticle);
@@ -196,7 +205,12 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
   }, [isOpen, editingArticle, reset]);
 
   const { locale, setLocale } = useLanguage();
-  const { localize } = useLocalizedForm(form);
+  const { localize } = useLocalizedForm({
+    watch: form.watch,
+    setValue: form.setValue,
+    errors: form.formState.errors,
+    locale,
+  });
   const localizedContent = localize('content');
 
   const loading = isCreating || isUpdating || isLoading || isLoadingData;
