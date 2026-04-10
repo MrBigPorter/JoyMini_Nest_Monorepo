@@ -1156,9 +1156,9 @@ export const blogApi = {
   },
 
   createArticle: async (payload: {
-    title: string;
-    content: string;
-    excerpt?: string;
+    title: Record<string, string | undefined>;
+    content: Record<string, string | undefined>;
+    excerpt?: Record<string, string | undefined>;
     categoryId?: string;
     tagIds?: string[];
     status?: string;
@@ -1170,9 +1170,9 @@ export const blogApi = {
   updateArticle: async (
     id: string,
     payload: {
-      title?: string;
-      content?: string;
-      excerpt?: string;
+      title?: Record<string, string | undefined>;
+      content?: Record<string, string | undefined>;
+      excerpt?: Record<string, string | undefined>;
       categoryId?: string;
       tagIds?: string[];
       status?: string;

@@ -9,6 +9,8 @@ import { CreateArticleDto, UpdateArticleDto } from './dto';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { Marked } from 'marked';
+import type { LocalizedString } from '@lucky/shared';
+import { getLocalizedValue, DEFAULT_LOCALE } from '@lucky/shared';
 
 @Injectable()
 export class BlogService {
@@ -30,6 +32,55 @@ export class BlogService {
   private renderMarkdown(md: string | null | undefined): string {
     if (!md) return '';
     return this.marked.parse(md) as string;
+  }
+
+  /**
+   * 多语言兼容层: 自动从 Localized 字段或旧字段取值
+   */
+  private resolveLocalizedField<T>(
+    localized: LocalizedString<T> | null | undefined,
+    legacyZh: T | null | undefined,
+    legacyEn: T | null | undefined,
+    locale: string = DEFAULT_LOCALE,
+  ): T | undefined {
+    // 优先从新 Localized 字段取值
+    if (localized) {
+      const value = getLocalizedValue(localized, locale as any);
+      if (value !== undefined) return value;
+    }
+
+    // 回退到旧字段
+    if (locale === 'en' && legacyEn !== undefined && legacyEn !== null) {
+      return legacyEn;
+    }
+
+    // 默认返回中文
+    return legacyZh ?? undefined;
+  }
+
+  /**
+   * 多语言数据构建器: 原生 LocalizedString 架构
+   */
+  private buildLocalizedData<T>(
+    field: LocalizedString<T> | T | null | undefined,
+    legacyFieldName: string,
+  ): any {
+    if (!field) return {};
+
+    const data: any = {};
+
+    //  原生 Localized 格式 - 只写新字段
+    if (typeof field === 'object' && !Array.isArray(field)) {
+      data[`${legacyFieldName}Localized`] = field;
+    }
+    // 旧单值格式转换
+    else {
+      data[`${legacyFieldName}Localized`] = {
+        zh: field,
+      };
+    }
+
+    return data;
   }
   /**
    * 生成唯一 Slug
@@ -67,18 +118,43 @@ export class BlogService {
    * 创建文章
    */
   async createArticle(authorId: string, dto: CreateArticleDto) {
-    const slug = await this.generateUniqueSlug(dto.title);
+    let titleValue = '';
+    if (
+      dto.title &&
+      typeof dto.title === 'object' &&
+      !Array.isArray(dto.title)
+    ) {
+      titleValue = getLocalizedValue(dto.title as any, DEFAULT_LOCALE) || '';
+    } else if (typeof dto.title === 'string') {
+      titleValue = dto.title;
+    }
+    const slug = await this.generateUniqueSlug(titleValue);
+
+    // 构建 Localized 数据，自动渲染每个语言的 Markdown
+    const titleData = this.buildLocalizedData(dto.title, 'title');
+    const contentData = this.buildLocalizedData(dto.content, 'content');
+    const excerptData = this.buildLocalizedData(dto.excerpt, 'excerpt');
+
+    // 渲染每个语言的 Markdown
+    if (
+      dto.content &&
+      typeof dto.content === 'object' &&
+      !Array.isArray(dto.content)
+    ) {
+      const contentObj = dto.content as unknown as Record<string, string>;
+      Object.keys(contentObj).forEach((locale) => {
+        const value = contentObj[locale];
+        if (value) {
+          const suffix = locale.charAt(0).toUpperCase() + locale.slice(1);
+          contentData[`content${suffix}`] = this.renderMarkdown(value);
+          contentData[`contentMd${suffix}`] = value;
+        }
+      });
+    }
+
     const article = await this.prisma.blogArticle.create({
       data: {
-        title: dto.title,
-        titleEn: dto.titleEn,
         slug,
-        contentMd: dto.content,
-        content: this.renderMarkdown(dto.content),
-        contentMdEn: dto.contentEn,
-        contentEn: this.renderMarkdown(dto.contentEn),
-        excerpt: dto.excerpt,
-        excerptEn: dto.excerptEn,
         coverImage: dto.featuredImage,
         status: dto.status || ArticleStatus.DRAFT,
         authorId,
@@ -91,6 +167,9 @@ export class BlogService {
               connect: dto.tagIds.map((id) => ({ id })),
             }
           : undefined,
+        ...titleData,
+        ...contentData,
+        ...excerptData,
       },
       include: {
         category: true,
@@ -122,28 +201,60 @@ export class BlogService {
     const article = await this.checkArticleOwner(articleId, authorId);
 
     let slug = article.slug;
-    if (dto.title && dto.title !== article.title) {
-      slug = await this.generateUniqueSlug(dto.title, articleId);
+    let newTitle: string | undefined;
+    if (
+      dto.title &&
+      typeof dto.title === 'object' &&
+      !Array.isArray(dto.title)
+    ) {
+      newTitle = getLocalizedValue(dto.title as any, DEFAULT_LOCALE);
+    } else if (typeof dto.title === 'string') {
+      newTitle = dto.title;
+    }
+    if (newTitle && newTitle !== article.title) {
+      slug = await this.generateUniqueSlug(newTitle, articleId);
+    }
+
+    // 构建 Localized 数据
+    const titleData =
+      dto.title !== undefined
+        ? this.buildLocalizedData(dto.title, 'title')
+        : {};
+    const contentData =
+      dto.content !== undefined
+        ? this.buildLocalizedData(dto.content, 'content')
+        : {};
+    const excerptData =
+      dto.excerpt !== undefined
+        ? this.buildLocalizedData(dto.excerpt, 'excerpt')
+        : {};
+
+    // 渲染每个语言的 Markdown
+    if (
+      dto.content &&
+      typeof dto.content === 'object' &&
+      !Array.isArray(dto.content)
+    ) {
+      const contentObj = dto.content as unknown as Record<string, string>;
+      Object.keys(contentObj).forEach((locale) => {
+        const value = contentObj[locale];
+        if (value) {
+          const suffix = locale.charAt(0).toUpperCase() + locale.slice(1);
+          contentData[`content${suffix}`] = this.renderMarkdown(value);
+          contentData[`contentMd${suffix}`] = value;
+        }
+      });
     }
 
     const updatedArticle = await this.prisma.blogArticle.update({
       where: { id: articleId },
       data: {
-        title: dto.title,
-        titleEn: dto.titleEn,
         slug,
-        ...(dto.content !== undefined && {
-          contentMd: dto.content,
-          content: this.renderMarkdown(dto.content),
-        }),
-        ...(dto.contentEn !== undefined && {
-          contentMdEn: dto.contentEn,
-          contentEn: this.renderMarkdown(dto.contentEn),
-        }),
-        excerpt: dto.excerpt,
-        excerptEn: dto.excerptEn,
         coverImage: dto.featuredImage,
         status: dto.status,
+        ...titleData,
+        ...contentData,
+        ...excerptData,
         categoryId:
           dto.categoryId !== undefined
             ? dto.categoryId && dto.categoryId.trim() !== ''
