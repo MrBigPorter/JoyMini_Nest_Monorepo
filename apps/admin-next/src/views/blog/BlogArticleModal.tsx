@@ -12,6 +12,9 @@ import {
 } from '@repo/ui/form';
 import { useBlogForm } from '@/hooks/useBlogForm';
 import { articleSchema, type ArticleFormInputs } from '@/schema/blog';
+import { useLanguage, getLocalizedValue } from '@/hooks/LanguageProvider';
+import { useLocalizedForm } from '@/hooks/useLocalizedForm';
+
 import { blogApi, uploadApi } from '@/api';
 import { useRequest } from 'ahooks';
 import { RichTextEditor } from '@/components/blog/RichTextEditor';
@@ -47,7 +50,6 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
   );
   const [tags, setTags] = useState<{ id: string; name: string }[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(false);
-  const [activeLanguageTab, setActiveLanguageTab] = useState<string>('zh');
   const [isTranslating, setIsTranslating] = useState(false);
 
   // Fetch categories and tags
@@ -102,12 +104,9 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
   const form = useBlogForm({
     schema: articleSchema,
     defaultValues: {
-      title: '',
-      content: '',
-      excerpt: '',
-      titleEn: '',
-      contentEn: '',
-      excerptEn: '',
+      title: {},
+      content: {},
+      excerpt: {},
       categoryId: '',
       tagIds: [],
       status: 'DRAFT',
@@ -122,12 +121,9 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
           featuredImageUrl = res.url;
         }
 
-        //  强制读取所有字段，不管是否在当前Tab
+        // 直接提交完整 Localized 对象
         const allData = {
           ...data,
-          titleEn: form.getValues('titleEn'),
-          contentEn: form.getValues('contentEn'),
-          excerptEn: form.getValues('excerptEn'),
           featuredImage: featuredImageUrl,
         };
 
@@ -182,13 +178,9 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
       }
 
       reset({
-        title: mappedArticle?.title || '',
-        content: initContent || '', // 确保永远不会是 null/undefined
-        excerpt: mappedArticle?.excerpt || '',
-        titleEn: mappedArticle?.titleEn || '',
-        contentEn: initContentEn || '', // 确保永远不会是 null/undefined
-        excerptEn: mappedArticle?.excerptEn || '',
-
+        title: mappedArticle?.title || {},
+        content: mappedArticle?.content || {},
+        excerpt: mappedArticle?.excerpt || {},
         categoryId:
           (mappedArticle as any)?.categoryId ||
           (mappedArticle as any)?.category?.id ||
@@ -200,14 +192,12 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
         status: mappedArticle?.status || 'DRAFT',
         featuredImage: mappedArticle?.featuredImage || '',
       });
-
-      if (editingArticle?.titleEn || editingArticle?.contentEn) {
-        setActiveLanguageTab('en');
-      } else {
-        setActiveLanguageTab('zh');
-      }
     }
   }, [isOpen, editingArticle, reset]);
+
+  const { locale, setLocale } = useLanguage();
+  const { localize } = useLocalizedForm(form);
+  const localizedContent = localize('content');
 
   const loading = isCreating || isUpdating || isLoading || isLoadingData;
 
@@ -222,10 +212,8 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
     }
   };
 
-  // Handle RichTextEditor content change
-  const handleContentChange = (content: string) => {
-    setValue('content', content);
-  };
+  // 已经通过 localizedContent.onChangeAction 自动绑定，不需要手动处理器了
+  // ✅ 旧代码已废弃，多语言版本会自动处理每个语言的内容
 
   // Handle tag selection (multi-select)
   const handleTagToggle = (tagId: string) => {
@@ -256,17 +244,17 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
               <div className="flex gap-2">
                 <Button
                   type="button"
-                  variant={activeLanguageTab === 'zh' ? 'primary' : 'outline'}
+                  variant={locale === 'zh' ? 'primary' : 'outline'}
                   size="sm"
-                  onClick={() => setActiveLanguageTab('zh')}
+                  onClick={() => setLocale('zh')}
                 >
                   🇨🇳 中文
                 </Button>
                 <Button
                   type="button"
-                  variant={activeLanguageTab === 'en' ? 'primary' : 'outline'}
+                  variant={locale === 'en' ? 'primary' : 'outline'}
                   size="sm"
-                  onClick={() => setActiveLanguageTab('en')}
+                  onClick={() => setLocale('en')}
                 >
                   🇺🇸 English
                 </Button>
@@ -289,20 +277,11 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
                         const updatedArticle = await blogApi.getArticle(
                           editingArticle.id,
                         );
-                        // 先切换Tab再更新数据，保证富文本编辑器正确渲染
-                        setActiveLanguageTab('en');
-                        // 小延迟保证DOM更新完成
                         setTimeout(() => {
-                          console.log(' 翻译返回数据:', {
-                            titleEn: updatedArticle.titleEn,
-                            contentEn: updatedArticle.contentEn,
-                            excerptEn: updatedArticle.excerptEn,
-                          });
-
-                          //  只更新三个英文字段，其他所有值完全不动
-                          setValue('titleEn', updatedArticle.titleEn);
-                          setValue('contentEn', updatedArticle.contentEn);
-                          setValue('excerptEn', updatedArticle.excerptEn);
+                          // 直接替换整个 Localized 对象
+                          setValue('title', updatedArticle.title);
+                          setValue('content', updatedArticle.content);
+                          setValue('excerpt', updatedArticle.excerpt);
                         }, 100);
                       }, 1500);
                     } catch (error) {
@@ -325,65 +304,31 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
             </div>
           </div>
 
-          {/* Language Specific Fields - 使用display隐藏而不是销毁组件 */}
-          <div
-            style={{ display: activeLanguageTab === 'zh' ? 'block' : 'none' }}
-            className="space-y-6"
-          >
+          {/* 多语言字段 - 自动跟随全局语言 */}
+          <div className="space-y-6">
             <FormTextField
-              name="title"
-              label="标题"
-              placeholder="输入文章标题"
+              label="Title"
+              placeholder="Enter article title"
               required
+              {...localize('title')}
             />
             <div>
-              <label className="block text-sm font-medium mb-2">内容</label>
+              <label className="block text-sm font-medium mb-2">Content</label>
               <RichTextEditor
-                value={watch('content')}
-                onChange={handleContentChange}
+                value={localizedContent.value}
+                onChange={localizedContent.onChangeAction}
                 onUpload={handleEditorUpload}
               />
-              {errors.content?.message && (
+              {localizedContent.error?.message && (
                 <p className="text-red-500 text-sm mt-1">
-                  {errors.content.message}
+                  {localizedContent.error.message}
                 </p>
               )}
             </div>
             <FormTextareaField
-              name="excerpt"
-              label="摘要"
-              placeholder="文章简要概述"
-            />
-          </div>
-
-          <div
-            style={{ display: activeLanguageTab === 'en' ? 'block' : 'none' }}
-            className="space-y-6"
-          >
-            <FormTextField
-              name="titleEn"
-              label="Title (English)"
-              placeholder="Enter article title in English"
-            />
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                Content (English)
-              </label>
-              <RichTextEditor
-                value={watch('contentEn') || ''}
-                onChange={(content) => setValue('contentEn', content)}
-                onUpload={handleEditorUpload}
-              />
-              {errors.contentEn?.message && (
-                <p className="text-red-500 text-sm mt-1">
-                  {errors.contentEn.message}
-                </p>
-              )}
-            </div>
-            <FormTextareaField
-              name="excerptEn"
-              label="Excerpt (English)"
-              placeholder="Brief summary in English"
+              label="Excerpt"
+              placeholder="Brief summary of the article"
+              {...localize('excerpt')}
             />
           </div>
 
@@ -507,23 +452,20 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
 
               <div className="max-w-[720px] mx-auto">
                 <h1 className="text-3xl font-bold mb-6">
-                  {previewLanguage === 'zh'
-                    ? watch('title')
-                    : watch('titleEn') || watch('title')}
+                  {getLocalizedValue(watch('title'), previewLanguage)}
                 </h1>
                 <p className="text-lg text-gray-500 mb-6">
-                  {previewLanguage === 'zh'
-                    ? watch('excerpt')
-                    : watch('excerptEn') || watch('excerpt')}
+                  {getLocalizedValue(watch('excerpt'), previewLanguage)}
                 </p>
                 <div
                   className="prose prose-slate dark:prose-invert prose-lg max-w-none"
                   dangerouslySetInnerHTML={{
                     __html: (() => {
                       const rawContent =
-                        previewLanguage === 'zh'
-                          ? watch('content')
-                          : watch('contentEn') || watch('content');
+                        getLocalizedValue<string>(
+                          watch('content'),
+                          previewLanguage,
+                        ) || '';
 
                       if (!rawContent) return '';
 

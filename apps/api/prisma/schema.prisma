@@ -1510,6 +1510,13 @@ model BlogArticle {
   contentMd     String?       @db.Text
   excerpt       String?       @db.Text
   coverImage    String?       @db.VarChar(255)
+
+  // ========== 新多语言字段 ==========
+  titleLocalized   Json?
+  excerptLocalized Json?
+  contentLocalized Json?
+  contentMdLocalized Json?
+  coverImageLocalized Json?
   status        ArticleStatus @default(DRAFT)
   publishedAt   DateTime?
   viewCount     Int           @default(0)

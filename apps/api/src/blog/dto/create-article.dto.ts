@@ -4,28 +4,31 @@ import {
   IsEnum,
   IsArray,
   MaxLength,
+  IsObject,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ArticleStatus } from '@prisma/client';
+import type { LocalizedString } from '@lucky/shared';
 
 export class CreateArticleDto {
   @ApiProperty({
-    description: '文章标题',
-    example: '如何使用 NestJS 开发博客系统',
+    description: '文章标题 (多语言)',
+    example: {
+      zh: '如何使用 NestJS 开发博客系统',
+      en: 'How to build blog system with NestJS',
+    },
   })
-  @IsString()
-  @MaxLength(255)
-  title!: string;
+  @IsObject()
+  title!: LocalizedString<string>;
 
-  @ApiProperty({ description: '文章内容' })
-  @IsString()
-  content!: string;
+  @ApiProperty({ description: '文章内容 (多语言)' })
+  @IsObject()
+  content!: LocalizedString<string>;
 
-  @ApiPropertyOptional({ description: '文章摘要' })
+  @ApiPropertyOptional({ description: '文章摘要 (多语言)' })
   @IsOptional()
-  @IsString()
-  @MaxLength(500)
-  excerpt?: string;
+  @IsObject()
+  excerpt?: LocalizedString<string>;
 
   @ApiPropertyOptional({ description: '特色图片 URL (featuredImage)' })
   @IsOptional()
@@ -52,21 +55,4 @@ export class CreateArticleDto {
   @IsArray()
   @IsString({ each: true })
   tagIds?: string[];
-
-  @ApiPropertyOptional({ description: '英文标题' })
-  @IsOptional()
-  @IsString()
-  @MaxLength(255)
-  titleEn?: string;
-
-  @ApiPropertyOptional({ description: '英文内容' })
-  @IsOptional()
-  @IsString()
-  contentEn?: string;
-
-  @ApiPropertyOptional({ description: '英文摘要' })
-  @IsOptional()
-  @IsString()
-  @MaxLength(500)
-  excerptEn?: string;
 }

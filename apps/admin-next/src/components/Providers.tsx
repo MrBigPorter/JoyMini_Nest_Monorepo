@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAppStore } from '@/store/useAppStore';
 import { ToastContainer } from '@/components/UIComponents';
 import { useToastStore } from '@/store/useToastStore';
+import { LanguageProvider } from '@/hooks/LanguageProvider';
 
 /**
  * 创建 QueryClient 单例（浏览器）/ 每次新建（服务器）
@@ -54,8 +55,10 @@ export const Providers: React.FC<{ children: React.ReactNode }> = ({
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ToastContainer toasts={toasts} removeToastAction={removeToast} />
-      {children}
+      <LanguageProvider>
+        <ToastContainer toasts={toasts} removeToastAction={removeToast} />
+        {children}
+      </LanguageProvider>
     </QueryClientProvider>
   );
 };

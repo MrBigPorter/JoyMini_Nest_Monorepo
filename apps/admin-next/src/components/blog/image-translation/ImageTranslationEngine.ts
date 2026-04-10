@@ -28,14 +28,6 @@ export class ImageTranslationEngine {
 
   async translateImage(imageData: string): Promise<TranslationResult> {
     try {
-      const model = this.genAI.getGenerativeModel({
-        model: 'gemini-2.0-flash',
-        generationConfig: {
-          temperature: 0.1,
-          responseMimeType: 'application/json',
-        },
-      });
-
       const prompt = `
         Analyze this image and extract ALL text regions.
         For each text region, provide:
@@ -61,6 +53,14 @@ export class ImageTranslationEngine {
           ]
         }
       `;
+
+      const model = this.genAI.getGenerativeModel({
+        model: 'gemini-1.5-flash',
+        generationConfig: {
+          temperature: 0.1,
+          responseMimeType: 'application/json',
+        },
+      });
 
       const result = await model.generateContent([
         prompt,
