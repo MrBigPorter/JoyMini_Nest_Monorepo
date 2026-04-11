@@ -1,0 +1,77 @@
+# ============================================================
+# Liveness Web 前端部署流水线
+# ============================================================
+
+deploy-liveness:
+  stage: deploy
+  image: node:20-bookworm
+  tags:
+    - saas-linux-large-amd64
+
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "test"
+      changes:
+        - apps/liveness-web/**/*
+
+  script:
+    - git config core.autocrlf input
+    - git config core.filemode false
+    - corepack enable
+    - corepack prepare yarn@4.9.2 --activate
+    - yarn install --immutable
+
+    - cd apps/liveness-web
+    - yarn build
+
+    # 验证 Cloudflare 凭证
+    - |
+      set -euo pipefail
+      if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+        echo "❌ CLOUDFLARE_API_TOKEN is not set"
+        exit 1
+      fi
+
+      HTTP_STATUS=$(curl -s -o /tmp/cf-verify.json -w "%{http_code}" \
+        -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+        "https://api.cloudflare.com/client/v4/user/tokens/verify")
+      SUCCESS=$(python3 -c "import json; d=json.load(open('/tmp/cf-verify.json')); print(d.get('success', False))" 2>/dev/null || echo "false")
+      if [ "$HTTP_STATUS" != "200" ] || [ "$SUCCESS" != "True" ]; then
+        echo "❌ CLOUDFLARE_API_TOKEN is invalid or expired"
+        exit 1
+      fi
+      echo "✅ Cloudflare API token is valid."
+
+    # 部署到 Cloudflare Pages
+    - CLOUDFLARE_ACCOUNT_ID=$CLOUDFLARE_ACCOUNT_ID CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN \
+      yarn exec wrangler pages deploy dist \
+      --project-name liveness-web \
+      --branch "$CI_COMMIT_BRANCH"
+
+  after_script:
+    # Telegram 通知
+    - |
+      if [ "$CI_JOB_STATUS" = "success" ]; then
+        STATUS_EMOJI="✅ Success"
+      else
+        STATUS_EMOJI="❌ Failed"
+      fi
+
+      if [ "$CI_COMMIT_BRANCH" = "main" ]; then
+        URL="https://liveness.joyminis.com"
+      else
+        URL="https://liveness-dev.joyminis.com"
+      fi
+
+      MESSAGE="🎭 *Liveness Web Deployment Report*
+      📌 *Status*: $STATUS_EMOJI
+      🏷️ *Environment*: $([ "$CI_COMMIT_BRANCH" = "main" ] && echo "Production" || echo "Preview") (Cloudflare Pages)
+      🔗 *URL*: $URL
+      📝 *Commit*: \`$CI_COMMIT_SHORT_SHA\`"
+
+      curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendMessage" \
+        -d "chat_id=$TELEGRAM_CHAT_ID" \
+        -d "text=$MESSAGE" \
+        -d "parse_mode=Markdown" > /dev/null
+
+  resource_group: deploy-liveness
+  interruptible: false
