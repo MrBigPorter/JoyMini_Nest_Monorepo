@@ -22,8 +22,6 @@ export const imageFileSchema = z
     { message: 'Please upload an image (max 5MB)' },
   );
 
-// ================= 安全验证 Schema =================
-
 /**
  * 手机号验证（支持国际格式）
  */

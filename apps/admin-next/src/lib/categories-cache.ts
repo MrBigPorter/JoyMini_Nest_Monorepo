@@ -6,15 +6,11 @@
 import { QueryClient } from '@tanstack/react-query';
 import { categoryApi } from '@/api';
 
-// ================= Cache Keys =================
-
 export const CATEGORIES_LIST_TAG = 'categories:list';
 
 export function categoriesListQueryKey() {
   return [CATEGORIES_LIST_TAG] as const;
 }
-
-// ================= Server Prefetch =================
 
 /**
  * Server Component 调用：预取分类列表

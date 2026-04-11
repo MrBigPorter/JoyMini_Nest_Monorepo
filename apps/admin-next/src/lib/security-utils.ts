@@ -5,8 +5,6 @@
 
 import { z } from 'zod';
 
-// ================= 输入验证 Schema =================
-
 /**
  * 手机号验证（支持国际格式）
  */
@@ -53,8 +51,6 @@ export const amountSchema = z
   .min(0, '金额不能为负数')
   .max(999999.99, '金额过大')
   .multipleOf(0.01, '金额最多两位小数');
-
-// ================= 数据脱敏函数 =================
 
 /**
  * 手机号脱敏
@@ -107,8 +103,6 @@ export function maskName(name: string): string {
   return `${name[0]}*${name.slice(-1)}`;
 }
 
-// ================= XSS 防护 =================
-
 /**
  * HTML 转义，防止 XSS 攻击
  */
@@ -143,8 +137,6 @@ export function sanitizeInput(input: string): string {
   return cleaned.trim();
 }
 
-// ================= CSRF 防护 =================
-
 /**
  * 生成 CSRF Token
  */
@@ -162,8 +154,6 @@ export function generateCsrfToken(): string {
 export function validateCsrfToken(token: string, storedToken: string): boolean {
   return token === storedToken && token.length === 64;
 }
-
-// ================= 安全检查函数 =================
 
 /**
  * 检查是否包含 SQL 注入关键词
@@ -242,8 +232,6 @@ export function securityCheck(input: string): {
     cleaned,
   };
 }
-
-// ================= 密码安全 =================
 
 /**
  * 检查密码强度

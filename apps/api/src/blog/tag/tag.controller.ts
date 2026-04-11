@@ -52,13 +52,13 @@ export class TagController {
   async createTag(
     @Body()
     body: {
-      name: string;
+      name: Record<string, string | undefined>;
       slug?: string;
       color?: string;
-      description?: string;
+      description?: Record<string, string | undefined>;
     },
   ) {
-    return this.tagService.createTag(body);
+    return this.tagService.createTag(body as any);
   }
 
   @Patch(':id')
@@ -68,13 +68,13 @@ export class TagController {
     @Param('id') id: string,
     @Body()
     body: {
-      name?: string;
+      name?: Record<string, string | undefined>;
       slug?: string;
       color?: string;
-      description?: string;
+      description?: Record<string, string | undefined>;
     },
   ) {
-    return this.tagService.updateTag(id, body);
+    return this.tagService.updateTag(id, body as any);
   }
 
   @Delete(':id')

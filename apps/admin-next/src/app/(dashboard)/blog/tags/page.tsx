@@ -172,7 +172,11 @@ export default function TagsPage() {
                     <TagIcon className="h-4 w-4" />
                   </div>
                   <div className="ml-3">
-                    <h3 className="font-semibold">{tag.name}</h3>
+                    <h3 className="font-semibold">
+                      {typeof tag.name === 'object'
+                        ? String(Object.values(tag.name)[0])
+                        : String(tag.name)}
+                    </h3>
                     <code className="text-xs text-muted-foreground">
                       /{tag.slug}
                     </code>
@@ -194,7 +198,9 @@ export default function TagsPage() {
                 </div>
               </div>
               <p className="text-sm text-muted-foreground mb-4">
-                {tag.description}
+                {tag.description && typeof tag.description === 'object'
+                  ? String(Object.values(tag.description)[0])
+                  : String(tag.description || '')}
               </p>
               <div className="flex items-center justify-between text-xs">
                 <div className="flex items-center space-x-3">

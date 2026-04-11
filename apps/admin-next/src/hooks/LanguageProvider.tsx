@@ -32,9 +32,29 @@ export const LanguageProvider: React.FC<{ children: ReactNode }> = ({
 
 export function useLanguage() {
   const context = useContext(LanguageContext);
+
+  // ✅ 永远不抛出错误，安全降级到默认语言，防止整个页面崩溃
   if (!context) {
-    throw new Error('useLanguage must be used within a LanguageProvider');
+    if (process.env.NODE_ENV === 'development') {
+      console.warn(
+        '[useLanguage] LanguageProvider not found in component tree. ' +
+          'Falling back to default locale "zh". Make sure to wrap your app with <LanguageProvider>.',
+      );
+    }
+
+    // 返回安全的默认实现，永远不会崩溃
+    return {
+      locale: 'zh' as const,
+      setLocale: () => {
+        if (process.env.NODE_ENV === 'development') {
+          console.warn(
+            '[useLanguage] setLocale called without LanguageProvider, ignored',
+          );
+        }
+      },
+    };
   }
+
   return context;
 }
 

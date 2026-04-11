@@ -106,7 +106,11 @@ export default function CategoriesPage() {
       render: (dom, category: any) => (
         <div className="flex items-center">
           <FolderTree className="mr-2 h-4 w-4 text-muted-foreground" />
-          <div className="font-medium">{category.name}</div>
+          <div className="font-medium">
+            {typeof category.name === 'object'
+              ? String(Object.values(category.name)[0])
+              : String(category.name)}
+          </div>
         </div>
       ),
     },
@@ -124,7 +128,9 @@ export default function CategoriesPage() {
       title: 'Description',
       render: (dom, category: any) => (
         <p className="text-sm text-muted-foreground max-w-md truncate">
-          {category.description || 'No description'}
+          {typeof category.description === 'object'
+            ? String(Object.values(category.description)[0])
+            : String(category.description || 'No description')}
         </p>
       ),
     },

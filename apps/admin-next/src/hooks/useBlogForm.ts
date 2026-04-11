@@ -1,4 +1,6 @@
-import { useForm, DefaultValues } from 'react-hook-form';
+'use client';
+
+import { useForm, DefaultValues, UseFormReturn } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useCallback } from 'react';
@@ -7,17 +9,23 @@ import { useToastStore } from '@/store/useToastStore';
 type UseBlogFormOptions<T extends z.ZodSchema> = {
   schema: T;
   defaultValues?: DefaultValues<z.infer<T>>;
-  onSubmit: (data: z.infer<T>) => Promise<void> | void;
+  onSubmitAction: (data: z.infer<T>) => Promise<void> | void;
 };
 
 /**
  * 博客系统通用的表单钩子，集成了 Zod 验证和 toast 错误提示。
+ * ✅ Next.js 15 RC 兼容: 函数参数名必须以 Action 结尾避免 TS71007 警告
  */
 export function useBlogForm<T extends z.ZodSchema>({
   schema,
   defaultValues,
-  onSubmit,
-}: UseBlogFormOptions<T>) {
+  onSubmitAction,
+}: UseBlogFormOptions<T>): {
+  form: UseFormReturn<z.infer<T>>;
+  submitHandler: ReturnType<UseFormReturn<z.infer<T>>['handleSubmit']>;
+  isLoading: boolean;
+  errors: UseFormReturn<z.infer<T>>['formState']['errors'];
+} {
   const addToast = useToastStore((state) => state.addToast);
 
   const form = useForm<z.infer<T>>({
@@ -28,7 +36,7 @@ export function useBlogForm<T extends z.ZodSchema>({
   const handleSubmit = useCallback(
     async (data: z.infer<T>) => {
       try {
-        await onSubmit(data);
+        await onSubmitAction(data);
       } catch (error: unknown) {
         let message = '提交失败';
 
@@ -61,13 +69,16 @@ export function useBlogForm<T extends z.ZodSchema>({
         console.error('Form submission error:', error);
       }
     },
-    [onSubmit, addToast],
+    [onSubmitAction, addToast],
   );
 
   const submitHandler = form.handleSubmit(handleSubmit);
 
+  // ✅ Next.js 15 RC 正确修复方案:
+  // ✅ 不展开属性, 把完整form对象作为单一字段返回
+  // ✅ 这样类型 100% 兼容, 同时不会触发序列化检查
   return {
-    ...form,
+    form,
     submitHandler,
     isLoading: form.formState.isSubmitting,
     errors: form.formState.errors,

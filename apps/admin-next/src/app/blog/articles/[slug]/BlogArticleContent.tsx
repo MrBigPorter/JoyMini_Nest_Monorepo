@@ -243,7 +243,11 @@ export default function BlogArticleContent({
               <div className="flex items-center">
                 <FolderTree className="h-4 w-4 mr-2" />
                 <span className="px-2.5 py-1 text-xs rounded-full bg-gray-100 dark:bg-white/5">
-                  {article.category.name}
+                  {typeof article.category.name === 'object'
+                    ? (article.category.name[language] ??
+                      article.category.name.zh ??
+                      article.category.name.en)
+                    : article.category.name}
                 </span>
               </div>
             )}
@@ -267,7 +271,9 @@ export default function BlogArticleContent({
                   key={tag.id || tag}
                   className="px-3 py-1 text-sm rounded-full border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-black/20 text-gray-600 dark:text-gray-300"
                 >
-                  {tag.name || tag}
+                  {typeof tag.name === 'object'
+                    ? (tag.name[language] ?? tag.name.zh ?? tag.name.en)
+                    : tag.name || tag}
                 </span>
               ))}
             </div>

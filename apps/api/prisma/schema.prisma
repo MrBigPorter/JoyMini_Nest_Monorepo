@@ -1559,16 +1559,16 @@ model BlogArticle {
 /// 博客分类
 model BlogCategory {
   id          String        @id @default(cuid()) @db.VarChar(32)
-  name        String        @db.VarChar(100)
+  name        Json          @db.JsonB
   slug        String        @unique @db.VarChar(100)
-  description String?       @db.Text
+  description Json?         @db.JsonB
   parentId    String?       @db.VarChar(32)
   parent      BlogCategory? @relation("BlogCategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
   children    BlogCategory[] @relation("BlogCategoryHierarchy")
   articles    BlogArticle[]
   createdAt   DateTime      @default(now()) @map("created_at")
   updatedAt   DateTime      @updatedAt @map("updated_at")
-  
+
   @@index([slug], map: "idx_blog_category_slug")
   @@index([parentId], map: "idx_blog_category_parent_id")
   @@map("blog_categories")
@@ -1577,10 +1577,10 @@ model BlogCategory {
 /// 博客标签
 model BlogTag {
   id          String        @id @default(cuid()) @db.VarChar(32)
-  name        String        @db.VarChar(50)
+  name        Json          @db.JsonB
   slug        String        @unique @db.VarChar(50)
   color       String?       @default("#3b82f6") @db.VarChar(7)
-  description String?       @db.VarChar(300)
+  description Json?         @db.JsonB
   articles    BlogArticle[] @relation("BlogArticleTags")
   createdAt   DateTime      @default(now()) @map("created_at")
   updatedAt   DateTime      @default(now()) @updatedAt @map("updated_at")

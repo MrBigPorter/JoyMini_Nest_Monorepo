@@ -28,10 +28,12 @@ export type ArticleFormInputs = z.infer<typeof articleSchema>;
 
 // Category
 export const categorySchema = z.object({
-  name: z
-    .string()
-    .min(1, 'Category name is required')
-    .max(50, 'Category name must be at most 50 characters'),
+  name: localizedStringSchema(
+    z
+      .string()
+      .min(1, 'Category name is required')
+      .max(50, 'Category name must be at most 50 characters'),
+  ),
   slug: z
     .string()
     .min(1, 'Slug is required')
@@ -40,20 +42,32 @@ export const categorySchema = z.object({
       /^[a-z0-9\-]+$/,
       'Slug can only contain lowercase letters, numbers, and hyphens',
     ),
-  description: z
-    .string()
-    .max(500, 'Description must be at most 500 characters')
-    .optional(),
+  description: localizedStringSchema(
+    z
+      .string()
+      .max(500, 'Description must be at most 500 characters')
+      .optional(),
+  ),
 });
 
 export type CategoryFormInputs = z.infer<typeof categorySchema>;
 
 // Tag
 export const tagSchema = z.object({
-  name: z
+  name: localizedStringSchema(
+    z
+      .string()
+      .min(1, 'Tag name is required')
+      .max(30, 'Tag name must be at most 30 characters'),
+  ),
+  slug: z
     .string()
-    .min(1, 'Tag name is required')
-    .max(30, 'Tag name must be at most 30 characters'),
+    .min(1, 'Slug is required')
+    .max(50, 'Slug must be at most 50 characters')
+    .regex(
+      /^[a-z0-9\-]+$/,
+      'Slug can only contain lowercase letters, numbers, and hyphens',
+    ),
   color: z
     .string()
     .regex(
@@ -61,10 +75,12 @@ export const tagSchema = z.object({
       'Color must be a valid hex code, e.g., #3b82f6',
     )
     .optional(),
-  description: z
-    .string()
-    .max(300, 'Description must be at most 300 characters')
-    .optional(),
+  description: localizedStringSchema(
+    z
+      .string()
+      .max(300, 'Description must be at most 300 characters')
+      .optional(),
+  ),
 });
 
 export type TagFormInputs = z.infer<typeof tagSchema>;

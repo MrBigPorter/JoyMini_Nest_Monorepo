@@ -7,15 +7,11 @@ import { QueryClient } from '@tanstack/react-query';
 import { couponApi } from '@/api';
 import type { CouponListParams } from '@/type/types';
 
-// ================= Cache Keys =================
-
 export const MARKETING_LIST_TAG = 'marketing:coupon-list';
 
 export function marketingListQueryKey(params: CouponListParams) {
   return [MARKETING_LIST_TAG, params] as const;
 }
-
-// ================= Server Prefetch =================
 
 /**
  * Server Component 调用：预取优惠券列表
@@ -51,8 +47,6 @@ export async function prefetchMarketingList(
 
   return queryKey;
 }
-
-// ================= URL SearchParams 解析 =================
 
 /**
  * 从 URL searchParams 解析出查询参数

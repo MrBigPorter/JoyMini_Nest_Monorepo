@@ -7,8 +7,6 @@ import { QueryClient } from '@tanstack/react-query';
 import { notificationApi } from '@/api';
 import type { QueryPushLogParams } from '@/type/types';
 
-// ================= Cache Keys =================
-
 export const NOTIFICATIONS_LIST_TAG = 'notifications:list';
 export const NOTIFICATIONS_STATS_TAG = 'notifications:stats';
 
@@ -19,8 +17,6 @@ export function notificationsListQueryKey(params: QueryPushLogParams) {
 export function notificationsStatsQueryKey() {
   return [NOTIFICATIONS_STATS_TAG] as const;
 }
-
-// ================= Server Prefetch =================
 
 /**
  * Server Component 调用：预取推送日志列表
@@ -89,8 +85,6 @@ export async function prefetchNotificationsStats(queryClient: QueryClient) {
 
   return queryKey;
 }
-
-// ================= URL SearchParams 解析 =================
 
 /**
  * 从 URL searchParams 解析出查询参数

@@ -488,8 +488,6 @@ export const regionApi = {
  * kyc API
  */
 export const kycApi = {
-  // ==================== 原有接口 ====================
-
   // 获取 KYC 列表
   getRecords: (params: KycRecordListParams) => {
     return http.get('/v1/admin/kyc/records', params);
@@ -505,8 +503,6 @@ export const kycApi = {
   audit: (id: string, data: AuditKycParams) => {
     return http.post(`/v1/admin/kyc/${id}/audit`, data);
   },
-
-  // ==================== 新增接口 ====================
 
   /**
    * [增] 管理员手动创建 (直接通过)
@@ -1162,7 +1158,7 @@ export const blogApi = {
     categoryId?: string;
     tagIds?: string[];
     status?: string;
-    featuredImage?: string;
+    featuredImage?: string | File;
   }) => {
     return await http.post<any>('/v1/admin/blog/articles', payload);
   },
@@ -1176,7 +1172,7 @@ export const blogApi = {
       categoryId?: string;
       tagIds?: string[];
       status?: string;
-      featuredImage?: string;
+      featuredImage?: string | File;
     },
   ) => {
     return await http.patch<any>(`/v1/admin/blog/articles/${id}`, payload);
@@ -1231,9 +1227,9 @@ export const blogApi = {
   },
 
   createCategory: async (payload: {
-    name: string;
+    name: Record<string, string | undefined>;
     slug?: string;
-    description?: string;
+    description?: Record<string, string | undefined>;
     parentId?: string;
   }) => {
     return await http.post<any>('/v1/admin/blog/categories', payload);
@@ -1242,9 +1238,9 @@ export const blogApi = {
   updateCategory: async (
     id: string,
     payload: {
-      name?: string;
+      name?: Record<string, string | undefined>;
       slug?: string;
-      description?: string;
+      description?: Record<string, string | undefined>;
       parentId?: string;
     },
   ) => {
@@ -1287,10 +1283,10 @@ export const blogApi = {
   },
 
   createTag: async (payload: {
-    name: string;
+    name: Record<string, string | undefined>;
     slug?: string;
     color?: string;
-    description?: string;
+    description?: Record<string, string | undefined>;
   }) => {
     return await http.post<any>('/v1/admin/blog/tags', payload);
   },
@@ -1298,9 +1294,9 @@ export const blogApi = {
   updateTag: async (
     id: string,
     payload: {
-      name?: string;
+      name?: Record<string, string | undefined>;
       slug?: string;
-      description?: string;
+      description?: Record<string, string | undefined>;
     },
   ) => {
     return await http.patch<any>(`/v1/admin/blog/tags/${id}`, payload);
