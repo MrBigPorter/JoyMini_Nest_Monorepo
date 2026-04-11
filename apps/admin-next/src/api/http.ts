@@ -62,8 +62,6 @@ class HttpClient {
     this.setupInterceptors();
   }
 
-  // ================= 拦截器 =================
-
   private setupInterceptors() {
     // 请求拦截
     this.instance.interceptors.request.use(
@@ -192,8 +190,6 @@ class HttpClient {
     );
   }
 
-  // ================= 工具函数 =================
-
   private genKey(config: AxiosRequestConfig) {
     const { method, url, params, data } = config;
     return `${method}-${url}-${JSON.stringify(params)}-${JSON.stringify(data)}`;
@@ -221,8 +217,6 @@ class HttpClient {
     if (typeof window === 'undefined') return 'en';
     return localStorage.getItem('lang') || 'en';
   }
-
-  // ================= 错误处理 =================
 
   private handleBizError(
     data: ApiResponse,
@@ -381,8 +375,6 @@ class HttpClient {
     return this.refreshPromise;
   }
 
-  // ================= Toast 封装 =================
-
   private toastError(message: string) {
     const { addToast } = useToastStore.getState();
     addToast('error', message);
@@ -418,8 +410,6 @@ class HttpClient {
     );
   }
 
-  // ================= 重试逻辑 =================
-
   private async withRetry<T>(
     operation: () => Promise<T>,
     retryConfig = this.retryConfig,
@@ -452,8 +442,6 @@ class HttpClient {
 
     throw lastError;
   }
-
-  // ================= 对外 HTTP 方法 =================
 
   public async get<T = any>(
     url: string,

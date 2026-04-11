@@ -7,15 +7,11 @@ import { QueryClient } from '@tanstack/react-query';
 import { chatApi } from '@/api';
 import type { QueryConversationsParams } from '@/type/types';
 
-// ================= Cache Keys =================
-
 export const CUSTOMER_SERVICE_LIST_TAG = 'customer-service:list';
 
 export function customerServiceListQueryKey(params: QueryConversationsParams) {
   return [CUSTOMER_SERVICE_LIST_TAG, params] as const;
 }
-
-// ================= Server Prefetch =================
 
 /**
  * Server Component 调用：预取会话列表
@@ -52,8 +48,6 @@ export async function prefetchCustomerServiceList(
 
   return queryKey;
 }
-
-// ================= URL SearchParams 解析 =================
 
 /**
  * 从 URL searchParams 解析出查询参数

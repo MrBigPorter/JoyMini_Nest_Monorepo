@@ -2,7 +2,7 @@
 
 import React, { useEffect } from 'react';
 import { Modal, Button } from '@/components/UIComponents';
-import { FormSelectField, FormTextareaField } from '@repo/ui/form';
+import { Form, FormSelectField, FormTextareaField } from '@repo/ui/form';
 import { useBlogForm } from '@/hooks/useBlogForm';
 import {
   commentModerationSchema,
@@ -43,24 +43,27 @@ export const BlogCommentModal: React.FC<BlogCommentModalProps> = ({
     },
   );
 
-  const { register, submitHandler, isLoading, reset } = useBlogForm({
+  const blogForm = useBlogForm({
     schema: commentModerationSchema,
     defaultValues: editingComment || {
       status: 'PENDING',
       reply: '',
     },
-    onSubmit: async (data) => {
+    onSubmitAction: async (data) => {
       if (isEditing && editingComment) {
         await updateComment(editingComment.id, data);
       }
     },
   });
 
+  const { form, submitHandler, isLoading } = blogForm;
+  const { register, reset } = form;
+
   useEffect(() => {
     if (isOpen) {
-      reset(editingComment || { status: 'PENDING', reply: '' });
+      form.reset(editingComment || { status: 'PENDING', reply: '' });
     }
-  }, [isOpen, editingComment, reset]);
+  }, [isOpen, form, editingComment]);
 
   const loading = isUpdating || isLoading;
 
@@ -71,36 +74,38 @@ export const BlogCommentModal: React.FC<BlogCommentModalProps> = ({
       title="Moderate Comment"
       size="md"
     >
-      <form onSubmit={submitHandler} className="space-y-4">
-        <FormSelectField
-          label="Status"
-          options={[
-            { label: 'Pending', value: 'PENDING' },
-            { label: 'Approved', value: 'APPROVED' },
-            { label: 'Rejected', value: 'REJECTED' },
-            { label: 'Spam', value: 'SPAM' },
-          ]}
-          {...register('status')}
-        />
-        <FormTextareaField
-          label="Reply (optional)"
-          placeholder="Add a public reply to the comment"
-          {...register('reply')}
-        />
-        <div className="flex justify-end space-x-3 pt-4">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onCloseAction}
-            disabled={loading}
-          >
-            Cancel
-          </Button>
-          <Button type="submit" isLoading={loading}>
-            Update
-          </Button>
-        </div>
-      </form>
+      <Form {...form}>
+        <form onSubmit={submitHandler} className="space-y-4">
+          <FormSelectField
+            label="Status"
+            options={[
+              { label: 'Pending', value: 'PENDING' },
+              { label: 'Approved', value: 'APPROVED' },
+              { label: 'Rejected', value: 'REJECTED' },
+              { label: 'Spam', value: 'SPAM' },
+            ]}
+            {...register('status')}
+          />
+          <FormTextareaField
+            label="Reply (optional)"
+            placeholder="Add a public reply to the comment"
+            {...register('reply')}
+          />
+          <div className="flex justify-end space-x-3 pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onCloseAction}
+              disabled={loading}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" isLoading={loading}>
+              Update
+            </Button>
+          </div>
+        </form>
+      </Form>
     </Modal>
   );
 };

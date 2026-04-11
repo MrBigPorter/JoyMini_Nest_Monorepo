@@ -22,6 +22,7 @@ import { PageHeader } from '@/components/scaffold/PageHeader';
 import { SmartTable } from '@/components/scaffold/SmartTable';
 import { Button, ModalManager } from '@repo/ui';
 import { BlogArticleModal } from '@/views/blog/BlogArticleModal';
+import LocalizedText from '@/components/blog/LocalizedText';
 import type { ArticleFormInputs } from '@/schema/blog';
 import type {
   ProColumns,
@@ -142,7 +143,10 @@ export default function ArticlesPageV2() {
         <div className="space-y-3">
           <p>
             Are you sure you want to delete article{' '}
-            <span className="font-bold text-primary-600">{article.title}</span>?
+            <span className="font-bold text-primary-600">
+              <LocalizedText value={article.title} />
+            </span>
+            ?
           </p>
 
           <div className="text-sm text-amber-600 bg-amber-50 p-3 rounded-lg border border-amber-200">
@@ -197,7 +201,10 @@ export default function ArticlesPageV2() {
         <div className="space-y-3">
           <p>
             Are you sure you want to publish{' '}
-            <span className="font-bold text-primary-600">{article.title}</span>?
+            <span className="font-bold text-primary-600">
+              <LocalizedText value={article.title} />
+            </span>
+            ?
           </p>
 
           <div className="text-sm text-green-600 bg-green-50 p-3 rounded-lg border border-green-200">
@@ -228,7 +235,10 @@ export default function ArticlesPageV2() {
         <div className="space-y-3">
           <p>
             Are you sure you want to unpublish{' '}
-            <span className="font-bold text-primary-600">{article.title}</span>?
+            <span className="font-bold text-primary-600">
+              <LocalizedText value={article.title} />
+            </span>
+            ?
           </p>
 
           <div className="text-sm text-amber-600 bg-amber-50 p-3 rounded-lg border border-amber-200">
@@ -257,7 +267,7 @@ export default function ArticlesPageV2() {
       render: (dom, article: Article) => (
         <div>
           <div className="font-medium text-gray-900 dark:text-white">
-            {article.title}
+            <LocalizedText value={article.title} />
           </div>
           <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             /{article.slug}
@@ -285,7 +295,11 @@ export default function ArticlesPageV2() {
       title: 'Category',
       render: (dom, article: Article) => (
         <span className="px-2.5 py-1 text-xs rounded-full bg-gray-100 dark:bg-white/5 text-gray-700 dark:text-gray-300">
-          {article.category?.name || 'Uncategorized'}
+          {article.category?.name
+            ? typeof article.category.name === 'object'
+              ? String(Object.values(article.category.name)[0])
+              : String(article.category.name)
+            : 'Uncategorized'}
         </span>
       ),
     },
@@ -423,7 +437,13 @@ export default function ArticlesPageV2() {
         placeholder: 'All Categories',
         options: [
           { label: 'All Categories', value: '' },
-          ...categories.map((cat) => ({ label: cat.name, value: cat.id })),
+          ...categories.map((cat) => ({
+            label:
+              typeof cat.name === 'object'
+                ? String(Object.values(cat.name)[0])
+                : String(cat.name),
+            value: cat.id,
+          })),
         ],
       },
     ],
@@ -455,8 +475,14 @@ export default function ArticlesPageV2() {
         readTime: article.readTime || '5 min',
         // 转换tags格式：从标签对象数组转换为标签名称数组
         tags: (article.tags || [])
-          .map((tag: string | { name?: string; id?: string }) =>
-            typeof tag === 'string' ? tag : tag.name || tag.id || '',
+          .map((tag: string | { name?: any; id?: string }) =>
+            typeof tag === 'string'
+              ? tag
+              : (typeof tag.name === 'object'
+                  ? Object.values(tag.name)[0]
+                  : tag.name) ||
+                tag.id ||
+                '',
           )
           .filter(Boolean),
       }));

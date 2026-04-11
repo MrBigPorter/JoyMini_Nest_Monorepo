@@ -14,34 +14,52 @@ const prisma = new PrismaClient();
 // ==============================================
 const CATEGORIES = [
   {
-    name: 'Backend Development',
+    name: { zh: '后端开发', en: 'Backend Development' },
     slug: 'backend',
-    description: 'NestJS, Database, Architecture, Security Practices',
+    description: {
+      zh: 'NestJS, 数据库, 系统架构, 安全最佳实践',
+      en: 'NestJS, Database, Architecture, Security Practices',
+    },
   },
   {
-    name: 'Frontend Development',
+    name: { zh: '前端开发', en: 'Frontend Development' },
     slug: 'frontend',
-    description: 'Next.js, React, Tailwind, Responsive Design',
+    description: {
+      zh: 'Next.js, React, Tailwind CSS, 响应式设计',
+      en: 'Next.js, React, Tailwind, Responsive Design',
+    },
   },
   {
-    name: 'DevOps',
+    name: { zh: '运维与部署', en: 'DevOps' },
     slug: 'devops',
-    description: 'Docker, Kubernetes, CI/CD, Automation',
+    description: {
+      zh: 'Docker, Kubernetes, CI/CD, 自动化部署',
+      en: 'Docker, Kubernetes, CI/CD, Automation',
+    },
   },
   {
-    name: 'System Architecture',
+    name: { zh: '系统架构', en: 'System Architecture' },
     slug: 'architecture',
-    description: 'Monorepo, Microservices, High Availability',
+    description: {
+      zh: 'Monorepo 单体仓库, 微服务, 高可用设计',
+      en: 'Monorepo, Microservices, High Availability',
+    },
   },
   {
-    name: 'Security',
+    name: { zh: '安全防护', en: 'Security' },
     slug: 'security',
-    description: 'XSS Protection, CAPTCHA, Content Filtering, AI Moderation',
+    description: {
+      zh: 'XSS 防护, 验证码, 内容过滤, AI 智能审核',
+      en: 'XSS Protection, CAPTCHA, Content Filtering, AI Moderation',
+    },
   },
   {
-    name: 'Real World Projects',
+    name: { zh: '实战项目', en: 'Real World Projects' },
     slug: 'projects',
-    description: 'Production experience, pitfalls, best practices',
+    description: {
+      zh: '生产环境实战经验, 踩坑记录, 最佳实践',
+      en: 'Production experience, pitfalls, best practices',
+    },
   },
 ];
 
@@ -50,41 +68,57 @@ const CATEGORIES = [
 // ==============================================
 const TAGS = [
   // Backend
-  { name: 'NestJS', slug: 'nestjs', color: '#e0234e' },
-  { name: 'Prisma', slug: 'prisma', color: '#2D3748' },
-  { name: 'PostgreSQL', slug: 'postgresql', color: '#336791' },
-  { name: 'Redis', slug: 'redis', color: '#dc382d' },
-  { name: 'BullMQ', slug: 'bullmq', color: '#7248d4' },
-  { name: 'TypeScript', slug: 'typescript', color: '#3178c6' },
-  
+  { name: { zh: 'NestJS', en: 'NestJS' }, slug: 'nestjs', color: '#e0234e' },
+  { name: { zh: 'Prisma', en: 'Prisma' }, slug: 'prisma', color: '#2D3748' },
+  {
+    name: { zh: 'PostgreSQL', en: 'PostgreSQL' },
+    slug: 'postgresql',
+    color: '#336791',
+  },
+  { name: { zh: 'Redis', en: 'Redis' }, slug: 'redis', color: '#dc382d' },
+  { name: { zh: 'BullMQ', en: 'BullMQ' }, slug: 'bullmq', color: '#7248d4' },
+  {
+    name: { zh: 'TypeScript', en: 'TypeScript' },
+    slug: 'typescript',
+    color: '#3178c6',
+  },
+
   // Frontend
-  { name: 'Next.js', slug: 'nextjs', color: '#000000' },
-  { name: 'React', slug: 'react', color: '#61dafb' },
-  { name: 'Tailwind CSS', slug: 'tailwind', color: '#06b6d4' },
-  { name: 'Shadcn UI', slug: 'shadcn-ui', color: '#000000' },
-  { name: 'SSR', slug: 'ssr', color: '#10b981' },
-  
+  { name: { zh: 'Next.js', en: 'Next.js' }, slug: 'nextjs', color: '#000000' },
+  { name: { zh: 'React', en: 'React' }, slug: 'react', color: '#61dafb' },
+  {
+    name: { zh: 'Tailwind CSS', en: 'Tailwind CSS' },
+    slug: 'tailwind',
+    color: '#06b6d4',
+  },
+  {
+    name: { zh: 'Shadcn UI', en: 'Shadcn UI' },
+    slug: 'shadcn-ui',
+    color: '#000000',
+  },
+  { name: { zh: '服务端渲染', en: 'SSR' }, slug: 'ssr', color: '#10b981' },
+
   // DevOps
   { name: 'Docker', slug: 'docker', color: '#2496ed' },
   { name: 'Cloudflare', slug: 'cloudflare', color: '#f38020' },
   { name: 'Monorepo', slug: 'monorepo', color: '#f59e0b' },
   { name: 'Turbo', slug: 'turbo', color: '#ef4444' },
-  
+
   // Security
   { name: 'XSS', slug: 'xss', color: '#dc2626' },
   { name: 'ReCaptcha', slug: 'recaptcha', color: '#4285f4' },
   { name: 'AhoCorasick', slug: 'aho-corasick', color: '#8b5cf6' },
   { name: 'AI Moderation', slug: 'ai-moderation', color: '#14b8a6' },
-  
+
   // Architecture
   { name: 'Microservices', slug: 'microservices', color: '#22c55e' },
   { name: 'High Availability', slug: 'high-availability', color: '#f97316' },
   { name: 'Message Queue', slug: 'message-queue', color: '#0ea5e9' },
-  
+
   // AI
   { name: 'LLM', slug: 'llm', color: '#6366f1' },
   { name: 'Prompt Engineering', slug: 'prompt-engineering', color: '#ec4899' },
-  
+
   // Best Practices
   { name: 'Best Practices', slug: 'best-practices', color: '#22c55e' },
   { name: 'Performance', slug: 'performance', color: '#f59e0b' },
@@ -148,7 +182,8 @@ const ARTICLES = [
 ✅ 内存占用: ~5MB  
 ✅ 支持热更新: 无需重启服务
     `,
-    excerpt: '从零实现工业级敏感词过滤系统，包含完整算法原理、架构设计和性能优化方案。',
+    excerpt:
+      '从零实现工业级敏感词过滤系统，包含完整算法原理、架构设计和性能优化方案。',
     categorySlug: 'security',
     tags: ['security', 'algorithm', 'aho-corasick', 'nestjs', 'performance'],
   },
@@ -196,7 +231,8 @@ Google 服务不可用时自动降级，不影响正常用户使用
 
 > 💡 经过生产环境验证，这个方案可以阻挡 99.8% 的自动化攻击，同时对真实用户完全透明。
     `,
-    excerpt: '完整的 ReCaptcha v3 前后端实现方案，包含分级策略、错误降级和生产环境最佳实践。',
+    excerpt:
+      '完整的 ReCaptcha v3 前后端实现方案，包含分级策略、错误降级和生产环境最佳实践。',
     categorySlug: 'security',
     tags: ['security', 'recaptcha', 'anti-bot', 'nestjs', 'frontend'],
   },
@@ -261,7 +297,8 @@ sequenceDiagram
 
 这可能是目前性价比最高的内容审核方案。
     `,
-    excerpt: '基于 Google Gemini 2.0 Flash 构建零成本智能评论审核系统，完整架构设计与实现细节。',
+    excerpt:
+      '基于 Google Gemini 2.0 Flash 构建零成本智能评论审核系统，完整架构设计与实现细节。',
     categorySlug: 'security',
     tags: ['ai-moderation', 'gemini', 'bullmq', 'nestjs', 'security'],
   },
@@ -314,7 +351,8 @@ sequenceDiagram
 
 > 💡 安全不是一个产品，而是一个过程。没有绝对的安全，我们需要做的是不断提高攻击的成本。
     `,
-    excerpt: '企业级 Web 应用完整安全架构设计，从网络层到AI层的五层纵深防御体系。',
+    excerpt:
+      '企业级 Web 应用完整安全架构设计，从网络层到AI层的五层纵深防御体系。',
     categorySlug: 'security',
     tags: ['security', 'nestjs', 'architecture', 'best-practices', 'xss'],
   },
@@ -382,7 +420,8 @@ await queue.add('moderation', comment, {
 
 异步处理是构建高可用安全系统的核心模式。
     `,
-    excerpt: '安全系统中的异步任务队列设计模式，包含BullMQ高级特性、重试策略和生产环境最佳实践。',
+    excerpt:
+      '安全系统中的异步任务队列设计模式，包含BullMQ高级特性、重试策略和生产环境最佳实践。',
     categorySlug: 'security',
     tags: ['bullmq', 'redis', 'message-queue', 'security', 'best-practices'],
   },
@@ -452,7 +491,8 @@ Content-Security-Policy:
 
 > 💡 没有任何单一的防御措施是完美的。纵深防御是唯一可靠的方案。
     `,
-    excerpt: 'XSS攻击完整指南，包含攻击原理、三种类型、七层防御模型和现代Web应用最佳实践。',
+    excerpt:
+      'XSS攻击完整指南，包含攻击原理、三种类型、七层防御模型和现代Web应用最佳实践。',
     categorySlug: 'security',
     tags: ['xss', 'security', 'web-security', 'csp', 'best-practices'],
   },
@@ -516,9 +556,11 @@ async function main() {
   // 导入文章
   console.log('📝 导入文章...');
   for (const article of ARTICLES) {
-    const category = createdCategories.find(c => c.slug === article.categorySlug);
+    const category = createdCategories.find(
+      (c) => c.slug === article.categorySlug,
+    );
     const articleTags = article.tags
-      .map(slug => tagMap.get(slug))
+      .map((slug) => tagMap.get(slug))
       .filter(Boolean);
 
     await prisma.blogArticle.create({
@@ -533,7 +575,7 @@ async function main() {
         authorId: admin?.id || '00000000000000000000000000000000',
         categoryId: category?.id,
         tags: {
-          connect: articleTags.map(t => ({ id: t.id })),
+          connect: articleTags.map((t) => ({ id: t.id })),
         },
         viewCount: Math.floor(Math.random() * 5000) + 100,
         likeCount: Math.floor(Math.random() * 200) + 10,

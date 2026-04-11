@@ -1,0 +1,7 @@
+-- AlterTable
+ALTER TABLE "blog_categories" ALTER COLUMN "name" SET DATA TYPE JSONB,
+ALTER COLUMN "description" SET DATA TYPE JSONB;
+
+-- AlterTable
+ALTER TABLE "blog_tags" ALTER COLUMN "name" SET DATA TYPE JSONB,
+ALTER COLUMN "description" SET DATA TYPE JSONB;

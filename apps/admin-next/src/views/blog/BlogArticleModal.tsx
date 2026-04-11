@@ -47,10 +47,10 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
 }) => {
   const isEditing = !!editingArticle;
   const addToast = useToastStore((state) => state.addToast);
-  const [categories, setCategories] = useState<{ id: string; name: string }[]>(
+  const [categories, setCategories] = useState<{ id: string; name: unknown }[]>(
     [],
   );
-  const [tags, setTags] = useState<{ id: string; name: string }[]>([]);
+  const [tags, setTags] = useState<{ id: string; name: unknown }[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
 
@@ -351,7 +351,18 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
             name="categoryId"
             label="Category"
             placeholder="Select category"
-            options={categories.map((c) => ({ label: c.name, value: c.id }))}
+            options={categories.map((c) => ({
+              label:
+                c.name == null
+                  ? c.id
+                  : typeof c.name === 'object'
+                    ? ((c.name as any).zh ??
+                      (c.name as any).en ??
+                      (c.name as any).ja ??
+                      c.id)
+                    : c.name,
+              value: c.id,
+            }))}
           />
           <div className="p-4 border rounded-lg shadow-sm">
             <label className="block text-sm font-medium mb-2">Tags</label>
@@ -369,7 +380,14 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
                     }`}
                     onClick={() => handleTagToggle(tag.id)}
                   >
-                    {tag.name}
+                    {tag.name == null
+                      ? tag.id
+                      : typeof tag.name === 'object'
+                        ? ((tag.name as any).zh ??
+                          (tag.name as any).en ??
+                          (tag.name as any).ja ??
+                          tag.id)
+                        : tag.name}
                   </button>
                 );
               })}

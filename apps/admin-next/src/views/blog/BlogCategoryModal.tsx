@@ -87,10 +87,8 @@ export const BlogCategoryModal: React.FC<BlogCategoryModalProps> = ({
     defaultValues: getDefaultValues(),
     onSubmitAction: async (data) => {
       if (isEditing && editingCategory) {
-        // @ts-expect-error 后端API已支持多语言格式，类型定义待更新
         await updateCategory(editingCategory.id, data);
       } else {
-        // @ts-expect-error 后端API已支持多语言格式，类型定义待更新
         await createCategory(data);
       }
     },
