@@ -1,0 +1,34 @@
+# ============================================================
+# Blog 前端部署流水线
+# ============================================================
+
+deploy-blog:
+  stage: deploy
+  image: node:20-bookworm
+  tags:
+    - saas-linux-large-amd64
+
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "test"
+      changes:
+        - apps/frontend-blog/**/*
+        - packages/shared/**/*
+        - packages/ui/**/*
+
+  script:
+    - git config core.autocrlf input
+    - git config core.filemode false
+    - corepack enable
+    - corepack prepare yarn@4.9.2 --activate
+    - yarn install --immutable
+
+    - node packages/shared/scripts/build.js
+    - node packages/ui/scripts/build.js
+
+    - cd apps/frontend-blog
+    - yarn build
+
+    - echo "✅ Blog 前端构建完成"
+    - echo "→ 实际部署逻辑参照 admin 流水线实现"
+
+  interruptible: false

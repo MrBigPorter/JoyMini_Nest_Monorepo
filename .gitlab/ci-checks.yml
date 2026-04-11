@@ -1,0 +1,108 @@
+# ============================================================
+# CI 检查流水线
+# ============================================================
+
+check:
+  stage: check
+
+  script:
+    # Git 配置修复 - Yarn PNP 必须
+    - git config core.autocrlf input
+    - git config core.filemode false
+
+    # 系统构建工具
+    - apt-get update && apt-get install -y python3 make g++ openssl
+
+    # 启用 Yarn 4
+    - corepack enable
+    - corepack prepare yarn@4.9.2 --activate
+
+    # 安装依赖
+    - yarn install --immutable
+
+    # 生成 Prisma Client
+    - yarn workspace @lucky/api prisma generate
+
+    # Lint 检查 (软门禁)
+    - yarn turbo run lint || true
+
+    # TypeScript 类型检查 (硬门禁)
+    - yarn turbo run check-types
+
+    # Admin 单元测试 (硬门禁)
+    - yarn workspace @lucky/admin-next test
+
+    # 其他包测试 (软门禁)
+    - yarn turbo run test --filter=!@lucky/admin-next || true
+
+e2e:
+  stage: e2e
+  needs: [check]
+
+  rules:
+    - if: $E2E_ADMIN_PASSWORD == null
+      when: never
+    - when: on_success
+
+  script:
+    - git config core.autocrlf input
+    - git config core.filemode false
+    - corepack enable
+    - corepack prepare yarn@4.9.2 --activate
+    - yarn install --immutable
+
+    # 安装 Playwright 浏览器
+    - yarn workspace @lucky/admin-next playwright install chromium --with-deps
+
+    # 构建依赖包
+    - node packages/shared/scripts/build.js
+    - node packages/ui/scripts/build.js
+
+    # 构建 Next.js
+    - NODE_ENV=production NEXT_PUBLIC_API_BASE_URL=http://localhost:3001/api NEXT_PUBLIC_APP_ENV=production yarn workspace @lucky/admin-next build
+
+    # 启动 Mock API Server
+    - |
+      cat > /tmp/mock-api.js << 'EOF'
+      const http = require('http');
+      const server = http.createServer((req, res) => {
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Headers', '*');
+        if (req.method === 'OPTIONS') { res.end(); return; }
+        if (req.url.includes('/auth/login')) {
+          res.end(JSON.stringify({ code: 10000, data: { accessToken: 'e2e-test-token' } }));
+        } else if (req.url.includes('/auth/logout')) {
+          res.end(JSON.stringify({ code: 10000, data: null }));
+        } else {
+          res.end(JSON.stringify({ code: 10000, data: { list: [], total: 0 } }));
+        }
+      });
+      server.listen(3001, () => console.log('Mock API on :3001'));
+      EOF
+    - node /tmp/mock-api.js &
+    # 启动 Next.js 服务
+    - PORT=4001 yarn workspace @lucky/admin-next start &
+    - npx wait-on http://localhost:4001 --timeout 60000
+
+    # 运行 E2E 测试 (软门禁)
+    - yarn workspace @lucky/admin-next e2e || true
+
+  artifacts:
+    name: playwright-report
+    when: always
+    paths:
+      - apps/admin-next/playwright-report/
+    expire_in: 7 days
+    expose_as: "Playwright E2E Report"
+
+verify-vars:
+  stage: check
+  script:
+    - echo "✅ CI 环境变量检查"
+    - echo "NODE_OPTIONS = $NODE_OPTIONS"
+    - echo "E2E_ADMIN_PASSWORD = ${E2E_ADMIN_PASSWORD:+已配置}"
+    - for var in CLOUDFLARE_ACCOUNT_ID DOCKERHUB_USERNAME SSH_HOST; do
+      echo "$var = ${!var:+✅ 存在}";
+      done
+  allow_failure: true
