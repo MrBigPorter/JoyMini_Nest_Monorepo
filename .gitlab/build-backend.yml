@@ -23,11 +23,11 @@ build-backend:
 
   variables:
     DOCKER_BUILDKIT: 1
-    REGISTRY: ghcr.io
-    IMAGE_NAME: ghcr.io/mrbigporter/lucky-backend-prod
+    REGISTRY: $CI_REGISTRY
+    IMAGE_NAME: $CI_REGISTRY_IMAGE/backend
 
   before_script:
-    - docker login ghcr.io -u "$CI_REGISTRY_USER" -p "$VPS_GHCR_PAT"
+    - docker login $CI_REGISTRY -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD"
 
   script:
     - docker buildx create --use
