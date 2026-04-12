@@ -21,7 +21,7 @@ deploy-backend:
         - nginx/whitelist.conf
 
   variables:
-    IMAGE_NAME: ghcr.io/mrbigporter/lucky-backend-prod
+    IMAGE_NAME: $CI_REGISTRY_IMAGE/backend
     GIT_SSL_NO_VERIFY: "1"
 
   before_script:
@@ -84,11 +84,11 @@ deploy-backend:
 
       chmod +x deploy/*.sh || true
 
-      echo "→ 预检 GitHub 连通性..."
-      retry 4 5 curl -fsS --max-time 15 https://github.com >/dev/null
+      echo "→ 预检 GitLab 连通性..."
+      retry 4 5 curl -fsS --max-time 15 https://gitlab.com >/dev/null
 
-      echo "→ 登录 GHCR..."
-      retry 4 8 sh -c 'echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin'
+      echo "→ 登录 GitLab Registry..."
+      retry 4 8 sh -c 'echo "$DEPLOY_TOKEN_PASSWORD" | docker login $CI_REGISTRY -u "$DEPLOY_TOKEN_USERNAME" --password-stdin'
 
       echo "→ 拉取镜像: $IMAGE_NAME:latest"
       retry 4 10 docker pull "$IMAGE_NAME:latest"
