@@ -64,6 +64,16 @@ export class AiService implements OnModuleInit {
     CIRCUIT_BREAKER_DURATION: 900000, // 熔断15分钟
   };
 
+  //  语言名称映射表 - 全局共享
+  private readonly LANG_NAMES: Record<string, string> = {
+    zh: 'Chinese',
+    en: 'English',
+    ja: 'Japanese',
+    ko: 'Korean',
+    fr: 'French',
+    de: 'German',
+  };
+
   constructor(private configService: ConfigService) {}
 
   async onModuleInit() {
@@ -383,12 +393,12 @@ RULES:
   /**
    * 通用文本翻译 - 等级 FULL
    */
-  async translateText(text: string, targetLang: 'en' | 'zh'): Promise<string> {
+  async translateText(text: string, targetLang: string): Promise<string> {
     if (!this.isEnabled || this.serviceLevel < AiServiceLevel.FULL) {
       return text;
     }
 
-    const langName = targetLang === 'en' ? 'English' : 'Chinese';
+    const langName = this.LANG_NAMES[targetLang] || targetLang;
     const prompt = `
 Translate the following text to ${langName}.
 
@@ -419,13 +429,13 @@ ${text}
    */
   async translateMarkdown(
     markdown: string,
-    targetLang: 'en' | 'zh',
+    targetLang: string,
   ): Promise<string> {
     if (!this.isEnabled || this.serviceLevel < AiServiceLevel.FULL) {
       return markdown;
     }
 
-    const langName = targetLang === 'en' ? 'English' : 'Chinese';
+    const langName = this.LANG_NAMES[targetLang] || targetLang;
 
     const prompt = `
 Translate the following Markdown document to ${langName}.

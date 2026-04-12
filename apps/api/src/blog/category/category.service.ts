@@ -1,23 +1,33 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '@api/common/prisma/prisma.service';
+import { SystemConfigService } from '@api/admin/system-config/system-config.service';
 
 @Injectable()
 export class CategoryService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private systemConfigService: SystemConfigService,
+  ) {}
 
   /**
    * 创建分类
    */
   async createCategory(data: {
-    name: string;
+    name: Record<string, string | undefined>;
     slug?: string;
-    description?: string;
+    description?: Record<string, string | undefined>;
     parentId?: string;
   }) {
     let slug = data.slug;
 
     if (!slug) {
-      slug = data.name
+      // 从中文语言版本生成 slug
+      const nameForSlug =
+        typeof data.name === 'object'
+          ? data.name.zh || Object.values(data.name).find((v) => v) || ''
+          : data.name;
+
+      slug = nameForSlug
         .toLowerCase()
         .replace(/[^\w\s\u4e00-\u9fa5]/g, '')
         .replace(/\s+/g, '-');
@@ -39,9 +49,9 @@ export class CategoryService {
   async updateCategory(
     id: string,
     data: {
-      name?: string;
+      name?: Record<string, string | undefined>;
       slug?: string;
-      description?: string;
+      description?: Record<string, string | undefined>;
       parentId?: string;
     },
   ) {
@@ -58,10 +68,18 @@ export class CategoryService {
     const where: any = {};
     if (search && search.trim()) {
       const searchTerm = search.trim();
-      where.OR = [
-        { name: { contains: searchTerm, mode: 'insensitive' } },
-        { description: { contains: searchTerm, mode: 'insensitive' } },
-      ];
+      // 动态搜索所有已启用的语言
+      const localeResult = await this.systemConfigService.getEnabledLocales();
+      const enabledLocales = localeResult.list
+        .filter((l) => l.enabled)
+        .map((l) => l.code);
+
+      where.OR = enabledLocales
+        .map((lang: string) => [
+          { name: { path: [lang], string_contains: searchTerm } },
+          { description: { path: [lang], string_contains: searchTerm } },
+        ])
+        .flat();
     }
 
     return this.prisma.blogCategory.findMany({

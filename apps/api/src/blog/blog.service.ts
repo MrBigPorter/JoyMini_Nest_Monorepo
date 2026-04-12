@@ -2,7 +2,9 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  Logger,
 } from '@nestjs/common';
+import { OnEvent } from '@nestjs/event-emitter';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { ArticleStatus } from '@prisma/client';
 import { CreateArticleDto, UpdateArticleDto } from './dto';
@@ -14,6 +16,7 @@ import { getLocalizedValue, DEFAULT_LOCALE } from '@lucky/shared';
 
 @Injectable()
 export class BlogService {
+  private readonly logger = new Logger(BlogService.name);
   private readonly marked: Marked;
 
   constructor(
@@ -634,6 +637,53 @@ export class BlogService {
       data: { likeCount: { increment: 1 } },
       select: { likeCount: true },
     });
+  }
+
+  /**
+   * 监听语言启用事件，自动触发全库翻译
+   */
+  @OnEvent('locale.enabled')
+  async handleLocaleEnabled(targetLang: string) {
+    this.logger.log(`🔔 Received locale enabled event: ${targetLang}`);
+    return this.queueFullLocaleTranslation(targetLang);
+  }
+
+  /**
+   * 为特定语言批量投递全库翻译任务
+   */
+  async queueFullLocaleTranslation(targetLang: string) {
+    const suffix = targetLang.charAt(0).toUpperCase() + targetLang.slice(1);
+
+    // 扫描所有缺少该语言翻译的文章
+    const articles = await this.prisma.blogArticle.findMany({
+      where: {
+        [`title${suffix}`]: null,
+      },
+      select: { id: true },
+    });
+
+    this.logger.log(
+      `Found ${articles.length} articles to translate to ${targetLang}`,
+    );
+
+    // 批量投递到队列，每个Job间隔60ms适配Gemini限流
+    for (const [index, article] of articles.entries()) {
+      await this.blogAiQueue.add(
+        'translate-article',
+        {
+          articleId: article.id,
+          targetLang,
+        },
+        {
+          delay: index * 60, // 间隔60ms
+        },
+      );
+    }
+
+    return {
+      total: articles.length,
+      targetLang,
+    };
   }
 
   /**
