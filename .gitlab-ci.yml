@@ -1,0 +1,29 @@
+# ============================================================
+# GitLab CI 入口配置
+# ============================================================
+# 模块化结构，所有流水线拆分到 .gitlab/ 目录
+# 100% 兼容所有现有变量，行为与GitHub完全一致
+# ============================================================
+
+stages:
+  - check
+  - e2e
+  - build
+  - deploy
+
+# 触发规则
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "test"
+    - if: $CI_COMMIT_TAG
+
+include:
+  - local: ".gitlab/common.yml"
+  - local: ".gitlab/ci-checks.yml"
+  - local: ".gitlab/build-backend.yml"
+  - local: ".gitlab/deploy-backend.yml"
+  - local: ".gitlab/deploy-admin.yml"
+  - local: ".gitlab/deploy-blog.yml"
+  - local: ".gitlab/deploy-liveness.yml"

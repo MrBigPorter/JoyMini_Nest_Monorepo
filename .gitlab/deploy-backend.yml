@@ -1,0 +1,169 @@
+# ============================================================
+# 后端 VPS 部署流水线
+# ============================================================
+
+deploy-backend:
+  stage: deploy
+  needs: [build-backend]
+  image: alpine/sshpass:latest
+  tags:
+    - saas-linux-large-amd64
+
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "test"
+      changes:
+        - apps/api/**/*
+        - packages/shared/**/*
+        - packages/config/**/*
+        - Dockerfile.prod
+        - compose.prod.yml
+        - nginx/nginx.prod.conf
+        - nginx/whitelist.conf
+
+  variables:
+    IMAGE_NAME: $CI_REGISTRY_IMAGE/backend
+    GIT_SSL_NO_VERIFY: "1"
+
+  before_script:
+    - apk add --no-cache openssh-client curl netcat-openbsd bash python3
+
+  script:
+    # SSH 连通性预检
+    - |
+      echo "Preflight: probing ${SSH_HOST}:${SSH_PORT:-22} from runner..."
+      OK=0
+      for i in 1 2 3; do
+        if nc -zvw5 "$SSH_HOST" "${SSH_PORT:-22}"; then
+          OK=1
+          echo "✅ SSH port reachable on attempt #$i"
+          break
+        fi
+        echo "⚠️ Attempt #$i failed, retrying in 5s..."
+        sleep 5
+      done
+      if [ "$OK" -ne 1 ]; then
+        echo "❌ Runner cannot reach ${SSH_HOST}:${SSH_PORT:-22}"
+        exit 1
+      fi
+
+    # 配置 SSH
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - cp "$SSH_PRIVATE_KEY" ~/.ssh/id_rsa
+    - chmod 600 ~/.ssh/id_rsa
+    - ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
+
+    # 同步部署脚本
+    - scp -P "${SSH_PORT:-22}" deploy/*.sh "$SSH_USERNAME@$SSH_HOST:/opt/lucky/deploy/"
+    - scp -P "${SSH_PORT:-22}" nginx/nginx.prod.conf nginx/whitelist.conf "$SSH_USERNAME@$SSH_HOST:/opt/lucky/nginx/"
+
+    # 执行远程部署
+    - |
+      ssh -p "${SSH_PORT:-22}" "$SSH_USERNAME@$SSH_HOST" << 'EOF'
+      set -e
+      cd /opt/lucky
+
+      retry() {
+        local max="$1"
+        local delay="$2"
+        shift 2
+        local n=1
+        while true; do
+          if "$@"; then
+            return 0
+          fi
+          if [ "$n" -ge "$max" ]; then
+            echo "❌ command failed after ${n} attempts: $*"
+            return 1
+          fi
+          echo "⚠️ attempt ${n} failed, retry in ${delay}s: $*"
+          n=$((n + 1))
+          sleep "$delay"
+        done
+      }
+
+      chmod +x deploy/*.sh || true
+
+      echo "→ 预检 GitLab 连通性..."
+      retry 4 5 curl -fsS --max-time 15 https://gitlab.com >/dev/null
+
+      echo "→ 登录 GitLab Registry..."
+      retry 4 8 sh -c 'echo "$DEPLOY_TOKEN_PASSWORD" | docker login $CI_REGISTRY -u "$DEPLOY_TOKEN_USERNAME" --password-stdin'
+
+      echo "→ 拉取镜像: $IMAGE_NAME:latest"
+      retry 4 10 docker pull "$IMAGE_NAME:latest"
+
+      echo "→ 运行数据库迁移..."
+      NETWORK=$(docker inspect lucky-db-prod --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{end}}' | awk '{print $1}')
+      docker run --rm \
+        --network "$NETWORK" \
+        --env-file deploy/.env.prod \
+        --entrypoint "" \
+        "$IMAGE_NAME:latest" \
+        ./node_modules/.bin/prisma migrate deploy --schema=apps/api/prisma/schema.prisma
+      echo "✅ 迁移完成"
+
+      PREV_IMAGE=$(docker inspect lucky-backend-prod --format '{{.Config.Image}}' 2>/dev/null || echo "")
+
+      echo "→ 重启后端容器..."
+      BACKEND_IMAGE="$IMAGE_NAME:latest" docker compose -f compose.prod.yml --env-file deploy/.env.prod up -d --no-build --force-recreate backend
+
+      echo "→ 等待健康检查..."
+      HEALTHY=false
+      for i in $(seq 1 30); do
+        if docker exec lucky-backend-prod wget -qO- http://localhost:3000/api/v1/health >/dev/null 2>&1; then
+          echo "✅ 健康检查通过 (第 ${i} 次, 约 $((i*3))s)"
+          HEALTHY=true
+          break
+        fi
+        sleep 3
+      done
+
+      if [ "$HEALTHY" = false ]; then
+        echo "❌ 健康检查超时! 正在回滚..."
+        docker logs --tail=50 lucky-backend-prod
+        if [ -n "$PREV_IMAGE" ]; then
+          echo "→ 回滚到旧镜像: $PREV_IMAGE"
+          BACKEND_IMAGE="$PREV_IMAGE" docker compose -f compose.prod.yml --env-file deploy/.env.prod up -d --no-build --force-recreate backend
+          echo "⚠️  已回滚到旧版本！请检查新镜像日志排查原因。"
+        fi
+        exit 1
+      fi
+
+      docker compose -f compose.prod.yml ps
+
+      docker image prune -f
+
+      echo "→ 校验并重载 nginx 配置..."
+      if docker exec lucky-nginx-prod nginx -t 2>&1; then
+        docker exec lucky-nginx-prod nginx -s reload
+        echo "✅ nginx 配置重载成功"
+      else
+        echo "❌ nginx 配置语法错误！保留旧配置，请检查 nginx/nginx.prod.conf"
+        exit 1
+      fi
+      EOF
+
+  after_script:
+    # Telegram 通知
+    - |
+      if [ "$CI_JOB_STATUS" = "success" ]; then
+        STATUS_EMOJI="✅ Success"
+      else
+        STATUS_EMOJI="❌ Failed"
+      fi
+
+      MESSAGE="⚙️ *Lucky Backend Deployment Report*
+      📌 *Status*: $STATUS_EMOJI
+      🏷️ *Environment*: Production (VPS) — branch: \`$CI_COMMIT_BRANCH\`
+      🔗 *API Health*: [api.joyminis.com](https://api.joyminis.com/api/v1/health)
+      📝 *Commit*: \`$CI_COMMIT_SHORT_SHA\`"
+
+      curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendMessage" \
+        -d "chat_id=$TELEGRAM_CHAT_ID" \
+        -d "text=$MESSAGE" \
+        -d "parse_mode=Markdown" > /dev/null
+
+  interruptible: false
+  resource_group: deploy-backend
+  cache: []
