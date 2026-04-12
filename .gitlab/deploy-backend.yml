@@ -164,6 +164,6 @@ deploy-backend:
         -d "text=$MESSAGE" \
         -d "parse_mode=Markdown" > /dev/null
 
-  resource_group: deploy-backend
   interruptible: false
+  resource_group: deploy-backend
   cache: []

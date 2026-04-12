@@ -89,5 +89,5 @@ deploy-admin:
         -d "text=$MESSAGE" \
         -d "parse_mode=Markdown" > /dev/null
 
-  resource_group: deploy-admin
   interruptible: false
+  resource_group: deploy-admin

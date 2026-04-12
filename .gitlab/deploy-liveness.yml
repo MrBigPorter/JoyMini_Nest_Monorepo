@@ -73,5 +73,5 @@ deploy-liveness:
         -d "text=$MESSAGE" \
         -d "parse_mode=Markdown" > /dev/null
 
-  resource_group: deploy-liveness
   interruptible: false
+  resource_group: deploy-liveness
