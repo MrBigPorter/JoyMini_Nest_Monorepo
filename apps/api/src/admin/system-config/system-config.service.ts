@@ -3,13 +3,17 @@ import {
   NotFoundException,
   ConflictException,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { UpdateSystemConfigDto } from './dto/update-system-config.dto';
 import { CreateSystemConfigDto } from './dto/create-system-config.dto';
 
 @Injectable()
 export class SystemConfigService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly eventEmitter: EventEmitter2,
+  ) {}
 
   async getAll() {
     const configs = await this.prisma.systemConfig.findMany({
@@ -71,5 +75,96 @@ export class SystemConfigService {
     });
 
     return { list: configs };
+  }
+
+  /**
+   * 获取单个配置值，带类型安全和默认值
+   */
+  async get<T>(key: string, defaultValue: T): Promise<T> {
+    const config = await this.prisma.systemConfig.findUnique({
+      where: { key },
+    });
+
+    if (!config) {
+      return defaultValue;
+    }
+
+    try {
+      return JSON.parse(config.value) as T;
+    } catch {
+      return defaultValue;
+    }
+  }
+
+  /**
+   * 获取已启用的语言列表
+   */
+  async getEnabledLocales() {
+    const enabledCodes = await this.get<string[]>('enabled_locales', [
+      'zh',
+      'en',
+    ]);
+
+    const ALL_LOCALES = [
+      { code: 'zh', name: '中文', nativeName: '简体中文', isDefault: true },
+      { code: 'en', name: 'English', nativeName: 'English', isDefault: false },
+      { code: 'ja', name: '日本語', nativeName: '日本語', isDefault: false },
+      { code: 'ko', name: '한국어', nativeName: '한국어', isDefault: false },
+      {
+        code: 'fr',
+        name: 'Français',
+        nativeName: 'Français',
+        isDefault: false,
+      },
+      { code: 'de', name: 'Deutsch', nativeName: 'Deutsch', isDefault: false },
+    ];
+
+    return {
+      list: ALL_LOCALES.map((locale) => ({
+        ...locale,
+        enabled: enabledCodes.includes(locale.code),
+      })),
+    };
+  }
+
+  /**
+   * 切换指定语言的启用状态
+   */
+  async toggleLocale(code: string, enabled: boolean) {
+    const enabledCodes = await this.get<string[]>('enabled_locales', [
+      'zh',
+      'en',
+    ]);
+
+    if (code === 'zh') {
+      // 默认语言不可关闭
+      return { success: true };
+    }
+
+    const newEnabledCodes = enabled
+      ? [...new Set([...enabledCodes, code])]
+      : enabledCodes.filter((c) => c !== code);
+
+    await this.prisma.systemConfig.upsert({
+      where: { key: 'enabled_locales' },
+      create: {
+        key: 'enabled_locales',
+        value: JSON.stringify(newEnabledCodes),
+      },
+      update: {
+        value: JSON.stringify(newEnabledCodes),
+      },
+    });
+
+    // 当新语言被启用时，发送事件触发全库翻译任务
+    if (enabled) {
+      this.eventEmitter
+        .emitAsync('locale.enabled', code)
+        .catch((err: unknown) => {
+          // 静默失败，不影响主流程
+        });
+    }
+
+    return { success: true };
   }
 }

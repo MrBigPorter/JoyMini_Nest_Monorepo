@@ -42,9 +42,9 @@ export class CategoryController {
   async createCategory(
     @Body()
     body: {
-      name: string;
+      name: Record<string, string | undefined>;
       slug?: string;
-      description?: string;
+      description?: Record<string, string | undefined>;
       parentId?: string;
     },
   ) {
@@ -58,9 +58,9 @@ export class CategoryController {
     @Param('id') id: string,
     @Body()
     body: {
-      name?: string;
+      name?: Record<string, string | undefined>;
       slug?: string;
-      description?: string;
+      description?: Record<string, string | undefined>;
       parentId?: string;
     },
   ) {

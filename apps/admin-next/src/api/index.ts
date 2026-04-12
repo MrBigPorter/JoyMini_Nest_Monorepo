@@ -870,6 +870,21 @@ export const systemConfigApi = {
     ),
   delete: (key: string) =>
     http.delete<{ success: boolean }>(`/v1/admin/system-config/${key}`),
+
+  // 语言管理专用 API
+  getLocales: () =>
+    http.get<{
+      list: Array<{
+        code: string;
+        name: string;
+        nativeName: string;
+        enabled: boolean;
+        isDefault: boolean;
+      }>;
+    }>('/v1/admin/system-config/locales'),
+
+  toggleLocale: (code: string, enabled: boolean) =>
+    http.patch(`/v1/admin/system-config/locales/${code}`, { enabled }),
 };
 
 /**

@@ -48,4 +48,27 @@ export class SystemConfigController {
   delete(@Param('key') key: string) {
     return this.service.delete(key);
   }
+
+  /**
+   * GET /v1/admin/system-config/locales
+   * 获取所有语言列表及启用状态
+   */
+  @Get('locales')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  getLocales() {
+    return this.service.getEnabledLocales();
+  }
+
+  /**
+   * PATCH /v1/admin/system-config/locales/:code
+   * 切换指定语言的启用状态
+   */
+  @Patch('locales/:code')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  toggleLocale(
+    @Param('code') code: string,
+    @Body() body: { enabled: boolean },
+  ) {
+    return this.service.toggleLocale(code, body.enabled);
+  }
 }

@@ -175,7 +175,7 @@ export class BlogAiProcessor extends WorkerHost {
 
   private async processArticleTranslation(data: {
     articleId: string;
-    targetLang: 'en' | 'zh';
+    targetLang: string;
   }) {
     this.logger.debug(
       `Translating article: ${data.articleId} to ${data.targetLang}`,
@@ -202,15 +202,15 @@ export class BlogAiProcessor extends WorkerHost {
       // 执行翻译 (使用串行执行而不是Promise.all避免并行请求同时失败)
       const titleTranslated = await this.aiService.translateText(
         article.title,
-        'en', //  强制翻译成英语
+        data.targetLang,
       );
       // 翻译 Markdown 源而不是 HTML
       const contentTranslated = await this.aiService.translateMarkdown(
         article.contentMd || article.content,
-        'en', //  强制翻译成英语
+        data.targetLang,
       );
       const excerptTranslated = article.excerpt
-        ? await this.aiService.translateText(article.excerpt, 'en') // ✅ 强制翻译成英语
+        ? await this.aiService.translateText(article.excerpt, data.targetLang)
         : null;
 
       // 保存翻译结果
@@ -219,13 +219,13 @@ export class BlogAiProcessor extends WorkerHost {
         translatedAt: new Date(),
       };
 
-      if (data.targetLang === 'en') {
-        updateData.titleEn = titleTranslated;
-        updateData.contentMdEn = contentTranslated;
-        // 自动渲染英文HTML
-        updateData.contentEn = this.renderMarkdown(contentTranslated);
-        updateData.excerptEn = excerptTranslated;
-      }
+      const suffix =
+        data.targetLang.charAt(0).toUpperCase() + data.targetLang.slice(1);
+      updateData[`title${suffix}`] = titleTranslated;
+      updateData[`contentMd${suffix}`] = contentTranslated;
+      // 自动渲染对应语言HTML
+      updateData[`content${suffix}`] = this.renderMarkdown(contentTranslated);
+      updateData[`excerpt${suffix}`] = excerptTranslated;
 
       await this.prisma.blogArticle.update({
         where: { id: data.articleId },

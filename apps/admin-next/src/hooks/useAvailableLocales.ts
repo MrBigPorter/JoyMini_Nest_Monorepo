@@ -9,13 +9,14 @@ interface LocaleConfig {
   name: string;
   nativeName: string;
   enabled: boolean;
+  isDefault: boolean;
 }
 
 const LOCALE_METADATA: Record<Locale, { name: string; nativeName: string }> = {
-  zh: { name: '中文', nativeName: '简体中文' },
+  zh: { name: '中文', nativeName: 'Chinese' },
   en: { name: 'English', nativeName: 'English' },
-  ja: { name: '日本語', nativeName: '日本語' },
-  ko: { name: '한국어', nativeName: '한국어' },
+  ja: { name: '日本語', nativeName: 'Japanese' },
+  ko: { name: '한국어', nativeName: 'Korean' },
   fr: { name: 'Français', nativeName: 'Français' },
   de: { name: 'Deutsch', nativeName: 'Deutsch' },
 };
@@ -29,47 +30,37 @@ export function useAvailableLocales() {
   const { data, error, mutate } = useRequest(
     async () => {
       try {
-        const result = await systemConfigApi.getAll();
-        const config = result.list.find(
-          (item) => item.key === 'enabled_locales',
-        );
+        const result = await systemConfigApi.getLocales();
 
-        if (config) {
-          let enabledLocales: Locale[] = [];
-          try {
-            // 首先尝试 JSON 格式解析
-            enabledLocales = JSON.parse(config.value) as Locale[];
-          } catch {
-            // 解析失败则尝试逗号分隔格式
-            enabledLocales = config.value
-              .split(',')
-              .map((s) => s.trim() as Locale);
-          }
-
-          return AVAILABLE_LOCALES.map((code) => ({
-            code,
-            ...LOCALE_METADATA[code],
-            enabled: enabledLocales.includes(code),
-          })) as LocaleConfig[];
-        }
+        return result.list.map((item) => ({
+          code: item.code as Locale,
+          ...LOCALE_METADATA[item.code as Locale],
+          enabled: item.enabled,
+          isDefault: item.isDefault,
+        })) as LocaleConfig[];
       } catch {
         // ignore
       }
+
       // 默认启用中英文
       return AVAILABLE_LOCALES.map((code) => ({
         code,
         ...LOCALE_METADATA[code],
         enabled: code === 'zh' || code === 'en',
+        isDefault: code === 'zh',
       })) as LocaleConfig[];
     },
     {
       refreshOnWindowFocus: false,
-      cacheKey: 'system/config/enabled_locales',
+      cacheKey: 'system/config/locales',
     },
   );
 
   async function toggleLocale(code: Locale) {
     if (!data) return;
+
+    const locale = data.find((l) => l.code === code);
+    if (!locale || locale.isDefault) return; // 默认语言不可切换
 
     const updatedLocales = data.map((l) =>
       l.code === code ? { ...l, enabled: !l.enabled } : l,
@@ -79,13 +70,7 @@ export function useAvailableLocales() {
     mutate(updatedLocales);
 
     try {
-      const enabledCodes = updatedLocales
-        .filter((l) => l.enabled)
-        .map((l) => l.code);
-      await systemConfigApi.update(
-        'enabled_locales',
-        JSON.stringify(enabledCodes),
-      );
+      await systemConfigApi.toggleLocale(code, !locale.enabled);
     } catch {
       // 失败回滚
       mutate();

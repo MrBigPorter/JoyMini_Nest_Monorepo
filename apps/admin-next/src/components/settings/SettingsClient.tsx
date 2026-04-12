@@ -10,12 +10,14 @@ import {
   Check,
   Plus,
   Trash2,
+  Globe,
 } from 'lucide-react';
 import { PageHeader } from '@/components/scaffold/PageHeader';
 import { systemConfigApi } from '@/api';
 import type { SystemConfigItem } from '@/type/types';
 import { useToastStore } from '@/store/useToastStore.ts';
-import { ModalManager } from '@repo/ui';
+import { ModalManager, Switch } from '@repo/ui';
+import { useAvailableLocales } from '@/hooks/useAvailableLocales';
 
 /** Common key readable labels and descriptions */
 const CONFIG_META: Record<string, { label: string; description?: string }> = {
@@ -296,7 +298,54 @@ interface SystemConfigProps {
   initialData?: SystemConfigListResult;
 }
 
+type Tab = 'general' | 'locales';
+
+function LocaleSettingsContent() {
+  const { locales, toggleLocale, loading } = useAvailableLocales();
+
+  if (loading) {
+    return <div className="p-8 text-center">Loading...</div>;
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-gray-900 p-6">
+        <div className="space-y-4">
+          {locales.map((locale) => (
+            <div
+              key={locale.code}
+              className="flex items-center justify-between py-3 border-b border-gray-100 dark:border-white/5 last:border-0"
+            >
+              <div>
+                <div className="font-medium">{locale.nativeName}</div>
+                <div className="text-sm text-gray-500">{locale.name}</div>
+              </div>
+
+              <Switch
+                checked={locale.enabled}
+                onCheckedChange={() => toggleLocale(locale.code)}
+                disabled={locale.isDefault}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
+        <p className="font-medium mb-2">💡 提示</p>
+        <ul className="list-disc list-inside space-y-1">
+          <li>关闭语言不会删除已有的翻译内容</li>
+          <li>重新打开语言时，之前的翻译会自动恢复</li>
+          <li>新启用的语言会在后台自动开始翻译所有历史内容</li>
+          <li>默认语言 (中文) 无法关闭</li>
+        </ul>
+      </div>
+    </div>
+  );
+}
+
 export function SystemConfig({ initialData }: SystemConfigProps) {
+  const [activeTab, setActiveTab] = useState<Tab>('general');
   const [configs, setConfigs] = useState<SystemConfigItem[]>(
     initialData?.list ?? [],
   );
@@ -326,48 +375,81 @@ export function SystemConfig({ initialData }: SystemConfigProps) {
         description="Platform-wide KV configuration — click any value to edit inline"
       />
 
-      <div className="rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-gray-900 overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-white/10">
-          <div className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
-            <Settings size={16} className="text-teal-500" />
-            {configs.length} config item{configs.length !== 1 ? 's' : ''}
-          </div>
-          <div className="flex items-center gap-2">
-            <CreateConfigForm onCreated={refresh} />
-            <button
-              onClick={refresh}
-              disabled={loading}
-              className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
-            >
-              <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-            </button>
-          </div>
-        </div>
-
-        {/* Content */}
-        <div className="px-5">
-          {loading && configs.length === 0 && (
-            <div className="py-12 text-center text-gray-400 text-sm">
-              Loading…
-            </div>
-          )}
-          {!loading && configs.length === 0 && (
-            <div className="py-12 text-center text-gray-400 text-sm">
-              <Settings size={32} className="mx-auto mb-2 opacity-30" />
-              No config items found
-            </div>
-          )}
-          {configs.map((item) => (
-            <ConfigRow
-              key={item.key}
-              item={item}
-              onSave={handleSave}
-              onDelete={handleDelete}
-            />
-          ))}
-        </div>
+      {/* Tab Navigation */}
+      <div className="flex border-b border-gray-200 dark:border-white/10">
+        <button
+          onClick={() => setActiveTab('general')}
+          className={`px-4 py-3 text-sm font-medium flex items-center gap-2 border-b-2 transition-colors ${
+            activeTab === 'general'
+              ? 'border-teal-500 text-teal-600 dark:text-teal-400'
+              : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+          }`}
+        >
+          <Settings size={16} />
+          通用配置
+        </button>
+        <button
+          onClick={() => setActiveTab('locales')}
+          className={`px-4 py-3 text-sm font-medium flex items-center gap-2 border-b-2 transition-colors ${
+            activeTab === 'locales'
+              ? 'border-teal-500 text-teal-600 dark:text-teal-400'
+              : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+          }`}
+        >
+          <Globe size={16} />
+          语言设置
+        </button>
       </div>
+
+      {activeTab === 'general' && (
+        <div className="rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-gray-900 overflow-hidden">
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-white/10">
+            <div className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
+              <Settings size={16} className="text-teal-500" />
+              {configs.length} config item{configs.length !== 1 ? 's' : ''}
+            </div>
+            <div className="flex items-center gap-2">
+              <CreateConfigForm onCreated={refresh} />
+              <button
+                onClick={refresh}
+                disabled={loading}
+                className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
+              >
+                <RefreshCw
+                  size={14}
+                  className={loading ? 'animate-spin' : ''}
+                />
+              </button>
+            </div>
+          </div>
+
+          {/* Content */}
+          <div className="px-5">
+            {loading && configs.length === 0 && (
+              <div className="py-12 text-center text-gray-400 text-sm">
+                Loading…
+              </div>
+            )}
+            {!loading && configs.length === 0 && (
+              <div className="py-12 text-center text-gray-400 text-sm">
+                <Settings size={32} className="mx-auto mb-2 opacity-30" />
+                No config items found
+              </div>
+            )}
+            {configs.map((item) => (
+              <ConfigRow
+                key={item.key}
+                item={item}
+                onSave={handleSave}
+                onDelete={handleDelete}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'locales' && <LocaleSettingsContent />}
 
       <div className="text-xs text-gray-400 px-1">
         💡 Press{' '}
