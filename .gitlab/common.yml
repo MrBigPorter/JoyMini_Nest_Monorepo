@@ -9,9 +9,6 @@ default:
   tags:
     - saas-linux-large-amd64
 
-# 同一分支新推送时自动取消旧CI运行
-resource_group: ci/$CI_COMMIT_REF_SLUG
-
 # 全局缓存
 cache:
   # Yarn 全局包缓存 - 所有Job共享，只读，永远不会被覆盖
