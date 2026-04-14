@@ -10,7 +10,7 @@ export default function Header() {
   // Next.js 15 严格要求: 所有React Hooks必须在函数最顶端调用，中间不能有任何其他代码
   const router = useRouter();
   const pathname = usePathname();
-  const locale = useLocale() as 'zh-CN' | 'en';
+  const locale = useLocale() as 'zh' | 'en';
   const t = useTranslations();
   const { theme, setTheme, systemTheme } = useTheme();
 
@@ -20,7 +20,7 @@ export default function Header() {
   const [langMenuOpen, setLangMenuOpen] = useState(false);
 
   // 极简语言切换 - 官方标准用法
-  const switchLocale = (nextLocale: 'zh-CN' | 'en') => {
+  const switchLocale = (nextLocale: 'zh' | 'en') => {
     router.replace(pathname, { locale: nextLocale });
     setLangMenuOpen(false);
   };
@@ -102,21 +102,21 @@ export default function Header() {
               title="change language"
             >
               <Globe className="w-5 h-5" />
-              <span className="text-xs font-medium">
-                {currentLocale === 'zh-CN' ? '中文' : 'EN'}
-              </span>
-            </button>
+               <span className="text-xs font-medium">
+                 {currentLocale === 'zh' ? '中文' : 'EN'}
+               </span>
+             </button>
 
-            {langMenuOpen && (
-              <div className="absolute right-0 top-full mt-2 bg-card border border-border rounded-lg shadow-lg min-w-32 overflow-hidden z-50">
-                <button
-                  onClick={() => switchLocale('zh-CN')}
-                  className={`w-full px-4 py-2 text-left text-sm hover:bg-accent transition-colors ${
-                    currentLocale === 'zh-CN' ? 'bg-accent text-primary' : ''
-                  }`}
-                >
-                  🇨🇳 简体中文
-                </button>
+             {langMenuOpen && (
+               <div className="absolute right-0 top-full mt-2 bg-card border border-border rounded-lg shadow-lg min-w-32 overflow-hidden z-50">
+                 <button
+                   onClick={() => switchLocale('zh')}
+                   className={`w-full px-4 py-2 text-left text-sm hover:bg-accent transition-colors ${
+                     currentLocale === 'zh' ? 'bg-accent text-primary' : ''
+                   }`}
+                 >
+                   🇨🇳 简体中文
+                 </button>
                 <button
                   onClick={() => switchLocale('en')}
                   className={`w-full px-4 py-2 text-left text-sm hover:bg-accent transition-colors ${
