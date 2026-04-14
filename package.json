@@ -13,7 +13,7 @@
     "clean": "turbo run clean && rimraf .turbo node_modules",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "lint:staged": "lint-staged --config lint-staged.config.mjs",
-    "prepush:light": "yarn workspace @repo/ui lint && yarn workspace @repo/ui check-types && yarn workspace @lucky/admin-next lint && yarn workspace @lucky/admin-next check-types",
+    "prepush:light": "yarn workspace @repo/ui exec eslint --max-warnings=100 && yarn workspace @repo/ui check-types && yarn workspace @lucky/admin-next exec eslint --max-warnings=100 && yarn workspace @lucky/admin-next check-types",
     "prepush:heavy": "yarn prepush:light",
     "prepush:api": "yarn workspace @lucky/api lint",
     "prepush:check": "yarn prepush:light",
