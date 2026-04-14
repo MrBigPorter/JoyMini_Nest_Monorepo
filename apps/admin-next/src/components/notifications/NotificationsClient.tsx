@@ -23,7 +23,9 @@ import type { AdminPushLog, QueryPushLogParams } from '@/type/types';
 import { format } from 'date-fns';
 import { useAppStore } from '@/store/useAppStore';
 
-const NOTIFICATION_I18N = {
+import type { Locale } from '@lucky/shared';
+
+const NOTIFICATION_I18N: Record<Locale, Record<string, string>> = {
   en: {
     pageTitle: 'Notifications / Push Management',
     pageDescription:
@@ -48,23 +50,27 @@ const NOTIFICATION_I18N = {
     pageTitle: '通知 / 推送管理',
     pageDescription:
       'Firebase Cloud Messaging - 向所有用户广播或向指定用户推送通知',
-    broadcastTitle: '全员广播',
-    broadcastHint: '- 通过 Firebase Topic 发给所有订阅设备',
+    broadcastTitle: '广播推送',
+    broadcastHint: '- 通过 Firebase Topic 向所有订阅设备发送',
     pushTitle: '推送标题',
     pushBody: '推送内容',
-    broadcastTitlePlaceholder: 'e.g. 新活动上线了！',
-    pushBodyPlaceholder: '通知正文内容...',
+    broadcastTitlePlaceholder: '例如：新活动上线！',
+    pushBodyPlaceholder: '通知内容...',
     sending: '发送中...',
     sendBroadcast: '发送广播',
     targetedTitle: '定向推送',
     targetedHint: '- 向指定用户的所有绑定设备发送',
     targetUserId: '目标用户 ID',
     targetUserIdPlaceholder: '输入用户 ID',
-    targetedTitlePlaceholder: 'e.g. 您的订单已发货',
+    targetedTitlePlaceholder: '例如：您的订单已发货',
     sendTargeted: '发送推送',
     logsTitle: '推送历史',
   },
-} as const;
+  ja: {},
+  ko: {},
+  fr: {},
+  de: {},
+};
 
 // ─── Zod schemas (no .default(), no .transform()) ─────────────────────────────
 const broadcastSchema = z.object({

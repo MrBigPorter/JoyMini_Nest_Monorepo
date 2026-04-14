@@ -7,8 +7,9 @@ import {
   TransactionTypeValue,
   WithdrawStatus,
 } from '@lucky/shared';
+import type { Locale } from '@lucky/shared';
 
-export type Language = 'en' | 'zh';
+export type Language = Locale;
 export type Theme = 'light' | 'dark';
 
 export type UserRole = 'admin' | 'editor' | 'viewer';

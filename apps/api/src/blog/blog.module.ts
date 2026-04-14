@@ -4,11 +4,11 @@ import { PrismaModule } from '@api/common/prisma/prisma.module';
 import { BlogController } from './blog.controller';
 import { PublicBlogController } from './public/public-blog.controller';
 import { BlogService } from './blog.service';
-import { ArticleModule } from './article/article.module';
 import { CategoryModule } from './category/category.module';
 import { TagModule } from './tag/tag.module';
 import { CommentModule } from './comment/comment.module';
 import { BlogAiProcessor } from './processors/blog-ai.processor';
+import { SystemConfigModule } from '../admin/system-config/system-config.module';
 
 @Module({
   imports: [
@@ -16,10 +16,10 @@ import { BlogAiProcessor } from './processors/blog-ai.processor';
     BullModule.registerQueue({
       name: 'blog-ai',
     }),
-    ArticleModule,
     CategoryModule,
     TagModule,
     CommentModule,
+    SystemConfigModule,
   ],
   controllers: [BlogController, PublicBlogController],
   providers: [BlogService, BlogAiProcessor],

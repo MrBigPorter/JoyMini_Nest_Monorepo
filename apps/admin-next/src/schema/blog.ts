@@ -16,12 +16,12 @@ export const articleSchema = z.object({
   categoryId: z.string().optional(),
   tagIds: z.array(z.string()).default([]),
   status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).default('DRAFT'),
-  featuredImage: z
-    .union([
+  featuredImage: localizedStringSchema(
+    z.union([
       z.string().url('Please enter a valid image URL'),
       z.instanceof(File),
-    ])
-    .optional(),
+    ]),
+  ).optional(),
 });
 
 export type ArticleFormInputs = z.infer<typeof articleSchema>;
@@ -88,10 +88,9 @@ export type TagFormInputs = z.infer<typeof tagSchema>;
 // Comment moderation
 export const commentModerationSchema = z.object({
   status: z.enum(['APPROVED', 'REJECTED', 'SPAM', 'PENDING']),
-  reply: z
-    .string()
-    .max(1000, 'Reply must be at most 1000 characters')
-    .optional(),
+  reply: localizedStringSchema(
+    z.string().max(1000, 'Reply must be at most 1000 characters').optional(),
+  ),
 });
 
 export type CommentModerationInputs = z.infer<typeof commentModerationSchema>;

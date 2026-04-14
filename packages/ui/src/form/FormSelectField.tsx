@@ -1,3 +1,4 @@
+import React, { useCallback } from "react";
 import clsx from "clsx";
 import { AnimatePresence } from "framer-motion";
 import type { FieldValues } from "react-hook-form";
@@ -74,6 +75,17 @@ export function FormSelectField<
             ? undefined
             : String(field.value);
 
+        // 使用 useCallback 稳定化 onChange 处理函数，避免每次渲染创建新函数
+        const handleChange = useCallback((val: string) => {
+          let nextValue: string | number | undefined = val;
+          if (val === "" || val === undefined || val === null) {
+            nextValue = undefined; // 清空
+          } else if (numeric) {
+            nextValue = Number(val); // 强转回数字
+          }
+          field.onChange(nextValue);
+        }, [field.onChange, numeric]);
+
         return (
           <FormItem>
             <div
@@ -114,15 +126,7 @@ export function FormSelectField<
                     disabled={disabled}
                     value={selectValue}
                     onOpenChange={onOpenChange}
-                    onChange={(val) => {
-                      let nextValue: string | number | undefined = val;
-                      if (val === "" || val === undefined || val === null) {
-                        nextValue = undefined; // 清空
-                      } else if (numeric) {
-                        nextValue = Number(val); // 强转回数字
-                      }
-                      field.onChange(nextValue);
-                    }}
+                    onChange={handleChange}
                     {...props}
                   />
                 </FormControl>

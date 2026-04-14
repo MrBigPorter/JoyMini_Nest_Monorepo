@@ -22,6 +22,7 @@ import { Card, Badge } from '@/components/UIComponents';
 import { blogApi } from '@/api';
 import { PageHeader } from '@/components/scaffold/PageHeader';
 import { BlogCommentModal } from '@/views/blog/BlogCommentModal';
+import LocalizedText from '@/components/blog/LocalizedText';
 
 export default function CommentsPage() {
   const [search, setSearch] = useState('');
@@ -63,10 +64,23 @@ export default function CommentsPage() {
     try {
       const response = await blogApi.getArticles({ pageSize: 50 });
       const articleOptions =
-        response.list?.map((article: any) => ({
-          id: article.id,
-          title: article.title,
-        })) || [];
+        response.list?.map((article: any) => {
+          // 将 Localized 格式的标题转换为字符串
+          let titleStr = 'Untitled';
+          if (article.title) {
+            if (typeof article.title === 'string') {
+              titleStr = article.title;
+            } else if (typeof article.title === 'object' && article.title !== null) {
+              // 优先使用当前语言，回退到中文，再回退到英文
+              const currentLang = 'zh'; // 这里应该从语言上下文获取，暂时用中文
+              titleStr = article.title[currentLang] || article.title.zh || article.title.en || 'Untitled';
+            }
+          }
+          return {
+            id: article.id,
+            title: titleStr,
+          };
+        }) || [];
       setArticles([{ id: 'all', title: 'All Articles' }, ...articleOptions]);
     } catch (error) {
       console.error('Failed to fetch articles:', error);

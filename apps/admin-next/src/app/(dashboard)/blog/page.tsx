@@ -16,6 +16,7 @@ import { PageHeader } from '@/components/scaffold/PageHeader';
 import { Card, Badge } from '@/components/UIComponents';
 import { blogApi } from '@/api';
 import { BlogArticleModal } from '@/views/blog/BlogArticleModal';
+import LocalizedText from '@/components/blog/LocalizedText';
 
 export default function BlogDashboardPage() {
   const [stats, setStats] = useState({
@@ -68,11 +69,24 @@ export default function BlogDashboardPage() {
 
       // Set top articles based on views
       const articlesWithViews =
-        articlesRes.list?.map((article: { title: string; views?: number }) => ({
-          title: article.title,
-          views: article.views || 0,
-          growth: '+0%', // placeholder, can be calculated from historical data
-        })) || [];
+        articlesRes.list?.map((article: any) => {
+          // 将 Localized 格式的标题转换为字符串
+          let titleStr = 'Untitled';
+          if (article.title) {
+            if (typeof article.title === 'string') {
+              titleStr = article.title;
+            } else if (typeof article.title === 'object' && article.title !== null) {
+              // 优先使用当前语言，回退到中文，再回退到英文
+              const currentLang = 'zh'; // 这里应该从语言上下文获取，暂时用中文
+              titleStr = article.title[currentLang] || article.title.zh || article.title.en || 'Untitled';
+            }
+          }
+          return {
+            title: titleStr,
+            views: article.views || 0,
+            growth: '+0%', // placeholder, can be calculated from historical data
+          };
+        }) || [];
       const sorted = articlesWithViews
         .sort((a, b) => b.views - a.views)
         .slice(0, 3);
@@ -253,7 +267,7 @@ export default function BlogDashboardPage() {
                 >
                   <td className="py-3 px-4">
                     <div className="font-medium text-gray-900 dark:text-white">
-                      {article.title}
+                      <LocalizedText value={article.title} />
                     </div>
                   </td>
                   <td className="py-3 px-4">
@@ -298,7 +312,7 @@ export default function BlogDashboardPage() {
                   </div>
                   <div>
                     <p className="font-medium text-gray-900 dark:text-white">
-                      {article.title}
+                      <LocalizedText value={article.title} />
                     </p>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
                       {article.views.toLocaleString()} views

@@ -23,6 +23,7 @@ import { SmartTable } from '@/components/scaffold/SmartTable';
 import { Button, ModalManager } from '@repo/ui';
 import { BlogArticleModal } from '@/views/blog/BlogArticleModal';
 import LocalizedText from '@/components/blog/LocalizedText';
+import { renderLocalizedText } from '@/utils/localizedText';
 import type { ArticleFormInputs } from '@/schema/blog';
 import type {
   ProColumns,
@@ -169,7 +170,16 @@ export default function ArticlesPageV2() {
               Slug: <code>/{article.slug}</code>
             </div>
             <div>Status: {article.status}</div>
-            <div>Category: {article.category?.name || 'Uncategorized'}</div>
+            <div>
+              Category:{' '}
+              {article.category?.name
+                ? renderLocalizedText(
+                    article.category.name,
+                    'zh',
+                    'Uncategorized',
+                  )
+                : 'Uncategorized'}
+            </div>
             {article.author && (
               <div>
                 Author:{' '}
@@ -296,9 +306,7 @@ export default function ArticlesPageV2() {
       render: (dom, article: Article) => (
         <span className="px-2.5 py-1 text-xs rounded-full bg-gray-100 dark:bg-white/5 text-gray-700 dark:text-gray-300">
           {article.category?.name
-            ? typeof article.category.name === 'object'
-              ? String(Object.values(article.category.name)[0])
-              : String(article.category.name)
+            ? renderLocalizedText(article.category.name, 'zh', 'Uncategorized')
             : 'Uncategorized'}
         </span>
       ),
@@ -438,10 +446,7 @@ export default function ArticlesPageV2() {
         options: [
           { label: 'All Categories', value: '' },
           ...categories.map((cat) => ({
-            label:
-              typeof cat.name === 'object'
-                ? String(Object.values(cat.name)[0])
-                : String(cat.name),
+            label: renderLocalizedText(cat.name, 'zh', cat.id),
             value: cat.id,
           })),
         ],
@@ -478,11 +483,7 @@ export default function ArticlesPageV2() {
           .map((tag: string | { name?: any; id?: string }) =>
             typeof tag === 'string'
               ? tag
-              : (typeof tag.name === 'object'
-                  ? Object.values(tag.name)[0]
-                  : tag.name) ||
-                tag.id ||
-                '',
+              : renderLocalizedText(tag.name, 'zh', tag.id || ''),
           )
           .filter(Boolean),
       }));

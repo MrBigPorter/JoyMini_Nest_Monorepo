@@ -1,9 +1,11 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { SystemConfigService } from '@api/admin/system-config/system-config.service';
 
 @Injectable()
 export class CategoryService {
+  private readonly logger = new Logger(CategoryService.name);
+
   constructor(
     private prisma: PrismaService,
     private systemConfigService: SystemConfigService,
@@ -18,6 +20,8 @@ export class CategoryService {
     description?: Record<string, string | undefined>;
     parentId?: string;
   }) {
+    this.logger.log(`Creating category with data: ${JSON.stringify(data)}`);
+
     let slug = data.slug;
 
     if (!slug) {
@@ -31,16 +35,31 @@ export class CategoryService {
         .toLowerCase()
         .replace(/[^\w\s\u4e00-\u9fa5]/g, '')
         .replace(/\s+/g, '-');
+
+      this.logger.log(`Generated slug from name: ${slug}`);
     }
 
-    return this.prisma.blogCategory.create({
-      data: {
-        name: data.name,
-        slug,
-        description: data.description,
-        parentId: data.parentId,
-      },
-    });
+    try {
+      const category = await this.prisma.blogCategory.create({
+        data: {
+          name: data.name,
+          slug,
+          description: data.description,
+          parentId: data.parentId,
+        },
+      });
+
+      this.logger.log(
+        `Category created successfully: ${category.id} - ${slug}`,
+      );
+      return category;
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      const stack = error instanceof Error ? error.stack : undefined;
+      this.logger.error(`Failed to create category: ${errorMessage}`, stack);
+      throw error;
+    }
   }
 
   /**
@@ -55,10 +74,27 @@ export class CategoryService {
       parentId?: string;
     },
   ) {
-    return this.prisma.blogCategory.update({
-      where: { id },
-      data,
-    });
+    this.logger.log(
+      `Updating category ${id} with data: ${JSON.stringify(data)}`,
+    );
+
+    try {
+      const category = await this.prisma.blogCategory.update({
+        where: { id },
+        data,
+      });
+
+      this.logger.log(`Category ${id} updated successfully`);
+      return category;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const stack = error instanceof Error ? error.stack : undefined;
+      this.logger.error(
+        `Failed to update category ${id}: ${errorMessage}`,
+        stack,
+      );
+      throw error;
+    }
   }
 
   /**
@@ -99,34 +135,58 @@ export class CategoryService {
    * 获取分类详情
    */
   async getCategory(id: string) {
-    const category = await this.prisma.blogCategory.findUnique({
-      where: { id },
-      include: {
-        _count: {
-          select: { articles: true },
+    this.logger.log(`Getting category details for id: ${id}`);
+    
+    try {
+      const category = await this.prisma.blogCategory.findUnique({
+        where: { id },
+        include: {
+          _count: {
+            select: { articles: true },
+          },
         },
-      },
-    });
+      });
 
-    if (!category) {
-      throw new NotFoundException('分类不存在');
+      if (!category) {
+        this.logger.warn(`Category not found: ${id}`);
+        throw new NotFoundException('分类不存在');
+      }
+
+      this.logger.log(`Category found: ${id} with ${category._count.articles} articles`);
+      return category;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to get category ${id}: ${errorMessage}`);
+      throw error;
     }
-
-    return category;
   }
 
   /**
    * 删除分类
    */
   async deleteCategory(id: string) {
-    // 移动该分类下的文章到未分类
-    await this.prisma.blogArticle.updateMany({
-      where: { categoryId: id },
-      data: { categoryId: null },
-    });
+    this.logger.log(`Deleting category: ${id}`);
+    
+    try {
+      // 移动该分类下的文章到未分类
+      const updateResult = await this.prisma.blogArticle.updateMany({
+        where: { categoryId: id },
+        data: { categoryId: null },
+      });
+      
+      this.logger.log(`Moved ${updateResult.count} articles from category ${id} to uncategorized`);
 
-    return this.prisma.blogCategory.delete({
-      where: { id },
-    });
+      const deletedCategory = await this.prisma.blogCategory.delete({
+        where: { id },
+      });
+      
+      this.logger.log(`Category deleted successfully: ${id}`);
+      return deletedCategory;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const stack = error instanceof Error ? error.stack : undefined;
+      this.logger.error(`Failed to delete category ${id}: ${errorMessage}`, stack);
+      throw error;
+    }
   }
 }

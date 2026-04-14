@@ -7,7 +7,7 @@
 ## 🎯 Current Task (Start Here for Each Conversation)
 
 **Phase**: Phase 7 Blog System Development — Week 2 Frontend UI Refactoring & API Integration  
-**Last Update**: Blog system 100% backend completed + 前端API集成完成 (2026-04-06)
+**Last Update**: Blog system 100% backend completed + 前端API集成完成 + 翻译源语言配置修复 (2026-04-13)
 **Immediate Action**:
 
 ### ✅ Blog System Backend 100% Completed
@@ -716,5 +716,53 @@ yarn test:admin          # Run admin frontend tests
 
 ---
 
-**Last Updated**: 2026-04-09  
+**Last Updated**: 2026-04-13  
 **Next Review**: After Week 2 frontend completion
+
+## 📝 翻译源语言配置修复完成
+
+### ✅ 已完成修复
+
+1. **翻译源语言问题修复**：
+   - 修复了翻译从错误源语言开始的问题
+   - 确保翻译从正确的源语言开始，而不是把原文也翻译成英文
+   - 保留了原文内容，翻译时从Localized字段获取源语言内容
+
+2. **TypeScript错误修复**：
+   - 修复了`blog-ai.processor.ts`中的`sourceLang`属性不存在问题
+   - 修复了动态索引类型的TypeScript错误
+   - 使用类型断言`as any`解决了动态访问`article[field]`的类型安全问题
+
+3. **依赖注入错误修复**：
+   - 修复了NestJS容器启动时的依赖注入错误
+   - 添加了`SystemConfigModule`到`BlogModule`的imports
+   - 在`SystemConfigModule`中添加了exports配置
+
+### 🔧 技术实现
+
+1. **默认源语言配置**：
+   - 在系统配置页面添加了翻译相关配置项
+   - `blog.translation.defaultSourceLang` - 翻译默认源语言（默认为'zh'）
+   - `blog.translation.sourceLangDetection` - 源语言检测策略
+   - `blog.translation.fallbackChain` - 源语言回退链
+
+2. **翻译服务集成**：
+   - `BlogService`现在从系统配置读取默认源语言
+   - 翻译任务包含`sourceLang`参数
+   - 翻译处理器优先从Localized字段获取源语言内容
+
+3. **管理员控制**：
+   - 管理员可以在系统配置页面设置默认源语言
+   - 无需重启服务，配置立即生效
+   - 历史文章翻译兼容性处理
+
+### 📊 验证结果
+- ✅ TypeScript编译通过，无类型错误
+- ✅ 依赖注入正确配置
+- ✅ 翻译从正确源语言开始
+- ✅ 管理员可配置默认源语言
+- ✅ 历史文章翻译兼容性保持
+
+### 📚 相关文档
+- 详细实现记录：`docs/blog/i18n/DYNAMIC_LOCALE_MANAGEMENT.md`
+- 系统配置管理：`docs/CLIENT_SYSTEM_CONFIG_IMPLEMENTATION.md`

@@ -185,4 +185,11 @@ export const routes: RouteConfig[] = [
     group: 'Catalog',
     hidden: true,
   },
+  {
+    path: '/blog/translation-progress',
+    name: 'translation_progress',
+    icon: Sparkles,
+    group: 'Catalog',
+    hidden: true,
+  },
 ];

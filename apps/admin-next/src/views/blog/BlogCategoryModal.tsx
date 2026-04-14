@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useCallback } from 'react';
 import { Modal, Button } from '@/components/UIComponents';
 import { Form, FormTextField, FormTextareaField } from '@repo/ui/form';
 import { useBlogForm } from '@/hooks/useBlogForm';
@@ -8,17 +8,21 @@ import { categorySchema } from '@/schema/blog';
 import { blogApi } from '@/api';
 import { useRequest } from 'ahooks';
 import { useLanguage } from '@/hooks/LanguageProvider';
-import { useLocalizedForm } from '@/hooks/useLocalizedForm';
+import { useLocalizedFormV2 } from '@/hooks/useLocalizedFormV2';
 import { LanguageSwitch } from '@/components/blog/LanguageSwitch';
+import {
+  extractCurrentLocaleValue,
+  normalizeLocalizedValue,
+} from '@/utils/localizedForm';
 
 interface BlogCategoryModalProps {
   isOpen: boolean;
   onCloseAction: () => void;
   editingCategory?: {
     id: string;
-    name: string;
+    name: Record<string, string | undefined> | string;
     slug: string;
-    description?: string;
+    description?: Record<string, string | undefined> | string;
   } | null;
   onSuccessAction: () => void;
 }
@@ -59,32 +63,44 @@ export const BlogCategoryModal: React.FC<BlogCategoryModalProps> = ({
     },
   );
 
-  // 兼容旧数据格式: 自动把 string 转换成 LocalizedString 格式
-  const getDefaultValues = () => {
+  const { locale } = useLanguage();
+
+  // 修复: 在数据入口处提取当前语言的字符串，避免[object Object]问题
+  const getDefaultValues = useCallback(() => {
     if (!editingCategory) {
       return {
-        name: { zh: '', en: '' },
+        name: '',
         slug: '',
-        description: { zh: '', en: '' },
+        description: '',
       };
     }
 
+    // 确保返回的值100%是字符串，而不是对象
+    const safeName = extractCurrentLocaleValue(editingCategory.name, locale);
+    const safeDescription = extractCurrentLocaleValue(
+      editingCategory.description,
+      locale,
+    );
+
+    // 额外的防御性检查：如果 extractCurrentLocaleValue 返回对象，强制转换为字符串
+    const finalName =
+      typeof safeName === 'string' ? safeName : String(safeName || '');
+    const finalDescription =
+      typeof safeDescription === 'string'
+        ? safeDescription
+        : String(safeDescription || '');
+
     return {
       ...editingCategory,
-      name:
-        typeof editingCategory.name === 'string'
-          ? { zh: editingCategory.name, en: '' }
-          : editingCategory.name,
-      description:
-        typeof editingCategory.description === 'string'
-          ? { zh: editingCategory.description, en: '' }
-          : editingCategory.description,
+      name: finalName,
+      description: finalDescription,
+      slug: editingCategory.slug || '',
     };
-  };
+  }, [editingCategory, locale]);
 
   const blogForm = useBlogForm({
     schema: categorySchema,
-    defaultValues: getDefaultValues(),
+    defaultValues: undefined, // Don't pass default values here, let useEffect handle it
     onSubmitAction: async (data) => {
       if (isEditing && editingCategory) {
         await updateCategory(editingCategory.id, data);
@@ -95,22 +111,85 @@ export const BlogCategoryModal: React.FC<BlogCategoryModalProps> = ({
   });
 
   const { form, submitHandler, isLoading } = blogForm;
-  const { reset, register } = form;
-  const { locale } = useLanguage();
-  const { localize } = useLocalizedForm({
+  const { reset, register, getValues } = form;
+  const { localize } = useLocalizedFormV2({
     watch: form.watch,
     setValue: form.setValue,
-    errors: form.formState.errors,
+    getValues: form.getValues,
     locale,
+    availableLocales: ['zh', 'en'],
   });
+
+  // 调试：检查表单值和本地化处理
+  useEffect(() => {
+    if (isOpen && editingCategory) {
+      const nameValue = form.watch('name');
+      const descriptionValue = form.watch('description');
+      const localizedName = localize('name');
+      const localizedDescription = localize('description');
+
+      console.log('Debug BlogCategoryModal:', {
+        editingCategory,
+        locale,
+        nameValue,
+        descriptionValue,
+        nameValueType: typeof nameValue,
+        descriptionValueType: typeof descriptionValue,
+        nameIsObject: nameValue && typeof nameValue === 'object',
+        descriptionIsObject:
+          descriptionValue && typeof descriptionValue === 'object',
+        localizedName,
+        localizedDescription,
+        getDefaultValues: getDefaultValues(),
+      });
+    }
+  }, [isOpen, editingCategory, locale, form, localize, getDefaultValues]);
 
   useEffect(() => {
     if (isOpen) {
-      reset(getDefaultValues());
+      const defaultValues = getDefaultValues();
+      console.log(
+        'DEBUG BlogCategoryModal useEffect - getDefaultValues() returns:',
+        defaultValues,
+      );
+      console.log(
+        'DEBUG BlogCategoryModal useEffect - reset() called with:',
+        defaultValues,
+      );
+      // 类型断言：我们的值符合 CategoryFormInputs 类型
+      reset(defaultValues as any);
+    } else {
+      // 弹窗关闭时完全重置表单 - 使用字符串而不是对象，避免类型错误
+      const resetValues = {
+        name: '',
+        slug: '',
+        description: '',
+      };
+      console.log(
+        'DEBUG BlogCategoryModal useEffect - modal closing, reset() called with:',
+        resetValues,
+      );
+      reset(resetValues as any);
+      // useLocalizedFormV2 不需要清理函数，它会自动管理状态
     }
-  }, [isOpen, reset, editingCategory]);
+  }, [isOpen, reset, editingCategory, getDefaultValues]);
 
   const loading = isCreating || isUpdating || isLoading;
+
+  // Debug logging
+  if (isOpen) {
+    const localizedNameProps = localize('name');
+    console.log('DEBUG BlogCategoryModal - localize("name") returns:', {
+      localizedNameProps,
+      value: localizedNameProps.value,
+      valueType: typeof localizedNameProps.value,
+      isObject: typeof localizedNameProps.value === 'object',
+      stringValue: String(localizedNameProps.value),
+      formValues: form.getValues(),
+      editingCategory,
+      locale,
+    });
+  }
 
   return (
     <Modal

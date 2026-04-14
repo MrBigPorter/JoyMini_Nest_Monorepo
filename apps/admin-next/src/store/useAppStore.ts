@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { Theme, Language } from '../type/types';
+import { AVAILABLE_LOCALES, DEFAULT_LOCALE } from '@lucky/shared';
 
 interface AppState {
   theme: Theme;
@@ -8,6 +9,7 @@ interface AppState {
   isSidebarCollapsed: boolean;
   toggleTheme: () => void;
   toggleLang: () => void;
+  setLang: (lang: Language) => void;
   toggleSidebar: () => void;
 }
 
@@ -15,7 +17,7 @@ export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
       theme: 'dark',
-      lang: 'en',
+      lang: DEFAULT_LOCALE,
       isSidebarCollapsed: false,
       toggleTheme: () =>
         set((state) => {
@@ -27,7 +29,12 @@ export const useAppStore = create<AppState>()(
           return { theme: newTheme };
         }),
       toggleLang: () =>
-        set((state) => ({ lang: state.lang === 'en' ? 'zh' : 'en' })),
+        set((state) => {
+          const currentIndex = AVAILABLE_LOCALES.indexOf(state.lang);
+          const nextIndex = (currentIndex + 1) % AVAILABLE_LOCALES.length;
+          return { lang: AVAILABLE_LOCALES[nextIndex] };
+        }),
+      setLang: (lang: Language) => set({ lang }),
       toggleSidebar: () =>
         set((state) => ({ isSidebarCollapsed: !state.isSidebarCollapsed })),
     }),

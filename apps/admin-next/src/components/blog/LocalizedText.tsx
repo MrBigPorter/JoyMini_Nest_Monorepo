@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { useLanguage } from '@/hooks/useLanguage';
+import { useLanguage } from '@/hooks/LanguageProvider';
 import type { LocalizedString } from '@lucky/shared';
 
 interface LocalizedTextProps {

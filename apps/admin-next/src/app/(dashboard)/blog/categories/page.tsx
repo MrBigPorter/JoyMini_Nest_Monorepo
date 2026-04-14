@@ -12,6 +12,7 @@ import { PageHeader } from '@/components/scaffold/PageHeader';
 import { SmartTable } from '@/components/scaffold/SmartTable';
 import { Button, ModalManager } from '@repo/ui';
 import { BlogCategoryModal } from '@/views/blog/BlogCategoryModal';
+import { renderLocalizedText } from '@/utils/localizedText';
 import type {
   ProColumns,
   ActionType,
@@ -22,9 +23,9 @@ export default function CategoriesPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<null | {
     id: string;
-    name: string;
+    name: Record<string, string | undefined> | string;
     slug: string;
-    description?: string;
+    description?: Record<string, string | undefined> | string;
   }>(null);
   const { addToast } = useToastStore();
   const router = useRouter();
@@ -54,7 +55,10 @@ export default function CategoriesPage() {
         <div className="space-y-3">
           <p>
             Are you sure you want to delete category{' '}
-            <span className="font-bold text-primary-600">{category.name}</span>?
+            <span className="font-bold text-primary-600">
+              {renderLocalizedText(category.name, 'zh', category.id)}
+            </span>
+            ?
           </p>
 
           <div className="text-sm text-amber-600 bg-amber-50 p-3 rounded-lg border border-amber-200">
@@ -78,7 +82,14 @@ export default function CategoriesPage() {
               Slug: <code>/{category.slug}</code>
             </div>
             {category.description && (
-              <div className="mt-1">Description: {category.description}</div>
+              <div className="mt-1">
+                Description:{' '}
+                {renderLocalizedText(
+                  category.description,
+                  'zh',
+                  'No description',
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -107,9 +118,7 @@ export default function CategoriesPage() {
         <div className="flex items-center">
           <FolderTree className="mr-2 h-4 w-4 text-muted-foreground" />
           <div className="font-medium">
-            {typeof category.name === 'object'
-              ? String(Object.values(category.name)[0])
-              : String(category.name)}
+            {renderLocalizedText(category.name)}
           </div>
         </div>
       ),
@@ -128,9 +137,7 @@ export default function CategoriesPage() {
       title: 'Description',
       render: (dom, category: any) => (
         <p className="text-sm text-muted-foreground max-w-md truncate">
-          {typeof category.description === 'object'
-            ? String(Object.values(category.description)[0])
-            : String(category.description || 'No description')}
+          {renderLocalizedText(category.description, 'zh', 'No description')}
         </p>
       ),
     },

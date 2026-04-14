@@ -885,6 +885,20 @@ export const systemConfigApi = {
 
   toggleLocale: (code: string, enabled: boolean) =>
     http.patch(`/v1/admin/system-config/locales/${code}`, { enabled }),
+
+  // 翻译管理专用 API
+  getDefaultSourceLang: () =>
+    http.get<{
+      code: string;
+      name: string;
+      nativeName: string;
+    }>('/v1/admin/system-config/translation/default-source-lang'),
+
+  updateDefaultSourceLang: (code: string) =>
+    http.patch<{ success: boolean }>(
+      '/v1/admin/system-config/translation/default-source-lang',
+      { code },
+    ),
 };
 
 /**
@@ -1376,5 +1390,67 @@ export const blogApi = {
   // Statistics
   getBlogStatistics: async () => {
     return await http.get<any>('/v1/admin/blog/statistics');
+  },
+
+  // Translation related APIs
+  translation: {
+    // 获取默认源语言
+    getDefaultSourceLang: async () => {
+      return await http.get<{ code: string; name: string; nativeName: string }>(
+        '/v1/admin/system-config/translation/default-source-lang',
+      );
+    },
+
+    // 更新默认源语言
+    updateDefaultSourceLang: async (code: string) => {
+      return await http.patch(
+        '/v1/admin/system-config/translation/default-source-lang',
+        { code },
+      );
+    },
+
+    // 获取翻译统计
+    getTranslationStats: async () => {
+      return await http.get('/v1/admin/blog/translation/stats');
+    },
+
+    // 获取翻译进度
+    getTranslationProgress: async () => {
+      return await http.get('/v1/admin/blog/translation-progress');
+    },
+
+    // 获取翻译任务列表
+    getTranslationJobs: async () => {
+      return await http.get('/v1/admin/blog/translation-jobs');
+    },
+
+    // 获取翻译日志
+    getTranslationLogs: async (params?: {
+      page?: number;
+      pageSize?: number;
+    }) => {
+      return await http.get('/v1/admin/blog/translation-logs', params);
+    },
+
+    // 检测翻译问题
+    getTranslationIssues: async (languageCode?: string) => {
+      return await http.get('/v1/admin/blog/translation-issues', {
+        languageCode,
+      });
+    },
+
+    // 批量修复翻译问题
+    fixTranslationIssuesBatch: async (params: {
+      articleIds?: string[];
+      languageCode?: string;
+      issueTypes?: string[];
+    }) => {
+      return await http.post('/v1/admin/blog/translation-fix-batch', params);
+    },
+
+    // 获取启用语言列表
+    getEnabledLanguages: async () => {
+      return await http.get('/v1/admin/blog/enabled-languages');
+    },
   },
 };

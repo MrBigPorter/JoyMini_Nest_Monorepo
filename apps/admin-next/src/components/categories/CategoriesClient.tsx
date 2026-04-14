@@ -3,25 +3,39 @@
 import React, { useState } from 'react';
 import { Edit2, Plus, Trash2 } from 'lucide-react';
 import { Button, Card } from '@/components/UIComponents';
-import { Category } from '@/type/types';
 import { useRequest } from 'ahooks';
 import { categoryApi } from '@/api';
-import { EditCategoryModal } from '@/views/category/EditCategoryModal';
-import { CreateCategoryModal } from '@/views/category/CreateCategoryModal';
+import { BlogCategoryModal } from '@/views/blog/BlogCategoryModal';
 import { ModalManager } from '@repo/ui';
+
+interface BlogCategory {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string;
+  articleCount?: number;
+}
 
 export const CategoryManagement: React.FC = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editingItem, setEditingItem] = useState<Partial<Category> | null>(
-    null,
-  );
+  const [editingItem, setEditingItem] = useState<{
+    id: string;
+    name: string;
+    slug: string;
+    description?: string;
+  } | null>(null);
 
   const categories = useRequest(categoryApi.getCategories);
 
-  const handleOpenModal = (category?: Category) => {
+  const handleOpenModal = (category?: any) => {
     if (category) {
-      setEditingItem(category);
+      setEditingItem({
+        id: String(category.id),
+        name: category.name,
+        slug: category.slug || '',
+        description: category.description,
+      });
       setIsEditModalOpen(true);
     } else {
       setEditingItem(null);
@@ -118,17 +132,17 @@ export const CategoryManagement: React.FC = () => {
         </button>
       </div>
 
-      <CreateCategoryModal
+      <BlogCategoryModal
         isOpen={isCreateModalOpen}
         onCloseAction={() => setIsCreateModalOpen(false)}
         onSuccessAction={categories.refresh}
       />
 
-      <EditCategoryModal
+      <BlogCategoryModal
         isOpen={isEditModalOpen}
         onCloseAction={() => setIsEditModalOpen(false)}
         onSuccessAction={categories.refresh}
-        detail={editingItem as Category}
+        editingCategory={editingItem}
       />
     </div>
   );

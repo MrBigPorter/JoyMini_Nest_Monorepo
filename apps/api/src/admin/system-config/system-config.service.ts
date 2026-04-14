@@ -26,7 +26,16 @@ export class SystemConfigService {
     const existing = await this.prisma.systemConfig.findUnique({
       where: { key },
     });
-    if (!existing) throw new NotFoundException(`Config key "${key}" not found`);
+    
+    if (!existing) {
+      // 配置不存在，自动创建
+      return this.prisma.systemConfig.create({
+        data: { 
+          key, 
+          value: dto.value,
+        },
+      });
+    }
 
     return this.prisma.systemConfig.update({
       where: { key },
@@ -79,6 +88,7 @@ export class SystemConfigService {
 
   /**
    * 获取单个配置值，带类型安全和默认值
+   * 如果配置不存在，会自动创建默认配置
    */
   async get<T>(key: string, defaultValue: T): Promise<T> {
     const config = await this.prisma.systemConfig.findUnique({
@@ -86,6 +96,18 @@ export class SystemConfigService {
     });
 
     if (!config) {
+      // 自动创建缺失的配置项
+      try {
+        await this.prisma.systemConfig.create({
+          data: { 
+            key, 
+            value: JSON.stringify(defaultValue),
+          },
+        });
+      } catch (error) {
+        // 创建失败（如并发创建），仍然返回默认值
+        console.warn(`Failed to create config ${key}:`, error);
+      }
       return defaultValue;
     }
 
