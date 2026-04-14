@@ -1,30 +1,21 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Modal, Button } from '@/components/UIComponents';
 import { Globe } from 'lucide-react';
-import {
-  Form,
-  FormTextField,
-  FormTextareaField,
-  FormSelectField,
-  FormMediaUploaderField,
-} from '@repo/ui/form';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useBlogFormSubmit } from '@/hooks/useBlogFormSubmit';
+import { Form, FormSelectField } from '@repo/ui/form';
+import { useBlogLocalizedForm } from '@/hooks/useBlogLocalizedForm';
 import { articleSchema, type ArticleFormInputs } from '@/schema/blog';
-import { useLanguage, getLocalizedValue } from '@/hooks/LanguageProvider';
-import { useLocalizedForm } from '@/hooks/useLocalizedForm';
+import type { Locale } from '@/hooks/LanguageProvider';
+import { useAvailableLocales } from '@/hooks/useAvailableLocales';
+import { renderLocalizedText } from '@/utils/localizedText';
 
 import { blogApi, uploadApi } from '@/api';
 import { useRequest } from 'ahooks';
-import { RichTextEditor } from '@/components/blog/RichTextEditor';
 import { useToastStore } from '@/store/useToastStore';
-import { SmartImage } from '@/components/ui/SmartImage';
-import { Info } from 'lucide-react';
 import { Marked } from 'marked';
-import DOMPurify from 'dompurify';
+
+import { ArticleForm, ArticleFormRef } from './ArticleForm';
 
 interface BlogArticleModalProps {
   isOpen: boolean;
@@ -36,7 +27,7 @@ interface BlogArticleModalProps {
 const marked = new Marked({
   gfm: true,
   breaks: true,
-  silent: true, // 原样保留HTML标签，不做转码
+  silent: true,
 });
 
 export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
@@ -103,117 +94,220 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
     manual: true,
   });
 
-  const form = useForm({
-    resolver: zodResolver(articleSchema),
-    defaultValues: {
-      title: {},
-      content: {},
-      excerpt: {},
-      categoryId: '',
-      tagIds: [],
-      status: 'DRAFT',
-      featuredImage: '',
-    },
-  });
-
-  const { handleSubmit } = useBlogFormSubmit({
-    onSubmitAction: async (data) => {
+  // 使用统一的多语言表单钩子
+  const blogForm = useBlogLocalizedForm({
+    schema: articleSchema,
+    defaultValues: undefined, // Don't pass default values here, let useEffect handle it
+    onSubmitAction: async (data: any) => {
       try {
-        let featuredImageUrl = data.featuredImage;
-        // 如果 featuredImage 是 File 对象，则上传
-        if (featuredImageUrl instanceof File) {
-          const res = await upload.runAsync(featuredImageUrl);
-          featuredImageUrl = res.url;
-        }
+        // 处理多语言图片上传
+        const processedData = { ...data };
 
-        // 直接提交完整 Localized 对象
-        const allData = {
-          ...data,
-          featuredImage: featuredImageUrl,
-        };
+        if (
+          processedData.featuredImage &&
+          typeof processedData.featuredImage === 'object'
+        ) {
+          for (const lang of Object.keys(processedData.featuredImage)) {
+            const value = (processedData.featuredImage as Record<string, any>)[
+              lang
+            ];
+            if (value && value instanceof File) {
+              const res = await upload.runAsync(value);
+              (processedData.featuredImage as Record<string, any>)[lang] =
+                res.url;
+            }
+          }
+        }
 
         if (isEditing && editingArticle) {
-          await updateArticle(editingArticle.id, allData);
+          await updateArticle(editingArticle.id, processedData);
         } else {
-          await createArticle(allData);
+          await createArticle(processedData);
         }
       } catch (error) {
-        // 上传失败或 API 调用失败，错误已由 HTTP 拦截器或 upload 处理
         console.error('Submit failed:', error);
+        throw error;
       }
     },
   });
 
-  const submitHandler = form.handleSubmit(handleSubmit);
-  const { reset, watch, setValue, formState } = form;
-  const isLoading = formState.isSubmitting;
-  const { errors } = formState;
+  const {
+    form,
+    submitHandler,
+    isLoading,
+    localize,
+    locale: currentLocale,
+    availableLocaleCodes,
+    handleLocaleChange: baseHandleLocaleChange,
+  } = blogForm;
+  const { watch, setValue, reset, getValues } = form;
 
+  // 子表单引用
+  const articleFormRef = useRef<ArticleFormRef>(null);
+
+  // 获取启用语言列表 - 在组件顶层调用Hook
+  const { enabledLocales } = useAvailableLocales();
+
+  // 编辑文章初始化
   useEffect(() => {
-    console.log('content', editingArticle);
     if (isOpen) {
-      const mappedArticle: any = editingArticle
-        ? {
-            ...editingArticle,
-            featuredImage:
-              (
-                editingArticle as Partial<ArticleFormInputs> & {
-                  id: string;
-                  coverImage?: string;
-                }
-              )?.coverImage ||
-              editingArticle.featuredImage ||
-              '',
-            categoryId:
-              (editingArticle as any).categoryId ||
-              (editingArticle as any)?.category?.id ||
-              '',
+      if (editingArticle) {
+        const mappedArticle: any = editingArticle
+          ? {
+              ...editingArticle,
+              featuredImage:
+                (
+                  editingArticle as Partial<ArticleFormInputs> & {
+                    id: string;
+                    coverImage?: string;
+                  }
+                )?.coverImage ||
+                editingArticle.featuredImage ||
+                '',
+              categoryId:
+                (editingArticle as any).categoryId ||
+                (editingArticle as any)?.category?.id ||
+                '',
+            }
+          : null;
+
+        // 预处理内容，解决 MD 混用问题 - 支持所有启用语言
+        const contentLocalized: Record<string, string> = {};
+
+        // 处理所有启用语言的内容
+        enabledLocales.forEach((locale) => {
+          let content = '';
+          // 优先使用Localized字段
+          if (mappedArticle?.contentLocalized?.[locale.code]) {
+            content = mappedArticle.contentLocalized[locale.code];
+          } else if (locale.code === 'en' && mappedArticle?.contentEn) {
+            content = mappedArticle.contentEn;
+          } else if (locale.code === 'zh' && mappedArticle?.content) {
+            content = mappedArticle.content;
           }
-        : null;
 
-      //  关键修复：预处理内容，解决 MD 混用问题
-      let initContent =
-        (mappedArticle as any)?.contentMd || mappedArticle?.content || '';
-      let initContentEn =
-        (mappedArticle as any)?.contentMdEn || mappedArticle?.contentEn || '';
+          // 检查是否需要Markdown解析
+          if (content && !/<[a-z][\s\S]*>/i.test(content)) {
+            content = marked.parse(content) as string;
+          }
 
-      // 判断逻辑：如果内容存在，且不包含 HTML 标签特征，说明大概率是纯 Markdown
-      // 在将其放进 RichTextEditor 之前，强制转换为 HTML
-      if (initContent && !/<[a-z][\s\S]*>/i.test(initContent)) {
-        initContent = marked.parse(initContent) as string;
+          contentLocalized[locale.code] = content;
+        });
+
+        // 直接使用后端返回的标准 Localized 对象，确保所有启用语言都有值
+        const titleObj = mappedArticle?.titleLocalized || {};
+        const contentObj = contentLocalized;
+        const excerptObj = mappedArticle?.excerptLocalized || {};
+        const featuredImageObj = mappedArticle?.coverImageLocalized || {};
+
+        // 确保所有启用语言在对象中都有键（即使为空值）
+        enabledLocales.forEach((locale) => {
+          if (!titleObj[locale.code]) titleObj[locale.code] = '';
+          if (!contentObj[locale.code]) contentObj[locale.code] = '';
+          if (!excerptObj[locale.code]) excerptObj[locale.code] = '';
+          if (!featuredImageObj[locale.code]) featuredImageObj[locale.code] = '';
+        });
+
+        // 重置表单
+        reset({
+          title: titleObj,
+          content: contentObj,
+          excerpt: excerptObj,
+          featuredImage: featuredImageObj,
+          categoryId:
+            (mappedArticle as any)?.categoryId ||
+            (mappedArticle as any)?.category?.id ||
+            '',
+          tagIds:
+            mappedArticle?.tagIds?.map((t: any) => t.id) ||
+            mappedArticle?.tagIds ||
+            [],
+          status: mappedArticle?.status || 'DRAFT',
+        });
+
+        // 延迟初始化子表单，确保子组件已挂载
+        setTimeout(() => {
+          articleFormRef.current?.reset({
+            title: titleObj[currentLocale] ?? '',
+            content: contentObj[currentLocale] ?? '',
+            excerpt: excerptObj[currentLocale] ?? '',
+            featuredImage: featuredImageObj[currentLocale] ?? '',
+          });
+        }, 0);
+      } else {
+        // 新建文章时重置所有状态
+        reset({
+          title: { zh: '', en: '' },
+          content: { zh: '', en: '' },
+          excerpt: { zh: '', en: '' },
+          featuredImage: { zh: '', en: '' },
+          categoryId: '',
+          tagIds: [],
+          status: 'DRAFT',
+        });
+
+        setTimeout(() => {
+          articleFormRef.current?.reset({
+            title: '',
+            content: '',
+            excerpt: '',
+            featuredImage: '',
+          });
+        }, 0);
       }
-      if (initContentEn && !/<[a-z][\s\S]*>/i.test(initContentEn)) {
-        initContentEn = marked.parse(initContentEn) as string;
-      }
-
+    } else {
+      // 弹窗关闭时完全重置表单
       reset({
-        title: mappedArticle?.title || {},
-        content: mappedArticle?.content || {},
-        excerpt: mappedArticle?.excerpt || {},
-        categoryId:
-          (mappedArticle as any)?.categoryId ||
-          (mappedArticle as any)?.category?.id ||
-          '',
-        tagIds:
-          mappedArticle?.tagIds?.map((t: any) => t.id) ||
-          mappedArticle?.tagIds ||
-          [],
-        status: mappedArticle?.status || 'DRAFT',
-        featuredImage: mappedArticle?.featuredImage || '',
+        title: { zh: '', en: '' },
+        content: { zh: '', en: '' },
+        excerpt: { zh: '', en: '' },
+        featuredImage: { zh: '', en: '' },
+        categoryId: '',
+        tagIds: [],
+        status: 'DRAFT',
       });
+
+      setTimeout(() => {
+        articleFormRef.current?.reset({
+          title: '',
+          content: '',
+          excerpt: '',
+          featuredImage: '',
+        });
+      }, 0);
     }
-  }, [isOpen, editingArticle, reset]);
+  }, [isOpen, editingArticle, reset, currentLocale]);
 
-  const { locale, setLocale } = useLanguage();
-  const { localize } = useLocalizedForm({
-    watch: form.watch,
-    setValue: form.setValue,
-    errors: form.formState.errors,
-    locale,
-  });
-  const localizedContent = localize('content');
+  // 辅助函数：安全提取本地化值
+  const getLocalizedValue = (value: any, locale: string): string => {
+    if (typeof value === 'string') return value;
+    if (value && typeof value === 'object') {
+      return value[locale] || value['zh'] || value['en'] || '';
+    }
+    return '';
+  };
 
-  const loading = isCreating || isUpdating || isLoading || isLoadingData;
+  // 包装语言切换函数，同时更新子表单
+  const handleLocaleChange = (newLocale: Locale) => {
+    if (newLocale === currentLocale) return;
+
+    // 调用基础的语言切换函数
+    baseHandleLocaleChange(newLocale);
+
+    // 更新子表单 - 使用安全的本地化值提取
+    const currentValues = getValues();
+    setTimeout(() => {
+      articleFormRef.current?.reset({
+        title: getLocalizedValue(currentValues.title, newLocale),
+        content: getLocalizedValue(currentValues.content, newLocale),
+        excerpt: getLocalizedValue(currentValues.excerpt, newLocale),
+        featuredImage: getLocalizedValue(
+          currentValues.featuredImage,
+          newLocale,
+        ),
+      });
+    }, 0);
+  };
 
   // Handle image upload for RichTextEditor
   const handleEditorUpload = async (file: File): Promise<string> => {
@@ -226,9 +320,6 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
     }
   };
 
-  // 已经通过 localizedContent.onChangeAction 自动绑定，不需要手动处理器了
-  // ✅ 旧代码已废弃，多语言版本会自动处理每个语言的内容
-
   // Handle tag selection (multi-select)
   const handleTagToggle = (tagId: string) => {
     const currentTagIds = watch('tagIds') || [];
@@ -238,9 +329,27 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
     setValue('tagIds', newTagIds);
   };
 
-  // 预览语言切换
-  const [previewLanguage, setPreviewLanguage] = useState<'zh' | 'en'>('zh');
-  const [showPreview, setShowPreview] = useState(false);
+  // 稳定化选项数组，避免每次渲染创建新引用
+  const categoryOptions = useMemo(
+    () =>
+      categories.map((c) => ({
+        label: renderLocalizedText(c.name, 'zh', c.id),
+        value: c.id,
+      })),
+    [categories],
+  );
+
+  const statusOptions = useMemo(
+    () => [
+      { label: 'Draft', value: 'DRAFT' },
+      { label: 'Published', value: 'PUBLISHED' },
+      { label: 'Archived', value: 'ARCHIVED' },
+    ],
+    [],
+  );
+
+  const loading =
+    isCreating || isUpdating || isLoading || isLoadingData || upload.loading;
 
   return (
     <Modal
@@ -256,22 +365,17 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
             {/* Language Switcher */}
             <div className="flex items-center gap-2">
               <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant={locale === 'zh' ? 'primary' : 'outline'}
-                  size="sm"
-                  onClick={() => setLocale('zh')}
-                >
-                  🇨🇳 中文
-                </Button>
-                <Button
-                  type="button"
-                  variant={locale === 'en' ? 'primary' : 'outline'}
-                  size="sm"
-                  onClick={() => setLocale('en')}
-                >
-                  🇺🇸 English
-                </Button>
+                {availableLocaleCodes.map((lang) => (
+                  <Button
+                    key={lang}
+                    type="button"
+                    variant={currentLocale === lang ? 'primary' : 'outline'}
+                    size="sm"
+                    onClick={() => handleLocaleChange(lang as Locale)}
+                  >
+                    {lang.toUpperCase()}
+                  </Button>
+                ))}
               </div>
               {isEditing ? (
                 <Button
@@ -286,18 +390,6 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
                       setIsTranslating(true);
                       await blogApi.translateArticle(editingArticle.id);
                       addToast('success', '翻译请求已发送，稍后将自动刷新');
-                      // 刷新文章数据
-                      setTimeout(async () => {
-                        const updatedArticle = await blogApi.getArticle(
-                          editingArticle.id,
-                        );
-                        setTimeout(() => {
-                          // 直接替换整个 Localized 对象
-                          setValue('title', updatedArticle.title);
-                          setValue('content', updatedArticle.content);
-                          setValue('excerpt', updatedArticle.excerpt);
-                        }, 100);
-                      }, 1500);
                     } catch (error) {
                       console.error('Translation failed:', error);
                       addToast('error', '翻译失败，请稍后重试');
@@ -318,51 +410,15 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
             </div>
           </div>
 
-          {/* 多语言字段 - 自动跟随全局语言 */}
-          <div className="space-y-6">
-            <FormTextField
-              label="Title"
-              placeholder="Enter article title"
-              required
-              {...localize('title')}
-            />
-            <div>
-              <label className="block text-sm font-medium mb-2">Content</label>
-              <RichTextEditor
-                value={localizedContent.value}
-                onChange={localizedContent.onChangeAction}
-                onUpload={handleEditorUpload}
-              />
-              {localizedContent.error?.message && (
-                <p className="text-red-500 text-sm mt-1">
-                  {localizedContent.error.message}
-                </p>
-              )}
-            </div>
-            <FormTextareaField
-              label="Excerpt"
-              placeholder="Brief summary of the article"
-              {...localize('excerpt')}
-            />
-          </div>
+          {/* 独立多语言表单 */}
+          <ArticleForm ref={articleFormRef} onUpload={handleEditorUpload} />
 
           {/* Common Fields - Always Visible */}
           <FormSelectField
             name="categoryId"
             label="Category"
             placeholder="Select category"
-            options={categories.map((c) => ({
-              label:
-                c.name == null
-                  ? c.id
-                  : typeof c.name === 'object'
-                    ? ((c.name as any).zh ??
-                      (c.name as any).en ??
-                      (c.name as any).ja ??
-                      c.id)
-                    : c.name,
-              value: c.id,
-            }))}
+            options={categoryOptions}
           />
           <div className="p-4 border rounded-lg shadow-sm">
             <label className="block text-sm font-medium mb-2">Tags</label>
@@ -380,64 +436,20 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
                     }`}
                     onClick={() => handleTagToggle(tag.id)}
                   >
-                    {tag.name == null
-                      ? tag.id
-                      : typeof tag.name === 'object'
-                        ? ((tag.name as any).zh ??
-                          (tag.name as any).en ??
-                          (tag.name as any).ja ??
-                          tag.id)
-                        : tag.name}
+                    {renderLocalizedText(tag.name, 'zh', tag.id)}
                   </button>
                 );
               })}
             </div>
-            {errors.tagIds?.message && (
-              <p className="text-red-500 text-sm mt-1">
-                {errors.tagIds.message}
-              </p>
-            )}
           </div>
           <FormSelectField
             name="status"
             label="Status"
-            options={[
-              { label: 'Draft', value: 'DRAFT' },
-              { label: 'Published', value: 'PUBLISHED' },
-              { label: 'Archived', value: 'ARCHIVED' },
-            ]}
+            options={statusOptions}
           />
-          <div className="p-4  rounded-lg shadow-sm">
-            <FormMediaUploaderField
-              name="featuredImage"
-              label="Featured Image"
-              maxFileCount={1}
-              renderImage={({ src, alt, className }) => (
-                <SmartImage
-                  src={src}
-                  alt={alt}
-                  width={400}
-                  height={400}
-                  className={className}
-                  imgClassName="w-64 h-64 rounded-md object-cover"
-                  layout="constrained"
-                />
-              )}
-            />
-            <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
-              <Info size={12} /> Recommended 800x800px
-            </p>
-          </div>
-          <div className="flex justify-between items-center pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setShowPreview(!showPreview)}
-            >
-              {showPreview ? '关闭预览' : '预览文章'}
-            </Button>
 
-            <div className="flex gap-3">
+          <div className="flex justify-between items-center pt-4">
+            <div className="flex flex-1 gap-3 justify-end">
               <Button
                 type="button"
                 variant="outline"
@@ -451,73 +463,6 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
               </Button>
             </div>
           </div>
-
-          {/* 预览区域 */}
-          {showPreview && (
-            <div className="mt-6 border rounded-lg p-6 bg-gray-50 dark:bg-gray-800">
-              <div className="flex justify-end mb-4">
-                <div className="inline-flex rounded-md border border-gray-200 dark:border-gray-700">
-                  <button
-                    type="button"
-                    onClick={() => setPreviewLanguage('zh')}
-                    className={`px-4 py-2 text-sm font-medium transition-colors ${
-                      previewLanguage === 'zh'
-                        ? 'bg-primary-500 text-white'
-                        : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
-                    }`}
-                  >
-                    🇨🇳 中文
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPreviewLanguage('en')}
-                    className={`px-4 py-2 text-sm font-medium transition-colors ${
-                      previewLanguage === 'en'
-                        ? 'bg-primary-500 text-white'
-                        : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
-                    }`}
-                  >
-                    🇺🇸 English
-                  </button>
-                </div>
-              </div>
-
-              <div className="max-w-[720px] mx-auto">
-                <h1 className="text-3xl font-bold mb-6">
-                  {getLocalizedValue(watch('title'), previewLanguage)}
-                </h1>
-                <p className="text-lg text-gray-500 mb-6">
-                  {getLocalizedValue(watch('excerpt'), previewLanguage)}
-                </p>
-                <div
-                  className="prose prose-slate dark:prose-invert prose-lg max-w-none"
-                  dangerouslySetInnerHTML={{
-                    __html: (() => {
-                      const rawContent =
-                        getLocalizedValue<string>(
-                          watch('content'),
-                          previewLanguage,
-                        ) || '';
-
-                      if (!rawContent) return '';
-
-                      // marked 会自动同时处理 Markdown 和 HTML 混合内容
-                      const htmlContent = marked.parse(rawContent) as string;
-
-                      // 统一安全净化
-                      return typeof window !== 'undefined'
-                        ? DOMPurify.sanitize(htmlContent, {
-                            USE_PROFILES: { html: true },
-                            ADD_ATTR: ['target', 'rel'],
-                            FORBID_TAGS: ['style', 'script'],
-                          })
-                        : '';
-                    })(),
-                  }}
-                />
-              </div>
-            </div>
-          )}
         </form>
       </Form>
     </Modal>

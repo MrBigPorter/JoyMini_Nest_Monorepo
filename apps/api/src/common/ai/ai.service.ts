@@ -278,11 +278,73 @@ export class AiService implements OnModuleInit {
 
       this.recordSuccess(estimatedTokens);
       return response.candidates[0]?.content?.parts?.[0]?.text || null;
-    } catch (e) {
+    } catch (e: any) {
       this.recordFailure();
+      
+      // 特殊处理429错误（资源耗尽）
+      if (e.code === 429 || e.status === 'RESOURCE_EXHAUSTED') {
+        this.logger.warn(`⚠️  Vertex AI API 429 Resource Exhausted. Downgrading service level.`);
+        
+        // 立即降级服务等级
+        if (this.serviceLevel > AiServiceLevel.MINIMAL) {
+          this.serviceLevel = AiServiceLevel.MINIMAL;
+          this.levelUpdatedAt = Date.now();
+          this.logger.warn(`⚠️  Service downgraded to MINIMAL mode due to 429 error`);
+        }
+        
+        // 开启熔断保护
+        this.circuitBreaker.openUntil = Date.now() + 300000; // 5分钟熔断
+        this.logger.warn(`🔥 Circuit breaker OPENED for 5 minutes due to 429 error`);
+      }
+      
       this.logger.error('AI generation error', e);
       return null;
     }
+  }
+
+  /**
+   * 增强版文本生成接口 - 支持指数退避重试
+   */
+  async generateTextWithRetry(
+    prompt: string,
+    options?: AiGenerationOptions,
+    requiredLevel: AiServiceLevel = AiServiceLevel.FULL,
+    maxRetries: number = 2,
+  ): Promise<string | null> {
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const result = await this.generateText(prompt, options, requiredLevel);
+        
+        // 如果成功返回结果
+        if (result !== null) {
+          return result;
+        }
+        
+        // 如果返回null但服务可用，可能是限流，等待后重试
+        if (this.isAvailable() && attempt < maxRetries) {
+          const delay = Math.pow(2, attempt) * 1000; // 指数退避：1秒、2秒、4秒
+          this.logger.debug(`AI request limited, waiting ${delay}ms before retry (attempt ${attempt + 1}/${maxRetries})`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+        
+        return null;
+      } catch (error: any) {
+        // 如果是429错误，使用指数退避重试
+        if ((error.code === 429 || error.status === 'RESOURCE_EXHAUSTED') && attempt < maxRetries) {
+          const delay = Math.pow(2, attempt) * 2000; // 更长的退避：2秒、4秒、8秒
+          this.logger.warn(`Vertex AI 429 error, waiting ${delay}ms before retry (attempt ${attempt + 1}/${maxRetries})`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+        
+        // 其他错误或达到最大重试次数
+        this.logger.error(`AI generation failed after ${attempt + 1} attempts`, error);
+        return null;
+      }
+    }
+    
+    return null;
   }
 
   /**
@@ -402,11 +464,29 @@ RULES:
     const prompt = `
 Translate the following text to ${langName}.
 
-Requirements:
-1. Preserve all technical terms and proper nouns
-2. Keep the original meaning and tone
-3. Do not add any explanations or notes
-4. Return only the translated text
+IMPORTANT TECHNICAL TRANSLATION RULES:
+
+TECHNICAL TERMS MUST REMAIN IN ENGLISH:
+- Framework names: NestJS, Next.js, React, Vue, Angular, Express, FastAPI
+- Database names: PostgreSQL, Redis, MongoDB, MySQL, SQLite, Prisma
+- Programming languages: TypeScript, JavaScript, Python, Java, Go, Rust, C++
+- Cloud services: Cloudflare, AWS, Google Cloud, Azure, Vercel, Netlify
+- Tools & libraries: Docker, Kubernetes, Tailwind CSS, Shadcn UI, Webpack, Vite
+- Technical concepts: Microservices, Monorepo, CI/CD, SSR, SPA, PWA, JAMstack
+- Security terms: XSS, CSRF, SQL Injection, JWT, OAuth, OpenID, CORS, WAF, DDoS
+- AI terms: LLM, Prompt Engineering, AI Moderation, Machine Learning, Deep Learning
+- Abbreviations: API, HTML, CSS, REST, GraphQL, WebSocket, CLI, GUI, UI, UX
+- Version control: Git, GitHub, GitLab, Bitbucket, SVN
+- Operating systems: Linux, macOS, Windows, Android, iOS
+- Protocols: HTTP, HTTPS, WebRTC, SMTP, IMAP, FTP, SSH
+
+GENERAL RULES:
+1. Preserve ALL technical terms, proper nouns, brand names, and trademarks in English
+2. Keep code syntax, function names, class names, and technical identifiers unchanged
+3. If a term could be either technical or regular, prefer keeping it in English
+4. Maintain the original tone, meaning, and intent
+5. Do not add any explanations, notes, or extra text
+6. Only return the translated text
 
 Text to translate:
 ${text}

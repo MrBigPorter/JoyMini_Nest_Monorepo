@@ -10,6 +10,13 @@ import {
 } from '@/schema/blog';
 import { blogApi } from '@/api';
 import { useRequest } from 'ahooks';
+import { useLanguage } from '@/hooks/LanguageProvider';
+import { useLocalizedFormV2 } from '@/hooks/useLocalizedFormV2';
+import { LanguageSwitch } from '@/components/blog/LanguageSwitch';
+import {
+  extractCurrentLocaleValue,
+  normalizeLocalizedValue,
+} from '@/utils/localizedForm';
 
 interface BlogCommentModalProps {
   isOpen: boolean;
@@ -43,12 +50,27 @@ export const BlogCommentModal: React.FC<BlogCommentModalProps> = ({
     },
   );
 
+  // 兼容旧数据格式: 自动把 string 转换成 LocalizedString 格式
+  const getDefaultValues = () => {
+    if (!editingComment) {
+      return {
+        status: 'PENDING' as const,
+        reply: { zh: '', en: '' },
+      };
+    }
+
+    const status = editingComment.status || 'PENDING';
+
+    return {
+      ...editingComment,
+      status: status as 'PENDING' | 'APPROVED' | 'REJECTED' | 'SPAM',
+      reply: normalizeLocalizedValue(editingComment.reply),
+    };
+  };
+
   const blogForm = useBlogForm({
     schema: commentModerationSchema,
-    defaultValues: editingComment || {
-      status: 'PENDING',
-      reply: '',
-    },
+    defaultValues: getDefaultValues(),
     onSubmitAction: async (data) => {
       if (isEditing && editingComment) {
         await updateComment(editingComment.id, data);
@@ -57,13 +79,21 @@ export const BlogCommentModal: React.FC<BlogCommentModalProps> = ({
   });
 
   const { form, submitHandler, isLoading } = blogForm;
-  const { register, reset } = form;
+  const { register, reset, getValues } = form;
+  const { locale } = useLanguage();
+  const { localize } = useLocalizedFormV2({
+    watch: form.watch,
+    setValue: form.setValue,
+    getValues: form.getValues,
+    locale,
+    availableLocales: ['zh', 'en'],
+  });
 
   useEffect(() => {
     if (isOpen) {
-      form.reset(editingComment || { status: 'PENDING', reply: '' });
+      form.reset(getDefaultValues());
     }
-  }, [isOpen, form, editingComment]);
+  }, [isOpen, form, editingComment, getDefaultValues]);
 
   const loading = isUpdating || isLoading;
 
@@ -86,10 +116,14 @@ export const BlogCommentModal: React.FC<BlogCommentModalProps> = ({
             ]}
             {...register('status')}
           />
+          <div className="flex justify-between items-center">
+            <h3 className="text-sm font-medium">Reply (optional)</h3>
+            <LanguageSwitch />
+          </div>
           <FormTextareaField
-            label="Reply (optional)"
+            label=""
             placeholder="Add a public reply to the comment"
-            {...register('reply')}
+            {...localize('reply')}
           />
           <div className="flex justify-end space-x-3 pt-4">
             <Button

@@ -5,5 +5,9 @@
   "testRegex": ".e2e-spec.ts$",
   "transform": {
     "^.+\\.(t|j)s$": "ts-jest"
+  },
+  "moduleNameMapper": {
+    "^@api/(.*)$": "<rootDir>/../src/$1",
+    "^@lucky/shared$": "<rootDir>/../../../node_modules/@lucky/shared/dist/index.js"
   }
 }

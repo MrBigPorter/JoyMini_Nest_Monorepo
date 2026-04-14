@@ -30,11 +30,9 @@ export class CreateArticleDto {
   @IsObject()
   excerpt?: LocalizedString<string>;
 
-  @ApiPropertyOptional({ description: '特色图片 URL (featuredImage)' })
+  @ApiPropertyOptional({ description: '特色图片 URL (featuredImage) - 支持字符串或多语言对象' })
   @IsOptional()
-  @IsString()
-  @MaxLength(255)
-  featuredImage?: string;
+  featuredImage?: string | LocalizedString<string>;
 
   @ApiPropertyOptional({
     description: '文章状态',

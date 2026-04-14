@@ -7,16 +7,27 @@ import {
 import { Marked } from 'marked';
 import { Logger } from '@nestjs/common';
 import { Job, Queue } from 'bullmq';
-import { AiService } from '@api/common/ai/ai.service';
+import { AiService, AiServiceLevel } from '@api/common/ai/ai.service';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { CommentStatus } from '@prisma/client';
 
 @Processor('blog-ai', {
-  concurrency: 2, // 并发处理数
+  concurrency: 1, // 保持串行处理
+  limiter: {
+    max: 5, // ⬆️ 从2提高到5 RPM（在15 RPM限制内，避免碎片化请求导致的429错误）
+    duration: 60000,
+  },
 })
 export class BlogAiProcessor extends WorkerHost {
   private readonly logger = new Logger(BlogAiProcessor.name);
   private readonly marked: Marked;
+  private readonly rateLimitDelayBase = 1000; // 1秒基础延迟
+  private readonly rateLimitDelayMax = 30000; // 30秒最大延迟
+  private readonly translationCache = new Map<
+    string,
+    { result: string; timestamp: number }
+  >();
+  private readonly cacheTTL = 60 * 60 * 1000; // 1小时缓存时间
 
   constructor(
     private aiService: AiService,
@@ -28,6 +39,395 @@ export class BlogAiProcessor extends WorkerHost {
       gfm: true,
       breaks: true,
     });
+    // 定期清理过期缓存
+    setInterval(() => this.cleanupCache(), 5 * 60 * 1000); // 每5分钟清理一次
+  }
+
+  /**
+   * 清理过期缓存
+   */
+  private cleanupCache(): void {
+    const now = Date.now();
+    let cleanedCount = 0;
+
+    for (const [key, value] of this.translationCache.entries()) {
+      if (now - value.timestamp > this.cacheTTL) {
+        this.translationCache.delete(key);
+        cleanedCount++;
+      }
+    }
+
+    if (cleanedCount > 0) {
+      this.logger.debug(`清理了 ${cleanedCount} 个过期翻译缓存项`);
+    }
+  }
+
+  /**
+   * 智能退避延迟方法，用于处理API速率限制
+   * @param retryCount 重试次数
+   * @param error 错误对象（可选）
+   */
+  private async handleRateLimit(
+    retryCount: number,
+    error?: any,
+  ): Promise<void> {
+    // 检查是否是429错误
+    const isRateLimitError =
+      error &&
+      (error.code === 429 ||
+        error.status === 'RESOURCE_EXHAUSTED' ||
+        (error.message && error.message.includes('Too Many Requests')) ||
+        (error.message && error.message.includes('Resource exhausted')));
+
+    if (isRateLimitError) {
+      // 智能退避策略：
+      // 1. 第一次遇到429：等待5秒（让API恢复）
+      // 2. 第二次遇到429：等待15秒（更长的恢复时间）
+      // 3. 第三次及以上：等待30秒（最大等待时间）
+      let delay: number;
+      if (retryCount === 0) {
+        delay = 5000; // 5秒
+      } else if (retryCount === 1) {
+        delay = 15000; // 15秒
+      } else {
+        delay = 30000; // 30秒
+      }
+
+      // 添加随机抖动避免多个任务同时重试
+      const jitter = Math.random() * 2000; // 0-2秒随机抖动
+      const totalDelay = delay + jitter;
+
+      this.logger.warn(
+        `遇到API速率限制，等待 ${Math.round(totalDelay / 1000)}秒 后继续 (重试次数: ${retryCount + 1})`,
+        {
+          errorCode: error?.code,
+          errorStatus: error?.status,
+          errorMessage: error?.message,
+          delaySeconds: Math.round(totalDelay / 1000),
+          retryCount: retryCount + 1,
+        },
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, totalDelay));
+    } else if (retryCount > 0) {
+      // 非速率限制错误的简单延迟
+      const delay = this.rateLimitDelayBase * retryCount;
+      this.logger.debug(`等待 ${delay}ms 后重试 (重试次数: ${retryCount})`);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+
+  /**
+   * 带重试机制的翻译方法
+   * @param text 要翻译的文本
+   * @param targetLang 目标语言
+   * @param maxRetries 最大重试次数
+   * @param isMarkdown 是否是Markdown格式
+   */
+  private async translateWithRetry(
+    text: string,
+    targetLang: string,
+    maxRetries: number = 2,
+    isMarkdown: boolean = false,
+  ): Promise<string> {
+    // 1. 检查缓存
+    const cacheKey = `${text}-${targetLang}-${isMarkdown ? 'md' : 'txt'}`;
+    const cached = this.translationCache.get(cacheKey);
+
+    if (cached && Date.now() - cached.timestamp < this.cacheTTL) {
+      this.logger.debug(
+        `使用缓存翻译结果 (长度: ${text.length}, 目标语言: ${targetLang})`,
+      );
+      return cached.result;
+    }
+
+    let lastError: any;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        // 如果不是第一次尝试，先等待
+        if (attempt > 0) {
+          await this.handleRateLimit(attempt - 1, lastError);
+        }
+
+        let result: string;
+        if (isMarkdown) {
+          result = await this.aiService.translateMarkdown(text, targetLang);
+        } else {
+          result = await this.aiService.translateText(text, targetLang);
+        }
+
+        // 检查翻译质量 - 如果结果与原文相同，可能是翻译失败
+        if (result === text && text.trim().length > 0) {
+          this.logger.warn(
+            `翻译结果与原文相同，可能翻译失败 (尝试 ${attempt + 1}/${maxRetries + 1})`,
+            {
+              text: text.substring(0, 100),
+              result: result.substring(0, 100),
+              targetLang,
+            },
+          );
+
+          // 如果是最后一次尝试，返回原文
+          if (attempt === maxRetries) {
+            return text;
+          }
+          continue;
+        }
+
+        // 缓存结果
+        this.translationCache.set(cacheKey, {
+          result,
+          timestamp: Date.now(),
+        });
+
+        return result;
+      } catch (error) {
+        lastError = error;
+        this.logger.error(`翻译失败 (尝试 ${attempt + 1}/${maxRetries + 1})`, {
+          error: error instanceof Error ? error.message : 'Unknown error',
+          textLength: text.length,
+          targetLang,
+        });
+
+        // 如果是最后一次尝试，抛出错误
+        if (attempt === maxRetries) {
+          throw error;
+        }
+      }
+    }
+
+    // 理论上不会执行到这里
+    return text;
+  }
+
+  /**
+   * 批量翻译文章方法 - 将标题、摘要、正文合并为单个请求
+   * @param article 文章对象
+   * @param targetLang 目标语言
+   * @param sourceLang 源语言
+   */
+  private async batchTranslateArticle(
+    article: any,
+    targetLang: string,
+    sourceLang: string,
+  ): Promise<{ title: string; content: string; excerpt: string | null }> {
+    const cacheKey = `batch-${article.id}-${targetLang}`;
+    const cached = this.translationCache.get(cacheKey);
+
+    if (cached && Date.now() - cached.timestamp < this.cacheTTL) {
+      this.logger.debug(
+        `使用批量翻译缓存结果 (文章ID: ${article.id}, 目标语言: ${targetLang})`,
+      );
+      return JSON.parse(cached.result);
+    }
+
+    // 获取源内容
+    const getSourceContent = (field: string, localizedField: string) => {
+      const articleAny = article as any;
+      const localized = articleAny[localizedField];
+
+      if (localized && localized[sourceLang]) {
+        const value = localized[sourceLang];
+        if (typeof value === 'string') return value;
+        if (typeof value === 'object' && value !== null) {
+          const firstValue = Object.values(value)[0];
+          if (typeof firstValue === 'string') return firstValue;
+        }
+      }
+
+      const fieldValue = articleAny[field];
+      if (!fieldValue) return '';
+
+      if (typeof fieldValue === 'object' && fieldValue !== null) {
+        if (
+          fieldValue[sourceLang] &&
+          typeof fieldValue[sourceLang] === 'string'
+        ) {
+          return fieldValue[sourceLang];
+        }
+        const firstValue = Object.values(fieldValue)[0];
+        if (typeof firstValue === 'string') return firstValue;
+      }
+
+      if (typeof fieldValue === 'string') return fieldValue;
+      return '';
+    };
+
+    const sourceTitle =
+      getSourceContent('title', 'titleLocalized') || article.title || '';
+    const sourceContent =
+      getSourceContent('contentMd', 'contentMdLocalized') ||
+      getSourceContent('content', 'contentLocalized') ||
+      article.content ||
+      '';
+    const sourceExcerpt =
+      getSourceContent('excerpt', 'excerptLocalized') || article.excerpt || '';
+
+    // 构建批量翻译prompt
+    const translationPrompt = `
+Translate the following Chinese article to ${targetLang}:
+
+TITLE: ${sourceTitle}
+
+EXCERPT: ${sourceExcerpt}
+
+CONTENT (Markdown format):
+${sourceContent}
+
+IMPORTANT: 
+1. Keep all technical terms in English (NestJS, React, etc.)
+2. Maintain the original Markdown formatting
+3. Return the translation in this exact JSON format:
+{
+  "title": "Translated title",
+  "excerpt": "Translated excerpt", 
+  "content": "Translated content in Markdown"
+}
+`;
+
+    let lastError: any;
+    const maxRetries = 2;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        // 如果不是第一次尝试，先等待
+        if (attempt > 0) {
+          await this.handleRateLimit(attempt - 1, lastError);
+        }
+
+        const result = await this.aiService.generateText(
+          translationPrompt,
+          {
+            temperature: 0.3,
+            maxOutputTokens: 8192,
+            responseMimeType: 'application/json',
+          },
+          AiServiceLevel.FULL,
+        );
+
+        // 确保result不是null或undefined
+        if (!result) {
+          throw new Error('AI service returned empty result');
+        }
+
+        // 尝试解析JSON
+        try {
+          const parsed = JSON.parse(result);
+
+          // 验证必需字段
+          if (!parsed.title || !parsed.content) {
+            throw new Error('Missing required fields in translation result');
+          }
+
+          const batchResult = {
+            title: parsed.title,
+            content: parsed.content,
+            excerpt: parsed.excerpt || null,
+          };
+
+          // 缓存结果
+          this.translationCache.set(cacheKey, {
+            result: JSON.stringify(batchResult),
+            timestamp: Date.now(),
+          });
+
+          return batchResult;
+        } catch (parseError) {
+          this.logger.error(
+            `批量翻译JSON解析失败 (尝试 ${attempt + 1}/${maxRetries + 1})`,
+            {
+              error:
+                parseError instanceof Error
+                  ? parseError.message
+                  : 'Unknown parse error',
+              resultPreview: result ? result.substring(0, 200) : 'Empty result',
+            },
+          );
+
+          // 如果是最后一次尝试，回退到传统方法
+          if (attempt === maxRetries) {
+            this.logger.warn('批量翻译失败，回退到传统翻译方法');
+            return await this.fallbackToTraditionalTranslation(
+              sourceTitle,
+              sourceContent,
+              sourceExcerpt,
+              targetLang,
+            );
+          }
+        }
+      } catch (error) {
+        lastError = error;
+        this.logger.error(
+          `批量翻译失败 (尝试 ${attempt + 1}/${maxRetries + 1})`,
+          {
+            error: error instanceof Error ? error.message : 'Unknown error',
+            articleId: article.id,
+            targetLang,
+          },
+        );
+
+        // 如果是最后一次尝试，回退到传统方法
+        if (attempt === maxRetries) {
+          this.logger.warn('批量翻译失败，回退到传统翻译方法');
+          return await this.fallbackToTraditionalTranslation(
+            sourceTitle,
+            sourceContent,
+            sourceExcerpt,
+            targetLang,
+          );
+        }
+      }
+    }
+
+    // 理论上不会执行到这里
+    return await this.fallbackToTraditionalTranslation(
+      sourceTitle,
+      sourceContent,
+      sourceExcerpt,
+      targetLang,
+    );
+  }
+
+  /**
+   * 回退到传统翻译方法
+   */
+  private async fallbackToTraditionalTranslation(
+    title: string,
+    content: string,
+    excerpt: string,
+    targetLang: string,
+  ): Promise<{ title: string; content: string; excerpt: string | null }> {
+    this.logger.debug('使用传统翻译方法');
+
+    const titleTranslated = await this.translateWithRetry(
+      title,
+      targetLang,
+      2,
+      false,
+    );
+    const contentTranslated = await this.translateWithRetry(
+      content,
+      targetLang,
+      2,
+      true,
+    );
+    let excerptTranslated = null;
+
+    if (excerpt && excerpt.trim().length > 0) {
+      excerptTranslated = await this.translateWithRetry(
+        excerpt,
+        targetLang,
+        2,
+        false,
+      );
+    }
+
+    return {
+      title: titleTranslated,
+      content: contentTranslated,
+      excerpt: excerptTranslated,
+    };
   }
 
   /**
@@ -46,6 +446,10 @@ export class BlogAiProcessor extends WorkerHost {
         return this.processAutoReply(job.data);
       case 'translate-article':
         return this.processArticleTranslation(job.data);
+      case 'translate-category':
+        return this.processCategoryTranslation(job.data);
+      case 'translate-tag':
+        return this.processTagTranslation(job.data);
       default:
         this.logger.warn(`Unknown job type: ${job.name}`);
     }
@@ -176,6 +580,7 @@ export class BlogAiProcessor extends WorkerHost {
   private async processArticleTranslation(data: {
     articleId: string;
     targetLang: string;
+    sourceLang?: string;
   }) {
     this.logger.debug(
       `Translating article: ${data.articleId} to ${data.targetLang}`,
@@ -199,33 +604,118 @@ export class BlogAiProcessor extends WorkerHost {
         return;
       }
 
-      // 执行翻译 (使用串行执行而不是Promise.all避免并行请求同时失败)
-      const titleTranslated = await this.aiService.translateText(
-        article.title,
-        data.targetLang,
-      );
-      // 翻译 Markdown 源而不是 HTML
-      const contentTranslated = await this.aiService.translateMarkdown(
-        article.contentMd || article.content,
-        data.targetLang,
-      );
-      const excerptTranslated = article.excerpt
-        ? await this.aiService.translateText(article.excerpt, data.targetLang)
-        : null;
+      // 获取源语言（兼容历史作业没有sourceLang字段的情况）
+      const sourceLang = data.sourceLang || 'zh';
 
-      // 保存翻译结果
+      // 从Localized字段获取源语言内容，如果不存在则使用原始字段
+      // 修复：正确处理JSON对象，提取字符串值
+      const getSourceContent = (field: string, localizedField: string) => {
+        const articleAny = article as any;
+        const localized = articleAny[localizedField];
+
+        // 1. 尝试从Localized字段获取
+        if (localized && localized[sourceLang]) {
+          const value = localized[sourceLang];
+          // 如果是字符串，直接返回
+          if (typeof value === 'string') return value;
+          // 如果是对象，尝试提取字符串值
+          if (typeof value === 'object' && value !== null) {
+            // 处理嵌套错误格式：{ en: { zh: "..." } }
+            const firstValue = Object.values(value)[0];
+            if (typeof firstValue === 'string') return firstValue;
+          }
+        }
+
+        // 2. 从原始字段获取
+        const fieldValue = articleAny[field];
+        if (!fieldValue) return '';
+
+        // 3. 处理JSON对象字段
+        if (typeof fieldValue === 'object' && fieldValue !== null) {
+          // 从JSON对象中提取源语言值
+          if (
+            fieldValue[sourceLang] &&
+            typeof fieldValue[sourceLang] === 'string'
+          ) {
+            return fieldValue[sourceLang];
+          }
+          // 如果没有源语言，尝试获取第一个字符串值
+          const firstValue = Object.values(fieldValue)[0];
+          if (typeof firstValue === 'string') return firstValue;
+          // 如果第一个值也是对象，继续深入提取
+          if (typeof firstValue === 'object' && firstValue !== null) {
+            const deepValue = Object.values(firstValue)[0];
+            if (typeof deepValue === 'string') return deepValue;
+          }
+        }
+
+        // 4. 如果是字符串，直接返回
+        if (typeof fieldValue === 'string') return fieldValue;
+
+        // 5. 其他情况返回空字符串
+        return '';
+      };
+
+      // 获取原始语言内容，确保总是有值（在翻译前获取，确保翻译和保存使用相同的内容）
+      const sourceTitle =
+        getSourceContent('title', 'titleLocalized') || article.title || '';
+      const sourceContent =
+        getSourceContent('contentMd', 'contentMdLocalized') ||
+        getSourceContent('content', 'contentLocalized') ||
+        article.content ||
+        '';
+      const sourceExcerpt =
+        getSourceContent('excerpt', 'excerptLocalized') ||
+        article.excerpt ||
+        '';
+
+      // 使用批量翻译方法 - 将标题、摘要、正文合并为单个API请求
+      // 这样可以避免碎片化请求导致的429错误
+      const batchResult = await this.batchTranslateArticle(
+        article,
+        data.targetLang,
+        sourceLang,
+      );
+
+      const titleTranslated = batchResult.title;
+      const contentTranslated = batchResult.content;
+      const excerptTranslated = batchResult.excerpt;
+
+      // 保存翻译结果到Localized JSON字段
       const updateData: any = {
         translationStatus: 'COMPLETED',
         translatedAt: new Date(),
       };
 
-      const suffix =
-        data.targetLang.charAt(0).toUpperCase() + data.targetLang.slice(1);
-      updateData[`title${suffix}`] = titleTranslated;
-      updateData[`contentMd${suffix}`] = contentTranslated;
+      // 写入Localized多语言字段，同时保留原始语言内容
+      // 确保源语言内容不为空，如果为空则使用原始字段值
+      updateData.titleLocalized = {
+        ...((article.titleLocalized as any) || {}),
+        [sourceLang]: sourceTitle || article.title || '', // 多重回退确保有值
+        [data.targetLang]: titleTranslated,
+      };
+
+      updateData.contentMdLocalized = {
+        ...((article.contentMdLocalized as any) || {}),
+        [sourceLang]:
+          sourceContent || article.contentMd || article.content || '', // 多重回退
+        [data.targetLang]: contentTranslated,
+      };
       // 自动渲染对应语言HTML
-      updateData[`content${suffix}`] = this.renderMarkdown(contentTranslated);
-      updateData[`excerpt${suffix}`] = excerptTranslated;
+      updateData.contentLocalized = {
+        ...((article.contentLocalized as any) || {}),
+        [sourceLang]:
+          sourceLang === 'zh'
+            ? article.content
+            : this.renderMarkdown(sourceContent || article.content || ''), // 保留原始语言
+        [data.targetLang]: this.renderMarkdown(contentTranslated),
+      };
+
+      updateData.excerptLocalized = {
+        ...((article.excerptLocalized as any) || {}),
+        [sourceLang]: sourceExcerpt || article.excerpt || '', // 确保有值
+        [data.targetLang]: excerptTranslated,
+      };
 
       await this.prisma.blogArticle.update({
         where: { id: data.articleId },
@@ -264,6 +754,233 @@ export class BlogAiProcessor extends WorkerHost {
         success: false,
         error: err instanceof Error ? err.message : 'Unknown error',
         articleId: data.articleId,
+      };
+    }
+  }
+
+  private async processCategoryTranslation(data: {
+    categoryId: string;
+    targetLang: string;
+    sourceLang?: string;
+  }) {
+    this.logger.debug(
+      `Translating category: ${data.categoryId} to ${data.targetLang}`,
+    );
+
+    try {
+      const category = await this.prisma.blogCategory.findUnique({
+        where: { id: data.categoryId },
+      });
+
+      if (!category) {
+        this.logger.warn(`Category ${data.categoryId} not found`);
+        return;
+      }
+
+      // 获取源语言（兼容历史作业没有sourceLang字段的情况）
+      const sourceLang = data.sourceLang || 'zh';
+
+      // 从Localized字段获取源语言内容，如果不存在则使用原始字段
+      // 修复：正确处理JSON对象，提取字符串值
+      const getSourceContent = (field: string, localizedField: string) => {
+        const categoryAny = category as any;
+        const localized = categoryAny[localizedField];
+
+        // 1. 尝试从Localized字段获取
+        if (localized && localized[sourceLang]) {
+          const value = localized[sourceLang];
+          // 如果是字符串，直接返回
+          if (typeof value === 'string') return value;
+          // 如果是对象，尝试提取字符串值
+          if (typeof value === 'object' && value !== null) {
+            // 处理嵌套错误格式：{ en: { zh: "..." } }
+            const firstValue = Object.values(value)[0];
+            if (typeof firstValue === 'string') return firstValue;
+          }
+        }
+
+        // 2. 从原始字段获取
+        const fieldValue = categoryAny[field];
+        if (!fieldValue) return '';
+
+        // 3. 处理JSON对象字段
+        if (typeof fieldValue === 'object' && fieldValue !== null) {
+          // 从JSON对象中提取源语言值
+          if (
+            fieldValue[sourceLang] &&
+            typeof fieldValue[sourceLang] === 'string'
+          ) {
+            return fieldValue[sourceLang];
+          }
+          // 如果没有源语言，尝试获取第一个字符串值
+          const firstValue = Object.values(fieldValue)[0];
+          if (typeof firstValue === 'string') return firstValue;
+          // 如果第一个值也是对象，继续深入提取
+          if (typeof firstValue === 'object' && firstValue !== null) {
+            const deepValue = Object.values(firstValue)[0];
+            if (typeof deepValue === 'string') return deepValue;
+          }
+        }
+
+        // 4. 如果是字符串，直接返回
+        if (typeof fieldValue === 'string') return fieldValue;
+
+        // 5. 其他情况返回空字符串
+        return '';
+      };
+
+      // 执行翻译 - 现在依赖AI服务中的Prompt规则保护技术术语
+      const nameSource = getSourceContent('name', 'nameLocalized');
+      const nameTranslated = await this.aiService.translateText(
+        nameSource,
+        data.targetLang,
+      );
+
+      const descriptionSource = getSourceContent(
+        'description',
+        'descriptionLocalized',
+      );
+      const descriptionTranslated = await this.aiService.translateText(
+        descriptionSource,
+        data.targetLang,
+      );
+
+      // 保存翻译结果到Localized JSON字段
+      const updateData: any = {};
+
+      // 写入现有的name和description字段（已经是JSON类型）
+      const categoryAny = category as any;
+      updateData.name = {
+        ...(categoryAny.name || {}),
+        [data.targetLang]: nameTranslated,
+      };
+
+      updateData.description = {
+        ...(categoryAny.description || {}),
+        [data.targetLang]: descriptionTranslated,
+      };
+
+      await this.prisma.blogCategory.update({
+        where: { id: data.categoryId },
+        data: updateData,
+      });
+
+      this.logger.log(`Category translation completed: ${data.categoryId}`);
+    } catch (err) {
+      this.logger.error(
+        `Category translation failed for ${data.categoryId}`,
+        err,
+      );
+
+      // 不要重新抛出错误，避免队列无限重试
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Unknown error',
+        categoryId: data.categoryId,
+      };
+    }
+  }
+
+  private async processTagTranslation(data: {
+    tagId: string;
+    targetLang: string;
+    sourceLang?: string;
+  }) {
+    this.logger.debug(`Translating tag: ${data.tagId} to ${data.targetLang}`);
+
+    try {
+      const tag = await this.prisma.blogTag.findUnique({
+        where: { id: data.tagId },
+      });
+
+      if (!tag) {
+        this.logger.warn(`Tag ${data.tagId} not found`);
+        return;
+      }
+
+      // 获取源语言（兼容历史作业没有sourceLang字段的情况）
+      const sourceLang = data.sourceLang || 'zh';
+
+      // 从Localized字段获取源语言内容，如果不存在则使用原始字段
+      // 修复：正确处理JSON对象，提取字符串值
+      const getSourceContent = (field: string, localizedField: string) => {
+        const tagAny = tag as any;
+        const localized = tagAny[localizedField];
+
+        // 1. 尝试从Localized字段获取
+        if (localized && localized[sourceLang]) {
+          const value = localized[sourceLang];
+          // 如果是字符串，直接返回
+          if (typeof value === 'string') return value;
+          // 如果是对象，尝试提取字符串值
+          if (typeof value === 'object' && value !== null) {
+            // 处理嵌套错误格式：{ en: { zh: "..." } }
+            const firstValue = Object.values(value)[0];
+            if (typeof firstValue === 'string') return firstValue;
+          }
+        }
+
+        // 2. 从原始字段获取
+        const fieldValue = tagAny[field];
+        if (!fieldValue) return '';
+
+        // 3. 处理JSON对象字段
+        if (typeof fieldValue === 'object' && fieldValue !== null) {
+          // 从JSON对象中提取源语言值
+          if (
+            fieldValue[sourceLang] &&
+            typeof fieldValue[sourceLang] === 'string'
+          ) {
+            return fieldValue[sourceLang];
+          }
+          // 如果没有源语言，尝试获取第一个字符串值
+          const firstValue = Object.values(fieldValue)[0];
+          if (typeof firstValue === 'string') return firstValue;
+          // 如果第一个值也是对象，继续深入提取
+          if (typeof firstValue === 'object' && firstValue !== null) {
+            const deepValue = Object.values(firstValue)[0];
+            if (typeof deepValue === 'string') return deepValue;
+          }
+        }
+
+        // 4. 如果是字符串，直接返回
+        if (typeof fieldValue === 'string') return fieldValue;
+
+        // 5. 其他情况返回空字符串
+        return '';
+      };
+
+      // 执行翻译 - 现在依赖AI服务中的Prompt规则保护技术术语
+      const nameSource = getSourceContent('name', 'nameLocalized');
+      const nameTranslated = await this.aiService.translateText(
+        nameSource,
+        data.targetLang,
+      );
+
+      // 保存翻译结果到Localized JSON字段
+      const updateData: any = {};
+
+      // 写入现有的name字段（已经是JSON类型）
+      const tagAny = tag as any;
+      updateData.name = {
+        ...(tagAny.name || {}),
+        [data.targetLang]: nameTranslated,
+      };
+
+      await this.prisma.blogTag.update({
+        where: { id: data.tagId },
+        data: updateData,
+      });
+
+      this.logger.log(`Tag translation completed: ${data.tagId}`);
+    } catch (err) {
+      this.logger.error(`Tag translation failed for ${data.tagId}`, err);
+
+      // 不要重新抛出错误，避免队列无限重试
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Unknown error',
+        tagId: data.tagId,
       };
     }
   }

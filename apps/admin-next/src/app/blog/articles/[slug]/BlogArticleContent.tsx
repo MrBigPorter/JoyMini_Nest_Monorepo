@@ -15,6 +15,9 @@ import {
 } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import Link from 'next/link';
+import { useAvailableLocales } from '@/hooks/useAvailableLocales';
+import { useLanguage } from '@/hooks/LanguageProvider';
+import { renderLocalizedText } from '@/utils/localizedText';
 
 interface BlogArticleContentProps {
   article: any; // TODO: 定义更精确的类型
@@ -47,16 +50,29 @@ export default function BlogArticleContent({
     }
   };
 
-  // 预览语言切换
-  const [language, setLanguage] = useState<'zh' | 'en'>('zh');
+  // 使用全局语言状态
+  const { locale: currentLocale, setLocale } = useLanguage();
+  const { enabledLocales } = useAvailableLocales();
 
-  // 动态选择语言内容
-  const title =
-    language === 'zh' ? article.title : article.titleEn || article.title;
-  const excerpt =
-    language === 'zh' ? article.excerpt : article.excerptEn || article.excerpt;
-  const content =
-    language === 'zh' ? article.content : article.contentEn || article.content;
+  // 动态选择语言内容 - 支持所有启用语言
+  const getLocalizedValue = (field: string, locale: string = currentLocale) => {
+    // 优先使用Localized字段
+    if (article[`${field}Localized`]?.[locale]) {
+      return article[`${field}Localized`][locale];
+    }
+
+    // 回退到旧字段格式
+    if (locale === 'en' && article[`${field}En`]) {
+      return article[`${field}En`];
+    }
+
+    // 默认返回中文或原始字段
+    return article[field] || '';
+  };
+
+  const title = getLocalizedValue('title', currentLocale);
+  const excerpt = getLocalizedValue('excerpt', currentLocale);
+  const content = getLocalizedValue('content', currentLocale);
 
   // HTML 实体解码函数 - 解决双重/多重编码问题
   // 循环解码直到内容不再变化，可以安全处理任意次数的编码
@@ -171,31 +187,31 @@ export default function BlogArticleContent({
             </div>
           )}
 
-          {/* 语言切换按钮 */}
+          {/* 语言切换按钮 - 动态生成 */}
           <div className="flex justify-end mb-6">
             <div className="inline-flex rounded-md border border-gray-200 dark:border-gray-700">
-              <button
-                type="button"
-                onClick={() => setLanguage('zh')}
-                className={`px-4 py-2 text-sm font-medium transition-colors ${
-                  language === 'zh'
-                    ? 'bg-primary-500 text-white'
-                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
-                }`}
-              >
-                🇨🇳 中文
-              </button>
-              <button
-                type="button"
-                onClick={() => setLanguage('en')}
-                className={`px-4 py-2 text-sm font-medium transition-colors ${
-                  language === 'en'
-                    ? 'bg-primary-500 text-white'
-                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
-                }`}
-              >
-                🇺🇸 English
-              </button>
+              {enabledLocales.map((locale) => (
+                <button
+                  key={locale.code}
+                  type="button"
+                  onClick={() => setLocale(locale.code)}
+                  className={`px-4 py-2 text-sm font-medium transition-colors ${
+                    currentLocale === locale.code
+                      ? 'bg-primary-500 text-white'
+                      : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  {locale.code === 'zh' && '🇨🇳 中文'}
+                  {locale.code === 'en' && '🇺🇸 English'}
+                  {locale.code === 'ja' && '🇯🇵 日本語'}
+                  {locale.code === 'ko' && '🇰🇷 한국어'}
+                  {locale.code === 'fr' && '🇫🇷 Français'}
+                  {locale.code === 'de' && '🇩🇪 Deutsch'}
+                  {!['zh', 'en', 'ja', 'ko', 'fr', 'de'].includes(
+                    locale.code,
+                  ) && `${locale.code.toUpperCase()}`}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -204,7 +220,7 @@ export default function BlogArticleContent({
             <div className="mb-8 rounded-xl overflow-hidden">
               <img
                 src={article.featuredImage}
-                alt={article.title}
+                alt={title}
                 className="w-full h-auto max-h-96 object-cover"
               />
             </div>
@@ -243,11 +259,7 @@ export default function BlogArticleContent({
               <div className="flex items-center">
                 <FolderTree className="h-4 w-4 mr-2" />
                 <span className="px-2.5 py-1 text-xs rounded-full bg-gray-100 dark:bg-white/5">
-                  {typeof article.category.name === 'object'
-                    ? (article.category.name[language] ??
-                      article.category.name.zh ??
-                      article.category.name.en)
-                    : article.category.name}
+                  {renderLocalizedText(article.category.name, currentLocale)}
                 </span>
               </div>
             )}
@@ -271,9 +283,7 @@ export default function BlogArticleContent({
                   key={tag.id || tag}
                   className="px-3 py-1 text-sm rounded-full border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-black/20 text-gray-600 dark:text-gray-300"
                 >
-                  {typeof tag.name === 'object'
-                    ? (tag.name[language] ?? tag.name.zh ?? tag.name.en)
-                    : tag.name || tag}
+                  {renderLocalizedText(tag.name, currentLocale, tag.id || tag)}
                 </span>
               ))}
             </div>

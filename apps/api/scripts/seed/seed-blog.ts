@@ -6,6 +6,10 @@
 
 import { PrismaClient } from '@prisma/client';
 import * as crypto from 'crypto';
+import { loadEnvForHost } from '../utils/load-env-for-host';
+
+// Must run before instantiating PrismaClient
+loadEnvForHost();
 
 const prisma = new PrismaClient();
 
@@ -14,51 +18,45 @@ const prisma = new PrismaClient();
 // ==============================================
 const CATEGORIES = [
   {
-    name: { zh: '后端开发', en: 'Backend Development' },
+    name: { zh: '后端开发' },
     slug: 'backend',
     description: {
       zh: 'NestJS, 数据库, 系统架构, 安全最佳实践',
-      en: 'NestJS, Database, Architecture, Security Practices',
     },
   },
   {
-    name: { zh: '前端开发', en: 'Frontend Development' },
+    name: { zh: '前端开发' },
     slug: 'frontend',
     description: {
       zh: 'Next.js, React, Tailwind CSS, 响应式设计',
-      en: 'Next.js, React, Tailwind, Responsive Design',
     },
   },
   {
-    name: { zh: '运维与部署', en: 'DevOps' },
+    name: { zh: '运维与部署' },
     slug: 'devops',
     description: {
       zh: 'Docker, Kubernetes, CI/CD, 自动化部署',
-      en: 'Docker, Kubernetes, CI/CD, Automation',
     },
   },
   {
-    name: { zh: '系统架构', en: 'System Architecture' },
+    name: { zh: '系统架构' },
     slug: 'architecture',
     description: {
       zh: 'Monorepo 单体仓库, 微服务, 高可用设计',
-      en: 'Monorepo, Microservices, High Availability',
     },
   },
   {
-    name: { zh: '安全防护', en: 'Security' },
+    name: { zh: '安全防护' },
     slug: 'security',
     description: {
       zh: 'XSS 防护, 验证码, 内容过滤, AI 智能审核',
-      en: 'XSS Protection, CAPTCHA, Content Filtering, AI Moderation',
     },
   },
   {
-    name: { zh: '实战项目', en: 'Real World Projects' },
+    name: { zh: '实战项目' },
     slug: 'projects',
     description: {
       zh: '生产环境实战经验, 踩坑记录, 最佳实践',
-      en: 'Production experience, pitfalls, best practices',
     },
   },
 ];
@@ -68,61 +66,69 @@ const CATEGORIES = [
 // ==============================================
 const TAGS = [
   // Backend
-  { name: { zh: 'NestJS', en: 'NestJS' }, slug: 'nestjs', color: '#e0234e' },
-  { name: { zh: 'Prisma', en: 'Prisma' }, slug: 'prisma', color: '#2D3748' },
+  { name: { zh: 'NestJS' }, slug: 'nestjs', color: '#e0234e' },
+  { name: { zh: 'Prisma' }, slug: 'prisma', color: '#2D3748' },
   {
-    name: { zh: 'PostgreSQL', en: 'PostgreSQL' },
+    name: { zh: 'PostgreSQL' },
     slug: 'postgresql',
     color: '#336791',
   },
-  { name: { zh: 'Redis', en: 'Redis' }, slug: 'redis', color: '#dc382d' },
-  { name: { zh: 'BullMQ', en: 'BullMQ' }, slug: 'bullmq', color: '#7248d4' },
+  { name: { zh: 'Redis' }, slug: 'redis', color: '#dc382d' },
+  { name: { zh: 'BullMQ' }, slug: 'bullmq', color: '#7248d4' },
   {
-    name: { zh: 'TypeScript', en: 'TypeScript' },
+    name: { zh: 'TypeScript' },
     slug: 'typescript',
     color: '#3178c6',
   },
 
   // Frontend
-  { name: { zh: 'Next.js', en: 'Next.js' }, slug: 'nextjs', color: '#000000' },
-  { name: { zh: 'React', en: 'React' }, slug: 'react', color: '#61dafb' },
+  { name: { zh: 'Next.js' }, slug: 'nextjs', color: '#000000' },
+  { name: { zh: 'React' }, slug: 'react', color: '#61dafb' },
   {
-    name: { zh: 'Tailwind CSS', en: 'Tailwind CSS' },
+    name: { zh: 'Tailwind CSS' },
     slug: 'tailwind',
     color: '#06b6d4',
   },
   {
-    name: { zh: 'Shadcn UI', en: 'Shadcn UI' },
+    name: { zh: 'Shadcn UI' },
     slug: 'shadcn-ui',
     color: '#000000',
   },
-  { name: { zh: '服务端渲染', en: 'SSR' }, slug: 'ssr', color: '#10b981' },
+  { name: { zh: '服务端渲染' }, slug: 'ssr', color: '#10b981' },
 
   // DevOps
-  { name: 'Docker', slug: 'docker', color: '#2496ed' },
-  { name: 'Cloudflare', slug: 'cloudflare', color: '#f38020' },
-  { name: 'Monorepo', slug: 'monorepo', color: '#f59e0b' },
-  { name: 'Turbo', slug: 'turbo', color: '#ef4444' },
+  { name: { zh: 'Docker' }, slug: 'docker', color: '#2496ed' },
+  { name: { zh: 'Cloudflare' }, slug: 'cloudflare', color: '#f38020' },
+  { name: { zh: 'Monorepo' }, slug: 'monorepo', color: '#f59e0b' },
+  { name: { zh: 'Turbo' }, slug: 'turbo', color: '#ef4444' },
 
   // Security
-  { name: 'XSS', slug: 'xss', color: '#dc2626' },
-  { name: 'ReCaptcha', slug: 'recaptcha', color: '#4285f4' },
-  { name: 'AhoCorasick', slug: 'aho-corasick', color: '#8b5cf6' },
-  { name: 'AI Moderation', slug: 'ai-moderation', color: '#14b8a6' },
+  { name: { zh: 'XSS' }, slug: 'xss', color: '#dc2626' },
+  { name: { zh: 'ReCaptcha' }, slug: 'recaptcha', color: '#4285f4' },
+  { name: { zh: 'AhoCorasick' }, slug: 'aho-corasick', color: '#8b5cf6' },
+  { name: { zh: 'AI Moderation' }, slug: 'ai-moderation', color: '#14b8a6' },
 
   // Architecture
-  { name: 'Microservices', slug: 'microservices', color: '#22c55e' },
-  { name: 'High Availability', slug: 'high-availability', color: '#f97316' },
-  { name: 'Message Queue', slug: 'message-queue', color: '#0ea5e9' },
+  { name: { zh: 'Microservices' }, slug: 'microservices', color: '#22c55e' },
+  {
+    name: { zh: 'High Availability' },
+    slug: 'high-availability',
+    color: '#f97316',
+  },
+  { name: { zh: 'Message Queue' }, slug: 'message-queue', color: '#0ea5e9' },
 
   // AI
-  { name: 'LLM', slug: 'llm', color: '#6366f1' },
-  { name: 'Prompt Engineering', slug: 'prompt-engineering', color: '#ec4899' },
+  { name: { zh: 'LLM' }, slug: 'llm', color: '#6366f1' },
+  {
+    name: { zh: 'Prompt Engineering' },
+    slug: 'prompt-engineering',
+    color: '#ec4899',
+  },
 
   // Best Practices
-  { name: 'Best Practices', slug: 'best-practices', color: '#22c55e' },
-  { name: 'Performance', slug: 'performance', color: '#f59e0b' },
-  { name: 'Error Handling', slug: 'error-handling', color: '#ef4444' },
+  { name: { zh: 'Best Practices' }, slug: 'best-practices', color: '#22c55e' },
+  { name: { zh: 'Performance' }, slug: 'performance', color: '#f59e0b' },
+  { name: { zh: 'Error Handling' }, slug: 'error-handling', color: '#ef4444' },
 ];
 
 // ==============================================
@@ -525,7 +531,7 @@ async function main() {
       },
     });
     createdCategories.push(category);
-    console.log(`  ✅ 分类: ${cat.name}`);
+    console.log(`  ✅ 分类: ${cat.name.zh}`);
   }
 
   // 导入标签
@@ -541,7 +547,7 @@ async function main() {
       },
     });
     tagMap.set(tag.slug, created);
-    console.log(`  ✅ 标签: ${tag.name}`);
+    console.log(`  ✅ 标签: ${tag.name.zh}`);
   }
 
   // 找到默认管理员

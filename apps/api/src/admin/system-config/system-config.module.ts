@@ -7,5 +7,6 @@ import { SystemConfigService } from './system-config.service';
   imports: [PrismaModule],
   controllers: [SystemConfigController],
   providers: [SystemConfigService],
+  exports: [SystemConfigService],
 })
 export class SystemConfigModule {}

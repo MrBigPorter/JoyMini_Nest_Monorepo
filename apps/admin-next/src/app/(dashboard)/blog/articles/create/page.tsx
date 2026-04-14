@@ -10,7 +10,7 @@ import { uploadApi, blogApi } from '@/api';
 import { RichTextEditor } from '@/components/blog/RichTextEditor';
 import { PageHeader } from '@/components/scaffold/PageHeader';
 import { Card } from '@/components/UIComponents';
-import { useBlogForm } from '@/hooks/useBlogForm';
+import { useBlogLocalizedForm } from '@/hooks/useBlogLocalizedForm';
 import { articleSchema, type ArticleFormInputs } from '@/schema/blog';
 import {
   Form,
@@ -19,7 +19,6 @@ import {
   FormSelectField,
 } from '@repo/ui/form';
 import { useLanguage } from '@/hooks/LanguageProvider';
-import { useLocalizedForm } from '@/hooks/useLocalizedForm';
 import { LanguageSwitch } from '@/components/blog/LanguageSwitch';
 
 export default function CreateArticlePage() {
@@ -36,7 +35,7 @@ export default function CreateArticlePage() {
   const [loadingCategories, setLoadingCategories] = useState(false);
   const [loadingTags, setLoadingTags] = useState(false);
 
-  const blogForm = useBlogForm({
+  const blogForm = useBlogLocalizedForm({
     schema: articleSchema,
     defaultValues: {
       title: { zh: '', en: '' },
@@ -46,7 +45,7 @@ export default function CreateArticlePage() {
       tagIds: [],
       status: 'DRAFT',
     },
-    onSubmitAction: async (data: ArticleFormInputs) => {
+    onSubmitAction: async (data: any) => {
       try {
         await blogApi.createArticle(data);
 
@@ -60,15 +59,14 @@ export default function CreateArticlePage() {
     },
   });
 
-  const { form, submitHandler, isLoading } = blogForm;
+  const {
+    form,
+    submitHandler,
+    isLoading,
+    localize,
+    locale: currentLocale,
+  } = blogForm;
   const { watch, setValue } = form;
-
-  const { localize } = useLocalizedForm({
-    watch: form.watch,
-    setValue: form.setValue,
-    errors: form.formState.errors,
-    locale,
-  });
 
   // 上传请求
   const upload = useRequest(uploadApi.uploadMedia, {
@@ -179,7 +177,7 @@ export default function CreateArticlePage() {
               label="Category *"
               placeholder="Select category"
               options={categories.map((c) => ({
-                label: c.name[locale] || c.name.zh,
+                label: (c.name as Record<string, string>)[locale] || c.name.zh,
                 value: c.id,
               }))}
             />
@@ -201,7 +199,8 @@ export default function CreateArticlePage() {
                       }`}
                       onClick={() => handleTagToggle(tag.id)}
                     >
-                      {tag.name[locale] || tag.name.zh}
+                      {(tag.name as Record<string, string>)[locale] ||
+                        tag.name.zh}
                     </button>
                   );
                 })}

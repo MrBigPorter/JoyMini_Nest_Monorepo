@@ -18,6 +18,7 @@ import { blogApi } from '@/api';
 import { PageHeader } from '@/components/scaffold/PageHeader';
 import { BlogTagModal } from '@/views/blog/BlogTagModal';
 import { ModalManager } from '@repo/ui';
+import { renderLocalizedText } from '@/utils/localizedText';
 
 export default function TagsPage() {
   const [search, setSearch] = useState('');
@@ -173,9 +174,7 @@ export default function TagsPage() {
                   </div>
                   <div className="ml-3">
                     <h3 className="font-semibold">
-                      {typeof tag.name === 'object'
-                        ? String(Object.values(tag.name)[0])
-                        : String(tag.name)}
+                      {renderLocalizedText(tag.name, 'zh', tag.id)}
                     </h3>
                     <code className="text-xs text-muted-foreground">
                       /{tag.slug}
@@ -198,9 +197,7 @@ export default function TagsPage() {
                 </div>
               </div>
               <p className="text-sm text-muted-foreground mb-4">
-                {tag.description && typeof tag.description === 'object'
-                  ? String(Object.values(tag.description)[0])
-                  : String(tag.description || '')}
+                {renderLocalizedText(tag.description, 'zh', 'No description')}
               </p>
               <div className="flex items-center justify-between text-xs">
                 <div className="flex items-center space-x-3">

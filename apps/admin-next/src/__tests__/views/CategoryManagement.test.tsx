@@ -20,17 +20,10 @@ vi.mock('@/api', () => ({
     toggleCategoryStatus: vi.fn().mockResolvedValue({}),
   },
 }));
-vi.mock('@/views/category/EditCategoryModal', () => ({
-  EditCategoryModal: ({ onClose }: { onClose: () => void }) => (
-    <div data-testid="edit-modal">
-      <button onClick={onClose}>Close Edit</button>
-    </div>
-  ),
-}));
-vi.mock('@/views/category/CreateCategoryModal', () => ({
-  CreateCategoryModal: ({ onClose }: { onClose: () => void }) => (
-    <div data-testid="create-modal">
-      <button onClick={onClose}>Close Create</button>
+vi.mock('@/views/blog/BlogCategoryModal', () => ({
+  BlogCategoryModal: ({ onCloseAction }: { onCloseAction: () => void }) => (
+    <div data-testid="blog-category-modal">
+      <button onClick={onCloseAction}>Close Blog Category</button>
     </div>
   ),
 }));

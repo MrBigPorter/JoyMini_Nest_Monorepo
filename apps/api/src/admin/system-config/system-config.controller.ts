@@ -71,4 +71,40 @@ export class SystemConfigController {
   ) {
     return this.service.toggleLocale(code, body.enabled);
   }
+
+  /**
+   * GET /v1/admin/system-config/translation/default-source-lang
+   * 获取当前默认源语言配置
+   */
+  @Get('translation/default-source-lang')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  async getDefaultSourceLang() {
+    const code = await this.service.get<string>(
+      'blog.translation.defaultSourceLang',
+      'zh',
+    );
+
+    const locales = await this.service.getEnabledLocales();
+    const locale = locales.list.find((l) => l.code === code);
+
+    return {
+      code,
+      name: locale?.name || code,
+      nativeName: locale?.nativeName || code,
+    };
+  }
+
+  /**
+   * PATCH /v1/admin/system-config/translation/default-source-lang
+   * 更新默认源语言配置
+   */
+  @Patch('translation/default-source-lang')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  async updateDefaultSourceLang(@Body() body: { code: string }) {
+    await this.service.update('blog.translation.defaultSourceLang', {
+      value: JSON.stringify(body.code),
+    });
+
+    return { success: true };
+  }
 }

@@ -119,4 +119,76 @@ export class BlogController {
   ) {
     return this.blogService.unpublishArticle(id, userId);
   }
+
+  @Post('articles/:id/translate')
+  @ApiBearerAuth()
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiOperation({ summary: '手动触发文章翻译' })
+  async translateArticle(
+    @CurrentUserId() userId: string,
+    @Param('id') id: string,
+    @Body() body: { targetLang?: string },
+  ) {
+    return this.blogService.translateArticle(id, userId, body?.targetLang);
+  }
+
+  @Get('translation-progress')
+  @ApiBearerAuth()
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiOperation({ summary: '获取翻译进度统计' })
+  async getTranslationProgress() {
+    return this.blogService.getTranslationProgress();
+  }
+
+  @Get('translation-jobs')
+  @ApiBearerAuth()
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiOperation({ summary: '获取翻译任务列表' })
+  async getTranslationJobs() {
+    return this.blogService.getTranslationJobs();
+  }
+
+  @Get('translation-logs')
+  @ApiBearerAuth()
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiOperation({ summary: '获取翻译日志' })
+  async getTranslationLogs(
+    @Query('page') page?: number,
+    @Query('pageSize') pageSize?: number,
+  ) {
+    return this.blogService.getTranslationLogs({
+      page: page ? Number(page) : 1,
+      pageSize: pageSize ? Number(pageSize) : 20,
+    });
+  }
+
+  @Get('translation-issues')
+  @ApiBearerAuth()
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiOperation({ summary: '检测翻译问题' })
+  async getTranslationIssues(@Query('languageCode') languageCode?: string) {
+    return this.blogService.detectTranslationIssues(languageCode);
+  }
+
+  @Post('translation-fix-batch')
+  @ApiBearerAuth()
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiOperation({ summary: '批量修复翻译问题' })
+  async fixTranslationIssuesBatch(
+    @Body() body: {
+      articleIds?: string[];
+      languageCode?: string;
+      issueTypes?: string[];
+    },
+  ) {
+    return this.blogService.fixTranslationIssuesBatch(body);
+  }
+
+  @Get('enabled-languages')
+  @ApiBearerAuth()
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiOperation({ summary: '获取启用语言列表' })
+  async getEnabledLanguages() {
+    return this.blogService.getEnabledLanguages();
+  }
 }

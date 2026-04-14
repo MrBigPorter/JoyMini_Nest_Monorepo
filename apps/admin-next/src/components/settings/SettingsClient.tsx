@@ -11,6 +11,8 @@ import {
   Plus,
   Trash2,
   Globe,
+  Languages,
+  AlertTriangle,
 } from 'lucide-react';
 import { PageHeader } from '@/components/scaffold/PageHeader';
 import { systemConfigApi } from '@/api';
@@ -46,6 +48,19 @@ const CONFIG_META: Record<string, { label: string; description?: string }> = {
   kyc_required: {
     label: 'KYC Required',
     description: '1 = required, 0 = optional',
+  },
+  'blog.translation.defaultSourceLang': {
+    label: '翻译默认源语言',
+    description: 'AI翻译的默认源语言，默认为中文(zh)',
+  },
+  'blog.translation.sourceLangDetection': {
+    label: '源语言检测策略',
+    description:
+      'auto|manual|hybrid (hybrid: 优先使用Localized字段检测，失败时使用系统默认值)',
+  },
+  'blog.translation.fallbackChain': {
+    label: '源语言回退链',
+    description: 'JSON数组，按顺序尝试，如["zh", "en", "ja", "ko", "fr", "de"]',
   },
 };
 
@@ -298,7 +313,7 @@ interface SystemConfigProps {
   initialData?: SystemConfigListResult;
 }
 
-type Tab = 'general' | 'locales';
+type Tab = 'general' | 'locales' | 'translation';
 
 function LocaleSettingsContent() {
   const { locales, toggleLocale, loading } = useAvailableLocales();
@@ -338,6 +353,140 @@ function LocaleSettingsContent() {
           <li>重新打开语言时，之前的翻译会自动恢复</li>
           <li>新启用的语言会在后台自动开始翻译所有历史内容</li>
           <li>默认语言 (中文) 无法关闭</li>
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+function TranslationSettingsContent() {
+  const {
+    data: sourceLang,
+    loading,
+    mutate,
+    error,
+  } = useRequest(() => systemConfigApi.getDefaultSourceLang(), {
+    onError: (error) => {
+      console.error('Failed to load source language:', error);
+    },
+  });
+
+  const { data: localesData } = useRequest(() => systemConfigApi.getLocales());
+  const enabledLocales = localesData?.list?.filter((l) => l.enabled) || [];
+
+  const [saving, setSaving] = useState(false);
+
+  const handleUpdateSourceLang = async (code: string) => {
+    setSaving(true);
+    try {
+      await systemConfigApi.updateDefaultSourceLang(code);
+      mutate({ code, name: code, nativeName: code }); // Update local cache
+    } catch (error) {
+      console.error('Failed to update source language:', error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return <div className="p-8 text-center animate-pulse">加载翻译设置...</div>;
+  }
+
+  if (error) {
+    return (
+      <div className="p-8 text-center text-red-600">
+        <AlertTriangle className="mx-auto mb-2" />
+        加载失败，请刷新页面
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* 源语言配置 */}
+      <div className="rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-gray-900 p-6">
+        <h3 className="text-lg font-semibold mb-4">源语言配置</h3>
+        <p className="text-sm text-gray-500 mb-6">
+          设置AI翻译的默认源语言。当创建多语言内容时，系统会以此语言作为翻译的基准。
+        </p>
+
+        <div className="space-y-4">
+          <div className="flex items-center justify-between py-3 border-b border-gray-100 dark:border-white/5">
+            <div>
+              <div className="font-medium">当前源语言</div>
+              <div className="text-sm text-gray-500">
+                {sourceLang?.nativeName ||
+                  sourceLang?.name ||
+                  sourceLang?.code ||
+                  'zh'}{' '}
+                (代码: {sourceLang?.code || 'zh'})
+              </div>
+            </div>
+            <div className="text-sm font-medium text-teal-600">
+              {saving ? '保存中...' : '已配置'}
+            </div>
+          </div>
+
+          <div className="pt-4">
+            <div className="text-sm font-medium mb-3">选择新的源语言</div>
+            <div className="flex flex-wrap gap-2">
+              {enabledLocales.map((locale) => (
+                <button
+                  key={locale.code}
+                  onClick={() => handleUpdateSourceLang(locale.code)}
+                  disabled={saving || locale.code === sourceLang?.code}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    locale.code === sourceLang?.code
+                      ? 'bg-teal-100 text-teal-700 border border-teal-200'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-white/5 dark:text-gray-300 dark:hover:bg-white/10'
+                  } ${saving ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  {locale.nativeName}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 翻译策略配置 */}
+      <div className="rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-gray-900 p-6">
+        <h3 className="text-lg font-semibold mb-4">翻译策略配置</h3>
+        <p className="text-sm text-gray-500 mb-6">
+          这些配置控制AI翻译的行为和策略。修改后会影响所有新内容的翻译。
+        </p>
+
+        <div className="space-y-4">
+          <div className="flex items-center justify-between py-3 border-b border-gray-100 dark:border-white/5">
+            <div>
+              <div className="font-medium">源语言检测策略</div>
+              <div className="text-sm text-gray-500">
+                auto|manual|hybrid (hybrid:
+                优先使用Localized字段检测，失败时使用系统默认值)
+              </div>
+            </div>
+            <div className="text-sm text-gray-500">通过系统配置管理</div>
+          </div>
+
+          <div className="flex items-center justify-between py-3 border-b border-gray-100 dark:border-white/5">
+            <div>
+              <div className="font-medium">源语言回退链</div>
+              <div className="text-sm text-gray-500">
+                JSON数组，按顺序尝试，如["zh", "en", "ja", "ko", "fr", "de"]
+              </div>
+            </div>
+            <div className="text-sm text-gray-500">通过系统配置管理</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
+        <p className="font-medium mb-2">💡 翻译配置说明</p>
+        <ul className="list-disc list-inside space-y-1">
+          <li>源语言是AI翻译的基准语言，建议设置为内容最多的语言</li>
+          <li>修改源语言不会影响已有的翻译内容</li>
+          <li>新创建的内容会使用新的源语言进行翻译</li>
+          <li>翻译策略配置可以在"通用配置"标签页中修改</li>
         </ul>
       </div>
     </div>
@@ -399,6 +548,17 @@ export function SystemConfig({ initialData }: SystemConfigProps) {
           <Globe size={16} />
           语言设置
         </button>
+        <button
+          onClick={() => setActiveTab('translation')}
+          className={`px-4 py-3 text-sm font-medium flex items-center gap-2 border-b-2 transition-colors ${
+            activeTab === 'translation'
+              ? 'border-teal-500 text-teal-600 dark:text-teal-400'
+              : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+          }`}
+        >
+          <Languages size={16} />
+          翻译设置
+        </button>
       </div>
 
       {activeTab === 'general' && (
@@ -450,6 +610,7 @@ export function SystemConfig({ initialData }: SystemConfigProps) {
       )}
 
       {activeTab === 'locales' && <LocaleSettingsContent />}
+      {activeTab === 'translation' && <TranslationSettingsContent />}
 
       <div className="text-xs text-gray-400 px-1">
         💡 Press{' '}
