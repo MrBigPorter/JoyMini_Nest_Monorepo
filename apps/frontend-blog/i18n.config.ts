@@ -45,11 +45,34 @@ function getAvailableLocales(): string[] {
 }
 
 export default getRequestConfig(async ({ locale }) => {
-  const availableLocales = getAvailableLocales();
+  // 优先从API获取启用的语言列表，如果API失败则使用文件扫描
+  let availableLocales: string[] = [];
+
+  try {
+    // 在服务器端调用API获取启用的语言列表
+    const response = await fetch(
+      'http://localhost:3001/v1/client/system-config/locales',
+    );
+    if (response.ok) {
+      const data = await response.json();
+      const enabledLocales = data.list
+        .filter((locale: any) => locale.enabled)
+        .map((locale: any) => locale.code);
+      availableLocales = enabledLocales;
+    } else {
+      throw new Error(`API returned ${response.status}`);
+    }
+  } catch (error) {
+    console.warn(
+      'Failed to fetch locales from API, falling back to file scan:',
+      error,
+    );
+    availableLocales = getAvailableLocales();
+  }
 
   // 处理可能的undefined locale
   let currentLocale = locale || 'zh';
-  
+
   // 验证语言是否支持
   if (!availableLocales.includes(currentLocale)) {
     // 回退到默认语言

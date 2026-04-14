@@ -77,9 +77,7 @@ export default function SearchPage() {
             {t('search.title')}
           </h1>
         </div>
-        <p className="text-lg text-muted-foreground">
-          {t('search.subtitle')}
-        </p>
+        <p className="text-lg text-muted-foreground">{t('search.subtitle')}</p>
       </header>
 
       {/* 搜索框 */}
@@ -113,9 +111,9 @@ export default function SearchPage() {
           <div className="p-4 rounded-lg border border-border bg-muted/30 mb-6">
             <div className="flex items-center gap-3">
               <FileText className="w-5 h-5 text-muted-foreground" />
-          <span className="text-muted-foreground">
-            {t('search.result', { count: results.length })}
-          </span>
+              <span className="text-muted-foreground">
+                {t('search.result', { count: results.length })}
+              </span>
             </div>
           </div>
 

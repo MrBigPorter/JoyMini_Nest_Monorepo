@@ -12,4 +12,10 @@ export class ClientSystemConfigController {
   getAll() {
     return this.service.getAll();
   }
+
+  /** GET /v1/client/system-config/locales — 获取已启用的语言列表（公共接口） */
+  @Get('locales')
+  async getLocales() {
+    return this.service.getEnabledLocales();
+  }
 }
