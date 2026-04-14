@@ -7,7 +7,7 @@
 ## 🎯 Current Task (Start Here for Each Conversation)
 
 **Phase**: Phase 7 Blog System Development — Week 2 Frontend UI Refactoring & API Integration  
-**Last Update**: Blog system 100% backend completed + 前端API集成完成 + 翻译源语言配置修复 + 全面进度分析完成 (2026-04-14)
+**Last Update**: Blog system 100% backend completed + 前端API集成完成 + 翻译源语言配置修复 + 全面进度分析完成 + 国际化配置TypeScript错误修复 (2026-04-14)
 **Immediate Action**:
 
 ### ✅ Blog System Backend 100% Completed
@@ -846,6 +846,10 @@ yarn test:admin          # Run admin frontend tests
    - 修复了`blog-ai.processor.ts`中的`sourceLang`属性不存在问题
    - 修复了动态索引类型的TypeScript错误
    - 使用类型断言`as any`解决了动态访问`article[field]`的类型安全问题
+   - **国际化配置TypeScript错误修复**：
+     - 修复了`public-system-config.controller.ts`中的类型不匹配错误
+     - 控制器返回`{ list: { list: [...] } }`而不是`{ list: [...] }`
+     - 修复后TypeScript编译通过，无类型错误
 
 3. **依赖注入错误修复**：
    - 修复了NestJS容器启动时的依赖注入错误
