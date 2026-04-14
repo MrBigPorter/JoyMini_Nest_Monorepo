@@ -63,7 +63,8 @@ const mockCategoryArticles = [
     id: 1,
     title: 'Lucky Nest 2.0 正式发布：全新界面与性能提升',
     slug: 'lucky-nest-2-0-release',
-    excerpt: '我们很高兴宣布 Lucky Nest 2.0 正式发布，带来了全新的用户界面、大幅的性能提升以及众多新功能。',
+    excerpt:
+      '我们很高兴宣布 Lucky Nest 2.0 正式发布，带来了全新的用户界面、大幅的性能提升以及众多新功能。',
     publishedAt: '2026-04-01',
     readTime: 5,
     coverImage: 'https://picsum.photos/seed/cat1/800/400',
@@ -72,7 +73,8 @@ const mockCategoryArticles = [
     id: 2,
     title: '全新通知系统上线',
     slug: 'new-notification-system',
-    excerpt: '实时推送、多渠道通知、自定义偏好设置，全新通知系统让你不会错过任何重要更新。',
+    excerpt:
+      '实时推送、多渠道通知、自定义偏好设置，全新通知系统让你不会错过任何重要更新。',
     publishedAt: '2026-03-28',
     readTime: 3,
     coverImage: 'https://picsum.photos/seed/cat2/800/400',
@@ -81,7 +83,8 @@ const mockCategoryArticles = [
     id: 3,
     title: '移动端 App 1.5 版本更新',
     slug: 'mobile-app-1-5-update',
-    excerpt: 'iOS 和 Android 客户端迎来 1.5 版本更新，支持离线模式、深色模式优化以及性能改进。',
+    excerpt:
+      'iOS 和 Android 客户端迎来 1.5 版本更新，支持离线模式、深色模式优化以及性能改进。',
     publishedAt: '2026-03-20',
     readTime: 4,
     coverImage: 'https://picsum.photos/seed/cat3/800/400',
@@ -96,13 +99,15 @@ interface CategoryPageProps {
 
 export default function CategoryPage({ params }: CategoryPageProps) {
   const t = useTranslations();
-  const category = mockCategories.find(c => c.slug === params.slug);
+  const category = mockCategories.find((c) => c.slug === params.slug);
 
   if (!category) {
     return (
       <div className="max-w-5xl mx-auto px-4 py-8 md:py-12">
         <div className="text-center py-20">
-          <h1 className="text-2xl font-bold mb-4">{t('categories.notFound')}</h1>
+          <h1 className="text-2xl font-bold mb-4">
+            {t('categories.notFound')}
+          </h1>
           <Link href="/categories" className="text-primary hover:underline">
             {t('common.backToCategories')}
           </Link>
@@ -115,7 +120,10 @@ export default function CategoryPage({ params }: CategoryPageProps) {
     <div className="max-w-5xl mx-auto px-4 py-8 md:py-12">
       {/* 返回按钮 */}
       <div className="mb-6">
-        <Link href="/categories" className="inline-flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors">
+        <Link
+          href="/categories"
+          className="inline-flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors"
+        >
           <ArrowLeft className="w-4 h-4" />
           {t('common.backToCategories')}
         </Link>
@@ -126,9 +134,7 @@ export default function CategoryPage({ params }: CategoryPageProps) {
         <div className="flex items-center gap-4 mb-4">
           <div className="text-5xl">{category.icon}</div>
           <div>
-            <h1 className="text-3xl md:text-4xl font-bold">
-              {category.name}
-            </h1>
+            <h1 className="text-3xl md:text-4xl font-bold">{category.name}</h1>
             <p className="text-lg text-muted-foreground mt-2">
               {category.description}
             </p>

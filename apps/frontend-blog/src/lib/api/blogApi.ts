@@ -113,6 +113,22 @@ export const blogApi = {
       q: query,
       ...params,
     }),
+
+  // ================= 系统配置接口 =================
+
+  /**
+   * 获取已启用的语言列表
+   */
+  getEnabledLocales: () =>
+    http.get<{
+      list: Array<{
+        code: string;
+        name: string;
+        nativeName: string;
+        enabled: boolean;
+        isDefault: boolean;
+      }>;
+    }>('/v1/client/system-config/locales'),
 };
 
 export default blogApi;

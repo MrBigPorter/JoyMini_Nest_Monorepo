@@ -200,13 +200,43 @@
 #### 🔴 最高优先级: 国际化架构改造 (立即执行)
 
 **预计时间**: 3小时
+**核心原则**: 语言显示基于系统配置，而非硬编码常量
+
 **任务**:
 
-1. 在 `packages/shared` 创建 `LocalizedString` 类型定义
-2. 实现全局 `LanguageContext` 和 `useLanguage` Hook
-3. Blog模块后端兼容迁移
-4. Admin前端多语言表单零 if else 改造
-5. 升级Header语言切换为全局状态
+1. **分析现有API接口** (30分钟)
+   - 检查 `systemConfigApi.getLocales()` API权限要求
+   - 确定 frontend-blog 如何安全调用语言配置API
+   - 评估是否需要创建公共版本的语言配置接口
+
+2. **创建 frontend-blog 的 hooks** (1小时)
+   - 复制 `useAvailableLocales` hook 到 frontend-blog
+   - 适配公共API调用 (可能需要 `/v1/public/system-config/locales`)
+   - 添加缓存和错误处理机制
+
+3. **更新 frontend-blog 配置** (1小时)
+   - 修改 `i18n.config.ts` - 从API获取支持的语言列表
+   - 修改 `navigation.ts` - 使用动态语言列表
+   - 修改 `Header.tsx` - 只显示启用的语言选项
+   - 移除所有硬编码的 `['zh-CN', 'en']` 引用
+
+4. **测试和验证** (30分钟)
+   - 验证语言切换功能正常工作
+   - 测试不同配置下的显示效果
+   - 确保API失败时的回退机制
+
+**技术要点**:
+
+- **API权限**: frontend-blog 需要公共API端点获取语言配置
+- **缓存策略**: 使用 TanStack Query 缓存，设置5分钟有效期
+- **回退机制**: API失败时回退到默认语言 (zh, en)
+- **统一标识符**: 统一使用 `zh` 而非 `zh-CN`
+
+**目标**:
+
+- 统一 frontend-blog 与 admin-next 的语言配置来源
+- 实现动态语言启用/禁用管理
+- 所有前端应用从系统配置读取启用的语言列表
 
 #### 🟠 高优先级: 前端博客API集成
 

@@ -9,7 +9,7 @@ import {
   MoreHorizontal,
   ChevronDown,
   ChevronUp,
-  LogIn
+  LogIn,
 } from 'lucide-react';
 import { Link } from '@/navigation';
 
@@ -67,7 +67,7 @@ const mockComments = [
 ];
 
 interface CommentProps {
-  comment: typeof mockComments[0];
+  comment: (typeof mockComments)[0];
   depth?: number;
 }
 
@@ -84,7 +84,9 @@ function Comment({ comment, depth = 0 }: CommentProps) {
   };
 
   return (
-    <div className={`${depth > 0 ? 'ml-10 border-l-2 border-border pl-4' : ''}`}>
+    <div
+      className={`${depth > 0 ? 'ml-10 border-l-2 border-border pl-4' : ''}`}
+    >
       <div className="flex gap-4 py-4">
         <img
           src={comment.author.avatar}
@@ -95,7 +97,9 @@ function Comment({ comment, depth = 0 }: CommentProps) {
           <div className="flex items-start justify-between gap-2">
             <div>
               <span className="font-semibold">{comment.author.name}</span>
-              <span className="text-sm text-muted-foreground ml-3">{comment.createdAt}</span>
+              <span className="text-sm text-muted-foreground ml-3">
+                {comment.createdAt}
+              </span>
             </div>
             <button className="text-muted-foreground hover:text-foreground">
               <MoreHorizontal className="w-4 h-4" />
@@ -110,7 +114,9 @@ function Comment({ comment, depth = 0 }: CommentProps) {
             <button
               onClick={handleLike}
               className={`flex items-center gap-1.5 text-sm transition-colors ${
-                isLiked ? 'text-red-500' : 'text-muted-foreground hover:text-foreground'
+                isLiked
+                  ? 'text-red-500'
+                  : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               <Heart className={`w-4 h-4 ${isLiked ? 'fill-current' : ''}`} />
@@ -155,8 +161,14 @@ function Comment({ comment, depth = 0 }: CommentProps) {
             onClick={() => setShowReplies(!showReplies)}
             className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-2"
           >
-            {showReplies ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-            <span>{t('comment.repliesCount', { count: comment.replies.length })}</span>
+            {showReplies ? (
+              <ChevronUp className="w-4 h-4" />
+            ) : (
+              <ChevronDown className="w-4 h-4" />
+            )}
+            <span>
+              {t('comment.repliesCount', { count: comment.replies.length })}
+            </span>
           </button>
 
           {showReplies && (
@@ -179,16 +191,16 @@ export default function CommentList() {
     <section className="mt-16">
       <header className="flex items-center gap-3 mb-8">
         <MessageSquare className="w-6 h-6 text-primary" />
-        <h2 className="text-2xl font-bold">
-          {t('comment.title')}
-        </h2>
+        <h2 className="text-2xl font-bold">{t('comment.title')}</h2>
         <span className="text-muted-foreground">({mockComments.length})</span>
       </header>
 
       {/* 评论输入框 */}
       <div className="mb-8">
         <div className="p-6 rounded-xl border border-border bg-muted/30 text-center">
-          <p className="text-muted-foreground mb-4">{t('comment.loginRequired')}</p>
+          <p className="text-muted-foreground mb-4">
+            {t('comment.loginRequired')}
+          </p>
           <Link
             href="/login"
             className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors"
