@@ -18,13 +18,18 @@
 
 ## 📋 开发计划 `plans/`
 
-| 文档                                                                                 | 说明             | 状态          |
-| ------------------------------------------------------------------------------------ | ---------------- | ------------- |
-| [FRONTEND_DEVELOPMENT_PLAN.md](plans/FRONTEND_DEVELOPMENT_PLAN.md)                   | 前端开发路线图   | ✅            |
-| [FRONTEND_BLOG_INITIALIZATION_GUIDE.md](plans/FRONTEND_BLOG_INITIALIZATION_GUIDE.md) | 前端初始化指南   | ✅            |
-| [PRODUCTION_READINESS_CHECKLIST.md](plans/PRODUCTION_READINESS_CHECKLIST.md)         | 生产环境检查清单 | ✅            |
-| [NATIVE_FEATURES_ROADMAP.md](plans/NATIVE_FEATURES_ROADMAP.md)                       | 原生功能路线图   | ✅            |
-| [BLOG_SECURITY_REFORM_PLAN.md](plans/BLOG_SECURITY_REFORM_PLAN.md)                   | 安全改造计划     | ⚠️ 进行中 50% |
+| 文档                                                                                     | 说明             | 状态          |
+| ---------------------------------------------------------------------------------------- | ---------------- | ------------- |
+| [FRONTEND_DEVELOPMENT_PLAN.md](plans/FRONTEND_DEVELOPMENT_PLAN.md)                       | 前端开发路线图   | ✅            |
+| [FRONTEND_BLOG_INITIALIZATION_GUIDE.md](plans/FRONTEND_BLOG_INITIALIZATION_GUIDE.md)     | 前端初始化指南   | ✅            |
+| [PRODUCTION_READINESS_CHECKLIST.md](plans/PRODUCTION_READINESS_CHECKLIST.md)             | 生产环境检查清单 | ✅            |
+| [NATIVE_FEATURES_ROADMAP.md](plans/NATIVE_FEATURES_ROADMAP.md)                           | 原生功能路线图   | ✅            |
+| [BLOG_SECURITY_REFORM_PLAN.md](plans/BLOG_SECURITY_REFORM_PLAN.md)                       | 安全改造计划     | ⚠️ 进行中 50% |
+| [BLOG_ISSUES_FIX_PLAN.md](plans/BLOG_ISSUES_FIX_PLAN.md)                                 | 问题修复方案     | ⚠️ 进行中 30% |
+| [BLOG_MODAL_I18N_FIX_IMPLEMENTATION.md](plans/BLOG_MODAL_I18N_FIX_IMPLEMENTATION.md)     | 模态框多语言修复 | ⚠️ 进行中 20% |
+| [localized-form-fix-plan.md](plans/localized-form-fix-plan.md)                           | 本地化表单修复   | ⚠️ 进行中 40% |
+| [translation-issue-detection-fix-plan.md](plans/translation-issue-detection-fix-plan.md) | 翻译问题检测     | ⚠️ 进行中 60% |
+| [translation-progress-monitor-plan.md](plans/translation-progress-monitor-plan.md)       | 翻译进度监控     | ⚠️ 进行中 70% |
 
 ---
 
@@ -59,10 +64,12 @@
 
 ## 🌐 国际化 `i18n/`
 
-| 文档                                                                    | 说明           | 状态 |
-| ----------------------------------------------------------------------- | -------------- | ---- |
-| [I18N_NEXT_INTL_V3_FULL_GUIDE.md](i18n/I18N_NEXT_INTL_V3_FULL_GUIDE.md) | 国际化完整指南 | ✅   |
-| [I18N_TRANSLATIONS_GUIDE.md](i18n/I18N_TRANSLATIONS_GUIDE.md)           | 翻译工作指南   | ✅   |
+| 文档                                                                                              | 说明                            | 状态 |
+| ------------------------------------------------------------------------------------------------- | ------------------------------- | ---- |
+| [BLOG_I18N_ARCHITECTURE_AND_IMPLEMENTATION.md](i18n/BLOG_I18N_ARCHITECTURE_AND_IMPLEMENTATION.md) | 博客多语言架构与完整实施文档    | ✅   |
+| [I18N_NEXT_INTL_V3_FULL_GUIDE.md](i18n/I18N_NEXT_INTL_V3_FULL_GUIDE.md)                           | Next.js + next-intl v3 技术指南 | ✅   |
+| [I18N_TRANSLATIONS_GUIDE.md](i18n/I18N_TRANSLATIONS_GUIDE.md)                                     | 翻译文案规范                    | ✅   |
+| [IMAGE_TRANSLATION_IMPLEMENTATION.md](i18n/IMAGE_TRANSLATION_IMPLEMENTATION.md)                   | 图片翻译技术实现                | ✅   |
 
 ---
 
@@ -77,6 +84,9 @@
 
 ---
 
-> **最后更新**: 2026-04-07
-> **文档总数**: 18 个
-> **完成进度**: 94%
+> **最后更新**: 2026-04-14
+> **文档总数**: 21 个
+> **完成进度**: 95%
+> **最新进展**: seed-blog.ts 已成功运行，博客种子数据就绪，翻译系统工作正常
+> **结构调整**: 4个博客相关文档已从根目录plans/迁移到docs/blog/plans/
+> **文档清理**: 2个冗余文档已删除（博客多语言功能改进建议.md、自动翻译功能验证报告.md）
