@@ -18,7 +18,7 @@ const inter = Inter({
   variable: '--font-inter',
 });
 
-const locales = ['zh-CN', 'en'] as const;
+const locales = ['zh', 'en'] as const;
 
 //  元数据放在语言层布局，以后可以支持多语言SEO标题
 export const metadata: Metadata = {
