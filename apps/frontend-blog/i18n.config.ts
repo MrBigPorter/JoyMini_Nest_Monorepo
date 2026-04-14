@@ -36,7 +36,8 @@ function getAvailableLocales(): string[] {
       .map((fileCode) => FILE_TO_LOCALE[fileCode] || fileCode);
 
     // 去重（可能多个文件映射到同一个语言）
-    return [...new Set(locales)];
+    const uniqueLocales = Array.from(new Set(locales));
+    return uniqueLocales;
   } catch (error) {
     console.warn('Failed to scan messages directory, using defaults:', error);
     return ['zh', 'en']; // 默认回退
@@ -46,25 +47,28 @@ function getAvailableLocales(): string[] {
 export default getRequestConfig(async ({ locale }) => {
   const availableLocales = getAvailableLocales();
 
+  // 处理可能的undefined locale
+  let currentLocale = locale || 'zh';
+  
   // 验证语言是否支持
-  if (!availableLocales.includes(locale)) {
+  if (!availableLocales.includes(currentLocale)) {
     // 回退到默认语言
-    locale = 'zh';
+    currentLocale = 'zh';
   }
 
   // 获取对应的文件名
-  const fileCode = LOCALE_TO_FILE[locale] || locale;
+  const fileCode = LOCALE_TO_FILE[currentLocale] || currentLocale;
 
   try {
     const messages = (await import(`./src/messages/${fileCode}.json`)).default;
     return {
-      locale,
+      locale: currentLocale,
       messages,
     };
   } catch (error) {
     // 文件加载失败，回退到默认语言
     console.warn(
-      `Failed to load messages for ${locale}, falling back to zh:`,
+      `Failed to load messages for ${currentLocale}, falling back to zh:`,
       error,
     );
 
