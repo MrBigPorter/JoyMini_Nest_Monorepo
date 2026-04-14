@@ -9,6 +9,7 @@ build-backend:
     - docker:27-dind
   tags:
     - saas-linux-large-amd64
+  resource_group: build-backend
 
   rules:
     - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "test"

@@ -4,6 +4,7 @@
 
 check:
   stage: check
+  resource_group: ci/$CI_COMMIT_REF_SLUG
 
   script:
     # Git 配置修复 - Yarn PNP 必须
