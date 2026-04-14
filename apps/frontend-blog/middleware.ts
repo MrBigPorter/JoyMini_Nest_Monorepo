@@ -2,10 +2,13 @@
 import createMiddleware from 'next-intl/middleware';
 
 export default createMiddleware({
-  locales: ['zh-CN', 'en'],
-  defaultLocale: 'zh-CN',
+  // 支持的语言列表，与 navigation.ts 保持一致
+  // 实际语言启用状态由 i18n.config.ts 从系统配置API动态获取
+  locales: ['zh', 'en', 'ja', 'ko', 'fr', 'de'],
+  defaultLocale: 'zh',
   localeDetection: true,
-  // 建议设为 'as-needed' 或 'always' 视你需求而定
+  // RC版本临时使用 always 模式，as-needed 模式在RC版有BUG
+  // 等 next-intl 3.0 正式版发布后再切回 as-needed
   localePrefix: 'always',
 });
 

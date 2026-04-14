@@ -14,6 +14,9 @@ import { createNavigation } from 'next-intl/navigation';
 // 注意：这里不再硬编码，实际语言列表由 i18n.config.ts 动态获取
 // 为了类型安全，我们仍然定义一个基础类型
 export type Locale = 'zh' | 'en' | 'ja' | 'ko' | 'fr' | 'de';
+
+// 动态语言列表 - 实际值由 i18n.config.ts 在运行时确定
+// 这里提供一个默认值，实际使用时会从系统配置API获取
 export const locales: readonly Locale[] = [
   'zh',
   'en',
@@ -28,6 +31,7 @@ export const locales: readonly Locale[] = [
 export const localePrefix = 'always';
 
 //  next-intl v3 RC 版本使用 createNavigation API
+// 注意：这里的 locales 配置是静态的，但实际路由验证由 i18n.config.ts 处理
 export const { Link, redirect, usePathname, useRouter } = createNavigation({
   locales,
   localePrefix,
