@@ -21,12 +21,18 @@
   "categories": {
     "title": "文章分类",
     "subtitle": "浏览所有文章分类，找到你感兴趣的内容",
-    "notFound": "该分类不存在"
+    "notFound": "该分类不存在",
+    "empty": "暂无分类",
+    "emptyArticles": "暂时还没有相关文章",
+    "emptyDescription": "这个分类下的内容正在准备中，您可以先看看其他分类的文章"
   },
   "tags": {
     "title": "标签云",
     "subtitle": "按主题浏览所有文章标签",
-    "notFound": "该标签不存在"
+    "notFound": "该标签不存在",
+    "empty": "暂无标签",
+    "emptyArticles": "还没有使用此标签的文章",
+    "emptyDescription": "看看其他热门标签的文章吧"
   },
   "home": {
     "title": "最新文章",

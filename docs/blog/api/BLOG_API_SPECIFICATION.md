@@ -37,6 +37,50 @@ https://api.luckynest.com/v1/public/blog
 | 40400  | 资源不存在 |
 | 50000  | 服务器错误 |
 
+### 1.4 多语言支持
+
+博客API支持多语言内容返回。系统会自动根据以下优先级检测语言：
+
+1. **查询参数**：`?lang=zh`（显式控制，优先级最高）
+2. **Accept-Language 请求头**：`Accept-Language: zh-CN,zh;q=0.9,en;q=0.8`
+3. **默认语言**：'zh'
+
+#### 支持的语言代码
+
+| 语言代码 | 说明     | 支持的变体                          |
+| -------- | -------- | ----------------------------------- |
+| `zh`     | 简体中文 | `zh-CN`, `zh-Hans`, `zh`            |
+| `en`     | 英文     | `en-US`, `en-GB`, `en`              |
+| `ja`     | 日文     | `ja-JP`, `ja`                       |
+| `ko`     | 韩文     | `ko-KR`, `ko`                       |
+| `fr`     | 法文     | `fr-FR`, `fr`                       |
+| `de`     | 德文     | `de-DE`, `de`                       |
+
+#### 使用示例
+
+1. **使用查询参数指定语言**：
+   ```http
+   GET /v1/public/blog/articles?lang=en&page=1
+   ```
+
+2. **使用 Accept-Language 头部**：
+   ```http
+   GET /v1/public/blog/articles
+   Accept-Language: ja-JP,ja;q=0.9,en;q=0.8
+   ```
+
+3. **前端集成示例**：
+   ```typescript
+   // 自动使用当前语言
+   const { data } = await blogApi.getArticles({ page: 1 });
+   
+   // 显式指定语言
+   const { data } = await blogApi.getArticles({ 
+     page: 1,
+     lang: 'en' // 覆盖默认语言
+   });
+   ```
+
 ---
 
 ## 2. 文章接口

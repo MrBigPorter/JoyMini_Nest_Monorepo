@@ -73,12 +73,18 @@
   "categories": {
     "title": "Categories",
     "subtitle": "Browse all article categories",
-    "notFound": "Category not found"
+    "notFound": "Category not found",
+    "empty": "No categories yet",
+    "emptyArticles": "No articles in this category yet",
+    "emptyDescription": "Content for this category is being prepared. You can check out other categories in the meantime."
   },
   "tags": {
     "title": "Tags",
     "subtitle": "Browse articles by topic",
-    "notFound": "Tag not found"
+    "notFound": "Tag not found",
+    "empty": "No tags yet",
+    "emptyArticles": "No articles with this tag yet",
+    "emptyDescription": "Check out other popular tags for interesting articles."
   },
   "search": {
     "title": "Search Articles",

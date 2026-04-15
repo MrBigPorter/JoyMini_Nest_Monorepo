@@ -175,7 +175,8 @@ export class BlogController {
   @UseGuards(AdminJwtAuthGuard)
   @ApiOperation({ summary: '批量修复翻译问题' })
   async fixTranslationIssuesBatch(
-    @Body() body: {
+    @Body()
+    body: {
       articleIds?: string[];
       languageCode?: string;
       issueTypes?: string[];

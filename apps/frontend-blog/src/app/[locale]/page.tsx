@@ -1,13 +1,13 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { useArticles } from '@/lib/hooks/useArticles';
+import { useFrontendArticles } from '@/lib/hooks/useFrontendArticles';
 import { ArticleCard } from '@/components/blog/ArticleCard';
 import { Loader2 } from 'lucide-react';
 
 export default function HomePage() {
   const t = useTranslations();
-  const { data, isLoading, error } = useArticles({
+  const { data, isLoading, error } = useFrontendArticles({
     page: 1,
     pageSize: 10,
   });
@@ -29,7 +29,7 @@ export default function HomePage() {
     );
   }
 
-  const articles = data?.list || [];
+  const articles = data?.items || [];
 
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 py-12 md:py-16">

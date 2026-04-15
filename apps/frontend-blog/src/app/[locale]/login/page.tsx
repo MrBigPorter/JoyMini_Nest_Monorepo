@@ -2,31 +2,87 @@
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import {
-  LogIn,
-  Github,
-  Mail,
-  Lock,
-  Eye,
-  EyeOff,
-  ArrowRight,
-} from 'lucide-react';
+import { useRouter } from '@/navigation';
+import { LogIn, Github, Mail, Lock, ArrowRight, RefreshCw } from 'lucide-react';
 import { Link } from '@/navigation';
+import { useAuth } from '@/lib/hooks/useAuth';
+import { authApi } from '@/lib/api/authApi';
+import { LoginGuard } from '@/components/auth/ProtectedRoute';
 
 export default function LoginPage() {
   const t = useTranslations();
-  const [showPassword, setShowPassword] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
+  const { loginWithEmail, isLoading } = useAuth();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [email, setEmail] = useState('');
+  const [code, setCode] = useState('');
+  const [isSendingCode, setIsSendingCode] = useState(false);
+  const [countdown, setCountdown] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSendCode = async () => {
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setError(t('auth.invalidEmail'));
+      return;
+    }
+
+    try {
+      setIsSendingCode(true);
+      setError(null);
+
+      // 调用真实的发送验证码 API
+      await authApi.sendEmailCode({ email });
+
+      // 开始倒计时
+      setCountdown(60);
+      const timer = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } catch (err: any) {
+      setError(err.message || t('auth.sendCodeFailed'));
+    } finally {
+      setIsSendingCode(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-    // Mock 登录逻辑 - 后续对接API
-    setTimeout(() => {
-      setIsLoading(false);
-    }, 1500);
+    setError(null);
+
+    if (!email || !code) {
+      setError(t('auth.fillAllFields'));
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setError(t('auth.invalidEmail'));
+      return;
+    }
+
+    if (code.length !== 6 || !/^\d+$/.test(code)) {
+      setError(t('auth.invalidCode'));
+      return;
+    }
+
+    try {
+      await loginWithEmail(email, code);
+      // 登录成功后重定向
+      const redirectPath = sessionStorage.getItem('redirectAfterLogin');
+      if (redirectPath) {
+        sessionStorage.removeItem('redirectAfterLogin');
+        router.push(redirectPath);
+      } else {
+        router.push('/');
+      }
+    } catch (err: any) {
+      setError(err.message || t('auth.loginFailed'));
+    }
   };
 
   return (
@@ -56,41 +112,51 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* 密码输入 */}
+            {/* 验证码输入 */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <label className="text-sm font-medium">
-                  {t('auth.password')}
+                  {t('auth.verificationCode')}
                 </label>
-                <Link
-                  href="/forgot-password"
-                  className="text-sm text-primary hover:underline"
+                <button
+                  type="button"
+                  onClick={handleSendCode}
+                  disabled={isSendingCode || countdown > 0}
+                  className="text-sm text-primary hover:underline disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
                 >
-                  {t('auth.forgotPassword')}
-                </Link>
+                  {isSendingCode ? (
+                    <>
+                      <RefreshCw className="w-3 h-3 animate-spin" />
+                      {t('auth.sending')}
+                    </>
+                  ) : countdown > 0 ? (
+                    `${t('auth.resendIn')} ${countdown}s`
+                  ) : (
+                    t('auth.sendCode')
+                  )}
+                </button>
               </div>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                 <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder={t('auth.passwordPlaceholder')}
-                  className="w-full pl-10 pr-12 py-3 rounded-xl border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
+                  type="text"
+                  value={code}
+                  onChange={(e) =>
+                    setCode(e.target.value.replace(/\D/g, '').slice(0, 6))
+                  }
+                  placeholder={t('auth.codePlaceholder')}
+                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
+                  maxLength={6}
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  {showPassword ? (
-                    <EyeOff className="w-5 h-5" />
-                  ) : (
-                    <Eye className="w-5 h-5" />
-                  )}
-                </button>
               </div>
             </div>
+
+            {/* 错误提示 */}
+            {error && (
+              <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm">
+                {error}
+              </div>
+            )}
 
             {/* 登录按钮 */}
             <button

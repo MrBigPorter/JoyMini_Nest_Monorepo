@@ -70,6 +70,8 @@
 | [I18N_NEXT_INTL_V3_FULL_GUIDE.md](i18n/I18N_NEXT_INTL_V3_FULL_GUIDE.md)                           | Next.js + next-intl v3 技术指南 | ✅   |
 | [I18N_TRANSLATIONS_GUIDE.md](i18n/I18N_TRANSLATIONS_GUIDE.md)                                     | 翻译文案规范                    | ✅   |
 | [IMAGE_TRANSLATION_IMPLEMENTATION.md](i18n/IMAGE_TRANSLATION_IMPLEMENTATION.md)                   | 图片翻译技术实现                | ✅   |
+| [MULTILINGUAL_API_DESIGN.md](i18n/MULTILINGUAL_API_DESIGN.md)                                     | 多语言API接口设计规范           | ✅   |
+| [HTTP_CLIENT_MULTILINGUAL_SUPPORT.md](i18n/HTTP_CLIENT_MULTILINGUAL_SUPPORT.md)                   | HTTP客户端多语言支持实现        | ✅   |
 
 ---
 
@@ -85,20 +87,31 @@
 ---
 
 > **最后更新**: 2026-04-14
-> **文档总数**: 21 个
-> **完成进度**: 95%
+> **文档总数**: 23 个
+> **完成进度**: 96%
 > **最新进展**:
 >
 > - ✅ seed-blog.ts 已成功运行，博客种子数据就绪
 > - ✅ 翻译系统工作正常，源语言配置修复完成
+> - ✅ 多语言API后端实现完成 (LanguageService + BlogService集成)
+> - ✅ HTTP客户端多语言支持集成完成 (next-intl + SSR兼容)
 > - 🔄 前端博客UI开发100%完成，API集成进行中
-> - ⚠️ 国际化架构改造为最高优先级待办事项
+>
+> **多语言架构实现完成**:
+>
+> 1. ✅ **后端LanguageService** - 完整的语言解析服务，支持优先级：查询参数 > Accept-Language头部 > 默认语言
+> 2. ✅ **BlogService集成** - 已注入LanguageService并更新了多语言字段处理
+> 3. ✅ **PublicBlogController更新** - 在API端点中集成了LanguageService
+> 4. ✅ **HTTP客户端集成** - 支持查询参数、next-intl集成、SSR环境语言检测
+> 5. ✅ **API文档更新** - 详细说明了多语言支持机制
+> 6. ✅ **设计文档完善** - 新增2个多语言相关文档
 >
 > **下一步计划**:
 >
-> 1. 国际化架构改造 (立即执行)
-> 2. 前端博客API集成
-> 3. 翻译管理系统开发 (Week 3)
+> 1. 前端博客API集成 (立即执行)
+> 2. 翻译管理系统开发 (Week 3)
+> 3. 多语言内容管理界面优化
 >
 > **结构调整**: 4个博客相关文档已从根目录plans/迁移到docs/blog/plans/
 > **文档清理**: 2个冗余文档已删除（博客多语言功能改进建议.md、自动翻译功能验证报告.md）
+> **新增文档**: 2个多语言实现文档 (MULTILINGUAL_API_DESIGN.md, HTTP_CLIENT_MULTILINGUAL_SUPPORT.md)

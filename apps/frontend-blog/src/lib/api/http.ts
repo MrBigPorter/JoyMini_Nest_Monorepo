@@ -6,6 +6,8 @@ import axios, {
   InternalAxiosRequestConfig,
 } from 'axios';
 import type { ApiResponse, RequestConfig } from './types';
+import { useAuthStore } from '@/lib/stores/auth.store';
+import { withLocale } from '@/lib/utils/locale';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 class HttpClient {
@@ -67,7 +69,13 @@ class HttpClient {
           config.headers['Accept-Language'] = lang;
         }
 
-        // 2. 去重请求 key
+        // 2. 认证 token
+        const { accessToken } = useAuthStore.getState();
+        if (accessToken) {
+          config.headers.Authorization = `Bearer ${accessToken}`;
+        }
+
+        // 3. 去重请求 key
         if (method !== 'get') {
           const key = this.genKey(config);
           if (this.requestQueue.has(key)) {
@@ -84,7 +92,7 @@ class HttpClient {
           this.requestQueue.add(key);
         }
 
-        // 3. dev 日志
+        // 4. dev 日志
         if (process.env.NODE_ENV === 'development') {
           console.log(
             `[HTTP Request] ${config.method?.toUpperCase()} ${config.url}`,
@@ -142,6 +150,22 @@ class HttpClient {
             this.pendingControllers.delete(key);
           }
         }
+
+        // 处理 token 过期
+        if (error.response?.status === 401 && !error.config._retry) {
+          try {
+            return await this.handleTokenRefresh(error);
+          } catch (refreshError) {
+            // 刷新失败，清除认证状态
+            useAuthStore.getState().logout();
+            // 如果是客户端环境，重定向到登录页（带语言前缀）
+            if (typeof window !== 'undefined') {
+              window.location.href = withLocale('/login');
+            }
+            return Promise.reject(refreshError);
+          }
+        }
+
         this.handleHttpError(error);
         // 防止 unhandledrejection 事件被 Next.js dev overlay 捕获显示为红色堆栈。
         const httpRejection = Promise.reject(error);
@@ -159,8 +183,102 @@ class HttpClient {
   }
 
   private getLanguage(): string {
-    if (typeof window === 'undefined') return 'en';
-    return localStorage.getItem('lang') || 'en';
+    // 优先使用查询参数
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const langParam = urlParams.get('lang');
+      if (langParam) return this.normalizeLanguageCode(langParam);
+    }
+
+    // SSR环境：尝试从全局变量获取语言
+    // next-intl 在SSR环境下会将语言信息注入到全局变量中
+    if (typeof globalThis !== 'undefined') {
+      // 尝试从全局变量获取 next-intl 的语言
+      const globalLocale = (globalThis as any).__NEXT_INTL_LOCALE__;
+      if (globalLocale) {
+        return this.normalizeLanguageCode(globalLocale);
+      }
+    }
+
+    // 客户端环境：与 next-intl 集成
+    if (typeof window !== 'undefined') {
+      // 1. 尝试从URL路径获取语言（next-intl使用路径前缀）
+      const pathname = window.location.pathname;
+      // 匹配 /en/, /zh/, /ja/ 等语言前缀
+      const pathLocaleMatch = pathname.match(/^\/([a-z]{2})(?:\/|$)/);
+      if (pathLocaleMatch) {
+        const pathLocale = pathLocaleMatch[1];
+        return this.normalizeLanguageCode(pathLocale);
+      }
+
+      // 2. 尝试从cookie获取（next-intl默认使用NEXT_LOCALE cookie）
+      const cookieLocale = this.getCookie('NEXT_LOCALE');
+      if (cookieLocale) {
+        return this.normalizeLanguageCode(cookieLocale);
+      }
+
+      // 3. 尝试从localStorage获取
+      // next-intl 通常将语言存储在 'next-intl' 或 'NEXT_LOCALE' 中
+      const nextIntlLocale =
+        localStorage.getItem('next-intl') ||
+        localStorage.getItem('NEXT_LOCALE');
+      if (nextIntlLocale) {
+        try {
+          const localeData = JSON.parse(nextIntlLocale);
+          const locale = localeData.locale || localeData;
+          if (locale) return this.normalizeLanguageCode(locale);
+        } catch {
+          // 如果不是JSON，直接使用
+          return this.normalizeLanguageCode(nextIntlLocale);
+        }
+      }
+
+      // 4. 回退到旧的 localStorage 'lang'
+      const oldLang = localStorage.getItem('lang');
+      if (oldLang) return this.normalizeLanguageCode(oldLang);
+    }
+
+    // 默认返回中文
+    return 'zh';
+  }
+
+  /**
+   * 从cookie中获取指定名称的值
+   */
+  private getCookie(name: string): string | null {
+    if (typeof document === 'undefined') return null;
+
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) {
+      const cookieValue = parts.pop()?.split(';').shift();
+      return cookieValue || null;
+    }
+    return null;
+  }
+
+  /**
+   * 规范化语言代码
+   * 将各种语言变体映射到标准代码
+   */
+  private normalizeLanguageCode(code: string): string {
+    const mappings: Record<string, string> = {
+      'zh-CN': 'zh',
+      'zh-Hans': 'zh',
+      'zh-Hant': 'zh', // 繁体中文也映射到简体
+      'en-US': 'en',
+      'en-GB': 'en',
+      'en-CA': 'en',
+      'ja-JP': 'ja',
+      'ko-KR': 'ko',
+      'fr-FR': 'fr',
+      'de-DE': 'de',
+      'es-ES': 'es',
+    };
+
+    // 移除地区后缀，如 zh-CN -> zh
+    const baseCode = code.split('-')[0].toLowerCase();
+    return mappings[code] || baseCode;
   }
 
   // ================= 错误处理 =================
@@ -210,6 +328,47 @@ class HttpClient {
         '[HTTP Error]',
         error.message || 'Unexpected error occurred',
       );
+    }
+  }
+
+  /**
+   * 处理 token 刷新
+   */
+  private async handleTokenRefresh(error: any): Promise<any> {
+    const originalRequest = error.config;
+    originalRequest._retry = true;
+
+    const { refreshToken } = useAuthStore.getState();
+    if (!refreshToken) {
+      throw new Error('No refresh token available');
+    }
+
+    try {
+      // 调用刷新 token 接口
+      const response = await this.instance.post(
+        '/v1/client/auth/refresh-token',
+        {
+          refreshToken,
+        },
+      );
+
+      const { data } = response.data;
+      const { accessToken, refreshToken: newRefreshToken } = data;
+
+      // 更新 store 中的 token
+      useAuthStore.getState().setTokens({
+        accessToken,
+        refreshToken: newRefreshToken,
+      });
+
+      // 更新原始请求的 Authorization header
+      originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+
+      // 重试原始请求
+      return this.instance(originalRequest);
+    } catch (refreshError) {
+      console.error('[HTTP] Token refresh failed:', refreshError);
+      throw refreshError;
     }
   }
 

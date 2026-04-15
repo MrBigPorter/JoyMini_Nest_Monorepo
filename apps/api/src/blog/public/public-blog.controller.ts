@@ -8,11 +8,13 @@ import {
   Body,
   UseGuards,
   UsePipes,
+  Req,
 } from '@nestjs/common';
 import { CacheTTL } from '@nestjs/cache-manager';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { BlogService } from '../blog.service';
+import { LanguageService } from '@api/common/services/language.service';
 import { ArticleStatus } from '@prisma/client';
 import { OtpThrottlerGuard } from '@api/common/guards/otp-throttler.guard';
 import { CurrentUserId } from '@api/common/decorators/user.decorator';
@@ -20,22 +22,29 @@ import { JwtAuthGuard } from '@api/common/jwt/jwt.guard';
 import { LikeDeduplicationGuard } from '../guards/like-deduplication.guard';
 import { SensitiveWordFilterPipe } from '../pipes/sensitive-word-filter.pipe';
 import { RecaptchaGuard } from '../guards/recaptcha.guard';
+import { Request } from 'express';
 
 @ApiTags('Blog Public')
-@Controller('v1/public/blog')
+@Controller('public/blog')
 export class PublicBlogController {
-  constructor(private readonly blogService: BlogService) {}
+  constructor(
+    private readonly blogService: BlogService,
+    private readonly languageService: LanguageService,
+  ) {}
 
   @Get('articles')
   @ApiOperation({ summary: '公开文章列表' })
   @CacheTTL(300) // 缓存5分钟
   async getPublicArticles(
+    @Req() req: Request,
     @Query('page') page?: number,
     @Query('pageSize') pageSize?: number,
     @Query('categoryId') categoryId?: string,
     @Query('tagId') tagId?: string,
     @Query('search') search?: string,
   ) {
+    // 解析请求语言
+    const locale = this.languageService.resolveLanguage(req);
     return this.blogService.getArticles({
       page,
       pageSize,
@@ -43,14 +52,23 @@ export class PublicBlogController {
       categoryId,
       tagId,
       search,
+      locale,
     });
   }
 
   @Get('articles/:slug')
   @ApiOperation({ summary: '根据 Slug 获取公开文章' })
   @CacheTTL(600) // 缓存10分钟
-  async getPublicArticleBySlug(@Param('slug') slug: string) {
-    return this.blogService.getArticleBySlug(slug, false);
+  async getPublicArticleBySlug(
+    @Param('slug') slug: string,
+    @Req() req: Request,
+  ) {
+    // 解析请求语言
+    const locale = this.languageService.resolveLanguage(req);
+    // 前端博客需要处理嵌套的分类和标签对象，返回当前语言的字符串
+    return this.blogService.getArticleBySlug(slug, false, locale, {
+      processNested: true,
+    });
   }
 
   @Get('articles/popular')

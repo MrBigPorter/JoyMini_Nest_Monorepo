@@ -1,48 +1,66 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { Hash, FileText } from 'lucide-react';
+import { Hash, FileText, Loader2, Home, Flame } from 'lucide-react';
 import { Link } from '@/navigation';
-
-// Mock 标签数据
-const mockTags = [
-  { id: 1, name: 'Next.js', slug: 'nextjs', count: 15, color: '#000000' },
-  { id: 2, name: 'React', slug: 'react', count: 21, color: '#61dafb' },
-  {
-    id: 3,
-    name: 'TypeScript',
-    slug: 'typescript',
-    count: 18,
-    color: '#3178c6',
-  },
-  { id: 4, name: 'Tailwind', slug: 'tailwind', count: 12, color: '#06b6d4' },
-  { id: 5, name: 'NestJS', slug: 'nestjs', count: 9, color: '#e0234e' },
-  { id: 6, name: 'Prisma', slug: 'prisma', count: 7, color: '#2d3748' },
-  { id: 7, name: '性能优化', slug: 'performance', count: 6, color: '#10b981' },
-  { id: 8, name: '用户体验', slug: 'ux', count: 8, color: '#8b5cf6' },
-  { id: 9, name: 'DevOps', slug: 'devops', count: 5, color: '#f59e0b' },
-  {
-    id: 10,
-    name: '架构设计',
-    slug: 'architecture',
-    count: 4,
-    color: '#ef4444',
-  },
-  {
-    id: 11,
-    name: '最佳实践',
-    slug: 'best-practices',
-    count: 11,
-    color: '#0ea5e9',
-  },
-  { id: 12, name: '安全', slug: 'security', count: 3, color: '#84cc16' },
-  { id: 13, name: 'AI', slug: 'ai', count: 7, color: '#a855f7' },
-  { id: 14, name: '测试', slug: 'testing', count: 5, color: '#ec4899' },
-  { id: 15, name: 'CI/CD', slug: 'cicd', count: 4, color: '#14b8a6' },
-];
+import { EmptyContentState } from '@/components/blog/EmptyContentState';
+import { useFrontendTags } from '@/lib/hooks/useFrontendArticles';
 
 export default function TagsPage() {
   const t = useTranslations();
+  const { data: tags, isLoading, error } = useFrontendTags();
+
+  if (isLoading) {
+    return (
+      <div className="max-w-5xl mx-auto px-4 py-8 md:py-12">
+        <div className="flex flex-col items-center justify-center py-20">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="mt-4 text-slate-500">{t('common.loading')}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="max-w-5xl mx-auto px-4 py-8 md:py-12">
+        <div className="flex flex-col items-center justify-center py-20">
+          <p className="text-red-500">{t('common.error')}</p>
+        </div>
+      </div>
+    );
+  }
+
+  const tagList = tags || [];
+  const totalArticles = tagList.reduce(
+    (sum: number, tag) => sum + tag.articleCount,
+    0,
+  );
+
+  // 生成标签颜色函数
+  const getTagColor = (tagName: string) => {
+    const colors = [
+      '#000000',
+      '#61dafb',
+      '#3178c6',
+      '#06b6d4',
+      '#e0234e',
+      '#2d3748',
+      '#10b981',
+      '#8b5cf6',
+      '#f59e0b',
+      '#ef4444',
+      '#0ea5e9',
+      '#84cc16',
+      '#a855f7',
+      '#ec4899',
+      '#14b8a6',
+    ];
+    const index =
+      tagName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) %
+      colors.length;
+    return colors[index];
+  };
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 md:py-12">
@@ -57,20 +75,25 @@ export default function TagsPage() {
 
       {/* 标签墙 */}
       <div className="flex flex-wrap gap-3 mb-16">
-        {mockTags.map((tag) => (
-          <Link
-            key={tag.id}
-            href={`/tags/${tag.slug}`}
-            className="group inline-flex items-center gap-2 px-4 py-2 rounded-full border border-border bg-card hover:border-primary/50 hover:bg-accent/50 transition-all duration-200"
-          >
-            <span
-              className="w-3 h-3 rounded-full"
-              style={{ backgroundColor: tag.color }}
-            />
-            <span className="font-medium">{tag.name}</span>
-            <span className="text-sm text-muted-foreground">({tag.count})</span>
-          </Link>
-        ))}
+        {tagList.map((tag) => {
+          const color = getTagColor(tag.name);
+          return (
+            <Link
+              key={tag.id}
+              href={`/tags/${tag.slug}`}
+              className="group inline-flex items-center gap-2 px-4 py-2 rounded-full border border-border bg-card hover:border-primary/50 hover:bg-accent/50 transition-all duration-200"
+            >
+              <span
+                className="w-3 h-3 rounded-full"
+                style={{ backgroundColor: color }}
+              />
+              <span className="font-medium">{tag.name}</span>
+              <span className="text-sm text-muted-foreground">
+                ({tag.articleCount})
+              </span>
+            </Link>
+          );
+        })}
       </div>
 
       {/* 统计信息 */}
@@ -79,12 +102,34 @@ export default function TagsPage() {
           <FileText className="w-5 h-5 text-muted-foreground" />
           <span className="text-muted-foreground">
             {t('common.totalTags', {
-              count: mockTags.length,
-              total: mockTags.reduce((sum, tag) => sum + tag.count, 0),
+              count: tagList.length,
+              total: totalArticles,
             })}
           </span>
         </div>
       </div>
+
+      {tagList.length === 0 && (
+        <EmptyContentState
+          type="tag"
+          title={t('tags.empty')}
+          description="标签正在准备中，您可以先浏览热门文章"
+          actions={[
+            {
+              label: t('common.backToHome'),
+              href: '/',
+              variant: 'primary',
+              icon: <Home className="w-4 h-4" />,
+            },
+            {
+              label: '浏览热门文章',
+              href: '/',
+              variant: 'outline',
+              icon: <Flame className="w-4 h-4" />,
+            },
+          ]}
+        />
+      )}
     </div>
   );
 }
