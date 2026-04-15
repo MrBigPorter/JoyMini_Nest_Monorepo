@@ -1,76 +1,105 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
+import { useRouter } from '@/navigation';
 import { Bookmark, FileText } from 'lucide-react';
 import { ArticleCard } from '@/components/blog/ArticleCard';
-
-// Mock 收藏文章数据
-const mockBookmarkedArticles = [
-  {
-    id: 1,
-    title: 'Next.js 15 新特性全面解析',
-    slug: 'nextjs-15-features',
-    excerpt: '深入解析 Next.js 15 带来的所有新特性和改进',
-    publishedAt: '2026-04-05',
-    readingTime: '8 分钟',
-    coverImage: 'https://picsum.photos/id/1/600/400',
-  },
-  {
-    id: 2,
-    title: 'React 19 Server Components 最佳实践',
-    slug: 'react-19-server-components',
-    excerpt: '如何正确使用 React 19 的服务端组件',
-    publishedAt: '2026-04-03',
-    readingTime: '12 分钟',
-    coverImage: 'https://picsum.photos/id/2/600/400',
-  },
-  {
-    id: 3,
-    title: 'Tailwind CSS v4 迁移指南',
-    slug: 'tailwind-v4-migration',
-    excerpt: '从 v3 迁移到 v4 的完整步骤和注意事项',
-    publishedAt: '2026-04-01',
-    readingTime: '6 分钟',
-    coverImage: 'https://picsum.photos/id/3/600/400',
-  },
-];
+import { EmptyState } from '@/components/ui/EmptyState';
+import { PageSkeleton } from '@/components/ui/PageSkeleton';
+import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
+import { blogApi } from '@/lib/api/blogApi';
+import useSWR from 'swr';
 
 export default function BookmarksPage() {
   const t = useTranslations();
+  const router = useRouter();
+
+  const { data, isLoading, error } = useSWR(
+    '/bookmarks',
+    () => blogApi.getBookmarks({ page: 1, pageSize: 12 }),
+    {
+      revalidateOnFocus: false,
+      shouldRetryOnError: false,
+    },
+  );
+
+  if (isLoading) {
+    return (
+      <div className="max-w-5xl mx-auto px-4 py-8 md:py-12">
+        <PageSkeleton />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="max-w-5xl mx-auto px-4 py-8 md:py-12">
+        <div className="text-center py-16">
+          <h2 className="text-xl font-semibold text-red-600 mb-2">
+            {t('common.loadFailed')}
+          </h2>
+          <p className="text-muted-foreground">{t('bookmarks.loadFailed')}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-4 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+          >
+            {t('common.retry')}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const bookmarks = data?.items || data?.list || [];
+  const total = data?.total || 0;
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8 md:py-12">
-      {/* 页面标题 */}
-      <header className="mb-10">
-        <div className="flex items-center gap-3 mb-4">
-          <Bookmark className="w-8 h-8 text-primary" />
-          <h1 className="text-3xl md:text-4xl font-bold">
-            {t('bookmarks.title')}
-          </h1>
-        </div>
-        <p className="text-lg text-muted-foreground">
-          {t('bookmarks.subtitle')}
-        </p>
-      </header>
+    <ProtectedRoute>
+      <div className="max-w-5xl mx-auto px-4 py-8 md:py-12">
+        {/* 页面标题 */}
+        <header className="mb-10">
+          <div className="flex items-center gap-3 mb-4">
+            <Bookmark className="w-8 h-8 text-primary" />
+            <h1 className="text-3xl md:text-4xl font-bold">
+              {t('bookmarks.title')}
+            </h1>
+          </div>
+          <p className="text-lg text-muted-foreground">
+            {t('bookmarks.subtitle')}
+          </p>
+        </header>
 
-      {/* 收藏文章列表 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-16">
-        {mockBookmarkedArticles.map((article) => (
-          <ArticleCard key={article.id} article={article} />
-        ))}
-      </div>
+        {/* 收藏文章列表 */}
+        {bookmarks.length === 0 ? (
+          <EmptyState
+            type="bookmarks"
+            title={t('bookmarks.emptyTitle')}
+            description={t('bookmarks.emptyDescription')}
+            actionText={t('bookmarks.browseArticles')}
+            onAction={() => router.push('/articles')}
+          />
+        ) : (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-16">
+              {bookmarks.map((article) => (
+                <ArticleCard key={article.id} article={article} />
+              ))}
+            </div>
 
-      {/* 统计信息 */}
-      <div className="p-6 rounded-xl border border-border bg-muted/30">
-        <div className="flex items-center gap-3">
-          <FileText className="w-5 h-5 text-muted-foreground" />
-          <span className="text-muted-foreground">
-            {t('bookmarks.totalCount', {
-              count: mockBookmarkedArticles.length,
-            })}
-          </span>
-        </div>
+            {/* 统计信息 */}
+            <div className="p-6 rounded-xl border border-border bg-muted/30">
+              <div className="flex items-center gap-3">
+                <FileText className="w-5 h-5 text-muted-foreground" />
+                <span className="text-muted-foreground">
+                  {t('bookmarks.totalCount', {
+                    count: total,
+                  })}
+                </span>
+              </div>
+            </div>
+          </>
+        )}
       </div>
-    </div>
+    </ProtectedRoute>
   );
 }

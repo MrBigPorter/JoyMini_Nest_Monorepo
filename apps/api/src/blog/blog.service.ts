@@ -14,6 +14,7 @@ import { Marked } from 'marked';
 import type { LocalizedString } from '@lucky/shared';
 import { getLocalizedValue, DEFAULT_LOCALE } from '@lucky/shared';
 import { SystemConfigService } from '../admin/system-config/system-config.service';
+import { LanguageService } from '@api/common/services/language.service';
 
 @Injectable()
 export class BlogService {
@@ -24,6 +25,7 @@ export class BlogService {
     private prisma: PrismaService,
     @InjectQueue('blog-ai') private blogAiQueue: Queue,
     private systemConfigService: SystemConfigService,
+    private languageService: LanguageService,
   ) {
     this.marked = new Marked({
       gfm: true,
@@ -423,7 +425,9 @@ export class BlogService {
     ]);
 
     // 应用 Localized 转换，传递语言参数
-    const mappedItems = items.map((item) => this.mapArticleToLocalized(item, locale));
+    const mappedItems = items.map((item) =>
+      this.mapArticleToLocalized(item, locale),
+    );
 
     return {
       items: mappedItems,
@@ -438,7 +442,12 @@ export class BlogService {
    * 将数据库文章转换为 Localized 格式 (双向兼容层)
    * 注意：content 字段保持原始格式，因为翻译处理器需要字符串
    */
-  private mapArticleToLocalized(article: any, locale: string = 'zh') {
+  private mapArticleToLocalized(
+    article: any,
+    locale: string = 'zh',
+    options: { processNested?: boolean } = {},
+  ) {
+    const { processNested = false } = options;
     const fields = ['title', 'excerpt', 'coverImage']; // 移除 content 和 contentMd
     const allLocales = ['zh', 'en', 'ja', 'ko', 'fr', 'de'];
 
@@ -501,14 +510,27 @@ export class BlogService {
       }
     }
 
+    // 如果需要处理嵌套的分类和标签对象
+    if (processNested) {
+      if (result.category) {
+        result.category = this.mapCategoryToLocalized(result.category, locale);
+      }
+      if (result.tags && Array.isArray(result.tags)) {
+        result.tags = result.tags.map((tag: any) =>
+          this.mapTagToLocalized(tag, locale),
+        );
+      }
+    }
+
     return result;
   }
 
   /**
    * 将数据库分类转换为标准 Localized 格式
    * 修复错误格式：{ en: { zh: "..." }, zh: "..." } → { en: "...", zh: "..." }
+   * 支持根据语言返回字符串或完整对象
    */
-  private mapCategoryToLocalized(category: any) {
+  private mapCategoryToLocalized(category: any, locale?: string) {
     if (!category) return category;
 
     const result = { ...category };
@@ -542,11 +564,20 @@ export class BlogService {
           }
         }
 
-        result[field] = fixedValue;
+        // 如果指定了语言，返回该语言的字符串
+        if (locale && fixedValue[locale] && typeof fixedValue[locale] === 'string') {
+          result[field] = fixedValue[locale];
+        } else {
+          result[field] = fixedValue;
+        }
       }
       // 如果是字符串，转换为JSON对象格式
       else if (typeof fieldValue === 'string') {
-        result[field] = { zh: fieldValue };
+        if (locale === 'zh') {
+          result[field] = fieldValue; // 如果是中文，直接返回字符串
+        } else {
+          result[field] = { zh: fieldValue };
+        }
       }
     }
 
@@ -556,8 +587,9 @@ export class BlogService {
   /**
    * 将数据库标签转换为标准 Localized 格式
    * 修复错误格式：{ en: { zh: "..." }, zh: "..." } → { en: "...", zh: "..." }
+   * 支持根据语言返回字符串或完整对象
    */
-  private mapTagToLocalized(tag: any) {
+  private mapTagToLocalized(tag: any, locale?: string) {
     if (!tag) return tag;
 
     const result = { ...tag };
@@ -591,11 +623,20 @@ export class BlogService {
           }
         }
 
-        result[field] = fixedValue;
+        // 如果指定了语言，返回该语言的字符串
+        if (locale && fixedValue[locale] && typeof fixedValue[locale] === 'string') {
+          result[field] = fixedValue[locale];
+        } else {
+          result[field] = fixedValue;
+        }
       }
       // 如果是字符串，转换为JSON对象格式
       else if (typeof fieldValue === 'string') {
-        result[field] = { zh: fieldValue };
+        if (locale === 'zh') {
+          result[field] = fieldValue; // 如果是中文，直接返回字符串
+        } else {
+          result[field] = { zh: fieldValue };
+        }
       }
     }
 
@@ -645,7 +686,12 @@ export class BlogService {
   /**
    * 通过 Slug 获取文章
    */
-  async getArticleBySlug(slug: string, incrementView = false, locale: string = 'zh') {
+  async getArticleBySlug(
+    slug: string,
+    incrementView = false,
+    locale: string = 'zh',
+    options: { processNested?: boolean } = {},
+  ) {
     const article = await this.prisma.blogArticle.findUnique({
       where: { slug },
       include: {
@@ -668,8 +714,8 @@ export class BlogService {
         .catch(() => {});
     }
 
-    // 应用 Localized 双向兼容转换并返回，传递语言参数
-    return this.mapArticleToLocalized(article, locale);
+    // 应用 Localized 双向兼容转换并返回，传递语言参数和处理选项
+    return this.mapArticleToLocalized(article, locale, options);
   }
 
   /**
@@ -1490,15 +1536,23 @@ export class BlogService {
       try {
         const gracePeriod = 1000 * 60 * 60 * 24; // 24小时
         const [cleanedCompleted, cleanedFailed] = await Promise.all([
-          this.blogAiQueue.clean(gracePeriod, 1000, 'completed').catch(() => []),
+          this.blogAiQueue
+            .clean(gracePeriod, 1000, 'completed')
+            .catch(() => []),
           this.blogAiQueue.clean(gracePeriod, 1000, 'failed').catch(() => []),
         ]);
-        
-        const completedCount = Array.isArray(cleanedCompleted) ? cleanedCompleted.length : 0;
-        const failedCount = Array.isArray(cleanedFailed) ? cleanedFailed.length : 0;
-        
+
+        const completedCount = Array.isArray(cleanedCompleted)
+          ? cleanedCompleted.length
+          : 0;
+        const failedCount = Array.isArray(cleanedFailed)
+          ? cleanedFailed.length
+          : 0;
+
         if (completedCount > 0 || failedCount > 0) {
-          this.logger.debug(`自动清理了 ${completedCount} 个已完成任务和 ${failedCount} 个失败任务`);
+          this.logger.debug(
+            `自动清理了 ${completedCount} 个已完成任务和 ${failedCount} 个失败任务`,
+          );
         }
       } catch (cleanError) {
         this.logger.warn('自动清理任务失败，继续获取任务列表', cleanError);
@@ -1577,7 +1631,10 @@ export class BlogService {
       const issues = [];
 
       for (const article of articles) {
-        const articleIssues = this.detectArticleTranslationIssues(article, languageCode);
+        const articleIssues = this.detectArticleTranslationIssues(
+          article,
+          languageCode,
+        );
         if (articleIssues.length > 0) {
           issues.push({
             articleId: article.id,
@@ -1604,7 +1661,10 @@ export class BlogService {
   /**
    * 检测单篇文章的翻译问题
    */
-  private detectArticleTranslationIssues(article: any, languageCode?: string): any[] {
+  private detectArticleTranslationIssues(
+    article: any,
+    languageCode?: string,
+  ): any[] {
     const issues = [];
     const targetLanguages = languageCode ? [languageCode] : ['en', 'ja']; // 默认检查英语和日语
 
@@ -1634,7 +1694,10 @@ export class BlogService {
       }
 
       // 3. 检查是否有翻译
-      if (!article.titleLocalized?.[lang] || !article.contentLocalized?.[lang]) {
+      if (
+        !article.titleLocalized?.[lang] ||
+        !article.contentLocalized?.[lang]
+      ) {
         issues.push({
           language: lang,
           issueType: 'NOT_TRANSLATED',
@@ -1681,7 +1744,7 @@ export class BlogService {
       } else {
         // 检测有问题的文章
         const issuesResult = await this.detectTranslationIssues(languageCode);
-        targetArticles = issuesResult.issues.map(issue => ({
+        targetArticles = issuesResult.issues.map((issue) => ({
           id: issue.articleId,
           title: issue.articleTitle,
         }));

@@ -2,60 +2,23 @@
 
 import { useState, useTransition } from 'react';
 import { useTranslations } from 'next-intl';
-import { Search, X, FileText } from 'lucide-react';
+import { Search, X, FileText, Loader2 } from 'lucide-react';
 import { ArticleCard } from '@/components/blog/ArticleCard';
-
-// Mock 搜索结果数据
-const mockSearchResults = [
-  {
-    id: 1,
-    title: 'Next.js 15 新特性全面解析',
-    slug: 'nextjs-15-features',
-    excerpt: '深入解析 Next.js 15 带来的所有新特性和改进',
-    publishedAt: '2026-04-05',
-    readingTime: '8 分钟',
-    views: 1245,
-    category: { id: 2, name: '技术博客' },
-  },
-  {
-    id: 2,
-    title: 'React 19 Server Components 最佳实践',
-    slug: 'react-19-server-components',
-    excerpt: '如何正确使用 React 19 的服务端组件',
-    publishedAt: '2026-04-03',
-    readingTime: '12 分钟',
-    views: 892,
-    category: { id: 2, name: '技术博客' },
-  },
-  {
-    id: 3,
-    title: 'Tailwind CSS v4 迁移指南',
-    slug: 'tailwind-v4-migration',
-    excerpt: '从 v3 迁移到 v4 的完整步骤和注意事项',
-    publishedAt: '2026-04-01',
-    readingTime: '6 分钟',
-    views: 756,
-    category: { id: 5, name: '最佳实践' },
-  },
-  {
-    id: 4,
-    title: 'Next.js 性能优化完整手册',
-    slug: 'nextjs-performance-guide',
-    excerpt: '全面优化 Next.js 应用性能的所有技巧',
-    publishedAt: '2026-03-28',
-    readingTime: '15 分钟',
-    views: 2341,
-    category: { id: 2, name: '技术博客' },
-  },
-];
+import { useFrontendSearchArticles } from '@/lib/hooks/useFrontendArticles';
 
 export default function SearchPage() {
   const t = useTranslations();
   const [query, setQuery] = useState('');
   const [isPending, startTransition] = useTransition();
 
+  const { data, isLoading, error } = useFrontendSearchArticles(query, {
+    page: 1,
+    pageSize: 12,
+  });
+
   const hasResults = query.length > 0;
-  const results = hasResults ? mockSearchResults : [];
+  const results = data?.items || [];
+  const totalResults = data?.total || 0;
 
   const handleClear = () => {
     setQuery('');
@@ -101,9 +64,14 @@ export default function SearchPage() {
       </div>
 
       {/* 搜索结果 */}
-      {isPending ? (
-        <div className="flex items-center justify-center py-16">
-          <div className="animate-spin w-8 h-8 border-2 border-border border-t-primary rounded-full" />
+      {isPending || isLoading ? (
+        <div className="flex flex-col items-center justify-center py-16">
+          <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
+          <p className="text-slate-500">{t('common.loading')}</p>
+        </div>
+      ) : error ? (
+        <div className="flex flex-col items-center justify-center py-16">
+          <p className="text-red-500">{t('common.error')}</p>
         </div>
       ) : hasResults ? (
         <>
@@ -112,7 +80,7 @@ export default function SearchPage() {
             <div className="flex items-center gap-3">
               <FileText className="w-5 h-5 text-muted-foreground" />
               <span className="text-muted-foreground">
-                {t('search.result', { count: results.length })}
+                {t('search.result', { count: totalResults })}
               </span>
             </div>
           </div>
@@ -123,6 +91,19 @@ export default function SearchPage() {
               <ArticleCard key={article.id} article={article} />
             ))}
           </div>
+
+          {/* 空结果 */}
+          {results.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <Search className="w-16 h-16 text-muted-foreground/30 mb-4" />
+              <h3 className="text-xl font-semibold text-muted-foreground mb-2">
+                {t('search.noResults')}
+              </h3>
+              <p className="text-muted-foreground">
+                {t('search.noResultsDescription')}
+              </p>
+            </div>
+          )}
         </>
       ) : (
         <div className="flex flex-col items-center justify-center py-16 text-center">

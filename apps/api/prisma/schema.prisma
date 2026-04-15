@@ -63,7 +63,12 @@ model User {
   lotteryResults       LotteryResult[]
   luckyDrawTickets     LuckyDrawTicket[]
   luckyDrawResults     LuckyDrawResult[]
+
   supportChannel       SupportChannel? @relation("SupportChannelBotUser")
+  userBookmark         UserBookmark[]
+
+
+
 
   @@index([status], map: "idx_user_status")
   @@index([phoneMd5], map: "idx_user_phone_md5")
@@ -1543,7 +1548,8 @@ model BlogArticle {
   
   tags          BlogTag[]     @relation("BlogArticleTags")
   comments      BlogComment[]
-  
+  userBookmark UserBookmark[]
+
   createdAt     DateTime      @default(now()) @map("created_at")
   updatedAt     DateTime      @updatedAt @map("updated_at")
   
@@ -1627,4 +1633,25 @@ model BlogComment {
   @@index([parentId], map: "idx_blog_comment_parent_id")
   @@index([aiModerationScore], map: "idx_blog_comment_ai_score")
   @@map("blog_comments")
+}
+
+/// 用户文章收藏表
+model UserBookmark {
+  id        String     @id @default(cuid()) @db.VarChar(32)
+  userId    String     @db.VarChar(32)
+  articleId String     @db.VarChar(32)
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+  
+  // 唯一约束：一个用户只能收藏同一篇文章一次
+  @@unique([userId, articleId])
+  
+  // 关联关系
+  user    User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  article BlogArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  
+  @@index([userId], map: "idx_user_bookmark_user_id")
+  @@index([articleId], map: "idx_user_bookmark_article_id")
+  @@index([createdAt], map: "idx_user_bookmark_created_at")
+  @@map("user_bookmarks")
 }

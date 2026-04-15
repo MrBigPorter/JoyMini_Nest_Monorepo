@@ -36,6 +36,7 @@ export interface PaginationParams {
 
 export interface PaginatedResponse<T> {
   list: T[];
+  items?: T[]; // 兼容后端返回的 items 字段
   total: number;
   page: number;
   pageSize: number;

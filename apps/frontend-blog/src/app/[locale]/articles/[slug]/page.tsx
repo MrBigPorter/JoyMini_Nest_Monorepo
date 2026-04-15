@@ -1,79 +1,76 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { ChevronLeft, Clock, Calendar, User } from 'lucide-react';
+import { ChevronLeft, Clock, Calendar, User, Loader2 } from 'lucide-react';
 import { Link } from '@/navigation';
+import { useParams } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import CommentList from '@/components/blog/CommentList';
-import { useState } from 'react';
-
-// Mock 数据
-const mockArticle = {
-  title: '欢迎来到 Lucky Nest 博客平台',
-  description:
-    '这是 Lucky Nest 官方博客，我们将在这里分享产品更新、开发日志和行业见解。',
-  content: `
-# 欢迎来到 Lucky Nest 博客
-
-欢迎访问 Lucky Nest 官方博客！我们很高兴能在这里和大家分享我们的故事。
-
-## 关于这个博客
-
-在这里你可以找到:
-- ✅ 产品更新公告
-- ✅ 技术开发日志
-- ✅ 行业最佳实践
-- ✅ 团队工作日常
-
-## 我们的目标
-
-我们致力于打造最好的用户体验，让每个人都能轻松使用我们的产品。
-
-> 好的设计是不可见的。当用户不需要思考如何使用你的产品时，你就成功了。
-
-### 技术栈
-
-我们使用的技术:
-1. Next.js 15
-2. React 19
-3. Tailwind CSS v4
-4. NestJS
-5. Prisma ORM
-
-\`\`\`typescript
-const welcome = () => {
-  console.log('Welcome to Lucky Nest Blog!');
-};
-\`\`\`
-
----
-
-感谢你的访问，我们会持续更新内容。
-  `,
-  author: 'Lucky Nest Team',
-  publishedAt: '2026-04-07',
-  readingTime: '5 分钟',
-};
+import { useFrontendArticleBySlug } from '@/lib/hooks/useFrontendArticles';
 
 export default function ArticlePage() {
   const t = useTranslations();
-  const [language, setLanguage] = useState<'zh' | 'en'>('zh');
+  const params = useParams();
+  const slug = params.slug as string;
 
-  // 动态选择语言内容
-  const title =
-    language === 'zh'
-      ? mockArticle.title
-      : (mockArticle as any).titleEn || mockArticle.title;
-  const description =
-    language === 'zh'
-      ? mockArticle.description
-      : (mockArticle as any).descriptionEn || mockArticle.description;
-  const content =
-    language === 'zh'
-      ? mockArticle.content
-      : (mockArticle as any).contentEn || mockArticle.content;
+  const { data: article, isLoading, error } = useFrontendArticleBySlug(slug);
+
+  if (isLoading) {
+    return (
+      <div className="max-w-[720px] mx-auto px-4 py-20">
+        <div className="flex flex-col items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="mt-4 text-slate-500">{t('common.loading')}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !article) {
+    return (
+      <div className="max-w-[720px] mx-auto px-4 py-20">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-4">
+            {t('article.notFound')}
+          </h1>
+          <p className="text-slate-600 dark:text-slate-400 mb-8">
+            {t('article.notFoundDescription')}
+          </p>
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 text-primary hover:text-primary-600 transition-colors"
+          >
+            <ChevronLeft className="w-4 h-4" />
+            <span>{t('common.backToHome')}</span>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // 格式化日期
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return t('article.notPublished');
+    try {
+      return new Date(dateString).toLocaleDateString('zh-CN', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      });
+    } catch {
+      return dateString;
+    }
+  };
+
+  // 计算阅读时间
+  const calculateReadingTime = (content: string) => {
+    const wordsPerMinute = 200;
+    const wordCount = content.split(/\s+/).length;
+    const minutes = Math.ceil(wordCount / wordsPerMinute);
+    return `${minutes} ${t('article.minutes')}`;
+  };
 
   return (
     <div className="max-w-[720px] mx-auto px-4 py-8 md:py-12">
@@ -88,54 +85,30 @@ export default function ArticlePage() {
         </Link>
       </div>
 
-      {/* 语言切换按钮 */}
-      <div className="flex justify-end mb-6">
-        <div className="inline-flex rounded-md border border-gray-200 dark:border-gray-700">
-          <button
-            type="button"
-            onClick={() => setLanguage('zh')}
-            className={`px-4 py-2 text-sm font-medium transition-colors ${
-              language === 'zh'
-                ? 'bg-primary-500 text-white'
-                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
-            }`}
-          >
-            🇨🇳 中文
-          </button>
-          <button
-            type="button"
-            onClick={() => setLanguage('en')}
-            className={`px-4 py-2 text-sm font-medium transition-colors ${
-              language === 'en'
-                ? 'bg-primary-500 text-white'
-                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
-            }`}
-          >
-            🇺🇸 English
-          </button>
-        </div>
-      </div>
-
       {/* 文章头部 */}
       <header className="mb-10">
         <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-6">
-          {title}
+          {article.title}
         </h1>
 
-        <p className="text-lg text-muted-foreground mb-6">{description}</p>
+        {article.excerpt && (
+          <p className="text-lg text-muted-foreground mb-6">
+            {article.excerpt}
+          </p>
+        )}
 
         <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
           <div className="flex items-center gap-2">
             <User className="w-4 h-4" />
-            <span>{mockArticle.author}</span>
+            <span>{article.author?.name || t('article.anonymous')}</span>
           </div>
           <div className="flex items-center gap-2">
             <Calendar className="w-4 h-4" />
-            <span>{mockArticle.publishedAt}</span>
+            <span>{formatDate(article.publishedAt)}</span>
           </div>
           <div className="flex items-center gap-2">
             <Clock className="w-4 h-4" />
-            <span>{mockArticle.readingTime}</span>
+            <span>{calculateReadingTime(article.content || '')}</span>
           </div>
         </div>
       </header>
@@ -160,10 +133,9 @@ export default function ArticlePage() {
             ),
           }}
         >
-          {content}
+          {article.content}
         </ReactMarkdown>
       </article>
-
       {/* 评论系统 */}
       <CommentList />
     </div>

@@ -129,6 +129,34 @@ export const blogApi = {
         isDefault: boolean;
       }>;
     }>('/v1/client/system-config/locales'),
+
+  // ================= 收藏功能接口 =================
+
+  /**
+   * 获取用户收藏列表
+   */
+  getBookmarks: (params?: { page?: number; pageSize?: number }) =>
+    http.get<PaginatedResponse<Article>>('/v1/frontend/blog/bookmarks', params),
+
+  /**
+   * 收藏文章
+   */
+  addBookmark: (articleId: string) =>
+    http.post(`/v1/frontend/blog/articles/${articleId}/bookmark`),
+
+  /**
+   * 取消收藏
+   */
+  removeBookmark: (articleId: string) =>
+    http.delete(`/v1/frontend/blog/articles/${articleId}/bookmark`),
+
+  /**
+   * 检查收藏状态
+   */
+  checkBookmarkStatus: (articleId: string) =>
+    http.get<{ isBookmarked: boolean; bookmarkedAt?: string }>(
+      `/v1/frontend/blog/articles/${articleId}/bookmark-status`,
+    ),
 };
 
 export default blogApi;

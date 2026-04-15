@@ -1,63 +1,37 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { FileText, FolderOpen } from 'lucide-react';
+import { FileText, FolderOpen, Loader2, Home } from 'lucide-react';
 import { Link } from '@/navigation';
-
-// Mock 分类数据
-const mockCategories = [
-  {
-    id: 1,
-    name: '产品更新',
-    slug: 'product-updates',
-    description: 'Lucky Nest 产品功能更新和发布日志',
-    articleCount: 12,
-    icon: '🚀',
-  },
-  {
-    id: 2,
-    name: '技术博客',
-    slug: 'tech-blog',
-    description: '我们的技术栈、架构设计和开发经验分享',
-    articleCount: 23,
-    icon: '💻',
-  },
-  {
-    id: 3,
-    name: '行业见解',
-    slug: 'insights',
-    description: '关于互联网、产品和用户体验的思考',
-    articleCount: 8,
-    icon: '💡',
-  },
-  {
-    id: 4,
-    name: '团队日常',
-    slug: 'team',
-    description: '团队背后的故事、工作方式和文化',
-    articleCount: 5,
-    icon: '👥',
-  },
-  {
-    id: 5,
-    name: '最佳实践',
-    slug: 'best-practices',
-    description: '我们总结的开发和产品设计最佳实践',
-    articleCount: 15,
-    icon: '✅',
-  },
-  {
-    id: 6,
-    name: '教程指南',
-    slug: 'tutorials',
-    description: '一步一步的使用教程和操作指南',
-    articleCount: 19,
-    icon: '📚',
-  },
-];
+import { EmptyContentState } from '@/components/blog/EmptyContentState';
+import { useFrontendCategories } from '@/lib/hooks/useFrontendArticles';
 
 export default function CategoriesPage() {
   const t = useTranslations();
+  const { data: categories, isLoading, error } = useFrontendCategories();
+
+  if (isLoading) {
+    return (
+      <div className="max-w-5xl mx-auto px-4 py-8 md:py-12">
+        <div className="flex flex-col items-center justify-center py-20">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="mt-4 text-slate-500">{t('common.loading')}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="max-w-5xl mx-auto px-4 py-8 md:py-12">
+        <div className="flex flex-col items-center justify-center py-20">
+          <p className="text-red-500">{t('common.error')}</p>
+        </div>
+      </div>
+    );
+  }
+
+  const categoryList = categories || [];
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 md:py-12">
@@ -76,14 +50,29 @@ export default function CategoriesPage() {
 
       {/* 分类网格 */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-16">
-        {mockCategories.map((category) => (
+        {categoryList.map((category) => (
           <Link
             key={category.id}
             href={`/categories/${category.slug}`}
             className="group block p-6 rounded-xl border border-border bg-card hover:border-primary/50 hover:bg-accent/50 transition-all duration-200"
           >
             <div className="flex items-start gap-4">
-              <div className="text-3xl">{category.icon}</div>
+              <div className="text-3xl">
+                {/* 根据分类名称生成简单的图标 */}
+                {category.name.includes('产品')
+                  ? '🚀'
+                  : category.name.includes('技术')
+                    ? '💻'
+                    : category.name.includes('行业')
+                      ? '💡'
+                      : category.name.includes('团队')
+                        ? '👥'
+                        : category.name.includes('最佳')
+                          ? '✅'
+                          : category.name.includes('教程')
+                            ? '📚'
+                            : '📂'}
+              </div>
               <div className="flex-1 min-w-0">
                 <h2 className="text-xl font-semibold mb-2 group-hover:text-primary transition-colors">
                   {category.name}
@@ -102,6 +91,27 @@ export default function CategoriesPage() {
           </Link>
         ))}
       </div>
+
+      {categoryList.length === 0 && (
+        <EmptyContentState
+          type="category"
+          title={t('categories.empty')}
+          description="分类正在准备中，您可以先浏览其他内容"
+          actions={[
+            {
+              label: t('common.backToHome'),
+              href: '/',
+              variant: 'primary',
+              icon: <Home className="w-4 h-4" />,
+            },
+            {
+              label: '浏览文章',
+              href: '/',
+              variant: 'outline',
+            },
+          ]}
+        />
+      )}
     </div>
   );
 }

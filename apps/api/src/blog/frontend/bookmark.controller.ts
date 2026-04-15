@@ -1,0 +1,81 @@
+import {
+  Controller,
+  Get,
+  Post,
+  Delete,
+  Param,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
+import { BookmarkService } from './bookmark.service';
+import { AuthGuard } from '@nestjs/passport';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiQuery,
+} from '@nestjs/swagger';
+
+@ApiTags('frontend-blog-bookmarks')
+@Controller('frontend/blog')
+@UseGuards(AuthGuard('jwt'))
+@ApiBearerAuth()
+export class BookmarkController {
+  constructor(private readonly bookmarkService: BookmarkService) {}
+
+  @Get('bookmarks')
+  @ApiOperation({ summary: '获取用户收藏列表' })
+  @ApiQuery({ name: 'page', required: false, description: '页码，默认为1' })
+  @ApiQuery({
+    name: 'pageSize',
+    required: false,
+    description: '每页数量，默认为10',
+  })
+  @ApiQuery({
+    name: 'locale',
+    required: false,
+    description: '语言代码，默认为zh',
+  })
+  @ApiResponse({ status: 200, description: '返回收藏列表' })
+  @ApiResponse({ status: 401, description: '未授权' })
+  async getBookmarks(
+    @Req() req,
+    @Query('page') page?: number,
+    @Query('pageSize') pageSize?: number,
+    @Query('locale') locale?: string,
+  ) {
+    return this.bookmarkService.getUserBookmarks(req.user.id, {
+      page,
+      pageSize,
+      locale,
+    });
+  }
+
+  @Post('articles/:id/bookmark')
+  @ApiOperation({ summary: '收藏文章' })
+  @ApiResponse({ status: 201, description: '收藏成功' })
+  @ApiResponse({ status: 401, description: '未授权' })
+  @ApiResponse({ status: 404, description: '文章不存在' })
+  async addBookmark(@Req() req, @Param('id') articleId: string) {
+    return this.bookmarkService.addBookmark(req.user.id, articleId);
+  }
+
+  @Delete('articles/:id/bookmark')
+  @ApiOperation({ summary: '取消收藏' })
+  @ApiResponse({ status: 200, description: '取消收藏成功' })
+  @ApiResponse({ status: 401, description: '未授权' })
+  @ApiResponse({ status: 404, description: '收藏记录不存在' })
+  async removeBookmark(@Req() req, @Param('id') articleId: string) {
+    return this.bookmarkService.removeBookmark(req.user.id, articleId);
+  }
+
+  @Get('articles/:id/bookmark-status')
+  @ApiOperation({ summary: '检查文章收藏状态' })
+  @ApiResponse({ status: 200, description: '返回收藏状态' })
+  @ApiResponse({ status: 401, description: '未授权' })
+  async checkBookmarkStatus(@Req() req, @Param('id') articleId: string) {
+    return this.bookmarkService.checkBookmarkStatus(req.user.id, articleId);
+  }
+}

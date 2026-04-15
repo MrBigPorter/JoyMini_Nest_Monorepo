@@ -6245,6 +6245,7 @@ __metadata:
     rehype-raw: "npm:^7.0.0"
     remark-gfm: "npm:^4.0.1"
     server-only: "npm:^0.0.1"
+    swr: "npm:^2.4.1"
     tailwindcss: "npm:^4.1.17"
     typescript: "npm:~5.8.2"
     vite: "npm:^8.0.0"
@@ -23159,6 +23160,7 @@ __metadata:
     lint-staged: "npm:^15.5.2"
     prettier: "npm:^3.6.2"
     rimraf: "npm:^6.0.1"
+    swr: "npm:^2.4.1"
     ts-jest: "npm:^29.4.5"
     turbo: "npm:^2.5.8"
     typescript: "npm:5.5.4"
@@ -28188,6 +28190,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"swr@npm:^2.4.1":
+  version: 2.4.1
+  resolution: "swr@npm:2.4.1"
+  dependencies:
+    dequal: "npm:^2.0.3"
+    use-sync-external-store: "npm:^1.6.0"
+  peerDependencies:
+    react: ^16.11.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+  checksum: 10c0/34d61fb4653ac8875ad24e7c6da37e210b0e90fce0815dc59f013b7554a0bd267e79aac0f8ae5fbf04992e2a1815ee3da581b0dab3ed6ac4c2ce0e82b351320f
+  languageName: node
+  linkType: hard
+
 "symbol-observable@npm:4.0.0":
   version: 4.0.0
   resolution: "symbol-observable@npm:4.0.0"
@@ -29581,7 +29595,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"use-sync-external-store@npm:^1.0.0, use-sync-external-store@npm:^1.2.2, use-sync-external-store@npm:^1.4.0, use-sync-external-store@npm:^1.5.0":
+"use-sync-external-store@npm:^1.0.0, use-sync-external-store@npm:^1.2.2, use-sync-external-store@npm:^1.4.0, use-sync-external-store@npm:^1.5.0, use-sync-external-store@npm:^1.6.0":
   version: 1.6.0
   resolution: "use-sync-external-store@npm:1.6.0"
   peerDependencies:

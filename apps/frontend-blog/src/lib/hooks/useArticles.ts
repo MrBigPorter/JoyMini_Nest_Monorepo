@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { blogApi } from '@/lib/api/blogApi';
 
-// Mock 测试数据 - 开发环境使用
+// Mock 测试数据 - 开发环境使用（备用）
 const mockArticles = [
   {
     id: '1',
@@ -85,21 +85,13 @@ export function useArticles(params?: {
 }) {
   return useQuery({
     queryKey: ['articles', params],
-    queryFn: () => {
-      // TODO: 后端接口上线后移除 Mock
-      return new Promise((resolve) => {
-        setTimeout(() => {
-          resolve({
-            list: mockArticles,
-            total: mockArticles.length,
-            page: params?.page || 1,
-            pageSize: params?.pageSize || 10,
-          });
-        }, 500);
-      });
-      // return blogApi.getArticles(params);
+    queryFn: async () => {
+      // 只使用真实API，不再使用Mock数据
+      return await blogApi.getArticles(params);
     },
     staleTime: 5 * 60 * 1000, // 5分钟缓存
+    retry: 2, // 失败时重试2次
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // 指数退避重试
   });
 }
 

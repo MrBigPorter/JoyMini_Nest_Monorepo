@@ -4,12 +4,21 @@ import { Link } from '@/navigation';
 import { formatDistanceToNow } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import type { Article } from '@/lib/types/blog';
+import type { FrontendArticle } from '@/lib/types/frontend-blog';
 
 interface ArticleCardProps {
-  article: Article;
+  article: Article | FrontendArticle;
 }
 
 export function ArticleCard({ article }: ArticleCardProps) {
+  // 处理两种类型的差异
+  const publishedDate =
+    'publishedAt' in article ? article.publishedAt : (article as any).createdAt;
+
+  const views = 'views' in article ? article.views : 0;
+  const commentsCount = 'commentsCount' in article ? article.commentsCount : 0;
+  const category = 'category' in article ? article.category : null;
+
   return (
     <Link
       href={`/articles/${article.slug}`}
@@ -44,7 +53,7 @@ export function ArticleCard({ article }: ArticleCardProps) {
                 />
               </svg>
               {formatDistanceToNow(
-                new Date(article.publishedAt || article.createdAt),
+                new Date(publishedDate || new Date().toISOString()),
                 {
                   addSuffix: true,
                   locale: zhCN,
@@ -72,7 +81,7 @@ export function ArticleCard({ article }: ArticleCardProps) {
                   d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
                 />
               </svg>
-              {article.views}
+              {views}
             </span>
 
             <span className="flex items-center gap-1">
@@ -89,13 +98,13 @@ export function ArticleCard({ article }: ArticleCardProps) {
                   d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
                 />
               </svg>
-              {article.commentsCount || 0}
+              {commentsCount}
             </span>
           </div>
 
-          {article.category && (
+          {category && (
             <span className="px-2.5 py-1 bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 rounded-md text-xs font-medium">
-              {article.category.name}
+              {category.name}
             </span>
           )}
         </div>
