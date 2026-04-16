@@ -13,6 +13,8 @@
     "backToTags": "태그로 돌아가기",
     "loading": "로딩 중...",
     "error": "로드에 실패했습니다. 나중에 다시 시도해 주세요",
+    "loadFailed": "로드에 실패했습니다",
+    "retry": "다시 시도",
     "articleCount": "글 {count}개",
     "totalTags": "태그 {count}개, 총 글 {total}개",
     "about": "소개",
@@ -118,7 +120,11 @@
     "title": "내 북마크",
     "subtitle": "북마크한 모든 글",
     "totalCount": "북마크한 글 {count}개",
-    "empty": "아직 북마크한 글이 없습니다"
+    "empty": "아직 북마크한 글이 없습니다",
+    "emptyTitle": "아직 북마크한 글이 없습니다",
+    "emptyDescription": "글을 탐색하고 좋아하는 글을 북마크하세요",
+    "browseArticles": "글 탐색",
+    "loadFailed": "북마크 로드에 실패했습니다"
   },
   "about": {
     "title": "Lucky Nest 소개",
