@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from 'next';
 import { NextIntlClientProvider } from 'next-intl';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
-import { ThemeProvider } from 'next-themes';
 import { notFound } from 'next/navigation';
 import { Inter } from 'next/font/google';
 import Header from '@/components/Header';
@@ -73,20 +72,18 @@ export default async function LocaleLayout({
           locale={locale}
           messages={messages}
         >
-          <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-            <QueryProvider>
-              <I18nProvider>
-                <GoogleOAuthProvider>
-                  <Header />
-                  <Sidebar />
-                  <main className="pt-[var(--content-padding-top)] pb-[var(--content-padding-bottom)] min-h-screen md:ml-16 md:transition-all md:duration-300">
-                    {children}
-                  </main>
-                  <BottomNavigation />
-                </GoogleOAuthProvider>
-              </I18nProvider>
-            </QueryProvider>
-          </ThemeProvider>
+          <QueryProvider>
+            <I18nProvider>
+              <GoogleOAuthProvider>
+                <Header />
+                <Sidebar />
+                <main className="pt-[var(--content-padding-top)] pb-[var(--content-padding-bottom)] min-h-screen md:ml-16 md:transition-all md:duration-300">
+                  {children}
+                </main>
+                <BottomNavigation />
+              </GoogleOAuthProvider>
+            </I18nProvider>
+          </QueryProvider>
         </NextIntlClientProvider>
       </body>
     </html>

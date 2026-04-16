@@ -49,16 +49,37 @@ export function ProtectedRoute({
             sessionStorage.setItem('redirectAfterLogin', currentPath);
           }
 
-          // 获取当前语言前缀
-          const locale = getCurrentLocale();
-          // 构建带语言前缀的重定向路径
-          const redirectPath = `/${locale}${redirectTo}`;
-          console.log('redirectPath', redirectPath);
-          router.push(redirectPath);
+          // 直接使用重定向路径，让国际化路由中间件处理语言前缀
+          // 注意：redirectTo 应该是不带语言前缀的路径，如 '/login'
+          router.push(redirectTo);
         }
       }
     };
 
+    // 借鉴admin-next的经验：立即检查localStorage，不要等Zustand水合
+    // 如果localStorage有token，给Zustand一点时间恢复状态
+    if (typeof window !== 'undefined') {
+      try {
+        const authStorage = localStorage.getItem('auth-storage');
+        if (authStorage) {
+          // 尝试解析auth-storage内容
+          const parsed = JSON.parse(authStorage);
+          const hasToken = parsed?.state?.accessToken || parsed?.accessToken;
+          
+          if (hasToken) {
+            // 有token，给Zustand 100ms时间恢复状态
+            const timer = setTimeout(() => {
+              verifyAuth();
+            }, 100);
+            return () => clearTimeout(timer);
+          }
+        }
+      } catch (error) {
+        console.warn('Failed to parse auth-storage:', error);
+      }
+    }
+
+    // 没有token或解析失败，立即执行验证
     verifyAuth();
   }, [isAuthenticated, isLoading, requireAuth, router, redirectTo, checkAuth]);
 
