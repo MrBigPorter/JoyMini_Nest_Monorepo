@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from 'next';
 import { NextIntlClientProvider } from 'next-intl';
-import { setRequestLocale } from 'next-intl/server';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import { ThemeProvider } from 'next-themes';
@@ -12,6 +11,7 @@ import BottomNavigation from '@/components/BottomNavigation';
 import QueryProvider from '@/lib/providers/QueryProvider';
 import I18nProvider from '@/lib/providers/I18nProvider';
 import { GoogleOAuthProvider } from '@/lib/components/GoogleOAuthProvider';
+import { LOCALES } from '@/lib/i18n/config';
 import '../globals.css';
 
 const inter = Inter({
@@ -19,7 +19,7 @@ const inter = Inter({
   variable: '--font-inter',
 });
 
-const locales = ['zh', 'en'] as const;
+const locales = LOCALES;
 
 //  元数据放在语言层布局，以后可以支持多语言SEO标题
 export const metadata: Metadata = {

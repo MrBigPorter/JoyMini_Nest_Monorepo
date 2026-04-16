@@ -2,6 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { blogApi } from '@/lib/api/blogApi';
+import { LOCALES_METADATA, type Locale } from '@/lib/i18n/config';
 
 interface LocaleConfig {
   code: string;
@@ -31,23 +32,14 @@ export function useAvailableLocales() {
           error,
         );
 
-        // API失败时回退到默认中英文
-        return [
-          {
-            code: 'zh',
-            name: '中文',
-            nativeName: '简体中文',
-            enabled: true,
-            isDefault: true,
-          },
-          {
-            code: 'en',
-            name: 'English',
-            nativeName: 'English',
-            enabled: true,
-            isDefault: false,
-          },
-        ] as LocaleConfig[];
+        // API失败时回退到共享配置中的语言
+        return Object.values(LOCALES_METADATA).map((locale) => ({
+          code: locale.code,
+          name: locale.name,
+          nativeName: locale.nativeName,
+          enabled: true,
+          isDefault: locale.isDefault,
+        })) as LocaleConfig[];
       }
     },
     staleTime: 5 * 60 * 1000, // 5分钟缓存

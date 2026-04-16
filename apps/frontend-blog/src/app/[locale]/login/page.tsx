@@ -196,8 +196,7 @@ export default function LoginPage() {
             <p className="text-muted-foreground">{t('auth.login.subtitle')}</p>
             <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <p className="text-sm text-blue-700">
-                <span className="font-medium">💡 提示：</span>
-                新用户？登录即注册！首次登录将自动创建账户。
+                {t('auth.login.tip')}
               </p>
             </div>
           </div>

@@ -1,12 +1,12 @@
 // middleware.ts
 import createMiddleware from 'next-intl/middleware';
-import { locales, defaultLocale } from './i18n.config';
+import { LOCALES, DEFAULT_LOCALE } from './src/lib/i18n/config';
 
 export default createMiddleware({
-  // 使用 i18n.config.ts 中定义的静态语言列表
-  locales,
-  defaultLocale,
-  localeDetection: true,
+  // 直接使用共享配置中的语言列表
+  locales: LOCALES,
+  defaultLocale: DEFAULT_LOCALE,
+  localeDetection: false,
   // RC版本临时使用 always 模式，as-needed 模式在RC版有BUG
   // 等 next-intl 3.0 正式版发布后再切回 as-needed
   localePrefix: 'always',

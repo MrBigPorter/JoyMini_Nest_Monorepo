@@ -1,0 +1,134 @@
+{
+  "common": {
+    "home": "ホーム",
+    "articles": "記事",
+    "categories": "カテゴリー",
+    "tags": "タグ",
+    "search": "検索",
+    "loadMore": "もっと読み込む",
+    "noResults": "結果が見つかりません",
+    "back": "戻る",
+    "backToHome": "ホームに戻る",
+    "backToCategories": "カテゴリーに戻る",
+    "backToTags": "タグに戻る",
+    "loading": "読み込み中...",
+    "error": "読み込みに失敗しました。後でもう一度お試しください",
+    "articleCount": "{count}件の記事",
+    "totalTags": "{count}個のタグ、合計{total}件の記事",
+    "about": "について",
+    "bookmarks": "ブックマーク"
+  },
+  "home": {
+    "title": "最新記事",
+    "subtitle": "最新の公開コンテンツを探索",
+    "empty": "まだ記事がありません"
+  },
+  "article": {
+    "readTime": "読了時間",
+    "views": "閲覧数",
+    "comments": "コメント",
+    "share": "共有",
+    "relatedArticles": "関連記事"
+  },
+  "auth": {
+    "email": "メールアドレス",
+    "emailPlaceholder": "メールアドレスを入力",
+    "password": "パスワード",
+    "passwordPlaceholder": "パスワードを入力",
+    "confirmPassword": "パスワード確認",
+    "confirmPasswordPlaceholder": "パスワードを確認入力",
+    "forgotPassword": "パスワードをお忘れですか？",
+    "orContinueWith": "または以下で続行",
+    "verificationCode": "認証コード",
+    "sending": "送信中...",
+    "sendCode": "コードを送信",
+    "resendIn": "再送信",
+    "codePlaceholder": "認証コードを入力",
+    "invalidEmail": "無効なメールアドレス",
+    "sendCodeFailed": "認証コードの送信に失敗しました",
+    "fillAllFields": "すべての項目を入力してください",
+    "invalidCode": "無効な認証コード",
+    "loginFailed": "ログインに失敗しました",
+    "oauth": {
+      "githubNotConfigured": "GitHub OAuthが設定されていません",
+      "githubFailed": "GitHubログインに失敗しました",
+      "githubNotSupported": "GitHubログインはまだサポートされていません",
+      "googleFailed": "Googleログインに失敗しました",
+      "facebookFailed": "Facebookログインに失敗しました",
+      "facebookNotReady": "Facebook SDKが準備できていません"
+    },
+    "login": {
+      "title": "ログイン",
+      "subtitle": "Tarsier Blogアカウントにログイン",
+      "button": "サインイン",
+      "github": "GitHubで続行",
+      "google": "Googleで続行",
+      "facebook": "Facebookで続行",
+      "noAccount": "アカウントをお持ちでないですか？",
+      "register": "サインアップ",
+      "tip": "💡 ヒント：新規ユーザーですか？ログインは登録と同じです！初回ログイン時にアカウントが自動的に作成されます。"
+    },
+    "register": {
+      "title": "サインアップ",
+      "subtitle": "Tarsier Blogアカウントを作成",
+      "button": "アカウント作成",
+      "github": "GitHubでサインアップ",
+      "google": "Googleでサインアップ",
+      "hasAccount": "すでにアカウントをお持ちですか？",
+      "login": "サインイン",
+      "confirmPassword": "パスワード確認",
+      "confirmPasswordPlaceholder": "パスワードを確認入力"
+    }
+  },
+  "comment": {
+    "title": "コメント",
+    "writeComment": "コメントを書く",
+    "writeReply": "返信を書く",
+    "reply": "返信",
+    "cancel": "キャンセル",
+    "submit": "送信",
+    "repliesCount": "{count}件の返信",
+    "loginRequired": "コメントするにはログインしてください"
+  },
+  "categories": {
+    "title": "カテゴリー",
+    "subtitle": "すべての記事カテゴリーを閲覧",
+    "notFound": "カテゴリーが見つかりません",
+    "empty": "まだカテゴリーがありません",
+    "emptyArticles": "このカテゴリーにはまだ記事がありません",
+    "emptyDescription": "このカテゴリーのコンテンツは準備中です。その間、他のカテゴリーをご覧ください。"
+  },
+  "tags": {
+    "title": "タグ",
+    "subtitle": "トピック別に記事を閲覧",
+    "notFound": "タグが見つかりません",
+    "empty": "まだタグがありません",
+    "emptyArticles": "このタグの記事はまだありません",
+    "emptyDescription": "興味深い記事の他の人気タグをご覧ください。"
+  },
+  "search": {
+    "title": "記事検索",
+    "subtitle": "すべての記事を検索",
+    "placeholder": "記事を検索...",
+    "result": "{count}件の記事が見つかりました",
+    "emptyTitle": "キーワードを入力して検索を開始",
+    "emptyDescription": "記事のタイトル、内容、タグを検索"
+  },
+  "bookmarks": {
+    "title": "マイブックマーク",
+    "subtitle": "ブックマークしたすべての記事",
+    "totalCount": "{count}件の記事をブックマーク",
+    "empty": "まだブックマークした記事がありません"
+  },
+  "about": {
+    "title": "Lucky Nestについて",
+    "subtitle": "次世代ユーザーエクスペリエンスプラットフォームを構築中",
+    "visionTitle": "私たちのビジョン",
+    "visionDescription": "Lucky Nestは、最高のユーザーエクスペリエンスの創造に専念するモダンなWebアプリケーションプラットフォームです。優れたソフトウェアはシンプルで、エレガントで、効率的であるべきだと信じています。\n\nこのブログは、私たちの技術経験、製品思考、チームの日常を共有する場所です。私たちの仕事があなたのお役に立てれば幸いです。",
+    "techStackTitle": "技術スタック",
+    "teamTitle": "チーム",
+    "contactTitle": "お問い合わせ",
+    "github": "GitHub",
+    "email": "メールでお問い合わせ"
+  }
+}
