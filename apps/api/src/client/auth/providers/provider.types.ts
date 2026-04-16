@@ -1,4 +1,4 @@
-export type OauthProvider = 'google' | 'facebook' | 'apple';
+export type OauthProvider = 'google' | 'facebook' | 'apple' | 'github';
 
 export interface VerifiedOauthProfile {
   providerUserId: string;

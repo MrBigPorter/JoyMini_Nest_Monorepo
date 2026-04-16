@@ -3,10 +3,12 @@
  * 用于统一处理语言前缀检测和路径构建
  */
 
-// 支持的语言列表，与 middleware.ts、navigation.ts 保持一致
-const SUPPORTED_LOCALES = ['zh', 'en', 'ja', 'ko', 'fr', 'de'] as const;
+import { locales, type Locale } from '../../../i18n.config';
 
-export type SupportedLocale = (typeof SUPPORTED_LOCALES)[number];
+// 支持的语言列表，与 middleware.ts、i18n.config.ts 保持一致
+const SUPPORTED_LOCALES = locales;
+
+export type SupportedLocale = Locale;
 
 /**
  * 从当前URL路径中提取语言代码

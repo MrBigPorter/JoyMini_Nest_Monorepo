@@ -6207,6 +6207,7 @@ __metadata:
   dependencies:
     "@lucky/shared": "workspace:*"
     "@next/bundle-analyzer": "npm:^16.2.1"
+    "@react-oauth/google": "npm:^0.13.5"
     "@repo/ui": "workspace:*"
     "@sentry/nextjs": "npm:^10"
     "@tailwindcss/postcss": "npm:^4.1.17"
@@ -9125,6 +9126,16 @@ __metadata:
   version: 1.1.1
   resolution: "@radix-ui/rect@npm:1.1.1"
   checksum: 10c0/0dac4f0f15691199abe6a0e067821ddd9d0349c0c05f39834e4eafc8403caf724106884035ae91bbc826e10367e6a5672e7bec4d4243860fa7649de246b1f60b
+  languageName: node
+  linkType: hard
+
+"@react-oauth/google@npm:^0.13.5":
+  version: 0.13.5
+  resolution: "@react-oauth/google@npm:0.13.5"
+  peerDependencies:
+    react: ">=16.8.0"
+    react-dom: ">=16.8.0"
+  checksum: 10c0/e3d6e40a2e65e5233c2aaa90b3e36398c6ef940d0d15963e0d2cd89e074da380093588f91f1ee4e4bc90f07244a584cdb705746eb4645208b637574f45d492e8
   languageName: node
   linkType: hard
 

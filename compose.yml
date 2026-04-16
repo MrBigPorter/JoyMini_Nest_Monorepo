@@ -61,6 +61,31 @@ services:
     networks: [app]
 
   # =========================================
+  # 共享包构建服务 (解决 ENOTEMPTY 竞争条件)
+  # =========================================
+  shared-packages-builder:
+    build:
+      context: .
+      dockerfile: Dockerfile.base
+    container_name: lucky-shared-packages-builder
+    command: >
+      sh -c "corepack enable &&
+             export PATH=/app/node_modules/.bin:$$PATH &&
+             echo '>>> Building @lucky/shared ...' &&
+             node /app/packages/shared/scripts/build.js &&
+             echo '>>> Building @repo/ui (pre-build for fast Next.js compilation)...' &&
+             node /app/packages/ui/scripts/build.js &&
+             echo '✅ Shared packages built successfully'"
+    volumes:
+      - .:/app
+      - pkg_shared_nm:/app/packages/shared/node_modules
+      - pkg_ui_nm:/app/packages/ui/node_modules
+      - pkg_eslint_nm:/app/packages/eslint-config/node_modules
+      - pkg_tsconfig_nm:/app/packages/typescript-config/node_modules
+      - pkg_config_nm:/app/packages/config/node_modules
+    networks: [app]
+
+  # =========================================
   # Admin 前端 (开发模式 — Next.js)
   # =========================================
   admin-next:
@@ -70,19 +95,16 @@ services:
     container_name: lucky-admin-next-dev
     command: >
       sh -c "corepack enable &&
+             export PATH=/app/node_modules/.bin:$$PATH &&
              LOCK_HASH=$$(md5sum /app/yarn.lock | cut -d' ' -f1) &&
              CACHE=/app/node_modules/.admin-install-hash &&
-             if [ ! -f \"$$CACHE\" ] || [ \"$$(cat $$CACHE 2>/dev/null)\" != \"$$LOCK_HASH\" ] || ! yarn workspace @lucky/admin-next exec which next >/dev/null 2>&1; then
+             if [ ! -f \"$$CACHE\" ] || [ \"$$(cat $$CACHE 2>/dev/null)\" != \"$$LOCK_HASH\" ] || ! command -v next >/dev/null 2>&1; then
                echo '>>> dependency check triggered - running install...' &&
                yarn install &&
                echo \"$$LOCK_HASH\" > \"$$CACHE\";
              else
                echo '>>> yarn.lock unchanged - skipping install';
              fi &&
-             echo '>>> Building @lucky/shared ...' &&
-             node /app/packages/shared/scripts/build.js &&
-             echo '>>> Building @repo/ui (pre-build for fast Next.js compilation)...' &&
-             node /app/packages/ui/scripts/build.js &&
              yarn workspace @lucky/admin-next dev"
     expose:
       - "4001"
@@ -116,6 +138,7 @@ services:
       retries: 30
       start_period: 120s
     depends_on:
+      - shared-packages-builder
       - backend
     networks: [app]
 
@@ -129,19 +152,16 @@ services:
     container_name: lucky-frontend-blog-dev
     command: >
       sh -c "corepack enable &&
+             export PATH=/app/node_modules/.bin:$$PATH &&
              LOCK_HASH=$$(md5sum /app/yarn.lock | cut -d' ' -f1) &&
              CACHE=/app/node_modules/.blog-install-hash &&
-             if [ ! -f \"$$CACHE\" ] || [ \"$$(cat $$CACHE 2>/dev/null)\" != \"$$LOCK_HASH\" ] || ! yarn workspace @lucky/frontend-blog exec which next >/dev/null 2>&1; then
+             if [ ! -f \"$$CACHE\" ] || [ \"$$(cat $$CACHE 2>/dev/null)\" != \"$$LOCK_HASH\" ] || ! command -v next >/dev/null 2>&1; then
                echo '>>> dependency check triggered - running install...' &&
                yarn install &&
                echo \"$$LOCK_HASH\" > \"$$CACHE\";
              else
                echo '>>> yarn.lock unchanged - skipping install';
              fi &&
-             echo '>>> Building @lucky/shared ...' &&
-             node /app/packages/shared/scripts/build.js &&
-             echo '>>> Building @repo/ui (pre-build for fast Next.js compilation)...' &&
-             node /app/packages/ui/scripts/build.js &&
              yarn workspace @lucky/frontend-blog dev"
     expose:
       - "4002"
@@ -170,6 +190,7 @@ services:
       retries: 30
       start_period: 120s
     depends_on:
+      - shared-packages-builder
       - backend
     networks: [app]
 

@@ -17,6 +17,7 @@ import {
   ApiBearerAuth,
   ApiQuery,
 } from '@nestjs/swagger';
+import { Request } from 'express';
 
 @ApiTags('frontend-blog-bookmarks')
 @Controller('frontend/blog')
@@ -41,7 +42,7 @@ export class BookmarkController {
   @ApiResponse({ status: 200, description: '返回收藏列表' })
   @ApiResponse({ status: 401, description: '未授权' })
   async getBookmarks(
-    @Req() req,
+    @Req() req: Request,
     @Query('page') page?: number,
     @Query('pageSize') pageSize?: number,
     @Query('locale') locale?: string,
@@ -58,7 +59,7 @@ export class BookmarkController {
   @ApiResponse({ status: 201, description: '收藏成功' })
   @ApiResponse({ status: 401, description: '未授权' })
   @ApiResponse({ status: 404, description: '文章不存在' })
-  async addBookmark(@Req() req, @Param('id') articleId: string) {
+  async addBookmark(@Req() req: Request, @Param('id') articleId: string) {
     return this.bookmarkService.addBookmark(req.user.id, articleId);
   }
 
@@ -67,7 +68,7 @@ export class BookmarkController {
   @ApiResponse({ status: 200, description: '取消收藏成功' })
   @ApiResponse({ status: 401, description: '未授权' })
   @ApiResponse({ status: 404, description: '收藏记录不存在' })
-  async removeBookmark(@Req() req, @Param('id') articleId: string) {
+  async removeBookmark(@Req() req: Request, @Param('id') articleId: string) {
     return this.bookmarkService.removeBookmark(req.user.id, articleId);
   }
 
@@ -75,7 +76,10 @@ export class BookmarkController {
   @ApiOperation({ summary: '检查文章收藏状态' })
   @ApiResponse({ status: 200, description: '返回收藏状态' })
   @ApiResponse({ status: 401, description: '未授权' })
-  async checkBookmarkStatus(@Req() req, @Param('id') articleId: string) {
+  async checkBookmarkStatus(
+    @Req() req: Request,
+    @Param('id') articleId: string,
+  ) {
     return this.bookmarkService.checkBookmarkStatus(req.user.id, articleId);
   }
 }

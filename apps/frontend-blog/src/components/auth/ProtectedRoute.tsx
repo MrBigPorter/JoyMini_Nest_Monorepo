@@ -26,16 +26,21 @@ export function ProtectedRoute({
   requireAuth = true,
   fallback = <PageSkeleton />,
 }: ProtectedRouteProps) {
-  const { isAuthenticated, isLoading, initializeAuth } = useAuth();
+  const { isAuthenticated, isLoading, checkAuth } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    const checkAuth = async () => {
+    const verifyAuth = async () => {
       if (!requireAuth) return;
 
-      if (!isLoading && !isAuthenticated) {
-        // 尝试初始化认证状态（检查本地存储的 token）
-        const isAuthValid = await initializeAuth();
+      // 等待加载完成（包括水合）
+      if (isLoading) {
+        return;
+      }
+
+      if (!isAuthenticated) {
+        // 尝试检查认证状态
+        const isAuthValid = await checkAuth();
 
         if (!isAuthValid) {
           // 保存当前路径，登录后可以跳转回来
@@ -54,17 +59,10 @@ export function ProtectedRoute({
       }
     };
 
-    checkAuth();
-  }, [
-    isAuthenticated,
-    isLoading,
-    requireAuth,
-    router,
-    redirectTo,
-    initializeAuth,
-  ]);
+    verifyAuth();
+  }, [isAuthenticated, isLoading, requireAuth, router, redirectTo, checkAuth]);
 
-  // 显示加载状态
+  // 显示加载状态（包括水合状态）
   if (isLoading) {
     return <>{fallback}</>;
   }

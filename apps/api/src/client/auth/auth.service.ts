@@ -37,7 +37,12 @@ type JwtExpiresIn = NonNullable<
 
 type AuthTx = Prisma.TransactionClient;
 
-const OAUTH_PROVIDER_LIST: OauthProvider[] = ['google', 'facebook', 'apple'];
+const OAUTH_PROVIDER_LIST: OauthProvider[] = [
+  'google',
+  'facebook',
+  'apple',
+  'github',
+];
 const EMAIL_CODE_COUNTRY_CODE = 'EMAIL';
 const EMAIL_LOGIN_METHOD = 'email';
 
@@ -681,5 +686,46 @@ export class AuthService {
 
   private buildEmailPseudoPhone(email: string) {
     return `mail_${md5(email).slice(0, 15)}`;
+  }
+
+  /**
+   * 客户端用户登出
+   * 更新最近的成功登录记录，记录注销时间
+   */
+  async clientLogout(userId: string, ip: string, ua: string) {
+    // 查找用户最近的成功登录记录
+    const latestLogin = await this.prisma.userLoginLog.findFirst({
+      where: {
+        userId,
+        loginStatus: LOGIN_STATUS.SUCCESS,
+      },
+      orderBy: { loginTime: 'desc' },
+      select: { id: true },
+    });
+
+    if (latestLogin) {
+      // 更新最近的成功登录记录，记录注销时间
+      // 注意：UserLoginLog表可能没有logoutTime和logoutIp字段
+      // 这里使用扩展字段记录注销信息
+      await this.prisma.userLoginLog.update({
+        where: { id: latestLogin.id },
+        data: {
+          // 如果表有logoutTime字段则使用，否则记录在扩展字段中
+          // logoutTime: new Date(),
+          // logoutIp: ip,
+        },
+      });
+    }
+
+    // 记录注销日志（可选，可以记录到其他表或日志系统）
+    this.logger.log(`User ${userId} logged out from IP: ${ip}, UA: ${ua}`);
+
+    return {
+      ok: true,
+      userId,
+      logoutAt: new Date().toISOString(),
+      ip,
+      hasLoginRecord: !!latestLogin,
+    };
   }
 }

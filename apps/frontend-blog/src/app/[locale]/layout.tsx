@@ -11,6 +11,7 @@ import Sidebar from '@/components/navigation/Sidebar';
 import BottomNavigation from '@/components/BottomNavigation';
 import QueryProvider from '@/lib/providers/QueryProvider';
 import I18nProvider from '@/lib/providers/I18nProvider';
+import { GoogleOAuthProvider } from '@/lib/components/GoogleOAuthProvider';
 import '../globals.css';
 
 const inter = Inter({
@@ -75,12 +76,14 @@ export default async function LocaleLayout({
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
             <QueryProvider>
               <I18nProvider>
-                <Header />
-                <Sidebar />
-                <main className="pt-[var(--content-padding-top)] pb-[var(--content-padding-bottom)] min-h-screen md:ml-16 md:transition-all md:duration-300">
-                  {children}
-                </main>
-                <BottomNavigation />
+                <GoogleOAuthProvider>
+                  <Header />
+                  <Sidebar />
+                  <main className="pt-[var(--content-padding-top)] pb-[var(--content-padding-bottom)] min-h-screen md:ml-16 md:transition-all md:duration-300">
+                    {children}
+                  </main>
+                  <BottomNavigation />
+                </GoogleOAuthProvider>
               </I18nProvider>
             </QueryProvider>
           </ThemeProvider>

@@ -6,6 +6,8 @@ import { Link, useRouter, usePathname } from '@/navigation';
 import { useTheme } from 'next-themes';
 import { Search, Sun, Moon, User, ChevronDown, Globe } from 'lucide-react';
 import { useAvailableLocales } from '@/hooks/useAvailableLocales';
+import { useAuth } from '@/lib/hooks/useAuth';
+import { useAuthStore } from '@/lib/stores/auth.store';
 
 interface LocaleConfig {
   code: string;
@@ -19,15 +21,32 @@ export default function Header() {
   // Next.js 15 严格要求: 所有React Hooks必须在函数最顶端调用，中间不能有任何其他代码
   const router = useRouter();
   const pathname = usePathname();
+
   const locale = useLocale() as string;
   const t = useTranslations();
   const { theme, setTheme, systemTheme } = useTheme();
-  const { enabledLocales, isLoading } = useAvailableLocales();
+  const { enabledLocales, isLoading: localesLoading } = useAvailableLocales();
 
   const currentLocale = locale;
   const [searchFocused, setSearchFocused] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [langMenuOpen, setLangMenuOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  // 认证状态
+  const { user, isAuthenticated, logout, isLoading: authLoading } = useAuth();
+  // 水合状态
+  const { isHydrated } = useAuthStore();
+
+  console.log('Header rendered:', {
+    isAuthenticated,
+    authLoading,
+    isHydrated,
+    user: user ? 'present' : 'null',
+    timestamp: Date.now(),
+  });
+
+  // 在水合完成前显示加载状态
+  const showAuthLoading = authLoading || !isHydrated;
 
   // 动态语言切换
   const switchLocale = (nextLocale: string) => {
@@ -133,15 +152,15 @@ export default function Header() {
               onClick={() => setLangMenuOpen(!langMenuOpen)}
               className="p-2 rounded-full hover:bg-accent transition-all active:scale-95 flex items-center gap-1"
               title="change language"
-              disabled={isLoading}
+              disabled={localesLoading}
             >
               <Globe className="w-5 h-5" />
               <span className="text-xs font-medium">
-                {isLoading ? '...' : getLocaleDisplayName(currentLocale)}
+                {localesLoading ? '...' : getLocaleDisplayName(currentLocale)}
               </span>
             </button>
 
-            {langMenuOpen && !isLoading && enabledLocales.length > 0 && (
+            {langMenuOpen && !localesLoading && enabledLocales.length > 0 && (
               <div className="absolute right-0 top-full mt-2 bg-card border border-border rounded-lg shadow-lg min-w-32 overflow-hidden z-50">
                 {enabledLocales.map((locale: LocaleConfig) => (
                   <button
@@ -164,12 +183,65 @@ export default function Header() {
           </div>
 
           {/* 登录/用户按钮 */}
-          <Link
-            href="/login"
-            className="px-4 py-2 rounded-full bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-all active:scale-95"
-          >
-            {t('auth.login.button')}
-          </Link>
+          {showAuthLoading ? (
+            // 水合完成前显示加载状态
+            <div className="w-20 h-8 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse" />
+          ) : isAuthenticated ? (
+            <div className="relative">
+              <button
+                onClick={() => setUserMenuOpen(!userMenuOpen)}
+                className="flex items-center gap-2 px-3 py-2 rounded-full hover:bg-accent transition-all"
+                title={user?.nickname || '用户'}
+              >
+                {user?.avatar ? (
+                  <img
+                    src={user.avatar}
+                    alt={user.nickname}
+                    className="w-6 h-6 rounded-full"
+                  />
+                ) : (
+                  <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center">
+                    <User className="w-4 h-4 text-primary" />
+                  </div>
+                )}
+                <span className="text-sm font-medium hidden md:inline">
+                  {user?.nickname || '用户'}
+                </span>
+                <ChevronDown className="w-4 h-4 text-muted-foreground" />
+              </button>
+
+              {/* 用户菜单 */}
+              {userMenuOpen && (
+                <div className="absolute right-0 top-full mt-2 bg-card border border-border rounded-lg shadow-lg min-w-40 overflow-hidden z-50">
+                  <div className="px-4 py-3 border-b border-border">
+                    <div className="font-medium text-sm">
+                      {user?.nickname || '用户'}
+                    </div>
+                    <div className="text-xs text-muted-foreground truncate">
+                      {user?.email || '未设置邮箱'}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      logout();
+                      setUserMenuOpen(false);
+                    }}
+                    className="w-full px-4 py-2 text-left text-sm hover:bg-accent transition-colors text-red-500"
+                    disabled={authLoading}
+                  >
+                    {authLoading ? '退出中...' : '退出登录'}
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <Link
+              href="/login"
+              className="px-4 py-2 rounded-full bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-all active:scale-95"
+            >
+              {t('auth.login.button')}
+            </Link>
+          )}
         </div>
       </div>
     </header>
