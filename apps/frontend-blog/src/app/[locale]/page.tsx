@@ -2,6 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 import { useFrontendArticles } from '@/lib/hooks/useFrontendArticles';
+import { useBatchBookmarkStatusMap } from '@/lib/hooks/useBatchBookmarkStatus';
 import { ArticleCard } from '@/components/blog/ArticleCard';
 import { Loader2 } from 'lucide-react';
 
@@ -11,6 +12,12 @@ export default function HomePage() {
     page: 1,
     pageSize: 10,
   });
+
+  // 提取文章ID用于批量查询收藏状态
+  const articleIds = data?.items?.map((article) => article.id) || [];
+
+  // 批量查询收藏状态
+  const { statusMap } = useBatchBookmarkStatusMap(articleIds);
 
   if (isLoading) {
     return (
@@ -43,9 +50,16 @@ export default function HomePage() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {articles.map((article) => (
-          <ArticleCard key={article.id} article={article} />
-        ))}
+        {articles.map((article) => {
+          const bookmarkStatus = statusMap.get(article.id);
+          return (
+            <ArticleCard
+              key={article.id}
+              article={article}
+              bookmarkStatus={bookmarkStatus}
+            />
+          );
+        })}
       </div>
 
       {articles.length === 0 && (

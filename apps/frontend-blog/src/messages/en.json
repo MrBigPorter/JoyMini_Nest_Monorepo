@@ -5,10 +5,10 @@
     "categories": "Categories",
     "tags": "Tags",
     "search": "Search",
-    "loadMore": "Load More",
+    "loadMore": "Load more",
     "noResults": "No results found",
     "back": "Back",
-    "backToHome": "Back to Home",
+    "backToHome": "Back to home",
     "backToCategories": "Back to categories",
     "backToTags": "Back to tags",
     "loading": "Loading...",
@@ -16,9 +16,25 @@
     "loadFailed": "Failed to load",
     "retry": "Retry",
     "articleCount": "{count} articles",
-    "totalTags": "{count} tags, {total} articles total",
+    "totalTags": "{count} tags, {total} articles",
     "about": "About",
     "bookmarks": "Bookmarks"
+  },
+  "categories": {
+    "title": "Article Categories",
+    "subtitle": "Browse all article categories, find content you're interested in",
+    "notFound": "Category not found",
+    "empty": "No categories yet",
+    "emptyArticles": "No articles in this category yet",
+    "emptyDescription": "Content in this category is being prepared, you can check articles in other categories first"
+  },
+  "tags": {
+    "title": "Tag Cloud",
+    "subtitle": "Browse all article tags by topic",
+    "notFound": "Tag not found",
+    "empty": "No tags yet",
+    "emptyArticles": "No articles using this tag yet",
+    "emptyDescription": "Check out articles with other popular tags"
   },
   "home": {
     "title": "Latest Articles",
@@ -30,7 +46,12 @@
     "views": "Views",
     "comments": "Comments",
     "share": "Share",
-    "relatedArticles": "Related Articles"
+    "relatedArticles": "Related Articles",
+    "anonymous": "Anonymous author",
+    "notFound": "Article not found",
+    "notFoundDescription": "The article you are looking for does not exist or has been removed.",
+    "notPublished": "Not published yet",
+    "minutes": "minutes"
   },
   "auth": {
     "email": "Email address",
@@ -62,22 +83,22 @@
     "login": {
       "title": "Login",
       "subtitle": "Login to your Tarsier Blog account",
-      "button": "Sign in",
-      "github": "Continue with GitHub",
-      "google": "Continue with Google",
-      "facebook": "Continue with Facebook",
+      "button": "Login",
+      "github": "Login with GitHub",
+      "google": "Login with Google",
+      "facebook": "Login with Facebook",
       "noAccount": "Don't have an account?",
-      "register": "Sign up",
-      "tip": "💡 Tip: New user? Login equals registration! Your account will be automatically created on first login."
+      "register": "Register now",
+      "tip": "💡 Tip: New user? Login to register! First login will automatically create an account."
     },
     "register": {
-      "title": "Sign up",
+      "title": "Register",
       "subtitle": "Create your Tarsier Blog account",
       "button": "Create account",
-      "github": "Sign up with GitHub",
-      "google": "Sign up with Google",
+      "github": "Register with GitHub",
+      "google": "Register with Google",
       "hasAccount": "Already have an account?",
-      "login": "Sign in",
+      "login": "Login now",
       "confirmPassword": "Confirm password",
       "confirmPasswordPlaceholder": "Confirm your password"
     }
@@ -92,34 +113,18 @@
     "repliesCount": "{count} replies",
     "loginRequired": "Please login to comment"
   },
-  "categories": {
-    "title": "Categories",
-    "subtitle": "Browse all article categories",
-    "notFound": "Category not found",
-    "empty": "No categories yet",
-    "emptyArticles": "No articles in this category yet",
-    "emptyDescription": "Content for this category is being prepared. You can check out other categories in the meantime."
-  },
-  "tags": {
-    "title": "Tags",
-    "subtitle": "Browse articles by topic",
-    "notFound": "Tag not found",
-    "empty": "No tags yet",
-    "emptyArticles": "No articles with this tag yet",
-    "emptyDescription": "Check out other popular tags for interesting articles."
-  },
   "search": {
     "title": "Search Articles",
-    "subtitle": "Search through all articles",
-    "placeholder": "Search articles...",
-    "result": "Found {count} articles",
+    "subtitle": "Search all article content",
+    "placeholder": "Enter search keywords...",
+    "result": "Found {count} results",
     "emptyTitle": "Enter keywords to start searching",
     "emptyDescription": "Search article titles, content or tags"
   },
   "bookmarks": {
     "title": "My Bookmarks",
     "subtitle": "All articles you have bookmarked",
-    "totalCount": "{count} articles bookmarked",
+    "totalCount": "Total {count} bookmarked articles",
     "empty": "No bookmarked articles yet",
     "emptyTitle": "No bookmarked articles yet",
     "emptyDescription": "Start exploring articles and bookmark your favorites",
@@ -128,13 +133,13 @@
   },
   "about": {
     "title": "About Lucky Nest",
-    "subtitle": "Building the next generation user experience platform",
+    "subtitle": "We are building the next-generation user experience platform",
     "visionTitle": "Our Vision",
-    "visionDescription": "Lucky Nest is a modern web application platform dedicated to creating the best user experience. We believe good software should be simple, elegant and efficient.\n\nThis blog is where we share our technical experience, product thinking and team stories. We hope our work can be helpful to you.",
+    "visionDescription": "Lucky Nest is a modern web application platform, we are committed to creating the best user experience. We believe good software should be simple, elegant, and efficient.\n\nThis blog is where we share technical experience, product thinking, and team daily life. We hope our work can be helpful to you.",
     "techStackTitle": "Tech Stack",
     "teamTitle": "Team",
     "contactTitle": "Contact Us",
     "github": "GitHub",
-    "email": "Email Us"
+    "email": "Email"
   }
 }

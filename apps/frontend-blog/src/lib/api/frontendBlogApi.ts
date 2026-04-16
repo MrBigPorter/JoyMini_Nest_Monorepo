@@ -10,6 +10,9 @@ import type {
   FrontendBlogStats,
   FrontendArchiveItem,
   FrontendPaginatedResponse,
+  BookmarkedArticle,
+  BookmarkResponse,
+  BookmarkStatusResponse,
 } from '@/lib/types/frontend-blog';
 
 /**
@@ -139,6 +142,61 @@ export const frontendBlogApi = {
    */
   getPopularTags: (limit = 20) =>
     http.get<FrontendTag[]>('/v1/frontend/blog/tags/popular', { limit }),
+
+  // ================= 收藏接口 =================
+
+  /**
+   * 获取用户收藏列表
+   */
+  getBookmarks: (params?: {
+    page?: number;
+    pageSize?: number;
+    locale?: string;
+  }) =>
+    http.get<FrontendPaginatedResponse<BookmarkedArticle>>(
+      '/v1/frontend/blog/bookmarks',
+      params,
+    ),
+
+  /**
+   * 收藏文章
+   */
+  addBookmark: (articleId: string) =>
+    http.post<BookmarkResponse>(
+      `/v1/frontend/blog/articles/${articleId}/bookmark`,
+    ),
+
+  /**
+   * 取消收藏
+   */
+  removeBookmark: (articleId: string) =>
+    http.delete<BookmarkResponse>(
+      `/v1/frontend/blog/articles/${articleId}/bookmark`,
+    ),
+
+  /**
+   * 检查收藏状态
+   */
+  checkBookmarkStatus: (articleId: string) =>
+    http.get<BookmarkStatusResponse>(
+      `/v1/frontend/blog/articles/${articleId}/bookmark-status`,
+    ),
+
+  /**
+   * 批量查询收藏状态
+   */
+  batchCheckBookmarkStatus: (articleIds: string[]) =>
+    http.post<{
+      results: Array<{
+        articleId: string;
+        isBookmarked: boolean;
+        bookmarkedAt?: string;
+      }>;
+      total: number;
+      batchSize: number;
+    }>('/v1/frontend/blog/articles/batch-bookmark-status', {
+      articleIds,
+    }),
 
   // ================= 评论接口 =================
   // 注意：评论接口暂时使用原有接口，因为评论逻辑相对简单

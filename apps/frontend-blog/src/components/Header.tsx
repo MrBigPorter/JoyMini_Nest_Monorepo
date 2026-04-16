@@ -4,7 +4,15 @@ import { useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { Link, useRouter, usePathname } from '@/navigation';
 import { useTheme } from 'next-themes';
-import { Search, Sun, Moon, User, ChevronDown, Globe } from 'lucide-react';
+import {
+  Search,
+  Sun,
+  Moon,
+  User,
+  ChevronDown,
+  Globe,
+  Bookmark,
+} from 'lucide-react';
 import { useAvailableLocales } from '@/hooks/useAvailableLocales';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useAuthStore } from '@/lib/stores/auth.store';
@@ -221,6 +229,19 @@ export default function Header() {
                       {user?.email || '未设置邮箱'}
                     </div>
                   </div>
+
+                  {/* 收藏入口 */}
+                  <Link
+                    href="/bookmarks"
+                    onClick={() => setUserMenuOpen(false)}
+                    className="w-full px-4 py-2 text-left text-sm hover:bg-accent transition-colors flex items-center gap-2"
+                  >
+                    <Bookmark className="w-4 h-4" />
+                    <span>我的收藏</span>
+                  </Link>
+
+                  <div className="border-t border-border my-1" />
+
                   <button
                     onClick={() => {
                       logout();

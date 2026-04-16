@@ -6,23 +6,39 @@
     "tags": "태그",
     "search": "검색",
     "loadMore": "더 보기",
-    "noResults": "결과를 찾을 수 없습니다",
+    "noResults": "검색 결과가 없습니다",
     "back": "뒤로",
     "backToHome": "홈으로 돌아가기",
-    "backToCategories": "카테고리로 돌아가기",
-    "backToTags": "태그로 돌아가기",
+    "backToCategories": "카테고리 목록으로 돌아가기",
+    "backToTags": "태그 목록으로 돌아가기",
     "loading": "로딩 중...",
     "error": "로드에 실패했습니다. 나중에 다시 시도해 주세요",
-    "loadFailed": "로드에 실패했습니다",
-    "retry": "다시 시도",
-    "articleCount": "글 {count}개",
-    "totalTags": "태그 {count}개, 총 글 {total}개",
+    "loadFailed": "로드 실패",
+    "retry": "재시도",
+    "articleCount": "{count}개의 글",
+    "totalTags": "{count}개의 태그, {total}개의 글",
     "about": "소개",
     "bookmarks": "북마크"
   },
+  "categories": {
+    "title": "글 카테고리",
+    "subtitle": "모든 글 카테고리를 둘러보고 관심 있는 콘텐츠를 찾아보세요",
+    "notFound": "카테고리를 찾을 수 없습니다",
+    "empty": "아직 카테고리가 없습니다",
+    "emptyArticles": "이 카테고리에 아직 글이 없습니다",
+    "emptyDescription": "이 카테고리의 콘텐츠는 준비 중입니다. 다른 카테고리의 글을 먼저 확인해 보세요"
+  },
+  "tags": {
+    "title": "태그 클라우드",
+    "subtitle": "주제별로 모든 글 태그를 둘러보세요",
+    "notFound": "태그를 찾을 수 없습니다",
+    "empty": "아직 태그가 없습니다",
+    "emptyArticles": "이 태그를 사용한 글이 아직 없습니다",
+    "emptyDescription": "다른 인기 태그의 글을 확인해 보세요"
+  },
   "home": {
     "title": "최신 글",
-    "subtitle": "최신 게시 콘텐츠 탐색",
+    "subtitle": "최신으로 발행된 콘텐츠를 탐색해 보세요",
     "empty": "아직 글이 없습니다"
   },
   "article": {
@@ -30,7 +46,12 @@
     "views": "조회수",
     "comments": "댓글",
     "share": "공유",
-    "relatedArticles": "관련 글"
+    "relatedArticles": "관련 글",
+    "anonymous": "익명 저자",
+    "notFound": "글을 찾을 수 없습니다",
+    "notFoundDescription": "찾고 계신 글이 존재하지 않거나 삭제되었습니다.",
+    "notPublished": "아직 게시되지 않았습니다",
+    "minutes": "분"
   },
   "auth": {
     "email": "이메일 주소",
@@ -38,18 +59,18 @@
     "password": "비밀번호",
     "passwordPlaceholder": "비밀번호를 입력하세요",
     "confirmPassword": "비밀번호 확인",
-    "confirmPasswordPlaceholder": "비밀번호를 확인하세요",
+    "confirmPasswordPlaceholder": "비밀번호를 다시 입력하세요",
     "forgotPassword": "비밀번호를 잊으셨나요?",
-    "orContinueWith": "또는 다음으로 계속",
+    "orContinueWith": "또는 다음으로 계속하기",
     "verificationCode": "인증 코드",
     "sending": "전송 중...",
     "sendCode": "코드 전송",
     "resendIn": "재전송",
     "codePlaceholder": "인증 코드를 입력하세요",
-    "invalidEmail": "유효하지 않은 이메일 주소",
+    "invalidEmail": "이메일 주소 형식이 올바르지 않습니다",
     "sendCodeFailed": "인증 코드 전송에 실패했습니다",
-    "fillAllFields": "모든 필드를 입력해 주세요",
-    "invalidCode": "유효하지 않은 인증 코드",
+    "fillAllFields": "모든 필수 항목을 입력해 주세요",
+    "invalidCode": "인증 코드 형식이 올바르지 않습니다",
     "loginFailed": "로그인에 실패했습니다",
     "oauth": {
       "githubNotConfigured": "GitHub OAuth가 구성되지 않았습니다",
@@ -63,23 +84,23 @@
       "title": "로그인",
       "subtitle": "Tarsier Blog 계정에 로그인",
       "button": "로그인",
-      "github": "GitHub로 계속",
-      "google": "Google로 계속",
-      "facebook": "Facebook로 계속",
+      "github": "GitHub로 로그인",
+      "google": "Google로 로그인",
+      "facebook": "Facebook으로 로그인",
       "noAccount": "계정이 없으신가요?",
-      "register": "가입하기",
-      "tip": "💡 팁: 새 사용자이신가요? 로그인은 등록과 같습니다! 첫 로그인 시 계정이 자동으로 생성됩니다."
+      "register": "지금 등록",
+      "tip": "💡 팁: 새 사용자이신가요? 로그인하여 등록하세요! 첫 로그인 시 자동으로 계정이 생성됩니다."
     },
     "register": {
-      "title": "가입하기",
+      "title": "등록",
       "subtitle": "Tarsier Blog 계정 만들기",
       "button": "계정 생성",
-      "github": "GitHub로 가입",
-      "google": "Google로 가입",
+      "github": "GitHub로 등록",
+      "google": "Google로 등록",
       "hasAccount": "이미 계정이 있으신가요?",
-      "login": "로그인",
+      "login": "지금 로그인",
       "confirmPassword": "비밀번호 확인",
-      "confirmPasswordPlaceholder": "비밀번호를 확인하세요"
+      "confirmPasswordPlaceholder": "비밀번호를 다시 입력하세요"
     }
   },
   "comment": {
@@ -89,52 +110,36 @@
     "reply": "답글",
     "cancel": "취소",
     "submit": "제출",
-    "repliesCount": "답글 {count}개",
+    "repliesCount": "{count}개의 답글",
     "loginRequired": "댓글을 작성하려면 로그인해 주세요"
-  },
-  "categories": {
-    "title": "카테고리",
-    "subtitle": "모든 글 카테고리 탐색",
-    "notFound": "카테고리를 찾을 수 없습니다",
-    "empty": "아직 카테고리가 없습니다",
-    "emptyArticles": "이 카테고리에 아직 글이 없습니다",
-    "emptyDescription": "이 카테고리의 콘텐츠는 준비 중입니다. 그동안 다른 카테고리를 확인해 보세요."
-  },
-  "tags": {
-    "title": "태그",
-    "subtitle": "주제별로 글 탐색",
-    "notFound": "태그를 찾을 수 없습니다",
-    "empty": "아직 태그가 없습니다",
-    "emptyArticles": "이 태그의 글이 아직 없습니다",
-    "emptyDescription": "흥미로운 글을 위해 다른 인기 태그를 확인해 보세요."
   },
   "search": {
     "title": "글 검색",
-    "subtitle": "모든 글 검색",
-    "placeholder": "글 검색...",
-    "result": "글 {count}개를 찾았습니다",
-    "emptyTitle": "검색을 시작하려면 키워드를 입력하세요",
+    "subtitle": "모든 글 콘텐츠 검색",
+    "placeholder": "검색 키워드를 입력하세요...",
+    "result": "{count}개의 검색 결과를 찾았습니다",
+    "emptyTitle": "키워드를 입력하여 검색 시작",
     "emptyDescription": "글 제목, 내용 또는 태그 검색"
   },
   "bookmarks": {
     "title": "내 북마크",
     "subtitle": "북마크한 모든 글",
-    "totalCount": "북마크한 글 {count}개",
+    "totalCount": "총 {count}개의 글을 북마크",
     "empty": "아직 북마크한 글이 없습니다",
     "emptyTitle": "아직 북마크한 글이 없습니다",
     "emptyDescription": "글을 탐색하고 좋아하는 글을 북마크하세요",
-    "browseArticles": "글 탐색",
+    "browseArticles": "글 둘러보기",
     "loadFailed": "북마크 로드에 실패했습니다"
   },
   "about": {
     "title": "Lucky Nest 소개",
-    "subtitle": "차세대 사용자 경험 플랫폼 구축 중",
+    "subtitle": "차세대 사용자 경험 플랫폼을 구축하고 있습니다",
     "visionTitle": "우리의 비전",
-    "visionDescription": "Lucky Nest는 최고의 사용자 경험을 창조하는 데 전념하는 현대적인 웹 애플리케이션 플랫폼입니다. 우리는 좋은 소프트웨어는 단순하고, 우아하며, 효율적이어야 한다고 믿습니다.\n\n이 블로그는 우리의 기술 경험, 제품 사고, 팀 이야기를 공유하는 곳입니다. 우리의 작업이 여러분에게 도움이 되길 바랍니다.",
+    "visionDescription": "Lucky Nest는 현대적인 웹 애플리케이션 플랫폼으로, 최고의 사용자 경험을 만들기 위해 노력하고 있습니다. 우리는 좋은 소프트웨어는 단순하고, 우아하며, 효율적이어야 한다고 믿습니다.\n\n이 블로그는 기술 경험, 제품 사고, 팀의 일상을 공유하는 곳입니다. 우리의 작업이 여러분에게 도움이 되길 바랍니다.",
     "techStackTitle": "기술 스택",
     "teamTitle": "팀",
-    "contactTitle": "문의하기",
+    "contactTitle": "연락처",
     "github": "GitHub",
-    "email": "이메일 보내기"
+    "email": "이메일"
   }
 }
