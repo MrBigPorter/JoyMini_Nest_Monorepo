@@ -1,9 +1,14 @@
 import { getRequestConfig } from 'next-intl/server';
-import { readdirSync } from 'fs';
-import { resolve } from 'path';
+import { notFound } from 'next/navigation';
 
-// 文件到语言的映射配置
-const FILE_TO_LOCALE = {
+// 1. 定义支持的语言（静态配置，保持与原始设计一致）
+// 实际可用的语言取决于是否存在对应的翻译文件
+export const locales = ['zh', 'en', 'ja', 'ko', 'fr', 'de'] as const;
+export type Locale = (typeof locales)[number];
+export const defaultLocale: Locale = 'zh';
+
+// 2. 文件映射表（文件名到语言代码的映射）
+const FILE_TO_LOCALE: Record<string, string> = {
   'zh-CN': 'zh', // 文件zh-CN.json对应语言代码zh
   zh: 'zh', // 重命名后
   en: 'en',
@@ -13,7 +18,7 @@ const FILE_TO_LOCALE = {
   de: 'de',
 };
 
-// 语言到文件的映射（反向）
+// 3. 语言到文件的映射（反向）
 const LOCALE_TO_FILE = Object.entries(FILE_TO_LOCALE).reduce(
   (acc, [file, locale]) => {
     acc[locale] = file;
@@ -22,86 +27,49 @@ const LOCALE_TO_FILE = Object.entries(FILE_TO_LOCALE).reduce(
   {} as Record<string, string>,
 );
 
-/**
- * 获取支持的语言列表
- * 通过扫描src/messages/目录下的.json文件
- */
-function getAvailableLocales(): string[] {
-  const messagesDir = resolve(process.cwd(), 'src/messages');
-  try {
-    const files = readdirSync(messagesDir);
-    const locales = files
-      .filter((file) => file.endsWith('.json'))
-      .map((file) => file.replace('.json', ''))
-      .map((fileCode) => FILE_TO_LOCALE[fileCode] || fileCode);
-
-    // 去重（可能多个文件映射到同一个语言）
-    const uniqueLocales = Array.from(new Set(locales));
-    return uniqueLocales;
-  } catch (error) {
-    console.warn('Failed to scan messages directory, using defaults:', error);
-    return ['zh', 'en']; // 默认回退
-  }
-}
+// 4. 实际可用的语言（基于存在的翻译文件）
+const AVAILABLE_LOCALES = ['zh', 'en'] as const;
 
 export default getRequestConfig(async ({ locale }) => {
-  // 优先从API获取启用的语言列表，如果API失败则使用文件扫描
-  let availableLocales: string[] = [];
+  // 验证路径中的 locale 是否合法
+  const currentLocale = locale || defaultLocale;
 
-  try {
-    // 在服务器端调用API获取启用的语言列表
-    const response = await fetch(
-      'http://localhost:3001/v1/client/system-config/locales',
-    );
-    if (response.ok) {
-      const data = await response.json();
-      const enabledLocales = data.list
-        .filter((locale: any) => locale.enabled)
-        .map((locale: any) => locale.code);
-      availableLocales = enabledLocales;
-    } else {
-      throw new Error(`API returned ${response.status}`);
-    }
-  } catch (error) {
-    console.warn(
-      'Failed to fetch locales from API, falling back to file scan:',
-      error,
-    );
-    availableLocales = getAvailableLocales();
+  // 检查是否是支持的语言
+  if (!locales.includes(currentLocale as any)) {
+    notFound();
   }
 
-  // 处理可能的undefined locale
-  let currentLocale = locale || 'zh';
-
-  // 验证语言是否支持
-  if (!availableLocales.includes(currentLocale)) {
-    // 回退到默认语言
-    currentLocale = 'zh';
-  }
-
-  // 获取对应的文件名
-  const fileCode = LOCALE_TO_FILE[currentLocale] || currentLocale;
+  const fileName = LOCALE_TO_FILE[currentLocale] || currentLocale;
 
   try {
-    const messages = (await import(`./src/messages/${fileCode}.json`)).default;
+    // 动态导入 JSON 消息文件
+    const messages = (await import(`./src/messages/${fileName}.json`)).default;
     return {
       locale: currentLocale,
       messages,
+      timeZone: 'Asia/Shanghai', // 配置时区
     };
   } catch (error) {
-    // 文件加载失败，回退到默认语言
-    console.warn(
-      `Failed to load messages for ${currentLocale}, falling back to zh:`,
-      error,
-    );
+    // 如果翻译文件不存在，检查是否是实际可用的语言
+    if (!AVAILABLE_LOCALES.includes(currentLocale as any)) {
+      console.warn(
+        `Translation file missing for locale: ${currentLocale}, falling back to default`,
+      );
+      // 回退到默认语言
+      const defaultFileName = LOCALE_TO_FILE[defaultLocale] || defaultLocale;
+      const defaultMessages = (
+        await import(`./src/messages/${defaultFileName}.json`)
+      ).default;
+      return {
+        locale: defaultLocale,
+        messages: defaultMessages,
+        timeZone: 'Asia/Shanghai',
+      };
+    }
 
-    const defaultFileCode = LOCALE_TO_FILE['zh'] || 'zh';
-    const defaultMessages = (
-      await import(`./src/messages/${defaultFileCode}.json`)
-    ).default;
-    return {
-      locale: 'zh',
-      messages: defaultMessages,
-    };
+    console.error(
+      `Missing translation file for available locale: ${currentLocale}`,
+    );
+    notFound();
   }
 });

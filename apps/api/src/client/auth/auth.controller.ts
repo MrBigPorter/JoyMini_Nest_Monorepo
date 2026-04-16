@@ -31,6 +31,7 @@ import {
   AppleOauthLoginDto,
   FacebookOauthLoginDto,
   GoogleOauthLoginDto,
+  GithubOauthLoginDto,
 } from '@api/client/auth/dto/oauth-login.dto';
 import { OauthLoginResponseDto } from '@api/client/auth/dto/oauth-login.response.dto';
 import {
@@ -42,7 +43,9 @@ import { GoogleProvider } from '@api/client/auth/providers/google.provider';
 import { FacebookProvider } from '@api/client/auth/providers/facebook.provider';
 import { AppleProvider } from '@api/client/auth/providers/apple.provider';
 import { FirebaseProvider } from '@api/client/auth/providers/firebase.provider';
+import { GithubProvider } from '@api/client/auth/providers/github.provider';
 import { FirebaseLoginDto } from '@api/client/auth/dto/firebase-login.dto';
+import { VerifiedOauthProfile } from './providers/provider.types';
 
 //@ApiTags('auth') Swagger 里把这些接口归到 auth 组。
 //@Controller('auth')：这组接口的前缀是 /auth/*。
@@ -55,6 +58,7 @@ export class AuthController {
     private readonly facebookProvider: FacebookProvider,
     private readonly appleProvider: AppleProvider,
     private readonly firebaseProvider: FirebaseProvider,
+    private readonly githubProvider: GithubProvider,
   ) {}
 
   // 使用手机号登陆
@@ -193,6 +197,36 @@ export class AuthController {
     });
   }
 
+  @Post('oauth/github')
+  @ApiOperation({ summary: 'login with Github OAuth' })
+  @Throttle({ otpRequest: { limit: 15, ttl: 60_000 } })
+  @ApiOkResponse({ type: OauthLoginResponseDto })
+  @HttpCode(HttpStatus.OK)
+  async loginWithGithubOauth(
+    @Body() dto: GithubOauthLoginDto,
+    @CurrentDevice() device: DeviceInfo,
+  ) {
+    let oauthProfile: VerifiedOauthProfile;
+
+    if (dto.code) {
+      // 使用授权码验证
+      oauthProfile = await this.githubProvider.verify(dto.code);
+    } else if (dto.accessToken) {
+      // 直接使用access_token验证
+      oauthProfile = await this.githubProvider.verifyAccessToken(
+        dto.accessToken,
+      );
+    } else {
+      throw new BadRequestException('Either code or accessToken is required');
+    }
+
+    return this.auth.loginWithOauth('github', oauthProfile, {
+      ip: device.ip,
+      ua: device.userAgent,
+      inviteCode: dto.inviteCode,
+    });
+  }
+
   @Post('firebase')
   @ApiOperation({ summary: 'Firebase unified login (Google/Facebook/Apple)' })
   @Throttle({ otpRequest: { limit: 15, ttl: 60_000 } })
@@ -208,5 +242,29 @@ export class AuthController {
       ua: device.userAgent,
       inviteCode: dto.inviteCode,
     });
+  }
+
+  /**
+   * 客户端用户登出
+   */
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Post('logout')
+  @ApiOperation({ summary: 'Client logout' })
+  @HttpCode(HttpStatus.OK)
+  async logout(
+    @CurrentUserId() userId: string,
+    @CurrentDevice() device: DeviceInfo,
+  ) {
+    const result = await this.auth.clientLogout(
+      userId,
+      device.ip,
+      device.userAgent,
+    );
+    return {
+      code: 10000,
+      message: 'success',
+      data: result,
+    };
   }
 }

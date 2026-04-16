@@ -11,6 +11,7 @@ import { GoogleProvider } from '@api/client/auth/providers/google.provider';
 import { FacebookProvider } from '@api/client/auth/providers/facebook.provider';
 import { AppleProvider } from '@api/client/auth/providers/apple.provider';
 import { FirebaseProvider } from '@api/client/auth/providers/firebase.provider';
+import { GithubProvider } from '@api/client/auth/providers/github.provider';
 import type { StringValue } from 'ms';
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import type { StringValue } from 'ms';
     FacebookProvider,
     AppleProvider,
     FirebaseProvider,
+    GithubProvider,
   ],
   exports: [AuthService, JwtModule],
 })

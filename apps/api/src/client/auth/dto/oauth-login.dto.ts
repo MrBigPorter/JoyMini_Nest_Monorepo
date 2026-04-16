@@ -27,6 +27,31 @@ export class GoogleOauthLoginDto {
   inviteCode?: string;
 }
 
+export class GithubOauthLoginDto {
+  @ApiProperty({ description: 'Github OAuth authorization code' })
+  @IsString()
+  @IsNotEmpty()
+  code!: string;
+
+  @ApiPropertyOptional({
+    description: 'Github access token (alternative to code)',
+  })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  accessToken?: string;
+
+  @ApiPropertyOptional({
+    description: 'invite code',
+    minLength: 4,
+    maxLength: 20,
+  })
+  @IsOptional()
+  @IsString()
+  @Length(4, 20)
+  inviteCode?: string;
+}
+
 export class FacebookOauthLoginDto {
   @ApiProperty({ description: 'Facebook user access token' })
   @IsString()

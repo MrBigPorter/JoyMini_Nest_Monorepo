@@ -40,7 +40,26 @@ function getAllFiles(dir, acc) {
 /** Delete dist/ so stale files don't accumulate */
 function cleanDist() {
   if (fs.existsSync(outDir)) {
-    fs.rmSync(outDir, { recursive: true, force: true });
+    // Use retry mechanism for ENOTEMPTY errors
+    let retries = 3;
+    while (retries > 0) {
+      try {
+        fs.rmSync(outDir, { recursive: true, force: true });
+        return;
+      } catch (err) {
+        if (err.code === 'ENOTEMPTY' && retries > 1) {
+          console.warn(`⚠️  Directory not empty, retrying (${retries-1} attempts left)...`);
+          // Wait a bit before retrying (synchronous wait)
+          const start = Date.now();
+          while (Date.now() - start < 100) {
+            // Busy wait
+          }
+          retries--;
+        } else {
+          throw err;
+        }
+      }
+    }
   }
 }
 
