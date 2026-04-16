@@ -13,6 +13,8 @@
     "backToTags": "Back to tags",
     "loading": "Loading...",
     "error": "Failed to load, please try again later",
+    "loadFailed": "Failed to load",
+    "retry": "Retry",
     "articleCount": "{count} articles",
     "totalTags": "{count} tags, {total} articles total",
     "about": "About",
@@ -118,7 +120,11 @@
     "title": "My Bookmarks",
     "subtitle": "All articles you have bookmarked",
     "totalCount": "{count} articles bookmarked",
-    "empty": "No bookmarked articles yet"
+    "empty": "No bookmarked articles yet",
+    "emptyTitle": "No bookmarked articles yet",
+    "emptyDescription": "Start exploring articles and bookmark your favorites",
+    "browseArticles": "Browse articles",
+    "loadFailed": "Failed to load bookmarks"
   },
   "about": {
     "title": "About Lucky Nest",

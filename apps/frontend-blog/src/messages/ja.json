@@ -13,6 +13,8 @@
     "backToTags": "タグに戻る",
     "loading": "読み込み中...",
     "error": "読み込みに失敗しました。後でもう一度お試しください",
+    "loadFailed": "読み込みに失敗しました",
+    "retry": "再試行",
     "articleCount": "{count}件の記事",
     "totalTags": "{count}個のタグ、合計{total}件の記事",
     "about": "について",
@@ -118,7 +120,11 @@
     "title": "マイブックマーク",
     "subtitle": "ブックマークしたすべての記事",
     "totalCount": "{count}件の記事をブックマーク",
-    "empty": "まだブックマークした記事がありません"
+    "empty": "まだブックマークした記事がありません",
+    "emptyTitle": "まだブックマークした記事がありません",
+    "emptyDescription": "記事を探索して、お気に入りをブックマークしましょう",
+    "browseArticles": "記事を閲覧",
+    "loadFailed": "ブックマークの読み込みに失敗しました"
   },
   "about": {
     "title": "Lucky Nestについて",

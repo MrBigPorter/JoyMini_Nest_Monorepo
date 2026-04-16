@@ -13,6 +13,8 @@
     "backToTags": "返回标签列表",
     "loading": "加载中...",
     "error": "加载失败，请稍后重试",
+    "loadFailed": "加载失败",
+    "retry": "重试",
     "articleCount": "{count} 篇文章",
     "totalTags": "共 {count} 个标签，{total} 篇文章",
     "about": "关于",
@@ -118,7 +120,11 @@
     "title": "我的收藏",
     "subtitle": "你收藏的所有文章",
     "totalCount": "共收藏 {count} 篇文章",
-    "empty": "暂无收藏文章"
+    "empty": "暂无收藏文章",
+    "emptyTitle": "暂无收藏文章",
+    "emptyDescription": "开始探索文章并收藏你喜欢的",
+    "browseArticles": "浏览文章",
+    "loadFailed": "加载收藏失败"
   },
   "about": {
     "title": "关于 Lucky Nest",
