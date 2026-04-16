@@ -65,7 +65,8 @@
       "google": "Continue with Google",
       "facebook": "Continue with Facebook",
       "noAccount": "Don't have an account?",
-      "register": "Sign up"
+      "register": "Sign up",
+      "tip": "💡 Tip: New user? Login equals registration! Your account will be automatically created on first login."
     },
     "register": {
       "title": "Sign up",

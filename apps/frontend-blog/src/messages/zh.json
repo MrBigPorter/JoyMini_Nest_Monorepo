@@ -81,7 +81,8 @@
       "google": "使用 Google 登录",
       "facebook": "使用 Facebook 登录",
       "noAccount": "还没有账户？",
-      "register": "立即注册"
+      "register": "立即注册",
+      "tip": "💡 提示：新用户？登录即注册！首次登录将自动创建账户。"
     },
     "register": {
       "title": "注册",

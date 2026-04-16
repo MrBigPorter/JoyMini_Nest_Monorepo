@@ -1,10 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/lib/stores/auth.store';
 import type { User } from '@/lib/stores/auth.store';
 import { authApi } from '@/lib/api/authApi';
+
+export const dynamic = 'force-dynamic';
 
 // JWT解码函数
 function decodeJWT(token: string): any {
@@ -26,7 +28,7 @@ function decodeJWT(token: string): any {
   }
 }
 
-export default function OAuthCallbackPage() {
+function OAuthCallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const store = useAuthStore();
@@ -343,5 +345,27 @@ export default function OAuthCallbackPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function OAuthCallbackPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center px-4">
+          <div className="w-full max-w-md text-center">
+            <div className="space-y-4">
+              <div className="w-16 h-16 border-4 border-primary/30 border-t-primary rounded-full animate-spin mx-auto" />
+              <p className="text-lg font-medium">Loading OAuth callback...</p>
+              <p className="text-sm text-muted-foreground">
+                Please wait while we prepare the authentication process.
+              </p>
+            </div>
+          </div>
+        </div>
+      }
+    >
+      <OAuthCallbackContent />
+    </Suspense>
   );
 }

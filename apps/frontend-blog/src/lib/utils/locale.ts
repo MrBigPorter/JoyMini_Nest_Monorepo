@@ -3,10 +3,10 @@
  * 用于统一处理语言前缀检测和路径构建
  */
 
-import { locales, type Locale } from '../../../i18n.config';
+import { LOCALES, type Locale } from '@/lib/i18n/config';
 
 // 支持的语言列表，与 middleware.ts、i18n.config.ts 保持一致
-const SUPPORTED_LOCALES = locales;
+const SUPPORTED_LOCALES = LOCALES;
 
 export type SupportedLocale = Locale;
 
