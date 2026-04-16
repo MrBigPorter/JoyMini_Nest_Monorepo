@@ -124,7 +124,7 @@ export default function BookmarksPage() {
             title={t('bookmarks.emptyTitle')}
             description={t('bookmarks.emptyDescription')}
             actionText={t('bookmarks.browseArticles')}
-            onAction={() => router.push('/articles')}
+            onAction={() => router.push('/')}
           />
         ) : (
           <>

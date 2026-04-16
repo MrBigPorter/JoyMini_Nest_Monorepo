@@ -51,8 +51,8 @@ export function BookmarkButton({
       // 保存当前路径，登录后可以跳转回来
       const currentPath = window.location.pathname + window.location.search;
       sessionStorage.setItem('redirectAfterLogin', currentPath);
-      // 使用带语言前缀的登录路径
-      router.push(withLocale('/login'));
+      // 直接使用登录路径，让国际化路由中间件处理语言前缀
+      router.push('/login');
       return;
     }
 
