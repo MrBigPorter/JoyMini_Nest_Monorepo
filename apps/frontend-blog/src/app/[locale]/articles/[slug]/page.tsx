@@ -8,6 +8,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import CommentList from '@/components/blog/CommentList';
+import { BookmarkButton } from '@/lib/components/BookmarkButton';
 import { useFrontendArticleBySlug } from '@/lib/hooks/useFrontendArticles';
 
 export default function ArticlePage() {
@@ -87,9 +88,23 @@ export default function ArticlePage() {
 
       {/* 文章头部 */}
       <header className="mb-10">
-        <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-6">
-          {article.title}
-        </h1>
+        <div className="flex justify-between items-start gap-4 mb-6">
+          <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold flex-1">
+            {article.title}
+          </h1>
+          <div className="mt-2">
+            <BookmarkButton
+              articleId={article.id}
+              size="lg"
+              showLabel={false}
+              onBookmarkChange={(bookmarked) => {
+                console.log(
+                  `文章 ${article.id} 收藏状态: ${bookmarked ? '已收藏' : '未收藏'}`,
+                );
+              }}
+            />
+          </div>
+        </div>
 
         {article.excerpt && (
           <p className="text-lg text-muted-foreground mb-6">

@@ -12,6 +12,7 @@ export class BookmarkService {
   /**
    * 获取用户收藏列表
    */
+
   async getUserBookmarks(
     userId: string,
     params: { page?: number; pageSize?: number; locale?: string },
@@ -74,16 +75,20 @@ export class BookmarkService {
 
   /**
    * 取消收藏
+   * 使用 deleteMany 而不是 delete，避免记录不存在时抛出错误
    */
   async removeBookmark(userId: string, articleId: string) {
-    return this.prisma.userBookmark.delete({
+    const result = await this.prisma.userBookmark.deleteMany({
       where: {
-        userId_articleId: {
-          userId,
-          articleId,
-        },
+        userId,
+        articleId,
       },
     });
+
+    // 返回删除的记录数量，便于前端判断
+    return {
+      deletedCount: result.count,
+    };
   }
 
   /**
@@ -102,6 +107,49 @@ export class BookmarkService {
     return {
       isBookmarked: !!bookmark,
       bookmarkedAt: bookmark?.createdAt,
+    };
+  }
+
+  /**
+   * 批量查询收藏状态
+   * @param userId 用户ID
+   * @param articleIds 文章ID数组
+   * @returns 文章收藏状态映射
+   */
+  async batchCheckBookmarkStatus(userId: string, articleIds: string[]) {
+    // 限制最大查询数量，防止滥用
+    const MAX_BATCH_SIZE = 100;
+    const limitedArticleIds = articleIds.slice(0, MAX_BATCH_SIZE);
+
+    // 批量查询收藏记录
+    const bookmarks = await this.prisma.userBookmark.findMany({
+      where: {
+        userId,
+        articleId: {
+          in: limitedArticleIds,
+        },
+      },
+    });
+
+    // 创建文章ID到收藏记录的映射
+    const bookmarkMap = new Map(
+      bookmarks.map((bookmark) => [bookmark.articleId, bookmark]),
+    );
+
+    // 构建响应结果
+    const results = limitedArticleIds.map((articleId) => {
+      const bookmark = bookmarkMap.get(articleId);
+      return {
+        articleId,
+        isBookmarked: !!bookmark,
+        bookmarkedAt: bookmark?.createdAt,
+      };
+    });
+
+    return {
+      results,
+      total: results.length,
+      batchSize: limitedArticleIds.length,
     };
   }
 

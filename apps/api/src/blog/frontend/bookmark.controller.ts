@@ -7,6 +7,7 @@ import {
   Query,
   Req,
   UseGuards,
+  Body,
 } from '@nestjs/common';
 import { BookmarkService } from './bookmark.service';
 import { AuthGuard } from '@nestjs/passport';
@@ -81,5 +82,20 @@ export class BookmarkController {
     @Param('id') articleId: string,
   ) {
     return this.bookmarkService.checkBookmarkStatus(req.user.id, articleId);
+  }
+
+  @Post('articles/batch-bookmark-status')
+  @ApiOperation({ summary: '批量查询文章收藏状态' })
+  @ApiResponse({ status: 200, description: '返回批量收藏状态' })
+  @ApiResponse({ status: 401, description: '未授权' })
+  @ApiResponse({ status: 400, description: '请求参数无效' })
+  async batchCheckBookmarkStatus(
+    @Req() req: Request,
+    @Body() dto: { articleIds: string[] },
+  ) {
+    return this.bookmarkService.batchCheckBookmarkStatus(
+      req.user.id,
+      dto.articleIds,
+    );
   }
 }

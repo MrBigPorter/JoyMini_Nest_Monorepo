@@ -75,7 +75,13 @@ class HttpClient {
           config.headers.Authorization = `Bearer ${accessToken}`;
         }
 
-        // 3. 去重请求 key
+        // 3. CSRF token（对于非GET请求）
+        const csrfToken = this.getCsrfToken();
+        if (csrfToken && ['post', 'put', 'patch', 'delete'].includes(method)) {
+          config.headers['X-XSRF-Token'] = csrfToken;
+        }
+
+        // 4. 去重请求 key
         if (method !== 'get') {
           const key = this.genKey(config);
           if (this.requestQueue.has(key)) {
@@ -92,7 +98,7 @@ class HttpClient {
           this.requestQueue.add(key);
         }
 
-        // 4. dev 日志
+        // 5. dev 日志
         if (process.env.NODE_ENV === 'development') {
           console.log(
             `[HTTP Request] ${config.method?.toUpperCase()} ${config.url}`,
@@ -180,6 +186,24 @@ class HttpClient {
   private genKey(config: AxiosRequestConfig) {
     const { method, url, params, data } = config;
     return `${method}-${url}-${JSON.stringify(params)}-${JSON.stringify(data)}`;
+  }
+
+  /**
+   * 获取CSRF token
+   * 从cookie中读取XSRF-TOKEN或csrfToken
+   */
+  private getCsrfToken(): string | null {
+    if (typeof document === 'undefined') return null;
+
+    // 尝试读取XSRF-TOKEN（常见于Spring Security）
+    const xsrfToken = this.getCookie('XSRF-TOKEN');
+    if (xsrfToken) return decodeURIComponent(xsrfToken);
+
+    // 尝试读取csrfToken（其他框架可能使用）
+    const csrfToken = this.getCookie('csrfToken');
+    if (csrfToken) return csrfToken;
+
+    return null;
   }
 
   private getLanguage(): string {

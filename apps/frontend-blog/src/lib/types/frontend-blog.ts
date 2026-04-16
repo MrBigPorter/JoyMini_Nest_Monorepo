@@ -38,6 +38,13 @@ export interface FrontendArticle {
 }
 
 /**
+ * 带收藏时间的文章
+ */
+export interface BookmarkedArticle extends FrontendArticle {
+  bookmarkedAt: string;
+}
+
+/**
  * 前端博客分类（简化版）
  */
 export interface FrontendCategory {
@@ -114,4 +121,23 @@ export interface FrontendPaginatedResponse<T> {
   page: number;
   pageSize: number;
   totalPages: number;
+}
+
+/**
+ * 收藏响应
+ */
+export interface BookmarkResponse {
+  id: string;
+  userId: string;
+  articleId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * 收藏状态响应
+ */
+export interface BookmarkStatusResponse {
+  isBookmarked: boolean;
+  bookmarkedAt?: string;
 }
