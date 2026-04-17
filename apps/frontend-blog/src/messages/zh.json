@@ -140,7 +140,9 @@
     "placeholder": "输入搜索关键词...",
     "result": "找到 {count} 条搜索结果",
     "emptyTitle": "输入关键词开始搜索",
-    "emptyDescription": "搜索文章标题、内容或标签"
+    "emptyDescription": "搜索文章标题、内容或标签",
+    "noResults": "没有找到相关结果",
+    "noResultsDescription": "尝试使用不同的关键词"
   },
   "bookmarks": {
     "title": "我的收藏",
