@@ -164,5 +164,34 @@
     "contactTitle": "联系我们",
     "github": "GitHub",
     "email": "邮件联系"
+  },
+  "settings": {
+    "title": "设置",
+    "theme": {
+      "name": "主题",
+      "dark": "深色模式",
+      "light": "浅色模式"
+    },
+    "language": {
+      "name": "语言",
+      "select": "选择语言",
+      "zh": "中文",
+      "en": "英文",
+      "ja": "日文",
+      "ko": "韩文",
+      "fr": "法文",
+      "de": "德文"
+    },
+    "logout": {
+      "name": "退出登录",
+      "loading": "退出中..."
+    },
+    "bookmarks": "我的收藏",
+    "loginRegister": "登录/注册",
+    "joinCommunity": "立即加入社区",
+    "user": "用户",
+    "emailNotSet": "未设置邮箱",
+    "close": "关闭",
+    "version": "Tarsier Blog v1.0.0"
   }
 }

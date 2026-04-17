@@ -75,7 +75,7 @@ export function MobileSettingsContent({ onClose }: MobileSettingsContentProps) {
 
   const getCurrentLocaleDisplay = () => {
     if (localesLoading || enabledLocales.length === 0) {
-      return '🌐 选择语言';
+      return `🌐 ${t('settings.language.select')}`;
     }
 
     const current = enabledLocales.find((l: LocaleConfig) => l.code === locale);
@@ -115,10 +115,10 @@ export function MobileSettingsContent({ onClose }: MobileSettingsContentProps) {
             )}
             <div className="flex-1">
               <div className="font-medium text-foreground">
-                {user?.nickname || '用户'}
+                {user?.nickname || t('settings.user')}
               </div>
               <div className="text-sm text-muted-foreground truncate">
-                {user?.email || '未设置邮箱'}
+                {user?.email || t('settings.emailNotSet')}
               </div>
             </div>
           </div>
@@ -134,8 +134,10 @@ export function MobileSettingsContent({ onClose }: MobileSettingsContentProps) {
               <User className="w-5 h-5" />
             </div>
             <div>
-              <div className="font-medium">登录/注册</div>
-              <div className="text-sm opacity-90">立即加入社区</div>
+              <div className="font-medium">{t('settings.loginRegister')}</div>
+              <div className="text-sm opacity-90">
+                {t('settings.joinCommunity')}
+              </div>
             </div>
           </div>
           <ChevronRight className="w-5 h-5" />
@@ -158,15 +160,19 @@ export function MobileSettingsContent({ onClose }: MobileSettingsContentProps) {
               )}
             </div>
             <div className="text-left">
-              <div className="font-medium">主题</div>
+              <div className="font-medium">{t('settings.theme.name')}</div>
               <div className="text-sm text-muted-foreground">
-                {theme === 'dark' ? '深色模式' : '浅色模式'}
+                {theme === 'dark'
+                  ? t('settings.theme.dark')
+                  : t('settings.theme.light')}
               </div>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">
-              {theme === 'dark' ? '深色' : '浅色'}
+              {theme === 'dark'
+                ? t('settings.theme.dark')
+                : t('settings.theme.light')}
             </span>
             <ChevronRight className="w-5 h-5 text-muted-foreground" />
           </div>
@@ -181,10 +187,13 @@ export function MobileSettingsContent({ onClose }: MobileSettingsContentProps) {
             <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
               <Globe className="w-5 h-5 text-primary" />
             </div>
+
             <div className="text-left">
-              <div className="font-medium">语言</div>
+              <div className="font-medium">{t('settings.language.name')}</div>
               <div className="text-sm text-muted-foreground">
-                {localesLoading ? '加载中...' : getCurrentLocaleDisplay()}
+                {localesLoading
+                  ? t('common.loading')
+                  : getCurrentLocaleDisplay()}
               </div>
             </div>
           </div>
@@ -206,7 +215,7 @@ export function MobileSettingsContent({ onClose }: MobileSettingsContentProps) {
                   <span className="text-lg">
                     {getLocaleFlag(localeConfig.code)}
                   </span>
-                  <span>{localeConfig.name}</span>
+                  <span>{t(`settings.language.${localeConfig.code}`)}</span>
                 </div>
                 {locale === localeConfig.code && (
                   <Check className="w-5 h-5 text-primary" />
@@ -227,7 +236,7 @@ export function MobileSettingsContent({ onClose }: MobileSettingsContentProps) {
               <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
                 <Bookmark className="w-5 h-5 text-primary" />
               </div>
-              <div className="font-medium">我的收藏</div>
+              <div className="font-medium">{t('settings.bookmarks')}</div>
             </div>
             <ChevronRight className="w-5 h-5 text-muted-foreground" />
           </Link>
@@ -245,7 +254,9 @@ export function MobileSettingsContent({ onClose }: MobileSettingsContentProps) {
                 <LogOut className="w-5 h-5 text-red-500" />
               </div>
               <div className="font-medium">
-                {authLoading ? '退出中...' : '退出登录'}
+                {authLoading
+                  ? t('settings.logout.loading')
+                  : t('settings.logout.name')}
               </div>
             </div>
           </button>
@@ -255,7 +266,7 @@ export function MobileSettingsContent({ onClose }: MobileSettingsContentProps) {
       {/* 版本信息 */}
       <div className="pt-4 border-t border-border">
         <div className="text-center text-sm text-muted-foreground">
-          Tarsier Blog v1.0.0
+          {t('settings.version')}
         </div>
       </div>
     </div>

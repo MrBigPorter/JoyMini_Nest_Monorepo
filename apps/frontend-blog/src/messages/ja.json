@@ -164,5 +164,34 @@
     "contactTitle": "お問い合わせ",
     "github": "GitHub",
     "email": "メール"
+  },
+  "settings": {
+    "title": "設定",
+    "theme": {
+      "name": "テーマ",
+      "dark": "ダークモード",
+      "light": "ライトモード"
+    },
+    "language": {
+      "name": "言語",
+      "select": "言語を選択",
+      "zh": "中国語",
+      "en": "英語",
+      "ja": "日本語",
+      "ko": "韓国語",
+      "fr": "フランス語",
+      "de": "ドイツ語"
+    },
+    "logout": {
+      "name": "ログアウト",
+      "loading": "ログアウト中..."
+    },
+    "bookmarks": "マイブックマーク",
+    "loginRegister": "ログイン/登録",
+    "joinCommunity": "コミュニティに参加",
+    "user": "ユーザー",
+    "emailNotSet": "メール未設定",
+    "close": "閉じる",
+    "version": "Tarsier Blog v1.0.0"
   }
 }

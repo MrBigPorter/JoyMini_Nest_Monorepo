@@ -164,5 +164,34 @@
     "contactTitle": "Contact Us",
     "github": "GitHub",
     "email": "Email"
+  },
+  "settings": {
+    "title": "Settings",
+    "theme": {
+      "name": "Theme",
+      "dark": "Dark Mode",
+      "light": "Light Mode"
+    },
+    "language": {
+      "name": "Language",
+      "select": "Select language",
+      "zh": "Chinese",
+      "en": "English",
+      "ja": "Japanese",
+      "ko": "Korean",
+      "fr": "French",
+      "de": "German"
+    },
+    "logout": {
+      "name": "Logout",
+      "loading": "Logging out..."
+    },
+    "bookmarks": "My Bookmarks",
+    "loginRegister": "Login/Register",
+    "joinCommunity": "Join community",
+    "user": "User",
+    "emailNotSet": "Email not set",
+    "close": "Close",
+    "version": "Tarsier Blog v1.0.0"
   }
 }
