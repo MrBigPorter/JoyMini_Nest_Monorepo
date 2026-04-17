@@ -140,7 +140,9 @@
     "placeholder": "検索キーワードを入力...",
     "result": "{count} 件の検索結果が見つかりました",
     "emptyTitle": "キーワードを入力して検索を開始",
-    "emptyDescription": "記事タイトル、内容、タグを検索"
+    "emptyDescription": "記事タイトル、内容、タグを検索",
+    "noResults": "検索結果がありません",
+    "noResultsDescription": "別のキーワードをお試しください"
   },
   "bookmarks": {
     "title": "マイブックマーク",

@@ -1,11 +1,18 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { Link, usePathname } from '@/navigation';
+import { getIsActive } from '@/lib/utils/navigation';
 
 export default function BottomNavigation() {
   const t = useTranslations();
   const pathname = usePathname();
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const navItems = [
     {
@@ -116,21 +123,60 @@ export default function BottomNavigation() {
       style={{ height: 'var(--nav-height)' }}
     >
       {/* 实际导航栏内容 */}
-      <div className="h-14 flex items-center justify-around bg-background/80 backdrop-blur-md border-t border-border">
+      <div className="h-14 flex items-center justify-around bg-background/80 backdrop-blur-md border-t border-border relative">
+        {/* 滑动指示器 */}
+        <div className="absolute top-0 left-0 w-full h-0.5 flex">
+          {navItems.map((item) => {
+            // 只在客户端计算激活状态，避免hydration不匹配
+            const isActive = isMounted && getIsActive(pathname, item.href);
+            return (
+              <div
+                key={item.href}
+                className="flex-1 transition-all duration-300"
+              >
+                <div
+                  className={`h-full bg-primary rounded-full transition-all duration-300 ${
+                    isActive ? 'opacity-100 scale-x-100' : 'opacity-0 scale-x-0'
+                  }`}
+                />
+              </div>
+            );
+          })}
+        </div>
+
         {navItems.map((item) => {
-          const isActive = pathname === item.href;
+          // 只在客户端计算激活状态，避免hydration不匹配
+          const isActive = isMounted && getIsActive(pathname, item.href);
           return (
             <Link
               key={item.href}
               href={item.href}
-              className={`flex flex-col items-center justify-center px-3 py-1 rounded-lg transition-colors ${
+              className={`flex flex-col items-center justify-center px-3 py-1 rounded-lg transition-all duration-300 active:scale-95 relative ${
                 isActive
                   ? 'text-primary'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              {item.icon}
-              <span className="text-xs mt-1">{t(item.labelKey)}</span>
+              <div
+                className={`transition-all duration-300 relative ${
+                  isActive ? 'scale-110 animate-bounce-subtle' : 'scale-100'
+                }`}
+              >
+                {item.icon}
+                {/* 激活时的发光效果 */}
+                {isActive && (
+                  <div className="absolute inset-0 rounded-full bg-primary/20 animate-glow -z-10" />
+                )}
+              </div>
+              <span
+                className={`text-xs mt-1 transition-all duration-300 ${
+                  isActive
+                    ? 'font-semibold opacity-100'
+                    : 'font-normal opacity-80'
+                }`}
+              >
+                {t(item.labelKey)}
+              </span>
             </Link>
           );
         })}

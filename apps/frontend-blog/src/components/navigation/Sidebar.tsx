@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { usePathname, Link } from '@/navigation';
 import { useTranslations } from 'next-intl';
 import {
@@ -12,11 +12,17 @@ import {
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
+import { getIsActive } from '@/lib/utils/navigation';
 
 export default function Sidebar() {
   const t = useTranslations();
   const pathname = usePathname();
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const navItems = [
     { href: '/', icon: Home, label: t('common.home') },
@@ -43,23 +49,37 @@ export default function Sidebar() {
       <nav className="flex-1 pt-4 px-2 flex flex-col gap-1">
         {navItems.map((item) => {
           const Icon = item.icon;
-          const isActive = pathname === item.href;
+          // 只在客户端计算激活状态，避免hydration不匹配
+          const isActive = isMounted && getIsActive(pathname, item.href);
 
           return (
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 ${
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-300 active:scale-95 relative ${
                 isActive
                   ? 'bg-accent text-primary'
                   : 'text-foreground/70 hover:bg-accent/50 hover:text-foreground'
               }`}
             >
-              <Icon className="w-5 h-5 flex-shrink-0" />
-              <span
-                className={`text-sm font-medium transition-opacity duration-300 ${
-                  isExpanded ? 'opacity-100' : 'opacity-0 w-0 overflow-hidden'
+              {/* 左侧指示条 */}
+              <div
+                className={`absolute left-0 top-1/2 h-6 w-1 bg-primary rounded-r transition-all duration-300 transform -translate-y-1/2 ${
+                  isActive ? 'opacity-100 scale-y-100' : 'opacity-0 scale-y-0'
                 }`}
+              />
+
+              <Icon
+                className={`w-5 h-5 flex-shrink-0 transition-all duration-300 ${
+                  isActive
+                    ? 'scale-110 text-primary animate-bounce-subtle'
+                    : 'scale-100 text-foreground/70'
+                }`}
+              />
+              <span
+                className={`text-sm font-medium transition-all duration-300 ${
+                  isExpanded ? 'opacity-100' : 'opacity-0 w-0 overflow-hidden'
+                } ${isActive ? 'font-semibold' : 'font-medium'}`}
               >
                 {item.label}
               </span>

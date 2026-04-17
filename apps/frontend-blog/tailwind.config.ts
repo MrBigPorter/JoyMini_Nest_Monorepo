@@ -34,6 +34,25 @@ const config: Config = {
           900: '#0f172a',
         },
       },
+      animation: {
+        'pulse-subtle': 'pulse-subtle 2s ease-in-out infinite',
+        'bounce-subtle': 'bounce-subtle 0.5s ease-in-out',
+        'glow': 'glow 2s ease-in-out infinite',
+      },
+      keyframes: {
+        'pulse-subtle': {
+          '0%, 100%': { opacity: '1' },
+          '50%': { opacity: '0.8' },
+        },
+        'bounce-subtle': {
+          '0%, 100%': { transform: 'translateY(0)' },
+          '50%': { transform: 'translateY(-2px)' },
+        },
+        'glow': {
+          '0%, 100%': { boxShadow: '0 0 5px rgba(59, 130, 246, 0.5)' },
+          '50%': { boxShadow: '0 0 10px rgba(59, 130, 246, 0.8)' },
+        },
+      },
     },
   },
   plugins: [require('@tailwindcss/typography')],

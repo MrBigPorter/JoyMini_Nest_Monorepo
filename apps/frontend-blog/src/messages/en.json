@@ -140,7 +140,9 @@
     "placeholder": "Enter search keywords...",
     "result": "Found {count} results",
     "emptyTitle": "Enter keywords to start searching",
-    "emptyDescription": "Search article titles, content or tags"
+    "emptyDescription": "Search article titles, content or tags",
+    "noResults": "No results found",
+    "noResultsDescription": "Try using different keywords"
   },
   "bookmarks": {
     "title": "My Bookmarks",
