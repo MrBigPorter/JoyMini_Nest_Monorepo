@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { PrismaModule } from '@api/common/prisma/prisma.module';
 import { BlogController } from './blog.controller';
-import { PublicBlogController } from './public/public-blog.controller';
 import { FrontendBlogController } from './frontend/frontend-blog.controller';
 import { BookmarkController } from './frontend/bookmark.controller';
 import { BlogService } from './blog.service';
@@ -26,7 +25,7 @@ import { LanguageService } from '@api/common/services/language.service';
     CommentModule,
     SystemConfigModule,
   ],
-  controllers: [BlogController, PublicBlogController, FrontendBlogController, BookmarkController],
+  controllers: [BlogController, FrontendBlogController, BookmarkController],
   providers: [
     BlogService,
     FrontendBlogService,

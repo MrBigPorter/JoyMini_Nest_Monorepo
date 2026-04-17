@@ -71,19 +71,63 @@ export class CommentService {
   }
 
   /**
-   * 获取文章下的已审核评论
+   * 构建评论树形结构
+   */
+  private buildCommentTree(comments: any[]): any[] {
+    // 创建评论映射表
+    const commentMap = new Map<string, any>();
+    const rootComments: any[] = [];
+
+    // 初始化所有评论，添加 children 数组
+    comments.forEach(comment => {
+      // 创建评论对象的副本，添加 children 字段
+      const commentWithChildren = {
+        ...comment,
+        children: []
+      };
+      commentMap.set(comment.id, commentWithChildren);
+    });
+
+    // 构建树形结构
+    comments.forEach(comment => {
+      const node = commentMap.get(comment.id);
+      if (comment.parentId) {
+        // 如果有父评论，添加到父评论的 children 中
+        const parent = commentMap.get(comment.parentId);
+        if (parent) {
+          parent.children.push(node);
+        }
+        // 注意：这里不添加到 rootComments，因为它是回复
+      } else {
+        // 没有父评论，作为根评论
+        rootComments.push(node);
+      }
+    });
+
+    // 按创建时间排序（根评论和子评论都排序）
+    rootComments.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    rootComments.forEach(comment => {
+      if (comment.children.length > 0) {
+        comment.children.sort((a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      }
+    });
+
+    return rootComments;
+  }
+
+  /**
+   * 获取文章下的已审核评论（树形结构）
    */
   async getApprovedComments(articleId: string, page = 1, pageSize = 20) {
     const skip = (page - 1) * pageSize;
 
-    const [items, total] = await Promise.all([
+    // 获取所有已审核评论（包括回复）
+    const [allComments, total] = await Promise.all([
       this.prisma.blogComment.findMany({
         where: {
           articleId,
           status: CommentStatus.APPROVED,
         },
-        skip,
-        take: pageSize,
         orderBy: { createdAt: 'desc' },
       }),
       this.prisma.blogComment.count({
@@ -94,8 +138,14 @@ export class CommentService {
       }),
     ]);
 
+    // 构建树形结构
+    const commentTree = this.buildCommentTree(allComments);
+
+    // 分页处理：只对根评论进行分页
+    const paginatedRootComments = commentTree.slice(skip, skip + pageSize);
+
     return {
-      items,
+      items: paginatedRootComments,
       total,
       page,
       pageSize,

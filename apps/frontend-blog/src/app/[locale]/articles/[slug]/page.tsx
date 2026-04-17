@@ -88,23 +88,9 @@ export default function ArticlePage() {
 
       {/* 文章头部 */}
       <header className="mb-10">
-        <div className="flex justify-between items-start gap-4 mb-6">
-          <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold flex-1">
-            {article.title}
-          </h1>
-          <div className="mt-2">
-            <BookmarkButton
-              articleId={article.id}
-              size="lg"
-              showLabel={false}
-              onBookmarkChange={(bookmarked) => {
-                console.log(
-                  `文章 ${article.id} 收藏状态: ${bookmarked ? '已收藏' : '未收藏'}`,
-                );
-              }}
-            />
-          </div>
-        </div>
+        <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-6">
+          {article.title}
+        </h1>
 
         {article.excerpt && (
           <p className="text-lg text-muted-foreground mb-6">
@@ -117,13 +103,29 @@ export default function ArticlePage() {
             <User className="w-4 h-4" />
             <span>{article.author?.name || t('article.anonymous')}</span>
           </div>
+          <span className="text-muted-foreground/60">·</span>
           <div className="flex items-center gap-2">
             <Calendar className="w-4 h-4" />
             <span>{formatDate(article.publishedAt)}</span>
           </div>
+          <span className="text-muted-foreground/60">·</span>
           <div className="flex items-center gap-2">
             <Clock className="w-4 h-4" />
             <span>{calculateReadingTime(article.content || '')}</span>
+          </div>
+          <span className="text-muted-foreground/60">·</span>
+          <div className="flex items-center gap-2">
+            <BookmarkButton
+              articleId={article.id}
+              size="sm"
+              showLabel={false}
+              onBookmarkChange={(bookmarked) => {
+                console.log(
+                  `文章 ${article.id} 收藏状态: ${bookmarked ? '已收藏' : '未收藏'}`,
+                );
+              }}
+            />
+            <span className="text-xs">收藏</span>
           </div>
         </div>
       </header>
@@ -152,7 +154,7 @@ export default function ArticlePage() {
         </ReactMarkdown>
       </article>
       {/* 评论系统 */}
-      <CommentList />
+      {article.slug && <CommentList articleId={article.slug} />}
     </div>
   );
 }

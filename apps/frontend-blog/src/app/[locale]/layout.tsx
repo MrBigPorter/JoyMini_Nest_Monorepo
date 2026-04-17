@@ -57,35 +57,19 @@ export default async function LocaleLayout({
   const messages = JSON.parse(readFileSync(messagesPath, 'utf8'));
 
   return (
-    <html lang={locale} className={inter.variable} suppressHydrationWarning>
-      <head>
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta
-          name="apple-mobile-web-app-status-bar-style"
-          content="black-translucent"
-        />
-        <meta name="mobile-web-app-capable" content="yes" />
-      </head>
-      <body className="antialiased">
-        <NextIntlClientProvider
-          key={locale}
-          locale={locale}
-          messages={messages}
-        >
-          <QueryProvider>
-            <I18nProvider>
-              <GoogleOAuthProvider>
-                <Header />
-                <Sidebar />
-                <main className="pt-[var(--content-padding-top)] pb-[var(--content-padding-bottom)] min-h-screen md:ml-16 md:transition-all md:duration-300">
-                  {children}
-                </main>
-                <BottomNavigation />
-              </GoogleOAuthProvider>
-            </I18nProvider>
-          </QueryProvider>
-        </NextIntlClientProvider>
-      </body>
-    </html>
+    <NextIntlClientProvider key={locale} locale={locale} messages={messages}>
+      <QueryProvider>
+        <I18nProvider>
+          <GoogleOAuthProvider>
+            <Header />
+            <Sidebar />
+            <main className="pt-[var(--content-padding-top)] pb-[var(--content-padding-bottom)] min-h-screen md:ml-16 md:transition-all md:duration-300">
+              {children}
+            </main>
+            <BottomNavigation />
+          </GoogleOAuthProvider>
+        </I18nProvider>
+      </QueryProvider>
+    </NextIntlClientProvider>
   );
 }

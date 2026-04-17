@@ -431,6 +431,43 @@ IMPORTANT:
   }
 
   /**
+   * 生成默认回复
+   */
+  private generateDefaultReply(
+    commentContent: string,
+    articleTitle?: string,
+  ): string {
+    // 简单的默认回复模板
+    const templates = [
+      `感谢你的评论！${articleTitle ? '关于"' + articleTitle + '"' : '这个问题'}，我会继续分享更多相关内容。`,
+      `谢谢你的反馈！${articleTitle ? '在"' + articleTitle + '"中' : '在这里'}，我尝试用简单的方式解释复杂的概念。`,
+      `很高兴看到你的评论！${articleTitle ? '关于"' + articleTitle + '"' : '这个话题'}，你有什么具体想了解的吗？`,
+      `感谢参与讨论！${articleTitle ? '在"' + articleTitle + '"文章' : '这里'}，我尽量让内容更易懂。`,
+      `谢谢你的问题！${articleTitle ? '关于"' + articleTitle + '"' : '这个主题'}，我会考虑写更多相关内容。`,
+    ];
+
+    // 根据评论内容选择不同的回复模板
+    const commentLower = commentContent.toLowerCase();
+    if (
+      commentLower.includes('学习') ||
+      commentLower.includes('看不明白') ||
+      commentLower.includes('不懂')
+    ) {
+      return `学习是一个持续的过程！${articleTitle ? '关于"' + articleTitle + '"' : '这个主题'}，我建议从基础开始，逐步深入。有什么具体困惑可以告诉我吗？`;
+    }
+    if (commentLower.includes('谢谢') || commentLower.includes('感谢')) {
+      return `不客气！${articleTitle ? '很高兴"' + articleTitle + '"对你有帮助。' : '很高兴对你有帮助。'}有什么其他想了解的吗？`;
+    }
+    if (commentLower.includes('问题') || commentLower.includes('疑问')) {
+      return `好问题！${articleTitle ? '关于"' + articleTitle + '"' : '这个主题'}，我可以进一步解释。具体是哪个部分不清楚呢？`;
+    }
+
+    // 随机选择一个模板
+    const randomIndex = Math.floor(Math.random() * templates.length);
+    return templates[randomIndex];
+  }
+
+  /**
    * Markdown 渲染为 HTML
    */
   private renderMarkdown(md: string | null | undefined): string {
@@ -468,6 +505,21 @@ IMPORTANT:
     );
 
     try {
+      // 首先获取评论详情，检查是否是已登录用户发布的评论
+      const comment = await this.prisma.blogComment.findUnique({
+        where: { id: data.commentId },
+        select: {
+          id: true,
+          author: true,
+          email: true,
+        },
+      });
+
+      if (!comment) {
+        this.logger.warn(`Comment ${data.commentId} not found`);
+        return;
+      }
+
       const result = await this.aiService.moderateComment(
         data.content,
         data.articleTitle,
@@ -479,7 +531,7 @@ IMPORTANT:
         data: {
           aiModerationScore: result.score,
           aiModerationReason: result.reason,
-          aiModerationCategories: result.categories.join(','),
+          aiModerationCategories: (result.categories || []).join(','),
           aiModeratedAt: new Date(),
           status: result.passed
             ? CommentStatus.APPROVED
@@ -488,22 +540,41 @@ IMPORTANT:
       });
 
       // 如果审核通过且有自动回复建议，延迟投递回复任务
-      if (result.passed && result.autoReplySuggestion) {
+      // 规则：所有通过审核且AI认为值得回复的评论都获得自动回复
+      if (result.passed && result.score < 30) {
+        // 使用AI建议的回复，如果没有则生成默认回复
+        let replyContent = result.autoReplySuggestion;
+        if (!replyContent || replyContent.trim().length === 0) {
+          // 生成默认回复
+          replyContent = this.generateDefaultReply(
+            data.content,
+            data.articleTitle,
+          );
+          this.logger.debug(`使用默认回复，AI建议为空: ${data.commentId}`);
+        }
+
         await this.blogAiQueue.add(
           'auto-reply',
           {
             commentId: data.commentId,
-            replyContent: result.autoReplySuggestion,
+            replyContent: replyContent,
             articleTitle: data.articleTitle,
           },
           {
             delay: 30000, // 30秒后自动回复，模拟真人延迟
           },
         );
+        this.logger.debug(
+          `Scheduled AI auto reply for comment: ${data.commentId}, score: ${result.score}`,
+        );
+      } else if (result.passed && result.score >= 30) {
+        this.logger.debug(
+          `评论审核通过但分数较高(${result.score})，不生成自动回复: ${data.commentId}`,
+        );
       }
 
       this.logger.log(
-        `AI moderation completed: comment ${data.commentId}, score ${result.score}, passed: ${result.passed}`,
+        `AI moderation completed: comment ${data.commentId}, score ${result.score}, passed: ${result.passed}, autoReplySuggestion: ${result.autoReplySuggestion ? '有' : '无'}`,
       );
       return result;
     } catch (err) {
@@ -536,13 +607,13 @@ IMPORTANT:
         return;
       }
 
-      // 创建AI自动回复
+      // 创建AI自动回复 - 使用脱敏名称"Porter"
       await this.prisma.blogComment.create({
         data: {
           articleId: comment.articleId,
           parentId: comment.id,
-          author: 'System',
-          email: 'system@joyminis.com',
+          author: 'Porter',
+          email: 'porter@joyminis.com',
           content: data.replyContent,
           status: CommentStatus.APPROVED,
           isAiGenerated: true,

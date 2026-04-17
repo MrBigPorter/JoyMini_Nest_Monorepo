@@ -14,24 +14,14 @@ export function useAuth() {
   // 组件挂载时验证现有token（如果有）
   useEffect(() => {
     const validateExistingTokens = async () => {
-      console.log('useAuth: validateExistingTokens called');
-
       // 只验证已存在的token，不手动加载
       // Zustand的persist中间件会自动处理hydration
       if (store.accessToken && store.user) {
         try {
-          console.log(
-            'useAuth: Found existing tokens, validation can be done here if needed',
-          );
           // 这里可以添加token验证逻辑，但暂时只记录
         } catch (error) {
-          console.error('Token validation failed:', error);
           store.logout();
         }
-      } else {
-        console.log(
-          'useAuth: No existing tokens found, relying on Zustand hydration',
-        );
       }
     };
 
@@ -46,7 +36,6 @@ export function useAuth() {
       try {
         store.setLoading(true);
         const data = await authApi.loginWithEmailCode(emailParam, code);
-        console.log('Login API response:', data);
 
         const user: User = {
           id: data.id,
@@ -61,7 +50,6 @@ export function useAuth() {
           kycStatus: 'pending',
           selfExclusionExpireAt: 0,
         };
-        console.log('User object for store:', user);
         store.login(
           {
             accessToken: data.tokens.accessToken,
@@ -125,7 +113,6 @@ export function useAuth() {
       try {
         store.setLoading(true);
         const data = await authApi.loginWithGoogle(idToken);
-        console.log('Google OAuth login API response:', data);
 
         const user: User = {
           id: data.id,
@@ -164,7 +151,6 @@ export function useAuth() {
       try {
         store.setLoading(true);
         const data = await authApi.loginWithFacebook(accessToken, userId);
-        console.log('Facebook OAuth login API response:', data);
 
         const user: User = {
           id: data.id,
@@ -202,7 +188,6 @@ export function useAuth() {
     try {
       await authApi.logout();
     } catch (error) {
-      console.error('Logout API error:', error);
     } finally {
       store.logout();
     }
@@ -218,7 +203,6 @@ export function useAuth() {
 
     try {
       const data = await authApi.refreshToken(store.refreshToken);
-      console.log('Refresh token response:', data);
       store.setTokens({
         accessToken: data.accessToken,
         refreshToken: data.refreshToken,

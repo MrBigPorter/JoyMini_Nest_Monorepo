@@ -8,9 +8,10 @@ import { ArticleCard } from '@/components/blog/ArticleCard';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { PageSkeleton } from '@/components/ui/PageSkeleton';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
-import { useBookmarksList } from '@/lib/hooks/useBookmarks';
+import { useBookmarksInfiniteQuerySimple } from '@/lib/hooks/useBookmarksInfiniteQuery';
 import { frontendBlogApi } from '@/lib/api/frontendBlogApi';
 import { useToast } from '@/lib/hooks/useToast';
+import { InfiniteScrollLoader } from '@/components/shared/LoadingIndicator';
 import type { BookmarkedArticle } from '@/lib/types/frontend-blog';
 
 export default function BookmarksPage() {
@@ -21,9 +22,20 @@ export default function BookmarksPage() {
     new Set(),
   );
 
-  // 使用 useBookmarksList Hook 获取收藏列表
-  const { data, isLoading, error, refetch } = useBookmarksList({
-    page: 1,
+  // 使用基于React Query的无限滚动钩子获取收藏列表
+  const {
+    items: bookmarks,
+    total,
+    page,
+    pageSize,
+    totalPages,
+    isLoading,
+    isLoadingMore,
+    hasMore,
+    error,
+    loadMore,
+    reload,
+  } = useBookmarksInfiniteQuerySimple({
     pageSize: 12,
   });
 
@@ -39,12 +51,8 @@ export default function BookmarksPage() {
       // 显示成功消息
       success('已取消收藏');
 
-      // 立即从本地数据中移除
-      if (data?.items) {
-        // 这里我们重新获取数据以确保数据一致性
-        // 在实际应用中，可以优化为本地状态更新
-        refetch();
-      }
+      // 重新加载数据
+      reload();
     } catch (err) {
       console.error('取消收藏失败:', err);
       showError('取消收藏失败，请稍后重试');
@@ -93,9 +101,6 @@ export default function BookmarksPage() {
     );
   }
 
-  const bookmarks = data?.items || [];
-  const total = data?.total || 0;
-
   // 过滤掉正在移除的文章
   const visibleBookmarks = bookmarks.filter(
     (article) => !removingArticles.has(article.id),
@@ -128,7 +133,7 @@ export default function BookmarksPage() {
           />
         ) : (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-16">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
               {visibleBookmarks.map((article: BookmarkedArticle) => (
                 <div key={article.id} className="relative">
                   {/* 正在移除的覆盖层 */}
@@ -155,8 +160,26 @@ export default function BookmarksPage() {
               ))}
             </div>
 
+            {/* 无限滚动加载器（自动加载） */}
+            <InfiniteScrollLoader
+              isLoadingMore={isLoadingMore}
+              hasMore={hasMore}
+              error={error}
+              onRetry={loadMore}
+            />
+
+            {/* 分页信息（仅在开发环境显示） */}
+            {process.env.NODE_ENV === 'development' && (
+              <div className="mt-4 text-center">
+                <p className="text-xs text-muted-foreground">
+                  {visibleBookmarks.length} / {total} •{' '}
+                  {t('common.pageInfo', { page, totalPages })}
+                </p>
+              </div>
+            )}
+
             {/* 统计信息 */}
-            <div className="p-6 rounded-xl border border-border bg-muted/30">
+            <div className="p-6 rounded-xl border border-border bg-muted/30 mt-8">
               <div className="flex items-center gap-3">
                 <FileText className="w-5 h-5 text-muted-foreground" />
                 <span className="text-muted-foreground">

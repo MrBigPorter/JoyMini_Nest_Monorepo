@@ -280,23 +280,29 @@ export class AiService implements OnModuleInit {
       return response.candidates[0]?.content?.parts?.[0]?.text || null;
     } catch (e: any) {
       this.recordFailure();
-      
+
       // 特殊处理429错误（资源耗尽）
       if (e.code === 429 || e.status === 'RESOURCE_EXHAUSTED') {
-        this.logger.warn(`⚠️  Vertex AI API 429 Resource Exhausted. Downgrading service level.`);
-        
+        this.logger.warn(
+          `⚠️  Vertex AI API 429 Resource Exhausted. Downgrading service level.`,
+        );
+
         // 立即降级服务等级
         if (this.serviceLevel > AiServiceLevel.MINIMAL) {
           this.serviceLevel = AiServiceLevel.MINIMAL;
           this.levelUpdatedAt = Date.now();
-          this.logger.warn(`⚠️  Service downgraded to MINIMAL mode due to 429 error`);
+          this.logger.warn(
+            `⚠️  Service downgraded to MINIMAL mode due to 429 error`,
+          );
         }
-        
+
         // 开启熔断保护
         this.circuitBreaker.openUntil = Date.now() + 300000; // 5分钟熔断
-        this.logger.warn(`🔥 Circuit breaker OPENED for 5 minutes due to 429 error`);
+        this.logger.warn(
+          `🔥 Circuit breaker OPENED for 5 minutes due to 429 error`,
+        );
       }
-      
+
       this.logger.error('AI generation error', e);
       return null;
     }
@@ -314,36 +320,46 @@ export class AiService implements OnModuleInit {
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
         const result = await this.generateText(prompt, options, requiredLevel);
-        
+
         // 如果成功返回结果
         if (result !== null) {
           return result;
         }
-        
+
         // 如果返回null但服务可用，可能是限流，等待后重试
         if (this.isAvailable() && attempt < maxRetries) {
           const delay = Math.pow(2, attempt) * 1000; // 指数退避：1秒、2秒、4秒
-          this.logger.debug(`AI request limited, waiting ${delay}ms before retry (attempt ${attempt + 1}/${maxRetries})`);
-          await new Promise(resolve => setTimeout(resolve, delay));
+          this.logger.debug(
+            `AI request limited, waiting ${delay}ms before retry (attempt ${attempt + 1}/${maxRetries})`,
+          );
+          await new Promise((resolve) => setTimeout(resolve, delay));
           continue;
         }
-        
+
         return null;
       } catch (error: any) {
         // 如果是429错误，使用指数退避重试
-        if ((error.code === 429 || error.status === 'RESOURCE_EXHAUSTED') && attempt < maxRetries) {
+        if (
+          (error.code === 429 || error.status === 'RESOURCE_EXHAUSTED') &&
+          attempt < maxRetries
+        ) {
           const delay = Math.pow(2, attempt) * 2000; // 更长的退避：2秒、4秒、8秒
-          this.logger.warn(`Vertex AI 429 error, waiting ${delay}ms before retry (attempt ${attempt + 1}/${maxRetries})`);
-          await new Promise(resolve => setTimeout(resolve, delay));
+          this.logger.warn(
+            `Vertex AI 429 error, waiting ${delay}ms before retry (attempt ${attempt + 1}/${maxRetries})`,
+          );
+          await new Promise((resolve) => setTimeout(resolve, delay));
           continue;
         }
-        
+
         // 其他错误或达到最大重试次数
-        this.logger.error(`AI generation failed after ${attempt + 1} attempts`, error);
+        this.logger.error(
+          `AI generation failed after ${attempt + 1} attempts`,
+          error,
+        );
         return null;
       }
     }
-    
+
     return null;
   }
 
@@ -359,6 +375,14 @@ Act as a professional content moderator. Analyze this comment and return ONLY a 
 
 Comment content: "${content}"
 ${articleTitle ? `Article context: "${articleTitle}"` : ''}
+
+CRITICAL LANGUAGE RULES:
+1. DETECT the language of the comment content
+2. Your autoReplySuggestion MUST be in the EXACT SAME LANGUAGE as the comment
+3. If comment is in Chinese, reply in Chinese
+4. If comment is in English, reply in English
+5. If comment is in Japanese, reply in Japanese
+6. If you cannot detect the language, use English as default
 
 RULES:
 1. Score from 0-100. 0=completely safe, 100=extremely dangerous
@@ -392,7 +416,18 @@ Return JSON format:
 
     try {
       const jsonStr = this.extractJsonObject(response);
-      return JSON.parse(jsonStr);
+      const parsed = JSON.parse(jsonStr);
+      // 防御性编程：确保返回的数据符合接口契约
+      return {
+        score: typeof parsed.score === 'number' ? parsed.score : 0,
+        passed: parsed.passed !== false, // 默认通过
+        reason: typeof parsed.reason === 'string' ? parsed.reason : null,
+        categories: Array.isArray(parsed.categories) ? parsed.categories : [],
+        autoReplySuggestion:
+          typeof parsed.autoReplySuggestion === 'string'
+            ? parsed.autoReplySuggestion
+            : null,
+      };
     } catch (e) {
       this.logger.warn('Failed to parse moderation result', response);
       return { score: 0, passed: true, reason: null, categories: [] };

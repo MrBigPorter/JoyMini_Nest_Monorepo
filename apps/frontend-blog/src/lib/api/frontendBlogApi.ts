@@ -44,6 +44,7 @@ export const frontendBlogApi = {
     http.get<FrontendArticle>(`/v1/frontend/blog/articles/${slug}`),
 
   /**
+   *
    * 获取热门文章（简化版）
    */
   getPopularArticles: (limit = 10) =>
@@ -204,6 +205,7 @@ export const frontendBlogApi = {
 
   /**
    * 获取文章评论列表
+   * 注意：后端返回的评论有status字段，前端需要转换为approved字段
    */
   getComments: (
     articleId: string,
@@ -212,10 +214,60 @@ export const frontendBlogApi = {
       pageSize?: number;
     },
   ) =>
-    http.get<PaginatedResponse<Comment>>(
-      `/v1/public/blog/articles/${articleId}/comments`,
-      params,
-    ),
+    http
+      .get<
+        PaginatedResponse<any>
+      >(`/v1/frontend/blog/articles/${articleId}/comments`, params)
+      .then((response) => {
+        // 转换数据：将status字段映射为approved字段
+        if (response && response.items) {
+          const transformedItems = response.items.map((item: any) => ({
+            ...item,
+            approved: item.status === 'APPROVED',
+            // 确保所有必需字段都存在
+            email: item.email || null,
+            website: item.website || null,
+            likes: item.likes || 0,
+            children: item.children || [],
+          }));
+
+          return {
+            ...response,
+            items: transformedItems,
+          };
+        }
+        return response;
+      }),
+
+  /**
+   * 获取评论状态
+   * 用于检查单个评论的审核状态（PENDING/APPROVED/REJECTED）
+   */
+  getCommentStatus: (commentId: string) =>
+    http.get<{
+      id: string;
+      status: string;
+      articleId: string;
+      createdAt: Date;
+      updatedAt: Date;
+    }>(`/v1/frontend/blog/comments/${commentId}/status`),
+
+  /**
+   * 获取评论的回复列表
+   * 用于检查是否有自动回复
+   */
+  getCommentReplies: (commentId: string) =>
+    http.get<{
+      commentId: string;
+      replies: Array<{
+        id: string;
+        author: string;
+        email: string;
+        content: string;
+        isAiGenerated: boolean;
+        createdAt: Date;
+      }>;
+    }>(`/v1/frontend/blog/comments/${commentId}/replies`),
 
   /**
    * 提交评论
@@ -230,7 +282,10 @@ export const frontendBlogApi = {
       parentId?: string;
     },
   ) =>
-    http.post<Comment>(`/v1/public/blog/articles/${articleId}/comments`, data),
+    http.post<Comment>(
+      `/v1/frontend/blog/articles/${articleId}/comments`,
+      data,
+    ),
 };
 
 export default frontendBlogApi;
