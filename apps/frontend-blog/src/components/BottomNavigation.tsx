@@ -9,8 +9,11 @@ export default function BottomNavigation() {
   const t = useTranslations();
   const pathname = usePathname();
   const [activeStates, setActiveStates] = useState<Record<string, boolean>>({});
+  const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
+    setIsClient(true);
+    
     // 在客户端计算所有导航项的激活状态
     const newActiveStates: Record<string, boolean> = {};
     const navItems = [
@@ -236,8 +239,8 @@ export default function BottomNavigation() {
         {/* 滑动指示器 */}
         <div className="absolute top-0 left-0 w-full h-0.5 flex">
           {navItems.map((item) => {
-            // 使用客户端计算的激活状态，服务器端渲染时默认为false
-            const isActive = activeStates[item.href] || false;
+            // 双重渲染策略：服务器端渲染时不显示激活状态，客户端hydrate后显示
+            const isActive = isClient && (activeStates[item.href] || false);
             return (
               <div
                 key={item.href}
@@ -254,8 +257,8 @@ export default function BottomNavigation() {
         </div>
 
         {navItems.map((item) => {
-          // 使用客户端计算的激活状态，服务器端渲染时默认为false
-          const isActive = activeStates[item.href] || false;
+          // 双重渲染策略：服务器端渲染时不显示激活状态，客户端hydrate后显示
+          const isActive = isClient && (activeStates[item.href] || false);
           return (
             <Link
               key={item.href}

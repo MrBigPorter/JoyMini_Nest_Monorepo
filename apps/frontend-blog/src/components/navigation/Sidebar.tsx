@@ -19,8 +19,11 @@ export default function Sidebar() {
   const pathname = usePathname();
   const [isExpanded, setIsExpanded] = useState(false);
   const [activeStates, setActiveStates] = useState<Record<string, boolean>>({});
+  const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
+    setIsClient(true);
+
     // 在客户端计算所有导航项的激活状态
     const newActiveStates: Record<string, boolean> = {};
     const navItems = [
@@ -30,11 +33,11 @@ export default function Sidebar() {
       { href: '/bookmarks', icon: Bookmark, label: t('common.bookmarks') },
       { href: '/about', icon: User, label: t('common.about') },
     ];
-    
-    navItems.forEach(item => {
+
+    navItems.forEach((item) => {
       newActiveStates[item.href] = getIsActive(pathname, item.href);
     });
-    
+
     setActiveStates(newActiveStates);
   }, [pathname, t]);
 
@@ -63,8 +66,10 @@ export default function Sidebar() {
       <nav className="flex-1 pt-4 px-2 flex flex-col gap-1">
         {navItems.map((item) => {
           const Icon = item.icon;
-          // 使用客户端计算的激活状态，服务器端渲染时默认为false
-          const isActive = activeStates[item.href] || false;
+          // 双重渲染策略：服务器端渲染时不显示激活状态，客户端hydrate后显示
+          // 服务器端：isActive = false，使用scale-100
+          // 客户端：isActive = activeStates[item.href] || false，可能使用scale-110
+          const isActive = isClient && (activeStates[item.href] || false);
 
           return (
             <Link
