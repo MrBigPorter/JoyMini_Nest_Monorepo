@@ -18,11 +18,25 @@ export default function Sidebar() {
   const t = useTranslations();
   const pathname = usePathname();
   const [isExpanded, setIsExpanded] = useState(false);
-  const [isMounted, setIsMounted] = useState(false);
+  const [activeStates, setActiveStates] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    setIsMounted(true);
-  }, []);
+    // 在客户端计算所有导航项的激活状态
+    const newActiveStates: Record<string, boolean> = {};
+    const navItems = [
+      { href: '/', icon: Home, label: t('common.home') },
+      { href: '/categories', icon: FolderOpen, label: t('common.categories') },
+      { href: '/tags', icon: Tag, label: t('common.tags') },
+      { href: '/bookmarks', icon: Bookmark, label: t('common.bookmarks') },
+      { href: '/about', icon: User, label: t('common.about') },
+    ];
+    
+    navItems.forEach(item => {
+      newActiveStates[item.href] = getIsActive(pathname, item.href);
+    });
+    
+    setActiveStates(newActiveStates);
+  }, [pathname, t]);
 
   const navItems = [
     { href: '/', icon: Home, label: t('common.home') },
@@ -49,8 +63,8 @@ export default function Sidebar() {
       <nav className="flex-1 pt-4 px-2 flex flex-col gap-1">
         {navItems.map((item) => {
           const Icon = item.icon;
-          // 只在客户端计算激活状态，避免hydration不匹配
-          const isActive = isMounted && getIsActive(pathname, item.href);
+          // 使用客户端计算的激活状态，服务器端渲染时默认为false
+          const isActive = activeStates[item.href] || false;
 
           return (
             <Link
