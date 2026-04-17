@@ -133,14 +133,12 @@ export const useAuthStore = create<AuthState>()(
       },
 
       setUser: (user) => {
-        console.log('Auth store: setUser called', user);
         set({ user });
       },
 
       setLoading: (loading) => set({ isLoading: loading }),
 
       setHydrated: () => {
-        console.log('Auth store: setHydrated called');
         set({ isHydrated: true });
       },
     }),
@@ -149,13 +147,6 @@ export const useAuthStore = create<AuthState>()(
       storage: createJSONStorage(() => localStorage),
       // 只存储必要的字段
       partialize: (state) => {
-        console.log('Auth store: partialize called with state', {
-          hasAccessToken: !!state.accessToken,
-          hasRefreshToken: !!state.refreshToken,
-          hasUser: !!state.user,
-          accessTokenLength: state.accessToken?.length || 0,
-          userId: state.user?.id,
-        });
         return {
           accessToken: state.accessToken,
           refreshToken: state.refreshToken,
@@ -166,22 +157,12 @@ export const useAuthStore = create<AuthState>()(
       migrate: migrateAuthState,
       // 水合完成后设置isHydrated
       onRehydrateStorage: () => (state) => {
-        console.log(
-          'Auth store: onRehydrateStorage called, state present:',
-          !!state,
-        );
-
         // Always ensure hydration is marked as complete
         // This prevents components from waiting forever
         const ensureHydration = () => {
           if (state) {
-            console.log('Auth store: Setting hydrated from stored state');
             state.setHydrated();
           } else {
-            // If no state from storage, we're still hydrated (just with null values)
-            console.log(
-              'Auth store: No stored state, marking as hydrated anyway',
-            );
             // Use setTimeout to avoid React batching issues
             setTimeout(() => {
               const currentState = useAuthStore.getState();
@@ -204,7 +185,6 @@ if (typeof window !== 'undefined') {
   const checkAndSetHydration = () => {
     const state = useAuthStore.getState();
     if (!state.isHydrated) {
-      console.log('Auth store: manually setting hydration on client init');
       useAuthStore.getState().setHydrated();
     }
   };

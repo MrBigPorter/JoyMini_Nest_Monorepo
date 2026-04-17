@@ -78,7 +78,7 @@ class HttpClient {
         // 3. CSRF token（对于非GET请求）
         const csrfToken = this.getCsrfToken();
         if (csrfToken && ['post', 'put', 'patch', 'delete'].includes(method)) {
-          config.headers['X-XSRF-Token'] = csrfToken;
+          config.headers['X-CSRF-Token'] = csrfToken;
         }
 
         // 4. 去重请求 key
@@ -190,18 +190,22 @@ class HttpClient {
 
   /**
    * 获取CSRF token
-   * 从cookie中读取XSRF-TOKEN或csrfToken
+   * 从cookie中读取csrf_token（后端设置）或XSRF-TOKEN
    */
   private getCsrfToken(): string | null {
     if (typeof document === 'undefined') return null;
+
+    // 优先读取后端设置的csrf_token（下划线）
+    const csrfToken = this.getCookie('csrf_token');
+    if (csrfToken) return csrfToken;
 
     // 尝试读取XSRF-TOKEN（常见于Spring Security）
     const xsrfToken = this.getCookie('XSRF-TOKEN');
     if (xsrfToken) return decodeURIComponent(xsrfToken);
 
-    // 尝试读取csrfToken（其他框架可能使用）
-    const csrfToken = this.getCookie('csrfToken');
-    if (csrfToken) return csrfToken;
+    // 尝试读取csrfToken（驼峰式）
+    const csrfTokenCamel = this.getCookie('csrfToken');
+    if (csrfTokenCamel) return csrfTokenCamel;
 
     return null;
   }
@@ -370,7 +374,7 @@ class HttpClient {
     try {
       // 调用刷新 token 接口
       const response = await this.instance.post(
-        '/v1/client/auth/refresh-token',
+        '/v1/auth/refresh',
         {
           refreshToken,
         },

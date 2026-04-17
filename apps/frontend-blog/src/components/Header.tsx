@@ -45,14 +45,6 @@ export default function Header() {
   // 水合状态
   const { isHydrated } = useAuthStore();
 
-  console.log('Header rendered:', {
-    isAuthenticated,
-    authLoading,
-    isHydrated,
-    user: user ? 'present' : 'null',
-    timestamp: Date.now(),
-  });
-
   // 在水合完成前显示加载状态
   const showAuthLoading = authLoading || !isHydrated;
 

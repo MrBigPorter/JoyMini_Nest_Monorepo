@@ -1,22 +1,30 @@
 import {
   Controller,
   Get,
+  Post,
   Param,
   Query,
   Req,
+  Body,
   NotFoundException,
+  UseGuards,
 } from '@nestjs/common';
 import { CacheTTL } from '@nestjs/cache-manager';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { Request } from 'express';
 import { FrontendBlogService } from './frontend-blog.service';
+import { BlogService } from '../blog.service';
 import { LanguageService } from '@api/common/services/language.service';
+import { CreateCommentDto } from '../dto/create-comment.dto';
+import { AuthGuard } from '@nestjs/passport';
+import { JwtAuthGuard } from '@api/common/jwt/jwt.guard';
 
 @ApiTags('Frontend Blog')
 @Controller('frontend/blog')
 export class FrontendBlogController {
   constructor(
     private readonly frontendBlogService: FrontendBlogService,
+    private readonly blogService: BlogService,
     private readonly languageService: LanguageService,
   ) {}
 
@@ -220,5 +228,49 @@ export class FrontendBlogController {
   @CacheTTL(1800) // 缓存30分钟
   async getFrontendPopularTags(@Query('limit') limit = 20) {
     return this.frontendBlogService.getFrontendPopularTags(limit);
+  }
+
+  // ================= 评论接口 =================
+
+  @Get('articles/:slug/comments')
+  @ApiOperation({ summary: '文章评论列表（前端专用）' })
+  @ApiResponse({ status: 200, description: '返回评论列表' })
+  @ApiResponse({ status: 404, description: '文章不存在' })
+  @CacheTTL(60) // 缓存1分钟
+  async getArticleComments(
+    @Param('slug') slug: string,
+    @Query('page') page?: number,
+    @Query('pageSize') pageSize?: number,
+  ) {
+    return this.blogService.getArticleComments(slug, { page, pageSize });
+  }
+
+  @Post('articles/:slug/comments')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: '提交评论（前端专用）' })
+  @ApiResponse({ status: 201, description: '评论提交成功' })
+  @ApiResponse({ status: 401, description: '未授权，请先登录' })
+  @ApiResponse({ status: 404, description: '文章不存在' })
+  async createComment(
+    @Param('slug') slug: string,
+    @Body() createCommentDto: CreateCommentDto,
+  ) {
+    return this.blogService.createComment(slug, createCommentDto);
+  }
+
+  @Get('comments/:id/status')
+  @ApiOperation({ summary: '查询评论状态（前端专用）' })
+  @ApiResponse({ status: 200, description: '返回评论状态' })
+  @ApiResponse({ status: 404, description: '评论不存在' })
+  async getCommentStatus(@Param('id') commentId: string) {
+    return this.blogService.getCommentStatus(commentId);
+  }
+
+  @Get('comments/:id/replies')
+  @ApiOperation({ summary: '查询评论的回复列表（前端专用）' })
+  @ApiResponse({ status: 200, description: '返回评论的回复列表' })
+  @ApiResponse({ status: 404, description: '评论不存在' })
+  async getCommentReplies(@Param('id') commentId: string) {
+    return this.blogService.getCommentReplies(commentId);
   }
 }

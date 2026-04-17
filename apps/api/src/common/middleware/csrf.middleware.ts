@@ -57,6 +57,11 @@ export class CsrfMiddleware implements NestMiddleware {
       return next();
     }
 
+    // 跳过前端博客 API（公开接口，不需要 CSRF）
+    if (req.path.startsWith('/api/v1/frontend/')) {
+      return next();
+    }
+
     // 从请求头或请求体中获取 CSRF Token
     const csrfToken =
       (req.headers['x-csrf-token'] as string) ||

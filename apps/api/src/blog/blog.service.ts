@@ -2,12 +2,18 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  BadRequestException,
   Logger,
 } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { ArticleStatus, Prisma } from '@prisma/client';
-import { CreateArticleDto, UpdateArticleDto } from './dto';
+import { CreateArticleDto, UpdateArticleDto, CreateCommentDto } from './dto';
+import { plainToInstance } from 'class-transformer';
+import {
+  CommentListResponseDto,
+  CommentResponseDto,
+} from './dto/comment-response.dto';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { Marked } from 'marked';
@@ -565,7 +571,11 @@ export class BlogService {
         }
 
         // 如果指定了语言，返回该语言的字符串
-        if (locale && fixedValue[locale] && typeof fixedValue[locale] === 'string') {
+        if (
+          locale &&
+          fixedValue[locale] &&
+          typeof fixedValue[locale] === 'string'
+        ) {
           result[field] = fixedValue[locale];
         } else {
           result[field] = fixedValue;
@@ -624,7 +634,11 @@ export class BlogService {
         }
 
         // 如果指定了语言，返回该语言的字符串
-        if (locale && fixedValue[locale] && typeof fixedValue[locale] === 'string') {
+        if (
+          locale &&
+          fixedValue[locale] &&
+          typeof fixedValue[locale] === 'string'
+        ) {
           result[field] = fixedValue[locale];
         } else {
           result[field] = fixedValue;
@@ -1136,35 +1150,58 @@ export class BlogService {
   /**
    * 创建评论
    */
-  async createComment(slug: string, dto: any, userId?: string | null) {
+
+  async createComment(
+    slug: string,
+    dto: CreateCommentDto,
+    userId?: string | null,
+  ) {
     const article = await this.prisma.blogArticle.findUnique({
       where: { slug },
     });
     if (!article) throw new NotFoundException('Article not found');
 
-    const commentData: any = {
-      articleId: article.id,
+    // For anonymous comments, validate that author is provided
+    if (!dto.author) {
+      throw new BadRequestException(
+        'Author name is required for anonymous comments',
+      );
+    }
+
+    const commentData: Prisma.BlogCommentCreateInput = {
+      article: { connect: { id: article.id } },
+      author: dto.author,
+      email: dto.email || '',
+      website: dto.website,
       content: dto.content,
-      parentId: dto.parentId,
+      status: 'PENDING',
     };
 
-    if (userId) {
-      commentData.userId = userId;
-    } else {
-      commentData.author = dto.author;
-      commentData.email = dto.email;
-      commentData.website = dto.website;
+    // Handle parent comment relation if parentId is provided
+    if (dto.parentId) {
+      commentData.parent = { connect: { id: dto.parentId } };
     }
 
     const comment = await this.prisma.blogComment.create({
       data: commentData,
     });
 
-    // 更新文章评论计数
+    // Update article comment count
     await this.prisma.blogArticle.update({
       where: { id: article.id },
       data: { commentCount: { increment: 1 } },
     });
+
+    // Add to AI moderation queue
+    await this.blogAiQueue.add(
+      'moderate-comment',
+      {
+        commentId: comment.id,
+        content: comment.content,
+        articleTitle: article.title,
+      },
+      { delay: 1000 }, // Delay 1 second for immediate response
+    );
 
     return comment;
   }
@@ -1276,7 +1313,7 @@ export class BlogService {
   }
 
   /**
-   * 获取文章评论
+   * 获取文章评论（已脱敏）
    */
   async getArticleComments(slug: string, params: any) {
     const article = await this.prisma.blogArticle.findUnique({
@@ -1285,26 +1322,217 @@ export class BlogService {
     if (!article) throw new NotFoundException('Article not found');
 
     const { page = 1, pageSize = 20 } = params;
+
     const skip = (page - 1) * pageSize;
 
-    const [items, total] = await Promise.all([
+    // 获取所有已审核评论（包括回复）
+    const [allComments, total] = await Promise.all([
       this.prisma.blogComment.findMany({
-        where: { articleId: article.id },
-        skip,
-        take: pageSize,
+        where: {
+          articleId: article.id,
+          status: 'APPROVED',
+        },
         orderBy: { createdAt: 'desc' },
       }),
       this.prisma.blogComment.count({
-        where: { articleId: article.id },
+        where: {
+          articleId: article.id,
+          status: 'APPROVED',
+        },
       }),
     ]);
 
+    // 构建树形结构
+    const commentTree = this.buildCommentTree(allComments);
+
+    // 分页处理：只对根评论进行分页
+    const paginatedRootComments = commentTree.slice(skip, skip + pageSize);
+
+    // 应用脱敏转换
+    const maskedComments = this.applyCommentMasking(paginatedRootComments);
+
     return {
-      items,
+      items: maskedComments,
       total,
       page,
       pageSize,
       totalPages: Math.ceil(total / pageSize),
+    };
+  }
+
+  /**
+   * 应用评论脱敏
+   */
+  private applyCommentMasking(comments: any[]): CommentResponseDto[] {
+    if (!comments || comments.length === 0) {
+      return [];
+    }
+
+    const maskedComments = comments.map(comment => {
+      // 确保status字段存在，以便@Transform能正确转换approved字段
+      const commentWithStatus = {
+        ...comment,
+        status: comment.status || 'PENDING', // 确保status字段存在
+      };
+
+      // 转换单个评论
+      const maskedComment = plainToInstance(CommentResponseDto, commentWithStatus, {
+        excludeExtraneousValues: true,
+        enableImplicitConversion: true,
+      });
+
+      // 递归处理子评论
+      if (comment.children && comment.children.length > 0) {
+        maskedComment.children = this.applyCommentMasking(comment.children);
+      }
+
+      return maskedComment;
+    });
+
+    return maskedComments;
+  }
+
+  /**
+   * 构建评论树形结构（与 CommentService 中的逻辑相同）
+   */
+  private buildCommentTree(comments: any[]): any[] {
+    // 创建评论映射表
+    const commentMap = new Map<string, any>();
+    const rootComments: any[] = [];
+
+    // 初始化所有评论，添加 children 数组
+    comments.forEach((comment) => {
+      // 创建评论对象的副本，添加 children 字段
+      const commentWithChildren = {
+        ...comment,
+        children: [],
+      };
+      commentMap.set(comment.id, commentWithChildren);
+    });
+
+    // 构建树形结构
+    comments.forEach((comment) => {
+      const node = commentMap.get(comment.id);
+      if (comment.parentId) {
+        // 如果有父评论，添加到父评论的 children 中
+        const parent = commentMap.get(comment.parentId);
+        if (parent) {
+          parent.children.push(node);
+        }
+        // 注意：这里不添加到 rootComments，因为它是回复
+      } else {
+        // 没有父评论，作为根评论
+        rootComments.push(node);
+      }
+    });
+
+    // 按创建时间排序（根评论和子评论都排序）
+    rootComments.sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+    rootComments.forEach((comment) => {
+      if (comment.children.length > 0) {
+        comment.children.sort(
+          (a: any, b: any) =>
+            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+        );
+      }
+    });
+
+    return rootComments;
+  }
+
+  /**
+   * 查询单个评论状态
+   * 用于前端轮询评论审核状态
+   */
+  async getCommentStatus(commentId: string): Promise<{
+    id: string;
+    status: string;
+    articleId: string;
+    createdAt: Date;
+    updatedAt: Date;
+  }> {
+    const comment = await this.prisma.blogComment.findUnique({
+      where: { id: commentId },
+      select: {
+        id: true,
+        status: true,
+        articleId: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    if (!comment) {
+      throw new NotFoundException(`评论 ${commentId} 不存在`);
+    }
+
+    return {
+      id: comment.id,
+      status: comment.status,
+      articleId: comment.articleId,
+      createdAt: comment.createdAt,
+      updatedAt: comment.updatedAt,
+    };
+  }
+
+  /**
+   * 查询评论的回复列表
+   * 用于前端检查是否有自动回复
+   */
+  async getCommentReplies(commentId: string): Promise<{
+    commentId: string;
+    replies: Array<{
+      id: string;
+      author: string;
+      email: string;
+      content: string;
+      isAiGenerated: boolean;
+      createdAt: Date;
+    }>;
+  }> {
+    // 首先检查评论是否存在
+    const comment = await this.prisma.blogComment.findUnique({
+      where: { id: commentId },
+      select: { id: true, articleId: true },
+    });
+
+    if (!comment) {
+      throw new NotFoundException(`评论 ${commentId} 不存在`);
+    }
+
+    // 查询该评论的所有回复（parentId = commentId）
+    const replies = await this.prisma.blogComment.findMany({
+      where: {
+        parentId: commentId,
+        status: 'APPROVED', // 只返回已审核通过的回复
+      },
+      select: {
+        id: true,
+        author: true,
+        email: true,
+        content: true,
+        isAiGenerated: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'asc' }, // 按创建时间排序
+    });
+
+    // 判断是否为自动回复（作者为"Porter"或"System"，或isAiGenerated为true）
+    const processedReplies = replies.map((reply) => ({
+      ...reply,
+      isAiGenerated: reply.isAiGenerated || 
+                    reply.author === 'Porter' || 
+                    reply.author === 'System' ||
+                    reply.email === 'porter@joyminis.com' ||
+                    reply.email === 'system@joyminis.com',
+    }));
+
+    return {
+      commentId,
+      replies: processedReplies,
     };
   }
 

@@ -55,10 +55,12 @@ export interface Comment {
   articleId: string;
   author: string;
   email: string | null;
+  website: string | null;
   content: string;
   parentId: string | null;
   approved: boolean;
   likes: number;
   createdAt: string;
   updatedAt: string;
+  children?: Comment[];
 }
