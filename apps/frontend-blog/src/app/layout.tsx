@@ -1,8 +1,6 @@
-// 根布局：提供完整的HTML结构以满足Next.js 15要求
-// 注意：国际化路由由 [locale]/layout.tsx 处理
-// 将 ThemeProvider 放在根布局中，避免水合错误
 import { Inter } from 'next/font/google';
 import { ThemeProvider } from 'next-themes';
+import './globals.css'; // 确保全局样式在这里加载
 
 const inter = Inter({
   subsets: ['latin'],
@@ -16,7 +14,24 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={inter.variable} suppressHydrationWarning>
-      <body className="antialiased">
+      <head>
+        {/* 关键：脚本必须在 head 中，且逻辑要极简 */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var t = localStorage.getItem('theme');
+                  var s = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                  var dark = t === 'dark' || (t !== 'light' && s);
+                  document.documentElement.classList.toggle('dark', dark);
+                } catch (e) {}
+              })();
+            `,
+          }}
+        />
+      </head>
+      <body className="antialiased bg-background text-foreground">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           {children}
         </ThemeProvider>

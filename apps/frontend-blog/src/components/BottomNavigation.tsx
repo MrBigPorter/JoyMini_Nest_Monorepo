@@ -13,7 +13,7 @@ export default function BottomNavigation() {
 
   useEffect(() => {
     setIsClient(true);
-    
+
     // 在客户端计算所有导航项的激活状态
     const newActiveStates: Record<string, boolean> = {};
     const navItems = [
@@ -118,11 +118,11 @@ export default function BottomNavigation() {
         ),
       },
     ];
-    
-    navItems.forEach(item => {
+
+    navItems.forEach((item) => {
       newActiveStates[item.href] = getIsActive(pathname, item.href);
     });
-    
+
     setActiveStates(newActiveStates);
   }, [pathname, t]);
 

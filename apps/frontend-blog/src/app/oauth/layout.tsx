@@ -18,18 +18,6 @@ export default function OAuthLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={inter.variable} suppressHydrationWarning>
-      <head>
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta
-          name="apple-mobile-web-app-status-bar-style"
-          content="black-translucent"
-        />
-        <meta name="mobile-web-app-capable" content="yes" />
-      </head>
-      <body className="antialiased">
-        <div className="min-h-screen bg-background">{children}</div>
-      </body>
-    </html>
+    <div className="min-h-screen bg-background text-foreground">{children}</div>
   );
 }

@@ -233,17 +233,6 @@ export function MobileSettingsContent({ onClose }: MobileSettingsContentProps) {
           </Link>
         )}
 
-        {/* 设置 */}
-        <button className="w-full flex items-center justify-between p-4 rounded-xl hover:bg-accent transition-colors">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-              <Settings className="w-5 h-5 text-primary" />
-            </div>
-            <div className="font-medium">设置</div>
-          </div>
-          <ChevronRight className="w-5 h-5 text-muted-foreground" />
-        </button>
-
         {/* 退出登录 */}
         {isAuthenticated && (
           <button
