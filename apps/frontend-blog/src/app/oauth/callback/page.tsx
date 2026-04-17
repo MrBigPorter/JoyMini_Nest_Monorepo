@@ -28,6 +28,32 @@ function decodeJWT(token: string): any {
   }
 }
 
+// 主题同步函数
+const syncTheme = () => {
+  if (typeof window === 'undefined') return;
+
+  try {
+    // 从localStorage读取主题设置
+    const savedTheme = localStorage.getItem('theme') || 'system';
+    const systemTheme = window.matchMedia('(prefers-color-scheme: dark)')
+      .matches
+      ? 'dark'
+      : 'light';
+    const theme = savedTheme === 'system' ? systemTheme : savedTheme;
+
+    // 应用到HTML元素
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+
+    console.log('Theme synced:', { savedTheme, systemTheme, theme });
+  } catch (err) {
+    console.warn('Failed to sync theme:', err);
+  }
+};
+
 function OAuthCallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -35,6 +61,19 @@ function OAuthCallbackContent() {
 
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // 组件加载时同步主题（现在由内联脚本处理，这里作为后备）
+  useEffect(() => {
+    // 内联脚本已经处理了主题，这里只作为后备
+    if (typeof window !== 'undefined') {
+      const savedTheme = localStorage.getItem('theme') || 'system';
+      const isDark =
+        savedTheme === 'dark' ||
+        (savedTheme === 'system' &&
+          window.matchMedia('(prefers-color-scheme: dark)').matches);
+      document.documentElement.classList.toggle('dark', isDark);
+    }
+  }, []);
 
   useEffect(() => {
     const handleCallback = async () => {
