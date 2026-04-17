@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { Link, useRouter, usePathname } from '@/navigation';
 import { useTheme } from 'next-themes';
@@ -51,6 +51,33 @@ export default function Header() {
   // 在水合完成前显示加载状态
   const showAuthLoading = authLoading || !isHydrated;
 
+  // 用于管理语言菜单关闭的定时器
+  const closeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 清理定时器
+  const clearCloseTimeout = () => {
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+      closeTimeoutRef.current = null;
+    }
+  };
+
+  // 延迟关闭语言菜单
+  const scheduleCloseLangMenu = () => {
+    clearCloseTimeout();
+    closeTimeoutRef.current = setTimeout(() => {
+      setLangMenuOpen(false);
+    }, 200);
+  };
+
+  // 延迟关闭用户菜单
+  const scheduleCloseUserMenu = () => {
+    clearCloseTimeout();
+    closeTimeoutRef.current = setTimeout(() => {
+      setUserMenuOpen(false);
+    }, 200);
+  };
+
   // 动态语言切换
   const switchLocale = (nextLocale: string) => {
     router.replace(pathname, { locale: nextLocale });
@@ -74,6 +101,18 @@ export default function Header() {
     const locale = enabledLocales.find((l: LocaleConfig) => l.code === code);
     if (!locale) return code.toUpperCase();
 
+    // 使用翻译键获取语言名称
+    const translationKey = `settings.language.${code}`;
+    try {
+      const translatedName = t(translationKey);
+      if (translatedName && translatedName !== translationKey) {
+        return code === 'en' ? 'EN' : translatedName;
+      }
+    } catch (error) {
+      // 如果翻译键不存在，回退到原始逻辑
+    }
+
+    // 回退逻辑
     if (code === 'zh') return '中文';
     if (code === 'en') return 'EN';
     return locale.name.substring(0, 2).toUpperCase();
@@ -136,7 +175,7 @@ export default function Header() {
             <button
               onClick={() => setMobileSettingsOpen(true)}
               className="md:hidden p-2 rounded-full hover:bg-accent transition-all active:scale-95"
-              title="设置"
+              title={t('settings.title')}
             >
               <Settings className="w-5 h-5" />
             </button>
@@ -147,46 +186,60 @@ export default function Header() {
               <button
                 onClick={toggleTheme}
                 className="p-2 rounded-full hover:bg-accent transition-all active:scale-95"
-                title="切换主题"
+                title={t('settings.theme.name')}
               >
                 <Sun className="w-5 h-5 dark:hidden" />
                 <Moon className="w-5 h-5 hidden dark:block" />
               </button>
 
               {/* 语言切换 */}
-              <div className="relative">
+              <div
+                className="relative"
+                onMouseEnter={() => {
+                  clearCloseTimeout();
+                  setLangMenuOpen(true);
+                  setUserMenuOpen(false);
+                }}
+                onMouseLeave={() => {
+                  scheduleCloseLangMenu();
+                }}
+              >
                 <button
                   onClick={() => setLangMenuOpen(!langMenuOpen)}
                   className="p-2 rounded-full hover:bg-accent transition-all active:scale-95 flex items-center gap-1"
-                  title="change language"
+                  title={t('settings.language.name')}
                   disabled={localesLoading}
                 >
                   <Globe className="w-5 h-5" />
                   <span className="text-xs font-medium">
-                    {localesLoading ? '...' : getLocaleDisplayName(currentLocale)}
+                    {localesLoading
+                      ? '...'
+                      : getLocaleDisplayName(currentLocale)}
                   </span>
                 </button>
 
-                {langMenuOpen && !localesLoading && enabledLocales.length > 0 && (
-                  <div className="absolute right-0 top-full mt-2 bg-card border border-border rounded-lg shadow-lg min-w-32 overflow-hidden z-50">
-                    {enabledLocales.map((locale: LocaleConfig) => (
-                      <button
-                        key={locale.code}
-                        onClick={() => switchLocale(locale.code)}
-                        className={`w-full px-4 py-2 text-left text-sm hover:bg-accent transition-colors flex items-center gap-2 ${
-                          currentLocale === locale.code
-                            ? 'bg-accent text-primary'
-                            : ''
-                        }`}
-                      >
-                        <span className="text-base">
-                          {getLocaleFlag(locale.code)}
-                        </span>
-                        <span>{locale.name}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
+                {langMenuOpen &&
+                  !localesLoading &&
+                  enabledLocales.length > 0 && (
+                    <div className="absolute -right-10 top-[calc(100%+22px)] bg-card border border-border rounded-lg shadow-lg min-w-32 overflow-hidden z-50">
+                      {enabledLocales.map((locale: LocaleConfig) => (
+                        <button
+                          key={locale.code}
+                          onClick={() => switchLocale(locale.code)}
+                          className={`w-full px-4 py-2 text-left text-sm hover:bg-accent transition-colors flex items-center gap-2 ${
+                            currentLocale === locale.code
+                              ? 'bg-accent text-primary'
+                              : ''
+                          }`}
+                        >
+                          <span className="text-base">
+                            {getLocaleFlag(locale.code)}
+                          </span>
+                          <span>{t(`settings.language.${locale.code}`)}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
               </div>
 
               {/* 登录/用户按钮 */}
@@ -194,11 +247,21 @@ export default function Header() {
                 // 水合完成前显示加载状态
                 <div className="w-20 h-8 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse" />
               ) : isAuthenticated ? (
-                <div className="relative">
+                <div
+                  className="relative"
+                  onMouseEnter={() => {
+                    clearCloseTimeout();
+                    setUserMenuOpen(true);
+                    setLangMenuOpen(false);
+                  }}
+                  onMouseLeave={() => {
+                    scheduleCloseUserMenu();
+                  }}
+                >
                   <button
                     onClick={() => setUserMenuOpen(!userMenuOpen)}
                     className="flex items-center gap-2 px-3 py-2 rounded-full hover:bg-accent transition-all"
-                    title={user?.nickname || '用户'}
+                    title={user?.nickname || t('settings.user')}
                   >
                     {user?.avatar ? (
                       <img
@@ -212,20 +275,20 @@ export default function Header() {
                       </div>
                     )}
                     <span className="text-sm font-medium">
-                      {user?.nickname || '用户'}
+                      {user?.nickname || t('settings.user')}
                     </span>
                     <ChevronDown className="w-4 h-4 text-muted-foreground" />
                   </button>
 
                   {/* 用户菜单 */}
                   {userMenuOpen && (
-                    <div className="absolute right-0 top-full mt-2 bg-card border border-border rounded-lg shadow-lg min-w-40 overflow-hidden z-50">
+                    <div className="absolute right-0 top-[calc(100%+22px)] bg-card border border-border rounded-lg shadow-lg min-w-32 overflow-hidden z-50">
                       <div className="px-4 py-3 border-b border-border">
                         <div className="font-medium text-sm">
-                          {user?.nickname || '用户'}
+                          {user?.nickname || t('settings.user')}
                         </div>
                         <div className="text-xs text-muted-foreground truncate">
-                          {user?.email || '未设置邮箱'}
+                          {user?.email || t('settings.emailNotSet')}
                         </div>
                       </div>
 
@@ -236,7 +299,7 @@ export default function Header() {
                         className="w-full px-4 py-2 text-left text-sm hover:bg-accent transition-colors flex items-center gap-2"
                       >
                         <Bookmark className="w-4 h-4" />
-                        <span>我的收藏</span>
+                        <span>{t('settings.bookmarks')}</span>
                       </Link>
 
                       <div className="border-t border-border my-1" />
@@ -249,7 +312,9 @@ export default function Header() {
                         className="w-full px-4 py-2 text-left text-sm hover:bg-accent transition-colors text-red-500"
                         disabled={authLoading}
                       >
-                        {authLoading ? '退出中...' : '退出登录'}
+                        {authLoading
+                          ? t('settings.logout.loading')
+                          : t('settings.logout.name')}
                       </button>
                     </div>
                   )}
@@ -279,7 +344,7 @@ export default function Header() {
       <MobileSettingsDrawer
         isOpen={mobileSettingsOpen}
         onClose={() => setMobileSettingsOpen(false)}
-        title="设置"
+        title={t('settings.title')}
       >
         <MobileSettingsContent onClose={() => setMobileSettingsOpen(false)} />
       </MobileSettingsDrawer>

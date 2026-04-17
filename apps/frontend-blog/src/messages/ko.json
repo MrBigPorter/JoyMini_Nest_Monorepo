@@ -164,5 +164,34 @@
     "contactTitle": "연락처",
     "github": "GitHub",
     "email": "이메일"
+  },
+  "settings": {
+    "title": "설정",
+    "theme": {
+      "name": "테마",
+      "dark": "다크 모드",
+      "light": "라이트 모드"
+    },
+    "language": {
+      "name": "언어",
+      "select": "언어 선택",
+      "zh": "중국어",
+      "en": "영어",
+      "ja": "일본어",
+      "ko": "한국어",
+      "fr": "프랑스어",
+      "de": "독일어"
+    },
+    "logout": {
+      "name": "로그아웃",
+      "loading": "로그아웃 중..."
+    },
+    "bookmarks": "내 북마크",
+    "loginRegister": "로그인/등록",
+    "joinCommunity": "커뮤니티에 가입",
+    "user": "사용자",
+    "emailNotSet": "이메일 미설정",
+    "close": "닫기",
+    "version": "Tarsier Blog v1.0.0"
   }
 }

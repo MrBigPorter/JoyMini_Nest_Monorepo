@@ -27,7 +27,13 @@ docs/
 │
 ├── nextjs/                    # Next.js项目文档（新增）
 │   ├── AI_COLLABORATION_WORKFLOW.md
-│   └── COMMANDS_CHEATSHEET.md
+│   ├── BUGFIX_auth_hydration_layout_issues.md
+│   ├── BUGFIX_header_dropdown_hover_interaction.md
+│   ├── BUGFIX_navigation_active_state_hydration.md
+│   ├── BUGFIX_react_markdown_integration.md
+│   ├── BUGFIX_tailwind_v4_migration.md
+│   ├── COMMANDS_CHEATSHEET.md
+│   └── PROVIDERS_GUIDE.md
 │
 ├── nestjs/                    # NestJS项目文档（新增）
 │   ├── AI_COLLABORATION_WORKFLOW.md
