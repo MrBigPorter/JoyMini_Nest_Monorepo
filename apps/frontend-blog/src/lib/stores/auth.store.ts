@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import { supportsSyncRead } from '@/lib/utils/platform';
 
 export interface User {
   id: string;
@@ -21,6 +22,7 @@ interface AuthState {
   refreshToken: string | null;
   isLoading: boolean;
   isHydrated: boolean;
+  _synced: boolean; // 新增：同步状态标志
 
   // Actions
   login: (
@@ -32,7 +34,31 @@ interface AuthState {
   setUser: (user: User) => void;
   setLoading: (loading: boolean) => void;
   setHydrated: () => void;
+
+  // 新增：同步初始化方法
+  syncFromStorage: () => void;
+
+  // 计算属性（改为方法，避免 Zustand 类型问题）
+  isAuthenticated: () => boolean;
 }
+
+// 明确定义初始状态类型（遵循模板E的最佳实践）
+const initialState: AuthState = {
+  user: null,
+  accessToken: null,
+  refreshToken: null,
+  isLoading: false,
+  isHydrated: false,
+  _synced: false,
+  login: () => {},
+  logout: () => {},
+  setTokens: () => {},
+  setUser: () => {},
+  setLoading: () => {},
+  setHydrated: () => {},
+  syncFromStorage: () => {},
+  isAuthenticated: () => false,
+};
 
 // 创建一个简单的迁移函数来处理旧数据格式
 const migrateAuthState = (persistedState: any): Partial<AuthState> => {
@@ -62,11 +88,13 @@ const migrateAuthState = (persistedState: any): Partial<AuthState> => {
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
-      user: null,
-      accessToken: null,
-      refreshToken: null,
-      isLoading: false,
-      isHydrated: false,
+      // 使用明确的类型标注，避免类型推导错误
+      user: initialState.user,
+      accessToken: initialState.accessToken,
+      refreshToken: initialState.refreshToken,
+      isLoading: initialState.isLoading,
+      isHydrated: initialState.isHydrated,
+      _synced: initialState._synced,
 
       login: (tokens, user) => {
         console.log('Auth store: login called', { tokens, user });
@@ -86,6 +114,7 @@ export const useAuthStore = create<AuthState>()(
           ...tokens,
           user,
           isHydrated: true,
+          _synced: true,
         });
 
         console.log('Auth store: login successful, state updated');
@@ -97,6 +126,7 @@ export const useAuthStore = create<AuthState>()(
             hasToken: !!currentState.accessToken,
             hasUser: !!currentState.user,
             isHydrated: currentState.isHydrated,
+            isSynced: currentState._synced,
           });
 
           // 检查localStorage是否已更新
@@ -124,22 +154,64 @@ export const useAuthStore = create<AuthState>()(
           user: null,
           accessToken: null,
           refreshToken: null,
+          _synced: true,
         });
       },
 
       setTokens: (tokens) => {
         console.log('Auth store: setTokens called', tokens);
-        set({ ...tokens });
+        set({ ...tokens, _synced: true });
       },
 
       setUser: (user) => {
-        set({ user });
+        set({ user, _synced: true });
       },
 
       setLoading: (loading) => set({ isLoading: loading }),
 
       setHydrated: () => {
-        set({ isHydrated: true });
+        set({ isHydrated: true, _synced: true });
+      },
+
+      // 新增：同步读取存储
+      syncFromStorage: () => {
+        if (typeof window === 'undefined') return;
+
+        // 如果已经同步过，跳过
+        if (get()._synced) return;
+
+        try {
+          const raw = localStorage.getItem('auth-storage');
+          if (!raw) {
+            set({ _synced: true });
+            return;
+          }
+
+          const parsed = JSON.parse(raw);
+          console.log('Auth store: syncFromStorage parsed:', {
+            hasToken: !!parsed.accessToken,
+            hasUser: !!parsed.user,
+          });
+
+          // 立即设置状态，不等待异步水合
+          set({
+            accessToken: parsed.accessToken || null,
+            refreshToken: parsed.refreshToken || null,
+            user: parsed.user || null,
+            _synced: true,
+          });
+
+          console.log('Auth store: syncFromStorage completed');
+        } catch (error) {
+          console.error('Auth store: Failed to sync from storage:', error);
+          set({ _synced: true });
+        }
+      },
+
+      // 计算属性：认证状态（改为方法）
+      isAuthenticated: () => {
+        const state = get();
+        return !!(state.accessToken && state.user);
       },
     }),
     {
@@ -162,12 +234,16 @@ export const useAuthStore = create<AuthState>()(
         const ensureHydration = () => {
           if (state) {
             state.setHydrated();
+            state._synced = true;
           } else {
             // Use setTimeout to avoid React batching issues
             setTimeout(() => {
               const currentState = useAuthStore.getState();
               if (!currentState.isHydrated) {
                 currentState.setHydrated();
+              }
+              if (!currentState._synced) {
+                currentState._synced = true;
               }
             }, 0);
           }
@@ -179,13 +255,22 @@ export const useAuthStore = create<AuthState>()(
   ),
 );
 
-// 在客户端初始化时确保水合状态
+// 在客户端初始化时确保水合状态和同步
 if (typeof window !== 'undefined') {
+  // 立即同步读取存储（如果支持）
+  if (supportsSyncRead()) {
+    console.log('Auth store: Performing initial sync from storage');
+    useAuthStore.getState().syncFromStorage();
+  }
+
   // 检查store是否已经水合，如果没有则手动设置
   const checkAndSetHydration = () => {
     const state = useAuthStore.getState();
     if (!state.isHydrated) {
       useAuthStore.getState().setHydrated();
+    }
+    if (!state._synced) {
+      useAuthStore.getState()._synced = true;
     }
   };
 

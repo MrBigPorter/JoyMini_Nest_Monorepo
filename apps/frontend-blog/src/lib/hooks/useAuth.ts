@@ -8,8 +8,15 @@ export function useAuth() {
   // 只使用 store 的 loading 状态，不包含水合状态
   // 这样即使水合未完成，组件也能看到真实的认证状态
   const isLoading = store.isLoading;
-  // 计算认证状态
-  const isAuthenticated = !!(store.accessToken && store.user);
+  // 使用 store 的方法获取认证状态（现在改为方法）
+  const isAuthenticated = store.isAuthenticated();
+
+  // 在组件挂载时同步读取存储（如果支持）
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !store._synced) {
+      store.syncFromStorage();
+    }
+  }, [store]);
 
   // 组件挂载时验证现有token（如果有）
   useEffect(() => {

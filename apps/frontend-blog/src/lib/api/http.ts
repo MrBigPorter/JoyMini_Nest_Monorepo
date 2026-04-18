@@ -67,6 +67,12 @@ class HttpClient {
         const lang = this.getLanguage();
         if (lang) {
           config.headers['Accept-Language'] = lang;
+          // 添加查询参数，确保后端能正确识别语言
+          // 后端 LanguageService.resolveLanguage() 优先使用查询参数
+          config.params = {
+            ...config.params,
+            lang: lang,
+          };
         }
 
         // 2. 认证 token
@@ -373,12 +379,9 @@ class HttpClient {
 
     try {
       // 调用刷新 token 接口
-      const response = await this.instance.post(
-        '/v1/auth/refresh',
-        {
-          refreshToken,
-        },
-      );
+      const response = await this.instance.post('/v1/auth/refresh', {
+        refreshToken,
+      });
 
       const { data } = response.data;
       const { accessToken, refreshToken: newRefreshToken } = data;
