@@ -10,7 +10,7 @@
 | -------------------------- | ----------------------------- |
 | 出问题了，不知道从哪看     | [🚨 故障急救](#-故障急救)     |
 | 我要发布代码               | [🚀 发布](#-发布)             |
-| 我要回滚                   | [↩️ 回滚](#️-回滚)            |
+| 我要回滚                   | [↩️ 回滚](#️-回滚)             |
 | 查日志 / 重启服务 / 看资源 | [🔧 日常运维](#-日常运维)     |
 | 本地开发工作流             | [💻 开发工作流](#-开发工作流) |
 | 环境变量 / GitHub Secrets  | [📋 配置参考](#-配置参考)     |
@@ -39,19 +39,20 @@ Redis 容器  lucky-redis-prod
 
 ### 症状速查
 
-| 症状                                              | 直接跳到                                             |
-| ------------------------------------------------- | ---------------------------------------------------- |
-| API 返回 5xx / 无响应                             | [→ API 不通](#api-不通)                              |
-| Admin 登录报 `/v1/...` 路径错                     | [→ API 路径缺 /api](#admin-登录-api-路径缺-api)      |
-| 登录显示 200 但报 ERR_NETWORK                     | [→ CORS 问题](#cors-问题)                            |
-| 部署后新功能不存在 / 模型 undefined               | [→ Prisma 落后](#prisma-落后)                        |
-| 后端容器启动就崩溃                                | [→ 容器启动崩溃](#容器启动崩溃)                      |
-| Admin Cloudflare 部署失败                         | [→ Admin 部署失败](#admin-cloudflare-部署失败)       |
-| VPS 内存告急                                      | [→ 资源检查](#资源检查)                              |
-| 本地 `admin-next` 报 `command not found: next`    | [→ admin-next 卷缓存坏了](#本地-admin-next-启动失败) |
-| 代码明明在 main，但线上行为还是旧的               | [→ 后端镜像未更新](#后端镜像未更新)                  |
-| `/auth/google/login` 返回 404                     | [→ Nginx 配置未同步](#nginx-配置未同步到-vps)        |
-| OAuth 取消后跳转到 `api.joyminis.com/oauth-error` | [→ OAuth 错误重定向](#oauth-错误重定向问题)          |
+| 症状                                                   | 直接跳到                                             |
+| ------------------------------------------------------ | ---------------------------------------------------- |
+| API 返回 5xx / 无响应                                  | [→ API 不通](#api-不通)                              |
+| Admin 登录报 `/v1/...` 路径错                          | [→ API 路径缺 /api](#admin-登录-api-路径缺-api)      |
+| 登录显示 200 但报 ERR_NETWORK                          | [→ CORS 问题](#cors-问题)                            |
+| 部署后新功能不存在 / 模型 undefined                    | [→ Prisma 落后](#prisma-落后)                        |
+| 后端容器启动就崩溃                                     | [→ 容器启动崩溃](#容器启动崩溃)                      |
+| Admin Cloudflare 部署失败                              | [→ Admin 部署失败](#admin-cloudflare-部署失败)       |
+| VPS 内存告急                                           | [→ 资源检查](#资源检查)                              |
+| 本地 `admin-next` 报 `command not found: next`         | [→ admin-next 卷缓存坏了](#本地-admin-next-启动失败) |
+| 代码明明在 main，但线上行为还是旧的                    | [→ 后端镜像未更新](#后端镜像未更新)                  |
+| `/auth/google/login` 返回 404                          | [→ Nginx 配置未同步](#nginx-配置未同步到-vps)        |
+| OAuth 取消后跳转到 `api.joyminis.com/oauth-error`      | [→ OAuth 错误重定向](#oauth-错误重定向问题)          |
+| 本地开发时 frontend-blog 访问 API 返回 502 Bad Gateway | [→ 本地开发端口配置不匹配](#本地开发端口配置不匹配)  |
 
 ---
 
@@ -79,6 +80,59 @@ curl -v "https://api.joyminis.com/auth/google/login?state=test&redirect_uri=http
 ```
 
 **后续**：CI 已更新（`deploy-backend.yml`），后续推送 `nginx/**` 变更会自动同步并 reload。
+
+---
+
+### 本地开发端口配置不匹配
+
+**症状**：本地开发时 frontend-blog 访问 API 返回 502 Bad Gateway
+
+**根因**：`apps/frontend-blog/.env.development` 中的 `NEXT_PUBLIC_API_BASE_URL` 配置为 `http://localhost:3001/api`，但实际 API 服务运行在 `http://localhost:3000`（由 `compose.yml` 定义）。端口不匹配导致 Nginx 代理失败。
+
+**立即修复**：
+
+1. **检查当前配置**：
+
+```bash
+# 查看 frontend-blog 环境变量
+cat apps/frontend-blog/.env.development | grep NEXT_PUBLIC_API_BASE_URL
+
+# 查看 compose.yml 中的 API 端口配置
+grep -A5 -B5 "backend:" compose.yml | grep -E "ports|container_name"
+```
+
+2. **修复端口配置**：
+
+```bash
+# 方法一：修改 frontend-blog 环境变量（推荐）
+echo 'NEXT_PUBLIC_API_BASE_URL=http://localhost:3000/api' > apps/frontend-blog/.env.development
+
+# 方法二：修改 compose.yml 中的 API 端口映射
+# 将 backend 服务的 ports 从 "3000:3000" 改为 "3001:3000"
+```
+
+3. **重启服务**：
+
+```bash
+# 停止并重新启动所有服务
+docker compose --env-file deploy/.env.dev down
+docker compose --env-file deploy/.env.dev up -d
+
+# 验证修复
+curl -s http://localhost:3000/api/v1/health
+```
+
+**验证**：
+
+1. 访问 `http://localhost:3002`（frontend-blog 开发服务器）
+2. 检查浏览器开发者工具 Network 标签，API 请求应该指向 `http://localhost:3000/api/...`
+3. 确认不再出现 502 Bad Gateway 错误
+
+**预防措施**：
+
+- 确保 `apps/frontend-blog/.env.development` 中的 `NEXT_PUBLIC_API_BASE_URL` 与 `compose.yml` 中的 backend 端口一致
+- 开发环境统一使用 `http://localhost:3000/api`
+- 生产环境使用 `https://api.joyminis.com/api`
 
 ---
 
