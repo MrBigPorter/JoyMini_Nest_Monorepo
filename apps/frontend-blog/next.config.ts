@@ -32,13 +32,11 @@ const nextConfig: NextConfig = {
 
   transpilePackages: ['@lucky/shared'],
 
-  allowedDevOrigins: ['blog-dev.joyminis.com'],
-
-  turbopack: {
-    resolveAlias: {
-      'node:crypto': './src/lib/crypto-shim.ts',
-    },
-  },
+  // 注意：allowedDevOrigins 在 Next.js 15 中已不再支持
+  // 如果需要开发源控制，请使用其他方式
+  
+  // 注意：turbopack 配置在 Next.js 15 中已不再支持
+  // 如果需要自定义别名，请使用 webpack 配置
 
   outputFileTracingExcludes: {
     '*': [

@@ -65,7 +65,7 @@ export function ProtectedRoute({
           // 尝试解析auth-storage内容
           const parsed = JSON.parse(authStorage);
           const hasToken = parsed?.state?.accessToken || parsed?.accessToken;
-          
+
           if (hasToken) {
             // 有token，给Zustand 100ms时间恢复状态
             const timer = setTimeout(() => {

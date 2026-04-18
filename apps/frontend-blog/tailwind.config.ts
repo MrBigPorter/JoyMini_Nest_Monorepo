@@ -1,4 +1,5 @@
 import type { Config } from 'tailwindcss';
+import typography from '@tailwindcss/typography';
 
 const config: Config = {
   content: [
@@ -37,7 +38,7 @@ const config: Config = {
       animation: {
         'pulse-subtle': 'pulse-subtle 2s ease-in-out infinite',
         'bounce-subtle': 'bounce-subtle 0.5s ease-in-out',
-        'glow': 'glow 2s ease-in-out infinite',
+        glow: 'glow 2s ease-in-out infinite',
       },
       keyframes: {
         'pulse-subtle': {
@@ -48,14 +49,14 @@ const config: Config = {
           '0%, 100%': { transform: 'translateY(0)' },
           '50%': { transform: 'translateY(-2px)' },
         },
-        'glow': {
+        glow: {
           '0%, 100%': { boxShadow: '0 0 5px rgba(59, 130, 246, 0.5)' },
           '50%': { boxShadow: '0 0 10px rgba(59, 130, 246, 0.8)' },
         },
       },
     },
   },
-  plugins: [require('@tailwindcss/typography')],
+  plugins: [typography],
 };
 
 export default config;

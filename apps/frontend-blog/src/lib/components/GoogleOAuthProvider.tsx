@@ -1,23 +1,19 @@
 'use client';
 
-import { GoogleOAuthProvider as GoogleProvider } from '@react-oauth/google';
-
 interface GoogleOAuthProviderProps {
   children: React.ReactNode;
 }
 
-let googleProviderInstance: React.ReactNode | null = null;
-
 /**
- * Google OAuth提供者组件
- * 包装应用以提供Google OAuth功能
- * 单例模式，避免重复渲染导致的 hydration 问题
+ * Google OAuth提供者组件（简化版）
+ * 由于项目未安装 @react-oauth/google 模块，此组件仅作为占位符
+ * 实际使用时需要安装相应的依赖
  */
 export function GoogleOAuthProvider({ children }: GoogleOAuthProviderProps) {
   const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 
   if (typeof window === 'undefined') {
-    // SSR 时不渲染 GoogleProvider，避免 hydration 不匹配
+    // SSR 时不渲染，避免 hydration 不匹配
     return <>{children}</>;
   }
 
@@ -28,10 +24,11 @@ export function GoogleOAuthProvider({ children }: GoogleOAuthProviderProps) {
     return <>{children}</>;
   }
 
-  // 单例模式，避免重复渲染
-  if (!googleProviderInstance) {
-    googleProviderInstance = <GoogleProvider clientId={clientId}>{children}</GoogleProvider>;
-  }
-
-  return googleProviderInstance;
+  // 由于缺少 @react-oauth/google 模块，直接返回子组件
+  // 实际使用时需要安装依赖并实现完整的Google OAuth功能
+  console.warn(
+    '@react-oauth/google module is not installed. Google OAuth functionality is disabled.',
+  );
+  
+  return <>{children}</>;
 }

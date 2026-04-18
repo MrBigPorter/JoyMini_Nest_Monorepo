@@ -195,9 +195,7 @@ export default function LoginPage() {
             <h1 className="text-3xl font-bold mb-2">{t('auth.login.title')}</h1>
             <p className="text-muted-foreground">{t('auth.login.subtitle')}</p>
             <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-sm text-blue-700">
-                {t('auth.login.tip')}
-              </p>
+              <p className="text-sm text-blue-700">{t('auth.login.tip')}</p>
             </div>
           </div>
 

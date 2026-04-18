@@ -104,8 +104,8 @@ export function getLocaleMetadata(code: string): LocaleMetadata | undefined {
  */
 export function getEnabledLocales(): Locale[] {
   return Object.values(LOCALES_METADATA)
-    .filter(locale => locale.enabled)
-    .map(locale => locale.code);
+    .filter((locale) => locale.enabled)
+    .map((locale) => locale.code);
 }
 
 /**

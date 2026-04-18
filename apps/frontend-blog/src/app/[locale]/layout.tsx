@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { NextIntlClientProvider } from 'next-intl';
+import { setRequestLocale } from 'next-intl/server';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import { notFound } from 'next/navigation';
@@ -50,6 +51,9 @@ export default async function LocaleLayout({
     notFound();
   }
 
+  // 启用静态渲染
+  setRequestLocale(locale);
+
   //  官方临时修复方案：在语言层布局内直接读取messages
   // 绕过 getRequestConfig BUG，该BUG会导致locale参数丢失
   const messagesPath = resolve(process.cwd(), `src/messages/${locale}.json`);
@@ -61,9 +65,7 @@ export default async function LocaleLayout({
         <Header />
         <Sidebar />
         <main className="pt-[var(--content-padding-top)] pb-[var(--content-padding-bottom)] min-h-screen md:ml-16 md:transition-all md:duration-300">
-          <PageTransition>
-            {children}
-          </PageTransition>
+          <PageTransition>{children}</PageTransition>
         </main>
         <BottomNavigation />
       </I18nProvider>

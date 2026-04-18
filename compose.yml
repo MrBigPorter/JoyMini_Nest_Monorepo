@@ -162,7 +162,7 @@ services:
              else
                echo '>>> yarn.lock unchanged - skipping install';
              fi &&
-             yarn workspace @lucky/frontend-blog dev"
+             cd apps/frontend-blog && PORT=4002 next dev --turbopack -p 4002"
     expose:
       - "4002"
     volumes:
@@ -179,6 +179,7 @@ services:
       INTERNAL_API_URL: http://lucky-backend-dev:3000/api
       NEXT_PUBLIC_APP_ENV: development
       HOSTNAME: "0.0.0.0"
+      PORT: "4002"
     healthcheck:
       test:
         [

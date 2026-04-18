@@ -17,7 +17,7 @@ interface ProtectedRouteProps {
 /**
  * 智能受保护路由组件 V2
  * 支持同步读取认证状态，消除页面闪动
- * 
+ *
  * @param children - 需要保护的内容
  * @param redirectTo - 未认证时重定向的路径，默认为 '/login'
  * @param requireAuth - 是否要求认证，默认为 true
@@ -42,15 +42,21 @@ export function ProtectedRouteV2({
       console.log('ProtectedRouteV2: Using SSR auth state:', ssrAuth);
       return ssrAuth;
     }
-    
+
     // 优先级2: 客户端认证状态
     if (platform.isSSR) {
       // SSR模式：直接使用客户端状态（已同步）
-      console.log('ProtectedRouteV2: SSR mode, using client auth:', isAuthenticated);
+      console.log(
+        'ProtectedRouteV2: SSR mode, using client auth:',
+        isAuthenticated,
+      );
       return isAuthenticated;
     } else {
       // SPA/App模式：使用优化后的客户端状态
-      console.log('ProtectedRouteV2: SPA mode, using client auth:', isAuthenticated);
+      console.log(
+        'ProtectedRouteV2: SPA mode, using client auth:',
+        isAuthenticated,
+      );
       return isAuthenticated;
     }
   })();
@@ -72,7 +78,9 @@ export function ProtectedRouteV2({
         const isAuthValid = await checkAuth();
 
         if (!isAuthValid) {
-          console.log('ProtectedRouteV2: Auth check failed, redirecting to login');
+          console.log(
+            'ProtectedRouteV2: Auth check failed, redirecting to login',
+          );
           // 保存当前路径，登录后可以跳转回来
           const currentPath = window.location.pathname + window.location.search;
           if (currentPath !== '/login' && currentPath !== '/register') {
@@ -83,7 +91,9 @@ export function ProtectedRouteV2({
           // 注意：redirectTo 应该是不带语言前缀的路径，如 '/login'
           router.push(redirectTo);
         } else {
-          console.log('ProtectedRouteV2: Auth check passed, user is authenticated');
+          console.log(
+            'ProtectedRouteV2: Auth check passed, user is authenticated',
+          );
         }
       } else {
         console.log('ProtectedRouteV2: Already authenticated');
@@ -99,7 +109,7 @@ export function ProtectedRouteV2({
           // 尝试解析auth-storage内容
           const parsed = JSON.parse(authStorage);
           const hasToken = parsed?.accessToken;
-          
+
           if (hasToken) {
             // 有token，给Zustand 100ms时间恢复状态
             const timer = setTimeout(() => {
