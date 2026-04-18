@@ -1,6 +1,31 @@
-# Lucky Nest Monorepo - AI宪法 v2.0
+# Lucky Nest Monorepo - AI宪法 v3.0
 
-> **核心定位**：聪明但没有记忆、喜欢走捷径的外包实习生。不能指望它靠悟性，必须用系统化工程手段把规则"焊死"在工作流里。
+> **核心定位**：具备"智能体记忆"的进化型工程伙伴。通过反馈闭环实现自我完善，将经验转化为架构规则。
+
+## 🔄 核心协议 (Meta-Rules) - 宪法自我进化机制
+
+### 1. 自我更新权限
+- **AI有权完善此宪法**：当发现重复性错误模式或经过验证的最佳实践时，AI可以提议更新规则
+- **用户批准机制**：每次修改前必须向用户说明更新内容、原因和影响，获得明确同意
+- **客观性原则**：只能添加客观的工程规范，禁止主观情绪化词汇
+
+### 2. 知识积累机制  
+- **问题模式记录**：解决连续出现2次以上的同类Bug时，必须提炼为规则
+- **最佳实践归档**：经过实际验证的有效解决方案，应转化为架构规则
+- **版本追踪**：每次修改需记录日期、原因、相关commit hash和影响范围
+
+### 3. 更新验证流程
+- **反向兼容检查**：新规则不能与现有规则冲突，需保持一致性
+- **实际案例验证**：规则必须有具体代码示例（正确/错误对比）
+- **影响范围评估**：需分析影响哪些现有代码模块，是否需要同步修改
+
+### 4. 进化触发条件
+- **重复错误模式**：同一类错误出现2次以上
+- **架构改进**：系统性解决方案经过验证有效
+- **性能优化**：显著提升性能的最佳实践
+- **安全加固**：增强系统安全性的必要措施
+
+> **记住**：宪法不是一成不变的教条，而是随着项目成长而进化的工程智慧结晶。
 
 ## 🔴 绝对禁令（一票否决）
 
@@ -9,6 +34,7 @@
 3. **禁止硬编码样式**：优先使用Tailwind CSS，避免基于客户端状态计算的动态class
 4. **禁止重复定义类型**：优先复用`packages/shared`和`src/types`中的全局类型
 5. **禁止线性思维**：每次修改必须从系统角度思考，分析影响范围和水合风险
+6. **禁止单层语言处理**：语言切换必须在HTTP请求、React Query缓存、路由参数三个层面统一处理
 
 ## 🟡 架构规则（按模块）
 
@@ -20,6 +46,7 @@
 - **状态管理**：优先使用Zustand，复杂状态必须定义完整interface和initialState
 - **API调用**：必须使用项目HTTP客户端，包含完整错误处理和loading状态
 - **可选依赖**：动态导入的可选模块必须有类型声明文件（如`capacitor.d.ts`）
+- **React Query缓存**：所有数据获取Hook的queryKey必须包含`locale`参数，确保语言切换时缓存正确失效
 
 ### NestJS后端  
 
@@ -128,6 +155,37 @@ try {
 } catch {
   // fallback逻辑
 }
+```
+
+### 语言切换预防模式
+```typescript
+// ❌ 错误：queryKey固定，语言切换时不更新
+const useFrontendCategories = () => {
+  return useQuery({
+    queryKey: ['frontendCategories'], // 缺少locale参数
+    queryFn: () => frontendBlogApi.getCategories(),
+  });
+};
+
+// ✅ 正确：queryKey包含locale，语言切换时重新获取
+const useFrontendCategories = () => {
+  const params = useParams();
+  const locale = (params.locale as string) || 'zh';
+  
+  return useQuery({
+    queryKey: ['frontendCategories', locale], // 包含locale参数
+    queryFn: () => frontendBlogApi.getCategories(),
+  });
+};
+
+// ✅ 正确：HTTP客户端自动添加lang参数
+// 在HTTP拦截器中自动添加lang查询参数
+instance.interceptors.request.use((config) => {
+  const lang = localStorage.getItem('locale') || 'zh';
+  config.params = { ...config.params, lang };
+  config.headers['Accept-Language'] = lang;
+  return config;
+});
 ```
 
 ## 📚 参考文档
