@@ -363,7 +363,7 @@ export default function CommentList({ articleId }: CommentListProps) {
   // 直接使用服务端评论（已包含乐观更新），并添加数据去重保护
   const allComments = useMemo(() => {
     const seenIds = new Set();
-    return serverComments.filter(comment => {
+    return serverComments.filter((comment) => {
       if (seenIds.has(comment.id)) return false;
       seenIds.add(comment.id);
       return true;
@@ -507,7 +507,7 @@ export default function CommentList({ articleId }: CommentListProps) {
             isLoadingMore={isLoadingMore}
             hasMore={hasMore}
             error={error}
-            onRetry={loadMore}
+            onRetryAction={loadMore}
           />
 
           {/* 滚动检测哨兵元素 */}

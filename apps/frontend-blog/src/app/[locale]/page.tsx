@@ -79,7 +79,7 @@ export default function HomePage() {
         isLoadingMore={isLoadingMore}
         hasMore={hasMore}
         error={error}
-        onRetry={loadMore}
+        onRetryAction={loadMore}
       />
 
       {/* 分页信息（仅在开发环境显示） */}

@@ -222,19 +222,19 @@ export function InfiniteScrollLoader({
   isLoadingMore,
   hasMore,
   error,
-  onRetry,
+  onRetryAction,
 }: {
   isLoadingMore?: boolean;
   hasMore?: boolean;
   error?: Error | null;
-  onRetry?: () => void;
+  onRetryAction?: () => void;
 }) {
   return (
     <LoadingIndicator
       isLoadingMore={isLoadingMore}
       hasMore={hasMore}
       error={error}
-      onLoadMore={onRetry}
+      onLoadMore={onRetryAction}
       showLoadMoreButton={!!error}
       autoLoad={!error}
       className="mt-4"

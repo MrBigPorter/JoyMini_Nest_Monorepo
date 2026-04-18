@@ -23,6 +23,7 @@
     "about": "About",
     "bookmarks": "Bookmarks",
     "cancel": "Cancel",
+    "close": "Close",
     "pageInfo": "Page {page} of {totalPages}"
   },
   "categories": {
@@ -142,7 +143,13 @@
     "emptyTitle": "Enter keywords to start searching",
     "emptyDescription": "Search article titles, content or tags",
     "noResults": "No results found",
-    "noResultsDescription": "Try using different keywords"
+    "noResultsDescription": "Try using different keywords",
+    "clear": "Clear search",
+    "shortcutHint": "Press Cmd/Ctrl + K to open search",
+    "viewAllResults": "View all results",
+    "loadFailed": "Search failed, please try again",
+    "showingFirst": "Showing first {count} results",
+    "visitFullPage": "Visit full search page for more results"
   },
   "bookmarks": {
     "title": "My Bookmarks",

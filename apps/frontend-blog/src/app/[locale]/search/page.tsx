@@ -1,15 +1,25 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
+import { useSearchParams } from 'next/navigation';
 import { Search, X, FileText, Loader2 } from 'lucide-react';
 import { ArticleCard } from '@/components/blog/ArticleCard';
 import { useFrontendSearchArticles } from '@/lib/hooks/useFrontendArticles';
 
 export default function SearchPage() {
   const t = useTranslations();
+  const searchParams = useSearchParams();
   const [query, setQuery] = useState('');
   const [isPending, startTransition] = useTransition();
+
+  // 从URL参数读取搜索关键词
+  useEffect(() => {
+    const urlQuery = searchParams.get('q');
+    if (urlQuery) {
+      setQuery(urlQuery);
+    }
+  }, [searchParams]);
 
   const { data, isLoading, error } = useFrontendSearchArticles(query, {
     page: 1,
