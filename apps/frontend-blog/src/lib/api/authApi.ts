@@ -98,7 +98,11 @@ export const authApi = {
   /**
    * Facebook OAuth 登录
    */
-  loginWithFacebook: (accessToken: string, userId: string, inviteCode?: string) => {
+  loginWithFacebook: (
+    accessToken: string,
+    userId: string,
+    inviteCode?: string,
+  ) => {
     return http.post<LoginResponse>('/v1/auth/oauth/facebook', {
       accessToken,
       userId,

@@ -71,9 +71,7 @@ export function ArticleCard({
           {/* 标题 */}
           <h3
             className={`font-semibold text-slate-800 dark:text-slate-200 group-hover:text-primary-600 dark:group-hover:text-primary-500 transition-colors line-clamp-2 ${
-              compact
-                ? 'text-base pr-10'
-                : 'text-lg pr-12'
+              compact ? 'text-base pr-10' : 'text-lg pr-12'
             }`}
           >
             {article.title}

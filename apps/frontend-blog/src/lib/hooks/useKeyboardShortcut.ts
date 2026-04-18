@@ -58,7 +58,16 @@ export function useKeyboardShortcut({
         onTrigger();
       }
     },
-    [key, ctrlKey, metaKey, shiftKey, altKey, preventDefault, enabled, onTrigger],
+    [
+      key,
+      ctrlKey,
+      metaKey,
+      shiftKey,
+      altKey,
+      preventDefault,
+      enabled,
+      onTrigger,
+    ],
   );
 
   useEffect(() => {

@@ -314,14 +314,15 @@ export function usePostComment(articleId: string, params?: any) {
             return {
               ...oldData,
               items: [data, ...cleanedItems],
-              total: (oldData.total || 0) + 1
+              total: (oldData.total || 0) + 1,
             };
           };
 
           // 执行更新 - 使用新的清洗逻辑
           if (exactKey) queryClient.setQueryData(exactKey, mergeOptimisticData);
-          if (infiniteKey) queryClient.setQueryData(infiniteKey, mergeOptimisticData);
-          
+          if (infiniteKey)
+            queryClient.setQueryData(infiniteKey, mergeOptimisticData);
+
           // 关键：最后手动触发一次静默刷新，确保万无一失
           queryClient.invalidateQueries({ queryKey: ['comments', articleId] });
 
@@ -374,10 +375,10 @@ export function usePostComment(articleId: string, params?: any) {
             // 内部递归函数：移除 tempId
             const removeTempId = (items: any[]): any[] => {
               return items
-                .filter(item => item.id !== tempId)
-                .map(item => ({
+                .filter((item) => item.id !== tempId)
+                .map((item) => ({
                   ...item,
-                  children: item.children ? removeTempId(item.children) : []
+                  children: item.children ? removeTempId(item.children) : [],
                 }));
             };
 
@@ -386,7 +387,7 @@ export function usePostComment(articleId: string, params?: any) {
               const newPages = oldData.pages.map((page: any) => ({
                 ...page,
                 items: removeTempId(page.items || []),
-                total: Math.max(0, (page.total || 0) - 1)
+                total: Math.max(0, (page.total || 0) - 1),
               }));
               return { ...oldData, pages: newPages };
             }
@@ -396,13 +397,15 @@ export function usePostComment(articleId: string, params?: any) {
             return {
               ...oldData,
               items: cleanedItems,
-              total: Math.max(0, (oldData.total || 0) - 1)
+              total: Math.max(0, (oldData.total || 0) - 1),
             };
           };
 
           // 执行更新
-          if (exactKey) queryClient.setQueryData(exactKey, removeRejectedComment);
-          if (infiniteKey) queryClient.setQueryData(infiniteKey, removeRejectedComment);
+          if (exactKey)
+            queryClient.setQueryData(exactKey, removeRejectedComment);
+          if (infiniteKey)
+            queryClient.setQueryData(infiniteKey, removeRejectedComment);
 
           // 显示拒绝通知
           showRejectionNotification();

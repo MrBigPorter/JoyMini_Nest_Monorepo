@@ -1,9 +1,9 @@
 /**
  * 防御性Hook库索引文件
- * 
+ *
  * 根据.clinerules宪法v2.0要求，所有涉及浏览器API、客户端状态、异步操作的逻辑
  * 必须使用防御性Hook来避免水合错误和运行时错误。
- * 
+ *
  * 使用原则：
  * 1. 所有依赖客户端状态的Class或组件，必须通过`useIsClient` Hook判断
  * 2. 所有动态导入的可选依赖必须使用`useOptionalModule` Hook

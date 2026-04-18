@@ -1,5 +1,5 @@
 # ============================================================
-# Blog 前端部署流水线
+# Blog Cloudflare Pages 部署流水线
 # ============================================================
 
 deploy-blog:
@@ -25,10 +25,67 @@ deploy-blog:
     - node packages/shared/scripts/build.js
     - node packages/ui/scripts/build.js
 
-    - cd apps/frontend-blog
-    - yarn build
+    - DEPLOYED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+    - GIT_SHA=$CI_COMMIT_SHA
 
-    - echo "✅ Blog 前端构建完成"
-    - echo "→ 实际部署逻辑参照 admin 流水线实现"
+    - cd apps/frontend-blog
+    - NODE_ENV=production \
+      NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL \
+      NEXT_PUBLIC_IMG_BASE_URL=$NEXT_PUBLIC_IMG_BASE_URL \
+      NEXT_PUBLIC_APP_ENV=$([ "$CI_COMMIT_BRANCH" = "main" ] && echo "production" || echo "preview") \
+      NEXT_PUBLIC_SENTRY_DEBUG=$([ "$CI_COMMIT_BRANCH" = "test" ] && echo "true" || echo "false") \
+      NEXT_PUBLIC_DEPLOYED_AT=$DEPLOYED_AT \
+      NEXT_PUBLIC_GIT_SHA=$GIT_SHA \
+      yarn exec opennextjs-cloudflare build
+
+    # 验证 Cloudflare 凭证
+    - |
+      set -euo pipefail
+      if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+        echo "❌ CLOUDFLARE_API_TOKEN is not set"
+        exit 1
+      fi
+
+      HTTP_STATUS=$(curl -s -o /tmp/cf-verify.json -w "%{http_code}" \
+        -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+        "https://api.cloudflare.com/client/v4/user/tokens/verify")
+      SUCCESS=$(python3 -c "import json; d=json.load(open('/tmp/cf-verify.json')); print(d.get('success', False))" 2>/dev/null || echo "false")
+      if [ "$HTTP_STATUS" != "200" ] || [ "$SUCCESS" != "True" ]; then
+        echo "❌ CLOUDFLARE_API_TOKEN is invalid or expired"
+        exit 1
+      fi
+      echo "✅ Cloudflare API token is valid."
+
+    # 部署到 Cloudflare Pages
+    - CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID=$CLOUDFLARE_ACCOUNT_ID yarn exec opennextjs-cloudflare deploy -c wrangler.toml
+
+  after_script:
+    # Telegram 通知
+    - |
+      if [ "$CI_JOB_STATUS" = "success" ]; then
+        STATUS_EMOJI="✅ Success"
+      else
+        STATUS_EMOJI="❌ Failed"
+      fi
+
+      if [ "$CI_COMMIT_BRANCH" = "main" ]; then
+        BLOG_URL="https://blog.joyminis.com"
+        BLOG_DOMAIN_LABEL="blog.joyminis.com"
+      else
+        BLOG_URL="https://blog-dev.joyminis.com"
+        BLOG_DOMAIN_LABEL="blog-dev.joyminis.com"
+      fi
+
+      MESSAGE="☁️ *Blog Cloudflare Deployment Report*
+      📌 *Status*: $STATUS_EMOJI
+      🏷️ *Environment*: $([ "$CI_COMMIT_BRANCH" = "main" ] && echo "Production" || echo "Preview") (Cloudflare Pages)
+      🔗 *Blog URL*: [$BLOG_DOMAIN_LABEL]($BLOG_URL)
+      📝 *Commit*: \`$CI_COMMIT_SHORT_SHA\`"
+
+      curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendMessage" \
+        -d "chat_id=$TELEGRAM_CHAT_ID" \
+        -d "text=$MESSAGE" \
+        -d "parse_mode=Markdown" > /dev/null
 
   interruptible: false
+  resource_group: deploy-blog

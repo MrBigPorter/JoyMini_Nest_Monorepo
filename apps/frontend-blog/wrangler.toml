@@ -1,0 +1,224 @@
+name = "lucky-blog-prod"
+compatibility_date = "2026-03-20"
+compatibility_flags = ["nodejs_compat"]
+
+# Main application deployment
+main = ".open-next/worker.js"
+site = { bucket = ".open-next/assets" }
+
+# Environment variables
+[vars]
+NODE_ENV = "production"
+NEXT_PUBLIC_ENVIRONMENT = "cloudflare"
+ENABLE_ISR = "true"
+ENABLE_STREAMING = "true"
+ENABLE_EDGE_MIDDLEWARE = "true"
+AUTH_COOKIE_DOMAIN = ".joyminis.com"
+NEXT_PUBLIC_BLOG_ENV = "production"
+ISR_REVALIDATE_SECONDS = "60"
+
+# KV namespaces for caching
+[[kv_namespaces]]
+binding = "CACHE"
+id = "cache-store"
+preview_id = "cache-store-preview"
+
+[[kv_namespaces]]
+binding = "ISR_CACHE"
+id = "isr-cache-store"
+preview_id = "isr-cache-store-preview"
+
+# D1 database for edge data (暂时禁用，需要时再启用)
+# [[d1_databases]]
+# binding = "DB"
+# database_name = "lucky-blog-db"
+# database_id = "d1-database-id"
+# preview_database_id = "d1-preview-database-id"
+
+# R2 bucket for static assets (使用已存在的mini-shop bucket)
+[[r2_buckets]]
+binding = "ASSETS"
+bucket_name = "mini-shop"
+preview_bucket_name = "mini-shop"
+
+# Analytics engine
+[[analytics_engine_datasets]]
+binding = "ANALYTICS"
+dataset = "lucky-blog-analytics"
+
+# Routes configuration
+[[routes]]
+pattern = "blog.joyminis.com/*"
+zone_name = "joyminis.com"
+
+[[routes]]
+pattern = "blog-dev.joyminis.com/*"
+zone_name = "joyminis.com"
+
+# Custom domains
+[[custom_domains]]
+domain = "blog.joyminis.com"
+
+[[custom_domains]]
+domain = "blog-dev.joyminis.com"
+
+# Build configuration
+[build]
+command = "yarn build:cloudflare"
+upload_dir = ".open-next"
+
+[build.upload]
+format = "service-worker"
+
+# Environment-specific configurations
+[env.production]
+name = "lucky-blog-production"
+compatibility_date = "2026-03-20"
+
+[env.staging]
+name = "lucky-blog-staging"
+compatibility_date = "2026-03-20"
+
+# Deployment triggers
+[triggers]
+crons = ["*/5 * * * *"]  # Run every 5 minutes for ISR revalidation
+
+# Observability
+[observability]
+enabled = true
+
+[logpush]
+enabled = true
+
+# Security headers
+[[headers]]
+for = "/*"
+[headers.values]
+"X-Frame-Options" = "DENY"
+"X-Content-Type-Options" = "nosniff"
+"Referrer-Policy" = "strict-origin-when-cross-origin"
+"Permissions-Policy" = "camera=(), microphone=(), geolocation=()"
+"Content-Security-Policy" = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://api.joyminis.com;"
+
+# Cache rules
+[[rules]]
+type = "cache"
+expression = "url.pathname.match('\\.(css|js|woff2?|ttf|eot)$')"
+cache_ttl = 31536000  # 1 year for static assets
+
+[[rules]]
+type = "cache"
+expression = "url.pathname.match('\\.(jpg|jpeg|png|gif|webp|svg|ico)$')"
+cache_ttl = 604800  # 1 week for images
+
+[[rules]]
+type = "cache"
+expression = "url.pathname.match('^/api/')"
+cache_ttl = 60  # 1 minute for API responses
+
+[[rules]]
+type = "cache"
+expression = "url.pathname.match('^/(articles|categories|tags)/')"
+cache_ttl = 300  # 5 minutes for content pages
+
+# ISR rules
+[[rules]]
+type = "isr"
+expression = "url.pathname.match('^/articles/[^/]+$')"
+revalidate = 60  # Revalidate every 60 seconds
+
+[[rules]]
+type = "isr"
+expression = "url.pathname.match('^/(categories|tags)/[^/]+$')"
+revalidate = 300  # Revalidate every 5 minutes
+
+[[rules]]
+type = "isr"
+expression = "url.pathname == '/'"
+revalidate = 60  # Revalidate home page every 60 seconds
+
+# Redirect rules
+[[redirects]]
+from = "https://www.joyminis.com/*"
+to = "https://blog.joyminis.com/:splat"
+status = 301
+
+[[redirects]]
+from = "http://blog.joyminis.com/*"
+to = "https://blog.joyminis.com/:splat"
+status = 301
+
+# Worker configuration
+[worker]
+cpu = "standard"
+memory = "128"
+timeout = 30
+
+# Monitoring
+[monitoring]
+alerts = [
+  { type = "status_code", threshold = 500, window = "5m", count = 10 },
+  { type = "latency", threshold = 1000, window = "5m", percentile = 95 },
+  { type = "error_rate", threshold = 0.05, window = "5m" }
+]
+
+# Performance optimization
+[performance]
+minify = true
+brotli = true
+early_hints = true
+
+# Image optimization
+[images]
+format = "avif"
+quality = 80
+width = [640, 750, 828, 1080, 1200, 1920, 2048, 3840]
+dpr = [1, 2, 3]
+
+# Rate limiting
+[rate_limiting]
+enabled = true
+rules = [
+  { path = "/api/*", limit = 100, period = 60 },
+  { path = "/auth/*", limit = 10, period = 60 },
+  { path = "/*", limit = 1000, period = 60 }
+]
+
+# WAF rules
+[waf]
+enabled = true
+rules = [
+  { id = "managed_ruleset", version = "latest" },
+  { id = "owasp_top_10", version = "latest" }
+]
+
+# Environment variables for different environments
+[env.production.vars]
+NEXT_PUBLIC_API_URL = "https://api.joyminis.com"
+NEXT_PUBLIC_CDN_URL = "https://img.joyminis.com"
+SENTRY_DSN = "https://sentry.joyminis.com"
+
+[env.staging.vars]
+NEXT_PUBLIC_API_URL = "https://staging-api.joyminis.com"
+NEXT_PUBLIC_CDN_URL = "https://staging-img.joyminis.com"
+SENTRY_DSN = "https://staging-sentry.joyminis.com"
+
+# Deployment hooks
+[deployment]
+preview = { command = "yarn test" }
+production = { command = "yarn test:e2e" }
+
+# Health checks
+[[health_checks]]
+name = "api-health"
+url = "https://blog.joyminis.com/api/health"
+interval = 60
+timeout = 5
+retries = 3
+
+[[health_checks]]
+name = "homepage-health"
+url = "https://blog.joyminis.com/"
+interval = 30
+timeout = 10
+retries = 2
