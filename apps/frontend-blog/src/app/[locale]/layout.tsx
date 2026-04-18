@@ -7,9 +7,8 @@ import { Inter } from 'next/font/google';
 import Header from '@/components/Header';
 import Sidebar from '@/components/navigation/Sidebar';
 import BottomNavigation from '@/components/BottomNavigation';
-import QueryProvider from '@/lib/providers/QueryProvider';
+import { PageTransition } from '@/components/PageTransition';
 import I18nProvider from '@/lib/providers/I18nProvider';
-import { GoogleOAuthProvider } from '@/lib/components/GoogleOAuthProvider';
 import { LOCALES } from '@/lib/i18n/config';
 import '../globals.css';
 
@@ -58,18 +57,16 @@ export default async function LocaleLayout({
 
   return (
     <NextIntlClientProvider key={locale} locale={locale} messages={messages}>
-      <QueryProvider>
-        <I18nProvider>
-          <GoogleOAuthProvider>
-            <Header />
-            <Sidebar />
-            <main className="pt-[var(--content-padding-top)] pb-[var(--content-padding-bottom)] min-h-screen md:ml-16 md:transition-all md:duration-300">
-              {children}
-            </main>
-            <BottomNavigation />
-          </GoogleOAuthProvider>
-        </I18nProvider>
-      </QueryProvider>
+      <I18nProvider>
+        <Header />
+        <Sidebar />
+        <main className="pt-[var(--content-padding-top)] pb-[var(--content-padding-bottom)] min-h-screen md:ml-16 md:transition-all md:duration-300">
+          <PageTransition>
+            {children}
+          </PageTransition>
+        </main>
+        <BottomNavigation />
+      </I18nProvider>
     </NextIntlClientProvider>
   );
 }

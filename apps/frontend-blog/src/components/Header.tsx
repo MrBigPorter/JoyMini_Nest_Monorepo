@@ -18,6 +18,8 @@ import { useAvailableLocales } from '@/hooks/useAvailableLocales';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useAuthStore } from '@/lib/stores/auth.store';
 import { MobileSettingsDrawer, MobileSettingsContent } from './mobile';
+import { SearchModal } from './search';
+import { useSearchShortcut } from '@/lib/hooks/useKeyboardShortcut';
 
 interface LocaleConfig {
   code: string;
@@ -43,6 +45,7 @@ export default function Header() {
   const [langMenuOpen, setLangMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [mobileSettingsOpen, setMobileSettingsOpen] = useState(false);
+  const [searchModalOpen, setSearchModalOpen] = useState(false);
   // 认证状态
   const { user, isAuthenticated, logout, isLoading: authLoading } = useAuth();
   // 水合状态
@@ -92,9 +95,23 @@ export default function Header() {
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
-      router.push(`/search?q=${encodeURIComponent(searchQuery)}`);
+      setSearchModalOpen(true);
     }
   };
+
+  const handleSearchInputClick = () => {
+    setSearchModalOpen(true);
+  };
+
+  const handleSearchModalClose = () => {
+    setSearchModalOpen(false);
+    setSearchQuery('');
+  };
+
+  // 注册搜索快捷键 (Cmd/Ctrl + K)
+  useSearchShortcut(() => {
+    setSearchModalOpen(true);
+  });
 
   // 获取当前语言的显示名称
   const getLocaleDisplayName = (code: string) => {
@@ -151,25 +168,27 @@ export default function Header() {
           {/* 右侧操作区 */}
           <div className="flex items-center gap-2">
             {/* 搜索框 (Desktop) */}
-            <form
-              onSubmit={handleSearchSubmit}
-              className="hidden md:flex relative"
-            >
+            <div className="hidden md:flex relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                onFocus={() => setSearchFocused(true)}
+                onFocus={() => {
+                  setSearchFocused(true);
+                  setSearchModalOpen(true);
+                }}
                 onBlur={() => setSearchFocused(false)}
+                onClick={handleSearchInputClick}
                 placeholder={t('search.placeholder')}
                 className={`pl-10 pr-4 py-2 rounded-full border border-border bg-card text-sm w-48 transition-all ${
                   searchFocused
                     ? 'w-64 border-primary/50 ring-2 ring-primary/20'
                     : 'hover:border-border/80'
                 }`}
+                readOnly
               />
-            </form>
+            </div>
 
             {/* 移动端设置按钮 */}
             <button
@@ -330,12 +349,13 @@ export default function Header() {
             </div>
 
             {/* 移动端搜索按钮 */}
-            <Link
-              href="/search"
+            <button
+              onClick={() => setSearchModalOpen(true)}
               className="md:hidden p-2 rounded-full hover:bg-accent transition-all"
+              aria-label={t('search.title')}
             >
               <Search className="w-5 h-5" />
-            </Link>
+            </button>
           </div>
         </div>
       </header>
@@ -348,6 +368,9 @@ export default function Header() {
       >
         <MobileSettingsContent onClose={() => setMobileSettingsOpen(false)} />
       </MobileSettingsDrawer>
+
+      {/* 搜索模态框 */}
+      <SearchModal isOpen={searchModalOpen} onClose={handleSearchModalClose} />
     </>
   );
 }

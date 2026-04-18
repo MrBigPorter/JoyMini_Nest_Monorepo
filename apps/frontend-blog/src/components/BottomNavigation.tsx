@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
-import { Link, usePathname } from '@/navigation';
+import { usePathname } from '@/navigation';
 import { getIsActive } from '@/lib/utils/navigation';
+import { NavLink } from '@/components/AnimatedLink';
+import { motion } from 'framer-motion';
 
 export default function BottomNavigation() {
   const t = useTranslations();
@@ -235,61 +237,36 @@ export default function BottomNavigation() {
       style={{ height: 'var(--nav-height)' }}
     >
       {/* 实际导航栏内容 */}
-      <div className="h-14 flex items-center justify-around bg-background/80 backdrop-blur-md border-t border-border relative">
-        {/* 滑动指示器 */}
-        <div className="absolute top-0 left-0 w-full h-0.5 flex">
-          {navItems.map((item) => {
-            // 双重渲染策略：服务器端渲染时不显示激活状态，客户端hydrate后显示
-            const isActive = isClient && (activeStates[item.href] || false);
-            return (
-              <div
-                key={item.href}
-                className="flex-1 transition-all duration-300"
-              >
-                <div
-                  className={`h-full bg-primary rounded-full transition-all duration-300 ${
-                    isActive ? 'opacity-100 scale-x-100' : 'opacity-0 scale-x-0'
-                  }`}
-                />
-              </div>
-            );
-          })}
-        </div>
-
+      <div className="h-14 flex items-center justify-around bg-background/80 backdrop-blur-md border-t border-border">
         {navItems.map((item) => {
           // 双重渲染策略：服务器端渲染时不显示激活状态，客户端hydrate后显示
           const isActive = isClient && (activeStates[item.href] || false);
           return (
-            <Link
+            <NavLink
               key={item.href}
               href={item.href}
-              className={`flex flex-col items-center justify-center px-3 py-1 rounded-lg transition-all duration-300 active:scale-95 relative ${
-                isActive
-                  ? 'text-primary'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
+              isActive={isActive}
+              className="flex flex-col items-center justify-center px-3 py-1"
+              tapScale={0.95}
+              hoverScale={1.08}
+              showTapFeedback={true}
+              showHoverFeedback={true}
             >
-              <div
-                className={`transition-all duration-300 relative ${
-                  isActive ? 'scale-110 animate-bounce-subtle' : 'scale-100'
-                }`}
-              >
-                {item.icon}
-                {/* 激活时的发光效果 */}
-                {isActive && (
-                  <div className="absolute inset-0 rounded-full bg-primary/20 animate-glow -z-10" />
-                )}
+              <div className="flex items-center justify-center">
+                <div className="transition-colors duration-300">
+                  {item.icon}
+                </div>
               </div>
               <span
-                className={`text-xs mt-1 transition-all duration-300 ${
+                className={`text-xs mt-1 ${
                   isActive
-                    ? 'font-semibold opacity-100'
-                    : 'font-normal opacity-80'
+                    ? 'font-semibold text-primary'
+                    : 'font-medium text-muted-foreground'
                 }`}
               >
                 {t(item.labelKey)}
               </span>
-            </Link>
+            </NavLink>
           );
         })}
       </div>

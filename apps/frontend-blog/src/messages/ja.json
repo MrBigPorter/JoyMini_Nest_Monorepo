@@ -23,6 +23,7 @@
     "about": "について",
     "bookmarks": "ブックマーク",
     "cancel": "キャンセル",
+    "close": "閉じる",
     "pageInfo": "{page} ページ / {totalPages} ページ"
   },
   "categories": {
@@ -142,7 +143,13 @@
     "emptyTitle": "キーワードを入力して検索を開始",
     "emptyDescription": "記事タイトル、内容、タグを検索",
     "noResults": "検索結果がありません",
-    "noResultsDescription": "別のキーワードをお試しください"
+    "noResultsDescription": "別のキーワードをお試しください",
+    "clear": "検索をクリア",
+    "shortcutHint": "Cmd/Ctrl + K を押して検索を開く",
+    "viewAllResults": "すべての結果を表示",
+    "loadFailed": "検索に失敗しました、もう一度お試しください",
+    "showingFirst": "最初の {count} 件の結果を表示",
+    "visitFullPage": "より多くの結果を見るには完全な検索ページにアクセス"
   },
   "bookmarks": {
     "title": "マイブックマーク",

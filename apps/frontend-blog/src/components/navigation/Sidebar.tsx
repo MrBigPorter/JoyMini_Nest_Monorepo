@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { usePathname, Link } from '@/navigation';
+import { useState } from 'react';
+import { usePathname } from '@/navigation';
 import { useTranslations } from 'next-intl';
 import {
   Home,
@@ -13,33 +13,12 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { getIsActive } from '@/lib/utils/navigation';
+import { NavLink } from '@/components/AnimatedLink';
 
 export default function Sidebar() {
   const t = useTranslations();
   const pathname = usePathname();
   const [isExpanded, setIsExpanded] = useState(false);
-  const [activeStates, setActiveStates] = useState<Record<string, boolean>>({});
-  const [isClient, setIsClient] = useState(false);
-
-  useEffect(() => {
-    setIsClient(true);
-
-    // 在客户端计算所有导航项的激活状态
-    const newActiveStates: Record<string, boolean> = {};
-    const navItems = [
-      { href: '/', icon: Home, label: t('common.home') },
-      { href: '/categories', icon: FolderOpen, label: t('common.categories') },
-      { href: '/tags', icon: Tag, label: t('common.tags') },
-      { href: '/bookmarks', icon: Bookmark, label: t('common.bookmarks') },
-      { href: '/about', icon: User, label: t('common.about') },
-    ];
-
-    navItems.forEach((item) => {
-      newActiveStates[item.href] = getIsActive(pathname, item.href);
-    });
-
-    setActiveStates(newActiveStates);
-  }, [pathname, t]);
 
   const navItems = [
     { href: '/', icon: Home, label: t('common.home') },
@@ -66,43 +45,36 @@ export default function Sidebar() {
       <nav className="flex-1 pt-4 px-2 flex flex-col gap-1">
         {navItems.map((item) => {
           const Icon = item.icon;
-          // 双重渲染策略：服务器端渲染时不显示激活状态，客户端hydrate后显示
-          // 服务器端：isActive = false，使用scale-100
-          // 客户端：isActive = activeStates[item.href] || false，可能使用scale-110
-          const isActive = isClient && (activeStates[item.href] || false);
+          // 统一 SSR 和 CSR 的激活状态计算
+          // 服务器端也能计算，避免 hydration 不匹配
+          const isActive = getIsActive(pathname, item.href);
 
           return (
-            <Link
+            <NavLink
               key={item.href}
               href={item.href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-300 active:scale-95 relative ${
+              isActive={isActive}
+              className={`relative flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${
                 isActive
                   ? 'bg-accent text-primary'
                   : 'text-foreground/70 hover:bg-accent/50 hover:text-foreground'
               }`}
+              activeClassName=""
             >
-              {/* 左侧指示条 */}
-              <div
-                className={`absolute left-0 top-1/2 h-6 w-1 bg-primary rounded-r transition-all duration-300 transform -translate-y-1/2 ${
-                  isActive ? 'opacity-100 scale-y-100' : 'opacity-0 scale-y-0'
-                }`}
-              />
-
-              <Icon
-                className={`w-5 h-5 flex-shrink-0 transition-all duration-300 ${
-                  isActive
-                    ? 'scale-110 text-primary animate-bounce-subtle'
-                    : 'scale-100 text-foreground/70'
-                }`}
-              />
-              <span
-                className={`text-sm font-medium transition-all duration-300 ${
-                  isExpanded ? 'opacity-100' : 'opacity-0 w-0 overflow-hidden'
-                } ${isActive ? 'font-semibold' : 'font-medium'}`}
-              >
-                {item.label}
-              </span>
-            </Link>
+              {/* 激活指示器始终存在，通过 opacity 控制 */}
+              <div className="flex items-center gap-3">
+                <Icon className="w-5 h-5 flex-shrink-0" />
+                {isExpanded && (
+                  <span
+                    className={`text-sm ${
+                      isActive ? 'font-semibold' : 'font-medium'
+                    }`}
+                  >
+                    {item.label}
+                  </span>
+                )}
+              </div>
+            </NavLink>
           );
         })}
       </nav>

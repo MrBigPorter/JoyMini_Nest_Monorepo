@@ -20,7 +20,7 @@ export default function ArticlePage() {
 
   if (isLoading) {
     return (
-      <div className="max-w-[720px] mx-auto px-4 py-20">
+      <div className="max-w-5xl mx-auto px-4 py-20">
         <div className="flex flex-col items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
           <p className="mt-4 text-slate-500">{t('common.loading')}</p>
@@ -31,7 +31,7 @@ export default function ArticlePage() {
 
   if (error || !article) {
     return (
-      <div className="max-w-[720px] mx-auto px-4 py-20">
+      <div className="max-w-5xl mx-auto px-4 py-20">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-4">
             {t('article.notFound')}
@@ -74,7 +74,7 @@ export default function ArticlePage() {
   };
 
   return (
-    <div className="max-w-[720px] mx-auto px-4 py-8 md:py-12">
+    <div className="max-w-5xl mx-auto px-4 py-8 md:py-12">
       {/* 返回按钮 */}
       <div className="mb-8">
         <Link

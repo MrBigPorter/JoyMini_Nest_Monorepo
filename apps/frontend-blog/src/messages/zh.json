@@ -23,6 +23,7 @@
     "about": "关于",
     "bookmarks": "收藏",
     "cancel": "取消",
+    "close": "关闭",
     "pageInfo": "第 {page} 页，共 {totalPages} 页"
   },
   "categories": {
@@ -142,7 +143,13 @@
     "emptyTitle": "输入关键词开始搜索",
     "emptyDescription": "搜索文章标题、内容或标签",
     "noResults": "没有找到相关结果",
-    "noResultsDescription": "尝试使用不同的关键词"
+    "noResultsDescription": "尝试使用不同的关键词",
+    "clear": "清除搜索",
+    "shortcutHint": "按 Cmd/Ctrl + K 打开搜索",
+    "viewAllResults": "查看所有结果",
+    "loadFailed": "搜索失败，请重试",
+    "showingFirst": "显示前 {count} 个结果",
+    "visitFullPage": "访问完整搜索页面查看更多结果"
   },
   "bookmarks": {
     "title": "我的收藏",
