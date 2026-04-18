@@ -3,6 +3,7 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { frontendBlogApi } from '@/lib/api/frontendBlogApi';
 import type { FrontendArticle } from '@/lib/types/frontend-blog';
+import { useParams } from 'next/navigation';
 
 /**
  * 文章分页参数
@@ -20,16 +21,14 @@ export interface ArticlesParams {
  * 文章无限滚动查询钩子
  * 基于 React Query 的 useInfiniteQuery
  */
-export function useArticlesInfiniteQuery(
-  options?: {
-    pageSize?: number;
-    categoryId?: string;
-    tagId?: string;
-    search?: string;
-    sortBy?: 'latest' | 'popular' | 'trending';
-    enabled?: boolean;
-  },
-) {
+export function useArticlesInfiniteQuery(options?: {
+  pageSize?: number;
+  categoryId?: string;
+  tagId?: string;
+  search?: string;
+  sortBy?: 'latest' | 'popular' | 'trending';
+  enabled?: boolean;
+}) {
   const {
     pageSize = 20,
     categoryId,
@@ -39,8 +38,16 @@ export function useArticlesInfiniteQuery(
     enabled = true,
   } = options || {};
 
+  // 从路由参数获取当前语言
+  const params = useParams();
+  const locale = (params.locale as string) || 'zh';
+
   return useInfiniteQuery({
-    queryKey: ['articles', 'infinite', { pageSize, categoryId, tagId, search, sortBy }],
+    queryKey: [
+      'articles',
+      'infinite',
+      { pageSize, categoryId, tagId, search, sortBy, locale },
+    ],
     queryFn: async ({ pageParam = 1 }) => {
       // 构建查询参数
       const queryParams: any = { page: pageParam, pageSize };
@@ -87,7 +94,7 @@ export function useArticlesInfiniteQuerySimple(options?: {
   const result = useArticlesInfiniteQuery(options);
 
   // 扁平化所有页面的项目
-  const allItems = result.data?.pages.flatMap(page => page.items) || [];
+  const allItems = result.data?.pages.flatMap((page) => page.items) || [];
   const total = result.data?.pages[0]?.total || 0;
   const page = result.data?.pages[result.data.pages.length - 1]?.page || 1;
   const totalPages = result.data?.pages[0]?.totalPages || 0;

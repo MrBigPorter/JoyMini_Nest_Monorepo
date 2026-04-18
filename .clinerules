@@ -1,7 +1,148 @@
-# Lucky Nest Monorepo - AI助手引导规则
+# Lucky Nest Monorepo - AI宪法 v2.0
 
-> **核心指引**：每次对话开始前，必须先检查 `.github/copilot-instructions.md` 中的当前任务和完整规范。
+> **核心定位**：聪明但没有记忆、喜欢走捷径的外包实习生。不能指望它靠悟性，必须用系统化工程手段把规则"焊死"在工作流里。
 
-> **问题解决原则**：绝对不能乱猜！在解决问题时，必须基于代码分析和实际证据，而不是猜测。如果信息不足，应该先使用工具（如read_file、search_files）收集足够信息，再进行推理和修复。验证假设时，优先通过阅读代码和运行检查来确认，而不是基于未经证实的推断。
+## 🔴 绝对禁令（一票否决）
 
-> **AI协作优化**：为提高AI代码质量，建议使用 `ai-task-template.md` 中的模板分配任务。模板包含上下文背景、核心要求、检查清单，能显著减少返工和重复沟通。
+1. **禁止使用`any`类型**：未知类型使用`unknown`，必须为所有API响应和组件Props定义完整interface
+2. **禁止产生水合错误**：涉及浏览器API（window, localStorage, Canvas等）的逻辑，必须封装在`useIsClient` Hook中
+3. **禁止硬编码样式**：优先使用Tailwind CSS，避免基于客户端状态计算的动态class
+4. **禁止重复定义类型**：优先复用`packages/shared`和`src/types`中的全局类型
+5. **禁止线性思维**：每次修改必须从系统角度思考，分析影响范围和水合风险
+
+## 🟡 架构规则（按模块）
+
+### Next.js前端
+
+- **页面跳转动画**：必须使用动态导入（`next/dynamic`）禁用SSR，或封装在`useIsClient` Hook中
+- **组件生命周期**：写代码前必须分析"SSR环境下是否存在风险"
+- **国际化路由**：必须考虑`/[locale]/path`格式，优先使用系统配置的可用语言列表
+- **状态管理**：优先使用Zustand，复杂状态必须定义完整interface和initialState
+- **API调用**：必须使用项目HTTP客户端，包含完整错误处理和loading状态
+- **可选依赖**：动态导入的可选模块必须有类型声明文件（如`capacitor.d.ts`）
+
+### NestJS后端  
+
+- **数据验证**：必须使用DTO + 全局拦截器/管道处理数据验证和XSS消毒
+- **权限系统**：必须复用现有AdminJwtAuthGuard + RolesGuard三级权限体系
+- **数据库操作**：金额计算使用Decimal.js，敏感数据加密存储
+- **事务处理**：相关操作必须使用Prisma事务确保数据一致性
+- **错误处理**：统一错误响应格式，包含错误码和友好消息
+
+### 全局开发规范
+
+- **文件位置**：
+  - 公共工具函数 → `src/lib/utils/`
+  - 自定义Hooks → `src/lib/hooks/`
+  - TypeScript类型定义 → `src/types/` 或 `packages/shared/src/types/`
+  - 组件分类 → `src/components/` + 子目录按功能分类
+- **组件使用**：必须使用`@repo/ui`组件库，禁止使用原生HTML元素
+- **代码质量**：
+  - 函数长度 ≤ 50行
+  - 组件Props必须严格声明
+  - 复杂逻辑必须有注释说明
+- **文档要求**：重大修改必须遵循七层黄金文档结构
+
+## 🟢 思考过程要求（每次任务前必须执行）
+
+### 1. 系统影响分析
+- 这个改动会影响哪些相关部分？
+- 是否需要同步修改其他文件？
+- 是否符合项目现有模式？
+
+### 2. 水合风险评估  
+- SSR环境下是否存在水合风险？
+- 是否依赖浏览器API（window, localStorage等）？
+- 如何防范？使用`useIsClient`还是动态导入？
+
+### 3. 类型安全分析
+- 所有类型是否已有定义？
+- 是否需要新增interface？
+- 是否存在可选依赖需要类型声明？
+
+### 4. 重复代码检查
+- 这个逻辑在其他地方存在吗？
+- 能否抽取公共函数？
+- 是否符合DRY原则？
+
+### 5. 时序预判
+- 如果有两个请求同时到达会发生什么？
+- 异步操作是否有竞态条件风险？
+- 是否需要添加防护机制？
+
+## 📋 验证流程（AI必须执行）
+
+1. **全局搜索**：先搜索全文，查看是否有可复用结构和现有解决方案
+2. **类型检查**：运行`tsc --noEmit --strict --skipLibCheck`
+3. **代码规范**：运行`eslint . --ext .ts,.tsx`
+4. **架构一致性**：检查是否符合项目架构模式和设计系统
+
+## 🚨 常见问题预防
+
+### 水合错误预防模式
+```typescript
+// ❌ 错误：直接使用浏览器API
+const isMobile = window.innerWidth < 768;
+
+// ✅ 正确：使用防御性Hook
+const useIsMobile = () => {
+  const isClient = useIsClient();
+  const [isMobile, setIsMobile] = useState(false);
+  
+  useEffect(() => {
+    if (isClient) {
+      setIsMobile(window.innerWidth < 768);
+    }
+  }, [isClient]);
+  
+  return isMobile;
+};
+```
+
+### 类型安全预防模式
+```typescript
+// ❌ 错误：使用any类型
+const handleData = (data: any) => { ... };
+
+// ✅ 正确：定义完整interface
+interface ApiResponse<T> {
+  data: T;
+  error?: string;
+  success: boolean;
+}
+
+const handleData = <T>(response: ApiResponse<T>) => { ... };
+```
+
+### 可选依赖处理模式
+```typescript
+// ❌ 错误：忽略可选依赖类型
+const { Preferences } = await import('@capacitor/preferences');
+
+// ✅ 正确：创建类型声明文件 + 安全导入
+// 1. 创建 src/types/capacitor.d.ts
+// 2. 使用try-catch处理导入失败
+try {
+  const { Preferences } = await import('@capacitor/preferences');
+  // 使用Preferences
+} catch {
+  // fallback逻辑
+}
+```
+
+## 📚 参考文档
+
+1. **AI协作模板**：`ai-task-template.md` - 使用结构化模板分配任务
+2. **技术文档标准**：`docs/TECHNICAL_DOCUMENT_TEMPLATE.md` - 七层黄金文档结构
+3. **项目架构**：`ARCHITECTURE_CN.md` - 整体架构设计
+4. **当前任务**：`.github/copilot-instructions.md` - 每次对话开始前必须检查
+
+## ⚡ 立即执行检查清单
+
+在生成任何代码前，AI必须：
+- [ ] 阅读此宪法文件
+- [ ] 检查`.github/copilot-instructions.md`中的当前任务
+- [ ] 执行"思考过程要求"中的5项分析
+- [ ] 确保不违反任何"绝对禁令"
+
+> **记住**：你不是在写几行代码，你是在维护一个生产级全栈应用。每个决策都有系统级影响。

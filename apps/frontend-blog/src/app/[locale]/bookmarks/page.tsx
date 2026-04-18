@@ -7,7 +7,7 @@ import { Bookmark, FileText } from 'lucide-react';
 import { ArticleCard } from '@/components/blog/ArticleCard';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { PageSkeleton } from '@/components/ui/PageSkeleton';
-import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
+import { ProtectedRouteV2 } from '@/components/auth/ProtectedRouteV2';
 import { useBookmarksInfiniteQuerySimple } from '@/lib/hooks/useBookmarksInfiniteQuery';
 import { frontendBlogApi } from '@/lib/api/frontendBlogApi';
 import { useToast } from '@/lib/hooks/useToast';
@@ -107,7 +107,7 @@ export default function BookmarksPage() {
   );
 
   return (
-    <ProtectedRoute>
+    <ProtectedRouteV2>
       <div className="max-w-5xl mx-auto px-4 py-8 md:py-12">
         {/* 页面标题 */}
         <header className="mb-10">
@@ -192,6 +192,6 @@ export default function BookmarksPage() {
           </>
         )}
       </div>
-    </ProtectedRoute>
+    </ProtectedRouteV2>
   );
 }
