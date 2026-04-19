@@ -3,6 +3,31 @@
  * 导出所有平台适配器相关功能
  */
 
+// ================= 类型导入 =================
+import type {
+  QueryKey,
+  PlatformQueryKey,
+  LogData,
+  PlatformType,
+  RuntimeEnvironment,
+  DeviceInfo,
+  NetworkStatus,
+  RetryConfig,
+  CacheStrategy,
+  NavigationOptions,
+  RouteInfo,
+  PlatformRuntime,
+  PlatformCapability,
+  PlatformFeature,
+  PlatformConfig,
+  PlatformEvent,
+  PlatformEventListener,
+  IPlatformAdapter,
+  PlatformQueryOptions,
+  PlatformMutationOptions,
+  PlatformInfiniteQueryOptions,
+} from './types';
+
 // ================= 类型导出 =================
 export type {
   PlatformType,
@@ -25,11 +50,7 @@ export type {
   PlatformInfiniteQueryOptions,
 } from './types';
 
-export {
-  PlatformNotSupportedError,
-  NetworkError,
-  CacheError,
-} from './types';
+export { PlatformNotSupportedError, NetworkError, CacheError } from './types';
 
 // ================= 检测器导出 =================
 export {
@@ -86,7 +107,7 @@ import { PlatformNotSupportedError } from './types';
 export function getCurrentPlatformInfo() {
   const adapter = getPlatformAdapter();
   const deviceInfo = getDeviceInfo();
-  
+
   return {
     platform: adapter.platform,
     version: adapter.version,
@@ -113,10 +134,10 @@ export function supportsServerActions(): boolean {
  */
 export async function executePlatformAction<T>(
   action: () => Promise<T>,
-  fallback?: () => Promise<T>
+  fallback?: () => Promise<T>,
 ): Promise<T> {
   const adapter = getPlatformAdapter();
-  
+
   if (adapter.network.supportsServerActions()) {
     try {
       return await action();
@@ -128,19 +149,19 @@ export async function executePlatformAction<T>(
       throw error;
     }
   }
-  
+
   // 不支持Server Actions的平台
   if (fallback) {
     return await fallback();
   }
-  
+
   throw new PlatformNotSupportedError('server-actions');
 }
 
 /**
  * 创建平台感知的Query Key
  */
-export function createPlatformQueryKey(baseKey: any[]): any[] {
+export function createPlatformQueryKey(baseKey: QueryKey): PlatformQueryKey {
   return getPlatformAdapter().query.buildQueryKey(baseKey);
 }
 
@@ -160,16 +181,16 @@ export function getPlatformCacheConfig() {
  * 平台感知的日志记录
  */
 export const platformLogger = {
-  info: (message: string, data?: any) => {
+  info: (message: string, data?: LogData) => {
     getPlatformAdapter().logger.info(message, data);
   },
-  warn: (message: string, data?: any) => {
+  warn: (message: string, data?: LogData) => {
     getPlatformAdapter().logger.warn(message, data);
   },
-  error: (message: string, data?: any) => {
+  error: (message: string, data?: LogData) => {
     getPlatformAdapter().logger.error(message, data);
   },
-  debug: (message: string, data?: any) => {
+  debug: (message: string, data?: LogData) => {
     getPlatformAdapter().logger.debug(message, data);
   },
 };
@@ -191,7 +212,7 @@ import { createSimplePlatformQuery as createSimplePlatformQueryFunc } from './fa
 import { createSimplePlatformMutation as createSimplePlatformMutationFunc } from './factories/query-factory';
 
 // 导入Hooks函数
-import { 
+import {
   usePlatformQuery as usePlatformQueryFunc,
   usePlatformMutation as usePlatformMutationFunc,
   usePlatformInfiniteQuery as usePlatformInfiniteQueryFunc,
@@ -210,7 +231,7 @@ import {
 } from './hooks/usePlatformQuery';
 
 // 导入错误类
-import { 
+import {
   PlatformNotSupportedError as PlatformNotSupportedErrorClass,
   NetworkError as NetworkErrorClass,
   CacheError as CacheErrorClass,
@@ -222,33 +243,40 @@ import {
 const platform = {
   // 类型
   types: {
-    PlatformType: {} as any,
-    RuntimeEnvironment: {} as any,
-    DeviceInfo: {} as any,
-    NetworkStatus: {} as any,
-    RetryConfig: {} as any,
-    CacheStrategy: {} as any,
-    NavigationOptions: {} as any,
-    RouteInfo: {} as any,
-    PlatformRuntime: {} as any,
-    PlatformCapability: {} as any,
-    PlatformFeature: {} as any,
-    PlatformConfig: {} as any,
-    PlatformEvent: {} as any,
-    PlatformEventListener: {} as any,
-    IPlatformAdapter: {} as any,
-    PlatformQueryOptions: {} as any,
-    PlatformMutationOptions: {} as any,
-    PlatformInfiniteQueryOptions: {} as any,
+    PlatformType: {} as PlatformType,
+    RuntimeEnvironment: {} as RuntimeEnvironment,
+    DeviceInfo: {} as DeviceInfo,
+    NetworkStatus: {} as NetworkStatus,
+    RetryConfig: {} as RetryConfig,
+    CacheStrategy: {} as CacheStrategy,
+    NavigationOptions: {} as NavigationOptions,
+    RouteInfo: {} as RouteInfo,
+    PlatformRuntime: {} as PlatformRuntime,
+    PlatformCapability: {} as PlatformCapability,
+    PlatformFeature: {} as PlatformFeature,
+    PlatformConfig: {} as PlatformConfig,
+    PlatformEvent: {} as PlatformEvent,
+    PlatformEventListener: {} as PlatformEventListener,
+    IPlatformAdapter: {} as IPlatformAdapter,
+    PlatformQueryOptions: {} as PlatformQueryOptions<unknown>,
+    PlatformMutationOptions: {} as PlatformMutationOptions<
+      unknown,
+      unknown,
+      unknown
+    >,
+    PlatformInfiniteQueryOptions: {} as PlatformInfiniteQueryOptions<
+      unknown,
+      unknown
+    >,
   },
-  
+
   // 错误
   errors: {
     PlatformNotSupportedError: PlatformNotSupportedErrorClass,
     NetworkError: NetworkErrorClass,
     CacheError: CacheErrorClass,
   },
-  
+
   // 检测器
   detectors: {
     detectPlatform: detectPlatformFunc,
@@ -257,7 +285,7 @@ const platform = {
     supportsFeature: supportsFeatureFunc,
     resetCache: resetCacheFunc,
   },
-  
+
   // 工厂
   factories: {
     getPlatformAdapter: adapterFunc,
@@ -268,7 +296,7 @@ const platform = {
     createSimplePlatformQuery: createSimplePlatformQueryFunc,
     createSimplePlatformMutation: createSimplePlatformMutationFunc,
   },
-  
+
   // Hooks
   hooks: {
     usePlatformQuery: usePlatformQueryFunc,
@@ -287,7 +315,7 @@ const platform = {
     useIsOnline: useIsOnlineFunc,
     useIsOffline: useIsOfflineFunc,
   },
-  
+
   // 工具函数
   utils: {
     getCurrentPlatformInfo,
@@ -297,7 +325,7 @@ const platform = {
     getPlatformCacheConfig,
     platformLogger,
   },
-  
+
   // 快捷方式
   adapter: adapterFunc,
   logger: platformLogger,

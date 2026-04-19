@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { frontendBlogApi } from '@/lib/api/frontendBlogApi';
 import { useParams } from 'next/navigation';
+import type { FrontendCategory } from '@/lib/types/frontend-blog';
 
 /**
  * 获取前端博客文章列表 Hook（简化版）
@@ -28,12 +29,13 @@ export function useFrontendArticles(params?: {
 /**
  * 根据 Slug 获取前端博客文章详情 Hook（简化版）
  */
-export function useFrontendArticleBySlug(slug: string) {
+export function useFrontendArticleBySlug(slug: string, initialData?: any) {
   return useQuery({
     queryKey: ['frontendArticle', slug],
     queryFn: () => frontendBlogApi.getArticleBySlug(slug),
     staleTime: 60 * 60 * 1000, // 1小时缓存
     enabled: !!slug,
+    initialData,
   });
 }
 
@@ -81,7 +83,7 @@ export function useFrontendSearchArticles(
 /**
  * 获取前端博客分类列表 Hook（简化版）
  */
-export function useFrontendCategories() {
+export function useFrontendCategories(initialData?: FrontendCategory[]) {
   // 从路由参数获取当前语言
   const params = useParams();
   const locale = (params.locale as string) || 'zh';
@@ -90,6 +92,7 @@ export function useFrontendCategories() {
     queryKey: ['frontendCategories', locale],
     queryFn: () => frontendBlogApi.getCategories(),
     staleTime: 60 * 60 * 1000, // 1小时缓存
+    initialData,
   });
 }
 
@@ -118,7 +121,7 @@ export function useFrontendCategoryBySlug(
 /**
  * 获取前端博客标签列表 Hook（简化版）
  */
-export function useFrontendTags() {
+export function useFrontendTags(options?: { initialData?: any[] }) {
   // 从路由参数获取当前语言
   const params = useParams();
   const locale = (params.locale as string) || 'zh';
@@ -127,6 +130,7 @@ export function useFrontendTags() {
     queryKey: ['frontendTags', locale],
     queryFn: () => frontendBlogApi.getTags(),
     staleTime: 60 * 60 * 1000, // 1小时缓存
+    initialData: options?.initialData,
   });
 }
 

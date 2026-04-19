@@ -1,7 +1,7 @@
 'use client';
 
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
-import { frontendBlogApi } from '@/lib/api/frontendBlogApi';
+import { getPlatformComments } from '@/lib/platform/services/data.service';
 import type { Comment } from '@/lib/types/blog';
 
 /**
@@ -28,7 +28,7 @@ export function useCommentsInfiniteQuery(
   return useInfiniteQuery({
     queryKey: ['comments', 'infinite', articleId, { pageSize }],
     queryFn: async ({ pageParam = 1 }) => {
-      const response = await frontendBlogApi.getComments(articleId, {
+      const response = await getPlatformComments(articleId, {
         page: pageParam,
         pageSize,
       });

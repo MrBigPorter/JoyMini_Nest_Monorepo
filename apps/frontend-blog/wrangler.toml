@@ -16,6 +16,8 @@ ENABLE_EDGE_MIDDLEWARE = "true"
 AUTH_COOKIE_DOMAIN = ".joyminis.com"
 NEXT_PUBLIC_BLOG_ENV = "production"
 ISR_REVALIDATE_SECONDS = "60"
+BROWSER_CACHE_TTL = "300"       # 5分钟浏览器缓存
+STALE_WHILE_REVALIDATE = "86400" # 24小时 缓存过期后仍可使用旧内容
 
 # KV namespaces for caching
 [[kv_namespaces]]

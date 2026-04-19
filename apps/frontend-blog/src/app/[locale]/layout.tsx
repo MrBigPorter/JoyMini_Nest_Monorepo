@@ -10,7 +10,7 @@ import Sidebar from '@/components/navigation/Sidebar';
 import BottomNavigation from '@/components/BottomNavigation';
 import { PageTransition } from '@/components/PageTransition';
 import I18nProvider from '@/lib/providers/I18nProvider';
-import { LOCALES } from '@/lib/i18n/config';
+import { LOCALES, DEFAULT_LOCALE } from '@/lib/i18n/config';
 import '../globals.css';
 
 const inter = Inter({
@@ -25,6 +25,8 @@ export const metadata: Metadata = {
   title: 'Tarsier Blog',
   description: 'Developer community from Bohol, Philippines',
 };
+
+export const revalidate = 60; // ISR 60秒重新验证
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -45,7 +47,12 @@ export default async function LocaleLayout({
   children: React.ReactNode;
   params: Promise<{ locale: string }>;
 }) {
-  const { locale } = await params;
+  const { locale: routeLocale } = await params;
+
+  // 关键修复：与page.tsx保持一致，直接使用URL路径中的语言
+  // 访问 /en/ 时，routeLocale = 'en'
+  // 这确保SSR和CSR使用相同的语言，避免闪烁
+  const locale = routeLocale;
 
   if (!locales.includes(locale as (typeof locales)[number])) {
     notFound();
