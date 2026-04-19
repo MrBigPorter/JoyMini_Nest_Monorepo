@@ -20,7 +20,10 @@ const nextConfig: NextConfig = {
   },
   trailingSlash: true,
 
-  output: 'standalone',
+  // 平台感知的输出配置
+  // App构建使用静态导出，自动忽略ISR配置
+  // Web构建使用独立部署，支持ISR/SSG
+  output: process.env.BUILD_TARGET === 'app' ? 'export' : 'standalone',
 
   images: {
     remotePatterns: [
@@ -34,7 +37,6 @@ const nextConfig: NextConfig = {
 
   // 注意：allowedDevOrigins 在 Next.js 15 中已不再支持
   // 如果需要开发源控制，请使用其他方式
-  
   // 注意：turbopack 配置在 Next.js 15 中已不再支持
   // 如果需要自定义别名，请使用 webpack 配置
 

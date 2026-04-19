@@ -1,6 +1,6 @@
-'use client';
-
 import { useTranslations } from 'next-intl';
+
+export const revalidate = 3600;
 import {
   Heart,
   Code2,
@@ -128,7 +128,7 @@ export default function AboutPage() {
         </h2>
         <div className="flex flex-wrap gap-4 justify-center">
           <Link
-            href="https://github.com/MrBigPorter/lucky_nest_monorepo"
+            href="https://gitlab.com/MrSuperPorter"
             target="_blank"
             className="inline-flex items-center gap-2 px-6 py-3 rounded-xl border border-border bg-card hover:border-primary/50 hover:bg-accent/50 transition-all"
           >
@@ -136,7 +136,7 @@ export default function AboutPage() {
             {t('about.github')}
           </Link>
           <Link
-            href="mailto:contact@luckynest.dev"
+            href="mrsuperporter@gmail.com"
             className="inline-flex items-center gap-2 px-6 py-3 rounded-xl border border-border bg-card hover:border-primary/50 hover:bg-accent/50 transition-all"
           >
             <Mail className="w-5 h-5" />

@@ -33,7 +33,7 @@ import type {
  * 完全兼容React Query的useQuery API
  */
 export function usePlatformQuery<T>(
-  options: PlatformQueryOptions<T>
+  options: PlatformQueryOptions<T>,
 ): UseQueryResult<T> {
   const queryOptions = createPlatformQuery(options);
   return useQuery(queryOptions as UseQueryOptions<T>);
@@ -42,8 +42,12 @@ export function usePlatformQuery<T>(
 /**
  * 平台感知的useMutation Hook
  */
-export function usePlatformMutation<TData = unknown, TVariables = void, TContext = unknown>(
-  options: PlatformMutationOptions<TData, TVariables, TContext>
+export function usePlatformMutation<
+  TData = unknown,
+  TVariables = void,
+  TContext = unknown,
+>(
+  options: PlatformMutationOptions<TData, TVariables, TContext>,
 ): UseMutationResult<TData, Error, TVariables, TContext> {
   const mutationOptions = createPlatformMutation(options);
   return useMutation(mutationOptions);
@@ -53,10 +57,12 @@ export function usePlatformMutation<TData = unknown, TVariables = void, TContext
  * 平台感知的useInfiniteQuery Hook
  */
 export function usePlatformInfiniteQuery<T, TPageParam = unknown>(
-  options: PlatformInfiniteQueryOptions<T, TPageParam>
+  options: PlatformInfiniteQueryOptions<T, TPageParam>,
 ): UseInfiniteQueryResult<T> {
   const infiniteQueryOptions = createPlatformInfiniteQuery(options);
-  return useInfiniteQuery(infiniteQueryOptions as UseInfiniteQueryOptions<T, Error, T>);
+  return useInfiniteQuery(
+    infiniteQueryOptions as UseInfiniteQueryOptions<T, Error, T>,
+  );
 }
 
 /**
@@ -70,7 +76,7 @@ export function useSimplePlatformQuery<T>(
     enabled?: boolean;
     staleTime?: number;
     gcTime?: number;
-  }
+  },
 ): UseQueryResult<T> {
   const queryOptions = createSimplePlatformQuery(queryKey, apiCall, options);
   return useQuery(queryOptions as UseQueryOptions<T>);
@@ -85,7 +91,7 @@ export function useSimplePlatformMutation<TData = unknown, TVariables = void>(
     serverAction?: (variables: TVariables) => Promise<TData>;
     onSuccess?: (data: TData, variables: TVariables) => void;
     onError?: (error: Error, variables: TVariables) => void;
-  }
+  },
 ): UseMutationResult<TData, Error, TVariables> {
   const mutationOptions = createSimplePlatformMutation(apiCall, options);
   return useMutation(mutationOptions);
@@ -95,20 +101,20 @@ export function useSimplePlatformMutation<TData = unknown, TVariables = void>(
  * 平台感知的useQuery Hook（带自动语言处理）
  */
 export function usePlatformQueryWithLocale<T>(
-  options: PlatformQueryOptions<T> & { locale?: string }
+  options: PlatformQueryOptions<T> & { locale?: string },
 ): UseQueryResult<T> {
   const { locale, ...restOptions } = options;
-  
+
   // 自动添加locale到queryKey
-  const queryKeyWithLocale = locale 
+  const queryKeyWithLocale = locale
     ? [...restOptions.queryKey, { locale }]
     : restOptions.queryKey;
-  
+
   const queryOptions = createPlatformQuery({
     ...restOptions,
     queryKey: queryKeyWithLocale,
   });
-  
+
   return useQuery(queryOptions as UseQueryOptions<T>);
 }
 
@@ -119,12 +125,12 @@ export function usePlatformQueryWithRetry<T>(
   options: PlatformQueryOptions<T> & {
     retry?: number;
     retryDelay?: (attemptIndex: number) => number;
-  }
+  },
 ): UseQueryResult<T> {
   const { retry, retryDelay, ...restOptions } = options;
-  
+
   const queryOptions = createPlatformQuery(restOptions);
-  
+
   // 覆盖重试配置
   if (retry !== undefined) {
     queryOptions.retry = retry;
@@ -132,7 +138,7 @@ export function usePlatformQueryWithRetry<T>(
   if (retryDelay !== undefined) {
     queryOptions.retryDelay = retryDelay;
   }
-  
+
   return useQuery(queryOptions as UseQueryOptions<T>);
 }
 
@@ -142,10 +148,10 @@ export function usePlatformQueryWithRetry<T>(
 export function usePlatformQueryWithOfflineSupport<T>(
   options: PlatformQueryOptions<T> & {
     useCacheWhenOffline?: boolean;
-  }
+  },
 ): UseQueryResult<T> {
   const { useCacheWhenOffline = true, ...restOptions } = options;
-  
+
   const queryOptions = createPlatformQuery({
     ...restOptions,
     platformOptions: {
@@ -153,7 +159,7 @@ export function usePlatformQueryWithOfflineSupport<T>(
       useCacheWhenOffline,
     },
   });
-  
+
   return useQuery(queryOptions as UseQueryOptions<T>);
 }
 
@@ -163,10 +169,10 @@ export function usePlatformQueryWithOfflineSupport<T>(
 export function usePlatformQueryWithPrefetch<T>(
   options: PlatformQueryOptions<T> & {
     prefetch?: boolean;
-  }
+  },
 ): UseQueryResult<T> {
   const { prefetch = false, ...restOptions } = options;
-  
+
   const queryOptions = createPlatformQuery({
     ...restOptions,
     platformOptions: {
@@ -174,7 +180,7 @@ export function usePlatformQueryWithPrefetch<T>(
       prefetch,
     },
   });
-  
+
   return useQuery(queryOptions as UseQueryOptions<T>);
 }
 
@@ -216,12 +222,12 @@ import { useState, useEffect } from 'react';
 export function useNetworkStatus() {
   const adapter = usePlatformAdapter();
   const [status, setStatus] = useState(adapter.network.getNetworkStatus());
-  
+
   useEffect(() => {
     const cleanup = adapter.network.addNetworkStatusListener(setStatus);
     return cleanup;
   }, [adapter]);
-  
+
   return status;
 }
 

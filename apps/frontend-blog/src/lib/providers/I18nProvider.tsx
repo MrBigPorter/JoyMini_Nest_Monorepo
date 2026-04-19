@@ -2,40 +2,36 @@
 
 import { useLocale, useTranslations } from 'next-intl';
 import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { detectLocale, removeLocaleFromPath } from '@/lib/utils/locale';
 
 export default function I18nProvider({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const currentLocale = useLocale();
+  const routerLocale = useLocale();
   const t = useTranslations();
+  const router = useRouter();
+
+  //  终极语言同步：Cookie是用户意图的唯一可信来源
+  const actualLocale = detectLocale();
 
   useEffect(() => {
-    //【客户端】 全局语言上下文变化
-
+    //【客户端】 全局语言上下文同步
     if (typeof document !== 'undefined') {
-      document.documentElement.lang = currentLocale;
-      // 设置全局变量，供HTTP客户端在SSR环境下读取
-      // 注意：在客户端环境下，HTTP客户端会优先从URL路径或cookie读取
-      // 但在某些SSR场景下，全局变量是唯一可用的方式
-      (globalThis as any).__NEXT_INTL_LOCALE__ = currentLocale;
-
-      // 同时更新localStorage，供HTTP客户端在客户端环境下读取
-      // next-intl v3 RC版本可能使用不同的存储方式，我们同时设置多个可能的键
-      try {
-        localStorage.setItem('NEXT_LOCALE', currentLocale);
-        // 有些版本可能存储为JSON对象
-        localStorage.setItem(
-          'next-intl',
-          JSON.stringify({ locale: currentLocale }),
-        );
-      } catch (error) {
-        // localStorage可能不可用（如SSR环境或隐私模式）
-        console.warn('Failed to update localStorage with locale:', error);
-      }
+      document.documentElement.lang = actualLocale;
+      (globalThis as any).__NEXT_INTL_LOCALE__ = actualLocale;
     }
-  }, [currentLocale, t]);
+
+    //  语言状态一致性保证
+    // 当Cookie和当前路由语言不一致时，立即同步路径
+    // 解决路由异步跳转期间静态文本语言不更新的问题
+    if (actualLocale !== routerLocale && typeof window !== 'undefined') {
+      const cleanPath = removeLocaleFromPath(window.location.pathname);
+      router.replace(`/${actualLocale}${cleanPath}`, { scroll: false });
+    }
+  }, [actualLocale, routerLocale, router]);
 
   return <>{children}</>;
 }

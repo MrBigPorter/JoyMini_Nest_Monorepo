@@ -15,25 +15,25 @@ let cachedDeviceInfo: DeviceInfo | null = null;
  */
 export function detectPlatform(): PlatformType {
   if (cachedPlatform) return cachedPlatform;
-  
+
   // 1. 检查是否在浏览器环境
   if (typeof window === 'undefined') {
     cachedPlatform = 'server';
     return cachedPlatform;
   }
-  
+
   // 2. 检查是否是Capacitor App
   if (isCapacitorApp()) {
     cachedPlatform = 'capacitor';
     return cachedPlatform;
   }
-  
+
   // 3. 检查是否是H5（移动端浏览器）
   if (isMobileBrowser()) {
     cachedPlatform = 'h5';
     return cachedPlatform;
   }
-  
+
   // 4. 默认是Web平台
   cachedPlatform = 'web';
   return cachedPlatform;
@@ -44,33 +44,33 @@ export function detectPlatform(): PlatformType {
  */
 function isCapacitorApp(): boolean {
   if (!isClient()) return false;
-  
+
   // 方法1: 检查Capacitor全局对象
   if (typeof window !== 'undefined') {
     // @ts-ignore
     if (window.Capacitor || window.capacitor) {
       return true;
     }
-    
+
     // 方法2: 检查Capacitor特定API
     // @ts-ignore
     if (typeof window.Capacitor !== 'undefined') {
       return true;
     }
-    
+
     // 方法3: 检查用户代理
     const userAgent = window.navigator.userAgent.toLowerCase();
     if (userAgent.includes('capacitor') || userAgent.includes('cordova')) {
       return true;
     }
-    
+
     // 方法4: 检查SyncManager（Capacitor特有）
     // @ts-ignore
     if (typeof window.SyncManager !== 'undefined') {
       return true;
     }
   }
-  
+
   return false;
 }
 
@@ -79,11 +79,13 @@ function isCapacitorApp(): boolean {
  */
 function isMobileBrowser(): boolean {
   if (!isClient()) return false;
-  
+
   const userAgent = window.navigator.userAgent.toLowerCase();
-  const isMobile = /mobile|android|iphone|ipad|ipod|windows phone/i.test(userAgent);
+  const isMobile = /mobile|android|iphone|ipad|ipod|windows phone/i.test(
+    userAgent,
+  );
   const isTablet = /tablet|ipad/i.test(userAgent) && !/mobile/i.test(userAgent);
-  
+
   return isMobile || isTablet;
 }
 
@@ -92,45 +94,47 @@ function isMobileBrowser(): boolean {
  */
 export function getDeviceInfo(): DeviceInfo {
   if (cachedDeviceInfo) return cachedDeviceInfo;
-  
+
   const platform = detectPlatform();
   const isClientEnv = isClient();
-  
+
   let isMobile = false;
   let isTablet = false;
   let isDesktop = false;
   let os = 'unknown';
   let browser = 'unknown';
   let screenSize = { width: 0, height: 0 };
-  
+
   if (isClientEnv) {
     // 屏幕尺寸
     screenSize = {
       width: window.innerWidth,
       height: window.innerHeight,
     };
-    
+
     // 设备类型
     const userAgent = window.navigator.userAgent.toLowerCase();
     isMobile = /mobile|android|iphone|ipad|ipod|windows phone/i.test(userAgent);
     isTablet = /tablet|ipad/i.test(userAgent) && !/mobile/i.test(userAgent);
     isDesktop = !isMobile && !isTablet;
-    
+
     // 操作系统
     if (/windows/i.test(userAgent)) os = 'windows';
     else if (/mac os|macintosh/i.test(userAgent)) os = 'macos';
     else if (/linux/i.test(userAgent)) os = 'linux';
     else if (/android/i.test(userAgent)) os = 'android';
     else if (/iphone|ipad|ipod/i.test(userAgent)) os = 'ios';
-    
+
     // 浏览器
-    if (/chrome/i.test(userAgent) && !/edge/i.test(userAgent)) browser = 'chrome';
+    if (/chrome/i.test(userAgent) && !/edge/i.test(userAgent))
+      browser = 'chrome';
     else if (/firefox/i.test(userAgent)) browser = 'firefox';
-    else if (/safari/i.test(userAgent) && !/chrome/i.test(userAgent)) browser = 'safari';
+    else if (/safari/i.test(userAgent) && !/chrome/i.test(userAgent))
+      browser = 'safari';
     else if (/edge/i.test(userAgent)) browser = 'edge';
     else if (/opera|opr/i.test(userAgent)) browser = 'opera';
   }
-  
+
   cachedDeviceInfo = {
     platform,
     isMobile,
@@ -140,7 +144,7 @@ export function getDeviceInfo(): DeviceInfo {
     browser,
     screenSize,
   };
-  
+
   return cachedDeviceInfo;
 }
 
@@ -151,7 +155,7 @@ export function getRuntimeInfo() {
   const environment = detectEnvironment();
   const platform = detectPlatform();
   const deviceInfo = getDeviceInfo();
-  
+
   return {
     environment,
     platform,
@@ -167,34 +171,44 @@ export function getRuntimeInfo() {
 export function supportsFeature(feature: string): boolean {
   const platform = detectPlatform();
   const isClientEnv = isClient();
-  
+
   switch (feature) {
     case 'server-actions':
       // Server Actions仅支持Web平台
       return platform === 'web';
-      
+
     case 'persistent-cache':
       // 持久化缓存支持所有客户端平台
       return isClientEnv;
-      
+
     case 'push-notifications':
       // 推送通知支持Capacitor和现代浏览器
-      return platform === 'capacitor' || 
-             (platform === 'web' && 'Notification' in window && 'serviceWorker' in navigator);
-      
+      return (
+        platform === 'capacitor' ||
+        (platform === 'web' &&
+          'Notification' in window &&
+          'serviceWorker' in navigator)
+      );
+
     case 'camera':
       // 相机支持Capacitor和现代浏览器
-      return platform === 'capacitor' || 
-             (platform === 'web' && 'mediaDevices' in navigator);
-      
+      return (
+        platform === 'capacitor' ||
+        (platform === 'web' && 'mediaDevices' in navigator)
+      );
+
     case 'geolocation':
       // 地理位置支持所有客户端平台
       return isClientEnv && 'geolocation' in navigator;
-      
+
     case 'background-sync':
       // 后台同步仅支持支持Service Worker的浏览器
-      return platform === 'web' && 'serviceWorker' in navigator && 'SyncManager' in window;
-      
+      return (
+        platform === 'web' &&
+        'serviceWorker' in navigator &&
+        'SyncManager' in window
+      );
+
     default:
       return false;
   }

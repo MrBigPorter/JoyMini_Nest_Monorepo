@@ -1,102 +1,74 @@
-'use client';
-
-import { useTranslations } from 'next-intl';
-import { useArticlesInfiniteQuerySimple } from '@/lib/hooks/useArticlesInfiniteQuery';
-import { useBatchBookmarkStatusMap } from '@/lib/hooks/useBatchBookmarkStatus';
-import { ArticleCard } from '@/components/blog/ArticleCard';
-import { InfiniteScrollLoader } from '@/components/shared/LoadingIndicator';
+import { getTranslations } from 'next-intl/server';
+import { getPlatformArticles } from '@/lib/platform/services/data.service';
+import { getEnabledLocales } from '@/lib/i18n/config';
+import HomePageClient from './page.client.tsx';
 import type { FrontendArticle } from '@/lib/types/frontend-blog';
+import type { Locale } from '@/lib/i18n/config';
 
-export default function HomePage() {
-  const t = useTranslations();
+// 无if架构：直接声明需求，构建时自动处理
+// App构建时，output: 'export'会自动忽略ISR配置
+// Web构建时，正常启用ISR/SSG
+export const revalidate = 60; // 首页60秒ISR
+export const dynamic = 'auto';
 
-  // 使用基于React Query的无限滚动钩子
-  const {
-    items: articles,
-    total,
-    page,
-    pageSize,
-    totalPages,
-    isLoading,
-    isLoadingMore,
-    hasMore,
-    error,
-    loadMore,
-    reload,
-  } = useArticlesInfiniteQuerySimple({
-    pageSize: 10,
-  });
+export async function generateHeaders() {
+  return {
+    'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=3600',
+  };
+}
 
-  // 提取文章ID用于批量查询收藏状态
-  const articleIds = articles.map((article) => article.id) || [];
+// generate static params for all locales
+export async function generateStaticParams() {
+  return getEnabledLocales().map((locale: Locale) => ({ locale }));
+}
 
-  // 批量查询收藏状态
-  const { statusMap } = useBatchBookmarkStatusMap(articleIds);
+export default async function HomePage({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale: routeLocale } = await params;
 
-  if (isLoading) {
+  // 关键修复：SSR环境直接使用URL路径中的语言
+  // 访问 /en/ 时，routeLocale = 'en'
+  // 这确保SSR和CSR使用相同的语言，避免闪烁
+  const locale = routeLocale;
+
+  const t = await getTranslations({ locale });
+
+  try {
+    // 平台感知数据获取：根据运行环境选择最佳策略
+    const initialData = await getPlatformArticles({
+      locale,
+      page: 1,
+      pageSize: 10,
+    });
+
+    // 提取文章ID用于客户端查询收藏状态
+    const articleIds =
+      initialData.items?.map((article: FrontendArticle) => article.id) || [];
+
     return (
-      <div className="flex flex-col items-center justify-center py-20">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-        <p className="mt-4 text-slate-500">{t('common.loading')}</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20">
-        <p className="text-red-500">{t('common.error')}</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 py-12 md:py-16">
-      <div className="mb-12 text-center md:text-left">
-        <h1 className="text-4xl md:text-5xl font-bold text-slate-900 dark:text-white mb-4">
-          {t('home.title')}
-        </h1>
-        <p className="text-lg text-slate-600 dark:text-slate-400 max-w-2xl">
-          {t('home.subtitle')}
-        </p>
-      </div>
-
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {articles.map((article) => {
-          const bookmarkStatus = statusMap.get(article.id);
-          return (
-            <ArticleCard
-              key={article.id}
-              article={article}
-              bookmarkStatus={bookmarkStatus}
-            />
-          );
-        })}
-      </div>
-
-      {/* 无限滚动加载器（自动加载） */}
-      <InfiniteScrollLoader
-        isLoadingMore={isLoadingMore}
-        hasMore={hasMore}
-        error={error}
-        onRetryAction={loadMore}
+      <HomePageClient
+        initialData={initialData}
+        initialArticleIds={articleIds}
+        locale={locale}
       />
-
-      {/* 分页信息（仅在开发环境显示） */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="mt-4 text-center">
-          <p className="text-xs text-muted-foreground">
-            {articles.length} / {total} •{' '}
-            {t('common.pageInfo', { page, totalPages })}
-          </p>
-        </div>
-      )}
-
-      {articles.length === 0 && (
-        <div className="text-center py-20">
-          <p className="text-slate-500">{t('home.empty')}</p>
-        </div>
-      )}
-    </div>
-  );
+    );
+  } catch (error) {
+    // 返回空数据，让客户端显示骨架屏
+    return (
+      <HomePageClient
+        initialData={{
+          items: [],
+          total: 0,
+          page: 1,
+          pageSize: 10,
+          totalPages: 0,
+        }}
+        initialArticleIds={[]}
+        locale={locale}
+      />
+    );
+  }
 }

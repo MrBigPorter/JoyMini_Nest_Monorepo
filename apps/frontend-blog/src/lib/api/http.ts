@@ -5,9 +5,11 @@ import axios, {
   CanceledError,
   InternalAxiosRequestConfig,
 } from 'axios';
+
 import type { ApiResponse, RequestConfig } from './types';
 import { useAuthStore } from '@/lib/stores/auth.store';
 import { withLocale } from '@/lib/utils/locale';
+import { detectLocale } from '@/lib/utils/locale';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 class HttpClient {
@@ -64,15 +66,32 @@ class HttpClient {
         const method = (config.method || 'get').toLowerCase();
 
         // 1. 语言
-        const lang = this.getLanguage();
-        if (lang) {
-          config.headers['Accept-Language'] = lang;
-          // 添加查询参数，确保后端能正确识别语言
-          // 后端 LanguageService.resolveLanguage() 优先使用查询参数
-          config.params = {
-            ...config.params,
-            lang: lang,
-          };
+        // ✅ 关键修复：如果请求已经显式传递了lang参数，不应该覆盖它！
+        // 这是所有语言闪烁问题的根源：拦截器强制覆盖所有请求的lang参数
+        const explicitLang = config.params?.lang;
+
+        // 🔴 调试日志
+        console.log('[HTTP LANG DEBUG]', config.url, {
+          explicitLang,
+          params: config.params,
+          getLanguage: this.getLanguage(),
+        });
+
+        if (explicitLang) {
+          // 使用显式传递的语言参数
+          config.headers['Accept-Language'] = explicitLang;
+          console.log('[HTTP LANG DEBUG] ✅ 使用显式传递的lang:', explicitLang);
+        } else {
+          // 没有显式传递时，才使用自动检测
+          const lang = this.getLanguage();
+          if (lang) {
+            config.headers['Accept-Language'] = lang;
+            config.params = {
+              ...config.params,
+              lang: lang,
+            };
+            console.log('[HTTP LANG DEBUG] ⚠️ 使用自动检测的lang:', lang);
+          }
         }
 
         // 2. 认证 token
@@ -217,63 +236,10 @@ class HttpClient {
   }
 
   private getLanguage(): string {
-    // 优先使用查询参数
-    if (typeof window !== 'undefined') {
-      const urlParams = new URLSearchParams(window.location.search);
-      const langParam = urlParams.get('lang');
-      if (langParam) return this.normalizeLanguageCode(langParam);
-    }
-
-    // SSR环境：尝试从全局变量获取语言
-    // next-intl 在SSR环境下会将语言信息注入到全局变量中
-    if (typeof globalThis !== 'undefined') {
-      // 尝试从全局变量获取 next-intl 的语言
-      const globalLocale = (globalThis as any).__NEXT_INTL_LOCALE__;
-      if (globalLocale) {
-        return this.normalizeLanguageCode(globalLocale);
-      }
-    }
-
-    // 客户端环境：与 next-intl 集成
-    if (typeof window !== 'undefined') {
-      // 1. 尝试从URL路径获取语言（next-intl使用路径前缀）
-      const pathname = window.location.pathname;
-      // 匹配 /en/, /zh/, /ja/ 等语言前缀
-      const pathLocaleMatch = pathname.match(/^\/([a-z]{2})(?:\/|$)/);
-      if (pathLocaleMatch) {
-        const pathLocale = pathLocaleMatch[1];
-        return this.normalizeLanguageCode(pathLocale);
-      }
-
-      // 2. 尝试从cookie获取（next-intl默认使用NEXT_LOCALE cookie）
-      const cookieLocale = this.getCookie('NEXT_LOCALE');
-      if (cookieLocale) {
-        return this.normalizeLanguageCode(cookieLocale);
-      }
-
-      // 3. 尝试从localStorage获取
-      // next-intl 通常将语言存储在 'next-intl' 或 'NEXT_LOCALE' 中
-      const nextIntlLocale =
-        localStorage.getItem('next-intl') ||
-        localStorage.getItem('NEXT_LOCALE');
-      if (nextIntlLocale) {
-        try {
-          const localeData = JSON.parse(nextIntlLocale);
-          const locale = localeData.locale || localeData;
-          if (locale) return this.normalizeLanguageCode(locale);
-        } catch {
-          // 如果不是JSON，直接使用
-          return this.normalizeLanguageCode(nextIntlLocale);
-        }
-      }
-
-      // 4. 回退到旧的 localStorage 'lang'
-      const oldLang = localStorage.getItem('lang');
-      if (oldLang) return this.normalizeLanguageCode(oldLang);
-    }
-
-    // 默认返回中文
-    return 'zh';
+    // ✅ 全局单点统一语言检测
+    // 整个系统只有这一个语言检测数据源
+    // 禁止在任何地方重复实现语言检测逻辑
+    return detectLocale();
   }
 
   /**

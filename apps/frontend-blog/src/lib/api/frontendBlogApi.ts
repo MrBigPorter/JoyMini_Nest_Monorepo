@@ -31,6 +31,7 @@ export const frontendBlogApi = {
     pageSize?: number;
     categoryId?: string;
     tagId?: string;
+    lang?: string;
   }) =>
     http.get<FrontendPaginatedResponse<FrontendArticle>>(
       '/v1/frontend/blog/articles',
@@ -40,8 +41,8 @@ export const frontendBlogApi = {
   /**
    * 根据 Slug 获取文章详情（简化版）
    */
-  getArticleBySlug: (slug: string) =>
-    http.get<FrontendArticle>(`/v1/frontend/blog/articles/${slug}`),
+  getArticleBySlug: (slug: string, lang?: string) =>
+    http.get<FrontendArticle>(`/v1/frontend/blog/articles/${slug}`, { lang }),
 
   /**
    *
@@ -68,8 +69,8 @@ export const frontendBlogApi = {
   /**
    * 获取所有分类（简化版）
    */
-  getCategories: () =>
-    http.get<FrontendCategory[]>('/v1/frontend/blog/categories'),
+  getCategories: (lang?: string) =>
+    http.get<FrontendCategory[]>('/v1/frontend/blog/categories', { lang }),
 
   /**
    * 获取分类详情（简化版）

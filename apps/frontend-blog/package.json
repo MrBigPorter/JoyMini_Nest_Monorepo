@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev": "next dev",
     "build": "next build",
     "build:cloudflare": "opennextjs-cloudflare build",
     "start": "next start",
@@ -49,7 +49,7 @@
     "clsx": "^2.0.0",
     "dayjs": "^1.11.10",
     "immer": "^10.0.0",
-    "next": "15.1.6",
+    "next": "15.5.11",
     "next-intl": "^3.0.0",
     "next-themes": "^0.3.0",
     "react": "^18.0.0",

@@ -26,9 +26,16 @@ export function GoogleOAuthProvider({ children }: GoogleOAuthProviderProps) {
 
   // 由于缺少 @react-oauth/google 模块，直接返回子组件
   // 实际使用时需要安装依赖并实现完整的Google OAuth功能
-  console.warn(
-    '@react-oauth/google module is not installed. Google OAuth functionality is disabled.',
-  );
-  
+  // 只在开发环境且第一次渲染时输出警告，避免无限循环
+  if (process.env.NODE_ENV === 'development') {
+    const hasWarned = (globalThis as any).__GOOGLE_OAUTH_WARNING_SHOWN;
+    if (!hasWarned) {
+      console.warn(
+        '@react-oauth/google module is not installed. Google OAuth functionality is disabled.',
+      );
+      (globalThis as any).__GOOGLE_OAUTH_WARNING_SHOWN = true;
+    }
+  }
+
   return <>{children}</>;
 }

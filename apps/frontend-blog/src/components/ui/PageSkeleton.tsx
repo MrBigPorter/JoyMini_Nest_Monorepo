@@ -16,7 +16,6 @@ export function PageSkeleton({
       {/* 标题骨架 */}
       <div className="mb-12 text-center md:text-left">
         <div className="h-12 w-64 bg-slate-200 dark:bg-slate-700 rounded-lg mb-4 animate-pulse mx-auto md:mx-0" />
-        <div className="h-6 w-96 bg-slate-200 dark:bg-slate-700 rounded-lg animate-pulse mx-auto md:mx-0" />
       </div>
 
       {/* 文章卡片骨架 */}

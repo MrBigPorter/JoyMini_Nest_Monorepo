@@ -83,6 +83,12 @@ export default function Header() {
 
   // 动态语言切换
   const switchLocale = (nextLocale: string) => {
+    // 设置语言Cookie，让服务端知道用户的语言选择
+    if (typeof document !== 'undefined') {
+      document.cookie = `locale=${nextLocale}; path=/; max-age=31536000; SameSite=Lax`;
+    }
+    
+    // 路由切换
     router.replace(pathname, { locale: nextLocale });
     setLangMenuOpen(false);
   };

@@ -22,11 +22,13 @@ export function useBookmarksInfiniteQuery(options?: {
   pageSize?: number;
   locale?: string;
   enabled?: boolean;
+  initialData?: any;
 }) {
-  const { pageSize = 20, locale, enabled = true } = options || {};
+  const { pageSize = 20, locale, enabled = true, initialData } = options || {};
 
   return useInfiniteQuery({
     queryKey: ['bookmarks', 'infinite', { pageSize, locale }],
+    initialData: initialData,
     queryFn: async ({ pageParam = 1 }) => {
       const response = await frontendBlogApi.getBookmarks({
         page: pageParam,
@@ -63,6 +65,7 @@ export function useBookmarksInfiniteQuerySimple(options?: {
   pageSize?: number;
   locale?: string;
   enabled?: boolean;
+  initialData?: any;
 }) {
   const result = useBookmarksInfiniteQuery(options);
 
