@@ -1,5 +1,13 @@
 # JWT认证与权限系统 技术实现文档
 
+> 📅 创建时间：2026-04-20 | 📅 最后更新：2026-04-20
+> 🎯 目标：为Blog管理API提供完整的JWT认证和细粒度权限控制
+> 📚 相关文档：
+>
+> - [Blog认证系统文档索引](./BLOG_AUTHENTICATION_INDEX.md) - 完整认证系统概述
+> - [认证Token存储策略](./AUTH_TOKEN_STORAGE_STRATEGY.md) - Token存储机制
+> - [认证拦截四层防护架构](../../nextjs/AUTH_INTERCEPTION_ARCHITECTURE.md) - 前端认证拦截
+
 ## 📋 背景与风险分析
 
 ### 🔴 漏洞现状

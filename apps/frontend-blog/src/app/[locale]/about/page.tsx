@@ -1,6 +1,7 @@
 import { useTranslations } from 'next-intl';
 
 export const revalidate = 3600;
+export const dynamic = 'auto';
 import {
   Heart,
   Code2,

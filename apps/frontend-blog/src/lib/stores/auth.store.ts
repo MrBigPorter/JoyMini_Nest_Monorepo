@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { supportsSyncRead } from '@/lib/utils/platform';
+import { setTokenCookie, clearTokenCookie } from '@/lib/utils/cookie-manager';
+import { cookieStorage } from './cookie-storage';
 
 export interface User {
   id: string;
@@ -110,12 +112,24 @@ export const useAuthStore = create<AuthState>()(
           throw new Error('Invalid user provided to login');
         }
 
+        // 设置Zustand状态
         set({
           ...tokens,
           user,
           isHydrated: true,
           _synced: true,
         });
+
+        // 同步设置Cookie（仅在客户端环境）
+        if (typeof window !== 'undefined') {
+          try {
+            setTokenCookie(tokens.accessToken);
+            console.log('Auth store: Cookie set successfully');
+          } catch (error) {
+            console.error('Auth store: Failed to set cookie:', error);
+            // 不抛出错误，继续执行
+          }
+        }
 
         console.log('Auth store: login successful, state updated');
 
@@ -129,20 +143,41 @@ export const useAuthStore = create<AuthState>()(
             isSynced: currentState._synced,
           });
 
-          // 检查localStorage是否已更新
+          // 检查Cookie是否已更新
           if (typeof window !== 'undefined') {
             try {
-              const stored = localStorage.getItem('auth-storage');
-              if (stored) {
+              const token = cookieStorage.getItem('auth-storage');
+              if (token && typeof token === 'string') {
                 console.log(
-                  'Auth store: localStorage after login:',
-                  stored.substring(0, 200),
+                  'Auth store: Cookie after login:',
+                  token.substring(0, 200),
                 );
+              } else if (token instanceof Promise) {
+                // 如果是Promise，等待它完成
+                token
+                  .then((value) => {
+                    if (value) {
+                      console.log(
+                        'Auth store: Cookie after login (async):',
+                        value.substring(0, 200),
+                      );
+                    } else {
+                      console.log(
+                        'Auth store: No data in Cookie after login (async)',
+                      );
+                    }
+                  })
+                  .catch((error) => {
+                    console.error(
+                      'Auth store: Failed to check Cookie (async):',
+                      error,
+                    );
+                  });
               } else {
-                console.log('Auth store: No data in localStorage after login');
+                console.log('Auth store: No data in Cookie after login');
               }
             } catch (error) {
-              console.error('Auth store: Failed to check localStorage:', error);
+              console.error('Auth store: Failed to check Cookie:', error);
             }
           }
         }, 100);
@@ -150,6 +185,18 @@ export const useAuthStore = create<AuthState>()(
 
       logout: () => {
         console.log('Auth store: logout called');
+
+        // 清除Cookie（仅在客户端环境）
+        if (typeof window !== 'undefined') {
+          try {
+            clearTokenCookie();
+            console.log('Auth store: Cookie cleared successfully');
+          } catch (error) {
+            console.error('Auth store: Failed to clear cookie:', error);
+            // 不抛出错误，继续执行
+          }
+        }
+
         set({
           user: null,
           accessToken: null,
@@ -160,6 +207,18 @@ export const useAuthStore = create<AuthState>()(
 
       setTokens: (tokens) => {
         console.log('Auth store: setTokens called', tokens);
+
+        // 同步更新Cookie（仅在客户端环境）
+        if (typeof window !== 'undefined' && tokens.accessToken) {
+          try {
+            setTokenCookie(tokens.accessToken);
+            console.log('Auth store: Cookie updated for token refresh');
+          } catch (error) {
+            console.error('Auth store: Failed to update cookie:', error);
+            // 不抛出错误，继续执行
+          }
+        }
+
         set({ ...tokens, _synced: true });
       },
 
@@ -181,27 +240,45 @@ export const useAuthStore = create<AuthState>()(
         if (get()._synced) return;
 
         try {
-          const raw = localStorage.getItem('auth-storage');
-          if (!raw) {
-            set({ _synced: true });
-            return;
+          // 从Cookie存储读取数据
+          const raw = cookieStorage.getItem('auth-storage');
+
+          const handleRawData = (data: string | null) => {
+            if (!data) {
+              set({ _synced: true });
+              return;
+            }
+
+            const parsed = JSON.parse(data);
+            console.log('Auth store: syncFromStorage parsed:', {
+              hasToken: !!parsed.state?.accessToken,
+              hasUser: !!parsed.state?.user,
+            });
+
+            // 立即设置状态，不等待异步水合
+            set({
+              accessToken: parsed.state?.accessToken || null,
+              refreshToken: parsed.state?.refreshToken || null,
+              user: parsed.state?.user || null,
+              _synced: true,
+            });
+
+            console.log('Auth store: syncFromStorage completed');
+          };
+
+          if (raw instanceof Promise) {
+            // 如果是Promise，等待它完成
+            raw.then(handleRawData).catch((error) => {
+              console.error(
+                'Auth store: Failed to sync from storage (async):',
+                error,
+              );
+              set({ _synced: true });
+            });
+          } else {
+            // 如果是同步数据，直接处理
+            handleRawData(raw);
           }
-
-          const parsed = JSON.parse(raw);
-          console.log('Auth store: syncFromStorage parsed:', {
-            hasToken: !!parsed.accessToken,
-            hasUser: !!parsed.user,
-          });
-
-          // 立即设置状态，不等待异步水合
-          set({
-            accessToken: parsed.accessToken || null,
-            refreshToken: parsed.refreshToken || null,
-            user: parsed.user || null,
-            _synced: true,
-          });
-
-          console.log('Auth store: syncFromStorage completed');
         } catch (error) {
           console.error('Auth store: Failed to sync from storage:', error);
           set({ _synced: true });
@@ -216,7 +293,7 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'auth-storage',
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() => cookieStorage),
       // 只存储必要的字段
       partialize: (state) => {
         return {

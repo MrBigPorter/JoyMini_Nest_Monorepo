@@ -4,16 +4,13 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { LOCALES, DEFAULT_LOCALE } from './src/lib/i18n/config';
 import { detectLocale, isSupportedLocale } from './src/lib/utils/locale';
+import {
+  isProtectedRoute,
+  getLoginRedirectUrl,
+} from './src/lib/auth/protected-routes';
 
 // 增强中间件：使用统一的语言检测逻辑
 export default function middleware(request: NextRequest) {
-  console.log('[Middleware]', request.url);
-  console.log('[Middleware] Cookies:', request.cookies.getAll());
-  console.log(
-    '[Middleware] NEXT_LOCALE:',
-    request.cookies.get('NEXT_LOCALE')?.value,
-  );
-  console.log('[Middleware] locale:', request.cookies.get('locale')?.value);
   // 1. 使用统一的语言检测函数
   const detectedLocale = detectLocale(request);
 
@@ -36,14 +33,49 @@ export default function middleware(request: NextRequest) {
   const currentLocale = pathname.split('/')[1];
   const isCurrentLocaleValid = isSupportedLocale(currentLocale);
 
-  if (isCurrentLocaleValid) {
-    // 关键修复：URL路径优先，不强制重定向
-    // 用户访问 /en/ 时，即使检测到中文，也保持英文
-    // 这避免了"中文->英文闪烁"问题
-    return NextResponse.next();
+  if (!isCurrentLocaleValid) {
+    // 无效语言，重定向到默认语言
+    url.pathname = `/${DEFAULT_LOCALE}${pathname}`;
+    return NextResponse.redirect(url);
   }
 
-  // 6. 使用next-intl中间件处理其他逻辑
+  // 6.  认证拦截 - 三层防护第一层
+  // 这是最高优先级的检查，发生在任何代码运行之前
+  const authToken = request.cookies.get('token')?.value;
+  
+  // 调试日志：记录路径匹配情况
+  console.log('🔍 Middleware认证检查:', {
+    originalPathname: pathname,
+    currentLocale,
+    authTokenExists: !!authToken,
+    isProtectedRoute: isProtectedRoute(pathname),
+    pathWithoutLocale: pathname.replace(/^\/[a-z]{2}(-[A-Z]{2})?/, ''),
+    cookies: request.cookies.getAll().map(c => ({ name: c.name, value: c.value ? '***' : 'empty' })),
+  });
+
+  if (isProtectedRoute(pathname) && !authToken) {
+    // 未登录访问受保护路由，直接重定向到登录页
+    // 没有任何渲染，零闪烁体验
+    const loginUrl = new URL(
+      getLoginRedirectUrl(currentLocale, pathname),
+      request.url,
+    );
+    
+    console.log('🚨 Middleware拦截未认证请求:', {
+      from: pathname,
+      to: loginUrl.toString(),
+      reason: '未登录访问受保护路由',
+    });
+    
+    return NextResponse.redirect(loginUrl);
+  }
+  
+  console.log('✅ Middleware放行请求:', {
+    pathname,
+    reason: authToken ? '已认证' : '非受保护路由',
+  });
+
+  // 7. 使用next-intl中间件处理其他逻辑
   const intlMiddleware = createMiddleware({
     locales: LOCALES,
     defaultLocale: DEFAULT_LOCALE,
@@ -55,6 +87,9 @@ export default function middleware(request: NextRequest) {
 }
 
 export const config = {
-  // 确保匹配所有需要国际化的路由
-  matcher: ['/((?!api|_next|.*\\..*).*)'],
+  // 优化匹配器：确保覆盖所有客户端跳转，包括_next/data请求
+  // 排除：api路由、静态文件、favicon等
+  matcher: [
+    '/((?!api|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml).*)',
+  ],
 };

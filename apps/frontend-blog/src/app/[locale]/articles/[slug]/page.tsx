@@ -6,7 +6,7 @@ import ArticlePageClient from './page.client';
 // Next.js 15 perfect cache pattern
 // force-dynamic + revalidate combination
 // Each locale has independent cache, no cross contamination
-export const dynamic = 'force-dynamic';
+export const dynamic = 'auto';
 export const revalidate = 3600; // 1 hour cache for articles
 
 export async function generateHeaders() {

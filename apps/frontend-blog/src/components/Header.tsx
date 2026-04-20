@@ -20,6 +20,7 @@ import { useAuthStore } from '@/lib/stores/auth.store';
 import { MobileSettingsDrawer, MobileSettingsContent } from './mobile';
 import { SearchModal } from './search';
 import { useSearchShortcut } from '@/lib/hooks/useKeyboardShortcut';
+import { ProtectedLink } from '@/components/auth/ProtectedLink';
 
 interface LocaleConfig {
   code: string;
@@ -87,7 +88,7 @@ export default function Header() {
     if (typeof document !== 'undefined') {
       document.cookie = `locale=${nextLocale}; path=/; max-age=31536000; SameSite=Lax`;
     }
-    
+
     // 路由切换
     router.replace(pathname, { locale: nextLocale });
     setLangMenuOpen(false);
@@ -317,15 +318,15 @@ export default function Header() {
                         </div>
                       </div>
 
-                      {/* 收藏入口 */}
-                      <Link
+                      {/* 收藏入口 - 使用ProtectedLink */}
+                      <ProtectedLink
                         href="/bookmarks"
                         onClick={() => setUserMenuOpen(false)}
                         className="w-full px-4 py-2 text-left text-sm hover:bg-accent transition-colors flex items-center gap-2"
                       >
                         <Bookmark className="w-4 h-4" />
                         <span>{t('settings.bookmarks')}</span>
-                      </Link>
+                      </ProtectedLink>
 
                       <div className="border-t border-border my-1" />
 

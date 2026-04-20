@@ -61,77 +61,54 @@ export function ProtectedRouteV2({
     }
   })();
 
-  // 重定向逻辑（避免重复重定向）
+  // 立即重定向逻辑（消除skeleton闪烁）
   useEffect(() => {
     const verifyAndRedirect = async () => {
       if (!requireAuth) return;
 
-      // 等待加载完成（包括水合）
-      if (isLoading) {
-        console.log('ProtectedRouteV2: Still loading, skipping verification');
+      // 如果已认证，直接返回
+      if (effectiveAuth) {
+        console.log('ProtectedRouteV2: Already authenticated');
         return;
       }
 
-      if (!effectiveAuth) {
-        console.log('ProtectedRouteV2: Not authenticated, checking auth...');
-        // 尝试检查认证状态
-        const isAuthValid = await checkAuth();
+      // 如果正在加载，等待一小段时间再检查
+      if (isLoading) {
+        console.log('ProtectedRouteV2: Still loading, waiting...');
+        // 设置超时，避免无限等待
+        const timeoutId = setTimeout(() => {
+          console.log('ProtectedRouteV2: Loading timeout, forcing check');
+          verifyAndRedirect();
+        }, 500);
+        return () => clearTimeout(timeoutId);
+      }
 
-        if (!isAuthValid) {
-          console.log(
-            'ProtectedRouteV2: Auth check failed, redirecting to login',
-          );
-          // 保存当前路径，登录后可以跳转回来
-          const currentPath = window.location.pathname + window.location.search;
-          if (currentPath !== '/login' && currentPath !== '/register') {
-            sessionStorage.setItem('redirectAfterLogin', currentPath);
-          }
+      console.log('ProtectedRouteV2: Not authenticated, checking auth...');
+      // 尝试检查认证状态
+      const isAuthValid = await checkAuth();
 
-          // 直接使用重定向路径，让国际化路由中间件处理语言前缀
-          // 注意：redirectTo 应该是不带语言前缀的路径，如 '/login'
-          router.push(redirectTo);
-        } else {
-          console.log(
-            'ProtectedRouteV2: Auth check passed, user is authenticated',
-          );
+      if (!isAuthValid) {
+        console.log(
+          'ProtectedRouteV2: Auth check failed, redirecting to login',
+        );
+        // 保存当前路径，登录后可以跳转回来
+        const currentPath = window.location.pathname + window.location.search;
+        if (currentPath !== '/login' && currentPath !== '/register') {
+          sessionStorage.setItem('redirectAfterLogin', currentPath);
         }
+
+        // 立即重定向，不等待任何渲染
+        router.push(redirectTo);
       } else {
-        console.log('ProtectedRouteV2: Already authenticated');
+        console.log(
+          'ProtectedRouteV2: Auth check passed, user is authenticated',
+        );
       }
     };
 
-    // 借鉴admin-next的经验：立即检查localStorage，不要等Zustand水合
-    // 如果localStorage有token，给Zustand一点时间恢复状态
-    if (typeof window !== 'undefined') {
-      try {
-        const authStorage = localStorage.getItem('auth-storage');
-        if (authStorage) {
-          // 尝试解析auth-storage内容
-          const parsed = JSON.parse(authStorage);
-          const hasToken = parsed?.accessToken;
-
-          if (hasToken) {
-            // 有token，给Zustand 100ms时间恢复状态
-            const timer = setTimeout(() => {
-              verifyAndRedirect();
-            }, 100);
-            return () => clearTimeout(timer);
-          }
-        }
-      } catch (error) {
-        console.warn('ProtectedRouteV2: Failed to parse auth-storage:', error);
-      }
-    }
-
-    // 没有token或解析失败，立即执行验证
+    // 立即执行验证，不等待任何延迟
     verifyAndRedirect();
   }, [effectiveAuth, isLoading, requireAuth, router, redirectTo, checkAuth]);
-
-  // 显示加载状态（包括水合状态）
-  if (isLoading) {
-    console.log('ProtectedRouteV2: Showing loading fallback');
-    return <>{fallback}</>;
-  }
 
   // 如果不需要认证，直接渲染子组件
   if (!requireAuth) {
@@ -139,15 +116,15 @@ export function ProtectedRouteV2({
     return <>{children}</>;
   }
 
-  // 如果未认证，不渲染任何内容（会在 useEffect 中重定向）
-  if (!effectiveAuth) {
-    console.log('ProtectedRouteV2: Not authenticated, rendering null');
-    return null;
+  // 如果已认证，渲染子组件
+  if (effectiveAuth) {
+    console.log('ProtectedRouteV2: Authenticated, rendering children');
+    return <>{children}</>;
   }
 
-  // 已认证，渲染子组件
-  console.log('ProtectedRouteV2: Authenticated, rendering children');
-  return <>{children}</>;
+  // 未认证状态：不渲染任何内容，等待重定向
+  console.log('ProtectedRouteV2: Not authenticated, rendering nothing');
+  return null;
 }
 
 /**

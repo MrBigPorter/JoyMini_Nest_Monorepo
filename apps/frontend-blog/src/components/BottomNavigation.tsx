@@ -6,6 +6,7 @@ import { usePathname } from '@/navigation';
 import { getIsActive } from '@/lib/utils/navigation';
 import { NavLink } from '@/components/AnimatedLink';
 import { motion } from 'framer-motion';
+import { ProtectedLink } from '@/components/auth/ProtectedLink';
 
 export default function BottomNavigation() {
   const t = useTranslations();
@@ -54,7 +55,7 @@ export default function BottomNavigation() {
               strokeLinecap="round"
               strokeLinejoin="round"
               strokeWidth={2}
-              d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"
+              d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
             />
           </svg>
         ),
@@ -82,6 +83,7 @@ export default function BottomNavigation() {
       {
         href: '/bookmarks',
         labelKey: 'common.bookmarks',
+        protected: true,
         icon: (
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -128,6 +130,11 @@ export default function BottomNavigation() {
     setActiveStates(newActiveStates);
   }, [pathname, t]);
 
+  // 水合完成前不渲染
+  if (!isClient) {
+    return null;
+  }
+
   const navItems = [
     {
       href: '/',
@@ -144,7 +151,7 @@ export default function BottomNavigation() {
             strokeLinecap="round"
             strokeLinejoin="round"
             strokeWidth={2}
-            d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 0 1 1 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+            d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 0 0 0 1 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
           />
         </svg>
       ),
@@ -164,7 +171,7 @@ export default function BottomNavigation() {
             strokeLinecap="round"
             strokeLinejoin="round"
             strokeWidth={2}
-            d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"
+            d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
           />
         </svg>
       ),
@@ -192,6 +199,7 @@ export default function BottomNavigation() {
     {
       href: '/bookmarks',
       labelKey: 'common.bookmarks',
+      protected: true,
       icon: (
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -232,47 +240,87 @@ export default function BottomNavigation() {
   ];
 
   return (
-    <nav
-      className="fixed bottom-0 left-0 right-0 z-50 md:hidden"
-      style={{ height: 'var(--nav-height)' }}
-    >
-      {/* 实际导航栏内容 */}
-      <div className="h-14 flex items-center justify-around bg-background/80 backdrop-blur-md border-t border-border">
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-t border-border">
+      {/* 安全区域占位 */}
+      <div style={{ height: 'var(--safe-area-bottom)' }} />
+
+      {/* 实际导航内容 */}
+      <div className="h-14 px-4 flex items-center justify-around">
         {navItems.map((item) => {
-          // 双重渲染策略：服务器端渲染时不显示激活状态，客户端hydrate后显示
-          const isActive = isClient && (activeStates[item.href] || false);
+          const isActive = activeStates[item.href] || false;
+
+          // 受保护路由使用ProtectedLink，普通路由使用NavLink
+          if (item.protected) {
+            return (
+              <ProtectedLink
+                key={item.href}
+                href={item.href}
+                className="flex flex-col items-center justify-center h-full relative"
+              >
+                <div className="flex flex-col items-center justify-center">
+                  <div className="relative">
+                    {item.icon}
+                    {isActive && (
+                      <motion.div
+                        layoutId="bottom-nav-active"
+                        className="absolute -inset-2 rounded-full bg-primary/10"
+                        transition={{
+                          type: 'spring',
+                          stiffness: 500,
+                          damping: 30,
+                        }}
+                      />
+                    )}
+                  </div>
+                  <span
+                    className={`text-xs mt-1 transition-colors ${
+                      isActive
+                        ? 'text-primary font-medium'
+                        : 'text-muted-foreground'
+                    }`}
+                  >
+                    {t(item.labelKey)}
+                  </span>
+                </div>
+              </ProtectedLink>
+            );
+          }
+
           return (
             <NavLink
               key={item.href}
               href={item.href}
-              isActive={isActive}
-              className="flex flex-col items-center justify-center px-3 py-1"
-              tapScale={0.95}
-              hoverScale={1.08}
-              showTapFeedback={true}
-              showHoverFeedback={true}
+              className="flex flex-col items-center justify-center flex-1 h-full relative"
             >
-              <div className="flex items-center justify-center">
-                <div className="transition-colors duration-300">
+              <div className="flex flex-col items-center justify-center">
+                <div className="relative">
                   {item.icon}
+                  {isActive && (
+                    <motion.div
+                      layoutId="bottom-nav-active"
+                      className="absolute -inset-2 rounded-full bg-primary/10"
+                      transition={{
+                        type: 'spring',
+                        stiffness: 500,
+                        damping: 30,
+                      }}
+                    />
+                  )}
                 </div>
+                <span
+                  className={`text-xs mt-1 transition-colors ${
+                    isActive
+                      ? 'text-primary font-medium'
+                      : 'text-muted-foreground'
+                  }`}
+                >
+                  {t(item.labelKey)}
+                </span>
               </div>
-              <span
-                className={`text-xs mt-1 ${
-                  isActive
-                    ? 'font-semibold text-primary'
-                    : 'font-medium text-muted-foreground'
-                }`}
-              >
-                {t(item.labelKey)}
-              </span>
             </NavLink>
           );
         })}
       </div>
-
-      {/* 安全区域占位 */}
-      <div style={{ height: 'var(--safe-area-bottom)' }} />
     </nav>
   );
 }

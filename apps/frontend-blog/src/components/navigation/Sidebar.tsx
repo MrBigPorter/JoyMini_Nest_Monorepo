@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { getIsActive } from '@/lib/utils/navigation';
 import { NavLink } from '@/components/AnimatedLink';
+import { ProtectedLink } from '@/components/auth/ProtectedLink';
 
 export default function Sidebar() {
   const t = useTranslations();
@@ -24,9 +25,19 @@ export default function Sidebar() {
     { href: '/', icon: Home, label: t('common.home') },
     { href: '/categories', icon: FolderOpen, label: t('common.categories') },
     { href: '/tags', icon: Tag, label: t('common.tags') },
-    { href: '/bookmarks', icon: Bookmark, label: t('common.bookmarks') },
+    {
+      href: '/bookmarks',
+      icon: Bookmark,
+      label: t('common.bookmarks'),
+      protected: true,
+    },
     { href: '/about', icon: User, label: t('common.about') },
   ];
+
+  // 定义样式常量，确保服务器端和客户端一致
+  const linkBaseClass = 'flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200';
+  const activeClass = 'bg-primary/10 text-primary border border-primary/20';
+  const inactiveClass = 'hover:bg-accent text-foreground/80 hover:text-foreground';
 
   return (
     <aside
@@ -49,47 +60,64 @@ export default function Sidebar() {
           // 服务器端也能计算，避免 hydration 不匹配
           const isActive = getIsActive(pathname, item.href);
 
+          // 构建完整的className，确保服务器端和客户端一致
+          const justifyClass = isExpanded ? 'justify-start' : 'justify-center';
+          const linkClassName = `${linkBaseClass} ${
+            isActive ? activeClass : inactiveClass
+          } ${justifyClass}`;
+
+          // 渲染受保护链接或普通链接 - 明确的左右布局
+          const linkContent = (
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center w-8 h-8">
+                <Icon className="w-5 h-5" />
+              </div>
+              <span className={`whitespace-nowrap ${isExpanded ? '' : 'hidden'}`}>
+                {item.label}
+              </span>
+            </div>
+          );
+
+          // 受保护路由使用ProtectedLink，普通路由使用NavLink
+          if (item.protected) {
+            return (
+              <ProtectedLink
+                key={item.href}
+                href={item.href}
+                className={linkClassName}
+                title={item.label}
+              >
+                {linkContent}
+              </ProtectedLink>
+            );
+          }
+
           return (
             <NavLink
               key={item.href}
               href={item.href}
-              isActive={isActive}
-              className={`relative flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${
-                isActive
-                  ? 'bg-accent text-primary'
-                  : 'text-foreground/70 hover:bg-accent/50 hover:text-foreground'
-              }`}
-              activeClassName=""
+              className={linkClassName}
+              title={item.label}
             >
-              {/* 激活指示器始终存在，通过 opacity 控制 */}
-              <div className="flex items-center gap-3">
-                <Icon className="w-5 h-5 flex-shrink-0" />
-                {isExpanded && (
-                  <span
-                    className={`text-sm ${
-                      isActive ? 'font-semibold' : 'font-medium'
-                    }`}
-                  >
-                    {item.label}
-                  </span>
-                )}
-              </div>
+              {linkContent}
             </NavLink>
           );
         })}
       </nav>
 
-      {/* 折叠指示器 */}
-      <div className="p-3 border-t border-border">
+      {/* 折叠/展开按钮 */}
+      <div className="p-2 border-t border-border">
         <button
-          className="w-full flex items-center justify-center p-2 rounded-lg hover:bg-accent transition-colors"
           onClick={() => setIsExpanded(!isExpanded)}
+          className="w-full p-2 rounded-lg hover:bg-accent transition-colors flex items-center justify-center"
+          title={isExpanded ? '收起' : '展开'}
         >
           {isExpanded ? (
-            <ChevronLeft className="w-5 h-5 text-muted-foreground" />
+            <ChevronLeft className="w-5 h-5" />
           ) : (
-            <ChevronRight className="w-5 h-5 text-muted-foreground" />
+            <ChevronRight className="w-5 h-5" />
           )}
+          <span className="sr-only">{isExpanded ? '收起' : '展开'}</span>
         </button>
       </div>
     </aside>

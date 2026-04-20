@@ -3,10 +3,11 @@
 import { useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { Link, useRouter, usePathname } from '@/navigation';
-import { useTheme } from 'next-themes';
+import { useTheme } from '@/components/ThemeProvider';
 import { useAvailableLocales } from '@/hooks/useAvailableLocales';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useAuthStore } from '@/lib/stores/auth.store';
+
 import {
   Sun,
   Moon,
@@ -18,6 +19,7 @@ import {
   ChevronRight,
   Check,
 } from 'lucide-react';
+import { ProtectedLink } from '@/components/auth/ProtectedLink';
 
 interface LocaleConfig {
   code: string;
@@ -36,7 +38,7 @@ export function MobileSettingsContent({ onClose }: MobileSettingsContentProps) {
   const locale = useLocale();
   const router = useRouter();
   const pathname = usePathname();
-  const { theme, setTheme, systemTheme } = useTheme();
+  const { theme, setTheme } = useTheme();
   const { enabledLocales, isLoading: localesLoading } = useAvailableLocales();
   const { user, isAuthenticated, logout, isLoading: authLoading } = useAuth();
   const { isHydrated } = useAuthStore();
@@ -48,19 +50,41 @@ export function MobileSettingsContent({ onClose }: MobileSettingsContentProps) {
   const switchLocale = (nextLocale: string) => {
     router.replace(pathname, { locale: nextLocale });
     setShowLanguageList(false);
-    onClose?.();
+    if (onClose) onClose();
   };
 
   const toggleTheme = () => {
-    const current = theme === 'system' ? systemTheme : theme;
-    setTheme(current === 'dark' ? 'light' : 'dark');
+    setTheme(theme === 'dark' ? 'light' : 'dark');
   };
 
   const handleLogout = () => {
     logout();
-    onClose?.();
+    if (onClose) onClose();
   };
 
+  // 获取当前语言的显示名称
+  const getLocaleDisplayName = (code: string) => {
+    const locale = enabledLocales.find((l: LocaleConfig) => l.code === code);
+    if (!locale) return code.toUpperCase();
+
+    // 使用翻译键获取语言名称
+    const translationKey = `settings.language.${code}`;
+    try {
+      const translatedName = t(translationKey);
+      if (translatedName && translatedName !== translationKey) {
+        return code === 'en' ? 'EN' : translatedName;
+      }
+    } catch (error) {
+      // 如果翻译键不存在，回退到原始逻辑
+    }
+
+    // 回退逻辑
+    if (code === 'zh') return '中文';
+    if (code === 'en') return 'EN';
+    return locale.name.substring(0, 2).toUpperCase();
+  };
+
+  // 获取语言国旗emoji
   const getLocaleFlag = (code: string) => {
     const flags: Record<string, string> = {
       zh: '🇨🇳',
@@ -73,31 +97,13 @@ export function MobileSettingsContent({ onClose }: MobileSettingsContentProps) {
     return flags[code] || '🌐';
   };
 
-  const getCurrentLocaleDisplay = () => {
-    if (localesLoading || enabledLocales.length === 0) {
-      return `🌐 ${t('settings.language.select')}`;
-    }
-
-    const current = enabledLocales.find((l: LocaleConfig) => l.code === locale);
-    if (current) {
-      return `${getLocaleFlag(current.code)} ${current.name}`;
-    }
-
-    // 默认显示第一个语言
-    const defaultLocale = enabledLocales[0] as LocaleConfig;
-    return `${getLocaleFlag(defaultLocale.code)} ${defaultLocale.name}`;
-  };
-
   return (
-    <div className="space-y-6">
-      {/* 用户信息区域 */}
+    <div className="flex flex-col gap-2">
+      {/* 用户信息 */}
       {showAuthLoading ? (
-        <div className="flex items-center gap-3 p-4 rounded-xl bg-accent animate-pulse">
-          <div className="w-12 h-12 rounded-full bg-gray-300 dark:bg-gray-700" />
-          <div className="flex-1 space-y-2">
-            <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-24" />
-            <div className="h-3 bg-gray-300 dark:bg-gray-700 rounded w-32" />
-          </div>
+        <div className="p-4 rounded-xl bg-accent animate-pulse">
+          <div className="h-6 bg-gray-300 dark:bg-gray-700 rounded w-32 mb-2" />
+          <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-48" />
         </div>
       ) : isAuthenticated ? (
         <div className="p-4 rounded-xl bg-accent">
@@ -114,9 +120,7 @@ export function MobileSettingsContent({ onClose }: MobileSettingsContentProps) {
               </div>
             )}
             <div className="flex-1">
-              <div className="font-medium text-foreground">
-                {user?.nickname || t('settings.user')}
-              </div>
+              <div className="font-medium text-lg">{user?.nickname}</div>
               <div className="text-sm text-muted-foreground truncate">
                 {user?.email || t('settings.emailNotSet')}
               </div>
@@ -127,25 +131,14 @@ export function MobileSettingsContent({ onClose }: MobileSettingsContentProps) {
         <Link
           href="/login"
           onClick={onClose}
-          className="flex items-center justify-between p-4 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+          className="p-4 rounded-xl bg-primary text-primary-foreground text-center font-medium hover:bg-primary/90 transition-colors"
         >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-primary-foreground/20 flex items-center justify-center">
-              <User className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="font-medium">{t('settings.loginRegister')}</div>
-              <div className="text-sm opacity-90">
-                {t('settings.joinCommunity')}
-              </div>
-            </div>
-          </div>
-          <ChevronRight className="w-5 h-5" />
+          {t('auth.login.button')}
         </Link>
       )}
 
       {/* 设置项列表 */}
-      <div className="space-y-2">
+      <div className="flex flex-col gap-1">
         {/* 主题切换 */}
         <button
           onClick={toggleTheme}
@@ -182,42 +175,47 @@ export function MobileSettingsContent({ onClose }: MobileSettingsContentProps) {
         <button
           onClick={() => setShowLanguageList(!showLanguageList)}
           className="w-full flex items-center justify-between p-4 rounded-xl hover:bg-accent transition-colors"
+          disabled={localesLoading}
         >
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
               <Globe className="w-5 h-5 text-primary" />
             </div>
-
             <div className="text-left">
               <div className="font-medium">{t('settings.language.name')}</div>
               <div className="text-sm text-muted-foreground">
                 {localesLoading
-                  ? t('common.loading')
-                  : getCurrentLocaleDisplay()}
+                  ? t('settings.language.loading')
+                  : getLocaleDisplayName(locale)}
               </div>
             </div>
           </div>
-          <ChevronRight className="w-5 h-5 text-muted-foreground" />
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">
+              {localesLoading ? '...' : getLocaleDisplayName(locale)}
+            </span>
+            <ChevronRight className="w-5 h-5 text-muted-foreground" />
+          </div>
         </button>
 
         {/* 语言列表 */}
-        {showLanguageList && !localesLoading && (
-          <div className="ml-12 space-y-1">
-            {enabledLocales.map((localeConfig: LocaleConfig) => (
+        {showLanguageList && !localesLoading && enabledLocales.length > 0 && (
+          <div className="ml-4 border-l border-border pl-2">
+            {enabledLocales.map((localeItem: LocaleConfig) => (
               <button
-                key={localeConfig.code}
-                onClick={() => {
-                  switchLocale(localeConfig.code);
-                }}
-                className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-accent transition-colors"
+                key={localeItem.code}
+                onClick={() => switchLocale(localeItem.code)}
+                className={`w-full flex items-center justify-between p-3 rounded-lg hover:bg-accent transition-colors ${
+                  locale === localeItem.code ? 'bg-accent' : ''
+                }`}
               >
                 <div className="flex items-center gap-3">
-                  <span className="text-lg">
-                    {getLocaleFlag(localeConfig.code)}
+                  <span className="text-xl">
+                    {getLocaleFlag(localeItem.code)}
                   </span>
-                  <span>{t(`settings.language.${localeConfig.code}`)}</span>
+                  <span>{t(`settings.language.${localeItem.code}`)}</span>
                 </div>
-                {locale === localeConfig.code && (
+                {locale === localeItem.code && (
                   <Check className="w-5 h-5 text-primary" />
                 )}
               </button>
@@ -225,9 +223,9 @@ export function MobileSettingsContent({ onClose }: MobileSettingsContentProps) {
           </div>
         )}
 
-        {/* 我的收藏 */}
+        {/* 我的收藏 - 使用ProtectedLink */}
         {isAuthenticated && (
-          <Link
+          <ProtectedLink
             href="/bookmarks"
             onClick={onClose}
             className="w-full flex items-center justify-between p-4 rounded-xl hover:bg-accent transition-colors"
@@ -239,15 +237,15 @@ export function MobileSettingsContent({ onClose }: MobileSettingsContentProps) {
               <div className="font-medium">{t('settings.bookmarks')}</div>
             </div>
             <ChevronRight className="w-5 h-5 text-muted-foreground" />
-          </Link>
+          </ProtectedLink>
         )}
 
-        {/* 退出登录 */}
+        {/* 登出按钮 */}
         {isAuthenticated && (
           <button
             onClick={handleLogout}
-            disabled={authLoading}
             className="w-full flex items-center justify-between p-4 rounded-xl hover:bg-accent transition-colors text-red-500"
+            disabled={authLoading}
           >
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center">
@@ -259,15 +257,9 @@ export function MobileSettingsContent({ onClose }: MobileSettingsContentProps) {
                   : t('settings.logout.name')}
               </div>
             </div>
+            <ChevronRight className="w-5 h-5 text-red-500/70" />
           </button>
         )}
-      </div>
-
-      {/* 版本信息 */}
-      <div className="pt-4 border-t border-border">
-        <div className="text-center text-sm text-muted-foreground">
-          {t('settings.version')}
-        </div>
       </div>
     </div>
   );
