@@ -8,6 +8,7 @@ import type { Locale } from '@/lib/i18n/config';
 // revalidate combination
 // Each locale has independent cache, no cross contamination
 export const revalidate = 600;
+export const dynamic = 'auto';
 
 // generate static params for all locales
 export async function generateStaticParams() {

@@ -1,9 +1,11 @@
 /**
  * Cookie管理器
  * 用于在客户端和服务端之间同步状态
+ * 支持跨平台适配：Web、Capacitor App
  */
 
 import { LOCALES, DEFAULT_LOCALE } from '@/lib/i18n/config';
+import { isCapacitor, getPlatformStorage } from '@/lib/utils/platform';
 
 /**
  * 设置语言Cookie
@@ -16,7 +18,7 @@ export function setLocaleCookie(locale: string): void {
 }
 
 /**
- * 设置认证Token Cookie
+ * 设置认证Token Cookie（跨平台适配）
  */
 export function setTokenCookie(token: string): void {
   if (typeof document === 'undefined') return;
@@ -26,22 +28,46 @@ export function setTokenCookie(token: string): void {
   const secureFlag = isProduction ? '; Secure' : '';
   const httpOnlyFlag = isProduction ? '; HttpOnly' : '';
 
+  // Web环境：设置HTTP Cookie
   document.cookie = `token=${token}; path=/; max-age=86400; SameSite=Lax${secureFlag}${httpOnlyFlag}`;
+
+  // App环境（Capacitor）：同时设置原生存储
+  if (isCapacitor) {
+    try {
+      // 使用平台存储适配器
+      const storage = getPlatformStorage();
+      storage.setItem('auth_token', token);
+      console.log('CookieManager: Token saved to Capacitor storage');
+    } catch (error) {
+      console.warn(
+        'CookieManager: Failed to save token to Capacitor storage:',
+        error,
+      );
+    }
+  }
 }
 
 /**
- * 清除认证Token Cookie
+ * 清除认证Token Cookie（跨平台适配）
  */
 export function clearTokenCookie(): void {
   if (typeof document === 'undefined') return;
 
+  // Web环境：清除HTTP Cookie
   document.cookie = 'token=; path=/; max-age=0; SameSite=Lax';
 
-  // 同时清除localStorage中的token
-  try {
-    localStorage.removeItem('token');
-  } catch (error) {
-    console.warn('Failed to remove token from localStorage:', error);
+  // App环境（Capacitor）：同时清除原生存储
+  if (isCapacitor) {
+    try {
+      const storage = getPlatformStorage();
+      storage.removeItem('auth_token');
+      console.log('CookieManager: Token removed from Capacitor storage');
+    } catch (error) {
+      console.warn(
+        'CookieManager: Failed to remove token from Capacitor storage:',
+        error,
+      );
+    }
   }
 }
 
@@ -182,29 +208,6 @@ export class CookieManager {
    */
   static isAuthenticated(): boolean {
     return !!getTokenCookie();
-  }
-
-  /**
-   * 同步localStorage到Cookie（用于迁移）
-   */
-  static syncFromLocalStorage(): void {
-    if (typeof window === 'undefined') return;
-
-    try {
-      // 同步语言
-      const locale = localStorage.getItem('locale');
-      if (locale && !getLocaleCookie()) {
-        setLocaleCookie(locale);
-      }
-
-      // 同步token
-      const token = localStorage.getItem('token');
-      if (token && !getTokenCookie()) {
-        setTokenCookie(token);
-      }
-    } catch (error) {
-      console.warn('Failed to sync localStorage to cookies:', error);
-    }
   }
 
   /**

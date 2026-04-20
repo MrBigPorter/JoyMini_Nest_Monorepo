@@ -74,17 +74,13 @@ export function AnimatedLink({
     <motion.div
       initial={false} // 关键：禁止初始动画，统一 SSR/CSR
       {...animationProps}
-      className="inline-block"
       style={{
         cursor: 'pointer',
         willChange: 'transform',
       }}
       suppressHydrationWarning // 压制 hydration 警告
     >
-      <Link
-        className={`transition-colors duration-200 ${className}`}
-        {...props}
-      >
+      <Link className={className} {...props}>
         {children}
       </Link>
     </motion.div>
@@ -109,10 +105,9 @@ export function NavLink({
   href,
   ...props
 }: NavLinkProps) {
-  const baseClassName = `transition-all duration-300 ${className}`;
   const finalClassName = isActive
-    ? `${baseClassName} ${activeClassName}`
-    : baseClassName;
+    ? `${className} ${activeClassName}`
+    : className;
 
   return (
     <AnimatedLink
@@ -122,19 +117,7 @@ export function NavLink({
       hoverScale={1.03}
       {...props}
     >
-      <motion.span
-        animate={
-          isActive
-            ? {
-                scale: 1.02,
-                textShadow: '0 0 8px rgba(var(--color-primary), 0.3)',
-              }
-            : {}
-        }
-        transition={{ duration: 0.2 }}
-      >
-        {children}
-      </motion.span>
+      {children}
     </AnimatedLink>
   );
 }
