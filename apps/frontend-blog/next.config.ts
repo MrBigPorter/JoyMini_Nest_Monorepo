@@ -53,45 +53,12 @@ const withPWA = require('next-pwa')({
       },
     },
     {
-      urlPattern: /\.(?:js)$/i,
+      urlPattern: /\.(?:js|css|mjs)$/i,
       handler: 'StaleWhileRevalidate',
       options: {
-        cacheName: 'static-js-assets',
+        cacheName: 'static-js-css-assets',
         expiration: {
           maxEntries: 32,
-          maxAgeSeconds: 7 * 24 * 60 * 60, // 7天
-        },
-      },
-    },
-    {
-      urlPattern: /\.(?:css|less)$/i,
-      handler: 'StaleWhileRevalidate',
-      options: {
-        cacheName: 'static-style-assets',
-        expiration: {
-          maxEntries: 32,
-          maxAgeSeconds: 7 * 24 * 60 * 60, // 7天
-        },
-      },
-    },
-    {
-      urlPattern: /\/_next\/static\/.*/i,
-      handler: 'CacheFirst',
-      options: {
-        cacheName: 'next-static',
-        expiration: {
-          maxEntries: 64,
-          maxAgeSeconds: 24 * 60 * 60, // 24小时
-        },
-      },
-    },
-    {
-      urlPattern: /\/_next\/image\?url=.+$/i,
-      handler: 'StaleWhileRevalidate',
-      options: {
-        cacheName: 'next-image',
-        expiration: {
-          maxEntries: 64,
           maxAgeSeconds: 24 * 60 * 60, // 24小时
         },
       },
@@ -129,7 +96,10 @@ const withPWA = require('next-pwa')({
   ],
 });
 
-const nextConfig: NextConfig = {
+const isAppMode = process.env.BUILD_TARGET === 'app';
+
+// 基础通用配置
+const baseConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -139,26 +109,107 @@ const nextConfig: NextConfig = {
   trailingSlash: true,
 
   // 平台感知的输出配置
-  // App构建使用静态导出，自动忽略ISR配置
+  // App构建使用静态导出，支持Capacitor打包
   // Web构建使用独立部署，支持ISR/SSG
-  output: process.env.BUILD_TARGET === 'app' ? 'export' : 'standalone',
+  output: isAppMode ? 'export' : 'standalone',
 
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'img.joyminis.com' },
       { protocol: 'https', hostname: '*.googleusercontent.com' },
       { protocol: 'https', hostname: '*.facebook.com' },
-      { protocol: 'https', hostname: 'picsum.photos' },
-      { protocol: 'https', hostname: '*.picsum.photos' },
+      { protocol: 'https', hostname: '*.fbcdn.net' },
+      { protocol: 'https', hostname: '*.cloudinary.com' },
+      { protocol: 'https', hostname: '*.unsplash.com' },
+      { protocol: 'https', hostname: '*.githubusercontent.com' },
     ],
+    // App模式下禁用图片优化
+    unoptimized: isAppMode,
+  },
+
+  // 基础重定向配置
+  redirects: async () => {
+    return [
+      {
+        source: '/admin',
+        destination: '/admin/dashboard',
+        permanent: true,
+      },
+      {
+        source: '/login',
+        destination: '/auth/login',
+        permanent: true,
+      },
+      {
+        source: '/register',
+        destination: '/auth/register',
+        permanent: true,
+      },
+    ];
+  },
+
+  // 安全头配置
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          {
+            key: 'X-DNS-Prefetch-Control',
+            value: 'on',
+          },
+          {
+            key: 'Strict-Transport-Security',
+            value: 'max-age=63072000; includeSubDomains; preload',
+          },
+          {
+            key: 'X-Content-Type-Options',
+            value: 'nosniff',
+          },
+          {
+            key: 'X-Frame-Options',
+            value: 'DENY',
+          },
+          {
+            key: 'X-XSS-Protection',
+            value: '1; mode=block',
+          },
+          {
+            key: 'Referrer-Policy',
+            value: 'origin-when-cross-origin',
+          },
+          {
+            key: 'Permissions-Policy',
+            value: 'camera=(), microphone=(), geolocation=()',
+          },
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=3600, stale-while-revalidate=86400',
+          },
+        ],
+      },
+      {
+        source: '/_next/static/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+        ],
+      },
+      {
+        source: '/fonts/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+        ],
+      },
+    ];
   },
 
   transpilePackages: ['@lucky/shared'],
-
-  // 注意：allowedDevOrigins 在 Next.js 15 中已不再支持
-  // 如果需要开发源控制，请使用其他方式
-  // 注意：turbopack 配置在 Next.js 15 中已不再支持
-  // 如果需要自定义别名，请使用 webpack 配置
 
   outputFileTracingExcludes: {
     '*': [
@@ -195,7 +246,9 @@ const nextConfig: NextConfig = {
     ],
   },
 
+  // Webpack配置
   webpack: (config, { isServer, webpack }) => {
+    // 处理Node.js原生模块
     if (!isServer) {
       config.resolve.fallback = {
         ...config.resolve.fallback,
@@ -250,11 +303,72 @@ const nextConfig: NextConfig = {
   },
 };
 
+// Web模式特有配置
+const webConfig: NextConfig = {
+  ...baseConfig,
+  // Web模式特有重定向
+  redirects: async () => {
+    const baseRedirects = await baseConfig.redirects?.();
+    return [
+      ...(baseRedirects || []),
+      {
+        source: '/app',
+        destination: '/',
+        permanent: false,
+      },
+    ];
+  },
+};
+
+// App模式特有配置
+const appConfig: NextConfig = {
+  ...baseConfig,
+  // App模式需要trailingSlash
+  trailingSlash: true,
+
+  // App模式特有重定向
+  redirects: async () => {
+    const baseRedirects = await baseConfig.redirects?.();
+    return [
+      ...(baseRedirects || []),
+      {
+        source: '/api/:path*',
+        destination: 'https://api.joyminis.com/:path*',
+        permanent: false,
+      },
+    ];
+  },
+
+  // App模式下的headers配置
+  headers: async () => {
+    const baseHeaders = await baseConfig.headers?.();
+    return [
+      ...(baseHeaders || []),
+      {
+        source: '/:path*',
+        headers: [
+          {
+            key: 'X-App-Mode',
+            value: 'hybrid',
+          },
+        ],
+      },
+    ];
+  },
+
+  // App模式下跳过页面验证
+  skipTrailingSlashRedirect: true,
+  skipMiddlewareUrlNormalize: true,
+};
+
+// 根据环境变量动态选择配置
+const dynamicConfig = isAppMode ? appConfig : webConfig;
+
 export default withSentryConfig(
-  withBundleAnalyzer(withPWA(withNextIntl(nextConfig))),
+  withBundleAnalyzer(withPWA(withNextIntl(dynamicConfig))),
   {
     org: process.env.SENTRY_ORG,
-    project: 'frontend-blog',
+    project: 'tarsier-labs',
     silent: !process.env.CI,
     sourcemaps: {
       disable: !process.env.SENTRY_AUTH_TOKEN,

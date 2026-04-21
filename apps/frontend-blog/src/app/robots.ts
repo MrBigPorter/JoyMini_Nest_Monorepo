@@ -37,4 +37,5 @@ export default function robots(): MetadataRoute.Robots {
 }
 
 // 静态生成，无需重新验证
-export const dynamic = 'auto';
+export const dynamic = 'force-static';
+export const revalidate = false;

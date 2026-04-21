@@ -19,7 +19,7 @@ interface HomePageClientProps {
     pageSize: number;
     totalPages: number;
   };
-  initialArticleIds: string[];
+  initialArticleIds?: string[];
   locale: string;
 }
 
