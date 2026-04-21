@@ -132,6 +132,6 @@ export async function seedProductCategories(): Promise<Record<string, number>> {
     await db.productCategory.delete({ where: { id: legacy.id } });
   }
 
-  console.log(`  ✅ ProductCategory  +${created} new`);
+  console.log(`   ProductCategory  +${created} new`);
   return idMap;
 }

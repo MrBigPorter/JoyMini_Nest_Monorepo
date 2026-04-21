@@ -56,7 +56,7 @@ function testMapArticleToLocalized() {
     
     // 检查中文是否在 localizedObject 中
     if (localizedObject['zh']) {
-      console.log(`✅ localizedObject 包含中文: ${localizedObject['zh']}`);
+      console.log(` localizedObject 包含中文: ${localizedObject['zh']}`);
     } else {
       console.log(`❌ localizedObject 缺少中文!`);
     }

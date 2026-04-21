@@ -119,7 +119,7 @@ async function main() {
     });
   }
 
-  console.log(`✅ Seeded ${idTypes.length} KYC ID Types.`);
+  console.log(` Seeded ${idTypes.length} KYC ID Types.`);
 }
 
 main()

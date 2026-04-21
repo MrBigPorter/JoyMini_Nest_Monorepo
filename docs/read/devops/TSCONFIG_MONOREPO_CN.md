@@ -35,7 +35,7 @@
 ### 正确写法
 
 ```jsonc
-// apps/api/tsconfig.json — 正确写法 ✅
+// apps/api/tsconfig.json — 正确写法
 {
   "compilerOptions": {
     "outDir": "./dist",
@@ -93,8 +93,8 @@ include: ["src/**/*", "scripts/**/*.ts"]
 ```
 include: ["src/**/*"] only
 → rootDir 推断为 apps/api/src/
-→ src/main.ts → dist/main.js ✅
-→ src/common/xxx.ts → dist/common/xxx.js ✅
+→ src/main.ts → dist/main.js
+→ src/common/xxx.ts → dist/common/xxx.js
 ```
 
 ### NestJS CLI 如何选择 tsconfig
@@ -120,7 +120,7 @@ apps/api/
 │
 ├── tsconfig.build.json    # nest build 专用
 │                          # include: ["src/**/*"] 只含 src
-│                          # 用于: nest build → dist/main.js ✅
+│                          # 用于: nest build → dist/main.js
 │
 └── tsconfig.cli.json      # 脚本编译专用
                            # include: ["scripts/cli/**/*.ts", "scripts/seed/**/*.ts"]
@@ -178,7 +178,7 @@ grep '"include"' apps/api/tsconfig.build.json
 | "monorepo 不能共享 tsconfig"                     | 可以共享，本项目 `packages/typescript-config/` 已提供基础配置               |
 | "`paths` 指向 `src/` 可以让 IDE 跳到源码"        | 代价是破坏 `rootDir`；用 Project References 才能同时满足 IDE 跳转和正确编译 |
 | "`tsconfig.build.json` 只是排除测试文件"         | 还必须限制 `include` 只含 `src/`，否则 `scripts/` 会影响 rootDir            |
-| "TypeScript 只用 `.d.ts` 做类型检查，不会输出它" | ✅ 正确，这是解决方案的核心：paths 指向 `.d.ts` 才安全                      |
+| "TypeScript 只用 `.d.ts` 做类型检查，不会输出它" | 正确，这是解决方案的核心：paths 指向 `.d.ts` 才安全                         |
 
 ---
 

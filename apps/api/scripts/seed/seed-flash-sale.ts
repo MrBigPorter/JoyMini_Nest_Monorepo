@@ -94,8 +94,8 @@ export async function seedFlashSale() {
     }
   }
 
-  console.log(`  ✅ FlashSaleSession +${sCreated} new`);
-  console.log(`  ✅ FlashSaleProduct +${pCreated} new`);
+  console.log(`   FlashSaleSession +${sCreated} new`);
+  console.log(`   FlashSaleProduct +${pCreated} new`);
   if (pUpdated > 0) {
     console.log(`  ♻️ FlashSaleProduct  ${pUpdated} updated`);
   }

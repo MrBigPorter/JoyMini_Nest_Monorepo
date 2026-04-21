@@ -24,10 +24,10 @@
 
 **Core Advantages**:
 
-- ✅ Solve iOS H5 OAuth interception issue
-- ✅ Unified code across all platforms, 70% reduction in maintenance cost
-- ✅ Firebase automatically handles token refresh
-- ✅ Backend only needs one endpoint, simplified logic
+- Solve iOS H5 OAuth interception issue
+- Unified code across all platforms, 70% reduction in maintenance cost
+- Firebase automatically handles token refresh
+- Backend only needs one endpoint, simplified logic
 
 ---
 
@@ -706,9 +706,9 @@ class LoginPage extends StatelessWidget {
 
 ```
 Authentication → Sign-in method → Enable the following:
-- Google ✅
-- Facebook ✅
-- Apple ✅
+- Google
+- Facebook
+- Apple
 ```
 
 ### 5.3 Add Applications
@@ -788,13 +788,13 @@ Apple Developer → Certificates, Identifiers & Profiles
 
 ### 6.1 What Should Be in Client
 
-- ✅ Put: Firebase configuration (apiKey, appId, etc. public identifiers)
+- Put: Firebase configuration (apiKey, appId, etc. public identifiers)
 - ❌ Don't put: Firebase Admin SDK private key
 
 ### 6.2 What Should Be in Backend
 
-- ✅ Put: `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`
-- ✅ Backend responsible for token verification and issuing business JWT
+- Put: `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`
+- Backend responsible for token verification and issuing business JWT
 
 ### 6.3 H5 Configuration
 

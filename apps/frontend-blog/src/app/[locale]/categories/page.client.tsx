@@ -76,7 +76,7 @@ export default function CategoriesPageClient({
                       : category.name.includes('团队')
                         ? '👥'
                         : category.name.includes('最佳')
-                          ? '✅'
+                          ? ''
                           : category.name.includes('教程')
                             ? '📚'
                             : '📂'}

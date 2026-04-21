@@ -422,7 +422,7 @@ export function IsSmartPhone(options?: PhoneOptions) {
   const { strictPH = true, ...validationOptions } = options || {};
 
   return applyDecorators(
-    // ✅ 只在入参时清洗
+    //  只在入参时清洗
     Transform(
       ({ value }) => {
         if (typeof value !== 'string') return value;

@@ -10,25 +10,25 @@
 
 ## 📦 Provider 层级关系说明
 
-| Provider                    | 职责                            | 所在位置                  | 关键配置                  |
-| --------------------------- | ------------------------------- | ------------------------- | ------------------------- |
-| ✅ `NextIntlClientProvider` | next-intl官方上下文             | `app/[locale]/layout.tsx` | **必须加 `key={locale}`** |
-| ✅ `I18nProvider`           | 自定义包装层，同步html lang属性 | `app/[locale]/layout.tsx` | -                         |
-| ✅ `ThemeProvider`          | 暗黑主题                        | `app/[locale]/layout.tsx` | -                         |
-| ✅ `QueryProvider`          | TanStack Query                  | `app/[locale]/layout.tsx` | -                         |
+| Provider                 | 职责                            | 所在位置                  | 关键配置                  |
+| ------------------------ | ------------------------------- | ------------------------- | ------------------------- |
+| `NextIntlClientProvider` | next-intl官方上下文             | `app/[locale]/layout.tsx` | **必须加 `key={locale}`** |
+| `I18nProvider`           | 自定义包装层，同步html lang属性 | `app/[locale]/layout.tsx` | -                         |
+| `ThemeProvider`          | 暗黑主题                        | `app/[locale]/layout.tsx` | -                         |
+| `QueryProvider`          | TanStack Query                  | `app/[locale]/layout.tsx` | -                         |
 
 > ❗ **重要**: 所有Provider必须放在 `[locale]` 层布局内，绝对不能放在根布局里！
 
 ---
 
-## ✅ 最终正确架构
+## 最终正确架构
 
 ### 1. 根布局 `app/layout.tsx`
 
 **绝对不要在这里放任何东西！**
 
 ```tsx
-// ✅ 正确的根布局：只透传内容
+//  正确的根布局：只透传内容
 export default function RootLayout({ children }) {
   return children;
 }
@@ -44,13 +44,13 @@ import { setRequestLocale } from "next-intl/server";
 import { readFileSync } from "fs";
 import { resolve } from "path";
 
-// ✅ 必须在语言层包含完整的HTML骨架
+//  必须在语言层包含完整的HTML骨架
 export default async function LocaleLayout({ children, params }) {
   const { locale } = await params;
 
   setRequestLocale(locale);
 
-  // ✅ 绕过 getRequestConfig BUG 直接读取文件
+  //  绕过 getRequestConfig BUG 直接读取文件
   const messagesPath = resolve(process.cwd(), `src/messages/${locale}.json`);
   const messages = JSON.parse(readFileSync(messagesPath, "utf8"));
 
@@ -111,7 +111,7 @@ const switchLocale = (nextLocale) => {
 
 ---
 
-## ✅ 正确的调试方法
+## 正确的调试方法
 
 在以下4个关键点加入日志，可以100%定位任何问题：
 
@@ -132,12 +132,12 @@ const switchLocale = (nextLocale) => {
 
 ## 🎯 最终效果
 
-✅ 语言切换 0 延迟
-✅ 所有翻译实时更新
-✅ 页面保持滚动位置
-✅ 没有任何控制台错误
-✅ 完全符合官方架构
-✅ 没有任何临时hack代码
+语言切换 0 延迟
+所有翻译实时更新
+页面保持滚动位置
+没有任何控制台错误
+完全符合官方架构
+没有任何临时hack代码
 
 ---
 
@@ -152,7 +152,7 @@ const switchLocale = (nextLocale) => {
         ↓
 [Next.js Server] 匹配动态路由 [locale]
         ↓
-[服务端] app/[locale]/layout.tsx 执行 ✅ 这是唯一会重新执行的布局
+[服务端] app/[locale]/layout.tsx 执行  这是唯一会重新执行的布局
         ↓
 [服务端] fs.readFileSync 读取对应语言messages.json
         ↓
@@ -164,7 +164,7 @@ const switchLocale = (nextLocale) => {
         ↓
 [客户端] 所有组件翻译实时更新
 
-✅ 整个流程 0 延迟 ✅
+ 整个流程 0 延迟
 ```
 
 ---
@@ -173,14 +173,14 @@ const switchLocale = (nextLocale) => {
 
 以后团队任何人遇到多语言问题，严格按照这个优先级检查，10分钟内一定解决：
 
-| 优先级      | 检查项                         | 正确结果                                   |
-| ----------- | ------------------------------ | ------------------------------------------ |
-| 🔴 **最高** | 检查 `app/layout.tsx`          | ✅ 必须是空的，只返回 children             |
-| 🟠          | 检查 `app/[locale]/layout.tsx` | ✅ 必须包含完整 `<html>` `<body>` 标签     |
-| 🟡          | 检查 `NextIntlClientProvider`  | ✅ 必须加 `key={locale}` 属性              |
-| 🟢          | 检查 messages 加载方式         | ✅ 必须用 fs.readFileSync 直接读取         |
-| 🔵          | 检查导航API                    | ✅ 必须使用 `@/navigation` 导出的useRouter |
-| 🟣          | 检查根布局                     | ❌ 绝对不要放任何Provider或HTML标签        |
+| 优先级      | 检查项                         | 正确结果                                |
+| ----------- | ------------------------------ | --------------------------------------- |
+| 🔴 **最高** | 检查 `app/layout.tsx`          | 必须是空的，只返回 children             |
+| 🟠          | 检查 `app/[locale]/layout.tsx` | 必须包含完整 `<html>` `<body>` 标签     |
+| 🟡          | 检查 `NextIntlClientProvider`  | 必须加 `key={locale}` 属性              |
+| 🟢          | 检查 messages 加载方式         | 必须用 fs.readFileSync 直接读取         |
+| 🔵          | 检查导航API                    | 必须使用 `@/navigation` 导出的useRouter |
+| 🟣          | 检查根布局                     | ❌ 绝对不要放任何Provider或HTML标签     |
 
 ---
 
@@ -192,14 +192,14 @@ const switchLocale = (nextLocale) => {
 
 **原因**: 同时导入了原生 `next/navigation` 和 `@/navigation` 两个版本的usePathname。
 
-- ✅ 解决：全局统一使用 `@/navigation` 导出的所有导航API
-- ✅ 从项目中彻底删除所有 `import { usePathname } from 'next/navigation'`
+- 解决：全局统一使用 `@/navigation` 导出的所有导航API
+- 从项目中彻底删除所有 `import { usePathname } from 'next/navigation'`
 
 ### ❌ 语言切换滚动到顶部
 
 **原因**: router.replace 默认会重置滚动位置。
 
-- ✅ 解决：添加 `{ scroll: false }` 选项
+- 解决：添加 `{ scroll: false }` 选项
 
 ```ts
 router.replace(pathname, { locale: nextLocale }, { scroll: false });
@@ -209,7 +209,7 @@ router.replace(pathname, { locale: nextLocale }, { scroll: false });
 
 **原因**: 根布局里有客户端组件。
 
-- ✅ 解决：所有客户端组件全部移到 `[locale]` 层布局内
+- 解决：所有客户端组件全部移到 `[locale]` 层布局内
 
 ---
 

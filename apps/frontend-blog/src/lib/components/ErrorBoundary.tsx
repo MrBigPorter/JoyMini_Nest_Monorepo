@@ -43,7 +43,7 @@ export class ErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
     // 记录错误信息
     console.error('ErrorBoundary caught an error:', error, errorInfo);
-    
+
     // 更新state以包含错误信息
     this.setState({
       error,
@@ -75,7 +75,12 @@ export class ErrorBoundary extends Component<Props, State> {
       }
 
       // 否则使用默认降级UI
-      return <DefaultErrorFallback error={this.state.error} onRetry={this.handleRetry} />;
+      return (
+        <DefaultErrorFallback
+          error={this.state.error}
+          onRetry={this.handleRetry}
+        />
+      );
     }
 
     return this.props.children;

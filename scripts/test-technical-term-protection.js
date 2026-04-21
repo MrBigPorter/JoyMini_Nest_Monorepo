@@ -121,7 +121,7 @@ async function runTests() {
       }
       
       if (testPassed) {
-        console.log(`✅ ${description}`);
+        console.log(` ${description}`);
         console.log(`   输入: "${input}"`);
         console.log(`   输出: "${result}"`);
         console.log(`   期望: "${expected}"\n`);
@@ -173,7 +173,7 @@ async function runIntegrationTest() {
     return;
   }
   
-  console.log('✅ 环境变量配置正确，可以运行集成测试');
+  console.log(' 环境变量配置正确，可以运行集成测试');
   console.log('💡 提示: 实际集成测试需要启动API服务并调用翻译接口');
 }
 

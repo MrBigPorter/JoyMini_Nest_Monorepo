@@ -1,6 +1,6 @@
 # OAuth Deep Link 快速实施指南
 
-## ✅ 后端已完成
+## 后端已完成
 
 ### API端点已创建
 
@@ -276,11 +276,11 @@ APPLE_REDIRECT_URI=https://api.luna.com/auth/apple/callback
 
 ## 📊 优势总结
 
-- ✅ **零SDK依赖**：不需要Firebase或各平台原生SDK
-- ✅ **统一逻辑**：所有OAuth在后端处理
-- ✅ **三端兼容**：H5、iOS、Android都可用
-- ✅ **用户体验好**：系统浏览器，无兼容问题
-- ✅ **维护简单**：新增provider只需改后端
+- **零SDK依赖**：不需要Firebase或各平台原生SDK
+- **统一逻辑**：所有OAuth在后端处理
+- **三端兼容**：H5、iOS、Android都可用
+- **用户体验好**：系统浏览器，无兼容问题
+- **维护简单**：新增provider只需改后端
 
 ## 🚀 下一步
 

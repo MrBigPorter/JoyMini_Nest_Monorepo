@@ -32,8 +32,16 @@ export function Skeleton({
     <div
       className={`bg-slate-200 dark:bg-slate-700 ${roundedClass} ${animationClass} ${className}`}
       style={{
-        width: width ? (typeof width === 'number' ? `${width}px` : width) : '100%',
-        height: height ? (typeof height === 'number' ? `${height}px` : height) : 'auto',
+        width: width
+          ? typeof width === 'number'
+            ? `${width}px`
+            : width
+          : '100%',
+        height: height
+          ? typeof height === 'number'
+            ? `${height}px`
+            : height
+          : 'auto',
       }}
     />
   );

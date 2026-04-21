@@ -54,14 +54,14 @@ async function fixLocalizedFields() {
             zh: article.title,
           };
           needsUpdate = true;
-          console.log(`  ✅ 修复 titleLocalized: 添加中文标题`);
+          console.log(`   修复 titleLocalized: 添加中文标题`);
         } else if (hasZh && !currentTitleLocalized.zh) {
           updates.titleLocalized = {
             ...currentTitleLocalized,
             zh: article.title,
           };
           needsUpdate = true;
-          console.log(`  ✅ 修复 titleLocalized: 更新中文标题`);
+          console.log(`   修复 titleLocalized: 更新中文标题`);
         }
       }
       
@@ -76,14 +76,14 @@ async function fixLocalizedFields() {
             zh: article.excerpt,
           };
           needsUpdate = true;
-          console.log(`  ✅ 修复 excerptLocalized: 添加中文摘要`);
+          console.log(`   修复 excerptLocalized: 添加中文摘要`);
         } else if (hasZh && !currentExcerptLocalized.zh) {
           updates.excerptLocalized = {
             ...currentExcerptLocalized,
             zh: article.excerpt,
           };
           needsUpdate = true;
-          console.log(`  ✅ 修复 excerptLocalized: 更新中文摘要`);
+          console.log(`   修复 excerptLocalized: 更新中文摘要`);
         }
       }
       
@@ -98,14 +98,14 @@ async function fixLocalizedFields() {
             zh: article.content,
           };
           needsUpdate = true;
-          console.log(`  ✅ 修复 contentLocalized: 添加中文内容`);
+          console.log(`   修复 contentLocalized: 添加中文内容`);
         } else if (hasZh && !currentContentLocalized.zh) {
           updates.contentLocalized = {
             ...currentContentLocalized,
             zh: article.content,
           };
           needsUpdate = true;
-          console.log(`  ✅ 修复 contentLocalized: 更新中文内容`);
+          console.log(`   修复 contentLocalized: 更新中文内容`);
         }
       }
       
@@ -120,14 +120,14 @@ async function fixLocalizedFields() {
             zh: article.contentMd,
           };
           needsUpdate = true;
-          console.log(`  ✅ 修复 contentMdLocalized: 添加中文Markdown内容`);
+          console.log(`   修复 contentMdLocalized: 添加中文Markdown内容`);
         } else if (hasZh && !currentContentMdLocalized.zh) {
           updates.contentMdLocalized = {
             ...currentContentMdLocalized,
             zh: article.contentMd,
           };
           needsUpdate = true;
-          console.log(`  ✅ 修复 contentMdLocalized: 更新中文Markdown内容`);
+          console.log(`   修复 contentMdLocalized: 更新中文Markdown内容`);
         }
       }
       
@@ -139,7 +139,7 @@ async function fixLocalizedFields() {
             data: updates,
           });
           fixedCount++;
-          console.log(`  ✅ 文章 ${article.id} 更新成功\n`);
+          console.log(`   文章 ${article.id} 更新成功\n`);
         } catch (error) {
           console.error(`  ❌ 文章 ${article.id} 更新失败:`, error.message);
         }

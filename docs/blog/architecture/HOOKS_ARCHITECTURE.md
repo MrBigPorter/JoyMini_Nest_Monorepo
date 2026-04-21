@@ -13,7 +13,7 @@
 
 ## 🎯 背景与痛点
 
-### ✅ 项目背景
+### 项目背景
 
 本项目是基于 Next.js 15 App Router 的博客前台应用，需要同时支持 **SSR / SSG / CSR** 三种渲染模式，并且所有页面需要完美兼容静态导出 `next export`。
 
@@ -30,13 +30,13 @@
 
 ## 🚀 设计目标
 
-### ✅ 核心原则
+### 核心原则
 
 ```
-✅ 业务代码永远不需要知道运行在什么环境
-✅ 同一个Hook在 SSR / SSG / CSR 下自动选择最优实现
-✅ 零心智负担，开发只需要关心业务逻辑
-✅ 所有边界情况在Hook层统一处理
+ 业务代码永远不需要知道运行在什么环境
+ 同一个Hook在 SSR / SSG / CSR 下自动选择最优实现
+ 零心智负担，开发只需要关心业务逻辑
+ 所有边界情况在Hook层统一处理
 ```
 
 ### 🎯 具体目标
@@ -96,14 +96,14 @@
 const { env, isServer, isClient, isSSG, isSSR } = useEnvironment();
 ```
 
-✅ **能力**:
+**能力**:
 
 - 自动检测当前运行环境: `ssr` | `ssg` | `csr`
 - 提供统一的环境判断方法
 - 避免业务代码中出现 `typeof window` 判断
 - 支持静态导出模式检测
 
-✅ **解决的问题**:
+  **解决的问题**:
 
 - 消除代码中分散的环境判断逻辑
 - 统一处理 hydration 不匹配问题
@@ -117,14 +117,14 @@ const { env, isServer, isClient, isSSG, isSSR } = useEnvironment();
 const { toast, success, error, warning, info } = useToast();
 ```
 
-✅ **能力**:
+**能力**:
 
 - 全局统一的消息提示系统
 - 支持多种消息类型
 - 自动消失动画
 - 堆叠管理，避免消息重叠
 
-✅ **设计原则**:
+  **设计原则**:
 
 - 所有API错误统一通过Toast提示
 - 业务代码不需要处理消息显示逻辑
@@ -146,15 +146,15 @@ const result = await confirm({
 });
 ```
 
-✅ **能力**:
+**能力**:
 
 - Promise 风格的确认对话框
 - 不需要在每个组件中维护弹窗状态
 - 统一的UI风格和交互
 - 支持多种确认类型
 
-✅ **革命性改进**:
-把原来需要50行代码的弹窗逻辑，简化成1行 await 调用
+  **革命性改进**:
+  把原来需要50行代码的弹窗逻辑，简化成1行 await 调用
 
 ---
 
@@ -167,14 +167,14 @@ const { articles, isLoading, error, pagination, refresh, loadMore } =
   useArticles({ page: 1, size: 10, category: "tech" });
 ```
 
-✅ **内置能力**:
+**内置能力**:
 
-- ✅ 自动分页处理
-- ✅ 无限滚动加载
-- ✅ 本地缓存策略
-- ✅ 加载状态管理
-- ✅ 错误自动重试
-- ✅ 空状态处理
+- 自动分页处理
+- 无限滚动加载
+- 本地缓存策略
+- 加载状态管理
+- 错误自动重试
+- 空状态处理
 
 #### 5. `useCategories`
 
@@ -182,12 +182,12 @@ const { articles, isLoading, error, pagination, refresh, loadMore } =
 const { categories, getCategoryBySlug, isLoading } = useCategories();
 ```
 
-✅ **内置能力**:
+**内置能力**:
 
-- ✅ 全局单例缓存，整个应用只请求一次
-- ✅ 自动刷新策略
-- ✅ Slug 快速查找
-- ✅ 文章计数统计
+- 全局单例缓存，整个应用只请求一次
+- 自动刷新策略
+- Slug 快速查找
+- 文章计数统计
 
 #### 6. `useComments`
 
@@ -196,12 +196,12 @@ const { comments, addComment, replyComment, likeComment } =
   useComments(articleSlug);
 ```
 
-✅ **内置能力**:
+**内置能力**:
 
-- ✅ 乐观更新
-- ✅ 权限检查
-- ✅ 嵌套回复结构
-- ✅ 实时更新
+- 乐观更新
+- 权限检查
+- 嵌套回复结构
+- 实时更新
 
 #### 7. `useTags`
 
@@ -221,7 +221,7 @@ const { tags, popularTags, getTagBySlug } = useTags();
 - **SSG 模式**: 构建时预加载，客户端使用缓存
 - **CSR 模式**: 正常发起API请求，带缓存
 
-✅ 业务代码完全不需要做任何修改
+业务代码完全不需要做任何修改
 
 ### 2. **统一边界处理**
 
@@ -237,7 +237,7 @@ const { tags, popularTags, getTagBySlug } = useTags();
 }
 ```
 
-✅ 所有页面可以使用统一的模式处理状态:
+所有页面可以使用统一的模式处理状态:
 
 ```tsx
 if (isLoading) return <Skeleton />;
@@ -254,13 +254,13 @@ if (isEmpty) return <EmptyState />;
 - 评论数据: 缓存30秒
 - 用户相关数据: 不缓存
 
-✅ 所有策略在Hook层配置，业务代码透明
+所有策略在Hook层配置，业务代码透明
 
 ---
 
 ## 📝 最佳实践
 
-### ✅ 应该做的
+### 应该做的
 
 1. 所有数据获取必须通过Hook，禁止直接fetch
 2. 页面组件只负责渲染，所有逻辑放在Hook中
@@ -280,10 +280,10 @@ if (isEmpty) return <EmptyState />;
 
 ### 🔄 当前状态: v1.0 已完成
 
-- ✅ 所有基础Hook实现
-- ✅ 业务Hook框架完成
-- ✅ Mock数据集成
-- ✅ 类型安全
+- 所有基础Hook实现
+- 业务Hook框架完成
+- Mock数据集成
+- 类型安全
 
 ### 📅 下阶段: v1.5
 
@@ -301,7 +301,7 @@ if (isEmpty) return <EmptyState />;
 
 ---
 
-## ✅ 总结
+## 总结
 
 这个Hook架构是整个前端系统的核心骨架，它解决了现代Next.js应用中最头疼的多模式适配问题，让业务开发者可以专注于功能实现，而不需要关心底层渲染环境的差异。
 

@@ -4,7 +4,6 @@ import { useEffect } from 'react';
 import { useRouter } from '@/navigation';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { PageSkeleton } from '@/components/ui/PageSkeleton';
-import { getCurrentLocale } from '@/lib/utils/locale';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;

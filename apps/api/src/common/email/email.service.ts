@@ -32,7 +32,7 @@ export class EmailService {
       subject: '[JoyMini Admin] Application Received — Pending Review',
       html: `
         <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:24px">
-          <h2 style="color:#4f46e5">Application Received ✅</h2>
+          <h2 style="color:#4f46e5">Application Received </h2>
           <p>Hi <strong>${realName}</strong>,</p>
           <p>We've received your application to join <strong>JoyMini Admin</strong>.</p>
           <p>Your request is currently <strong>pending review</strong> by a super administrator.

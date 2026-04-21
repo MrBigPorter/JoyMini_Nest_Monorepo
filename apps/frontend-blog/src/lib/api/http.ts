@@ -66,7 +66,7 @@ class HttpClient {
         const method = (config.method || 'get').toLowerCase();
 
         // 1. 语言
-        // ✅ 关键修复：如果请求已经显式传递了lang参数，不应该覆盖它！
+        //  关键修复：如果请求已经显式传递了lang参数，不应该覆盖它！
         // 这是所有语言闪烁问题的根源：拦截器强制覆盖所有请求的lang参数
         const explicitLang = config.params?.lang;
 
@@ -74,13 +74,13 @@ class HttpClient {
         console.log('[HTTP LANG DEBUG]', config.url, {
           explicitLang,
           params: config.params,
-          getLanguage: this.getLanguage(),
+          getLanguage: this.getLanguage(explicitLang),
         });
 
         if (explicitLang) {
           // 使用显式传递的语言参数
           config.headers['Accept-Language'] = explicitLang;
-          console.log('[HTTP LANG DEBUG] ✅ 使用显式传递的lang:', explicitLang);
+          console.log('[HTTP LANG DEBUG]  使用显式传递的lang:', explicitLang);
         } else {
           // 没有显式传递时，才使用自动检测
           const lang = this.getLanguage();
@@ -235,11 +235,36 @@ class HttpClient {
     return null;
   }
 
-  private getLanguage(): string {
-    // ✅ 全局单点统一语言检测
+  private getLanguage(explicitLang?: string): string {
+    //  全局单点统一语言检测
     // 整个系统只有这一个语言检测数据源
     // 禁止在任何地方重复实现语言检测逻辑
-    return detectLocale();
+
+    // 1. 优先使用显式传递的语言参数（来自params.locale）
+    if (explicitLang) return explicitLang;
+
+    // 2. CSR环境：自动检测 - 优先从当前URL读取
+    if (typeof window !== 'undefined') {
+      //  黄金法则：永远优先从当前URL读取语言
+      const path = window.location.pathname;
+      const match = path.match(/^\/([a-z]{2})\//);
+
+      if (match) {
+        //  URL中有语言参数，这是唯一真相来源
+        return match[1];
+      }
+
+      //  只有URL没有语言参数时才使用detectLocale（它会检查Cookie）
+      return detectLocale();
+    }
+
+    // 3. SSR环境：必须有显式参数
+    // 这是架构约束：SSR环境下语言必须通过params.locale显式传递
+    // 确保URL硬隔离架构的正确性
+    console.warn(
+      '[HTTP LANG WARNING] SSR环境未显式传递语言参数，使用默认语言zh',
+    );
+    return 'zh';
   }
 
   /**

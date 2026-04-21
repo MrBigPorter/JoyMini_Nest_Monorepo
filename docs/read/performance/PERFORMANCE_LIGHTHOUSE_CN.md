@@ -55,7 +55,7 @@ Lighthouse 验收回答三个问题：
 ```
 DevTools（F12）→ Lighthouse 标签
 
-✅ 勾选：Performance（只勾这一个）
+ 勾选：Performance（只勾这一个）
 ❌ 取消：Accessibility / Best practices / SEO / PWA
 
 Device：Desktop（后台系统，不测移动端）
@@ -126,8 +126,8 @@ apps/admin-next/reports/lighthouse/<timestamp>/
 
 | 页面          | LCP (ms) | FCP (ms) | TBT (ms) | CLS   | 评级      | 备注                                 |
 | ------------- | -------- | -------- | -------- | ----- | --------- | ------------------------------------ |
-| `/login`      | 1246     | 1246     | 0        | 0.000 | 待优化 🟡 | 外网 1.8s FCP 目标：通过 ✅          |
-| `/` Dashboard | 963      | 963      | 20       | 0.000 | 待优化 🟡 | **SSR 有效**：比 Orders 快 580ms ✅  |
+| `/login`      | 1246     | 1246     | 0        | 0.000 | 待优化 🟡 | 外网 1.8s FCP 目标：通过             |
+| `/` Dashboard | 963      | 963      | 20       | 0.000 | 待优化 🟡 | **SSR 有效**：比 Orders 快 580ms     |
 | `/analytics`  | 1645     | 1645     | 2        | 0.000 | 🔴 偏慢   | recharts bundle；已加 dynamic() 修复 |
 | `/finance`    | 1506     | 1506     | 0        | 0.000 | 🔴 偏慢   | SSR 有一定收益，但仍 > 1500ms        |
 | `/orders`     | 1543     | 1543     | 0        | 0.000 | 🔴 偏慢   | 纯 Client，对照基准                  |
@@ -150,7 +150,7 @@ apps/admin-next/reports/lighthouse/<timestamp>/
 
 | 评级          | 颜色 | LCP 条件       |
 | ------------- | ---- | -------------- |
-| 优秀 ✅       | 绿   | < 500ms        |
+| 优秀          | 绿   | < 500ms        |
 | 待优化 🟡     | 橙   | 500ms ~ 1500ms |
 | 需立即处理 🔴 | 红   | > 1500ms       |
 
@@ -206,7 +206,7 @@ JS bundle 太重，主线程阻塞严重
 跑完 Lighthouse
        │
        ├─ LCP < 500ms（5个页面都达标）
-       │    └─ ✅ 验收通过 → 转功能方向
+       │    └─  验收通过 → 转功能方向
        │         推荐：移动端适配 / 批量操作
        │
        ├─ Dashboard LCP < 500ms，但 Orders LCP > 1500ms
@@ -237,10 +237,10 @@ JS bundle 太重，主线程阻塞严重
 
 **结论（外网 VPS San Jose）**：
 
-- ✅ 所有页面通过 **外网 LCP < 2.5s**（Google Core Web Vitals 正式标准）
-- ✅ 所有页面 **TBT < 200ms**，JS 不阻塞主线程
-- ✅ 所有页面 **CLS = 0**，Suspense 骨架屏彻底消灭布局偏移（Stage 5 成果）
-- ✅ **SSR 有效**：Dashboard LCP 963ms < Orders LCP 1543ms（差距 580ms，Stage 2 收益确认）
+- 所有页面通过 **外网 LCP < 2.5s**（Google Core Web Vitals 正式标准）
+- 所有页面 **TBT < 200ms**，JS 不阻塞主线程
+- 所有页面 **CLS = 0**，Suspense 骨架屏彻底消灭布局偏移（Stage 5 成果）
+- **SSR 有效**：Dashboard LCP 963ms < Orders LCP 1543ms（差距 580ms，Stage 2 收益确认）
 - ❌ 所有页面未达到 **内网 LCP < 500ms** 目标（内网目标对外网 VPS 不适用，属预期）
 - ❌ FCP 超 **外网 FCP < 1.8s** 的页面：analytics（1645ms）、finance（1506ms）、orders（1543ms）
 
@@ -326,7 +326,7 @@ const AnalyticsTrendSection = dynamic(
 
 ---
 
-### ✅ 已正确配置的优化
+### 已正确配置的优化
 
 ```ts
 // next.config.ts

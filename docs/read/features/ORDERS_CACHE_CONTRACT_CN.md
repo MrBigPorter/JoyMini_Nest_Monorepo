@@ -2,7 +2,7 @@
 
 > 文档版本：Phase 6 P0  
 > 完成日期：2026-03-23  
-> 状态：✅ 完成（可回退）
+> 状态： 完成（可回退）
 
 ---
 
@@ -22,12 +22,12 @@
 
 | #   | Checkpoint   | 说明                                                                | 状态 |
 | --- | ------------ | ------------------------------------------------------------------- | ---- |
-| 1️⃣  | 读侧契约定义 | 收敛 `orders-cache.ts`：URL 解析 / queryKey / request params helper | ✅   |
-| 2️⃣  | 页面级预取   | `orders/page.tsx` Server 预取 + `HydrationBoundary` 注水            | ✅   |
-| 3️⃣  | 列表迁移     | 拆出 `OrderListClient`，由 `OrdersClient` 负责 URL 壳               | ✅   |
-| 4️⃣  | 边界锁定     | 单页可回退改造，不动全局框架 / 后端接口                             | ✅   |
-| 5️⃣  | Vitest 覆盖  | 新增 `OrderListClient.test.tsx`（7 cases）                          | ✅   |
-| 6️⃣  | 文档沉淀     | 本文档 + 心智模型提问                                               | ✅   |
+| 1️⃣  | 读侧契约定义 | 收敛 `orders-cache.ts`：URL 解析 / queryKey / request params helper |      |
+| 2️⃣  | 页面级预取   | `orders/page.tsx` Server 预取 + `HydrationBoundary` 注水            |      |
+| 3️⃣  | 列表迁移     | 拆出 `OrderListClient`，由 `OrdersClient` 负责 URL 壳               |      |
+| 4️⃣  | 边界锁定     | 单页可回退改造，不动全局框架 / 后端接口                             |      |
+| 5️⃣  | Vitest 覆盖  | 新增 `OrderListClient.test.tsx`（7 cases）                          |      |
+| 6️⃣  | 文档沉淀     | 本文档 + 心智模型提问                                               |      |
 
 ---
 
@@ -272,7 +272,7 @@ yarn vitest run src/__tests__/components/orders/OrderListClient.test.tsx
 
 ---
 
-## ✅ 验证结果
+## 验证结果
 
 - [x] Orders 相关改动 ESLint 通过
 - [x] `OrderListClient` Vitest 通过（7/7）
@@ -284,4 +284,4 @@ yarn vitest run src/__tests__/components/orders/OrderListClient.test.tsx
 
 **文档作者**：GitHub Copilot  
 **最后更新**：2026-03-23  
-**状态**：✅ 已验收
+**状态**： 已验收

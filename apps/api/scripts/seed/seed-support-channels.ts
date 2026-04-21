@@ -67,6 +67,6 @@ export async function seedSupportChannels() {
     created++;
   }
 
-  console.log(`  ✅ Support Channels +${created} new`);
+  console.log(`   Support Channels +${created} new`);
 }
 

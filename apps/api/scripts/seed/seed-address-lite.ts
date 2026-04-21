@@ -128,7 +128,7 @@ export async function seedAddressLite() {
     }
   }
 
-  console.log(`  ✅ Province         +${provinceCreated} new`);
-  console.log(`  ✅ City             +${cityCreated} new`);
-  console.log(`  ✅ Barangay         +${barangayCreated} new`);
+  console.log(`   Province         +${provinceCreated} new`);
+  console.log(`   City             +${cityCreated} new`);
+  console.log(`   Barangay         +${barangayCreated} new`);
 }

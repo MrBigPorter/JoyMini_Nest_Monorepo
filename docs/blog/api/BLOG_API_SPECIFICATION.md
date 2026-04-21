@@ -1,6 +1,6 @@
 # Blog API 接口详细文档 v1.0.0
 
-> ✅ 所有公开接口规范，与admin-next完全一致
+> 所有公开接口规范，与admin-next完全一致
 
 ---
 
@@ -47,37 +47,40 @@ https://api.luckynest.com/v1/public/blog
 
 #### 支持的语言代码
 
-| 语言代码 | 说明     | 支持的变体                          |
-| -------- | -------- | ----------------------------------- |
-| `zh`     | 简体中文 | `zh-CN`, `zh-Hans`, `zh`            |
-| `en`     | 英文     | `en-US`, `en-GB`, `en`              |
-| `ja`     | 日文     | `ja-JP`, `ja`                       |
-| `ko`     | 韩文     | `ko-KR`, `ko`                       |
-| `fr`     | 法文     | `fr-FR`, `fr`                       |
-| `de`     | 德文     | `de-DE`, `de`                       |
+| 语言代码 | 说明     | 支持的变体               |
+| -------- | -------- | ------------------------ |
+| `zh`     | 简体中文 | `zh-CN`, `zh-Hans`, `zh` |
+| `en`     | 英文     | `en-US`, `en-GB`, `en`   |
+| `ja`     | 日文     | `ja-JP`, `ja`            |
+| `ko`     | 韩文     | `ko-KR`, `ko`            |
+| `fr`     | 法文     | `fr-FR`, `fr`            |
+| `de`     | 德文     | `de-DE`, `de`            |
 
 #### 使用示例
 
 1. **使用查询参数指定语言**：
+
    ```http
    GET /v1/public/blog/articles?lang=en&page=1
    ```
 
 2. **使用 Accept-Language 头部**：
+
    ```http
    GET /v1/public/blog/articles
    Accept-Language: ja-JP,ja;q=0.9,en;q=0.8
    ```
 
 3. **前端集成示例**：
+
    ```typescript
    // 自动使用当前语言
    const { data } = await blogApi.getArticles({ page: 1 });
-   
+
    // 显式指定语言
-   const { data } = await blogApi.getArticles({ 
+   const { data } = await blogApi.getArticles({
      page: 1,
-     lang: 'en' // 覆盖默认语言
+     lang: "en", // 覆盖默认语言
    });
    ```
 
@@ -95,13 +98,13 @@ GET /articles
 
 | 参数       | 类型   | 可选 | 说明                                     |
 | ---------- | ------ | ---- | ---------------------------------------- |
-| page       | number | ✅   | 页码，默认 1                             |
-| pageSize   | number | ✅   | 每页数量，默认 20                        |
-| categoryId | string | ✅   | 分类ID                                   |
-| tagId      | string | ✅   | 标签ID                                   |
-| keyword    | string | ✅   | 搜索关键词                               |
-| sort       | string | ✅   | 排序: `newest`(默认), `popular`, `views` |
-| status     | string | ✅   | 状态筛选: `published`(默认), `all`       |
+| page       | number |      | 页码，默认 1                             |
+| pageSize   | number |      | 每页数量，默认 20                        |
+| categoryId | string |      | 分类ID                                   |
+| tagId      | string |      | 标签ID                                   |
+| keyword    | string |      | 搜索关键词                               |
+| sort       | string |      | 排序: `newest`(默认), `popular`, `views` |
+| status     | string |      | 状态筛选: `published`(默认), `all`       |
 
 #### 响应字段
 
@@ -154,8 +157,8 @@ GET /articles/:slug
 | 参数           | 类型    | 可选 | 说明                        |
 | -------------- | ------- | ---- | --------------------------- |
 | slug           | string  | ❌   | 文章唯一标识                |
-| includeContent | boolean | ✅   | 是否返回正文内容，默认 true |
-| incrementView  | boolean | ✅   | 是否增加阅读量，默认 true   |
+| includeContent | boolean |      | 是否返回正文内容，默认 true |
+| incrementView  | boolean |      | 是否增加阅读量，默认 true   |
 
 #### 响应附加字段
 
@@ -184,8 +187,8 @@ GET /articles/popular
 
 | 参数  | 类型   | 可选 | 说明              |
 | ----- | ------ | ---- | ----------------- |
-| limit | number | ✅   | 返回数量，默认 10 |
-| days  | number | ✅   | 统计天数，默认 7  |
+| limit | number |      | 返回数量，默认 10 |
+| days  | number |      | 统计天数，默认 7  |
 
 ---
 
@@ -252,7 +255,7 @@ GET /tags/popular
 
 | 参数  | 类型   | 可选 | 说明              |
 | ----- | ------ | ---- | ----------------- |
-| limit | number | ✅   | 返回数量，默认 20 |
+| limit | number |      | 返回数量，默认 20 |
 
 ---
 
@@ -269,8 +272,8 @@ GET /search
 | 参数     | 类型   | 可选 | 说明              |
 | -------- | ------ | ---- | ----------------- |
 | q        | string | ❌   | 搜索关键词        |
-| page     | number | ✅   | 页码，默认 1      |
-| pageSize | number | ✅   | 每页数量，默认 20 |
+| page     | number |      | 页码，默认 1      |
+| pageSize | number |      | 每页数量，默认 20 |
 
 ---
 
@@ -309,9 +312,9 @@ GET /articles/:slug/comments
 
 | 参数     | 类型   | 可选 | 说明                                      |
 | -------- | ------ | ---- | ----------------------------------------- |
-| page     | number | ✅   | 页码，默认 1                              |
-| pageSize | number | ✅   | 每页数量，默认 20                         |
-| sort     | string | ✅   | 排序: `newest`(默认), `oldest`, `popular` |
+| page     | number |      | 页码，默认 1                              |
+| pageSize | number |      | 每页数量，默认 20                         |
+| sort     | string |      | 排序: `newest`(默认), `oldest`, `popular` |
 
 #### 响应字段
 
@@ -411,7 +414,7 @@ GET /articles/:slug/recommended
 
 | 参数  | 类型   | 可选 | 说明             |
 | ----- | ------ | ---- | ---------------- |
-| limit | number | ✅   | 返回数量，默认 6 |
+| limit | number |      | 返回数量，默认 6 |
 
 ---
 

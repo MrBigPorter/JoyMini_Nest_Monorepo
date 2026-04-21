@@ -1,6 +1,6 @@
 # Frontend-Blog 三端统一客户端架构设计
 
-> ✅ H5 / Web / App 三端同构方案
+> H5 / Web / App 三端同构方案
 > 技术栈: Next.js 15 + Capacitor.js + Tailwind CSS
 
 ---
@@ -11,10 +11,10 @@
 
 独立的博客前端展示客户端，一套代码同时支持:
 
-- ✅ Web浏览器访问 (SSR/SSG)
-- ✅ H5移动端页面
-- ✅ iOS / Android 原生App (Capacitor打包)
-- ✅ 未来支持 PWA / Electron桌面端
+- Web浏览器访问 (SSR/SSG)
+- H5移动端页面
+- iOS / Android 原生App (Capacitor打包)
+- 未来支持 PWA / Electron桌面端
 
 ### 1.2 核心设计原则
 
@@ -210,13 +210,13 @@ export const usePlatform = () => {
 
 | 功能     | Web版          | H5版           | 原生App    |
 | -------- | -------------- | -------------- | ---------- |
-| 文章浏览 | ✅             | ✅             | ✅         |
-| 评论功能 | ✅             | ✅             | ✅         |
+| 文章浏览 |                |                |            |
+| 评论功能 |                |                |            |
 | 分享功能 | 浏览器API      | 微信JS-SDK     | 原生分享   |
 | 推送通知 | Web Push       | Web Push       | 原生推送   |
 | 离线阅读 | Service Worker | Service Worker | 本地数据库 |
-| 深色模式 | ✅             | ✅             | 系统适配   |
-| 手势导航 | ❌             | ✅             | ✅         |
+| 深色模式 |                |                | 系统适配   |
+| 手势导航 | ❌             |                |            |
 
 ### 5.3 组件条件渲染
 
@@ -384,7 +384,7 @@ export const api = new BlogApiClient();
 
 ### 11.1 设计原则
 
-✅ **静态文案多语言**: 页面标题、按钮、导航栏、提示文字
+**静态文案多语言**: 页面标题、按钮、导航栏、提示文字
 ❌ **动态内容不翻译**: 文章内容、评论、分类名称等接口返回数据保持原样
 
 ### 11.2 技术选型
@@ -473,9 +473,9 @@ export default function SearchBox() {
 
 ### 12.1 设计原则
 
-✅ **完全复用admin-next主题系统**，无需重新设计，保持视觉一致性
-✅ 共享颜色体系、间距、圆角、阴影等设计Token
-✅ 100% 与管理后台视觉风格统一
+**完全复用admin-next主题系统**，无需重新设计，保持视觉一致性
+共享颜色体系、间距、圆角、阴影等设计Token
+100% 与管理后台视觉风格统一
 
 ### 12.2 技术方案
 
@@ -559,40 +559,40 @@ export default function ThemeToggle() {
 
 ### 13.1 可直接复用的核心模块
 
-✅ **HTTP客户端完整复用** (优先级最高)
+**HTTP客户端完整复用** (优先级最高)
 
-- ✅ `http.ts` 完整的Axios封装 (588行生产级代码)
-  - 自动Token刷新与401处理
-  - 请求去重与取消
-  - 智能重试机制 (指数退避)
-  - 统一错误处理与Toast提示
-  - Sentry链路追踪
-  - 自动语言头注入
-  - SSR/浏览器双环境适配
-- ✅ Type类型定义 (`api/types.ts`)
-- ✅ 请求响应格式规范
-- ✅ 分页响应格式 `PaginatedResponse<T>`
+- `http.ts` 完整的Axios封装 (588行生产级代码)
+- 自动Token刷新与401处理
+- 请求去重与取消
+- 智能重试机制 (指数退避)
+- 统一错误处理与Toast提示
+- Sentry链路追踪
+- 自动语言头注入
+- SSR/浏览器双环境适配
+- Type类型定义 (`api/types.ts`)
+- 请求响应格式规范
+- 分页响应格式 `PaginatedResponse<T>`
 
-✅ **工具函数复用**
+**工具函数复用**
 
-- ✅ `sanitizeHtml.ts` XSS安全过滤
-- ✅ 日期格式化工具
-- ✅ SEO元标签生成工具
-- ✅ Slug生成工具
+- `sanitizeHtml.ts` XSS安全过滤
+- 日期格式化工具
+- SEO元标签生成工具
+- Slug生成工具
 
-✅ **状态管理模式复用**
+**状态管理模式复用**
 
-- ✅ Zustand Store 最佳实践
-- ✅ TanStack Query 使用模式
-- ✅ Toast 通知系统
-- ✅ 主题状态管理
+- Zustand Store 最佳实践
+- TanStack Query 使用模式
+- Toast 通知系统
+- 主题状态管理
 
-✅ **UI组件复用**
+**UI组件复用**
 
-- ✅ 所有 `@repo/ui` 基础组件
-- ✅ 按钮、卡片、头像、骨架屏
-- ✅ 无限滚动组件
-- ✅ 表单组件与验证模式
+- 所有 `@repo/ui` 基础组件
+- 按钮、卡片、头像、骨架屏
+- 无限滚动组件
+- 表单组件与验证模式
 
 ---
 
@@ -665,11 +665,11 @@ export const blogApi = {
 
 ### 13.4 开发效率提升
 
-✅ 节省至少 **3人天** 开发时间 (无需从零写HTTP客户端)
-✅ 经过生产验证的错误处理逻辑
-✅ 与管理后台100%行为一致
-✅ 所有后端接口约定已经对齐
-✅ 直接复用接口调试经验
+节省至少 **3人天** 开发时间 (无需从零写HTTP客户端)
+经过生产验证的错误处理逻辑
+与管理后台100%行为一致
+所有后端接口约定已经对齐
+直接复用接口调试经验
 
 ---
 
@@ -702,11 +702,11 @@ export const blogApi = {
 
 ### 14.2 复用Monorepo规范
 
-✅ **TypeScript配置**: 继承 `@repo/typescript-config/nextjs.json`
-✅ **ESLint配置**: 继承 `@repo/eslint-config/next.js`
-✅ **Prettier配置**: 复用根目录 `.prettierrc`
-✅ **Tailwind配置**: 继承 `@repo/ui` 主题配置
-✅ **依赖版本**: 所有包版本与monorepo保持一致
+**TypeScript配置**: 继承 `@repo/typescript-config/nextjs.json`
+**ESLint配置**: 继承 `@repo/eslint-config/next.js`
+**Prettier配置**: 复用根目录 `.prettierrc`
+**Tailwind配置**: 继承 `@repo/ui` 主题配置
+**依赖版本**: 所有包版本与monorepo保持一致
 
 ### 14.3 项目初始化命令
 
@@ -779,10 +779,10 @@ cp apps/admin-next/.env.production apps/frontend-blog/
 
 ## 17. 测试与部署规范
 
-✅ **测试配置**: 复用 admin-next Vitest / Playwright 配置
-✅ **部署流程**: 复用现有CI/CD流水线
-✅ **环境区分**: Development / Staging / Production 三环境
-✅ **监控系统**: 复用现有Sentry / Prometheus 集成
+**测试配置**: 复用 admin-next Vitest / Playwright 配置
+**部署流程**: 复用现有CI/CD流水线
+**环境区分**: Development / Staging / Production 三环境
+**监控系统**: 复用现有Sentry / Prometheus 集成
 
 ---
 

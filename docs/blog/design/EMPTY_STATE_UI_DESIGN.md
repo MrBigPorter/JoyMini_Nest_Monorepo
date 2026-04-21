@@ -7,6 +7,7 @@
 ## 问题背景
 
 当前博客系统存在以下问题：
+
 1. 6个分类中只有 `security` 分类有6篇文章，其他5个分类详情页为空
 2. 许多标签可能没有关联文章
 3. 用户访问空页面时体验不佳，缺乏引导
@@ -28,14 +29,14 @@
 ```typescript
 // apps/frontend-blog/src/components/blog/EmptyContentState.tsx
 interface EmptyContentStateProps {
-  type: 'category' | 'tag' | 'search' | 'bookmark';
+  type: "category" | "tag" | "search" | "bookmark";
   title: string;
   description: string;
   icon: React.ReactNode;
   actions?: Array<{
     label: string;
     href: string;
-    variant?: 'default' | 'outline' | 'ghost';
+    variant?: "default" | "outline" | "ghost";
     icon?: React.ReactNode;
   }>;
 }
@@ -55,16 +56,19 @@ interface EmptyContentStateProps {
 ### 分类详情页空状态
 
 **视觉元素：**
+
 - 图标：📚（分类图标）
 - 标题：暂时还没有相关文章
 - 描述：这个分类下的内容正在准备中，您可以先看看其他分类的文章
 
 **操作按钮：**
+
 1. 返回分类列表（主要操作）
 2. 返回首页（次要操作）
 3. 浏览热门文章（可选）
 
 **布局示例：**
+
 ```
 ┌─────────────────────────────────┐
 │         📚 [分类图标]            │
@@ -78,16 +82,19 @@ interface EmptyContentStateProps {
 ### 标签详情页空状态
 
 **视觉元素：**
+
 - 图标：🏷️（标签图标）
 - 标题：还没有使用此标签的文章
 - 描述：看看其他热门标签的文章吧
 
 **操作按钮：**
+
 1. 返回标签墙（主要操作）
 2. 浏览热门标签（次要操作）
 3. 返回首页（可选）
 
 **布局示例：**
+
 ```
 ┌─────────────────────────────────┐
 │         🏷️ [标签图标]            │
@@ -128,16 +135,19 @@ interface EmptyContentStateProps {
 ## 实现步骤
 
 ### 阶段一：组件创建与集成
+
 1. 创建 `EmptyContentState` 组件
 2. 扩展现有 `EmptyState` 组件
 3. 添加国际化文本支持
 
 ### 阶段二：页面集成
+
 1. 更新分类详情页 (`/categories/[slug]/page.tsx`)
 2. 更新标签详情页 (`/tags/[slug]/page.tsx`)
 3. 确保正确处理空数组情况
 
 ### 阶段三：测试与优化
+
 1. 测试所有空状态场景
 2. 验证多语言支持
 3. 优化响应式设计
@@ -154,22 +164,18 @@ export function EmptyContentState({
   title,
   description,
   icon,
-  actions = []
+  actions = [],
 }: EmptyContentStateProps) {
   return (
     <div className="flex flex-col items-center justify-center py-20 px-4 text-center">
       <div className="mb-6 text-6xl">{icon}</div>
       <h2 className="text-2xl font-bold mb-3">{title}</h2>
       <p className="text-muted-foreground mb-8 max-w-md">{description}</p>
-      
+
       {actions.length > 0 && (
         <div className="flex flex-wrap gap-3 justify-center">
           {actions.map((action, index) => (
-            <Button
-              key={index}
-              variant={action.variant || 'default'}
-              asChild
-            >
+            <Button key={index} variant={action.variant || "default"} asChild>
               <Link href={action.href}>
                 {action.icon && <span className="mr-2">{action.icon}</span>}
                 {action.label}
@@ -187,27 +193,29 @@ export function EmptyContentState({
 
 ```tsx
 // 分类详情页集成示例
-{articles.length === 0 && (
-  <EmptyContentState
-    type="category"
-    title={t('emptyState.category.title')}
-    description={t('emptyState.category.description')}
-    icon={<FolderOpen className="w-16 h-16" />}
-    actions={[
-      {
-        label: t('emptyState.category.backToCategories'),
-        href: '/categories',
-        variant: 'default',
-        icon: <ArrowLeft className="w-4 h-4" />
-      },
-      {
-        label: t('emptyState.category.backToHome'),
-        href: '/',
-        variant: 'outline'
-      }
-    ]}
-  />
-)}
+{
+  articles.length === 0 && (
+    <EmptyContentState
+      type="category"
+      title={t("emptyState.category.title")}
+      description={t("emptyState.category.description")}
+      icon={<FolderOpen className="w-16 h-16" />}
+      actions={[
+        {
+          label: t("emptyState.category.backToCategories"),
+          href: "/categories",
+          variant: "default",
+          icon: <ArrowLeft className="w-4 h-4" />,
+        },
+        {
+          label: t("emptyState.category.backToHome"),
+          href: "/",
+          variant: "outline",
+        },
+      ]}
+    />
+  );
+}
 ```
 
 ## 响应式设计
@@ -232,12 +240,12 @@ export function EmptyContentState({
 
 ## 验收标准
 
-1. ✅ 所有空页面都显示友好的空状态UI
-2. ✅ 支持多语言切换
-3. ✅ 响应式设计适配所有设备
-4. ✅ 可访问性符合标准
-5. ✅ 导航功能正常工作
-6. ✅ 与现有设计风格保持一致
+1.  所有空页面都显示友好的空状态UI
+2.  支持多语言切换
+3.  响应式设计适配所有设备
+4.  可访问性符合标准
+5.  导航功能正常工作
+6.  与现有设计风格保持一致
 
 ## 相关文档
 

@@ -1,7 +1,7 @@
 # JoyMinis — Demo Data Seed 指南
 
 > **运行命令**: `yarn workspace @lucky/api seed`  
-> **幂等**: ✅ 重复运行安全，已存在的数据不会重复创建
+> **幂等**: 重复运行安全，已存在的数据不会重复创建
 
 ---
 

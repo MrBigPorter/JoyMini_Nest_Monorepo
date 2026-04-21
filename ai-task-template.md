@@ -307,7 +307,7 @@
 
 1. **📋 问题描述**：我们遇到了什么问题
 2. **🎯 根因分析**：根本原因是什么
-3. **✅ 方案选型**：有哪些方案，为什么选择这个
+3. ** 方案选型**：有哪些方案，为什么选择这个
 4. **🏗️ 系统架构**：整体设计是什么样的
 5. **🔄 工作流程**：数据是怎么流动的
 6. **⚙️ 实现细节**：关键实现点和边界条件
@@ -393,7 +393,7 @@
 #### 🛠️ Zustand Store类型定义规范
 
 ```typescript
-// ✅ 正确：明确定义初始状态类型
+//  正确：明确定义初始状态类型
 interface AuthState {
   user: User | null;
   accessToken: string | null;
@@ -478,7 +478,7 @@ interface State {
 #### 📦 可选依赖类型处理指南
 
 ```typescript
-// ✅ 正确：为可选依赖创建类型声明文件
+//  正确：为可选依赖创建类型声明文件
 // 文件：src/types/capacitor.d.ts
 declare module "@capacitor/preferences" {
   export interface GetOptions {
@@ -498,7 +498,7 @@ declare module "@capacitor/preferences" {
   export const Preferences: PreferencesPlugin;
 }
 
-// ✅ 正确：代码中的动态导入和fallback机制
+//  正确：代码中的动态导入和fallback机制
 if (isCapacitor) {
   return {
     getItem: async (key: string): Promise<string | null> => {

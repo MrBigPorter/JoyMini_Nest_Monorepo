@@ -126,7 +126,7 @@ checks.forEach((checkGroup, groupIndex) => {
     const matches = check.regex.test(content);
     const passed = matches === check.shouldMatch;
     
-    console.log(`   ${passed ? '✅' : '❌'} ${check.desc}`);
+    console.log(`   ${passed ? '' : '❌'} ${check.desc}`);
     
     if (!passed) {
       console.log(`     期望: ${check.shouldMatch ? '匹配' : '不匹配'} "${check.regex.source}"`);
@@ -136,11 +136,11 @@ checks.forEach((checkGroup, groupIndex) => {
 });
 
 console.log('\n🎯 修复总结:');
-console.log('1. ✅ 移除localStorage依赖，统一使用Cookies');
-console.log('2. ✅ http.ts优先使用URL路径语言');
-console.log('3. ✅ detectLocale() URL路径最高优先级');
-console.log('4. ✅ page.tsx直接使用routeLocale');
-console.log('5. ✅ layout.tsx直接使用routeLocale');
+console.log('1.  移除localStorage依赖，统一使用Cookies');
+console.log('2.  http.ts优先使用URL路径语言');
+console.log('3.  detectLocale() URL路径最高优先级');
+console.log('4.  page.tsx直接使用routeLocale');
+console.log('5.  layout.tsx直接使用routeLocale');
 
 console.log('\n🔧 修复原理:');
 console.log('• SSR环境：从请求URL获取语言 (/en/ → en)');
@@ -163,7 +163,7 @@ console.log('4. 检查网络请求中的lang=en参数');
 console.log('5. 验证无语言闪烁 (zh→en)');
 
 if (allPassed) {
-  console.log('\n✅ 所有修复验证通过！语言闪烁问题已彻底解决。');
+  console.log('\n 所有修复验证通过！语言闪烁问题已彻底解决。');
   console.log('🎉 现在访问 /en/ 应该直接显示英文内容，无闪烁。');
   process.exit(0);
 } else {

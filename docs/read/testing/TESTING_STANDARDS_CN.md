@@ -118,7 +118,7 @@ API 响应结构 / store action 签名改变时，**立刻**同步：
 // ❌ 旧断言（漏掉新参数 → toHaveBeenCalledWith 失败）
 expect(mockLogin).toHaveBeenCalledWith("jwt-abc");
 
-// ✅ 新断言
+//  新断言
 expect(mockLogin).toHaveBeenCalledWith(
   "jwt-abc",
   "SUPER_ADMIN",
@@ -162,7 +162,7 @@ describe('MyView', () => {
 ### 3.4 waitFor 正确姿势
 
 ```typescript
-// ✅ 多个断言合在一个 waitFor
+//  多个断言合在一个 waitFor
 await waitFor(() => {
   expect(mockSubmit).toHaveBeenCalled();
   expect(mockRouter.push).toHaveBeenCalledWith("/dashboard");
@@ -203,7 +203,7 @@ function shouldIgnoreConsoleError(text: string): boolean {
 ### 4.2 必须从 fixtures 导入
 
 ```typescript
-// ✅ 拦截器生效
+//  拦截器生效
 import { test, expect } from "./fixtures";
 
 // ❌ 拦截器不运行
@@ -215,7 +215,7 @@ import { test, expect } from "@playwright/test";
 | Playwright Project | 匹配规则                                 | 需要登录                    |
 | ------------------ | ---------------------------------------- | --------------------------- |
 | `setup`            | `auth.setup.ts`                          | 执行登录，保存 storageState |
-| `chromium`         | 其他 `*.spec.ts`                         | ✅ 复用 setup               |
+| `chromium`         | 其他 `*.spec.ts`                         | 复用 setup                  |
 | `public`           | `home.spec.ts`, `register-apply.spec.ts` | ❌ 无需登录                 |
 
 ### 4.4 常用 Helper 速查

@@ -26,11 +26,10 @@ export interface SelectGroupOption {
 
 export type BaseSelectOptions = SelectOption[] | SelectGroupOption[];
 
-export interface BaseSelectProps
-  extends Omit<
-    React.ComponentPropsWithoutRef<typeof Select>,
-    "value" | "onValueChange"
-  > {
+export interface BaseSelectProps extends Omit<
+  React.ComponentPropsWithoutRef<typeof Select>,
+  "value" | "onValueChange"
+> {
   value?: string;
   onChange?: (value: string) => void;
   options: BaseSelectOptions;
@@ -158,7 +157,7 @@ export const BaseSelect = React.forwardRef<HTMLButtonElement, BaseSelectProps>(
 BaseSelect.displayName = "BaseSelect";
 
 const RenderSelectItem = ({ item }: { item: SelectOption }) => {
-  // ✅ 安全渲染：永远不会直接渲染对象，防止React错误
+  //  安全渲染：永远不会直接渲染对象，防止React错误
   const renderLabel = (): React.ReactNode => {
     // 1. 已经是 React 节点直接返回
     if (React.isValidElement(item.label)) {

@@ -80,15 +80,15 @@
 
 | 能力                            | 状态 | 说明                                |
 | ------------------------------- | ---- | ----------------------------------- |
-| App Router                      | ✅   | 已稳定使用                          |
-| SSR / Server Components         | ✅   | Dashboard / Analytics 已落地        |
-| HydrationBoundary + React Query | ✅   | Dashboard orders 有服务端预取注水   |
-| Zustand 全局状态                | ✅   | 主题/语言/认证已接入                |
-| Middleware 鉴权守卫             | ✅   | 未登录重定向登录                    |
-| Socket.IO 实时能力              | ✅   | 客服台已接入                        |
-| i18n（轻量）                    | ✅   | `TRANSLATIONS` + store lang         |
-| 暗黑主题                        | ✅   | 首屏无闪烁脚本 + store 同步         |
-| 单测 + E2E                      | ✅   | Vitest + Playwright                 |
+| App Router                      |      | 已稳定使用                          |
+| SSR / Server Components         |      | Dashboard / Analytics 已落地        |
+| HydrationBoundary + React Query |      | Dashboard orders 有服务端预取注水   |
+| Zustand 全局状态                |      | 主题/语言/认证已接入                |
+| Middleware 鉴权守卫             |      | 未登录重定向登录                    |
+| Socket.IO 实时能力              |      | 客服台已接入                        |
+| i18n（轻量）                    |      | `TRANSLATIONS` + store lang         |
+| 暗黑主题                        |      | 首屏无闪烁脚本 + store 同步         |
+| 单测 + E2E                      |      | Vitest + Playwright                 |
 | 构建期 Type/Lint 门禁           | ⚠️   | `next.config.ts` 里仍是 ignore 模式 |
 
 > 注：当前“技术能力”基本齐全，但“工程门禁”仍有优化空间。

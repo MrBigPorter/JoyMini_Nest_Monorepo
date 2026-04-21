@@ -92,7 +92,7 @@ yarn perf:lighthouse
 [lighthouse] Auditing / (Dashboard)  run 1/3 ...
 ...（每个页面都会这样打印）...
 [lighthouse] Summary written → reports/lighthouse/2026-03-22T.../summary.json
-[lighthouse] All pages done. Pass ✅  /  Warn ⚠️  /  Fail ❌
+[lighthouse] All pages done. Pass   /  Warn ⚠️  /  Fail ❌
 ```
 
 **大概要跑多久**：每个页面跑 3 次，每次约 30～60 秒，5 个页面总共约 10～20 分钟。

@@ -18,14 +18,14 @@
 new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 5 * 60 * 1000, // ✅ 数据 5 分钟内视为新鲜
-      gcTime: 10 * 60 * 1000, // ✅ 闲置数据 10 分钟后回收
-      retry: 1, // ✅ 请求失败只重试 1 次
-      refetchOnWindowFocus: false, // ✅ 窗口聚焦不自动刷新
-      refetchOnReconnect: true, // ✅ 网络恢复时自动刷新
+      staleTime: 5 * 60 * 1000, //  数据 5 分钟内视为新鲜
+      gcTime: 10 * 60 * 1000, //  闲置数据 10 分钟后回收
+      retry: 1, //  请求失败只重试 1 次
+      refetchOnWindowFocus: false, //  窗口聚焦不自动刷新
+      refetchOnReconnect: true, //  网络恢复时自动刷新
     },
     mutations: {
-      retry: 0, // ✅ 写操作永不重试
+      retry: 0, //  写操作永不重试
     },
   },
 });
@@ -33,11 +33,11 @@ new QueryClient({
 
 ### 🚀 使用场景
 
-✅ 任何需要使用 `useQuery` / `useMutation` 的组件
-✅ API 数据缓存、去重、重试
-✅ 后台静默刷新
-✅ 乐观更新、请求取消
-✅ 全局错误处理
+任何需要使用 `useQuery` / `useMutation` 的组件
+API 数据缓存、去重、重试
+后台静默刷新
+乐观更新、请求取消
+全局错误处理
 
 ### ⚠️ 注意事项
 
@@ -66,11 +66,11 @@ new QueryClient({
 
 ### 🚀 使用场景
 
-✅ `useTranslations()` Hook
-✅ 日期格式化 `useFormatter()`
-✅ 相对时间显示
-✅ 数字和货币本地化
-✅ 页面内语言切换
+`useTranslations()` Hook
+日期格式化 `useFormatter()`
+相对时间显示
+数字和货币本地化
+页面内语言切换
 
 ### ⚠️ 注意事项
 
@@ -97,13 +97,13 @@ new QueryClient({
 </NextIntlClientProvider>
 ```
 
-## ✅ 最佳实践
+## 最佳实践
 
 1. ❌ 不要在每个页面重复创建 Provider
-2. ✅ 全局配置只在根布局定义一次
+2. 全局配置只在根布局定义一次
 3. ❌ 不要在 Provider 之外使用对应的 Hook
-4. ✅ 所有配置保持和 admin 后台完全一致
-5. ✅ 避免不必要的嵌套层级
+4. 所有配置保持和 admin 后台完全一致
+5. 避免不必要的嵌套层级
 
 ---
 

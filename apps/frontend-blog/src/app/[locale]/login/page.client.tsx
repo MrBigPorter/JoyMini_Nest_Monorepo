@@ -11,7 +11,6 @@ import {
   RefreshCw,
   Facebook,
 } from 'lucide-react';
-import { Link } from '@/navigation';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { authApi } from '@/lib/api/authApi';
 import { LoginGuard } from '@/components/auth/ProtectedRoute';
@@ -286,7 +285,7 @@ export default function LoginPageClient() {
                 <div className="w-full border-t border-border" />
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-4 bg-card text-muted-foreground">
+                <span className="px-4 bg-background text-muted-foreground">
                   {t('auth.orContinueWith')}
                 </span>
               </div>

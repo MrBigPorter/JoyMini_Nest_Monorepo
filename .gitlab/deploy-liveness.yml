@@ -39,7 +39,7 @@ deploy-liveness:
         echo "❌ CLOUDFLARE_API_TOKEN is invalid or expired"
         exit 1
       fi
-      echo "✅ Cloudflare API token is valid."
+      echo " Cloudflare API token is valid."
 
     # 部署到 Cloudflare Pages
     - CLOUDFLARE_ACCOUNT_ID=$CLOUDFLARE_ACCOUNT_ID CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN \
@@ -51,7 +51,7 @@ deploy-liveness:
     # Telegram 通知
     - |
       if [ "$CI_JOB_STATUS" = "success" ]; then
-        STATUS_EMOJI="✅ Success"
+        STATUS_EMOJI=" Success"
       else
         STATUS_EMOJI="❌ Failed"
       fi

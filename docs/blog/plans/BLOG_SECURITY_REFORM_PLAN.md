@@ -12,7 +12,7 @@
 4.  **缺少Swagger认证标识** - API文档无法测试
 5.  **响应没有做DTO过滤** - 直接返回数据库字段
 
-### ✅ 项目标准安全规范
+### 项目标准安全规范
 
 所有Admin接口统一使用以下安全架构：
 
@@ -34,19 +34,19 @@ export class XxxController {
 
 ### 第一阶段：基础安全加固 (优先级: 最高)
 
-| 控制器                            | 状态          | 完成时间   |
-| --------------------------------- | ------------- | ---------- |
-| `article/article.controller.ts`   | ✅ **已完成** | 2026-04-07 |
-| `category/category.controller.ts` | ✅ **已完成** | 2026-04-07 |
-| `tag/tag.controller.ts`           | ✅ **已完成** | 2026-04-07 |
-| `comment/comment.controller.ts`   | ✅ **已完成** | 2026-04-07 |
+| 控制器                            | 状态       | 完成时间   |
+| --------------------------------- | ---------- | ---------- |
+| `article/article.controller.ts`   | **已完成** | 2026-04-07 |
+| `category/category.controller.ts` | **已完成** | 2026-04-07 |
+| `tag/tag.controller.ts`           | **已完成** | 2026-04-07 |
+| `comment/comment.controller.ts`   | **已完成** | 2026-04-07 |
 
 ### 第二阶段：公开接口安全加固 (优先级: 高)
 
 | 安全措施        | 状态      |
 | --------------- | --------- |
-| 评论接口限流    | ✅ 已完成 |
-| 点赞接口限流    | ✅ 已完成 |
+| 评论接口限流    | 已完成    |
+| 点赞接口限流    | 已完成    |
 | 评论XSS过滤     | ❌ 待实现 |
 | 点赞指纹去重    | ❌ 待实现 |
 | ReCaptcha验证码 | ❌ 待实现 |
@@ -67,12 +67,12 @@ export class XxxController {
 
 ### 每一个控制器必须包含：
 
-1.  ✅ `@ApiBearerAuth()` - Swagger认证支持
-2.  ✅ `@UseGuards(JwtAuthGuard, PermissionsGuard)` - 强制JWT+权限校验
-3.  ✅ 每个方法添加 `@RequirePermission()` 注解
-4.  ✅ 所有请求参数使用DTO校验
-5.  ✅ 所有响应使用 `plainToInstance()` 转换
-6.  ✅ 响应字段过滤，不返回敏感字段
+1.  `@ApiBearerAuth()` - Swagger认证支持
+2.  `@UseGuards(JwtAuthGuard, PermissionsGuard)` - 强制JWT+权限校验
+3.  每个方法添加 `@RequirePermission()` 注解
+4.  所有请求参数使用DTO校验
+5.  所有响应使用 `plainToInstance()` 转换
+6.  响应字段过滤，不返回敏感字段
 
 ## 📅 实施步骤
 
@@ -117,23 +117,23 @@ export class XxxController {
 - 不会影响公开访问接口
 - 不会影响前端博客页面功能
 
-## ✅ 验收标准
+## 验收标准
 
 改造完成后验证：
 
 1.  ❌ 未登录用户调用返回 401 Unauthorized
 2.  ❌ 无权限用户调用返回 403 Forbidden
-3.  ✅ 有权限用户可以正常操作
-4.  ✅ Swagger文档可以正常授权测试
-5.  ✅ 响应中不包含敏感字段
+3.  有权限用户可以正常操作
+4.  Swagger文档可以正常授权测试
+5.  响应中不包含敏感字段
 
 ---
 
-## ✅ 改造进度更新
+## 改造进度更新
 
 **当前完成度: 100% (4/4 控制器)**
 
-✅ 所有控制器安全加固已完成:
+所有控制器安全加固已完成:
 
 - Article 文章管理接口
 - Category 分类管理接口

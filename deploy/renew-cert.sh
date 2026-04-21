@@ -32,7 +32,7 @@ if [ -f "$LE_CERT_DIR/fullchain.pem" ]; then
     echo "[$(date)] 证书到期日: $EXPIRY (剩余 ${DAYS_LEFT} 天)"
 
     if [ "$DAYS_LEFT" -gt 30 ]; then
-        echo "[$(date)] ✅ 证书有效期充足, 无需续期"
+        echo "[$(date)]  证书有效期充足, 无需续期"
         exit 0
     fi
     echo "[$(date)] ⚠️ 证书即将到期, 开始续期..."
@@ -60,7 +60,7 @@ if [ -f "$LE_CERT_DIR/fullchain.pem" ] && [ -f "$LE_CERT_DIR/privkey.pem" ]; the
     cp "$LE_CERT_DIR/privkey.pem"   "$CERT_DIR/server.key"
     chmod 644 "$CERT_DIR/server.crt"
     chmod 600 "$CERT_DIR/server.key"
-    echo "[$(date)] ✅ 证书已更新"
+    echo "[$(date)]  证书已更新"
 else
     echo "[$(date)] ❌ 证书文件不存在, 请检查 certbot 配置"
 fi
@@ -71,5 +71,5 @@ fi
 echo "[$(date)] 重启 Nginx..."
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" start nginx
 
-echo "[$(date)] ✅ SSL 证书续期完成"
+echo "[$(date)]  SSL 证书续期完成"
 

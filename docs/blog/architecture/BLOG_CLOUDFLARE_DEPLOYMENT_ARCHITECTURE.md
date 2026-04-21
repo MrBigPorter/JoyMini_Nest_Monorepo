@@ -255,7 +255,7 @@ deploy-blog:
         echo "❌ CLOUDFLARE_API_TOKEN is invalid or expired"
         exit 1
       fi
-      echo "✅ Cloudflare API token is valid."
+      echo " Cloudflare API token is valid."
 
     # Deploy to Cloudflare
     - CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID=$CLOUDFLARE_ACCOUNT_ID yarn exec opennextjs-cloudflare deploy -c wrangler.toml
@@ -264,7 +264,7 @@ deploy-blog:
     # Telegram notification
     - |
       if [ "$CI_JOB_STATUS" = "success" ]; then
-        STATUS_EMOJI="✅ Success"
+        STATUS_EMOJI=" Success"
       else
         STATUS_EMOJI="❌ Failed"
       fi
@@ -490,5 +490,5 @@ rollback-blog:
 
 **Last Updated**: 2026-04-18  
 **Maintainer**: Infrastructure Team  
-**Status**: ✅ Production Ready  
+**Status**: Production Ready  
 **Next Review**: 2026-05-18

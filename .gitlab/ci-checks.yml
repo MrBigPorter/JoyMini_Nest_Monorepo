@@ -100,10 +100,10 @@ e2e:
 verify-vars:
   stage: check
   script:
-    - echo "✅ CI 环境变量检查"
+    - echo " CI 环境变量检查"
     - echo "NODE_OPTIONS = $NODE_OPTIONS"
     - echo "E2E_ADMIN_PASSWORD = ${E2E_ADMIN_PASSWORD:+已配置}"
     - for var in CLOUDFLARE_ACCOUNT_ID DOCKERHUB_USERNAME SSH_HOST; do
-      echo "$var = ${!var:+✅ 存在}";
+      echo "$var = ${!var:+ 存在}";
       done
   allow_failure: true

@@ -44,9 +44,9 @@ y# Next.js命令速查表（本项目专用）
 
 **所有命令必须在仓库根目录执行**，使用 `yarn workspace @lucky/admin-next` 前缀，例如：
 
-- ❌ `next dev` → ✅ `yarn workspace @lucky/admin-next dev`
-- ❌ `npm run build` → ✅ `yarn workspace @lucky/admin-next build`
-- ❌ `npx playwright test` → ✅ `yarn workspace @lucky/admin-next e2e`
+- ❌ `next dev` → `yarn workspace @lucky/admin-next dev`
+- ❌ `npm run build` → `yarn workspace @lucky/admin-next build`
+- ❌ `npx playwright test` → `yarn workspace @lucky/admin-next e2e`
 
 ### 1. 开发环境命令
 
@@ -506,14 +506,14 @@ docker compose --env-file deploy/.env.dev logs --tail=200 admin-next
 **命令**: `yarn workspace @lucky/admin-next check-types`
 **目的**: 检查TypeScript类型错误
 **预期**: 无类型错误
-**实际**: ✅ 成功执行，输出"Found 0 errors."
+**实际**:  成功执行，输出"Found 0 errors."
 **问题**: 无
 
 ### 命令2：开发服务器启动
 **命令**: `yarn workspace @lucky/admin-next dev`
 **目的**: 启动Next.js开发服务器
 **预期**: 服务器在端口4001启动
-**实际**: ✅ 成功执行，输出"Ready on http://localhost:4001"
+**实际**:  成功执行，输出"Ready on http://localhost:4001"
 **问题**: 无
 ```
 

@@ -1,15 +1,9 @@
 'use client';
 
-import { useRouter, usePathname } from '@/navigation';
+import { useRouter } from '@/navigation';
 import type { NavigateOptions } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 import { useAuth } from './useAuth';
-
-// 受保护路由列表 - 需要登录才能访问
-const PROTECTED_ROUTES = ['/bookmarks'];
-
-function isProtectedRoute(pathname: string): boolean {
-  return PROTECTED_ROUTES.some((route) => pathname.startsWith(route));
-}
+import { isProtectedRoute } from '@/lib/auth/protected-routes';
 
 /**
  * 受保护的路由跳转Hook
@@ -20,7 +14,6 @@ function isProtectedRoute(pathname: string): boolean {
  */
 export function useProtectedRouter() {
   const router = useRouter();
-  const pathname = usePathname();
   const { isAuthenticated } = useAuth();
 
   /**

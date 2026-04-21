@@ -37,7 +37,7 @@ docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d db redis
 echo "→ 等待 PostgreSQL 就绪 (最多 60s)..."
 for i in $(seq 1 30); do
   if docker exec lucky-db-prod pg_isready -U "$DB_USER" -d "$DB_NAME" >/dev/null 2>&1; then
-    echo "✅ PostgreSQL 已就绪 (${i}次)"; break
+    echo " PostgreSQL 已就绪 (${i}次)"; break
   fi
   [ "$i" -eq 30 ] && { echo "❌ 超时！"; docker logs --tail=20 lucky-db-prod; exit 1; }
   sleep 2
@@ -71,14 +71,14 @@ APPLIED=$(docker run --rm \
   "$BACKEND_IMAGE" \
   ./node_modules/.bin/prisma migrate status \
     --schema=apps/api/prisma/schema.prisma 2>&1 | grep -c 'Applied' || echo '?')
-echo "✅ 迁移完成 — ${APPLIED} 个迁移已应用"
+echo " 迁移完成 — ${APPLIED} 个迁移已应用"
 
 if [ "$MIGRATE_ONLY" = true ]; then
   echo ""
   echo "→ 启动全部服务 ..."
   BACKEND_IMAGE="$BACKEND_IMAGE" \
     docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d
-  echo "✅ 完成 (已跳过 Seed)"
+  echo " 完成 (已跳过 Seed)"
   exit 0
 fi
 
@@ -109,7 +109,7 @@ docker run --rm \
     tsx scripts/seed/index.ts
   "
 
-echo "✅ Seed 数据写入完成"
+echo " Seed 数据写入完成"
 
 # ------------------------------------------
 # 启动全部服务
@@ -121,7 +121,7 @@ BACKEND_IMAGE="$BACKEND_IMAGE" \
 
 echo ""
 echo "=========================================="
-echo "  ✅ 数据库初始化完成！"
+echo "   数据库初始化完成！"
 echo "=========================================="
 echo ""
 docker compose -f "$COMPOSE_FILE" ps

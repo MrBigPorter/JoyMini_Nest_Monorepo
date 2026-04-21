@@ -18,7 +18,7 @@
 setup:
 	@echo "→ 创建 .env 软链接 → deploy/.env.dev"
 	@ln -sf deploy/.env.dev .env
-	@echo "✅ 完成！运行 make up 启动全套环境"
+	@echo " 完成！运行 make up 启动全套环境"
 	@echo "   或运行 make up-infra + make dev-next 启动（前端热更新更快）"
 
 # ──────────────────────────────────────────

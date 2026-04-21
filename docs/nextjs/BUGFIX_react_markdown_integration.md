@@ -24,7 +24,7 @@
 
 ---
 
-## ✅ 最终解决方案
+## 最终解决方案
 
 ### 📦 依赖安装
 
@@ -70,19 +70,19 @@ import rehypeRaw from "rehype-raw";
 
 ---
 
-## ✅ 获得的能力
+## 获得的能力
 
-| 特性             | 支持状态      |
-| ---------------- | ------------- |
-| ✅ 标准 Markdown | ✅ 原生支持   |
-| ✅ GFM 表格      | ✅ remark-gfm |
-| ✅ 任务列表      | ✅ remark-gfm |
-| ✅ 删除线        | ✅ remark-gfm |
-| ✅ 脚注          | ✅ remark-gfm |
-| ✅ 安全 HTML     | ✅ rehype-raw |
-| ✅ 代码语法高亮  | ✅ 可扩展     |
-| ✅ 数学公式      | ✅ 可扩展     |
-| ✅ Mermaid 图表  | ✅ 可扩展     |
+| 特性          | 支持状态   |
+| ------------- | ---------- |
+| 标准 Markdown | 原生支持   |
+| GFM 表格      | remark-gfm |
+| 任务列表      | remark-gfm |
+| 删除线        | remark-gfm |
+| 脚注          | remark-gfm |
+| 安全 HTML     | rehype-raw |
+| 代码语法高亮  | 可扩展     |
+| 数学公式      | 可扩展     |
+| Mermaid 图表  | 可扩展     |
 
 ---
 
@@ -102,10 +102,10 @@ import rehypeRaw from "rehype-raw";
 
 ## 📌 注意事项
 
-1. ✅ 绝对不要回到 `dangerouslySetInnerHTML` 方案
-2. ✅ 所有新增的标签样式都要在这里统一配置
-3. ✅ 保持和 admin 后台的排版参数 100% 一致
-4. ✅ 后期代码高亮使用 `rehype-highlight` 插件
+1.  绝对不要回到 `dangerouslySetInnerHTML` 方案
+2.  所有新增的标签样式都要在这里统一配置
+3.  保持和 admin 后台的排版参数 100% 一致
+4.  后期代码高亮使用 `rehype-highlight` 插件
 
 ---
 

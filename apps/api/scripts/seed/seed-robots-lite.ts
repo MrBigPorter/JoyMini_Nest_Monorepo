@@ -37,5 +37,5 @@ export async function seedRobotsLite() {
     created++;
   }
 
-  console.log(`  ✅ Robot Users      +${created} new`);
+  console.log(`   Robot Users      +${created} new`);
 }

@@ -595,7 +595,7 @@ export class AdminLuckyDrawController { ... }
 
 在 `LuckyDrawService` 实现中必须遵守：
 
-| 禁止写法 ❌                    | 正确写法 ✅                                                          |
+| 禁止写法 ❌                    | 正确写法                                                             |
 | ------------------------------ | -------------------------------------------------------------------- |
 | `catch (e: any)` + `e.message` | `catch (e: unknown)` + `e instanceof Error ? e.message : String(e)`  |
 | `$queryRawUnsafe<T>(...)`      | `await $queryRawUnsafe(...)` 后再 `as T`                             |
@@ -914,7 +914,7 @@ const activitySchema = z.object({
 });
 type ActivityForm = z.infer<typeof activitySchema>;
 
-// ✅ 正确：resolver + defaultValues 配合使用
+//  正确：resolver + defaultValues 配合使用
 const {
   register,
   handleSubmit,
@@ -936,7 +936,7 @@ const {
   },
 });
 
-// ✅ 正确：submit handler 里手动转换（替代 .transform()）
+//  正确：submit handler 里手动转换（替代 .transform()）
 const onSubmit = async (values: ActivityForm) => {
   const payload: CreateLuckyDrawActivityPayload = {
     title: values.title,
@@ -1074,7 +1074,7 @@ const isValid = Math.abs(totalProbability - 100) < 0.01; // 浮点误差容忍
 
 // 展示
 <span className={isValid ? 'text-green-500' : 'text-red-500'}>
-  概率合计: {totalProbability.toFixed(2)} / 100 {isValid ? '✅' : '⚠️'}
+  概率合计: {totalProbability.toFixed(2)} / 100 {isValid ? '' : '⚠️'}
 </span>
 
 // 新建奖品按钮：totalProbability >= 100 时 disabled
@@ -1115,7 +1115,7 @@ const prizeType = watch('prizeType');
 │  左栏 (w-1/3)               │  右栏 (w-2/3)                         │
 │                             │                                       │
 │  ┌─────────────────────┐   │  ┌─── 奖品配置 ─────────────────────┐  │
-│  │ 🎯 购买后得好礼      │   │  │ [+ Add Prize]   合计: 100/100 ✅  │  │
+│  │ 🎯 购买后得好礼      │   │  │ [+ Add Prize]   合计: 100/100   │  │
 │  │ 全平台 | 启用        │◀选│  │                                   │  │
 │  │ 已发券: 128          │   │  │  奖品名     类型  概率  库存  操作  │  │
 │  └─────────────────────┘   │  │  ₱50优惠券  券    20%  100   ✏️🗑  │  │

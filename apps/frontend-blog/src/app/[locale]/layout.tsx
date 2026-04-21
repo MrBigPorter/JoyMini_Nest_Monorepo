@@ -12,10 +12,6 @@ import BottomNavigation from '@/components/BottomNavigation';
 import { PageTransition } from '@/components/PageTransition';
 import I18nProvider from '@/lib/providers/I18nProvider';
 import { LOCALES, DEFAULT_LOCALE } from '@/lib/i18n/config';
-import {
-  isProtectedRoute,
-  getLoginRedirectUrl,
-} from '@/lib/auth/protected-routes';
 import '../globals.css';
 
 const inter = Inter({
@@ -27,8 +23,8 @@ const locales = LOCALES;
 
 //  元数据放在语言层布局，以后可以支持多语言SEO标题
 export const metadata: Metadata = {
-  title: 'Tarsier Blog',
-  description: 'Developer community from Bohol, Philippines',
+  title: 'Tarsier Labs',
+  description: 'Tech innovation lab from Bohol, Philippines',
 };
 
 export const revalidate = 60; // ISR 60秒重新验证

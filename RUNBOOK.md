@@ -69,7 +69,7 @@ Redis 容器  lucky-redis-prod
 VPS_IP=<VPS_IP> ./deploy/deploy.sh --sync
 
 # 同步后热重载 nginx（不停服）
-ssh root@<VPS_IP> 'docker exec lucky-nginx-prod nginx -t && docker exec lucky-nginx-prod nginx -s reload && echo "✅ nginx reloaded"'
+ssh root@<VPS_IP> 'docker exec lucky-nginx-prod nginx -t && docker exec lucky-nginx-prod nginx -s reload && echo " nginx reloaded"'
 ```
 
 **验证**：
@@ -409,13 +409,13 @@ docker compose --env-file deploy/.env.dev logs --no-color --tail=120 admin-next 
 
 ### 什么是自动的
 
-| 操作                  | 触发条件                                                                                        |
-| --------------------- | ----------------------------------------------------------------------------------------------- |
-| ✅ 后端部署 + DB 迁移 | `apps/api/**` / `packages/shared/**` / `Dockerfile.prod` / `compose.prod.yml` 有改动合并到 main |
-| ✅ Admin 部署         | `apps/admin-next/**` 有改动合并到 main                                                          |
-| ❌ 纯环境变量变更     | 需手动：`yarn deploy:sync` + `yarn deploy:quick`                                                |
-| ❌ Seed 数据          | 首次上线手动跑一次                                                                              |
-| ❌ TURN 服务器        | VPS 重置后手动恢复                                                                              |
+| 操作               | 触发条件                                                                                        |
+| ------------------ | ----------------------------------------------------------------------------------------------- |
+| 后端部署 + DB 迁移 | `apps/api/**` / `packages/shared/**` / `Dockerfile.prod` / `compose.prod.yml` 有改动合并到 main |
+| Admin 部署         | `apps/admin-next/**` 有改动合并到 main                                                          |
+| ❌ 纯环境变量变更  | 需手动：`yarn deploy:sync` + `yarn deploy:quick`                                                |
+| ❌ Seed 数据       | 首次上线手动跑一次                                                                              |
+| ❌ TURN 服务器     | VPS 重置后手动恢复                                                                              |
 
 > ⚠️ 只改 `deploy/.env.prod` **不会**触发重建，必须手动同步。
 >

@@ -40,7 +40,7 @@ testCases.forEach((testCase) => {
   console.log(`  移除语言前缀后: ${pathWithoutLocale}`);
   console.log(`  是否受保护: ${isProtected}`);
   console.log(`  期望: ${testCase.expected} (${testCase.description})`);
-  console.log(`  结果: ${isProtected === testCase.expected ? '✅ 通过' : '❌ 失败'}\n`);
+  console.log(`  结果: ${isProtected === testCase.expected ? ' 通过' : '❌ 失败'}\n`);
 });
 
 console.log('\n📊 改进的正则表达式测试:');
@@ -56,7 +56,7 @@ testCases.forEach((testCase) => {
   console.log(`  移除语言前缀后: ${pathWithoutLocale}`);
   console.log(`  是否受保护: ${isProtected}`);
   console.log(`  期望: ${testCase.expected} (${testCase.description})`);
-  console.log(`  结果: ${isProtected === testCase.expected ? '✅ 通过' : '❌ 失败'}\n`);
+  console.log(`  结果: ${isProtected === testCase.expected ? ' 通过' : '❌ 失败'}\n`);
 });
 
 // 测试isProtectedRoute函数
@@ -79,13 +79,13 @@ function isProtectedRouteImproved(pathname) {
 console.log('\n当前实现:');
 testCases.forEach((testCase) => {
   const result = isProtectedRouteCurrent(testCase.path);
-  console.log(`  ${testCase.path}: ${result} (期望: ${testCase.expected}) ${result === testCase.expected ? '✅' : '❌'}`);
+  console.log(`  ${testCase.path}: ${result} (期望: ${testCase.expected}) ${result === testCase.expected ? '' : '❌'}`);
 });
 
 console.log('\n改进实现:');
 testCases.forEach((testCase) => {
   const result = isProtectedRouteImproved(testCase.path);
-  console.log(`  ${testCase.path}: ${result} (期望: ${testCase.expected}) ${result === testCase.expected ? '✅' : '❌'}`);
+  console.log(`  ${testCase.path}: ${result} (期望: ${testCase.expected}) ${result === testCase.expected ? '' : '❌'}`);
 });
 
 console.log('\n🎯 问题分析:');

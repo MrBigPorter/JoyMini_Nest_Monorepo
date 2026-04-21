@@ -147,12 +147,12 @@ const BadProtectedLink = ({ className, ...props }) => (
   <Link className={`transition-colors duration-200 ${className}`} {...props} />
 );
 
-// ✅ 正确：直接传递，不修改
+//  正确：直接传递，不修改
 const GoodProtectedLink = ({ className, ...props }) => (
   <Link className={className} {...props} />
 );
 
-// ✅ 正确：使用常量构建
+//  正确：使用常量构建
 const SidebarLink = ({ isActive, isExpanded, href, children }) => {
   const linkBuilder = createLinkClassBuilder();
   const className = linkBuilder.build(isActive, isExpanded);
@@ -270,7 +270,7 @@ const [state, setState] = useState(false); // 明确初始值
 // ❌ 错误
 className={`${state ? 'active' : ''}`}
 
-// ✅ 正确：在常量构建后应用状态
+//  正确：在常量构建后应用状态
 const baseClass = BUTTON.BASE;
 const finalClass = state ? cn(baseClass, 'active') : baseClass;
 ```
@@ -481,4 +481,4 @@ export const Button = ({ variant = 'primary', size = 'md', className, ...props }
 
 **文档维护**：前端架构团队  
 **最后更新**：2026年4月20日  
-**状态**：✅ 已验证生产环境有效
+**状态**： 已验证生产环境有效

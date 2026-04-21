@@ -128,7 +128,7 @@ const TableRowImpl = <TData,>({
         key={cell.id}
         style={{ width: cell.column.getSize() }}
         className="border-b border-gray-100 dark:border-white/5 py-3"
-        // ✅ 修复：类型安全的属性传递
+        //  修复：类型安全的属性传递
         {...(isDragHandle ? { 'data-drag-handle': true } : {})}
       >
         {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
@@ -171,7 +171,7 @@ const TableRowImpl = <TData,>({
   );
 };
 
-// ✅ 修复：使用泛型 Memo 组件，解决类型丢失问题
+//  修复：使用泛型 Memo 组件，解决类型丢失问题
 const MemoizedTableRow = React.memo(TableRowImpl, (prev, next) => {
   return (
     prev.row.original === next.row.original &&
@@ -186,7 +186,7 @@ const MemoizedTableRow = React.memo(TableRowImpl, (prev, next) => {
 // ----------------------------------------------------------------------------
 interface BaseTableProps<TData> {
   data: TData[];
-  // ✅ 修复：columns 类型不再是 any
+  //  修复：columns 类型不再是 any
   columns: ColumnDef<TData, unknown>[];
   loading?: boolean;
   rowKey?: keyof TData;
@@ -207,7 +207,7 @@ interface BaseTableProps<TData> {
   disabledRowKeys?: string[];
 }
 
-// ✅ 修复：使用泛型 TData 替代 Record<string, any>
+//  修复：使用泛型 TData 替代 Record<string, any>
 export const BaseTable = <TData,>({
   data,
   columns: propColumns,

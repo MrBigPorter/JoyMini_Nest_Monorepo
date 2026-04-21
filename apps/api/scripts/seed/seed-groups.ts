@@ -126,6 +126,6 @@ export async function seedGroups() {
     }
   }
 
-  console.log(`  ✅ TreasureGroup    +${gCreated} new`);
-  console.log(`  ✅ GroupMember      +${mCreated} new`);
+  console.log(`   TreasureGroup    +${gCreated} new`);
+  console.log(`   GroupMember      +${mCreated} new`);
 }

@@ -2,7 +2,7 @@
 
 > 文档版本：Phase 6 P0  
 > 完成日期：2026-03-23  
-> 状态：✅ 完成（可回退）
+> 状态： 完成（可回退）
 
 ---
 
@@ -22,12 +22,12 @@
 
 | #   | Checkpoint   | 说明                                                                | 状态 |
 | --- | ------------ | ------------------------------------------------------------------- | ---- |
-| 1️⃣  | 读侧契约定义 | 创建 `payment-channels-cache.ts` — URL ↔ queryKey 双向转换         | ✅   |
-| 2️⃣  | 页面级预取   | 改造 `page.tsx` — Server 预取 + `HydrationBoundary` 注水            | ✅   |
-| 3️⃣  | 列表迁移     | `PaymentChannelListClient`：`useAntdTable` → `useQuery + BaseTable` | ✅   |
-| 4️⃣  | 边界锁定     | 单页改造，不涉及全局框架 / 后端接口                                 | ✅   |
-| 5️⃣  | Vitest 覆盖  | `PaymentChannelList.test.tsx`（8 cases）                            | ✅   |
-| 6️⃣  | 文档沉淀     | 本文档 + 心智模型提问                                               | ✅   |
+| 1️⃣  | 读侧契约定义 | 创建 `payment-channels-cache.ts` — URL ↔ queryKey 双向转换          |      |
+| 2️⃣  | 页面级预取   | 改造 `page.tsx` — Server 预取 + `HydrationBoundary` 注水            |      |
+| 3️⃣  | 列表迁移     | `PaymentChannelListClient`：`useAntdTable` → `useQuery + BaseTable` |      |
+| 4️⃣  | 边界锁定     | 单页改造，不涉及全局框架 / 后端接口                                 |      |
+| 5️⃣  | Vitest 覆盖  | `PaymentChannelList.test.tsx`（8 cases）                            |      |
+| 6️⃣  | 文档沉淀     | 本文档 + 心智模型提问                                               |      |
 
 ---
 
@@ -309,4 +309,4 @@ yarn vitest run src/__tests__/components/payment/PaymentChannelList.test.tsx
 
 **文档作者**：GitHub Copilot  
 **最后更新**：2026-03-23  
-**状态**：✅ 已验收
+**状态**： 已验收

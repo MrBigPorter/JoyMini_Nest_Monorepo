@@ -7,9 +7,9 @@ import ClientOnly from './ClientOnly';
  * 📢 Confirm 确认对话框
  *
  * 完美符合多模式架构规范:
- * ✅ 服务端永远不渲染
- * ✅ 客户端Hydrate完成后才挂载
- * ✅ 零Hydration警告
+ *  服务端永远不渲染
+ *  客户端Hydrate完成后才挂载
+ *  零Hydration警告
  *
  * 在根Layout中直接引入即可:
  * ```tsx

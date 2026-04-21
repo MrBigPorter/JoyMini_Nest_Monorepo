@@ -30,11 +30,11 @@ async function testCommentStatusAPI() {
     });
     
     if (response.status === 404) {
-      console.log('✅ 端点存在但评论不存在（预期中的404）');
+      console.log(' 端点存在但评论不存在（预期中的404）');
       console.log('   说明：端点已正确配置，返回404表示评论不存在');
     } else if (response.status === 200) {
       const data = await response.json();
-      console.log('✅ 端点存在并返回数据:');
+      console.log(' 端点存在并返回数据:');
       console.log(`   评论ID: ${data.id}`);
       console.log(`   状态: ${data.status}`);
       console.log(`   文章ID: ${data.articleId}`);
@@ -51,9 +51,9 @@ async function testCommentStatusAPI() {
   }
   
   console.log('\n2. 检查前端API客户端配置...');
-  console.log('   ✅ 已添加 getCommentStatus 方法到 frontendBlogApi');
-  console.log('   ✅ 已更新 checkCommentStatus 函数使用新API');
-  console.log('   ✅ TypeScript编译通过');
+  console.log('    已添加 getCommentStatus 方法到 frontendBlogApi');
+  console.log('    已更新 checkCommentStatus 函数使用新API');
+  console.log('    TypeScript编译通过');
   
   console.log('\n3. 实现总结:');
   console.log('   - 后端: 添加了 /v1/frontend/blog/comments/:id/status 端点');

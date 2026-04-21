@@ -8,7 +8,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'OAuth Callback - Tarsier Blog',
+  title: 'OAuth Callback - Tarsier Labs',
   description: 'OAuth authentication callback',
 };
 

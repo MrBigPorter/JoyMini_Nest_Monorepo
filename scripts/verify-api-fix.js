@@ -21,7 +21,7 @@ async function testCategoryAPI() {
       return false;
     }
     
-    console.log(`✅ 获取到 ${data.items.length} 个分类`);
+    console.log(` 获取到 ${data.items.length} 个分类`);
     
     let allPassed = true;
     
@@ -41,7 +41,7 @@ async function testCategoryAPI() {
         console.log(`     期望格式: { "zh": "...", "en": "..." }`);
         allPassed = false;
       } else if (typeof category.name === 'object' && category.name !== null) {
-        console.log('   ✅ name是JSON对象格式');
+        console.log('    name是JSON对象格式');
         
         // 检查是否有嵌套错误格式
         const hasNestedError = Object.values(category.name).some(value => 
@@ -54,7 +54,7 @@ async function testCategoryAPI() {
           console.log(`     期望格式: { "zh": "字符串", "en": "字符串" }`);
           allPassed = false;
         } else {
-          console.log('   ✅ 格式正确，没有嵌套错误');
+          console.log('    格式正确，没有嵌套错误');
           console.log(`     当前值: ${JSON.stringify(category.name)}`);
         }
       }
@@ -72,7 +72,7 @@ async function testCategoryAPI() {
             console.log('   ❌ description有嵌套错误格式');
             allPassed = false;
           } else {
-            console.log('   ✅ description格式正确');
+            console.log('    description格式正确');
           }
         }
       }
@@ -99,7 +99,7 @@ async function testTagAPI() {
       return false;
     }
     
-    console.log(`✅ 获取到 ${data.items.length} 个标签`);
+    console.log(` 获取到 ${data.items.length} 个标签`);
     
     let allPassed = true;
     
@@ -119,7 +119,7 @@ async function testTagAPI() {
         console.log(`     期望格式: { "zh": "...", "en": "..." }`);
         allPassed = false;
       } else if (typeof tag.name === 'object' && tag.name !== null) {
-        console.log('   ✅ name是JSON对象格式');
+        console.log('    name是JSON对象格式');
         
         // 检查是否有嵌套错误格式
         const hasNestedError = Object.values(tag.name).some(value => 
@@ -132,7 +132,7 @@ async function testTagAPI() {
           console.log(`     期望格式: { "zh": "字符串", "en": "字符串" }`);
           allPassed = false;
         } else {
-          console.log('   ✅ 格式正确，没有嵌套错误');
+          console.log('    格式正确，没有嵌套错误');
           console.log(`     当前值: ${JSON.stringify(tag.name)}`);
         }
       }
@@ -173,20 +173,20 @@ async function main() {
   
   console.log('\n' + '='.repeat(60));
   console.log('📊 验证结果:');
-  console.log(`   分类API: ${categoryPassed ? '✅ 通过' : '❌ 失败'}`);
-  console.log(`   标签API: ${tagPassed ? '✅ 通过' : '❌ 失败'}`);
-  console.log(`   翻译质量: ${translationPassed ? '✅ 通过' : '❌ 失败'}`);
+  console.log(`   分类API: ${categoryPassed ? ' 通过' : '❌ 失败'}`);
+  console.log(`   标签API: ${tagPassed ? ' 通过' : '❌ 失败'}`);
+  console.log(`   翻译质量: ${translationPassed ? ' 通过' : '❌ 失败'}`);
   
   const allPassed = categoryPassed && tagPassed && translationPassed;
   
   if (allPassed) {
     console.log('\n🎉 所有验证通过！API修复成功。');
     console.log('\n🔧 修复总结:');
-    console.log('1. ✅ 移除了硬编码的技术术语跳过逻辑');
-    console.log('2. ✅ 增强了AI翻译Prompt规则');
-    console.log('3. ✅ 优化了队列处理频率');
-    console.log('4. ✅ 技术术语现在通过Prompt规则保护');
-    console.log('5. ✅ API返回格式应该正确（需要数据库修复）');
+    console.log('1.  移除了硬编码的技术术语跳过逻辑');
+    console.log('2.  增强了AI翻译Prompt规则');
+    console.log('3.  优化了队列处理频率');
+    console.log('4.  技术术语现在通过Prompt规则保护');
+    console.log('5.  API返回格式应该正确（需要数据库修复）');
   } else {
     console.log('\n⚠️  部分验证失败，需要进一步修复。');
     console.log('\n🔍 下一步建议:');

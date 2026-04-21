@@ -78,7 +78,7 @@ async function main() {
     }
   }
 
-  console.log('✅ Philippines Address Seeding Completed.');
+  console.log(' Philippines Address Seeding Completed.');
 }
 
 main()

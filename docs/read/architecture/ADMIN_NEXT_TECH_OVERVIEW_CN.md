@@ -57,7 +57,7 @@
 ### 表单规范
 
 ```ts
-// ✅ 正确：defaultValues 在 useForm，schema 不用 .default() / .transform()
+//  正确：defaultValues 在 useForm，schema 不用 .default() / .transform()
 const schema = z.object({ name: z.string(), status: z.number() });
 const form = useForm<z.infer<typeof schema>>({
   resolver: zodResolver(schema),
@@ -67,11 +67,11 @@ const form = useForm<z.infer<typeof schema>>({
 
 ### 测试体系
 
-| 技术              | 用途                | 门禁级别                 |
-| ----------------- | ------------------- | ------------------------ |
-| Vitest v4 + jsdom | 单元测试 + 组件测试 | ✅ 硬门禁（CI 必须通过） |
-| Testing Library   | RTL 渲染断言        | ✅ 硬门禁                |
-| Playwright v1.58  | E2E 端到端测试      | ⚠️ 软门禁（失败不阻断）  |
+| 技术              | 用途                | 门禁级别                |
+| ----------------- | ------------------- | ----------------------- |
+| Vitest v4 + jsdom | 单元测试 + 组件测试 | 硬门禁（CI 必须通过）   |
+| Testing Library   | RTL 渲染断言        | 硬门禁                  |
+| Playwright v1.58  | E2E 端到端测试      | ⚠️ 软门禁（失败不阻断） |
 
 ### 监控与性能
 
@@ -254,10 +254,10 @@ SmartTable.tsx（通用表格组件）
 
 **结论**：
 
-- ✅ 所有页面 CLS = 0（Suspense 骨架屏彻底消灭布局偏移）
-- ✅ SSR 有效：Dashboard 比 Orders 快 **580ms**
-- ✅ 所有页面 TBT < 200ms（JS 不阻塞主线程）
-- ✅ 符合 Google CWV 外网标准（LCP < 2.5s）
+- 所有页面 CLS = 0（Suspense 骨架屏彻底消灭布局偏移）
+- SSR 有效：Dashboard 比 Orders 快 **580ms**
+- 所有页面 TBT < 200ms（JS 不阻塞主线程）
+- 符合 Google CWV 外网标准（LCP < 2.5s）
 
 ---
 
@@ -351,7 +351,7 @@ git push   → prepush（tsc + vitest）
 
 ## 十三、大厂级深度理论题（SSR 核心命脉）
 
-> 以下 5 道题来自大厂实际，结合本项目真实实现，每题附 ❓ 心智模型提问 + ✅ 本项目实际对应。
+> 以下 5 道题来自大厂实际，结合本项目真实实现，每题附 ❓ 心智模型提问 + 本项目实际对应。
 
 ---
 
@@ -379,7 +379,7 @@ page.tsx（Server Component）
 ```
 
 > ❓ **心智模型提问**：如果把 `page.tsx` 里的 `serverFetch` 放到 Client Component 里，会发生什么？  
-> ✅ 服务端数据请求变成客户端请求：① 会有首屏数据空白（TTFB 后才触发请求）；② `serverFetch` 依赖的 Cookie 鉴权在浏览器端拿不到；③ 如果引用了 `server-only` 库，构建直接报错。
+>  服务端数据请求变成客户端请求：① 会有首屏数据空白（TTFB 后才触发请求）；② `serverFetch` 依赖的 Cookie 鉴权在浏览器端拿不到；③ 如果引用了 `server-only` 库，构建直接报错。
 
 ---
 
@@ -398,7 +398,7 @@ page.tsx（Server Component）
 > 本项目部署在 VPS Docker（Node.js standalone），**不走 Edge**，因此无此限制。但这个决策本身就值得聊：管理后台有 Prisma、Socket.IO、重型监控 SDK，天然不适合 Edge，选对部署目标本身是架构能力体现。
 
 > ❓ **心智模型提问**：什么样的页面适合走 Edge Runtime？  
-> ✅ 无 Node.js 原生 API 依赖、无 WASM、无重型三方库、逻辑简单的展示/重定向页（如 Landing Page、A/B 测试分发、geo-aware 重定向）。本项目的 `middleware.ts` 本质上就运行在 Edge-like 的 Next.js Middleware 层。
+>  无 Node.js 原生 API 依赖、无 WASM、无重型三方库、逻辑简单的展示/重定向页（如 Landing Page、A/B 测试分发、geo-aware 重定向）。本项目的 `middleware.ts` 本质上就运行在 Edge-like 的 Next.js Middleware 层。
 
 ---
 
@@ -439,7 +439,7 @@ const { data } = useQuery({
 - `queryKey` 必须完全匹配 → 两端 queryKey 用同一 `*-cache.ts` 函数生成，保证一致性
 
 > ❓ **心智模型提问**：如果 Server 和 Client 的 `queryKey` 不一致会发生什么？  
-> ✅ 注水失败，客户端找不到匹配的缓存，会重新发起一次网络请求，退化成普通 CSR，但不会报错（静默降级）。这也是为什么本项目把 `queryKey` 生成函数抽到 `*-cache.ts` 统一管理，服务端/客户端都 import 同一个函数。
+>  注水失败，客户端找不到匹配的缓存，会重新发起一次网络请求，退化成普通 CSR，但不会报错（静默降级）。这也是为什么本项目把 `queryKey` 生成函数抽到 `*-cache.ts` 统一管理，服务端/客户端都 import 同一个函数。
 
 ---
 
@@ -473,7 +473,7 @@ export async function updateOrderAction(...) {
 ```
 
 > ❓ **心智模型提问**：如果不加 `revalidateTag`，管理员更新订单状态后，列表页还是旧数据，多久会自动刷新？  
-> ✅ 取决于 `revalidate` 时间。如果设了 `revalidate: 60`，最长 60s 后自然过期重取。如果没设（默认无限期缓存），页面永远不会自动刷新，必须手动 `revalidateTag` 或重新部署。这是 Server Action 必须触发 `revalidateTag` 的根本原因。
+>  取决于 `revalidate` 时间。如果设了 `revalidate: 60`，最长 60s 后自然过期重取。如果没设（默认无限期缓存），页面永远不会自动刷新，必须手动 `revalidateTag` 或重新部署。这是 Server Action 必须触发 `revalidateTag` 的根本原因。
 
 ---
 
@@ -501,7 +501,7 @@ export const getAdminToken = () => process.env.ADMIN_JWT_SECRET;
 - 所有含 `ADMIN_JWT_SECRET`、`DATABASE_URL` 的逻辑全部在 Server 侧，Client 只拿到脱敏数据
 
 > ❓ **心智模型提问**：`server-only` 是 Next.js 独有的吗？它的原理是什么？  
-> ✅ 是 npm 上的独立包。原理很简单：包的 `index.js` 只有在 server 环境才能正常 import，在 browser/client bundle 中引用时打包器（Webpack/Turbopack）会抛致命错误。它是纯工程防呆，不涉及运行时逻辑。
+>  是 npm 上的独立包。原理很简单：包的 `index.js` 只有在 server 环境才能正常 import，在 browser/client bundle 中引用时打包器（Webpack/Turbopack）会抛致命错误。它是纯工程防呆，不涉及运行时逻辑。
 
 ---
 
@@ -511,7 +511,7 @@ export const getAdminToken = () => process.env.ADMIN_JWT_SECRET;
 | -------------- | ----------------------------------------------- | --------------------------------------------------- |
 | RSC 产物       | Server Component 已拆分，Client Bundle 控制良好 | 持续检查 `use client` 边界，避免意外扩大            |
 | Edge 部署      | VPS Node.js，不受 Edge 限制                     | Middleware 已是轻量逻辑，符合 Edge 最佳实践         |
-| Hydration 衔接 | 7 个页面已落地缓存契约，queryKey 统一管理       | ✅ 完成，模式已固化                                 |
+| Hydration 衔接 | 7 个页面已落地缓存契约，queryKey 统一管理       | 完成，模式已固化                                    |
 | 三层缓存       | `revalidateTag` 已在 Server Action 中使用       | 补全统计类页面的 `revalidate` 时间窗口              |
 | server-only    | serverFetch 只在 Server 侧调用                  | 可进一步在敏感文件顶部显式加 `import 'server-only'` |
 

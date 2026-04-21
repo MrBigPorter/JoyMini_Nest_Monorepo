@@ -25,10 +25,12 @@ export const cookieStorage: import('zustand/middleware').StateStorage = {
 
     try {
       // 从Cookie中读取存储的数据
-      const cookieValue = getTokenCookie();
-      if (!cookieValue) {
+      const match = document.cookie.match(new RegExp(`(^| )${name}=([^;]+)`));
+      if (!match) {
         return null;
       }
+
+      const cookieValue = decodeURIComponent(match[2]);
 
       // 检查是否是JSON格式（Zustand存储格式）
       try {
@@ -38,17 +40,22 @@ export const cookieStorage: import('zustand/middleware').StateStorage = {
           return cookieValue;
         }
       } catch {
-        // 如果不是JSON，可能是原始token
-        // 转换为Zustand存储格式
-        const state = {
-          state: {
-            accessToken: cookieValue,
-            refreshToken: null,
-            user: null,
-          },
-          version: 0,
-        };
-        return JSON.stringify(state);
+        // 如果不是JSON，可能是旧格式的原始token
+        // 尝试从getTokenCookie获取兼容性支持
+        const tokenValue = getTokenCookie();
+        if (tokenValue) {
+          // 转换为Zustand存储格式
+          const state = {
+            state: {
+              accessToken: tokenValue,
+              refreshToken: null,
+              user: null,
+            },
+            version: 0,
+          };
+          return JSON.stringify(state);
+        }
+        return null;
       }
 
       return cookieValue;
@@ -74,11 +81,21 @@ export const cookieStorage: import('zustand/middleware').StateStorage = {
       const accessToken = parsed?.state?.accessToken;
 
       if (accessToken && typeof accessToken === 'string') {
-        // 只存储accessToken到Cookie
+        // 同时存储完整的Zustand状态和单独的accessToken（向后兼容）
+        // 1. 存储完整的Zustand状态到Cookie
+        const encodedValue = encodeURIComponent(value);
+        const isProduction = process.env.NODE_ENV === 'production';
+        const secureFlag = isProduction ? '; Secure' : '';
+        const httpOnlyFlag = isProduction ? '; HttpOnly' : '';
+
+        document.cookie = `${name}=${encodedValue}; path=/; max-age=86400; SameSite=Lax${secureFlag}${httpOnlyFlag}`;
+
+        // 2. 同时存储单独的accessToken（向后兼容）
         setTokenCookie(accessToken);
       } else {
         // 如果没有accessToken，可能是登出操作
-        // 确保Cookie被清除
+        // 清除所有相关Cookie
+        document.cookie = `${name}=; path=/; max-age=0; SameSite=Lax`;
         clearTokenCookie();
       }
     } catch (error) {
@@ -95,6 +112,9 @@ export const cookieStorage: import('zustand/middleware').StateStorage = {
     }
 
     try {
+      // 清除完整的Zustand状态Cookie
+      document.cookie = `${name}=; path=/; max-age=0; SameSite=Lax`;
+      // 清除单独的accessToken Cookie（向后兼容）
       clearTokenCookie();
     } catch (error) {
       console.warn(

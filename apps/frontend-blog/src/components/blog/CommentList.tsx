@@ -16,13 +16,13 @@ import {
   XCircle,
 } from 'lucide-react';
 import { Link, useRouter } from '@/navigation';
-import { useCommentsInfiniteQuerySimple } from '@/lib/hooks/useCommentsInfiniteQuery';
 import { usePostComment } from '@/lib/hooks/useComments';
+import { useCommentsInfiniteQuerySimple } from '@/lib/hooks/useCommentsAdapter';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { commentStatusManager, CommentStatus } from '@/lib/utils/commentStatus';
 import type { Comment } from '@/lib/types/blog';
 import { formatDistanceToNow } from 'date-fns';
-import { zhCN, enUS, ja, ko } from 'date-fns/locale';
+import { getDateFnsLocale } from '@/lib/utils/date-locale';
 import { useLocale } from 'next-intl';
 import { InfiniteScrollLoader } from '@/components/shared/LoadingIndicator';
 import { useInfiniteScrollDetectionSimple } from '@/lib/hooks/useInfiniteScrollDetection';
@@ -41,6 +41,7 @@ function Comment({ comment, depth = 0, articleId }: CommentProps) {
   const t = useTranslations();
   const locale = useLocale();
   const { user, isAuthenticated } = useAuth();
+  const router = useRouter();
 
   // 美观的回复展开策略：
   // - 顶级评论（depth=0）：直接回复超过1个就折叠
@@ -51,10 +52,8 @@ function Comment({ comment, depth = 0, articleId }: CommentProps) {
   );
   const [showReplyInput, setShowReplyInput] = useState(false);
   const [replyContent, setReplyContent] = useState('');
-  const { mutate: postComment, isPending: isPosting } = usePostComment(
-    articleId,
-    undefined,
-  );
+  const { mutate: postComment, isPending: isPosting } =
+    usePostComment(articleId);
 
   // 检查评论是否已加载完成（乐观更新的评论也算已加载）
   const isCommentLoaded =
@@ -107,27 +106,12 @@ function Comment({ comment, depth = 0, articleId }: CommentProps) {
     return null;
   }
 
-  const getLocale = () => {
-    switch (locale) {
-      case 'zh':
-        return zhCN;
-      case 'en':
-        return enUS;
-      case 'ja':
-        return ja;
-      case 'ko':
-        return ko;
-      default:
-        return enUS;
-    }
-  };
-
   const formatDate = (dateString: string) => {
     try {
       const date = new Date(dateString);
       return formatDistanceToNow(date, {
         addSuffix: true,
-        locale: getLocale(),
+        locale: getDateFnsLocale(locale),
       });
     } catch {
       return dateString;
@@ -141,7 +125,6 @@ function Comment({ comment, depth = 0, articleId }: CommentProps) {
       {
         content: replyContent,
         parentId: comment.id,
-        author: 'Anonymous', // This should come from user input
       },
       {
         onSuccess: () => {
@@ -229,35 +212,24 @@ function Comment({ comment, depth = 0, articleId }: CommentProps) {
             )}
 
           <div className="flex items-center gap-3 mt-2">
-            {!isAuthenticated ? (
-              // 未登录状态：显示登录提示
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span>{t('comment.loginRequired')}</span>
-                <button
-                  onClick={() => (window.location.href = '/login')}
-                  className="px-2 py-1 rounded bg-primary text-primary-foreground text-xs hover:bg-primary/90 transition-colors flex items-center gap-1"
-                >
-                  <LogIn className="w-3 h-3" />
-                  {t('comment.loginToComment')}
-                </button>
-              </div>
-            ) : (
-              // 已登录状态：显示回复按钮
-              <>
-                <button
-                  onClick={() => setShowReplyInput(!showReplyInput)}
-                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={!isCommentLoaded || isPosting}
-                  title={!isCommentLoaded ? t('comment.loadingComment') : ''}
-                >
-                  <Reply className="w-3.5 h-3.5" />
-                  <span>{t('comment.reply')}</span>
-                  {!isCommentLoaded && (
-                    <Loader2 className="w-3 h-3 animate-spin ml-1" />
-                  )}
-                </button>
-              </>
-            )}
+            <button
+              onClick={() => {
+                if (!isAuthenticated) {
+                  router.push('/login');
+                  return;
+                }
+                setShowReplyInput(!showReplyInput);
+              }}
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={!isCommentLoaded || isPosting}
+              title={!isCommentLoaded ? t('comment.loadingComment') : ''}
+            >
+              <Reply className="w-3.5 h-3.5" />
+              <span>{t('comment.reply')}</span>
+              {!isCommentLoaded && (
+                <Loader2 className="w-3 h-3 animate-spin ml-1" />
+              )}
+            </button>
           </div>
 
           {showReplyInput && isAuthenticated && (
@@ -353,10 +325,7 @@ export default function CommentList({ articleId }: CommentListProps) {
     enabled: true,
   });
 
-  const { mutate: postComment, isPending: isPosting } = usePostComment(
-    articleId,
-    undefined,
-  );
+  const { mutate: postComment, isPending: isPosting } = usePostComment(articleId);
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
 
   const totalComments = total;
@@ -381,19 +350,12 @@ export default function CommentList({ articleId }: CommentListProps) {
   const handleSubmitComment = () => {
     if (!commentContent.trim()) return;
 
-    // 获取当前登录用户的真实用户名
-    const authorName =
-      user?.nickname || user?.email || t('comment.currentUser');
-
     // 清空输入框
     setCommentContent('');
 
     // 提交到服务器 - usePostComment 会自动处理乐观更新
     postComment({
       content: commentContent,
-      author: authorName,
-      email: undefined,
-      website: undefined,
     });
   };
 

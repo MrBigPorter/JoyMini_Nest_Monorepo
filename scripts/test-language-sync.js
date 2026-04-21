@@ -30,7 +30,7 @@ let allFilesExist = true;
 for (const file of filesToCheck) {
   const filePath = path.join(__dirname, '..', file);
   if (fs.existsSync(filePath)) {
-    console.log(`  ✅ ${file}`);
+    console.log(`   ${file}`);
     
     // 检查是否使用了detectLocale
     const content = fs.readFileSync(filePath, 'utf8');
@@ -73,9 +73,9 @@ function detectLocale(request) {
 }
 `;
 
-console.log('✅ 检测优先级正确: Cookie > URL路径 > 浏览器语言 > 默认语言');
-console.log('✅ SSR/CSR兼容: 通过环境判断处理不同场景');
-console.log('✅ 单一权威来源: 所有组件使用同一个函数');
+console.log(' 检测优先级正确: Cookie > URL路径 > 浏览器语言 > 默认语言');
+console.log(' SSR/CSR兼容: 通过环境判断处理不同场景');
+console.log(' 单一权威来源: 所有组件使用同一个函数');
 
 console.log('\n🎯 预期效果:');
 console.log('1. 页面刷新无语言闪烁 (zh→en)');
@@ -92,7 +92,7 @@ console.log('4. 验证语言状态是否保持');
 console.log('\n🚀 修复完成！语言状态同步问题已解决。');
 
 if (allFilesExist) {
-  console.log('\n✅ 所有关键文件检查通过');
+  console.log('\n 所有关键文件检查通过');
   process.exit(0);
 } else {
   console.log('\n⚠️  部分文件缺失，请检查');

@@ -785,18 +785,18 @@ function resolveImageUrl(content: string, width = 240): string {
 
 ### 10.5 各媒体类型字段速查表
 
-| 字段                | image(1)        | video(3)        | audio(2)     | file(5)         |
-| ------------------- | --------------- | --------------- | ------------ | --------------- |
-| `content`           | 图片 CDN URL    | 视频 CDN URL    | 音频 CDN URL | 文件 CDN URL    |
-| `meta.w`            | ✅ 图片宽度(px) | ✅ 视频宽度(px) | ❌           | ❌              |
-| `meta.h`            | ✅ 图片高度(px) | ✅ 视频高度(px) | ❌           | ❌              |
-| `meta.blurHash`     | ✅              | ✅              | ❌           | ❌              |
-| `meta.duration`     | ❌              | ✅ 时长(ms)     | ✅ 时长(ms)  | ❌              |
-| `meta.remote_thumb` | ❌              | ✅ 封面图 URL   | ❌           | ❌              |
-| `meta.thumb`        | ❌              | ✅（备用封面）  | ❌           | ❌              |
-| `meta.fileName`     | ✅（原始名）    | ❌              | ❌           | ✅              |
-| `meta.fileSize`     | ❌              | ❌              | ❌           | ✅ bytes        |
-| `meta.fileExt`      | ✅ `jpg`/`png`  | ❌              | ❌           | ✅ `pdf`/`zip`… |
+| 字段                | image(1)     | video(3)     | audio(2)     | file(5)      |
+| ------------------- | ------------ | ------------ | ------------ | ------------ |
+| `content`           | 图片 CDN URL | 视频 CDN URL | 音频 CDN URL | 文件 CDN URL |
+| `meta.w`            | 图片宽度(px) | 视频宽度(px) | ❌           | ❌           |
+| `meta.h`            | 图片高度(px) | 视频高度(px) | ❌           | ❌           |
+| `meta.blurHash`     |              |              | ❌           | ❌           |
+| `meta.duration`     | ❌           | 时长(ms)     | 时长(ms)     | ❌           |
+| `meta.remote_thumb` | ❌           | 封面图 URL   | ❌           | ❌           |
+| `meta.thumb`        | ❌           | （备用封面） | ❌           | ❌           |
+| `meta.fileName`     | （原始名）   | ❌           | ❌           |              |
+| `meta.fileSize`     | ❌           | ❌           | ❌           | bytes        |
+| `meta.fileExt`      | `jpg`/`png`  | ❌           | ❌           | `pdf`/`zip`… |
 
 ---
 

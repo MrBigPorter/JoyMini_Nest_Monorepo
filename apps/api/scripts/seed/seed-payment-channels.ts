@@ -119,5 +119,5 @@ export async function seedPaymentChannels() {
     created++;
   }
 
-  console.log(`  ✅ PaymentChannel   +${created} new, ~${updated} updated`);
+  console.log(`   PaymentChannel   +${created} new, ~${updated} updated`);
 }

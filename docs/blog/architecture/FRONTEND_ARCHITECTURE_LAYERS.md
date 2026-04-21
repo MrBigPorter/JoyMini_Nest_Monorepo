@@ -1,8 +1,8 @@
 # Frontend-Blog 分层架构规范
 
-> ✅ 清晰的分层边界，严格的依赖规则，模块化架构
-> ✅ 拒绝面条代码，拒绝耦合，拒绝后期无法维护
-> ✅ 任何开发人员看到目录结构就知道代码应该写在哪里
+> 清晰的分层边界，严格的依赖规则，模块化架构
+> 拒绝面条代码，拒绝耦合，拒绝后期无法维护
+> 任何开发人员看到目录结构就知道代码应该写在哪里
 
 ---
 
@@ -17,7 +17,7 @@
 ❌ 任何跨层的直接调用
 ```
 
-### ✅ 单向依赖规则
+### 单向依赖规则
 
 ```
 ┌─────────────────────────┐
@@ -41,9 +41,9 @@
 └─────────────────────────┘
 ```
 
-✅ **上层可以依赖下层，下层绝对不能依赖上层**
-✅ **同层之间不允许互相依赖**
-✅ **每一层只知道它直接下层的存在**
+**上层可以依赖下层，下层绝对不能依赖上层**
+**同层之间不允许互相依赖**
+**每一层只知道它直接下层的存在**
 
 ---
 
@@ -51,7 +51,7 @@
 
 ```
 apps/frontend-blog/src/
-├── app/                     # ✅ 页面层 - Next.js App Router
+├── app/                     #  页面层 - Next.js App Router
 │   ├── layout.tsx           # 根布局
 │   ├── page.tsx             # 首页
 │   ├── articles/
@@ -59,7 +59,7 @@ apps/frontend-blog/src/
 │   ├── tags/
 │   └── search/
 │
-├── components/              # ✅ 组件层
+├── components/              #  组件层
 │   ├── core/               # 🔹 原子基础组件 (无业务逻辑)
 │   │   ├── Button.tsx
 │   │   ├── Card.tsx
@@ -90,7 +90,7 @@ apps/frontend-blog/src/
 │       ├── SearchBox.tsx
 │       └── ThemeToggle.tsx
 │
-├── lib/                     # ✅ 核心逻辑层
+├── lib/                     #  核心逻辑层
 │   ├── api/                 # 🔹 API 服务层
 │   │   ├── http.ts          # 统一HTTP客户端
 │   │   ├── articles.ts      # 文章接口
@@ -132,12 +132,12 @@ apps/frontend-blog/src/
 │       ├── comment.ts
 │       └── platform.ts
 │
-├── styles/                  # ✅ 样式层
+├── styles/                  #  样式层
 │   ├── globals.css
 │   ├── prose.css
 │   └── theme.css
 │
-└── constants/               # ✅ 常量配置
+└── constants/               #  常量配置
     ├── routes.ts
     ├── api.ts
     └── app.config.ts
@@ -149,7 +149,7 @@ apps/frontend-blog/src/
 
 ### 1. 页面层 (`app/`)
 
-✅ **可以做的事：**
+**可以做的事：**
 
 - 定义路由
 - 组合组件
@@ -163,7 +163,7 @@ apps/frontend-blog/src/
 - ❌ 写复杂的JSX
 - ❌ 维护本地状态
 
-✅ 页面示例：
+页面示例：
 
 ```tsx
 // app/articles/[slug]/page.tsx
@@ -187,7 +187,7 @@ export default async function ArticlePage({ params }) {
 
 ### 2. 组件层 (`components/`)
 
-✅ **可以做的事：**
+**可以做的事：**
 
 - 接收props渲染UI
 - 维护自己内部的UI状态
@@ -200,7 +200,7 @@ export default async function ArticlePage({ params }) {
 - ❌ 有业务逻辑
 - ❌ 知道路由的存在
 
-✅ 组件示例：
+组件示例：
 
 ```tsx
 // components/blog/ArticleCard.tsx
@@ -222,7 +222,7 @@ export default function ArticleCard({ article, onClick }) {
 
 ### 3. Hooks 层 (`lib/hooks/`)
 
-✅ **可以做的事：**
+**可以做的事：**
 
 - 组装业务逻辑
 - 连接Store和API
@@ -235,7 +235,7 @@ export default function ArticleCard({ article, onClick }) {
 - ❌ 直接操作DOM
 - ❌ 知道组件的存在
 
-✅ Hook 示例：
+Hook 示例：
 
 ```tsx
 // lib/hooks/useArticles.ts
@@ -254,7 +254,7 @@ export function useArticles(params) {
 
 ### 4. API 层 (`lib/api/`)
 
-✅ **可以做的事：**
+**可以做的事：**
 
 - 定义接口调用
 - 请求参数转换
@@ -267,7 +267,7 @@ export function useArticles(params) {
 - ❌ 知道状态管理的存在
 - ❌ 有任何业务逻辑
 
-✅ API 示例：
+API 示例：
 
 ```typescript
 // lib/api/articles.ts
@@ -284,7 +284,7 @@ export const blogApi = {
 
 ### 5. 工具函数层 (`lib/utils/`)
 
-✅ **可以做的事：**
+**可以做的事：**
 
 - 纯函数，输入输出确定
 - 没有副作用
@@ -297,7 +297,7 @@ export const blogApi = {
 - ❌ 依赖任何其他层
 - ❌ 有状态
 
-✅ 工具函数示例：
+工具函数示例：
 
 ```typescript
 // lib/utils/dateFormat.ts
@@ -332,7 +332,7 @@ export function formatDate(timestamp) {
 
 ---
 
-## ✅ 代码审查检查清单
+## 代码审查检查清单
 
 任何PR提交前必须检查：
 

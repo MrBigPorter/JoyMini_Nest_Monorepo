@@ -80,6 +80,7 @@ export const frontendBlogApi = {
     params?: {
       page?: number;
       pageSize?: number;
+      lang?: string;
     },
   ) =>
     http.get<FrontendCategoryWithArticles>(
@@ -92,7 +93,8 @@ export const frontendBlogApi = {
   /**
    * 获取所有标签（简化版）
    */
-  getTags: () => http.get<FrontendTag[]>('/v1/frontend/blog/tags'),
+  getTags: (lang?: string) =>
+    http.get<FrontendTag[]>('/v1/frontend/blog/tags', { lang }),
 
   /**
    * 获取标签详情（简化版）
@@ -102,6 +104,7 @@ export const frontendBlogApi = {
     params?: {
       page?: number;
       pageSize?: number;
+      lang?: string;
     },
   ) =>
     http.get<FrontendTagWithArticles>(`/v1/frontend/blog/tags/${slug}`, params),

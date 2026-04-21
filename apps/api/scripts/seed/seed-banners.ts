@@ -15,10 +15,7 @@
  * 幂等: 用 createdBy='seed' 作标记，已存在则整组跳过
  */
 import { Prisma, PrismaClient } from '@prisma/client';
-import {
-  createTreasureResolver,
-  TreasureRefInput,
-} from './treasure-ref';
+import { createTreasureResolver, TreasureRefInput } from './treasure-ref';
 
 const db = new PrismaClient();
 const resolveTreasure = createTreasureResolver(db);
@@ -138,8 +135,10 @@ export async function seedBanners() {
     });
   }
 
-  console.log(`  ✅ Banner           +${rows.length} new`);
+  console.log(`   Banner           +${rows.length} new`);
   if (linked > 0 || unresolved > 0) {
-    console.log(`  🔗 Banner product   ${linked} linked, ${unresolved} unresolved`);
+    console.log(
+      `  🔗 Banner product   ${linked} linked, ${unresolved} unresolved`,
+    );
   }
 }

@@ -2,7 +2,7 @@
 
 > **版本**: 2.0  
 > **最后更新**: 2026-03-30  
-> **状态**: ✅ 已实施  
+> **状态**: 已实施  
 > **平台**: iOS, Android, Web/H5  
 > **核心特性**: 平台感知架构 + 当前窗口跳转 + State防CSRF
 
@@ -50,10 +50,10 @@
 
 ### 支持的Provider
 
-- ✅ Google Sign-In
-- ✅ Facebook Login
-- ✅ Apple Sign-In
-- ✅ 可扩展其他Provider
+- Google Sign-In
+- Facebook Login
+- Apple Sign-In
+- 可扩展其他Provider
 
 ---
 

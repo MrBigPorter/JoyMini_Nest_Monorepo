@@ -157,8 +157,8 @@ preview_bucket_name = "lucky-blog-assets-preview"
 ```toml
 [[r2_buckets]]
 binding = "ASSETS"
-bucket_name = "mini-shop"                   # ✅ 使用您已有的bucket
-preview_bucket_name = "mini-shop"           # ✅ 预览环境也用同一个
+bucket_name = "mini-shop"                   #  使用您已有的bucket
+preview_bucket_name = "mini-shop"           #  预览环境也用同一个
 ```
 
 ### 第二步：决策D1配置（您决定）
