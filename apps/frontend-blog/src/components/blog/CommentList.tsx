@@ -325,7 +325,8 @@ export default function CommentList({ articleId }: CommentListProps) {
     enabled: true,
   });
 
-  const { mutate: postComment, isPending: isPosting } = usePostComment(articleId);
+  const { mutate: postComment, isPending: isPosting } =
+    usePostComment(articleId);
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
 
   const totalComments = total;

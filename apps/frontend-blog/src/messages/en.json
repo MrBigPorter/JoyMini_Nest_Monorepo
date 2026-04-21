@@ -271,5 +271,29 @@
     "emailNotSet": "Email not set",
     "close": "Close",
     "version": "Tarsier Labs v1.0.0"
+  },
+  "pwa": {
+    "install": {
+      "title": "Install App",
+      "message": "Add JoyMinis Blog to your home screen for a better reading experience!",
+      "button": "Install Now",
+      "dontShow": "Don't Show Again"
+    },
+    "offline": {
+      "titleOffline": "Offline Mode",
+      "titleOnline": "Connection Restored",
+      "messageOffline": "Network connection lost, using offline mode",
+      "messageOnline": "Network connection restored",
+      "retry": "Retry"
+    },
+    "update": {
+      "titleUpdating": "Updating...",
+      "titleAvailable": "Update Available",
+      "message": "New version available! Click to update for the latest features.",
+      "button": "Update Now",
+      "check": "Check for Updates",
+      "checking": "Checking...",
+      "complete": "Page will refresh automatically after update..."
+    }
   }
 }

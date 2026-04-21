@@ -12,6 +12,9 @@ import BottomNavigation from '@/components/BottomNavigation';
 import { PageTransition } from '@/components/PageTransition';
 import I18nProvider from '@/lib/providers/I18nProvider';
 import { LOCALES, DEFAULT_LOCALE } from '@/lib/i18n/config';
+import { InstallPrompt } from '@/components/pwa/InstallPrompt';
+import { OfflineIndicator } from '@/components/pwa/OfflineIndicator';
+import { UpdateAvailable } from '@/components/pwa/UpdateAvailable';
 import '../globals.css';
 
 const inter = Inter({
@@ -156,6 +159,19 @@ export default async function LocaleLayout({
           <PageTransition>{children}</PageTransition>
         </main>
         <BottomNavigation />
+
+        {/* PWA功能组件 */}
+        <InstallPrompt delay={5000} autoHideDelay={15000} />
+        <OfflineIndicator
+          position="top"
+          showRetryButton={true}
+          autoHideDelay={3000}
+        />
+        <UpdateAvailable
+          checkInterval={3600000}
+          showCloseButton={true}
+          autoShowDelay={5000}
+        />
       </I18nProvider>
     </NextIntlClientProvider>
   );
