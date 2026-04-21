@@ -9,7 +9,7 @@
 ### 1.1 基础路径
 
 ```
-https://api.luckynest.com/v1/public/blog
+https://api.joyminis.com/v1/public/blog
 ```
 
 ### 1.2 响应格式

@@ -55,7 +55,7 @@ export default function ShareButton({ article }) {
         share({
           title: article.title,
           text: article.summary,
-          url: `https://blog.luckynest.com/articles/${article.slug}`,
+          url: `https://blog.joyminis.com/articles/${article.slug}`,
         })
       }
     >

@@ -103,7 +103,7 @@ export class GithubProvider {
       headers: {
         Authorization: `Bearer ${accessToken}`,
         Accept: 'application/json',
-        'User-Agent': 'LuckyNest-App',
+        'User-Agent': 'JoyMinis-App',
       },
     });
 
@@ -122,7 +122,7 @@ export class GithubProvider {
             headers: {
               Authorization: `Bearer ${accessToken}`,
               Accept: 'application/json',
-              'User-Agent': 'LuckyNest-App',
+              'User-Agent': 'JoyMinis-App',
             },
           },
         );

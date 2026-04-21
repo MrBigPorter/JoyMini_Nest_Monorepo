@@ -10,6 +10,7 @@ import CommentList from '@/components/blog/CommentList';
 import { BookmarkButton } from '@/lib/components/BookmarkButton';
 import { ArticleDetailSkeleton } from '@/lib/components/SkeletonLoader';
 import { useFrontendArticleBySlug } from '@/lib/hooks/useFrontendArticles';
+import { generateArticleSchema, injectStructuredData } from '@/lib/seo/schema';
 import type { FrontendArticle } from '@/lib/types/frontend-blog';
 
 interface ArticlePageClientProps {
@@ -82,88 +83,104 @@ export default function ArticlePageClient({
     return `${minutes} ${t('article.minutes')}`;
   };
 
+  // 生成结构化数据
+  const articleSchema = article ? generateArticleSchema(article, locale) : null;
+  const structuredData = articleSchema
+    ? injectStructuredData(articleSchema)
+    : '';
+
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8 md:py-12">
-      {/* Back button */}
-      <div className="mb-8">
-        <Link
-          href="/"
-          className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ChevronLeft className="w-4 h-4" />
-          <span>{t('common.backToHome')}</span>
-        </Link>
-      </div>
+    <>
+      {/* 结构化数据注入 */}
+      {structuredData && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: structuredData }}
+        />
+      )}
 
-      {/* Article header */}
-      <header className="mb-10">
-        <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-6">
-          {article.title}
-        </h1>
-
-        {article.excerpt && (
-          <p className="text-lg text-muted-foreground mb-6">
-            {article.excerpt}
-          </p>
-        )}
-
-        <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-          <div className="flex items-center gap-2">
-            <User className="w-4 h-4" />
-            <span>{article.author?.name || t('article.anonymous')}</span>
-          </div>
-          <span className="text-muted-foreground/60">·</span>
-          <div className="flex items-center gap-2">
-            <Calendar className="w-4 h-4" />
-            <span>{formatDate(article.publishedAt)}</span>
-          </div>
-          <span className="text-muted-foreground/60">·</span>
-          <div className="flex items-center gap-2">
-            <Clock className="w-4 h-4" />
-            <span>{calculateReadingTime(article.content || '')}</span>
-          </div>
-          <span className="text-muted-foreground/60">·</span>
-          <div className="flex items-center gap-2">
-            <BookmarkButton
-              articleId={article.id}
-              size="sm"
-              showLabel={false}
-              onBookmarkChange={(bookmarked) => {
-                console.log(
-                  `Article ${article.id} bookmark status: ${bookmarked ? 'Bookmarked' : 'Not bookmarked'}`,
-                );
-              }}
-            />
-            <span className="text-xs">Bookmark</span>
-          </div>
+      <div className="max-w-5xl mx-auto px-4 py-8 md:py-12">
+        {/* Back button */}
+        <div className="mb-8">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ChevronLeft className="w-4 h-4" />
+            <span>{t('common.backToHome')}</span>
+          </Link>
         </div>
-      </header>
 
-      {/* Article content */}
-      <article className="prose prose-slate dark:prose-invert max-w-none">
-        <ReactMarkdown
-          remarkPlugins={[remarkGfm]}
-          rehypePlugins={[rehypeRaw]}
-          components={{
-            h1: ({ children }) => (
-              <h1 className="text-4xl font-bold mt-8 mb-6">{children}</h1>
-            ),
-            h2: ({ children }) => (
-              <h2 className="text-3xl font-semibold mt-8 mb-4">{children}</h2>
-            ),
-            h3: ({ children }) => (
-              <h3 className="text-2xl font-semibold mt-6 mb-4">{children}</h3>
-            ),
-            p: ({ children }) => (
-              <p className="mb-6 leading-7 text-justify">{children}</p>
-            ),
-          }}
-        >
-          {article.content}
-        </ReactMarkdown>
-      </article>
-      {/* Comment system */}
-      {article.slug && <CommentList articleId={article.slug} />}
-    </div>
+        {/* Article header */}
+        <header className="mb-10">
+          <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-6">
+            {article.title}
+          </h1>
+
+          {article.excerpt && (
+            <p className="text-lg text-muted-foreground mb-6">
+              {article.excerpt}
+            </p>
+          )}
+
+          <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <User className="w-4 h-4" />
+              <span>{article.author?.name || t('article.anonymous')}</span>
+            </div>
+            <span className="text-muted-foreground/60">·</span>
+            <div className="flex items-center gap-2">
+              <Calendar className="w-4 h-4" />
+              <span>{formatDate(article.publishedAt)}</span>
+            </div>
+            <span className="text-muted-foreground/60">·</span>
+            <div className="flex items-center gap-2">
+              <Clock className="w-4 h-4" />
+              <span>{calculateReadingTime(article.content || '')}</span>
+            </div>
+            <span className="text-muted-foreground/60">·</span>
+            <div className="flex items-center gap-2">
+              <BookmarkButton
+                articleId={article.id}
+                size="sm"
+                showLabel={false}
+                onBookmarkChange={(bookmarked) => {
+                  console.log(
+                    `Article ${article.id} bookmark status: ${bookmarked ? 'Bookmarked' : 'Not bookmarked'}`,
+                  );
+                }}
+              />
+              <span className="text-xs">Bookmark</span>
+            </div>
+          </div>
+        </header>
+
+        {/* Article content */}
+        <article className="prose prose-slate dark:prose-invert max-w-none">
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            rehypePlugins={[rehypeRaw]}
+            components={{
+              h1: ({ children }) => (
+                <h1 className="text-4xl font-bold mt-8 mb-6">{children}</h1>
+              ),
+              h2: ({ children }) => (
+                <h2 className="text-3xl font-semibold mt-8 mb-4">{children}</h2>
+              ),
+              h3: ({ children }) => (
+                <h3 className="text-2xl font-semibold mt-6 mb-4">{children}</h3>
+              ),
+              p: ({ children }) => (
+                <p className="mb-6 leading-7 text-justify">{children}</p>
+              ),
+            }}
+          >
+            {article.content}
+          </ReactMarkdown>
+        </article>
+        {/* Comment system */}
+        {article.slug && <CommentList articleId={article.slug} />}
+      </div>
+    </>
   );
 }

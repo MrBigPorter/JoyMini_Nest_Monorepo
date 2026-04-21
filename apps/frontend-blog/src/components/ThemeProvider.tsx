@@ -54,13 +54,16 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     setThemeState((prev) => (prev === 'light' ? 'dark' : 'light'));
   };
 
-  // 避免 SSR 时渲染不一致的内容
-  if (!isMounted) {
-    return <>{children}</>;
-  }
+  // 关键修复：始终提供 ThemeContext，即使在 SSR 期间
+  // 在 SSR 期间使用默认值 'light'，避免 hydration 错误
+  const contextValue = {
+    theme: isMounted ? theme : 'light', // SSR 期间使用默认值
+    toggleTheme: isMounted ? toggleTheme : () => {}, // SSR 期间使用空函数
+    setTheme: isMounted ? setTheme : () => {}, // SSR 期间使用空函数
+  };
 
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme, setTheme }}>
+    <ThemeContext.Provider value={contextValue}>
       {children}
     </ThemeContext.Provider>
   );
