@@ -271,5 +271,29 @@
     "emailNotSet": "未设置邮箱",
     "close": "关闭",
     "version": "Tarsier Labs v1.0.0"
+  },
+  "pwa": {
+    "install": {
+      "title": "安装应用",
+      "message": "将JoyMinis博客添加到主屏幕，获得更好的阅读体验！",
+      "button": "立即安装",
+      "dontShow": "不再提示"
+    },
+    "offline": {
+      "titleOffline": "离线模式",
+      "titleOnline": "连接恢复",
+      "messageOffline": "网络连接已断开，正在使用离线模式",
+      "messageOnline": "网络连接已恢复",
+      "retry": "重试"
+    },
+    "update": {
+      "titleUpdating": "更新中...",
+      "titleAvailable": "更新可用",
+      "message": "新版本可用！点击更新获取最新功能。",
+      "button": "立即更新",
+      "check": "检查更新",
+      "checking": "检查中...",
+      "complete": "更新完成后页面将自动刷新..."
+    }
   }
 }

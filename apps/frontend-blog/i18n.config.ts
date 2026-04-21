@@ -16,7 +16,7 @@ const LOCALE_TO_FILE = getLocaleToFileMap();
 
 export default getRequestConfig(async ({ requestLocale }) => {
   // 验证路径中的 locale 是否合法
-  const currentLocale = await requestLocale || defaultLocale;
+  const currentLocale = (await requestLocale) || defaultLocale;
   // 检查是否是支持的语言
   if (!locales.includes(currentLocale as any)) {
     notFound();
