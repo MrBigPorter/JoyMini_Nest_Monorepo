@@ -13,7 +13,7 @@ import {
 import Link from 'next/link';
 
 export const revalidate = 3600;
-export const dynamic = 'auto';
+export const dynamic = 'force-static';
 
 // generate static params for all locales
 export async function generateStaticParams() {

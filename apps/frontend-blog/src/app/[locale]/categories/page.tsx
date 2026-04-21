@@ -8,7 +8,7 @@ import type { Locale } from '@/lib/i18n/config';
 // revalidate combination
 // Each locale has independent cache, no cross contamination
 export const revalidate = 600;
-export const dynamic = 'auto';
+export const dynamic = 'force-static';
 
 // generate static params for all locales
 export async function generateStaticParams() {
@@ -25,9 +25,9 @@ export async function generateHeaders() {
 export default async function CategoriesPage({
   params,
 }: {
-  params: Promise<{ locale: string }>;
+  params: { locale: string };
 }) {
-  const { locale: routeLocale } = await params;
+  const { locale: routeLocale } = params;
   const locale = routeLocale;
 
   const t = await getTranslations({ locale });

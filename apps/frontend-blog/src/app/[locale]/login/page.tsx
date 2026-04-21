@@ -10,6 +10,8 @@ export async function generateStaticParams() {
   return getEnabledLocales().map((locale: Locale) => ({ locale }));
 }
 
+export const dynamic = 'force-static';
+
 export default function LoginPage() {
   return <LoginPageClient />;
 }

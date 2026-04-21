@@ -15,7 +15,14 @@ export default async function sitemap({
 }: {
   params: { locale: string };
 }): Promise<MetadataRoute.Sitemap> {
-  const { locale } = params;
+  // App模式下跳过sitemap生成，避免构建错误
+  if (process.env.BUILD_TARGET === 'app') {
+    console.log('App模式：跳过sitemap生成');
+    return [];
+  }
+
+  // 安全解构参数，提供默认值
+  const { locale } = params || { locale: 'zh' };
   const baseUrl =
     process.env.NEXT_PUBLIC_SITE_URL || 'https://blog.joyminis.com';
 

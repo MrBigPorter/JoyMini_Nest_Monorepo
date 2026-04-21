@@ -9,6 +9,16 @@ import type { Metadata } from 'next';
 export const dynamic = 'auto';
 export const revalidate = 3600; // 1 hour cache for articles
 
+// 静态导出支持：返回空数组，不预生成任何页面
+import { getEnabledLocales } from '@/lib/i18n/config';
+import type { Locale } from '@/lib/i18n/config';
+
+export async function generateStaticParams() {
+  return getEnabledLocales().flatMap((locale: Locale) => [
+    { locale, slug: '_' },
+  ]);
+}
+
 export async function generateHeaders() {
   return {
     'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400',

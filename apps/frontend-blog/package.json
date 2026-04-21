@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "build:cloudflare": "opennextjs-cloudflare build",
+    "build:app": "BUILD_TARGET=app next build",
+    "export": "BUILD_TARGET=app next export",
     "start": "next start",
     "lint": "next lint",
     "test": "vitest run",
@@ -20,7 +21,16 @@
     "deploy:cloudflare:preview": "bash ../deploy/blog-cloudflare.sh --env preview",
     "deploy:cloudflare:production": "bash ../deploy/blog-cloudflare.sh --env production",
     "health-check": "curl -f https://blog.joyminis.com/api/health",
-    "performance-audit": "lighthouse https://blog.joyminis.com --output=json --output-path=./lighthouse-report.json --chrome-flags=\"--headless\" --only-categories=performance,accessibility,best-practices,seo"
+    "performance-audit": "lighthouse https://blog.joyminis.com --output=json --output-path=./lighthouse-report.json --chrome-flags=\"--headless\" --only-categories=performance,accessibility,best-practices,seo",
+    "android:sync": "npx cap sync android",
+    "ios:sync": "npx cap sync ios",
+    "android:open": "npx cap open android",
+    "ios:open": "npx cap open ios",
+    "android:run": "npx cap run android",
+    "ios:run": "npx cap run ios",
+    "app:init": "bash scripts/capacitor/init-app.sh",
+    "app:build:android": "bash scripts/capacitor/build-android.sh",
+    "app:build:ios": "bash scripts/capacitor/build-ios.sh"
   },
   "dependencies": {
     "@capacitor/android": "^6.0.0",
