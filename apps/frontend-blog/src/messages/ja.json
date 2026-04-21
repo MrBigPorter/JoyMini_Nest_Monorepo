@@ -271,5 +271,29 @@
     "emailNotSet": "メール未設定",
     "close": "閉じる",
     "version": "Tarsier Labs v1.0.0"
+  },
+  "pwa": {
+    "install": {
+      "title": "アプリのインストール",
+      "message": "より良い読書体験のためにJoyMinisブログをホーム画面に追加しましょう！",
+      "button": "今すぐインストール",
+      "dontShow": "今後表示しない"
+    },
+    "offline": {
+      "titleOffline": "オフラインモード",
+      "titleOnline": "接続が復元されました",
+      "messageOffline": "ネットワーク接続が切断されました。オフラインモードを使用しています",
+      "messageOnline": "ネットワーク接続が復元されました",
+      "retry": "再試行"
+    },
+    "update": {
+      "titleUpdating": "更新中...",
+      "titleAvailable": "更新が利用可能",
+      "message": "新しいバージョンが利用可能です！最新の機能を入手するためにクリックして更新してください。",
+      "button": "今すぐ更新",
+      "check": "更新を確認",
+      "checking": "確認中...",
+      "complete": "更新後、ページは自動的にリフレッシュされます..."
+    }
   }
 }

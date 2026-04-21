@@ -271,5 +271,29 @@
     "emailNotSet": "이메일 미설정",
     "close": "닫기",
     "version": "Tarsier Labs v1.0.0"
+  },
+  "pwa": {
+    "install": {
+      "title": "앱 설치",
+      "message": "더 나은 독서 경험을 위해 JoyMinis 블로그를 홈 화면에 추가하세요!",
+      "button": "지금 설치",
+      "dontShow": "다시 보지 않기"
+    },
+    "offline": {
+      "titleOffline": "오프라인 모드",
+      "titleOnline": "연결 복원됨",
+      "messageOffline": "네트워크 연결이 끊어졌습니다. 오프라인 모드를 사용 중입니다",
+      "messageOnline": "네트워크 연결이 복원되었습니다",
+      "retry": "재시도"
+    },
+    "update": {
+      "titleUpdating": "업데이트 중...",
+      "titleAvailable": "업데이트 가능",
+      "message": "새 버전이 있습니다! 최신 기능을 위해 클릭하여 업데이트하세요.",
+      "button": "지금 업데이트",
+      "check": "업데이트 확인",
+      "checking": "확인 중...",
+      "complete": "업데이트 후 페이지가 자동으로 새로고침됩니다..."
+    }
   }
 }

@@ -6,13 +6,14 @@
 
 ## 📖 架构设计 `architecture/`
 
-| 文档                                                                                          | 说明                 | 状态 |
-| --------------------------------------------------------------------------------------------- | -------------------- | ---- |
-| [blog-system-architecture.md](architecture/blog-system-architecture.md)                       | 博客系统整体架构设计 |      |
-| [BLOG_SYSTEM_BACKEND_ARCHITECTURE_CN.md](architecture/BLOG_SYSTEM_BACKEND_ARCHITECTURE_CN.md) | 后端架构详细说明     |      |
-| [FRONTEND_BLOG_ARCHITECTURE.md](architecture/FRONTEND_BLOG_ARCHITECTURE.md)                   | 前端架构设计         |      |
-| [FRONTEND_ARCHITECTURE_LAYERS.md](architecture/FRONTEND_ARCHITECTURE_LAYERS.md)               | 前端分层架构         |      |
-| [HOOKS_ARCHITECTURE.md](architecture/HOOKS_ARCHITECTURE.md)                                   | React Hooks 架构规范 |      |
+| 文档                                                                                          | 说明                  | 状态 |
+| --------------------------------------------------------------------------------------------- | --------------------- | ---- |
+| [blog-system-architecture.md](architecture/blog-system-architecture.md)                       | 博客系统整体架构设计  |      |
+| [BLOG_SYSTEM_BACKEND_ARCHITECTURE_CN.md](architecture/BLOG_SYSTEM_BACKEND_ARCHITECTURE_CN.md) | 后端架构详细说明      |      |
+| [FRONTEND_BLOG_ARCHITECTURE.md](architecture/FRONTEND_BLOG_ARCHITECTURE.md)                   | 前端架构设计          |      |
+| [FRONTEND_ARCHITECTURE_LAYERS.md](architecture/FRONTEND_ARCHITECTURE_LAYERS.md)               | 前端分层架构          |      |
+| [HOOKS_ARCHITECTURE.md](architecture/HOOKS_ARCHITECTURE.md)                                   | React Hooks 架构规范  |      |
+| [CAPACITOR_PACKAGING_ARCHITECTURE.md](architecture/CAPACITOR_PACKAGING_ARCHITECTURE.md)       | Capacitor打包架构方案 | ✅   |
 
 ---
 
@@ -87,8 +88,8 @@
 
 ---
 
-> **最后更新**: 2026-04-15
-> **文档总数**: 24 个
+> **最后更新**: 2026-04-21
+> **文档总数**: 25 个
 > **完成进度**: 96%
 > **最新进展**:
 >
