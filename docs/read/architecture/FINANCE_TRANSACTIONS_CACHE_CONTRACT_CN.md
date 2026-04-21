@@ -83,7 +83,7 @@
 
 所以当前状态应准确表述为：
 
-- ✅ `finance:transactions` 已成为**统一失效语言**
+- `finance:transactions` 已成为**统一失效语言**
 - ❌ `transactions` 读侧尚未接入 Next.js Server Cache
 
 这不是 bug，而是本轮刻意选择的**低风险阶段性方案**。

@@ -2,6 +2,7 @@
 
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { frontendBlogApi } from '@/lib/api/frontendBlogApi';
+import { useCurrentLocale } from '@/lib/hooks/useCurrentLocale';
 import type { BookmarkedArticle } from '@/lib/types/frontend-blog';
 
 /**
@@ -24,10 +25,17 @@ export function useBookmarksInfiniteQuery(options?: {
   enabled?: boolean;
   initialData?: any;
 }) {
-  const { pageSize = 20, locale, enabled = true, initialData } = options || {};
+  const {
+    pageSize = 20,
+    locale: propLocale,
+    enabled = true,
+    initialData,
+  } = options || {};
+  const currentLocale = useCurrentLocale();
+  const locale = propLocale || currentLocale; // 优先使用传入的locale，否则使用当前语言
 
   return useInfiniteQuery({
-    queryKey: ['bookmarks', 'infinite', { pageSize, locale }],
+    queryKey: ['bookmarks', 'infinite', locale, { pageSize }],
     initialData: initialData,
     queryFn: async ({ pageParam = 1 }) => {
       const response = await frontendBlogApi.getBookmarks({

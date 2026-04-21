@@ -66,7 +66,7 @@ docker run --rm \
       if "$PRISMA" migrate resolve \
           --applied "$migration" \
           --schema="$SCHEMA" 2>/dev/null; then
-        echo "  ✅ $migration"
+        echo "   $migration"
         count=$((count + 1))
       else
         echo "  ⚠️  跳过 (已存在): $migration"
@@ -90,7 +90,7 @@ docker run --rm \
 
 echo ""
 echo "=========================================="
-echo "  ✅ 基线操作完成！"
+echo "   基线操作完成！"
 echo ""
 echo "  现在可以正常部署:"
 echo "    bash deploy/init-db.sh --migrate-only"

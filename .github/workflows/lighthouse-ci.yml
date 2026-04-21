@@ -139,7 +139,7 @@ jobs:
             tbt = round(statistics.median([r['tbt'] for r in runs]))
             cls = round(statistics.median([r['cls'] for r in runs]), 3)
             score = round(statistics.median([r['score'] for r in runs]))
-            emoji = "✅" if lcp < 2500 else "⚠️" if lcp < 4000 else "❌"
+            emoji = "" if lcp < 2500 else "⚠️" if lcp < 4000 else "❌"
             print(f"| {emoji} {path} | {lcp} | {tbt} | {cls} | {score} |")
           PYEOF
           } >> "$GITHUB_STEP_SUMMARY"

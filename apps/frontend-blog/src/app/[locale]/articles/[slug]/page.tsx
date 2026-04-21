@@ -1,5 +1,4 @@
-import { getTranslations } from 'next-intl/server';
-import { getPlatformArticle } from '@/lib/platform/services/data.service';
+import { frontendBlogApi } from '@/lib/api/frontendBlogApi';
 import { ArticleDetailSkeleton } from '@/lib/components/SkeletonLoader';
 import ArticlePageClient from './page.client';
 
@@ -23,10 +22,9 @@ export default async function ArticlePage({
   const { locale: routeLocale, slug } = await params;
   const locale = routeLocale;
 
-  const t = await getTranslations({ locale });
-
   try {
-    const article = await getPlatformArticle(slug, locale);
+    // 简化架构：直接API调用，避免复杂平台感知抽象
+    const article = await frontendBlogApi.getArticleBySlug(slug, locale);
 
     return (
       <ArticlePageClient initialData={article} locale={locale} slug={slug} />

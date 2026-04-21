@@ -65,10 +65,10 @@ export CF_ROLLBACK_TYPE="CNAME" # 或 A
 
 ## 5. GitHub Actions 现在怎么工作
 
-| 分支   |  Admin Cloudflare  |          后端 VPS          |
-| ------ | :----------------: | :------------------------: |
-| `main` | ✅ production 环境 |        ✅ 自动触发         |
-| `test` |  ✅ preview 环境   | ✅ 自动触发（同 prod VPS） |
+| 分支   | Admin Cloudflare |        后端 VPS         |
+| ------ | :--------------: | :---------------------: |
+| `main` | production 环境  |        自动触发         |
+| `test` |   preview 环境   | 自动触发（同 prod VPS） |
 
 - Admin 部署会执行：`lint + check-types + test`，再 build+deploy。
 - 后端部署：build Docker 镜像 → 推 GHCR → VPS 拉取重启 → 健康检查 → 失败自动回滚。

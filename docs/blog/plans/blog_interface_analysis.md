@@ -6,23 +6,23 @@
 
 ## 1. 路由与控制器映射
 
-| 前端 API 路径 (blogApi)                      | 后端控制器路由                      | 状态              |
-| -------------------------------------------- | ----------------------------------- | ----------------- |
-| `GET /v1/admin/blog/articles`                | `BlogController.getArticles`        | ✅ 匹配           |
-| `GET /v1/admin/blog/articles/:id`            | `BlogController.getArticle`         | ✅ 匹配           |
-| `POST /v1/admin/blog/articles`               | `BlogController.createArticle`      | ✅ 匹配           |
-| `PATCH /v1/admin/blog/articles/:id`          | `BlogController.updateArticle`      | ✅ 匹配（已修复） |
-| `DELETE /v1/admin/blog/articles/:id`         | `BlogController.deleteArticle`      | ✅ 匹配           |
-| `POST /v1/admin/blog/articles/:id/publish`   | `BlogController.publishArticle`     | ✅ 匹配           |
-| `POST /v1/admin/blog/articles/:id/unpublish` | `BlogController.unpublishArticle`   | ✅ 匹配           |
-| `GET /v1/admin/blog/categories`              | `CategoryController.getCategories`  | ✅ 匹配           |
-| `POST /v1/admin/blog/categories`             | `CategoryController.createCategory` | ✅ 匹配           |
-| `PATCH /v1/admin/blog/categories/:id`        | `CategoryController.updateCategory` | ✅ 匹配           |
-| `DELETE /v1/admin/blog/categories/:id`       | `CategoryController.deleteCategory` | ✅ 匹配           |
-| `GET /v1/admin/blog/tags`                    | `TagController.getTags`             | ✅ 匹配           |
-| `POST /v1/admin/blog/tags`                   | `TagController.createTag`           | ✅ 匹配           |
-| `PATCH /v1/admin/blog/tags/:id`              | `TagController.updateTag`           | ✅ 匹配（已修复） |
-| `DELETE /v1/admin/blog/tags/:id`             | `TagController.deleteTag`           | ✅ 匹配           |
+| 前端 API 路径 (blogApi)                      | 后端控制器路由                      | 状态           |
+| -------------------------------------------- | ----------------------------------- | -------------- |
+| `GET /v1/admin/blog/articles`                | `BlogController.getArticles`        | 匹配           |
+| `GET /v1/admin/blog/articles/:id`            | `BlogController.getArticle`         | 匹配           |
+| `POST /v1/admin/blog/articles`               | `BlogController.createArticle`      | 匹配           |
+| `PATCH /v1/admin/blog/articles/:id`          | `BlogController.updateArticle`      | 匹配（已修复） |
+| `DELETE /v1/admin/blog/articles/:id`         | `BlogController.deleteArticle`      | 匹配           |
+| `POST /v1/admin/blog/articles/:id/publish`   | `BlogController.publishArticle`     | 匹配           |
+| `POST /v1/admin/blog/articles/:id/unpublish` | `BlogController.unpublishArticle`   | 匹配           |
+| `GET /v1/admin/blog/categories`              | `CategoryController.getCategories`  | 匹配           |
+| `POST /v1/admin/blog/categories`             | `CategoryController.createCategory` | 匹配           |
+| `PATCH /v1/admin/blog/categories/:id`        | `CategoryController.updateCategory` | 匹配           |
+| `DELETE /v1/admin/blog/categories/:id`       | `CategoryController.deleteCategory` | 匹配           |
+| `GET /v1/admin/blog/tags`                    | `TagController.getTags`             | 匹配           |
+| `POST /v1/admin/blog/tags`                   | `TagController.createTag`           | 匹配           |
+| `PATCH /v1/admin/blog/tags/:id`              | `TagController.updateTag`           | 匹配（已修复） |
+| `DELETE /v1/admin/blog/tags/:id`             | `TagController.deleteTag`           | 匹配           |
 
 **注意**：原先 `updateArticle` 和 `updateTag` 前端使用 `PUT`，而后端期望 `PATCH`。已在 `apps/admin‑next/src/api/index.ts` 中修复。
 
@@ -51,12 +51,12 @@
 
 ## 3. 字段映射
 
-| 前端字段名 (DTO/Form) | 后端字段名 (数据库) | 映射位置                                      | 状态      |
-| --------------------- | ------------------- | --------------------------------------------- | --------- |
-| `featuredImage`       | `coverImage`        | `BlogService.createArticle` / `updateArticle` | ✅ 已映射 |
-| `tagIds`              | `tags` (关系)       | 同上，通过 Prisma `connect`/`set` 处理        | ✅ 正确   |
-| `categoryId`          | `categoryId`        | 直接使用                                      | ✅ 一致   |
-| `status`              | `status`            | 枚举值转换（见下文）                          | ✅ 一致   |
+| 前端字段名 (DTO/Form) | 后端字段名 (数据库) | 映射位置                                      | 状态   |
+| --------------------- | ------------------- | --------------------------------------------- | ------ |
+| `featuredImage`       | `coverImage`        | `BlogService.createArticle` / `updateArticle` | 已映射 |
+| `tagIds`              | `tags` (关系)       | 同上，通过 Prisma `connect`/`set` 处理        | 正确   |
+| `categoryId`          | `categoryId`        | 直接使用                                      | 一致   |
+| `status`              | `status`            | 枚举值转换（见下文）                          | 一致   |
 
 ## 4. 状态枚举
 

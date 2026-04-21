@@ -1,7 +1,7 @@
 # Lucky Nest IM 客服系统 — 工程架构技术分享
 
 > **模块**：后端 `apps/api` (NestJS + Prisma + Socket.IO) + Admin Next `apps/admin-next` (React 19 + Tailwind)  
-> **状态**：Phase 1 已落地 ✅ · Phase 2 待实施  
+> **状态**：Phase 1 已落地 · Phase 2 待实施  
 > **更新时间**：2026-03-20  
 > **用途**：技术分享、内部培训、架构文档  
 > **面向对象**：工程师、架构师、技术决策者
@@ -39,10 +39,10 @@
 
 **关键特征**：
 
-- ✅ 每个用户都和**同一个虚拟客服身份**通话（对用户无感知）
-- ✅ 但每个会话都是**独立的 1v1 私聊**（用户互不可见）
-- ✅ Admin 在后台看到所有用户的**独立会话列表**，点进去处理各自的客户
-- ✅ 未来接入 AI 时，AI **无缝替换** Admin，用户体验不变
+- 每个用户都和**同一个虚拟客服身份**通话（对用户无感知）
+- 但每个会话都是**独立的 1v1 私聊**（用户互不可见）
+- Admin 在后台看到所有用户的**独立会话列表**，点进去处理各自的客户
+- 未来接入 AI 时，AI **无缝替换** Admin，用户体验不变
 
 ---
 
@@ -194,7 +194,7 @@ useChatSocket(...
   ├─ ChatService.sendMessage()
   ├─ EventEmitter.emit(MESSAGE_CREATED)
   ├─ dispatch 到会话房间（其他成员）
-  └─ dispatch 到 admin 私有房间 ✅
+  └─ dispatch 到 admin 私有房间
        └─ Admin 客服台实时显示消息
 ```
 
@@ -222,9 +222,9 @@ eventsGateway.dispatch(
 
 **优势**：
 
-- ✅ 多 Admin 并行处理，各自收到各自的事件
-- ✅ 事件隔离，A 的客户信息不会漂到 B 的客户端
-- ✅ Socket 断开时自动释放房间资源
+- 多 Admin 并行处理，各自收到各自的事件
+- 事件隔离，A 的客户信息不会漂到 B 的客户端
+- Socket 断开时自动释放房间资源
 
 #### 设计 2：事件驱动 + 关注点分离
 
@@ -245,9 +245,9 @@ handleMessageCreated()
 
 **优势**：
 
-- ✅ 业务逻辑与 Socket 分离，易于单测
-- ✅ 事件可灵活扩展（如未来接入 SMS/钉钉通知）
-- ✅ ChatService 无需 mock Socket，纯业务测试
+- 业务逻辑与 Socket 分离，易于单测
+- 事件可灵活扩展（如未来接入 SMS/钉钉通知）
+- ChatService 无需 mock Socket，纯业务测试
 
 #### 设计 3：兜底轮询机制
 
@@ -266,9 +266,9 @@ useEffect(() => {
 
 **优势**：
 
-- ✅ 网络波动时的自动降级
-- ✅ 不依赖 Socket 完全可靠
-- ✅ 老版本客户端的自动兼容
+- 网络波动时的自动降级
+- 不依赖 Socket 完全可靠
+- 老版本客户端的自动兼容
 
 ---
 
@@ -298,11 +298,11 @@ useEffect(() => {
 #### 为什么用真实 User 而不是虚拟对象
 
 ```
-❌ 虚拟对象方案          ✅ 真实 User 方案
+❌ 虚拟对象方案           真实 User 方案
 ────────────────────────────────────────
 需要改 IM 架构            复用整个 IM 基础设施
 自定义消息存储            数据库标准存储
-改 FCM 推送流程           推送自动生效 ✅
+改 FCM 推送流程           推送自动生效
 改搜索逻辑               搜索自动隔离（isRobot:false）
 改权限管理               权限系统无改动
 ```
@@ -459,7 +459,7 @@ async replyToConversation(conversationId, content) {
 - ❌ 用户后台时收不到通知
 - ❌ 消息历史里看不到谁在回复
 
-#### 新模式（Phase 2）：通过 Bot 代发 + 审计元数据 ✅
+#### 新模式（Phase 2）：通过 Bot 代发 + 审计元数据
 
 ```typescript
 async replyToConversation(conversationId, content, adminId) {
@@ -482,9 +482,9 @@ async replyToConversation(conversationId, content, adminId) {
 
 **改造收益**：
 
-- ✅ 消息走 MESSAGE_CREATED 事件 → Socket 分发 → FCM 推送 ✅
-- ✅ 用户后台时能收到通知（botUserId 是真实 User）
-- ✅ 消息历史保留 realAdminId，支持 KPI 统计与法务追责
+- 消息走 MESSAGE_CREATED 事件 → Socket 分发 → FCM 推送
+- 用户后台时能收到通知（botUserId 是真实 User）
+- 消息历史保留 realAdminId，支持 KPI 统计与法务追责
 
 ---
 
@@ -566,7 +566,7 @@ const existingConversation = await this.prisma.conversation.findFirst({
   },
 });
 
-// ✅ 修复后：只复用 NORMAL 状态的会话
+//  修复后：只复用 NORMAL 状态的会话
 const existingConversation = await this.prisma.conversation.findFirst({
   where: {
     type: CONVERSATION_TYPE.SUPPORT,
@@ -586,8 +586,8 @@ const existingConversation = await this.prisma.conversation.findFirst({
 Admin close 会话  → status 设为 2(CLOSED)，推送系统消息
 用户再次点「联系客服」
   → findFirst 找不到 NORMAL 会话（旧的是 CLOSED）
-  → 自动创建新会话 ✅
-  → Admin 客服台收到 support_new_conversation 事件 ✅
+  → 自动创建新会话
+  → Admin 客服台收到 support_new_conversation 事件
 ```
 
 ---
@@ -596,12 +596,12 @@ Admin close 会话  → status 设为 2(CLOSED)，推送系统消息
 
 ### 5.1 实时延迟指标
 
-| 场景                      | Phase 1 前 | Phase 1 后 | Phase 2 后  |
-| ------------------------- | ---------- | ---------- | ----------- |
-| 用户打开客服 → Admin 感知 | 30s        | <100ms     | <100ms      |
-| 用户发消息 → Admin 收到   | 1-2s       | 200-500ms  | 200-500ms   |
-| Admin 回复 → 用户收到     | N/A        | 2-5s       | 2-5s        |
-| 离线用户 → 收到消息       | ❌ 无      | ❌ 无      | ✅ 自动同步 |
+| 场景                      | Phase 1 前 | Phase 1 后 | Phase 2 后 |
+| ------------------------- | ---------- | ---------- | ---------- |
+| 用户打开客服 → Admin 感知 | 30s        | <100ms     | <100ms     |
+| 用户发消息 → Admin 收到   | 1-2s       | 200-500ms  | 200-500ms  |
+| Admin 回复 → 用户收到     | N/A        | 2-5s       | 2-5s       |
+| 离线用户 → 收到消息       | ❌ 无      | ❌ 无      | 自动同步   |
 
 ### 5.2 可靠性多层防护
 
@@ -666,14 +666,14 @@ await this.chatService.sendMessage(botUserId, {
 
 ## 业界对标分析
 
-| 维度        | Lucky Nest            | Zendesk         | Intercom       |
-| ----------- | --------------------- | --------------- | -------------- |
-| 数据隔离    | 1v1 私聊 ✅           | 共享队列 ⚠️     | 1v1 私聊 ✅    |
-| 审计链      | meta + realAdminId ✅ | 内置但不开放 ⚠️ | 基础审计 ⚠️    |
-| 虚拟身份    | User 账号 ✅          | 托管 ✅         | Assistant ✅   |
-| AI 可替换性 | 代码路径设计 ✅       | API 形式 ⚠️     | Plugin 形式 ⚠️ |
-| 多渠道支持  | Admin UI 待 P2 ⚠️     | 原生 ✅         | 原生 ✅        |
-| 成本        | 开源（免费）✅        | $49/user/月     | $39/user/月    |
+| 维度        | Lucky Nest         | Zendesk         | Intercom       |
+| ----------- | ------------------ | --------------- | -------------- |
+| 数据隔离    | 1v1 私聊           | 共享队列 ⚠️     | 1v1 私聊       |
+| 审计链      | meta + realAdminId | 内置但不开放 ⚠️ | 基础审计 ⚠️    |
+| 虚拟身份    | User 账号          | 托管            | Assistant      |
+| AI 可替换性 | 代码路径设计       | API 形式 ⚠️     | Plugin 形式 ⚠️ |
+| 多渠道支持  | Admin UI 待 P2 ⚠️  | 原生            | 原生           |
+| 成本        | 开源（免费）       | $49/user/月     | $39/user/月    |
 
 ---
 

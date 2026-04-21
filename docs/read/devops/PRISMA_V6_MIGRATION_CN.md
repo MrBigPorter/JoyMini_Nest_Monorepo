@@ -54,8 +54,8 @@ Prisma v6 做了两个破坏性变更：
 
 | 代码                               | v5  | v6                                                        |
 | ---------------------------------- | --- | --------------------------------------------------------- |
-| `satisfies Prisma.LogDefinition[]` | ✅  | ❌ `LogDefinition` 从生成客户端的 `Prisma` namespace 移除 |
-| `$queryRawUnsafe<any[]>(...)`      | ✅  | ❌ 不再接受泛型参数                                       |
+| `satisfies Prisma.LogDefinition[]` |     | ❌ `LogDefinition` 从生成客户端的 `Prisma` namespace 移除 |
+| `$queryRawUnsafe<any[]>(...)`      |     | ❌ 不再接受泛型参数                                       |
 
 这两处错误**不影响运行**（NestJS `start:dev` 默认使用 SWC 编译器，SWC 完全忽略
 TypeScript 类型错误，只做语法转译），所以之前应用一直在跑，只是 TS watch 日志里
@@ -100,7 +100,7 @@ generator client {
 log: LOG_CONFIG as unknown as Prisma.LogDefinition[],
 return await this.$queryRawUnsafe<any[]>(`EXPLAIN ${sql}`);
 
-// ✅ 之后（Prisma v6 兼容）
+//  之后（Prisma v6 兼容）
 // 1. 本地定义等价类型，不依赖 Prisma namespace
 type LogDefinition = {
   level: 'query' | 'info' | 'warn' | 'error';

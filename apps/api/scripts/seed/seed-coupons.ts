@@ -117,5 +117,5 @@ export async function seedCoupons() {
       created++;
     }
   }
-  console.log(`  ✅ Coupon           +${created} new`);
+  console.log(`   Coupon           +${created} new`);
 }

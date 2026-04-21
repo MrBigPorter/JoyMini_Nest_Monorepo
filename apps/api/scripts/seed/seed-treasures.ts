@@ -520,7 +520,7 @@ const TREASURES: TreasureSeed[] = [
       '<li>💨 Nike Air cushioning in the heel for all-day comfort</li>',
       '<li>🔒 Lace-lock system with mesh side panels for breathability</li>',
       '<li>📏 US Size 10 (fits true to size)</li>',
-      '<li>✅ Comes with original box, extra laces, and hang tags</li>',
+      '<li> Comes with original box, extra laces, and hang tags</li>',
       '</ul>',
       '<p><em>100% authentic. Ships in original Nike retail box. Certificate of authenticity included.</em></p>',
     ].join(''),
@@ -1982,7 +1982,7 @@ export async function seedTreasures(
     }
   }
 
-  console.log(`  ✅ Treasure         +${tCreated} new, ~${tUpdated} updated`);
-  console.log(`  ✅ TreasureCategory +${cCreated} new`);
+  console.log(`   Treasure         +${tCreated} new, ~${tUpdated} updated`);
+  console.log(`   TreasureCategory +${cCreated} new`);
   return seqToId;
 }

@@ -35,7 +35,7 @@ gzip "$BACKUP_DIR/backup_${DATE}.dump"
 BACKUP_FILE="$BACKUP_DIR/backup_${DATE}.dump.gz"
 BACKUP_SIZE=$(du -h "$BACKUP_FILE" | cut -f1)
 
-echo "[$(date)] ✅ 备份完成: $BACKUP_FILE ($BACKUP_SIZE)"
+echo "[$(date)]  备份完成: $BACKUP_FILE ($BACKUP_SIZE)"
 
 # 清理旧备份
 find "$BACKUP_DIR" -name "backup_*.dump.gz" -mtime +${KEEP_DAYS} -delete

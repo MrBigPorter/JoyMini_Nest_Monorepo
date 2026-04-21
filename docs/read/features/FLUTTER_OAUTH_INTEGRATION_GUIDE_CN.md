@@ -24,10 +24,10 @@
 
 **核心优势**：
 
-- ✅ 解决 iOS H5 OAuth 拦截问题
-- ✅ 三端代码统一，维护成本降低 70%
-- ✅ Firebase 自动处理 token 刷新
-- ✅ 后端只需一个接口，逻辑简化
+- 解决 iOS H5 OAuth 拦截问题
+- 三端代码统一，维护成本降低 70%
+- Firebase 自动处理 token 刷新
+- 后端只需一个接口，逻辑简化
 
 ---
 
@@ -706,9 +706,9 @@ class LoginPage extends StatelessWidget {
 
 ```
 Authentication → Sign-in method → 启用以下方式：
-- Google ✅
-- Facebook ✅
-- Apple ✅
+- Google
+- Facebook
+- Apple
 ```
 
 ### 5.3 添加应用
@@ -788,13 +788,13 @@ Apple Developer → Certificates, Identifiers & Profiles
 
 ### 6.1 客户端应该放什么
 
-- ✅ 放：Firebase 配置（apiKey、appId 等公开标识）
+- 放：Firebase 配置（apiKey、appId 等公开标识）
 - ❌ 不放：Firebase Admin SDK 私钥
 
 ### 6.2 后端应该放什么
 
-- ✅ 放：`FIREBASE_PROJECT_ID`、`FIREBASE_CLIENT_EMAIL`、`FIREBASE_PRIVATE_KEY`
-- ✅ 后端负责 token 最终校验与签发业务 JWT
+- 放：`FIREBASE_PROJECT_ID`、`FIREBASE_CLIENT_EMAIL`、`FIREBASE_PRIVATE_KEY`
+- 后端负责 token 最终校验与签发业务 JWT
 
 ### 6.3 H5 端配置
 

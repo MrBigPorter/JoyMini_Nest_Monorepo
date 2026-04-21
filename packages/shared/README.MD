@@ -125,7 +125,7 @@ export const SHARED_VERSION = '0.1.0';
 
 ## 5) 规则（放什么/不放什么）
 
-✅ **应该放**
+ **应该放**
 
 * 类型与协议：`User`, `Coupon`, `ApiResponse<T>` …
 * 纯函数：**无浏览器/Node 依赖**（如 `formatCurrency`、`isPhone`、`parseLocale`）

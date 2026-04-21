@@ -6,18 +6,18 @@
 
 ---
 
-## ✅ 当前状态（2026-03-22 更新）
+## 当前状态（2026-03-22 更新）
 
 **6-Stage 闯关式重构路线图已全部完成。**
 
-| Stage   | 核心目标                                              | 状态      | 完成日期   |
-| ------- | ----------------------------------------------------- | --------- | ---------- |
-| Stage 1 | Edge Middleware 路由鉴权，消灭 Auth Flashing          | ✅ 已完成 | 2026-03-16 |
-| Stage 2 | async Server Component + Suspense Streaming           | ✅ 已完成 | 2026-03-16 |
-| Stage 3 | URL searchParams 驱动 filter + HydrationBoundary      | ✅ 已完成 | 2026-03-16 |
-| Stage 4 | Client 边界最小化：Finance Stats SSR + 删 console.log | ✅ 已完成 | 2026-03-21 |
-| Stage 5 | Suspense 包裹剩余 9 个"裸页"                          | ✅ 已完成 | 2026-03-21 |
-| Stage 6 | `views/` 目录哲学收口                                 | ✅ 已完成 | 2026-03-22 |
+| Stage   | 核心目标                                              | 状态   | 完成日期   |
+| ------- | ----------------------------------------------------- | ------ | ---------- |
+| Stage 1 | Edge Middleware 路由鉴权，消灭 Auth Flashing          | 已完成 | 2026-03-16 |
+| Stage 2 | async Server Component + Suspense Streaming           | 已完成 | 2026-03-16 |
+| Stage 3 | URL searchParams 驱动 filter + HydrationBoundary      | 已完成 | 2026-03-16 |
+| Stage 4 | Client 边界最小化：Finance Stats SSR + 删 console.log | 已完成 | 2026-03-21 |
+| Stage 5 | Suspense 包裹剩余 9 个"裸页"                          | 已完成 | 2026-03-21 |
+| Stage 6 | `views/` 目录哲学收口                                 | 已完成 | 2026-03-22 |
 
 ---
 
@@ -96,7 +96,7 @@ Next.js 的正确心智是：**把 Client 边界推到最叶节点**，只让真
 `src/lib/serverFetch.ts` 已经封装好了 `serverGet<T>()` 工具函数：
 
 ```typescript
-// ✅ 已有：Server Component 专用 fetch，自动携带 Cookie，支持 Docker 内网
+//  已有：Server Component 专用 fetch，自动携带 Cookie，支持 Docker 内网
 export async function serverGet<T>(path, params?, options?): Promise<T>;
 ```
 
@@ -270,12 +270,12 @@ export function FinanceClient() {
 
 ## 六、你已经做对的事（不要改动）
 
-✅ `src/lib/serverFetch.ts` — `serverGet` 工具封装非常好，Docker 内网 + Cookie 透传都处理了  
-✅ `app/(dashboard)/layout.tsx` — RSC 层面的 `cookies()` + `redirect()` 双重认证守卫  
-✅ `components/dashboard/DashboardStats.tsx` — async Server Component + `Promise.all` 并发拉取  
-✅ `components/analytics/AnalyticsOverview.tsx` — 教科书级 RSC 写法  
-✅ URL searchParams 驱动的 filter pattern — `useSearchParams` + `router.replace()` 让筛选条件可分享  
-✅ `HydrationBoundary` + `dehydrate` 的 TanStack Query 预取模式 — 避免了 SSR 到 CSR 的数据瀑布
+`src/lib/serverFetch.ts` — `serverGet` 工具封装非常好，Docker 内网 + Cookie 透传都处理了  
+ `app/(dashboard)/layout.tsx` — RSC 层面的 `cookies()` + `redirect()` 双重认证守卫  
+ `components/dashboard/DashboardStats.tsx` — async Server Component + `Promise.all` 并发拉取  
+ `components/analytics/AnalyticsOverview.tsx` — 教科书级 RSC 写法  
+ URL searchParams 驱动的 filter pattern — `useSearchParams` + `router.replace()` 让筛选条件可分享  
+ `HydrationBoundary` + `dehydrate` 的 TanStack Query 预取模式 — 避免了 SSR 到 CSR 的数据瀑布
 
 ---
 
@@ -291,18 +291,18 @@ export function FinanceClient() {
 
 ### 🗺️ 全局进度看板
 
-| Stage   | 核心目标                                              | 状态      | 关键文件                                       |
-| ------- | ----------------------------------------------------- | --------- | ---------------------------------------------- |
-| Stage 1 | Edge Middleware 路由鉴权，消灭 Auth Flashing          | ✅ 已完成 | `middleware.ts` + `layout.tsx`                 |
-| Stage 2 | async Server Component + Suspense Streaming           | ✅ 已完成 | `DashboardStats.tsx` / `AnalyticsOverview.tsx` |
-| Stage 3 | URL searchParams 驱动 filter + HydrationBoundary      | ✅ 已完成 | 10 个 `*Client.tsx` 完成迁移                   |
-| Stage 4 | Client 边界最小化：Finance Stats SSR + 删 console.log | ✅ 已完成 | `FinancePage.tsx`                              |
-| Stage 5 | Suspense 包裹剩余 9 个"裸页"                          | ✅ 已完成 | ads / flash-sale / settings 等                 |
-| Stage 6 | `views/` 目录哲学收口                                 | ✅ 已完成 | 整个 `src/views/` 目录                         |
+| Stage   | 核心目标                                              | 状态   | 关键文件                                       |
+| ------- | ----------------------------------------------------- | ------ | ---------------------------------------------- |
+| Stage 1 | Edge Middleware 路由鉴权，消灭 Auth Flashing          | 已完成 | `middleware.ts` + `layout.tsx`                 |
+| Stage 2 | async Server Component + Suspense Streaming           | 已完成 | `DashboardStats.tsx` / `AnalyticsOverview.tsx` |
+| Stage 3 | URL searchParams 驱动 filter + HydrationBoundary      | 已完成 | 10 个 `*Client.tsx` 完成迁移                   |
+| Stage 4 | Client 边界最小化：Finance Stats SSR + 删 console.log | 已完成 | `FinancePage.tsx`                              |
+| Stage 5 | Suspense 包裹剩余 9 个"裸页"                          | 已完成 | ads / flash-sale / settings 等                 |
+| Stage 6 | `views/` 目录哲学收口                                 | 已完成 | 整个 `src/views/` 目录                         |
 
 ---
 
-### ✅ Stage 1（已完成）：Edge Middleware 路由鉴权
+### Stage 1（已完成）：Edge Middleware 路由鉴权
 
 **成果**：`middleware.ts` 在 Edge Runtime 拦截未认证请求，`layout.tsx` 作第二层 RSC 兜底。  
 **消灭的问题**：Auth Flashing（JS 执行前用户看到受保护内容一闪而过）。
@@ -315,7 +315,7 @@ T2: 浏览器收到 302，跳转 /login（从未看到任何页面内容）
 
 ---
 
-### ✅ Stage 2（已完成）：async Server Component + Suspense Streaming
+### Stage 2（已完成）：async Server Component + Suspense Streaming
 
 **成果**：`DashboardStats`、`AnalyticsOverview` 等统计卡片 SSR 直出，零 loading 闪烁。  
 **消灭的问题**：首屏统计数字要等 JS + useRequest 两次 RTT 才出现。
@@ -329,7 +329,7 @@ T3: JS hydrate 后按钮/刷新等交互恢复
 
 ---
 
-### ✅ Stage 3（已完成）：URL searchParams 驱动 filter + HydrationBoundary
+### Stage 3（已完成）：URL searchParams 驱动 filter + HydrationBoundary
 
 **成果**：users / orders / products / banners / kyc / finance / roles / groups / admin-users / operation-logs — 共 10 个列表页完成迁移。  
 **消灭的问题**：筛选条件不能分享 URL、浏览器回退丢失 filter 状态。
@@ -342,7 +342,7 @@ T2: 用户改 filter → router.replace() 更新 URL（无白屏）→ 链接可
 
 ---
 
-### ✅ Stage 4（已完成）：Client 边界最小化
+### Stage 4（已完成）：Client 边界最小化
 
 **目标**：把 Finance 页面统计卡片从"客户端 fetch"改为"服务端 SSR 直出"，同时修复生产数据泄漏。
 
@@ -373,13 +373,13 @@ T1（服务端，~15ms）
   └── <FinanceClient>（Suspense 边界）→ 推送 RSC Payload 给浏览器
 
 T2（浏览器，~60ms）
-  └── 首个 HTML chunk 到达，用户看到：统计数字 ✅ + 列表 skeleton
+  └── 首个 HTML chunk 到达，用户看到：统计数字  + 列表 skeleton
 
 T3（浏览器，~160ms）
   └── React hydrate 完成，Tab 切换可用，列表 useAntdTable 开始拉数据
 
 T4（浏览器，~360ms）
-  └── 列表数据到达，页面完全可交互 ✅
+  └── 列表数据到达，页面完全可交互
 
 对比旧版：统计数字在 T3 后才出现 → 重构后 T2 就出现（提前约 1 RTT = ~200ms）
 ```
@@ -398,40 +398,40 @@ T4（浏览器，~360ms）
 > `FinanceStatsServer` 已经是 async Server Component，没有 `useState`，是"死"的服务端 HTML。  
 > **问：刷新按钮放哪里？点击后触发什么机制才能让 Server Component 的数据"活"起来？**
 
-**✅ 测验答案（已通过）**：  
+** 测验答案（已通过）**：  
 刷新按钮放在 `FinanceRefreshButton.tsx`（Client Component），点击调用 `router.refresh()`。  
 Next.js 收到 `router.refresh()` 后，**重新执行所有 async Server Component**（包括 `FinanceStatsServer`），服务端重新 `await serverGet()`，新数据流式推送到浏览器，无整页跳转。
 
 **实际完成产物**：
 
-- ✅ 删除 `views/FinancePage.tsx` 第 56 行 `console.log`（生产安全）
-- ✅ 新建 `components/finance/FinanceStatsServer.tsx`（async Server Component）
-- ✅ 新建 `components/finance/FinanceRefreshButton.tsx`（Client Component，`router.refresh()`）
-- ✅ `finance/page.tsx` 改为双 Suspense 结构：FinanceStatsServer + FinanceClient 并行流式
+- 删除 `views/FinancePage.tsx` 第 56 行 `console.log`（生产安全）
+- 新建 `components/finance/FinanceStatsServer.tsx`（async Server Component）
+- 新建 `components/finance/FinanceRefreshButton.tsx`（Client Component，`router.refresh()`）
+- `finance/page.tsx` 改为双 Suspense 结构：FinanceStatsServer + FinanceClient 并行流式
 
 ---
 
-### ✅ Stage 5（已完成）：Suspense 包裹剩余 9 个"裸页"
+### Stage 5（已完成）：Suspense 包裹剩余 9 个"裸页"
 
 **目标**：统一所有页面的加载体验，消灭路由切换时的"白屏跳变"。
 
 **已完成**：新建 `components/ui/PageSkeleton.tsx`（Header + Filter + Table 三段通用骨架，`rows` 可配置），以下 9 个页面全部加上 `<Suspense fallback={<PageSkeleton />}>`：
 
 ```
-/ads              ✅
-/flash-sale       ✅
-/settings         ✅
-/notifications    ✅
-/lucky-draw       ✅
-/categories       ✅
-/login-logs       ✅
-/support-channels ✅
-/customer-service ✅（WebSocket 实时页）
+/ads
+/flash-sale
+/settings
+/notifications
+/lucky-draw
+/categories
+/login-logs
+/support-channels
+/customer-service （WebSocket 实时页）
 ```
 
 ---
 
-### ✅ Stage 6（已完成）：`views/` 目录哲学收口
+### Stage 6（已完成）：`views/` 目录哲学收口
 
 **最终目标**：`src/views/` 只保留 Modal、Form、Drawer 等**纯交互组件**，不再放"完整页面"。
 
@@ -470,7 +470,7 @@ views/
 ├── Dashboard.tsx       ← 死代码（无页面引用，仅旧测试参考，待删）
 ├── OrderManagement.tsx ← 死代码（已被 OrdersClient 替代，待删）
 ├── UserManagement.tsx  ← 死代码（已被 UsersClient 替代，待删）
-└── */Modal.tsx         ← ✅ 所有弹窗/表单均在此，符合目标
+└── */Modal.tsx         ←  所有弹窗/表单均在此，符合目标
 ```
 
 **核心判断标准（最终定论）**：
@@ -480,7 +480,7 @@ views/
 这个文件是用户点击按钮后弹出的"弹窗/表单"？ → views/*/XxxModal.tsx
 ```
 
-**质量闸门**：lint ✅ · check-types ✅ · 30 test files / 179 tests ✅
+**质量闸门**：lint · check-types · 30 test files / 179 tests
 
 ---
 

@@ -56,9 +56,9 @@
 
 ## 4. 分阶段执行计划
 
-### ✅ 已完成的优化（2026-03-29）
+### 已完成的优化（2026-03-29）
 
-#### Phase 1: 高收益页面首屏改造 ✅
+#### Phase 1: 高收益页面首屏改造
 
 - [x] Dashboard: SSR 预取 + Streaming + HydrationBoundary
 - [x] Orders: SSR 预取 + URL searchParams 驱动筛选
@@ -66,19 +66,19 @@
 - [x] Users: SSR 预取 + URL searchParams 驱动筛选
 - [x] Finance: 双 Suspense 并行流式渲染 + SSR 预取
 
-#### Phase 2: 缓存与失效机制精细化 ✅
+#### Phase 2: 缓存与失效机制精细化
 
 - [x] 建立 Cache Tag 体系（ORDERS*LIST_TAG, PRODUCTS_LIST_TAG, USERS_LIST_TAG, FINANCE*\*\_TAG）
 - [x] FinanceStatsServer 缓存优化：revalidate 30s → 60s（低频统计）
 - [x] DashboardStats 缓存：finance 60s, users 300s
 
-#### Phase 3: Bundle 与交互流畅度治理 ✅
+#### Phase 3: Bundle 与交互流畅度治理
 
 - [x] recharts 已分离为独立 chunk (362K)，仅 analytics 页面加载
 - [x] AnalyticsTrendSectionLazy 使用 dynamic() + IntersectionObserver 延迟加载
 - [x] optimizePackageImports 已配置 recharts, lucide-react, framer-motion 等
 
-#### Phase 4: 质量闸门与回归机制 ✅
+#### Phase 4: 质量闸门与回归机制
 
 - [x] Lighthouse CI 已集成 GitHub Actions（lighthouse-ci.yml）
 - [x] 性能阈值已配置：LCP < 2.5s, TBT < 200ms, CLS < 0.1, Performance > 0.7
@@ -171,26 +171,26 @@
 
 以下页面当前使用普通 `function` 而非 `async function`，未实现 SSR 预取：
 
-| 页面                 | 优先级 | 状态      | 建议                                    |
-| -------------------- | ------ | --------- | --------------------------------------- |
-| **Customer-service** | P1     | ✅ 已完成 | 已实现 SSR 预取 + HydrationBoundary     |
-| **Notifications**    | P1     | ✅ 已完成 | 已实现 SSR 预取 + HydrationBoundary     |
-| **Marketing**        | P1     | ✅ 已完成 | 已实现 SSR 预取 + HydrationBoundary     |
-| **Categories**       | P1     | ✅ 已完成 | 已实现 SSR 预取 + HydrationBoundary     |
-| Roles                | P2     | 待优化    | 角色管理，可能是静态配置                |
-| Ads                  | P2     | 待优化    | 广告管理                                |
-| Lucky-draw           | P2     | 待优化    | 抽奖配置                                |
-| Flash-sale           | P2     | 待优化    | 秒杀配置                                |
-| Act-sections         | P2     | 待优化    | 活动板块                                |
-| Settings             | P2     | 待优化    | 已有特殊处理（initialData）             |
-| Analytics            | -      | 已完成    | 已使用 dynamic() + IntersectionObserver |
+| 页面                 | 优先级 | 状态   | 建议                                    |
+| -------------------- | ------ | ------ | --------------------------------------- |
+| **Customer-service** | P1     | 已完成 | 已实现 SSR 预取 + HydrationBoundary     |
+| **Notifications**    | P1     | 已完成 | 已实现 SSR 预取 + HydrationBoundary     |
+| **Marketing**        | P1     | 已完成 | 已实现 SSR 预取 + HydrationBoundary     |
+| **Categories**       | P1     | 已完成 | 已实现 SSR 预取 + HydrationBoundary     |
+| Roles                | P2     | 待优化 | 角色管理，可能是静态配置                |
+| Ads                  | P2     | 待优化 | 广告管理                                |
+| Lucky-draw           | P2     | 待优化 | 抽奖配置                                |
+| Flash-sale           | P2     | 待优化 | 秒杀配置                                |
+| Act-sections         | P2     | 待优化 | 活动板块                                |
+| Settings             | P2     | 待优化 | 已有特殊处理（initialData）             |
+| Analytics            | -      | 已完成 | 已使用 dynamic() + IntersectionObserver |
 
 ### 7.2 Bundle 优化空间
 
 **当前状态：**
 
 - 主 chunk (1930): 408K - Next.js 核心，无法优化
-- recharts chunk (4204): 362K - 已分离，仅 analytics 页面加载 ✅
+- recharts chunk (4204): 362K - 已分离，仅 analytics 页面加载
 - 共享 chunk: 186K
 
 **潜在优化：**
@@ -202,8 +202,8 @@
 
 **当前状态：**
 
-- 低频统计：60-300s ✅
-- 常规列表：30s ✅
+- 低频统计：60-300s
+- 常规列表：30s
 - 强实时：待确认（支付状态等）
 
 **建议：**
@@ -290,9 +290,9 @@ class ApiError extends Error {
 
 **已完成优化：**
 
-- ✅ `format-utils.ts` 已优化，添加缓存和常量
-- ✅ 提取公共辅助函数，减少代码重复
-- ✅ 添加缓存机制，提升性能
+- `format-utils.ts` 已优化，添加缓存和常量
+- 提取公共辅助函数，减少代码重复
+- 添加缓存机制，提升性能
 
 **优化成果：**
 

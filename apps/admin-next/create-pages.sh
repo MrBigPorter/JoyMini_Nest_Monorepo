@@ -24,6 +24,6 @@ for item in "${pages[@]}"; do
   component="${rest%%:*}"
   file="$BASE/$route/page.tsx"
   printf "'use client';\nimport { %s } from '@/pages/%s';\nexport default function Page() {\n  return <%s />;\n}\n" "$component" "$component" "$component" > "$file"
-  echo "✅ $route"
+  echo " $route"
 done
 

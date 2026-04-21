@@ -27,20 +27,20 @@
 
 根据现有代码分析，以下功能已实现：
 
-✅ **核心架构**：
+**核心架构**：
 
 - 完整的OAuth Deep Link流程（发起授权 → 回调处理 → Deep Link重定向）
 - 支持Google、Facebook、Apple三种Provider
 - State参数编码/解码机制
 - 平台感知重定向（移动端Deep Link，Web端Cookie）
 
-✅ **Google OAuth**：
+  **Google OAuth**：
 
 - Client ID/Secret配置完整
 - Token交换和用户信息获取
 - 回调处理逻辑
 
-✅ **Facebook OAuth**：
+  **Facebook OAuth**：
 
 - App ID/Secret配置完整
 - Graph API调用

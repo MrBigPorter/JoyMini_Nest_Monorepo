@@ -18,7 +18,7 @@ console.log('🔍 开始认证闪动修复测试...\n');
 // 检查文件是否存在
 function checkFileExists(filePath) {
   const exists = fs.existsSync(filePath);
-  console.log(`${exists ? '✅' : '❌'} ${path.relative(PROJECT_ROOT, filePath)}`);
+  console.log(`${exists ? '' : '❌'} ${path.relative(PROJECT_ROOT, filePath)}`);
   return exists;
 }
 
@@ -35,7 +35,7 @@ function checkFileContent(filePath, keywords) {
     }
     
     if (missingKeywords.length === 0) {
-      console.log(`✅ ${path.relative(PROJECT_ROOT, filePath)} 包含所有关键词`);
+      console.log(` ${path.relative(PROJECT_ROOT, filePath)} 包含所有关键词`);
       return true;
     } else {
       console.log(`❌ ${path.relative(PROJECT_ROOT, filePath)} 缺少关键词: ${missingKeywords.join(', ')}`);
@@ -55,7 +55,7 @@ function runTypeCheck() {
       cwd: PROJECT_ROOT,
       stdio: 'pipe',
     });
-    console.log('✅ TypeScript 类型检查通过');
+    console.log(' TypeScript 类型检查通过');
     return true;
   } catch (error) {
     console.log('❌ TypeScript 类型检查失败');
@@ -136,18 +136,18 @@ async function runTests() {
   }
   
   console.log('\n📊 检查结果汇总:');
-  console.log(`- 文件完整性: ${allFilesExist ? '✅ 通过' : '❌ 失败'}`);
-  console.log(`- 内容正确性: ${allContentValid ? '✅ 通过' : '❌ 失败'}`);
+  console.log(`- 文件完整性: ${allFilesExist ? ' 通过' : '❌ 失败'}`);
+  console.log(`- 内容正确性: ${allContentValid ? ' 通过' : '❌ 失败'}`);
   
   // 运行类型检查
   const typeCheckPassed = runTypeCheck();
   
   console.log('\n🎯 改进效果验证:');
-  console.log('1. ✅ 同步读取机制: 立即从 localStorage 读取认证状态，消除水合延迟');
-  console.log('2. ✅ 智能认证状态计算: 优先使用 SSR 传递的状态，避免客户端水合不一致');
-  console.log('3. ✅ 平台检测: 支持 Web SSR、Web SPA 和 Capacitor App 三种模式');
-  console.log('4. ✅ 重定向优化: 避免重复重定向，保存重定向路径');
-  console.log('5. ✅ 向后兼容: 现有 ProtectedRoute 组件可以逐步迁移');
+  console.log('1.  同步读取机制: 立即从 localStorage 读取认证状态，消除水合延迟');
+  console.log('2.  智能认证状态计算: 优先使用 SSR 传递的状态，避免客户端水合不一致');
+  console.log('3.  平台检测: 支持 Web SSR、Web SPA 和 Capacitor App 三种模式');
+  console.log('4.  重定向优化: 避免重复重定向，保存重定向路径');
+  console.log('5.  向后兼容: 现有 ProtectedRoute 组件可以逐步迁移');
   
   console.log('\n🚀 实施建议:');
   console.log('1. 立即测试 bookmarks 页面，验证无闪动效果');

@@ -4,9 +4,9 @@ import { useState, useEffect } from 'react';
 import { useRouter } from '@/navigation';
 import { Button } from '@repo/ui';
 import { Heart } from 'lucide-react';
-import { useBookmarkStatus, useBookmarks } from '@/lib/hooks/useBookmarks';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useToast } from '@/lib/hooks/useToast';
+import { frontendBlogApi } from '@/lib/api/frontendBlogApi';
 
 export interface BookmarkButtonProps {
   /** 文章ID */
@@ -48,42 +48,18 @@ export function BookmarkButton({
   alwaysVisible = true,
   bookmarkStatus,
 }: BookmarkButtonProps) {
-  const [optimisticBookmarked, setOptimisticBookmarked] = useState<
-    boolean | null
-  >(null);
-  const [shouldCheckStatus, setShouldCheckStatus] = useState(false);
+  const [isBookmarked, setIsBookmarked] = useState(initialBookmarked);
+  const [isLoading, setIsLoading] = useState(false);
   const { isAuthenticated } = useAuth();
   const router = useRouter();
   const { show, success, error, info } = useToast();
 
-  // 获取收藏状态 - 默认不启用查询，只在需要时启用
-  const { data: status, isLoading: isStatusLoading } = useBookmarkStatus(
-    articleId,
-    shouldCheckStatus,
-  );
-
-  // 获取收藏操作函数
-  const { addBookmark, removeBookmark, toggleBookmark, isBookmarkLoading } =
-    useBookmarks();
-
-  // 当用户登录状态变化时，如果已经点击过按钮，则重新检查收藏状态
+  // 如果有预加载状态，使用它
   useEffect(() => {
-    if (isAuthenticated && shouldCheckStatus) {
-      // 重新获取收藏状态
-      // 这里依赖useBookmarkStatus的enabled参数会自动处理
+    if (bookmarkStatus?.isBookmarked !== undefined) {
+      setIsBookmarked(bookmarkStatus.isBookmarked);
     }
-  }, [isAuthenticated, shouldCheckStatus]);
-
-  // 确定当前收藏状态（优先使用乐观更新，然后使用API状态，然后使用预加载状态，最后使用初始状态）
-  const isBookmarked =
-    optimisticBookmarked !== null
-      ? optimisticBookmarked
-      : (status?.isBookmarked ??
-        bookmarkStatus?.isBookmarked ??
-        initialBookmarked);
-
-  // 确定是否正在加载
-  const isLoading = isStatusLoading || (showLoading && isBookmarkLoading);
+  }, [bookmarkStatus]);
 
   // 处理未登录用户的登录流程
   const handleLoginRedirect = () => {
@@ -111,39 +87,31 @@ export function BookmarkButton({
       return;
     }
 
-    // 如果是第一次点击，启用收藏状态查询
-    if (!shouldCheckStatus) {
-      setShouldCheckStatus(true);
-      // 等待状态查询完成
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    }
-
-    // 设置乐观更新
+    setIsLoading(true);
     const newBookmarked = !isBookmarked;
-    setOptimisticBookmarked(newBookmarked);
 
     try {
       // 执行收藏/取消收藏操作
       if (newBookmarked) {
-        await addBookmark(articleId);
+        await frontendBlogApi.addBookmark(articleId);
         success('文章已添加到收藏夹');
       } else {
-        await removeBookmark(articleId);
+        await frontendBlogApi.removeBookmark(articleId);
         success('文章已从收藏夹移除');
       }
-
+      // 更新状态
+      setIsBookmarked(newBookmarked);
       // 调用回调函数
       onBookmarkChange?.(newBookmarked);
     } catch (err) {
-      // 操作失败，回滚乐观更新
-      setOptimisticBookmarked(null);
-
       const errorMessage = newBookmarked ? '收藏失败' : '取消收藏失败';
       const errorDescription =
         err instanceof Error ? err.message : '请稍后重试';
 
       error(`${errorMessage}: ${errorDescription}`);
       console.error(`${errorMessage}:`, err);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -177,7 +145,7 @@ export function BookmarkButton({
 
   const { iconSize, textSize, padding, touchSize } = getSizeConfig();
 
-  // 确定按钮变体 - 修复类型错误
+  // 确定按钮变体
   const variant = isBookmarked ? 'primary' : 'outline';
 
   // 确定按钮文字
@@ -267,16 +235,6 @@ export function BookmarkButtonWithCount({
   className = '',
   alwaysVisible = true,
 }: BookmarkButtonProps & { count?: number }) {
-  const [shouldCheckStatus, setShouldCheckStatus] = useState(false);
-  const { data: status } = useBookmarkStatus(articleId, shouldCheckStatus);
-  const isBookmarked = status?.isBookmarked ?? initialBookmarked;
-
-  const handleClick = () => {
-    if (!shouldCheckStatus) {
-      setShouldCheckStatus(true);
-    }
-  };
-
   return (
     <div className="flex items-center gap-1">
       <BookmarkButton
@@ -291,7 +249,7 @@ export function BookmarkButtonWithCount({
       {count > 0 && (
         <span
           className={`text-sm text-muted-foreground ${
-            isBookmarked ? 'text-primary' : ''
+            initialBookmarked ? 'text-primary' : ''
           }`}
         >
           {count}

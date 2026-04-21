@@ -117,5 +117,5 @@ export async function seedKycIdTypes() {
     created++;
   }
 
-  console.log(`  ✅ KycIdType        +${created} new, ~${updated} updated`);
+  console.log(`   KycIdType        +${created} new, ~${updated} updated`);
 }

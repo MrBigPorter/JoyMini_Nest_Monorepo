@@ -235,7 +235,7 @@ export default function TranslationProgressCard() {
 
         {overallPercentage === 100 && progressData.totalItems > 0 && (
           <div className="text-xs text-emerald-600 bg-emerald-50 p-2 rounded">
-            ✅ 所有翻译任务已完成
+            所有翻译任务已完成
           </div>
         )}
 

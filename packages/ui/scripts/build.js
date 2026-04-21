@@ -188,7 +188,7 @@ async function build() {
     fs.rmSync(tempDir, { recursive: true, force: true });
     
     const ms = Date.now() - t0;
-    console.log('✅ @repo/ui built in', ms + 'ms →', path.relative(process.cwd(), outDir));
+    console.log(' @repo/ui built in', ms + 'ms →', path.relative(process.cwd(), outDir));
     
   } catch (err) {
     // Clean up temporary directory on error

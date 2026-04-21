@@ -35,9 +35,11 @@ export default function Sidebar() {
   ];
 
   // 定义样式常量，确保服务器端和客户端一致
-  const linkBaseClass = 'flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200';
+  const linkBaseClass =
+    'flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200';
   const activeClass = 'bg-primary/10 text-primary border border-primary/20';
-  const inactiveClass = 'hover:bg-accent text-foreground/80 hover:text-foreground';
+  const inactiveClass =
+    'hover:bg-accent text-foreground/80 hover:text-foreground';
 
   return (
     <aside
@@ -72,7 +74,9 @@ export default function Sidebar() {
               <div className="flex items-center justify-center w-8 h-8">
                 <Icon className="w-5 h-5" />
               </div>
-              <span className={`whitespace-nowrap ${isExpanded ? '' : 'hidden'}`}>
+              <span
+                className={`whitespace-nowrap ${isExpanded ? '' : 'hidden'}`}
+              >
                 {item.label}
               </span>
             </div>

@@ -2,7 +2,7 @@
 
 > 文档版本：Phase 6 P0  
 > 完成日期：2026-03-23  
-> 状态：✅ 完成（可回退）
+> 状态： 完成（可回退）
 
 ---
 
@@ -22,12 +22,12 @@
 
 | #   | Checkpoint   | 说明                                                               | 状态 |
 | --- | ------------ | ------------------------------------------------------------------ | ---- |
-| 1️⃣  | 读侧契约定义 | 收敛 `users-cache.ts`：URL 解析 / queryKey / request params helper | ✅   |
-| 2️⃣  | 页面级预取   | `users/page.tsx` Server 预取 + `HydrationBoundary` 注水            | ✅   |
-| 3️⃣  | 列表消费对齐 | 拆出 `UserListClient`，由 `UsersClient` 只负责 URL 壳              | ✅   |
-| 4️⃣  | 边界锁定     | 单页可回退改造，不改全局表格框架 / 后端接口                        | ✅   |
-| 5️⃣  | Vitest 覆盖  | `UsersClient.test.tsx` + `UserListClient.test.tsx`（10 tests）     | ✅   |
-| 6️⃣  | 文档沉淀     | 本文档 + 心智模型提问                                              | ✅   |
+| 1️⃣  | 读侧契约定义 | 收敛 `users-cache.ts`：URL 解析 / queryKey / request params helper |      |
+| 2️⃣  | 页面级预取   | `users/page.tsx` Server 预取 + `HydrationBoundary` 注水            |      |
+| 3️⃣  | 列表消费对齐 | 拆出 `UserListClient`，由 `UsersClient` 只负责 URL 壳              |      |
+| 4️⃣  | 边界锁定     | 单页可回退改造，不改全局表格框架 / 后端接口                        |      |
+| 5️⃣  | Vitest 覆盖  | `UsersClient.test.tsx` + `UserListClient.test.tsx`（10 tests）     |      |
+| 6️⃣  | 文档沉淀     | 本文档 + 心智模型提问                                              |      |
 
 ---
 
@@ -279,7 +279,7 @@ yarn vitest run src/__tests__/views/UsersClient.test.tsx src/__tests__/component
 
 ---
 
-## ✅ 验证结果
+## 验证结果
 
 - [x] Users 相关文件 ESLint 通过
 - [x] Users 相关 Vitest 通过（10/10）
@@ -292,4 +292,4 @@ yarn vitest run src/__tests__/views/UsersClient.test.tsx src/__tests__/component
 
 **文档作者**：GitHub Copilot  
 **最后更新**：2026-03-23  
-**状态**：✅ 已验收
+**状态**： 已验收

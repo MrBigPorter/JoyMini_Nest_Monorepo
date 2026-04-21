@@ -148,7 +148,7 @@ optimisticUpdateTestCases.forEach((test, index) => {
   console.log(`${index + 1}. ${test.type}:`);
   console.log(`   描述: ${test.description}`);
   console.log(`   预期: ${test.expected}`);
-  console.log(`   状态: ✅ 已实现`);
+  console.log(`   状态:  已实现`);
 });
 
 // 测试3：用户体验改进
@@ -156,13 +156,13 @@ console.log('\n✨ 测试3：用户体验改进');
 console.log('-'.repeat(30));
 
 const userExperienceImprovements = [
-  '✅ 即时反馈: 评论提交后立即显示',
-  '✅ 智能折叠: 根据深度和回复数量智能展开/折叠',
-  '✅ 界面整洁: 顶级评论回复超过1个自动折叠',
-  '✅ 嵌套友好: 嵌套回复保持合理展开阈值',
-  '✅ 错误处理: 网络异常时优雅回滚',
-  '✅ 视觉优化: 类似微信空间的简洁设计',
-  '✅ 响应式: 移动端友好，触摸操作优化'
+  ' 即时反馈: 评论提交后立即显示',
+  ' 智能折叠: 根据深度和回复数量智能展开/折叠',
+  ' 界面整洁: 顶级评论回复超过1个自动折叠',
+  ' 嵌套友好: 嵌套回复保持合理展开阈值',
+  ' 错误处理: 网络异常时优雅回滚',
+  ' 视觉优化: 类似微信空间的简洁设计',
+  ' 响应式: 移动端友好，触摸操作优化'
 ];
 
 userExperienceImprovements.forEach(improvement => {
@@ -217,7 +217,7 @@ fixSummary.forEach(line => {
   console.log(line);
 });
 
-console.log('\n✅ 验证完成');
+console.log('\n 验证完成');
 console.log('='.repeat(50));
 console.log('总结:');
 console.log('  - 乐观更新已修复，应该能立即显示评论');

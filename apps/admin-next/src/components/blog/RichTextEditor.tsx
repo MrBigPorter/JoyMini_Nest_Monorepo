@@ -43,7 +43,7 @@ export const RichTextEditor = ({
     import('react-quill-new').then((mod) => setReactQuill(() => mod.default));
   }, []);
 
-  // ✅ 不要自动监听 Quill 事件，因为会触发无限循环
+  //  不要自动监听 Quill 事件，因为会触发无限循环
   // ❌ 所有通过代码修改内容的地方我都会手动调用 onChange
   // 这是目前唯一不会死循环的正确方案
 

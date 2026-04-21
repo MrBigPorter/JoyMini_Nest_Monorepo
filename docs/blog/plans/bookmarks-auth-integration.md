@@ -13,17 +13,17 @@
 
 ### 后端系统（已存在）
 
-- ✅ JWT Token 认证系统（accessToken + refreshToken）
-- ✅ 支持手机号验证码登录
-- ✅ 支持邮箱验证码登录
-- ✅ 支持 OAuth（Google、Facebook、Apple）
-- ✅ 用户管理、登录日志
+- JWT Token 认证系统（accessToken + refreshToken）
+- 支持手机号验证码登录
+- 支持邮箱验证码登录
+- 支持 OAuth（Google、Facebook、Apple）
+- 用户管理、登录日志
 - ❌ 缺少博客收藏功能 API
 
 ### 前端系统（部分实现）
 
-- ✅ 有登录/注册页面 UI（mock 逻辑）
-- ✅ 有 Header 登录按钮
+- 有登录/注册页面 UI（mock 逻辑）
+- 有 Header 登录按钮
 - ❌ 没有全局认证状态管理
 - ❌ 登录页面没有对接真实 API
 - ❌ bookmarks 页面使用 mock 数据，没有空状态处理
@@ -936,11 +936,11 @@ export default function BookmarksPage() {
 
 **修复效果**：
 
-- ✅ 从 `/zh/articles/slug` 点击BookmarkButton → 重定向到 `/zh/login`
-- ✅ 从 `/en/articles/slug` 点击BookmarkButton → 重定向到 `/en/login`
-- ✅ 从 `/zh/bookmarks` 访问 → ProtectedRoute重定向到 `/zh/login`
-- ✅ 从 `/en/bookmarks` 访问 → ProtectedRoute重定向到 `/en/login`
-- ✅ API返回401时 → HTTP拦截器重定向到带语言前缀的登录页面
+- 从 `/zh/articles/slug` 点击BookmarkButton → 重定向到 `/zh/login`
+- 从 `/en/articles/slug` 点击BookmarkButton → 重定向到 `/en/login`
+- 从 `/zh/bookmarks` 访问 → ProtectedRoute重定向到 `/zh/login`
+- 从 `/en/bookmarks` 访问 → ProtectedRoute重定向到 `/en/login`
+- API返回401时 → HTTP拦截器重定向到带语言前缀的登录页面
 
 ## 📈 成功指标
 

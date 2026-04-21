@@ -69,7 +69,7 @@ async function generate() {
         Category: row.Category || "99_其他",
       }));
 
-    console.log(`✅ 解析成功: ${codes.length} 条数据`);
+    console.log(` 解析成功: ${codes.length} 条数据`);
 
     // =========================================================
     // 4. 生成逻辑

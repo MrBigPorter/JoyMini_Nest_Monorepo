@@ -4,8 +4,8 @@
 
 ## 🔴 当前状态
 
-- ✅ 工作流代码已配置（`.github/workflows/lighthouse-ci.yml`）
-- ✅ 性能阈值已定义（`apps/admin-next/lighthouserc.js`）
+- 工作流代码已配置（`.github/workflows/lighthouse-ci.yml`）
+- 性能阈值已定义（`apps/admin-next/lighthouserc.js`）
 - ❌ **GitHub Secrets 缺失** → Lighthouse CI 无法启动认证，工作流失败
 
 ## 🎯 需要什么
@@ -73,7 +73,7 @@ docker exec lucky-backend-prod yarn workspace @lucky/api cli:create-admin
 
 ---
 
-## ✅ 验证配置
+## 验证配置
 
 ### 方式 A：等待自动触发（10 分钟）
 
@@ -106,8 +106,8 @@ docker exec lucky-backend-prod yarn workspace @lucky/api cli:create-admin
 ```
 | Page | LCP (ms) | TBT (ms) | CLS | Score |
 |------|---------|---------|-----|-------|
-| ✅ /login | 1234 | 45 | 0.05 | 92 |
-| ✅ / | 1567 | 67 | 0.08 | 88 |
+|  /login | 1234 | 45 | 0.05 | 92 |
+|  / | 1567 | 67 | 0.08 | 88 |
 | ...
 ```
 
@@ -190,9 +190,9 @@ docker exec lucky-backend-prod yarn workspace @lucky/api cli:create-admin
 
 如果配置卡住了，检查：
 
-1. ✅ `LIGHTHOUSE_ADMIN_USERNAME` 和 `LIGHTHOUSE_ADMIN_PASSWORD` 已添加到 GitHub **production** 环境
-2. ✅ 后端 `api.joyminis.com` 能正常访问
-3. ✅ 超管账号能在 https://admin.joyminis.com 正常登录
-4. ✅ 部署工作流已成功完成
+1.  `LIGHTHOUSE_ADMIN_USERNAME` 和 `LIGHTHOUSE_ADMIN_PASSWORD` 已添加到 GitHub **production** 环境
+2.  后端 `api.joyminis.com` 能正常访问
+3.  超管账号能在 https://admin.joyminis.com 正常登录
+4.  部署工作流已成功完成
 
 搞定这四项后，Lighthouse CI 会自动启动。

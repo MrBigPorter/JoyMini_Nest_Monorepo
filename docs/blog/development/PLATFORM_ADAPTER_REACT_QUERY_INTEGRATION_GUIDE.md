@@ -3,7 +3,7 @@
 > 🎯 **目标**: 将平台适配器架构集成到现有的React Query生态中
 > 📅 **创建日期**: 2026-04-18
 > 👨‍💻 **作者**: AI协作系统
-> 📋 **状态**: ✅ 架构设计中
+> 📋 **状态**: 架构设计中
 
 ---
 
@@ -13,10 +13,10 @@
 
 **实际技术栈**：
 
-- ✅ **React Query (TanStack Query)**: 所有数据获取都通过 `useQuery`/`useMutation`
-- ✅ **HTTP客户端**: `http.ts`（基于axios）作为底层HTTP实现
-- ✅ **API层**: `frontendBlogApi.ts` 封装具体接口
-- ✅ **Hooks层**: `useFrontendArticles.ts` 等封装React Query逻辑
+- **React Query (TanStack Query)**: 所有数据获取都通过 `useQuery`/`useMutation`
+- **HTTP客户端**: `http.ts`（基于axios）作为底层HTTP实现
+- **API层**: `frontendBlogApi.ts` 封装具体接口
+- **Hooks层**: `useFrontendArticles.ts` 等封装React Query逻辑
 
 **未使用组件**：
 
@@ -478,14 +478,14 @@ export function useFrontendArticles(params?: ArticleParams) {
 
 ### 优势对比
 
-| 特性               | 现有架构      | 新架构（平台适配）     |
-| ------------------ | ------------- | ---------------------- |
-| **平台感知**       | ❌ 硬编码配置 | ✅ 自动适配Web/H5/App  |
-| **Server Actions** | ❌ 不支持     | ✅ 自动降级（Web→App） |
-| **缓存策略**       | ❌ 固定配置   | ✅ 平台优化配置        |
-| **Query Key**      | ❌ 简单数组   | ✅ 包含平台/语言信息   |
-| **错误处理**       | ❌ 基础重试   | ✅ 平台特定重试策略    |
-| **迁移成本**       | ✅ 无         | 🔄 渐进式迁移          |
+| 特性               | 现有架构      | 新架构（平台适配）  |
+| ------------------ | ------------- | ------------------- |
+| **平台感知**       | ❌ 硬编码配置 | 自动适配Web/H5/App  |
+| **Server Actions** | ❌ 不支持     | 自动降级（Web→App） |
+| **缓存策略**       | ❌ 固定配置   | 平台优化配置        |
+| **Query Key**      | ❌ 简单数组   | 包含平台/语言信息   |
+| **错误处理**       | ❌ 基础重试   | 平台特定重试策略    |
+| **迁移成本**       | 无            | 🔄 渐进式迁移       |
 
 ---
 

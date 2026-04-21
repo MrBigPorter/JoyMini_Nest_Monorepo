@@ -16,7 +16,7 @@ const testScenarios = [
     cacheState: 'undefined',
     commentType: '新评论 (无parentId)',
     expectedBehavior: '立即显示在评论列表顶部',
-    fixStatus: '✅ 已修复 - 创建初始数据结构并添加评论'
+    fixStatus: ' 已修复 - 创建初始数据结构并添加评论'
   },
   {
     name: '场景2: 缓存为空，回复评论',
@@ -24,7 +24,7 @@ const testScenarios = [
     cacheState: 'undefined',
     commentType: '回复评论 (有parentId)',
     expectedBehavior: '等待服务器响应后显示',
-    fixStatus: '✅ 已修复 - 返回初始数据，等待服务器响应'
+    fixStatus: ' 已修复 - 返回初始数据，等待服务器响应'
   },
   {
     name: '场景3: 缓存有数据，提交新评论',
@@ -32,7 +32,7 @@ const testScenarios = [
     cacheState: '{items: [...], total: N}',
     commentType: '新评论 (无parentId)',
     expectedBehavior: '立即显示在评论列表顶部',
-    fixStatus: '✅ 已修复 - 添加到items数组开头'
+    fixStatus: ' 已修复 - 添加到items数组开头'
   },
   {
     name: '场景4: 缓存有数据，回复评论',
@@ -40,7 +40,7 @@ const testScenarios = [
     cacheState: '{items: [...], total: N}',
     commentType: '回复评论 (有parentId)',
     expectedBehavior: '立即显示在父评论的children中',
-    fixStatus: '✅ 已修复 - 递归查找父评论并添加'
+    fixStatus: ' 已修复 - 递归查找父评论并添加'
   }
 ];
 
@@ -62,11 +62,11 @@ console.log('🔧 从后端日志分析实际行为');
 console.log('-'.repeat(30));
 
 const backendLogAnalysis = [
-  '✅ 评论成功插入数据库: INSERT INTO "public"."blog_comments"',
-  '✅ AI审核通过: AI moderation completed, score 0, passed: true',
-  '✅ 状态更新为APPROVED: status = "APPROVED"',
-  '✅ 文章评论数更新: commentCount + 1',
-  '✅ 事务提交成功: COMMIT'
+  ' 评论成功插入数据库: INSERT INTO "public"."blog_comments"',
+  ' AI审核通过: AI moderation completed, score 0, passed: true',
+  ' 状态更新为APPROVED: status = "APPROVED"',
+  ' 文章评论数更新: commentCount + 1',
+  ' 事务提交成功: COMMIT'
 ];
 
 console.log('后端处理流程:');
@@ -142,7 +142,7 @@ const troubleshootingSteps = [
 
 troubleshootingSteps.forEach(step => console.log(step));
 
-console.log('\n✅ 验证完成');
+console.log('\n 验证完成');
 console.log('='.repeat(50));
 console.log('总结:');
 console.log('  - 后端处理完全正常');

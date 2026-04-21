@@ -532,24 +532,24 @@ session_source TINYINT COMMENT '会话来源: 1-在线聊天 2-工单 3-电话',
 
 ## 📝 总结
 
-### 已设计的表：33张 ✅
+### 已设计的表：33张
 
 ### 遗漏的表：12张 ❌
 
 **建议补充的表：**
 
-1. ✅ **banners** - 横幅广告表（必需）
-2. ✅ **advertisements** - 广告位表（必需）
-3. ✅ **help_faqs** - 常见问题表（必需）
-4. ✅ **help_contacts** - 客服联系方式表（必需）
-5. ✅ **work_order_types** - 工单类型表（必需）
-6. ✅ **work_orders** - 工单表（必需）
-7. ✅ **provinces** - 省份配置表（必需）
-8. ✅ **cities** - 城市配置表（必需）
-9. ✅ **receive_payment_methods** - 收款方式表（重要）
-10. ✅ **treasure_visit_records** - 产品访问收藏记录表（可选）
-11. ✅ **avatar_defaults** - 默认头像表（可选）
-12. ✅ **homepage_statistics** - 首页统计数据表（可选）
+1.  **banners** - 横幅广告表（必需）
+2.  **advertisements** - 广告位表（必需）
+3.  **help_faqs** - 常见问题表（必需）
+4.  **help_contacts** - 客服联系方式表（必需）
+5.  **work_order_types** - 工单类型表（必需）
+6.  **work_orders** - 工单表（必需）
+7.  **provinces** - 省份配置表（必需）
+8.  **cities** - 城市配置表（必需）
+9.  **receive_payment_methods** - 收款方式表（重要）
+10. **treasure_visit_records** - 产品访问收藏记录表（可选）
+11. **avatar_defaults** - 默认头像表（可选）
+12. **homepage_statistics** - 首页统计数据表（可选）
 
 ### 最终建议表数量：**33 + 12 = 45张表**
 

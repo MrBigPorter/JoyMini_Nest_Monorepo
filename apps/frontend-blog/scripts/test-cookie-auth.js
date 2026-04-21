@@ -35,7 +35,7 @@ console.log('📁 检查必要文件是否存在:');
 filesToCheck.forEach((file) => {
   const fullPath = path.join(__dirname, '..', file);
   const exists = fs.existsSync(fullPath);
-  console.log(`  ${exists ? '✅' : '❌'} ${file}`);
+  console.log(`  ${exists ? '' : '❌'} ${file}`);
 });
 
 console.log('\n📋 验证架构变更:');
@@ -65,7 +65,7 @@ const checks = [
 
 checks.forEach((check) => {
   const passed = check.shouldBeFalse ? !check.found : check.found;
-  console.log(`  ${passed ? '✅' : '❌'} ${check.name}`);
+  console.log(`  ${passed ? '' : '❌'} ${check.name}`);
 });
 
 // 3. 检查cookie-manager.ts是否清理了localStorage冗余逻辑
@@ -90,7 +90,7 @@ const cookieManagerChecks = [
 console.log('\n🧹 验证清理工作:');
 cookieManagerChecks.forEach((check) => {
   const passed = check.shouldBeFalse ? !check.found : check.found;
-  console.log(`  ${passed ? '✅' : '❌'} ${check.name}`);
+  console.log(`  ${passed ? '' : '❌'} ${check.name}`);
 });
 
 // 4. 检查cookie-storage.ts实现
@@ -122,7 +122,7 @@ const cookieStorageChecks = [
 
 console.log('\n🔧 验证Cookie存储适配器:');
 cookieStorageChecks.forEach((check) => {
-  console.log(`  ${check.found ? '✅' : '❌'} ${check.name}`);
+  console.log(`  ${check.found ? '' : '❌'} ${check.name}`);
 });
 
 // 5. 总结
@@ -142,10 +142,10 @@ console.log(`  失败项: ${totalChecks.length - passedChecks}`);
 
 if (passedChecks === totalChecks.length) {
   console.log('\n🎉 所有检查通过！Cookie认证存储策略已成功实施。');
-  console.log('✅ 架构已从双重存储(localStorage + Cookie)简化为单一Cookie存储');
-  console.log('✅ 与语言设置保持一致的存储策略');
-  console.log('✅ 支持Web和App环境');
-  console.log('✅ 中间件可以正确读取认证状态');
+  console.log(' 架构已从双重存储(localStorage + Cookie)简化为单一Cookie存储');
+  console.log(' 与语言设置保持一致的存储策略');
+  console.log(' 支持Web和App环境');
+  console.log(' 中间件可以正确读取认证状态');
 } else {
   console.log('\n⚠️  部分检查未通过，请检查上述失败项。');
   process.exit(1);

@@ -116,7 +116,7 @@ export async function seedAdvertisements() {
       created++;
     }
   }
-  console.log(`  ✅ Advertisement    +${created} new`);
+  console.log(`   Advertisement    +${created} new`);
   if (linked > 0 || unresolved > 0) {
     console.log(`  🔗 Advertisement    ${linked} linked, ${unresolved} unresolved`);
   }

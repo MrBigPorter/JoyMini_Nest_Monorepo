@@ -2,7 +2,7 @@
 
 > **模块**：后端 `apps/api` + Admin Next `apps/admin-next`  
 > **最后更新**：2026-03-20  
-> **状态**：Phase 1 已落地 ✅ · Phase 2（Virtual Agent 重构）待实施
+> **状态**：Phase 1 已落地 · Phase 2（Virtual Agent 重构）待实施
 
 ---
 
@@ -79,7 +79,7 @@ ChatService.addMemberToBusinessGroup()
           └─ dispatch(`user_${adminId}`, 'support_new_conversation')
                │
                ▼
-             useChatSocket → 'support_new_conversation' → refreshList() ✅
+             useChatSocket → 'support_new_conversation' → refreshList()
 
 用户发消息
   │
@@ -90,7 +90,7 @@ ChatService.sendMessage() → EventEmitter.emit(MESSAGE_CREATED)
 SocketListener.handleMessageCreated()
   ├─ dispatch 到会话房间
   └─ BUSINESS + official_platform_support_v1
-       └─ dispatch 到所有在线 admin 私有房间 ✅
+       └─ dispatch 到所有在线 admin 私有房间
 ```
 
 ### 2.3 改动文件
@@ -213,7 +213,7 @@ case 'support_new_conversation':
 
 **User 表关键字段无需改 Schema**：
 
-- `isRobot Boolean @default(false)` ✅ 已存在
+- `isRobot Boolean @default(false)` 已存在
 - `phone String @unique` → 后端自动生成 `sys:bot:<timestamp>` 唯一占位
 
 #### 防搜索漏洞
@@ -242,11 +242,11 @@ where: {
 
 ### 3.4 选型决策：为何用 SUPPORT 类型
 
-| 选项  | 会话类型                 | Schema 改动 | Admin 侧查询             | 结论        |
-| ----- | ------------------------ | ----------- | ------------------------ | ----------- |
-| A     | `DIRECT`                 | 无          | 需改查询类型             | 语义不准确  |
-| B     | `BUSINESS`（修 @unique） | 需 migrate  | 无需改                   | 有迁移风险  |
-| **C** | **`SUPPORT`**            | **无**      | **改默认查询为 SUPPORT** | **最优** ✅ |
+| 选项  | 会话类型                 | Schema 改动 | Admin 侧查询             | 结论       |
+| ----- | ------------------------ | ----------- | ------------------------ | ---------- |
+| A     | `DIRECT`                 | 无          | 需改查询类型             | 语义不准确 |
+| B     | `BUSINESS`（修 @unique） | 需 migrate  | 无需改                   | 有迁移风险 |
+| **C** | **`SUPPORT`**            | **无**      | **改默认查询为 SUPPORT** | **最优**   |
 
 选择 `SUPPORT` 的原因：
 
@@ -287,14 +287,14 @@ Flutter 点击「联系客服」
 
   └─ 🔔 后台实时事件：SUPPORT_CONVERSATION_STARTED
        └─ Socket 通知所有在线 Admin：有新客户进来了
-       └─ Admin 客服台立即刷新列表，看到新会话 ✅
+       └─ Admin 客服台立即刷新列表，看到新会话
 ```
 
 **为什么这样设计**：
 
-- ✅ 每个用户独立 1v1 会话，数据完全隔离（不再所有人共享一个群）
-- ✅ Admin 一进来就能看到所有客户会话列表
-- ✅ 客户发消息前就通知 Admin（不用等消息才反应）
+- 每个用户独立 1v1 会话，数据完全隔离（不再所有人共享一个群）
+- Admin 一进来就能看到所有客户会话列表
+- 客户发消息前就通知 Admin（不用等消息才反应）
 
 ---
 
@@ -314,14 +314,14 @@ Flutter 点击「联系客服」
   └─ Admin 客服台收到 Socket 事件
        ├─ 刷新会话列表（显示最新消息）
        ├─ 如果已打开聊天窗口，实时显示客户消息
-       └─ 可立即回复 ✅
+       └─ 可立即回复
 ```
 
 **为什么这样设计**：
 
-- ✅ 消息走标准流程，不需要特殊黑科技
-- ✅ 所有在线 Admin 都能收到（多个客服可同时看）
-- ✅ 离线 Admin 后登录时自动同步消息历史
+- 消息走标准流程，不需要特殊黑科技
+- 所有在线 Admin 都能收到（多个客服可同时看）
+- 离线 Admin 后登录时自动同步消息历史
 
 ---
 
@@ -342,20 +342,20 @@ Admin 在客服台回复
 
   └─ MESSAGE_CREATED 再次触发
        └─ Socket dispatch 到客户的私有房间
-       └─ Flutter 收到 → 实时显示 Admin 消息 ✅
+       └─ Flutter 收到 → 实时显示 Admin 消息
 ```
 
 **为什么这样设计**：
 
-- ✅ Admin 消息带有真实身份元数据（meta.realAdminId）
-- ✅ FCM 离线推送自动生效（bot 是真实用户，通知流程完整）
-- ✅ AI Agent 未来接入时零改动，和 Admin 回复用同一套代码
+- Admin 消息带有真实身份元数据（meta.realAdminId）
+- FCM 离线推送自动生效（bot 是真实用户，通知流程完整）
+- AI Agent 未来接入时零改动，和 Admin 回复用同一套代码
 
 ---
 
 #### 完整效果对比
 
-| 场景                 | 当前（群聊）❌              | 修复后（1v1）✅          |
+| 场景                 | 当前（群聊）❌              | 修复后（1v1）            |
 | -------------------- | --------------------------- | ------------------------ |
 | 用户 A 和 B 同时客服 | 都在同一个群，互相能看消息  | 各自独立会话，完全隔离   |
 | Admin 看客户列表     | 查询类型错误，看不到        | type:SUPPORT，一秒看全部 |
@@ -372,7 +372,7 @@ Admin 在客服台回复
 | 防搜索       | `searchUsers` 加 `isRobot: false`，一行覆盖现在及未来所有 bot 账号                            |
 | 消息 ID      | `chatService.sendMessage` 需要唯一 UUID，`admin-chat.service` 已有 `uuidv4()`，改造时带上即可 |
 | Bot 成员检查 | 建联时虚拟账号已加入为 ChatMember，`sendMessage` 内部 `updateMany` 正常执行                   |
-| FCM 自推过滤 | `NotificationService` 过滤 `senderId === memberId`，bot 不会给自己推通知 ✅                   |
+| FCM 自推过滤 | `NotificationService` 过滤 `senderId === memberId`，bot 不会给自己推通知                      |
 | 审计追责     | `meta.realAdminId` 记录实际操作的 Admin ID，KPI 统计和追责依赖此字段                          |
 | 数据迁移     | 存量的共享群会话无需强制迁移，老用户下次开启客服时自动获得新的 1v1 会话                       |
 
@@ -399,7 +399,7 @@ Admin 在客服台回复
   └──────────────────────────────┴──────────────────────────┘
 
   Flutter → GET /chat/business?businessId=tech_support_v1
-          → 后端查表 → botUserId → 建立 1v1 SUPPORT 会话 ✅
+          → 后端查表 → botUserId → 建立 1v1 SUPPORT 会话
 ```
 
 #### Schema 设计
@@ -585,7 +585,7 @@ GET /api/v1/chat/business?businessId=vip_support_v1
 
 7   admin-chat.service.ts               senderId:null + 直接 eventsGateway.dispatch
     replyToConversation                  → chatService.sendMessage(BOT_ID, dto)
-                                        → FCM 离线推送自动生效 ✅
+                                        → FCM 离线推送自动生效
 
 8   admin-chat.service.ts               默认 type: BUSINESS
    getConversations 默认 type           → 默认 type: SUPPORT
@@ -601,17 +601,17 @@ GET /api/v1/chat/business?businessId=vip_support_v1
 
 ## 四、文件索引
 
-| 文件                                                           | 职责                                   | Phase             |
-| -------------------------------------------------------------- | -------------------------------------- | ----------------- |
-| `apps/api/prisma/schema.prisma`                                | 新增 SupportChannel 模型               | P2 新增           |
-| `apps/api/src/common/chat/events/chat.events.ts`               | 事件常量 + 事件类                      | P1 ✅             |
-| `apps/api/src/common/chat/chat.service.ts`                     | 客服会话建联 + 用户搜索（防 bot 被搜） | P1 ✅ → P2 重构   |
-| `apps/api/src/common/events/listeners/socket.listener.ts`      | 事件监听，Socket 分发                  | P1 ✅ → P2 精简   |
-| `apps/api/src/common/events/events.gateway.ts`                 | Socket.IO 网关，`dispatch()` 出口      | 不变              |
-| `apps/api/src/admin/support-channel/`                          | 渠道管理 CRUD（新增模块）              | P2 新增           |
-| `apps/api/src/admin/chat/admin-chat.service.ts`                | Admin 回复逻辑                         | P2 重构           |
-| `apps/api/src/admin/chat/admin-chat.module.ts`                 | 模块注册，注入 ChatService             | P2 改造           |
-| `apps/admin-next/src/app/(dashboard)/support-channels/`        | 渠道管理 UI 页面（新增）               | P2 新增           |
-| `apps/admin-next/src/hooks/useChatSocket.ts`                   | Admin Socket 连接                      | P1 ✅ → P2 改类型 |
-| `apps/admin-next/src/views/CustomerServiceDesk.tsx`            | 客服台 UI                              | P1 ✅ → P2 改类型 |
-| `apps/api/src/common/events/listeners/socket.listener.spec.ts` | 单测（76 tests ✅）                    | P1 ✅             |
+| 文件                                                           | 职责                                   | Phase          |
+| -------------------------------------------------------------- | -------------------------------------- | -------------- |
+| `apps/api/prisma/schema.prisma`                                | 新增 SupportChannel 模型               | P2 新增        |
+| `apps/api/src/common/chat/events/chat.events.ts`               | 事件常量 + 事件类                      | P1             |
+| `apps/api/src/common/chat/chat.service.ts`                     | 客服会话建联 + 用户搜索（防 bot 被搜） | P1 → P2 重构   |
+| `apps/api/src/common/events/listeners/socket.listener.ts`      | 事件监听，Socket 分发                  | P1 → P2 精简   |
+| `apps/api/src/common/events/events.gateway.ts`                 | Socket.IO 网关，`dispatch()` 出口      | 不变           |
+| `apps/api/src/admin/support-channel/`                          | 渠道管理 CRUD（新增模块）              | P2 新增        |
+| `apps/api/src/admin/chat/admin-chat.service.ts`                | Admin 回复逻辑                         | P2 重构        |
+| `apps/api/src/admin/chat/admin-chat.module.ts`                 | 模块注册，注入 ChatService             | P2 改造        |
+| `apps/admin-next/src/app/(dashboard)/support-channels/`        | 渠道管理 UI 页面（新增）               | P2 新增        |
+| `apps/admin-next/src/hooks/useChatSocket.ts`                   | Admin Socket 连接                      | P1 → P2 改类型 |
+| `apps/admin-next/src/views/CustomerServiceDesk.tsx`            | 客服台 UI                              | P1 → P2 改类型 |
+| `apps/api/src/common/events/listeners/socket.listener.spec.ts` | 单测（76 tests ）                      | P1             |

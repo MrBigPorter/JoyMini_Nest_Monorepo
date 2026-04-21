@@ -1,8 +1,9 @@
 'use client';
 
+import { useLocale } from 'next-intl';
 import { Link } from '@/navigation';
 import { formatDistanceToNow } from 'date-fns';
-import { zhCN } from 'date-fns/locale';
+import { getDateFnsLocale } from '@/lib/utils/date-locale';
 import type { Article } from '@/lib/types/blog';
 import type { FrontendArticle } from '@/lib/types/frontend-blog';
 import { BookmarkIconButton } from '@/lib/components/BookmarkButton';
@@ -27,6 +28,8 @@ export function ArticleCard({
   bookmarkStatus,
   compact = false,
 }: ArticleCardProps) {
+  const locale = useLocale();
+
   // 处理两种类型的差异
   const publishedDate =
     'publishedAt' in article ? article.publishedAt : (article as any).createdAt;
@@ -105,7 +108,7 @@ export function ArticleCard({
                   new Date(publishedDate || new Date().toISOString()),
                   {
                     addSuffix: true,
-                    locale: zhCN,
+                    locale: getDateFnsLocale(locale),
                   },
                 )}
               </span>

@@ -62,7 +62,7 @@ private handleOAuthError(error: unknown, res: Response, provider: string) {
 
 ---
 
-## ✅ 修复方案
+## 修复方案
 
 ### 1. `facebookCallback` & `googleCallback` 早检测 `error` 参数
 

@@ -122,13 +122,13 @@ console.log('\n🧪 测试3：UI优化验证');
 console.log('-'.repeat(30));
 
 const uiImprovements = [
-  '✅ 移除嵌套评论左边框',
-  '✅ 减小头像尺寸 (40px → 32px)',
-  '✅ 减少垂直间距',
-  '✅ 移除评论项分割线',
-  '✅ 简化回复输入框样式',
-  '✅ 优化按钮尺寸和间距',
-  '✅ 使用更轻量的视觉层次'
+  ' 移除嵌套评论左边框',
+  ' 减小头像尺寸 (40px → 32px)',
+  ' 减少垂直间距',
+  ' 移除评论项分割线',
+  ' 简化回复输入框样式',
+  ' 优化按钮尺寸和间距',
+  ' 使用更轻量的视觉层次'
 ];
 
 uiImprovements.forEach(improvement => {
@@ -167,7 +167,7 @@ console.log('回复展开阈值测试 (≤2条展开, >2条折叠):');
 testCases.forEach(test => {
   const actual = test.children <= 2;
   const passed = actual === test.expected;
-  console.log(`  ${test.description}: ${passed ? '✅ 通过' : '❌ 失败'}`);
+  console.log(`  ${test.description}: ${passed ? ' 通过' : '❌ 失败'}`);
 });
 
 console.log('\n📊 测试完成');

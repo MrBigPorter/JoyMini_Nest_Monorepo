@@ -14,7 +14,7 @@ type UseBlogFormOptions<T extends z.ZodSchema> = {
 
 /**
  * 博客系统通用的表单钩子，集成了 Zod 验证和 toast 错误提示。
- * ✅ Next.js 15 RC 兼容: 函数参数名必须以 Action 结尾避免 TS71007 警告
+ *  Next.js 15 RC 兼容: 函数参数名必须以 Action 结尾避免 TS71007 警告
  */
 export function useBlogForm<T extends z.ZodSchema>({
   schema,
@@ -74,9 +74,9 @@ export function useBlogForm<T extends z.ZodSchema>({
 
   const submitHandler = form.handleSubmit(handleSubmit);
 
-  // ✅ Next.js 15 RC 正确修复方案:
-  // ✅ 不展开属性, 把完整form对象作为单一字段返回
-  // ✅ 这样类型 100% 兼容, 同时不会触发序列化检查
+  //  Next.js 15 RC 正确修复方案:
+  //  不展开属性, 把完整form对象作为单一字段返回
+  //  这样类型 100% 兼容, 同时不会触发序列化检查
   return {
     form,
     submitHandler,

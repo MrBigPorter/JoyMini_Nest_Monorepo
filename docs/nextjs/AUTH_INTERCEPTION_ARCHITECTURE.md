@@ -20,7 +20,7 @@
 
 ### ⚠️ 当前问题诊断
 
-✅ **三层防护体系已完整实施**：
+**三层防护体系已完整实施**：
 
 1. Middleware - 服务器级拦截
 2. Router包装器 - 客户端跳转前拦截
@@ -32,7 +32,7 @@
 - 用户点击这些链接时，页面会短暂显示再跳转
 - 需要增加**Link层保护**作为第一道防线
 
-### ✅ 架构目标
+### 架构目标
 
 真正的「跳转前拦截」，用户永远不会看到未授权页面的一瞬间
 
@@ -48,7 +48,7 @@
 ┌─────────────────────────┐                  │
 │  第一层：Link保护       │◄─────────────────┘
 │  组件级拦截             │
-│  ✅ 点击时立即拦截       │
+│   点击时立即拦截       │
 └───────────┬─────────────┘
             │
             │ 已拦截 → 使用ProtectedRouter跳转
@@ -56,7 +56,7 @@
 ┌───────────▼─────────────┐
 │  第二层：Middleware     │
 │  服务器级拦截           │
-│  ✅ 任何代码运行之前     │
+│   任何代码运行之前     │
 └───────────┬─────────────┘
             │
             │ 已拦截 → 直接307重定向到登录页
@@ -64,7 +64,7 @@
 ┌───────────▼─────────────┐
 │  第三层：Router拦截器   │
 │  客户端跳转前拦截        │
-│  ✅ 客户端状态同步保护    │
+│   客户端状态同步保护    │
 └───────────┬─────────────┘
             │
             │ 已拦截 → 客户端跳转取消
@@ -72,7 +72,7 @@
 ┌───────────▼─────────────┐
 │  第四层：Layout兜底     │
 │  渲染前最后检查          │
-│  ✅ 防止任何漏洞绕过      │
+│   防止任何漏洞绕过      │
 └───────────┬─────────────┘
             │
             ▼ 全部通过 → 正常渲染受保护页面
@@ -82,18 +82,18 @@
 
 ## 📋 各层详细设计
 
-### ✅ 第零层：ProtectedLink 组件（第一道防线）
+### 第零层：ProtectedLink 组件（第一道防线）
 
 **定位：** 组件级拦截，点击时立即检查
 
 **特性：**
 
-- ✅ 点击链接时立即拦截
-- ✅ 完全无闪烁，用户看不到目标页面
-- ✅ 简化设计：只在100%确定未登录时拦截
-- ✅ 信任中间件进行最终认证检查
-- ✅ 禁用prefetch，防止预加载触发认证检查
-- ✅ 记录重定向来源，登录后自动跳回
+- 点击链接时立即拦截
+- 完全无闪烁，用户看不到目标页面
+- 简化设计：只在100%确定未登录时拦截
+- 信任中间件进行最终认证检查
+- 禁用prefetch，防止预加载触发认证检查
+- 记录重定向来源，登录后自动跳回
 
 **实现规范：**
 
@@ -153,17 +153,17 @@ export function ProtectedLink({
 
 ---
 
-### ✅ 第一层：Middleware 中间件（主力防线）
+### 第一层：Middleware 中间件（主力防线）
 
 **定位：** 主力防线，负责99%的拦截场景
 
 **特性：**
 
-- ✅ 发生在所有代码运行之前
-- ✅ 用户看不到任何页面闪烁
-- ✅ 对所有跳转方式生效
-- ✅ 同时兼容 SSR / CSR / 直接输入地址
-- ✅ 零性能开销
+- 发生在所有代码运行之前
+- 用户看不到任何页面闪烁
+- 对所有跳转方式生效
+- 同时兼容 SSR / CSR / 直接输入地址
+- 零性能开销
 
 **实现规范：**
 
@@ -176,7 +176,7 @@ export async function middleware(request: NextRequest) {
   // 2. 路由白名单判断
   if (isProtectedRoute(request.nextUrl.pathname)) {
     if (!token) {
-      // ✅ 直接307重定向，无任何渲染
+      //  直接307重定向，无任何渲染
       const loginUrl = new URL("/login", request.url);
       loginUrl.searchParams.set("redirect", request.nextUrl.pathname);
       return NextResponse.redirect(loginUrl);
@@ -189,16 +189,16 @@ export async function middleware(request: NextRequest) {
 
 ---
 
-### ✅ 第二层：Router 包装器（客户端防线）
+### 第二层：Router 包装器（客户端防线）
 
 **定位：** 补充防线，解决客户端状态同步边缘情况
 
 **特性：**
 
-- ✅ 客户端跳转前拦截
-- ✅ 即时反馈，不需要等待网络往返
-- ✅ 防止客户端状态未同步时的误跳转
-- ✅ 作为 Middleware 的补充防线
+- 客户端跳转前拦截
+- 即时反馈，不需要等待网络往返
+- 防止客户端状态未同步时的误跳转
+- 作为 Middleware 的补充防线
 
 **实现规范：**
 
@@ -230,15 +230,15 @@ export function useProtectedRouter() {
 
 ---
 
-### ✅ 第三层：Root Layout 兜底拦截
+### 第三层：Root Layout 兜底拦截
 
 **定位：** 安全兜底，防止任何绕过情况
 
 **特性：**
 
-- ✅ 渲染前最后一次检查
-- ✅ 覆盖所有子页面
-- ✅ 防止边界情况和漏洞
+- 渲染前最后一次检查
+- 覆盖所有子页面
+- 防止边界情况和漏洞
 
 **实现规范：**
 
@@ -261,13 +261,13 @@ export default async function RootLayout({ children, params }) {
 
 ## 📊 方案对比矩阵
 
-| 方案         | 拦截时机   | 无闪烁  | 全场景覆盖  | 兼容性        | 推荐指数   |
-| ------------ | ---------- | ------- | ----------- | ------------- | ---------- |
-| **Link保护** | **点击时** | ✅ 是   | ✅ 是       | ✅ Web/H5/App | ⭐⭐⭐⭐⭐ |
-| Middleware   | 跳转前     | ✅ 是   | ✅ 是       | ✅ Web/H5/App | ⭐⭐⭐⭐⭐ |
-| Router包装器 | 跳转前     | ✅ 是   | ⚠️ 仅客户端 | ✅ 全部       | ⭐⭐⭐⭐   |
-| Root Layout  | 渲染前     | ⚠️ 接近 | ✅ 是       | ✅ 全部       | ⭐⭐⭐     |
-| 页面级判断   | 渲染后     | ❌ 否   | ✅ 是       | ✅ 全部       | ⭐         |
+| 方案         | 拦截时机   | 无闪烁  | 全场景覆盖  | 兼容性     | 推荐指数   |
+| ------------ | ---------- | ------- | ----------- | ---------- | ---------- |
+| **Link保护** | **点击时** | 是      | 是          | Web/H5/App | ⭐⭐⭐⭐⭐ |
+| Middleware   | 跳转前     | 是      | 是          | Web/H5/App | ⭐⭐⭐⭐⭐ |
+| Router包装器 | 跳转前     | 是      | ⚠️ 仅客户端 | 全部       | ⭐⭐⭐⭐   |
+| Root Layout  | 渲染前     | ⚠️ 接近 | 是          | 全部       | ⭐⭐⭐     |
+| 页面级判断   | 渲染后     | ❌ 否   | 是          | 全部       | ⭐         |
 
 ---
 
@@ -275,32 +275,32 @@ export default async function RootLayout({ children, params }) {
 
 ### 阶段一：三层防护架构实施 (已完成)
 
-1.  ✅ 实现 Middleware 认证拦截器
-2.  ✅ 实现 useProtectedRouter Hook
-3.  ✅ 实现 Root Layout 兜底检查
-4.  ✅ 统一路由白名单配置
+1.  实现 Middleware 认证拦截器
+2.  实现 useProtectedRouter Hook
+3.  实现 Root Layout 兜底检查
+4.  统一路由白名单配置
 
 ### 阶段二：代码清理 (进行中)
 
 1.  ❌ 移除所有页面级的登录判断代码
 2.  ❌ 删除重复的认证逻辑
-3.  ✅ 全局替换 useRouter 为 useProtectedRouter
+3.  全局替换 useRouter 为 useProtectedRouter
 
 ### 阶段三：Link保护实施 (已完成)
 
-1.  ✅ 创建 ProtectedLink 组件（已修复导入错误）
-2.  ✅ 替换 Header.tsx 中的收藏链接
-3.  ✅ 替换 Sidebar.tsx 中的收藏链接
-4.  ✅ 替换 BottomNavigation.tsx 中的收藏链接
-5.  ✅ 替换 MobileSettingsContent.tsx 中的收藏链接
+1.  创建 ProtectedLink 组件（已修复导入错误）
+2.  替换 Header.tsx 中的收藏链接
+3.  替换 Sidebar.tsx 中的收藏链接
+4.  替换 BottomNavigation.tsx 中的收藏链接
+5.  替换 MobileSettingsContent.tsx 中的收藏链接
 
 ### 阶段四：验证测试 (已完成)
 
-1.  ✅ 直接输入地址测试
-2.  ✅ 链接点击测试
-3.  ✅ router.push 跳转测试
-4.  ✅ 登录超时场景测试
-5.  ✅ 三端兼容性测试
+1.  直接输入地址测试
+2.  链接点击测试
+3.  router.push 跳转测试
+4.  登录超时场景测试
+5.  三端兼容性测试
 
 ---
 
@@ -334,13 +334,13 @@ export default async function RootLayout({ children, params }) {
 
 ## 🎯 成功指标
 
-✅ **用户体验指标：**
+**用户体验指标：**
 
 - 点击受保护链接时，看不到任何目标页面内容
 - 直接跳转登录页，零闪烁
 - 登录后自动跳回原目标页面
 
-✅ **技术指标：**
+  **技术指标：**
 
 - 所有受保护页面移除页面级认证判断
 - 统一的认证拦截逻辑只有4处
@@ -353,26 +353,26 @@ export default async function RootLayout({ children, params }) {
 
 ```
 apps/frontend-blog/
-├── middleware.ts                    ✅ 第二层
+├── middleware.ts                     第二层
 ├── src/
 │   ├── components/
 │   │   └── auth/
-│   │       └── ProtectedLink.tsx   ✅ 第一层（新增）
+│   │       └── ProtectedLink.tsx    第一层（新增）
 │   ├── lib/
 │   │   ├── hooks/
-│   │   │   └── useProtectedRouter.ts ✅ 第三层
+│   │   │   └── useProtectedRouter.ts  第三层
 │   │   └── auth/
-│   │       └── protected-routes.ts  ✅ 路由配置
+│   │       └── protected-routes.ts   路由配置
 │   └── app/
 │       └── [locale]/
-│           └── layout.tsx           ✅ 第四层
+│           └── layout.tsx            第四层
 └── docs/
     └── AUTH_INTERCEPTION_ARCHITECTURE.md
 ```
 
 ---
 
-## ✅ 架构原则
+## 架构原则
 
 > 💡 **认证检查应该发生在尽可能早的层级，而不是尽可能晚的层级。**
 
@@ -381,6 +381,124 @@ apps/frontend-blog/
 > 💡 **用户体验与安全不是对立的，好的架构可以同时兼顾两者。**
 
 > 💡 **从三层到四层的演进体现了架构的持续改进：发现问题 → 分析原因 → 制定方案 → 实施验证。**
+
+---
+
+## 🔧 技术实现细节
+
+### 1. URL匹配算法：正确处理语言前缀
+
+**问题**：Next.js国际化路由使用`/[locale]/path`格式，认证检查需要正确处理语言前缀。
+
+**解决方案**：使用正则表达式移除语言前缀后匹配受保护路由：
+
+```typescript
+// protected-routes.ts 中的核心算法
+export function isProtectedRoute(pathname: string): boolean {
+  // 移除语言前缀后匹配路径
+  // 正则解释：匹配 /zh 或 /zh-CN 或 /en 等语言前缀
+  // 使用非贪婪匹配，确保只匹配语言前缀部分
+
+  const pathWithoutLocale = pathname.replace(
+    /^\/[a-z]{2}(-[A-Z]{2})?(?=\/|$)/,
+    "",
+  );
+
+  return PROTECTED_ROUTES.some(
+    (route) =>
+      pathWithoutLocale.startsWith(route) || pathWithoutLocale === route,
+  );
+}
+```
+
+**正则表达式解析**：
+
+- `^\/` - 匹配路径开头
+- `[a-z]{2}` - 匹配2个小写字母（如zh, en）
+- `(-[A-Z]{2})?` - 可选的国家代码（如-CN, -US）
+- `(?=\/|$)` - 正向预查，确保后面是斜杠或字符串结束
+- 整体效果：匹配`/zh`、`/zh-CN`、`/en-US`等格式
+
+### 2. `_next/data`请求处理
+
+**问题**：Next.js客户端预取使用`_next/data`路径，需要特殊处理。
+
+**解决方案**：Middleware matcher配置覆盖`_next/data`请求：
+
+```typescript
+// middleware.ts 中的matcher配置
+export const config = {
+  matcher: [
+    // 匹配所有页面路径
+    "/((?!api|_next/static|_next/image|favicon.ico|robots.txt).*)",
+    // 特别包含_next/data路径，确保客户端预取也被拦截
+    "/_next/data/:path*",
+  ],
+};
+```
+
+**为什么需要这个**：
+
+- 客户端预取时，Next.js会发送`/_next/data/{buildId}/{locale}/{page}.json`请求
+- 如果不包含这个路径，预取请求会绕过Middleware认证检查
+- 用户点击链接时，页面内容可能已经预取到客户端，导致认证检查失效
+
+### 3. 统一的路由配置管理
+
+**问题**：PROTECTED_ROUTES在多个地方重复定义。
+
+**解决方案**：创建单一数据源，所有组件共享同一配置：
+
+```typescript
+// protected-routes.ts - 统一配置源
+export const PROTECTED_ROUTES = [
+  "/bookmarks",
+  "/profile",
+  "/settings",
+  "/dashboard",
+  "/comments",
+];
+
+// useProtectedRouter.ts - 导入统一配置
+import { isProtectedRoute } from "@/lib/auth/protected-routes";
+
+// middleware.ts - 导入统一配置
+import { isProtectedRoute } from "./src/lib/auth/protected-routes";
+```
+
+**优势**：
+
+- 一处修改，处处生效
+- 避免配置不一致导致的bug
+- 便于维护和扩展
+
+### 4. 调试和验证机制
+
+**调试日志**：关键函数添加详细日志，便于问题排查：
+
+```typescript
+console.log("🔍 isProtectedRoute检查:", {
+  originalPathname: pathname,
+  pathWithoutLocale,
+  matches: PROTECTED_ROUTES.map((route) => ({
+    route,
+    matches: pathWithoutLocale.startsWith(route) || pathWithoutLocale === route,
+  })),
+});
+```
+
+**测试脚本**：创建专门的测试脚本验证所有场景：
+
+```bash
+# 运行认证集成测试
+node apps/frontend-blog/scripts/test-auth-integration.js
+
+# 测试路径匹配逻辑
+node apps/frontend-blog/scripts/test-path-matching.js
+
+# 测试书签页面认证
+node apps/frontend-blog/scripts/test-bookmarks-auth.js
+```
 
 ---
 
@@ -403,7 +521,7 @@ ProtectedLink.tsx中导入路径错误：
 // ❌ 错误：从useProtectedRouter导入useAuth
 import { useAuth } from "@/lib/hooks/useProtectedRouter";
 
-// ✅ 正确：应该从useAuth导入
+//  正确：应该从useAuth导入
 import { useAuth } from "@/lib/hooks/useAuth";
 ```
 
@@ -417,10 +535,10 @@ import { useAuth } from "@/lib/hooks/useAuth";
 
 ### 验证结果
 
-- ✅ TypeScript检查通过（`npx tsc --noEmit`）
-- ✅ 四层防护体系协同工作
-- ✅ 真正的"零闪烁"用户体验
-- ✅ 所有7个修复步骤完成
+- TypeScript检查通过（`npx tsc --noEmit`）
+- 四层防护体系协同工作
+- 真正的"零闪烁"用户体验
+- 所有7个修复步骤完成
 
 ### 经验教训
 
@@ -441,7 +559,7 @@ cd apps/frontend-blog && yarn dev
 
 1. 🔍 Middleware认证检查: {originalPathname: "/zh/bookmarks", ...}
 2. 🚨 Middleware拦截未认证请求: {from: "/zh/bookmarks", to: "/zh/login", ...}
-3. ✅ 用户被重定向到登录页，看不到任何bookmarks页面内容
+3. 用户被重定向到登录页，看不到任何bookmarks页面内容
 
 ---
 

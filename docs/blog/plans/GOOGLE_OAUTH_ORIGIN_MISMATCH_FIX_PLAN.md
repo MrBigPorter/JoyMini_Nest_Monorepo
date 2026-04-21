@@ -50,7 +50,7 @@ NEXT_PUBLIC_GOOGLE_CLIENT_ID=1065683669109-ef6g9l2n2cfji6v0rd7db4plar8v8hrp.apps
 server_name admin-dev.joyminis.com dev-api.joyminis.com dev.joyminis.com blog-dev.joyminis.com;
 ```
 
-## ✅ 方案选型
+## 方案选型
 
 ### 方案一：更新 Google Cloud Console 配置（推荐）
 
@@ -394,7 +394,7 @@ if (window.google) {
 2. **OAuth 错误率**: 目标 < 1%
 3. **平均登录时间**: 目标 < 3 秒
 
-## ✅ 验收标准
+## 验收标准
 
 ### 功能验收
 
@@ -475,4 +475,4 @@ if (window.google) {
 
 **最后更新**: 2026-04-15  
 **负责人**: 系统架构师  
-**状态**: ✅ 规划完成，等待实施
+**状态**: 规划完成，等待实施

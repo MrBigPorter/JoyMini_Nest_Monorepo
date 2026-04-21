@@ -44,9 +44,9 @@
 
 **所有命令必须在仓库根目录执行**，使用 `yarn workspace @lucky/api` 前缀，例如：
 
-- ❌ `nest start:dev` → ✅ `yarn workspace @lucky/api start:dev`
-- ❌ `prisma migrate dev` → ✅ `yarn workspace @lucky/api prisma migrate dev`
-- ❌ `jest test` → ✅ `yarn workspace @lucky/api test`
+- ❌ `nest start:dev` → `yarn workspace @lucky/api start:dev`
+- ❌ `prisma migrate dev` → `yarn workspace @lucky/api prisma migrate dev`
+- ❌ `jest test` → `yarn workspace @lucky/api test`
 
 ### 1. 开发环境命令
 
@@ -513,14 +513,14 @@ docker compose --env-file deploy/.env.dev logs --tail=200 backend
 **命令**: `yarn workspace @lucky/api prisma generate`
 **目的**: 根据schema.prisma生成TypeScript类型
 **预期**: 成功生成Prisma Client
-**实际**: ✅ 成功执行，输出"Generated Prisma Client"
+**实际**:  成功执行，输出"Generated Prisma Client"
 **问题**: 无
 
 ### 命令2：开发服务器启动
 **命令**: `yarn workspace @lucky/api start:dev`
 **目的**: 启动NestJS开发服务器
 **预期**: 服务器在端口3001启动
-**实际**: ✅ 成功执行，输出"Nest application successfully started"
+**实际**:  成功执行，输出"Nest application successfully started"
 **问题**: 无
 ```
 

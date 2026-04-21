@@ -25,7 +25,7 @@ if [ -z "$TOKEN" ]; then
   exit 1
 fi
 
-echo "✅ 登录成功，获取 token: ${TOKEN:0:20}..."
+echo " 登录成功，获取 token: ${TOKEN:0:20}..."
 echo ""
 
 # 2. 验证 token
@@ -41,7 +41,7 @@ if [ -z "$VERIFY_OK" ]; then
   exit 1
 fi
 
-echo "✅ Token 验证成功"
+echo " Token 验证成功"
 echo ""
 
 # 3. 立即访问受保护接口（关键测试）
@@ -77,7 +77,7 @@ for endpoint in "${PROTECTED_ENDPOINTS[@]}"; do
       echo "   响应: $BODY"
       FAILED_COUNT=$((FAILED_COUNT + 1))
     else
-      echo "   ✅ 成功 (HTTP $HTTP_STATUS)"
+      echo "    成功 (HTTP $HTTP_STATUS)"
     fi
   fi
 done

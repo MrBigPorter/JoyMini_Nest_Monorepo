@@ -160,12 +160,12 @@ if (token && isPublicPath) {
 
 ---
 
-### ✅ 解决方案
+### 解决方案
 
 `handleUnauthorized` 改为 async，先 `await` 清除 Cookie，再跳转：
 
 ```typescript
-// ✅ 修复后
+//  修复后
 private async handleUnauthorized() {
   if (this._unauthorizedHandling) return;
   this._unauthorizedHandling = true;
@@ -205,9 +205,9 @@ handleUnauthorized()
   → await POST /clear-cookie  ← Cookie 被清除
   → window.location.href = '/login'
   ↓
-middleware: Cookie 不存在 → 放行 /login ✅
+middleware: Cookie 不存在 → 放行 /login
   ↓
-用户看到登录页 ✅
+用户看到登录页
 ```
 
 ---
@@ -280,7 +280,7 @@ if (data.code === 401) {
 ```
 
 ```typescript
-// ✅ 修复后
+//  修复后
 if (data.code === 401) {
   const retryConfig = res.config as InternalAxiosRequestConfig & {
     _retry?: boolean;
@@ -299,7 +299,7 @@ if (data.code === 401) {
 ## 四、Sidebar polling 优化
 
 ```typescript
-// ✅ 优化后
+//  优化后
 const { data: pendingData } = useRequest(() => applicationApi.pendingCount(), {
   pollingInterval: 60_000,
   pollingWhenHidden: false, // 切后台时暂停，避免不必要的请求

@@ -93,7 +93,7 @@ export class RedisLockService implements OnModuleInit, OnModuleDestroy {
       }
     }
 
-    this.logger.log(`✅ [RedisLock] 加锁成功! 执行业务逻辑...`);
+    this.logger.log(` [RedisLock] 加锁成功! 执行业务逻辑...`);
 
     try {
       // 3. 执行业务
@@ -106,7 +106,7 @@ export class RedisLockService implements OnModuleInit, OnModuleDestroy {
           keys: [key],
           arguments: [lockValue],
         });
-        this.logger.log(`✅ [RedisLock] 解锁成功: ${key}`);
+        this.logger.log(` [RedisLock] 解锁成功: ${key}`);
       } catch (e) {
         this.logger.error(`Failed to release lock for key ${key}: ${e}`);
         // 不抛出异常，避免影响正常业务流程

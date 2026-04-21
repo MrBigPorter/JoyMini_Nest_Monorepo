@@ -64,11 +64,11 @@ export default function ArticlePageClient({
   const formatDate = (dateString: string | null) => {
     if (!dateString) return t('article.notPublished');
     try {
-      return new Date(dateString).toLocaleDateString('zh-CN', {
+      return new Intl.DateTimeFormat(locale, {
         year: 'numeric',
         month: 'long',
         day: 'numeric',
-      });
+      }).format(new Date(dateString));
     } catch {
       return dateString;
     }

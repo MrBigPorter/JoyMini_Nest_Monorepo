@@ -115,7 +115,7 @@ export function AnalyticsTrendSectionLazy() {
 
 ### Q1：为什么这次优先改 LCP，不先压 TBT？
 
-**回答（✅ 正确）：**  
+**回答（ 正确）：**  
 LCP 高是因为后端计算复杂，浏览器一直在等 HTML 返回。TBT 已经很低（31ms），说明不是 JS 主线程阻塞的问题。TBT 低表示"JS 没堵"，LCP 高表示"内容来得慢"，两个是不同方向的问题，当前瓶颈在前者。
 
 **补充：**
@@ -130,7 +130,7 @@ TBT 高 → JS 阻塞主线程 → 看 bundle size / 长任务
 
 ### Q2：`revalidate: 120` 本质上把哪段成本转移了？
 
-**回答（✅ 正确）：**  
+**回答（ 正确）：**  
 把"每次请求都等后端 API"的成本，改成"每 120 秒等一次"。缓存命中时 SSR 直接拿缓存结果，HTML 立即返回，LCP 不再受后端 API 响应时间波动影响。
 
 **图示：**
@@ -145,7 +145,7 @@ TBT 高 → JS 阻塞主线程 → 看 bundle size / 长任务
 
 ### Q3：`dynamic(ssr:false)` 有了，为什么还要 IntersectionObserver？
 
-**回答（✅ 正确）：**  
+**回答（ 正确）：**  
 `dynamic(ssr:false)` 只保证"不在服务端渲染"，但页面在浏览器渲染后立即开始下载图表 bundle，这个 bundle 下载会在首屏 LCP 计算窗口内进行，占用网络带宽，还可能让大骨架块成为 LCP 候选。  
 IntersectionObserver 进一步推迟到"接近视口才触发 bundle 下载"，让首屏 LCP 完全不受图表影响。
 

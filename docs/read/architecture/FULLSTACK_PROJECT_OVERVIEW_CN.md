@@ -277,7 +277,7 @@ location = /api/v1/admin/finance/adjust {
 // ❌ 错误：指向 .ts 源码
 "@lucky/shared": ["../../packages/shared/src/index.ts"]
 
-// ✅ 正确：指向 dist/ 声明文件
+//  正确：指向 dist/ 声明文件
 "@lucky/shared": ["../../packages/shared/dist/index"]
 ```
 

@@ -34,7 +34,7 @@ async function main() {
   // 2. 特殊重置逻辑 (可选)
   // 如果你的 Schema 中有其他关联表或需要重置自增序列，可以在这里添加 SQL $executeRaw
 
-  console.log('✅ Chat Module Seeding/Clear-up Completed.');
+  console.log(' Chat Module Seeding/Clear-up Completed.');
 }
 
 main()

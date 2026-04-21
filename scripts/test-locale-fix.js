@@ -29,7 +29,7 @@ if (fs.existsSync(httpPath)) {
   };
   
   Object.entries(checks).forEach(([check, passed]) => {
-    console.log(`   ${passed ? '✅' : '❌'} ${check}`);
+    console.log(`   ${passed ? '' : '❌'} ${check}`);
   });
 } else {
   console.log(`   ❌ HTTP客户端文件不存在: ${httpPath}`);
@@ -49,7 +49,7 @@ if (fs.existsSync(articlesHookPath)) {
   };
   
   Object.entries(checks).forEach(([check, passed]) => {
-    console.log(`   ${passed ? '✅' : '❌'} ${check}`);
+    console.log(`   ${passed ? '' : '❌'} ${check}`);
   });
 } else {
   console.log(`   ❌ useArticlesInfiniteQuery文件不存在: ${articlesHookPath}`);
@@ -67,7 +67,7 @@ hooksToCheck.forEach(hookFile => {
   if (fs.existsSync(hookPath)) {
     const content = fs.readFileSync(hookPath, 'utf8');
     const hasLocaleInQueryKey = content.includes('locale') && content.includes('queryKey');
-    console.log(`   ${hasLocaleInQueryKey ? '✅' : '⚠️ '} ${hookFile}: ${hasLocaleInQueryKey ? 'queryKey包含locale' : '可能需要更新'}`);
+    console.log(`   ${hasLocaleInQueryKey ? '' : '⚠️ '} ${hookFile}: ${hasLocaleInQueryKey ? 'queryKey包含locale' : '可能需要更新'}`);
   } else {
     console.log(`   ℹ️  ${hookFile}: 文件不存在`);
   }
@@ -123,7 +123,7 @@ if (fs.existsSync(articlesHookPath)) {
 }
 
 if (issues.length === 0) {
-  console.log('✅ 所有检查通过！修复符合.clinerules宪法要求。');
+  console.log(' 所有检查通过！修复符合.clinerules宪法要求。');
   console.log('\n🎯 修复效果：');
   console.log('   - HTTP请求自动添加lang查询参数');
   console.log('   - React Query缓存key包含locale');

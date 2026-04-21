@@ -21,7 +21,7 @@
 这是 Next.js 15 中最强大也最少被理解的模式：
 
 ```typescript
-// ✅ 完美的按需 ISR 模式
+//  完美的按需 ISR 模式
 export const dynamic = "force-dynamic";
 export const revalidate = 3600;
 ```
@@ -34,19 +34,19 @@ export const revalidate = 3600;
 ### 实际行为
 
 1.  ❌ 构建时不生成任何静态文件
-2.  ✅ 第一个访问者触发实时渲染
-3.  ✅ 渲染结果被缓存
-4.  ✅ 接下来 3599 个访问者直接获得缓存结果
-5.  ✅ 过期后第一个访问者触发后台重新验证
+2.  第一个访问者触发实时渲染
+3.  渲染结果被缓存
+4.  接下来 3599 个访问者直接获得缓存结果
+5.  过期后第一个访问者触发后台重新验证
 
 > ❗ 绝大多数开发者误解这两个配置是互斥的。实际上它们是完美的组合，产生纯粹的按需增量静态生成。
 
-### ✅ 三重缓存组合拳
+### 三重缓存组合拳
 
 加上 CDN 缓存头，这三个配置在一起产生 1+1+1 > 10 的效果：
 
 ```typescript
-// ✅ Next.js 15 完美缓存模式
+//  Next.js 15 完美缓存模式
 export const dynamic = "force-dynamic";
 export const revalidate = 3600;
 
@@ -65,9 +65,9 @@ export async function generateHeaders() {
 
 ### 最终效果
 
-✅ **99% 的请求**：Cloudflare 边缘节点直接返回 <10ms
-✅ **0.9% 的请求**：Next.js 缓存返回 <50ms
-✅ **0.1% 的请求**：真正到达源站执行 ~200ms
+**99% 的请求**：Cloudflare 边缘节点直接返回 <10ms
+**0.9% 的请求**：Next.js 缓存返回 <50ms
+**0.1% 的请求**：真正到达源站执行 ~200ms
 
 > ✨ `stale-while-revalidate` 魔法：即使缓存过期了，用户仍然立刻得到响应，Cloudflare 在后台静默更新。用户永远不会等待。
 
@@ -185,10 +185,10 @@ export async function generateHeaders() {
 
 ### SQLite优势
 
-- ✅ **完整SQL支持**：复杂查询、事务
-- ✅ **离线搜索**：全文搜索、分类过滤
-- ✅ **数据一致性**：关系型数据模型
-- ✅ **性能优化**：索引、查询优化
+- **完整SQL支持**：复杂查询、事务
+- **离线搜索**：全文搜索、分类过滤
+- **数据一致性**：关系型数据模型
+- **性能优化**：索引、查询优化
 
 ### 实施路线
 
@@ -267,7 +267,7 @@ export async function generateHeaders() {
 
 ---
 
-## ✅ 成功指标
+## 成功指标
 
 | 指标               | 目标值  |
 | ------------------ | ------- |
@@ -283,18 +283,18 @@ export async function generateHeaders() {
 
 ### 1. 架构选择
 
-- ✅ **混合渲染**：服务端组件 + 客户端交互
+- **混合渲染**：服务端组件 + 客户端交互
 - ❌ **纯服务端**：失去客户端交互能力
 - ❌ **纯客户端**：无法利用ISR缓存
 
 ### 2. 缓存策略
 
-- ✅ **平台差异化**：Web ISR / App持久化 / H5内存
+- **平台差异化**：Web ISR / App持久化 / H5内存
 - ❌ **统一缓存**：无法发挥各平台优势
 
 ### 3. 迁移策略
 
-- ✅ **渐进迁移**：首页先行，逐步扩展
+- **渐进迁移**：首页先行，逐步扩展
 - ❌ **一次性迁移**：风险高，回滚困难
 
 ---
@@ -372,3 +372,64 @@ lib/platform/services/
 | `ssr.adapter.ts`    | SSR渲染策略              | Web/SSR   |
 | `app.adapter.ts`    | App端缓存策略            | Capacitor |
 | `web.adapter.ts`    | Web端缓存策略            | Web       |
+
+---
+
+## ⚠️ 架构演进警告（最新发现）
+
+### 简化方案 vs 平台感知架构
+
+在实施首页迁移时，发现过度复杂的平台感知架构可能破坏React Query的缓存机制：
+
+**平台感知架构（复杂）**：
+
+```typescript
+// 4层抽象：适配器 + 服务 + 工厂 + Hook
+const initialData = await getPlatformArticles({
+  locale,
+  page: 1,
+  pageSize: 10,
+});
+const { data } = usePlatformArticlesInfiniteQuerySimple({ initialData });
+```
+
+**简化方案（推荐）**：
+
+```typescript
+// 1层：直接API调用 + React Query原生缓存
+const initialData = await frontendBlogApi.getArticles({
+  lang: locale, // 显式传递语言参数
+  page: 1,
+  pageSize: 10,
+});
+
+const { data } = useQuery({
+  queryKey: useLocalizedQueryKey("homeArticles", { page: 1 }), // 包含语言
+  queryFn: () =>
+    frontendBlogApi.getArticles({
+      lang: currentLocale, // 显式传递
+      page: 1,
+      pageSize: 10,
+    }),
+  initialData, // 服务端预取数据
+});
+```
+
+### 决策建议
+
+**使用平台感知架构当**：
+
+- 需要跨平台统一缓存策略（Web SSR + Capacitor App + H5）
+- 有复杂的平台特定优化需求
+- 团队熟悉并维护该架构
+
+**使用简化方案当**：
+
+- 主要运行在Web平台
+- 需要快速开发和维护
+- React Query原生缓存已足够
+- 避免过度抽象破坏缓存机制
+
+### 参考文档
+
+详细分析请参考：[I18N_ARCHITECTURE_MIGRATION_GUIDE.md](./I18N_ARCHITECTURE_MIGRATION_GUIDE.md) 中的"首页简化方案"部分。

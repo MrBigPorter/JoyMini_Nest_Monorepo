@@ -27,12 +27,12 @@
 
 ## 一、今日完成内容总览
 
-| 类别     | 内容                                                      | 状态    |
-| -------- | --------------------------------------------------------- | ------- |
-| E2E 测试 | 为 Phase 5 所有新页面补齐 E2E spec 文件（9 个）           | ✅ 完成 |
-| E2E 测试 | `auth.setup.ts` 路由预热列表新增 9 条 Phase 5 路由        | ✅ 完成 |
-| E2E 测试 | `navigation.spec.ts` 导航冒烟测试新增 9 条路由            | ✅ 完成 |
-| Bug 修复 | `OperationLogList.tsx` — `RangeError: Invalid time value` | ✅ 完成 |
+| 类别     | 内容                                                      | 状态 |
+| -------- | --------------------------------------------------------- | ---- |
+| E2E 测试 | 为 Phase 5 所有新页面补齐 E2E spec 文件（9 个）           | 完成 |
+| E2E 测试 | `auth.setup.ts` 路由预热列表新增 9 条 Phase 5 路由        | 完成 |
+| E2E 测试 | `navigation.spec.ts` 导航冒烟测试新增 9 条路由            | 完成 |
+| Bug 修复 | `OperationLogList.tsx` — `RangeError: Invalid time value` | 完成 |
 
 ---
 
@@ -315,7 +315,7 @@ col.render(dom, row, index)
 **方案**：将 `render` 的第一个参数命名为 `_dom`（忽略），从第二个参数 `row` 直接取 `row.createdAt` 原始值。
 
 ```typescript
-// ✅ 修复后
+//  修复后
 {
   title: 'Time',
   dataIndex: 'createdAt',
@@ -334,7 +334,7 @@ col.render(dom, row, index)
 // 弹窗内 Time 字段
 <div>
   <span className="font-semibold">Time: </span>
-  {safeFormat(row.createdAt, 'yyyy-MM-dd HH:mm:ss')}  // ✅
+  {safeFormat(row.createdAt, 'yyyy-MM-dd HH:mm:ss')}  //
 </div>
 ```
 
@@ -362,13 +362,13 @@ function safeFormat(val: string | null | undefined, fmt: string): string {
 
 **为什么用 `parseISO` 而不是 `new Date()`？**
 
-|                    | `new Date(str)`             | `parseISO(str)`                 |
-| ------------------ | --------------------------- | ------------------------------- |
-| 对 `"invalid"`     | 返回 `Invalid Date`         | 返回 `Invalid Date`             |
-| 对 `""`            | 返回 `Invalid Date`         | 返回 `Invalid Date`             |
-| 对 ISO 8601 字符串 | ✅ 有效（但行为与环境有关） | ✅ 有效（行为确定，跨时区一致） |
-| 对 `"2026-03-17"`  | ⚠️ 某些环境解析为 UTC 00:00 | ✅ 始终解析为本地 00:00         |
-| 异常处理           | 不抛错，返回 Invalid Date   | 不抛错，返回 Invalid Date       |
+|                    | `new Date(str)`             | `parseISO(str)`              |
+| ------------------ | --------------------------- | ---------------------------- |
+| 对 `"invalid"`     | 返回 `Invalid Date`         | 返回 `Invalid Date`          |
+| 对 `""`            | 返回 `Invalid Date`         | 返回 `Invalid Date`          |
+| 对 ISO 8601 字符串 | 有效（但行为与环境有关）    | 有效（行为确定，跨时区一致） |
+| 对 `"2026-03-17"`  | ⚠️ 某些环境解析为 UTC 00:00 | 始终解析为本地 00:00         |
+| 异常处理           | 不抛错，返回 Invalid Date   | 不抛错，返回 Invalid Date    |
 
 **结论**：`parseISO` + `isValid` 的组合是 date-fns 生态中处理任意来源日期字符串的最佳实践。
 
@@ -415,7 +415,7 @@ render: (value) => format(new Date(value as string), ...)
 render: (value) => Number(value as string) * 100
 render: (value) => (value as string).toUpperCase()
 
-// ✅ 正确模式
+//  正确模式
 render: (_dom, row) => format(parseISO(row.createdAt), ...)
 render: (_dom, row) => row.amount * 100
 render: (_dom, row) => row.name.toUpperCase()

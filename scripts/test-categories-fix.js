@@ -32,7 +32,7 @@ if (fs.existsSync(hookPath)) {
   };
   
   Object.entries(checks).forEach(([check, passed]) => {
-    console.log(`   ${passed ? '✅' : '❌'} ${check}`);
+    console.log(`   ${passed ? '' : '❌'} ${check}`);
   });
 } else {
   console.log(`   ❌ useFrontendArticles.ts文件不存在: ${hookPath}`);
@@ -52,7 +52,7 @@ if (fs.existsSync(categoriesPagePath)) {
   };
   
   Object.entries(checks).forEach(([check, passed]) => {
-    console.log(`   ${passed ? '✅' : '❌'} ${check}`);
+    console.log(`   ${passed ? '' : '❌'} ${check}`);
   });
 } else {
   console.log(`   ❌ Categories页面文件不存在: ${categoriesPagePath}`);
@@ -72,7 +72,7 @@ if (fs.existsSync(categoryDetailPagePath)) {
   };
   
   Object.entries(checks).forEach(([check, passed]) => {
-    console.log(`   ${passed ? '✅' : '❌'} ${check}`);
+    console.log(`   ${passed ? '' : '❌'} ${check}`);
   });
 } else {
   console.log(`   ❌ 分类详情页面文件不存在: ${categoryDetailPagePath}`);
@@ -124,7 +124,7 @@ if (fs.existsSync(hookPath)) {
 }
 
 if (issues.length === 0) {
-  console.log('✅ 所有检查通过！Categories页面修复符合.clinerules宪法要求。');
+  console.log(' 所有检查通过！Categories页面修复符合.clinerules宪法要求。');
   console.log('\n🎯 修复效果：');
   console.log('   - Categories页面语言切换时重新获取分类列表');
   console.log('   - 分类详情页面语言切换时重新获取文章');

@@ -104,5 +104,5 @@ setup('authenticate and warmup all routes', async ({ page, browser }) => {
       }
     }
   }
-  console.log('✅ Warmup complete\n');
+  console.log(' Warmup complete\n');
 });

@@ -1,5 +1,5 @@
 import { getTranslations } from 'next-intl/server';
-import { getPlatformArticles } from '@/lib/platform/services/data.service';
+import { frontendBlogApi } from '@/lib/api/frontendBlogApi';
 import { getEnabledLocales } from '@/lib/i18n/config';
 import HomePageClient from './page.client.tsx';
 import type { FrontendArticle } from '@/lib/types/frontend-blog';
@@ -37,9 +37,10 @@ export default async function HomePage({
   const t = await getTranslations({ locale });
 
   try {
-    // 平台感知数据获取：根据运行环境选择最佳策略
-    const initialData = await getPlatformArticles({
-      locale,
+    // 简单直接的数据获取：直接调用API
+    // SSR环境下必须显式传递lang参数，否则http.ts会使用默认语言
+    const initialData = await frontendBlogApi.getArticles({
+      lang: locale, // 显式传递语言参数
       page: 1,
       pageSize: 10,
     });

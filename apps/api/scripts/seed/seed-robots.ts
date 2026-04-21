@@ -23,7 +23,7 @@ async function main() {
       nickname: `LuckyBot_${Math.floor(Math.random() * 9999)}`,
       avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=bot_${timePart}_${i}`,
 
-      // ✅ 修复点：确保长度 < 20
+      //  修复点：确保长度 < 20
       phone: shortPhone,
 
       // phoneMd5 是 VarChar(32)，这里我们生成一个假的 MD5 占位即可
@@ -43,7 +43,7 @@ async function main() {
     skipDuplicates: true,
   });
 
-  console.log(`✅ 成功! 实际插入了 ${result.count} 个机器人用户。`);
+  console.log(` 成功! 实际插入了 ${result.count} 个机器人用户。`);
 }
 
 main()

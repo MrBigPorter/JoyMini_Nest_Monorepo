@@ -93,7 +93,7 @@ npx playwright test --project=public register-apply.spec.ts  # 只跑公开页
 
 ### 3.1 测什么，不测什么
 
-| 测 ✅                       | 不测 ❌                                   |
+| 测                          | 不测 ❌                                   |
 | --------------------------- | ----------------------------------------- |
 | Store 方法调用后状态变化    | 第三方库的内部逻辑（React、Zustand 本身） |
 | 组件渲染出了哪些元素        | 纯样式（颜色、字号）                      |
@@ -288,7 +288,7 @@ vi.mock("@/api", () => ({
   authApi: { login: mockApiCall },
 }));
 
-// ✅ 被测组件必须在所有 vi.mock() 之后 import
+//  被测组件必须在所有 vi.mock() 之后 import
 import { LoginPage } from "@/views/LoginPage";
 ```
 
@@ -306,7 +306,7 @@ it('渲染用户名和密码输入框', () => {
 #### 第三步：模拟用户输入
 
 ```typescript
-// ✅ 用 userEvent.type() 逐字符输入，触发完整事件链（onChange、onBlur、表单校验）
+//  用 userEvent.type() 逐字符输入，触发完整事件链（onChange、onBlur、表单校验）
 // ❌ 不要用 fireEvent.change()，它不触发 react-hook-form 受控组件的校验逻辑
 const user = userEvent.setup();
 await user.type(screen.getByPlaceholderText("Username"), "admin");
@@ -847,8 +847,8 @@ projects: [
 /**
  * E2E — Xxx Page (/xxx)
  *
- * ✅ 属于 "public" project（无需登录，不依赖 setup）
- * ✅ beforeAll 健康检查：页面 500 时自动 skip，不影响 chromium project
+ *  属于 "public" project（无需登录，不依赖 setup）
+ *  beforeAll 健康检查：页面 500 时自动 skip，不影响 chromium project
  */
 import { test, expect } from "@playwright/test";
 import { dismissDevOverlay, expectNoError } from "./fixtures";
@@ -936,7 +936,7 @@ docker compose --env-file deploy/.env.dev up -d admin-next
 
 ## 七、新增测试 — 逐步 Checklist
 
-### ✅ 新增前端组件单元测试
+### 新增前端组件单元测试
 
 ```
 □ 在 src/__tests__/views/ 下创建 MyPage.test.tsx
@@ -948,7 +948,7 @@ docker compose --env-file deploy/.env.dev up -d admin-next
 □ yarn workspace @lucky/admin-next test 确认全绿
 ```
 
-### ✅ 新增后端 Service 单元测试
+### 新增后端 Service 单元测试
 
 ```
 □ 在对应模块目录创建 my-feature.service.spec.ts
@@ -964,7 +964,7 @@ docker compose --env-file deploy/.env.dev up -d admin-next
 □ yarn workspace @lucky/api test 确认全绿
 ```
 
-### ✅ 新增 E2E 测试（认证保护页）
+### 新增 E2E 测试（认证保护页）
 
 ```
 □ 创建 src/__e2e__/my-page.spec.ts，复用 §5.4 模板
@@ -974,7 +974,7 @@ docker compose --env-file deploy/.env.dev up -d admin-next
 □ npx playwright test my-page.spec.ts 单独验证后再合入
 ```
 
-### ✅ 新增 E2E 测试（公开页）
+### 新增 E2E 测试（公开页）
 
 ```
 □ 创建 src/__e2e__/my-public.spec.ts，复用 §6.4 模板

@@ -42,7 +42,7 @@ export default function middleware(request: NextRequest) {
   // 6.  认证拦截 - 三层防护第一层
   // 这是最高优先级的检查，发生在任何代码运行之前
   const authToken = request.cookies.get('token')?.value;
-  
+
   // 调试日志：记录路径匹配情况
   console.log('🔍 Middleware认证检查:', {
     originalPathname: pathname,
@@ -50,7 +50,9 @@ export default function middleware(request: NextRequest) {
     authTokenExists: !!authToken,
     isProtectedRoute: isProtectedRoute(pathname),
     pathWithoutLocale: pathname.replace(/^\/[a-z]{2}(-[A-Z]{2})?/, ''),
-    cookies: request.cookies.getAll().map(c => ({ name: c.name, value: c.value ? '***' : 'empty' })),
+    cookies: request.cookies
+      .getAll()
+      .map((c) => ({ name: c.name, value: c.value ? '***' : 'empty' })),
   });
 
   if (isProtectedRoute(pathname) && !authToken) {
@@ -60,17 +62,17 @@ export default function middleware(request: NextRequest) {
       getLoginRedirectUrl(currentLocale, pathname),
       request.url,
     );
-    
+
     console.log('🚨 Middleware拦截未认证请求:', {
       from: pathname,
       to: loginUrl.toString(),
       reason: '未登录访问受保护路由',
     });
-    
+
     return NextResponse.redirect(loginUrl);
   }
-  
-  console.log('✅ Middleware放行请求:', {
+
+  console.log(' Middleware放行请求:', {
     pathname,
     reason: authToken ? '已认证' : '非受保护路由',
   });

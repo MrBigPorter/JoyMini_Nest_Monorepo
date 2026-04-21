@@ -19,7 +19,7 @@ try {
     }
   });
   
-  console.log('✅ Blog 种子脚本运行成功！');
+  console.log(' Blog 种子脚本运行成功！');
 } catch (error) {
   console.error('❌ Blog 种子脚本运行失败:', error.message);
   process.exit(1);

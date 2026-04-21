@@ -196,7 +196,7 @@ private toastError(message: string) {
   const { addToast } = useToastStore();  // Hook 只能在 React 组件里调用！
 }
 
-// ✅ 正确写法
+//  正确写法
 private toastError(message: string) {
   const { addToast } = useToastStore.getState();  // 在组件外访问 store
   addToast('error', message);
@@ -537,12 +537,12 @@ test("正确登录后跳转到 Dashboard", async ({ page }) => {
 
 ### 方案对比
 
-| 方案                                  | 问题                                                        |
-| ------------------------------------- | ----------------------------------------------------------- |
-| 硬编码默认账号（如 `admin/admin123`） | **安全漏洞**，生产环境密码容易泄漏                          |
-| 直接写 SQL 插数据                     | 密码需要手动 bcrypt 加密，步骤繁琐容易出错                  |
-| 环境变量预设密码                      | 密码明文存在 `.env` 文件，权限管理困难                      |
-| **CLI 交互式创建**                    | ✅ 安全、简单、参考 Django `manage.py createsuperuser` 惯例 |
+| 方案                                  | 问题                                                     |
+| ------------------------------------- | -------------------------------------------------------- |
+| 硬编码默认账号（如 `admin/admin123`） | **安全漏洞**，生产环境密码容易泄漏                       |
+| 直接写 SQL 插数据                     | 密码需要手动 bcrypt 加密，步骤繁琐容易出错               |
+| 环境变量预设密码                      | 密码明文存在 `.env` 文件，权限管理困难                   |
+| **CLI 交互式创建**                    | 安全、简单、参考 Django `manage.py createsuperuser` 惯例 |
 
 ### 用法
 
@@ -562,7 +562,7 @@ Lucky Admin — 超级管理员创建工具
 密码 (Password): ****
 确认密码: ****
 
-✅ 管理员 "admin" 创建成功！
+ 管理员 "admin" 创建成功！
 ```
 
 ### 为什么只需要运行一次？

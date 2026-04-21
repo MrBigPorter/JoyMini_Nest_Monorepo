@@ -23,7 +23,7 @@ const checks = [
       return {
         passed: usesRouteLocale && !usesDetectLocale,
         message: usesRouteLocale ? 
-          '✅ 直接使用URL路径语言 (routeLocale)' : 
+          ' 直接使用URL路径语言 (routeLocale)' : 
           '❌ 未使用URL路径语言'
       };
     }
@@ -37,7 +37,7 @@ const checks = [
       return {
         passed: usesRouteLocale && !usesCookieFunction,
         message: usesRouteLocale ? 
-          '✅ 直接使用URL路径语言 (routeLocale)' : 
+          ' 直接使用URL路径语言 (routeLocale)' : 
           '❌ 未使用URL路径语言'
       };
     }
@@ -50,7 +50,7 @@ const checks = [
       return {
         passed: usesDetectLocale,
         message: usesDetectLocale ? 
-          '✅ 使用统一的detectLocale函数' : 
+          ' 使用统一的detectLocale函数' : 
           '❌ 未使用detectLocale函数'
       };
     }
@@ -63,7 +63,7 @@ const checks = [
       return {
         passed: usesDetectLocale,
         message: usesDetectLocale ? 
-          '✅ HTTP客户端使用detectLocale函数' : 
+          ' HTTP客户端使用detectLocale函数' : 
           '❌ HTTP客户端未使用detectLocale函数'
       };
     }
@@ -99,7 +99,7 @@ checks.forEach((check, index) => {
   if (fs.existsSync(filePath)) {
     const content = fs.readFileSync(filePath, 'utf8');
     const result = check.check(content);
-    console.log(`${index + 1}. ${check.file}: ${result.passed ? '✅' : '❌'}`);
+    console.log(`${index + 1}. ${check.file}: ${result.passed ? '' : '❌'}`);
   }
 });
 
@@ -121,7 +121,7 @@ console.log('3. 验证页面直接显示英文内容');
 console.log('4. 验证无语言闪烁 (zh→en)');
 
 if (allPassed) {
-  console.log('\n✅ 所有检查通过！语言闪烁问题已修复。');
+  console.log('\n 所有检查通过！语言闪烁问题已修复。');
   console.log('🚀 现在访问 /en/ 应该直接显示英文内容，无闪烁。');
   process.exit(0);
 } else {

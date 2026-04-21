@@ -22,7 +22,7 @@ function testBackendAPI() {
       res.on('end', () => {
         try {
           const result = JSON.parse(data);
-          console.log('✅ 后端API测试成功');
+          console.log(' 后端API测试成功');
           console.log(`   状态码: ${res.statusCode}`);
           console.log(`   评论总数: ${result.data?.total || 0}`);
           console.log(`   返回的根评论数量: ${result.data?.items?.length || 0}`);
@@ -79,7 +79,7 @@ function testFrontendPage() {
         data += chunk;
       });
       res.on('end', () => {
-        console.log('✅ 前端页面测试成功');
+        console.log(' 前端页面测试成功');
         console.log(`   状态码: ${res.statusCode}`);
         console.log(`   页面大小: ${data.length} 字节`);
         

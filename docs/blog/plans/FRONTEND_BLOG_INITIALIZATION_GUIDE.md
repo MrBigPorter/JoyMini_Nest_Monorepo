@@ -1,22 +1,22 @@
 # Frontend-Blog 项目初始化指南
 
-> ✅ 官方标准化初始化流程，按照此文档执行可以零问题启动项目
+> 官方标准化初始化流程，按照此文档执行可以零问题启动项目
 > 预计完成时间: 15 分钟
 
 ---
 
 ## 🎯 架构方案确认
 
-### ✅ 最终采用方案: 混合架构
+### 最终采用方案: 混合架构
 
-| 运行环境              | 渲染模式               | 说明                                  |
-| --------------------- | ---------------------- | ------------------------------------- |
-| **Web 浏览器**        | ✅ SSR + ISR           | Next.js 服务端渲染，SEO最优，首屏最快 |
-| **H5 移动端**         | ✅ SSG 静态导出        | 纯静态文件部署到CDN                   |
-| **iOS / Android App** | ✅ 100% CSR 客户端渲染 | Capacitor 打包，完全客户端运行        |
+| 运行环境              | 渲染模式            | 说明                                  |
+| --------------------- | ------------------- | ------------------------------------- |
+| **Web 浏览器**        | SSR + ISR           | Next.js 服务端渲染，SEO最优，首屏最快 |
+| **H5 移动端**         | SSG 静态导出        | 纯静态文件部署到CDN                   |
+| **iOS / Android App** | 100% CSR 客户端渲染 | Capacitor 打包，完全客户端运行        |
 
-> ✅ **一套代码，三种运行模式**，不需要维护多份代码
-> ✅ 自动检测运行环境，自动切换适配模式
+> **一套代码，三种运行模式**，不需要维护多份代码
+> 自动检测运行环境，自动切换适配模式
 
 ---
 
@@ -26,7 +26,7 @@
 
 ### 1. Monorepo 集成配置
 
-✅ **必须继承根目录配置，绝对不要自己单独配置**
+**必须继承根目录配置，绝对不要自己单独配置**
 
 ```json
 // tsconfig.json
@@ -50,7 +50,7 @@ module.exports = {
 };
 ```
 
-✅ **绝对不要安装单独的 eslint / typescript / prettier 版本**，全部使用 monorepo 统一版本
+**绝对不要安装单独的 eslint / typescript / prettier 版本**，全部使用 monorepo 统一版本
 
 ---
 
@@ -102,7 +102,7 @@ export default nextConfig;
 
 ### 4. 依赖版本锁定
 
-✅ **所有依赖版本必须与 admin-next 保持完全一致**，禁止使用不同版本：
+**所有依赖版本必须与 admin-next 保持完全一致**，禁止使用不同版本：
 
 ```json
 {
@@ -141,12 +141,12 @@ cd apps
 npx create-next-app@15.2.0 frontend-blog --typescript --tailwind --eslint --app --no-src-dir --no-import-alias
 ```
 
-✅ 选项选择:
+选项选择:
 
-- ✅ TypeScript
-- ✅ Tailwind CSS
-- ✅ ESLint
-- ✅ App Router
+- TypeScript
+- Tailwind CSS
+- ESLint
+- App Router
 - ❌ 不要 src 目录
 - ❌ 不要 import alias (我们后面手动配置)
 
@@ -221,7 +221,7 @@ mkdir -p src/app src/components src/lib src/lib/api src/lib/hooks src/lib/store 
 
 ### 第六步: 移植核心复用代码
 
-✅ **直接复制这些文件，不需要任何修改**：
+**直接复制这些文件，不需要任何修改**：
 
 ```bash
 # HTTP 客户端 (生产级代码，节省3天开发时间)
@@ -246,25 +246,25 @@ cp ../admin-next/src/lib/store/useThemeStore.ts src/lib/store/
 yarn dev
 ```
 
-✅ 访问 http://localhost:3001 应该正常打开
-✅ 没有任何控制台错误
-✅ 热重载正常工作
+访问 http://localhost:3001 应该正常打开
+没有任何控制台错误
+热重载正常工作
 
 ---
 
-## ✅ 初始化完成检查清单
+## 初始化完成检查清单
 
-| 检查项               | 状态 | 说明                       |
-| -------------------- | ---- | -------------------------- |
-| ✅ Monorepo 配置继承 |      | tsconfig / eslint 正确继承 |
-| ✅ 环境变量配置      |      | 端口3001，API地址正确      |
-| ✅ 依赖版本一致      |      | 所有包版本与admin-next相同 |
-| ✅ 项目结构标准      |      | 目录结构符合架构文档       |
-| ✅ HTTP客户端移植    |      | http.ts 正确复制修改       |
-| ✅ 开发服务器启动    |      | localhost:3001 正常访问    |
-| ✅ 热重载正常        |      | 修改代码自动刷新           |
-| ✅ 没有编译错误      |      | yarn check-types 通过      |
-| ✅ ESLint 通过       |      | yarn lint 通过             |
+| 检查项            | 状态 | 说明                       |
+| ----------------- | ---- | -------------------------- |
+| Monorepo 配置继承 |      | tsconfig / eslint 正确继承 |
+| 环境变量配置      |      | 端口3001，API地址正确      |
+| 依赖版本一致      |      | 所有包版本与admin-next相同 |
+| 项目结构标准      |      | 目录结构符合架构文档       |
+| HTTP客户端移植    |      | http.ts 正确复制修改       |
+| 开发服务器启动    |      | localhost:3001 正常访问    |
+| 热重载正常        |      | 修改代码自动刷新           |
+| 没有编译错误      |      | yarn check-types 通过      |
+| ESLint 通过       |      | yarn lint 通过             |
 
 ---
 

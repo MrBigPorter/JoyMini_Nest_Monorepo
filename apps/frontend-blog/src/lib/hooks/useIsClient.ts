@@ -12,7 +12,7 @@
  * // ❌ 错误：直接使用浏览器API
  * const isMobile = window.innerWidth < 768;
  *
- * // ✅ 正确：使用防御性Hook
+ * //  正确：使用防御性Hook
  * const useIsMobile = () => {
  *   const isClient = useIsClient();
  *   const [isMobile, setIsMobile] = useState(false);

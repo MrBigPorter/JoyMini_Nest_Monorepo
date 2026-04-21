@@ -36,7 +36,7 @@ test.describe('首页冒烟测试 — 全局报错拦截验证', () => {
     await expect(page.getByLabel('Password')).toBeVisible();
     await expect(page.getByRole('button', { name: /sign in/i })).toBeVisible();
 
-    // ✅ 如果上面执行完成且没有 FAIL，说明：
+    //  如果上面执行完成且没有 FAIL，说明：
     //    - 页面没有 JS 崩溃（no pageerror）
     //    - 没有控制台红字（no console.error）
     //    - 没有非预期的 HTTP 4xx/5xx（_errorInterceptor 自动收集并在此时断言）
@@ -60,7 +60,7 @@ test.describe('首页冒烟测试 — 全局报错拦截验证', () => {
     // 页面标题存在（不检查具体文字，避免 i18n 问题）
     await expect(page.locator('h1, h2').first()).toBeVisible();
 
-    // ✅ _errorInterceptor 在 use() 后自动断言，无需手动调用
+    //  _errorInterceptor 在 use() 后自动断言，无需手动调用
   });
 
   /**
@@ -86,6 +86,6 @@ test.describe('首页冒烟测试 — 全局报错拦截验证', () => {
     await expect(page.getByLabel('Username')).toHaveValue('test-user');
     await expect(page.getByLabel('Password')).toHaveValue('test-password');
 
-    // ✅ 整个交互过程中如有任何 pageerror 或 console.error，自动 FAIL
+    //  整个交互过程中如有任何 pageerror 或 console.error，自动 FAIL
   });
 });

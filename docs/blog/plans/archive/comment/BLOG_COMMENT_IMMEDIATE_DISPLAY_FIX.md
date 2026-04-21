@@ -3,6 +3,7 @@
 ## 📋 设计历程
 
 本功能经历了多个设计迭代阶段，相关设计文档已归档至 `docs/blog/plans/archive/`：
+
 - `comment-immediate-display-plan.md` - 原始详细计划（240行）
 - `comment-immediate-display-simplified-plan.md` - 简化实施计划（422行）
 - `comment-immediate-display-final-plan.md` - 最终方案设计（175行）
@@ -26,17 +27,21 @@
 对比获取评论和更新评论时使用的 Query Key：
 
 **1. 获取数据时 (`useComments`):**
+
 ```typescript
-queryKey: ['comments', articleId, params]
+queryKey: ["comments", articleId, params];
 ```
+
 在 `CommentList.tsx` 中调用的是 `useComments(articleId)`，此时 `params` 为 `undefined`。所以 React Query 实际存储和监听的缓存键是：
 **`['comments', articleId, undefined]`**
 
 **2. 乐观更新写入缓存时 (`usePostComment`):**
+
 ```typescript
 queryClient.getQueryData(['comments', articleId])
 queryClient.setQueryData(['comments', articleId], ...)
 ```
+
 在 `usePostComment` 的 `onMutate` 和 `onSuccess` 回调中，使用的键是：
 **`['comments', articleId]`**
 
@@ -62,13 +67,13 @@ export function usePostComment(articleId: string, params?: any) {
   const queryClient = useQueryClient();
 
   // 使用与 useComments 完全相同的缓存键
-  const exactQueryKey = ['comments', articleId, params];
+  const exactQueryKey = ["comments", articleId, params];
 
   return useMutation({
     mutationFn: (data) => frontendBlogApi.postComment(articleId, data),
     onMutate: async (newComment) => {
       // 取消正在进行的查询
-      await queryClient.cancelQueries({ queryKey: ['comments', articleId] });
+      await queryClient.cancelQueries({ queryKey: ["comments", articleId] });
 
       // 获取之前的评论数据 - 使用精确缓存键
       const previousComments = queryClient.getQueryData(exactQueryKey);
@@ -95,7 +100,11 @@ export function usePostComment(articleId: string, params?: any) {
       });
 
       // 返回临时评论ID和精确缓存键，供onSuccess使用
-      return { previousComments, optimisticId: optimisticComment.id, exactQueryKey };
+      return {
+        previousComments,
+        optimisticId: optimisticComment.id,
+        exactQueryKey,
+      };
     },
     onError: (err, newComment, context) => {
       // 出错时回滚到之前的状态
@@ -119,30 +128,38 @@ export function usePostComment(articleId: string, params?: any) {
 const { mutate: postComment, isPending: isPosting } = usePostComment(articleId);
 
 // 之后
-const { mutate: postComment, isPending: isPosting } = usePostComment(articleId, undefined);
+const { mutate: postComment, isPending: isPosting } = usePostComment(
+  articleId,
+  undefined,
+);
 ```
 
 ## 📝 修复内容
 
 ### 1. 修改 `usePostComment` 函数签名
+
 - 添加 `params` 参数，确保与 `useComments` 保持一致
 - 使用完全相同的缓存键：`['comments', articleId, params]`
 
 ### 2. 更新缓存操作逻辑
+
 - 在 `onMutate` 中使用精确的缓存键获取和设置数据
 - 在 `onError` 和 `onSuccess` 中继续使用相同的精确缓存键
 - 将 `exactQueryKey` 传递到 `onSuccess` 的上下文中
 
 ### 3. 更新 `CommentList.tsx` 中的调用
+
 - 确保传递给 `usePostComment` 的参数与 `useComments` 一致
 
 ### 4. 清理调试日志
+
 - 移除所有开发调试用的 `console.log` 语句
 - 保持生产环境的代码整洁
 
 ## 🏗️ 技术要点
 
 ### 乐观更新策略
+
 1. **立即显示**：乐观评论标记为 `approved: true`，立即显示为正常评论
 2. **后台审核**：AI在后台异步审核评论内容
 3. **状态同步**：通过状态轮询机制同步审核结果
@@ -151,11 +168,12 @@ const { mutate: postComment, isPending: isPosting } = usePostComment(articleId, 
    - 审核拒绝：淡出动画后移除评论，显示拒绝通知
 
 ### 缓存键管理
+
 - **精确匹配**：确保Mutation和Query使用完全相同的缓存键
 - **参数传递**：`params` 参数是可选的，不影响现有代码
 - **向后兼容**：修复不影响其他使用 `usePostComment` 的地方
 
-## ✅ 验证效果
+## 验证效果
 
 修复后，评论系统的工作流程：
 
@@ -163,7 +181,7 @@ const { mutate: postComment, isPending: isPosting } = usePostComment(articleId, 
 2. **后台AI审核** → 异步进行内容审核（4-6秒）
 3. **状态同步** → 前端轮询审核状态
 4. **结果处理**：
-   - ✅ 审核通过：评论保持显示，ID更新为真实ID
+   - 审核通过：评论保持显示，ID更新为真实ID
    - ❌ 审核拒绝：评论淡出移除，显示拒绝通知
 
 ## 💡 最佳实践建议
@@ -172,9 +190,10 @@ const { mutate: postComment, isPending: isPosting } = usePostComment(articleId, 
 
 ```typescript
 export const commentKeys = {
-  all: ['comments'] as const,
-  lists: () => [...commentKeys.all, 'list'] as const,
-  list: (articleId: string, params?: any) => [...commentKeys.all, articleId, params] as const,
+  all: ["comments"] as const,
+  lists: () => [...commentKeys.all, "list"] as const,
+  list: (articleId: string, params?: any) =>
+    [...commentKeys.all, articleId, params] as const,
 };
 
 // 使用时：
@@ -185,11 +204,13 @@ export const commentKeys = {
 ## 📁 相关文件
 
 ### 主要修改文件
+
 - `apps/frontend-blog/src/lib/hooks/useComments.ts` - 核心状态跟踪逻辑
 - `apps/frontend-blog/src/components/blog/CommentList.tsx` - UI状态显示
 - `apps/frontend-blog/src/lib/utils/commentStatus.ts` - 状态管理工具
 
 ### 设计文档归档
+
 - `docs/blog/plans/archive/` - 包含所有设计迭代文档
 - `docs/blog/plans/archive/test-files/` - 相关测试和调试文件
 
@@ -200,6 +221,7 @@ export const commentKeys = {
 修复后的系统提供了流畅的用户体验：评论提交后立即显示，后台AI审核透明进行，用户无需手动刷新页面即可看到审核结果。
 
 ---
+
 **实施时间**: 2026-04-17  
-**状态**: ✅ 已完成  
+**状态**: 已完成  
 **相关文档**: 设计文档已归档至 `docs/blog/plans/archive/`

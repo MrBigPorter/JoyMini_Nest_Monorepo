@@ -1,5 +1,5 @@
 import { getTranslations } from 'next-intl/server';
-import { getPlatformCategories } from '@/lib/platform/services/data.service';
+import { frontendBlogApi } from '@/lib/api/frontendBlogApi';
 import { getEnabledLocales } from '@/lib/i18n/config';
 import CategoriesPageClient from './page.client';
 import type { Locale } from '@/lib/i18n/config';
@@ -33,7 +33,8 @@ export default async function CategoriesPage({
   const t = await getTranslations({ locale });
 
   try {
-    const categories = await getPlatformCategories(locale);
+    // 简化架构：直接API调用，避免复杂平台感知抽象
+    const categories = await frontendBlogApi.getCategories(locale);
 
     return <CategoriesPageClient initialData={categories} locale={locale} />;
   } catch (error) {

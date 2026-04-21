@@ -348,9 +348,9 @@ flashSaleProduct   FlashSaleProduct? @relation(fields: [flashSaleProductId], ref
 | ---------------- | -------------------------------------------------- | ----------------------------------------- |
 | **改动范围**     | GroupProcessor + 新增 LotteryService + Schema 新表 | OrderService + CheckoutDto + (可选)Schema |
 | **影响面**       | 拼团整体状态机（高风险区）                         | 仅 checkout 一条路径（低风险）            |
-| **需要 migrate** | ✅ 需要（新增 LotteryResult 表）                   | 🟡 可选（Order 加字段）                   |
-| **需要 Cron**    | ✅ 定时开奖场景需要                                | ❌ 不需要                                 |
-| **历史数据问题** | ⚠️ 有（现有 WAIT_DELIVERY 订单全是假赢家）         | ✅ 无，新逻辑只影响新下单                 |
+| **需要 migrate** | 需要（新增 LotteryResult 表）                      | 🟡 可选（Order 加字段）                   |
+| **需要 Cron**    | 定时开奖场景需要                                   | ❌ 不需要                                 |
+| **历史数据问题** | ⚠️ 有（现有 WAIT_DELIVERY 订单全是假赢家）         | 无，新逻辑只影响新下单                    |
 | **预计工时**     | 2-3 天                                             | 0.5-1 天                                  |
 | **建议优先级**   | 🟡 第二（依赖产品规则确认）                        | 🔴 第一（规则明确，可直接动手）           |
 

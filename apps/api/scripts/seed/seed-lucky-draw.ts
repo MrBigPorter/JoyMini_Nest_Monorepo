@@ -312,8 +312,8 @@ async function seedLuckyDraw() {
     (item) => item.created,
   ).length;
 
-  console.log(`  ✅ LuckyDrawActivity +${activityCreated} new`);
-  console.log(`  ✅ LuckyDrawPrize    +${prizeCreated} new`);
+  console.log(`   LuckyDrawActivity +${activityCreated} new`);
+  console.log(`   LuckyDrawPrize    +${prizeCreated} new`);
 }
 
 export { seedLuckyDraw };

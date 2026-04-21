@@ -19,8 +19,8 @@ export const RolePermissions = {
     `${OpModule.ORDER}:${OpAction.ORDER.EXPORT}`,
 
     //  3. 优惠券/营销权限
-    `${OpModule.MARKETING}:${OpAction.MARKETING.VIEW}`, // ✅ 这样 ADMIN 就能调 findAll 了
-    `${OpModule.MARKETING}:${OpAction.MARKETING.CREATE}`, // ✅ 这样 ADMIN 就能 create 了
+    `${OpModule.MARKETING}:${OpAction.MARKETING.VIEW}`, //  这样 ADMIN 就能调 findAll 了
+    `${OpModule.MARKETING}:${OpAction.MARKETING.CREATE}`, //  这样 ADMIN 就能 create 了
     `${OpModule.MARKETING}:${OpAction.MARKETING.UPDATE}`,
 
     //  4. 财务查看权限（只读，不含 manual_adjust 高危操作）

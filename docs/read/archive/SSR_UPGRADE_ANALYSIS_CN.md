@@ -132,31 +132,31 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │  Layer 1：Static（静态生成）                                      │
 │  ─────────────────────────────────────────────────────────────  │
-│  ✅ /login 页面 HTML 壳                                          │
-│  ✅ 404 / 500 错误页                                             │
-│  ✅ 静态资源（图片、字体、CSS）                                   │
+│   /login 页面 HTML 壳                                          │
+│   404 / 500 错误页                                             │
+│   静态资源（图片、字体、CSS）                                   │
 │                                                                   │
 │  Layer 2：SSR / RSC（服务端渲染）                                 │
 │  ─────────────────────────────────────────────────────────────  │
-│  ✅ app/(dashboard)/layout.tsx — DashboardShell 骨架            │
-│  ✅ app/(dashboard)/page.tsx — Dashboard 统计数据                │
-│  ✅ app/**/page.tsx — 各列表页初始第一页数据                     │
-│  ✅ 用户权限验证（middleware + Server 层）                       │
-│  ✅ 页面级 Metadata（title / breadcrumbs）                       │
+│   app/(dashboard)/layout.tsx — DashboardShell 骨架            │
+│   app/(dashboard)/page.tsx — Dashboard 统计数据                │
+│   app/**/page.tsx — 各列表页初始第一页数据                     │
+│   用户权限验证（middleware + Server 层）                       │
+│   页面级 Metadata（title / breadcrumbs）                       │
 │                                                                   │
 │  Layer 3：CSR（客户端渲染，'use client'）                        │
 │  ─────────────────────────────────────────────────────────────  │
-│  ✅ 搜索/筛选表单                                                │
-│  ✅ 分页交互、排序                                               │
-│  ✅ 弹窗（Modal / Drawer）                                       │
-│  ✅ 富文本编辑器（react-quill-new）                              │
-│  ✅ 拖拽排序（Banner 排序等）                                    │
-│  ✅ Toast / 全局通知                                             │
-│  ✅ 主题切换 / 语言切换                                          │
-│  ✅ 图表（recharts）                                             │
-│  ✅ framer-motion 动画                                           │
-│  ✅ Sidebar 折叠状态                                             │
-│  ✅ 实时数据轮询                                                 │
+│   搜索/筛选表单                                                │
+│   分页交互、排序                                               │
+│   弹窗（Modal / Drawer）                                       │
+│   富文本编辑器（react-quill-new）                              │
+│   拖拽排序（Banner 排序等）                                    │
+│   Toast / 全局通知                                             │
+│   主题切换 / 语言切换                                          │
+│   图表（recharts）                                             │
+│   framer-motion 动画                                           │
+│   Sidebar 折叠状态                                             │
+│   实时数据轮询                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -590,7 +590,7 @@ export const useAppStore = create<AppState>()(
 
 ```tsx
 // 方案 A：suppressHydrationWarning（已在代码中）+ 延迟应用主题
-// app/layout.tsx 已有 suppressHydrationWarning ✅
+// app/layout.tsx 已有 suppressHydrationWarning
 
 // 方案 B（推荐）：inline script 在 HTML 中同步设置 class，避免闪烁
 // app/layout.tsx
@@ -635,7 +635,7 @@ async function UsersPage() {
   const { data } = useRequest(clientUserApi.getList); // 报错！hooks 不能在 Server Component
 }
 
-// ✅ 正确：props 桥接
+//  正确：props 桥接
 // Server Component（page.tsx）
 async function UsersPage() {
   const initialData = await serverFetch(
@@ -666,7 +666,7 @@ function UserManagementClient({ initialData }) {
 
 ```tsx
 // 对于 Layout 动画（Sidebar 折叠/展开），必须是 CSR
-// → 将 Sidebar 保持为 Client Component（已经是了）✅
+// → 将 Sidebar 保持为 Client Component（已经是了）
 
 // 对于页面进入动画（AnimatePresence），需要注意：
 // Server Component 不能用，提取到 Client Component wrapper 中
@@ -999,10 +999,10 @@ location / {
 ┌─────────────────────────────────────────────────────────────────┐
 │  高价值 + 低难度（立即做）                                        │
 │  ────────────────────────────────────────────────────────────   │
-│  ✅ Middleware 认证（让生产也生效）                              │
-│  ✅ Login 页 Static 化（去掉 dynamic ssr:false）                │
-│  ✅ 错误页 Static 化                                            │
-│  ✅ Metadata 补充（每页 title）                                  │
+│   Middleware 认证（让生产也生效）                              │
+│   Login 页 Static 化（去掉 dynamic ssr:false）                │
+│   错误页 Static 化                                            │
+│   Metadata 补充（每页 title）                                  │
 │                                                                   │
 │  高价值 + 高难度（计划做）                                        │
 │  ────────────────────────────────────────────────────────────   │
@@ -1189,11 +1189,11 @@ export const Providers = ({ children }) => {
 
 | 问题                           | 当前     | 使用 next-themes 后          |
 | ------------------------------ | -------- | ---------------------------- |
-| action 里 DOM 操作             | ✗ 反模式 | ✅ 已删除                    |
-| 逻辑重复（action + useEffect） | ✗ 两处   | ✅ 统一一处                  |
-| 刷新后主题重置 Bug             | ✗ 存在   | ✅ 自动持久化                |
-| SSR FOUC 闪烁                  | ✗ 严重   | ✅ 零闪烁                    |
-| 跟随系统主题                   | ✗ 不支持 | ✅ 可选开启                  |
+| action 里 DOM 操作             | ✗ 反模式 | 已删除                       |
+| 逻辑重复（action + useEffect） | ✗ 两处   | 统一一处                     |
+| 刷新后主题重置 Bug             | ✗ 存在   | 自动持久化                   |
+| SSR FOUC 闪烁                  | ✗ 严重   | 零闪烁                       |
+| 跟随系统主题                   | ✗ 不支持 | 可选开启                     |
 | 代码量                         | 多       | 少（删代码更少）             |
 | 安装成本                       | —        | `npm i next-themes`，1行配置 |
 
@@ -1456,9 +1456,9 @@ export function LangToggle() {
 ┌─────────────────────────────────────────────────────────────────┐
 │  立即修复（Bug 级别）                                             │
 │  ────────────────────────────────────────────────────────────   │
-│  ✅ [1h] 主题：安装 next-themes，删除 action/useEffect 里的      │
+│   [1h] 主题：安装 next-themes，删除 action/useEffect 里的      │
 │          document.documentElement 操作，一次性修复 3 个问题      │
-│  ✅ [1h] 语言：useAppStore 加 persist，修复刷新重置 Bug          │
+│   [1h] 语言：useAppStore 加 persist，修复刷新重置 Bug          │
 │                                                                   │
 │  配合 SSR 升级一起做                                              │
 │  ────────────────────────────────────────────────────────────   │

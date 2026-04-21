@@ -162,7 +162,7 @@ jobs:
             cat /tmp/cf-verify.json
             exit 1
           fi
-          echo "✅ Cloudflare API token is valid."
+          echo " Cloudflare API token is valid."
 
       # Step 8 / 步骤 8: Deploy built assets to Cloudflare Workers
       - name: 8. Deploy to Cloudflare Workers
@@ -289,7 +289,7 @@ jobs:
       - name: 13. Send Telegram Notification
         if: always()
         run: |
-          STATUS_EMOJI="✅ Success"
+          STATUS_EMOJI=" Success"
           if [ "${{ job.status }}" != "success" ]; then
             STATUS_EMOJI="❌ Failed"
           fi

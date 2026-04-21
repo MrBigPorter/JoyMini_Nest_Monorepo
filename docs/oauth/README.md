@@ -22,8 +22,8 @@
 
 ### 博客系统第三方登录
 
-- ✅ **Google OAuth**：使用后端标准endpoints (`/api/v1/auth/google/login`)
-- ✅ **Facebook OAuth**：使用后端标准endpoints (`/api/v1/auth/facebook/login`)
+- **Google OAuth**：使用后端标准endpoints (`/api/v1/auth/google/login`)
+- **Facebook OAuth**：使用后端标准endpoints (`/api/v1/auth/facebook/login`)
 - ⚠️ **GitHub OAuth**：已暂时移除，保留配置以备恢复
 - 🔄 **Apple OAuth**：可选功能，暂未实现
 

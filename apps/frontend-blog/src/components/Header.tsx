@@ -130,15 +130,13 @@ export default function Header() {
     try {
       const translatedName = t(translationKey);
       if (translatedName && translatedName !== translationKey) {
-        return code === 'en' ? 'EN' : translatedName;
+        return translatedName;
       }
     } catch (error) {
       // 如果翻译键不存在，回退到原始逻辑
     }
 
-    // 回退逻辑
-    if (code === 'zh') return '中文';
-    if (code === 'en') return 'EN';
+    // 回退逻辑：使用locale配置中的名称
     return locale.name.substring(0, 2).toUpperCase();
   };
 
@@ -168,8 +166,14 @@ export default function Header() {
         <div className="h-14 px-4 md:px-6 max-w-7xl mx-auto flex items-center justify-between w-full">
           {/* Logo */}
           <Link href="/" className="font-bold text-lg flex items-center gap-2">
-            <span className="text-primary text-xl">🐵</span>
-            Tarsier Blog
+            <img
+              src="/logo.png"
+              alt="Tarsier Labs"
+              className="w-8 h-8 object-contain"
+              width={32}
+              height={32}
+            />
+            Tarsier Labs
           </Link>
 
           {/* 右侧操作区 */}

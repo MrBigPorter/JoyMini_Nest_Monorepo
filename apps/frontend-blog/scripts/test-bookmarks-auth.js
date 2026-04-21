@@ -62,25 +62,25 @@ const protectionLayers = [
     name: '第一层: ProtectedLink',
     file: 'src/components/auth/ProtectedLink.tsx',
     check: '是否使用useProtectedRouter进行安全跳转',
-    status: '✅ 已实现',
+    status: ' 已实现',
   },
   {
     name: '第二层: Middleware',
     file: 'middleware.ts',
     check: '是否检查token cookie并拦截未认证请求',
-    status: '✅ 已实现',
+    status: ' 已实现',
   },
   {
     name: '第三层: useProtectedRouter',
     file: 'src/lib/hooks/useProtectedRouter.ts',
     check: '是否在客户端跳转前检查认证状态',
-    status: '✅ 已实现',
+    status: ' 已实现',
   },
   {
     name: '第四层: ProtectedRouteV2',
     file: 'src/components/auth/ProtectedRouteV2.tsx',
     check: '是否在渲染前检查认证状态，消除skeleton闪烁',
-    status: '✅ 已修复',
+    status: ' 已修复',
   },
 ];
 
@@ -92,10 +92,10 @@ protectionLayers.forEach((layer) => {
 });
 
 console.log('\n🎯 关键修复点:');
-console.log('1. ✅ ProtectedRouteV2: 移除了skeleton显示，未认证时立即重定向');
-console.log('2. ✅ ProtectedLink: 正确使用useProtectedRouter进行安全跳转');
-console.log('3. ✅ useProtectedRouter: 双重检查认证状态（store + cookie）');
-console.log('4. ✅ Middleware: 检查token cookie并拦截未认证请求');
+console.log('1.  ProtectedRouteV2: 移除了skeleton显示，未认证时立即重定向');
+console.log('2.  ProtectedLink: 正确使用useProtectedRouter进行安全跳转');
+console.log('3.  useProtectedRouter: 双重检查认证状态（store + cookie）');
+console.log('4.  Middleware: 检查token cookie并拦截未认证请求');
 
 console.log('\n🚀 验证步骤:');
 console.log('1. 运行开发服务器: yarn dev');
@@ -104,12 +104,12 @@ console.log('3. 访问首页，点击bookmarks链接');
 console.log('4. 观察是否直接跳转到登录页，无skeleton闪烁');
 
 console.log('\n📊 预期结果:');
-console.log('✅ 未登录用户点击bookmarks链接时：');
+console.log(' 未登录用户点击bookmarks链接时：');
 console.log('   - 看不到bookmarks页面的任何内容');
 console.log('   - 直接跳转到登录页');
 console.log('   - 零闪烁体验');
 
-console.log('\n✅ 已登录用户点击bookmarks链接时：');
+console.log('\n 已登录用户点击bookmarks链接时：');
 console.log('   - 正常显示bookmarks页面');
 console.log('   - 无额外重定向');
 
@@ -120,9 +120,9 @@ console.log('3. 如果认证状态不同步: 检查cookie-manager.ts的setTokenC
 console.log('4. 如果链接未拦截: 检查ProtectedLink的onClick处理逻辑');
 
 console.log('\n📈 测试完成度: 100%');
-console.log('✅ 所有防护层已检查');
-console.log('✅ 关键修复已实施');
-console.log('✅ 测试场景已定义');
+console.log(' 所有防护层已检查');
+console.log(' 关键修复已实施');
+console.log(' 测试场景已定义');
 
 console.log('\n💡 建议:');
 console.log('1. 在实际浏览器中手动测试所有场景');

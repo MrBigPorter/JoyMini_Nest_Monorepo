@@ -1,8 +1,3 @@
-/**
- * 语言相关工具函数
- * 用于统一处理语言前缀检测和路径构建
- */
-
 import { LOCALES, type Locale, DEFAULT_LOCALE } from '@/lib/i18n/config';
 import type { NextRequest } from 'next/server';
 
@@ -14,59 +9,51 @@ export type SupportedLocale = Locale;
 /**
  * 统一语言检测函数（SSR/CSR通用）
  * 优先级：URL路径 > Cookie > 浏览器语言 > 默认语言
- * 关键修复：URL路径优先级最高，确保SSR/CSR一致性
+ *  紧急修复：SSR环境强制从URL路径提取，完全忽略Cookie
  * @param request Next.js请求对象（SSR环境可选）
  * @returns 检测到的语言代码
  */
+
 export function detectLocale(request?: NextRequest): SupportedLocale {
-  // 🔴 调试日志
-  console.log('[detectLocale]', {
-    request: !!request,
-    url: request?.url,
-    window: typeof window !== 'undefined' ? window.location.pathname : 'SSR'
-  });
-
-  // 1. 优先从URL路径获取（SSR和CSR都支持）
-  let pathLocale: SupportedLocale | null = null;
-
+  //  紧急修复：SSR环境强制从URL路径提取，完全忽略Cookie
   if (request) {
-    // SSR环境：从请求URL获取
     const url = new URL(request.url);
-    pathLocale = extractLocaleFromPath(url.pathname);
-    console.log('[detectLocale] SSR路径语言:', pathLocale);
-  } else if (typeof window !== 'undefined') {
-    // CSR环境：从window.location获取
-    pathLocale = extractLocaleFromPath(window.location.pathname);
-    console.log('[detectLocale] CSR路径语言:', pathLocale);
+    const pathLocale = extractLocaleFromPath(url.pathname);
+    if (pathLocale) {
+      // SSR环境：URL路径是唯一事实来源，完全忽略Cookie
+      return pathLocale;
+    }
   }
 
-  // ✅ 终极修复：用户意图优先于URL路径
-  // 当用户明确切换语言时，Cookie是用户意图的唯一可信来源
-  // 路由跳转是异步的，路径更新可能滞后于Cookie
+  //  修复：客户端环境永远只信任URL路径，彻底断开死循环
+  // 客户端禁止读取Cookie、navigator或任何其他数据源
+  // URL是唯一真实来源，Cookie只在首次访问时由middleware处理
+  if (typeof window !== 'undefined') {
+    const pathLocale = extractLocaleFromPath(window.location.pathname);
+    return pathLocale || DEFAULT_LOCALE;
+  }
+
+  // 只有SSR环境才继续后续逻辑
   const cookieLocale = getLocaleFromCookie(request);
   if (cookieLocale && isSupportedLocale(cookieLocale)) {
     return cookieLocale;
   }
 
-  // 2. 从URL路径获取
-  if (pathLocale) return pathLocale;
-
-  // 3. 从浏览器语言获取
-  if (typeof navigator !== 'undefined') {
-    const browserLang = navigator.language.split('-')[0];
-    if (isSupportedLocale(browserLang)) return browserLang;
-  }
-
-  // 4. 默认语言
+  // 默认语言
   return DEFAULT_LOCALE;
 }
 
 /**
  * 从当前URL路径中提取语言代码
  * @returns 当前语言代码，默认为 'zh'
- * @deprecated 使用 detectLocale() 替代
+ * @deprecated 客户端代码必须使用 useCurrentLocale() Hook，禁止直接调用此函数
  */
 export function getCurrentLocale(): SupportedLocale {
+  if (typeof window !== 'undefined') {
+    console.warn(
+      '⚠️ DEPRECATED: getCurrentLocale() should not be used in client components. Use useCurrentLocale() Hook instead.',
+    );
+  }
   return detectLocale();
 }
 
@@ -106,12 +93,13 @@ function getLocaleFromCookie(request?: NextRequest): string | null {
 /**
  * 为路径添加当前语言前缀
  * @param path 原始路径（如 '/login'）
+ * @param locale 显式指定语言，推荐从 useCurrentLocale() 获取
  * @returns 带语言前缀的路径（如 '/zh/login'）
  */
-export function withLocale(path: string): string {
-  const locale = detectLocale();
+export function withLocale(path: string, locale?: SupportedLocale): string {
+  const targetLocale = locale || detectLocale();
   const normalizedPath = path.startsWith('/') ? path : '/' + path;
-  return `/${locale}${normalizedPath}`;
+  return `/${targetLocale}${normalizedPath}`;
 }
 
 /**

@@ -118,8 +118,8 @@ export async function seedActSections() {
     }
   }
 
-  console.log(`  ✅ ActSection       +${sCreated} new`);
-  console.log(`  ✅ ActSectionItem   +${iCreated} new`);
+  console.log(`   ActSection       +${sCreated} new`);
+  console.log(`   ActSectionItem   +${iCreated} new`);
   if (missed > 0) {
     console.log(`  ⚠️ ActSectionItem    ${missed} unresolved refs`);
   }

@@ -72,15 +72,13 @@ export function MobileSettingsContent({ onClose }: MobileSettingsContentProps) {
     try {
       const translatedName = t(translationKey);
       if (translatedName && translatedName !== translationKey) {
-        return code === 'en' ? 'EN' : translatedName;
+        return translatedName;
       }
     } catch (error) {
       // 如果翻译键不存在，回退到原始逻辑
     }
 
-    // 回退逻辑
-    if (code === 'zh') return '中文';
-    if (code === 'en') return 'EN';
+    // 回退逻辑：使用locale配置中的名称
     return locale.name.substring(0, 2).toUpperCase();
   };
 

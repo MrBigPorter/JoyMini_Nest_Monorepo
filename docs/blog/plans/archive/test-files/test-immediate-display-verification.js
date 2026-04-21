@@ -59,7 +59,7 @@ filesToCheck.forEach((fileInfo) => {
     
     fileInfo.checks.forEach((check) => {
       const match = check.regex.test(content);
-      const status = match ? '✅' : '❌';
+      const status = match ? '' : '❌';
       console.log(`  ${status} ${check.description}`);
       
       if (!match) {
@@ -77,7 +77,7 @@ console.log('\n' + '=' .repeat(50));
 console.log('📊 验证结果:');
 
 if (allPassed) {
-  console.log('✅ 所有关键修改已正确实现');
+  console.log(' 所有关键修改已正确实现');
 } else {
   console.log('❌ 部分修改未正确实现');
 }
@@ -101,10 +101,10 @@ console.log('   - 如果AI拒绝评论，评论会悄悄淡出消失');
 console.log('   - 无干扰的状态提示（生产环境）');
 
 console.log('\n4. 技术实现:');
-console.log('   - TypeScript编译通过 ✅');
-console.log('   - ESLint检查通过（仅有警告）✅');
-console.log('   - 保持现有状态轮询机制 ✅');
-console.log('   - 保持现有乐观更新机制 ✅');
+console.log('   - TypeScript编译通过 ');
+console.log('   - ESLint检查通过（仅有警告）');
+console.log('   - 保持现有状态轮询机制 ');
+console.log('   - 保持现有乐观更新机制 ');
 
 console.log('\n📋 下一步建议:');
 console.log('1. 启动开发服务器进行端到端测试');

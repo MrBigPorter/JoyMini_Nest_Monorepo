@@ -48,14 +48,14 @@ LCP 通常由英雄图（hero image）、大段文字块或视频封面触发。
 **优化清单：**
 
 ```
-✅ 图片使用 WebP / AVIF 格式（比 JPEG 小 30-50%）
-✅ 英雄图使用 <img fetchpriority="high"> 或 Next.js <Image priority>
-✅ 关键 CSS 内联（Critical CSS）避免渲染阻塞
-✅ 字体使用 font-display: swap + 预加载 <link rel="preload">
-✅ 启用 HTTP/2 或 HTTP/3（减少多资源并发请求头开销）
-✅ CDN 分发静态资源（降低网络延迟）
-✅ 服务端 SSR/SSG 直出 HTML（减少客户端 JS 渲染等待）
-✅ TTFB 优化（见下）
+ 图片使用 WebP / AVIF 格式（比 JPEG 小 30-50%）
+ 英雄图使用 <img fetchpriority="high"> 或 Next.js <Image priority>
+ 关键 CSS 内联（Critical CSS）避免渲染阻塞
+ 字体使用 font-display: swap + 预加载 <link rel="preload">
+ 启用 HTTP/2 或 HTTP/3（减少多资源并发请求头开销）
+ CDN 分发静态资源（降低网络延迟）
+ 服务端 SSR/SSG 直出 HTML（减少客户端 JS 渲染等待）
+ TTFB 优化（见下）
 ```
 
 **Next.js 专项：**
@@ -73,13 +73,13 @@ INP 衡量整个会话中所有交互的第 98 百分位延迟。
 **优化清单：**
 
 ```
-✅ 避免长任务（Long Tasks > 50ms）阻塞主线程
-✅ 将耗时逻辑迁移到 Web Worker
-✅ 使用 React 18+ useTransition / startTransition 降低非紧急更新优先级
-✅ 减少不必要的 re-render（React.memo / useMemo / useCallback）
-✅ 第三方脚本使用 <Script strategy="lazyOnload"> 延迟加载
-✅ 事件处理器避免同步阻塞操作（如同步 localStorage 读写）
-✅ 使用虚拟列表（Virtual List）渲染大量列表项
+ 避免长任务（Long Tasks > 50ms）阻塞主线程
+ 将耗时逻辑迁移到 Web Worker
+ 使用 React 18+ useTransition / startTransition 降低非紧急更新优先级
+ 减少不必要的 re-render（React.memo / useMemo / useCallback）
+ 第三方脚本使用 <Script strategy="lazyOnload"> 延迟加载
+ 事件处理器避免同步阻塞操作（如同步 localStorage 读写）
+ 使用虚拟列表（Virtual List）渲染大量列表项
 ```
 
 **Next.js 专项：**
@@ -96,12 +96,12 @@ CLS 常见原因：图片/广告/字体无尺寸声明、动态注入内容。
 **优化清单：**
 
 ```
-✅ 所有 <img> / <video> 必须声明 width + height（或 aspect-ratio）
-✅ Next.js <Image> 自动处理占位尺寸
-✅ 字体使用 font-display: optional 或 swap（避免 FOUT 引发布局偏移）
-✅ 动态内容（广告位、弹窗）预留固定占位空间
-✅ 避免在已有内容上方插入 DOM 节点
-✅ 动画使用 transform / opacity，不改变 layout 属性
+ 所有 <img> / <video> 必须声明 width + height（或 aspect-ratio）
+ Next.js <Image> 自动处理占位尺寸
+ 字体使用 font-display: optional 或 swap（避免 FOUT 引发布局偏移）
+ 动态内容（广告位、弹窗）预留固定占位空间
+ 避免在已有内容上方插入 DOM 节点
+ 动画使用 transform / opacity，不改变 layout 属性
 ```
 
 ---
@@ -109,30 +109,30 @@ CLS 常见原因：图片/广告/字体无尺寸声明、动态注入内容。
 ### 4.4 TTFB（服务器响应）— LCP 的地基
 
 ```
-✅ 开启 Nginx gzip / Brotli 压缩
-✅ 静态资源 Cache-Control: max-age=31536000, immutable
-✅ HTML 文档 Cache-Control: no-cache（配合 ETag）
-✅ 数据库查询加索引，避免 N+1 查询
-✅ Redis 缓存热点 API 响应（已在 api 服务中实现）
-✅ 使用 CDN 边缘节点就近响应（Cloudflare / Fastly）
+ 开启 Nginx gzip / Brotli 压缩
+ 静态资源 Cache-Control: max-age=31536000, immutable
+ HTML 文档 Cache-Control: no-cache（配合 ETag）
+ 数据库查询加索引，避免 N+1 查询
+ Redis 缓存热点 API 响应（已在 api 服务中实现）
+ 使用 CDN 边缘节点就近响应（Cloudflare / Fastly）
 ```
 
 ---
 
 ## 五、SEO 其他技术要素（非速度但同等重要）
 
-| 要素                | 状态                | 说明                                               |
-| ------------------- | ------------------- | -------------------------------------------------- |
-| **HTTPS**           | ✅ 已配置           | mkcert 本地 / Let's Encrypt 生产                   |
-| **移动端适配**      | 🔵 待验收           | Google 以移动端为主索引（Mobile-First）            |
-| **Robots.txt**      | ✅ Next.js 默认     | 确认 `/robots.txt` 不阻断关键页面                  |
-| **Sitemap.xml**     | ⚠️ 待实现           | 使用 `next-sitemap` 自动生成                       |
-| **结构化数据**      | ⚠️ 待实现           | JSON-LD（Product / BreadcrumbList / Organization） |
-| **Canonical URL**   | ✅ Next.js metadata | 防止重复内容分散权重                               |
-| **Meta Title/Desc** | ✅ Next.js metadata | 每页独立设置，不超过 60/160 字符                   |
-| **Open Graph**      | ⚠️ 待完善           | 社交分享预览图、标题                               |
-| **图片 alt 属性**   | 🔵 需审查           | 所有内容图必须有语义化 alt 文字                    |
-| **核心链接结构**    | ✅ 已有导航         | 确保关键页面在 3 次点击内可达                      |
+| 要素                | 状态             | 说明                                               |
+| ------------------- | ---------------- | -------------------------------------------------- |
+| **HTTPS**           | 已配置           | mkcert 本地 / Let's Encrypt 生产                   |
+| **移动端适配**      | 🔵 待验收        | Google 以移动端为主索引（Mobile-First）            |
+| **Robots.txt**      | Next.js 默认     | 确认 `/robots.txt` 不阻断关键页面                  |
+| **Sitemap.xml**     | ⚠️ 待实现        | 使用 `next-sitemap` 自动生成                       |
+| **结构化数据**      | ⚠️ 待实现        | JSON-LD（Product / BreadcrumbList / Organization） |
+| **Canonical URL**   | Next.js metadata | 防止重复内容分散权重                               |
+| **Meta Title/Desc** | Next.js metadata | 每页独立设置，不超过 60/160 字符                   |
+| **Open Graph**      | ⚠️ 待完善        | 社交分享预览图、标题                               |
+| **图片 alt 属性**   | 🔵 需审查        | 所有内容图必须有语义化 alt 文字                    |
+| **核心链接结构**    | 已有导航         | 确保关键页面在 3 次点击内可达                      |
 
 ---
 
@@ -189,10 +189,10 @@ npx lighthouse http://localhost:3000 --view --preset=desktop
 ## 八、Next.js 15 项目专项优化清单
 
 ```
-✅ output: 'standalone' — 已配置，支持 SSR 直出 HTML
-✅ optimizePackageImports — 已配置，避免 barrel 导出拖慢编译
-✅ images.unoptimized: true — ⚠️ 生产环境建议改为配置 remotePatterns 启用优化
-✅ React Server Components — 充分利用，数据在服务端 fetch，减少客户端 JS
+ output: 'standalone' — 已配置，支持 SSR 直出 HTML
+ optimizePackageImports — 已配置，避免 barrel 导出拖慢编译
+ images.unoptimized: true — ⚠️ 生产环境建议改为配置 remotePatterns 启用优化
+ React Server Components — 充分利用，数据在服务端 fetch，减少客户端 JS
 
 待优化项：
 ⬜ next/font 替代 @font-face（自动 preload + font-display: swap）

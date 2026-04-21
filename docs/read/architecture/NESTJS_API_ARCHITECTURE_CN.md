@@ -76,7 +76,7 @@ Admin  JWT：ADMIN_JWT_SECRET → AdminJwtAuthGuard → { sub, role, type:'admin
 - **OAuth**：调用三方 tokeninfo 接口验签（Google tokeninfo，Apple JWKS），验证 `aud` 防 token 盗用
 
 > ❓ **心智模型提问**：为什么不复用同一个 JWT Secret，用 `type` 字段区分？  
-> ✅ 若只靠字段区分，一旦 Secret 泄露，攻击者可构造任意 `type` 的 Token。双 Secret 是物理层面隔离：即使 Client Secret 泄露，Admin 接口仍安全。
+>  若只靠字段区分，一旦 Secret 泄露，攻击者可构造任意 `type` 的 Token。双 Secret 是物理层面隔离：即使 Client Secret 泄露，Admin 接口仍安全。
 
 ---
 
@@ -100,7 +100,7 @@ Guard 提取：`deviceId`（自定义 Header）/ `deviceModel` / `userAgent` / �
 3. STRICT 模式：`checkWithdrawEligibility` — 新设备 24h 冷却期
 
 > ❓ **心智模型提问**：设备冷却期如何应对用户换手机的正常场景？  
-> ✅ 24h 是风控与体验的权衡阈值。正常换机用户会触发冷却，但相比防盗号提现的价值，误伤成本可接受，且可配合客服申诉通道解除。
+>  24h 是风控与体验的权衡阈值。正常换机用户会触发冷却，但相比防盗号提现的价值，误伤成本可接受，且可配合客服申诉通道解除。
 
 ---
 
@@ -117,7 +117,7 @@ ServerTimeInterceptor   → 响应头 x-server-time（客户端时差校准）
 ```
 
 > ❓ **心智模型提问**：为什么 tid 要在中间件层生成，而不是在 Interceptor 里生成？  
-> ✅ 中间件在 Guard / Pipe / Interceptor 之前执行。如果 Guard 阶段就抛出 401，Interceptor 根本不会运行，但 AllExceptionsFilter 仍能从 `req.id` 读到 tid，保证所有错误响应都有追踪 ID。
+>  中间件在 Guard / Pipe / Interceptor 之前执行。如果 Guard 阶段就抛出 401，Interceptor 根本不会运行，但 AllExceptionsFilter 仍能从 `req.id` 读到 tid，保证所有错误响应都有追踪 ID。
 
 ---
 
@@ -148,7 +148,7 @@ async auditWithdraw(withdrawId: string) { ... }
 | Cron 定时任务        | `false`        | 抢锁失败 → 静默跳过          |
 
 > ❓ **心智模型提问**：为什么不用 `SETNX + EXPIRE` 两条命令，而要用 `SET NX PX` 单条命令？  
-> ✅ 两条命令之间如果进程崩溃，锁永远不过期（死锁）。`SET key value NX PX ttl` 是原子操作，要么同时设值和过期，要么完全失败，消除了死锁风险。
+>  两条命令之间如果进程崩溃，锁永远不过期（死锁）。`SET key value NX PX ttl` 是原子操作，要么同时设值和过期，要么完全失败，消除了死锁风险。
 
 ---
 
@@ -172,7 +172,7 @@ await db.lotteryResult.create({ data: { groupId, winnerId, ... } });
 整个开奖在 `$transaction` 内原子执行：winner → `WAIT_DELIVERY`，其余 → `COMPLETED`。
 
 > ❓ **心智模型提问**：为什么不在应用层用 `findFirst` 检查再 `create`，而要依赖唯一索引幂等？  
-> ✅ `findFirst` + `create` 是两步操作，并发场景下存在 check-then-act 竞态。唯一索引是数据库层面的原子约束，并发 100 个请求也只有 1 个能 `create` 成功。
+>  `findFirst` + `create` 是两步操作，并发场景下存在 check-then-act 竞态。唯一索引是数据库层面的原子约束，并发 100 个请求也只有 1 个能 `create` 成功。
 
 ---
 
@@ -193,7 +193,7 @@ sendMessage()
 **WebSocket 连接认证**：握手时从 query/auth 取 JWT，轮询 Client + Admin 双 Secret 验签，验证通过后加入私人房间 `user_${userId}`。
 
 > ❓ **心智模型提问**：大群熔断后，用户如何感知到新消息？  
-> ✅ 客户端进入会话列表时主动拉取 `/conversations`（HTTP 轮询或重新订阅房间），房间广播保证聊天窗口内实时，列表预览的角标更新靠"前台自愈"补偿，接受最终一致性。
+>  客户端进入会话列表时主动拉取 `/conversations`（HTTP 轮询或重新订阅房间），房间广播保证聊天窗口内实时，列表预览的角标更新靠"前台自愈"补偿，接受最终一致性。
 
 ---
 
@@ -222,7 +222,7 @@ async handleStuckOrders() {
 BullMQ 默认配置：`attempts: 3`，指数补偿重试，`removeOnFail: false`（失败保留排查），`removeOnComplete: true`。
 
 > ❓ **心智模型提问**：Redis 锁 TTL 设 60s，但任务可能超过 60s，怎么办？  
-> ✅ 本任务最多处理 20 笔 × 500ms = 10s，TTL 60s 足够。对于运行时间不确定的长任务，应考虑"看门狗"续期机制（如 Redisson），或将任务拆小。
+>  本任务最多处理 20 笔 × 500ms = 10s，TTL 60s 足够。对于运行时间不确定的长任务，应考虑"看门狗"续期机制（如 Redisson），或将任务拆小。
 
 ---
 

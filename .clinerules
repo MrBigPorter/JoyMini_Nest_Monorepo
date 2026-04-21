@@ -30,7 +30,7 @@
 ## 🔴 绝对禁令（一票否决）
 
 1. **禁止使用`any`类型**：未知类型使用`unknown`，必须为所有API响应和组件Props定义完整interface
-2. **禁止在代码注释中使用Emoji图标**：所有//注释只能使用纯文本，禁止使用✅❌⚠️🐛等符号，文档和Markdown文件除外
+2. **禁止在代码注释中使用Emoji图标**：所有//注释只能使用纯文本，禁止使用❌⚠️🐛等符号，文档和Markdown文件除外
 3. **禁止代码中出现非ASCII字符注释**：注释优先使用英文，中文仅允许在Markdown文档中使用
 4. **禁止假设导入存在**：使用任何导入前必须检查目标文件是否确实导出了该标识符
 5. **禁止在验证之前提交修改**：任何代码修改必须先通过类型和lint检查
@@ -126,7 +126,7 @@
 // ❌ 错误：直接使用浏览器API
 const isMobile = window.innerWidth < 768;
 
-// ✅ 正确：使用防御性Hook
+//  正确：使用防御性Hook
 const useIsMobile = () => {
   const isClient = useIsClient();
   const [isMobile, setIsMobile] = useState(false);
@@ -146,7 +146,7 @@ const useIsMobile = () => {
 // ❌ 错误：使用any类型
 const handleData = (data: any) => { ... };
 
-// ✅ 正确：定义完整interface
+//  正确：定义完整interface
 interface ApiResponse<T> {
   data: T;
   error?: string;
@@ -161,7 +161,7 @@ const handleData = <T>(response: ApiResponse<T>) => { ... };
 // ❌ 错误：忽略可选依赖类型
 const { Preferences } = await import('@capacitor/preferences');
 
-// ✅ 正确：创建类型声明文件 + 安全导入
+//  正确：创建类型声明文件 + 安全导入
 // 1. 创建 src/types/capacitor.d.ts
 // 2. 使用try-catch处理导入失败
 try {
@@ -182,7 +182,7 @@ const useFrontendCategories = () => {
   });
 };
 
-// ✅ 正确：queryKey包含locale，语言切换时重新获取
+//  正确：queryKey包含locale，语言切换时重新获取
 const useFrontendCategories = () => {
   const params = useParams();
   const locale = (params.locale as string) || 'zh';
@@ -193,7 +193,7 @@ const useFrontendCategories = () => {
   });
 };
 
-// ✅ 正确：HTTP客户端自动添加lang参数
+//  正确：HTTP客户端自动添加lang参数
 // 在HTTP拦截器中自动添加lang查询参数
 instance.interceptors.request.use((config) => {
   const lang = localStorage.getItem('locale') || 'zh';
@@ -209,7 +209,7 @@ instance.interceptors.request.use((config) => {
 // 只修复出错的那一行，错误消失就完事了
 const locale = cookieLocale || DEFAULT_LOCALE;
 
-// ✅ 正确：架构师思维
+//  正确：架构师思维
 // 1. 理解根因 2. 修复问题 3. 预防未来 4. 记录知识
 const locale = cookieLocale && LOCALES.includes(cookieLocale) ? cookieLocale : DEFAULT_LOCALE;
 
@@ -242,10 +242,10 @@ const locale = cookieLocale && LOCALES.includes(cookieLocale) ? cookieLocale : D
 
 ### 3. 视觉表达优先
 关键信息必须视觉化表达：
-- ✅ **架构图**：使用ASCII或图表展示组件关系
-- ✅ **对比表格**：方案对比、平台差异、决策分析
-- ✅ **决策树**：条件判断逻辑
-- ✅ **文件结构树**：代码组织方案
+-  **架构图**：使用ASCII或图表展示组件关系
+-  **对比表格**：方案对比、平台差异、决策分析
+-  **决策树**：条件判断逻辑
+-  **文件结构树**：代码组织方案
 
 ### 4. 信息密度控制
 - 每章节不超过10个要点
@@ -275,7 +275,7 @@ const locale = cookieLocale && LOCALES.includes(cookieLocale) ? cookieLocale : D
 - 缺乏价值阐述
 - 没有决策支持
 
-# ✅ 正确：架构思维文档
+#  正确：架构思维文档
 ## 📋 文档目标
 **简洁架构文档**：只包含核心架构设计
 

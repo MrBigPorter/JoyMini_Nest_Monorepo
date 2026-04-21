@@ -175,7 +175,7 @@ async function main() {
   });
 
   const verb = existing ? '已更新' : '已创建';
-  console.log(`\n✅ 管理员账号${verb}！`);
+  console.log(`\n 管理员账号${verb}！`);
   console.log('─────────────────────────────');
   console.log(`  ID       : ${admin.id}`);
   console.log(`  用户名   : ${admin.username}`);

@@ -1,4 +1,4 @@
-import { getPlatformTags } from '@/lib/platform/services/data.service';
+import { frontendBlogApi } from '@/lib/api/frontendBlogApi';
 import { getEnabledLocales } from '@/lib/i18n/config';
 import TagsPageClient from './page.client';
 import type { Locale } from '@/lib/i18n/config';
@@ -21,7 +21,8 @@ interface TagsPageProps {
 }
 
 export default async function TagsPage({ params }: TagsPageProps) {
-  const tags = await getPlatformTags(params.locale);
+  // 简化架构：直接API调用，避免复杂平台感知抽象
+  const tags = await frontendBlogApi.getTags(params.locale);
 
   return <TagsPageClient initialTags={tags} />;
 }

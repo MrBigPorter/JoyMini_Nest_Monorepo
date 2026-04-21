@@ -75,7 +75,7 @@ services:
              node /app/packages/shared/scripts/build.js &&
              echo '>>> Building @repo/ui (pre-build for fast Next.js compilation)...' &&
              node /app/packages/ui/scripts/build.js &&
-             echo '✅ Shared packages built successfully'"
+             echo ' Shared packages built successfully'"
     volumes:
       - .:/app
       - pkg_shared_nm:/app/packages/shared/node_modules

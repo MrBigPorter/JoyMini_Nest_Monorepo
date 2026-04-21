@@ -25,7 +25,7 @@ async function testQueueCleanup() {
     }
     
     const jobsData = JSON.parse(stdout);
-    console.log('✅ 获取任务列表成功');
+    console.log(' 获取任务列表成功');
     console.log(`   活跃任务: ${jobsData.active?.length || 0}`);
     console.log(`   等待任务: ${jobsData.waiting?.length || 0}`);
     console.log(`   失败任务: ${jobsData.failed?.length || 0}`);
@@ -70,7 +70,7 @@ async function testQueueCleanup() {
     console.log('   2. 或者直接调用 BullMQ 的 clean() API');
     
     // 5. 验证修复
-    console.log('\n✅ 修复验证:');
+    console.log('\n 修复验证:');
     console.log('   ✓ 已在 getTranslationJobs() 方法中添加自动清理逻辑');
     console.log('   ✓ 清理超过24小时的已完成和失败任务');
     console.log('   ✓ 错误处理完善，不会影响正常功能');

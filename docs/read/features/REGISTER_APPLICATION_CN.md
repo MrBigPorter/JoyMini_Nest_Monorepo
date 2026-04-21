@@ -1,7 +1,7 @@
 # Admin 注册申请功能设计文档
 
 > 创建日期: 2026-03-17  
-> 状态: ✅ 全部完成（2026-03-17）
+> 状态: 全部完成（2026-03-17）
 
 ---
 
@@ -13,11 +13,11 @@
 
 ## 二、注册方式决策
 
-| 方式                | 结论                                           |
-| ------------------- | ---------------------------------------------- |
-| 手机短信 OTP        | ❌ 有成本，内部低频场景不值得                  |
-| Google/GitHub OAuth | ❌ 适合直接登录，不适合"申请→等审批"中间状态   |
-| **邮箱 + 密码**     | ✅ **选用** — 简单直接，邮箱仅用于接收审批通知 |
+| 方式                | 结论                                         |
+| ------------------- | -------------------------------------------- |
+| 手机短信 OTP        | ❌ 有成本，内部低频场景不值得                |
+| Google/GitHub OAuth | ❌ 适合直接登录，不适合"申请→等审批"中间状态 |
+| **邮箱 + 密码**     | **选用** — 简单直接，邮箱仅用于接收审批通知  |
 
 **为什么邮箱不需要 OTP 验证码：**  
 超级管理员的手动审批本身就是人肉验证，比 OTP 更严格。邮件唯一作用是接收"审批通过/拒绝"通知。
@@ -87,13 +87,13 @@ pending ──→ approved  →  自动创建 AdminUser(role=VIEWER, status=1)
 
 ## 五、API 接口
 
-| Method  | Path                                | Guard                | 说明                     |
-| ------- | ----------------------------------- | -------------------- | ------------------------ |
-| `POST`  | `/auth/admin/apply`                 | ❌ 公开              | 提交注册申请             |
-| `GET`   | `/admin/applications`               | ✅ JWT               | 申请列表（分页+过滤）    |
-| `GET`   | `/admin/applications/pending-count` | ✅ JWT               | 待审批数量（侧边栏红点） |
-| `PATCH` | `/admin/applications/:id/approve`   | ✅ JWT (SUPER_ADMIN) | 审批通过                 |
-| `PATCH` | `/admin/applications/:id/reject`    | ✅ JWT (SUPER_ADMIN) | 审批拒绝                 |
+| Method  | Path                                | Guard             | 说明                     |
+| ------- | ----------------------------------- | ----------------- | ------------------------ |
+| `POST`  | `/auth/admin/apply`                 | ❌ 公开           | 提交注册申请             |
+| `GET`   | `/admin/applications`               | JWT               | 申请列表（分页+过滤）    |
+| `GET`   | `/admin/applications/pending-count` | JWT               | 待审批数量（侧边栏红点） |
+| `PATCH` | `/admin/applications/:id/approve`   | JWT (SUPER_ADMIN) | 审批通过                 |
+| `PATCH` | `/admin/applications/:id/reject`    | JWT (SUPER_ADMIN) | 审批拒绝                 |
 
 ### 申请接口请求体
 
@@ -165,13 +165,13 @@ NEXT_PUBLIC_RECAPTCHA_SITE_KEY=6Le... # 前端用
 ### 申请表单字段
 
 ```
-✅ username       — 必填，实时格式校验
-✅ password       — 必填，强度提示
-✅ confirmPassword — 必填，两次密码一致校验
-✅ realName       — 必填
-✅ email          — 必填，格式校验
-✅ applyReason    — 选填，textarea
-✅ reCAPTCHA v3   — 不可见，自动执行
+ username       — 必填，实时格式校验
+ password       — 必填，强度提示
+ confirmPassword — 必填，两次密码一致校验
+ realName       — 必填
+ email          — 必填，格式校验
+ applyReason    — 选填，textarea
+ reCAPTCHA v3   — 不可见，自动执行
 ```
 
 ### 审批列表（AdminUserManagement 新增 Tab）

@@ -4,12 +4,12 @@
 
 ## 实施状态
 
-- ✅ **Google OAuth**：使用后端标准endpoints (`/api/v1/auth/google/login`)
-- ✅ **Facebook OAuth**：使用后端标准endpoints (`/api/v1/auth/facebook/login`)
+- **Google OAuth**：使用后端标准endpoints (`/api/v1/auth/google/login`)
+- **Facebook OAuth**：使用后端标准endpoints (`/api/v1/auth/facebook/login`)
 - ⚠️ **GitHub OAuth**：已暂时移除，保留配置以备恢复
 - 🔄 **Apple OAuth**：可选功能，暂未实现
-- ✅ **架构统一**：前端通过标准HTTP客户端调用后端API
-- ✅ **用户信息获取**：通过`/api/v1/auth/profile`获取完整用户资料
+- **架构统一**：前端通过标准HTTP客户端调用后端API
+- **用户信息获取**：通过`/api/v1/auth/profile`获取完整用户资料
 
 ## 问题分析
 

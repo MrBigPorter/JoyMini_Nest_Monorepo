@@ -1,10 +1,12 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { useArticlesInfiniteQuerySimple } from '@/lib/hooks/usePlatformArticlesInfiniteQuery';
-import { useBatchBookmarkStatusMap } from '@/lib/hooks/usePlatformBookmarks';
+import { useQuery } from '@tanstack/react-query';
+import { useCurrentLocale } from '@/lib/hooks/useCurrentLocale';
+import { useLocalizedQueryKey } from '@/lib/api/queryKeys';
+import { frontendBlogApi } from '@/lib/api/frontendBlogApi';
+import { useBatchBookmarkStatusMap } from '@/lib/hooks/useBookmarks';
 import { ArticleCard } from '@/components/blog/ArticleCard';
-import { InfiniteScrollLoader } from '@/components/shared/LoadingIndicator';
 import { PageErrorBoundary } from '@/lib/components/ErrorBoundary';
 import { HomePageSkeleton } from '@/lib/components/SkeletonLoader';
 import type { FrontendArticle } from '@/lib/types/frontend-blog';
@@ -21,30 +23,30 @@ interface HomePageClientProps {
   locale: string;
 }
 
-export default function HomePageClient({
-  initialData,
-  initialArticleIds,
-  locale,
-}: HomePageClientProps) {
+export default function HomePageClient({ initialData }: HomePageClientProps) {
   // 客户端组件自己管理翻译
   const t = useTranslations();
-  // 使用基于React Query的无限滚动钩子，传入初始数据
-  const {
-    items: articles,
-    total,
-    page,
-    pageSize,
-    totalPages,
-    isLoading,
-    isLoadingMore,
-    hasMore,
-    error,
-    loadMore,
-    reload,
-  } = useArticlesInfiniteQuerySimple({
-    pageSize: 10,
-    initialData, // 服务端获取的初始数据
+  const currentLocale = useCurrentLocale();
+
+  // 简单直接的useQuery，使用现有封装工具
+  // 显式传递lang参数确保语言一致性
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: useLocalizedQueryKey('homeArticles', { page: 1, pageSize: 10 }),
+    queryFn: () =>
+      frontendBlogApi.getArticles({
+        lang: currentLocale, // 显式传递语言参数
+        page: 1,
+        pageSize: 10,
+      }),
+    initialData, // 来自服务端的数据
+    staleTime: 5 * 60 * 1000, // 5分钟缓存
   });
+
+  // 从返回的数据中提取文章和其他信息
+  const articles = data?.items || [];
+  const total = data?.total || 0;
+  const page = data?.page || 1;
+  const totalPages = data?.totalPages || 0;
 
   // 提取文章ID用于批量查询收藏状态
   const articleIds =
@@ -72,7 +74,7 @@ export default function HomePageClient({
         <div className="flex flex-col items-center justify-center py-20">
           <p className="text-red-500">{t('common.error')}</p>
           <button
-            onClick={() => reload()}
+            onClick={() => refetch()}
             className="mt-4 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-600 transition-colors"
           >
             {t('common.retry')}
@@ -105,14 +107,6 @@ export default function HomePageClient({
           );
         })}
       </div>
-
-      {/* 无限滚动加载器（自动加载） */}
-      <InfiniteScrollLoader
-        isLoadingMore={isLoadingMore}
-        hasMore={hasMore}
-        error={error}
-        onRetryAction={loadMore}
-      />
 
       {/* 分页信息（仅在开发环境显示） */}
       {process.env.NODE_ENV === 'development' && (

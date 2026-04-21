@@ -84,7 +84,7 @@ const updateCommentTree = (comments, parentId, newComment) => {
     console.log(`   检查评论: ${comment.id}, 目标parentId: ${parentId}`);
     
     if (comment.id === parentId) {
-      console.log(`   ✅ 找到父评论: ${comment.id}`);
+      console.log(`    找到父评论: ${comment.id}`);
       return {
         ...comment,
         children: [...comment.children, newComment]
@@ -143,5 +143,5 @@ console.log('2. 检查评论提交时parentId的值');
 console.log('3. 验证缓存数据结构');
 console.log('4. 测试递归查找算法');
 
-console.log('\n✅ 调试完成');
+console.log('\n 调试完成');
 console.log('='.repeat(50));

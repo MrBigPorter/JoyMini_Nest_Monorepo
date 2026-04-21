@@ -84,7 +84,7 @@ if [ "$ROLLBACK_BACKEND" = true ] || [ "$ROLLBACK_ADMIN" = true ]; then
         docker logs --tail=20 lucky-backend-prod 2>&1 || true
 REMOTE_SCRIPT
 
-    log "✅ 服务已重启"
+    log " 服务已重启"
 fi
 
 # ============================================================
@@ -141,7 +141,7 @@ if [ "$ROLLBACK_DB" = true ]; then
         docker compose -f compose.prod.yml ps
 REMOTE_SCRIPT
 
-    log "✅ 数据库已恢复"
+    log " 数据库已恢复"
 fi
 
 echo ""

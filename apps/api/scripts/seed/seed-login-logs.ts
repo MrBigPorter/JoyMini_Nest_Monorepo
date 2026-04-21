@@ -60,5 +60,5 @@ export async function seedLoginLogs() {
     created++;
   }
 
-  console.log(`  ✅ UserLoginLog      +${created} new`);
+  console.log(`   UserLoginLog      +${created} new`);
 }

@@ -156,7 +156,7 @@ export default function BlogArticleContent({
             'id',
           ],
           ALLOW_DATA_ATTR: true,
-          // ✅ 关键修复：阻止DOMPurify自动重新编码HTML实体
+          //  关键修复：阻止DOMPurify自动重新编码HTML实体
           // 这是几乎所有教程都不会提到的隐藏配置
           FORCE_BODY: true,
           SANITIZE_DOM: false,

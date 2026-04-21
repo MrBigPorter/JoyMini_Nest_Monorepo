@@ -30,6 +30,8 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: 'img.joyminis.com' },
       { protocol: 'https', hostname: '*.googleusercontent.com' },
       { protocol: 'https', hostname: '*.facebook.com' },
+      { protocol: 'https', hostname: 'picsum.photos' },
+      { protocol: 'https', hostname: '*.picsum.photos' },
     ],
   },
 

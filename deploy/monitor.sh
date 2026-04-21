@@ -79,6 +79,6 @@ if [ "$ALERT" = true ]; then
     # TODO: 可在此处添加 webhook 通知
     # curl -s -X POST "https://hooks.slack.com/..." -d "{\"text\": \"$MESSAGES\"}"
 else
-    echo "[$(date)] ✅ 所有服务正常 | MEM: ${MEM_PERCENT}% | DISK: ${DISK_PERCENT}%"
+    echo "[$(date)]  所有服务正常 | MEM: ${MEM_PERCENT}% | DISK: ${DISK_PERCENT}%"
 fi
 

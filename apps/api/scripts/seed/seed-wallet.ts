@@ -30,7 +30,7 @@ export async function seedTestUserWallet() {
         status:     1,
       },
     });
-    console.log(`  ✅ Test User        created  id=${user.id}`);
+    console.log(`   Test User        created  id=${user.id}`);
   } else {
     console.log(`  ⏭️  Test User        skipped  id=${user.id}`);
   }
@@ -40,7 +40,7 @@ export async function seedTestUserWallet() {
     update: WALLET,
     create: { userId: user.id, ...WALLET },
   });
-  console.log(`  ✅ Test Wallet      realBalance=₱${WALLET.realBalance}  coins=${WALLET.coinBalance}`);
+  console.log(`   Test Wallet      realBalance=₱${WALLET.realBalance}  coins=${WALLET.coinBalance}`);
 }
 
 // 直接运行该文件：node/ts-node 执行

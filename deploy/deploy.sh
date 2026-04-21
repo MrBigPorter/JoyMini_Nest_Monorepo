@@ -100,7 +100,7 @@ sync_configs() {
         scp -r nginx/html/ "$SSH_TARGET:$VPS_DIR/nginx/"
     fi
 
-    log "✅ 配置文件同步完成"
+    log " 配置文件同步完成"
 }
 
 sync_configs
@@ -123,7 +123,7 @@ if [ "$SKIP_BUILD" = false ]; then
             -f Dockerfile.prod \
             -t "$BACKEND_IMAGE" \
             .
-        log "✅ 后端镜像构建完成"
+        log " 后端镜像构建完成"
     fi
 
     if [ "$BUILD_ADMIN" = true ]; then
@@ -137,7 +137,7 @@ if [ "$SKIP_BUILD" = false ]; then
             --build-arg NEXT_PUBLIC_GIT_SHA="$ADMIN_BUILD_GIT_SHA" \
             -t "$ADMIN_IMAGE" \
             .
-        log "✅ admin-next 镜像构建完成"
+        log " admin-next 镜像构建完成"
     fi
 fi
 
@@ -156,7 +156,7 @@ if [ "$SKIP_BUILD" = false ]; then
         log "传输: $IMAGES_TO_SEND"
         docker save $IMAGES_TO_SEND | gzip | \
             ssh "$SSH_TARGET" "gunzip | docker load"
-        log "✅ 镜像传输完成"
+        log " 镜像传输完成"
     fi
 fi
 
@@ -205,7 +205,7 @@ ssh "$SSH_TARGET" << REMOTE_SCRIPT
                 fi
                 exit 1
             fi
-            echo "✅ 迁移完成"
+            echo " 迁移完成"
         else
             echo "⚠️  DB 容器未运行，跳过迁移 (首次部署请先运行 init-db.sh)"
         fi
@@ -230,7 +230,7 @@ ssh "$SSH_TARGET" << REMOTE_SCRIPT
         HEALTHY=false
         for i in \$(seq 1 30); do
             if docker exec lucky-backend-prod wget -qO- http://localhost:3000/api/v1/health >/dev/null 2>&1; then
-                echo "✅ 健康检查通过 (第 \${i} 次, 约 \$((i*3))s)"
+                echo " 健康检查通过 (第 \${i} 次, 约 \$((i*3))s)"
                 HEALTHY=true
                 break
             fi
@@ -265,7 +265,7 @@ ssh "$SSH_TARGET" << REMOTE_SCRIPT
     df -h /
 REMOTE_SCRIPT
 
-log "✅ 部署完成！"
+log " 部署完成！"
 echo ""
 echo -e "${CYAN}验证:${NC}"
 echo "  curl -k https://$VPS_IP/api/v1/health"

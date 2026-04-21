@@ -66,7 +66,7 @@ export class AuthModule {}
      return process.env.ADMIN_JWT_SECRET || process.env.JWT_SECRET || 'please_change_me_very_secret';
    }
 
-   // ✅ 看起来用了 ADMIN_JWT_SECRET，但实际...
+   //  看起来用了 ADMIN_JWT_SECRET，但实际...
    await this.jwt.signAsync(payload, { secret: this.getAdminJwtSecret() });
    ```
 
@@ -80,7 +80,7 @@ export class AuthModule {}
      process.env.ADMIN_JWT_SECRET ||
      process.env.JWT_SECRET ||
      "please_change_me_very_secret";
-   jwt.verify(token, secret); // ✅ 使用 ADMIN_JWT_SECRET
+   jwt.verify(token, secret); //  使用 ADMIN_JWT_SECRET
    ```
 
 4. **密钥不匹配**：
@@ -149,7 +149,7 @@ docker logs --tail 30 lucky-backend-dev
 ### 预期行为（修复后）
 
 1. 登录 → 签发 token（使用 `ADMIN_JWT_SECRET`）
-2. 访问 `/admin/*` → 验证 token（使用 `ADMIN_JWT_SECRET`） → ✅ 200 OK
+2. 访问 `/admin/*` → 验证 token（使用 `ADMIN_JWT_SECRET`） → 200 OK
 3. Token 有效期 12 小时（符合业务预期）
 
 ### 测试 Checklist
