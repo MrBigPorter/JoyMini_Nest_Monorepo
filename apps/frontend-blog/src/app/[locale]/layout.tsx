@@ -21,10 +21,80 @@ const inter = Inter({
 
 const locales = LOCALES;
 
-//  元数据放在语言层布局，以后可以支持多语言SEO标题
+//  元数据放在语言层布局，支持多语言SEO标题
 export const metadata: Metadata = {
-  title: 'Tarsier Labs',
-  description: 'Tech innovation lab from Bohol, Philippines',
+  title: {
+    template: '%s | Tarsier Labs',
+    default: 'Tarsier Labs - Tech innovation lab from Bohol, Philippines',
+  },
+  description:
+    'Tech innovation lab from Bohol, Philippines. Explore articles about software development, AI, and technology.',
+  keywords: [
+    'technology',
+    'software development',
+    'AI',
+    'Bohol',
+    'Philippines',
+    'blog',
+    'tech innovation',
+  ],
+
+  // Open Graph
+  openGraph: {
+    type: 'website',
+    locale: 'en_US',
+    url: process.env.NEXT_PUBLIC_SITE_URL || 'https://blog.joyminis.com',
+    siteName: 'Tarsier Labs',
+    title: 'Tarsier Labs - Tech innovation lab',
+    description: 'Tech innovation lab from Bohol, Philippines',
+    images: [
+      {
+        url: '/og-image.png',
+        width: 1200,
+        height: 630,
+        alt: 'Tarsier Labs',
+      },
+    ],
+  },
+
+  // Twitter
+  twitter: {
+    card: 'summary_large_image',
+    site: '@tarsierlabs',
+    creator: '@tarsierlabs',
+    title: 'Tarsier Labs',
+    description: 'Tech innovation lab from Bohol, Philippines',
+    images: ['/twitter-image.png'],
+  },
+
+  // 语言alternate标记
+  alternates: {
+    canonical: process.env.NEXT_PUBLIC_SITE_URL || 'https://blog.joyminis.com',
+    languages: {
+      en: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://blog.joyminis.com'}/en`,
+      zh: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://blog.joyminis.com'}/zh`,
+      ja: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://blog.joyminis.com'}/ja`,
+      ko: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://blog.joyminis.com'}/ko`,
+    },
+  },
+
+  // 其他meta标签
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
+
+  // 验证标记
+  verification: {
+    google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION,
+  },
 };
 
 export const revalidate = 60; // ISR 60秒重新验证

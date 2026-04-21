@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { Link, useRouter, usePathname } from '@/navigation';
-import { useTheme } from 'next-themes';
+import { useTheme } from './ThemeProvider';
 import {
   Search,
   Sun,
@@ -37,7 +37,7 @@ export default function Header() {
 
   const locale = useLocale() as string;
   const t = useTranslations();
-  const { theme, setTheme, systemTheme } = useTheme();
+  const { theme, toggleTheme } = useTheme();
   const { enabledLocales, isLoading: localesLoading } = useAvailableLocales();
 
   const currentLocale = locale;
@@ -92,11 +92,6 @@ export default function Header() {
     // 路由切换
     router.replace(pathname, { locale: nextLocale });
     setLangMenuOpen(false);
-  };
-
-  const toggleTheme = () => {
-    const current = theme === 'system' ? systemTheme : theme;
-    setTheme(current === 'dark' ? 'light' : 'dark');
   };
 
   const handleSearchSubmit = (e: React.FormEvent) => {

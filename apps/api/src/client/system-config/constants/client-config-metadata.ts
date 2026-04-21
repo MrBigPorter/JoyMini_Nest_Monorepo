@@ -44,13 +44,13 @@ export const CLIENT_CONFIG_METADATA: Record<
     label: 'Customer Service Email',
     description: '客服邮箱地址，用于用户联系和反馈',
     dataType: 'string',
-    defaultValue: 'support@luckynest.com',
+    defaultValue: 'support@JoyMinis.com',
   },
   web_base_url: {
     label: 'Website Base URL',
     description: '网站基础URL，用于生成完整链接和重定向',
     dataType: 'string',
-    defaultValue: 'https://www.luckynest.com',
+    defaultValue: 'https://www.joyminis.com',
   },
 
   // 提现配置

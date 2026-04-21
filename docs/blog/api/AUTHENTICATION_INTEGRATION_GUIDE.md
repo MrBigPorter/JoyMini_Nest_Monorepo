@@ -54,7 +54,7 @@ cp apps/admin-next/src/lib/types/auth.ts apps/frontend-blog/src/lib/types/
 ```typescript
 // src/lib/http.ts
 // 只修改这一行，其他所有代码保持不变
-const baseURL = process.env.NEXT_PUBLIC_API_URL || "https://api.luckynest.com";
+const baseURL = process.env.NEXT_PUBLIC_API_URL || "https://api.joyminis.com";
 ```
 
 到此为止，登录系统的所有核心逻辑已经100%完成。

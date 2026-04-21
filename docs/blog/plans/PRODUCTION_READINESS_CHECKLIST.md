@@ -168,7 +168,7 @@ CMD ["node", "server.js"]
 ```nginx
 server {
     listen 80;
-    server_name blog.luckynest.com;
+    server_name blog.joyminis.com;
 
     location / {
         proxy_pass http://localhost:3001;
@@ -196,7 +196,7 @@ server {
 
 ## 🔌 TURN 服务器配置 (App 访问)
 
-域名: `turn.blog.luckynest.com`
+域名: `turn.blog.joyminis.com`
 端口: `3478` UDP/TCP
 用于App内WebView访问内网API
 直接复用现有的TURN服务器配置

@@ -361,7 +361,7 @@ import { GoogleOAuthProvider } from '@/lib/components/GoogleOAuthProvider';
 
 ```env
 # .env.production
-NEXT_PUBLIC_API_URL=https://api.luckynest.com
+NEXT_PUBLIC_API_URL=https://api.joyminis.com
 NEXT_PUBLIC_GOOGLE_CLIENT_ID=生产环境Client ID
 NEXT_PUBLIC_FACEBOOK_APP_ID=生产环境App ID
 ```

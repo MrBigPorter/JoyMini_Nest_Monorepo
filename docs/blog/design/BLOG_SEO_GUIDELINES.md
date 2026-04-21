@@ -21,7 +21,7 @@
 <meta property="og:type" content="website" />
 <meta property="og:site_name" content="Lucky Nest Blog" />
 <meta property="og:locale" content="en_US" />
-<meta property="og:url" content="https://blog.luckynest.com" />
+<meta property="og:url" content="https://blog.joyminis.com" />
 <meta property="og:title" content="页面标题" />
 <meta property="og:description" content="页面描述" />
 <meta property="og:image" content="封面图片URL" />
@@ -31,7 +31,7 @@
 
 ```html
 <meta name="twitter:card" content="summary_large_image" />
-<meta name="twitter:site" content="@luckynest" />
+<meta name="twitter:site" content="@joyminis" />
 <meta name="twitter:title" content="页面标题" />
 <meta name="twitter:description" content="页面描述" />
 <meta name="twitter:image" content="封面图片URL" />
