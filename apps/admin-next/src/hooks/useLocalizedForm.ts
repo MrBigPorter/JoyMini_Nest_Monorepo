@@ -47,7 +47,7 @@ export function useLocalizedForm<T extends FieldValues>({
   >({});
   const prevLocaleRef = useRef(locale);
   const initializedRef = useRef<Set<string>>(new Set());
-  
+
   // 清理函数：在组件卸载或弹窗关闭时重置初始化状态
   const cleanup = useCallback(() => {
     initializedRef.current.clear();

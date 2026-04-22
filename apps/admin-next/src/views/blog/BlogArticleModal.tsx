@@ -6,9 +6,11 @@ import { Globe } from 'lucide-react';
 import { Form, FormSelectField } from '@repo/ui/form';
 import { useBlogLocalizedForm } from '@/hooks/useBlogLocalizedForm';
 import { articleSchema, type ArticleFormInputs } from '@/schema/blog';
+import { useLanguage } from '@/hooks/LanguageProvider';
 import type { Locale } from '@/hooks/LanguageProvider';
 import { useAvailableLocales } from '@/hooks/useAvailableLocales';
 import { renderLocalizedText } from '@/utils/localizedText';
+import { TRANSLATIONS } from '@/constants';
 
 import { blogApi, uploadApi } from '@/api';
 import { useRequest } from 'ahooks';
@@ -38,12 +40,26 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
 }) => {
   const isEditing = !!editingArticle;
   const addToast = useToastStore((state) => state.addToast);
+  const { locale } = useLanguage();
   const [categories, setCategories] = useState<{ id: string; name: unknown }[]>(
     [],
   );
   const [tags, setTags] = useState<{ id: string; name: unknown }[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
+
+  // 翻译函数
+  const t = (key: string, params?: Record<string, string | number>) => {
+    const safeLocale = locale === 'zh' || locale === 'en' ? locale : 'en';
+    const fullKey = `blog_article_${key}`;
+    let text = TRANSLATIONS[safeLocale][fullKey] || TRANSLATIONS['en'][fullKey] || key;
+    if (params) {
+      Object.entries(params).forEach(([k, v]) => {
+        text = text.replace(`{${k}}`, String(v));
+      });
+    }
+    return text;
+  };
 
   // Fetch categories and tags
   useEffect(() => {
@@ -103,6 +119,20 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
         // 处理多语言图片上传
         const processedData = { ...data };
 
+        // 获取当前语言的值
+        const currentFeaturedImage = data.featuredImage;
+
+        // 如果featuredImage是字符串（来自ArticleForm），需要转换为多语言对象
+        if (typeof currentFeaturedImage === 'string') {
+          // 创建一个多语言对象，当前语言设置为字符串值，其他语言为空
+          const localizedFeaturedImage: Record<string, string> = {};
+          availableLocaleCodes.forEach((lang) => {
+            localizedFeaturedImage[lang] =
+              lang === currentLocale ? currentFeaturedImage : '';
+          });
+          processedData.featuredImage = localizedFeaturedImage;
+        }
+
         if (
           processedData.featuredImage &&
           typeof processedData.featuredImage === 'object'
@@ -112,9 +142,13 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
               lang
             ];
             if (value && value instanceof File) {
-              const res = await upload.runAsync(value);
-              (processedData.featuredImage as Record<string, any>)[lang] =
-                res.url;
+              try {
+                const res = await upload.runAsync(value);
+                (processedData.featuredImage as Record<string, any>)[lang] =
+                  res.url;
+              } catch (uploadError) {
+                throw uploadError;
+              }
             }
           }
         }
@@ -125,7 +159,6 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
           await createArticle(processedData);
         }
       } catch (error) {
-        console.error('Submit failed:', error);
         throw error;
       }
     },
@@ -139,6 +172,7 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
     locale: currentLocale,
     availableLocaleCodes,
     handleLocaleChange: baseHandleLocaleChange,
+    getFullLocalizedData,
   } = blogForm;
   const { watch, setValue, reset, getValues } = form;
 
@@ -205,7 +239,8 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
           if (!titleObj[locale.code]) titleObj[locale.code] = '';
           if (!contentObj[locale.code]) contentObj[locale.code] = '';
           if (!excerptObj[locale.code]) excerptObj[locale.code] = '';
-          if (!featuredImageObj[locale.code]) featuredImageObj[locale.code] = '';
+          if (!featuredImageObj[locale.code])
+            featuredImageObj[locale.code] = '';
         });
 
         // 重置表单
@@ -389,29 +424,68 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
                     try {
                       setIsTranslating(true);
                       await blogApi.translateArticle(editingArticle.id);
-                      addToast('success', '翻译请求已发送，稍后将自动刷新');
+                      addToast('success', t('translationRequestSent'));
                     } catch (error) {
                       console.error('Translation failed:', error);
-                      addToast('error', '翻译失败，请稍后重试');
+                      addToast('error', t('translationFailed'));
                     } finally {
                       setIsTranslating(false);
                     }
                   }}
                 >
                   <Globe size={16} />
-                  重新翻译
+                  {t('retranslate')}
                 </Button>
               ) : (
                 <div className="text-xs text-gray-500 flex items-center gap-1">
                   <Globe size={14} />
-                  保存后自动翻译英文版本
+                  {t('autoTranslateAfterSave')}
                 </div>
               )}
             </div>
           </div>
 
           {/* 独立多语言表单 */}
-          <ArticleForm ref={articleFormRef} onUpload={handleEditorUpload} />
+          <ArticleForm
+            ref={articleFormRef}
+            onUpload={handleEditorUpload}
+            onFieldChange={(field, value) => {
+              // 当ArticleForm的字段变化时，同步更新父表单的多语言字段
+              const currentValues = getValues();
+              const localizedField =
+                currentValues[field as keyof typeof currentValues];
+
+              // 更新多语言对象中当前语言的值
+              if (
+                typeof localizedField === 'object' &&
+                localizedField !== null
+              ) {
+                setValue(
+                  field as any,
+                  {
+                    ...localizedField,
+                    [currentLocale]: value,
+                  },
+                  {
+                    shouldDirty: true,
+                    shouldTouch: true,
+                    shouldValidate: true,
+                  },
+                );
+              } else {
+                // 如果还不是多语言对象，创建一个
+                const newLocalized: Record<string, string> = {};
+                availableLocaleCodes.forEach((lang) => {
+                  newLocalized[lang] = lang === currentLocale ? value : '';
+                });
+                setValue(field as any, newLocalized, {
+                  shouldDirty: true,
+                  shouldTouch: true,
+                  shouldValidate: true,
+                });
+              }
+            }}
+          />
 
           {/* Common Fields - Always Visible */}
           <FormSelectField

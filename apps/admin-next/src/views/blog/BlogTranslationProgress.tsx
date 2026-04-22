@@ -3,7 +3,11 @@
 import React, { useState } from 'react';
 import { useRequest } from 'ahooks';
 import { Card, Badge, Button, Select } from '@/components/UIComponents';
+import { useToastStore } from '@/store/useToastStore';
 import { blogApi } from '@/api';
+import { useLanguage } from '@/hooks/LanguageProvider';
+import { TRANSLATIONS } from '@/constants';
+import { enUS, zhCN } from 'date-fns/locale';
 import {
   RefreshCw,
   AlertCircle,
@@ -18,7 +22,9 @@ import {
   Languages,
 } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
-import { zhCN } from 'date-fns/locale';
+import { ModalManager } from '@repo/ui';
+import LocalizedText from '@/components/blog/LocalizedText.tsx';
+import { renderLocalizedText } from '@/utils/localizedText.ts';
 
 // 简单的 Alert 组件
 const Alert = ({
@@ -196,31 +202,31 @@ const StatCard = ({
 };
 
 // 队列状态组件
-const QueueStatus = ({ status }: { status: any }) => {
+const QueueStatus = ({ status, t }: { status: any; t: Function }) => {
   return (
-    <Card title="队列状态" className="col-span-2">
+    <Card title={t('queueStatus')} className="col-span-2">
       <div className="grid grid-cols-4 gap-4">
         <div className="text-center">
           <div className="text-2xl font-bold text-blue-600">
             {status.active}
           </div>
-          <div className="text-sm text-gray-500">进行中</div>
+          <div className="text-sm text-gray-500">{t('inProgress')}</div>
         </div>
         <div className="text-center">
           <div className="text-2xl font-bold text-amber-600">
             {status.waiting}
           </div>
-          <div className="text-sm text-gray-500">等待中</div>
+          <div className="text-sm text-gray-500">{t('statusQueued')}</div>
         </div>
         <div className="text-center">
           <div className="text-2xl font-bold text-red-600">{status.failed}</div>
-          <div className="text-sm text-gray-500">失败</div>
+          <div className="text-sm text-gray-500">{t('failed')}</div>
         </div>
         <div className="text-center">
           <div className="text-2xl font-bold text-emerald-600">
             {status.completed}
           </div>
-          <div className="text-sm text-gray-500">已完成</div>
+          <div className="text-sm text-gray-500">{t('completed')}</div>
         </div>
       </div>
     </Card>
@@ -232,41 +238,45 @@ const TimeInfo = ({
   startTime,
   estimatedCompletionTime,
   elapsedTime,
+  t,
+  dateLocale,
 }: {
   startTime: string | null;
   estimatedCompletionTime: string | null;
   elapsedTime: number;
+  t: Function;
+  dateLocale: any;
 }) => {
   return (
-    <Card title="时间信息" className="col-span-2">
+    <Card title={t('timeInfo')} className="col-span-2">
       <div className="space-y-3">
         <div className="flex justify-between">
-          <span className="text-gray-600">开始时间:</span>
+          <span className="text-gray-600">{t('startTime')}:</span>
           <span className="font-medium">
             {startTime
               ? format(new Date(startTime), 'yyyy-MM-dd HH:mm:ss')
-              : '未开始'}
+              : t('notStarted')}
           </span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-600">已运行:</span>
+          <span className="text-gray-600">{t('elapsedTime')}:</span>
           <span className="font-medium">
             {elapsedTime > 0
               ? formatDistanceToNow(new Date(Date.now() - elapsedTime * 1000), {
-                  locale: zhCN,
+                  locale: dateLocale,
                 })
-              : '0秒'}
+              : t('seconds')}
           </span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-600">预计完成:</span>
+          <span className="text-gray-600">{t('estimatedCompletion')}:</span>
           <span className="font-medium">
             {estimatedCompletionTime
               ? formatDistanceToNow(new Date(estimatedCompletionTime), {
-                  locale: zhCN,
+                  locale: dateLocale,
                   addSuffix: true,
                 })
-              : '未知'}
+              : t('unknown')}
           </span>
         </div>
       </div>
@@ -275,10 +285,34 @@ const TimeInfo = ({
 };
 
 export default function BlogTranslationProgress() {
+  const { addToast } = useToastStore();
+  const { locale } = useLanguage();
+
+  // 类型安全的翻译函数 - 使用全局TRANSLATIONS
+  const t = (key: string, params?: Record<string, string | number>) => {
+    // 安全处理多语言：支持所有Locale类型，降级到en
+    const safeLocale = locale === 'zh' || locale === 'en' ? locale : 'en';
+    const fullKey = `blog_translation_${key}`;
+    let text =
+      TRANSLATIONS[safeLocale][fullKey] || TRANSLATIONS['en'][fullKey] || key;
+    if (params) {
+      Object.entries(params).forEach(([k, v]) => {
+        text = text.replace(`{${k}}`, String(v));
+      });
+    }
+    return text;
+  };
+
+  // 动态date-fns本地化
+  const dateLocale = locale === 'zh' ? zhCN : enUS;
+
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState<string>('en');
   const [selectedArticles, setSelectedArticles] = useState<string[]>([]);
   const [fixingInProgress, setFixingInProgress] = useState(false);
+  const [showOnlyActive, setShowOnlyActive] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
 
   const {
     data: progress,
@@ -286,12 +320,15 @@ export default function BlogTranslationProgress() {
     error,
     refresh,
     run: runProgress,
-  } = useRequest(() => blogApi.translation.getTranslationProgress(), {
-    manual: true,
-    pollingInterval: autoRefresh ? 5000 : undefined,
-    loadingDelay: 300,
-    refreshOnWindowFocus: true,
-  });
+  } = useRequest(
+    () => blogApi.translation.getTranslationProgress(selectedLanguage),
+    {
+      manual: true,
+      pollingInterval: autoRefresh ? 5000 : undefined,
+      loadingDelay: 300,
+      refreshOnWindowFocus: true,
+    },
+  );
 
   const {
     data: jobs,
@@ -302,6 +339,37 @@ export default function BlogTranslationProgress() {
     pollingInterval: autoRefresh ? 5000 : undefined,
   });
 
+  const {
+    data: dbJobs,
+    loading: dbJobsLoading,
+    run: runDbJobs,
+  } = useRequest(
+    () =>
+      blogApi.translation.getTranslationJobsDetail(
+        selectedLanguage,
+        undefined,
+        currentPage,
+        pageSize,
+      ),
+    {
+      manual: true,
+      pollingInterval: autoRefresh ? 5000 : undefined,
+    },
+  );
+
+  // 待翻译文章
+  const {
+    data: untranslatedArticles,
+    loading: untranslatedLoading,
+    run: runUntranslated,
+  } = useRequest(
+    () => blogApi.translation.getUntranslatedArticles(selectedLanguage),
+    {
+      manual: true,
+      pollingInterval: autoRefresh ? 5000 : undefined,
+    },
+  );
+
   // 问题检测相关
   const {
     data: translationIssues,
@@ -311,6 +379,7 @@ export default function BlogTranslationProgress() {
     () => blogApi.translation.getTranslationIssues(selectedLanguage),
     {
       manual: true,
+      pollingInterval: autoRefresh ? 3000 : undefined,
     },
   );
 
@@ -326,8 +395,10 @@ export default function BlogTranslationProgress() {
   React.useEffect(() => {
     runProgress();
     runJobs();
+    runDbJobs();
     runIssues();
-  }, [runProgress, runJobs, runIssues]);
+    runUntranslated();
+  }, [runProgress, runJobs, runDbJobs, runIssues, runUntranslated]);
 
   // autoRefresh 变化时重新配置轮询
   React.useEffect(() => {
@@ -337,10 +408,12 @@ export default function BlogTranslationProgress() {
     }
   }, [autoRefresh, refresh]);
 
-  // 语言变化时重新检测问题
+  // 语言变化时重新检测问题并刷新进度
   React.useEffect(() => {
+    runProgress();
     runIssues();
-  }, [selectedLanguage, runIssues]);
+    runUntranslated();
+  }, [selectedLanguage, runProgress, runIssues, runUntranslated]);
 
   // 处理批量修复
   const handleBatchFix = async () => {
@@ -360,7 +433,7 @@ export default function BlogTranslationProgress() {
       });
 
       if (response.success) {
-        alert(`已成功投递 ${response.queued} 个修复任务`);
+        addToast('success', t('batchFixStarted', { count: response.queued }));
         // 刷新数据
         setTimeout(() => {
           runProgress();
@@ -368,11 +441,11 @@ export default function BlogTranslationProgress() {
           runIssues();
         }, 1000);
       } else {
-        alert('批量修复失败，请稍后重试');
+        addToast('error', t('batchFixFailed'));
       }
     } catch (error) {
-      console.error('批量修复失败:', error);
-      alert('批量修复失败，请检查网络连接');
+      console.error(t('batchFixFailed'), error);
+      addToast('error', t('batchFixNetworkError'));
     } finally {
       setFixingInProgress(false);
     }
@@ -405,12 +478,12 @@ export default function BlogTranslationProgress() {
       <div className="p-6">
         <Alert
           variant="error"
-          title="加载失败"
-          description={error.message || '无法获取翻译进度数据'}
+          title={t('loadFailedTitle')}
+          description={error.message || t('loadFailedDesc')}
           action={
             <Button variant="outline" onClick={() => refresh()}>
               <RefreshCw className="w-4 h-4 mr-2" />
-              重试
+              {t('retryButton')}
             </Button>
           }
         />
@@ -458,8 +531,8 @@ export default function BlogTranslationProgress() {
       {/* 标题和控制栏 */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">翻译进度监控</h1>
-          <p className="text-gray-500 mt-1">实时监控博客内容翻译进度和状态</p>
+          <h1 className="text-2xl font-bold text-gray-400">{t('pageTitle')}</h1>
+          <p className="text-gray-500 mt-1">{t('pageSubtitle')}</p>
         </div>
         <div className="flex items-center gap-3">
           <Button
@@ -470,45 +543,47 @@ export default function BlogTranslationProgress() {
             <RefreshCw
               className={`w-4 h-4 mr-2 ${autoRefresh ? 'animate-spin' : ''}`}
             />
-            {autoRefresh ? '自动刷新中' : '开启自动刷新'}
+            {autoRefresh ? t('autoRefreshOn') : t('autoRefreshOff')}
           </Button>
           <Button variant="outline" onClick={() => refresh()} size="sm">
             <RefreshCw className="w-4 h-4 mr-2" />
-            手动刷新
+            {t('manualRefresh')}
           </Button>
         </div>
       </div>
 
       {/* 总体进度 */}
-      <Card title="总体进度" className="col-span-3">
+      <Card title={t('overallProgress')} className="col-span-3">
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-3xl font-bold text-gray-900">
+              <div className="text-3xl font-bold text-foreground">
                 {overallPercentage}%
               </div>
               <div className="text-gray-500">
-                已完成 {progressData.completedItems} / {progressData.totalItems}{' '}
-                个项目
+                {t('completedItems', {
+                  completed: progressData.completedItems,
+                  total: progressData.totalItems,
+                })}
               </div>
             </div>
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
                 <CheckCircle className="w-5 h-5 text-emerald-500" />
                 <span className="text-gray-700">
-                  {progressData.completedItems} 完成
+                  {progressData.completedItems} {t('completed')}
                 </span>
               </div>
               <div className="flex items-center gap-2">
                 <Clock className="w-5 h-5 text-amber-500" />
                 <span className="text-gray-700">
-                  {progressData.inProgressItems} 进行中
+                  {progressData.inProgressItems} {t('inProgress')}
                 </span>
               </div>
               <div className="flex items-center gap-2">
                 <XCircle className="w-5 h-5 text-red-500" />
                 <span className="text-gray-700">
-                  {progressData.failedItems} 失败
+                  {progressData.failedItems} {t('failed')}
                 </span>
               </div>
             </div>
@@ -523,7 +598,7 @@ export default function BlogTranslationProgress() {
       {/* 分类统计 */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <StatCard
-          title="文章翻译"
+          title={t('articleTranslation')}
           value={progressData.articles.completed}
           total={progressData.articles.total}
           status={
@@ -534,7 +609,7 @@ export default function BlogTranslationProgress() {
           icon={FileText}
         />
         <StatCard
-          title="分类翻译"
+          title={t('categoryTranslation')}
           value={progressData.categories.completed}
           total={progressData.categories.total}
           status={
@@ -545,7 +620,7 @@ export default function BlogTranslationProgress() {
           icon={List}
         />
         <StatCard
-          title="标签翻译"
+          title={t('tagTranslation')}
           value={progressData.tags.completed}
           total={progressData.tags.total}
           status={
@@ -559,23 +634,230 @@ export default function BlogTranslationProgress() {
 
       {/* 队列状态和时间信息 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <QueueStatus status={progressData.queueStatus} />
+        <QueueStatus status={progressData.queueStatus} t={t} />
         <TimeInfo
           startTime={progressData.startTime}
           estimatedCompletionTime={progressData.estimatedCompletionTime}
           elapsedTime={progressData.elapsedTime}
+          t={t}
+          dateLocale={dateLocale}
         />
       </div>
 
+      {/* 🔍 待翻译文章 */}
+      <Card
+        title={t('pendingArticlesTitle', {
+          lang: selectedLanguage.toUpperCase(),
+        })}
+      >
+        <div className="space-y-4">
+          {untranslatedLoading ? (
+            <div className="space-y-3">
+              <Skeleton className="h-16" />
+              <Skeleton className="h-16" />
+              <Skeleton className="h-16" />
+            </div>
+          ) : untranslatedArticles && untranslatedArticles.length > 0 ? (
+            <div className="space-y-3">
+              <div className="text-sm text-gray-500 mb-2">
+                {t('pendingArticlesDescription', {
+                  count: untranslatedArticles.length,
+                  lang: selectedLanguage.toUpperCase(),
+                })}
+              </div>
+              <div className="grid gap-3">
+                {untranslatedArticles.map((article: any) => (
+                  <div
+                    key={article.id}
+                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="flex-1">
+                      <div className="font-medium">{article.title}</div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Badge
+                          color={
+                            article.status === 'COMPLETED'
+                              ? 'green'
+                              : article.status === 'PROCESSING'
+                                ? 'yellow'
+                                : article.status === 'QUEUED'
+                                  ? 'blue'
+                                  : article.status === 'FAILED'
+                                    ? 'red'
+                                    : 'gray'
+                          }
+                        >
+                          {article.status === 'COMPLETED'
+                            ? t('statusCompleted')
+                            : article.status === 'PROCESSING'
+                              ? t('statusProcessing', {
+                                  progress: article.progress,
+                                })
+                              : article.status === 'QUEUED'
+                                ? t('statusQueued')
+                                : article.status === 'FAILED'
+                                  ? t('statusFailed')
+                                  : t('statusUntranslated')}
+                        </Badge>
+                        {article.status === 'PROCESSING' && (
+                          <ProgressBar
+                            value={article.progress}
+                            max={100}
+                            className="w-32 h-2"
+                          />
+                        )}
+                      </div>
+                    </div>
+                    <Button
+                      variant={
+                        article.status === 'PROCESSING' ||
+                        article.status === 'QUEUED'
+                          ? 'outline'
+                          : 'primary'
+                      }
+                      size="sm"
+                      disabled={
+                        article.status === 'PROCESSING' ||
+                        article.status === 'QUEUED'
+                      }
+                      onClick={() => {
+                        blogApi.translation.translateArticle(
+                          article.id,
+                          selectedLanguage,
+                        );
+                        setTimeout(() => {
+                          runUntranslated();
+                          runDbJobs();
+                        }, 500);
+                      }}
+                    >
+                      {article.status === 'PROCESSING' ||
+                      article.status === 'QUEUED'
+                        ? t('statusProcessing', { progress: article.progress })
+                        : t('translateButton')}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <CheckCircle className="w-12 h-12 mx-auto text-emerald-300 mb-3" />
+              <p>{t('allArticlesTranslated')}</p>
+              <p className="text-sm mt-1">
+                {t('allArticlesTranslatedDesc', {
+                  lang: selectedLanguage.toUpperCase(),
+                })}
+              </p>
+            </div>
+          )}
+        </div>
+      </Card>
+
+      {/* ⚡ 活跃翻译任务 */}
+      <Card
+        title={t('activeJobsTitle', {
+          count:
+            dbJobs?.items?.filter(
+              (j: any) => j.status === 'QUEUED' || j.status === 'PROCESSING',
+            ).length || 0,
+        })}
+      >
+        <div className="space-y-4">
+          {dbJobsLoading ? (
+            <div className="space-y-3">
+              <Skeleton className="h-12" />
+              <Skeleton className="h-12" />
+              <Skeleton className="h-12" />
+            </div>
+          ) : (
+            (() => {
+              const activeJobs =
+                dbJobs?.items?.filter(
+                  (j: any) =>
+                    j.status === 'QUEUED' || j.status === 'PROCESSING',
+                ) || [];
+
+              if (activeJobs.length === 0) {
+                return (
+                  <div className="text-center py-6 text-gray-500">
+                    <Clock className="w-10 h-10 mx-auto text-gray-300 mb-2" />
+                    <p>{t('noActiveJobs')}</p>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="space-y-2">
+                  {activeJobs.map((job: any) => (
+                    <div
+                      key={job.id}
+                      className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg"
+                    >
+                      <div className="w-32 text-sm">
+                        <Badge
+                          color={
+                            job.type === 'article'
+                              ? 'blue'
+                              : job.type === 'category'
+                                ? 'green'
+                                : 'gray'
+                          }
+                        >
+                          {job.type === 'article'
+                            ? t('typeArticle')
+                            : job.type === 'category'
+                              ? t('typeCategory')
+                              : t('typeTag')}
+                        </Badge>
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-medium text-sm">
+                          {job.targetName} → {job.targetLang.toUpperCase()}
+                        </div>
+                      </div>
+                      <div className="w-40">
+                        <div className="flex items-center gap-2">
+                          <ProgressBar
+                            value={job.progress}
+                            max={100}
+                            className="flex-1 h-3"
+                          />
+                          <span className="text-sm text-gray-600 w-10 text-right">
+                            {job.progress}%
+                          </span>
+                        </div>
+                      </div>
+                      <Badge
+                        color={job.status === 'PROCESSING' ? 'yellow' : 'blue'}
+                      >
+                        {job.status === 'PROCESSING'
+                          ? t('statusProcessing', { progress: '' }).replace(
+                              ' %',
+                              '',
+                            )
+                          : t('statusQueued')}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()
+          )}
+        </div>
+      </Card>
+
       {/* 问题文章检测 */}
-      <Card title="🔍 问题文章检测">
+      <Card title={t('issuesDetectionTitle')}>
         <div className="space-y-4">
           {/* 语言选择和批量操作控制 */}
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
                 <Languages className="w-4 h-4 text-gray-500" />
-                <span className="text-sm font-medium">目标语言:</span>
+                <span className="text-sm font-medium">
+                  {t('targetLanguage')}:
+                </span>
                 <Select
                   value={selectedLanguage}
                   onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
@@ -598,7 +880,7 @@ export default function BlogTranslationProgress() {
                 isLoading={issuesLoading}
               >
                 <Search className="w-4 h-4 mr-2" />
-                重新检测
+                {t('recheck')}
               </Button>
             </div>
             <div className="flex items-center gap-2">
@@ -609,8 +891,8 @@ export default function BlogTranslationProgress() {
                 disabled={!translationIssues?.issues?.length}
               >
                 {selectedArticles.length === translationIssues?.issues?.length
-                  ? '取消全选'
-                  : '全选'}
+                  ? t('deselectAll')
+                  : t('selectAll')}
               </Button>
               <Button
                 variant="primary"
@@ -621,8 +903,8 @@ export default function BlogTranslationProgress() {
               >
                 <Wrench className="w-4 h-4 mr-2" />
                 {selectedArticles.length > 0
-                  ? `修复选中 (${selectedArticles.length})`
-                  : '修复所有问题'}
+                  ? t('fixSelected', { count: selectedArticles.length })
+                  : t('fixAll')}
               </Button>
             </div>
           </div>
@@ -637,7 +919,9 @@ export default function BlogTranslationProgress() {
           ) : translationIssues?.issues?.length > 0 ? (
             <div className="space-y-3">
               <div className="text-sm text-gray-500 mb-2">
-                发现 {translationIssues.problematicArticles} 篇文章有翻译问题
+                {t('issuesFound', {
+                  count: translationIssues.problematicArticles,
+                })}
               </div>
               <div className="border  rounded-lg overflow-hidden">
                 <table className="w-full">
@@ -654,16 +938,16 @@ export default function BlogTranslationProgress() {
                         />
                       </th>
                       <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">
-                        文章标题
+                        {t('articleTitle')}
                       </th>
                       <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">
-                        问题类型
+                        {t('issueType')}
                       </th>
                       <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">
-                        严重程度
+                        {t('severity')}
                       </th>
                       <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">
-                        操作
+                        {t('actions')}
                       </th>
                     </tr>
                   </thead>
@@ -700,12 +984,12 @@ export default function BlogTranslationProgress() {
                                   }
                                 >
                                   {item.issueType === 'TITLE_NOT_TRANSLATED'
-                                    ? '标题未翻译'
+                                    ? t('issueTitleNotTranslated')
                                     : item.issueType === 'CONTENT_INCOMPLETE'
-                                      ? '内容不完整'
+                                      ? t('issueContentIncomplete')
                                       : item.issueType === 'NOT_TRANSLATED'
-                                        ? '未翻译'
-                                        : '翻译失败'}
+                                        ? t('issueNotTranslated')
+                                        : t('issueFailed')}
                                 </Badge>
                                 <div className="text-xs text-gray-500 mt-1">
                                   {item.description}
@@ -728,10 +1012,10 @@ export default function BlogTranslationProgress() {
                                   }
                                 >
                                   {item.severity === 'HIGH'
-                                    ? '高'
+                                    ? t('severityHigh')
                                     : item.severity === 'MEDIUM'
-                                      ? '中'
-                                      : '低'}
+                                      ? t('severityMedium')
+                                      : t('severityLow')}
                                 </Badge>
                               </div>
                             ))}
@@ -746,7 +1030,7 @@ export default function BlogTranslationProgress() {
                               handleBatchFix();
                             }}
                           >
-                            单独修复
+                            {t('fixSingle')}
                           </Button>
                         </td>
                       </tr>
@@ -758,17 +1042,225 @@ export default function BlogTranslationProgress() {
           ) : (
             <div className="text-center py-8 text-gray-500">
               <CheckCircle className="w-12 h-12 mx-auto text-emerald-300 mb-3" />
-              <p>未发现翻译问题</p>
+              <p>{t('noIssuesFound')}</p>
               <p className="text-sm mt-1">
-                当前语言 ({selectedLanguage.toUpperCase()}) 的所有文章翻译正常
+                {t('noIssuesFoundDesc', {
+                  lang: selectedLanguage.toUpperCase(),
+                })}
               </p>
             </div>
           )}
         </div>
       </Card>
 
+      {/* 持久化翻译任务记录 */}
+      <Card title={t('jobHistoryTitle')}>
+        <div className="space-y-4">
+          {/* 控制栏 */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium">{t('filter')}:</span>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={showOnlyActive}
+                    onChange={(e) => setShowOnlyActive(e.target.checked)}
+                    className="w-4 h-4"
+                  />
+                  <span className="text-sm">{t('showOnlyActive')}</span>
+                </label>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium">{t('perPage')}:</span>
+                <Select
+                  value={pageSize.toString()}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                    setPageSize(Number(e.target.value))
+                  }
+                  options={[
+                    { value: '10', label: t('perPageItems', { count: 10 }) },
+                    { value: '20', label: t('perPageItems', { count: 20 }) },
+                    { value: '50', label: t('perPageItems', { count: 50 }) },
+                    { value: '100', label: t('perPageItems', { count: 100 }) },
+                  ]}
+                  className="w-24"
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                disabled={currentPage <= 1}
+              >
+                {t('prevPage')}
+              </Button>
+              <span className="text-sm text-gray-600">
+                {t('currentPage', { page: currentPage })}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(currentPage + 1)}
+                disabled={
+                  dbJobs &&
+                  dbJobs.totalPages &&
+                  currentPage >= dbJobs.totalPages
+                }
+              >
+                {t('nextPage')}
+              </Button>
+            </div>
+          </div>
+
+          {dbJobsLoading ? (
+            <div className="space-y-3">
+              <Skeleton className="h-10" />
+              <Skeleton className="h-10" />
+              <Skeleton className="h-10" />
+            </div>
+          ) : dbJobs && dbJobs.items && dbJobs.items.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">
+                      {t('name')}
+                    </th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">
+                      {t('type')}
+                    </th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">
+                      {t('targetLang')}
+                    </th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">
+                      {t('status')}
+                    </th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">
+                      {t('progress')}
+                    </th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">
+                      {t('createdAt')}
+                    </th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">
+                      {t('errorMsg')}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {dbJobs.items.map((job: any) => (
+                    <tr key={job.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 text-sm">
+                        <div className="font-medium">{job.targetName}</div>
+                        <div className="text-xs text-gray-500 font-mono">
+                          ID: {job.targetId.substring(0, 8)}...
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        <Badge
+                          color={
+                            job.type === 'article'
+                              ? 'blue'
+                              : job.type === 'category'
+                                ? 'green'
+                                : 'gray'
+                          }
+                        >
+                          {job.type === 'article'
+                            ? t('typeArticle')
+                            : job.type === 'category'
+                              ? t('typeCategory')
+                              : t('typeTag')}
+                        </Badge>
+                      </td>
+                      <td className="px-4 py-3 text-sm">{job.targetLang}</td>
+                      <td className="px-4 py-3 text-sm">
+                        <Badge
+                          color={
+                            job.status === 'COMPLETED'
+                              ? 'green'
+                              : job.status === 'PROCESSING'
+                                ? 'yellow'
+                                : job.status === 'FAILED'
+                                  ? 'red'
+                                  : 'gray'
+                          }
+                        >
+                          {job.status === 'QUEUED'
+                            ? t('statusQueued')
+                            : job.status === 'PROCESSING'
+                              ? t('statusProcessing', { progress: '' }).replace(
+                                  ' %',
+                                  '',
+                                )
+                              : job.status === 'COMPLETED'
+                                ? t('statusCompleted')
+                                : t('statusFailed')}
+                        </Badge>
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        <div className="flex items-center gap-2">
+                          <ProgressBar
+                            value={job.progress}
+                            max={100}
+                            className="w-20"
+                          />
+                          <span className="text-gray-600">{job.progress}%</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-600">
+                        {job.createdAt
+                          ? format(new Date(job.createdAt), 'MM-dd HH:mm')
+                          : '-'}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-red-600 max-w-[200px] truncate">
+                        {job.errorMsg || '-'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                <div className="text-sm text-gray-500">
+                  {t('totalRecords', {
+                    total: dbJobs.total,
+                    page: dbJobs.page,
+                    totalPages: dbJobs.totalPages,
+                  })}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                    disabled={currentPage <= 1}
+                  >
+                    {t('prevPage')}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(currentPage + 1)}
+                    disabled={currentPage >= dbJobs.totalPages}
+                  >
+                    {t('nextPage')}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <AlertCircle className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+              <p>{t('noJobRecords')}</p>
+            </div>
+          )}
+        </div>
+      </Card>
+
       {/* 任务列表 */}
-      <Card title="实时任务列表">
+      <Card title={t('liveJobsTitle')}>
         {jobsLoading ? (
           <div className="space-y-3">
             <Skeleton className="h-10" />
@@ -784,7 +1276,7 @@ export default function BlogTranslationProgress() {
               <div>
                 <h3 className="font-medium text-gray-700 mb-2 flex items-center gap-2">
                   <Clock className="w-4 h-4 text-amber-500" />
-                  进行中的任务 ({jobs.active.length})
+                  {t('activeJobs', { count: jobs.active.length })}
                 </h3>
                 <div className="space-y-2">
                   {jobs.active.map((job: any) => (
@@ -801,7 +1293,7 @@ export default function BlogTranslationProgress() {
                         </div>
                       </div>
                       <div className="text-sm text-gray-500">
-                        进度: {job.progress || 0}%
+                        {t('blog_translation_progressWithPercent', { progress: job.progress || 0 })}
                       </div>
                     </div>
                   ))}
@@ -813,7 +1305,7 @@ export default function BlogTranslationProgress() {
               <div>
                 <h3 className="font-medium text-gray-700 mb-2 flex items-center gap-2">
                   <Clock className="w-4 h-4 text-blue-500" />
-                  等待中的任务 ({jobs.waiting.length})
+                  {t('waitingJobs', { count: jobs.waiting.length })}
                 </h3>
                 <div className="space-y-2">
                   {jobs.waiting.slice(0, 5).map((job: any) => (
@@ -829,12 +1321,12 @@ export default function BlogTranslationProgress() {
                             job.data?.tagId}
                         </div>
                       </div>
-                      <div className="text-sm text-gray-500">等待中...</div>
+                      <div className="text-sm text-gray-500">{t('blog_translation_waiting')}</div>
                     </div>
                   ))}
                   {jobs.waiting.length > 5 && (
                     <div className="text-center text-sm text-gray-500 py-2">
-                      还有 {jobs.waiting.length - 5} 个任务在等待中
+                      {t('moreWaitingJobs', { count: jobs.waiting.length - 5 })}
                     </div>
                   )}
                 </div>
@@ -845,7 +1337,7 @@ export default function BlogTranslationProgress() {
               <div>
                 <h3 className="font-medium text-gray-700 mb-2 flex items-center gap-2">
                   <XCircle className="w-4 h-4 text-red-500" />
-                  失败的任务 ({jobs.failed.length})
+                  {t('failedJobs', { count: jobs.failed.length })}
                 </h3>
                 <div className="space-y-2">
                   {jobs.failed.slice(0, 3).map((job: any) => (
@@ -858,17 +1350,17 @@ export default function BlogTranslationProgress() {
                           {job.name}
                         </div>
                         <div className="text-sm text-red-600">
-                          {job.failedReason || '未知错误'}
+                          {job.failedReason || t('blog_translation_unknownError')}
                         </div>
                       </div>
                       <Button variant="outline" size="sm">
-                        重试
+                        {t('retry')}
                       </Button>
                     </div>
                   ))}
                   {jobs.failed.length > 3 && (
                     <div className="text-center text-sm text-gray-500 py-2">
-                      还有 {jobs.failed.length - 3} 个失败任务
+                      {t('moreFailedJobs', { count: jobs.failed.length - 3 })}
                     </div>
                   )}
                 </div>
@@ -878,7 +1370,7 @@ export default function BlogTranslationProgress() {
         ) : (
           <div className="text-center py-8 text-gray-500">
             <AlertCircle className="w-12 h-12 mx-auto text-gray-300 mb-3" />
-            <p>当前没有活跃的翻译任务</p>
+            <p>{t('noLiveJobs')}</p>
           </div>
         )}
       </Card>
@@ -887,8 +1379,10 @@ export default function BlogTranslationProgress() {
       {progressData.failedItems > 0 && (
         <Alert
           variant="error"
-          title="存在失败任务"
-          description={`有 ${progressData.failedItems} 个翻译任务失败，请检查失败任务列表。`}
+          title={t('failedJobsAlertTitle')}
+          description={t('failedJobsAlertDesc', {
+            count: progressData.failedItems,
+          })}
         />
       )}
 
@@ -896,8 +1390,8 @@ export default function BlogTranslationProgress() {
         progressData.completedItems < progressData.totalItems && (
           <Alert
             variant="warning"
-            title="翻译未开始"
-            description="所有翻译任务都在等待中，请检查队列状态。"
+            title={t('notStartedAlertTitle')}
+            description={t('notStartedAlertDesc')}
           />
         )}
 
@@ -905,8 +1399,8 @@ export default function BlogTranslationProgress() {
         progressData.totalItems > 0 && (
           <Alert
             variant="success"
-            title="翻译完成"
-            description="所有翻译任务已完成！"
+            title={t('completedAlertTitle')}
+            description={t('completedAlertDesc')}
           />
         )}
     </div>

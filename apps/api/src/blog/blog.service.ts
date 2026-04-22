@@ -1557,9 +1557,42 @@ export class BlogService {
   }
 
   /**
+   * ✅ 统一翻译完成检测逻辑
+   * 检测文章是否已经完成指定语言的翻译
+   * 同时检查标题和内容都有实际翻译内容，而不是只看标记状态
+   */
+  private isArticleTranslated(article: any, targetLang: string): boolean {
+    // 检查 Localized 字段
+    if (article.titleLocalized && 
+        typeof article.titleLocalized === 'object' && 
+        article.titleLocalized[targetLang] &&
+        article.titleLocalized[targetLang].trim().length > 0) {
+      
+      // 同时检查内容也有翻译
+      if (article.contentLocalized && 
+          typeof article.contentLocalized === 'object' &&
+          article.contentLocalized[targetLang] &&
+          article.contentLocalized[targetLang].trim().length > 0) {
+        return true;
+      }
+    }
+
+    // 兼容旧字段格式
+    const langSuffix = targetLang === 'zh' ? '' : targetLang.charAt(0).toUpperCase() + targetLang.slice(1);
+    if (article[`title${langSuffix}`] && 
+        article[`title${langSuffix}`].trim().length > 0 &&
+        article[`content${langSuffix}`] &&
+        article[`content${langSuffix}`].trim().length > 0) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
    * 获取翻译进度统计
    */
-  async getTranslationProgress() {
+  async getTranslationProgress(languageCode?: string) {
     // 获取当前启用的语言
     const enabledLocales = await this.systemConfigService.get<string[]>(
       'enabled_locales',
@@ -1639,11 +1672,11 @@ export class BlogService {
       },
     });
 
-    // 查询已完成翻译的文章 - 使用原生 SQL 查询避免 Prisma JSON 查询问题
+    // ✅ 修复: 只要实际有翻译内容就算完成，不管translationStatus标记
+    // 很多旧文章有翻译内容但没设置COMPLETED状态
     const completedResult = await this.prisma.$queryRaw<{ count: bigint }[]>`
       SELECT COUNT(*) as count FROM blog_articles 
       WHERE status != 'DRAFT' 
-        AND "translationStatus" = 'COMPLETED'
         AND "titleLocalized" IS NOT NULL 
         AND "titleLocalized" != 'null'::jsonb 
         AND "titleLocalized"->>${targetLang} IS NOT NULL 
@@ -1660,19 +1693,24 @@ export class BlogService {
       },
     });
 
-    // 查询正在翻译的文章
-    const pending = await this.prisma.blogArticle.count({
+    // ✅ 修复: 只有明确标记为TRANSLATING的才算进行中
+    const inProgress = await this.prisma.blogArticle.count({
       where: {
         status: { not: 'DRAFT' },
         translationStatus: 'TRANSLATING',
       },
     });
 
+    // ✅ 正确的计算公式
+    // pending = total - completed - failed - inProgress
+    const pending = Math.max(0, total - completed - failed - inProgress);
+
     return {
       total,
       completed,
       failed,
       pending,
+      inProgress,
     };
   }
 
@@ -1853,12 +1891,20 @@ export class BlogService {
           contentLocalized: true,
           excerptLocalized: true,
           translationStatus: true,
+          titleEn: true,
+          contentEn: true,
         },
       });
 
       const issues = [];
+      const targetLang = languageCode || 'en';
 
       for (const article of articles) {
+        // ✅ 修复: 如果文章已经完整翻译，直接跳过不加入问题列表
+        if (this.isArticleTranslated(article, targetLang)) {
+          continue;
+        }
+
         const articleIssues = this.detectArticleTranslationIssues(
           article,
           languageCode,
@@ -1946,6 +1992,78 @@ export class BlogService {
     }
 
     return issues;
+  }
+
+  /**
+   * 获取翻译任务详情（持久化记录）
+   */
+  async getTranslationJobsDetail(
+    targetLang?: string,
+    status?: string[],
+    page?: number,
+    pageSize?: number,
+  ) {
+    const { page: currentPage = 1, pageSize: itemsPerPage = 20 } = { page, pageSize };
+    const skip = (currentPage - 1) * itemsPerPage;
+
+    const where: any = {};
+
+    if (targetLang) {
+      where.targetLang = targetLang;
+    }
+
+    if (status && status.length > 0) {
+      where.status = { in: status };
+    }
+
+    const [items, total] = await Promise.all([
+      this.prisma.translationJob.findMany({
+        where,
+        skip,
+        take: itemsPerPage,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          article: { select: { id: true, title: true, slug: true } },
+        },
+      }),
+      this.prisma.translationJob.count({ where }),
+    ]);
+
+    return {
+      items,
+      total,
+      page: currentPage,
+      pageSize: itemsPerPage,
+      totalPages: Math.ceil(total / itemsPerPage),
+    };
+  }
+
+  /**
+   * 获取指定语言下未翻译的文章列表
+   */
+  async getUntranslatedArticles(languageCode: string) {
+    if (!languageCode) {
+      throw new BadRequestException('languageCode parameter is required');
+    }
+
+    const articles = await this.prisma.$queryRaw<{ id: string; title: string; slug: string; createdAt: Date }[]>`
+      SELECT id, title, slug, created_at as "createdAt" FROM blog_articles 
+      WHERE status != 'DRAFT'
+        AND (
+          "titleLocalized" IS NULL 
+          OR "titleLocalized" = 'null'::jsonb 
+          OR "titleLocalized"->${languageCode} IS NULL 
+          OR jsonb_typeof("titleLocalized"->${languageCode}) = 'null'
+          OR "titleLocalized"->>${languageCode} = ''
+        )
+      ORDER BY created_at DESC
+    `;
+
+    return {
+      languageCode,
+      count: articles.length,
+      articles,
+    };
   }
 
   /**

@@ -1,13 +1,24 @@
 import { CapacitorConfig } from '@capacitor/cli';
 
+// 开发环境检测
+const isDev = process.env.NODE_ENV === 'development';
+
 const config: CapacitorConfig = {
   appId: 'com.tarsier.labs',
-  appName: 'Tarsier Labs',
+  appName: isDev ? 'Tarsier Labs Dev' : 'Tarsier Labs',
   webDir: 'out',
-  server: {
-    androidScheme: 'https',
-    iosScheme: 'https',
-  },
+  server: isDev
+    ? {
+        // 开发环境：连接到Cloudflare Tunnel公网域名
+        url: 'https://dev.joyminis.com',
+        cleartext: false,
+        allowNavigation: ['*'],
+      }
+    : {
+        // 生产环境：保持现有配置
+        androidScheme: 'https',
+        iosScheme: 'https',
+      },
   plugins: {
     SplashScreen: {
       launchShowDuration: 2000,
@@ -31,7 +42,7 @@ const config: CapacitorConfig = {
     },
   },
   ios: {
-    scheme: 'TarsierLabs',
+    scheme: 'App',
     contentInset: 'automatic',
     scrollEnabled: true,
   },

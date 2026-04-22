@@ -1,35 +1,41 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '@api/common/prisma/prisma.service';
+import { SystemConfigService } from '@api/admin/system-config/system-config.service';
 
 @Injectable()
 export class TagService {
   private readonly logger = new Logger(TagService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private systemConfigService: SystemConfigService,
+  ) {}
 
   /**
    * 创建标签
    */
-
   async createTag(data: {
-    name: string;
+    name: Record<string, string | undefined>;
     slug?: string;
     color?: string;
-    description?: string;
+    description?: Record<string, string | undefined>;
   }) {
     this.logger.log(`Creating tag with data: ${JSON.stringify(data)}`);
 
     // Validate input
-    if (!data.name || data.name.trim().length === 0) {
+    if (!data.name || typeof data.name !== 'object') {
       this.logger.warn('Tag creation failed: Tag name is required');
       throw new Error('Tag name is required');
     }
 
-    if (data.name.trim().length > 100) {
-      this.logger.warn(
-        `Tag creation failed: Tag name too long (${data.name.trim().length} chars)`,
-      );
-      throw new Error('Tag name must be 100 characters or less');
+    // Check name length for each locale
+    for (const [locale, value] of Object.entries(data.name)) {
+      if (value && value.length > 100) {
+        this.logger.warn(
+          `Tag creation failed: Tag name too long for locale ${locale} (${value.length} chars)`,
+        );
+        throw new Error('Tag name must be 100 characters or less');
+      }
     }
 
     if (data.color && !/^#[0-9A-Fa-f]{6}$/.test(data.color)) {
@@ -39,23 +45,32 @@ export class TagService {
       throw new Error('Invalid color format. Use hex format like #3b82f6');
     }
 
-    if (data.description && data.description.length > 300) {
-      this.logger.warn(
-        `Tag creation failed: Description too long (${data.description.length} chars)`,
-      );
-      throw new Error('Tag description must be 300 characters or less');
+    if (data.description && typeof data.description === 'object') {
+      for (const [locale, value] of Object.entries(data.description)) {
+        if (value && value.length > 300) {
+          this.logger.warn(
+            `Tag creation failed: Description too long for locale ${locale} (${value.length} chars)`,
+          );
+          throw new Error('Tag description must be 300 characters or less');
+        }
+      }
     }
 
     // Generate slug if not provided
     let slug = data.slug;
     if (!slug) {
-      // Convert to kebab-case and remove special characters
-      slug = data.name
+      // 从中文语言版本生成 slug
+      const nameForSlug =
+        typeof data.name === 'object'
+          ? data.name.zh || Object.values(data.name).find((v) => v) || ''
+          : data.name;
+
+      slug = nameForSlug
         .toLowerCase()
-        .replace(/[^\w\s\u4e00-\u9fa5]/g, '') // Remove special characters
-        .replace(/\s+/g, '-') // Replace spaces with hyphens
-        .replace(/-+/g, '-') // Replace multiple hyphens with single hyphen
-        .replace(/^-+|-+$/g, ''); // Remove leading/trailing hyphens
+        .replace(/[^\w\s\u4e00-\u9fa5]/g, '')
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-+|-+$/g, '');
 
       this.logger.log(`Generated slug from name: ${slug}`);
     }
@@ -88,10 +103,10 @@ export class TagService {
     try {
       const tag = await this.prisma.blogTag.create({
         data: {
-          name: data.name.trim(),
+          name: data.name,
           slug: finalSlug,
           color: data.color || undefined,
-          description: data.description?.trim(),
+          description: data.description,
         },
       } as any);
 
@@ -110,15 +125,26 @@ export class TagService {
    * 获取标签列表
    */
   async getTags(includeCount = true, sortBy = 'articles', search?: string) {
-    const orderBy =
+    const orderBy: any =
       sortBy === 'articles'
         ? { articles: { _count: 'desc' as const } }
-        : { name: 'asc' as const };
+        : { createdAt: 'desc' as const };
 
     const where: any = {};
     if (search && search.trim()) {
       const searchTerm = search.trim();
-      where.name = { contains: searchTerm, mode: 'insensitive' };
+      // 动态搜索所有已启用的语言
+      const localeResult = await this.systemConfigService.getEnabledLocales();
+      const enabledLocales = localeResult.list
+        .filter((l) => l.enabled)
+        .map((l) => l.code);
+
+      where.OR = enabledLocales
+        .map((lang: string) => [
+          { name: { path: [lang], string_contains: searchTerm } },
+          { description: { path: [lang], string_contains: searchTerm } },
+        ])
+        .flat();
     }
 
     return this.prisma.blogTag.findMany({
@@ -177,20 +203,20 @@ export class TagService {
   async updateTag(
     id: string,
     data: {
-      name?: string;
+      name?: Record<string, string | undefined>;
       slug?: string;
       color?: string;
-      description?: string;
+      description?: Record<string, string | undefined>;
     },
   ) {
     this.logger.log(`Updating tag ${id} with data: ${JSON.stringify(data)}`);
-    
+
     try {
       const tag = await this.prisma.blogTag.update({
         where: { id },
         data,
       });
-      
+
       this.logger.log(`Tag ${id} updated successfully`);
       return tag;
     } catch (error) {
@@ -206,7 +232,7 @@ export class TagService {
    */
   async deleteTag(id: string) {
     this.logger.log(`Deleting tag: ${id}`);
-    
+
     try {
       // 自动解除所有文章关联
       const articles = await this.prisma.blogArticle.findMany({
@@ -235,7 +261,7 @@ export class TagService {
       const deletedTag = await this.prisma.blogTag.delete({
         where: { id },
       });
-      
+
       this.logger.log(`Tag deleted successfully: ${id}`);
       return deletedTag;
     } catch (error) {

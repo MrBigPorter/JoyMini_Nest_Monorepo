@@ -17,6 +17,8 @@ import type {
   ProColumns,
   ActionType,
 } from '@/components/scaffold/SmartTable/types';
+import { useLanguage } from '@/hooks/LanguageProvider';
+import { TRANSLATIONS } from '@/constants';
 import type { FormSchema } from '@/type/search';
 
 export default function CategoriesPage() {
@@ -31,64 +33,76 @@ export default function CategoriesPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const actionRef = useRef<ActionType>(null);
+  const { locale } = useLanguage();
+
+  // 翻译函数
+  const t = (key: string, params?: Record<string, string | number>) => {
+    const safeLocale = locale === 'zh' || locale === 'en' ? locale : 'en';
+    const fullKey = `blog_categories_${key}`;
+    let text = TRANSLATIONS[safeLocale][fullKey] || TRANSLATIONS['en'][fullKey] || key;
+    if (params) {
+      Object.entries(params).forEach(([k, v]) => {
+        text = text.replace(`{${k}}`, String(v));
+      });
+    }
+    return text;
+  };
 
   // 删除分类 mutation
   const deleteCategoryMutation = useMutation({
     mutationFn: (categoryId: string) => blogApi.deleteCategory(categoryId),
     onSuccess: () => {
-      addToast('success', 'Category deleted successfully');
+      addToast('success', t('categoryDeleted'));
       actionRef.current?.reload();
     },
     onError: (error: any) => {
       console.error('Failed to delete category:', error);
-      addToast('error', 'Failed to delete category');
+      addToast('error', t('deleteFailed'));
     },
   });
 
   // SmartTable列定义
   const handleDeleteCategory = async (category: any) => {
     ModalManager.open({
-      title: 'Delete Category?',
-      confirmText: 'Delete',
-      cancelText: 'Cancel',
+      title: t('deleteCategory'),
+      confirmText: t('deleteConfirm'),
+      cancelText: t('cancel'),
       renderChildren: (
         <div className="space-y-3">
           <p>
             Are you sure you want to delete category{' '}
             <span className="font-bold text-primary-600">
-              {renderLocalizedText(category.name, 'zh', category.id)}
+              {renderLocalizedText(category.name, locale, category.id)}
             </span>
             ?
           </p>
 
           <div className="text-sm text-amber-600 bg-amber-50 p-3 rounded-lg border border-amber-200">
             <div className="font-semibold mb-1">
-              ⚠️ This action cannot be undone.
+              {t('actionCannotBeUndone')}
             </div>
             {category.articleCount > 0 && (
               <div className="mt-2">
-                This category contains{' '}
-                <span className="font-bold">{category.articleCount}</span>{' '}
-                articles.
+                {t('thisCategoryContains', { count: category.articleCount })}
                 <br />
-                These articles will be moved to &#34;Uncategorized&#34;.
+                {t('articlesWillBeMoved')}
               </div>
             )}
           </div>
 
           <div className="text-xs text-gray-500 mt-2 bg-gray-50 p-2 rounded">
-            <div className="font-medium">Category Details:</div>
+            <div className="font-medium">{t('categoryDetails')}</div>
             <div>
-              Slug: <code>/{category.slug}</code>
+              {t('slug')} <code>/{category.slug}</code>
             </div>
             {category.description && (
               <div className="mt-1">
-                Description:{' '}
-                {renderLocalizedText(
-                  category.description,
-                  'zh',
-                  'No description',
-                )}
+                {t('description')}:{' '}
+            {renderLocalizedText(
+              category.description,
+              locale,
+              t('noDescription'),
+            )}
               </div>
             )}
           </div>
@@ -113,7 +127,7 @@ export default function CategoriesPage() {
   const categoryColumns: ProColumns[] = [
     {
       dataIndex: 'name',
-      title: 'Name',
+      title: t('name'),
       render: (dom, category: any) => (
         <div className="flex items-center">
           <FolderTree className="mr-2 h-4 w-4 text-muted-foreground" />
@@ -125,7 +139,7 @@ export default function CategoriesPage() {
     },
     {
       dataIndex: 'slug',
-      title: 'Slug',
+      title: t('slug'),
       render: (dom, category: any) => (
         <code className="text-sm bg-muted px-2 py-1 rounded">
           /{category.slug}
@@ -134,25 +148,25 @@ export default function CategoriesPage() {
     },
     {
       dataIndex: 'description',
-      title: 'Description',
+      title: t('description'),
       render: (dom, category: any) => (
         <p className="text-sm text-muted-foreground max-w-md truncate">
-          {renderLocalizedText(category.description, 'zh', 'No description')}
+            {renderLocalizedText(category.description, locale, t('noDescription'))}
         </p>
       ),
     },
     {
       dataIndex: 'articleCount',
-      title: 'Articles',
+      title: t('articles'),
       render: (dom, category: any) => (
         <span className="px-2 py-1 text-xs rounded-full bg-primary/10 text-primary">
-          {category.articleCount || 0} articles
+          {category.articleCount || 0} {t('articles')}
         </span>
       ),
     },
     {
       dataIndex: 'createdAt',
-      title: 'Created',
+      title: t('created'),
       render: (dom, category: any) => (
         <div className="text-sm text-muted-foreground">
           {category.createdAt}
@@ -161,7 +175,7 @@ export default function CategoriesPage() {
     },
     {
       dataIndex: 'actions',
-      title: 'Actions',
+      title: t('actions'),
       render: (dom, category: any) => (
         <div className="flex justify-end gap-2">
           <Button
@@ -189,8 +203,8 @@ export default function CategoriesPage() {
     {
       type: 'input',
       key: 'search',
-      label: 'Search',
-      placeholder: 'Search by name or description...',
+      label: t('search'),
+      placeholder: t('searchPlaceholder'),
     },
   ];
 
@@ -216,12 +230,12 @@ export default function CategoriesPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Category Management"
-        description="Manage blog categories for organizing articles"
+        title={t('pageTitle')}
+        description={t('pageDescription')}
         showBackButton={true}
         onBack={() => router.push('/blog')}
         breadcrumbs={['Blog', 'Categories']}
-        buttonText="New Category"
+        buttonText={t('newCategory')}
         buttonOnClick={() => {
           setEditingCategory(null);
           setIsModalOpen(true);
@@ -238,7 +252,7 @@ export default function CategoriesPage() {
       />
 
       {/* Categories Table */}
-      <Card title="Category List">
+      <Card title={t('categoryList')}>
         <SmartTable
           ref={actionRef}
           rowKey="id"
@@ -248,35 +262,30 @@ export default function CategoriesPage() {
           headerTitle={
             <div className="flex items-center gap-2">
               <FolderTree className="text-primary-500" size={20} />
-              <span className="font-semibold text-lg">Categories</span>
+              <span className="font-semibold text-lg">{t('categoryList')}</span>
             </div>
           }
         />
       </Card>
 
       {/* Usage Tips */}
-      <Card title="Category Usage Tips">
+      <Card title={t('categoryUsageTips')}>
         <ul className="space-y-2 text-sm text-muted-foreground">
           <li className="flex items-start">
             <div className="mr-2 mt-0.5">•</div>
-            <span>Categories help organize articles into logical groups</span>
+            <span>{t('tip1')}</span>
           </li>
           <li className="flex items-start">
             <div className="mr-2 mt-0.5">•</div>
-            <span>Each article can belong to only one category</span>
+            <span>{t('tip2')}</span>
           </li>
           <li className="flex items-start">
             <div className="mr-2 mt-0.5">•</div>
-            <span>
-              URL slugs should be lowercase with hyphens
-              (e.g.,&#34;web-development&#34;)
-            </span>
+            <span>{t('tip3')}</span>
           </li>
           <li className="flex items-start">
             <div className="mr-2 mt-0.5">•</div>
-            <span>
-              Categories with articles cannot be deleted - move articles first
-            </span>
+            <span>{t('tip4')}</span>
           </li>
         </ul>
       </Card>

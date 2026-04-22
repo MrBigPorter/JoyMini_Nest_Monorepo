@@ -18,8 +18,9 @@ export const articleSchema = z.object({
   status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).default('DRAFT'),
   featuredImage: localizedStringSchema(
     z.union([
-      z.string().url('Please enter a valid image URL'),
+      z.string().url('Please enter a valid image URL').or(z.literal('')),
       z.instanceof(File),
+      z.any(),
     ]),
   ).optional(),
 });

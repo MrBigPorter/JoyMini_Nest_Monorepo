@@ -35,9 +35,24 @@ export function useBlogForm<T extends z.ZodSchema>({
 
   const handleSubmit = useCallback(
     async (data: z.infer<T>) => {
+      console.log('========== [BLOG_FORM] handleSubmit called ==========');
+      console.log(
+        '[BLOG_FORM] data:',
+        JSON.stringify(data, (key, value) => {
+          if (
+            key === 'content' &&
+            typeof value === 'string' &&
+            value.length > 100
+          ) {
+            return value.substring(0, 100) + '...';
+          }
+          return value;
+        }),
+      );
       try {
         await onSubmitAction(data);
       } catch (error: unknown) {
+        console.log('[BLOG_FORM] handleSubmit caught error:', error);
         let message = '提交失败';
 
         if (error && typeof error === 'object') {

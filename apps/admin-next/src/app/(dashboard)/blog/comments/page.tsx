@@ -22,6 +22,9 @@ import { Card, Badge } from '@/components/UIComponents';
 import { blogApi } from '@/api';
 import { PageHeader } from '@/components/scaffold/PageHeader';
 import { BlogCommentModal } from '@/views/blog/BlogCommentModal';
+import { useLanguage } from '@/hooks/LanguageProvider';
+import { TRANSLATIONS } from '@/constants';
+import { renderLocalizedText } from '@/utils/localizedText';
 import LocalizedText from '@/components/blog/LocalizedText';
 
 export default function CommentsPage() {
@@ -35,6 +38,20 @@ export default function CommentsPage() {
   const [editingComment, setEditingComment] = useState<any>(null);
   const { addToast } = useToastStore();
   const router = useRouter();
+  const { locale } = useLanguage();
+
+  // 翻译函数
+  const t = (key: string, params?: Record<string, string | number>) => {
+    const safeLocale = locale === 'zh' || locale === 'en' ? locale : 'en';
+    const fullKey = `blog_comments_${key}`;
+    let text = TRANSLATIONS[safeLocale][fullKey] || TRANSLATIONS['en'][fullKey] || key;
+    if (params) {
+      Object.entries(params).forEach(([k, v]) => {
+        text = text.replace(`{${k}}`, String(v));
+      });
+    }
+    return text;
+  };
 
   const fetchComments = async () => {
     setIsLoading(true);
@@ -54,7 +71,7 @@ export default function CommentsPage() {
       setComments(response.list || []);
     } catch (error) {
       console.error('Failed to fetch comments:', error);
-      addToast('error', 'Failed to load comments');
+      addToast('error', t('loadFailed'));
     } finally {
       setIsLoading(false);
     }
@@ -66,22 +83,16 @@ export default function CommentsPage() {
       const articleOptions =
         response.list?.map((article: any) => {
           // 将 Localized 格式的标题转换为字符串
-          let titleStr = 'Untitled';
+          let titleStr = t('untitled');
           if (article.title) {
-            if (typeof article.title === 'string') {
-              titleStr = article.title;
-            } else if (typeof article.title === 'object' && article.title !== null) {
-              // 优先使用当前语言，回退到中文，再回退到英文
-              const currentLang = 'zh'; // 这里应该从语言上下文获取，暂时用中文
-              titleStr = article.title[currentLang] || article.title.zh || article.title.en || 'Untitled';
-            }
+            titleStr = renderLocalizedText(article.title, locale, t('untitled'));
           }
           return {
             id: article.id,
             title: titleStr,
           };
         }) || [];
-      setArticles([{ id: 'all', title: 'All Articles' }, ...articleOptions]);
+      setArticles([{ id: 'all', title: t('allArticles') }, ...articleOptions]);
     } catch (error) {
       console.error('Failed to fetch articles:', error);
       // Fallback to mock articles
@@ -107,19 +118,19 @@ export default function CommentsPage() {
       case 'APPROVED':
         return (
           <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">
-            Approved
+            {t('approved')}
           </span>
         );
       case 'PENDING':
         return (
           <span className="px-2 py-1 text-xs rounded-full bg-amber-100 text-amber-800">
-            Pending
+            {t('pending')}
           </span>
         );
       case 'SPAM':
         return (
           <span className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800">
-            Spam
+            {t('spam')}
           </span>
         );
       case 'REJECTED':
@@ -154,41 +165,39 @@ export default function CommentsPage() {
   const handleApproveComment = async (commentId: string) => {
     try {
       await blogApi.approveComment(commentId);
-      addToast('success', 'Comment approved successfully');
+      addToast('success', t('commentApproved'));
       fetchComments(); // Refresh the list
     } catch (error) {
       console.error('Failed to approve comment:', error);
-      addToast('error', 'Failed to approve comment');
+      addToast('error', t('approveFailed'));
     }
   };
 
   const handleRejectComment = async (commentId: string) => {
     try {
       await blogApi.rejectComment(commentId);
-      addToast('success', 'Comment rejected successfully');
+      addToast('success', t('commentRejected'));
       fetchComments(); // Refresh the list
     } catch (error) {
       console.error('Failed to reject comment:', error);
-      addToast('error', 'Failed to reject comment');
+      addToast('error', t('rejectFailed'));
     }
   };
 
   const handleDeleteComment = async (commentId: string) => {
     if (
-      !window.confirm(
-        'Are you sure you want to delete this comment? This action cannot be undone.',
-      )
+      !window.confirm(t('deleteConfirm'))
     ) {
       return;
     }
 
     try {
       await blogApi.deleteComment(commentId);
-      addToast('success', 'Comment deleted successfully');
+      addToast('success', t('commentDeleted'));
       fetchComments(); // Refresh the list
     } catch (error) {
       console.error('Failed to delete comment:', error);
-      addToast('error', 'Failed to delete comment');
+      addToast('error', t('deleteFailed'));
     }
   };
 
@@ -214,7 +223,7 @@ export default function CommentsPage() {
         <div className="text-center">
           <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
           <p className="mt-4 text-sm text-muted-foreground">
-            Loading comments...
+            {t('loadingComments')}
           </p>
         </div>
       </div>
@@ -224,8 +233,8 @@ export default function CommentsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Comment Management"
-        description="Moderate and manage user comments on blog articles"
+        title={t('pageTitle')}
+        description={t('pageDescription')}
         showBackButton={true}
         onBack={() => router.push('/blog')}
         breadcrumbs={['Blog', 'Comments']}
@@ -236,7 +245,7 @@ export default function CommentsPage() {
         <Card>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-muted-foreground">Total Comments</p>
+              <p className="text-sm text-muted-foreground">{t('totalComments')}</p>
               <p className="text-2xl font-bold">{stats.total}</p>
             </div>
             <MessageSquare className="h-8 w-8 text-primary/50" />
@@ -245,7 +254,7 @@ export default function CommentsPage() {
         <Card>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-muted-foreground">Approved</p>
+              <p className="text-sm text-muted-foreground">{t('approved')}</p>
               <p className="text-2xl font-bold text-green-600">
                 {stats.approved}
               </p>
@@ -256,7 +265,7 @@ export default function CommentsPage() {
         <Card>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-muted-foreground">Pending</p>
+              <p className="text-sm text-muted-foreground">{t('pending')}</p>
               <p className="text-2xl font-bold text-amber-600">
                 {stats.pending}
               </p>
@@ -267,7 +276,7 @@ export default function CommentsPage() {
         <Card>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-muted-foreground">Spam</p>
+              <p className="text-sm text-muted-foreground">{t('spam')}</p>
               <p className="text-2xl font-bold text-red-600">{stats.spam}</p>
             </div>
             <X className="h-8 w-8 text-red-500/50" />
@@ -292,7 +301,7 @@ export default function CommentsPage() {
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search comments by content or author..."
+                placeholder={t('searchPlaceholder')}
                 className="w-full pl-9 pr-3 py-2.5 border border-gray-200 dark:border-white/10 rounded-lg bg-gray-50 dark:bg-black/20 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 dark:text-white placeholder-gray-400 dark:placeholder-gray-600"
               />
             </div>
@@ -303,10 +312,10 @@ export default function CommentsPage() {
               onChange={(e) => setStatusFilter(e.target.value)}
               className="w-[140px] px-3 py-2.5 border border-gray-200 dark:border-white/10 rounded-lg bg-gray-50 dark:bg-black/20 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 dark:text-white"
             >
-              <option value="all">All Status</option>
-              <option value="APPROVED">Approved</option>
-              <option value="PENDING">Pending</option>
-              <option value="SPAM">Spam</option>
+              <option value="all">{t('allStatus')}</option>
+              <option value="APPROVED">{t('approved')}</option>
+              <option value="PENDING">{t('pending')}</option>
+              <option value="SPAM">{t('spam')}</option>
               <option value="REJECTED">Rejected</option>
             </select>
             <select
@@ -325,12 +334,11 @@ export default function CommentsPage() {
       </Card>
 
       {/* Comments List */}
-      <Card title="Comment List">
+      <Card title={t('commentList')}>
         <div className="mb-4">
           <p className="text-sm text-muted-foreground">
-            Total {filteredComments.length} comments,{' '}
-            {filteredComments.filter((c) => c.status === 'PENDING').length}{' '}
-            pending moderation
+            {t('totalCommentsCount', { count: filteredComments.length })}, {' '}
+            {t('pendingModeration', { count: filteredComments.filter((c) => c.status === 'PENDING').length })}
           </p>
         </div>
         <div className="space-y-4">
@@ -369,14 +377,14 @@ export default function CommentsPage() {
                       <button
                         onClick={() => handleApproveComment(comment.id)}
                         className="p-1.5 rounded-lg border border-green-200 dark:border-green-800/30 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors"
-                        title="Approve"
+                        title={t('approve')}
                       >
                         <Check className="h-4 w-4" />
                       </button>
                       <button
                         onClick={() => handleRejectComment(comment.id)}
                         className="p-1.5 rounded-lg border border-red-200 dark:border-red-800/30 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
-                        title="Reject"
+                        title={t('reject')}
                       >
                         <X className="h-4 w-4" />
                       </button>
@@ -385,14 +393,14 @@ export default function CommentsPage() {
                   <button
                     onClick={() => handleEditComment(comment)}
                     className="p-1.5 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-200 transition-colors"
-                    title="Edit"
+                    title={t('edit')}
                   >
                     <Edit className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => handleDeleteComment(comment.id)}
                     className="p-1.5 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors"
-                    title="Delete"
+                    title={t('delete')}
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -410,16 +418,16 @@ export default function CommentsPage() {
                     href={`/blog/articles/${comment.article?.slug}`}
                     className="text-primary hover:underline"
                   >
-                    {comment.article?.title || 'Unknown Article'}
+                    {comment.article?.title || t('unknownArticle')}
                   </a>
                 </div>
                 <div className="flex items-center space-x-2">
                   <button className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-200 transition-colors">
                     <Eye className="mr-1 h-3 w-3 inline" />
-                    View Article
+                    {t('viewArticle')}
                   </button>
                   <button className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-200 transition-colors">
-                    Reply
+                    {t('reply')}
                   </button>
                 </div>
               </div>
@@ -431,8 +439,7 @@ export default function CommentsPage() {
       {/* Pagination */}
       <div className="flex items-center justify-between">
         <div className="text-sm text-muted-foreground">
-          Showing 1 to {filteredComments.length} of {filteredComments.length}{' '}
-          comments
+          {t('showingComments', { current: filteredComments.length, total: filteredComments.length })}
         </div>
         <div className="flex items-center space-x-2">
           <button
@@ -454,37 +461,27 @@ export default function CommentsPage() {
       </div>
 
       {/* Moderation Tips */}
-      <Card title="Comment Moderation Tips">
+      <Card title={t('moderationTips')}>
         <ul className="space-y-2 text-sm text-muted-foreground">
           <li className="flex items-start">
             <div className="mr-2 mt-0.5">•</div>
-            <span>
-              Review pending comments regularly to maintain engagement
-            </span>
+            <span>{t('tip1')}</span>
           </li>
           <li className="flex items-start">
             <div className="mr-2 mt-0.5">•</div>
-            <span>
-              Mark obvious spam comments to help improve automatic filtering
-            </span>
+            <span>{t('tip2')}</span>
           </li>
           <li className="flex items-start">
             <div className="mr-2 mt-0.5">•</div>
-            <span>
-              Consider replying to constructive comments to build community
-            </span>
+            <span>{t('tip3')}</span>
           </li>
           <li className="flex items-start">
             <div className="mr-2 mt-0.5">•</div>
-            <span>
-              Check IP addresses and user agents for suspicious patterns
-            </span>
+            <span>{t('tip4')}</span>
           </li>
           <li className="flex items-start">
             <div className="mr-2 mt-0.5">•</div>
-            <span>
-              Use the search feature to find comments by specific users
-            </span>
+            <span>{t('tip5')}</span>
           </li>
         </ul>
       </Card>

@@ -1,0 +1,32 @@
+# Cloudflare Tunnel Configuration for Lucky Nest Monorepo
+# This file configures a single tunnel to expose all local development services
+# 
+# Usage:
+# 1. Install cloudflared: brew install cloudflare/cloudflare/cloudflared
+# 2. Login: cloudflared tunnel login
+# 3. Create tunnel: cloudflared tunnel create lucky-nest-monorepo
+# 4. Update tunnel ID below
+# 5. Run: cloudflared tunnel --config cloudflared.yml run lucky-nest-monorepo
+
+tunnel: bd7bd901-8cc2-4d6c-bba6-7f98eddfce5e
+credentials-file: ~/.cloudflared/bd7bd901-8cc2-4d6c-bba6-7f98eddfce5e.json
+
+ingress:
+  # Frontend Blog (Next.js) - Port 3000
+  - hostname: blog-dev.joyminis.com
+    service: http://localhost:3000
+  
+  # Admin Dashboard (Next.js) - Port 3001
+  - hostname: dev.admin.joyminis.com
+    service: http://localhost:3001
+  
+  # API Service (NestJS) - Port 3002
+  - hostname: dev.api.joyminis.com
+    service: http://localhost:3002
+  
+  # Liveness Web (Vite) - Port 3003
+  - hostname: dev.liveness.joyminis.com
+    service: http://localhost:3003
+  
+  # Fallback rule - return 404 for unmatched requests
+  - service: http_status:404

@@ -6,6 +6,8 @@ import { Card, Badge, Button } from '@/components/UIComponents';
 import { blogApi } from '@/api';
 import { RefreshCw, FileText, List, BarChart3, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
+import { useLanguage } from '@/hooks/LanguageProvider';
+import { BLOG_TRANSLATION_CARD_TRANSLATIONS } from '@/constants';
 
 // 进度条组件
 const ProgressBar = ({ value, max = 100 }: { value: number; max?: number }) => {
@@ -71,6 +73,20 @@ const MiniStatCard = ({
 };
 
 export default function TranslationProgressCard() {
+  const { locale } = useLanguage();
+  
+  // 翻译函数
+  const t = (key: string, params?: Record<string, string | number>) => {
+    const safeLocale = locale === 'zh' || locale === 'en' ? locale : 'en';
+    let text = BLOG_TRANSLATION_CARD_TRANSLATIONS[safeLocale][key] || key;
+    if (params) {
+      Object.entries(params).forEach(([k, v]) => {
+        text = text.replace(`{${k}}`, String(v));
+      });
+    }
+    return text;
+  };
+
   const {
     data: progress,
     loading,
@@ -83,7 +99,7 @@ export default function TranslationProgressCard() {
 
   if (loading) {
     return (
-      <Card title="翻译进度" className="animate-pulse">
+      <Card title={t('translationProgress')} className="animate-pulse">
         <div className="space-y-3">
           <div className="h-4 bg-gray-200 rounded w-3/4"></div>
           <div className="h-2 bg-gray-200 rounded"></div>
@@ -99,12 +115,12 @@ export default function TranslationProgressCard() {
 
   if (error) {
     return (
-      <Card title="翻译进度">
+      <Card title={t('translationProgress')}>
         <div className="text-center py-4">
-          <p className="text-sm text-gray-500 mb-2">加载失败</p>
+          <p className="text-sm text-gray-500 mb-2">{t('loadFailed')}</p>
           <Button variant="outline" size="sm" onClick={() => refresh()}>
             <RefreshCw className="w-3 h-3 mr-1" />
-            重试
+            {t('retry')}
           </Button>
         </div>
       </Card>
@@ -135,11 +151,11 @@ export default function TranslationProgressCard() {
 
   return (
     <Card
-      title="翻译进度"
+      title={t('translationProgress')}
       action={
         <Link href="/blog/translation-progress">
           <Button variant="ghost" size="sm">
-            查看详情
+            {t('viewDetails')}
             <ArrowRight className="w-3 h-3 ml-1" />
           </Button>
         </Link>
@@ -158,14 +174,14 @@ export default function TranslationProgressCard() {
               </span>
             </div>
             <div className="flex items-center gap-2">
-              {hasActiveJobs && <Badge color="yellow">进行中</Badge>}
+              {hasActiveJobs && <Badge color="yellow">{t('inProgress')}</Badge>}
               {hasFailedJobs && (
                 <Badge color="red">
-                  {progressData.queueStatus.failed} 失败
+                  {progressData.queueStatus.failed} {t('failed')}
                 </Badge>
               )}
               {overallPercentage === 100 && progressData.totalItems > 0 && (
-                <Badge color="green">已完成</Badge>
+                <Badge color="green">{t('completed')}</Badge>
               )}
             </div>
           </div>
@@ -178,21 +194,21 @@ export default function TranslationProgressCard() {
         {/* 分类统计 */}
         <div className="grid grid-cols-3 gap-2">
           <MiniStatCard
-            title="文章"
+            title={t('articles')}
             value={progressData.articles.completed}
             total={progressData.articles.total}
             icon={FileText}
             color="blue"
           />
           <MiniStatCard
-            title="分类"
+            title={t('categories')}
             value={progressData.categories.completed}
             total={progressData.categories.total}
             icon={List}
             color="green"
           />
           <MiniStatCard
-            title="标签"
+            title={t('tags')}
             value={progressData.tags.completed}
             total={progressData.tags.total}
             icon={BarChart3}
@@ -207,20 +223,20 @@ export default function TranslationProgressCard() {
               <div className="flex items-center gap-1">
                 <div className="w-2 h-2 rounded-full bg-blue-500"></div>
                 <span className="text-gray-600">
-                  进行中: {progressData.queueStatus.active}
+                  {t('activeJobs', { count: progressData.queueStatus.active })}
                 </span>
               </div>
               <div className="flex items-center gap-1">
                 <div className="w-2 h-2 rounded-full bg-amber-500"></div>
                 <span className="text-gray-600">
-                  等待中: {progressData.queueStatus.waiting}
+                  {t('waitingJobs', { count: progressData.queueStatus.waiting })}
                 </span>
               </div>
             </div>
             <div className="flex items-center gap-1">
               <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
               <span className="text-gray-600">
-                已完成: {progressData.queueStatus.completed}
+                {t('completedJobs', { count: progressData.queueStatus.completed })}
               </span>
             </div>
           </div>
@@ -229,19 +245,19 @@ export default function TranslationProgressCard() {
         {/* 状态提示 */}
         {hasFailedJobs && (
           <div className="text-xs text-red-600 bg-red-50 p-2 rounded">
-            ⚠️ 有 {progressData.queueStatus.failed} 个任务失败，请检查
+            {t('failedJobsWarning', { count: progressData.queueStatus.failed })}
           </div>
         )}
 
         {overallPercentage === 100 && progressData.totalItems > 0 && (
           <div className="text-xs text-emerald-600 bg-emerald-50 p-2 rounded">
-            所有翻译任务已完成
+            {t('allJobsCompleted')}
           </div>
         )}
 
         {overallPercentage === 0 && progressData.totalItems > 0 && (
           <div className="text-xs text-amber-600 bg-amber-50 p-2 rounded">
-            ⏳ 翻译尚未开始
+            {t('translationNotStarted')}
           </div>
         )}
       </div>
