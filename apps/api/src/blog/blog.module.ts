@@ -11,8 +11,10 @@ import { CategoryModule } from './category/category.module';
 import { TagModule } from './tag/tag.module';
 import { CommentModule } from './comment/comment.module';
 import { BlogAiProcessor } from './processors/blog-ai.processor';
+import { TranslationJobService } from './translation-job.service';
 import { SystemConfigModule } from '../admin/system-config/system-config.module';
 import { LanguageService } from '@api/common/services/language.service';
+import { LanguageDetectionService } from '@api/common/services/language-detection.service';
 
 @Module({
   imports: [
@@ -31,8 +33,10 @@ import { LanguageService } from '@api/common/services/language.service';
     FrontendBlogService,
     BookmarkService,
     BlogAiProcessor,
+    TranslationJobService,
     LanguageService,
+    LanguageDetectionService,
   ],
-  exports: [BlogService],
+  exports: [BlogService, TranslationJobService],
 })
 export class BlogModule {}

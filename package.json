@@ -51,7 +51,12 @@
     "db:reset:dev": "docker exec -it lucky-backend-dev sh -lc \"yarn workspace @lucky/api prisma migrate reset --force && yarn workspace @lucky/api prisma generate\"",
     "perf:lighthouse": "yarn workspace @lucky/admin-next lighthouse:audit",
     "perf:lighthouse:strict": "yarn workspace @lucky/admin-next lighthouse:audit:strict",
-    "perf:lhci": "yarn workspace @lucky/admin-next lhci"
+    "perf:lhci": "yarn workspace @lucky/admin-next lhci",
+    "tunnel": "cloudflared tunnel --url http://localhost:3000",
+    "tunnel:all": "cloudflared tunnel --config cloudflared.yml run lucky-nest-monorepo",
+    "tunnel:login": "cloudflared tunnel login",
+    "tunnel:create": "cloudflared tunnel create lucky-nest-monorepo",
+    "tunnel:route": "cloudflared tunnel route dns lucky-nest-monorepo dev.blog.joyminis.com dev.admin.joyminis.com dev.api.joyminis.com dev.liveness.joyminis.com"
   },
   "devDependencies": {
     "@tailwindcss/typography": "^0.5.19",

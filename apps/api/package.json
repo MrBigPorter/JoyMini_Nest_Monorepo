@@ -69,6 +69,7 @@
     "dompurify": "^3.3.3",
     "express": "^5.1.0",
     "firebase-admin": "^13.7.0",
+    "franc-min": "^6.2.0",
     "gfm": "^0.0.1",
     "helmet": "^8.1.0",
     "joi": "^18.0.1",

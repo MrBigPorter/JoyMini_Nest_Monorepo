@@ -29,6 +29,8 @@ import type {
   ProColumns,
   ActionType,
 } from '@/components/scaffold/SmartTable/types';
+import { useLanguage } from '@/hooks/LanguageProvider';
+import { TRANSLATIONS } from '@/constants';
 import type { FormSchema } from '@/type/search';
 
 type Article = Partial<ArticleFormInputs> & {
@@ -59,17 +61,32 @@ export default function ArticlesPageV2() {
   const { addToast } = useToastStore();
   const router = useRouter();
   const actionRef = useRef<ActionType>(null);
+  const { locale } = useLanguage();
+
+  // 翻译函数
+  const t = (key: string, params?: Record<string, string | number>) => {
+    const safeLocale = locale === 'zh' || locale === 'en' ? locale : 'en';
+    const fullKey = `blog_articles_${key}`;
+    let text =
+      TRANSLATIONS[safeLocale][fullKey] || TRANSLATIONS['en'][fullKey] || key;
+    if (params) {
+      Object.entries(params).forEach(([k, v]) => {
+        text = text.replace(`{${k}}`, String(v));
+      });
+    }
+    return text;
+  };
 
   // 删除文章 mutation
   const deleteArticleMutation = useMutation({
     mutationFn: (id: string) => blogApi.deleteArticle(id),
     onSuccess: () => {
-      addToast('success', 'Article deleted successfully');
+      addToast('success', t('articleDeleted'));
       actionRef.current?.reload();
     },
     onError: (error: Error) => {
       console.error('Failed to delete article:', error);
-      addToast('error', 'Failed to delete article');
+      addToast('error', t('deleteFailed'));
     },
   });
 
@@ -77,12 +94,12 @@ export default function ArticlesPageV2() {
   const publishArticleMutation = useMutation({
     mutationFn: (id: string) => blogApi.publishArticle(id),
     onSuccess: () => {
-      addToast('success', 'Article published successfully');
+      addToast('success', t('articlePublished'));
       actionRef.current?.reload();
     },
     onError: (error: Error) => {
       console.error('Failed to publish article:', error);
-      addToast('error', 'Failed to publish article');
+      addToast('error', t('publishFailed'));
     },
   });
 
@@ -90,12 +107,12 @@ export default function ArticlesPageV2() {
   const unpublishArticleMutation = useMutation({
     mutationFn: (id: string) => blogApi.unpublishArticle(id),
     onSuccess: () => {
-      addToast('success', 'Article unpublished successfully');
+      addToast('success', t('articleUnpublished'));
       actionRef.current?.reload();
     },
     onError: (error: Error) => {
       console.error('Failed to unpublish article:', error);
-      addToast('error', 'Failed to unpublish article');
+      addToast('error', t('unpublishFailed'));
     },
   });
 
@@ -137,9 +154,9 @@ export default function ArticlesPageV2() {
   // 删除文章确认
   const handleDeleteArticle = async (article: Article) => {
     ModalManager.open({
-      title: 'Delete Article?',
-      confirmText: 'Delete',
-      cancelText: 'Cancel',
+      title: t('deleteArticle'),
+      confirmText: t('deleteConfirm'),
+      cancelText: t('cancel'),
       renderChildren: (
         <div className="space-y-3">
           <p>
@@ -152,7 +169,7 @@ export default function ArticlesPageV2() {
 
           <div className="text-sm text-amber-600 bg-amber-50 p-3 rounded-lg border border-amber-200">
             <div className="font-semibold mb-1">
-              ⚠️ This action cannot be undone.
+              {t('actionCannotBeUndone')}
             </div>
             <div className="mt-2">
               This article has{' '}
@@ -165,9 +182,9 @@ export default function ArticlesPageV2() {
           </div>
 
           <div className="text-xs text-gray-500 mt-2 bg-gray-50 p-2 rounded">
-            <div className="font-medium">Article Details:</div>
+            <div className="font-medium">{t('articleDetails')}</div>
             <div>
-              Slug: <code>/{article.slug}</code>
+              {t('slug')} <code>/{article.slug}</code>
             </div>
             <div>Status: {article.status}</div>
             <div>
@@ -175,15 +192,17 @@ export default function ArticlesPageV2() {
               {article.category?.name
                 ? renderLocalizedText(
                     article.category.name,
-                    'zh',
-                    'Uncategorized',
+                    locale,
+                    t('uncategorized'),
                   )
-                : 'Uncategorized'}
+                : t('uncategorized')}
             </div>
             {article.author && (
               <div>
-                Author:{' '}
-                {article.author.username || article.author.realName || 'Admin'}
+                {t('author')}{' '}
+                {article.author.username ||
+                  article.author.realName ||
+                  t('admin')}
               </div>
             )}
           </div>
@@ -204,9 +223,9 @@ export default function ArticlesPageV2() {
   // 发布文章
   const handlePublishArticle = async (article: Article) => {
     ModalManager.open({
-      title: 'Publish Article?',
-      confirmText: 'Publish',
-      cancelText: 'Cancel',
+      title: t('publishArticle'),
+      confirmText: t('publishConfirm'),
+      cancelText: t('cancel'),
       renderChildren: (
         <div className="space-y-3">
           <p>
@@ -218,9 +237,7 @@ export default function ArticlesPageV2() {
           </p>
 
           <div className="text-sm text-green-600 bg-green-50 p-3 rounded-lg border border-green-200">
-            <div className="font-semibold mb-1">
-              📢 Article will be publicly visible
-            </div>
+            <div className="font-semibold mb-1">{t('articleWillBePublic')}</div>
             <div className="mt-2">
               Once published, this article will be accessible to all users.
               <br />
@@ -238,9 +255,9 @@ export default function ArticlesPageV2() {
   // 取消发布文章
   const handleUnpublishArticle = async (article: Article) => {
     ModalManager.open({
-      title: 'Unpublish Article?',
-      confirmText: 'Unpublish',
-      cancelText: 'Cancel',
+      title: t('unpublishArticle'),
+      confirmText: t('unpublishConfirm'),
+      cancelText: t('cancel'),
       renderChildren: (
         <div className="space-y-3">
           <p>
@@ -252,9 +269,7 @@ export default function ArticlesPageV2() {
           </p>
 
           <div className="text-sm text-amber-600 bg-amber-50 p-3 rounded-lg border border-amber-200">
-            <div className="font-semibold mb-1">
-              ⚠️ Article will be hidden from public
-            </div>
+            <div className="font-semibold mb-1">{t('articleWillBeHidden')}</div>
             <div className="mt-2">
               This article will no longer be visible to users.
               <br />
@@ -273,7 +288,7 @@ export default function ArticlesPageV2() {
   const articleColumns: ProColumns[] = [
     {
       dataIndex: 'title',
-      title: 'Article',
+      title: t('article'),
       render: (dom, article: Article) => (
         <div>
           <div className="font-medium text-gray-900 dark:text-white">
@@ -285,11 +300,13 @@ export default function ArticlesPageV2() {
           <div className="flex items-center gap-3 mt-2">
             <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
               <User className="h-3 w-3 mr-1" />
-              {article.author?.username || article.author?.realName || 'Admin'}
+              {article.author?.username ||
+                article.author?.realName ||
+                t('admin')}
             </div>
             <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
               <Calendar className="h-3 w-3 mr-1" />
-              {article.readTime || '5 min'}
+              {article.readTime || `5 ${t('min')}`}
             </div>
           </div>
         </div>
@@ -297,23 +314,27 @@ export default function ArticlesPageV2() {
     },
     {
       dataIndex: 'status',
-      title: 'Status',
+      title: t('status'),
       render: (dom, article: Article) => getStatusBadge(article.status ?? ''),
     },
     {
       dataIndex: 'category',
-      title: 'Category',
+      title: t('category'),
       render: (dom, article: Article) => (
         <span className="px-2.5 py-1 text-xs rounded-full bg-gray-100 dark:bg-white/5 text-gray-700 dark:text-gray-300">
           {article.category?.name
-            ? renderLocalizedText(article.category.name, 'zh', 'Uncategorized')
-            : 'Uncategorized'}
+            ? renderLocalizedText(
+                article.category.name,
+                locale,
+                t('uncategorized'),
+              )
+            : t('uncategorized')}
         </span>
       ),
     },
     {
       dataIndex: 'tags',
-      title: 'Tags',
+      title: t('tags'),
       render: (dom, article: Article) => (
         <div className="flex flex-wrap gap-1">
           {(article.tags || []).map((tag: string | undefined) => (
@@ -329,7 +350,7 @@ export default function ArticlesPageV2() {
     },
     {
       dataIndex: 'metrics',
-      title: 'Metrics',
+      title: t('metrics'),
       render: (dom, article: Article) => (
         <div className="space-y-1">
           <div className="flex items-center text-sm">
@@ -337,7 +358,9 @@ export default function ArticlesPageV2() {
             <span className="text-gray-700 dark:text-gray-300">
               {(article.views || 0).toLocaleString()}
             </span>
-            <span className="text-gray-500 dark:text-gray-400 ml-1">views</span>
+            <span className="text-gray-500 dark:text-gray-400 ml-1">
+              {t('views')}
+            </span>
           </div>
           <div className="flex items-center text-sm">
             <MessageSquare className="h-3 w-3 mr-1 text-gray-400" />
@@ -345,7 +368,7 @@ export default function ArticlesPageV2() {
               {article.comments || 0}
             </span>
             <span className="text-gray-500 dark:text-gray-400 ml-1">
-              comments
+              {t('comments')}
             </span>
           </div>
         </div>
@@ -353,12 +376,12 @@ export default function ArticlesPageV2() {
     },
     {
       dataIndex: 'publishedAt',
-      title: 'Published',
+      title: t('publishedDate'),
       render: (dom, article: Article) => (
         <div className="text-sm text-gray-700 dark:text-gray-300">
           {article.publishedAt || (
             <span className="text-gray-400 dark:text-gray-500">
-              Not published
+              {t('notPublished')}
             </span>
           )}
         </div>
@@ -366,7 +389,7 @@ export default function ArticlesPageV2() {
     },
     {
       dataIndex: 'actions',
-      title: 'Actions',
+      title: t('actions'),
       render: (dom, article: Article) => (
         <div className="flex justify-end gap-2">
           <Link
@@ -374,7 +397,7 @@ export default function ArticlesPageV2() {
             className="inline-flex items-center px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-gray-700 dark:text-gray-300"
           >
             <Eye className="h-4 w-4 mr-1" />
-            Preview
+            {t('preview')}
           </Link>
           <Button
             variant="outline"
@@ -382,7 +405,7 @@ export default function ArticlesPageV2() {
             onClick={() => handleEditArticle(article)}
           >
             <Edit className="h-4 w-4 mr-1" />
-            Edit
+            {t('edit')}
           </Button>
           {article.status === 'PUBLISHED' ? (
             <Button
@@ -391,7 +414,7 @@ export default function ArticlesPageV2() {
               onClick={() => handleUnpublishArticle(article)}
               className="text-amber-600 hover:text-amber-700 border-amber-200 hover:border-amber-300"
             >
-              Unpublish
+              {t('unpublish')}
             </Button>
           ) : (
             <Button
@@ -400,7 +423,7 @@ export default function ArticlesPageV2() {
               onClick={() => handlePublishArticle(article)}
               className="text-green-600 hover:text-green-700 border-green-200 hover:border-green-300"
             >
-              Publish
+              {t('publish')}
             </Button>
           )}
           <Button
@@ -410,7 +433,7 @@ export default function ArticlesPageV2() {
             className="text-destructive hover:text-destructive"
           >
             <Trash2 className="h-4 w-4 mr-1" />
-            Delete
+            {t('delete')}
           </Button>
         </div>
       ),
@@ -423,36 +446,36 @@ export default function ArticlesPageV2() {
       {
         type: 'input',
         key: 'search',
-        label: 'Search',
-        placeholder: 'Search article titles or content...',
+        label: t('search'),
+        placeholder: t('searchPlaceholder'),
       },
       {
         type: 'select',
         key: 'status',
-        label: 'Status',
-        placeholder: 'All Status',
+        label: t('status'),
+        placeholder: t('allStatus'),
         options: [
-          { label: 'All Status', value: '' },
-          { label: 'Published', value: 'PUBLISHED' },
-          { label: 'Draft', value: 'DRAFT' },
-          { label: 'Archived', value: 'ARCHIVED' },
+          { label: t('allStatus'), value: '' },
+          { label: t('published'), value: 'PUBLISHED' },
+          { label: t('draft'), value: 'DRAFT' },
+          { label: t('archived'), value: 'ARCHIVED' },
         ],
       },
       {
         type: 'select',
         key: 'category',
-        label: 'Category',
-        placeholder: 'All Categories',
+        label: t('category'),
+        placeholder: t('allCategories'),
         options: [
-          { label: 'All Categories', value: '' },
+          { label: t('allCategories'), value: '' },
           ...categories.map((cat) => ({
-            label: renderLocalizedText(cat.name, 'zh', cat.id),
+            label: renderLocalizedText(cat.name, locale, cat.id),
             value: cat.id,
           })),
         ],
       },
     ],
-    [categories],
+    [categories, t],
   );
 
   // 请求文章数据
@@ -483,7 +506,7 @@ export default function ArticlesPageV2() {
           .map((tag: string | { name?: any; id?: string }) =>
             typeof tag === 'string'
               ? tag
-              : renderLocalizedText(tag.name, 'zh', tag.id || ''),
+              : renderLocalizedText(tag.name, locale, tag.id || ''),
           )
           .filter(Boolean),
       }));
@@ -503,12 +526,12 @@ export default function ArticlesPageV2() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Article Management"
-        description="Manage blog articles including creation, editing, publishing, and deletion"
+        title={t('pageTitle')}
+        description={t('pageDescription')}
         showBackButton={true}
         onBack={() => router.push('/blog')}
         breadcrumbs={['Blog', 'Articles']}
-        buttonText="New Article"
+        buttonText={t('newArticle')}
         buttonOnClick={() => {
           setEditingArticle(null);
           setIsModalOpen(true);
@@ -526,7 +549,7 @@ export default function ArticlesPageV2() {
       />
 
       {/* Articles Table */}
-      <Card title="Article List">
+      <Card title={t('articleList')}>
         <SmartTable
           ref={actionRef}
           rowKey="id"
@@ -536,7 +559,7 @@ export default function ArticlesPageV2() {
           headerTitle={
             <div className="flex items-center gap-2">
               <FileText className="text-primary-500" size={20} />
-              <span className="font-semibold text-lg">Articles</span>
+              <span className="font-semibold text-lg">{t('articleList')}</span>
             </div>
           }
         />

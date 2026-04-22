@@ -8,6 +8,7 @@ import React, {
   type ReactNode,
 } from 'react';
 import { AVAILABLE_LOCALES, DEFAULT_LOCALE, type Locale } from '@lucky/shared';
+import { useAppStore } from '@/store/useAppStore';
 
 export interface LanguageContextType {
   locale: Locale;
@@ -32,6 +33,14 @@ export const LanguageProvider: React.FC<{ children: ReactNode }> = ({
   };
 
   const [locale, setLocale] = useState<Locale>(getSavedLocale());
+  const appStoreLang = useAppStore((state) => state.lang);
+
+  // 同步 useAppStore 中的语言设置
+  useEffect(() => {
+    if (appStoreLang !== locale) {
+      setLocale(appStoreLang);
+    }
+  }, [appStoreLang, locale]);
 
   // 保存语言设置到localStorage
   useEffect(() => {
@@ -40,8 +49,18 @@ export const LanguageProvider: React.FC<{ children: ReactNode }> = ({
     }
   }, [locale]);
 
+  // 包装 setLocale 函数，同时更新 useAppStore
+  const wrappedSetLocale = (newLocale: Locale) => {
+    setLocale(newLocale);
+    // 更新 useAppStore 中的语言设置
+    const appStore = useAppStore.getState();
+    if (appStore.lang !== newLocale) {
+      appStore.setLang(newLocale);
+    }
+  };
+
   return (
-    <LanguageContext.Provider value={{ locale, setLocale }}>
+    <LanguageContext.Provider value={{ locale, setLocale: wrappedSetLocale }}>
       {children}
     </LanguageContext.Provider>
   );

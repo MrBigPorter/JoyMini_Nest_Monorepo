@@ -515,6 +515,22 @@ TECHNICAL TERMS MUST REMAIN IN ENGLISH:
 - Operating systems: Linux, macOS, Windows, Android, iOS
 - Protocols: HTTP, HTTPS, WebRTC, SMTP, IMAP, FTP, SSH
 
+CRITICAL: Only the English term itself stays in English. The surrounding non-English text MUST be translated to the target language.
+For example:
+- "XSS攻击" (Chinese) -> "XSS攻撃" (Japanese), NOT "XSS攻击" (unchanged)
+- "API设计" (Chinese) -> "APIデザイン" (Japanese), NOT "API设计" (unchanged)
+- "JWT认证" (Chinese) -> "JWT認証" (Japanese), NOT "JWT认证" (unchanged)
+- "SQL注入" (Chinese) -> "SQLインジェクション" (Japanese), NOT "SQL注入" (unchanged)
+
+CRITICAL: Every Chinese word/phrase MUST be translated. NO Chinese characters allowed in the output.
+For example:
+- "前端开发" (Chinese) -> "Frontend Development" (English) / "フロントエンド開発" (Japanese) / "프론트엔드 개발" (Korean)
+- "安全防护" (Chinese) -> "Security Protection" (English) / "セキュリティ対策" (Japanese) / "보안 보호" (Korean)
+- "后端开发" (Chinese) -> "Backend Development" (English) / "バックエンド開発" (Japanese) / "백엔드 개발" (Korean)
+- "实战项目" (Chinese) -> "Practical Project" (English) / "実践プロジェクト" (Japanese) / "실전 프로젝트" (Korean)
+- "AC自动机" (Chinese) -> "AC Automaton" (English) / "ACオートマトン" (Japanese) / "AC 오토마톤" (Korean)
+- "敏感词过滤" (Chinese) -> "Sensitive Word Filtering" (English) / "機密語フィルタリング" (Japanese) / "민감어 필터링" (Korean)
+
 GENERAL RULES:
 1. Preserve ALL technical terms, proper nouns, brand names, and trademarks in English
 2. Keep code syntax, function names, class names, and technical identifiers unchanged
@@ -526,6 +542,7 @@ GENERAL RULES:
 Text to translate:
 ${text}
 `.trim();
+
 
     const result = await this.generateText(
       prompt,
@@ -555,6 +572,38 @@ ${text}
     const prompt = `
 Translate the following Markdown document to ${langName}.
 
+IMPORTANT TECHNICAL TRANSLATION RULES:
+
+TECHNICAL TERMS MUST REMAIN IN ENGLISH:
+- Framework names: NestJS, Next.js, React, Vue, Angular, Express, FastAPI
+- Database names: PostgreSQL, Redis, MongoDB, MySQL, SQLite, Prisma
+- Programming languages: TypeScript, JavaScript, Python, Java, Go, Rust, C++
+- Cloud services: Cloudflare, AWS, Google Cloud, Azure, Vercel, Netlify
+- Tools & libraries: Docker, Kubernetes, Tailwind CSS, Shadcn UI, Webpack, Vite
+- Technical concepts: Microservices, Monorepo, CI/CD, SSR, SPA, PWA, JAMstack
+- Security terms: XSS, CSRF, SQL Injection, JWT, OAuth, OpenID, CORS, WAF, DDoS
+- AI terms: LLM, Prompt Engineering, AI Moderation, Machine Learning, Deep Learning
+- Abbreviations: API, HTML, CSS, REST, GraphQL, WebSocket, CLI, GUI, UI, UX
+- Version control: Git, GitHub, GitLab, Bitbucket, SVN
+- Operating systems: Linux, macOS, Windows, Android, iOS
+- Protocols: HTTP, HTTPS, WebRTC, SMTP, IMAP, FTP, SSH
+
+CRITICAL: Only the English term itself stays in English. The surrounding non-English text MUST be translated to the target language.
+For example:
+- "XSS攻击" (Chinese) -> "XSS攻撃" (Japanese), NOT "XSS攻击" (unchanged)
+- "API设计" (Chinese) -> "APIデザイン" (Japanese), NOT "API设计" (unchanged)
+- "JWT认证" (Chinese) -> "JWT認証" (Japanese), NOT "JWT认证" (unchanged)
+- "SQL注入" (Chinese) -> "SQLインジェクション" (Japanese), NOT "SQL注入" (unchanged)
+
+CRITICAL: Every Chinese word/phrase MUST be translated. NO Chinese characters allowed in the output.
+For example:
+- "前端开发" (Chinese) -> "Frontend Development" (English) / "フロントエンド開発" (Japanese) / "프론트엔드 개발" (Korean)
+- "安全防护" (Chinese) -> "Security Protection" (English) / "セキュリティ対策" (Japanese) / "보안 보호" (Korean)
+- "后端开发" (Chinese) -> "Backend Development" (English) / "バックエンド開発" (Japanese) / "백엔드 개발" (Korean)
+- "实战项目" (Chinese) -> "Practical Project" (English) / "実践プロジェクト" (Japanese) / "실전 프로젝트" (Korean)
+- "AC自动机" (Chinese) -> "AC Automaton" (English) / "ACオートマトン" (Japanese) / "AC 오토마톤" (Korean)
+- "敏感词过滤" (Chinese) -> "Sensitive Word Filtering" (English) / "機密語フィルタリング" (Japanese) / "민감어 필터링" (Korean)
+
 Requirements:
 1. Preserve ALL Markdown formatting: headers, lists, code blocks, links, bold, italic
 2. Do NOT translate code inside code blocks
@@ -565,6 +614,7 @@ Requirements:
 Document:
 ${markdown}
 `.trim();
+
 
     const result = await this.generateText(
       prompt,

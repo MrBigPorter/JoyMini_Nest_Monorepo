@@ -9,6 +9,7 @@ import { Logger } from '@nestjs/common';
 import { Job, Queue } from 'bullmq';
 import { AiService, AiServiceLevel } from '@api/common/ai/ai.service';
 import { PrismaService } from '@api/common/prisma/prisma.service';
+import { TranslationJobService } from '../translation-job.service';
 import { CommentStatus } from '@prisma/client';
 
 @Processor('blog-ai', {
@@ -32,6 +33,7 @@ export class BlogAiProcessor extends WorkerHost {
   constructor(
     private aiService: AiService,
     private prisma: PrismaService,
+    private translationJobService: TranslationJobService,
     @InjectQueue('blog-ai') private blogAiQueue: Queue,
   ) {
     super();
@@ -275,10 +277,42 @@ EXCERPT: ${sourceExcerpt}
 CONTENT (Markdown format):
 ${sourceContent}
 
-IMPORTANT: 
+IMPORTANT TECHNICAL TRANSLATION RULES:
+
+TECHNICAL TERMS MUST REMAIN IN ENGLISH:
+- Framework names: NestJS, Next.js, React, Vue, Angular, Express, FastAPI
+- Database names: PostgreSQL, Redis, MongoDB, MySQL, SQLite, Prisma
+- Programming languages: TypeScript, JavaScript, Python, Java, Go, Rust, C++
+- Cloud services: Cloudflare, AWS, Google Cloud, Azure, Vercel, Netlify
+- Tools & libraries: Docker, Kubernetes, Tailwind CSS, Shadcn UI, Webpack, Vite
+- Technical concepts: Microservices, Monorepo, CI/CD, SSR, SPA, PWA, JAMstack
+- Security terms: XSS, CSRF, SQL Injection, JWT, OAuth, OpenID, CORS, WAF, DDoS
+- AI terms: LLM, Prompt Engineering, AI Moderation, Machine Learning, Deep Learning
+- Abbreviations: API, HTML, CSS, REST, GraphQL, WebSocket, CLI, GUI, UI, UX
+- Version control: Git, GitHub, GitLab, Bitbucket, SVN
+- Operating systems: Linux, macOS, Windows, Android, iOS
+- Protocols: HTTP, HTTPS, WebRTC, SMTP, IMAP, FTP, SSH
+
+CRITICAL: Only the English term itself stays in English. The surrounding non-English text MUST be translated to the target language.
+For example:
+- "XSS攻击" (Chinese) -> "XSS攻撃" (Japanese), NOT "XSS攻击" (unchanged)
+- "API设计" (Chinese) -> "APIデザイン" (Japanese), NOT "API设计" (unchanged)
+- "JWT认证" (Chinese) -> "JWT認証" (Japanese), NOT "JWT认证" (unchanged)
+- "SQL注入" (Chinese) -> "SQLインジェクション" (Japanese), NOT "SQL注入" (unchanged)
+
+CRITICAL: Every Chinese word/phrase MUST be translated. NO Chinese characters allowed in the output.
+For example:
+- "前端开发" (Chinese) -> "Frontend Development" (English) / "フロントエンド開発" (Japanese) / "프론트엔드 개발" (Korean)
+- "安全防护" (Chinese) -> "Security Protection" (English) / "セキュリティ対策" (Japanese) / "보안 보호" (Korean)
+- "后端开发" (Chinese) -> "Backend Development" (English) / "バックエンド開発" (Japanese) / "백엔드 개발" (Korean)
+- "实战项目" (Chinese) -> "Practical Project" (English) / "実践プロジェクト" (Japanese) / "실전 프로젝트" (Korean)
+- "AC自动机" (Chinese) -> "AC Automaton" (English) / "ACオートマトン" (Japanese) / "AC 오토마톤" (Korean)
+- "敏感词过滤" (Chinese) -> "Sensitive Word Filtering" (English) / "機密語フィルタリング" (Japanese) / "민감어 필터링" (Korean)
+
 1. Keep all technical terms in English (NestJS, React, etc.)
 2. Maintain the original Markdown formatting
 3. Return the translation in this exact JSON format:
+
 {
   "title": "Translated title",
   "excerpt": "Translated excerpt", 
@@ -482,11 +516,11 @@ IMPORTANT:
       case 'auto-reply':
         return this.processAutoReply(job.data);
       case 'translate-article':
-        return this.processArticleTranslation(job.data);
+        return this.processArticleTranslation(job.data, job);
       case 'translate-category':
-        return this.processCategoryTranslation(job.data);
+        return this.processCategoryTranslation(job.data, job);
       case 'translate-tag':
-        return this.processTagTranslation(job.data);
+        return this.processTagTranslation(job.data, job);
       default:
         this.logger.warn(`Unknown job type: ${job.name}`);
     }
@@ -648,23 +682,42 @@ IMPORTANT:
     this.logger.debug(`Job ${job.id} completed successfully`);
   }
 
-  private async processArticleTranslation(data: {
-    articleId: string;
-    targetLang: string;
-    sourceLang?: string;
-  }) {
+  private async processArticleTranslation(
+    data: {
+      articleId: string;
+      targetLang: string;
+      sourceLang?: string;
+    },
+    job: Job,
+  ) {
     this.logger.debug(
       `Translating article: ${data.articleId} to ${data.targetLang}`,
     );
 
+    // 更新 BullMQ 实时进度
+    await job.updateProgress(1);
+
+    // 创建/更新翻译任务记录
+    const dbJobId = await this.translationJobService.createJob(
+      'article',
+      data.articleId,
+      data.targetLang,
+    );
+
     try {
       // 标记翻译中状态
+      await this.translationJobService.updateProgress(dbJobId, 0, 'PROCESSING');
+      await job.updateProgress(2);
       await this.prisma.blogArticle.update({
         where: { id: data.articleId },
         data: {
           translationStatus: 'TRANSLATING',
         },
       });
+
+      // 进度 5% - 读取文章数据
+      await this.translationJobService.updateProgress(dbJobId, 5);
+      await job.updateProgress(5);
 
       const article = await this.prisma.blogArticle.findUnique({
         where: { id: data.articleId },
@@ -740,6 +793,9 @@ IMPORTANT:
         article.excerpt ||
         '';
 
+      // 进度 10% - 准备完成，开始调用 AI 翻译
+      await this.translationJobService.updateProgress(dbJobId, 10);
+
       // 使用批量翻译方法 - 将标题、摘要、正文合并为单个API请求
       // 这样可以避免碎片化请求导致的429错误
       const batchResult = await this.batchTranslateArticle(
@@ -748,11 +804,18 @@ IMPORTANT:
         sourceLang,
       );
 
+      // 进度 70% - AI 返回翻译结果
+      await this.translationJobService.updateProgress(dbJobId, 70);
+
       const titleTranslated = batchResult.title;
       const contentTranslated = batchResult.content;
       const excerptTranslated = batchResult.excerpt;
 
+      // 进度 80% - 保存翻译结果到数据库
+      await this.translationJobService.updateProgress(dbJobId, 80);
+
       // 保存翻译结果到Localized JSON字段
+
       const updateData: any = {
         translationStatus: 'COMPLETED',
         translatedAt: new Date(),
@@ -793,11 +856,22 @@ IMPORTANT:
         data: updateData,
       });
 
+      // 更新翻译任务为完成
+      await this.translationJobService.updateProgress(dbJobId, 100, 'COMPLETED');
+
       this.logger.log(`Article translation completed: ${data.articleId}`);
     } catch (err) {
       this.logger.error(
         `Article translation failed for ${data.articleId}`,
         err,
+      );
+
+      // 更新翻译任务为失败
+      await this.translationJobService.updateProgress(
+        dbJobId,
+        0,
+        'FAILED',
+        err instanceof Error ? err.message : 'Unknown error',
       );
 
       // 识别OpenSSL兼容错误，这是环境配置问题，不是代码问题
@@ -829,16 +903,32 @@ IMPORTANT:
     }
   }
 
-  private async processCategoryTranslation(data: {
-    categoryId: string;
-    targetLang: string;
-    sourceLang?: string;
-  }) {
+  private async processCategoryTranslation(
+    data: {
+      categoryId: string;
+      targetLang: string;
+      sourceLang?: string;
+    },
+    job: Job,
+  ) {
     this.logger.debug(
       `Translating category: ${data.categoryId} to ${data.targetLang}`,
     );
 
+    // 创建/更新翻译任务记录
+    const dbJobId = await this.translationJobService.createJob(
+      'category',
+      data.categoryId,
+      data.targetLang,
+    );
+
     try {
+      // 标记翻译中状态
+      await this.translationJobService.updateProgress(dbJobId, 0, 'PROCESSING');
+
+      // 进度 10% - 读取分类数据
+      await this.translationJobService.updateProgress(dbJobId, 10);
+
       const category = await this.prisma.blogCategory.findUnique({
         where: { id: data.categoryId },
       });
@@ -900,12 +990,18 @@ IMPORTANT:
         return '';
       };
 
+      // 进度 20% - 准备完成，开始调用 AI 翻译名称
+      await this.translationJobService.updateProgress(dbJobId, 20);
+
       // 执行翻译 - 现在依赖AI服务中的Prompt规则保护技术术语
       const nameSource = getSourceContent('name', 'nameLocalized');
       const nameTranslated = await this.aiService.translateText(
         nameSource,
         data.targetLang,
       );
+
+      // 进度 50% - 名称翻译完成，开始翻译描述
+      await this.translationJobService.updateProgress(dbJobId, 50);
 
       const descriptionSource = getSourceContent(
         'description',
@@ -915,6 +1011,9 @@ IMPORTANT:
         descriptionSource,
         data.targetLang,
       );
+
+      // 进度 80% - 翻译完成，保存到数据库
+      await this.translationJobService.updateProgress(dbJobId, 80);
 
       // 保存翻译结果到Localized JSON字段
       const updateData: any = {};
@@ -936,11 +1035,22 @@ IMPORTANT:
         data: updateData,
       });
 
+      // 更新翻译任务为完成
+      await this.translationJobService.updateProgress(dbJobId, 100, 'COMPLETED');
+
       this.logger.log(`Category translation completed: ${data.categoryId}`);
     } catch (err) {
       this.logger.error(
         `Category translation failed for ${data.categoryId}`,
         err,
+      );
+
+      // 更新翻译任务为失败
+      await this.translationJobService.updateProgress(
+        dbJobId,
+        0,
+        'FAILED',
+        err instanceof Error ? err.message : 'Unknown error',
       );
 
       // 不要重新抛出错误，避免队列无限重试
@@ -952,14 +1062,31 @@ IMPORTANT:
     }
   }
 
-  private async processTagTranslation(data: {
-    tagId: string;
-    targetLang: string;
-    sourceLang?: string;
-  }) {
+
+  private async processTagTranslation(
+    data: {
+      tagId: string;
+      targetLang: string;
+      sourceLang?: string;
+    },
+    job: Job,
+  ) {
     this.logger.debug(`Translating tag: ${data.tagId} to ${data.targetLang}`);
 
+    // 创建/更新翻译任务记录
+    const dbJobId = await this.translationJobService.createJob(
+      'tag',
+      data.tagId,
+      data.targetLang,
+    );
+
     try {
+      // 标记翻译中状态
+      await this.translationJobService.updateProgress(dbJobId, 0, 'PROCESSING');
+
+      // 进度 10% - 读取标签数据
+      await this.translationJobService.updateProgress(dbJobId, 10);
+
       const tag = await this.prisma.blogTag.findUnique({
         where: { id: data.tagId },
       });
@@ -1021,12 +1148,18 @@ IMPORTANT:
         return '';
       };
 
+      // 进度 20% - 准备完成，开始调用 AI 翻译
+      await this.translationJobService.updateProgress(dbJobId, 20);
+
       // 执行翻译 - 现在依赖AI服务中的Prompt规则保护技术术语
       const nameSource = getSourceContent('name', 'nameLocalized');
       const nameTranslated = await this.aiService.translateText(
         nameSource,
         data.targetLang,
       );
+
+      // 进度 80% - 翻译完成，保存到数据库
+      await this.translationJobService.updateProgress(dbJobId, 80);
 
       // 保存翻译结果到Localized JSON字段
       const updateData: any = {};
@@ -1043,9 +1176,20 @@ IMPORTANT:
         data: updateData,
       });
 
+      // 更新翻译任务为完成
+      await this.translationJobService.updateProgress(dbJobId, 100, 'COMPLETED');
+
       this.logger.log(`Tag translation completed: ${data.tagId}`);
     } catch (err) {
       this.logger.error(`Tag translation failed for ${data.tagId}`, err);
+
+      // 更新翻译任务为失败
+      await this.translationJobService.updateProgress(
+        dbJobId,
+        0,
+        'FAILED',
+        err instanceof Error ? err.message : 'Unknown error',
+      );
 
       // 不要重新抛出错误，避免队列无限重试
       return {
@@ -1055,4 +1199,5 @@ IMPORTANT:
       };
     }
   }
+
 }

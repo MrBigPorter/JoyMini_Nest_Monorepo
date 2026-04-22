@@ -8,6 +8,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+
 model User {
   /// 用户ID
   id                    String                @id @default(cuid()) @map("id") @db.VarChar(32)
@@ -1549,6 +1550,7 @@ model BlogArticle {
   tags          BlogTag[]     @relation("BlogArticleTags")
   comments      BlogComment[]
   userBookmark UserBookmark[]
+  translationJobs TranslationJob[]
 
   createdAt     DateTime      @default(now()) @map("created_at")
   updatedAt     DateTime      @updatedAt @map("updated_at")
@@ -1572,6 +1574,7 @@ model BlogCategory {
   parent      BlogCategory? @relation("BlogCategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
   children    BlogCategory[] @relation("BlogCategoryHierarchy")
   articles    BlogArticle[]
+  translationJobs TranslationJob[]
   createdAt   DateTime      @default(now()) @map("created_at")
   updatedAt   DateTime      @updatedAt @map("updated_at")
 
@@ -1588,6 +1591,7 @@ model BlogTag {
   color       String?       @default("#3b82f6") @db.VarChar(7)
   description Json?         @db.JsonB
   articles    BlogArticle[] @relation("BlogArticleTags")
+  translationJobs TranslationJob[]
   createdAt   DateTime      @default(now()) @map("created_at")
   updatedAt   DateTime      @default(now()) @updatedAt @map("updated_at")
   
@@ -1654,4 +1658,33 @@ model UserBookmark {
   @@index([articleId], map: "idx_user_bookmark_article_id")
   @@index([createdAt], map: "idx_user_bookmark_created_at")
   @@map("user_bookmarks")
+}
+
+/// 翻译任务日志
+model TranslationJob {
+  id          String   @id @default(cuid()) @db.VarChar(32)
+  type        String   @db.VarChar(50)   // translate-article | translate-category | translate-tag
+  targetId    String   @db.VarChar(32)   // articleId / categoryId / tagId
+  targetLang  String   @db.VarChar(10)
+  status      String   @db.VarChar(20)   // QUEUED | PROCESSING | COMPLETED | FAILED
+  progress    Int      @default(0) @db.SmallInt  // 0-100
+  errorMsg    String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+  startedAt   DateTime? @map("started_at")
+  completedAt DateTime? @map("completed_at")
+
+  // 关系字段
+  articleId   String?   @db.VarChar(32)
+  article     BlogArticle? @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  
+  categoryId  String?   @db.VarChar(32)
+  category    BlogCategory? @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  
+  tagId       String?   @db.VarChar(32)
+  tag         BlogTag? @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@index([status], map: "idx_translation_job_status")
+  @@index([type, targetId], map: "idx_translation_job_type_target")
+  @@index([targetLang], map: "idx_translation_job_target_lang")
+  @@map("translation_jobs")
 }

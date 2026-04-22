@@ -5,12 +5,13 @@
 ## 📋 目录
 
 - [🚀 快速开始](#-快速开始)
+- [📱 Capacitor移动开发](#-capacitor移动开发)
+- [🌐 Cloudflare Tunnel配置](#-cloudflare-tunnel配置)
 - [🏗️ 架构设计](#️-架构设计)
 - [🛠️ 技术栈](#️-技术栈)
 - [📦 项目结构](#-项目结构)
 - [🌐 部署指南](#-部署指南)
 - [🎯 性能优化](#-性能优化)
-- [📱 移动应用](#-移动应用)
 - [🧪 测试策略](#-测试策略)
 - [📊 监控与分析](#-监控与分析)
 - [🔧 开发指南](#-开发指南)
@@ -24,6 +25,8 @@
 - Node.js 20+
 - Yarn 4+
 - Git
+- iOS开发：Xcode 15+（macOS）
+- Android开发：Android Studio（可选）
 
 ### 安装步骤
 
@@ -74,6 +77,170 @@ yarn type-check
 # 代码格式化
 yarn format
 ```
+
+## 📱 Capacitor移动开发
+
+### 🎯 一句话指南
+**打一个命令，改代码，手机自动刷新**
+
+### 📋 核心命令
+
+#### 第一次使用（完整配置）
+```bash
+# 一键搞定所有配置
+yarn dev:full
+```
+
+#### 日常开发（iOS）
+```bash
+# 启动开发环境 + 手机热更新
+yarn dev:ios
+```
+
+#### 其他常用命令
+```bash
+# 只构建不运行
+yarn build:ios
+
+# 重新加载（修改原生代码后）
+yarn reload:ios
+
+# 热重载（修改Web代码后自动刷新）
+yarn hotreload:ios
+
+# 修复Xcode问题
+yarn setup:ios
+
+# 同步Capacitor配置
+yarn ios:sync
+```
+
+### ⚡ 开发工作流
+
+#### 1. 启动开发
+```bash
+yarn dev:ios
+```
+
+#### 2. 选择设备
+- 选择你的iPhone或模拟器
+- 第一次需要信任开发者（手机设置 → 通用 → VPN与设备管理）
+
+#### 3. 开始开发
+- 修改 `src/` 目录下的任何文件
+- 保存文件
+- 手机自动刷新
+
+### 🔧 Capacitor配置
+
+#### 配置文件：`capacitor.config.ts`
+```typescript
+// 开发环境检测
+const isDev = process.env.NODE_ENV === 'development';
+
+const config: CapacitorConfig = {
+  appId: 'com.tarsier.labs',
+  appName: isDev ? 'Tarsier Labs Dev' : 'Tarsier Labs',
+  webDir: 'out',
+  server: isDev
+    ? {
+        // 开发环境：连接到Cloudflare Tunnel公网域名
+        url: 'https://dev.joyminis.com',
+        cleartext: false,
+        allowNavigation: ['*'],
+      }
+    : {
+        // 生产环境：保持现有配置
+        androidScheme: 'https',
+        iosScheme: 'https',
+      },
+  // ... 其他配置
+};
+```
+
+#### 配置说明
+- **开发环境**：连接到Cloudflare Tunnel公网域名，支持热重载
+- **生产环境**：使用本地打包资源
+- **自动切换**：根据 `NODE_ENV` 环境变量自动切换
+
+### 🚨 故障排除
+
+#### 问题：Xcode编译失败
+```bash
+yarn setup:ios
+```
+
+#### 问题：手机不刷新
+```bash
+yarn hotreload:ios
+```
+
+#### 问题：需要重新安装
+```bash
+yarn reload:ios
+```
+
+#### 问题：Capacitor配置不同步
+```bash
+yarn ios:sync
+```
+
+### ✅ 验证成功
+1. 修改 `src/app/[locale]/page.tsx` 中的文字
+2. 保存文件
+3. 手机屏幕立即更新
+
+## 🌐 Cloudflare Tunnel配置
+
+### 📖 完整文档
+所有Cloudflare Tunnel相关配置请参考：
+**[docs/CLOUDFLARE_TUNNEL_GUIDE.md](../docs/CLOUDFLARE_TUNNEL_GUIDE.md)**
+
+### 🎯 快速使用
+
+#### 1. 安装cloudflared
+```bash
+# macOS
+brew install cloudflare/cloudflare/cloudflared
+
+# 其他系统参考官方文档
+```
+
+#### 2. 临时测试（最简单）
+```bash
+# 启动前端博客开发服务
+yarn dev
+
+# 新开终端，暴露到公网
+yarn dev:tunnel
+```
+
+#### 3. 完整配置（永久域名）
+```bash
+# 登录授权
+cloudflared tunnel login
+
+# 创建隧道
+cloudflared tunnel create lucky-nest-monorepo
+
+# 更新配置文件
+# 编辑 cloudflared.yml，替换隧道ID
+
+# 启动隧道
+yarn dev:tunnel
+```
+
+### 📡 可用域名
+| 服务 | 本地端口 | 公网域名 |
+|------|----------|----------|
+| 前端博客 | 3002 | `https://dev.joyminis.com` |
+| Admin 后台 | 3001 | `https://dev.admin.joyminis.com` |
+| API 服务 | 3002 | `https://dev.api.joyminis.com` |
+
+### ⚠️ 注意事项
+1. **开发服务必须运行**：隧道只是代理，本地开发服务必须已经启动
+2. **热重载正常工作**：Cloudflare Tunnel完美支持WebSocket，Next.js热重载工作正常
+3. **无需重启隧道**：修改代码时隧道保持连接，只有修改配置才需要重启
 
 ## 🏗️ 架构设计
 
@@ -127,43 +294,6 @@ yarn format
 3. **Server Actions自动降级**: 支持Server Actions的平台优先使用，不支持时自动降级到API调用
 4. **统一API接口**: 所有平台使用相同的API接口，适配器处理平台差异
 5. **渐进式增强**: 根据平台能力提供最佳用户体验
-
-#### 平台适配器目录结构
-
-```
-src/lib/platform/
-├── index.ts                    # 统一入口
-├── types.ts                    # 核心类型定义
-├── detectors/                  # 运行时环境检测
-│   └── runtime.detector.ts     # 平台检测器
-├── factories/                  # 工厂模式
-│   ├── adapter-factory.ts      # 平台适配器工厂
-│   └── query-factory.ts        # 平台感知Query工厂
-├── hooks/                      # 平台感知Hooks
-│   └── usePlatformQuery.ts     # 平台感知React Query Hooks
-└── adapters/                   # 平台适配器实现
-    ├── web.adapter.ts          # Web平台适配器
-    ├── h5.adapter.ts           # H5平台适配器
-    └── capacitor.adapter.ts    # Capacitor平台适配器
-```
-
-### 核心特性
-
-- **多语言支持**: 内置 next-intl 国际化
-- **响应式设计**: 移动优先的 Tailwind CSS
-- **认证系统**: 邮箱、手机、Google、Facebook登录
-- **内容管理**: 文章、分类、标签、书签
-- **全文搜索**: 实时搜索结果
-- **评论系统**: 嵌套评论与审核
-
-### 核心特性
-
-- **多语言支持**: 内置 next-intl 国际化
-- **响应式设计**: 移动优先的 Tailwind CSS
-- **认证系统**: 邮箱、手机、Google、Facebook登录
-- **内容管理**: 文章、分类、标签、书签
-- **全文搜索**: 实时搜索结果
-- **评论系统**: 嵌套评论与审核
 
 ## 🛠️ 技术栈
 
@@ -322,45 +452,6 @@ yarn deploy:cloudflare:production
 - **TTFB (首字节时间)**: < 200毫秒
 - **页面切换**: < 300毫秒
 
-## 📱 移动应用
-
-### Capacitor 集成
-
-#### 1. 设置 Capacitor
-
-```bash
-# 安装 Capacitor
-npm install @capacitor/core @capacitor/cli
-
-# 初始化 Capacitor
-npx cap init lucky-blog com.lucky.blog
-
-# 添加平台
-npx cap add ios
-npx cap add android
-```
-
-#### 2. 构建命令
-
-```bash
-# 构建Web资源
-yarn build
-
-# 同步到原生项目
-npx cap sync
-
-# 打开IDE
-npx cap open ios
-npx cap open android
-```
-
-#### 3. 原生功能
-
-- **推送通知**: Firebase Cloud Messaging
-- **离线存储**: Capacitor Preferences + SQLite
-- **设备功能**: 相机、地理位置、生物识别认证
-- **应用商店**: iOS App Store + Google Play Store
-
 ## 🧪 测试策略
 
 ### 测试套件
@@ -452,18 +543,4 @@ chore:    构建过程或工具
 ## 🙏 致谢
 
 - Next.js 团队提供的优秀框架
-- Vercel 提供的部署基础设施
-- Cloudflare 提供的边缘计算平台
-- 所有贡献者和维护者
-
-## 📞 支持
-
-如需支持，请：
-
-1. 查看 [文档](docs/)
-2. 搜索现有 [issues](https://gitlab.com/MrSuperPorter/joy_mini_monorepo/issues)
-3. 如有需要创建新issue
-
----
-
-**由 Lucky 团队用 ❤️ 构建**
+- Vercel 

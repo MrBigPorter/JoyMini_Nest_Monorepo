@@ -1,7 +1,9 @@
 'use client';
 
+import { useState } from 'react';
 import { useLocale } from 'next-intl';
 import { Link } from '@/navigation';
+import Image from 'next/image';
 import { formatDistanceToNow } from 'date-fns';
 import { getDateFnsLocale } from '@/lib/utils/date-locale';
 import type { Article } from '@/lib/types/blog';
@@ -19,6 +21,14 @@ interface ArticleCardProps {
   };
   /** 紧凑模式，用于搜索结果等场景 */
   compact?: boolean;
+  /** 是否显示封面图片 */
+  showCoverImage?: boolean;
+  /** 图片位置 */
+  imagePosition?: 'top' | 'left';
+  /** 图片宽高比 */
+  imageAspect?: 'video' | 'square' | 'auto';
+  /** 默认封面图片URL */
+  fallbackImage?: string;
 }
 
 export function ArticleCard({
@@ -27,8 +37,14 @@ export function ArticleCard({
   onBookmarkChange,
   bookmarkStatus,
   compact = false,
+  showCoverImage = true,
+  imagePosition = 'top',
+  imageAspect = 'video',
+  fallbackImage = 'https://placehold.co/800x450/3b82f6/ffffff?text=Tarsier+Labs+Article',
 }: ArticleCardProps) {
   const locale = useLocale();
+  const [imageError, setImageError] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(false);
 
   // 处理两种类型的差异
   const publishedDate =
@@ -49,6 +65,17 @@ export function ArticleCard({
       );
     }
   };
+
+  // 获取封面图片URL
+  const coverImageUrl = article.coverImage || fallbackImage;
+
+  // 确定宽高比类名
+  const aspectRatioClass =
+    imageAspect === 'video'
+      ? 'aspect-video'
+      : imageAspect === 'square'
+        ? 'aspect-square'
+        : '';
 
   return (
     <div
@@ -71,6 +98,54 @@ export function ArticleCard({
 
       <Link href={`/articles/${article.slug}`} className="block">
         <div className="space-y-3">
+          {/* 封面图片 - 顶部位置 */}
+          {showCoverImage && imagePosition === 'top' && coverImageUrl && (
+            <div
+              className={`relative overflow-hidden rounded-lg mb-4 ${aspectRatioClass}`}
+            >
+              {/* 图片加载占位符 */}
+              {!imageLoaded && !imageError && (
+                <div className="absolute inset-0 bg-slate-100 dark:bg-slate-800 animate-pulse" />
+              )}
+
+              {/* 图片错误占位符 */}
+              {imageError && (
+                <div className="absolute inset-0 bg-slate-200 dark:bg-slate-700 flex items-center justify-center">
+                  <div className="text-slate-400 dark:text-slate-500 text-center p-4">
+                    <svg
+                      className="w-12 h-12 mx-auto mb-2"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={1.5}
+                        d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                      />
+                    </svg>
+                    <p className="text-xs">图片加载失败</p>
+                  </div>
+                </div>
+              )}
+
+              {/* 实际图片 */}
+              <Image
+                src={imageError ? fallbackImage : coverImageUrl}
+                alt={article.title}
+                fill
+                className={`object-cover transition-transform duration-300 group-hover:scale-105 ${
+                  imageLoaded ? 'opacity-100' : 'opacity-0'
+                }`}
+                sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                quality={85}
+                onLoad={() => setImageLoaded(true)}
+                onError={() => setImageError(true)}
+              />
+            </div>
+          )}
+
           {/* 标题 */}
           <h3
             className={`font-semibold text-slate-800 dark:text-slate-200 group-hover:text-primary-600 dark:group-hover:text-primary-500 transition-colors line-clamp-2 ${

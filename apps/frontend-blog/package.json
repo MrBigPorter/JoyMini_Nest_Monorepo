@@ -30,7 +30,18 @@
     "ios:run": "npx cap run ios",
     "app:init": "bash scripts/capacitor/init-app.sh",
     "app:build:android": "bash scripts/capacitor/build-android.sh",
-    "app:build:ios": "bash scripts/capacitor/build-ios.sh"
+    "app:build:ios": "bash scripts/capacitor/build-ios.sh",
+    "dev:tunnel": "cloudflared tunnel --config ../../cloudflared.yml run lucky-nest-monorepo",
+    "dev:app": "yarn dev && sleep 3 && yarn dev:tunnel",
+    "dev:capacitor": "NODE_ENV=development npx cap sync && NODE_ENV=development npx cap run ios",
+    "setup:ios": "bash scripts/setup-ios-dev.sh",
+    "build:ios": "NODE_ENV=development npx cap sync ios && cd ios && xcodebuild -workspace App.xcworkspace -scheme App -configuration Debug -destination 'generic/platform=iOS' build",
+    "reload:ios": "NODE_ENV=development npx cap sync ios && NODE_ENV=development npx cap run ios",
+    "hotreload:ios": "NODE_ENV=development npx cap run ios --livereload --external",
+    "dev:ios": "yarn dev:app & sleep 5 && yarn hotreload:ios",
+    "dev:full": "echo '🚀 完整开发流程启动...' && yarn setup:ios && yarn dev:ios",
+    "init:capacitor": "bash scripts/init-capacitor.sh",
+    "dev:simple": "echo '🎯 最简单的开发流程：' && echo '1. 窗口1: yarn dev:app' && echo '2. 窗口2: yarn dev:capacitor'"
   },
   "dependencies": {
     "@capacitor/android": "^6.0.0",
@@ -76,6 +87,7 @@
     "zustand": "^4.0.0"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.3.1",
     "@cloudflare/workers-types": "^4.20240208.0",
     "@playwright/test": "^1.40.0",
     "@types/next-pwa": "^5",

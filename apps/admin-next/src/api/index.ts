@@ -1415,13 +1415,28 @@ export const blogApi = {
     },
 
     // 获取翻译进度
-    getTranslationProgress: async () => {
-      return await http.get('/v1/admin/blog/translation-progress');
+    getTranslationProgress: async (languageCode?: string) => {
+      return await http.get('/v1/admin/blog/translation-progress', {
+        languageCode,
+      });
     },
 
     // 获取翻译任务列表
     getTranslationJobs: async () => {
       return await http.get('/v1/admin/blog/translation-jobs');
+    },
+    getTranslationJobsDetail: async (
+      targetLang?: string,
+      status?: string,
+      page?: number,
+      pageSize?: number,
+    ) => {
+      return await http.get('/v1/admin/blog/translation-jobs-detail', {
+        targetLang,
+        status,
+        page,
+        pageSize,
+      });
     },
 
     // 获取翻译日志
@@ -1451,6 +1466,20 @@ export const blogApi = {
     // 获取启用语言列表
     getEnabledLanguages: async () => {
       return await http.get('/v1/admin/blog/enabled-languages');
+    },
+
+    // 获取待翻译文章列表
+    getUntranslatedArticles: async (languageCode: string) => {
+      return await http.get('/v1/admin/blog/untranslated-articles', {
+        languageCode,
+      });
+    },
+
+    // 翻译单篇文章
+    translateArticle: async (articleId: string, targetLang?: string) => {
+      return await http.post(`/v1/admin/blog/articles/${articleId}/translate`, {
+        targetLang,
+      });
     },
   },
 };

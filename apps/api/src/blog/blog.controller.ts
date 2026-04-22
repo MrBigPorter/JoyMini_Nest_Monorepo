@@ -8,6 +8,7 @@ import {
   Param,
   Query,
   UseGuards,
+  Header,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { BlogService } from './blog.service';
@@ -22,6 +23,8 @@ export class BlogController {
   constructor(private readonly blogService: BlogService) {}
 
   @Get('articles')
+  @ApiBearerAuth()
+  @UseGuards(AdminJwtAuthGuard)
   @ApiOperation({ summary: '获取文章列表' })
   async getArticles(
     @Query('page') page?: number,
@@ -31,6 +34,7 @@ export class BlogController {
     @Query('tagId') tagId?: string,
     @Query('authorId') authorId?: string,
     @Query('search') search?: string,
+    @Query('locale') locale?: string,
   ) {
     console.log('BlogController: getArticles', {
       page,
@@ -40,6 +44,7 @@ export class BlogController {
       tagId,
       authorId,
       search,
+      locale,
     });
     return this.blogService.getArticles({
       page,
@@ -49,16 +54,21 @@ export class BlogController {
       tagId,
       authorId,
       search,
+      locale,
     });
   }
 
   @Get('articles/:id')
+  @ApiBearerAuth()
+  @UseGuards(AdminJwtAuthGuard)
   @ApiOperation({ summary: '获取文章详情' })
   async getArticle(@Param('id') id: string) {
     return this.blogService.getArticle(id, true);
   }
 
   @Get('articles/slug/:slug')
+  @ApiBearerAuth()
+  @UseGuards(AdminJwtAuthGuard)
   @ApiOperation({ summary: '通过 Slug 获取文章' })
   async getArticleBySlug(@Param('slug') slug: string) {
     return this.blogService.getArticleBySlug(slug, true);
@@ -136,8 +146,11 @@ export class BlogController {
   @ApiBearerAuth()
   @UseGuards(AdminJwtAuthGuard)
   @ApiOperation({ summary: '获取翻译进度统计' })
-  async getTranslationProgress() {
-    return this.blogService.getTranslationProgress();
+  @Header('Cache-Control', 'no-cache, no-store, must-revalidate')
+  @Header('Pragma', 'no-cache')
+  @Header('Expires', '0')
+  async getTranslationProgress(@Query('languageCode') languageCode?: string) {
+    return this.blogService.getTranslationProgress(languageCode);
   }
 
   @Get('translation-jobs')
@@ -146,6 +159,25 @@ export class BlogController {
   @ApiOperation({ summary: '获取翻译任务列表' })
   async getTranslationJobs() {
     return this.blogService.getTranslationJobs();
+  }
+
+  @Get('translation-jobs-detail')
+  @ApiBearerAuth()
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiOperation({ summary: '获取翻译任务详情（持久化记录）' })
+  async getTranslationJobsDetail(
+    @Query('targetLang') targetLang?: string,
+    @Query('status') status?: string,
+    @Query('page') page?: number,
+    @Query('pageSize') pageSize?: number,
+  ) {
+    const statusArray = status ? status.split(',') : undefined;
+    return this.blogService.getTranslationJobsDetail(
+      targetLang,
+      statusArray,
+      page,
+      pageSize,
+    );
   }
 
   @Get('translation-logs')
@@ -166,6 +198,9 @@ export class BlogController {
   @ApiBearerAuth()
   @UseGuards(AdminJwtAuthGuard)
   @ApiOperation({ summary: '检测翻译问题' })
+  @Header('Cache-Control', 'no-cache, no-store, must-revalidate')
+  @Header('Pragma', 'no-cache')
+  @Header('Expires', '0')
   async getTranslationIssues(@Query('languageCode') languageCode?: string) {
     return this.blogService.detectTranslationIssues(languageCode);
   }
@@ -191,5 +226,13 @@ export class BlogController {
   @ApiOperation({ summary: '获取启用语言列表' })
   async getEnabledLanguages() {
     return this.blogService.getEnabledLanguages();
+  }
+
+  @Get('untranslated-articles')
+  @ApiBearerAuth()
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiOperation({ summary: '获取指定语言下未翻译的文章列表' })
+  async getUntranslatedArticles(@Query('languageCode') languageCode: string) {
+    return this.blogService.getUntranslatedArticles(languageCode);
   }
 }

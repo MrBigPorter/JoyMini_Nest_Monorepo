@@ -1,6 +1,6 @@
 'use client';
 
-import React, { forwardRef, useImperativeHandle } from 'react';
+import React, { forwardRef, useImperativeHandle, useEffect } from 'react';
 import {
   Form,
   FormTextField,
@@ -32,20 +32,26 @@ interface ArticleFormProps {
   onUpload?: (file: File) => Promise<string>;
   locale?: string; // 可选：当前语言
   isLocalized?: boolean; // 可选：是否多语言模式
+  onFieldChange?: (field: string, value: string) => void; // 新增：字段变化回调
 }
 
 // 辅助函数：安全提取字符串值
 function extractStringValue(value: any): string {
   if (typeof value === 'string') return value;
   if (value && typeof value === 'object') {
-    // 如果是多语言对象，返回空字符串（由父组件处理）
+    // 如果是多语言对象，返回当前语言的值或空字符串
     return '';
   }
   return '';
 }
 
+// 辅助函数：检查是否为File对象
+function isFile(value: any): value is File {
+  return value instanceof File;
+}
+
 export const ArticleForm = forwardRef<ArticleFormRef, ArticleFormProps>(
-  ({ onUpload, locale = 'zh', isLocalized = false }, ref) => {
+  ({ onUpload, locale = 'zh', isLocalized = false, onFieldChange }, ref) => {
     const form = useForm<ArticleFormValues>({
       resolver: zodResolver(formSchema),
       defaultValues: {
@@ -58,6 +64,31 @@ export const ArticleForm = forwardRef<ArticleFormRef, ArticleFormProps>(
 
     const { control, watch, setValue, formState } = form;
     const { errors } = formState;
+
+    // 监听表单变化并更新父表单
+    useEffect(() => {
+      const subscription = watch((value, { name }) => {
+        if (name) {
+          // 这里可以添加逻辑来通知父表单更新
+          // 使用类型安全的访问方式
+          if (
+            name === 'title' ||
+            name === 'content' ||
+            name === 'excerpt' ||
+            name === 'featuredImage'
+          ) {
+            const fieldValue = value[name];
+            console.log(`ArticleForm field changed: ${name} =`, fieldValue);
+
+            // 调用回调函数通知父组件
+            if (onFieldChange && fieldValue !== undefined) {
+              onFieldChange(name, fieldValue);
+            }
+          }
+        }
+      });
+      return () => subscription.unsubscribe();
+    }, [watch, onFieldChange]);
 
     useImperativeHandle(ref, () => ({
       getValues: () => {

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+
 import {
   FileText,
   FolderTree,
@@ -16,7 +17,10 @@ import { PageHeader } from '@/components/scaffold/PageHeader';
 import { Card, Badge } from '@/components/UIComponents';
 import { blogApi } from '@/api';
 import { BlogArticleModal } from '@/views/blog/BlogArticleModal';
+import { useLanguage } from '@/hooks/LanguageProvider';
+import { renderLocalizedText } from '@/utils/localizedText';
 import LocalizedText from '@/components/blog/LocalizedText';
+import { TRANSLATIONS } from '@/constants';
 
 export default function BlogDashboardPage() {
   const [stats, setStats] = useState({
@@ -25,6 +29,20 @@ export default function BlogDashboardPage() {
     totalTags: 0,
     pendingComments: 0,
   });
+  const { locale } = useLanguage();
+
+  // 翻译函数
+  const t = (key: string, params?: Record<string, string | number>) => {
+    const safeLocale = locale === 'zh' || locale === 'en' ? locale : 'en';
+    const fullKey = `blog_dashboard_${key}`;
+    let text = TRANSLATIONS[safeLocale][fullKey] || TRANSLATIONS['en'][fullKey] || key;
+    if (params) {
+      Object.entries(params).forEach(([k, v]) => {
+        text = text.replace(`{${k}}`, String(v));
+      });
+    }
+    return text;
+  };
   const [recentArticles, setRecentArticles] = useState<
     Array<{
       id: string;
@@ -73,13 +91,7 @@ export default function BlogDashboardPage() {
           // 将 Localized 格式的标题转换为字符串
           let titleStr = 'Untitled';
           if (article.title) {
-            if (typeof article.title === 'string') {
-              titleStr = article.title;
-            } else if (typeof article.title === 'object' && article.title !== null) {
-              // 优先使用当前语言，回退到中文，再回退到英文
-              const currentLang = 'zh'; // 这里应该从语言上下文获取，暂时用中文
-              titleStr = article.title[currentLang] || article.title.zh || article.title.en || 'Untitled';
-            }
+            titleStr = renderLocalizedText(article.title, locale, 'Untitled');
           }
           return {
             title: titleStr,
@@ -123,9 +135,9 @@ export default function BlogDashboardPage() {
 
   const dashboardStats = [
     {
-      title: 'Total Articles',
+      title: t('totalArticles'),
       value: stats.totalArticles.toString(),
-      description: 'Number of published articles',
+      description: t('numberOfPublishedArticles'),
       icon: FileText,
       color: 'blue',
       colorClasses: {
@@ -135,9 +147,9 @@ export default function BlogDashboardPage() {
       href: '/blog/articles',
     },
     {
-      title: 'Categories',
+      title: t('categories'),
       value: stats.totalCategories.toString(),
-      description: 'Number of article categories',
+      description: t('numberOfArticleCategories'),
       icon: FolderTree,
       color: 'green',
       colorClasses: {
@@ -147,9 +159,9 @@ export default function BlogDashboardPage() {
       href: '/blog/categories',
     },
     {
-      title: 'Tags',
+      title: t('tags'),
       value: stats.totalTags.toString(),
-      description: 'Number of article tags',
+      description: t('numberOfArticleTags'),
       icon: Tag,
       color: 'purple',
       colorClasses: {
@@ -159,9 +171,9 @@ export default function BlogDashboardPage() {
       href: '/blog/tags',
     },
     {
-      title: 'Pending Comments',
+      title: t('pendingComments'),
       value: stats.pendingComments.toString(),
-      description: 'Comments awaiting moderation',
+      description: t('commentsAwaitingModeration'),
       icon: MessageSquare,
       color: 'amber',
       colorClasses: {
@@ -178,7 +190,7 @@ export default function BlogDashboardPage() {
         <div className="text-center">
           <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
           <p className="mt-4 text-sm text-muted-foreground">
-            Loading blog dashboard...
+            {t('loadingBlogDashboard')}
           </p>
         </div>
       </div>
@@ -188,9 +200,9 @@ export default function BlogDashboardPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Blog Management"
-        description="Manage blog articles, categories, tags, and comments"
-        buttonText="Write New Article"
+        title={t('pageTitle')}
+        description={t('pageDescription')}
+        buttonText={t('writeNewArticle')}
         buttonOnClick={() => {
           setIsArticleModalOpen(true);
         }}
@@ -228,13 +240,13 @@ export default function BlogDashboardPage() {
 
       {/* Recent Articles */}
       <Card
-        title="Recent Articles"
+        title={t('recentArticles')}
         action={
           <Link
             href="/blog/articles"
             className="text-sm font-medium text-primary-600 dark:text-primary-400 hover:underline"
           >
-            View All
+            {t('viewAll')}
           </Link>
         }
       >
@@ -243,19 +255,19 @@ export default function BlogDashboardPage() {
             <thead>
               <tr className="border-b border-gray-100 dark:border-white/5">
                 <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
-                  Article
+                  {t('article')}
                 </th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
-                  Status
+                  {t('status')}
                 </th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
-                  Views
+                  {t('views')}
                 </th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
-                  Comments
+                  {t('comments')}
                 </th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
-                  Published
+                  {t('published')}
                 </th>
               </tr>
             </thead>
@@ -286,7 +298,7 @@ export default function BlogDashboardPage() {
                     </div>
                   </td>
                   <td className="py-3 px-4 text-gray-600 dark:text-gray-300">
-                    {article.publishedAt || 'Not published'}
+                    {article.publishedAt || t('notPublished')}
                   </td>
                 </tr>
               ))}
@@ -297,7 +309,7 @@ export default function BlogDashboardPage() {
 
       {/* Blog Performance */}
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card title="Top Performing Articles">
+        <Card title={t('topPerformingArticles')}>
           <div className="space-y-4">
             {topArticles.map((article, index) => (
               <div
@@ -325,7 +337,7 @@ export default function BlogDashboardPage() {
           </div>
         </Card>
 
-        <Card title="Recent Activity">
+        <Card title={t('recentActivity')}>
           <div className="space-y-4">
             <div className="flex items-start space-x-3">
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-500/10">
@@ -333,13 +345,13 @@ export default function BlogDashboardPage() {
               </div>
               <div className="flex-1">
                 <p className="font-medium text-gray-900 dark:text-white">
-                  Blog system is ready
+                  {t('blogSystemReady')}
                 </p>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Backend API fully implemented, ready to create content
+                  {t('backendApiReady')}
                 </p>
                 <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                  Just now
+                  {t('justNow')}
                 </p>
               </div>
             </div>
@@ -349,13 +361,13 @@ export default function BlogDashboardPage() {
               </div>
               <div className="flex-1">
                 <p className="font-medium text-gray-900 dark:text-white">
-                  Welcome to the blog system
+                  {t('welcomeToBlogSystem')}
                 </p>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Start creating your first blog article
+                  {t('startCreatingFirstArticle')}
                 </p>
                 <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                  Just now
+                  {t('justNow')}
                 </p>
               </div>
             </div>
@@ -365,13 +377,13 @@ export default function BlogDashboardPage() {
               </div>
               <div className="flex-1">
                 <p className="font-medium text-gray-900 dark:text-white">
-                  Analytics dashboard added
+                  {t('analyticsDashboardAdded')}
                 </p>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Track article performance and user engagement
+                  {t('trackArticlePerformance')}
                 </p>
                 <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                  2 hours ago
+                  {t('hoursAgo')}
                 </p>
               </div>
             </div>
