@@ -17,6 +17,7 @@ import { useRequest } from 'ahooks';
 import { ActSectionSchema } from '@/schema/ActSectionSchema';
 import { ActSection } from '@/type/types';
 import React, { useEffect } from 'react';
+import type { TFunc } from '@/hooks/useTranslation';
 
 type ActSectionFormInputs = z.infer<typeof ActSectionSchema>;
 
@@ -24,19 +25,21 @@ interface Props {
   close: () => void;
   confirm: () => void;
   editingData?: ActSection | null;
+  t: TFunc;
 }
 
 export const ProductSelectorModal: React.FC<Props> = ({
   close,
   confirm,
   editingData,
+  t,
 }) => {
   const addToast = useToastStore((s) => s.addToast);
 
   const { run: creatActSection, loading } = useRequest(actSectionApi.create, {
     manual: true,
     onSuccess: () => {
-      addToast('success', 'Section created successfully');
+      addToast('success', t('actSections.toastCreated'));
       confirm();
     },
   });
@@ -46,7 +49,7 @@ export const ProductSelectorModal: React.FC<Props> = ({
     {
       manual: true,
       onSuccess: () => {
-        addToast('success', 'Section updated successfully');
+        addToast('success', t('actSections.toastUpdated'));
         confirm();
       },
     },
@@ -73,7 +76,7 @@ export const ProductSelectorModal: React.FC<Props> = ({
       }
       creatActSection(values);
     } catch {
-      addToast('error', 'Failed to save product');
+      addToast('error', t('actSections.toastSaveFailed'));
     }
   };
 
@@ -109,57 +112,71 @@ export const ProductSelectorModal: React.FC<Props> = ({
               required
               autoComplete="off"
               name="title"
-              label="Title"
-              placeholder="e.g. New Arrival"
+              label={t('actSections.formTitle')}
+              placeholder={t('actSections.formTitlePlaceholder')}
             />
             <FormTextField
               required
               name="key"
-              label="Key (Unique)"
+              label={t('actSections.formKey')}
               autoComplete="off"
-              placeholder="e.g. Weekly Best"
+              placeholder={t('actSections.formKeyPlaceholder')}
             />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FormSelectField
               required
               name="imgStyleType"
-              label="Style Type"
+              label={t('actSections.formStyleType')}
               numeric={true}
               options={[
-                { label: 'Ending (Horizontal Scroll)', value: '1' },
+                { label: t('actSections.styleType0'), value: '0' },
+                { label: t('actSections.styleType1'), value: '1' },
                 {
-                  label: 'Special Area (List w/ Progress)',
+                  label: t('actSections.styleType2'),
                   value: '2',
                 },
                 {
-                  label: 'Home Future (Vertical Big Cards)',
+                  label: t('actSections.styleType3'),
                   value: '3',
                 },
                 {
-                  label: 'Recommendation (Grid 2 Columns)',
+                  label: t('actSections.styleType4'),
                   value: '4',
                 },
               ]}
             />
-            <FormTextField required name="limit" label="Limit" type="number" />
+            <FormTextField
+              required
+              name="limit"
+              label={t('actSections.formLimit')}
+              type="number"
+            />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <FormDateField name="startAt" label="Start Time" />
-            <FormDateField name="endAt" label="End Time" />
+            <FormDateField
+              name="startAt"
+              label={t('actSections.formStartTime')}
+            />
+            <FormDateField name="endAt" label={t('actSections.formEndTime')} />
           </div>
 
           <div className="flex flex-col">
-            <FormCheckboxField name="status" label="Enable this section" />
+            <FormCheckboxField
+              name="status"
+              label={t('actSections.formEnable')}
+            />
           </div>
 
           <div className="mt-4 flex justify-end gap-3">
             <Button type="button" variant="ghost" onClick={close}>
-              Cancel
+              {t('actSections.cancel')}
             </Button>
             <Button isLoading={loading || updateLoading} type="submit">
-              {editingData ? 'Update Section' : 'Create Section'}
+              {editingData
+                ? t('actSections.updateSection')
+                : t('actSections.createSection')}
             </Button>
           </div>
         </div>

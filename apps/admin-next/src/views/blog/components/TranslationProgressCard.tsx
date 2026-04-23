@@ -72,7 +72,9 @@ const MiniStatCard = ({
 };
 
 export default function TranslationProgressCard() {
-  const { t, lang } = useTranslation();
+  const { t } = useTranslation();
+
+  // next-intl handles blogCard.xxx keys natively via nested message lookup
 
   const {
     data: progress,
@@ -86,14 +88,14 @@ export default function TranslationProgressCard() {
 
   if (loading) {
     return (
-      <Card title={t('translationProgress')} className="animate-pulse">
+      <Card title={t('blogCard.translationProgress')} className="animate-pulse">
         <div className="space-y-3">
-          <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-          <div className="h-2 bg-gray-200 rounded"></div>
+          <div className="h-4 bg-gray-200 rounded w-3/4" />
+          <div className="h-2 bg-gray-200 rounded" />
           <div className="grid grid-cols-3 gap-2">
-            <div className="h-16 bg-gray-200 rounded"></div>
-            <div className="h-16 bg-gray-200 rounded"></div>
-            <div className="h-16 bg-gray-200 rounded"></div>
+            <div className="h-10 bg-gray-200 rounded" />
+            <div className="h-10 bg-gray-200 rounded" />
+            <div className="h-10 bg-gray-200 rounded" />
           </div>
         </div>
       </Card>
@@ -102,12 +104,14 @@ export default function TranslationProgressCard() {
 
   if (error) {
     return (
-      <Card title={t('translationProgress')}>
+      <Card title={t('blogCard.translationProgress')}>
         <div className="text-center py-4">
-          <p className="text-sm text-gray-500 mb-2">{t('loadFailed')}</p>
+          <p className="text-sm text-gray-500 mb-2">
+            {t('blogCard.loadFailed')}
+          </p>
           <Button variant="outline" size="sm" onClick={() => refresh()}>
             <RefreshCw className="w-3 h-3 mr-1" />
-            {t('retry')}
+            {t('blogCard.retry')}
           </Button>
         </div>
       </Card>
@@ -138,11 +142,11 @@ export default function TranslationProgressCard() {
 
   return (
     <Card
-      title={t('translationProgress')}
+      title={t('blogCard.translationProgress')}
       action={
         <Link href="/blog/translation-progress">
           <Button variant="ghost" size="sm">
-            {t('viewDetails')}
+            {t('blogCard.viewDetails')}
             <ArrowRight className="w-3 h-3 ml-1" />
           </Button>
         </Link>
@@ -161,14 +165,16 @@ export default function TranslationProgressCard() {
               </span>
             </div>
             <div className="flex items-center gap-2">
-              {hasActiveJobs && <Badge color="yellow">{t('inProgress')}</Badge>}
+              {hasActiveJobs && (
+                <Badge color="yellow">{t('blogCard.inProgress')}</Badge>
+              )}
               {hasFailedJobs && (
                 <Badge color="red">
-                  {progressData.queueStatus.failed} {t('failed')}
+                  {progressData.queueStatus.failed} {t('blogCard.failed')}
                 </Badge>
               )}
               {overallPercentage === 100 && progressData.totalItems > 0 && (
-                <Badge color="green">{t('completed')}</Badge>
+                <Badge color="green">{t('blogCard.completed')}</Badge>
               )}
             </div>
           </div>
@@ -181,21 +187,21 @@ export default function TranslationProgressCard() {
         {/* 分类统计 */}
         <div className="grid grid-cols-3 gap-2">
           <MiniStatCard
-            title={t('articles')}
+            title={t('blogCard.articles')}
             value={progressData.articles.completed}
             total={progressData.articles.total}
             icon={FileText}
             color="blue"
           />
           <MiniStatCard
-            title={t('categories')}
+            title={t('blogCard.categories')}
             value={progressData.categories.completed}
             total={progressData.categories.total}
             icon={List}
             color="green"
           />
           <MiniStatCard
-            title={t('tags')}
+            title={t('blogCard.tags')}
             value={progressData.tags.completed}
             total={progressData.tags.total}
             icon={BarChart3}
@@ -208,24 +214,26 @@ export default function TranslationProgressCard() {
           <div className="flex items-center justify-between text-sm">
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-1">
-                <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                <div className="w-2 h-2 rounded-full bg-blue-500" />
                 <span className="text-gray-600">
-                  {t('activeJobs', { count: progressData.queueStatus.active })}
+                  {t('blogCard.activeJobs', {
+                    count: progressData.queueStatus.active,
+                  })}
                 </span>
               </div>
               <div className="flex items-center gap-1">
-                <div className="w-2 h-2 rounded-full bg-amber-500"></div>
+                <div className="w-2 h-2 rounded-full bg-amber-500" />
                 <span className="text-gray-600">
-                  {t('waitingJobs', {
+                  {t('blogCard.waitingJobs', {
                     count: progressData.queueStatus.waiting,
                   })}
                 </span>
               </div>
             </div>
             <div className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+              <div className="w-2 h-2 rounded-full bg-emerald-500" />
               <span className="text-gray-600">
-                {t('completedJobs', {
+                {t('blogCard.completedJobs', {
                   count: progressData.queueStatus.completed,
                 })}
               </span>
@@ -236,19 +244,21 @@ export default function TranslationProgressCard() {
         {/* 状态提示 */}
         {hasFailedJobs && (
           <div className="text-xs text-red-600 bg-red-50 p-2 rounded">
-            {t('failedJobsWarning', { count: progressData.queueStatus.failed })}
+            {t('blogCard.failedJobsWarning', {
+              count: progressData.queueStatus.failed,
+            })}
           </div>
         )}
 
         {overallPercentage === 100 && progressData.totalItems > 0 && (
           <div className="text-xs text-emerald-600 bg-emerald-50 p-2 rounded">
-            {t('allJobsCompleted')}
+            {t('blogCard.allJobsCompleted')}
           </div>
         )}
 
         {overallPercentage === 0 && progressData.totalItems > 0 && (
           <div className="text-xs text-amber-600 bg-amber-50 p-2 rounded">
-            {t('translationNotStarted')}
+            {t('blogCard.translationNotStarted')}
           </div>
         )}
       </div>

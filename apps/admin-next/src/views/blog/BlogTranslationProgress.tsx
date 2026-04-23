@@ -1282,7 +1282,9 @@ export default function BlogTranslationProgress() {
                         </div>
                       </div>
                       <div className="text-sm text-gray-500">
-                        {t('blog_translation_progressWithPercent', { progress: job.progress || 0 })}
+                        {t('blog_translation_progressWithPercent', {
+                          progress: job.progress || 0,
+                        })}
                       </div>
                     </div>
                   ))}
@@ -1310,7 +1312,9 @@ export default function BlogTranslationProgress() {
                             job.data?.tagId}
                         </div>
                       </div>
-                      <div className="text-sm text-gray-500">{t('blog_translation_waiting')}</div>
+                      <div className="text-sm text-gray-500">
+                        {t('blog_translation_waiting')}
+                      </div>
                     </div>
                   ))}
                   {jobs.waiting.length > 5 && (
@@ -1339,7 +1343,8 @@ export default function BlogTranslationProgress() {
                           {job.name}
                         </div>
                         <div className="text-sm text-red-600">
-                          {job.failedReason || t('blog_translation_unknownError')}
+                          {job.failedReason ||
+                            t('blog_translation_unknownError')}
                         </div>
                       </div>
                       <Button variant="outline" size="sm">

@@ -15,6 +15,8 @@ import {
   QueryClient,
   dehydrate,
 } from '@tanstack/react-query';
+import { cookies } from 'next/headers';
+import { DEFAULT_LOCALE, AVAILABLE_LOCALES, type Locale } from '@lucky/shared';
 import { DashboardStats } from '@/components/dashboard/DashboardStats';
 import { DashboardStatsSkeleton } from '@/components/dashboard/DashboardStatsSkeleton';
 import { DashboardOrdersClient } from '@/components/dashboard/DashboardOrdersClient';
@@ -26,6 +28,18 @@ import type { PaginatedResponse } from '@/api/types';
 import type { Order } from '@/type/types';
 
 export default async function DashboardPage() {
+  // 获取服务器端locale
+  let locale: Locale = DEFAULT_LOCALE;
+  try {
+    const cookieStore = await cookies();
+    const c = cookieStore.get('app_locale')?.value;
+    if (c && AVAILABLE_LOCALES.includes(c as Locale)) {
+      locale = c as Locale;
+    }
+  } catch {
+    // ignore and use default
+  }
+
   // 服务端预取最近 5 笔订单，注入 HydrationBoundary
   const queryClient = new QueryClient();
 
@@ -49,7 +63,7 @@ export default async function DashboardPage() {
 
       {/* 4 统计卡片 — async Server Component + Streaming */}
       <Suspense fallback={<DashboardStatsSkeleton />}>
-        <DashboardStats />
+        <DashboardStats locale={locale} />
       </Suspense>
 
       {/* 翻译进度卡片 — Client Component */}

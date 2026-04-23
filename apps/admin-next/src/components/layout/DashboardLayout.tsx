@@ -33,15 +33,15 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({
   const pageInfo = useMemo(() => {
     const normalizedPath = pathname.replace(/\/$/, '') || '/';
     const currentRoute = routes.find((r) => r.path === normalizedPath);
-      if (currentRoute) {
-        return {
-          breadcrumbs: [
-            currentRoute.group,
-            // use t() to translate route name
-            t(currentRoute.name) || currentRoute.name,
-          ],
-        };
-      }
+    if (currentRoute) {
+      return {
+        breadcrumbs: [
+          currentRoute.group,
+          // use t() to translate route name
+          t(currentRoute.name) || currentRoute.name,
+        ],
+      };
+    }
     return { breadcrumbs: [] };
   }, [pathname, t]);
 

@@ -13,6 +13,7 @@ import { z } from 'zod';
 import { RichTextEditor } from '@/components/blog/RichTextEditor';
 import { SmartImage } from '@/components/ui/SmartImage';
 import { Info } from 'lucide-react';
+import { useTranslation } from '@/hooks/useTranslation';
 
 const formSchema = z.object({
   title: z.string().min(1, 'Title is required'),
@@ -52,6 +53,10 @@ function isFile(value: any): value is File {
 
 export const ArticleForm = forwardRef<ArticleFormRef, ArticleFormProps>(
   ({ onUpload, locale = 'zh', isLocalized = false, onFieldChange }, ref) => {
+    const { t: globalT } = useTranslation();
+    const t = (key: string, params?: Record<string, string | number>) =>
+      globalT(`blog_articleForm_${key}`, params);
+
     const form = useForm<ArticleFormValues>({
       resolver: zodResolver(formSchema),
       defaultValues: {
@@ -121,13 +126,15 @@ export const ArticleForm = forwardRef<ArticleFormRef, ArticleFormProps>(
         <div className="space-y-6">
           <FormTextField
             name="title"
-            label="Title"
-            placeholder="Enter article title"
+            label={t('title')}
+            placeholder={t('titlePlaceholder')}
             required
           />
 
           <div>
-            <label className="block text-sm font-medium mb-2">Content</label>
+            <label className="block text-sm font-medium mb-2">
+              {t('content')}
+            </label>
             <RichTextEditor
               value={watch('content')}
               onChange={(value) =>
@@ -147,14 +154,14 @@ export const ArticleForm = forwardRef<ArticleFormRef, ArticleFormProps>(
 
           <FormTextareaField
             name="excerpt"
-            label="Excerpt"
-            placeholder="Brief summary of the article"
+            label={t('excerpt')}
+            placeholder={t('excerptPlaceholder')}
           />
 
           <div className="p-4 rounded-lg shadow-sm">
             <FormMediaUploaderField
               name="featuredImage"
-              label="Featured Image"
+              label={t('featuredImage')}
               maxFileCount={1}
               renderImage={({ src, alt, className }) => (
                 <SmartImage
@@ -169,7 +176,7 @@ export const ArticleForm = forwardRef<ArticleFormRef, ArticleFormProps>(
               )}
             />
             <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
-              <Info size={12} /> Recommended 800x800px
+              <Info size={12} /> {t('recommendedSize')}
             </p>
           </div>
         </div>

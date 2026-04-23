@@ -87,7 +87,9 @@ export default function TagsPage() {
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
           <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-          <p className="mt-4 text-sm text-muted-foreground">{t('loadingTags')}</p>
+          <p className="mt-4 text-sm text-muted-foreground">
+            {t('loadingTags')}
+          </p>
         </div>
       </div>
     );
@@ -100,7 +102,7 @@ export default function TagsPage() {
         description={t('pageDescription')}
         showBackButton={true}
         onBack={() => router.push('/blog')}
-        breadcrumbs={['Blog', 'Tags']}
+        breadcrumbs={[t('breadcrumbBlog'), t('breadcrumbTags')]}
         buttonText={t('newTag')}
         buttonOnClick={() => {
           setEditingTag(null);
@@ -127,7 +129,9 @@ export default function TagsPage() {
           <div className="flex items-center space-x-4">
             <div className="text-center">
               <div className="text-2xl font-bold">{tags.length}</div>
-              <div className="text-xs text-muted-foreground">{t('totalTags')}</div>
+              <div className="text-xs text-muted-foreground">
+                {t('totalTags')}
+              </div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold">
@@ -174,9 +178,9 @@ export default function TagsPage() {
                     <TagIcon className="h-4 w-4" />
                   </div>
                   <div className="ml-3">
-                      <h3 className="font-semibold">
-                        {renderLocalizedText(tag.name, lang, tag.id)}
-                      </h3>
+                    <h3 className="font-semibold">
+                      {renderLocalizedText(tag.name, lang, tag.id)}
+                    </h3>
                     <code className="text-xs text-muted-foreground">
                       /{tag.slug}
                     </code>
@@ -197,9 +201,9 @@ export default function TagsPage() {
                   </button>
                 </div>
               </div>
-                <p className="text-sm text-muted-foreground mb-4">
+              <p className="text-sm text-muted-foreground mb-4">
                 {renderLocalizedText(tag.description, lang, t('noDescription'))}
-               </p>
+              </p>
               <div className="flex items-center justify-between text-xs">
                 <div className="flex items-center space-x-3">
                   <span className="px-2 py-1 rounded-full bg-primary/10 text-primary">
@@ -219,7 +223,10 @@ export default function TagsPage() {
       {/* Pagination */}
       <div className="flex items-center justify-between">
         <div className="text-sm text-muted-foreground">
-          {t('showingTags', { current: filteredTags.length, total: filteredTags.length })}
+          {t('showingTags', {
+            current: filteredTags.length,
+            total: filteredTags.length,
+          })}
         </div>
         <div className="flex items-center space-x-2">
           <button

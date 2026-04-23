@@ -14,6 +14,7 @@ import {
   extractCurrentLocaleValue,
   normalizeLocalizedValue,
 } from '@/utils/localizedForm';
+import { useTranslation } from '@/hooks/useTranslation';
 
 interface BlogTagModalProps {
   isOpen: boolean;
@@ -35,6 +36,7 @@ export const BlogTagModal: React.FC<BlogTagModalProps> = ({
   onSuccessAction,
 }) => {
   const isEditing = !!editingTag;
+  const { t } = useTranslation();
 
   const { run: createTag, loading: isCreating } = useRequest(
     blogApi.createTag,
@@ -140,35 +142,35 @@ export const BlogTagModal: React.FC<BlogTagModalProps> = ({
     <Modal
       isOpen={isOpen}
       onCloseAction={onCloseAction}
-      title={`${isEditing ? 'Edit' : 'Create'} Tag`}
+      title={isEditing ? t('tags_modalTitleEdit') : t('tags_modalTitleCreate')}
       size="md"
     >
       <Form {...form}>
         <form onSubmit={submitHandler} className="space-y-4">
           <div className="flex justify-between items-center">
-            <h3 className="text-sm font-medium">Name</h3>
+            <h3 className="text-sm font-medium">{t('tags_name')}</h3>
             <LanguageSwitch />
           </div>
           <FormTextField
             label=""
-            placeholder="Enter tag name"
+            placeholder={t('tags_namePlaceholder')}
             required
             {...localize('name')}
           />
           <FormTextField
-            label="Slug"
-            placeholder="e.g., technology"
+            label={t('tags_slug')}
+            placeholder={t('tags_slugPlaceholder')}
             required
             {...register('slug', { required: true })}
           />
           <FormTextField
-            label="Color"
-            placeholder="#3b82f6"
+            label={t('tags_color')}
+            placeholder={t('tags_colorPlaceholder')}
             {...register('color')}
           />
           <FormTextareaField
-            label="Description"
-            placeholder="Optional description"
+            label={t('tags_description')}
+            placeholder={t('tags_descriptionPlaceholder')}
             {...localize('description')}
           />
           <div className="flex justify-end space-x-3 pt-4">
@@ -178,10 +180,10 @@ export const BlogTagModal: React.FC<BlogTagModalProps> = ({
               onClick={onCloseAction}
               disabled={loading}
             >
-              Cancel
+              {t('tags_cancel')}
             </Button>
             <Button type="submit" isLoading={loading}>
-              {isEditing ? 'Update' : 'Create'}
+              {isEditing ? t('tags_update') : t('tags_create')}
             </Button>
           </div>
         </form>

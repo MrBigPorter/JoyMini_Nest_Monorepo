@@ -101,7 +101,7 @@ function QuickNav() {
             setOpen(true);
           }}
           onFocus={() => setOpen(true)}
-          placeholder="Quick navigate…"
+          placeholder={t('header_quickNavigate')}
           className="bg-transparent border-none outline-none text-sm w-full text-gray-700 dark:text-white placeholder-gray-400"
         />
         {query && (
@@ -304,7 +304,9 @@ export const Header: React.FC<HeaderProps> = ({
           onClick={toggleTheme}
           className="p-2 text-gray-500 hover:text-amber-500 transition-colors rounded-full hover:bg-gray-100 dark:hover:bg-white/5"
           title={
-            theme === 'dark' ? 'Switch to Light mode' : 'Switch to Dark mode'
+            theme === 'dark'
+              ? t('header_switchToLightMode')
+              : t('header_switchToDarkMode')
           }
         >
           {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
@@ -338,17 +340,17 @@ export const Header: React.FC<HeaderProps> = ({
           }
           items={[
             {
-              label: 'Admin Users',
+              label: t('header_adminUsers'),
               icon: <User size={16} />,
               onClick: () => router.push('/admin-users'),
             },
             {
-              label: 'Settings',
+              label: t('header_settings'),
               icon: <Settings size={16} />,
               onClick: () => router.push('/settings'),
             },
             {
-              label: isLoggingOut ? 'Logging out…' : 'Logout',
+              label: isLoggingOut ? t('header_loggingOut') : t('header_logout'),
               icon: <LogOut size={16} />,
               onClick: handleLogout,
               danger: true,

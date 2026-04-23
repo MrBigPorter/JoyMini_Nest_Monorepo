@@ -12,35 +12,41 @@ import {
   FormTextareaField,
   FormSelectField,
 } from '@repo/ui';
-import { addressApi, regionApi } from '@/api'; //  引入 regionApi
+import { addressApi, regionApi } from '@/api';
 import { useToastStore } from '@/store/useToastStore';
 import { AddressResponse } from '@/type/types';
+import type { TFunc } from '@/hooks/useTranslation';
 
-const AddressEditSchema = z.object({
-  firstName: z.string().optional(),
-  lastName: z.string().optional(),
-  contactName: z.string().min(1, 'Last name is required'),
-  phone: z.string().min(1, 'Phone is required'),
-  fullAddress: z.string().min(1, 'Full address is required'),
-  isDefault: z.coerce.number(),
-  // 新增地理信息 ID 校验
-  provinceId: z.coerce.number().min(1, 'Province is required'),
-  cityId: z.coerce.number().min(1, 'City is required'),
-  barangayId: z.coerce.number().min(1, 'Barangay is required'),
-});
+const createAddressEditSchema = (t: (key: string) => string) =>
+  z.object({
+    firstName: z.string().optional(),
+    lastName: z.string().optional(),
+    contactName: z.string().min(1, t('address_validation_contactNameRequired')),
+    phone: z.string().min(1, t('address_validation_phoneRequired')),
+    fullAddress: z.string().min(1, t('address_validation_fullAddressRequired')),
+    isDefault: z.coerce.number(),
+    provinceId: z.coerce
+      .number()
+      .min(1, t('address_validation_provinceRequired')),
+    cityId: z.coerce.number().min(1, t('address_validation_cityRequired')),
+    barangayId: z.coerce
+      .number()
+      .min(1, t('address_validation_barangayRequired')),
+  });
 
-type AddressEditFormInput = z.infer<typeof AddressEditSchema>;
+type AddressEditFormInput = z.infer<ReturnType<typeof createAddressEditSchema>>;
 
 interface Props {
   data?: AddressResponse;
   close: () => void;
+  t: TFunc;
 }
 
-export const AddressEditModal: React.FC<Props> = ({ data, close }) => {
+export const AddressEditModal: React.FC<Props> = ({ data, close, t }) => {
   const addToast = useToastStore((state) => state.addToast);
 
   const form = useForm<AddressEditFormInput>({
-    resolver: zodResolver(AddressEditSchema),
+    resolver: zodResolver(createAddressEditSchema(t)),
     defaultValues: {
       firstName: data?.firstName || '',
       lastName: data?.lastName || '',
@@ -48,25 +54,20 @@ export const AddressEditModal: React.FC<Props> = ({ data, close }) => {
       phone: data?.phone || '',
       fullAddress: data?.fullAddress || '',
       isDefault: data?.isDefault || 0,
-      // 初始 ID 为 0 或 undefined，稍后通过 Effect 回显
       provinceId: 0,
       cityId: 0,
       barangayId: 0,
     },
   });
 
-  // 监听表单值变化，用于触发级联
   const provinceId = useWatch({ control: form.control, name: 'provinceId' });
   const cityId = useWatch({ control: form.control, name: 'cityId' });
 
-  // 1. 获取省份列表
   const { data: provinces = [] } = useRequest(regionApi.provinces);
 
-  // 2. 获取城市列表 (手动触发)
   const { run: fetchCities, data: cities = [] } = useRequest(regionApi.cities, {
     manual: true,
     onSuccess: (cityList) => {
-      // 回显城市
       if (data?.city && cityList.length > 0) {
         const match = cityList.find((c) => c.cityName === data.city);
         if (match && form.getValues('cityId') !== match.cityId) {
@@ -76,13 +77,11 @@ export const AddressEditModal: React.FC<Props> = ({ data, close }) => {
     },
   });
 
-  // 3. 获取区域列表 (手动触发)
   const { run: fetchBarangays, data: barangays = [] } = useRequest(
     regionApi.barangays,
     {
       manual: true,
       onSuccess: (barangayList) => {
-        // 回显区域
         if (data?.barangay && barangayList.length > 0) {
           const match = barangayList.find(
             (b) => b.barangayName === data.barangay,
@@ -99,22 +98,17 @@ export const AddressEditModal: React.FC<Props> = ({ data, close }) => {
     if (data?.province && provinces.length > 0) {
       const match = provinces.find((p) => p.provinceName === data.province);
       if (match) {
-        // 设置 ID，这会触发下方的 B 逻辑
         form.setValue('provinceId', match.provinceId);
       }
     }
   }, [data?.province, provinces, form]);
 
-  // B. 省份变化 -> 加载城市
   useEffect(() => {
     if (provinceId) {
       fetchCities(provinceId);
-    } else {
-      // 清空下级
     }
   }, [provinceId, fetchCities, data?.city, form]);
 
-  // C. 城市变化 -> 加载区域
   useEffect(() => {
     if (cityId) {
       fetchBarangays(cityId);
@@ -131,11 +125,11 @@ export const AddressEditModal: React.FC<Props> = ({ data, close }) => {
     {
       manual: true,
       onSuccess: () => {
-        addToast('success', 'Address saved successfully');
+        addToast('success', t('address_savedSuccess'));
         close();
       },
       onError: (err) => {
-        addToast('error', err.message || 'Failed to save');
+        addToast('error', err.message || t('address_saveFailed'));
       },
     },
   );
@@ -145,24 +139,26 @@ export const AddressEditModal: React.FC<Props> = ({ data, close }) => {
       <Form {...form}>
         <form onSubmit={form.handleSubmit(submit)} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
-            <FormTextField name="contactName" label="Contact Name" />
+            <FormTextField
+              name="contactName"
+              label={t('address_formContactName')}
+            />
           </div>
 
-          <FormTextField name="phone" label="Phone" />
+          <FormTextField name="phone" label={t('address_formPhone')} />
 
-          {/*  Region Selectors */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 p-3 bg-gray-50 dark:bg-white/5 rounded-lg border border-gray-100 dark:border-white/10">
             <div className="md:col-span-3 text-xs text-gray-500 font-medium mb-1 uppercase tracking-wider">
-              Area Selection
+              {t('address_areaSelection')}
             </div>
 
             <FormSelectField
               name="provinceId"
-              label="Province"
-              placeholder="Select Province"
+              label={t('address_formProvince')}
+              placeholder={t('address_formProvincePlaceholder')}
               options={provinces.map((p) => ({
                 label: p.provinceName,
-                value: String(p.provinceId), // FormSelectField 通常需要 string value
+                value: String(p.provinceId),
               }))}
               onOpenChange={() => {
                 form.setValue('cityId', 0);
@@ -172,8 +168,8 @@ export const AddressEditModal: React.FC<Props> = ({ data, close }) => {
 
             <FormSelectField
               name="cityId"
-              label="City"
-              placeholder="Select City"
+              label={t('address_formCity')}
+              placeholder={t('address_formCityPlaceholder')}
               disabled={!provinceId}
               options={cities.map((c) => ({
                 label: c.cityName,
@@ -186,8 +182,8 @@ export const AddressEditModal: React.FC<Props> = ({ data, close }) => {
 
             <FormSelectField
               name="barangayId"
-              label="Barangay"
-              placeholder="Select Barangay"
+              label={t('address_formBarangay')}
+              placeholder={t('address_formBarangayPlaceholder')}
               disabled={!cityId}
               options={barangays.map((b) => ({
                 label: b.barangayName,
@@ -198,25 +194,25 @@ export const AddressEditModal: React.FC<Props> = ({ data, close }) => {
 
           <FormTextareaField
             name="fullAddress"
-            label="Full Address (Street, Unit, Building)"
-            placeholder="e.g. Unit 123, Sunshine Condo"
+            label={t('address_formFullAddress')}
+            placeholder={t('address_formFullAddressPlaceholder')}
           />
 
           <FormSelectField
             name="isDefault"
-            label="Set as Default Address"
+            label={t('address_formIsDefault')}
             options={[
-              { label: 'No', value: '0' },
-              { label: 'Yes', value: '1' },
+              { label: t('address_optionNo'), value: '0' },
+              { label: t('address_optionYes'), value: '1' },
             ]}
           />
 
           <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 dark:border-white/10">
             <Button type="button" variant="outline" onClick={close}>
-              Cancel
+              {t('address_cancel')}
             </Button>
             <Button isLoading={loading} type="submit">
-              Save Changes
+              {t('address_saveChanges')}
             </Button>
           </div>
         </form>

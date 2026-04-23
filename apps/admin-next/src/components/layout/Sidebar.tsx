@@ -84,7 +84,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const userInfo = useAuthStore((state) => state.userInfo);
   const addToast = useToastStore((state) => state.addToast);
   // Prefer using the useTranslation hook so we keep translations in sync with LanguageProvider
-  const { t, translations } = useTranslation();
+  const { t } = useTranslation();
   const canReviewApplications = userInfo?.role === 'SUPER_ADMIN';
 
   const { loading: isLoggingOut, run: handleLogout } = useRequest(
@@ -190,7 +190,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       icon={React.createElement(route.icon, {
                         size: isSidebarCollapsed ? 22 : 18,
                       })}
-                      label={translations?.[route.name] || t(route.name) || route.name}
+                      label={t(route.name) || route.name}
                       isCollapsed={isSidebarCollapsed}
                       badge={
                         route.path === '/admin-users' && canReviewApplications
@@ -218,7 +218,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               ) : (
                 <ChevronsLeft size={18} />
               )}
-                <motion.span
+              <motion.span
                 animate={{
                   opacity: isSidebarCollapsed ? 0 : 1,
                   width: isSidebarCollapsed ? 0 : 'auto',
@@ -239,7 +239,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               className={`w-full flex items-center gap-3 rounded-xl px-4 py-3 text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors disabled:opacity-50 ${isSidebarCollapsed ? 'justify-center' : ''}`}
             >
               <LogOut size={18} className="flex-shrink-0" />
-                <motion.span
+              <motion.span
                 animate={{
                   opacity: isSidebarCollapsed ? 0 : 1,
                   width: isSidebarCollapsed ? 0 : 'auto',

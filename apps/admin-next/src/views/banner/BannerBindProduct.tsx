@@ -22,6 +22,7 @@ import {
 } from '@tanstack/react-table';
 import { Search } from 'lucide-react';
 import { Image } from '@unpic/react';
+import type { TFunc } from '@/hooks/useTranslation';
 
 interface TableMeta {
   relatedTitleId: string | null;
@@ -31,9 +32,10 @@ interface TableMeta {
 interface Props {
   value?: string;
   onChange?: (value: string) => void;
+  t: TFunc;
 }
 
-export const BannerBindProduct: React.FC<Props> = ({ value, onChange }) => {
+export const BannerBindProduct: React.FC<Props> = ({ value, onChange, t }) => {
   const [searchTerm, setSearchTerm] = useState('');
 
   const getTableData = useCallback(
@@ -67,7 +69,7 @@ export const BannerBindProduct: React.FC<Props> = ({ value, onChange }) => {
     return [
       columnHelper.display({
         id: 'select',
-        header: 'Select',
+        header: t('banners_select'),
         cell: (info) => {
           const meta = info.table.options.meta as TableMeta;
           const { relatedTitleId, setRelatedTitleId } = meta;
@@ -93,7 +95,7 @@ export const BannerBindProduct: React.FC<Props> = ({ value, onChange }) => {
         },
       }),
       columnHelper.accessor('treasureName', {
-        header: 'Product Info',
+        header: t('banners_productInfo'),
         cell: (info) => (
           <div className="flex items-center gap-3">
             <Image
@@ -113,13 +115,13 @@ export const BannerBindProduct: React.FC<Props> = ({ value, onChange }) => {
         ),
       }),
       columnHelper.accessor('unitAmount', {
-        header: 'Price',
+        header: t('banners_price'),
         cell: (info) => (
           <span className="font-mono text-xs">₱{info.getValue()}</span>
         ),
       }),
     ];
-  }, []);
+  }, [t]);
 
   const table = useReactTable({
     data: (tableProps.dataSource || []) as Product[],
@@ -139,7 +141,7 @@ export const BannerBindProduct: React.FC<Props> = ({ value, onChange }) => {
       <div className="p-4 flex-1 overflow-y-auto space-y-4">
         <div className="flex gap-2">
           <Input
-            placeholder="Search product name..."
+            placeholder={t('banners_searchProductPlaceholder')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             onKeyDown={(e) =>
@@ -194,7 +196,10 @@ export const BannerBindProduct: React.FC<Props> = ({ value, onChange }) => {
 
         {/* Pagination (Simplified) */}
         <div className="flex justify-between items-center text-xs text-gray-500">
-          <span>Total: {tableProps.pagination.total}</span>
+          <span>
+            {t('banners_total')}
+            {tableProps.pagination.total}
+          </span>
           <div className="flex gap-2">
             <Button
               size="sm"
@@ -207,7 +212,7 @@ export const BannerBindProduct: React.FC<Props> = ({ value, onChange }) => {
                 )
               }
             >
-              Prev
+              {t('banners_prev')}
             </Button>
             <Button
               size="sm"
@@ -222,7 +227,7 @@ export const BannerBindProduct: React.FC<Props> = ({ value, onChange }) => {
                 )
               }
             >
-              Next
+              {t('banners_next')}
             </Button>
           </div>
         </div>

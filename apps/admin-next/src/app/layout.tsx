@@ -58,37 +58,19 @@ export const viewport: Viewport = {
 };
 
 import { Providers } from '@/components/Providers';
-import { cookies } from 'next/headers';
-import { DEFAULT_LOCALE, AVAILABLE_LOCALES, type Locale } from '@lucky/shared';
-import { getTranslations } from '@/i18n';
+import { NextIntlClientProvider } from 'next-intl';
+import { getLocale, getMessages } from 'next-intl/server';
 
 export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  // Determine server-side locale: prefer cookie 'app_locale', fall back to DEFAULT_LOCALE
-  let lang: Locale = DEFAULT_LOCALE;
-  try {
-    const cookieStore = await cookies();
-    const c = cookieStore.get('app_locale')?.value;
-    if (c && AVAILABLE_LOCALES.includes(c as Locale)) {
-      lang = c as Locale;
-    }
-  } catch {
-    // ignore and use default
-  }
-
-  // load translations for this request on the server and inject to client
-  let initialTranslations;
-  try {
-    initialTranslations = getTranslations(lang);
-  } catch {
-    initialTranslations = undefined;
-  }
+  const locale = await getLocale();
+  const messages = await getMessages();
 
   return (
-    <html lang={lang} suppressHydrationWarning>
+    <html lang={locale} suppressHydrationWarning>
       <head>
         <meta
           name="build-time"
@@ -107,13 +89,9 @@ export default async function RootLayout({
         />
       </head>
       <body>
-        {/* pass initialLocale and initialTranslations so client provider initializes to the same locale/translations as server */}
-        <Providers
-          initialLocale={lang}
-          initialTranslations={initialTranslations}
-        >
-          {children}
-        </Providers>
+        <NextIntlClientProvider locale={locale} messages={messages}>
+          <Providers>{children}</Providers>
+        </NextIntlClientProvider>
       </body>
     </html>
   );

@@ -77,13 +77,13 @@ export default function BlogDashboardPage() {
       setRecentArticles(articlesRes.list?.slice(0, 3) || []);
 
       // Set top articles based on views
-          const articlesWithViews =
-                articlesRes.list?.map((article: any) => {
-                  // 将 Localized 格式的标题转换为字符串
-                  let titleStr = 'Untitled';
-                  if (article.title) {
-                    titleStr = renderLocalizedText(article.title, lang, 'Untitled');
-                  }
+      const articlesWithViews =
+        articlesRes.list?.map((article: any) => {
+          // 将 Localized 格式的标题转换为字符串
+          let titleStr = 'Untitled';
+          if (article.title) {
+            titleStr = renderLocalizedText(article.title, lang, 'Untitled');
+          }
           return {
             title: titleStr,
             views: article.views || 0,

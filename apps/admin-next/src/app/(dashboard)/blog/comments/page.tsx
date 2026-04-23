@@ -73,9 +73,9 @@ export default function CommentsPage() {
         response.list?.map((article: any) => {
           // 将 Localized 格式的标题转换为字符串
           let titleStr = t('untitled');
-            if (article.title) {
-              titleStr = renderLocalizedText(article.title, lang, t('untitled'));
-            }
+          if (article.title) {
+            titleStr = renderLocalizedText(article.title, lang, t('untitled'));
+          }
           return {
             id: article.id,
             title: titleStr,
@@ -174,9 +174,7 @@ export default function CommentsPage() {
   };
 
   const handleDeleteComment = async (commentId: string) => {
-    if (
-      !window.confirm(t('deleteConfirm'))
-    ) {
+    if (!window.confirm(t('deleteConfirm'))) {
       return;
     }
 
@@ -226,7 +224,7 @@ export default function CommentsPage() {
         description={t('pageDescription')}
         showBackButton={true}
         onBack={() => router.push('/blog')}
-        breadcrumbs={['Blog', 'Comments']}
+        breadcrumbs={[globalT('breadcrumbBlog'), globalT('breadcrumbComments')]}
       />
 
       {/* Stats */}
@@ -234,7 +232,9 @@ export default function CommentsPage() {
         <Card>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-muted-foreground">{t('totalComments')}</p>
+              <p className="text-sm text-muted-foreground">
+                {t('totalComments')}
+              </p>
               <p className="text-2xl font-bold">{stats.total}</p>
             </div>
             <MessageSquare className="h-8 w-8 text-primary/50" />
@@ -326,8 +326,11 @@ export default function CommentsPage() {
       <Card title={t('commentList')}>
         <div className="mb-4">
           <p className="text-sm text-muted-foreground">
-            {t('totalCommentsCount', { count: filteredComments.length })}, {' '}
-            {t('pendingModeration', { count: filteredComments.filter((c) => c.status === 'PENDING').length })}
+            {t('totalCommentsCount', { count: filteredComments.length })},{' '}
+            {t('pendingModeration', {
+              count: filteredComments.filter((c) => c.status === 'PENDING')
+                .length,
+            })}
           </p>
         </div>
         <div className="space-y-4">
@@ -428,7 +431,10 @@ export default function CommentsPage() {
       {/* Pagination */}
       <div className="flex items-center justify-between">
         <div className="text-sm text-muted-foreground">
-          {t('showingComments', { current: filteredComments.length, total: filteredComments.length })}
+          {t('showingComments', {
+            current: filteredComments.length,
+            total: filteredComments.length,
+          })}
         </div>
         <div className="flex items-center space-x-2">
           <button

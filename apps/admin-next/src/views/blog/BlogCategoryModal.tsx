@@ -9,11 +9,8 @@ import { blogApi } from '@/api';
 import { useRequest } from 'ahooks';
 import { useLanguage } from '@/hooks/LanguageProvider';
 import { useLocalizedFormV2 } from '@/hooks/useLocalizedFormV2';
-import { LanguageSwitch } from '@/components/blog/LanguageSwitch';
-import {
-  extractCurrentLocaleValue,
-  normalizeLocalizedValue,
-} from '@/utils/localizedForm';
+import { extractCurrentLocaleValue } from '@/utils/localizedForm';
+import { useTranslation } from '@/hooks/useTranslation';
 
 interface BlogCategoryModalProps {
   isOpen: boolean;
@@ -34,6 +31,7 @@ export const BlogCategoryModal: React.FC<BlogCategoryModalProps> = ({
   onSuccessAction,
 }) => {
   const isEditing = !!editingCategory;
+  const { t } = useTranslation();
 
   const { run: createCategory, loading: isCreating } = useRequest(
     blogApi.createCategory,
@@ -195,30 +193,33 @@ export const BlogCategoryModal: React.FC<BlogCategoryModalProps> = ({
     <Modal
       isOpen={isOpen}
       onCloseAction={onCloseAction}
-      title={`${isEditing ? 'Edit' : 'Create'} Category`}
+      title={
+        isEditing
+          ? t('categories_modalTitleEdit')
+          : t('categories_modalTitleCreate')
+      }
       size="md"
     >
       <Form {...form}>
         <form onSubmit={submitHandler} className="space-y-4">
           <div className="flex justify-between items-center">
-            <h3 className="text-sm font-medium">Name</h3>
-            <LanguageSwitch />
+            <h3 className="text-sm font-medium">{t('categories_name')}</h3>
           </div>
           <FormTextField
             label=""
-            placeholder="Enter category name"
+            placeholder={t('categories_namePlaceholder')}
             required
             {...localize('name')}
           />
           <FormTextField
-            label="Slug"
-            placeholder="e.g., news-articles"
+            label={t('categories_slug')}
+            placeholder={t('categories_slugPlaceholder')}
             required
             {...register('slug')}
           />
           <FormTextareaField
-            label="Description"
-            placeholder="Optional description"
+            label={t('categories_description')}
+            placeholder={t('categories_descriptionPlaceholder')}
             {...localize('description')}
           />
           <div className="flex justify-end space-x-3 pt-4">
@@ -228,10 +229,10 @@ export const BlogCategoryModal: React.FC<BlogCategoryModalProps> = ({
               onClick={onCloseAction}
               disabled={loading}
             >
-              Cancel
+              {t('categories_cancel')}
             </Button>
             <Button type="submit" isLoading={loading}>
-              {isEditing ? 'Update' : 'Create'}
+              {isEditing ? t('categories_update') : t('categories_create')}
             </Button>
           </div>
         </form>

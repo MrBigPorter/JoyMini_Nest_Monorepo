@@ -50,6 +50,41 @@ export function getTranslations(lang: Locale) {
 }
 
 /**
+ * Unified resolver for a single translation key. Searches:
+ * 1. TRANSLATIONS[lang] (supports dot-path lookup when nested maps exist)
+ * 2. Known namespaced maps (e.g. BLOG_TRANSLATION_CARD_TRANSLATIONS)
+ * 3. Fallback to the key itself when not found
+ */
+export function getTranslation(lang: Locale, key: string) {
+  const parts = key.split('.');
+  const root = TRANSLATIONS[lang] || TRANSLATIONS['en'] || {};
+
+  // try deep lookup on TRANSLATIONS (handles both flat and nested structures)
+  let cur: any = root;
+  for (const p of parts) {
+    if (cur && Object.prototype.hasOwnProperty.call(cur, p)) cur = cur[p];
+    else {
+      cur = undefined;
+      break;
+    }
+  }
+  if (typeof cur === 'string') return cur;
+
+  // fallback: if key is namespaced like `blogCard.x` check the blog map
+  if (parts[0] === 'blogCard') {
+    const subKey = parts.slice(1).join('.');
+    const m = BLOG_TRANSLATION_CARD_TRANSLATIONS[lang] || {};
+    if (m && typeof m[subKey] === 'string') return m[subKey];
+  }
+
+  // last attempt: direct lookup on the root flat map
+  if (typeof root[key] === 'string') return root[key];
+
+  // not found -> return key (preserve existing behavior)
+  return key;
+}
+
+/**
  * Client-side dynamic loader for a locale file. Returns the translations map.
  * Uses dynamic import so bundler can split locale files.
  */
