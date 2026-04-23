@@ -13,6 +13,7 @@ import {
   LogOut,
   ChevronDown,
   X,
+  Check,
 } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
 import { useAuthStore } from '@/store/useAuthStore';
@@ -22,6 +23,8 @@ import { useRequest } from 'ahooks';
 import { routes } from '@/routes';
 import { TRANSLATIONS, ROLE_DISPLAY_NAMES } from '@/constants';
 import { applicationApi } from '@/api';
+import { useAvailableLocales } from '@/hooks/useAvailableLocales';
+import type { Locale } from '@lucky/shared';
 
 const PENDING_APPLICATIONS_UPDATED_EVENT = 'applications:pending-updated';
 
@@ -138,6 +141,58 @@ function QuickNav({ lang }: { lang: string }) {
   );
 }
 
+// Small language selector wrapper using existing Dropdown component.
+function LocaleDropdown({
+  current,
+  onSelect,
+}: {
+  current: Locale;
+  onSelect: (code: Locale) => void;
+}) {
+  const { locales, enabledLocales } = useAvailableLocales();
+
+  // Fallback mapping in case hook returns empty (shouldn't but safe)
+  const fallbackNames: Record<string, string> = {
+    zh: '中文',
+    en: 'English',
+    ja: '日本語',
+    ko: '한국어',
+    fr: 'Français',
+    de: 'Deutsch',
+  };
+
+  const rawList = enabledLocales.length ? enabledLocales : locales;
+  const list = (rawList ?? []).map((l: unknown) => {
+    const it = l as { code?: string; name?: string };
+    const code = (it?.code ?? (String(it) as string)) as Locale;
+    const codeKey = it?.code ?? code;
+    const name = it?.name ?? fallbackNames[codeKey] ?? String(codeKey);
+    return { code, name };
+  });
+
+  let shortLabel = String(current).toUpperCase();
+  if (current === 'en') {
+    shortLabel = 'EN';
+  } else if (current === 'zh') {
+    shortLabel = '中';
+  }
+
+  const trigger = (
+    <div className="p-2 text-gray-500 hover:text-primary-500 transition-colors rounded-full hover:bg-gray-100 dark:hover:bg-white/5 flex items-center gap-2">
+      <span className="font-bold text-xs">{shortLabel}</span>
+      <ChevronDown size={12} className="text-gray-400" />
+    </div>
+  );
+
+  const items = list.map((l) => ({
+    label: l.name,
+    icon: l.code === current ? <Check size={14} /> : undefined,
+    onClick: () => onSelect(l.code),
+  }));
+
+  return <Dropdown trigger={trigger} items={items} />;
+}
+
 // ── Header ────────────────────────────────────────────────────────────────────
 interface HeaderProps {
   onMenuButtonClick: () => void;
@@ -149,7 +204,7 @@ export const Header: React.FC<HeaderProps> = ({
   breadcrumbs,
 }) => {
   const router = useRouter();
-  const { theme, toggleTheme, lang, toggleLang } = useAppStore();
+  const { theme, toggleTheme, lang, setLang } = useAppStore();
   const logoutAction = useAuthStore((state) => state.logout);
   const userInfo = useAuthStore((state) => state.userInfo);
   const addToast = useToastStore((state) => state.addToast);
@@ -233,16 +288,13 @@ export const Header: React.FC<HeaderProps> = ({
 
         <div className="h-6 w-px bg-gray-200 dark:bg-white/10 mx-2" />
 
-        {/* Language toggle */}
-        <button
-          onClick={toggleLang}
-          className="p-2 text-gray-500 hover:text-primary-500 transition-colors rounded-full hover:bg-gray-100 dark:hover:bg-white/5"
-          title={lang === 'en' ? 'Switch to Chinese' : '切换为英文'}
-        >
-          <span className="font-bold text-xs">
-            {lang === 'en' ? 'EN' : '中'}
-          </span>
-        </button>
+        {/* Language selector (dropdown) */}
+        <LocaleDropdown
+          current={lang as Locale}
+          onSelect={(code) => {
+            if (code !== lang) setLang(code);
+          }}
+        />
 
         {/* Theme toggle — shows icon of what you'll switch TO */}
         <button

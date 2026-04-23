@@ -74,7 +74,7 @@ const MiniStatCard = ({
 
 export default function TranslationProgressCard() {
   const { locale } = useLanguage();
-  
+
   // 翻译函数
   const t = (key: string, params?: Record<string, string | number>) => {
     const safeLocale = locale === 'zh' || locale === 'en' ? locale : 'en';
@@ -229,14 +229,18 @@ export default function TranslationProgressCard() {
               <div className="flex items-center gap-1">
                 <div className="w-2 h-2 rounded-full bg-amber-500"></div>
                 <span className="text-gray-600">
-                  {t('waitingJobs', { count: progressData.queueStatus.waiting })}
+                  {t('waitingJobs', {
+                    count: progressData.queueStatus.waiting,
+                  })}
                 </span>
               </div>
             </div>
             <div className="flex items-center gap-1">
               <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
               <span className="text-gray-600">
-                {t('completedJobs', { count: progressData.queueStatus.completed })}
+                {t('completedJobs', {
+                  count: progressData.queueStatus.completed,
+                })}
               </span>
             </div>
           </div>
