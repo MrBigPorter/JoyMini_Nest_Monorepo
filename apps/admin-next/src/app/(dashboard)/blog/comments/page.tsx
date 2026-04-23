@@ -22,8 +22,7 @@ import { Card, Badge } from '@/components/UIComponents';
 import { blogApi } from '@/api';
 import { PageHeader } from '@/components/scaffold/PageHeader';
 import { BlogCommentModal } from '@/views/blog/BlogCommentModal';
-import { useLanguage } from '@/hooks/LanguageProvider';
-import { TRANSLATIONS } from '@/constants';
+import { useTranslation } from '@/hooks/useTranslation';
 import { renderLocalizedText } from '@/utils/localizedText';
 import LocalizedText from '@/components/blog/LocalizedText';
 
@@ -38,20 +37,10 @@ export default function CommentsPage() {
   const [editingComment, setEditingComment] = useState<any>(null);
   const { addToast } = useToastStore();
   const router = useRouter();
-  const { locale } = useLanguage();
+  const { t: globalT, lang } = useTranslation();
 
-  // 翻译函数
-  const t = (key: string, params?: Record<string, string | number>) => {
-    const safeLocale = locale === 'zh' || locale === 'en' ? locale : 'en';
-    const fullKey = `blog_comments_${key}`;
-    let text = TRANSLATIONS[safeLocale][fullKey] || TRANSLATIONS['en'][fullKey] || key;
-    if (params) {
-      Object.entries(params).forEach(([k, v]) => {
-        text = text.replace(`{${k}}`, String(v));
-      });
-    }
-    return text;
-  };
+  const t = (key: string, params?: Record<string, string | number>) =>
+    globalT(`blog_comments_${key}`, params);
 
   const fetchComments = async () => {
     setIsLoading(true);
@@ -84,9 +73,9 @@ export default function CommentsPage() {
         response.list?.map((article: any) => {
           // 将 Localized 格式的标题转换为字符串
           let titleStr = t('untitled');
-          if (article.title) {
-            titleStr = renderLocalizedText(article.title, locale, t('untitled'));
-          }
+            if (article.title) {
+              titleStr = renderLocalizedText(article.title, lang, t('untitled'));
+            }
           return {
             id: article.id,
             title: titleStr,

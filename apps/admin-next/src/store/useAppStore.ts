@@ -14,7 +14,7 @@ interface AppState {
 }
 
 export const useAppStore = create<AppState>()(
-  persist(
+  persist<AppState>(
     (set) => ({
       theme: 'dark',
       lang: DEFAULT_LOCALE,
@@ -52,11 +52,12 @@ export const useAppStore = create<AppState>()(
         return localStorage;
       }),
       // 持久化 theme、lang 和 isSidebarCollapsed
-      partialize: (state) => ({
-        theme: state.theme,
-        lang: state.lang,
-        isSidebarCollapsed: state.isSidebarCollapsed,
-      }),
+      partialize: (state) =>
+        ({
+          theme: state.theme,
+          lang: state.lang,
+          isSidebarCollapsed: state.isSidebarCollapsed,
+        }) as unknown as AppState,
     },
   ),
 );

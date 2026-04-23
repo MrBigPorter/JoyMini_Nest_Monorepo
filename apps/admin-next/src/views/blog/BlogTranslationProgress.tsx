@@ -5,8 +5,7 @@ import { useRequest } from 'ahooks';
 import { Card, Badge, Button, Select } from '@/components/UIComponents';
 import { useToastStore } from '@/store/useToastStore';
 import { blogApi } from '@/api';
-import { useLanguage } from '@/hooks/LanguageProvider';
-import { TRANSLATIONS } from '@/constants';
+import { useTranslation } from '@/hooks/useTranslation';
 import { enUS, zhCN } from 'date-fns/locale';
 import {
   RefreshCw,
@@ -285,26 +284,16 @@ const TimeInfo = ({
 };
 
 export default function BlogTranslationProgress() {
+  const { t: globalT, lang } = useTranslation();
   const { addToast } = useToastStore();
-  const { locale } = useLanguage();
 
-  // 类型安全的翻译函数 - 使用全局TRANSLATIONS
-  const t = (key: string, params?: Record<string, string | number>) => {
-    // 安全处理多语言：支持所有Locale类型，降级到en
-    const safeLocale = locale === 'zh' || locale === 'en' ? locale : 'en';
-    const fullKey = `blog_translation_${key}`;
-    let text =
-      TRANSLATIONS[safeLocale][fullKey] || TRANSLATIONS['en'][fullKey] || key;
-    if (params) {
-      Object.entries(params).forEach(([k, v]) => {
-        text = text.replace(`{${k}}`, String(v));
-      });
-    }
-    return text;
-  };
+  // Local blog-scoped t that prefixes keys with `blog_translation_` to
+  // preserve existing key naming in this view.
+  const t = (key: string, params?: Record<string, string | number>) =>
+    globalT(`blog_translation_${key}`, params);
 
   // 动态date-fns本地化
-  const dateLocale = locale === 'zh' ? zhCN : enUS;
+  const dateLocale = (lang === 'zh' ? zhCN : enUS) as any;
 
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState<string>('en');

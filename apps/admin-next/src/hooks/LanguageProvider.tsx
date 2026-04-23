@@ -13,17 +13,30 @@ import { useAppStore } from '@/store/useAppStore';
 export interface LanguageContextType {
   locale: Locale;
   setLocale: (locale: Locale) => void;
+  translations?: Record<string, string>;
 }
 
 export const LanguageContext = createContext<LanguageContextType | undefined>(
   undefined,
 );
 
-export const LanguageProvider: React.FC<{ children: ReactNode }> = ({
+export interface LanguageProviderProps {
+  children: ReactNode;
+  initialLocale?: Locale;
+  // initialTranslations: optional map of translations for the initialLocale;
+  // provided by server to avoid hydrate mismatch where client can't load
+  // translations quickly enough.
+  initialTranslations?: Record<string, string>;
+}
+
+export const LanguageProvider: React.FC<LanguageProviderProps> = ({
   children,
+  initialLocale,
+  initialTranslations,
 }) => {
-  // 从localStorage读取保存的语言设置
+  // 从localStorage读取保存的语言设置（仅在 initialLocale 未提供时使用）
   const getSavedLocale = (): Locale => {
+    if (initialLocale) return initialLocale;
     if (typeof window === 'undefined') return DEFAULT_LOCALE;
     const saved = localStorage.getItem('app_locale');
     if (saved && AVAILABLE_LOCALES.includes(saved as Locale)) {
@@ -33,6 +46,8 @@ export const LanguageProvider: React.FC<{ children: ReactNode }> = ({
   };
 
   const [locale, setLocale] = useState<Locale>(getSavedLocale());
+  // translations for the currently selected locale
+  const [translations, setTranslations] = useState<Record<string, string>>(initialTranslations || {});
   const appStoreLang = useAppStore((state) => state.lang);
 
   // 同步 useAppStore 中的语言设置
@@ -49,9 +64,23 @@ export const LanguageProvider: React.FC<{ children: ReactNode }> = ({
     }
   }, [locale]);
 
-  // 包装 setLocale 函数，同时更新 useAppStore
-  const wrappedSetLocale = (newLocale: Locale) => {
+  // 包装 setLocale 函数，同时更新 useAppStore，并尝试按需加载 translations
+  const wrappedSetLocale = async (newLocale: Locale) => {
+    if (newLocale === locale) return;
+
+    // optimistic update of locale state
     setLocale(newLocale);
+
+    // load translations dynamically from client-side loader to reduce bundle size
+    try {
+      const mod = await import(/* webpackChunkName: "locale-[request]" */ '@/i18n');
+      const loaded = await mod.loadLocale(newLocale as any);
+      setTranslations(loaded || {});
+    } catch (e) {
+      // fallback: keep existing translations
+      console.warn('[LanguageProvider] failed to load locale', newLocale, e);
+    }
+
     // 更新 useAppStore 中的语言设置
     const appStore = useAppStore.getState();
     if (appStore.lang !== newLocale) {
@@ -60,7 +89,7 @@ export const LanguageProvider: React.FC<{ children: ReactNode }> = ({
   };
 
   return (
-    <LanguageContext.Provider value={{ locale, setLocale: wrappedSetLocale }}>
+    <LanguageContext.Provider value={{ locale, setLocale: wrappedSetLocale, translations }}>
       {children}
     </LanguageContext.Provider>
   );
@@ -81,6 +110,7 @@ export function useLanguage() {
     // 返回安全的默认实现，永远不会崩溃
     return {
       locale: DEFAULT_LOCALE,
+      translations: {},
       setLocale: () => {
         if (process.env.NODE_ENV === 'development') {
           console.warn(

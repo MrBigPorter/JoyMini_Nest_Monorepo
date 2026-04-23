@@ -4,7 +4,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { useAppStore } from '@/store/useAppStore';
 import { useAuthStore } from '@/store/useAuthStore';
-import { TRANSLATIONS } from '@/constants';
+import { useTranslation } from '@/hooks/useTranslation';
 import { routes } from '@/routes';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
@@ -18,8 +18,8 @@ import { MainContent } from './MainContent';
 export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  const { lang } = useAppStore();
-  const t = TRANSLATIONS[lang];
+  // useTranslation hook provides t(func) and translations map; don't need useAppStore.lang here
+  const { t } = useTranslation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const pathname = usePathname();
   const fetchMe = useAuthStore((state) => state.fetchMe);
@@ -33,14 +33,15 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({
   const pageInfo = useMemo(() => {
     const normalizedPath = pathname.replace(/\/$/, '') || '/';
     const currentRoute = routes.find((r) => r.path === normalizedPath);
-    if (currentRoute) {
-      return {
-        breadcrumbs: [
-          currentRoute.group,
-          t[currentRoute.name as keyof typeof t] || currentRoute.name,
-        ],
-      };
-    }
+      if (currentRoute) {
+        return {
+          breadcrumbs: [
+            currentRoute.group,
+            // use t() to translate route name
+            t(currentRoute.name) || currentRoute.name,
+          ],
+        };
+      }
     return { breadcrumbs: [] };
   }, [pathname, t]);
 

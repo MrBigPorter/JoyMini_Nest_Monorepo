@@ -6,8 +6,7 @@ import { Card, Badge, Button } from '@/components/UIComponents';
 import { blogApi } from '@/api';
 import { RefreshCw, FileText, List, BarChart3, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
-import { useLanguage } from '@/hooks/LanguageProvider';
-import { BLOG_TRANSLATION_CARD_TRANSLATIONS } from '@/constants';
+import { useTranslation } from '@/hooks/useTranslation';
 
 // 进度条组件
 const ProgressBar = ({ value, max = 100 }: { value: number; max?: number }) => {
@@ -73,19 +72,7 @@ const MiniStatCard = ({
 };
 
 export default function TranslationProgressCard() {
-  const { locale } = useLanguage();
-
-  // 翻译函数
-  const t = (key: string, params?: Record<string, string | number>) => {
-    const safeLocale = locale === 'zh' || locale === 'en' ? locale : 'en';
-    let text = BLOG_TRANSLATION_CARD_TRANSLATIONS[safeLocale][key] || key;
-    if (params) {
-      Object.entries(params).forEach(([k, v]) => {
-        text = text.replace(`{${k}}`, String(v));
-      });
-    }
-    return text;
-  };
+  const { t, lang } = useTranslation();
 
   const {
     data: progress,

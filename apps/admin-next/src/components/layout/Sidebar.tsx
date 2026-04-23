@@ -7,11 +7,12 @@ import { LogOut, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useToastStore } from '@/store/useToastStore';
-import { TRANSLATIONS, ROLE_DISPLAY_NAMES } from '@/constants';
+import { ROLE_DISPLAY_NAMES } from '@/constants';
 import { routes, RouteConfig } from '@/routes';
 import { useRequest } from 'ahooks';
 import { motion, AnimatePresence } from 'framer-motion';
 import { applicationApi } from '@/api';
+import { useTranslation } from '@/hooks/useTranslation';
 
 const PENDING_APPLICATIONS_UPDATED_EVENT = 'applications:pending-updated';
 
@@ -78,11 +79,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
   mobileOpen,
   onMobileClose,
 }) => {
-  const { lang, isSidebarCollapsed, toggleSidebar } = useAppStore();
+  const { isSidebarCollapsed, toggleSidebar } = useAppStore();
   const logoutAction = useAuthStore((state) => state.logout);
   const userInfo = useAuthStore((state) => state.userInfo);
   const addToast = useToastStore((state) => state.addToast);
-  const t = TRANSLATIONS[lang];
+  // Prefer using the useTranslation hook so we keep translations in sync with LanguageProvider
+  const { t, translations } = useTranslation();
   const canReviewApplications = userInfo?.role === 'SUPER_ADMIN';
 
   const { loading: isLoggingOut, run: handleLogout } = useRequest(
@@ -188,7 +190,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       icon={React.createElement(route.icon, {
                         size: isSidebarCollapsed ? 22 : 18,
                       })}
-                      label={t[route.name as keyof typeof t] || route.name}
+                      label={translations?.[route.name] || t(route.name) || route.name}
                       isCollapsed={isSidebarCollapsed}
                       badge={
                         route.path === '/admin-users' && canReviewApplications
@@ -216,7 +218,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               ) : (
                 <ChevronsLeft size={18} />
               )}
-              <motion.span
+                <motion.span
                 animate={{
                   opacity: isSidebarCollapsed ? 0 : 1,
                   width: isSidebarCollapsed ? 0 : 'auto',
@@ -237,7 +239,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               className={`w-full flex items-center gap-3 rounded-xl px-4 py-3 text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors disabled:opacity-50 ${isSidebarCollapsed ? 'justify-center' : ''}`}
             >
               <LogOut size={18} className="flex-shrink-0" />
-              <motion.span
+                <motion.span
                 animate={{
                   opacity: isSidebarCollapsed ? 0 : 1,
                   width: isSidebarCollapsed ? 0 : 'auto',
@@ -246,7 +248,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 transition={{ duration: 0.2 }}
                 className="overflow-hidden whitespace-nowrap text-sm font-medium"
               >
-                {isLoggingOut ? 'Logging out…' : t.logout}
+                {isLoggingOut ? 'Logging out…' : t('logout')}
               </motion.span>
             </button>
 

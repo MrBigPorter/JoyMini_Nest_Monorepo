@@ -29,8 +29,7 @@ import type {
   ProColumns,
   ActionType,
 } from '@/components/scaffold/SmartTable/types';
-import { useLanguage } from '@/hooks/LanguageProvider';
-import { TRANSLATIONS } from '@/constants';
+import { useTranslation } from '@/hooks/useTranslation';
 import type { FormSchema } from '@/type/search';
 
 type Article = Partial<ArticleFormInputs> & {
@@ -61,21 +60,10 @@ export default function ArticlesPageV2() {
   const { addToast } = useToastStore();
   const router = useRouter();
   const actionRef = useRef<ActionType>(null);
-  const { locale } = useLanguage();
+  const { t: globalT, lang } = useTranslation();
 
-  // 翻译函数
-  const t = (key: string, params?: Record<string, string | number>) => {
-    const safeLocale = locale === 'zh' || locale === 'en' ? locale : 'en';
-    const fullKey = `blog_articles_${key}`;
-    let text =
-      TRANSLATIONS[safeLocale][fullKey] || TRANSLATIONS['en'][fullKey] || key;
-    if (params) {
-      Object.entries(params).forEach(([k, v]) => {
-        text = text.replace(`{${k}}`, String(v));
-      });
-    }
-    return text;
-  };
+  const t = (key: string, params?: Record<string, string | number>) =>
+    globalT(`blog_articles_${key}`, params);
 
   // 删除文章 mutation
   const deleteArticleMutation = useMutation({
@@ -133,7 +121,7 @@ export default function ArticlesPageV2() {
       }
     };
     fetchCategories();
-  }, []);
+  }, [lang]);
 
   // 状态徽章（后端返回大写，前端显示小写）
   const getStatusBadge = (status: string | undefined) => {
@@ -192,7 +180,7 @@ export default function ArticlesPageV2() {
               {article.category?.name
                 ? renderLocalizedText(
                     article.category.name,
-                    locale,
+                    lang,
                     t('uncategorized'),
                   )
                 : t('uncategorized')}
@@ -325,7 +313,7 @@ export default function ArticlesPageV2() {
           {article.category?.name
             ? renderLocalizedText(
                 article.category.name,
-                locale,
+                lang,
                 t('uncategorized'),
               )
             : t('uncategorized')}
@@ -469,13 +457,13 @@ export default function ArticlesPageV2() {
         options: [
           { label: t('allCategories'), value: '' },
           ...categories.map((cat) => ({
-            label: renderLocalizedText(cat.name, locale, cat.id),
+            label: renderLocalizedText(cat.name, lang, cat.id),
             value: cat.id,
           })),
         ],
       },
     ],
-    [categories, t],
+    [categories, t, lang],
   );
 
   // 请求文章数据
@@ -503,10 +491,10 @@ export default function ArticlesPageV2() {
         readTime: article.readTime || '5 min',
         // 转换tags格式：从标签对象数组转换为标签名称数组
         tags: (article.tags || [])
-          .map((tag: string | { name?: any; id?: string }) =>
+              .map((tag: string | { name?: any; id?: string }) =>
             typeof tag === 'string'
               ? tag
-              : renderLocalizedText(tag.name, locale, tag.id || ''),
+              : renderLocalizedText(tag.name, lang, tag.id || ''),
           )
           .filter(Boolean),
       }));

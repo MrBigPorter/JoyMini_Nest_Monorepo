@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 import type { Metadata } from 'next';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { routes } from '@/routes';
-import { TRANSLATIONS } from '@/constants';
+import { getTranslations } from '@/i18n';
 
 /**
  * generateMetadata — 集中管理所有 dashboard 子页面的 <title>
@@ -16,8 +16,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const pathname = (h.get('x-pathname') || '/').replace(/\/$/, '') || '/';
   const route = routes.find((r) => r.path === pathname);
   const title = route
-    ? (TRANSLATIONS.en[route.name as keyof typeof TRANSLATIONS.en] ??
-      route.name)
+    ? (getTranslations('en')[route.name as keyof ReturnType<typeof getTranslations>] ?? route.name)
     : undefined;
   return { title };
 }
