@@ -17,8 +17,7 @@ import type {
   ProColumns,
   ActionType,
 } from '@/components/scaffold/SmartTable/types';
-import { useLanguage } from '@/hooks/LanguageProvider';
-import { TRANSLATIONS } from '@/constants';
+import { useTranslation } from '@/hooks/useTranslation';
 import type { FormSchema } from '@/type/search';
 
 export default function CategoriesPage() {
@@ -33,20 +32,10 @@ export default function CategoriesPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const actionRef = useRef<ActionType>(null);
-  const { locale } = useLanguage();
+  const { t: globalT, lang } = useTranslation();
 
-  // 翻译函数
-  const t = (key: string, params?: Record<string, string | number>) => {
-    const safeLocale = locale === 'zh' || locale === 'en' ? locale : 'en';
-    const fullKey = `blog_categories_${key}`;
-    let text = TRANSLATIONS[safeLocale][fullKey] || TRANSLATIONS['en'][fullKey] || key;
-    if (params) {
-      Object.entries(params).forEach(([k, v]) => {
-        text = text.replace(`{${k}}`, String(v));
-      });
-    }
-    return text;
-  };
+  const t = (key: string, params?: Record<string, string | number>) =>
+    globalT(`blog_categories_${key}`, params);
 
   // 删除分类 mutation
   const deleteCategoryMutation = useMutation({
@@ -71,9 +60,9 @@ export default function CategoriesPage() {
         <div className="space-y-3">
           <p>
             Are you sure you want to delete category{' '}
-            <span className="font-bold text-primary-600">
-              {renderLocalizedText(category.name, locale, category.id)}
-            </span>
+              <span className="font-bold text-primary-600">
+                {renderLocalizedText(category.name, lang, category.id)}
+              </span>
             ?
           </p>
 
@@ -98,11 +87,11 @@ export default function CategoriesPage() {
             {category.description && (
               <div className="mt-1">
                 {t('description')}:{' '}
-            {renderLocalizedText(
-              category.description,
-              locale,
-              t('noDescription'),
-            )}
+                      {renderLocalizedText(
+                        category.description,
+                        lang,
+                        t('noDescription'),
+                      )}
               </div>
             )}
           </div>
@@ -151,7 +140,7 @@ export default function CategoriesPage() {
       title: t('description'),
       render: (dom, category: any) => (
         <p className="text-sm text-muted-foreground max-w-md truncate">
-            {renderLocalizedText(category.description, locale, t('noDescription'))}
+            {renderLocalizedText(category.description, lang, t('noDescription'))}
         </p>
       ),
     },

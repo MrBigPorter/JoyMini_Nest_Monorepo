@@ -6,6 +6,7 @@ import { useAppStore } from '@/store/useAppStore';
 import { ToastContainer } from '@/components/UIComponents';
 import { useToastStore } from '@/store/useToastStore';
 import { LanguageProvider } from '@/hooks/LanguageProvider';
+import ChunkReloadHandler from './ChunkReloadHandler';
 
 /**
  * 创建 QueryClient 单例（浏览器）/ 每次新建（服务器）
@@ -40,9 +41,7 @@ function getQueryClient() {
  * - 应用主题（dark/light）
  * - Toast 容器
  */
-export const Providers: React.FC<{ children: React.ReactNode }> = ({
-  children,
-}) => {
+export const Providers: React.FC<any> = ({ children, initialLocale, initialTranslations }) => {
   const [queryClient] = useState(() => getQueryClient());
   const theme = useAppStore((s) => s.theme);
   const { toasts, removeToast } = useToastStore();
@@ -55,7 +54,9 @@ export const Providers: React.FC<{ children: React.ReactNode }> = ({
 
   return (
     <QueryClientProvider client={queryClient}>
-      <LanguageProvider>
+      {/* pass server-detected initialLocale to LanguageProvider to keep SSR/CSR in sync */}
+      <LanguageProvider initialLocale={initialLocale as any} initialTranslations={initialTranslations}>
+        <ChunkReloadHandler />
         <ToastContainer toasts={toasts} removeToastAction={removeToast} />
         {children}
       </LanguageProvider>

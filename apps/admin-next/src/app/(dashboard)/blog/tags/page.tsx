@@ -18,8 +18,7 @@ import { blogApi } from '@/api';
 import { PageHeader } from '@/components/scaffold/PageHeader';
 import { BlogTagModal } from '@/views/blog/BlogTagModal';
 import { ModalManager } from '@repo/ui';
-import { useLanguage } from '@/hooks/LanguageProvider';
-import { TRANSLATIONS } from '@/constants';
+import { useTranslation } from '@/hooks/useTranslation';
 import { renderLocalizedText } from '@/utils/localizedText';
 
 export default function TagsPage() {
@@ -30,20 +29,7 @@ export default function TagsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const { addToast } = useToastStore();
   const router = useRouter();
-  const { locale } = useLanguage();
-
-  // 翻译函数
-  const t = (key: string, params?: Record<string, string | number>) => {
-    const safeLocale = locale === 'zh' || locale === 'en' ? locale : 'en';
-    const fullKey = `blog_tags_${key}`;
-    let text = TRANSLATIONS[safeLocale][fullKey] || TRANSLATIONS['en'][fullKey] || key;
-    if (params) {
-      Object.entries(params).forEach(([k, v]) => {
-        text = text.replace(`{${k}}`, String(v));
-      });
-    }
-    return text;
-  };
+  const { t, lang } = useTranslation();
 
   const fetchTags = async () => {
     setIsLoading(true);
@@ -188,9 +174,9 @@ export default function TagsPage() {
                     <TagIcon className="h-4 w-4" />
                   </div>
                   <div className="ml-3">
-                    <h3 className="font-semibold">
-                      {renderLocalizedText(tag.name, locale, tag.id)}
-                    </h3>
+                      <h3 className="font-semibold">
+                        {renderLocalizedText(tag.name, lang, tag.id)}
+                      </h3>
                     <code className="text-xs text-muted-foreground">
                       /{tag.slug}
                     </code>
@@ -211,9 +197,9 @@ export default function TagsPage() {
                   </button>
                 </div>
               </div>
-              <p className="text-sm text-muted-foreground mb-4">
-                {renderLocalizedText(tag.description, locale, t('noDescription'))}
-              </p>
+                <p className="text-sm text-muted-foreground mb-4">
+                {renderLocalizedText(tag.description, lang, t('noDescription'))}
+               </p>
               <div className="flex items-center justify-between text-xs">
                 <div className="flex items-center space-x-3">
                   <span className="px-2 py-1 rounded-full bg-primary/10 text-primary">

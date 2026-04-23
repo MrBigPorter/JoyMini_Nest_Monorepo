@@ -6,11 +6,10 @@ import { Globe } from 'lucide-react';
 import { Form, FormSelectField } from '@repo/ui/form';
 import { useBlogLocalizedForm } from '@/hooks/useBlogLocalizedForm';
 import { articleSchema, type ArticleFormInputs } from '@/schema/blog';
-import { useLanguage } from '@/hooks/LanguageProvider';
+import { useTranslation } from '@/hooks/useTranslation';
 import type { Locale } from '@/hooks/LanguageProvider';
 import { useAvailableLocales } from '@/hooks/useAvailableLocales';
 import { renderLocalizedText } from '@/utils/localizedText';
-import { TRANSLATIONS } from '@/constants';
 
 import { blogApi, uploadApi } from '@/api';
 import { useRequest } from 'ahooks';
@@ -40,7 +39,11 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
 }) => {
   const isEditing = !!editingArticle;
   const addToast = useToastStore((state) => state.addToast);
-  const { locale } = useLanguage();
+  const { t: globalT, lang } = useTranslation();
+
+  // Local blog-article scoped translator
+  const t = (key: string, params?: Record<string, string | number>) =>
+    globalT(`blog_article_${key}`, params);
   const [categories, setCategories] = useState<{ id: string; name: unknown }[]>(
     [],
   );
@@ -48,18 +51,7 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
 
-  // 翻译函数
-  const t = (key: string, params?: Record<string, string | number>) => {
-    const safeLocale = locale === 'zh' || locale === 'en' ? locale : 'en';
-    const fullKey = `blog_article_${key}`;
-    let text = TRANSLATIONS[safeLocale][fullKey] || TRANSLATIONS['en'][fullKey] || key;
-    if (params) {
-      Object.entries(params).forEach(([k, v]) => {
-        text = text.replace(`{${k}}`, String(v));
-      });
-    }
-    return text;
-  };
+  // (translation helper defined above as blog-article scoped `t`)
 
   // Fetch categories and tags
   useEffect(() => {

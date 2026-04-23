@@ -17,10 +17,10 @@ import { PageHeader } from '@/components/scaffold/PageHeader';
 import { Card, Badge } from '@/components/UIComponents';
 import { blogApi } from '@/api';
 import { BlogArticleModal } from '@/views/blog/BlogArticleModal';
-import { useLanguage } from '@/hooks/LanguageProvider';
+import { useTranslation } from '@/hooks/useTranslation';
 import { renderLocalizedText } from '@/utils/localizedText';
 import LocalizedText from '@/components/blog/LocalizedText';
-import { TRANSLATIONS } from '@/constants';
+// removed legacy TRANSLATIONS import; use useTranslation() instead
 
 export default function BlogDashboardPage() {
   const [stats, setStats] = useState({
@@ -29,20 +29,11 @@ export default function BlogDashboardPage() {
     totalTags: 0,
     pendingComments: 0,
   });
-  const { locale } = useLanguage();
+  const { t: globalT, lang } = useTranslation();
 
-  // 翻译函数
-  const t = (key: string, params?: Record<string, string | number>) => {
-    const safeLocale = locale === 'zh' || locale === 'en' ? locale : 'en';
-    const fullKey = `blog_dashboard_${key}`;
-    let text = TRANSLATIONS[safeLocale][fullKey] || TRANSLATIONS['en'][fullKey] || key;
-    if (params) {
-      Object.entries(params).forEach(([k, v]) => {
-        text = text.replace(`{${k}}`, String(v));
-      });
-    }
-    return text;
-  };
+  // local scoper for dashboard keys
+  const t = (key: string, params?: Record<string, string | number>) =>
+    globalT(`blog_dashboard_${key}`, params);
   const [recentArticles, setRecentArticles] = useState<
     Array<{
       id: string;
@@ -86,13 +77,13 @@ export default function BlogDashboardPage() {
       setRecentArticles(articlesRes.list?.slice(0, 3) || []);
 
       // Set top articles based on views
-      const articlesWithViews =
-        articlesRes.list?.map((article: any) => {
-          // 将 Localized 格式的标题转换为字符串
-          let titleStr = 'Untitled';
-          if (article.title) {
-            titleStr = renderLocalizedText(article.title, locale, 'Untitled');
-          }
+          const articlesWithViews =
+                articlesRes.list?.map((article: any) => {
+                  // 将 Localized 格式的标题转换为字符串
+                  let titleStr = 'Untitled';
+                  if (article.title) {
+                    titleStr = renderLocalizedText(article.title, lang, 'Untitled');
+                  }
           return {
             title: titleStr,
             views: article.views || 0,

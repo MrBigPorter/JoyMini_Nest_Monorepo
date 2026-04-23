@@ -21,7 +21,8 @@ import { useToastStore } from '@/store/useToastStore';
 import { Dropdown, Breadcrumbs } from '@/components/UIComponents';
 import { useRequest } from 'ahooks';
 import { routes } from '@/routes';
-import { TRANSLATIONS, ROLE_DISPLAY_NAMES } from '@/constants';
+import { ROLE_DISPLAY_NAMES } from '@/constants';
+import { useTranslation } from '@/hooks/useTranslation';
 import { applicationApi } from '@/api';
 import { useAvailableLocales } from '@/hooks/useAvailableLocales';
 import type { Locale } from '@lucky/shared';
@@ -44,9 +45,9 @@ function avatarGradient(name: string) {
 }
 
 // ── QuickNav search ───────────────────────────────────────────────────────────
-function QuickNav({ lang }: { lang: string }) {
+function QuickNav() {
   const router = useRouter();
-  const t = TRANSLATIONS[lang as keyof typeof TRANSLATIONS];
+  const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -58,7 +59,7 @@ function QuickNav({ lang }: { lang: string }) {
     return routes
       .filter((r) => !r.hidden)
       .filter((r) => {
-        const label = (t[r.name as keyof typeof t] || r.name).toLowerCase();
+        const label = (t(r.name) || r.name).toLowerCase();
         return label.includes(q) || r.path.includes(q);
       })
       .slice(0, 6);
@@ -119,7 +120,7 @@ function QuickNav({ lang }: { lang: string }) {
       {open && results.length > 0 && (
         <div className="absolute top-full left-0 mt-1.5 w-full bg-white dark:bg-dark-900 border border-gray-100 dark:border-white/10 rounded-xl shadow-lg shadow-black/10 overflow-hidden z-50">
           {results.map((r) => {
-            const label = t[r.name as keyof typeof t] || r.name;
+            const label = t(r.name) || r.name;
             const Icon = r.icon;
             return (
               <button
@@ -204,11 +205,11 @@ export const Header: React.FC<HeaderProps> = ({
   breadcrumbs,
 }) => {
   const router = useRouter();
-  const { theme, toggleTheme, lang, setLang } = useAppStore();
+  const { theme, toggleTheme } = useAppStore();
+  const { t, lang, setLang: setI18nLang } = useTranslation();
   const logoutAction = useAuthStore((state) => state.logout);
   const userInfo = useAuthStore((state) => state.userInfo);
   const addToast = useToastStore((state) => state.addToast);
-  const t = TRANSLATIONS[lang];
   const canReviewApplications = userInfo?.role === 'SUPER_ADMIN';
 
   const { loading: isLoggingOut, run: handleLogout } = useRequest(
@@ -264,7 +265,7 @@ export const Header: React.FC<HeaderProps> = ({
           <Breadcrumbs items={breadcrumbs} />
         </div>
         <div className="ml-0 sm:ml-6 flex-1 max-w-sm">
-          <QuickNav lang={lang} />
+          <QuickNav />
         </div>
       </div>
 
@@ -273,8 +274,8 @@ export const Header: React.FC<HeaderProps> = ({
         {canReviewApplications && (
           <button
             onClick={() => router.push('/admin-users')}
-            title={`${t.pendingApplications} (${pendingCount})`}
-            aria-label={`${t.pendingApplications}: ${pendingCount}`}
+            title={`${t('pendingApplications')} (${pendingCount})`}
+            aria-label={`${t('pendingApplications')}: ${pendingCount}`}
             className="relative p-2 text-gray-500 hover:text-primary-500 transition-colors rounded-full hover:bg-gray-100 dark:hover:bg-white/5"
           >
             <Bell size={18} />
@@ -292,7 +293,9 @@ export const Header: React.FC<HeaderProps> = ({
         <LocaleDropdown
           current={lang as Locale}
           onSelect={(code) => {
-            if (code !== lang) setLang(code);
+            if (code !== lang) {
+              setI18nLang(code);
+            }
           }}
         />
 
