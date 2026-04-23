@@ -11,17 +11,20 @@ import { Link, Link2Off, Search } from 'lucide-react';
 import { useToastStore } from '@/store/useToastStore';
 import { BaseTable } from '@/components/scaffold/BaseTable';
 import { SmartImage } from '@/components/ui/SmartImage';
+import type { TFunc } from '@/hooks/useTranslation';
 
 interface Props {
   onClose: () => void;
   onConfirm: () => void;
   editingData: actSectionWithProducts;
+  t: TFunc;
 }
 
 export const ActSectionBindProductModal: React.FC<Props> = ({
   onClose,
   onConfirm,
   editingData,
+  t,
 }) => {
   const [selectedRows, setSelectedRows] = useState<Product[]>([]);
   const [existingIds, setExistingSelectedRows] = useState<string[]>([]);
@@ -62,7 +65,7 @@ export const ActSectionBindProductModal: React.FC<Props> = ({
   const { run: bindProduct, loading } = useRequest(actSectionApi.bindProduct, {
     manual: true,
     onSuccess: () => {
-      addToast('success', 'Products added to activity section successfully');
+      addToast('success', t('actSections.toastProductsBound'));
       onConfirm();
     },
   });
@@ -71,7 +74,7 @@ export const ActSectionBindProductModal: React.FC<Props> = ({
     useRequest(actSectionApi.bindProduct, {
       manual: true,
       onSuccess: () => {
-        addToast('success', 'Products added to activity section successfully');
+        addToast('success', t('actSections.toastProductsBound'));
         getDetail(editingData.id);
       },
     });
@@ -81,7 +84,7 @@ export const ActSectionBindProductModal: React.FC<Props> = ({
     {
       manual: true,
       onSuccess: () => {
-        addToast('success', 'Product unbound successfully');
+        addToast('success', t('actSections.toastProductUnbound'));
         getDetail(editingData.id);
       },
     },
@@ -97,7 +100,7 @@ export const ActSectionBindProductModal: React.FC<Props> = ({
       (product) => product.treasureId,
     );
     if (products.length === 0) {
-      addToast('error', 'Please select at least one product');
+      addToast('error', t('actSections.toastSelectProduct'));
       return;
     }
     bindProduct(editingData.id, { treasureIds: products });
@@ -106,17 +109,17 @@ export const ActSectionBindProductModal: React.FC<Props> = ({
   const unbind = useCallback(
     (product: Product) => {
       ModalManager.open({
-        title: 'Confirm Unbind',
-        content: `Are you sure you want to unbind "${product.treasureName}" from this activity section?`,
-        confirmText: 'Unbind',
-        cancelText: 'Cancel',
+        title: t('actSections.unbindTitle'),
+        content: t('actSections.unbindContent', { name: product.treasureName }),
+        confirmText: t('actSections.unbind'),
+        cancelText: t('actSections.cancel'),
         onConfirm: () => {
           if (unbindLoading) return;
           unbindProduct(editingData.id, product.treasureId);
         },
       });
     },
-    [editingData.id, unbindLoading, unbindProduct],
+    [editingData.id, unbindLoading, unbindProduct, t],
   );
 
   // baseTable 检测到选中了行或者onSelectionChange:handleSelectionChange发生变化，会调用onSelectionChange
@@ -133,7 +136,7 @@ export const ActSectionBindProductModal: React.FC<Props> = ({
     return [
       {
         accessorKey: 'treasureName',
-        header: 'Product Info',
+        header: t('actSections.columnProductInfo'),
         cell: ({ row }) => (
           <div className="flex items-center gap-3">
             <SmartImage
@@ -153,14 +156,14 @@ export const ActSectionBindProductModal: React.FC<Props> = ({
       },
       {
         accessorKey: 'unitAmount',
-        header: 'Price',
+        header: t('actSections.columnPrice'),
         cell: ({ row }) => (
           <span className="font-mono text-xs">₱{row.original.unitAmount}</span>
         ),
       },
       {
         id: 'actions',
-        header: 'Actions',
+        header: t('actSections.columnActions'),
         enableSorting: false,
         cell: ({ row }) => {
           const isBinding = existingIds.includes(row.original.treasureId);
@@ -197,6 +200,7 @@ export const ActSectionBindProductModal: React.FC<Props> = ({
     existingIds,
     unbindLoading,
     unbind,
+    t,
   ]);
 
   return (
@@ -204,7 +208,7 @@ export const ActSectionBindProductModal: React.FC<Props> = ({
       <div className="p-4 flex-1 overflow-y-auto space-y-4">
         <div className="flex gap-2">
           <Input
-            placeholder="Search product name..."
+            placeholder={t('actSections.searchProductPlaceholder')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             onKeyDown={(e) =>
@@ -243,14 +247,13 @@ export const ActSectionBindProductModal: React.FC<Props> = ({
 
       <div className="p-4  flex justify-end gap-3 ">
         <div className="flex-1 content-center text-sm text-gray-500">
-          <span className="font-bold text-blue-600">{selectedRows.length}</span>
-          items
+          {t('actSections.items', { count: selectedRows.length })}
         </div>
         <Button variant="ghost" onClick={onClose}>
-          Cancel
+          {t('actSections.cancel')}
         </Button>
         <Button isLoading={loading} onClick={confirm}>
-          Confirm Add
+          {t('actSections.confirmAdd')}
         </Button>
       </div>
     </div>

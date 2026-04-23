@@ -59,11 +59,9 @@ export default function CategoriesPage() {
       renderChildren: (
         <div className="space-y-3">
           <p>
-            Are you sure you want to delete category{' '}
-              <span className="font-bold text-primary-600">
-                {renderLocalizedText(category.name, lang, category.id)}
-              </span>
-            ?
+            {t('deleteConfirmText', {
+              name: renderLocalizedText(category.name, lang, category.id),
+            })}
           </p>
 
           <div className="text-sm text-amber-600 bg-amber-50 p-3 rounded-lg border border-amber-200">
@@ -87,11 +85,11 @@ export default function CategoriesPage() {
             {category.description && (
               <div className="mt-1">
                 {t('description')}:{' '}
-                      {renderLocalizedText(
-                        category.description,
-                        lang,
-                        t('noDescription'),
-                      )}
+                {renderLocalizedText(
+                  category.description,
+                  lang,
+                  t('noDescription'),
+                )}
               </div>
             )}
           </div>
@@ -140,7 +138,7 @@ export default function CategoriesPage() {
       title: t('description'),
       render: (dom, category: any) => (
         <p className="text-sm text-muted-foreground max-w-md truncate">
-            {renderLocalizedText(category.description, lang, t('noDescription'))}
+          {renderLocalizedText(category.description, lang, t('noDescription'))}
         </p>
       ),
     },
@@ -223,7 +221,10 @@ export default function CategoriesPage() {
         description={t('pageDescription')}
         showBackButton={true}
         onBack={() => router.push('/blog')}
-        breadcrumbs={['Blog', 'Categories']}
+        breadcrumbs={[
+          globalT('breadcrumbBlog'),
+          globalT('breadcrumbCategories'),
+        ]}
         buttonText={t('newCategory')}
         buttonOnClick={() => {
           setEditingCategory(null);

@@ -7,6 +7,7 @@ import { useRequest } from 'ahooks';
 import { categoryApi } from '@/api';
 import { BlogCategoryModal } from '@/views/blog/BlogCategoryModal';
 import { ModalManager } from '@repo/ui';
+import { useTranslation } from '@/hooks/useTranslation';
 
 interface BlogCategory {
   id: string;
@@ -17,6 +18,7 @@ interface BlogCategory {
 }
 
 export const CategoryManagement: React.FC = () => {
+  const { t } = useTranslation();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<{
@@ -54,10 +56,10 @@ export const CategoryManagement: React.FC = () => {
   );
   const remove = (id: string) => {
     ModalManager.open({
-      title: 'Are you sure?',
-      content: 'Category will be removed permanently!!',
-      confirmText: 'confirm',
-      cancelText: 'cancel',
+      title: t('categories_deleteTitle'),
+      content: t('categories_deleteContent'),
+      confirmText: t('categories_confirm'),
+      cancelText: t('categories_cancel'),
       onConfirm: () => {
         if (isDeleting) return;
         deleteCategory(id);
@@ -70,14 +72,14 @@ export const CategoryManagement: React.FC = () => {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Categories
+            {t('categories_pageTitle')}
           </h1>
           <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
-            Organize your products structure
+            {t('categories_pageDescription')}
           </p>
         </div>
         <Button onClick={() => handleOpenModal()} variant="outline">
-          <Plus size={18} /> Add Category
+          <Plus size={18} /> {t('categories_addCategory')}
         </Button>
       </div>
 
@@ -119,7 +121,7 @@ export const CategoryManagement: React.FC = () => {
                 {cat.name}
               </h3>
               <p className="text-sm text-gray-500">
-                {cat.productCount} Products linked
+                {t('categories_productsLinked', { count: cat.productCount })}
               </p>
             </Card>
           ))}
@@ -128,7 +130,7 @@ export const CategoryManagement: React.FC = () => {
           className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-200 dark:border-white/10 rounded-xl text-gray-400 hover:border-primary-500 hover:text-primary-500 hover:bg-primary-50 dark:hover:bg-primary-500/5 transition-all cursor-pointer h-full min-h-[140px]"
         >
           <Plus size={24} className="mb-2" />
-          <span className="font-medium">Create New</span>
+          <span className="font-medium">{t('categories_createNew')}</span>
         </button>
       </div>
 

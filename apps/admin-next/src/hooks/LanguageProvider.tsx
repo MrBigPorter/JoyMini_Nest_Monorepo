@@ -1,18 +1,29 @@
 'use client';
 
-import React, {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  type ReactNode,
-} from 'react';
-import { AVAILABLE_LOCALES, DEFAULT_LOCALE, type Locale } from '@lucky/shared';
+/**
+ * LanguageProvider — thin shim that bridges next-intl with the existing codebase.
+ *
+ * Locale is now driven by `next-intl`:
+ *   - Server reads locale from the `app_locale` cookie (see src/i18n/request.ts).
+ *   - Client locale comes from <NextIntlClientProvider> rendered in app/layout.tsx.
+ *
+ * `setLocale` writes the cookie + refreshes server components so next-intl picks up
+ * the new locale on the next RSC render cycle.
+ *
+ * All existing imports of `useLanguage`, `getLocalizedValue`, and `Locale` continue
+ * to work without changes in the consuming files.
+ */
+
+import React, { createContext, useCallback, type ReactNode } from 'react';
+import { useLocale } from 'next-intl';
+import { useRouter } from 'next/navigation';
+import { DEFAULT_LOCALE, type Locale } from '@lucky/shared';
 import { useAppStore } from '@/store/useAppStore';
 
 export interface LanguageContextType {
   locale: Locale;
   setLocale: (locale: Locale) => void;
+  /** @deprecated translations are now provided by next-intl; always undefined */
   translations?: Record<string, string>;
 }
 
@@ -22,106 +33,55 @@ export const LanguageContext = createContext<LanguageContextType | undefined>(
 
 export interface LanguageProviderProps {
   children: ReactNode;
+  /** @deprecated no longer needed; locale is driven by next-intl */
   initialLocale?: Locale;
-  // initialTranslations: optional map of translations for the initialLocale;
-  // provided by server to avoid hydrate mismatch where client can't load
-  // translations quickly enough.
+  /** @deprecated no longer needed; messages are provided by next-intl */
   initialTranslations?: Record<string, string>;
 }
 
+/**
+ * LanguageProvider is kept for backward compatibility.
+ * In the new architecture it is a no-op wrapper; the real provider is
+ * <NextIntlClientProvider> in app/layout.tsx.
+ */
 export const LanguageProvider: React.FC<LanguageProviderProps> = ({
   children,
-  initialLocale,
-  initialTranslations,
 }) => {
-  // 从localStorage读取保存的语言设置（仅在 initialLocale 未提供时使用）
-  const getSavedLocale = (): Locale => {
-    if (initialLocale) return initialLocale;
-    if (typeof window === 'undefined') return DEFAULT_LOCALE;
-    const saved = localStorage.getItem('app_locale');
-    if (saved && AVAILABLE_LOCALES.includes(saved as Locale)) {
-      return saved as Locale;
-    }
-    return DEFAULT_LOCALE;
-  };
-
-  const [locale, setLocale] = useState<Locale>(getSavedLocale());
-  // translations for the currently selected locale
-  const [translations, setTranslations] = useState<Record<string, string>>(initialTranslations || {});
-  const appStoreLang = useAppStore((state) => state.lang);
-
-  // 同步 useAppStore 中的语言设置
-  useEffect(() => {
-    if (appStoreLang !== locale) {
-      setLocale(appStoreLang);
-    }
-  }, [appStoreLang, locale]);
-
-  // 保存语言设置到localStorage
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('app_locale', locale);
-    }
-  }, [locale]);
-
-  // 包装 setLocale 函数，同时更新 useAppStore，并尝试按需加载 translations
-  const wrappedSetLocale = async (newLocale: Locale) => {
-    if (newLocale === locale) return;
-
-    // optimistic update of locale state
-    setLocale(newLocale);
-
-    // load translations dynamically from client-side loader to reduce bundle size
-    try {
-      const mod = await import(/* webpackChunkName: "locale-[request]" */ '@/i18n');
-      const loaded = await mod.loadLocale(newLocale as any);
-      setTranslations(loaded || {});
-    } catch (e) {
-      // fallback: keep existing translations
-      console.warn('[LanguageProvider] failed to load locale', newLocale, e);
-    }
-
-    // 更新 useAppStore 中的语言设置
-    const appStore = useAppStore.getState();
-    if (appStore.lang !== newLocale) {
-      appStore.setLang(newLocale);
-    }
-  };
-
-  return (
-    <LanguageContext.Provider value={{ locale, setLocale: wrappedSetLocale, translations }}>
-      {children}
-    </LanguageContext.Provider>
-  );
+  return <>{children}</>;
 };
 
 export function useLanguage() {
-  const context = useContext(LanguageContext);
-
-  // 永远不抛出错误，安全降级到默认语言，防止整个页面崩溃
-  if (!context) {
-    if (process.env.NODE_ENV === 'development') {
-      console.warn(
-        '[useLanguage] LanguageProvider not found in component tree. ' +
-          `Falling back to default locale "${DEFAULT_LOCALE}". Make sure to wrap your app with <LanguageProvider>.`,
-      );
-    }
-
-    // 返回安全的默认实现，永远不会崩溃
-    return {
-      locale: DEFAULT_LOCALE,
-      translations: {},
-      setLocale: () => {
-        if (process.env.NODE_ENV === 'development') {
-          console.warn(
-            '[useLanguage] setLocale called without LanguageProvider, ignored',
-          );
-        }
-      },
-    };
+  let locale: Locale = DEFAULT_LOCALE;
+  try {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    locale = useLocale() as Locale;
+  } catch {
+    locale = DEFAULT_LOCALE;
   }
 
-  return context;
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const router = useRouter();
+
+  const setLocale = useCallback(
+    (newLocale: Locale) => {
+      if (typeof document !== 'undefined') {
+        document.cookie = `app_locale=${newLocale};path=/;max-age=31536000;SameSite=Lax`;
+        try {
+          localStorage.setItem('app_locale', newLocale);
+        } catch {
+          // ignore
+        }
+      }
+      const appStore = useAppStore.getState();
+      if (appStore.lang !== newLocale) {
+        appStore.setLang(newLocale);
+      }
+      router.refresh();
+    },
+    [router],
+  );
+
+  return { locale, setLocale, translations: undefined };
 }
 
 export function getLocalizedValue<T>(
@@ -132,5 +92,5 @@ export function getLocalizedValue<T>(
   return value[locale] as T;
 }
 
-// 重新导出 Locale 类型以保持向后兼容
+// Re-export Locale type for backward compatibility
 export type { Locale };

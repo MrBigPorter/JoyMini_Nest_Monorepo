@@ -26,6 +26,7 @@ import {
 } from '@repo/ui';
 import { useToastStore } from '@/store/useToastStore';
 import { PageHeader } from '@/components/scaffold/PageHeader';
+import { useTranslation } from '@/hooks/useTranslation';
 import {
   buildKycListParams,
   kycListQueryKey,
@@ -44,6 +45,7 @@ export const KycList: React.FC<KycListProps> = ({
   initialFormParams,
   onParamsChange,
 }) => {
+  const { t } = useTranslation();
   const actionRef = useRef<ActionType>(null);
   const addToast = useToastStore((state) => state.addToast);
   const getErrorMessage = useCallback(
@@ -76,13 +78,14 @@ export const KycList: React.FC<KycListProps> = ({
   // 1. 打开审核/查看详情弹窗
   const handleView = useCallback((record: KycRecord) => {
     ModalManager.open({
-      title: 'KYC Audit Detail',
+      title: t('kyc_modalAuditDetail'),
       size: 'xl',
       renderChildren: ({ close }) => (
         <KycAuditModal
           data={record}
           close={close}
           reload={() => actionRef.current?.reload()}
+          t={t}
         />
       ),
     });
@@ -91,12 +94,13 @@ export const KycList: React.FC<KycListProps> = ({
   // 2. 打开 [创建] 弹窗
   const handleCreate = useCallback(() => {
     ModalManager.open({
-      title: 'Manual Create KYC', // ModalManager 可能会覆盖 KycFormModal 内部的 title，这没关系
+      title: t('kyc_modalCreateKyc'), // ModalManager 可能会覆盖 KycFormModal 内部的 title，这没关系
       renderChildren: ({ close }) => (
         <KycFormModal
           mode="create"
           close={close}
           reload={() => actionRef.current?.reload()}
+          t={t}
         />
       ),
     });
@@ -105,13 +109,14 @@ export const KycList: React.FC<KycListProps> = ({
   // 3. 打开 [编辑] 弹窗
   const handleEdit = useCallback((record: KycRecord) => {
     ModalManager.open({
-      title: 'Edit KYC Info',
+      title: t('kyc_modalEditKyc'),
       renderChildren: ({ close }) => (
         <KycFormModal
           mode="edit"
           initialData={record}
           close={close}
           reload={() => actionRef.current?.reload()}
+          t={t}
         />
       ),
     });
@@ -122,65 +127,80 @@ export const KycList: React.FC<KycListProps> = ({
     async (record: KycRecord) => {
       // 简单起见使用 prompt，建议换成 ModalManager.confirm 配合 input
       const reason = window.prompt(
-        `Revoke KYC for ${record.realName}?\nEnter reason:`,
+        `${t('kyc_revokePrompt')} ${record.realName}?\n${t('kyc_enterReason')}:`,
       );
       if (reason === null) return; // Cancelled
-      if (!reason.trim()) return addToast('error', 'Reason is required');
+      if (!reason.trim()) return addToast('error', t('kyc_reasonRequired'));
 
       try {
         await kycApi.revoke(record.userId, reason);
-        addToast('success', 'KYC revoked successfully');
+        addToast('success', t('kyc_revokedSuccess'));
         actionRef.current?.reload();
       } catch (error: unknown) {
-        addToast('error', getErrorMessage(error, 'Revoke failed'));
+        addToast('error', getErrorMessage(error, t('kyc_revokeFailed')));
       }
     },
-    [addToast, getErrorMessage],
+    [addToast, getErrorMessage, t],
   );
 
   // 5. 执行 [删除]
   const handleDelete = useCallback(
     (record: KycRecord) => {
       ModalManager.open({
-        title: 'Delete KYC Record',
-        content: `Physically delete record for ${record.userId}? This cannot be undone.`,
-        confirmText: 'Delete',
+        title: t('kyc_deleteRecord'),
+        content: `${t('kyc_deleteConfirm')} ${record.userId}? ${t('kyc_deleteWarning')}`,
+        confirmText: t('kyc_delete'),
         onConfirm: async () => {
           try {
             await kycApi.delete(record.userId);
-            addToast('success', 'Record deleted successfully');
+            addToast('success', t('kyc_deletedSuccess'));
             actionRef.current?.reload();
           } catch (error: unknown) {
-            addToast('error', getErrorMessage(error, 'Delete failed'));
+            addToast('error', getErrorMessage(error, t('kyc_deleteFailed')));
           }
         },
       });
     },
-    [addToast, getErrorMessage],
+    [addToast, getErrorMessage, t],
   );
 
   // --- Configs ---
   const statusConfig = useMemo(
     () => ({
-      [KYC_STATUS.DRAFT]: { label: 'Draft', color: 'secondary' },
-      [KYC_STATUS.REVIEWING]: { label: 'Reviewing', color: 'primary' },
-      [KYC_STATUS.APPROVED]: { label: 'Approved', color: 'success' },
-      [KYC_STATUS.REJECTED]: { label: 'Rejected', color: 'danger' },
-      [KYC_STATUS.NEED_MORE]: { label: 'Need More', color: 'warning' },
-      [KYC_STATUS.AUTO_REJECTED]: { label: 'Auto Rejected', color: 'danger' },
+      [KYC_STATUS.DRAFT]: { label: t('kyc_statusDraft'), color: 'secondary' },
+      [KYC_STATUS.REVIEWING]: {
+        label: t('kyc_statusReviewing'),
+        color: 'primary',
+      },
+      [KYC_STATUS.APPROVED]: {
+        label: t('kyc_statusApproved'),
+        color: 'success',
+      },
+      [KYC_STATUS.REJECTED]: {
+        label: t('kyc_statusRejected'),
+        color: 'danger',
+      },
+      [KYC_STATUS.NEED_MORE]: {
+        label: t('kyc_statusNeedMore'),
+        color: 'warning',
+      },
+      [KYC_STATUS.AUTO_REJECTED]: {
+        label: t('kyc_statusAutoRejected'),
+        color: 'danger',
+      },
     }),
-    [],
+    [t],
   );
 
   const columns: ProColumns<KycRecord>[] = useMemo(
     () => [
       {
-        title: 'User',
+        title: t('kyc_columnUser'),
         dataIndex: 'userId',
         render: (_, row) => (
           <div>
             <div className="font-medium text-gray-900 dark:text-white">
-              {row.user?.nickname || 'Unknown'}
+              {row.user?.nickname || t('kyc_unknown')}
             </div>
             <div className="text-xs text-gray-500 font-mono">
               {row.user?.phone}
@@ -189,7 +209,7 @@ export const KycList: React.FC<KycListProps> = ({
         ),
       },
       {
-        title: 'Real Name / ID',
+        title: t('kyc_columnRealName'),
         dataIndex: 'realName',
         render: (_, row) => (
           <div>
@@ -201,23 +221,29 @@ export const KycList: React.FC<KycListProps> = ({
         ),
       },
       {
-        title: 'ID Type',
+        title: t('kyc_columnIdType'),
         dataIndex: 'idType',
         render: (_, row) => {
-          return KycIdCardTypeLabel[row?.idType as KycIdCardType] || 'Unknown';
+          const idType = row?.idType as KycIdCardType;
+          const key = `kyc_idType_${KycIdCardType[idType]?.toLowerCase()}`;
+          const translated = t(key);
+          // If translation key not found (returns the key itself), fall back to KycIdCardTypeLabel
+          return translated !== key
+            ? translated
+            : KycIdCardTypeLabel[idType] || t('kyc_unknown');
         },
       },
       {
-        title: 'Status',
+        title: t('kyc_columnStatus'),
         dataIndex: 'kycStatus',
         valueType: 'select',
         valueEnum: {
-          0: { text: 'Draft', status: 'default' },
-          1: { text: 'Reviewing', status: 'destructive' },
-          2: { text: 'Rejected', status: 'success' },
-          3: { text: 'Need More', status: 'warning' },
-          4: { text: 'Approved', status: 'success' },
-          5: { text: 'Auto Rejected', status: 'info' },
+          0: { text: t('kyc_statusDraft'), status: 'default' },
+          1: { text: t('kyc_statusReviewing'), status: 'destructive' },
+          2: { text: t('kyc_statusRejected'), status: 'success' },
+          3: { text: t('kyc_statusNeedMore'), status: 'warning' },
+          4: { text: t('kyc_statusApproved'), status: 'success' },
+          5: { text: t('kyc_statusAutoRejected'), status: 'info' },
         },
         render: (_, row) => {
           const conf = statusConfig[row.kycStatus];
@@ -227,14 +253,14 @@ export const KycList: React.FC<KycListProps> = ({
         },
       },
       {
-        title: 'Submitted At',
+        title: t('kyc_columnSubmittedAt'),
         dataIndex: 'submittedAt',
         valueType: 'dateTime',
       },
       {
-        title: 'Action',
+        title: t('kyc_columnAction'),
         valueType: 'option',
-        width: 140, // 稍微宽一点
+        width: 140,
         fixed: 'right',
         render: (_, row) => (
           <div className="flex items-center gap-2">
@@ -248,17 +274,15 @@ export const KycList: React.FC<KycListProps> = ({
             >
               {row.kycStatus === KYC_STATUS.REVIEWING ? (
                 <>
-                  <Shield size={14} className="mr-1" /> Audit
+                  <Shield size={14} className="mr-1" /> {t('kyc_btnAudit')}
                 </>
               ) : (
                 <>
-                  <Eye size={14} className="mr-1" /> View
+                  <Eye size={14} className="mr-1" /> {t('kyc_btnView')}
                 </>
               )}
             </Button>
 
-            {/* 2. 更多操作下拉菜单 (Dropdown) */}
-            {/* 如果你的项目没有 DropdownMenu 组件，可以暂时只显示 View 按钮，或者把 Delete 按钮直接放出来 */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
@@ -266,31 +290,29 @@ export const KycList: React.FC<KycListProps> = ({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                <DropdownMenuLabel>{t('kyc_actions')}</DropdownMenuLabel>
 
-                {/* Edit: 任何状态都能修数据 */}
                 <DropdownMenuItem onClick={() => handleEdit(row)}>
-                  <Edit2 size={14} className="mr-2" /> Edit Info
+                  <Edit2 size={14} className="mr-2" /> {t('kyc_btnEditInfo')}
                 </DropdownMenuItem>
 
-                {/* Revoke: 只有 Approved 状态能撤销 */}
                 {row.kycStatus === KYC_STATUS.APPROVED && (
                   <DropdownMenuItem
                     onClick={() => handleRevoke(row)}
                     className="text-amber-600 focus:text-amber-600"
                   >
-                    <Ban size={14} className="mr-2" /> Revoke
+                    <Ban size={14} className="mr-2" /> {t('kyc_btnRevoke')}
                   </DropdownMenuItem>
                 )}
 
                 <DropdownMenuSeparator />
 
-                {/* Delete: 危险操作 */}
                 <DropdownMenuItem
                   onClick={() => handleDelete(row)}
                   className="text-red-600 focus:text-red-600"
                 >
-                  <Trash2 size={14} className="mr-2" /> Delete Record
+                  <Trash2 size={14} className="mr-2" />{' '}
+                  {t('kyc_btnDeleteRecord')}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -298,7 +320,7 @@ export const KycList: React.FC<KycListProps> = ({
         ),
       },
     ],
-    [handleView, handleEdit, handleRevoke, handleDelete, statusConfig],
+    [handleView, handleEdit, handleRevoke, handleDelete, statusConfig, t],
   );
 
   const searchSchema: FormSchema[] = useMemo(
@@ -306,13 +328,13 @@ export const KycList: React.FC<KycListProps> = ({
       {
         type: 'input',
         key: 'userId',
-        label: 'User ID',
-        placeholder: 'Search User ID',
+        label: t('kyc_searchUserId'),
+        placeholder: t('kyc_searchUserIdPlaceholder'),
       },
       {
         type: 'select',
         key: 'kycStatus',
-        label: 'Status',
+        label: t('kyc_searchStatus'),
         options: Object.entries(statusConfig).map(([k, v]) => ({
           label: v.label,
           value: k,
@@ -321,11 +343,11 @@ export const KycList: React.FC<KycListProps> = ({
       {
         type: 'date',
         key: 'dateRange',
-        label: 'Submit Date',
+        label: t('kyc_searchSubmitDate'),
         mode: 'range',
       },
     ],
-    [statusConfig],
+    [statusConfig, t],
   );
 
   const requestKyc = useCallback(async (params: KycRecordListParams) => {
@@ -363,9 +385,9 @@ export const KycList: React.FC<KycListProps> = ({
     <div>
       {/* 顶部操作按钮 */}
       <PageHeader
-        title="KYC Applications"
-        description="Manage and audit KYC applications from users."
-        buttonText="Manual Create KYC"
+        title={t('kyc_pageTitle')}
+        description={t('kyc_pageDescription')}
+        buttonText={t('kyc_modalCreateKyc')}
         buttonOnClick={handleCreate}
       />
       <Card>
@@ -374,7 +396,7 @@ export const KycList: React.FC<KycListProps> = ({
             headerTitle={
               <div className="flex items-center gap-2">
                 <Shield className="text-primary-600" size={20} />
-                <span>KYC Applications</span>
+                <span>{t('kyc_pageTitle')}</span>
               </div>
             }
             rowKey="id"

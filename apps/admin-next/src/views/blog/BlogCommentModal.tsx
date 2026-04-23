@@ -17,6 +17,7 @@ import {
   extractCurrentLocaleValue,
   normalizeLocalizedValue,
 } from '@/utils/localizedForm';
+import { useTranslation } from '@/hooks/useTranslation';
 
 interface BlogCommentModalProps {
   isOpen: boolean;
@@ -38,6 +39,9 @@ export const BlogCommentModal: React.FC<BlogCommentModalProps> = ({
   onSuccessAction,
 }) => {
   const isEditing = !!editingComment;
+  const { t: globalT } = useTranslation();
+  const t = (key: string, params?: Record<string, string | number>) =>
+    globalT(`blog_comments_${key}`, params);
 
   const { run: updateComment, loading: isUpdating } = useRequest(
     blogApi.updateComment,
@@ -101,28 +105,28 @@ export const BlogCommentModal: React.FC<BlogCommentModalProps> = ({
     <Modal
       isOpen={isOpen}
       onCloseAction={onCloseAction}
-      title="Moderate Comment"
+      title={t('modalTitle')}
       size="md"
     >
       <Form {...form}>
         <form onSubmit={submitHandler} className="space-y-4">
           <FormSelectField
-            label="Status"
+            label={t('status')}
             options={[
-              { label: 'Pending', value: 'PENDING' },
-              { label: 'Approved', value: 'APPROVED' },
-              { label: 'Rejected', value: 'REJECTED' },
-              { label: 'Spam', value: 'SPAM' },
+              { label: t('pending'), value: 'PENDING' },
+              { label: t('approved'), value: 'APPROVED' },
+              { label: t('rejected'), value: 'REJECTED' },
+              { label: t('spam'), value: 'SPAM' },
             ]}
             {...register('status')}
           />
           <div className="flex justify-between items-center">
-            <h3 className="text-sm font-medium">Reply (optional)</h3>
+            <h3 className="text-sm font-medium">{t('replyOptional')}</h3>
             <LanguageSwitch />
           </div>
           <FormTextareaField
             label=""
-            placeholder="Add a public reply to the comment"
+            placeholder={t('replyPlaceholder')}
             {...localize('reply')}
           />
           <div className="flex justify-end space-x-3 pt-4">
@@ -132,10 +136,10 @@ export const BlogCommentModal: React.FC<BlogCommentModalProps> = ({
               onClick={onCloseAction}
               disabled={loading}
             >
-              Cancel
+              {t('cancel')}
             </Button>
             <Button type="submit" isLoading={loading}>
-              Update
+              {t('update')}
             </Button>
           </div>
         </form>

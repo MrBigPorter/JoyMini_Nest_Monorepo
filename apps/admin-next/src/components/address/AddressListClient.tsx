@@ -7,7 +7,7 @@ import {
   ProColumns,
   ActionType,
 } from '@/components/scaffold/SmartTable';
-import { addressApi } from '@/api'; // 假设你有这个 API 定义
+import { addressApi } from '@/api';
 import { AddressEditModal } from '@/views/address/AddressEditModal';
 import { MapPin, Edit, Trash2 } from 'lucide-react';
 import { FormSchema } from '@/type/search';
@@ -24,6 +24,7 @@ import {
   buildAddressListParams,
   parseAddressSearchParams,
 } from '@/lib/cache/address-cache';
+import { useTranslation } from '@/hooks/useTranslation';
 
 interface AddressListProps {
   initialFormParams?: Record<string, unknown>;
@@ -34,6 +35,7 @@ export const AddressList: React.FC<AddressListProps> = ({
   initialFormParams,
   onParamsChange,
 }) => {
+  const { t } = useTranslation();
   const actionRef = useRef<ActionType>(null);
   const addToast = useToastStore((state) => state.addToast);
 
@@ -54,53 +56,55 @@ export const AddressList: React.FC<AddressListProps> = ({
     [normalizedInitialFormParams],
   );
 
-  // 打开编辑/新增弹窗
-  const handleEdit = useCallback((record?: UpdateAddress) => {
-    ModalManager.open({
-      title: record ? 'Edit Address' : 'Create New Address',
-      renderChildren: ({ close }) => (
-        <AddressEditModal
-          data={record as AddressResponse}
-          close={() => {
-            close();
-            actionRef.current?.reload();
-          }}
-        />
-      ),
-    });
-  }, []);
+  const handleEdit = useCallback(
+    (record?: UpdateAddress) => {
+      ModalManager.open({
+        title: record ? t('address_modalEdit') : t('address_modalCreate'),
+        renderChildren: ({ close }) => (
+          <AddressEditModal
+            data={record as AddressResponse}
+            t={t}
+            close={() => {
+              close();
+              actionRef.current?.reload();
+            }}
+          />
+        ),
+      });
+    },
+    [t],
+  );
 
-  // 删除地址
   const handleDelete = useCallback(
     (record: AddressResponse) => {
       ModalManager.open({
-        title: 'Delete Address',
+        title: t('address_modalDelete'),
         renderChildren: () => (
           <div>
-            Are you sure you want to delete the address for {record.firstName}
-            {record.lastName}?
+            {t('address_deleteConfirm', {
+              name: record.firstName + ' ' + record.lastName,
+            })}
           </div>
         ),
         onConfirm: async () => {
           await addressApi.deleteAddress(record.addressId);
-          addToast('success', 'Address deleted successfully');
+          addToast('success', t('address_deleteSuccess'));
           actionRef.current?.reload();
         },
       });
     },
-    [addToast],
+    [addToast, t],
   );
 
-  // 表格列定义
   const columns: ProColumns<AddressResponse>[] = useMemo(
     () => [
       {
-        title: 'User Info',
+        title: t('address_columnUserInfo'),
         dataIndex: 'userId',
         render: (_, row) => (
           <div>
             <div className="font-medium text-gray-900 dark:text-gray-200">
-              {row.userNickname || 'Unknown'}
+              {row.userNickname || t('address_unknownUser')}
             </div>
             <div className="text-xs text-gray-500 font-mono">
               ID: {row.userId}
@@ -109,7 +113,7 @@ export const AddressList: React.FC<AddressListProps> = ({
         ),
       },
       {
-        title: 'Recipient',
+        title: t('address_columnRecipient'),
         dataIndex: 'contactName',
         render: (_, row) => (
           <div>
@@ -119,7 +123,7 @@ export const AddressList: React.FC<AddressListProps> = ({
         ),
       },
       {
-        title: 'Region',
+        title: t('address_columnRegion'),
         dataIndex: 'province',
         render: (_, row) => (
           <div className="text-sm">
@@ -131,19 +135,19 @@ export const AddressList: React.FC<AddressListProps> = ({
         ),
       },
       {
-        title: 'Full Address',
+        title: t('address_columnFullAddress'),
         dataIndex: 'fullAddress',
         width: 250,
         render: (dom) => <div className="break-words text-sm">{dom}</div>,
       },
       {
-        title: 'Tag',
+        title: t('address_columnTag'),
         dataIndex: 'label',
         render: (dom, row) => (
           <div className="flex gap-1">
             {row.isDefault === 1 && (
               <Badge variant="default" className="bg-primary-600">
-                Default
+                {t('address_badgeDefault')}
               </Badge>
             )}
             {dom && <Badge variant="outline">{dom}</Badge>}
@@ -151,13 +155,13 @@ export const AddressList: React.FC<AddressListProps> = ({
         ),
       },
       {
-        title: 'Created At',
+        title: t('address_columnCreatedAt'),
         dataIndex: 'createdAt',
         valueType: 'dateTime',
         render: (dom) => <span className="text-xs text-gray-500">{dom}</span>,
       },
       {
-        title: 'Action',
+        title: t('address_columnAction'),
         valueType: 'option',
         width: 140,
         render: (_, row) => (
@@ -176,32 +180,31 @@ export const AddressList: React.FC<AddressListProps> = ({
         ),
       },
     ],
-    [handleEdit, handleDelete],
+    [handleEdit, handleDelete, t],
   );
 
-  // 搜索栏配置
   const searchSchema: FormSchema[] = useMemo(
     () => [
       {
         type: 'input',
         key: 'keyword',
-        label: 'Keyword',
-        placeholder: 'Name / Phone',
+        label: t('address_searchKeyword'),
+        placeholder: t('address_searchKeywordPlaceholder'),
       },
       {
         type: 'input',
         key: 'userId',
-        label: 'User ID',
-        placeholder: 'Exact User ID',
+        label: t('address_searchUserId'),
+        placeholder: t('address_searchUserIdPlaceholder'),
       },
       {
         type: 'input',
         key: 'province',
-        label: 'Province',
-        placeholder: 'Province Name',
+        label: t('address_searchProvince'),
+        placeholder: t('address_searchProvincePlaceholder'),
       },
     ],
-    [],
+    [t],
   );
 
   const requestAddress = useCallback(async (params: QueryListAddressParams) => {
@@ -232,7 +235,7 @@ export const AddressList: React.FC<AddressListProps> = ({
           headerTitle={
             <div className="flex items-center gap-2">
               <MapPin className="text-primary-500" size={20} />
-              <span>Address Management</span>
+              <span>{t('address_pageTitle')}</span>
             </div>
           }
           rowKey="addressId"

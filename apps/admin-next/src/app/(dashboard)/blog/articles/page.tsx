@@ -491,7 +491,7 @@ export default function ArticlesPageV2() {
         readTime: article.readTime || '5 min',
         // 转换tags格式：从标签对象数组转换为标签名称数组
         tags: (article.tags || [])
-              .map((tag: string | { name?: any; id?: string }) =>
+          .map((tag: string | { name?: any; id?: string }) =>
             typeof tag === 'string'
               ? tag
               : renderLocalizedText(tag.name, lang, tag.id || ''),
@@ -518,7 +518,7 @@ export default function ArticlesPageV2() {
         description={t('pageDescription')}
         showBackButton={true}
         onBack={() => router.push('/blog')}
-        breadcrumbs={['Blog', 'Articles']}
+        breadcrumbs={[globalT('breadcrumbBlog'), globalT('breadcrumbArticles')]}
         buttonText={t('newArticle')}
         buttonOnClick={() => {
           setEditingArticle(null);

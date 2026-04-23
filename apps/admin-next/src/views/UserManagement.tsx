@@ -17,25 +17,31 @@ import { clientUserApi } from '@/api';
 import { Card } from '@/components/UIComponents';
 import { useToastStore } from '@/store/useToastStore';
 import { UserDetailModal } from '@/views/user-management/UserDetailModal';
+import { useTranslation } from '@/hooks/useTranslation';
 
 export const UserManagement: React.FC = () => {
   const actionRef = useRef<ActionType>(null);
   const addToast = useToastStore((state) => state.addToast);
+  const { t } = useTranslation();
 
   // 1. 查看详情弹窗
-  const handleView = useCallback((record: ClientUserListItem) => {
-    ModalManager.open({
-      title: 'User Comprehensive Profile',
-      size: 'xl',
-      renderChildren: ({ close }) => (
-        <UserDetailModal
-          userId={record.id}
-          close={close}
-          reload={() => actionRef.current?.reload()}
-        />
-      ),
-    });
-  }, []);
+  const handleView = useCallback(
+    (record: ClientUserListItem) => {
+      ModalManager.open({
+        title: t('users_modalDetailTitle'),
+        size: 'xl',
+        renderChildren: ({ close }) => (
+          <UserDetailModal
+            userId={record.id}
+            close={close}
+            reload={() => actionRef.current?.reload()}
+            t={t}
+          />
+        ),
+      });
+    },
+    [t],
+  );
 
   // 2. 封禁/解禁逻辑（带备注输入）
   const handleStatusChange = useCallback(
@@ -44,23 +50,25 @@ export const UserManagement: React.FC = () => {
       const targetStatus = isBanning ? 0 : 1;
 
       ModalManager.open({
-        title: isBanning ? 'Freeze User Account' : 'Restore User Account',
+        title: isBanning
+          ? t('users_modalFreezeTitle')
+          : t('users_modalRestoreTitle'),
         renderChildren: ({ close }) => (
           <div className="p-6 space-y-4">
             <p className="text-sm text-slate-600 dark:text-slate-400">
-              Confirm action for:
+              {t('users_modalConfirmAction')}
               <span className="font-bold text-slate-900 dark:text-white ml-1 px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded">
                 {record.nickname || record.phone}
               </span>
             </p>
             <textarea
               id="op-remark"
-              placeholder="Please enter the reason (Required for freezing)..."
+              placeholder={t('users_modalRemarkPlaceholder')}
               className="w-full h-24 text-xs border border-slate-200 rounded-xl p-3 outline-none focus:ring-4 focus:ring-red-500/10 transition-all dark:bg-gray-800 dark:border-slate-700"
             />
             <div className="flex justify-end gap-3">
               <Button variant="outline" onClick={close} className="font-medium">
-                Cancel
+                {t('users_modalCancel')}
               </Button>
               <Button
                 variant={isBanning ? 'danger' : 'primary'}
@@ -70,7 +78,7 @@ export const UserManagement: React.FC = () => {
                     document.getElementById('op-remark') as HTMLTextAreaElement
                   )?.value;
                   if (isBanning && !remark?.trim()) {
-                    addToast('error', 'Remark is required for freezing');
+                    addToast('error', t('users_toastRemarkRequired'));
                     return;
                   }
                   try {
@@ -78,45 +86,63 @@ export const UserManagement: React.FC = () => {
                       status: targetStatus,
                       remark:
                         remark?.trim() ||
-                        (isBanning ? 'Admin manual ban' : 'Admin manual unban'),
+                        (isBanning
+                          ? t('users_remarkBan')
+                          : t('users_remarkUnban')),
                     });
                     addToast(
                       'success',
-                      `User ${isBanning ? 'frozen' : 'restored'} successfully`,
+                      isBanning
+                        ? t('users_toastFrozenSuccess')
+                        : t('users_toastRestoredSuccess'),
                     );
                     actionRef.current?.reload();
                     close();
                   } catch {
-                    addToast('error', 'Operation failed');
+                    addToast('error', t('users_toastOperationFailed'));
                   }
                 }}
               >
-                Confirm {isBanning ? 'Freeze' : 'Restore'}
+                {isBanning
+                  ? t('users_modalConfirmFreeze')
+                  : t('users_modalConfirmRestore')}
               </Button>
             </div>
           </div>
         ),
       });
     },
-    [addToast],
+    [addToast, t],
   );
 
   // KYC 状态映射
   const kycStatusConfig: Record<number, { label: string; color: string }> =
     useMemo(
       () => ({
-        [KYC_STATUS.DRAFT]: { label: 'Unverified', color: 'secondary' },
-        [KYC_STATUS.REVIEWING]: { label: 'Reviewing', color: 'primary' },
-        [KYC_STATUS.APPROVED]: { label: 'Verified', color: 'success' },
-        [KYC_STATUS.REJECTED]: { label: 'Rejected', color: 'danger' },
+        [KYC_STATUS.DRAFT]: {
+          label: t('users_kycUnverified'),
+          color: 'secondary',
+        },
+        [KYC_STATUS.REVIEWING]: {
+          label: t('users_kycReviewing'),
+          color: 'primary',
+        },
+        [KYC_STATUS.APPROVED]: {
+          label: t('users_kycVerified'),
+          color: 'success',
+        },
+        [KYC_STATUS.REJECTED]: {
+          label: t('users_kycRejected'),
+          color: 'danger',
+        },
       }),
-      [],
+      [t],
     );
 
   const columns: ProColumns<ClientUserListItem>[] = useMemo(
     () => [
       {
-        title: 'User Info',
+        title: t('users_columnUserInfo'),
         dataIndex: 'nickname',
         render: (_, row) => {
           const isBanned = row.status === 0;
@@ -156,14 +182,14 @@ export const UserManagement: React.FC = () => {
                         : 'text-slate-900 dark:text-slate-100',
                     )}
                   >
-                    {row.nickname || 'Guest'}
+                    {row.nickname || t('users_guest')}
                   </span>
                   {isBanned && (
                     <Badge
                       variant="warning"
                       className="h-4 text-[9px] px-1.5 font-black uppercase tracking-tighter"
                     >
-                      FROZEN
+                      {t('users_frozenBadge')}
                     </Badge>
                   )}
                 </div>
@@ -176,13 +202,13 @@ export const UserManagement: React.FC = () => {
         },
       },
       {
-        title: 'Wallet Assets',
+        title: t('users_columnWalletAssets'),
         dataIndex: 'wallet',
         render: (_, row) => (
           <div className="text-[11px] space-y-0.5 bg-slate-50/50 dark:bg-white/5 p-1.5 rounded-lg border border-slate-100 dark:border-slate-800">
             <div className="flex items-center justify-between gap-4">
               <span className="text-slate-400 font-medium uppercase tracking-tighter scale-90">
-                Cash
+                {t('users_walletCash')}
               </span>
               <span className="font-mono font-bold text-emerald-600">
                 ${Number(row.wallet?.realBalance || 0).toFixed(2)}
@@ -190,7 +216,7 @@ export const UserManagement: React.FC = () => {
             </div>
             <div className="flex items-center justify-between gap-4">
               <span className="text-slate-400 font-medium uppercase tracking-tighter scale-90">
-                Coin
+                {t('users_walletCoin')}
               </span>
               <span className="font-mono font-bold text-amber-600">
                 {Math.floor(Number(row.wallet?.coinBalance || 0))}
@@ -200,7 +226,7 @@ export const UserManagement: React.FC = () => {
         ),
       },
       {
-        title: 'KYC & Level',
+        title: t('users_columnKycLevel'),
         dataIndex: 'kycStatus',
         render: (_, row) => (
           <div className="flex flex-col gap-1.5 t">
@@ -208,7 +234,7 @@ export const UserManagement: React.FC = () => {
               variant="outline"
               className="w-fit py-0 h-4 text-[9px] border-slate-300 text-red-500 font-bold"
             >
-              VIP {row.vipLevel}
+              {t('users_vipLabel', { level: row.vipLevel })}
             </Badge>
             {kycStatusConfig[row.kycStatus] && (
               <Badge
@@ -222,7 +248,7 @@ export const UserManagement: React.FC = () => {
         ),
       },
       {
-        title: 'Register Time',
+        title: t('users_columnRegisterTime'),
         dataIndex: 'createdAt',
         valueType: 'dateTime',
         width: 160,
@@ -231,7 +257,7 @@ export const UserManagement: React.FC = () => {
         ),
       },
       {
-        title: 'Action',
+        title: t('users_columnAction'),
         valueType: 'option',
         width: 120,
         fixed: 'right',
@@ -245,13 +271,15 @@ export const UserManagement: React.FC = () => {
                 className="h-8 px-2.5 hover:bg-slate-50 dark:hover:bg-slate-100 font-bold text-xs"
                 onClick={() => handleView(row)}
               >
-                <Eye size={14} className="mr-1.5" /> Detail
+                <Eye size={14} className="mr-1.5" /> {t('users_detailButton')}
               </Button>
 
               <Button
                 variant="outline"
                 size="sm"
-                title={isActive ? 'Freeze User' : 'Restore User'}
+                title={
+                  isActive ? t('users_freezeUser') : t('users_restoreUser')
+                }
                 className={cn('h-8 w-8 p-0 transition-all shadow-sm')}
                 onClick={() => handleStatusChange(row)}
               >
@@ -262,7 +290,7 @@ export const UserManagement: React.FC = () => {
         },
       },
     ],
-    [handleView, handleStatusChange, kycStatusConfig],
+    [handleView, handleStatusChange, kycStatusConfig, t],
   );
 
   const searchSchema: FormSchema[] = useMemo(
@@ -270,28 +298,28 @@ export const UserManagement: React.FC = () => {
       {
         type: 'input',
         key: 'userId',
-        label: 'User ID',
-        placeholder: 'Enter ID',
+        label: t('users_searchUserId'),
+        placeholder: t('users_searchUserIdPlaceholder'),
       },
       {
         type: 'input',
         key: 'phone',
-        label: 'Phone',
-        placeholder: 'Enter Phone',
+        label: t('users_searchPhone'),
+        placeholder: t('users_searchPhonePlaceholder'),
       },
       {
         type: 'select',
         key: 'status',
-        label: 'Account Status',
+        label: t('users_searchAccountStatus'),
         options: [
-          { label: 'Active', value: '1' },
-          { label: 'Frozen', value: '0' },
+          { label: t('users_searchActive'), value: '1' },
+          { label: t('users_searchFrozen'), value: '0' },
         ],
       },
       {
         type: 'select',
         key: 'kycStatus',
-        label: 'KYC Status',
+        label: t('users_searchKycStatus'),
         options: Object.entries(kycStatusConfig).map(([k, v]) => ({
           label: v.label,
           value: k,
@@ -300,11 +328,11 @@ export const UserManagement: React.FC = () => {
       {
         type: 'date',
         key: 'dateRange',
-        label: 'Register Time',
+        label: t('users_searchRegisterTime'),
         mode: 'range',
       },
     ],
-    [kycStatusConfig],
+    [kycStatusConfig, t],
   );
 
   const requestUsers = useCallback(async (params: QueryClientUserParams) => {
@@ -337,7 +365,7 @@ export const UserManagement: React.FC = () => {
             <div className="p-1.5 bg-blue-500 rounded-lg">
               <UserIcon className="text-white" size={18} strokeWidth={3} />
             </div>
-            <span>Client Database</span>
+            <span>{t('users_clientDatabase')}</span>
           </div>
         }
         rowKey="id"

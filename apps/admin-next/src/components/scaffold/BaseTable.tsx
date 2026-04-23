@@ -37,6 +37,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { Pagination } from '@/components/scaffold/Pagination';
+import { useTranslation } from '@/hooks/useTranslation';
 import { Loader2, ArrowUpDown, ChevronRight, ChevronDown } from 'lucide-react';
 import { cn } from '@repo/ui';
 
@@ -109,6 +110,8 @@ interface TableRowImplProps<TData> {
   renderSubComponent?: (props: { row: Row<TData> }) => React.ReactNode;
   isSelected: boolean;
   isExpanded: boolean;
+  /** 列版本标记：列定义变化时（如切语言）强制行重渲染 */
+  columnsRevision: unknown;
 }
 
 const TableRowImpl = <TData,>({
@@ -174,6 +177,7 @@ const TableRowImpl = <TData,>({
 //  修复：使用泛型 Memo 组件，解决类型丢失问题
 const MemoizedTableRow = React.memo(TableRowImpl, (prev, next) => {
   return (
+    prev.columnsRevision === next.columnsRevision &&
     prev.row.original === next.row.original &&
     prev.isSelected === next.isSelected &&
     prev.isExpanded === next.isExpanded &&
@@ -360,6 +364,8 @@ export const BaseTable = <TData,>({
     [table],
   );
 
+  const { t } = useTranslation();
+
   // --- 渲染表体内容 ---
   const renderTableContent = () => {
     if (loading && data.length === 0) {
@@ -378,7 +384,7 @@ export const BaseTable = <TData,>({
             colSpan={columns.length}
             className="h-40 text-center text-gray-500 dark:text-gray-400"
           >
-            No data available.
+            {t('common_noData')}
           </TableCell>
         </TableRow>
       );
@@ -395,6 +401,7 @@ export const BaseTable = <TData,>({
           isExpanded={row.getIsExpanded()}
           renderSubComponent={renderSubComponent}
           onClick={() => onRowClick?.(row.original)}
+          columnsRevision={columns}
         />
       ));
 

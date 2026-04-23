@@ -67,7 +67,7 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
           setTags(tagsRes.list || []);
         } catch (error) {
           console.error('Failed to fetch categories/tags:', error);
-          addToast('error', 'Failed to load categories/tags');
+          addToast('error', t('failedLoadData'));
         } finally {
           setIsLoadingData(false);
         }
@@ -342,7 +342,7 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
       const res = await upload.runAsync(file);
       return res.url;
     } catch (error) {
-      addToast('error', 'Failed to upload image');
+      addToast('error', t('failedUploadImage'));
       throw error;
     }
   };
@@ -368,9 +368,9 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
 
   const statusOptions = useMemo(
     () => [
-      { label: 'Draft', value: 'DRAFT' },
-      { label: 'Published', value: 'PUBLISHED' },
-      { label: 'Archived', value: 'ARCHIVED' },
+      { label: t('draft'), value: 'DRAFT' },
+      { label: t('published'), value: 'PUBLISHED' },
+      { label: t('archived'), value: 'ARCHIVED' },
     ],
     [],
   );
@@ -383,7 +383,7 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
       size="lg"
       isOpen={isOpen}
       onCloseAction={onCloseAction}
-      title={`${isEditing ? 'Edit' : 'Create'} Article`}
+      title={isEditing ? t('modalTitleEdit') : t('modalTitleCreate')}
     >
       <Form {...form}>
         <form onSubmit={submitHandler} className="space-y-6">
@@ -482,12 +482,14 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
           {/* Common Fields - Always Visible */}
           <FormSelectField
             name="categoryId"
-            label="Category"
-            placeholder="Select category"
+            label={t('category')}
+            placeholder={t('selectCategory')}
             options={categoryOptions}
           />
           <div className="p-4 border rounded-lg shadow-sm">
-            <label className="block text-sm font-medium mb-2">Tags</label>
+            <label className="block text-sm font-medium mb-2">
+              {t('tags')}
+            </label>
             <div className="flex flex-wrap gap-2">
               {tags.map((tag) => {
                 const selected = (watch('tagIds') || []).includes(tag.id);
@@ -510,7 +512,7 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
           </div>
           <FormSelectField
             name="status"
-            label="Status"
+            label={t('status')}
             options={statusOptions}
           />
 
@@ -522,10 +524,10 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
                 onClick={onCloseAction}
                 disabled={loading}
               >
-                Cancel
+                {t('cancel')}
               </Button>
               <Button type="submit" isLoading={loading}>
-                {isEditing ? 'Update' : 'Publish'}
+                {isEditing ? t('update') : t('publish')}
               </Button>
             </div>
           </div>

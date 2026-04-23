@@ -20,18 +20,21 @@ import { BannerFormInputs, BannerShema } from '@/schema/bannerShema';
 import { BannerBindProduct } from '@/views/banner/BannerBindProduct';
 import { Banner } from '@/type/types';
 import { SmartImage } from '@/components/ui/SmartImage';
+import type { TFunc } from '@/hooks/useTranslation';
 
 interface Props {
   close: () => void;
   confirm: () => void;
   editingData?: Banner;
   defaultCate?: number; // 当前所在的 Tab
+  t: TFunc;
 }
 
 export const BannerFormModal: React.FC<Props> = ({
   close,
   confirm,
   editingData,
+  t,
 }) => {
   const addToast = useToastStore((s) => s.addToast);
 
@@ -79,7 +82,7 @@ export const BannerFormModal: React.FC<Props> = ({
       onSuccess: () => {
         addToast(
           'success',
-          `Banner ${editingData ? 'updated' : 'created'} successfully`,
+          editingData ? t('banners_toastUpdated') : t('banners_toastCreated'),
         );
         confirm();
       },
@@ -113,15 +116,15 @@ export const BannerFormModal: React.FC<Props> = ({
           <div className="grid grid-cols-1 gap-4">
             <FormTextField
               name="title"
-              label="Internal Title"
-              placeholder="e.g. 11.11 Main Banner"
+              label={t('banners_formTitle')}
+              placeholder={t('banners_formTitlePlaceholder')}
               required
             />
             <FormMediaUploaderField
               required
               maxFileCount={1}
               name="bannerImgUrl"
-              label="Creative Asset (16:9)"
+              label={t('banners_formCreativeAsset')}
               renderImage={({ src, alt, className }) => (
                 <SmartImage
                   src={src}
@@ -140,43 +143,53 @@ export const BannerFormModal: React.FC<Props> = ({
           <div className="grid grid-cols-2 gap-4">
             <FormSelectField
               name="bannerCate"
-              label="Display Position"
+              label={t('banners_formPosition')}
               numeric={true}
               options={[
-                { label: 'Home', value: '1' },
-                { label: 'Activity', value: '2' },
-                { label: 'Product', value: '3' },
+                { label: t('banners_positionHome'), value: '1' },
+                { label: t('banners_positionActivity'), value: '2' },
+                { label: t('banners_positionProduct'), value: '3' },
               ]}
             />
-            <FormTextField name="sortOrder" label="Sort Order" type="number" />
+            <FormTextField
+              name="sortOrder"
+              label={t('banners_formSortOrder')}
+              type="number"
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <FormDateField name="activityAtStart" label="Start Time" />
-            <FormDateField name="activityAtEnd" label="End Time" />
+            <FormDateField
+              name="activityAtStart"
+              label={t('banners_formStartTime')}
+            />
+            <FormDateField
+              name="activityAtEnd"
+              label={t('banners_formEndTime')}
+            />
           </div>
 
           {/* 3. 智能跳转配置区 (核心) */}
           <div className="p-4 bg-gray-50 dark:bg-white/5 rounded-lg border border-gray-100 dark:border-white/10 space-y-3">
             <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Click Action
+              {t('banners_clickAction')}
             </div>
 
             <FormSelectField
               name="jumpCate"
-              label="Navigation Type"
+              label={t('banners_navType')}
               numeric={true}
               options={[
                 {
-                  label: 'No Action (Just Display)',
+                  label: t('banners_navNone'),
                   value: String(JUMP_CATE.NONE),
                 },
                 {
-                  label: 'Open Product Detail',
+                  label: t('banners_navProduct'),
                   value: String(JUMP_CATE.TREASURE),
                 },
                 {
-                  label: 'Open External Web',
+                  label: t('banners_navExternal'),
                   value: String(JUMP_CATE.EXTERNAL),
                 },
               ]}
@@ -187,8 +200,8 @@ export const BannerFormModal: React.FC<Props> = ({
               <div className="animate-in fade-in slide-in-from-top-2">
                 <FormTextField
                   name="jumpUrl"
-                  label="Target URL"
-                  placeholder="https://..."
+                  label={t('banners_formTargetUrl')}
+                  placeholder={t('banners_formTargetUrlPlaceholder')}
                   renderLeft={() => (
                     <Link size={16} className="mr-2 text-gray-400" />
                   )}
@@ -205,6 +218,7 @@ export const BannerFormModal: React.FC<Props> = ({
                     <BannerBindProduct
                       value={field.value}
                       onChange={field.onChange}
+                      t={t}
                     />
                     {fieldState.error && (
                       <div className="mt-1 text-sm text-red-500">
@@ -220,10 +234,10 @@ export const BannerFormModal: React.FC<Props> = ({
           <div className="flex justify-end items-center pt-2">
             <div className="flex gap-2">
               <Button type="button" variant="ghost" onClick={close}>
-                Cancel
+                {t('banners_cancel')}
               </Button>
               <Button type="submit" isLoading={loading}>
-                Save Banner
+                {t('banners_save')}
               </Button>
             </div>
           </div>

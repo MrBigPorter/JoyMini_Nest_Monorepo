@@ -19,11 +19,13 @@ import { useToastStore } from '@/store/useToastStore';
 import { KycRecord } from '@/type/types';
 import { kycApi } from '@/api';
 import { Image } from '@unpic/react';
+import type { TFunc } from '@/hooks/useTranslation';
 
 interface Props {
   data: KycRecord;
   close: () => void;
   reload: () => void;
+  t: TFunc;
 }
 
 // --- 组件：大图预览 (Lightbox) ---
@@ -69,10 +71,12 @@ const EvidenceCard = ({
   title,
   src,
   onPreview,
+  t,
 }: {
   title: string;
   src?: string;
   onPreview: (src: string, title: string) => void;
+  t: (key: string) => string;
 }) => (
   <div className="group relative bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all">
     {/* Header */}
@@ -109,7 +113,7 @@ const EvidenceCard = ({
       ) : (
         <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 gap-1">
           <ScanText size={24} className="opacity-20" />
-          <span className="text-[10px]">No Image</span>
+          <span className="text-[10px]">{t('kyc_noImage')}</span>
         </div>
       )}
     </div>
@@ -122,11 +126,13 @@ const InfoRow = ({
   value,
   subValue,
   highlight = false,
+  t,
 }: {
   label: string;
   value: React.ReactNode;
   subValue?: string;
   highlight?: boolean;
+  t: (key: string) => string;
 }) => (
   <div className="py-3 border-b border-gray-100 dark:border-white/5 last:border-0">
     <div className="flex justify-between items-center mb-1">
@@ -140,7 +146,7 @@ const InfoRow = ({
               : 'bg-green-50 text-green-700 border-green-100',
           )}
         >
-          OCR: {subValue}
+          {t('kyc_ocrLabel')}: {subValue}
         </span>
       )}
     </div>
@@ -157,7 +163,7 @@ const InfoRow = ({
   </div>
 );
 
-export const KycAuditModal: React.FC<Props> = ({ data, close, reload }) => {
+export const KycAuditModal: React.FC<Props> = ({ data, close, reload, t }) => {
   const [remark, setRemark] = useState('');
   const [previewImage, setPreviewImage] = useState<{
     src: string;
@@ -171,18 +177,18 @@ export const KycAuditModal: React.FC<Props> = ({ data, close, reload }) => {
   const { run: submitAudit, loading } = useRequest(kycApi.audit, {
     manual: true,
     onSuccess: () => {
-      addToast('success', 'Audit processed successfully');
+      addToast('success', t('kyc_auditSuccess'));
       reload();
       close();
     },
     onError: (err) => {
-      addToast('error', err.message || 'Audit failed');
+      addToast('error', err.message || t('kyc_auditFailed'));
     },
   });
 
   const handleAudit = (action: 'APPROVE' | 'REJECT' | 'NEED_MORE') => {
     if (!remark && action !== 'APPROVE') {
-      return addToast('error', 'Remark is required for this action.');
+      return addToast('error', t('kyc_remarkRequired'));
     }
     submitAudit(data.id, { action, remark });
   };
@@ -194,39 +200,42 @@ export const KycAuditModal: React.FC<Props> = ({ data, close, reload }) => {
         {/* --- LEFT: Evidence Area (Scrollable) --- */}
         <div className="flex-1 overflow-y-auto p-6 bg-gray-50 dark:bg-black/20 custom-scrollbar border-r border-gray-200 dark:border-white/5">
           <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-            <ScanText size={16} className="text-primary-600" /> Identity
-            Documents
+            <ScanText size={16} className="text-primary-600" />{' '}
+            {t('kyc_identityDocuments')}
           </h3>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             <EvidenceCard
-              title="ID Card Front"
+              title={t('kyc_idCardFront')}
               src={data.idCardFront}
-              onPreview={(s, t) => setPreviewImage({ src: s, title: t })}
+              onPreview={(s, title) => setPreviewImage({ src: s, title })}
+              t={t}
             />
             <EvidenceCard
-              title="ID Card Back"
+              title={t('kyc_idCardBack')}
               src={data.idCardBack}
-              onPreview={(s, t) => setPreviewImage({ src: s, title: t })}
+              onPreview={(s, title) => setPreviewImage({ src: s, title })}
+              t={t}
             />
           </div>
 
           <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-            <Video size={16} className="text-primary-600" /> Biometric
-            Verification
+            <Video size={16} className="text-primary-600" />{' '}
+            {t('kyc_biometricVerification')}
           </h3>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-4">
             <EvidenceCard
-              title="Selfie Photo"
+              title={t('kyc_selfiePhoto')}
               src={data.faceImage}
-              onPreview={(s, t) => setPreviewImage({ src: s, title: t })}
+              onPreview={(s, title) => setPreviewImage({ src: s, title })}
+              t={t}
             />
 
             <div className="group relative bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg overflow-hidden shadow-sm">
               <div className="px-3 py-2 border-b border-gray-100 dark:border-white/5 bg-gray-50/50 dark:bg-white/5 flex justify-between items-center">
                 <span className="text-xs font-semibold text-gray-600 dark:text-gray-300">
-                  Liveness Video
+                  {t('kyc_livenessVideo')}
                 </span>
                 {data.livenessScore !== undefined && (
                   <span
@@ -237,7 +246,7 @@ export const KycAuditModal: React.FC<Props> = ({ data, close, reload }) => {
                         : 'bg-amber-100 text-amber-700',
                     )}
                   >
-                    Score: {data.livenessScore.toFixed(0)}
+                    {t('kyc_scoreLabel')}: {data.livenessScore.toFixed(0)}
                   </span>
                 )}
               </div>
@@ -251,7 +260,7 @@ export const KycAuditModal: React.FC<Props> = ({ data, close, reload }) => {
                 ) : (
                   <div className="flex flex-col items-center text-gray-500 gap-1">
                     <Video size={24} className="opacity-30" />
-                    <span className="text-[10px]">No Video</span>
+                    <span className="text-[10px]">{t('kyc_noVideo')}</span>
                   </div>
                 )}
               </div>
@@ -267,19 +276,20 @@ export const KycAuditModal: React.FC<Props> = ({ data, close, reload }) => {
             <div className="flex items-center gap-2 mb-4">
               <User size={16} className="text-primary-600" />
               <h3 className="font-bold text-gray-800 dark:text-white text-sm">
-                Applicant Data
+                {t('kyc_applicantData')}
               </h3>
             </div>
 
             <div className="space-y-1">
               <InfoRow
-                label="Submitted Name"
+                label={t('kyc_submittedName')}
                 value={data.realName}
                 subValue={ocrData.name}
                 highlight
+                t={t}
               />
               <InfoRow
-                label="ID Number"
+                label={t('kyc_idNumber')}
                 value={
                   <code className="font-mono text-primary-700">
                     {data.idNumber}
@@ -287,17 +297,20 @@ export const KycAuditModal: React.FC<Props> = ({ data, close, reload }) => {
                 }
                 subValue={ocrData.idNumber}
                 highlight
+                t={t}
               />
               <InfoRow
-                label="Birthday"
+                label={t('kyc_birthday')}
                 value={TimeHelper.formatDate(data.birthday)}
                 subValue={TimeHelper.formatDate(ocrData.birthday)}
+                t={t}
               />
-              <InfoRow label="User ID" value={data.userId} />
-              <InfoRow label="Phone" value={data.user?.phone} />
+              <InfoRow label={t('kyc_userId')} value={data.userId} t={t} />
+              <InfoRow label={t('kyc_phone')} value={data.user?.phone} t={t} />
               <InfoRow
-                label="Submission Time"
+                label={t('kyc_submissionTime')}
                 value={TimeHelper.formatDateTime(data.submittedAt)}
+                t={t}
               />
             </div>
 
@@ -305,7 +318,7 @@ export const KycAuditModal: React.FC<Props> = ({ data, close, reload }) => {
               <div className="mt-6 p-3 bg-red-50 border border-red-100 rounded-lg text-red-700 text-xs flex gap-2">
                 <AlertTriangle size={16} className="shrink-0" />
                 <div>
-                  <strong>Risk Alert:</strong> ID Number mismatch.
+                  <strong>{t('kyc_riskAlert')}:</strong> {t('kyc_idMismatch')}
                 </div>
               </div>
             )}
@@ -316,7 +329,7 @@ export const KycAuditModal: React.FC<Props> = ({ data, close, reload }) => {
             <div className="flex items-center gap-2 mb-2">
               <FileText size={14} className="text-gray-400" />
               <span className="text-xs font-bold text-gray-500 uppercase">
-                Decision
+                {t('kyc_decision')}
               </span>
             </div>
 
@@ -330,8 +343,8 @@ export const KycAuditModal: React.FC<Props> = ({ data, close, reload }) => {
               disabled={!isReviewing}
               placeholder={
                 isReviewing
-                  ? 'Remarks (Required for Reject/More Info)...'
-                  : 'Auditor remarks...'
+                  ? t('kyc_remarkPlaceholder')
+                  : t('kyc_auditorRemarks')
               }
               value={
                 isReviewing
@@ -350,7 +363,7 @@ export const KycAuditModal: React.FC<Props> = ({ data, close, reload }) => {
                   isLoading={loading}
                   disabled={!remark}
                   onClick={() => handleAudit('REJECT')}
-                  title="Reject"
+                  title={t('kyc_reject')}
                 >
                   <XCircle size={18} />
                 </Button>
@@ -361,7 +374,7 @@ export const KycAuditModal: React.FC<Props> = ({ data, close, reload }) => {
                   isLoading={loading}
                   disabled={!remark}
                   onClick={() => handleAudit('NEED_MORE')}
-                  title="Request Info"
+                  title={t('kyc_requestInfo')}
                 >
                   ?
                 </Button>
@@ -372,7 +385,7 @@ export const KycAuditModal: React.FC<Props> = ({ data, close, reload }) => {
                   isLoading={loading}
                   onClick={() => handleAudit('APPROVE')}
                 >
-                  <CheckCircle2 size={16} className="mr-2" /> Approve
+                  <CheckCircle2 size={16} className="mr-2" /> {t('kyc_approve')}
                 </Button>
               </div>
             ) : (
@@ -389,7 +402,12 @@ export const KycAuditModal: React.FC<Props> = ({ data, close, reload }) => {
                 ) : (
                   <XCircle size={18} />
                 )}
-                <span>Current Status: {KYC_STATUS_LABEL[data.kycStatus]}</span>
+                <span>
+                  {t('kyc_currentStatus')}:{' '}
+                  {t(
+                    `kyc_status_${KYC_STATUS_LABEL[data.kycStatus]?.toLowerCase().replace(/\s+/g, '_')}`,
+                  )}
+                </span>
               </div>
             )}
           </div>

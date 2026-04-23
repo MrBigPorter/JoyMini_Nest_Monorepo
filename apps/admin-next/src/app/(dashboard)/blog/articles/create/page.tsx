@@ -20,11 +20,15 @@ import {
 } from '@repo/ui/form';
 import { useLanguage } from '@/hooks/LanguageProvider';
 import { LanguageSwitch } from '@/components/blog/LanguageSwitch';
+import { useTranslation } from '@/hooks/useTranslation';
 
 export default function CreateArticlePage() {
   const router = useRouter();
   const { addToast } = useToastStore();
   const { locale } = useLanguage();
+  const { t: globalT } = useTranslation();
+  const t = (key: string, params?: Record<string, string | number>) =>
+    globalT(`blog_createArticle_${key}`, params);
 
   const [categories, setCategories] = useState<
     { id: string; name: { zh: string; en: string } }[]
@@ -49,11 +53,11 @@ export default function CreateArticlePage() {
       try {
         await blogApi.createArticle(data);
 
-        addToast('success', 'Article created successfully');
+        addToast('success', t('toastCreated'));
         router.push('/blog/articles');
       } catch (error) {
         console.error('Failed to create article:', error);
-        addToast('error', 'Failed to create article');
+        addToast('error', t('toastCreateFailed'));
         throw error;
       }
     },
@@ -79,7 +83,7 @@ export default function CreateArticlePage() {
       const res = await upload.runAsync(file);
       return res.url;
     } catch (error) {
-      addToast('error', 'Failed to upload editor image');
+      addToast('error', t('toastUploadFailed'));
       throw error;
     }
   };
@@ -98,7 +102,7 @@ export default function CreateArticlePage() {
         setTags(tagsRes.list || []);
       } catch (error) {
         console.error('Failed to fetch categories/tags:', error);
-        addToast('error', 'Failed to load categories/tags');
+        addToast('error', t('toastLoadFailed'));
       } finally {
         setLoadingCategories(false);
         setLoadingTags(false);
@@ -125,12 +129,16 @@ export default function CreateArticlePage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Create New Article"
-        description="Write a new blog article"
+        title={t('pageTitle')}
+        description={t('pageDescription')}
         showBackButton={true}
         onBack={() => router.push('/blog/articles')}
-        breadcrumbs={['Blog', 'Articles', 'Create']}
-        buttonText="Save Article"
+        breadcrumbs={[
+          t('breadcrumbBlog'),
+          t('breadcrumbArticles'),
+          t('breadcrumbCreate'),
+        ]}
+        buttonText={t('saveArticle')}
         buttonOnClick={handleSaveClick}
         buttonPrefixIcon={
           isLoading ? (
@@ -140,9 +148,9 @@ export default function CreateArticlePage() {
           )
         }
         buttonDisabled={isLoading || !watch('title.zh') || !watch('content.zh')}
-        secondaryButtonText="Cancel"
+        secondaryButtonText={t('cancel')}
         secondaryButtonOnClick={() => router.push('/blog/articles')}
-        tertiaryButtonText="Publish Article"
+        tertiaryButtonText={t('publishArticle')}
         tertiaryButtonOnClick={() => setValue('status', 'PUBLISHED')}
         tertiaryButtonIcon={<Send size={18} />}
         tertiaryButtonVariant="success"
@@ -152,30 +160,30 @@ export default function CreateArticlePage() {
         <Form {...form}>
           <form onSubmit={submitHandler} className="space-y-6">
             <div className="flex justify-between items-center">
-              <h3 className="text-sm font-medium">Article Content</h3>
+              <h3 className="text-sm font-medium">{t('articleContent')}</h3>
               <LanguageSwitch />
             </div>
 
             {/* Title */}
             <FormTextField
-              label="Article Title *"
-              placeholder="Enter article title"
+              label={t('articleTitle')}
+              placeholder={t('articleTitlePlaceholder')}
               required
               {...localize('title')}
             />
 
             {/* Excerpt */}
             <FormTextareaField
-              label="Article Excerpt"
-              placeholder="Enter article excerpt (optional)"
+              label={t('articleExcerpt')}
+              placeholder={t('articleExcerptPlaceholder')}
               {...localize('excerpt')}
             />
 
             {/* Category */}
             <FormSelectField
               name="categoryId"
-              label="Category *"
-              placeholder="Select category"
+              label={t('category')}
+              placeholder={t('selectCategory')}
               options={categories.map((c) => ({
                 label: (c.name as Record<string, string>)[locale] || c.name.zh,
                 value: c.id,
@@ -184,7 +192,7 @@ export default function CreateArticlePage() {
 
             {/* Tags */}
             <div className="space-y-2">
-              <label className="text-sm font-medium">Tags</label>
+              <label className="text-sm font-medium">{t('tags')}</label>
               <div className="flex flex-wrap gap-2">
                 {tags.map((tag) => {
                   const selected = (watch('tagIds') || []).includes(tag.id);
@@ -217,18 +225,16 @@ export default function CreateArticlePage() {
               <RichTextEditor
                 value={watch(`content.${locale}`) || ''}
                 onChange={(value) => setValue(`content.${locale}`, value)}
-                label="Article Content *"
-                placeholder="Write your article content here..."
+                label={t('articleContentLabel')}
+                placeholder={t('articleContentPlaceholder')}
                 required
                 onUpload={handleEditorUpload}
                 error={
-                  !watch(`content.${locale}`)
-                    ? 'Article content is required'
-                    : undefined
+                  !watch(`content.${locale}`) ? t('contentRequired') : undefined
                 }
               />
               <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <div>Rich text editor with image upload support</div>
+                <div>{t('editorDescription')}</div>
                 <div className="space-x-2">
                   <button
                     type="button"
@@ -240,7 +246,7 @@ export default function CreateArticlePage() {
                       setValue(`content.${locale}`, newContent);
                     }}
                   >
-                    # Heading
+                    {t('headingBtn')}
                   </button>
                   <button
                     type="button"
@@ -251,7 +257,7 @@ export default function CreateArticlePage() {
                       setValue(`content.${locale}`, newContent);
                     }}
                   >
-                    **Bold**
+                    {t('boldBtn')}
                   </button>
                   <button
                     type="button"
@@ -262,7 +268,7 @@ export default function CreateArticlePage() {
                       setValue(`content.${locale}`, newContent);
                     }}
                   >
-                    *Italic*
+                    {t('italicBtn')}
                   </button>
                 </div>
               </div>
@@ -274,7 +280,7 @@ export default function CreateArticlePage() {
                 href="/blog/articles"
                 className="px-4 py-2 text-sm font-medium rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-200 transition-colors"
               >
-                Cancel
+                {t('cancel')}
               </Link>
               <button
                 type="submit"
@@ -283,7 +289,7 @@ export default function CreateArticlePage() {
                 }
                 className="px-4 py-2 text-sm font-medium rounded-lg bg-primary text-white hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                {isLoading ? 'Saving...' : 'Save Article'}
+                {isLoading ? t('saving') : t('saveArticle')}
               </button>
             </div>
           </form>

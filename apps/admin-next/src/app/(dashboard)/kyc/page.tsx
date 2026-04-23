@@ -5,6 +5,9 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = { title: 'KYC Review' };
+// Note: metadata is a server-side export and cannot use i18n hooks.
+// The title will remain as 'KYC Review' for SEO purposes.
+// Client-side page title is handled via KycListClient.tsx with useTranslation.
 
 import React, { Suspense } from 'react';
 import {

@@ -21,19 +21,29 @@ import {
 } from '@/lib/sentry-span-constants';
 import { withSsrSpan } from '@/lib/sentry-span';
 import { FINANCE_STATS_TAG, FINANCE_TAG } from '@/lib/cache/finance-cache';
+import { getTranslations } from 'next-intl/server';
 import type { FinanceStatistics, ClientUserListItem } from '@/type/types';
 import type { PaginatedResponse } from '@/api/types';
+import type { Locale } from '@lucky/shared';
 
 // ── Trend 组件（纯展示，无交互） ───────────────────────────────
-function Trend({ value }: { value: string }) {
+function Trend({
+  value,
+  t,
+}: {
+  value: string;
+  t: (key: string, values?: Record<string, string | number>) => string;
+}) {
   const num = parseFloat(value ?? '0');
   if (isNaN(num) || num === 0) {
     return (
       <span className="flex items-center gap-1 text-xs text-gray-400">
-        <Minus size={12} /> 0% vs last week
+        <Minus size={12} />
+        {t('dashboard_trendZero')}
       </span>
     );
   }
+
   const isUp = num > 0;
   return (
     <span
@@ -43,7 +53,7 @@ function Trend({ value }: { value: string }) {
     >
       {isUp ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
       {isUp ? '+' : ''}
-      {num.toFixed(1)}% vs last week
+      {t('dashboard_trendComparison', { percent: num.toFixed(1) })}
     </span>
   );
 }
@@ -81,7 +91,10 @@ function StatCard({
 }
 
 // ── 主组件（async Server Component）─────────────────────────
-export async function DashboardStats() {
+export async function DashboardStats({ locale: _locale }: { locale?: Locale }) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const t = (await getTranslations()) as any;
+
   const [finance, usersRes] = await withSsrSpan(
     SENTRY_SPAN_NAME.DASHBOARD_STATS_FETCH,
     {
@@ -112,7 +125,7 @@ export async function DashboardStats() {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
       <StatCard
-        title="Total Deposits"
+        title={t('dashboard_totalDeposits')}
         value={
           finance
             ? `₱${parseFloat(finance.totalDeposit).toLocaleString()}`
@@ -120,10 +133,12 @@ export async function DashboardStats() {
         }
         icon={<DollarSign size={20} className="text-emerald-600" />}
         iconBg="bg-emerald-100 dark:bg-emerald-500/15"
-        trend={finance ? <Trend value={finance.depositTrend} /> : undefined}
+        trend={
+          finance ? <Trend value={finance.depositTrend} t={t} /> : undefined
+        }
       />
       <StatCard
-        title="Total Withdrawals"
+        title={t('dashboard_totalWithdrawals')}
         value={
           finance
             ? `₱${parseFloat(finance.totalWithdraw).toLocaleString()}`
@@ -131,10 +146,12 @@ export async function DashboardStats() {
         }
         icon={<DollarSign size={20} className="text-blue-600" />}
         iconBg="bg-blue-100 dark:bg-blue-500/15"
-        trend={finance ? <Trend value={finance.withdrawTrend} /> : undefined}
+        trend={
+          finance ? <Trend value={finance.withdrawTrend} t={t} /> : undefined
+        }
       />
       <StatCard
-        title="Pending Withdrawals"
+        title={t('dashboard_pendingWithdrawals')}
         value={
           finance
             ? `₱${parseFloat(finance.pendingWithdraw).toLocaleString()}`
@@ -144,12 +161,12 @@ export async function DashboardStats() {
         iconBg="bg-amber-100 dark:bg-amber-500/15"
         trend={
           <span className="text-xs text-amber-500 font-medium">
-            Requires audit
+            {t('dashboard_requiresAudit')}
           </span>
         }
       />
       <StatCard
-        title="Total Users"
+        title={t('dashboard_totalUsers')}
         value={totalUsers.toLocaleString()}
         icon={<Users size={20} className="text-purple-600" />}
         iconBg="bg-purple-100 dark:bg-purple-500/15"

@@ -15,16 +15,11 @@ import { orderApi } from '@/api';
 import { SmartImage } from '@/components/ui/SmartImage';
 import { useRouter } from 'next/navigation';
 import { ClientDate } from '@/components/ui/ClientDate';
-
-const ORDER_STATUS: Record<number, { label: string; color: BadgeColor }> = {
-  1: { label: 'Pending', color: 'yellow' },
-  2: { label: 'Paid', color: 'green' },
-  3: { label: 'Cancelled', color: 'gray' },
-  4: { label: 'Refunded', color: 'red' },
-};
+import { useTranslation } from '@/hooks/useTranslation';
 
 export function DashboardOrdersClient() {
   const router = useRouter();
+  const { t } = useTranslation();
 
   const { data: ordersRes, isLoading } = useQuery({
     queryKey: ['dashboard-orders'],
@@ -37,17 +32,33 @@ export function DashboardOrdersClient() {
   const orders = ordersRes?.list ?? [];
   const totalOrders = ordersRes?.total ?? 0;
 
+  // 订单状态映射函数
+  const getOrderStatus = (status: number) => {
+    const statusMap: Record<number, { label: string; color: BadgeColor }> = {
+      1: { label: t('dashboard_orderStatusPending'), color: 'yellow' },
+      2: { label: t('dashboard_orderStatusPaid'), color: 'green' },
+      3: { label: t('dashboard_orderStatusCancelled'), color: 'gray' },
+      4: { label: t('dashboard_orderStatusRefunded'), color: 'red' },
+    };
+    return (
+      statusMap[status] ?? {
+        label: t('dashboard_orderStatusUnknown'),
+        color: 'gray' as BadgeColor,
+      }
+    );
+  };
+
   return (
     <Card>
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <ShoppingCart size={18} className="text-primary-500" />
           <h3 className="font-semibold text-gray-900 dark:text-white">
-            Recent Orders
+            {t('dashboard_recentOrders')}
           </h3>
           {!isLoading && (
             <span className="text-xs text-gray-400 bg-gray-100 dark:bg-white/10 px-2 py-0.5 rounded-full">
-              {totalOrders.toLocaleString()} total
+              {totalOrders.toLocaleString()} {t('dashboard_total')}
             </span>
           )}
         </div>
@@ -55,7 +66,7 @@ export function DashboardOrdersClient() {
           onClick={() => router.push('/orders')}
           className="flex items-center gap-1 text-xs text-primary-500 hover:text-primary-600 font-medium"
         >
-          View all <ArrowRight size={12} />
+          {t('dashboard_viewAll')} <ArrowRight size={12} />
         </button>
       </div>
 
@@ -70,27 +81,24 @@ export function DashboardOrdersClient() {
         </div>
       ) : orders.length === 0 ? (
         <div className="py-12 text-center text-gray-400 text-sm">
-          No orders yet.
+          {t('dashboard_noOrdersYet')}
         </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead>
               <tr className="text-gray-400 border-b border-gray-100 dark:border-white/5 text-xs font-semibold uppercase tracking-wider">
-                <th className="pb-3">Order</th>
-                <th className="pb-3">Product</th>
-                <th className="pb-3">Customer</th>
-                <th className="pb-3">Amount</th>
-                <th className="pb-3">Status</th>
-                <th className="pb-3">Date</th>
+                <th className="pb-3">{t('dashboard_order')}</th>
+                <th className="pb-3">{t('dashboard_product')}</th>
+                <th className="pb-3">{t('dashboard_customer')}</th>
+                <th className="pb-3">{t('dashboard_amount')}</th>
+                <th className="pb-3">{t('dashboard_status')}</th>
+                <th className="pb-3">{t('dashboard_date')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-white/5">
               {orders.map((order) => {
-                const status = ORDER_STATUS[order.orderStatus] ?? {
-                  label: 'Unknown',
-                  color: 'gray' as BadgeColor,
-                };
+                const status = getOrderStatus(order.orderStatus);
                 return (
                   <tr
                     key={order.orderId}

@@ -41,6 +41,7 @@ import { Card } from '@/components/UIComponents';
 import { useRequest } from 'ahooks';
 import { PageHeader } from '@/components/scaffold/PageHeader';
 import { FormSchema } from '@/type/search';
+import { useTranslation } from '@/hooks/useTranslation';
 import {
   buildProductsListParams,
   parseProductsSearchParams,
@@ -126,6 +127,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
   initialFormParams,
   onParamsChange,
 }) => {
+  const { t } = useTranslation();
   const actionRef = useRef<ActionType>(null);
   const addToast = useToastStore((state) => state.addToast);
 
@@ -165,24 +167,24 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
 
   const handlePurgeCache = useCallback(async () => {
     await purgeCacheRun();
-    addToast('success', 'Home cache purged successfully.');
-  }, [purgeCacheRun, addToast]);
+    addToast('success', t('products_cachePurged'));
+  }, [purgeCacheRun, addToast, t]);
 
   const handleCreate = useCallback(() => {
     ModalManager.open({
-      title: 'Create Product',
+      title: t('products_createProduct'),
       size: 'xl',
       onConfirm: () => actionRef.current?.reload(),
       renderChildren: ({ confirm }) => (
         <CreateProductFormModal categories={categories} confirm={confirm} />
       ),
     });
-  }, [categories]);
+  }, [categories, t]);
 
   const handleEdit = useCallback(
     (record: Product) => {
       ModalManager.open({
-        title: 'Edit Product',
+        title: t('products_editProduct'),
         size: 'xl',
         onConfirm: () => actionRef.current?.reload(),
         renderChildren: ({ confirm }) => (
@@ -194,32 +196,34 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
         ),
       });
     },
-    [categories],
+    [categories, t],
   );
 
   const handleDelete = useCallback(
     (record: Product) => {
       ModalManager.open({
-        title: 'Are you sure?',
-        content: `Delete product "${record.treasureName}"? This cannot be undone.`,
+        title: t('products_confirmDelete'),
+        content: t('products_deleteConfirmContent', {
+          name: record.treasureName,
+        }),
         onConfirm: async () => {
           await deleteProductRun(record.treasureId);
-          addToast('success', 'Product deleted');
+          addToast('success', t('products_productDeleted'));
           actionRef.current?.reload();
         },
       });
     },
-    [deleteProductRun, addToast],
+    [deleteProductRun, addToast, t],
   );
 
   const handleToggleState = useCallback(
     (record: Product) => {
       const isOnline = record.state === TREASURE_STATE.ACTIVE;
       ModalManager.open({
-        title: isOnline ? 'Take Offline?' : 'Put Online?',
+        title: isOnline ? t('products_takeOffline') : t('products_putOnline'),
         content: isOnline
-          ? 'Users will not see this product anymore.'
-          : 'Users will be able to buy this product immediately.',
+          ? t('products_offlineWarning')
+          : t('products_onlineInfo'),
         onConfirm: async () => {
           const newState = isOnline
             ? TREASURE_STATE.INACTIVE
@@ -227,20 +231,20 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
           await updateStateRun(record.treasureId, newState);
           addToast(
             'success',
-            `Product is now ${isOnline ? 'offline' : 'online'}`,
+            isOnline ? t('products_nowOffline') : t('products_nowOnline'),
           );
           actionRef.current?.reload();
         },
       });
     },
-    [updateStateRun, addToast],
+    [updateStateRun, addToast, t],
   );
 
-  // 3. Columns 定义 (已更新价格结构和机器人图标)
+  // 3. Columns 定义
   const columns: ProColumns<Product>[] = useMemo(
     () => [
       {
-        title: 'Product Info',
+        title: t('products_productInfo'),
         dataIndex: 'treasureName',
         width: 280,
         render: (_, row) => {
@@ -285,7 +289,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                       variant="outline"
                       className="text-[10px] px-1 py-0 h-auto border-orange-200 text-orange-700 bg-orange-50"
                     >
-                      {row.groupSize}P Group
+                      {t('products_pGroup', { size: row.groupSize ?? 0 })}
                     </Badge>
                   )}
                   {/*  机器人状态标签 */}
@@ -293,9 +297,9 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
                     <Badge
                       variant="outline"
                       className="text-[10px] px-1 py-0 h-auto border-cyan-200 text-cyan-700 bg-cyan-50 gap-1"
-                      title="Robot Auto-fill Enabled"
+                      title={t('products_robotAutoFill')}
                     >
-                      <Bot size={10} /> Auto
+                      <Bot size={10} /> {t('products_auto')}
                     </Badge>
                   )}
                 </div>
@@ -305,7 +309,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
         },
       },
       {
-        title: 'Progress',
+        title: t('products_progress'),
         dataIndex: 'buyQuantityRate',
         width: 140,
         render: (val, row) => {
@@ -335,14 +339,16 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
         },
       },
       {
-        title: 'Price Structure', // 更新了列标题
+        title: t('products_priceStructure'),
         dataIndex: 'unitAmount',
-        width: 150, // 更新了宽度
+        width: 150,
         render: (val, row) => (
           <div className="flex flex-col gap-0.5">
             {/* 1. 核心拼团价 */}
             <div className="flex items-center justify-between">
-              <span className="text-[10px] text-gray-500 uppercase">Group</span>
+              <span className="text-[10px] text-gray-500 uppercase">
+                {t('products_groupPriceMain')}
+              </span>
               <span className="font-mono text-sm font-bold text-red-600">
                 ₱{val}
               </span>
@@ -351,7 +357,9 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
             {/* 2. 单独购买价 (如果有) */}
             {row.soloAmount !== undefined && row.soloAmount !== null && (
               <div className="flex items-center justify-between">
-                <span className="text-[10px] text-gray-400">Solo</span>
+                <span className="text-[10px] text-gray-400">
+                  {t('products_soloPrice')}
+                </span>
                 <span className="font-mono text-xs text-gray-700 dark:text-gray-300">
                   ₱{row.soloAmount}
                 </span>
@@ -361,7 +369,9 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
             {/* 3. 市场划线价 (如果有) */}
             {row.marketAmount !== undefined && row.marketAmount !== null && (
               <div className="flex items-center justify-between">
-                <span className="text-[10px] text-gray-400">MSRP</span>
+                <span className="text-[10px] text-gray-400">
+                  {t('products_msrp')}
+                </span>
                 <span className="font-mono text-[10px] text-gray-400 line-through">
                   ₱{row.marketAmount}
                 </span>
@@ -370,7 +380,9 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
 
             {/* 4. 成本价 (虚线分隔) */}
             <div className="mt-1 pt-1 border-t border-dashed border-gray-200 dark:border-gray-700 flex items-center justify-between opacity-50 hover:opacity-100 transition-opacity">
-              <span className="text-[10px] text-gray-400">Cost</span>
+              <span className="text-[10px] text-gray-400">
+                {t('products_cost')}
+              </span>
               <span className="text-[10px] font-mono text-gray-400">
                 ₱{row.costAmount}
               </span>
@@ -379,7 +391,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
         ),
       },
       {
-        title: 'Status / Time',
+        title: t('products_statusTime'),
         width: 180,
         render: (_, row) => {
           const status = getOperationStatus(row);
@@ -397,7 +409,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
               <DateRangeDisplay start={row.salesStartAt} end={row.salesEndAt} />
               {status.label === 'Pre-sale' && row.salesStartAt && (
                 <span className="text-[10px] text-blue-600 bg-blue-50 px-1 rounded font-medium">
-                  Starts{' '}
+                  {t('products_starts')}{' '}
                   {formatDistanceToNow(row.salesStartAt, { addSuffix: true })}
                 </span>
               )}
@@ -406,7 +418,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
         },
       },
       {
-        title: 'Actions',
+        title: t('products_actions'),
         width: 120,
         valueType: 'option',
         render: (_, row) => (
@@ -447,7 +459,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
         ),
       },
     ],
-    [handleEdit, handleDelete, handleToggleState],
+    [handleEdit, handleDelete, handleToggleState, t],
   );
 
   // 4. 配置搜索表单
@@ -456,23 +468,23 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
       {
         type: 'input',
         key: 'treasureName',
-        label: 'Product Name',
-        placeholder: 'Search name or ID...',
+        label: t('products_productName'),
+        placeholder: t('products_searchNameOrId'),
       },
       {
         type: 'select',
         key: 'categoryId',
-        label: 'Category',
+        label: t('products_category'),
         defaultValue: 'ALL',
         options: [
-          { label: 'All Categories', value: 'ALL' },
+          { label: t('products_allCategories'), value: 'ALL' },
           ...categories.map((c) => ({ label: c.name, value: String(c.id) })),
         ],
       },
       {
         type: 'select',
         key: 'filterType',
-        label: 'Filter Type',
+        label: t('products_filterType'),
         defaultValue: 'ALL',
         options: [
           ...Object.keys(TreasureFilterType)
@@ -481,7 +493,7 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
         ],
       },
     ],
-    [categories],
+    [categories, t],
   );
 
   const requestProducts = useCallback(async (params: ProductListParams) => {
@@ -523,20 +535,20 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
         onClick={handlePurgeCache}
       >
         <RotateCcw size={14} className="mr-2" />
-        Purge Cache
+        {t('products_purgeCache')}
       </Button>,
       <Button key="add" onClick={handleCreate}>
-        + Add Product
+        + {t('products_addProduct')}
       </Button>,
     ],
-    [purgeLoading, handlePurgeCache, handleCreate],
+    [purgeLoading, handlePurgeCache, handleCreate, t],
   );
 
   return (
     <div className="p-4">
       <PageHeader
-        title="Product Management"
-        description="Manage your products available in the mini shop."
+        title={t('products_pageTitle')}
+        description={t('products_pageDescription')}
         action={toolBarRender()}
       />
       <Card>
@@ -547,7 +559,9 @@ export const ProductManagement: React.FC<ProductManagementProps> = ({
             <div className="flex items-center justify-between w-full">
               <div className="flex items-center gap-2">
                 <Package className="text-primary-500" size={20} />
-                <span className="font-semibold text-lg">Products</span>
+                <span className="font-semibold text-lg">
+                  {t('products_title')}
+                </span>
               </div>
             </div>
           }

@@ -24,7 +24,7 @@ import { ProductSelectorModal } from '@/views/act-section/ProductSelectorModal';
 import { BaseTable } from '@/components/scaffold/BaseTable';
 import { SchemaSearchForm } from '@/components/scaffold/SchemaSearchForm';
 import { PageHeader } from '@/components/scaffold/PageHeader';
-import { getActSectionTypeLabel } from '@lucky/shared';
+import { useTranslation } from '@/hooks/useTranslation';
 
 type ActSectionSearchForm = {
   title: string;
@@ -41,6 +41,7 @@ export const ActSectionManagement: React.FC<ActSectionManagementProps> = ({
   initialFormParams,
   onParamsChange,
 }) => {
+  const { t } = useTranslation();
   const addToast = useToastStore((state) => state.addToast);
 
   // 获取数据 (useAntdTable 模式)
@@ -110,7 +111,7 @@ export const ActSectionManagement: React.FC<ActSectionManagementProps> = ({
   const updateStatus = useRequest(actSectionApi.update, {
     manual: true,
     onSuccess: () => {
-      addToast('success', 'Section status updated');
+      addToast('success', t('actSections.toastStatusUpdated'));
       refresh();
     },
   });
@@ -118,7 +119,7 @@ export const ActSectionManagement: React.FC<ActSectionManagementProps> = ({
   const deleteSection = useRequest(actSectionApi.delete, {
     manual: true,
     onSuccess: () => {
-      addToast('success', 'Section deleted');
+      addToast('success', t('actSections.toastDeleted'));
       refresh();
     },
   });
@@ -133,54 +134,56 @@ export const ActSectionManagement: React.FC<ActSectionManagementProps> = ({
   const handleDelete = useCallback(
     (record: actSectionWithProducts) => {
       ModalManager.open({
-        title: 'Delete Section?',
-        content: `Are you sure you want to delete "${record.title}"?`,
-        confirmText: 'Delete',
+        title: t('actSections.deleteTitle'),
+        content: t('actSections.deleteContent', { title: record.title }),
+        confirmText: t('actSections.delete'),
         onConfirm: () => deleteSection.run(record.id),
       });
     },
-    [deleteSection],
+    [deleteSection, t],
   );
 
   const handleEdit = useCallback(
     async (record: actSectionWithProducts) => {
       ModalManager.open({
-        title: 'Edit Product Section',
+        title: t('actSections.modalTitleEdit'),
         renderChildren: ({ close, confirm }) => (
           <ProductSelectorModal
             close={close}
             confirm={confirm}
             editingData={record}
+            t={t}
           />
         ),
         onConfirm: refresh,
       });
     },
-    [refresh],
+    [refresh, t],
   );
 
   const handleBindProduct = useCallback(
     async (record: actSectionWithProducts) => {
       ModalManager.open({
-        title: 'Bind Products',
+        title: t('actSections.modalTitleBind'),
         renderChildren: ({ close, confirm }) => (
           <ActSectionBindProductModal
             onClose={close}
             onConfirm={confirm}
             editingData={record}
+            t={t}
           />
         ),
         onConfirm: refresh,
       });
     },
-    [refresh],
+    [refresh, t],
   );
 
   const handleCreate = () => {
     ModalManager.open({
-      title: 'Create New Section',
+      title: t('actSections.modalTitleCreate'),
       renderChildren: ({ close, confirm }) => (
-        <ProductSelectorModal close={close} confirm={confirm} />
+        <ProductSelectorModal close={close} confirm={confirm} t={t} />
       ),
       onConfirm: refresh,
     });
@@ -207,7 +210,7 @@ export const ActSectionManagement: React.FC<ActSectionManagementProps> = ({
         size: 40,
       }),
       columnHelper.accessor('title', {
-        header: 'Section Title',
+        header: t('actSections.columnTitle'),
         cell: (info) => (
           <div>
             <div className="font-medium text-gray-900 dark:text-white">
@@ -220,11 +223,11 @@ export const ActSectionManagement: React.FC<ActSectionManagementProps> = ({
         ),
       }),
       columnHelper.accessor('imgStyleType', {
-        header: 'Style',
+        header: t('actSections.columnStyle'),
         cell: (info) => {
           const val = info.getValue();
-          // 简单映射，你可以根据实际 UI 需求修改
-          const label = getActSectionTypeLabel(val);
+          const styleLabelKey = `actSections.styleType${val}` as const;
+          const label = t(styleLabelKey);
           const icon =
             val === 0 ? <ImageIcon size={14} /> : <LayoutGrid size={14} />;
           return (
@@ -236,22 +239,24 @@ export const ActSectionManagement: React.FC<ActSectionManagementProps> = ({
       }),
       columnHelper.display({
         id: 'countProducts',
-        header: 'Products',
+        header: t('actSections.columnProducts'),
         cell: (info) => (
           <Badge color="gray">
-            {info.row.original.items?.length || 0} Products
+            {t('actSections.productsCount', {
+              count: info.row.original.items?.length || 0,
+            })}
           </Badge>
         ),
       }),
       columnHelper.accessor('startAt', {
-        header: 'Schedule',
+        header: t('actSections.columnSchedule'),
         cell: (info) => {
           const start = info.getValue()
             ? new Date(info.getValue()!).toLocaleDateString()
-            : 'Now';
+            : t('actSections.now');
           const end = info.row.original.endAt
             ? new Date(info.row.original.endAt!).toLocaleDateString()
-            : 'Forever';
+            : t('actSections.forever');
           return (
             <span className="text-xs text-gray-500">
               {start} - {end}
@@ -260,16 +265,18 @@ export const ActSectionManagement: React.FC<ActSectionManagementProps> = ({
         },
       }),
       columnHelper.accessor('status', {
-        header: 'Status',
+        header: t('actSections.columnStatus'),
         cell: (info) => (
           <Badge color={info.getValue() === 1 ? 'green' : 'gray'}>
-            {info.getValue() === 1 ? 'Active' : 'Disabled'}
+            {info.getValue() === 1
+              ? t('actSections.active')
+              : t('actSections.disabled')}
           </Badge>
         ),
       }),
       columnHelper.display({
         id: 'actions',
-        header: 'Actions',
+        header: t('actSections.columnActions'),
         cell: (info) => (
           <div className="flex items-center gap-2 ">
             <Button
@@ -319,6 +326,7 @@ export const ActSectionManagement: React.FC<ActSectionManagementProps> = ({
     handleToggleStatus,
     updateStatus.loading,
     updateStatus.params,
+    t,
   ]);
 
   // --- Render ---
@@ -326,9 +334,9 @@ export const ActSectionManagement: React.FC<ActSectionManagementProps> = ({
     <div className="space-y-6">
       {/* Header */}
       <PageHeader
-        title="Activity Sections"
-        description="Manage homepage sections and product layout"
-        buttonText="New Section"
+        title={t('actSections.pageTitle')}
+        description={t('actSections.pageDescription')}
+        buttonText={t('actSections.createSection')}
         buttonOnClick={handleCreate}
       />
 
@@ -340,18 +348,18 @@ export const ActSectionManagement: React.FC<ActSectionManagementProps> = ({
               {
                 type: 'input',
                 key: 'title',
-                label: 'Search Title',
-                placeholder: 'Enter keywords...',
+                label: t('actSections.searchTitle'),
+                placeholder: t('actSections.searchTitlePlaceholder'),
               },
               {
                 type: 'select',
                 key: 'status',
-                label: 'Status',
-                defaultValue: 'ALL', // 支持默认值
+                label: t('actSections.searchStatus'),
+                defaultValue: 'ALL',
                 options: [
-                  { label: 'All Status', value: 'ALL' },
-                  { label: 'Active', value: '1' },
-                  { label: 'Disabled', value: '0' },
+                  { label: t('actSections.searchStatusAll'), value: 'ALL' },
+                  { label: t('actSections.searchStatusActive'), value: '1' },
+                  { label: t('actSections.searchStatusDisabled'), value: '0' },
                 ],
               },
             ]}

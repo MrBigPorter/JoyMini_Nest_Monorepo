@@ -14,6 +14,7 @@ import { SchemaSearchForm } from '@/components/scaffold/SchemaSearchForm';
 import { BaseTable } from '@/components/scaffold/BaseTable';
 import { Card } from '@/components/UIComponents';
 import { useToastStore } from '@/store/useToastStore';
+import { useTranslation } from '@/hooks/useTranslation';
 import type { FormSchema } from '@/type/search';
 import type { ClientUserListItem } from '@/type/types';
 import { UserDetailModal } from '@/views/user-management/UserDetailModal';
@@ -45,6 +46,7 @@ export function UserListClient({
   initialFormParams,
   onParamsChange,
 }: UserListClientProps) {
+  const { t } = useTranslation();
   const addToast = useToastStore((state) => state.addToast);
   const reloadRef = useRef<() => void>(() => undefined);
 
@@ -140,19 +142,23 @@ export function UserListClient({
     void refresh();
   };
 
-  const handleView = useCallback((record: ClientUserListItem) => {
-    ModalManager.open({
-      title: 'User Comprehensive Profile',
-      size: 'xl',
-      renderChildren: ({ close }) => (
-        <UserDetailModal
-          userId={record.id}
-          close={close}
-          reload={() => reloadRef.current()}
-        />
-      ),
-    });
-  }, []);
+  const handleView = useCallback(
+    (record: ClientUserListItem) => {
+      ModalManager.open({
+        title: t('users_modalDetailTitle'),
+        size: 'xl',
+        renderChildren: ({ close }) => (
+          <UserDetailModal
+            userId={record.id}
+            close={close}
+            reload={() => reloadRef.current()}
+            t={t}
+          />
+        ),
+      });
+    },
+    [t],
+  );
 
   const handleStatusChange = useCallback(
     async (record: ClientUserListItem) => {
@@ -160,23 +166,25 @@ export function UserListClient({
       const targetStatus = isBanning ? 0 : 1;
 
       ModalManager.open({
-        title: isBanning ? 'Freeze User Account' : 'Restore User Account',
+        title: isBanning
+          ? t('users_modalFreezeTitle')
+          : t('users_modalRestoreTitle'),
         renderChildren: ({ close }) => (
           <div className="p-6 space-y-4">
             <p className="text-sm text-slate-600 dark:text-slate-400">
-              Confirm action for:
+              {t('users_modalConfirmAction')}
               <span className="font-bold text-slate-900 dark:text-white ml-1 px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded">
                 {record.nickname || record.phone}
               </span>
             </p>
             <textarea
               id="op-remark"
-              placeholder="Please enter the reason (Required for freezing)..."
+              placeholder={t('users_modalRemarkPlaceholder')}
               className="w-full h-24 text-xs border border-slate-200 rounded-xl p-3 outline-none focus:ring-4 focus:ring-red-500/10 transition-all dark:bg-gray-800 dark:border-slate-700"
             />
             <div className="flex justify-end gap-3">
               <Button variant="outline" onClick={close} className="font-medium">
-                Cancel
+                {t('users_modalCancel')}
               </Button>
               <Button
                 variant={isBanning ? 'danger' : 'primary'}
@@ -186,7 +194,7 @@ export function UserListClient({
                     document.getElementById('op-remark') as HTMLTextAreaElement
                   )?.value;
                   if (isBanning && !remark?.trim()) {
-                    addToast('error', 'Remark is required for freezing');
+                    addToast('error', t('users_toastRemarkRequired'));
                     return;
                   }
                   try {
@@ -194,38 +202,56 @@ export function UserListClient({
                       status: targetStatus,
                       remark:
                         remark?.trim() ||
-                        (isBanning ? 'Admin manual ban' : 'Admin manual unban'),
+                        (isBanning
+                          ? t('users_remarkBan')
+                          : t('users_remarkUnban')),
                     });
                     addToast(
                       'success',
-                      `User ${isBanning ? 'frozen' : 'restored'} successfully`,
+                      isBanning
+                        ? t('users_toastFrozenSuccess')
+                        : t('users_toastRestoredSuccess'),
                     );
                     await refresh();
                     close();
                   } catch {
-                    addToast('error', 'Operation failed');
+                    addToast('error', t('users_toastOperationFailed'));
                   }
                 }}
               >
-                Confirm {isBanning ? 'Freeze' : 'Restore'}
+                {isBanning
+                  ? t('users_modalConfirmFreeze')
+                  : t('users_modalConfirmRestore')}
               </Button>
             </div>
           </div>
         ),
       });
     },
-    [addToast, refresh],
+    [addToast, refresh, t],
   );
 
   const kycStatusConfig: Record<number, { label: string; color: string }> =
     useMemo(
       () => ({
-        [KYC_STATUS.DRAFT]: { label: 'Unverified', color: 'secondary' },
-        [KYC_STATUS.REVIEWING]: { label: 'Reviewing', color: 'primary' },
-        [KYC_STATUS.APPROVED]: { label: 'Verified', color: 'success' },
-        [KYC_STATUS.REJECTED]: { label: 'Rejected', color: 'danger' },
+        [KYC_STATUS.DRAFT]: {
+          label: t('users_kycUnverified'),
+          color: 'secondary',
+        },
+        [KYC_STATUS.REVIEWING]: {
+          label: t('users_kycReviewing'),
+          color: 'primary',
+        },
+        [KYC_STATUS.APPROVED]: {
+          label: t('users_kycVerified'),
+          color: 'success',
+        },
+        [KYC_STATUS.REJECTED]: {
+          label: t('users_kycRejected'),
+          color: 'danger',
+        },
       }),
-      [],
+      [t],
     );
 
   const columns: ColumnDef<ClientUserListItem>[] = useMemo(() => {
@@ -234,7 +260,7 @@ export function UserListClient({
     return [
       columnHelper.display({
         id: 'userInfo',
-        header: 'User Info',
+        header: t('users_columnUserInfo'),
         cell: (info) => {
           const row = info.row.original;
           const isBanned = row.status === 0;
@@ -274,14 +300,14 @@ export function UserListClient({
                         : 'text-slate-900 dark:text-slate-100',
                     )}
                   >
-                    {row.nickname || 'Guest'}
+                    {row.nickname || t('users_guest')}
                   </span>
                   {isBanned && (
                     <Badge
                       variant="warning"
                       className="h-4 text-[9px] px-1.5 font-black uppercase tracking-tighter"
                     >
-                      FROZEN
+                      {t('users_frozenBadge')}
                     </Badge>
                   )}
                 </div>
@@ -295,14 +321,14 @@ export function UserListClient({
       }),
       columnHelper.display({
         id: 'walletAssets',
-        header: 'Wallet Assets',
+        header: t('users_columnWalletAssets'),
         cell: (info) => {
           const row = info.row.original;
           return (
             <div className="text-[11px] space-y-0.5 bg-slate-50/50 dark:bg-white/5 p-1.5 rounded-lg border border-slate-100 dark:border-slate-800">
               <div className="flex items-center justify-between gap-4">
                 <span className="text-slate-400 font-medium uppercase tracking-tighter scale-90">
-                  Cash
+                  {t('users_walletCash')}
                 </span>
                 <span className="font-mono font-bold text-emerald-600">
                   ${Number(row.wallet?.realBalance || 0).toFixed(2)}
@@ -310,7 +336,7 @@ export function UserListClient({
               </div>
               <div className="flex items-center justify-between gap-4">
                 <span className="text-slate-400 font-medium uppercase tracking-tighter scale-90">
-                  Coin
+                  {t('users_walletCoin')}
                 </span>
                 <span className="font-mono font-bold text-amber-600">
                   {Math.floor(Number(row.wallet?.coinBalance || 0))}
@@ -322,7 +348,7 @@ export function UserListClient({
       }),
       columnHelper.display({
         id: 'kycLevel',
-        header: 'KYC & Level',
+        header: t('users_columnKycLevel'),
         cell: (info) => {
           const row = info.row.original;
           return (
@@ -331,7 +357,7 @@ export function UserListClient({
                 variant="outline"
                 className="w-fit py-0 h-4 text-[9px] border-slate-300 text-red-500 font-bold"
               >
-                VIP {row.vipLevel}
+                {t('users_vipLabel', { level: row.vipLevel })}
               </Badge>
               {kycStatusConfig[row.kycStatus] && (
                 <Badge
@@ -346,7 +372,7 @@ export function UserListClient({
         },
       }),
       columnHelper.accessor('createdAt', {
-        header: 'Register Time',
+        header: t('users_columnRegisterTime'),
         size: 160,
         cell: (info) => {
           const date = new Date(info.getValue());
@@ -370,7 +396,7 @@ export function UserListClient({
       }),
       columnHelper.display({
         id: 'action',
-        header: 'Action',
+        header: t('users_columnAction'),
         size: 120,
         cell: (info) => {
           const row = info.row.original;
@@ -380,15 +406,17 @@ export function UserListClient({
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 px-2.5 hover:bg-slate-50 dark:hover:bg-slate-100 font-bold text-xs"
+                className="h-8 px-2.5 hover:bg-primary-50 hover:text-primary-700 dark:hover:bg-primary-900/20 dark:hover:text-primary-300 font-bold text-xs"
                 onClick={() => handleView(row)}
               >
-                <Eye size={14} className="mr-1.5" /> Detail
+                <Eye size={14} className="mr-1.5" /> {t('users_detailButton')}
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                title={isActive ? 'Freeze User' : 'Restore User'}
+                title={
+                  isActive ? t('users_freezeUser') : t('users_restoreUser')
+                }
                 className={cn('h-8 w-8 p-0 transition-all shadow-sm')}
                 onClick={() => handleStatusChange(row)}
               >
@@ -399,40 +427,40 @@ export function UserListClient({
         },
       }),
     ] as ColumnDef<ClientUserListItem>[];
-  }, [handleStatusChange, handleView, kycStatusConfig]);
+  }, [handleStatusChange, handleView, kycStatusConfig, t]);
 
   const searchSchema: FormSchema[] = useMemo(
     () => [
       {
         type: 'input',
         key: 'userId',
-        label: 'User ID',
-        placeholder: 'Enter ID',
+        label: t('users_searchUserId'),
+        placeholder: t('users_searchUserIdPlaceholder'),
       },
       {
         type: 'input',
         key: 'phone',
-        label: 'Phone',
-        placeholder: 'Enter Phone',
+        label: t('users_searchPhone'),
+        placeholder: t('users_searchPhonePlaceholder'),
       },
       {
         type: 'select',
         key: 'status',
-        label: 'Account Status',
+        label: t('users_searchAccountStatus'),
         defaultValue: 'ALL',
         options: [
-          { label: 'All', value: 'ALL' },
-          { label: 'Active', value: '1' },
-          { label: 'Frozen', value: '0' },
+          { label: t('users_searchAll'), value: 'ALL' },
+          { label: t('users_searchActive'), value: '1' },
+          { label: t('users_searchFrozen'), value: '0' },
         ],
       },
       {
         type: 'select',
         key: 'kycStatus',
-        label: 'KYC Status',
+        label: t('users_searchKycStatus'),
         defaultValue: 'ALL',
         options: [
-          { label: 'All', value: 'ALL' },
+          { label: t('users_searchAll'), value: 'ALL' },
           ...Object.entries(kycStatusConfig).map(([key, value]) => ({
             label: value.label,
             value: key,
@@ -442,11 +470,11 @@ export function UserListClient({
       {
         type: 'date',
         key: 'dateRange',
-        label: 'Register Time',
+        label: t('users_searchRegisterTime'),
         mode: 'range',
       },
     ],
-    [kycStatusConfig],
+    [kycStatusConfig, t],
   );
 
   const handleSearch = useCallback(
@@ -496,8 +524,8 @@ export function UserListClient({
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Users"
-        description="Inspect user accounts, wallet assets, KYC state, and registration activity."
+        title={t('users_pageTitle')}
+        description={t('users_pageDescription')}
       />
       <Card className="border-none shadow-md overflow-hidden rounded-xl">
         <div className="px-4 pt-4">
@@ -514,7 +542,7 @@ export function UserListClient({
             <div className="p-1.5 bg-blue-500 rounded-lg">
               <UserIcon className="text-white" size={18} strokeWidth={3} />
             </div>
-            <span>Client Database</span>
+            <span>{t('users_clientDatabase')}</span>
           </div>
           <BaseTable
             data={users}

@@ -5,7 +5,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAppStore } from '@/store/useAppStore';
 import { ToastContainer } from '@/components/UIComponents';
 import { useToastStore } from '@/store/useToastStore';
-import { LanguageProvider } from '@/hooks/LanguageProvider';
 import ChunkReloadHandler from './ChunkReloadHandler';
 
 /**
@@ -40,8 +39,12 @@ function getQueryClient() {
  * - @tanstack/react-query QueryClientProvider
  * - 应用主题（dark/light）
  * - Toast 容器
+ *
+ * Note: Locale / i18n is now provided by <NextIntlClientProvider> in app/layout.tsx.
  */
-export const Providers: React.FC<any> = ({ children, initialLocale, initialTranslations }) => {
+export const Providers: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   const [queryClient] = useState(() => getQueryClient());
   const theme = useAppStore((s) => s.theme);
   const { toasts, removeToast } = useToastStore();
@@ -54,12 +57,9 @@ export const Providers: React.FC<any> = ({ children, initialLocale, initialTrans
 
   return (
     <QueryClientProvider client={queryClient}>
-      {/* pass server-detected initialLocale to LanguageProvider to keep SSR/CSR in sync */}
-      <LanguageProvider initialLocale={initialLocale as any} initialTranslations={initialTranslations}>
-        <ChunkReloadHandler />
-        <ToastContainer toasts={toasts} removeToastAction={removeToast} />
-        {children}
-      </LanguageProvider>
+      <ChunkReloadHandler />
+      <ToastContainer toasts={toasts} removeToastAction={removeToast} />
+      {children}
     </QueryClientProvider>
   );
 };

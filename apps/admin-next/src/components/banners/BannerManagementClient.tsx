@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useRequest } from 'ahooks';
 import { bannerApi } from '@/api';
 import { Button, ModalManager } from '@repo/ui';
+import { useTranslation } from '@/hooks/useTranslation';
 import { createColumnHelper, ColumnDef } from '@tanstack/react-table';
 import {
   Edit3,
@@ -45,6 +46,7 @@ export const BannerManagement: React.FC<BannerManagementProps> = ({
   onParamsChange,
 }) => {
   const addToast = useToastStore((s) => s.addToast);
+  const { t } = useTranslation();
   const normalizedInitialQuery = useMemo(() => {
     const input = initialFormParams ?? {};
     return parseBannersSearchParams({
@@ -110,7 +112,7 @@ export const BannerManagement: React.FC<BannerManagementProps> = ({
   const { run: deleteBanner } = useRequest(bannerApi.delete, {
     manual: true,
     onSuccess: () => {
-      addToast('success', 'Deleted');
+      addToast('success', t('banners_toastDeleted'));
       void refresh();
     },
   });
@@ -118,7 +120,7 @@ export const BannerManagement: React.FC<BannerManagementProps> = ({
   const { run: updateStatus } = useRequest(bannerApi.updateState, {
     manual: true,
     onSuccess: () => {
-      addToast('success', 'Status updated');
+      addToast('success', t('banners_toastStatusUpdated'));
       void refresh();
     },
     onError: () => {
@@ -131,7 +133,9 @@ export const BannerManagement: React.FC<BannerManagementProps> = ({
   const handleOpenModal = useCallback(
     (record?: Banner) => {
       ModalManager.open({
-        title: record ? 'Edit Banner' : 'Create Banner',
+        title: record
+          ? t('banners_modalTitleEdit')
+          : t('banners_modalTitleCreate'),
         renderChildren: ({ close, confirm }) => (
           <BannerFormModal
             key={record ? `edit-${record.id}` : 'create-banner'}
@@ -141,23 +145,24 @@ export const BannerManagement: React.FC<BannerManagementProps> = ({
               void refresh();
             }}
             editingData={record}
+            t={t}
           />
         ),
       });
     },
-    [refresh],
+    [refresh, t],
   );
 
   const handleDelete = useCallback(
     (record: Banner) => {
       ModalManager.open({
-        title: 'Delete Banner?',
-        content: 'This action cannot be undone.',
-        confirmText: 'Delete',
+        title: t('banners_deleteTitle'),
+        content: t('banners_deleteContent'),
+        confirmText: t('banners_delete'),
         onConfirm: () => deleteBanner(record.id),
       });
     },
-    [deleteBanner],
+    [deleteBanner, t],
   );
 
   const columns = useMemo(() => {
@@ -178,7 +183,7 @@ export const BannerManagement: React.FC<BannerManagementProps> = ({
         size: 40,
       }),
       columnHelper.accessor('bannerImgUrl', {
-        header: 'Visual',
+        header: t('banners_visual'),
         cell: (info) => (
           <div className="w-32 h-16 bg-gray-100 rounded-md overflow-hidden  relative group">
             <SmartImage
@@ -190,14 +195,14 @@ export const BannerManagement: React.FC<BannerManagementProps> = ({
             />
             {info.row.original.fileType === 2 && (
               <div className="absolute inset-0 bg-black/30 flex items-center justify-center text-white text-xs">
-                Video
+                {t('banners_video')}
               </div>
             )}
           </div>
         ),
       }),
       columnHelper.accessor('title', {
-        header: 'Info',
+        header: t('banners_info'),
         cell: (info) => (
           <div>
             <div className="font-medium">{info.getValue()}</div>
@@ -205,41 +210,47 @@ export const BannerManagement: React.FC<BannerManagementProps> = ({
               {/* 智能排期展示 */}
               {info.row.original.activityAtStart
                 ? `${new Date(info.row.original.activityAtStart).toLocaleDateString()} - ${new Date(info.row.original.activityAtEnd).toLocaleDateString()}`
-                : 'Permanent (No expiry)'}
+                : t('banners_permanent')}
             </div>
           </div>
         ),
       }),
       columnHelper.accessor('jumpCate', {
-        header: 'Target',
+        header: t('banners_target'),
         cell: (info) => {
           const type = info.getValue();
           if (type === JUMP_CATE.EXTERNAL)
             return (
               <div className="flex items-center gap-1 text-blue-600 text-xs">
-                <ExternalLink size={12} /> Web Link
+                <ExternalLink size={12} /> {t('banners_webLink')}
               </div>
             );
           if (type === JUMP_CATE.TREASURE)
             return (
               <div className="flex items-center gap-1 text-purple-600 text-xs">
-                <Box size={12} /> Product
+                <Box size={12} /> {t('banners_product')}
               </div>
             );
-          return <span className="text-gray-400 text-xs">No Action</span>;
+          return (
+            <span className="text-gray-400 text-xs">
+              {t('banners_noAction')}
+            </span>
+          );
         },
       }),
       columnHelper.accessor('state', {
-        header: 'Status',
+        header: t('banners_status'),
         cell: (info) => (
           <Badge color={info.getValue() === 1 ? 'green' : 'gray'}>
-            {info.getValue() === 1 ? 'Active' : 'Disabled'}
+            {info.getValue() === 1
+              ? t('banners_active')
+              : t('banners_disabled')}
           </Badge>
         ),
       }),
       columnHelper.display({
         id: 'actions',
-        header: 'Actions',
+        header: t('banners_actions'),
         cell: (info) => (
           <div className="flex  gap-2">
             <Button
@@ -276,14 +287,14 @@ export const BannerManagement: React.FC<BannerManagementProps> = ({
         ),
       }),
     ] as ColumnDef<Banner>[];
-  }, [handleDelete, handleOpenModal, updateStatus]);
+  }, [handleDelete, handleOpenModal, updateStatus, t]);
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Banner Management"
-        description="Manage the banners displayed in the mini shop."
-        buttonText="Create Banner"
+        title={t('banners_pageTitle')}
+        description={t('banners_pageDescription')}
+        buttonText={t('banners_createBanner')}
         buttonOnClick={() => handleOpenModal()}
       />
 
@@ -294,18 +305,18 @@ export const BannerManagement: React.FC<BannerManagementProps> = ({
               {
                 type: 'input',
                 key: 'title',
-                label: 'Search Title',
-                placeholder: 'Enter keywords...',
+                label: t('banners_searchTitle'),
+                placeholder: t('banners_searchTitlePlaceholder'),
               },
               {
                 type: 'select',
                 key: 'bannerCate',
-                label: 'Position',
+                label: t('banners_position'),
                 defaultValue: 'ALL', // 支持默认值
                 options: [
-                  { label: 'All', value: 'ALL' },
-                  { label: 'Home', value: '1' },
-                  { label: 'Product', value: '2' },
+                  { label: t('banners_positionAll'), value: 'ALL' },
+                  { label: t('banners_positionHome'), value: '1' },
+                  { label: t('banners_positionProduct'), value: '2' },
                 ],
               },
             ]}

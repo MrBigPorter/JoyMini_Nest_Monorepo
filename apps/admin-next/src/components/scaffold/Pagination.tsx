@@ -3,6 +3,7 @@
 import React from 'react';
 import { Button } from '@repo/ui';
 import { cn } from '@repo/ui';
+import { useTranslation } from '@/hooks/useTranslation';
 interface PaginationProps {
   /** 当前页码 */
   current: number;
@@ -23,6 +24,8 @@ export const Pagination: React.FC<PaginationProps> = ({
   onChange,
   className,
 }) => {
+  const { t } = useTranslation();
+
   // 计算总页数，防止除以0或向上取整错误
   const totalPage = Math.max(1, Math.ceil(total / pageSize));
 
@@ -38,13 +41,7 @@ export const Pagination: React.FC<PaginationProps> = ({
       )}
     >
       {/* 左侧：总数显示 */}
-      <div>
-        Total{' '}
-        <span className="font-semibold text-gray-800 dark:text-gray-100">
-          {total}
-        </span>{' '}
-        items
-      </div>
+      <div>{t('common_total', { count: total })}</div>
 
       {/* 右侧：翻页操作 */}
       <div className="flex items-center gap-2">
@@ -55,12 +52,11 @@ export const Pagination: React.FC<PaginationProps> = ({
           disabled={isFirstPage}
           className="h-8 px-3"
         >
-          Previous
+          {t('common_previous')}
         </Button>
 
         <span className="mx-2 text-xs font-medium">
-          Page <span className="text-gray-900 dark:text-white">{current}</span>{' '}
-          of {totalPage}
+          {t('common_pageOf', { current, total: totalPage })}
         </span>
 
         <Button
@@ -70,7 +66,7 @@ export const Pagination: React.FC<PaginationProps> = ({
           disabled={isLastPage}
           className="h-8 px-3"
         >
-          Next
+          {t('common_next')}
         </Button>
       </div>
     </div>

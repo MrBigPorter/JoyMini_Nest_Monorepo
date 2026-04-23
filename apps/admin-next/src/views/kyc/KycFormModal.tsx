@@ -15,24 +15,27 @@ import {
 import { kycApi } from '@/api';
 import { useToastStore } from '@/store/useToastStore';
 import { KycRecord } from '@/type/types';
-import { KycIdTypesList } from '@lucky/shared';
+import { KycIdTypesList, KycIdCardType } from '@lucky/shared';
+import type { TFunc } from '@/hooks/useTranslation';
 
-// 1. 定义 Schema
-const KycFormSchema = z.object({
-  userId: z.string().min(1, 'User ID is required'),
-  realName: z.string().min(1, 'Real name is required'),
-  idNumber: z.string().min(1, 'ID number is required'),
-  idType: z.coerce.number(), // 默认 1 (身份证)
-  remark: z.string().optional(),
-});
+// 1. 定义 Schema (function factory to support i18n error messages)
+const createKycFormSchema = (t: (key: string) => string) =>
+  z.object({
+    userId: z.string().min(1, t('kyc_validation_userIdRequired')),
+    realName: z.string().min(1, t('kyc_validation_realNameRequired')),
+    idNumber: z.string().min(1, t('kyc_validation_idNumberRequired')),
+    idType: z.coerce.number(),
+    remark: z.string().optional(),
+  });
 
-type KycFormInput = z.infer<typeof KycFormSchema>;
+type KycFormInput = z.infer<ReturnType<typeof createKycFormSchema>>;
 
 interface Props {
   mode: 'create' | 'edit';
   initialData?: KycRecord; // 编辑模式下的回显数据
   close: () => void;
   reload: () => void;
+  t: TFunc;
 }
 
 export const KycFormModal: React.FC<Props> = ({
@@ -40,13 +43,14 @@ export const KycFormModal: React.FC<Props> = ({
   initialData,
   close,
   reload,
+  t,
 }) => {
   const addToast = useToastStore((state) => state.addToast);
   const isEdit = mode === 'edit';
 
   // 2. 初始化 Form
   const form = useForm<KycFormInput>({
-    resolver: zodResolver(KycFormSchema),
+    resolver: zodResolver(createKycFormSchema(t)),
     defaultValues: {
       userId: '',
       realName: '',
@@ -98,15 +102,13 @@ export const KycFormModal: React.FC<Props> = ({
       onSuccess: () => {
         addToast(
           'success',
-          isEdit
-            ? 'KYC info updated successfully'
-            : 'KYC record created successfully',
+          isEdit ? t('kyc_updatedSuccess') : t('kyc_createdSuccess'),
         );
         reload();
         close();
       },
       onError: (err) => {
-        addToast('error', err.message || 'Operation failed');
+        addToast('error', err.message || t('kyc_operationFailed'));
       },
     },
   );
@@ -124,14 +126,14 @@ export const KycFormModal: React.FC<Props> = ({
             <div className="bg-blue-50/50 dark:bg-blue-900/10 p-4 rounded-lg border border-blue-100 dark:border-blue-900/20">
               <FormTextField
                 name="userId"
-                label="User ID"
+                label={t('kyc_formUserId')}
                 required={true}
-                placeholder="Enter User ID (e.g., cmk...)"
+                placeholder={t('kyc_formUserIdPlaceholder')}
                 disabled={isEdit} // 编辑模式下禁止修改 UserID
               />
               {isEdit && (
                 <p className="text-xs text-blue-600 mt-2 flex items-center gap-1">
-                  ⓘ User ID cannot be changed in edit mode.
+                  ⓘ {t('kyc_formUserIdDisabledHint')}
                 </p>
               )}
             </div>
@@ -139,33 +141,35 @@ export const KycFormModal: React.FC<Props> = ({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <FormTextField
                 name="realName"
-                label="Real Name"
-                placeholder="Enter full legal name"
+                label={t('kyc_formRealName')}
+                placeholder={t('kyc_formRealNamePlaceholder')}
               />
 
               <FormSelectField
                 name="idType"
-                label="ID Type"
-                options={KycIdTypesList.map((t) => ({
-                  label: t.label,
-                  value: String(t.value), // FormSelectField 一般接收字符串 value
+                label={t('kyc_formIdType')}
+                options={KycIdTypesList.map((item) => ({
+                  label: t(
+                    `kyc_idType_${KycIdCardType[item.value]?.toLowerCase()}`,
+                  ),
+                  value: String(item.value),
                 }))}
               />
             </div>
 
             <FormTextField
               name="idNumber"
-              label="ID Number"
-              placeholder="Enter ID document number"
+              label={t('kyc_formIdNumber')}
+              placeholder={t('kyc_formIdNumberPlaceholder')}
             />
 
             <FormTextareaField
               name="remark"
-              label="Remark / Reason"
+              label={t('kyc_formRemark')}
               placeholder={
                 isEdit
-                  ? 'Why are you modifying this data?'
-                  : 'Optional notes for this record...'
+                  ? t('kyc_formRemarkEditPlaceholder')
+                  : t('kyc_formRemarkCreatePlaceholder')
               }
             />
 
@@ -178,7 +182,7 @@ export const KycFormModal: React.FC<Props> = ({
       {/* Footer Actions */}
       <div className="p-5 border-t border-gray-100 dark:border-white/10 bg-gray-50/50 dark:bg-gray-800/50 flex justify-end gap-3">
         <Button variant="outline" onClick={close} disabled={loading}>
-          Cancel
+          {t('kyc_cancel')}
         </Button>
         <Button
           variant="primary"
@@ -186,7 +190,7 @@ export const KycFormModal: React.FC<Props> = ({
           isLoading={loading}
           className="min-w-[120px]"
         >
-          {isEdit ? 'Save Changes' : 'Create Record'}
+          {isEdit ? t('kyc_saveChanges') : t('kyc_createRecord')}
         </Button>
       </div>
     </div>

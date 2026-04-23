@@ -12,11 +12,13 @@ import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { RefreshCw } from 'lucide-react';
 import { ClientDate } from '@/components/ui/ClientDate';
+import { useTranslation } from '@/hooks/useTranslation';
 
 export function DashboardHeader() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
+  const { t } = useTranslation();
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -31,10 +33,11 @@ export function DashboardHeader() {
     <div className="flex items-center justify-between">
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-          Dashboard
+          {t('dashboard')}
         </h1>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-          <ClientDate pattern="MMMM d, yyyy" /> · Real-time overview
+          <ClientDate pattern="MMMM d, yyyy" /> ·{' '}
+          {t('dashboard_realTimeOverview')}
         </p>
       </div>
       <button
@@ -42,7 +45,7 @@ export function DashboardHeader() {
         className="flex items-center gap-2 px-3 py-2 text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white bg-gray-100 dark:bg-white/5 rounded-xl transition-all"
       >
         <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
-        Refresh
+        {t('dashboard_refresh')}
       </button>
     </div>
   );
