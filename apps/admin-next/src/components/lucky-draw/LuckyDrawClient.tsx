@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRequest } from 'ahooks';
 import {
   ChevronRight,
@@ -576,7 +576,7 @@ function PrizesPanel({
     false,
   );
 
-  const handleRefresh = async () => {
+  const handleRefresh = useCallback(async () => {
     setLoading(true);
     try {
       const res = await luckyDrawApi.listPrizes(activity.id);
@@ -584,7 +584,7 @@ function PrizesPanel({
     } finally {
       setLoading(false);
     }
-  };
+  }, [activity.id]);
 
   useEffect(() => {
     void handleRefresh();
@@ -918,8 +918,10 @@ export function LuckyDrawManagement() {
   );
 
   const activities = useMemo(() => data?.list ?? [], [data?.list]);
-  const selectedActivity =
-    activities.find((item) => item.id === selectedActivityId) ?? null;
+  const selectedActivity = useMemo(
+    () => activities.find((item) => item.id === selectedActivityId) ?? null,
+    [activities, selectedActivityId],
+  );
 
   useEffect(() => {
     if (!activities.length) {
