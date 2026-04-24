@@ -3,8 +3,7 @@
  * Phase 3: URL searchParams 驱动 filter
  */
 import type { Metadata } from 'next';
-
-export const metadata: Metadata = { title: 'Operation Logs' };
+import { getTranslations } from 'next-intl/server';
 
 import React, { Suspense } from 'react';
 import {
@@ -40,12 +39,23 @@ function OperationLogPageSkeleton() {
 }
 
 interface OperationLogsPageProps {
+  params: Promise<{ locale: string }>;
   searchParams?: Promise<NextSearchParams>;
 }
 
+export async function generateMetadata({
+  params,
+}: OperationLogsPageProps): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: 'operationLogs' });
+  return { title: t('pageTitle') };
+}
+
 export default async function OperationLogsPage({
+  params,
   searchParams,
 }: OperationLogsPageProps) {
+  const { locale } = await params;
   const resolvedSearchParams = (await searchParams) ?? {};
   const queryClient = new QueryClient();
 

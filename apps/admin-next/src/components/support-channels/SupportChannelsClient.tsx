@@ -18,6 +18,7 @@ import type {
 import { PageHeader } from '@/components/scaffold/PageHeader';
 import { SmartImage } from '@/components/ui/SmartImage';
 import { useToastStore } from '@/store/useToastStore';
+import { useTranslation } from '@/hooks/useTranslation';
 
 type FilterStatus = 'ALL' | 'ACTIVE' | 'INACTIVE';
 type BusinessIdMode = 'builtin' | 'custom';
@@ -47,6 +48,7 @@ export function SupportChannels({
   initialData,
   initialQuery,
 }: SupportChannelsProps) {
+  const { t } = useTranslation();
   const addToast = useToastStore((s) => s.addToast);
   const initialPage = initialQuery?.page ?? 1;
   const initialPageSize = initialQuery?.pageSize ?? 20;
@@ -104,7 +106,7 @@ export function SupportChannels({
       businessIdMode === 'builtin' ? builtinBusinessId : form.id.trim();
 
     if (!finalBusinessId || !form.name.trim()) {
-      addToast('error', 'Channel ID and Name are required');
+      addToast('error', t('supportChannels.validationRequired'));
       return;
     }
     setSubmitting(true);
@@ -124,7 +126,7 @@ export function SupportChannels({
           });
         },
       );
-      addToast('success', 'Support channel created');
+      addToast('success', t('supportChannels.created'));
       setCreating(false);
       setForm(DEFAULT_FORM);
       setPage(1);
@@ -132,7 +134,7 @@ export function SupportChannels({
     } catch (error: unknown) {
       addToast(
         'error',
-        getErrorMessage(error, 'Create support channel failed'),
+        getErrorMessage(error, t('supportChannels.createFailed')),
       );
     } finally {
       setSubmitting(false);
@@ -158,15 +160,21 @@ export function SupportChannels({
       });
 
       if (!uploadResp.ok) {
-        addToast('error', `Upload failed (${uploadResp.status})`);
+        addToast(
+          'error',
+          t('supportChannels.uploadFailed', { status: uploadResp.status }),
+        );
         return;
       }
 
       const avatar = token.cdnUrl || token.key;
       setForm((p) => ({ ...p, avatar }));
-      addToast('success', 'Avatar uploaded');
+      addToast('success', t('supportChannels.avatarUploaded'));
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Upload failed';
+      const message =
+        error instanceof Error
+          ? error.message
+          : t('supportChannels.uploadFailed', { status: 'unknown' });
       addToast('error', message);
     } finally {
       event.target.value = '';
@@ -180,22 +188,31 @@ export function SupportChannels({
       addToast(
         'success',
         item.isActive
-          ? 'Channel paused successfully'
-          : 'Channel resumed successfully',
+          ? t('supportChannels.pausedSuccess')
+          : t('supportChannels.resumedSuccess'),
       );
       refresh();
     } catch (error: unknown) {
-      addToast('error', getErrorMessage(error, 'Toggle channel status failed'));
+      addToast(
+        'error',
+        getErrorMessage(error, t('supportChannels.toggleFailed')),
+      );
     }
   };
 
   const onEdit = async (item: SupportChannelItem) => {
-    const name = window.prompt('Support name', item.name ?? '');
+    const name = window.prompt(
+      t('supportChannels.editNamePrompt'),
+      item.name ?? '',
+    );
     if (name === null) return;
-    const description = window.prompt('Description', item.description ?? '');
+    const description = window.prompt(
+      t('supportChannels.editDescriptionPrompt'),
+      item.description ?? '',
+    );
     if (description === null) return;
     const avatar = window.prompt(
-      'Avatar URL (optional)',
+      t('supportChannels.editAvatarPrompt'),
       item.botUser.avatar ?? '',
     );
     if (avatar === null) return;
@@ -208,12 +225,12 @@ export function SupportChannels({
 
     try {
       await supportChannelApi.update(item.id, payload);
-      addToast('success', 'Support channel updated');
+      addToast('success', t('supportChannels.updated'));
       refresh();
     } catch (error: unknown) {
       addToast(
         'error',
-        getErrorMessage(error, 'Update support channel failed'),
+        getErrorMessage(error, t('supportChannels.updateFailed')),
       );
     }
   };
@@ -221,8 +238,8 @@ export function SupportChannels({
   return (
     <div className="space-y-4">
       <PageHeader
-        title="Support Channels"
-        description="Create and manage support bots/channels for /chat/business routing"
+        title={t('supportChannels.pageTitle')}
+        description={t('supportChannels.pageDescription')}
       />
 
       <div className="rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-gray-900 p-4 space-y-3">
@@ -233,7 +250,7 @@ export function SupportChannels({
               setKeyword(e.target.value);
               setPage(1);
             }}
-            placeholder="Search by channel id / name"
+            placeholder={t('supportChannels.searchPlaceholder')}
             className="h-9 w-72 px-3 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-sm"
           />
           <select
@@ -244,15 +261,19 @@ export function SupportChannels({
             }}
             className="h-9 px-3 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-sm"
           >
-            <option value="ALL">All Status</option>
-            <option value="ACTIVE">Active</option>
-            <option value="INACTIVE">Paused</option>
+            <option value="ALL">{t('supportChannels.filterAll')}</option>
+            <option value="ACTIVE">{t('supportChannels.filterActive')}</option>
+            <option value="INACTIVE">
+              {t('supportChannels.filterPaused')}
+            </option>
           </select>
           <button
             onClick={() => setCreating((v) => !v)}
             className="h-9 px-3 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-sm"
           >
-            {creating ? 'Cancel' : '+ New Channel'}
+            {creating
+              ? t('supportChannels.cancel')
+              : t('supportChannels.newChannel')}
           </button>
         </div>
 
@@ -266,8 +287,12 @@ export function SupportChannels({
                 }
                 className="h-9 px-3 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-sm"
               >
-                <option value="builtin">Built-in Business ID</option>
-                <option value="custom">Custom Business ID</option>
+                <option value="builtin">
+                  {t('supportChannels.builtinBusinessId')}
+                </option>
+                <option value="custom">
+                  {t('supportChannels.customBusinessId')}
+                </option>
               </select>
 
               {businessIdMode === 'builtin' ? (
@@ -288,7 +313,7 @@ export function SupportChannels({
                   onChange={(e) =>
                     setForm((p) => ({ ...p, id: e.target.value }))
                   }
-                  placeholder="Custom businessId (e.g. my_support_v1)"
+                  placeholder={t('supportChannels.customBusinessIdPlaceholder')}
                   className="h-9 flex-1 px-3 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-sm"
                 />
               )}
@@ -296,7 +321,7 @@ export function SupportChannels({
             <input
               value={form.name}
               onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
-              placeholder="Display name (English)"
+              placeholder={t('supportChannels.displayNamePlaceholder')}
               className="h-9 px-3 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-sm"
             />
             <input
@@ -304,7 +329,7 @@ export function SupportChannels({
               onChange={(e) =>
                 setForm((p) => ({ ...p, description: e.target.value }))
               }
-              placeholder="Description"
+              placeholder={t('supportChannels.descriptionPlaceholder')}
               className="h-9 px-3 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-sm"
             />
             {form.avatar ? (
@@ -316,14 +341,14 @@ export function SupportChannels({
                   imgClassName="h-8 w-8 rounded-full object-cover"
                 />
                 <span className="text-xs text-gray-500 truncate max-w-[140px]">
-                  Avatar uploaded
+                  {t('supportChannels.avatarUploaded')}
                 </span>
                 <button
                   type="button"
                   onClick={() => setForm((p) => ({ ...p, avatar: '' }))}
                   className="text-xs text-red-500 hover:underline"
                 >
-                  Remove
+                  {t('supportChannels.remove')}
                 </button>
               </div>
             ) : (
@@ -332,7 +357,7 @@ export function SupportChannels({
                 onChange={(e) =>
                   setForm((p) => ({ ...p, avatar: e.target.value }))
                 }
-                placeholder="Avatar URL (optional)"
+                placeholder={t('supportChannels.avatarUrlPlaceholder')}
                 className="h-9 px-3 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-sm"
               />
             )}
@@ -344,14 +369,18 @@ export function SupportChannels({
                   className="hidden"
                   onChange={onAvatarFileChange}
                 />
-                {avatarUploading ? 'Uploading...' : 'Upload Avatar'}
+                {avatarUploading
+                  ? t('supportChannels.uploading')
+                  : t('supportChannels.uploadAvatar')}
               </label>
               <button
                 disabled={submitting}
                 onClick={onCreate}
                 className="h-9 px-3 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm"
               >
-                {submitting ? 'Creating...' : 'Create Channel'}
+                {submitting
+                  ? t('supportChannels.creating')
+                  : t('supportChannels.createChannel')}
               </button>
             </div>
           </div>
@@ -363,11 +392,21 @@ export function SupportChannels({
           <table className="w-full text-sm">
             <thead className="bg-gray-50 dark:bg-white/5">
               <tr className="text-left">
-                <th className="px-4 py-3 font-medium">Channel ID</th>
-                <th className="px-4 py-3 font-medium">Name</th>
-                <th className="px-4 py-3 font-medium">Bot User ID</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium">Actions</th>
+                <th className="px-4 py-3 font-medium">
+                  {t('supportChannels.channelId')}
+                </th>
+                <th className="px-4 py-3 font-medium">
+                  {t('supportChannels.name')}
+                </th>
+                <th className="px-4 py-3 font-medium">
+                  {t('supportChannels.botUserId')}
+                </th>
+                <th className="px-4 py-3 font-medium">
+                  {t('supportChannels.status')}
+                </th>
+                <th className="px-4 py-3 font-medium">
+                  {t('supportChannels.actions')}
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -377,7 +416,7 @@ export function SupportChannels({
                     colSpan={5}
                     className="px-4 py-8 text-center text-gray-500"
                   >
-                    Loading...
+                    {t('supportChannels.loading')}
                   </td>
                 </tr>
               )}
@@ -387,7 +426,7 @@ export function SupportChannels({
                     colSpan={5}
                     className="px-4 py-8 text-center text-gray-500"
                   >
-                    No support channels
+                    {t('supportChannels.noChannels')}
                   </td>
                 </tr>
               )}
@@ -417,7 +456,9 @@ export function SupportChannels({
                             : 'bg-gray-100 text-gray-600 dark:bg-white/10 dark:text-gray-300'
                         }`}
                       >
-                        {item.isActive ? 'Active' : 'Paused'}
+                        {item.isActive
+                          ? t('supportChannels.active')
+                          : t('supportChannels.paused')}
                       </span>
                     </td>
                     <td className="px-4 py-3">
@@ -426,13 +467,15 @@ export function SupportChannels({
                           onClick={() => onEdit(item)}
                           className="h-8 px-2 rounded-md border border-gray-200 dark:border-white/10 text-xs"
                         >
-                          Edit
+                          {t('supportChannels.edit')}
                         </button>
                         <button
                           onClick={() => onToggle(item)}
                           className="h-8 px-2 rounded-md border border-gray-200 dark:border-white/10 text-xs"
                         >
-                          {item.isActive ? 'Pause' : 'Resume'}
+                          {item.isActive
+                            ? t('supportChannels.pause')
+                            : t('supportChannels.resume')}
                         </button>
                       </div>
                     </td>
@@ -444,7 +487,7 @@ export function SupportChannels({
 
         <div className="px-4 py-3 border-t border-gray-100 dark:border-white/10 flex items-center justify-between text-sm">
           <span className="text-gray-500">
-            Total: {effectiveData?.total ?? 0}
+            {t('supportChannels.total', { count: effectiveData?.total ?? 0 })}
           </span>
           <div className="flex items-center gap-2">
             <button
@@ -452,9 +495,9 @@ export function SupportChannels({
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               className="h-8 px-2 rounded-md border border-gray-200 dark:border-white/10 disabled:opacity-50"
             >
-              Prev
+              {t('supportChannels.prev')}
             </button>
-            <span>Page {page}</span>
+            <span>{t('supportChannels.page', { page })}</span>
             <button
               disabled={Boolean(
                 effectiveData &&
@@ -463,7 +506,7 @@ export function SupportChannels({
               onClick={() => setPage((p) => p + 1)}
               className="h-8 px-2 rounded-md border border-gray-200 dark:border-white/10 disabled:opacity-50"
             >
-              Next
+              {t('supportChannels.next')}
             </button>
           </div>
         </div>

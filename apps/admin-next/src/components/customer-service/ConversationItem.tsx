@@ -2,6 +2,7 @@
 
 import { StatusBadge } from './StatusBadge';
 import { formatTime, getInitials } from '@/lib/format-utils';
+import { useTranslation } from '@/hooks/useTranslation';
 import type { ChatConversation } from '@/type/types';
 
 export function ConversationItem({
@@ -15,8 +16,10 @@ export function ConversationItem({
   unreadCount?: number;
   onClickAction: () => void;
 }) {
+  const { t } = useTranslation();
   const user = conv.members.find((m) => m.role !== 'OWNER') ?? conv.members[0];
-  const displayName = user?.nickname ?? conv.name ?? 'Unknown';
+  const displayName =
+    user?.nickname ?? conv.name ?? t('customerService.unknownUser');
 
   return (
     <button
@@ -63,7 +66,7 @@ export function ConversationItem({
           <p
             className={`text-xs truncate ${unreadCount > 0 ? 'text-gray-700 dark:text-gray-200 font-medium' : 'text-gray-500 dark:text-gray-400'}`}
           >
-            {conv.lastMsgContent ?? 'No messages yet'}
+            {conv.lastMsgContent ?? t('customerService.noMessages')}
           </p>
           <div className="mt-1">
             <StatusBadge status={conv.status} />

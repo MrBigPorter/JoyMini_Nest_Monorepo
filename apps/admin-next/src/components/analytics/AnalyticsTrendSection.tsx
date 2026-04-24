@@ -16,6 +16,7 @@ import {
 } from 'recharts';
 import { statsApi } from '@/api';
 import { Card } from '@/components/UIComponents';
+import { useTranslation } from '@/hooks/useTranslation';
 import type { StatsTrend } from '@/type/types';
 
 const DAYS_OPTIONS = [7, 14, 30] as const;
@@ -147,6 +148,7 @@ function UserTrendChart({ data }: { data: StatsTrend['users'] }) {
 
 export function AnalyticsTrendSection() {
   const [days, setDays] = useState<DaysOption>(30);
+  const { t } = useTranslation();
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['stats-trend', days],
@@ -161,9 +163,11 @@ export function AnalyticsTrendSection() {
         <div className="flex items-center justify-between mb-4">
           <div>
             <h3 className="font-semibold text-gray-800 dark:text-white">
-              Order Trend
+              {t('analytics.orderTrend')}
             </h3>
-            <p className="text-xs text-gray-400">Daily order count</p>
+            <p className="text-xs text-gray-400">
+              {t('analytics.dailyOrderCount')}
+            </p>
           </div>
           <DaysToggle value={days} onChange={setDays} />
         </div>
@@ -171,11 +175,11 @@ export function AnalyticsTrendSection() {
           <ChartSkeleton />
         ) : isError || !data ? (
           <div className="h-56 flex items-center justify-center text-gray-400 text-sm">
-            Failed to load data
+            {t('analytics.trendLoadFailed')}
           </div>
         ) : data.orders.length === 0 ? (
           <div className="h-56 flex items-center justify-center text-gray-400 text-sm">
-            No order data in this period
+            {t('analytics.noOrderData')}
           </div>
         ) : (
           <OrderTrendChart data={data.orders} />
@@ -187,9 +191,11 @@ export function AnalyticsTrendSection() {
         <div className="flex items-center justify-between mb-4">
           <div>
             <h3 className="font-semibold text-gray-800 dark:text-white">
-              User Registration
+              {t('analytics.userRegistration')}
             </h3>
-            <p className="text-xs text-gray-400">Daily new user count</p>
+            <p className="text-xs text-gray-400">
+              {t('analytics.dailyNewUserCount')}
+            </p>
           </div>
           <DaysToggle value={days} onChange={setDays} />
         </div>
@@ -197,11 +203,11 @@ export function AnalyticsTrendSection() {
           <ChartSkeleton />
         ) : isError || !data ? (
           <div className="h-56 flex items-center justify-center text-gray-400 text-sm">
-            Failed to load data
+            {t('analytics.trendLoadFailed')}
           </div>
         ) : data.users.length === 0 ? (
           <div className="h-56 flex items-center justify-center text-gray-400 text-sm">
-            No user data in this period
+            {t('analytics.noUserData')}
           </div>
         ) : (
           <UserTrendChart data={data.users} />

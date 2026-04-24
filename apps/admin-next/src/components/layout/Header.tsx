@@ -146,13 +146,15 @@ function QuickNav() {
 function LocaleDropdown({
   current,
   onSelect,
+  locales,
+  enabledLocales,
 }: {
   current: Locale;
   onSelect: (code: Locale) => void;
+  locales: { code: Locale; name: string }[];
+  enabledLocales: { code: Locale; name: string }[];
 }) {
-  const { locales, enabledLocales } = useAvailableLocales();
-
-  // Fallback mapping in case hook returns empty (shouldn't but safe)
+  // Fallback mapping in case props return empty (shouldn't but safe)
   const fallbackNames: Record<string, string> = {
     zh: '中文',
     en: 'English',
@@ -163,11 +165,9 @@ function LocaleDropdown({
   };
 
   const rawList = enabledLocales.length ? enabledLocales : locales;
-  const list = (rawList ?? []).map((l: unknown) => {
-    const it = l as { code?: string; name?: string };
-    const code = (it?.code ?? (String(it) as string)) as Locale;
-    const codeKey = it?.code ?? code;
-    const name = it?.name ?? fallbackNames[codeKey] ?? String(codeKey);
+  const list = (rawList ?? []).map((l) => {
+    const code = l.code;
+    const name = l.name ?? fallbackNames[code] ?? String(code);
     return { code, name };
   });
 
@@ -211,6 +211,7 @@ export const Header: React.FC<HeaderProps> = ({
   const userInfo = useAuthStore((state) => state.userInfo);
   const addToast = useToastStore((state) => state.addToast);
   const canReviewApplications = userInfo?.role === 'SUPER_ADMIN';
+  const { locales, enabledLocales } = useAvailableLocales();
 
   const { loading: isLoggingOut, run: handleLogout } = useRequest(
     logoutAction,
@@ -297,6 +298,8 @@ export const Header: React.FC<HeaderProps> = ({
               setI18nLang(code);
             }
           }}
+          locales={locales}
+          enabledLocales={enabledLocales}
         />
 
         {/* Theme toggle — shows icon of what you'll switch TO */}

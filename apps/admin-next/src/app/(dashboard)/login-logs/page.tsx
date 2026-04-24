@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { getTranslations } from 'next-intl/server';
 import React, { Suspense } from 'react';
 import {
   HydrationBoundary,
@@ -18,15 +19,24 @@ import {
   type NextSearchParams,
 } from '@/lib/cache/login-logs-cache';
 
-export const metadata: Metadata = { title: 'Login Logs' };
-
 interface LoginLogsPageProps {
+  params: Promise<{ locale: string }>;
   searchParams?: Promise<NextSearchParams>;
 }
 
+export async function generateMetadata({
+  params,
+}: LoginLogsPageProps): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: 'loginLogs' });
+  return { title: t('pageTitle') };
+}
+
 export default async function LoginLogsPage({
+  params,
   searchParams,
 }: LoginLogsPageProps) {
+  const { locale } = await params;
   const resolvedSearchParams = (await searchParams) ?? {};
   const queryClient = new QueryClient();
   const queryInput = parseLoginLogsSearchParams(resolvedSearchParams);
@@ -52,7 +62,7 @@ export default async function LoginLogsPage({
   return (
     <Suspense fallback={<PageSkeleton />}>
       <HydrationBoundary state={dehydrate(queryClient)}>
-        <LoginLogList />
+        <LoginLogList initialSearchParams={resolvedSearchParams} />
       </HydrationBoundary>
     </Suspense>
   );

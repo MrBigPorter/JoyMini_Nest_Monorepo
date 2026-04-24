@@ -11,11 +11,21 @@ import {
   prefetchCustomerServiceList,
   parseCustomerServiceSearchParams,
 } from '@/lib/customer-service-cache';
-
-export const metadata: Metadata = { title: 'Customer Service' };
+import { getTranslations } from 'next-intl/server';
 
 interface CustomerServicePageProps {
+  params: Promise<{ locale: string }>;
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: 'customerService' });
+  return { title: t('pageTitle') };
 }
 
 export default async function CustomerServicePage({

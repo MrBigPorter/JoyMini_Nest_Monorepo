@@ -233,6 +233,7 @@ export const ActSectionBindProductModal: React.FC<Props> = ({
           defaultSelectedRowKeys={existingIds}
           disabledRowKeys={existingIds}
           onSelectionChange={handleSelectionChange}
+          t={t}
           pagination={{
             ...tableProps.pagination,
             onChange: (page, pageSize) => {

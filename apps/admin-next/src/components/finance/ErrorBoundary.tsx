@@ -5,6 +5,7 @@ import React from 'react';
 interface ErrorBoundaryProps {
   children: React.ReactNode;
   fallback?: React.ReactNode;
+  t?: (key: string) => string;
 }
 
 interface ErrorBoundaryState {
@@ -31,21 +32,25 @@ export class ErrorBoundary extends React.Component<
   }
 
   render() {
+    const { t } = this.props;
     if (this.state.hasError) {
       return (
         this.props.fallback || (
           <div className="p-8 text-center bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-200 dark:border-red-700">
             <h2 className="text-lg font-semibold text-red-700 dark:text-red-400 mb-2">
-              Something went wrong
+              {t ? t('finance.error.title') : 'Something went wrong'}
             </h2>
             <p className="text-sm text-red-600 dark:text-red-300 mb-4">
-              {this.state.error?.message || 'An unexpected error occurred'}
+              {this.state.error?.message ||
+                (t
+                  ? t('finance.error.unexpected')
+                  : 'An unexpected error occurred')}
             </p>
             <button
               className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
               onClick={() => this.setState({ hasError: false, error: null })}
             >
-              Try again
+              {t ? t('finance.error.tryAgain') : 'Try again'}
             </button>
           </div>
         )

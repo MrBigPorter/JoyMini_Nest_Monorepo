@@ -2,6 +2,7 @@
 
 import React, { useTransition } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -16,19 +17,21 @@ import { motion } from 'framer-motion';
 import { authApi } from '@/api';
 import { LoginResponse, UserRole } from '@/type/types';
 import { sanitizeInput, generateCsrfToken } from '@/lib/security-utils';
+import { useTranslation } from '@/hooks/useTranslation';
 
-const loginSchema = z.object({
-  username: z
-    .string()
-    .min(1, { message: 'Username is required.' })
-    .max(50, { message: 'Username too long.' }),
-  password: z
-    .string()
-    .min(6, { message: 'Password must be at least 6 characters.' })
-    .max(128, { message: 'Password too long.' }),
-});
+const loginSchema = (t: (key: string) => string) =>
+  z.object({
+    username: z
+      .string()
+      .min(1, { message: t('login.usernameRequired') })
+      .max(50, { message: t('login.usernameTooLong') }),
+    password: z
+      .string()
+      .min(6, { message: t('login.passwordMinLength') })
+      .max(128, { message: t('login.passwordTooLong') }),
+  });
 
-type LoginFormInputs = z.infer<typeof loginSchema>;
+type LoginFormInputs = z.infer<ReturnType<typeof loginSchema>>;
 
 async function signIn(data: LoginFormInputs): Promise<LoginResponse> {
   return await authApi.login(data);
@@ -40,6 +43,7 @@ export const Login: React.FC = () => {
   const loginAction = useAuthStore((state) => state.login);
   const addToast = useToastStore((state) => state.addToast);
   const [csrfToken, setCsrfToken] = React.useState<string>('');
+  const { t } = useTranslation();
 
   // 生成 CSRF Token
   React.useEffect(() => {
@@ -70,7 +74,7 @@ export const Login: React.FC = () => {
     handleSubmit,
     formState: { errors },
   } = useForm<LoginFormInputs>({
-    resolver: zodResolver(loginSchema),
+    resolver: zodResolver(loginSchema(t)),
   });
 
   const { loading, runAsync } = useRequest(signIn, {
@@ -83,19 +87,19 @@ export const Login: React.FC = () => {
           result.userInfo,
           result.tokens.refreshToken ?? null,
         );
-        addToast('success', 'Welcome back, Admin!');
+        addToast('success', t('login.welcomeBack'));
         // 使用 startTransition 优化路由转换性能
         startTransition(() => {
           router.push('/');
         });
       } else {
-        addToast('error', 'Login failed: No access token received.');
+        addToast('error', t('login.loginFailedNoToken'));
       }
     },
     onError: (error: unknown) => {
       // 后端统一响应格式: { code, message, data, tid }
       // axios error 结构: { response: { data: { code, message } }, message: "Request failed..." }
-      let message = 'Login failed. Please try again.';
+      let message = t('login.loginFailedGeneric');
 
       if (typeof error === 'object' && error !== null) {
         // 优先取后端 response body 里的 message
@@ -156,15 +160,22 @@ export const Login: React.FC = () => {
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               transition={{ delay: 0.2, type: 'spring' }}
-              className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-primary-500/30 mb-4"
+              className="mb-4"
             >
-              J
+              <Image
+                src="/logo.png"
+                alt="JoyMini Admin"
+                width={48}
+                height={48}
+                className="rounded-xl"
+                priority
+              />
             </motion.div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-              Welcome Back
+              {t('login.title')}
             </h1>
             <p className="text-gray-500 text-sm text-center">
-              Enter your credentials to access the dashboard
+              {t('login.subtitle')}
             </p>
           </div>
 
@@ -181,8 +192,8 @@ export const Login: React.FC = () => {
                 <Input
                   className="pl-10"
                   type="text"
-                  placeholder="Username"
-                  aria-label="Username"
+                  placeholder={t('login.usernamePlaceholder')}
+                  aria-label={t('login.usernameLabel')}
                   autoComplete="username"
                   error={errors.username?.message}
                   {...register('username')}
@@ -196,8 +207,8 @@ export const Login: React.FC = () => {
                 <Input
                   className="pl-10"
                   type="password"
-                  placeholder="Password"
-                  aria-label="Password"
+                  placeholder={t('login.passwordPlaceholder')}
+                  aria-label={t('login.passwordLabel')}
                   autoComplete="current-password"
                   error={errors.password?.message}
                   {...register('password')}
@@ -211,17 +222,17 @@ export const Login: React.FC = () => {
               disabled={loading || isPending}
             >
               <span className="relative z-10 flex items-center justify-center gap-2">
-                Sign In <ArrowRight size={18} />
+                {t('login.signIn')} <ArrowRight size={18} />
               </span>
             </Button>
 
             <div className="text-center text-sm text-gray-500 dark:text-gray-400">
-              Don&apos;t have an account?{' '}
+              {t('login.noAccount')}{' '}
               <Link
                 href="/register-apply"
                 className="text-primary-500 hover:underline font-medium"
               >
-                Apply for access
+                {t('login.applyAccess')}
               </Link>
             </div>
           </form>
@@ -233,7 +244,7 @@ export const Login: React.FC = () => {
           transition={{ delay: 0.5 }}
           className="mt-8 text-center text-gray-400 text-xs"
         >
-          &copy; {new Date().getFullYear()} JoyMini Admin. All rights reserved.
+          {t('login.copyright', { year: new Date().getFullYear() })}
         </motion.div>
       </div>
     </div>

@@ -2,14 +2,16 @@
 
 import { MapPin } from 'lucide-react';
 import { resolveMediaUrl } from '@/lib/media-utils';
+import { useTranslation } from '@/hooks/useTranslation';
 
 export function LocationMessage({
   meta,
 }: {
   meta: Record<string, unknown> | null;
 }) {
+  const { t } = useTranslation();
   const thumb = meta?.thumb as string | undefined;
-  const title = (meta?.title as string) ?? 'Location';
+  const title = (meta?.title as string) ?? t('customerService.location');
   const address = meta?.address as string | undefined;
   const lat = meta?.latitude as number | undefined;
   const lng = meta?.longitude as number | undefined;

@@ -23,6 +23,7 @@ import {
   WithdrawStatus,
 } from '@lucky/shared';
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard';
+import { useTranslation } from '@/hooks/useTranslation';
 import { WithdrawOrder } from '@/type/types';
 
 interface Props {
@@ -31,6 +32,7 @@ interface Props {
 }
 
 export const WithdrawAuditModal: React.FC<Props> = ({ data, confirm }) => {
+  const { t } = useTranslation();
   const [remark, setRemark] = useState('');
   const { copy } = useCopyToClipboard();
 
@@ -60,23 +62,21 @@ export const WithdrawAuditModal: React.FC<Props> = ({ data, confirm }) => {
   const handleAction = (status: WithdrawStatus) => {
     if (status === WITHDRAW_STATUS.SUCCESS) {
       ModalManager.open({
-        title: 'Confirm Payout Approval',
-        confirmText: 'Approve',
-        cancelText: 'Cancel',
+        title: t('finance.withdrawAudit.confirmTitle'),
+        confirmText: t('finance.withdrawAudit.confirmText'),
+        cancelText: t('finance.withdrawAudit.cancelText'),
         renderChildren: (
           <div>
-            Are you sure you want to approve{' '}
-            <span className="font-bold text-primary-600">
-              {NumHelper.formatMoney(data.actualAmount)}
-            </span>{' '}
-            via{' '}
-            <span className="font-bold">
-              {data.bankName || 'Unknown Channel'}
-            </span>
-            ?
+            {t('finance.withdrawAudit.confirmMessage', {
+              amount: NumHelper.formatMoney(data.actualAmount),
+              channel: data.bankName || 'Unknown Channel',
+            })}
             <br />
             <span className="text-xs text-gray-500 mt-2 block bg-gray-50 p-2 rounded">
-              Beneficiary: {data.accountName} ({data.withdrawAccount})
+              {t('finance.withdrawAudit.beneficiaryLabel', {
+                name: data.accountName,
+                account: data.withdrawAccount,
+              })}
             </span>
           </div>
         ),
@@ -128,7 +128,7 @@ export const WithdrawAuditModal: React.FC<Props> = ({ data, confirm }) => {
         {/* Left: User Info */}
         <div className="bg-gray-50 dark:bg-white/5 p-3 rounded-lg space-y-2 border border-transparent">
           <div className="flex items-center gap-2 text-gray-500 uppercase text-[10px] font-bold tracking-wider">
-            <User size={12} /> Applicant
+            <User size={12} /> {t('finance.withdrawAudit.applicant')}
           </div>
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-full bg-gray-200 flex-shrink-0 flex items-center justify-center font-bold text-sm text-gray-600">
@@ -152,13 +152,15 @@ export const WithdrawAuditModal: React.FC<Props> = ({ data, confirm }) => {
           <div
             className={`flex items-center gap-2 uppercase text-[10px] font-bold tracking-wider ${channelDisplay.colorClass.split(' ')[0]}`}
           >
-            <CreditCard size={12} /> Beneficiary
+            <CreditCard size={12} /> {t('finance.withdrawAudit.beneficiary')}
           </div>
 
           <div className="space-y-1.5">
             {/* Channel Name */}
             <div className="flex justify-between items-center">
-              <span className="text-xs text-gray-500/80">Channel</span>
+              <span className="text-xs text-gray-500/80">
+                {t('finance.withdrawAudit.channel')}
+              </span>
               <div
                 className={`flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-bold ${channelDisplay.colorClass}`}
               >
@@ -169,7 +171,9 @@ export const WithdrawAuditModal: React.FC<Props> = ({ data, confirm }) => {
 
             {/* Account Name */}
             <div className="flex justify-between items-center">
-              <span className="text-xs text-gray-500/80">Name</span>
+              <span className="text-xs text-gray-500/80">
+                {t('finance.withdrawAudit.name')}
+              </span>
               <span className="text-xs font-bold text-gray-900 dark:text-white">
                 {data.accountName}
               </span>
@@ -195,7 +199,9 @@ export const WithdrawAuditModal: React.FC<Props> = ({ data, confirm }) => {
         [Image of audit financial breakdown]
         <div className="flex items-center justify-between">
           <div className="text-left">
-            <div className="text-xs text-gray-400 mb-1">Requested</div>
+            <div className="text-xs text-gray-400 mb-1">
+              {t('finance.withdrawAudit.requested')}
+            </div>
             <div className="text-lg font-bold text-gray-700 dark:text-gray-300">
               {NumHelper.formatMoney(data.withdrawAmount)}
             </div>
@@ -203,13 +209,17 @@ export const WithdrawAuditModal: React.FC<Props> = ({ data, confirm }) => {
 
           <div className="flex flex-col items-center px-2">
             <div className="text-[10px] text-red-500 bg-red-50 dark:bg-red-900/20 px-2 py-0.5 rounded-full mb-1">
-              Fee: {NumHelper.formatMoney(data.feeAmount)}
+              {t('finance.withdrawAudit.fee', {
+                amount: NumHelper.formatMoney(data.feeAmount),
+              })}
             </div>
             <ArrowRight size={16} className="text-gray-300" />
           </div>
 
           <div className="text-right">
-            <div className="text-xs text-gray-400 mb-1">Actual Payout</div>
+            <div className="text-xs text-gray-400 mb-1">
+              {t('finance.withdrawAudit.actualPayout')}
+            </div>
             <div className="text-2xl font-black text-primary-600 dark:text-primary-400">
               {NumHelper.formatMoney(data.actualAmount)}
             </div>
@@ -223,22 +233,22 @@ export const WithdrawAuditModal: React.FC<Props> = ({ data, confirm }) => {
           <div className="flex items-start gap-2 bg-amber-50 border border-amber-100 text-amber-800 text-xs p-3 rounded-lg mb-4">
             <AlertCircle size={16} className="mt-0.5 shrink-0 text-amber-600" />
             <div>
-              <span className="font-bold">Risk Verification Required:</span>
+              <span className="font-bold">
+                {t('finance.withdrawAudit.riskVerificationTitle')}
+              </span>
               <ul className="list-disc list-inside mt-1 space-y-0.5 text-amber-700/80">
-                <li>
-                  Verify beneficiary name matches user KYC (if applicable).
-                </li>
-                <li>Check for duplicate withdrawals from same IP/Device.</li>
+                <li>{t('finance.withdrawAudit.riskVerifyKyc')}</li>
+                <li>{t('finance.withdrawAudit.riskVerifyDuplicate')}</li>
               </ul>
             </div>
           </div>
         )}
 
         <label className="text-sm font-medium flex justify-between mb-2">
-          <span>Audit Remark</span>
+          <span>{t('finance.withdrawAudit.auditRemark')}</span>
           {isWaitForAudit && (
             <span className="text-xs text-gray-400 font-normal">
-              Required for Rejection
+              {t('finance.withdrawAudit.requiredForRejection')}
             </span>
           )}
         </label>
@@ -247,17 +257,19 @@ export const WithdrawAuditModal: React.FC<Props> = ({ data, confirm }) => {
           <textarea
             className="w-full border border-gray-200 dark:border-white/20 rounded-lg p-3 text-sm focus:ring-2 focus:ring-primary-500 outline-none bg-transparent transition-all"
             rows={3}
-            placeholder="Enter reason for rejection or approval notes..."
+            placeholder={t('finance.withdrawAudit.remarkPlaceholder')}
             value={remark}
             onChange={(e) => setRemark(e.target.value)}
           />
         ) : (
           <div className="bg-gray-50 dark:bg-white/5 p-3 rounded-lg text-sm border border-gray-100 dark:border-white/5">
             <span className="text-xs text-gray-400 block mb-1">
-              Audit Result:
+              {t('finance.withdrawAudit.auditResult')}
             </span>
             <div className="text-gray-700 dark:text-gray-300">
-              {data.auditResult || data.rejectReason || 'No remark recorded.'}
+              {data.auditResult ||
+                data.rejectReason ||
+                t('finance.withdrawAudit.noRemark')}
             </div>
           </div>
         )}
@@ -273,7 +285,7 @@ export const WithdrawAuditModal: React.FC<Props> = ({ data, confirm }) => {
             isLoading={loading}
             onClick={() => handleAction(WITHDRAW_STATUS.REJECTED)}
           >
-            Reject
+            {t('finance.withdrawAudit.reject')}
           </Button>
           <Button
             variant="primary"
@@ -281,7 +293,7 @@ export const WithdrawAuditModal: React.FC<Props> = ({ data, confirm }) => {
             isLoading={loading}
             onClick={() => handleAction(WITHDRAW_STATUS.SUCCESS)}
           >
-            Approve & Pay
+            {t('finance.withdrawAudit.approveAndPay')}
           </Button>
         </div>
       )}

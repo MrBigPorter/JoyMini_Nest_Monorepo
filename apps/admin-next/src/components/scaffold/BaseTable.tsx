@@ -37,7 +37,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { Pagination } from '@/components/scaffold/Pagination';
-import { useTranslation } from '@/hooks/useTranslation';
+import { useTranslation, type TFunc } from '@/hooks/useTranslation';
 import { Loader2, ArrowUpDown, ChevronRight, ChevronDown } from 'lucide-react';
 import { cn } from '@repo/ui';
 
@@ -209,10 +209,20 @@ interface BaseTableProps<TData> {
   onRowClick?: (row: TData) => void;
   defaultSelectedRowKeys?: string[];
   disabledRowKeys?: string[];
+  /**
+   * Optional t function for use inside ModalManager (no NextIntlClientProvider context).
+   * When provided, BaseTable uses it instead of calling useTranslation() internally.
+   */
+  t?: TFunc;
 }
 
-//  修复：使用泛型 TData 替代 Record<string, any>
-export const BaseTable = <TData,>({
+/**
+ * Inner implementation that requires a t function.
+ * Separated so the public BaseTable can decide how to provide t:
+ * - via useTranslation() when in normal React tree
+ * - via prop when inside ModalManager (no NextIntlClientProvider context)
+ */
+const BaseTableInner = <TData,>({
   data,
   columns: propColumns,
   loading,
@@ -227,7 +237,8 @@ export const BaseTable = <TData,>({
   onRowClick,
   defaultSelectedRowKeys = [],
   disabledRowKeys = [],
-}: BaseTableProps<TData>) => {
+  t,
+}: BaseTableProps<TData> & { t: TFunc }) => {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
@@ -364,8 +375,6 @@ export const BaseTable = <TData,>({
     [table],
   );
 
-  const { t } = useTranslation();
-
   // --- 渲染表体内容 ---
   const renderTableContent = () => {
     if (loading && data.length === 0) {
@@ -470,9 +479,24 @@ export const BaseTable = <TData,>({
       )}
       {pagination && (
         <div className="py-2">
-          <Pagination {...pagination} />
+          <Pagination {...pagination} t={t} />
         </div>
       )}
     </div>
   );
 };
+
+// Public API — decides how to provide the t function.
+// When a t prop is passed (e.g. from parent inside ModalManager), use it directly.
+// Otherwise, call useTranslation() in a proper component context.
+export const BaseTable = <TData,>(props: BaseTableProps<TData>) => {
+  if (props.t) {
+    return <BaseTableInner {...props} t={props.t} />;
+  }
+  return <BaseTableWithT {...props} />;
+};
+
+function BaseTableWithT<TData>(props: BaseTableProps<TData>) {
+  const { t } = useTranslation();
+  return <BaseTableInner {...props} t={t} />;
+}

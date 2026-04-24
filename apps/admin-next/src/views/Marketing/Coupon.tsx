@@ -8,6 +8,7 @@ import { Edit3, Trash2, Calendar, Hash } from 'lucide-react';
 import { Button, ModalManager } from '@repo/ui';
 import { Badge, Card } from '@/components/UIComponents';
 import { useToastStore } from '@/store/useToastStore';
+import { useTranslation } from '@/hooks/useTranslation';
 import { SchemaSearchForm } from '@/components/scaffold/SchemaSearchForm';
 import { BaseTable } from '@/components/scaffold/BaseTable';
 import { PageHeader } from '@/components/scaffold/PageHeader';
@@ -20,6 +21,7 @@ import {
 import {
   CalcHelper,
   COUPON_STATUS,
+  COUPON_TYPE,
   COUPON_TYPE_OPTIONS,
   DISCOUNT_TYPE,
   ISSUE_TYPE,
@@ -39,11 +41,14 @@ type CouponSearchForm = {
 
 // --- Helper Components ---
 
-const StatusBadge: React.FC<{ status: number }> = ({ status }) => (
-  <Badge color={status === 1 ? 'green' : 'gray'}>
-    {status === 1 ? `Active` : 'Disabled'}
-  </Badge>
-);
+const StatusBadge: React.FC<{ status: number }> = ({ status }) => {
+  const { t } = useTranslation();
+  return (
+    <Badge color={status === 1 ? 'green' : 'gray'}>
+      {status === 1 ? t('coupon.statusActive') : t('coupon.statusDisabled')}
+    </Badge>
+  );
+};
 
 interface CouponListProps {
   initialFormParams?: Record<string, unknown>;
@@ -55,6 +60,7 @@ export const CouponList: React.FC<CouponListProps> = ({
   onParamsChange,
 }) => {
   const addToast = useToastStore((s) => s.addToast);
+  const { t } = useTranslation();
 
   // 1. 数据获取逻辑 (useAntdTable)
   const getTableData = async (
@@ -119,7 +125,7 @@ export const CouponList: React.FC<CouponListProps> = ({
   const { run: deleteCoupon } = useRequest(couponApi.delete, {
     manual: true,
     onSuccess: () => {
-      addToast('success', 'Coupon deleted');
+      addToast('success', t('coupon.deleted'));
       refresh();
     },
   });
@@ -127,10 +133,11 @@ export const CouponList: React.FC<CouponListProps> = ({
   const handleOpenModal = useCallback(
     (record?: Coupon) => {
       ModalManager.open({
-        title: record ? 'Edit Coupon' : 'Create Coupon',
+        title: record ? t('coupon.editCoupon') : t('coupon.createCoupon'),
         // 这里的 CreateCouponModal 就是你上一段代码里的组件
         renderChildren: ({ close, confirm }) => (
           <CouponModal
+            t={t}
             editingData={record}
             close={close}
             confirm={() => {
@@ -138,26 +145,28 @@ export const CouponList: React.FC<CouponListProps> = ({
               refresh(); // 刷新表格
               addToast(
                 'success',
-                record ? 'Updated successfully' : 'Created successfully',
+                record
+                  ? t('coupon.updatedSuccess')
+                  : t('coupon.createdSuccess'),
               );
             }}
           />
         ),
       });
     },
-    [refresh, addToast],
+    [refresh, addToast, t],
   );
 
   const handleDelete = useCallback(
     (record: Coupon) => {
       ModalManager.open({
-        title: 'Delete Coupon?',
-        content: `Are you sure you want to delete "${record.couponName}"?`,
-        confirmText: 'Delete',
+        title: t('coupon.deleteTitle'),
+        content: t('coupon.deleteConfirm', { name: record.couponName }),
+        confirmText: t('coupon.delete'),
         onConfirm: () => deleteCoupon(record.id),
       });
     },
-    [deleteCoupon],
+    [deleteCoupon, t],
   );
 
   useEffect(() => {
@@ -175,7 +184,7 @@ export const CouponList: React.FC<CouponListProps> = ({
     const columnHelper = createColumnHelper<Coupon>();
     return [
       columnHelper.accessor('couponName', {
-        header: 'Coupon Info',
+        header: t('coupon.couponInfo'),
         cell: (info) => (
           <div>
             <div className="flex items-center gap-2">
@@ -193,27 +202,31 @@ export const CouponList: React.FC<CouponListProps> = ({
               <StatusBadge status={info.row.original.status} />
               <Badge color="blue">
                 {info.row.original.issueType === ISSUE_TYPE.CLAIM
-                  ? 'Claim'
-                  : 'System'}
+                  ? t('coupon.issueTypeClaim')
+                  : t('coupon.issueTypeSystem')}
               </Badge>
             </div>
           </div>
         ),
       }),
       columnHelper.accessor('discountValue', {
-        header: 'Benefit',
+        header: t('coupon.benefit'),
         cell: (info) => {
           const { discountType, minPurchase } = info.row.original;
           const isPercent = discountType === DISCOUNT_TYPE.PERCENTAGE;
           const valueStr = isPercent
-            ? `${NumHelper.formatRate(info.getValue())}OFF`
+            ? t('coupon.benefitPercentOff', {
+                rate: NumHelper.formatRate(info.getValue()),
+              })
             : `-${NumHelper.formatMoney(info.getValue())}`;
 
           return (
             <div className="flex flex-col">
               <span className="font-semibold text-pink-600">{valueStr}</span>
               <span className="text-xs text-gray-500">
-                Min: {NumHelper.formatMoney(minPurchase)}
+                {t('coupon.benefitMin', {
+                  amount: NumHelper.formatMoney(minPurchase),
+                })}
               </span>
             </div>
           );
@@ -221,7 +234,7 @@ export const CouponList: React.FC<CouponListProps> = ({
       }),
       columnHelper.display({
         id: 'usage',
-        header: 'Usage',
+        header: t('coupon.usage'),
         cell: (info) => {
           const { issuedQuantity = 0, totalQuantity } = info.row.original;
           const isUnlimited = totalQuantity === -1;
@@ -238,9 +251,9 @@ export const CouponList: React.FC<CouponListProps> = ({
           return (
             <div className="w-24">
               <div className="flex justify-between text-xs mb-1">
-                <span className="text-gray-500">Used</span>
+                <span className="text-gray-500">{t('coupon.usageUsed')}</span>
                 <span className="font-medium">
-                  {isUnlimited ? 'Unlimited' : `${percent}%`}
+                  {isUnlimited ? t('coupon.usageUnlimited') : `${percent}%`}
                 </span>
               </div>
               <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
@@ -262,7 +275,7 @@ export const CouponList: React.FC<CouponListProps> = ({
         },
       }),
       columnHelper.accessor('validType', {
-        header: 'Validity',
+        header: t('coupon.validity'),
         cell: (info) => {
           const row = info.row.original;
           if (row.validType === VALID_TYPE.RANGE) {
@@ -273,7 +286,9 @@ export const CouponList: React.FC<CouponListProps> = ({
                   {TimeHelper.formatDate(row.validStartAt)}
                 </div>
                 <div className="pl-4 text-gray-400">
-                  to {TimeHelper.formatDate(row.validEndAt)}
+                  {t('coupon.validityTo', {
+                    date: TimeHelper.formatDate(row.validEndAt),
+                  })}
                 </div>
               </div>
             );
@@ -281,14 +296,14 @@ export const CouponList: React.FC<CouponListProps> = ({
           return (
             <div className="text-xs flex items-center gap-1 text-orange-600">
               <Calendar size={12} />
-              {row.validDays} days after claim
+              {t('coupon.validityDaysAfterClaim', { days: row.validDays ?? 0 })}
             </div>
           );
         },
       }),
       columnHelper.display({
         id: 'actions',
-        header: 'Actions',
+        header: t('coupon.actions'),
         cell: (info) => (
           <div className="flex gap-2">
             <Button
@@ -309,15 +324,15 @@ export const CouponList: React.FC<CouponListProps> = ({
         ),
       }),
     ] as ColumnDef<Coupon>[];
-  }, [handleDelete, handleOpenModal]);
+  }, [handleDelete, handleOpenModal, t]);
 
   return (
     <div className="space-y-6">
       {/* 1. Page Header */}
       <PageHeader
-        title="Coupon Management"
-        description="Create and manage discount coupons for your customers."
-        buttonText="Create Coupon"
+        title={t('coupon.pageTitle')}
+        description={t('coupon.pageDescription')}
+        buttonText={t('coupon.createCoupon')}
         buttonOnClick={() => handleOpenModal()}
       />
 
@@ -329,17 +344,22 @@ export const CouponList: React.FC<CouponListProps> = ({
               {
                 type: 'input',
                 key: 'keyword',
-                label: 'Search',
-                placeholder: 'Coupon name or code...',
+                label: t('coupon.search'),
+                placeholder: t('coupon.searchPlaceholder'),
               },
               {
                 type: 'select',
                 key: 'status',
-                label: 'Status',
+                label: t('coupon.status'),
                 defaultValue: 'ALL',
-                options: [{ label: 'All Status', value: 'ALL' }].concat(
-                  Object.entries(COUPON_STATUS).map(([key, val]) => ({
-                    label: key.charAt(0) + key.slice(1).toLowerCase(),
+                options: [
+                  { label: t('coupon.allStatus'), value: 'ALL' },
+                ].concat(
+                  Object.entries(COUPON_STATUS).map(([, val]) => ({
+                    label:
+                      val === COUPON_STATUS.ACTIVE
+                        ? t('coupon.statusActive')
+                        : t('coupon.statusInactive'),
                     value: val.toString(),
                   })),
                 ),
@@ -347,13 +367,21 @@ export const CouponList: React.FC<CouponListProps> = ({
               {
                 type: 'select',
                 key: 'couponType',
-                label: 'Type',
+                label: t('coupon.type'),
                 defaultValue: 'ALL',
-                options: [{ label: 'All Types', value: 'ALL' }].concat(
-                  COUPON_TYPE_OPTIONS.map((option) => ({
-                    label: option.label,
-                    value: option.value.toString(),
-                  })),
+                options: [{ label: t('coupon.allTypes'), value: 'ALL' }].concat(
+                  COUPON_TYPE_OPTIONS.map((option) => {
+                    const labelKey =
+                      option.value === COUPON_TYPE.FULL_REDUCTION
+                        ? 'coupon.optionCouponTypeFullReduction'
+                        : option.value === COUPON_TYPE.DISCOUNT
+                          ? 'coupon.optionCouponTypeDiscount'
+                          : 'coupon.optionCouponTypeNoThreshold';
+                    return {
+                      label: t(labelKey),
+                      value: option.value.toString(),
+                    };
+                  }),
                 ),
               },
             ]}

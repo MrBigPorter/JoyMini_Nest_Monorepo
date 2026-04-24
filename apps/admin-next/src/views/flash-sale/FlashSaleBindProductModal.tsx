@@ -11,6 +11,7 @@ import { Link, Link2Off, Search } from 'lucide-react';
 import { useToastStore } from '@/store/useToastStore';
 import { BaseTable } from '@/components/scaffold/BaseTable';
 import { SmartImage } from '@/components/ui/SmartImage';
+import { useTranslation } from '@/hooks/useTranslation';
 
 interface Props {
   sessionId: string;
@@ -28,6 +29,7 @@ export const FlashSaleBindProductModal: React.FC<Props> = ({
   onClose,
   onSaved,
 }) => {
+  const { t } = useTranslation();
   const addToast = useToastStore((s) => s.addToast);
 
   // 已绑定的 treasureId 集合
@@ -82,7 +84,7 @@ export const FlashSaleBindProductModal: React.FC<Props> = ({
     {
       manual: true,
       onSuccess: () => {
-        addToast('success', 'Product bound to flash sale successfully');
+        addToast('success', t('flashSale.bindSuccess'));
         setPending(null);
         setFlashPrice('');
         setFlashStock('0');
@@ -105,7 +107,7 @@ export const FlashSaleBindProductModal: React.FC<Props> = ({
     {
       manual: true,
       onSuccess: () => {
-        addToast('success', 'Product unbound successfully');
+        addToast('success', t('flashSale.unbindSuccess'));
         fetchBound();
         onSaved();
       },
@@ -117,7 +119,7 @@ export const FlashSaleBindProductModal: React.FC<Props> = ({
     if (!pending) return;
     const price = flashPrice.trim();
     if (!price || isNaN(Number(price))) {
-      addToast('error', 'Please enter a valid flash price');
+      addToast('error', t('flashSale.invalidPrice'));
       return;
     }
     doBind(sessionId, {
@@ -134,7 +136,7 @@ export const FlashSaleBindProductModal: React.FC<Props> = ({
     const col = createColumnHelper<Product>();
     return [
       col.accessor('treasureName', {
-        header: 'Product',
+        header: t('flashSale.colProduct'),
         cell: (info) => (
           <div className="flex items-center gap-3">
             <SmartImage
@@ -153,7 +155,7 @@ export const FlashSaleBindProductModal: React.FC<Props> = ({
         ),
       }),
       col.accessor('unitAmount', {
-        header: 'Original Price',
+        header: t('flashSale.colOriginalPrice'),
         cell: (info) => (
           <span className="font-mono text-xs text-gray-500">
             ₱{info.getValue()}
@@ -162,7 +164,7 @@ export const FlashSaleBindProductModal: React.FC<Props> = ({
       }),
       col.accessor((row) => boundIds.includes(row.treasureId), {
         id: 'actions',
-        header: 'Action',
+        header: t('flashSale.colAction'),
         enableSorting: false,
         cell: (info) => {
           const isBound = boundIds.includes(info.row.original.treasureId);
@@ -193,7 +195,7 @@ export const FlashSaleBindProductModal: React.FC<Props> = ({
         },
       }),
     ] as ColumnDef<Product>[];
-  }, [boundIds, doUnbind, pending?.treasureId, unbindLoading]);
+  }, [boundIds, doUnbind, pending?.treasureId, unbindLoading, t]);
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
@@ -202,7 +204,7 @@ export const FlashSaleBindProductModal: React.FC<Props> = ({
       <div className="p-4 flex-1 overflow-y-auto space-y-3">
         <div className="flex gap-2">
           <Input
-            placeholder="Search product name…"
+            placeholder={t('flashSale.searchPlaceholder')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             onKeyDown={(e) =>
@@ -241,22 +243,24 @@ export const FlashSaleBindProductModal: React.FC<Props> = ({
       {pending && (
         <div className="border-t border-gray-100 dark:border-white/10 p-4 bg-teal-50/40 dark:bg-teal-500/5 space-y-3">
           <p className="text-sm font-medium text-gray-800 dark:text-gray-200 line-clamp-1">
-            <span className="text-teal-500">Binding:</span>{' '}
+            <span className="text-teal-500">{t('flashSale.bindingLabel')}</span>{' '}
             {pending.treasureName}
           </p>
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1">
               <label className="text-xs text-gray-500">
-                Flash Price (PHP) *
+                {t('flashSale.formFlashPrice')}
               </label>
               <Input
-                placeholder="e.g. 99.00"
+                placeholder={t('flashSale.flashPricePlaceholder')}
                 value={flashPrice}
                 onChange={(e) => setFlashPrice(e.target.value)}
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-gray-500">Flash Stock</label>
+              <label className="text-xs text-gray-500">
+                {t('flashSale.formFlashStock')}
+              </label>
               <Input
                 type="number"
                 min="0"
@@ -267,14 +271,14 @@ export const FlashSaleBindProductModal: React.FC<Props> = ({
           </div>
           <div className="flex justify-end gap-2">
             <Button variant="ghost" size="sm" onClick={() => setPending(null)}>
-              Cancel
+              {t('flashSale.cancel')}
             </Button>
             <Button
               size="sm"
               isLoading={bindLoading}
               onClick={handleConfirmBind}
             >
-              Confirm Bind
+              {t('flashSale.confirmBind')}
             </Button>
           </div>
         </div>
@@ -283,7 +287,7 @@ export const FlashSaleBindProductModal: React.FC<Props> = ({
       {/* Footer */}
       <div className="p-4 border-t border-gray-100 dark:border-white/10 flex justify-end">
         <Button variant="ghost" onClick={onClose}>
-          Close
+          {t('flashSale.close')}
         </Button>
       </div>
     </div>

@@ -8,10 +8,12 @@ import React, { useCallback, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { FinancePage } from './FinancePageClient';
 import { ErrorBoundary } from './ErrorBoundary';
+import { useTranslation } from '@/hooks/useTranslation';
 
 export function FinanceClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { t } = useTranslation();
 
   // ── URL → 初始 filter 参数 ──────────────────────────────────
   const urlFilterParams = useMemo(() => {
@@ -56,7 +58,7 @@ export function FinanceClient() {
   );
 
   return (
-    <ErrorBoundary>
+    <ErrorBoundary t={t}>
       <FinancePage
         initialFormParams={urlFilterParams}
         onParamsChange={handleParamsChange}

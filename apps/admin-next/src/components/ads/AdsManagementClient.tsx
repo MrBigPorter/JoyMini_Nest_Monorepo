@@ -27,6 +27,7 @@ import { format } from 'date-fns';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { ModalManager } from '@repo/ui';
+import { useTranslation } from '@/hooks/useTranslation';
 
 // ─── 位置标签 ─────────────────────────────────────────────────────────────────
 
@@ -60,10 +61,12 @@ function AdModal({
   ad,
   onClose,
   onSaved,
+  t,
 }: {
   ad: Advertisement | null;
   onClose: () => void;
   onSaved: () => void;
+  t: (key: string, params?: Record<string, string | number>) => string;
 }) {
   const isEdit = !!ad;
   const [saving, setSaving] = useState(false);
@@ -119,7 +122,7 @@ function AdModal({
       <div className="w-full max-w-lg bg-white dark:bg-gray-900 rounded-2xl shadow-2xl overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-white/10">
           <h3 className="text-base font-semibold text-gray-900 dark:text-white">
-            {isEdit ? 'Edit Advertisement' : 'New Advertisement'}
+            {isEdit ? t('ads.editAd') : t('ads.newAd')}
           </h3>
           <button
             onClick={onClose}
@@ -131,24 +134,30 @@ function AdModal({
         <form onSubmit={handleSubmit(onSubmit)} className="p-5 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2 flex flex-col gap-1">
-              <label className="text-xs text-gray-500">Title</label>
+              <label className="text-xs text-gray-500">
+                {t('ads.formTitle')}
+              </label>
               <input
                 {...register('title')}
                 className="px-3 py-2 text-sm rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500/50"
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-gray-500">File Type</label>
+              <label className="text-xs text-gray-500">
+                {t('ads.formFileType')}
+              </label>
               <select
                 {...register('fileType', { valueAsNumber: true })}
                 className="px-3 py-2 text-sm rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500/50"
               >
-                <option value={1}>Image</option>
-                <option value={2}>Video</option>
+                <option value={1}>{t('ads.fileTypeImage')}</option>
+                <option value={2}>{t('ads.fileTypeVideo')}</option>
               </select>
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-gray-500">Position</label>
+              <label className="text-xs text-gray-500">
+                {t('ads.formPosition')}
+              </label>
               <select
                 {...register('adPosition', { valueAsNumber: true })}
                 className="px-3 py-2 text-sm rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500/50"
@@ -161,31 +170,39 @@ function AdModal({
               </select>
             </div>
             <div className="col-span-2 flex flex-col gap-1">
-              <label className="text-xs text-gray-500">Image URL</label>
+              <label className="text-xs text-gray-500">
+                {t('ads.formImageUrl')}
+              </label>
               <input
                 {...register('img')}
-                placeholder="https://… or uploads/…"
+                placeholder={t('ads.imageUrlPlaceholder')}
                 className="px-3 py-2 text-sm rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500/50"
               />
             </div>
             <div className="col-span-2 flex flex-col gap-1">
-              <label className="text-xs text-gray-500">Video URL</label>
+              <label className="text-xs text-gray-500">
+                {t('ads.formVideoUrl')}
+              </label>
               <input
                 {...register('videoUrl')}
-                placeholder="https://…"
+                placeholder={t('ads.videoUrlPlaceholder')}
                 className="px-3 py-2 text-sm rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500/50"
               />
             </div>
             <div className="col-span-2 flex flex-col gap-1">
-              <label className="text-xs text-gray-500">Jump URL</label>
+              <label className="text-xs text-gray-500">
+                {t('ads.formJumpUrl')}
+              </label>
               <input
                 {...register('jumpUrl')}
-                placeholder="https://…"
+                placeholder={t('ads.jumpUrlPlaceholder')}
                 className="px-3 py-2 text-sm rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500/50"
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-gray-500">Start Time</label>
+              <label className="text-xs text-gray-500">
+                {t('ads.formStartTime')}
+              </label>
               <input
                 type="datetime-local"
                 {...register('startTime')}
@@ -193,7 +210,9 @@ function AdModal({
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-gray-500">End Time</label>
+              <label className="text-xs text-gray-500">
+                {t('ads.formEndTime')}
+              </label>
               <input
                 type="datetime-local"
                 {...register('endTime')}
@@ -201,7 +220,9 @@ function AdModal({
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-gray-500">Sort Order</label>
+              <label className="text-xs text-gray-500">
+                {t('ads.formSortOrder')}
+              </label>
               <input
                 type="number"
                 {...register('sortOrder', { valueAsNumber: true })}
@@ -209,13 +230,15 @@ function AdModal({
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-gray-500">Status</label>
+              <label className="text-xs text-gray-500">
+                {t('ads.formStatus')}
+              </label>
               <select
                 {...register('status', { valueAsNumber: true })}
                 className="px-3 py-2 text-sm rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500/50"
               >
-                <option value={1}>Enabled</option>
-                <option value={0}>Disabled</option>
+                <option value={1}>{t('ads.enabled')}</option>
+                <option value={0}>{t('ads.disabled')}</option>
               </select>
             </div>
           </div>
@@ -225,7 +248,7 @@ function AdModal({
               onClick={onClose}
               className="px-4 py-2 text-sm rounded-xl border border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
             >
-              Cancel
+              {t('ads.cancel')}
             </button>
             <button
               type="submit"
@@ -237,7 +260,7 @@ function AdModal({
               ) : (
                 <Save size={13} />
               )}
-              {isEdit ? 'Save Changes' : 'Create'}
+              {isEdit ? t('ads.saveChanges') : t('ads.create')}
             </button>
           </div>
         </form>
@@ -249,6 +272,7 @@ function AdModal({
 // ─── 主组件 ───────────────────────────────────────────────────────────────────
 
 export function AdsManagement() {
+  const { t } = useTranslation();
   const [queryParams, setQueryParams] = useState<QueryAdsParams>({
     page: 1,
     pageSize: 20,
@@ -276,9 +300,9 @@ export function AdsManagement() {
 
   const handleDelete = (ad: Advertisement) => {
     ModalManager.open({
-      title: 'Delete Advertisement',
-      content: `Delete "${ad.title ?? ad.id}"?`,
-      confirmText: 'Delete',
+      title: t('ads.deleteTitle'),
+      content: t('ads.deleteConfirm', { name: ad.title ?? ad.id }),
+      confirmText: t('ads.delete'),
       onConfirm: async () => {
         await adsApi.remove(ad.id);
         refresh();
@@ -289,9 +313,9 @@ export function AdsManagement() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        title="Advertisements"
-        description="Manage banner ads, video ads and promotional placements"
-        buttonText="New Ad"
+        title={t('ads.pageTitle')}
+        description={t('ads.pageDescription')}
+        buttonText={t('ads.newAd')}
         buttonOnClick={() => setModalAd('new')}
       />
 
@@ -309,9 +333,9 @@ export function AdsManagement() {
           }
           className="px-3 py-2 text-sm rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-teal-500/50"
         >
-          <option value="">All Status</option>
-          <option value="1">Enabled</option>
-          <option value="0">Disabled</option>
+          <option value="">{t('ads.allStatus')}</option>
+          <option value="1">{t('ads.enabled')}</option>
+          <option value="0">{t('ads.disabled')}</option>
         </select>
         <select
           value={queryParams.adPosition ?? ''}
@@ -325,7 +349,7 @@ export function AdsManagement() {
           }
           className="px-3 py-2 text-sm rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-teal-500/50"
         >
-          <option value="">All Positions</option>
+          <option value="">{t('ads.allPositions')}</option>
           {Object.entries(POSITION_LABELS).map(([v, l]) => (
             <option key={v} value={Number(v)}>
               {l}
@@ -348,12 +372,12 @@ export function AdsManagement() {
             <thead>
               <tr className="border-b border-gray-100 dark:border-white/10 bg-gray-50/50 dark:bg-white/3">
                 {[
-                  'Preview',
-                  'Title',
-                  'Position',
-                  'Schedule',
-                  'Stats',
-                  'Status',
+                  t('ads.preview'),
+                  t('ads.title'),
+                  t('ads.position'),
+                  t('ads.schedule'),
+                  t('ads.stats'),
+                  t('ads.status'),
                   '',
                 ].map((h) => (
                   <th
@@ -372,7 +396,7 @@ export function AdsManagement() {
                     colSpan={7}
                     className="px-4 py-12 text-center text-gray-400"
                   >
-                    Loading…
+                    {t('ads.loading')}
                   </td>
                 </tr>
               )}
@@ -383,7 +407,7 @@ export function AdsManagement() {
                     className="px-4 py-12 text-center text-gray-400"
                   >
                     <Megaphone size={32} className="mx-auto mb-2 opacity-30" />
-                    No ads found
+                    {t('ads.noAds')}
                   </td>
                 </tr>
               )}
@@ -412,16 +436,17 @@ export function AdsManagement() {
                   {/* Title */}
                   <td className="px-4 py-3">
                     <p className="text-sm font-medium text-gray-900 dark:text-white">
-                      {ad.title ?? '(no title)'}
+                      {ad.title ?? t('ads.noTitle')}
                     </p>
                     <p className="text-xs text-gray-400 mt-0.5">
-                      Sort #{ad.sortOrder}
+                      {t('ads.sortPrefix', { order: ad.sortOrder })}
                     </p>
                   </td>
                   {/* Position */}
                   <td className="px-4 py-3">
                     <span className="text-xs px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400">
-                      {POSITION_LABELS[ad.adPosition] ?? `Pos ${ad.adPosition}`}
+                      {POSITION_LABELS[ad.adPosition] ??
+                        t('ads.positionPrefix', { pos: ad.adPosition })}
                     </span>
                   </td>
                   {/* Schedule */}
@@ -454,7 +479,7 @@ export function AdsManagement() {
                       ) : (
                         <ToggleLeft size={13} />
                       )}
-                      {ad.status === 1 ? 'Enabled' : 'Disabled'}
+                      {ad.status === 1 ? t('ads.enabled') : t('ads.disabled')}
                     </button>
                   </td>
                   {/* Actions */}
@@ -484,8 +509,8 @@ export function AdsManagement() {
         {total > pageSize && (
           <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 dark:border-white/10">
             <span className="text-xs text-gray-400">
-              {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} of{' '}
-              {total}
+              {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)}{' '}
+              {t('ads.paginationOf')} {total}
             </span>
             <div className="flex items-center gap-2">
               <button
@@ -517,6 +542,7 @@ export function AdsManagement() {
       {/* Modal */}
       {modalAd !== null && (
         <AdModal
+          t={t}
           ad={modalAd === 'new' ? null : modalAd}
           onClose={() => setModalAd(null)}
           onSaved={refresh}

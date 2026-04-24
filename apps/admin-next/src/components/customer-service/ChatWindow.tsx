@@ -15,6 +15,7 @@ import {
 import { chatApi } from '@/api';
 import type { ChatConversation, ChatMessage } from '@/type/types';
 import { ModalManager } from '@repo/ui';
+import { useTranslation } from '@/hooks/useTranslation';
 import { MessageBubble, QuickRepliesPanel } from './index';
 
 interface ChatWindowProps {
@@ -44,10 +45,12 @@ export function ChatWindow({
   const [allMessages, setAllMessages] = useState<ChatMessage[]>([]);
   const [hasMore, setHasMore] = useState(true);
 
+  const { t } = useTranslation();
   const user =
     conversation.members.find((m) => m.role !== 'OWNER') ??
     conversation.members[0];
-  const displayName = user?.nickname ?? conversation.name ?? 'Unknown';
+  const displayName =
+    user?.nickname ?? conversation.name ?? t('customerService.unknownUser');
 
   // ── 实时消息回调注册 ──────────────────────────────────────────
   useEffect(() => {
@@ -62,12 +65,16 @@ export function ChatWindow({
       setAllMessages((prev) =>
         prev.map((m) =>
           m.id === data.messageId
-            ? { ...m, isRecalled: true, content: '[Message recalled]' }
+            ? {
+                ...m,
+                isRecalled: true,
+                content: t('customerService.messageRecalled'),
+              }
             : m,
         ),
       );
     });
-  }, [conversation.id, registerOnNewMessage, registerOnRecalled]);
+  }, [conversation.id, registerOnNewMessage, registerOnRecalled, t]);
 
   const { loading: loadingMsgs, run: fetchMessages } = useRequest(
     () =>
@@ -152,15 +159,15 @@ export function ChatWindow({
 
   const handleRecall = (messageId: string) => {
     ModalManager.open({
-      title: 'Force Recall Message',
-      content: 'Force recall this message?',
-      confirmText: 'Recall',
+      title: t('customerService.recallTitle'),
+      content: t('customerService.recallContent'),
+      confirmText: t('customerService.recallConfirm'),
       onConfirm: async () => {
         try {
           await chatApi.forceRecall(messageId);
           fetchMessages();
         } catch {
-          alert('Failed to recall message');
+          alert(t('customerService.recallFailed'));
         }
       },
     });
@@ -171,7 +178,7 @@ export function ChatWindow({
     setClosing(true);
     try {
       await chatApi.closeConversation(conversation.id, {
-        reason: 'Resolved by support agent',
+        reason: t('customerService.closeTicket'),
       });
       onMessageSent();
       fetchMessages();
@@ -214,7 +221,9 @@ export function ChatWindow({
               className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-orange-200 dark:border-orange-500/30 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-500/10 transition-colors disabled:opacity-50"
             >
               <X size={12} />
-              {closing ? 'Closing…' : 'Close Ticket'}
+              {closing
+                ? t('customerService.closing')
+                : t('customerService.closeTicket')}
             </button>
           )}
           <button
@@ -239,21 +248,21 @@ export function ChatWindow({
               className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-teal-500 transition-colors"
             >
               <ChevronUp size={14} />
-              Load earlier messages
+              {t('customerService.loadEarlier')}
             </button>
           </div>
         )}
 
         {loadingMsgs && allMessages.length === 0 && (
           <div className="flex justify-center py-8 text-gray-400 text-sm">
-            Loading messages…
+            {t('customerService.loadingMessages')}
           </div>
         )}
 
         {!loadingMsgs && allMessages.length === 0 && (
           <div className="flex flex-col items-center justify-center py-12 text-gray-400">
             <MessageSquare size={32} className="mb-2 opacity-40" />
-            <p className="text-sm">No messages yet</p>
+            <p className="text-sm">{t('customerService.noMessages')}</p>
           </div>
         )}
 
@@ -266,7 +275,7 @@ export function ChatWindow({
       {/* 回复栏 */}
       {isClosed ? (
         <div className="px-5 py-4 border-t border-gray-100 dark:border-white/10 bg-white dark:bg-gray-900 text-center text-sm text-gray-400">
-          This conversation is closed.
+          {t('customerService.conversationClosed')}
         </div>
       ) : (
         <div className="px-5 py-3 border-t border-gray-100 dark:border-white/10 bg-white dark:bg-gray-900">
@@ -305,7 +314,7 @@ export function ChatWindow({
               <div className="flex items-center gap-1 mb-1">
                 <button
                   onClick={() => setShowQuickReplies((v) => !v)}
-                  title="Quick replies"
+                  title={t('customerService.quickReplies')}
                   className={`p-1.5 rounded-lg transition-colors ${
                     showQuickReplies
                       ? 'text-yellow-500 bg-yellow-50 dark:bg-yellow-500/10'
@@ -317,7 +326,7 @@ export function ChatWindow({
                 <button
                   onClick={() => imageInputRef.current?.click()}
                   disabled={uploading}
-                  title="Send image"
+                  title={t('customerService.sendImage')}
                   className="p-1.5 rounded-lg text-gray-400 hover:text-teal-500 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors disabled:opacity-40"
                 >
                   <ImageIcon size={15} />
@@ -325,7 +334,7 @@ export function ChatWindow({
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   disabled={uploading}
-                  title="Send file"
+                  title={t('customerService.sendFile')}
                   className="p-1.5 rounded-lg text-gray-400 hover:text-teal-500 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors disabled:opacity-40"
                 >
                   <Paperclip size={15} />
@@ -339,8 +348,8 @@ export function ChatWindow({
                 onKeyDown={handleKeyDown}
                 placeholder={
                   uploading
-                    ? 'Uploading…'
-                    : 'Type a reply… (Enter to send, Shift+Enter for new line)'
+                    ? t('customerService.uploading')
+                    : t('customerService.replyPlaceholder')
                 }
                 disabled={uploading}
                 className="flex-1 resize-none text-sm px-3 py-2 rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-400 disabled:opacity-60"

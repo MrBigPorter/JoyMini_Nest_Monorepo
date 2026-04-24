@@ -6,6 +6,7 @@ import { Button } from '@repo/ui';
 import { RechargeOrder } from '@/type/types';
 import { NumHelper, TimeHelper } from '@lucky/shared';
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard';
+import { useTranslation } from '@/hooks/useTranslation';
 
 const InfoRow = ({
   label,
@@ -24,6 +25,7 @@ export const DepositDetailModal: React.FC<{
   data: RechargeOrder;
   closeAction: () => void;
 }> = ({ data, closeAction }) => {
+  const { t } = useTranslation();
   const { copy } = useCopyToClipboard();
 
   return (
@@ -32,7 +34,7 @@ export const DepositDetailModal: React.FC<{
       <div className="bg-emerald-50 dark:bg-emerald-900/20 p-4 rounded-xl border border-emerald-100 dark:border-emerald-800/30 flex justify-between items-center">
         <div>
           <div className="text-xs text-emerald-600 dark:text-emerald-400 uppercase font-bold">
-            Total Paid
+            {t('finance.depositDetail.totalPaid')}
           </div>
           <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">
             {NumHelper.formatMoney(data.rechargeAmount)}
@@ -43,13 +45,18 @@ export const DepositDetailModal: React.FC<{
       {/* 基础信息 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <InfoRow
-          label="User"
+          label={t('finance.depositDetail.user')}
           value={`${data.user?.nickname} (${data.user?.phone})`}
         />
-        <InfoRow label="Channel" value={data.paymentChannel || '--'} />
+        <InfoRow
+          label={t('finance.depositDetail.channel')}
+          value={data.paymentChannel || '--'}
+        />
 
         <div className="col-span-2">
-          <div className="text-xs text-gray-500 mb-1">Order No.</div>
+          <div className="text-xs text-gray-500 mb-1">
+            {t('finance.depositDetail.orderNo')}
+          </div>
           <div className="flex items-center gap-2 font-mono text-sm font-bold min-w-0">
             <span className="break-all [overflow-wrap:anywhere] min-w-0">
               {data.rechargeNo}
@@ -65,7 +72,7 @@ export const DepositDetailModal: React.FC<{
         {data.thirdPartyOrderNo && (
           <div className="col-span-2">
             <div className="text-xs text-gray-500 mb-1">
-              Gateway Ref ID (Xendit)
+              {t('finance.depositDetail.gatewayRefId')}
             </div>
             <div className="font-mono text-sm bg-gray-100 dark:bg-gray-800 p-1.5 rounded select-all break-all [overflow-wrap:anywhere]">
               {data.thirdPartyOrderNo}
@@ -78,11 +85,11 @@ export const DepositDetailModal: React.FC<{
       <div className="border-t pt-4 border-gray-100 dark:border-white/10">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <InfoRow
-            label="Created At"
+            label={t('finance.depositDetail.createdAt')}
             value={TimeHelper.formatDateTime(data.createdAt)}
           />
           <InfoRow
-            label="Paid At"
+            label={t('finance.depositDetail.paidAt')}
             value={data.paidAt ? TimeHelper.formatDateTime(data.paidAt) : '-'}
           />
         </div>
@@ -90,7 +97,7 @@ export const DepositDetailModal: React.FC<{
 
       <div className="flex justify-end pt-2">
         <Button onClick={closeAction} variant="outline">
-          Close
+          {t('finance.depositDetail.close')}
         </Button>
       </div>
     </div>

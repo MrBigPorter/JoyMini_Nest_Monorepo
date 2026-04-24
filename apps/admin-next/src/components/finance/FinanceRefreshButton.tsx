@@ -8,10 +8,12 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { RefreshCcw } from 'lucide-react';
+import { useTranslation } from '@/hooks/useTranslation';
 
 export function FinanceRefreshButton() {
   const router = useRouter();
   const [spinning, setSpinning] = useState(false);
+  const { t } = useTranslation();
 
   const handleRefresh = () => {
     setSpinning(true);
@@ -26,7 +28,7 @@ export function FinanceRefreshButton() {
       className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full text-sm text-slate-300 transition-all hover:text-white"
     >
       <RefreshCcw size={14} className={spinning ? 'animate-spin' : ''} />
-      Refresh Data
+      {t('finance.refresh.data')}
     </button>
   );
 }

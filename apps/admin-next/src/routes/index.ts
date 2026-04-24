@@ -66,22 +66,37 @@ export const routes: RouteConfig[] = [
   },
 
   // Commerce
-  { path: '/orders', name: 'orders', icon: Package, group: 'Commerce' },
-  { path: '/groups', name: 'groups', icon: UsersRound, group: 'Commerce' },
+  {
+    path: '/orders',
+    name: 'orderManagement',
+    icon: Package,
+    group: 'Commerce',
+  },
+  {
+    path: '/groups',
+    name: 'groupManagement',
+    icon: UsersRound,
+    group: 'Commerce',
+  },
 
   // Marketing
   { path: '/marketing', name: 'marketing', icon: Ticket, group: 'Marketing' },
-  { path: '/ads', name: 'ads', icon: Megaphone, group: 'Marketing' },
-  { path: '/flash-sale', name: 'flashSale', icon: Zap, group: 'Marketing' },
+  { path: '/ads', name: 'adManagement', icon: Megaphone, group: 'Marketing' },
+  {
+    path: '/flash-sale',
+    name: 'flashSaleMgmt',
+    icon: Zap,
+    group: 'Marketing',
+  },
   {
     path: '/lucky-draw',
-    name: 'luckyDraw',
+    name: 'luckyDrawMgmt',
     icon: Sparkles,
     group: 'Marketing',
   },
   {
     path: '/notifications',
-    name: 'notifications',
+    name: 'pushManagement',
     icon: Bell,
     group: 'Marketing',
   },
@@ -95,20 +110,30 @@ export const routes: RouteConfig[] = [
   },
   {
     path: '/support-channels',
-    name: 'supportChannels',
+    name: 'supportChannelMgmt',
     icon: Headphones,
     group: 'Customer Service',
   },
 
   // Analytics
-  { path: '/analytics', name: 'analytics', icon: PieChart, group: 'Analytics' },
+  {
+    path: '/analytics',
+    name: 'analyticsMgmt',
+    icon: PieChart,
+    group: 'Analytics',
+  },
   {
     path: '/operation-logs',
-    name: 'operationLogs',
+    name: 'operationLogMgmt',
     icon: FileText,
     group: 'Analytics',
   },
-  { path: '/login-logs', name: 'loginLogs', icon: LogIn, group: 'Analytics' },
+  {
+    path: '/login-logs',
+    name: 'loginLogMgmt',
+    icon: LogIn,
+    group: 'Analytics',
+  },
 
   // System
   { path: '/finance', name: 'finance', icon: Wallet, group: 'System' },

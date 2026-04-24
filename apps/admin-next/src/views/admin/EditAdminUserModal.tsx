@@ -16,6 +16,7 @@ import { useToastStore } from '@/store/useToastStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import { AdminUpdateUser, AdminUser } from '@/type/types';
 import { userApi } from '@/api';
+import { useTranslation } from '@/hooks/useTranslation';
 
 const editAdminUserSchema = z.object({
   realName: z.string().optional(),
@@ -38,6 +39,7 @@ export const EditAdminUserModal: React.FC<EditAdminUserModalProps> = ({
   editingUser,
   onSuccessAction,
 }) => {
+  const { t } = useTranslation();
   const addToast = useToastStore((state) => state.addToast);
   const currentUserRole = useAuthStore((state) => state.userInfo?.role);
   const isSuperAdmin = currentUserRole === 'SUPER_ADMIN';
@@ -45,10 +47,12 @@ export const EditAdminUserModal: React.FC<EditAdminUserModalProps> = ({
   // 非 SUPER_ADMIN 不能把账号设为 SUPER_ADMIN，也不能修改 SUPER_ADMIN 账号的 role
   const isEditingSuper = editingUser?.role === 'SUPER_ADMIN';
   const roleOptions = [
-    { label: 'Viewer', value: 'VIEWER' },
-    { label: 'Editor', value: 'EDITOR' },
-    { label: 'Admin', value: 'ADMIN' },
-    ...(isSuperAdmin ? [{ label: 'Super Admin', value: 'SUPER_ADMIN' }] : []),
+    { label: t('adminUsers.roleViewer'), value: 'VIEWER' },
+    { label: t('adminUsers.roleEditor'), value: 'EDITOR' },
+    { label: t('adminUsers.roleAdmin'), value: 'ADMIN' },
+    ...(isSuperAdmin
+      ? [{ label: t('adminUsers.roleSuperAdmin'), value: 'SUPER_ADMIN' }]
+      : []),
   ];
   // 非 SUPER_ADMIN 编辑 SUPER_ADMIN 账号时，role 字段锁定（只读）
   const roleDisabled = isEditingSuper && !isSuperAdmin;
@@ -68,7 +72,7 @@ export const EditAdminUserModal: React.FC<EditAdminUserModalProps> = ({
     {
       manual: true,
       onSuccess: () => {
-        addToast('success', 'Admin user updated successfully');
+        addToast('success', t('adminUsers.updatedSuccess'));
         onSuccessAction();
         onCloseAction();
       },
@@ -96,17 +100,19 @@ export const EditAdminUserModal: React.FC<EditAdminUserModalProps> = ({
     <Modal
       isOpen={isOpen}
       onCloseAction={onCloseAction}
-      title={`Edit Admin User: ${editingUser?.username}`}
+      title={t('adminUsers.editTitle', {
+        username: editingUser?.username ?? '',
+      })}
       size="lg"
     >
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <Input
-          label="Real Name"
+          label={t('adminUsers.fieldRealName')}
           error={errors.realName?.message}
           {...register('realName')}
         />
         <Select
-          label="Role"
+          label={t('adminUsers.fieldRole')}
           disabled={roleDisabled}
           {...register('role')}
           options={roleOptions}
@@ -118,7 +124,7 @@ export const EditAdminUserModal: React.FC<EditAdminUserModalProps> = ({
         )}
         <div className="flex items-center justify-between">
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-            Status
+            {t('adminUsers.fieldStatus')}
           </label>
           <Controller
             name="status"
@@ -134,11 +140,11 @@ export const EditAdminUserModal: React.FC<EditAdminUserModalProps> = ({
         </div>
         {roleDisabled && (
           <p className="text-xs text-amber-500">
-            Only Super Admin can modify a Super Admin account.
+            {t('adminUsers.onlySuperAdminAccount')}
           </p>
         )}
         <Button type="submit" isLoading={isUpdating}>
-          Save Changes
+          {t('adminUsers.saveChanges')}
         </Button>
       </form>
     </Modal>

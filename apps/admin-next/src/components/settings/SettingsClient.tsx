@@ -20,6 +20,7 @@ import type { SystemConfigItem } from '@/type/types';
 import { useToastStore } from '@/store/useToastStore.ts';
 import { ModalManager, Switch } from '@repo/ui';
 import { useAvailableLocales } from '@/hooks/useAvailableLocales';
+import { useTranslation } from '@/hooks/useTranslation';
 
 /** Common key readable labels and descriptions */
 const CONFIG_META: Record<string, { label: string; description?: string }> = {
@@ -50,22 +51,32 @@ const CONFIG_META: Record<string, { label: string; description?: string }> = {
     description: '1 = required, 0 = optional',
   },
   'blog.translation.defaultSourceLang': {
-    label: '翻译默认源语言',
-    description: 'AI翻译的默认源语言，默认为中文(zh)',
+    label: 'Default Source Language for Translation',
+    description:
+      'Default source language for AI translation, defaults to Chinese (zh)',
   },
   'blog.translation.sourceLangDetection': {
-    label: '源语言检测策略',
+    label: 'Source Language Detection Strategy',
     description:
-      'auto|manual|hybrid (hybrid: 优先使用Localized字段检测，失败时使用系统默认值)',
+      'auto|manual|hybrid (hybrid: prefer Localized field detection, fall back to system default on failure)',
   },
   'blog.translation.fallbackChain': {
-    label: '源语言回退链',
-    description: 'JSON数组，按顺序尝试，如["zh", "en", "ja", "ko", "fr", "de"]',
+    label: 'Source Language Fallback Chain',
+    description:
+      'JSON array, tried in order, e.g. ["zh", "en", "ja", "ko", "fr", "de"]',
   },
 };
 
+type TFunc = (key: string, params?: Record<string, string | number>) => string;
+
 // New: Create configuration form component
-function CreateConfigForm({ onCreated }: { onCreated: () => void }) {
+function CreateConfigForm({
+  onCreated,
+  t,
+}: {
+  onCreated: () => void;
+  t: TFunc;
+}) {
   const [key, setKey] = useState('');
   const [value, setValue] = useState('');
   const [creating, setCreating] = useState(false);
@@ -88,7 +99,9 @@ function CreateConfigForm({ onCreated }: { onCreated: () => void }) {
       if (!status || status < 400 || status >= 500)
         console.error('Failed to create config:', error);
       alert(
-        `Create failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        t('systemConfig.createFailed', {
+          message: error instanceof Error ? error.message : 'Unknown error',
+        }),
       );
     } finally {
       setCreating(false);
@@ -102,7 +115,7 @@ function CreateConfigForm({ onCreated }: { onCreated: () => void }) {
         className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-teal-500 rounded-lg hover:bg-teal-600 transition-colors"
       >
         <Plus size={16} />
-        Create New Configuration
+        {t('systemConfig.createNew')}
       </button>
     );
   }
@@ -111,7 +124,7 @@ function CreateConfigForm({ onCreated }: { onCreated: () => void }) {
     <div className="p-4 mb-4 border border-gray-200 dark:border-white/10 rounded-xl bg-gray-50 dark:bg-white/5">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-          Create New Configuration
+          {t('systemConfig.createNew')}
         </h3>
         <button
           onClick={() => setShowForm(false)}
@@ -124,31 +137,30 @@ function CreateConfigForm({ onCreated }: { onCreated: () => void }) {
       <div className="space-y-3">
         <div>
           <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Configuration Key
+            {t('systemConfig.configKey')}
           </label>
           <input
             type="text"
             value={key}
             onChange={(e) => setKey(e.target.value)}
-            placeholder="e.g.: max_login_attempts"
+            placeholder={t('systemConfig.configKeyPlaceholder')}
             className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-gray-800"
             autoFocus
           />
           <p className="mt-1 text-xs text-gray-500">
-            Unique identifier, recommended to use lowercase letters and
-            underscores
+            {t('systemConfig.configKeyHint')}
           </p>
         </div>
 
         <div>
           <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Configuration Value
+            {t('systemConfig.configValue')}
           </label>
           <input
             type="text"
             value={value}
             onChange={(e) => setValue(e.target.value)}
-            placeholder="e.g.: 5"
+            placeholder={t('systemConfig.configValuePlaceholder')}
             className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-gray-800"
           />
         </div>
@@ -159,13 +171,15 @@ function CreateConfigForm({ onCreated }: { onCreated: () => void }) {
             disabled={creating || !key.trim() || !value.trim()}
             className="px-4 py-2 text-sm font-medium text-white bg-teal-500 rounded-lg hover:bg-teal-600 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {creating ? 'Creating...' : 'Create Configuration'}
+            {creating
+              ? t('systemConfig.creating')
+              : t('systemConfig.createConfig')}
           </button>
           <button
             onClick={() => setShowForm(false)}
             className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-white/10 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5"
           >
-            Cancel
+            {t('systemConfig.cancel')}
           </button>
         </div>
       </div>
@@ -177,10 +191,12 @@ function ConfigRow({
   item,
   onSave,
   onDelete,
+  t,
 }: {
   item: SystemConfigItem;
   onSave: (key: string, value: string) => Promise<void>;
   onDelete: (key: string) => Promise<void>;
+  t: TFunc;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(item.value);
@@ -205,9 +221,11 @@ function ConfigRow({
 
   const handleDelete = async () => {
     ModalManager.open({
-      title: 'Confirm Deletion',
-      content: `Are you sure you want to delete the configuration "${meta?.label ?? item.key}"? This action cannot be undone.`,
-      confirmText: 'Delete',
+      title: t('systemConfig.confirmDeleteTitle'),
+      content: t('systemConfig.confirmDeleteContent', {
+        label: meta?.label ?? item.key,
+      }),
+      confirmText: t('systemConfig.confirmDeleteText'),
       onConfirm: async () => {
         setDeleting(true);
         try {
@@ -215,7 +233,9 @@ function ConfigRow({
         } catch (error) {
           addToast(
             'error',
-            `Delete failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            t('systemConfig.deleteFailed', {
+              message: error instanceof Error ? error.message : 'Unknown error',
+            }),
           );
         } finally {
           setDeleting(false);
@@ -315,11 +335,13 @@ interface SystemConfigProps {
 
 type Tab = 'general' | 'locales' | 'translation';
 
-function LocaleSettingsContent() {
+function LocaleSettingsContent({ t }: { t: TFunc }) {
   const { locales, toggleLocale, loading } = useAvailableLocales();
 
   if (loading) {
-    return <div className="p-8 text-center">Loading...</div>;
+    return (
+      <div className="p-8 text-center">{t('systemConfig.localeLoading')}</div>
+    );
   }
 
   return (
@@ -347,19 +369,19 @@ function LocaleSettingsContent() {
       </div>
 
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
-        <p className="font-medium mb-2">💡 提示</p>
+        <p className="font-medium mb-2">💡 {t('systemConfig.localeTip1')}</p>
         <ul className="list-disc list-inside space-y-1">
-          <li>关闭语言不会删除已有的翻译内容</li>
-          <li>重新打开语言时，之前的翻译会自动恢复</li>
-          <li>新启用的语言会在后台自动开始翻译所有历史内容</li>
-          <li>默认语言 (中文) 无法关闭</li>
+          <li>{t('systemConfig.localeTip1')}</li>
+          <li>{t('systemConfig.localeTip2')}</li>
+          <li>{t('systemConfig.localeTip3')}</li>
+          <li>{t('systemConfig.localeTip4')}</li>
         </ul>
       </div>
     </div>
   );
 }
 
-function TranslationSettingsContent() {
+function TranslationSettingsContent({ t }: { t: TFunc }) {
   const {
     data: sourceLang,
     loading,
@@ -389,46 +411,56 @@ function TranslationSettingsContent() {
   };
 
   if (loading) {
-    return <div className="p-8 text-center animate-pulse">加载翻译设置...</div>;
+    return (
+      <div className="p-8 text-center animate-pulse">
+        {t('systemConfig.translationLoading')}
+      </div>
+    );
   }
 
   if (error) {
     return (
       <div className="p-8 text-center text-red-600">
         <AlertTriangle className="mx-auto mb-2" />
-        加载失败，请刷新页面
+        {t('systemConfig.translationError')}
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      {/* 源语言配置 */}
+      {/* Source Language Configuration */}
       <div className="rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-gray-900 p-6">
-        <h3 className="text-lg font-semibold mb-4">源语言配置</h3>
+        <h3 className="text-lg font-semibold mb-4">
+          {t('systemConfig.sourceLangTitle')}
+        </h3>
         <p className="text-sm text-gray-500 mb-6">
-          设置AI翻译的默认源语言。当创建多语言内容时，系统会以此语言作为翻译的基准。
+          {t('systemConfig.sourceLangDesc')}
         </p>
 
         <div className="space-y-4">
           <div className="flex items-center justify-between py-3 border-b border-gray-100 dark:border-white/5">
             <div>
-              <div className="font-medium">当前源语言</div>
+              <div className="font-medium">
+                {t('systemConfig.currentSourceLang')}
+              </div>
               <div className="text-sm text-gray-500">
                 {sourceLang?.nativeName ||
                   sourceLang?.name ||
                   sourceLang?.code ||
                   'zh'}{' '}
-                (代码: {sourceLang?.code || 'zh'})
+                ({t('systemConfig.code', { code: sourceLang?.code || 'zh' })})
               </div>
             </div>
             <div className="text-sm font-medium text-teal-600">
-              {saving ? '保存中...' : '已配置'}
+              {saving ? t('systemConfig.saving') : t('systemConfig.configured')}
             </div>
           </div>
 
           <div className="pt-4">
-            <div className="text-sm font-medium mb-3">选择新的源语言</div>
+            <div className="text-sm font-medium mb-3">
+              {t('systemConfig.selectNewSourceLang')}
+            </div>
             <div className="flex flex-wrap gap-2">
               {enabledLocales.map((locale) => (
                 <button
@@ -449,44 +481,53 @@ function TranslationSettingsContent() {
         </div>
       </div>
 
-      {/* 翻译策略配置 */}
+      {/* Translation Strategy Configuration */}
       <div className="rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-gray-900 p-6">
-        <h3 className="text-lg font-semibold mb-4">翻译策略配置</h3>
+        <h3 className="text-lg font-semibold mb-4">
+          {t('systemConfig.strategyTitle')}
+        </h3>
         <p className="text-sm text-gray-500 mb-6">
-          这些配置控制AI翻译的行为和策略。修改后会影响所有新内容的翻译。
+          {t('systemConfig.strategyDesc')}
         </p>
 
         <div className="space-y-4">
           <div className="flex items-center justify-between py-3 border-b border-gray-100 dark:border-white/5">
             <div>
-              <div className="font-medium">源语言检测策略</div>
+              <div className="font-medium">
+                {t('systemConfig.detectionStrategy')}
+              </div>
               <div className="text-sm text-gray-500">
-                auto|manual|hybrid (hybrid:
-                优先使用Localized字段检测，失败时使用系统默认值)
+                {t('systemConfig.detectionStrategyDesc')}
               </div>
             </div>
-            <div className="text-sm text-gray-500">通过系统配置管理</div>
+            <div className="text-sm text-gray-500">
+              {t('systemConfig.managedViaConfig')}
+            </div>
           </div>
 
           <div className="flex items-center justify-between py-3 border-b border-gray-100 dark:border-white/5">
             <div>
-              <div className="font-medium">源语言回退链</div>
+              <div className="font-medium">
+                {t('systemConfig.fallbackChain')}
+              </div>
               <div className="text-sm text-gray-500">
-                JSON数组，按顺序尝试，如["zh", "en", "ja", "ko", "fr", "de"]
+                {t('systemConfig.fallbackChainDesc')}
               </div>
             </div>
-            <div className="text-sm text-gray-500">通过系统配置管理</div>
+            <div className="text-sm text-gray-500">
+              {t('systemConfig.managedViaConfig')}
+            </div>
           </div>
         </div>
       </div>
 
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
-        <p className="font-medium mb-2">💡 翻译配置说明</p>
+        <p className="font-medium mb-2">💡 {t('systemConfig.strategyTitle')}</p>
         <ul className="list-disc list-inside space-y-1">
-          <li>源语言是AI翻译的基准语言，建议设置为内容最多的语言</li>
-          <li>修改源语言不会影响已有的翻译内容</li>
-          <li>新创建的内容会使用新的源语言进行翻译</li>
-          <li>翻译策略配置可以在"通用配置"标签页中修改</li>
+          <li>{t('systemConfig.strategyTip1')}</li>
+          <li>{t('systemConfig.strategyTip2')}</li>
+          <li>{t('systemConfig.strategyTip3')}</li>
+          <li>{t('systemConfig.strategyTip4')}</li>
         </ul>
       </div>
     </div>
@@ -494,6 +535,7 @@ function TranslationSettingsContent() {
 }
 
 export function SystemConfig({ initialData }: SystemConfigProps) {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<Tab>('general');
   const [configs, setConfigs] = useState<SystemConfigItem[]>(
     initialData?.list ?? [],
@@ -520,8 +562,8 @@ export function SystemConfig({ initialData }: SystemConfigProps) {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        title="System Config"
-        description="Platform-wide KV configuration — click any value to edit inline"
+        title={t('systemConfig.pageTitle')}
+        description={t('systemConfig.pageDescription')}
       />
 
       {/* Tab Navigation */}
@@ -535,7 +577,7 @@ export function SystemConfig({ initialData }: SystemConfigProps) {
           }`}
         >
           <Settings size={16} />
-          通用配置
+          {t('systemConfig.tabGeneral')}
         </button>
         <button
           onClick={() => setActiveTab('locales')}
@@ -546,7 +588,7 @@ export function SystemConfig({ initialData }: SystemConfigProps) {
           }`}
         >
           <Globe size={16} />
-          语言设置
+          {t('systemConfig.tabLocales')}
         </button>
         <button
           onClick={() => setActiveTab('translation')}
@@ -557,7 +599,7 @@ export function SystemConfig({ initialData }: SystemConfigProps) {
           }`}
         >
           <Languages size={16} />
-          翻译设置
+          {t('systemConfig.tabTranslation')}
         </button>
       </div>
 
@@ -567,10 +609,14 @@ export function SystemConfig({ initialData }: SystemConfigProps) {
           <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-white/10">
             <div className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
               <Settings size={16} className="text-teal-500" />
-              {configs.length} config item{configs.length !== 1 ? 's' : ''}
+              {configs.length === 1
+                ? t('systemConfig.configCount', { count: configs.length })
+                : t('systemConfig.configCount_plural', {
+                    count: configs.length,
+                  })}
             </div>
             <div className="flex items-center gap-2">
-              <CreateConfigForm onCreated={refresh} />
+              <CreateConfigForm onCreated={refresh} t={t} />
               <button
                 onClick={refresh}
                 disabled={loading}
@@ -588,13 +634,13 @@ export function SystemConfig({ initialData }: SystemConfigProps) {
           <div className="px-5">
             {loading && configs.length === 0 && (
               <div className="py-12 text-center text-gray-400 text-sm">
-                Loading…
+                {t('systemConfig.loading')}
               </div>
             )}
             {!loading && configs.length === 0 && (
               <div className="py-12 text-center text-gray-400 text-sm">
                 <Settings size={32} className="mx-auto mb-2 opacity-30" />
-                No config items found
+                {t('systemConfig.emptyState')}
               </div>
             )}
             {configs.map((item) => (
@@ -603,25 +649,21 @@ export function SystemConfig({ initialData }: SystemConfigProps) {
                 item={item}
                 onSave={handleSave}
                 onDelete={handleDelete}
+                t={t}
               />
             ))}
           </div>
         </div>
       )}
 
-      {activeTab === 'locales' && <LocaleSettingsContent />}
-      {activeTab === 'translation' && <TranslationSettingsContent />}
+      {activeTab === 'locales' && <LocaleSettingsContent t={t} />}
+      {activeTab === 'translation' && <TranslationSettingsContent t={t} />}
 
       <div className="text-xs text-gray-400 px-1">
-        💡 Press{' '}
-        <kbd className="px-1 py-0.5 rounded bg-gray-100 dark:bg-white/10">
-          Enter
-        </kbd>{' '}
-        to save,{' '}
-        <kbd className="px-1 py-0.5 rounded bg-gray-100 dark:bg-white/10">
-          Esc
-        </kbd>{' '}
-        to cancel.
+        {t('systemConfig.keyboardHint', {
+          enterKey: 'Enter',
+          escKey: 'Esc',
+        })}
       </div>
     </div>
   );

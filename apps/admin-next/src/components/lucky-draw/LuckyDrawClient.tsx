@@ -21,6 +21,8 @@ import { z } from 'zod';
 import { ModalManager } from '@repo/ui';
 import { luckyDrawApi } from '@/api';
 import { PageHeader } from '@/components/scaffold/PageHeader';
+import { useTranslation } from '@/hooks/useTranslation';
+import type { TFunc } from '@/hooks/useTranslation';
 import type {
   CreateLuckyDrawActivityPayload,
   CreateLuckyDrawPrizePayload,
@@ -31,182 +33,165 @@ import type {
   QueryLuckyDrawResultsParams,
 } from '@/type/types';
 
-const PRIZE_TYPE_LABELS: Record<LuckyDrawPrizeType, string> = {
-  1: 'Coupon',
-  2: 'Coins',
-  3: 'Balance',
-  4: 'No Prize',
-};
-
 const PRIZE_TYPE_COLORS: Record<LuckyDrawPrizeType, string> = {
-  1: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
-  2: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300',
-  3: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
-  4: 'bg-gray-100 text-gray-500 dark:bg-gray-800/50 dark:text-gray-400',
+  1: 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400',
+  2: 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400',
+  3: 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400',
+  4: 'bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500',
 };
-
-const activitySchema = z
-  .object({
-    title: z.string().trim().min(1, 'Title is required'),
-    description: z.string(),
-    treasureId: z.string(),
-    status: z.number().int().min(0).max(1),
-    startAt: z.string(),
-    endAt: z.string(),
-  })
-  .superRefine((value, ctx) => {
-    if (
-      value.startAt &&
-      value.endAt &&
-      new Date(value.startAt) >= new Date(value.endAt)
-    ) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['endAt'],
-        message: 'End time must be later than start time',
-      });
-    }
-  });
-
-type ActivityForm = z.infer<typeof activitySchema>;
-
-const prizeSchema = z
-  .object({
-    prizeType: z.number().int().min(1).max(4),
-    prizeName: z.string().trim().min(1, 'Prize name is required'),
-    couponId: z.string(),
-    prizeValue: z.string(),
-    probability: z.string().trim().min(1, 'Probability is required'),
-    stock: z.string(),
-    sortOrder: z.string(),
-  })
-  .superRefine((value, ctx) => {
-    const probability = Number(value.probability);
-
-    if (Number.isNaN(probability) || probability < 0 || probability > 100) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['probability'],
-        message: 'Probability must be between 0 and 100',
-      });
-    }
-
-    if (value.prizeType === 1 && !value.couponId.trim()) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['couponId'],
-        message: 'Coupon ID is required for coupon prizes',
-      });
-    }
-
-    if (
-      (value.prizeType === 2 || value.prizeType === 3) &&
-      !value.prizeValue.trim()
-    ) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['prizeValue'],
-        message: 'Amount is required for coin/balance prizes',
-      });
-    }
-  });
-
-type PrizeForm = z.infer<typeof prizeSchema>;
 
 const toLocalDateTimeValue = (value?: number | null) => {
   if (!value) return '';
-  return format(new Date(value), "yyyy-MM-dd'T'HH:mm");
+  const d = new Date(value);
+  const offset = d.getTimezoneOffset();
+  const local = new Date(d.getTime() - offset * 60_000);
+  return local.toISOString().slice(0, 16);
 };
 
 const formatDateTime = (value?: number | null) => {
   if (!value) return '—';
-  return format(new Date(value), 'MM/dd HH:mm');
+  return format(new Date(value), 'yyyy-MM-dd HH:mm');
 };
 
 const shortId = (value?: string | null) => {
   if (!value) return '—';
-  return value.length > 8 ? `${value.slice(0, 8)}…` : value;
+  return value.length > 10 ? `${value.slice(0, 6)}…${value.slice(-4)}` : value;
 };
-
-const formatActivityCount = (count: number) =>
-  `${count} ${count === 1 ? 'activity' : 'activities'}`;
 
 function ActivityModal({
   activity,
   onClose,
   onSaved,
+  t,
 }: {
   activity: LuckyDrawActivity | null;
   onClose: () => void;
   onSaved: () => void;
+  t: TFunc;
 }) {
-  const isEdit = Boolean(activity);
-  const [saving, setSaving] = useState(false);
+  const isEdit = activity !== null;
+
+  const activitySchema = useMemo(
+    () =>
+      z
+        .object({
+          title: z.string().min(1, t('luckyDraw.titleIsRequired')),
+          description: z.string().optional(),
+          treasureId: z.string().optional(),
+          startAt: z.string().min(1),
+          endAt: z.string().min(1),
+          status: z.number(),
+        })
+        .superRefine((value, ctx) => {
+          if (value.startAt && value.endAt) {
+            const start = new Date(value.startAt).getTime();
+            const end = new Date(value.endAt).getTime();
+            if (end <= start) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: t('luckyDraw.endTimeAfterStart'),
+                path: ['endAt'],
+              });
+            }
+          }
+        }),
+    [t],
+  );
+
+  type ActivityForm = z.infer<typeof activitySchema>;
 
   const {
     register,
     handleSubmit,
+    reset,
     formState: { errors },
   } = useForm<ActivityForm>({
     resolver: zodResolver(activitySchema),
     defaultValues: {
-      title: activity?.title ?? '',
-      description: activity?.description ?? '',
-      treasureId: activity?.treasureId ?? '',
-      status: activity?.status ?? 1,
-      startAt: toLocalDateTimeValue(activity?.startAt),
-      endAt: toLocalDateTimeValue(activity?.endAt),
+      title: '',
+      description: '',
+      treasureId: '',
+      startAt: '',
+      endAt: '',
+      status: 1,
     },
   });
 
-  const onSubmit = async (values: ActivityForm) => {
-    setSaving(true);
+  useEffect(() => {
+    if (activity) {
+      reset({
+        title: activity.title,
+        description: activity.description ?? '',
+        treasureId: activity.treasureId ?? '',
+        startAt: toLocalDateTimeValue(activity.startAt),
+        endAt: toLocalDateTimeValue(activity.endAt),
+        status: activity.status,
+      });
+    } else {
+      reset({
+        title: '',
+        description: '',
+        treasureId: '',
+        startAt: '',
+        endAt: '',
+        status: 1,
+      });
+    }
+  }, [activity, reset]);
 
-    try {
+  const { run: doSave, loading: saving } = useRequest(
+    async (values: ActivityForm) => {
       const payload: CreateLuckyDrawActivityPayload = {
-        title: values.title.trim(),
-        description: values.description.trim() || undefined,
-        treasureId: values.treasureId.trim() || undefined,
-        status: values.status,
+        title: values.title,
+        description: values.description || undefined,
+        treasureId: values.treasureId || undefined,
         startAt: values.startAt || undefined,
         endAt: values.endAt || undefined,
+        status: values.status,
       };
-
-      if (activity) {
+      if (isEdit) {
         await luckyDrawApi.updateActivity(activity.id, payload);
       } else {
         await luckyDrawApi.createActivity(payload);
       }
+    },
+    {
+      manual: true,
+      onSuccess: () => {
+        onSaved();
+        onClose();
+      },
+    },
+  );
 
-      onSaved();
-      onClose();
-    } finally {
-      setSaving(false);
-    }
+  const onSubmit = async (values: ActivityForm) => {
+    await doSave(values);
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-gray-900">
-        <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4 dark:border-white/10">
-          <h3 className="text-base font-semibold text-gray-900 dark:text-white">
-            {isEdit ? 'Edit Activity' : 'New Activity'}
-          </h3>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-900">
+        <div className="mb-5 flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+            {isEdit ? t('luckyDraw.editActivity') : t('luckyDraw.newActivity')}
+          </h2>
           <button
             onClick={onClose}
-            className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-white/5 dark:hover:text-gray-200"
+            className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-white/5"
           >
-            <X size={16} />
+            <X size={18} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 p-5">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500">Title *</label>
+            <label className="text-xs text-gray-500">
+              {t('luckyDraw.titleRequired')}
+            </label>
             <input
               {...register('title')}
-              placeholder="e.g. Spring Lucky Draw"
-              className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-teal-500/50 dark:border-white/10 dark:bg-white/5 dark:text-white"
+              placeholder={t('luckyDraw.titlePlaceholder')}
+              className="rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/50 dark:border-white/10 dark:bg-gray-800 dark:text-gray-200"
             />
             {errors.title && (
               <p className="text-xs text-red-500">{errors.title.message}</p>
@@ -214,41 +199,49 @@ function ActivityModal({
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500">Description</label>
+            <label className="text-xs text-gray-500">
+              {t('luckyDraw.description')}
+            </label>
             <textarea
               {...register('description')}
               rows={3}
-              className="resize-none rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-teal-500/50 dark:border-white/10 dark:bg-white/5 dark:text-white"
+              className="rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/50 dark:border-white/10 dark:bg-gray-800 dark:text-gray-200"
             />
           </div>
 
           <div className="flex flex-col gap-1">
             <label className="text-xs text-gray-500">
-              Treasure ID{' '}
-              <span className="text-gray-400">(optional, empty = all)</span>
+              {t('luckyDraw.treasureId')}
             </label>
             <input
               {...register('treasureId')}
-              placeholder="treasure_xxx"
-              className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-teal-500/50 dark:border-white/10 dark:bg-white/5 dark:text-white"
+              placeholder={t('luckyDraw.treasureIdPlaceholder')}
+              className="rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/50 dark:border-white/10 dark:bg-gray-800 dark:text-gray-200"
             />
+            <p className="text-[10px] text-gray-400">
+              {t('luckyDraw.treasureIdHint')}
+            </p>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-gray-500">Start Time</label>
+              <label className="text-xs text-gray-500">
+                {t('luckyDraw.startTime')}
+              </label>
               <input
                 type="datetime-local"
                 {...register('startAt')}
-                className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-teal-500/50 dark:border-white/10 dark:bg-white/5 dark:text-white"
+                className="rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/50 dark:border-white/10 dark:bg-gray-800 dark:text-gray-200"
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-gray-500">End Time</label>
+              <label className="text-xs text-gray-500">
+                {t('luckyDraw.endTime')}
+              </label>
               <input
                 type="datetime-local"
                 {...register('endAt')}
-                className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-teal-500/50 dark:border-white/10 dark:bg-white/5 dark:text-white"
+                className="rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/50 dark:border-white/10 dark:bg-gray-800 dark:text-gray-200"
               />
               {errors.endAt && (
                 <p className="text-xs text-red-500">{errors.endAt.message}</p>
@@ -257,13 +250,15 @@ function ActivityModal({
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500">Status</label>
+            <label className="text-xs text-gray-500">
+              {t('luckyDraw.status')}
+            </label>
             <select
               {...register('status', { valueAsNumber: true })}
-              className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-teal-500/50 dark:border-white/10 dark:bg-white/5 dark:text-white"
+              className="rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/50 dark:border-white/10 dark:bg-gray-800 dark:text-gray-200"
             >
-              <option value={1}>Active</option>
-              <option value={0}>Inactive</option>
+              <option value={1}>{t('luckyDraw.active')}</option>
+              <option value={0}>{t('luckyDraw.inactive')}</option>
             </select>
           </div>
 
@@ -271,21 +266,17 @@ function ActivityModal({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-xl border border-gray-200 px-4 py-2 text-sm text-gray-600 transition-colors hover:bg-gray-50 dark:border-white/10 dark:text-gray-300 dark:hover:bg-white/5"
+              className="rounded-xl border border-gray-200 px-4 py-2 text-sm text-gray-600 transition-colors hover:bg-gray-50 dark:border-white/10 dark:text-gray-400 dark:hover:bg-white/5"
             >
-              Cancel
+              {t('luckyDraw.cancel')}
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="flex items-center gap-2 rounded-xl bg-teal-500 px-4 py-2 text-sm text-white transition-colors hover:bg-teal-600 disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-xl bg-teal-500 px-4 py-2 text-sm text-white transition-colors hover:bg-teal-600 disabled:opacity-50"
             >
-              {saving ? (
-                <RefreshCw size={13} className="animate-spin" />
-              ) : (
-                <Save size={13} />
-              )}
-              {isEdit ? 'Save' : 'Create'}
+              <Save size={14} />
+              {isEdit ? t('luckyDraw.save') : t('luckyDraw.create')}
             </button>
           </div>
         </form>
@@ -299,99 +290,174 @@ function PrizeModal({
   prize,
   onClose,
   onSaved,
+  t,
 }: {
   activityId: string;
   prize: LuckyDrawPrize | null;
   onClose: () => void;
   onSaved: () => void;
+  t: TFunc;
 }) {
-  const [saving, setSaving] = useState(false);
+  const isEdit = prize !== null;
+
+  const prizeSchema = useMemo(
+    () =>
+      z
+        .object({
+          prizeType: z.number(),
+          prizeName: z.string().min(1, t('luckyDraw.prizeNameIsRequired')),
+          couponId: z.string().optional(),
+          amount: z.number().optional(),
+          probability: z
+            .number()
+            .min(0, t('luckyDraw.probabilityRange'))
+            .max(100, t('luckyDraw.probabilityRange')),
+          stock: z.number().optional(),
+          sortOrder: z.number().optional(),
+        })
+        .superRefine((value, ctx) => {
+          if (value.prizeType === 1 && !value.couponId) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: t('luckyDraw.couponIdForCoupon'),
+              path: ['couponId'],
+            });
+          }
+          if (
+            (value.prizeType === 2 || value.prizeType === 3) &&
+            (value.amount == null || value.amount <= 0)
+          ) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: t('luckyDraw.amountForCoinBalance'),
+              path: ['amount'],
+            });
+          }
+        }),
+    [t],
+  );
+
+  type PrizeForm = z.infer<typeof prizeSchema>;
 
   const {
     register,
     handleSubmit,
+    reset,
     watch,
     formState: { errors },
   } = useForm<PrizeForm>({
     resolver: zodResolver(prizeSchema),
     defaultValues: {
-      prizeType: prize?.prizeType ?? 4,
-      prizeName: prize?.prizeName ?? '',
-      couponId: prize?.couponId ?? '',
-      prizeValue: prize?.prizeValue != null ? String(prize.prizeValue) : '',
-      probability: prize?.probability != null ? String(prize.probability) : '',
-      stock: prize?.stock != null ? String(prize.stock) : '-1',
-      sortOrder: prize?.sortOrder != null ? String(prize.sortOrder) : '0',
+      prizeType: 1,
+      prizeName: '',
+      couponId: '',
+      amount: undefined,
+      probability: 0,
+      stock: -1,
+      sortOrder: 0,
     },
   });
 
   const prizeType = watch('prizeType');
 
-  const onSubmit = async (values: PrizeForm) => {
-    setSaving(true);
+  useEffect(() => {
+    if (prize) {
+      reset({
+        prizeType: prize.prizeType,
+        prizeName: prize.prizeName,
+        couponId: prize.couponId ?? '',
+        amount: prize.prizeValue ?? undefined,
+        probability: prize.probability,
+        stock: prize.stock,
+        sortOrder: prize.sortOrder ?? 0,
+      });
+    } else {
+      reset({
+        prizeType: 1,
+        prizeName: '',
+        couponId: '',
+        amount: undefined,
+        probability: 0,
+        stock: -1,
+        sortOrder: 0,
+      });
+    }
+  }, [prize, reset]);
 
-    try {
+  const { run: doSave, loading: saving } = useRequest(
+    async (values: PrizeForm) => {
       const payload: CreateLuckyDrawPrizePayload = {
         activityId,
         prizeType: values.prizeType as LuckyDrawPrizeType,
-        prizeName: values.prizeName.trim(),
-        couponId: values.couponId.trim() || undefined,
-        prizeValue: values.prizeValue.trim()
-          ? Number(values.prizeValue)
-          : undefined,
-        probability: Number(values.probability),
-        stock: values.stock.trim() ? Number(values.stock) : -1,
-        sortOrder: values.sortOrder.trim() ? Number(values.sortOrder) : 0,
+        prizeName: values.prizeName,
+        couponId:
+          values.prizeType === 1 ? values.couponId || undefined : undefined,
+        prizeValue:
+          values.prizeType === 2 || values.prizeType === 3
+            ? values.amount
+            : undefined,
+        probability: values.probability,
+        stock: values.stock ?? -1,
+        sortOrder: values.sortOrder ?? 0,
       };
-
-      if (prize) {
+      if (isEdit) {
         await luckyDrawApi.updatePrize(prize.id, payload);
       } else {
         await luckyDrawApi.createPrize(payload);
       }
+    },
+    {
+      manual: true,
+      onSuccess: () => {
+        onSaved();
+        onClose();
+      },
+    },
+  );
 
-      onSaved();
-      onClose();
-    } finally {
-      setSaving(false);
-    }
+  const onSubmit = async (values: PrizeForm) => {
+    await doSave(values);
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-gray-900">
-        <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4 dark:border-white/10">
-          <h3 className="text-base font-semibold text-gray-900 dark:text-white">
-            {prize ? 'Edit Prize' : 'Add Prize'}
-          </h3>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-900">
+        <div className="mb-5 flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+            {isEdit ? t('luckyDraw.editPrize') : t('luckyDraw.addPrize')}
+          </h2>
           <button
             onClick={onClose}
-            className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-white/5 dark:hover:text-gray-200"
+            className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-white/5"
           >
-            <X size={16} />
+            <X size={18} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 p-5">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500">Prize Type *</label>
+            <label className="text-xs text-gray-500">
+              {t('luckyDraw.prizeTypeRequired')}
+            </label>
             <select
               {...register('prizeType', { valueAsNumber: true })}
-              className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-teal-500/50 dark:border-white/10 dark:bg-white/5 dark:text-white"
+              className="rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/50 dark:border-white/10 dark:bg-gray-800 dark:text-gray-200"
             >
-              <option value={1}>Coupon</option>
-              <option value={2}>Coins</option>
-              <option value={3}>Balance</option>
-              <option value={4}>No Prize</option>
+              <option value={1}>{t('luckyDraw.prizeTypeCoupon')}</option>
+              <option value={2}>{t('luckyDraw.prizeTypeCoins')}</option>
+              <option value={3}>{t('luckyDraw.prizeTypeBalance')}</option>
+              <option value={4}>{t('luckyDraw.prizeTypeNoPrize')}</option>
             </select>
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500">Prize Name *</label>
+            <label className="text-xs text-gray-500">
+              {t('luckyDraw.prizeNameRequired')}
+            </label>
             <input
               {...register('prizeName')}
-              placeholder="e.g. $5 Coupon"
-              className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-teal-500/50 dark:border-white/10 dark:bg-white/5 dark:text-white"
+              placeholder={t('luckyDraw.prizeNamePlaceholder')}
+              className="rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/50 dark:border-white/10 dark:bg-gray-800 dark:text-gray-200"
             />
             {errors.prizeName && (
               <p className="text-xs text-red-500">{errors.prizeName.message}</p>
@@ -400,11 +466,13 @@ function PrizeModal({
 
           {prizeType === 1 && (
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-gray-500">Coupon ID *</label>
+              <label className="text-xs text-gray-500">
+                {t('luckyDraw.couponIdRequired')}
+              </label>
               <input
                 {...register('couponId')}
-                placeholder="coupon_xxx"
-                className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-teal-500/50 dark:border-white/10 dark:bg-white/5 dark:text-white"
+                placeholder={t('luckyDraw.couponIdPlaceholder')}
+                className="rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/50 dark:border-white/10 dark:bg-gray-800 dark:text-gray-200"
               />
               {errors.couponId && (
                 <p className="text-xs text-red-500">
@@ -416,57 +484,57 @@ function PrizeModal({
 
           {(prizeType === 2 || prizeType === 3) && (
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-gray-500">Amount *</label>
+              <label className="text-xs text-gray-500">
+                {t('luckyDraw.amountRequired')}
+              </label>
               <input
                 type="number"
-                step="0.01"
-                min="0"
-                {...register('prizeValue')}
-                className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-teal-500/50 dark:border-white/10 dark:bg-white/5 dark:text-white"
+                step="any"
+                {...register('amount', { valueAsNumber: true })}
+                className="rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/50 dark:border-white/10 dark:bg-gray-800 dark:text-gray-200"
               />
-              {errors.prizeValue && (
-                <p className="text-xs text-red-500">
-                  {errors.prizeValue.message}
-                </p>
+              {errors.amount && (
+                <p className="text-xs text-red-500">{errors.amount.message}</p>
               )}
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-gray-500">Probability *</label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                max="100"
-                {...register('probability')}
-                className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-teal-500/50 dark:border-white/10 dark:bg-white/5 dark:text-white"
-              />
-              {errors.probability && (
-                <p className="text-xs text-red-500">
-                  {errors.probability.message}
-                </p>
-              )}
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-gray-500">Stock</label>
-              <input
-                type="number"
-                min="-1"
-                {...register('stock')}
-                className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-teal-500/50 dark:border-white/10 dark:bg-white/5 dark:text-white"
-              />
-            </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-500">
+              {t('luckyDraw.probabilityRequired')}
+            </label>
+            <input
+              type="number"
+              step="any"
+              {...register('probability', { valueAsNumber: true })}
+              className="rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/50 dark:border-white/10 dark:bg-gray-800 dark:text-gray-200"
+            />
+            {errors.probability && (
+              <p className="text-xs text-red-500">
+                {errors.probability.message}
+              </p>
+            )}
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500">Sort Order</label>
+            <label className="text-xs text-gray-500">
+              {t('luckyDraw.stock')}
+            </label>
             <input
               type="number"
-              min="0"
-              {...register('sortOrder')}
-              className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-teal-500/50 dark:border-white/10 dark:bg-white/5 dark:text-white"
+              {...register('stock', { valueAsNumber: true })}
+              className="rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/50 dark:border-white/10 dark:bg-gray-800 dark:text-gray-200"
+            />
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-500">
+              {t('luckyDraw.sortOrder')}
+            </label>
+            <input
+              type="number"
+              {...register('sortOrder', { valueAsNumber: true })}
+              className="rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/50 dark:border-white/10 dark:bg-gray-800 dark:text-gray-200"
             />
           </div>
 
@@ -474,21 +542,17 @@ function PrizeModal({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-xl border border-gray-200 px-4 py-2 text-sm text-gray-600 transition-colors hover:bg-gray-50 dark:border-white/10 dark:text-gray-300 dark:hover:bg-white/5"
+              className="rounded-xl border border-gray-200 px-4 py-2 text-sm text-gray-600 transition-colors hover:bg-gray-50 dark:border-white/10 dark:text-gray-400 dark:hover:bg-white/5"
             >
-              Cancel
+              {t('luckyDraw.cancel')}
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="flex items-center gap-2 rounded-xl bg-teal-500 px-4 py-2 text-sm text-white transition-colors hover:bg-teal-600 disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-xl bg-teal-500 px-4 py-2 text-sm text-white transition-colors hover:bg-teal-600 disabled:opacity-50"
             >
-              {saving ? (
-                <RefreshCw size={13} className="animate-spin" />
-              ) : (
-                <Save size={13} />
-              )}
-              {prize ? 'Save' : 'Add Prize'}
+              <Save size={14} />
+              {isEdit ? t('luckyDraw.save') : t('luckyDraw.addPrize')}
             </button>
           </div>
         </form>
@@ -500,104 +564,92 @@ function PrizeModal({
 function PrizesPanel({
   activity,
   onChanged,
+  t,
 }: {
   activity: LuckyDrawActivity;
   onChanged: () => void;
+  t: TFunc;
 }) {
+  const [prizes, setPrizes] = useState<LuckyDrawPrize[]>([]);
+  const [loading, setLoading] = useState(true);
   const [prizeModal, setPrizeModal] = useState<LuckyDrawPrize | null | false>(
     false,
   );
 
-  const { data, loading, refresh } = useRequest(
-    () => luckyDrawApi.listPrizes(activity.id),
-    {
-      refreshDeps: [activity.id],
-    },
-  );
-
-  const prizes = data?.list ?? [];
-  const totalProbability = prizes.reduce(
-    (sum, item) => sum + Number(item.probability ?? 0),
-    0,
-  );
-
   const handleRefresh = async () => {
-    await refresh();
-    onChanged();
+    setLoading(true);
+    try {
+      const res = await luckyDrawApi.listPrizes(activity.id);
+      setPrizes(res.list ?? []);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  useEffect(() => {
+    void handleRefresh();
+  }, [activity.id, handleRefresh]);
 
   const handleDelete = (prizeId: string) => {
     ModalManager.open({
-      title: 'Delete Prize',
-      content: 'Delete this prize?',
-      confirmText: 'Delete',
+      title: t('luckyDraw.deletePrize'),
+      content: t('luckyDraw.deletePrizeConfirm'),
+      confirmText: t('luckyDraw.delete'),
       onConfirm: async () => {
         await luckyDrawApi.deletePrize(prizeId);
         await handleRefresh();
+        onChanged();
       },
     });
   };
 
-  return (
-    <div className="flex h-full flex-col">
-      <div className="mb-4 flex items-start justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold text-gray-900 dark:text-white">
-            {activity.title}
-          </p>
-          <p className="mt-1 text-xs text-gray-400">
-            Prize pool total:{' '}
-            <span
-              className={
-                totalProbability === 100
-                  ? 'font-medium text-green-500'
-                  : 'font-medium text-orange-500'
-              }
-            >
-              {totalProbability}%
-            </span>
-          </p>
-        </div>
+  const totalProbability = useMemo(
+    () => prizes.reduce((sum, p) => sum + p.probability, 0),
+    [prizes],
+  );
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => void handleRefresh()}
-            className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-white/5 dark:hover:text-gray-300"
-          >
-            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-          </button>
-          <button
-            onClick={() => setPrizeModal(null)}
-            className="flex items-center gap-1.5 rounded-xl bg-teal-500 px-3 py-1.5 text-xs text-white transition-colors hover:bg-teal-600"
-          >
-            <Plus size={13} />
-            Add Prize
-          </button>
-        </div>
+  return (
+    <div>
+      <div className="mb-4 flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+          {t('luckyDraw.prizes')}
+        </h3>
+        <button
+          onClick={() => setPrizeModal(null)}
+          className="flex items-center gap-1 rounded-lg bg-teal-500 px-3 py-1.5 text-xs text-white transition-colors hover:bg-teal-600"
+        >
+          <Plus size={12} />
+          {t('luckyDraw.addPrize')}
+        </button>
       </div>
 
       {loading && prizes.length === 0 ? (
-        <div className="flex items-center justify-center py-16 text-gray-400">
-          <RefreshCw size={18} className="mr-2 animate-spin" />
-          Loading…
+        <div className="flex items-center justify-center py-12 text-sm text-gray-400">
+          {t('luckyDraw.loading')}
         </div>
       ) : prizes.length === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-2 py-16 text-gray-400">
-          <Gift size={32} className="opacity-30" />
-          <p className="text-sm">No prizes configured yet</p>
+        <div className="flex flex-col items-center justify-center gap-2 py-12 text-gray-400">
+          <Gift size={28} className="opacity-30" />
+          <p className="text-sm">{t('luckyDraw.noPrizes')}</p>
         </div>
       ) : (
         <div className="space-y-2">
           {prizes.map((item) => (
             <div
               key={item.id}
-              className="group flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50 p-3 dark:border-white/8 dark:bg-white/3"
+              className="group flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50/50 p-3 transition-colors hover:border-gray-200 dark:border-white/5 dark:bg-white/3 dark:hover:border-white/10"
             >
-              <div className="min-w-0 flex items-center gap-3">
+              <div className="flex items-center gap-3 min-w-0">
                 <span
                   className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${PRIZE_TYPE_COLORS[item.prizeType]}`}
                 >
-                  {PRIZE_TYPE_LABELS[item.prizeType]}
+                  {item.prizeType === 1
+                    ? t('luckyDraw.prizeTypeCoupon')
+                    : item.prizeType === 2
+                      ? t('luckyDraw.prizeTypeCoins')
+                      : item.prizeType === 3
+                        ? t('luckyDraw.prizeTypeBalance')
+                        : t('luckyDraw.prizeTypeNoPrize')}
                 </span>
 
                 <div className="min-w-0">
@@ -605,10 +657,22 @@ function PrizesPanel({
                     {item.prizeName}
                   </p>
                   <p className="text-xs text-gray-400">
-                    {item.probability}% probability ·{' '}
-                    {item.stock === -1 ? '∞ stock' : `${item.stock} left`}
+                    {item.probability}% {t('luckyDraw.probabilityLabel')} ·{' '}
+                    {item.stock === -1
+                      ? t('luckyDraw.unlimitedStock')
+                      : t('luckyDraw.stockLeft', { stock: item.stock })}
                     {item.prizeValue != null &&
-                      ` · ${item.prizeType === 2 ? `${item.prizeValue} coins` : item.prizeType === 3 ? `$${item.prizeValue}` : item.prizeValue}`}
+                      ` · ${
+                        item.prizeType === 2
+                          ? t('luckyDraw.coinsValue', {
+                              value: item.prizeValue,
+                            })
+                          : item.prizeType === 3
+                            ? t('luckyDraw.balanceValue', {
+                                value: item.prizeValue,
+                              })
+                            : item.prizeValue
+                      }`}
                     {item.couponName && ` · ${item.couponName}`}
                   </p>
                 </div>
@@ -630,6 +694,10 @@ function PrizesPanel({
               </div>
             </div>
           ))}
+
+          <p className="pt-2 text-right text-xs text-gray-400">
+            {t('luckyDraw.prizePoolTotal')} {totalProbability}%
+          </p>
         </div>
       )}
 
@@ -639,13 +707,20 @@ function PrizesPanel({
           prize={prizeModal}
           onClose={() => setPrizeModal(false)}
           onSaved={() => void handleRefresh()}
+          t={t}
         />
       )}
     </div>
   );
 }
 
-function ResultsPanel({ activities }: { activities: LuckyDrawActivity[] }) {
+function ResultsPanel({
+  activities,
+  t,
+}: {
+  activities: LuckyDrawActivity[];
+  t: TFunc;
+}) {
   const [params, setParams] = useState<QueryLuckyDrawResultsParams>({
     activityId: activities[0]?.id,
     page: 1,
@@ -696,12 +771,11 @@ function ResultsPanel({ activities }: { activities: LuckyDrawActivity[] }) {
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">
-            Draw Results{' '}
+            {t('luckyDraw.drawResults')}{' '}
             <span className="font-normal text-gray-400">({total})</span>
           </h3>
           <p className="mt-1 text-xs text-gray-400">
-            Results are currently queried per activity to match the backend
-            contract.
+            {t('luckyDraw.resultsHint')}
           </p>
         </div>
 
@@ -736,7 +810,7 @@ function ResultsPanel({ activities }: { activities: LuckyDrawActivity[] }) {
 
       {!params.activityId ? (
         <div className="py-12 text-center text-sm text-gray-400">
-          Create an activity first to view results.
+          {t('luckyDraw.createActivityFirst')}
         </div>
       ) : (
         <>
@@ -744,11 +818,11 @@ function ResultsPanel({ activities }: { activities: LuckyDrawActivity[] }) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100 text-left text-xs uppercase text-gray-400 dark:border-white/8">
-                  <th className="pb-2 font-medium">Time</th>
-                  <th className="pb-2 font-medium">User</th>
-                  <th className="pb-2 font-medium">Prize</th>
-                  <th className="pb-2 font-medium">Coupon</th>
-                  <th className="pb-2 font-medium">Order</th>
+                  <th className="pb-2 font-medium">{t('luckyDraw.time')}</th>
+                  <th className="pb-2 font-medium">{t('luckyDraw.user')}</th>
+                  <th className="pb-2 font-medium">{t('luckyDraw.prize')}</th>
+                  <th className="pb-2 font-medium">{t('luckyDraw.coupon')}</th>
+                  <th className="pb-2 font-medium">{t('luckyDraw.order')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50 dark:divide-white/5">
@@ -781,7 +855,7 @@ function ResultsPanel({ activities }: { activities: LuckyDrawActivity[] }) {
                       colSpan={5}
                       className="py-8 text-center text-sm text-gray-400"
                     >
-                      No draw results yet.
+                      {t('luckyDraw.noResults')}
                     </td>
                   </tr>
                 )}
@@ -801,7 +875,7 @@ function ResultsPanel({ activities }: { activities: LuckyDrawActivity[] }) {
                 }
                 className="rounded-lg border border-gray-200 px-3 py-1 text-xs transition-colors hover:bg-gray-50 disabled:opacity-40 dark:border-white/10 dark:hover:bg-white/5"
               >
-                Prev
+                {t('luckyDraw.prev')}
               </button>
               <span className="px-3 py-1 text-xs text-gray-500">
                 {page} / {totalPages}
@@ -816,7 +890,7 @@ function ResultsPanel({ activities }: { activities: LuckyDrawActivity[] }) {
                 }
                 className="rounded-lg border border-gray-200 px-3 py-1 text-xs transition-colors hover:bg-gray-50 disabled:opacity-40 dark:border-white/10 dark:hover:bg-white/5"
               >
-                Next
+                {t('luckyDraw.next')}
               </button>
             </div>
           )}
@@ -829,6 +903,7 @@ function ResultsPanel({ activities }: { activities: LuckyDrawActivity[] }) {
 type Tab = 'activities' | 'results';
 
 export function LuckyDrawManagement() {
+  const { t } = useTranslation();
   const [tab, setTab] = useState<Tab>('activities');
   const [activityModal, setActivityModal] = useState<
     LuckyDrawActivity | null | false
@@ -862,9 +937,9 @@ export function LuckyDrawManagement() {
 
   const handleDeleteActivity = (activityId: string) => {
     ModalManager.open({
-      title: 'Delete Activity',
-      content: 'Delete this activity and all its prizes?',
-      confirmText: 'Delete',
+      title: t('luckyDraw.deleteActivity'),
+      content: t('luckyDraw.deleteActivityConfirm'),
+      confirmText: t('luckyDraw.delete'),
       onConfirm: async () => {
         await luckyDrawApi.deleteActivity(activityId);
         await refresh();
@@ -875,9 +950,9 @@ export function LuckyDrawManagement() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        title="Lucky Draw"
-        description="Manage lucky draw activities, prize pools and draw results"
-        buttonText="New Activity"
+        title={t('luckyDraw.pageTitle')}
+        description={t('luckyDraw.pageDescription')}
+        buttonText={t('luckyDraw.newActivity')}
         buttonOnClick={() => setActivityModal(null)}
         buttonPrefixIcon={<Plus size={16} />}
       />
@@ -900,7 +975,9 @@ export function LuckyDrawManagement() {
                 ) : (
                   <Trophy size={13} />
                 )}
-                {item === 'activities' ? 'Activities' : 'Results'}
+                {item === 'activities'
+                  ? t('luckyDraw.activitiesTab')
+                  : t('luckyDraw.resultsTab')}
               </span>
             </button>
           ))}
@@ -908,13 +985,13 @@ export function LuckyDrawManagement() {
       </div>
 
       {tab === 'results' ? (
-        <ResultsPanel activities={activities} />
+        <ResultsPanel activities={activities} t={t} />
       ) : (
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
           <section className="rounded-2xl border border-gray-100 bg-white p-5 dark:border-white/10 dark:bg-gray-900/50">
             <div className="mb-4 flex items-center justify-between">
               <p className="text-sm text-gray-500">
-                {formatActivityCount(activities.length)}
+                {t('luckyDraw.activityCount', { count: activities.length })}
               </p>
 
               <button
@@ -931,17 +1008,17 @@ export function LuckyDrawManagement() {
             {loading && activities.length === 0 ? (
               <div className="flex items-center justify-center py-16 text-gray-400">
                 <RefreshCw size={18} className="mr-2 animate-spin" />
-                Loading…
+                {t('luckyDraw.loading')}
               </div>
             ) : activities.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-2 py-16 text-gray-400">
                 <Sparkles size={32} className="opacity-30" />
-                <p className="text-sm">No activities yet</p>
+                <p className="text-sm">{t('luckyDraw.noActivities')}</p>
                 <button
                   onClick={() => setActivityModal(null)}
                   className="mt-2 rounded-xl bg-teal-500 px-4 py-2 text-sm text-white transition-colors hover:bg-teal-600"
                 >
-                  Create First Activity
+                  {t('luckyDraw.createFirstActivity')}
                 </button>
               </div>
             ) : (
@@ -980,8 +1057,17 @@ export function LuckyDrawManagement() {
                           )}
 
                           <div className="flex flex-wrap items-center gap-2 text-xs text-gray-400">
-                            <span>{prizeCount} prizes</span>
-                            <span>· {activity.ticketsCount ?? 0} tickets</span>
+                            <span>
+                              {t('luckyDraw.prizeCount', {
+                                count: prizeCount,
+                              })}
+                            </span>
+                            <span>
+                              ·{' '}
+                              {t('luckyDraw.ticketCount', {
+                                count: activity.ticketsCount ?? 0,
+                              })}
+                            </span>
                             {activity.treasureName && (
                               <span className="truncate">
                                 · {activity.treasureName}
@@ -998,7 +1084,9 @@ export function LuckyDrawManagement() {
                               : 'bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500'
                           }`}
                         >
-                          {activity.status === 1 ? 'Active' : 'Inactive'}
+                          {activity.status === 1
+                            ? t('luckyDraw.active')
+                            : t('luckyDraw.inactive')}
                         </span>
                       </div>
 
@@ -1011,7 +1099,7 @@ export function LuckyDrawManagement() {
                           className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-teal-600 transition-colors hover:bg-teal-50 dark:hover:bg-teal-900/20"
                         >
                           <ChevronRight size={12} />
-                          Prizes
+                          {t('luckyDraw.prizes')}
                         </button>
                         <button
                           onClick={() => setActivityModal(activity)}
@@ -1035,13 +1123,15 @@ export function LuckyDrawManagement() {
 
           <aside className="rounded-2xl border border-gray-100 bg-white p-5 dark:border-white/10 dark:bg-gray-900/50">
             {selectedActivity ? (
-              <PrizesPanel activity={selectedActivity} onChanged={refresh} />
+              <PrizesPanel
+                activity={selectedActivity}
+                onChanged={refresh}
+                t={t}
+              />
             ) : (
               <div className="flex h-full min-h-[320px] flex-col items-center justify-center gap-2 text-gray-400">
                 <Gift size={32} className="opacity-30" />
-                <p className="text-sm">
-                  Select an activity to manage its prize pool
-                </p>
+                <p className="text-sm">{t('luckyDraw.selectActivityHint')}</p>
               </div>
             )}
           </aside>
@@ -1053,6 +1143,7 @@ export function LuckyDrawManagement() {
           activity={activityModal}
           onClose={() => setActivityModal(false)}
           onSaved={refresh}
+          t={t}
         />
       )}
     </div>

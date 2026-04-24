@@ -3,6 +3,7 @@
  * 服务端 fetch /v1/admin/stats/overview，Streaming SSR
  */
 import React from 'react';
+import { getTranslations } from 'next-intl/server';
 import {
   Users,
   ShoppingCart,
@@ -56,7 +57,9 @@ function StatCard({
   );
 }
 
-export async function AnalyticsOverview() {
+export async function AnalyticsOverview({ locale }: { locale: string }) {
+  const t = await getTranslations({ locale, namespace: 'analytics' });
+
   const data = await serverGet<StatsOverview>(
     '/v1/admin/stats/overview',
     undefined,
@@ -66,7 +69,7 @@ export async function AnalyticsOverview() {
   if (!data) {
     return (
       <div className="p-6 text-center text-gray-400">
-        Failed to load statistics. Please refresh.
+        {t('overviewLoadFailed')}
       </div>
     );
   }
@@ -74,40 +77,40 @@ export async function AnalyticsOverview() {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-4">
       <StatCard
-        title="Total Users"
+        title={t('totalUsers')}
         value={data.users.total.toLocaleString()}
-        sub={`+${data.users.today} today`}
+        sub={t('today', { count: data.users.today })}
         icon={<Users size={18} className="text-purple-600" />}
         iconBg="bg-purple-100 dark:bg-purple-500/15"
       />
       <StatCard
-        title="New This Month"
+        title={t('newThisMonth')}
         value={data.users.thisMonth.toLocaleString()}
         icon={<TrendingUp size={18} className="text-indigo-600" />}
         iconBg="bg-indigo-100 dark:bg-indigo-500/15"
       />
       <StatCard
-        title="Total Orders"
+        title={t('totalOrders')}
         value={data.orders.total.toLocaleString()}
-        sub={`+${data.orders.today} today`}
+        sub={t('today', { count: data.orders.today })}
         icon={<ShoppingCart size={18} className="text-blue-600" />}
         iconBg="bg-blue-100 dark:bg-blue-500/15"
       />
       <StatCard
-        title="Paid Orders"
+        title={t('paidOrders')}
         value={data.orders.paid.toLocaleString()}
         icon={<CheckCircle size={18} className="text-emerald-600" />}
         iconBg="bg-emerald-100 dark:bg-emerald-500/15"
       />
       <StatCard
-        title="Total Revenue"
+        title={t('totalRevenue')}
         value={fmt(data.revenue.total)}
-        sub={`${fmt(data.revenue.today)} today`}
+        sub={t('todayRevenue', { amount: fmt(data.revenue.today) })}
         icon={<DollarSign size={18} className="text-amber-600" />}
         iconBg="bg-amber-100 dark:bg-amber-500/15"
       />
       <StatCard
-        title="Pending Withdrawals"
+        title={t('pendingWithdrawals')}
         value={data.finance.pendingWithdrawCount.toLocaleString()}
         sub={fmt(data.finance.pendingWithdrawAmount)}
         icon={<Clock size={18} className="text-red-500" />}

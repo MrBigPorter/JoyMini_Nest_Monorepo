@@ -5,6 +5,9 @@ import type ReactQuillType from 'react-quill-new';
 import { Marked } from 'marked';
 import { MarkdownImportModal } from './MarkdownImportModal';
 import './RichTextEditor.css';
+// Import Quill snow theme CSS only in this component — not in root layout,
+// so non-blog pages don't compile the Quill CSS dependency tree.
+import 'react-quill-new/dist/quill.snow.css';
 
 const marked = new Marked({
   gfm: true,

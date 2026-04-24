@@ -18,44 +18,52 @@ import {
 import { PageHeader } from '@/components/scaffold/PageHeader';
 import { loginLogApi } from '@/api';
 import type { QueryLoginLogParams, UserLoginLog } from '@/type/types';
-import { format } from 'date-fns';
+import { formatUTC } from '@/lib/utils/formatUTC';
 import {
   buildLoginLogsListParams,
   loginLogsListQueryKey,
   parseLoginLogsSearchParams,
+  type NextSearchParams,
 } from '@/lib/cache/login-logs-cache';
+import { useTranslation } from '@/hooks/useTranslation';
 
 const LOGIN_METHODS: Record<string, string> = {
-  password: 'Password',
-  google: 'Google',
-  facebook: 'Facebook',
-  apple: 'Apple',
+  password: 'methodPassword',
+  google: 'methodGoogle',
+  facebook: 'methodFacebook',
+  apple: 'methodApple',
 };
 
 const LOGIN_TYPE_LABELS: Record<number, string> = {
-  1: 'Password',
-  2: 'SMS OTP',
-  3: 'Social',
+  1: 'typePassword',
+  2: 'typeSmsOtp',
+  3: 'typeSocial',
 };
 
-function StatusBadge({ status }: { status: number }) {
+function StatusBadge({
+  status,
+  t,
+}: {
+  status: number;
+  t: (key: string) => string;
+}) {
   if (status === 1) {
     return (
       <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-500/20 text-green-600 dark:text-green-400">
         <CheckCircle size={10} />
-        Success
+        {t('loginLogs.success')}
       </span>
     );
   }
   return (
     <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-500/20 text-red-500 dark:text-red-400">
       <XCircle size={10} />
-      Failed
+      {t('loginLogs.failed')}
     </span>
   );
 }
 
-function LogRow({ log }: { log: UserLoginLog }) {
+function LogRow({ log, t }: { log: UserLoginLog; t: (key: string) => string }) {
   return (
     <tr className="border-b border-gray-50 dark:border-white/5 hover:bg-gray-50/50 dark:hover:bg-white/3 transition-colors">
       <td className="px-4 py-3">
@@ -65,7 +73,7 @@ function LogRow({ log }: { log: UserLoginLog }) {
           </div>
           <div>
             <p className="text-sm font-medium text-gray-900 dark:text-white">
-              {log.userNickname ?? 'Unknown'}
+              {log.userNickname ?? t('loginLogs.unknown')}
             </p>
             <p className="text-xs text-gray-400 font-mono">
               {log.userId.slice(0, 10)}…
@@ -75,7 +83,7 @@ function LogRow({ log }: { log: UserLoginLog }) {
       </td>
       <td className="px-4 py-3">
         <div className="text-sm text-gray-700 dark:text-gray-300">
-          {format(new Date(log.loginTime), 'MM/dd HH:mm:ss')}
+          {formatUTC(log.loginTime, 'MM/dd HH:mm:ss')}
         </div>
       </td>
       <td className="px-4 py-3">
@@ -92,11 +100,13 @@ function LogRow({ log }: { log: UserLoginLog }) {
       <td className="px-4 py-3">
         <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400">
           <Shield size={10} />
-          {LOGIN_TYPE_LABELS[log.loginType] ?? `Type ${log.loginType}`}
+          {t(`loginLogs.${LOGIN_TYPE_LABELS[log.loginType] ?? `typeUnknown`}`)}
         </span>
         {log.loginMethod && (
           <div className="text-xs text-gray-400 mt-0.5">
-            {LOGIN_METHODS[log.loginMethod] ?? log.loginMethod}
+            {t(
+              `loginLogs.${LOGIN_METHODS[log.loginMethod] ?? log.loginMethod}`,
+            )}
           </div>
         )}
       </td>
@@ -107,7 +117,7 @@ function LogRow({ log }: { log: UserLoginLog }) {
         </div>
       </td>
       <td className="px-4 py-3">
-        <StatusBadge status={log.loginStatus} />
+        <StatusBadge status={log.loginStatus} t={t} />
         {log.failReason && (
           <p
             className="text-xs text-red-400 mt-0.5 max-w-36 truncate"
@@ -121,17 +131,25 @@ function LogRow({ log }: { log: UserLoginLog }) {
   );
 }
 
-export function LoginLogList() {
+export function LoginLogList({
+  initialSearchParams,
+}: {
+  initialSearchParams?: NextSearchParams;
+} = {}) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { t } = useTranslation();
 
   const initialQueryInput = useMemo(() => {
+    if (initialSearchParams) {
+      return parseLoginLogsSearchParams(initialSearchParams);
+    }
     const params: Record<string, string> = {};
     searchParams.forEach((value, key) => {
       params[key] = value;
     });
     return parseLoginLogsSearchParams(params);
-  }, [searchParams]);
+  }, [initialSearchParams, searchParams]);
 
   const [params, setParams] = useState<QueryLoginLogParams>(initialQueryInput);
   const [userId, setUserId] = useState(initialQueryInput.userId ?? '');
@@ -231,8 +249,8 @@ export function LoginLogList() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        title="Login Logs"
-        description="Security audit: user login history and access records"
+        title={t('loginLogs.pageTitle')}
+        description={t('loginLogs.pageDescription')}
       />
 
       {/* 筛选栏 */}
@@ -240,7 +258,7 @@ export function LoginLogList() {
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex flex-col gap-1">
             <label className="text-xs text-gray-500 dark:text-gray-400">
-              User ID
+              {t('loginLogs.userId')}
             </label>
             <div className="relative">
               <Search
@@ -250,25 +268,25 @@ export function LoginLogList() {
               <input
                 value={userId}
                 onChange={(e) => setUserId(e.target.value)}
-                placeholder="User ID…"
+                placeholder={t('loginLogs.userIdPlaceholder')}
                 className="pl-8 pr-3 py-2 text-sm rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 text-gray-900 dark:text-white w-48 focus:outline-none focus:ring-2 focus:ring-teal-500/50"
               />
             </div>
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs text-gray-500 dark:text-gray-400">
-              IP Address
+              {t('loginLogs.ipAddress')}
             </label>
             <input
               value={loginIp}
               onChange={(e) => setLoginIp(e.target.value)}
-              placeholder="IP…"
+              placeholder={t('loginLogs.ipAddressPlaceholder')}
               className="px-3 py-2 text-sm rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 text-gray-900 dark:text-white w-36 focus:outline-none focus:ring-2 focus:ring-teal-500/50"
             />
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs text-gray-500 dark:text-gray-400">
-              Status
+              {t('loginLogs.status')}
             </label>
             <select
               value={loginStatus ?? ''}
@@ -279,16 +297,16 @@ export function LoginLogList() {
               }
               className="px-3 py-2 text-sm rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 text-gray-900 dark:text-white w-32 focus:outline-none focus:ring-2 focus:ring-teal-500/50"
             >
-              <option value="">All</option>
-              <option value="1">Success</option>
-              <option value="0">Failed</option>
+              <option value="">{t('loginLogs.all')}</option>
+              <option value="1">{t('loginLogs.success')}</option>
+              <option value="0">{t('loginLogs.failed')}</option>
             </select>
           </div>
           <button
             onClick={applyFilters}
             className="px-4 py-2 text-sm bg-teal-500 hover:bg-teal-600 text-white rounded-xl transition-colors"
           >
-            Search
+            {t('loginLogs.search')}
           </button>
           <button
             onClick={() => void refetch()}
@@ -307,22 +325,22 @@ export function LoginLogList() {
             <thead>
               <tr className="border-b border-gray-100 dark:border-white/10 bg-gray-50/50 dark:bg-white/3">
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400">
-                  User
+                  {t('loginLogs.columnUser')}
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400">
-                  Time
+                  {t('loginLogs.columnTime')}
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400">
-                  IP / Location
+                  {t('loginLogs.columnIpLocation')}
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400">
-                  Method
+                  {t('loginLogs.columnMethod')}
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400">
-                  Device
+                  {t('loginLogs.columnDevice')}
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400">
-                  Status
+                  {t('loginLogs.columnStatus')}
                 </th>
               </tr>
             </thead>
@@ -333,7 +351,7 @@ export function LoginLogList() {
                     colSpan={6}
                     className="px-4 py-12 text-center text-gray-400"
                   >
-                    Loading…
+                    {t('loginLogs.loading')}
                   </td>
                 </tr>
               )}
@@ -344,12 +362,12 @@ export function LoginLogList() {
                     className="px-4 py-12 text-center text-gray-400"
                   >
                     <LogIn size={32} className="mx-auto mb-2 opacity-30" />
-                    No login logs found
+                    {t('loginLogs.noLogsFound')}
                   </td>
                 </tr>
               )}
               {logs.map((log) => (
-                <LogRow key={log.id} log={log} />
+                <LogRow key={log.id} log={log} t={t} />
               ))}
             </tbody>
           </table>
@@ -359,8 +377,8 @@ export function LoginLogList() {
         {total > pageSize && (
           <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 dark:border-white/10">
             <span className="text-xs text-gray-400">
-              {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} of{' '}
-              {total}
+              {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)}{' '}
+              {t('loginLogs.paginationOf')} {total}
             </span>
             <div className="flex items-center gap-2">
               <button

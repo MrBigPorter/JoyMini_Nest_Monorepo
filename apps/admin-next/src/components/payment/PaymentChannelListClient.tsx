@@ -20,29 +20,36 @@ import {
   buildPaymentChannelsListParams,
   parsePaymentChannelsSearchParams,
 } from '@/lib/cache/payment-channels-cache';
+import { useTranslation } from '@/hooks/useTranslation';
 
 // --- 辅助组件：状态标签 ---
-const StatusBadge = ({ status }: { status: number }) => {
+const StatusBadge = ({
+  status,
+  t,
+}: {
+  status: number;
+  t: (key: string) => string;
+}) => {
   const config = useMemo(() => {
     switch (status) {
       case 1:
         return {
-          label: 'Active',
+          label: t('paymentChannel.status.active'),
           className: 'bg-green-100 text-green-700 border-green-200',
         };
       case 2:
         return {
-          label: 'Maintenance',
+          label: t('paymentChannel.status.maintenance'),
           className: 'bg-amber-100 text-amber-700 border-amber-200',
         };
       case 0:
       default:
         return {
-          label: 'Disabled',
+          label: t('paymentChannel.status.disabled'),
           className: 'bg-gray-100 text-gray-500 border-gray-200',
         };
     }
-  }, [status]);
+  }, [status, t]);
 
   return (
     <span
@@ -57,7 +64,13 @@ const StatusBadge = ({ status }: { status: number }) => {
 };
 
 // --- 辅助组件：类型标签 ---
-const TypeBadge = ({ type }: { type: number }) => {
+const TypeBadge = ({
+  type,
+  t,
+}: {
+  type: number;
+  t: (key: string) => string;
+}) => {
   const isRecharge = type === 1;
   return (
     <div
@@ -69,7 +82,9 @@ const TypeBadge = ({ type }: { type: number }) => {
       )}
     >
       {isRecharge ? <CreditCard size={12} /> : <ArrowRightLeft size={12} />}
-      {isRecharge ? 'Money In' : 'Money Out'}
+      {isRecharge
+        ? t('paymentChannel.type.moneyIn')
+        : t('paymentChannel.type.moneyOut')}
     </div>
   );
 };
@@ -90,6 +105,7 @@ export const PaymentChannelList: React.FC<PaymentChannelListProps> = ({
   initialFormParams,
   onParamsChange,
 }) => {
+  const { t } = useTranslation();
   const addToast = useToastStore((s) => s.addToast);
 
   const normalizedInitialQuery = useMemo(() => {
@@ -173,42 +189,48 @@ export const PaymentChannelList: React.FC<PaymentChannelListProps> = ({
   const handleEdit = useCallback(
     (record?: PaymentChannel) => {
       ModalManager.open({
-        title: record ? `Edit Channel` : 'Create New Channel',
+        title: record
+          ? t('paymentChannel.editChannel')
+          : t('paymentChannel.createNewChannel'),
         size: 'xl',
         renderChildren: ({ close }) => (
-          <PaymentChannelModal data={record} close={close} reload={refresh} />
+          <PaymentChannelModal
+            data={record}
+            close={close}
+            reload={refresh}
+            t={t}
+          />
         ),
       });
     },
-    [refresh],
+    [refresh, t],
   );
 
   const handleDelete = useCallback(
     (id: number) => {
       ModalManager.open({
-        title: 'Disable Channel',
-        content:
-          'Are you sure you want to disable this channel? Users will not be able to see it.',
-        confirmText: 'Disable',
+        title: t('paymentChannel.disableChannel'),
+        content: t('paymentChannel.disableConfirm'),
+        confirmText: t('paymentChannel.disableConfirmText'),
         onConfirm: async () => {
           try {
             await paymentChannelApi.delete(id, 0);
-            addToast('success', 'Channel disabled successfully');
+            addToast('success', t('paymentChannel.disabledSuccess'));
             void refresh();
           } catch {
-            addToast('error', 'Failed to disable channel');
+            addToast('error', t('paymentChannel.disabledFailed'));
           }
         },
       });
     },
-    [addToast, refresh],
+    [addToast, refresh, t],
   );
 
   const columns: ColumnDef<PaymentChannel>[] = useMemo(() => {
     const col = createColumnHelper<PaymentChannel>();
     return [
       col.accessor('name', {
-        header: 'Channel Info',
+        header: t('paymentChannel.table.channelInfo'),
         size: 240,
         cell: (info) => {
           const row = info.row.original;
@@ -231,13 +253,13 @@ export const PaymentChannelList: React.FC<PaymentChannelListProps> = ({
                   {row.name}
                   {row.isCustom && (
                     <span className="text-[10px] leading-none bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-100 font-medium">
-                      Custom
+                      {t('paymentChannel.table.custom')}
                     </span>
                   )}
                 </div>
                 <div className="text-xs text-gray-500 font-mono mt-0.5 flex items-center gap-1">
                   <span className="bg-gray-100 px-1 rounded text-[10px] text-gray-600">
-                    CODE
+                    {t('paymentChannel.table.code')}
                   </span>
                   {row.code}
                 </div>
@@ -247,12 +269,12 @@ export const PaymentChannelList: React.FC<PaymentChannelListProps> = ({
         },
       }),
       col.accessor('type', {
-        header: 'Type',
+        header: t('paymentChannel.table.type'),
         size: 120,
-        cell: (info) => <TypeBadge type={info.getValue()} />,
+        cell: (info) => <TypeBadge type={info.getValue()} t={t} />,
       }),
       col.accessor('minAmount', {
-        header: 'Limits Range',
+        header: t('paymentChannel.table.limitsRange'),
         size: 180,
         cell: (info) => {
           const row = info.row.original;
@@ -267,17 +289,21 @@ export const PaymentChannelList: React.FC<PaymentChannelListProps> = ({
         },
       }),
       col.accessor('feeFixed', {
-        header: 'Fees',
+        header: t('paymentChannel.table.fees'),
         size: 150,
         cell: (info) => {
           const row = info.row.original;
           if (row.type === 1)
-            return <span className="text-gray-400 text-xs italic">No Fee</span>;
+            return (
+              <span className="text-gray-400 text-xs italic">
+                {t('paymentChannel.table.noFee')}
+              </span>
+            );
           const isFree = row.feeFixed === 0 && row.feeRate === 0;
           if (isFree)
             return (
               <span className="text-green-600 font-bold text-xs bg-green-50 px-2 py-1 rounded-full">
-                FREE
+                {t('paymentChannel.table.free')}
               </span>
             );
           return (
@@ -300,7 +326,7 @@ export const PaymentChannelList: React.FC<PaymentChannelListProps> = ({
         },
       }),
       col.accessor('sortOrder', {
-        header: 'Sort',
+        header: t('paymentChannel.table.sort'),
         size: 80,
         cell: (info) => (
           <span className="font-mono text-gray-500 text-xs">
@@ -309,13 +335,13 @@ export const PaymentChannelList: React.FC<PaymentChannelListProps> = ({
         ),
       }),
       col.accessor('status', {
-        header: 'Status',
+        header: t('paymentChannel.table.status'),
         size: 100,
-        cell: (info) => <StatusBadge status={info.getValue()} />,
+        cell: (info) => <StatusBadge status={info.getValue()} t={t} />,
       }),
       col.display({
         id: 'actions',
-        header: 'Action',
+        header: t('paymentChannel.table.action'),
         size: 100,
         cell: (info) => {
           const row = info.row.original;
@@ -326,7 +352,7 @@ export const PaymentChannelList: React.FC<PaymentChannelListProps> = ({
                 size="sm"
                 className="text-gray-500 hover:text-primary-600 hover:bg-primary-50"
                 onClick={() => handleEdit(row)}
-                title="Edit Configuration"
+                title={t('paymentChannel.button.editConfig')}
               >
                 <Edit size={16} />
               </Button>
@@ -336,7 +362,7 @@ export const PaymentChannelList: React.FC<PaymentChannelListProps> = ({
                   size="sm"
                   className="text-gray-400 hover:text-red-600 hover:bg-red-50"
                   onClick={() => handleDelete(row.id)}
-                  title="Disable Channel"
+                  title={t('paymentChannel.button.disableChannel')}
                 >
                   <Power size={16} />
                 </Button>
@@ -346,49 +372,49 @@ export const PaymentChannelList: React.FC<PaymentChannelListProps> = ({
         },
       }),
     ] as ColumnDef<PaymentChannel>[];
-  }, [handleEdit, handleDelete]);
+  }, [handleEdit, handleDelete, t]);
 
   const searchSchema: FormSchema[] = useMemo(
     () => [
       {
         type: 'input',
         key: 'name',
-        label: 'Channel Name',
-        placeholder: 'Search name...',
+        label: t('paymentChannel.search.channelName'),
+        placeholder: t('paymentChannel.search.searchName'),
       },
       {
         type: 'select',
         key: 'type',
-        label: 'Type',
+        label: t('paymentChannel.search.type'),
         defaultValue: 'ALL',
         options: [
-          { label: 'All', value: 'ALL' },
-          { label: 'Money In (Recharge)', value: '1' },
-          { label: 'Money Out (Withdraw)', value: '2' },
+          { label: t('paymentChannel.search.all'), value: 'ALL' },
+          { label: t('paymentChannel.type.moneyInRecharge'), value: '1' },
+          { label: t('paymentChannel.type.moneyOutWithdraw'), value: '2' },
         ],
       },
       {
         type: 'select',
         key: 'status',
-        label: 'Status',
+        label: t('paymentChannel.search.status'),
         defaultValue: 'ALL',
         options: [
-          { label: 'All', value: 'ALL' },
-          { label: 'Active', value: '1' },
-          { label: 'Maintenance', value: '2' },
-          { label: 'Disabled', value: '0' },
+          { label: t('paymentChannel.search.all'), value: 'ALL' },
+          { label: t('paymentChannel.status.active'), value: '1' },
+          { label: t('paymentChannel.status.maintenance'), value: '2' },
+          { label: t('paymentChannel.status.disabled'), value: '0' },
         ],
       },
     ],
-    [],
+    [t],
   );
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Payment Channels"
-        description="Configure payment gateways, limits, and fees for money in/out."
-        buttonText="Add Channel"
+        title={t('paymentChannel.pageTitle')}
+        description={t('paymentChannel.pageDescription')}
+        buttonText={t('paymentChannel.addChannel')}
         buttonOnClick={() => handleEdit()}
       />
 

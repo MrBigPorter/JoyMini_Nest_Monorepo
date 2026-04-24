@@ -1,18 +1,26 @@
-import type { Metadata } from 'next';
 import React, { Suspense } from 'react';
 import {
   HydrationBoundary,
   QueryClient,
   dehydrate,
 } from '@tanstack/react-query';
+import { getTranslations } from 'next-intl/server';
 import { SupportChannels } from '@/components/support-channels/SupportChannelsClient';
 import { PageSkeleton } from '@/components/ui/PageSkeleton';
 import { serverGet } from '@/lib/serverFetch';
 import type { SupportChannelsResult } from '@/type/types';
 
-export const metadata: Metadata = {
-  title: 'Support Channels',
-};
+interface SupportChannelsPageProps {
+  params: Promise<{ locale: string }>;
+}
+
+export async function generateMetadata({ params }: SupportChannelsPageProps) {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: 'supportChannels' });
+  return {
+    title: t('pageTitle'),
+  };
+}
 
 export default async function SupportChannelsPage() {
   const initialQuery = {

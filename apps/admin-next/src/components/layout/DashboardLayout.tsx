@@ -1,8 +1,7 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
-import { useAppStore } from '@/store/useAppStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useTranslation } from '@/hooks/useTranslation';
 import { routes } from '@/routes';
@@ -29,6 +28,10 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({
     void fetchMe();
   }, [fetchMe]);
 
+  // Stabilize t reference to prevent useMemo from re-computing on every render
+  const tRef = useRef(t);
+  tRef.current = t;
+
   // ── 页面信息 ─────────────────────────────────────────────────
   const pageInfo = useMemo(() => {
     const normalizedPath = pathname.replace(/\/$/, '') || '/';
@@ -38,12 +41,12 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({
         breadcrumbs: [
           currentRoute.group,
           // use t() to translate route name
-          t(currentRoute.name) || currentRoute.name,
+          tRef.current(currentRoute.name) || currentRoute.name,
         ],
       };
     }
     return { breadcrumbs: [] };
-  }, [pathname, t]);
+  }, [pathname]);
 
   return (
     <div className="flex h-screen bg-gray-50 dark:bg-dark-950 text-slate-900 dark:text-slate-100 font-sans">
