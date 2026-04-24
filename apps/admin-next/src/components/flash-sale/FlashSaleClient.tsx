@@ -25,6 +25,8 @@ import { z } from 'zod';
 import { flashSaleApi } from '@/api';
 import { PageHeader } from '@/components/scaffold/PageHeader';
 import { ModalManager } from '@repo/ui';
+import { useTranslation } from '@/hooks/useTranslation';
+import type { TFunc } from '@/hooks/useTranslation';
 
 // ─── Session Modal ────────────────────────────────────────────────────────────
 
@@ -40,10 +42,12 @@ function SessionModal({
   session,
   onCloseAction,
   onSavedAction,
+  t,
 }: {
   session: FlashSaleSession | null;
   onCloseAction: () => void;
   onSavedAction: () => void;
+  t: TFunc;
 }) {
   const isEdit = !!session;
   const [saving, setSaving] = useState(false);
@@ -91,7 +95,7 @@ function SessionModal({
       <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-2xl overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-white/10">
           <h3 className="text-base font-semibold text-gray-900 dark:text-white">
-            {isEdit ? 'Edit Flash Sale' : 'New Flash Sale'}
+            {isEdit ? t('flashSale.editSession') : t('flashSale.newSession')}
           </h3>
           <button
             onClick={onCloseAction}
@@ -102,16 +106,22 @@ function SessionModal({
         </div>
         <form onSubmit={handleSubmit(onSubmit)} className="p-5 space-y-4">
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500">Title *</label>
+            <label className="text-xs text-gray-500">
+              {t('flashSale.formTitle')}
+            </label>
             <input
               {...register('title')}
               className="px-3 py-2 text-sm rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500/50"
             />
-            {errors.title && <p className="text-xs text-red-500">Required</p>}
+            {errors.title && (
+              <p className="text-xs text-red-500">{t('flashSale.required')}</p>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-gray-500">Start Time *</label>
+              <label className="text-xs text-gray-500">
+                {t('flashSale.formStartTime')}
+              </label>
               <input
                 type="datetime-local"
                 {...register('startTime')}
@@ -119,7 +129,9 @@ function SessionModal({
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-gray-500">End Time *</label>
+              <label className="text-xs text-gray-500">
+                {t('flashSale.formEndTime')}
+              </label>
               <input
                 type="datetime-local"
                 {...register('endTime')}
@@ -128,13 +140,15 @@ function SessionModal({
             </div>
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500">Status</label>
+            <label className="text-xs text-gray-500">
+              {t('flashSale.formStatus')}
+            </label>
             <select
               {...register('status', { valueAsNumber: true })}
               className="px-3 py-2 text-sm rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500/50"
             >
-              <option value={1}>Active</option>
-              <option value={0}>Inactive</option>
+              <option value={1}>{t('flashSale.active')}</option>
+              <option value={0}>{t('flashSale.inactive')}</option>
             </select>
           </div>
           <div className="flex justify-end gap-2 pt-2">
@@ -143,7 +157,7 @@ function SessionModal({
               onClick={onCloseAction}
               className="px-4 py-2 text-sm rounded-xl border border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
             >
-              Cancel
+              {t('flashSale.cancel')}
             </button>
             <button
               type="submit"
@@ -155,7 +169,7 @@ function SessionModal({
               ) : (
                 <Save size={13} />
               )}
-              {isEdit ? 'Save' : 'Create'}
+              {isEdit ? t('flashSale.save') : t('flashSale.create')}
             </button>
           </div>
         </form>
@@ -170,10 +184,12 @@ function SessionProductsPanel({
   session,
   onBack,
   onProductsChanged,
+  t,
 }: {
   session: FlashSaleSession;
   onBack: () => void;
   onProductsChanged: () => void;
+  t: TFunc;
 }) {
   const [showBind, setShowBind] = useState(false);
 
@@ -188,11 +204,11 @@ function SessionProductsPanel({
 
   const handleRemove = (productId: string) => {
     ModalManager.open({
-      title: 'Remove Product',
+      title: t('flashSale.removeProductTitle'),
       renderChildren: ({ close }) => (
         <div className="space-y-4">
           <p className="text-sm text-gray-600 dark:text-gray-300">
-            Remove this product from the flash sale?
+            {t('flashSale.removeProductConfirm')}
           </p>
           <div className="flex justify-end gap-2">
             <button
@@ -200,7 +216,7 @@ function SessionProductsPanel({
               onClick={close}
               className="px-4 py-2 text-sm rounded-xl border border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
             >
-              Cancel
+              {t('flashSale.cancel')}
             </button>
             <button
               type="button"
@@ -212,7 +228,7 @@ function SessionProductsPanel({
               }}
               className="px-4 py-2 text-sm rounded-xl bg-red-500 hover:bg-red-600 text-white transition-colors"
             >
-              Remove
+              {t('flashSale.remove')}
             </button>
           </div>
         </div>
@@ -251,7 +267,7 @@ function SessionProductsPanel({
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-teal-500 hover:bg-teal-600 text-white rounded-xl transition-colors"
           >
             <Plus size={13} />
-            Bind Product
+            {t('flashSale.bindProduct')}
           </button>
         </div>
       </div>
@@ -260,22 +276,26 @@ function SessionProductsPanel({
         {products.length === 0 && !loading ? (
           <div className="py-12 text-center text-gray-400">
             <Package size={32} className="mx-auto mb-2 opacity-30" />
-            <p className="text-sm">No products in this flash sale</p>
+            <p className="text-sm">{t('flashSale.noProducts')}</p>
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 dark:border-white/10 bg-gray-50/50 dark:bg-white/3">
-                {['Product', 'Original Price', 'Flash Price', 'Stock', ''].map(
-                  (h) => (
-                    <th
-                      key={h}
-                      className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400"
-                    >
-                      {h}
-                    </th>
-                  ),
-                )}
+                {[
+                  t('flashSale.colProduct'),
+                  t('flashSale.colOriginalPrice'),
+                  t('flashSale.colFlashPrice'),
+                  t('flashSale.colStock'),
+                  '',
+                ].map((h) => (
+                  <th
+                    key={h}
+                    className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400"
+                  >
+                    {h}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
@@ -350,6 +370,7 @@ function SessionProductsPanel({
 // ─── 主组件 ───────────────────────────────────────────────────────────────────
 
 export function FlashSaleManagement() {
+  const { t } = useTranslation();
   const [modal, setModal] = useState<FlashSaleSession | null | 'new'>(null);
   const [selected, setSelected] = useState<FlashSaleSession | null>(null);
 
@@ -362,12 +383,11 @@ export function FlashSaleManagement() {
 
   const handleDelete = (s: FlashSaleSession) => {
     ModalManager.open({
-      title: 'Delete Flash Sale Session',
+      title: t('flashSale.deleteTitle'),
       renderChildren: ({ close }) => (
         <div className="space-y-4">
           <p className="text-sm text-gray-600 dark:text-gray-300">
-            Delete &quot;{s.title}&quot;? This will also remove all bound
-            products.
+            {t('flashSale.deleteConfirm', { name: s.title })}
           </p>
           <div className="flex justify-end gap-2">
             <button
@@ -375,7 +395,7 @@ export function FlashSaleManagement() {
               onClick={close}
               className="px-4 py-2 text-sm rounded-xl border border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
             >
-              Cancel
+              {t('flashSale.cancel')}
             </button>
             <button
               type="button"
@@ -386,7 +406,7 @@ export function FlashSaleManagement() {
               }}
               className="px-4 py-2 text-sm rounded-xl bg-red-500 hover:bg-red-600 text-white transition-colors"
             >
-              Delete
+              {t('flashSale.delete')}
             </button>
           </div>
         </div>
@@ -403,6 +423,7 @@ export function FlashSaleManagement() {
           refresh();
         }}
         onProductsChanged={refresh}
+        t={t}
       />
     );
   }
@@ -410,16 +431,18 @@ export function FlashSaleManagement() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        title="Flash Sale"
-        description="Manage time-limited flash sale sessions and products"
-        buttonText="New Session"
+        title={t('flashSale.pageTitle')}
+        description={t('flashSale.pageDescription')}
+        buttonText={t('flashSale.newSessionButton')}
         buttonOnClick={() => setModal('new')}
       />
 
       <div className="rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-gray-900 overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-white/10">
           <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-            {sessions.length} session{sessions.length !== 1 ? 's' : ''}
+            {sessions.length === 1
+              ? t('flashSale.sessionCount', { count: sessions.length })
+              : t('flashSale.sessionCount_plural', { count: sessions.length })}
           </span>
           <button
             onClick={refresh}
@@ -432,13 +455,13 @@ export function FlashSaleManagement() {
 
         {loading && sessions.length === 0 && (
           <div className="py-12 text-center text-gray-400 text-sm">
-            Loading…
+            {t('flashSale.loading')}
           </div>
         )}
         {!loading && sessions.length === 0 && (
           <div className="py-12 text-center text-gray-400">
             <Zap size={32} className="mx-auto mb-2 opacity-30" />
-            <p className="text-sm">No flash sale sessions</p>
+            <p className="text-sm">{t('flashSale.noSessions')}</p>
           </div>
         )}
 
@@ -464,10 +487,16 @@ export function FlashSaleManagement() {
                 <span
                   className={`text-xs px-2 py-0.5 rounded-full ${s.status === 1 ? 'bg-green-100 dark:bg-green-500/20 text-green-600 dark:text-green-400' : 'bg-gray-100 dark:bg-white/10 text-gray-400'}`}
                 >
-                  {s.status === 1 ? 'Active' : 'Inactive'}
+                  {s.status === 1
+                    ? t('flashSale.active')
+                    : t('flashSale.inactive')}
                 </span>
                 <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-white/10 px-2 py-0.5 rounded-full">
-                  {s.productCount} product{s.productCount !== 1 ? 's' : ''}
+                  {s.productCount === 1
+                    ? t('flashSale.productCount', { count: s.productCount })
+                    : t('flashSale.productCount_plural', {
+                        count: s.productCount,
+                      })}
                 </span>
                 <button
                   onClick={() => setModal(s)}
@@ -484,7 +513,7 @@ export function FlashSaleManagement() {
                 <button
                   onClick={() => setSelected(s)}
                   className="p-1.5 rounded-lg text-gray-400 hover:text-teal-500 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
-                  title="Manage products"
+                  title={t('flashSale.manageProducts')}
                 >
                   <ChevronRight size={14} />
                 </button>
@@ -499,6 +528,7 @@ export function FlashSaleManagement() {
           session={modal === 'new' ? null : modal}
           onCloseAction={() => setModal(null)}
           onSavedAction={refresh}
+          t={t}
         />
       )}
     </div>

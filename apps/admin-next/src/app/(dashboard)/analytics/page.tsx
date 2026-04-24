@@ -21,22 +21,25 @@
  *   Stage 5（2026-03-17）：加 Suspense 骨架屏，流式推送（Streaming）
  *   2026-03-22：recharts 改为 dynamic() 延迟加载，降低 TBT
  */
-import type { Metadata } from 'next';
-
-/**
- * 【metadata 是什么？】
- *   Next.js 内置的 SEO 方案。
- *   这里设置的 title 会变成浏览器标签页标题，
- *   也会被 Google 抓取为搜索结果标题。
- *   写在 Server Component 里才生效，Client Component 里写无效。
- */
-export const metadata: Metadata = { title: 'Analytics' };
+import { getTranslations } from 'next-intl/server';
 
 import React, { Suspense } from 'react';
 import { AnalyticsOverview } from '@/components/analytics/AnalyticsOverview';
 import { AnalyticsOverviewSkeleton } from '@/components/analytics/AnalyticsOverviewSkeleton';
 import { AnalyticsTrendSectionLazy } from '@/components/analytics/AnalyticsTrendSectionLazy';
 import { PageHeader } from '@/components/scaffold/PageHeader';
+
+interface AnalyticsPageProps {
+  params: Promise<{ locale: string }>;
+}
+
+export async function generateMetadata({ params }: AnalyticsPageProps) {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: 'analytics' });
+  return {
+    title: t('pageTitle'),
+  };
+}
 
 /**
  * 【为什么不在这个 Server Component 里直接写 dynamic({ ssr: false })？】
@@ -61,14 +64,14 @@ import { PageHeader } from '@/components/scaffold/PageHeader';
  *     浏览器加载完成后异步下载 recharts chunk，
  *     下载完才渲染图表。
  */
-export default function AnalyticsPage() {
+export default async function AnalyticsPage({ params }: AnalyticsPageProps) {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: 'analytics' });
+
   return (
     <div className="space-y-6">
       {/* 页头：纯静态展示，无数据依赖，立即渲染 */}
-      <PageHeader
-        title="Data Analytics"
-        description="Real-time overview of users, orders, revenue and trends."
-      />
+      <PageHeader title={t('pageTitle')} description={t('pageDescription')} />
 
       {/*
        * 统计卡片区 — Suspense 流式 SSR
@@ -81,7 +84,7 @@ export default function AnalyticsPage() {
        *   → 查完后，Next.js 把真实内容"流式"替换骨架屏
        */}
       <Suspense fallback={<AnalyticsOverviewSkeleton />}>
-        <AnalyticsOverview />
+        <AnalyticsOverview locale={locale} />
       </Suspense>
 
       {/**
@@ -90,6 +93,7 @@ export default function AnalyticsPage() {
        * Server 页面只渲染客户端边界，
        * 真正的 recharts 组件在浏览器侧按需下载。
        */}
+
       <AnalyticsTrendSectionLazy />
     </div>
   );

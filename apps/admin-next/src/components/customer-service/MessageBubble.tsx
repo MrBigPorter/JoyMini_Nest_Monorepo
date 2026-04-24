@@ -10,6 +10,7 @@ import {
   LocationMessage,
 } from './messages';
 import { formatMsgTime } from '@/lib/format-utils';
+import { useTranslation } from '@/hooks/useTranslation';
 import type { ChatMessage } from '@/type/types';
 
 export function MessageBubble({
@@ -19,6 +20,7 @@ export function MessageBubble({
   msg: ChatMessage;
   onRecallAction?: (id: string) => void;
 }) {
+  const { t } = useTranslation();
   const [hovered, setHovered] = useState(false);
 
   // type=99 系统通知（关闭会话等）
@@ -34,13 +36,16 @@ export function MessageBubble({
 
   const isSupport = msg.isSystem; // senderId === null
   const senderName = isSupport
-    ? ((msg.meta as Record<string, string> | null)?.agentName ?? 'Support')
-    : (msg.sender?.nickname ?? 'User');
+    ? ((msg.meta as Record<string, string> | null)?.agentName ??
+      t('customerService.supportAgent'))
+    : (msg.sender?.nickname ?? t('customerService.user'));
 
   const renderContent = () => {
     if (msg.isRecalled) {
       return (
-        <span className="italic opacity-60 text-sm">[Message recalled]</span>
+        <span className="italic opacity-60 text-sm">
+          {t('customerService.messageRecalled')}
+        </span>
       );
     }
     const meta = msg.meta as Record<string, unknown> | null;
@@ -130,7 +135,7 @@ export function MessageBubble({
               className="text-xs text-gray-400 hover:text-red-500 transition-colors flex items-center gap-0.5"
             >
               <Undo2 size={11} />
-              <span className="text-[10px]">Recall</span>
+              <span className="text-[10px]">{t('customerService.recall')}</span>
             </button>
           )}
         </div>

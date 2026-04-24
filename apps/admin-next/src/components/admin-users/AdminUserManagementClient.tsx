@@ -10,6 +10,7 @@ import { userApi, applicationApi } from '@/api';
 import { useRequest } from 'ahooks';
 import { createColumnHelper, ColumnDef } from '@tanstack/react-table';
 import { useAuthStore } from '@/store/useAuthStore';
+import { useTranslation } from '@/hooks/useTranslation';
 import { CreateAdminUserModal } from '@/views/admin/CreateAdminUserModal';
 import { EditAdminUserModal } from '@/views/admin/EditAdminUserModal';
 import { EditAdminPasswordModal } from '@/views/admin/EditAdminPasswordModal';
@@ -42,6 +43,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
   initialFormParams,
   onParamsChange,
 }) => {
+  const { t } = useTranslation();
   const addToast = useToastStore((state) => state.addToast);
   const userInfo = useAuthStore((state) => state.userInfo);
   const canReviewApplications = userInfo?.role === 'SUPER_ADMIN';
@@ -148,9 +150,13 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
       onSuccess: (data) => {
         addToast(
           'success',
-          `Admin ${data.username} ${
-            data.status === 1 ? 'activated' : 'disabled'
-          }.`,
+          t('adminUsers.statusChanged', {
+            username: data.username,
+            status:
+              data.status === 1
+                ? t('adminUsers.activate').toLowerCase()
+                : t('adminUsers.disable').toLowerCase(),
+          }),
         );
         void refresh();
       },
@@ -159,7 +165,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
   const handleToggleStatus = useCallback(
     async (admin: AdminUser) => {
       if (admin.role === 'SUPER_ADMIN' && !isSuperAdmin) {
-        addToast('error', 'Only Super Admin can modify Super Admin accounts');
+        addToast('error', t('adminUsers.onlySuperAdminModify'));
         return;
       }
       const newStatus = admin.status === 1 ? 0 : 1;
@@ -203,7 +209,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
 
     return [
       columnHelper.accessor('id', {
-        header: 'ID',
+        header: t('adminUsers.columnId'),
         cell: (info) => (
           <span className="font-mono text-xs text-gray-500">
             {info.getValue().substring(0, 8)}...
@@ -211,7 +217,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
         ),
       }),
       columnHelper.accessor('username', {
-        header: 'Username',
+        header: t('adminUsers.columnUsername'),
         cell: (info) => (
           <div className="flex items-center gap-2 font-medium text-gray-900 dark:text-white">
             <div className="p-1.5 bg-gray-100 dark:bg-white/10 rounded-full">
@@ -225,7 +231,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
         ),
       }),
       columnHelper.accessor('realName', {
-        header: 'Real Name',
+        header: t('adminUsers.columnRealName'),
         cell: (info) => (
           <span className="text-gray-600 dark:text-gray-400">
             {info.getValue() || '-'}
@@ -233,7 +239,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
         ),
       }),
       columnHelper.accessor('role', {
-        header: 'Role',
+        header: t('adminUsers.columnRole'),
         cell: (info) => {
           const role = info.getValue();
           let color: 'gray' | 'purple' | 'blue' | 'green' = 'gray';
@@ -245,15 +251,17 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
         },
       }),
       columnHelper.accessor('status', {
-        header: 'Status',
+        header: t('adminUsers.columnStatus'),
         cell: (info) => (
           <Badge color={info.getValue() === 1 ? 'green' : 'red'}>
-            {info.getValue() === 1 ? 'Active' : 'Disabled'}
+            {info.getValue() === 1
+              ? t('adminUsers.statusActive')
+              : t('adminUsers.statusDisabled')}
           </Badge>
         ),
       }),
       columnHelper.accessor('lastLoginAt', {
-        header: 'Last Login',
+        header: t('adminUsers.columnLastLogin'),
         cell: (info) => (
           <div className="text-xs text-gray-500">
             {/* suppressHydrationWarning: toLocaleString() 依赖本地时区，
@@ -261,7 +269,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
             <div suppressHydrationWarning>
               {info.getValue()
                 ? new Date(Number(info.getValue())).toLocaleString()
-                : 'Never'}
+                : t('adminUsers.neverLogin')}
             </div>
             {info.row.original.lastLoginIp && (
               <div className="font-mono mt-0.5 opacity-75">
@@ -273,7 +281,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
       }),
       columnHelper.display({
         id: 'actions',
-        header: 'Actions',
+        header: t('adminUsers.columnActions'),
         cell: (info) => {
           const isTargetSuper = info.row.original.role === 'SUPER_ADMIN';
           // 非 SUPER_ADMIN 不能操作 SUPER_ADMIN 账号
@@ -287,8 +295,8 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                 onClick={() => handleEdit(info.row.original)}
                 title={
                   actionsLocked
-                    ? 'Only Super Admin can edit Super Admin accounts'
-                    : 'Edit'
+                    ? t('adminUsers.onlySuperAdminEdit')
+                    : t('adminUsers.edit')
                 }
               >
                 <Edit3 size={16} />
@@ -300,8 +308,8 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                 onClick={() => handleOpenResetPwd(info.row.original)}
                 title={
                   actionsLocked
-                    ? 'Only Super Admin can reset Super Admin password'
-                    : 'Reset Password'
+                    ? t('adminUsers.onlySuperAdminReset')
+                    : t('adminUsers.resetPassword')
                 }
               >
                 <Key size={16} />
@@ -319,10 +327,10 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                 onClick={() => handleToggleStatus(info.row.original)}
                 title={
                   actionsLocked
-                    ? 'Only Super Admin can modify Super Admin accounts'
+                    ? t('adminUsers.onlySuperAdminModify')
                     : info.row.original.status === 1
-                      ? 'Disable'
-                      : 'Activate'
+                      ? t('adminUsers.disable')
+                      : t('adminUsers.activate')
                 }
               >
                 {info.row.original.status === 1 ? (
@@ -348,9 +356,11 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Admin Users"
-        description="Manage system administrators and their roles"
-        buttonText={activeTab === 'users' ? 'Add New Admin' : undefined}
+        title={t('adminUsers.pageTitle')}
+        description={t('adminUsers.pageDescription')}
+        buttonText={
+          activeTab === 'users' ? t('adminUsers.addNewAdmin') : undefined
+        }
         buttonOnClick={activeTab === 'users' ? handleCreate : undefined}
       />
 
@@ -366,7 +376,9 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                 : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
             }`}
           >
-            {tab === 'users' ? 'Admin Users' : 'Applications'}
+            {tab === 'users'
+              ? t('adminUsers.tabUsers')
+              : t('adminUsers.tabApplications')}
             {tab === 'applications' && pendingCount > 0 && (
               <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] text-[10px] font-bold bg-red-500 text-white rounded-full flex items-center justify-center px-1">
                 {pendingCount > 99 ? '99+' : pendingCount}
@@ -389,37 +401,40 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                   {
                     type: 'input',
                     key: 'username',
-                    label: 'Username',
-                    placeholder: 'Search username...',
+                    label: t('adminUsers.searchUsername'),
+                    placeholder: t('adminUsers.searchUsernamePlaceholder'),
                   },
                   {
                     type: 'input',
                     key: 'realName',
-                    label: 'Real Name',
-                    placeholder: 'Search real name...',
+                    label: t('adminUsers.searchRealName'),
+                    placeholder: t('adminUsers.searchRealNamePlaceholder'),
                   },
                   {
                     type: 'select',
                     key: 'role',
-                    label: 'Role',
+                    label: t('adminUsers.searchRole'),
                     defaultValue: 'ALL',
                     options: [
-                      { label: 'All Roles', value: 'ALL' },
-                      { label: 'Viewer', value: 'VIEWER' },
-                      { label: 'Editor', value: 'EDITOR' },
-                      { label: 'Admin', value: 'ADMIN' },
-                      { label: 'Super Admin', value: 'SUPER_ADMIN' },
+                      { label: t('adminUsers.searchAllRoles'), value: 'ALL' },
+                      { label: t('adminUsers.roleViewer'), value: 'VIEWER' },
+                      { label: t('adminUsers.roleEditor'), value: 'EDITOR' },
+                      { label: t('adminUsers.roleAdmin'), value: 'ADMIN' },
+                      {
+                        label: t('adminUsers.roleSuperAdmin'),
+                        value: 'SUPER_ADMIN',
+                      },
                     ],
                   },
                   {
                     type: 'select',
                     key: 'status',
-                    label: 'Status',
+                    label: t('adminUsers.searchStatus'),
                     defaultValue: 'ALL',
                     options: [
-                      { label: 'All Status', value: 'ALL' },
-                      { label: 'Active', value: '1' },
-                      { label: 'Disabled', value: '0' },
+                      { label: t('adminUsers.searchAllStatus'), value: 'ALL' },
+                      { label: t('adminUsers.statusActive'), value: '1' },
+                      { label: t('adminUsers.statusDisabled'), value: '0' },
                     ],
                   },
                 ]}

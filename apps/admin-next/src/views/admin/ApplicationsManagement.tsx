@@ -8,6 +8,7 @@ import { Button } from '@repo/ui';
 import { useToastStore } from '@/store/useToastStore';
 import { applicationApi } from '@/api';
 import { AdminApplication, ApplicationStatus } from '@/type/types';
+import { useTranslation } from '@/hooks/useTranslation';
 
 const PENDING_APPLICATIONS_UPDATED_EVENT = 'applications:pending-updated';
 
@@ -17,27 +18,31 @@ function RejectModal({
   onConfirm,
   onClose,
   loading,
+  t,
 }: {
   app: AdminApplication;
   onConfirm: (note: string) => void;
   onClose: () => void;
   loading: boolean;
+  t: (key: string, params?: Record<string, string | number>) => string;
 }) {
   const [note, setNote] = useState('');
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div className="bg-white dark:bg-dark-900 rounded-2xl p-6 w-full max-w-sm shadow-2xl border border-gray-100 dark:border-white/10">
         <h3 className="font-bold text-lg mb-1 text-gray-900 dark:text-white">
-          Reject Application
+          {t('adminUsers.appRejectTitle')}
         </h3>
         <p className="text-sm text-gray-500 mb-4">
-          Rejecting <strong>{app.realName}</strong> ({app.username}). Optionally
-          provide a reason:
+          {t('adminUsers.appRejectDescription', {
+            name: app.realName,
+            username: app.username,
+          })}
         </p>
         <textarea
           className="w-full border border-gray-200 dark:border-white/10 rounded-xl p-3 text-sm bg-gray-50 dark:bg-dark-800 text-gray-900 dark:text-white resize-none focus:outline-none focus:ring-2 focus:ring-primary-500/40"
           rows={3}
-          placeholder="Rejection reason (optional, will be emailed to applicant)"
+          placeholder={t('adminUsers.appRejectPlaceholder')}
           maxLength={500}
           value={note}
           onChange={(e) => setNote(e.target.value)}
@@ -49,7 +54,7 @@ function RejectModal({
             onClick={onClose}
             disabled={loading}
           >
-            Cancel
+            {t('adminUsers.cancel')}
           </Button>
           <Button
             size="sm"
@@ -57,7 +62,7 @@ function RejectModal({
             onClick={() => onConfirm(note)}
             isLoading={loading}
           >
-            Confirm Reject
+            {t('adminUsers.appRejectConfirm')}
           </Button>
         </div>
       </div>
@@ -66,39 +71,48 @@ function RejectModal({
 }
 
 // ─── Status badge ─────────────────────────────────────────────────────────────
-function StatusBadge({ status }: { status: ApplicationStatus }) {
+function StatusBadge({
+  status,
+  t,
+}: {
+  status: ApplicationStatus;
+  t: (key: string) => string;
+}) {
   if (status === 'pending')
     return (
       <Badge color="yellow">
         <Clock size={12} className="inline mr-1" />
-        Pending
+        {t('adminUsers.appTabPending')}
       </Badge>
     );
   if (status === 'approved')
     return (
       <Badge color="green">
         <CheckCircle size={12} className="inline mr-1" />
-        Approved
+        {t('adminUsers.appTabApproved')}
       </Badge>
     );
   return (
     <Badge color="red">
       <XCircle size={12} className="inline mr-1" />
-      Rejected
+      {t('adminUsers.appTabRejected')}
     </Badge>
   );
 }
 
 // ─── Tab types ────────────────────────────────────────────────────────────────
-const TABS: { label: string; value: ApplicationStatus | 'all' }[] = [
-  { label: 'Pending', value: 'pending' },
-  { label: 'Approved', value: 'approved' },
-  { label: 'Rejected', value: 'rejected' },
-  { label: 'All', value: 'all' },
+const TABS = (
+  t: (key: string) => string,
+): { label: string; value: ApplicationStatus | 'all' }[] => [
+  { label: t('adminUsers.appTabPending'), value: 'pending' },
+  { label: t('adminUsers.appTabApproved'), value: 'approved' },
+  { label: t('adminUsers.appTabRejected'), value: 'rejected' },
+  { label: t('adminUsers.appTabAll'), value: 'all' },
 ];
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export function ApplicationsManagement() {
+  const { t } = useTranslation();
   const addToast = useToastStore((s) => s.addToast);
   const [tab, setTab] = useState<ApplicationStatus | 'all'>('pending');
   const [page, setPage] = useState(1);
@@ -139,7 +153,7 @@ export function ApplicationsManagement() {
     {
       manual: true,
       onSuccess: () => {
-        addToast('success', 'Application rejected');
+        addToast('success', t('adminUsers.appRejected'));
         setRejectTarget(null);
         refresh();
         refreshCount();
@@ -157,21 +171,21 @@ export function ApplicationsManagement() {
     <div className="space-y-5">
       {/* Tab bar */}
       <div className="flex gap-1 p-1 bg-gray-100 dark:bg-dark-800 rounded-xl w-fit">
-        {TABS.map((t) => (
+        {TABS(t).map((tabItem) => (
           <button
-            key={t.value}
+            key={tabItem.value}
             onClick={() => {
-              setTab(t.value);
+              setTab(tabItem.value);
               setPage(1);
             }}
             className={`relative px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              tab === t.value
+              tab === tabItem.value
                 ? 'bg-white dark:bg-dark-900 text-gray-900 dark:text-white shadow-sm'
                 : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
             }`}
           >
-            {t.label}
-            {t.value === 'pending' && pendingCount > 0 && (
+            {tabItem.label}
+            {tabItem.value === 'pending' && pendingCount > 0 && (
               <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] text-[10px] font-bold bg-red-500 text-white rounded-full flex items-center justify-center px-1">
                 {pendingCount > 99 ? '99+' : pendingCount}
               </span>
@@ -184,11 +198,11 @@ export function ApplicationsManagement() {
       <Card>
         {loading ? (
           <div className="py-16 text-center text-gray-400 text-sm">
-            Loading…
+            {t('adminUsers.appLoading')}
           </div>
         ) : list.length === 0 ? (
           <div className="py-16 text-center text-gray-400 text-sm">
-            No applications found
+            {t('adminUsers.appNoResults')}
           </div>
         ) : (
           <div className="space-y-3">
@@ -206,7 +220,7 @@ export function ApplicationsManagement() {
                     <span className="font-mono text-xs text-gray-500 bg-gray-100 dark:bg-dark-800 px-2 py-0.5 rounded">
                       @{app.username}
                     </span>
-                    <StatusBadge status={app.status} />
+                    <StatusBadge status={app.status} t={t} />
                   </div>
                   <div className="text-sm text-gray-500 dark:text-gray-400 truncate">
                     {app.email}
@@ -225,7 +239,7 @@ export function ApplicationsManagement() {
                     )}
                     {app.reviewNote && (
                       <span className="text-red-400">
-                        Note: {app.reviewNote}
+                        {t('adminUsers.appNote', { note: app.reviewNote })}
                       </span>
                     )}
                   </div>
@@ -240,7 +254,8 @@ export function ApplicationsManagement() {
                       onClick={() => runApprove(app.id)}
                       isLoading={approving}
                     >
-                      <CheckCircle size={14} className="mr-1" /> Approve
+                      <CheckCircle size={14} className="mr-1" />{' '}
+                      {t('adminUsers.appApprove')}
                     </Button>
                     <Button
                       variant="outline"
@@ -248,7 +263,8 @@ export function ApplicationsManagement() {
                       className="text-red-500 border-red-200 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-900/20"
                       onClick={() => setRejectTarget(app)}
                     >
-                      <XCircle size={14} className="mr-1" /> Reject
+                      <XCircle size={14} className="mr-1" />{' '}
+                      {t('adminUsers.appReject')}
                     </Button>
                   </div>
                 )}
@@ -260,7 +276,9 @@ export function ApplicationsManagement() {
         {/* Simple pagination */}
         {total > 20 && (
           <div className="flex justify-between items-center mt-4 pt-4 border-t border-gray-100 dark:border-white/5">
-            <span className="text-sm text-gray-500">{total} total</span>
+            <span className="text-sm text-gray-500">
+              {t('adminUsers.appTotal', { count: total })}
+            </span>
             <div className="flex gap-2">
               <Button
                 variant="outline"
@@ -268,10 +286,10 @@ export function ApplicationsManagement() {
                 disabled={page <= 1}
                 onClick={() => setPage((p) => p - 1)}
               >
-                Prev
+                {t('adminUsers.appPrev')}
               </Button>
               <span className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400">
-                Page {page}
+                {t('adminUsers.appPage', { page })}
               </span>
               <Button
                 variant="outline"
@@ -279,7 +297,7 @@ export function ApplicationsManagement() {
                 disabled={page * 20 >= total}
                 onClick={() => setPage((p) => p + 1)}
               >
-                Next
+                {t('adminUsers.appNext')}
               </Button>
             </div>
           </div>
@@ -293,6 +311,7 @@ export function ApplicationsManagement() {
           onConfirm={(note) => runReject(rejectTarget.id, note)}
           onClose={() => setRejectTarget(null)}
           loading={rejecting}
+          t={t}
         />
       )}
     </div>

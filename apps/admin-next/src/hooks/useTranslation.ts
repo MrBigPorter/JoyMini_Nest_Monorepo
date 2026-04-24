@@ -6,6 +6,10 @@
  * All existing call sites (`const { t, lang, setLang } = useTranslation()`) work unchanged.
  * Missing keys never throw: request.ts uses English as a baseline so every key
  * is always present in messages, and onError is configured to be a no-op.
+ *
+ * NOTE: Some route names (e.g. operationLogs) are also used as i18n namespace keys.
+ * In the flattened messages these resolve to objects, not strings, causing next-intl
+ * to throw INSUFFICIENT_PATH. We catch that and return the key as fallback.
  */
 
 import { useCallback } from 'react';
@@ -25,7 +29,15 @@ export function useTranslation() {
 
   const t: TFunc = useCallback(
     (key: string, params?: Record<string, string | number>) => {
-      // next-intl never throws here: en.json baseline + onError no-op in request.ts
+      // Use tNext.raw() to check if the key resolves to a string first.
+      // Some keys (e.g. 'finance') match namespace objects, which would cause
+      // INSUFFICIENT_PATH errors with tNext() — even when caught, next-intl
+      // still logs them via its internal onError handler.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const raw = (tNext as any).raw?.(key as any);
+      if (typeof raw !== 'string') {
+        return key;
+      }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return tNext(key as any, params as any) as string;
     },

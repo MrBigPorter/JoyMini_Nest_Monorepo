@@ -19,7 +19,7 @@ import {
   parseNotificationsSearchParams,
 } from '@/lib/notifications-cache';
 
-export const metadata: Metadata = { title: 'Notifications' };
+export const metadata: Metadata = { title: 'Notifications / Push Management' };
 
 interface NotificationsPageProps {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;

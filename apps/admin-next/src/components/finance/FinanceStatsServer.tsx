@@ -4,6 +4,7 @@
  * 配合 finance/page.tsx 的 <Suspense> 实现流式渲染。
  */
 import 'server-only';
+import { getTranslations } from 'next-intl/server';
 import { serverGet } from '@/lib/serverFetch';
 import { FINANCE_STATS_TAG, FINANCE_TAG } from '@/lib/cache/finance-cache';
 import type { FinanceStatistics } from '@/type/types';
@@ -11,7 +12,8 @@ import { NumHelper } from '@lucky/shared';
 import { Clock, TrendingUp, TrendingDown, Wallet, Lock } from 'lucide-react';
 import { FinanceRefreshButton } from './FinanceRefreshButton';
 
-export async function FinanceStatsServer() {
+export async function FinanceStatsServer({ locale }: { locale: string }) {
+  const t = await getTranslations({ locale, namespace: 'finance' });
   const statistics = await serverGet<FinanceStatistics>(
     '/v1/admin/finance/statistics',
     undefined,
@@ -31,10 +33,10 @@ export async function FinanceStatsServer() {
           </div>
           <div>
             <h2 className="text-lg font-semibold text-slate-300">
-              No Permission
+              {t('stats.noPermission')}
             </h2>
             <p className="text-sm text-slate-500 mt-1">
-              Your account does not have access to finance statistics.
+              {t('stats.noPermissionDesc')}
             </p>
           </div>
         </div>
@@ -56,11 +58,10 @@ export async function FinanceStatsServer() {
               <div className="p-2 bg-blue-500/20 rounded-lg backdrop-blur-md border border-blue-400/20">
                 <Wallet className="text-blue-400 h-6 w-6" />
               </div>
-              Finance Center
+              {t('stats.title')}
             </h1>
             <p className="text-slate-400 mt-2 text-sm md:text-base max-w-xl">
-              Global financial overview. Monitor deposit inflows, audit pending
-              withdrawals, and track real-time liquidity.
+              {t('stats.description')}
             </p>
           </div>
           {/* FinanceRefreshButton 是 Client Component，触发 router.refresh() 重新流式渲染 */}
@@ -70,26 +71,28 @@ export async function FinanceStatsServer() {
         {/* 核心指标卡片 Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <StatsCard
-            title="Pending Withdrawals"
+            title={t('stats.pendingWithdrawals')}
             amount={statistics.pendingWithdraw}
             icon={<Clock size={20} className="text-amber-400" />}
-            trend="Requires Audit"
+            trend={t('stats.requiresAudit')}
             isTrend={false}
             colorClass="bg-amber-500/10 border-amber-500/20 text-amber-400"
           />
           <StatsCard
-            title="Total Deposits"
+            title={t('stats.totalDeposits')}
             amount={statistics.totalDeposit}
             isTrend={true}
             trend={statistics.depositTrend}
             colorClass="bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+            vsLastWeekLabel={t('stats.vsLastWeek')}
           />
           <StatsCard
-            title="Total Withdrawals"
+            title={t('stats.totalWithdrawals')}
             amount={statistics.totalWithdraw}
             isTrend={true}
             trend={statistics.withdrawTrend}
             colorClass="bg-rose-500/10 border-rose-500/20 text-rose-400"
+            vsLastWeekLabel={t('stats.vsLastWeek')}
           />
         </div>
       </div>
@@ -105,6 +108,7 @@ function StatsCard({
   trend,
   colorClass,
   isTrend = true,
+  vsLastWeekLabel = 'vs last week',
 }: {
   title: string;
   amount: string;
@@ -112,6 +116,7 @@ function StatsCard({
   trend: string;
   isTrend?: boolean;
   colorClass: string;
+  vsLastWeekLabel?: string;
 }) {
   const trendValue = Number(trend);
   let trendColor = 'text-slate-400';
@@ -149,7 +154,8 @@ function StatsCard({
         {isTrend ? (
           <>
             {TrendIcon && <TrendIcon size={14} className="mr-1" />}
-            {trendValue > 0 ? `+${trendValue}%` : `${trendValue}%`} vs last week
+            {trendValue > 0 ? `+${trendValue}%` : `${trendValue}%`}{' '}
+            {vsLastWeekLabel}
           </>
         ) : (
           <>⏳ {trend}</>

@@ -3,7 +3,8 @@
 import React from 'react';
 import { Button } from '@repo/ui';
 import { cn } from '@repo/ui';
-import { useTranslation } from '@/hooks/useTranslation';
+import { useTranslation, type TFunc } from '@/hooks/useTranslation';
+
 interface PaginationProps {
   /** 当前页码 */
   current: number;
@@ -15,17 +16,24 @@ interface PaginationProps {
   onChange: (page: number, pageSize: number) => void;
   /** 额外的样式类 */
   className?: string;
+  /**
+   * Optional t function for use inside ModalManager (no NextIntlClientProvider context).
+   * When provided, Pagination uses it instead of calling useTranslation() internally.
+   */
+  t?: TFunc;
 }
 
-export const Pagination: React.FC<PaginationProps> = ({
+/**
+ * Inner implementation that requires a t function.
+ */
+const PaginationInner: React.FC<PaginationProps & { t: TFunc }> = ({
   current,
   pageSize,
   total,
   onChange,
   className,
+  t,
 }) => {
-  const { t } = useTranslation();
-
   // 计算总页数，防止除以0或向上取整错误
   const totalPage = Math.max(1, Math.ceil(total / pageSize));
 
@@ -71,4 +79,24 @@ export const Pagination: React.FC<PaginationProps> = ({
       </div>
     </div>
   );
+};
+
+/**
+ * Wrapper that provides t via useTranslation() — used in normal React tree.
+ */
+const PaginationWithT: React.FC<PaginationProps> = (props) => {
+  const { t } = useTranslation();
+  return <PaginationInner {...props} t={t} />;
+};
+
+/**
+ * Public API — decides how to provide the t function.
+ * When a t prop is passed (e.g. from parent inside ModalManager), use it directly.
+ * Otherwise, call useTranslation() in a proper component context.
+ */
+export const Pagination: React.FC<PaginationProps> = (props) => {
+  if (props.t) {
+    return <PaginationInner {...props} t={props.t} />;
+  }
+  return <PaginationWithT {...props} />;
 };

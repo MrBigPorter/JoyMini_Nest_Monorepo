@@ -17,13 +17,12 @@ export async function generateMetadata(): Promise<Metadata> {
   const route = routes.find((r) => r.path === pathname);
   let title: string | undefined;
   if (route) {
-    try {
-      const t = await getTranslations();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      title = t(route.name as any) ?? route.name;
-    } catch {
-      title = route.name;
-    }
+    const t = await getTranslations();
+    // Use t.raw() to check if the route name resolves to a string.
+    // Some route names (e.g. 'finance') match namespace keys that resolve to objects,
+    // which would cause INSUFFICIENT_PATH errors with t().
+    const raw = (t as any).raw?.(route.name as any);
+    title = typeof raw === 'string' ? raw : route.name;
   }
   return { title };
 }

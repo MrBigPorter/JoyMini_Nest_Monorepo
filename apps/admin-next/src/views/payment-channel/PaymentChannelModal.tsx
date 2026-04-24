@@ -55,19 +55,44 @@ type PaymentChannelFormInputs = z.infer<typeof PaymentChannelSchema>;
 
 // Xendit 常用 Code
 const PRESET_CODES = [
-  { value: 'PH_GCASH', label: 'GCash (Money In)', type: 1 },
-  { value: 'PH_PAYMAYA', label: 'Maya (Money In)', type: 1 },
-  { value: 'PH_GRABPAY', label: 'GrabPay', type: 1 },
-  { value: 'PH_7ELEVEN', label: '7-Eleven', type: 1 },
-  { value: 'PH_GCASH_OUT', label: 'GCash (Money Out)', type: 2 },
-  { value: 'PH_BDO_OUT', label: 'BDO Unibank', type: 2 },
-  { value: 'PH_BPI_OUT', label: 'BPI', type: 2 },
+  {
+    value: 'PH_GCASH',
+    labelKey: 'paymentChannel.presetCodes.gcashIn',
+    type: 1,
+  },
+  {
+    value: 'PH_PAYMAYA',
+    labelKey: 'paymentChannel.presetCodes.mayaIn',
+    type: 1,
+  },
+  {
+    value: 'PH_GRABPAY',
+    labelKey: 'paymentChannel.presetCodes.grabpay',
+    type: 1,
+  },
+  {
+    value: 'PH_7ELEVEN',
+    labelKey: 'paymentChannel.presetCodes.sevenEleven',
+    type: 1,
+  },
+  {
+    value: 'PH_GCASH_OUT',
+    labelKey: 'paymentChannel.presetCodes.gcashOut',
+    type: 2,
+  },
+  {
+    value: 'PH_BDO_OUT',
+    labelKey: 'paymentChannel.presetCodes.bdoUnibank',
+    type: 2,
+  },
+  { value: 'PH_BPI_OUT', labelKey: 'paymentChannel.presetCodes.bpi', type: 2 },
 ];
 
 interface Props {
   data?: PaymentChannel;
   close: () => void;
   reload: () => void;
+  t: (key: string, params?: Record<string, string | number>) => string;
 }
 
 // 辅助函数：解析金额字符串
@@ -82,8 +107,10 @@ const parseFixedAmounts = (str?: string): number[] => {
 // --- 组件：模拟手机预览 ---
 const MobilePreview = ({
   values,
+  t,
 }: {
   values: Partial<PaymentChannelFormInputs>;
+  t: (key: string, params?: Record<string, string | number>) => string;
 }) => {
   const fixedAmounts = useMemo(
     () => parseFixedAmounts(values.fixedAmountStr),
@@ -99,8 +126,12 @@ const MobilePreview = ({
       <div className="w-full h-full bg-gray-50 dark:bg-gray-900 rounded-[30px] overflow-hidden flex flex-col relative">
         {/* Header */}
         <div className="bg-primary-600 h-32 p-4 pt-10 text-white flex flex-col justify-between">
-          <div className="text-xs opacity-80">Cashier Preview</div>
-          <div className="font-bold text-xl">Deposit</div>
+          <div className="text-xs opacity-80">
+            {t('paymentChannel.modal.cashierPreview')}
+          </div>
+          <div className="font-bold text-xl">
+            {t('paymentChannel.modal.deposit')}
+          </div>
         </div>
 
         {/* 渠道卡片 */}
@@ -123,10 +154,12 @@ const MobilePreview = ({
               )}
               <div>
                 <div className="font-bold text-sm text-gray-900 dark:text-white">
-                  {values.name || 'Channel Name'}
+                  {values.name || t('paymentChannel.modal.channelName')}
                 </div>
                 <div className="text-[10px] text-gray-500">
-                  {values.type === 1 ? 'Instant Deposit' : 'Bank Transfer'}
+                  {values.type === 1
+                    ? t('paymentChannel.modal.instantDeposit')
+                    : t('paymentChannel.modal.bankTransfer')}
                 </div>
               </div>
             </div>
@@ -139,7 +172,7 @@ const MobilePreview = ({
           {values.type === 1 && (
             <div className="mt-4">
               <div className="text-xs text-gray-500 mb-2 font-medium">
-                Select Amount
+                {t('paymentChannel.modal.selectAmount')}
               </div>
               <div className="grid grid-cols-3 gap-2">
                 {fixedAmounts.map((amt, idx) => (
@@ -154,7 +187,7 @@ const MobilePreview = ({
                 ))}
                 {fixedAmounts.length === 0 && (
                   <div className="col-span-3 text-center py-4 text-xs text-gray-400 border border-dashed rounded">
-                    No fixed amounts
+                    {t('paymentChannel.modal.noFixedAmounts')}
                   </div>
                 )}
               </div>
@@ -164,7 +197,9 @@ const MobilePreview = ({
           {/* 输入框 */}
           {values.isCustom && (
             <div className="mt-4 p-3 bg-white dark:bg-gray-800 border border-gray-200 rounded-lg flex justify-between items-center">
-              <span className="text-xs text-gray-400">Enter amount...</span>
+              <span className="text-xs text-gray-400">
+                {t('paymentChannel.modal.enterAmount')}
+              </span>
               <span className="text-xs font-mono text-gray-900">₱0.00</span>
             </div>
           )}
@@ -173,9 +208,16 @@ const MobilePreview = ({
           {values.type === 2 && (
             <div className="mt-4 p-3 bg-amber-50 border border-amber-100 rounded-lg text-amber-700 text-xs">
               <div>
-                Fee: ₱{values.feeFixed || 0} + {(values.feeRate || 0) * 100}%
+                {t('paymentChannel.modal.feeLabel', {
+                  fixed: String(values.feeFixed || 0),
+                  rate: String((values.feeRate || 0) * 100),
+                })}
               </div>
-              <div className="mt-1 opacity-70">Min: ₱{values.minAmount}</div>
+              <div className="mt-1 opacity-70">
+                {t('paymentChannel.modal.minLabel', {
+                  amount: String(values.minAmount),
+                })}
+              </div>
             </div>
           )}
         </div>
@@ -183,7 +225,7 @@ const MobilePreview = ({
         {/* 底部按钮 */}
         <div className="mt-auto p-4">
           <div className="w-full bg-primary-600 text-white text-center py-3 rounded-full text-sm font-bold shadow-lg shadow-primary-500/30">
-            Confirm
+            {t('paymentChannel.modal.confirm')}
           </div>
         </div>
       </div>
@@ -210,6 +252,7 @@ export const PaymentChannelModal: React.FC<Props> = ({
   data,
   close,
   reload,
+  t,
 }) => {
   const addToast = useToastStore((state) => state.addToast);
 
@@ -279,7 +322,9 @@ export const PaymentChannelModal: React.FC<Props> = ({
       onSuccess: () => {
         addToast(
           'success',
-          `Channel ${data ? 'updated' : 'created'} successfully`,
+          data
+            ? t('paymentChannel.updatedSuccess')
+            : t('paymentChannel.createdSuccess'),
         );
         reload();
         close();
@@ -294,13 +339,13 @@ export const PaymentChannelModal: React.FC<Props> = ({
       <div className="flex-1 overflow-y-auto p-8 bg-gray-100 dark:bg-black/20 custom-scrollbar border-r border-gray-200 dark:border-white/5 flex flex-col items-center justify-center">
         <div className="text-center mb-4">
           <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center justify-center gap-2">
-            <Smartphone size={20} /> Mobile Preview
+            <Smartphone size={20} /> {t('paymentChannel.modal.mobilePreview')}
           </h2>
           <p className="text-xs text-gray-500 mt-1">
-            Real-time preview of user interface
+            {t('paymentChannel.modal.previewDescription')}
           </p>
         </div>
-        <MobilePreview values={watchedValues} />
+        <MobilePreview values={watchedValues} t={t} />
       </div>
 
       {/* --- RIGHT: Configuration Form --- */}
@@ -313,12 +358,15 @@ export const PaymentChannelModal: React.FC<Props> = ({
             {/* Scrollable Form Body */}
             <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
               {/* 1. Basic Info */}
-              <SectionTitle icon={CreditCard} title="Basic Information" />
+              <SectionTitle
+                icon={CreditCard}
+                title={t('paymentChannel.form.basicInfo')}
+              />
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs text-gray-500 mb-1 block">
-                      Business Type
+                      {t('paymentChannel.form.businessType')}
                     </label>
                     <div className="flex bg-gray-100 dark:bg-white/5 p-1 rounded-lg">
                       <button
@@ -331,7 +379,7 @@ export const PaymentChannelModal: React.FC<Props> = ({
                             : 'text-gray-500 hover:text-gray-700',
                         )}
                       >
-                        Money In
+                        {t('paymentChannel.form.moneyIn')}
                       </button>
                       <button
                         type="button"
@@ -343,19 +391,28 @@ export const PaymentChannelModal: React.FC<Props> = ({
                             : 'text-gray-500 hover:text-gray-700',
                         )}
                       >
-                        Money Out
+                        {t('paymentChannel.form.moneyOut')}
                       </button>
                     </div>
                   </div>
                   <div>
                     <FormSelectField
                       name="status"
-                      label="Status"
+                      label={t('paymentChannel.form.status')}
                       numeric={true}
                       options={[
-                        { label: 'Active', value: '1' },
-                        { label: 'Disabled', value: '0' },
-                        { label: 'Maintenance', value: '2' },
+                        {
+                          label: t('paymentChannel.status.active'),
+                          value: '1',
+                        },
+                        {
+                          label: t('paymentChannel.status.disabled'),
+                          value: '0',
+                        },
+                        {
+                          label: t('paymentChannel.status.maintenance'),
+                          value: '2',
+                        },
                       ]}
                     />
                   </div>
@@ -364,21 +421,23 @@ export const PaymentChannelModal: React.FC<Props> = ({
                 {/* Channel Code */}
                 <div>
                   <label className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1 block">
-                    Channel Code (Xendit)
+                    {t('paymentChannel.form.channelCode')}
                   </label>
                   <div className="relative">
                     <input
                       list="xendit_codes"
                       {...form.register('code')}
                       className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                      placeholder="e.g. PH_GCASH"
+                      placeholder={t(
+                        'paymentChannel.form.channelCodePlaceholder',
+                      )}
                     />
                     <datalist id="xendit_codes">
                       {PRESET_CODES.filter(
                         (c) => !c.type || c.type === watchedValues.type,
                       ).map((c) => (
                         <option key={c.value} value={c.value}>
-                          {c.label}
+                          {t(c.labelKey)}
                         </option>
                       ))}
                     </datalist>
@@ -392,16 +451,16 @@ export const PaymentChannelModal: React.FC<Props> = ({
 
                 <FormTextField
                   name="name"
-                  label="Display Name"
-                  placeholder="e.g. GCash"
+                  label={t('paymentChannel.form.displayName')}
+                  placeholder={t('paymentChannel.form.displayNamePlaceholder')}
                 />
 
                 <div className="flex gap-2 items-start">
                   <div className="flex-1">
                     <FormTextField
                       name="icon"
-                      label="Icon URL"
-                      placeholder="https://..."
+                      label={t('paymentChannel.form.iconUrl')}
+                      placeholder={t('paymentChannel.form.iconUrlPlaceholder')}
                     />
                   </div>
                   {watchedValues.icon && (
@@ -421,24 +480,27 @@ export const PaymentChannelModal: React.FC<Props> = ({
                 <div className="grid grid-cols-2 gap-4">
                   <FormTextField
                     name="sortOrder"
-                    label="Sort Order"
+                    label={t('paymentChannel.form.sortOrder')}
                     type="number"
                   />
                 </div>
               </div>
 
               {/* 2. Limits & Control */}
-              <SectionTitle icon={Settings2} title="Limits & Control" />
+              <SectionTitle
+                icon={Settings2}
+                title={t('paymentChannel.form.limitsControl')}
+              />
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <FormTextField
                     name="minAmount"
-                    label="Min Amount"
+                    label={t('paymentChannel.form.minAmount')}
                     type="number"
                   />
                   <FormTextField
                     name="maxAmount"
-                    label="Max Amount"
+                    label={t('paymentChannel.form.maxAmount')}
                     type="number"
                   />
                 </div>
@@ -446,10 +508,10 @@ export const PaymentChannelModal: React.FC<Props> = ({
                 <div className="flex items-center justify-between p-3 border rounded-lg bg-gray-50 dark:bg-white/5 dark:border-white/10">
                   <div>
                     <div className="text-sm font-medium text-gray-900 dark:text-white">
-                      Allow Custom Input
+                      {t('paymentChannel.form.allowCustomInput')}
                     </div>
                     <div className="text-xs text-gray-500">
-                      Users can enter any amount within range
+                      {t('paymentChannel.form.allowCustomInputDesc')}
                     </div>
                   </div>
                   <FormCheckboxField name="isCustom" label="" />
@@ -459,18 +521,23 @@ export const PaymentChannelModal: React.FC<Props> = ({
               {/* 3. Type Specific (Dynamic) */}
               {watchedValues.type === 1 ? (
                 <>
-                  <SectionTitle icon={Banknote} title="Recharge Settings" />
+                  <SectionTitle
+                    icon={Banknote}
+                    title={t('paymentChannel.form.rechargeSettings')}
+                  />
                   <div className="space-y-2">
                     <label className="text-xs font-medium text-gray-700 dark:text-gray-300 block">
-                      Fixed Amounts
+                      {t('paymentChannel.form.fixedAmounts')}
                       <span className="ml-2 text-[10px] text-primary-600 bg-primary-50 px-1 rounded">
-                        Comma separated
+                        {t('paymentChannel.form.fixedAmountsHint')}
                       </span>
                     </label>
                     <textarea
                       {...form.register('fixedAmountStr')}
                       className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                      placeholder="e.g. 100, 200, 500, 1000"
+                      placeholder={t(
+                        'paymentChannel.form.fixedAmountsPlaceholder',
+                      )}
                     />
                     {/* Helper tags - 使用 useMemo 避免不必要的渲染 */}
                     <div className="flex flex-wrap gap-2 mt-2">
@@ -489,17 +556,20 @@ export const PaymentChannelModal: React.FC<Props> = ({
                 </>
               ) : (
                 <>
-                  <SectionTitle icon={ArrowRightLeft} title="Withdrawal Fees" />
+                  <SectionTitle
+                    icon={ArrowRightLeft}
+                    title={t('paymentChannel.form.withdrawalFees')}
+                  />
                   <div className="grid grid-cols-2 gap-4">
                     <FormTextField
                       name="feeFixed"
-                      label="Fixed Fee (₱)"
+                      label={t('paymentChannel.form.fixedFee')}
                       type="number"
                     />
                     <div className="relative">
                       <FormTextField
                         name="feeRate"
-                        label="Fee Rate (0-1)"
+                        label={t('paymentChannel.form.feeRate')}
                         type="number"
                       />
                       <span className="absolute right-3 top-8 text-gray-400 text-xs">
@@ -511,8 +581,8 @@ export const PaymentChannelModal: React.FC<Props> = ({
                     </div>
                   </div>
                   <div className="mt-2 text-[10px] text-gray-400 flex items-center gap-1">
-                    <AlertCircle size={10} /> Total Fee = Fixed Fee + (Amount *
-                    Rate)
+                    <AlertCircle size={10} />{' '}
+                    {t('paymentChannel.form.totalFeeHint')}
                   </div>
                 </>
               )}
@@ -526,10 +596,11 @@ export const PaymentChannelModal: React.FC<Props> = ({
                 onClick={close}
                 disabled={loading}
               >
-                Cancel
+                {t('paymentChannel.button.cancel')}
               </Button>
               <Button type="submit" variant="primary" isLoading={loading}>
-                <Save size={16} className="mr-2" /> Save Configuration
+                <Save size={16} className="mr-2" />{' '}
+                {t('paymentChannel.button.saveConfig')}
               </Button>
             </div>
           </form>

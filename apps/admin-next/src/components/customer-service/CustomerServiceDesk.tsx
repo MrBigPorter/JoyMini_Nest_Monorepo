@@ -11,6 +11,7 @@ import type {
   QueryConversationsParams,
 } from '@/type/types';
 import { useChatSocket } from '@/hooks/useChatSocket';
+import { useTranslation } from '@/hooks/useTranslation';
 import { SocketIndicator } from './index';
 import { ChatWindow } from './ChatWindow';
 import { ConversationList } from './ConversationList';
@@ -18,6 +19,7 @@ import { ConversationList } from './ConversationList';
 // ─── 主组件 ───────────────────────────────────────────────────────────────────
 
 export function CustomerServiceDesk() {
+  const { t } = useTranslation();
   const [selectedConv, setSelectedConv] = useState<ChatConversation | null>(
     null,
   );
@@ -100,8 +102,8 @@ export function CustomerServiceDesk() {
   return (
     <div className="flex flex-col h-full gap-0">
       <PageHeader
-        title="Customer Service Desk"
-        description="Handle support conversations from users"
+        title={t('customerService.deskTitle')}
+        description={t('customerService.deskDescription')}
         action={<SocketIndicator status={socketStatus} />}
       />
 
@@ -140,9 +142,11 @@ export function CustomerServiceDesk() {
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-gray-400 select-none">
               <MessageSquare size={48} className="mb-4 opacity-20" />
-              <p className="text-base font-medium">Select a conversation</p>
+              <p className="text-base font-medium">
+                {t('customerService.emptyTitle')}
+              </p>
               <p className="text-sm mt-1 opacity-60">
-                Choose a support ticket from the left to start responding
+                {t('customerService.emptyDescription')}
               </p>
             </div>
           )}

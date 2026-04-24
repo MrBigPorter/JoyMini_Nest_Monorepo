@@ -19,6 +19,7 @@ import {
   operationLogsListQueryKey,
   parseOperationLogsSearchParams,
 } from '@/lib/cache/operation-logs-cache';
+import { useTranslation } from '@/hooks/useTranslation';
 
 /** Safe date formatter — returns '—' for null, undefined, or invalid dates */
 function safeFormat(val: string | null | undefined, fmt: string): string {
@@ -36,6 +37,7 @@ export const OperationLogList: React.FC<OperationLogListProps> = ({
   initialFormParams,
   onParamsChange,
 }) => {
+  const { t } = useTranslation();
   const actionRef = useRef<ActionType>(null);
 
   const hydrationInput = useMemo(() => {
@@ -105,7 +107,7 @@ export const OperationLogList: React.FC<OperationLogListProps> = ({
   const columns: ProColumns<AdminOperationLog>[] = useMemo(
     () => [
       {
-        title: 'Admin',
+        title: t('operationLogs.admin'),
         dataIndex: 'adminName',
         render: (_, row) => (
           <div>
@@ -122,7 +124,7 @@ export const OperationLogList: React.FC<OperationLogListProps> = ({
         ),
       },
       {
-        title: 'Module',
+        title: t('operationLogs.module'),
         dataIndex: 'module',
         render: (mod) => (
           <span className="px-2 py-0.5 rounded text-xs font-medium bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300">
@@ -131,7 +133,7 @@ export const OperationLogList: React.FC<OperationLogListProps> = ({
         ),
       },
       {
-        title: 'Action',
+        title: t('operationLogs.action'),
         dataIndex: 'action',
         render: (action) => {
           const colorMap: Record<string, string> = {
@@ -154,7 +156,7 @@ export const OperationLogList: React.FC<OperationLogListProps> = ({
         },
       },
       {
-        title: 'Details',
+        title: t('operationLogs.details'),
         dataIndex: 'details',
         render: (details) => (
           <span className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
@@ -163,7 +165,7 @@ export const OperationLogList: React.FC<OperationLogListProps> = ({
         ),
       },
       {
-        title: 'IP Address',
+        title: t('operationLogs.ipAddress'),
         dataIndex: 'requestIp',
         render: (ip) => (
           <span className="font-mono text-sm text-gray-600 dark:text-gray-400">
@@ -172,7 +174,7 @@ export const OperationLogList: React.FC<OperationLogListProps> = ({
         ),
       },
       {
-        title: 'Time',
+        title: t('operationLogs.time'),
         dataIndex: 'createdAt',
         valueType: 'dateTime',
         render: (_dom, row) => (
@@ -182,7 +184,7 @@ export const OperationLogList: React.FC<OperationLogListProps> = ({
         ),
       },
       {
-        title: 'View',
+        title: t('operationLogs.view'),
         valueType: 'option',
         width: 70,
         render: (_, row) => (
@@ -191,44 +193,58 @@ export const OperationLogList: React.FC<OperationLogListProps> = ({
             size="sm"
             onClick={() =>
               ModalManager.open({
-                title: 'Operation Details',
+                title: t('operationLogs.operationDetails'),
                 size: 'md',
                 renderChildren: ({ close }) => (
                   <div className="p-4 space-y-3 text-sm">
                     <div>
-                      <span className="font-semibold">Admin: </span>
+                      <span className="font-semibold">
+                        {t('operationLogs.adminLabel')}
+                      </span>
                       {row.admin?.username || row.adminName}
                       {row.admin?.realName ? ` (${row.admin.realName})` : ''}
                     </div>
                     <div>
-                      <span className="font-semibold">Module: </span>
+                      <span className="font-semibold">
+                        {t('operationLogs.moduleLabel')}
+                      </span>
                       {row.module}
                     </div>
                     <div>
-                      <span className="font-semibold">Action: </span>
+                      <span className="font-semibold">
+                        {t('operationLogs.actionLabel')}
+                      </span>
                       {row.action}
                     </div>
                     <div>
-                      <span className="font-semibold">Details: </span>
+                      <span className="font-semibold">
+                        {t('operationLogs.detailsLabel')}
+                      </span>
                       {row.details || '—'}
                     </div>
                     <div>
-                      <span className="font-semibold">IP Address: </span>
+                      <span className="font-semibold">
+                        {t('operationLogs.ipAddressLabel')}
+                      </span>
                       {row.requestIp || '—'}
                     </div>
                     <div>
-                      <span className="font-semibold">Time: </span>
+                      <span className="font-semibold">
+                        {t('operationLogs.timeLabel')}
+                      </span>
                       {safeFormat(row.createdAt, 'yyyy-MM-dd HH:mm:ss')}
                     </div>
                     <div className="flex justify-end pt-2">
-                      <Button onClick={close}>Close</Button>
+                      <Button onClick={close}>
+                        {t('operationLogs.close')}
+                      </Button>
                     </div>
                   </div>
                 ),
               })
             }
           >
-            View
+            {t('operationLogs.view')}
           </Button>
         ),
       },
@@ -242,29 +258,29 @@ export const OperationLogList: React.FC<OperationLogListProps> = ({
       {
         type: 'input',
         key: 'keyword',
-        label: 'Keyword',
-        placeholder: 'Admin name, module, details…',
+        label: t('operationLogs.keyword'),
+        placeholder: t('operationLogs.keywordPlaceholder'),
       },
       {
         type: 'select',
         key: 'action',
-        label: 'Action Type',
+        label: t('operationLogs.actionType'),
         defaultValue: 'ALL',
         options: [
-          { label: 'All Actions', value: 'ALL' },
-          { label: 'Login', value: 'LOGIN' },
-          { label: 'Logout', value: 'LOGOUT' },
-          { label: 'Create', value: 'CREATE' },
-          { label: 'Update', value: 'UPDATE' },
-          { label: 'Delete', value: 'DELETE' },
-          { label: 'Audit', value: 'AUDIT' },
-          { label: 'Export', value: 'EXPORT' },
+          { label: t('operationLogs.allActions'), value: 'ALL' },
+          { label: t('operationLogs.login'), value: 'LOGIN' },
+          { label: t('operationLogs.logout'), value: 'LOGOUT' },
+          { label: t('operationLogs.create'), value: 'CREATE' },
+          { label: t('operationLogs.update'), value: 'UPDATE' },
+          { label: t('operationLogs.delete'), value: 'DELETE' },
+          { label: t('operationLogs.audit'), value: 'AUDIT' },
+          { label: t('operationLogs.export'), value: 'EXPORT' },
         ],
       },
       {
         type: 'date',
         key: 'dateRange',
-        label: 'Date Range',
+        label: t('operationLogs.dateRange'),
         mode: 'range',
       },
     ],
@@ -274,8 +290,8 @@ export const OperationLogList: React.FC<OperationLogListProps> = ({
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Operation Logs"
-        description="Track all administrative actions within the system."
+        title={t('operationLogs.pageTitle')}
+        description={t('operationLogs.pageDescription')}
       />
       <Card>
         <div className="p-4">
@@ -283,7 +299,9 @@ export const OperationLogList: React.FC<OperationLogListProps> = ({
             headerTitle={
               <div className="flex items-center gap-2">
                 <FileText className="text-primary-500" size={20} />
-                <span className="font-semibold text-lg">Audit Trail</span>
+                <span className="font-semibold text-lg">
+                  {t('operationLogs.auditTrail')}
+                </span>
               </div>
             }
             rowKey="id"

@@ -5,65 +5,73 @@ import {
 } from '@lucky/shared';
 import type { ButtonVariant } from '@repo/ui';
 
-export const STATUS_CONFIG = {
-  [WITHDRAW_STATUS.PENDING_AUDIT as WithdrawStatus]: {
-    color: 'yellow',
-    label: 'Pending Audit',
-  },
-  [WITHDRAW_STATUS.SUCCESS as WithdrawStatus]: {
-    color: 'green',
-    label: 'Success',
-  },
-  [WITHDRAW_STATUS.REJECTED as WithdrawStatus]: {
-    color: 'red',
-    label: 'Rejected',
-  },
-  [WITHDRAW_STATUS.PROCESSING as WithdrawStatus]: {
-    color: 'blue',
-    label: 'Processing',
-  },
-} as const;
+export type TLabelFn = (key: string) => string;
+
+export function getStatusConfig(t: TLabelFn) {
+  return {
+    [WITHDRAW_STATUS.PENDING_AUDIT as WithdrawStatus]: {
+      color: 'yellow',
+      label: t('finance.status.pendingAudit'),
+    },
+    [WITHDRAW_STATUS.SUCCESS as WithdrawStatus]: {
+      color: 'green',
+      label: t('finance.status.success'),
+    },
+    [WITHDRAW_STATUS.REJECTED as WithdrawStatus]: {
+      color: 'red',
+      label: t('finance.status.rejected'),
+    },
+    [WITHDRAW_STATUS.PROCESSING as WithdrawStatus]: {
+      color: 'blue',
+      label: t('finance.status.processing'),
+    },
+  } as const;
+}
 
 // 状态映射配置 (UI表现层)
-export const DEPOSIT_STATUS_CONFIG: Record<
+export function getDepositStatusConfig(t: TLabelFn): Record<
   number,
   {
     color: 'green' | 'red' | 'yellow' | 'gray' | 'blue';
     label: string;
     buttonColor: ButtonVariant;
   }
-> = {
-  [RECHARGE_STATUS.PENDING]: {
-    color: 'yellow',
-    label: 'Pending',
-    buttonColor: 'warning',
-  },
-  [RECHARGE_STATUS.PROCESSING]: {
-    color: 'blue',
-    label: 'Processing',
-    buttonColor: 'info',
-  },
-  [RECHARGE_STATUS.SUCCESS]: {
-    color: 'green',
-    label: 'Success',
-    buttonColor: 'success',
-  },
-  [RECHARGE_STATUS.FAILED]: {
-    color: 'red',
-    label: 'Failed',
-    buttonColor: 'danger',
-  },
-  [RECHARGE_STATUS.CANCELED]: {
-    color: 'gray',
-    label: 'Cancelled',
-    buttonColor: 'danger',
-  },
-};
+> {
+  return {
+    [RECHARGE_STATUS.PENDING]: {
+      color: 'yellow',
+      label: t('finance.status.pending'),
+      buttonColor: 'warning',
+    },
+    [RECHARGE_STATUS.PROCESSING]: {
+      color: 'blue',
+      label: t('finance.status.processing'),
+      buttonColor: 'info',
+    },
+    [RECHARGE_STATUS.SUCCESS]: {
+      color: 'green',
+      label: t('finance.status.success'),
+      buttonColor: 'success',
+    },
+    [RECHARGE_STATUS.FAILED]: {
+      color: 'red',
+      label: t('finance.status.failed'),
+      buttonColor: 'danger',
+    },
+    [RECHARGE_STATUS.CANCELED]: {
+      color: 'gray',
+      label: t('finance.status.cancelled'),
+      buttonColor: 'danger',
+    },
+  };
+}
 
 // 渠道筛选 Options
-export const CHANNEL_OPTIONS = [
-  { label: 'GCash', value: 'PH_GCASH' },
-  { label: 'PayMaya', value: 'PH_PAYMAYA' },
-  { label: 'GrabPay', value: 'PH_GRABPAY' },
-  { label: 'Bank Transfer', value: 'PH_BDO' },
-];
+export function getChannelOptions(t: TLabelFn) {
+  return [
+    { label: t('finance.channels.gcash'), value: 'PH_GCASH' },
+    { label: t('finance.channels.paymaya'), value: 'PH_PAYMAYA' },
+    { label: t('finance.channels.grabpay'), value: 'PH_GRABPAY' },
+    { label: t('finance.channels.bankTransfer'), value: 'PH_BDO' },
+  ];
+}

@@ -6,8 +6,7 @@
  *   ③ transactions 首屏预取 → HydrationBoundary 注水，首屏无客户端瀑布请求
  */
 import type { Metadata } from 'next';
-
-export const metadata: Metadata = { title: 'Finance' };
+import { getTranslations } from 'next-intl/server';
 
 import React, { Suspense } from 'react';
 import {
@@ -62,10 +61,23 @@ function FinanceSkeleton() {
 }
 
 interface FinancePageProps {
+  params: Promise<{ locale: string }>;
   searchParams?: Promise<NextSearchParams>;
 }
 
-export default async function FinancePage({ searchParams }: FinancePageProps) {
+export async function generateMetadata({
+  params,
+}: FinancePageProps): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: 'finance' });
+  return { title: t('pageTitle') };
+}
+
+export default async function FinancePage({
+  params,
+  searchParams,
+}: FinancePageProps) {
+  const { locale } = await params;
   const resolvedSearchParams = (await searchParams) ?? {};
 
   const tab =
@@ -137,7 +149,7 @@ export default async function FinancePage({ searchParams }: FinancePageProps) {
   return (
     <div className="space-y-6">
       <Suspense fallback={null}>
-        <FinanceStatsServer />
+        <FinanceStatsServer locale={locale} />
       </Suspense>
       <Suspense fallback={<FinanceSkeleton />}>
         <HydrationBoundary state={dehydrate(queryClient)}>

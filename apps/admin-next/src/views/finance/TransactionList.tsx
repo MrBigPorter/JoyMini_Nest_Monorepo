@@ -17,6 +17,7 @@ import {
   parseTransactionsSearchParams,
   transactionsListQueryKey,
 } from '@/lib/cache/finance-transactions-cache';
+import { useTranslation } from '@/hooks/useTranslation';
 
 // Build a local options array from the shared enum (no TRANSACTION_TYPES_OPTIONS in shared)
 const TRANSACTION_TYPE_OPTIONS = Object.entries(TRANSACTION_TYPE).map(
@@ -32,6 +33,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({
   initialFormParams,
   onParamsChange,
 }) => {
+  const { t } = useTranslation();
   const actionRef = useRef<ActionType>(null);
 
   const normalizedInitialFormParams = useMemo(() => {
@@ -80,13 +82,13 @@ export const TransactionList: React.FC<TransactionListProps> = ({
   const columns: ProColumns<WalletTransaction>[] = useMemo(
     () => [
       {
-        title: 'Transaction No.',
+        title: t('finance.transactions.columnTransactionNo'),
         dataIndex: 'transactionNo',
         copyable: true,
         width: 180,
       },
       {
-        title: 'User Info',
+        title: t('finance.transactions.columnUserInfo'),
         dataIndex: 'user',
         width: 150,
         render: (_, row) => (
@@ -101,7 +103,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({
         ),
       },
       {
-        title: 'Type',
+        title: t('finance.transactions.columnType'),
         dataIndex: 'transactionType',
         width: 120,
         valueType: 'select',
@@ -139,7 +141,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({
         },
       },
       {
-        title: 'Amount (Cash)',
+        title: t('finance.transactions.columnAmount'),
         dataIndex: 'amount',
         width: 140,
         align: 'right',
@@ -148,7 +150,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({
         ),
       },
       {
-        title: 'Balance After',
+        title: t('finance.transactions.columnBalanceAfter'),
         dataIndex: 'afterBalance',
         width: 120,
         align: 'right',
@@ -159,7 +161,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({
         ),
       },
       {
-        title: 'Remark / Ref',
+        title: t('finance.transactions.columnRemarkRef'),
         dataIndex: 'remark',
         width: 200,
         render: (_, row) => (
@@ -169,22 +171,21 @@ export const TransactionList: React.FC<TransactionListProps> = ({
             </span>
             {row.relatedId && (
               <span className="text-xs text-gray-400 dark:text-gray-500 font-mono mt-1">
-                Ref: {row.relatedId}
+                {t('finance.deposits.refPrefix')} {row.relatedId}
               </span>
             )}
           </div>
         ),
       },
       {
-        title: 'Time',
+        title: t('finance.transactions.columnTime'),
         dataIndex: 'createdAt',
         valueType: 'dateTime',
         width: 160,
         sorter: true,
       },
     ],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
+    [t],
   );
 
   const searchSchema: FormSchema[] = useMemo(
@@ -192,16 +193,16 @@ export const TransactionList: React.FC<TransactionListProps> = ({
       {
         type: 'input',
         key: 'keyword',
-        label: 'Search',
-        placeholder: 'Transaction No / Phone / User',
+        label: t('finance.transactions.searchKeyword'),
+        placeholder: t('finance.transactions.searchKeywordPlaceholder'),
       },
       {
         type: 'select',
         key: 'transactionType',
-        label: 'Type',
+        label: t('finance.transactions.searchType'),
         defaultValue: 'ALL',
         options: [
-          { label: 'All Types', value: 'ALL' },
+          { label: t('finance.transactions.searchTypeAll'), value: 'ALL' },
           ...TRANSACTION_TYPE_OPTIONS.map((opt) => ({
             label: opt.label,
             value: String(opt.value),
@@ -211,13 +212,16 @@ export const TransactionList: React.FC<TransactionListProps> = ({
       {
         type: 'date',
         key: 'dateRange',
-        label: 'Time Range',
+        label: t('finance.transactions.searchTimeRange'),
         props: {
-          placeholder: ['Start Date', 'End Date'],
+          placeholder: [
+            t('finance.transactions.searchStartDate'),
+            t('finance.transactions.searchEndDate'),
+          ],
         },
       },
     ],
-    [],
+    [t],
   );
 
   const requestTransactions = useCallback(
@@ -253,7 +257,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({
     <div className="p-4">
       <SmartTable<WalletTransaction>
         rowKey="id"
-        headerTitle="Wallet Transactions"
+        headerTitle={t('finance.transactions.headerTitle')}
         ref={actionRef}
         columns={columns}
         searchSchema={searchSchema}

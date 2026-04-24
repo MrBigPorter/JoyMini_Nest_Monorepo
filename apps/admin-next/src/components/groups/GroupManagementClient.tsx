@@ -24,6 +24,14 @@ import {
   groupsListQueryKey,
   parseGroupsSearchParams,
 } from '@/lib/cache/groups-cache';
+import { useTranslation } from '@/hooks/useTranslation';
+
+// ── i18n key map for GROUP_STATUS ────────────────────────────────────────────
+const GROUP_STATUS_I18N_KEY: Record<number, string> = {
+  [GROUP_STATUS.ACTIVE]: 'groups.statusActive',
+  [GROUP_STATUS.SUCCESS]: 'groups.statusCompleted',
+  [GROUP_STATUS.FAILED]: 'groups.statusFailed',
+};
 
 // 表单层类型：select/input 值均为字符串，与 API 层类型解耦
 type GroupSearchForm = {
@@ -65,22 +73,27 @@ const getProgressColor = (current: number, max: number) => {
 const GroupDetailModalContent: React.FC<{ groupId: string }> = ({
   groupId,
 }) => {
+  const { t } = useTranslation();
   const { data, loading } = useRequest(() => groupApi.getDetail(groupId));
 
   if (loading) {
     return (
       <div className="p-8 flex items-center justify-center text-gray-400">
-        Loading…
+        {t('groups.detailLoading')}
       </div>
     );
   }
 
   if (!data) {
-    return <div className="p-8 text-center text-gray-400">No data found.</div>;
+    return (
+      <div className="p-8 text-center text-gray-400">
+        {t('groups.detailNoData')}
+      </div>
+    );
   }
 
   const statusCfg = GROUP_STATUS_CONFIG[data.groupStatus] ?? {
-    label: 'Unknown',
+    label: t('groups.statusUnknown'),
     color: 'gray',
   };
   const pct =
@@ -102,10 +115,10 @@ const GroupDetailModalContent: React.FC<{ groupId: string }> = ({
         </div>
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-gray-900 dark:text-white line-clamp-1">
-            {data.treasure?.treasureName ?? '–'}
+            {data.treasure?.treasureName ?? t('groups.detailUnknownProduct')}
           </p>
           <p className="text-xs text-gray-400 font-mono mt-0.5">
-            ID: {data.groupId.slice(-8)}
+            {t('groups.detailId', { id: data.groupId.slice(-8) })}
           </p>
         </div>
         <Badge color={statusCfg.color}>{statusCfg.label}</Badge>
@@ -115,7 +128,7 @@ const GroupDetailModalContent: React.FC<{ groupId: string }> = ({
       <div>
         <div className="flex justify-between text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">
           <span className="flex items-center gap-1">
-            <Users size={12} /> Members
+            <Users size={12} /> {t('groups.detailMembers')}
           </span>
           <span>
             {data.currentMembers} / {data.maxMembers}
@@ -136,14 +149,19 @@ const GroupDetailModalContent: React.FC<{ groupId: string }> = ({
       <div className="flex items-center gap-1.5 text-xs text-gray-500">
         <Timer size={12} />
         {data.expireAt
-          ? `Expires ${format(new Date(data.expireAt), 'yyyy-MM-dd HH:mm')} (${formatDistanceToNow(new Date(data.expireAt), { addSuffix: true })})`
-          : 'No expiry'}
+          ? t('groups.detailExpires', {
+              date: format(new Date(data.expireAt), 'yyyy-MM-dd HH:mm'),
+              relative: formatDistanceToNow(new Date(data.expireAt), {
+                addSuffix: true,
+              }),
+            })
+          : t('groups.detailNoExpiry')}
       </div>
 
       {/* Members list */}
       <div>
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-          Members ({data.members.length})
+          {t('groups.detailMembersCount', { count: data.members.length })}
         </p>
         <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
           {data.members.map((m, i) => (
@@ -168,13 +186,17 @@ const GroupDetailModalContent: React.FC<{ groupId: string }> = ({
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                  {m.user.nickname ?? 'Anonymous'}
+                  {m.user.nickname ?? t('groups.detailAnonymous')}
                 </p>
                 <p className="text-[10px] text-gray-400 font-mono">
-                  Joined {format(new Date(m.joinedAt), 'MM-dd HH:mm')}
+                  {t('groups.detailJoined', {
+                    date: format(new Date(m.joinedAt), 'MM-dd HH:mm'),
+                  })}
                 </p>
               </div>
-              {m.isOwner === 1 && <Badge color="purple">Leader</Badge>}
+              {m.isOwner === 1 && (
+                <Badge color="purple">{t('groups.detailLeader')}</Badge>
+              )}
             </div>
           ))}
         </div>
@@ -196,6 +218,7 @@ export const GroupManagement: React.FC<GroupManagementProps> = ({
   initialFormParams,
   onParamsChange,
 }) => {
+  const { t } = useTranslation();
   const actionRef = useRef<ActionType>(null);
 
   const normalizedInitialFormParams = useMemo(() => {
@@ -215,20 +238,23 @@ export const GroupManagement: React.FC<GroupManagementProps> = ({
     [normalizedInitialFormParams],
   );
 
-  const handleViewDetail = useCallback((record: AdminGroupItem) => {
-    ModalManager.open({
-      title: 'Group Detail',
-      size: 'lg',
-      renderChildren: () => (
-        <GroupDetailModalContent groupId={record.groupId} />
-      ),
-    });
-  }, []);
+  const handleViewDetail = useCallback(
+    (record: AdminGroupItem) => {
+      ModalManager.open({
+        title: t('groups.detailTitle'),
+        size: 'lg',
+        renderChildren: () => (
+          <GroupDetailModalContent groupId={record.groupId} />
+        ),
+      });
+    },
+    [t],
+  );
 
   const columns: ProColumns<AdminGroupItem>[] = useMemo(
     () => [
       {
-        title: 'Group / Product',
+        title: t('groups.columnGroupProduct'),
         dataIndex: 'groupId',
         width: 260,
         render: (_, row) => (
@@ -249,7 +275,7 @@ export const GroupManagement: React.FC<GroupManagementProps> = ({
             </div>
             <div className="min-w-0">
               <p className="text-sm font-medium text-gray-900 dark:text-white line-clamp-1">
-                {row.treasure?.treasureName ?? 'Unknown Product'}
+                {row.treasure?.treasureName ?? t('groups.detailUnknownProduct')}
               </p>
               <p className="text-[10px] text-gray-400 font-mono">
                 #{row.groupId.slice(-8)}
@@ -259,7 +285,7 @@ export const GroupManagement: React.FC<GroupManagementProps> = ({
         ),
       },
       {
-        title: 'Leader',
+        title: t('groups.columnLeader'),
         dataIndex: 'creator',
         width: 160,
         render: (_, row) => (
@@ -280,13 +306,13 @@ export const GroupManagement: React.FC<GroupManagementProps> = ({
               )}
             </div>
             <span className="text-sm text-gray-700 dark:text-gray-300 truncate max-w-[100px]">
-              {row.creator?.nickname ?? 'Anonymous'}
+              {row.creator?.nickname ?? t('groups.detailAnonymous')}
             </span>
           </div>
         ),
       },
       {
-        title: 'Progress',
+        title: t('groups.columnProgress'),
         dataIndex: 'currentMembers',
         width: 160,
         render: (_, row) => {
@@ -318,19 +344,19 @@ export const GroupManagement: React.FC<GroupManagementProps> = ({
         },
       },
       {
-        title: 'Status',
+        title: t('groups.columnStatus'),
         dataIndex: 'groupStatus',
         width: 100,
         render: (_, row) => {
           const cfg = GROUP_STATUS_CONFIG[row.groupStatus] ?? {
-            label: 'Unknown',
+            label: t('groups.statusUnknown'),
             color: 'gray',
           };
           return <Badge color={cfg.color}>{cfg.label}</Badge>;
         },
       },
       {
-        title: 'Expires At',
+        title: t('groups.columnExpiresAt'),
         dataIndex: 'expireAt',
         width: 140,
         render: (_, row) =>
@@ -348,7 +374,7 @@ export const GroupManagement: React.FC<GroupManagementProps> = ({
           ),
       },
       {
-        title: 'Actions',
+        title: t('groups.columnActions'),
         width: 80,
         valueType: 'option',
         render: (_, row) => (
@@ -363,7 +389,7 @@ export const GroupManagement: React.FC<GroupManagementProps> = ({
         ),
       },
     ],
-    [handleViewDetail],
+    [handleViewDetail, t],
   );
 
   const searchSchema: FormSchema<GroupSearchForm>[] = useMemo(
@@ -371,33 +397,42 @@ export const GroupManagement: React.FC<GroupManagementProps> = ({
       {
         type: 'input',
         key: 'treasureId',
-        label: 'Product ID',
-        placeholder: 'Filter by product ID…',
+        label: t('groups.searchProductId'),
+        placeholder: t('groups.searchProductIdPlaceholder'),
       },
       {
         type: 'select',
         key: 'status',
-        label: 'Status',
+        label: t('groups.searchStatus'),
         defaultValue: 'ALL',
         options: [
-          { label: 'All', value: 'ALL' },
-          { label: 'Active', value: String(GROUP_STATUS.ACTIVE) },
-          { label: 'Completed', value: String(GROUP_STATUS.SUCCESS) },
-          { label: 'Failed', value: String(GROUP_STATUS.FAILED) },
+          { label: t('groups.searchStatusAll'), value: 'ALL' },
+          {
+            label: t('groups.searchStatusActive'),
+            value: String(GROUP_STATUS.ACTIVE),
+          },
+          {
+            label: t('groups.searchStatusCompleted'),
+            value: String(GROUP_STATUS.SUCCESS),
+          },
+          {
+            label: t('groups.searchStatusFailed'),
+            value: String(GROUP_STATUS.FAILED),
+          },
         ],
       },
       {
         type: 'select',
         key: 'includeExpired',
-        label: 'Include Expired',
+        label: t('groups.searchIncludeExpired'),
         defaultValue: 'false',
         options: [
-          { label: 'No', value: 'false' },
-          { label: 'Yes', value: 'true' },
+          { label: t('groups.searchIncludeExpiredNo'), value: 'false' },
+          { label: t('groups.searchIncludeExpiredYes'), value: 'true' },
         ],
       },
     ],
-    [],
+    [t],
   );
 
   const requestGroups = useCallback(
@@ -428,8 +463,8 @@ export const GroupManagement: React.FC<GroupManagementProps> = ({
   return (
     <div className="p-4">
       <PageHeader
-        title="Group Buying"
-        description="Monitor active groups and team progress in real time."
+        title={t('groups.pageTitle')}
+        description={t('groups.pageDescription')}
       />
       <Card>
         <SmartTable<AdminGroupItem>
@@ -438,7 +473,9 @@ export const GroupManagement: React.FC<GroupManagementProps> = ({
           headerTitle={
             <div className="flex items-center gap-2">
               <Users className="text-primary-500" size={20} />
-              <span className="font-semibold text-lg">Groups</span>
+              <span className="font-semibold text-lg">
+                {t('groups.tableTitle')}
+              </span>
             </div>
           }
           columns={columns}

@@ -14,9 +14,10 @@ import { SchemaSearchForm } from '@/components/scaffold/SchemaSearchForm';
 import { Badge, Button, Card, Input } from '@/components/UIComponents';
 import { ORDER_STATUS_COLORS } from '@/consts';
 import { useToastStore } from '@/store/useToastStore';
+import { useTranslation } from '@/hooks/useTranslation';
 import type { FormSchema } from '@/type/search';
 import type { Order, OrderSearchForm } from '@/type/types';
-import { ORDER_STATUS, ORDER_STATUS_LABEL } from '@lucky/shared';
+import { ORDER_STATUS } from '@lucky/shared';
 import {
   buildOrdersListParams,
   ordersListQueryKey,
@@ -28,10 +29,23 @@ interface OrderListClientProps {
   onParamsChange?: (params: Record<string, unknown>) => void;
 }
 
+const ORDER_STATUS_I18N_KEY: Record<number, string> = {
+  [ORDER_STATUS.PENDING_PAYMENT]: 'orders.statusPending',
+  [ORDER_STATUS.PROCESSING_PAYMENT]: 'orders.statusProcessing',
+  [ORDER_STATUS.PAID]: 'orders.statusPaid',
+  [ORDER_STATUS.CANCELED]: 'orders.statusCancelled',
+  [ORDER_STATUS.REFUNDED]: 'orders.statusRefunded',
+  [ORDER_STATUS.WAIT_GROUP]: 'orders.statusWaitGroup',
+  [ORDER_STATUS.WAIT_DELIVERY]: 'orders.statusWaitDelivery',
+  [ORDER_STATUS.SHIPPED]: 'orders.statusShipped',
+  [ORDER_STATUS.COMPLETED]: 'orders.statusCompleted',
+};
+
 export function OrderListClient({
   initialFormParams,
   onParamsChange,
 }: OrderListClientProps) {
+  const { t } = useTranslation();
   const addToast = useToastStore((state) => state.addToast);
 
   const normalizedInitialQuery = useMemo(() => {
@@ -114,52 +128,51 @@ export function OrderListClient({
         await updateStatusApi(orderId, status);
         addToast(
           'success',
-          `Order status updated to ${ORDER_STATUS_LABEL[status]}`,
+          t('orders.toastStatusUpdated', {
+            status: t(ORDER_STATUS_I18N_KEY[status]),
+          }),
         );
         await refresh();
         void invalidateOrdersCache();
       } catch {
-        addToast('error', 'Failed to update status');
+        addToast('error', t('orders.toastStatusFailed'));
       }
     },
-    [addToast, updateStatusApi, refresh, invalidateOrdersCache],
+    [addToast, t, updateStatusApi, refresh, invalidateOrdersCache],
   );
 
   const handleDelete = useCallback(
     async (orderId: string) => {
       ModalManager.open({
-        title: 'Confirm Deletion',
+        title: t('orders.deleteTitle'),
         renderChildren: ({ close }) => (
           <div className="space-y-4">
-            <p>
-              Are you sure you want to delete this order? This action cannot be
-              undone.
-            </p>
+            <p>{t('orders.deleteContent')}</p>
             <div className="flex justify-end gap-2 mt-4">
               <Button variant="ghost" onClick={close}>
-                Cancel
+                {t('orders.deleteCancel')}
               </Button>
               <Button
                 onClick={async () => {
                   try {
                     await deleteOrderApi(orderId);
-                    addToast('success', 'Order deleted successfully');
+                    addToast('success', t('orders.toastDeleted'));
                     await refresh();
                     void invalidateOrdersCache();
                     close();
                   } catch {
-                    addToast('error', 'Failed to delete order');
+                    addToast('error', t('orders.toastDeleteFailed'));
                   }
                 }}
               >
-                Delete
+                {t('orders.deleteConfirm')}
               </Button>
             </div>
           </div>
         ),
       });
     },
-    [addToast, deleteOrderApi, refresh, invalidateOrdersCache],
+    [addToast, t, deleteOrderApi, refresh, invalidateOrdersCache],
   );
 
   const openShippingModal = useCallback(
@@ -168,30 +181,34 @@ export function OrderListClient({
       let courierName = '';
 
       ModalManager.open({
-        title: 'Ship Order',
+        title: t('orders.shipTitle'),
         renderChildren: ({ close }) => (
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium">Courier Name</label>
+              <label className="text-sm font-medium">
+                {t('orders.shipCourierLabel')}
+              </label>
               <Input
                 onChange={(e) => {
                   courierName = e.target.value;
                 }}
-                placeholder="e.g. J&T, Lalamove"
+                placeholder={t('orders.shipCourierPlaceholder')}
               />
             </div>
             <div>
-              <label className="text-sm font-medium">Tracking Number</label>
+              <label className="text-sm font-medium">
+                {t('orders.shipTrackingLabel')}
+              </label>
               <Input
                 onChange={(e) => {
                   trackingNumber = e.target.value;
                 }}
-                placeholder="e.g. 982173..."
+                placeholder={t('orders.shipTrackingPlaceholder')}
               />
             </div>
             <div className="flex justify-end gap-2 mt-4">
               <Button variant="ghost" onClick={close}>
-                Cancel
+                {t('orders.shipCancel')}
               </Button>
               <Button
                 onClick={() => {
@@ -201,49 +218,65 @@ export function OrderListClient({
                   close();
                 }}
               >
-                Confirm Shipment
+                {t('orders.shipConfirm')}
               </Button>
             </div>
           </div>
         ),
       });
     },
-    [handleUpdateStatus],
+    [t, handleUpdateStatus],
   );
 
   const handleOrderDetails = useCallback(
     (data: Order) => {
       ModalManager.open({
-        title: `Order Details: ${data.orderNo}`,
+        title: t('orders.detailTitle', { orderNo: data.orderNo }),
         size: 'lg',
         renderChildren: ({ close }) => (
           <div className="space-y-6">
             <div>
               <h3 className="font-bold text-lg flex items-center gap-2">
-                Status: {ORDER_STATUS_LABEL[data.orderStatus]}
+                {t('orders.detailStatus', {
+                  status: t(ORDER_STATUS_I18N_KEY[data.orderStatus]),
+                })}
               </h3>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <h4 className="font-semibold text-gray-500">Customer Info</h4>
-                <p>Name: {data.user.nickname}</p>
-                <p>Phone: {data.user.phone}</p>
+                <h4 className="font-semibold text-gray-500">
+                  {t('orders.detailCustomerInfo')}
+                </h4>
+                <p>{t('orders.detailName', { name: data.user.nickname })}</p>
+                <p>{t('orders.detailPhone', { phone: data.user.phone })}</p>
               </div>
               <div className="space-y-2">
-                <h4 className="font-semibold text-gray-500">Order Info</h4>
-                <p>Product: {data.treasure.treasureName}</p>
-                <p>Qty: {data.buyQuantity}</p>
-                <p>Total: ₱{data.originalAmount.toLocaleString()}</p>
+                <h4 className="font-semibold text-gray-500">
+                  {t('orders.detailOrderInfo')}
+                </h4>
                 <p>
-                  Date: {dayjs(data.createdAt).format('MMM DD, YYYY HH:mm')}
+                  {t('orders.detailProduct', {
+                    name: data.treasure.treasureName,
+                  })}
+                </p>
+                <p>{t('orders.detailQty', { qty: data.buyQuantity })}</p>
+                <p>
+                  {t('orders.detailTotal', {
+                    amount: `₱${data.originalAmount.toLocaleString()}`,
+                  })}
+                </p>
+                <p>
+                  {t('orders.detailDate', {
+                    date: dayjs(data.createdAt).format('MMM DD, YYYY HH:mm'),
+                  })}
                 </p>
               </div>
             </div>
 
             <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 dark:border-white/5">
               <Button variant="ghost" onClick={close}>
-                Close
+                {t('orders.detailClose')}
               </Button>
 
               {/* Ship 按钮: Paid(3) 或 Ready to Ship(7) 均可发货 */}
@@ -256,7 +289,8 @@ export function OrderListClient({
                     openShippingModal(data.orderId);
                   }}
                 >
-                  <Truck size={16} className="mr-2" /> Ship Order
+                  <Truck size={16} className="mr-2" />{' '}
+                  {t('orders.detailShipOrder')}
                 </Button>
               )}
 
@@ -267,7 +301,7 @@ export function OrderListClient({
                     handleUpdateStatus(data.orderId, ORDER_STATUS.COMPLETED)
                   }
                 >
-                  Mark Completed
+                  {t('orders.detailMarkCompleted')}
                 </Button>
               )}
 
@@ -282,7 +316,8 @@ export function OrderListClient({
                     handleUpdateStatus(data.orderId, ORDER_STATUS.CANCELED)
                   }
                 >
-                  <XCircle size={16} className="mr-2" /> Cancel Order
+                  <XCircle size={16} className="mr-2" />{' '}
+                  {t('orders.detailCancelOrder')}
                 </Button>
               )}
             </div>
@@ -290,18 +325,18 @@ export function OrderListClient({
         ),
       });
     },
-    [handleUpdateStatus, openShippingModal],
+    [t, handleUpdateStatus, openShippingModal],
   );
 
   const columns: ColumnDef<Order>[] = useMemo(() => {
     const columnsHelper = createColumnHelper<Order>();
     return [
       columnsHelper.accessor('orderNo', {
-        header: 'Order No.',
+        header: t('orders.columnOrderNo'),
         cell: (info) => <span className="font-medium">{info.getValue()}</span>,
       }),
       columnsHelper.accessor('createdAt', {
-        header: 'Date',
+        header: t('orders.columnDate'),
         cell: (info) => (
           <span className="text-gray-500 text-xs">
             {dayjs(info.getValue()).format('YYYY-MM-DD HH:mm')}
@@ -309,7 +344,7 @@ export function OrderListClient({
         ),
       }),
       columnsHelper.accessor('user.nickname', {
-        header: 'Customer',
+        header: t('orders.columnCustomer'),
         cell: (info) => (
           <div className="flex flex-col">
             <span>{info.getValue()}</span>
@@ -320,10 +355,10 @@ export function OrderListClient({
         ),
       }),
       columnsHelper.accessor('treasure.treasureName', {
-        header: 'Product',
+        header: t('orders.columnProduct'),
       }),
       columnsHelper.accessor('originalAmount', {
-        header: 'Total',
+        header: t('orders.columnTotal'),
         cell: (info) => (
           <span className="font-mono font-bold">
             ₱{info.getValue().toLocaleString()}
@@ -331,16 +366,18 @@ export function OrderListClient({
         ),
       }),
       columnsHelper.accessor('orderStatus', {
-        header: 'Status',
+        header: t('orders.columnStatus'),
         cell: (info) => {
           const status = info.getValue();
           const color = ORDER_STATUS_COLORS[status] || 'gray';
-          return <Badge color={color}>{ORDER_STATUS_LABEL[status]}</Badge>;
+          return (
+            <Badge color={color}>{t(ORDER_STATUS_I18N_KEY[status])}</Badge>
+          );
         },
       }),
       columnsHelper.display({
         id: 'actions',
-        header: 'Actions',
+        header: t('orders.columnActions'),
         cell: (info) => (
           <div className="flex gap-2">
             <Button
@@ -366,31 +403,31 @@ export function OrderListClient({
         ),
       }),
     ] as ColumnDef<Order>[];
-  }, [handleDelete, handleOrderDetails]);
+  }, [t, handleDelete, handleOrderDetails]);
 
   const searchSchema: FormSchema[] = useMemo(
     () => [
       {
         type: 'input',
         key: 'keyword',
-        label: 'Search',
-        placeholder: 'Order No, Nickname, Phone',
+        label: t('orders.searchKeyword'),
+        placeholder: t('orders.searchKeywordPlaceholder'),
       },
       {
         type: 'select',
         key: 'orderStatus',
-        label: 'Status',
+        label: t('orders.searchStatus'),
         defaultValue: 'ALL',
         options: [
-          { label: 'All', value: 'ALL' },
-          ...Object.entries(ORDER_STATUS_LABEL).map(([key, label]) => ({
-            label,
+          { label: t('orders.searchStatusAll'), value: 'ALL' },
+          ...Object.keys(ORDER_STATUS_I18N_KEY).map((key) => ({
+            label: t(ORDER_STATUS_I18N_KEY[Number(key)]),
             value: key,
           })),
         ],
       },
     ],
-    [],
+    [t],
   );
 
   const handleSearch = useCallback(
@@ -421,8 +458,8 @@ export function OrderListClient({
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Order Management"
-        description="Track, update, and manage customer orders."
+        title={t('orders.pageTitle')}
+        description={t('orders.pageDescription')}
       />
       <Card>
         <div className="mb-6">

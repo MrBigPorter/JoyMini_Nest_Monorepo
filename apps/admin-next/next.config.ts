@@ -32,12 +32,12 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: '**' }, // admin panel — 信任所有 https 图片来源
     ],
   },
-  // @lucky/shared: lightweight utils (dayjs/decimal/numbro), no heavy deps.
-  // Keep in transpilePackages so Turbopack handles it natively (avoids CJS interop).
-  // dist/ is pre-built before dev server starts (compose.yml + CI) for reliability.
+  // @lucky/shared: pre-built to dist/ (CJS). Next.js 15 + Turbopack resolves
+  //   via package.json exports natively — no need for transpilePackages.
+  //   If you need live TS editing during dev, run `yarn workspace @lucky/shared dev`
+  //   (tsc watch) in a separate terminal.
   // @repo/ui: pre-built to dist/ — removed from transpilePackages (had framer-motion,
   //   react-quill-new pulling 1186s cold compile; now 10s with optimizePackageImports).
-  transpilePackages: ['@lucky/shared'],
 
   // 允许通过 nginx 反向代理的开发域名访问 /_next/* 资源
   allowedDevOrigins: ['admin-dev.joyminis.com'],

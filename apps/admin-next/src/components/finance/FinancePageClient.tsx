@@ -18,6 +18,7 @@ import { TransactionList } from '@/views/finance/TransactionList';
 import { WithdrawalList } from '@/views/finance/WithdrawalList';
 import { DepositList } from '@/views/finance/DepositList';
 import { FileText, ArrowRightLeft, TrendingUp } from 'lucide-react';
+import { useTranslation } from '@/hooks/useTranslation';
 import {
   buildDepositsListParams,
   depositsListQueryKey,
@@ -46,6 +47,7 @@ export const FinancePage: React.FC<FinancePageProps> = ({
   onParamsChange,
 }) => {
   const queryClient = useQueryClient();
+  const { t } = useTranslation();
   const onParamsChangeRef = useRef(onParamsChange);
   const initialTab = isFinanceTab(initialFormParams?.tab)
     ? initialFormParams.tab
@@ -262,7 +264,7 @@ export const FinancePage: React.FC<FinancePageProps> = ({
             isActive={activeTab === 'transactions'}
             onClick={() => setActiveTab('transactions')}
             icon={<ArrowRightLeft size={18} />}
-            label="Transactions Flow"
+            label={t('finance.tabs.transactions')}
           />
           <TabButton
             isActive={activeTab === 'deposits'}
@@ -273,7 +275,7 @@ export const FinancePage: React.FC<FinancePageProps> = ({
             onMouseEnter={() => prefetchByTab('deposits')}
             onFocus={() => prefetchByTab('deposits')}
             icon={<TrendingUp size={18} />}
-            label="Deposit Records"
+            label={t('finance.tabs.deposits')}
           />
           <TabButton
             isActive={activeTab === 'withdrawals'}
@@ -284,7 +286,7 @@ export const FinancePage: React.FC<FinancePageProps> = ({
             onMouseEnter={() => prefetchByTab('withdrawals')}
             onFocus={() => prefetchByTab('withdrawals')}
             icon={<FileText size={18} />}
-            label="Withdrawal Audits"
+            label={t('finance.tabs.withdrawals')}
           />
         </nav>
       </div>

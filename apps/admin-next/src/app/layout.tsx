@@ -1,7 +1,5 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
-// Quill rich-text editor styles (used in product create/edit forms)
-import 'react-quill-new/dist/quill.snow.css';
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://admin.joyminis.com'),

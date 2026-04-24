@@ -10,6 +10,7 @@ import { useToastStore } from '@/store/useToastStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import { AdminUpdatePassword, AdminUser } from '@/type/types';
 import { userApi } from '@/api';
+import { useTranslation } from '@/hooks/useTranslation';
 
 const editAdminPasswordSchema = z.object({
   password: z.string().min(6, 'Password must be at least 6 characters'),
@@ -30,6 +31,7 @@ export const EditAdminPasswordModal: React.FC<EditAdminPasswordModalProps> = ({
   editingUser,
   onSuccessAction,
 }) => {
+  const { t } = useTranslation();
   const addToast = useToastStore((state) => state.addToast);
   const currentUserRole = useAuthStore((state) => state.userInfo?.role);
   const isSuperAdmin = currentUserRole === 'SUPER_ADMIN';
@@ -49,7 +51,7 @@ export const EditAdminPasswordModal: React.FC<EditAdminPasswordModalProps> = ({
     {
       manual: true,
       onSuccess: () => {
-        addToast('success', 'Admin user updated successfully');
+        addToast('success', t('adminUsers.updatedSuccess'));
         onSuccessAction();
         onCloseAction();
       },
@@ -67,7 +69,9 @@ export const EditAdminPasswordModal: React.FC<EditAdminPasswordModalProps> = ({
     <Modal
       isOpen={isOpen}
       onCloseAction={onCloseAction}
-      title={`Edit Admin Password: ${editingUser?.username}`}
+      title={t('adminUsers.resetPwdTitle', {
+        username: editingUser?.username ?? '',
+      })}
       size="lg"
     >
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -77,17 +81,17 @@ export const EditAdminPasswordModal: React.FC<EditAdminPasswordModalProps> = ({
           </p>
         ) : (
           <Input
-            label="Password"
+            label={t('adminUsers.resetPwdField')}
             error={errors.password?.message}
             {...register('password')}
           />
         )}
         <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 dark:border-white/5">
           <Button type="button" variant="ghost" onClick={onCloseAction}>
-            Cancel
+            {t('adminUsers.cancel')}
           </Button>
           <Button type="submit" disabled={resetLocked} isLoading={isUpdating}>
-            Save Changes
+            {t('adminUsers.saveChanges')}
           </Button>
         </div>
       </form>

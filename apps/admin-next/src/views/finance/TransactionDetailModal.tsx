@@ -13,6 +13,7 @@ import {
   TRANSACTION_STATUS,
 } from '@lucky/shared';
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard';
+import { useTranslation } from '@/hooks/useTranslation';
 
 interface Props {
   data: WalletTransaction;
@@ -36,6 +37,7 @@ const InfoRow: React.FC<{
 );
 
 export const TransactionDetailModal: React.FC<Props> = ({ data, close }) => {
+  const { t } = useTranslation();
   const { copy } = useCopyToClipboard();
 
   const isCash = data.balanceType === BALANCE_TYPE?.CASH;
@@ -53,7 +55,7 @@ export const TransactionDetailModal: React.FC<Props> = ({ data, close }) => {
         <div className="flex justify-between items-start">
           <div>
             <div className="text-xs text-gray-500 uppercase font-semibold">
-              Transaction Amount
+              {t('finance.transactionDetail.transactionAmount')}
             </div>
             <div
               className={`text-2xl font-bold mt-1 ${Number(data.amount) > 0 ? 'text-green-600' : 'text-red-600'}`}
@@ -63,7 +65,11 @@ export const TransactionDetailModal: React.FC<Props> = ({ data, close }) => {
             </div>
           </div>
           <Badge color={isSuccess ? 'green' : isFailed ? 'red' : 'yellow'}>
-            {isSuccess ? 'SUCCESS' : isFailed ? 'FAILED' : 'PENDING'}
+            {isSuccess
+              ? t('finance.transactionDetail.statusSuccess')
+              : isFailed
+                ? t('finance.transactionDetail.statusFailed')
+                : t('finance.transactionDetail.statusPending')}
           </Badge>
         </div>
       </div>
@@ -73,26 +79,36 @@ export const TransactionDetailModal: React.FC<Props> = ({ data, close }) => {
         {/* User Info */}
         <div className="col-span-2 pb-4 border-b border-gray-100 dark:border-white/10">
           <h4 className="text-sm font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-            <User size={16} className="text-primary-500" /> User Information
+            <User size={16} className="text-primary-500" />{' '}
+            {t('finance.transactionDetail.userInformation')}
           </h4>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <InfoRow label="User Nickname" value={data.user?.nickname} />
-            <InfoRow label="User Phone" value={data.user?.phone} />
-            <InfoRow label="User ID" value={data.userId} />
+            <InfoRow
+              label={t('finance.transactionDetail.userNickname')}
+              value={data.user?.nickname}
+            />
+            <InfoRow
+              label={t('finance.transactionDetail.userPhone')}
+              value={data.user?.phone}
+            />
+            <InfoRow
+              label={t('finance.transactionDetail.userId')}
+              value={data.userId}
+            />
           </div>
         </div>
 
         {/* Transaction Info */}
         <div className="col-span-2">
           <h4 className="text-sm font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-            <FileText size={16} className="text-primary-500" /> Transaction
-            Details
+            <FileText size={16} className="text-primary-500" />{' '}
+            {t('finance.transactionDetail.transactionDetails')}
           </h4>
         </div>
 
         <div className="col-span-2 sm:col-span-1">
           <InfoRow
-            label="Transaction No."
+            label={t('finance.transactionDetail.transactionNo')}
             value={
               <div className="flex items-center gap-2 min-w-0">
                 <span className="font-mono text-xs break-all [overflow-wrap:anywhere] min-w-0">
@@ -109,7 +125,7 @@ export const TransactionDetailModal: React.FC<Props> = ({ data, close }) => {
         </div>
 
         <InfoRow
-          label="Type"
+          label={t('finance.transactionDetail.type')}
           value={
             <Badge color="blue">
               {TRANSACTION_TYPE_LABEL[data.transactionType]}
@@ -118,12 +134,16 @@ export const TransactionDetailModal: React.FC<Props> = ({ data, close }) => {
         />
 
         <InfoRow
-          label="Asset Class"
-          value={isCash ? 'Cash Balance' : 'Gold Coins'}
+          label={t('finance.transactionDetail.assetClass')}
+          value={
+            isCash
+              ? t('finance.transactionDetail.cashBalance')
+              : t('finance.transactionDetail.goldCoins')
+          }
         />
 
         <InfoRow
-          label="Time"
+          label={t('finance.transactionDetail.time')}
           icon={Clock}
           value={TimeHelper.formatDateTime(data.createdAt)}
         />
@@ -132,7 +152,9 @@ export const TransactionDetailModal: React.FC<Props> = ({ data, close }) => {
         {data.relatedId && (
           <div className="col-span-2 p-3 bg-gray-50 dark:bg-white/5 rounded-lg border border-dashed border-gray-300 dark:border-white/10">
             <InfoRow
-              label={`Related Ref (${data.relatedType || 'Unknown'})`}
+              label={t('finance.transactionDetail.relatedRef', {
+                type: data.relatedType || 'Unknown',
+              })}
               value={
                 <span className="font-mono break-all [overflow-wrap:anywhere]">
                   {data.relatedId}
@@ -145,11 +167,14 @@ export const TransactionDetailModal: React.FC<Props> = ({ data, close }) => {
         {/* 3. 余额变动快照 */}
         <div className="col-span-2 pt-4 border-t border-gray-100 dark:border-white/10">
           <h4 className="text-sm font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-            <Wallet size={16} className="text-primary-500" /> Balance Snapshot
+            <Wallet size={16} className="text-primary-500" />{' '}
+            {t('finance.transactionDetail.balanceSnapshot')}
           </h4>
           <div className="flex items-center justify-between bg-gray-50 dark:bg-black/20 p-3 rounded-lg">
             <div>
-              <div className="text-xs text-gray-500">Before</div>
+              <div className="text-xs text-gray-500">
+                {t('finance.transactionDetail.before')}
+              </div>
               <div className="font-mono font-medium">
                 {isCash
                   ? NumHelper.formatMoney(Number(data.beforeBalance))
@@ -158,7 +183,9 @@ export const TransactionDetailModal: React.FC<Props> = ({ data, close }) => {
             </div>
             <div className="text-gray-300">→</div>
             <div className="text-right">
-              <div className="text-xs text-gray-500">After</div>
+              <div className="text-xs text-gray-500">
+                {t('finance.transactionDetail.after')}
+              </div>
               <div className="font-mono font-bold text-gray-900 dark:text-white">
                 {isCash
                   ? NumHelper.formatMoney(Number(data.afterBalance))
@@ -171,10 +198,16 @@ export const TransactionDetailModal: React.FC<Props> = ({ data, close }) => {
         {/* 4. 备注信息 */}
         {(data.description || data.remark) && (
           <div className="col-span-2 pt-2">
-            <InfoRow label="System Description" value={data.description} />
+            <InfoRow
+              label={t('finance.transactionDetail.systemDescription')}
+              value={data.description}
+            />
             {data.remark && (
               <div className="mt-3">
-                <InfoRow label="Admin Remark" value={data.remark} />
+                <InfoRow
+                  label={t('finance.transactionDetail.adminRemark')}
+                  value={data.remark}
+                />
               </div>
             )}
           </div>
@@ -183,7 +216,7 @@ export const TransactionDetailModal: React.FC<Props> = ({ data, close }) => {
 
       <div className="flex justify-end pt-4">
         <Button onClick={close} variant="outline">
-          Close
+          {t('finance.transactionDetail.close')}
         </Button>
       </div>
     </div>

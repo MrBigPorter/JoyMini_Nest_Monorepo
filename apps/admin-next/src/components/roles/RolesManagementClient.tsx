@@ -17,6 +17,7 @@ import { Card, Badge } from '@/components/UIComponents';
 import { PageHeader } from '@/components/scaffold/PageHeader';
 import { rolesApi, userApi } from '@/api';
 import { EditAdminUserModal } from '@/views/admin/EditAdminUserModal';
+import { useTranslation } from '@/hooks/useTranslation';
 import type { AdminUser, RoleSummaryItem } from '@/type/types';
 
 // ── Role icon + color map ──────────────────────────────────────────
@@ -77,10 +78,12 @@ function RoleCard({
   item,
   onSelectRole,
   isSelected,
+  t,
 }: {
   item: RoleSummaryItem;
   onSelectRole: (role: string) => void;
   isSelected: boolean;
+  t: (key: string, params?: Record<string, string | number>) => string;
 }) {
   const [expanded, setExpanded] = useState(false);
   const style = ROLE_STYLE[item.role] ?? DEFAULT_STYLE;
@@ -117,7 +120,9 @@ function RoleCard({
             </p>
           </div>
           <div className="flex-shrink-0 flex flex-col items-end gap-1">
-            <Badge color="blue">{item.userCount} users</Badge>
+            <Badge color="blue">
+              {t('roles.users', { count: item.userCount })}
+            </Badge>
           </div>
         </div>
 
@@ -127,17 +132,17 @@ function RoleCard({
             <div className="flex items-center gap-2">
               <Crown size={13} className="text-amber-500" />
               <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">
-                Full access — all modules
+                {t('roles.fullAccess')}
               </span>
             </div>
           ) : (
             <>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                  {item.permissions.length} permission
-                  {item.permissions.length !== 1 ? 's' : ''} across{' '}
-                  {moduleEntries.length} module
-                  {moduleEntries.length !== 1 ? 's' : ''}
+                  {t('roles.permissionsCount', {
+                    count: item.permissions.length,
+                    modules: moduleEntries.length,
+                  })}
                 </span>
                 <button
                   className="flex items-center gap-1 text-xs text-primary-500 hover:text-primary-600"
@@ -148,11 +153,11 @@ function RoleCard({
                 >
                   {expanded ? (
                     <>
-                      <ChevronUp size={13} /> Hide
+                      <ChevronUp size={13} /> {t('roles.hide')}
                     </>
                   ) : (
                     <>
-                      <ChevronDown size={13} /> Details
+                      <ChevronDown size={13} /> {t('roles.details')}
                     </>
                   )}
                 </button>
@@ -187,10 +192,12 @@ function RoleUsersPanel({
   role,
   roleName,
   onClose,
+  t,
 }: {
   role: string;
   roleName: string;
   onClose: () => void;
+  t: (key: string, params?: Record<string, string | number>) => string;
 }) {
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -212,8 +219,7 @@ function RoleUsersPanel({
         <div className="flex items-center gap-2">
           <Users size={18} className="text-primary-500" />
           <span className="font-semibold text-gray-800 dark:text-white">
-            Admins with role:{' '}
-            <span className="text-primary-500">{roleName}</span>
+            {t('roles.adminsWithRole', { roleName })}
           </span>
           <Badge color="blue">{users.length}</Badge>
         </div>
@@ -221,7 +227,7 @@ function RoleUsersPanel({
           onClick={onClose}
           className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors text-sm"
         >
-          ✕ Close
+          ✕ {t('roles.close')}
         </button>
       </div>
 
@@ -238,7 +244,7 @@ function RoleUsersPanel({
           </div>
         ) : users.length === 0 ? (
           <div className="py-10 text-center text-gray-400 text-sm">
-            No admin users with this role.
+            {t('roles.noUsers')}
           </div>
         ) : (
           <div className="space-y-2">
@@ -269,7 +275,9 @@ function RoleUsersPanel({
                         : 'bg-gray-100 text-gray-500'
                     }`}
                   >
-                    {user.status === 1 ? 'Active' : 'Inactive'}
+                    {user.status === 1
+                      ? t('roles.statusActive')
+                      : t('roles.statusInactive')}
                   </span>
                   <button
                     onClick={() => {
@@ -278,7 +286,7 @@ function RoleUsersPanel({
                     }}
                     className="text-xs text-primary-500 hover:text-primary-600 font-medium"
                   >
-                    Edit
+                    {t('roles.edit')}
                   </button>
                 </div>
               </div>
@@ -299,6 +307,7 @@ function RoleUsersPanel({
 
 // ── Main component ──────────────────────────────────────────────────
 export function RolesManagement() {
+  const { t } = useTranslation();
   const [selectedRole, setSelectedRole] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -321,15 +330,14 @@ export function RolesManagement() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Role & Permission Management"
-        description="View role definitions and manage role assignments for admin users."
+        title={t('roles.pageTitle')}
+        description={t('roles.pageDescription')}
       />
 
       {/* Error */}
       {error && (
         <div className="rounded-xl border border-red-200 bg-red-50 dark:bg-red-500/10 dark:border-red-500/30 p-4 text-sm text-red-600 dark:text-red-400">
-          Failed to load roles summary. You may not have permission to view this
-          page.
+          {t('roles.loadError')}
         </div>
       )}
 
@@ -351,6 +359,7 @@ export function RolesManagement() {
               item={item}
               isSelected={selectedRole === item.role}
               onSelectRole={handleSelectRole}
+              t={t}
             />
           ))}
         </div>
@@ -362,6 +371,7 @@ export function RolesManagement() {
           role={selectedRole}
           roleName={selectedItem.nameEn}
           onClose={() => setSelectedRole(null)}
+          t={t}
         />
       )}
     </div>

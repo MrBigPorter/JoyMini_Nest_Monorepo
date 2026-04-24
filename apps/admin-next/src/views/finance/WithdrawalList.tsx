@@ -10,7 +10,7 @@ import {
 import { financeApi } from '@/api';
 import { WithdrawListParams, WithdrawOrder } from '@/type/types';
 import { WithdrawAuditModal } from './WithdrawAuditModal';
-import { STATUS_CONFIG } from '@/views/finance/type';
+import { getStatusConfig } from '@/views/finance/type';
 import {
   WITHDRAW_STATUS,
   WITHDRAW_STATUS_OPTIONS,
@@ -23,9 +23,18 @@ import {
   parseWithdrawalsSearchParams,
   withdrawalsListQueryKey,
 } from '@/lib/cache/finance-withdrawals-cache';
+import { useTranslation } from '@/hooks/useTranslation';
 
 // 简单的渠道图标映射助手
-const ChannelIcon = ({ code, name }: { code?: string; name?: string }) => {
+const ChannelIcon = ({
+  code,
+  name,
+  t,
+}: {
+  code?: string;
+  name?: string;
+  t?: (key: string) => string;
+}) => {
   const isBank = code?.includes('BANK') || name?.toLowerCase().includes('bank');
   return (
     <div className="flex items-center gap-2">
@@ -35,7 +44,7 @@ const ChannelIcon = ({ code, name }: { code?: string; name?: string }) => {
         {isBank ? <Landmark size={14} /> : <Wallet size={14} />}
       </div>
       <span className="font-medium text-sm text-gray-900 dark:text-gray-100">
-        {name || 'Unknown'}
+        {name || (t ? t('finance.withdrawals.unknown') : 'Unknown')}
       </span>
     </div>
   );
@@ -51,6 +60,7 @@ export const WithdrawalList: React.FC<WithdrawalListProps> = ({
   onParamsChange,
 }) => {
   const actionRef = useRef<ActionType>(null);
+  const { t } = useTranslation();
 
   const normalizedInitialFormParams = useMemo(() => {
     const input = initialFormParams ?? {};
@@ -70,25 +80,30 @@ export const WithdrawalList: React.FC<WithdrawalListProps> = ({
     [normalizedInitialFormParams],
   );
 
-  const handleAudit = useCallback((record: WithdrawOrder) => {
-    ModalManager.open({
-      title: 'Withdrawal Audit',
-      renderChildren: ({ confirm }) => (
-        <WithdrawAuditModal
-          data={record}
-          confirm={() => {
-            confirm();
-            actionRef.current?.reload(); // 审核完只需刷新数据，不需要 reset 页码
-          }}
-        />
-      ),
-    });
-  }, []);
+  const handleAudit = useCallback(
+    (record: WithdrawOrder) => {
+      ModalManager.open({
+        title: t('finance.withdrawals.auditTitle'),
+        renderChildren: ({ confirm }) => (
+          <WithdrawAuditModal
+            data={record}
+            confirm={() => {
+              confirm();
+              actionRef.current?.reload(); // 审核完只需刷新数据，不需要 reset 页码
+            }}
+          />
+        ),
+      });
+    },
+    [t],
+  );
+
+  const statusConfig = useMemo(() => getStatusConfig(t), [t]);
 
   const statusValueEnum = useMemo(() => {
     return WITHDRAW_STATUS_OPTIONS.reduce(
       (acc, item) => {
-        const config = STATUS_CONFIG[item.value] || {
+        const config = statusConfig[item.value] || {
           color: 'default',
           label: item.label,
         };
@@ -97,12 +112,12 @@ export const WithdrawalList: React.FC<WithdrawalListProps> = ({
       },
       {} as Record<number, { text: string; status?: string }>,
     );
-  }, []);
+  }, [statusConfig]);
 
   const columns: ProColumns<WithdrawOrder>[] = useMemo(
     () => [
       {
-        title: 'Order No.',
+        title: t('finance.withdrawals.orderNo'),
         dataIndex: 'withdrawNo',
         copyable: true,
         width: 180,
@@ -116,7 +131,7 @@ export const WithdrawalList: React.FC<WithdrawalListProps> = ({
         ),
       },
       {
-        title: 'User Info',
+        title: t('finance.withdrawals.userInfo'),
         dataIndex: 'user',
         width: 150,
         render: (_, row) => (
@@ -134,15 +149,15 @@ export const WithdrawalList: React.FC<WithdrawalListProps> = ({
         ),
       },
       {
-        title: 'Channel',
+        title: t('finance.withdrawals.channel'),
         dataIndex: 'bankName',
         width: 140,
         render: (_, row) => (
-          <ChannelIcon code={row.channelCode} name={row.bankName} />
+          <ChannelIcon code={row.channelCode} name={row.bankName} t={t} />
         ),
       },
       {
-        title: 'Beneficiary',
+        title: t('finance.withdrawals.beneficiary'),
         width: 160,
         render: (_, row) => (
           <div className="flex flex-col">
@@ -156,7 +171,7 @@ export const WithdrawalList: React.FC<WithdrawalListProps> = ({
         ),
       },
       {
-        title: 'Amount Info',
+        title: t('finance.withdrawals.amountInfo'),
         dataIndex: 'withdrawAmount',
         width: 140,
         align: 'right', // 财务数据习惯右对齐
@@ -168,7 +183,9 @@ export const WithdrawalList: React.FC<WithdrawalListProps> = ({
             </span>
             {/* 实付金额 (高亮显示) */}
             <div className="flex items-center gap-1 text-xs">
-              <span className="text-gray-400 dark:text-gray-500">Act:</span>
+              <span className="text-gray-400 dark:text-gray-500">
+                {t('finance.withdrawals.actualAmount')}:
+              </span>
               <span className="font-medium text-primary-600">
                 {NumHelper.formatMoney(row.actualAmount)}
               </span>
@@ -177,21 +194,21 @@ export const WithdrawalList: React.FC<WithdrawalListProps> = ({
         ),
       },
       {
-        title: 'Status',
+        title: t('finance.withdrawals.status'),
         dataIndex: 'withdrawStatus',
         valueType: 'select',
         valueEnum: statusValueEnum,
         width: 100,
       },
       {
-        title: 'Time',
+        title: t('finance.withdrawals.time'),
         dataIndex: 'appliedAt',
         valueType: 'dateTime',
         width: 160,
         sorter: true, // 允许按时间排序
       },
       {
-        title: 'Action',
+        title: t('finance.withdrawals.action'),
         valueType: 'option',
         fixed: 'right', // 固定在右侧
         width: 100,
@@ -210,13 +227,15 @@ export const WithdrawalList: React.FC<WithdrawalListProps> = ({
               ) : (
                 <EyeIcon size={14} className="mr-1" />
               )}
-              {isPending ? 'Audit' : 'Detail'}
+              {isPending
+                ? t('finance.withdrawals.audit')
+                : t('finance.withdrawals.detail')}
             </Button>
           );
         },
       },
     ],
-    [handleAudit, statusValueEnum],
+    [handleAudit, statusValueEnum, t],
   );
 
   const searchSchema: FormSchema[] = useMemo(
@@ -224,16 +243,16 @@ export const WithdrawalList: React.FC<WithdrawalListProps> = ({
       {
         type: 'input',
         key: 'keyword',
-        label: 'Search',
-        placeholder: 'Order No / Phone / User / Account', // 增加Account搜索提示
+        label: t('finance.withdrawals.search'),
+        placeholder: t('finance.withdrawals.searchPlaceholder'),
       },
       {
         type: 'select',
         key: 'status',
-        label: 'Status',
+        label: t('finance.withdrawals.status'),
         defaultValue: 'ALL',
         options: [
-          { label: 'All Status', value: 'ALL' },
+          { label: t('finance.withdrawals.allStatus'), value: 'ALL' },
           ...WITHDRAW_STATUS_OPTIONS.map((opt) => ({
             label: opt.label,
             value: String(opt.value),
@@ -243,13 +262,16 @@ export const WithdrawalList: React.FC<WithdrawalListProps> = ({
       {
         type: 'date', // 建议改用范围选择器
         key: 'dateRange',
-        label: 'Applied Date',
+        label: t('finance.withdrawals.appliedDate'),
         props: {
-          placeholder: ['Start Date', 'End Date'],
+          placeholder: [
+            t('finance.withdrawals.startDate'),
+            t('finance.withdrawals.endDate'),
+          ],
         },
       },
     ],
-    [],
+    [t],
   );
 
   const requestWithdrawals = useCallback(async (params: WithdrawListParams) => {
@@ -285,7 +307,7 @@ export const WithdrawalList: React.FC<WithdrawalListProps> = ({
     <div className="p-4 ">
       <SmartTable<WithdrawOrder>
         rowKey="withdrawId"
-        headerTitle="Withdrawal Management"
+        headerTitle={t('finance.withdrawals.headerTitle')}
         ref={actionRef}
         columns={columns}
         searchSchema={searchSchema}

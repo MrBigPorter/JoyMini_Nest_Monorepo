@@ -11,7 +11,7 @@ import { financeApi } from '@/api';
 import { revalidateFinanceAfterRechargeSync } from '@/lib/actions/finance-revalidate';
 import { RechargeListParams, RechargeOrder } from '@/type/types';
 import { DepositDetailModal } from './DepositDetailModal';
-import { DEPOSIT_STATUS_CONFIG, CHANNEL_OPTIONS } from './type';
+import { getDepositStatusConfig, getChannelOptions } from './type';
 import { Search, ArrowDownLeft, RefreshCw } from 'lucide-react'; // Added RefreshCw icon
 import { FormSchema } from '@/type/search';
 import { Badge } from '@repo/ui';
@@ -23,6 +23,7 @@ import {
   depositsListQueryKey,
   parseDepositsSearchParams,
 } from '@/lib/cache/finance-deposits-cache';
+import { useTranslation } from '@/hooks/useTranslation';
 
 // Assuming your RECHARGE_STATUS enum/const looks something like this:
 // const RECHARGE_STATUS = { PENDING: 0, SUCCESS: 1, FAILED: 2 };
@@ -39,6 +40,7 @@ export const DepositList: React.FC<DepositListProps> = ({
   const actionRef = useRef<ActionType>(null);
   const [syncingId, setSyncingId] = useState<string | null>(null); // State for loading effect
   const addToast = useToastStore((state) => state.addToast);
+  const { t } = useTranslation();
 
   const normalizedInitialFormParams = useMemo(() => {
     const input = initialFormParams ?? {};
@@ -60,14 +62,17 @@ export const DepositList: React.FC<DepositListProps> = ({
   );
 
   // 1. View Details
-  const handleViewDetail = useCallback((record: RechargeOrder) => {
-    ModalManager.open({
-      title: 'Deposit Order Details',
-      renderChildren: ({ close }) => (
-        <DepositDetailModal data={record} closeAction={close} />
-      ),
-    });
-  }, []);
+  const handleViewDetail = useCallback(
+    (record: RechargeOrder) => {
+      ModalManager.open({
+        title: t('finance.deposits.detailTitle'),
+        renderChildren: ({ close }) => (
+          <DepositDetailModal data={record} closeAction={close} />
+        ),
+      });
+    },
+    [t],
+  );
 
   const { run: syncRecharge, loading: syncRechargeLoading } = useRequest(
     financeApi.syncRecharge,
@@ -75,20 +80,20 @@ export const DepositList: React.FC<DepositListProps> = ({
       manual: true,
       onSuccess: (res) => {
         if (res.status === 'SYNCED_SUCCESS') {
-          addToast('success', 'Order synced successfully! User credited.');
+          addToast('success', t('finance.deposits.syncedSuccess'));
           void revalidateFinanceAfterRechargeSync();
         } else if (res.status === 'SYNCED_EXPIRED') {
-          addToast('info', 'Order expired on Xendit.');
+          addToast('info', t('finance.deposits.syncedExpired'));
           actionRef.current?.reload();
         } else {
           addToast(
             'info',
-            `Sync complete: Order status is ${res.xenditStatus}`,
+            t('finance.deposits.syncComplete', { status: res.xenditStatus }),
           );
         }
       },
       onError: (error) => {
-        addToast('error', error.message || 'Failed to sync order');
+        addToast('error', error.message || t('finance.deposits.syncFailed'));
       },
       onFinally: () => {
         actionRef.current?.reload();
@@ -105,18 +110,21 @@ export const DepositList: React.FC<DepositListProps> = ({
     [syncRecharge],
   );
 
+  const depositStatusConfig = useMemo(() => getDepositStatusConfig(t), [t]);
+  const channelOptions = useMemo(() => getChannelOptions(t), [t]);
+
   const statusValueEnum = useMemo(() => {
     const enumMap: Record<string, { text: string; status: string }> = {};
-    Object.entries(DEPOSIT_STATUS_CONFIG).forEach(([key, config]) => {
+    Object.entries(depositStatusConfig).forEach(([key, config]) => {
       enumMap[key] = { text: config.label, status: config.color };
     });
     return enumMap;
-  }, []);
+  }, [depositStatusConfig]);
 
   const columns: ProColumns<RechargeOrder>[] = useMemo(
     () => [
       {
-        title: 'Order No.',
+        title: t('finance.deposits.orderNo'),
         dataIndex: 'rechargeNo',
         copyable: true,
         render: (dom, row) => (
@@ -131,7 +139,7 @@ export const DepositList: React.FC<DepositListProps> = ({
         ),
       },
       {
-        title: 'User',
+        title: t('finance.deposits.user'),
         dataIndex: 'user',
         render: (_, row) => (
           <div>
@@ -145,7 +153,7 @@ export const DepositList: React.FC<DepositListProps> = ({
         ),
       },
       {
-        title: 'Amount',
+        title: t('finance.deposits.amount'),
         dataIndex: 'rechargeAmount',
         valueType: 'money',
         render: (dom) => {
@@ -159,7 +167,7 @@ export const DepositList: React.FC<DepositListProps> = ({
         },
       },
       {
-        title: 'Channel',
+        title: t('finance.deposits.channel'),
         dataIndex: 'paymentChannel',
         render: (dom) => (
           <Badge
@@ -171,22 +179,22 @@ export const DepositList: React.FC<DepositListProps> = ({
         ),
       },
       {
-        title: 'Status',
+        title: t('finance.deposits.status'),
         dataIndex: 'rechargeStatus',
         valueType: 'select',
         valueEnum: statusValueEnum,
       },
       {
-        title: 'Created At',
+        title: t('finance.deposits.createdAt'),
         dataIndex: 'createdAt',
         valueType: 'dateTime',
       },
       {
-        title: 'Action',
+        title: t('finance.deposits.action'),
         valueType: 'option',
         width: 180, // Increased width to fit buttons
         render: (_, row) => {
-          const button = DEPOSIT_STATUS_CONFIG[row.rechargeStatus];
+          const button = depositStatusConfig[row.rechargeStatus];
           const isPending = row.rechargeStatus === RECHARGE_STATUS.PENDING;
 
           return (
@@ -196,7 +204,8 @@ export const DepositList: React.FC<DepositListProps> = ({
                 size="sm"
                 onClick={() => handleViewDetail(row)}
               >
-                <Search size={14} className="mr-1" /> View
+                <Search size={14} className="mr-1" />{' '}
+                {t('finance.deposits.view')}
               </Button>
 
               {/* [NEW] Sync Button: Only show for PENDING orders */}
@@ -213,7 +222,9 @@ export const DepositList: React.FC<DepositListProps> = ({
                     size={14}
                     className={`mr-1 ${syncingId === row.rechargeId ? 'animate-spin' : ''}`}
                   />
-                  {syncingId === row.rechargeId ? 'Syncing' : 'Sync'}
+                  {syncingId === row.rechargeId
+                    ? t('finance.deposits.syncing')
+                    : t('finance.deposits.sync')}
                 </Button>
               )}
             </div>
@@ -227,7 +238,9 @@ export const DepositList: React.FC<DepositListProps> = ({
       syncingId,
       handleViewDetail,
       handleSync,
-    ], // Added dependencies
+      depositStatusConfig,
+      t,
+    ],
   );
 
   const searchSchema: FormSchema[] = useMemo(
@@ -235,24 +248,27 @@ export const DepositList: React.FC<DepositListProps> = ({
       {
         type: 'input',
         key: 'keyword',
-        label: 'Keyword',
-        placeholder: 'Order No / Ref No / Phone',
+        label: t('finance.deposits.keyword'),
+        placeholder: t('finance.deposits.keywordPlaceholder'),
       },
       {
         type: 'select',
         key: 'channel',
-        label: 'Channel',
+        label: t('finance.deposits.channel'),
         defaultValue: 'ALL',
-        options: [{ label: 'All Channels', value: 'ALL' }, ...CHANNEL_OPTIONS],
+        options: [
+          { label: t('finance.deposits.allChannels'), value: 'ALL' },
+          ...channelOptions,
+        ],
       },
       {
         type: 'select',
         key: 'status',
-        label: 'Status',
+        label: t('finance.deposits.status'),
         defaultValue: 'ALL',
         options: [
-          { label: 'All Status', value: 'ALL' },
-          ...Object.entries(DEPOSIT_STATUS_CONFIG).map(([k, v]) => ({
+          { label: t('finance.deposits.allStatus'), value: 'ALL' },
+          ...Object.entries(depositStatusConfig).map(([k, v]) => ({
             label: v.label,
             value: k,
           })),
@@ -261,11 +277,11 @@ export const DepositList: React.FC<DepositListProps> = ({
       {
         type: 'date',
         key: 'dateRange',
-        label: 'Date Range',
+        label: t('finance.deposits.dateRange'),
         mode: 'range',
       },
     ],
-    [],
+    [channelOptions, depositStatusConfig, t],
   );
 
   const requestDeposits = useCallback(async (params: RechargeListParams) => {
@@ -301,10 +317,10 @@ export const DepositList: React.FC<DepositListProps> = ({
   const toolBarRender = useCallback(
     () => [
       <Button key="export" variant="outline">
-        Export CSV
+        {t('finance.deposits.exportCsv')}
       </Button>,
     ],
-    [],
+    [t],
   );
 
   return (
@@ -313,7 +329,7 @@ export const DepositList: React.FC<DepositListProps> = ({
         headerTitle={
           <div className="flex items-center gap-2">
             <ArrowDownLeft className="text-emerald-500" size={20} />
-            <span>Deposit Orders</span>
+            <span>{t('finance.deposits.headerTitle')}</span>
           </div>
         }
         rowKey="rechargeId"

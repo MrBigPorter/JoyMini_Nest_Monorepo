@@ -3,6 +3,7 @@
 import React from 'react';
 import { MessageSquare, Search, RefreshCw } from 'lucide-react';
 import type { ChatConversation } from '@/type/types';
+import { useTranslation } from '@/hooks/useTranslation';
 import { ConversationItem } from './index';
 
 interface ConversationListProps {
@@ -36,6 +37,7 @@ export function ConversationList({
   onSelectConversationAction,
   onRefreshAction,
 }: ConversationListProps) {
+  const { t } = useTranslation();
   return (
     <div className="w-80 flex-shrink-0 flex flex-col rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-gray-900 overflow-hidden">
       {/* 搜索 + 过滤 */}
@@ -47,7 +49,7 @@ export function ConversationList({
           />
           <input
             type="text"
-            placeholder="Search user or keyword…"
+            placeholder={t('customerService.searchPlaceholder')}
             value={keyword}
             onChange={(e) => {
               onKeywordChangeAction(e.target.value);
@@ -59,9 +61,9 @@ export function ConversationList({
         {/* 状态标签 */}
         <div className="flex gap-1.5">
           {[
-            { label: 'All', value: undefined },
-            { label: 'Active', value: 1 },
-            { label: 'Closed', value: 2 },
+            { label: t('customerService.filterAll'), value: undefined },
+            { label: t('customerService.filterActive'), value: 1 },
+            { label: t('customerService.filterClosed'), value: 2 },
           ].map((opt) => (
             <button
               key={String(opt.value)}
@@ -92,13 +94,13 @@ export function ConversationList({
       <div className="flex-1 overflow-y-auto p-2 space-y-1">
         {loading && conversations.length === 0 && (
           <div className="flex justify-center py-8 text-gray-400 text-sm">
-            Loading…
+            {t('customerService.loading')}
           </div>
         )}
         {!loading && conversations.length === 0 && (
           <div className="flex flex-col items-center py-12 text-gray-400">
             <MessageSquare size={28} className="mb-2 opacity-40" />
-            <p className="text-sm">No conversations</p>
+            <p className="text-sm">{t('customerService.noConversations')}</p>
           </div>
         )}
         {conversations.map((conv) => {
@@ -126,7 +128,7 @@ export function ConversationList({
             onClick={() => onPageChangeAction(page - 1)}
             className="text-xs px-2 py-1 rounded-lg bg-gray-100 dark:bg-white/5 disabled:opacity-40 hover:bg-gray-200 dark:hover:bg-white/10 transition-colors"
           >
-            Prev
+            {t('customerService.prev')}
           </button>
           <span className="text-xs text-gray-400">
             {(page - 1) * 30 + 1}–{Math.min(page * 30, total)} / {total}
@@ -136,7 +138,7 @@ export function ConversationList({
             onClick={() => onPageChangeAction(page + 1)}
             className="text-xs px-2 py-1 rounded-lg bg-gray-100 dark:bg-white/5 disabled:opacity-40 hover:bg-gray-200 dark:hover:bg-white/10 transition-colors"
           >
-            Next
+            {t('customerService.next')}
           </button>
         </div>
       )}

@@ -15,23 +15,25 @@ import {
 import { financeApi } from '@/api';
 import { revalidateFinanceAfterAdjust } from '@/lib/actions/finance-revalidate';
 import { DIRECTION, BALANCE_TYPE } from '@lucky/shared';
+import { useTranslation } from '@/hooks/useTranslation';
 
 // Zod Schema 定义
-const AdjustSchema = z.object({
-  userId: z.string().min(1, 'User ID is required'),
-  actionType: z.coerce.number(), // 1: Income, 2: Outcome
-  balanceType: z.coerce.number(), // 1: Cash, 2: Coin
-  amount: z.coerce
-    .number()
-    .positive('Amount must be greater than zero')
-    .refine(
-      (val) => /^\d+(\.\d{1,2})?$/.test(String(val)),
-      'Must be a valid amount with up to 2 decimal places',
-    ),
-  remark: z.string().min(1, 'Remark is required for audit trail'),
-});
+const getAdjustSchema = (t: (key: string) => string) =>
+  z.object({
+    userId: z.string().min(1, t('finance.manualAdjust.validationUserId')),
+    actionType: z.coerce.number(), // 1: Income, 2: Outcome
+    balanceType: z.coerce.number(), // 1: Cash, 2: Coin
+    amount: z.coerce
+      .number()
+      .positive(t('finance.manualAdjust.validationAmountPositive'))
+      .refine(
+        (val) => /^\d+(\.\d{1,2})?$/.test(String(val)),
+        t('finance.manualAdjust.validationAmountDecimal'),
+      ),
+    remark: z.string().min(1, t('finance.manualAdjust.validationRemark')),
+  });
 
-type AdjustFormInput = z.infer<typeof AdjustSchema>;
+type AdjustFormInput = z.infer<ReturnType<typeof getAdjustSchema>>;
 
 interface Props {
   close: () => void;
@@ -39,6 +41,8 @@ interface Props {
 }
 
 export const ManualAdjustModal: React.FC<Props> = ({ close, confirm }) => {
+  const { t } = useTranslation();
+  const AdjustSchema = getAdjustSchema(t);
   const form = useForm<AdjustFormInput>({
     resolver: zodResolver(AdjustSchema),
     defaultValues: {
@@ -63,56 +67,67 @@ export const ManualAdjustModal: React.FC<Props> = ({ close, confirm }) => {
   return (
     <div className="space-y-4">
       <div className="bg-blue-50 text-blue-700 p-3 rounded-md text-sm mb-4">
-        ⚠️ <strong>Warning:</strong> This action involves real fund movement.
-        All operations are logged.
+        ⚠️ <strong>{t('finance.manualAdjust.warning')}</strong>
       </div>
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           <FormTextField
             name="userId"
-            label="Target User ID"
-            placeholder="e.g. user_12345"
+            label={t('finance.manualAdjust.targetUserId')}
+            placeholder={t('finance.manualAdjust.userIdPlaceholder')}
           />
 
           <div className="grid grid-cols-2 gap-4">
             <FormSelectField
               name="actionType"
-              label="Action"
+              label={t('finance.manualAdjust.action')}
               options={[
-                { label: 'Increase (+)', value: String(DIRECTION.INCOME) },
-                { label: 'Deduct (-)', value: String(DIRECTION.EXPENDITURE) },
+                {
+                  label: t('finance.manualAdjust.increase'),
+                  value: String(DIRECTION.INCOME),
+                },
+                {
+                  label: t('finance.manualAdjust.deduct'),
+                  value: String(DIRECTION.EXPENDITURE),
+                },
               ]}
             />
             <FormSelectField
               name="balanceType"
-              label="Asset Type"
+              label={t('finance.manualAdjust.assetType')}
               options={[
-                { label: 'Cash Balance', value: String(BALANCE_TYPE.CASH) },
-                { label: 'Coins', value: String(BALANCE_TYPE.COIN) },
+                {
+                  label: t('finance.manualAdjust.cashBalance'),
+                  value: String(BALANCE_TYPE.CASH),
+                },
+                {
+                  label: t('finance.manualAdjust.coins'),
+                  value: String(BALANCE_TYPE.COIN),
+                },
               ]}
             />
           </div>
 
           <FormTextField
             name="amount"
-            label="Amount"
+            label={t('finance.manualAdjust.amount')}
             type="number"
-            placeholder="0.00"
+            placeholder={t('finance.manualAdjust.amountPlaceholder')}
           />
 
           <FormTextareaField
             name="remark"
-            label="Reason / Remark"
-            placeholder="Explain why this adjustment is made..."
+            label={t('finance.manualAdjust.reason')}
+            placeholder={t('finance.manualAdjust.reasonPlaceholder')}
           />
 
           <div className="flex justify-end gap-3 pt-4">
             <Button type="button" variant="ghost" onClick={close}>
-              Cancel
+              {t('finance.manualAdjust.cancel')}
             </Button>
             <Button isLoading={loading} type="submit" variant="primary">
-              Confirm Adjustment
+              {t('finance.manualAdjust.confirmAdjustment')}
             </Button>
           </div>
         </form>

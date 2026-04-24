@@ -138,7 +138,7 @@ class HttpClient {
         }
 
         // 业务错误
-        if (data.code === 401) {
+        if (data.code === 401 || data.code === 40100) {
           const retryConfig = res.config as InternalAxiosRequestConfig & {
             _retry?: boolean;
           };
@@ -223,7 +223,7 @@ class HttpClient {
     config?: InternalAxiosRequestConfig & RequestConfig,
   ) {
     // 401 单独处理，不再额外弹 toast
-    if (data.code === 401) {
+    if (data.code === 401 || data.code === 40100) {
       void this.handleUnauthorized();
       return;
     }
@@ -261,8 +261,11 @@ class HttpClient {
 
       if (status === 401) {
         // x-skip-auth-refresh 的内部请求（refresh / set-cookie / clear-cookie）
-        // 不再重复触发登出——它们的 401 由调用方统一处理
+        // 即使有 x-skip-auth-refresh，如果 refresh 端点的 401 也应该触发登出
         if (!error.config?.headers?.['x-skip-auth-refresh']) {
+          void this.handleUnauthorized();
+        } else {
+          // refresh 端点的 401 也触发登出，确保所有路径都能跳转到 /login
           void this.handleUnauthorized();
         }
         return;
@@ -314,7 +317,10 @@ class HttpClient {
   ) {
     const accessToken = await this.refreshAccessToken();
     if (!accessToken) {
-      await this.handleUnauthorized();
+      // 防止多个并发 401 重复触发 handleUnauthorized（竞态条件）
+      if (!this._unauthorizedHandling) {
+        await this.handleUnauthorized();
+      }
       return Promise.reject(new Error('Unauthorized'));
     }
 

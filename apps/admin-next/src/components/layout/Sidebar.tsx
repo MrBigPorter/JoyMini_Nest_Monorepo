@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { LogOut, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
@@ -151,8 +152,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div
             className={`flex items-center gap-3 px-4 py-6 mb-4 transition-all ${isSidebarCollapsed ? 'justify-center' : ''}`}
           >
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-primary-500/20 flex-shrink-0">
-              J
+            <div className="w-8 h-8 rounded-lg flex-shrink-0 overflow-hidden">
+              <Image
+                src="/logo.png"
+                alt="JoyMini Admin"
+                width={32}
+                height={32}
+                className="w-full h-full object-contain"
+              />
             </div>
             <motion.h1
               animate={{
