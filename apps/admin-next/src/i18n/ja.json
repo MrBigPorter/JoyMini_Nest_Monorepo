@@ -1503,6 +1503,7 @@
     "paginationOf": "/"
   },
   "finance": {
+    "pageTitle": "ファイナンスセンター",
     "stats": {
       "noPermission": "権限がありません",
       "noPermissionDesc": "あなたのアカウントは財務統計にアクセスする権限がありません。",

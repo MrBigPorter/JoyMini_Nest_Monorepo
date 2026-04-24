@@ -1503,6 +1503,7 @@
     "paginationOf": " / "
   },
   "finance": {
+    "pageTitle": "财务中心",
     "stats": {
       "noPermission": "无权限",
       "noPermissionDesc": "您的账户没有访问财务统计的权限。",

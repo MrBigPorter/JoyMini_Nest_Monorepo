@@ -928,6 +928,7 @@
     "translationNotStarted": "⏳ 번역이 아직 시작되지 않았습니다"
   },
   "finance": {
+    "pageTitle": "재무 센터",
     "stats": {
       "noPermission": "권한 없음",
       "noPermissionDesc": "귀하의 계정은 재무 통계에 접근할 수 있는 권한이 없습니다.",

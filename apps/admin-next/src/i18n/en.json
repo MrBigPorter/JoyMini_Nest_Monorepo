@@ -1503,6 +1503,7 @@
     "paginationOf": "of"
   },
   "finance": {
+    "pageTitle": "Finance Center",
     "stats": {
       "noPermission": "No Permission",
       "noPermissionDesc": "Your account does not have access to finance statistics.",
