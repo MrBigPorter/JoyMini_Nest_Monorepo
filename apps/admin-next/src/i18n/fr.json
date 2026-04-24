@@ -928,6 +928,7 @@
     "translationNotStarted": "⏳ La traduction n'a pas encore commencé"
   },
   "finance": {
+    "pageTitle": "Centre financier",
     "stats": {
       "noPermission": "Autorisation refusée",
       "noPermissionDesc": "Votre compte n'a pas accès aux statistiques financières.",

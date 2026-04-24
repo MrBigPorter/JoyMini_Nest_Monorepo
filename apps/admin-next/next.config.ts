@@ -27,6 +27,8 @@ const nextConfig: NextConfig = {
   // 注意：SmartImage 用 @unpic/react 自行处理 CDN，不受此配置影响；
   //       此配置仅作用于代码中直接使用 next/image 的少数场景（如 GroupManagementClient 用户头像）
   images: {
+    // 允许 SVG 图片（dicebear.com 头像等）
+    dangerouslyAllowSVG: true,
     remotePatterns: [
       { protocol: 'https', hostname: 'img.joyminis.com' },
       { protocol: 'https', hostname: '**' }, // admin panel — 信任所有 https 图片来源
@@ -163,38 +165,60 @@ const nextConfig: NextConfig = {
       };
     }
 
+    // 修复 Sentry + OpenTelemetry require-in-the-middle 动态 require 警告
+    config.plugins.push(
+      new webpack.ContextReplacementPlugin(/require-in-the-middle/, false),
+    );
+
+    // 忽略已知安全警告
+    config.ignoreWarnings = config.ignoreWarnings || [];
+    config.ignoreWarnings.push(
+      { module: /require-in-the-middle/ },
+      { module: /@opentelemetry\/instrumentation/ },
+      {
+        message:
+          /Critical dependency: require function is used in a way in which dependencies cannot be statically extracted/,
+      },
+    );
+
     return config;
   },
 };
 
-export default withSentryConfig(withBundleAnalyzer(withNextIntl(nextConfig)), {
-  /**
-   * Sentry 构建时插件配置。
-   * Sentry build-time plugin options.
-   *
-   * org / project: 填入你的 Sentry 组织和项目 slug（Source Map 上传时需要）。
-   * 当 SENTRY_AUTH_TOKEN 未设置时，source map 上传会被自动跳过，不影响构建。
-   *
-   * org / project: fill in your Sentry org and project slugs (needed for source map upload).
-   * When SENTRY_AUTH_TOKEN is absent, source map upload is silently skipped — build still succeeds.
-   */
-  org: process.env.SENTRY_ORG,
-  project: process.env.SENTRY_PROJECT,
+// Only apply Sentry config in production — in dev mode it adds unnecessary
+// overhead to every webpack/Turbopack compilation and can interfere with
+// hot module replacement.
+const config = withBundleAnalyzer(withNextIntl(nextConfig));
+export default process.env.NODE_ENV === 'production'
+  ? withSentryConfig(config, {
+      /**
+       * Sentry 构建时插件配置。
+       * Sentry build-time plugin options.
+       *
+       * org / project: 填入你的 Sentry 组织和项目 slug（Source Map 上传时需要）。
+       * 当 SENTRY_AUTH_TOKEN 未设置时，source map 上传会被自动跳过，不影响构建。
+       *
+       * org / project: fill in your Sentry org and project slugs (needed for source map upload).
+       * When SENTRY_AUTH_TOKEN is absent, source map upload is silently skipped — build still succeeds.
+       */
+      org: process.env.SENTRY_ORG,
+      project: process.env.SENTRY_PROJECT,
 
-  // 静默构建日志，避免 CI 日志污染
-  // Suppress verbose build output to keep CI logs clean
-  silent: !process.env.CI,
+      // 静默构建日志，避免 CI 日志污染
+      // Suppress verbose build output to keep CI logs clean
+      silent: !process.env.CI,
 
-  // 仅在提供 auth token 时上传 source map（避免无 token 时构建报错）
-  // Only upload source maps when auth token is available (no-op otherwise)
-  sourcemaps: {
-    disable: !process.env.SENTRY_AUTH_TOKEN,
-  },
+      // 仅在提供 auth token 时上传 source map（避免无 token 时构建报错）
+      // Only upload source maps when auth token is available (no-op otherwise)
+      sourcemaps: {
+        disable: !process.env.SENTRY_AUTH_TOKEN,
+      },
 
-  // 关闭 Sentry 隧道路由（减少 Cloudflare Worker bundle + 路由复杂度）
-  // Disable Sentry tunnel route (reduces Cloudflare Worker bundle size + routing complexity)
-  tunnelRoute: undefined,
+      // 关闭 Sentry 隧道路由（减少 Cloudflare Worker bundle + 路由复杂度）
+      // Disable Sentry tunnel route (reduces Cloudflare Worker bundle size + routing complexity)
+      tunnelRoute: undefined,
 
-  // 关闭自动 tree-shaking 日志（已在 Sentry.init 的 enabled 字段控制）
-  // disableLogger: true, // Deprecated, use webpack.treeshake.removeDebugLogging instead
-});
+      // 关闭自动 tree-shaking 日志（已在 Sentry.init 的 enabled 字段控制）
+      // disableLogger: true, // Deprecated, use webpack.treeshake.removeDebugLogging instead
+    })
+  : config;

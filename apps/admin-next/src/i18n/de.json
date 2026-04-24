@@ -928,6 +928,7 @@
     "translationNotStarted": "⏳ Übersetzung noch nicht gestartet"
   },
   "finance": {
+    "pageTitle": "Finanzzentrum",
     "stats": {
       "noPermission": "Keine Berechtigung",
       "noPermissionDesc": "Ihr Konto hat keinen Zugriff auf Finanzstatistiken.",

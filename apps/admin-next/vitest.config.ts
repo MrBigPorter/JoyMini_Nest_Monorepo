@@ -47,6 +47,11 @@ export default defineConfig({
         __dirname,
         './src/__tests__/mocks/server-only.ts',
       ),
+      // @sentry/nextjs → mock: 避免加载 @sentry/node + OpenTelemetry 依赖链
+      '@sentry/nextjs': path.resolve(
+        __dirname,
+        './src/__tests__/mocks/@sentry/nextjs.ts',
+      ),
     },
   },
 });
