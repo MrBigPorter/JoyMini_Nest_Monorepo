@@ -73,3 +73,4 @@ tsconfig.tsbuildinfo
 # Lighthouse reports
 apps/admin-next/reports/
 .yarn/install-state.gz
+.yarn/cache/
