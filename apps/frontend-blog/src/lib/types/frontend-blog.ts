@@ -23,6 +23,7 @@ export interface ArticleMeta {
     hlsUrl: string;
     duration: number;
     qualities: string[];
+    poster?: string; // URL of extracted video thumbnail frame (JPEG)
   };
   [key: string]: unknown;
 }

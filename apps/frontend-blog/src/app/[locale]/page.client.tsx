@@ -156,13 +156,6 @@ export default function HomePageClient({
       </div>
 
       <div className="py-6 md:py-10">
-        {/* Hero Section - hidden when category filter is active */}
-        {heroArticles.length > 0 && !selectedCategoryId && (
-          <section className="mb-12">
-            <HeroSection articles={heroArticles} />
-          </section>
-        )}
-
         {/* Main content: articles */}
         <section>
           <div className="mb-8">
