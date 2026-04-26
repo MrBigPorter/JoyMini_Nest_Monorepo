@@ -292,6 +292,65 @@ Mobile App → System Browser → OAuth Provider
 
 ---
 
+### 9. Video HLS Transcoding with Aspect Ratio Preservation
+
+**Problem:** The blog system uploads and transcodes user videos to HLS (HTTP Live Streaming) for adaptive bitrate streaming. The original implementation hardcoded 16:9 resolutions (`854x480`, `1280x720`, `1920x1080`), causing non-16:9 videos (e.g., 4:3, 1:1, vertical 9:16) to be **stretched or deformed** after transcoding. This is especially critical for mobile-uploaded vertical videos.
+
+**Solution:** Dynamic aspect ratio detection + preservation pipeline:
+
+```
+Upload (MP4) → ffprobe (width, height) → Compute aspect ratio →
+Dynamic quality targets → ffmpeg scale filter with force_original_aspect_ratio=decrease
+                                   ↓
+                          HLS (m3u8 + .ts segments)
+                                   ↓
+                         Cloudflare R2 → Blog Frontend
+```
+
+**Key implementation details:**
+
+1. **ffprobe dimension detection** — Before transcoding, probe both `width` AND `height` from the source video stream (previously only detected height):
+   ```typescript
+   const probeDimensions = execSync(
+     `ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "${inputPath}"`
+   ).trim();
+   const [sourceWidthStr, sourceHeightStr] = probeDimensions.split(',');
+   ```
+
+2. **Dynamic quality target computation** — Target heights are computed from the source aspect ratio instead of hardcoded:
+   ```typescript
+   const sourceAspectRatio = sourceWidth / sourceHeight;
+   const targetWidth = Math.min(qt.targetWidth, sourceWidth); // Clamp to source
+   const computedHeight = Math.round(targetWidth / sourceAspectRatio);
+   const targetHeight = Math.min(computedHeight, sourceHeight); // No upscaling
+   ```
+
+3. **`force_original_aspect_ratio=decrease`** — The ffmpeg `scale` filter flag ensures the video fits within the target resolution box while maintaining its original aspect ratio (padding with letterbox/pillarbox as needed):
+   ```
+   -vf "scale=${resolution}:force_original_aspect_ratio=decrease"
+   ```
+
+4. **H.264 even dimension constraint** — The H.264 encoder requires even width/height for 4:2:0 chroma subsampling. Any odd dimension will cause encoder errors, so dimensions are snapped down:
+   ```typescript
+   const evenWidth = targetWidth % 2 === 0 ? targetWidth : targetWidth - 1;
+   const evenHeight = targetHeight % 2 === 0 ? targetHeight : targetHeight - 1;
+   ```
+
+5. **Dimension clamping** — No upscaling: if the source is smaller than the target quality tier, the source dimensions are used as the ceiling. A 480p source won't be upscaled to 1080p.
+
+6. **Quality tier selection** — Only generates tiers that make sense for the source:
+   - `480p` (854px wide): always generated (base tier)
+   - `720p` (1280px wide): always generated
+   - `1080p` (1920px wide): only generated if source height ≥ 1080px
+
+7. **Async processing via BullMQ** — Transcoding runs in a background worker queue, freeing the API for other requests. The `MediaProcessor` worker handles all media processing jobs with progress tracking and failure logging.
+
+**Files:** [`media-processor.service.ts`](apps/api/src/common/media/media-processor.service.ts:194) · [`media.processor.ts`](apps/api/src/common/media/media.processor.ts:156) · [`media-processor.constants.ts`](apps/api/src/common/media/media-processor.constants.ts) · [`HlsVideoPlayer.tsx`](apps/frontend-blog/src/components/blog/HlsVideoPlayer.tsx:18) · [`frontend-blog.ts`](apps/frontend-blog/src/lib/types/frontend-blog.ts) · [`media.ts`](apps/frontend-blog/src/lib/utils/media.ts) · [`blog-video-system-architecture.md`](docs/blog/architecture/blog-video-system-architecture.md)
+
+**Architecture docs:** [`blog-system-architecture.md`](docs/blog/architecture/blog-system-architecture.md#23-video-hls-transcoding-pipeline) · [`blog-video-system-architecture.md`](docs/blog/architecture/blog-video-system-architecture.md)
+
+---
+
 ## 🏛️ System Architecture
 
 ```mermaid
@@ -572,7 +631,7 @@ The project has extensive documentation organized by role:
 | **Operations**       | [Runbook](RUNBOOK.md) · [Deploy Quickstart](docs/read/getting-started/DEPLOY_QUICKSTART_CN.md)                                                                          |
 | **Features**         | [Feature Index](docs/read/features/FEATURES_CN.md) · [Lucky Draw](docs/read/features/LUCKY_DRAW_DESIGN_CN.md) · [IM Chat](docs/read/features/IM_SUPPORT_REALTIME_CN.md) |
 | **Testing**          | [Standards](docs/read/testing/TESTING_STANDARDS_CN.md) · [API Testing](docs/read/testing/TESTING_API_CN.md)                                                             |
-| **Blog**             | [Blog Docs](docs/blog/) (architecture, design, security, development)                                                                                                   |
+| **Blog**             | [Blog Docs](docs/blog/) · [System Architecture](docs/blog/architecture/blog-system-architecture.md) · [Video System](docs/blog/architecture/blog-video-system-architecture.md) |
 | **AI Collaboration** | [Constitution](docs/ai-constitution-detailed.md) · [Project Rules](.clinerules)                                                                                         |
 
 ---
