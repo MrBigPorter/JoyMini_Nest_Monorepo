@@ -590,8 +590,14 @@ export const authApi = {
  */
 export const uploadApi = {
   // 上传文件
-  uploadMedia: (file: File, onProgress?: (percent: number) => void) =>
-    http.upload<{ url: string }>('/v1/admin/upload/image', file, onProgress),
+  uploadMedia: (
+    file: File,
+    onProgress?: (percent: number) => void,
+    extraFields?: Record<string, string>,
+  ) =>
+    http.upload<{ url: string; key: string }>('/v1/admin/upload/image', file, onProgress, {
+      extraFields,
+    }),
 
   // 批量上传
   uploadMultiple: (files: File[]) => {
@@ -1176,8 +1182,15 @@ export const blogApi = {
     return await http.get<any>(`/v1/admin/blog/articles/${id}`);
   },
 
-  getArticleBySlug: async (slug: string) => {
-    return await http.get<any>(`/v1/admin/blog/articles/slug/${slug}`);
+  getArticleBySlug: async (slug: string, ssrToken?: string) => {
+    const config = ssrToken
+      ? { headers: { Authorization: `Bearer ${ssrToken}` } }
+      : undefined;
+    return await http.get<any>(
+      `/v1/admin/blog/articles/slug/${slug}`,
+      undefined,
+      config,
+    );
   },
 
   createArticle: async (payload: {
@@ -1480,6 +1493,14 @@ export const blogApi = {
       return await http.post(`/v1/admin/blog/articles/${articleId}/translate`, {
         targetLang,
       });
+    },
+
+    // 触发视频转码（用于新建文章后补充转码）
+    triggerVideoTranscode: async (articleId: string, videoKey: string) => {
+      return await http.post(
+        `/v1/admin/blog/articles/${articleId}/trigger-video-transcode`,
+        { videoKey },
+      );
     },
   },
 };

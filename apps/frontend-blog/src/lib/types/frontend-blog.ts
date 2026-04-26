@@ -6,6 +6,27 @@
 /**
  * 前端博客文章（简化版）
  */
+/**
+ * Rich media meta for blog articles
+ * Contains blurhash, image variants, and video HLS info
+ */
+export interface ArticleMeta {
+  blurhash?: string;
+  images?: {
+    blurhash: string;
+    original: string;
+    large: { webp: string; jpg: string };
+    medium: { webp: string; jpg: string };
+    thumbnail: { webp: string; jpg: string };
+  };
+  video?: {
+    hlsUrl: string;
+    duration: number;
+    qualities: string[];
+  };
+  [key: string]: unknown;
+}
+
 export interface FrontendArticle {
   id: string;
   slug: string;
@@ -19,6 +40,7 @@ export interface FrontendArticle {
   commentsCount: number;
   publishedAt: string;
   updatedAt: string;
+  meta?: ArticleMeta; // Rich media meta (blurhash, image variants, video HLS)
   category?: {
     id: string;
     name: string;

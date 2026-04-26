@@ -1,6 +1,6 @@
 'use client';
 
-import React, { forwardRef, useImperativeHandle, useEffect } from 'react';
+import React, { forwardRef, useImperativeHandle, useEffect, useRef } from 'react';
 import {
   Form,
   FormTextField,
@@ -36,12 +36,12 @@ interface ArticleFormProps {
   onFieldChange?: (field: string, value: string) => void; // 新增：字段变化回调
 }
 
-// 辅助函数：安全提取字符串值
-function extractStringValue(value: any): string {
+// 辅助函数：安全提取字符串值（支持多语言对象 -> 返回指定 locale 的值）
+function extractStringValue(value: any, locale = 'zh'): string {
   if (typeof value === 'string') return value;
   if (value && typeof value === 'object') {
-    // 如果是多语言对象，返回当前语言的值或空字符串
-    return '';
+    // 如果是多语言对象，返回指定语言的值或常见回退
+    return value[locale] || value['zh'] || value['en'] || '';
   }
   return '';
 }
@@ -56,6 +56,9 @@ export const ArticleForm = forwardRef<ArticleFormRef, ArticleFormProps>(
     const { t: globalT } = useTranslation();
     const t = (key: string, params?: Record<string, string | number>) =>
       globalT(`blog_articleForm_${key}`, params);
+
+    // 标记是否正在 reset 中，防止 reset 触发 watch 回调污染父表单
+    const isResetting = useRef(false);
 
     const form = useForm<ArticleFormValues>({
       resolver: zodResolver(formSchema),
@@ -74,6 +77,9 @@ export const ArticleForm = forwardRef<ArticleFormRef, ArticleFormProps>(
     useEffect(() => {
       const subscription = watch((value, { name }) => {
         if (name) {
+          // 跳过 reset 期间的变化，避免污染父表单的多语言内容
+          if (isResetting.current) return;
+
           // 这里可以添加逻辑来通知父表单更新
           // 使用类型安全的访问方式
           if (
@@ -98,26 +104,31 @@ export const ArticleForm = forwardRef<ArticleFormRef, ArticleFormProps>(
     useImperativeHandle(ref, () => ({
       getValues: () => {
         const values = form.getValues();
-        // 确保返回的是字符串值
+        // 确保返回的是字符串值（支持多语言对象）
         return {
-          title: typeof values.title === 'string' ? values.title : '',
-          content: typeof values.content === 'string' ? values.content : '',
-          excerpt: typeof values.excerpt === 'string' ? values.excerpt : '',
-          featuredImage:
-            typeof values.featuredImage === 'string'
-              ? values.featuredImage
-              : '',
+          title: extractStringValue(values.title, locale),
+          content: extractStringValue(values.content, locale),
+          excerpt: extractStringValue(values.excerpt, locale),
+          featuredImage: extractStringValue(values.featuredImage, locale),
         };
       },
       reset: (values) => {
+        // 标记 reset 中，阻止 watch 回调传播到父表单
+        isResetting.current = true;
+
         // 安全处理：如果是对象，提取当前语言的值
         const safeValues = {
-          title: extractStringValue(values?.title),
-          content: extractStringValue(values?.content),
-          excerpt: extractStringValue(values?.excerpt),
-          featuredImage: extractStringValue(values?.featuredImage),
+          title: extractStringValue(values?.title, locale),
+          content: extractStringValue(values?.content, locale),
+          excerpt: extractStringValue(values?.excerpt, locale),
+          featuredImage: extractStringValue(values?.featuredImage, locale),
         };
         form.reset(safeValues);
+
+        // 下一帧恢复，确保所有 watch 回调已处理完毕
+        requestAnimationFrame(() => {
+          isResetting.current = false;
+        });
       },
     }));
 

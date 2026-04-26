@@ -2,6 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 import { ChevronLeft, Clock, Calendar, User } from 'lucide-react';
+import { HlsVideoPlayer } from '@/components/blog/HlsVideoPlayer';
 import { Link } from '@/navigation';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -154,6 +155,25 @@ export default function ArticlePageClient({
             </div>
           </div>
         </header>
+
+        {/* Cover image / Video */}
+        {(article.meta?.video?.hlsUrl || article.coverImage) && (
+          <div className="mb-10 rounded-xl overflow-hidden">
+            {article.meta?.video?.hlsUrl ? (
+              <HlsVideoPlayer
+                hlsUrl={article.meta.video.hlsUrl}
+                poster={(article.meta as any)?.video?.poster || article.coverImage || undefined}
+                className="w-full aspect-video"
+              />
+            ) : article.coverImage ? (
+              <img
+                src={article.coverImage}
+                alt={article.title}
+                className="w-full h-auto object-cover rounded-xl"
+              />
+            ) : null}
+          </div>
+        )}
 
         {/* Article content */}
         <article className="prose prose-slate dark:prose-invert max-w-none">

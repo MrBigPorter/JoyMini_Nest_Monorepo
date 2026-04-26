@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import {
   GetObjectCommand,
+  HeadObjectCommand,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
@@ -14,6 +15,10 @@ import { ConfigService } from '@nestjs/config';
 import { v4 as uuidv4 } from 'uuid';
 import { extname } from 'path';
 import * as mime from 'mime';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
+import { MEDIA_PROCESSOR_QUEUE } from '@api/common/media/media-processor.constants';
+import { PrismaService } from '@api/common/prisma/prisma.service';
 
 const getMimeExtension = (mimeType: string): string | false =>
   mime.extension(mimeType) as string | false;
@@ -26,7 +31,12 @@ export class UploadService {
   private readonly publicDomain: string;
   private readonly logger = new Logger(UploadService.name);
 
-  constructor(private configService: ConfigService) {
+  constructor(
+    private configService: ConfigService,
+    @InjectQueue(MEDIA_PROCESSOR_QUEUE)
+    private readonly mediaProcessorQueue: Queue,
+    private readonly prisma: PrismaService,
+  ) {
     // initial
     const accountId = this.configService.getOrThrow<string>('CF_R2_ACCOUNT_ID');
     const accessKeyId = this.configService.getOrThrow<string>(
@@ -131,6 +141,30 @@ export class UploadService {
       bucket: this.publicBucket,
       isPrivate: false,
     };
+  }
+
+  /**
+   * Get file size from S3 (via HeadObject) without downloading the file.
+   * Used by workers to check if a file exceeds processing thresholds.
+   * @param key - S3 object key
+   * @param module - module name for bucket resolution
+   * @returns file size in bytes, or 0 if object doesn't exist
+   */
+  async getFileSize(key: string, module: string = 'blog'): Promise<number> {
+    const bucketConfig = this.getBucketConfig(module);
+    try {
+      const command = new HeadObjectCommand({
+        Bucket: bucketConfig.bucket,
+        Key: key,
+      });
+      const response = await this.s3Client.send(command);
+      return response.ContentLength ?? 0;
+    } catch (error) {
+      this.logger.warn(
+        `Failed to get file size for ${bucketConfig.bucket}/${key}: ${error}`,
+      );
+      return 0;
+    }
   }
 
   /**
@@ -313,11 +347,39 @@ export class UploadService {
   }
 
   /**
+   * Upload buffer to public bucket with a specific key (for media processor variants)
+   * Unlike uploadBuffer(), this allows specifying the exact key path
+   * @param key - the exact S3 key to upload to (e.g., "uploads/blog/images/articleId/thumbnail.webp")
+   * @param buffer
+   * @param mimeType
+   */
+  async uploadToPublicBucket(
+    key: string,
+    buffer: Buffer,
+    mimeType: string,
+  ) {
+    return this.internalPutToS3(
+      buffer,
+      key,
+      this.publicBucket,
+      mimeType,
+      false,
+    );
+  }
+
+
+  /**
    * Upload file from Multer to public S3 bucket
+   * Optionally enqueue media processing (compression / transcoding) for blog articles
    * @param file
    * @param folder
+   * @param articleId - if provided, enqueues media processing job
    */
-  async uploadFile(file: Express.Multer.File, folder: string = 'treasures') {
+  async uploadFile(
+    file: Express.Multer.File,
+    folder: string = 'treasures',
+    articleId?: string,
+  ) {
     const fileExt = extname(file.originalname);
     const key = `${folder}/${uuidv4()}${fileExt}`;
 
@@ -329,9 +391,55 @@ export class UploadService {
       false,
     );
 
+    const url = `${this.publicDomain.replace(/\/$/, '')}/${key}`;
+
+    // If articleId is provided, enqueue media processing job
+    if (articleId) {
+      const isVideo = file.mimetype.startsWith('video/');
+      const jobName = isVideo ? 'transcode-video' : 'compress-image';
+
+      // For video, set initial meta status to 'pending' immediately
+      if (isVideo) {
+        this.prisma.blogArticle
+          .findUnique({ where: { id: articleId }, select: { meta: true } })
+          .then((article: { meta: unknown } | null) => {
+            const existingMeta = (article?.meta as Record<string, any>) || {};
+            return this.prisma.blogArticle.update({
+              where: { id: articleId },
+              data: {
+                meta: {
+                  ...existingMeta,
+                  video: {
+                    status: 'pending',
+                  },
+                } as any,
+              },
+            });
+          })
+          .catch((err: Error) => {
+            this.logger.warn(
+              `Failed to set initial video status for article ${articleId}: ${err.message}`,
+            );
+          });
+      }
+
+      this.mediaProcessorQueue
+        .add(jobName, {
+          articleId,
+          imageKey: key,
+          videoKey: key,
+          mimeType: file.mimetype,
+        })
+        .catch((err) => {
+          this.logger.warn(
+            `Failed to enqueue media processing job: ${err.message}`,
+          );
+        });
+    }
+
     return {
       ...result,
-      url: `${this.publicDomain.replace(/\/$/, '')}/${key}`,
+      url,
       originalName: file.originalname,
     };
   }

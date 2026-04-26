@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import {
   Plus,
@@ -21,7 +22,15 @@ import { blogApi } from '@/api';
 import { PageHeader } from '@/components/scaffold/PageHeader';
 import { SmartTable } from '@/components/scaffold/SmartTable';
 import { Button, ModalManager } from '@repo/ui';
-import { BlogArticleModal } from '@/views/blog/BlogArticleModal';
+import type { BlogArticleModalProps } from '@/views/blog/BlogArticleModal';
+
+const BlogArticleModal = dynamic(
+  () =>
+    import('@/views/blog/BlogArticleModal').then(
+      (m) => m.BlogArticleModal,
+    ),
+  { ssr: false },
+);
 import LocalizedText from '@/components/blog/LocalizedText';
 import { renderLocalizedText } from '@/utils/localizedText';
 import type { ArticleFormInputs } from '@/schema/blog';

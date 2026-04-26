@@ -12,12 +12,26 @@ import {
   MessageSquare,
   FolderTree,
   Tag,
+  Play,
 } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import Link from 'next/link';
 import { useAvailableLocales } from '@/hooks/useAvailableLocales';
 import { useLanguage } from '@/hooks/LanguageProvider';
 import { renderLocalizedText } from '@/utils/localizedText';
+
+/** Detect video URL from file extension */
+function isVideoUrl(url: string | null | undefined): boolean {
+  if (!url) return false;
+  const videoExtensions = ['.mp4', '.webm', '.mov', '.avi', '.mkv', '.ogv', '.m4v', '.m3u8'];
+  try {
+    const pathname = new URL(url).pathname.toLowerCase();
+    return videoExtensions.some((ext) => pathname.endsWith(ext));
+  } catch {
+    const urlLower = url.toLowerCase();
+    return videoExtensions.some((ext) => urlLower.endsWith(ext));
+  }
+}
 
 interface BlogArticleContentProps {
   article: any; // TODO: 定义更精确的类型
@@ -124,6 +138,9 @@ export default function BlogArticleContent({
             'li',
             'a',
             'img',
+            'video',
+            'source',
+            'iframe',
             'figure',
             'figcaption',
             'table',
@@ -154,6 +171,17 @@ export default function BlogArticleContent({
             'style',
             'data-*',
             'id',
+            'controls',
+            'autoplay',
+            'loop',
+            'muted',
+            'poster',
+            'playsinline',
+            'preload',
+            'frameborder',
+            'allowfullscreen',
+            'allow',
+            'type',
           ],
           ALLOW_DATA_ATTR: true,
           //  关键修复：阻止DOMPurify自动重新编码HTML实体
@@ -215,16 +243,31 @@ export default function BlogArticleContent({
             </div>
           </div>
 
-          {/* Featured image */}
-          {article.featuredImage && (
-            <div className="mb-8 rounded-xl overflow-hidden">
-              <img
-                src={article.featuredImage}
-                alt={title}
-                className="w-full h-auto max-h-96 object-cover"
-              />
-            </div>
-          )}
+          {/* Featured image / video */}
+          {article.featuredImage && (() => {
+            const isVideo = isVideoUrl(article.featuredImage);
+            return (
+              <div className="mb-8 rounded-xl overflow-hidden bg-black relative">
+                {isVideo ? (
+                  <div className="relative group">
+                    <video
+                      src={article.featuredImage}
+                      controls
+                      preload="metadata"
+                      playsInline
+                      className="w-full h-auto max-h-96 object-contain mx-auto"
+                    />
+                  </div>
+                ) : (
+                  <img
+                    src={article.featuredImage}
+                    alt={title}
+                    className="w-full h-auto max-h-96 object-cover"
+                  />
+                )}
+              </div>
+            );
+          })()}
 
           {/* Title */}
           <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">

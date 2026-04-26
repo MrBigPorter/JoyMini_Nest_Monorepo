@@ -1,14 +1,26 @@
 'use client';
 
-import { useState } from 'react';
 import { useLocale } from 'next-intl';
 import { Link } from '@/navigation';
-import Image from 'next/image';
 import { formatDistanceToNow } from 'date-fns';
 import { getDateFnsLocale } from '@/lib/utils/date-locale';
+import { useCallback, useRef, useState } from 'react';
 import type { Article } from '@/lib/types/blog';
 import type { FrontendArticle } from '@/lib/types/frontend-blog';
 import { BookmarkIconButton } from '@/lib/components/BookmarkButton';
+import { BlurhashImage } from './BlurhashImage';
+import { HlsVideoPlayer } from './HlsVideoPlayer';
+import { isVideoUrl } from '@/lib/utils/media';
+import { Play } from 'lucide-react';
+
+
+/** Format seconds to MM:SS */
+function formatDuration(seconds: number): string {
+  if (!seconds || seconds <= 0) return '';
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
 
 interface ArticleCardProps {
   article: Article | FrontendArticle;
@@ -27,7 +39,7 @@ interface ArticleCardProps {
   imagePosition?: 'top' | 'left';
   /** 图片宽高比 */
   imageAspect?: 'video' | 'square' | 'auto';
-  /** 默认封面图片URL */
+  /** 默认封面图片URL (不设置则纯文本时无封面) */
   fallbackImage?: string;
 }
 
@@ -40,11 +52,27 @@ export function ArticleCard({
   showCoverImage = true,
   imagePosition = 'top',
   imageAspect = 'video',
-  fallbackImage = 'https://placehold.co/800x450/3b82f6/ffffff?text=Tarsier+Labs+Article',
+  fallbackImage = '',
 }: ArticleCardProps) {
+  const [videoPlaying, setVideoPlaying] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const coverImageUrl = article.coverImage || fallbackImage || '';
+
+  // Check if article has HLS video available (from meta.video.hlsUrl)
+  const hlsUrl = 'meta' in article
+    ? (article as FrontendArticle).meta?.video?.hlsUrl
+    : undefined;
+
+  /** Click play button → play video inline, prevent navigation */
+  const handlePlayVideo = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const vid = videoRef.current;
+    if (!vid) return;
+    vid.play().then(() => setVideoPlaying(true)).catch(() => {});
+  }, []);
+
   const locale = useLocale();
-  const [imageError, setImageError] = useState(false);
-  const [imageLoaded, setImageLoaded] = useState(false);
 
   // 处理两种类型的差异
   const publishedDate =
@@ -66,8 +94,6 @@ export function ArticleCard({
     }
   };
 
-  // 获取封面图片URL
-  const coverImageUrl = article.coverImage || fallbackImage;
 
   // 确定宽高比类名
   const aspectRatioClass =
@@ -99,52 +125,95 @@ export function ArticleCard({
       <Link href={`/articles/${article.slug}`} className="block">
         <div className="space-y-3">
           {/* 封面图片 - 顶部位置 */}
-          {showCoverImage && imagePosition === 'top' && coverImageUrl && (
+          {showCoverImage && imagePosition === 'top' && (
             <div
-              className={`relative overflow-hidden rounded-lg mb-4 ${aspectRatioClass}`}
+              className={`relative overflow-hidden rounded-lg mb-4 ${
+                coverImageUrl ? aspectRatioClass : 'aspect-video'
+              }`}
             >
-              {/* 图片加载占位符 */}
-              {!imageLoaded && !imageError && (
-                <div className="absolute inset-0 bg-slate-100 dark:bg-slate-800 animate-pulse" />
-              )}
-
-              {/* 图片错误占位符 */}
-              {imageError && (
-                <div className="absolute inset-0 bg-slate-200 dark:bg-slate-700 flex items-center justify-center">
-                  <div className="text-slate-400 dark:text-slate-500 text-center p-4">
-                    <svg
-                      className="w-12 h-12 mx-auto mb-2"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={1.5}
-                        d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+              {coverImageUrl ? (
+                isVideoUrl(coverImageUrl) ? (
+                  hlsUrl ? (
+                    /* HLS video — use HlsVideoPlayer for adaptive streaming */
+                    <HlsVideoPlayer
+                      hlsUrl={hlsUrl}
+                      poster={coverImageUrl}
+                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                    />
+                  ) : (
+                    /* Raw video — use native <video> with click-to-play overlay */
+                    <>
+                      <video
+                        ref={videoRef}
+                        src={coverImageUrl}
+                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                        muted
+                        playsInline
+                        preload="metadata"
+                        controls={videoPlaying}
+                        onPlay={() => setVideoPlaying(true)}
+                        onPause={() => {/* keep controls visible after first play */}}
                       />
-                    </svg>
-                    <p className="text-xs">图片加载失败</p>
-                  </div>
+                      {/* Play button overlay — only shows before first play */}
+                      {!videoPlaying && (
+                        <button
+                          type="button"
+                          onClick={handlePlayVideo}
+                          className="absolute inset-0 flex items-center justify-center bg-black/20 transition-opacity hover:bg-black/30 cursor-pointer z-10"
+                          aria-label="Play video"
+                        >
+                          <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center transition-transform group-hover:scale-110">
+                            <Play className="w-6 h-6 text-white fill-white ml-0.5" />
+                          </div>
+                        </button>
+                      )}
+                      {/* Duration badge */}
+                      {'meta' in article &&
+                        (article as FrontendArticle).meta?.video?.duration ? (
+                        <span className="absolute bottom-2 right-2 z-20 px-1.5 py-0.5 bg-black/70 backdrop-blur-sm text-white text-[10px] font-medium rounded">
+                          {formatDuration(
+                            (article as FrontendArticle).meta!.video!.duration,
+                          )}
+                        </span>
+                      ) : null}
+                    </>
+                  )
+                ) : (
+
+                  <BlurhashImage
+                    src={coverImageUrl}
+                    alt={article.title}
+                    fill
+                    blurhash={
+                      'meta' in article
+                        ? (article as FrontendArticle).meta?.images?.blurhash
+                        : undefined
+                    }
+                    className="transition-transform duration-300 group-hover:scale-105"
+                    sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                  />
+                )
+              ) : (
+                /* Gradient placeholder for text-only articles — maintains consistent card height */
+                <div className="w-full h-full absolute inset-0 bg-gradient-to-br from-slate-100 via-slate-50 to-slate-200 dark:from-slate-800 dark:via-slate-800/50 dark:to-slate-700 flex items-center justify-center">
+                  <svg
+                    className="w-12 h-12 text-slate-300 dark:text-slate-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1}
+                      d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"
+                    />
+                  </svg>
                 </div>
               )}
-
-              {/* 实际图片 */}
-              <Image
-                src={imageError ? fallbackImage : coverImageUrl}
-                alt={article.title}
-                fill
-                className={`object-cover transition-transform duration-300 group-hover:scale-105 ${
-                  imageLoaded ? 'opacity-100' : 'opacity-0'
-                }`}
-                sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                quality={85}
-                onLoad={() => setImageLoaded(true)}
-                onError={() => setImageError(true)}
-              />
             </div>
           )}
+
 
           {/* 标题 */}
           <h3

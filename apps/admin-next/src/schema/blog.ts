@@ -16,6 +16,7 @@ export const articleSchema = z.object({
   categoryId: z.string().optional(),
   tagIds: z.array(z.string()).default([]),
   status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).default('DRAFT'),
+  featured: z.boolean().default(false),
   featuredImage: localizedStringSchema(
     z.union([
       z.string().url('Please enter a valid image URL').or(z.literal('')),

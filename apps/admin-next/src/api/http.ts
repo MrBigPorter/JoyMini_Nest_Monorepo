@@ -541,10 +541,17 @@ class HttpClient {
     url: string,
     file: File | FormData,
     onProgress?: (percent: number) => void,
-    config?: RequestConfig,
+    config?: RequestConfig & { extraFields?: Record<string, string> },
   ): Promise<T> {
     const formData = file instanceof FormData ? file : new FormData();
     if (file instanceof File) formData.append('file', file);
+
+    // Append extra form fields (e.g., articleId)
+    if (config?.extraFields) {
+      for (const [key, value] of Object.entries(config.extraFields)) {
+        if (value) formData.append(key, value);
+      }
+    }
 
     const res = await this.traceRequest('post', url, config, () =>
       this.instance.post<ApiResponse<T>>(url, formData, {

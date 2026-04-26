@@ -11,6 +11,9 @@ ENV NODE_OPTIONS="--openssl-legacy-provider"
 
 WORKDIR /app
 
+# 安装 ffmpeg（用于视频 HLS 转码）
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
+
 # Dev 模式下源码通过 compose volume 挂载 (.:/app)
 # 不需要 COPY 源码，避免浪费构建时间和镜像体积
 

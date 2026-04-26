@@ -122,6 +122,7 @@ const baseConfig: NextConfig = {
       { protocol: 'https', hostname: '*.cloudinary.com' },
       { protocol: 'https', hostname: '*.unsplash.com' },
       { protocol: 'https', hostname: '*.githubusercontent.com' },
+      { protocol: 'https', hostname: 'placehold.co' },
     ],
     // App模式下禁用图片优化
     unoptimized: isAppMode,

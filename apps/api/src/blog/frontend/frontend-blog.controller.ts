@@ -51,6 +51,15 @@ export class FrontendBlogController {
     });
   }
 
+  @Get('featured')
+  @ApiOperation({ summary: '获取精选文章列表（用于首页 Hero 区域）' })
+  @ApiResponse({ status: 200, description: '返回精选文章列表' })
+  @CacheTTL(300) // 缓存5分钟
+  async getFrontendFeaturedArticles(@Req() req: Request) {
+    const locale = this.languageService.resolveLanguage(req);
+    return this.frontendBlogService.getFrontendFeaturedArticles(locale);
+  }
+
   @Get('articles/:slug')
   @ApiOperation({ summary: '根据 Slug 获取前端博客文章详情（简化版）' })
   @ApiResponse({ status: 200, description: '返回文章详情' })

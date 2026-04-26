@@ -39,6 +39,12 @@ export const frontendBlogApi = {
     ),
 
   /**
+   * 获取精选文章列表（用于首页 Hero 区域）
+   */
+  getFeaturedArticles: (lang?: string) =>
+    http.get<FrontendArticle[]>('/v1/frontend/blog/featured', { lang }),
+
+  /**
    * 根据 Slug 获取文章详情（简化版）
    */
   getArticleBySlug: (slug: string, lang?: string) =>

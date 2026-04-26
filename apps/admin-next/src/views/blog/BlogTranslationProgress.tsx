@@ -1282,7 +1282,7 @@ export default function BlogTranslationProgress() {
                         </div>
                       </div>
                       <div className="text-sm text-gray-500">
-                        {t('blog_translation_progressWithPercent', {
+                        {t('progressWithPercent', {
                           progress: job.progress || 0,
                         })}
                       </div>
@@ -1313,7 +1313,7 @@ export default function BlogTranslationProgress() {
                         </div>
                       </div>
                       <div className="text-sm text-gray-500">
-                        {t('blog_translation_waiting')}
+                        {t('waiting')}
                       </div>
                     </div>
                   ))}
@@ -1344,7 +1344,7 @@ export default function BlogTranslationProgress() {
                         </div>
                         <div className="text-sm text-red-600">
                           {job.failedReason ||
-                            t('blog_translation_unknownError')}
+                            t('unknownError')}
                         </div>
                       </div>
                       <Button variant="outline" size="sm">
