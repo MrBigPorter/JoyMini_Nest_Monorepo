@@ -220,39 +220,56 @@ export class MediaProcessorService {
       ).trim();
       const duration = parseFloat(durationStr) || 0;
 
-      // Generate HLS with multiple quality variants
-      // 480p, 720p, and if source is high enough, 1080p
-      const qualities = ['480p', '720p'];
-      const resolutions = ['854:480', '1280:720'];
-
-      // Check if source is at least 1080p
-      const probeResult = execSync(
-        `ffprobe -v error -select_streams v:0 -show_entries stream=height -of default=noprint_wrappers=1:nokey=1 "${inputPath}"`,
+      // Get source video dimensions to preserve aspect ratio
+      const probeDimensions = execSync(
+        `ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "${inputPath}"`,
         { encoding: 'utf-8' },
       ).trim();
-      const sourceHeight = parseInt(probeResult, 10);
+      const [sourceWidthStr, sourceHeightStr] = probeDimensions.split(',');
+      const sourceWidth = parseInt(sourceWidthStr, 10);
+      const sourceHeight = parseInt(sourceHeightStr, 10);
+      const sourceAspectRatio = sourceWidth / sourceHeight;
 
+      // Define quality targets with target widths (heights computed dynamically)
+      interface QualityTarget {
+        name: string;
+        targetWidth: number;
+        bandwidth: string;
+      }
+      const qualityTargets: QualityTarget[] = [
+        { name: '480p',  targetWidth: 854,  bandwidth: '800k' },
+        { name: '720p',  targetWidth: 1280, bandwidth: '2800k' },
+      ];
+
+      // Only add 1080p if source is tall enough
       if (sourceHeight >= 1080) {
-        qualities.push('1080p');
-        resolutions.push('1920:1080');
+        qualityTargets.push({ name: '1080p', targetWidth: 1920, bandwidth: '5000k' });
       }
 
       // Generate variant m3u8 playlists
       const variantStreams: string[] = [];
-      const bandwidths = ['800k', '2800k', '5000k'];
 
-      for (let i = 0; i < qualities.length; i++) {
-        const quality = qualities[i];
-        const resolution = resolutions[i];
-        const bandwidth = bandwidths[i] || '2800k';
-        const qualityDir = path.join(outputDir, quality);
+      for (const qt of qualityTargets) {
+        const qualityDir = path.join(outputDir, qt.name);
 
-        // MUST create subdirectory before ffmpeg writes to it — ffmpeg cannot create dirs itself
+        // Compute target dimensions preserving original aspect ratio
+        // Clamp to source dimensions to avoid upscaling
+        const targetWidth = Math.min(qt.targetWidth, sourceWidth);
+        const computedHeight = Math.round(targetWidth / sourceAspectRatio);
+        const targetHeight = Math.min(computedHeight, sourceHeight);
+
+        // H.264 requires even dimensions for chroma subsampling
+        const evenWidth = targetWidth % 2 === 0 ? targetWidth : targetWidth - 1;
+        const evenHeight = targetHeight % 2 === 0 ? targetHeight : targetHeight - 1;
+
+        const resolution = `${evenWidth}:${evenHeight}`;
+
+        // MUST create subdirectory before ffmpeg writes to it — ffmpeg cannot create dirs themselves
         await fs.mkdir(qualityDir, { recursive: true });
 
         execSync(
           `ffmpeg -i "${inputPath}" ` +
-            `-vf "scale=${resolution}" ` +
+            `-vf "scale=${resolution}:force_original_aspect_ratio=decrease" ` +
             `-c:v libx264 -crf 23 -preset medium ` +
             `-c:a aac -b:a 128k ` +
             `-hls_time 6 ` +
@@ -264,7 +281,7 @@ export class MediaProcessorService {
         );
 
         variantStreams.push(
-          `#EXT-X-STREAM-INF:BANDWIDTH=${parseInt(bandwidth) * 1000},RESOLUTION=${resolution}\n${quality}/playlist.m3u8`,
+          `#EXT-X-STREAM-INF:BANDWIDTH=${parseInt(qt.bandwidth) * 1000},RESOLUTION=${resolution}\n${qt.name}/playlist.m3u8`,
         );
       }
 
@@ -296,7 +313,7 @@ export class MediaProcessorService {
       return {
         hlsUrl,
         duration,
-        qualities,
+        qualities: qualityTargets.map((qt) => qt.name),
       };
     } catch (error) {
       // Cleanup on error

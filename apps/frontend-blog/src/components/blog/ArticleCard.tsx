@@ -122,99 +122,99 @@ export function ArticleCard({
         </div>
       )}
 
-      <Link href={`/articles/${article.slug}`} className="block">
-        <div className="space-y-3">
-          {/* 封面图片 - 顶部位置 */}
-          {showCoverImage && imagePosition === 'top' && (
-            <div
-              className={`relative overflow-hidden rounded-lg mb-4 ${
-                coverImageUrl ? aspectRatioClass : 'aspect-video'
-              }`}
-            >
-              {coverImageUrl ? (
-                isVideoUrl(coverImageUrl) ? (
-                  hlsUrl ? (
-                    /* HLS video — use HlsVideoPlayer for adaptive streaming */
-                    <HlsVideoPlayer
-                      hlsUrl={hlsUrl}
-                      poster={coverImageUrl}
-                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                    />
-                  ) : (
-                    /* Raw video — use native <video> with click-to-play overlay */
-                    <>
-                      <video
-                        ref={videoRef}
-                        src={coverImageUrl}
-                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                        muted
-                        playsInline
-                        preload="metadata"
-                        controls={videoPlaying}
-                        onPlay={() => setVideoPlaying(true)}
-                        onPause={() => {/* keep controls visible after first play */}}
-                      />
-                      {/* Play button overlay — only shows before first play */}
-                      {!videoPlaying && (
-                        <button
-                          type="button"
-                          onClick={handlePlayVideo}
-                          className="absolute inset-0 flex items-center justify-center bg-black/20 transition-opacity hover:bg-black/30 cursor-pointer z-10"
-                          aria-label="Play video"
-                        >
-                          <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center transition-transform group-hover:scale-110">
-                            <Play className="w-6 h-6 text-white fill-white ml-0.5" />
-                          </div>
-                        </button>
-                      )}
-                      {/* Duration badge */}
-                      {'meta' in article &&
-                        (article as FrontendArticle).meta?.video?.duration ? (
-                        <span className="absolute bottom-2 right-2 z-20 px-1.5 py-0.5 bg-black/70 backdrop-blur-sm text-white text-[10px] font-medium rounded">
-                          {formatDuration(
-                            (article as FrontendArticle).meta!.video!.duration,
-                          )}
-                        </span>
-                      ) : null}
-                    </>
-                  )
-                ) : (
-
-                  <BlurhashImage
-                    src={coverImageUrl}
-                    alt={article.title}
-                    fill
-                    blurhash={
-                      'meta' in article
-                        ? (article as FrontendArticle).meta?.images?.blurhash
-                        : undefined
-                    }
-                    className="transition-transform duration-300 group-hover:scale-105"
-                    sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                  />
-                )
+      {/* 封面图片 - 顶部位置 (standalone — no Link, clicking plays video) */}
+      {showCoverImage && imagePosition === 'top' && (
+        <div
+          className={`relative overflow-hidden rounded-lg mb-4 ${
+            coverImageUrl ? aspectRatioClass : 'aspect-video'
+          }`}
+        >
+          {coverImageUrl ? (
+            isVideoUrl(coverImageUrl) ? (
+              hlsUrl ? (
+                /* HLS video — use HlsVideoPlayer for adaptive streaming */
+                <HlsVideoPlayer
+                  hlsUrl={hlsUrl}
+                  poster={'meta' in article ? (article as FrontendArticle).meta?.video?.poster : undefined}
+                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                />
               ) : (
-                /* Gradient placeholder for text-only articles — maintains consistent card height */
-                <div className="w-full h-full absolute inset-0 bg-gradient-to-br from-slate-100 via-slate-50 to-slate-200 dark:from-slate-800 dark:via-slate-800/50 dark:to-slate-700 flex items-center justify-center">
-                  <svg
-                    className="w-12 h-12 text-slate-300 dark:text-slate-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={1}
-                      d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"
-                    />
-                  </svg>
-                </div>
-              )}
+                /* Raw video — use native <video> with click-to-play overlay */
+                <>
+                  <video
+                    ref={videoRef}
+                    src={coverImageUrl}
+                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                    muted
+                    playsInline
+                    preload="metadata"
+                    controls={videoPlaying}
+                    onPlay={() => setVideoPlaying(true)}
+                    onPause={() => {/* keep controls visible after first play */}}
+                  />
+                  {/* Play button overlay — only shows before first play */}
+                  {!videoPlaying && (
+                    <button
+                      type="button"
+                      onClick={handlePlayVideo}
+                      className="absolute inset-0 flex items-center justify-center bg-black/20 transition-opacity hover:bg-black/30 cursor-pointer z-10"
+                      aria-label="Play video"
+                    >
+                      <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center transition-transform group-hover:scale-110">
+                        <Play className="w-6 h-6 text-white fill-white ml-0.5" />
+                      </div>
+                    </button>
+                  )}
+                  {/* Duration badge */}
+                  {'meta' in article &&
+                    (article as FrontendArticle).meta?.video?.duration ? (
+                    <span className="absolute bottom-2 right-2 z-20 px-1.5 py-0.5 bg-black/70 backdrop-blur-sm text-white text-[10px] font-medium rounded">
+                      {formatDuration(
+                        (article as FrontendArticle).meta!.video!.duration,
+                      )}
+                    </span>
+                  ) : null}
+                </>
+              )
+            ) : (
+
+              <BlurhashImage
+                src={coverImageUrl}
+                alt={article.title}
+                fill
+                blurhash={
+                  'meta' in article
+                    ? (article as FrontendArticle).meta?.images?.blurhash
+                    : undefined
+                }
+                className="transition-transform duration-300 group-hover:scale-105"
+                sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+              />
+            )
+          ) : (
+            /* Gradient placeholder for text-only articles — maintains consistent card height */
+            <div className="w-full h-full absolute inset-0 bg-gradient-to-br from-slate-100 via-slate-50 to-slate-200 dark:from-slate-800 dark:via-slate-800/50 dark:to-slate-700 flex items-center justify-center">
+              <svg
+                className="w-12 h-12 text-slate-300 dark:text-slate-600"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1}
+                  d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"
+                />
+              </svg>
             </div>
           )}
+        </div>
+      )}
 
-
+      {/* 标题 + 摘要 + 元信息 — wrapped in Link for navigation */}
+      <Link href={`/articles/${article.slug}`} className="block">
+        <div className="space-y-3">
           {/* 标题 */}
           <h3
             className={`font-semibold text-slate-800 dark:text-slate-200 group-hover:text-primary-600 dark:group-hover:text-primary-500 transition-colors line-clamp-2 ${

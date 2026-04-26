@@ -1,1099 +1,724 @@
-# 博客系统架构设计文档
+# Blog System Architecture — Final Summary
 
-## 1. 项目概述
-
-### 1.1 系统目标
-
-- 为现有Lucky Nest Monorepo添加博客功能
-- 集成到现有admin-next管理后台
-- 支持多用户权限管理
-- 提供完整的博客管理功能
-
-### 1.2 技术栈
-
-- **后端**: NestJS + Prisma + PostgreSQL
-- **前端**: Next.js 15 + Tailwind CSS
-- **状态管理**: TanStack Query + React Query
-- **认证**: 复用现有OAuth/JWT系统
-- **部署**: Docker + Nginx
-
-## 2. 系统架构
-
-### 2.1 整体架构图
-
-```
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│  客户端 (Web)   │    │  管理后台 (Admin)│    │   移动端 (H5)   │
-└─────────┬───────┘    └─────────┬────────┘    └─────────┬───────┘
-          │                       │                        │
-          ▼                       ▼                        ▼
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   Next.js 15    │    │   Next.js 15     │    │   Next.js 15    │
-│   App Router    │    │   App Router     │    │   App Router    │
-│   SSR/SSG       │    │   SSR/SSG        │    │   SSR/SSG       │
-└─────────┬───────┘    └─────────┬────────┘    └─────────┬───────┘
-          │                       │                        │
-          ▼                       ▼                        ▼
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   RESTful API   │    │   RESTful API    │    │   RESTful API   │
-│   (NestJS)      │    │   (NestJS)       │    │   (NestJS)      │
-└─────────┬───────┘    └─────────┬────────┘    └─────────┬───────┘
-          │                       │                        │
-          ▼                       ▼                        ▼
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   PostgreSQL    │    │   PostgreSQL     │    │   PostgreSQL    │
-│   + Prisma      │    │   + Prisma       │    │   + Prisma      │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-```
-
-### 2.2 模块依赖关系
-
-```
-apps/
-├── admin-next/          # 管理后台 (新增博客功能)
-│   ├── src/
-│   │   ├── app/        # Next.js路由
-│   │   ├── components/ # 组件
-│   │   ├── views/     # 页面 (新增Blog相关页面)
-│   │   └── lib/       # 工具函数
-│   └── prisma/        # 数据库 (新增博客表)
-└── api/                # 现有API (新增博客接口)
-    └── src/
-        └── blog/      # 博客模块
-```
-
-## 3. 数据库设计
-
-### 3.1 表结构设计
-
-#### 文章表 (Article)
-
-```sql
-CREATE TABLE article (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  title VARCHAR(255) NOT NULL,
-  slug VARCHAR(255) UNIQUE NOT NULL,
-  content TEXT NOT NULL,
-  excerpt TEXT,
-  status VARCHAR(20) NOT NULL DEFAULT 'draft', -- draft, published, archived
-  published_at TIMESTAMP,
-  created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW(),
-  author_id UUID NOT NULL REFERENCES user(id),
-  category_id UUID REFERENCES category(id),
-  view_count INTEGER DEFAULT 0,
-  like_count INTEGER DEFAULT 0,
-  comment_count INTEGER DEFAULT 0
-);
-```
-
-#### 分类表 (Category)
-
-```sql
-CREATE TABLE category (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name VARCHAR(100) NOT NULL,
-  slug VARCHAR(100) UNIQUE NOT NULL,
-  description TEXT,
-  parent_id UUID REFERENCES category(id),
-  created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW()
-);
-```
-
-#### 标签表 (Tag)
-
-```sql
-CREATE TABLE tag (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name VARCHAR(50) NOT NULL,
-  slug VARCHAR(50) UNIQUE NOT NULL,
-  created_at TIMESTAMP DEFAULT NOW()
-);
-```
-
-#### 评论表 (Comment)
-
-```sql
-CREATE TABLE comment (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  article_id UUID NOT NULL REFERENCES article(id),
-  author VARCHAR(100) NOT NULL,
-  email VARCHAR(100) NOT NULL,
-  content TEXT NOT NULL,
-  status VARCHAR(20) NOT NULL DEFAULT 'pending', -- pending, approved, rejected
-  parent_id UUID REFERENCES comment(id), -- 用于回复
-  created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW()
-);
-```
-
-#### 文章标签关联表 (ArticleTag)
-
-```sql
-CREATE TABLE article_tag (
-  article_id UUID NOT NULL REFERENCES article(id) ON DELETE CASCADE,
-  tag_id UUID NOT NULL REFERENCES tag(id) ON DELETE CASCADE,
-  PRIMARY KEY (article_id, tag_id)
-);
-```
-
-### 3.2 Prisma Schema
-
-```prisma
-model Article {
-  id          String   @id @default(cuid())
-  title       String
-  slug        String   @unique
-  content     String
-  excerpt     String?
-  status      ArticleStatus @default(DRAFT)
-  publishedAt DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  author      User     @relation(fields: [authorId], references: [id])
-  authorId    String
-  category    Category? @relation(fields: [categoryId], references: [id])
-  categoryId  String?
-  viewCount   Int      @default(0)
-  likeCount   Int      @default(0)
-  commentCount Int     @default(0)
-  tags        Tag[]
-  comments    Comment[]
-}
-
-model Category {
-  id          String   @id @default(cuid())
-  name        String
-  slug        String   @unique
-  description String?
-  parentId    String?
-  parent      Category? @relation('CategoryToCategory', fields: [parentId], references: [id])
-  children    Category[] @relation('CategoryToCategory')
-  articles    Article[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-}
-
-model Tag {
-  id        String   @id @default(cuid())
-  name      String
-  slug      String   @unique
-  articles  Article[]
-  createdAt DateTime @default(now())
-}
-
-model Comment {
-  id        String   @id @default(cuid())
-  article   Article  @relation(fields: [articleId], references: [id])
-  articleId String
-  author    String
-  email     String
-  content   String
-  status    CommentStatus @default(PENDING)
-  parentId  String?
-  parent    Comment?    @relation('CommentToComment', fields: [parentId], references: [id])
-  children  Comment[]   @relation('CommentToComment')
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-enum ArticleStatus {
-  DRAFT
-  PUBLISHED
-  ARCHIVED
-}
-
-enum CommentStatus {
-  PENDING
-  APPROVED
-  REJECTED
-}
-```
-
-## 4. API设计
-
-### 4.1 路由设计
-
-#### 文章管理 (/v1/blog/articles)
-
-- `GET /` - 获取文章列表
-- `GET /:id` - 获取文章详情
-- `POST /` - 创建文章
-- `PUT /:id` - 更新文章
-- `DELETE /:id` - 删除文章
-- `POST /:id/publish` - 发布文章
-- `POST /:id/unpublish` - 取消发布
-
-#### 分类管理 (/v1/blog/categories)
-
-- `GET /` - 获取分类列表
-- `GET /:id` - 获取分类详情
-- `POST /` - 创建分类
-- `PUT /:id` - 更新分类
-- `DELETE /:id` - 删除分类
-
-#### 标签管理 (/v1/blog/tags)
-
-- `GET /` - 获取标签列表
-- `POST /` - 创建标签
-- `DELETE /:id` - 删除标签
-
-#### 评论管理 (/v1/blog/comments)
-
-- `GET /` - 获取评论列表
-- `GET /:id` - 获取评论详情
-- `POST /` - 创建评论
-- `PUT /:id` - 更新评论
-- `DELETE /:id` - 删除评论
-- `POST /:id/approve` - 审核通过
-- `POST /:id/reject` - 驳回评论
-
-### 4.2 DTO设计
-
-#### 创建文章
-
-```typescript
-export class CreateArticleDto {
-  @IsString()
-  @IsNotEmpty()
-  title: string;
-
-  @IsString()
-  @IsNotEmpty()
-  content: string;
-
-  @IsString()
-  @IsOptional()
-  excerpt?: string;
-
-  @IsString()
-  @IsOptional()
-  categoryId?: string;
-
-  @IsArray()
-  @IsOptional()
-  tagIds?: string[];
-}
-```
-
-#### 更新文章
-
-```typescript
-export class UpdateArticleDto {
-  @IsString()
-  @IsOptional()
-  title?: string;
-
-  @IsString()
-  @IsOptional()
-  content?: string;
-
-  @IsString()
-  @IsOptional()
-  excerpt?: string;
-
-  @IsString()
-  @IsOptional()
-  categoryId?: string;
-
-  @IsArray()
-  @IsOptional()
-  tagIds?: string[];
-}
-```
-
-## 5. 前端路由设计
-
-### 5.1 管理后台路由 (apps/admin-next/src/app/(dashboard)/)
-
-#### 博客管理面板
-
-- `/dashboard/blog` - 博客管理首页
-- `/dashboard/blog/articles` - 文章列表
-- `/dashboard/blog/articles/create` - 创建文章
-- `/dashboard/blog/articles/:id/edit` - 编辑文章
-- `/dashboard/blog/categories` - 分类管理
-- `/dashboard/blog/tags` - 标签管理
-- `/dashboard/blog/comments` - 评论管理
-
-### 5.2 博客展示路由 (apps/admin-next/src/app/)
-
-#### 博客展示页面
-
-- `/blog` - 博客首页
-- `/blog/articles` - 文章列表
-- `/blog/articles/:slug` - 文章详情
-- `/blog/categories` - 分类列表
-- `/blog/tags` - 标签列表
-- `/blog/search` - 搜索结果
-
-## 6. 组件设计
-
-### 6.1 管理后台组件
-
-#### 文章管理组件
-
-- `ArticleList` - 文章列表
-- `ArticleForm` - 文章表单
-- `ArticleCard` - 文章卡片
-- `ArticlePreview` - 文章预览
-
-#### 分类管理组件
-
-- `CategoryList` - 分类列表
-- `CategoryForm` - 分类表单
-- `CategoryTree` - 分类树形结构
-
-#### 标签管理组件
-
-- `TagList` - 标签列表
-- `TagForm` - 标签表单
-- `TagCloud` - 标签云
-
-#### 评论管理组件
-
-- `CommentList` - 评论列表
-- `CommentForm` - 评论表单
-- `CommentApproval` - 评论审核
-
-### 6.2 博客展示组件
-
-#### 博客展示组件
-
-- `BlogLayout` - 博客布局
-- `ArticleList` - 文章列表
-- `ArticleDetail` - 文章详情
-- `CategoryList` - 分类列表
-- `TagCloud` - 标签云
-- `SearchBox` - 搜索框
-- `CommentSection` - 评论区
-
-## 7. 权限设计
-
-### 7.1 用户角色
-
-- **超级管理员**: 完整博客管理权限
-- **管理员**: 管理所有文章和评论
-- **作者**: 只能管理自己发布的文章
-- **访客**: 只能查看已发布文章
-
-### 7.2 权限控制
-
-- 文章创建: 管理员、作者
-- 文章编辑: 文章作者、管理员
-- 文章删除: 管理员
-- 评论审核: 管理员
-- 评论发布: 所有登录用户
-
-## 8. 性能优化
-
-### 8.1 后端优化
-
-- **数据库索引**: 为常用查询字段创建索引
-- **缓存策略**: 使用Redis缓存热点数据
-- **分页查询**: 支持分页和游标查询
-- **异步处理**: 使用队列处理耗时的操作
-
-### 8.2 前端优化
-
-- **代码分割**: 按路由分割代码
-- **图片优化**: 使用Next.js Image组件
-- **懒加载**: 延迟加载非关键资源
-- **缓存策略**: 使用Service Worker缓存
-
-## 9. SEO优化
-
-### 9.1 文章SEO
-
-- **语义化HTML**: 使用正确的HTML5标签
-- **结构化数据**: 添加JSON-LD结构化数据
-- **元标签**: 优化title、description、keywords
-- **友好URL**: 使用slug作为URL
-
-### 9.2 技术SEO
-
-- **SSR渲染**: 使用Next.js SSR
-- **sitemap**: 自动生成sitemap
-- **robots.txt**: 配置robots.txt
-- **页面速度**: 优化页面加载速度
-
-## 10. 部署方案
-
-### 10.1 容器化部署
-
-- **Docker**: 多阶段构建优化镜像大小
-- **Nginx**: 反向代理和负载均衡
-- **CI/CD**: 自动化构建和部署
-
-### 10.2 环境配置
-
-- **开发环境**: 本地开发配置
-- **测试环境**: 测试服务器配置
-- **生产环境**: 生产服务器配置
-
-## 11. 测试策略
-
-### 11.1 单元测试
-
-- **服务层测试**: 测试业务逻辑
-- **控制器测试**: 测试API接口
-- **DTO测试**: 测试数据验证
-
-### 11.2 集成测试
-
-- **API测试**: 测试端到端API
-- **数据库测试**: 测试数据库操作
-- **权限测试**: 测试权限控制
-
-### 11.3 E2E测试
-
-- **用户流程测试**: 测试用户操作流程
-- **浏览器兼容性测试**: 测试不同浏览器
-- **性能测试**: 测试系统性能
-
-## 12. 监控和日志
-
-### 12.1 系统监控
-
-- **API监控**: 监控API调用情况
-- **数据库监控**: 监控数据库性能
-- **服务器监控**: 监控服务器资源使用
-
-### 12.2 日志系统
-
-- **访问日志**: 记录API访问日志
-- **错误日志**: 记录系统错误日志
-- **操作日志**: 记录用户操作日志
-
-## 13. 安全考虑
-
-### 13.1 数据安全
-
-- **输入验证**: 验证所有用户输入
-- **SQL注入**: 使用Prisma防止SQL注入
-- **XSS攻击**: 过滤HTML内容
-- **CSRF保护**: 使用CSRF令牌
-
-### 13.2 权限安全
-
-- **角色控制**: 严格的角色权限控制
-- **数据隔离**: 用户只能访问自己的数据
-- **操作审计**: 记录所有重要操作
-
-## 14. 扩展性设计
-
-### 14.1 插件系统
-
-- **自定义字段**: 支持文章自定义字段
-- **第三方集成**: 支持第三方服务集成
-- **主题系统**: 支持主题切换
-
-### 14.2 微服务准备
-
-- **服务拆分**: 为未来微服务做准备
-- **API网关**: 支持API网关集成
-- **服务发现**: 支持服务发现机制
-
-## 15. 开发计划
-
-### 第1周: 后端开发
-
-- [ ] 创建博客模块结构
-- [ ] 实现文章、分类、标签、评论CRUD接口
-- [ ] 集成现有认证和权限系统
-- [ ] 编写API文档和测试
-
-### 第2周: 前端开发
-
-- [ ] 在admin-next中新增博客管理页面
-- [ ] 实现文章管理功能
-- [ ] 实现分类标签管理
-- [ ] 实现评论审核功能
-- [ ] 优化用户体验和性能
-
-### 第3周: 优化和测试
-
-- [ ] 性能优化
-- [ ] SEO优化
-- [ ] 安全测试
-- [ ] 部署准备
-
-## 16. 技术栈版本
-
-### 后端技术栈
-
-- **NestJS**: ^10.0.0
-- **Prisma**: ^5.0.0
-- **PostgreSQL**: ^14.0
-- **Redis**: ^7.0
-
-### 前端技术栈
-
-- **Next.js**: ^15.0.0
-- **React**: ^18.0.0
-- **TypeScript**: ^5.0.0
-- **Tailwind CSS**: ^3.0.0
-
-## 17. 参考文档
-
-### 后端参考
-
-- [NestJS文档](https://docs.nestjs.com/)
-- [Prisma文档](https://www.prisma.io/docs/)
-- [PostgreSQL文档](https://www.postgresql.org/docs/)
-
-### 前端参考
-
-- [Next.js文档](https://nextjs.org/docs)
-- [React文档](https://react.dev/)
-- [Tailwind CSS文档](https://tailwindcss.com/docs)
-
-## 18. 常见问题
-
-### 18.1 性能问题
-
-- **Q**: 文章列表加载慢
-- **A**: 使用分页和缓存优化
-
-### 18.2 权限问题
-
-- **Q**: 用户权限不生效
-- **A**: 检查Guards配置
-
-### 18.3 部署问题
-
-- **Q**: 部署后无法访问
-- **A**: 检查Nginx配置和环境变量
-
-## 19. 后续规划
-
-### 19.1 近期规划
-
-- **插件系统**: 支持第三方插件
-- **多语言**: 支持多语言博客
-- **移动端**: 优化移动端体验
-
-### 19.2 长期规划
-
-- **微服务**: 拆分为独立微服务
-- **PWA**: 支持PWA应用
-- **AI集成**: 集成AI写作助手
+> **Last updated:** 2026-04-26
+> This document consolidates all development work, architecture decisions, bugs fixed, and current implementation status for the Lucky Nest Blog system.
 
 ---
 
-**文档版本**: 1.0.0  
-**最后更新**: 2026-04-04
+## 1. Project Overview
 
-## 20. Capacitor.js 架构分析
-
-### 20.1 Capacitor.js 核心特点
-
-- **跨平台**: 使用Web技术栈开发，编译成原生应用
-- **Web标准**: 基于HTML/CSS/JavaScript，支持现代Web标准
-- **原生API**: 提供访问原生设备功能的API
-- **性能**: 通过WebView渲染，性能接近原生应用
-
-### 20.2 统一代码架构设计
-
-#### 20.2.1 技术栈选择
-
-- **前端框架**: Next.js 15 (App Router)
-- **UI框架**: Tailwind CSS + Headless UI
-- **状态管理**: Zustand + TanStack Query
-- **路由**: Next.js App Router
-- **样式**: Tailwind CSS (响应式设计)
-
-#### 20.2.2 项目结构
+### 1.1 Architecture Layers
 
 ```
-capacitor-blog/
-├── src/
-│   ├── app/                    # Next.js App Router
-│   │   ├── (blog)/            # 博客展示路由
-│   │   │   ├── page.tsx       # 博客首页
-│   │   │   ├── articles/      # 文章列表页
-│   │   │   │   └── page.tsx
-│   │   │   └── articles/[slug]/page.tsx  # 文章详情页
-│   │   ├── (dashboard)/       # 管理后台路由
-│   │   │   ├── page.tsx       # 管理后台首页
-│   │   │   ├── blog/          # 博客管理
-│   │   │   │   ├── page.tsx   # 博客管理首页
-│   │   │   │   ├── articles/  # 文章管理
-│   │   │   │   │   └── page.tsx
-│   │   │   │   ├── categories/ # 分类管理
-│   │   │   │   │   └── page.tsx
-│   │   │   │   └── tags/      # 标签管理
-│   │   │   │       └── page.tsx
-│   │   │   └── comments/      # 评论管理
-│   │   │       └── page.tsx
-│   │   └── layout.tsx         # 全局布局
-│   ├── components/            # 共享组件
-│   │   ├── blog/             # 博客展示组件
-│   │   │   ├── BlogLayout.tsx
-│   │   │   ├── ArticleList.tsx
-│   │   │   ├── ArticleDetail.tsx
-│   │   │   ├── CategoryList.tsx
-│   │   │   ├── TagCloud.tsx
-│   │   │   ├── SearchBox.tsx
-│   │   │   └── CommentSection.tsx
-│   │   ├── admin/            # 管理后台组件
-│   │   │   ├── AdminLayout.tsx
-│   │   │   ├── ArticleList.tsx
-│   │   │   ├── ArticleForm.tsx
-│   │   │   ├── CategoryList.tsx
-│   │   │   ├── CategoryForm.tsx
-│   │   │   ├── TagList.tsx
-│   │   │   ├── TagForm.tsx
-│   │   │   ├── CommentList.tsx
-│   │   │   └── CommentApproval.tsx
-│   │   └── shared/           # 共享组件
-│   │       ├── Button.tsx
-│   │       ├── Input.tsx
-│   │       ├── Modal.tsx
-│   │       └── Loading.tsx
-│   ├── lib/                 # 工具函数
-│   │   ├── api/            # API客户端
-│   │   │   ├── blog.ts     # 博客API
-│   │   │   ├── auth.ts     # 认证API
-│   │   │   └── index.ts    # API入口
-│   │   ├── hooks/          # 自定义Hook
-│   │   │   ├── useBlog.ts  # 博客Hook
-│   │   │   ├── useAuth.ts  # 认证Hook
-│   │   │   └── useUI.ts    # UI Hook
-│   │   ├── utils/          # 工具函数
-│   │   │   ├── format.ts   # 格式化工具
-│   │   │   ├── validation.ts # 验证工具
-│   │   │   └── storage.ts  # 存储工具
-│   │   └── types/          # 类型定义
-│   │       ├── blog.ts     # 博客类型
-│   │       ├── auth.ts     # 认证类型
-│   │       └── index.ts    # 类型入口
-│   ├── styles/             # 样式文件
-│   │   ├── globals.css
-│   │   ├── blog.css
-│   │   └── admin.css
-│   └── constants/          # 常量配置
-│       ├── routes.ts      # 路由常量
-│       ├── api.ts        # API常量
-│       └── theme.ts      # 主题常量
-├── capacitor.config.ts    # Capacitor配置
-├── capacitor/            # Capacitor原生项目
-│   ├── android/
-│   ├── ios/
-│   └── web/
-├── next.config.ts        # Next.js配置
-├── tailwind.config.js    # Tailwind配置
-├── tsconfig.json        # TypeScript配置
-└── package.json         # 依赖配置
+┌─────────────────────────────────────────────────────────────┐
+│                  FRONTEND (frontend-blog)                    │
+│  Next.js 15 App Router / SSR + ISR / Tailwind CSS / hls.js  │
+│  Components: HeroSection, HlsVideoPlayer, BlurhashImage,    │
+│  ArticleCard, CategoryFilter, PopularArticles, LoadMore     │
+├─────────────────────────────────────────────────────────────┤
+│                  ADMIN PANEL (admin-next)                    │
+│  Next.js 15 App Router / Quill RichTextEditor               │
+│  BlogArticleModal, ArticleForm, BlogTranslationProgress     │
+├─────────────────────────────────────────────────────────────┤
+│                  API LAYER (api / NestJS)                    │
+│  BlogController / FrontendBlogController                    │
+│  BlogService / FrontendBlogService / BlogAiProcessor        │
+│  MediaProcessor / UploadController / UploadService          │
+├─────────────────────────────────────────────────────────────┤
+│                  INFRASTRUCTURE                              │
+│  PostgreSQL + Prisma ORM                                    │
+│  Redis + BullMQ (media-processor, blog-ai queues)           │
+│  Cloudflare R2 (public bucket for media storage)            │
+│  ffmpeg (HLS transcoding) / Sharp (image processing)        │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-#### 20.2.3 响应式设计策略
-
-```typescript
-// 设备检测工具
-export const useDeviceDetect = () => {
-  const [isMobile, setIsMobile] = useState(false);
-  const [isTablet, setIsTablet] = useState(false);
-  const [isDesktop, setIsDesktop] = useState(false);
-
-  useEffect(() => {
-    const checkDevice = () => {
-      const width = window.innerWidth;
-      setIsMobile(width < 768);
-      setIsTablet(width >= 768 && width < 1024);
-      setIsDesktop(width >= 1024);
-    };
-
-    checkDevice();
-    window.addEventListener("resize", checkDevice);
-
-    return () => window.removeEventListener("resize", checkDevice);
-  }, []);
-
-  return { isMobile, isTablet, isDesktop };
-};
-```
-
-#### 20.2.4 平台适配策略
-
-```typescript
-// 平台检测工具
-export const usePlatformDetect = () => {
-  const [isCapacitor, setIsCapacitor] = useState(false);
-  const [isWeb, setIsWeb] = useState(false);
-  const [isMobileApp, setIsMobileApp] = useState(false);
-  const [isDesktopApp, setIsDesktopApp] = useState(false);
-
-  useEffect(() => {
-    if (typeof window !== "undefined" && window.Capacitor) {
-      setIsCapacitor(true);
-      setIsMobileApp(
-        Capacitor.isPluginAvailable("App") &&
-          (Capacitor.getPlatform() === "ios" ||
-            Capacitor.getPlatform() === "android"),
-      );
-      setIsDesktopApp(Capacitor.getPlatform() === "electron");
-    } else {
-      setIsWeb(true);
-    }
-  }, []);
-
-  return { isCapacitor, isWeb, isMobileApp, isDesktopApp };
-};
-```
-
-### 20.3 代码复用策略
-
-#### 20.3.1 组件复用
-
-- **UI组件**: 使用Tailwind CSS实现响应式设计
-- **业务组件**: 根据平台特性进行条件渲染
-- **布局组件**: 根据设备类型调整布局
-
-#### 20.3.2 样式复用
-
-- **Tailwind CSS**: 使用响应式工具类
-- **CSS变量**: 定义平台特定的CSS变量
-- **媒体查询**: 使用CSS媒体查询适配不同设备
-
-#### 20.3.3 逻辑复用
-
-- **自定义Hook**: 封装平台特定的逻辑
-- **API客户端**: 统一的API调用方式
-- **状态管理**: 统一的状态管理方案
-
-### 20.4 平台特定功能
-
-#### 20.4.1 App平台功能
-
-- **推送通知**: Capacitor Notifications API
-- **离线缓存**: Capacitor Storage API
-- **设备信息**: Capacitor Device API
-- **文件操作**: Capacitor Filesystem API
-
-#### 20.4.2 Web平台功能
-
-- **PWA**: 支持PWA功能
-- **Service Worker**: 离线缓存和后台同步
-- **浏览器API**: 使用标准的浏览器API
-
-#### 20.4.3 PC平台功能
-
-- **桌面通知**: 桌面通知API
-- **文件拖拽**: 文件拖拽API
-- **剪贴板**: 剪贴板API
-
-### 20.5 路由策略
-
-#### 20.5.1 统一路由
-
-```typescript
-// 路由常量
-export const ROUTES = {
-  // 博客展示
-  BLOG_HOME: "/blog",
-  BLOG_ARTICLES: "/blog/articles",
-  BLOG_ARTICLE_DETAIL: "/blog/articles/[slug]",
-  BLOG_CATEGORIES: "/blog/categories",
-  BLOG_TAGS: "/blog/tags",
-  BLOG_SEARCH: "/blog/search",
-
-  // 管理后台
-  ADMIN_DASHBOARD: "/dashboard",
-  ADMIN_BLOG: "/dashboard/blog",
-  ADMIN_ARTICLES: "/dashboard/blog/articles",
-  ADMIN_ARTICLE_CREATE: "/dashboard/blog/articles/create",
-  ADMIN_ARTICLE_EDIT: "/dashboard/blog/articles/[id]/edit",
-  ADMIN_CATEGORIES: "/dashboard/blog/categories",
-  ADMIN_TAGS: "/dashboard/blog/tags",
-  ADMIN_COMMENTS: "/dashboard/blog/comments",
-};
-```
-
-#### 20.5.2 平台特定路由
-
-```typescript
-// 平台特定路由处理
-export const usePlatformRoutes = () => {
-  const { isCapacitor, isWeb, isMobileApp } = usePlatformDetect();
-
-  const getBlogUrl = (slug: string) => {
-    if (isCapacitor && isMobileApp) {
-      return `blog://${slug}`; // 自定义URL scheme
-    }
-    return `/blog/articles/${slug}`;
-  };
-
-  const getAdminUrl = (path: string) => {
-    if (isCapacitor && isMobileApp) {
-      return `admin://${path}`; // 自定义URL scheme
-    }
-    return `/dashboard/blog/${path}`;
-  };
-
-  return { getBlogUrl, getAdminUrl };
-};
-```
-
-### 20.6 状态管理
-
-#### 20.6.1 统一状态管理
-
-```typescript
-// 博客状态
-export const useBlogStore = create((set, get) => ({
-  articles: [],
-  categories: [],
-  tags: [],
-  currentArticle: null,
-  isLoading: false,
-  error: null,
-
-  // 加载文章
-  loadArticles: async (params) => {
-    try {
-      set({ isLoading: true });
-      const response = await api.blog.getArticles(params);
-      set({ articles: response.data, isLoading: false });
-    } catch (error) {
-      set({ error, isLoading: false });
-    }
-  },
-
-  // 其他状态管理方法...
-}));
-```
-
-#### 20.6.2 平台特定状态
-
-```typescript
-// 平台特定状态
-export const usePlatformState = create((set, get) => ({
-  isOnline: true,
-  networkType: "wifi",
-  batteryLevel: 100,
-
-  // 更新网络状态
-  updateNetworkStatus: (online: boolean, type: string) => {
-    set({ isOnline: online, networkType: type });
-  },
-
-  // 更新电池状态
-  updateBatteryStatus: (level: number) => {
-    set({ batteryLevel: level });
-  },
-}));
-```
-
-### 20.7 API适配
-
-#### 20.7.1 统一API客户端
-
-```typescript
-// API客户端
-class ApiClient {
-  private baseURL: string;
-  private headers: any;
-
-  constructor() {
-    this.baseURL = import.meta.env.VITE_API_URL || "http://localhost:3000";
-    this.headers = {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${localStorage.getItem("token")}`,
-    };
-  }
-
-  async get<T>(endpoint: string, params?: any): Promise<T> {
-    const response = await fetch(`${this.baseURL}${endpoint}`, {
-      method: "GET",
-      headers: this.headers,
-      params,
-    });
-    return response.json();
-  }
-
-  async post<T>(endpoint: string, data?: any): Promise<T> {
-    const response = await fetch(`${this.baseURL}${endpoint}`, {
-      method: "POST",
-      headers: this.headers,
-      body: JSON.stringify(data),
-    });
-    return response.json();
-  }
-
-  // 其他HTTP方法...
-}
-
-export const api = new ApiClient();
-```
-
-#### 20.7.2 平台特定API
-
-```typescript
-// 平台特定API
-export const usePlatformApi = () => {
-  const { isCapacitor, isMobileApp } = usePlatformDetect();
-
-  const uploadFile = async (file: File) => {
-    if (isCapacitor && isMobileApp) {
-      // 使用Capacitor的文件上传API
-      const result = await Capacitor.Plugins.Filesystem.uploadFile(file);
-      return result.url;
-    } else {
-      // 使用标准的Fetch API
-      const formData = new FormData();
-      formData.append("file", file);
-      const response = await api.post("/upload", formData);
-      return response.url;
-    }
-  };
-
-  return { uploadFile };
-};
-```
-
-### 20.8 构建和部署
-
-#### 20.8.1 构建配置
-
-```javascript
-// next.config.js
-const { withCapacitor } = require("@capacitor/next");
-
-module.exports = withCapacitor({
-  // Next.js配置
-  images: {
-    domains: ["localhost", "your-domain.com"],
-  },
-
-  // Capacitor配置
-  capacitor: {
-    appId: "com.yourdomain.blog",
-    webDir: "../www",
-    includedWebRuntime: true,
-  },
-
-  // 其他配置...
-});
-```
-
-#### 20.8.2 部署策略
-
-- **Web部署**: Vercel/Netlify部署Next.js应用
-- **App部署**: Capacitor构建原生应用并发布到应用商店
-- **PC部署**: Electron打包桌面应用
-
-### 20.9 优势分析
-
-#### 20.9.1 代码复用优势
-
-- **单一代码库**: 维护一套代码
-- **统一体验**: 跨平台一致的用户体验
-- **快速迭代**: 一次开发，多平台部署
-
-#### 20.9.2 性能优势
-
-- **原生性能**: Capacitor提供接近原生的性能
-- **Web标准**: 使用现代Web技术栈
-- **优化渲染**: Next.js的SSR/SSG优化
-
-#### 20.9.3 开发效率
-
-- **熟悉技术栈**: 使用Web开发者熟悉的技术
-- **热重载**: 快速开发和调试
-- **生态系统**: 丰富的Web生态系统
-
-### 20.10 挑战和解决方案
-
-#### 20.10.1 挑战
-
-- **平台差异**: 不同平台的API和行为差异
-- **性能优化**: 移动端的性能优化需求
-- **原生功能**: 访问原生设备功能的复杂性
-
-#### 20.10.2 解决方案
-
-- **统一抽象**: 创建统一的API抽象层
-- **条件渲染**: 根据平台特性进行条件渲染
-- **性能监控**: 集成性能监控和优化工具
-
-### 20.11 实施计划
-
-#### 20.11.1 第1周: 基础架构搭建
-
-- [ ] 创建Capacitor项目结构
-- [ ] 配置Next.js和Capacitor集成
-- [ ] 设置统一的路由和状态管理
-- [ ] 实现基础的响应式设计
-
-#### 20.11.2 第2周: 核心功能开发
-
-- [ ] 实现博客展示功能
-- [ ] 实现管理后台功能
-- [ ] 集成API客户端
-- [ ] 实现平台特定功能
-
-#### 20.11.3 第3周: 优化和测试
-
-- [ ] 性能优化
-- [ ] 跨平台测试
-- [ ] 安全测试
-- [ ] 部署准备
-
-### 20.12 技术栈版本
-
-#### 20.12.1 核心技术栈
-
-- **Next.js**: ^15.0.0
-- **React**: ^18.0.0
-- **TypeScript**: ^5.0.0
-- **Tailwind CSS**: ^3.0.0
-- **Capacitor**: ^5.0.0
-- **Zustand**: ^4.0.0
-- **TanStack Query**: ^5.0.0
-
-#### 20.12.2 平台特定依赖
-
-- **Capacitor CLI**: ^5.0.0
-- **Capacitor Core**: ^5.0.0
-- **Capacitor Notifications**: ^5.0.0
-- **Capacitor Storage**: ^5.0.0
-- **Capacitor Filesystem**: ^5.0.0
-
-### 20.13 参考文档
-
-#### 20.13.1 Capacitor.js 文档
-
-- [Capacitor官方文档](https://capacitorjs.com/docs)
-- [Capacitor Next.js集成](https://capacitorjs.com/docs/guides/nextjs)
-
-#### 20.13.2 Next.js 文档
-
-- [Next.js文档](https://nextjs.org/docs)
-- [Next.js App Router](https://nextjs.org/docs/app)
-
-#### 20.13.3 其他参考
-
-- [Tailwind CSS文档](https://tailwindcss.com/docs)
-- [React文档](https://react.dev/)
-
-### 20.14 后续规划
-
-#### 20.14.1 近期规划
-
-- **PWA增强**: 增强PWA功能
-- **离线支持**: 完善离线支持
-- **推送通知**: 实现推送通知系统
-
-#### 20.14.2 长期规划
-
-- **原生功能**: 集成更多原生功能
-- **性能优化**: 持续的性能优化
-- **生态系统**: 扩展插件生态系统
+### 1.2 Key Technologies
+
+| Layer | Technology | Purpose |
+|-------|-----------|---------|
+| Backend framework | NestJS 10 | RESTful API server |
+| ORM | Prisma 5 | PostgreSQL data access |
+| Queue | BullMQ + Redis | Async media processing + AI translation |
+| Media processing | ffmpeg + Sharp | HLS transcoding + image compression |
+| Storage | Cloudflare R2 | Public media file hosting |
+| Frontend framework | Next.js 15 (App Router) | SSR blog frontend |
+| Admin framework | Next.js 15 (App Router) | Admin panel (separate app) |
+| State management | TanStack Query | Client-side data fetching + caching |
+| Video playback | hls.js | HLS adaptive streaming in browser |
+| Rich text editor | Quill (react-quill) | Article content editing |
+| i18n | next-intl | Multi-locale support |
+| Styling | Tailwind CSS | Utility-first responsive design |
 
 ---
 
-**文档版本**: 1.0.0  
-**最后更新**: 2026-04-04  
-**作者**: Lucky Nest Team
+## 2. Media Processing Pipeline
+
+### 2.1 Upload Flow
+
+```
+User uploads file
+    │
+    ▼
+UploadController.uploadMedia()
+    │
+    ├── Image → Save to R2 → Enqueue compress-image job
+    │
+    └── Video → Save to R2 → Enqueue transcode-video job
+                            │
+                            ▼
+                    MediaProcessor (BullMQ Worker)
+                    concurrency=2, attempts=3
+```
+
+### 2.2 Image Compression Pipeline
+
+**Tool:** Sharp (Node.js native)
+
+**Files:**
+- [`media-processor.service.ts`](apps/api/src/common/media/media-processor.service.ts) — `compressImage()` method
+- [`media.processor.ts`](apps/api/src/common/media/media.processor.ts) — `handleCompressImage()` handler
+
+**Process:**
+1. Download original from R2
+2. Generate WebP variants: thumbnail 300w, medium 800w, large 1600w
+3. Generate JPEG fallback: large 1600w
+4. Generate BlurHash string from image pixels (Canvas-based, no external deps)
+5. Upload all variants to R2
+6. Update article `meta` with variant URLs + blurhash
+
+**Output structure in R2:**
+```
+uploads/blog/images/{articleId}/
+  ├── original.jpg
+  ├── large.webp (1600px)
+  ├── medium.webp (800px)
+  ├── thumbnail.webp (300px)
+  └── large.jpg (1600px, JPEG fallback)
+```
+
+**BlurHash in meta:**
+```json
+{
+  "images": {
+    "blurhash": "LFE.@D9F01WB~qMxRjNG01T2NWWB",
+    "large": { "webp": "...", "jpg": "..." },
+    "medium": { "webp": "...", "jpg": "..." },
+    "thumbnail": { "webp": "...", "jpg": "..." }
+  }
+}
+```
+
+### 2.3 Video HLS Transcoding Pipeline
+
+**Tool:** ffmpeg via fluent-ffmpeg
+
+**Files:**
+- [`media-processor.service.ts`](apps/api/src/common/media/media-processor.service.ts) — `transcodeVideoToHls()` method
+- [`media.processor.ts`](apps/api/src/common/media/media.processor.ts) — `handleTranscodeVideo()` handler
+
+**Process:**
+1. Download original video from R2
+2. Detect source dimensions via ffprobe (width + height)
+3. Compute target qualities preserving aspect ratio (see section 2.3.1)
+4. For each quality level:
+   - Compute height from aspect ratio: `height = width / aspectRatio`
+   - Clamp to source dimensions (no upscaling)
+   - Ensure even dimensions (H.264 requirement)
+   - Transcode with `force_original_aspect_ratio=decrease`
+5. Generate master playlist (master.m3u8) referencing all quality variants
+6. Extract poster thumbnail (1-second frame at 1280 width, auto-height)
+7. Upload all files to R2
+8. Update article `meta.video` with hlsUrl, poster, duration, qualities
+
+**Output structure in R2:**
+```
+uploads/blog/videos/{articleId}/
+  ├── master.m3u8
+  ├── 480p/
+  │   ├── playlist.m3u8
+  │   └── segment-001.ts, segment-002.ts, ...
+  ├── 720p/
+  │   ├── playlist.m3u8
+  │   └── segment-001.ts, ...
+  └── 1080p/ (if source >= 1080p)
+      ├── playlist.m3u8
+      └── segment-001.ts, ...
+```
+
+**meta.video structure:**
+```json
+{
+  "video": {
+    "hlsUrl": "https://cdn.../master.m3u8",
+    "poster": "https://cdn.../poster.jpg",
+    "duration": 120.5,
+    "qualities": ["480p", "720p", "1080p"],
+    "status": "completed"
+  }
+}
+```
+
+#### 2.3.1 Aspect Ratio Preservation (Critical Fix)
+
+**Problem:** Original code hardcoded 16:9 resolutions (`854:480`, `1280:720`, `1920:1080`) in the ffmpeg `scale` filter, causing non-16:9 videos (9:16 vertical, 1:1 square, 21:9 ultrawide) to be stretched/deformed.
+
+**Fix applied in** [`media-processor.service.ts`](apps/api/src/common/media/media-processor.service.ts:194):
+
+```typescript
+// Before: Hardcoded 16:9 resolutions
+const resolutions = ['854:480', '1280:720', '1920:1080'];
+// ffmpeg -vf "scale=854:480"  ← forces 16:9 regardless of source
+
+// After: Dynamic aspect-ratio-preserving computation
+const sourceAspectRatio = sourceWidth / sourceHeight;
+const targetWidth = Math.min(qualityTargetWidth, sourceWidth);
+const computedHeight = Math.round(targetWidth / sourceAspectRatio);
+const targetHeight = Math.min(computedHeight, sourceHeight);
+// Ensure even dimensions for H.264
+const evenWidth = targetWidth % 2 === 0 ? targetWidth : targetWidth - 1;
+const evenHeight = targetHeight % 2 === 0 ? targetHeight : targetHeight - 1;
+// ffmpeg -vf "scale=720:1280:force_original_aspect_ratio=decrease"
+```
+
+**Edge cases handled:**
+- Source smaller than target quality → clamps to source dimensions (no upscaling)
+- Odd pixel dimensions → rounded down to even (H.264 requirement)
+- Vertical videos (9:16) → correctly transcoded as 480x854 instead of 854x480
+- All aspect ratios (1:1, 4:3, 21:9, etc.) → preserved
+
+### 2.4 File Size Protection
+
+To prevent OOM crashes from large uploads:
+
+| Protection | Location | Threshold |
+|-----------|----------|-----------|
+| Upload controller limit | [`upload.controller.ts`](apps/api/src/common/upload/upload.controller.ts:38) | Images: 20MB, Videos: 200MB |
+| Multer hard cap | [`upload.controller.ts`](apps/api/src/common/upload/upload.controller.ts:40) | 200MB |
+| Worker image skip | [`media.processor.ts`](apps/api/src/common/media/media.processor.ts:57) | > 50MB skipped |
+| Worker video skip | [`media.processor.ts`](apps/api/src/common/media/media.processor.ts:57) | > 500MB skipped |
+| Sharp dimension limit | [`media-processor.service.ts`](apps/api/src/common/media/media-processor.service.ts:31) | Max 4000px width/height |
+
+### 2.5 Create Page Video Transcoding Fix
+
+**Problem:** When creating a new article, videos uploaded via the editor had no `articleId`, so the `transcode-video` job was never enqueued.
+
+**Solution:**
+1. Create page tracks uploaded video keys in a `useRef`
+2. After article creation succeeds, calls `POST /admin/blog/articles/:id/trigger-video-transcode` for each tracked key
+3. Backend enqueues the `transcode-video` job via existing BullMQ queue
+
+**Files:**
+- [`create/page.tsx`](apps/admin-next/src/app/(dashboard)/blog/articles/create/page.tsx) — track video keys, trigger after creation
+- [`blog.service.ts`](apps/api/src/blog/blog.service.ts) — `triggerVideoTranscode()` method
+- [`blog.controller.ts`](apps/api/src/blog/blog.controller.ts) — `POST :id/trigger-video-transcode` endpoint
+
+### 2.6 Video Backfill for Existing Articles
+
+**Problem:** Articles created before the HLS pipeline existed still serve raw MP4 files.
+
+**Solution:** Admin API endpoint `POST /admin/blog/articles/backfill-videos` that:
+1. Queries articles with video `coverImage` but no `meta.video.hlsUrl`
+2. Enqueues `transcode-video` jobs for eligible articles
+3. Sets `meta.video.status = 'pending'` during processing
+
+**Files:**
+- [`blog.service.ts`](apps/api/src/blog/blog.service.ts) — `findArticlesWithVideoCovers()` + `backfillVideoTranscode()`
+- [`blog.module.ts`](apps/api/src/blog/blog.module.ts) — registers `MEDIA_PROCESSOR_QUEUE`
+- [`blog.controller.ts`](apps/api/src/blog/blog.controller.ts) — backfill endpoint
+- [`dto/backfill-videos.dto.ts`](apps/api/src/blog/dto/backfill-videos.dto.ts) — DTO
+
+---
+
+## 3. Frontend Blog Component Architecture
+
+### 3.1 Homepage Structure
+
+```
+page.tsx (SSR)
+  ├── fetchArticles() - Latest articles list
+  ├── fetchFeaturedArticles() - Featured articles (hero section)
+  │
+  └── page.client.tsx (Client Component)
+      ├── CategoryFilter - Scrollable category tabs
+      ├── HeroSection - Featured article showcase
+      │   ├── Main card: HlsVideoPlayer / BlurhashImage + title overlay
+      │   └── Side cards: Thumbnail + title overlay
+      ├── ArticleCard grid (2/3 width) + PopularArticles sidebar (1/3)
+      │   ├── ArticleCard.tsx - Cover media + title/excerpt/meta
+      │   │   ├── HlsVideoPlayer (for video covers)
+      │   │   ├── BlurhashImage (for image covers)
+      │   │   └── Gradient placeholder (for text-only articles)
+      │   └── PopularArticles.tsx - Ranked top-5 sidebar
+      └── LoadMore - Pagination button
+```
+
+### 3.2 Key Components
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| `HeroSection` | [`HeroSection.tsx`](apps/frontend-blog/src/components/blog/HeroSection.tsx) | Featured article display with carousel |
+| `HlsVideoPlayer` | [`HlsVideoPlayer.tsx`](apps/frontend-blog/src/components/blog/HlsVideoPlayer.tsx) | HLS playback via hls.js with poster + play overlay |
+| `BlurhashImage` | [`BlurhashImage.tsx`](apps/frontend-blog/src/components/blog/BlurhashImage.tsx) | Canvas-based BlurHash rendering, no external deps |
+| `ArticleCard` | [`ArticleCard.tsx`](apps/frontend-blog/src/components/blog/ArticleCard.tsx) | Blog article card with media/text layout |
+| `CategoryFilter` | [`CategoryFilter.tsx`](apps/frontend-blog/src/components/blog/CategoryFilter.tsx) | Scrollable category tabs with progress bar |
+| `PopularArticles` | [`PopularArticles.tsx`](apps/frontend-blog/src/components/blog/PopularArticles.tsx) | Top-5 ranked sidebar |
+| `LoadMore` | [`LoadMore.tsx`](apps/frontend-blog/src/components/blog/LoadMore.tsx) | Pagination with loading spinner |
+| `SanitizedContent` | [`SanitizedContent.tsx`](apps/frontend-blog/src/components/SanitizedContent.tsx) | DOMPurify HTML sanitization via next/dynamic |
+
+### 3.3 Admin Panel Components
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| `BlogArticleModal` | [`BlogArticleModal.tsx`](apps/admin-next/src/views/blog/BlogArticleModal.tsx) | Article create/edit modal with localized fields |
+| `ArticleForm` | [`ArticleForm.tsx`](apps/admin-next/src/views/blog/ArticleForm.tsx) | Article form with RichTextEditor integration |
+| `BlogTranslationProgress` | [`BlogTranslationProgress.tsx`](apps/admin-next/src/views/blog/BlogTranslationProgress.tsx) | AI translation progress per article |
+
+### 3.4 Split Link Navigation (Card Click Behavior)
+
+**Problem:** In `ArticleCard` and `HeroSection`, clicking the video area navigated to the article detail page, making it impossible to play/pause videos.
+
+**Solution:** Split the card link — video/cover area is standalone (no navigation), text content (title/excerpt/meta) is wrapped in `<Link>` for navigation.
+
+**Files modified:**
+- [`ArticleCard.tsx`](apps/frontend-blog/src/components/blog/ArticleCard.tsx) — cover media outside Link, text inside Link
+- [`HeroSection.tsx`](apps/frontend-blog/src/components/blog/HeroSection.tsx) — main card + side cards: media standalone, text overlay in Link
+
+---
+
+## 4. Content Rendering & DOMPurify
+
+### 4.1 Article Detail Page Rendering
+
+```
+page.tsx (SSR) → fetch article by slug
+  │
+  ▼
+page.client.tsx (Client Component)
+  │
+  ├── Cover image section
+  │   ├── HLS video available → HlsVideoPlayer with poster
+  │   ├── Video cover (no HLS) → VideoWithOverlay (native <video>)
+  │   ├── Image cover → BlurhashImage or next/Image
+  │   └── No cover → Gradient placeholder
+  │
+  ├── Article header (title, author, date, category, tags)
+  │
+  ├── Video hero section (if meta.video.hlsUrl exists)
+  │   └── HlsVideoPlayer (inline video player)
+  │
+  └── Article content
+      └── SanitizedContent (DOMPurify via next/dynamic ssr:false)
+          └── Renders sanitized HTML with allowed tags
+              including <video>, <figure>, <img>, <iframe>, etc.
+```
+
+### 4.2 DOMPurify SSR Fix
+
+**Problem:** Dynamic `import('dompurify')` inside `useEffect` caused Turbopack to pre-resolve the module during SSR, failing with `module factory is not available`.
+
+**Solution:** Isolated DOMPurify into a separate component loaded via `next/dynamic` with `{ ssr: false }`.
+
+**Files:**
+- [`SanitizedContent.tsx`](apps/frontend-blog/src/components/SanitizedContent.tsx) — client-only component wrapping DOMPurify
+- [`page.client.tsx`](apps/frontend-blog/src/app/[locale]/articles/[slug]/page.client.tsx) — uses dynamic import with `ssr: false`
+
+### 4.3 Allowed HTML Tags & Attributes
+
+```typescript
+ALLOWED_TAGS: [
+  'h1','h2','h3','h4','h5','h6',
+  'p','br','strong','em','u','s',
+  'blockquote','code','pre','ul','ol','li',
+  'a','img','video','source','iframe',
+  'figure','figcaption','table','thead','tbody','tr','th','td',
+  'div','span','hr','sub','sup','mark','del','ins',
+]
+ALLOWED_ATTR: [
+  'href','target','rel','src','alt','title',
+  'width','height','class','style',
+  'controls','autoplay','loop','muted','poster',
+  'playsinline','preload','frameborder','allowfullscreen','allow','type',
+]
+```
+
+---
+
+## 5. i18n & Multilingual Content
+
+### 5.1 Architecture
+
+- **i18n library:** next-intl with locale in route params (`/[locale]/path`)
+- **Supported locales:** zh, en, ja, ko (or more)
+- **Content storage:** Prisma JSON fields (`contentLocalized`, `titleLocalized`)
+- **Locale resolution:** HTTP headers + route params sync
+
+### 5.2 Content Localization Flow
+
+```
+Admin creates article (Chinese)
+  → content stored in article.content
+  → contentLocalized['zh'] saved with full HTML (including video tags)
+
+AI Translation triggered
+  → blog-ai.processor.ts extracts source text from contentLocalized['zh']
+  → Translates via AI
+  → Saves translated HTML to contentLocalized['en']
+    ⚠️ renderMarkdown() strips video tags → video content lost
+    ✅ Fixed: video tags now preserved and appended after translation
+
+Frontend requests /api/articles/:slug?lang=en
+  → FrontendBlogService.getLocalizedString('content', 'en')
+    ✅ Fixed: merges video tags from contentLocalized['zh'] into translated content
+  → Returns HTML with translated text + original video tags
+```
+
+### 5.3 Bug: Video Tags Lost in Translation
+
+**Root cause:** [`blog-ai.processor.ts`](apps/api/src/blog/processors/blog-ai.processor.ts:847) called `renderMarkdown(contentTranslated)` which stripped `<video>` and `<figure>` tags.
+
+**Fix 1 (Runtime):** [`frontend-blog.service.ts`](apps/api/src/blog/frontend/frontend-blog.service.ts:418) `getLocalizedString()` now extracts video tags from `contentLocalized['zh']` and prepends them to translated content when the target locale has no video tags.
+
+**Fix 2 (Preventive):** [`blog-ai.processor.ts`](apps/api/src/blog/processors/blog-ai.processor.ts:847) now extracts video tags from original HTML before translation and appends them to the translated HTML.
+
+**Video tag extraction regex:**
+```typescript
+/<figure[^>]*>[\s\S]*?<video[\s\S]*?<\/video>[\s\S]*?<\/figure>|<video[\s\S]*?<\/video>/gi
+```
+
+### 5.4 Bug: Modal Update Not Triggering for Untranslated Articles
+
+**Root cause:** [`BlogArticleModal.tsx`](apps/admin-next/src/views/blog/BlogArticleModal.tsx) set empty strings `''` for untranslated locale keys. The Zod schema `localizedStringSchema.min(1)` rejected these empty strings, causing `zodValidation.parse()` to throw before the API call.
+
+**Fix:** Removed the loop that set `''` for untranslated locales. Changed content assignment to:
+```typescript
+if (content) {
+  contentLocalized[locale.code] = content;
+}
+```
+
+### 5.5 Bug: Title/Excerpt Empty in Modal for Untranslated Articles
+
+**Root cause:** When opening an untranslated article in the admin modal, `fetchAndInit` read `titleLocalized['en']` which was empty.
+
+**Fix:** Used `*LocalizedFull` fields (which include the original Chinese content as fallback) instead of the per-locale fields.
+
+---
+
+## 6. Admin Editor UX
+
+### 6.1 RichTextEditor Video Embedding
+
+**Files:**
+- [`ArticleForm.tsx`](apps/admin-next/src/views/blog/ArticleForm.tsx) — wraps RichTextEditor with form integration
+- [`BlogArticleModal.tsx`](apps/admin-next/src/views/blog/BlogArticleModal.tsx) — modal with localized form fields
+
+**Video insertion flow:**
+1. User clicks video button in Quill toolbar
+2. Upload dialog opens, file selected
+3. Upload sent to `POST /admin/upload/image` (with `articleId` if editing)
+4. Server returns `{ url: hlsOrMp4Url, key: r2Key }`
+5. Quill `Html5VideoBlot` inserts `<video>` tag with `src={url}`
+6. If `articleId` was provided, backend enqueues `transcode-video` job
+
+### 6.2 RichTextEditor Content Fix (Race Condition)
+
+**Problem:** Three conflicting mechanisms caused content flickering/replacement:
+1. `value` prop from parent updates content
+2. `dangerouslyPasteHTML()` in `useEffect` overwrites editor content
+3. User edits trigger `onChange` which updates parent state
+
+**Fix:**
+- Eliminated redundant `dangerouslyPasteHTML` by using `value` prop exclusively
+- Guarded `watch` subscription in `ArticleForm` during form reset
+- Added defensive content overwrite guard in `BlogArticleModal`
+
+### 6.3 Upload Progress Indicator
+
+**Files:**
+- [`http.ts`](apps/admin-next/src/api/http.ts) — `upload()` supports `onProgress` callback via XMLHttpRequest
+- [`index.ts`](apps/admin-next/src/api/index.ts) — `uploadMedia()` passes progress callback through
+- [`BlogArticleModal.tsx`](apps/admin-next/src/views/blog/BlogArticleModal.tsx) — shows progress bar during upload
+
+---
+
+## 7. HLS Video Playback
+
+### 7.1 HlsVideoPlayer Component
+
+**File:** [`HlsVideoPlayer.tsx`](apps/frontend-blog/src/components/blog/HlsVideoPlayer.tsx)
+
+**Key features:**
+- Uses `hls.js` for HLS playback in browsers that don't natively support HLS
+- Falls back to native `<video>` for Safari (native HLS support)
+- Poster image shown before playback starts
+- Play overlay button (clickable, not `pointer-events-none`)
+- Error state with retry message
+- Loading state with spinner
+- `autoPlay` + `muted` support for muted autoplay
+
+### 7.2 Poster Image Fix
+
+**Problem:** `ArticleCard` and `HeroSection` used the `coverImage` URL (a video URL) as the `<video>` poster attribute, which the browser cannot display.
+
+**Fix:** Use `meta.video.poster` (JPEG thumbnail generated during transcoding) as the poster, falling back to `coverImage` only if it's an actual image.
+
+**Files:**
+- [`ArticleCard.tsx`](apps/frontend-blog/src/components/blog/ArticleCard.tsx) — uses `meta?.video?.poster`
+- [`HeroSection.tsx`](apps/frontend-blog/src/components/blog/HeroSection.tsx) — uses `meta?.video?.poster`, checks `isVideoUrl()` for fallback
+- [`frontend-blog.ts`](apps/frontend-blog/src/lib/types/frontend-blog.ts) — added `poster?: string` to video type
+
+### 7.3 Cache & Black Box Fix
+
+**Issues addressed:**
+1. **ISR cache too long:** Article detail page had `revalidate = 3600` (1hr) — reduced to `60` (match homepage)
+2. **React Query staleTime too long:** 1hr → 5min
+3. **Poster used video URL:** Fixed to use `meta.video.poster`
+4. **Play button not clickable:** Removed `pointer-events-none`, added `onClick` handler that calls `video.play()`
+5. **No muted autoplay attempt:** Added `autoPlay={true} muted={true}` on article detail page
+
+---
+
+## 8. Featured Articles & 404 Error Fix
+
+### 8.1 Featured Article System
+
+- `article.featured` boolean field toggles featured status
+- `article.meta.featuredOrder` controls display order in HeroSection
+- `GET /v1/frontend/blog/featured` endpoint returns featured articles
+- HeroSection displays featured articles as main + side cards
+
+### 8.2 4040 Error Root Cause
+
+**Problem:** Featured articles navigated to 4040 error page when clicked from HeroSection.
+
+**Root cause:** `HeroSection` used `Link` from `next/link` instead of `@/navigation` (next-intl). The `next/link` Link does NOT auto-prepend the locale prefix (`/articles/...` vs `/en/articles/...`), while `@/navigation` Link does.
+
+**Fix:** Changed `import Link from 'next/link'` to `import { Link } from '@/navigation'` in [`HeroSection.tsx`](apps/frontend-blog/src/components/blog/HeroSection.tsx).
+
+---
+
+## 9. Rich Text Editor Known Issues
+
+See [`docs/blog/development/RICH_TEXT_EDITOR_KNOWN_ISSUES.md`](docs/blog/development/RICH_TEXT_EDITOR_KNOWN_ISSUES.md) for full list.
+
+Key resolved issues:
+- Video tag insertion via `Html5VideoBlot`
+- Content race condition between `value` prop and `dangerouslyPasteHTML`
+- DOMPurify SSR incompatibility (resolved via `next/dynamic`)
+
+---
+
+## 10. Data Flow Diagrams
+
+### 10.1 Video Upload & Transcoding
+
+```mermaid
+flowchart TD
+    A[User uploads video in editor] --> B[UploadController.uploadMedia]
+    B --> C{Has articleId?}
+    C -->|Yes| D[Enqueue transcode-video job]
+    C -->|No - create page| E[Save to R2, return key]
+    E --> F[Article created]
+    F --> G[Trigger transcode via API]
+    G --> H[Enqueue transcode-video job]
+    D --> I[MediaProcessor.handleTranscodeVideo]
+    H --> I
+    I --> J[ffprobe: detect source dimensions]
+    J --> K[Compute aspect-ratio-preserving qualities]
+    K --> L[ffmpeg: transcode each quality]
+    L --> M[Generate master.m3u8]
+    M --> N[Extract poster thumbnail]
+    N --> O[Upload HLS + poster to R2]
+    O --> P[Update article.meta.video]
+```
+
+### 10.2 Content Localization with Video Preservation
+
+```mermaid
+flowchart TD
+    A[Admin creates article in Chinese] --> B[Save to contentLocalized.zh]
+    B --> C[AI Translation triggered]
+    C --> D[Extract text from sourceLang]
+    D --> E[Translate via AI]
+    E --> F[Extract video tags from original HTML]
+    F --> G[RenderMarkdown translated text]
+    G --> H[Append video tags to translated HTML]
+    H --> I[Save to contentLocalized.en]
+    
+    J[Frontend requests ?lang=en] --> K[getLocalizedString content en]
+    K --> L{contentLocalized.en exists?}
+    L -->|Yes| M{Has video tags?}
+    M -->|No| N[Extract video tags from contentLocalized.zh]
+    N --> O[Prepend video tags to translated content]
+    M -->|Yes| P[Return as-is]
+    O --> Q[Return merged content with videos]
+    P --> Q
+```
+
+---
+
+## 11. Complete Bug Fixes & Issues Log
+
+| # | Issue | Root Cause | Fix | Status |
+|---|-------|-----------|-----|--------|
+| 1 | Video HLS transcoding deformed | Hardcoded 16:9 resolutions in ffmpeg scale filter | Dynamic aspect-ratio-preserving computation | ✅ |
+| 2 | Create page video not transcoded | No articleId at upload time | Track video keys, trigger after creation | ✅ |
+| 3 | Video tags lost in translation | renderMarkdown strips HTML tags | Preserve video tags in processor + query-time merge | ✅ |
+| 4 | Modal Update not working | Empty strings for untranslated locales fail Zod validation | Remove empty string assignment, guard content | ✅ |
+| 5 | Title/excerpt empty for untranslated | Reading per-locale field directly | Use *LocalizedFull with fallback | ✅ |
+| 6 | RichTextEditor content race condition | value prop + dangerouslyPasteHTML + useEffect conflict | Eliminate redundant pasteHTML, guard form reset | ✅ |
+| 7 | DOMPurify SSR crash | Turbopack pre-resolves dynamic import | next/dynamic with ssr:false | ✅ |
+| 8 | Featured article 404 error | HeroSection uses next/link without locale prefix | Switch to @/navigation Link | ✅ |
+| 9 | Video poster black/blank | Video URL used as poster attribute | Use meta.video.poster with image fallback | ✅ |
+| 10 | HLS black box - play not working | pointer-events-none on overlay, no play handler | Clickable overlay calls video.play() | ✅ |
+| 11 | HLS black box - stale cache | 1hr ISR + 1hr React Query cache | Reduced to 60s / 5min | ✅ |
+| 12 | Card click navigates instead of playing video | Entire card wrapped in Link | Split link: media standalone, text navigates | ✅ |
+| 13 | Media pipeline dead code | articleId never passed to upload | Added articleId to UploadFolderDto + chain | ✅ |
+| 14 | Variants uploaded to wrong bucket | uploadToPublicBucket not used | Created uploadToPublicBucket method | ✅ |
+| 15 | No-image article crashes | undefined src passed to next/image | Optional src + gradient placeholder | ✅ |
+| 16 | Large files cause OOM | No size limits | Added multi-layer file size protection | ✅ |
+| 17 | Circular dependency Upload↔MediaProcessor | Module cross-import | Extracted queue name constant | ✅ |
+| 18 | Docker react-blurhash install hang | Native addon not compatible | Inline Canvas-based BlurHash | ✅ |
+| 19 | React 18→19 upgrade breakage | Missing direct deps | Added lucide-react, framer-motion | ✅ |
+| 20 | placehold.co not in next/image config | Missing remotePatterns | Added to next.config.ts | ✅ |
+
+---
+
+## 12. Files Architecture
+
+### 12.1 Backend (api)
+
+```
+apps/api/src/
+├── blog/
+│   ├── blog.controller.ts          — Admin blog endpoints
+│   ├── blog.module.ts              — Blog module + BullMQ queue registration
+│   ├── blog.service.ts             — Blog CRUD + backfill + trigger transcode
+│   ├── dto/
+│   │   ├── create-article.dto.ts   — DTO with featured + meta fields
+│   │   ├── backfill-videos.dto.ts  — Backfill limit DTO
+│   │   └── trigger-video-transcode.dto.ts — Trigger DTO
+│   ├── frontend/
+│   │   ├── frontend-blog.controller.ts — Public blog endpoints
+│   │   └── frontend-blog.service.ts    — Public queries + getLocalizedString
+│   └── processors/
+│       └── blog-ai.processor.ts    — AI translation with video preservation
+│
+├── common/
+│   ├── media/
+│   │   ├── media-processor.module.ts    — Module registration
+│   │   ├── media-processor.service.ts   — Sharp + ffmpeg logic
+│   │   ├── media-processor.constants.ts — Queue name constant
+│   │   ├── media.processor.ts           — BullMQ WorkerHost
+│   │   └── media.service.ts            — Media query service
+│   ├── upload/
+│   │   ├── upload.controller.ts    — File upload with size limits + articleId
+│   │   ├── upload.service.ts       — R2 upload + enqueue processing
+│   │   └── dto/upload-folder.dto.ts — ArticleId field
+│   └── services/
+│       ├── language.service.ts     — Locale resolution
+│       └── language-detection.service.ts — Language detection
+```
+
+### 12.2 Frontend (frontend-blog)
+
+```
+apps/frontend-blog/src/
+├── app/[locale]/
+│   ├── page.tsx                    — SSR: fetch articles + featured
+│   ├── page.client.tsx             — Homepage composition
+│   └── articles/[slug]/
+│       ├── page.tsx                — SSR: fetch article by slug
+│       └── page.client.tsx         — Article detail + DOMPurify
+│
+├── components/
+│   ├── blog/
+│   │   ├── HeroSection.tsx         — Featured article carousel
+│   │   ├── HlsVideoPlayer.tsx      — HLS playback with hls.js
+│   │   ├── BlurhashImage.tsx       — Canvas BlurHash rendering
+│   │   ├── ArticleCard.tsx         — Article card with split link
+│   │   ├── CategoryFilter.tsx      — Category tabs
+│   │   ├── PopularArticles.tsx     — Top-5 sidebar
+│   │   └── LoadMore.tsx            — Pagination
+│   └── SanitizedContent.tsx        — DOMPurify via next/dynamic
+│
+├── lib/
+│   ├── api/frontendBlogApi.ts      — API client
+│   ├── hooks/useFrontendArticles.ts — React Query hooks
+│   ├── types/frontend-blog.ts      — Types with meta.video
+│   └── utils/media.ts              — isVideoUrl etc.
+│
+├── middleware.ts                   — Locale redirect + detection
+└── i18n.config.ts                  — next-intl config
+```
+
+### 12.3 Admin Panel (admin-next)
+
+```
+apps/admin-next/src/
+├── views/blog/
+│   ├── BlogArticleModal.tsx        — Article create/edit modal
+│   ├── BlogCategoryModal.tsx       — Category management
+│   ├── BlogTagModal.tsx            — Tag management
+│   ├── BlogCommentModal.tsx        — Comment management
+│   ├── BlogTranslationProgress.tsx — Translation progress
+│   ├── ArticleForm.tsx             — RichTextEditor form wrapper
+│   └── components/
+│       └── TranslationProgressCard.tsx
+│
+├── api/
+│   ├── http.ts                     — HTTP client with upload + progress
+│   └── index.ts                    — API methods
+│
+└── i18n/                           — Locale files (en, zh, ja, ko, etc.)
+```
+
+---
+
+## 13. Key Technical Decisions
+
+### Why HLS instead of MP4 streaming?
+- Adaptive bitrate switching based on network conditions
+- Instant start (first 2-4 second segment loads fast)
+- Industry standard (YouTube, Netflix)
+- hls.js enables cross-browser support
+
+### Why BullMQ instead of immediate processing?
+- Non-blocking upload — user gets instant response
+- Queue backpressure — prevents server overload
+- Retry logic — failed jobs retry up to 3 times
+- Concurrency control — max 2 simultaneous transcode jobs
+
+### Why Canvas-based BlurHash instead of react-blurhash?
+- Docker build compatibility (no native addon compilation)
+- Zero external dependencies
+- Full control over rendering
+- Smaller bundle size
+
+### Why next/dynamic for DOMPurify?
+- Turbopack static analysis breaks on `import('dompurify')` even in useEffect
+- `ssr: false` creates separate client-only chunk
+- Avoids server-side reference to browser-only APIs (window, document)
+
+### Why `@/navigation` Link instead of `next/link`?
+- Auto-prepends locale prefix from route params
+- Prevents 404 errors from locale-missing URLs
+- Consistent with next-intl i18n architecture
+- No need for manual locale extraction in every component
+
+---
+
+## 14. Verification Checklist
+
+Before each deployment:
+- [ ] TypeScript check: `yarn workspace @lucky/api check-types`
+- [ ] TypeScript check: `yarn workspace @lucky/frontend-blog check-types`
+- [ ] Lint: `yarn workspace @lucky/api lint`
+- [ ] Lint: `yarn workspace @lucky/frontend-blog lint`
+- [ ] Verify HLS video plays across aspect ratios (16:9, 9:16, 1:1, 21:9)
+- [ ] Verify translated articles display inline videos
+- [ ] Verify article detail page loads with correct locale
+- [ ] Verify featured articles navigate without 404
+- [ ] Verify image BlurHash renders on article cards
+- [ ] Verify upload progress bar shows during file upload
