@@ -127,6 +127,9 @@ const baseConfig: NextConfig = {
     ],
     // App模式下禁用图片优化
     unoptimized: isAppMode,
+    // 现代图片格式自动转换
+    formats: ['image/avif', 'image/webp'],
+    minimumCacheTTL: 86400,
   },
 
   // 基础重定向配置
