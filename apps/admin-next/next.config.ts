@@ -94,7 +94,6 @@ const nextConfig: NextConfig = {
       '@radix-ui/react-tabs',
       '@radix-ui/react-popover',
       '@radix-ui/react-tooltip',
-      '@tanstack/react-table',
       'date-fns',
       'framer-motion',
     ],

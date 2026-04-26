@@ -5,6 +5,7 @@
     "categories": "Categories",
     "tags": "Tags",
     "search": "Search",
+    "all": "All",
     "loadMore": "Load more",
     "noResults": "No results found",
     "back": "Back",
@@ -45,7 +46,11 @@
   "home": {
     "title": "Latest Articles",
     "subtitle": "Explore our latest published content",
-    "empty": "No articles yet"
+    "empty": "No articles yet",
+    "featured": "Featured",
+    "featuredArticles": "Featured Articles",
+    "viewAll": "View All",
+    "heroSubtitle": "Discover our handpicked featured content"
   },
   "article": {
     "readTime": "Read time",
@@ -53,6 +58,7 @@
     "comments": "Comments",
     "share": "Share",
     "relatedArticles": "Related Articles",
+    "popularArticles": "Popular Articles",
     "anonymous": "Anonymous author",
     "notFound": "Article not found",
     "notFoundDescription": "The article you are looking for does not exist or has been removed.",

@@ -3,6 +3,15 @@ import { useDropzone, type Accept } from "react-dropzone";
 import { MediaUploaderContext } from "./context";
 import type { MediaUploaderProps, PreviewFile } from "./types";
 
+/** Infer MIME type from URL extension for server-returned URLs */
+function getUrlMimeType(url: string): string {
+  const clean = url.split("?")[0].split("#")[0]; // strip query/hash
+  const ext = clean.split(".").pop()?.toLowerCase() || "";
+  const videoExts = ["mp4", "webm", "mov", "avi", "mkv", "ogv", "m4v"];
+  if (videoExts.includes(ext)) return "video/mp4";
+  return "image/*";
+}
+
 export const MediaUploaderRoot: React.FC<MediaUploaderProps> = ({
   value,
   onUpload,
@@ -43,7 +52,7 @@ export const MediaUploaderRoot: React.FC<MediaUploaderProps> = ({
       id: `url-${idx}`,
       name: u.split("/").pop() || `image-${idx + 1}`,
       size: 0,
-      type: "image/*",
+      type: getUrlMimeType(u),
       preview: u,
       fromServer: true,
     }));

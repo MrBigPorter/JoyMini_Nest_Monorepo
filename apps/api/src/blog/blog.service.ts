@@ -16,6 +16,7 @@ import {
 } from './dto/comment-response.dto';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
+import { MEDIA_PROCESSOR_QUEUE } from '@api/common/media/media-processor.constants';
 import { Marked } from 'marked';
 import type { LocalizedString } from '@lucky/shared';
 import { getLocalizedValue, DEFAULT_LOCALE } from '@lucky/shared';
@@ -30,6 +31,7 @@ export class BlogService {
   constructor(
     private prisma: PrismaService,
     @InjectQueue('blog-ai') private blogAiQueue: Queue,
+    @InjectQueue(MEDIA_PROCESSOR_QUEUE) private mediaProcessorQueue: Queue,
     private systemConfigService: SystemConfigService,
     private languageService: LanguageService,
   ) {
@@ -157,6 +159,8 @@ export class BlogService {
         slug,
         coverImage: dto.featuredImage,
         status: dto.status || ArticleStatus.DRAFT,
+        featured: dto.featured ?? false,
+        meta: dto.meta ?? undefined,
         authorId,
         categoryId:
           dto.categoryId && dto.categoryId.trim() !== ''
@@ -246,6 +250,8 @@ export class BlogService {
       data: {
         slug,
         status: dto.status,
+        ...(dto.featured !== undefined ? { featured: dto.featured } : {}),
+        ...(dto.meta !== undefined ? { meta: dto.meta } : {}),
         ...titleData,
         ...contentData,
         ...excerptData,
@@ -423,8 +429,10 @@ export class BlogService {
           contentLocalized: true,
           contentMdLocalized: true,
           coverImageLocalized: true,
+          featured: true,
           translationStatus: true,
           translatedAt: true,
+          meta: true,
         },
       }),
       this.prisma.blogArticle.count({ where }),
@@ -2160,5 +2168,41 @@ export class BlogService {
         defaultSourceLang: 'zh',
       };
     }
+  }
+
+  /**
+   * Trigger video transcoding for an article by video key
+   */
+  async triggerVideoTranscode(articleId: string, videoKey: string) {
+    // Set video status to 'pending'
+    const article = await this.prisma.blogArticle.findUnique({
+      where: { id: articleId },
+      select: { meta: true },
+    });
+    if (!article) {
+      throw new NotFoundException(`Article ${articleId} not found`);
+    }
+
+    const existingMeta = (article?.meta as Record<string, any>) || {};
+    await this.prisma.blogArticle.update({
+      where: { id: articleId },
+      data: {
+        meta: {
+          ...existingMeta,
+          video: { status: 'pending' },
+        } as any,
+      },
+    });
+
+    // Enqueue transcoding job — the processor will download from R2
+    await this.mediaProcessorQueue.add('transcode-video', {
+      articleId,
+      videoKey,
+      mimeType: 'video/mp4',
+    });
+
+    this.logger.log(
+      `Video transcoding triggered for article ${articleId}: ${videoKey}`,
+    );
   }
 }

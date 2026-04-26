@@ -1,12 +1,19 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { BullModule } from '@nestjs/bullmq';
 import { UploadController } from '@api/common/upload/upload.controller';
 import { UploadService } from '@api/common/upload/upload.service';
+import { MEDIA_PROCESSOR_QUEUE } from '@api/common/media/media-processor.constants';
 
 @Module({
-  imports: [ConfigModule], //依赖 ConfigModule 读取 .env
+  imports: [
+    ConfigModule,
+    BullModule.registerQueue({
+      name: MEDIA_PROCESSOR_QUEUE,
+    }),
+  ],
   controllers: [UploadController],
   providers: [UploadService],
-  exports: [UploadService], // 导出 Service，以后 User 模块如果要上传头像也能复用
+  exports: [UploadService],
 })
 export class UploadModule {}

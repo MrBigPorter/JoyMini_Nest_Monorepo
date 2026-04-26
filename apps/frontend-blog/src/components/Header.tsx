@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import Headroom from 'react-headroom';
 import { useLocale, useTranslations } from 'next-intl';
 import { Link, useRouter, usePathname } from '@/navigation';
 import { useTheme } from './ThemeProvider';
@@ -148,65 +149,116 @@ export default function Header() {
     return flags[code] || '🌐';
   };
 
+  const [isDesktop, setIsDesktop] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)');
+    setIsDesktop(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
   return (
     <>
-      <header
-        className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border"
-        style={{ height: 'var(--header-height)' }}
-      >
-        {/* 安全区域占位 */}
-        <div style={{ height: 'var(--safe-area-top)' }} />
+      {/* Mobile header with Headroom (hide on scroll down) */}
+      {!isDesktop && (
+        <Headroom
+          style={{ zIndex: 50 }}
+          pinStart={0}
+          upTolerance={10}
+          downTolerance={10}
+        >
+          <header
+            className="bg-background/80 backdrop-blur-md border-b border-border"
+            style={{ height: 'var(--header-height)' }}
+          >
+            {/* 安全区域占位 */}
+            <div style={{ height: 'var(--safe-area-top)' }} />
 
-        {/* 实际导航栏内容 */}
-        <div className="h-14 px-4 md:px-6 max-w-7xl mx-auto flex items-center justify-between w-full">
-          {/* Logo */}
-          <Link href="/" className="font-bold text-lg flex items-center gap-2">
-            <img
-              src="/logo.png"
-              alt="Tarsier Labs"
-              className="w-8 h-8 object-contain"
-              width={32}
-              height={32}
-            />
-            Tarsier Labs
-          </Link>
+            {/* 实际导航栏内容 */}
+            <div className="h-14 px-4 max-w-7xl mx-auto flex items-center justify-between w-full">
+              {/* Logo */}
+              <Link href="/" className="font-bold text-lg flex items-center gap-2">
+                <img
+                  src="/logo.png"
+                  alt="Tarsier Labs"
+                  className="w-8 h-8 object-contain"
+                  width={32}
+                  height={32}
+                />
+                Tarsier Labs
+              </Link>
 
-          {/* 右侧操作区 */}
-          <div className="flex items-center gap-2">
-            {/* 搜索框 (Desktop) */}
-            <div className="hidden md:flex relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onFocus={() => {
-                  setSearchFocused(true);
-                  setSearchModalOpen(true);
-                }}
-                onBlur={() => setSearchFocused(false)}
-                onClick={handleSearchInputClick}
-                placeholder={t('search.placeholder')}
-                className={`pl-10 pr-4 py-2 rounded-full border border-border bg-card text-sm w-48 transition-all ${
-                  searchFocused
-                    ? 'w-64 border-primary/50 ring-2 ring-primary/20'
-                    : 'hover:border-border/80'
-                }`}
-                readOnly
-              />
+              {/* 右侧操作区 */}
+              <div className="flex items-center gap-2">
+                {/* 移动端设置按钮 */}
+                <button
+                  onClick={() => setMobileSettingsOpen(true)}
+                  className="p-2 rounded-full hover:bg-accent transition-all active:scale-95"
+                  title={t('settings.title')}
+                >
+                  <Settings className="w-5 h-5" />
+                </button>
+
+                {/* 移动端搜索按钮 */}
+                <button
+                  onClick={() => setSearchModalOpen(true)}
+                  className="p-2 rounded-full hover:bg-accent transition-all"
+                  aria-label={t('search.title')}
+                >
+                  <Search className="w-5 h-5" />
+                </button>
+              </div>
             </div>
+          </header>
+        </Headroom>
+      )}
 
-            {/* 移动端设置按钮 */}
-            <button
-              onClick={() => setMobileSettingsOpen(true)}
-              className="md:hidden p-2 rounded-full hover:bg-accent transition-all active:scale-95"
-              title={t('settings.title')}
-            >
-              <Settings className="w-5 h-5" />
-            </button>
+      {/* Desktop header - always visible, sticky at top */}
+      {isDesktop && (
+        <header
+          className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b border-border"
+          style={{ height: 'var(--header-height)' }}
+        >
+          <div className="h-14 px-6 max-w-7xl mx-auto flex items-center justify-between w-full">
+            {/* Logo */}
+            <Link href="/" className="font-bold text-lg flex items-center gap-2">
+              <img
+                src="/logo.png"
+                alt="Tarsier Labs"
+                className="w-8 h-8 object-contain"
+                width={32}
+                height={32}
+              />
+              Tarsier Labs
+            </Link>
 
-            {/* PC端功能按钮 */}
-            <div className="hidden md:flex items-center gap-2">
+            {/* 右侧操作区 */}
+            <div className="flex items-center gap-2">
+              {/* 搜索框 */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onFocus={() => {
+                    setSearchFocused(true);
+                    setSearchModalOpen(true);
+                  }}
+                  onBlur={() => setSearchFocused(false)}
+                  onClick={handleSearchInputClick}
+                  placeholder={t('search.placeholder')}
+                  className={`pl-10 pr-4 py-2 rounded-full border border-border bg-card text-sm w-48 transition-all ${
+                    searchFocused
+                      ? 'w-64 border-primary/50 ring-2 ring-primary/20'
+                      : 'hover:border-border/80'
+                  }`}
+                  readOnly
+                />
+              </div>
+
               {/* 主题切换 */}
               <button
                 onClick={toggleTheme}
@@ -269,7 +321,6 @@ export default function Header() {
 
               {/* 登录/用户按钮 */}
               {showAuthLoading ? (
-                // 水合完成前显示加载状态
                 <div className="w-20 h-8 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse" />
               ) : isAuthenticated ? (
                 <div
@@ -317,7 +368,6 @@ export default function Header() {
                         </div>
                       </div>
 
-                      {/* 收藏入口 - 使用ProtectedLink */}
                       <ProtectedLink
                         href="/bookmarks"
                         onClick={() => setUserMenuOpen(false)}
@@ -353,18 +403,9 @@ export default function Header() {
                 </Link>
               )}
             </div>
-
-            {/* 移动端搜索按钮 */}
-            <button
-              onClick={() => setSearchModalOpen(true)}
-              className="md:hidden p-2 rounded-full hover:bg-accent transition-all"
-              aria-label={t('search.title')}
-            >
-              <Search className="w-5 h-5" />
-            </button>
           </div>
-        </div>
-      </header>
+        </header>
+      )}
 
       {/* 移动端设置抽屉 */}
       <MobileSettingsDrawer

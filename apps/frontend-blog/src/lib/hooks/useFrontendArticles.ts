@@ -29,6 +29,21 @@ export function useFrontendArticles(params?: {
 }
 
 /**
+ * 获取精选文章列表 Hook（用于首页 Hero 区域）
+ */
+export function useFrontendFeaturedArticles() {
+  const locale = useCurrentLocale();
+
+  return useQuery({
+    queryKey: ['frontendFeaturedArticles', locale],
+    queryFn: () => frontendBlogApi.getFeaturedArticles(locale),
+    staleTime: 5 * 60 * 1000, // 5分钟缓存
+    retry: 2,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+  });
+}
+
+/**
  * 根据 Slug 获取前端博客文章详情 Hook（简化版）
  */
 export function useFrontendArticleBySlug(slug: string, initialData?: any) {

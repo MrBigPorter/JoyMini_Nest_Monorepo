@@ -534,6 +534,7 @@
     "blog_translation_progressWithPercent": "進捗: {progress}%",
     "blog_translation_waiting": "待機中...",
     "blog_translation_unknownError": "不明なエラー",
+    "blog_translation_actions": "操作",
     "blog_article_translationRequestSent": "翻訳リクエストが送信されました。自動的に更新されます",
     "blog_article_translationFailed": "翻訳に失敗しました。後でもう一度お試しください",
     "blog_article_retranslate": "再翻訳",

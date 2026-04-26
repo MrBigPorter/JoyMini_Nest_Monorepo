@@ -1,4 +1,4 @@
-import { IsEnum, IsOptional } from 'class-validator';
+import { IsEnum, IsOptional, IsString } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UploadFolderDto {
@@ -26,4 +26,11 @@ export class UploadFolderDto {
     | 'document'
     | 'other'
     | 'treasure';
+
+  @ApiPropertyOptional({
+    description: 'Article ID for media processing (optional, blog only)',
+  })
+  @IsOptional()
+  @IsString()
+  articleId?: string;
 }

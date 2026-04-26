@@ -2,12 +2,24 @@
 
 import { useMemo, useRef, useCallback, useState, useEffect } from 'react';
 import type ReactQuillType from 'react-quill-new';
+import ReactQuill from 'react-quill-new';
 import { Marked } from 'marked';
 import { MarkdownImportModal } from './MarkdownImportModal';
+import { registerHtml5VideoBlot } from './Html5VideoBlot';
 import './RichTextEditor.css';
 // Import Quill snow theme CSS only in this component — not in root layout,
 // so non-blog pages don't compile the Quill CSS dependency tree.
 import 'react-quill-new/dist/quill.snow.css';
+
+// ── Register Html5VideoBlot at module level ──
+// This MUST happen before ReactQuill mounts, otherwise Quill's HTML parser
+// will silently drop <video> tags when loading existing content (e.g. on
+// re-opening an article for editing).
+const Quill = (ReactQuill as any).Quill;
+if (Quill && !Quill.imports?.['formats/html5-video']) {
+  registerHtml5VideoBlot(Quill);
+}
+
 
 const marked = new Marked({
   gfm: true,
@@ -23,7 +35,7 @@ interface RichTextEditorProps {
   required?: boolean;
   error?: string;
   className?: string;
-  onUpload?: (file: File) => Promise<string>;
+  onUpload?: (file: File, onProgress?: (pct: number) => void) => Promise<string>;
 }
 
 export const RichTextEditor = ({
@@ -41,16 +53,68 @@ export const RichTextEditor = ({
     null,
   );
   const quillRef = useRef<ReactQuillType>(null);
+  // Ensure we only perform initial content sync once after editor mounts
+  const hasInitialized = useRef(false);
 
   useEffect(() => {
-    import('react-quill-new').then((mod) => setReactQuill(() => mod.default));
+    import('react-quill-new').then((mod) => {
+      const ReactQuillModule = mod.default;
+      // Dynamic import creates a new Quill instance in Next.js chunk isolation.
+      // We must register the blot on THIS instance too, otherwise <video> tags
+      // will be silently dropped when parsing existing content.
+      const DynamicQuill = (ReactQuillModule as any).Quill;
+      if (DynamicQuill && !DynamicQuill.imports?.['formats/html5-video']) {
+        registerHtml5VideoBlot(DynamicQuill);
+      }
+      setReactQuill(() => ReactQuillModule);
+    });
   }, []);
+
+  // When the ReactQuill module is ready, initialize editor content once to avoid
+  // the initial onChange from the editor overwriting the incoming `value` prop.
+  // Use a deferred attempt because ReactQuill's internal editor may not be
+  // fully instantiated immediately at render time (calling getEditor too early
+  // can throw). We only perform this once.
+  useEffect(() => {
+    if (!ReactQuill) return;
+    if (hasInitialized.current) return;
+
+    const attempt = () => {
+      try {
+        const quill = quillRef.current && (quillRef.current as any).getEditor && (quillRef.current as any).getEditor();
+        if (!quill) {
+          // Not ready yet — try again soon
+          requestAnimationFrame(attempt);
+          return;
+        }
+
+        // Only paste if value exists, otherwise ensure editor is empty
+        try {
+          if (value) {
+            quill.clipboard.dangerouslyPasteHTML(value);
+          } else {
+            quill.setText('');
+          }
+        } catch (e) {
+          console.warn('[RichTextEditor] initial paste failed', e);
+        }
+        hasInitialized.current = true;
+      } catch (err) {
+        // getEditor may throw if editor not instantiated; retry on next frame
+        requestAnimationFrame(attempt);
+      }
+    };
+
+    attempt();
+  }, [ReactQuill]);
 
   //  不要自动监听 Quill 事件，因为会触发无限循环
   // ❌ 所有通过代码修改内容的地方我都会手动调用 onChange
   // 这是目前唯一不会死循环的正确方案
 
   const [showImportModal, setShowImportModal] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   // Markdown 导入处理器
   const markdownImportHandler = useCallback(() => {
@@ -91,15 +155,13 @@ export const RichTextEditor = ({
       const file = input.files?.[0];
       if (!file) return;
 
-      // 简单的大小检查
-      if (file.size > 5 * 1024 * 1024) {
-        alert('Image too large (max 5MB)');
-        return;
-      }
-
       try {
-        // 2. 调用父组件传进来的方法
-        const url = await onUpload(file);
+        console.debug('[RichTextEditor] imageHandler: file selected', { name: file.name, size: file.size, type: file.type });
+        setIsUploading(true);
+
+        setUploadProgress(0);
+        const url = await onUpload(file, (pct) => setUploadProgress(pct));
+        console.debug('[RichTextEditor] imageHandler: upload finished, url=', url);
 
         const quill = quillRef.current?.getEditor();
         if (quill) {
@@ -108,18 +170,148 @@ export const RichTextEditor = ({
           if (!range) {
             range = { index: quill.getLength(), length: 0 };
           }
-          quill.insertEmbed(range.index, 'image', url);
-          quill.setSelection(range.index + 1, 0);
+
+          // Clamp the insert index to valid bounds (avoid out-of-range selection)
+          const insertIndex = Math.max(0, Math.min(range.index, quill.getLength()));
+          console.debug('[RichTextEditor] imageHandler: inserting image', { insertIndex, length: quill.getLength() });
+          quill.insertEmbed(insertIndex, 'image', url, 'user');
+
+          // After inserting, move caret to just after the embed but ensure index is valid
+          const newIndex = Math.max(0, Math.min(insertIndex + 1, quill.getLength()));
+          try {
+            quill.setSelection(newIndex, 0, 'user');
+          } catch (e) {
+            // setSelection may fail if DOM range is temporarily invalid — ignore safely
+            console.warn('[RichTextEditor] imageHandler: setSelection failed (ignored)', e);
+          }
 
           // 修复: 插入图片后手动触发 onChange 事件
           setTimeout(() => {
             const content = quill.root.innerHTML;
+            console.debug('[RichTextEditor] imageHandler: editor content after insert', { contentSnippet: content.slice(0, 200) });
             onChange(content);
           }, 0);
         }
+        setIsUploading(false);
       } catch (error) {
+        setIsUploading(false);
         console.error('Upload failed in component:', error);
         alert('Failed to upload image');
+      }
+    };
+  }, [onUpload]);
+
+  // 自定义视频上传处理逻辑
+  const videoHandler = useCallback(() => {
+    if (!onUpload) {
+      alert(
+        'Video upload configuration is missing! Please implement onUpload prop.',
+      );
+      return;
+    }
+
+    const input = document.createElement('input');
+    input.setAttribute('type', 'file');
+    input.setAttribute('accept', 'video/*');
+    input.click();
+
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+
+      try {
+        console.debug('[RichTextEditor] videoHandler: file selected', { name: file.name, size: file.size, type: file.type });
+        setIsUploading(true);
+
+        setUploadProgress(0);
+        const url = await onUpload(file, (pct) => setUploadProgress(pct));
+        console.debug('[RichTextEditor] videoHandler: upload finished, url=', url);
+
+        const quill = quillRef.current?.getEditor();
+        if (quill) {
+          let range = quill.getSelection();
+          if (!range) {
+            range = { index: quill.getLength(), length: 0 };
+          }
+
+          // Clamp insert index to valid bounds
+          const insertIndex = Math.max(0, Math.min(range.index, quill.getLength()));
+          console.debug('[RichTextEditor] videoHandler: inserting video', { insertIndex, length: quill.getLength() });
+
+          const beforeHtml = quill.root.innerHTML;
+
+          // 如果当前 Quill 实例上没有注册 blot，尝试在该实例上注册一次
+          try {
+            const QuillCtor = (quill.constructor as any);
+            const isRegistered = QuillCtor?.imports?.['formats/html5-video'];
+            console.debug('[RichTextEditor] videoHandler: blot registered on editor?', !!isRegistered);
+            if (!isRegistered) {
+              console.debug('[RichTextEditor] videoHandler: registering Html5VideoBlot on editor Quill ctor');
+              try {
+                registerHtml5VideoBlot(QuillCtor);
+              } catch (e) {
+                console.warn('[RichTextEditor] videoHandler: registerHtml5VideoBlot failed', e);
+              }
+            }
+          } catch (e) {
+            console.warn('[RichTextEditor] videoHandler: checking/registering blot failed', e);
+          }
+
+          // 使用自定义 Html5VideoBlot 插入 <video> 元素，确保编辑器内可见可播放
+          // Pass source 'user' to ensure Quill treats this as a user action
+          quill.insertEmbed(insertIndex, 'html5-video', url, 'user');
+
+          // Move caret to just after the embed; clamp to avoid "range isn't in document"
+          const newIndex = Math.max(0, Math.min(insertIndex + 1, quill.getLength()));
+          try {
+            quill.setSelection(newIndex, 0, 'user');
+          } catch (e) {
+            console.warn('[RichTextEditor] videoHandler: setSelection failed (ignored)', e);
+          }
+
+          // 如果 insertEmbed 似乎没有改变 DOM（某些情况下 Quill 会丢弃未知 embed），作为回退直接 paste HTML
+          setTimeout(() => {
+            const afterHtml = quill.root.innerHTML;
+            if (afterHtml === beforeHtml) {
+              console.warn('[RichTextEditor] videoHandler: insertEmbed did not change content, falling back to dangerouslyPasteHTML');
+              // 推断 mime
+              const extMatch = String(url).split('?')[0].match(/\.([a-zA-Z0-9]+)$/);
+              let mime = '';
+              if (extMatch) {
+                const ext = extMatch[1].toLowerCase();
+                if (ext === 'mp4') mime = 'video/mp4';
+                else if (ext === 'webm') mime = 'video/webm';
+                else if (ext === 'ogg' || ext === 'ogv') mime = 'video/ogg';
+              }
+
+              const videoHtml = mime
+                ? `<video controls class="w-full rounded-lg my-4"><source src="${url}" type="${mime}"></source></video>`
+                : `<video controls class="w-full rounded-lg my-4" src="${url}"></video>`;
+
+              try {
+                quill.clipboard.dangerouslyPasteHTML(insertIndex, videoHtml);
+              } catch (e) {
+                console.error('[RichTextEditor] videoHandler: dangerouslyPasteHTML failed', e);
+              }
+
+              // ensure onChange sees the new content
+              setTimeout(() => {
+                const content = quill.root.innerHTML;
+                console.debug('[RichTextEditor] videoHandler: editor content after fallback insert', { contentSnippet: content.slice(0, 200) });
+                onChange(content);
+              }, 0);
+            } else {
+              const content = afterHtml;
+              console.debug('[RichTextEditor] videoHandler: editor content after insert', { contentSnippet: content.slice(0, 200) });
+              onChange(content);
+            }
+          }, 0);
+        }
+        setIsUploading(false);
+      } catch (error) {
+        setIsUploading(false);
+        console.error('Video upload failed:', error);
+        alert('Failed to upload video');
       }
     };
   }, [onUpload]);
@@ -131,17 +323,18 @@ export const RichTextEditor = ({
           [{ header: [1, 2, false] }],
           ['bold', 'italic', 'underline', 'strike'],
           [{ list: 'ordered' }, { list: 'bullet' }],
-          ['link', 'image'],
+          ['link', 'image', 'video'],
           ['clean'],
           ['markdown'],
         ],
         handlers: {
           image: imageHandler,
+          video: videoHandler,
           markdown: markdownImportHandler,
         },
       },
     }),
-    [imageHandler, markdownImportHandler],
+    [imageHandler, videoHandler, markdownImportHandler],
   );
 
   return (
@@ -171,22 +364,51 @@ export const RichTextEditor = ({
           {!ReactQuill ? (
             <div className="h-[340px] bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900 animate-pulse rounded-lg" />
           ) : (
-            <ReactQuill
-              ref={quillRef}
-              theme="snow"
-              value={value || ''}
-              onChange={onChange}
-              placeholder={placeholder}
-              modules={modules}
-              style={{
-                height: '300px',
-                display: 'flex',
-                flexDirection: 'column',
-              }}
-              className="flex-1"
-            />
+        <ReactQuill
+          ref={quillRef}
+          theme="snow"
+          value={value || ''}
+          placeholder={placeholder}
+          modules={modules}
+          style={{
+            height: '300px',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+          className="flex-1"
+          onChange={(content, delta, source, editor) => {
+            // ✅ 只传播用户操作，忽略程序化设置
+            // value prop 变化导致的内容更新不应触发回调循环
+            if (source !== 'user') return;
+
+            // ✅ 最终正确方案：对比值，只有真实变更才回调
+            setTimeout(() => {
+              const realHtml = quillRef.current?.getEditor().root.innerHTML || '';
+              
+              // ✅ 只有当内容真的不同的时候才向上更新，这是唯一能彻底避免所有问题的方法
+              if (realHtml !== value) {
+                onChange(realHtml);
+              }
+            }, 0);
+          }}
+        />
           )}
         </div>
+
+        {/* Upload loading indicator */}
+        {isUploading && (
+          <div className="flex items-center gap-2 px-1">
+            <div className="flex-1 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-primary rounded-full transition-all duration-300 ease-out"
+                style={{ width: `${uploadProgress}%` }}
+              />
+            </div>
+            <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap min-w-[4rem] text-right">
+              {uploadProgress < 100 ? `${Math.round(uploadProgress)}%` : 'Processing...'}
+            </span>
+          </div>
+        )}
 
         {error && (
           <div className="flex items-center gap-1.5 text-xs text-red-600 dark:text-red-400">

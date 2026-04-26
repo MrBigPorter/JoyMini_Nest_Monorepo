@@ -5,10 +5,10 @@ import {
   ApiConsumes,
 } from '@nestjs/swagger';
 import {
+  BadRequestException,
   Body,
   Controller,
   FileTypeValidator,
-  MaxFileSizeValidator,
   ParseFilePipe,
   Post,
   UploadedFile,
@@ -20,6 +20,21 @@ import { UploadService } from '@api/common/upload/upload.service';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { UploadFolderDto } from '@api/common/upload/dto/upload-folder.dto';
 
+/**
+ * File size limits (in bytes) per target folder.
+ * Multer `limits.fileSize` in FileInterceptor sets the hard cap (200MB max).
+ * Module-specific validation in method body gives clear error messages.
+ */
+const FILE_SIZE_LIMITS: Record<string, number> = {
+  images: 20 * 1024 * 1024,       // 20MB for blog images
+  videos: 200 * 1024 * 1024,      // 200MB for blog videos
+  treasures: 5 * 1024 * 1024,     // 5MB default (existing behavior)
+  'chat/images': 10 * 1024 * 1024, // 10MB for chat images
+};
+
+// Hard cap for Multer (prevents Node heap exhaustion on very large files)
+const MULTER_MAX_FILE_SIZE = 200 * 1024 * 1024; // 200MB
+
 @ApiTags('Upload')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
@@ -30,12 +45,14 @@ export class UploadController {
   @Post('image')
   @ApiOperation({ summary: 'upload image/video (Cloudflare R2)' })
   @ApiConsumes('multipart/form-data')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(
+    FileInterceptor('file', { limits: { fileSize: MULTER_MAX_FILE_SIZE } }),
+  )
   async uploadMedia(
     @UploadedFile(
       new ParseFilePipe({
         validators: [
-          new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }),
+          // File type validation only; size is checked manually below
           new FileTypeValidator({
             fileType: /(jpg|jpeg|png|gif|webp|mp4|avi|mov|mkv|webm)$/i,
           }),
@@ -45,14 +62,18 @@ export class UploadController {
     file: Express.Multer.File,
     @Body() dto: UploadFolderDto,
   ) {
-    // 根据 mime 类型区分存储目录
+    // Determine target folder based on mime type
     const isVideo = file.mimetype.startsWith('video/');
+    const target = dto.folder ?? (isVideo ? 'videos' : 'images');
 
-    let target = dto.folder;
-    if (!dto.folder) {
-      target = isVideo ? 'videos' : 'images';
+    // Module-specific file size validation
+    const maxSize = FILE_SIZE_LIMITS[target] ?? FILE_SIZE_LIMITS.treasures;
+    if (file.size > maxSize) {
+      throw new BadRequestException(
+        `File too large. Max size for "${target}" is ${maxSize / 1024 / 1024}MB. Received ${(file.size / 1024 / 1024).toFixed(1)}MB.`,
+      );
     }
 
-    return this.uploadService.uploadFile(file, target);
+    return this.uploadService.uploadFile(file, target, dto.articleId);
   }
 }

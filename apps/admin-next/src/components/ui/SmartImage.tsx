@@ -85,6 +85,20 @@ export const SmartImageImpl: React.FC<SmartImageProps> = ({
   const renderImage = () => {
     if (!src) return null;
 
+    // ★ Local images (blob:/data:) — use native <img> since @unpic/react can't handle them
+    if (isLocalImage) {
+      return (
+        <img
+          ref={imgRef}
+          src={src}
+          alt={alt}
+          className={imageClassName}
+          onLoad={() => setStatus('loaded')}
+          onError={() => setStatus('error')}
+        />
+      );
+    }
+
     if (layout === 'fixed') {
       const fixedProps = mergeImageProps({ layout: 'fixed', alt });
       return <Image {...fixedProps} alt={alt} />;

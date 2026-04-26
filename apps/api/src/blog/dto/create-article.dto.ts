@@ -3,8 +3,8 @@ import {
   IsOptional,
   IsEnum,
   IsArray,
-  MaxLength,
   IsObject,
+  IsBoolean,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ArticleStatus } from '@prisma/client';
@@ -53,4 +53,32 @@ export class CreateArticleDto {
   @IsArray()
   @IsString({ each: true })
   tagIds?: string[];
+
+  @ApiPropertyOptional({
+    description: '是否精选文章（首页展示）',
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  featured?: boolean;
+
+  @ApiPropertyOptional({
+    description: '文章元数据（图片变体、视频信息等）',
+    example: {
+      images: {
+        blurhash: 'LKO2?U%2Tw=w]~RBVZR}[4@?ngkB',
+        original: 'https://cdn.example.com/uploads/article/xxx/original.jpg',
+        large: { webp: '...', jpg: '...' },
+        medium: { webp: '...', jpg: '...' },
+        thumbnail: { webp: '...', jpg: '...' },
+      },
+      video: {
+        playlist: 'https://cdn.example.com/uploads/article/xxx/playlist.m3u8',
+        segments: ['...'],
+      },
+    },
+  })
+  @IsOptional()
+  @IsObject()
+  meta?: Record<string, any>;
 }

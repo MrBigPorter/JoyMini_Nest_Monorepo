@@ -61,12 +61,15 @@
   "devDependencies": {
     "@tailwindcss/typography": "^0.5.19",
     "@types/jest": "^30.0.0",
+    "@types/react": "^19",
     "@typescript-eslint/eslint-plugin": "^8.57.2",
     "@typescript-eslint/parser": "^8.57.2",
+    "eslint": "^10.2.1",
     "husky": "^9.1.7",
     "jest": "^30.2.0",
     "lint-staged": "^15.5.2",
     "prettier": "^3.6.2",
+    "tailwindcss": "^4.2.4",
     "ts-jest": "^29.4.5",
     "turbo": "^2.5.8",
     "typescript": "5.5.4"
@@ -82,17 +85,20 @@
     "@hookform/resolvers": "^5.2.2",
     "@opentelemetry/instrumentation@npm:^0.212.0": "0.213.0",
     "import-in-the-middle": "3.0.0",
-    "next": "15.5.7",
-    "@next/swc-darwin-arm64": "15.5.7",
-    "@next/swc-darwin-x64": "15.5.7"
+    "next": "15.2.4",
+    "@next/swc-darwin-arm64": "15.2.4",
+    "@next/swc-darwin-x64": "15.2.4"
   },
-  "packageManager": "yarn@4.14.1",
+  "packageManager": "yarn@4.9.2",
   "workspaces": [
     "apps/*",
     "packages/*"
   ],
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
+    "blurhash": "^2.0.5",
+    "react": "^19.2.5",
+    "react-blurhash": "^0.3.0",
     "rimraf": "^6.0.1",
     "swr": "^2.4.1"
   }

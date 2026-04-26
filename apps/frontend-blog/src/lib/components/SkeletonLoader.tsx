@@ -260,7 +260,12 @@ export function ArticleDetailSkeleton() {
  */
 export function HomePageSkeleton() {
   return (
-    <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 py-12 md:py-16">
+    <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 py-8 md:py-12">
+      {/* Hero Section Skeleton */}
+      <div className="mb-16">
+        <HeroSectionSkeleton />
+      </div>
+
       {/* 标题区域骨架 */}
       <div className="mb-12 text-center md:text-left">
         <div className="mb-4">
@@ -277,6 +282,39 @@ export function HomePageSkeleton() {
       {/* 加载更多骨架 */}
       <div className="mt-8 flex justify-center">
         <Skeleton width={32} height={10} rounded="lg" />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Hero Section Skeleton for loading state
+ */
+export function HeroSectionSkeleton() {
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Main hero card skeleton */}
+      <div className="lg:col-span-2">
+        <div className="relative w-full aspect-[16/9] lg:aspect-[21/9] rounded-xl overflow-hidden">
+          <Skeleton className="w-full h-full" />
+        </div>
+        <div className="mt-4 space-y-2">
+          <Skeleton height={8} width="75%" rounded="md" />
+          <Skeleton height={4} width="50%" rounded="md" />
+        </div>
+      </div>
+      {/* Side cards skeleton */}
+      <div className="hidden lg:flex flex-col gap-4">
+        {Array.from({ length: 2 }).map((_, i) => (
+          <div key={i} className="flex gap-4">
+            <Skeleton width={24} height={16} rounded="lg" />
+            <div className="flex-1 space-y-2">
+              <Skeleton height={4} width="90%" rounded="md" />
+              <Skeleton height={4} width="60%" rounded="md" />
+            </div>
+          </div>
+        ))}
+        <Skeleton width={24} height={4} rounded="md" className="mt-2" />
       </div>
     </div>
   );

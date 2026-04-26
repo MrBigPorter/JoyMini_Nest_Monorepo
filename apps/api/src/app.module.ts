@@ -19,6 +19,7 @@ import { PaymentChannelModule } from '@api/common/payment-channel/payment-channe
 import { BullModule } from '@nestjs/bullmq';
 import { ChatModule } from '@api/common/chat/chat.module';
 import { MediaModule } from '@api/common/media/media.module';
+import { MediaProcessorModule } from '@api/common/media/media-processor.module';
 import { CallModule } from '@api/common/events/call/call.module';
 import { EventsModule } from '@api/common/events/events.module';
 import { EmailModule } from '@api/common/email/email.module';
@@ -125,6 +126,7 @@ import { BlogModule } from '@api/blog/blog.module';
     PaymentChannelModule,
     ChatModule,
     MediaModule,
+    MediaProcessorModule,
     CallModule,
     EventsModule,
     EmailModule,

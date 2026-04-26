@@ -15,12 +15,16 @@ import { TranslationJobService } from './translation-job.service';
 import { SystemConfigModule } from '../admin/system-config/system-config.module';
 import { LanguageService } from '@api/common/services/language.service';
 import { LanguageDetectionService } from '@api/common/services/language-detection.service';
+import { MEDIA_PROCESSOR_QUEUE } from '@api/common/media/media-processor.constants';
 
 @Module({
   imports: [
     PrismaModule,
     BullModule.registerQueue({
       name: 'blog-ai',
+    }),
+    BullModule.registerQueue({
+      name: MEDIA_PROCESSOR_QUEUE,
     }),
     CategoryModule,
     TagModule,

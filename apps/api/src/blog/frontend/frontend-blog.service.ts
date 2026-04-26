@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { BlogService } from '../blog.service';
 import { LanguageService } from '@api/common/services/language.service';
+import { PrismaService } from '@api/common/prisma/prisma.service';
 import { ArticleStatus } from '@prisma/client';
 
 @Injectable()
@@ -8,6 +9,7 @@ export class FrontendBlogService {
   constructor(
     private readonly blogService: BlogService,
     private readonly languageService: LanguageService,
+    private readonly prisma: PrismaService,
   ) {}
 
   /**
@@ -48,6 +50,53 @@ export class FrontendBlogService {
       pageSize: result.pageSize,
       totalPages: result.totalPages,
     };
+  }
+
+  /**
+   * 获取精选文章列表（featured = true）
+   * 用于首页 Hero 区域展示
+   */
+  async getFrontendFeaturedArticles(locale: string = 'zh') {
+    const articles = await this.prisma.blogArticle.findMany({
+      where: {
+        featured: true,
+        status: ArticleStatus.PUBLISHED,
+      },
+      orderBy: { publishedAt: 'desc' },
+      take: 6, // 最多展示6篇精选文章
+      select: {
+        id: true,
+        slug: true,
+        title: true,
+        titleEn: true,
+        excerpt: true,
+        excerptEn: true,
+        coverImage: true,
+        viewCount: true,
+        likeCount: true,
+        commentCount: true,
+        publishedAt: true,
+        updatedAt: true,
+        featured: true,
+        meta: true,
+        titleLocalized: true,
+        excerptLocalized: true,
+        coverImageLocalized: true,
+        category: {
+          select: { id: true, name: true, slug: true },
+        },
+        tags: {
+          select: { id: true, name: true, slug: true },
+        },
+        author: {
+          select: { id: true, username: true, realName: true },
+        },
+      },
+    });
+
+    return articles.map((article) =>
+      this.mapArticleForFrontend(article, locale),
+    );
   }
 
   /**
@@ -285,12 +334,17 @@ export class FrontendBlogService {
       title: this.getLocalizedString(article, 'title', locale),
       excerpt: this.getLocalizedString(article, 'excerpt', locale),
       coverImage: this.getLocalizedString(article, 'coverImage', locale),
-      views: article.views || 0,
-      likes: article.likes || 0,
-      commentsCount: article.commentsCount || 0,
+      views: article.viewCount ?? article.views ?? 0,
+      likes: article.likeCount ?? article.likes ?? 0,
+      commentsCount: article.commentCount ?? article.commentsCount ?? 0,
       publishedAt: article.publishedAt,
       updatedAt: article.updatedAt,
     };
+
+    // Include rich media meta (blurhash, image variants, video HLS)
+    if (article.meta) {
+      result.meta = article.meta;
+    }
 
     // 如果需要包含内容
     if (includeContent) {
@@ -321,7 +375,7 @@ export class FrontendBlogService {
       result.author = {
         id: article.author.id,
         name: article.author.name,
-        avatar: article.author.avatar,
+        avatar: null, // AdminUser 没有 avatar 字段
       };
     }
 
@@ -391,6 +445,32 @@ export class FrontendBlogService {
     const localizedField = entity[`${field}Localized`];
 
     if (localizedField && localizedField[locale]) {
+      // Fix: For content field, preserve video/figure HTML tags from original content
+      // when the localized version (AI-translated text) is missing them.
+      // The translation processor saves only rendered markdown text, losing video tags.
+      if (field === 'content') {
+        // The original content may be in entity['content'] (raw Prisma field) OR
+        // in contentLocalized['zh'] (when the article was saved via the localized form).
+        // Debug logs showed entity['content'] can be EMPTY while contentLocalized['zh'] has the content.
+        const sourceContent = localizedField['zh'] || entity['content'] || '';
+        const localizedValue = localizedField[locale];
+        if (
+          sourceContent &&
+          typeof sourceContent === 'string' &&
+          typeof localizedValue === 'string' &&
+          /<video[\s\S]*?<\/video>/i.test(sourceContent) &&
+          !/<video[\s\S]*?<\/video>/i.test(localizedValue)
+        ) {
+          // Extract video blocks (Quill video tags - <video> with <source>, may or may not have figure wrapper)
+          const videoBlocks = sourceContent.match(
+            /<figure[^>]*>[\s\S]*?<video[\s\S]*?<\/video>[\s\S]*?<\/figure>|<video[\s\S]*?<\/video>/gi,
+          );
+          if (videoBlocks && videoBlocks.length > 0) {
+            // Prepend video blocks before the translated text, since they were at the start of the original content
+            return videoBlocks.join('\n') + '\n' + localizedValue;
+          }
+        }
+      }
       return localizedField[locale];
     }
 

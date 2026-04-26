@@ -5,6 +5,7 @@
     "categories": "分类",
     "tags": "标签",
     "search": "搜索",
+    "all": "全部",
     "loadMore": "加载更多",
     "noResults": "没有找到相关内容",
     "back": "返回",
@@ -45,7 +46,11 @@
   "home": {
     "title": "最新文章",
     "subtitle": "探索我们最新发布的内容",
-    "empty": "暂无文章"
+    "empty": "暂无文章",
+    "featured": "精选",
+    "featuredArticles": "精选文章",
+    "viewAll": "查看全部",
+    "heroSubtitle": "发现我们精心挑选的精选内容"
   },
   "article": {
     "readTime": "阅读时间",
@@ -53,6 +58,7 @@
     "comments": "评论",
     "share": "分享",
     "relatedArticles": "相关文章",
+    "popularArticles": "热门文章",
     "anonymous": "匿名作者",
     "notFound": "文章未找到",
     "notFoundDescription": "您查找的文章不存在或已被删除。",

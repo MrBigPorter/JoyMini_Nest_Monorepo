@@ -13,6 +13,7 @@ import {
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { BlogService } from './blog.service';
 import { CreateArticleDto, UpdateArticleDto } from './dto';
+import { TriggerVideoTranscodeDto } from './dto/trigger-video-transcode.dto';
 import { ArticleStatus } from '@prisma/client';
 import { AdminJwtAuthGuard } from '@api/admin/auth/admin-jwt-auth.guard';
 import { CurrentUserId } from '@api/common/decorators/user.decorator';
@@ -140,6 +141,18 @@ export class BlogController {
     @Body() body: { targetLang?: string },
   ) {
     return this.blogService.translateArticle(id, userId, body?.targetLang);
+  }
+
+  @Post('articles/:id/trigger-video-transcode')
+  @ApiBearerAuth()
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiOperation({ summary: '手动触发视频转码' })
+  async triggerVideoTranscode(
+    @Param('id') id: string,
+    @Body() dto: TriggerVideoTranscodeDto,
+  ) {
+    await this.blogService.triggerVideoTranscode(id, dto.videoKey);
+    return { message: 'Video transcoding job enqueued' };
   }
 
   @Get('translation-progress')

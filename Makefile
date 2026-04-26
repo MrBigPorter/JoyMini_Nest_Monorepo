@@ -6,7 +6,7 @@
 # ==========================================
 
 .PHONY: setup up down restart logs ps build clean help \
-        dev-next exec-api migrate seed
+        dev-next exec-api migrate seed check-dockerfiles
 
 .DEFAULT_GOAL := help
 
@@ -25,12 +25,16 @@ setup:
 # Docker 全套环境
 # ──────────────────────────────────────────
 
+## [Docker] 检查 Dockerfile 一致性（Yarn 版本等）
+check-dockerfiles:
+	@bash scripts/check-yarn-version.sh
+
 ## [Docker] 启动全套开发环境（后端 + 前端 + DB + Redis）
-up:
+up: check-dockerfiles
 	docker compose up -d --build
 
 ## [Docker] 只启动基础设施（DB + Redis + 后端 + Nginx，不含前端容器）
-up-infra:
+up-infra: check-dockerfiles
 	docker compose up -d --build db redis backend nginx
 
 ## [Docker] 停止所有容器
@@ -54,7 +58,7 @@ ps:
 	docker compose ps
 
 ## [Docker] 重新构建镜像（依赖变更后使用）
-build:
+build: check-dockerfiles
 	docker compose build --no-cache
 
 ## [Docker] ⚠️  清理容器 + 镜像 + 卷（会删除数据库数据！）

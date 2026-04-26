@@ -37,13 +37,15 @@ export default async function HomePage({
   const t = await getTranslations({ locale });
 
   try {
-    // 简单直接的数据获取：直接调用API
-    // SSR环境下必须显式传递lang参数，否则http.ts会使用默认语言
-    const initialData = await frontendBlogApi.getArticles({
-      lang: locale, // 显式传递语言参数
-      page: 1,
-      pageSize: 10,
-    });
+    // SSR: Fetch both featured articles and regular articles in parallel
+    const [featuredArticles, initialData] = await Promise.all([
+      frontendBlogApi.getFeaturedArticles(locale).catch(() => [] as FrontendArticle[]),
+      frontendBlogApi.getArticles({
+        lang: locale,
+        page: 1,
+        pageSize: 10,
+      }),
+    ]);
 
     // 提取文章ID用于客户端查询收藏状态
     const articleIds =
@@ -52,6 +54,7 @@ export default async function HomePage({
     return (
       <HomePageClient
         initialData={initialData}
+        initialFeaturedArticles={featuredArticles}
         initialArticleIds={articleIds}
         locale={locale}
       />
@@ -67,6 +70,7 @@ export default async function HomePage({
           pageSize: 10,
           totalPages: 0,
         }}
+        initialFeaturedArticles={[]}
         initialArticleIds={[]}
         locale={locale}
       />

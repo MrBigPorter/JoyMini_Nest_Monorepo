@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Save, Send, Loader2 } from 'lucide-react';
+import { Save, Send, Loader2, Info } from 'lucide-react';
 import Link from 'next/link';
 import { useRequest } from 'ahooks';
 import { useToastStore } from '@/store/useToastStore';
@@ -10,6 +10,7 @@ import { uploadApi, blogApi } from '@/api';
 import { RichTextEditor } from '@/components/blog/RichTextEditor';
 import { PageHeader } from '@/components/scaffold/PageHeader';
 import { Card } from '@/components/UIComponents';
+import { SmartImage } from '@/components/ui/SmartImage';
 import { useBlogLocalizedForm } from '@/hooks/useBlogLocalizedForm';
 import { articleSchema, type ArticleFormInputs } from '@/schema/blog';
 import {
@@ -17,6 +18,7 @@ import {
   FormTextField,
   FormTextareaField,
   FormSelectField,
+  FormMediaUploaderField,
 } from '@repo/ui/form';
 import { useLanguage } from '@/hooks/LanguageProvider';
 import { LanguageSwitch } from '@/components/blog/LanguageSwitch';
@@ -39,6 +41,9 @@ export default function CreateArticlePage() {
   const [loadingCategories, setLoadingCategories] = useState(false);
   const [loadingTags, setLoadingTags] = useState(false);
 
+  // Track video file keys uploaded during creation to trigger transcoding after article is created
+  const videoKeysRef = useRef<string[]>([]);
+
   const blogForm = useBlogLocalizedForm({
     schema: articleSchema,
     defaultValues: {
@@ -48,10 +53,35 @@ export default function CreateArticlePage() {
       categoryId: '',
       tagIds: [],
       status: 'DRAFT',
+      featured: false,
+      featuredImage: {},
     },
     onSubmitAction: async (data: any) => {
       try {
-        await blogApi.createArticle(data);
+        // 处理精选图片上传
+        const processedData = { ...data };
+        const featuredImage = data.featuredImage;
+        if (featuredImage && typeof featuredImage === 'object') {
+          for (const lang of Object.keys(featuredImage)) {
+            const value = featuredImage[lang];
+            if (value instanceof File) {
+              const res = await upload.runAsync(value);
+              processedData.featuredImage[lang] = res.url;
+            }
+          }
+        }
+
+        const newArticle = await blogApi.createArticle(processedData);
+        const articleId = newArticle.id;
+
+        // Trigger video transcoding for any videos uploaded during creation
+        const pendingKeys = videoKeysRef.current;
+        videoKeysRef.current = []; // Clear after use
+        for (const videoKey of pendingKeys) {
+          blogApi.triggerVideoTranscode(articleId, videoKey).catch((err) => {
+            console.error(`Failed to trigger transcode for ${videoKey}:`, err);
+          });
+        }
 
         addToast('success', t('toastCreated'));
         router.push('/blog/articles');
@@ -78,9 +108,13 @@ export default function CreateArticlePage() {
   });
 
   // 富文本编辑器用的上传函数
-  const handleEditorUpload = async (file: File): Promise<string> => {
+  const handleEditorUpload = async (file: File, onProgress?: (pct: number) => void): Promise<string> => {
     try {
-      const res = await upload.runAsync(file);
+      const res = await uploadApi.uploadMedia(file, onProgress);
+      // Track video keys to trigger HLS transcoding after article creation
+      if (file.type.startsWith("video/") && res.key) {
+        videoKeysRef.current.push(res.key);
+      }
       return res.url;
     } catch (error) {
       addToast('error', t('toastUploadFailed'));
@@ -218,6 +252,58 @@ export default function CreateArticlePage() {
                   {form.formState.errors.tagIds.message as string}
                 </p>
               )}
+            </div>
+
+            {/* Featured Image */}
+            <div className="p-4 rounded-lg shadow-sm">
+              <FormMediaUploaderField
+                {...localize('featuredImage')}
+                label={globalT('blog_articleForm_featuredImage')}
+                maxFileCount={1}
+                renderImage={({ src, alt, className }) => (
+                  <SmartImage
+                    src={src}
+                    alt={alt}
+                    width={400}
+                    height={400}
+                    className={className}
+                    imgClassName="w-64 h-64 rounded-md object-cover"
+                    layout="constrained"
+                  />
+                )}
+              />
+              <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
+                <Info size={12} /> {globalT('blog_articleForm_recommendedSize')}
+              </p>
+            </div>
+
+            {/* Featured Toggle */}
+            <div className="flex items-center justify-between p-4 border rounded-lg">
+              <div>
+                <label className="text-sm font-medium">
+                  {globalT('blog_article_featured')}
+                </label>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {globalT('blog_article_featuredDescription')}
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={watch('featured') || false}
+                onClick={() => setValue('featured', !watch('featured'))}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  watch('featured')
+                    ? 'bg-primary'
+                    : 'bg-gray-200 dark:bg-gray-700'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    watch('featured') ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
             </div>
 
             {/* Content */}

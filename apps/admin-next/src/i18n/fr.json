@@ -531,6 +531,7 @@
     "blog_translation_progressWithPercent": "Progression : {progress}%",
     "blog_translation_waiting": "En attente...",
     "blog_translation_unknownError": "Erreur inconnue",
+    "blog_translation_actions": "Actions",
     "blog_article_translationRequestSent": "Demande de traduction envoyée, la page se rafraîchira automatiquement",
     "blog_article_translationFailed": "La traduction a échoué, veuillez réessayer plus tard",
     "blog_article_retranslate": "Retraduire",
