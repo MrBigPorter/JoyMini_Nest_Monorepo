@@ -3,6 +3,7 @@ import path from 'path';
 import BundleAnalyzer from '@next/bundle-analyzer';
 import { withSentryConfig } from '@sentry/nextjs';
 import createNextIntlPlugin from 'next-intl/plugin';
+import CompressionWebpackPlugin from 'compression-webpack-plugin';
 
 const withNextIntl = createNextIntlPlugin('./i18n.config.ts');
 
@@ -298,6 +299,21 @@ const baseConfig: NextConfig = {
         minimize: true,
         minimizer,
       };
+    }
+
+    if (!isServer) {
+      config.plugins.push(
+        new CompressionWebpackPlugin({
+          filename: '[path][base].br',
+          algorithm: 'brotliCompress',
+          test: /\.(js|css|html|svg)$/,
+          compressionOptions: {
+            level: 11,
+          },
+          threshold: 10240,
+          minRatio: 0.8,
+        }),
+      );
     }
 
     return config;
