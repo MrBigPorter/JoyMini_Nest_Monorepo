@@ -6,7 +6,7 @@
 # ==========================================
 
 .PHONY: setup up down restart logs ps build clean help \
-        dev-next exec-api migrate seed check-dockerfiles
+        dev-next exec-api migrate seed check-dockerfiles generate-certs
 
 .DEFAULT_GOAL := help
 
@@ -14,12 +14,27 @@
 # 初始化
 # ──────────────────────────────────────────
 
-## [初始化] 首次 clone 后运行：创建 .env 软链接
-setup:
+## [初始化] 首次 clone 后运行：创建 .env 软链接 + 生成开发证书
+setup: generate-certs
 	@echo "→ 创建 .env 软链接 → deploy/.env.dev"
 	@ln -sf deploy/.env.dev .env
 	@echo " 完成！运行 make up 启动全套环境"
 	@echo "   或运行 make up-infra + make dev-next 启动（前端热更新更快）"
+
+## [证书] 生成多域名SAN开发自签名证书
+generate-certs:
+	@if [ ! -f certs/dev.joyminis.com.pem ]; then \
+		echo "→ 使用 mkcert 生成受信任的开发证书..."; \
+		mkdir -p certs; \
+		mkcert -key-file certs/dev.joyminis.com-key.pem \
+		       -cert-file certs/dev.joyminis.com.pem \
+		       dev.joyminis.com *.dev.joyminis.com localhost 127.0.0.1; \
+		chmod 644 certs/*; \
+		echo "✓ 证书生成成功，已经被系统信任！"; \
+	else \
+		echo "✓ 开发证书已存在"; \
+	fi
+
 
 # ──────────────────────────────────────────
 # Docker 全套环境

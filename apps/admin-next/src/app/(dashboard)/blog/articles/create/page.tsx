@@ -78,9 +78,14 @@ export default function CreateArticlePage() {
         const pendingKeys = videoKeysRef.current;
         videoKeysRef.current = []; // Clear after use
         for (const videoKey of pendingKeys) {
-          blogApi.triggerVideoTranscode(articleId, videoKey).catch((err) => {
-            console.error(`Failed to trigger transcode for ${videoKey}:`, err);
-          });
+          blogApi
+            .triggerVideoTranscode(articleId, videoKey)
+            .catch((err: unknown) => {
+              console.error(
+                `Failed to trigger transcode for ${videoKey}:`,
+                err,
+              );
+            });
         }
 
         addToast('success', t('toastCreated'));
@@ -108,11 +113,14 @@ export default function CreateArticlePage() {
   });
 
   // 富文本编辑器用的上传函数
-  const handleEditorUpload = async (file: File, onProgress?: (pct: number) => void): Promise<string> => {
+  const handleEditorUpload = async (
+    file: File,
+    onProgress?: (pct: number) => void,
+  ): Promise<string> => {
     try {
       const res = await uploadApi.uploadMedia(file, onProgress);
       // Track video keys to trigger HLS transcoding after article creation
-      if (file.type.startsWith("video/") && res.key) {
+      if (file.type.startsWith('video/') && res.key) {
         videoKeysRef.current.push(res.key);
       }
       return res.url;
@@ -148,7 +156,7 @@ export default function CreateArticlePage() {
   const handleTagToggle = (tagId: string) => {
     const currentTagIds = watch('tagIds') || [];
     const newTagIds = currentTagIds.includes(tagId)
-      ? currentTagIds.filter((id) => id !== tagId)
+      ? currentTagIds.filter((id: string) => id !== tagId)
       : [...currentTagIds, tagId];
     setValue('tagIds', newTagIds);
   };
