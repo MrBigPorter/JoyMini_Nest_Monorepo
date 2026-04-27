@@ -87,6 +87,7 @@ sync_configs() {
 
     # 核心配置
     scp compose.prod.yml                    "$SSH_TARGET:$VPS_DIR/"
+    scp Makefile                            "$SSH_TARGET:$VPS_DIR/"
     scp deploy/.env.prod                    "$SSH_TARGET:$VPS_DIR/deploy/"
     scp deploy/init-db.sh                   "$SSH_TARGET:$VPS_DIR/deploy/"
     scp deploy/baseline-db.sh              "$SSH_TARGET:$VPS_DIR/deploy/"

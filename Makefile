@@ -8,7 +8,11 @@
 .PHONY: setup up up-infra down restart logs ps build clean wipe help \
         dev-admin dev-blog exec-api migrate seed prisma-studio \
         check-dockerfiles generate-certs \
-        check fix audit type-check
+        check fix audit type-check \
+        deploy deploy-backend deploy-admin deploy-quick deploy-sync \
+        rollback rollback-backend rollback-db \
+        switch-admin-dns rollback-admin-dns \
+        logs-prod logs-backend logs-nginx logs-db logs-turn
 
 .DEFAULT_GOAL := help
 
@@ -197,6 +201,107 @@ audit:
 	$(call audit_workspace,@lucky/frontend-blog)
 
 # ──────────────────────────────────────────
+# 生产部署 (VPS)
+# ──────────────────────────────────────────
+# 所有 deploy/rollback 命令会交互式提示输入 VPS_IP，
+# 也可以在调用时用 VPS_IP=1.2.3.4 预设：
+#   make deploy VPS_IP=1.2.3.4
+# ──────────────────────────────────────────
+
+## [Deploy] 🚀 全量部署 (后端 + 前端)
+deploy:
+	bash deploy/deploy.sh
+
+## [Deploy] 仅部署后端
+deploy-backend:
+	bash deploy/deploy.sh --backend
+
+## [Deploy] 仅部署前端 (admin-next)
+deploy-admin:
+	bash deploy/deploy.sh --admin
+
+## [Deploy] 跳过构建，仅重启服务
+deploy-quick:
+	bash deploy/deploy.sh --quick
+
+## [Deploy] 仅同步配置文件
+deploy-sync:
+	bash deploy/deploy.sh --sync
+
+## [Rollback] 🔙 回滚容器 (后端 + 前端)
+rollback:
+	bash deploy/rollback.sh
+
+## [Rollback] 仅回滚后端
+rollback-backend:
+	bash deploy/rollback.sh --backend
+
+## [Rollback] ⚠️ 恢复数据库备份 (高风险!)
+rollback-db:
+	bash deploy/rollback.sh --db
+
+## [Cloudflare] 🔁 切换 admin DNS 到 Cloudflare Workers (dry-run)
+switch-admin-dns:
+	bash deploy/switch-admin-cloudflare.sh
+
+## [Cloudflare] 🔁 切换 admin DNS 回 VPS (dry-run)
+rollback-admin-dns:
+	bash deploy/cloudflare-rollback.sh
+
+# ──────────────────────────────────────────
+# 生产日志 (VPS)
+# ──────────────────────────────────────────
+# 这些命令会通过 SSH 连接到 VPS 查看生产容器日志。
+# 终端会交互式提示输入 VPS_IP，也可以在调用时预设：
+#   make logs-prod VPS_IP=1.2.3.4
+# ──────────────────────────────────────────
+
+## [Logs] 📝 查看 VPS 所有服务日志 (Ctrl+C 退出，类似 tail -f)
+logs-prod:
+	@if [ -z "$(VPS_IP)" ]; then \
+		read -p "VPS IP: " VPS_IP; \
+		ssh root@$$VPS_IP 'docker compose -f /opt/lucky/compose.prod.yml logs -f'; \
+	else \
+		ssh root@$(VPS_IP) 'docker compose -f /opt/lucky/compose.prod.yml logs -f'; \
+	fi
+
+## [Logs] 🔙 查看后端日志 (Ctrl+C 退出)
+logs-backend:
+	@if [ -z "$(VPS_IP)" ]; then \
+		read -p "VPS IP: " VPS_IP; \
+		ssh root@$$VPS_IP 'docker logs -f --tail=100 lucky-backend-prod'; \
+	else \
+		ssh root@$(VPS_IP) 'docker logs -f --tail=100 lucky-backend-prod'; \
+	fi
+
+## [Logs] 🌐 查看 Nginx 日志 (最近 50 行)
+logs-nginx:
+	@if [ -z "$(VPS_IP)" ]; then \
+		read -p "VPS IP: " VPS_IP; \
+		ssh root@$$VPS_IP 'docker logs --tail=50 lucky-nginx-prod'; \
+	else \
+		ssh root@$(VPS_IP) 'docker logs --tail=50 lucky-nginx-prod'; \
+	fi
+
+## [Logs] 🗄️ 查看数据库日志 (最近 50 行)
+logs-db:
+	@if [ -z "$(VPS_IP)" ]; then \
+		read -p "VPS IP: " VPS_IP; \
+		ssh root@$$VPS_IP 'docker logs --tail=50 lucky-db-prod'; \
+	else \
+		ssh root@$(VPS_IP) 'docker logs --tail=50 lucky-db-prod'; \
+	fi
+
+## [Logs] 📞 查看 TURN 服务器日志 (最近 100 行)
+logs-turn:
+	@if [ -z "$(VPS_IP)" ]; then \
+		read -p "VPS IP: " VPS_IP; \
+		ssh root@$$VPS_IP 'tail -n 100 /var/log/turnserver.log'; \
+	else \
+		ssh root@$(VPS_IP) 'tail -n 100 /var/log/turnserver.log'; \
+	fi
+
+# ──────────────────────────────────────────
 # 帮助
 # ──────────────────────────────────────────
 
@@ -206,4 +311,7 @@ help:
 	@echo "  🚀 Lucky Nest — 开发者工具箱"
 	@echo "  ─────────────────────────────────────────"
 	@grep -E '^## ' Makefile | sed 's/## /  /'
+	@echo ""
+	@echo "  💡 生产部署/日志时 VPS IP 会在终端交互式提示输入"
+	@echo "     也可预设: make deploy VPS_IP=1.2.3.4"
 	@echo ""
