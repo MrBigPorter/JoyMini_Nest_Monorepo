@@ -209,7 +209,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          yarn exec opennextjs-cloudflare deploy -c wrangler.toml 2>&1 | tee /tmp/cloudflare-deploy.log
+          yarn exec opennextjs-cloudflare deploy -c wrangler.jsonc 2>&1 | tee /tmp/cloudflare-deploy.log
 
           CF_DEPLOYMENT_ID=$(grep -Eio 'deployment( id)?[: ]+[a-z0-9_-]+' /tmp/cloudflare-deploy.log \
             | tail -1 \

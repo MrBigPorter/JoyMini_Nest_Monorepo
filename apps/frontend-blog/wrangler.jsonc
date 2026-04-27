@@ -1,0 +1,77 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "lucky-blog-prod",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-03-20",
+  "compatibility_flags": ["nodejs_compat"],
+  "minify": true,
+  "routes": [
+    {
+      "pattern": "blog.joyminis.com/*",
+      "zone_name": "joyminis.com"
+    },
+    {
+      "pattern": "blog-dev.joyminis.com/*",
+      "zone_name": "joyminis.com"
+    }
+  ],
+  "assets": {
+    "binding": "ASSETS",
+    "directory": ".open-next/assets"
+  },
+  "vars": {
+    "NODE_ENV": "production",
+    "NEXT_PUBLIC_ENVIRONMENT": "cloudflare",
+    "ENABLE_ISR": "true",
+    "ENABLE_STREAMING": "true",
+    "ENABLE_EDGE_MIDDLEWARE": "true",
+    "AUTH_COOKIE_DOMAIN": ".joyminis.com",
+    "NEXT_PUBLIC_BLOG_ENV": "production",
+    "ISR_REVALIDATE_SECONDS": "60",
+    "BROWSER_CACHE_TTL": "300",
+    "STALE_WHILE_REVALIDATE": "86400"
+  },
+  "kv_namespaces": [
+    {
+      "binding": "CACHE",
+      "id": "cache-store",
+      "preview_id": "cache-store-preview"
+    },
+    {
+      "binding": "ISR_CACHE",
+      "id": "isr-cache-store",
+      "preview_id": "isr-cache-store-preview"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "ASSETS",
+      "bucket_name": "mini-shop",
+      "preview_bucket_name": "mini-shop"
+    }
+  ],
+  "analytics_engine_datasets": [
+    {
+      "binding": "ANALYTICS",
+      "dataset": "lucky-blog-analytics"
+    }
+  ],
+  "env": {
+    "production": {
+      "name": "lucky-blog-production",
+      "compatibility_date": "2026-03-20",
+      "vars": {
+        "NEXT_PUBLIC_API_URL": "https://api.joyminis.com",
+        "NEXT_PUBLIC_CDN_URL": "https://img.joyminis.com"
+      }
+    },
+    "staging": {
+      "name": "lucky-blog-staging",
+      "compatibility_date": "2026-03-20",
+      "vars": {
+        "NEXT_PUBLIC_API_URL": "https://staging-api.joyminis.com",
+        "NEXT_PUBLIC_CDN_URL": "https://staging-img.joyminis.com"
+      }
+    }
+  }
+}
