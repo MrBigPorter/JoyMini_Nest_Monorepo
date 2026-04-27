@@ -46,6 +46,12 @@ export default {
       eslintCommand: "yarn workspace @repo/ui exec eslint",
     }),
 
+  "apps/frontend-blog/src/**/*.{ts,tsx,js,jsx}": (files) =>
+    createCommands({
+      files,
+      eslintCommand: "yarn workspace @lucky/frontend-blog exec eslint",
+    }),
+
   "apps/liveness-web/**/*.{ts,tsx,js,jsx}": (files) =>
     createCommands({
       files,
