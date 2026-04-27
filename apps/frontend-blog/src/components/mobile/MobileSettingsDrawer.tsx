@@ -10,7 +10,7 @@ function cn(...classes: (string | boolean | undefined)[]) {
 
 interface MobileSettingsDrawerProps {
   isOpen: boolean;
-  onClose: () => void;
+  onCloseAction: () => void;
   title?: string;
   children: React.ReactNode;
   enableClickOutsideClose?: boolean;
@@ -20,7 +20,7 @@ interface MobileSettingsDrawerProps {
 
 export function MobileSettingsDrawer({
   isOpen,
-  onClose,
+  onCloseAction,
   title,
   children,
   enableClickOutsideClose = true,
@@ -43,12 +43,12 @@ export function MobileSettingsDrawer({
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen) {
-        onClose();
+        onCloseAction();
       }
     };
     window.addEventListener('keydown', handleEscape);
     return () => window.removeEventListener('keydown', handleEscape);
-  }, [isOpen, onClose]);
+  }, [isOpen, onCloseAction]);
 
   return (
     <AnimatePresence>
@@ -61,7 +61,7 @@ export function MobileSettingsDrawer({
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
             className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm"
-            onClick={enableClickOutsideClose ? onClose : undefined}
+            onClick={enableClickOutsideClose ? onCloseAction : undefined}
           />
 
           {/* 抽屉内容 */}
@@ -98,7 +98,7 @@ export function MobileSettingsDrawer({
                 )}
                 {showClose && (
                   <button
-                    onClick={onClose}
+                    onClick={onCloseAction}
                     className="p-2 -mr-2 rounded-full hover:bg-accent transition-colors"
                     aria-label="关闭设置"
                   >
