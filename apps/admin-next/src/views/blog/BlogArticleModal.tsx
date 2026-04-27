@@ -1,6 +1,17 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+// 类型守卫，安全判断 File
+function isFile(val: unknown): val is File {
+  return typeof File !== 'undefined' && val instanceof File;
+}
+
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useMemo,
+  useCallback,
+} from 'react';
 import { Modal, Button } from '@/components/UIComponents';
 import { Globe, Loader2 } from 'lucide-react';
 import { Form, FormSelectField } from '@repo/ui/form';
@@ -99,7 +110,11 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
   );
 
   const upload = useRequest(
-    async (file: File, onProgress?: (percent: number) => void, extraFields?: Record<string, string>) => {
+    async (
+      file: File,
+      onProgress?: (percent: number) => void,
+      extraFields?: Record<string, string>,
+    ) => {
       return uploadApi.uploadMedia(file, onProgress, extraFields);
     },
     {
@@ -141,10 +156,15 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
             if (value && value instanceof File) {
               try {
                 // Pass articleId when editing so media processing is triggered
-                const extraFields = isEditing && editingArticle?.id
-                  ? { articleId: editingArticle.id }
-                  : undefined;
-                const res = await upload.runAsync(value, undefined, extraFields);
+                const extraFields =
+                  isEditing && editingArticle?.id
+                    ? { articleId: editingArticle.id }
+                    : undefined;
+                const res = await upload.runAsync(
+                  value,
+                  undefined,
+                  extraFields,
+                );
                 (processedData.featuredImage as Record<string, any>)[lang] =
                   res.url;
               } catch (uploadError) {
@@ -158,7 +178,6 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
           await updateArticle(editingArticle.id, processedData);
           // Invoke the async initializer
           fetchAndInit();
-
         } else {
           await createArticle(processedData);
         }
@@ -208,11 +227,17 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
           const full = await blogApi.getArticle(editingArticle.id);
           if (full) sourceArticle = full;
         } catch (e) {
-          console.warn('[BlogArticleModal] failed to fetch full article, falling back to provided editingArticle', e);
+          console.warn(
+            '[BlogArticleModal] failed to fetch full article, falling back to provided editingArticle',
+            e,
+          );
         }
       }
     } catch (e) {
-      console.warn('[BlogArticleModal] error checking editingArticle content', e);
+      console.warn(
+        '[BlogArticleModal] error checking editingArticle content',
+        e,
+      );
     }
 
     const mappedArticle: any = sourceArticle
@@ -263,16 +288,31 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
 
     // 直接使用后端返回的标准 Localized 对象，确保所有启用语言都有值
     // 对于未翻译文章，titleLocalized 可能为 null，此时回退到 titleLocalizedFull
-    const titleObj = mappedArticle?.titleLocalized || mappedArticle?.titleLocalizedFull || {};
+    const titleObj =
+      mappedArticle?.titleLocalized || mappedArticle?.titleLocalizedFull || {};
     const contentObj = contentLocalized;
-    const excerptObj = mappedArticle?.excerptLocalized || mappedArticle?.excerptLocalizedFull || {};
-    const featuredImageObj = mappedArticle?.coverImageLocalized || mappedArticle?.coverImageLocalizedFull || {};
+    const excerptObj =
+      mappedArticle?.excerptLocalized ||
+      mappedArticle?.excerptLocalizedFull ||
+      {};
+    const featuredImageObj =
+      mappedArticle?.coverImageLocalized ||
+      mappedArticle?.coverImageLocalizedFull ||
+      {};
 
     // 重置表单
-    console.debug('[BlogArticleModal] resetting form with titleObj/contentObj (snippet)', {
-      titleSnippet: JSON.stringify(titleObj).slice(0, 200),
-      contentSnippet: Object.fromEntries(Object.entries(contentObj).map(([k, v]) => [k, String(v).slice(0, 200)])),
-    });
+    console.debug(
+      '[BlogArticleModal] resetting form with titleObj/contentObj (snippet)',
+      {
+        titleSnippet: JSON.stringify(titleObj).slice(0, 200),
+        contentSnippet: Object.fromEntries(
+          Object.entries(contentObj).map(([k, v]) => [
+            k,
+            String(v).slice(0, 200),
+          ]),
+        ),
+      },
+    );
     reset({
       title: titleObj,
       content: contentObj,
@@ -299,7 +339,12 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
         featuredImage: featuredImageObj[currentLocale] ?? '',
       };
       console.debug('[BlogArticleModal] calling articleFormRef.reset with', {
-        payloadSnippet: Object.fromEntries(Object.entries(childResetPayload).map(([k, v]) => [k, String(v).slice(0, 200)])),
+        payloadSnippet: Object.fromEntries(
+          Object.entries(childResetPayload).map(([k, v]) => [
+            k,
+            String(v).slice(0, 200),
+          ]),
+        ),
       });
       articleFormRef.current?.reset(childResetPayload);
     }, 0);
@@ -410,12 +455,16 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
   };
 
   // Handle image/video upload for RichTextEditor
-  const handleEditorUpload = async (file: File, onProgress?: (pct: number) => void): Promise<string> => {
+  const handleEditorUpload = async (
+    file: File,
+    onProgress?: (pct: number) => void,
+  ): Promise<string> => {
     try {
       // Pass articleId when editing so media processing is triggered
-      const extraFields = isEditing && editingArticle?.id
-        ? { articleId: editingArticle.id }
-        : undefined;
+      const extraFields =
+        isEditing && editingArticle?.id
+          ? { articleId: editingArticle.id }
+          : undefined;
       const res = await upload.runAsync(file, onProgress, extraFields);
       return res.url;
     } catch (error) {
@@ -468,253 +517,264 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
           <div className="absolute inset-0 bg-white/80 dark:bg-gray-900/80 z-50 flex items-center justify-center rounded-lg">
             <div className="flex flex-col items-center gap-3">
               <Loader2 className="w-8 h-8 animate-spin text-primary" />
-              <span className="text-sm text-gray-500 dark:text-gray-400">Uploading...</span>
+              <span className="text-sm text-gray-500 dark:text-gray-400">
+                Uploading...
+              </span>
             </div>
           </div>
         )}
         <Form {...form}>
           <form onSubmit={submitHandler} className="space-y-6">
-          {/* 顶部操作栏 */}
-          <div className="flex items-center justify-between mb-4">
-            {/* Language Switcher */}
-            <div className="flex items-center gap-2">
-              <div className="flex gap-2">
-                {availableLocaleCodes.map((lang) => (
-                  <Button
-                    key={lang}
-                    type="button"
-                    variant={currentLocale === lang ? 'primary' : 'outline'}
-                    size="sm"
-                    onClick={() => handleLocaleChange(lang as Locale)}
-                  >
-                    {lang.toUpperCase()}
-                  </Button>
-                ))}
-              </div>
-              {isEditing ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="flex items-center gap-2"
-                  isLoading={isTranslating}
-                  onClick={async () => {
-                    if (!editingArticle?.id) return;
-                    try {
-                      setIsTranslating(true);
-                      await blogApi.translateArticle(editingArticle.id);
-                      addToast('success', t('translationRequestSent'));
-                    } catch (error) {
-                      console.error('Translation failed:', error);
-                      addToast('error', t('translationFailed'));
-                    } finally {
-                      setIsTranslating(false);
-                    }
-                  }}
-                >
-                  <Globe size={16} />
-                  {t('retranslate')}
-                </Button>
-              ) : (
-                <div className="text-xs text-gray-500 flex items-center gap-1">
-                  <Globe size={14} />
-                  {t('autoTranslateAfterSave')}
+            {/* 顶部操作栏 */}
+            <div className="flex items-center justify-between mb-4">
+              {/* Language Switcher */}
+              <div className="flex items-center gap-2">
+                <div className="flex gap-2">
+                  {availableLocaleCodes.map((lang) => (
+                    <Button
+                      key={lang}
+                      type="button"
+                      variant={currentLocale === lang ? 'primary' : 'outline'}
+                      size="sm"
+                      onClick={() => handleLocaleChange(lang as Locale)}
+                    >
+                      {lang.toUpperCase()}
+                    </Button>
+                  ))}
                 </div>
-              )}
+                {isEditing ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="flex items-center gap-2"
+                    isLoading={isTranslating}
+                    onClick={async () => {
+                      if (!editingArticle?.id) return;
+                      try {
+                        setIsTranslating(true);
+                        await blogApi.translateArticle(editingArticle.id);
+                        addToast('success', t('translationRequestSent'));
+                      } catch (error) {
+                        console.error('Translation failed:', error);
+                        addToast('error', t('translationFailed'));
+                      } finally {
+                        setIsTranslating(false);
+                      }
+                    }}
+                  >
+                    <Globe size={16} />
+                    {t('retranslate')}
+                  </Button>
+                ) : (
+                  <div className="text-xs text-gray-500 flex items-center gap-1">
+                    <Globe size={14} />
+                    {t('autoTranslateAfterSave')}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
 
-          {/* 独立多语言表单 */}
-          <ArticleForm
-            ref={articleFormRef}
-            onUpload={handleEditorUpload}
-            onFieldChange={async (field, value) => {
-              // 如果featuredImage选择的是File对象，立即上传，不等待提交
-              if (
-                field === 'featuredImage' &&
-                value instanceof File
-              ) {
-                try {
-                  const extraFields =
-                    isEditing && editingArticle?.id
-                      ? { articleId: editingArticle.id }
-                      : undefined;
-                  const res = await upload.runAsync(value, undefined, extraFields);
-                  const url = res.url;
+            {/* 独立多语言表单 */}
+            <ArticleForm
+              ref={articleFormRef}
+              onUpload={handleEditorUpload}
+              onFieldChange={async (field, value) => {
+                // 如果featuredImage选择的是File对象，立即上传，不等待提交
+                if (field === 'featuredImage' && isFile(value)) {
+                  try {
+                    const extraFields =
+                      isEditing && editingArticle?.id
+                        ? { articleId: editingArticle.id }
+                        : undefined;
+                    const res = await upload.runAsync(
+                      value,
+                      undefined,
+                      extraFields,
+                    );
+                    const url = res.url;
 
-                  // 直接用上传后的URL更新表单
-                  const currentValues = getValues();
-                  const localizedField =
-                    currentValues[field as keyof typeof currentValues];
-                  if (
-                    typeof localizedField === 'object' &&
-                    localizedField !== null
-                  ) {
-                    setValue(
-                      field as any,
-                      {
-                        ...localizedField,
-                        [currentLocale]: url,
-                      },
-                      {
+                    // 直接用上传后的URL更新表单
+                    const currentValues = getValues();
+                    const localizedField =
+                      currentValues[field as keyof typeof currentValues];
+                    if (
+                      typeof localizedField === 'object' &&
+                      localizedField !== null
+                    ) {
+                      setValue(
+                        field as any,
+                        {
+                          ...localizedField,
+                          [currentLocale]: url,
+                        },
+                        {
+                          shouldDirty: true,
+                          shouldTouch: true,
+                          shouldValidate: true,
+                        },
+                      );
+                    } else {
+                      const newLocalized: Record<string, string> = {};
+                      availableLocaleCodes.forEach((lang) => {
+                        newLocalized[lang] = lang === currentLocale ? url : '';
+                      });
+                      setValue(field as any, newLocalized, {
                         shouldDirty: true,
                         shouldTouch: true,
                         shouldValidate: true,
-                      },
+                      });
+                    }
+                    addToast(
+                      'success',
+                      globalT('blog_articleForm_featuredImage') + ' uploaded',
                     );
-                  } else {
-                    const newLocalized: Record<string, string> = {};
-                    availableLocaleCodes.forEach((lang) => {
-                      newLocalized[lang] =
-                        lang === currentLocale ? url : '';
-                    });
-                    setValue(field as any, newLocalized, {
+                  } catch (error) {
+                    console.error('Featured image upload failed:', error);
+                    addToast(
+                      'error',
+                      globalT('blog_article_failedUploadImage'),
+                    );
+                  }
+                  return;
+                }
+
+                // 防御：防止空内容或Quill默认值覆盖已有有效内容
+                if (
+                  (field === 'content' || field === 'excerpt') &&
+                  typeof value === 'string' &&
+                  (!value || value === '<p><br></p>')
+                ) {
+                  const currentValues = getValues();
+                  const localizedField: Record<string, any> = currentValues[
+                    field as keyof typeof currentValues
+                  ] as Record<string, any>;
+                  if (
+                    localizedField &&
+                    typeof localizedField === 'object' &&
+                    localizedField[currentLocale]
+                  ) {
+                    // 已有有效内容，跳过更新
+                    return;
+                  }
+                }
+
+                // 普通字段：当ArticleForm的字段变化时，同步更新父表单的多语言字段
+                const currentValues = getValues();
+                const localizedField =
+                  currentValues[field as keyof typeof currentValues];
+
+                // 更新多语言对象中当前语言的值
+                if (
+                  typeof localizedField === 'object' &&
+                  localizedField !== null
+                ) {
+                  setValue(
+                    field as any,
+                    {
+                      ...localizedField,
+                      [currentLocale]: value,
+                    },
+                    {
                       shouldDirty: true,
                       shouldTouch: true,
                       shouldValidate: true,
-                    });
-                  }
-                  addToast('success', globalT('blog_articleForm_featuredImage') + ' uploaded');
-                } catch (error) {
-                  console.error('Featured image upload failed:', error);
-                  addToast('error', globalT('blog_article_failedUploadImage'));
-                }
-                return;
-              }
-
-              // 防御：防止空内容或Quill默认值覆盖已有有效内容
-              if (
-                (field === 'content' || field === 'excerpt') &&
-                typeof value === 'string' &&
-                (!value || value === '<p><br></p>')
-              ) {
-                const currentValues = getValues();
-                const localizedField: Record<string, any> =
-                  currentValues[field as keyof typeof currentValues] as Record<string, any>;
-                if (
-                  localizedField &&
-                  typeof localizedField === 'object' &&
-                  localizedField[currentLocale]
-                ) {
-                  // 已有有效内容，跳过更新
-                  return;
-                }
-              }
-
-              // 普通字段：当ArticleForm的字段变化时，同步更新父表单的多语言字段
-              const currentValues = getValues();
-              const localizedField =
-                currentValues[field as keyof typeof currentValues];
-
-              // 更新多语言对象中当前语言的值
-              if (
-                typeof localizedField === 'object' &&
-                localizedField !== null
-              ) {
-                setValue(
-                  field as any,
-                  {
-                    ...localizedField,
-                    [currentLocale]: value,
-                  },
-                  {
+                    },
+                  );
+                } else {
+                  // 如果还不是多语言对象，创建一个
+                  const newLocalized: Record<string, string> = {};
+                  availableLocaleCodes.forEach((lang) => {
+                    newLocalized[lang] = lang === currentLocale ? value : '';
+                  });
+                  setValue(field as any, newLocalized, {
                     shouldDirty: true,
                     shouldTouch: true,
                     shouldValidate: true,
-                  },
-                );
-              } else {
-                // 如果还不是多语言对象，创建一个
-                const newLocalized: Record<string, string> = {};
-                availableLocaleCodes.forEach((lang) => {
-                  newLocalized[lang] = lang === currentLocale ? value : '';
-                });
-                setValue(field as any, newLocalized, {
-                  shouldDirty: true,
-                  shouldTouch: true,
-                  shouldValidate: true,
-                });
-              }
-            }}
-          />
+                  });
+                }
+              }}
+            />
 
-          {/* Common Fields - Always Visible */}
-          <FormSelectField
-            name="categoryId"
-            label={t('category')}
-            placeholder={t('selectCategory')}
-            options={categoryOptions}
-          />
-          <div className="p-4 border rounded-lg shadow-sm">
-            <label className="block text-sm font-medium mb-2">
-              {t('tags')}
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {tags.map((tag) => {
-                const selected = (watch('tagIds') || []).includes(tag.id);
-                return (
-                  <button
-                    key={tag.id}
-                    type="button"
-                    className={`px-3 py-1.5 rounded-full text-sm border ${
-                      selected
-                        ? 'bg-primary-500 text-white border-primary-500'
-                        : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600'
-                    }`}
-                    onClick={() => handleTagToggle(tag.id)}
-                  >
-                    {renderLocalizedText(tag.name, 'zh', tag.id)}
-                  </button>
-                );
-              })}
+            {/* Common Fields - Always Visible */}
+            <FormSelectField
+              name="categoryId"
+              label={t('category')}
+              placeholder={t('selectCategory')}
+              options={categoryOptions}
+            />
+            <div className="p-4 border rounded-lg shadow-sm">
+              <label className="block text-sm font-medium mb-2">
+                {t('tags')}
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {tags.map((tag) => {
+                  const selected = (watch('tagIds') || []).includes(tag.id);
+                  return (
+                    <button
+                      key={tag.id}
+                      type="button"
+                      className={`px-3 py-1.5 rounded-full text-sm border ${
+                        selected
+                          ? 'bg-primary-500 text-white border-primary-500'
+                          : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600'
+                      }`}
+                      onClick={() => handleTagToggle(tag.id)}
+                    >
+                      {renderLocalizedText(tag.name, 'zh', tag.id)}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-          <FormSelectField
-            name="status"
-            label={t('status')}
-            options={statusOptions}
-          />
+            <FormSelectField
+              name="status"
+              label={t('status')}
+              options={statusOptions}
+            />
 
-          {/* Featured Toggle */}
-          <div className="flex items-center justify-between p-4 border rounded-lg">
-            <div>
-              <label className="text-sm font-medium">{t('featured')}</label>
-              <p className="text-xs text-gray-500 mt-0.5">{t('featuredDescription')}</p>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={watch('featured')}
-              onClick={() => setValue('featured', !watch('featured'))}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
-                watch('featured')
-                  ? 'bg-primary'
-                  : 'bg-gray-200 dark:bg-gray-700'
-              }`}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  watch('featured') ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </button>
-          </div>
-
-          <div className="flex justify-between items-center pt-4">
-            <div className="flex flex-1 gap-3 justify-end">
-              <Button
+            {/* Featured Toggle */}
+            <div className="flex items-center justify-between p-4 border rounded-lg">
+              <div>
+                <label className="text-sm font-medium">{t('featured')}</label>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {t('featuredDescription')}
+                </p>
+              </div>
+              <button
                 type="button"
-                variant="outline"
-                onClick={onCloseAction}
-                disabled={loading}
+                role="switch"
+                aria-checked={watch('featured')}
+                onClick={() => setValue('featured', !watch('featured'))}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
+                  watch('featured')
+                    ? 'bg-primary'
+                    : 'bg-gray-200 dark:bg-gray-700'
+                }`}
               >
-                {t('cancel')}
-              </Button>
-              <Button type="submit" isLoading={loading}>
-                {isEditing ? t('update') : t('publish')}
-              </Button>
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    watch('featured') ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
             </div>
-          </div>
+
+            <div className="flex justify-between items-center pt-4">
+              <div className="flex flex-1 gap-3 justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={onCloseAction}
+                  disabled={loading}
+                >
+                  {t('cancel')}
+                </Button>
+                <Button type="submit" isLoading={loading}>
+                  {isEditing ? t('update') : t('publish')}
+                </Button>
+              </div>
+            </div>
           </form>
         </Form>
       </div>
