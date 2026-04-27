@@ -173,7 +173,8 @@ jobs:
           NEXT_PUBLIC_DEPLOYED_AT: ${{ steps.build_meta.outputs.deployed_at }}
           NEXT_PUBLIC_GIT_SHA: ${{ steps.build_meta.outputs.git_sha }}
         run: |
-          yarn exec opennextjs-cloudflare build
+          # opennextjs-cloudflare build auto-reads open-next.config.ts — no -c needed.
+          yarn exec opennextjs-cloudflare
 
       - name: 7. Validate Cloudflare Secrets
         env:
