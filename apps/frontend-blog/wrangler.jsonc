@@ -51,6 +51,12 @@
       "preview_bucket_name": "mini-shop"
     }
   ],
+  "observability": {
+    "logs": {
+      "enabled": false,
+      "invocation_logs": true
+    }
+  },
   "analytics_engine_datasets": [
     {
       "binding": "ANALYTICS",
