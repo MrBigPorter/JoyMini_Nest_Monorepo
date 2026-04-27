@@ -26,7 +26,7 @@ interface LoadingIndicatorProps {
   /**
    * 手动加载更多的函数
    */
-  onLoadMore?: () => void;
+  onLoadMoreAction?: () => void;
 
   /**
    * 自定义加载文本
@@ -78,7 +78,7 @@ export function LoadingIndicator({
   isLoadingMore = false,
   hasMore = true,
   error = null,
-  onLoadMore,
+  onLoadMoreAction,
   loadingText,
   loadingMoreText,
   noMoreText,
@@ -122,9 +122,9 @@ export function LoadingIndicator({
         <p className="text-gray-600 dark:text-gray-400 mb-4">
           {defaultErrorText}
         </p>
-        {onLoadMore && (
+        {onLoadMoreAction && (
           <button
-            onClick={onLoadMore}
+            onClick={onLoadMoreAction}
             className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
           >
             {defaultRetryText}
@@ -190,11 +190,11 @@ export function LoadingIndicator({
   }
 
   // 显示加载更多按钮
-  if (showLoadMoreButton && onLoadMore && !autoLoad) {
+  if (showLoadMoreButton && onLoadMoreAction && !autoLoad) {
     return (
       <div className={`flex justify-center py-4 ${className}`}>
         <button
-          onClick={onLoadMore}
+          onClick={onLoadMoreAction}
           className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
         >
           {t('loadMore')}
@@ -234,7 +234,7 @@ export function InfiniteScrollLoader({
       isLoadingMore={isLoadingMore}
       hasMore={hasMore}
       error={error}
-      onLoadMore={onRetryAction}
+      onLoadMoreAction={onRetryAction}
       showLoadMoreButton={!!error}
       autoLoad={!error}
       className="mt-4"

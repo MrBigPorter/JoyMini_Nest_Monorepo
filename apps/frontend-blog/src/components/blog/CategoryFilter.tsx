@@ -8,13 +8,13 @@ import type { FrontendCategory } from '@/lib/types/frontend-blog';
 
 interface CategoryFilterProps {
   selectedCategoryId?: string;
-  onSelectCategory: (categoryId?: string) => void;
+  onSelectCategoryAction: (categoryId?: string) => void;
   isSticky?: boolean;
 }
 
 export function CategoryFilter({
   selectedCategoryId,
-  onSelectCategory,
+  onSelectCategoryAction,
   isSticky = false,
 }: CategoryFilterProps) {
   const t = useTranslations();
@@ -138,7 +138,7 @@ export function CategoryFilter({
         >
           {/* "All" chip */}
           <button
-            onClick={() => onSelectCategory(undefined)}
+            onClick={() => onSelectCategoryAction(undefined)}
             role="tab"
             aria-selected={!selectedCategoryId}
             className={`
@@ -160,7 +160,7 @@ export function CategoryFilter({
             return (
               <button
                 key={category.id}
-                onClick={() => onSelectCategory(category.id)}
+                onClick={() => onSelectCategoryAction(category.id)}
                 role="tab"
                 aria-selected={isActive}
                 className={`
