@@ -12,12 +12,6 @@ export async function generateStaticParams() {
 
 export const dynamic = 'force-static';
 
-interface CategoryPageProps {
-  params: {
-    slug: string;
-  };
-}
-
-export default function CategoryPage({ params }: CategoryPageProps) {
-  return <CategoryClientView params={params} />;
+export default function CategoryPage() {
+  return <CategoryClientView />;
 }
