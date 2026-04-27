@@ -53,7 +53,7 @@
   "analytics_engine_datasets": [
     {
       "binding": "ANALYTICS",
-      "dataset": "lucky-blog-analytics"
+      "dataset": "joymin_blog_analytics"
     }
   ],
   "env": {
