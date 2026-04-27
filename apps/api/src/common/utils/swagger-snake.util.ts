@@ -13,7 +13,11 @@ function processSchema(schema: any) {
   if (!schema || typeof schema !== 'object') return;
 
   // 处理当前 schema 的 properties
-  if (schema.properties && typeof schema.properties === 'object') {
+  if (
+    Object.prototype.hasOwnProperty.call(schema, 'properties') &&
+    schema.properties &&
+    typeof schema.properties === 'object'
+  ) {
     const newProps: Record<string, any> = {};
     for (const [key, propSchema] of Object.entries(schema.properties)) {
       const snakeKey = /[A-Z]/.test(key) ? toSnake(key) : key;
