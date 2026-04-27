@@ -37,8 +37,7 @@ export async function serverGet<T>(
       headers: {
         'Content-Type': 'application/json',
       },
-      next: { revalidate: 60 },
-    } as RequestInit & { next?: { revalidate?: number } });
+    });
 
     if (!res.ok) {
       const errorText = await res.text().catch(() => '');
