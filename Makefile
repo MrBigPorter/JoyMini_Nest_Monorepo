@@ -7,7 +7,8 @@
 
 .PHONY: setup up up-infra down restart logs ps build clean wipe help \
         dev-admin dev-blog exec-api migrate seed prisma-studio \
-        check-dockerfiles generate-certs
+        check-dockerfiles generate-certs \
+        check fix audit
 
 .DEFAULT_GOAL := help
 
@@ -124,6 +125,61 @@ seed:
 ## [DB] 打开 Prisma Studio (网页版可视化数据库)
 prisma-studio:
 	docker compose exec backend yarn workspace @lucky/api prisma studio
+
+# ──────────────────────────────────────────
+# 代码质量 (lint / fix / audit)
+# ──────────────────────────────────────────
+
+## [质量] 🔍 运行全量 lint（与 CI 一致，检测 ERROR）
+check:
+	yarn turbo run lint
+
+## [质量] 🔧 自动修复可修复问题（prettier + eslint --fix）
+fix:
+	@echo "==> Prettier: formatting all files..."
+	yarn prettier --write "**/*.{ts,tsx,js,jsx,json,md,css,scss,mjs,cjs}"
+	@echo ""
+	@echo "==> ESLint: auto-fixing what's fixable..."
+	-yarn workspace @lucky/api lint --fix 2>/dev/null
+	-yarn workspace @lucky/frontend-blog lint --fix 2>/dev/null
+	-yarn workspace @lucky/admin-next lint --fix 2>/dev/null
+	@echo ""
+	@echo "✅ Auto-fix complete. Remaining issues (if any) require manual fixes."
+	@echo "   Run 'make check' to verify."
+
+## [质量] 📊 按严重程度分类的警告报告
+define audit_workspace
+	@echo "========================================"
+	@echo "  $(1)"
+	@echo "========================================"
+	@echo ""
+	@echo "  🔴 CRITICAL (potential bugs)"
+	@echo "  -------------------------------"
+	@yarn workspace $(1) lint 2>&1 | grep -E "warning" | grep -E "no-floating-promises|require-await|no-unnecessary-type-assertion|no-base-to-string|await-thenable|react-hooks/exhaustive-deps" | sed 's/^/    /' || echo "    (none)"
+	@echo ""
+	@echo "  🟡 MEDIUM (type safety)"
+	@echo "  -------------------------------"
+	@yarn workspace $(1) lint 2>&1 | grep -E "warning" | grep -E "no-unsafe-(member-access|assignment|argument|return|call|enum-comparison)|restrict-template-expressions|no-explicit-any|ban-ts-comment" | sed 's/^/    /' || echo "    (none)"
+	@echo ""
+	@echo "  ⚪ LOW (code quality)"
+	@echo "  -------------------------------"
+	@yarn workspace $(1) lint 2>&1 | grep -E "warning" | grep -E "no-unused-vars|prettier/prettier|no-useless-escape|no-empty|no-require-imports|no-img-element|import/no-anonymous-default-export" | sed 's/^/    /' || echo "    (none)"
+	@echo ""
+	@echo "  📊 Summary"
+	@echo "  -------------------------------"
+	@yarn workspace $(1) lint 2>&1 | grep -E "^✖" | sed 's/^/    /'
+	@echo ""
+endef
+
+audit:
+	@echo ""
+	@echo "╔══════════════════════════════════════════════╗"
+	@echo "║   🔍 Categorized Warning Audit              ║"
+	@echo "╚══════════════════════════════════════════════╝"
+	@echo ""
+	$(call audit_workspace,@lucky/api)
+	$(call audit_workspace,@lucky/admin-next)
+	$(call audit_workspace,@lucky/frontend-blog)
 
 # ──────────────────────────────────────────
 # 帮助

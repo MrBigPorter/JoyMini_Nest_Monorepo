@@ -84,7 +84,7 @@ export class KycController {
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @DistributedLock('kyc:ocr-scan:{0}', 10000) // 每用户每 10 秒只能请求一次 OCR 扫描
   @ApiOkResponse({ type: KycOcrResponseDto })
-  async scanOcr(
+  scanOcr(
     @UploadedFile() file: Express.Multer.File,
     @CurrentUserId() userId: string,
   ) {

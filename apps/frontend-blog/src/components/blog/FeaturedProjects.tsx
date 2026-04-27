@@ -114,7 +114,10 @@ export function FeaturedProjects({ articles }: FeaturedProjectsProps) {
             destroyVideo();
           }
         });
-      } else if (hlsUrl && videoElement.canPlayType('application/vnd.apple.mpegurl')) {
+      } else if (
+        hlsUrl &&
+        videoElement.canPlayType('application/vnd.apple.mpegurl')
+      ) {
         // Native HLS support (Safari)
         videoElement.src = hlsUrl;
         videoElement.play().catch(() => {});
@@ -142,9 +145,15 @@ export function FeaturedProjects({ articles }: FeaturedProjectsProps) {
       destroyVideo();
       setUserClicked(false);
     };
-    window.addEventListener('hls-video-play', handleOtherVideoPlay as EventListener);
+    window.addEventListener(
+      'hls-video-play',
+      handleOtherVideoPlay as EventListener,
+    );
     return () => {
-      window.removeEventListener('hls-video-play', handleOtherVideoPlay as EventListener);
+      window.removeEventListener(
+        'hls-video-play',
+        handleOtherVideoPlay as EventListener,
+      );
     };
   }, [destroyVideo]);
 
@@ -238,7 +247,9 @@ export function FeaturedProjects({ articles }: FeaturedProjectsProps) {
   const videoDuration = currentArticle?.meta?.video?.duration;
   const posterUrl =
     currentArticle?.meta?.video?.poster ||
-    (!isVideoUrl(currentArticle?.coverImage) ? currentArticle?.coverImage : undefined);
+    (!isVideoUrl(currentArticle?.coverImage)
+      ? currentArticle?.coverImage
+      : undefined);
 
   return (
     <section className="mb-12 md:mb-16">
@@ -262,8 +273,18 @@ export function FeaturedProjects({ articles }: FeaturedProjectsProps) {
               className="p-2 rounded-full border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-30"
               aria-label="Previous project"
             >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 19l-7-7 7-7"
+                />
               </svg>
             </button>
             <button
@@ -274,8 +295,18 @@ export function FeaturedProjects({ articles }: FeaturedProjectsProps) {
               className="p-2 rounded-full border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-30"
               aria-label="Next project"
             >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 5l7 7-7 7"
+                />
               </svg>
             </button>
           </div>
@@ -332,7 +363,11 @@ export function FeaturedProjects({ articles }: FeaturedProjectsProps) {
                   onClick={handlePlayClick}
                 >
                   <div className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-all">
-                    <svg className="w-8 h-8 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
+                    <svg
+                      className="w-8 h-8 text-white ml-1"
+                      fill="currentColor"
+                      viewBox="0 0 24 24"
+                    >
                       <path d="M8 5v14l11-7z" />
                     </svg>
                   </div>
@@ -342,10 +377,16 @@ export function FeaturedProjects({ articles }: FeaturedProjectsProps) {
               {/* Video badge */}
               <div className="absolute top-4 left-4 z-20 flex items-center gap-2">
                 <span className="px-2.5 py-1 bg-black/60 backdrop-blur-sm text-white text-xs font-medium rounded-full flex items-center gap-1.5">
-                  <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                  <svg
+                    className="w-3.5 h-3.5"
+                    fill="currentColor"
+                    viewBox="0 0 24 24"
+                  >
                     <path d="M8 5v14l11-7z" />
                   </svg>
-                  {videoDuration ? formatDuration(videoDuration) : t('common.video') || 'Video'}
+                  {videoDuration
+                    ? formatDuration(videoDuration)
+                    : t('common.video') || 'Video'}
                 </span>
               </div>
             </>
@@ -397,8 +438,18 @@ export function FeaturedProjects({ articles }: FeaturedProjectsProps) {
                 {currentArticle.author?.name && (
                   <>
                     <span className="flex items-center gap-1.5">
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      <svg
+                        className="w-3.5 h-3.5"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                        />
                       </svg>
                       {currentArticle.author.name}
                     </span>
@@ -443,7 +494,9 @@ export function FeaturedProjects({ articles }: FeaturedProjectsProps) {
           {articles.map((article, i) => {
             const thumbSrc =
               article.meta?.video?.poster ||
-              (!isVideoUrl(article.coverImage) ? article.coverImage : undefined);
+              (!isVideoUrl(article.coverImage)
+                ? article.coverImage
+                : undefined);
             const isActive = i === activeIndex;
 
             return (
@@ -466,8 +519,18 @@ export function FeaturedProjects({ articles }: FeaturedProjectsProps) {
                   />
                 ) : (
                   <div className="w-full h-full bg-gradient-to-br from-slate-600 to-slate-800 flex items-center justify-center">
-                    <svg className="w-5 h-5 text-white/50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+                    <svg
+                      className="w-5 h-5 text-white/50"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={1.5}
+                        d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"
+                      />
                     </svg>
                   </div>
                 )}

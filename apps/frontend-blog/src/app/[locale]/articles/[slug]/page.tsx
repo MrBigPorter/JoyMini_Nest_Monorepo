@@ -1,5 +1,4 @@
 import { frontendBlogApi } from '@/lib/api/frontendBlogApi';
-import { ArticleDetailSkeleton } from '@/lib/components/SkeletonLoader';
 import ArticlePageClient from './page.client';
 import type { Metadata } from 'next';
 

@@ -143,7 +143,7 @@ export class NotificationService implements OnModuleInit {
             !resp.success &&
             resp.error?.code === 'messaging/registration-token-not-registered'
           ) {
-            this.deleteInvalidToken(tokens[idx]);
+            void this.deleteInvalidToken(tokens[idx]);
           }
         });
       }

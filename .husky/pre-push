@@ -1,17 +1,5 @@
 #!/usr/bin/env sh
 
-branch=$(git rev-parse --abbrev-ref HEAD)
-
-echo "[pre-push] current branch: $branch"
-
-case "$branch" in
-  main|test)
-	echo "[pre-push] running heavy checks..."
-	yarn prepush:heavy
-	;;
-  *)
-	echo "[pre-push] running light checks..."
-	yarn prepush:light
-	;;
-esac
-
+# Run full lint before push — matches CI pipeline (yarn turbo run lint)
+# If this fails, CI will also fail, so fix it before pushing.
+yarn turbo run lint

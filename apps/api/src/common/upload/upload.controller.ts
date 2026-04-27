@@ -26,9 +26,9 @@ import { UploadFolderDto } from '@api/common/upload/dto/upload-folder.dto';
  * Module-specific validation in method body gives clear error messages.
  */
 const FILE_SIZE_LIMITS: Record<string, number> = {
-  images: 20 * 1024 * 1024,       // 20MB for blog images
-  videos: 200 * 1024 * 1024,      // 200MB for blog videos
-  treasures: 5 * 1024 * 1024,     // 5MB default (existing behavior)
+  images: 20 * 1024 * 1024, // 20MB for blog images
+  videos: 200 * 1024 * 1024, // 200MB for blog videos
+  treasures: 5 * 1024 * 1024, // 5MB default (existing behavior)
   'chat/images': 10 * 1024 * 1024, // 10MB for chat images
 };
 

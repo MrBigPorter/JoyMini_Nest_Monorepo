@@ -163,7 +163,7 @@ export class FacebookProvider {
     }
   }
 
-  private async validateWithFacebookDebugToken(token: string): Promise<void> {
+  private validateWithFacebookDebugToken(token: string): void {
     try {
       // Facebook的debug_token端点需要应用访问令牌
       // 这里我们只是记录一个警告，因为不是所有应用都有应用访问令牌
