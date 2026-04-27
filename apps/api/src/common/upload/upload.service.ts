@@ -105,15 +105,6 @@ export class UploadService {
     encrypt: boolean = false, // 默认不加密，按需开启
   ) {
     try {
-      // Debug: 打印 S3 连接参数和目标
-      this.logger.error('[DEBUG] S3Client config:', {
-        endpoint: (this.s3Client as any).config.endpoint,
-        region: (this.s3Client as any).config.region,
-        bucket,
-        key,
-        contentType,
-        encrypt,
-      });
       await this.s3Client.send(
         new PutObjectCommand({
           Bucket: bucket,
@@ -126,9 +117,6 @@ export class UploadService {
       this.logger.log(`File uploaded successfully to ${bucket}/${key}`);
       return { key };
     } catch (error) {
-      // Debug: 打印详细错误堆栈
-      const errObj = error as any;
-      this.logger.error('[DEBUG] S3 Upload Error Stack:', errObj && (errObj.stack || JSON.stringify(errObj)));
       this.logger.error('Internal Upload Error', error);
       throw new InternalServerErrorException('Internal Upload Error');
     }
