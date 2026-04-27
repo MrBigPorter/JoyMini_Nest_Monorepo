@@ -161,7 +161,7 @@ export class UploadService {
       return response.ContentLength ?? 0;
     } catch (error) {
       this.logger.warn(
-        `Failed to get file size for ${bucketConfig.bucket}/${key}: ${error}`,
+        `Failed to get file size for ${bucketConfig.bucket}/${key}: ${String(error)}`,
       );
       return 0;
     }
@@ -398,7 +398,14 @@ export class UploadService {
         this.prisma.blogArticle
           .findUnique({ where: { id: articleId }, select: { meta: true } })
           .then((article: { meta: unknown } | null) => {
-            const existingMeta = (article?.meta as Record<string, any>) || {};
+            let existingMeta: Record<string, unknown> = {};
+            if (
+              article?.meta &&
+              typeof article.meta === 'object' &&
+              !Array.isArray(article.meta)
+            ) {
+              existingMeta = article.meta as Record<string, unknown>;
+            }
             return this.prisma.blogArticle.update({
               where: { id: articleId },
               data: {
@@ -407,13 +414,14 @@ export class UploadService {
                   video: {
                     status: 'pending',
                   },
-                } as any,
+                },
               },
             });
           })
-          .catch((err: Error) => {
+          .catch((err: unknown) => {
+            const msg = err instanceof Error ? err.message : String(err);
             this.logger.warn(
-              `Failed to set initial video status for article ${articleId}: ${err.message}`,
+              `Failed to set initial video status for article ${articleId}: ${msg}`,
             );
           });
       }
@@ -425,10 +433,9 @@ export class UploadService {
           videoKey: key,
           mimeType: file.mimetype,
         })
-        .catch((err) => {
-          this.logger.warn(
-            `Failed to enqueue media processing job: ${err.message}`,
-          );
+        .catch((err: unknown) => {
+          const msg = err instanceof Error ? err.message : String(err);
+          this.logger.warn(`Failed to enqueue media processing job: ${msg}`);
         });
     }
 
