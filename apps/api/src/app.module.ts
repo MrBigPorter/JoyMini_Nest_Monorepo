@@ -37,6 +37,12 @@ import { BlogModule } from '@api/blog/blog.module';
       useFactory: (config: ConfigService) => ({
         connection: {
           url: config.get<string>('REDIS_URL'),
+          socket: {
+            connectTimeout: 10000,
+            reconnectStrategy: (retries: number) => {
+              return Math.min(retries * 100, 3000);
+            },
+          },
         },
         // 默认配置：防止 Redis 瞬间压力过大
         defaultJobOptions: {
