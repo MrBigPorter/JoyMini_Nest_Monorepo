@@ -125,7 +125,7 @@ export class GroupService {
 
       //  [Socket 触发点 1]：真人加入成功
       // 不要在 await 里面等，让它飘着就行 (Fire and Forget)
-      this.notifyGroupChange(groupId);
+      void this.notifyGroupChange(groupId);
 
       return {
         finalGroupId: groupId,
@@ -153,7 +153,7 @@ export class GroupService {
 
       //  [Socket 触发点 2]：新团创建成功
       // 这里可以直接构造数据推，也可以复用 notifyGroupChange
-      this.notifyGroupChange(newGroup.groupId);
+      void this.notifyGroupChange(newGroup.groupId);
 
       await db.treasureGroupMember.create({
         data: {
@@ -260,12 +260,12 @@ export class GroupService {
     // 关键优化：使用 setImmediate 确保信号在主数据库事务 COMMIT 之后发出
     // 这样 Worker 去查订单时，状态肯定已经是最新且可见的
     setImmediate(() => {
-      this.emitGroupSuccessSignal(groupId);
+      void this.emitGroupSuccessSignal(groupId);
       //  [Socket 触发点 4]：状态变为 SUCCESS
       // 通知前端这个团满了/结束了
-      this.notifyGroupChange(groupId);
+      void this.notifyGroupChange(groupId);
       //  2. [新增] 通知参与者 (弹窗报喜)
-      this.notifyMembersOfResult(groupId, true);
+      void this.notifyMembersOfResult(groupId, true);
     });
   }
 
@@ -420,12 +420,12 @@ export class GroupService {
       if (shouldTriggerSuccess) {
         await this.emitGroupSuccessSignal(group.groupId);
         //  [新增] 如果机器人补满了，也要通知真人成员“成了”！
-        this.notifyMembersOfResult(group.groupId, true);
+        void this.notifyMembersOfResult(group.groupId, true);
       }
 
       //  [Socket 触发点 3]：机器人加入后
       // 无论是否满员，都要通知前端更新进度
-      this.notifyGroupChange(group.groupId);
+      void this.notifyGroupChange(group.groupId);
     } catch (e: any) {
       this.logger.error(`[Robot Error] Group ${group.groupId}: ${e.message}`);
     }
@@ -488,10 +488,10 @@ export class GroupService {
       });
       //  [Socket 触发点 5]：状态变为 FAILED
       // 事务结束后，通知前端移除该团
-      this.notifyGroupChange(groupId);
+      void this.notifyGroupChange(groupId);
 
       //  2. [新增] 通知参与者 (退款到账提醒)
-      this.notifyMembersOfResult(groupId, false);
+      void this.notifyMembersOfResult(groupId, false);
     } catch (e: any) {
       this.logger.error(`[Failure Error] Group ${groupId}: ${e.message}`);
     }

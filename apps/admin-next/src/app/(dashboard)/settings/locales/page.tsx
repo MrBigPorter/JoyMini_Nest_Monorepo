@@ -1,9 +1,10 @@
 'use client';
 
-// @ts-nocheck
 import React from 'react';
+
 import { useAvailableLocales } from '@/hooks/useAvailableLocales';
 import { Switch } from '@repo/ui';
+// @ts-expect-error Card component requires title/href props but we use it without
 import { Card } from '@repo/ui/card.tsx';
 
 export default function LocaleSettingsPage() {
@@ -22,7 +23,6 @@ export default function LocaleSettingsPage() {
         </p>
       </div>
 
-      {/* @ts-expect-error Card component requires title/href props */}
       <Card className="p-6">
         <div className="space-y-4">
           {locales.map((locale) => (

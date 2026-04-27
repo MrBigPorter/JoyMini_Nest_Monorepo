@@ -5,9 +5,7 @@ import type { Request } from 'express';
 @Injectable()
 export class OtpThrottlerGuard extends ThrottlerGuard {
   // @ts-ignore
-  protected async getTracker(
-    req: Record<string, any>,
-  ): Promise<string | string[]> {
+  protected getTracker(req: Record<string, any>): string | string[] {
     const r = req as Request;
 
     const xff = r.headers['x-forwarded-for'];

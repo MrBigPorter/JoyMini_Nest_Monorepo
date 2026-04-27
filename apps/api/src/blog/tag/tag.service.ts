@@ -154,8 +154,8 @@ export class TagService {
         ? {
             articles: {
               where: { status: 'PUBLISHED' },
-              select: { id: true }
-            }
+              select: { id: true },
+            },
           }
         : undefined,
     });
@@ -166,8 +166,8 @@ export class TagService {
         return {
           ...rest,
           _count: {
-            articles: articles.length
-          }
+            articles: articles.length,
+          },
         };
       });
     }
@@ -187,8 +187,8 @@ export class TagService {
       include: {
         articles: {
           where: { status: 'PUBLISHED' },
-          select: { id: true }
-        }
+          select: { id: true },
+        },
       },
     });
 
@@ -197,8 +197,8 @@ export class TagService {
       return {
         ...rest,
         _count: {
-          articles: articles.length
-        }
+          articles: articles.length,
+        },
       };
     });
   }
@@ -212,8 +212,8 @@ export class TagService {
       include: {
         articles: {
           where: { status: 'PUBLISHED' },
-          select: { id: true }
-        }
+          select: { id: true },
+        },
       },
     });
 
@@ -225,8 +225,8 @@ export class TagService {
     return {
       ...rest,
       _count: {
-        articles: articles.length
-      }
+        articles: articles.length,
+      },
     };
   }
 
@@ -253,7 +253,8 @@ export class TagService {
       this.logger.log(`Tag ${id} updated successfully`);
       return tag;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       const stack = error instanceof Error ? error.stack : undefined;
       this.logger.error(`Failed to update tag ${id}: ${errorMessage}`, stack);
       throw error;
@@ -273,7 +274,9 @@ export class TagService {
         select: { id: true },
       });
 
-      this.logger.log(`Found ${articles.length} articles associated with tag ${id}`);
+      this.logger.log(
+        `Found ${articles.length} articles associated with tag ${id}`,
+      );
 
       // 对每个文章执行单独的更新操作以解除标签关联
       for (const article of articles) {
@@ -288,7 +291,9 @@ export class TagService {
       }
 
       if (articles.length > 0) {
-        this.logger.log(`Disconnected tag ${id} from ${articles.length} articles`);
+        this.logger.log(
+          `Disconnected tag ${id} from ${articles.length} articles`,
+        );
       }
 
       const deletedTag = await this.prisma.blogTag.delete({
@@ -298,7 +303,8 @@ export class TagService {
       this.logger.log(`Tag deleted successfully: ${id}`);
       return deletedTag;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       const stack = error instanceof Error ? error.stack : undefined;
       this.logger.error(`Failed to delete tag ${id}: ${errorMessage}`, stack);
       throw error;

@@ -1,4 +1,3 @@
-import { getTranslations } from 'next-intl/server';
 import { frontendBlogApi } from '@/lib/api/frontendBlogApi';
 import { getEnabledLocales } from '@/lib/i18n/config';
 import CategoriesPageClient from './page.client';
@@ -30,16 +29,14 @@ export default async function CategoriesPage({
   const { locale: routeLocale } = params;
   const locale = routeLocale;
 
-  const t = await getTranslations({ locale });
-
   try {
     // 简化架构：直接API调用，避免复杂平台感知抽象
     const categories = await frontendBlogApi.getCategories(locale);
 
-    return <CategoriesPageClient initialData={categories} locale={locale} />;
+    return <CategoriesPageClient initialData={categories} />;
   } catch (error) {
     console.error('Categories page server error:', error);
 
-    return <CategoriesPageClient initialData={[]} locale={locale} />;
+    return <CategoriesPageClient initialData={[]} />;
   }
 }

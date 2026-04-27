@@ -13,7 +13,6 @@ import { HlsVideoPlayer } from './HlsVideoPlayer';
 import { isVideoUrl } from '@/lib/utils/media';
 import { Play } from 'lucide-react';
 
-
 /** Format seconds to MM:SS */
 function formatDuration(seconds: number): string {
   if (!seconds || seconds <= 0) return '';
@@ -59,9 +58,10 @@ export function ArticleCard({
   const coverImageUrl = article.coverImage || fallbackImage || '';
 
   // Check if article has HLS video available (from meta.video.hlsUrl)
-  const hlsUrl = 'meta' in article
-    ? (article as FrontendArticle).meta?.video?.hlsUrl
-    : undefined;
+  const hlsUrl =
+    'meta' in article
+      ? (article as FrontendArticle).meta?.video?.hlsUrl
+      : undefined;
 
   /** Click play button → play video inline, prevent navigation */
   const handlePlayVideo = useCallback((e: React.MouseEvent) => {
@@ -69,7 +69,10 @@ export function ArticleCard({
     e.stopPropagation();
     const vid = videoRef.current;
     if (!vid) return;
-    vid.play().then(() => setVideoPlaying(true)).catch(() => {});
+    vid
+      .play()
+      .then(() => setVideoPlaying(true))
+      .catch(() => {});
   }, []);
 
   const locale = useLocale();
@@ -93,7 +96,6 @@ export function ArticleCard({
       );
     }
   };
-
 
   // 确定宽高比类名
   const aspectRatioClass =
@@ -135,7 +137,11 @@ export function ArticleCard({
                 /* HLS video — use HlsVideoPlayer for adaptive streaming */
                 <HlsVideoPlayer
                   hlsUrl={hlsUrl}
-                  poster={'meta' in article ? (article as FrontendArticle).meta?.video?.poster : undefined}
+                  poster={
+                    'meta' in article
+                      ? (article as FrontendArticle).meta?.video?.poster
+                      : undefined
+                  }
                   className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                   clickToPlay
                 />
@@ -151,7 +157,9 @@ export function ArticleCard({
                     preload="metadata"
                     controls={videoPlaying}
                     onPlay={() => setVideoPlaying(true)}
-                    onPause={() => {/* keep controls visible after first play */}}
+                    onPause={() => {
+                      /* keep controls visible after first play */
+                    }}
                   />
                   {/* Play button overlay — only shows before first play */}
                   {!videoPlaying && (
@@ -168,7 +176,7 @@ export function ArticleCard({
                   )}
                   {/* Duration badge */}
                   {'meta' in article &&
-                    (article as FrontendArticle).meta?.video?.duration ? (
+                  (article as FrontendArticle).meta?.video?.duration ? (
                     <span className="absolute bottom-2 right-2 z-20 px-1.5 py-0.5 bg-black/70 backdrop-blur-sm text-white text-[10px] font-medium rounded">
                       {formatDuration(
                         (article as FrontendArticle).meta!.video!.duration,
@@ -178,7 +186,6 @@ export function ArticleCard({
                 </>
               )
             ) : (
-
               <BlurhashImage
                 src={coverImageUrl}
                 alt={article.title}

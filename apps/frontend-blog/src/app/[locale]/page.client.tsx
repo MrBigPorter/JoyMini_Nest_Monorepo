@@ -28,14 +28,14 @@ interface HomePageClientProps {
 
 const PAGE_SIZE = 10;
 
-export default function HomePageClient({
-  initialData,
-}: HomePageClientProps) {
+export default function HomePageClient({ initialData }: HomePageClientProps) {
   const t = useTranslations();
   const currentLocale = useCurrentLocale();
 
   // Category filter state
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string | undefined>(undefined);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<
+    string | undefined
+  >(undefined);
   // Pagination
   const [page, setPage] = useState(1);
   // Accumulated articles for "Load More"
@@ -61,7 +61,6 @@ export default function HomePageClient({
   });
 
   const articles = data?.items || [];
-  const total = data?.total || 0;
   const totalPages = data?.totalPages || 0;
 
   // Track previous page to detect page changes
@@ -152,9 +151,7 @@ export default function HomePageClient({
         <section>
           <div className="mb-8">
             <h1 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-3">
-              {selectedCategoryId
-                ? t('categories.title')
-                : t('home.title')}
+              {selectedCategoryId ? t('categories.title') : t('home.title')}
             </h1>
             <p className="text-base text-slate-600 dark:text-slate-400">
               {t('home.subtitle')}
@@ -169,8 +166,19 @@ export default function HomePageClient({
                 fill="none"
                 viewBox="0 0 24 24"
               >
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                />
               </svg>
               <span>{t('common.loading')}</span>
             </div>
@@ -196,9 +204,24 @@ export default function HomePageClient({
               {isFetching && page > 1 && (
                 <div className="mt-6 flex justify-center">
                   <div className="flex items-center gap-2 text-sm text-slate-500">
-                    <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    <svg
+                      className="animate-spin w-4 h-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      />
                     </svg>
                     <span>{t('common.loading')}</span>
                   </div>
@@ -212,7 +235,6 @@ export default function HomePageClient({
                 hasMore={hasMore}
               />
             </>
-
           ) : (
             /* Empty state */
             <div className="text-center py-20">
@@ -222,14 +244,18 @@ export default function HomePageClient({
                 viewBox="0 0 24 24"
                 stroke="currentColor"
               >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1}
+                  d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"
+                />
               </svg>
               <p className="text-slate-500 dark:text-slate-400 mt-4">
                 {t('home.empty')}
               </p>
             </div>
           )}
-
         </section>
       </div>
     </div>

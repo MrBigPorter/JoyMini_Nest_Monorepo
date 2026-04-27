@@ -1168,7 +1168,7 @@ export class BlogService {
   /**
    * 检查点赞状态
    */
-  async checkLikeStatus(slug: string, fingerprint: string) {
+  checkLikeStatus(slug: string, fingerprint: string) {
     // 后续实现指纹检查逻辑
     return { liked: false };
   }
@@ -1418,7 +1418,7 @@ export class BlogService {
       return [];
     }
 
-    const maskedComments = comments.map(comment => {
+    const maskedComments = comments.map((comment) => {
       // 确保status字段存在，以便@Transform能正确转换approved字段
       const commentWithStatus = {
         ...comment,
@@ -1426,10 +1426,14 @@ export class BlogService {
       };
 
       // 转换单个评论
-      const maskedComment = plainToInstance(CommentResponseDto, commentWithStatus, {
-        excludeExtraneousValues: true,
-        enableImplicitConversion: true,
-      });
+      const maskedComment = plainToInstance(
+        CommentResponseDto,
+        commentWithStatus,
+        {
+          excludeExtraneousValues: true,
+          enableImplicitConversion: true,
+        },
+      );
 
       // 递归处理子评论
       if (comment.children && comment.children.length > 0) {
@@ -1573,11 +1577,12 @@ export class BlogService {
     // 判断是否为自动回复（作者为"Porter"或"System"，或isAiGenerated为true）
     const processedReplies = replies.map((reply) => ({
       ...reply,
-      isAiGenerated: reply.isAiGenerated || 
-                    reply.author === 'Porter' || 
-                    reply.author === 'System' ||
-                    reply.email === 'porter@joyminis.com' ||
-                    reply.email === 'system@joyminis.com',
+      isAiGenerated:
+        reply.isAiGenerated ||
+        reply.author === 'Porter' ||
+        reply.author === 'System' ||
+        reply.email === 'porter@joyminis.com' ||
+        reply.email === 'system@joyminis.com',
     }));
 
     return {
@@ -1613,26 +1618,34 @@ export class BlogService {
    */
   private isArticleTranslated(article: any, targetLang: string): boolean {
     // 检查 Localized 字段
-    if (article.titleLocalized && 
-        typeof article.titleLocalized === 'object' && 
-        article.titleLocalized[targetLang] &&
-        article.titleLocalized[targetLang].trim().length > 0) {
-      
+    if (
+      article.titleLocalized &&
+      typeof article.titleLocalized === 'object' &&
+      article.titleLocalized[targetLang] &&
+      article.titleLocalized[targetLang].trim().length > 0
+    ) {
       // 同时检查内容也有翻译
-      if (article.contentLocalized && 
-          typeof article.contentLocalized === 'object' &&
-          article.contentLocalized[targetLang] &&
-          article.contentLocalized[targetLang].trim().length > 0) {
+      if (
+        article.contentLocalized &&
+        typeof article.contentLocalized === 'object' &&
+        article.contentLocalized[targetLang] &&
+        article.contentLocalized[targetLang].trim().length > 0
+      ) {
         return true;
       }
     }
 
     // 兼容旧字段格式
-    const langSuffix = targetLang === 'zh' ? '' : targetLang.charAt(0).toUpperCase() + targetLang.slice(1);
-    if (article[`title${langSuffix}`] && 
-        article[`title${langSuffix}`].trim().length > 0 &&
-        article[`content${langSuffix}`] &&
-        article[`content${langSuffix}`].trim().length > 0) {
+    const langSuffix =
+      targetLang === 'zh'
+        ? ''
+        : targetLang.charAt(0).toUpperCase() + targetLang.slice(1);
+    if (
+      article[`title${langSuffix}`] &&
+      article[`title${langSuffix}`].trim().length > 0 &&
+      article[`content${langSuffix}`] &&
+      article[`content${langSuffix}`].trim().length > 0
+    ) {
       return true;
     }
 
@@ -1910,7 +1923,7 @@ export class BlogService {
   /**
    * 获取翻译日志
    */
-  async getTranslationLogs(params: { page: number; pageSize: number }) {
+  getTranslationLogs(params: { page: number; pageSize: number }) {
     const { page = 1, pageSize = 20 } = params;
     const skip = (page - 1) * pageSize;
 
@@ -2053,7 +2066,10 @@ export class BlogService {
     page?: number,
     pageSize?: number,
   ) {
-    const { page: currentPage = 1, pageSize: itemsPerPage = 20 } = { page, pageSize };
+    const { page: currentPage = 1, pageSize: itemsPerPage = 20 } = {
+      page,
+      pageSize,
+    };
     const skip = (currentPage - 1) * itemsPerPage;
 
     const where: any = {};
@@ -2096,7 +2112,9 @@ export class BlogService {
       throw new BadRequestException('languageCode parameter is required');
     }
 
-    const articles = await this.prisma.$queryRaw<{ id: string; title: string; slug: string; createdAt: Date }[]>`
+    const articles = await this.prisma.$queryRaw<
+      { id: string; title: string; slug: string; createdAt: Date }[]
+    >`
       SELECT id, title, slug, created_at as "createdAt" FROM blog_articles 
       WHERE status != 'DRAFT'
         AND (

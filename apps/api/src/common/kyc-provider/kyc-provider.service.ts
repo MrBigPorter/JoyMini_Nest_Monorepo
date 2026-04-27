@@ -279,7 +279,7 @@ Fraud fields:
         ],
       });
 
-      const response = await result.response;
+      const response = result.response;
       const text = response.candidates?.[0]?.content?.parts?.[0]?.text;
       if (!text) return null;
 

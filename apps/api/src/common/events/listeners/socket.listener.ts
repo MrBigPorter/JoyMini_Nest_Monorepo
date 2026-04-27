@@ -25,7 +25,7 @@ export class SocketListener {
   // 1. 处理新消息 (Message Created)
   // ===========================================================================
   @OnEvent(CHAT_EVENTS.MESSAGE_CREATED)
-  async handleMessageCreated(event: MessageCreatedEvent) {
+  handleMessageCreated(event: MessageCreatedEvent) {
     this.logger.debug(
       `[SocketListener] MessageCreated event received: ` +
         `messageId=${event.messageId}, conversationId=${event.conversationId}, ` +
