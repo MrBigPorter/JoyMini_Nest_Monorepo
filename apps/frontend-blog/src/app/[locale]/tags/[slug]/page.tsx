@@ -12,12 +12,6 @@ export async function generateStaticParams() {
 
 export const dynamic = 'force-static';
 
-interface TagPageProps {
-  params: {
-    slug: string;
-  };
-}
-
-export default function TagPage({ params }: TagPageProps) {
-  return <TagClientView params={params} />;
+export default function TagPage() {
+  return <TagClientView />;
 }

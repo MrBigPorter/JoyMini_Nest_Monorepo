@@ -8,13 +8,7 @@ import { ArticleCard } from '@/components/blog/ArticleCard';
 import { EmptyContentState } from '@/components/blog/EmptyContentState';
 import { useFrontendTagBySlug } from '@/lib/hooks/useFrontendArticles';
 
-interface TagClientViewProps {
-  params: {
-    slug: string;
-  };
-}
-
-export default function TagClientView({ params }: TagClientViewProps) {
+export default function TagClientView() {
   const t = useTranslations();
   const paramsFromHook = useParams();
   const slug = paramsFromHook.slug as string;
