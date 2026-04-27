@@ -48,7 +48,9 @@ export function registerHtml5VideoBlot(Quill: any): void {
       node.setAttribute('class', `${existing} ${extra}`.trim());
 
       // Try to infer MIME type from URL extension for a proper <source> type
-      const extMatch = String(url).split('?')[0].match(/\.([a-zA-Z0-9]+)$/);
+      const extMatch = String(url)
+        .split('?')[0]
+        .match(/\.([a-zA-Z0-9]+)$/);
       let mime = '';
       if (extMatch) {
         const ext = extMatch[1].toLowerCase();

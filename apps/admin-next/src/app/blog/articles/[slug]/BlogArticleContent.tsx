@@ -23,7 +23,16 @@ import { renderLocalizedText } from '@/utils/localizedText';
 /** Detect video URL from file extension */
 function isVideoUrl(url: string | null | undefined): boolean {
   if (!url) return false;
-  const videoExtensions = ['.mp4', '.webm', '.mov', '.avi', '.mkv', '.ogv', '.m4v', '.m3u8'];
+  const videoExtensions = [
+    '.mp4',
+    '.webm',
+    '.mov',
+    '.avi',
+    '.mkv',
+    '.ogv',
+    '.m4v',
+    '.m3u8',
+  ];
   try {
     const pathname = new URL(url).pathname.toLowerCase();
     return videoExtensions.some((ext) => pathname.endsWith(ext));
@@ -244,30 +253,31 @@ export default function BlogArticleContent({
           </div>
 
           {/* Featured image / video */}
-          {article.featuredImage && (() => {
-            const isVideo = isVideoUrl(article.featuredImage);
-            return (
-              <div className="mb-8 rounded-xl overflow-hidden bg-black relative">
-                {isVideo ? (
-                  <div className="relative group">
-                    <video
+          {article.featuredImage &&
+            (() => {
+              const isVideo = isVideoUrl(article.featuredImage);
+              return (
+                <div className="mb-8 rounded-xl overflow-hidden bg-black relative">
+                  {isVideo ? (
+                    <div className="relative group">
+                      <video
+                        src={article.featuredImage}
+                        controls
+                        preload="metadata"
+                        playsInline
+                        className="w-full h-auto max-h-96 object-contain mx-auto"
+                      />
+                    </div>
+                  ) : (
+                    <img
                       src={article.featuredImage}
-                      controls
-                      preload="metadata"
-                      playsInline
-                      className="w-full h-auto max-h-96 object-contain mx-auto"
+                      alt={title}
+                      className="w-full h-auto max-h-96 object-cover"
                     />
-                  </div>
-                ) : (
-                  <img
-                    src={article.featuredImage}
-                    alt={title}
-                    className="w-full h-auto max-h-96 object-cover"
-                  />
-                )}
-              </div>
-            );
-          })()}
+                  )}
+                </div>
+              );
+            })()}
 
           {/* Title */}
           <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">
