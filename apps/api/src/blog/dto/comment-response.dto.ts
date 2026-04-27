@@ -50,9 +50,9 @@ function maskCommentContent(content: string): string {
 
   // 5. 防止社交账号泄露
   const socialAccountRegex =
-    /(?:微信|wechat|qq|QQ|微博|twitter|推特)\s*[:：]\s*[@\w\u4e00-\u9fa5\-_\.]+/gi;
+    /(?:微信|wechat|qq|QQ|微博|twitter|推特)\s*[:：]\s*[@\w\u4e00-\u9fa5\-_.]+/gi;
   maskedContent = maskedContent.replace(socialAccountRegex, (match) => {
-    return match.replace(/[:：]\s*[@\w\u4e00-\u9fa5\-_\.]+/, ': ****');
+    return match.replace(/[:：]\s*[@\w\u4e00-\u9fa5\-_.]+/, ': ****');
   });
 
   // 6. 防止密码/令牌泄露

@@ -16,7 +16,13 @@ export function getRealIp(req: Request): string {
  */
 export function getUserAgent(req: Request): string {
   const ua = req.headers['user-agent'];
-  return (Array.isArray(ua) ? ua[0] : ua) || '';
+  if (Array.isArray(ua)) {
+    return ua[0] || '';
+  }
+  if (typeof ua === 'string') {
+    return ua;
+  }
+  return '';
 }
 
 /**

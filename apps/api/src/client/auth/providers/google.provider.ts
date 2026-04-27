@@ -38,7 +38,10 @@ export class GoogleProvider {
         if (decoded.includes('-----BEGIN')) {
           privateKey = decoded;
         }
-      } catch (e) {}
+      } catch (e) {
+        // 非 Base64 编码的私钥，直接使用原始值
+        void e;
+      }
 
       // 清理所有污染字符
       privateKey = privateKey

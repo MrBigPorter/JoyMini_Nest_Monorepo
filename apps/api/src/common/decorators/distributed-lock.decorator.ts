@@ -29,7 +29,7 @@ export function DistributedLock(
       let finalKey = keyPattern;
       try {
         finalKey = keyPattern.replace(
-          /{(\d+)(\.[\w\.]+)?}/g,
+          /{(\d+)(\.[\w.]+)?}/g,
           (match, indexStr, path) => {
             const index = parseInt(indexStr);
             const arg = args[index];
