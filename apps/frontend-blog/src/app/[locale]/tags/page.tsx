@@ -2,6 +2,7 @@ import { frontendBlogApi } from '@/lib/api/frontendBlogApi';
 import { getEnabledLocales } from '@/lib/i18n/config';
 import TagsPageClient from './page.client';
 import type { Locale } from '@/lib/i18n/config';
+import type { FrontendTag } from '@/lib/types/frontend-blog';
 
 // Next.js 15 perfect cache pattern
 // revalidate combination
@@ -21,8 +22,14 @@ interface TagsPageProps {
 }
 
 export default async function TagsPage({ params }: TagsPageProps) {
-  // 简化架构：直接API调用，避免复杂平台感知抽象
-  const tags = await frontendBlogApi.getTags(params.locale);
+  let tags: FrontendTag[] = [];
+
+  try {
+    // 简化架构：直接API调用，避免复杂平台感知抽象
+    tags = await frontendBlogApi.getTags(params.locale);
+  } catch (error) {
+    console.error('Tags page server error:', error);
+  }
 
   return <TagsPageClient initialTags={tags} />;
 }
