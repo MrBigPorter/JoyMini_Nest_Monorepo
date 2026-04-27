@@ -1237,6 +1237,10 @@ export const blogApi = {
     return await http.post<any>(`/v1/admin/blog/articles/${id}/unpublish`);
   },
 
+  triggerVideoTranscode: async (articleId: string, videoKey: string) => {
+    return await http.post(`/v1/admin/blog/articles/${articleId}/transcode-video`, { videoKey });
+  },
+
   // Categories
   getCategories: async (params?: {
     page?: number;

@@ -23,9 +23,33 @@ export class GoogleProvider {
       const clientEmail = this.configService.get<string>(
         'FIREBASE_CLIENT_EMAIL',
       );
-      const privateKey = this.configService
-        .get<string>('FIREBASE_PRIVATE_KEY')
-        ?.replace(/\\n/g, '\n');
+      const privateKeyRaw = this.configService.get<string>(
+        'FIREBASE_PRIVATE_KEY',
+        '',
+      );
+
+      // 处理 Base64编码、引号、各种换行转义、空白字符、制表符
+      let privateKey = privateKeyRaw;
+
+      try {
+        // 90% Docker/K8s 部署都会先Base64编码私钥，先尝试解码
+        const decoded = Buffer.from(privateKey, 'base64').toString('utf8');
+        // 解码后必须包含PEM头才算成功
+        if (decoded.includes('-----BEGIN')) {
+          privateKey = decoded;
+        }
+      } catch (e) {}
+
+      // 清理所有污染字符
+      privateKey = privateKey
+        // 移除首尾任何单引号/双引号/反引号
+        .replace(/^["'`]|["'`]$/g, '')
+        // 处理所有格式的换行转义: \\n, \n, \r, \\\\n, \t 以及纯文字\n字符串
+        .replace(/\\n|\\r|\\\\n|\\t/g, '\n')
+        // 合并多余连续换行
+        .replace(/\n+/g, '\n')
+        // 移除首尾多余空白字符
+        .trim();
 
       if (projectId && clientEmail && privateKey) {
         admin.initializeApp({
