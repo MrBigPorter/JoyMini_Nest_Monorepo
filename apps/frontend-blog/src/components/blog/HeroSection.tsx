@@ -71,81 +71,96 @@ export function HeroSection({ articles }: HeroSectionProps) {
           onMouseEnter={stopAutoPlay}
           onMouseLeave={startAutoPlay}
         >
-            <div className="relative h-[300px] sm:h-[400px] lg:h-[500px]">
-              {hasHlsVideo ? (
-                <HlsVideoPlayer
-                  hlsUrl={mainArticle.meta!.video!.hlsUrl}
-                  poster={mainArticle.meta?.video?.poster || (!isVideoUrl(mainArticle.coverImage) ? mainArticle.coverImage : undefined)}
-                  className="w-full h-full"
-                  autoPlay={false}
-                  muted
-                />
-              ) : coverIsVideo ? (
-                <video
-                  src={mainArticle.coverImage}
-                  className="w-full h-full object-cover"
-                  controls={false}
-                  muted
-                  playsInline
-                  preload="metadata"
-                />
-              ) : mainArticle.coverImage ? (
-                <BlurhashImage
-                  src={mainArticle.coverImage}
-                  alt={mainArticle.title}
-                  fill
-                  priority
-                  blurhash={mainArticle.meta?.images?.blurhash}
-                  sizes="(max-width: 1024px) 100vw, 66vw"
-                  className="w-full h-full"
-                />
-              ) : (
-                <div className="w-full h-full bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700 flex items-center justify-center p-8">
-                  <div className="text-center">
-                    <svg className="w-16 h-16 mx-auto mb-4 text-white/60" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
-                    </svg>
-                    <h3 className="text-2xl font-bold text-white/90 line-clamp-3">
-                      {mainArticle.title}
-                    </h3>
-                    {mainArticle.excerpt && (
-                      <p className="mt-2 text-sm text-white/70 line-clamp-2 max-w-md mx-auto">
-                        {mainArticle.excerpt}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Gradient overlay — visual only */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-
-              {/* Content overlay — wrapped in Link for navigation */}
-              <div className="absolute bottom-0 left-0 right-0 p-4 md:p-8">
-                <Link href={`/articles/${mainArticle.slug}`} className="block">
-                  {mainArticle.category && (
-                    <span className="inline-block px-3 py-1 mb-3 text-xs font-medium text-white bg-blue-600/80 backdrop-blur-sm rounded-full">
-                      {mainArticle.category.name}
-                    </span>
-                  )}
-                  <h2 className="text-xl md:text-3xl lg:text-4xl font-bold text-white mb-2 line-clamp-2">
+          <div className="relative h-[300px] sm:h-[400px] lg:h-[500px]">
+            {hasHlsVideo ? (
+              <HlsVideoPlayer
+                hlsUrl={mainArticle.meta!.video!.hlsUrl}
+                poster={
+                  mainArticle.meta?.video?.poster ||
+                  (!isVideoUrl(mainArticle.coverImage)
+                    ? mainArticle.coverImage
+                    : undefined)
+                }
+                className="w-full h-full"
+                autoPlay={false}
+                muted
+              />
+            ) : coverIsVideo ? (
+              <video
+                src={mainArticle.coverImage}
+                className="w-full h-full object-cover"
+                controls={false}
+                muted
+                playsInline
+                preload="metadata"
+              />
+            ) : mainArticle.coverImage ? (
+              <BlurhashImage
+                src={mainArticle.coverImage}
+                alt={mainArticle.title}
+                fill
+                priority
+                blurhash={mainArticle.meta?.images?.blurhash}
+                sizes="(max-width: 1024px) 100vw, 66vw"
+                className="w-full h-full"
+              />
+            ) : (
+              <div className="w-full h-full bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700 flex items-center justify-center p-8">
+                <div className="text-center">
+                  <svg
+                    className="w-16 h-16 mx-auto mb-4 text-white/60"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1}
+                      d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"
+                    />
+                  </svg>
+                  <h3 className="text-2xl font-bold text-white/90 line-clamp-3">
                     {mainArticle.title}
-                  </h2>
-                  <p className="text-sm md:text-base text-white/80 line-clamp-2 mb-3">
-                    {mainArticle.excerpt}
-                  </p>
-                  <div className="flex items-center gap-4 text-xs md:text-sm text-white/60">
-                    <span>{mainArticle.author?.name}</span>
-                    <span>·</span>
-                    <span>
-                      {new Date(mainArticle.publishedAt).toLocaleDateString()}
-                    </span>
-                    <span>·</span>
-                    <span>{mainArticle.views} views</span>
-                  </div>
-                </Link>
+                  </h3>
+                  {mainArticle.excerpt && (
+                    <p className="mt-2 text-sm text-white/70 line-clamp-2 max-w-md mx-auto">
+                      {mainArticle.excerpt}
+                    </p>
+                  )}
+                </div>
               </div>
+            )}
+
+            {/* Gradient overlay — visual only */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+
+            {/* Content overlay — wrapped in Link for navigation */}
+            <div className="absolute bottom-0 left-0 right-0 p-4 md:p-8">
+              <Link href={`/articles/${mainArticle.slug}`} className="block">
+                {mainArticle.category && (
+                  <span className="inline-block px-3 py-1 mb-3 text-xs font-medium text-white bg-blue-600/80 backdrop-blur-sm rounded-full">
+                    {mainArticle.category.name}
+                  </span>
+                )}
+                <h2 className="text-xl md:text-3xl lg:text-4xl font-bold text-white mb-2 line-clamp-2">
+                  {mainArticle.title}
+                </h2>
+                <p className="text-sm md:text-base text-white/80 line-clamp-2 mb-3">
+                  {mainArticle.excerpt}
+                </p>
+                <div className="flex items-center gap-4 text-xs md:text-sm text-white/60">
+                  <span>{mainArticle.author?.name}</span>
+                  <span>·</span>
+                  <span>
+                    {new Date(mainArticle.publishedAt).toLocaleDateString()}
+                  </span>
+                  <span>·</span>
+                  <span>{mainArticle.views} views</span>
+                </div>
+              </Link>
             </div>
+          </div>
 
           {/* Dot indicators */}
           {heroArticles.length > 1 && (
@@ -176,64 +191,79 @@ export function HeroSection({ articles }: HeroSectionProps) {
             const sideHasVideo = isVideoUrl(article.coverImage);
             const videoDuration = article.meta?.video?.duration;
             return (
-            <div
-              key={article.id}
-              className="group relative flex-1 rounded-xl overflow-hidden bg-white dark:bg-slate-800 shadow-lg min-h-[140px] md:min-h-[180px]"
-            >
-              <div className="absolute inset-0">
-                {sideHasHls ? (
-                  <HlsVideoPlayer
-                    hlsUrl={article.meta!.video!.hlsUrl}
-                    poster={article.meta?.video?.poster || (!isVideoUrl(article.coverImage) ? article.coverImage : undefined)}
-                    className="w-full h-full"
-                    muted
-                    autoPlay={false}
-                  />
-                ) : sideHasVideo ? (
-                  <video
-                    src={article.coverImage}
-                    className="w-full h-full object-cover"
-                    muted
-                    playsInline
-                    preload="metadata"
-                  />
-                ) : article.coverImage ? (
-                  <BlurhashImage
-                    src={article.coverImage}
-                    alt={article.title}
-                    fill
-                    blurhash={article.meta?.images?.blurhash}
-                    sizes="(max-width: 1024px) 100vw, 33vw"
-                    className="w-full h-full"
-                  />
-                ) : (
-                  <div className="w-full h-full bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-600 flex items-center justify-center p-4">
-                    <svg className="w-10 h-10 text-white/50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
-                    </svg>
-                  </div>
-                )}
-                {/* Duration badge for video content */}
-                {videoDuration && videoDuration > 0 && (
-                  <span className="absolute top-2 right-2 z-20 px-1.5 py-0.5 bg-black/70 backdrop-blur-sm text-white text-[10px] font-medium rounded">
-                    {formatDuration(videoDuration)}
-                  </span>
-                )}
-              </div>
-              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-              <div className="absolute bottom-0 left-0 right-0 p-3 md:p-4">
-                <Link href={`/articles/${article.slug}`}>
-                  {article.category && (
-                    <span className="inline-block px-2 py-0.5 mb-2 text-[10px] font-medium text-white bg-blue-600/80 backdrop-blur-sm rounded-full">
-                      {article.category.name}
+              <div
+                key={article.id}
+                className="group relative flex-1 rounded-xl overflow-hidden bg-white dark:bg-slate-800 shadow-lg min-h-[140px] md:min-h-[180px]"
+              >
+                <div className="absolute inset-0">
+                  {sideHasHls ? (
+                    <HlsVideoPlayer
+                      hlsUrl={article.meta!.video!.hlsUrl}
+                      poster={
+                        article.meta?.video?.poster ||
+                        (!isVideoUrl(article.coverImage)
+                          ? article.coverImage
+                          : undefined)
+                      }
+                      className="w-full h-full"
+                      muted
+                      autoPlay={false}
+                    />
+                  ) : sideHasVideo ? (
+                    <video
+                      src={article.coverImage}
+                      className="w-full h-full object-cover"
+                      muted
+                      playsInline
+                      preload="metadata"
+                    />
+                  ) : article.coverImage ? (
+                    <BlurhashImage
+                      src={article.coverImage}
+                      alt={article.title}
+                      fill
+                      blurhash={article.meta?.images?.blurhash}
+                      sizes="(max-width: 1024px) 100vw, 33vw"
+                      className="w-full h-full"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-600 flex items-center justify-center p-4">
+                      <svg
+                        className="w-10 h-10 text-white/50"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={1}
+                          d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"
+                        />
+                      </svg>
+                    </div>
+                  )}
+                  {/* Duration badge for video content */}
+                  {videoDuration && videoDuration > 0 && (
+                    <span className="absolute top-2 right-2 z-20 px-1.5 py-0.5 bg-black/70 backdrop-blur-sm text-white text-[10px] font-medium rounded">
+                      {formatDuration(videoDuration)}
                     </span>
                   )}
-                  <h3 className="text-sm md:text-base font-semibold text-white line-clamp-2">
-                    {article.title}
-                  </h3>
-                </Link>
+                </div>
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+                <div className="absolute bottom-0 left-0 right-0 p-3 md:p-4">
+                  <Link href={`/articles/${article.slug}`}>
+                    {article.category && (
+                      <span className="inline-block px-2 py-0.5 mb-2 text-[10px] font-medium text-white bg-blue-600/80 backdrop-blur-sm rounded-full">
+                        {article.category.name}
+                      </span>
+                    )}
+                    <h3 className="text-sm md:text-base font-semibold text-white line-clamp-2">
+                      {article.title}
+                    </h3>
+                  </Link>
+                </div>
               </div>
-            </div>
             );
           })}
         </div>

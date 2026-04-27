@@ -3,18 +3,18 @@ import { Injectable } from '@nestjs/common';
 @Injectable()
 export class LanguageDetectionService {
   private readonly supportedLanguages = ['zh', 'en', 'ja', 'ko', 'fr', 'de'];
-  
+
   // 语言代码映射表 (ISO 639-3 → ISO 639-1)
   private readonly languageMap: Record<string, string> = {
-    'cmn': 'zh', // 中文
-    'eng': 'en', // 英文
-    'jpn': 'ja', // 日文
-    'kor': 'ko', // 韩文
-    'fra': 'fr', // 法文
-    'deu': 'de', // 德文
-    'spa': 'es', // 西班牙文（备用）
-    'ita': 'it', // 意大利文（备用）
-    'rus': 'ru', // 俄文（备用）
+    cmn: 'zh', // 中文
+    eng: 'en', // 英文
+    jpn: 'ja', // 日文
+    kor: 'ko', // 韩文
+    fra: 'fr', // 法文
+    deu: 'de', // 德文
+    spa: 'es', // 西班牙文（备用）
+    ita: 'it', // 意大利文（备用）
+    rus: 'ru', // 俄文（备用）
   };
 
   /**
@@ -36,11 +36,11 @@ export class LanguageDetectionService {
       // 动态导入franc-min，避免编译错误
       const franc = require('franc-min');
       const francResult = franc.franc(text);
-      
+
       // 如果franc检测成功且置信度高，使用映射结果
       if (francResult !== 'und' && this.languageMap[francResult]) {
         const mappedLanguage = this.languageMap[francResult];
-        
+
         // 检查是否是我们支持的语言
         if (this.supportedLanguages.includes(mappedLanguage)) {
           // franc-min对长文本更准确，置信度设为0.85
@@ -59,7 +59,10 @@ export class LanguageDetectionService {
    * 回退检测：基于字符集的特征检测
    * 当franc-min无法检测时使用
    */
-  private fallbackDetection(text: string): { language: string; confidence: number } {
+  private fallbackDetection(text: string): {
+    language: string;
+    confidence: number;
+  } {
     const scores: Record<string, number> = {};
 
     // 分析文本中的字符特征
@@ -157,12 +160,18 @@ export class LanguageDetectionService {
     // 处理法文和德文的特殊情况
     // 如果文本中包含法文特有字符或法文词汇，优先判断为法文
     if ((scores['fr'] && scores['fr'] > 0) || this.containsFrenchWords(text)) {
-      return { language: 'fr', confidence: Math.min(1.0, (scores['fr'] || 0) / text.length + 0.3) };
+      return {
+        language: 'fr',
+        confidence: Math.min(1.0, (scores['fr'] || 0) / text.length + 0.3),
+      };
     }
-    
+
     // 如果文本中包含德文特有字符或德文词汇，优先判断为德文
     if ((scores['de'] && scores['de'] > 0) || this.containsGermanWords(text)) {
-      return { language: 'de', confidence: Math.min(1.0, (scores['de'] || 0) / text.length + 0.3) };
+      return {
+        language: 'de',
+        confidence: Math.min(1.0, (scores['de'] || 0) / text.length + 0.3),
+      };
     }
 
     // 找到得分最高的语言
@@ -318,17 +327,19 @@ export class LanguageDetectionService {
       // 特殊情况：如果源文本是英文（不包含中文字符），且目标语言也是英文，那么相同是正常的
       const sourceDetection = this.detectLanguage(sourceValue);
       const chineseCharsRegex = /[\u4e00-\u9fa5]/;
-      
-      if (sourceDetection.language === 'en' && 
-          targetLanguage === 'en' && 
-          !chineseCharsRegex.test(sourceValue)) {
-        return { 
-          translated: true, 
-          confidence: 1.0, 
-          reason: '英文标签，与源文本相同是正常的' 
+
+      if (
+        sourceDetection.language === 'en' &&
+        targetLanguage === 'en' &&
+        !chineseCharsRegex.test(sourceValue)
+      ) {
+        return {
+          translated: true,
+          confidence: 1.0,
+          reason: '英文标签，与源文本相同是正常的',
         };
       }
-      
+
       return { translated: false, confidence: 0.9, reason: '与源文本完全相同' };
     }
 
@@ -358,7 +369,11 @@ export class LanguageDetectionService {
 
     // 额外检查：对于中文到英文的翻译，如果目标文本太短（少于3个字符），可能不完整
     const sourceDetection = this.detectLanguage(sourceValue);
-    if (sourceDetection.language === 'zh' && targetLanguage === 'en' && targetLength < 3) {
+    if (
+      sourceDetection.language === 'zh' &&
+      targetLanguage === 'en' &&
+      targetLength < 3
+    ) {
       return {
         translated: false,
         confidence: 0.9,
@@ -417,14 +432,39 @@ export class LanguageDetectionService {
    */
   private containsFrenchWords(text: string): boolean {
     const frenchWords = [
-      'le', 'la', 'les', 'un', 'une', 'des', 'et', 'est', 'dans', 'pour',
-      'avec', 'sur', 'par', 'bonjour', 'monde', 'merci', 's\'il', 'vous',
-      'nous', 'je', 'tu', 'il', 'elle', 'ils', 'elles', 'oui', 'non', 'mais'
+      'le',
+      'la',
+      'les',
+      'un',
+      'une',
+      'des',
+      'et',
+      'est',
+      'dans',
+      'pour',
+      'avec',
+      'sur',
+      'par',
+      'bonjour',
+      'monde',
+      'merci',
+      "s'il",
+      'vous',
+      'nous',
+      'je',
+      'tu',
+      'il',
+      'elle',
+      'ils',
+      'elles',
+      'oui',
+      'non',
+      'mais',
     ];
-    
+
     const lowerText = text.toLowerCase();
-    return frenchWords.some(word => 
-      new RegExp(`\\b${word}\\b`, 'i').test(lowerText)
+    return frenchWords.some((word) =>
+      new RegExp(`\\b${word}\\b`, 'i').test(lowerText),
     );
   }
 
@@ -433,14 +473,40 @@ export class LanguageDetectionService {
    */
   private containsGermanWords(text: string): boolean {
     const germanWords = [
-      'der', 'die', 'das', 'und', 'ist', 'nicht', 'mit', 'von', 'auf', 'für',
-      'wir', 'sie', 'ich', 'du', 'er', 'es', 'hallo', 'welt', 'bitte', 'danke',
-      'guten', 'tag', 'morgen', 'abend', 'nacht', 'ja', 'nein', 'oder', 'aber'
+      'der',
+      'die',
+      'das',
+      'und',
+      'ist',
+      'nicht',
+      'mit',
+      'von',
+      'auf',
+      'für',
+      'wir',
+      'sie',
+      'ich',
+      'du',
+      'er',
+      'es',
+      'hallo',
+      'welt',
+      'bitte',
+      'danke',
+      'guten',
+      'tag',
+      'morgen',
+      'abend',
+      'nacht',
+      'ja',
+      'nein',
+      'oder',
+      'aber',
     ];
-    
+
     const lowerText = text.toLowerCase();
-    return germanWords.some(word => 
-      new RegExp(`\\b${word}\\b`, 'i').test(lowerText)
+    return germanWords.some((word) =>
+      new RegExp(`\\b${word}\\b`, 'i').test(lowerText),
     );
   }
 

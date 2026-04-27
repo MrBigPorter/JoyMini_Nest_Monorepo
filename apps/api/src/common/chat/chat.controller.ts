@@ -305,7 +305,7 @@ export class ChatController {
    */
   @Get('ice-servers')
   @ApiResponse({ status: 200, type: [IceServerDto] })
-  async getIceServers(@CurrentUserId() userId: string) {
+  getIceServers(@CurrentUserId() userId: string) {
     return this.chatService.getIceServers(userId);
   }
 

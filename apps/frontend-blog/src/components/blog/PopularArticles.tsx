@@ -42,7 +42,11 @@ export function PopularArticles() {
         className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2"
       >
         {/* Fire icon */}
-        <svg className="w-5 h-5 text-orange-500" fill="currentColor" viewBox="0 0 24 24">
+        <svg
+          className="w-5 h-5 text-orange-500"
+          fill="currentColor"
+          viewBox="0 0 24 24"
+        >
           <path d="M12 23c-3.866 0-7-3.134-7-7 0-3.866 3.134-7 7-7s7 3.134 7 7c0 3.866-3.134 7-7 7zm0-12c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5z" />
           <path d="M13.5 2.5c0 1.5-1.5 2-1.5 4s1.5 3.5 3 4.5c-1.5 0-3-1-3-3s1-3.5 1.5-5.5z" />
           <path d="M10.5 4c0 1-.5 1.5-1 2.5s.5 3 1.5 4c-1 0-2-1-2-2.5S10 5 10.5 4z" />
@@ -82,9 +86,24 @@ export function PopularArticles() {
               </h3>
               <div className="flex items-center gap-2 mt-1 text-xs text-slate-400 dark:text-slate-500">
                 <span className="flex items-center gap-1">
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  <svg
+                    className="w-3.5 h-3.5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                    />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                    />
                   </svg>
                   {article.views}
                 </span>

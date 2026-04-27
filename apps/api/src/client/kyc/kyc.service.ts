@@ -29,7 +29,7 @@ export class KycService {
    * @param buffer
    * @param fieldName
    */
-  async validateImageSize(buffer: Buffer, fieldName: string) {
+  validateImageSize(buffer: Buffer, fieldName: string) {
     const size = buffer.length;
     if (size < MIN_IMAGE_SIZE) {
       throw new BadRequestException(

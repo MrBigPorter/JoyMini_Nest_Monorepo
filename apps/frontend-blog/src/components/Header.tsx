@@ -197,7 +197,10 @@ export default function Header() {
             {/* 实际导航栏内容 */}
             <div className="h-14 px-4 max-w-7xl mx-auto flex items-center justify-between w-full">
               {/* Logo */}
-              <Link href="/" className="font-bold text-lg flex items-center gap-2">
+              <Link
+                href="/"
+                className="font-bold text-lg flex items-center gap-2"
+              >
                 <img
                   src="/logo.png"
                   alt="Tarsier Labs"
@@ -241,7 +244,10 @@ export default function Header() {
         >
           <div className="h-14 px-6 max-w-7xl mx-auto flex items-center justify-between w-full">
             {/* Logo */}
-            <Link href="/" className="font-bold text-lg flex items-center gap-2">
+            <Link
+              href="/"
+              className="font-bold text-lg flex items-center gap-2"
+            >
               <img
                 src="/logo.png"
                 alt="Tarsier Labs"

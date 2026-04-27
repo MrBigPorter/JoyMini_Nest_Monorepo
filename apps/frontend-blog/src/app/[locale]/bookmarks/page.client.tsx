@@ -42,7 +42,6 @@ export default function BookmarksPageClient({
     items: bookmarks,
     total,
     page,
-    pageSize,
     totalPages,
     isLoading,
     isLoadingMore,

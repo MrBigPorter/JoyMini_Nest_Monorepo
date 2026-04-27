@@ -520,7 +520,7 @@ export class ChatGroupService {
     });
 
     // 6.  异步通知管理员
-    this._notifyAdminsOfNewRequest(
+    void this._notifyAdminsOfNewRequest(
       groupId,
       userId,
       user?.nickname || 'Unknown',

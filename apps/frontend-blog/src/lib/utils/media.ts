@@ -11,7 +11,16 @@
 export function isVideoUrl(url: string | null | undefined): boolean {
   if (!url) return false;
 
-  const videoExtensions = ['.mp4', '.webm', '.mov', '.avi', '.mkv', '.ogv', '.m4v', '.m3u8'];
+  const videoExtensions = [
+    '.mp4',
+    '.webm',
+    '.mov',
+    '.avi',
+    '.mkv',
+    '.ogv',
+    '.m4v',
+    '.m3u8',
+  ];
 
   try {
     const pathname = new URL(url).pathname.toLowerCase();

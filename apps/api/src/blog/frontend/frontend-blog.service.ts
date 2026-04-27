@@ -437,7 +437,7 @@ export class FrontendBlogService {
         (v) => typeof v === 'string',
       );
       if (firstStringValue) {
-        return firstStringValue as string;
+        return firstStringValue;
       }
     }
 

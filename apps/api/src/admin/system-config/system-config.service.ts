@@ -26,12 +26,12 @@ export class SystemConfigService {
     const existing = await this.prisma.systemConfig.findUnique({
       where: { key },
     });
-    
+
     if (!existing) {
       // 配置不存在，自动创建
       return this.prisma.systemConfig.create({
-        data: { 
-          key, 
+        data: {
+          key,
           value: dto.value,
         },
       });
@@ -99,8 +99,8 @@ export class SystemConfigService {
       // 自动创建缺失的配置项
       try {
         await this.prisma.systemConfig.create({
-          data: { 
-            key, 
+          data: {
+            key,
             value: JSON.stringify(defaultValue),
           },
         });

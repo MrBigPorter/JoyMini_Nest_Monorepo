@@ -90,8 +90,18 @@ export function CategoryFilter({
           className="absolute left-0 top-3 bottom-0 z-10 w-8 flex items-center justify-start bg-gradient-to-r from-background via-background/90 to-transparent"
           aria-label="Scroll left"
         >
-          <svg className="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          <svg
+            className="w-4 h-4 text-slate-500"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M15 19l-7-7 7-7"
+            />
           </svg>
         </button>
       )}
@@ -103,15 +113,29 @@ export function CategoryFilter({
           className="absolute right-0 top-3 bottom-0 z-10 w-8 flex items-center justify-end bg-gradient-to-l from-background via-background/90 to-transparent"
           aria-label="Scroll right"
         >
-          <svg className="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          <svg
+            className="w-4 h-4 text-slate-500"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M9 5l7 7-7 7"
+            />
           </svg>
         </button>
       )}
 
       {/* Embla carousel */}
       <div ref={emblaRef} className="overflow-hidden pt-3">
-        <div className="flex gap-2" role="tablist" aria-label={t('categories.title')}>
+        <div
+          className="flex gap-2"
+          role="tablist"
+          aria-label={t('categories.title')}
+        >
           {/* "All" chip */}
           <button
             onClick={() => onSelectCategory(undefined)}

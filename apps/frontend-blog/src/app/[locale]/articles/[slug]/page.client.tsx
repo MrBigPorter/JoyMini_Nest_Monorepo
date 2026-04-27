@@ -3,7 +3,6 @@
 import { useTranslations } from 'next-intl';
 import dynamic from 'next/dynamic';
 import { ChevronLeft, Clock, Calendar, User } from 'lucide-react';
-import { HlsVideoPlayer } from '@/components/blog/HlsVideoPlayer';
 import { Link } from '@/navigation';
 import CommentList from '@/components/blog/CommentList';
 import { BookmarkButton } from '@/lib/components/BookmarkButton';
@@ -168,7 +167,6 @@ export default function ArticlePageClient({
             </div>
           </div>
         </header>
-
 
         {/* Article content — lazy-loaded markdown renderer */}
         <ArticleMarkdown content={article.content || ''} />

@@ -231,7 +231,7 @@ export class BookmarkService {
         (v) => typeof v === 'string',
       );
       if (firstStringValue) {
-        return firstStringValue as string;
+        return firstStringValue;
       }
     }
 

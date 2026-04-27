@@ -118,7 +118,7 @@ export class AiService implements OnModuleInit {
     }
   }
 
-  private async initializeVertexAI() {
+  private initializeVertexAI() {
     const googleCredsRaw = this.configService.get<string>(
       'GOOGLE_VISION_CREDENTIALS',
     );
@@ -264,7 +264,7 @@ export class AiService implements OnModuleInit {
         generationConfig: options,
       });
 
-      const response = await result.response;
+      const response = result.response;
 
       // 安全边界检查
       if (
@@ -475,16 +475,16 @@ RULES:
   /**
    * ⏳ 预留：生成向量嵌入
    */
-  async generateEmbedding(text: string): Promise<number[] | null> {
+  generateEmbedding(text: string): Promise<number[] | null> {
     this.logger.debug('Embedding generation requested, feature coming soon');
-    return null;
+    return Promise.resolve(null);
   }
 
   /**
    * ⏳ 预留：语义搜索匹配
    */
-  async semanticSearch(query: string, documents: string[]): Promise<number[]> {
-    return [];
+  semanticSearch(query: string, documents: string[]): Promise<number[]> {
+    return Promise.resolve([]);
   }
 
   /**
@@ -542,7 +542,6 @@ GENERAL RULES:
 Text to translate:
 ${text}
 `.trim();
-
 
     const result = await this.generateText(
       prompt,
@@ -614,7 +613,6 @@ Requirements:
 Document:
 ${markdown}
 `.trim();
-
 
     const result = await this.generateText(
       prompt,

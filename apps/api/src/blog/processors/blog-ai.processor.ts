@@ -226,7 +226,7 @@ export class BlogAiProcessor extends WorkerHost {
 
     // 获取源内容
     const getSourceContent = (field: string, localizedField: string) => {
-      const articleAny = article as any;
+      const articleAny = article;
       const localized = articleAny[localizedField];
 
       if (localized && localized[sourceLang]) {
@@ -837,9 +837,12 @@ For example:
       };
       // 从原始内容中提取视频标签，用于追加到翻译后的内容中
       // AI 翻译只处理文本，视频嵌入标签会丢失
-      const originalHtml = (sourceContent || article.content || '');
-      const videoTagRegex = /<figure[^>]*>[\s\S]*?<video[\s\S]*?<\/video>[\s\S]*?<\/figure>|<video[\s\S]*?<\/video>/gi;
-      const preservedVideoTags = (originalHtml.match(videoTagRegex) || []).join('\n');
+      const originalHtml = sourceContent || article.content || '';
+      const videoTagRegex =
+        /<figure[^>]*>[\s\S]*?<video[\s\S]*?<\/video>[\s\S]*?<\/figure>|<video[\s\S]*?<\/video>/gi;
+      const preservedVideoTags = (originalHtml.match(videoTagRegex) || []).join(
+        '\n',
+      );
 
       // 自动渲染对应语言HTML
       // 注意：sourceContent 优先从 contentLocalized / contentMdLocalized 提取
@@ -848,12 +851,16 @@ For example:
         ...((article.contentLocalized as any) || {}),
         [sourceLang]:
           sourceLang === 'zh'
-            ? ((article.contentLocalized as any)?.[sourceLang] as string) || sourceContent || article.content // 优先保留已有 HTML 内容（含视频），再回退到旧字段
+            ? ((article.contentLocalized as any)?.[sourceLang] as string) ||
+              sourceContent ||
+              article.content // 优先保留已有 HTML 内容（含视频），再回退到旧字段
             : this.renderMarkdown(sourceContent || article.content || ''), // 保留原始语言
         [data.targetLang]: (() => {
           const translatedHtml = this.renderMarkdown(contentTranslated);
           // 如果原始内容有视频标签，追加到翻译后的 HTML 末尾
-          return preservedVideoTags ? translatedHtml + '\n' + preservedVideoTags : translatedHtml;
+          return preservedVideoTags
+            ? translatedHtml + '\n' + preservedVideoTags
+            : translatedHtml;
         })(),
       };
 
@@ -869,7 +876,11 @@ For example:
       });
 
       // 更新翻译任务为完成
-      await this.translationJobService.updateProgress(dbJobId, 100, 'COMPLETED');
+      await this.translationJobService.updateProgress(
+        dbJobId,
+        100,
+        'COMPLETED',
+      );
 
       this.logger.log(`Article translation completed: ${data.articleId}`);
     } catch (err) {
@@ -1048,7 +1059,11 @@ For example:
       });
 
       // 更新翻译任务为完成
-      await this.translationJobService.updateProgress(dbJobId, 100, 'COMPLETED');
+      await this.translationJobService.updateProgress(
+        dbJobId,
+        100,
+        'COMPLETED',
+      );
 
       this.logger.log(`Category translation completed: ${data.categoryId}`);
     } catch (err) {
@@ -1073,7 +1088,6 @@ For example:
       };
     }
   }
-
 
   private async processTagTranslation(
     data: {
@@ -1189,7 +1203,11 @@ For example:
       });
 
       // 更新翻译任务为完成
-      await this.translationJobService.updateProgress(dbJobId, 100, 'COMPLETED');
+      await this.translationJobService.updateProgress(
+        dbJobId,
+        100,
+        'COMPLETED',
+      );
 
       this.logger.log(`Tag translation completed: ${data.tagId}`);
     } catch (err) {
@@ -1211,5 +1229,4 @@ For example:
       };
     }
   }
-
 }
