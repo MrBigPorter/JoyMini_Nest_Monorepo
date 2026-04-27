@@ -8,7 +8,7 @@
 .PHONY: setup up up-infra down restart logs ps build clean wipe help \
         dev-admin dev-blog exec-api migrate seed prisma-studio \
         check-dockerfiles generate-certs \
-        check fix audit
+        check fix audit type-check
 
 .DEFAULT_GOAL := help
 
@@ -133,6 +133,21 @@ prisma-studio:
 ## [质量] 🔍 运行全量 lint（与 CI 一致，检测 ERROR）
 check:
 	yarn turbo run lint
+
+## [质量] 🧪 运行全量 TypeScript 严格类型检查（tsc --noEmit，覆盖所有 workspace）
+type-check:
+	@echo "==> Running strict type-check across all workspaces..."
+	@echo ""
+	@echo "  [1/3] @lucky/api..."
+	-yarn workspace @lucky/api check-types 2>&1 | tail -5
+	@echo ""
+	@echo "  [2/3] @lucky/admin-next..."
+	-yarn workspace @lucky/admin-next check-types 2>&1 | tail -5
+	@echo ""
+	@echo "  [3/3] @lucky/frontend-blog..."
+	-yarn workspace @lucky/frontend-blog check-types 2>&1 | tail -5
+	@echo ""
+	@echo "✅ Type-check complete. Review any errors above."
 
 ## [质量] 🔧 自动修复可修复问题（prettier + eslint --fix）
 fix:
