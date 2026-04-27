@@ -70,6 +70,8 @@ vi.mock('@/api', () => ({
 }));
 
 vi.mock('@lucky/shared', () => ({
+  DEFAULT_LOCALE: 'zh',
+  AVAILABLE_LOCALES: ['zh', 'en', 'ja', 'ko', 'fr', 'de'],
   KYC_STATUS: { DRAFT: 0, REVIEWING: 1, APPROVED: 2, REJECTED: 3 },
   KycIdCardType: { PASSPORT: 'PASSPORT', NATIONAL_ID: 'NATIONAL_ID' },
   KycIdCardTypeLabel: { PASSPORT: 'Passport', NATIONAL_ID: 'National ID' },

@@ -36,7 +36,10 @@ vi.mock('@/api', () => ({
   },
 }));
 vi.mock('@lucky/shared', () => ({
+  DEFAULT_LOCALE: 'zh',
+  AVAILABLE_LOCALES: ['zh', 'en', 'ja', 'ko', 'fr', 'de'],
   COUPON_STATUS: { ACTIVE: 1, DISABLED: 0 },
+  COUPON_TYPE: { FULL_REDUCTION: 1, DISCOUNT: 2, NO_THRESHOLD: 3 },
   COUPON_TYPE_OPTIONS: [{ label: 'Fixed', value: 1 }],
   DISCOUNT_TYPE: { FIXED: 1, PERCENT: 2 },
   ISSUE_TYPE: { MANUAL: 1, AUTO: 2 },

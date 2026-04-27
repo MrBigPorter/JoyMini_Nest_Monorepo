@@ -42,6 +42,8 @@ vi.mock('@/api', () => ({
 }));
 
 vi.mock('@lucky/shared', () => ({
+  DEFAULT_LOCALE: 'zh',
+  AVAILABLE_LOCALES: ['zh', 'en', 'ja', 'ko', 'fr', 'de'],
   GROUP_STATUS: { OPEN: 1, FULL: 2, EXPIRED: 3, CANCELLED: 4 },
 }));
 

@@ -40,6 +40,8 @@ vi.mock('@/api', () => ({
   },
 }));
 vi.mock('@lucky/shared', () => ({
+  DEFAULT_LOCALE: 'zh',
+  AVAILABLE_LOCALES: ['zh', 'en', 'ja', 'ko', 'fr', 'de'],
   getActSectionTypeLabel: (v: number) => `Type${v}`,
 }));
 vi.mock('@/views/act-section/ActSectionBindProductModal', () => {
