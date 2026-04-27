@@ -88,15 +88,15 @@ jobs:
       - name: Generate Prisma Client
         run: yarn workspace @lucky/api prisma generate
 
-      # 7) 执行 Lint（硬门禁 — 失败即阻断）
-      - name: Lint
-        run: yarn turbo run lint
-
-      # 8) 构建内部依赖包（check-types 需要 @lucky/shared 的 dist/）
+      # 7) 构建内部依赖包（lint + check-types 需要 @lucky/shared 的 dist/）
       - name: Build internal packages
         run: |
           node packages/shared/scripts/build.js
           node packages/ui/scripts/build.js
+
+      # 8) 执行 Lint（硬门禁 — 失败即阻断）
+      - name: Lint
+        run: yarn turbo run lint
 
       # 9) 执行 TypeScript 类型检查（硬门禁）
       - name: Type Check
