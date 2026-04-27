@@ -38,7 +38,7 @@ export default function TagsPage() {
       setTags(response.list || []);
     } catch (error) {
       console.error('Failed to fetch tags:', error);
-      addToast('error', t('loadFailed'));
+      addToast('error', t('blog_tags_loadFailed'));
     } finally {
       setIsLoading(false);
     }
@@ -65,18 +65,18 @@ export default function TagsPage() {
 
   const handleDeleteTag = async (tagId: string) => {
     ModalManager.open({
-      title: t('deleteTag'),
-      content: t('actionCannotBeUndone'),
-      confirmText: t('deleteConfirm'),
+      title: t('blog_tags_deleteTag'),
+      content: t('blog_tags_actionCannotBeUndone'),
+      confirmText: t('blog_tags_deleteConfirm'),
       onCancel: () => {},
       onConfirm: async () => {
         try {
           await blogApi.deleteTag(tagId);
-          addToast('success', t('tagDeleted'));
+          addToast('success', t('blog_tags_tagDeleted'));
           fetchTags(); // Refresh the list
         } catch (error) {
           console.error('Failed to delete tag:', error);
-          addToast('error', t('deleteFailed'));
+          addToast('error', t('blog_tags_deleteFailed'));
         }
       },
     });
@@ -88,7 +88,7 @@ export default function TagsPage() {
         <div className="text-center">
           <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
           <p className="mt-4 text-sm text-muted-foreground">
-            {t('loadingTags')}
+            {t('blog_tags_loadingTags')}
           </p>
         </div>
       </div>
@@ -98,12 +98,12 @@ export default function TagsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title={t('pageTitle')}
-        description={t('pageDescription')}
+        title={t('blog_tags_pageTitle')}
+        description={t('blog_tags_pageDescription')}
         showBackButton={true}
         onBack={() => router.push('/blog')}
         breadcrumbs={[t('breadcrumbBlog'), t('breadcrumbTags')]}
-        buttonText={t('newTag')}
+        buttonText={t('blog_tags_newTag')}
         buttonOnClick={() => {
           setEditingTag(null);
           setIsModalOpen(true);
@@ -121,7 +121,7 @@ export default function TagsPage() {
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder={t('searchPlaceholder')}
+                placeholder={t('blog_tags_searchPlaceholder')}
                 className="w-full pl-9 pr-3 py-2 border border-gray-200 dark:border-white/10 rounded-lg bg-gray-50 dark:bg-black/20 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 dark:text-white placeholder-gray-400 dark:placeholder-gray-600"
               />
             </div>
@@ -130,7 +130,7 @@ export default function TagsPage() {
             <div className="text-center">
               <div className="text-2xl font-bold">{tags.length}</div>
               <div className="text-xs text-muted-foreground">
-                {t('totalTags')}
+                {t('blog_tags_totalTags')}
               </div>
             </div>
             <div className="text-center">
@@ -138,7 +138,7 @@ export default function TagsPage() {
                 {tags.reduce((sum, tag) => sum + (tag.articleCount || 0), 0)}
               </div>
               <div className="text-xs text-muted-foreground">
-                {t('taggedArticles')}
+                {t('blog_tags_taggedArticles')}
               </div>
             </div>
           </div>
@@ -146,10 +146,10 @@ export default function TagsPage() {
       </Card>
 
       {/* Tags Grid */}
-      <Card title={t('tagList')}>
+      <Card title={t('blog_tags_tagList')}>
         <div className="mb-4">
           <p className="text-sm text-muted-foreground">
-            {t('totalTagsCount', { count: filteredTags.length })}
+            {t('blog_tags_totalTagsCount', { count: filteredTags.length })}
           </p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -201,16 +201,21 @@ export default function TagsPage() {
                   </button>
                 </div>
               </div>
+
               <p className="text-sm text-muted-foreground mb-4">
-                {renderLocalizedText(tag.description, lang, t('noDescription'))}
+                {renderLocalizedText(
+                  tag.description,
+                  lang,
+                  t('blog_tags_noDescription'),
+                )}
               </p>
               <div className="flex items-center justify-between text-xs">
                 <div className="flex items-center space-x-3">
                   <span className="px-2 py-1 rounded-full bg-primary/10 text-primary">
-                    {tag.articleCount || 0} {t('articles')}
+                    {tag.articleCount || 0} {t('blog_tags_articles')}
                   </span>
                   <span className="px-2 py-1 rounded-full bg-secondary/10 text-secondary">
-                    {tag.usageCount || 0} {t('uses')}
+                    {tag.usageCount || 0} {t('blog_tags_uses')}
                   </span>
                 </div>
                 <div className="text-muted-foreground">{tag.createdAt}</div>
@@ -223,7 +228,7 @@ export default function TagsPage() {
       {/* Pagination */}
       <div className="flex items-center justify-between">
         <div className="text-sm text-muted-foreground">
-          {t('showingTags', {
+          {t('blog_tags_showingTags', {
             current: filteredTags.length,
             total: filteredTags.length,
           })}
@@ -248,27 +253,27 @@ export default function TagsPage() {
       </div>
 
       {/* Usage Tips */}
-      <Card title={t('tagUsageTips')}>
+      <Card title={t('blog_tags_tagUsageTips')}>
         <ul className="space-y-2 text-sm text-muted-foreground">
           <li className="flex items-start">
             <div className="mr-2 mt-0.5">•</div>
-            <span>{t('tip1')}</span>
+            <span>{t('blog_tags_tip1')}</span>
           </li>
           <li className="flex items-start">
             <div className="mr-2 mt-0.5">•</div>
-            <span>{t('tip2')}</span>
+            <span>{t('blog_tags_tip2')}</span>
           </li>
           <li className="flex items-start">
             <div className="mr-2 mt-0.5">•</div>
-            <span>{t('tip3')}</span>
+            <span>{t('blog_tags_tip3')}</span>
           </li>
           <li className="flex items-start">
             <div className="mr-2 mt-0.5">•</div>
-            <span>{t('tip4')}</span>
+            <span>{t('blog_tags_tip4')}</span>
           </li>
           <li className="flex items-start">
             <div className="mr-2 mt-0.5">•</div>
-            <span>{t('tip5')}</span>
+            <span>{t('blog_tags_tip5')}</span>
           </li>
         </ul>
       </Card>

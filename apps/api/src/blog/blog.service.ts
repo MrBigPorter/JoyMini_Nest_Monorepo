@@ -940,9 +940,27 @@ export class BlogService {
    * 获取热门标签
    */
   async getPopularTags(limit: number) {
-    return this.prisma.blogTag.findMany({
-      orderBy: { createdAt: 'desc' },
+    const tags = await this.prisma.blogTag.findMany({
+      orderBy: {
+        articles: { _count: 'desc' },
+      },
       take: limit,
+      include: {
+        articles: {
+          where: { status: 'PUBLISHED' },
+          select: { id: true },
+        },
+      },
+    });
+
+    return tags.map((tag: any) => {
+      const { articles, ...rest } = tag;
+      return {
+        ...rest,
+        _count: {
+          articles: articles.length,
+        },
+      };
     });
   }
 
@@ -1270,10 +1288,22 @@ export class BlogService {
   async getCategories() {
     const categories = await this.prisma.blogCategory.findMany({
       orderBy: { createdAt: 'asc' },
+      include: {
+        articles: {
+          where: { status: 'PUBLISHED' },
+          select: { id: true },
+        },
+      },
     });
 
-    // 应用Localized格式转换
-    return categories.map((category) => this.mapCategoryToLocalized(category));
+    // 应用Localized格式转换，并注入文章计数
+    return categories.map((category: any) => {
+      const { articles, ...rest } = category;
+      return this.mapCategoryToLocalized({
+        ...rest,
+        _count: { articles: articles.length },
+      });
+    });
   }
 
   /**
@@ -1299,10 +1329,22 @@ export class BlogService {
   async getTags() {
     const tags = await this.prisma.blogTag.findMany({
       orderBy: { name: 'asc' },
+      include: {
+        articles: {
+          where: { status: 'PUBLISHED' },
+          select: { id: true },
+        },
+      },
     });
 
-    // 应用Localized格式转换
-    return tags.map((tag) => this.mapTagToLocalized(tag));
+    // 应用Localized格式转换，并注入文章计数
+    return tags.map((tag: any) => {
+      const { articles, ...rest } = tag;
+      return this.mapTagToLocalized({
+        ...rest,
+        _count: { articles: articles.length },
+      });
+    });
   }
 
   /**

@@ -214,7 +214,7 @@ const baseConfig: NextConfig = {
     ];
   },
 
-  transpilePackages: ['@lucky/shared'],
+  transpilePackages: [],
 
   outputFileTracingExcludes: {
     '*': [
@@ -248,6 +248,12 @@ const baseConfig: NextConfig = {
       'lodash',
       'date-fns',
       'framer-motion',
+      'react-markdown',
+      'react-syntax-highlighter',
+      'rehype-raw',
+      'remark-gfm',
+      'embla-carousel-react',
+      'hls.js',
     ],
   },
 

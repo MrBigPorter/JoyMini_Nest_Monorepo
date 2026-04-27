@@ -47,7 +47,38 @@ jobs:
 
       # Step 3 / 步骤 3: Enable Corepack (Yarn 4 toolchain)
       - name: 3. Enable Corepack
-        run: corepack enable
+        run: corepack enable && corepack prepare yarn@4.9.2 --activate
+
+      # ---- 三级缓存策略 ----
+      - name: Cache Yarn zip cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            .yarn/cache
+            .yarn/install-state.gz
+          key: yarn-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-
+
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        id: nm-cache
+        with:
+          path: |
+            node_modules
+            apps/admin-next/node_modules
+            packages/*/node_modules
+          key: nm-admin-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: |
+            nm-admin-${{ runner.os }}-
+
+      - name: Cache Turbo
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-admin-${{ github.ref_name }}-${{ github.sha }}
+          restore-keys: |
+            turbo-admin-${{ github.ref_name }}-
+            turbo-admin-main-
 
       # Step 4 / 步骤 4: Install monorepo dependencies
       - name: 4. Install Dependencies
@@ -84,7 +115,29 @@ jobs:
 
       # Step 3 / 步骤 3: Enable Corepack (Yarn 4 toolchain)
       - name: 3. Enable Corepack
-        run: corepack enable
+        run: corepack enable && corepack prepare yarn@4.9.2 --activate
+
+      # ---- 复用缓存 ----
+      - name: Cache Yarn zip cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            .yarn/cache
+            .yarn/install-state.gz
+          key: yarn-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-
+
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        id: nm-cache-deploy
+        with:
+          path: |
+            node_modules
+            apps/admin-next/node_modules
+            packages/*/node_modules
+          key: nm-admin-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: |
+            nm-admin-${{ runner.os }}-
 
       # Step 4 / 步骤 4: Install monorepo dependencies
       - name: 4. Install Dependencies

@@ -1,4 +1,5 @@
 import React, { useCallback } from "react";
+import type { ControllerRenderProps, Path } from "react-hook-form";
 import clsx from "clsx";
 import { AnimatePresence } from "framer-motion";
 import type { FieldValues } from "react-hook-form";
@@ -61,6 +62,24 @@ export function FormSelectField<
 }: Readonly<FormSelectFieldProps<TFieldValues>>) {
   const theme = useFormTheme();
 
+  // 顶层 useCallback 工厂，返回稳定的 handleChange
+  const getHandleChange = useCallback(
+    <TField extends FieldValues = FieldValues>(
+      field: ControllerRenderProps<TField, Path<TField>>,
+      numeric: boolean
+    ) =>
+      (val: string) => {
+        let nextValue: string | number | undefined = val;
+        if (val === "" || val === undefined || val === null) {
+          nextValue = undefined; // 清空
+        } else if (numeric) {
+          nextValue = Number(val); // 强转回数字
+        }
+        field.onChange(nextValue);
+      },
+    []
+  );
+
   return (
     <FormField<TFieldValues, typeof name>
       name={name}
@@ -75,16 +94,8 @@ export function FormSelectField<
             ? undefined
             : String(field.value);
 
-        // 使用 useCallback 稳定化 onChange 处理函数，避免每次渲染创建新函数
-        const handleChange = useCallback((val: string) => {
-          let nextValue: string | number | undefined = val;
-          if (val === "" || val === undefined || val === null) {
-            nextValue = undefined; // 清空
-          } else if (numeric) {
-            nextValue = Number(val); // 强转回数字
-          }
-          field.onChange(nextValue);
-        }, [field.onChange, numeric]);
+        // 生成稳定的 handleChange，依赖 field 和 numeric
+        const handleChange = getHandleChange(field, numeric);
 
         return (
           <FormItem>

@@ -1,18 +1,31 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
+import dynamic from 'next/dynamic';
 import { ChevronLeft, Clock, Calendar, User } from 'lucide-react';
 import { HlsVideoPlayer } from '@/components/blog/HlsVideoPlayer';
 import { Link } from '@/navigation';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import rehypeRaw from 'rehype-raw';
 import CommentList from '@/components/blog/CommentList';
 import { BookmarkButton } from '@/lib/components/BookmarkButton';
 import { ArticleDetailSkeleton } from '@/lib/components/SkeletonLoader';
 import { useFrontendArticleBySlug } from '@/lib/hooks/useFrontendArticles';
 import { generateArticleSchema, injectStructuredData } from '@/lib/seo/schema';
 import type { FrontendArticle } from '@/lib/types/frontend-blog';
+
+const ArticleMarkdown = dynamic(
+  () => import('@/components/blog/ArticleMarkdown'),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="animate-pulse space-y-4 py-8">
+        <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4" />
+        <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-1/2" />
+        <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-5/6" />
+        <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-2/3" />
+      </div>
+    ),
+  },
+);
 
 interface ArticlePageClientProps {
   initialData: FrontendArticle | null;
@@ -157,29 +170,8 @@ export default function ArticlePageClient({
         </header>
 
 
-        {/* Article content */}
-        <article className="prose prose-slate dark:prose-invert max-w-none">
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            rehypePlugins={[rehypeRaw]}
-            components={{
-              h1: ({ children }) => (
-                <h1 className="text-4xl font-bold mt-8 mb-6">{children}</h1>
-              ),
-              h2: ({ children }) => (
-                <h2 className="text-3xl font-semibold mt-8 mb-4">{children}</h2>
-              ),
-              h3: ({ children }) => (
-                <h3 className="text-2xl font-semibold mt-6 mb-4">{children}</h3>
-              ),
-              p: ({ children }) => (
-                <p className="mb-6 leading-7 text-justify">{children}</p>
-              ),
-            }}
-          >
-            {article.content}
-          </ReactMarkdown>
-        </article>
+        {/* Article content — lazy-loaded markdown renderer */}
+        <ArticleMarkdown content={article.content || ''} />
         {/* Comment system */}
         {article.slug && <CommentList articleId={article.slug} />}
       </div>

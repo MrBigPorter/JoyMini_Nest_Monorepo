@@ -2,24 +2,10 @@
 
 import { useMemo, useRef, useCallback, useState, useEffect } from 'react';
 import type ReactQuillType from 'react-quill-new';
-import ReactQuill from 'react-quill-new';
 import { Marked } from 'marked';
 import { MarkdownImportModal } from './MarkdownImportModal';
 import { registerHtml5VideoBlot } from './Html5VideoBlot';
 import './RichTextEditor.css';
-// Import Quill snow theme CSS only in this component — not in root layout,
-// so non-blog pages don't compile the Quill CSS dependency tree.
-import 'react-quill-new/dist/quill.snow.css';
-
-// ── Register Html5VideoBlot at module level ──
-// This MUST happen before ReactQuill mounts, otherwise Quill's HTML parser
-// will silently drop <video> tags when loading existing content (e.g. on
-// re-opening an article for editing).
-const Quill = (ReactQuill as any).Quill;
-if (Quill && !Quill.imports?.['formats/html5-video']) {
-  registerHtml5VideoBlot(Quill);
-}
-
 
 const marked = new Marked({
   gfm: true,
@@ -35,7 +21,10 @@ interface RichTextEditorProps {
   required?: boolean;
   error?: string;
   className?: string;
-  onUpload?: (file: File, onProgress?: (pct: number) => void) => Promise<string>;
+  onUpload?: (
+    file: File,
+    onProgress?: (pct: number) => void,
+  ) => Promise<string>;
 }
 
 export const RichTextEditor = ({
@@ -57,6 +46,18 @@ export const RichTextEditor = ({
   const hasInitialized = useRef(false);
 
   useEffect(() => {
+    // Load Quill CSS dynamically only on client
+    const loadCss = () => {
+      // Check if already loaded to avoid duplicates
+      if (!document.querySelector('link[href*="quill.snow.css"]')) {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href =
+          'https://cdn.jsdelivr.net/npm/react-quill-new@3.2.0/dist/quill.snow.css';
+        document.head.appendChild(link);
+      }
+    };
+
     import('react-quill-new').then((mod) => {
       const ReactQuillModule = mod.default;
       // Dynamic import creates a new Quill instance in Next.js chunk isolation.
@@ -66,6 +67,8 @@ export const RichTextEditor = ({
       if (DynamicQuill && !DynamicQuill.imports?.['formats/html5-video']) {
         registerHtml5VideoBlot(DynamicQuill);
       }
+
+      loadCss();
       setReactQuill(() => ReactQuillModule);
     });
   }, []);
@@ -81,7 +84,10 @@ export const RichTextEditor = ({
 
     const attempt = () => {
       try {
-        const quill = quillRef.current && (quillRef.current as any).getEditor && (quillRef.current as any).getEditor();
+        const quill =
+          quillRef.current &&
+          (quillRef.current as any).getEditor &&
+          (quillRef.current as any).getEditor();
         if (!quill) {
           // Not ready yet — try again soon
           requestAnimationFrame(attempt);
@@ -156,12 +162,19 @@ export const RichTextEditor = ({
       if (!file) return;
 
       try {
-        console.debug('[RichTextEditor] imageHandler: file selected', { name: file.name, size: file.size, type: file.type });
+        console.debug('[RichTextEditor] imageHandler: file selected', {
+          name: file.name,
+          size: file.size,
+          type: file.type,
+        });
         setIsUploading(true);
 
         setUploadProgress(0);
         const url = await onUpload(file, (pct) => setUploadProgress(pct));
-        console.debug('[RichTextEditor] imageHandler: upload finished, url=', url);
+        console.debug(
+          '[RichTextEditor] imageHandler: upload finished, url=',
+          url,
+        );
 
         const quill = quillRef.current?.getEditor();
         if (quill) {
@@ -172,23 +185,38 @@ export const RichTextEditor = ({
           }
 
           // Clamp the insert index to valid bounds (avoid out-of-range selection)
-          const insertIndex = Math.max(0, Math.min(range.index, quill.getLength()));
-          console.debug('[RichTextEditor] imageHandler: inserting image', { insertIndex, length: quill.getLength() });
+          const insertIndex = Math.max(
+            0,
+            Math.min(range.index, quill.getLength()),
+          );
+          console.debug('[RichTextEditor] imageHandler: inserting image', {
+            insertIndex,
+            length: quill.getLength(),
+          });
           quill.insertEmbed(insertIndex, 'image', url, 'user');
 
           // After inserting, move caret to just after the embed but ensure index is valid
-          const newIndex = Math.max(0, Math.min(insertIndex + 1, quill.getLength()));
+          const newIndex = Math.max(
+            0,
+            Math.min(insertIndex + 1, quill.getLength()),
+          );
           try {
             quill.setSelection(newIndex, 0, 'user');
           } catch (e) {
             // setSelection may fail if DOM range is temporarily invalid — ignore safely
-            console.warn('[RichTextEditor] imageHandler: setSelection failed (ignored)', e);
+            console.warn(
+              '[RichTextEditor] imageHandler: setSelection failed (ignored)',
+              e,
+            );
           }
 
           // 修复: 插入图片后手动触发 onChange 事件
           setTimeout(() => {
             const content = quill.root.innerHTML;
-            console.debug('[RichTextEditor] imageHandler: editor content after insert', { contentSnippet: content.slice(0, 200) });
+            console.debug(
+              '[RichTextEditor] imageHandler: editor content after insert',
+              { contentSnippet: content.slice(0, 200) },
+            );
             onChange(content);
           }, 0);
         }
@@ -220,12 +248,19 @@ export const RichTextEditor = ({
       if (!file) return;
 
       try {
-        console.debug('[RichTextEditor] videoHandler: file selected', { name: file.name, size: file.size, type: file.type });
+        console.debug('[RichTextEditor] videoHandler: file selected', {
+          name: file.name,
+          size: file.size,
+          type: file.type,
+        });
         setIsUploading(true);
 
         setUploadProgress(0);
         const url = await onUpload(file, (pct) => setUploadProgress(pct));
-        console.debug('[RichTextEditor] videoHandler: upload finished, url=', url);
+        console.debug(
+          '[RichTextEditor] videoHandler: upload finished, url=',
+          url,
+        );
 
         const quill = quillRef.current?.getEditor();
         if (quill) {
@@ -235,26 +270,43 @@ export const RichTextEditor = ({
           }
 
           // Clamp insert index to valid bounds
-          const insertIndex = Math.max(0, Math.min(range.index, quill.getLength()));
-          console.debug('[RichTextEditor] videoHandler: inserting video', { insertIndex, length: quill.getLength() });
+          const insertIndex = Math.max(
+            0,
+            Math.min(range.index, quill.getLength()),
+          );
+          console.debug('[RichTextEditor] videoHandler: inserting video', {
+            insertIndex,
+            length: quill.getLength(),
+          });
 
           const beforeHtml = quill.root.innerHTML;
 
           // 如果当前 Quill 实例上没有注册 blot，尝试在该实例上注册一次
           try {
-            const QuillCtor = (quill.constructor as any);
+            const QuillCtor = quill.constructor as any;
             const isRegistered = QuillCtor?.imports?.['formats/html5-video'];
-            console.debug('[RichTextEditor] videoHandler: blot registered on editor?', !!isRegistered);
+            console.debug(
+              '[RichTextEditor] videoHandler: blot registered on editor?',
+              !!isRegistered,
+            );
             if (!isRegistered) {
-              console.debug('[RichTextEditor] videoHandler: registering Html5VideoBlot on editor Quill ctor');
+              console.debug(
+                '[RichTextEditor] videoHandler: registering Html5VideoBlot on editor Quill ctor',
+              );
               try {
                 registerHtml5VideoBlot(QuillCtor);
               } catch (e) {
-                console.warn('[RichTextEditor] videoHandler: registerHtml5VideoBlot failed', e);
+                console.warn(
+                  '[RichTextEditor] videoHandler: registerHtml5VideoBlot failed',
+                  e,
+                );
               }
             }
           } catch (e) {
-            console.warn('[RichTextEditor] videoHandler: checking/registering blot failed', e);
+            console.warn(
+              '[RichTextEditor] videoHandler: checking/registering blot failed',
+              e,
+            );
           }
 
           // 使用自定义 Html5VideoBlot 插入 <video> 元素，确保编辑器内可见可播放
@@ -262,20 +314,30 @@ export const RichTextEditor = ({
           quill.insertEmbed(insertIndex, 'html5-video', url, 'user');
 
           // Move caret to just after the embed; clamp to avoid "range isn't in document"
-          const newIndex = Math.max(0, Math.min(insertIndex + 1, quill.getLength()));
+          const newIndex = Math.max(
+            0,
+            Math.min(insertIndex + 1, quill.getLength()),
+          );
           try {
             quill.setSelection(newIndex, 0, 'user');
           } catch (e) {
-            console.warn('[RichTextEditor] videoHandler: setSelection failed (ignored)', e);
+            console.warn(
+              '[RichTextEditor] videoHandler: setSelection failed (ignored)',
+              e,
+            );
           }
 
           // 如果 insertEmbed 似乎没有改变 DOM（某些情况下 Quill 会丢弃未知 embed），作为回退直接 paste HTML
           setTimeout(() => {
             const afterHtml = quill.root.innerHTML;
             if (afterHtml === beforeHtml) {
-              console.warn('[RichTextEditor] videoHandler: insertEmbed did not change content, falling back to dangerouslyPasteHTML');
+              console.warn(
+                '[RichTextEditor] videoHandler: insertEmbed did not change content, falling back to dangerouslyPasteHTML',
+              );
               // 推断 mime
-              const extMatch = String(url).split('?')[0].match(/\.([a-zA-Z0-9]+)$/);
+              const extMatch = String(url)
+                .split('?')[0]
+                .match(/\.([a-zA-Z0-9]+)$/);
               let mime = '';
               if (extMatch) {
                 const ext = extMatch[1].toLowerCase();
@@ -291,18 +353,27 @@ export const RichTextEditor = ({
               try {
                 quill.clipboard.dangerouslyPasteHTML(insertIndex, videoHtml);
               } catch (e) {
-                console.error('[RichTextEditor] videoHandler: dangerouslyPasteHTML failed', e);
+                console.error(
+                  '[RichTextEditor] videoHandler: dangerouslyPasteHTML failed',
+                  e,
+                );
               }
 
               // ensure onChange sees the new content
               setTimeout(() => {
                 const content = quill.root.innerHTML;
-                console.debug('[RichTextEditor] videoHandler: editor content after fallback insert', { contentSnippet: content.slice(0, 200) });
+                console.debug(
+                  '[RichTextEditor] videoHandler: editor content after fallback insert',
+                  { contentSnippet: content.slice(0, 200) },
+                );
                 onChange(content);
               }, 0);
             } else {
               const content = afterHtml;
-              console.debug('[RichTextEditor] videoHandler: editor content after insert', { contentSnippet: content.slice(0, 200) });
+              console.debug(
+                '[RichTextEditor] videoHandler: editor content after insert',
+                { contentSnippet: content.slice(0, 200) },
+              );
               onChange(content);
             }
           }, 0);
@@ -364,34 +435,35 @@ export const RichTextEditor = ({
           {!ReactQuill ? (
             <div className="h-[340px] bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900 animate-pulse rounded-lg" />
           ) : (
-        <ReactQuill
-          ref={quillRef}
-          theme="snow"
-          value={value || ''}
-          placeholder={placeholder}
-          modules={modules}
-          style={{
-            height: '300px',
-            display: 'flex',
-            flexDirection: 'column',
-          }}
-          className="flex-1"
-          onChange={(content, delta, source, editor) => {
-            // ✅ 只传播用户操作，忽略程序化设置
-            // value prop 变化导致的内容更新不应触发回调循环
-            if (source !== 'user') return;
+            <ReactQuill
+              ref={quillRef}
+              theme="snow"
+              value={value || ''}
+              placeholder={placeholder}
+              modules={modules}
+              style={{
+                height: '300px',
+                display: 'flex',
+                flexDirection: 'column',
+              }}
+              className="flex-1"
+              onChange={(content, delta, source, editor) => {
+                // ✅ 只传播用户操作，忽略程序化设置
+                // value prop 变化导致的内容更新不应触发回调循环
+                if (source !== 'user') return;
 
-            // ✅ 最终正确方案：对比值，只有真实变更才回调
-            setTimeout(() => {
-              const realHtml = quillRef.current?.getEditor().root.innerHTML || '';
-              
-              // ✅ 只有当内容真的不同的时候才向上更新，这是唯一能彻底避免所有问题的方法
-              if (realHtml !== value) {
-                onChange(realHtml);
-              }
-            }, 0);
-          }}
-        />
+                // ✅ 最终正确方案：对比值，只有真实变更才回调
+                setTimeout(() => {
+                  const realHtml =
+                    quillRef.current?.getEditor().root.innerHTML || '';
+
+                  // ✅ 只有当内容真的不同的时候才向上更新，这是唯一能彻底避免所有问题的方法
+                  if (realHtml !== value) {
+                    onChange(realHtml);
+                  }
+                }, 0);
+              }}
+            />
           )}
         </div>
 
@@ -405,7 +477,9 @@ export const RichTextEditor = ({
               />
             </div>
             <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap min-w-[4rem] text-right">
-              {uploadProgress < 100 ? `${Math.round(uploadProgress)}%` : 'Processing...'}
+              {uploadProgress < 100
+                ? `${Math.round(uploadProgress)}%`
+                : 'Processing...'}
             </span>
           </div>
         )}

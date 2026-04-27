@@ -11,6 +11,7 @@ export class CategoryService {
     private systemConfigService: SystemConfigService,
   ) {}
 
+
   /**
    * 创建分类
    */
@@ -118,17 +119,32 @@ export class CategoryService {
         .flat();
     }
 
-    return this.prisma.blogCategory.findMany({
+    const categories = await this.prisma.blogCategory.findMany({
       where,
       orderBy: { name: 'asc' },
       include: includeCount
         ? {
-            _count: {
-              select: { articles: true },
-            },
+            articles: {
+              where: { status: 'PUBLISHED' },
+              select: { id: true }
+            }
           }
         : undefined,
     });
+
+    if (includeCount) {
+      return categories.map((cat: any) => {
+        const { articles, ...rest } = cat;
+        return {
+          ...rest,
+          _count: {
+            articles: articles.length
+          }
+        };
+      });
+    }
+
+    return categories;
   }
 
   /**
@@ -141,9 +157,10 @@ export class CategoryService {
       const category = await this.prisma.blogCategory.findUnique({
         where: { id },
         include: {
-          _count: {
-            select: { articles: true },
-          },
+          articles: {
+            where: { status: 'PUBLISHED' },
+            select: { id: true }
+          }
         },
       });
 
@@ -152,8 +169,16 @@ export class CategoryService {
         throw new NotFoundException('分类不存在');
       }
 
-      this.logger.log(`Category found: ${id} with ${category._count.articles} articles`);
-      return category;
+      const { articles, ...rest } = category;
+      const result = {
+        ...rest,
+        _count: {
+          articles: articles.length
+        }
+      };
+
+      this.logger.log(`Category found: ${id} with ${result._count.articles} articles`);
+      return result;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       this.logger.error(`Failed to get category ${id}: ${errorMessage}`);
