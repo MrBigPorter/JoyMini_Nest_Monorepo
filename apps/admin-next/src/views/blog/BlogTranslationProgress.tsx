@@ -201,7 +201,13 @@ const StatCard = ({
 };
 
 // 队列状态组件
-const QueueStatus = ({ status, t }: { status: any; t: Function }) => {
+const QueueStatus = ({
+  status,
+  t,
+}: {
+  status: any;
+  t: (key: string) => string;
+}) => {
   return (
     <Card title={t('queueStatus')} className="col-span-2">
       <div className="grid grid-cols-4 gap-4">
@@ -243,7 +249,7 @@ const TimeInfo = ({
   startTime: string | null;
   estimatedCompletionTime: string | null;
   elapsedTime: number;
-  t: Function;
+  t: (key: string) => string;
   dateLocale: any;
 }) => {
   return (
@@ -1343,8 +1349,7 @@ export default function BlogTranslationProgress() {
                           {job.name}
                         </div>
                         <div className="text-sm text-red-600">
-                          {job.failedReason ||
-                            t('unknownError')}
+                          {job.failedReason || t('unknownError')}
                         </div>
                       </div>
                       <Button variant="outline" size="sm">

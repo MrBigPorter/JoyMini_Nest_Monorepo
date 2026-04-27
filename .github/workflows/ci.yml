@@ -88,10 +88,9 @@ jobs:
       - name: Generate Prisma Client
         run: yarn workspace @lucky/api prisma generate
 
-      # 7) 执行 Lint（当前为软门禁，失败不阻断）
+      # 7) 执行 Lint（硬门禁 — 失败即阻断）
       - name: Lint
         run: yarn turbo run lint
-        continue-on-error: true
 
       # 8) 执行 TypeScript 类型检查（硬门禁）
       - name: Type Check

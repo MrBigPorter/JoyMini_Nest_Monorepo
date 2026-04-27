@@ -318,15 +318,15 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
       content: contentObj,
       excerpt: excerptObj,
       featuredImage: featuredImageObj,
-          categoryId:
-            typeof (mappedArticle as any)?.categoryId === 'string'
-              ? (mappedArticle as any).categoryId
-              : (mappedArticle as any)?.category?.id || '',
-          tagIds: Array.isArray(mappedArticle?.tagIds)
-            ? mappedArticle.tagIds.map((t: any) =>
-                typeof t === 'object' && t !== null && 'id' in t ? t.id : t
-              )
-            : [],
+      categoryId:
+        typeof (mappedArticle as any)?.categoryId === 'string'
+          ? (mappedArticle as any).categoryId
+          : (mappedArticle as any)?.category?.id || '',
+      tagIds: Array.isArray(mappedArticle?.tagIds)
+        ? mappedArticle.tagIds.map((t: any) =>
+            typeof t === 'object' && t !== null && 'id' in t ? t.id : t,
+          )
+        : [],
       status: mappedArticle?.status || 'DRAFT',
       featured: mappedArticle?.featured ?? false,
     });

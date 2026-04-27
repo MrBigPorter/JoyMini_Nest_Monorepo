@@ -25,10 +25,7 @@ import { Button, ModalManager } from '@repo/ui';
 import type { BlogArticleModalProps } from '@/views/blog/BlogArticleModal';
 
 const BlogArticleModal = dynamic(
-  () =>
-    import('@/views/blog/BlogArticleModal').then(
-      (m) => m.BlogArticleModal,
-    ),
+  () => import('@/views/blog/BlogArticleModal').then((m) => m.BlogArticleModal),
   { ssr: false },
 );
 import LocalizedText from '@/components/blog/LocalizedText';
