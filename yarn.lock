@@ -8727,6 +8727,8 @@ __metadata:
     embla-carousel-react: "npm:^8.6.0"
     eslint: "npm:^8.0.0"
     eslint-config-next: "npm:15.1.6"
+    eslint-config-prettier: "npm:^9.1.0"
+    eslint-plugin-prettier: "npm:^5.1.3"
     eslint-plugin-react: "npm:^7.0.0"
     eslint-plugin-react-hooks: "npm:^4.0.0"
     framer-motion: "npm:^12.36.0"
