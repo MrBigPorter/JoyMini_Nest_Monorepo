@@ -36,10 +36,9 @@ export default async function HomePage({
 
   try {
     // SSR: Fetch articles (use native fetch, Cloudflare Workers compatible)
-    const initialData = await serverGet<FrontendPaginatedResponse<FrontendArticle>>(
-      '/v1/frontend/blog/articles',
-      { lang: locale, page: 1, pageSize: 10 },
-    );
+    const initialData = await serverGet<
+      FrontendPaginatedResponse<FrontendArticle>
+    >('/v1/frontend/blog/articles', { lang: locale, page: 1, pageSize: 10 });
 
     // 提取文章ID用于客户端查询收藏状态
     const articleIds =
