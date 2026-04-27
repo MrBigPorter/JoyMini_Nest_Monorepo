@@ -1,22 +1,32 @@
-# 排除 Flutter 编译生成的垃圾
-build/
-.dart_tool/
-.fvm/
-ios/Pods/
-ios/.symlinks/
+# 核心止损：绝对不要让 Cline 读 node_modules
+**/node_modules/
 
-# 排除 Next.js 编译缓存
-.next/
-out/
+# 排除编译输出目录（NestJS 和 Flutter）
+**/dist/
+**/build/
+**/bin/
+**/obj/
 
-# 排除版本控制和缓存
-.git/
-.idea/
-.vscode/
-.clineignore
+# 排除 Firebase 和 Google 服务的配置文件（保护隐私且减少 Token）
+**/*.firebase/
+**/google-services.json
+**/GoogleService-Info.plist
 
-# 排除测试报告
-playwright-report/
+# 排除图片、字体等静态资源（这些东西 AI 读不懂还巨占 Token）
+**/*.png
+**/*.jpg
+**/*.jpeg
+**/*.svg
+**/*.ico
+**/*.ttf
+**/*.woff
+**/*.woff2
 
-# 排除环境变量文件
-**/.env.local
+# 排除数据库文件（如果你本地有 SQLite 等）
+**/*.sqlite
+**/*.db
+
+# 排除 Flutter 的缓存和日志
+.flutter-plugins
+.flutter-plugins-dependencies
+**/*.log
