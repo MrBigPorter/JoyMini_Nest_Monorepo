@@ -78,7 +78,7 @@ export class ErrorBoundary extends Component<Props, State> {
       return (
         <DefaultErrorFallback
           error={this.state.error}
-          onRetry={this.handleRetry}
+          onRetryAction={this.handleRetry}
         />
       );
     }
@@ -92,10 +92,13 @@ export class ErrorBoundary extends Component<Props, State> {
  */
 interface ErrorFallbackProps {
   error: Error | null;
-  onRetry: () => void;
+  onRetryAction: () => void;
 }
 
-export function DefaultErrorFallback({ error, onRetry }: ErrorFallbackProps) {
+export function DefaultErrorFallback({
+  error,
+  onRetryAction,
+}: ErrorFallbackProps) {
   const t = useTranslations();
 
   return (
@@ -132,7 +135,7 @@ export function DefaultErrorFallback({ error, onRetry }: ErrorFallbackProps) {
       {/* 操作按钮 */}
       <div className="flex flex-col sm:flex-row gap-3">
         <button
-          onClick={onRetry}
+          onClick={onRetryAction}
           className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary-600 transition-colors"
         >
           <RefreshCw className="w-4 h-4" />
@@ -192,7 +195,7 @@ export function PageErrorBoundary({ children }: { children: ReactNode }) {
         <div className="max-w-5xl mx-auto px-4 py-20">
           <DefaultErrorFallback
             error={null}
-            onRetry={() => window.location.reload()}
+            onRetryAction={() => window.location.reload()}
           />
         </div>
       }

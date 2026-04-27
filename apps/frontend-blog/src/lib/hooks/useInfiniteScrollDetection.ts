@@ -17,7 +17,7 @@ interface UseInfiniteScrollDetectionOptions {
   /**
    * 加载更多的回调函数
    */
-  onLoadMore: () => void;
+  onLoadMoreAction: () => void;
 
   /**
    * 是否还有更多数据
@@ -37,7 +37,7 @@ interface UseInfiniteScrollDetectionOptions {
 export function useInfiniteScrollDetection({
   enabled = true,
   threshold = 300,
-  onLoadMore,
+  onLoadMoreAction,
   hasMore = true,
   isLoadingMore = false,
 }: UseInfiniteScrollDetectionOptions) {
@@ -59,7 +59,7 @@ export function useInfiniteScrollDetection({
       (entries) => {
         const [entry] = entries;
         if (entry.isIntersecting) {
-          onLoadMore();
+          onLoadMoreAction();
         }
       },
       {
@@ -80,7 +80,7 @@ export function useInfiniteScrollDetection({
         observerRef.current.disconnect();
       }
     };
-  }, [enabled, threshold, onLoadMore, hasMore, isLoadingMore]);
+  }, [enabled, threshold, onLoadMoreAction, hasMore, isLoadingMore]);
 
   return { sentinelRef };
 }
@@ -89,7 +89,7 @@ export function useInfiniteScrollDetection({
  * 简化的无限滚动检测钩子（常用场景）
  */
 export function useInfiniteScrollDetectionSimple(
-  onLoadMore: () => void,
+  onLoadMoreAction: () => void,
   options?: {
     enabled?: boolean;
     threshold?: number;
@@ -107,7 +107,7 @@ export function useInfiniteScrollDetectionSimple(
   return useInfiniteScrollDetection({
     enabled,
     threshold,
-    onLoadMore,
+    onLoadMoreAction,
     hasMore,
     isLoadingMore,
   });

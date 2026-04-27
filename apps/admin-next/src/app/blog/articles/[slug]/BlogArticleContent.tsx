@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Card } from '@/components/UIComponents';
@@ -12,7 +11,6 @@ import {
   MessageSquare,
   FolderTree,
   Tag,
-  Play,
 } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import Link from 'next/link';

@@ -3,7 +3,7 @@
 import { useTranslations } from 'next-intl';
 
 interface LoadMoreProps {
-  onClick: () => void;
+  onClickAction: () => void;
   loading?: boolean;
   hasMore?: boolean;
 }
@@ -15,7 +15,7 @@ interface LoadMoreProps {
  * Hides when all articles are loaded
  */
 export function LoadMore({
-  onClick,
+  onClickAction,
   loading = false,
   hasMore = true,
 }: LoadMoreProps) {
@@ -26,7 +26,7 @@ export function LoadMore({
   return (
     <div className="mt-10 flex justify-center">
       <button
-        onClick={onClick}
+        onClick={onClickAction}
         disabled={loading}
         className="
           group relative inline-flex items-center gap-2

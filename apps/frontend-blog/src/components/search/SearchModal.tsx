@@ -12,10 +12,10 @@ import { SearchBar } from '@/components/ui/SearchBar';
 
 interface SearchModalProps {
   isOpen: boolean;
-  onClose: () => void;
+  onCloseAction: () => void;
 }
 
-export function SearchModal({ isOpen, onClose }: SearchModalProps) {
+export function SearchModal({ isOpen, onCloseAction }: SearchModalProps) {
   const t = useTranslations();
   const router = useRouter();
   const [query, setQuery] = useState('');
@@ -41,7 +41,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
   const totalResults = data?.total || 0;
 
   // ESC 键关闭
-  useEscapeKey(onClose, isOpen);
+  useEscapeKey(onCloseAction, isOpen);
 
   // 打开时聚焦输入框
   useEffect(() => {
@@ -76,15 +76,15 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
   }, []);
 
   const handleResultClick = useCallback(() => {
-    onClose();
-  }, [onClose]);
+    onCloseAction();
+  }, [onCloseAction]);
 
   const handleViewAllResults = useCallback(() => {
     if (query.trim()) {
       router.push(`/search?q=${encodeURIComponent(query.trim())}`);
-      onClose();
+      onCloseAction();
     }
-  }, [query, router, onClose]);
+  }, [query, router, onCloseAction]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -107,7 +107,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
             className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm"
-            onClick={onClose}
+            onClick={onCloseAction}
           />
 
           {/* 模态框内容 */}
@@ -131,7 +131,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-lg font-semibold">{t('search.title')}</h2>
                   <button
-                    onClick={onClose}
+                    onClick={onCloseAction}
                     className="p-2 rounded-full hover:bg-accent transition-colors"
                     aria-label={t('common.close')}
                   >

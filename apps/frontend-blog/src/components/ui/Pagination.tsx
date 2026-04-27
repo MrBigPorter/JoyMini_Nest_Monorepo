@@ -8,7 +8,7 @@ interface PaginationProps {
   totalPages: number;
   totalItems: number;
   pageSize: number;
-  onPageChange: (page: number) => void;
+  onPageChangeAction: (page: number) => void;
   className?: string;
 }
 
@@ -17,7 +17,7 @@ export function Pagination({
   totalPages,
   totalItems,
   pageSize,
-  onPageChange,
+  onPageChangeAction,
   className = '',
 }: PaginationProps) {
   if (totalPages <= 1) {
@@ -75,7 +75,7 @@ export function Pagination({
         <Button
           variant="outline"
           size="sm"
-          onClick={() => onPageChange(currentPage - 1)}
+          onClick={() => onPageChangeAction(currentPage - 1)}
           disabled={currentPage === 1}
           className="h-8 w-8 p-0"
         >
@@ -104,7 +104,7 @@ export function Pagination({
               key={pageNum}
               variant={currentPage === pageNum ? 'primary' : 'outline'}
               size="sm"
-              onClick={() => onPageChange(pageNum)}
+              onClick={() => onPageChangeAction(pageNum)}
               className="h-8 w-8 p-0"
             >
               {pageNum}
@@ -116,7 +116,7 @@ export function Pagination({
         <Button
           variant="outline"
           size="sm"
-          onClick={() => onPageChange(currentPage + 1)}
+          onClick={() => onPageChangeAction(currentPage + 1)}
           disabled={currentPage === totalPages}
           className="h-8 w-8 p-0"
         >
