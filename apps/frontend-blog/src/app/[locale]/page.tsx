@@ -1,8 +1,9 @@
-import { frontendBlogApi } from '@/lib/api/frontendBlogApi';
+import { serverGet } from '@/lib/serverFetch';
 import { getEnabledLocales } from '@/lib/i18n/config';
 import HomePageClient from './page.client.tsx';
 import type { FrontendArticle } from '@/lib/types/frontend-blog';
 import type { Locale } from '@/lib/i18n/config';
+import type { FrontendPaginatedResponse } from '@/lib/types/frontend-blog';
 
 // 无if架构：直接声明需求，构建时自动处理
 // App构建时，output: 'export'会自动忽略ISR配置
@@ -34,12 +35,11 @@ export default async function HomePage({
   const locale = routeLocale;
 
   try {
-    // SSR: Fetch articles
-    const initialData = await frontendBlogApi.getArticles({
-      lang: locale,
-      page: 1,
-      pageSize: 10,
-    });
+    // SSR: Fetch articles (use native fetch, Cloudflare Workers compatible)
+    const initialData = await serverGet<FrontendPaginatedResponse<FrontendArticle>>(
+      '/v1/frontend/blog/articles',
+      { lang: locale, page: 1, pageSize: 10 },
+    );
 
     // 提取文章ID用于客户端查询收藏状态
     const articleIds =
