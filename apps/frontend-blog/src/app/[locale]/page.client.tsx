@@ -8,12 +8,10 @@ import { useLocalizedQueryKey } from '@/lib/api/queryKeys';
 import { frontendBlogApi } from '@/lib/api/frontendBlogApi';
 import { useBatchBookmarkStatusMap } from '@/lib/hooks/useBookmarks';
 import { ArticleCard } from '@/components/blog/ArticleCard';
-import { HeroSection } from '@/components/blog/HeroSection';
 import { CategoryFilter } from '@/components/blog/CategoryFilter';
 import { LoadMore } from '@/components/blog/LoadMore';
 import { PageErrorBoundary } from '@/lib/components/ErrorBoundary';
 import { HomePageSkeleton } from '@/lib/components/SkeletonLoader';
-import { useFrontendFeaturedArticles } from '@/lib/hooks/useFrontendArticles';
 import type { FrontendArticle } from '@/lib/types/frontend-blog';
 
 interface HomePageClientProps {
@@ -24,7 +22,6 @@ interface HomePageClientProps {
     pageSize: number;
     totalPages: number;
   };
-  initialFeaturedArticles?: FrontendArticle[];
   initialArticleIds?: string[];
   locale: string;
 }
@@ -33,7 +30,6 @@ const PAGE_SIZE = 10;
 
 export default function HomePageClient({
   initialData,
-  initialFeaturedArticles = [],
 }: HomePageClientProps) {
   const t = useTranslations();
   const currentLocale = useCurrentLocale();
@@ -46,10 +42,6 @@ export default function HomePageClient({
   const [allArticles, setAllArticles] = useState<FrontendArticle[]>(
     () => initialData?.items || [],
   );
-
-  // Fetch featured articles with SSR initial data
-  const { data: featuredArticles } = useFrontendFeaturedArticles();
-  const heroArticles = featuredArticles || initialFeaturedArticles;
 
   // Main articles query
   const { data, isLoading, error, refetch, isFetching } = useQuery({

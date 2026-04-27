@@ -49,7 +49,7 @@ export function HlsVideoPlayer({
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: true,
-        backbufferLength: 30,
+        backBufferLength: 30,
       });
       hlsRef.current = hls;
 
