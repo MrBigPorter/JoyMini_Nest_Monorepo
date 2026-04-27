@@ -45,7 +45,7 @@
   ],
   "r2_buckets": [
     {
-      "binding": "ASSETS",
+      "binding": "R2_STORAGE",
       "bucket_name": "mini-shop",
       "preview_bucket_name": "mini-shop"
     }

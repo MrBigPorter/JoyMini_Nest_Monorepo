@@ -11,7 +11,7 @@ export interface Env {
   DB: any; // D1Database in production
 
   // R2 bucket for static assets
-  ASSETS: any; // R2Bucket in production
+  R2_STORAGE: any; // R2Bucket in production
 
   // Analytics engine
   ANALYTICS: any; // AnalyticsEngineDataset in production
@@ -186,7 +186,7 @@ export default {
 
       // Handle static assets from R2
       if (this.isStaticAsset(url)) {
-        const assetResponse = await this.serveStaticAsset(url, env.ASSETS);
+        const assetResponse = await this.serveStaticAsset(url, env.R2_STORAGE);
         if (assetResponse) {
           // Cache static asset
           const cacheKey = this.generateCacheKey(request);
