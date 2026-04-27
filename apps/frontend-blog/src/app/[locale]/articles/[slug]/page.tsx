@@ -1,6 +1,7 @@
-import { frontendBlogApi } from '@/lib/api/frontendBlogApi';
+import { serverGet } from '@/lib/serverFetch';
 import ArticlePageClient from './page.client';
 import type { Metadata } from 'next';
+import type { FrontendArticle } from '@/lib/types/frontend-blog';
 
 // Next.js 15 perfect cache pattern
 // force-dynamic + revalidate combination
@@ -38,7 +39,7 @@ export async function generateMetadata({
     process.env.NEXT_PUBLIC_SITE_URL || 'https://blog.joyminis.com';
 
   try {
-    const article = await frontendBlogApi.getArticleBySlug(slug, locale);
+    const article = await serverGet<FrontendArticle>(`/v1/frontend/blog/articles/${slug}`, { lang: locale });
 
     // 构建文章描述
     const description =
@@ -127,7 +128,7 @@ export default async function ArticlePage({
 
   try {
     // 简化架构：直接API调用，避免复杂平台感知抽象
-    const article = await frontendBlogApi.getArticleBySlug(slug, locale);
+    const article = await serverGet<FrontendArticle>(`/v1/frontend/blog/articles/${slug}`, { lang: locale });
 
     return (
       <ArticlePageClient initialData={article} locale={locale} slug={slug} />

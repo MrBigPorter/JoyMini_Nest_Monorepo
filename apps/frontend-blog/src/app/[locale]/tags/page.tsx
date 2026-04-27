@@ -1,4 +1,4 @@
-import { frontendBlogApi } from '@/lib/api/frontendBlogApi';
+import { serverGet } from '@/lib/serverFetch';
 import { getEnabledLocales } from '@/lib/i18n/config';
 import TagsPageClient from './page.client';
 import type { Locale } from '@/lib/i18n/config';
@@ -26,7 +26,7 @@ export default async function TagsPage({ params }: TagsPageProps) {
 
   try {
     // 简化架构：直接API调用，避免复杂平台感知抽象
-    tags = await frontendBlogApi.getTags(params.locale);
+    tags = await serverGet<FrontendTag[]>('/v1/frontend/blog/tags', { lang: params.locale });
   } catch (error) {
     console.error('Tags page server error:', error);
   }
