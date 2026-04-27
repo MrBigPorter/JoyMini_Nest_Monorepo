@@ -34,14 +34,28 @@ export class RedisLockService implements OnModuleInit, OnModuleDestroy {
 
     this.client = createClient({
       url: redisUrl,
+      socket: {
+        connectTimeout: 10000,
+        reconnectStrategy: (retries) => {
+          if (retries > 10) {
+            this.logger.error('Redis Lock max reconnection attempts reached, giving up');
+            return new Error('Max reconnection attempts reached');
+          }
+          this.logger.warn(`Redis Lock reconnecting, attempt ${retries}`);
+          return Math.min(retries * 100, 3000);
+        },
+      },
     });
 
     this.client.on('error', (err) => {
-      this.logger.error('Redis Client Error', err);
+      this.logger.error('Redis Lock Client Error', err);
+    });
+
+    this.client.on('ready', () => {
+      this.logger.log('✅ 🔐 Redis Lock Client connected successfully (Dedicated)');
     });
 
     await this.client.connect();
-    this.logger.log('🔐 Redis Lock Client connected successfully (Dedicated)');
   }
 
   /**
