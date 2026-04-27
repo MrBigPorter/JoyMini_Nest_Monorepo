@@ -34,13 +34,13 @@
   "kv_namespaces": [
     {
       "binding": "CACHE",
-      "id": "cache-store",
-      "preview_id": "cache-store-preview"
+      "id": "e984df0553f24241850af22d7621faa4",
+      "preview_id": "e984df0553f24241850af22d7621faa4"
     },
     {
       "binding": "ISR_CACHE",
-      "id": "isr-cache-store",
-      "preview_id": "isr-cache-store-preview"
+      "id": "1fc88f516bcf4efa9a50bef6e2912405",
+      "preview_id": "1fc88f516bcf4efa9a50bef6e2912405"
     }
   ],
   "r2_buckets": [
