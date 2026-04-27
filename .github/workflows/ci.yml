@@ -113,6 +113,16 @@ jobs:
         run: yarn turbo run test --filter=!@lucky/admin-next
         continue-on-error: true
 
+      # frontend-blog 构建验证 — 确保 blog 能正常 build
+      # 12) 构建 frontend-blog（硬门禁）
+      - name: Build — frontend-blog (required)
+        run: yarn workspace @lucky/frontend-blog build
+        env:
+          NODE_ENV: production
+          NEXT_PUBLIC_API_BASE_URL: https://api.joyminis.com
+          NEXT_PUBLIC_IMG_BASE_URL: https://img.joyminis.com
+          NEXT_PUBLIC_APP_ENV: production
+
   # ============================================================
   # Job 2: Playwright E2E（仅 PR，需 E2E_ADMIN_PASSWORD secret）
   # 依赖 Job 1 通过，避免浪费时间
