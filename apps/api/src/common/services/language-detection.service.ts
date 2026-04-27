@@ -32,10 +32,12 @@ export class LanguageDetectionService {
     }
 
     // 2. 对于长文本，尝试使用franc-min（如果可用）
+
     try {
-      // 动态导入franc-min，避免编译错误
-      const franc = require('franc-min');
-      const francResult = franc.franc(text);
+      // 动态导入 franc-min，类型安全
+
+      const franc: typeof import('franc-min') = require('franc-min');
+      const francResult: string = franc.franc(text);
 
       // 如果franc检测成功且置信度高，使用映射结果
       if (francResult !== 'und' && this.languageMap[francResult]) {
@@ -47,7 +49,7 @@ export class LanguageDetectionService {
           return { language: mappedLanguage, confidence: 0.85 };
         }
       }
-    } catch (error) {
+    } catch {
       // franc-min不可用，继续使用字符集检测
     }
 
@@ -245,11 +247,7 @@ export class LanguageDetectionService {
     }
 
     // 检查残留字符
-    const residualChars = this.detectResidualCharacters(
-      'zh',
-      targetText,
-      targetLanguage,
-    );
+    const residualChars = this.detectResidualCharacters('zh', targetText);
     if (residualChars.length > 0) {
       issues.push(`检测到残留字符：${residualChars.join(', ')}`);
       completeness = Math.max(0, completeness - residualChars.length * 10);
@@ -271,7 +269,6 @@ export class LanguageDetectionService {
   detectResidualCharacters(
     sourceLanguage: string,
     targetText: string,
-    targetLanguage: string,
   ): string[] {
     const residualChars: string[] = [];
 

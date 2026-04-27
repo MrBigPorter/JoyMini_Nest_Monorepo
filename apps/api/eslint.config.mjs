@@ -50,6 +50,7 @@ export default tseslint.config(
       '@typescript-eslint/restrict-template-expressions': 'off',
       '@typescript-eslint/require-await': 'off',
       '@typescript-eslint/no-unnecessary-type-assertion': 'off',
+      '@typescript-eslint/no-redundant-type-constituents': 'off',
       '@typescript-eslint/no-base-to-string': 'off',
       '@typescript-eslint/ban-ts-comment': 'off',
       '@typescript-eslint/await-thenable': 'off',

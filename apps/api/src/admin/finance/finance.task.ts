@@ -194,7 +194,10 @@ export class FinanceTask {
               );
             }
           }
-        } catch (e) {}
+        } catch (e) {
+          // 静默忽略，不中断批量处理
+          void e;
+        }
       },
       false,
     );
