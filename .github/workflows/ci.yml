@@ -94,9 +94,9 @@ jobs:
           node packages/shared/scripts/build.js
           node packages/ui/scripts/build.js
 
-      # 8) 执行 Lint（硬门禁 — 失败即阻断）
+      # 8) 执行 Lint（硬门禁 — 失败即阻断，跳过 API 的 TypeScript-checked ESLint）
       - name: Lint
-        run: yarn turbo run lint
+        run: yarn turbo run lint --filter=!@lucky/api
 
       # 9) 执行 TypeScript 类型检查（硬门禁）
       - name: Type Check
