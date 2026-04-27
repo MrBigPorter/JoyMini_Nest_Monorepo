@@ -595,9 +595,14 @@ export const uploadApi = {
     onProgress?: (percent: number) => void,
     extraFields?: Record<string, string>,
   ) =>
-    http.upload<{ url: string; key: string }>('/v1/admin/upload/image', file, onProgress, {
-      extraFields,
-    }),
+    http.upload<{ url: string; key: string }>(
+      '/v1/admin/upload/image',
+      file,
+      onProgress,
+      {
+        extraFields,
+      },
+    ),
 
   // 批量上传
   uploadMultiple: (files: File[]) => {
@@ -1238,7 +1243,10 @@ export const blogApi = {
   },
 
   triggerVideoTranscode: async (articleId: string, videoKey: string) => {
-    return await http.post(`/v1/admin/blog/articles/${articleId}/transcode-video`, { videoKey });
+    return await http.post(
+      `/v1/admin/blog/articles/${articleId}/transcode-video`,
+      { videoKey },
+    );
   },
 
   // Categories

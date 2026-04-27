@@ -19,8 +19,8 @@ const createCommands = ({ files, eslintCommand, maxFiles = 10 }) => {
   );
   
   if (hasTsJsFiles) {
-    // 使用--max-warnings=100参数，允许最多100个警告，只关注错误
-    commands.push(`${eslintCommand} --max-warnings=100 ${joined}`);
+    // 新代码零容忍：任何 warning 或 error 都会阻止 commit
+    commands.push(`${eslintCommand} --max-warnings=0 ${joined}`);
   }
   
   return commands;
@@ -44,6 +44,12 @@ export default {
     createCommands({
       files,
       eslintCommand: "yarn workspace @repo/ui exec eslint",
+    }),
+
+  "apps/frontend-blog/src/**/*.{ts,tsx,js,jsx}": (files) =>
+    createCommands({
+      files,
+      eslintCommand: "yarn workspace @lucky/frontend-blog exec eslint",
     }),
 
   "apps/liveness-web/**/*.{ts,tsx,js,jsx}": (files) =>

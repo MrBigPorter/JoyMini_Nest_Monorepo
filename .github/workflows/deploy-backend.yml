@@ -39,9 +39,62 @@ env:
 
 jobs:
   # =========================================
+  # 阶段零: 代码质量检查 (硬门禁)
+  # =========================================
+  quality:
+    runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install build tools
+        run: sudo apt-get install -y python3 make g++ openssl
+
+      - name: Enable Corepack
+        run: corepack enable && corepack prepare yarn@4.9.2 --activate
+
+      - name: Cache Yarn zip cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            .yarn/cache
+            .yarn/install-state.gz
+          key: yarn-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-
+
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        id: nm-cache
+        with:
+          path: |
+            node_modules
+            apps/api/node_modules
+            packages/*/node_modules
+          key: nm-api-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: |
+            nm-api-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Generate Prisma Client
+        run: yarn workspace @lucky/api prisma generate
+
+      - name: Lint + Type Check
+        run: |
+          yarn workspace @lucky/api lint
+          yarn workspace @lucky/api check-types
+
+  # =========================================
   # 阶段一: 构建 + 推送镜像到 GHCR (兵工厂打包)
   # =========================================
   build:
+    needs: quality
     runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
     permissions:
       contents: read
