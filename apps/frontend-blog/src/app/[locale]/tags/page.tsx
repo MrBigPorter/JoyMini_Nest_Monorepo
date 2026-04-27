@@ -26,7 +26,9 @@ export default async function TagsPage({ params }: TagsPageProps) {
 
   try {
     // 简化架构：直接API调用，避免复杂平台感知抽象
-    tags = await serverGet<FrontendTag[]>('/v1/frontend/blog/tags', { lang: params.locale });
+    tags = await serverGet<FrontendTag[]>('/v1/frontend/blog/tags', {
+      lang: params.locale,
+    });
   } catch (error) {
     console.error('Tags page server error:', error);
   }

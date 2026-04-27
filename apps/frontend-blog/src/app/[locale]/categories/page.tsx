@@ -32,7 +32,10 @@ export default async function CategoriesPage({
 
   try {
     // 简化架构：直接API调用，避免复杂平台感知抽象
-    const categories = await serverGet<FrontendCategory[]>('/v1/frontend/blog/categories', { lang: locale });
+    const categories = await serverGet<FrontendCategory[]>(
+      '/v1/frontend/blog/categories',
+      { lang: locale },
+    );
 
     return <CategoriesPageClient initialData={categories} />;
   } catch (error) {

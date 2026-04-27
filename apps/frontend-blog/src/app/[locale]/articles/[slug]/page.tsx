@@ -39,7 +39,10 @@ export async function generateMetadata({
     process.env.NEXT_PUBLIC_SITE_URL || 'https://blog.joyminis.com';
 
   try {
-    const article = await serverGet<FrontendArticle>(`/v1/frontend/blog/articles/${slug}`, { lang: locale });
+    const article = await serverGet<FrontendArticle>(
+      `/v1/frontend/blog/articles/${slug}`,
+      { lang: locale },
+    );
 
     // 构建文章描述
     const description =
@@ -128,7 +131,10 @@ export default async function ArticlePage({
 
   try {
     // 简化架构：直接API调用，避免复杂平台感知抽象
-    const article = await serverGet<FrontendArticle>(`/v1/frontend/blog/articles/${slug}`, { lang: locale });
+    const article = await serverGet<FrontendArticle>(
+      `/v1/frontend/blog/articles/${slug}`,
+      { lang: locale },
+    );
 
     return (
       <ArticlePageClient initialData={article} locale={locale} slug={slug} />
