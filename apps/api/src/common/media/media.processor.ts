@@ -62,9 +62,7 @@ export class MediaProcessor extends WorkerHost {
     try {
       const fileSize = await this.uploadService.getFileSize(key, 'blog');
       if (fileSize === 0) {
-        this.logger.warn(
-          `[${label}] File not found or inaccessible: ${key}`,
-        );
+        this.logger.warn(`[${label}] File not found or inaccessible: ${key}`);
         return false;
       }
       if (fileSize > maxSize) {
@@ -139,9 +137,7 @@ export class MediaProcessor extends WorkerHost {
         },
       });
 
-      this.logger.log(
-        `Image compression completed for article ${articleId}`,
-      );
+      this.logger.log(`Image compression completed for article ${articleId}`);
     } catch (error) {
       this.logger.error(
         `Image compression failed for article ${articleId}: ${error}`,
@@ -187,10 +183,7 @@ export class MediaProcessor extends WorkerHost {
 
       // Transcode to HLS
       const videoVariants =
-        await this.mediaProcessorService.transcodeVideoToHls(
-          buffer,
-          articleId,
-        );
+        await this.mediaProcessorService.transcodeVideoToHls(buffer, articleId);
 
       // Extract video thumbnail poster (frame at 1s)
       let posterUrl: string | undefined;
@@ -199,7 +192,9 @@ export class MediaProcessor extends WorkerHost {
           buffer,
           articleId,
         );
-        this.logger.log(`Video poster generated for article ${articleId}: ${posterUrl}`);
+        this.logger.log(
+          `Video poster generated for article ${articleId}: ${posterUrl}`,
+        );
       } catch (thumbError) {
         this.logger.warn(`Failed to generate video poster: ${thumbError}`);
         // Non-fatal — continue without poster
@@ -226,9 +221,7 @@ export class MediaProcessor extends WorkerHost {
         },
       });
 
-      this.logger.log(
-        `Video transcoding completed for article ${articleId}`,
-      );
+      this.logger.log(`Video transcoding completed for article ${articleId}`);
     } catch (error) {
       this.logger.error(
         `Video transcoding failed for article ${articleId}: ${error}`,
@@ -242,7 +235,10 @@ export class MediaProcessor extends WorkerHost {
   /**
    * Helper to update just the video.status field in article meta
    */
-  private async setVideoStatus(articleId: string, status: string): Promise<void> {
+  private async setVideoStatus(
+    articleId: string,
+    status: string,
+  ): Promise<void> {
     try {
       const article = await this.prisma.blogArticle.findUnique({
         where: { id: articleId },

@@ -353,11 +353,7 @@ export class UploadService {
    * @param buffer
    * @param mimeType
    */
-  async uploadToPublicBucket(
-    key: string,
-    buffer: Buffer,
-    mimeType: string,
-  ) {
+  async uploadToPublicBucket(key: string, buffer: Buffer, mimeType: string) {
     return this.internalPutToS3(
       buffer,
       key,
@@ -366,7 +362,6 @@ export class UploadService {
       false,
     );
   }
-
 
   /**
    * Upload file from Multer to public S3 bucket

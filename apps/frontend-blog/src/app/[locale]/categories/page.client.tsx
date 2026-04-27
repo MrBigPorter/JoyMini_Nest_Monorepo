@@ -10,12 +10,10 @@ import type { FrontendCategory } from '@/lib/types/frontend-blog';
 
 interface CategoriesPageClientProps {
   initialData: FrontendCategory[];
-  locale: string;
 }
 
 export default function CategoriesPageClient({
   initialData,
-  locale,
 }: CategoriesPageClientProps) {
   const t = useTranslations();
   const {

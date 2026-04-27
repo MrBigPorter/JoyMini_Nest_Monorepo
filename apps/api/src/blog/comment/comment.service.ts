@@ -79,17 +79,17 @@ export class CommentService {
     const rootComments: any[] = [];
 
     // 初始化所有评论，添加 children 数组
-    comments.forEach(comment => {
+    comments.forEach((comment) => {
       // 创建评论对象的副本，添加 children 字段
       const commentWithChildren = {
         ...comment,
-        children: []
+        children: [],
       };
       commentMap.set(comment.id, commentWithChildren);
     });
 
     // 构建树形结构
-    comments.forEach(comment => {
+    comments.forEach((comment) => {
       const node = commentMap.get(comment.id);
       if (comment.parentId) {
         // 如果有父评论，添加到父评论的 children 中
@@ -105,10 +105,16 @@ export class CommentService {
     });
 
     // 按创建时间排序（根评论和子评论都排序）
-    rootComments.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    rootComments.forEach(comment => {
+    rootComments.sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+    rootComments.forEach((comment) => {
       if (comment.children.length > 0) {
-        comment.children.sort((a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+        comment.children.sort(
+          (a: any, b: any) =>
+            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+        );
       }
     });
 

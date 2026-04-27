@@ -4,7 +4,8 @@ import { CacheInterceptor } from '@nestjs/cache-manager';
 const IGNORED_QUERY = new Set(['__nocache', '_', 't']);
 
 function normalizeHeader(v: unknown, fallback: string) {
-  return String(v ?? fallback)
+  const val = v ?? fallback;
+  return String(val)
     .toLowerCase()
     .replace(/[^a-z0-9_-]/g, '');
 }

@@ -22,7 +22,7 @@ export class OtpService {
   constructor(private readonly prisma: PrismaService) {}
 
   // 仅开发环境：打印验证码；以后可接供应商 SDK
-  private async sendSmsDev(phone: string, code: string) {
+  private sendSmsDev(phone: string, code: string) {
     console.log(`[DEV SMS] to ${phone}: code=${code}`);
     return code;
   }

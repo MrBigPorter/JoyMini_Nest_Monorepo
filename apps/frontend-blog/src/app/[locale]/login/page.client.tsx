@@ -1,16 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter, useSearchParams } from 'next/navigation';
-import {
-  LogIn,
-  Mail,
-  Lock,
-  ArrowRight,
-  RefreshCw,
-  Facebook,
-} from 'lucide-react';
+import { Mail, Lock, ArrowRight, RefreshCw, Facebook } from 'lucide-react';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { authApi } from '@/lib/api/authApi';
 import { LoginGuard } from '@/components/auth/ProtectedRoute';
@@ -36,7 +29,6 @@ export default function LoginPageClient() {
   const [countdown, setCountdown] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [isOAuthLoading, setIsOAuthLoading] = useState(false);
-  const [isGooglePopupOpen, setIsGooglePopupOpen] = useState(false);
 
   // 生成Web flow的state参数（用于CSRF保护）
   const generateWebState = () => {
@@ -296,7 +288,7 @@ export default function LoginPageClient() {
               {/* Google按钮 - 使用弹窗模式 */}
               <button
                 onClick={handleGoogleLoginClick}
-                disabled={isOAuthLoading || isGooglePopupOpen}
+                disabled={isOAuthLoading}
                 className="w-full py-3 px-4 rounded-xl border border-border bg-background hover:bg-accent/50 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <svg

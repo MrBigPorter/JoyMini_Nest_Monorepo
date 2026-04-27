@@ -47,7 +47,7 @@ const safeDecimalToFixedString = (
     }
 
     // 3. 针对字符串或数字，确保 new Decimal 不会因为非法输入炸掉
-    const d = new Decimal(String(value)); // 强制转 string 传给 Decimal 构造函数更稳
+    const d = new Decimal(String(value ?? '')); // 强制转 string 传给 Decimal 构造函数更稳
     if (d.isNaN()) return defaultValue;
 
     return d.toFixed(fractionDigits);

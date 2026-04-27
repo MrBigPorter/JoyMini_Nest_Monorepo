@@ -2,21 +2,13 @@
 
 import { useTranslations } from 'next-intl';
 import { useParams } from 'next/navigation';
-import { FolderOpen, ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import { Link } from '@/navigation';
 import { ArticleCard } from '@/components/blog/ArticleCard';
 import { EmptyContentState } from '@/components/blog/EmptyContentState';
 import { useFrontendCategoryBySlug } from '@/lib/hooks/useFrontendArticles';
 
-interface CategoryClientViewProps {
-  params: {
-    slug: string;
-  };
-}
-
-export default function CategoryClientView({
-  params,
-}: CategoryClientViewProps) {
+export default function CategoryClientView() {
   const t = useTranslations();
   const paramsFromHook = useParams();
   const slug = paramsFromHook.slug as string;

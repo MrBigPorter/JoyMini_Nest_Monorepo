@@ -15,8 +15,8 @@ export interface VideoVariants {
   hlsUrl: string;
   duration: number;
   qualities: string[];
-  poster?: string;      // URL of extracted thumbnail frame (JPEG)
-  status?: string;       // 'pending' | 'processing' | 'completed' | 'failed'
+  poster?: string; // URL of extracted thumbnail frame (JPEG)
+  status?: string; // 'pending' | 'processing' | 'completed' | 'failed'
 }
 
 @Injectable()
@@ -39,12 +39,19 @@ export class MediaProcessorService {
 
     // Protect against excessively large images that could cause Sharp memory exhaustion
     const MAX_DIMENSION = 4000;
-    if ((width > MAX_DIMENSION || height > MAX_DIMENSION) && metadata.width && metadata.height) {
+    if (
+      (width > MAX_DIMENSION || height > MAX_DIMENSION) &&
+      metadata.width &&
+      metadata.height
+    ) {
       this.logger.warn(
         `Image too large (${width}x${height}), pre-resizing to max ${MAX_DIMENSION}px before processing`,
       );
       buffer = await sharp(buffer)
-        .resize(MAX_DIMENSION, MAX_DIMENSION, { fit: 'inside', withoutEnlargement: true })
+        .resize(MAX_DIMENSION, MAX_DIMENSION, {
+          fit: 'inside',
+          withoutEnlargement: true,
+        })
         .toBuffer();
       const newMetadata = await sharp(buffer).metadata();
       width = newMetadata.width ?? MAX_DIMENSION;
@@ -55,13 +62,12 @@ export class MediaProcessorService {
     const blurhash = await this.generateBlurHash(buffer, width, height);
 
     // Generate variants
-    const [thumbnailWebp, mediumWebp, largeWebp, largeJpg] =
-      await Promise.all([
-        this.resizeAndConvert(buffer, 300, 'webp'),
-        this.resizeAndConvert(buffer, 800, 'webp'),
-        this.resizeAndConvert(buffer, 1600, 'webp'),
-        this.resizeAndConvert(buffer, 1600, 'jpeg'),
-      ]);
+    const [thumbnailWebp, mediumWebp, largeWebp, largeJpg] = await Promise.all([
+      this.resizeAndConvert(buffer, 300, 'webp'),
+      this.resizeAndConvert(buffer, 800, 'webp'),
+      this.resizeAndConvert(buffer, 1600, 'webp'),
+      this.resizeAndConvert(buffer, 1600, 'jpeg'),
+    ]);
 
     // Upload all variants to R2 using uploadToPublicBucket with exact key
     const publicDomain = this.getPublicDomain();
@@ -73,17 +79,22 @@ export class MediaProcessorService {
     ): Promise<string> => {
       const key = `${folder}/${name}.${ext}`;
       const mimeType = ext === 'jpg' ? 'image/jpeg' : `image/${ext}`;
-      await this.uploadService.uploadToPublicBucket(key, variantBuffer, mimeType);
+      await this.uploadService.uploadToPublicBucket(
+        key,
+        variantBuffer,
+        mimeType,
+      );
       return `${publicDomain}/${key}`;
     };
 
-    const [thumbWebpUrl, medWebpUrl, lrgWebpUrl, lrgJpgUrl] =
-      await Promise.all([
+    const [thumbWebpUrl, medWebpUrl, lrgWebpUrl, lrgJpgUrl] = await Promise.all(
+      [
         uploadVariant(thumbnailWebp, 'thumbnail', 'webp'),
         uploadVariant(mediumWebp, 'medium', 'webp'),
         uploadVariant(largeWebp, 'large', 'webp'),
         uploadVariant(largeJpg, 'large', 'jpg'),
-      ]);
+      ],
+    );
 
     // Get original URL
     const originalUrl = `${publicDomain}/${originalKey}`;
@@ -237,13 +248,17 @@ export class MediaProcessorService {
         bandwidth: string;
       }
       const qualityTargets: QualityTarget[] = [
-        { name: '480p',  targetWidth: 854,  bandwidth: '800k' },
-        { name: '720p',  targetWidth: 1280, bandwidth: '2800k' },
+        { name: '480p', targetWidth: 854, bandwidth: '800k' },
+        { name: '720p', targetWidth: 1280, bandwidth: '2800k' },
       ];
 
       // Only add 1080p if source is tall enough
       if (sourceHeight >= 1080) {
-        qualityTargets.push({ name: '1080p', targetWidth: 1920, bandwidth: '5000k' });
+        qualityTargets.push({
+          name: '1080p',
+          targetWidth: 1920,
+          bandwidth: '5000k',
+        });
       }
 
       // Generate variant m3u8 playlists
@@ -260,7 +275,8 @@ export class MediaProcessorService {
 
         // H.264 requires even dimensions for chroma subsampling
         const evenWidth = targetWidth % 2 === 0 ? targetWidth : targetWidth - 1;
-        const evenHeight = targetHeight % 2 === 0 ? targetHeight : targetHeight - 1;
+        const evenHeight =
+          targetHeight % 2 === 0 ? targetHeight : targetHeight - 1;
 
         const resolution = `${evenWidth}:${evenHeight}`;
 
@@ -294,10 +310,7 @@ export class MediaProcessorService {
         '',
       ].join('\n');
 
-      await fs.writeFile(
-        path.join(outputDir, 'master.m3u8'),
-        masterPlaylist,
-      );
+      await fs.writeFile(path.join(outputDir, 'master.m3u8'), masterPlaylist);
 
       // Upload all HLS files to R2
       const hlsFolder = `uploads/blog/videos/${articleId}/hls`;
@@ -325,12 +338,12 @@ export class MediaProcessorService {
 
   /**
    * Upload a directory of files to R2 recursively
-   * 
+   *
    * CRITICAL UPLOAD ORDER:
    * 1. First upload all subdirectories (all quality folders, all .ts segments)
    * 2. Then upload all regular files
    * 3. Upload master.m3u8 ABSOLUTELY LAST
-   * 
+   *
    * This prevents Cloudflare negative caching bug where master.m3u8 appears before
    * variant playlists exist, causing 4 hour cached 404 errors even after files exist.
    */
@@ -342,21 +355,18 @@ export class MediaProcessorService {
     const path = await import('path');
 
     const entries = await fs.readdir(dirPath, { withFileTypes: true });
-    
+
     // Phase 1: Upload all subdirectories FIRST
     for (const entry of entries) {
       if (entry.isDirectory()) {
         const fullPath = path.join(dirPath, entry.name);
-        await this.uploadDirectory(
-          fullPath,
-          `${r2Prefix}/${entry.name}`,
-        );
+        await this.uploadDirectory(fullPath, `${r2Prefix}/${entry.name}`);
       }
     }
 
     // Phase 2: Collect and sort files
-    const files: { name: string, fullPath: string }[] = [];
-    let masterPlaylist: { name: string, fullPath: string } | null = null;
+    const files: { name: string; fullPath: string }[] = [];
+    let masterPlaylist: { name: string; fullPath: string } | null = null;
 
     for (const entry of entries) {
       if (!entry.isDirectory()) {
@@ -385,7 +395,11 @@ export class MediaProcessorService {
     if (masterPlaylist) {
       const buffer = await fs.readFile(masterPlaylist.fullPath);
       const key = `${r2Prefix}/${masterPlaylist.name}`;
-      await this.uploadService.uploadToPublicBucket(key, buffer, 'application/vnd.apple.mpegurl');
+      await this.uploadService.uploadToPublicBucket(
+        key,
+        buffer,
+        'application/vnd.apple.mpegurl',
+      );
     }
   }
 

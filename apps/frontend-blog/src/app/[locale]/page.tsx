@@ -1,4 +1,3 @@
-import { getTranslations } from 'next-intl/server';
 import { frontendBlogApi } from '@/lib/api/frontendBlogApi';
 import { getEnabledLocales } from '@/lib/i18n/config';
 import HomePageClient from './page.client.tsx';
@@ -33,8 +32,6 @@ export default async function HomePage({
   // 访问 /en/ 时，routeLocale = 'en'
   // 这确保SSR和CSR使用相同的语言，避免闪烁
   const locale = routeLocale;
-
-  const t = await getTranslations({ locale });
 
   try {
     // SSR: Fetch articles
