@@ -7,6 +7,7 @@ import {
   afterEach,
   vi,
 } from 'vitest';
+import { waitFor } from '@testing-library/react';
 
 import { http as mswHttp, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
@@ -359,7 +360,9 @@ describe('http client — HTTP 错误', () => {
       'error',
       'Unauthorized, please log in again',
     );
-    expect(window.location.href).toBe('/login');
+    await waitFor(() => {
+      expect(window.location.href).toBe('/login');
+    });
   });
 
   it('网络断开时显示网络错误 toast', async () => {

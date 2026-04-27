@@ -32,11 +32,11 @@ describe('useAppStore', () => {
   });
 
   describe('toggleLang', () => {
-    it('en → zh', () => {
+    it('en → ja', () => {
       act(() => {
         useAppStore.getState().toggleLang();
       });
-      expect(useAppStore.getState().lang).toBe('zh');
+      expect(useAppStore.getState().lang).toBe('ja');
     });
 
     it('zh → en', () => {

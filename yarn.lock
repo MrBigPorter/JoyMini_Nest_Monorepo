@@ -8720,7 +8720,7 @@ __metadata:
     "@types/react-headroom": "npm:^3.2.3"
     "@typescript-eslint/eslint-plugin": "npm:^7.0.0"
     "@typescript-eslint/parser": "npm:^7.0.0"
-    "@vitejs/plugin-react": "npm:^6.0.1"
+    "@vitejs/plugin-react": "npm:^4.3.4"
     autoprefixer: "npm:^10.0.0"
     axios: "npm:^1.6.0"
     clsx: "npm:^2.0.0"
@@ -16842,7 +16842,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@vitejs/plugin-react@npm:^4.3.3":
+"@vitejs/plugin-react@npm:^4.3.3, @vitejs/plugin-react@npm:^4.3.4":
   version: 4.7.0
   resolution: "@vitejs/plugin-react@npm:4.7.0"
   dependencies:

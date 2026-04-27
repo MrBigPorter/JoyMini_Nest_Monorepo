@@ -55,6 +55,8 @@ vi.mock('@/api', () => ({
   },
 }));
 vi.mock('@lucky/shared', () => ({
+  DEFAULT_LOCALE: 'zh',
+  AVAILABLE_LOCALES: ['zh', 'en', 'ja', 'ko', 'fr', 'de'],
   ORDER_STATUS: {
     PENDING_PAYMENT: 1,
     PAID: 2,
