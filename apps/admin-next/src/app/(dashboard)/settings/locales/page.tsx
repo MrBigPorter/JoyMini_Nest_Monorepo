@@ -4,8 +4,6 @@ import React from 'react';
 
 import { useAvailableLocales } from '@/hooks/useAvailableLocales';
 import { Switch } from '@repo/ui';
-// @ts-expect-error Card component requires title/href props but we use it without
-import { Card } from '@repo/ui/card.tsx';
 
 export default function LocaleSettingsPage() {
   const { locales, toggleLocale, loading } = useAvailableLocales();
@@ -23,7 +21,7 @@ export default function LocaleSettingsPage() {
         </p>
       </div>
 
-      <Card className="p-6">
+      <div className="p-6 border rounded-lg bg-white dark:bg-gray-800">
         <div className="space-y-4">
           {locales.map((locale) => (
             <div
@@ -42,7 +40,7 @@ export default function LocaleSettingsPage() {
             </div>
           ))}
         </div>
-      </Card>
+      </div>
 
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
         <p className="font-medium mb-2">💡 提示</p>

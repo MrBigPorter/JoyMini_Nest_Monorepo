@@ -142,7 +142,7 @@ export default function HomePageClient({ initialData }: HomePageClientProps) {
       <div className="sticky top-0 z-40 md:static md:z-auto -mx-4 md:-mx-6 lg:-mx-8 px-4 md:px-6 lg:px-8 bg-background/95 backdrop-blur-md">
         <CategoryFilter
           selectedCategoryId={selectedCategoryId}
-          onSelectCategory={handleCategoryChange}
+          onSelectCategoryAction={handleCategoryChange}
         />
       </div>
 
