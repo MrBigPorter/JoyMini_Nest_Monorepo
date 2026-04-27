@@ -147,33 +147,59 @@ export class TagService {
         .flat();
     }
 
-    return this.prisma.blogTag.findMany({
+    const tags = await this.prisma.blogTag.findMany({
       where,
       orderBy,
       include: includeCount
         ? {
-            _count: {
-              select: { articles: true },
-            },
+            articles: {
+              where: { status: 'PUBLISHED' },
+              select: { id: true }
+            }
           }
         : undefined,
     });
+
+    if (includeCount) {
+      return tags.map((tag: any) => {
+        const { articles, ...rest } = tag;
+        return {
+          ...rest,
+          _count: {
+            articles: articles.length
+          }
+        };
+      });
+    }
+
+    return tags;
   }
 
   /**
    * 获取热门标签
    */
   async getPopularTags(limit = 20) {
-    return this.prisma.blogTag.findMany({
+    const tags = await this.prisma.blogTag.findMany({
       take: limit,
       orderBy: {
         articles: { _count: 'desc' },
       },
       include: {
-        _count: {
-          select: { articles: true },
-        },
+        articles: {
+          where: { status: 'PUBLISHED' },
+          select: { id: true }
+        }
       },
+    });
+
+    return tags.map((tag: any) => {
+      const { articles, ...rest } = tag;
+      return {
+        ...rest,
+        _count: {
+          articles: articles.length
+        }
+      };
     });
   }
 
@@ -184,9 +210,10 @@ export class TagService {
     const tag = await this.prisma.blogTag.findUnique({
       where: { id },
       include: {
-        _count: {
-          select: { articles: true },
-        },
+        articles: {
+          where: { status: 'PUBLISHED' },
+          select: { id: true }
+        }
       },
     });
 
@@ -194,7 +221,13 @@ export class TagService {
       throw new NotFoundException('标签不存在');
     }
 
-    return tag;
+    const { articles, ...rest } = tag;
+    return {
+      ...rest,
+      _count: {
+        articles: articles.length
+      }
+    };
   }
 
   /**
