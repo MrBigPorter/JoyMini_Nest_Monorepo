@@ -92,17 +92,23 @@ jobs:
       - name: Lint
         run: yarn turbo run lint
 
-      # 8) 执行 TypeScript 类型检查（硬门禁）
+      # 8) 构建内部依赖包（check-types 需要 @lucky/shared 的 dist/）
+      - name: Build internal packages
+        run: |
+          node packages/shared/scripts/build.js
+          node packages/ui/scripts/build.js
+
+      # 9) 执行 TypeScript 类型检查（硬门禁）
       - name: Type Check
         run: yarn turbo run check-types
 
       # admin-next 单元测试 — 必须通过
-      # 9) 运行 admin-next 单测（硬门禁）
+      # 10) 运行 admin-next 单测（硬门禁）
       - name: Unit Test — admin-next (required)
         run: yarn workspace @lucky/admin-next test
 
       # 其他包测试 — 允许跳过
-      # 10) 运行其他包测试（软门禁）
+      # 11) 运行其他包测试（软门禁）
       - name: Unit Test — other packages (optional)
         run: yarn turbo run test --filter=!@lucky/admin-next
         continue-on-error: true
