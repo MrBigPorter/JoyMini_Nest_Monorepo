@@ -37,15 +37,12 @@ export default async function HomePage({
   const t = await getTranslations({ locale });
 
   try {
-    // SSR: Fetch both featured articles and regular articles in parallel
-    const [featuredArticles, initialData] = await Promise.all([
-      frontendBlogApi.getFeaturedArticles(locale).catch(() => [] as FrontendArticle[]),
-      frontendBlogApi.getArticles({
-        lang: locale,
-        page: 1,
-        pageSize: 10,
-      }),
-    ]);
+    // SSR: Fetch articles
+    const initialData = await frontendBlogApi.getArticles({
+      lang: locale,
+      page: 1,
+      pageSize: 10,
+    });
 
     // 提取文章ID用于客户端查询收藏状态
     const articleIds =
@@ -54,7 +51,6 @@ export default async function HomePage({
     return (
       <HomePageClient
         initialData={initialData}
-        initialFeaturedArticles={featuredArticles}
         initialArticleIds={articleIds}
         locale={locale}
       />
@@ -70,7 +66,6 @@ export default async function HomePage({
           pageSize: 10,
           totalPages: 0,
         }}
-        initialFeaturedArticles={[]}
         initialArticleIds={[]}
         locale={locale}
       />

@@ -392,7 +392,7 @@ export class FrontendBlogService {
       slug: category.slug,
       description: this.getLocalizedString(category, 'description', locale),
       coverImage: this.getLocalizedString(category, 'coverImage', locale),
-      articleCount: category.articleCount || 0,
+      articleCount: category._count?.articles ?? category.articleCount ?? 0,
     };
   }
 
@@ -404,7 +404,7 @@ export class FrontendBlogService {
       id: tag.id,
       name: this.getLocalizedString(tag, 'name', locale),
       slug: tag.slug,
-      articleCount: tag.articleCount || 0,
+      articleCount: tag._count?.articles ?? tag.articleCount ?? 0,
     };
   }
 

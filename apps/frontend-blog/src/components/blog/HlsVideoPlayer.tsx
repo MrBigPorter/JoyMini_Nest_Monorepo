@@ -9,11 +9,18 @@ interface HlsVideoPlayerProps {
   className?: string;
   autoPlay?: boolean;
   muted?: boolean;
+  /** When true, don't load video on mount — show poster + play button instead.
+   *  Also coordinates across components: only one video plays at a time. */
+  clickToPlay?: boolean;
 }
 
 /**
  * HLS Video Player component
  * Uses hls.js for HLS streaming with fallback to native <video> for Safari
+ *
+ * clickToPlay mode: defers loading until user clicks play button.
+ * Also dispatches a 'hls-video-play' custom event on window so that
+ * other clickToPlay instances stop when this one starts playing.
  */
 export function HlsVideoPlayer({
   hlsUrl,
@@ -21,11 +28,13 @@ export function HlsVideoPlayer({
   className = '',
   autoPlay = false,
   muted = true,
+  clickToPlay = false,
 }: HlsVideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [userClicked, setUserClicked] = useState(false);
   const hlsRef = useRef<Hls | null>(null);
 
   const handlePlay = useCallback(() => {
@@ -36,60 +45,133 @@ export function HlsVideoPlayer({
     setIsPlaying(false);
   }, []);
 
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
+  const destroyVideo = useCallback(() => {
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.removeAttribute('src');
+      videoRef.current.load();
+    }
+  }, []);
 
-    setIsLoading(true);
-    setHasError(false);
+  // Initialize hls.js and start loading the stream
+  // forcePlay: always call video.play() on MANIFEST_PARSED (used for clickToPlay)
+  const initVideo = useCallback(
+    (forcePlay = false) => {
+      const video = videoRef.current;
+      if (!video) return;
 
-    // Use hls.js first for consistent behavior across all browsers
-    // Only fall back to native HLS for very old Safari without MSE support
-    if (Hls.isSupported()) {
-      const hls = new Hls({
-        enableWorker: true,
-        lowLatencyMode: true,
-        backbufferLength: 30,
-      });
-      hlsRef.current = hls;
+      setIsLoading(true);
+      setHasError(false);
 
-      hls.loadSource(hlsUrl);
-      hls.attachMedia(video);
+      if (Hls.isSupported()) {
+        const hls = new Hls({
+          enableWorker: true,
+          lowLatencyMode: true,
+          backBufferLength: 30,
+        });
+        hlsRef.current = hls;
 
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        setIsLoading(false);
-        if (autoPlay) {
-          video.play().catch(() => {
-            // Autoplay blocked, user interaction needed
-          });
-        }
-      });
+        hls.loadSource(hlsUrl);
+        hls.attachMedia(video);
 
-      hls.on(Hls.Events.ERROR, (_event, data) => {
-        if (data.fatal) {
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          setIsLoading(false);
+          if (autoPlay || forcePlay) {
+            video.play().catch(() => {
+              // Autoplay blocked, user interaction needed
+            });
+          }
+        });
+
+        hls.on(Hls.Events.ERROR, (_event, data) => {
+          if (data.fatal) {
+            setHasError(true);
+            setIsLoading(false);
+          }
+        });
+      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        video.src = hlsUrl;
+        video.addEventListener('loadedmetadata', () => {
+          setIsLoading(false);
+          if (autoPlay || forcePlay) {
+            video.play().catch(() => {});
+          }
+        });
+        video.addEventListener('error', () => {
           setHasError(true);
           setIsLoading(false);
-        }
-      });
-    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      video.src = hlsUrl;
-      video.addEventListener('loadedmetadata', () => setIsLoading(false));
-      video.addEventListener('error', () => {
+        });
+      } else {
         setHasError(true);
         setIsLoading(false);
-      });
-    } else {
-      setHasError(true);
-      setIsLoading(false);
-    }
-
-    return () => {
-      if (hlsRef.current) {
-        hlsRef.current.destroy();
-        hlsRef.current = null;
       }
+    },
+    [hlsUrl, autoPlay],
+  );
+
+  // ─── Normal mode: auto-load on mount ───
+  useEffect(() => {
+    if (clickToPlay) return;
+
+    initVideo(false);
+
+    return () => destroyVideo();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hlsUrl, clickToPlay]);
+
+  // ─── Click-to-play mode: listen for other videos starting ───
+  useEffect(() => {
+    if (!clickToPlay) return;
+
+    const handleOtherVideoPlay = (e: CustomEvent) => {
+      const otherHlsUrl = e.detail?.hlsUrl;
+      if (otherHlsUrl === hlsUrl) return; // same video, ignore
+
+      destroyVideo();
+      setUserClicked(false);
+      setIsPlaying(false);
     };
-  }, [hlsUrl, autoPlay]);
+
+    window.addEventListener(
+      'hls-video-play',
+      handleOtherVideoPlay as EventListener,
+    );
+    return () => {
+      window.removeEventListener(
+        'hls-video-play',
+        handleOtherVideoPlay as EventListener,
+      );
+    };
+  }, [clickToPlay, hlsUrl, destroyVideo]);
+
+  // Cleanup on unmount (for clickToPlay mode)
+  useEffect(() => {
+    if (!clickToPlay) return;
+    return () => destroyVideo();
+  }, [clickToPlay, destroyVideo]);
+
+  const handlePlayClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      e.preventDefault();
+      if (userClicked) return;
+
+      // Notify other clickToPlay videos to stop
+      window.dispatchEvent(
+        new CustomEvent('hls-video-play', { detail: { hlsUrl } }),
+      );
+
+      setUserClicked(true);
+      initVideo(true); // force play since user explicitly clicked
+    },
+    [hlsUrl, userClicked, initVideo],
+  );
+
+  const showPlayOverlay = clickToPlay && !userClicked && !hasError;
 
   return (
     <div className={`relative group overflow-hidden bg-black ${className}`}>
@@ -128,12 +210,30 @@ export function HlsVideoPlayer({
           muted={muted}
           onPlay={handlePlay}
           onPause={handlePause}
-          preload="metadata"
+          preload={clickToPlay ? 'none' : 'metadata'}
         />
       )}
 
-      {/* Play button overlay when not playing */}
-      {!isPlaying && !isLoading && !hasError && (
+      {/* Click-to-play overlay — shown before user clicks */}
+      {showPlayOverlay && (
+        <div
+          className="absolute inset-0 flex items-center justify-center cursor-pointer z-20"
+          onClick={handlePlayClick}
+        >
+          <div className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-all">
+            <svg
+              className="w-8 h-8 text-white ml-1"
+              fill="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path d="M8 5v14l11-7z" />
+            </svg>
+          </div>
+        </div>
+      )}
+
+      {/* Original play overlay — non-clickToPlay mode when paused */}
+      {!clickToPlay && !isPlaying && !isLoading && !hasError && (
         <div
           className="absolute inset-0 flex items-center justify-center cursor-pointer"
           onClick={(e) => {

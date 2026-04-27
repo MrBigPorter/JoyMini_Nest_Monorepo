@@ -77,10 +77,43 @@ jobs:
         if: steps.e2e_gate.outputs.enabled == 'true'
         run: corepack enable && corepack prepare yarn@4.9.2 --activate
 
+      # ---- 依赖缓存 ----
+      - name: Cache Yarn zip cache
+        if: steps.e2e_gate.outputs.enabled == 'true'
+        uses: actions/cache@v4
+        with:
+          path: |
+            .yarn/cache
+            .yarn/install-state.gz
+          key: yarn-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-
+
+      - name: Cache node_modules
+        if: steps.e2e_gate.outputs.enabled == 'true'
+        uses: actions/cache@v4
+        id: nm-cache-pw
+        with:
+          path: |
+            node_modules
+            apps/admin-next/node_modules
+            packages/*/node_modules
+          key: nm-pw-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: |
+            nm-pw-${{ runner.os }}-
+
       # Step 6 / 步骤 6: Install workspace dependencies
       - name: Install dependencies
         if: steps.e2e_gate.outputs.enabled == 'true'
         run: yarn install --immutable
+
+      # ---- Playwright 浏览器缓存 ----
+      - name: Cache Playwright browsers
+        if: steps.e2e_gate.outputs.enabled == 'true'
+        uses: actions/cache@v4
+        id: pw-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ hashFiles('apps/admin-next/package.json') }}
 
       # Step 7 / 步骤 7: Build shared package dependency (@lucky/shared)
       - name: Build @lucky/shared

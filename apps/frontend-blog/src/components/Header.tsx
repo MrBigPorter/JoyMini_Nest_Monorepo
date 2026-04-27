@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import Headroom from 'react-headroom';
 import { useLocale, useTranslations } from 'next-intl';
 import { Link, useRouter, usePathname } from '@/navigation';
@@ -18,10 +19,27 @@ import {
 import { useAvailableLocales } from '@/hooks/useAvailableLocales';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useAuthStore } from '@/lib/stores/auth.store';
-import { MobileSettingsDrawer, MobileSettingsContent } from './mobile';
-import { SearchModal } from './search';
 import { useSearchShortcut } from '@/lib/hooks/useKeyboardShortcut';
 import { ProtectedLink } from '@/components/auth/ProtectedLink';
+
+const SearchModal = dynamic(
+  () => import('./search/SearchModal').then((mod) => mod.SearchModal),
+  { ssr: false },
+);
+const MobileSettingsDrawer = dynamic(
+  () =>
+    import('./mobile/MobileSettingsDrawer').then(
+      (mod) => mod.MobileSettingsDrawer,
+    ),
+  { ssr: false },
+);
+const MobileSettingsContent = dynamic(
+  () =>
+    import('./mobile/MobileSettingsContent').then(
+      (mod) => mod.MobileSettingsContent,
+    ),
+  { ssr: false },
+);
 
 interface LocaleConfig {
   code: string;

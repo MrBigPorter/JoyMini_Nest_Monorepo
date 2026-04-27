@@ -40,4 +40,8 @@ COPY packages/typescript-config/package.json ./packages/typescript-config/packag
 COPY packages/config/package.json ./packages/config/package.json
 
 # ---- 安装全部依赖 (这层被缓存，除非 lock 文件变了) ----
+# 打印 yarn 版本，确保与 .yarnrc.yml 指定一致
+RUN yarn -v && yarn --version
 RUN yarn install
+# 安装后再次打印 yarn 版本，确认无误
+RUN yarn -v && yarn --version

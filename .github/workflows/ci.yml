@@ -147,39 +147,39 @@ jobs:
         if: steps.e2e_gate.outputs.enabled == 'true'
         run: corepack enable && corepack prepare yarn@4.9.2 --activate
 
-      # ---- 依赖缓存 — 暂时禁用 ----
-      # - name: Cache Yarn zip cache
-      #   uses: actions/cache@v4
-      #   with:
-      #     path: |
-      #       .yarn/cache
-      #       .yarn/install-state.gz
-      #     key: yarn-${{ hashFiles('yarn.lock') }}
-      #     restore-keys: yarn-
+      # ---- 依赖缓存 ----
+      - name: Cache Yarn zip cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            .yarn/cache
+            .yarn/install-state.gz
+          key: yarn-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-
 
-      # - name: Cache node_modules
-      #   uses: actions/cache@v4
-      #   id: nm-cache-e2e
-      #   with:
-      #     path: |
-      #       node_modules
-      #       apps/admin-next/node_modules
-      #       packages/ui/node_modules
-      #       packages/config/node_modules
-      #     key: nm-e2e-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        id: nm-cache-e2e
+        with:
+          path: |
+            node_modules
+            apps/admin-next/node_modules
+            packages/ui/node_modules
+            packages/config/node_modules
+          key: nm-e2e-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
 
       # 5) 安装依赖（仅在 E2E 启用时）
       - name: Install dependencies
         if: steps.e2e_gate.outputs.enabled == 'true'
         run: yarn install --immutable
 
-      # ---- Playwright 浏览器缓存 — 暂时禁用 ----
-      # - name: Cache Playwright browsers
-      #   uses: actions/cache@v4
-      #   id: pw-cache
-      #   with:
-      #     path: ~/.cache/ms-playwright
-      #     key: playwright-${{ hashFiles('apps/admin-next/package.json') }}
+      # ---- Playwright 浏览器缓存 ----
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: pw-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ hashFiles('apps/admin-next/package.json') }}
 
       # 6) 安装 Playwright 浏览器（仅在 E2E 启用时）
       - name: Install Playwright browsers

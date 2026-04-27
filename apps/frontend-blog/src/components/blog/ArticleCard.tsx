@@ -137,6 +137,7 @@ export function ArticleCard({
                   hlsUrl={hlsUrl}
                   poster={'meta' in article ? (article as FrontendArticle).meta?.video?.poster : undefined}
                   className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                  clickToPlay
                 />
               ) : (
                 /* Raw video — use native <video> with click-to-play overlay */
