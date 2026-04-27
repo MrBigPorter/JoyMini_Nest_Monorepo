@@ -114,6 +114,7 @@
     "@types/supertest": "^7.2.0",
     "date-fns": "^4.1.0",
     "eslint": "^9.15.0",
+    "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.2.1",
     "globals": "^15.13.0",
     "jest": "^30.3.0",
