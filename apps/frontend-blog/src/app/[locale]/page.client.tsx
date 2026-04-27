@@ -230,7 +230,7 @@ export default function HomePageClient({ initialData }: HomePageClientProps) {
 
               {/* Load More */}
               <LoadMore
-                onClick={handleLoadMore}
+                onClickAction={handleLoadMore}
                 loading={isFetching && page > 1}
                 hasMore={hasMore}
               />

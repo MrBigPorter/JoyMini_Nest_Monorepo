@@ -10,7 +10,7 @@ interface UseKeyboardShortcutOptions {
   altKey?: boolean;
   preventDefault?: boolean;
   enabled?: boolean;
-  onTrigger: () => void;
+  onTriggerAction: () => void;
 }
 
 /**
@@ -25,7 +25,7 @@ export function useKeyboardShortcut({
   altKey = false,
   preventDefault = true,
   enabled = true,
-  onTrigger,
+  onTriggerAction,
 }: UseKeyboardShortcutOptions) {
   const handleKeyDown = useCallback(
     (event: KeyboardEvent) => {
@@ -55,7 +55,7 @@ export function useKeyboardShortcut({
         if (preventDefault) {
           event.preventDefault();
         }
-        onTrigger();
+        onTriggerAction();
       }
     },
     [
@@ -66,7 +66,7 @@ export function useKeyboardShortcut({
       altKey,
       preventDefault,
       enabled,
-      onTrigger,
+      onTriggerAction,
     ],
   );
 
@@ -83,25 +83,25 @@ export function useKeyboardShortcut({
 /**
  * 搜索快捷键 Hook（Cmd/Ctrl + K）
  */
-export function useSearchShortcut(onTrigger: () => void, enabled = true) {
+export function useSearchShortcut(onTriggerAction: () => void, enabled = true) {
   return useKeyboardShortcut({
     key: 'k',
     ctrlKey: true,
     metaKey: true,
     preventDefault: true,
     enabled,
-    onTrigger,
+    onTriggerAction,
   });
 }
 
 /**
  * ESC 键 Hook
  */
-export function useEscapeKey(onTrigger: () => void, enabled = true) {
+export function useEscapeKey(onTriggerAction: () => void, enabled = true) {
   return useKeyboardShortcut({
     key: 'Escape',
     preventDefault: true,
     enabled,
-    onTrigger,
+    onTriggerAction,
   });
 }

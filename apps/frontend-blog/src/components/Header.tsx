@@ -434,14 +434,17 @@ export default function Header() {
       {/* 移动端设置抽屉 */}
       <MobileSettingsDrawer
         isOpen={mobileSettingsOpen}
-        onClose={() => setMobileSettingsOpen(false)}
+        onCloseAction={() => setMobileSettingsOpen(false)}
         title={t('settings.title')}
       >
         <MobileSettingsContent onClose={() => setMobileSettingsOpen(false)} />
       </MobileSettingsDrawer>
 
       {/* 搜索模态框 */}
-      <SearchModal isOpen={searchModalOpen} onClose={handleSearchModalClose} />
+      <SearchModal
+        isOpen={searchModalOpen}
+        onCloseAction={handleSearchModalClose}
+      />
     </>
   );
 }
