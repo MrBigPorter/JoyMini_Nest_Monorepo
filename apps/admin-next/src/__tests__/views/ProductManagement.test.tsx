@@ -44,6 +44,8 @@ vi.mock('@/api', () => ({
   categoryApi: { getCategories: vi.fn().mockResolvedValue([]) },
 }));
 vi.mock('@lucky/shared', () => ({
+  DEFAULT_LOCALE: 'zh',
+  AVAILABLE_LOCALES: ['zh', 'en', 'ja', 'ko', 'fr', 'de'],
   TREASURE_STATE: { ACTIVE: 1, INACTIVE: 0 },
   TreasureFilterType: { ALL: 'ALL', ACTIVE: 'ACTIVE' },
 }));

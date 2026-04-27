@@ -326,7 +326,11 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
         ? mappedArticle.tagIds.map((t: any) =>
             typeof t === 'object' && t !== null && 'id' in t ? t.id : t,
           )
-        : [],
+        : Array.isArray(mappedArticle?.tags)
+          ? mappedArticle.tags.map((t: any) =>
+              typeof t === 'object' && t !== null && 'id' in t ? t.id : t,
+            )
+          : [],
       status: mappedArticle?.status || 'DRAFT',
       featured: mappedArticle?.featured ?? false,
     });

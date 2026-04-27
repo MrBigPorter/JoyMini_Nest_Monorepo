@@ -16,17 +16,7 @@ vi.mock('@/components/scaffold/PageHeader', () => ({
 }));
 
 vi.mock('@/api', () => ({
-  luckyDrawApi: {
-    listActivities: vi.fn(),
-    listPrizes: vi.fn(),
-    listResults: vi.fn(),
-    createActivity: vi.fn(),
-    updateActivity: vi.fn(),
-    deleteActivity: vi.fn(),
-    createPrize: vi.fn(),
-    updatePrize: vi.fn(),
-    deletePrize: vi.fn(),
-  },
+  luckyDrawApi,
 }));
 
 import { LuckyDrawManagement } from '@/components/lucky-draw/LuckyDrawClient';
@@ -70,6 +60,21 @@ const mockLuckyDrawRequests = ({
     },
   );
 };
+
+// Mock luckyDrawApi.listPrizes to return a valid response
+const { luckyDrawApi } = vi.hoisted(() => ({
+  luckyDrawApi: {
+    listActivities: vi.fn(),
+    listPrizes: vi.fn().mockResolvedValue({ list: [] }),
+    listResults: vi.fn(),
+    createActivity: vi.fn(),
+    updateActivity: vi.fn(),
+    deleteActivity: vi.fn(),
+    createPrize: vi.fn(),
+    updatePrize: vi.fn(),
+    deletePrize: vi.fn(),
+  },
+}));
 
 describe('LuckyDrawManagement activity count text', () => {
   beforeEach(() => {

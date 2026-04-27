@@ -39,7 +39,11 @@ vi.mock('@/api', () => ({
     update: vi.fn().mockResolvedValue({}),
   },
 }));
-vi.mock('@lucky/shared', () => ({ JUMP_CATE: { PRODUCT: 1, URL: 2 } }));
+vi.mock('@lucky/shared', () => ({
+  DEFAULT_LOCALE: 'zh',
+  AVAILABLE_LOCALES: ['zh', 'en', 'ja', 'ko', 'fr', 'de'],
+  JUMP_CATE: { PRODUCT: 1, URL: 2 },
+}));
 vi.mock('@/views/banner/BannerFormModal', () => ({
   BannerFormModal: () => <div data-testid="banner-form-modal" />,
 }));
