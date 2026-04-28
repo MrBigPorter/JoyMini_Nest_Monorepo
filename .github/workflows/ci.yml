@@ -64,6 +64,7 @@ jobs:
             node_modules
             apps/api/node_modules
             apps/admin-next/node_modules
+            apps/admin-blog/node_modules
             apps/liveness-web/node_modules
             apps/frontend-blog/node_modules
             packages/*/node_modules
@@ -121,6 +122,15 @@ jobs:
           NODE_ENV: production
           NEXT_PUBLIC_API_BASE_URL: https://api.joyminis.com
           NEXT_PUBLIC_IMG_BASE_URL: https://img.joyminis.com
+          NEXT_PUBLIC_APP_ENV: production
+
+      # admin-blog 构建验证 — 确保后台能正常 build
+      # 13) 构建 admin-blog（硬门禁）
+      - name: Build — admin-blog (required)
+        run: yarn workspace @lucky/admin-blog build
+        env:
+          NODE_ENV: production
+          NEXT_PUBLIC_API_BASE_URL: https://api.joyminis.com
           NEXT_PUBLIC_APP_ENV: production
 
   # ============================================================
