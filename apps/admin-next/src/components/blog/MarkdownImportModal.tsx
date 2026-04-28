@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { ImageTranslationTab } from './image-translation/ImageTranslationTab';
 import { ModalFixed } from '@repo/ui/components/Modal/ModalFixed';
 import { Marked } from 'marked';
 
@@ -60,7 +59,7 @@ export function MarkdownImportModal({
   onImport,
   onClose,
 }: MarkdownImportModalProps) {
-  const [activeTab, setActiveTab] = useState<'markdown' | 'image'>('markdown');
+  const [activeTab, setActiveTab] = useState<'markdown'>('markdown');
   const [markdown, setMarkdown] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [previewHtml, setPreviewHtml] = useState('');
@@ -121,32 +120,6 @@ export function MarkdownImportModal({
       enableClickOutsideClose={false}
       renderChildren={() => (
         <div className="flex flex-col gap-4">
-          {/* Tab 导航 */}
-          <div className="flex border-b border-gray-200 dark:border-gray-700 -mx-4 px-4">
-            <button
-              type="button"
-              onClick={() => setActiveTab('markdown')}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === 'markdown'
-                  ? 'border-primary-500 text-primary-600 dark:text-primary-400'
-                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-              }`}
-            >
-              {isZh ? 'Markdown 文本' : 'Markdown Text'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('image')}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === 'image'
-                  ? 'border-primary-500 text-primary-600 dark:text-primary-400'
-                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-              }`}
-            >
-              {isZh ? '图片翻译' : 'Image Translation'}
-            </button>
-          </div>
-
           {activeTab === 'markdown' && (
             <>
               <div className="grid grid-cols-2 gap-4 mt-2">
@@ -189,39 +162,6 @@ export function MarkdownImportModal({
                   <span>{error}</span>
                 </div>
               )}
-            </>
-          )}
-
-          {activeTab === 'image' && (
-            <>
-              <div className="mb-4 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
-                <div className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-400">
-                  <svg
-                    className="w-4 h-4"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 102 0V6a1 1 0 00-1-1z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                  <span>
-                    {isZh
-                      ? '⚠️ Google Gemini API 当前服务不稳定，图片翻译功能可能暂时无法使用'
-                      : '⚠️ Google Gemini API is currently unstable, image translation may be temporarily unavailable'}
-                  </span>
-                </div>
-              </div>
-
-              <ImageTranslationTab
-                onImport={(html) => {
-                  onImport(html);
-                  onClose();
-                }}
-                isZh={isZh}
-              />
             </>
           )}
         </div>

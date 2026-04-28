@@ -189,4 +189,72 @@ export class SystemConfigService {
 
     return { success: true };
   }
+
+  /**
+   * 获取 blog 已启用的语言列表（独立于 admin-next）
+   */
+  async getBlogLocales() {
+    const enabledCodes = await this.get<string[]>('blog.enabled_locales', [
+      'zh',
+      'en',
+    ]);
+
+    const ALL_LOCALES = [
+      { code: 'zh', name: '中文', nativeName: '简体中文', isDefault: true },
+      { code: 'en', name: 'English', nativeName: 'English', isDefault: false },
+      { code: 'ja', name: '日本語', nativeName: '日本語', isDefault: false },
+      { code: 'ko', name: '한국어', nativeName: '한국어', isDefault: false },
+      {
+        code: 'fr',
+        name: 'Français',
+        nativeName: 'Français',
+        isDefault: false,
+      },
+      { code: 'de', name: 'Deutsch', nativeName: 'Deutsch', isDefault: false },
+    ];
+
+    return {
+      list: ALL_LOCALES.map((locale) => ({
+        ...locale,
+        enabled: enabledCodes.includes(locale.code),
+      })),
+    };
+  }
+
+  /**
+   * 切换 blog 指定语言的启用状态（独立于 admin-next）
+   */
+  async toggleBlogLocale(code: string, enabled: boolean) {
+    const enabledCodes = await this.get<string[]>('blog.enabled_locales', [
+      'zh',
+      'en',
+    ]);
+
+    if (code === 'zh') {
+      return { success: true };
+    }
+
+    const newEnabledCodes = enabled
+      ? [...new Set([...enabledCodes, code])]
+      : enabledCodes.filter((c) => c !== code);
+
+    await this.prisma.systemConfig.upsert({
+      where: { key: 'blog.enabled_locales' },
+      create: {
+        key: 'blog.enabled_locales',
+        value: JSON.stringify(newEnabledCodes),
+      },
+      update: {
+        value: JSON.stringify(newEnabledCodes),
+      },
+    });
+
+    if (enabled) {
+      this.eventEmitter
+        .emitAsync('locale.enabled', code)
+        .catch((err: unknown) => {});
+    }
+
+    return { success: true };
+  }
 }

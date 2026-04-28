@@ -1,0 +1,25 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "lucky-admin-blog-prod",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-03-20",
+  "compatibility_flags": ["nodejs_compat"],
+  "minify": true,
+  "routes": [
+    {
+      "pattern": "blog-admin.joyminis.com/*",
+      "zone_name": "joyminis.com"
+    }
+  ],
+  "assets": {
+    "binding": "ASSETS",
+    "directory": ".open-next/assets"
+  },
+  "vars": {
+    "NODE_ENV": "production",
+    "NEXT_PUBLIC_ENVIRONMENT": "cloudflare",
+    "NEXT_PUBLIC_API_BASE_URL": "https://api.joyminis.com/api",
+    "NEXT_PUBLIC_OAUTH_API_ORIGIN": "https://api.joyminis.com",
+    "AUTH_COOKIE_DOMAIN": ".joyminis.com"
+  }
+}

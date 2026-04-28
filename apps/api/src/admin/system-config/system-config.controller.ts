@@ -107,4 +107,27 @@ export class SystemConfigController {
 
     return { success: true };
   }
+
+  /**
+   * GET /v1/admin/system-config/blog/locales
+   * 获取 blog 已启用的语言列表（独立于 admin-next）
+   */
+  @Get('blog/locales')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  getBlogLocales() {
+    return this.service.getBlogLocales();
+  }
+
+  /**
+   * PATCH /v1/admin/system-config/blog/locales/:code
+   * 切换 blog 指定语言的启用状态（独立于 admin-next）
+   */
+  @Patch('blog/locales/:code')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  toggleBlogLocale(
+    @Param('code') code: string,
+    @Body() body: { enabled: boolean },
+  ) {
+    return this.service.toggleBlogLocale(code, body.enabled);
+  }
 }

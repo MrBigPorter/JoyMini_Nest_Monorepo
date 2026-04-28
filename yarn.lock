@@ -7565,13 +7565,66 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@lucky/admin-blog@workspace:apps/admin-blog":
+  version: 0.0.0-use.local
+  resolution: "@lucky/admin-blog@workspace:apps/admin-blog"
+  dependencies:
+    "@cloudflare/workers-types": "npm:^4.20240208.0"
+    "@dnd-kit/core": "npm:^6.3.1"
+    "@dnd-kit/sortable": "npm:^10.0.0"
+    "@hookform/resolvers": "npm:^5.2.2"
+    "@lucky/shared": "workspace:*"
+    "@next/bundle-analyzer": "npm:^16.2.1"
+    "@opennextjs/cloudflare": "npm:^1.17.1"
+    "@repo/ui": "workspace:*"
+    "@sentry/nextjs": "npm:^10"
+    "@tailwindcss/postcss": "npm:^4.1.17"
+    "@tanstack/react-query": "npm:^5.90.11"
+    "@tanstack/react-table": "npm:^8.21.3"
+    "@types/dompurify": "npm:^3.2.0"
+    "@types/lodash": "npm:^4"
+    "@types/node": "npm:^22.14.0"
+    "@types/react": "npm:^19.0.0"
+    "@types/react-dom": "npm:^19.0.0"
+    "@unpic/react": "npm:^1.0.0"
+    ahooks: "npm:^3.8.0"
+    autoprefixer: "npm:^10.4.20"
+    axios: "npm:^1.13.2"
+    date-fns: "npm:^3.6.0"
+    dompurify: "npm:^3.3.3"
+    eslint: "npm:^8.57.0"
+    eslint-config-next: "npm:^15.2.0"
+    eslint-config-prettier: "npm:^9.1.0"
+    eslint-plugin-prettier: "npm:^5.1.3"
+    framer-motion: "npm:^12.0.0"
+    lodash: "npm:^4.17.21"
+    lucide-react: "npm:^0.555.0"
+    marked: "npm:^18.0.0"
+    next: "npm:15.2.4"
+    next-intl: "npm:^4.9.1"
+    postcss: "npm:^8.5.0"
+    prettier: "npm:^3.2.5"
+    react: "npm:^19.2.0"
+    react-dom: "npm:^19.2.0"
+    react-hook-form: "npm:^7.71.2"
+    react-markdown: "npm:^10.1.0"
+    react-quill-new: "npm:^3.7.0"
+    remark-gfm: "npm:^4.0.1"
+    server-only: "npm:^0.0.1"
+    tailwindcss: "npm:^4.1.17"
+    typescript: "npm:5.5.4"
+    wrangler: "npm:^4.65.0"
+    zod: "npm:^3.23.8"
+    zustand: "npm:^4.5.2"
+  languageName: unknown
+  linkType: soft
+
 "@lucky/admin-next@workspace:apps/admin-next":
   version: 0.0.0-use.local
   resolution: "@lucky/admin-next@workspace:apps/admin-next"
   dependencies:
     "@dnd-kit/core": "npm:^6.3.1"
     "@dnd-kit/sortable": "npm:^10.0.0"
-    "@google/generative-ai": "npm:^0.24.1"
     "@hookform/resolvers": "npm:^5.2.2"
     "@lhci/cli": "npm:^0.15.1"
     "@lucky/shared": "workspace:*"
@@ -14657,7 +14710,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@unpic/react@npm:^1.0.2":
+"@unpic/react@npm:^1.0.0, @unpic/react@npm:^1.0.2":
   version: 1.0.2
   resolution: "@unpic/react@npm:1.0.2"
   dependencies:
