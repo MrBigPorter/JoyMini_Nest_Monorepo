@@ -17,7 +17,6 @@ interface RichTextEditorProps {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
-  n;
   label?: string;
   required?: boolean;
   error?: string;
