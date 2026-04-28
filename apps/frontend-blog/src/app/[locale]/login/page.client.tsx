@@ -67,7 +67,9 @@ export default function LoginPageClient() {
       if (inviteCode) params.set('inviteCode', inviteCode);
 
       // 重定向到后端 OAuth 发起
-      window.location.href = `/auth/google/login?${params.toString()}`;
+      // 生产环境使用API域名直接跳转，开发环境使用相对路径走dev nginx
+      const oauthOrigin = process.env.NEXT_PUBLIC_OAUTH_API_ORIGIN || '';
+      window.location.href = `${oauthOrigin}/auth/google/login?${params.toString()}`;
     } catch (err: any) {
       setError(err.message || t('auth.oauth.googleFailed'));
       setIsOAuthLoading(false);
@@ -170,7 +172,9 @@ export default function LoginPageClient() {
       if (inviteCode) params.set('inviteCode', inviteCode);
 
       // 重定向到后端 OAuth 发起
-      window.location.href = `/auth/facebook/login?${params.toString()}`;
+      // 生产环境使用API域名直接跳转，开发环境使用相对路径走dev nginx
+      const oauthOrigin = process.env.NEXT_PUBLIC_OAUTH_API_ORIGIN || '';
+      window.location.href = `${oauthOrigin}/auth/facebook/login?${params.toString()}`;
     } catch (err: any) {
       setError(err.message || t('auth.oauth.facebookFailed'));
       setIsOAuthLoading(false);
