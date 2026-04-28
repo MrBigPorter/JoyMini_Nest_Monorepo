@@ -1,8 +1,10 @@
 import type { Metadata, Viewport } from 'next';
 import { NextIntlClientProvider } from 'next-intl';
 import { setRequestLocale } from 'next-intl/server';
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
+import zhMessages from '@/messages/zh.json';
+import enMessages from '@/messages/en.json';
+import jaMessages from '@/messages/ja.json';
+import koMessages from '@/messages/ko.json';
 import { notFound } from 'next/navigation';
 import Header from '@/components/Header';
 import Sidebar from '@/components/navigation/Sidebar';
@@ -161,10 +163,14 @@ export default async function LocaleLayout({
   // 启用静态渲染
   setRequestLocale(locale);
 
-  //  官方临时修复方案：在语言层布局内直接读取messages
-  // 绕过 getRequestConfig BUG，该BUG会导致locale参数丢失
-  const messagesPath = resolve(process.cwd(), `src/messages/${locale}.json`);
-  const messages = JSON.parse(readFileSync(messagesPath, 'utf8'));
+  //  使用静态 import 替代 readFileSync，确保 JSON 文件被打包进 Cloudflare Worker
+  const allMessages: Record<string, any> = {
+    zh: zhMessages,
+    en: enMessages,
+    ja: jaMessages,
+    ko: koMessages,
+  };
+  const messages = allMessages[locale] || allMessages['zh'];
 
   return (
     <NextIntlClientProvider key={locale} locale={locale} messages={messages}>
