@@ -1,4 +1,4 @@
-import { PaginationParams } from "@/api/types";
+import { PaginationParams } from '@/api/types';
 import {
   BalanceTypeValue,
   KycStatus,
@@ -6,13 +6,13 @@ import {
   TransactionStatusValue,
   TransactionTypeValue,
   WithdrawStatus,
-} from "@lucky/shared";
-import type { Locale } from "@lucky/shared";
+} from '@lucky/shared';
+import type { Locale } from '@lucky/shared';
 
 export type Language = Locale;
-export type Theme = "light" | "dark";
+export type Theme = 'light' | 'dark';
 
-export type UserRole = "admin" | "editor" | "viewer";
+export type UserRole = 'admin' | 'editor' | 'viewer';
 
 export interface dateRange {
   from: string;
@@ -35,12 +35,12 @@ export interface AdminUser {
   realName: string;
 }
 
-export type AdminCreateUser = Pick<AdminUser, "username" | "role"> & {
-  realName?: AdminUser["realName"];
+export type AdminCreateUser = Pick<AdminUser, 'username' | 'role'> & {
+  realName?: AdminUser['realName'];
   password?: string;
 };
 
-export type AdminUpdateUser = Pick<AdminUser, "role" | "status"> & {
+export type AdminUpdateUser = Pick<AdminUser, 'role' | 'status'> & {
   password: string;
 };
 
@@ -63,7 +63,7 @@ export interface User {
   kycStatus: 0 | 1 | 2 | 4; // 0:None, 1:Pending, 2:Failed, 4:Verified
   kycImages?: { front: string; back: string; holding: string };
   joinDate: string;
-  status: "active" | "banned";
+  status: 'active' | 'banned';
   banReason?: string;
   inviterId?: string; // Who invited this user
 }
@@ -103,7 +103,7 @@ export interface Product {
   desc: string;
   ruleContent?: string;
 
-  categories: (Pick<Category, "id" | "name"> & {
+  categories: (Pick<Category, 'id' | 'name'> & {
     categoryId: number;
   })[];
 
@@ -173,7 +173,7 @@ export interface ActSection {
 
 export type createActSectionPayload = Omit<
   ActSection,
-  "id" | "sortOrder" | "endAt" | "startAt"
+  'id' | 'sortOrder' | 'endAt' | 'startAt'
 > & {
   startAt?: Date;
   endAt?: Date;
@@ -227,7 +227,7 @@ export interface PaymentChannel {
 // Omit 掉系统自动生成的字段
 export type CreatePaymentChannelPayload = Omit<
   PaymentChannel,
-  "id" | "createdAt"
+  'id' | 'createdAt'
 > & {
   // 覆盖一下可选属性，表单提交时可能某些字段是可选的
   fixedAmounts?: number[];
@@ -282,7 +282,7 @@ export interface Banner {
   relatedTitleId?: string;
 }
 
-export type CreateBannerPayload = Omit<Banner, "id" | "createdAt" | "state">;
+export type CreateBannerPayload = Omit<Banner, 'id' | 'createdAt' | 'state'>;
 
 export type BannerListParams = PaginationParams & {
   title?: string;
@@ -332,15 +332,15 @@ export type CouponListParams = PaginationParams & {
 
 export interface CreateCouponPayload extends Omit<
   Coupon,
-  | "discountValue"
-  | "minPurchase"
-  | "id"
-  | "status"
-  | "issuedQuantity"
-  | "createdAt"
-  | "validEndAt"
-  | "validStartAt"
-  | "maxDiscount"
+  | 'discountValue'
+  | 'minPurchase'
+  | 'id'
+  | 'status'
+  | 'issuedQuantity'
+  | 'createdAt'
+  | 'validEndAt'
+  | 'validStartAt'
+  | 'maxDiscount'
 > {
   discountValue: number;
   minPurchase: number;
@@ -350,7 +350,7 @@ export interface CreateCouponPayload extends Omit<
 }
 
 export type UpdateCouponPayload = Partial<
-  Pick<CreateCouponPayload, "couponName" | "validEndAt" | "totalQuantity">
+  Pick<CreateCouponPayload, 'couponName' | 'validEndAt' | 'totalQuantity'>
 >;
 
 export type TransactionSearchForm = {
@@ -386,7 +386,7 @@ export interface WalletTransaction {
   createdAt: number; // 时间戳 (后端 @DateToTimestamp)
   updatedAt?: number;
 
-  user?: Pick<User, "nickname" | "avatar" | "phone">;
+  user?: Pick<User, 'nickname' | 'avatar' | 'phone'>;
 }
 
 export interface WithdrawOrder {
@@ -507,7 +507,7 @@ export interface RechargeOrder {
   paidAt?: number;
 
   /** 用户信息 */
-  user: Pick<User, "phone" | "nickname">;
+  user: Pick<User, 'phone' | 'nickname'>;
 }
 
 export interface Withdrawal {
@@ -515,9 +515,9 @@ export interface Withdrawal {
   user: { id: string; name: string; avatar: string };
   amount: number;
   fee: number;
-  method: "GCash" | "PayMaya" | "Bank";
+  method: 'GCash' | 'PayMaya' | 'Bank';
   accountNo: string;
-  status: "pending" | "approved" | "rejected";
+  status: 'pending' | 'approved' | 'rejected';
   date: string;
 }
 
@@ -525,7 +525,7 @@ export interface Transaction {
   id: string;
   transactionNo: string;
   user: { id: string; name: string };
-  type: "deposit" | "withdraw" | "buy" | "win" | "refund" | "bonus";
+  type: 'deposit' | 'withdraw' | 'buy' | 'win' | 'refund' | 'bonus';
   amount: number;
   balanceBefore: number;
   balanceAfter: number;
@@ -714,7 +714,7 @@ export interface AdminCreateKycParams {
 // 2. 新增：管理员修改 KYC 的参数 (部分更新)
 // 使用 Partial 让所有字段变可选，但排除 remark 单独定义
 export interface AdminUpdateKycParams extends Partial<
-  Omit<AdminCreateKycParams, "userId">
+  Omit<AdminCreateKycParams, 'userId'>
 > {
   remark?: string; // 修改原因
 }
@@ -730,7 +730,7 @@ export interface KycRecordListParams {
 }
 
 export interface AuditKycParams {
-  action: "APPROVE" | "REJECT" | "NEED_MORE";
+  action: 'APPROVE' | 'REJECT' | 'NEED_MORE';
   remark: string;
 }
 
@@ -809,8 +809,8 @@ export interface Banner {
   id: string;
   title: string;
   image: string;
-  position: "home" | "activity";
-  status: "active" | "inactive";
+  position: 'home' | 'activity';
+  status: 'active' | 'inactive';
 }
 
 export interface DashboardStats {
@@ -826,7 +826,7 @@ export interface TreasureGroup {
   creator: { id: string; name: string; avatar: string };
   currentSize: number;
   targetSize: number;
-  status: "active" | "completed" | "failed";
+  status: 'active' | 'completed' | 'failed';
   createdAt: string;
   expiresAt: string;
 }
@@ -886,15 +886,15 @@ export interface AdminGroupListParams {
 export interface SignInRule {
   id?: string;
   day: number;
-  rewardType: "coin" | "coupon" | "cash";
+  rewardType: 'coin' | 'coupon' | 'cash';
   amount: number;
   couponId?: string;
 }
 
 export interface GrowthRule {
   id: string;
-  type: "register" | "invite" | "join_group";
-  rewardType: "coin" | "coupon" | "cash";
+  type: 'register' | 'invite' | 'join_group';
+  rewardType: 'coin' | 'coupon' | 'cash';
   amount: number;
   couponId?: string;
   isActive: boolean;
@@ -907,7 +907,7 @@ export interface BettingRecord {
   gameName: string;
   roundId: string;
   amount: number;
-  status: "win" | "loss" | "pending";
+  status: 'win' | 'loss' | 'pending';
   payout: number;
   date: string;
 }
@@ -918,7 +918,7 @@ export interface LoginLog {
   device: string;
   location: string;
   date: string;
-  status: "success" | "failed";
+  status: 'success' | 'failed';
 }
 
 export interface ReferralUser {
@@ -936,7 +936,7 @@ export interface LotteryDraw {
   product: { id: string; name: string; image: string };
   totalShares: number;
   fillRate: number; // 0-100
-  status: "pending" | "calculating" | "completed";
+  status: 'pending' | 'calculating' | 'completed';
   winner?: { id: string; name: string; code: string };
   hash?: string;
   drawTime?: string;
@@ -954,17 +954,17 @@ export interface SystemNotification {
   id: string;
   title: string;
   message: string;
-  target: "all" | "vip" | "individual";
+  target: 'all' | 'vip' | 'individual';
   sentCount: number;
   date: string;
-  status: "sent" | "scheduled";
+  status: 'sent' | 'scheduled';
 }
 
 // --- ACTIVITY CONFIG TYPES ---
 
 export interface ActivityPrize {
   id: string;
-  type: "product" | "coupon" | "coin" | "balance" | "empty";
+  type: 'product' | 'coupon' | 'coin' | 'balance' | 'empty';
   name: string;
   image: string;
   value?: string | number; // Product ID, Coupon ID, or Amount
@@ -975,7 +975,7 @@ export interface ActivityPrize {
 }
 
 export interface ActivityRule {
-  costType: "coin" | "balance" | "free";
+  costType: 'coin' | 'balance' | 'free';
   costAmount: number;
   dailyLimit: number; // 0 for unlimited
   totalLimit: number;
@@ -987,10 +987,10 @@ export interface LotteryActivity {
   id: string;
   name: string;
   coverImage: string;
-  template: "wheel" | "box" | "grid";
+  template: 'wheel' | 'box' | 'grid';
   startTime: string;
   endTime: string;
-  status: "active" | "draft" | "ended";
+  status: 'active' | 'draft' | 'ended';
   prizes: ActivityPrize[];
   rules: ActivityRule;
   sortOrder: number;
@@ -1074,8 +1074,8 @@ export interface Article {
   id: string;
   title: string;
   slug: string;
-  category: "announcement" | "guide" | "news";
-  status: "published" | "draft" | "scheduled";
+  category: 'announcement' | 'guide' | 'news';
+  status: 'published' | 'draft' | 'scheduled';
   author: string;
   publishDate: string;
   publishedAt: string;
@@ -1125,10 +1125,10 @@ export interface WorkOrder {
   user: { id: string; name: string; avatar: string };
   subject: string;
   message: string;
-  status: "open" | "pending" | "resolved" | "closed";
-  priority: "low" | "medium" | "high";
+  status: 'open' | 'pending' | 'resolved' | 'closed';
+  priority: 'low' | 'medium' | 'high';
   createdAt: string;
-  replies: { sender: "user" | "support"; message: string; time: string }[];
+  replies: { sender: 'user' | 'support'; message: string; time: string }[];
 }
 
 // --- STATS / ANALYTICS TYPES ---
@@ -1202,13 +1202,13 @@ export interface AdminPushLog {
   adminId: string;
   adminName: string;
   /** broadcast | targeted */
-  type: "broadcast" | "targeted";
+  type: 'broadcast' | 'targeted';
   targetUserId?: string;
   title: string;
   body: string;
   extraData?: Record<string, unknown>;
   /** sent | failed */
-  status: "sent" | "failed";
+  status: 'sent' | 'failed';
   successCount: number;
   failureCount: number;
 }
@@ -1245,7 +1245,7 @@ export interface SendTargetedPayload {
 
 // ─── IM / Chat Moderation ─────────────────────────────────────────────────────
 
-export type ConversationType = "GROUP" | "DIRECT" | "SUPPORT" | "BUSINESS";
+export type ConversationType = 'GROUP' | 'DIRECT' | 'SUPPORT' | 'BUSINESS';
 
 export interface ChatConversationMember {
   userId: string;
@@ -1495,7 +1495,7 @@ export interface QueryLoginLogParams {
 
 // ─── Admin Register Application ───────────────────────────────────────────────
 
-export type ApplicationStatus = "pending" | "approved" | "rejected";
+export type ApplicationStatus = 'pending' | 'approved' | 'rejected';
 
 export interface AdminApplication {
   id: string;
@@ -1523,7 +1523,7 @@ export interface CreateApplicationPayload {
 export interface ApplicationListParams {
   page?: number;
   pageSize?: number;
-  status?: ApplicationStatus | "all";
+  status?: ApplicationStatus | 'all';
   username?: string;
 }
 

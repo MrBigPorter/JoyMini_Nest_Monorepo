@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   Table,
   TableHeader,
@@ -9,7 +9,7 @@ import {
   TableHead,
   TableCell,
   Checkbox,
-} from "@repo/ui";
+} from '@repo/ui';
 import {
   useReactTable,
   getCoreRowModel,
@@ -20,7 +20,7 @@ import {
   getExpandedRowModel,
   RowSelectionState,
   ColumnDef,
-} from "@tanstack/react-table";
+} from '@tanstack/react-table';
 import {
   DndContext,
   closestCenter,
@@ -29,17 +29,17 @@ import {
   PointerSensor,
   KeyboardSensor,
   DragEndEvent,
-} from "@dnd-kit/core";
+} from '@dnd-kit/core';
 import {
   SortableContext,
   verticalListSortingStrategy,
   sortableKeyboardCoordinates,
   useSortable,
-} from "@dnd-kit/sortable";
-import { Pagination } from "@/components/scaffold/Pagination";
-import { useTranslation, type TFunc } from "@/hooks/useTranslation";
-import { Loader2, ArrowUpDown, ChevronRight, ChevronDown } from "lucide-react";
-import { cn } from "@repo/ui";
+} from '@dnd-kit/sortable';
+import { Pagination } from '@/components/scaffold/Pagination';
+import { useTranslation, type TFunc } from '@/hooks/useTranslation';
+import { Loader2, ArrowUpDown, ChevronRight, ChevronDown } from 'lucide-react';
+import { cn } from '@repo/ui';
 
 // ----------------------------------------------------------------------------
 // 1. 内部组件：SortableRowWrapper
@@ -70,7 +70,7 @@ const SortableRowWrapper = ({
       : undefined,
     transition,
     opacity: isDragging ? 0.8 : 1,
-    position: "relative",
+    position: 'relative',
     zIndex: isDragging ? 10 : 1,
   };
 
@@ -79,8 +79,8 @@ const SortableRowWrapper = ({
       ref={setNodeRef}
       style={style}
       className={cn(
-        "bg-white dark:bg-gray-950 transition-colors",
-        isDragging && "shadow-xl",
+        'bg-white dark:bg-gray-950 transition-colors',
+        isDragging && 'shadow-xl',
       )}
       onClick={onClick}
       {...attributes}
@@ -88,9 +88,9 @@ const SortableRowWrapper = ({
       {React.Children.map(children, (child) => {
         //  修复：移除 any，使用 ReactElement 类型断言
         if (React.isValidElement(child)) {
-          const props = child.props as { "data-drag-handle"?: boolean };
+          const props = child.props as { 'data-drag-handle'?: boolean };
           // eslint-disable-next-line react/prop-types
-          if (props["data-drag-handle"]) {
+          if (props['data-drag-handle']) {
             return React.cloneElement(child, { ...listeners });
           }
         }
@@ -124,7 +124,7 @@ const TableRowImpl = <TData,>({
 }: TableRowImplProps<TData>) => {
   const cells = row.getVisibleCells().map((cell) => {
     const content = flexRender(cell.column.columnDef.cell, cell.getContext());
-    const isDragHandle = cell.column.id === "dragHandle";
+    const isDragHandle = cell.column.id === 'dragHandle';
 
     return (
       <TableCell
@@ -132,7 +132,7 @@ const TableRowImpl = <TData,>({
         style={{ width: cell.column.getSize() }}
         className="border-b border-gray-100 dark:border-white/5 py-3"
         //  修复：类型安全的属性传递
-        {...(isDragHandle ? { "data-drag-handle": true } : {})}
+        {...(isDragHandle ? { 'data-drag-handle': true } : {})}
       >
         {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
         {content as any}
@@ -147,8 +147,8 @@ const TableRowImpl = <TData,>({
   ) : (
     <TableRow
       className={cn(
-        "group hover:bg-gray-50 dark:hover:bg-white/5 cursor-pointer transition-colors",
-        isSelected && "bg-blue-50/50 dark:bg-blue-900/10",
+        'group hover:bg-gray-50 dark:hover:bg-white/5 cursor-pointer transition-colors',
+        isSelected && 'bg-blue-50/50 dark:bg-blue-900/10',
       )}
       onClick={onClick}
     >
@@ -226,7 +226,7 @@ const BaseTableInner = <TData,>({
   data,
   columns: propColumns,
   loading,
-  rowKey = "id" as keyof TData,
+  rowKey = 'id' as keyof TData,
   pagination,
   enableDrag = false,
   onDragEnd,
@@ -258,7 +258,7 @@ const BaseTableInner = <TData,>({
     const cols = [...propColumns];
     if (selectable) {
       cols.unshift({
-        id: "select",
+        id: 'select',
         header: ({ table }) => (
           <div
             onClick={(e) => e.stopPropagation()}
@@ -267,7 +267,7 @@ const BaseTableInner = <TData,>({
             <Checkbox
               checked={
                 table.getIsAllPageRowsSelected() ||
-                (table.getIsSomePageRowsSelected() && "indeterminate")
+                (table.getIsSomePageRowsSelected() && 'indeterminate')
               }
               onCheckedChange={(value) =>
                 table.toggleAllPageRowsSelected(!!value)
@@ -296,7 +296,7 @@ const BaseTableInner = <TData,>({
 
     if (expandable) {
       cols.unshift({
-        id: "expander",
+        id: 'expander',
         header: () => null,
         cell: ({ row }) =>
           row.getCanExpand() ? (
@@ -393,7 +393,7 @@ const BaseTableInner = <TData,>({
             colSpan={columns.length}
             className="h-40 text-center text-gray-500 dark:text-gray-400"
           >
-            {t("common_noData")}
+            {t('common_noData')}
           </TableCell>
         </TableRow>
       );
@@ -439,9 +439,9 @@ const BaseTableInner = <TData,>({
                   {header.isPlaceholder ? null : (
                     <div
                       className={cn(
-                        "flex items-center gap-2",
+                        'flex items-center gap-2',
                         header.column.getCanSort() &&
-                          "cursor-pointer select-none hover:text-gray-900 dark:hover:text-gray-100",
+                          'cursor-pointer select-none hover:text-gray-900 dark:hover:text-gray-100',
                       )}
                       onClick={header.column.getToggleSortingHandler()}
                     >

@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { useMemo } from "react";
-import { useParams } from "next/navigation";
-import Link from "next/link";
-import { useRequest } from "ahooks";
+import { useMemo } from 'react';
+import { useParams } from 'next/navigation';
+import Link from 'next/link';
+import { useRequest } from 'ahooks';
 import {
   ArrowLeft,
   Eye,
@@ -15,15 +15,15 @@ import {
   Loader2,
   AlertCircle,
   BookOpen,
-} from "lucide-react";
-import { useTranslation } from "@/hooks/useTranslation";
-import { useLanguage, getLocalizedValue } from "@/hooks/LanguageProvider";
-import { blogApi } from "@/api";
-import { Card, Badge } from "@/components/UIComponents";
-import { PageHeader } from "@/components/scaffold/PageHeader";
-import { SmartImage } from "@/components/ui/SmartImage";
-import { Button } from "@repo/ui";
-import type { Locale } from "@lucky/shared";
+} from 'lucide-react';
+import { useTranslation } from '@/hooks/useTranslation';
+import { useLanguage, getLocalizedValue } from '@/hooks/LanguageProvider';
+import { blogApi } from '@/api';
+import { Card, Badge } from '@/components/UIComponents';
+import { PageHeader } from '@/components/scaffold/PageHeader';
+import { SmartImage } from '@/components/ui/SmartImage';
+import { Button } from '@repo/ui';
+import type { Locale } from '@lucky/shared';
 
 interface ArticlePreview {
   id: string;
@@ -47,22 +47,22 @@ interface ArticlePreview {
   readTime?: string;
 }
 
-const statusBadgeColor = (status?: string): "green" | "gray" | "blue" => {
+const statusBadgeColor = (status?: string): 'green' | 'gray' | 'blue' => {
   switch (status) {
-    case "PUBLISHED":
-      return "green";
-    case "DRAFT":
-      return "gray";
-    case "ARCHIVED":
-      return "blue";
+    case 'PUBLISHED':
+      return 'green';
+    case 'DRAFT':
+      return 'gray';
+    case 'ARCHIVED':
+      return 'blue';
     default:
-      return "gray";
+      return 'gray';
   }
 };
 
 export default function ArticlePreviewPage() {
   const params = useParams<{ slug: string }>();
-  const slug = params?.slug ?? "";
+  const slug = params?.slug ?? '';
   const { t: globalT, lang } = useTranslation();
   const { locale } = useLanguage();
 
@@ -85,7 +85,7 @@ export default function ArticlePreviewPage() {
     () =>
       getLocalizedValue(article?.titleLocalized, locale as Locale) ??
       article?.title ??
-      "",
+      '',
     [article?.titleLocalized, article?.title, locale],
   );
 
@@ -93,7 +93,7 @@ export default function ArticlePreviewPage() {
     () =>
       getLocalizedValue(article?.contentLocalized, locale as Locale) ??
       article?.content ??
-      "",
+      '',
     [article?.contentLocalized, article?.content, locale],
   );
 
@@ -101,7 +101,7 @@ export default function ArticlePreviewPage() {
     () =>
       getLocalizedValue(article?.excerptLocalized, locale as Locale) ??
       article?.excerpt ??
-      "",
+      '',
     [article?.excerptLocalized, article?.excerpt, locale],
   );
 
@@ -115,25 +115,25 @@ export default function ArticlePreviewPage() {
 
   // Author display name
   const authorName =
-    article?.author?.realName ?? article?.author?.username ?? t("admin");
+    article?.author?.realName ?? article?.author?.username ?? t('admin');
 
   // Loading state
   if (loading) {
     return (
       <div className="space-y-6">
         <PageHeader
-          title={t("preview")}
+          title={t('preview')}
           breadcrumbs={[
-            globalT("content"),
-            globalT("breadcrumbArticles"),
-            "...",
+            globalT('content'),
+            globalT('breadcrumbArticles'),
+            '...',
           ]}
         />
         <Card>
           <div className="flex flex-col items-center justify-center py-20 text-gray-400">
             <Loader2 className="h-8 w-8 animate-spin mb-4" />
             <p className="text-sm">
-              {globalT("common_loading") || "Loading..."}
+              {globalT('common_loading') || 'Loading...'}
             </p>
           </div>
         </Card>
@@ -146,29 +146,29 @@ export default function ArticlePreviewPage() {
     return (
       <div className="space-y-6">
         <PageHeader
-          title={t("preview")}
+          title={t('preview')}
           breadcrumbs={[
-            globalT("content"),
-            globalT("breadcrumbArticles"),
-            t("preview"),
+            globalT('content'),
+            globalT('breadcrumbArticles'),
+            t('preview'),
           ]}
         />
         <Card>
           <div className="flex flex-col items-center justify-center py-20 text-gray-400">
             <AlertCircle className="h-12 w-12 mb-4 text-red-400" />
             <p className="text-lg font-medium text-gray-600 mb-2">
-              {t("articleNotFound") || "Article not found"}
+              {t('articleNotFound') || 'Article not found'}
             </p>
             <p className="text-sm text-gray-400 mb-6">
               {error
                 ? String(error)
-                : t("articleNotFoundDesc") ||
-                  "The requested article could not be found."}
+                : t('articleNotFoundDesc') ||
+                  'The requested article could not be found.'}
             </p>
             <Link href="/blog/articles">
               <Button variant="outline">
                 <ArrowLeft className="h-4 w-4 mr-2" />
-                {t("backToList")}
+                {t('backToList')}
               </Button>
             </Link>
           </div>
@@ -180,11 +180,11 @@ export default function ArticlePreviewPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title={localizedTitle || t("preview")}
+        title={localizedTitle || t('preview')}
         breadcrumbs={[
-          globalT("content"),
-          globalT("breadcrumbArticles"),
-          localizedTitle || t("preview"),
+          globalT('content'),
+          globalT('breadcrumbArticles'),
+          localizedTitle || t('preview'),
         ]}
       />
 
@@ -195,12 +195,12 @@ export default function ArticlePreviewPage() {
           className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
-          {t("backToList")}
+          {t('backToList')}
         </Link>
         <div className="flex items-center gap-2">
           <Eye className="h-4 w-4 text-gray-400" />
           <span className="text-sm text-gray-500 dark:text-gray-400">
-            {t("preview")}
+            {t('preview')}
           </span>
         </div>
       </div>
@@ -213,7 +213,7 @@ export default function ArticlePreviewPage() {
             <div className="mb-8 rounded-lg overflow-hidden">
               <SmartImage
                 src={featuredImage}
-                alt={localizedTitle || "Article cover"}
+                alt={localizedTitle || 'Article cover'}
                 width={1200}
                 height={630}
                 className="w-full"
@@ -242,9 +242,9 @@ export default function ArticlePreviewPage() {
                   <Calendar className="h-4 w-4" />
                   <span>
                     {new Date(article.publishedAt).toLocaleDateString(locale, {
-                      year: "numeric",
-                      month: "long",
-                      day: "numeric",
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
                     })}
                   </span>
                 </div>
@@ -256,7 +256,7 @@ export default function ArticlePreviewPage() {
                 <span className="text-gray-300 dark:text-white/20">·</span>
                 <div className="flex items-center gap-2">
                   <Clock className="h-4 w-4" />
-                  <span>{article.readTime || t("min")}</span>
+                  <span>{article.readTime || t('min')}</span>
                 </div>
               </>
             )}
@@ -270,7 +270,7 @@ export default function ArticlePreviewPage() {
                     {getLocalizedValue(
                       article.category?.name,
                       locale as Locale,
-                    ) ?? ""}
+                    ) ?? ''}
                   </span>
                 </div>
               </>
@@ -278,7 +278,7 @@ export default function ArticlePreviewPage() {
 
             <span className="text-gray-300 dark:text-white/20">·</span>
             <Badge color={statusBadgeColor(article.status)}>
-              {t(article.status?.toLowerCase() ?? "")}
+              {t(article.status?.toLowerCase() ?? '')}
             </Badge>
           </div>
 
@@ -299,7 +299,7 @@ export default function ArticlePreviewPage() {
           ) : (
             <div className="flex items-center justify-center py-12 text-gray-400">
               <Info className="h-5 w-5 mr-2" />
-              <p className="text-sm">{globalT("common_noData")}</p>
+              <p className="text-sm">{globalT('common_noData')}</p>
             </div>
           )}
 
@@ -308,7 +308,7 @@ export default function ArticlePreviewPage() {
             <div className="mt-8 p-4 bg-gray-50 dark:bg-white/5 rounded-lg border border-gray-100 dark:border-white/10">
               <div className="flex items-center gap-2 mb-2 text-sm font-medium text-gray-600 dark:text-gray-400">
                 <FileText className="h-4 w-4" />
-                <span>{t("excerpt") || "Excerpt"}</span>
+                <span>{t('excerpt') || 'Excerpt'}</span>
               </div>
               <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
                 {localizedExcerpt}
@@ -325,7 +325,7 @@ export default function ArticlePreviewPage() {
           className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
-          {t("backToList")}
+          {t('backToList')}
         </Link>
       </div>
     </div>

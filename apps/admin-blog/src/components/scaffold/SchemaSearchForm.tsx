@@ -1,16 +1,16 @@
-"use client";
+'use client';
 
-import { useForm } from "react-hook-form";
-import { Search, RotateCcw } from "lucide-react";
+import { useForm } from 'react-hook-form';
+import { Search, RotateCcw } from 'lucide-react';
 import {
   Button,
   Form, // 需要从 UI 库引入 Form Wrapper
   FormDateField,
   FormSelectField,
   FormTextField,
-} from "@repo/ui";
-import { SearchFieldSchema } from "@/type/search";
-import { useMemo, useCallback } from "react";
+} from '@repo/ui';
+import { SearchFieldSchema } from '@/type/search';
+import { useMemo, useCallback } from 'react';
 
 // 泛型 T 限制为对象
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -34,7 +34,7 @@ export const SchemaSearchForm = <T extends Record<string, any>>({
     return Object.fromEntries(
       Object.entries(values).filter(
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        ([_, v]) => v !== "" && v !== undefined && v !== null && v !== "ALL",
+        ([_, v]) => v !== '' && v !== undefined && v !== null && v !== 'ALL',
       ),
     ) as T;
   }, []);
@@ -45,7 +45,7 @@ export const SchemaSearchForm = <T extends Record<string, any>>({
     const defaults: any = { ...initialValues };
     schema.forEach((field) => {
       if (defaults[field.key] === undefined) {
-        defaults[field.key] = field.defaultValue ?? "";
+        defaults[field.key] = field.defaultValue ?? '';
       }
     });
     return defaults;
@@ -56,7 +56,7 @@ export const SchemaSearchForm = <T extends Record<string, any>>({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const defaults: any = {};
     schema.forEach((field) => {
-      defaults[field.key] = field.defaultValue ?? "";
+      defaults[field.key] = field.defaultValue ?? '';
     });
     return defaults as T;
   }, [schema]);
@@ -81,7 +81,7 @@ export const SchemaSearchForm = <T extends Record<string, any>>({
   // 5. 渲染字段
   const renderField = (field: SearchFieldSchema<T>) => {
     switch (field.type) {
-      case "input":
+      case 'input':
         return (
           <FormTextField
             autoComplete="off"
@@ -91,24 +91,24 @@ export const SchemaSearchForm = <T extends Record<string, any>>({
             placeholder={field.placeholder}
           />
         );
-      case "select":
+      case 'select':
         return (
           <FormSelectField
             key={String(field.key)}
             name={String(field.key)}
             label={field.label}
             options={field.options || []}
-            placeholder={field.placeholder || "Select..."}
+            placeholder={field.placeholder || 'Select...'}
           />
         );
-      case "date":
+      case 'date':
         return (
           <FormDateField
             key={String(field.key)}
             name={String(field.key)}
             label={field.label}
             showTime={field.showTime || false}
-            mode={field.mode || "single"}
+            mode={field.mode || 'single'}
           />
         );
       default:

@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
-import React from "react";
-import { useRouter } from "next/navigation";
-import { Button, cn } from "@repo/ui";
-import { Plus, ChevronLeft } from "lucide-react";
-import { Breadcrumbs } from "@/components/UIComponents";
+import React from 'react';
+import { useRouter } from 'next/navigation';
+import { Button, cn } from '@repo/ui';
+import { Plus, ChevronLeft } from 'lucide-react';
+import { Breadcrumbs } from '@/components/UIComponents';
 
 interface PageHeaderProps {
   /** 页面大标题 */
@@ -49,15 +49,15 @@ interface PageHeaderProps {
   tertiaryButtonIcon?: React.ReactNode;
   /** 第三按钮变体 */
   tertiaryButtonVariant?:
-    | "outline"
-    | "secondary"
-    | "ghost"
-    | "link"
-    | "primary"
-    | "danger"
-    | "success"
-    | "warning"
-    | "info";
+    | 'outline'
+    | 'secondary'
+    | 'ghost'
+    | 'link'
+    | 'primary'
+    | 'danger'
+    | 'success'
+    | 'warning'
+    | 'info';
 }
 
 export const PageHeader: React.FC<PageHeaderProps> = ({
@@ -65,7 +65,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
   description,
   showBackButton = false,
   onBack,
-  backButtonLabel = "Back",
+  backButtonLabel = 'Back',
   backButtonIcon = <ChevronLeft size={18} />,
   breadcrumbs,
   searchBar, // 新增
@@ -81,7 +81,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
   tertiaryButtonText,
   tertiaryButtonOnClick,
   tertiaryButtonIcon,
-  tertiaryButtonVariant = "primary",
+  tertiaryButtonVariant = 'primary',
 }) => {
   const router = useRouter();
 
@@ -95,7 +95,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
 
   return (
     // 1. 移除了 justify-between，改用 gap-4 控制间距
-    <div className={cn("flex items-center gap-4 mb-6", className)}>
+    <div className={cn('flex items-center gap-4 mb-6', className)}>
       {/* 2. 左侧标题区：添加 shrink-0 防止被压缩 */}
       <div className="shrink-0">
         {(showBackButton || breadcrumbs) && (

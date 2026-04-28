@@ -10,7 +10,7 @@ export function createHash(algorithm: string) {
       // TextEncoder.encode() / slice() both produce an ArrayBuffer-backed Uint8Array
       // at runtime; we cast explicitly to satisfy crypto.subtle.digest (requires BufferSource).
       const bytes: Uint8Array =
-        typeof data === "string"
+        typeof data === 'string'
           ? new TextEncoder().encode(data)
           : data.slice();
       this._data = bytes;
@@ -19,7 +19,7 @@ export function createHash(algorithm: string) {
     _data: new Uint8Array(),
     async digestAsync() {
       const hashBuffer = await globalThis.crypto.subtle.digest(
-        algorithm.toUpperCase().replace("SHA", "SHA-"),
+        algorithm.toUpperCase().replace('SHA', 'SHA-'),
         this._data,
       );
       return Buffer.from(hashBuffer);
@@ -34,10 +34,10 @@ export function createHash(algorithm: string) {
       }
       const buf = new Uint8Array(4);
       new DataView(buf.buffer).setUint32(0, hash >>> 0, false);
-      if (encoding === "hex")
+      if (encoding === 'hex')
         return Array.from(buf)
-          .map((b) => b.toString(16).padStart(2, "0"))
-          .join("");
+          .map((b) => b.toString(16).padStart(2, '0'))
+          .join('');
       return buf;
     },
     readUInt32BE(offset: number) {

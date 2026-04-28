@@ -1,2 +1,2 @@
-export * from "./types";
-export * from "./SmartTable";
+export * from './types';
+export * from './SmartTable';

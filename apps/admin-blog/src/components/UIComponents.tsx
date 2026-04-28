@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import React, { useRef, useState, useEffect } from "react";
+import React, { useRef, useState, useEffect } from 'react';
 import {
   X,
   Loader2,
@@ -13,13 +13,13 @@ import {
   ChevronDown,
   Info,
   ChevronRight,
-} from "lucide-react";
-import { motion, AnimatePresence, Variants } from "framer-motion";
+} from 'lucide-react';
+import { motion, AnimatePresence, Variants } from 'framer-motion';
 
 // --- Animation Variants ---
 export const fadeInUp: Variants = {
   hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" } },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' } },
 };
 
 export const staggerContainer: Variants = {
@@ -41,25 +41,25 @@ const exportToCSV = (data: Record<string, unknown>[], filename: string) => {
   const csvRows = [];
 
   // Add headers
-  csvRows.push(headers.join(","));
+  csvRows.push(headers.join(','));
 
   // Add data
   for (const row of data) {
     const values = headers.map((header) => {
-      const escaped = ("" + row[header]).replace(/"/g, '\\"');
+      const escaped = ('' + row[header]).replace(/"/g, '\\"');
       return `"${escaped}"`;
     });
-    csvRows.push(values.join(","));
+    csvRows.push(values.join(','));
   }
 
-  const csvString = csvRows.join("\n");
-  const blob = new Blob([csvString], { type: "text/csv" });
+  const csvString = csvRows.join('\n');
+  const blob = new Blob([csvString], { type: 'text/csv' });
   const url = window.URL.createObjectURL(blob);
 
-  const a = document.createElement("a");
-  a.setAttribute("hidden", "");
-  a.setAttribute("href", url);
-  a.setAttribute("download", `${filename}.csv`);
+  const a = document.createElement('a');
+  a.setAttribute('hidden', '');
+  a.setAttribute('href', url);
+  a.setAttribute('download', `${filename}.csv`);
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -74,8 +74,8 @@ export const Breadcrumbs: React.FC<{ items: string[] }> = ({ items }) => (
         <span
           className={
             index === items.length - 1
-              ? "font-semibold text-gray-900 dark:text-white"
-              : ""
+              ? 'font-semibold text-gray-900 dark:text-white'
+              : ''
           }
         >
           {item}
@@ -94,7 +94,7 @@ interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
 
 export const Card: React.FC<CardProps> = ({
   children,
-  className = "",
+  className = '',
   title,
   action,
   ...props
@@ -117,42 +117,42 @@ export const Card: React.FC<CardProps> = ({
 
 // --- Button ---
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: "primary" | "secondary" | "danger" | "ghost" | "outline";
-  size?: "sm" | "md" | "lg";
+  variant?: 'primary' | 'secondary' | 'danger' | 'ghost' | 'outline';
+  size?: 'sm' | 'md' | 'lg';
   isLoading?: boolean;
 }
 export const Button: React.FC<ButtonProps> = ({
   children,
-  variant = "primary",
-  size = "md",
+  variant = 'primary',
+  size = 'md',
   isLoading,
-  className = "",
+  className = '',
   ...props
 }) => {
   const baseStyle =
-    "rounded-lg font-medium flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed";
+    'rounded-lg font-medium flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed';
 
   const sizeStyles = {
-    sm: "px-3 py-1.5 text-sm",
-    md: "px-4 py-2",
-    lg: "px-6 py-3 text-lg",
+    sm: 'px-3 py-1.5 text-sm',
+    md: 'px-4 py-2',
+    lg: 'px-6 py-3 text-lg',
   };
 
   const variants = {
     primary:
-      "bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-lg shadow-primary-500/30 border border-transparent",
+      'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-lg shadow-primary-500/30 border border-transparent',
     secondary:
-      "bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-200 border border-transparent",
+      'bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-200 border border-transparent',
     danger:
-      "bg-red-500 text-white shadow-lg shadow-red-500/30 border border-transparent",
-    ghost: "text-gray-500 dark:text-gray-400 bg-transparent",
+      'bg-red-500 text-white shadow-lg shadow-red-500/30 border border-transparent',
+    ghost: 'text-gray-500 dark:text-gray-400 bg-transparent',
     outline:
-      "bg-transparent border border-gray-200 dark:border-white/10 text-gray-700 dark:text-gray-200",
+      'bg-transparent border border-gray-200 dark:border-white/10 text-gray-700 dark:text-gray-200',
   };
 
   return (
     <motion.button
-      whileHover={{ scale: 1.02, filter: "brightness(1.1)" }}
+      whileHover={{ scale: 1.02, filter: 'brightness(1.1)' }}
       whileTap={{ scale: 0.95 }}
       className={`${baseStyle} ${sizeStyles[size]} ${variants[variant]} ${className}`}
       disabled={isLoading}
@@ -170,14 +170,14 @@ export const ExportButton: React.FC<{
   data?: Record<string, unknown>[];
   filename?: string;
   onClickAction?: () => void;
-}> = ({ data, filename = "export", onClickAction }) => {
+}> = ({ data, filename = 'export', onClickAction }) => {
   const handleExport = () => {
     if (onClickAction) {
       onClickAction();
     } else if (data) {
       exportToCSV(data, filename);
     } else {
-      alert("No data to export");
+      alert('No data to export');
     }
   };
 
@@ -194,7 +194,7 @@ export const Input: React.FC<
     label?: string;
     error?: string;
   }
-> = ({ label, error, className = "", ...props }) => (
+> = ({ label, error, className = '', ...props }) => (
   <div className="w-full">
     {label && (
       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
@@ -203,7 +203,7 @@ export const Input: React.FC<
     )}
     {/* border/ring 放在 wrapper，:-webkit-autofill 只作用于 <input>，永远影响不到这里的边框 */}
     <div
-      className={`flex items-center bg-gray-50 dark:bg-black/20 border ${error ? "border-red-500" : "border-gray-200 dark:border-white/10"} rounded-lg focus-within:ring-2 focus-within:ring-primary-500/50 focus-within:border-primary-500 transition-all`}
+      className={`flex items-center bg-gray-50 dark:bg-black/20 border ${error ? 'border-red-500' : 'border-gray-200 dark:border-white/10'} rounded-lg focus-within:ring-2 focus-within:ring-primary-500/50 focus-within:border-primary-500 transition-all`}
     >
       <input
         className={`w-full px-4 py-2.5 bg-transparent border-0 outline-none text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 ${className}`}
@@ -217,7 +217,7 @@ export const Input: React.FC<
 // --- Textarea ---
 export const Textarea: React.FC<
   React.TextareaHTMLAttributes<HTMLTextAreaElement> & { label?: string }
-> = ({ label, className = "", ...props }) => (
+> = ({ label, className = '', ...props }) => (
   <div className="w-full">
     {label && (
       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
@@ -241,7 +241,7 @@ export const Select: React.FC<
     label?: string;
     options: SelectOption[];
   }
-> = ({ label, options, className = "", ...props }) => (
+> = ({ label, options, className = '', ...props }) => (
   <div className="w-full">
     {label && (
       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
@@ -286,14 +286,14 @@ export const Switch: React.FC<{
       disabled={disabled}
       onClick={() => !disabled && onChangeAction(!checked)}
       className={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${
-        disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"
-      } ${checked ? "bg-primary-500" : "bg-gray-200 dark:bg-gray-700"}`}
+        disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+      } ${checked ? 'bg-primary-500' : 'bg-gray-200 dark:bg-gray-700'}`}
     >
       <motion.span
         layout
-        transition={{ type: "spring", stiffness: 700, damping: 30 }}
+        transition={{ type: 'spring', stiffness: 700, damping: 30 }}
         className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 ${
-          checked ? "translate-x-5" : "translate-x-0"
+          checked ? 'translate-x-5' : 'translate-x-0'
         }`}
       />
     </button>
@@ -302,26 +302,26 @@ export const Switch: React.FC<{
 
 // --- Badge ---
 export type BadgeColor =
-  | "green"
-  | "blue"
-  | "yellow"
-  | "red"
-  | "purple"
-  | "gray";
+  | 'green'
+  | 'blue'
+  | 'yellow'
+  | 'red'
+  | 'purple'
+  | 'gray';
 export const Badge: React.FC<{
   children: React.ReactNode;
   color?: BadgeColor;
-}> = ({ children, color = "blue" }) => {
+}> = ({ children, color = 'blue' }) => {
   const colors = {
     green:
-      "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20",
-    blue: "bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20",
+      'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20',
+    blue: 'bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20',
     yellow:
-      "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20",
-    red: "bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400 border border-red-200 dark:border-red-500/20",
+      'bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20',
+    red: 'bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400 border border-red-200 dark:border-red-500/20',
     purple:
-      "bg-purple-100 text-purple-700 dark:bg-purple-500/10 dark:text-purple-400 border border-purple-200 dark:border-purple-500/20",
-    gray: "bg-gray-100 text-gray-700 dark:bg-gray-500/10 dark:text-gray-400 border border-gray-200 dark:border-gray-500/20",
+      'bg-purple-100 text-purple-700 dark:bg-purple-500/10 dark:text-purple-400 border border-purple-200 dark:border-purple-500/20',
+    gray: 'bg-gray-100 text-gray-700 dark:bg-gray-500/10 dark:text-gray-400 border border-gray-200 dark:border-gray-500/20',
   };
   return (
     <span
@@ -338,12 +338,12 @@ export const Modal: React.FC<{
   onCloseAction: () => void;
   title: string;
   children: React.ReactNode;
-  size?: "sm" | "md" | "lg";
-}> = ({ isOpen, onCloseAction, title, children, size = "md" }) => {
+  size?: 'sm' | 'md' | 'lg';
+}> = ({ isOpen, onCloseAction, title, children, size = 'md' }) => {
   const sizes = {
-    sm: "max-w-sm",
-    md: "max-w-lg",
-    lg: "max-w-2xl",
+    sm: 'max-w-sm',
+    md: 'max-w-lg',
+    lg: 'max-w-2xl',
   };
 
   return (
@@ -439,10 +439,10 @@ export const ImageUpload: React.FC<{
         </label>
       )}
       <motion.div
-        whileHover={{ borderColor: "var(--primary-500)" }}
+        whileHover={{ borderColor: 'var(--primary-500)' }}
         className={`relative border-2 border-dashed rounded-xl p-4 transition-all flex flex-col items-center justify-center text-center cursor-pointer min-h-[160px] 
-          ${isDragging ? "border-primary-500 bg-primary-50 dark:bg-primary-900/10" : "border-gray-300 dark:border-white/10"}
-          ${value ? "bg-gray-50 dark:bg-black/20" : ""}`}
+          ${isDragging ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/10' : 'border-gray-300 dark:border-white/10'}
+          ${value ? 'bg-gray-50 dark:bg-black/20' : ''}`}
         onDragOver={(e) => {
           e.preventDefault();
           setIsDragging(true);
@@ -495,7 +495,7 @@ export const ImageUpload: React.FC<{
 };
 
 export const DragHandle: React.FC<{ className?: string }> = ({
-  className = "",
+  className = '',
 }) => (
   <div
     className={`cursor-grab active:cursor-grabbing p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 ${className}`}
@@ -524,8 +524,8 @@ export const Dropdown: React.FC<{
         setOpen(false);
       }
     };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   return (
@@ -549,7 +549,7 @@ export const Dropdown: React.FC<{
                   item.onClick();
                   setOpen(false);
                 }}
-                className={`w-full text-left px-4 py-2.5 text-sm flex items-center gap-3 transition-colors ${item.danger ? "text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10" : "text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5"}`}
+                className={`w-full text-left px-4 py-2.5 text-sm flex items-center gap-3 transition-colors ${item.danger ? 'text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10' : 'text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5'}`}
               >
                 {item.icon}
                 {item.label}
@@ -565,7 +565,7 @@ export const Dropdown: React.FC<{
 // --- Toast System ---
 export interface ToastMessage {
   id: string;
-  type: "success" | "error" | "info";
+  type: 'success' | 'error' | 'info';
   message: string;
 }
 
@@ -585,9 +585,9 @@ export const Toast: React.FC<{
   };
 
   const borders = {
-    success: "border-l-green-500",
-    error: "border-l-red-500",
-    info: "border-l-blue-500",
+    success: 'border-l-green-500',
+    error: 'border-l-red-500',
+    info: 'border-l-blue-500',
   };
 
   return (

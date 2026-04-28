@@ -1,11 +1,11 @@
-"use client";
+'use client';
 
-import React, { useState, useEffect } from "react";
-import { Modal, Button } from "@/components/UIComponents";
-import { RichTextEditor } from "@/components/blog/RichTextEditor";
-import { useRequest } from "ahooks";
-import { type Locale } from "@lucky/shared";
-import { Bot } from "lucide-react";
+import React, { useState, useEffect } from 'react';
+import { Modal, Button } from '@/components/UIComponents';
+import { RichTextEditor } from '@/components/blog/RichTextEditor';
+import { useRequest } from 'ahooks';
+import { type Locale } from '@lucky/shared';
+import { Bot } from 'lucide-react';
 
 interface LocalizedFieldEditorProps {
   isOpen: boolean;
@@ -14,7 +14,7 @@ interface LocalizedFieldEditorProps {
   targetLocale: Locale;
   sourceValue: string;
   currentValue: string;
-  fieldType: "text" | "textarea" | "richtext";
+  fieldType: 'text' | 'textarea' | 'richtext';
   label: string;
   onSaveAction: (value: string) => void;
 }
@@ -55,12 +55,12 @@ export const LocalizedFieldEditor: React.FC<LocalizedFieldEditorProps> = ({
   };
 
   const LOCALE_NAMES: Record<Locale, { native: string; flag: string }> = {
-    zh: { native: "简体中文", flag: "🇨🇳" },
-    en: { native: "English", flag: "🇺🇸" },
-    ja: { native: "日本語", flag: "🇯🇵" },
-    ko: { native: "한국어", flag: "🇰🇷" },
-    fr: { native: "Français", flag: "🇫🇷" },
-    de: { native: "Deutsch", flag: "🇩🇪" },
+    zh: { native: '简体中文', flag: '🇨🇳' },
+    en: { native: 'English', flag: '🇺🇸' },
+    ja: { native: '日本語', flag: '🇯🇵' },
+    ko: { native: '한국어', flag: '🇰🇷' },
+    fr: { native: 'Français', flag: '🇫🇷' },
+    de: { native: 'Deutsch', flag: '🇩🇪' },
   };
 
   return (
@@ -78,7 +78,7 @@ export const LocalizedFieldEditor: React.FC<LocalizedFieldEditorProps> = ({
               {LOCALE_NAMES[sourceLocale].flag} 原文
             </h3>
             <div className="p-3 rounded-md border border-gray-200 min-h-[280px] whitespace-pre-wrap text-sm">
-              {sourceValue || "(空)"}
+              {sourceValue || '(空)'}
             </div>
           </div>
 
@@ -88,7 +88,7 @@ export const LocalizedFieldEditor: React.FC<LocalizedFieldEditorProps> = ({
               {LOCALE_NAMES[targetLocale].flag} 译文
             </h3>
 
-            {fieldType === "text" && (
+            {fieldType === 'text' && (
               <input
                 type="text"
                 value={value}
@@ -98,7 +98,7 @@ export const LocalizedFieldEditor: React.FC<LocalizedFieldEditorProps> = ({
               />
             )}
 
-            {fieldType === "textarea" && (
+            {fieldType === 'textarea' && (
               <textarea
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
@@ -108,7 +108,7 @@ export const LocalizedFieldEditor: React.FC<LocalizedFieldEditorProps> = ({
               />
             )}
 
-            {fieldType === "richtext" && (
+            {fieldType === 'richtext' && (
               <div className="bg-white rounded-md border border-gray-200 overflow-hidden">
                 <RichTextEditor
                   value={value}

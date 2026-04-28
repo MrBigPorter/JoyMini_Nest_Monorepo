@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import BlogTranslationProgress from "@/views/blog/BlogTranslationProgress";
+import BlogTranslationProgress from '@/views/blog/BlogTranslationProgress';
 
 export default function TranslationProgressPage() {
   return <BlogTranslationProgress />;

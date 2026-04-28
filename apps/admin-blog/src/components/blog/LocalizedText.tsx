@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import React from "react";
-import { useLanguage } from "@/hooks/LanguageProvider";
-import type { LocalizedString } from "@lucky/shared";
+import React from 'react';
+import { useLanguage } from '@/hooks/LanguageProvider';
+import type { LocalizedString } from '@lucky/shared';
 
 interface LocalizedTextProps {
   value: LocalizedString | string | null | undefined;
@@ -11,12 +11,12 @@ interface LocalizedTextProps {
 
 export const LocalizedText: React.FC<LocalizedTextProps> = ({
   value,
-  fallback = "",
+  fallback = '',
 }) => {
   const { locale } = useLanguage();
 
   if (!value) return fallback;
-  if (typeof value === "string") return value;
+  if (typeof value === 'string') return value;
 
   return value[locale] ?? value.zh ?? value.en ?? fallback;
 };
