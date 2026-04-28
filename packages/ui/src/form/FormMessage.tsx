@@ -23,8 +23,7 @@ import { twMerge } from "tailwind-merge";
  *   <span className="italic">This field is required</span>
  * </FormMessage>
  */
-export interface FormMessageProps
-  extends React.HTMLAttributes<HTMLParagraphElement> {
+export interface FormMessageProps extends React.HTMLAttributes<HTMLParagraphElement> {
   error?: string;
   testId?: string;
 }

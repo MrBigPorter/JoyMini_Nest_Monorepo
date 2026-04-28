@@ -43,7 +43,8 @@ export async function runSeed() {
   }
 
   // [1] 基础配置
-  const { seedSystemConfigExchangeRate } = await import('./system-config-exchange-rate');
+  const { seedSystemConfigExchangeRate } =
+    await import('./system-config-exchange-rate');
   await seedSystemConfigExchangeRate();
 
   // [2] 产品分类（需在产品前执行，供 seedTreasures 内部查 id）

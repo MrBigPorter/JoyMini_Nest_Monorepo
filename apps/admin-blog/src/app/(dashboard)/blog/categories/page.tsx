@@ -1,24 +1,24 @@
-'use client';
+"use client";
 
-import { useState, useRef, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
-import { FolderTree, Edit, Trash2 } from 'lucide-react';
-import { useToastStore } from '@/store/useToastStore';
-import { Card } from '@/components/UIComponents';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { FolderTree, Edit, Trash2 } from "lucide-react";
+import { useToastStore } from "@/store/useToastStore";
+import { Card } from "@/components/UIComponents";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { blogApi } from '@/api';
-import { PageHeader } from '@/components/scaffold/PageHeader';
-import { SmartTable } from '@/components/scaffold/SmartTable';
-import { Button, ModalManager } from '@repo/ui';
-import { BlogCategoryModal } from '@/views/blog/BlogCategoryModal';
-import { renderLocalizedText } from '@/utils/localizedText';
+import { blogApi } from "@/api";
+import { PageHeader } from "@/components/scaffold/PageHeader";
+import { SmartTable } from "@/components/scaffold/SmartTable";
+import { Button, ModalManager } from "@repo/ui";
+import { BlogCategoryModal } from "@/views/blog/BlogCategoryModal";
+import { renderLocalizedText } from "@/utils/localizedText";
 import type {
   ProColumns,
   ActionType,
-} from '@/components/scaffold/SmartTable/types';
-import { useTranslation } from '@/hooks/useTranslation';
-import type { FormSchema } from '@/type/search';
+} from "@/components/scaffold/SmartTable/types";
+import { useTranslation } from "@/hooks/useTranslation";
+import type { FormSchema } from "@/type/search";
 
 export default function CategoriesPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -41,54 +41,54 @@ export default function CategoriesPage() {
   const deleteCategoryMutation = useMutation({
     mutationFn: (categoryId: string) => blogApi.deleteCategory(categoryId),
     onSuccess: () => {
-      addToast('success', t('categoryDeleted'));
+      addToast("success", t("categoryDeleted"));
       actionRef.current?.reload();
     },
     onError: (error: any) => {
-      console.error('Failed to delete category:', error);
-      addToast('error', t('deleteFailed'));
+      console.error("Failed to delete category:", error);
+      addToast("error", t("deleteFailed"));
     },
   });
 
   // SmartTable列定义
   const handleDeleteCategory = async (category: any) => {
     ModalManager.open({
-      title: t('deleteCategory'),
-      confirmText: t('deleteConfirm'),
-      cancelText: t('cancel'),
+      title: t("deleteCategory"),
+      confirmText: t("deleteConfirm"),
+      cancelText: t("cancel"),
       renderChildren: (
         <div className="space-y-3">
           <p>
-            {t('deleteConfirmText', {
+            {t("deleteConfirmText", {
               name: renderLocalizedText(category.name, lang, category.id),
             })}
           </p>
 
           <div className="text-sm text-amber-600 bg-amber-50 p-3 rounded-lg border border-amber-200">
             <div className="font-semibold mb-1">
-              {t('actionCannotBeUndone')}
+              {t("actionCannotBeUndone")}
             </div>
             {category.articleCount > 0 && (
               <div className="mt-2">
-                {t('thisCategoryContains', { count: category.articleCount })}
+                {t("thisCategoryContains", { count: category.articleCount })}
                 <br />
-                {t('articlesWillBeMoved')}
+                {t("articlesWillBeMoved")}
               </div>
             )}
           </div>
 
           <div className="text-xs text-gray-500 mt-2 bg-gray-50 p-2 rounded">
-            <div className="font-medium">{t('categoryDetails')}</div>
+            <div className="font-medium">{t("categoryDetails")}</div>
             <div>
-              {t('slug')} <code>/{category.slug}</code>
+              {t("slug")} <code>/{category.slug}</code>
             </div>
             {category.description && (
               <div className="mt-1">
-                {t('description')}:{' '}
+                {t("description")}:{" "}
                 {renderLocalizedText(
                   category.description,
                   lang,
-                  t('noDescription'),
+                  t("noDescription"),
                 )}
               </div>
             )}
@@ -113,8 +113,8 @@ export default function CategoriesPage() {
 
   const categoryColumns: ProColumns[] = [
     {
-      dataIndex: 'name',
-      title: t('name'),
+      dataIndex: "name",
+      title: t("name"),
       render: (dom, category: any) => (
         <div className="flex items-center">
           <FolderTree className="mr-2 h-4 w-4 text-muted-foreground" />
@@ -125,8 +125,8 @@ export default function CategoriesPage() {
       ),
     },
     {
-      dataIndex: 'slug',
-      title: t('slug'),
+      dataIndex: "slug",
+      title: t("slug"),
       render: (dom, category: any) => (
         <code className="text-sm bg-muted px-2 py-1 rounded">
           /{category.slug}
@@ -134,26 +134,26 @@ export default function CategoriesPage() {
       ),
     },
     {
-      dataIndex: 'description',
-      title: t('description'),
+      dataIndex: "description",
+      title: t("description"),
       render: (dom, category: any) => (
         <p className="text-sm text-muted-foreground max-w-md truncate">
-          {renderLocalizedText(category.description, lang, t('noDescription'))}
+          {renderLocalizedText(category.description, lang, t("noDescription"))}
         </p>
       ),
     },
     {
-      dataIndex: 'articleCount',
-      title: t('articles'),
+      dataIndex: "articleCount",
+      title: t("articles"),
       render: (dom, category: any) => (
         <span className="px-2 py-1 text-xs rounded-full bg-primary/10 text-primary">
-          {category.articleCount || 0} {t('articles')}
+          {category.articleCount || 0} {t("articles")}
         </span>
       ),
     },
     {
-      dataIndex: 'createdAt',
-      title: t('created'),
+      dataIndex: "createdAt",
+      title: t("created"),
       render: (dom, category: any) => (
         <div className="text-sm text-muted-foreground">
           {category.createdAt}
@@ -161,8 +161,8 @@ export default function CategoriesPage() {
       ),
     },
     {
-      dataIndex: 'actions',
-      title: t('actions'),
+      dataIndex: "actions",
+      title: t("actions"),
       render: (dom, category: any) => (
         <div className="flex justify-end gap-2">
           <Button
@@ -188,28 +188,28 @@ export default function CategoriesPage() {
   // 搜索表单配置
   const searchSchema: FormSchema[] = [
     {
-      type: 'input',
-      key: 'search',
-      label: t('search'),
-      placeholder: t('searchPlaceholder'),
+      type: "input",
+      key: "search",
+      label: t("search"),
+      placeholder: t("searchPlaceholder"),
     },
   ];
 
   // 请求分类数据
   const requestCategories = useCallback(async (params: any) => {
-    console.log('requestCategories called with params:', params);
+    console.log("requestCategories called with params:", params);
     try {
       const response = await blogApi.getCategories({
         search: params.search,
       });
-      console.log('requestCategories response:', response);
+      console.log("requestCategories response:", response);
       return {
         data: response.list || [],
         total: response.list?.length || 0,
         success: true,
       };
     } catch (error) {
-      console.error('Failed to fetch categories:', error);
+      console.error("Failed to fetch categories:", error);
       return { data: [], total: 0, success: false };
     }
   }, []);
@@ -217,10 +217,10 @@ export default function CategoriesPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title={t('pageTitle')}
-        description={t('pageDescription')}
-        breadcrumbs={[globalT('content'), globalT('breadcrumbCategories')]}
-        buttonText={t('newCategory')}
+        title={t("pageTitle")}
+        description={t("pageDescription")}
+        breadcrumbs={[globalT("content"), globalT("breadcrumbCategories")]}
+        buttonText={t("newCategory")}
         buttonOnClick={() => {
           setEditingCategory(null);
           setIsModalOpen(true);
@@ -237,7 +237,7 @@ export default function CategoriesPage() {
       />
 
       {/* Categories Table */}
-      <Card title={t('categoryList')}>
+      <Card title={t("categoryList")}>
         <SmartTable
           ref={actionRef}
           rowKey="id"
@@ -247,30 +247,30 @@ export default function CategoriesPage() {
           headerTitle={
             <div className="flex items-center gap-2">
               <FolderTree className="text-primary-500" size={20} />
-              <span className="font-semibold text-lg">{t('categoryList')}</span>
+              <span className="font-semibold text-lg">{t("categoryList")}</span>
             </div>
           }
         />
       </Card>
 
       {/* Usage Tips */}
-      <Card title={t('categoryUsageTips')}>
+      <Card title={t("categoryUsageTips")}>
         <ul className="space-y-2 text-sm text-muted-foreground">
           <li className="flex items-start">
             <div className="mr-2 mt-0.5">•</div>
-            <span>{t('tip1')}</span>
+            <span>{t("tip1")}</span>
           </li>
           <li className="flex items-start">
             <div className="mr-2 mt-0.5">•</div>
-            <span>{t('tip2')}</span>
+            <span>{t("tip2")}</span>
           </li>
           <li className="flex items-start">
             <div className="mr-2 mt-0.5">•</div>
-            <span>{t('tip3')}</span>
+            <span>{t("tip3")}</span>
           </li>
           <li className="flex items-start">
             <div className="mr-2 mt-0.5">•</div>
-            <span>{t('tip4')}</span>
+            <span>{t("tip4")}</span>
           </li>
         </ul>
       </Card>

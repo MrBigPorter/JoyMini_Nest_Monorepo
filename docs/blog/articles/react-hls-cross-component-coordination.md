@@ -20,13 +20,13 @@
 // 简化后的原始代码
 useEffect(() => {
   const hls = new Hls();
-  hls.loadSource(hlsUrl);   // ← 只要组件挂载就加载 HLS 流
+  hls.loadSource(hlsUrl); // ← 只要组件挂载就加载 HLS 流
   hls.attachMedia(video);
 
   hls.on(Hls.Events.MANIFEST_PARSED, () => {
     if (autoPlay) {
-      video.play();          // ← autoPlay 只控制"是否自动播放"
-    }                        //    但流数据已经在下载了
+      video.play(); // ← autoPlay 只控制"是否自动播放"
+    } //    但流数据已经在下载了
   });
 }, [hlsUrl, autoPlay]);
 ```
@@ -35,11 +35,11 @@ useEffect(() => {
 
 而首页上有 3 个组件同时使用视频：
 
-| 组件 | 位置 | 视频数量 |
-|------|------|----------|
-| `HeroSection` | 顶部大横幅 | 1-2 个 |
+| 组件               | 位置         | 视频数量           |
+| ------------------ | ------------ | ------------------ |
+| `HeroSection`      | 顶部大横幅   | 1-2 个             |
 | `FeaturedProjects` | 精选项目轮播 | 1 个（当前 slide） |
-| `ArticleCard` | 文章卡片列表 | 每个卡片可能 1 个 |
+| `ArticleCard`      | 文章卡片列表 | 每个卡片可能 1 个  |
 
 结果是：首页加载 → 7-15 个 m3u8 请求同时发出 → 大量带宽浪费 → 页面加载变慢。
 
@@ -81,8 +81,8 @@ interface HlsVideoPlayerProps {
 ```tsx
 // 核心逻辑：clickToPlay 模式下延迟加载
 useEffect(() => {
-  if (clickToPlay) return;     // ← 关键：跳过自动加载
-  initVideo(false);            // ← 普通模式：自动加载但不一定自动播放
+  if (clickToPlay) return; // ← 关键：跳过自动加载
+  initVideo(false); // ← 普通模式：自动加载但不一定自动播放
   return () => destroyVideo();
 }, [hlsUrl, clickToPlay]);
 ```
@@ -102,9 +102,9 @@ useEffect(() => {
 const handlePlayClick = useCallback(() => {
   // 1. 通知所有其他视频组件：停下来
   window.dispatchEvent(
-    new CustomEvent('hls-video-play', {
-      detail: { hlsUrl }
-    })
+    new CustomEvent("hls-video-play", {
+      detail: { hlsUrl },
+    }),
   );
 
   // 2. 初始化自己
@@ -128,14 +128,14 @@ useEffect(() => {
   };
 
   window.addEventListener(
-    'hls-video-play',
-    handleOtherVideoPlay as EventListener
+    "hls-video-play",
+    handleOtherVideoPlay as EventListener,
   );
 
   return () => {
     window.removeEventListener(
-      'hls-video-play',
-      handleOtherVideoPlay as EventListener
+      "hls-video-play",
+      handleOtherVideoPlay as EventListener,
     );
   };
 }, [hlsUrl, destroyVideo]);
@@ -158,8 +158,8 @@ const destroyVideo = useCallback(() => {
   // 2. 停止并清空原生 video 元素
   if (videoRef.current) {
     videoRef.current.pause();
-    videoRef.current.removeAttribute('src');
-    videoRef.current.load();  // 重置状态
+    videoRef.current.removeAttribute("src");
+    videoRef.current.load(); // 重置状态
   }
 }, []);
 ```
@@ -169,17 +169,20 @@ const destroyVideo = useCallback(() => {
 `FeaturedProjects` 是一个轮播幻灯片组件，它不直接使用 `HlsVideoPlayer`，而是有自己的 HLS.js 管理。轮播切换时：
 
 ```tsx
-const goToSlide = useCallback((index: number) => {
-  if (isTransitioning || index === activeIndex) return;
-  setIsTransitioning(true);
+const goToSlide = useCallback(
+  (index: number) => {
+    if (isTransitioning || index === activeIndex) return;
+    setIsTransitioning(true);
 
-  destroyVideo();          // 销毁当前视频
-  setUserClicked(false);   // 重置点击状态
-  setActiveIndex(index);   // 切换 slide（触发 remount）
+    destroyVideo(); // 销毁当前视频
+    setUserClicked(false); // 重置点击状态
+    setActiveIndex(index); // 切换 slide（触发 remount）
 
-  // 动画完成后释放锁
-  setTimeout(() => setIsTransitioning(false), 500);
-}, [activeIndex, articles.length, isTransitioning, destroyVideo]);
+    // 动画完成后释放锁
+    setTimeout(() => setIsTransitioning(false), 500);
+  },
+  [activeIndex, articles.length, isTransitioning, destroyVideo],
+);
 ```
 
 利用 React 的 `key={activeIndex}` 机制：每次切换 slide，整个容器 remount，视频元素重新创建，ref 重新绑定，生命周期干净利落。
@@ -193,14 +196,15 @@ useEffect(() => {
   const handleVisibility = () => {
     if (document.hidden) {
       destroyVideo();
-      setUserClicked(false);  // 回来后需要重新点击播放
-      stopAutoPlay();         // 停止轮播自动切换
+      setUserClicked(false); // 回来后需要重新点击播放
+      stopAutoPlay(); // 停止轮播自动切换
     } else {
-      startAutoPlay();        // 恢复轮播
+      startAutoPlay(); // 恢复轮播
     }
   };
-  document.addEventListener('visibilitychange', handleVisibility);
-  return () => document.removeEventListener('visibilitychange', handleVisibility);
+  document.addEventListener("visibilitychange", handleVisibility);
+  return () =>
+    document.removeEventListener("visibilitychange", handleVisibility);
 }, [destroyVideo, stopAutoPlay, startAutoPlay]);
 ```
 
@@ -242,12 +246,15 @@ useEffect(() => {
 ### 快速点击防抖
 
 ```tsx
-const handlePlayClick = useCallback((e) => {
-  e.stopPropagation();
-  e.preventDefault();
-  if (userClicked) return;  // ← 已经点击过了，忽略
-  // ... 初始化
-}, [userClicked, /* ... */]);
+const handlePlayClick = useCallback(
+  (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (userClicked) return; // ← 已经点击过了，忽略
+    // ... 初始化
+  },
+  [userClicked /* ... */],
+);
 ```
 
 ### Safari 原生 HLS 支持
@@ -257,7 +264,7 @@ Safari 不支持 MSE（Media Source Extensions），但原生支持 HLS。需要
 ```tsx
 if (Hls.isSupported()) {
   // 使用 hls.js
-} else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+} else if (video.canPlayType("application/vnd.apple.mpegurl")) {
   // Safari 原生 HLS
   video.src = hlsUrl;
   video.play().catch(() => {});
@@ -270,7 +277,7 @@ if (Hls.isSupported()) {
 // 监听 HLS 错误事件
 hls.on(Hls.Events.ERROR, (_event, data) => {
   if (data.fatal) {
-    setHasError(true);     // ← 隐藏播放按钮，显示错误状态
+    setHasError(true); // ← 隐藏播放按钮，显示错误状态
     destroyVideo();
   }
 });
@@ -281,19 +288,19 @@ hls.on(Hls.Events.ERROR, (_event, data) => {
 ```tsx
 const handleOtherVideoPlay = (e: CustomEvent) => {
   const otherHlsUrl = e.detail?.hlsUrl;
-  if (otherHlsUrl === hlsUrl) return;  // ← 忽略自己发出的广播
+  if (otherHlsUrl === hlsUrl) return; // ← 忽略自己发出的广播
   // ...
 };
 ```
 
 ## 5. 数据对比
 
-| 指标 | 优化前 | 优化后 | 收益 |
-|------|--------|--------|------|
-| 首页 m3u8 请求数 | 7-15 个 | **0 个**（直到用户点击） | 减少 100% 初始请求 |
-| 首页数据消耗 | ~5-10 MB | ~100 KB（仅封面图） | **减少 98%+** |
-| HLS.js 实例数 | 多个共存 | 最多 1 个 | 降低 80%+ 内存占用 |
-| 用户感知 | 流量消耗、页面慢 | 立即显示、按需播放 | 体验显著提升 |
+| 指标             | 优化前           | 优化后                   | 收益               |
+| ---------------- | ---------------- | ------------------------ | ------------------ |
+| 首页 m3u8 请求数 | 7-15 个          | **0 个**（直到用户点击） | 减少 100% 初始请求 |
+| 首页数据消耗     | ~5-10 MB         | ~100 KB（仅封面图）      | **减少 98%+**      |
+| HLS.js 实例数    | 多个共存         | 最多 1 个                | 降低 80%+ 内存占用 |
+| 用户感知         | 流量消耗、页面慢 | 立即显示、按需播放       | 体验显著提升       |
 
 > **关键指标**：优化前每次首页访问都在下载 5-10MB 的视频数据，而这些视频用户可能根本不会播放。优化后只有用户明确点击播放时才会下载。
 
@@ -317,4 +324,4 @@ const handleOtherVideoPlay = (e: CustomEvent) => {
 
 ---
 
-*本文基于 JoyMini Nest Monorepo 项目的实际优化经验。项目使用 Next.js 15 + HLS.js，代码开源可在 GitHub 上查看。*
+_本文基于 JoyMini Nest Monorepo 项目的实际优化经验。项目使用 Next.js 15 + HLS.js，代码开源可在 GitHub 上查看。_

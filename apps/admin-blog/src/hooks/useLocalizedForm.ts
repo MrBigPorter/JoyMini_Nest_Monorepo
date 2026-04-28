@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import { useCallback, useRef, useEffect } from 'react';
+import { useCallback, useRef, useEffect } from "react";
 import {
   FieldValues,
   FieldErrors,
   UseFormWatch,
   UseFormSetValue,
-} from 'react-hook-form';
+} from "react-hook-form";
 
 interface UseLocalizedFormOptions<T extends FieldValues> {
   watch: UseFormWatch<T>;
@@ -64,7 +64,7 @@ export function useLocalizedForm<T extends FieldValues>({
       // 如果检测到多语言对象，更新storageRef
       if (
         rawValue &&
-        typeof rawValue === 'object' &&
+        typeof rawValue === "object" &&
         !((rawValue as any) instanceof File)
       ) {
         // 检查是否与当前storageRef中的值不同
@@ -87,7 +87,7 @@ export function useLocalizedForm<T extends FieldValues>({
       // 把新语言的内容读出来放到RHF
       allFields.forEach((fieldName) => {
         const storedValue = storageRef.current[fieldName]?.[locale];
-        const newValue = storedValue !== undefined ? storedValue : '';
+        const newValue = storedValue !== undefined ? storedValue : "";
         // @ts-expect-error RHF PathValue 泛型无法在高阶函数中正确推断，这是已知库限制
         setValue(fieldName, newValue, {
           shouldDirty: false,
@@ -111,7 +111,7 @@ export function useLocalizedForm<T extends FieldValues>({
 
         // 立即处理多语言对象，不延迟
         if (
-          typeof rawValue === 'object' &&
+          typeof rawValue === "object" &&
           rawValue !== null &&
           !((rawValue as any) instanceof File)
         ) {
@@ -131,7 +131,7 @@ export function useLocalizedForm<T extends FieldValues>({
             });
           }
         } else if (
-          typeof rawValue === 'string' ||
+          typeof rawValue === "string" ||
           (rawValue as any) instanceof File
         ) {
           // 普通字符串或文件，直接存储
@@ -153,14 +153,14 @@ export function useLocalizedForm<T extends FieldValues>({
         }
 
         // 2. 检查原始值（备用）
-        if (typeof rawValue === 'string') {
+        if (typeof rawValue === "string") {
           return rawValue;
         }
 
         // 3. 如果是多语言对象，提取当前语言的值
         if (
           rawValue &&
-          typeof rawValue === 'object' &&
+          typeof rawValue === "object" &&
           !((rawValue as any) instanceof File)
         ) {
           const langValue = (rawValue as Record<string, any>)[locale];
@@ -169,20 +169,20 @@ export function useLocalizedForm<T extends FieldValues>({
           }
 
           // 如果当前语言没有值，尝试中文作为回退
-          const zhValue = (rawValue as Record<string, any>)['zh'];
+          const zhValue = (rawValue as Record<string, any>)["zh"];
           if (zhValue !== null && zhValue !== undefined) {
             return String(zhValue);
           }
 
           // 再尝试英文作为回退
-          const enValue = (rawValue as Record<string, any>)['en'];
+          const enValue = (rawValue as Record<string, any>)["en"];
           if (enValue !== null && enValue !== undefined) {
             return String(enValue);
           }
         }
 
         // 4. 默认返回空字符串
-        return '';
+        return "";
       };
 
       const safeValue = getSafeValue();
@@ -228,8 +228,8 @@ export function useLocalizedForm<T extends FieldValues>({
           lang === locale
             ? currentValue !== undefined
               ? currentValue
-              : ''
-            : (storageRef.current[fieldKey]?.[lang] ?? '');
+              : ""
+            : (storageRef.current[fieldKey]?.[lang] ?? "");
       });
 
       return fullObject;

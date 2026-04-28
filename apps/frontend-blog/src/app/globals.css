@@ -97,7 +97,8 @@ html {
   touch-action: manipulation;
 }
 
-html, body {
+html,
+body {
   overscroll-behavior: none;
   -webkit-overflow-scrolling: touch;
 }
@@ -111,7 +112,9 @@ body {
   overflow-x: hidden;
 }
 
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
@@ -126,7 +129,8 @@ main {
   -webkit-overflow-scrolling: touch;
 }
 
-button, a {
+button,
+a {
   -webkit-touch-callout: none;
   user-select: none;
 }
@@ -135,22 +139,42 @@ button, a {
   -webkit-tap-highlight-color: transparent;
 }
 
-.custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
-.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-.custom-scrollbar::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 3px; }
-.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: hsl(var(--primary)); }
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #4b5563;
+  border-radius: 3px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--primary));
+}
 
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: hsl(var(--primary)); }
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #4b5563;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--primary));
+}
 
 input:-webkit-autofill,
 input:-webkit-autofill:hover,
 input:-webkit-autofill:focus,
 input:-webkit-autofill:active {
   -webkit-box-shadow: 0 0 0 1000px #f9fafb inset !important;
-  box-shadow:         0 0 0 1000px #f9fafb inset !important;
+  box-shadow: 0 0 0 1000px #f9fafb inset !important;
   -webkit-text-fill-color: #111827 !important;
   caret-color: #111827;
 }
@@ -160,7 +184,7 @@ input:-webkit-autofill:active {
 .dark input:-webkit-autofill:focus,
 .dark input:-webkit-autofill:active {
   -webkit-box-shadow: 0 0 0 1000px #0d0d16 inset !important;
-  box-shadow:         0 0 0 1000px #0d0d16 inset !important;
+  box-shadow: 0 0 0 1000px #0d0d16 inset !important;
   -webkit-text-fill-color: #ffffff !important;
   caret-color: #ffffff;
 }

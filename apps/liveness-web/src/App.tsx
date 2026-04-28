@@ -48,11 +48,12 @@ function App() {
             );
           }}
           onError={(livenessError: unknown) => {
-            const errorMessage = typeof livenessError === 'string' 
-              ? livenessError 
-              : livenessError instanceof Error 
-                ? livenessError.message 
-                : String(livenessError);
+            const errorMessage =
+              typeof livenessError === "string"
+                ? livenessError
+                : livenessError instanceof Error
+                  ? livenessError.message
+                  : String(livenessError);
             window.parent.postMessage(
               { type: "LIVENESS_RESULT", success: false, error: errorMessage },
               "https://app.joyminis.com", //  同样指定目标域名

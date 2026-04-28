@@ -69,4 +69,3 @@ export async function seedSupportChannels() {
 
   console.log(`   Support Channels +${created} new`);
 }
-

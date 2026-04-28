@@ -44,13 +44,13 @@ const handleData = <T>(response: ApiResponse<T>) => { ... };
 
 ```typescript
 // ❌ 错误：忽略可选依赖类型
-const { Preferences } = await import('@capacitor/preferences');
+const { Preferences } = await import("@capacitor/preferences");
 
 //  正确：创建类型声明文件 + 安全导入
 // 1. 创建 src/types/capacitor.d.ts
 // 2. 使用try-catch处理导入失败
 try {
-  const { Preferences } = await import('@capacitor/preferences');
+  const { Preferences } = await import("@capacitor/preferences");
   // 使用Preferences
 } catch {
   // fallback逻辑
@@ -63,7 +63,7 @@ try {
 // ❌ 错误：queryKey固定，语言切换时不更新
 const useFrontendCategories = () => {
   return useQuery({
-    queryKey: ['frontendCategories'], // 缺少locale参数
+    queryKey: ["frontendCategories"], // 缺少locale参数
     queryFn: () => frontendBlogApi.getCategories(),
   });
 };
@@ -71,10 +71,10 @@ const useFrontendCategories = () => {
 //  正确：queryKey包含locale，语言切换时重新获取
 const useFrontendCategories = () => {
   const params = useParams();
-  const locale = (params.locale as string) || 'zh';
+  const locale = (params.locale as string) || "zh";
 
   return useQuery({
-    queryKey: ['frontendCategories', locale], // 包含locale参数
+    queryKey: ["frontendCategories", locale], // 包含locale参数
     queryFn: () => frontendBlogApi.getCategories(),
   });
 };
@@ -82,9 +82,9 @@ const useFrontendCategories = () => {
 //  正确：HTTP客户端自动添加lang参数
 // 在HTTP拦截器中自动添加lang查询参数
 instance.interceptors.request.use((config) => {
-  const lang = localStorage.getItem('locale') || 'zh';
+  const lang = localStorage.getItem("locale") || "zh";
   config.params = { ...config.params, lang };
-  config.headers['Accept-Language'] = lang;
+  config.headers["Accept-Language"] = lang;
   return config;
 });
 ```
@@ -98,7 +98,10 @@ const locale = cookieLocale || DEFAULT_LOCALE;
 
 //  正确：架构师思维
 // 1. 理解根因 2. 修复问题 3. 预防未来 4. 记录知识
-const locale = cookieLocale && LOCALES.includes(cookieLocale) ? cookieLocale : DEFAULT_LOCALE;
+const locale =
+  cookieLocale && LOCALES.includes(cookieLocale)
+    ? cookieLocale
+    : DEFAULT_LOCALE;
 
 // 修复完成后必须问自己：
 // ▢ 还有哪里有同样的问题？

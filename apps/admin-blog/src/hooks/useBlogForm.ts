@@ -1,10 +1,10 @@
-'use client';
+"use client";
 
-import { useForm, DefaultValues, UseFormReturn } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { useCallback } from 'react';
-import { useToastStore } from '@/store/useToastStore';
+import { useForm, DefaultValues, UseFormReturn } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { useCallback } from "react";
+import { useToastStore } from "@/store/useToastStore";
 
 type UseBlogFormOptions<T extends z.ZodSchema> = {
   schema: T;
@@ -22,9 +22,9 @@ export function useBlogForm<T extends z.ZodSchema>({
   onSubmitAction,
 }: UseBlogFormOptions<T>): {
   form: UseFormReturn<z.infer<T>>;
-  submitHandler: ReturnType<UseFormReturn<z.infer<T>>['handleSubmit']>;
+  submitHandler: ReturnType<UseFormReturn<z.infer<T>>["handleSubmit"]>;
   isLoading: boolean;
-  errors: UseFormReturn<z.infer<T>>['formState']['errors'];
+  errors: UseFormReturn<z.infer<T>>["formState"]["errors"];
 } {
   const addToast = useToastStore((state) => state.addToast);
 
@@ -35,16 +35,16 @@ export function useBlogForm<T extends z.ZodSchema>({
 
   const handleSubmit = useCallback(
     async (data: z.infer<T>) => {
-      console.log('========== [BLOG_FORM] handleSubmit called ==========');
+      console.log("========== [BLOG_FORM] handleSubmit called ==========");
       console.log(
-        '[BLOG_FORM] data:',
+        "[BLOG_FORM] data:",
         JSON.stringify(data, (key, value) => {
           if (
-            key === 'content' &&
-            typeof value === 'string' &&
+            key === "content" &&
+            typeof value === "string" &&
             value.length > 100
           ) {
-            return value.substring(0, 100) + '...';
+            return value.substring(0, 100) + "...";
           }
           return value;
         }),
@@ -52,36 +52,36 @@ export function useBlogForm<T extends z.ZodSchema>({
       try {
         await onSubmitAction(data);
       } catch (error: unknown) {
-        console.log('[BLOG_FORM] handleSubmit caught error:', error);
-        let message = '提交失败';
+        console.log("[BLOG_FORM] handleSubmit caught error:", error);
+        let message = "提交失败";
 
-        if (error && typeof error === 'object') {
+        if (error && typeof error === "object") {
           // 处理 Axios 错误格式
           if (
-            'response' in error &&
+            "response" in error &&
             error.response &&
-            typeof error.response === 'object'
+            typeof error.response === "object"
           ) {
             if (
-              'data' in error.response &&
+              "data" in error.response &&
               error.response.data &&
-              typeof error.response.data === 'object'
+              typeof error.response.data === "object"
             ) {
               if (
-                'message' in error.response.data &&
-                typeof error.response.data.message === 'string'
+                "message" in error.response.data &&
+                typeof error.response.data.message === "string"
               ) {
                 message = error.response.data.message;
               }
             }
           }
           // 处理普通 Error 对象
-          else if ('message' in error && typeof error.message === 'string') {
+          else if ("message" in error && typeof error.message === "string") {
             message = error.message;
           }
         }
-        addToast('error', message);
-        console.error('Form submission error:', error);
+        addToast("error", message);
+        console.error("Form submission error:", error);
       }
     },
     [onSubmitAction, addToast],

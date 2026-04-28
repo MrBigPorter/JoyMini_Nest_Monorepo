@@ -49,9 +49,9 @@
  * ═══════════════════════════════════════════════════════════
  */
 
-import * as fs from 'fs';
-import * as path from 'path';
-import * as readline from 'readline';
+import * as fs from "fs";
+import * as path from "path";
+import * as readline from "readline";
 
 // ── 类型 ──────────────────────────────────────────────────────────
 
@@ -72,7 +72,7 @@ interface CreateArticlePayload {
   title: { zh: string };
   content: { zh: string };
   excerpt?: { zh: string };
-  status: 'DRAFT' | 'PUBLISHED';
+  status: "DRAFT" | "PUBLISHED";
 }
 
 interface ApiResponse {
@@ -103,16 +103,16 @@ function ask(rl: readline.Interface, question: string): Promise<string> {
  * @throws 如果找不到标题则抛出错误
  */
 function parseMarkdownFile(filepath: string): ArticleFile {
-  const raw = fs.readFileSync(filepath, 'utf-8');
-  const lines = raw.split('\n');
+  const raw = fs.readFileSync(filepath, "utf-8");
+  const lines = raw.split("\n");
 
   // ── 1. 提取标题 ──────────────────────────────────────────────
   let titleLineIndex = -1;
-  let title = '';
+  let title = "";
   for (let i = 0; i < lines.length; i++) {
     const trimmed = lines[i].trim();
-    if (trimmed.startsWith('# ')) {
-      title = trimmed.replace(/^#\s+/, '').trim();
+    if (trimmed.startsWith("# ")) {
+      title = trimmed.replace(/^#\s+/, "").trim();
       titleLineIndex = i;
       break;
     }
@@ -127,17 +127,17 @@ function parseMarkdownFile(filepath: string): ArticleFile {
 
   // ── 2. 提取摘要 ──────────────────────────────────────────────
   // 标题之后，查找第一个 > 开头的行
-  let excerpt = '';
+  let excerpt = "";
   let excerptLineIndex = -1;
   for (let i = titleLineIndex + 1; i < lines.length; i++) {
     const trimmed = lines[i].trim();
-    if (trimmed.startsWith('> ')) {
-      excerpt = trimmed.replace(/^>\s+/, '').trim();
+    if (trimmed.startsWith("> ")) {
+      excerpt = trimmed.replace(/^>\s+/, "").trim();
       excerptLineIndex = i;
       break;
     }
     // 如果遇到 --- 或空行后出现非 > 内容，停止查找摘要
-    if (trimmed === '---' || (trimmed !== '' && !trimmed.startsWith('>'))) {
+    if (trimmed === "---" || (trimmed !== "" && !trimmed.startsWith(">"))) {
       break;
     }
   }
@@ -151,7 +151,7 @@ function parseMarkdownFile(filepath: string): ArticleFile {
   // 先找 --- 分隔线
   for (let i = titleLineIndex + 1; i < lines.length; i++) {
     const trimmed = lines[i].trim();
-    if (trimmed === '---') {
+    if (trimmed === "---") {
       contentStartIndex = i + 1;
       break;
     }
@@ -163,7 +163,7 @@ function parseMarkdownFile(filepath: string): ArticleFile {
   }
 
   const bodyLines = lines.slice(contentStartIndex);
-  const content = bodyLines.join('\n').trim();
+  const content = bodyLines.join("\n").trim();
 
   if (!content) {
     throw new Error(
@@ -192,7 +192,7 @@ function scanMarkdownFiles(dir: string): string[] {
 
   const files = fs.readdirSync(dir);
   return files
-    .filter((f) => f.endsWith('.md'))
+    .filter((f) => f.endsWith(".md"))
     .map((f) => path.join(dir, f))
     .sort();
 }
@@ -205,10 +205,10 @@ async function login(
   username: string,
   password: string,
 ): Promise<string> {
-  const url = `${apiBase.replace(/\/+$/, '')}/auth/admin/login`;
+  const url = `${apiBase.replace(/\/+$/, "")}/auth/admin/login`;
   const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ username, password }),
   });
 
@@ -224,7 +224,9 @@ async function login(
 
   // 兼容两种响应格式
   const token =
-    data?.tokens?.accessToken || data?.accessToken || (data as unknown as string);
+    data?.tokens?.accessToken ||
+    data?.accessToken ||
+    (data as unknown as string);
 
   if (!token) {
     throw new Error(`登录响应中未找到 accessToken: ${JSON.stringify(data)}`);
@@ -240,9 +242,9 @@ async function createArticle(
   apiBase: string,
   token: string,
   article: ArticleFile,
-  status: 'DRAFT' | 'PUBLISHED',
+  status: "DRAFT" | "PUBLISHED",
 ): Promise<ApiResponse> {
-  const url = `${apiBase.replace(/\/+$/, '')}/admin/blog/articles`;
+  const url = `${apiBase.replace(/\/+$/, "")}/admin/blog/articles`;
   const payload: CreateArticlePayload = {
     title: { zh: article.title },
     content: { zh: article.content },
@@ -255,9 +257,9 @@ async function createArticle(
   }
 
   const response = await fetch(url, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify(payload),
@@ -274,11 +276,11 @@ async function createArticle(
 // ── 主逻辑 ────────────────────────────────────────────────────────
 
 async function main() {
-  console.log('\n📝  批量导入博客文章');
-  console.log('=========================================');
-  console.log('  从 docs/blog/articles/ 读取 Markdown 文件');
-  console.log('  通过 API 批量创建博客文章');
-  console.log('  按 Ctrl+C 随时退出\n');
+  console.log("\n📝  批量导入博客文章");
+  console.log("=========================================");
+  console.log("  从 docs/blog/articles/ 读取 Markdown 文件");
+  console.log("  通过 API 批量创建博客文章");
+  console.log("  按 Ctrl+C 随时退出\n");
 
   const rl = readline.createInterface({
     input: process.stdin,
@@ -286,30 +288,30 @@ async function main() {
   });
 
   // ── Step 1: API 地址 ──────────────────────────────────────────
-  const defaultApiUrl = 'http://localhost:3000/api';
+  const defaultApiUrl = "http://localhost:3000/api";
   const apiBase =
     (await ask(rl, `API 地址 (默认 ${defaultApiUrl}): `)) || defaultApiUrl;
 
   // ── Step 2: 管理员登录 ────────────────────────────────────────
-  const username = await ask(rl, '管理员用户名: ');
+  const username = await ask(rl, "管理员用户名: ");
   if (!username) {
-    console.log('  ❌ 用户名不能为空\n');
+    console.log("  ❌ 用户名不能为空\n");
     rl.close();
     return;
   }
 
-  const password = await ask(rl, '管理员密码: ');
+  const password = await ask(rl, "管理员密码: ");
   if (!password) {
-    console.log('  ❌ 密码不能为空\n');
+    console.log("  ❌ 密码不能为空\n");
     rl.close();
     return;
   }
 
-  console.log('\n→ 正在登录...');
+  console.log("\n→ 正在登录...");
   let token: string;
   try {
     token = await login(apiBase, username, password);
-    console.log('  ✅ 登录成功\n');
+    console.log("  ✅ 登录成功\n");
   } catch (err) {
     console.error(`  ❌ ${(err as Error).message}\n`);
     rl.close();
@@ -317,7 +319,7 @@ async function main() {
   }
 
   // ── Step 3: 扫描 Markdown 文件 ────────────────────────────────
-  const articlesDir = path.resolve(__dirname, '../docs/blog/articles');
+  const articlesDir = path.resolve(__dirname, "../docs/blog/articles");
   const mdFiles = scanMarkdownFiles(articlesDir);
 
   if (mdFiles.length === 0) {
@@ -335,7 +337,9 @@ async function main() {
       console.log(`  📄 ${article.filename}`);
       console.log(`     标题: ${article.title}`);
       if (article.excerpt) {
-        console.log(`     摘要: ${article.excerpt.slice(0, 60)}${article.excerpt.length > 60 ? '...' : ''}`);
+        console.log(
+          `     摘要: ${article.excerpt.slice(0, 60)}${article.excerpt.length > 60 ? "..." : ""}`,
+        );
       }
       console.log(`     正文: ${article.content.length} 字符\n`);
     } catch (err) {
@@ -344,26 +348,30 @@ async function main() {
   }
 
   if (articles.length === 0) {
-    console.log('  没有可导入的文章，退出。\n');
+    console.log("  没有可导入的文章，退出。\n");
     rl.close();
     return;
   }
 
   // ── Step 4: 选择导入状态 ──────────────────────────────────────
-  const statusInput = await ask(rl, '导入状态 (1=发布, 2=草稿, 默认 1): ');
-  const status: 'DRAFT' | 'PUBLISHED' = statusInput === '2' ? 'DRAFT' : 'PUBLISHED';
-  console.log(`  → 状态: ${status === 'PUBLISHED' ? '已发布' : '草稿'}\n`);
+  const statusInput = await ask(rl, "导入状态 (1=发布, 2=草稿, 默认 1): ");
+  const status: "DRAFT" | "PUBLISHED" =
+    statusInput === "2" ? "DRAFT" : "PUBLISHED";
+  console.log(`  → 状态: ${status === "PUBLISHED" ? "已发布" : "草稿"}\n`);
 
   // ── Step 5: 确认导入 ──────────────────────────────────────────
-  console.log('  即将导入以下文章:');
+  console.log("  即将导入以下文章:");
   articles.forEach((a, i) => {
     console.log(`    ${i + 1}. ${a.title}`);
   });
-  console.log('');
+  console.log("");
 
-  const confirm = await ask(rl, `确认导入以上 ${articles.length} 篇文章? (y/N): `);
-  if (confirm.toLowerCase() !== 'y') {
-    console.log('\n  已取消，未作任何修改。\n');
+  const confirm = await ask(
+    rl,
+    `确认导入以上 ${articles.length} 篇文章? (y/N): `,
+  );
+  if (confirm.toLowerCase() !== "y") {
+    console.log("\n  已取消，未作任何修改。\n");
     rl.close();
     return;
   }
@@ -371,7 +379,7 @@ async function main() {
   rl.close();
 
   // ── Step 6: 批量导入 ──────────────────────────────────────────
-  console.log('\n→ 开始批量导入...\n');
+  console.log("\n→ 开始批量导入...\n");
 
   let successCount = 0;
   let failCount = 0;
@@ -384,7 +392,7 @@ async function main() {
       process.stdout.write(`  ${prefix} 正在导入: ${article.title} ... `);
       const result = await createArticle(apiBase, token, article, status);
       successCount++;
-      console.log(`✅ 成功 (ID: ${result.id || 'ok'})`);
+      console.log(`✅ 成功 (ID: ${result.id || "ok"})`);
     } catch (err) {
       failCount++;
       console.log(`❌ 失败`);
@@ -393,23 +401,23 @@ async function main() {
   }
 
   // ── 汇总报告 ──────────────────────────────────────────────────
-  console.log('\n=========================================');
-  console.log('  📊 导入完成');
-  console.log('=========================================');
+  console.log("\n=========================================");
+  console.log("  📊 导入完成");
+  console.log("=========================================");
   console.log(`  总计: ${articles.length} 篇`);
   console.log(`  ✅ 成功: ${successCount} 篇`);
   console.log(`  ❌ 失败: ${failCount} 篇`);
-  console.log(`  状态: ${status === 'PUBLISHED' ? '已发布' : '草稿'}`);
+  console.log(`  状态: ${status === "PUBLISHED" ? "已发布" : "草稿"}`);
 
   if (successCount > 0) {
-    console.log('\n  💡 后台会自动翻译文章到英文，请稍后查看翻译进度。');
-    console.log('  💡 如需设置分类/标签，请在后台编辑文章。');
+    console.log("\n  💡 后台会自动翻译文章到英文，请稍后查看翻译进度。");
+    console.log("  💡 如需设置分类/标签，请在后台编辑文章。");
   }
 
-  console.log('');
+  console.log("");
 }
 
 main().catch((err: Error) => {
-  console.error('\n❌ 脚本执行失败:', err.message);
+  console.error("\n❌ 脚本执行失败:", err.message);
   process.exit(1);
 });

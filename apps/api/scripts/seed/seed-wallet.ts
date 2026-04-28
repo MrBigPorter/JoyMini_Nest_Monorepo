@@ -15,7 +15,7 @@ import { createHash } from 'crypto';
 const db = new PrismaClient();
 
 const TEST_PHONE = '+639171234567';
-const WALLET     = { realBalance: 5000, coinBalance: 1000 };
+const WALLET = { realBalance: 5000, coinBalance: 1000 };
 
 export async function seedTestUserWallet() {
   let user = await db.user.findUnique({ where: { phone: TEST_PHONE } });
@@ -23,11 +23,11 @@ export async function seedTestUserWallet() {
   if (!user) {
     user = await db.user.create({
       data: {
-        phone:      TEST_PHONE,
-        phoneMd5:   createHash('md5').update(TEST_PHONE).digest('hex'),
-        nickname:   '🧪 Test User',
+        phone: TEST_PHONE,
+        phoneMd5: createHash('md5').update(TEST_PHONE).digest('hex'),
+        nickname: '🧪 Test User',
         inviteCode: 'TESTUSER',
-        status:     1,
+        status: 1,
       },
     });
     console.log(`   Test User        created  id=${user.id}`);
@@ -36,11 +36,13 @@ export async function seedTestUserWallet() {
   }
 
   await db.userWallet.upsert({
-    where:  { userId: user.id },
+    where: { userId: user.id },
     update: WALLET,
     create: { userId: user.id, ...WALLET },
   });
-  console.log(`   Test Wallet      realBalance=₱${WALLET.realBalance}  coins=${WALLET.coinBalance}`);
+  console.log(
+    `   Test Wallet      realBalance=₱${WALLET.realBalance}  coins=${WALLET.coinBalance}`,
+  );
 }
 
 // 直接运行该文件：node/ts-node 执行

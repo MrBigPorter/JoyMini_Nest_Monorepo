@@ -3,6 +3,7 @@
 ## Problem
 
 Currently, the sidebar navigation has duplicate/overlapping icons:
+
 - **Categories** and **Tags** both use the `Tag` icon → visually identical
 - **Articles** uses `FileText` which is **also used as the logo icon** → visual confusion
 
@@ -10,20 +11,21 @@ The user wants **each visible sidebar navigation item** to have a unique, visual
 
 ## Current vs Proposed Icons
 
-| Route | Current Icon | New Icon | lucide-react Import | Notes |
-|-------|-------------|----------|-------------------|-------|
-| **Dashboard** | `LayoutDashboard` | `LayoutDashboard` (keep) | `LayoutDashboard` | Already unique, keep as-is |
-| **Articles** | `FileText` | `Newspaper` | `Newspaper` | More semantic for articles; no longer conflicts with logo |
-| **Categories** | `Tag` | `FolderTree` | `FolderTree` | Tree/hierarchy icon fits categories; already used in admin-next |
-| **Tags** | `Tag` | `Tags` | `Tags` | Multi-tag icon, clearly distinct from FolderTree |
-| **Comments** | `MessageSquare` | `MessageCircle` | `MessageCircle` | Different speech bubble shape |
-| **Settings** | `Settings` | `Cog` | `Cog` | Classic gear icon, very distinct |
+| Route          | Current Icon      | New Icon                 | lucide-react Import | Notes                                                           |
+| -------------- | ----------------- | ------------------------ | ------------------- | --------------------------------------------------------------- |
+| **Dashboard**  | `LayoutDashboard` | `LayoutDashboard` (keep) | `LayoutDashboard`   | Already unique, keep as-is                                      |
+| **Articles**   | `FileText`        | `Newspaper`              | `Newspaper`         | More semantic for articles; no longer conflicts with logo       |
+| **Categories** | `Tag`             | `FolderTree`             | `FolderTree`        | Tree/hierarchy icon fits categories; already used in admin-next |
+| **Tags**       | `Tag`             | `Tags`                   | `Tags`              | Multi-tag icon, clearly distinct from FolderTree                |
+| **Comments**   | `MessageSquare`   | `MessageCircle`          | `MessageCircle`     | Different speech bubble shape                                   |
+| **Settings**   | `Settings`        | `Cog`                    | `Cog`               | Classic gear icon, very distinct                                |
 
 ## Files to Modify
 
 ### 1. `apps/admin-blog/src/routes/index.ts`
 
 **Update imports** (lines 2-10):
+
 - Replace `Tag` with `Tags` (plural)
 - Remove `MessageSquare`
 - Add `Newspaper`, `FolderTree`, `MessageCircle`, `Cog`
@@ -31,6 +33,7 @@ The user wants **each visible sidebar navigation item** to have a unique, visual
 - Keep `LayoutDashboard`, `Sparkles`, `Search`, `Settings` (unchanged)
 
 **Before:**
+
 ```typescript
 import {
   LayoutDashboard,
@@ -40,10 +43,11 @@ import {
   Sparkles,
   Search,
   Settings,
-} from 'lucide-react';
+} from "lucide-react";
 ```
 
 **After:**
+
 ```typescript
 import {
   LayoutDashboard,
@@ -56,10 +60,11 @@ import {
   Search,
   Settings,
   Cog,
-} from 'lucide-react';
+} from "lucide-react";
 ```
 
 **Update route icon assignments** (lines 24-96):
+
 - Line 30: `articles` → `icon: Newspaper,`
 - Line 50: `categories` → `icon: FolderTree,`
 - Line 56: `tags` → `icon: Tags,`
@@ -69,6 +74,7 @@ import {
 ### 2. `apps/admin-blog/src/components/layout/Sidebar.tsx`
 
 **Update imports** (lines 7-19):
+
 - Replace `Tag` with `Tags`
 - Remove `MessageSquare`
 - Add `Newspaper`, `FolderTree`, `MessageCircle`, `Cog`
@@ -76,6 +82,7 @@ import {
 - Keep `LayoutDashboard`, `Sparkles`, `Search`, `Image`, `ChevronLeft`, `ChevronRight`, `LogOut`, `X`
 
 **Before:**
+
 ```typescript
 import {
   LayoutDashboard,
@@ -89,10 +96,11 @@ import {
   LogOut,
   X,
   Image,
-} from 'lucide-react';
+} from "lucide-react";
 ```
 
 **After:**
+
 ```typescript
 import {
   LayoutDashboard,
@@ -109,15 +117,17 @@ import {
   LogOut,
   X,
   Image,
-} from 'lucide-react';
+} from "lucide-react";
 ```
 
 **Update SIDEBAR_ICONS map** (lines 27-35):
+
 - Replace `Tag` with `Tags`
 - Replace `MessageSquare` with `MessageCircle`
 - Add `Newspaper`, `FolderTree`, `Cog`
 
 **Before:**
+
 ```typescript
 const SIDEBAR_ICONS: Record<string, ...> = {
   LayoutDashboard,
@@ -131,6 +141,7 @@ const SIDEBAR_ICONS: Record<string, ...> = {
 ```
 
 **After:**
+
 ```typescript
 const SIDEBAR_ICONS: Record<string, ...> = {
   LayoutDashboard,

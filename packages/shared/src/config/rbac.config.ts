@@ -1,4 +1,8 @@
-import { OpModule, OpAction, OpModuleLabel } from "../constants/operation-log.constants";
+import {
+  OpModule,
+  OpAction,
+  OpModuleLabel,
+} from "../constants/operation-log.constants";
 import { Role } from "../types/enums";
 
 /**
@@ -85,7 +89,10 @@ export const RolePermissions = {
  * 角色展示名称（中英文）
  * 用于前端 RBAC 权限管理界面
  */
-export const RoleDescriptions: Record<Role, { en: string; zh: string; description: string }> = {
+export const RoleDescriptions: Record<
+  Role,
+  { en: string; zh: string; description: string }
+> = {
   [Role.SUPER_ADMIN]: {
     en: "Super Admin",
     zh: "超级管理员",
@@ -117,4 +124,3 @@ export const RoleDescriptions: Record<Role, { en: string; zh: string; descriptio
  * Re-export OpModuleLabel for frontend convenience
  */
 export { OpModuleLabel };
-

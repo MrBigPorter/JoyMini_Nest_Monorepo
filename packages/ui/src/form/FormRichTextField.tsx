@@ -28,7 +28,9 @@ export const FormRichTextField = ({
 }: FormRichTextFieldProps) => {
   const { control } = useFormContext();
   // 懒加载 ReactQuill：useEffect 只在客户端执行，避免 SSR 崩溃
-  const [ReactQuill, setReactQuill] = useState<typeof ReactQuillType | null>(null);
+  const [ReactQuill, setReactQuill] = useState<typeof ReactQuillType | null>(
+    null,
+  );
   const quillRef = useRef<ReactQuillType>(null);
 
   useEffect(() => {
@@ -132,7 +134,6 @@ export const FormRichTextField = ({
               />
             )}
           </div>
-
 
           {error && (
             <span className="text-xs text-red-500">{error.message}</span>

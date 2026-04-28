@@ -1,23 +1,23 @@
-'use client';
+"use client";
 
-import React, { useCallback, useEffect } from 'react';
-import { Modal, Button } from '@/components/UIComponents';
-import { Form, FormSelectField, FormTextareaField } from '@repo/ui/form';
-import { useBlogForm } from '@/hooks/useBlogForm';
+import React, { useCallback, useEffect } from "react";
+import { Modal, Button } from "@/components/UIComponents";
+import { Form, FormSelectField, FormTextareaField } from "@repo/ui/form";
+import { useBlogForm } from "@/hooks/useBlogForm";
 import {
   commentModerationSchema,
   type CommentModerationInputs,
-} from '@/schema/blog';
-import { blogApi } from '@/api';
-import { useRequest } from 'ahooks';
-import { useLanguage } from '@/hooks/LanguageProvider';
-import { useLocalizedFormV2 } from '@/hooks/useLocalizedFormV2';
-import { LanguageSwitch } from '@/components/blog/LanguageSwitch';
+} from "@/schema/blog";
+import { blogApi } from "@/api";
+import { useRequest } from "ahooks";
+import { useLanguage } from "@/hooks/LanguageProvider";
+import { useLocalizedFormV2 } from "@/hooks/useLocalizedFormV2";
+import { LanguageSwitch } from "@/components/blog/LanguageSwitch";
 import {
   extractCurrentLocaleValue,
   normalizeLocalizedValue,
-} from '@/utils/localizedForm';
-import { useTranslation } from '@/hooks/useTranslation';
+} from "@/utils/localizedForm";
+import { useTranslation } from "@/hooks/useTranslation";
 
 interface BlogCommentModalProps {
   isOpen: boolean;
@@ -56,16 +56,16 @@ export const BlogCommentModal: React.FC<BlogCommentModalProps> = ({
   const getDefaultValues = useCallback(() => {
     if (!editingComment) {
       return {
-        status: 'PENDING' as const,
-        reply: { zh: '', en: '' },
+        status: "PENDING" as const,
+        reply: { zh: "", en: "" },
       };
     }
 
-    const status = editingComment.status || 'PENDING';
+    const status = editingComment.status || "PENDING";
 
     return {
       ...editingComment,
-      status: status as 'PENDING' | 'APPROVED' | 'REJECTED' | 'SPAM',
+      status: status as "PENDING" | "APPROVED" | "REJECTED" | "SPAM",
       reply: normalizeLocalizedValue(editingComment.reply),
     };
   }, [editingComment]);
@@ -88,7 +88,7 @@ export const BlogCommentModal: React.FC<BlogCommentModalProps> = ({
     setValue: form.setValue,
     getValues: form.getValues,
     locale,
-    availableLocales: ['zh', 'en'],
+    availableLocales: ["zh", "en"],
   });
 
   useEffect(() => {
@@ -104,31 +104,31 @@ export const BlogCommentModal: React.FC<BlogCommentModalProps> = ({
     <Modal
       isOpen={isOpen}
       onCloseAction={onCloseAction}
-      title={t('blog_comments_modalTitle')}
+      title={t("blog_comments_modalTitle")}
       size="md"
     >
       <Form {...form}>
         <form onSubmit={submitHandler} className="space-y-4">
           <FormSelectField
-            label={t('status')}
+            label={t("status")}
             options={[
-              { label: t('blog_comments_pending'), value: 'PENDING' },
-              { label: t('blog_comments_approved'), value: 'APPROVED' },
-              { label: t('blog_comments_rejected'), value: 'REJECTED' },
-              { label: t('blog_comments_spam'), value: 'SPAM' },
+              { label: t("blog_comments_pending"), value: "PENDING" },
+              { label: t("blog_comments_approved"), value: "APPROVED" },
+              { label: t("blog_comments_rejected"), value: "REJECTED" },
+              { label: t("blog_comments_spam"), value: "SPAM" },
             ]}
-            {...register('status')}
+            {...register("status")}
           />
           <div className="flex justify-between items-center">
             <h3 className="text-sm font-medium">
-              {t('blog_comments_replyOptional')}
+              {t("blog_comments_replyOptional")}
             </h3>
             <LanguageSwitch />
           </div>
           <FormTextareaField
             label=""
-            placeholder={t('blog_comments_replyPlaceholder')}
-            {...localize('reply')}
+            placeholder={t("blog_comments_replyPlaceholder")}
+            {...localize("reply")}
           />
           <div className="flex justify-end space-x-3 pt-4">
             <Button
@@ -137,10 +137,10 @@ export const BlogCommentModal: React.FC<BlogCommentModalProps> = ({
               onClick={onCloseAction}
               disabled={loading}
             >
-              {t('cancel')}
+              {t("cancel")}
             </Button>
             <Button type="submit" isLoading={loading}>
-              {t('update')}
+              {t("update")}
             </Button>
           </div>
         </form>

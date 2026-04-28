@@ -9,10 +9,7 @@
  * 幂等: ActSection 按 key (@unique) upsert；ActSectionItem 按 (sectionId, treasureId) 查重
  */
 import { PrismaClient } from '@prisma/client';
-import {
-  createTreasureResolver,
-  TreasureRefInput,
-} from './treasure-ref';
+import { createTreasureResolver, TreasureRefInput } from './treasure-ref';
 
 const db = new PrismaClient();
 const resolveTreasure = createTreasureResolver(db);

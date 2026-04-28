@@ -9,22 +9,22 @@
  * @returns 标准化的多语言对象 {zh: string, en: string, ...}
  */
 export function normalizeLocalizedValue(value: any): Record<string, string> {
-  if (!value) return { zh: '', en: '' };
+  if (!value) return { zh: "", en: "" };
 
-  if (typeof value === 'string') {
-    return { zh: value, en: '' };
+  if (typeof value === "string") {
+    return { zh: value, en: "" };
   }
 
-  if (typeof value === 'object') {
+  if (typeof value === "object") {
     // 确保至少包含 zh 和 en 键
     return {
-      zh: value.zh || '',
-      en: value.en || '',
+      zh: value.zh || "",
+      en: value.en || "",
       ...value,
     };
   }
 
-  return { zh: '', en: '' };
+  return { zh: "", en: "" };
 }
 
 /**
@@ -35,7 +35,7 @@ export function normalizeLocalizedValue(value: any): Record<string, string> {
  */
 export function extractCurrentLocaleValue(value: any, locale: string): string {
   const normalized = normalizeLocalizedValue(value);
-  return normalized[locale] || normalized['zh'] || normalized['en'] || '';
+  return normalized[locale] || normalized["zh"] || normalized["en"] || "";
 }
 
 /**
@@ -48,9 +48,9 @@ export function extractCurrentLocaleValue(value: any, locale: string): string {
 export function getSafeLocalizedValue(
   obj: any,
   locale: string,
-  fallback: string = '',
+  fallback: string = "",
 ): string {
-  if (!obj || typeof obj !== 'object') return fallback;
+  if (!obj || typeof obj !== "object") return fallback;
 
   // 优先使用当前语言
   if (obj[locale] !== undefined && obj[locale] !== null) {
@@ -82,11 +82,11 @@ export function getSafeLocalizedValue(
  * @returns 是否为多语言对象
  */
 export function isLocalizedObject(value: any): boolean {
-  if (!value || typeof value !== 'object') return false;
+  if (!value || typeof value !== "object") return false;
 
   // 检查是否包含常见的语言键
   const hasLanguageKey = Object.keys(value).some((key) =>
-    ['zh', 'en', 'ja', 'ko', 'fr', 'de'].includes(key),
+    ["zh", "en", "ja", "ko", "fr", "de"].includes(key),
   );
 
   return hasLanguageKey;
@@ -100,9 +100,9 @@ export function isLocalizedObject(value: any): boolean {
  */
 export function stringToLocalizedObject(
   value: string,
-  locale: string = 'zh',
+  locale: string = "zh",
 ): Record<string, string> {
-  const result: Record<string, string> = { zh: '', en: '' };
-  result[locale] = value || '';
+  const result: Record<string, string> = { zh: "", en: "" };
+  result[locale] = value || "";
   return result;
 }

@@ -2,12 +2,12 @@
 
 ## 现有 CI/CD 文件对比
 
-| 文件 | 用途 | 平台 |
-|------|------|------|
-| `.github/workflows/deploy-admin-cloudflare.yml` | admin-next 部署 | GitHub Actions |
-| `.github/workflows/deploy-blog-cloudflare.yml` | frontend-blog 部署 | GitHub Actions |
-| `.gitlab/deploy-admin.yml` | admin-next 部署 | GitLab CI |
-| `.gitlab/deploy-blog.yml` | frontend-blog 部署 | GitLab CI |
+| 文件                                            | 用途               | 平台           |
+| ----------------------------------------------- | ------------------ | -------------- |
+| `.github/workflows/deploy-admin-cloudflare.yml` | admin-next 部署    | GitHub Actions |
+| `.github/workflows/deploy-blog-cloudflare.yml`  | frontend-blog 部署 | GitHub Actions |
+| `.gitlab/deploy-admin.yml`                      | admin-next 部署    | GitLab CI      |
+| `.gitlab/deploy-blog.yml`                       | frontend-blog 部署 | GitLab CI      |
 
 ## 可公用的部分
 
@@ -15,24 +15,25 @@
 
 以下步骤在 admin-next 和 frontend-blog 的 workflow 中**完全相同**：
 
-| 步骤 | 说明 |
-|------|------|
-| Checkout Code | `actions/checkout@v4` |
-| Setup Node.js 20 | `actions/setup-node@v4` |
-| Enable Corepack | `corepack enable && corepack prepare yarn@4.9.2 --activate` |
-| Cache Yarn zip cache | `actions/cache@v4` with `yarn-${{ hashFiles('yarn.lock') }}` |
-| Cache node_modules | `actions/cache@v4` with app-specific key |
-| Install Dependencies | `yarn install --immutable` |
-| Build shared packages | `node packages/shared/scripts/build.js && node packages/ui/scripts/build.js` |
-| Validate Cloudflare Secrets | curl verify + error messages (完全一样) |
-| Deploy to Cloudflare | `yarn exec opennextjs-cloudflare deploy -c wrangler.jsonc` |
-| Create GitHub Deployment Record | curl POST (完全一样) |
-| Mark GitHub Deployment Success | curl POST (完全一样) |
-| Smoke Check | curl healthcheck URL (逻辑一样，URL 不同) |
-| Publish Deployment Summary | echo to GITHUB_STEP_SUMMARY (完全一样) |
-| Send Telegram Notification | curl to Telegram API (完全一样) |
+| 步骤                            | 说明                                                                         |
+| ------------------------------- | ---------------------------------------------------------------------------- |
+| Checkout Code                   | `actions/checkout@v4`                                                        |
+| Setup Node.js 20                | `actions/setup-node@v4`                                                      |
+| Enable Corepack                 | `corepack enable && corepack prepare yarn@4.9.2 --activate`                  |
+| Cache Yarn zip cache            | `actions/cache@v4` with `yarn-${{ hashFiles('yarn.lock') }}`                 |
+| Cache node_modules              | `actions/cache@v4` with app-specific key                                     |
+| Install Dependencies            | `yarn install --immutable`                                                   |
+| Build shared packages           | `node packages/shared/scripts/build.js && node packages/ui/scripts/build.js` |
+| Validate Cloudflare Secrets     | curl verify + error messages (完全一样)                                      |
+| Deploy to Cloudflare            | `yarn exec opennextjs-cloudflare deploy -c wrangler.jsonc`                   |
+| Create GitHub Deployment Record | curl POST (完全一样)                                                         |
+| Mark GitHub Deployment Success  | curl POST (完全一样)                                                         |
+| Smoke Check                     | curl healthcheck URL (逻辑一样，URL 不同)                                    |
+| Publish Deployment Summary      | echo to GITHUB_STEP_SUMMARY (完全一样)                                       |
+| Send Telegram Notification      | curl to Telegram API (完全一样)                                              |
 
 **差异点（每个 app 不同）：**
+
 - `working-directory`: `apps/admin-next` vs `apps/frontend-blog` vs `apps/admin-blog`
 - Cache key prefix: `nm-admin` vs `nm-blog` vs `nm-admin-blog`
 - Turbo cache key prefix: `turbo-admin` vs `turbo-blog`
@@ -45,6 +46,7 @@
 ### 2. GitLab CI — 可提取为 Hidden Job Template
 
 以下步骤完全相同：
+
 - `corepack enable && corepack prepare yarn@4.9.2 --activate`
 - `yarn install --immutable`
 - `node packages/shared/scripts/build.js && node packages/ui/scripts/build.js`
@@ -59,16 +61,16 @@
 
 **输入参数：**
 
-| 参数 | 说明 | 示例 |
-|------|------|------|
-| `app-name` | 应用目录名 | `admin-next` |
-| `workspace-name` | Yarn workspace 名 | `@lucky/admin-next` |
-| `cache-prefix` | 缓存 key 前缀 | `admin` |
-| `worker-name` | Cloudflare Worker 名 | `lucky-admin-prod` |
-| `prod-url` | 生产环境 URL | `https://admin.joyminis.com` |
-| `dev-url` | 预览环境 URL | `https://admin-dev.joyminis.com` |
-| `healthcheck-url-secret` | Healthcheck URL secret 名 | `CF_ADMIN_HEALTHCHECK_URL` |
-| `env-vars` | 构建环境变量（JSON） | `{"NEXT_PUBLIC_API_BASE_URL": "...", ...}` |
+| 参数                     | 说明                      | 示例                                       |
+| ------------------------ | ------------------------- | ------------------------------------------ |
+| `app-name`               | 应用目录名                | `admin-next`                               |
+| `workspace-name`         | Yarn workspace 名         | `@lucky/admin-next`                        |
+| `cache-prefix`           | 缓存 key 前缀             | `admin`                                    |
+| `worker-name`            | Cloudflare Worker 名      | `lucky-admin-prod`                         |
+| `prod-url`               | 生产环境 URL              | `https://admin.joyminis.com`               |
+| `dev-url`                | 预览环境 URL              | `https://admin-dev.joyminis.com`           |
+| `healthcheck-url-secret` | Healthcheck URL secret 名 | `CF_ADMIN_HEALTHCHECK_URL`                 |
+| `env-vars`               | 构建环境变量（JSON）      | `{"NEXT_PUBLIC_API_BASE_URL": "...", ...}` |
 
 **每个 app 的 workflow 变成：**
 
@@ -91,8 +93,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
       - run: corepack enable && corepack prepare yarn@4.9.2 --activate
-      - uses: actions/cache@v4  # yarn cache
-      - uses: actions/cache@v4  # node_modules
+      - uses: actions/cache@v4 # yarn cache
+      - uses: actions/cache@v4 # node_modules
       - run: yarn install --immutable
       - run: node packages/shared/scripts/build.js && node packages/ui/scripts/build.js
       - run: yarn workspace @lucky/admin-next lint
@@ -148,6 +150,7 @@ jobs:
 ### Step 2: 创建 GitHub Actions Reusable Workflow
 
 **`.github/workflows/deploy-cloudflare-reusable.yml`** — 包含：
+
 - Setup + Cache + Install
 - Build shared packages
 - Prepare build metadata

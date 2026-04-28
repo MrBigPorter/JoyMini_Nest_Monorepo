@@ -8,4 +8,3 @@
   },
   "include": ["scripts/cli/**/*.ts", "scripts/seed/**/*.ts"]
 }
-

@@ -1,28 +1,28 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
-import { Save, Send, Loader2, Info } from 'lucide-react';
-import Link from 'next/link';
-import { useRequest } from 'ahooks';
-import { useToastStore } from '@/store/useToastStore';
-import { uploadApi, blogApi } from '@/api';
-import { RichTextEditor } from '@/components/blog/RichTextEditor';
-import { PageHeader } from '@/components/scaffold/PageHeader';
-import { Card } from '@/components/UIComponents';
-import { SmartImage } from '@/components/ui/SmartImage';
-import { useBlogLocalizedForm } from '@/hooks/useBlogLocalizedForm';
-import { articleSchema, type ArticleFormInputs } from '@/schema/blog';
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { Save, Send, Loader2, Info } from "lucide-react";
+import Link from "next/link";
+import { useRequest } from "ahooks";
+import { useToastStore } from "@/store/useToastStore";
+import { uploadApi, blogApi } from "@/api";
+import { RichTextEditor } from "@/components/blog/RichTextEditor";
+import { PageHeader } from "@/components/scaffold/PageHeader";
+import { Card } from "@/components/UIComponents";
+import { SmartImage } from "@/components/ui/SmartImage";
+import { useBlogLocalizedForm } from "@/hooks/useBlogLocalizedForm";
+import { articleSchema, type ArticleFormInputs } from "@/schema/blog";
 import {
   Form,
   FormTextField,
   FormTextareaField,
   FormSelectField,
   FormMediaUploaderField,
-} from '@repo/ui/form';
-import { useLanguage } from '@/hooks/LanguageProvider';
-import { LanguageSwitch } from '@/components/blog/LanguageSwitch';
-import { useTranslation } from '@/hooks/useTranslation';
+} from "@repo/ui/form";
+import { useLanguage } from "@/hooks/LanguageProvider";
+import { LanguageSwitch } from "@/components/blog/LanguageSwitch";
+import { useTranslation } from "@/hooks/useTranslation";
 
 export default function CreateArticlePage() {
   const router = useRouter();
@@ -50,12 +50,12 @@ export default function CreateArticlePage() {
   const blogForm = useBlogLocalizedForm({
     schema: articleSchema,
     defaultValues: {
-      title: { zh: '', en: '' },
-      content: { zh: '', en: '' },
-      excerpt: { zh: '', en: '' },
-      categoryId: '',
+      title: { zh: "", en: "" },
+      content: { zh: "", en: "" },
+      excerpt: { zh: "", en: "" },
+      categoryId: "",
       tagIds: [],
-      status: 'DRAFT',
+      status: "DRAFT",
       featured: false,
       featuredImage: {},
     },
@@ -64,7 +64,7 @@ export default function CreateArticlePage() {
         // 处理精选图片上传
         const processedData = { ...data };
         const featuredImage = data.featuredImage;
-        if (featuredImage && typeof featuredImage === 'object') {
+        if (featuredImage && typeof featuredImage === "object") {
           for (const lang of Object.keys(featuredImage)) {
             const value = featuredImage[lang];
             if (value instanceof File) {
@@ -91,11 +91,11 @@ export default function CreateArticlePage() {
             });
         }
 
-        addToast('success', t('toastCreated'));
-        router.push('/blog/articles');
+        addToast("success", t("toastCreated"));
+        router.push("/blog/articles");
       } catch (error) {
-        console.error('Failed to create article:', error);
-        addToast('error', t('toastCreateFailed'));
+        console.error("Failed to create article:", error);
+        addToast("error", t("toastCreateFailed"));
         throw error;
       }
     },
@@ -123,12 +123,12 @@ export default function CreateArticlePage() {
     try {
       const res = await uploadApi.uploadMedia(file, onProgress);
       // Track video keys to trigger HLS transcoding after article creation
-      if (file.type.startsWith('video/') && res.key) {
+      if (file.type.startsWith("video/") && res.key) {
         videoKeysRef.current.push(res.key);
       }
       return res.url;
     } catch (error) {
-      addToast('error', t('toastUploadFailed'));
+      addToast("error", t("toastUploadFailed"));
       throw error;
     }
   };
@@ -146,8 +146,8 @@ export default function CreateArticlePage() {
         setCategories(categoriesRes.list || []);
         setTags(tagsRes.list || []);
       } catch (error) {
-        console.error('Failed to fetch categories/tags:', error);
-        addToast('error', t('toastLoadFailed'));
+        console.error("Failed to fetch categories/tags:", error);
+        addToast("error", t("toastLoadFailed"));
       } finally {
         setLoadingCategories(false);
         setLoadingTags(false);
@@ -157,11 +157,11 @@ export default function CreateArticlePage() {
   }, [addToast, t]);
 
   const handleTagToggle = (tagId: string) => {
-    const currentTagIds = watch('tagIds') || [];
+    const currentTagIds = watch("tagIds") || [];
     const newTagIds = currentTagIds.includes(tagId)
       ? currentTagIds.filter((id: string) => id !== tagId)
       : [...currentTagIds, tagId];
-    setValue('tagIds', newTagIds);
+    setValue("tagIds", newTagIds);
   };
 
   const handleSaveClick = () => {
@@ -174,16 +174,16 @@ export default function CreateArticlePage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title={t('pageTitle')}
-        description={t('pageDescription')}
+        title={t("pageTitle")}
+        description={t("pageDescription")}
         showBackButton={true}
-        onBack={() => router.push('/blog/articles')}
+        onBack={() => router.push("/blog/articles")}
         breadcrumbs={[
-          t('breadcrumbBlog'),
-          t('breadcrumbArticles'),
-          t('breadcrumbCreate'),
+          t("breadcrumbBlog"),
+          t("breadcrumbArticles"),
+          t("breadcrumbCreate"),
         ]}
-        buttonText={t('saveArticle')}
+        buttonText={t("saveArticle")}
         buttonOnClick={handleSaveClick}
         buttonPrefixIcon={
           isLoading ? (
@@ -192,11 +192,11 @@ export default function CreateArticlePage() {
             <Save size={18} />
           )
         }
-        buttonDisabled={isLoading || !watch('title.zh') || !watch('content.zh')}
-        secondaryButtonText={t('cancel')}
-        secondaryButtonOnClick={() => router.push('/blog/articles')}
-        tertiaryButtonText={t('publishArticle')}
-        tertiaryButtonOnClick={() => setValue('status', 'PUBLISHED')}
+        buttonDisabled={isLoading || !watch("title.zh") || !watch("content.zh")}
+        secondaryButtonText={t("cancel")}
+        secondaryButtonOnClick={() => router.push("/blog/articles")}
+        tertiaryButtonText={t("publishArticle")}
+        tertiaryButtonOnClick={() => setValue("status", "PUBLISHED")}
         tertiaryButtonIcon={<Send size={18} />}
         tertiaryButtonVariant="success"
       />
@@ -205,30 +205,30 @@ export default function CreateArticlePage() {
         <Form {...form}>
           <form onSubmit={submitHandler} className="space-y-6">
             <div className="flex justify-between items-center">
-              <h3 className="text-sm font-medium">{t('articleContent')}</h3>
+              <h3 className="text-sm font-medium">{t("articleContent")}</h3>
               <LanguageSwitch />
             </div>
 
             {/* Title */}
             <FormTextField
-              label={t('articleTitle')}
-              placeholder={t('articleTitlePlaceholder')}
+              label={t("articleTitle")}
+              placeholder={t("articleTitlePlaceholder")}
               required
-              {...localize('title')}
+              {...localize("title")}
             />
 
             {/* Excerpt */}
             <FormTextareaField
-              label={t('articleExcerpt')}
-              placeholder={t('articleExcerptPlaceholder')}
-              {...localize('excerpt')}
+              label={t("articleExcerpt")}
+              placeholder={t("articleExcerptPlaceholder")}
+              {...localize("excerpt")}
             />
 
             {/* Category */}
             <FormSelectField
               name="categoryId"
-              label={t('category')}
-              placeholder={t('selectCategory')}
+              label={t("category")}
+              placeholder={t("selectCategory")}
               options={categories.map((c) => ({
                 label: (c.name as Record<string, string>)[locale] || c.name.zh,
                 value: c.id,
@@ -237,18 +237,18 @@ export default function CreateArticlePage() {
 
             {/* Tags */}
             <div className="space-y-2">
-              <label className="text-sm font-medium">{t('tags')}</label>
+              <label className="text-sm font-medium">{t("tags")}</label>
               <div className="flex flex-wrap gap-2">
                 {tags.map((tag) => {
-                  const selected = (watch('tagIds') || []).includes(tag.id);
+                  const selected = (watch("tagIds") || []).includes(tag.id);
                   return (
                     <button
                       key={tag.id}
                       type="button"
                       className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
                         selected
-                          ? 'border-secondary bg-secondary text-secondary-foreground hover:bg-secondary/80'
-                          : 'border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-200'
+                          ? "border-secondary bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                          : "border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-200"
                       }`}
                       onClick={() => handleTagToggle(tag.id)}
                     >
@@ -268,8 +268,8 @@ export default function CreateArticlePage() {
             {/* Featured Image */}
             <div className="p-4 rounded-lg shadow-sm">
               <FormMediaUploaderField
-                {...localize('featuredImage')}
-                label={globalT('blog_articleForm_featuredImage')}
+                {...localize("featuredImage")}
+                label={globalT("blog_articleForm_featuredImage")}
                 maxFileCount={1}
                 renderImage={({ src, alt, className }) => (
                   <SmartImage
@@ -284,7 +284,7 @@ export default function CreateArticlePage() {
                 )}
               />
               <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
-                <Info size={12} /> {globalT('blog_articleForm_recommendedSize')}
+                <Info size={12} /> {globalT("blog_articleForm_recommendedSize")}
               </p>
             </div>
 
@@ -292,26 +292,26 @@ export default function CreateArticlePage() {
             <div className="flex items-center justify-between p-4 border rounded-lg">
               <div>
                 <label className="text-sm font-medium">
-                  {globalT('blog_article_featured')}
+                  {globalT("blog_article_featured")}
                 </label>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  {globalT('blog_article_featuredDescription')}
+                  {globalT("blog_article_featuredDescription")}
                 </p>
               </div>
               <button
                 type="button"
                 role="switch"
-                aria-checked={watch('featured') || false}
-                onClick={() => setValue('featured', !watch('featured'))}
+                aria-checked={watch("featured") || false}
+                onClick={() => setValue("featured", !watch("featured"))}
                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  watch('featured')
-                    ? 'bg-primary'
-                    : 'bg-gray-200 dark:bg-gray-700'
+                  watch("featured")
+                    ? "bg-primary"
+                    : "bg-gray-200 dark:bg-gray-700"
                 }`}
               >
                 <span
                   className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    watch('featured') ? 'translate-x-6' : 'translate-x-1'
+                    watch("featured") ? "translate-x-6" : "translate-x-1"
                   }`}
                 />
               </button>
@@ -320,18 +320,18 @@ export default function CreateArticlePage() {
             {/* Content */}
             <div className="space-y-2">
               <RichTextEditor
-                value={watch(`content.${locale}`) || ''}
+                value={watch(`content.${locale}`) || ""}
                 onChange={(value) => setValue(`content.${locale}`, value)}
-                label={t('articleContentLabel')}
-                placeholder={t('articleContentPlaceholder')}
+                label={t("articleContentLabel")}
+                placeholder={t("articleContentPlaceholder")}
                 required
                 onUpload={handleEditorUpload}
                 error={
-                  !watch(`content.${locale}`) ? t('contentRequired') : undefined
+                  !watch(`content.${locale}`) ? t("contentRequired") : undefined
                 }
               />
               <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <div>{t('editorDescription')}</div>
+                <div>{t("editorDescription")}</div>
                 <div className="space-x-2">
                   <button
                     type="button"
@@ -339,33 +339,33 @@ export default function CreateArticlePage() {
                     onClick={() => {
                       const newContent =
                         watch(`content.${locale}`) +
-                        '\n# Heading\n\nYour content here...';
+                        "\n# Heading\n\nYour content here...";
                       setValue(`content.${locale}`, newContent);
                     }}
                   >
-                    {t('headingBtn')}
+                    {t("headingBtn")}
                   </button>
                   <button
                     type="button"
                     className="px-2 py-1 text-xs rounded border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-200 transition-colors"
                     onClick={() => {
                       const newContent =
-                        watch(`content.${locale}`) + ' **bold text** ';
+                        watch(`content.${locale}`) + " **bold text** ";
                       setValue(`content.${locale}`, newContent);
                     }}
                   >
-                    {t('boldBtn')}
+                    {t("boldBtn")}
                   </button>
                   <button
                     type="button"
                     className="px-2 py-1 text-xs rounded border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-200 transition-colors"
                     onClick={() => {
                       const newContent =
-                        watch(`content.${locale}`) + ' *italic text* ';
+                        watch(`content.${locale}`) + " *italic text* ";
                       setValue(`content.${locale}`, newContent);
                     }}
                   >
-                    {t('italicBtn')}
+                    {t("italicBtn")}
                   </button>
                 </div>
               </div>
@@ -377,16 +377,16 @@ export default function CreateArticlePage() {
                 href="/blog/articles"
                 className="px-4 py-2 text-sm font-medium rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-200 transition-colors"
               >
-                {t('cancel')}
+                {t("cancel")}
               </Link>
               <button
                 type="submit"
                 disabled={
-                  isLoading || !watch('title.zh') || !watch('content.zh')
+                  isLoading || !watch("title.zh") || !watch("content.zh")
                 }
                 className="px-4 py-2 text-sm font-medium rounded-lg bg-primary text-white hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                {isLoading ? t('saving') : t('saveArticle')}
+                {isLoading ? t("saving") : t("saveArticle")}
               </button>
             </div>
           </form>

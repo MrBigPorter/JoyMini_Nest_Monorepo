@@ -18,17 +18,17 @@ export function registerHtml5VideoBlot(Quill: any): void {
   // rather than using a module-level flag. This handles the case where
   // Next.js chunk isolation creates multiple Quill class instances.
   try {
-    if (Quill?.imports?.['formats/html5-video']) return;
+    if (Quill?.imports?.["formats/html5-video"]) return;
   } catch (_) {
     // If imports check fails (e.g. non-standard Quill object), proceed to register
   }
 
-  const BlockEmbed = Quill.import('blots/block/embed');
+  const BlockEmbed = Quill.import("blots/block/embed");
 
   class Html5VideoBlot extends BlockEmbed {
-    static blotName = 'html5-video';
-    static tagName = 'video';
-    static className = 'ql-video';
+    static blotName = "html5-video";
+    static tagName = "video";
+    static className = "ql-video";
 
     static create(url: string) {
       // Create the <video> element using the BlockEmbed's create()
@@ -36,33 +36,33 @@ export function registerHtml5VideoBlot(Quill: any): void {
 
       // Basic attributes to make the video playable and mobile-friendly
       node.controls = true;
-      node.preload = 'metadata';
+      node.preload = "metadata";
       node.playsInline = true;
       // Keep the src attribute for compatibility, but also add a <source>
-      node.setAttribute('src', url);
+      node.setAttribute("src", url);
 
       // Add helpful CSS classes (Tailwind utility classes used in project)
       // Note: Quill will already add 'ql-video' from static.className
-      const existing = node.getAttribute('class') || '';
-      const extra = 'w-full rounded-lg my-4';
-      node.setAttribute('class', `${existing} ${extra}`.trim());
+      const existing = node.getAttribute("class") || "";
+      const extra = "w-full rounded-lg my-4";
+      node.setAttribute("class", `${existing} ${extra}`.trim());
 
       // Try to infer MIME type from URL extension for a proper <source> type
       const extMatch = String(url)
-        .split('?')[0]
+        .split("?")[0]
         .match(/\.([a-zA-Z0-9]+)$/);
-      let mime = '';
+      let mime = "";
       if (extMatch) {
         const ext = extMatch[1].toLowerCase();
-        if (ext === 'mp4') mime = 'video/mp4';
-        else if (ext === 'webm') mime = 'video/webm';
-        else if (ext === 'ogg' || ext === 'ogv') mime = 'video/ogg';
+        if (ext === "mp4") mime = "video/mp4";
+        else if (ext === "webm") mime = "video/webm";
+        else if (ext === "ogg" || ext === "ogv") mime = "video/ogg";
       }
 
       try {
-        const source = document.createElement('source');
-        source.setAttribute('src', url);
-        if (mime) source.setAttribute('type', mime);
+        const source = document.createElement("source");
+        source.setAttribute("src", url);
+        if (mime) source.setAttribute("type", mime);
         node.appendChild(source);
       } catch (e) {
         // In non-DOM environments this may fail — ignore safely
@@ -73,12 +73,12 @@ export function registerHtml5VideoBlot(Quill: any): void {
 
     static value(node: HTMLElement) {
       // Prefer explicit src attribute, fallback to first <source> child
-      const src = node.getAttribute('src');
+      const src = node.getAttribute("src");
       if (src) return src;
-      const source = node.querySelector('source');
-      return (source && source.getAttribute('src')) || '';
+      const source = node.querySelector("source");
+      return (source && source.getAttribute("src")) || "";
     }
   }
 
-  Quill.register('formats/html5-video', Html5VideoBlot, true);
+  Quill.register("formats/html5-video", Html5VideoBlot, true);
 }

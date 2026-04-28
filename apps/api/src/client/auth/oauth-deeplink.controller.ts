@@ -130,9 +130,8 @@ export class OAuthDeepLinkController {
     @Query('state') webState?: string,
   ) {
     const clientId = this.configService.get<string>('APPLE_CLIENT_ID');
-    const redirectUriConfig = this.configService.get<string>(
-      'APPLE_REDIRECT_URI',
-    );
+    const redirectUriConfig =
+      this.configService.get<string>('APPLE_REDIRECT_URI');
 
     const stateData: OAuthStateData = {
       provider: 'apple',

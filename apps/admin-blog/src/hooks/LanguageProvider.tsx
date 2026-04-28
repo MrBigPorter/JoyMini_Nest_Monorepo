@@ -1,10 +1,10 @@
-'use client';
+"use client";
 
-import React, { createContext, useCallback, type ReactNode } from 'react';
-import { useLocale } from 'next-intl';
-import { useRouter } from 'next/navigation';
-import { DEFAULT_LOCALE, type Locale } from '@lucky/shared';
-import { useAppStore } from '@/store/useAppStore';
+import React, { createContext, useCallback, type ReactNode } from "react";
+import { useLocale } from "next-intl";
+import { useRouter } from "next/navigation";
+import { DEFAULT_LOCALE, type Locale } from "@lucky/shared";
+import { useAppStore } from "@/store/useAppStore";
 
 export interface LanguageContextType {
   locale: Locale;
@@ -42,11 +42,11 @@ export function useLanguage() {
 
   const setLocale = useCallback(
     (newLocale: Locale) => {
-      if (typeof document !== 'undefined') {
+      if (typeof document !== "undefined") {
         document.cookie = `app_locale=${newLocale};path=/;max-age=31536000;SameSite=Lax`;
         document.cookie = `NEXT_LOCALE=${newLocale};path=/;max-age=31536000;SameSite=Lax`;
         try {
-          localStorage.setItem('app_locale', newLocale);
+          localStorage.setItem("app_locale", newLocale);
         } catch {
           // ignore
         }

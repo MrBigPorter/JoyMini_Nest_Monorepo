@@ -1,7 +1,7 @@
-import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import { Theme, Language } from '../type/types';
-import { AVAILABLE_LOCALES, DEFAULT_LOCALE } from '@lucky/shared';
+import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
+import { Theme, Language } from "../type/types";
+import { AVAILABLE_LOCALES, DEFAULT_LOCALE } from "@lucky/shared";
 
 interface AppState {
   theme: Theme;
@@ -16,14 +16,14 @@ interface AppState {
 export const useAppStore = create<AppState>()(
   persist<AppState>(
     (set) => ({
-      theme: 'dark',
+      theme: "dark",
       lang: DEFAULT_LOCALE,
       isSidebarCollapsed: false,
       toggleTheme: () =>
         set((state) => {
-          const newTheme = state.theme === 'dark' ? 'light' : 'dark';
-          if (typeof document !== 'undefined') {
-            document.documentElement.classList.remove('dark', 'light');
+          const newTheme = state.theme === "dark" ? "light" : "dark";
+          if (typeof document !== "undefined") {
+            document.documentElement.classList.remove("dark", "light");
             document.documentElement.classList.add(newTheme);
           }
           return { theme: newTheme };
@@ -39,10 +39,10 @@ export const useAppStore = create<AppState>()(
         set((state) => ({ isSidebarCollapsed: !state.isSidebarCollapsed })),
     }),
     {
-      name: 'app-store', // localStorage key
+      name: "app-store", // localStorage key
       storage: createJSONStorage(() => {
         // SSR 安全：服务端没有 localStorage，返回空实现
-        if (typeof window === 'undefined') {
+        if (typeof window === "undefined") {
           return {
             getItem: () => null,
             setItem: () => {},

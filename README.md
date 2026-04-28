@@ -310,14 +310,16 @@ Dynamic quality targets → ffmpeg scale filter with force_original_aspect_ratio
 **Key implementation details:**
 
 1. **ffprobe dimension detection** — Before transcoding, probe both `width` AND `height` from the source video stream (previously only detected height):
+
    ```typescript
    const probeDimensions = execSync(
-     `ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "${inputPath}"`
+     `ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "${inputPath}"`,
    ).trim();
-   const [sourceWidthStr, sourceHeightStr] = probeDimensions.split(',');
+   const [sourceWidthStr, sourceHeightStr] = probeDimensions.split(",");
    ```
 
 2. **Dynamic quality target computation** — Target heights are computed from the source aspect ratio instead of hardcoded:
+
    ```typescript
    const sourceAspectRatio = sourceWidth / sourceHeight;
    const targetWidth = Math.min(qt.targetWidth, sourceWidth); // Clamp to source
@@ -326,11 +328,13 @@ Dynamic quality targets → ffmpeg scale filter with force_original_aspect_ratio
    ```
 
 3. **`force_original_aspect_ratio=decrease`** — The ffmpeg `scale` filter flag ensures the video fits within the target resolution box while maintaining its original aspect ratio (padding with letterbox/pillarbox as needed):
+
    ```
    -vf "scale=${resolution}:force_original_aspect_ratio=decrease"
    ```
 
 4. **H.264 even dimension constraint** — The H.264 encoder requires even width/height for 4:2:0 chroma subsampling. Any odd dimension will cause encoder errors, so dimensions are snapped down:
+
    ```typescript
    const evenWidth = targetWidth % 2 === 0 ? targetWidth : targetWidth - 1;
    const evenHeight = targetHeight % 2 === 0 ? targetHeight : targetHeight - 1;
@@ -624,15 +628,15 @@ Testing standards and guidelines are documented in [`docs/read/testing/`](docs/r
 
 The project has extensive documentation organized by role:
 
-| Audience             | Documents                                                                                                                                                               |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **New Developers**   | [Getting Started](docs/read/getting-started/) · [Onboarding](docs/read/getting-started/ONBOARDING_CN.md)                                                                |
-| **Architecture**     | [System Design](ARCHITECTURE_CN.md) · [Admin SSR/CSR](docs/read/architecture/) · [NestJS API](docs/read/architecture/NESTJS_API_ARCHITECTURE_CN.md)                     |
-| **Operations**       | [Runbook](RUNBOOK.md) · [Deploy Quickstart](docs/read/getting-started/DEPLOY_QUICKSTART_CN.md)                                                                          |
-| **Features**         | [Feature Index](docs/read/features/FEATURES_CN.md) · [Lucky Draw](docs/read/features/LUCKY_DRAW_DESIGN_CN.md) · [IM Chat](docs/read/features/IM_SUPPORT_REALTIME_CN.md) |
-| **Testing**          | [Standards](docs/read/testing/TESTING_STANDARDS_CN.md) · [API Testing](docs/read/testing/TESTING_API_CN.md)                                                             |
+| Audience             | Documents                                                                                                                                                                      |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **New Developers**   | [Getting Started](docs/read/getting-started/) · [Onboarding](docs/read/getting-started/ONBOARDING_CN.md)                                                                       |
+| **Architecture**     | [System Design](ARCHITECTURE_CN.md) · [Admin SSR/CSR](docs/read/architecture/) · [NestJS API](docs/read/architecture/NESTJS_API_ARCHITECTURE_CN.md)                            |
+| **Operations**       | [Runbook](RUNBOOK.md) · [Deploy Quickstart](docs/read/getting-started/DEPLOY_QUICKSTART_CN.md)                                                                                 |
+| **Features**         | [Feature Index](docs/read/features/FEATURES_CN.md) · [Lucky Draw](docs/read/features/LUCKY_DRAW_DESIGN_CN.md) · [IM Chat](docs/read/features/IM_SUPPORT_REALTIME_CN.md)        |
+| **Testing**          | [Standards](docs/read/testing/TESTING_STANDARDS_CN.md) · [API Testing](docs/read/testing/TESTING_API_CN.md)                                                                    |
 | **Blog**             | [Blog Docs](docs/blog/) · [System Architecture](docs/blog/architecture/blog-system-architecture.md) · [Video System](docs/blog/architecture/blog-video-system-architecture.md) |
-| **AI Collaboration** | [Constitution](docs/ai-constitution-detailed.md) · [Project Rules](.clinerules)                                                                                         |
+| **AI Collaboration** | [Constitution](docs/ai-constitution-detailed.md) · [Project Rules](.clinerules)                                                                                                |
 
 ---
 

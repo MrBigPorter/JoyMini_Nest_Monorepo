@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useEffect } from 'react';
+import { useEffect } from "react";
 
 export default function ChunkReloadHandler() {
   useEffect(() => {
@@ -11,7 +11,7 @@ export default function ChunkReloadHandler() {
       handled = true;
 
       try {
-        if ('serviceWorker' in navigator) {
+        if ("serviceWorker" in navigator) {
           navigator.serviceWorker
             .getRegistrations()
             .then((regs) =>
@@ -23,7 +23,7 @@ export default function ChunkReloadHandler() {
       }
 
       try {
-        if (typeof caches !== 'undefined') {
+        if (typeof caches !== "undefined") {
           caches
             .keys()
             .then((keys) =>
@@ -35,7 +35,7 @@ export default function ChunkReloadHandler() {
       }
 
       try {
-        sessionStorage.setItem('chunk_reload_attempted', '1');
+        sessionStorage.setItem("chunk_reload_attempted", "1");
       } catch (e) {
         // ignore
       }
@@ -45,9 +45,9 @@ export default function ChunkReloadHandler() {
 
     function onError(event: ErrorEvent) {
       try {
-        const msg = (event && event.message) || '';
-        if (msg.includes('Loading chunk') || msg.includes('chunk')) {
-          if (!sessionStorage.getItem('chunk_reload_attempted')) {
+        const msg = (event && event.message) || "";
+        if (msg.includes("Loading chunk") || msg.includes("chunk")) {
+          if (!sessionStorage.getItem("chunk_reload_attempted")) {
             tryRecovery();
           }
         }
@@ -59,9 +59,9 @@ export default function ChunkReloadHandler() {
     function onUnhandledRejection(ev: PromiseRejectionEvent) {
       try {
         const reason = ev?.reason || {};
-        const msg = (reason && (reason.message || String(reason))) || '';
-        if (msg.includes('Loading chunk') || msg.includes('ChunkLoadError')) {
-          if (!sessionStorage.getItem('chunk_reload_attempted')) {
+        const msg = (reason && (reason.message || String(reason))) || "";
+        if (msg.includes("Loading chunk") || msg.includes("ChunkLoadError")) {
+          if (!sessionStorage.getItem("chunk_reload_attempted")) {
             tryRecovery();
           }
         }
@@ -70,12 +70,12 @@ export default function ChunkReloadHandler() {
       }
     }
 
-    window.addEventListener('error', onError);
-    window.addEventListener('unhandledrejection', onUnhandledRejection);
+    window.addEventListener("error", onError);
+    window.addEventListener("unhandledrejection", onUnhandledRejection);
 
     return () => {
-      window.removeEventListener('error', onError);
-      window.removeEventListener('unhandledrejection', onUnhandledRejection);
+      window.removeEventListener("error", onError);
+      window.removeEventListener("unhandledrejection", onUnhandledRejection);
     };
   }, []);
 

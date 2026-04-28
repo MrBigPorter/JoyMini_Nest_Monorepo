@@ -1,4 +1,4 @@
-import { formatInTimeZone } from 'date-fns-tz';
+import { formatInTimeZone } from "date-fns-tz";
 
 /**
  * Format a date string/timestamp in UTC timezone.
@@ -18,5 +18,5 @@ export function formatUTC(
   date: string | number | Date,
   formatStr: string,
 ): string {
-  return formatInTimeZone(date, 'UTC', formatStr);
+  return formatInTimeZone(date, "UTC", formatStr);
 }

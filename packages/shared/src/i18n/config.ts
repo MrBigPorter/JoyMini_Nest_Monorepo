@@ -1,6 +1,6 @@
 /**
  * 多语言共享配置
- * 
+ *
  * 集中管理所有语言配置，避免分散在多个文件中
  * 新增语言只需在此文件中添加配置
  */
@@ -11,7 +11,7 @@
  * 支持的所有语言代码
  * 新增语言时在此添加
  */
-export const ALL_LOCALE_CODES = ['zh', 'en', 'ja', 'ko', 'fr', 'de'] as const;
+export const ALL_LOCALE_CODES = ["zh", "en", "ja", "ko", "fr", "de"] as const;
 
 /**
  * 语言代码类型
@@ -21,7 +21,7 @@ export type LocaleCode = (typeof ALL_LOCALE_CODES)[number];
 /**
  * 默认语言
  */
-export const DEFAULT_LOCALE: LocaleCode = 'zh';
+export const DEFAULT_LOCALE: LocaleCode = "zh";
 
 // ==================== 语言元数据配置 ====================
 
@@ -47,46 +47,46 @@ export interface LocaleMetadata {
  */
 export const ALL_LOCALES_METADATA: readonly LocaleMetadata[] = [
   {
-    code: 'zh',
-    name: 'Chinese',
-    nativeName: '简体中文',
+    code: "zh",
+    name: "Chinese",
+    nativeName: "简体中文",
     isDefault: true,
-    fileName: 'zh',
+    fileName: "zh",
   },
   {
-    code: 'en',
-    name: 'English',
-    nativeName: 'English',
+    code: "en",
+    name: "English",
+    nativeName: "English",
     isDefault: false,
-    fileName: 'en',
+    fileName: "en",
   },
   {
-    code: 'ja',
-    name: 'Japanese',
-    nativeName: '日本語',
+    code: "ja",
+    name: "Japanese",
+    nativeName: "日本語",
     isDefault: false,
-    fileName: 'ja',
+    fileName: "ja",
   },
   {
-    code: 'ko',
-    name: 'Korean',
-    nativeName: '한국어',
+    code: "ko",
+    name: "Korean",
+    nativeName: "한국어",
     isDefault: false,
-    fileName: 'ko',
+    fileName: "ko",
   },
   {
-    code: 'fr',
-    name: 'French',
-    nativeName: 'Français',
+    code: "fr",
+    name: "French",
+    nativeName: "Français",
     isDefault: false,
-    fileName: 'fr',
+    fileName: "fr",
   },
   {
-    code: 'de',
-    name: 'German',
-    nativeName: 'Deutsch',
+    code: "de",
+    name: "German",
+    nativeName: "Deutsch",
     isDefault: false,
-    fileName: 'de',
+    fileName: "de",
   },
 ] as const;
 
@@ -106,17 +106,15 @@ export function getLocaleMetadata(code: string): LocaleMetadata | undefined {
 export function getEnabledLocaleCodes(): LocaleCode[] {
   // 从环境变量读取，如果没有则使用默认值
   const envValue = process.env.NEXT_PUBLIC_ENABLED_LOCALES;
-  
+
   if (envValue) {
-    const codes = envValue.split(',').map((code) => code.trim() as LocaleCode);
+    const codes = envValue.split(",").map((code) => code.trim() as LocaleCode);
     // 过滤掉无效的语言代码
-    return codes.filter((code) => 
-      ALL_LOCALE_CODES.includes(code)
-    );
+    return codes.filter((code) => ALL_LOCALE_CODES.includes(code));
   }
-  
+
   // 默认启用中文、英文、日文、韩文
-  return ['zh', 'en', 'ja', 'ko'];
+  return ["zh", "en", "ja", "ko"];
 }
 
 /**
@@ -124,8 +122,8 @@ export function getEnabledLocaleCodes(): LocaleCode[] {
  */
 export function getEnabledLocales(): LocaleMetadata[] {
   const enabledCodes = getEnabledLocaleCodes();
-  return ALL_LOCALES_METADATA.filter((locale) => 
-    enabledCodes.includes(locale.code)
+  return ALL_LOCALES_METADATA.filter((locale) =>
+    enabledCodes.includes(locale.code),
   );
 }
 
@@ -141,13 +139,13 @@ export function isLocaleEnabled(code: string): boolean {
  */
 export function getLocaleToFileMap(): Record<string, string> {
   const map: Record<string, string> = {};
-  
+
   ALL_LOCALES_METADATA.forEach((locale) => {
     if (locale.fileName) {
       map[locale.code] = locale.fileName;
     }
   });
-  
+
   return map;
 }
 

@@ -1,18 +1,18 @@
-import { getRequestConfig } from 'next-intl/server';
-import { cookies } from 'next/headers';
-import { DEFAULT_LOCALE, AVAILABLE_LOCALES } from '@lucky/shared';
-import type { Locale } from '@lucky/shared';
+import { getRequestConfig } from "next-intl/server";
+import { cookies } from "next/headers";
+import { DEFAULT_LOCALE, AVAILABLE_LOCALES } from "@lucky/shared";
+import type { Locale } from "@lucky/shared";
 
 // ── Static imports — Turbopack compatible ─────────────────────────────────
 // Dynamic import() of JSON files is not reliably supported under Turbopack.
 // Using static imports + a locale map avoids the "No locale was returned from
 // getRequestConfig" crash that occurs with dynamic import() under Turbopack.
-import en from './en.json';
-import zh from './zh.json';
-import ja from './ja.json';
-import ko from './ko.json';
-import fr from './fr.json';
-import de from './de.json';
+import en from "./en.json";
+import zh from "./zh.json";
+import ja from "./ja.json";
+import ko from "./ko.json";
+import fr from "./fr.json";
+import de from "./de.json";
 
 const localeMap: Record<string, unknown> = { en, zh, ja, ko, fr, de };
 
@@ -42,7 +42,7 @@ export default getRequestConfig(async ({ requestLocale }) => {
   // Read NEXT_LOCALE cookie directly since no next-intl middleware exists
   try {
     const cookieStore = await cookies();
-    const localeCookie = cookieStore.get('NEXT_LOCALE')?.value;
+    const localeCookie = cookieStore.get("NEXT_LOCALE")?.value;
     if (localeCookie && AVAILABLE_LOCALES.includes(localeCookie as Locale)) {
       locale = localeCookie as Locale;
     }
@@ -65,12 +65,12 @@ export default getRequestConfig(async ({ requestLocale }) => {
   // ── 2. Always load English as the baseline ─────────────────────────────────
   // Guarantees every key exists in messages. Any locale file that is incomplete
   // (missing keys) will silently show the English text — never MISSING_MESSAGE.
-  const enRaw = localeMap['en'] as RawLocaleJson;
+  const enRaw = localeMap["en"] as RawLocaleJson;
   const enFlat = flatten(enRaw);
 
   // ── 3. Overlay the target locale on top of the English base ────────────────
   let messages: Record<string, unknown> = enFlat;
-  if (locale !== 'en') {
+  if (locale !== "en") {
     try {
       const localeRaw = localeMap[locale] as RawLocaleJson | undefined;
       if (localeRaw) {

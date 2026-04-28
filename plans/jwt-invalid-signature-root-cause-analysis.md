@@ -45,8 +45,8 @@ These are completely different, so any token signed by production will fail veri
 
 ```typescript
 const redirectUriConfig = this.configService.get<string>(
-  'GOOGLE_REDIRECT_URI',
-  'https://api.luna.com/auth/google/callback',
+  "GOOGLE_REDIRECT_URI",
+  "https://api.luna.com/auth/google/callback",
 );
 ```
 
@@ -56,8 +56,8 @@ This reads from `ConfigService` which loads from `.env` file. The default fallba
 
 ```typescript
 JwtModule.register({
-  secret: process.env.JWT_SECRET || 'please_change_me_very_secret',
-})
+  secret: process.env.JWT_SECRET || "please_change_me_very_secret",
+});
 ```
 
 This reads `process.env` directly at module initialization time. In Docker, `JWT_SECRET` is injected via `env_file` before Node.js starts, so this works correctly. But it's inconsistent with the rest of the codebase which uses `ConfigService`.
@@ -96,15 +96,19 @@ Frontend stores tokens → sends to dev backend → invalid signature!
 **File:** [`deploy/.env.dev`](../deploy/.env.dev:156)
 
 Change:
+
 ```env
 GOOGLE_REDIRECT_URI=https://api.joyminis.com/auth/google/callback
 ```
+
 To:
+
 ```env
 GOOGLE_REDIRECT_URI=https://dev-api.joyminis.com/auth/google/callback
 ```
 
 Also update the other redirect URIs:
+
 ```env
 FACEBOOK_REDIRECT_URI=https://dev-api.joyminis.com/auth/facebook/callback
 APPLE_REDIRECT_URI=https://dev-api.joyminis.com/auth/apple/callback
@@ -119,9 +123,7 @@ APPLE_REDIRECT_URI=https://dev-api.joyminis.com/auth/apple/callback
 Change the default fallback from the placeholder `https://api.luna.com` to something more meaningful, or remove the default entirely so it fails fast if not configured:
 
 ```typescript
-const redirectUriConfig = this.configService.get<string>(
-  'GOOGLE_REDIRECT_URI',
-);
+const redirectUriConfig = this.configService.get<string>("GOOGLE_REDIRECT_URI");
 ```
 
 Same for Facebook (line 100) and Apple (line 137).
@@ -135,10 +137,10 @@ Currently uses `process.env.JWT_SECRET` directly. While this works in Docker (en
 ```typescript
 JwtModule.registerAsync({
   useFactory: (config: ConfigService) => ({
-    secret: config.get<string>('JWT_SECRET'),
+    secret: config.get<string>("JWT_SECRET"),
   }),
   inject: [ConfigService],
-})
+});
 ```
 
 However, this is a **lower priority** change since the current approach works correctly in Docker.
@@ -146,9 +148,11 @@ However, this is a **lower priority** change since the current approach works co
 ### Fix 4: Verify the Google OAuth Console configuration
 
 The `GOOGLE_REDIRECT_URI` in the Google Cloud Console must match what's in the env file. For dev, the authorized redirect URI in Google Cloud Console should be:
+
 - `https://dev-api.joyminis.com/auth/google/callback`
 
 For production:
+
 - `https://api.joyminis.com/auth/google/callback`
 
 ---
@@ -172,21 +176,21 @@ flowchart TD
         NX[Nginx dev-api.joyminis.com]
         BE[Backend lucky-backend-dev JWT_SECRET=dev]
     end
-    
+
     subgraph "Production Server"
         PROD_BE[Backend api.joyminis.com JWT_SECRET=prod]
     end
-    
+
     subgraph "Google OAuth"
         GOOGLE[accounts.google.com]
     end
-    
+
     %% Flow A - Client-side Google One Tap - WORKS
     FE -- "POST /api/v1/auth/oauth/google idToken" --> NX
     NX -- "/api/ proxy" --> BE
     BE -- "verify idToken via Google API" --> GOOGLE
     BE -- "sign JWT with dev secret" --> FE
-    
+
     %% Flow B - Server-side redirect - BROKEN
     FE -- "GET /auth/google/login" --> NX
     NX -- "/auth/ proxy" --> BE

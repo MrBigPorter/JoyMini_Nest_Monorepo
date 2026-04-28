@@ -4,9 +4,9 @@ import axios, {
   AxiosResponse,
   CanceledError,
   InternalAxiosRequestConfig,
-} from 'axios';
-import type { ApiResponse, RequestConfig, RequestTraceConfig } from './types';
-import { useToastStore } from '@/store/useToastStore';
+} from "axios";
+import type { ApiResponse, RequestConfig, RequestTraceConfig } from "./types";
+import { useToastStore } from "@/store/useToastStore";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 class HttpClient {
@@ -21,13 +21,13 @@ class HttpClient {
 
   // 重试配置
   private readonly retryConfig = {
-    maxRetries: process.env.NODE_ENV === 'test' ? 0 : 3,
+    maxRetries: process.env.NODE_ENV === "test" ? 0 : 3,
     retryDelay: (attemptIndex: number) =>
-      process.env.NODE_ENV === 'test'
+      process.env.NODE_ENV === "test"
         ? 0
         : Math.min(1000 * 2 ** attemptIndex, 30000),
     retryCondition: (error: any) => {
-      if (process.env.NODE_ENV === 'test') return false;
+      if (process.env.NODE_ENV === "test") return false;
       return (
         !error.response ||
         (error.response.status >= 500 && error.response.status < 600)
@@ -37,17 +37,17 @@ class HttpClient {
 
   constructor() {
     const baseURL =
-      typeof window === 'undefined'
+      typeof window === "undefined"
         ? process.env.INTERNAL_API_URL ||
           process.env.API_BASE_URL ||
-          'http://localhost:3000/api'
-        : process.env.NEXT_PUBLIC_API_BASE_URL || '/api';
+          "http://localhost:3000/api"
+        : process.env.NEXT_PUBLIC_API_BASE_URL || "/api";
 
     this.instance = axios.create({
       baseURL,
-      timeout: typeof window === 'undefined' ? 5_000 : 30_000,
+      timeout: typeof window === "undefined" ? 5_000 : 30_000,
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
     });
 
@@ -58,8 +58,8 @@ class HttpClient {
     // 请求拦截
     this.instance.interceptors.request.use(
       (config: InternalAxiosRequestConfig) => {
-        const skipRefresh = config.headers['x-skip-auth-refresh'];
-        const method = (config.method || 'get').toLowerCase();
+        const skipRefresh = config.headers["x-skip-auth-refresh"];
+        const method = (config.method || "get").toLowerCase();
 
         // 1. token
         const token = this.getToken();
@@ -70,18 +70,18 @@ class HttpClient {
         // 2. 语言
         const lang = this.getLanguage();
         if (lang) {
-          config.headers['Accept-Language'] = lang;
+          config.headers["Accept-Language"] = lang;
         }
 
         // 3. 去重请求 key
-        if (method !== 'get') {
+        if (method !== "get") {
           const key = this.genKey(config);
           if (this.requestQueue.has(key)) {
             const oldController = this.pendingControllers.get(key);
             if (oldController) {
               oldController.abort();
             }
-            console.warn('[HTTP] duplicate request replaced:', key);
+            console.warn("[HTTP] duplicate request replaced:", key);
           }
 
           const controller = new AbortController();
@@ -91,17 +91,17 @@ class HttpClient {
         }
 
         // 4. dev 日志
-        if (process.env.NODE_ENV === 'development') {
+        if (process.env.NODE_ENV === "development") {
           console.log(
             `[HTTP Request] ${config.method?.toUpperCase()} ${config.url}`,
-            config.params || config.data || '',
+            config.params || config.data || "",
           );
         }
 
         return config;
       },
       (error) => {
-        console.error('[HTTP Request Error]', error);
+        console.error("[HTTP Request Error]", error);
         return Promise.reject(error);
       },
     );
@@ -109,14 +109,14 @@ class HttpClient {
     // 响应拦截
     this.instance.interceptors.response.use(
       async (res: AxiosResponse<ApiResponse>) => {
-        const method = (res.config.method || 'get').toLowerCase();
-        if (method !== 'get') {
+        const method = (res.config.method || "get").toLowerCase();
+        if (method !== "get") {
           const key = this.genKey(res.config);
           this.requestQueue.delete(key);
           this.pendingControllers.delete(key);
         }
 
-        if (process.env.NODE_ENV === 'development') {
+        if (process.env.NODE_ENV === "development") {
           console.log(
             `[HTTP Response] ${res.config.method?.toUpperCase()} ${res.config.url}`,
             res.data,
@@ -150,8 +150,8 @@ class HttpClient {
       },
       async (error) => {
         if (error.config) {
-          const method = (error.config.method || 'get').toLowerCase();
-          if (method !== 'get') {
+          const method = (error.config.method || "get").toLowerCase();
+          if (method !== "get") {
             const key = this.genKey(error.config);
             this.requestQueue.delete(key);
             this.pendingControllers.delete(key);
@@ -163,7 +163,7 @@ class HttpClient {
           if (
             error.response?.status === 401 &&
             !config._retry &&
-            !config.headers['x-skip-auth-refresh']
+            !config.headers["x-skip-auth-refresh"]
           ) {
             return this.handle401AndRetry(config);
           }
@@ -182,26 +182,26 @@ class HttpClient {
   }
 
   private getToken(): string | null {
-    if (typeof window === 'undefined') return null;
-    return localStorage.getItem('auth_token');
+    if (typeof window === "undefined") return null;
+    return localStorage.getItem("auth_token");
   }
 
   private getRefreshToken(): string | null {
-    if (typeof window === 'undefined') return null;
-    return localStorage.getItem('refresh_token');
+    if (typeof window === "undefined") return null;
+    return localStorage.getItem("refresh_token");
   }
 
   private setAuthTokens(accessToken: string, refreshToken?: string) {
-    if (typeof window === 'undefined') return;
-    localStorage.setItem('auth_token', accessToken);
+    if (typeof window === "undefined") return;
+    localStorage.setItem("auth_token", accessToken);
     if (refreshToken) {
-      localStorage.setItem('refresh_token', refreshToken);
+      localStorage.setItem("refresh_token", refreshToken);
     }
   }
 
   private getLanguage(): string {
-    if (typeof window === 'undefined') return 'en';
-    return localStorage.getItem('lang') || 'en';
+    if (typeof window === "undefined") return "en";
+    return localStorage.getItem("lang") || "en";
   }
 
   private handleBizError(
@@ -216,10 +216,10 @@ class HttpClient {
     if (config?.showError === false) return;
 
     const fallbackMap: Record<number, string> = {
-      400: 'Bad Request',
-      403: 'Forbidden',
-      404: 'Not Found',
-      500: 'Internal Server Error',
+      400: "Bad Request",
+      403: "Forbidden",
+      404: "Not Found",
+      500: "Internal Server Error",
     };
 
     const msg =
@@ -230,7 +230,7 @@ class HttpClient {
 
   private handleHttpError(error: any) {
     if (axios.isCancel(error) || error instanceof CanceledError) {
-      console.log('[HTTP] request cancelled:', error.message);
+      console.log("[HTTP] request cancelled:", error.message);
       return;
     }
 
@@ -243,7 +243,7 @@ class HttpClient {
       const { status, data } = error.response;
 
       if (status === 401) {
-        if (!error.config?.headers?.['x-skip-auth-refresh']) {
+        if (!error.config?.headers?.["x-skip-auth-refresh"]) {
           void this.handleUnauthorized();
         } else {
           void this.handleUnauthorized();
@@ -256,31 +256,31 @@ class HttpClient {
 
       if (status === 403) return;
     } else if (error.request) {
-      this.toastError('No response from server, please check your network');
+      this.toastError("No response from server, please check your network");
     } else {
-      this.toastError(error.message || 'Unexpected error occurred');
+      this.toastError(error.message || "Unexpected error occurred");
     }
 
-    console.error('[HTTP Error]', error);
+    console.error("[HTTP Error]", error);
   }
 
   private async handleUnauthorized() {
     if (this._unauthorizedHandling) return;
     this._unauthorizedHandling = true;
 
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('refresh_token');
+    localStorage.removeItem("auth_token");
+    localStorage.removeItem("refresh_token");
 
-    if (window.location.pathname !== '/login') {
-      this.toastError('Unauthorized, please log in again');
+    if (window.location.pathname !== "/login") {
+      this.toastError("Unauthorized, please log in again");
       await this.instance
         .post(
-          '/v1/auth/admin/clear-cookie',
+          "/v1/auth/admin/clear-cookie",
           {},
-          { headers: { 'x-skip-auth-refresh': '1' } },
+          { headers: { "x-skip-auth-refresh": "1" } },
         )
         .catch(() => {});
-      window.location.href = '/login';
+      window.location.href = "/login";
     }
 
     queueMicrotask(() => {
@@ -296,7 +296,7 @@ class HttpClient {
       if (!this._unauthorizedHandling) {
         await this.handleUnauthorized();
       }
-      return Promise.reject(new Error('Unauthorized'));
+      return Promise.reject(new Error("Unauthorized"));
     }
 
     config._retry = true;
@@ -321,11 +321,11 @@ class HttpClient {
             tokens: { accessToken: string; refreshToken: string };
           }>
         >(
-          '/v1/auth/admin/refresh',
+          "/v1/auth/admin/refresh",
           { refreshToken },
           {
             headers: {
-              'x-skip-auth-refresh': '1',
+              "x-skip-auth-refresh": "1",
             },
           },
         );
@@ -336,12 +336,12 @@ class HttpClient {
 
         await this.instance
           .post(
-            '/v1/auth/admin/set-cookie',
+            "/v1/auth/admin/set-cookie",
             { token: newAccessToken },
-            { headers: { 'x-skip-auth-refresh': '1' } },
+            { headers: { "x-skip-auth-refresh": "1" } },
           )
           .catch((e) => {
-            console.warn('[HTTP] set-cookie after refresh failed', e);
+            console.warn("[HTTP] set-cookie after refresh failed", e);
           });
 
         return newAccessToken;
@@ -357,7 +357,7 @@ class HttpClient {
 
   private toastError(message: string) {
     const { addToast } = useToastStore.getState();
-    addToast('error', message);
+    addToast("error", message);
   }
 
   private async withRetry<T>(
@@ -401,7 +401,7 @@ class HttpClient {
       ...config,
     };
     const key = this.genKey({
-      method: 'get',
+      method: "get",
       url,
       params: mergedConfig.params,
       data: mergedConfig.data,
@@ -476,7 +476,7 @@ class HttpClient {
     config?: RequestConfig & { extraFields?: Record<string, string> },
   ): Promise<T> {
     const formData = file instanceof FormData ? file : new FormData();
-    if (file instanceof File) formData.append('file', file);
+    if (file instanceof File) formData.append("file", file);
 
     if (config?.extraFields) {
       for (const [key, value] of Object.entries(config.extraFields)) {
@@ -486,7 +486,7 @@ class HttpClient {
 
     const res = await this.instance.post<ApiResponse<T>>(url, formData, {
       ...config,
-      headers: { 'Content-Type': 'multipart/form-data' },
+      headers: { "Content-Type": "multipart/form-data" },
       onUploadProgress: (e) => {
         if (onProgress && e.total) {
           const percent = Math.round((e.loaded * 100) / e.total);
@@ -499,15 +499,15 @@ class HttpClient {
 
   public async download(
     url: string,
-    filename = 'download',
+    filename = "download",
     config?: RequestConfig,
   ): Promise<void> {
     const res = await this.instance.get(url, {
-      responseType: 'blob',
+      responseType: "blob",
       ...config,
     });
     const blob = new Blob([res.data]);
-    const link = document.createElement('a');
+    const link = document.createElement("a");
     link.href = window.URL.createObjectURL(blob);
     link.download = filename;
     link.click();
