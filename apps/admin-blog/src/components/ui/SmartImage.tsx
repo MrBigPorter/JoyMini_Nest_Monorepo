@@ -88,6 +88,7 @@ export const SmartImageImpl: React.FC<SmartImageProps> = ({
     // ★ Local images (blob:/data:) — use native <img> since @unpic/react can't handle them
     if (isLocalImage) {
       return (
+        // eslint-disable-next-line @next/next/no-img-element
         <img
           ref={imgRef}
           src={src}
