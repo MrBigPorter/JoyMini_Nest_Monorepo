@@ -60,7 +60,6 @@ export class OAuthDeepLinkController {
     const clientId = this.configService.get<string>('GOOGLE_CLIENT_ID');
     const redirectUriConfig = this.configService.get<string>(
       'GOOGLE_REDIRECT_URI',
-      'https://api.luna.com/auth/google/callback',
     );
 
     const stateData: OAuthStateData = {
@@ -97,7 +96,6 @@ export class OAuthDeepLinkController {
     const appId = this.configService.get<string>('FACEBOOK_APP_ID');
     const redirectUriConfig = this.configService.get<string>(
       'FACEBOOK_REDIRECT_URI',
-      'https://api.luna.com/auth/facebook/callback',
     );
 
     const stateData: OAuthStateData = {
@@ -134,7 +132,6 @@ export class OAuthDeepLinkController {
     const clientId = this.configService.get<string>('APPLE_CLIENT_ID');
     const redirectUriConfig = this.configService.get<string>(
       'APPLE_REDIRECT_URI',
-      'https://api.luna.com/auth/apple/callback',
     );
 
     const stateData: OAuthStateData = {
