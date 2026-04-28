@@ -76,20 +76,23 @@ export const KycList: React.FC<KycListProps> = ({
   // --- Actions ---
 
   // 1. 打开审核/查看详情弹窗
-  const handleView = useCallback((record: KycRecord) => {
-    ModalManager.open({
-      title: t('kyc_modalAuditDetail'),
-      size: 'xl',
-      renderChildren: ({ close }) => (
-        <KycAuditModal
-          data={record}
-          close={close}
-          reload={() => actionRef.current?.reload()}
-          t={t}
-        />
-      ),
-    });
-  }, []);
+  const handleView = useCallback(
+    (record: KycRecord) => {
+      ModalManager.open({
+        title: t('kyc_modalAuditDetail'),
+        size: 'xl',
+        renderChildren: ({ close }) => (
+          <KycAuditModal
+            data={record}
+            close={close}
+            reload={() => actionRef.current?.reload()}
+            t={t}
+          />
+        ),
+      });
+    },
+    [t],
+  );
 
   // 2. 打开 [创建] 弹窗
   const handleCreate = useCallback(() => {
@@ -104,23 +107,26 @@ export const KycList: React.FC<KycListProps> = ({
         />
       ),
     });
-  }, []);
+  }, [t]);
 
   // 3. 打开 [编辑] 弹窗
-  const handleEdit = useCallback((record: KycRecord) => {
-    ModalManager.open({
-      title: t('kyc_modalEditKyc'),
-      renderChildren: ({ close }) => (
-        <KycFormModal
-          mode="edit"
-          initialData={record}
-          close={close}
-          reload={() => actionRef.current?.reload()}
-          t={t}
-        />
-      ),
-    });
-  }, []);
+  const handleEdit = useCallback(
+    (record: KycRecord) => {
+      ModalManager.open({
+        title: t('kyc_modalEditKyc'),
+        renderChildren: ({ close }) => (
+          <KycFormModal
+            mode="edit"
+            initialData={record}
+            close={close}
+            reload={() => actionRef.current?.reload()}
+            t={t}
+          />
+        ),
+      });
+    },
+    [t],
+  );
 
   // 4. 执行 [撤销]
   const handleRevoke = useCallback(
