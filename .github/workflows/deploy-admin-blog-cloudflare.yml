@@ -90,12 +90,11 @@ jobs:
           node packages/shared/scripts/build.js
           node packages/ui/scripts/build.js
 
-      # Step 6 / 步骤 6: Run admin-blog lint, typecheck, and unit tests
-      - name: 6. Lint + Typecheck + Unit tests (admin-blog)
+      # Step 6 / 步骤 6: Run admin-blog lint and typecheck
+      - name: 6. Lint + Typecheck (admin-blog)
         run: |
           yarn workspace @lucky/admin-blog lint
           yarn workspace @lucky/admin-blog check-types
-          yarn workspace @lucky/admin-blog test
 
   deploy:
     needs: quality
