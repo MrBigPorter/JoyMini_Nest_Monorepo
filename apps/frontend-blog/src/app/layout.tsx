@@ -23,7 +23,7 @@ export default function RootLayout({
                 try {
                   var saved = localStorage.getItem('theme');
                   var systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-                  var theme = saved || (systemDark ? 'dark' : 'light');
+                  var theme = saved || 'dark';
                   document.documentElement.classList.add(theme);
                 } catch(e) {
                   document.documentElement.classList.add('light');
