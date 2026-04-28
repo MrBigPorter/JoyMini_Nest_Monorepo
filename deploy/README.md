@@ -1,9 +1,5 @@
-# Deploy 文档已迁移
+# 部署文档
 
-本文件不再维护流程细节，统一入口如下：
+操作指南已移至项目根目录的 [`RUNBOOK.md`](../RUNBOOK.md)，只包含日常最常用的操作，5 分钟上手。
 
-- 新人 15 分钟快启：`read/DEPLOY_QUICKSTART_CN.md`
-- 发布/回滚/运维细节：`RUNBOOK.md`
-- 文档迁移记录：`read/MIGRATION_LOG_CN.md`
-
-请仅维护 `RUNBOOK.md`，避免 `deploy/` 下重复文档。
+> 不再维护冗长的多文件文档，所有内容统一在 `RUNBOOK.md`。
