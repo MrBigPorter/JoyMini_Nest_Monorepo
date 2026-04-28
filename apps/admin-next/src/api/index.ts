@@ -896,7 +896,6 @@ export const systemConfigApi = {
 
   toggleLocale: (code: string, enabled: boolean) =>
     http.patch(`/v1/admin/system-config/locales/${code}`, { enabled }),
-
 };
 
 /**
@@ -1143,4 +1142,3 @@ export const luckyDrawApi = {
     };
   },
 };
-
