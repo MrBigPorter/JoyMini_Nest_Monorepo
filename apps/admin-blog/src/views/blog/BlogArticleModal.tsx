@@ -586,8 +586,8 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
             {/* 独立多语言表单 */}
             <ArticleForm
               ref={articleFormRef}
-              onUpload={handleEditorUpload}
-              onFieldChange={async (field, value) => {
+              onUploadAction={handleEditorUpload}
+              onFieldChangeAction={async (field, value) => {
                 // 如果featuredImage选择的是File对象，立即上传，不等待提交
                 if (field === 'featuredImage' && isFile(value)) {
                   try {

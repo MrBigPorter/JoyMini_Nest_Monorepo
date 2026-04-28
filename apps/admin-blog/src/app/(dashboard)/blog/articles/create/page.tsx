@@ -321,11 +321,11 @@ export default function CreateArticlePage() {
             <div className="space-y-2">
               <RichTextEditor
                 value={watch(`content.${locale}`) || ''}
-                onChange={(value) => setValue(`content.${locale}`, value)}
+                onChangeAction={(value) => setValue(`content.${locale}`, value)}
                 label={t('articleContentLabel')}
                 placeholder={t('articleContentPlaceholder')}
                 required
-                onUpload={handleEditorUpload}
+                onUploadAction={handleEditorUpload}
                 error={
                   !watch(`content.${locale}`) ? t('contentRequired') : undefined
                 }

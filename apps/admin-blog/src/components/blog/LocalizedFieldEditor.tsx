@@ -112,7 +112,7 @@ export const LocalizedFieldEditor: React.FC<LocalizedFieldEditorProps> = ({
               <div className="bg-white rounded-md border border-gray-200 overflow-hidden">
                 <RichTextEditor
                   value={value}
-                  onChange={setValue}
+                  onChangeAction={setValue}
                   placeholder="请输入翻译内容"
                 />
               </div>

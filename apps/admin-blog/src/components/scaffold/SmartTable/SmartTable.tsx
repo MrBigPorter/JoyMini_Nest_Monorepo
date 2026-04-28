@@ -460,8 +460,8 @@ const SmartTableInner = <T extends Record<string, any>>(
         <SchemaSearchForm
           schema={finalSearchSchema}
           initialValues={initialFormParams}
-          onSearch={handleSearch}
-          onReset={handleReset}
+          onSearchAction={handleSearch}
+          onResetAction={handleReset}
         />
       )}
 
