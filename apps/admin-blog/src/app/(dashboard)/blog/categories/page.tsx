@@ -219,10 +219,7 @@ export default function CategoriesPage() {
       <PageHeader
         title={t('pageTitle')}
         description={t('pageDescription')}
-        breadcrumbs={[
-          globalT('content'),
-          globalT('breadcrumbCategories'),
-        ]}
+        breadcrumbs={[globalT('content'), globalT('breadcrumbCategories')]}
         buttonText={t('newCategory')}
         buttonOnClick={() => {
           setEditingCategory(null);

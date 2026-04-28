@@ -4,7 +4,18 @@ import { useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useRequest } from 'ahooks';
-import { ArrowLeft, Eye, Clock, Calendar, User, FileText, Info, Loader2, AlertCircle, BookOpen } from 'lucide-react';
+import {
+  ArrowLeft,
+  Eye,
+  Clock,
+  Calendar,
+  User,
+  FileText,
+  Info,
+  Loader2,
+  AlertCircle,
+  BookOpen,
+} from 'lucide-react';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useLanguage, getLocalizedValue } from '@/hooks/LanguageProvider';
 import { blogApi } from '@/api';
@@ -60,37 +71,51 @@ export default function ArticlePreviewPage() {
     globalT(`blog_articles_${key}`, params);
 
   // Fetch article by slug
-  const { data: article, loading, error } = useRequest<ArticlePreview, any[]>(
-    () => blogApi.getArticleBySlug(slug),
-    {
-      refreshDeps: [slug],
-      cacheKey: `article-preview-${slug}`,
-    },
-  );
+  const {
+    data: article,
+    loading,
+    error,
+  } = useRequest<ArticlePreview, any[]>(() => blogApi.getArticleBySlug(slug), {
+    refreshDeps: [slug],
+    cacheKey: `article-preview-${slug}`,
+  });
 
   // Derive localized values - API returns title+titleLocalized, content+contentLocalized etc.
   const localizedTitle = useMemo(
-    () => getLocalizedValue(article?.titleLocalized, locale as Locale) ?? article?.title ?? '',
+    () =>
+      getLocalizedValue(article?.titleLocalized, locale as Locale) ??
+      article?.title ??
+      '',
     [article?.titleLocalized, article?.title, locale],
   );
 
   const localizedContent = useMemo(
-    () => getLocalizedValue(article?.contentLocalized, locale as Locale) ?? article?.content ?? '',
+    () =>
+      getLocalizedValue(article?.contentLocalized, locale as Locale) ??
+      article?.content ??
+      '',
     [article?.contentLocalized, article?.content, locale],
   );
 
   const localizedExcerpt = useMemo(
-    () => getLocalizedValue(article?.excerptLocalized, locale as Locale) ?? article?.excerpt ?? '',
+    () =>
+      getLocalizedValue(article?.excerptLocalized, locale as Locale) ??
+      article?.excerpt ??
+      '',
     [article?.excerptLocalized, article?.excerpt, locale],
   );
 
   const featuredImage = useMemo(
-    () => getLocalizedValue(article?.coverImageLocalized, locale as Locale) ?? article?.coverImage ?? null,
+    () =>
+      getLocalizedValue(article?.coverImageLocalized, locale as Locale) ??
+      article?.coverImage ??
+      null,
     [article?.coverImageLocalized, article?.coverImage, locale],
   );
 
   // Author display name
-  const authorName = article?.author?.realName ?? article?.author?.username ?? t('admin');
+  const authorName =
+    article?.author?.realName ?? article?.author?.username ?? t('admin');
 
   // Loading state
   if (loading) {
@@ -98,12 +123,18 @@ export default function ArticlePreviewPage() {
       <div className="space-y-6">
         <PageHeader
           title={t('preview')}
-          breadcrumbs={[globalT('content'), globalT('breadcrumbArticles'), '...']}
+          breadcrumbs={[
+            globalT('content'),
+            globalT('breadcrumbArticles'),
+            '...',
+          ]}
         />
         <Card>
           <div className="flex flex-col items-center justify-center py-20 text-gray-400">
             <Loader2 className="h-8 w-8 animate-spin mb-4" />
-            <p className="text-sm">{globalT('common_loading') || 'Loading...'}</p>
+            <p className="text-sm">
+              {globalT('common_loading') || 'Loading...'}
+            </p>
           </div>
         </Card>
       </div>
@@ -116,7 +147,11 @@ export default function ArticlePreviewPage() {
       <div className="space-y-6">
         <PageHeader
           title={t('preview')}
-          breadcrumbs={[globalT('content'), globalT('breadcrumbArticles'), t('preview')]}
+          breadcrumbs={[
+            globalT('content'),
+            globalT('breadcrumbArticles'),
+            t('preview'),
+          ]}
         />
         <Card>
           <div className="flex flex-col items-center justify-center py-20 text-gray-400">
@@ -125,7 +160,10 @@ export default function ArticlePreviewPage() {
               {t('articleNotFound') || 'Article not found'}
             </p>
             <p className="text-sm text-gray-400 mb-6">
-              {error ? String(error) : t('articleNotFoundDesc') || 'The requested article could not be found.'}
+              {error
+                ? String(error)
+                : t('articleNotFoundDesc') ||
+                  'The requested article could not be found.'}
             </p>
             <Link href="/blog/articles">
               <Button variant="outline">
@@ -143,7 +181,11 @@ export default function ArticlePreviewPage() {
     <div className="space-y-6">
       <PageHeader
         title={localizedTitle || t('preview')}
-        breadcrumbs={[globalT('content'), globalT('breadcrumbArticles'), localizedTitle || t('preview')]}
+        breadcrumbs={[
+          globalT('content'),
+          globalT('breadcrumbArticles'),
+          localizedTitle || t('preview'),
+        ]}
       />
 
       {/* Back link */}
@@ -157,7 +199,9 @@ export default function ArticlePreviewPage() {
         </Link>
         <div className="flex items-center gap-2">
           <Eye className="h-4 w-4 text-gray-400" />
-          <span className="text-sm text-gray-500 dark:text-gray-400">{t('preview')}</span>
+          <span className="text-sm text-gray-500 dark:text-gray-400">
+            {t('preview')}
+          </span>
         </div>
       </div>
 
@@ -196,11 +240,13 @@ export default function ArticlePreviewPage() {
                 <span className="text-gray-300 dark:text-white/20">·</span>
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4" />
-                  <span>{new Date(article.publishedAt).toLocaleDateString(locale, {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                  })}</span>
+                  <span>
+                    {new Date(article.publishedAt).toLocaleDateString(locale, {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                    })}
+                  </span>
                 </div>
               </>
             )}
@@ -216,17 +262,24 @@ export default function ArticlePreviewPage() {
             )}
 
             {article.category && (
-                <>
-                  <span className="text-gray-300 dark:text-white/20">·</span>
-                  <div className="flex items-center gap-2">
-                    <BookOpen className="h-4 w-4" />
-                    <span>{getLocalizedValue(article.category?.name, locale as Locale) ?? ''}</span>
-                  </div>
-                </>
-              )}
+              <>
+                <span className="text-gray-300 dark:text-white/20">·</span>
+                <div className="flex items-center gap-2">
+                  <BookOpen className="h-4 w-4" />
+                  <span>
+                    {getLocalizedValue(
+                      article.category?.name,
+                      locale as Locale,
+                    ) ?? ''}
+                  </span>
+                </div>
+              </>
+            )}
 
             <span className="text-gray-300 dark:text-white/20">·</span>
-            <Badge color={statusBadgeColor(article.status)}>{t(article.status?.toLowerCase() ?? '')}</Badge>
+            <Badge color={statusBadgeColor(article.status)}>
+              {t(article.status?.toLowerCase() ?? '')}
+            </Badge>
           </div>
 
           {/* Article content */}
