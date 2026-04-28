@@ -30,7 +30,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     const systemDark = window.matchMedia(
       '(prefers-color-scheme: dark)',
     ).matches;
-    const initialTheme = savedTheme || (systemDark ? 'dark' : 'light');
+    const initialTheme = savedTheme || 'dark';
 
     setThemeState(initialTheme);
     document.documentElement.classList.remove('light', 'dark');
@@ -57,7 +57,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   // 关键修复：始终提供 ThemeContext，即使在 SSR 期间
   // 在 SSR 期间使用默认值 'light'，避免 hydration 错误
   const contextValue = {
-    theme: isMounted ? theme : 'light', // SSR 期间使用默认值
+    theme: isMounted ? theme : 'dark', // SSR 期间使用默认值
     toggleTheme: isMounted ? toggleTheme : () => {}, // SSR 期间使用空函数
     setTheme: isMounted ? setTheme : () => {}, // SSR 期间使用空函数
   };
