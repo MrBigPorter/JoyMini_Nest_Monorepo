@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
-import React, { useState, useEffect } from "react";
-import { useAuthStore } from "@/store/useAuthStore";
-import { Header } from "./Header";
-import { Sidebar } from "./Sidebar";
-import { MainContent } from "./MainContent";
+import React, { useState, useEffect } from 'react';
+import { useAuthStore } from '@/store/useAuthStore';
+import { Header } from './Header';
+import { Sidebar } from './Sidebar';
+import { MainContent } from './MainContent';
 
 export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({
   children,

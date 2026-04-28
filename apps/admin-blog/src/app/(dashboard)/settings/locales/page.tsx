@@ -1,11 +1,11 @@
-"use client";
+'use client';
 
-import React from "react";
+import React from 'react';
 
-import { useAvailableLocales } from "@/hooks/useAvailableLocales";
-import { Switch } from "@repo/ui";
-import { useTranslation } from "@/hooks/useTranslation";
-import { PageHeader } from "@/components/scaffold/PageHeader";
+import { useAvailableLocales } from '@/hooks/useAvailableLocales';
+import { Switch } from '@repo/ui';
+import { useTranslation } from '@/hooks/useTranslation';
+import { PageHeader } from '@/components/scaffold/PageHeader';
 
 export default function LocaleSettingsPage() {
   const { t } = useTranslation();
@@ -15,10 +15,10 @@ export default function LocaleSettingsPage() {
     return (
       <div className="space-y-6">
         <PageHeader
-          title={t("systemConfig.tabLocales")}
-          description={t("systemConfig.pageDescription")}
+          title={t('systemConfig.tabLocales')}
+          description={t('systemConfig.pageDescription')}
         />
-        <div className="p-8 text-center">{t("systemConfig.localeLoading")}</div>
+        <div className="p-8 text-center">{t('systemConfig.localeLoading')}</div>
       </div>
     );
   }
@@ -26,8 +26,8 @@ export default function LocaleSettingsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title={t("systemConfig.tabLocales")}
-        description={t("systemConfig.pageDescription")}
+        title={t('systemConfig.tabLocales')}
+        description={t('systemConfig.pageDescription')}
       />
 
       <div className="rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-gray-900 p-6">
@@ -53,12 +53,12 @@ export default function LocaleSettingsPage() {
       </div>
 
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
-        <p className="font-medium mb-2">💡 {t("systemConfig.localeTip1")}</p>
+        <p className="font-medium mb-2">💡 {t('systemConfig.localeTip1')}</p>
         <ul className="list-disc list-inside space-y-1">
-          <li>{t("systemConfig.localeTip1")}</li>
-          <li>{t("systemConfig.localeTip2")}</li>
-          <li>{t("systemConfig.localeTip3")}</li>
-          <li>{t("systemConfig.localeTip4")}</li>
+          <li>{t('systemConfig.localeTip1')}</li>
+          <li>{t('systemConfig.localeTip2')}</li>
+          <li>{t('systemConfig.localeTip3')}</li>
+          <li>{t('systemConfig.localeTip4')}</li>
         </ul>
       </div>
     </div>

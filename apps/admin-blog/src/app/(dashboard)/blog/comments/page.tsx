@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   MessageSquare,
   Search,
@@ -16,20 +16,20 @@ import {
   Calendar,
   FileText,
   Loader2,
-} from "lucide-react";
-import { useToastStore } from "@/store/useToastStore";
-import { Card, Badge } from "@/components/UIComponents";
-import { blogApi } from "@/api";
-import { PageHeader } from "@/components/scaffold/PageHeader";
-import { BlogCommentModal } from "@/views/blog/BlogCommentModal";
-import { useTranslation } from "@/hooks/useTranslation";
-import { renderLocalizedText } from "@/utils/localizedText";
-import LocalizedText from "@/components/blog/LocalizedText";
+} from 'lucide-react';
+import { useToastStore } from '@/store/useToastStore';
+import { Card, Badge } from '@/components/UIComponents';
+import { blogApi } from '@/api';
+import { PageHeader } from '@/components/scaffold/PageHeader';
+import { BlogCommentModal } from '@/views/blog/BlogCommentModal';
+import { useTranslation } from '@/hooks/useTranslation';
+import { renderLocalizedText } from '@/utils/localizedText';
+import LocalizedText from '@/components/blog/LocalizedText';
 
 export default function CommentsPage() {
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [articleFilter, setArticleFilter] = useState("all");
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [articleFilter, setArticleFilter] = useState('all');
   const [comments, setComments] = useState<any[]>([]);
   const [articles, setArticles] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -50,10 +50,10 @@ export default function CommentsPage() {
     setIsLoading(true);
     try {
       const params: any = {};
-      if (statusFilter !== "all") {
+      if (statusFilter !== 'all') {
         params.status = statusFilter;
       }
-      if (articleFilter !== "all") {
+      if (articleFilter !== 'all') {
         params.articleId = articleFilter;
       }
       if (search) {
@@ -63,8 +63,8 @@ export default function CommentsPage() {
       const response = await blogApi.getComments(params);
       setComments(response.list || []);
     } catch (error) {
-      console.error("Failed to fetch comments:", error);
-      addToast("error", t("loadFailed"));
+      console.error('Failed to fetch comments:', error);
+      addToast('error', t('loadFailed'));
     } finally {
       setIsLoading(false);
     }
@@ -79,18 +79,18 @@ export default function CommentsPage() {
       const articleOptions =
         response.list?.map((article: any) => {
           // 将 Localized 格式的标题转换为字符串
-          let titleStr = t("untitled");
+          let titleStr = t('untitled');
           if (article.title) {
-            titleStr = renderLocalizedText(article.title, lang, t("untitled"));
+            titleStr = renderLocalizedText(article.title, lang, t('untitled'));
           }
           return {
             id: article.id,
             title: titleStr,
           };
         }) || [];
-      setArticles([{ id: "all", title: t("allArticles") }, ...articleOptions]);
+      setArticles([{ id: 'all', title: t('allArticles') }, ...articleOptions]);
     } catch (error) {
-      console.error("Failed to fetch articles:", error);
+      console.error('Failed to fetch articles:', error);
       // Fallback to mock articles
     }
     // t and addToast are stable references, excluded intentionally
@@ -113,25 +113,25 @@ export default function CommentsPage() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case "APPROVED":
+      case 'APPROVED':
         return (
           <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">
-            {t("approved")}
+            {t('approved')}
           </span>
         );
-      case "PENDING":
+      case 'PENDING':
         return (
           <span className="px-2 py-1 text-xs rounded-full bg-amber-100 text-amber-800">
-            {t("pending")}
+            {t('pending')}
           </span>
         );
-      case "SPAM":
+      case 'SPAM':
         return (
           <span className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800">
-            {t("spam")}
+            {t('spam')}
           </span>
         );
-      case "REJECTED":
+      case 'REJECTED':
         return (
           <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-800">
             Rejected
@@ -154,46 +154,46 @@ export default function CommentsPage() {
     ) {
       return false;
     }
-    if (statusFilter !== "all" && comment.status !== statusFilter) {
+    if (statusFilter !== 'all' && comment.status !== statusFilter) {
       return false;
     }
-    return !(articleFilter !== "all" && comment.article?.id !== articleFilter);
+    return !(articleFilter !== 'all' && comment.article?.id !== articleFilter);
   });
 
   const handleApproveComment = async (commentId: string) => {
     try {
       await blogApi.approveComment(commentId);
-      addToast("success", t("commentApproved"));
+      addToast('success', t('commentApproved'));
       fetchComments(); // Refresh the list
     } catch (error) {
-      console.error("Failed to approve comment:", error);
-      addToast("error", t("approveFailed"));
+      console.error('Failed to approve comment:', error);
+      addToast('error', t('approveFailed'));
     }
   };
 
   const handleRejectComment = async (commentId: string) => {
     try {
       await blogApi.rejectComment(commentId);
-      addToast("success", t("commentRejected"));
+      addToast('success', t('commentRejected'));
       fetchComments(); // Refresh the list
     } catch (error) {
-      console.error("Failed to reject comment:", error);
-      addToast("error", t("rejectFailed"));
+      console.error('Failed to reject comment:', error);
+      addToast('error', t('rejectFailed'));
     }
   };
 
   const handleDeleteComment = async (commentId: string) => {
-    if (!window.confirm(t("deleteConfirm"))) {
+    if (!window.confirm(t('deleteConfirm'))) {
       return;
     }
 
     try {
       await blogApi.deleteComment(commentId);
-      addToast("success", t("commentDeleted"));
+      addToast('success', t('commentDeleted'));
       fetchComments(); // Refresh the list
     } catch (error) {
-      console.error("Failed to delete comment:", error);
-      addToast("error", t("deleteFailed"));
+      console.error('Failed to delete comment:', error);
+      addToast('error', t('deleteFailed'));
     }
   };
 
@@ -208,9 +208,9 @@ export default function CommentsPage() {
 
   const stats = {
     total: comments.length,
-    approved: comments.filter((c) => c.status === "APPROVED").length,
-    pending: comments.filter((c) => c.status === "PENDING").length,
-    spam: comments.filter((c) => c.status === "SPAM").length,
+    approved: comments.filter((c) => c.status === 'APPROVED').length,
+    pending: comments.filter((c) => c.status === 'PENDING').length,
+    spam: comments.filter((c) => c.status === 'SPAM').length,
   };
 
   if (isLoading && comments.length === 0) {
@@ -219,7 +219,7 @@ export default function CommentsPage() {
         <div className="text-center">
           <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
           <p className="mt-4 text-sm text-muted-foreground">
-            {t("loadingComments")}
+            {t('loadingComments')}
           </p>
         </div>
       </div>
@@ -229,9 +229,9 @@ export default function CommentsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title={t("pageTitle")}
-        description={t("pageDescription")}
-        breadcrumbs={[globalT("content"), globalT("breadcrumbComments")]}
+        title={t('pageTitle')}
+        description={t('pageDescription')}
+        breadcrumbs={[globalT('content'), globalT('breadcrumbComments')]}
       />
 
       {/* Stats */}
@@ -240,7 +240,7 @@ export default function CommentsPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">
-                {t("totalComments")}
+                {t('totalComments')}
               </p>
               <p className="text-2xl font-bold">{stats.total}</p>
             </div>
@@ -250,7 +250,7 @@ export default function CommentsPage() {
         <Card>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-muted-foreground">{t("approved")}</p>
+              <p className="text-sm text-muted-foreground">{t('approved')}</p>
               <p className="text-2xl font-bold text-green-600">
                 {stats.approved}
               </p>
@@ -261,7 +261,7 @@ export default function CommentsPage() {
         <Card>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-muted-foreground">{t("pending")}</p>
+              <p className="text-sm text-muted-foreground">{t('pending')}</p>
               <p className="text-2xl font-bold text-amber-600">
                 {stats.pending}
               </p>
@@ -272,7 +272,7 @@ export default function CommentsPage() {
         <Card>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-muted-foreground">{t("spam")}</p>
+              <p className="text-sm text-muted-foreground">{t('spam')}</p>
               <p className="text-2xl font-bold text-red-600">{stats.spam}</p>
             </div>
             <X className="h-8 w-8 text-red-500/50" />
@@ -297,7 +297,7 @@ export default function CommentsPage() {
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder={t("searchPlaceholder")}
+                placeholder={t('searchPlaceholder')}
                 className="w-full pl-9 pr-3 py-2.5 border border-gray-200 dark:border-white/10 rounded-lg bg-gray-50 dark:bg-black/20 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 dark:text-white placeholder-gray-400 dark:placeholder-gray-600"
               />
             </div>
@@ -308,10 +308,10 @@ export default function CommentsPage() {
               onChange={(e) => setStatusFilter(e.target.value)}
               className="w-[140px] px-3 py-2.5 border border-gray-200 dark:border-white/10 rounded-lg bg-gray-50 dark:bg-black/20 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 dark:text-white"
             >
-              <option value="all">{t("allStatus")}</option>
-              <option value="APPROVED">{t("approved")}</option>
-              <option value="PENDING">{t("pending")}</option>
-              <option value="SPAM">{t("spam")}</option>
+              <option value="all">{t('allStatus')}</option>
+              <option value="APPROVED">{t('approved')}</option>
+              <option value="PENDING">{t('pending')}</option>
+              <option value="SPAM">{t('spam')}</option>
               <option value="REJECTED">Rejected</option>
             </select>
             <select
@@ -330,12 +330,12 @@ export default function CommentsPage() {
       </Card>
 
       {/* Comments List */}
-      <Card title={t("commentList")}>
+      <Card title={t('commentList')}>
         <div className="mb-4">
           <p className="text-sm text-muted-foreground">
-            {t("totalCommentsCount", { count: filteredComments.length })},{" "}
-            {t("pendingModeration", {
-              count: filteredComments.filter((c) => c.status === "PENDING")
+            {t('totalCommentsCount', { count: filteredComments.length })},{' '}
+            {t('pendingModeration', {
+              count: filteredComments.filter((c) => c.status === 'PENDING')
                 .length,
             })}
           </p>
@@ -371,19 +371,19 @@ export default function CommentsPage() {
                   </div>
                 </div>
                 <div className="flex items-center space-x-1">
-                  {comment.status === "PENDING" && (
+                  {comment.status === 'PENDING' && (
                     <>
                       <button
                         onClick={() => handleApproveComment(comment.id)}
                         className="p-1.5 rounded-lg border border-green-200 dark:border-green-800/30 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors"
-                        title={t("approve")}
+                        title={t('approve')}
                       >
                         <Check className="h-4 w-4" />
                       </button>
                       <button
                         onClick={() => handleRejectComment(comment.id)}
                         className="p-1.5 rounded-lg border border-red-200 dark:border-red-800/30 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
-                        title={t("reject")}
+                        title={t('reject')}
                       >
                         <X className="h-4 w-4" />
                       </button>
@@ -392,14 +392,14 @@ export default function CommentsPage() {
                   <button
                     onClick={() => handleEditComment(comment)}
                     className="p-1.5 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-200 transition-colors"
-                    title={t("edit")}
+                    title={t('edit')}
                   >
                     <Edit className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => handleDeleteComment(comment.id)}
                     className="p-1.5 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors"
-                    title={t("delete")}
+                    title={t('delete')}
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -417,16 +417,16 @@ export default function CommentsPage() {
                     href={`/blog/articles/${comment.article?.slug}`}
                     className="text-primary hover:underline"
                   >
-                    {comment.article?.title || t("unknownArticle")}
+                    {comment.article?.title || t('unknownArticle')}
                   </a>
                 </div>
                 <div className="flex items-center space-x-2">
                   <button className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-200 transition-colors">
                     <Eye className="mr-1 h-3 w-3 inline" />
-                    {t("viewArticle")}
+                    {t('viewArticle')}
                   </button>
                   <button className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-200 transition-colors">
-                    {t("reply")}
+                    {t('reply')}
                   </button>
                 </div>
               </div>
@@ -438,7 +438,7 @@ export default function CommentsPage() {
       {/* Pagination */}
       <div className="flex items-center justify-between">
         <div className="text-sm text-muted-foreground">
-          {t("showingComments", {
+          {t('showingComments', {
             current: filteredComments.length,
             total: filteredComments.length,
           })}
@@ -463,27 +463,27 @@ export default function CommentsPage() {
       </div>
 
       {/* Moderation Tips */}
-      <Card title={t("moderationTips")}>
+      <Card title={t('moderationTips')}>
         <ul className="space-y-2 text-sm text-muted-foreground">
           <li className="flex items-start">
             <div className="mr-2 mt-0.5">•</div>
-            <span>{t("tip1")}</span>
+            <span>{t('tip1')}</span>
           </li>
           <li className="flex items-start">
             <div className="mr-2 mt-0.5">•</div>
-            <span>{t("tip2")}</span>
+            <span>{t('tip2')}</span>
           </li>
           <li className="flex items-start">
             <div className="mr-2 mt-0.5">•</div>
-            <span>{t("tip3")}</span>
+            <span>{t('tip3')}</span>
           </li>
           <li className="flex items-start">
             <div className="mr-2 mt-0.5">•</div>
-            <span>{t("tip4")}</span>
+            <span>{t('tip4')}</span>
           </li>
           <li className="flex items-start">
             <div className="mr-2 mt-0.5">•</div>
-            <span>{t("tip5")}</span>
+            <span>{t('tip5')}</span>
           </li>
         </ul>
       </Card>

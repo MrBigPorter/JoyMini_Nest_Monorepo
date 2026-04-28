@@ -1,17 +1,17 @@
-"use client";
+'use client';
 
-import React, { useState, useEffect } from "react";
-import Image from "next/image";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
-import { ChevronLeft, ChevronRight, LogOut, X } from "lucide-react";
-import { useAuthStore } from "@/store/useAuthStore";
-import { useToastStore } from "@/store/useToastStore";
-import { ROLE_DISPLAY_NAMES } from "@/constants";
-import { routes, RouteConfig } from "@/routes";
-import { useTranslation } from "@/hooks/useTranslation";
-import { useRequest } from "ahooks";
+import React, { useState, useEffect } from 'react';
+import Image from 'next/image';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ChevronLeft, ChevronRight, LogOut, X } from 'lucide-react';
+import { useAuthStore } from '@/store/useAuthStore';
+import { useToastStore } from '@/store/useToastStore';
+import { ROLE_DISPLAY_NAMES } from '@/constants';
+import { routes, RouteConfig } from '@/routes';
+import { useTranslation } from '@/hooks/useTranslation';
+import { useRequest } from 'ahooks';
 
 const sidebarRoutes = routes.filter((r) => !r.hidden);
 
@@ -29,8 +29,8 @@ const SidebarItem: React.FC<{
       onClick={onClick}
       className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group ${
         isActive
-          ? "bg-primary-500/10 text-primary-500 font-medium"
-          : "text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white"
+          ? 'bg-primary-500/10 text-primary-500 font-medium'
+          : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white'
       }`}
     >
       <Icon size={20} className="flex-shrink-0" />
@@ -59,12 +59,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
     logoutAction,
     {
       manual: true,
-      onSuccess: () => addToast("info", "Logged out successfully"),
-      onError: (error) => addToast("error", `Logout failed: ${error.message}`),
+      onSuccess: () => addToast('info', 'Logged out successfully'),
+      onError: (error) => addToast('error', `Logout failed: ${error.message}`),
     },
   );
 
-  const displayName = userInfo?.realName || userInfo?.username || "Admin";
+  const displayName = userInfo?.realName || userInfo?.username || 'Admin';
   const initial = displayName.charAt(0).toUpperCase();
 
   // Group routes by group
@@ -128,7 +128,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   isCollapsed={collapsed}
                   isActive={
                     pathname === route.path ||
-                    pathname.startsWith(route.path + "/")
+                    pathname.startsWith(route.path + '/')
                   }
                   onClick={onMobileClose}
                 />
@@ -152,7 +152,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
                 {userInfo?.role
                   ? (ROLE_DISPLAY_NAMES[userInfo.role] ?? userInfo.role)
-                  : ""}
+                  : ''}
               </p>
             </div>
           </div>
@@ -168,7 +168,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <LogOut size={20} className="flex-shrink-0" />
         {!collapsed && (
           <span className="text-sm">
-            {isLoggingOut ? "Logging out..." : "Logout"}
+            {isLoggingOut ? 'Logging out...' : 'Logout'}
           </span>
         )}
       </button>
@@ -188,7 +188,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Desktop sidebar */}
       <aside
         className={`hidden lg:flex flex-col bg-white dark:bg-dark-900 border-r border-gray-100 dark:border-white/5 transition-all duration-300 ease-in-out ${
-          collapsed ? "w-20" : "w-64"
+          collapsed ? 'w-20' : 'w-64'
         }`}
       >
         {sidebarContent}
@@ -208,10 +208,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
               onClick={onMobileClose}
             />
             <motion.aside
-              initial={{ x: "-100%" }}
+              initial={{ x: '-100%' }}
               animate={{ x: 0 }}
-              exit={{ x: "-100%" }}
-              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              exit={{ x: '-100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
               className="relative w-72 h-full bg-white dark:bg-dark-900"
             >
               <button

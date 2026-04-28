@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useRef, useMemo } from "react";
+import { useCallback, useEffect, useRef, useMemo } from 'react';
 import {
   FieldValues,
   Path,
@@ -8,9 +8,9 @@ import {
   UseFormWatch,
   UseFormSetValue,
   UseFormGetValues,
-} from "react-hook-form";
-import { createDataSynchronizer, DataSynchronizer } from "@/utils/dataSync";
-import { normalizeLocalizedValue } from "@/utils/localizedForm";
+} from 'react-hook-form';
+import { createDataSynchronizer, DataSynchronizer } from '@/utils/dataSync';
+import { normalizeLocalizedValue } from '@/utils/localizedForm';
 
 interface UseLocalizedFormOptions<T extends FieldValues> {
   // 分别接收需要的属性，而不是整个 form 对象，避免 Next.js 编译器报错 TS71007
@@ -82,7 +82,7 @@ export function useLocalizedFormV2<T extends FieldValues>({
   useEffect(() => {
     const subscription = watch(
       (value: any, { name, type }: { name?: string; type?: string }) => {
-        if (name && type === "change") {
+        if (name && type === 'change') {
           // 安全地获取字段值
           const fieldValue = (value as any)[name];
 
@@ -136,7 +136,7 @@ export function useLocalizedFormV2<T extends FieldValues>({
       // 初始化处理：如果检测到多语言对象，立即同步到存储
       if (
         rawValue &&
-        typeof rawValue === "object" &&
+        typeof rawValue === 'object' &&
         !((rawValue as any) instanceof File)
       ) {
         // 规范化多语言对象
@@ -160,14 +160,14 @@ export function useLocalizedFormV2<T extends FieldValues>({
 
       // 安全地获取字符串值，处理 File 对象和其他类型
       const getSafeStringValue = (val: any): string => {
-        if (val === null || val === undefined) return "";
-        if (typeof val === "string") return val;
+        if (val === null || val === undefined) return '';
+        if (typeof val === 'string') return val;
         if (val instanceof File || (val as any) instanceof File)
-          return val.name || "";
-        if (typeof val === "object") {
+          return val.name || '';
+        if (typeof val === 'object') {
           // 如果是多语言对象，返回当前语言的值
           const normalized = normalizeLocalizedValue(val);
-          return normalized[locale] || "";
+          return normalized[locale] || '';
         }
         return String(val);
       };
@@ -201,7 +201,7 @@ export function useLocalizedFormV2<T extends FieldValues>({
 
       availableLocales.forEach((lang) => {
         if (result[lang] === undefined) {
-          result[lang] = "";
+          result[lang] = '';
         }
       });
 

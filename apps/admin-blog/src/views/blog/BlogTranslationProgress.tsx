@@ -1,12 +1,12 @@
-"use client";
+'use client';
 
-import React, { useState } from "react";
-import { useRequest } from "ahooks";
-import { Card, Badge, Button, Select } from "@/components/UIComponents";
-import { useToastStore } from "@/store/useToastStore";
-import { blogApi } from "@/api";
-import { useTranslation } from "@/hooks/useTranslation";
-import { enUS, zhCN } from "date-fns/locale";
+import React, { useState } from 'react';
+import { useRequest } from 'ahooks';
+import { Card, Badge, Button, Select } from '@/components/UIComponents';
+import { useToastStore } from '@/store/useToastStore';
+import { blogApi } from '@/api';
+import { useTranslation } from '@/hooks/useTranslation';
+import { enUS, zhCN } from 'date-fns/locale';
 import {
   RefreshCw,
   AlertCircle,
@@ -17,29 +17,29 @@ import {
   List,
   FileText,
   Languages,
-} from "lucide-react";
-import { formatDistanceToNow, format } from "date-fns";
-import { ModalManager } from "@repo/ui";
-import LocalizedText from "@/components/blog/LocalizedText.tsx";
-import { renderLocalizedText } from "@/utils/localizedText.ts";
+} from 'lucide-react';
+import { formatDistanceToNow, format } from 'date-fns';
+import { ModalManager } from '@repo/ui';
+import LocalizedText from '@/components/blog/LocalizedText.tsx';
+import { renderLocalizedText } from '@/utils/localizedText.ts';
 
 // 简单的 Alert 组件
 const Alert = ({
-  variant = "default",
+  variant = 'default',
   title,
   description,
   action,
 }: {
-  variant?: "default" | "error" | "warning" | "success";
+  variant?: 'default' | 'error' | 'warning' | 'success';
   title: string;
   description: string;
   action?: React.ReactNode;
 }) => {
   const variantClasses = {
-    default: "bg-gray-50 border-gray-200 text-gray-800",
-    error: "bg-red-50 border-red-200 text-red-800",
-    warning: "bg-amber-50 border-amber-200 text-amber-800",
-    success: "bg-emerald-50 border-emerald-200 text-emerald-800",
+    default: 'bg-gray-50 border-gray-200 text-gray-800',
+    error: 'bg-red-50 border-red-200 text-red-800',
+    warning: 'bg-amber-50 border-amber-200 text-amber-800',
+    success: 'bg-emerald-50 border-emerald-200 text-emerald-800',
   };
 
   return (
@@ -56,7 +56,7 @@ const Alert = ({
 };
 
 // 简单的 Skeleton 组件
-const Skeleton = ({ className = "" }: { className?: string }) => {
+const Skeleton = ({ className = '' }: { className?: string }) => {
   return (
     <div className={`animate-pulse bg-gray-200 rounded ${className}`}></div>
   );
@@ -66,7 +66,7 @@ const Skeleton = ({ className = "" }: { className?: string }) => {
 const Checkbox = ({
   checked,
   onChange,
-  className = "",
+  className = '',
 }: {
   checked: boolean;
   onChange: () => void;
@@ -78,8 +78,8 @@ const Checkbox = ({
       onClick={onChange}
       className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${
         checked
-          ? "bg-blue-600 border-blue-600"
-          : "bg-white border-gray-300 hover:border-gray-400"
+          ? 'bg-blue-600 border-blue-600'
+          : 'bg-white border-gray-300 hover:border-gray-400'
       } ${className}`}
     >
       {checked && (
@@ -106,7 +106,7 @@ const Checkbox = ({
 const ProgressBar = ({
   value,
   max = 100,
-  className = "",
+  className = '',
 }: {
   value: number;
   max?: number;
@@ -129,14 +129,14 @@ const StatCard = ({
   title,
   value,
   total,
-  status = "default",
+  status = 'default',
   icon: Icon,
-  className = "",
+  className = '',
 }: {
   title: string;
   value: number;
   total: number;
-  status?: "default" | "success" | "warning" | "error" | "info";
+  status?: 'default' | 'success' | 'warning' | 'error' | 'info';
   icon: React.ElementType;
   className?: string;
 }) => {
@@ -144,25 +144,25 @@ const StatCard = ({
 
   const statusConfig = {
     default: {
-      bg: "bg-gray-100",
-      text: "text-gray-700",
-      iconColor: "text-gray-500",
+      bg: 'bg-gray-100',
+      text: 'text-gray-700',
+      iconColor: 'text-gray-500',
     },
     success: {
-      bg: "bg-emerald-50",
-      text: "text-emerald-700",
-      iconColor: "text-emerald-500",
+      bg: 'bg-emerald-50',
+      text: 'text-emerald-700',
+      iconColor: 'text-emerald-500',
     },
     warning: {
-      bg: "bg-amber-50",
-      text: "text-amber-700",
-      iconColor: "text-amber-500",
+      bg: 'bg-amber-50',
+      text: 'text-amber-700',
+      iconColor: 'text-amber-500',
     },
-    error: { bg: "bg-red-50", text: "text-red-700", iconColor: "text-red-500" },
+    error: { bg: 'bg-red-50', text: 'text-red-700', iconColor: 'text-red-500' },
     info: {
-      bg: "bg-blue-50",
-      text: "text-blue-700",
-      iconColor: "text-blue-500",
+      bg: 'bg-blue-50',
+      text: 'text-blue-700',
+      iconColor: 'text-blue-500',
     },
   };
 
@@ -177,13 +177,13 @@ const StatCard = ({
         </div>
         <Badge
           color={
-            status === "success"
-              ? "green"
-              : status === "warning"
-                ? "yellow"
-                : status === "error"
-                  ? "red"
-                  : "gray"
+            status === 'success'
+              ? 'green'
+              : status === 'warning'
+                ? 'yellow'
+                : status === 'error'
+                  ? 'red'
+                  : 'gray'
           }
         >
           {percentage}%
@@ -207,29 +207,29 @@ const QueueStatus = ({
   t: (key: string) => string;
 }) => {
   return (
-    <Card title={t("queueStatus")} className="col-span-2">
+    <Card title={t('queueStatus')} className="col-span-2">
       <div className="grid grid-cols-4 gap-4">
         <div className="text-center">
           <div className="text-2xl font-bold text-blue-600">
             {status.active}
           </div>
-          <div className="text-sm text-gray-500">{t("inProgress")}</div>
+          <div className="text-sm text-gray-500">{t('inProgress')}</div>
         </div>
         <div className="text-center">
           <div className="text-2xl font-bold text-amber-600">
             {status.waiting}
           </div>
-          <div className="text-sm text-gray-500">{t("statusQueued")}</div>
+          <div className="text-sm text-gray-500">{t('statusQueued')}</div>
         </div>
         <div className="text-center">
           <div className="text-2xl font-bold text-red-600">{status.failed}</div>
-          <div className="text-sm text-gray-500">{t("failed")}</div>
+          <div className="text-sm text-gray-500">{t('failed')}</div>
         </div>
         <div className="text-center">
           <div className="text-2xl font-bold text-emerald-600">
             {status.completed}
           </div>
-          <div className="text-sm text-gray-500">{t("completed")}</div>
+          <div className="text-sm text-gray-500">{t('completed')}</div>
         </div>
       </div>
     </Card>
@@ -251,35 +251,35 @@ const TimeInfo = ({
   dateLocale: any;
 }) => {
   return (
-    <Card title={t("timeInfo")} className="col-span-2">
+    <Card title={t('timeInfo')} className="col-span-2">
       <div className="space-y-3">
         <div className="flex justify-between">
-          <span className="text-gray-600">{t("startTime")}:</span>
+          <span className="text-gray-600">{t('startTime')}:</span>
           <span className="font-medium">
             {startTime
-              ? format(new Date(startTime), "yyyy-MM-dd HH:mm:ss")
-              : t("notStarted")}
+              ? format(new Date(startTime), 'yyyy-MM-dd HH:mm:ss')
+              : t('notStarted')}
           </span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-600">{t("elapsedTime")}:</span>
+          <span className="text-gray-600">{t('elapsedTime')}:</span>
           <span className="font-medium">
             {elapsedTime > 0
               ? formatDistanceToNow(new Date(Date.now() - elapsedTime * 1000), {
                   locale: dateLocale,
                 })
-              : t("seconds")}
+              : t('seconds')}
           </span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-600">{t("estimatedCompletion")}:</span>
+          <span className="text-gray-600">{t('estimatedCompletion')}:</span>
           <span className="font-medium">
             {estimatedCompletionTime
               ? formatDistanceToNow(new Date(estimatedCompletionTime), {
                   locale: dateLocale,
                   addSuffix: true,
                 })
-              : t("unknown")}
+              : t('unknown')}
           </span>
         </div>
       </div>
@@ -297,10 +297,10 @@ export default function BlogTranslationProgress() {
     globalT(`blog_translation_${key}`, params);
 
   // 动态date-fns本地化
-  const dateLocale = (lang === "zh" ? zhCN : enUS) as any;
+  const dateLocale = (lang === 'zh' ? zhCN : enUS) as any;
 
   const [autoRefresh, setAutoRefresh] = useState(false);
-  const [selectedLanguage, setSelectedLanguage] = useState<string>("en");
+  const [selectedLanguage, setSelectedLanguage] = useState<string>('en');
   const [showOnlyActive, setShowOnlyActive] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -396,12 +396,12 @@ export default function BlogTranslationProgress() {
       <div className="p-6">
         <Alert
           variant="error"
-          title={t("loadFailedTitle")}
-          description={error.message || t("loadFailedDesc")}
+          title={t('loadFailedTitle')}
+          description={error.message || t('loadFailedDesc')}
           action={
             <Button variant="outline" onClick={() => refresh()}>
               <RefreshCw className="w-4 h-4 mr-2" />
-              {t("retryButton")}
+              {t('retryButton')}
             </Button>
           }
         />
@@ -449,29 +449,29 @@ export default function BlogTranslationProgress() {
       {/* 标题和控制栏 */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-400">{t("pageTitle")}</h1>
-          <p className="text-gray-500 mt-1">{t("pageSubtitle")}</p>
+          <h1 className="text-2xl font-bold text-gray-400">{t('pageTitle')}</h1>
+          <p className="text-gray-500 mt-1">{t('pageSubtitle')}</p>
         </div>
         <div className="flex items-center gap-3">
           <Button
-            variant={autoRefresh ? "primary" : "outline"}
+            variant={autoRefresh ? 'primary' : 'outline'}
             onClick={() => setAutoRefresh(!autoRefresh)}
             size="sm"
           >
             <RefreshCw
-              className={`w-4 h-4 mr-2 ${autoRefresh ? "animate-spin" : ""}`}
+              className={`w-4 h-4 mr-2 ${autoRefresh ? 'animate-spin' : ''}`}
             />
-            {autoRefresh ? t("autoRefreshOn") : t("autoRefreshOff")}
+            {autoRefresh ? t('autoRefreshOn') : t('autoRefreshOff')}
           </Button>
           <Button variant="outline" onClick={() => refresh()} size="sm">
             <RefreshCw className="w-4 h-4 mr-2" />
-            {t("manualRefresh")}
+            {t('manualRefresh')}
           </Button>
         </div>
       </div>
 
       {/* 总体进度 */}
-      <Card title={t("overallProgress")} className="col-span-3">
+      <Card title={t('overallProgress')} className="col-span-3">
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
@@ -479,7 +479,7 @@ export default function BlogTranslationProgress() {
                 {overallPercentage}%
               </div>
               <div className="text-gray-500">
-                {t("completedItems", {
+                {t('completedItems', {
                   completed: progressData.completedItems,
                   total: progressData.totalItems,
                 })}
@@ -489,19 +489,19 @@ export default function BlogTranslationProgress() {
               <div className="flex items-center gap-2">
                 <CheckCircle className="w-5 h-5 text-emerald-500" />
                 <span className="text-gray-700">
-                  {progressData.completedItems} {t("completed")}
+                  {progressData.completedItems} {t('completed')}
                 </span>
               </div>
               <div className="flex items-center gap-2">
                 <Clock className="w-5 h-5 text-amber-500" />
                 <span className="text-gray-700">
-                  {progressData.inProgressItems} {t("inProgress")}
+                  {progressData.inProgressItems} {t('inProgress')}
                 </span>
               </div>
               <div className="flex items-center gap-2">
                 <XCircle className="w-5 h-5 text-red-500" />
                 <span className="text-gray-700">
-                  {progressData.failedItems} {t("failed")}
+                  {progressData.failedItems} {t('failed')}
                 </span>
               </div>
             </div>
@@ -516,35 +516,35 @@ export default function BlogTranslationProgress() {
       {/* 分类统计 */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <StatCard
-          title={t("articleTranslation")}
+          title={t('articleTranslation')}
           value={progressData.articles.completed}
           total={progressData.articles.total}
           status={
             progressData.articles.completed === progressData.articles.total
-              ? "success"
-              : "info"
+              ? 'success'
+              : 'info'
           }
           icon={FileText}
         />
         <StatCard
-          title={t("categoryTranslation")}
+          title={t('categoryTranslation')}
           value={progressData.categories.completed}
           total={progressData.categories.total}
           status={
             progressData.categories.completed === progressData.categories.total
-              ? "success"
-              : "info"
+              ? 'success'
+              : 'info'
           }
           icon={List}
         />
         <StatCard
-          title={t("tagTranslation")}
+          title={t('tagTranslation')}
           value={progressData.tags.completed}
           total={progressData.tags.total}
           status={
             progressData.tags.completed === progressData.tags.total
-              ? "success"
-              : "info"
+              ? 'success'
+              : 'info'
           }
           icon={BarChart3}
         />
@@ -564,7 +564,7 @@ export default function BlogTranslationProgress() {
 
       {/* 🔍 待翻译文章 */}
       <Card
-        title={t("pendingArticlesTitle", {
+        title={t('pendingArticlesTitle', {
           lang: selectedLanguage.toUpperCase(),
         })}
       >
@@ -578,7 +578,7 @@ export default function BlogTranslationProgress() {
           ) : untranslatedArticles && untranslatedArticles.length > 0 ? (
             <div className="space-y-3">
               <div className="text-sm text-gray-500 mb-2">
-                {t("pendingArticlesDescription", {
+                {t('pendingArticlesDescription', {
                   count: untranslatedArticles.length,
                   lang: selectedLanguage.toUpperCase(),
                 })}
@@ -594,30 +594,30 @@ export default function BlogTranslationProgress() {
                       <div className="flex items-center gap-2 mt-1">
                         <Badge
                           color={
-                            article.status === "COMPLETED"
-                              ? "green"
-                              : article.status === "PROCESSING"
-                                ? "yellow"
-                                : article.status === "QUEUED"
-                                  ? "blue"
-                                  : article.status === "FAILED"
-                                    ? "red"
-                                    : "gray"
+                            article.status === 'COMPLETED'
+                              ? 'green'
+                              : article.status === 'PROCESSING'
+                                ? 'yellow'
+                                : article.status === 'QUEUED'
+                                  ? 'blue'
+                                  : article.status === 'FAILED'
+                                    ? 'red'
+                                    : 'gray'
                           }
                         >
-                          {article.status === "COMPLETED"
-                            ? t("statusCompleted")
-                            : article.status === "PROCESSING"
-                              ? t("statusProcessing", {
+                          {article.status === 'COMPLETED'
+                            ? t('statusCompleted')
+                            : article.status === 'PROCESSING'
+                              ? t('statusProcessing', {
                                   progress: article.progress,
                                 })
-                              : article.status === "QUEUED"
-                                ? t("statusQueued")
-                                : article.status === "FAILED"
-                                  ? t("statusFailed")
-                                  : t("statusUntranslated")}
+                              : article.status === 'QUEUED'
+                                ? t('statusQueued')
+                                : article.status === 'FAILED'
+                                  ? t('statusFailed')
+                                  : t('statusUntranslated')}
                         </Badge>
-                        {article.status === "PROCESSING" && (
+                        {article.status === 'PROCESSING' && (
                           <ProgressBar
                             value={article.progress}
                             max={100}
@@ -628,15 +628,15 @@ export default function BlogTranslationProgress() {
                     </div>
                     <Button
                       variant={
-                        article.status === "PROCESSING" ||
-                        article.status === "QUEUED"
-                          ? "outline"
-                          : "primary"
+                        article.status === 'PROCESSING' ||
+                        article.status === 'QUEUED'
+                          ? 'outline'
+                          : 'primary'
                       }
                       size="sm"
                       disabled={
-                        article.status === "PROCESSING" ||
-                        article.status === "QUEUED"
+                        article.status === 'PROCESSING' ||
+                        article.status === 'QUEUED'
                       }
                       onClick={() => {
                         blogApi.translation.translateArticle(
@@ -649,10 +649,10 @@ export default function BlogTranslationProgress() {
                         }, 500);
                       }}
                     >
-                      {article.status === "PROCESSING" ||
-                      article.status === "QUEUED"
-                        ? t("statusProcessing", { progress: article.progress })
-                        : t("translateButton")}
+                      {article.status === 'PROCESSING' ||
+                      article.status === 'QUEUED'
+                        ? t('statusProcessing', { progress: article.progress })
+                        : t('translateButton')}
                     </Button>
                   </div>
                 ))}
@@ -661,9 +661,9 @@ export default function BlogTranslationProgress() {
           ) : (
             <div className="text-center py-8 text-gray-500">
               <CheckCircle className="w-12 h-12 mx-auto text-emerald-300 mb-3" />
-              <p>{t("allArticlesTranslated")}</p>
+              <p>{t('allArticlesTranslated')}</p>
               <p className="text-sm mt-1">
-                {t("allArticlesTranslatedDesc", {
+                {t('allArticlesTranslatedDesc', {
                   lang: selectedLanguage.toUpperCase(),
                 })}
               </p>
@@ -674,10 +674,10 @@ export default function BlogTranslationProgress() {
 
       {/* ⚡ 活跃翻译任务 */}
       <Card
-        title={t("activeJobsTitle", {
+        title={t('activeJobsTitle', {
           count:
             dbJobs?.items?.filter(
-              (j: any) => j.status === "QUEUED" || j.status === "PROCESSING",
+              (j: any) => j.status === 'QUEUED' || j.status === 'PROCESSING',
             ).length || 0,
         })}
       >
@@ -693,14 +693,14 @@ export default function BlogTranslationProgress() {
               const activeJobs =
                 dbJobs?.items?.filter(
                   (j: any) =>
-                    j.status === "QUEUED" || j.status === "PROCESSING",
+                    j.status === 'QUEUED' || j.status === 'PROCESSING',
                 ) || [];
 
               if (activeJobs.length === 0) {
                 return (
                   <div className="text-center py-6 text-gray-500">
                     <Clock className="w-10 h-10 mx-auto text-gray-300 mb-2" />
-                    <p>{t("noActiveJobs")}</p>
+                    <p>{t('noActiveJobs')}</p>
                   </div>
                 );
               }
@@ -715,18 +715,18 @@ export default function BlogTranslationProgress() {
                       <div className="w-32 text-sm">
                         <Badge
                           color={
-                            job.type === "article"
-                              ? "blue"
-                              : job.type === "category"
-                                ? "green"
-                                : "gray"
+                            job.type === 'article'
+                              ? 'blue'
+                              : job.type === 'category'
+                                ? 'green'
+                                : 'gray'
                           }
                         >
-                          {job.type === "article"
-                            ? t("typeArticle")
-                            : job.type === "category"
-                              ? t("typeCategory")
-                              : t("typeTag")}
+                          {job.type === 'article'
+                            ? t('typeArticle')
+                            : job.type === 'category'
+                              ? t('typeCategory')
+                              : t('typeTag')}
                         </Badge>
                       </div>
                       <div className="flex-1">
@@ -747,14 +747,14 @@ export default function BlogTranslationProgress() {
                         </div>
                       </div>
                       <Badge
-                        color={job.status === "PROCESSING" ? "yellow" : "blue"}
+                        color={job.status === 'PROCESSING' ? 'yellow' : 'blue'}
                       >
-                        {job.status === "PROCESSING"
-                          ? t("statusProcessing", { progress: "" }).replace(
-                              " %",
-                              "",
+                        {job.status === 'PROCESSING'
+                          ? t('statusProcessing', { progress: '' }).replace(
+                              ' %',
+                              '',
                             )
-                          : t("statusQueued")}
+                          : t('statusQueued')}
                       </Badge>
                     </div>
                   ))}
@@ -766,13 +766,13 @@ export default function BlogTranslationProgress() {
       </Card>
 
       {/* 持久化翻译任务记录 */}
-      <Card title={t("jobHistoryTitle")}>
+      <Card title={t('jobHistoryTitle')}>
         <div className="space-y-4">
           {/* 控制栏 */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium">{t("filter")}:</span>
+                <span className="text-sm font-medium">{t('filter')}:</span>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
@@ -780,21 +780,21 @@ export default function BlogTranslationProgress() {
                     onChange={(e) => setShowOnlyActive(e.target.checked)}
                     className="w-4 h-4"
                   />
-                  <span className="text-sm">{t("showOnlyActive")}</span>
+                  <span className="text-sm">{t('showOnlyActive')}</span>
                 </label>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium">{t("perPage")}:</span>
+                <span className="text-sm font-medium">{t('perPage')}:</span>
                 <Select
                   value={pageSize.toString()}
                   onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
                     setPageSize(Number(e.target.value))
                   }
                   options={[
-                    { value: "10", label: t("perPageItems", { count: 10 }) },
-                    { value: "20", label: t("perPageItems", { count: 20 }) },
-                    { value: "50", label: t("perPageItems", { count: 50 }) },
-                    { value: "100", label: t("perPageItems", { count: 100 }) },
+                    { value: '10', label: t('perPageItems', { count: 10 }) },
+                    { value: '20', label: t('perPageItems', { count: 20 }) },
+                    { value: '50', label: t('perPageItems', { count: 50 }) },
+                    { value: '100', label: t('perPageItems', { count: 100 }) },
                   ]}
                   className="w-24"
                 />
@@ -807,10 +807,10 @@ export default function BlogTranslationProgress() {
                 onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
                 disabled={currentPage <= 1}
               >
-                {t("prevPage")}
+                {t('prevPage')}
               </Button>
               <span className="text-sm text-gray-600">
-                {t("currentPage", { page: currentPage })}
+                {t('currentPage', { page: currentPage })}
               </span>
               <Button
                 variant="outline"
@@ -822,7 +822,7 @@ export default function BlogTranslationProgress() {
                   currentPage >= dbJobs.totalPages
                 }
               >
-                {t("nextPage")}
+                {t('nextPage')}
               </Button>
             </div>
           </div>
@@ -839,25 +839,25 @@ export default function BlogTranslationProgress() {
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">
-                      {t("name")}
+                      {t('name')}
                     </th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">
-                      {t("type")}
+                      {t('type')}
                     </th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">
-                      {t("targetLang")}
+                      {t('targetLang')}
                     </th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">
-                      {t("status")}
+                      {t('status')}
                     </th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">
-                      {t("progress")}
+                      {t('progress')}
                     </th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">
-                      {t("createdAt")}
+                      {t('createdAt')}
                     </th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">
-                      {t("errorMsg")}
+                      {t('errorMsg')}
                     </th>
                   </tr>
                 </thead>
@@ -873,43 +873,43 @@ export default function BlogTranslationProgress() {
                       <td className="px-4 py-3 text-sm">
                         <Badge
                           color={
-                            job.type === "article"
-                              ? "blue"
-                              : job.type === "category"
-                                ? "green"
-                                : "gray"
+                            job.type === 'article'
+                              ? 'blue'
+                              : job.type === 'category'
+                                ? 'green'
+                                : 'gray'
                           }
                         >
-                          {job.type === "article"
-                            ? t("typeArticle")
-                            : job.type === "category"
-                              ? t("typeCategory")
-                              : t("typeTag")}
+                          {job.type === 'article'
+                            ? t('typeArticle')
+                            : job.type === 'category'
+                              ? t('typeCategory')
+                              : t('typeTag')}
                         </Badge>
                       </td>
                       <td className="px-4 py-3 text-sm">{job.targetLang}</td>
                       <td className="px-4 py-3 text-sm">
                         <Badge
                           color={
-                            job.status === "COMPLETED"
-                              ? "green"
-                              : job.status === "PROCESSING"
-                                ? "yellow"
-                                : job.status === "FAILED"
-                                  ? "red"
-                                  : "gray"
+                            job.status === 'COMPLETED'
+                              ? 'green'
+                              : job.status === 'PROCESSING'
+                                ? 'yellow'
+                                : job.status === 'FAILED'
+                                  ? 'red'
+                                  : 'gray'
                           }
                         >
-                          {job.status === "QUEUED"
-                            ? t("statusQueued")
-                            : job.status === "PROCESSING"
-                              ? t("statusProcessing", { progress: "" }).replace(
-                                  " %",
-                                  "",
+                          {job.status === 'QUEUED'
+                            ? t('statusQueued')
+                            : job.status === 'PROCESSING'
+                              ? t('statusProcessing', { progress: '' }).replace(
+                                  ' %',
+                                  '',
                                 )
-                              : job.status === "COMPLETED"
-                                ? t("statusCompleted")
-                                : t("statusFailed")}
+                              : job.status === 'COMPLETED'
+                                ? t('statusCompleted')
+                                : t('statusFailed')}
                         </Badge>
                       </td>
                       <td className="px-4 py-3 text-sm">
@@ -924,11 +924,11 @@ export default function BlogTranslationProgress() {
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-600">
                         {job.createdAt
-                          ? format(new Date(job.createdAt), "MM-dd HH:mm")
-                          : "-"}
+                          ? format(new Date(job.createdAt), 'MM-dd HH:mm')
+                          : '-'}
                       </td>
                       <td className="px-4 py-3 text-sm text-red-600 max-w-[200px] truncate">
-                        {job.errorMsg || "-"}
+                        {job.errorMsg || '-'}
                       </td>
                     </tr>
                   ))}
@@ -936,7 +936,7 @@ export default function BlogTranslationProgress() {
               </table>
               <div className="flex items-center justify-between mt-4 pt-4 border-t">
                 <div className="text-sm text-gray-500">
-                  {t("totalRecords", {
+                  {t('totalRecords', {
                     total: dbJobs.total,
                     page: dbJobs.page,
                     totalPages: dbJobs.totalPages,
@@ -949,7 +949,7 @@ export default function BlogTranslationProgress() {
                     onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
                     disabled={currentPage <= 1}
                   >
-                    {t("prevPage")}
+                    {t('prevPage')}
                   </Button>
                   <Button
                     variant="outline"
@@ -957,7 +957,7 @@ export default function BlogTranslationProgress() {
                     onClick={() => setCurrentPage(currentPage + 1)}
                     disabled={currentPage >= dbJobs.totalPages}
                   >
-                    {t("nextPage")}
+                    {t('nextPage')}
                   </Button>
                 </div>
               </div>
@@ -965,14 +965,14 @@ export default function BlogTranslationProgress() {
           ) : (
             <div className="text-center py-8 text-gray-500">
               <AlertCircle className="w-12 h-12 mx-auto text-gray-300 mb-3" />
-              <p>{t("noJobRecords")}</p>
+              <p>{t('noJobRecords')}</p>
             </div>
           )}
         </div>
       </Card>
 
       {/* 任务列表 */}
-      <Card title={t("liveJobsTitle")}>
+      <Card title={t('liveJobsTitle')}>
         {jobsLoading ? (
           <div className="space-y-3">
             <Skeleton className="h-10" />
@@ -988,7 +988,7 @@ export default function BlogTranslationProgress() {
               <div>
                 <h3 className="font-medium text-gray-700 mb-2 flex items-center gap-2">
                   <Clock className="w-4 h-4 text-amber-500" />
-                  {t("activeJobs", { count: jobs.active.length })}
+                  {t('activeJobs', { count: jobs.active.length })}
                 </h3>
                 <div className="space-y-2">
                   {jobs.active.map((job: any) => (
@@ -1005,7 +1005,7 @@ export default function BlogTranslationProgress() {
                         </div>
                       </div>
                       <div className="text-sm text-gray-500">
-                        {t("progressWithPercent", {
+                        {t('progressWithPercent', {
                           progress: job.progress || 0,
                         })}
                       </div>
@@ -1019,7 +1019,7 @@ export default function BlogTranslationProgress() {
               <div>
                 <h3 className="font-medium text-gray-700 mb-2 flex items-center gap-2">
                   <Clock className="w-4 h-4 text-blue-500" />
-                  {t("waitingJobs", { count: jobs.waiting.length })}
+                  {t('waitingJobs', { count: jobs.waiting.length })}
                 </h3>
                 <div className="space-y-2">
                   {jobs.waiting.slice(0, 5).map((job: any) => (
@@ -1036,13 +1036,13 @@ export default function BlogTranslationProgress() {
                         </div>
                       </div>
                       <div className="text-sm text-gray-500">
-                        {t("waiting")}
+                        {t('waiting')}
                       </div>
                     </div>
                   ))}
                   {jobs.waiting.length > 5 && (
                     <div className="text-center text-sm text-gray-500 py-2">
-                      {t("moreWaitingJobs", { count: jobs.waiting.length - 5 })}
+                      {t('moreWaitingJobs', { count: jobs.waiting.length - 5 })}
                     </div>
                   )}
                 </div>
@@ -1053,7 +1053,7 @@ export default function BlogTranslationProgress() {
               <div>
                 <h3 className="font-medium text-gray-700 mb-2 flex items-center gap-2">
                   <XCircle className="w-4 h-4 text-red-500" />
-                  {t("failedJobs", { count: jobs.failed.length })}
+                  {t('failedJobs', { count: jobs.failed.length })}
                 </h3>
                 <div className="space-y-2">
                   {jobs.failed.slice(0, 3).map((job: any) => (
@@ -1066,17 +1066,17 @@ export default function BlogTranslationProgress() {
                           {job.name}
                         </div>
                         <div className="text-sm text-red-600">
-                          {job.failedReason || t("unknownError")}
+                          {job.failedReason || t('unknownError')}
                         </div>
                       </div>
                       <Button variant="outline" size="sm">
-                        {t("retry")}
+                        {t('retry')}
                       </Button>
                     </div>
                   ))}
                   {jobs.failed.length > 3 && (
                     <div className="text-center text-sm text-gray-500 py-2">
-                      {t("moreFailedJobs", { count: jobs.failed.length - 3 })}
+                      {t('moreFailedJobs', { count: jobs.failed.length - 3 })}
                     </div>
                   )}
                 </div>
@@ -1086,7 +1086,7 @@ export default function BlogTranslationProgress() {
         ) : (
           <div className="text-center py-8 text-gray-500">
             <AlertCircle className="w-12 h-12 mx-auto text-gray-300 mb-3" />
-            <p>{t("noLiveJobs")}</p>
+            <p>{t('noLiveJobs')}</p>
           </div>
         )}
       </Card>
@@ -1095,8 +1095,8 @@ export default function BlogTranslationProgress() {
       {progressData.failedItems > 0 && (
         <Alert
           variant="error"
-          title={t("failedJobsAlertTitle")}
-          description={t("failedJobsAlertDesc", {
+          title={t('failedJobsAlertTitle')}
+          description={t('failedJobsAlertDesc', {
             count: progressData.failedItems,
           })}
         />
@@ -1106,8 +1106,8 @@ export default function BlogTranslationProgress() {
         progressData.completedItems < progressData.totalItems && (
           <Alert
             variant="warning"
-            title={t("notStartedAlertTitle")}
-            description={t("notStartedAlertDesc")}
+            title={t('notStartedAlertTitle')}
+            description={t('notStartedAlertDesc')}
           />
         )}
 
@@ -1115,8 +1115,8 @@ export default function BlogTranslationProgress() {
         progressData.totalItems > 0 && (
           <Alert
             variant="success"
-            title={t("completedAlertTitle")}
-            description={t("completedAlertDesc")}
+            title={t('completedAlertTitle')}
+            description={t('completedAlertDesc')}
           />
         )}
     </div>

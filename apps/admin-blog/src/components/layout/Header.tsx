@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Menu,
   Moon,
@@ -10,18 +10,18 @@ import {
   Languages,
   Settings,
   Check,
-} from "lucide-react";
-import { useAppStore } from "@/store/useAppStore";
-import { useAuthStore } from "@/store/useAuthStore";
-import { useToastStore } from "@/store/useToastStore";
-import { Dropdown } from "@/components/UIComponents";
-import { useRequest } from "ahooks";
-import { ROLE_DISPLAY_NAMES } from "@/constants";
-import { useTranslation } from "@/hooks/useTranslation";
-import { useAvailableLocales } from "@/hooks/useAvailableLocales";
-import { useRouter } from "next/navigation";
-import { AnimatePresence, motion } from "framer-motion";
-import type { Locale } from "@lucky/shared";
+} from 'lucide-react';
+import { useAppStore } from '@/store/useAppStore';
+import { useAuthStore } from '@/store/useAuthStore';
+import { useToastStore } from '@/store/useToastStore';
+import { Dropdown } from '@/components/UIComponents';
+import { useRequest } from 'ahooks';
+import { ROLE_DISPLAY_NAMES } from '@/constants';
+import { useTranslation } from '@/hooks/useTranslation';
+import { useAvailableLocales } from '@/hooks/useAvailableLocales';
+import { useRouter } from 'next/navigation';
+import { AnimatePresence, motion } from 'framer-motion';
+import type { Locale } from '@lucky/shared';
 
 interface HeaderProps {
   onMenuButtonClick: () => void;
@@ -40,8 +40,8 @@ function LocaleDropdown() {
         setOpen(false);
       }
     };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   return (
@@ -71,8 +71,8 @@ function LocaleDropdown() {
                 }}
                 className={`w-full text-left px-4 py-2.5 text-sm flex items-center gap-3 transition-colors ${
                   lang === locale.code
-                    ? "text-primary-600 dark:text-primary-400 font-medium"
-                    : "text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5"
+                    ? 'text-primary-600 dark:text-primary-400 font-medium'
+                    : 'text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5'
                 }`}
               >
                 <span className="flex-1">{locale.nativeName}</span>
@@ -100,12 +100,12 @@ export const Header: React.FC<HeaderProps> = ({ onMenuButtonClick }) => {
     logoutAction,
     {
       manual: true,
-      onSuccess: () => addToast("info", "Logged out successfully"),
-      onError: (error) => addToast("error", `Logout failed: ${error.message}`),
+      onSuccess: () => addToast('info', 'Logged out successfully'),
+      onError: (error) => addToast('error', `Logout failed: ${error.message}`),
     },
   );
 
-  const displayName = userInfo?.realName || userInfo?.username || "Admin";
+  const displayName = userInfo?.realName || userInfo?.username || 'Admin';
   const initial = displayName.charAt(0).toUpperCase();
 
   return (
@@ -130,12 +130,12 @@ export const Header: React.FC<HeaderProps> = ({ onMenuButtonClick }) => {
           onClick={toggleTheme}
           className="p-2 text-gray-500 hover:text-amber-500 transition-colors rounded-full hover:bg-gray-100 dark:hover:bg-white/5"
           title={
-            theme === "dark"
-              ? t("header_switchToLightMode")
-              : t("header_switchToDarkMode")
+            theme === 'dark'
+              ? t('header_switchToLightMode')
+              : t('header_switchToDarkMode')
           }
         >
-          {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+          {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
         </button>
 
         {/* User menu */}
@@ -163,12 +163,12 @@ export const Header: React.FC<HeaderProps> = ({ onMenuButtonClick }) => {
           }
           items={[
             {
-              label: t("header_settings"),
+              label: t('header_settings'),
               icon: <Settings size={16} />,
-              onClick: () => router.push("/settings"),
+              onClick: () => router.push('/settings'),
             },
             {
-              label: isLoggingOut ? t("header_loggingOut") : t("header_logout"),
+              label: isLoggingOut ? t('header_loggingOut') : t('header_logout'),
               icon: <LogOut size={16} />,
               onClick: handleLogout,
               danger: true,

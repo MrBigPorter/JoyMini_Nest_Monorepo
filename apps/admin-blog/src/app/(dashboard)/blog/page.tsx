@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from 'react';
 
 import {
   FileText,
@@ -11,15 +11,15 @@ import {
   Users,
   Eye,
   Loader2,
-} from "lucide-react";
-import Link from "next/link";
-import { PageHeader } from "@/components/scaffold/PageHeader";
-import { Card, Badge } from "@/components/UIComponents";
-import { blogApi } from "@/api";
-import { BlogArticleModal } from "@/views/blog/BlogArticleModal";
-import { useTranslation } from "@/hooks/useTranslation";
-import { renderLocalizedText } from "@/utils/localizedText";
-import LocalizedText from "@/components/blog/LocalizedText";
+} from 'lucide-react';
+import Link from 'next/link';
+import { PageHeader } from '@/components/scaffold/PageHeader';
+import { Card, Badge } from '@/components/UIComponents';
+import { blogApi } from '@/api';
+import { BlogArticleModal } from '@/views/blog/BlogArticleModal';
+import { useTranslation } from '@/hooks/useTranslation';
+import { renderLocalizedText } from '@/utils/localizedText';
+import LocalizedText from '@/components/blog/LocalizedText';
 // removed legacy TRANSLATIONS import; use useTranslation() instead
 
 export default function BlogDashboardPage() {
@@ -66,7 +66,7 @@ export default function BlogDashboardPage() {
           blogApi.getArticles({ page: 1, pageSize: 5 }),
           blogApi.getCategories(),
           blogApi.getTags(),
-          blogApi.getComments({ status: "PENDING" }),
+          blogApi.getComments({ status: 'PENDING' }),
         ]);
 
       setStats({
@@ -83,14 +83,14 @@ export default function BlogDashboardPage() {
       const articlesWithViews =
         articlesRes.list?.map((article: any) => {
           // 将 Localized 格式的标题转换为字符串
-          let titleStr = "Untitled";
+          let titleStr = 'Untitled';
           if (article.title) {
-            titleStr = renderLocalizedText(article.title, lang, "Untitled");
+            titleStr = renderLocalizedText(article.title, lang, 'Untitled');
           }
           return {
             title: titleStr,
             views: article.views || 0,
-            growth: "+0%", // placeholder, can be calculated from historical data
+            growth: '+0%', // placeholder, can be calculated from historical data
           };
         }) || [];
       const sorted = articlesWithViews
@@ -98,7 +98,7 @@ export default function BlogDashboardPage() {
         .slice(0, 3);
       setTopArticles(sorted);
     } catch (error) {
-      console.error("Failed to fetch dashboard data:", error);
+      console.error('Failed to fetch dashboard data:', error);
       setStats({
         totalArticles: 0,
         totalCategories: 0,
@@ -116,11 +116,11 @@ export default function BlogDashboardPage() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case "published":
+      case 'published':
         return <Badge color="green">Published</Badge>;
-      case "draft":
+      case 'draft':
         return <Badge color="gray">Draft</Badge>;
-      case "scheduled":
+      case 'scheduled':
         return <Badge color="blue">Scheduled</Badge>;
       default:
         return <Badge color="gray">{status}</Badge>;
@@ -129,52 +129,52 @@ export default function BlogDashboardPage() {
 
   const dashboardStats = [
     {
-      title: t("totalArticles"),
+      title: t('totalArticles'),
       value: stats.totalArticles.toString(),
-      description: t("numberOfPublishedArticles"),
+      description: t('numberOfPublishedArticles'),
       icon: FileText,
-      color: "blue",
+      color: 'blue',
       colorClasses: {
-        bg: "bg-blue-100 dark:bg-blue-500/10",
-        text: "text-blue-600 dark:text-blue-400",
+        bg: 'bg-blue-100 dark:bg-blue-500/10',
+        text: 'text-blue-600 dark:text-blue-400',
       },
-      href: "/blog/articles",
+      href: '/blog/articles',
     },
     {
-      title: t("categories"),
+      title: t('categories'),
       value: stats.totalCategories.toString(),
-      description: t("numberOfArticleCategories"),
+      description: t('numberOfArticleCategories'),
       icon: FolderTree,
-      color: "green",
+      color: 'green',
       colorClasses: {
-        bg: "bg-green-100 dark:bg-green-500/10",
-        text: "text-green-600 dark:text-green-400",
+        bg: 'bg-green-100 dark:bg-green-500/10',
+        text: 'text-green-600 dark:text-green-400',
       },
-      href: "/blog/categories",
+      href: '/blog/categories',
     },
     {
-      title: t("tags"),
+      title: t('tags'),
       value: stats.totalTags.toString(),
-      description: t("numberOfArticleTags"),
+      description: t('numberOfArticleTags'),
       icon: Tag,
-      color: "purple",
+      color: 'purple',
       colorClasses: {
-        bg: "bg-purple-100 dark:bg-purple-500/10",
-        text: "text-purple-600 dark:text-purple-400",
+        bg: 'bg-purple-100 dark:bg-purple-500/10',
+        text: 'text-purple-600 dark:text-purple-400',
       },
-      href: "/blog/tags",
+      href: '/blog/tags',
     },
     {
-      title: t("pendingComments"),
+      title: t('pendingComments'),
       value: stats.pendingComments.toString(),
-      description: t("commentsAwaitingModeration"),
+      description: t('commentsAwaitingModeration'),
       icon: MessageSquare,
-      color: "amber",
+      color: 'amber',
       colorClasses: {
-        bg: "bg-amber-100 dark:bg-amber-500/10",
-        text: "text-amber-600 dark:text-amber-400",
+        bg: 'bg-amber-100 dark:bg-amber-500/10',
+        text: 'text-amber-600 dark:text-amber-400',
       },
-      href: "/blog/comments",
+      href: '/blog/comments',
     },
   ];
 
@@ -184,7 +184,7 @@ export default function BlogDashboardPage() {
         <div className="text-center">
           <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
           <p className="mt-4 text-sm text-muted-foreground">
-            {t("loadingBlogDashboard")}
+            {t('loadingBlogDashboard')}
           </p>
         </div>
       </div>
@@ -194,9 +194,9 @@ export default function BlogDashboardPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title={t("pageTitle")}
-        description={t("pageDescription")}
-        buttonText={t("writeNewArticle")}
+        title={t('pageTitle')}
+        description={t('pageDescription')}
+        buttonText={t('writeNewArticle')}
         buttonOnClick={() => {
           setIsArticleModalOpen(true);
         }}
@@ -234,13 +234,13 @@ export default function BlogDashboardPage() {
 
       {/* Recent Articles */}
       <Card
-        title={t("recentArticles")}
+        title={t('recentArticles')}
         action={
           <Link
             href="/blog/articles"
             className="text-sm font-medium text-primary-600 dark:text-primary-400 hover:underline"
           >
-            {t("viewAll")}
+            {t('viewAll')}
           </Link>
         }
       >
@@ -249,19 +249,19 @@ export default function BlogDashboardPage() {
             <thead>
               <tr className="border-b border-gray-100 dark:border-white/5">
                 <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
-                  {t("article")}
+                  {t('article')}
                 </th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
-                  {t("status")}
+                  {t('status')}
                 </th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
-                  {t("views")}
+                  {t('views')}
                 </th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
-                  {t("comments")}
+                  {t('comments')}
                 </th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
-                  {t("published")}
+                  {t('published')}
                 </th>
               </tr>
             </thead>
@@ -294,14 +294,14 @@ export default function BlogDashboardPage() {
                   <td className="py-3 px-4 text-gray-600 dark:text-gray-300">
                     {article.publishedAt
                       ? new Date(article.publishedAt).toLocaleDateString(
-                          "zh-CN",
+                          'zh-CN',
                           {
-                            year: "numeric",
-                            month: "2-digit",
-                            day: "2-digit",
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit',
                           },
                         )
-                      : t("notPublished")}
+                      : t('notPublished')}
                   </td>
                 </tr>
               ))}
@@ -312,7 +312,7 @@ export default function BlogDashboardPage() {
 
       {/* Blog Performance */}
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card title={t("topPerformingArticles")}>
+        <Card title={t('topPerformingArticles')}>
           <div className="space-y-4">
             {topArticles.map((article, index) => (
               <div
@@ -340,7 +340,7 @@ export default function BlogDashboardPage() {
           </div>
         </Card>
 
-        <Card title={t("recentActivity")}>
+        <Card title={t('recentActivity')}>
           <div className="space-y-4">
             <div className="flex items-start space-x-3">
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-500/10">
@@ -348,13 +348,13 @@ export default function BlogDashboardPage() {
               </div>
               <div className="flex-1">
                 <p className="font-medium text-gray-900 dark:text-white">
-                  {t("blogSystemReady")}
+                  {t('blogSystemReady')}
                 </p>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  {t("backendApiReady")}
+                  {t('backendApiReady')}
                 </p>
                 <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                  {t("justNow")}
+                  {t('justNow')}
                 </p>
               </div>
             </div>
@@ -364,13 +364,13 @@ export default function BlogDashboardPage() {
               </div>
               <div className="flex-1">
                 <p className="font-medium text-gray-900 dark:text-white">
-                  {t("welcomeToBlogSystem")}
+                  {t('welcomeToBlogSystem')}
                 </p>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  {t("startCreatingFirstArticle")}
+                  {t('startCreatingFirstArticle')}
                 </p>
                 <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                  {t("justNow")}
+                  {t('justNow')}
                 </p>
               </div>
             </div>
@@ -380,13 +380,13 @@ export default function BlogDashboardPage() {
               </div>
               <div className="flex-1">
                 <p className="font-medium text-gray-900 dark:text-white">
-                  {t("analyticsDashboardAdded")}
+                  {t('analyticsDashboardAdded')}
                 </p>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  {t("trackArticlePerformance")}
+                  {t('trackArticlePerformance')}
                 </p>
                 <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                  {t("hoursAgo")}
+                  {t('hoursAgo')}
                 </p>
               </div>
             </div>

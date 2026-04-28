@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { useCallback } from "react";
-import { useTranslations, useLocale } from "next-intl";
-import { useLanguage } from "@/hooks/LanguageProvider";
-import type { Locale } from "@lucky/shared";
+import { useCallback } from 'react';
+import { useTranslations, useLocale } from 'next-intl';
+import { useLanguage } from '@/hooks/LanguageProvider';
+import type { Locale } from '@lucky/shared';
 
 export type TFunc = (
   key: string,
@@ -19,7 +19,7 @@ export function useTranslation() {
     (key: string, params?: Record<string, string | number>) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const raw = (tNext as any).raw?.(key as any);
-      if (typeof raw !== "string") {
+      if (typeof raw !== 'string') {
         return key;
       }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

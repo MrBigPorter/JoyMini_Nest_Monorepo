@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { systemConfigApi } from "@/api";
-import { AVAILABLE_LOCALES, type Locale } from "@lucky/shared";
+import { useState, useEffect } from 'react';
+import { systemConfigApi } from '@/api';
+import { AVAILABLE_LOCALES, type Locale } from '@lucky/shared';
 
 interface LocaleConfig {
   code: Locale;
@@ -13,19 +13,19 @@ interface LocaleConfig {
 }
 
 const LOCALE_METADATA: Record<Locale, { name: string; nativeName: string }> = {
-  zh: { name: "中文", nativeName: "Chinese" },
-  en: { name: "English", nativeName: "English" },
-  ja: { name: "日本語", nativeName: "Japanese" },
-  ko: { name: "한국어", nativeName: "Korean" },
-  fr: { name: "Français", nativeName: "Français" },
-  de: { name: "Deutsch", nativeName: "Deutsch" },
+  zh: { name: '中文', nativeName: 'Chinese' },
+  en: { name: 'English', nativeName: 'English' },
+  ja: { name: '日本語', nativeName: 'Japanese' },
+  ko: { name: '한국어', nativeName: 'Korean' },
+  fr: { name: 'Français', nativeName: 'Français' },
+  de: { name: 'Deutsch', nativeName: 'Deutsch' },
 };
 
 const DEFAULT_LOCALES: LocaleConfig[] = AVAILABLE_LOCALES.map((code) => ({
   code,
   ...LOCALE_METADATA[code],
-  enabled: code === "zh" || code === "en",
-  isDefault: code === "zh",
+  enabled: code === 'zh' || code === 'en',
+  isDefault: code === 'zh',
 }));
 
 /**

@@ -1,9 +1,9 @@
-import { create } from "zustand";
-import { ToastMessage } from "../components/UIComponents";
+import { create } from 'zustand';
+import { ToastMessage } from '../components/UIComponents';
 
 interface ToastState {
   toasts: ToastMessage[];
-  addToast: (type: "success" | "error" | "info", message: string) => void;
+  addToast: (type: 'success' | 'error' | 'info', message: string) => void;
   removeToast: (id: string) => void;
 }
 

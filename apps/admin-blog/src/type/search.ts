@@ -1,5 +1,5 @@
 // 定义支持的表单类型
-export type FieldType = "input" | "select" | "date";
+export type FieldType = 'input' | 'select' | 'date';
 
 // 定义下拉选项
 export interface Option {
@@ -26,7 +26,7 @@ export interface SearchFieldSchema<T> {
   /** 仅对 date 有效：是否显示时间选择 */
   showTime?: boolean;
   /** 仅对 date 有效：日期选择模式 */
-  mode?: "single" | "range";
+  mode?: 'single' | 'range';
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

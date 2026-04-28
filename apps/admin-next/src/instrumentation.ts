@@ -101,9 +101,13 @@ export async function register() {
  * Dynamic import only loads Sentry at runtime when an error actually occurs.
  */
 export async function onRequestError(
-  error: Error,
-  request: Request,
-  context: { routerKind: string; routeType: string; routeKey: string },
+  error: unknown,
+  request: {
+    path: string;
+    method: string;
+    headers: Record<string, string | string[] | undefined>;
+  },
+  context: { routerKind: string; routePath: string; routeType: string },
 ) {
   try {
     const { captureRequestError } = await import('@sentry/nextjs');

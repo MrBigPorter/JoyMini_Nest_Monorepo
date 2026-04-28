@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useState, useCallback } from "react";
-import { ModalFixed } from "@repo/ui/components/Modal/ModalFixed";
-import { Marked } from "marked";
+import { useState, useCallback } from 'react';
+import { ModalFixed } from '@repo/ui/components/Modal/ModalFixed';
+import { Marked } from 'marked';
 
 const marked = new Marked({
   gfm: true,
@@ -18,40 +18,40 @@ interface MarkdownImportModalProps {
 // 多语言文本
 const i18n = {
   title: {
-    zh: "导入 Markdown",
-    en: "Import Markdown",
+    zh: '导入 Markdown',
+    en: 'Import Markdown',
   },
   description: {
-    zh: "粘贴 Markdown 内容，将自动转换为富文本格式",
-    en: "Paste Markdown content, it will be automatically converted to rich text format",
+    zh: '粘贴 Markdown 内容，将自动转换为富文本格式',
+    en: 'Paste Markdown content, it will be automatically converted to rich text format',
   },
   sourceLabel: {
-    zh: "Markdown 源码",
-    en: "Markdown Source",
+    zh: 'Markdown 源码',
+    en: 'Markdown Source',
   },
   previewLabel: {
-    zh: "实时预览",
-    en: "Live Preview",
+    zh: '实时预览',
+    en: 'Live Preview',
   },
   placeholder: {
-    zh: "在此粘贴 Markdown 内容...",
-    en: "Paste your Markdown content here...",
+    zh: '在此粘贴 Markdown 内容...',
+    en: 'Paste your Markdown content here...',
   },
   errorParse: {
-    zh: "Markdown 解析失败，请检查格式",
-    en: "Markdown parse failed, please check the format",
+    zh: 'Markdown 解析失败，请检查格式',
+    en: 'Markdown parse failed, please check the format',
   },
   errorEmpty: {
-    zh: "请输入 Markdown 内容",
-    en: "Please enter Markdown content",
+    zh: '请输入 Markdown 内容',
+    en: 'Please enter Markdown content',
   },
   confirm: {
-    zh: "导入",
-    en: "Import",
+    zh: '导入',
+    en: 'Import',
   },
   cancel: {
-    zh: "取消",
-    en: "Cancel",
+    zh: '取消',
+    en: 'Cancel',
   },
 };
 
@@ -59,16 +59,16 @@ export function MarkdownImportModal({
   onImport,
   onClose,
 }: MarkdownImportModalProps) {
-  const [activeTab, setActiveTab] = useState<"markdown">("markdown");
-  const [markdown, setMarkdown] = useState("");
+  const [activeTab, setActiveTab] = useState<'markdown'>('markdown');
+  const [markdown, setMarkdown] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [previewHtml, setPreviewHtml] = useState("");
+  const [previewHtml, setPreviewHtml] = useState('');
 
   // 自动检测浏览器语言，未来替换为系统i18n hook
   const isZh =
-    typeof navigator !== "undefined" && navigator.language.startsWith("zh");
+    typeof navigator !== 'undefined' && navigator.language.startsWith('zh');
   const t = useCallback(
-    (key: keyof typeof i18n) => i18n[key][isZh ? "zh" : "en"],
+    (key: keyof typeof i18n) => i18n[key][isZh ? 'zh' : 'en'],
     [isZh],
   );
 
@@ -83,11 +83,11 @@ export function MarkdownImportModal({
           const html = marked.parse(value) as string;
           setPreviewHtml(html);
         } else {
-          setPreviewHtml("");
+          setPreviewHtml('');
         }
       } catch (err) {
-        setError(t("errorParse"));
-        setPreviewHtml("");
+        setError(t('errorParse'));
+        setPreviewHtml('');
       }
     },
     [t],
@@ -95,7 +95,7 @@ export function MarkdownImportModal({
 
   const handleConfirm = useCallback(() => {
     if (!markdown.trim()) {
-      setError(t("errorEmpty"));
+      setError(t('errorEmpty'));
       return;
     }
 
@@ -105,39 +105,39 @@ export function MarkdownImportModal({
       onImport(html);
       onClose();
     } catch (err) {
-      setError(t("errorParse"));
+      setError(t('errorParse'));
     }
   }, [markdown, onImport, onClose, t]);
 
   return (
     <ModalFixed
-      title={t("title")}
+      title={t('title')}
       size="xxl"
-      confirmText={t("confirm")}
-      cancelText={t("cancel")}
+      confirmText={t('confirm')}
+      cancelText={t('cancel')}
       onCancel={onClose}
       onConfirm={handleConfirm}
       enableClickOutsideClose={false}
       renderChildren={() => (
         <div className="flex flex-col gap-4">
-          {activeTab === "markdown" && (
+          {activeTab === 'markdown' && (
             <>
               <div className="grid grid-cols-2 gap-4 mt-2">
                 <div className="flex flex-col gap-2">
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    {t("sourceLabel")}
+                    {t('sourceLabel')}
                   </label>
                   <textarea
                     value={markdown}
                     onChange={handleMarkdownChange}
-                    placeholder={t("placeholder")}
+                    placeholder={t('placeholder')}
                     className="w-full h-[400px] p-3 font-mono text-sm bg-gray-50 dark:bg-black/30 border border-gray-200 dark:border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 resize-none"
                   />
                 </div>
 
                 <div className="flex flex-col gap-2">
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    {t("previewLabel")}
+                    {t('previewLabel')}
                   </label>
                   <div
                     className="w-full h-[400px] p-3 bg-white dark:bg-black/20 border border-gray-200 dark:border-white/10 rounded-lg overflow-y-auto prose dark:prose-invert prose-sm max-w-none"

@@ -1,14 +1,14 @@
-"use client";
+'use client';
 
-import React, { useState } from "react";
-import { useRequest } from "ahooks";
-import { Card, Badge, Button, Select } from "@/components/UIComponents";
-import { useToastStore } from "@/store/useToastStore";
-import { blogApi } from "@/api";
-import { useTranslation } from "@/hooks/useTranslation";
-import { Search, CheckCircle, Wrench, Languages } from "lucide-react";
+import React, { useState } from 'react';
+import { useRequest } from 'ahooks';
+import { Card, Badge, Button, Select } from '@/components/UIComponents';
+import { useToastStore } from '@/store/useToastStore';
+import { blogApi } from '@/api';
+import { useTranslation } from '@/hooks/useTranslation';
+import { Search, CheckCircle, Wrench, Languages } from 'lucide-react';
 
-const Skeleton = ({ className = "" }: { className?: string }) => (
+const Skeleton = ({ className = '' }: { className?: string }) => (
   <div
     className={`animate-pulse bg-gray-200 dark:bg-white/10 rounded ${className}`}
   />
@@ -31,8 +31,8 @@ const Checkbox = ({
     <div
       className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
         checked
-          ? "bg-primary-500 border-primary-500"
-          : "border-gray-300 dark:border-white/20"
+          ? 'bg-primary-500 border-primary-500'
+          : 'border-gray-300 dark:border-white/20'
       }`}
     >
       {checked && (
@@ -61,7 +61,7 @@ export default function BlogTranslationIssues() {
   const t = (key: string, params?: Record<string, string | number>) =>
     globalT(`blog_translation_${key}`, params);
 
-  const [selectedLanguage, setSelectedLanguage] = useState<string>("en");
+  const [selectedLanguage, setSelectedLanguage] = useState<string>('en');
   const [selectedArticles, setSelectedArticles] = useState<string[]>([]);
   const [fixingInProgress, setFixingInProgress] = useState(false);
 
@@ -105,16 +105,16 @@ export default function BlogTranslationIssues() {
       });
 
       if (response.success) {
-        addToast("success", t("batchFixStarted", { count: response.queued }));
+        addToast('success', t('batchFixStarted', { count: response.queued }));
         setTimeout(() => {
           runIssues();
         }, 1000);
       } else {
-        addToast("error", t("batchFixFailed"));
+        addToast('error', t('batchFixFailed'));
       }
     } catch (error) {
-      console.error(t("batchFixFailed"), error);
-      addToast("error", t("batchFixNetworkError"));
+      console.error(t('batchFixFailed'), error);
+      addToast('error', t('batchFixNetworkError'));
     } finally {
       setFixingInProgress(false);
     }
@@ -144,7 +144,7 @@ export default function BlogTranslationIssues() {
 
   return (
     <div className="space-y-6">
-      <Card title={t("issuesDetectionTitle")}>
+      <Card title={t('issuesDetectionTitle')}>
         <div className="space-y-4">
           {/* 语言选择和批量操作控制 */}
           <div className="flex items-center justify-between mb-4">
@@ -152,7 +152,7 @@ export default function BlogTranslationIssues() {
               <div className="flex items-center gap-2">
                 <Languages className="w-4 h-4 text-gray-500" />
                 <span className="text-sm font-medium">
-                  {t("targetLanguage")}:
+                  {t('targetLanguage')}:
                 </span>
                 <Select
                   value={selectedLanguage}
@@ -160,11 +160,11 @@ export default function BlogTranslationIssues() {
                     setSelectedLanguage(e.target.value)
                   }
                   options={[
-                    { value: "en", label: "英语 (en)" },
-                    { value: "ja", label: "日语 (ja)" },
-                    { value: "ko", label: "韩语 (ko)" },
-                    { value: "fr", label: "法语 (fr)" },
-                    { value: "de", label: "德语 (de)" },
+                    { value: 'en', label: '英语 (en)' },
+                    { value: 'ja', label: '日语 (ja)' },
+                    { value: 'ko', label: '韩语 (ko)' },
+                    { value: 'fr', label: '法语 (fr)' },
+                    { value: 'de', label: '德语 (de)' },
                   ]}
                   className="w-40"
                 />
@@ -176,7 +176,7 @@ export default function BlogTranslationIssues() {
                 isLoading={issuesLoading}
               >
                 <Search className="w-4 h-4 mr-2" />
-                {t("recheck")}
+                {t('recheck')}
               </Button>
             </div>
             <div className="flex items-center gap-2">
@@ -187,8 +187,8 @@ export default function BlogTranslationIssues() {
                 disabled={!translationIssues?.issues?.length}
               >
                 {selectedArticles.length === translationIssues?.issues?.length
-                  ? t("deselectAll")
-                  : t("selectAll")}
+                  ? t('deselectAll')
+                  : t('selectAll')}
               </Button>
               <Button
                 variant="primary"
@@ -199,8 +199,8 @@ export default function BlogTranslationIssues() {
               >
                 <Wrench className="w-4 h-4 mr-2" />
                 {selectedArticles.length > 0
-                  ? t("fixSelected", { count: selectedArticles.length })
-                  : t("fixAll")}
+                  ? t('fixSelected', { count: selectedArticles.length })
+                  : t('fixAll')}
               </Button>
             </div>
           </div>
@@ -215,7 +215,7 @@ export default function BlogTranslationIssues() {
           ) : translationIssues?.issues?.length > 0 ? (
             <div className="space-y-3">
               <div className="text-sm text-gray-500 mb-2">
-                {t("issuesFound", {
+                {t('issuesFound', {
                   count: translationIssues.problematicArticles,
                 })}
               </div>
@@ -234,16 +234,16 @@ export default function BlogTranslationIssues() {
                         />
                       </th>
                       <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
-                        {t("articleTitle")}
+                        {t('articleTitle')}
                       </th>
                       <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
-                        {t("issueType")}
+                        {t('issueType')}
                       </th>
                       <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
-                        {t("severity")}
+                        {t('severity')}
                       </th>
                       <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
-                        {t("actions")}
+                        {t('actions')}
                       </th>
                     </tr>
                   </thead>
@@ -275,20 +275,20 @@ export default function BlogTranslationIssues() {
                               <div key={idx} className="text-sm">
                                 <Badge
                                   color={
-                                    item.issueType === "TITLE_NOT_TRANSLATED"
-                                      ? "red"
-                                      : item.issueType === "CONTENT_INCOMPLETE"
-                                        ? "yellow"
-                                        : "gray"
+                                    item.issueType === 'TITLE_NOT_TRANSLATED'
+                                      ? 'red'
+                                      : item.issueType === 'CONTENT_INCOMPLETE'
+                                        ? 'yellow'
+                                        : 'gray'
                                   }
                                 >
-                                  {item.issueType === "TITLE_NOT_TRANSLATED"
-                                    ? t("issueTitleNotTranslated")
-                                    : item.issueType === "CONTENT_INCOMPLETE"
-                                      ? t("issueContentIncomplete")
-                                      : item.issueType === "NOT_TRANSLATED"
-                                        ? t("issueNotTranslated")
-                                        : t("issueFailed")}
+                                  {item.issueType === 'TITLE_NOT_TRANSLATED'
+                                    ? t('issueTitleNotTranslated')
+                                    : item.issueType === 'CONTENT_INCOMPLETE'
+                                      ? t('issueContentIncomplete')
+                                      : item.issueType === 'NOT_TRANSLATED'
+                                        ? t('issueNotTranslated')
+                                        : t('issueFailed')}
                                 </Badge>
                                 <div className="text-xs text-gray-500 mt-1">
                                   {item.description}
@@ -303,18 +303,18 @@ export default function BlogTranslationIssues() {
                               <div key={idx}>
                                 <Badge
                                   color={
-                                    item.severity === "HIGH"
-                                      ? "red"
-                                      : item.severity === "MEDIUM"
-                                        ? "yellow"
-                                        : "gray"
+                                    item.severity === 'HIGH'
+                                      ? 'red'
+                                      : item.severity === 'MEDIUM'
+                                        ? 'yellow'
+                                        : 'gray'
                                   }
                                 >
-                                  {item.severity === "HIGH"
-                                    ? t("severityHigh")
-                                    : item.severity === "MEDIUM"
-                                      ? t("severityMedium")
-                                      : t("severityLow")}
+                                  {item.severity === 'HIGH'
+                                    ? t('severityHigh')
+                                    : item.severity === 'MEDIUM'
+                                      ? t('severityMedium')
+                                      : t('severityLow')}
                                 </Badge>
                               </div>
                             ))}
@@ -329,7 +329,7 @@ export default function BlogTranslationIssues() {
                               handleBatchFix();
                             }}
                           >
-                            {t("fixSingle")}
+                            {t('fixSingle')}
                           </Button>
                         </td>
                       </tr>
@@ -341,9 +341,9 @@ export default function BlogTranslationIssues() {
           ) : (
             <div className="text-center py-8 text-gray-500">
               <CheckCircle className="w-12 h-12 mx-auto text-emerald-300 mb-3" />
-              <p>{t("noIssuesFound")}</p>
+              <p>{t('noIssuesFound')}</p>
               <p className="text-sm mt-1">
-                {t("noIssuesFoundDesc", {
+                {t('noIssuesFoundDesc', {
                   lang: selectedLanguage.toUpperCase(),
                 })}
               </p>

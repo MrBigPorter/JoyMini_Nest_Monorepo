@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useCallback } from "react";
-import { z } from "zod";
-import { useToastStore } from "@/store/useToastStore";
+import { useCallback } from 'react';
+import { z } from 'zod';
+import { useToastStore } from '@/store/useToastStore';
 
 type UseBlogFormSubmitOptions<T extends z.ZodSchema> = {
   onSubmitAction: (data: z.infer<T>) => Promise<void> | void;
@@ -23,35 +23,35 @@ export function useBlogFormSubmit<T extends z.ZodSchema>({
       try {
         await onSubmitAction(data);
       } catch (error: unknown) {
-        let message = "提交失败";
+        let message = '提交失败';
 
-        if (error && typeof error === "object") {
+        if (error && typeof error === 'object') {
           // 处理 Axios 错误格式
           if (
-            "response" in error &&
+            'response' in error &&
             error.response &&
-            typeof error.response === "object"
+            typeof error.response === 'object'
           ) {
             if (
-              "data" in error.response &&
+              'data' in error.response &&
               error.response.data &&
-              typeof error.response.data === "object"
+              typeof error.response.data === 'object'
             ) {
               if (
-                "message" in error.response.data &&
-                typeof error.response.data.message === "string"
+                'message' in error.response.data &&
+                typeof error.response.data.message === 'string'
               ) {
                 message = error.response.data.message;
               }
             }
           }
           // 处理普通 Error 对象
-          else if ("message" in error && typeof error.message === "string") {
+          else if ('message' in error && typeof error.message === 'string') {
             message = error.message;
           }
         }
-        addToast("error", message);
-        console.error("Form submission error:", error);
+        addToast('error', message);
+        console.error('Form submission error:', error);
       }
     },
     [onSubmitAction, addToast],
