@@ -54,6 +54,10 @@ const nextConfig: NextConfig = {
   // Exclude build tools that bleed in via monorepo hoisting (e.g. @nestjs/cli → webpack).
   // These packages are only needed in apps/api — never at admin-next runtime.
   // Without this, Next.js file tracing picks up webpack + full toolchain (~4 MiB).
+  // Exclude Sentry Node.js + OpenTelemetry deps from file tracing.
+  // These are only needed at runtime when Sentry is actually initialized
+  // (via dynamic import() in instrumentation.ts register()). The file tracer
+  // should not pre-bundle them into the Worker, saving ~1-2 MiB.
   outputFileTracingExcludes: {
     '*': [
       './node_modules/webpack/**',
@@ -76,6 +80,12 @@ const nextConfig: NextConfig = {
       './node_modules/browserslist/**',
       './node_modules/baseline-browser-mapping/**',
       './node_modules/node-releases/**',
+      // Sentry Node.js SDK + OpenTelemetry — only needed at runtime when
+      // Sentry is actively capturing errors, not at build time
+      './node_modules/@sentry/node/**',
+      './node_modules/@sentry/opentelemetry/**',
+      './node_modules/@opentelemetry/**',
+      './node_modules/require-in-the-middle/**',
     ],
   },
 
