@@ -89,5 +89,26 @@ export async function register() {
  *
  * Next.js calls this automatically when a Server Component / Route Handler / Middleware throws.
  * No extra try/catch needed. Counterpart to global-error.tsx on the client side.
+ *
+ * 使用动态 import 而非静态重新导出，避免 @sentry/nextjs 整个模块在构建时被强制打包。
+ * 静态重新导出（export { ... } from '...'）会绕过 tree-shaking，将 @sentry/node +
+ * @opentelemetry 等依赖链全部拉入 Worker bundle（~5+ MiB）。
+ * 动态 import 仅在运行时实际发生错误时才加载 Sentry，大幅减小 Worker 脚本体积。
+ *
+ * Uses dynamic import instead of static re-export to prevent @sentry/nextjs from being
+ * bundled at build time. Static re-export (export { ... } from '...') bypasses tree-shaking,
+ * pulling @sentry/node + @opentelemetry dependency chain into the Worker bundle (~5+ MiB).
+ * Dynamic import only loads Sentry at runtime when an error actually occurs.
  */
-export { captureRequestError as onRequestError } from '@sentry/nextjs';
+export async function onRequestError(
+  error: Error,
+  request: Request,
+  context: { routerKind: string; routeType: string; routeKey: string },
+) {
+  try {
+    const { captureRequestError } = await import('@sentry/nextjs');
+    return captureRequestError(error, request, context);
+  } catch {
+    // Sentry not available — silently ignore
+  }
+}
