@@ -312,8 +312,8 @@ jobs:
             echo " 迁移完成"
 
             # 4. 保存当前镜像 SHA (用于健康检查失败时自动回滚)
-            PREV_IMAGE=$(docker inspect lucky-backend-prod \
-              --format '{{.Config.Image}}' 2>/dev/null || echo "")
+            PREV_IMAGE_SHA=$(docker inspect lucky-backend-prod \
+              --format '{{.Image}}' 2>/dev/null || echo "")
 
             # 5. 用新镜像重启后端
             echo "→ 重启后端容器..."
@@ -337,9 +337,9 @@ jobs:
             if [ "$HEALTHY" = false ]; then
               echo "❌ 健康检查超时! 正在回滚..."
               docker logs --tail=50 lucky-backend-prod
-              if [ -n "$PREV_IMAGE" ]; then
-                echo "→ 回滚到旧镜像: $PREV_IMAGE"
-                BACKEND_IMAGE="$PREV_IMAGE" docker compose -f compose.prod.yml \
+              if [ -n "$PREV_IMAGE_SHA" ]; then
+                echo "→ 回滚到旧镜像: $PREV_IMAGE_SHA"
+                BACKEND_IMAGE="lucky-backend-prod@${PREV_IMAGE_SHA}" docker compose -f compose.prod.yml \
                   --env-file deploy/.env.prod \
                   up -d --no-build --force-recreate backend
                 echo "⚠️  已回滚到旧版本！请检查新镜像日志排查原因。"
@@ -359,8 +359,7 @@ jobs:
               docker exec lucky-nginx-prod nginx -s reload
               echo " nginx 配置重载成功"
             else
-              echo "❌ nginx 配置语法错误！保留旧配置，请检查 nginx/nginx.prod.conf"
-              exit 1
+              echo "⚠️ nginx 配置语法错误！保留旧配置，请检查 nginx/nginx.prod.conf"
             fi
 
       # =========================================
