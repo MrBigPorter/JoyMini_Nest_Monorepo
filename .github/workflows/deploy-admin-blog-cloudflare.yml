@@ -1,0 +1,373 @@
+name: Deploy Admin Blog (Cloudflare)
+
+on:
+  push:
+    branches: [main, test]
+    paths:
+      - "apps/admin-blog/**"
+      - "packages/shared/**"
+      - "packages/ui/**"
+      - ".github/workflows/deploy-admin-blog-cloudflare.yml"
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: "🖥️ Runner (ubuntu-latest = GitHub托管 / self-hosted = 本地Mac算力)"
+        type: choice
+        options: [ubuntu-latest, self-hosted]
+        default: ubuntu-latest
+  workflow_call:
+    inputs:
+      runner:
+        description: "Runner to use"
+        type: string
+        default: ubuntu-latest
+
+concurrency:
+  group: deploy-admin-blog-cloudflare-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  deployments: write
+
+jobs:
+  quality:
+    runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
+
+    steps:
+      # Step 1 / 步骤 1: Checkout repository source code
+      - name: 1. Checkout Code
+        uses: actions/checkout@v4
+
+      # Step 2 / 步骤 2: Setup Node.js runtime
+      - name: 2. Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Step 3 / 步骤 3: Enable Corepack (Yarn 4 toolchain)
+      - name: 3. Enable Corepack
+        run: corepack enable && corepack prepare yarn@4.9.2 --activate
+
+      # ---- 三级缓存策略 ----
+      - name: Cache Yarn zip cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            .yarn/cache
+            .yarn/install-state.gz
+          key: yarn-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-
+
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        id: nm-cache
+        with:
+          path: |
+            node_modules
+            apps/admin-blog/node_modules
+            packages/*/node_modules
+          key: nm-admin-blog-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: |
+            nm-admin-blog-${{ runner.os }}-
+
+      - name: Cache Turbo
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-admin-blog-${{ github.ref_name }}-${{ github.sha }}
+          restore-keys: |
+            turbo-admin-blog-${{ github.ref_name }}-
+            turbo-admin-blog-main-
+
+      # Step 4 / 步骤 4: Install monorepo dependencies
+      - name: 4. Install Dependencies
+        run: yarn install --immutable
+
+      # Step 5 / 步骤 5: Build shared workspace packages
+      - name: 5. Build shared packages
+        run: |
+          node packages/shared/scripts/build.js
+          node packages/ui/scripts/build.js
+
+      # Step 6 / 步骤 6: Run admin-blog lint, typecheck, and unit tests
+      - name: 6. Lint + Typecheck + Unit tests (admin-blog)
+        run: |
+          yarn workspace @lucky/admin-blog lint
+          yarn workspace @lucky/admin-blog check-types
+          yarn workspace @lucky/admin-blog test
+
+  deploy:
+    needs: quality
+    runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
+    environment: ${{ github.ref_name == 'main' && 'production' || 'preview' }}
+
+    steps:
+      # Step 1 / 步骤 1: Checkout repository source code
+      - name: 1. Checkout Code
+        uses: actions/checkout@v4
+
+      # Step 2 / 步骤 2: Setup Node.js runtime
+      - name: 2. Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Step 3 / 步骤 3: Enable Corepack (Yarn 4 toolchain)
+      - name: 3. Enable Corepack
+        run: corepack enable && corepack prepare yarn@4.9.2 --activate
+
+      # ---- 复用缓存 ----
+      - name: Cache Yarn zip cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            .yarn/cache
+            .yarn/install-state.gz
+          key: yarn-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-
+
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        id: nm-cache-deploy
+        with:
+          path: |
+            node_modules
+            apps/admin-blog/node_modules
+            packages/*/node_modules
+          key: nm-admin-blog-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: |
+            nm-admin-blog-${{ runner.os }}-
+
+      # Step 4 / 步骤 4: Install monorepo dependencies
+      - name: 4. Install Dependencies
+        run: yarn install --immutable
+
+      # Step 5 / 步骤 5: Build shared workspace packages
+      - name: 5. Build shared packages
+        run: |
+          node packages/shared/scripts/build.js
+          node packages/ui/scripts/build.js
+
+      # Step 5.1 / 步骤 5.1: Prepare build timestamp and commit SHA metadata
+      - name: 5.1 Prepare Build Metadata
+        id: build_meta
+        run: |
+          echo "deployed_at=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
+          echo "git_sha=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+
+      # Step 6 / 步骤 6: Build admin-blog bundle for Cloudflare Workers
+      - name: 6. Build Admin Blog for Cloudflare Workers
+        working-directory: apps/admin-blog
+        env:
+          NEXT_PUBLIC_API_BASE_URL: ${{ secrets.NEXT_PUBLIC_API_BASE_URL }}
+          NEXT_PUBLIC_SENTRY_DSN: ${{ secrets.BLOG_ADMIN_SENTRY_DSN }}
+          NEXT_PUBLIC_APP_ENV: ${{ github.ref_name == 'main' && 'production' || 'preview' }}
+          NEXT_PUBLIC_SENTRY_DEBUG: ${{ github.ref_name == 'test' && 'true' || 'false' }}
+          NEXT_PUBLIC_DEPLOYED_AT: ${{ steps.build_meta.outputs.deployed_at }}
+          NEXT_PUBLIC_GIT_SHA: ${{ steps.build_meta.outputs.git_sha }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_SUPPRESS_INSTRUMENTATION_FILE_WARNING: "1"
+          SENTRY_SUPPRESS_GLOBAL_ERROR_HANDLER_FILE_WARNING: "1"
+        run: |
+          # opennextjs-cloudflare build auto-reads open-next.config.ts — no -c needed.
+          yarn exec opennextjs-cloudflare build
+
+      # Step 7 / 步骤 7: Validate Cloudflare credentials before deploy
+      - name: 7. Validate Cloudflare Secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::error::CLOUDFLARE_API_TOKEN is not set in GitHub secrets for environment '${{ github.ref_name == 'main' && 'production' || 'preview' }}'."
+            echo "::error::Go to Settings > Environments > ${{ github.ref_name == 'main' && 'production' || 'preview' }} > Secrets and add CLOUDFLARE_API_TOKEN."
+            exit 1
+          fi
+          if [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::error::CLOUDFLARE_ACCOUNT_ID is not set in GitHub secrets."
+            exit 1
+          fi
+          # Verify token validity via Cloudflare API before attempting deploy
+          HTTP_STATUS=$(curl -s -o /tmp/cf-verify.json -w "%{http_code}" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/user/tokens/verify")
+          SUCCESS=$(python3 -c "import json; d=json.load(open('/tmp/cf-verify.json')); print(d.get('success', False))" 2>/dev/null || echo "false")
+          if [ "$HTTP_STATUS" != "200" ] || [ "$SUCCESS" != "True" ]; then
+            echo "::error::CLOUDFLARE_API_TOKEN is invalid or expired (HTTP $HTTP_STATUS, success=$SUCCESS)."
+            echo "::error::Create a new token at https://dash.cloudflare.com/profile/api-tokens with:"
+            echo "::error::  Permissions:"
+            echo "::error::    - Account > Workers Scripts > Edit"
+            echo "::error::    - Account > Workers Assets > Edit (for static assets)"
+            echo "::error::    - User > User Details > Read (to suppress email warning)"
+            echo "::error::  Account Resources: Include > All accounts (or your specific account)"
+            echo "::error::  Zone Resources: Include > All zones  <-- required by Cloudflare UI to save the form"
+            echo "::error::Then update the secret in: Settings > Environments > ${{ github.ref_name == 'main' && 'production' || 'preview' }} > Secrets"
+            cat /tmp/cf-verify.json
+            exit 1
+          fi
+          echo " Cloudflare API token is valid."
+
+      # Step 8 / 步骤 8: Deploy built assets to Cloudflare Workers
+      - name: 8. Deploy to Cloudflare Workers
+        id: cloudflare_deploy
+        working-directory: apps/admin-blog
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+
+          yarn exec opennextjs-cloudflare deploy -c wrangler.jsonc 2>&1 | tee /tmp/cloudflare-deploy.log
+
+          CF_DEPLOYMENT_ID=$(grep -Eio 'deployment( id)?[: ]+[a-z0-9_-]+' /tmp/cloudflare-deploy.log \
+            | tail -1 \
+            | sed -E 's/.*[: ]+([a-z0-9_-]+)$/\1/I' || true)
+
+          CF_VERSION_ID=$(grep -Eio 'version( id)?[: ]+[a-z0-9_-]+' /tmp/cloudflare-deploy.log \
+            | tail -1 \
+            | sed -E 's/.*[: ]+([a-z0-9_-]+)$/\1/I' || true)
+
+          # Keep empty when parsing fails; downstream UI/Telegram falls back to n/a.
+          if [ -z "$CF_DEPLOYMENT_ID" ]; then
+            CF_DEPLOYMENT_ID=""
+          fi
+          if [ -z "$CF_VERSION_ID" ]; then
+            CF_VERSION_ID=""
+          fi
+
+          echo "cloudflare_deployment_id=$CF_DEPLOYMENT_ID" >> "$GITHUB_OUTPUT"
+          echo "cloudflare_version_id=$CF_VERSION_ID" >> "$GITHUB_OUTPUT"
+
+      # Step 9 / 步骤 9: Create GitHub Deployment record for traceability
+      - name: 9. Create GitHub Deployment Record
+        id: github_deploy
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ENV_NAME: ${{ github.ref_name == 'main' && 'production' || 'preview' }}
+        run: |
+          set -euo pipefail
+
+          BODY=$(cat <<JSON
+          {
+            "ref": "${{ github.sha }}",
+            "environment": "${ENV_NAME}",
+            "auto_merge": false,
+            "required_contexts": [],
+            "description": "Admin Blog Cloudflare deploy"
+          }
+          JSON
+          )
+
+          RESP=$(curl -sS -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${{ github.repository }}/deployments" \
+            -d "$BODY")
+
+          DEPLOYMENT_ID=$(echo "$RESP" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("id", ""))')
+          if [ -z "$DEPLOYMENT_ID" ]; then
+            echo "Failed to create GitHub deployment"
+            echo "$RESP"
+            exit 1
+          fi
+
+          echo "deployment_id=$DEPLOYMENT_ID" >> "$GITHUB_OUTPUT"
+
+      # Step 10 / 步骤 10: Mark GitHub Deployment as success with URL/logs
+      - name: 10. Mark GitHub Deployment Success
+        if: success() && steps.github_deploy.outputs.deployment_id != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEPLOYMENT_ID: ${{ steps.github_deploy.outputs.deployment_id }}
+        run: |
+          set -euo pipefail
+
+          ADMIN_BLOG_URL="${{ github.ref_name == 'main' && 'https://blog-admin.joyminis.com' || 'https://blog-admin-dev.joyminis.com' }}"
+
+          curl -sS -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${{ github.repository }}/deployments/$DEPLOYMENT_ID/statuses" \
+            -d "{\"state\":\"success\",\"environment_url\":\"$ADMIN_BLOG_URL\",\"log_url\":\"https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" > /dev/null
+
+      # Step 11 / 步骤 11: Smoke check against production URL
+      - name: 11. Smoke Check
+        if: github.ref_name == 'main'
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set +e
+          # 先试自定义域名
+          HTTP_CODE=$(curl --silent --show-error --location \
+            --max-time 10 \
+            --output /dev/null \
+            --write-out "%{http_code}" \
+            "https://blog-admin.joyminis.com" 2>&1)
+          CURL_EXIT=$?
+          if [ $CURL_EXIT -eq 0 ] && [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 500 ]; then
+            echo "✅ Smoke check passed (blog-admin.joyminis.com → HTTP $HTTP_CODE)"
+            exit 0
+          fi
+          echo "⚠️ blog-admin.joyminis.com unreachable (exit=$CURL_EXIT, http=$HTTP_CODE), trying workers.dev fallback..."
+          # 回退到 Workers 自带 URL
+          WORKER_URL="https://lucky-admin-blog-prod.${CLOUDFLARE_ACCOUNT_ID}.workers.dev"
+          HTTP_CODE=$(curl --silent --show-error --location \
+            --max-time 10 \
+            --output /dev/null \
+            --write-out "%{http_code}" \
+            "$WORKER_URL" 2>&1)
+          CURL_EXIT=$?
+          if [ $CURL_EXIT -eq 0 ] && [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 500 ]; then
+            echo "✅ Smoke check passed (workers.dev → HTTP $HTTP_CODE)"
+          else
+            echo "⚠️ Smoke check failed on both URLs (non-fatal)"
+          fi
+
+      # Step 12 / 步骤 12: Publish deployment summary to GitHub UI
+      - name: 12. Publish Deployment Summary
+        if: always()
+        run: |
+          cat <<EOF >> "$GITHUB_STEP_SUMMARY"
+          ## Cloudflare Admin Blog Deployment
+
+          - Environment: ${{ github.ref_name == 'main' && 'production' || 'preview' }}
+          - Commit: \`${{ github.sha }}\`
+          - Rollback Note: rollback to previous known good deployment before commit \`${{ github.sha }}\`
+
+          ### Quick Rollback Note (DNS)
+          - Dry-run: \`yarn rollback:admin-blog:dns\`
+          - Execute: \`yarn rollback:admin-blog:dns:execute\`
+          EOF
+
+      # Step 13 / 步骤 13: Send deployment result to Telegram channel
+      - name: 13. Send Telegram Notification
+        if: always()
+        run: |
+          STATUS_EMOJI=" Success"
+          if [ "${{ job.status }}" != "success" ]; then
+            STATUS_EMOJI="❌ Failed"
+          fi
+
+          if [ "${{ github.ref_name }}" = "main" ]; then
+            ADMIN_BLOG_URL="https://blog-admin.joyminis.com"
+            ADMIN_BLOG_DOMAIN_LABEL="blog-admin.joyminis.com"
+          else
+            ADMIN_BLOG_URL="https://blog-admin-dev.joyminis.com"
+            ADMIN_BLOG_DOMAIN_LABEL="blog-admin-dev.joyminis.com"
+          fi
+
+          MESSAGE="☁️ *Admin Blog Cloudflare Deployment Report*
+          📌 *Status*: $STATUS_EMOJI
+          🏷️ *Environment*: ${{ github.ref_name == 'main' && 'Production' || 'Preview' }} (Cloudflare Workers)
+          🔗 *Admin Blog URL*: [$ADMIN_BLOG_DOMAIN_LABEL]($ADMIN_BLOG_URL)
+          📝 *Commit*: \`${{ github.sha }}\`"
+
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage" \
+            -d "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}" \
+            -d "text=$MESSAGE" \
+            -d "parse_mode=Markdown"

@@ -27,6 +27,7 @@ COPY packages/typescript-config/package.json ./packages/typescript-config/packag
 
 # 前端工作区 — yarn 需要知道它们存在，但不安装其依赖
 COPY apps/admin-next/package.json            ./apps/admin-next/package.json
+COPY apps/admin-blog/package.json            ./apps/admin-blog/package.json
 COPY apps/liveness-web/package.json          ./apps/liveness-web/package.json
 COPY packages/ui/package.json                ./packages/ui/package.json
 

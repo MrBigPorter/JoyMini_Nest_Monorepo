@@ -35,7 +35,7 @@ generate-certs:
 		mkdir -p certs; \
 		mkcert -key-file certs/dev.joyminis.com-key.pem \
 			   -cert-file certs/dev.joyminis.com.pem \
-			   dev.joyminis.com *.dev.joyminis.com localhost 127.0.0.1; \
+			   dev.joyminis.com blog-dev.joyminis.com admin-dev.joyminis.com blog-admin-dev.joyminis.com dev-api.joyminis.com localhost 127.0.0.1; \
 		chmod 644 certs/*; \
 		echo "✓ 证书生成成功，已经被系统信任！"; \
 	else \

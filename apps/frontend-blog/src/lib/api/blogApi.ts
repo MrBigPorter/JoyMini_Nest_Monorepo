@@ -128,7 +128,7 @@ export const blogApi = {
         enabled: boolean;
         isDefault: boolean;
       }>;
-    }>('/v1/client/system-config/locales'),
+    }>('/v1/client/system-config/blog/locales'),
 
   // ================= 收藏功能接口 =================
 

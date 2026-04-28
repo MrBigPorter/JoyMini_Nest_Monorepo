@@ -30,6 +30,7 @@ COPY .yarn ./.yarn
 # copy from workspaces
 COPY apps/api/package.json ./apps/api/package.json
 COPY apps/admin-next/package.json ./apps/admin-next/package.json
+COPY apps/admin-blog/package.json ./apps/admin-blog/package.json
 COPY apps/liveness-web/package.json ./apps/liveness-web/package.json
 
 # copy from packages
