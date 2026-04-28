@@ -251,7 +251,7 @@ export class SystemConfigService {
 
     if (enabled) {
       this.eventEmitter
-        .emitAsync('locale.enabled', code)
+        .emitAsync('locale.blog.enabled', code)
         .catch((err: unknown) => {});
     }
 

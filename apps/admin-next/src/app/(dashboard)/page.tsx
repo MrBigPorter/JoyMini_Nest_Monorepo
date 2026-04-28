@@ -21,7 +21,6 @@ import { DashboardStats } from '@/components/dashboard/DashboardStats';
 import { DashboardStatsSkeleton } from '@/components/dashboard/DashboardStatsSkeleton';
 import { DashboardOrdersClient } from '@/components/dashboard/DashboardOrdersClient';
 import { DashboardHeader } from '@/components/dashboard/DashboardHeader';
-import TranslationProgressCardWrapper from '@/components/dashboard/TranslationProgressCardWrapper';
 import { ORDERS_LIST_TAG } from '@/lib/cache/orders-cache';
 import { serverGet } from '@/lib/serverFetch';
 import type { PaginatedResponse } from '@/api/types';
@@ -65,9 +64,6 @@ export default async function DashboardPage() {
       <Suspense fallback={<DashboardStatsSkeleton />}>
         <DashboardStats locale={locale} />
       </Suspense>
-
-      {/* 翻译进度卡片 — Client Component */}
-      <TranslationProgressCardWrapper />
 
       {/* 最近订单 — Client Component，由 HydrationBoundary 注入预取数据 */}
       <HydrationBoundary state={dehydrate(queryClient)}>

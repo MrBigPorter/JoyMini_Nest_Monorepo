@@ -18,7 +18,6 @@ const localeMap: Record<string, unknown> = { en, zh, ja, ko, fr, de };
 
 type RawLocaleJson = {
   translations: Record<string, string>;
-  blogCard?: Record<string, string>;
   actSections?: Record<string, string>;
   orders?: Record<string, string>;
   groups?: Record<string, string>;
@@ -43,7 +42,6 @@ type RawLocaleJson = {
 function flatten(raw: RawLocaleJson): Record<string, unknown> {
   return {
     ...raw.translations,
-    ...(raw.blogCard ? { blogCard: raw.blogCard } : {}),
     ...(raw.actSections ? { actSections: raw.actSections } : {}),
     ...(raw.orders ? { orders: raw.orders } : {}),
     ...(raw.groups ? { groups: raw.groups } : {}),
@@ -109,11 +107,6 @@ export default getRequestConfig(async ({ requestLocale }) => {
         messages = {
           ...enFlat, // English fills any gaps
           ...localeFlat, // target locale overrides where it has translations
-          // blogCard needs its own deep merge
-          blogCard: {
-            ...(enFlat.blogCard as Record<string, string>),
-            ...(localeFlat.blogCard as Record<string, string> | undefined),
-          },
           // actSections needs its own deep merge
           actSections: {
             ...(enFlat.actSections as Record<string, string>),

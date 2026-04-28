@@ -1,49 +1,17 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Edit2, Plus, Trash2 } from 'lucide-react';
-import { Button, Card } from '@/components/UIComponents';
+import React from 'react';
+import { Trash2 } from 'lucide-react';
+import { Card } from '@/components/UIComponents';
 import { useRequest } from 'ahooks';
 import { categoryApi } from '@/api';
-import { BlogCategoryModal } from '@/views/blog/BlogCategoryModal';
 import { ModalManager } from '@repo/ui';
 import { useTranslation } from '@/hooks/useTranslation';
 
-interface BlogCategory {
-  id: string;
-  name: string;
-  slug: string;
-  description?: string;
-  articleCount?: number;
-}
-
 export const CategoryManagement: React.FC = () => {
   const { t } = useTranslation();
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editingItem, setEditingItem] = useState<{
-    id: string;
-    name: string;
-    slug: string;
-    description?: string;
-  } | null>(null);
 
   const categories = useRequest(categoryApi.getCategories);
-
-  const handleOpenModal = (category?: any) => {
-    if (category) {
-      setEditingItem({
-        id: String(category.id),
-        name: category.name,
-        slug: category.slug || '',
-        description: category.description,
-      });
-      setIsEditModalOpen(true);
-    } else {
-      setEditingItem(null);
-      setIsCreateModalOpen(true);
-    }
-  };
 
   const { run: deleteCategory, loading: isDeleting } = useRequest(
     categoryApi.deleteCategory,
@@ -78,9 +46,6 @@ export const CategoryManagement: React.FC = () => {
             {t('categories_pageDescription')}
           </p>
         </div>
-        <Button onClick={() => handleOpenModal()} variant="outline">
-          <Plus size={18} /> {t('categories_addCategory')}
-        </Button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -100,15 +65,6 @@ export const CategoryManagement: React.FC = () => {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleOpenModal(cat);
-                    }}
-                    className="p-1.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded text-gray-400 hover:text-primary-500"
-                  >
-                    <Edit2 size={14} />
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
                       remove(cat.id.toString());
                     }}
                     className="p-1.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded text-gray-400 hover:text-red-500"
@@ -125,27 +81,7 @@ export const CategoryManagement: React.FC = () => {
               </p>
             </Card>
           ))}
-        <button
-          onClick={() => handleOpenModal()}
-          className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-200 dark:border-white/10 rounded-xl text-gray-400 hover:border-primary-500 hover:text-primary-500 hover:bg-primary-50 dark:hover:bg-primary-500/5 transition-all cursor-pointer h-full min-h-[140px]"
-        >
-          <Plus size={24} className="mb-2" />
-          <span className="font-medium">{t('categories_createNew')}</span>
-        </button>
       </div>
-
-      <BlogCategoryModal
-        isOpen={isCreateModalOpen}
-        onCloseAction={() => setIsCreateModalOpen(false)}
-        onSuccessAction={categories.refresh}
-      />
-
-      <BlogCategoryModal
-        isOpen={isEditModalOpen}
-        onCloseAction={() => setIsEditModalOpen(false)}
-        onSuccessAction={categories.refresh}
-        editingCategory={editingItem}
-      />
     </div>
   );
 };

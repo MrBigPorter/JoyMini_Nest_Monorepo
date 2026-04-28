@@ -10,7 +10,6 @@ import type { Locale } from '@lucky/shared';
 
 type LocaleFile = {
   translations: Record<string, string>;
-  blogCard?: Record<string, string>;
 };
 
 const enJson = en as unknown as LocaleFile;
@@ -29,18 +28,6 @@ export const TRANSLATIONS: Record<Locale, Record<string, string>> = {
   de: deJson.translations,
 };
 
-export const BLOG_TRANSLATION_CARD_TRANSLATIONS: Record<
-  Locale,
-  Record<string, string>
-> = {
-  en: enJson.blogCard || {},
-  zh: zhJson.blogCard || {},
-  ja: jaJson.blogCard || {},
-  ko: koJson.blogCard || {},
-  fr: frJson.blogCard || {},
-  de: deJson.blogCard || {},
-};
-
 /**
  * Server-friendly synchronous getter for a single locale's translations.
  * Use this from Server Components (layout/page) to avoid shipping all locales to client.
@@ -52,8 +39,7 @@ export function getTranslations(lang: Locale) {
 /**
  * Unified resolver for a single translation key. Searches:
  * 1. TRANSLATIONS[lang] (supports dot-path lookup when nested maps exist)
- * 2. Known namespaced maps (e.g. BLOG_TRANSLATION_CARD_TRANSLATIONS)
- * 3. Fallback to the key itself when not found
+ * 2. Fallback to the key itself when not found
  */
 export function getTranslation(lang: Locale, key: string) {
   const parts = key.split('.');
@@ -69,13 +55,6 @@ export function getTranslation(lang: Locale, key: string) {
     }
   }
   if (typeof cur === 'string') return cur;
-
-  // fallback: if key is namespaced like `blogCard.x` check the blog map
-  if (parts[0] === 'blogCard') {
-    const subKey = parts.slice(1).join('.');
-    const m = BLOG_TRANSLATION_CARD_TRANSLATIONS[lang] || {};
-    if (m && typeof m[subKey] === 'string') return m[subKey];
-  }
 
   // last attempt: direct lookup on the root flat map
   if (typeof root[key] === 'string') return root[key];

@@ -1022,9 +1022,9 @@ export class BlogService {
   }
 
   /**
-   * 监听语言启用事件，自动触发全库翻译
+   * 监听 blog 语言启用事件，自动触发全库翻译
    */
-  @OnEvent('locale.enabled')
+  @OnEvent('locale.blog.enabled')
   async handleLocaleEnabled(targetLang: string) {
     this.logger.log(`🔔 Received locale enabled event: ${targetLang}`);
     return this.queueFullLocaleTranslation(targetLang);

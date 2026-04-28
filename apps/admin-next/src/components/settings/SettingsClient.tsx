@@ -50,21 +50,6 @@ const CONFIG_META: Record<string, { label: string; description?: string }> = {
     label: 'KYC Required',
     description: '1 = required, 0 = optional',
   },
-  'blog.translation.defaultSourceLang': {
-    label: 'Default Source Language for Translation',
-    description:
-      'Default source language for AI translation, defaults to Chinese (zh)',
-  },
-  'blog.translation.sourceLangDetection': {
-    label: 'Source Language Detection Strategy',
-    description:
-      'auto|manual|hybrid (hybrid: prefer Localized field detection, fall back to system default on failure)',
-  },
-  'blog.translation.fallbackChain': {
-    label: 'Source Language Fallback Chain',
-    description:
-      'JSON array, tried in order, e.g. ["zh", "en", "ja", "ko", "fr", "de"]',
-  },
 };
 
 type TFunc = (key: string, params?: Record<string, string | number>) => string;
@@ -333,7 +318,7 @@ interface SystemConfigProps {
   initialData?: SystemConfigListResult;
 }
 
-type Tab = 'general' | 'locales' | 'translation';
+type Tab = 'general' | 'locales';
 
 function LocaleSettingsContent({ t }: { t: TFunc }) {
   const { locales, toggleLocale, loading } = useAvailableLocales();
@@ -375,159 +360,6 @@ function LocaleSettingsContent({ t }: { t: TFunc }) {
           <li>{t('systemConfig.localeTip2')}</li>
           <li>{t('systemConfig.localeTip3')}</li>
           <li>{t('systemConfig.localeTip4')}</li>
-        </ul>
-      </div>
-    </div>
-  );
-}
-
-function TranslationSettingsContent({ t }: { t: TFunc }) {
-  const {
-    data: sourceLang,
-    loading,
-    mutate,
-    error,
-  } = useRequest(() => systemConfigApi.getDefaultSourceLang(), {
-    onError: (error) => {
-      console.error('Failed to load source language:', error);
-    },
-  });
-
-  const { data: localesData } = useRequest(() => systemConfigApi.getLocales());
-  const enabledLocales = localesData?.list?.filter((l) => l.enabled) || [];
-
-  const [saving, setSaving] = useState(false);
-
-  const handleUpdateSourceLang = async (code: string) => {
-    setSaving(true);
-    try {
-      await systemConfigApi.updateDefaultSourceLang(code);
-      mutate({ code, name: code, nativeName: code }); // Update local cache
-    } catch (error) {
-      console.error('Failed to update source language:', error);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="p-8 text-center animate-pulse">
-        {t('systemConfig.translationLoading')}
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="p-8 text-center text-red-600">
-        <AlertTriangle className="mx-auto mb-2" />
-        {t('systemConfig.translationError')}
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      {/* Source Language Configuration */}
-      <div className="rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-gray-900 p-6">
-        <h3 className="text-lg font-semibold mb-4">
-          {t('systemConfig.sourceLangTitle')}
-        </h3>
-        <p className="text-sm text-gray-500 mb-6">
-          {t('systemConfig.sourceLangDesc')}
-        </p>
-
-        <div className="space-y-4">
-          <div className="flex items-center justify-between py-3 border-b border-gray-100 dark:border-white/5">
-            <div>
-              <div className="font-medium">
-                {t('systemConfig.currentSourceLang')}
-              </div>
-              <div className="text-sm text-gray-500">
-                {sourceLang?.nativeName ||
-                  sourceLang?.name ||
-                  sourceLang?.code ||
-                  'zh'}{' '}
-                ({t('systemConfig.code', { code: sourceLang?.code || 'zh' })})
-              </div>
-            </div>
-            <div className="text-sm font-medium text-teal-600">
-              {saving ? t('systemConfig.saving') : t('systemConfig.configured')}
-            </div>
-          </div>
-
-          <div className="pt-4">
-            <div className="text-sm font-medium mb-3">
-              {t('systemConfig.selectNewSourceLang')}
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {enabledLocales.map((locale) => (
-                <button
-                  key={locale.code}
-                  onClick={() => handleUpdateSourceLang(locale.code)}
-                  disabled={saving || locale.code === sourceLang?.code}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    locale.code === sourceLang?.code
-                      ? 'bg-teal-100 text-teal-700 border border-teal-200'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-white/5 dark:text-gray-300 dark:hover:bg-white/10'
-                  } ${saving ? 'opacity-50 cursor-not-allowed' : ''}`}
-                >
-                  {locale.nativeName}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Translation Strategy Configuration */}
-      <div className="rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-gray-900 p-6">
-        <h3 className="text-lg font-semibold mb-4">
-          {t('systemConfig.strategyTitle')}
-        </h3>
-        <p className="text-sm text-gray-500 mb-6">
-          {t('systemConfig.strategyDesc')}
-        </p>
-
-        <div className="space-y-4">
-          <div className="flex items-center justify-between py-3 border-b border-gray-100 dark:border-white/5">
-            <div>
-              <div className="font-medium">
-                {t('systemConfig.detectionStrategy')}
-              </div>
-              <div className="text-sm text-gray-500">
-                {t('systemConfig.detectionStrategyDesc')}
-              </div>
-            </div>
-            <div className="text-sm text-gray-500">
-              {t('systemConfig.managedViaConfig')}
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between py-3 border-b border-gray-100 dark:border-white/5">
-            <div>
-              <div className="font-medium">
-                {t('systemConfig.fallbackChain')}
-              </div>
-              <div className="text-sm text-gray-500">
-                {t('systemConfig.fallbackChainDesc')}
-              </div>
-            </div>
-            <div className="text-sm text-gray-500">
-              {t('systemConfig.managedViaConfig')}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
-        <p className="font-medium mb-2">💡 {t('systemConfig.strategyTitle')}</p>
-        <ul className="list-disc list-inside space-y-1">
-          <li>{t('systemConfig.strategyTip1')}</li>
-          <li>{t('systemConfig.strategyTip2')}</li>
-          <li>{t('systemConfig.strategyTip3')}</li>
-          <li>{t('systemConfig.strategyTip4')}</li>
         </ul>
       </div>
     </div>
@@ -590,17 +422,6 @@ export function SystemConfig({ initialData }: SystemConfigProps) {
           <Globe size={16} />
           {t('systemConfig.tabLocales')}
         </button>
-        <button
-          onClick={() => setActiveTab('translation')}
-          className={`px-4 py-3 text-sm font-medium flex items-center gap-2 border-b-2 transition-colors ${
-            activeTab === 'translation'
-              ? 'border-teal-500 text-teal-600 dark:text-teal-400'
-              : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
-          }`}
-        >
-          <Languages size={16} />
-          {t('systemConfig.tabTranslation')}
-        </button>
       </div>
 
       {activeTab === 'general' && (
@@ -657,7 +478,6 @@ export function SystemConfig({ initialData }: SystemConfigProps) {
       )}
 
       {activeTab === 'locales' && <LocaleSettingsContent t={t} />}
-      {activeTab === 'translation' && <TranslationSettingsContent t={t} />}
 
       <div className="text-xs text-gray-400 px-1">
         {t('systemConfig.keyboardHint', {
