@@ -53,7 +53,7 @@ jobs:
       - name: 3. Enable Corepack (Yarn 4)
         run: corepack enable && corepack prepare yarn@4.9.2 --activate
 
-      # ---- 三级缓存策略 ----
+      # ---- 四级缓存策略 ----
       - name: Cache Yarn zip cache
         uses: actions/cache@v4
         with:
@@ -83,6 +83,15 @@ jobs:
           restore-keys: |
             turbo-blog-${{ github.ref_name }}-
             turbo-blog-main-
+
+      - name: Cache Next.js build (.next/cache)
+        uses: actions/cache@v4
+        with:
+          path: |
+            apps/frontend-blog/.next/cache
+          key: nextjs-blog-${{ runner.os }}-${{ hashFiles('yarn.lock', 'apps/frontend-blog/**/*.ts', 'apps/frontend-blog/**/*.tsx', 'apps/frontend-blog/**/*.json') }}
+          restore-keys: |
+            nextjs-blog-${{ runner.os }}-
 
       - name: 4. Install Dependencies
         run: yarn install --immutable
@@ -148,6 +157,15 @@ jobs:
           restore-keys: |
             nm-blog-${{ runner.os }}-
 
+      - name: Cache Next.js build (.next/cache)
+        uses: actions/cache@v4
+        with:
+          path: |
+            apps/frontend-blog/.next/cache
+          key: nextjs-blog-${{ runner.os }}-${{ hashFiles('yarn.lock', 'apps/frontend-blog/**/*.ts', 'apps/frontend-blog/**/*.tsx', 'apps/frontend-blog/**/*.json') }}
+          restore-keys: |
+            nextjs-blog-${{ runner.os }}-
+
       - name: 4. Install Dependencies
         run: yarn install --immutable
 
@@ -172,6 +190,9 @@ jobs:
           NEXT_PUBLIC_SENTRY_DEBUG: ${{ github.ref_name == 'test' && 'true' || 'false' }}
           NEXT_PUBLIC_DEPLOYED_AT: ${{ steps.build_meta.outputs.deployed_at }}
           NEXT_PUBLIC_GIT_SHA: ${{ steps.build_meta.outputs.git_sha }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_SUPPRESS_INSTRUMENTATION_FILE_WARNING: "1"
+          SENTRY_SUPPRESS_GLOBAL_ERROR_HANDLER_FILE_WARNING: "1"
         run: |
           # opennextjs-cloudflare build auto-reads open-next.config.ts — no -c needed.
           yarn exec opennextjs-cloudflare build
