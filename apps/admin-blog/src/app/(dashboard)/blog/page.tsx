@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 import {
   FileText,
@@ -32,8 +32,11 @@ export default function BlogDashboardPage() {
   const { t: globalT, lang } = useTranslation();
 
   // local scoper for dashboard keys
-  const t = (key: string, params?: Record<string, string | number>) =>
-    globalT(`blog_dashboard_${key}`, params);
+  const t = useCallback(
+    (key: string, params?: Record<string, string | number>) =>
+      globalT(`blog_dashboard_${key}`, params),
+    [globalT],
+  );
   const [recentArticles, setRecentArticles] = useState<
     Array<{
       id: string;
@@ -54,7 +57,7 @@ export default function BlogDashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isArticleModalOpen, setIsArticleModalOpen] = useState(false);
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     setIsLoading(true);
     try {
       // Fetch all data in parallel
@@ -105,11 +108,11 @@ export default function BlogDashboardPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [lang]);
 
   useEffect(() => {
     fetchDashboardData();
-  }, []);
+  }, [fetchDashboardData]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {

@@ -71,6 +71,7 @@ export const RichTextEditor = ({
       loadCss();
       setReactQuill(() => ReactQuillModule);
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: only load Quill once on mount
   }, []);
 
   // When the ReactQuill module is ready, initialize editor content once to avoid
@@ -112,6 +113,7 @@ export const RichTextEditor = ({
     };
 
     attempt();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: value is only used for initial paste, guarded by hasInitialized ref
   }, [ReactQuill]);
 
   //  不要自动监听 Quill 事件，因为会触发无限循环
@@ -227,6 +229,7 @@ export const RichTextEditor = ({
         alert('Failed to upload image');
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: onChange is a parent prop that may change every render; adding it could cause infinite loops
   }, [onUpload]);
 
   // 自定义视频上传处理逻辑
@@ -385,6 +388,7 @@ export const RichTextEditor = ({
         alert('Failed to upload video');
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: onChange is a parent prop that may change every render; adding it could cause infinite loops
   }, [onUpload]);
 
   const modules = useMemo(

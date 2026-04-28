@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Tag as TagIcon,
@@ -31,7 +31,7 @@ export default function TagsPage() {
   const router = useRouter();
   const { t, lang } = useTranslation();
 
-  const fetchTags = async () => {
+  const fetchTags = useCallback(async () => {
     setIsLoading(true);
     try {
       const response = await blogApi.getTags({ search });
@@ -42,7 +42,7 @@ export default function TagsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [search, t, addToast]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -50,7 +50,7 @@ export default function TagsPage() {
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [search]);
+  }, [search, fetchTags]);
 
   const filteredTags = tags;
 
