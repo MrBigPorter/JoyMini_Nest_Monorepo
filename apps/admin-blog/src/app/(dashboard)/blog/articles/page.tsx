@@ -68,8 +68,11 @@ export default function ArticlesPageV2() {
   const actionRef = useRef<ActionType>(null);
   const { t: globalT, lang } = useTranslation();
 
-  const t = (key: string, params?: Record<string, string | number>) =>
-    globalT(`blog_articles_${key}`, params);
+  const t = useCallback(
+    (key: string, params?: Record<string, string | number>) =>
+      globalT(`blog_articles_${key}`, params),
+    [globalT],
+  );
 
   // 删除文章 mutation
   const deleteArticleMutation = useMutation({
@@ -521,7 +524,7 @@ export default function ArticlesPageV2() {
       // 返回空数据而非错误，保持UI可用
       return { data: [], total: 0, success: false };
     }
-  }, []);
+  }, [lang]);
 
   return (
     <div className="space-y-6">

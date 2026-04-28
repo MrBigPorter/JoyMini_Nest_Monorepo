@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import { Modal, Button } from '@/components/UIComponents';
 import { Form, FormSelectField, FormTextareaField } from '@repo/ui/form';
 import { useBlogForm } from '@/hooks/useBlogForm';
@@ -53,7 +53,7 @@ export const BlogCommentModal: React.FC<BlogCommentModalProps> = ({
   );
 
   // 兼容旧数据格式: 自动把 string 转换成 LocalizedString 格式
-  const getDefaultValues = () => {
+  const getDefaultValues = useCallback(() => {
     if (!editingComment) {
       return {
         status: 'PENDING' as const,
@@ -68,7 +68,7 @@ export const BlogCommentModal: React.FC<BlogCommentModalProps> = ({
       status: status as 'PENDING' | 'APPROVED' | 'REJECTED' | 'SPAM',
       reply: normalizeLocalizedValue(editingComment.reply),
     };
-  };
+  }, [editingComment]);
 
   const blogForm = useBlogForm({
     schema: commentModerationSchema,
@@ -95,7 +95,8 @@ export const BlogCommentModal: React.FC<BlogCommentModalProps> = ({
     if (isOpen) {
       form.reset(getDefaultValues());
     }
-  }, [isOpen, form, editingComment, getDefaultValues]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: getDefaultValues changes when editingComment changes, which is the correct trigger to reset form
+  }, [isOpen, form, getDefaultValues]);
 
   const loading = isUpdating || isLoading;
 

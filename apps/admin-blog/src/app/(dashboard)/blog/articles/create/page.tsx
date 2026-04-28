@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Save, Send, Loader2, Info } from 'lucide-react';
 import Link from 'next/link';
@@ -29,8 +29,11 @@ export default function CreateArticlePage() {
   const { addToast } = useToastStore();
   const { locale } = useLanguage();
   const { t: globalT } = useTranslation();
-  const t = (key: string, params?: Record<string, string | number>) =>
-    globalT(`blog_createArticle_${key}`, params);
+  const t = useCallback(
+    (key: string, params?: Record<string, string | number>) =>
+      globalT(`blog_createArticle_${key}`, params),
+    [globalT],
+  );
 
   const [categories, setCategories] = useState<
     { id: string; name: { zh: string; en: string } }[]
@@ -151,7 +154,7 @@ export default function CreateArticlePage() {
       }
     };
     fetchData();
-  }, [addToast]);
+  }, [addToast, t]);
 
   const handleTagToggle = (tagId: string) => {
     const currentTagIds = watch('tagIds') || [];

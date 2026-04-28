@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   MessageSquare,
@@ -39,10 +39,14 @@ export default function CommentsPage() {
   const router = useRouter();
   const { t: globalT, lang } = useTranslation();
 
-  const t = (key: string, params?: Record<string, string | number>) =>
-    globalT(`blog_comments_${key}`, params);
+  const t = useCallback(
+    (key: string, params?: Record<string, string | number>) =>
+      globalT(`blog_comments_${key}`, params),
+    [globalT],
+  );
 
-  const fetchComments = async () => {
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const fetchComments = useCallback(async () => {
     setIsLoading(true);
     try {
       const params: any = {};
@@ -64,9 +68,12 @@ export default function CommentsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+    // t and addToast are stable references (useCallback wrapper + zustand selector), excluded intentionally
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusFilter, articleFilter, search, t, addToast]);
 
-  const fetchArticles = async () => {
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const fetchArticles = useCallback(async () => {
     try {
       const response = await blogApi.getArticles({ pageSize: 50 });
       const articleOptions =
@@ -86,12 +93,14 @@ export default function CommentsPage() {
       console.error('Failed to fetch articles:', error);
       // Fallback to mock articles
     }
-  };
+    // t and addToast are stable references, excluded intentionally
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lang, t, addToast]);
 
   useEffect(() => {
     fetchComments();
     fetchArticles();
-  }, []);
+  }, [fetchComments, fetchArticles]);
 
   useEffect(() => {
     // Debounce search
@@ -100,7 +109,7 @@ export default function CommentsPage() {
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [search, statusFilter, articleFilter]);
+  }, [search, statusFilter, articleFilter, fetchComments]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {

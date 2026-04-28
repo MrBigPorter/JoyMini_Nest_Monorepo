@@ -53,8 +53,11 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
   const { t: globalT, lang } = useTranslation();
 
   // Local blog-article scoped translator
-  const t = (key: string, params?: Record<string, string | number>) =>
-    globalT(`blog_article_${key}`, params);
+  const t = useCallback(
+    (key: string, params?: Record<string, string | number>) =>
+      globalT(`blog_article_${key}`, params),
+    [globalT],
+  );
   const [categories, setCategories] = useState<{ id: string; name: unknown }[]>(
     [],
   );
@@ -85,7 +88,7 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
       };
       fetchData();
     }
-  }, [isOpen, addToast]);
+  }, [isOpen, addToast, t]);
 
   const { run: createArticle, loading: isCreating } = useRequest(
     blogApi.createArticle,
@@ -503,7 +506,7 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
       { label: t('published'), value: 'PUBLISHED' },
       { label: t('archived'), value: 'ARCHIVED' },
     ],
-    [],
+    [t],
   );
 
   const loading =
