@@ -261,11 +261,6 @@ export function ArticleDetailSkeleton() {
 export function HomePageSkeleton() {
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 py-8 md:py-12">
-      {/* Hero Section Skeleton */}
-      <div className="mb-16">
-        <HeroSectionSkeleton />
-      </div>
-
       {/* 标题区域骨架 */}
       <div className="mb-12 text-center md:text-left">
         <div className="mb-4">
