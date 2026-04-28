@@ -390,15 +390,18 @@ const appConfig: NextConfig = {
 // 根据环境变量动态选择配置
 const dynamicConfig = isAppMode ? appConfig : webConfig;
 
-export default withSentryConfig(
-  withBundleAnalyzer(withPWA(withNextIntl(dynamicConfig))),
-  {
-    org: process.env.SENTRY_ORG,
-    project: 'tarsier-labs',
-    silent: !process.env.CI,
-    sourcemaps: {
-      disable: !process.env.SENTRY_AUTH_TOKEN,
-    },
-    tunnelRoute: undefined,
-  },
-);
+const baseConfig = withBundleAnalyzer(withPWA(withNextIntl(dynamicConfig)));
+
+// 只在 production 构建时启用 Sentry 插件，避免开发/CI 时加载 Sentry 依赖
+// Sentry 初始化逻辑在 instrumentation.ts 和 instrumentation-client.ts 中处理
+export default process.env.NODE_ENV === 'production'
+  ? withSentryConfig(baseConfig, {
+      org: process.env.SENTRY_ORG,
+      project: 'tarsier-labs',
+      silent: !process.env.CI,
+      sourcemaps: {
+        disable: !process.env.SENTRY_AUTH_TOKEN,
+      },
+      tunnelRoute: undefined,
+    })
+  : baseConfig;
