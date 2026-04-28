@@ -138,10 +138,10 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
     setIsCreateModalOpen(true);
   };
 
-  const handleEdit = (admin: AdminUser) => {
+  const handleEdit = useCallback((admin: AdminUser) => {
     setEditingAdmin(admin);
     setIsEditModalOpen(true);
-  };
+  }, []);
 
   const { run: updateUser, loading: isUpdating } = useRequest(
     userApi.updateUser,
@@ -171,13 +171,13 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
       const newStatus = admin.status === 1 ? 0 : 1;
       updateUser(admin.id, { status: newStatus });
     },
-    [updateUser, addToast, isSuperAdmin],
+    [updateUser, addToast, isSuperAdmin, t],
   );
 
-  const handleOpenResetPwd = (admin: AdminUser) => {
+  const handleOpenResetPwd = useCallback((admin: AdminUser) => {
     setResetPwdAdmin(admin);
     setIsResetPwdModalOpen(true);
-  };
+  }, []);
   // 搜索回调：直接拿到所有值
   const handleSearch = (values: AdminUserSearchForm) => {
     setFilters(values);
@@ -350,6 +350,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
     isSuperAdmin,
     handleEdit,
     handleOpenResetPwd,
+    t,
   ]);
   /* eslint-enable @typescript-eslint/no-explicit-any */
 
