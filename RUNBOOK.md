@@ -25,10 +25,10 @@ GitHub Actions 会自动：
 
 ```bash
 # 只部署后端（最常用）
-VPS_IP=api.joyminis.com ./deploy/deploy.sh --backend
+VPS_IP=<YOUR_SERVER_IP> ./deploy/deploy.sh --backend
 
 # 部署全部（后端 + 前端）
-VPS_IP=api.joyminis.com ./deploy/deploy.sh
+VPS_IP=<YOUR_SERVER_IP> ./deploy/deploy.sh
 ```
 
 > 本地部署流程：本地构建 Docker 镜像 → 压缩 → SCP 传到 VPS → VPS 加载镜像 → 重启容器。
@@ -50,7 +50,7 @@ VPS_IP=api.joyminis.com ./deploy/deploy.sh
 
 ```bash
 # 测后端是否活着
-curl https://api.joyminis.com/api/v1/health
+curl https://api.<YOUR_DOMAIN>.com/api/v1/health
 
 # 正常返回：{"code":10000,"message":"success","data":{"ok":true}}
 ```
@@ -59,7 +59,7 @@ curl https://api.joyminis.com/api/v1/health
 
 ```bash
 # 登录 VPS
-ssh root@api.joyminis.com
+ssh <YOUR_USER>@<YOUR_SERVER_IP>
 
 # 看所有容器状态
 docker ps -a
@@ -76,13 +76,13 @@ docker logs --tail=50 lucky-backend-prod
 
 ```bash
 # 1. 先确认后端是否在跑
-ssh root@api.joyminis.com 'docker ps | grep lucky-backend'
+ssh <YOUR_USER>@<YOUR_SERVER_IP> 'docker ps | grep lucky-backend'
 
 # 2. 如果不在跑，重启后端
-ssh root@api.joyminis.com 'cd /opt/lucky && docker compose -f compose.prod.yml restart backend'
+ssh <YOUR_USER>@<YOUR_SERVER_IP> 'cd /opt/lucky && docker compose -f compose.prod.yml restart backend'
 
 # 3. 如果在跑还是 404，可能跑的是旧代码 → 手动重启
-ssh root@api.joyminis.com 'cd /opt/lucky && BACKEND_IMAGE=lucky-backend-prod:latest docker compose -f compose.prod.yml up -d --no-deps --force-recreate backend'
+ssh <YOUR_USER>@<YOUR_SERVER_IP> 'cd /opt/lucky && BACKEND_IMAGE=lucky-backend-prod:latest docker compose -f compose.prod.yml up -d --no-deps --force-recreate backend'
 ```
 
 ### ❌ CI 显示红色
@@ -103,12 +103,12 @@ ssh root@api.joyminis.com 'cd /opt/lucky && BACKEND_IMAGE=lucky-backend-prod:lat
 
 | 你要做什么 | 命令 |
 |-----------|------|
-| 看后端日志 | `ssh root@api.joyminis.com 'docker logs --tail=50 lucky-backend-prod'` |
-| 看所有容器 | `ssh root@api.joyminis.com 'docker ps -a'` |
-| 重启后端 | `ssh root@api.joyminis.com 'cd /opt/lucky && docker compose -f compose.prod.yml restart backend'` |
-| 测接口 | `curl https://api.joyminis.com/api/v1/health` |
-| 部署后端（本地） | `VPS_IP=api.joyminis.com ./deploy/deploy.sh --backend` |
-| 部署全部（本地） | `VPS_IP=api.joyminis.com ./deploy/deploy.sh` |
+| 看后端日志 | `ssh <YOUR_USER>@<YOUR_SERVER_IP> 'docker logs --tail=50 lucky-backend-prod'` |
+| 看所有容器 | `ssh <YOUR_USER>@<YOUR_SERVER_IP> 'docker ps -a'` |
+| 重启后端 | `ssh <YOUR_USER>@<YOUR_SERVER_IP> 'cd /opt/lucky && docker compose -f compose.prod.yml restart backend'` |
+| 测接口 | `curl https://api.<YOUR_DOMAIN>.com/api/v1/health` |
+| 部署后端（本地） | `VPS_IP=<YOUR_SERVER_IP> ./deploy/deploy.sh --backend` |
+| 部署全部（本地） | `VPS_IP=<YOUR_SERVER_IP> ./deploy/deploy.sh` |
 
 ---
 
