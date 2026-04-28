@@ -514,6 +514,6 @@
     "welcomeBack": "欢迎回来，管理员！",
     "loginFailedNoToken": "登录失败：未收到访问令牌。",
     "loginFailedGeneric": "登录失败，请重试。",
-    "copyright": "© {year} JoyMini Admin. 保留所有权利。"
+    "copyright": "© {year} JoyMini Blog Admin. 保留所有权利。"
   }
 }

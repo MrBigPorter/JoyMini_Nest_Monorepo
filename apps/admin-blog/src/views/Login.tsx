@@ -225,16 +225,6 @@ export const Login: React.FC = () => {
                 {t('login.signIn')} <ArrowRight size={18} />
               </span>
             </Button>
-
-            <div className="text-center text-sm text-gray-500 dark:text-gray-400">
-              {t('login.noAccount')}{' '}
-              <Link
-                href="/register-apply"
-                className="text-primary-500 hover:underline font-medium"
-              >
-                {t('login.applyAccess')}
-              </Link>
-            </div>
           </form>
         </motion.div>
 

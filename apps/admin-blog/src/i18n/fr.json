@@ -514,6 +514,6 @@
     "welcomeBack": "Bon retour, Administrateur !",
     "loginFailedNoToken": "Échec de la connexion : aucun jeton d'accès reçu.",
     "loginFailedGeneric": "Échec de la connexion. Veuillez réessayer.",
-    "copyright": "© {year} JoyMini Admin. Tous droits réservés."
+    "copyright": "© {year} JoyMini Blog Admin. Tous droits réservés."
   }
 }
