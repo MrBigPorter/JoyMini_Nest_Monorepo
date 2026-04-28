@@ -1,28 +1,28 @@
-'use client';
+"use client";
 
 import React, {
   forwardRef,
   useImperativeHandle,
   useEffect,
   useRef,
-} from 'react';
+} from "react";
 import {
   Form,
   FormTextField,
   FormTextareaField,
   FormMediaUploaderField,
-} from '@repo/ui/form';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { RichTextEditor } from '@/components/blog/RichTextEditor';
-import { SmartImage } from '@/components/ui/SmartImage';
-import { Info } from 'lucide-react';
-import { useTranslation } from '@/hooks/useTranslation';
+} from "@repo/ui/form";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { RichTextEditor } from "@/components/blog/RichTextEditor";
+import { SmartImage } from "@/components/ui/SmartImage";
+import { Info } from "lucide-react";
+import { useTranslation } from "@/hooks/useTranslation";
 
 const formSchema = z.object({
-  title: z.string().min(1, 'Title is required'),
-  content: z.string().min(1, 'Content is required'),
+  title: z.string().min(1, "Title is required"),
+  content: z.string().min(1, "Content is required"),
   excerpt: z.string().optional(),
   featuredImage: z.any().optional(),
 });
@@ -35,20 +35,20 @@ export interface ArticleFormRef {
 }
 
 interface ArticleFormProps {
-  onUpload?: (file: File) => Promise<string>;
+  onUploadAction?: (file: File) => Promise<string>;
   locale?: string; // 可选：当前语言
   isLocalized?: boolean; // 可选：是否多语言模式
-  onFieldChange?: (field: string, value: string) => void; // 新增：字段变化回调
+  onFieldChangeAction?: (field: string, value: string) => void; // 新增：字段变化回调
 }
 
 // 辅助函数：安全提取字符串值（支持多语言对象 -> 返回指定 locale 的值）
-function extractStringValue(value: any, locale = 'zh'): string {
-  if (typeof value === 'string') return value;
-  if (value && typeof value === 'object') {
+function extractStringValue(value: any, locale = "zh"): string {
+  if (typeof value === "string") return value;
+  if (value && typeof value === "object") {
     // 如果是多语言对象，返回指定语言的值或常见回退
-    return value[locale] || value['zh'] || value['en'] || '';
+    return value[locale] || value["zh"] || value["en"] || "";
   }
-  return '';
+  return "";
 }
 
 // 辅助函数：检查是否为File对象
@@ -57,7 +57,10 @@ function isFile(value: any): value is File {
 }
 
 export const ArticleForm = forwardRef<ArticleFormRef, ArticleFormProps>(
-  ({ onUpload, locale = 'zh', isLocalized = false, onFieldChange }, ref) => {
+  (
+    { onUploadAction, locale = "zh", isLocalized = false, onFieldChangeAction },
+    ref,
+  ) => {
     const { t: globalT } = useTranslation();
     const t = (key: string, params?: Record<string, string | number>) =>
       globalT(`blog_articleForm_${key}`, params);
@@ -68,10 +71,10 @@ export const ArticleForm = forwardRef<ArticleFormRef, ArticleFormProps>(
     const form = useForm<ArticleFormValues>({
       resolver: zodResolver(formSchema),
       defaultValues: {
-        title: '',
-        content: '',
-        excerpt: '',
-        featuredImage: '',
+        title: "",
+        content: "",
+        excerpt: "",
+        featuredImage: "",
       },
     });
 
@@ -88,23 +91,23 @@ export const ArticleForm = forwardRef<ArticleFormRef, ArticleFormProps>(
           // 这里可以添加逻辑来通知父表单更新
           // 使用类型安全的访问方式
           if (
-            name === 'title' ||
-            name === 'content' ||
-            name === 'excerpt' ||
-            name === 'featuredImage'
+            name === "title" ||
+            name === "content" ||
+            name === "excerpt" ||
+            name === "featuredImage"
           ) {
             const fieldValue = value[name];
             console.log(`ArticleForm field changed: ${name} =`, fieldValue);
 
             // 调用回调函数通知父组件
-            if (onFieldChange && fieldValue !== undefined) {
-              onFieldChange(name, fieldValue);
+            if (onFieldChangeAction && fieldValue !== undefined) {
+              onFieldChangeAction(name, fieldValue);
             }
           }
         }
       });
       return () => subscription.unsubscribe();
-    }, [watch, onFieldChange]);
+    }, [watch, onFieldChangeAction]);
 
     useImperativeHandle(ref, () => ({
       getValues: () => {
@@ -142,24 +145,24 @@ export const ArticleForm = forwardRef<ArticleFormRef, ArticleFormProps>(
         <div className="space-y-6">
           <FormTextField
             name="title"
-            label={t('title')}
-            placeholder={t('titlePlaceholder')}
+            label={t("title")}
+            placeholder={t("titlePlaceholder")}
             required
           />
 
           <div>
             <label className="block text-sm font-medium mb-2">
-              {t('content')}
+              {t("content")}
             </label>
             <RichTextEditor
-              value={watch('content')}
-              onChange={(value) =>
-                setValue('content', value, {
+              value={watch("content")}
+              onChangeAction={(value) =>
+                setValue("content", value, {
                   shouldDirty: true,
                   shouldTouch: true,
                 })
               }
-              onUpload={onUpload}
+              onUploadAction={onUploadAction}
             />
             {errors.content && (
               <p className="text-red-500 text-sm mt-1">
@@ -170,14 +173,14 @@ export const ArticleForm = forwardRef<ArticleFormRef, ArticleFormProps>(
 
           <FormTextareaField
             name="excerpt"
-            label={t('excerpt')}
-            placeholder={t('excerptPlaceholder')}
+            label={t("excerpt")}
+            placeholder={t("excerptPlaceholder")}
           />
 
           <div className="p-4 rounded-lg shadow-sm">
             <FormMediaUploaderField
               name="featuredImage"
-              label={t('featuredImage')}
+              label={t("featuredImage")}
               maxFileCount={1}
               renderImage={({ src, alt, className }) => (
                 <SmartImage
@@ -192,7 +195,7 @@ export const ArticleForm = forwardRef<ArticleFormRef, ArticleFormProps>(
               )}
             />
             <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
-              <Info size={12} /> {t('recommendedSize')}
+              <Info size={12} /> {t("recommendedSize")}
             </p>
           </div>
         </div>
@@ -201,4 +204,4 @@ export const ArticleForm = forwardRef<ArticleFormRef, ArticleFormProps>(
   },
 );
 
-ArticleForm.displayName = 'ArticleForm';
+ArticleForm.displayName = "ArticleForm";

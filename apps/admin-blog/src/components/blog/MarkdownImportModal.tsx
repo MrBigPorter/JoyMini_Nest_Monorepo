@@ -11,8 +11,8 @@ const marked = new Marked({
 });
 
 interface MarkdownImportModalProps {
-  onImport: (html: string) => void;
-  onClose: () => void;
+  onImportAction: (html: string) => void;
+  onCloseAction: () => void;
 }
 
 // 多语言文本
@@ -56,8 +56,8 @@ const i18n = {
 };
 
 export function MarkdownImportModal({
-  onImport,
-  onClose,
+  onImportAction,
+  onCloseAction,
 }: MarkdownImportModalProps) {
   const [activeTab, setActiveTab] = useState<'markdown'>('markdown');
   const [markdown, setMarkdown] = useState('');
@@ -102,12 +102,12 @@ export function MarkdownImportModal({
     try {
       const html = marked.parse(markdown) as string;
 
-      onImport(html);
-      onClose();
+      onImportAction(html);
+      onCloseAction();
     } catch (err) {
       setError(t('errorParse'));
     }
-  }, [markdown, onImport, onClose, t]);
+  }, [markdown, onImportAction, onCloseAction, t]);
 
   return (
     <ModalFixed
@@ -115,7 +115,7 @@ export function MarkdownImportModal({
       size="xxl"
       confirmText={t('confirm')}
       cancelText={t('cancel')}
-      onCancel={onClose}
+      onCancel={onCloseAction}
       onConfirm={handleConfirm}
       enableClickOutsideClose={false}
       renderChildren={() => (

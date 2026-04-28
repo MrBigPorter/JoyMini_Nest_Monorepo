@@ -24,7 +24,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import type { Locale } from '@lucky/shared';
 
 interface HeaderProps {
-  onMenuButtonClick: () => void;
+  onMenuButtonClickAction: () => void;
 }
 
 /** Language selector dropdown shown in the header */
@@ -88,7 +88,7 @@ function LocaleDropdown() {
   );
 }
 
-export const Header: React.FC<HeaderProps> = ({ onMenuButtonClick }) => {
+export const Header: React.FC<HeaderProps> = ({ onMenuButtonClickAction }) => {
   const router = useRouter();
   const { theme, toggleTheme } = useAppStore();
   const { t } = useTranslation();
@@ -113,7 +113,7 @@ export const Header: React.FC<HeaderProps> = ({ onMenuButtonClick }) => {
       {/* Left */}
       <div className="flex items-center gap-4 flex-1 min-w-0">
         <button
-          onClick={onMenuButtonClick}
+          onClick={onMenuButtonClickAction}
           className="lg:hidden text-gray-500 flex-shrink-0"
         >
           <Menu size={24} />

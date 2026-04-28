@@ -41,12 +41,12 @@ const SidebarItem: React.FC<{
 
 interface SidebarProps {
   mobileOpen: boolean;
-  onMobileClose: () => void;
+  onMobileCloseAction: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
   mobileOpen,
-  onMobileClose,
+  onMobileCloseAction,
 }) => {
   const { t } = useTranslation();
   const pathname = usePathname();
@@ -130,7 +130,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     pathname === route.path ||
                     pathname.startsWith(route.path + '/')
                   }
-                  onClick={onMobileClose}
+                  onClick={onMobileCloseAction}
                 />
               ))}
             </div>
@@ -205,7 +205,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           >
             <div
               className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-              onClick={onMobileClose}
+              onClick={onMobileCloseAction}
             />
             <motion.aside
               initial={{ x: '-100%' }}
@@ -215,7 +215,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               className="relative w-72 h-full bg-white dark:bg-dark-900"
             >
               <button
-                onClick={onMobileClose}
+                onClick={onMobileCloseAction}
                 className="absolute top-4 right-4 text-gray-400 hover:text-white"
               >
                 <X size={20} />
