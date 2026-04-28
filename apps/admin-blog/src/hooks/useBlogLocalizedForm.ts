@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import { useCallback, useMemo } from 'react';
-import { z } from 'zod';
-import { useLanguage } from '@/hooks/LanguageProvider';
-import { useAvailableLocales } from '@/hooks/useAvailableLocales';
-import { useLocalizedForm } from './useLocalizedForm';
-import { useBlogForm } from './useBlogForm';
-import type { Locale } from '@lucky/shared';
+import { useCallback, useMemo } from "react";
+import { z } from "zod";
+import { useLanguage } from "@/hooks/LanguageProvider";
+import { useAvailableLocales } from "@/hooks/useAvailableLocales";
+import { useLocalizedForm } from "./useLocalizedForm";
+import { useBlogForm } from "./useBlogForm";
+import type { Locale } from "@lucky/shared";
 
 type UseBlogLocalizedFormOptions<T extends z.ZodSchema> = {
   schema: T;
@@ -57,13 +57,13 @@ export function useBlogLocalizedForm<T extends z.ZodSchema>({
   const getFullLocalizedData = useCallback(() => {
     const data = form.getValues();
     const localizedFields = [
-      'title',
-      'content',
-      'excerpt',
-      'featuredImage',
-      'name',
-      'description',
-      'reply',
+      "title",
+      "content",
+      "excerpt",
+      "featuredImage",
+      "name",
+      "description",
+      "reply",
     ];
 
     const result: any = { ...data };

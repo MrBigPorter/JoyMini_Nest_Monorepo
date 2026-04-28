@@ -12,17 +12,17 @@
  */
 export const renderLocalizedText = (
   value: any,
-  locale: string = 'zh',
-  fallback: string = '',
+  locale: string = "zh",
+  fallback: string = "",
 ): string => {
   // 处理 null/undefined
   if (value == null) return fallback;
 
   // 如果是字符串，直接返回
-  if (typeof value === 'string') return value;
+  if (typeof value === "string") return value;
 
   // 如果是多语言对象
-  if (typeof value === 'object' && value !== null) {
+  if (typeof value === "object" && value !== null) {
     // 优先使用当前语言
     if (value[locale]) return String(value[locale]);
 
@@ -51,10 +51,10 @@ export const renderLocalizedText = (
  */
 export const getLocalizedValue = (
   obj: Record<string, any> | undefined | null,
-  locale: string = 'zh',
+  locale: string = "zh",
 ): string => {
-  if (!obj) return '';
-  return obj[locale] || obj.zh || obj.en || '';
+  if (!obj) return "";
+  return obj[locale] || obj.zh || obj.en || "";
 };
 
 /**
@@ -63,11 +63,11 @@ export const getLocalizedValue = (
  * @returns 是否为多语言对象格式
  */
 export const isLocalizedObject = (value: any): boolean => {
-  if (!value || typeof value !== 'object') return false;
+  if (!value || typeof value !== "object") return false;
 
   // 检查是否包含常见的语言键
   const hasLanguageKey = Object.keys(value).some((key) =>
-    ['en', 'zh', 'ja', 'ko', 'fr', 'es', 'de'].includes(key),
+    ["en", "zh", "ja", "ko", "fr", "es", "de"].includes(key),
   );
 
   return hasLanguageKey;
@@ -80,32 +80,32 @@ export const isLocalizedObject = (value: any): boolean => {
  * @returns 标准化后的多语言对象
  */
 export const normalizeLocalizedData = (data: any): Record<string, string> => {
-  if (!data) return { zh: '', en: '' };
+  if (!data) return { zh: "", en: "" };
 
   // 如果已经是多语言对象，直接返回
   if (isLocalizedObject(data)) {
     return {
-      zh: data.zh || '',
-      en: data.en || '',
+      zh: data.zh || "",
+      en: data.en || "",
       ...data,
     };
   }
 
   // 如果是字符串，当作中文
-  if (typeof data === 'string') {
-    return { zh: data, en: '' };
+  if (typeof data === "string") {
+    return { zh: data, en: "" };
   }
 
   // 如果是旧格式（name, nameEn）
-  if (data.name && typeof data.name === 'string') {
+  if (data.name && typeof data.name === "string") {
     return {
       zh: data.name,
-      en: data.nameEn || '',
+      en: data.nameEn || "",
     };
   }
 
   // 默认返回空对象
-  return { zh: '', en: '' };
+  return { zh: "", en: "" };
 };
 
 /**
@@ -118,7 +118,7 @@ export const normalizeLocalizedData = (data: any): Record<string, string> => {
 export const renderLocalizedTableData = <T extends Record<string, any>>(
   data: T[],
   fields: string[],
-  locale: string = 'zh',
+  locale: string = "zh",
 ): T[] => {
   return data.map((item) => {
     const processed = { ...item } as any;

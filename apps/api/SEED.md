@@ -48,14 +48,17 @@ yarn workspace @lucky/api dlx tsx scripts/seed/seed-wallet.ts"
 # 博客种子数据
 
 ## Docker 容器内运行
+
 docker exec -it lucky-backend-dev sh -lc "\
 cd /app && \
 yarn workspace @lucky/api dlx tsx scripts/seed/seed-blog.ts"
 
 ## 本地开发环境运行
+
 cd apps/api && npx tsx scripts/seed/seed-blog.ts
 
 ## 导入内容统计
+
 - **分类**: 6个（后端开发、前端开发、运维与部署、系统架构、安全防护、实战项目）
 - **标签**: 27个（NestJS、Prisma、PostgreSQL、Redis、BullMQ、TypeScript、Next.js、React、Tailwind CSS等）
 - **文章**: 6篇高质量技术文章
@@ -67,6 +70,7 @@ cd apps/api && npx tsx scripts/seed/seed-blog.ts
   - XSS攻击与防御完整指南：现代Web应用安全实践
 
 ## 注意事项
+
 1. 脚本会自动清空现有博客数据后重新导入
 2. 需要数据库连接（自动加载 deploy/.env.dev 配置）
 3. 文章作者默认为 admin 用户，如不存在则使用占位符

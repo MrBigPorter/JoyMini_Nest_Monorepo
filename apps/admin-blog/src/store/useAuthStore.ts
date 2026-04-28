@@ -1,6 +1,6 @@
-import { create } from 'zustand';
-import { UserRole, AdminUser } from '@/type/types';
-import { authApi } from '@/api';
+import { create } from "zustand";
+import { UserRole, AdminUser } from "@/type/types";
+import { authApi } from "@/api";
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -23,23 +23,23 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>((set) => ({
   isAuthenticated: false,
-  userRole: 'viewer',
+  userRole: "viewer",
   token: null,
   refreshToken: null,
   userInfo: null,
 
-  login: async (token, role = 'admin', userInfo, refreshToken = null) => {
-    localStorage.setItem('auth_token', token);
+  login: async (token, role = "admin", userInfo, refreshToken = null) => {
+    localStorage.setItem("auth_token", token);
     if (refreshToken) {
-      localStorage.setItem('refresh_token', refreshToken);
+      localStorage.setItem("refresh_token", refreshToken);
     } else {
-      localStorage.removeItem('refresh_token');
+      localStorage.removeItem("refresh_token");
     }
     try {
       await authApi.setCookie(token);
     } catch (e) {
       console.warn(
-        '[useAuthStore] set-cookie failed, fallback to localStorage only',
+        "[useAuthStore] set-cookie failed, fallback to localStorage only",
         e,
       );
     }
@@ -53,9 +53,9 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   setTokens: (token, refreshToken = null) => {
-    localStorage.setItem('auth_token', token);
+    localStorage.setItem("auth_token", token);
     if (refreshToken) {
-      localStorage.setItem('refresh_token', refreshToken);
+      localStorage.setItem("refresh_token", refreshToken);
     }
     set((state) => ({
       token,
@@ -74,60 +74,60 @@ export const useAuthStore = create<AuthState>((set) => ({
 
       // 记录任何失败但不阻止退出登录流程
       results.forEach((result, index) => {
-        if (result.status === 'rejected') {
+        if (result.status === "rejected") {
           console.warn(
-            `[useAuthStore] logout API call ${index === 0 ? 'logout' : 'clearCookie'} failed:`,
+            `[useAuthStore] logout API call ${index === 0 ? "logout" : "clearCookie"} failed:`,
             result.reason,
           );
         }
       });
     } catch (error) {
-      console.error('[useAuthStore] logout unexpected error', error);
+      console.error("[useAuthStore] logout unexpected error", error);
     } finally {
       // 无论如何都清理本地存储和状态
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('refresh_token');
-      sessionStorage.removeItem('csrf_token');
+      localStorage.removeItem("auth_token");
+      localStorage.removeItem("refresh_token");
+      sessionStorage.removeItem("csrf_token");
       set({
         isAuthenticated: false,
         token: null,
         refreshToken: null,
-        userRole: 'viewer',
+        userRole: "viewer",
         userInfo: null,
       });
       // 使用replace而不是href避免历史记录问题
-      window.location.replace('/login');
+      window.location.replace("/login");
     }
   },
 
   checkAuth: () => {
-    const token = localStorage.getItem('auth_token');
-    const refreshToken = localStorage.getItem('refresh_token');
+    const token = localStorage.getItem("auth_token");
+    const refreshToken = localStorage.getItem("refresh_token");
     if (token) {
       set({
         isAuthenticated: true,
         token,
         refreshToken,
-        userRole: 'admin',
+        userRole: "admin",
       });
     } else {
       set({
         isAuthenticated: false,
         token: null,
         refreshToken: null,
-        userRole: 'viewer',
+        userRole: "viewer",
       });
     }
   },
 
   fetchMe: async () => {
-    const token = localStorage.getItem('auth_token');
+    const token = localStorage.getItem("auth_token");
     if (!token) return;
     try {
       const userInfo = await authApi.getMe();
       set({
         userInfo,
-        userRole: (userInfo.role as UserRole) ?? 'admin',
+        userRole: (userInfo.role as UserRole) ?? "admin",
         isAuthenticated: true,
       });
     } catch {

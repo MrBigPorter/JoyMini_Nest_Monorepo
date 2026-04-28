@@ -49,24 +49,29 @@ Change the OAuth redirect URL in the frontend from a **relative path** to an **a
 ### Change 1: Google OAuth (line 70)
 
 **Before:**
+
 ```typescript
 window.location.href = `/auth/google/login?${params.toString()}`;
 ```
 
 **After:**
+
 ```typescript
-const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/api$/, '') || '';
+const apiBaseUrl =
+  process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/api$/, "") || "";
 window.location.href = `${apiBaseUrl}/auth/google/login?${params.toString()}`;
 ```
 
 ### Change 2: Facebook OAuth (line 173)
 
 **Before:**
+
 ```typescript
 window.location.href = `/auth/facebook/login?${params.toString()}`;
 ```
 
 **After:**
+
 ```typescript
 window.location.href = `${apiBaseUrl}/auth/facebook/login?${params.toString()}`;
 ```
@@ -86,6 +91,7 @@ This ensures backward compatibility with the dev environment.
 ## Verification
 
 After deployment:
+
 1. Click "Login with Google" on `https://blog.joyminis.com`
 2. Should redirect to `https://api.joyminis.com/auth/google/login/?redirect_uri=...`
 3. Nginx `/auth/` location proxies to backend

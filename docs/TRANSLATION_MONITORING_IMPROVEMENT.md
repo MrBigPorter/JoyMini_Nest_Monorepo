@@ -59,10 +59,10 @@ model TranslationJob {
 
 ### 5. 新增 API
 
-| 端点 | 说明 |
-|------|------|
+| 端点                                         | 说明                                      |
+| -------------------------------------------- | ----------------------------------------- |
 | `GET /admin/blog/translation/detail?lang=en` | 每项任务详情（进度、状态、原文/译文预览） |
-| `GET /admin/blog/translation/stats` | 多语言进度统计 |
+| `GET /admin/blog/translation/stats`          | 多语言进度统计                            |
 
 ### 6. 前端改进
 
@@ -73,13 +73,13 @@ model TranslationJob {
 
 ## 涉及文件
 
-| 文件 | 改动 |
-|------|------|
-| `apps/api/prisma/schema.prisma` | 新增 TranslationJob 模型 |
-| `apps/api/src/blog/blog.module.ts` | 注册 TranslationJobService |
-| 新建 `apps/api/src/blog/translation-job.service.ts` | 任务日志服务 |
-| `apps/api/src/blog/blog.service.ts` | 重构进度统计 |
-| `apps/api/src/blog/blog.controller.ts` | 新增 detail/stats 端点 |
-| `apps/api/src/blog/processors/blog-ai.processor.ts` | 添加 updateProgress |
-| `apps/admin-next/src/api/index.ts` | 新增 API 调用 |
-| `apps/admin-next/src/views/blog/BlogTranslationProgress.tsx` | 重写监控页面 |
+| 文件                                                         | 改动                       |
+| ------------------------------------------------------------ | -------------------------- |
+| `apps/api/prisma/schema.prisma`                              | 新增 TranslationJob 模型   |
+| `apps/api/src/blog/blog.module.ts`                           | 注册 TranslationJobService |
+| 新建 `apps/api/src/blog/translation-job.service.ts`          | 任务日志服务               |
+| `apps/api/src/blog/blog.service.ts`                          | 重构进度统计               |
+| `apps/api/src/blog/blog.controller.ts`                       | 新增 detail/stats 端点     |
+| `apps/api/src/blog/processors/blog-ai.processor.ts`          | 添加 updateProgress        |
+| `apps/admin-next/src/api/index.ts`                           | 新增 API 调用              |
+| `apps/admin-next/src/views/blog/BlogTranslationProgress.tsx` | 重写监控页面               |

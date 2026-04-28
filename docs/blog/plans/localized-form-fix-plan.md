@@ -3,15 +3,18 @@
 ## Problem Analysis
 
 ### Current Issue
+
 When `BlogCategoryModal` opens with a multilingual object value like `{zh: '名称', en: 'name'}`, the `setTimeout` in `useLocalizedForm.ts` causes a timing issue where React renders the object before it's converted to a string, resulting in `[object Object]` appearing in the input field.
 
 ### Root Cause
+
 1. **Timing Gap**: The `setTimeout(() => setValue(...), 0)` creates a race condition
 2. **React Render Cycle**: React completes rendering before the `setValue` executes
 3. **HTML Input Behavior**: HTML `input` elements call `Object.toString()` on object values
 4. **Inconsistent Handling**: `BlogArticleModal` works correctly because it uses `extractStringValue` before `reset()`
 
 ### Affected Components
+
 - `BlogCategoryModal.tsx` - Shows `[object Object]` issue
 - `BlogTagModal.tsx` - Likely has same issue
 - `BlogCommentModal.tsx` - Likely has same issue
@@ -22,18 +25,22 @@ When `BlogCategoryModal` opens with a multilingual object value like `{zh: '名�
 ### Two-Pronged Approach
 
 #### 1. Fix at Hook Level (`useLocalizedForm.ts`)
+
 **Goal**: Eliminate the `setTimeout` race condition by handling object conversion synchronously
 
 **Changes**:
+
 - Remove `setTimeout` from object initialization
 - Use immediate `setValue` with proper options
 - Enhance `getSafeValue()` to handle objects more robustly
 - Add synchronous object detection and conversion
 
 #### 2. Fix at Modal Level (All affected modals)
+
 **Goal**: Ensure consistent data flow by normalizing values before they enter RHF
 
 **Changes**:
+
 - Update `getDefaultValues()` to extract current locale strings
 - Use `extractCurrentLocaleValue()` utility function
 - Ensure RHF only receives string values, not objects
@@ -43,18 +50,18 @@ When `BlogCategoryModal` opens with a multilingual object value like `{zh: '名�
 ```mermaid
 graph TD
     A[API Returns Object<br/>{zh: '名称', en: 'name'}] --> B[Modal getDefaultValues]
-    
+
     B --> C{Current Approach}
     C --> D[Pass Object to reset<br/>Causes [object Object]]
-    
+
     B --> E{Proposed Fix}
     E --> F[Extract Current Locale String<br/>'名称' or 'name']
     F --> G[Pass String to reset]
-    
+
     G --> H[RHF Stores String]
     H --> I[useLocalizedForm localize<br/>Returns String Value]
     I --> J[Input Displays Correct Text]
-    
+
     D --> K[useLocalizedForm setTimeout<br/>Race Condition]
     K --> L[Input Shows [object Object]]
 ```
@@ -62,6 +69,7 @@ graph TD
 ## Implementation Plan
 
 ### Phase 1: Core Hook Fix
+
 1. **Modify `useLocalizedForm.ts`**:
    - Remove `setTimeout` from lines 121-127
    - Replace with immediate `setValue` call
@@ -73,6 +81,7 @@ graph TD
    - Create helper for safe object-to-string conversion
 
 ### Phase 2: Modal Updates
+
 1. **Update `BlogCategoryModal.tsx`**:
    - Modify `getDefaultValues()` to use `extractCurrentLocaleValue()`
    - Ensure string values are passed to `reset()`
@@ -84,6 +93,7 @@ graph TD
    - Apply same pattern (check if affected)
 
 ### Phase 3: Testing & Validation
+
 1. **Test Scenarios**:
    - Edit existing category with multilingual name
    - Create new category
@@ -101,6 +111,7 @@ graph TD
 ### Hook-Level Fix (`useLocalizedForm.ts`)
 
 **Current Problem Code**:
+
 ```typescript
 // Line 121-127
 setTimeout(() => {
@@ -113,6 +124,7 @@ setTimeout(() => {
 ```
 
 **Proposed Fix**:
+
 ```typescript
 // Immediate setValue with proper options
 setValue(fieldName as any, langValue, {
@@ -123,10 +135,11 @@ setValue(fieldName as any, langValue, {
 ```
 
 **Enhanced `getSafeValue()`**:
+
 ```typescript
 const getSafeValue = () => {
   // Immediate object detection and conversion
-  if (rawValue && typeof rawValue === 'object' && !(rawValue instanceof File)) {
+  if (rawValue && typeof rawValue === "object" && !(rawValue instanceof File)) {
     const langValue = (rawValue as Record<string, any>)[locale];
     if (langValue !== null && langValue !== undefined) {
       return String(langValue);
@@ -140,6 +153,7 @@ const getSafeValue = () => {
 ### Modal-Level Fix (`BlogCategoryModal.tsx`)
 
 **Current `getDefaultValues()`**:
+
 ```typescript
 return {
   ...editingCategory,
@@ -149,23 +163,26 @@ return {
 ```
 
 **Proposed Fix**:
+
 ```typescript
 return {
   ...editingCategory,
   name: extractCurrentLocaleValue(editingCategory.name, locale),
   description: extractCurrentLocaleValue(editingCategory.description, locale),
-  slug: editingCategory.slug || '',
+  slug: editingCategory.slug || "",
 };
 ```
 
 ## Risk Assessment
 
 ### Potential Risks
+
 1. **Breaking Changes**: Removing `setTimeout` might cause React render warnings
 2. **Language Switching**: Need to ensure locale changes still work correctly
 3. **Form State**: `shouldDirty` and `shouldTouch` flags must be set appropriately
 
 ### Mitigation Strategies
+
 1. **Incremental Changes**: Fix one component at a time
 2. **Comprehensive Testing**: Test all edge cases
 3. **Fallback Logic**: Keep existing fallback mechanisms intact
@@ -180,11 +197,13 @@ return {
 ## Timeline & Dependencies
 
 ### Dependencies
+
 - React Hook Form v7+ compatibility
 - Existing `useLanguage()` hook for locale detection
 - Current `normalizeLocalizedValue()` utility function
 
 ### Testing Requirements
+
 - Manual testing of all affected modals
 - Verify no regression in `BlogArticleModal`
 - Cross-browser testing (Chrome, Firefox, Safari)

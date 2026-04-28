@@ -3,11 +3,13 @@
 ## Problem
 
 The blog Settings page currently has 3 tabs (copied from admin-next):
+
 - **General Config** — Shows ALL system KV pairs (exchange rates, withdrawal limits, KYC, platform info, etc.)
 - **Locale Settings** — Enable/disable languages
 - **Translation Settings** — Source language & strategy
 
 The "General Config" tab is inappropriate for blog because:
+
 1. It exposes platform-level configs (exchange rates, KYC, finance) that blog admins shouldn't see/edit
 2. It's confusing noise — blog admins only care about language & translation
 3. The data is shared (same backend API), but the UI should be scoped
@@ -24,6 +26,7 @@ The "General Config" tab is inappropriate for blog because:
 ### 1. `apps/admin-blog/src/components/settings/SettingsClient.tsx`
 
 Remove:
+
 - `CreateConfigForm` component (lines 73-188)
 - `ConfigRow` component (lines 190-326)
 - `CONFIG_META` constant (lines 25-68)
@@ -36,6 +39,7 @@ Remove:
 - `SystemConfigItem` type import (no longer needed)
 
 Keep:
+
 - `LocaleSettingsContent` component
 - `TranslationSettingsContent` component
 - `Globe`, `Languages`, `AlertTriangle` icons
@@ -56,6 +60,7 @@ No changes needed — it's already a standalone locale settings page.
 ## Result
 
 The blog Settings page becomes a clean **Language & Translation Settings** page with:
+
 - Tab 1: **Language Settings** — Enable/disable languages
 - Tab 2: **Translation Settings** — Source language, strategy
 

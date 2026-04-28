@@ -1,25 +1,25 @@
 /* 修复 Quill 编辑器布局 */
 .rich-text-editor .ql-container {
-    height: 300px; /* 或者你需要的固定高度 */
-    overflow-y: auto;
-    font-size: 16px;
+  height: 300px; /* 或者你需要的固定高度 */
+  overflow-y: auto;
+  font-size: 16px;
 }
 
 /* 确保图片在编辑器里不会超出边界 */
 .rich-text-editor .ql-editor img {
-    max-width: 100%;
-    height: auto;
-    display: block;
-    margin: 10px 0;
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 10px 0;
 }
 
 /* 适配暗黑模式的工具栏文字颜色 */
 .dark .ql-snow .ql-stroke {
-    stroke: #e5e7eb;
+  stroke: #e5e7eb;
 }
 .dark .ql-snow .ql-fill {
-    fill: #e5e7eb;
+  fill: #e5e7eb;
 }
 .dark .ql-snow .ql-picker {
-    color: #e5e7eb;
+  color: #e5e7eb;
 }

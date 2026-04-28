@@ -1,6 +1,7 @@
 # Cloudflare Tunnel 实战指南
 
 ## 目录
+
 1. [安装 cloudflared](#1-安装-cloudflared)
 2. [临时测试（最快）](#2-临时测试最快)
 3. [永久域名配置](#3-永久域名配置)
@@ -12,11 +13,13 @@
 ## 1. 安装 cloudflared
 
 ### macOS
+
 ```bash
 brew install cloudflare/cloudflare/cloudflared
 ```
 
 ### Linux
+
 ```bash
 # Ubuntu/Debian
 wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
@@ -26,6 +29,7 @@ sudo dpkg -i cloudflared-linux-amd64.deb
 ```
 
 ### 验证安装
+
 ```bash
 cloudflared --version
 ```
@@ -37,6 +41,7 @@ cloudflared --version
 ### 场景：只想让手机访问本地开发环境
 
 #### 步骤1：启动本地服务
+
 ```bash
 cd apps/frontend-blog
 yarn dev
@@ -44,23 +49,28 @@ yarn dev
 ```
 
 #### 步骤2：启动临时隧道
+
 ```bash
 # 新开一个终端
 cloudflared tunnel --url http://localhost:3002
 ```
 
 #### 步骤3：获取临时域名
+
 命令输出类似：
+
 ```
 2026-04-22T04:00:00Z INF | Your quick Tunnel is available at https://abc123.trycloudflare.com
 ```
 
 #### 步骤4：手机访问
+
 - 在手机浏览器打开：`https://abc123.trycloudflare.com`
 - 所有人都能访问这个域名
 - 自动HTTPS，无需配置
 
 #### 停止临时隧道
+
 ```bash
 # 按 Ctrl+C 停止
 ```
@@ -72,18 +82,21 @@ cloudflared tunnel --url http://localhost:3002
 ### 场景：使用固定域名（如 dev.joyminis.com）
 
 #### 3.1 解决证书冲突（如果遇到）
+
 ```bash
 # 如果 cloudflared tunnel login 报错证书冲突
 mv ~/.cloudflared/cert.pem ~/.cloudflared/cert.pem.backup
 ```
 
 #### 3.2 登录授权
+
 ```bash
 cloudflared tunnel login
 # 会打开浏览器，选择 joyminis.com 并授权
 ```
 
 #### 3.3 检查现有隧道
+
 ```bash
 # 列出所有隧道
 cloudflared tunnel list
@@ -93,6 +106,7 @@ cloudflared tunnel info lucky-nest-monorepo
 ```
 
 #### 3.4 启动隧道
+
 ```bash
 # 停止现有进程
 pkill cloudflared
@@ -102,6 +116,7 @@ cloudflared tunnel --config cloudflared.yml run lucky-nest-monorepo &
 ```
 
 #### 3.5 验证连接
+
 ```bash
 # 等待5秒
 sleep 5
@@ -112,6 +127,7 @@ cloudflared tunnel info lucky-nest-monorepo
 ```
 
 #### 3.6 测试域名
+
 ```bash
 # 测试前端博客
 curl -s -o /dev/null -w "%{http_code}\n" https://dev.joyminis.com
@@ -128,6 +144,7 @@ curl -I https://dev.liveness.joyminis.com
 ## 4. 故障排除
 
 ### 问题1：Tunnel没有活动连接
+
 ```bash
 # 症状：cloudflared tunnel info 显示 "does not have any active connection"
 
@@ -140,6 +157,7 @@ cloudflared tunnel info lucky-nest-monorepo
 ```
 
 ### 问题2：本地服务没运行
+
 ```bash
 # 症状：隧道启动但访问返回错误
 
@@ -153,6 +171,7 @@ yarn dev
 ```
 
 ### 问题3：DNS没有传播
+
 ```bash
 # 症状：电脑能访问，手机访问不了
 
@@ -165,6 +184,7 @@ cloudflared tunnel --url http://localhost:3002
 ```
 
 ### 问题4：端口被占用
+
 ```bash
 # 症状：启动服务失败
 
@@ -182,27 +202,32 @@ kill -9 <PID>
 ## 5. 常见问题
 
 ### Q1：为什么要用Cloudflare Tunnel？
+
 - **手机测试**：iPhone可以直接访问开发中的网站
 - **无需公网IP**：不用配置路由器端口转发
 - **自动HTTPS**：不用自己搞SSL证书
 - **免费**：Cloudflare免费套餐够用
 
 ### Q2：临时域名和永久域名有什么区别？
-| 特性 | 临时域名 | 永久域名 |
-|------|----------|----------|
-| 配置难度 | 简单 | 中等 |
-| 域名 | `*.trycloudflare.com` | `dev.joyminis.com` |
-| 有效期 | 临时 | 永久 |
-| 需要登录 | 否 | 是 |
-| DNS配置 | 自动 | 需要配置 |
+
+| 特性     | 临时域名              | 永久域名           |
+| -------- | --------------------- | ------------------ |
+| 配置难度 | 简单                  | 中等               |
+| 域名     | `*.trycloudflare.com` | `dev.joyminis.com` |
+| 有效期   | 临时                  | 永久               |
+| 需要登录 | 否                    | 是                 |
+| DNS配置  | 自动                  | 需要配置           |
 
 ### Q3：隧道启动后，修改代码需要重启吗？
+
 **不需要**：
+
 - 修改前端代码：Next.js热重载自动生效
 - 修改隧道配置：需要重启隧道
 - 修改本地服务端口：需要更新配置并重启
 
 ### Q4：如何查看隧道日志？
+
 ```bash
 # 查看实时日志
 cloudflared tunnel --config cloudflared.yml run lucky-nest-monorepo
@@ -212,23 +237,26 @@ journalctl -u cloudflared -f
 ```
 
 ### Q5：多个服务如何配置？
+
 查看 `cloudflared.yml`：
+
 ```yaml
 ingress:
-  - hostname: dev.joyminis.com        # 前端博客
+  - hostname: dev.joyminis.com # 前端博客
     service: http://localhost:3002
-  
-  - hostname: dev.admin.joyminis.com   # 管理后台
+
+  - hostname: dev.admin.joyminis.com # 管理后台
     service: http://localhost:3001
-  
-  - hostname: dev.api.joyminis.com     # API服务
+
+  - hostname: dev.api.joyminis.com # API服务
     service: http://localhost:3002
-  
+
   - hostname: dev.liveness.joyminis.com # 健康检查
     service: http://localhost:3003
 ```
 
 ### Q6：如何停止所有隧道？
+
 ```bash
 # 停止所有cloudflared进程
 pkill cloudflared
@@ -242,8 +270,9 @@ ps aux | grep cloudflared | grep -v grep
 ## 配置文件说明
 
 ### cloudflared.yml
+
 ```yaml
-tunnel: 99013629-f033-4fd0-9bef-640142a1d950  # 隧道ID
+tunnel: 99013629-f033-4fd0-9bef-640142a1d950 # 隧道ID
 credentials-file: ~/.cloudflared/99013629-f033-4fd0-9bef-640142a1d950.json
 
 ingress:
@@ -253,6 +282,7 @@ ingress:
 ```
 
 ### 获取隧道ID
+
 ```bash
 # 创建新隧道
 cloudflared tunnel create my-tunnel-name
@@ -267,6 +297,7 @@ cloudflared tunnel list
 ## 快速参考命令
 
 ### 日常使用
+
 ```bash
 # 启动开发服务 + 隧道
 cd apps/frontend-blog
@@ -283,6 +314,7 @@ curl -I https://dev.joyminis.com
 ```
 
 ### 调试命令
+
 ```bash
 # 查看隧道列表
 cloudflared tunnel list

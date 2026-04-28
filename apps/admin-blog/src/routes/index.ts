@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 import {
   LayoutDashboard,
   FileText,
@@ -10,9 +10,9 @@ import {
   Sparkles,
   Search,
   Settings,
-} from 'lucide-react';
+} from "lucide-react";
 
-export type RouteGroup = 'Dashboard' | 'Content' | 'Tools' | 'System';
+export type RouteGroup = "Dashboard" | "Content" | "Tools" | "System";
 
 export interface RouteConfig {
   path: string;
@@ -24,76 +24,76 @@ export interface RouteConfig {
 
 export const routes: RouteConfig[] = [
   // ── Dashboard ──
-  { path: '/', name: 'dashboard', icon: LayoutDashboard, group: 'Dashboard' },
+  { path: "/", name: "dashboard", icon: LayoutDashboard, group: "Dashboard" },
 
   // ── Content (Blog Management) ──
   {
-    path: '/blog/articles',
-    name: 'articles',
+    path: "/blog/articles",
+    name: "articles",
     icon: Newspaper,
-    group: 'Content',
+    group: "Content",
   },
   {
-    path: '/blog/articles/create',
-    name: 'create_article',
+    path: "/blog/articles/create",
+    name: "create_article",
     icon: FileText,
-    group: 'Content',
+    group: "Content",
     hidden: true,
   },
   {
-    path: '/blog/articles/edit/[id]',
-    name: 'edit_article',
+    path: "/blog/articles/edit/[id]",
+    name: "edit_article",
     icon: FileText,
-    group: 'Content',
+    group: "Content",
     hidden: true,
   },
   {
-    path: '/blog/categories',
-    name: 'categories',
+    path: "/blog/categories",
+    name: "categories",
     icon: FolderTree,
-    group: 'Content',
+    group: "Content",
   },
   {
-    path: '/blog/tags',
-    name: 'tags',
+    path: "/blog/tags",
+    name: "tags",
     icon: Tags,
-    group: 'Content',
+    group: "Content",
   },
   {
-    path: '/blog/comments',
-    name: 'comments',
+    path: "/blog/comments",
+    name: "comments",
     icon: MessageCircle,
-    group: 'Content',
+    group: "Content",
   },
 
   // ── Tools ──
   {
-    path: '/blog/translation-progress',
-    name: 'translation_progress',
+    path: "/blog/translation-progress",
+    name: "translation_progress",
     icon: Sparkles,
-    group: 'Tools',
+    group: "Tools",
     hidden: true,
   },
   {
-    path: '/blog/translation-issues',
-    name: 'translation_issues',
+    path: "/blog/translation-issues",
+    name: "translation_issues",
     icon: Search,
-    group: 'Tools',
+    group: "Tools",
     hidden: true,
   },
 
   // ── System ──
   {
-    path: '/settings',
-    name: 'settings',
+    path: "/settings",
+    name: "settings",
     icon: Cog,
-    group: 'System',
+    group: "System",
   },
   {
-    path: '/settings/locales',
-    name: 'localeSettings',
+    path: "/settings/locales",
+    name: "localeSettings",
     icon: Settings,
-    group: 'System',
+    group: "System",
     hidden: true,
   },
 ];

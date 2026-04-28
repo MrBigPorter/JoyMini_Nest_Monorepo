@@ -1,8 +1,8 @@
-import { type ClassValue, clsx } from "clsx"
-import { twMerge } from "tailwind-merge"
+import { type ClassValue, clsx } from "clsx";
+import { twMerge } from "tailwind-merge";
 
 export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs))
+  return twMerge(clsx(inputs));
 }
 
 /** Returns true if value is null, undefined, empty string or empty array */
@@ -12,4 +12,3 @@ export function isNullOrEmpty(value: unknown): boolean {
   if (Array.isArray(value)) return value.length === 0;
   return false;
 }
-

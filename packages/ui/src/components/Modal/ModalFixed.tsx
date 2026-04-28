@@ -77,7 +77,7 @@ export function ModalFixed({
             transition={{ duration: 0.2 }}
             role="dialog"
             aria-modal="true"
-            aria-label={typeof title === 'string' ? title : 'Modal'}
+            aria-label={typeof title === "string" ? title : "Modal"}
             className={cn(
               "bg-white dark:bg-dark-900 w-full rounded-2xl shadow-2xl border border-white/10 overflow-hidden flex flex-col max-h-[90vh] relative",
               sizes[size],
@@ -111,7 +111,7 @@ export function ModalFixed({
                   confirm={confirm}
                 />
               ) : (
-                renderChildren ?? content
+                (renderChildren ?? content)
               )}
             </div>
 

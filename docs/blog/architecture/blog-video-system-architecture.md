@@ -23,40 +23,40 @@ Admin Upload → R2 Storage → BullMQ Transcoding → HLS Playback
 
 ### 2.1 Backend Processing
 
-| File | Role |
-|------|------|
-| [`media-processor.service.ts`](apps/api/src/common/media/media-processor.service.ts) | ffmpeg HLS transcoding logic, poster extraction |
-| [`media.processor.ts`](apps/api/src/common/media/media.processor.ts) | BullMQ WorkerHost: handles transcode-video jobs |
-| [`media-processor.constants.ts`](apps/api/src/common/media/media-processor.constants.ts) | Queue name constant |
-| [`upload.controller.ts`](apps/api/src/common/upload/upload.controller.ts) | File upload endpoint with articleId passthrough |
-| [`upload.service.ts`](apps/api/src/common/upload/upload.service.ts) | R2 upload + media processor queue enqueue |
+| File                                                                                     | Role                                            |
+| ---------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| [`media-processor.service.ts`](apps/api/src/common/media/media-processor.service.ts)     | ffmpeg HLS transcoding logic, poster extraction |
+| [`media.processor.ts`](apps/api/src/common/media/media.processor.ts)                     | BullMQ WorkerHost: handles transcode-video jobs |
+| [`media-processor.constants.ts`](apps/api/src/common/media/media-processor.constants.ts) | Queue name constant                             |
+| [`upload.controller.ts`](apps/api/src/common/upload/upload.controller.ts)                | File upload endpoint with articleId passthrough |
+| [`upload.service.ts`](apps/api/src/common/upload/upload.service.ts)                      | R2 upload + media processor queue enqueue       |
 
 ### 2.2 Admin Panel
 
-| File | Role |
-|------|------|
-| [`BlogArticleModal.tsx`](apps/admin-next/src/views/blog/BlogArticleModal.tsx) | Article edit modal — uploads with articleId |
-| [`ArticleForm.tsx`](apps/admin-next/src/views/blog/ArticleForm.tsx) | RichTextEditor + video embed via Html5VideoBlot |
-| [`create/page.tsx`](apps/admin-next/src/app/(dashboard)/blog/articles/create/page.tsx) | Create page — tracks video keys, triggers transcode after creation |
+| File                                                                                     | Role                                                               |
+| ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| [`BlogArticleModal.tsx`](apps/admin-next/src/views/blog/BlogArticleModal.tsx)            | Article edit modal — uploads with articleId                        |
+| [`ArticleForm.tsx`](apps/admin-next/src/views/blog/ArticleForm.tsx)                      | RichTextEditor + video embed via Html5VideoBlot                    |
+| [`create/page.tsx`](<apps/admin-next/src/app/(dashboard)/blog/articles/create/page.tsx>) | Create page — tracks video keys, triggers transcode after creation |
 
 ### 2.3 Frontend
 
-| File | Role |
-|------|------|
-| [`HlsVideoPlayer.tsx`](apps/frontend-blog/src/components/blog/HlsVideoPlayer.tsx) | HLS playback via hls.js with poster + play overlay |
-| [`ArticleCard.tsx`](apps/frontend-blog/src/components/blog/ArticleCard.tsx) | Article card — shows HLS video or poster |
-| [`HeroSection.tsx`](apps/frontend-blog/src/components/blog/HeroSection.tsx) | Featured article hero — HLS video with poster |
+| File                                                                                     | Role                                                              |
+| ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| [`HlsVideoPlayer.tsx`](apps/frontend-blog/src/components/blog/HlsVideoPlayer.tsx)        | HLS playback via hls.js with poster + play overlay                |
+| [`ArticleCard.tsx`](apps/frontend-blog/src/components/blog/ArticleCard.tsx)              | Article card — shows HLS video or poster                          |
+| [`HeroSection.tsx`](apps/frontend-blog/src/components/blog/HeroSection.tsx)              | Featured article hero — HLS video with poster                     |
 | [`page.client.tsx`](apps/frontend-blog/src/app/[locale]/articles/[slug]/page.client.tsx) | Article detail — inline video hero + DOMPurify for content videos |
-| [`SanitizedContent.tsx`](apps/frontend-blog/src/components/SanitizedContent.tsx) | DOMPurify sanitization allowing video/iframe tags |
+| [`SanitizedContent.tsx`](apps/frontend-blog/src/components/SanitizedContent.tsx)         | DOMPurify sanitization allowing video/iframe tags                 |
 
 ### 2.4 API / Services
 
-| File | Role |
-|------|------|
-| [`blog.service.ts`](apps/api/src/blog/blog.service.ts) | triggerVideoTranscode, backfillVideoTranscode |
-| [`blog.controller.ts`](apps/api/src/blog/blog.controller.ts) | POST trigger-video-transcode, POST backfill-videos |
-| [`frontend-blog.service.ts`](apps/api/src/blog/frontend/frontend-blog.service.ts) | getLocalizedString with video tag merging |
-| [`blog-ai.processor.ts`](apps/api/src/blog/processors/blog-ai.processor.ts) | Translation processor with video tag preservation |
+| File                                                                              | Role                                               |
+| --------------------------------------------------------------------------------- | -------------------------------------------------- |
+| [`blog.service.ts`](apps/api/src/blog/blog.service.ts)                            | triggerVideoTranscode, backfillVideoTranscode      |
+| [`blog.controller.ts`](apps/api/src/blog/blog.controller.ts)                      | POST trigger-video-transcode, POST backfill-videos |
+| [`frontend-blog.service.ts`](apps/api/src/blog/frontend/frontend-blog.service.ts) | getLocalizedString with video tag merging          |
+| [`blog-ai.processor.ts`](apps/api/src/blog/processors/blog-ai.processor.ts)       | Translation processor with video tag preservation  |
 
 ---
 
@@ -69,7 +69,7 @@ sequenceDiagram
     participant Upload as UploadController
     participant R2 as Cloudflare R2
     participant Queue as BullMQ
-    
+
     Admin->>Editor: Insert video
     Editor->>Upload: POST /upload/image + file + articleId
     Upload->>R2: Save video file
@@ -139,7 +139,7 @@ handleTranscodeVideo(job)
 
 ```typescript
 // Before (broken): Hardcoded 16:9
-const resolutions = ['854:480', '1280:720', '1920:1080'];
+const resolutions = ["854:480", "1280:720", "1920:1080"];
 // ffmpeg -vf "scale=1280:720"
 // → 9:16 vertical video becomes stretched to 16:9!
 // → 21:9 ultrawide becomes cropped/stretched to 16:9!
@@ -157,6 +157,7 @@ const evenHeight = targetHeight % 2 === 0 ? targetHeight : targetHeight - 1;
 ```
 
 **Source dimension detection:**
+
 ```typescript
 // Old: Only detected height (assumed 16:9)
 ffprobe -v error -select_streams v:0 -show_entries stream=height
@@ -167,11 +168,11 @@ ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p
 
 ### 4.3 Quality Targets
 
-| Quality | Target Width | Bandwidth | Condition |
-|---------|-------------|-----------|-----------|
-| 480p | 854px | 800kbps | Always generated |
-| 720p | 1280px | 2800kbps | Always generated |
-| 1080p | 1920px | 5000kbps | Only if source height >= 1080 |
+| Quality | Target Width | Bandwidth | Condition                     |
+| ------- | ------------ | --------- | ----------------------------- |
+| 480p    | 854px        | 800kbps   | Always generated              |
+| 720p    | 1280px       | 2800kbps  | Always generated              |
+| 1080p   | 1920px       | 5000kbps  | Only if source height >= 1080 |
 
 Each target width is clamped to `Math.min(targetWidth, sourceWidth)` to prevent upscaling.
 
@@ -254,6 +255,7 @@ pending → processing → completed
 **File:** [`HlsVideoPlayer.tsx`](apps/frontend-blog/src/components/blog/HlsVideoPlayer.tsx)
 
 **Props:**
+
 ```typescript
 interface HlsVideoPlayerProps {
   hlsUrl: string;
@@ -265,6 +267,7 @@ interface HlsVideoPlayerProps {
 ```
 
 **Behavior:**
+
 1. On mount, creates `hls.js` instance
 2. Attaches to `<video>` element
 3. Loads master.m3u8 URL
@@ -276,15 +279,15 @@ interface HlsVideoPlayerProps {
 
 ### 6.2 Video Rendering Locations
 
-| Location | Component | Condition |
-|----------|-----------|-----------|
-| HeroSection main card | `HlsVideoPlayer` | `article.meta?.video?.hlsUrl` exists |
-| HeroSection side cards | `HlsVideoPlayer` | `article.meta?.video?.hlsUrl` exists |
-| ArticleCard cover | `HlsVideoPlayer` | `isVideoUrl(coverImage)` + `meta?.video?.hlsUrl` |
-| ArticleCard cover (no HLS) | Native `<video>` | `isVideoUrl(coverImage)` no hlsUrl |
-| Detail page hero | `HlsVideoPlayer` | `article.meta?.video?.hlsUrl` exists |
-| Detail page hero (no HLS) | `VideoWithOverlay` | `isVideoUrl(coverImage)` no hlsUrl |
-| Detail page content | DOMPurify-rendered `<video>` | `content` contains video HTML tags |
+| Location                   | Component                    | Condition                                        |
+| -------------------------- | ---------------------------- | ------------------------------------------------ |
+| HeroSection main card      | `HlsVideoPlayer`             | `article.meta?.video?.hlsUrl` exists             |
+| HeroSection side cards     | `HlsVideoPlayer`             | `article.meta?.video?.hlsUrl` exists             |
+| ArticleCard cover          | `HlsVideoPlayer`             | `isVideoUrl(coverImage)` + `meta?.video?.hlsUrl` |
+| ArticleCard cover (no HLS) | Native `<video>`             | `isVideoUrl(coverImage)` no hlsUrl               |
+| Detail page hero           | `HlsVideoPlayer`             | `article.meta?.video?.hlsUrl` exists             |
+| Detail page hero (no HLS)  | `VideoWithOverlay`           | `isVideoUrl(coverImage)` no hlsUrl               |
+| Detail page content        | DOMPurify-rendered `<video>` | `content` contains video HTML tags               |
 
 ### 6.3 Poster Resolution Logic
 
@@ -304,6 +307,7 @@ interface HlsVideoPlayerProps {
 ### 7.1 The Problem
 
 When AI translation processes an article:
+
 1. Source content (Chinese) has `<video>` and `<figure>` HTML tags
 2. Translation extracts only markdown text, sends to AI
 3. Translated result is rendered via `renderMarkdown()` → produces text-only HTML
@@ -316,17 +320,21 @@ When AI translation processes an article:
 When requesting content in a non-source locale, `getLocalizedString()` checks if the translated content is missing video tags. If so, it extracts video tags from `contentLocalized['zh']` and prepends them.
 
 ```typescript
-if (field === 'content') {
-  const sourceContent = localizedField['zh'] || entity['content'] || '';
+if (field === "content") {
+  const sourceContent = localizedField["zh"] || entity["content"] || "";
   const localizedValue = localizedField[locale];
-  if (sourceContent && typeof sourceContent === 'string' && typeof localizedValue === 'string'
-      && /<video[\s\S]*?<\/video>/i.test(sourceContent)
-      && !/<video[\s\S]*?<\/video>/i.test(localizedValue)) {
+  if (
+    sourceContent &&
+    typeof sourceContent === "string" &&
+    typeof localizedValue === "string" &&
+    /<video[\s\S]*?<\/video>/i.test(sourceContent) &&
+    !/<video[\s\S]*?<\/video>/i.test(localizedValue)
+  ) {
     const videoBlocks = sourceContent.match(
-      /<figure[^>]*>[\s\S]*?<video[\s\S]*?<\/video>[\s\S]*?<\/figure>|<video[\s\S]*?<\/video>/gi
+      /<figure[^>]*>[\s\S]*?<video[\s\S]*?<\/video>[\s\S]*?<\/figure>|<video[\s\S]*?<\/video>/gi,
     );
     if (videoBlocks && videoBlocks.length > 0) {
-      return videoBlocks.join('\n') + '\n' + localizedValue;
+      return videoBlocks.join("\n") + "\n" + localizedValue;
     }
   }
 }
@@ -339,13 +347,13 @@ if (field === 'content') {
 Before saving translated content, video tags are extracted from the original HTML and appended to the translated output:
 
 ```typescript
-const originalHtml = sourceContent || article.content || '';
-const videoTags = (originalHtml.match(videoTagRegex) || []).join('\n');
+const originalHtml = sourceContent || article.content || "";
+const videoTags = (originalHtml.match(videoTagRegex) || []).join("\n");
 
 // When saving:
 contentLocalized[targetLang] = (() => {
   const translatedHtml = this.renderMarkdown(contentTranslated);
-  return videoTags ? translatedHtml + '\n' + videoTags : translatedHtml;
+  return videoTags ? translatedHtml + "\n" + videoTags : translatedHtml;
 })();
 ```
 
@@ -353,18 +361,18 @@ contentLocalized[targetLang] = (() => {
 
 ## 8. Complete Bug History
 
-| # | Bug | Root Cause | Fix | File(s) |
-|---|-----|-----------|-----|---------|
-| 1 | **Aspect ratio deformation** | Hardcoded 16:9 resolutions in ffmpeg scale filter | Dynamic aspect ratio computation from source dimensions | [`media-processor.service.ts:226`](apps/api/src/common/media/media-processor.service.ts:226) |
-| 2 | **Create page no transcoding** | upload() called without articleId | Track video keys in useRef, trigger transcode after article creation | [`create/page.tsx`](apps/admin-next/src/app/(dashboard)/blog/articles/create/page.tsx), [`blog.service.ts`](apps/api/src/blog/blog.service.ts) |
-| 3 | **Translated articles missing videos** | renderMarkdown strips HTML video tags | Query-time merge + translation-time preservation | [`frontend-blog.service.ts:418`](apps/api/src/blog/frontend/frontend-blog.service.ts:418), [`blog-ai.processor.ts:847`](apps/api/src/blog/processors/blog-ai.processor.ts:847) |
-| 4 | **Video poster black/blank** | Video URL used as poster attribute | Use meta.video.poster with image-only fallback | [`ArticleCard.tsx`](apps/frontend-blog/src/components/blog/ArticleCard.tsx), [`HeroSection.tsx`](apps/frontend-blog/src/components/blog/HeroSection.tsx) |
-| 5 | **Black box - no playback** | pointer-events-none on play overlay, stale ISR cache | Clickable play overlay, reduced cache from 1hr to 60s | [`HlsVideoPlayer.tsx`](apps/frontend-blog/src/components/blog/HlsVideoPlayer.tsx), [`page.tsx`](apps/frontend-blog/src/app/[locale]/articles/[slug]/page.tsx) |
-| 6 | **Card click navigates instead of playing** | Entire ArticleCard wrapped in Link | Split Link: media standalone, text only navigates | [`ArticleCard.tsx`](apps/frontend-blog/src/components/blog/ArticleCard.tsx), [`HeroSection.tsx`](apps/frontend-blog/src/components/blog/HeroSection.tsx) |
-| 7 | **Media pipeline dead code** | articleId never passed to upload endpoint | Added articleId to UploadFolderDto + full chain | [`upload.controller.ts`](apps/api/src/common/upload/upload.controller.ts), [`upload.service.ts`](apps/api/src/common/upload/upload.service.ts) |
-| 8 | **Variants uploaded to wrong bucket** | Used private bucket for public media | Created uploadToPublicBucket() method | [`upload.service.ts`](apps/api/src/common/upload/upload.service.ts) |
-| 9 | **Large videos cause OOM** | No file size checks before processing | Check file size before download: max 500MB | [`media.processor.ts:57`](apps/api/src/common/media/media.processor.ts:57) |
-| 10 | **DOMPurify SSR crash** | Turbopack resolves dynamic import statically | next/dynamic with ssr:false | [`SanitizedContent.tsx`](apps/frontend-blog/src/components/SanitizedContent.tsx) |
+| #   | Bug                                         | Root Cause                                           | Fix                                                                  | File(s)                                                                                                                                                                        |
+| --- | ------------------------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | **Aspect ratio deformation**                | Hardcoded 16:9 resolutions in ffmpeg scale filter    | Dynamic aspect ratio computation from source dimensions              | [`media-processor.service.ts:226`](apps/api/src/common/media/media-processor.service.ts:226)                                                                                   |
+| 2   | **Create page no transcoding**              | upload() called without articleId                    | Track video keys in useRef, trigger transcode after article creation | [`create/page.tsx`](<apps/admin-next/src/app/(dashboard)/blog/articles/create/page.tsx>), [`blog.service.ts`](apps/api/src/blog/blog.service.ts)                               |
+| 3   | **Translated articles missing videos**      | renderMarkdown strips HTML video tags                | Query-time merge + translation-time preservation                     | [`frontend-blog.service.ts:418`](apps/api/src/blog/frontend/frontend-blog.service.ts:418), [`blog-ai.processor.ts:847`](apps/api/src/blog/processors/blog-ai.processor.ts:847) |
+| 4   | **Video poster black/blank**                | Video URL used as poster attribute                   | Use meta.video.poster with image-only fallback                       | [`ArticleCard.tsx`](apps/frontend-blog/src/components/blog/ArticleCard.tsx), [`HeroSection.tsx`](apps/frontend-blog/src/components/blog/HeroSection.tsx)                       |
+| 5   | **Black box - no playback**                 | pointer-events-none on play overlay, stale ISR cache | Clickable play overlay, reduced cache from 1hr to 60s                | [`HlsVideoPlayer.tsx`](apps/frontend-blog/src/components/blog/HlsVideoPlayer.tsx), [`page.tsx`](apps/frontend-blog/src/app/[locale]/articles/[slug]/page.tsx)                  |
+| 6   | **Card click navigates instead of playing** | Entire ArticleCard wrapped in Link                   | Split Link: media standalone, text only navigates                    | [`ArticleCard.tsx`](apps/frontend-blog/src/components/blog/ArticleCard.tsx), [`HeroSection.tsx`](apps/frontend-blog/src/components/blog/HeroSection.tsx)                       |
+| 7   | **Media pipeline dead code**                | articleId never passed to upload endpoint            | Added articleId to UploadFolderDto + full chain                      | [`upload.controller.ts`](apps/api/src/common/upload/upload.controller.ts), [`upload.service.ts`](apps/api/src/common/upload/upload.service.ts)                                 |
+| 8   | **Variants uploaded to wrong bucket**       | Used private bucket for public media                 | Created uploadToPublicBucket() method                                | [`upload.service.ts`](apps/api/src/common/upload/upload.service.ts)                                                                                                            |
+| 9   | **Large videos cause OOM**                  | No file size checks before processing                | Check file size before download: max 500MB                           | [`media.processor.ts:57`](apps/api/src/common/media/media.processor.ts:57)                                                                                                     |
+| 10  | **DOMPurify SSR crash**                     | Turbopack resolves dynamic import statically         | next/dynamic with ssr:false                                          | [`SanitizedContent.tsx`](apps/frontend-blog/src/components/SanitizedContent.tsx)                                                                                               |
 
 ---
 
@@ -430,13 +438,13 @@ flowchart TD
 
 ### Why HLS?
 
-| Aspect | MP4 Direct | HLS |
-|--------|-----------|-----|
+| Aspect            | MP4 Direct                                      | HLS                                       |
+| ----------------- | ----------------------------------------------- | ----------------------------------------- |
 | Starting playback | Must download entire file or use Range requests | Starts in 2-4 seconds (first .ts segment) |
-| Adaptive quality | Not possible | Switches quality based on network |
-| Browser support | Native everywhere | Native Safari + hls.js for others |
-| Storage | Single file | Multiple segments + playlists |
-| Industry standard | Legacy | YouTube, Netflix, all major platforms |
+| Adaptive quality  | Not possible                                    | Switches quality based on network         |
+| Browser support   | Native everywhere                               | Native Safari + hls.js for others         |
+| Storage           | Single file                                     | Multiple segments + playlists             |
+| Industry standard | Legacy                                          | YouTube, Netflix, all major platforms     |
 
 ### Why force_original_aspect_ratio=decrease?
 

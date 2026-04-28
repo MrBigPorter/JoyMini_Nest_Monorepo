@@ -1,7 +1,7 @@
 # 技术博客文章大纲
 
 > 三篇中文技术博客，来源于 JoyMini Nest Monorepo 项目的实际优化经验。
-> 
+>
 > 写作风格：实战向、有代码、有架构图、有前后对比数据。
 >
 > ✅ 三篇已全部完成，文件位于 `docs/blog/articles/` 目录。
@@ -63,7 +63,7 @@ useEffect(() => {
 // 点击播放 → 通知所有其他组件停止
 const handlePlayClick = useCallback(() => {
   window.dispatchEvent(
-    new CustomEvent('hls-video-play', { detail: { hlsUrl } }),
+    new CustomEvent("hls-video-play", { detail: { hlsUrl } }),
   );
   setUserClicked(true);
   initVideo(true);
@@ -79,6 +79,7 @@ const handleOtherVideoPlay = (e: CustomEvent) => {
 ```
 
 **FeaturedProjects.tsx 的特殊处理**：
+
 - 轮播组件有自己的 `hlsRef` / `videoRef`，不依赖 `HlsVideoPlayer`
 - `goToSlide()` 中先 `destroyVideo()` 再 `setUserClicked(false)` 再切换 slide
 - 同样监听 `hls-video-play` 事件
@@ -104,11 +105,11 @@ const handleOtherVideoPlay = (e: CustomEvent) => {
 
 #### 5. 数据对比
 
-| 指标 | 优化前 | 优化后 | 收益 |
-|------|--------|--------|------|
-| 首页 m3u8 请求数 | 7-15 个 | 0 个（直到用户点击） | 100% 减少初始请求 |
-| 首页数据消耗 | ~5-10MB | ~100KB（封面图） | 减少 98%+ |
-| 内存占用 | 多个 HLS 实例共存 | 最多 1 个 | 降低 80%+ |
+| 指标             | 优化前            | 优化后               | 收益              |
+| ---------------- | ----------------- | -------------------- | ----------------- |
+| 首页 m3u8 请求数 | 7-15 个           | 0 个（直到用户点击） | 100% 减少初始请求 |
+| 首页数据消耗     | ~5-10MB           | ~100KB（封面图）     | 减少 98%+         |
+| 内存占用         | 多个 HLS 实例共存 | 最多 1 个            | 降低 80%+         |
 
 #### 6. 边界情况处理
 
@@ -180,8 +181,8 @@ experimental: {
 ```tsx
 // 从页面直接导入改为动态导入
 const ArticleMarkdown = dynamic(
-  () => import('@/components/blog/ArticleMarkdown'),
-  { ssr: false, loading: () => <div className="animate-pulse h-96" /> }
+  () => import("@/components/blog/ArticleMarkdown"),
+  { ssr: false, loading: () => <div className="animate-pulse h-96" /> },
 );
 ```
 
@@ -193,14 +194,14 @@ const ArticleMarkdown = dynamic(
 
 #### 6. 优化效果汇总
 
-| 优化项 | 体积减少 | 类型 |
-|--------|----------|------|
-| Capacitor 移到 devDeps | ~800KB | 依赖审计 |
-| optimizePackageImports | ~200KB | Tree-shaking |
-| lazy-load Header 组件 | ~150KB | 代码分割 |
-| lazy-load ArticleMarkdown | ~300KB | 代码分割 |
-| transpilePackages 清理 | ~50KB | 构建优化 |
-| **总计** | **~1.5MB** | |
+| 优化项                    | 体积减少   | 类型         |
+| ------------------------- | ---------- | ------------ |
+| Capacitor 移到 devDeps    | ~800KB     | 依赖审计     |
+| optimizePackageImports    | ~200KB     | Tree-shaking |
+| lazy-load Header 组件     | ~150KB     | 代码分割     |
+| lazy-load ArticleMarkdown | ~300KB     | 代码分割     |
+| transpilePackages 清理    | ~50KB      | 构建优化     |
+| **总计**                  | **~1.5MB** |              |
 
 #### 7. 方法论总结：系统化检查清单
 
@@ -230,12 +231,14 @@ const ArticleMarkdown = dynamic(
 #### 2. 缓存类型详解
 
 ##### 2.1 Docker Layer Cache（deploy-backend.yml）
+
 - **目的**：加速 NestJS API 的 Docker 镜像构建
 - **机制**：`type=gha` 的 GitHub Actions cache backend
 - **配置**：`cache-from: type=gha` + `cache-to: type=gha,mode=max`
 - **效果**：后续构建复用之前的 layer，跳过 `yarn install` 和编译层
 
 ##### 2.2 Yarn PnP Zip Cache
+
 - **目的**：缓存 `.yarn/cache` 目录中的依赖 zip 文件
 - **配置**：
 
@@ -248,14 +251,17 @@ const ArticleMarkdown = dynamic(
 ```
 
 ##### 2.3 node_modules（Yarn PnP 虚拟目录）
+
 - **注意**：Yarn 4 PnP 模式下，依赖不存储在传统 `node_modules`，但 `yarn install --immutable` 会生成 `.pnp.*` 文件和 `.yarn/unplugged`
 - **缓存**：`.pnp.cjs` + `.pnp.loader.mjs` 生成的缓存
 
 ##### 2.4 Turborepo Remote Cache
+
 - **目的**：跨工作流复用构建产物
 - **配置**：`turbo.json` 中定义 `outputs`，结合 `actions/cache` 实现
 
 ##### 2.5 Playwright Browser Cache
+
 - **目的**：缓存浏览器二进制文件（~300MB）
 - **配置**：
 
@@ -286,12 +292,12 @@ restore-keys: |
 
 #### 5. 优化效果
 
-| 工作流 | 优化前 | 优化后 | 加速比 |
-|--------|--------|--------|--------|
-| ci.yml | ~8min | ~3min | 2.7x |
-| deploy-backend.yml | ~10min | ~4min | 2.5x |
-| deploy-admin-cloudflare.yml | ~6min | ~2min | 3x |
-| playwright.yml | ~5min | ~2min | 2.5x |
+| 工作流                      | 优化前 | 优化后 | 加速比 |
+| --------------------------- | ------ | ------ | ------ |
+| ci.yml                      | ~8min  | ~3min  | 2.7x   |
+| deploy-backend.yml          | ~10min | ~4min  | 2.5x   |
+| deploy-admin-cloudflare.yml | ~6min  | ~2min  | 3x     |
+| playwright.yml              | ~5min  | ~2min  | 2.5x   |
 
 #### 6. 总结
 

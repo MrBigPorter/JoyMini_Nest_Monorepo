@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import React from 'react';
-import { useRequest } from 'ahooks';
-import { Card, Badge, Button } from '@/components/UIComponents';
-import { blogApi } from '@/api';
-import { RefreshCw, FileText, List, BarChart3, ArrowRight } from 'lucide-react';
-import Link from 'next/link';
-import { useTranslation } from '@/hooks/useTranslation';
+import React from "react";
+import { useRequest } from "ahooks";
+import { Card, Badge, Button } from "@/components/UIComponents";
+import { blogApi } from "@/api";
+import { RefreshCw, FileText, List, BarChart3, ArrowRight } from "lucide-react";
+import Link from "next/link";
+import { useTranslation } from "@/hooks/useTranslation";
 
 // 进度条组件
 const ProgressBar = ({ value, max = 100 }: { value: number; max?: number }) => {
@@ -27,27 +27,27 @@ const MiniStatCard = ({
   value,
   total,
   icon: Icon,
-  color = 'blue',
+  color = "blue",
 }: {
   title: string;
   value: number;
   total: number;
   icon: React.ElementType;
-  color?: 'blue' | 'green' | 'purple';
+  color?: "blue" | "green" | "purple";
 }) => {
   const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
 
   const colorClasses = {
-    blue: { bg: 'bg-blue-50', text: 'text-blue-700', icon: 'text-blue-500' },
+    blue: { bg: "bg-blue-50", text: "text-blue-700", icon: "text-blue-500" },
     green: {
-      bg: 'bg-emerald-50',
-      text: 'text-emerald-700',
-      icon: 'text-emerald-500',
+      bg: "bg-emerald-50",
+      text: "text-emerald-700",
+      icon: "text-emerald-500",
     },
     purple: {
-      bg: 'bg-purple-50',
-      text: 'text-purple-700',
-      icon: 'text-purple-500',
+      bg: "bg-purple-50",
+      text: "text-purple-700",
+      icon: "text-purple-500",
     },
   };
 
@@ -88,7 +88,7 @@ export default function TranslationProgressCard() {
 
   if (loading) {
     return (
-      <Card title={t('blogCard.translationProgress')} className="animate-pulse">
+      <Card title={t("blogCard.translationProgress")} className="animate-pulse">
         <div className="space-y-3">
           <div className="h-4 bg-gray-200 rounded w-3/4" />
           <div className="h-2 bg-gray-200 rounded" />
@@ -104,14 +104,14 @@ export default function TranslationProgressCard() {
 
   if (error) {
     return (
-      <Card title={t('blogCard.translationProgress')}>
+      <Card title={t("blogCard.translationProgress")}>
         <div className="text-center py-4">
           <p className="text-sm text-gray-500 mb-2">
-            {t('blogCard.loadFailed')}
+            {t("blogCard.loadFailed")}
           </p>
           <Button variant="outline" size="sm" onClick={() => refresh()}>
             <RefreshCw className="w-3 h-3 mr-1" />
-            {t('blogCard.retry')}
+            {t("blogCard.retry")}
           </Button>
         </div>
       </Card>
@@ -142,11 +142,11 @@ export default function TranslationProgressCard() {
 
   return (
     <Card
-      title={t('blogCard.translationProgress')}
+      title={t("blogCard.translationProgress")}
       action={
         <Link href="/blog/translation-progress">
           <Button variant="ghost" size="sm">
-            {t('blogCard.viewDetails')}
+            {t("blogCard.viewDetails")}
             <ArrowRight className="w-3 h-3 ml-1" />
           </Button>
         </Link>
@@ -166,15 +166,15 @@ export default function TranslationProgressCard() {
             </div>
             <div className="flex items-center gap-2">
               {hasActiveJobs && (
-                <Badge color="yellow">{t('blogCard.inProgress')}</Badge>
+                <Badge color="yellow">{t("blogCard.inProgress")}</Badge>
               )}
               {hasFailedJobs && (
                 <Badge color="red">
-                  {progressData.queueStatus.failed} {t('blogCard.failed')}
+                  {progressData.queueStatus.failed} {t("blogCard.failed")}
                 </Badge>
               )}
               {overallPercentage === 100 && progressData.totalItems > 0 && (
-                <Badge color="green">{t('blogCard.completed')}</Badge>
+                <Badge color="green">{t("blogCard.completed")}</Badge>
               )}
             </div>
           </div>
@@ -187,21 +187,21 @@ export default function TranslationProgressCard() {
         {/* 分类统计 */}
         <div className="grid grid-cols-3 gap-2">
           <MiniStatCard
-            title={t('blogCard.articles')}
+            title={t("blogCard.articles")}
             value={progressData.articles.completed}
             total={progressData.articles.total}
             icon={FileText}
             color="blue"
           />
           <MiniStatCard
-            title={t('blogCard.categories')}
+            title={t("blogCard.categories")}
             value={progressData.categories.completed}
             total={progressData.categories.total}
             icon={List}
             color="green"
           />
           <MiniStatCard
-            title={t('blogCard.tags')}
+            title={t("blogCard.tags")}
             value={progressData.tags.completed}
             total={progressData.tags.total}
             icon={BarChart3}
@@ -216,7 +216,7 @@ export default function TranslationProgressCard() {
               <div className="flex items-center gap-1">
                 <div className="w-2 h-2 rounded-full bg-blue-500" />
                 <span className="text-gray-600">
-                  {t('blogCard.activeJobs', {
+                  {t("blogCard.activeJobs", {
                     count: progressData.queueStatus.active,
                   })}
                 </span>
@@ -224,7 +224,7 @@ export default function TranslationProgressCard() {
               <div className="flex items-center gap-1">
                 <div className="w-2 h-2 rounded-full bg-amber-500" />
                 <span className="text-gray-600">
-                  {t('blogCard.waitingJobs', {
+                  {t("blogCard.waitingJobs", {
                     count: progressData.queueStatus.waiting,
                   })}
                 </span>
@@ -233,7 +233,7 @@ export default function TranslationProgressCard() {
             <div className="flex items-center gap-1">
               <div className="w-2 h-2 rounded-full bg-emerald-500" />
               <span className="text-gray-600">
-                {t('blogCard.completedJobs', {
+                {t("blogCard.completedJobs", {
                   count: progressData.queueStatus.completed,
                 })}
               </span>
@@ -244,7 +244,7 @@ export default function TranslationProgressCard() {
         {/* 状态提示 */}
         {hasFailedJobs && (
           <div className="text-xs text-red-600 bg-red-50 p-2 rounded">
-            {t('blogCard.failedJobsWarning', {
+            {t("blogCard.failedJobsWarning", {
               count: progressData.queueStatus.failed,
             })}
           </div>
@@ -252,13 +252,13 @@ export default function TranslationProgressCard() {
 
         {overallPercentage === 100 && progressData.totalItems > 0 && (
           <div className="text-xs text-emerald-600 bg-emerald-50 p-2 rounded">
-            {t('blogCard.allJobsCompleted')}
+            {t("blogCard.allJobsCompleted")}
           </div>
         )}
 
         {overallPercentage === 0 && progressData.totalItems > 0 && (
           <div className="text-xs text-amber-600 bg-amber-50 p-2 rounded">
-            {t('blogCard.translationNotStarted')}
+            {t("blogCard.translationNotStarted")}
           </div>
         )}
       </div>

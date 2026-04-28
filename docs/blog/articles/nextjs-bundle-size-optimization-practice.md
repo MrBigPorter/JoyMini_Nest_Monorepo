@@ -28,7 +28,7 @@
   "dependencies": {
     "@capacitor/core": "...",
     "@capacitor/status-bar": "...",
-    "@capacitor/splash-screen": "...",
+    "@capacitor/splash-screen": "..."
     // ... 总共 8 个 @capacitor/* 包
   }
 }
@@ -42,7 +42,7 @@ Capacitor 是一个将 Web 应用打包为移动端原生应用的框架。但�
 {
   "devDependencies": {
     "@capacitor/core": "...",
-    "@capacitor/status-bar": "...",
+    "@capacitor/status-bar": "..."
     // ...
   }
 }
@@ -65,17 +65,17 @@ Next.js 14 引入了一个实验性功能 `optimizePackageImports`，它会自�
 const nextConfig = {
   experimental: {
     optimizePackageImports: [
-      '@repo/ui',           // 内部组件库
-      'lucide-react',       // 图标库，500+ 图标
-      'lodash',             // 工具库
-      'date-fns',           // 日期工具
-      'framer-motion',      // 动画库
-      'react-markdown',     // Markdown 渲染
-      'react-syntax-highlighter', // 代码高亮
-      'rehype-raw',
-      'remark-gfm',
-      'embla-carousel-react',
-      'hls.js',
+      "@repo/ui", // 内部组件库
+      "lucide-react", // 图标库，500+ 图标
+      "lodash", // 工具库
+      "date-fns", // 日期工具
+      "framer-motion", // 动画库
+      "react-markdown", // Markdown 渲染
+      "react-syntax-highlighter", // 代码高亮
+      "rehype-raw",
+      "remark-gfm",
+      "embla-carousel-react",
+      "hls.js",
     ],
   },
 };
@@ -91,8 +91,8 @@ const nextConfig = {
 
 ```tsx
 // 优化前 — 两个弹窗组件在 Header 中直接导入
-import { SearchModal } from './SearchModal';
-import { MobileSettingsDrawer } from './MobileSettingsDrawer';
+import { SearchModal } from "./SearchModal";
+import { MobileSettingsDrawer } from "./MobileSettingsDrawer";
 ```
 
 由于 `Header` 出现在每个页面的布局中，这意味着每个页面都会加载这两个组件的代码，即使它们很少被打开。
@@ -100,17 +100,16 @@ import { MobileSettingsDrawer } from './MobileSettingsDrawer';
 **解决**：使用 `next/dynamic` 按需加载：
 
 ```tsx
-import dynamic from 'next/dynamic';
+import dynamic from "next/dynamic";
 
 const SearchModal = dynamic(
-  () => import('./SearchModal').then(mod => mod.SearchModal),
-  { ssr: false }
+  () => import("./SearchModal").then((mod) => mod.SearchModal),
+  { ssr: false },
 );
 
-const MobileSettingsDrawer = dynamic(
-  () => import('./MobileSettingsDrawer'),
-  { ssr: false }
-);
+const MobileSettingsDrawer = dynamic(() => import("./MobileSettingsDrawer"), {
+  ssr: false,
+});
 ```
 
 **同样的思路用于文章详情页**：
@@ -119,20 +118,20 @@ const MobileSettingsDrawer = dynamic(
 
 ```tsx
 // 优化前 — 页面直接导入
-import ReactMarkdown from 'react-markdown';
-import rehypeRaw from 'rehype-raw';
-import remarkGfm from 'remark-gfm';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import ReactMarkdown from "react-markdown";
+import rehypeRaw from "rehype-raw";
+import remarkGfm from "remark-gfm";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 ```
 
 这些依赖总大小约 300KB+，但只在文章详情页使用。优化方案是创建一个包裹组件，然后动态导入：
 
 ```tsx
 // ArticleMarkdown.tsx — 新建的包裹组件
-'use client';
-import ReactMarkdown from 'react-markdown';
-import rehypeRaw from 'rehype-raw';
-import remarkGfm from 'remark-gfm';
+"use client";
+import ReactMarkdown from "react-markdown";
+import rehypeRaw from "rehype-raw";
+import remarkGfm from "remark-gfm";
 
 export function ArticleMarkdown({ content }: { content: string }) {
   return (
@@ -146,15 +145,18 @@ export function ArticleMarkdown({ content }: { content: string }) {
 
 // 在页面中动态导入
 const ArticleMarkdown = dynamic(
-  () => import('@/components/blog/ArticleMarkdown'),
+  () => import("@/components/blog/ArticleMarkdown"),
   {
     ssr: false,
-    loading: () => <div className="animate-pulse h-96 bg-slate-100 rounded-lg" />,
-  }
+    loading: () => (
+      <div className="animate-pulse h-96 bg-slate-100 rounded-lg" />
+    ),
+  },
 );
 ```
 
 **效果**：
+
 - Header 组件懒加载减少 ~150KB
 - ArticleMarkdown 懒加载减少 ~300KB
 - 两者合计约 **450KB**
@@ -181,14 +183,14 @@ transpilePackages: ['@repo/ui'],  // 这个包使用 JSX，需要转译
 
 ## 6. 优化效果总览
 
-| 优化项 | 减少体积 | 类型 | 难度 |
-|--------|----------|------|------|
-| Capacitor 移到 devDeps | ~800KB | 依赖审计 | ⭐ |
-| optimizePackageImports | ~200KB | 构建配置 | ⭐ |
-| Header 组件懒加载 | ~150KB | 代码分割 | ⭐⭐ |
-| ArticleMarkdown 懒加载 | ~300KB | 代码分割 | ⭐⭐ |
-| transpilePackages 清理 | ~50KB | 构建配置 | ⭐ |
-| **总计** | **~1.5MB** | | |
+| 优化项                 | 减少体积   | 类型     | 难度 |
+| ---------------------- | ---------- | -------- | ---- |
+| Capacitor 移到 devDeps | ~800KB     | 依赖审计 | ⭐   |
+| optimizePackageImports | ~200KB     | 构建配置 | ⭐   |
+| Header 组件懒加载      | ~150KB     | 代码分割 | ⭐⭐ |
+| ArticleMarkdown 懒加载 | ~300KB     | 代码分割 | ⭐⭐ |
+| transpilePackages 清理 | ~50KB      | 构建配置 | ⭐   |
+| **总计**               | **~1.5MB** |          |      |
 
 > 注意：这些优化不是简单的叠加，因为它们作用于不同的代码路径。实际首屏 JS 体积从约 2MB（压缩前）降到了约 800KB（压缩前）。
 
@@ -197,26 +199,31 @@ transpilePackages: ['@repo/ui'],  // 这个包使用 JSX，需要转译
 经过这次优化，我总结了一套可复用的检查清单。每次接手或审查一个 Next.js 项目时，可以按这个顺序过一遍：
 
 ### 第一步：依赖审计
+
 - [ ] `npm ls --production` 查看生产依赖
 - [ ] 确认每个包是否真的在运行时需要
 - [ ] 平台特定包（Capacitor、Electron 等）是否应该在 `devDependencies`
 
 ### 第二步：打包分析
+
 - [ ] 配置 `@next/bundle-analyzer` 进行可视化分析
 - [ ] 检查哪些包占据了最大的体积
 - [ ] 检查是否有包意外出现在多个 chunk 中
 
 ### 第三步：优化配置
+
 - [ ] 检查 `experimental.optimizePackageImports` 是否覆盖了所有大型库
 - [ ] 检查 `transpilePackages` 中是否包含已经预构建的包
 - [ ] 检查 `images.remotePatterns` 是否完整
 
 ### 第四步：代码分割
+
 - [ ] 找出"全局加载但只在特定页面使用"的组件
 - [ ] 使用 `next/dynamic` 进行懒加载
 - [ ] 确保 `ssr: false` 用于需要浏览器 API 的组件
 
 ### 第五步：验证
+
 - [ ] 运行 `next build` 查看每个页面的 First Load JS
 - [ ] 对比优化前后的核心 Web 指标
 - [ ] 确认懒加载的组件在用户交互时能快速加载（考虑 prefetch）
@@ -233,4 +240,4 @@ transpilePackages: ['@repo/ui'],  // 这个包使用 JSX，需要转译
 
 ---
 
-*本文涉及的代码来自实际项目 JoyMini Nest Monorepo。项目使用 Next.js 15 + Yarn 4 PnP，代码开源可在 GitHub 上查看。*
+_本文涉及的代码来自实际项目 JoyMini Nest Monorepo。项目使用 Next.js 15 + Yarn 4 PnP，代码开源可在 GitHub 上查看。_

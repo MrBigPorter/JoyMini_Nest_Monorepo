@@ -66,7 +66,7 @@ export function FormSelectField<
   const getHandleChange = useCallback(
     <TField extends FieldValues = FieldValues>(
       field: ControllerRenderProps<TField, Path<TField>>,
-      numeric: boolean
+      numeric: boolean,
     ) =>
       (val: string) => {
         let nextValue: string | number | undefined = val;
@@ -77,7 +77,7 @@ export function FormSelectField<
         }
         field.onChange(nextValue);
       },
-    []
+    [],
   );
 
   return (

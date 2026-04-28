@@ -35,20 +35,20 @@
 
 ### 1.2 Key Technologies
 
-| Layer | Technology | Purpose |
-|-------|-----------|---------|
-| Backend framework | NestJS 10 | RESTful API server |
-| ORM | Prisma 5 | PostgreSQL data access |
-| Queue | BullMQ + Redis | Async media processing + AI translation |
-| Media processing | ffmpeg + Sharp | HLS transcoding + image compression |
-| Storage | Cloudflare R2 | Public media file hosting |
-| Frontend framework | Next.js 15 (App Router) | SSR blog frontend |
-| Admin framework | Next.js 15 (App Router) | Admin panel (separate app) |
-| State management | TanStack Query | Client-side data fetching + caching |
-| Video playback | hls.js | HLS adaptive streaming in browser |
-| Rich text editor | Quill (react-quill) | Article content editing |
-| i18n | next-intl | Multi-locale support |
-| Styling | Tailwind CSS | Utility-first responsive design |
+| Layer              | Technology              | Purpose                                 |
+| ------------------ | ----------------------- | --------------------------------------- |
+| Backend framework  | NestJS 10               | RESTful API server                      |
+| ORM                | Prisma 5                | PostgreSQL data access                  |
+| Queue              | BullMQ + Redis          | Async media processing + AI translation |
+| Media processing   | ffmpeg + Sharp          | HLS transcoding + image compression     |
+| Storage            | Cloudflare R2           | Public media file hosting               |
+| Frontend framework | Next.js 15 (App Router) | SSR blog frontend                       |
+| Admin framework    | Next.js 15 (App Router) | Admin panel (separate app)              |
+| State management   | TanStack Query          | Client-side data fetching + caching     |
+| Video playback     | hls.js                  | HLS adaptive streaming in browser       |
+| Rich text editor   | Quill (react-quill)     | Article content editing                 |
+| i18n               | next-intl               | Multi-locale support                    |
+| Styling            | Tailwind CSS            | Utility-first responsive design         |
 
 ---
 
@@ -76,10 +76,12 @@ UploadController.uploadMedia()
 **Tool:** Sharp (Node.js native)
 
 **Files:**
+
 - [`media-processor.service.ts`](apps/api/src/common/media/media-processor.service.ts) — `compressImage()` method
 - [`media.processor.ts`](apps/api/src/common/media/media.processor.ts) — `handleCompressImage()` handler
 
 **Process:**
+
 1. Download original from R2
 2. Generate WebP variants: thumbnail 300w, medium 800w, large 1600w
 3. Generate JPEG fallback: large 1600w
@@ -88,6 +90,7 @@ UploadController.uploadMedia()
 6. Update article `meta` with variant URLs + blurhash
 
 **Output structure in R2:**
+
 ```
 uploads/blog/images/{articleId}/
   ├── original.jpg
@@ -98,6 +101,7 @@ uploads/blog/images/{articleId}/
 ```
 
 **BlurHash in meta:**
+
 ```json
 {
   "images": {
@@ -114,10 +118,12 @@ uploads/blog/images/{articleId}/
 **Tool:** ffmpeg via fluent-ffmpeg
 
 **Files:**
+
 - [`media-processor.service.ts`](apps/api/src/common/media/media-processor.service.ts) — `transcodeVideoToHls()` method
 - [`media.processor.ts`](apps/api/src/common/media/media.processor.ts) — `handleTranscodeVideo()` handler
 
 **Process:**
+
 1. Download original video from R2
 2. Detect source dimensions via ffprobe (width + height)
 3. Compute target qualities preserving aspect ratio (see section 2.3.1)
@@ -132,6 +138,7 @@ uploads/blog/images/{articleId}/
 8. Update article `meta.video` with hlsUrl, poster, duration, qualities
 
 **Output structure in R2:**
+
 ```
 uploads/blog/videos/{articleId}/
   ├── master.m3u8
@@ -147,6 +154,7 @@ uploads/blog/videos/{articleId}/
 ```
 
 **meta.video structure:**
+
 ```json
 {
   "video": {
@@ -167,7 +175,7 @@ uploads/blog/videos/{articleId}/
 
 ```typescript
 // Before: Hardcoded 16:9 resolutions
-const resolutions = ['854:480', '1280:720', '1920:1080'];
+const resolutions = ["854:480", "1280:720", "1920:1080"];
 // ffmpeg -vf "scale=854:480"  ← forces 16:9 regardless of source
 
 // After: Dynamic aspect-ratio-preserving computation
@@ -182,6 +190,7 @@ const evenHeight = targetHeight % 2 === 0 ? targetHeight : targetHeight - 1;
 ```
 
 **Edge cases handled:**
+
 - Source smaller than target quality → clamps to source dimensions (no upscaling)
 - Odd pixel dimensions → rounded down to even (H.264 requirement)
 - Vertical videos (9:16) → correctly transcoded as 480x854 instead of 854x480
@@ -191,25 +200,27 @@ const evenHeight = targetHeight % 2 === 0 ? targetHeight : targetHeight - 1;
 
 To prevent OOM crashes from large uploads:
 
-| Protection | Location | Threshold |
-|-----------|----------|-----------|
-| Upload controller limit | [`upload.controller.ts`](apps/api/src/common/upload/upload.controller.ts:38) | Images: 20MB, Videos: 200MB |
-| Multer hard cap | [`upload.controller.ts`](apps/api/src/common/upload/upload.controller.ts:40) | 200MB |
-| Worker image skip | [`media.processor.ts`](apps/api/src/common/media/media.processor.ts:57) | > 50MB skipped |
-| Worker video skip | [`media.processor.ts`](apps/api/src/common/media/media.processor.ts:57) | > 500MB skipped |
-| Sharp dimension limit | [`media-processor.service.ts`](apps/api/src/common/media/media-processor.service.ts:31) | Max 4000px width/height |
+| Protection              | Location                                                                                | Threshold                   |
+| ----------------------- | --------------------------------------------------------------------------------------- | --------------------------- |
+| Upload controller limit | [`upload.controller.ts`](apps/api/src/common/upload/upload.controller.ts:38)            | Images: 20MB, Videos: 200MB |
+| Multer hard cap         | [`upload.controller.ts`](apps/api/src/common/upload/upload.controller.ts:40)            | 200MB                       |
+| Worker image skip       | [`media.processor.ts`](apps/api/src/common/media/media.processor.ts:57)                 | > 50MB skipped              |
+| Worker video skip       | [`media.processor.ts`](apps/api/src/common/media/media.processor.ts:57)                 | > 500MB skipped             |
+| Sharp dimension limit   | [`media-processor.service.ts`](apps/api/src/common/media/media-processor.service.ts:31) | Max 4000px width/height     |
 
 ### 2.5 Create Page Video Transcoding Fix
 
 **Problem:** When creating a new article, videos uploaded via the editor had no `articleId`, so the `transcode-video` job was never enqueued.
 
 **Solution:**
+
 1. Create page tracks uploaded video keys in a `useRef`
 2. After article creation succeeds, calls `POST /admin/blog/articles/:id/trigger-video-transcode` for each tracked key
 3. Backend enqueues the `transcode-video` job via existing BullMQ queue
 
 **Files:**
-- [`create/page.tsx`](apps/admin-next/src/app/(dashboard)/blog/articles/create/page.tsx) — track video keys, trigger after creation
+
+- [`create/page.tsx`](<apps/admin-next/src/app/(dashboard)/blog/articles/create/page.tsx>) — track video keys, trigger after creation
 - [`blog.service.ts`](apps/api/src/blog/blog.service.ts) — `triggerVideoTranscode()` method
 - [`blog.controller.ts`](apps/api/src/blog/blog.controller.ts) — `POST :id/trigger-video-transcode` endpoint
 
@@ -218,11 +229,13 @@ To prevent OOM crashes from large uploads:
 **Problem:** Articles created before the HLS pipeline existed still serve raw MP4 files.
 
 **Solution:** Admin API endpoint `POST /admin/blog/articles/backfill-videos` that:
+
 1. Queries articles with video `coverImage` but no `meta.video.hlsUrl`
 2. Enqueues `transcode-video` jobs for eligible articles
 3. Sets `meta.video.status = 'pending'` during processing
 
 **Files:**
+
 - [`blog.service.ts`](apps/api/src/blog/blog.service.ts) — `findArticlesWithVideoCovers()` + `backfillVideoTranscode()`
 - [`blog.module.ts`](apps/api/src/blog/blog.module.ts) — registers `MEDIA_PROCESSOR_QUEUE`
 - [`blog.controller.ts`](apps/api/src/blog/blog.controller.ts) — backfill endpoint
@@ -255,24 +268,24 @@ page.tsx (SSR)
 
 ### 3.2 Key Components
 
-| Component | File | Purpose |
-|-----------|------|---------|
-| `HeroSection` | [`HeroSection.tsx`](apps/frontend-blog/src/components/blog/HeroSection.tsx) | Featured article display with carousel |
-| `HlsVideoPlayer` | [`HlsVideoPlayer.tsx`](apps/frontend-blog/src/components/blog/HlsVideoPlayer.tsx) | HLS playback via hls.js with poster + play overlay |
-| `BlurhashImage` | [`BlurhashImage.tsx`](apps/frontend-blog/src/components/blog/BlurhashImage.tsx) | Canvas-based BlurHash rendering, no external deps |
-| `ArticleCard` | [`ArticleCard.tsx`](apps/frontend-blog/src/components/blog/ArticleCard.tsx) | Blog article card with media/text layout |
-| `CategoryFilter` | [`CategoryFilter.tsx`](apps/frontend-blog/src/components/blog/CategoryFilter.tsx) | Scrollable category tabs with progress bar |
-| `PopularArticles` | [`PopularArticles.tsx`](apps/frontend-blog/src/components/blog/PopularArticles.tsx) | Top-5 ranked sidebar |
-| `LoadMore` | [`LoadMore.tsx`](apps/frontend-blog/src/components/blog/LoadMore.tsx) | Pagination with loading spinner |
-| `SanitizedContent` | [`SanitizedContent.tsx`](apps/frontend-blog/src/components/SanitizedContent.tsx) | DOMPurify HTML sanitization via next/dynamic |
+| Component          | File                                                                                | Purpose                                            |
+| ------------------ | ----------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `HeroSection`      | [`HeroSection.tsx`](apps/frontend-blog/src/components/blog/HeroSection.tsx)         | Featured article display with carousel             |
+| `HlsVideoPlayer`   | [`HlsVideoPlayer.tsx`](apps/frontend-blog/src/components/blog/HlsVideoPlayer.tsx)   | HLS playback via hls.js with poster + play overlay |
+| `BlurhashImage`    | [`BlurhashImage.tsx`](apps/frontend-blog/src/components/blog/BlurhashImage.tsx)     | Canvas-based BlurHash rendering, no external deps  |
+| `ArticleCard`      | [`ArticleCard.tsx`](apps/frontend-blog/src/components/blog/ArticleCard.tsx)         | Blog article card with media/text layout           |
+| `CategoryFilter`   | [`CategoryFilter.tsx`](apps/frontend-blog/src/components/blog/CategoryFilter.tsx)   | Scrollable category tabs with progress bar         |
+| `PopularArticles`  | [`PopularArticles.tsx`](apps/frontend-blog/src/components/blog/PopularArticles.tsx) | Top-5 ranked sidebar                               |
+| `LoadMore`         | [`LoadMore.tsx`](apps/frontend-blog/src/components/blog/LoadMore.tsx)               | Pagination with loading spinner                    |
+| `SanitizedContent` | [`SanitizedContent.tsx`](apps/frontend-blog/src/components/SanitizedContent.tsx)    | DOMPurify HTML sanitization via next/dynamic       |
 
 ### 3.3 Admin Panel Components
 
-| Component | File | Purpose |
-|-----------|------|---------|
-| `BlogArticleModal` | [`BlogArticleModal.tsx`](apps/admin-next/src/views/blog/BlogArticleModal.tsx) | Article create/edit modal with localized fields |
-| `ArticleForm` | [`ArticleForm.tsx`](apps/admin-next/src/views/blog/ArticleForm.tsx) | Article form with RichTextEditor integration |
-| `BlogTranslationProgress` | [`BlogTranslationProgress.tsx`](apps/admin-next/src/views/blog/BlogTranslationProgress.tsx) | AI translation progress per article |
+| Component                 | File                                                                                        | Purpose                                         |
+| ------------------------- | ------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| `BlogArticleModal`        | [`BlogArticleModal.tsx`](apps/admin-next/src/views/blog/BlogArticleModal.tsx)               | Article create/edit modal with localized fields |
+| `ArticleForm`             | [`ArticleForm.tsx`](apps/admin-next/src/views/blog/ArticleForm.tsx)                         | Article form with RichTextEditor integration    |
+| `BlogTranslationProgress` | [`BlogTranslationProgress.tsx`](apps/admin-next/src/views/blog/BlogTranslationProgress.tsx) | AI translation progress per article             |
 
 ### 3.4 Split Link Navigation (Card Click Behavior)
 
@@ -281,6 +294,7 @@ page.tsx (SSR)
 **Solution:** Split the card link — video/cover area is standalone (no navigation), text content (title/excerpt/meta) is wrapped in `<Link>` for navigation.
 
 **Files modified:**
+
 - [`ArticleCard.tsx`](apps/frontend-blog/src/components/blog/ArticleCard.tsx) — cover media outside Link, text inside Link
 - [`HeroSection.tsx`](apps/frontend-blog/src/components/blog/HeroSection.tsx) — main card + side cards: media standalone, text overlay in Link
 
@@ -320,6 +334,7 @@ page.client.tsx (Client Component)
 **Solution:** Isolated DOMPurify into a separate component loaded via `next/dynamic` with `{ ssr: false }`.
 
 **Files:**
+
 - [`SanitizedContent.tsx`](apps/frontend-blog/src/components/SanitizedContent.tsx) — client-only component wrapping DOMPurify
 - [`page.client.tsx`](apps/frontend-blog/src/app/[locale]/articles/[slug]/page.client.tsx) — uses dynamic import with `ssr: false`
 
@@ -327,19 +342,69 @@ page.client.tsx (Client Component)
 
 ```typescript
 ALLOWED_TAGS: [
-  'h1','h2','h3','h4','h5','h6',
-  'p','br','strong','em','u','s',
-  'blockquote','code','pre','ul','ol','li',
-  'a','img','video','source','iframe',
-  'figure','figcaption','table','thead','tbody','tr','th','td',
-  'div','span','hr','sub','sup','mark','del','ins',
-]
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "p",
+  "br",
+  "strong",
+  "em",
+  "u",
+  "s",
+  "blockquote",
+  "code",
+  "pre",
+  "ul",
+  "ol",
+  "li",
+  "a",
+  "img",
+  "video",
+  "source",
+  "iframe",
+  "figure",
+  "figcaption",
+  "table",
+  "thead",
+  "tbody",
+  "tr",
+  "th",
+  "td",
+  "div",
+  "span",
+  "hr",
+  "sub",
+  "sup",
+  "mark",
+  "del",
+  "ins",
+];
 ALLOWED_ATTR: [
-  'href','target','rel','src','alt','title',
-  'width','height','class','style',
-  'controls','autoplay','loop','muted','poster',
-  'playsinline','preload','frameborder','allowfullscreen','allow','type',
-]
+  "href",
+  "target",
+  "rel",
+  "src",
+  "alt",
+  "title",
+  "width",
+  "height",
+  "class",
+  "style",
+  "controls",
+  "autoplay",
+  "loop",
+  "muted",
+  "poster",
+  "playsinline",
+  "preload",
+  "frameborder",
+  "allowfullscreen",
+  "allow",
+  "type",
+];
 ```
 
 ---
@@ -382,8 +447,9 @@ Frontend requests /api/articles/:slug?lang=en
 **Fix 2 (Preventive):** [`blog-ai.processor.ts`](apps/api/src/blog/processors/blog-ai.processor.ts:847) now extracts video tags from original HTML before translation and appends them to the translated HTML.
 
 **Video tag extraction regex:**
+
 ```typescript
-/<figure[^>]*>[\s\S]*?<video[\s\S]*?<\/video>[\s\S]*?<\/figure>|<video[\s\S]*?<\/video>/gi
+/<figure[^>]*>[\s\S]*?<video[\s\S]*?<\/video>[\s\S]*?<\/figure>|<video[\s\S]*?<\/video>/gi;
 ```
 
 ### 5.4 Bug: Modal Update Not Triggering for Untranslated Articles
@@ -391,6 +457,7 @@ Frontend requests /api/articles/:slug?lang=en
 **Root cause:** [`BlogArticleModal.tsx`](apps/admin-next/src/views/blog/BlogArticleModal.tsx) set empty strings `''` for untranslated locale keys. The Zod schema `localizedStringSchema.min(1)` rejected these empty strings, causing `zodValidation.parse()` to throw before the API call.
 
 **Fix:** Removed the loop that set `''` for untranslated locales. Changed content assignment to:
+
 ```typescript
 if (content) {
   contentLocalized[locale.code] = content;
@@ -410,10 +477,12 @@ if (content) {
 ### 6.1 RichTextEditor Video Embedding
 
 **Files:**
+
 - [`ArticleForm.tsx`](apps/admin-next/src/views/blog/ArticleForm.tsx) — wraps RichTextEditor with form integration
 - [`BlogArticleModal.tsx`](apps/admin-next/src/views/blog/BlogArticleModal.tsx) — modal with localized form fields
 
 **Video insertion flow:**
+
 1. User clicks video button in Quill toolbar
 2. Upload dialog opens, file selected
 3. Upload sent to `POST /admin/upload/image` (with `articleId` if editing)
@@ -424,11 +493,13 @@ if (content) {
 ### 6.2 RichTextEditor Content Fix (Race Condition)
 
 **Problem:** Three conflicting mechanisms caused content flickering/replacement:
+
 1. `value` prop from parent updates content
 2. `dangerouslyPasteHTML()` in `useEffect` overwrites editor content
 3. User edits trigger `onChange` which updates parent state
 
 **Fix:**
+
 - Eliminated redundant `dangerouslyPasteHTML` by using `value` prop exclusively
 - Guarded `watch` subscription in `ArticleForm` during form reset
 - Added defensive content overwrite guard in `BlogArticleModal`
@@ -436,6 +507,7 @@ if (content) {
 ### 6.3 Upload Progress Indicator
 
 **Files:**
+
 - [`http.ts`](apps/admin-next/src/api/http.ts) — `upload()` supports `onProgress` callback via XMLHttpRequest
 - [`index.ts`](apps/admin-next/src/api/index.ts) — `uploadMedia()` passes progress callback through
 - [`BlogArticleModal.tsx`](apps/admin-next/src/views/blog/BlogArticleModal.tsx) — shows progress bar during upload
@@ -449,6 +521,7 @@ if (content) {
 **File:** [`HlsVideoPlayer.tsx`](apps/frontend-blog/src/components/blog/HlsVideoPlayer.tsx)
 
 **Key features:**
+
 - Uses `hls.js` for HLS playback in browsers that don't natively support HLS
 - Falls back to native `<video>` for Safari (native HLS support)
 - Poster image shown before playback starts
@@ -464,6 +537,7 @@ if (content) {
 **Fix:** Use `meta.video.poster` (JPEG thumbnail generated during transcoding) as the poster, falling back to `coverImage` only if it's an actual image.
 
 **Files:**
+
 - [`ArticleCard.tsx`](apps/frontend-blog/src/components/blog/ArticleCard.tsx) — uses `meta?.video?.poster`
 - [`HeroSection.tsx`](apps/frontend-blog/src/components/blog/HeroSection.tsx) — uses `meta?.video?.poster`, checks `isVideoUrl()` for fallback
 - [`frontend-blog.ts`](apps/frontend-blog/src/lib/types/frontend-blog.ts) — added `poster?: string` to video type
@@ -471,6 +545,7 @@ if (content) {
 ### 7.3 Cache & Black Box Fix
 
 **Issues addressed:**
+
 1. **ISR cache too long:** Article detail page had `revalidate = 3600` (1hr) — reduced to `60` (match homepage)
 2. **React Query staleTime too long:** 1hr → 5min
 3. **Poster used video URL:** Fixed to use `meta.video.poster`
@@ -503,6 +578,7 @@ if (content) {
 See [`docs/blog/development/RICH_TEXT_EDITOR_KNOWN_ISSUES.md`](docs/blog/development/RICH_TEXT_EDITOR_KNOWN_ISSUES.md) for full list.
 
 Key resolved issues:
+
 - Video tag insertion via `Html5VideoBlot`
 - Content race condition between `value` prop and `dangerouslyPasteHTML`
 - DOMPurify SSR incompatibility (resolved via `next/dynamic`)
@@ -545,7 +621,7 @@ flowchart TD
     F --> G[RenderMarkdown translated text]
     G --> H[Append video tags to translated HTML]
     H --> I[Save to contentLocalized.en]
-    
+
     J[Frontend requests ?lang=en] --> K[getLocalizedString content en]
     K --> L{contentLocalized.en exists?}
     L -->|Yes| M{Has video tags?}
@@ -560,28 +636,28 @@ flowchart TD
 
 ## 11. Complete Bug Fixes & Issues Log
 
-| # | Issue | Root Cause | Fix | Status |
-|---|-------|-----------|-----|--------|
-| 1 | Video HLS transcoding deformed | Hardcoded 16:9 resolutions in ffmpeg scale filter | Dynamic aspect-ratio-preserving computation | ✅ |
-| 2 | Create page video not transcoded | No articleId at upload time | Track video keys, trigger after creation | ✅ |
-| 3 | Video tags lost in translation | renderMarkdown strips HTML tags | Preserve video tags in processor + query-time merge | ✅ |
-| 4 | Modal Update not working | Empty strings for untranslated locales fail Zod validation | Remove empty string assignment, guard content | ✅ |
-| 5 | Title/excerpt empty for untranslated | Reading per-locale field directly | Use *LocalizedFull with fallback | ✅ |
-| 6 | RichTextEditor content race condition | value prop + dangerouslyPasteHTML + useEffect conflict | Eliminate redundant pasteHTML, guard form reset | ✅ |
-| 7 | DOMPurify SSR crash | Turbopack pre-resolves dynamic import | next/dynamic with ssr:false | ✅ |
-| 8 | Featured article 404 error | HeroSection uses next/link without locale prefix | Switch to @/navigation Link | ✅ |
-| 9 | Video poster black/blank | Video URL used as poster attribute | Use meta.video.poster with image fallback | ✅ |
-| 10 | HLS black box - play not working | pointer-events-none on overlay, no play handler | Clickable overlay calls video.play() | ✅ |
-| 11 | HLS black box - stale cache | 1hr ISR + 1hr React Query cache | Reduced to 60s / 5min | ✅ |
-| 12 | Card click navigates instead of playing video | Entire card wrapped in Link | Split link: media standalone, text navigates | ✅ |
-| 13 | Media pipeline dead code | articleId never passed to upload | Added articleId to UploadFolderDto + chain | ✅ |
-| 14 | Variants uploaded to wrong bucket | uploadToPublicBucket not used | Created uploadToPublicBucket method | ✅ |
-| 15 | No-image article crashes | undefined src passed to next/image | Optional src + gradient placeholder | ✅ |
-| 16 | Large files cause OOM | No size limits | Added multi-layer file size protection | ✅ |
-| 17 | Circular dependency Upload↔MediaProcessor | Module cross-import | Extracted queue name constant | ✅ |
-| 18 | Docker react-blurhash install hang | Native addon not compatible | Inline Canvas-based BlurHash | ✅ |
-| 19 | React 18→19 upgrade breakage | Missing direct deps | Added lucide-react, framer-motion | ✅ |
-| 20 | placehold.co not in next/image config | Missing remotePatterns | Added to next.config.ts | ✅ |
+| #   | Issue                                         | Root Cause                                                 | Fix                                                 | Status |
+| --- | --------------------------------------------- | ---------------------------------------------------------- | --------------------------------------------------- | ------ |
+| 1   | Video HLS transcoding deformed                | Hardcoded 16:9 resolutions in ffmpeg scale filter          | Dynamic aspect-ratio-preserving computation         | ✅     |
+| 2   | Create page video not transcoded              | No articleId at upload time                                | Track video keys, trigger after creation            | ✅     |
+| 3   | Video tags lost in translation                | renderMarkdown strips HTML tags                            | Preserve video tags in processor + query-time merge | ✅     |
+| 4   | Modal Update not working                      | Empty strings for untranslated locales fail Zod validation | Remove empty string assignment, guard content       | ✅     |
+| 5   | Title/excerpt empty for untranslated          | Reading per-locale field directly                          | Use \*LocalizedFull with fallback                   | ✅     |
+| 6   | RichTextEditor content race condition         | value prop + dangerouslyPasteHTML + useEffect conflict     | Eliminate redundant pasteHTML, guard form reset     | ✅     |
+| 7   | DOMPurify SSR crash                           | Turbopack pre-resolves dynamic import                      | next/dynamic with ssr:false                         | ✅     |
+| 8   | Featured article 404 error                    | HeroSection uses next/link without locale prefix           | Switch to @/navigation Link                         | ✅     |
+| 9   | Video poster black/blank                      | Video URL used as poster attribute                         | Use meta.video.poster with image fallback           | ✅     |
+| 10  | HLS black box - play not working              | pointer-events-none on overlay, no play handler            | Clickable overlay calls video.play()                | ✅     |
+| 11  | HLS black box - stale cache                   | 1hr ISR + 1hr React Query cache                            | Reduced to 60s / 5min                               | ✅     |
+| 12  | Card click navigates instead of playing video | Entire card wrapped in Link                                | Split link: media standalone, text navigates        | ✅     |
+| 13  | Media pipeline dead code                      | articleId never passed to upload                           | Added articleId to UploadFolderDto + chain          | ✅     |
+| 14  | Variants uploaded to wrong bucket             | uploadToPublicBucket not used                              | Created uploadToPublicBucket method                 | ✅     |
+| 15  | No-image article crashes                      | undefined src passed to next/image                         | Optional src + gradient placeholder                 | ✅     |
+| 16  | Large files cause OOM                         | No size limits                                             | Added multi-layer file size protection              | ✅     |
+| 17  | Circular dependency Upload↔MediaProcessor     | Module cross-import                                        | Extracted queue name constant                       | ✅     |
+| 18  | Docker react-blurhash install hang            | Native addon not compatible                                | Inline Canvas-based BlurHash                        | ✅     |
+| 19  | React 18→19 upgrade breakage                  | Missing direct deps                                        | Added lucide-react, framer-motion                   | ✅     |
+| 20  | placehold.co not in next/image config         | Missing remotePatterns                                     | Added to next.config.ts                             | ✅     |
 
 ---
 
@@ -679,29 +755,34 @@ apps/admin-next/src/
 ## 13. Key Technical Decisions
 
 ### Why HLS instead of MP4 streaming?
+
 - Adaptive bitrate switching based on network conditions
 - Instant start (first 2-4 second segment loads fast)
 - Industry standard (YouTube, Netflix)
 - hls.js enables cross-browser support
 
 ### Why BullMQ instead of immediate processing?
+
 - Non-blocking upload — user gets instant response
 - Queue backpressure — prevents server overload
 - Retry logic — failed jobs retry up to 3 times
 - Concurrency control — max 2 simultaneous transcode jobs
 
 ### Why Canvas-based BlurHash instead of react-blurhash?
+
 - Docker build compatibility (no native addon compilation)
 - Zero external dependencies
 - Full control over rendering
 - Smaller bundle size
 
 ### Why next/dynamic for DOMPurify?
+
 - Turbopack static analysis breaks on `import('dompurify')` even in useEffect
 - `ssr: false` creates separate client-only chunk
 - Avoids server-side reference to browser-only APIs (window, document)
 
 ### Why `@/navigation` Link instead of `next/link`?
+
 - Auto-prepends locale prefix from route params
 - Prevents 404 errors from locale-missing URLs
 - Consistent with next-intl i18n architecture
@@ -712,6 +793,7 @@ apps/admin-next/src/
 ## 14. Verification Checklist
 
 Before each deployment:
+
 - [ ] TypeScript check: `yarn workspace @lucky/api check-types`
 - [ ] TypeScript check: `yarn workspace @lucky/frontend-blog check-types`
 - [ ] Lint: `yarn workspace @lucky/api lint`

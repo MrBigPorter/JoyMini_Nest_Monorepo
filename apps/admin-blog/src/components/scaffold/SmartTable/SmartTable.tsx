@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import React, {
   useState,
@@ -8,16 +8,16 @@ import React, {
   useRef,
   useImperativeHandle,
   forwardRef,
-} from 'react';
-import get from 'lodash/get';
-import { RefreshCw, Download } from 'lucide-react';
-import { Button } from '@repo/ui';
-import { useQuery } from '@tanstack/react-query';
+} from "react";
+import get from "lodash/get";
+import { RefreshCw, Download } from "lucide-react";
+import { Button } from "@repo/ui";
+import { useQuery } from "@tanstack/react-query";
 
-import { BaseTable } from '@/components/scaffold/BaseTable';
-import { SchemaSearchForm } from '@/components/scaffold/SchemaSearchForm';
-import { Badge, BadgeColor } from '@/components/UIComponents';
-import { NumHelper, TimeHelper } from '@lucky/shared';
+import { BaseTable } from "@/components/scaffold/BaseTable";
+import { SchemaSearchForm } from "@/components/scaffold/SchemaSearchForm";
+import { Badge, BadgeColor } from "@/components/UIComponents";
+import { NumHelper, TimeHelper } from "@lucky/shared";
 
 import type {
   ProColumns,
@@ -25,8 +25,8 @@ import type {
   ActionType,
   ValueType,
   valueEnumType,
-} from './types';
-import { FormSchema } from '@/type/search';
+} from "./types";
+import { FormSchema } from "@/type/search";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 interface SmartTableProps<T extends Record<string, any>> {
@@ -76,38 +76,38 @@ const renderSmartCell = (
   valueEnum?: valueEnumType,
 ) => {
   // console.log('Rendering cell:', { text, type });
-  if (text === null || text === undefined || text === '') return '-';
+  if (text === null || text === undefined || text === "") return "-";
 
   switch (type) {
-    case 'money':
+    case "money":
       return <span className="font-mono">{NumHelper.formatMoney(text)}</span>;
-    case 'date':
+    case "date":
       return (
         <span className="text-gray-500 dark:text-gray-400 text-xs">
           {TimeHelper.formatDate(text)}
         </span>
       );
-    case 'dateTime':
+    case "dateTime":
       return (
         <span className="text-gray-500 dark:text-gray-400 text-xs">
           {TimeHelper.formatDateTime(text)}
         </span>
       );
-    case 'select':
+    case "select":
       if (valueEnum) {
         // 强制转换为合法的 key 类型
         const item = valueEnum[text as string | number];
         if (item) {
           // 🛠️ 修复点：判断 item 是对象配置还是直接的 ReactNode
           if (
-            typeof item === 'object' &&
-            'text' in item &&
+            typeof item === "object" &&
+            "text" in item &&
             !React.isValidElement(item)
           ) {
             // 是配置对象 { text: '...', status: '...' }
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { text: label, status, color } = item as any;
-            const badgeColor = color || status || 'default';
+            const badgeColor = color || status || "default";
             return <Badge color={badgeColor as BadgeColor}>{label}</Badge>;
           }
           // 是 ReactNode (例如 JSX 或 字符串)
@@ -128,22 +128,22 @@ const transformColumnsToSchema = (columns: ProColumns[]): FormSchema[] => {
   return columns
     .filter(
       (col) =>
-        col.search !== false && !col.hideInSearch && col.valueType !== 'option',
+        col.search !== false && !col.hideInSearch && col.valueType !== "option",
     )
     .map((col) => {
-      let type = 'input';
+      let type = "input";
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let options: any[] | undefined = undefined;
 
-      const searchConfig = typeof col.search === 'object' ? col.search : {};
+      const searchConfig = typeof col.search === "object" ? col.search : {};
       const valueType = searchConfig.valueType || col.valueType;
 
-      if (valueType === 'select' && col.valueEnum) {
-        type = 'select';
+      if (valueType === "select" && col.valueEnum) {
+        type = "select";
         options = Object.entries(col.valueEnum).map(([k, v]) => {
           // 🛠️ 修复点：兼容 ReactNode 类型的值
           let label = v;
-          if (typeof v === 'object' && v !== null && 'text' in v) {
+          if (typeof v === "object" && v !== null && "text" in v) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             label = (v as any).text;
           }
@@ -152,15 +152,15 @@ const transformColumnsToSchema = (columns: ProColumns[]): FormSchema[] => {
             value: k,
           };
         });
-        options.unshift({ label: 'All', value: 'ALL' });
-      } else if (valueType === 'date' || valueType === 'dateTime') {
-        type = 'date';
-      } else if (valueType === 'dateRange') {
-        type = 'date';
+        options.unshift({ label: "All", value: "ALL" });
+      } else if (valueType === "date" || valueType === "dateTime") {
+        type = "date";
+      } else if (valueType === "dateRange") {
+        type = "date";
       }
 
       return {
-        key: (col.dataIndex as string) || '',
+        key: (col.dataIndex as string) || "",
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         label: (searchConfig as any).title || col.title,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -175,7 +175,7 @@ const transformColumnsToSchema = (columns: ProColumns[]): FormSchema[] => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ...(searchConfig as any).formItemProps,
         // dateRange 强制 range
-        ...(valueType === 'dateRange' ? { mode: 'range' } : {}),
+        ...(valueType === "dateRange" ? { mode: "range" } : {}),
       };
     });
 };
@@ -202,7 +202,7 @@ const SmartTableInner = <T extends Record<string, any>>(
     initialFormParams = {},
     onParamsChange,
     enableHydration = false,
-    hydrationQueryKey = ['smart-table-hydration'],
+    hydrationQueryKey = ["smart-table-hydration"],
   } = props;
 
   // 引用锁定，防止死循环
@@ -273,7 +273,7 @@ const SmartTableInner = <T extends Record<string, any>>(
         if (!explicitSearchSchema) {
           columns.forEach((col) => {
             const searchConfig =
-              typeof col.search === 'object' ? col.search : {};
+              typeof col.search === "object" ? col.search : {};
             const key = col.dataIndex as string;
             if (searchConfig.transform && transformedParams[key]) {
               const transformed = searchConfig.transform(
@@ -286,7 +286,7 @@ const SmartTableInner = <T extends Record<string, any>>(
         }
 
         Object.keys(transformedParams).forEach((key) => {
-          if (transformedParams[key] === 'ALL') delete transformedParams[key];
+          if (transformedParams[key] === "ALL") delete transformedParams[key];
         });
 
         // 避免搜索参数里的 page/pageSize 覆盖分页控件当前页
@@ -312,7 +312,7 @@ const SmartTableInner = <T extends Record<string, any>>(
           ?.status;
         const is4xx = status != null && status >= 400 && status < 500;
         if (!is4xx) {
-          console.error('[SmartTable] fetch error:', e);
+          console.error("[SmartTable] fetch error:", e);
         }
       } finally {
         setLoading(false);
@@ -404,13 +404,13 @@ const SmartTableInner = <T extends Record<string, any>>(
 
       for (const key in values) {
         if (
-          values[key] === '' ||
+          values[key] === "" ||
           values[key] === undefined ||
           values[key] === null
         ) {
           delete values[key];
         }
-        if (values[key] === 'ALL') {
+        if (values[key] === "ALL") {
           delete values[key];
         }
       }
@@ -493,7 +493,7 @@ const SmartTableInner = <T extends Record<string, any>>(
               >
                 <RefreshCw
                   size={16}
-                  className={loading ? 'animate-spin' : ''}
+                  className={loading ? "animate-spin" : ""}
                 />
               </Button>
             )}

@@ -2,7 +2,8 @@ import dayjs, { OpUnitType, QUnitType, Dayjs } from "dayjs";
 import "./dayjs-setup";
 
 // 环境检测（用 globalThis 避免在 lib 不含 DOM 的 TypeScript 项目中报 TS2304）
-const IS_SERVER = typeof (globalThis as Record<string, unknown>)['window'] === 'undefined';
+const IS_SERVER =
+  typeof (globalThis as Record<string, unknown>)["window"] === "undefined";
 
 // 格式常量池
 export const DATE_FORMATS = {

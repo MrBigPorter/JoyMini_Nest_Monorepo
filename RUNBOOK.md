@@ -33,24 +33,24 @@
 
 ## 🔑 Key Info
 
-| Item | Value |
-|------|-------|
-| VPS User | `root` |
-| VPS Project Dir | `/opt/lucky` |
-| Compose File | `/opt/lucky/compose.prod.yml` |
-| Env File | `/opt/lucky/deploy/.env.prod` |
-| Backup Dir | `/opt/lucky/backups` |
-| Cert Dir | `/opt/lucky/certs` |
+| Item            | Value                         |
+| --------------- | ----------------------------- |
+| VPS User        | `root`                        |
+| VPS Project Dir | `/opt/lucky`                  |
+| Compose File    | `/opt/lucky/compose.prod.yml` |
+| Env File        | `/opt/lucky/deploy/.env.prod` |
+| Backup Dir      | `/opt/lucky/backups`          |
+| Cert Dir        | `/opt/lucky/certs`            |
 
 **Container Names:**
 
-| Service | Container Name |
-|---------|----------------|
-| Backend API | `lucky-backend-prod` |
-| Admin Next | `lucky-admin-next-prod` |
-| Nginx | `lucky-nginx-prod` |
-| Redis | `lucky-redis-prod` |
-| PostgreSQL | `lucky-db-prod` |
+| Service     | Container Name          |
+| ----------- | ----------------------- |
+| Backend API | `lucky-backend-prod`    |
+| Admin Next  | `lucky-admin-next-prod` |
+| Nginx       | `lucky-nginx-prod`      |
+| Redis       | `lucky-redis-prod`      |
+| PostgreSQL  | `lucky-db-prod`         |
 
 ---
 
@@ -377,12 +377,12 @@ CF_ROLLBACK_TARGET=your.vps.ip \
 
 **Required Env Vars:**
 
-| Variable | Description |
-|----------|-------------|
-| `CLOUDFLARE_API_TOKEN` | Cloudflare API Token |
-| `CLOUDFLARE_ZONE_ID` | Cloudflare Zone ID |
-| `CLOUDFLARE_DNS_RECORD_ID` | DNS Record ID |
-| `CF_SWITCH_TARGET` / `CF_ROLLBACK_TARGET` | Target address |
+| Variable                                  | Description          |
+| ----------------------------------------- | -------------------- |
+| `CLOUDFLARE_API_TOKEN`                    | Cloudflare API Token |
+| `CLOUDFLARE_ZONE_ID`                      | Cloudflare Zone ID   |
+| `CLOUDFLARE_DNS_RECORD_ID`                | DNS Record ID        |
+| `CF_SWITCH_TARGET` / `CF_ROLLBACK_TARGET` | Target address       |
 
 ---
 
@@ -391,6 +391,7 @@ CF_ROLLBACK_TARGET=your.vps.ip \
 ### Auto Deploy (CI)
 
 Pushing to `main` or `test` with blog-related changes triggers auto-deploy:
+
 - `apps/frontend-blog/**`
 - `packages/shared/**`
 - `packages/ui/**`
@@ -530,15 +531,15 @@ chmod +x /root/server-init.sh
 
 **Init script does automatically:**
 
-| # | Step |
-|---|------|
-| 1 | System update + install tools (curl, git, htop, fail2ban) |
-| 2 | Create 1GB Swap + kernel tuning |
-| 3 | Install Docker Engine + Compose Plugin |
-| 4 | Configure UFW firewall (open 22/80/443) |
-| 5 | Configure Fail2Ban (SSH brute force protection) |
-| 6 | Create project dirs at `/opt/lucky` |
-| 7 | Install Certbot |
+| #   | Step                                                      |
+| --- | --------------------------------------------------------- |
+| 1   | System update + install tools (curl, git, htop, fail2ban) |
+| 2   | Create 1GB Swap + kernel tuning                           |
+| 3   | Install Docker Engine + Compose Plugin                    |
+| 4   | Configure UFW firewall (open 22/80/443)                   |
+| 5   | Configure Fail2Ban (SSH brute force protection)           |
+| 6   | Create project dirs at `/opt/lucky`                       |
+| 7   | Install Certbot                                           |
 
 **Manual steps after init:**
 
@@ -702,7 +703,9 @@ yarn tunnel:route
 ---
 
 > **Tip:** For most operations, you only need to remember one command:
+>
 > ```
 > VPS_IP=your.vps.ip ./deploy/deploy.sh
 > ```
+>
 > Come back here to look up any other command when you need it.

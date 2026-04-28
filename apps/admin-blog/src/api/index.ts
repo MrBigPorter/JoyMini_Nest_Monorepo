@@ -2,8 +2,8 @@
  * API 接口定义 - Blog only
  */
 
-import http from './http';
-import type { LoginResponse, AdminUser } from '@/type/types';
+import http from "./http";
+import type { LoginResponse, AdminUser } from "@/type/types";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -13,38 +13,38 @@ import type { LoginResponse, AdminUser } from '@/type/types';
 export const authApi = {
   // 登录
   login: (data: { username: string; password: string }) =>
-    http.post<LoginResponse>('/v1/auth/admin/login', data, {
-      headers: { 'x-skip-auth-refresh': '1' },
+    http.post<LoginResponse>("/v1/auth/admin/login", data, {
+      headers: { "x-skip-auth-refresh": "1" },
     }),
 
   // 登出
-  logout: () => http.post('/v1/auth/admin/logout'),
+  logout: () => http.post("/v1/auth/admin/logout"),
 
   // 设置 HTTP-only Cookie
   setCookie: (token: string) =>
     http.post<{ ok: boolean }>(
-      '/v1/auth/admin/set-cookie',
+      "/v1/auth/admin/set-cookie",
       { token },
-      { withCredentials: true, headers: { 'x-skip-auth-refresh': '1' } },
+      { withCredentials: true, headers: { "x-skip-auth-refresh": "1" } },
     ),
 
   // 清除 HTTP-only Cookie
   clearCookie: () =>
     http.post<{ ok: boolean }>(
-      '/v1/auth/admin/clear-cookie',
+      "/v1/auth/admin/clear-cookie",
       {},
-      { withCredentials: true, headers: { 'x-skip-auth-refresh': '1' } },
+      { withCredentials: true, headers: { "x-skip-auth-refresh": "1" } },
     ),
 
   // 刷新 token
   refreshToken: (refreshToken: string) =>
     http.post<{ tokens: { accessToken: string; refreshToken: string } }>(
-      '/v1/auth/admin/refresh',
+      "/v1/auth/admin/refresh",
       { refreshToken },
     ),
 
   // 获取当前登录管理员信息
-  getMe: () => http.get<AdminUser>('/v1/auth/admin/me'),
+  getMe: () => http.get<AdminUser>("/v1/auth/admin/me"),
 };
 
 export const blogApi = {
@@ -63,7 +63,7 @@ export const blogApi = {
       page: number;
       pageSize: number;
       totalPages: number;
-    }>('/v1/admin/blog/articles', params);
+    }>("/v1/admin/blog/articles", params);
     return {
       list: response.items,
       total: response.total,
@@ -97,7 +97,7 @@ export const blogApi = {
     status?: string;
     featuredImage?: string | File;
   }) => {
-    return await http.post<any>('/v1/admin/blog/articles', payload);
+    return await http.post<any>("/v1/admin/blog/articles", payload);
   },
 
   updateArticle: async (
@@ -145,7 +145,7 @@ export const blogApi = {
     pageSize?: number;
     search?: string;
   }) => {
-    const response = await http.get<any>('/v1/admin/blog/categories', params);
+    const response = await http.get<any>("/v1/admin/blog/categories", params);
     const isArray = Array.isArray(response);
     const list = isArray ? response : response.list || [];
     const total = isArray ? response.length : response.total || list.length;
@@ -174,7 +174,7 @@ export const blogApi = {
     description?: Record<string, string | undefined>;
     parentId?: string;
   }) => {
-    return await http.post<any>('/v1/admin/blog/categories', payload);
+    return await http.post<any>("/v1/admin/blog/categories", payload);
   },
 
   updateCategory: async (
@@ -199,7 +199,7 @@ export const blogApi = {
     pageSize?: number;
     search?: string;
   }) => {
-    const response = await http.get<any>('/v1/admin/blog/tags', params);
+    const response = await http.get<any>("/v1/admin/blog/tags", params);
     const isArray = Array.isArray(response);
     const list = isArray ? response : response.list || [];
     const total = isArray ? response.length : response.total || list.length;
@@ -228,7 +228,7 @@ export const blogApi = {
     color?: string;
     description?: Record<string, string | undefined>;
   }) => {
-    return await http.post<any>('/v1/admin/blog/tags', payload);
+    return await http.post<any>("/v1/admin/blog/tags", payload);
   },
 
   updateTag: async (
@@ -259,7 +259,7 @@ export const blogApi = {
       total: number;
       page: number;
       pageSize: number;
-    }>('/v1/admin/blog/comments', params);
+    }>("/v1/admin/blog/comments", params);
     return {
       list: data.list,
       total: data.total,
@@ -300,36 +300,36 @@ export const blogApi = {
 
   // Statistics
   getBlogStatistics: async () => {
-    return await http.get<any>('/v1/admin/blog/statistics');
+    return await http.get<any>("/v1/admin/blog/statistics");
   },
 
   // Translation related APIs
   translation: {
     getDefaultSourceLang: async () => {
       return await http.get<{ code: string; name: string; nativeName: string }>(
-        '/v1/admin/system-config/translation/default-source-lang',
+        "/v1/admin/system-config/translation/default-source-lang",
       );
     },
 
     updateDefaultSourceLang: async (code: string) => {
       return await http.patch(
-        '/v1/admin/system-config/translation/default-source-lang',
+        "/v1/admin/system-config/translation/default-source-lang",
         { code },
       );
     },
 
     getTranslationStats: async () => {
-      return await http.get('/v1/admin/blog/translation/stats');
+      return await http.get("/v1/admin/blog/translation/stats");
     },
 
     getTranslationProgress: async (languageCode?: string) => {
-      return await http.get('/v1/admin/blog/translation-progress', {
+      return await http.get("/v1/admin/blog/translation-progress", {
         languageCode,
       });
     },
 
     getTranslationJobs: async () => {
-      return await http.get('/v1/admin/blog/translation-jobs');
+      return await http.get("/v1/admin/blog/translation-jobs");
     },
 
     getTranslationJobsDetail: async (
@@ -338,7 +338,7 @@ export const blogApi = {
       page?: number,
       pageSize?: number,
     ) => {
-      return await http.get('/v1/admin/blog/translation-jobs-detail', {
+      return await http.get("/v1/admin/blog/translation-jobs-detail", {
         targetLang,
         status,
         page,
@@ -350,11 +350,11 @@ export const blogApi = {
       page?: number;
       pageSize?: number;
     }) => {
-      return await http.get('/v1/admin/blog/translation-logs', params);
+      return await http.get("/v1/admin/blog/translation-logs", params);
     },
 
     getTranslationIssues: async (languageCode?: string) => {
-      return await http.get('/v1/admin/blog/translation-issues', {
+      return await http.get("/v1/admin/blog/translation-issues", {
         languageCode,
       });
     },
@@ -364,15 +364,15 @@ export const blogApi = {
       languageCode?: string;
       issueTypes?: string[];
     }) => {
-      return await http.post('/v1/admin/blog/translation-fix-batch', params);
+      return await http.post("/v1/admin/blog/translation-fix-batch", params);
     },
 
     getEnabledLanguages: async () => {
-      return await http.get('/v1/admin/blog/enabled-languages');
+      return await http.get("/v1/admin/blog/enabled-languages");
     },
 
     getUntranslatedArticles: async (languageCode: string) => {
-      return await http.get('/v1/admin/blog/untranslated-articles', {
+      return await http.get("/v1/admin/blog/untranslated-articles", {
         languageCode,
       });
     },
@@ -397,16 +397,16 @@ export const blogApi = {
  */
 export const systemConfigApi = {
   getAll: () =>
-    http.get<{ list: import('@/type/types').SystemConfigItem[] }>(
-      '/v1/admin/system-config',
+    http.get<{ list: import("@/type/types").SystemConfigItem[] }>(
+      "/v1/admin/system-config",
     ),
   create: (data: { key: string; value: string }) =>
-    http.post<import('@/type/types').SystemConfigItem>(
-      '/v1/admin/system-config',
+    http.post<import("@/type/types").SystemConfigItem>(
+      "/v1/admin/system-config",
       data,
     ),
   update: (key: string, value: string) =>
-    http.patch<import('@/type/types').SystemConfigItem>(
+    http.patch<import("@/type/types").SystemConfigItem>(
       `/v1/admin/system-config/${key}`,
       { value },
     ),
@@ -423,7 +423,7 @@ export const systemConfigApi = {
         enabled: boolean;
         isDefault: boolean;
       }>;
-    }>('/v1/admin/system-config/blog/locales'),
+    }>("/v1/admin/system-config/blog/locales"),
 
   toggleBlogLocale: (code: string, enabled: boolean) =>
     http.patch(`/v1/admin/system-config/blog/locales/${code}`, { enabled }),
@@ -434,11 +434,11 @@ export const systemConfigApi = {
       code: string;
       name: string;
       nativeName: string;
-    }>('/v1/admin/system-config/translation/default-source-lang'),
+    }>("/v1/admin/system-config/translation/default-source-lang"),
 
   updateDefaultSourceLang: (code: string) =>
     http.patch<{ success: boolean }>(
-      '/v1/admin/system-config/translation/default-source-lang',
+      "/v1/admin/system-config/translation/default-source-lang",
       { code },
     ),
 };
@@ -454,7 +454,7 @@ export const uploadApi = {
     extraFields?: Record<string, string>,
   ) =>
     http.upload<{ url: string; key: string }>(
-      '/v1/admin/upload/image',
+      "/v1/admin/upload/image",
       file,
       onProgress,
       {
@@ -468,6 +468,6 @@ export const uploadApi = {
     files.forEach((file, index) => {
       formData.append(`files[${index}]`, file);
     });
-    return http.upload<{ urls: string[] }>('/upload/multiple', formData);
+    return http.upload<{ urls: string[] }>("/upload/multiple", formData);
   },
 };

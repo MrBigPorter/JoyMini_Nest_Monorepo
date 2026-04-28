@@ -41,7 +41,11 @@ filesToCheck.forEach((file) => {
 console.log('\n📋 验证架构变更:');
 
 // 2. 检查auth.store.ts是否使用cookieStorage
-const authStorePath = path.join(__dirname, '..', 'src/lib/stores/auth.store.ts');
+const authStorePath = path.join(
+  __dirname,
+  '..',
+  'src/lib/stores/auth.store.ts',
+);
 const authStoreContent = fs.readFileSync(authStorePath, 'utf-8');
 
 const checks = [
@@ -69,7 +73,11 @@ checks.forEach((check) => {
 });
 
 // 3. 检查cookie-manager.ts是否清理了localStorage冗余逻辑
-const cookieManagerPath = path.join(__dirname, '..', 'src/lib/utils/cookie-manager.ts');
+const cookieManagerPath = path.join(
+  __dirname,
+  '..',
+  'src/lib/utils/cookie-manager.ts',
+);
 const cookieManagerContent = fs.readFileSync(cookieManagerPath, 'utf-8');
 
 const cookieManagerChecks = [
@@ -94,7 +102,11 @@ cookieManagerChecks.forEach((check) => {
 });
 
 // 4. 检查cookie-storage.ts实现
-const cookieStoragePath = path.join(__dirname, '..', 'src/lib/stores/cookie-storage.ts');
+const cookieStoragePath = path.join(
+  __dirname,
+  '..',
+  'src/lib/stores/cookie-storage.ts',
+);
 const cookieStorageContent = fs.readFileSync(cookieStoragePath, 'utf-8');
 
 const cookieStorageChecks = [
@@ -111,7 +123,9 @@ const cookieStorageChecks = [
   {
     name: '实现setItem方法',
     regex: /setItem:\s*\(name:\s*string,\s*value:\s*string\):/,
-    found: cookieStorageContent.includes('setItem: (name: string, value: string):'),
+    found: cookieStorageContent.includes(
+      'setItem: (name: string, value: string):',
+    ),
   },
   {
     name: '实现removeItem方法',
@@ -127,13 +141,9 @@ cookieStorageChecks.forEach((check) => {
 
 // 5. 总结
 console.log('\n📊 测试总结:');
-const totalChecks = [
-  ...checks,
-  ...cookieManagerChecks,
-  ...cookieStorageChecks,
-];
-const passedChecks = totalChecks.filter((check) => 
-  check.shouldBeFalse ? !check.found : check.found
+const totalChecks = [...checks, ...cookieManagerChecks, ...cookieStorageChecks];
+const passedChecks = totalChecks.filter((check) =>
+  check.shouldBeFalse ? !check.found : check.found,
 ).length;
 
 console.log(`  总检查项: ${totalChecks.length}`);

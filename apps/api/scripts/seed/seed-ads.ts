@@ -12,10 +12,7 @@
  * 幂等: 按 title 查重
  */
 import { PrismaClient } from '@prisma/client';
-import {
-  createTreasureResolver,
-  TreasureRefInput,
-} from './treasure-ref';
+import { createTreasureResolver, TreasureRefInput } from './treasure-ref';
 
 const db = new PrismaClient();
 const resolveTreasure = createTreasureResolver(db);
@@ -118,6 +115,8 @@ export async function seedAdvertisements() {
   }
   console.log(`   Advertisement    +${created} new`);
   if (linked > 0 || unresolved > 0) {
-    console.log(`  🔗 Advertisement    ${linked} linked, ${unresolved} unresolved`);
+    console.log(
+      `  🔗 Advertisement    ${linked} linked, ${unresolved} unresolved`,
+    );
   }
 }

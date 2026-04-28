@@ -23,15 +23,18 @@ module.exports = (options) => ({
     ...options.resolve,
     alias: {
       ...(options.resolve && options.resolve.alias),
-      '@lucky/shared': path.resolve(__dirname, '../../packages/shared/src/index.ts'),
+      '@lucky/shared': path.resolve(
+        __dirname,
+        '../../packages/shared/src/index.ts',
+      ),
     },
   },
 
   externals: [
     nodeExternals({
-      modulesDir: MONO_ROOT_NM,         // 主要: 根目录 hoisted node_modules
+      modulesDir: MONO_ROOT_NM, // 主要: 根目录 hoisted node_modules
       additionalModuleDirs: [LOCAL_NM], // 补充: api 本地 node_modules
-      allowlist: [/^@lucky\//],         // @lucky/* 内联进 bundle
+      allowlist: [/^@lucky\//], // @lucky/* 内联进 bundle
     }),
   ],
 

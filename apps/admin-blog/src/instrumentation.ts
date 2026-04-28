@@ -12,12 +12,12 @@ const parseRate = (value: string | undefined, fallback: number) => {
 export async function register() {
   // Only register Sentry in production or when explicitly enabled
   if (
-    process.env.NEXT_RUNTIME === 'nodejs' &&
-    (process.env.NEXT_PUBLIC_SENTRY_ENABLE_DEV === 'true' ||
-      process.env.NODE_ENV === 'production')
+    process.env.NEXT_RUNTIME === "nodejs" &&
+    (process.env.NEXT_PUBLIC_SENTRY_ENABLE_DEV === "true" ||
+      process.env.NODE_ENV === "production")
   ) {
     try {
-      const Sentry = await import('@sentry/nextjs');
+      const Sentry = await import("@sentry/nextjs");
 
       Sentry.init({
         dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
@@ -26,24 +26,24 @@ export async function register() {
           0.1,
         ),
         environment: process.env.NODE_ENV,
-        enabled: process.env.NODE_ENV === 'production',
+        enabled: process.env.NODE_ENV === "production",
         // Only instrument what matters
         integrations: [],
         // Reduce overhead
         attachStacktrace: false,
       });
     } catch (e) {
-      console.warn('[Sentry] Failed to initialize:', e);
+      console.warn("[Sentry] Failed to initialize:", e);
     }
   }
 
   if (
-    process.env.NEXT_RUNTIME === 'edge' &&
-    (process.env.NEXT_PUBLIC_SENTRY_ENABLE_DEV === 'true' ||
-      process.env.NODE_ENV === 'production')
+    process.env.NEXT_RUNTIME === "edge" &&
+    (process.env.NEXT_PUBLIC_SENTRY_ENABLE_DEV === "true" ||
+      process.env.NODE_ENV === "production")
   ) {
     try {
-      const Sentry = await import('@sentry/nextjs');
+      const Sentry = await import("@sentry/nextjs");
 
       Sentry.init({
         dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
@@ -52,12 +52,12 @@ export async function register() {
           0.1,
         ),
         environment: process.env.NODE_ENV,
-        enabled: process.env.NODE_ENV === 'production',
+        enabled: process.env.NODE_ENV === "production",
         integrations: [],
         attachStacktrace: false,
       });
     } catch (e) {
-      console.warn('[Sentry] Failed to initialize:', e);
+      console.warn("[Sentry] Failed to initialize:", e);
     }
   }
 }
@@ -72,7 +72,7 @@ export async function onRequestError(
   context: { routerKind: string; routePath: string; routeType: string },
 ) {
   try {
-    const { captureRequestError } = await import('@sentry/nextjs');
+    const { captureRequestError } = await import("@sentry/nextjs");
     return captureRequestError(error, request, context);
   } catch {
     // Sentry not available — silently ignore

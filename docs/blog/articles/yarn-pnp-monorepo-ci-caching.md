@@ -14,12 +14,12 @@
 
 CI/CD 有 4 个主要工作流：
 
-| 工作流 | 触发条件 | 主要耗时步骤 | 耗时 |
-|--------|----------|-------------|------|
-| `ci.yml` | PR / push | Lint + Type Check + Test + E2E | ~8 min |
-| `deploy-backend.yml` | 后端代码推送 | Docker 构建 + 推送 + SSH 部署 | ~10 min |
-| `deploy-admin-cloudflare.yml` | 管理后台推送 | 构建 + 部署到 Workers | ~6 min |
-| `playwright.yml` | 定时 / 手动 | 安装依赖 + 运行 E2E | ~5 min |
+| 工作流                        | 触发条件     | 主要耗时步骤                   | 耗时    |
+| ----------------------------- | ------------ | ------------------------------ | ------- |
+| `ci.yml`                      | PR / push    | Lint + Type Check + Test + E2E | ~8 min  |
+| `deploy-backend.yml`          | 后端代码推送 | Docker 构建 + 推送 + SSH 部署  | ~10 min |
+| `deploy-admin-cloudflare.yml` | 管理后台推送 | 构建 + 部署到 Workers          | ~6 min  |
+| `playwright.yml`              | 定时 / 手动  | 安装依赖 + 运行 E2E            | ~5 min  |
 
 每次提交代码，开发者平均要等 **10-15 分钟**才能看到 CI 结果。对于追求快速迭代的团队来说，这是不可接受的。
 
@@ -80,6 +80,7 @@ CI/CD 有 4 个主要工作流：
 **效果**：Docker 构建从 ~6 分钟降到 ~2 分钟。
 
 **注意陷阱**：
+
 - GHA 缓存有大小限制（~10GB 压缩后），如果 Docker 镜像太大，需要迁移到 Docker Hub 或 GHCR 作为 cache backend
 - `mode=max` 比默认的 `mode=min` 占用更多缓存空间，但缓存命中率更高
 
@@ -181,6 +182,7 @@ Playwright 每次 `npx playwright install` 会下载 Chromium、Firefox、WebKit
 ```
 
 **注意**：Playwright 的缓存路径在不同操作系统上不同：
+
 - Linux/macOS：`~/.cache/ms-playwright`
 - Windows：`%USERPROFILE%\AppData\Local\ms-playwright`
 
@@ -211,6 +213,7 @@ restore-keys: |
 ### 陷阱 2：缓存大小限制
 
 GitHub Actions 的缓存上限是：
+
 - 每个仓库：~10GB（压缩后）
 - 单个缓存条目：无明确限制，但建议 < 5GB
 
@@ -226,13 +229,13 @@ Yarn 4 PnP 的完整性检查非常严格。如果 `.yarn/cache` 中的 zip 文�
 
 ## 6. 优化效果
 
-| 工作流 | 优化前 | 优化后 | 加速 | 主要缓存类型 |
-|--------|--------|--------|------|-------------|
-| ci.yml | ~8min | ~3min | 2.7x | Yarn zip + module + Turbo |
-| deploy-backend.yml | ~10min | ~4min | 2.5x | Docker layer + Yarn zip |
-| deploy-admin-cloudflare.yml | ~6min | ~2min | 3x | Yarn zip + Turbo |
-| playwright.yml | ~5min | ~2min | 2.5x | Playwright browser + Yarn zip |
-| **合计** | **~29min** | **~11min** | **2.6x** | |
+| 工作流                      | 优化前     | 优化后     | 加速     | 主要缓存类型                  |
+| --------------------------- | ---------- | ---------- | -------- | ----------------------------- |
+| ci.yml                      | ~8min      | ~3min      | 2.7x     | Yarn zip + module + Turbo     |
+| deploy-backend.yml          | ~10min     | ~4min      | 2.5x     | Docker layer + Yarn zip       |
+| deploy-admin-cloudflare.yml | ~6min      | ~2min      | 3x       | Yarn zip + Turbo              |
+| playwright.yml              | ~5min      | ~2min      | 2.5x     | Playwright browser + Yarn zip |
+| **合计**                    | **~29min** | **~11min** | **2.6x** |                               |
 
 > 注意：这些是典型的冷启动到热启动的时间变化。如果 runner 在不同机器上运行（GitHub Actions 默认行为），第一次运行可能仍然较慢，但后续提交会显著加速。
 
@@ -260,4 +263,4 @@ Yarn 4 PnP 的完整性检查非常严格。如果 `.yarn/cache` 中的 zip 文�
 
 ---
 
-*本文基于 JoyMini Nest Monorepo 项目的 CI/CD 优化经验。项目使用 Yarn 4 PnP + GitHub Actions + Docker，代码开源可在 GitHub 上查看。*
+_本文基于 JoyMini Nest Monorepo 项目的 CI/CD 优化经验。项目使用 Yarn 4 PnP + GitHub Actions + Docker，代码开源可在 GitHub 上查看。_

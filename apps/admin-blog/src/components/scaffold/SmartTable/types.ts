@@ -1,15 +1,15 @@
-import { ReactNode } from 'react';
+import { ReactNode } from "react";
 
 // 1. 支持的数值类型 (增加了 dateRange)
 export type ValueType =
-  | 'text'
-  | 'money'
-  | 'date'
-  | 'dateTime'
-  | 'dateRange'
-  | 'select'
-  | 'option'
-  | 'index';
+  | "text"
+  | "money"
+  | "date"
+  | "dateTime"
+  | "dateRange"
+  | "select"
+  | "option"
+  | "index";
 
 // 修复点 2：更新 valueEnumType 定义
 // 使用索引签名 [key: string | number]，同时支持数字和字符串 Key

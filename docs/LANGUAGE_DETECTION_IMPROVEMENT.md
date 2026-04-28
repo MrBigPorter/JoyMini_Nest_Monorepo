@@ -16,6 +16,7 @@
 基于字符集特征的无依赖检测系统，支持6种语言：`zh`, `en`, `ja`, `ko`, `fr`, `de`。
 
 #### 字符集检测规则：
+
 - **中文**：CJK统一表意文字（0x4e00-0x9fff, 0x3400-0x4dbf）
 - **日文**：平假名（0x3040-0x309f）、片假名（0x30a0-0x30ff）
 - **韩文**：谚文（0xac00-0xd7af）
@@ -27,28 +28,27 @@
 
 ```typescript
 // 中文+英文混合：阈值20%（适应技术术语多的场景）
-if (scores['zh'] && scores['en']) {
-  const zhRatio = scores['zh'] / (scores['zh'] + scores['en']);
-  if (zhRatio > 0.2) return { language: 'zh', confidence: zhRatio };
+if (scores["zh"] && scores["en"]) {
+  const zhRatio = scores["zh"] / (scores["zh"] + scores["en"]);
+  if (zhRatio > 0.2) return { language: "zh", confidence: zhRatio };
 }
 
 // 日文+英文混合：阈值30%
-if (scores['ja'] && scores['en']) {
-  const jaRatio = scores['ja'] / (scores['ja'] + scores['en']);
-  if (jaRatio > 0.3) return { language: 'ja', confidence: jaRatio };
+if (scores["ja"] && scores["en"]) {
+  const jaRatio = scores["ja"] / (scores["ja"] + scores["en"]);
+  if (jaRatio > 0.3) return { language: "ja", confidence: jaRatio };
 }
 
 // 韩文+英文混合：阈值30%
-if (scores['ko'] && scores['en']) {
-  const koRatio = scores['ko'] / (scores['ko'] + scores['en']);
-  if (koRatio > 0.3) return { language: 'ko', confidence: koRatio };
+if (scores["ko"] && scores["en"]) {
+  const koRatio = scores["ko"] / (scores["ko"] + scores["en"]);
+  if (koRatio > 0.3) return { language: "ko", confidence: koRatio };
 }
 ```
 
 ### 3. 词汇增强检测
 
 对于缺少特有字符的语言，使用常见词汇库辅助识别：
-
 
 ```typescript
 // 法文词汇库
@@ -58,7 +58,7 @@ private containsFrenchWords(text: string): boolean {
   return frenchWords.some(word => new RegExp(`\\b${word}\\b`, 'i').test(text.toLowerCase()));
 }
 
-// 德文词汇库  
+// 德文词汇库
 private containsGermanWords(text: string): boolean {
   const germanWords = ['der', 'die', 'das', 'und', 'ist', 'nicht', 'mit', 'von', 'auf', 'für',
                        'wir', 'sie', 'ich', 'du', 'er', 'es', 'hallo', 'welt', 'bitte', 'danke'];
@@ -69,6 +69,7 @@ private containsGermanWords(text: string): boolean {
 ### 4. 翻译完整性检查系统
 
 #### 长度比例检查
+
 ```typescript
 const expectedRatios: Record<string, number> = {
   zh: 1.0, // 中文 -> 英文通常更长
@@ -81,6 +82,7 @@ const expectedRatios: Record<string, number> = {
 ```
 
 #### 残留字符检测
+
 ```typescript
 // 检测目标文本中是否包含源语言字符
 detectResidualCharacters(sourceLanguage: string, targetText: string): string[] {
@@ -94,6 +96,7 @@ detectResidualCharacters(sourceLanguage: string, targetText: string): string[] {
 ```
 
 #### 字段翻译状态检测
+
 ```typescript
 isFieldTranslated(sourceValue: string, targetValue: string, targetLanguage: string): {
   translated: boolean;
@@ -111,6 +114,7 @@ isFieldTranslated(sourceValue: string, targetValue: string, targetLanguage: stri
 ## 技术实现细节
 
 ### 文件位置
+
 - `apps/api/src/common/services/language-detection.service.ts` - 核心服务
 - `test-language-detection.js` - 测试脚本
 
@@ -122,6 +126,7 @@ isFieldTranslated(sourceValue: string, targetValue: string, targetLanguage: stri
 4. **英文标签处理**：相同英文标签不被误判为未翻译
 
 ### 集成点
+
 1. **翻译质量监控**：`detectArticleTranslationIssues`
 2. **字段状态检查**：文章/分类/标签的翻译状态
 3. **残留字符扫描**：翻译完整性验证
@@ -129,6 +134,7 @@ isFieldTranslated(sourceValue: string, targetValue: string, targetLanguage: stri
 ## 测试验证结果
 
 ### 测试用例设计
+
 ```javascript
 const testCases = [
   { text: "Hello world...", expected: "en" },
@@ -146,6 +152,7 @@ const testCases = [
 ```
 
 ### 测试结果
+
 ```
 语言检测测试: 12/12 ✅ (100%)
 字段翻译检查: 5/5 ✅ (100%)
@@ -156,6 +163,7 @@ const testCases = [
 ## 使用场景
 
 ### 1. 翻译质量监控
+
 ```typescript
 // 检测文章翻译问题
 const issues = detectArticleTranslationIssues(articleId, targetLang);
@@ -163,34 +171,37 @@ const issues = detectArticleTranslationIssues(articleId, targetLang);
 ```
 
 ### 2. 字段翻译状态检测
+
 ```typescript
 // 检查单个字段是否已翻译
 const result = languageService.isFieldTranslated(
   article.titleZh,
   article.titleEn,
-  'en'
+  "en",
 );
 // 返回：{ translated: true/false, confidence: 0.9, reason: '...' }
 ```
 
 ### 3. 翻译完整性评估
+
 ```typescript
 // 评估翻译完整性
 const completeness = languageService.checkTranslationCompleteness(
   sourceText,
   translatedText,
-  targetLang
+  targetLang,
 );
 // 返回：{ completeness: 85, issues: ['翻译过短', '残留字符'] }
 ```
 
 ### 4. 残留字符扫描
+
 ```typescript
 // 扫描翻译中的残留字符
 const residualChars = languageService.detectResidualCharacters(
-  'zh',
+  "zh",
   translatedText,
-  'en'
+  "en",
 );
 // 返回：['世', '界'] 或 []
 ```
@@ -198,12 +209,14 @@ const residualChars = languageService.detectResidualCharacters(
 ## 性能与限制
 
 ### 优势
+
 1. **无外部依赖**：纯TypeScript实现，部署简单
 2. **离线运行**：不依赖网络API，响应快速
 3. **内存友好**：无大型模型加载，资源消耗低
 4. **可扩展**：易于添加新语言或优化规则
 
 ### 限制
+
 1. **短文本检测**：极短文本（<3字符）准确率有限
 2. **相似语言区分**：法文/西班牙文/意大利文等拉丁语系区分困难
 3. **新语言支持**：需要手动添加字符集规则
@@ -211,6 +224,7 @@ const residualChars = languageService.detectResidualCharacters(
 ## 后续优化计划
 
 ### 阶段1：franc-min集成（提升短文本检测）
+
 ```bash
 yarn workspace @lucky/api add franc-min
 ```
@@ -218,25 +232,27 @@ yarn workspace @lucky/api add franc-min
 ```typescript
 // 混合检测策略
 const francResult = franc(text);
-if (francResult !== 'und' && confidence > 0.7) {
+if (francResult !== "und" && confidence > 0.7) {
   return mappedLanguage; // 使用franc结果
 }
 return fallbackDetection(text); // 回退到字符集检测
 ```
 
 ### 阶段2：语言代码映射
+
 ```typescript
 const langCodeMap = {
-  'cmn': 'zh', // 中文
-  'eng': 'en', // 英文
-  'jpn': 'ja', // 日文
-  'kor': 'ko', // 韩文
-  'fra': 'fr', // 法文
-  'deu': 'de'  // 德文
+  cmn: "zh", // 中文
+  eng: "en", // 英文
+  jpn: "ja", // 日文
+  kor: "ko", // 韩文
+  fra: "fr", // 法文
+  deu: "de", // 德文
 };
 ```
 
 ### 阶段3：AI服务翻译跳过优化
+
 ```typescript
 // 在AiService.translateText()中添加前置检查
 const sourceLang = languageService.detectLanguage(text);
@@ -248,6 +264,7 @@ if (sourceLang.language === targetLang && sourceLang.confidence > 0.8) {
 ## 部署与维护
 
 ### 1. 服务注册
+
 ```typescript
 // 在相关模块中注册
 @Module({
@@ -258,6 +275,7 @@ export class CommonModule {}
 ```
 
 ### 2. 依赖注入
+
 ```typescript
 constructor(
   private languageService: LanguageDetectionService,
@@ -266,6 +284,7 @@ constructor(
 ```
 
 ### 3. 监控指标
+
 - 检测准确率统计
 - 各语言检测分布
 - 常见错误类型分析
@@ -274,6 +293,7 @@ constructor(
 ## 总结
 
 本次改进实现了：
+
 1. ✅ **100%测试通过率**的可靠语言检测
 2. ✅ **智能混合语言处理**适应技术文档场景
 3. ✅ **法文/德文词汇增强**提升检测准确性

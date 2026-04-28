@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import React from 'react';
-import { Button } from '@repo/ui';
-import { cn } from '@repo/ui';
-import { useTranslation, type TFunc } from '@/hooks/useTranslation';
+import React from "react";
+import { Button } from "@repo/ui";
+import { cn } from "@repo/ui";
+import { useTranslation, type TFunc } from "@/hooks/useTranslation";
 
 interface PaginationProps {
   /** 当前页码 */
@@ -44,12 +44,12 @@ const PaginationInner: React.FC<PaginationProps & { t: TFunc }> = ({
   return (
     <div
       className={cn(
-        'flex justify-between items-center mt-4 text-sm text-gray-500',
+        "flex justify-between items-center mt-4 text-sm text-gray-500",
         className,
       )}
     >
       {/* 左侧：总数显示 */}
-      <div>{t('common_total', { count: total })}</div>
+      <div>{t("common_total", { count: total })}</div>
 
       {/* 右侧：翻页操作 */}
       <div className="flex items-center gap-2">
@@ -60,11 +60,11 @@ const PaginationInner: React.FC<PaginationProps & { t: TFunc }> = ({
           disabled={isFirstPage}
           className="h-8 px-3"
         >
-          {t('common_previous')}
+          {t("common_previous")}
         </Button>
 
         <span className="mx-2 text-xs font-medium">
-          {t('common_pageOf', { current, total: totalPage })}
+          {t("common_pageOf", { current, total: totalPage })}
         </span>
 
         <Button
@@ -74,7 +74,7 @@ const PaginationInner: React.FC<PaginationProps & { t: TFunc }> = ({
           disabled={isLastPage}
           className="h-8 px-3"
         >
-          {t('common_next')}
+          {t("common_next")}
         </Button>
       </div>
     </div>

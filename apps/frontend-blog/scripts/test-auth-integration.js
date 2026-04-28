@@ -12,8 +12,8 @@ const testConfig = {
   protectedRoutes: ['/bookmarks', '/profile', '/settings'],
   testUser: {
     email: 'test@example.com',
-    password: 'password123'
-  }
+    password: 'password123',
+  },
 };
 
 // 测试场景
@@ -26,14 +26,14 @@ const testScenarios = [
       '1. 清除所有认证状态（cookie、localStorage）',
       '2. 访问首页（/zh 或 /en）',
       '3. 点击bookmarks链接',
-      '4. 观察：应该直接跳转到登录页，看不到bookmarks页面内容'
+      '4. 观察：应该直接跳转到登录页，看不到bookmarks页面内容',
     ],
     expected: {
       middlewareIntercept: true,
       protectedLinkIntercept: true,
       noSkeleton: true,
-      redirectToLogin: true
-    }
+      redirectToLogin: true,
+    },
   },
   {
     id: 'SCENARIO_2',
@@ -43,13 +43,13 @@ const testScenarios = [
       '1. 登录系统，设置有效token',
       '2. 访问首页',
       '3. 点击bookmarks链接',
-      '4. 观察：应该正常显示bookmarks页面'
+      '4. 观察：应该正常显示bookmarks页面',
     ],
     expected: {
       middlewarePass: true,
       protectedRouteRender: true,
-      noRedirect: true
-    }
+      noRedirect: true,
+    },
   },
   {
     id: 'SCENARIO_3',
@@ -58,13 +58,13 @@ const testScenarios = [
     steps: [
       '1. 清除认证状态',
       '2. 直接在浏览器输入 /zh/bookmarks',
-      '3. 观察：应该立即重定向到 /zh/login'
+      '3. 观察：应该立即重定向到 /zh/login',
     ],
     expected: {
       middlewareIntercept: true,
       immediateRedirect: true,
-      correctLocale: true
-    }
+      correctLocale: true,
+    },
   },
   {
     id: 'SCENARIO_4',
@@ -74,15 +74,15 @@ const testScenarios = [
       '1. 测试 /zh/bookmarks',
       '2. 测试 /en/bookmarks',
       '3. 测试 /zh-CN/bookmarks',
-      '4. 测试 /bookmarks（无语言前缀）'
+      '4. 测试 /bookmarks（无语言前缀）',
     ],
     expected: {
       zhMatches: true,
       enMatches: true,
       zhCNMatches: true,
-      noLocaleMatches: true
-    }
-  }
+      noLocaleMatches: true,
+    },
+  },
 ];
 
 // 技术验证
@@ -93,16 +93,16 @@ const technicalChecks = [
       ' 添加了调试日志',
       ' 优化了matcher配置',
       ' 正确处理语言前缀',
-      ' 检查token cookie'
-    ]
+      ' 检查token cookie',
+    ],
   },
   {
     component: 'isProtectedRoute函数',
     checks: [
       ' 使用改进的正则表达式',
       ' 支持精确匹配和前缀匹配',
-      ' 添加调试日志'
-    ]
+      ' 添加调试日志',
+    ],
   },
   {
     component: 'ProtectedLink',
@@ -110,30 +110,30 @@ const technicalChecks = [
       ' 简化逻辑，信任中间件',
       ' 只在100%确定未登录时拦截',
       ' 禁用prefetch',
-      ' 记录重定向来源'
-    ]
+      ' 记录重定向来源',
+    ],
   },
   {
     component: 'ProtectedRouteV2',
     checks: [
       ' 信任中间件拦截',
       ' 未认证时返回null，不显示skeleton',
-      ' 立即重定向逻辑'
-    ]
-  }
+      ' 立即重定向逻辑',
+    ],
+  },
 ];
 
 console.log('📋 测试场景概述:');
 testScenarios.forEach((scenario, index) => {
   console.log(`\n${index + 1}. ${scenario.name}`);
   console.log(`   ${scenario.description}`);
-  scenario.steps.forEach(step => console.log(`   ${step}`));
+  scenario.steps.forEach((step) => console.log(`   ${step}`));
 });
 
 console.log('\n🔧 技术实现检查:');
-technicalChecks.forEach(check => {
+technicalChecks.forEach((check) => {
   console.log(`\n${check.component}:`);
-  check.checks.forEach(item => console.log(`   ${item}`));
+  check.checks.forEach((item) => console.log(`   ${item}`));
 });
 
 console.log('\n🎯 关键修复总结:');
@@ -161,8 +161,12 @@ console.log('4. 点击bookmarks链接，观察是否直接跳转到登录页');
 console.log('5. 检查控制台日志，确认各防护层执行顺序');
 
 console.log('\n📊 预期控制台日志顺序:');
-console.log('1. 🔍 Middleware认证检查: {originalPathname: "/zh/bookmarks", ...}');
-console.log('2. 🚨 Middleware拦截未认证请求: {from: "/zh/bookmarks", to: "/zh/login", ...}');
+console.log(
+  '1. 🔍 Middleware认证检查: {originalPathname: "/zh/bookmarks", ...}',
+);
+console.log(
+  '2. 🚨 Middleware拦截未认证请求: {from: "/zh/bookmarks", to: "/zh/login", ...}',
+);
 console.log('3.  用户被重定向到登录页，看不到任何bookmarks页面内容');
 
 console.log('\n⚠️ 问题排查指南:');

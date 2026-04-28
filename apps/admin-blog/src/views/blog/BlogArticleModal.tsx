@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
 // 类型守卫，安全判断 File
 function isFile(val: unknown): val is File {
-  return typeof File !== 'undefined' && val instanceof File;
+  return typeof File !== "undefined" && val instanceof File;
 }
 
 import React, {
@@ -11,23 +11,23 @@ import React, {
   useRef,
   useMemo,
   useCallback,
-} from 'react';
-import { Modal, Button } from '@/components/UIComponents';
-import { Globe, Loader2 } from 'lucide-react';
-import { Form, FormSelectField } from '@repo/ui/form';
-import { useBlogLocalizedForm } from '@/hooks/useBlogLocalizedForm';
-import { articleSchema, type ArticleFormInputs } from '@/schema/blog';
-import { useTranslation } from '@/hooks/useTranslation';
-import type { Locale } from '@/hooks/LanguageProvider';
-import { useAvailableLocales } from '@/hooks/useAvailableLocales';
-import { renderLocalizedText } from '@/utils/localizedText';
+} from "react";
+import { Modal, Button } from "@/components/UIComponents";
+import { Globe, Loader2 } from "lucide-react";
+import { Form, FormSelectField } from "@repo/ui/form";
+import { useBlogLocalizedForm } from "@/hooks/useBlogLocalizedForm";
+import { articleSchema, type ArticleFormInputs } from "@/schema/blog";
+import { useTranslation } from "@/hooks/useTranslation";
+import type { Locale } from "@/hooks/LanguageProvider";
+import { useAvailableLocales } from "@/hooks/useAvailableLocales";
+import { renderLocalizedText } from "@/utils/localizedText";
 
-import { blogApi, uploadApi } from '@/api';
-import { useRequest } from 'ahooks';
-import { useToastStore } from '@/store/useToastStore';
-import { Marked } from 'marked';
+import { blogApi, uploadApi } from "@/api";
+import { useRequest } from "ahooks";
+import { useToastStore } from "@/store/useToastStore";
+import { Marked } from "marked";
 
-import { ArticleForm, ArticleFormRef } from './ArticleForm';
+import { ArticleForm, ArticleFormRef } from "./ArticleForm";
 
 export interface BlogArticleModalProps {
   isOpen: boolean;
@@ -80,8 +80,8 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
           setCategories(categoriesRes.list || []);
           setTags(tagsRes.list || []);
         } catch (error) {
-          console.error('Failed to fetch categories/tags:', error);
-          addToast('error', t('failedLoadData'));
+          console.error("Failed to fetch categories/tags:", error);
+          addToast("error", t("failedLoadData"));
         } finally {
           setIsLoadingData(false);
         }
@@ -138,19 +138,19 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
         const currentFeaturedImage = data.featuredImage;
 
         // 如果featuredImage是字符串（来自ArticleForm），需要转换为多语言对象
-        if (typeof currentFeaturedImage === 'string') {
+        if (typeof currentFeaturedImage === "string") {
           // 创建一个多语言对象，当前语言设置为字符串值，其他语言为空
           const localizedFeaturedImage: Record<string, string> = {};
           availableLocaleCodes.forEach((lang) => {
             localizedFeaturedImage[lang] =
-              lang === currentLocale ? currentFeaturedImage : '';
+              lang === currentLocale ? currentFeaturedImage : "";
           });
           processedData.featuredImage = localizedFeaturedImage;
         }
 
         if (
           processedData.featuredImage &&
-          typeof processedData.featuredImage === 'object'
+          typeof processedData.featuredImage === "object"
         ) {
           for (const lang of Object.keys(processedData.featuredImage)) {
             const value = (processedData.featuredImage as Record<string, any>)[
@@ -231,14 +231,14 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
           if (full) sourceArticle = full;
         } catch (e) {
           console.warn(
-            '[BlogArticleModal] failed to fetch full article, falling back to provided editingArticle',
+            "[BlogArticleModal] failed to fetch full article, falling back to provided editingArticle",
             e,
           );
         }
       }
     } catch (e) {
       console.warn(
-        '[BlogArticleModal] error checking editingArticle content',
+        "[BlogArticleModal] error checking editingArticle content",
         e,
       );
     }
@@ -254,11 +254,11 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
               }
             )?.coverImage ||
             sourceArticle.featuredImage ||
-            '',
+            "",
           categoryId:
             (sourceArticle as any).categoryId ||
             (sourceArticle as any)?.category?.id ||
-            '',
+            "",
         }
       : null;
 
@@ -267,13 +267,13 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
 
     // 处理所有启用语言的内容
     enabledLocales.forEach((locale) => {
-      let content = '';
+      let content = "";
       // 优先使用Localized字段
       if (mappedArticle?.contentLocalized?.[locale.code]) {
         content = mappedArticle.contentLocalized[locale.code];
-      } else if (locale.code === 'en' && mappedArticle?.contentEn) {
+      } else if (locale.code === "en" && mappedArticle?.contentEn) {
         content = mappedArticle.contentEn;
-      } else if (locale.code === 'zh' && mappedArticle?.content) {
+      } else if (locale.code === "zh" && mappedArticle?.content) {
         content = mappedArticle.content;
       }
 
@@ -305,7 +305,7 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
 
     // 重置表单
     console.debug(
-      '[BlogArticleModal] resetting form with titleObj/contentObj (snippet)',
+      "[BlogArticleModal] resetting form with titleObj/contentObj (snippet)",
       {
         titleSnippet: JSON.stringify(titleObj).slice(0, 200),
         contentSnippet: Object.fromEntries(
@@ -322,31 +322,31 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
       excerpt: excerptObj,
       featuredImage: featuredImageObj,
       categoryId:
-        typeof (mappedArticle as any)?.categoryId === 'string'
+        typeof (mappedArticle as any)?.categoryId === "string"
           ? (mappedArticle as any).categoryId
-          : (mappedArticle as any)?.category?.id || '',
+          : (mappedArticle as any)?.category?.id || "",
       tagIds: Array.isArray(mappedArticle?.tagIds)
         ? mappedArticle.tagIds.map((t: any) =>
-            typeof t === 'object' && t !== null && 'id' in t ? t.id : t,
+            typeof t === "object" && t !== null && "id" in t ? t.id : t,
           )
         : Array.isArray(mappedArticle?.tags)
           ? mappedArticle.tags.map((t: any) =>
-              typeof t === 'object' && t !== null && 'id' in t ? t.id : t,
+              typeof t === "object" && t !== null && "id" in t ? t.id : t,
             )
           : [],
-      status: mappedArticle?.status || 'DRAFT',
+      status: mappedArticle?.status || "DRAFT",
       featured: mappedArticle?.featured ?? false,
     });
 
     // 延迟初始化子表单，确保子组件已挂载
     setTimeout(() => {
       const childResetPayload = {
-        title: titleObj[currentLocale] ?? '',
-        content: contentObj[currentLocale] ?? '',
-        excerpt: excerptObj[currentLocale] ?? '',
-        featuredImage: featuredImageObj[currentLocale] ?? '',
+        title: titleObj[currentLocale] ?? "",
+        content: contentObj[currentLocale] ?? "",
+        excerpt: excerptObj[currentLocale] ?? "",
+        featuredImage: featuredImageObj[currentLocale] ?? "",
       };
-      console.debug('[BlogArticleModal] calling articleFormRef.reset with', {
+      console.debug("[BlogArticleModal] calling articleFormRef.reset with", {
         payloadSnippet: Object.fromEntries(
           Object.entries(childResetPayload).map(([k, v]) => [
             k,
@@ -386,22 +386,22 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
       } else {
         // 新建文章时重置所有状态
         reset({
-          title: { zh: '', en: '' },
-          content: { zh: '', en: '' },
-          excerpt: { zh: '', en: '' },
-          featuredImage: { zh: '', en: '' },
-          categoryId: '',
+          title: { zh: "", en: "" },
+          content: { zh: "", en: "" },
+          excerpt: { zh: "", en: "" },
+          featuredImage: { zh: "", en: "" },
+          categoryId: "",
           tagIds: [],
-          status: 'DRAFT',
+          status: "DRAFT",
           featured: false,
         });
 
         setTimeout(() => {
           articleFormRef.current?.reset({
-            title: '',
-            content: '',
-            excerpt: '',
-            featuredImage: '',
+            title: "",
+            content: "",
+            excerpt: "",
+            featuredImage: "",
           });
         }, 0);
       }
@@ -410,22 +410,22 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
       // Clear initialized id so next open will re-initialize
       initializedArticleId.current = null;
       reset({
-        title: { zh: '', en: '' },
-        content: { zh: '', en: '' },
-        excerpt: { zh: '', en: '' },
-        featuredImage: { zh: '', en: '' },
-        categoryId: '',
+        title: { zh: "", en: "" },
+        content: { zh: "", en: "" },
+        excerpt: { zh: "", en: "" },
+        featuredImage: { zh: "", en: "" },
+        categoryId: "",
         tagIds: [],
-        status: 'DRAFT',
+        status: "DRAFT",
         featured: false,
       });
 
       setTimeout(() => {
         articleFormRef.current?.reset({
-          title: '',
-          content: '',
-          excerpt: '',
-          featuredImage: '',
+          title: "",
+          content: "",
+          excerpt: "",
+          featuredImage: "",
         });
       }, 0);
     }
@@ -433,11 +433,11 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
 
   // 辅助函数：安全提取本地化值
   const getLocalizedValue = (value: any, locale: string): string => {
-    if (typeof value === 'string') return value;
-    if (value && typeof value === 'object') {
-      return value[locale] || value['zh'] || value['en'] || '';
+    if (typeof value === "string") return value;
+    if (value && typeof value === "object") {
+      return value[locale] || value["zh"] || value["en"] || "";
     }
-    return '';
+    return "";
   };
 
   // 包装语言切换函数，同时更新子表单
@@ -476,25 +476,25 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
       const res = await upload.runAsync(file, onProgress, extraFields);
       return res.url;
     } catch (error) {
-      addToast('error', t('failedUploadImage'));
+      addToast("error", t("failedUploadImage"));
       throw error;
     }
   };
 
   // Handle tag selection (multi-select)
   const handleTagToggle = (tagId: string) => {
-    const currentTagIds = watch('tagIds') || [];
+    const currentTagIds = watch("tagIds") || [];
     const newTagIds = currentTagIds.includes(tagId)
       ? currentTagIds.filter((id) => id !== tagId)
       : [...currentTagIds, tagId];
-    setValue('tagIds', newTagIds);
+    setValue("tagIds", newTagIds);
   };
 
   // 稳定化选项数组，避免每次渲染创建新引用
   const categoryOptions = useMemo(
     () =>
       categories.map((c) => ({
-        label: renderLocalizedText(c.name, 'zh', c.id),
+        label: renderLocalizedText(c.name, "zh", c.id),
         value: c.id,
       })),
     [categories],
@@ -502,9 +502,9 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
 
   const statusOptions = useMemo(
     () => [
-      { label: t('draft'), value: 'DRAFT' },
-      { label: t('published'), value: 'PUBLISHED' },
-      { label: t('archived'), value: 'ARCHIVED' },
+      { label: t("draft"), value: "DRAFT" },
+      { label: t("published"), value: "PUBLISHED" },
+      { label: t("archived"), value: "ARCHIVED" },
     ],
     [t],
   );
@@ -517,7 +517,7 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
       size="lg"
       isOpen={isOpen}
       onCloseAction={onCloseAction}
-      title={isEditing ? t('modalTitleEdit') : t('modalTitleCreate')}
+      title={isEditing ? t("modalTitleEdit") : t("modalTitleCreate")}
     >
       <div className="relative">
         {/* Upload loading overlay - covers modal content during video/image upload */}
@@ -542,7 +542,7 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
                     <Button
                       key={lang}
                       type="button"
-                      variant={currentLocale === lang ? 'primary' : 'outline'}
+                      variant={currentLocale === lang ? "primary" : "outline"}
                       size="sm"
                       onClick={() => handleLocaleChange(lang as Locale)}
                     >
@@ -562,22 +562,22 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
                       try {
                         setIsTranslating(true);
                         await blogApi.translateArticle(editingArticle.id);
-                        addToast('success', t('translationRequestSent'));
+                        addToast("success", t("translationRequestSent"));
                       } catch (error) {
-                        console.error('Translation failed:', error);
-                        addToast('error', t('translationFailed'));
+                        console.error("Translation failed:", error);
+                        addToast("error", t("translationFailed"));
                       } finally {
                         setIsTranslating(false);
                       }
                     }}
                   >
                     <Globe size={16} />
-                    {t('retranslate')}
+                    {t("retranslate")}
                   </Button>
                 ) : (
                   <div className="text-xs text-gray-500 flex items-center gap-1">
                     <Globe size={14} />
-                    {t('autoTranslateAfterSave')}
+                    {t("autoTranslateAfterSave")}
                   </div>
                 )}
               </div>
@@ -589,7 +589,7 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
               onUpload={handleEditorUpload}
               onFieldChange={async (field, value) => {
                 // 如果featuredImage选择的是File对象，立即上传，不等待提交
-                if (field === 'featuredImage' && isFile(value)) {
+                if (field === "featuredImage" && isFile(value)) {
                   try {
                     const extraFields =
                       isEditing && editingArticle?.id
@@ -607,7 +607,7 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
                     const localizedField =
                       currentValues[field as keyof typeof currentValues];
                     if (
-                      typeof localizedField === 'object' &&
+                      typeof localizedField === "object" &&
                       localizedField !== null
                     ) {
                       setValue(
@@ -625,7 +625,7 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
                     } else {
                       const newLocalized: Record<string, string> = {};
                       availableLocaleCodes.forEach((lang) => {
-                        newLocalized[lang] = lang === currentLocale ? url : '';
+                        newLocalized[lang] = lang === currentLocale ? url : "";
                       });
                       setValue(field as any, newLocalized, {
                         shouldDirty: true,
@@ -634,14 +634,14 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
                       });
                     }
                     addToast(
-                      'success',
-                      globalT('blog_articleForm_featuredImage') + ' uploaded',
+                      "success",
+                      globalT("blog_articleForm_featuredImage") + " uploaded",
                     );
                   } catch (error) {
-                    console.error('Featured image upload failed:', error);
+                    console.error("Featured image upload failed:", error);
                     addToast(
-                      'error',
-                      globalT('blog_article_failedUploadImage'),
+                      "error",
+                      globalT("blog_article_failedUploadImage"),
                     );
                   }
                   return;
@@ -649,9 +649,9 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
 
                 // 防御：防止空内容或Quill默认值覆盖已有有效内容
                 if (
-                  (field === 'content' || field === 'excerpt') &&
-                  typeof value === 'string' &&
-                  (!value || value === '<p><br></p>')
+                  (field === "content" || field === "excerpt") &&
+                  typeof value === "string" &&
+                  (!value || value === "<p><br></p>")
                 ) {
                   const currentValues = getValues();
                   const localizedField: Record<string, any> = currentValues[
@@ -659,7 +659,7 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
                   ] as Record<string, any>;
                   if (
                     localizedField &&
-                    typeof localizedField === 'object' &&
+                    typeof localizedField === "object" &&
                     localizedField[currentLocale]
                   ) {
                     // 已有有效内容，跳过更新
@@ -674,7 +674,7 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
 
                 // 更新多语言对象中当前语言的值
                 if (
-                  typeof localizedField === 'object' &&
+                  typeof localizedField === "object" &&
                   localizedField !== null
                 ) {
                   setValue(
@@ -693,7 +693,7 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
                   // 如果还不是多语言对象，创建一个
                   const newLocalized: Record<string, string> = {};
                   availableLocaleCodes.forEach((lang) => {
-                    newLocalized[lang] = lang === currentLocale ? value : '';
+                    newLocalized[lang] = lang === currentLocale ? value : "";
                   });
                   setValue(field as any, newLocalized, {
                     shouldDirty: true,
@@ -707,29 +707,29 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
             {/* Common Fields - Always Visible */}
             <FormSelectField
               name="categoryId"
-              label={t('category')}
-              placeholder={t('selectCategory')}
+              label={t("category")}
+              placeholder={t("selectCategory")}
               options={categoryOptions}
             />
             <div className="p-4 border rounded-lg shadow-sm">
               <label className="block text-sm font-medium mb-2">
-                {t('tags')}
+                {t("tags")}
               </label>
               <div className="flex flex-wrap gap-2">
                 {tags.map((tag) => {
-                  const selected = (watch('tagIds') || []).includes(tag.id);
+                  const selected = (watch("tagIds") || []).includes(tag.id);
                   return (
                     <button
                       key={tag.id}
                       type="button"
                       className={`px-3 py-1.5 rounded-full text-sm border ${
                         selected
-                          ? 'bg-primary-500 text-white border-primary-500'
-                          : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600'
+                          ? "bg-primary-500 text-white border-primary-500"
+                          : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600"
                       }`}
                       onClick={() => handleTagToggle(tag.id)}
                     >
-                      {renderLocalizedText(tag.name, 'zh', tag.id)}
+                      {renderLocalizedText(tag.name, "zh", tag.id)}
                     </button>
                   );
                 })}
@@ -737,32 +737,32 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
             </div>
             <FormSelectField
               name="status"
-              label={t('status')}
+              label={t("status")}
               options={statusOptions}
             />
 
             {/* Featured Toggle */}
             <div className="flex items-center justify-between p-4 border rounded-lg">
               <div>
-                <label className="text-sm font-medium">{t('featured')}</label>
+                <label className="text-sm font-medium">{t("featured")}</label>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  {t('featuredDescription')}
+                  {t("featuredDescription")}
                 </p>
               </div>
               <button
                 type="button"
                 role="switch"
-                aria-checked={watch('featured')}
-                onClick={() => setValue('featured', !watch('featured'))}
+                aria-checked={watch("featured")}
+                onClick={() => setValue("featured", !watch("featured"))}
                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
-                  watch('featured')
-                    ? 'bg-primary'
-                    : 'bg-gray-200 dark:bg-gray-700'
+                  watch("featured")
+                    ? "bg-primary"
+                    : "bg-gray-200 dark:bg-gray-700"
                 }`}
               >
                 <span
                   className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    watch('featured') ? 'translate-x-6' : 'translate-x-1'
+                    watch("featured") ? "translate-x-6" : "translate-x-1"
                   }`}
                 />
               </button>
@@ -776,10 +776,10 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
                   onClick={onCloseAction}
                   disabled={loading}
                 >
-                  {t('cancel')}
+                  {t("cancel")}
                 </Button>
                 <Button type="submit" isLoading={loading}>
-                  {isEditing ? t('update') : t('publish')}
+                  {isEditing ? t("update") : t("publish")}
                 </Button>
               </div>
             </div>
