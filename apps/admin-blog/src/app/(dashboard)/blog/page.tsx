@@ -290,11 +290,14 @@ export default function BlogDashboardPage() {
                   </td>
                   <td className="py-3 px-4 text-gray-600 dark:text-gray-300">
                     {article.publishedAt
-                      ? new Date(article.publishedAt).toLocaleDateString('zh-CN', {
-                          year: 'numeric',
-                          month: '2-digit',
-                          day: '2-digit',
-                        })
+                      ? new Date(article.publishedAt).toLocaleDateString(
+                          'zh-CN',
+                          {
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit',
+                          },
+                        )
                       : t('notPublished')}
                   </td>
                 </tr>

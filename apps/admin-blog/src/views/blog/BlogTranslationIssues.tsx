@@ -6,12 +6,7 @@ import { Card, Badge, Button, Select } from '@/components/UIComponents';
 import { useToastStore } from '@/store/useToastStore';
 import { blogApi } from '@/api';
 import { useTranslation } from '@/hooks/useTranslation';
-import {
-  Search,
-  CheckCircle,
-  Wrench,
-  Languages,
-} from 'lucide-react';
+import { Search, CheckCircle, Wrench, Languages } from 'lucide-react';
 
 const Skeleton = ({ className = '' }: { className?: string }) => (
   <div
@@ -254,7 +249,10 @@ export default function BlogTranslationIssues() {
                   </thead>
                   <tbody className="divide-y divide-gray-200 dark:divide-white/10">
                     {translationIssues.issues.map((issue: any) => (
-                      <tr key={issue.articleId} className="hover:bg-gray-50 dark:hover:bg-white/5">
+                      <tr
+                        key={issue.articleId}
+                        className="hover:bg-gray-50 dark:hover:bg-white/5"
+                      >
                         <td className="px-4 py-3">
                           <Checkbox
                             checked={selectedArticles.includes(issue.articleId)}

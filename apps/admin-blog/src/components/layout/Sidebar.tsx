@@ -5,12 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  ChevronLeft,
-  ChevronRight,
-  LogOut,
-  X,
-} from 'lucide-react';
+import { ChevronLeft, ChevronRight, LogOut, X } from 'lucide-react';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useToastStore } from '@/store/useToastStore';
 import { ROLE_DISPLAY_NAMES } from '@/constants';
@@ -39,11 +34,7 @@ const SidebarItem: React.FC<{
       }`}
     >
       <Icon size={20} className="flex-shrink-0" />
-      {!isCollapsed && (
-        <span className="text-sm truncate">
-          {label}
-        </span>
-      )}
+      {!isCollapsed && <span className="text-sm truncate">{label}</span>}
     </Link>
   );
 };
@@ -92,7 +83,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Logo */}
       <div className="flex items-center gap-3 mb-8 px-2">
         <div className="w-8 h-8 rounded-lg flex-shrink-0 overflow-hidden">
-          <Image src="/logo.png" alt="Logo" width={32} height={32} className="object-contain" />
+          <Image
+            src="/logo.png"
+            alt="Logo"
+            width={32}
+            height={32}
+            className="object-contain"
+          />
         </div>
         {!collapsed && (
           <motion.h1
@@ -129,7 +126,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   icon={route.icon}
                   label={t(route.name) || route.name}
                   isCollapsed={collapsed}
-                  isActive={pathname === route.path || pathname.startsWith(route.path + '/')}
+                  isActive={
+                    pathname === route.path ||
+                    pathname.startsWith(route.path + '/')
+                  }
                   onClick={onMobileClose}
                 />
               ))}
@@ -150,7 +150,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 {displayName}
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                {userInfo?.role ? (ROLE_DISPLAY_NAMES[userInfo.role] ?? userInfo.role) : ''}
+                {userInfo?.role
+                  ? (ROLE_DISPLAY_NAMES[userInfo.role] ?? userInfo.role)
+                  : ''}
               </p>
             </div>
           </div>

@@ -31,7 +31,6 @@ export async function register() {
         integrations: [],
         // Reduce overhead
         attachStacktrace: false,
-        autoSessionTracking: true,
       });
     } catch (e) {
       console.warn('[Sentry] Failed to initialize:', e);
@@ -56,7 +55,6 @@ export async function register() {
         enabled: process.env.NODE_ENV === 'production',
         integrations: [],
         attachStacktrace: false,
-        autoSessionTracking: true,
       });
     } catch (e) {
       console.warn('[Sentry] Failed to initialize:', e);
@@ -65,13 +63,18 @@ export async function register() {
 }
 
 export async function onRequestError(
-  error: { message: string; name: string; stack?: string; cause?: unknown },
-  request: { url: string; method?: string; headers?: Record<string, string> },
+  error: unknown,
+  request: {
+    path: string;
+    method: string;
+    headers: Record<string, string | string[] | undefined>;
+  },
+  context: { routerKind: string; routePath: string; routeType: string },
 ) {
   try {
     const { captureRequestError } = await import('@sentry/nextjs');
-    await captureRequestError(error, request);
+    return captureRequestError(error, request, context);
   } catch {
-    // Silently fail - Sentry is optional
+    // Sentry not available — silently ignore
   }
 }

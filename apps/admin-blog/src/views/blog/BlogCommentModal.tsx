@@ -119,7 +119,9 @@ export const BlogCommentModal: React.FC<BlogCommentModalProps> = ({
             {...register('status')}
           />
           <div className="flex justify-between items-center">
-            <h3 className="text-sm font-medium">{t('blog_comments_replyOptional')}</h3>
+            <h3 className="text-sm font-medium">
+              {t('blog_comments_replyOptional')}
+            </h3>
             <LanguageSwitch />
           </div>
           <FormTextareaField

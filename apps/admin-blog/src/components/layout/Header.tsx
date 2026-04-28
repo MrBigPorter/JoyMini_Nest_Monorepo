@@ -76,7 +76,9 @@ function LocaleDropdown() {
                 }`}
               >
                 <span className="flex-1">{locale.nativeName}</span>
-                {lang === locale.code && <Check size={14} className="text-primary-500" />}
+                {lang === locale.code && (
+                  <Check size={14} className="text-primary-500" />
+                )}
               </button>
             ))}
           </motion.div>
@@ -86,9 +88,7 @@ function LocaleDropdown() {
   );
 }
 
-export const Header: React.FC<HeaderProps> = ({
-  onMenuButtonClick,
-}) => {
+export const Header: React.FC<HeaderProps> = ({ onMenuButtonClick }) => {
   const router = useRouter();
   const { theme, toggleTheme } = useAppStore();
   const { t } = useTranslation();
@@ -155,7 +155,10 @@ export const Header: React.FC<HeaderProps> = ({
                   </span>
                 )}
               </div>
-              <ChevronDown size={13} className="text-gray-400 hidden sm:block" />
+              <ChevronDown
+                size={13}
+                className="text-gray-400 hidden sm:block"
+              />
             </div>
           }
           items={[

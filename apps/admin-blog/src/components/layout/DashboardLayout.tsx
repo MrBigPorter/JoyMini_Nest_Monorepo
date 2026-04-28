@@ -23,9 +23,7 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({
         onMobileClose={() => setMobileMenuOpen(false)}
       />
       <div className="flex-1 flex flex-col w-full transition-all duration-300 ease-in-out">
-        <Header
-          onMenuButtonClick={() => setMobileMenuOpen(true)}
-        />
+        <Header onMenuButtonClick={() => setMobileMenuOpen(true)} />
         <MainContent>{children}</MainContent>
       </div>
     </div>

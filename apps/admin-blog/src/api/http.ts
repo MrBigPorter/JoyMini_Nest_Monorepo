@@ -502,7 +502,10 @@ class HttpClient {
     filename = 'download',
     config?: RequestConfig,
   ): Promise<void> {
-    const res = await this.instance.get(url, { responseType: 'blob', ...config });
+    const res = await this.instance.get(url, {
+      responseType: 'blob',
+      ...config,
+    });
     const blob = new Blob([res.data]);
     const link = document.createElement('a');
     link.href = window.URL.createObjectURL(blob);

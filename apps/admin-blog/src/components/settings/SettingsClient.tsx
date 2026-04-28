@@ -304,9 +304,11 @@ interface SystemConfigListResult {
 type Tab = 'general' | 'locales' | 'translation';
 
 function LocaleSettingsContent({ t }: { t: TFunc }) {
-  const { data: localesData, loading, run: refreshLocales } = useRequest(
-    () => systemConfigApi.getBlogLocales(),
-  );
+  const {
+    data: localesData,
+    loading,
+    run: refreshLocales,
+  } = useRequest(() => systemConfigApi.getBlogLocales());
   const [toggling, setToggling] = useState<string | null>(null);
 
   const locales = localesData?.list ?? [];
@@ -345,7 +347,9 @@ function LocaleSettingsContent({ t }: { t: TFunc }) {
 
               <Switch
                 checked={locale.enabled}
-                onCheckedChange={() => handleToggle(locale.code, !locale.enabled)}
+                onCheckedChange={() =>
+                  handleToggle(locale.code, !locale.enabled)
+                }
                 disabled={locale.isDefault || toggling === locale.code}
               />
             </div>
@@ -378,7 +382,9 @@ function TranslationSettingsContent({ t }: { t: TFunc }) {
     },
   });
 
-  const { data: localesData } = useRequest(() => systemConfigApi.getBlogLocales());
+  const { data: localesData } = useRequest(() =>
+    systemConfigApi.getBlogLocales(),
+  );
   const enabledLocales = localesData?.list?.filter((l) => l.enabled) || [];
 
   const [saving, setSaving] = useState(false);

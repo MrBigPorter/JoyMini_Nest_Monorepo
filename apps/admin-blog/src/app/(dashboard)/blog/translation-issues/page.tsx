@@ -11,11 +11,11 @@ export default function TranslationIssuesPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title={t("translation_issues")}
-        description={t("translation_issues_desc")}
-        breadcrumbs={[t("tools"), t("translation_issues")]}
+        title={t('translation_issues')}
+        description={t('translation_issues_desc')}
+        breadcrumbs={[t('tools'), t('translation_issues')]}
       />
-        <BlogTranslationIssues />
+      <BlogTranslationIssues />
     </div>
   );
 }
