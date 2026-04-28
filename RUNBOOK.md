@@ -101,14 +101,9 @@ ssh <YOUR_USER>@<YOUR_SERVER_IP> 'cd /opt/lucky && BACKEND_IMAGE=lucky-backend-p
 
 ## 四、日常快速查
 
-| 你要做什么 | 命令 |
-|-----------|------|
-| 看后端日志 | `ssh <YOUR_USER>@<YOUR_SERVER_IP> 'docker logs --tail=50 lucky-backend-prod'` |
-| 看所有容器 | `ssh <YOUR_USER>@<YOUR_SERVER_IP> 'docker ps -a'` |
-| 重启后端 | `ssh <YOUR_USER>@<YOUR_SERVER_IP> 'cd /opt/lucky && docker compose -f compose.prod.yml restart backend'` |
-| 测接口 | `curl https://api.<YOUR_DOMAIN>.com/api/v1/health` |
-| 部署后端（本地） | `VPS_IP=<YOUR_SERVER_IP> ./deploy/deploy.sh --backend` |
-| 部署全部（本地） | `VPS_IP=<YOUR_SERVER_IP> ./deploy/deploy.sh` |
+| 你要做什么    | 命令 |
+|----------|------|
+| 有历史记录的h` |
 
 ---
 
