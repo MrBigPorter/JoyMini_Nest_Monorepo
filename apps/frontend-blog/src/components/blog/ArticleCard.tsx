@@ -246,7 +246,10 @@ export function ArticleCard({
           {/* 底部元信息 */}
           <div className="flex items-center justify-between pt-3 text-xs text-slate-500 dark:text-slate-400">
             <div className="flex items-center gap-3">
-              <span className="flex items-center gap-1" suppressHydrationWarning>
+              <span
+                className="flex items-center gap-1"
+                suppressHydrationWarning
+              >
                 <svg
                   className="w-4 h-4"
                   fill="none"
