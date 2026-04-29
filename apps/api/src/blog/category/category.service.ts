@@ -196,7 +196,7 @@ export class CategoryService {
     this.logger.log(`Deleting category: ${id}`);
 
     try {
-      // 移动该分类下的文章到未分类
+      // 移动该分类下的文章到未分类（categoryId = null）
       const updateResult = await this.prisma.blogArticle.updateMany({
         where: { categoryId: id },
         data: { categoryId: null },
