@@ -322,7 +322,7 @@ For example:
 
 CRITICAL JSON VALIDITY RULES:
 - The "content" field contains Markdown text which may include special characters
-- ESCAPE ALL double quotes inside values as \" (e.g., "hello"world" -> "hello\"world")
+- ESCAPE ALL double quotes inside values as " (e.g., "hello"world" -> "hello"world")
 - ESCAPE ALL backslashes as \\ (e.g., "path\to" -> "path\\to")
 - ESCAPE ALL newlines inside values as \\n
 - The output MUST be 100% valid JSON that passes JSON.parse()
@@ -397,9 +397,7 @@ CRITICAL JSON VALIDITY RULES:
             `批量翻译JSON解析失败 (尝试 ${attempt + 1}/${maxRetries + 1})${detail}`,
             {
               error: errorMsg,
-              resultPreview: result
-                ? result.substring(0, 500)
-                : 'Empty result',
+              resultPreview: result ? result.substring(0, 500) : 'Empty result',
             },
           );
 

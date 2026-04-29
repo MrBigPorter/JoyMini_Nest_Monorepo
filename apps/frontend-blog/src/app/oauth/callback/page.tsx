@@ -1,17 +1,25 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState, Suspense, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/lib/stores/auth.store';
 import type { User } from '@/lib/stores/auth.store';
 import { authApi } from '@/lib/api/authApi';
-import { withLocale } from '@/lib/utils/locale';
+import { withLocale, SupportedLocale } from '@/lib/utils/locale';
 import { DEFAULT_LOCALE } from '@/lib/i18n/config';
 
 export const dynamic = 'force-dynamic';
 
+interface JWTPayload {
+  sub?: string;
+  name?: string;
+  picture?: string;
+  email?: string;
+  [key: string]: unknown;
+}
+
 // JWT解码函数
-function decodeJWT(token: string): any {
+function decodeJWT(token: string): JWTPayload | null {
   try {
     const base64Url = token.split('.')[1];
     const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
@@ -38,9 +46,7 @@ function decodeJWT(token: string): any {
 function getUserLocale(): string {
   try {
     if (typeof document === 'undefined') return DEFAULT_LOCALE;
-    const match = document.cookie.match(
-      new RegExp('(^| )NEXT_LOCALE=([^;]+)'),
-    );
+    const match = document.cookie.match(new RegExp('(^| )NEXT_LOCALE=([^;]+)'));
     if (match) return match[2];
     const legacyMatch = document.cookie.match(
       new RegExp('(^| )locale=([^;]+)'),
@@ -52,36 +58,28 @@ function getUserLocale(): string {
   return DEFAULT_LOCALE;
 }
 
-// 主题同步函数
-const syncTheme = () => {
-  if (typeof window === 'undefined') return;
+const PROVIDER_CONFIG = {
+  google: {
+    defaultNickname: 'Google User',
+    defaultId: 'unknown-google-user',
+  },
+  facebook: {
+    defaultNickname: 'Facebook User',
+    defaultId: 'unknown-facebook-user',
+  },
+  generic: {
+    defaultNickname: 'OAuth User',
+    defaultId: 'unknown-oauth-user',
+  },
+} as const;
 
-  try {
-    // 从localStorage读取主题设置
-    const savedTheme = localStorage.getItem('theme') || 'system';
-    const systemTheme = window.matchMedia('(prefers-color-scheme: dark)')
-      .matches
-      ? 'dark'
-      : 'light';
-    const theme = savedTheme === 'system' ? systemTheme : savedTheme;
-
-    // 应用到HTML元素
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-
-    console.log('Theme synced:', { savedTheme, systemTheme, theme });
-  } catch (err) {
-    console.warn('Failed to sync theme:', err);
-  }
-};
+type OAuthProvider = keyof typeof PROVIDER_CONFIG;
 
 function OAuthCallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const store = useAuthStore();
+  const setTokens = useAuthStore((s) => s.setTokens);
+  const login = useAuthStore((s) => s.login);
 
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -98,6 +96,73 @@ function OAuthCallbackContent() {
       document.documentElement.classList.toggle('dark', isDark);
     }
   }, []);
+
+  const handleOAuthLogin = useCallback(
+    async (token: string, refreshToken: string, provider: OAuthProvider) => {
+      try {
+        const config = PROVIDER_CONFIG[provider];
+        // 解码JWT token获取用户ID
+        const payload = decodeJWT(token);
+        const userId = payload?.sub || config.defaultId;
+
+        // 先设置token到store，让http.ts能获取到
+        setTokens({ accessToken: token, refreshToken: refreshToken || '' });
+
+        let user: User;
+
+        try {
+          // 使用标准authApi获取用户信息
+          user = await authApi.getProfile();
+        } catch (apiError) {
+          console.warn(
+            'Failed to fetch user profile from API, using JWT data:',
+            apiError,
+          );
+          // 如果API调用失败，使用从token解码的基本信息
+          user = {
+            id: userId,
+            phone: '',
+            phoneMd5: '',
+            nickname: payload?.name || config.defaultNickname,
+            avatar: payload?.picture || '',
+            email: payload?.email || '',
+            inviteCode: null,
+            vipLevel: 0,
+            lastLoginAt: null,
+            kycStatus: 'pending',
+            selfExclusionExpireAt: 0,
+          };
+        }
+
+        // 使用auth store登录（包含完整的用户信息）
+        login(
+          {
+            accessToken: token,
+            refreshToken: refreshToken || '',
+          },
+          user,
+        );
+
+        // 重定向到首页或指定页面（带 locale 前缀）
+        setTimeout(() => {
+          const locale = getUserLocale() as SupportedLocale;
+          const rawPath = sessionStorage.getItem('redirectAfterLogin');
+          if (rawPath) {
+            sessionStorage.removeItem('redirectAfterLogin');
+            router.push(withLocale(rawPath, locale));
+          } else {
+            router.push(withLocale('/', locale));
+          }
+        }, 100);
+      } catch (err: unknown) {
+        setError(
+          err instanceof Error ? err.message : `${provider} OAuth failed`,
+        );
+        setIsLoading(false);
+      }
+    },
+    [setTokens, login, router],
+  );
 
   useEffect(() => {
     const handleCallback = async () => {
@@ -127,9 +192,9 @@ function OAuthCallbackContent() {
 
         // 根据provider处理登录
         if (provider === 'google') {
-          await handleGoogleLogin(token, refreshToken);
+          await handleOAuthLogin(token, refreshToken, 'google');
         } else if (provider === 'facebook') {
-          await handleFacebookLogin(token, refreshToken);
+          await handleOAuthLogin(token, refreshToken, 'facebook');
         } else {
           // 如果没有provider参数，尝试从state参数解码
           const stateParam = searchParams.get('state');
@@ -139,10 +204,10 @@ function OAuthCallbackContent() {
               const base64 = stateParam.replace(/-/g, '+').replace(/_/g, '/');
               const state = JSON.parse(atob(base64));
               if (state.provider === 'google') {
-                await handleGoogleLogin(token, refreshToken);
+                await handleOAuthLogin(token, refreshToken, 'google');
                 return;
               } else if (state.provider === 'facebook') {
-                await handleFacebookLogin(token, refreshToken);
+                await handleOAuthLogin(token, refreshToken, 'facebook');
                 return;
               }
             } catch (err) {
@@ -151,199 +216,16 @@ function OAuthCallbackContent() {
           }
 
           // 默认使用通用登录
-          await handleGenericLogin(token, refreshToken);
+          await handleOAuthLogin(token, refreshToken, 'generic');
         }
-      } catch (err: any) {
-        setError(err.message || 'OAuth callback failed');
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'OAuth callback failed');
         setIsLoading(false);
       }
     };
 
-    handleCallback();
-  }, [searchParams]);
-
-  const handleGoogleLogin = async (token: string, refreshToken: string) => {
-    try {
-      // 解码JWT token获取用户ID
-      const payload = decodeJWT(token);
-      const userId = payload?.sub || 'unknown-google-user';
-
-      // 先设置token到store，让http.ts能获取到
-      store.setTokens({ accessToken: token, refreshToken: refreshToken || '' });
-
-      let user: User;
-
-      try {
-        // 使用标准authApi获取用户信息
-        user = await authApi.getProfile();
-      } catch (apiError) {
-        console.warn(
-          'Failed to fetch user profile from API, using JWT data:',
-          apiError,
-        );
-        // 如果API调用失败，使用从token解码的基本信息
-        user = {
-          id: userId,
-          phone: '',
-          phoneMd5: '',
-          nickname: payload?.name || 'Google User',
-          avatar: payload?.picture || '',
-          email: payload?.email || '',
-          inviteCode: null,
-          vipLevel: 0,
-          lastLoginAt: null,
-          kycStatus: 'pending',
-          selfExclusionExpireAt: 0,
-        };
-      }
-
-      // 使用auth store登录（包含完整的用户信息）
-      store.login(
-        {
-          accessToken: token,
-          refreshToken: refreshToken || '',
-        },
-        user,
-      );
-
-      // 重定向到首页或指定页面（带 locale 前缀）
-      setTimeout(() => {
-        const locale = getUserLocale();
-        const rawPath = sessionStorage.getItem('redirectAfterLogin');
-        if (rawPath) {
-          sessionStorage.removeItem('redirectAfterLogin');
-          router.push(withLocale(rawPath, locale as any));
-        } else {
-          router.push(withLocale('/', locale as any));
-        }
-      }, 100);
-    } catch (err: any) {
-      setError(err.message || 'Google OAuth failed');
-      setIsLoading(false);
-    }
-  };
-
-  const handleFacebookLogin = async (token: string, refreshToken: string) => {
-    try {
-      // 解码JWT token获取用户ID
-      const payload = decodeJWT(token);
-      const userId = payload?.sub || 'unknown-facebook-user';
-
-      // 先设置token到store，让http.ts能获取到
-      store.setTokens({ accessToken: token, refreshToken: refreshToken || '' });
-
-      let user: User;
-
-      try {
-        // 使用标准authApi获取用户信息
-        user = await authApi.getProfile();
-      } catch (apiError) {
-        console.warn(
-          'Failed to fetch user profile from API, using JWT data:',
-          apiError,
-        );
-        // 如果API调用失败，使用从token解码的基本信息
-        user = {
-          id: userId,
-          phone: '',
-          phoneMd5: '',
-          nickname: payload?.name || 'Facebook User',
-          avatar: payload?.picture || '',
-          email: payload?.email || '',
-          inviteCode: null,
-          vipLevel: 0,
-          lastLoginAt: null,
-          kycStatus: 'pending',
-          selfExclusionExpireAt: 0,
-        };
-      }
-
-      // 使用auth store登录（包含完整的用户信息）
-      store.login(
-        {
-          accessToken: token,
-          refreshToken: refreshToken || '',
-        },
-        user,
-      );
-
-      // 重定向到首页或指定页面（带 locale 前缀）
-      setTimeout(() => {
-        const locale = getUserLocale();
-        const rawPath = sessionStorage.getItem('redirectAfterLogin');
-        if (rawPath) {
-          sessionStorage.removeItem('redirectAfterLogin');
-          router.push(withLocale(rawPath, locale as any));
-        } else {
-          router.push(withLocale('/', locale as any));
-        }
-      }, 100);
-    } catch (err: any) {
-      setError(err.message || 'Facebook OAuth failed');
-      setIsLoading(false);
-    }
-  };
-
-  const handleGenericLogin = async (token: string, refreshToken: string) => {
-    try {
-      // 解码JWT token获取用户ID
-      const payload = decodeJWT(token);
-      const userId = payload?.sub || 'unknown-oauth-user';
-
-      // 先设置token到store，让http.ts能获取到
-      store.setTokens({ accessToken: token, refreshToken: refreshToken || '' });
-
-      let user: User;
-
-      try {
-        // 使用标准authApi获取用户信息
-        user = await authApi.getProfile();
-      } catch (apiError) {
-        console.warn(
-          'Failed to fetch user profile from API, using JWT data:',
-          apiError,
-        );
-        // 如果API调用失败，使用从token解码的基本信息
-        user = {
-          id: userId,
-          phone: '',
-          phoneMd5: '',
-          nickname: payload?.name || 'OAuth User',
-          avatar: payload?.picture || '',
-          email: payload?.email || '',
-          inviteCode: null,
-          vipLevel: 0,
-          lastLoginAt: null,
-          kycStatus: 'pending',
-          selfExclusionExpireAt: 0,
-        };
-      }
-
-      // 使用auth store登录（包含完整的用户信息）
-      store.login(
-        {
-          accessToken: token,
-          refreshToken: refreshToken || '',
-        },
-        user,
-      );
-
-      // 重定向到首页或指定页面（带 locale 前缀）
-      setTimeout(() => {
-        const locale = getUserLocale();
-        const rawPath = sessionStorage.getItem('redirectAfterLogin');
-        if (rawPath) {
-          sessionStorage.removeItem('redirectAfterLogin');
-          router.push(withLocale(rawPath, locale as any));
-        } else {
-          router.push(withLocale('/', locale as any));
-        }
-      }, 100);
-    } catch (err: any) {
-      setError(err.message || 'OAuth login failed');
-      setIsLoading(false);
-    }
-  };
+    void handleCallback();
+  }, [searchParams, handleOAuthLogin]);
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4">

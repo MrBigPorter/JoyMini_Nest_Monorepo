@@ -190,9 +190,7 @@ export function repairJsonResponse(raw: string): string {
       JSON.parse(repaired);
       return repaired;
     } catch {
-      throw new Error(
-        `Unable to repair JSON response after all strategies`,
-      );
+      throw new Error('Unable to repair JSON response after all strategies');
     }
   }
 }
