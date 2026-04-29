@@ -23,6 +23,9 @@ const locales = LOCALES;
 
 //  元数据放在语言层布局，支持多语言SEO标题
 export const metadata: Metadata = {
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_SITE_URL || 'https://blog.joyminis.com',
+  ),
   title: {
     template: '%s | Tarsier Labs',
     default: 'Tarsier Labs - Tech innovation lab from Bohol, Philippines',

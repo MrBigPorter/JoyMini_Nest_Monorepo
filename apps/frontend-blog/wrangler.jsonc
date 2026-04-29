@@ -48,6 +48,11 @@
       "binding": "NEXT_INC_CACHE_KV",
       "id": "1fc88f516bcf4efa9a50bef6e2912405",
       "preview_id": "1fc88f516bcf4efa9a50bef6e2912405"
+    },
+    {
+      "binding": "NEXT_TAG_CACHE_KV",
+      "id": "1fc88f516bcf4efa9a50bef6e2912405",
+      "preview_id": "1fc88f516bcf4efa9a50bef6e2912405"
     }
   ],
   "r2_buckets": [
