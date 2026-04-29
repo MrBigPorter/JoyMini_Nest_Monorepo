@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/lib/stores/auth.store';
 import type { User } from '@/lib/stores/auth.store';
 import { authApi } from '@/lib/api/authApi';
+import { withLocale } from '@/lib/utils/locale';
+import { DEFAULT_LOCALE } from '@/lib/i18n/config';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,6 +28,28 @@ function decodeJWT(token: string): any {
     console.error('Failed to decode JWT:', error);
     return null;
   }
+}
+
+/**
+ * 从 cookie 获取用户的语言偏好
+ * OAuth 回调页面在 [locale] 路由组之外，无法使用 useCurrentLocale()
+ * 所以直接从 NEXT_LOCALE cookie 读取
+ */
+function getUserLocale(): string {
+  try {
+    if (typeof document === 'undefined') return DEFAULT_LOCALE;
+    const match = document.cookie.match(
+      new RegExp('(^| )NEXT_LOCALE=([^;]+)'),
+    );
+    if (match) return match[2];
+    const legacyMatch = document.cookie.match(
+      new RegExp('(^| )locale=([^;]+)'),
+    );
+    if (legacyMatch) return legacyMatch[2];
+  } catch {
+    // 忽略错误，使用默认语言
+  }
+  return DEFAULT_LOCALE;
 }
 
 // 主题同步函数
@@ -182,14 +206,15 @@ function OAuthCallbackContent() {
         user,
       );
 
-      // 重定向到首页或指定页面
+      // 重定向到首页或指定页面（带 locale 前缀）
       setTimeout(() => {
-        const redirectPath = sessionStorage.getItem('redirectAfterLogin');
-        if (redirectPath) {
+        const locale = getUserLocale();
+        const rawPath = sessionStorage.getItem('redirectAfterLogin');
+        if (rawPath) {
           sessionStorage.removeItem('redirectAfterLogin');
-          router.push(redirectPath);
+          router.push(withLocale(rawPath, locale as any));
         } else {
-          router.push('/');
+          router.push(withLocale('/', locale as any));
         }
       }, 100);
     } catch (err: any) {
@@ -242,14 +267,15 @@ function OAuthCallbackContent() {
         user,
       );
 
-      // 重定向到首页或指定页面
+      // 重定向到首页或指定页面（带 locale 前缀）
       setTimeout(() => {
-        const redirectPath = sessionStorage.getItem('redirectAfterLogin');
-        if (redirectPath) {
+        const locale = getUserLocale();
+        const rawPath = sessionStorage.getItem('redirectAfterLogin');
+        if (rawPath) {
           sessionStorage.removeItem('redirectAfterLogin');
-          router.push(redirectPath);
+          router.push(withLocale(rawPath, locale as any));
         } else {
-          router.push('/');
+          router.push(withLocale('/', locale as any));
         }
       }, 100);
     } catch (err: any) {
@@ -302,14 +328,15 @@ function OAuthCallbackContent() {
         user,
       );
 
-      // 重定向到首页或指定页面
+      // 重定向到首页或指定页面（带 locale 前缀）
       setTimeout(() => {
-        const redirectPath = sessionStorage.getItem('redirectAfterLogin');
-        if (redirectPath) {
+        const locale = getUserLocale();
+        const rawPath = sessionStorage.getItem('redirectAfterLogin');
+        if (rawPath) {
           sessionStorage.removeItem('redirectAfterLogin');
-          router.push(redirectPath);
+          router.push(withLocale(rawPath, locale as any));
         } else {
-          router.push('/');
+          router.push(withLocale('/', locale as any));
         }
       }, 100);
     } catch (err: any) {

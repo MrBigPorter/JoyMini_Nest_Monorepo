@@ -2,8 +2,10 @@
 
 import { Link, useRouter } from '@/navigation';
 import { ComponentProps } from 'react';
+import { useLocale } from 'next-intl';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { isProtectedRoute } from '@/lib/auth/protected-routes';
+import { withLocale } from '@/lib/utils/locale';
 
 type LinkProps = ComponentProps<typeof Link>;
 
@@ -42,6 +44,7 @@ export function ProtectedLink({
 }: ProtectedLinkProps) {
   const { isAuthenticated } = useAuth();
   const router = useRouter();
+  const currentLocale = useLocale();
 
   const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
     // 只有在100%确定未登录时，才手动拦截并跳转到登录页
@@ -52,8 +55,11 @@ export function ProtectedLink({
       !isAuthenticated
     ) {
       e.preventDefault();
-      // 记录来源页面，登录后可以跳转回来
-      sessionStorage.setItem('redirectAfterLogin', href);
+      // 记录来源页面（带 locale 前缀），登录后可以正确跳转
+      sessionStorage.setItem(
+        'redirectAfterLogin',
+        withLocale(href, currentLocale as any),
+      );
       router.push('/login');
       return;
     }

@@ -16,6 +16,9 @@ next-env.d.ts
 # Test coverage
 coverage/
 
+# OpenNext config — consumed by esbuild at build time, not by tsc
+open-next.config.ts
+
 # Misc
 *.log
 .DS_Store
