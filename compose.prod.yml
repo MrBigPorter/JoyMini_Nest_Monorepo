@@ -175,6 +175,7 @@ services:
       - ./nginx/whitelist.conf:/etc/nginx/conf.d/whitelist.conf
       - ./certs:/etc/nginx/certs
       - ./nginx/html:/var/www/html
+      - nginx_cache:/var/cache/nginx
     depends_on:
       backend:
         condition: service_healthy
@@ -266,3 +267,4 @@ networks:
 volumes:
   db_data:
   redis_data:
+  nginx_cache:
