@@ -91,7 +91,5 @@ export default function middleware(request: NextRequest) {
 export const config = {
   // 优化匹配器：确保覆盖所有客户端跳转，包括_next/data请求
   // 排除：api路由、静态文件、favicon等
-  matcher: [
-    '/((?!api|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml).*)',
-  ],
+  matcher: ['/((?!api|_next|favicon.ico|robots.txt|sitemap.xml).*)'],
 };

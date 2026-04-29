@@ -84,9 +84,9 @@ export const BlogCommentModal: React.FC<BlogCommentModalProps> = ({
   const { register, reset, getValues } = form;
   const { locale } = useLanguage();
   const { localize } = useLocalizedFormV2({
-    watch: form.watch,
-    setValue: form.setValue,
-    getValues: form.getValues,
+    watchAction: form.watch,
+    setValueAction: form.setValue,
+    getValuesAction: form.getValues,
     locale,
     availableLocales: ['zh', 'en'],
   });

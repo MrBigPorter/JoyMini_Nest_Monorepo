@@ -5,12 +5,14 @@
     "categories": "카테고리",
     "tags": "태그",
     "search": "검색",
+    "all": "전체",
     "loadMore": "더 보기",
     "noResults": "검색 결과가 없습니다",
     "back": "뒤로",
     "backToHome": "홈으로 돌아가기",
     "backToCategories": "카테고리 목록으로 돌아가기",
     "backToTags": "태그 목록으로 돌아가기",
+    "backToArticles": "글 목록으로 돌아가기",
     "loading": "로딩 중...",
     "loadingMore": "더 불러오는 중...",
     "noMoreData": "더 이상 데이터가 없습니다",
@@ -45,7 +47,11 @@
   "home": {
     "title": "최신 글",
     "subtitle": "최신으로 발행된 콘텐츠를 탐색해 보세요",
-    "empty": "아직 글이 없습니다"
+    "empty": "아직 글이 없습니다",
+    "featured": "추천",
+    "featuredArticles": "추천 글",
+    "viewAll": "모두 보기",
+    "heroSubtitle": "엄선된 추천 콘텐츠를 만나보세요"
   },
   "article": {
     "readTime": "읽는 시간",
@@ -57,7 +63,8 @@
     "notFound": "글을 찾을 수 없습니다",
     "notFoundDescription": "찾고 계신 글이 존재하지 않거나 삭제되었습니다.",
     "notPublished": "아직 게시되지 않았습니다",
-    "minutes": "분"
+    "minutes": "분",
+    "popularArticles": "인기 글"
   },
   "auth": {
     "email": "이메일 주소",

@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { Bookmark } from 'lucide-react';
 import { Button } from '@repo/ui';
 import { useAuth } from '@/lib/hooks/useAuth';
@@ -34,6 +35,11 @@ export function BookmarkButton({
 }: BookmarkButtonProps) {
   const { isAuthenticated } = useAuth();
   const router = useRouter();
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   const { data, mutate, isLoading } = useSWR(
     isAuthenticated ? `/bookmark-status/${articleId}` : null,
@@ -83,7 +89,7 @@ export function BookmarkButton({
       variant={variant}
       size={size}
       onClick={handleToggle}
-      disabled={isLoading}
+      disabled={isClient ? isLoading : undefined}
       className={`gap-1 ${className}`}
       aria-label={isBookmarked ? '取消收藏' : '收藏'}
     >

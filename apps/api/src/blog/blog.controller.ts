@@ -10,9 +10,9 @@ import {
   UseGuards,
   Header,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { BlogService } from './blog.service';
-import { CreateArticleDto, UpdateArticleDto } from './dto';
+import { CreateArticleDto, UpdateArticleDto, BatchImportDto } from './dto';
 import { TriggerVideoTranscodeDto } from './dto/trigger-video-transcode.dto';
 import { ArticleStatus } from '@prisma/client';
 import { AdminJwtAuthGuard } from '@api/admin/auth/admin-jwt-auth.guard';
@@ -84,6 +84,26 @@ export class BlogController {
     @Body() dto: CreateArticleDto,
   ) {
     return this.blogService.createArticle(userId, dto);
+  }
+
+  @Get('articles/scan-local')
+  @ApiBearerAuth()
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiOperation({ summary: '扫描本地 Markdown 文件，返回可导入的文章列表' })
+  async scanLocalArticles() {
+    return this.blogService.scanLocalMarkdownFiles();
+  }
+
+  @Post('articles/batch-import')
+  @ApiBearerAuth()
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiOperation({ summary: '批量导入文章（从扫描结果中选择）' })
+  @ApiBody({ type: BatchImportDto })
+  async batchImportArticles(
+    @CurrentUserId() userId: string,
+    @Body() dto: BatchImportDto,
+  ) {
+    return this.blogService.batchImportArticles(userId, dto);
   }
 
   @Patch('articles/:id')

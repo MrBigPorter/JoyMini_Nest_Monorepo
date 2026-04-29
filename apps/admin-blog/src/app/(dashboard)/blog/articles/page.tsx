@@ -47,6 +47,7 @@ type Article = Partial<ArticleFormInputs> & {
   category?: { id: string; name: string };
   author?: { username?: string; realName?: string };
   tags?: string[];
+  tagIds?: string[];
   viewCount?: number;
   commentCount?: number;
   readTime?: string;
@@ -506,7 +507,15 @@ export default function ArticlesPageV2() {
             comments: article.commentCount || 0,
             // 确保readTime有默认值
             readTime: article.readTime || '5 min',
-            // 转换tags格式：从标签对象数组转换为标签名称数组
+            // 保留原始标签 ID（对象 → ID 字符串），供编辑弹窗使用
+            tagIds: (article.tags || [])
+              .map((tag: any) =>
+                typeof tag === 'object' && tag !== null && 'id' in tag
+                  ? tag.id
+                  : tag,
+              )
+              .filter(Boolean),
+            // 转换tags格式：从标签对象数组转换为标签名称数组（仅用于展示）
             tags: (article.tags || [])
               .map((tag: string | { name?: any; id?: string }) =>
                 typeof tag === 'string'

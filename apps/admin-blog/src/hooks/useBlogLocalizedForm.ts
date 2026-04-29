@@ -45,8 +45,8 @@ export function useBlogLocalizedForm<T extends z.ZodSchema>({
 
   // 使用多语言表单钩子
   const { localize, getFullLocalizedValue } = useLocalizedForm({
-    watch,
-    setValue,
+    watchAction: watch,
+    setValueAction: setValue,
     errors,
     locale,
   });

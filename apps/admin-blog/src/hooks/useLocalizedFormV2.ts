@@ -14,9 +14,10 @@ import { normalizeLocalizedValue } from '@/utils/localizedForm';
 
 interface UseLocalizedFormOptions<T extends FieldValues> {
   // 分别接收需要的属性，而不是整个 form 对象，避免 Next.js 编译器报错 TS71007
-  watch: UseFormWatch<T>;
-  setValue: UseFormSetValue<T>;
-  getValues: UseFormGetValues<T>;
+  // 使用 Action 后缀避免 Next.js 15 Server Actions 编译检查 TS71007
+  watchAction: UseFormWatch<T>;
+  setValueAction: UseFormSetValue<T>;
+  getValuesAction: UseFormGetValues<T>;
   locale: string;
   availableLocales?: string[];
   synchronizer?: DataSynchronizer;
@@ -63,13 +64,17 @@ interface UseLocalizedFormReturn<T extends FieldValues> {
  * 改进版多语言表单Hook - 使用数据同步器提供可靠的数据同步
  */
 export function useLocalizedFormV2<T extends FieldValues>({
-  watch,
-  setValue,
-  getValues,
+  watchAction,
+  setValueAction,
+  getValuesAction,
   locale,
   availableLocales = [],
   synchronizer: externalSynchronizer,
 }: UseLocalizedFormOptions<T>): UseLocalizedFormReturn<T> {
+  // Alias back to original names for internal use (Next.js 15 requires *Action suffix for TS71007)
+  const watch = watchAction;
+  const setValue = setValueAction;
+  const getValues = getValuesAction;
   const prevLocaleRef = useRef(locale);
   const synchronizerRef = useRef<DataSynchronizer>(
     externalSynchronizer || createDataSynchronizer(),
@@ -286,16 +291,16 @@ export function useLocalizedFormV2<T extends FieldValues>({
  * 已更新为接收扁平化参数，避免 TS71007 错误
  */
 export function createLocalizedFormConfig<T extends FieldValues>(
-  watch: UseFormWatch<T>,
-  setValue: UseFormSetValue<T>,
-  getValues: UseFormGetValues<T>,
+  watchAction: UseFormWatch<T>,
+  setValueAction: UseFormSetValue<T>,
+  getValuesAction: UseFormGetValues<T>,
   locale: string,
   availableLocales: string[] = [],
 ) {
   return {
-    watch,
-    setValue,
-    getValues,
+    watch: watchAction,
+    setValue: setValueAction,
+    getValues: getValuesAction,
     locale,
     availableLocales,
   };

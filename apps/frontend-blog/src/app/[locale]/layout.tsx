@@ -5,6 +5,8 @@ import zhMessages from '@/messages/zh.json';
 import enMessages from '@/messages/en.json';
 import jaMessages from '@/messages/ja.json';
 import koMessages from '@/messages/ko.json';
+import frMessages from '@/messages/fr.json';
+import deMessages from '@/messages/de.json';
 import { notFound } from 'next/navigation';
 import Header from '@/components/Header';
 import Sidebar from '@/components/navigation/Sidebar';
@@ -169,6 +171,8 @@ export default async function LocaleLayout({
     en: enMessages,
     ja: jaMessages,
     ko: koMessages,
+    fr: frMessages,
+    de: deMessages,
   };
   const messages = allMessages[locale] || allMessages['zh'];
 

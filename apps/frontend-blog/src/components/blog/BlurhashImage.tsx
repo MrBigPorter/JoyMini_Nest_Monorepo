@@ -108,7 +108,7 @@ export function BlurhashImage({
   }
 
   return (
-    <div className={`relative overflow-hidden ${className}`}>
+    <div className={`relative overflow-hidden h-full w-full ${className}`}>
       {/* Hidden canvas for blurhash decoding (not rendered visually) */}
       <canvas ref={canvasRef} style={{ display: 'none' }} />
 

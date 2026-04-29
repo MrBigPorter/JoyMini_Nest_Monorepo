@@ -1,3 +1,5 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import {
   Injectable,
   NotFoundException,
@@ -9,6 +11,12 @@ import { OnEvent } from '@nestjs/event-emitter';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { ArticleStatus, Prisma } from '@prisma/client';
 import { CreateArticleDto, UpdateArticleDto, CreateCommentDto } from './dto';
+import {
+  ScannedArticle,
+  BatchImportDto,
+  BatchImportResult,
+  BatchImportResultItem,
+} from './dto/batch-import.dto';
 import { plainToInstance } from 'class-transformer';
 import {
   CommentListResponseDto,
@@ -87,12 +95,16 @@ export class BlogService {
     //  原生 Localized 格式 - 只写新字段
     if (typeof field === 'object' && !Array.isArray(field)) {
       data[`${legacyFieldName}Localized`] = field;
+      // 同步设置普通字段（Prisma 必需），取 zh 或第一个可用值
+      data[legacyFieldName] =
+        (field as any).zh || Object.values(field as any)[0] || '';
     }
     // 旧单值格式转换
     else {
       data[`${legacyFieldName}Localized`] = {
         zh: field,
       };
+      data[legacyFieldName] = field;
     }
 
     return data;
@@ -200,6 +212,368 @@ export class BlogService {
       });
 
     return article;
+  }
+
+  // ── 批量扫描 & 导入 ──────────────────────────────────────────────
+
+  /**
+   * 扫描本地 docs/blog/articles/ 中的 Markdown 文件，返回文章元数据列表
+   * 同时检查每个文件推导出的 slug 是否已存在于数据库中
+   */
+  async scanLocalMarkdownFiles(): Promise<ScannedArticle[]> {
+    // 在 Docker 容器内，工作目录是 /app，所以 docs 在 /app/docs
+    const articlesDir = path.resolve(process.cwd(), 'docs/blog/articles');
+
+    if (!fs.existsSync(articlesDir)) {
+      this.logger.warn(`扫描本地文章: 目录不存在 ${articlesDir}`);
+      return [];
+    }
+
+    const mdFiles: string[] = [];
+    this.walkDirectory(articlesDir, mdFiles);
+
+    // 收集所有已存在 slug，批量查询一次
+    const allSlugs = new Set<string>();
+    const parsedFiles: {
+      filepath: string;
+      parsed: {
+        filename: string;
+        title: string;
+        excerpt: string;
+        content: string;
+        tags: string[];
+      };
+    }[] = [];
+
+    for (const filepath of mdFiles) {
+      try {
+        const parsed = this.parseMarkdownFile(filepath);
+        const slug = this.filenameToSlug(parsed.filename);
+        allSlugs.add(slug);
+        parsedFiles.push({ filepath, parsed });
+      } catch (err) {
+        this.logger.warn(
+          `扫描文件跳过: ${filepath} - ${(err as Error).message}`,
+        );
+      }
+    }
+
+    // 批量查询已存在的 slug
+    const existingSlugs = new Set<string>();
+    if (allSlugs.size > 0) {
+      const existing = await this.prisma.blogArticle.findMany({
+        where: { slug: { in: Array.from(allSlugs) } },
+        select: { slug: true },
+      });
+      existing.forEach((a) => existingSlugs.add(a.slug));
+    }
+
+    const results: ScannedArticle[] = [];
+    for (const { filepath, parsed } of parsedFiles) {
+      const slug = this.filenameToSlug(parsed.filename);
+      const stat = fs.statSync(filepath);
+      const relDir = this.getSubdirectory(filepath, articlesDir);
+
+      results.push({
+        filename: parsed.filename,
+        slug,
+        title: parsed.title,
+        excerpt: parsed.excerpt,
+        content: parsed.content,
+        tags: parsed.tags,
+        subdir: relDir,
+        exists: existingSlugs.has(slug),
+        fileSize: stat.size,
+        lastModified: stat.mtime.toISOString(),
+      });
+    }
+
+    return results;
+  }
+
+  /**
+   * 批量导入文章
+   */
+  async batchImportArticles(
+    authorId: string,
+    dto: BatchImportDto,
+  ): Promise<BatchImportResult> {
+    const defaultStatus = dto.defaultStatus || ArticleStatus.DRAFT;
+    const overwrite = dto.overwrite ?? false;
+    const results: BatchImportResultItem[] = [];
+
+    for (const item of dto.articles) {
+      try {
+        // 检查 slug 是否已存在
+        const existing = await this.prisma.blogArticle.findUnique({
+          where: { slug: item.slug },
+          select: { id: true },
+        });
+
+        if (existing) {
+          if (overwrite) {
+            // 更新已有文章
+            const updated = await this.prisma.blogArticle.update({
+              where: { id: existing.id },
+              data: {
+                status: item.status || defaultStatus,
+                authorId,
+                ...this.buildLocalizedData({ zh: item.title }, 'title'),
+                ...this.buildLocalizedData(
+                  { zh: this.renderMarkdown(item.content) },
+                  'content',
+                ),
+                ...this.buildLocalizedData({ zh: item.content }, 'contentMd'),
+                ...this.buildLocalizedData(
+                  item.excerpt ? { zh: item.excerpt } : undefined,
+                  'excerpt',
+                ),
+              },
+            });
+            results.push({
+              filename: item.filename,
+              articleId: updated.id,
+              slug: item.slug,
+              success: true,
+            });
+          } else {
+            // 跳过
+            results.push({
+              filename: item.filename,
+              slug: item.slug,
+              success: false,
+              error: 'Slug 已存在',
+            });
+          }
+          continue;
+        }
+
+        // 处理标签：按名称查找或创建
+        const tagIds: string[] = [];
+        if (item.tags && item.tags.length > 0) {
+          for (const tagName of item.tags) {
+            const tagId = await this.findOrCreateTag(tagName);
+            tagIds.push(tagId);
+          }
+        }
+
+        // 创建新文章
+        const article = await this.prisma.blogArticle.create({
+          data: {
+            slug: item.slug,
+            status: item.status || defaultStatus,
+            authorId,
+            categoryId: item.categoryId || null,
+            tags:
+              tagIds.length > 0
+                ? { connect: tagIds.map((id) => ({ id })) }
+                : undefined,
+            ...this.buildLocalizedData({ zh: item.title }, 'title'),
+            ...this.buildLocalizedData(
+              { zh: this.renderMarkdown(item.content) },
+              'content',
+            ),
+            ...this.buildLocalizedData({ zh: item.content }, 'contentMd'),
+            ...this.buildLocalizedData(
+              item.excerpt ? { zh: item.excerpt } : undefined,
+              'excerpt',
+            ),
+          },
+        });
+
+        results.push({
+          filename: item.filename,
+          articleId: article.id,
+          slug: article.slug,
+          success: true,
+        });
+      } catch (err) {
+        results.push({
+          filename: item.filename,
+          slug: item.slug,
+          success: false,
+          error: (err as Error).message,
+        });
+      }
+    }
+
+    const successCount = results.filter((r) => r.success).length;
+    const failureCount = results.filter(
+      (r) => !r.success && !r.error?.includes('已存在'),
+    ).length;
+    const skippedCount = results.filter(
+      (r) => !r.success && r.error?.includes('已存在'),
+    ).length;
+
+    return {
+      successCount,
+      failureCount,
+      skippedCount,
+      results,
+    };
+  }
+
+  // ── 扫描 & 导入辅助方法 ──────────────────────────────────────────
+
+  /**
+   * 递归遍历目录收集 .md 文件
+   */
+  private walkDirectory(dir: string, results: string[]): void {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        this.walkDirectory(fullPath, results);
+      } else if (entry.isFile() && entry.name.endsWith('.md')) {
+        results.push(fullPath);
+      }
+    }
+  }
+
+  /**
+   * 解析 Markdown 文件，提取标题、摘要和正文
+   */
+  private parseMarkdownFile(filepath: string): {
+    filename: string;
+    title: string;
+    excerpt: string;
+    content: string;
+    tags: string[];
+  } {
+    const raw = fs.readFileSync(filepath, 'utf-8');
+    const lines = raw.split('\n');
+
+    // 1. 提取标题
+    let title = '';
+    let titleLineIndex = -1;
+    for (let i = 0; i < lines.length; i++) {
+      const trimmed = lines[i].trim();
+      if (trimmed.startsWith('# ')) {
+        title = trimmed.replace(/^#\s+/, '').trim();
+        titleLineIndex = i;
+        break;
+      }
+    }
+
+    if (!title) {
+      throw new Error(`无法找到 # 标题`);
+    }
+
+    // 2. 提取摘要
+    let excerpt = '';
+    let excerptLineIndex = -1;
+    for (let i = titleLineIndex + 1; i < lines.length; i++) {
+      const trimmed = lines[i].trim();
+      if (trimmed.startsWith('> ')) {
+        excerpt = trimmed.replace(/^>\s+/, '').trim();
+        excerptLineIndex = i;
+        break;
+      }
+      if (trimmed === '---' || (trimmed !== '' && !trimmed.startsWith('>'))) {
+        break;
+      }
+    }
+
+    // 3. 提取正文
+    let contentStartIndex = titleLineIndex + 1;
+    for (let i = titleLineIndex + 1; i < lines.length; i++) {
+      if (lines[i].trim() === '---') {
+        contentStartIndex = i + 1;
+        break;
+      }
+    }
+    if (contentStartIndex === titleLineIndex + 1 && excerptLineIndex !== -1) {
+      contentStartIndex = excerptLineIndex + 1;
+    }
+
+    const bodyLines = lines.slice(contentStartIndex);
+
+    // 4. 提取 Tags
+    const tags: string[] = [];
+    const firstBodyLine = bodyLines[0]?.trim() || '';
+    const tagsMatch = firstBodyLine.match(/^Tags:\s*(.+)$/i);
+    if (tagsMatch) {
+      tags.push(
+        ...tagsMatch[1]
+          .split(',')
+          .map((t) => t.trim())
+          .filter((t) => t.length > 0),
+      );
+      bodyLines.shift();
+    }
+
+    const content = bodyLines.join('\n').trim();
+
+    if (!content) {
+      throw new Error('正文内容为空');
+    }
+
+    return {
+      filename: path.basename(filepath),
+      title,
+      excerpt,
+      tags,
+      content,
+    };
+  }
+
+  /**
+   * 文件名转 Slug
+   * example-file.md → example-file
+   */
+  private filenameToSlug(filename: string): string {
+    return filename.replace(/\.md$/i, '');
+  }
+
+  /**
+   * 获取文件相对于 articles/ 的子目录名
+   */
+  private getSubdirectory(
+    filepath: string,
+    articlesDir: string,
+  ): string | null {
+    const rel = path.relative(articlesDir, filepath);
+    const dir = path.dirname(rel);
+    if (dir === '.') return null;
+    return dir.split(path.sep)[0];
+  }
+
+  /**
+   * 按标签名称查找或创建标签，返回标签 ID
+   */
+  private async findOrCreateTag(tagName: string): Promise<string> {
+    // 查找名称匹配的标签（中文或英文）
+    const existing = await this.prisma.blogTag.findFirst({
+      where: {
+        OR: [
+          { name: { path: ['zh'], equals: tagName } },
+          { name: { path: ['en'], equals: tagName } },
+          { slug: tagName.toLowerCase().replace(/\s+/g, '-') },
+        ],
+      },
+      select: { id: true },
+    });
+
+    if (existing) {
+      return existing.id;
+    }
+
+    // 创建新标签
+    const slug = tagName
+      .toLowerCase()
+      .replace(/[^\w\s\u4e00-\u9fa5]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-+|-+$/g, '');
+
+    const tag = await this.prisma.blogTag.create({
+      data: {
+        name: { zh: tagName },
+        slug: slug || tagName.toLowerCase().replace(/\s+/g, '-'),
+      },
+    });
+
+    return tag.id;
   }
 
   /**

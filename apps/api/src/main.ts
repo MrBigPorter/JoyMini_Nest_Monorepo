@@ -3,6 +3,7 @@ import { AppModule } from './app.module';
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
+import { json } from 'express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import morganBody from 'morgan-body';
@@ -21,6 +22,8 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   app.enableShutdownHooks();
+
+  app.use(json({ limit: '10mb' }));
 
   // 配置
   const config = app.get(ConfigService);

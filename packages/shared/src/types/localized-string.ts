@@ -36,8 +36,9 @@ export const AVAILABLE_LOCALES: Locale[] = ["zh", "en", "ja", "ko", "fr", "de"];
  */
 export function localizedStringSchema<T extends z.ZodTypeAny>(valueSchema: T) {
   //  完整双向兼容：同时支持 字符串值 和 对象结构
+  //  Also accepts empty strings for locales that haven't been filled yet
   return z.union([
-    z.record(z.union([valueSchema, z.undefined()])),
+    z.record(z.union([valueSchema, z.literal(""), z.undefined()])),
     valueSchema.transform((value) => ({
       zh: value,
       en: "",

@@ -111,9 +111,9 @@ export const BlogCategoryModal: React.FC<BlogCategoryModalProps> = ({
   const { form, submitHandler, isLoading } = blogForm;
   const { reset, register, getValues } = form;
   const { localize } = useLocalizedFormV2({
-    watch: form.watch,
-    setValue: form.setValue,
-    getValues: form.getValues,
+    watchAction: form.watch,
+    setValueAction: form.setValue,
+    getValuesAction: form.getValues,
     locale,
     availableLocales: ['zh', 'en'],
   });

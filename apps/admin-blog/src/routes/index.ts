@@ -10,6 +10,7 @@ import {
   Sparkles,
   Search,
   Settings,
+  Upload,
 } from 'lucide-react';
 
 export type RouteGroup = 'Dashboard' | 'Content' | 'Tools' | 'System';
@@ -65,6 +66,12 @@ export const routes: RouteConfig[] = [
     icon: MessageCircle,
     group: 'Content',
   },
+  {
+    path: '/blog/import',
+    name: 'import_articles',
+    icon: Upload,
+    group: 'Content',
+  },
 
   // ── Tools ──
   {
@@ -72,14 +79,14 @@ export const routes: RouteConfig[] = [
     name: 'translation_progress',
     icon: Sparkles,
     group: 'Tools',
-    hidden: true,
+    hidden: false,
   },
   {
     path: '/blog/translation-issues',
     name: 'translation_issues',
     icon: Search,
     group: 'Tools',
-    hidden: true,
+    hidden: false,
   },
 
   // ── System ──
