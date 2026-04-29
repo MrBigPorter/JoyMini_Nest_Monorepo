@@ -11,7 +11,7 @@
         check fix audit type-check \
         deploy deploy-backend deploy-admin deploy-quick deploy-sync \
         rollback rollback-backend rollback-db \
-        switch-admin-dns rollback-admin-dns \
+        switch-admin-dns rollback-admin-dns verify-blog-cache \
         logs-prod logs-backend logs-nginx logs-db logs-turn
 
 .DEFAULT_GOAL := help
@@ -247,6 +247,10 @@ switch-admin-dns:
 ## [Cloudflare] 🔁 切换 admin DNS 回 VPS (dry-run)
 rollback-admin-dns:
 	bash deploy/cloudflare-rollback.sh
+
+## [Cloudflare] ✅ 验证 blog 前端缓存状态 (Cloudflare Workers)
+verify-blog-cache:
+	bash deploy/verify-blog-cache.sh
 
 # ──────────────────────────────────────────
 # 生产日志 (VPS)
