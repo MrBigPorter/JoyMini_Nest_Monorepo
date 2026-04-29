@@ -4,7 +4,7 @@
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](apps/frontend-blog/package.json)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.5-3178C6?logo=typescript)
 [![Capacitor](https://img.shields.io/badge/Capacitor-6-119EFF?logo=capacitor)](apps/frontend-blog/package.json)
-[![Cloudflare](https://img.shields.io/badge/Cloudflare-Pages%20%2B%20Workers-F38020?logo=cloudflare)](apps/frontend-blog/wrangler.toml)
+[![Cloudflare](https://img.shields.io/badge/Cloudflare-Workers%20%2B%20KV-F38020?logo=cloudflare)](apps/frontend-blog/wrangler.jsonc)
 [![PWA](https://img.shields.io/badge/PWA-Enabled-5A0FC8?logo=pwa)](apps/frontend-blog/public/sw.js)
 
 > A high-performance, multi-platform blog application built with Next.js 15, supporting Web, iOS, and Android via Capacitor 6. Part of the [Lucky Nest Monorepo](../README.md).
@@ -65,24 +65,29 @@ The blog is deployed on **Cloudflare Pages** with **Workers** for edge rendering
 
 ---
 
-### 2. Cloudflare ISR + KV Cache for Edge Rendering
+### 2. Multi-Layer Caching Architecture for Edge Performance
 
-**Problem:** Server-side rendering from a single region causes high latency for global users. Full static generation doesn't work for dynamic blog content that updates frequently.
+**Problem:** Server-side rendering from a single region causes high latency for global users. Full static generation doesn't work for dynamic blog content that updates frequently, and without a proper caching strategy, every request hits the origin.
 
-**Solution:** Deployed on **Cloudflare Pages** with **Workers** running at the edge (330+ locations). **Incremental Static Regeneration (ISR)** is implemented using **Cloudflare KV** as the cache store — content is rendered at the edge, cached with configurable TTLs (5-60 min for articles, 1h for static assets), and invalidated on-demand when content changes.
+**Solution:** A three-layer caching architecture deployed on **Cloudflare Workers**:
 
-```toml
-# apps/frontend-blog/wrangler.toml:382-392
-[[kv_namespaces]]
-binding = "CACHE"
-id = "cache-store"
+1. **KV ISR Cache** — OpenNext's built-in `kvIncrementalCache` stores rendered pages in Cloudflare KV. On revalidation-triggering events (content publish/update), the cache is purged and pages are re-rendered at the edge.
+2. **CDN Edge Cache** — Cloudflare's global CDN (330+ locations) caches responses with `Cache-Control` headers. HTML pages: `max-age=3600, stale-while-revalidate=86400`, static assets: `max-age=31536000, immutable`.
+3. **Browser Cache** — Short TTL for HTML (1h), long TTL for JS/CSS (1y), images and fonts cached for 7d.
 
-[[kv_namespaces]]
-binding = "ISR_CACHE"
-id = "isr-cache-store"
+Configured via [`open-next.config.ts`](apps/frontend-blog/open-next.config.ts) using OpenNext's official KV incremental cache override:
+
+```typescript
+import kvIncrementalCache from "@opennextjs/cloudflare/overrides/incremental-cache/kv-incremental-cache";
+import kvTagCache from "@opennextjs/cloudflare/overrides/tag-cache/kv-next-tag-cache";
+
+export default defineCloudflareConfig({
+  incrementalCache: kvIncrementalCache,
+  tagCache: kvTagCache,
+});
 ```
 
-[View wrangler config](apps/frontend-blog/wrangler.toml) | [View Cloudflare worker](apps/frontend-blog/src/worker.ts)
+[View open-next.config.ts](apps/frontend-blog/open-next.config.ts) | [View caching architecture docs](../docs/blog/caching/BLOG_CACHING_ARCHITECTURE.md) | [View verification script](../deploy/verify-blog-cache.sh)
 
 ---
 
@@ -236,14 +241,15 @@ yarn workspace @lucky/frontend-blog performance-audit
 
 ## 🌐 Architecture
 
-### Caching Strategy
+### Caching Architecture
 
 ```
-1. Cloudflare CDN (Edge)    → Static assets, 1h TTL
-2. ISR Cache (Edge Worker)  → Content pages, 5-60min TTL
-3. Browser Cache            → JS/CSS 1d, Images 7d
-4. Service Worker           → Critical resources offline fallback
+1. KV ISR Cache (Worker)   → Rendered pages, KV-backed ISR
+2. CDN Edge Cache           → Static assets + HTML, CF edge nodes
+3. Browser Cache            → JS/CSS 1y, Images 7d, HTML 1h
 ```
+
+See [BLOG_CACHING_ARCHITECTURE.md](../docs/blog/caching/BLOG_CACHING_ARCHITECTURE.md) for detailed architecture diagrams, cache key design, and verification procedures.
 
 ### Performance Targets
 

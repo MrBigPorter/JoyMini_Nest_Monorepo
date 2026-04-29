@@ -442,6 +442,11 @@ lucky-nest-monorepo/
 │   │   ├── prisma/          # Schema + migrations
 │   │   └── scripts/         # Seed + CLI tools
 │   │
+│   ├── admin-blog/          # Blog CMS admin dashboard (Next.js 15)
+│   │   ├── src/app/         # App Router + layouts
+│   │   ├── src/i18n/        # 6-language translations
+│   │   └── src/components/  # Blog CMS UI components
+│   │
 │   ├── frontend-blog/       # Public blog (Next.js + Capacitor)
 │   │   ├── src/lib/         # Hooks, API clients, utilities
 │   │   ├── android/         # Capacitor Android project

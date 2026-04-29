@@ -1,73 +1,80 @@
-# React + TypeScript + Vite
+# @lucky/liveness-web — KYC Liveness Detection
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](apps/liveness-web/package.json)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript)
+[![Vite](https://img.shields.io/badge/Vite-5-646CFF?logo=vite)
+[![AWS Amplify](https://img.shields.io/badge/AWS_Amplify-6-FF9900?logo=awsamplify)
 
-Currently, two official plugins are available:
+> Face liveness verification web application built with AWS Rekognition and Amplify. Part of the [Lucky Nest Monorepo](../README.md).
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+---
 
-## React Compiler
+## ✨ Overview
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+`@lucky/liveness-web` is a standalone web application that performs **face liveness detection** for KYC (Know Your Customer) verification. It uses **AWS Rekognition** via the **Amplify UI React Liveness** component to verify that a real person (not a photo, video, or mask) is present during identity verification.
 
-## Expanding the ESLint configuration
+The app is deployed on **Cloudflare Workers** and is accessed as an embedded webview or standalone page during the KYC flow.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+---
 
-```js
-export default defineConfig([
-  globalIgnores(["dist"]),
-  {
-    files: ["**/*.{ts,tsx}"],
-    extends: [
-      // Other configs...
+## 🛠️ Tech Stack
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+| Category       | Technologies                                                         |
+| -------------- | -------------------------------------------------------------------- |
+| **Framework**  | React 19, TypeScript 5.9                                             |
+| **Build**      | Vite 5                                                               |
+| **Liveness**   | AWS Amplify (UI React Liveness), AWS Rekognition                     |
+| **Cloud**      | AWS (Cognito, Rekognition), Cloudflare Workers (deployment)          |
+| **Linting**    | ESLint 9, typescript-eslint, eslint-plugin-react-hooks               |
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ["./tsconfig.node.json", "./tsconfig.app.json"],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-]);
+---
+
+## How It Works
+
+1. User initiates KYC verification in the main app or admin panel
+2. User is redirected to the liveness web app (embedded or standalone)
+3. The app uses the device camera to capture a short video of the user's face
+4. AWS Rekognition analyzes the video for liveness indicators (eye movement, depth, texture)
+5. A liveness score is returned to the backend API
+6. The KYC record is updated with the verification result
+
+---
+
+## 🚀 Getting Started
+
+### Development
+
+```bash
+# Start dev server (port 5173 by default)
+yarn workspace @lucky/liveness-web dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### Build
 
-```js
-// eslint.config.js
-import reactX from "eslint-plugin-react-x";
-import reactDom from "eslint-plugin-react-dom";
-
-export default defineConfig([
-  globalIgnores(["dist"]),
-  {
-    files: ["**/*.{ts,tsx}"],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs["recommended-typescript"],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ["./tsconfig.node.json", "./tsconfig.app.json"],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-]);
+```bash
+yarn workspace @lucky/liveness-web build
 ```
+
+---
+
+## 🔧 Environment Variables
+
+| Variable                    | Description                            |
+| --------------------------- | -------------------------------------- |
+| `VITE_AWS_REGION`           | AWS region for Rekognition             |
+| `VITE_COGNITO_IDENTITY_POOL`| Cognito Identity Pool ID               |
+| `VITE_LIVENESS_API_URL`     | Backend API URL for liveness results   |
+
+---
+
+## 🔗 Related
+
+- [Monorepo Root](../README.md) — Project overview and architecture
+- [@lucky/api](../api/README.md) — NestJS backend API (KYC endpoints)
+- [@lucky/admin-next](../admin-next/README.md) — Admin dashboard (KYC review)
+
+---
+
+## 📄 License
+
+Part of the Lucky Nest Monorepo. See the [root license](../README.md) for details.
