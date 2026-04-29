@@ -1,7 +1,3 @@
-// @ts-nocheck — This file is consumed by OpenNext's esbuild, not by tsc.
-//              Opening it in WebStorm causes cascading type errors across the monorepo
-//              because TypeScript recursively resolves @opennextjs/cloudflare's transitive deps.
-//              See: https://opennext.js.org/cloudflare
 // open-next.config.ts — used by @opennextjs/cloudflare build process
 // See: https://opennext.js.org/cloudflare
 
