@@ -1,9 +1,9 @@
-import { zhCN, enUS, ja, ko } from 'date-fns/locale';
+import { zhCN, enUS, ja, ko, fr, de } from 'date-fns/locale';
 import type { Locale as DateFnsLocale } from 'date-fns';
 
 /**
  * 根据应用locale获取对应的date-fns locale对象
- * 支持的语言: zh, en, ja, ko
+ * 支持的语言: zh, en, ja, ko, fr, de
  * 默认回退到enUS
  */
 
@@ -17,6 +17,10 @@ export const getDateFnsLocale = (locale: string): DateFnsLocale => {
       return ja;
     case 'ko':
       return ko;
+    case 'fr':
+      return fr;
+    case 'de':
+      return de;
     default:
       return enUS;
   }
@@ -31,6 +35,8 @@ export const SUPPORTED_DATE_LOCALES: Record<string, DateFnsLocale> = {
   en: enUS,
   ja: ja,
   ko: ko,
+  fr: fr,
+  de: de,
 };
 
 /**

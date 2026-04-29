@@ -1,175 +1,243 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
-import dynamic from 'next/dynamic';
-import { ChevronLeft, Clock, Calendar, User } from 'lucide-react';
-import { Link } from '@/navigation';
-import CommentList from '@/components/blog/CommentList';
-import { BookmarkButton } from '@/lib/components/BookmarkButton';
-import { ArticleDetailSkeleton } from '@/lib/components/SkeletonLoader';
+import React, { useMemo } from 'react';
+import Image from 'next/image';
+import Link from 'next/link';
+import { useParams } from 'next/navigation';
+import { useLocale, useTranslations } from 'next-intl';
+import {
+  Calendar,
+  Clock,
+  Eye,
+  Heart,
+  MessageSquare,
+  ArrowLeft,
+  BookOpen,
+  User,
+  Tag,
+} from 'lucide-react';
 import { useFrontendArticleBySlug } from '@/lib/hooks/useFrontendArticles';
-import { generateArticleSchema, injectStructuredData } from '@/lib/seo/schema';
-import type { FrontendArticle } from '@/lib/types/frontend-blog';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Badge } from '@/components/ui/badge';
+import ArticleMarkdown from '@/components/blog/ArticleMarkdown';
+import CommentList from '@/components/blog/CommentList';
+import { BookmarkButton } from '@/components/blog/BookmarkButton';
 
-const ArticleMarkdown = dynamic(
-  () => import('@/components/blog/ArticleMarkdown'),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="animate-pulse space-y-4 py-8">
-        <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4" />
-        <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-1/2" />
-        <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-5/6" />
-        <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-2/3" />
-      </div>
-    ),
-  },
-);
-
-interface ArticlePageClientProps {
-  initialData: FrontendArticle | null;
-  locale: string;
-  slug: string;
+// ---------------------------------------------------------------------------
+// Loading placeholder
+// ---------------------------------------------------------------------------
+function LoadingSkeleton() {
+  return (
+    <div className="max-w-5xl mx-auto px-4 py-8 md:py-12">
+      <Skeleton className="h-10 w-3/4 mb-4" />
+      <Skeleton className="h-5 w-1/3 mb-2" />
+      <Skeleton className="h-5 w-1/4 mb-8" />
+      <Skeleton className="h-64 w-full mb-4" />
+      <Skeleton className="h-4 w-full mb-2" />
+      <Skeleton className="h-4 w-full mb-2" />
+      <Skeleton className="h-4 w-3/4" />
+    </div>
+  );
 }
 
+interface ArticlePageClientProps {
+  initialArticle?: any;
+}
+
+// ---------------------------------------------------------------------------
+// Page client component
+// ---------------------------------------------------------------------------
 export default function ArticlePageClient({
-  initialData,
-  locale,
-  slug,
+  initialArticle,
 }: ArticlePageClientProps) {
-  const t = useTranslations();
+  const params = useParams();
+  const locale = useLocale();
+  const t = useTranslations('article');
+  const tc = useTranslations('common');
+
+  const slug = (params?.slug as string) || '';
+
   const {
     data: article,
     isLoading,
     error,
-  } = useFrontendArticleBySlug(slug, initialData);
+  } = useFrontendArticleBySlug(slug, initialArticle);
 
-  // Zero flicker logic: only show skeleton when no initial data
-  const hasInitialData = !!initialData;
-  const hasCurrentData = !!article;
+  // -------------------------------------------------------------------
+  // Structured data for SEO (JSON-LD)
+  // -------------------------------------------------------------------
+  const structuredData = useMemo(() => {
+    if (!article) return null;
+    return {
+      '@context': 'https://schema.org',
+      '@type': 'Article',
+      headline: article.title,
+      description: article.excerpt,
+      image: article.coverImage,
+      datePublished: article.publishedAt,
+      dateModified: article.updatedAt,
+      author: article.author
+        ? {
+            '@context': 'https://schema.org',
+            '@type': 'Person',
+            name: article.author.name,
+          }
+        : undefined,
+    };
+  }, [article]);
 
-  if (isLoading && !hasInitialData && !hasCurrentData) {
-    return <ArticleDetailSkeleton />;
-  }
+  // -------------------------------------------------------------------
+  // Loading / Error states
+  // -------------------------------------------------------------------
+  if (isLoading) return <LoadingSkeleton />;
 
   if (error || !article) {
     return (
-      <div className="max-w-5xl mx-auto px-4 py-20">
+      <div className="max-w-5xl mx-auto px-4 py-8 md:py-12">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-4">
-            {t('article.notFound')}
-          </h1>
-          <p className="text-slate-600 dark:text-slate-400 mb-8">
-            {t('article.notFoundDescription')}
+          <div className="mb-4">
+            <BookOpen className="mx-auto h-16 w-16 text-gray-300 dark:text-gray-600" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+            {t('notFound') || 'Article Not Found'}
+          </h2>
+          <p className="text-gray-500 dark:text-gray-400 mb-6">
+            {t('notFoundDescription') ||
+              'The article you are looking for does not exist or has been removed.'}
           </p>
           <Link
-            href="/"
-            className="inline-flex items-center gap-2 text-primary hover:text-primary-600 transition-colors"
+            href={`/${locale}`}
+            className="inline-flex items-center gap-2 text-primary hover:text-primary-600"
           >
-            <ChevronLeft className="w-4 h-4" />
-            <span>{t('common.backToHome')}</span>
+            <ArrowLeft className="h-4 w-4" />
+            {tc('backToArticles') || 'Back to Articles'}
           </Link>
         </div>
       </div>
     );
   }
 
-  // Format date
+  // -------------------------------------------------------------------
+  // Format helpers
+  // -------------------------------------------------------------------
   const formatDate = (dateString: string | null) => {
-    if (!dateString) return t('article.notPublished');
-    try {
-      return new Intl.DateTimeFormat(locale, {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      }).format(new Date(dateString));
-    } catch {
-      return dateString;
-    }
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString(locale === 'zh' ? 'zh-CN' : 'en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
   };
 
-  // Calculate reading time
   const calculateReadingTime = (content: string) => {
     const wordsPerMinute = 200;
-    const wordCount = content.split(/\s+/).length;
-    const minutes = Math.ceil(wordCount / wordsPerMinute);
-    return `${minutes} ${t('article.minutes')}`;
+    const textLength = content?.length || 0;
+    const minutes = Math.ceil(textLength / wordsPerMinute);
+    return Math.max(1, minutes);
   };
 
-  // 生成结构化数据
-  const articleSchema = article ? generateArticleSchema(article, locale) : null;
-  const structuredData = articleSchema
-    ? injectStructuredData(articleSchema)
-    : '';
+  const readingTime = calculateReadingTime(
+    article.contentMd || article.content || '',
+  );
 
   return (
     <>
-      {/* 结构化数据注入 */}
       {structuredData && (
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: structuredData }}
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
         />
       )}
 
       <div className="max-w-5xl mx-auto px-4 py-8 md:py-12">
-        {/* Back button */}
+        {/* Back link */}
         <div className="mb-8">
           <Link
-            href="/"
-            className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
+            href={`/${locale}`}
+            className="inline-flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-primary transition-colors"
           >
-            <ChevronLeft className="w-4 h-4" />
-            <span>{t('common.backToHome')}</span>
+            <ArrowLeft className="h-4 w-4" />
+            {tc('backToArticles') || 'Back to Articles'}
           </Link>
         </div>
 
-        {/* Article header */}
+        {/* Header */}
         <header className="mb-10">
-          <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-6">
+          {/* Categories & Tags */}
+          <div className="flex flex-wrap items-center gap-3 mb-4">
+            {article.category && (
+              <Badge variant="secondary">{article.category.name}</Badge>
+            )}
+
+            {article.tags?.map((tag: any) => (
+              <Badge key={tag.id} variant="outline">
+                <Tag className="h-3 w-3 mr-1" />
+                {tag.name}
+              </Badge>
+            ))}
+          </div>
+
+          {/* Title */}
+          <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-gray-900 dark:text-white leading-tight mb-4">
             {article.title}
           </h1>
 
-          {article.excerpt && (
-            <p className="text-lg text-muted-foreground mb-6">
-              {article.excerpt}
-            </p>
-          )}
+          {/* Meta */}
+          <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500 dark:text-gray-400 mb-4">
+            {article.author && (
+              <div className="flex items-center gap-2">
+                {article.author.avatar ? (
+                  <Image
+                    src={article.author.avatar}
+                    alt={article.author.name}
+                    width={24}
+                    height={24}
+                    className="rounded-full"
+                  />
+                ) : (
+                  <User className="h-4 w-4" />
+                )}
+                <span>{article.author.name}</span>
+              </div>
+            )}
+            {article.publishedAt && (
+              <div className="flex items-center gap-1">
+                <Calendar className="h-4 w-4" />
+                <time dateTime={article.publishedAt}>
+                  {formatDate(article.publishedAt)}
+                </time>
+              </div>
+            )}
+            <div className="flex items-center gap-1">
+              <Clock className="h-4 w-4" />
+              <span>
+                {readingTime} {t('minutes') || 'min read'}
+              </span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Eye className="h-4 w-4" />
+              <span>{article.views || 0}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Heart className="h-4 w-4" />
+              <span>{article.likes || 0}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <MessageSquare className="h-4 w-4" />
+              <span>{article.commentsCount || 0}</span>
+            </div>
+          </div>
 
-          <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <User className="w-4 h-4" />
-              <span>{article.author?.name || t('article.anonymous')}</span>
-            </div>
-            <span className="text-muted-foreground/60">·</span>
-            <div className="flex items-center gap-2">
-              <Calendar className="w-4 h-4" />
-              <span>{formatDate(article.publishedAt)}</span>
-            </div>
-            <span className="text-muted-foreground/60">·</span>
-            <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4" />
-              <span>{calculateReadingTime(article.content || '')}</span>
-            </div>
-            <span className="text-muted-foreground/60">·</span>
-            <div className="flex items-center gap-2">
-              <BookmarkButton
-                articleId={article.id}
-                size="sm"
-                showLabel={false}
-                onBookmarkChange={(bookmarked) => {
-                  console.log(
-                    `Article ${article.id} bookmark status: ${bookmarked ? 'Bookmarked' : 'Not bookmarked'}`,
-                  );
-                }}
-              />
-              <span className="text-xs">Bookmark</span>
-            </div>
+          {/* Action buttons */}
+          <div className="flex items-center gap-2">
+            <BookmarkButton articleId={article.id} />
           </div>
         </header>
 
-        {/* Article content — lazy-loaded markdown renderer */}
-        <ArticleMarkdown content={article.content || ''} />
+        {/* Article content — render markdown with syntax highlighting, fall back to HTML */}
+        <ArticleMarkdown content={article.contentMd || article.content || ''} />
+
         {/* Comment system */}
         {article.slug && <CommentList articleId={article.slug} />}
       </div>

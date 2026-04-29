@@ -11,6 +11,7 @@ import { AiService, AiServiceLevel } from '@api/common/ai/ai.service';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { TranslationJobService } from '../translation-job.service';
 import { CommentStatus } from '@prisma/client';
+import { repairJsonResponse } from '../utils/repair-json';
 
 @Processor('blog-ai', {
   concurrency: 1, // 保持串行处理
@@ -315,9 +316,17 @@ For example:
 
 {
   "title": "Translated title",
-  "excerpt": "Translated excerpt", 
+  "excerpt": "Translated excerpt",
   "content": "Translated content in Markdown"
 }
+
+CRITICAL JSON VALIDITY RULES:
+- The "content" field contains Markdown text which may include special characters
+- ESCAPE ALL double quotes inside values as \" (e.g., "hello"world" -> "hello\"world")
+- ESCAPE ALL backslashes as \\ (e.g., "path\to" -> "path\\to")
+- ESCAPE ALL newlines inside values as \\n
+- The output MUST be 100% valid JSON that passes JSON.parse()
+- Double-check: no unescaped quotes, no unescaped backslashes, no literal newlines in strings
 `;
 
     let lastError: any;
@@ -345,9 +354,10 @@ For example:
           throw new Error('AI service returned empty result');
         }
 
-        // 尝试解析JSON
+        // 尝试解析JSON（带自动修复）
         try {
-          const parsed = JSON.parse(result);
+          const repaired = repairJsonResponse(result);
+          const parsed = JSON.parse(repaired);
 
           // 验证必需字段
           if (!parsed.title || !parsed.content) {
@@ -368,14 +378,28 @@ For example:
 
           return batchResult;
         } catch (parseError) {
+          const errorMsg =
+            parseError instanceof Error
+              ? parseError.message
+              : 'Unknown parse error';
+
+          // 记录详细错误信息，便于排查
+          const errorPosition = errorMsg.match(/position\s+(\d+)/i);
+          const pos = errorPosition ? parseInt(errorPosition[1], 10) : -1;
+          let detail = '';
+          if (pos > 0 && result) {
+            const start = Math.max(0, pos - 50);
+            const end = Math.min(result.length, pos + 50);
+            detail = ` | context[${pos}]: ...${result.substring(start, end)}...`;
+          }
+
           this.logger.error(
-            `批量翻译JSON解析失败 (尝试 ${attempt + 1}/${maxRetries + 1})`,
+            `批量翻译JSON解析失败 (尝试 ${attempt + 1}/${maxRetries + 1})${detail}`,
             {
-              error:
-                parseError instanceof Error
-                  ? parseError.message
-                  : 'Unknown parse error',
-              resultPreview: result ? result.substring(0, 200) : 'Empty result',
+              error: errorMsg,
+              resultPreview: result
+                ? result.substring(0, 500)
+                : 'Empty result',
             },
           );
 

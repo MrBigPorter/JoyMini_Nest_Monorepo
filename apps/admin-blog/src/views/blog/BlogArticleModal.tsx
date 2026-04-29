@@ -98,6 +98,10 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
         onSuccessAction();
         onCloseAction();
       },
+      onError: (error) => {
+        console.error('[BlogArticleModal] createArticle failed:', error);
+        addToast('error', t('createFailed') || 'Failed to create article');
+      },
     },
   );
 
@@ -108,6 +112,10 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
       onSuccess: () => {
         onSuccessAction();
         onCloseAction();
+      },
+      onError: (error) => {
+        console.error('[BlogArticleModal] updateArticle failed:', error);
+        addToast('error', t('updateFailed') || 'Failed to update article');
       },
     },
   );
@@ -130,9 +138,41 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
     schema: articleSchema,
     defaultValues: undefined, // Don't pass default values here, let useEffect handle it
     onSubmitAction: async (data: any) => {
+      console.log('[BlogArticleModal] onSubmitAction called', {
+        isEditing,
+        editingArticleId: editingArticle?.id,
+        dataKeys: Object.keys(data),
+        titleType: typeof data.title,
+        contentLocales: data.content
+          ? Object.keys(data.content).filter((k: string) => data.content[k])
+          : [],
+      });
+
       try {
         // 处理多语言图片上传
         const processedData = { ...data };
+
+        // Strip empty locale values from localized fields before submit
+        // to avoid Zod validation failure (z.string().min(1) rejects "")
+        const localizedFields = [
+          'title',
+          'content',
+          'excerpt',
+          'featuredImage',
+        ];
+        localizedFields.forEach((field) => {
+          if (
+            processedData[field] &&
+            typeof processedData[field] === 'object' &&
+            !(processedData[field] instanceof File)
+          ) {
+            Object.keys(processedData[field]).forEach((locale) => {
+              if (processedData[field][locale] === '') {
+                delete processedData[field][locale];
+              }
+            });
+          }
+        });
 
         // 获取当前语言的值
         const currentFeaturedImage = data.featuredImage;
@@ -177,14 +217,22 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
           }
         }
 
+        console.log('[BlogArticleModal] calling API with processedData', {
+          titleLocales: processedData.title
+            ? Object.keys(processedData.title)
+            : [],
+          contentLocales: processedData.content
+            ? Object.keys(processedData.content)
+            : [],
+        });
+
         if (isEditing && editingArticle) {
           await updateArticle(editingArticle.id, processedData);
-          // Invoke the async initializer
-          fetchAndInit();
         } else {
           await createArticle(processedData);
         }
       } catch (error) {
+        console.error('[BlogArticleModal] onSubmitAction error:', error);
         throw error;
       }
     },
@@ -289,19 +337,31 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
       }
     });
 
+    // Helper: strip null values from localized objects (API may return null for unfilled locales)
+    const stripNulls = (obj: Record<string, any>): Record<string, any> => {
+      const result: Record<string, any> = {};
+      for (const [k, v] of Object.entries(obj)) {
+        if (v !== null) result[k] = v;
+      }
+      return result;
+    };
+
     // 直接使用后端返回的标准 Localized 对象，确保所有启用语言都有值
     // 对于未翻译文章，titleLocalized 可能为 null，此时回退到 titleLocalizedFull
-    const titleObj =
-      mappedArticle?.titleLocalized || mappedArticle?.titleLocalizedFull || {};
+    const titleObj = stripNulls(
+      mappedArticle?.titleLocalized || mappedArticle?.titleLocalizedFull || {},
+    );
     const contentObj = contentLocalized;
-    const excerptObj =
+    const excerptObj = stripNulls(
       mappedArticle?.excerptLocalized ||
-      mappedArticle?.excerptLocalizedFull ||
-      {};
-    const featuredImageObj =
+        mappedArticle?.excerptLocalizedFull ||
+        {},
+    );
+    const featuredImageObj = stripNulls(
       mappedArticle?.coverImageLocalized ||
-      mappedArticle?.coverImageLocalizedFull ||
-      {};
+        mappedArticle?.coverImageLocalizedFull ||
+        {},
+    );
 
     // 重置表单
     console.debug(
@@ -406,28 +466,8 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
         }, 0);
       }
     } else {
-      // 弹窗关闭时完全重置表单
       // Clear initialized id so next open will re-initialize
       initializedArticleId.current = null;
-      reset({
-        title: { zh: '', en: '' },
-        content: { zh: '', en: '' },
-        excerpt: { zh: '', en: '' },
-        featuredImage: { zh: '', en: '' },
-        categoryId: '',
-        tagIds: [],
-        status: 'DRAFT',
-        featured: false,
-      });
-
-      setTimeout(() => {
-        articleFormRef.current?.reset({
-          title: '',
-          content: '',
-          excerpt: '',
-          featuredImage: '',
-        });
-      }, 0);
     }
   }, [isOpen, editingArticle, reset, currentLocale]);
 

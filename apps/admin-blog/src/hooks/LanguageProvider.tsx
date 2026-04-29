@@ -37,8 +37,22 @@ export function useLanguage() {
     locale = DEFAULT_LOCALE;
   }
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const router = useRouter();
+  let router: { refresh: () => void };
+  try {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    router = useRouter();
+  } catch {
+    // useRouter() throws "invariant expected app router to be mounted" when called
+    // outside the Next.js App Router context (e.g. inside a modal/portal).
+    // Falling back to a no-op refresh via window reload.
+    router = {
+      refresh: () => {
+        if (typeof window !== 'undefined') {
+          window.location.reload();
+        }
+      },
+    };
+  }
 
   const setLocale = useCallback(
     (newLocale: Locale) => {

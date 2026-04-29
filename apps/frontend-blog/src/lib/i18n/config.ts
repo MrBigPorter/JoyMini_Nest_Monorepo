@@ -11,7 +11,7 @@
  * 支持的所有语言代码
  * 新增语言时在此添加
  */
-export const LOCALES = ['zh', 'en', 'ja', 'ko'] as const;
+export const LOCALES = ['zh', 'en', 'ja', 'ko', 'fr', 'de'] as const;
 
 /**
  * 语言代码类型
@@ -78,6 +78,22 @@ export const LOCALES_METADATA: Record<Locale, LocaleMetadata> = {
     nativeName: '한국어',
     isDefault: false,
     fileName: 'ko',
+    enabled: true,
+  },
+  fr: {
+    code: 'fr',
+    name: 'French',
+    nativeName: 'Français',
+    isDefault: false,
+    fileName: 'fr',
+    enabled: true,
+  },
+  de: {
+    code: 'de',
+    name: 'German',
+    nativeName: 'Deutsch',
+    isDefault: false,
+    fileName: 'de',
     enabled: true,
   },
 };

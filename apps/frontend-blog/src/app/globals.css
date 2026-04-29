@@ -125,7 +125,7 @@ body {
 }
 
 main {
-  overscroll-behavior-y: auto;
+  overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
 }
 

@@ -9,8 +9,9 @@ import {
 } from 'react-hook-form';
 
 interface UseLocalizedFormOptions<T extends FieldValues> {
-  watch: UseFormWatch<T>;
-  setValue: UseFormSetValue<T>;
+  // 使用 Action 后缀避免 Next.js 15 Server Actions 编译检查 TS71007
+  watchAction: UseFormWatch<T>;
+  setValueAction: UseFormSetValue<T>;
   errors: FieldErrors<T>;
   locale: string;
 }
@@ -36,11 +37,14 @@ interface UseLocalizedFormOptions<T extends FieldValues> {
  *
  */
 export function useLocalizedForm<T extends FieldValues>({
-  watch,
-  setValue,
+  watchAction,
+  setValueAction,
   errors,
   locale,
 }: UseLocalizedFormOptions<T>) {
+  // Alias back to original names for internal use (Next.js 15 requires *Action suffix for TS71007)
+  const watch = watchAction;
+  const setValue = setValueAction;
   //  内部独立多语言存储层，永远不和RHF共享状态
   const storageRef = useRef<
     Record<string, Record<string, string | File | undefined>>

@@ -240,7 +240,7 @@ export default function BottomNavigation() {
   ];
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-t border-border">
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background border-t border-border">
       {/* 安全区域占位 */}
       <div style={{ height: 'var(--safe-area-bottom)' }} />
 

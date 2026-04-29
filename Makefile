@@ -12,6 +12,7 @@
         deploy deploy-backend deploy-admin deploy-quick deploy-sync \
         rollback rollback-backend rollback-db \
         switch-admin-dns rollback-admin-dns verify-blog-cache \
+        publish-blog-docs \
         logs-prod logs-backend logs-nginx logs-db logs-turn
 
 .DEFAULT_GOAL := help
@@ -251,6 +252,34 @@ rollback-admin-dns:
 ## [Cloudflare] ✅ 验证 blog 前端缓存状态 (Cloudflare Workers)
 verify-blog-cache:
 	bash deploy/verify-blog-cache.sh
+
+# ──────────────────────────────────────────
+# 博客文档发布
+# ──────────────────────────────────────────
+
+## [Blog Doc] 📝 预览将要发布的博客文章（不实际创建）
+publish-blog-docs-dry-run:
+	DRY_RUN=true PUBLISH_STATUS=$(PUBLISH_STATUS) \
+	API_URL=$(API_URL) \
+	SOURCE_DIR=$(SOURCE_DIR) \
+	npx tsx scripts/batch-import-blog-articles.ts
+
+## [Blog Doc] 🚀 将 docs/blog/articles/ 下的文章发布到博客系统
+## 用法: make publish-blog-docs API_URL=https://api.joyminis.com/api
+##       默认为 DRAFT 模式，设置 PUBLISH_STATUS=PUBLISHED 直接发布
+publish-blog-docs:
+	@if [ -z "$(API_URL)" ]; then \
+		echo ""; \
+		echo "  ❌ 请提供 API_URL"; \
+		echo "  Usage: make publish-blog-docs API_URL=https://api.joyminis.com/api"; \
+		echo "         make publish-blog-docs API_URL=http://localhost:3000/api PUBLISH_STATUS=DRAFT"; \
+		echo ""; \
+		exit 1; \
+	fi
+	API_URL=$(API_URL) \
+	PUBLISH_STATUS=$(PUBLISH_STATUS) \
+	SOURCE_DIR=$(SOURCE_DIR) \
+	npx tsx scripts/batch-import-blog-articles.ts
 
 # ──────────────────────────────────────────
 # 生产日志 (VPS)

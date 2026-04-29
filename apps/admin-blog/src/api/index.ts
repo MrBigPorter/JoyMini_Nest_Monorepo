@@ -115,6 +115,33 @@ export const blogApi = {
     return await http.patch<any>(`/v1/admin/blog/articles/${id}`, payload);
   },
 
+  // 扫描本地 Markdown 文件
+  scanLocalArticles: async () => {
+    return await http.get<any[]>('/v1/admin/blog/articles/scan-local');
+  },
+
+  // 批量导入文章
+  batchImportArticles: async (payload: {
+    articles: Array<{
+      filename: string;
+      slug: string;
+      title: string;
+      excerpt?: string;
+      content: string;
+      tags?: string[];
+      subdir?: string | null;
+      status?: string;
+      categoryId?: string;
+    }>;
+    defaultStatus?: string;
+    overwrite?: boolean;
+  }) => {
+    return await http.post<any>(
+      '/v1/admin/blog/articles/batch-import',
+      payload,
+    );
+  },
+
   deleteArticle: async (id: string) => {
     return await http.delete<any>(`/v1/admin/blog/articles/${id}`);
   },

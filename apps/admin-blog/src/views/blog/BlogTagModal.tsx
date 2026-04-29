@@ -111,9 +111,9 @@ export const BlogTagModal: React.FC<BlogTagModalProps> = ({
   const { form, submitHandler, isLoading } = blogForm;
   const { register, reset, getValues } = form;
   const { localize } = useLocalizedFormV2({
-    watch: form.watch,
-    setValue: form.setValue,
-    getValues: form.getValues,
+    watchAction: form.watch,
+    setValueAction: form.setValue,
+    getValuesAction: form.getValues,
     locale,
     availableLocales: ['zh', 'en'],
   });

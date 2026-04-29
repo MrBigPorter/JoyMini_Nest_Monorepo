@@ -131,12 +131,10 @@ export default async function ArticlePage({
       { lang: locale },
     );
 
-    return (
-      <ArticlePageClient initialData={article} locale={locale} slug={slug} />
-    );
+    return <ArticlePageClient initialArticle={article} />;
   } catch (error) {
     console.error('Article page server error:', error);
 
-    return <ArticlePageClient initialData={null} locale={locale} slug={slug} />;
+    return <ArticlePageClient initialArticle={undefined} />;
   }
 }

@@ -31,6 +31,7 @@ export function useBlogForm<T extends z.ZodSchema>({
   const form = useForm<z.infer<T>>({
     resolver: zodResolver(schema as any),
     defaultValues,
+    shouldFocusError: false, // Prevent scroll-to-top when validation fails on invisible localized fields
   });
 
   const handleSubmit = useCallback(
@@ -87,7 +88,22 @@ export function useBlogForm<T extends z.ZodSchema>({
     [onSubmitAction, addToast],
   );
 
-  const submitHandler = form.handleSubmit(handleSubmit);
+  // Second argument to handleSubmit is called when validation fails
+  const onValidationError = useCallback(
+    (errors: Record<string, any>) => {
+      console.error('[BLOG_FORM] Validation errors:', errors);
+      // Find the first error message
+      const firstError = Object.values(errors)[0] as any;
+      const message =
+        firstError?.message ||
+        (typeof firstError === 'object' && firstError?.message) ||
+        'Form validation failed. Please check all required fields.';
+      addToast('error', String(message));
+    },
+    [addToast],
+  );
+
+  const submitHandler = form.handleSubmit(handleSubmit, onValidationError);
 
   //  Next.js 15 RC 正确修复方案:
   //  不展开属性, 把完整form对象作为单一字段返回

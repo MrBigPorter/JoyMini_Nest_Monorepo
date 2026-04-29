@@ -4,7 +4,7 @@ import { useLocale } from 'next-intl';
 import { Link } from '@/navigation';
 import { formatDistanceToNow } from 'date-fns';
 import { getDateFnsLocale } from '@/lib/utils/date-locale';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef, useState, useEffect } from 'react';
 import type { Article } from '@/lib/types/blog';
 import type { FrontendArticle } from '@/lib/types/frontend-blog';
 import { BookmarkIconButton } from '@/lib/components/BookmarkButton';
@@ -76,6 +76,10 @@ export function ArticleCard({
   }, []);
 
   const locale = useLocale();
+  const [isClient, setIsClient] = useState(false);
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   // 处理两种类型的差异
   const publishedDate =
@@ -242,7 +246,7 @@ export function ArticleCard({
           {/* 底部元信息 */}
           <div className="flex items-center justify-between pt-3 text-xs text-slate-500 dark:text-slate-400">
             <div className="flex items-center gap-3">
-              <span className="flex items-center gap-1">
+              <span className="flex items-center gap-1" suppressHydrationWarning>
                 <svg
                   className="w-4 h-4"
                   fill="none"
@@ -258,10 +262,9 @@ export function ArticleCard({
                 </svg>
                 {formatDistanceToNow(
                   new Date(publishedDate || new Date().toISOString()),
-                  {
-                    addSuffix: true,
-                    locale: getDateFnsLocale(locale),
-                  },
+                  isClient
+                    ? { addSuffix: true, locale: getDateFnsLocale(locale) }
+                    : { addSuffix: true },
                 )}
               </span>
 
