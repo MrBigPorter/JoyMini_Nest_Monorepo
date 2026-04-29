@@ -53,7 +53,10 @@ packages/*-config → apps/* 与 packages/*
 root
 ├─ apps/
 │  ├─ api/                # Nest API 服务
-│  └─ web/                # Next 前端
+│  ├─ admin-next/         # 管理后台 (Next.js 15)
+│  ├─ admin-blog/         # 博客 CMS 管理端 (Next.js 15)
+│  ├─ frontend-blog/      # 公共博客前端 (Next.js + Capacitor)
+│  └─ liveness-web/       # 活体检测 (Vite + React)
 └─ packages/
    ├─ shared/             # 公共类型与工具
    ├─ eslint-config/      # 统一 lint 配置（可选）
