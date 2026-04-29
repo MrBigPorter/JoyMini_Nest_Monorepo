@@ -8,19 +8,21 @@ import {
   Body,
   NotFoundException,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { CacheTTL } from '@nestjs/cache-manager';
+import { PublicCacheInterceptor } from '@api/common/cache/public-cache.interceptor';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { Request } from 'express';
 import { FrontendBlogService } from './frontend-blog.service';
 import { BlogService } from '../blog.service';
 import { LanguageService } from '@api/common/services/language.service';
 import { CreateCommentDto } from '../dto/create-comment.dto';
-import { AuthGuard } from '@nestjs/passport';
 import { JwtAuthGuard } from '@api/common/jwt/jwt.guard';
 
 @ApiTags('Frontend Blog')
 @Controller('frontend/blog')
+@UseInterceptors(PublicCacheInterceptor)
 export class FrontendBlogController {
   constructor(
     private readonly frontendBlogService: FrontendBlogService,
