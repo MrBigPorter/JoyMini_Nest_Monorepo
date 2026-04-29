@@ -1,102 +1,340 @@
-# Blog 文章规划总表
+# Blog Articles Master Plan — Plans to Blog Integration
 
-> 📅 **更新日期**: 2026-04-29  
-> 📊 **总规划**: 46 篇 | **已完成**: 46 篇 | **待写**: 0 篇
+> Analysis Date: 2026-04-29
+> Total Plans Analyzed: 48 files
+> Existing Blog Articles: 44 published
+> New Article Candidates: 14 proposals
 
-## Tag 分类体系（共 ~50 个标签）
+## Methodology
 
-| 类别 | Tags |
-|------|------|
-| **架构与设计** | `Architecture`, `Next.js`, `NestJS`, `Hooks`, `Design Patterns`, `Platform Adapter` |
-| **性能与优化** | `Performance`, `Caching`, `ISR`, `Bundle Size`, `Loading Optimization`, `Lighthouse` |
-| **部署与 DevOps** | `Cloudflare`, `CI/CD`, `Docker`, `Yarn PnP`, `Sentry`, `Lighthouse` |
-| **前端特性** | `PWA`, `i18n`, `SEO`, `Sitemap`, `JSON-LD`, `OAuth`, `Authentication`, `Theme`, `Animation` |
-| **后端特性** | `Video`, `HLS`, `Comment`, `Bookmark`, `WebSocket`, `Rich Text Editor` |
-| **安全** | `Security`, `XSS`, `JWT`, `reCAPTCHA`, `Content Moderation`, `Sensitive Word Filter` |
-| **AI 与自动化** | `AI`, `Gemini`, `Translation` |
-| **移动端** | `Mobile`, `Capacitor`, `Flutter` |
-| **数据库** | `PostgreSQL`, `Redis`, `Migration` |
+Analyzed all 48 `.md` files in the `plans/` directory, cross-referenced against the 44 existing articles in `docs/blog/articles/` (organized under `architecture/`, `backend/`, `devops/`, `frontend/`, `performance/`, `security/`). Each plan was evaluated for:
 
----
+1. **Depth of technical insight** — does it teach a transferable lesson?
+2. **Uniqueness** — is this already covered by an existing article?
+3. **General applicability** — would other developers benefit from reading it?
 
-## 文章规划总表
+## High-Priority Candidates (10 articles)
 
-### ✅ 已完成文章（46 篇）
-
-| # | 分类 | 源文档 | 文章标题 | Tags | 状态 |
-|---|------|--------|---------|------|------|
-| 1 | `performance` | `caching/BLOG_CACHING_ARCHITECTURE.md` | Next.js 博客三层缓存架构实战 | `Next.js`, `Cloudflare`, `Caching`, `ISR`, `Performance` | ✅ 已写 |
-| 2 | `frontend` | `architecture/blog-video-system-architecture.md` | Next.js 博客视频系统架构：HLS 自适应播放 | `Next.js`, `Video`, `HLS`, `Cloudflare`, `Architecture` | ✅ 已写 |
-| 3 | `frontend` | `architecture/FRONTEND_BLOG_PWA_IMPLEMENTATION.md` | Next.js PWA 实战：可安装离线博客 | `Next.js`, `PWA`, `Mobile`, `Performance` | ✅ 已写 |
-| 4 | `frontend` | `architecture/BLOG_MULTILINGUAL_IMPLEMENTATION.md` | Next.js 博客双语系统：Gemini AI 自动翻译 | `Next.js`, `AI`, `Gemini`, `Translation`, `i18n` | ✅ 已写 |
-| 5 | `frontend` | `development/FRONTEND_BLOG_LOGIN_IMPLEMENTATION.md` | Next.js 博客三合一登录系统 | `Next.js`, `OAuth`, `Authentication`, `Zustand`, `Security` | ✅ 已写 |
-| 6 | `frontend` | `development/FRONTEND_BLOG_SEO_TECHNICAL_IMPLEMENTATION.md` | Next.js 博客 SEO 技术实现 | `Next.js`, `SEO`, `Sitemap`, `JSON-LD`, `i18n` | ✅ 已写 |
-| 7 | `frontend` | `security/XSS_SANITIZATION_IMPLEMENTATION.md` | NestJS XSS 内容过滤实战 | `NestJS`, `XSS`, `Security` | ✅ 已写 |
-| 8 | `frontend` | `architecture/blog-video-system-architecture.md`（延伸） | React HLS 跨组件协调实践 | `React`, `Video`, `HLS`, `Hooks`, `Architecture` | ✅ 已写 |
-| 9 | `performance` | — | Next.js Bundle Size 优化实践 | `Next.js`, `Performance`, `Bundle Size` | ✅ 已写 |
-| 10 | `performance` | — | Yarn PnP Monorepo CI 缓存加速 | `Yarn PnP`, `CI/CD`, `Performance`, `Docker` | ✅ 已写 |
-| 11 | `architecture` | `architecture/BLOG_SYSTEM_BACKEND_ARCHITECTURE_CN.md` | NestJS 博客后端架构：模块化设计与 Prisma 实践 | `NestJS`, `Architecture`, `Prisma`, `TypeScript` | ✅ 已写 |
-| 12 | `architecture` | `architecture/PLATFORM_ADAPTER_UNIFIED_ARCHITECTURE.md` | 三端统一架构：Next.js 平台适配器模式 | `Next.js`, `Architecture`, `Platform Adapter`, `Mobile` | ✅ 已写 |
-| 13 | `security` | `security/JWT_PERMISSION_IMPLEMENTATION.md` | NestJS JWT + RBAC 权限系统：从开放接口到细粒度控制 | `NestJS`, `JWT`, `Security`, `Authentication`, `RBAC` | ✅ 已写 |
-| 14 | `architecture` | `i18n/BLOG_I18N_ARCHITECTURE_AND_IMPLEMENTATION.md` | NestJS + Next.js 零侵入多语言架构 | `i18n`, `Next.js`, `Architecture`, `TypeScript`, `NestJS`, `next-intl` | ✅ 已写 |
-| 15 | `security` | `security/RECAPTCHA_IMPLEMENTATION.md` | NestJS reCAPTCHA v3 集成：无感知人机验证 | `NestJS`, `reCAPTCHA`, `Security`, `Anti-Spam`, `Bot Detection` | ✅ 已写 |
-| 16 | `architecture` | `architecture/HOOKS_ARCHITECTURE.md` | Next.js Blog Hooks 架构设计：让业务代码不知道运行环境 | `React`, `Hooks`, `Architecture`, `Next.js`, `TypeScript`, `SSR` | ✅ 已写 |
-| 17 | `devops` | `architecture/BLOG_CLOUDFLARE_DEPLOYMENT_ARCHITECTURE.md` | Next.js 博客 Cloudflare 部署：OpenNext + ISR + GitLab CI/CD | `Cloudflare`, `DevOps`, `Next.js`, `CI/CD`, `OpenNext`, `Performance` | ✅ 已写 |
-| 18 | `frontend` | `features/BLOG_COMMENT_SYSTEM.md` | Next.js 博客评论系统：AI 审核 + 乐观更新 + 嵌套回复 | `Next.js`, `Comment`, `WebSocket`, `Prisma`, `React Query` | ✅ 已写 |
-| 19 | `frontend` | `features/BLOG_BOOKMARK_SYSTEM.md` | Next.js 博客收藏功能：Auth 集成、懒加载与移动端优化 | `Next.js`, `Bookmark`, `Authentication`, `Zustand`, `React Query` | ✅ 已写 |
-| 20 | `security` | `security/AI_COMMENT_MODERATION_IMPLEMENTATION.md` | AI 评论审核：Gemini 2.0 Flash 免费实现三级内容过滤 | `AI`, `Gemini`, `Comment`, `Content Moderation`, `Security`, `NestJS` | ✅ 已写 |
-| 21 | `security` | `security/SENSITIVE_WORD_FILTER_IMPLEMENTATION.md` | NestJS 敏感词过滤：AC 自动机 + Pipe 实现毫秒级检测 | `NestJS`, `Sensitive Word Filter`, `Security`, `Prisma`, `Redis` | ✅ 已写 |
-| 22 | `security` | `security/LIKE_DEDUPLICATION_IMPLEMENTATION.md` | NestJS 点赞去重：MD5 指纹 + Redis Guard 防刷方案 | `NestJS`, `Security`, `Performance`, `Redis`, `TypeScript` | ✅ 已写 |
-| 23 | `frontend` | `development/PLATFORM_ADAPTER_REACT_QUERY_INTEGRATION_GUIDE.md` | React Query 平台适配器：三端统一数据请求与自动降级 | `React Query`, `Platform Adapter`, `Caching`, `Performance`, `TypeScript` | ✅ 已写 |
-| 24 | `frontend` | `development/BLOG_LOADING_OPTIMIZATION_IMPLEMENTATION_GUIDE.md` | Next.js 博客极致加载优化：从骨架屏到边缘缓存 | `Next.js`, `Loading Optimization`, `Performance`, `UX`, `ISR` | ✅ 已写 |
-| 25 | `frontend` | `../nextjs/NEXTJS_RENDERING_MODES_FINAL_GUIDE.md` | Next.js 渲染模式终极指南：SSR/SSG/ISR 选型与常见陷阱 | `Next.js`, `Performance`, `Architecture`, `SEO` | ✅ 已写 |
-| 26 | `frontend` | `../nextjs/AUTH_ARCHITECTURE_ZERO_FLICKER.md` | Next.js 认证零闪烁：SSR-Safe Token 管理架构 | `Next.js`, `Authentication`, `JWT`, `Zustand` | ✅ 已写 |
-| 27 | `frontend` | `../nextjs/LANGUAGE_ZERO_FLICKER_FINAL_ARCHITECTURE.md` | Next.js 多语言零闪烁：Hydration 安全方案 | `Next.js`, `i18n`, `Performance`, `Architecture` | ✅ 已写 |
-| 28 | `frontend` | `../nextjs/PAGE_TRANSITION_ANIMATION_IMPLEMENTATION.md` | Next.js 页面过渡动画：Framer Motion 实战 | `Next.js`, `Animation`, `UX`, `React` | ✅ 已写 |
-| 29 | `frontend` | `../nextjs/ZERO_SKELETON_OPTIMIZATION_GUIDE.md` | Next.js 零骨架屏优化：ISR 与流式渲染实战 | `Next.js`, `Performance`, `Loading Optimization`, `UX` | ✅ 已写 |
-| 30 | `devops` | `../read/devops/PRISMA_V6_MIGRATION_CN.md` | Prisma v6 迁移实战：Monorepo 中的数据库升级 | `Prisma`, `Migration`, `CI/CD`, `TypeScript` | ✅ 已写 |
-| 31 | `devops` | `../read/devops/GITLAB_CI_MIGRATION_GUIDE.md` | GitHub Actions 到 GitLab CI：Monorepo 双线部署 | `CI/CD`, `DevOps`, `Docker`, `Cloudflare` | ✅ 已写 |
-| 32 | `devops` | `../read/performance/PERFORMANCE_LIGHTHOUSE_CN.md` | Lighthouse CI 集成：自动化性能门禁 | `Lighthouse`, `Performance`, `CI/CD`, `DevOps` | ✅ 已写 |
-| 33 | `devops` | `../read/devops/LHCI_SENTRY_SETUP_CN.md` + `../read/devops/SENTRY_QUICK_LOOK_CN.md` | Sentry + Lighthouse CI 全链路监控体系搭建实战 | `Sentry`, `Lighthouse`, `Monitoring`, `DevOps`, `Performance` | ✅ 已写 |
-| 34 | `architecture` | `../read/architecture/NESTJS_API_ARCHITECTURE_CN.md` | NestJS 后端架构深度解析：双域 JWT、设备安全守卫与分布式锁 | `NestJS`, `Backend`, `Security`, `Architecture`, `WebSocket` | ✅ 已写 |
-| 35 | `architecture` | `../read/devops/TSCONFIG_MONOREPO_CN.md` | TypeScript Monorepo 配置实战：三层 tsconfig 架构与共享包管理 | `TypeScript`, `Monorepo`, `Architecture`, `DevOps` | ✅ 已写 |
-| 36 | `architecture` | `../read/features/IM_SUPPORT_REALTIME_CN.md` | WebSocket IM 客服系统：从实时分发修复到多渠道管理架构 | `WebSocket`, `Real-time`, `Socket.IO`, `Architecture`, `Backend` | ✅ 已写 |
-| 37 | `performance` | `../read/performance/ADMIN_NEXT_SSR_UX_OPTIMIZATION_PLAN_CN.md` + `ANALYTICS_LCP_OPTIMIZATION_CN.md` | Admin SSR 体验优化：从首屏加载到交互流畅度系统化治理 | `Performance`, `SSR`, `Next.js`, `Admin`, `Optimization` | ✅ 已写 |
-| 38 | `frontend` | `../read/performance/NEXT_SSR_SEO_CRAWLER_MASTER_GUIDE_CN.md` | Next.js SSR SEO 与爬虫抓取完全掌握指南 | `SEO`, `Next.js`, `SSR`, `Performance`, `Sitemap` | ✅ 已写 |
-| 39 | `frontend` | `apps/admin-next/src/middleware.ts`（代码分析） | Next.js Admin Middleware：JWT 路由守卫在 Edge Runtime 中的实践 | `Next.js`, `Middleware`, `JWT`, `Security`, `Edge` | ✅ 已写 |
-| 40 | `frontend` | `apps/liveness-web/` + `apps/api/src/client/kyc/` + `KycAuditModal.tsx`（代码分析） | 全栈 KYC 身份验证系统：AWS Rekognition Face Liveness + NestJS + Admin 审核 | `KYC`, `AWS`, `Security`, `Full-stack`, `React`, `NestJS` | ✅ 已写 |
-
-### ✅ 已完成文章（6 篇，批次 F）
-
-| # | 分类 | 源文档 | 文章标题 | Tags | 状态 |
-|---|------|--------|---------|------|------|
-| 41 | `security` | `apps/api/src/common/device/device-security.service.ts` + `device-security.decorator.ts` | NestJS 设备指纹风控系统：Redis 黑名单、多账号检测与 24h 提现冷却 | `NestJS`, `Security`, `Anti-Fraud`, `Device Fingerprint`, `Redis` | ✅ 已写 |
-| 42 | `backend` | `apps/api/src/client/wallet/wallet.service.ts`（478 行全量分析） | Prisma 乐观锁实战：双币种钱包系统与 audit trail 账务追踪 | `Prisma`, `NestJS`, `Optimistic Locking`, `Wallet`, `PostgreSQL` | ✅ 已写 |
-| 43 | `backend` | `apps/api/src/admin/finance/finance.service.ts` + `finance.task.ts`（966 行全量分析） | 财务审计系统：Xendit 打款 + @DistributedLock + Cron 幽灵订单自动修复 | `NestJS`, `Finance`, `Xendit`, `Distributed Lock`, `Cron`, `Redis` | ✅ 已写 |
-| 44 | `ai` | `apps/api/src/common/ai/ai.service.ts`（654 行全量分析） | Gemini AI 生产级集成：4 级熔断降级 + 配额控制 + 指数退避重试 | `AI`, `Gemini`, `Circuit Breaker`, `Rate Limiting`, `NestJS` | ✅ 已写 |
-| 45 | `backend` | `apps/api/src/client/orders/order.service.ts`（730 行全量分析） | 订单系统深度解析：优惠券 + 秒杀 + 金币 + 现金四层支付与原子库存扣减 | `NestJS`, `Orders`, `Prisma`, `Transaction`, `Performance` | ✅ 已写 |
-| 46 | `backend` | `apps/api/src/common/events/call/call.gateway.ts`（273 行全量分析） | WebRTC 信令网关：NestJS WebSocket 实时通话的完整生命周期管理 | `WebRTC`, `WebSocket`, `NestJS`, `Real-time`, `Signaling` | ✅ 已写 |
+These plans contain rich, transferable engineering lessons that are **not yet covered** by existing blog articles.
 
 ---
 
-## 执行计划
+### 1. Middleware Regex → Full Production Outage
 
-### 阶段 1：补全 Tags 元数据 ✅
-- 给所有已写文章添加 `Tags:` 行到文件头部 ✅
+| Field | Detail |
+|-------|--------|
+| **Source Plan** | [`fix-app-build-manifest-404-plan.md`](plans/fix-app-build-manifest-404-plan.md) |
+| **Category** | DevOps / Debugging |
+| **Difficulty** | Intermediate |
 
-### 阶段 2：增强导入脚本 ✅
-- 解析 `Tags:` 行 → 调用 `GET /admin/blog/tags?search=` 搜索 ✅
-- 不存在则 `POST /admin/blog/tags` 创建 ✅
-- 收集 tagIds 传入文章创建 ✅
-- 保留 slug 去重和分类映射 ✅
+**Why it's blog-worthy:**
+A single regex change in `middleware.ts` (narrowing `_next` → `_next/static|_next/image`) caused three cascading failures:
+- 404 on `/_next/app-build-manifest.json`
+- PWA Service Worker `bad-precaching-response` → entire site broken
+- 500/503 on article pages via `/_next/data/*` RSC payload interception
 
-### 阶段 3：写新文章（批次 A → B → C → D → E → F）
-- ✅ 批次 A（#11-#17）：已完成
-- ✅ 批次 B（#18-#24）：已完成
-- ✅ 批次 C（#25-#29）：已完成
-- ✅ 批次 D（#30-#32）：已完成
-- ✅ 批次 E（#33-#40）：已完成
-- ✅ 批次 F（#41-#46）：已完成
+**Key lessons:**
+- Third-party effects of middleware regex patterns
+- How Next.js `_next/*` paths work (static, data, manifests)
+- Workbox precache and why a 404 on any precached URL fails the entire SW install
+- Debugging technique: tracing commit history to find `bfa25c6` → `7c33a68` → `c8bb1ab`
 
-### 阶段 4：发布
-- `make publish-blog-docs` 发布
+**Suggested title:** *一个 Middleware 正则引发的全站瘫痪：PWA + RSC 级联故障排查实录*
+
+**Suggested path:** `docs/blog/articles/devops/nextjs-middleware-regex-production-outage.md`
+
+---
+
+### 2. Cloudflare Worker 3 MiB Size Limit: How Sentry + barrel imports broke the build
+
+| Field | Detail |
+|-------|--------|
+| **Source Plan** | [`fix-admin-cloudflare-worker-size.md`](plans/fix-admin-cloudflare-worker-size.md) |
+| **Category** | DevOps / Performance |
+| **Difficulty** | Advanced |
+
+**Why it's blog-worthy:**
+The admin app's handler jumped to 11.14 MiB — 3.7× over Cloudflare's free plan 3 MiB limit. Root cause was a `static re-export` of `captureRequestError` from `@sentry/nextjs` that pulled in the entire OpenTelemetry/webpack toolchain.
+
+**Key lessons:**
+- Static re-exports vs dynamic `import()` and their bundle implications
+- Sentry instrumentation and why `onRequestError` is dangerous for edge workers
+- `framer-motion` in SSR contexts
+- Barrel import patterns and `optimizePackageImports`
+- The extreme constraints of Cloudflare Workers (3 MiB free, 10 MiB paid)
+
+**Suggested title:** *11 MiB 到 2.8 MiB：Cloudflare Worker 体积极限优化实战*
+
+**Suggested path:** `docs/blog/articles/devops/cloudflare-worker-size-optimization.md`
+
+---
+
+### 3. Gemini AI JSON Parsing: When LLMs Won't Obey Schema
+
+| Field | Detail |
+|-------|--------|
+| **Source Plan** | [`fix-batch-translation-json-parsing-plan.md`](plans/fix-batch-translation-json-parsing-plan.md) |
+| **Category** | Backend / AI |
+| **Difficulty** | Intermediate |
+
+**Why it's blog-worthy:**
+`responseMimeType: 'application/json'` doesn't guarantee valid JSON output from Gemini when the `content` field contains Markdown with unescaped quotes and backslashes. The solution combines `repair-json.ts` (regex fixes) + a `fallbackTranslator` that splits into individual API calls.
+
+**Key lessons:**
+- LLM JSON output reliability limits
+- JSON repair strategies (unterminated strings, trailing commas, single quotes)
+- Circuit breaker / retry with fallback pattern
+- Prompt engineering for structured output
+
+**Suggested title:** *Gemini JSON 输出不听话？批量化翻译中的 JSON 修复实战*
+
+**Suggested path:** `docs/blog/articles/backend/nestjs-gemini-json-repair.md`
+
+---
+
+### 4. Nginx CORS: The Safari `x-skip-auth-refresh` Case
+
+| Field | Detail |
+|-------|--------|
+| **Source Plans** | [`nginx-cors-and-import-script-fix-plan.md`](plans/nginx-cors-and-import-script-fix-plan.md), [`nginx-deep-analysis.md`](plans/nginx-deep-analysis.md) |
+| **Category** | DevOps / Security |
+| **Difficulty** | Advanced |
+
+**Why it's blog-worthy:**
+Full login was broken on Safari/iPhone because a custom header `x-skip-auth-refresh` was missing from `Access-Control-Allow-Headers` in the CORS preflight response. Combined with `proxy_hide_header` double-header issues and dynamic `$http_origin` for the public blog API.
+
+**Key lessons:**
+- CORS preflight `OPTIONS` mechanics (Safari is stricter than Chrome)
+- Custom header handling across Nginx → NestJS
+- `proxy_hide_header` for deduplication
+- `always` parameter for error-response CORS headers
+- Dev vs prod nginx config differences
+
+**Suggested title:** *Safari 登录不了？Nginx CORS 自定义 Header 踩坑记*
+
+**Suggested path:** `docs/blog/articles/devops/nginx-cors-custom-headers-debug.md`
+
+---
+
+### 5. ISR Cache: From `dummy` to KV-Backed Incremental Static Regeneration
+
+| Field | Detail |
+|-------|--------|
+| **Source Plan** | [`fix-blog-isr-caching-plan.md`](plans/fix-blog-isr-caching-plan.md) |
+| **Category** | Performance / DevOps |
+| **Difficulty** | Intermediate |
+
+**Why it's blog-worthy:**
+The blog had `incrementalCache: 'dummy'` meaning every request triggered full SSR — wasting the `revalidate: 60` and `revalidate: 3600` exports. The fix uses OpenNext's built-in KV incremental cache module with zero custom code.
+
+**Key lessons:**
+- Next.js ISR + `revalidate` time semantics on Cloudflare Workers
+- OpenNext KV incremental cache architecture
+- KV binding naming conventions (`NEXT_INC_CFG_CACHE_KV`, `NEXT_INC_CACHE_KV`)
+- Tag cache vs incremental cache
+- Performance: 2s SSR → 80ms cache-hit
+
+**Suggested title:** *从 2 秒到 80 毫秒：Cloudflare KV + ISR 缓存实战*
+
+**Suggested path:** `docs/blog/articles/performance/nextjs-isr-kv-cache.md`
+
+---
+
+### 6. PWA on Next.js App Router + Cloudflare Workers
+
+| Field | Detail |
+|-------|--------|
+| **Source Plan** | [`fix-pwa-not-working-cloudflare-plan.md`](plans/fix-pwa-not-working-cloudflare-plan.md) |
+| **Category** | Frontend / DevOps |
+| **Difficulty** | Intermediate |
+
+**Why it's blog-worthy:**
+`next-pwa` v5.6.0 can't inject `<link rel="manifest">` into App Router layouts — only works with Pages Router's `_document.tsx`. The fix required manual `<link>` tag injection + SW registration in `layout.tsx`.
+
+**Key lessons:**
+- next-pwa + App Router compatibility
+- PWA manifest discovery mechanism
+- Locale-specific manifests via `manifest-loader.ts`
+- Workbox precache and SW lifecycle
+- OpenNext asset handling for `sw.js`
+
+**Suggested title:** *Next.js App Router + Cloudflare：PWA 手动适配踩坑指南*
+
+**Suggested path:** `docs/blog/articles/frontend/nextjs-pwa-app-router-cloudflare.md`
+
+---
+
+### 7. Client-Side Markdown Import: Replacing Server File Scan with Browser FileReader
+
+| Field | Detail |
+|-------|--------|
+| **Source Plan** | [`client-side-markdown-import-plan.md`](plans/client-side-markdown-import-plan.md) |
+| **Category** | Frontend |
+| **Difficulty** | Intermediate |
+
+**Why it's blog-worthy:**
+A complete architecture shift: instead of the server reading markdown files from disk (limited by 2 GB RAM server), the browser reads `.md` files via `<input type=file>` + `FileReader.readAsText()`, parses YAML frontmatter client-side, then imports via existing batch API.
+
+**Key lessons:**
+- Browser File API patterns for markdown import
+- Client-side YAML frontmatter parsing
+- Drag-and-drop UX for file import
+- Architecture migration: server → client processing
+- No backend changes needed
+
+**Suggested title:** *服务器只有 2G 内存怎么办？浏览器端 Markdown 文件导入方案*
+
+**Suggested path:** `docs/blog/articles/frontend/client-side-markdown-import.md`
+
+---
+
+### 8. CI/CD Reusable Workflows in a Monorepo
+
+| Field | Detail |
+|-------|--------|
+| **Source Plan** | [`ci-cd-reusable-config.md`](plans/ci-cd-reusable-config.md) |
+| **Category** | DevOps |
+| **Difficulty** | Advanced |
+
+**Why it's blog-worthy:**
+Two GitHub Actions workflows and two GitLab CI configs had 80% identical steps (checkout, node setup, yarn install, shared builds, Cloudflare deploy, Telegram notifications). The plan identifies exactly what can be extracted into reusable workflows.
+
+**Key lessons:**
+- GitHub Actions reusable workflow design
+- GitLab CI hidden job templates
+- Monorepo-specific CI optimization (workspace targeting, cache key design)
+- Deploying 3 apps to Cloudflare from a single monorepo
+- Duplication vs abstraction tradeoffs
+
+**Suggested title:** *Monorepo CI/CD 复用实战：从 4 个 YAML 到 1 个 Reusable Workflow*
+
+**Suggested path:** `docs/blog/articles/devops/monorepo-ci-reusable-workflow.md`
+
+---
+
+### 9. Google OAuth + Cloudflare + Nginx: The Cross-Domain Auth Flow
+
+| Field | Detail |
+|-------|--------|
+| **Source Plans** | [`fix-google-oauth-404.md`](plans/fix-google-oauth-404.md), [`jwt-invalid-signature-root-cause-analysis.md`](plans/jwt-invalid-signature-root-cause-analysis.md) |
+| **Category** | Security / DevOps |
+| **Difficulty** | Advanced |
+
+**Why it's blog-worthy:**
+Two separate OAuth issues: (1) OAuth redirect to relative path on Cloudflare domain instead of absolute API domain, and (2) dev/prod JWT secret mismatch causing `invalid signature` because Google redirect went to production server.
+
+**Key lessons:**
+- Cloudflare Pages vs Nginx domain routing for OAuth
+- JWT secret management across environments
+- Dev nginx config vs prod nginx config for OAuth paths
+- Redirect URI design for multi-domain architectures
+- Debugging cross-environment auth flows
+
+**Suggested title:** *跨域 OAuth 的九九八十一难：Cloudflare + Nginx + JWT 连环坑*
+
+**Suggested path:** `docs/blog/articles/security/oauth-cross-domain-cloudflare-nginx.md`
+
+---
+
+### 10. Admin Preview ≠ Frontend: The WYSIWYG Gap
+
+| Field | Detail |
+|-------|--------|
+| **Source Plan** | [`admin-preview-matches-frontend-plan.md`](plans/admin-preview-matches-frontend-plan.md) |
+| **Category** | Frontend |
+| **Difficulty** | Beginner |
+
+**Why it's blog-worthy:**
+A common CMS problem: the admin preview looks different from the published frontend. Covers typography (`text-3xl` → `text-5xl`), missing tags display, missing metadata (views, likes, comments), and prose styling differences.
+
+**Key lessons:**
+- Admin preview ↔ public frontend visual consistency
+- Typography scaling across viewports
+- Prose class mapping
+- Content preview rendering architecture
+
+**Suggested title:** *WYSIWYG 陷阱：Admin 预览和前端详情页的视觉一致性方案*
+
+**Suggested path:** `docs/blog/articles/frontend/admin-preview-visual-consistency.md`
+
+---
+
+## Medium Priority (4 articles)
+
+These are solid but narrower in scope.
+
+### 11. Adding Locales to a Running App (fr/de)
+
+| Source Plans | Category |
+|--------------|----------|
+| [`fix-fr-de-404-plan.md`](plans/fix-fr-de-404-plan.md), [`fix-fr-de-tabs-showing-chinese-plan.md`](plans/fix-fr-de-tabs-showing-chinese-plan.md) | i18n |
+
+Adding French and German to an existing 4-locale app: `LOCALES` array, message files, locale metadata, middleware regex, DB migration for `LocalizedString`.
+
+### 12. iOS Safari Overscroll Bug
+
+| Source Plan | Category |
+|-------------|----------|
+| [`fix-ios-bottom-nav-gap-plan.md`](plans/fix-ios-bottom-nav-gap-plan.md) | Frontend / Mobile |
+
+CSS `overscroll-behavior: contain` vs `auto`, `backdrop-blur` transparency effects, rubber-band overscroll on fixed elements.
+
+### 13. Monorepo Decomposition: Extracting Blog Admin
+
+| Source Plan | Category |
+|-------------|----------|
+| [`extract-blog-admin-from-admin-next.md`](plans/extract-blog-admin-from-admin-next.md) | Architecture |
+
+Splitting a megasized Next.js app into two Cloudflare Workers to bypass the 3 MiB limit. Shared auth, same API, separate deployments.
+
+### 14. Compression Optimization on Cloudflare Edge
+
+| Source Plan | Category |
+|-------------|----------|
+| [`optimize-blog-compression-plan.md`](plans/optimize-blog-compression-plan.md) | Performance |
+
+Brotli pre-compression redundancy on Cloudflare Workers (edge already does zstd/Brotli), Terser optimization passes, `drop_console`, undeclared dependencies.
+
+---
+
+## Not Recommended for Blog Articles (24 files)
+
+| Plan | Reason |
+|------|--------|
+| `fix-admin-editor-scroll-to-top-plan.md` | Very specific editor scroll bug, low general interest |
+| `fix-exhaustive-deps-plan.md` | Standard React ESLint fix, not blog-worthy |
+| `fix-admin-blog-lint-errors-plan.md` | Standard lint cleanup |
+| `sidebar-icons-plan.md` | Trivial UI change |
+| `blog-settings-isolation.md` | Internal refactoring, no general lesson |
+| `decouple-admin-next-locale-from-blog-translation-plan.md` | Very specific i18n refactoring |
+| `translation-audit-plan.md` | Single missing key, too narrow |
+| `fix-article-back-404-plan.md` | Specific route fix |
+| `fix-preview-404-plan.md` | Preview route fix |
+| `fix-frontend-blog-csdn-style-plan.md` | CSS styling only |
+| `fix-hydration-error-plan.md` | Browser cache issue, resolved |
+| `fix-next-intl-context-not-found-plan.md` | Dev environment issue |
+| `server-scan-markdown-files-plan.md` | Superseded by client-side import plan |
+| `admin-blog-ci-optimize-plan.md` | Admin-specific CI tweaks |
+| `admin-blog-eslint-fix-plan.md` | Admin-specific lint fix |
+| `admin-blog-import-ui-plan.md` | Admin component refactoring |
+| `admin-blog-navigation-restructure.md` | Admin navigation |
+| `copy-admin-next-settings-to-blog.md` | One-time migration |
+| `delete-admin-next-blog-plan.md` | Cleanup after extraction |
+| `fix-admin-blog-i18n-keys.md` | Admin-specific i18n |
+| `fix-admin-i18n-keys-definitive.md` | Same as above |
+| `fix-all-ci-lint-errors-plan.md` | CI lint fix, too narrow |
+| `fix-edit-imported-articles-plan.md` | Specific editor bug |
+| `fix-frontend-blog-pre-existing-errors.md` | Pre-existing issues list |
+
+---
+
+## Summary
+
+| Priority | Count | Articles |
+|----------|-------|----------|
+| **High** | 10 | Middleware outage, Worker size, Gemini JSON, Nginx CORS, ISR KV cache, PWA App Router, Client Markdown, CI/CD reusable, OAuth cross-domain, Admin preview |
+| **Medium** | 4 | Add locales, iOS overscroll, Extract blog admin, Compression optimization |
+| **Not recommended** | 24 | Too narrow, admin-specific, or standard fixes |
+| **Already published** | ~10 | Plans that overlap with existing articles |
+
+**Total blog-worthy new articles possible: 14 out of 48 plans (29%)**

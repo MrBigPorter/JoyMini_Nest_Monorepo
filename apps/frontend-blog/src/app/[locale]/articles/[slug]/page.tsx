@@ -6,7 +6,7 @@ import type { FrontendArticle } from '@/lib/types/frontend-blog';
 // Next.js 15 perfect cache pattern
 // force-dynamic + revalidate combination
 // Each locale has independent cache, no cross contamination
-export const dynamic = 'auto';
+export const dynamic = 'force-dynamic';
 export const revalidate = 3600; // 1 hour cache for articles
 
 // 不预生成任何文章页，运行时按需 ISR

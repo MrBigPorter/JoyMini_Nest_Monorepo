@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "postbuild": "cp -f .next/app-build-manifest.json .open-next/assets/_next/ 2>/dev/null; cp -f .next/build-manifest.json .open-next/assets/_next/ 2>/dev/null; echo '✅ Manifest files copied to assets'",
     "build:app": "BUILD_TARGET=app next build",
     "export": "BUILD_TARGET=app next export",
     "start": "next start",
