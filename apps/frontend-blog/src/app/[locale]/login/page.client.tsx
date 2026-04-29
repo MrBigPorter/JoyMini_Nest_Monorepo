@@ -1,18 +1,20 @@
 'use client';
 
 import { useState } from 'react';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Mail, Lock, ArrowRight, RefreshCw, Facebook } from 'lucide-react';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { authApi } from '@/lib/api/authApi';
 import { LoginGuard } from '@/components/auth/ProtectedRoute';
+import { withLocale } from '@/lib/utils/locale';
 
 export default function LoginPageClient() {
   const t = useTranslations();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { loginWithEmail, isLoading } = useAuth();
+  const currentLocale = useLocale();
 
   // 获取URL参数
   const client = searchParams.get('client'); // 'app' 或 'web'
@@ -132,15 +134,16 @@ export default function LoginPageClient() {
       // 等待store状态更新，然后让LoginGuard处理重定向
       // 使用setTimeout确保状态已更新
       setTimeout(() => {
+        const locale = currentLocale;
         console.log('Checking redirect path after login...');
-        const redirectPath = sessionStorage.getItem('redirectAfterLogin');
-        if (redirectPath) {
-          console.log('Redirecting to:', redirectPath);
+        const rawPath = sessionStorage.getItem('redirectAfterLogin');
+        if (rawPath) {
+          console.log('Redirecting to:', rawPath);
           sessionStorage.removeItem('redirectAfterLogin');
-          router.push(redirectPath);
+          router.push(withLocale(rawPath, locale as any));
         } else {
           console.log('Redirecting to home');
-          router.push('/');
+          router.push(withLocale('/', locale as any));
         }
       }, 100);
     } catch (err: any) {

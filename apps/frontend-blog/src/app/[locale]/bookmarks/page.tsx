@@ -8,7 +8,7 @@ export async function generateStaticParams() {
   return getEnabledLocales().map((locale: Locale) => ({ locale }));
 }
 
-export const dynamic = 'force-static';
+export const dynamic = 'force-dynamic';
 
 export default function BookmarksPage() {
   return <BookmarksPageClient />;
