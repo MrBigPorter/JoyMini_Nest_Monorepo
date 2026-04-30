@@ -24,7 +24,7 @@ const Checkbox = ({
   disabled?: boolean;
 }) => (
   <label
-    className={`inline-flex items-center ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+    className={`inline-flex items-center relative ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
   >
     <input
       type="checkbox"
