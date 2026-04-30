@@ -197,6 +197,23 @@ jobs:
           # opennextjs-cloudflare build auto-reads open-next.config.ts — no -c needed.
           yarn exec opennextjs-cloudflare build
 
+      - name: 6b. Copy manifest files to assets (for Service Worker precache)
+        working-directory: apps/frontend-blog
+        run: |
+          set -euo pipefail
+          if [ -f .next/app-build-manifest.json ]; then
+            cp -f .next/app-build-manifest.json .open-next/assets/_next/
+            echo "✅ app-build-manifest.json copied to assets"
+          else
+            echo "⚠️ app-build-manifest.json not found in .next/"
+          fi
+          if [ -f .next/build-manifest.json ]; then
+            cp -f .next/build-manifest.json .open-next/assets/_next/
+            echo "✅ build-manifest.json copied to assets"
+          else
+            echo "⚠️ build-manifest.json not found in .next/"
+          fi
+
       - name: 7. Validate Cloudflare Secrets
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
