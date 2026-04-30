@@ -184,6 +184,9 @@ jobs:
       - name: 6. Build Blog for Cloudflare Pages
         working-directory: apps/frontend-blog
         env:
+          # INTERNAL_API_URL takes priority over NEXT_PUBLIC_API_BASE_URL in serverFetch.ts
+          # Must be set for SSG build-time serverGet() calls to reach the API
+          INTERNAL_API_URL: ${{ secrets.NEXT_PUBLIC_API_BASE_URL }}
           NEXT_PUBLIC_API_BASE_URL: ${{ secrets.NEXT_PUBLIC_API_BASE_URL }}
           NEXT_PUBLIC_IMG_BASE_URL: ${{ secrets.NEXT_PUBLIC_IMG_BASE_URL }}
           NEXT_PUBLIC_APP_ENV: ${{ github.ref_name == 'main' && 'production' || 'preview' }}
