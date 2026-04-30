@@ -99,7 +99,8 @@ echo "  $CF_RAY"
 # ──────────────────────────────────────────────────────────────────────────────
 print_header "3. Cache-Control Headers (HTML Pages)"
 
-CACHE_CONTROL=$($CURL -I "$BASE_URL/en" --max-time 10 | grep -i "^cache-control:" | tr -d '\r')
+# NOTE: /en redirects to /en/ (308), so we must use the trailing slash to get the actual response headers
+CACHE_CONTROL=$($CURL -I "$BASE_URL/en/" --max-time 10 | grep -i "^cache-control:" | tr -d '\r')
 echo "  HTML:      $CACHE_CONTROL"
 if echo "$CACHE_CONTROL" | grep -qi "max-age=3600"; then
     check_result "HTML: max-age=3600" "pass"

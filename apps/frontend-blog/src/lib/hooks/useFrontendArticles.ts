@@ -2,7 +2,11 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { frontendBlogApi } from '@/lib/api/frontendBlogApi';
-import type { FrontendCategory } from '@/lib/types/frontend-blog';
+import type {
+  FrontendCategory,
+  FrontendCategoryWithArticles,
+  FrontendTagWithArticles,
+} from '@/lib/types/frontend-blog';
 import { useCurrentLocale } from './useCurrentLocale';
 
 /**
@@ -45,14 +49,26 @@ export function useFrontendFeaturedArticles() {
 
 /**
  * 根据 Slug 获取前端博客文章详情 Hook（简化版）
+ *
+ * 当 initialData 中 content/contentMd 被剥离时（为节省 Cloudflare Workers CPU），
+ * 设置 staleTime: 0 让 React Query 立即发起后台 refetch 获取完整文章。
  */
 export function useFrontendArticleBySlug(slug: string, initialData?: any) {
   const locale = useCurrentLocale();
 
+  // 检测 content 是否被剥离（RSC 负载优化：Server Component 去掉了大字段）
+  const isContentStripped = !!(
+    initialData &&
+    !initialData.content &&
+    !initialData.contentMd
+  );
+
   return useQuery({
     queryKey: ['frontendArticle', slug, locale],
     queryFn: () => frontendBlogApi.getArticleBySlug(slug, locale),
-    staleTime: 60 * 60 * 1000, // 1小时缓存
+    // 如果 content 被剥离，立即 refetch 获取完整文章数据
+    // 否则按正常 1 小时缓存
+    staleTime: isContentStripped ? 0 : 60 * 60 * 1000,
     enabled: !!slug,
     initialData,
   });
@@ -121,6 +137,9 @@ export function useFrontendCategories(initialData?: FrontendCategory[]) {
 
 /**
  * 获取前端博客分类详情 Hook（简化版）
+ *
+ * 支持 initialData：当服务端组件已取数时，React Query 直接使用缓存数据，
+ * 避免 SSR 和首次客户端渲染间的空白期。
  */
 export function useFrontendCategoryBySlug(
   slug: string,
@@ -128,6 +147,7 @@ export function useFrontendCategoryBySlug(
     page?: number;
     pageSize?: number;
   },
+  initialData?: FrontendCategoryWithArticles | null,
 ) {
   const locale = useCurrentLocale();
 
@@ -137,6 +157,7 @@ export function useFrontendCategoryBySlug(
       frontendBlogApi.getCategoryBySlug(slug, { ...params, lang: locale }),
     staleTime: 5 * 60 * 1000, // 5分钟缓存
     enabled: !!slug,
+    initialData: initialData ?? undefined,
   });
 }
 
@@ -156,6 +177,9 @@ export function useFrontendTags(options?: { initialData?: any[] }) {
 
 /**
  * 获取前端博客标签详情 Hook（简化版）
+ *
+ * 支持 initialData：当服务端组件已取数时，React Query 直接使用缓存数据，
+ * 避免 SSR 和首次客户端渲染间的空白期。
  */
 export function useFrontendTagBySlug(
   slug: string,
@@ -163,6 +187,7 @@ export function useFrontendTagBySlug(
     page?: number;
     pageSize?: number;
   },
+  initialData?: FrontendTagWithArticles | null,
 ) {
   const locale = useCurrentLocale();
 
@@ -172,6 +197,7 @@ export function useFrontendTagBySlug(
       frontendBlogApi.getTagBySlug(slug, { ...params, lang: locale }),
     staleTime: 5 * 60 * 1000, // 5分钟缓存
     enabled: !!slug,
+    initialData: initialData ?? undefined,
   });
 }
 

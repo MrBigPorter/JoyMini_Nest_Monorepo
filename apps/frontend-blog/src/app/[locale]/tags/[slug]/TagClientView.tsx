@@ -7,8 +7,13 @@ import { Link } from '@/navigation';
 import { ArticleCard } from '@/components/blog/ArticleCard';
 import { EmptyContentState } from '@/components/blog/EmptyContentState';
 import { useFrontendTagBySlug } from '@/lib/hooks/useFrontendArticles';
+import type { FrontendTagWithArticles } from '@/lib/types/frontend-blog';
 
-export default function TagClientView() {
+interface TagClientViewProps {
+  initialData?: FrontendTagWithArticles | null;
+}
+
+export default function TagClientView({ initialData }: TagClientViewProps) {
   const t = useTranslations();
   const paramsFromHook = useParams();
   const slug = paramsFromHook.slug as string;
@@ -16,12 +21,20 @@ export default function TagClientView() {
     data: tagData,
     isLoading,
     error,
-  } = useFrontendTagBySlug(slug, {
-    page: 1,
-    pageSize: 10,
-  });
+  } = useFrontendTagBySlug(
+    slug,
+    {
+      page: 1,
+      pageSize: 10,
+    },
+    initialData,
+  );
 
-  if (isLoading) {
+  // Zero flicker logic: only show skeleton when no initial data
+  const hasInitialData = !!(initialData && slug);
+  const hasCurrentData = !!(tagData && slug);
+
+  if (isLoading && !hasInitialData && !hasCurrentData) {
     return (
       <div className="max-w-5xl mx-auto px-4 py-8 md:py-12">
         <div className="flex flex-col items-center justify-center py-20">
