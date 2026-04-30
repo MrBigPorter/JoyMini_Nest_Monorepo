@@ -474,17 +474,9 @@ export class BlogService {
       }
     }
 
-    // 3. 提取正文
-    let contentStartIndex = titleLineIndex + 1;
-    for (let i = titleLineIndex + 1; i < lines.length; i++) {
-      if (lines[i].trim() === '---') {
-        contentStartIndex = i + 1;
-        break;
-      }
-    }
-    if (contentStartIndex === titleLineIndex + 1 && excerptLineIndex !== -1) {
-      contentStartIndex = excerptLineIndex + 1;
-    }
+    // 3. 提取正文 - start from after title (or after excerpt if found)
+    const contentStartIndex =
+      excerptLineIndex !== -1 ? excerptLineIndex + 1 : titleLineIndex + 1;
 
     const bodyLines = lines.slice(contentStartIndex);
 
@@ -2319,6 +2311,8 @@ export class BlogService {
     this.logger.log(`开始检测翻译问题，语言: ${languageCode || '所有'}`);
 
     try {
+      const targetLang = languageCode || 'en';
+
       // 获取所有文章
       const articles = await this.prisma.blogArticle.findMany({
         select: {
@@ -2333,34 +2327,84 @@ export class BlogService {
         },
       });
 
-      const issues = [];
-      const targetLang = languageCode || 'en';
+      // 检测缺失翻译的分类
+      const untranslatedCategories = await this.prisma.$queryRaw<
+        { id: string; name: Record<string, string>; slug: string }[]
+      >`
+        SELECT id, name, slug FROM blog_categories
+        WHERE
+          "name" IS NULL
+          OR "name" = 'null'::jsonb
+          OR "name"->${targetLang} IS NULL
+          OR jsonb_typeof("name"->${targetLang}) = 'null'
+          OR "name"->>${targetLang} = ''
+      `;
 
+      // 检测缺失翻译的标签
+      const untranslatedTags = await this.prisma.$queryRaw<
+        { id: string; name: Record<string, string>; slug: string }[]
+      >`
+        SELECT id, name, slug FROM blog_tags
+        WHERE
+          "name" IS NULL
+          OR "name" = 'null'::jsonb
+          OR "name"->${targetLang} IS NULL
+          OR jsonb_typeof("name"->${targetLang}) = 'null'
+          OR "name"->>${targetLang} = ''
+      `;
+
+      const articleIssues = [];
       for (const article of articles) {
         // ✅ 修复: 如果文章已经完整翻译，直接跳过不加入问题列表
         if (this.isArticleTranslated(article, targetLang)) {
           continue;
         }
 
-        const articleIssues = this.detectArticleTranslationIssues(
+        const issues = this.detectArticleTranslationIssues(
           article,
           languageCode,
         );
-        if (articleIssues.length > 0) {
-          issues.push({
+        if (issues.length > 0) {
+          articleIssues.push({
             articleId: article.id,
             articleTitle: article.title,
-            issues: articleIssues,
+            issues,
           });
         }
       }
 
-      this.logger.log(`检测完成，发现 ${issues.length} 篇文章有翻译问题`);
+      this.logger.log(
+        `检测完成: ${articleIssues.length} 篇文章, ${untranslatedCategories.length} 个分类, ${untranslatedTags.length} 个标签有翻译问题`,
+      );
       return {
         success: true,
         totalArticles: articles.length,
-        problematicArticles: issues.length,
-        issues,
+        problematicArticles: articleIssues.length,
+        issues: articleIssues,
+        categories: untranslatedCategories.map((c) => ({
+          categoryId: c.id,
+          categoryName: c.name,
+          slug: c.slug,
+          issues: [
+            {
+              issueType: 'NOT_TRANSLATED',
+              severity: 'MEDIUM',
+              description: `Category "${c.name?.zh || c.slug}" is missing ${targetLang} translation`,
+            },
+          ],
+        })),
+        tags: untranslatedTags.map((t) => ({
+          tagId: t.id,
+          tagName: t.name,
+          slug: t.slug,
+          issues: [
+            {
+              issueType: 'NOT_TRANSLATED',
+              severity: 'MEDIUM',
+              description: `Tag "${t.name?.zh || t.slug}" is missing ${targetLang} translation`,
+            },
+          ],
+        })),
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
@@ -2489,12 +2533,12 @@ export class BlogService {
     const articles = await this.prisma.$queryRaw<
       { id: string; title: string; slug: string; createdAt: Date }[]
     >`
-      SELECT id, title, slug, created_at as "createdAt" FROM blog_articles 
+      SELECT id, title, slug, created_at as "createdAt" FROM blog_articles
       WHERE status != 'DRAFT'
         AND (
-          "titleLocalized" IS NULL 
-          OR "titleLocalized" = 'null'::jsonb 
-          OR "titleLocalized"->${languageCode} IS NULL 
+          "titleLocalized" IS NULL
+          OR "titleLocalized" = 'null'::jsonb
+          OR "titleLocalized"->${languageCode} IS NULL
           OR jsonb_typeof("titleLocalized"->${languageCode}) = 'null'
           OR "titleLocalized"->>${languageCode} = ''
         )
@@ -2505,6 +2549,73 @@ export class BlogService {
       languageCode,
       count: articles.length,
       articles,
+    };
+  }
+
+  /**
+   * 获取指定语言下未翻译的分类列表
+   */
+  async getUntranslatedCategories(languageCode: string) {
+    if (!languageCode) {
+      throw new BadRequestException('languageCode parameter is required');
+    }
+
+    const categories = await this.prisma.$queryRaw<
+      {
+        id: string;
+        name: Record<string, string>;
+        slug: string;
+        createdAt: Date;
+      }[]
+    >`
+      SELECT id, name, slug, created_at as "createdAt" FROM blog_categories
+      WHERE
+        "name" IS NULL
+        OR "name" = 'null'::jsonb
+        OR "name"->${languageCode} IS NULL
+        OR jsonb_typeof("name"->${languageCode}) = 'null'
+        OR "name"->>${languageCode} = ''
+      ORDER BY created_at DESC
+    `;
+
+    return {
+      languageCode,
+      count: categories.length,
+      categories,
+    };
+  }
+
+  /**
+   * 获取指定语言下未翻译的标签列表
+   */
+  async getUntranslatedTags(languageCode: string) {
+    if (!languageCode) {
+      throw new BadRequestException('languageCode parameter is required');
+    }
+
+    const tags = await this.prisma.$queryRaw<
+      {
+        id: string;
+        name: Record<string, string>;
+        slug: string;
+        color: string | null;
+        createdAt: Date;
+      }[]
+    >`
+      SELECT id, name, slug, color, created_at as "createdAt" FROM blog_tags
+      WHERE
+        "name" IS NULL
+        OR "name" = 'null'::jsonb
+        OR "name"->${languageCode} IS NULL
+        OR jsonb_typeof("name"->${languageCode}) = 'null'
+        OR "name"->>${languageCode} = ''
+      ORDER BY created_at DESC
+    `;
+
+    return {
+      languageCode,
+      count: tags.length,
+      tags,
     };
   }
 

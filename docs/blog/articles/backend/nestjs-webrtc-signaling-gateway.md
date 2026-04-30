@@ -1,3 +1,16 @@
+---
+title: 'WebRTC 信令网关：NestJS WebSocket 实时通话信令设计'
+description: '深入解析 NestJS 的 CallGateway 基于 Socket.IO 的 WebRTC 信令网关设计，涵盖呼叫邀请三重送达保证、Offer/Answer SDP 交换、ICE 候选者中继、Redis 离线缓存与 FCM 推送唤醒'
+tags:
+  - NestJS
+  - WebRTC
+  - WebSocket
+  - Signaling
+  - Socket.IO
+  - Redis
+  - FCM
+---
+
 # WebRTC 信令网关：NestJS WebSocket 实时通话信令设计
 
 ## 1. 引言

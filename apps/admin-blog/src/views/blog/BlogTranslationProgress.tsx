@@ -361,6 +361,32 @@ export default function BlogTranslationProgress() {
     },
   );
 
+  // 待翻译分类
+  const {
+    data: untranslatedCategories,
+    loading: untranslatedCategoriesLoading,
+    run: runUntranslatedCategories,
+  } = useRequest(
+    () => blogApi.translation.getUntranslatedCategories(selectedLanguage),
+    {
+      manual: true,
+      pollingInterval: autoRefresh ? 5000 : undefined,
+    },
+  );
+
+  // 待翻译标签
+  const {
+    data: untranslatedTags,
+    loading: untranslatedTagsLoading,
+    run: runUntranslatedTags,
+  } = useRequest(
+    () => blogApi.translation.getUntranslatedTags(selectedLanguage),
+    {
+      manual: true,
+      pollingInterval: autoRefresh ? 5000 : undefined,
+    },
+  );
+
   // 启用语言列表
   const { data: enabledLanguages, loading: languagesLoading } = useRequest(
     () => blogApi.translation.getEnabledLanguages(),
@@ -375,7 +401,16 @@ export default function BlogTranslationProgress() {
     runJobs();
     runDbJobs();
     runUntranslated();
-  }, [runProgress, runJobs, runDbJobs, runUntranslated]);
+    runUntranslatedCategories();
+    runUntranslatedTags();
+  }, [
+    runProgress,
+    runJobs,
+    runDbJobs,
+    runUntranslated,
+    runUntranslatedCategories,
+    runUntranslatedTags,
+  ]);
 
   // autoRefresh 变化时重新配置轮询
   React.useEffect(() => {
@@ -389,7 +424,15 @@ export default function BlogTranslationProgress() {
   React.useEffect(() => {
     runProgress();
     runUntranslated();
-  }, [selectedLanguage, runProgress, runUntranslated]);
+    runUntranslatedCategories();
+    runUntranslatedTags();
+  }, [
+    selectedLanguage,
+    runProgress,
+    runUntranslated,
+    runUntranslatedCategories,
+    runUntranslatedTags,
+  ]);
 
   if (error) {
     return (
@@ -664,6 +707,147 @@ export default function BlogTranslationProgress() {
               <p>{t('allArticlesTranslated')}</p>
               <p className="text-sm mt-1">
                 {t('allArticlesTranslatedDesc', {
+                  lang: selectedLanguage.toUpperCase(),
+                })}
+              </p>
+            </div>
+          )}
+        </div>
+      </Card>
+
+      {/* 🏷️ 待翻译分类 */}
+      <Card
+        title={t('pendingCategoriesTitle', {
+          lang: selectedLanguage.toUpperCase(),
+        })}
+      >
+        <div className="space-y-4">
+          {untranslatedCategoriesLoading ? (
+            <div className="space-y-3">
+              <Skeleton className="h-16" />
+              <Skeleton className="h-16" />
+              <Skeleton className="h-16" />
+            </div>
+          ) : untranslatedCategories &&
+            untranslatedCategories.categories &&
+            untranslatedCategories.categories.length > 0 ? (
+            <div className="space-y-3">
+              <div className="text-sm text-gray-500 mb-2">
+                {t('pendingCategoriesDescription', {
+                  count: untranslatedCategories.categories.length,
+                  lang: selectedLanguage.toUpperCase(),
+                })}
+              </div>
+              <div className="grid gap-3">
+                {untranslatedCategories.categories.map((category: any) => (
+                  <div
+                    key={category.id}
+                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="flex-1">
+                      <div className="font-medium">
+                        {category.name?.zh || category.slug}
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        slug: {category.slug}
+                      </div>
+                    </div>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => {
+                        blogApi.translation.translateCategory(
+                          category.id,
+                          selectedLanguage,
+                        );
+                        setTimeout(() => {
+                          runUntranslatedCategories();
+                        }, 500);
+                      }}
+                    >
+                      {t('translateButton')}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <CheckCircle className="w-12 h-12 mx-auto text-emerald-300 mb-3" />
+              <p>{t('allCategoriesTranslated')}</p>
+              <p className="text-sm mt-1">
+                {t('allCategoriesTranslatedDesc', {
+                  lang: selectedLanguage.toUpperCase(),
+                })}
+              </p>
+            </div>
+          )}
+        </div>
+      </Card>
+
+      {/* 🏷️ 待翻译标签 */}
+      <Card
+        title={t('pendingTagsTitle', {
+          lang: selectedLanguage.toUpperCase(),
+        })}
+      >
+        <div className="space-y-4">
+          {untranslatedTagsLoading ? (
+            <div className="space-y-3">
+              <Skeleton className="h-16" />
+              <Skeleton className="h-16" />
+              <Skeleton className="h-16" />
+            </div>
+          ) : untranslatedTags &&
+            untranslatedTags.tags &&
+            untranslatedTags.tags.length > 0 ? (
+            <div className="space-y-3">
+              <div className="text-sm text-gray-500 mb-2">
+                {t('pendingTagsDescription', {
+                  count: untranslatedTags.tags.length,
+                  lang: selectedLanguage.toUpperCase(),
+                })}
+              </div>
+              <div className="grid gap-3">
+                {untranslatedTags.tags.map((tag: any) => (
+                  <div
+                    key={tag.id}
+                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="flex-1">
+                      <div className="font-medium">
+                        {tag.name?.zh || tag.slug}
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        slug: {tag.slug}
+                        {tag.color ? ` · color: ${tag.color}` : ''}
+                      </div>
+                    </div>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => {
+                        blogApi.translation.translateTag(
+                          tag.id,
+                          selectedLanguage,
+                        );
+                        setTimeout(() => {
+                          runUntranslatedTags();
+                        }, 500);
+                      }}
+                    >
+                      {t('translateButton')}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <CheckCircle className="w-12 h-12 mx-auto text-emerald-300 mb-3" />
+              <p>{t('allTagsTranslated')}</p>
+              <p className="text-sm mt-1">
+                {t('allTagsTranslatedDesc', {
                   lang: selectedLanguage.toUpperCase(),
                 })}
               </p>

@@ -1,3 +1,15 @@
+---
+title: 'Gemini AI 生产级集成：四层熔断降级与三重配额控制'
+description: '深入解析 NestJS 项目中对 @google-cloud/vertexai (Gemini 2.5 Flash) 的生产级封装，涵盖四层服务等级降级系统、三重配额控制、熔断器模式与指数退避重试等核心实现'
+tags:
+  - NestJS
+  - Gemini
+  - AI
+  - Circuit Breaker
+  - Rate Limiting
+  - Vertex AI
+---
+
 # Gemini AI 生产级集成：四层熔断降级与三重配额控制
 
 ## 1. 引言

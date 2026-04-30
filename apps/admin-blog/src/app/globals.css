@@ -76,6 +76,10 @@
   --color-dark-950: #0b0b12;
 }
 
+html, body {
+  overflow: hidden;
+}
+
 body {
   font-family: var(--font-sans), sans-serif;
   background-color: var(--color-background);

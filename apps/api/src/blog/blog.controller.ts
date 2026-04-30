@@ -163,6 +163,28 @@ export class BlogController {
     return this.blogService.translateArticle(id, userId, body?.targetLang);
   }
 
+  @Post('categories/:id/translate')
+  @ApiBearerAuth()
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiOperation({ summary: '手动触发分类翻译' })
+  async translateCategory(
+    @Param('id') id: string,
+    @Body() body: { targetLang?: string },
+  ) {
+    return this.blogService.translateCategory(id, body?.targetLang);
+  }
+
+  @Post('tags/:id/translate')
+  @ApiBearerAuth()
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiOperation({ summary: '手动触发标签翻译' })
+  async translateTag(
+    @Param('id') id: string,
+    @Body() body: { targetLang?: string },
+  ) {
+    return this.blogService.translateTag(id, body?.targetLang);
+  }
+
   @Post('articles/:id/trigger-video-transcode')
   @ApiBearerAuth()
   @UseGuards(AdminJwtAuthGuard)
@@ -267,5 +289,21 @@ export class BlogController {
   @ApiOperation({ summary: '获取指定语言下未翻译的文章列表' })
   async getUntranslatedArticles(@Query('languageCode') languageCode: string) {
     return this.blogService.getUntranslatedArticles(languageCode);
+  }
+
+  @Get('untranslated-categories')
+  @ApiBearerAuth()
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiOperation({ summary: '获取指定语言下未翻译的分类列表' })
+  async getUntranslatedCategories(@Query('languageCode') languageCode: string) {
+    return this.blogService.getUntranslatedCategories(languageCode);
+  }
+
+  @Get('untranslated-tags')
+  @ApiBearerAuth()
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiOperation({ summary: '获取指定语言下未翻译的标签列表' })
+  async getUntranslatedTags(@Query('languageCode') languageCode: string) {
+    return this.blogService.getUntranslatedTags(languageCode);
   }
 }
