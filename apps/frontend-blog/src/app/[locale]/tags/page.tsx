@@ -8,7 +8,6 @@ import type { FrontendTag } from '@/lib/types/frontend-blog';
 // revalidate combination
 // Each locale has independent cache, no cross contamination
 export const revalidate = 3600;
-export const dynamic = 'force-static';
 
 // generate static params for all locales
 export async function generateStaticParams() {
