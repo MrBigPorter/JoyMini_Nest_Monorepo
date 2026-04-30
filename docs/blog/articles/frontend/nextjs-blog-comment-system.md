@@ -1,6 +1,10 @@
-# Next.js 博客评论系统：从 AI 审核到乐观更新的完整架构
+---
+title: Next.js 博客评论系统：从 AI 审核到乐观更新的完整架构
+slug: nextjs-blog-comment-system
+tags: Next.js, Comment, WebSocket, Prisma, React Query
+---
 
-> **Tags:** `Next.js`, `Comment`, `WebSocket`, `Prisma`, `React Query`
+# Next.js 博客评论系统：从 AI 审核到乐观更新的完整架构
 
 ## 1. 背景：为什么评论系统这么难？
 

@@ -68,6 +68,14 @@
       "invocation_logs": true
     }
   },
+  "queues": {
+    "producers": [
+      {
+        "binding": "NEXT_QUEUE",
+        "queue": "next-revalidation-queue"
+      }
+    ]
+  },
   "analytics_engine_datasets": [
     {
       "binding": "ANALYTICS",

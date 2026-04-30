@@ -1,10 +1,14 @@
+---
+title: React 跨组件 HLS 视频协调：点击播放 + 单视频互斥
+slug: react-hls-cross-component-coordination
+tags: React, Video, HLS, Hooks, Architecture
+---
+
 # React 跨组件 HLS 视频协调：点击播放 + 单视频互斥
 
 > 一次真实的前端性能优化案例。通过 `CustomEvent` 事件总线 + 延迟加载模式，彻底解决首页加载时大量视频流抢占带宽的问题。
 
 ---
-
-Tags: React, Video, HLS, Hooks, Architecture
 
 ## 1. 问题：首页加载，十几个 m3u8 请求同时发起
 

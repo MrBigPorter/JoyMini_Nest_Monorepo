@@ -1,6 +1,10 @@
-# Next.js 博客三合一登录系统：邮件验证码 + Google OAuth + Facebook OAuth 完整实现
+---
+title: Next.js 博客三合一登录系统：邮件验证码 + Google OAuth + Facebook OAuth 完整实现
+slug: blog-three-in-one-login-system
+tags: Next.js, OAuth, Authentication, Zustand, Security
+---
 
-Tags: Next.js, OAuth, Authentication, Zustand, Security
+# Next.js 博客三合一登录系统：邮件验证码 + Google OAuth + Facebook OAuth 完整实现
 
 ## 1. 为什么需要三合一登录？
 

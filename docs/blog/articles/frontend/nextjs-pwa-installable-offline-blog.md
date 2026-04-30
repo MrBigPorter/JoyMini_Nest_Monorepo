@@ -1,10 +1,14 @@
+---
+title: Next.js PWA 实战：一步步实现可安装离线博客
+slug: nextjs-pwa-installable-offline-blog
+tags: Next.js, PWA, Mobile, Performance
+---
+
 # Next.js PWA 实战：一步步实现可安装离线博客
 
 > 给一个 Next.js 博客添加 PWA 支持，使其可安装到手机主屏幕并支持离线访问。涵盖 Manifest 配置、Service Worker 缓存策略、多语言支持、Lighthouse 满分验证，以及与 Capacitor 原生应用的兼容处理。
 
 ---
-
-Tags: Next.js, PWA, Mobile, Performance
 
 ## 1. 为什么需要 PWA？
 

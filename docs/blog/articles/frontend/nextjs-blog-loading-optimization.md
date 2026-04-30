@@ -1,6 +1,12 @@
+---
+title: Next.js 博客极致加载优化：从骨架屏到边缘缓存的系统性实践
+slug: nextjs-blog-loading-optimization
+tags: Next.js, Performance, ISR, Cache, SSR
+---
+
 # Next.js 博客极致加载优化：从骨架屏到边缘缓存的系统性实践
 
-> **架构关键词**：ISR、骨架屏、流式渲染、边缘缓存、性能指标  
+> **架构关键词**：ISR、骨架屏、流式渲染、边缘缓存、性能指标
 > **适用场景**：SSR/ISR 博客站点，追求 LCP < 1.5s 的首屏性能
 
 ---

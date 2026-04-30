@@ -1,6 +1,12 @@
+---
+title: Next.js 认证零闪烁实战：双模式架构根治水合闪动
+slug: nextjs-auth-zero-flicker
+tags: Next.js, Authentication, Zustand, SSR, CSR
+---
+
 # Next.js 认证零闪烁实战：双模式架构根治水合闪动
 
-> **架构关键词**：Zustand 同步水合、ProtectedRoute 智能路由、SSR/CSR 状态一致性  
+> **架构关键词**：Zustand 同步水合、ProtectedRoute 智能路由、SSR/CSR 状态一致性
 > **适用场景**：使用 Next.js App Router + Zustand 状态管理 + JWT 认证的任何项目
 
 ---
