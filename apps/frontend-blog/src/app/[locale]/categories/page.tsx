@@ -1,8 +1,8 @@
 import { serverGet } from '@/lib/serverFetch';
 import { getEnabledLocales } from '@/lib/i18n/config';
 import CategoriesPageClient from './page.client';
-import type { Locale } from '@/lib/i18n/config';
 import type { FrontendCategory } from '@/lib/types/frontend-blog';
+import type { Locale } from '@/lib/i18n/config';
 
 // Next.js 15 perfect cache pattern
 // revalidate combination
@@ -26,20 +26,22 @@ export default async function CategoriesPage({
 }: {
   params: { locale: string };
 }) {
-  const { locale: routeLocale } = params;
-  const locale = routeLocale;
+  const { locale } = await params;
 
   try {
-    // 简化架构：直接API调用，避免复杂平台感知抽象
-    const categories = await serverGet<FrontendCategory[]>(
+    // SSG: Fetch categories at build time via serverFetch (uses INTERNAL_API_URL)
+    const initialData = await serverGet<FrontendCategory[]>(
       '/v1/frontend/blog/categories',
       { lang: locale },
     );
 
-    return <CategoriesPageClient initialData={categories} />;
+    return <CategoriesPageClient initialData={initialData} />;
   } catch (error) {
-    console.error('Categories page server error:', error);
-
+    console.error(
+      '[CategoriesPage] SSG fetch failed, falling back to client fetch:',
+      error,
+    );
+    // Fallback: empty array, client-side useFrontendCategories() will refetch
     return <CategoriesPageClient initialData={[]} />;
   }
 }

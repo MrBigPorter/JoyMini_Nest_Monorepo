@@ -23,6 +23,7 @@
     "NODE_ENV": "production",
     "NEXT_PUBLIC_ENVIRONMENT": "cloudflare",
     "NEXT_PUBLIC_API_BASE_URL": "https://api.joyminis.com/api",
+    "INTERNAL_API_URL": "https://api.joyminis.com/api",
     "NEXT_PUBLIC_OAUTH_API_ORIGIN": "https://api.joyminis.com",
     "ENABLE_ISR": "true",
     "ENABLE_STREAMING": "true",
@@ -33,6 +34,12 @@
     "BROWSER_CACHE_TTL": "300",
     "STALE_WHILE_REVALIDATE": "86400"
   },
+  "services": [
+    {
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "lucky-blog-prod"
+    }
+  ],
   "kv_namespaces": [
     {
       "binding": "CACHE",
@@ -119,6 +126,7 @@
         "NODE_ENV": "production",
         "NEXT_PUBLIC_ENVIRONMENT": "cloudflare",
         "NEXT_PUBLIC_API_BASE_URL": "https://api.joyminis.com/api",
+        "INTERNAL_API_URL": "https://api.joyminis.com/api",
         "NEXT_PUBLIC_OAUTH_API_ORIGIN": "https://api.joyminis.com",
         "ENABLE_ISR": "true",
         "ENABLE_STREAMING": "true",
@@ -131,6 +139,12 @@
         "NEXT_PUBLIC_API_URL": "https://api.joyminis.com",
         "NEXT_PUBLIC_CDN_URL": "https://img.joyminis.com"
       },
+      "services": [
+        {
+          "binding": "WORKER_SELF_REFERENCE",
+          "service": "lucky-blog-production"
+        }
+      ],
       "kv_namespaces": [
         {
           "binding": "CACHE",
@@ -217,6 +231,7 @@
         "NODE_ENV": "staging",
         "NEXT_PUBLIC_ENVIRONMENT": "cloudflare",
         "NEXT_PUBLIC_API_BASE_URL": "https://staging-api.joyminis.com/api",
+        "INTERNAL_API_URL": "https://staging-api.joyminis.com/api",
         "NEXT_PUBLIC_OAUTH_API_ORIGIN": "https://staging-api.joyminis.com",
         "ENABLE_ISR": "true",
         "ENABLE_STREAMING": "true",
@@ -229,6 +244,12 @@
         "NEXT_PUBLIC_API_URL": "https://staging-api.joyminis.com",
         "NEXT_PUBLIC_CDN_URL": "https://staging-img.joyminis.com"
       },
+      "services": [
+        {
+          "binding": "WORKER_SELF_REFERENCE",
+          "service": "lucky-blog-staging"
+        }
+      ],
       "kv_namespaces": [
         {
           "binding": "CACHE",

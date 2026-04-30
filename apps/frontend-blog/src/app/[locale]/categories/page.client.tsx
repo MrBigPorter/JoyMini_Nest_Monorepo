@@ -9,11 +9,11 @@ import { useFrontendCategories } from '@/lib/hooks/useFrontendArticles';
 import type { FrontendCategory } from '@/lib/types/frontend-blog';
 
 interface CategoriesPageClientProps {
-  initialData: FrontendCategory[];
+  initialData?: FrontendCategory[];
 }
 
 export default function CategoriesPageClient({
-  initialData,
+  initialData = [],
 }: CategoriesPageClientProps) {
   const t = useTranslations();
   const {
@@ -22,11 +22,8 @@ export default function CategoriesPageClient({
     error,
   } = useFrontendCategories(initialData);
 
-  // Zero flicker logic: only show skeleton when no initial data
-  const hasInitialData = initialData && initialData.length > 0;
-  const hasCurrentData = categories && categories.length > 0;
-
-  if (isLoading && !hasInitialData && !hasCurrentData) {
+  // Show skeleton only during initial loading when no data is available yet
+  if (isLoading && !categories) {
     return <CategoriesPageSkeleton />;
   }
 
