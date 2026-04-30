@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { useCurrentLocale } from '@/lib/hooks/useCurrentLocale';
 import { useLocalizedQueryKey } from '@/lib/api/queryKeys';
 import { frontendBlogApi } from '@/lib/api/frontendBlogApi';
@@ -57,6 +57,7 @@ export default function HomePageClient({ initialData }: HomePageClientProps) {
         pageSize: PAGE_SIZE,
         categoryId: selectedCategoryId,
       }),
+    placeholderData: keepPreviousData,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -95,7 +96,6 @@ export default function HomePageClient({ initialData }: HomePageClientProps) {
   const handleCategoryChange = useCallback((categoryId?: string) => {
     setSelectedCategoryId(categoryId);
     setPage(1);
-    setAllArticles([]);
   }, []);
 
   // Handle load more
