@@ -18,6 +18,8 @@ const withPWA = require('next-pwa')({
   disable: process.env.NODE_ENV === 'development',
   register: true,
   skipWaiting: true,
+  // 排除 Source Map 文件，避免 Workbox 预缓存时 404
+  exclude: [/\.map$/],
   runtimeCaching: [
     {
       urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/i,
@@ -107,6 +109,9 @@ const baseConfig: NextConfig = {
     ignoreDuringBuilds: true,
   },
   trailingSlash: true,
+
+  // 生产环境禁用 Source Map，避免源码泄露并减小构建体积
+  productionBrowserSourceMaps: false,
 
   // 平台感知的输出配置
   // App构建使用静态导出，支持Capacitor打包
