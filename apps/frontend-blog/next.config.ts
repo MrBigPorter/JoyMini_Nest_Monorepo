@@ -18,8 +18,8 @@ const withPWA = require('next-pwa')({
   disable: process.env.NODE_ENV === 'development',
   register: true,
   skipWaiting: true,
-  // 排除 Source Map 文件，避免 Workbox 预缓存时 404
-  exclude: [/\.map$/],
+  // 排除 Source Map 和 react-loadable-manifest，避免 Workbox 预缓存时 404
+  exclude: [/\.map$/, /react-loadable-manifest\.json$/],
   runtimeCaching: [
     {
       urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/i,
