@@ -24,6 +24,7 @@
     "prebuild": "node scripts/gen-error-codes.mjs",
     "seed": "tsx scripts/seed/run-seed.ts",
     "seed:treasures": "tsx scripts/seed/seed-treasures.ts",
+    "seed:blog": "tsx scripts/seed/seed-blog.ts",
     "create-admin": "tsx scripts/cli/create-admin.ts",
     "build:cli": "tsc -p tsconfig.cli.json"
   },
