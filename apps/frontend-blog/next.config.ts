@@ -19,7 +19,8 @@ const withPWA = require('next-pwa')({
   register: true,
   skipWaiting: true,
   // 排除 Source Map 和 react-loadable-manifest，避免 Workbox 预缓存时 404
-  exclude: [/\.map$/, /react-loadable-manifest\.json$/],
+  // 排除 Source Map、react-loadable-manifest 以及所有 server-only 文件，避免 Workbox 预缓存时 404
+  exclude: [/\.map$/, /react-loadable-manifest\.json$/, /\/_next\/server\/.*/],
   runtimeCaching: [
     {
       urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/i,

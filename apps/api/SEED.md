@@ -47,31 +47,56 @@ yarn workspace @lucky/api dlx tsx scripts/seed/seed-wallet.ts"
 
 # 博客种子数据
 
-## Docker 容器内运行
+博客有 **两个** 种子脚本，用途不同，请勿混淆：
 
-docker exec -it lucky-backend-dev sh -lc "\
-cd /app && \
-yarn workspace @lucky/api dlx tsx scripts/seed/seed-blog.ts"
+- **seed-blog-categories-tags.ts** (安全) — 仅插入分类和标签，幂等，不删除任何数据 ✅
+- **seed-blog.ts** (危险) — 清空 + 重导入全量博客数据（含文章），**请勿在生产环境运行** ❌
 
-## 本地开发环境运行
+---
 
+## ✅ 安全脚本：分类 + 标签（推荐线上使用）
+
+### 功能
+
+- 插入 6 个分类 + 27 个标签
+- **幂等**：按 slug 检测，已存在则跳过
+- **不删除任何数据**：没有 `deleteMany`，不触及文章/评论
+- 中文名称，后续由自动翻译补充多语言
+
+### 数据内容
+
+- **分类**: 系统架构、后端开发、运维与部署、前端开发、性能优化、安全防护
+- **标签**: NestJS, Prisma, PostgreSQL, Redis, BullMQ, TypeScript, Next.js, React, Tailwind CSS, SSR, PWA, SEO, i18n, Docker, Cloudflare, CI/CD, Monorepo, 架构设计, WebSocket, IM, 实时通信, 安全, JWT, 认证授权, RBAC, AI, 性能优化
+
+### 生产环境运行（Docker 容器内）
+
+```bash
+docker exec lucky-backend-prod node /app/apps/api/dist/cli/seed/seed-blog-categories-tags.js
+```
+
+### 本地开发环境运行
+
+```bash
+cd apps/api && yarn seed:blog
+```
+
+### 安全验证
+
+| 安全措施 | 状态 |
+|---------|------|
+| `deleteMany` 调用 | ❌ 无 — 不删除任何数据 |
+| 幂等性（slug 唯一性检测） | ✅ 已实现 — 存在则跳过 |
+| 仅操作分类和标签表 | ✅ 不触及 articles/comments 等 |
+| 无需修改已有数据 | ✅ upsert/createOrUpdate 都不用 |
+| 可重复运行 | ✅ 重复运行无副作用 |
+
+---
+
+## ⚠️ 危险脚本：全量博客种子（仅限本地清空测试）
+
+**请勿在生产环境运行！** 该脚本执行 `deleteMany()` 清空所有博客数据（文章、评论、分类、标签），然后重新导入 6 篇示例文章。
+
+```bash
+# 仅限本地开发数据库！
 cd apps/api && npx tsx scripts/seed/seed-blog.ts
-
-## 导入内容统计
-
-- **分类**: 6个（后端开发、前端开发、运维与部署、系统架构、安全防护、实战项目）
-- **标签**: 27个（NestJS、Prisma、PostgreSQL、Redis、BullMQ、TypeScript、Next.js、React、Tailwind CSS等）
-- **文章**: 6篇高质量技术文章
-  - AC自动机算法实战：构建毫秒级敏感词过滤系统
-  - ReCaptcha v3 无感人机验证完整实现方案
-  - 零成本AI评论审核系统：Gemini 2.0 Flash 实战
-  - NestJS 五层安全防护体系设计与实现
-  - 异步任务队列在安全系统中的设计模式
-  - XSS攻击与防御完整指南：现代Web应用安全实践
-
-## 注意事项
-
-1. 脚本会自动清空现有博客数据后重新导入
-2. 需要数据库连接（自动加载 deploy/.env.dev 配置）
-3. 文章作者默认为 admin 用户，如不存在则使用占位符
-4. 所有内容为中文，可通过翻译系统生成多语言版本
+```
