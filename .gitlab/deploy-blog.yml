@@ -38,6 +38,22 @@ deploy-blog:
       NEXT_PUBLIC_GIT_SHA=$GIT_SHA \
       yarn exec opennextjs-cloudflare build
 
+    # 复制 manifest 文件到 assets 目录（Service Worker 预缓存需要）
+    - |
+      set -euo pipefail
+      if [ -f .next/app-build-manifest.json ]; then
+        cp -f .next/app-build-manifest.json .open-next/assets/_next/
+        echo "✅ app-build-manifest.json copied to assets"
+      else
+        echo "⚠️ app-build-manifest.json not found in .next/"
+      fi
+      if [ -f .next/build-manifest.json ]; then
+        cp -f .next/build-manifest.json .open-next/assets/_next/
+        echo "✅ build-manifest.json copied to assets"
+      else
+        echo "⚠️ build-manifest.json not found in .next/"
+      fi
+
     # 验证 Cloudflare 凭证
     - |
       set -euo pipefail
