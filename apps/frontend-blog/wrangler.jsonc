@@ -55,6 +55,22 @@
       "preview_id": "1fc88f516bcf4efa9a50bef6e2912405"
     }
   ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "NEXT_CACHE_DO_QUEUE",
+        "class_name": "DOQueueHandler"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "DOQueueHandler"
+      ]
+    }
+  ],
   "r2_buckets": [
     {
       "binding": "R2_STORAGE",

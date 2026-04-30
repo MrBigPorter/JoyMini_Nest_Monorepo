@@ -10,9 +10,13 @@ import { defineCloudflareConfig } from '@opennextjs/cloudflare';
 import kvIncrementalCache from '@opennextjs/cloudflare/overrides/incremental-cache/kv-incremental-cache';
 import kvTagCache from '@opennextjs/cloudflare/overrides/tag-cache/kv-next-tag-cache';
 
-// Blog uses ISR / incremental caching with KV + R2.
+// Blog uses ISR / incremental caching with KV + R2 + Durable Objects.
 // Using OpenNext's built-in KV incremental cache for persistent ISR.
+// Queue: uses Durable Object (DOQueueHandler) for ISR revalidation.
+// The DO receives revalidation messages and sends HEAD requests to revalidate pages.
+// Requires NEXT_CACHE_DO_QUEUE durable_objects binding in wrangler.jsonc.
 export default defineCloudflareConfig({
   incrementalCache: kvIncrementalCache,
   tagCache: kvTagCache,
+  queue: () => import('@opennextjs/cloudflare/overrides/queue/do-queue').then((m) => m.default),
 });
