@@ -74,6 +74,13 @@
         "binding": "NEXT_QUEUE",
         "queue": "next-revalidation-queue"
       }
+    ],
+    "consumers": [
+      {
+        "queue": "next-revalidation-queue",
+        "max_batch_size": 1,
+        "max_batch_timeout": 5
+      }
     ]
   },
   "analytics_engine_datasets": [
