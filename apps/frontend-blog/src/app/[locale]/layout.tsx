@@ -184,7 +184,7 @@ export default async function LocaleLayout({
       <I18nProvider>
         <Header />
         <Sidebar />
-        <main className="pt-0 lg:pt-[var(--content-padding-top)] pb-[var(--content-padding-bottom)] min-h-screen md:ml-16 md:transition-all md:duration-300">
+        <main className="pt-0 lg:pt-[var(--content-padding-top)] pb-[var(--content-padding-bottom)] min-h-[100dvh] md:ml-16 md:transition-all md:duration-300">
           <PageTransition>{children}</PageTransition>
         </main>
         <BottomNavigation />

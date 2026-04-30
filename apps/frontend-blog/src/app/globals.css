@@ -110,6 +110,8 @@ body {
   color: var(--color-foreground);
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
+  /* 防止 iOS Safari 工具栏隐藏时 body 底部出现空隙 */
+  overscroll-behavior: none;
 }
 
 *,
