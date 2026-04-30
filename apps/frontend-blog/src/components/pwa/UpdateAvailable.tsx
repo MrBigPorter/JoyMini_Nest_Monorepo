@@ -74,6 +74,31 @@ export function UpdateAvailable({
       return;
     }
 
+    // 检查用户是否已关闭或确认过更新
+    const dismissed = localStorage.getItem('pwa_update_dismissed');
+    const acknowledged = localStorage.getItem('pwa_update_acknowledged');
+    const ONE_HOUR = 3600000;
+    const TEN_MINUTES = 600000;
+
+    if (dismissed) {
+      const dismissedTime = parseInt(dismissed, 10);
+      if (Date.now() - dismissedTime < ONE_HOUR) {
+        // 1小时内不再显示
+        return;
+      }
+      // 超过1小时，清除过期标记
+      localStorage.removeItem('pwa_update_dismissed');
+    }
+
+    if (acknowledged) {
+      const acknowledgedTime = parseInt(acknowledged, 10);
+      if (Date.now() - acknowledgedTime < TEN_MINUTES) {
+        // 10分钟内不再显示（足够完成更新+重载）
+        return;
+      }
+      localStorage.removeItem('pwa_update_acknowledged');
+    }
+
     // 延迟显示，避免立即干扰用户
     const timer = setTimeout(() => {
       setIsVisible(true);
@@ -85,6 +110,8 @@ export function UpdateAvailable({
   const handleUpdate = async () => {
     try {
       setIsUpdating(true);
+      // 记录本次更新的确认时间，防止重载后重复弹窗
+      localStorage.setItem('pwa_update_acknowledged', Date.now().toString());
       await skipWaiting();
 
       // 给用户一点时间看到更新状态
@@ -101,6 +128,8 @@ export function UpdateAvailable({
 
   const handleDismiss = () => {
     setIsVisible(false);
+    // 记录关闭时间，1小时内不再显示
+    localStorage.setItem('pwa_update_dismissed', Date.now().toString());
   };
 
   const handleCheckNow = async () => {

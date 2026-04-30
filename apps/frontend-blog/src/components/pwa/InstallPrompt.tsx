@@ -91,18 +91,10 @@ export function InstallPrompt({
   };
 
   const handleDontShowAgain = () => {
-    // 将用户选择存储到localStorage
+    // 将用户选择存储到localStorage（usePWA hook中的beforeinstallprompt事件会检查此标记）
     localStorage.setItem('pwa_install_prompt_hidden', 'true');
     handleClose();
   };
-
-  // 检查用户是否已选择不再显示
-  useEffect(() => {
-    const hidden = localStorage.getItem('pwa_install_prompt_hidden');
-    if (hidden === 'true') {
-      clearDeferredPrompt();
-    }
-  }, []);
 
   if (!isVisible) return null;
 

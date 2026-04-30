@@ -45,6 +45,9 @@ export function usePWA(): UsePWAReturn {
 
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
+      // 检查用户是否已选择不再显示安装提示
+      const hidden = localStorage.getItem('pwa_install_prompt_hidden');
+      if (hidden === 'true') return;
       setDeferredPrompt(e as BeforeInstallPromptEvent);
       setIsInstallable(true);
     };
@@ -82,10 +85,13 @@ export function usePWA(): UsePWAReturn {
     if (typeof window === 'undefined' || !('serviceWorker' in navigator))
       return;
 
+    let activeRegistration: ServiceWorkerRegistration | null = null;
+
     const checkForUpdates = async () => {
       try {
-        const registration = await navigator.serviceWorker.getRegistration();
-        if (registration?.waiting) {
+        const reg = await navigator.serviceWorker.getRegistration();
+        activeRegistration = reg ?? null;
+        if (reg?.waiting) {
           setIsUpdateAvailable(true);
         }
       } catch (error) {
@@ -93,22 +99,40 @@ export function usePWA(): UsePWAReturn {
       }
     };
 
-    // 监听Service Worker更新
+    // 监听Service Worker控制权变化
     const handleControllerChange = () => {
       checkForUpdates();
+    };
+
+    // 监听updatefound事件（当registration.update()发现新SW时触发）
+    const handleUpdateFound = () => {
+      if (activeRegistration?.waiting) {
+        setIsUpdateAvailable(true);
+      }
     };
 
     navigator.serviceWorker.addEventListener(
       'controllerchange',
       handleControllerChange,
     );
-    checkForUpdates();
+
+    checkForUpdates().then(() => {
+      if (activeRegistration) {
+        activeRegistration.addEventListener('updatefound', handleUpdateFound);
+      }
+    });
 
     return () => {
       navigator.serviceWorker.removeEventListener(
         'controllerchange',
         handleControllerChange,
       );
+      if (activeRegistration) {
+        activeRegistration.removeEventListener(
+          'updatefound',
+          handleUpdateFound,
+        );
+      }
     };
   }, []);
 
