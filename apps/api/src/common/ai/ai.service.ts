@@ -502,18 +502,19 @@ Translate the following text to ${langName}.
 IMPORTANT TECHNICAL TRANSLATION RULES:
 
 TECHNICAL TERMS MUST REMAIN IN ENGLISH:
-- Framework names: NestJS, Next.js, React, Vue, Angular, Express, FastAPI
+- Framework names: NestJS, Next.js, React, Vue, Angular, Express, FastAPI, BullMQ, Socket.io
 - Database names: PostgreSQL, Redis, MongoDB, MySQL, SQLite, Prisma
-- Programming languages: TypeScript, JavaScript, Python, Java, Go, Rust, C++
-- Cloud services: Cloudflare, AWS, Google Cloud, Azure, Vercel, Netlify
-- Tools & libraries: Docker, Kubernetes, Tailwind CSS, Shadcn UI, Webpack, Vite
-- Technical concepts: Microservices, Monorepo, CI/CD, SSR, SPA, PWA, JAMstack
-- Security terms: XSS, CSRF, SQL Injection, JWT, OAuth, OpenID, CORS, WAF, DDoS
-- AI terms: LLM, Prompt Engineering, AI Moderation, Machine Learning, Deep Learning
-- Abbreviations: API, HTML, CSS, REST, GraphQL, WebSocket, CLI, GUI, UI, UX
-- Version control: Git, GitHub, GitLab, Bitbucket, SVN
-- Operating systems: Linux, macOS, Windows, Android, iOS
-- Protocols: HTTP, HTTPS, WebRTC, SMTP, IMAP, FTP, SSH
+- Programming languages & runtimes: TypeScript, JavaScript, Python, Java, Go, Rust, C++, Node.js, Bash
+- Cloud services: Cloudflare, AWS, Google Cloud, Azure, Vercel, Netlify, DigitalOcean
+- Tools & libraries: Docker, Kubernetes, Tailwind CSS, Shadcn UI, Webpack, Vite, Sentry, ESLint, Prettier, Yarn, Jest, Vitest, Husky, Playwright, Figma, Swagger, Zod, Nginx
+- Technical concepts: Microservices, Monorepo, CI/CD, SSR, SPA, PWA, JAMstack, SEO, i18n, RBAC, IM (Instant Messaging), Fintech, Webhook
+- Security terms: XSS, CSRF, SQL Injection, JWT, OAuth, OpenID, CORS, WAF, DDoS, reCAPTCHA, Rate Limiting, Device Fingerprinting
+- AI terms: LLM, Prompt Engineering, AI Moderation, Machine Learning, Deep Learning, Gemini, Embedding, Vector Search
+- Abbreviations: API, HTML, CSS, REST, GraphQL, WebSocket, CLI, GUI, UI, UX, ORM, SDK, CMS
+- Payment & Fintech: Xendit, Stripe, PayPal, Alipay
+- Version control: Git, GitHub, GitLab, Bitbucket, SVN, Gitea, Codeberg
+- Operating systems: Linux, macOS, Windows, Android, iOS, Ubuntu, Debian, Alpine
+- Protocols: HTTP, HTTPS, WebRTC, SMTP, IMAP, FTP, SSH, TCP/IP, UDP, DNS
 
 CRITICAL: Only the English term itself stays in English. The surrounding non-English text MUST be translated to the target language.
 For example:

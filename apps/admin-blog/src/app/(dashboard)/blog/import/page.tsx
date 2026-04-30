@@ -13,6 +13,7 @@ import {
   FileText,
   Tag,
   Download,
+  FolderOpen,
 } from 'lucide-react';
 import { useRequest } from 'ahooks';
 import { useToastStore } from '@/store/useToastStore';
@@ -23,6 +24,7 @@ import { Button } from '@repo/ui';
 import { useTranslation } from '@/hooks/useTranslation';
 import { parseFrontmatter } from '@/lib/utils/frontmatter';
 import { generateSlugFromFilename } from '@/lib/utils/slug';
+import { renderLocalizedText } from '@/utils/localizedText';
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -96,6 +98,9 @@ export default function BlogImportPage() {
   const [dragOver, setDragOver] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
 
+  // ── Category selection ─────────────────────────────────────
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
+
   // ── API: Batch import ───────────────────────────────────────
   const { run: importArticles, loading: importing } = useRequest(
     blogApi.batchImportArticles,
@@ -122,6 +127,14 @@ export default function BlogImportPage() {
       },
     },
   );
+
+  // ── API: Fetch categories for selector ──────────────────────
+  const {
+    data: categoriesData,
+    loading: categoriesLoading,
+    error: categoriesError,
+  } = useRequest(() => blogApi.getCategories({ pageSize: 999 }));
+  const categories = categoriesData?.list || [];
 
   // ── File Processing ─────────────────────────────────────────
 
@@ -295,11 +308,19 @@ export default function BlogImportPage() {
         tags: a.tags,
         subdir: null,
         status: 'DRAFT',
+        categoryId: selectedCategoryId || undefined,
       })),
       defaultStatus: 'DRAFT',
       overwrite: false,
     });
-  }, [articles, selectedSlugs, importArticles, addToast, t]);
+  }, [
+    articles,
+    selectedSlugs,
+    selectedCategoryId,
+    importArticles,
+    addToast,
+    t,
+  ]);
 
   // ── Retry Failed ────────────────────────────────────────────
 
@@ -405,6 +426,52 @@ export default function BlogImportPage() {
               {t('blog_import_selected') || '已选'}:{' '}
               <strong>{stats.selected}</strong>
             </span>
+          </div>
+        </Card>
+      )}
+
+      {/* Category Selector (global, applies to all imported articles) */}
+      {articles.length > 0 && !importResult && (
+        <Card>
+          <div className="flex items-center gap-3 p-3 text-sm">
+            <FolderOpen size={16} className="text-gray-500 shrink-0" />
+            <span className="font-medium text-gray-700 dark:text-gray-300 shrink-0">
+              {t('blog_import_category') || '分类'}:
+            </span>
+            {categoriesLoading ? (
+              <div className="flex items-center gap-2 text-gray-400">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="text-xs">
+                  {t('blog_import_loading') || '加载中...'}
+                </span>
+              </div>
+            ) : categoriesError ? (
+              <span className="text-xs text-amber-600 flex items-center gap-1">
+                <AlertTriangle size={14} />
+                {t('blog_import_categoryError') || '分类加载失败'}
+              </span>
+            ) : (
+              <select
+                value={selectedCategoryId}
+                onChange={(e) => setSelectedCategoryId(e.target.value)}
+                className="flex-1 max-w-xs px-3 py-1.5 text-sm border border-gray-200 dark:border-white/10 rounded-lg bg-white dark:bg-dark-900 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">
+                  {t('blog_import_noCategory') || '无分类'}
+                </option>
+                {categories.map((cat: any) => (
+                  <option key={cat.id} value={cat.id}>
+                    {renderLocalizedText(cat.name)}{' '}
+                    {cat.articleCount > 0 ? `(${cat.articleCount})` : ''}
+                  </option>
+                ))}
+              </select>
+            )}
+            {selectedCategoryId && (
+              <span className="text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-2 py-0.5 rounded-full shrink-0">
+                {t('blog_import_categoryApplied') || '已应用'}
+              </span>
+            )}
           </div>
         </Card>
       )}

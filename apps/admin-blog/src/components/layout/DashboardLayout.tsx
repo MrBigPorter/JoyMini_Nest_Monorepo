@@ -17,7 +17,7 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({
   }, [fetchMe]);
 
   return (
-    <div className="flex h-screen bg-gray-50 dark:bg-dark-950 text-slate-900 dark:text-slate-100 font-sans">
+    <div className="flex h-screen overflow-hidden bg-gray-50 dark:bg-dark-950 text-slate-900 dark:text-slate-100 font-sans">
       <Sidebar
         mobileOpen={mobileMenuOpen}
         onMobileCloseAction={() => setMobileMenuOpen(false)}

@@ -404,8 +404,35 @@ export const blogApi = {
       });
     },
 
+    getUntranslatedCategories: async (languageCode: string) => {
+      return await http.get('/v1/admin/blog/untranslated-categories', {
+        languageCode,
+      });
+    },
+
+    getUntranslatedTags: async (languageCode: string) => {
+      return await http.get('/v1/admin/blog/untranslated-tags', {
+        languageCode,
+      });
+    },
+
     translateArticle: async (articleId: string, targetLang?: string) => {
       return await http.post(`/v1/admin/blog/articles/${articleId}/translate`, {
+        targetLang,
+      });
+    },
+
+    translateCategory: async (categoryId: string, targetLang?: string) => {
+      return await http.post(
+        `/v1/admin/blog/categories/${categoryId}/translate`,
+        {
+          targetLang,
+        },
+      );
+    },
+
+    translateTag: async (tagId: string, targetLang?: string) => {
+      return await http.post(`/v1/admin/blog/tags/${tagId}/translate`, {
         targetLang,
       });
     },

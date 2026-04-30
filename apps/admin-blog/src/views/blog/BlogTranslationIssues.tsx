@@ -17,15 +17,20 @@ const Skeleton = ({ className = '' }: { className?: string }) => (
 const Checkbox = ({
   checked,
   onChange,
+  disabled,
 }: {
   checked: boolean;
   onChange: () => void;
+  disabled?: boolean;
 }) => (
-  <label className="inline-flex items-center cursor-pointer">
+  <label
+    className={`inline-flex items-center ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+  >
     <input
       type="checkbox"
       checked={checked}
       onChange={onChange}
+      disabled={disabled}
       className="sr-only"
     />
     <div
@@ -64,6 +69,19 @@ export default function BlogTranslationIssues() {
   const [selectedLanguage, setSelectedLanguage] = useState<string>('en');
   const [selectedArticles, setSelectedArticles] = useState<string[]>([]);
   const [fixingInProgress, setFixingInProgress] = useState(false);
+
+  // 分类/标签选择与翻译状态
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [translatingCategories, setTranslatingCategories] = useState<
+    Record<string, boolean>
+  >({});
+  const [translatingTags, setTranslatingTags] = useState<
+    Record<string, boolean>
+  >({});
+  const [batchTranslatingCategories, setBatchTranslatingCategories] =
+    useState(false);
+  const [batchTranslatingTags, setBatchTranslatingTags] = useState(false);
 
   // 问题检测
   const {
@@ -139,6 +157,226 @@ export default function BlogTranslationIssues() {
       setSelectedArticles(
         translationIssues.issues.map((issue: any) => issue.articleId),
       );
+    }
+  };
+
+  // ─── 分类处理 ────────────────────────────────
+
+  const handleCategorySelect = (categoryId: string) => {
+    console.log(
+      '[DEBUG] handleCategorySelect called with categoryId:',
+      categoryId,
+    );
+
+    try {
+      setSelectedCategories((prev) =>
+        prev.includes(categoryId)
+          ? prev.filter((id) => id !== categoryId)
+          : [...prev, categoryId],
+      );
+    } catch (err) {
+      console.error('[DEBUG] handleCategorySelect error:', err);
+    }
+  };
+
+  const handleSelectAllCategories = () => {
+    if (!translationIssues?.categories) return;
+    if (selectedCategories.length === translationIssues.categories.length) {
+      setSelectedCategories([]);
+    } else {
+      setSelectedCategories(
+        translationIssues.categories.map((c: any) => c.categoryId),
+      );
+    }
+  };
+
+  const handleTranslateCategory = async (categoryId: string) => {
+    setTranslatingCategories((prev) => ({ ...prev, [categoryId]: true }));
+    try {
+      const response = await blogApi.translation.translateCategory(
+        categoryId,
+        selectedLanguage,
+      );
+      if (response?.success !== false) {
+        addToast('success', t('translationRequestSent'));
+      } else {
+        addToast('error', t('translationFailed'));
+      }
+    } catch (error) {
+      console.error('Category translate error:', error);
+      addToast('error', t('translationFailed'));
+    } finally {
+      setTranslatingCategories((prev) => ({ ...prev, [categoryId]: false }));
+      setTimeout(() => {
+        runIssues();
+        setSelectedCategories([]);
+      }, 1500);
+    }
+  };
+
+  const handleBatchTranslateCategories = async () => {
+    const ids =
+      selectedCategories.length > 0
+        ? selectedCategories
+        : translationIssues?.categories?.map((c: any) => c.categoryId) || [];
+
+    if (ids.length === 0) return;
+
+    setBatchTranslatingCategories(true);
+    const loadingMap: Record<string, boolean> = {};
+    ids.forEach((id: string) => {
+      loadingMap[id] = true;
+    });
+    setTranslatingCategories(loadingMap);
+
+    let successCount = 0;
+    let failCount = 0;
+
+    try {
+      for (let i = 0; i < ids.length; i++) {
+        try {
+          const response = await blogApi.translation.translateCategory(
+            ids[i],
+            selectedLanguage,
+          );
+          if (response?.success !== false) {
+            successCount++;
+          } else {
+            failCount++;
+          }
+        } catch {
+          failCount++;
+        }
+      }
+
+      if (failCount === 0) {
+        addToast(
+          'success',
+          t('categoryTranslationSent', { count: successCount }),
+        );
+      } else {
+        addToast(
+          'info',
+          t('categoryTranslationPartial', {
+            success: successCount,
+            failed: failCount,
+          }),
+        );
+      }
+    } catch {
+      addToast('error', t('translationFailed'));
+    } finally {
+      setBatchTranslatingCategories(false);
+      setTranslatingCategories({});
+      setSelectedCategories([]);
+      setTimeout(() => runIssues(), 1500);
+    }
+  };
+
+  // ─── 标签处理 ────────────────────────────────
+
+  const handleTagSelect = (tagId: string) => {
+    console.log('[DEBUG] handleTagSelect called with tagId:', tagId);
+    try {
+      setSelectedTags((prev) => {
+        console.log('[DEBUG] setSelectedTags prev:', prev);
+        const result = prev.includes(tagId)
+          ? prev.filter((id) => id !== tagId)
+          : [...prev, tagId];
+        console.log('[DEBUG] setSelectedTags result:', result);
+        return result;
+      });
+    } catch (err) {
+      console.error('[DEBUG] handleTagSelect error:', err);
+    }
+  };
+
+  const handleSelectAllTags = () => {
+    if (!translationIssues?.tags) return;
+    if (selectedTags.length === translationIssues.tags.length) {
+      setSelectedTags([]);
+    } else {
+      setSelectedTags(translationIssues.tags.map((t: any) => t.tagId));
+    }
+  };
+
+  const handleTranslateTag = async (tagId: string) => {
+    setTranslatingTags((prev) => ({ ...prev, [tagId]: true }));
+    try {
+      const response = await blogApi.translation.translateTag(
+        tagId,
+        selectedLanguage,
+      );
+      if (response?.success !== false) {
+        addToast('success', t('translationRequestSent'));
+      } else {
+        addToast('error', t('translationFailed'));
+      }
+    } catch (error) {
+      console.error('Tag translate error:', error);
+      addToast('error', t('translationFailed'));
+    } finally {
+      setTranslatingTags((prev) => ({ ...prev, [tagId]: false }));
+      setTimeout(() => {
+        runIssues();
+        setSelectedTags([]);
+      }, 1500);
+    }
+  };
+
+  const handleBatchTranslateTags = async () => {
+    const ids =
+      selectedTags.length > 0
+        ? selectedTags
+        : translationIssues?.tags?.map((t: any) => t.tagId) || [];
+
+    if (ids.length === 0) return;
+
+    setBatchTranslatingTags(true);
+    const loadingMap: Record<string, boolean> = {};
+    ids.forEach((id: string) => {
+      loadingMap[id] = true;
+    });
+    setTranslatingTags(loadingMap);
+
+    let successCount = 0;
+    let failCount = 0;
+
+    try {
+      for (let i = 0; i < ids.length; i++) {
+        try {
+          const response = await blogApi.translation.translateTag(
+            ids[i],
+            selectedLanguage,
+          );
+          if (response?.success !== false) {
+            successCount++;
+          } else {
+            failCount++;
+          }
+        } catch {
+          failCount++;
+        }
+      }
+
+      if (failCount === 0) {
+        addToast('success', t('tagTranslationSent', { count: successCount }));
+      } else {
+        addToast(
+          'info',
+          t('tagTranslationPartial', {
+            success: successCount,
+            failed: failCount,
+          }),
+        );
+      }
+    } catch {
+      addToast('error', t('translationFailed'));
+    } finally {
+      setBatchTranslatingTags(false);
+      setTranslatingTags({});
+      setSelectedTags([]);
+      setTimeout(() => runIssues(), 1500);
     }
   };
 
@@ -249,10 +487,7 @@ export default function BlogTranslationIssues() {
                   </thead>
                   <tbody className="divide-y divide-gray-200 dark:divide-white/10">
                     {translationIssues.issues.map((issue: any) => (
-                      <tr
-                        key={issue.articleId}
-                        className="hover:bg-gray-50 dark:hover:bg-white/5"
-                      >
+                      <tr key={issue.articleId}>
                         <td className="px-4 py-3">
                           <Checkbox
                             checked={selectedArticles.includes(issue.articleId)}
@@ -351,6 +586,236 @@ export default function BlogTranslationIssues() {
           )}
         </div>
       </Card>
+
+      {/* 🏷️ 分类翻译问题 */}
+      {translationIssues?.categories &&
+        translationIssues.categories.length > 0 && (
+          <Card
+            title={t('categoryIssuesTitle', {
+              count: translationIssues.categories.length,
+            })}
+          >
+            <div className="space-y-3">
+              {/* 分类操作栏：全选 + 批量翻译 */}
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    checked={
+                      translationIssues.categories.length > 0 &&
+                      selectedCategories.length ===
+                        translationIssues.categories.length
+                    }
+                    onChange={handleSelectAllCategories}
+                  />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleSelectAllCategories}
+                    className="text-xs"
+                  >
+                    {selectedCategories.length ===
+                    translationIssues.categories.length
+                      ? t('deselectAll')
+                      : t('selectAll')}
+                  </Button>
+                  <span className="text-sm text-gray-500 ml-1">
+                    {t('categoryIssuesFound', {
+                      count: translationIssues.categories.length,
+                    })}
+                  </span>
+                </div>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={handleBatchTranslateCategories}
+                  isLoading={batchTranslatingCategories}
+                  disabled={
+                    batchTranslatingCategories ||
+                    Object.keys(translatingCategories).length > 0
+                  }
+                >
+                  {batchTranslatingCategories
+                    ? t('translatingProgress', {
+                        current:
+                          Object.values(translatingCategories).filter(Boolean)
+                            .length -
+                          Object.values(translatingCategories).filter((v) => !v)
+                            .length,
+                        total: Object.keys(translatingCategories).length,
+                      })
+                    : selectedCategories.length > 0
+                      ? t('translateSelected', {
+                          count: selectedCategories.length,
+                        })
+                      : t('translateAll')}
+                </Button>
+              </div>
+
+              <div className="grid gap-3">
+                {translationIssues.categories.map((category: any) => {
+                  const isTranslating =
+                    translatingCategories[category.categoryId] || false;
+                  return (
+                    <div
+                      key={category.categoryId}
+                      className={`flex items-center justify-between p-4 border rounded-lg transition-colors ${
+                        isTranslating
+                          ? 'border-blue-300 bg-blue-50/50 dark:border-blue-700 dark:bg-blue-900/20'
+                          : 'border-gray-100 dark:border-white/5'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <Checkbox
+                          checked={selectedCategories.includes(
+                            category.categoryId,
+                          )}
+                          onChange={() =>
+                            handleCategorySelect(category.categoryId)
+                          }
+                          disabled={isTranslating}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium truncate">
+                            {category.categoryName?.zh || category.slug}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            slug: {category.slug}
+                          </div>
+                          <div className="mt-1">
+                            {category.issues?.map((item: any, idx: number) => (
+                              <Badge key={idx} color="yellow">
+                                {t('issueNotTranslated')}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                      <Button
+                        variant={isTranslating ? 'outline' : 'primary'}
+                        size="sm"
+                        isLoading={isTranslating}
+                        disabled={isTranslating}
+                        onClick={() =>
+                          handleTranslateCategory(category.categoryId)
+                        }
+                      >
+                        {isTranslating
+                          ? t('translating')
+                          : t('translateButton')}
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </Card>
+        )}
+
+      {/* 🏷️ 标签翻译问题 */}
+      {translationIssues?.tags && translationIssues.tags.length > 0 && (
+        <Card
+          title={t('tagIssuesTitle', { count: translationIssues.tags.length })}
+        >
+          <div className="space-y-3">
+            {/* 标签操作栏：全选 + 批量翻译 */}
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={
+                    translationIssues.tags.length > 0 &&
+                    selectedTags.length === translationIssues.tags.length
+                  }
+                  onChange={handleSelectAllTags}
+                />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleSelectAllTags}
+                  className="text-xs"
+                >
+                  {selectedTags.length === translationIssues.tags.length
+                    ? t('deselectAll')
+                    : t('selectAll')}
+                </Button>
+                <span className="text-sm text-gray-500 ml-1">
+                  {t('tagIssuesFound', {
+                    count: translationIssues.tags.length,
+                  })}
+                </span>
+              </div>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleBatchTranslateTags}
+                isLoading={batchTranslatingTags}
+                disabled={
+                  batchTranslatingTags ||
+                  Object.keys(translatingTags).length > 0
+                }
+              >
+                {batchTranslatingTags
+                  ? t('translatingProgress', {
+                      current:
+                        Object.keys(translatingTags).length -
+                        Object.values(translatingTags).filter(Boolean).length,
+                      total: Object.keys(translatingTags).length,
+                    })
+                  : selectedTags.length > 0
+                    ? t('translateSelected', { count: selectedTags.length })
+                    : t('translateAll')}
+              </Button>
+            </div>
+
+            <div className="grid gap-3">
+              {translationIssues.tags.map((tag: any) => {
+                const isTranslating = translatingTags[tag.tagId] || false;
+                return (
+                  <div
+                    key={tag.tagId}
+                    className={`flex items-center justify-between p-4 border rounded-lg transition-colors ${
+                      isTranslating
+                        ? 'border-blue-300 bg-blue-50/50 dark:border-blue-700 dark:bg-blue-900/20'
+                        : 'border-gray-100 dark:border-white/5'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <Checkbox
+                        checked={selectedTags.includes(tag.tagId)}
+                        onChange={() => handleTagSelect(tag.tagId)}
+                        disabled={isTranslating}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium truncate">
+                          {tag.tagName?.zh || tag.slug}
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          slug: {tag.slug}
+                        </div>
+                        <div className="mt-1">
+                          {tag.issues?.map((item: any, idx: number) => (
+                            <Badge key={idx} color="yellow">
+                              {t('issueNotTranslated')}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                    <Button
+                      variant={isTranslating ? 'outline' : 'primary'}
+                      size="sm"
+                      isLoading={isTranslating}
+                      disabled={isTranslating}
+                      onClick={() => handleTranslateTag(tag.tagId)}
+                    >
+                      {isTranslating ? t('translating') : t('translateButton')}
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </Card>
+      )}
     </div>
   );
 }

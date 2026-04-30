@@ -1,3 +1,16 @@
+---
+title: '订单支付管道：优惠券 + 秒杀 + 金币 + 拼团四层价格计算'
+description: '深入解析 NestJS 项目中的 OrderService.checkOut 方法，展示如何在 Prisma 事务中串联四层价格计算（秒杀、优惠券、金币、拼团）和五个子系统，涵盖乐观锁扣款、原子库存扣减与完整退款流程'
+tags:
+  - NestJS
+  - E-commerce
+  - Order
+  - Payment
+  - Flash Sale
+  - Coupon
+  - Prisma
+---
+
 # 订单支付管道：优惠券 + 秒杀 + 金币 + 拼团四层价格计算
 
 ## 1. 引言
