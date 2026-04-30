@@ -1,12 +1,10 @@
-import { serverGet } from '@/lib/serverFetch';
+import { getCachedArticle } from '@/lib/cached/article';
 import ArticlePageClient from './page.client';
 import type { Metadata } from 'next';
-import type { FrontendArticle } from '@/lib/types/frontend-blog';
 
 // Next.js 15 perfect cache pattern
-// force-dynamic + revalidate combination
+// ISR: revalidate every hour, cache between requests
 // Each locale has independent cache, no cross contamination
-export const dynamic = 'force-dynamic';
 export const revalidate = 3600; // 1 hour cache for articles
 
 // 不预生成任何文章页，运行时按需 ISR
@@ -34,10 +32,8 @@ export async function generateMetadata({
     process.env.NEXT_PUBLIC_SITE_URL || 'https://blog.joyminis.com';
 
   try {
-    const article = await serverGet<FrontendArticle>(
-      `/v1/frontend/blog/articles/${slug}`,
-      { lang: locale },
-    );
+    const article = await getCachedArticle(slug, locale);
+    if (!article) throw new Error('Article not found');
 
     // 构建文章描述
     const description =
@@ -125,13 +121,10 @@ export default async function ArticlePage({
   const locale = routeLocale;
 
   try {
-    // 简化架构：直接API调用，避免复杂平台感知抽象
-    const article = await serverGet<FrontendArticle>(
-      `/v1/frontend/blog/articles/${slug}`,
-      { lang: locale },
-    );
+    // 使用缓存函数，与 generateMetadata 共享同一个 API 调用结果
+    const article = await getCachedArticle(slug, locale);
 
-    return <ArticlePageClient initialArticle={article} />;
+    return <ArticlePageClient initialArticle={article ?? undefined} />;
   } catch (error) {
     console.error('Article page server error:', error);
 
