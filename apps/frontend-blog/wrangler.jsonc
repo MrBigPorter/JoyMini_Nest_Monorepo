@@ -109,18 +109,198 @@
     "production": {
       "name": "lucky-blog-production",
       "compatibility_date": "2026-03-20",
+      "compatibility_flags": ["nodejs_compat"],
+      "minify": true,
+      "assets": {
+        "binding": "ASSETS",
+        "directory": ".open-next/assets"
+      },
       "vars": {
+        "NODE_ENV": "production",
+        "NEXT_PUBLIC_ENVIRONMENT": "cloudflare",
+        "NEXT_PUBLIC_API_BASE_URL": "https://api.joyminis.com/api",
+        "NEXT_PUBLIC_OAUTH_API_ORIGIN": "https://api.joyminis.com",
+        "ENABLE_ISR": "true",
+        "ENABLE_STREAMING": "true",
+        "ENABLE_EDGE_MIDDLEWARE": "true",
+        "AUTH_COOKIE_DOMAIN": ".joyminis.com",
+        "NEXT_PUBLIC_BLOG_ENV": "production",
+        "ISR_REVALIDATE_SECONDS": "60",
+        "BROWSER_CACHE_TTL": "300",
+        "STALE_WHILE_REVALIDATE": "86400",
         "NEXT_PUBLIC_API_URL": "https://api.joyminis.com",
         "NEXT_PUBLIC_CDN_URL": "https://img.joyminis.com"
-      }
+      },
+      "kv_namespaces": [
+        {
+          "binding": "CACHE",
+          "id": "e984df0553f24241850af22d7621faa4",
+          "preview_id": "e984df0553f24241850af22d7621faa4"
+        },
+        {
+          "binding": "ISR_CACHE",
+          "id": "1fc88f516bcf4efa9a50bef6e2912405",
+          "preview_id": "1fc88f516bcf4efa9a50bef6e2912405"
+        },
+        {
+          "binding": "NEXT_INC_CACHE_KV",
+          "id": "1fc88f516bcf4efa9a50bef6e2912405",
+          "preview_id": "1fc88f516bcf4efa9a50bef6e2912405"
+        },
+        {
+          "binding": "NEXT_TAG_CACHE_KV",
+          "id": "1fc88f516bcf4efa9a50bef6e2912405",
+          "preview_id": "1fc88f516bcf4efa9a50bef6e2912405"
+        }
+      ],
+      "durable_objects": {
+        "bindings": [
+          {
+            "name": "NEXT_CACHE_DO_QUEUE",
+            "class_name": "DOQueueHandler"
+          }
+        ]
+      },
+      "migrations": [
+        {
+          "tag": "v1",
+          "new_sqlite_classes": [
+            "DOQueueHandler"
+          ]
+        }
+      ],
+      "r2_buckets": [
+        {
+          "binding": "R2_STORAGE",
+          "bucket_name": "mini-shop",
+          "preview_bucket_name": "mini-shop"
+        }
+      ],
+      "observability": {
+        "logs": {
+          "enabled": false,
+          "invocation_logs": true
+        }
+      },
+      "queues": {
+        "producers": [
+          {
+            "binding": "NEXT_QUEUE",
+            "queue": "next-revalidation-queue"
+          }
+        ],
+        "consumers": [
+          {
+            "queue": "next-revalidation-queue",
+            "max_batch_size": 1,
+            "max_batch_timeout": 5
+          }
+        ]
+      },
+      "analytics_engine_datasets": [
+        {
+          "binding": "ANALYTICS",
+          "dataset": "joymin_blog_analytics"
+        }
+      ]
     },
     "staging": {
       "name": "lucky-blog-staging",
       "compatibility_date": "2026-03-20",
+      "compatibility_flags": ["nodejs_compat"],
+      "minify": true,
+      "assets": {
+        "binding": "ASSETS",
+        "directory": ".open-next/assets"
+      },
       "vars": {
+        "NODE_ENV": "staging",
+        "NEXT_PUBLIC_ENVIRONMENT": "cloudflare",
+        "NEXT_PUBLIC_API_BASE_URL": "https://staging-api.joyminis.com/api",
+        "NEXT_PUBLIC_OAUTH_API_ORIGIN": "https://staging-api.joyminis.com",
+        "ENABLE_ISR": "true",
+        "ENABLE_STREAMING": "true",
+        "ENABLE_EDGE_MIDDLEWARE": "true",
+        "AUTH_COOKIE_DOMAIN": ".joyminis.com",
+        "NEXT_PUBLIC_BLOG_ENV": "staging",
+        "ISR_REVALIDATE_SECONDS": "60",
+        "BROWSER_CACHE_TTL": "300",
+        "STALE_WHILE_REVALIDATE": "86400",
         "NEXT_PUBLIC_API_URL": "https://staging-api.joyminis.com",
         "NEXT_PUBLIC_CDN_URL": "https://staging-img.joyminis.com"
-      }
+      },
+      "kv_namespaces": [
+        {
+          "binding": "CACHE",
+          "id": "e984df0553f24241850af22d7621faa4",
+          "preview_id": "e984df0553f24241850af22d7621faa4"
+        },
+        {
+          "binding": "ISR_CACHE",
+          "id": "1fc88f516bcf4efa9a50bef6e2912405",
+          "preview_id": "1fc88f516bcf4efa9a50bef6e2912405"
+        },
+        {
+          "binding": "NEXT_INC_CACHE_KV",
+          "id": "1fc88f516bcf4efa9a50bef6e2912405",
+          "preview_id": "1fc88f516bcf4efa9a50bef6e2912405"
+        },
+        {
+          "binding": "NEXT_TAG_CACHE_KV",
+          "id": "1fc88f516bcf4efa9a50bef6e2912405",
+          "preview_id": "1fc88f516bcf4efa9a50bef6e2912405"
+        }
+      ],
+      "durable_objects": {
+        "bindings": [
+          {
+            "name": "NEXT_CACHE_DO_QUEUE",
+            "class_name": "DOQueueHandler"
+          }
+        ]
+      },
+      "migrations": [
+        {
+          "tag": "v1",
+          "new_sqlite_classes": [
+            "DOQueueHandler"
+          ]
+        }
+      ],
+      "r2_buckets": [
+        {
+          "binding": "R2_STORAGE",
+          "bucket_name": "mini-shop",
+          "preview_bucket_name": "mini-shop"
+        }
+      ],
+      "observability": {
+        "logs": {
+          "enabled": false,
+          "invocation_logs": true
+        }
+      },
+      "queues": {
+        "producers": [
+          {
+            "binding": "NEXT_QUEUE",
+            "queue": "next-revalidation-queue"
+          }
+        ],
+        "consumers": [
+          {
+            "queue": "next-revalidation-queue",
+            "max_batch_size": 1,
+            "max_batch_timeout": 5
+          }
+        ]
+      },
+      "analytics_engine_datasets": [
+        {
+          "binding": "ANALYTICS",
+          "dataset": "joymin_blog_analytics"
+        }
+      ]
     }
   }
 }
