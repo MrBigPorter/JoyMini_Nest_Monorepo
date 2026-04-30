@@ -6,5 +6,5 @@
     "strict": false,
     "module": "commonjs"
   },
-  "include": ["scripts/cli/**/*.ts", "scripts/seed/**/*.ts"]
+  "include": ["scripts/cli/**/*.ts", "scripts/seed/**/*.ts", "scripts/utils/**/*.ts"]
 }
