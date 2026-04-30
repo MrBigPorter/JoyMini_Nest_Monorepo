@@ -1,6 +1,12 @@
+---
+title: Next.js 零骨架屏优化实战：ISR + 四层架构 + 平台感知缓存
+slug: nextjs-zero-skeleton-optimization
+tags: Next.js, Performance, ISR, Cache, SSR
+---
+
 # Next.js 零骨架屏优化实战：ISR + 四层架构 + 平台感知缓存
 
-> **架构关键词**：零骨架屏、四层架构、平台感知、ISR 按需缓存  
+> **架构关键词**：零骨架屏、四层架构、平台感知、ISR 按需缓存
 > **适用场景**：需要极致首屏加载体验的 Next.js 项目，跨平台统一架构
 
 ---

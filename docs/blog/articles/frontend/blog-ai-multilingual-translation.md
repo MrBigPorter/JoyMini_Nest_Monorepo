@@ -1,6 +1,10 @@
-# Next.js 博客双语系统：基于 Gemini AI 的零侵入自动翻译实践
+---
+title: Next.js 博客双语系统：基于 Gemini AI 的零侵入自动翻译实践
+slug: blog-ai-multilingual-translation
+tags: Next.js, AI, Gemini, Translation, i18n
+---
 
-Tags: Next.js, AI, Gemini, Translation, i18n
+# Next.js 博客双语系统：基于 Gemini AI 的零侵入自动翻译实践
 
 ## 1. 背景：为什么需要自动翻译？
 

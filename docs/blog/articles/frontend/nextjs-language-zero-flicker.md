@@ -1,6 +1,12 @@
+---
+title: Next.js 多语言零闪烁架构：Cookie 优先的唯一真理策略
+slug: nextjs-language-zero-flicker
+tags: Next.js, i18n, Cookie, SSR
+---
+
 # Next.js 多语言零闪烁架构：Cookie 优先的唯一真理策略
 
-> **架构关键词**：单一数据源、Cookie 优先、I18nProvider 路由同步  
+> **架构关键词**：单一数据源、Cookie 优先、I18nProvider 路由同步
 > **适用场景**：Next.js App Router 多语言站点，需要零闪烁语言切换体验
 
 ---

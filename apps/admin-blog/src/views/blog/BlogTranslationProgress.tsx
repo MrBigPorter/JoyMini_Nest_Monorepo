@@ -630,7 +630,7 @@ export default function BlogTranslationProgress() {
                 {untranslatedArticles.map((article: any) => (
                   <div
                     key={article.id}
-                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                    className="rounded-lg border border-gray-100 dark:border-white/5 bg-card p-4 hover:shadow-md transition-shadow hover:border-gray-200 dark:hover:border-white/10 flex items-center justify-between"
                   >
                     <div className="flex-1">
                       <div className="font-medium">{article.title}</div>
@@ -742,7 +742,7 @@ export default function BlogTranslationProgress() {
                 {untranslatedCategories.categories.map((category: any) => (
                   <div
                     key={category.id}
-                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                    className="rounded-lg border border-gray-100 dark:border-white/5 bg-card p-4 hover:shadow-md transition-shadow hover:border-gray-200 dark:hover:border-white/10 flex items-center justify-between"
                   >
                     <div className="flex-1">
                       <div className="font-medium">
@@ -812,7 +812,7 @@ export default function BlogTranslationProgress() {
                 {untranslatedTags.tags.map((tag: any) => (
                   <div
                     key={tag.id}
-                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                    className="rounded-lg border border-gray-100 dark:border-white/5 bg-card p-4 hover:shadow-md transition-shadow hover:border-gray-200 dark:hover:border-white/10 flex items-center justify-between"
                   >
                     <div className="flex-1">
                       <div className="font-medium">

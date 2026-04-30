@@ -1,6 +1,12 @@
+---
+title: React Query 平台适配器：三端统一数据请求与自动降级策略
+slug: react-query-platform-adapter
+tags: React Query, Next.js, SSR, Adapter, Performance
+---
+
 # React Query 平台适配器：三端统一数据请求与自动降级策略
 
-> **架构关键词**：三端适配、自动降级、渐进迁移、零侵入集成  
+> **架构关键词**：三端适配、自动降级、渐进迁移、零侵入集成
 > **适用场景**：Next.js SSR + H5 SPA + Capacitor App 共存的前端项目
 
 ---

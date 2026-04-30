@@ -1,6 +1,12 @@
+---
+title: Next.js 页面过渡动画实战：Framer Motion + 水合安全 + 无障碍
+slug: nextjs-page-transition-animation
+tags: Next.js, Animation, Framer Motion, Accessibility
+---
+
 # Next.js 页面过渡动画实战：Framer Motion + 水合安全 + 无障碍
 
-> **架构关键词**：AnimatePresence、水合安全、减少运动偏好、导航反馈  
+> **架构关键词**：AnimatePresence、水合安全、减少运动偏好、导航反馈
 > **适用场景**：Next.js App Router 项目，需要平滑页面间过渡动画
 
 ---

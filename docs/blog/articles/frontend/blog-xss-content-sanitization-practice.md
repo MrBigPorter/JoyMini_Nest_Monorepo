@@ -1,6 +1,10 @@
-# NestJS XSS 内容过滤实战：用 DOMPurify + Pipe 为博客评论构建安全防线
+---
+title: NestJS XSS 内容过滤实战：用 DOMPurify + Pipe 为博客评论构建安全防线
+slug: blog-xss-content-sanitization-practice
+tags: NestJS, XSS, Security
+---
 
-Tags: NestJS, XSS, Security
+# NestJS XSS 内容过滤实战：用 DOMPurify + Pipe 为博客评论构建安全防线
 
 ## 1. 背景：一个被忽视的安全漏洞
 

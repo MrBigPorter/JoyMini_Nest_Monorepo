@@ -1,6 +1,10 @@
-# Next.js 博客 SEO 技术实现：从 Sitemap 到 JSON-LD 结构化数据的完整指南
+---
+title: Next.js 博客 SEO 技术实现：从 Sitemap 到 JSON-LD 结构化数据的完整指南
+slug: blog-nextjs-seo-technical-implementation
+tags: Next.js, SEO, Sitemap, JSON-LD, i18n
+---
 
-Tags: Next.js, SEO, Sitemap, JSON-LD, i18n
+# Next.js 博客 SEO 技术实现：从 Sitemap 到 JSON-LD 结构化数据的完整指南
 
 ## 1. 前言
 

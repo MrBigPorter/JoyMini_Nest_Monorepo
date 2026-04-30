@@ -1,6 +1,12 @@
+---
+title: Next.js 渲染模式终极指南：SSR/SSG/ISR 选型与常见陷阱
+slug: nextjs-rendering-modes-guide
+tags: Next.js, SSR, SSG, ISR, Rendering
+---
+
 # Next.js 渲染模式终极指南：SSR/SSG/ISR 选型与常见陷阱
 
-> **架构关键词**：渲染模式决策矩阵、零骨架屏原则、`force-dynamic` 误解澄清  
+> **架构关键词**：渲染模式决策矩阵、零骨架屏原则、`force-dynamic` 误解澄清
 > **适用场景**：任何使用 Next.js App Router 的项目，尤其是 SSR + ISR 混合部署
 
 ---

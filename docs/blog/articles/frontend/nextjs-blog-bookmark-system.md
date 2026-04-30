@@ -1,6 +1,10 @@
-# Next.js 博客收藏功能：Auth 集成与状态同步的完整实现
+---
+title: Next.js 博客收藏功能：Auth 集成与状态同步的完整实现
+slug: nextjs-blog-bookmark-system
+tags: Next.js, Bookmark, Authentication, Zustand, React Query
+---
 
-> **Tags:** `Next.js`, `Bookmark`, `Authentication`, `Zustand`, `React Query`
+# Next.js 博客收藏功能：Auth 集成与状态同步的完整实现
 
 ## 1. 背景：收藏功能的设计挑战
 

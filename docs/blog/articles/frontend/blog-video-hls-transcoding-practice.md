@@ -1,10 +1,14 @@
+---
+title: Next.js 博客视频系统架构：从上传到 HLS 自适应播放的完整实现
+slug: blog-video-hls-transcoding-practice
+tags: Next.js, Video, HLS, Cloudflare, Architecture
+---
+
 # Next.js 博客视频系统架构：从上传到 HLS 自适应播放的完整实现
 
 > 本文分享在一个 Next.js 博客系统中实现视频上传、自动转码为 HLS 自适应流格式的完整方案。涵盖 R2 存储、BullMQ 异步转码管道、前端 hls.js 播放器，以及在实践中遇到的 10 个坑和修复方案。
 
 ---
-
-Tags: Next.js, Video, HLS, Cloudflare, Architecture
 
 ## 1. 背景：为什么博客需要视频系统？
 
