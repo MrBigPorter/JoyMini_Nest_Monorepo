@@ -63,6 +63,15 @@ export default function ArticlePageClient({
     error,
   } = useFrontendArticleBySlug(slug, initialArticle);
 
+  // 检测文章元数据已加载但正文内容尚未获取（被服务端剥离以节省 Worker CPU）
+  const isContentLoading = !!(
+    article &&
+    !isLoading &&
+    !error &&
+    !article.content &&
+    !article.contentMd
+  );
+
   // -------------------------------------------------------------------
   // Structured data for SEO (JSON-LD)
   // -------------------------------------------------------------------
@@ -236,7 +245,24 @@ export default function ArticlePageClient({
         </header>
 
         {/* Article content — render markdown with syntax highlighting, fall back to HTML */}
-        <ArticleMarkdown content={article.contentMd || article.content || ''} />
+        {isContentLoading ? (
+          <div className="space-y-4 my-8" aria-label="Loading article content">
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-11/12" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-3/4" />
+            <Skeleton className="h-32 w-full my-6" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-5/6" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-4/5" />
+            <Skeleton className="h-4 w-2/3" />
+          </div>
+        ) : (
+          <ArticleMarkdown
+            content={article.contentMd || article.content || ''}
+          />
+        )}
 
         {/* Comment system */}
         {article.slug && <CommentList articleId={article.slug} />}

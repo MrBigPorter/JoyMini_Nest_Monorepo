@@ -1,17 +1,26 @@
+import { serverGet } from '@/lib/serverFetch';
 import CategoryClientView from './CategoryClientView';
+import type { FrontendCategoryWithArticles } from '@/lib/types/frontend-blog';
 
-// 静态导出支持：返回空数组，不预生成任何页面
-import { getEnabledLocales } from '@/lib/i18n/config';
-import type { Locale } from '@/lib/i18n/config';
+export const revalidate = 600;
 
-export async function generateStaticParams() {
-  return getEnabledLocales().flatMap((locale: Locale) => [
-    { locale, slug: '_' },
-  ]);
-}
+export default async function CategoryPage({
+  params,
+}: {
+  params: { locale: string; slug: string };
+}) {
+  const { locale, slug } = params;
 
-export const dynamic = 'force-static';
+  try {
+    const data = await serverGet<FrontendCategoryWithArticles>(
+      `/v1/frontend/blog/categories/${slug}`,
+      { lang: locale, page: 1, pageSize: 10 },
+    );
 
-export default function CategoryPage() {
-  return <CategoryClientView />;
+    return <CategoryClientView initialData={data} />;
+  } catch (error) {
+    console.error('Category detail page server error:', error);
+
+    return <CategoryClientView initialData={null} />;
+  }
 }

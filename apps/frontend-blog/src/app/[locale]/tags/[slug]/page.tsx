@@ -1,17 +1,26 @@
+import { serverGet } from '@/lib/serverFetch';
 import TagClientView from './TagClientView';
+import type { FrontendTagWithArticles } from '@/lib/types/frontend-blog';
 
-// 静态导出支持：返回空数组，不预生成任何页面
-import { getEnabledLocales } from '@/lib/i18n/config';
-import type { Locale } from '@/lib/i18n/config';
+export const revalidate = 600;
 
-export async function generateStaticParams() {
-  return getEnabledLocales().flatMap((locale: Locale) => [
-    { locale, slug: '_' },
-  ]);
-}
+export default async function TagPage({
+  params,
+}: {
+  params: { locale: string; slug: string };
+}) {
+  const { locale, slug } = params;
 
-export const dynamic = 'force-static';
+  try {
+    const data = await serverGet<FrontendTagWithArticles>(
+      `/v1/frontend/blog/tags/${slug}`,
+      { lang: locale, page: 1, pageSize: 10 },
+    );
 
-export default function TagPage() {
-  return <TagClientView />;
+    return <TagClientView initialData={data} />;
+  } catch (error) {
+    console.error('Tag detail page server error:', error);
+
+    return <TagClientView initialData={null} />;
+  }
 }

@@ -7,8 +7,15 @@ import { Link } from '@/navigation';
 import { ArticleCard } from '@/components/blog/ArticleCard';
 import { EmptyContentState } from '@/components/blog/EmptyContentState';
 import { useFrontendCategoryBySlug } from '@/lib/hooks/useFrontendArticles';
+import type { FrontendCategoryWithArticles } from '@/lib/types/frontend-blog';
 
-export default function CategoryClientView() {
+interface CategoryClientViewProps {
+  initialData?: FrontendCategoryWithArticles | null;
+}
+
+export default function CategoryClientView({
+  initialData,
+}: CategoryClientViewProps) {
   const t = useTranslations();
   const paramsFromHook = useParams();
   const slug = paramsFromHook.slug as string;
@@ -17,12 +24,20 @@ export default function CategoryClientView() {
     data: categoryData,
     isLoading,
     error,
-  } = useFrontendCategoryBySlug(slug, {
-    page: 1,
-    pageSize: 10,
-  });
+  } = useFrontendCategoryBySlug(
+    slug,
+    {
+      page: 1,
+      pageSize: 10,
+    },
+    initialData,
+  );
 
-  if (isLoading) {
+  // Zero flicker logic: only show skeleton when no initial data
+  const hasInitialData = !!(initialData && slug);
+  const hasCurrentData = !!(categoryData && slug);
+
+  if (isLoading && !hasInitialData && !hasCurrentData) {
     return (
       <div className="max-w-5xl mx-auto px-4 py-8 md:py-12">
         <div className="flex flex-col items-center justify-center py-20">
