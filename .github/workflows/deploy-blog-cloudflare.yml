@@ -201,6 +201,10 @@ jobs:
         working-directory: apps/frontend-blog
         run: bash scripts/copy-manifests.sh
 
+      - name: 6c. Patch queue() handler into worker.js
+        working-directory: apps/frontend-blog
+        run: node scripts/patch-worker-queue.mjs
+
       - name: 7. Validate Cloudflare Secrets
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
