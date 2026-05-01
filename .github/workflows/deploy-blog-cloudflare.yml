@@ -193,6 +193,8 @@ jobs:
           NEXT_PUBLIC_SENTRY_DEBUG: ${{ github.ref_name == 'test' && 'true' || 'false' }}
           NEXT_PUBLIC_DEPLOYED_AT: ${{ steps.build_meta.outputs.deployed_at }}
           NEXT_PUBLIC_GIT_SHA: ${{ steps.build_meta.outputs.git_sha }}
+          NEXT_PUBLIC_SENTRY_DSN: ${{ secrets.NEXT_PUBLIC_BLOG_FRONENT_JOYMINIS_DSN }}
+          SENTRY_ORG: ${{ secrets.NEXT_PUBLIC_OYMINIS_ORG }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_SUPPRESS_INSTRUMENTATION_FILE_WARNING: "1"
           SENTRY_SUPPRESS_GLOBAL_ERROR_HANDLER_FILE_WARNING: "1"
