@@ -132,6 +132,38 @@ Completed or superseded plans are in the [archive directory](plans/archive/).
 
 ---
 
+## 📝 Technical Blog Articles `articles/frontend/`
+
+| Document                                                                                                                          | Description                                                                  |
+| --------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| [homepage-extreme-optimization.md](articles/frontend/homepage-extreme-optimization.md)                                            | 26 homepage optimizations: 3-layer cache, adaptive quality, PWA, ISR, CDN    |
+| [cloudflare-103-early-hints.md](articles/frontend/cloudflare-103-early-hints.md)                                                  | HTTP 103 Early Hints implementation in Cloudflare Worker for preconnect      |
+| [nextjs-blog-loading-optimization.md](articles/frontend/nextjs-blog-loading-optimization.md)                                      | Next.js loading optimization: skeleton screens → edge caching                |
+| [nextjs-pwa-installable-offline-blog.md](articles/frontend/nextjs-pwa-installable-offline-blog.md)                                | PWA implementation: installable, offline-capable blog                        |
+| [nextjs-zero-skeleton-optimization.md](articles/frontend/nextjs-zero-skeleton-optimization.md)                                    | Zero-skeleton rendering optimization                                         |
+| [nextjs-page-transition-animation.md](articles/frontend/nextjs-page-transition-animation.md)                                      | Page transition animations with View Transitions API                         |
+| [nextjs-auth-zero-flicker.md](articles/frontend/nextjs-auth-zero-flicker.md)                                                      | Zero-flicker authentication flow                                             |
+| [nextjs-language-zero-flicker.md](articles/frontend/nextjs-language-zero-flicker.md)                                              | Zero-flicker language switching                                              |
+| [nextjs-rendering-modes-guide.md](articles/frontend/nextjs-rendering-modes-guide.md)                                              | Next.js rendering modes guide (SSR/SSG/ISR/CSR)                             |
+| [nextjs-ssr-seo-crawler-master-guide.md](articles/frontend/nextjs-ssr-seo-crawler-master-guide.md)                                | SSR SEO & crawler optimization guide                                         |
+| [nextjs-blog-bookmark-system.md](articles/frontend/nextjs-blog-bookmark-system.md)                                                | Bookmark system implementation                                               |
+| [nextjs-blog-comment-system.md](articles/frontend/nextjs-blog-comment-system.md)                                                  | Comment system implementation                                                |
+| [react-query-platform-adapter.md](articles/frontend/react-query-platform-adapter.md)                                              | React Query platform adapter                                                 |
+| [react-hls-cross-component-coordination.md](articles/frontend/react-hls-cross-component-coordination.md)                          | HLS video cross-component coordination                                       |
+| [blog-three-in-one-login-system.md](articles/frontend/blog-three-in-one-login-system.md)                                          | Three-in-one login system                                                    |
+| [blog-video-hls-transcoding-practice.md](articles/frontend/blog-video-hls-transcoding-practice.md)                                | HLS video transcoding practice                                               |
+| [blog-xss-content-sanitization-practice.md](articles/frontend/blog-xss-content-sanitization-practice.md)                          | XSS content sanitization practice                                            |
+| [blog-ai-multilingual-translation.md](articles/frontend/blog-ai-multilingual-translation.md)                                      | AI-powered multilingual translation                                          |
+| [blog-nextjs-seo-technical-implementation.md](articles/frontend/blog-nextjs-seo-technical-implementation.md)                      | SEO technical implementation                                                 |
+| [admin-blog-form-architecture.md](articles/frontend/admin-blog-form-architecture.md)                                              | Admin blog form architecture                                                 |
+| [admin-blog-localized-form.md](articles/frontend/admin-blog-localized-form.md)                                                    | Admin blog localized form                                                    |
+| [admin-blog-localized-rendering.md](articles/frontend/admin-blog-localized-rendering.md)                                          | Admin blog localized rendering                                               |
+| [admin-blog-rich-text-editor.md](articles/frontend/admin-blog-rich-text-editor.md)                                                | Admin rich text editor implementation                                       |
+| [admin-blog-translation-issues.md](articles/frontend/admin-blog-translation-issues.md)                                            | Admin blog translation issues & fixes                                       |
+| [admin-blog-translation-progress.md](articles/frontend/admin-blog-translation-progress.md)                                        | Admin blog translation progress tracker                                     |
+
+---
+
 ## Status Key
 
 | Icon | Meaning              |
@@ -142,6 +174,6 @@ Completed or superseded plans are in the [archive directory](plans/archive/).
 
 ---
 
-> **Last updated**: 2026-04-26
-> **Total documents**: ~60
-> **Blog system status**: Production-ready — video HLS transcoding, multi-language, rich media, security audit completed
+> **Last updated**: 2026-05-01
+> **Total documents**: ~85
+> **Blog system status**: Production-ready — video HLS transcoding, multi-language, rich media, security audit completed, 26 homepage optimizations done, 103 Early Hints enabled
