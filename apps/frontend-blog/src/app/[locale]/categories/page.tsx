@@ -34,6 +34,7 @@ export default async function CategoriesPage({
       '/v1/frontend/blog/categories',
       { lang: locale },
     );
+    console.log('initialData,initialData', initialData);
 
     return <CategoriesPageClient initialData={initialData} />;
   } catch (error) {

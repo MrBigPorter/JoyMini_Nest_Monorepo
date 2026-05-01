@@ -13,11 +13,52 @@ interface BlurhashImageProps {
   className?: string;
   fill?: boolean;
   priority?: boolean;
+  quality?: number;
   sizes?: string;
 }
 
 /**
+ * Global LRU cache for decoded blurhash data URLs.
+ * Avoids re-decoding blurhash on every component remount (e.g. category switch).
+ * Limited to 100 entries to prevent memory leaks.
+ */
+const blurhashCache = new Map<string, string>();
+const BLURHASH_CACHE_MAX = 100;
+
+function getCachedBlurhashUrl(
+  hash: string,
+  width: number,
+  height: number,
+): string {
+  const cacheKey = `${hash}:${width}:${height}`;
+  const cached = blurhashCache.get(cacheKey);
+  if (cached) {
+    // Move to end (LRU)
+    blurhashCache.delete(cacheKey);
+    blurhashCache.set(cacheKey, cached);
+    return cached;
+  }
+  return '';
+}
+
+function setCachedBlurhashUrl(
+  hash: string,
+  width: number,
+  height: number,
+  url: string,
+): void {
+  const cacheKey = `${hash}:${width}:${height}`;
+  // Evict oldest if over limit
+  if (blurhashCache.size >= BLURHASH_CACHE_MAX) {
+    const oldestKey = blurhashCache.keys().next().value;
+    if (oldestKey) blurhashCache.delete(oldestKey);
+  }
+  blurhashCache.set(cacheKey, url);
+}
+
+/**
  * Decodes a BlurHash string into a data URL for use as a CSS background.
+ * Results are cached globally to avoid re-decoding on component remount.
  * Uses the `blurhash` package's `decode` function directly (no react-blurhash dependency).
  */
 function blurhashToDataUrl(
@@ -26,6 +67,10 @@ function blurhashToDataUrl(
   height: number,
 ): string {
   try {
+    // Check cache first
+    const cached = getCachedBlurhashUrl(hash, width, height);
+    if (cached) return cached;
+
     const pixels = decode(hash, width, height);
     const canvas = document.createElement('canvas');
     canvas.width = width;
@@ -37,16 +82,27 @@ function blurhashToDataUrl(
     imageData.data.set(pixels);
     ctx.putImageData(imageData, 0, 0);
 
-    return canvas.toDataURL('image/png');
+    const url = canvas.toDataURL('image/png');
+    setCachedBlurhashUrl(hash, width, height, url);
+    return url;
   } catch {
     return '';
   }
 }
 
 /**
- * Image component with BlurHash placeholder
- * Shows a blurred placeholder while the real image loads
- * Uses the `blurhash` package directly (no react-blurhash dependency)
+ * Image component with BlurHash overlay
+ *
+ * Rendering approach (smooth like text, no flash):
+ * - Image renders at full opacity immediately (no fade-in transition)
+ * - Blurhash placeholder is placed ON TOP of the image as an overlay (z-20)
+ * - When the real image finishes loading, the blurhash overlay fades OUT
+ * - Image was already rendered and visible behind the overlay the whole time
+ * - This eliminates the "flash" that occurs when image fades in and blurhash disappears
+ *
+ * Performance optimizations:
+ * - Global blurhash LRU cache avoids re-decoding on category switch remount
+ * - Blurhash overlay fade-out (300ms) provides buttery-smooth transition
  */
 export function BlurhashImage({
   src,
@@ -57,7 +113,8 @@ export function BlurhashImage({
   className = '',
   fill = false,
   priority = false,
-  sizes = '(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw',
+  quality,
+  sizes = '(max-width: 768px) 90vw, (max-width: 1024px) 45vw, 600px',
 }: BlurhashImageProps) {
   // Hooks MUST be called before any early return (Rules of Hooks)
   const [isLoaded, setIsLoaded] = useState(false);
@@ -66,6 +123,7 @@ export function BlurhashImage({
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // Decode blurhash on mount (client-side only)
+  // Uses global cache so re-mounts don't re-decode
   useEffect(() => {
     if (blurhash && typeof window !== 'undefined') {
       const url = blurhashToDataUrl(blurhash, 32, 32);
@@ -112,25 +170,8 @@ export function BlurhashImage({
       {/* Hidden canvas for blurhash decoding (not rendered visually) */}
       <canvas ref={canvasRef} style={{ display: 'none' }} />
 
-      {/* BlurHash placeholder via data URL background */}
-      {placeholderUrl && !isLoaded && (
-        <div
-          className="absolute inset-0 z-10 bg-cover bg-center"
-          style={{
-            backgroundImage: `url(${placeholderUrl})`,
-            backgroundSize: 'cover',
-            filter: 'blur(8px)',
-            transform: 'scale(1.1)',
-          }}
-        />
-      )}
-
-      {/* Gray placeholder when no blurhash */}
-      {!placeholderUrl && !isLoaded && (
-        <div className="absolute inset-0 z-10 bg-slate-200 dark:bg-slate-700 animate-pulse" />
-      )}
-
-      {/* Actual image */}
+      {/* Actual image - always at full opacity, no transition needed */}
+      {/* Blurhash overlay sits on top (z-20) and fades out when image loads */}
       {!hasError ? (
         fill ? (
           <Image
@@ -138,10 +179,9 @@ export function BlurhashImage({
             alt={alt}
             fill
             priority={priority}
+            quality={quality}
             sizes={sizes}
-            className={`object-cover transition-opacity duration-500 ${
-              isLoaded ? 'opacity-100' : 'opacity-0'
-            }`}
+            className="object-cover"
             onLoad={handleLoad}
             onError={handleError}
           />
@@ -152,15 +192,14 @@ export function BlurhashImage({
             width={width}
             height={height}
             priority={priority}
-            className={`object-cover transition-opacity duration-500 ${
-              isLoaded ? 'opacity-100' : 'opacity-0'
-            }`}
+            quality={quality}
+            className="object-cover"
             onLoad={handleLoad}
             onError={handleError}
           />
         )
       ) : (
-        <div className="flex items-center justify-center w-full h-full bg-slate-100 dark:bg-slate-800 text-slate-400">
+        <div className="flex items-center justify-center w-full h-full bg-slate-100 dark:bg-slate-800 text-slate-400 relative z-10">
           <svg
             className="w-8 h-8"
             fill="none"
@@ -175,6 +214,26 @@ export function BlurhashImage({
             />
           </svg>
         </div>
+      )}
+
+      {/* BlurHash overlay - always rendered on TOP of image, fades out when loaded */}
+      {placeholderUrl && (
+        <div
+          className={`absolute inset-0 z-20 bg-cover bg-center transition-opacity duration-300 ${
+            isLoaded ? 'opacity-0 pointer-events-none' : 'opacity-100'
+          }`}
+          style={{
+            backgroundImage: `url(${placeholderUrl})`,
+            backgroundSize: 'cover',
+            filter: 'blur(8px)',
+            transform: 'scale(1.1)',
+          }}
+        />
+      )}
+
+      {/* Gray placeholder overlay when no blurhash */}
+      {!placeholderUrl && !isLoaded && (
+        <div className="absolute inset-0 z-20 bg-slate-200 dark:bg-slate-700 animate-pulse" />
       )}
     </div>
   );

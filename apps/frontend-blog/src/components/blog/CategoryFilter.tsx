@@ -3,22 +3,57 @@
 import { useCallback, useEffect, useState } from 'react';
 import useEmblaCarousel from 'embla-carousel-react';
 import { useTranslations } from 'next-intl';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCurrentLocale } from '@/lib/hooks/useCurrentLocale';
 import { useFrontendCategories } from '@/lib/hooks/useFrontendArticles';
+import { frontendBlogApi } from '@/lib/api/frontendBlogApi';
 import type { FrontendCategory } from '@/lib/types/frontend-blog';
 
 interface CategoryFilterProps {
   selectedCategoryId?: string;
   onSelectCategoryAction: (categoryId?: string) => void;
   isSticky?: boolean;
+  initialCategories?: FrontendCategory[];
 }
 
 export function CategoryFilter({
   selectedCategoryId,
   onSelectCategoryAction,
   isSticky = false,
+  initialCategories,
 }: CategoryFilterProps) {
   const t = useTranslations();
-  const { data: categories, isLoading } = useFrontendCategories();
+  const { data: categories, isLoading } =
+    useFrontendCategories(initialCategories);
+  const queryClient = useQueryClient();
+  const locale = useCurrentLocale();
+
+  // Hover prefetching: warm up query cache for category articles
+  const prefetchCategory = useCallback(
+    (categoryId?: string) => {
+      // Skip if already cached (will be a no-op if fresh enough)
+      queryClient.prefetchQuery({
+        queryKey: [
+          'homeArticles',
+          locale,
+          {
+            page: 1,
+            pageSize: 10,
+            categoryId,
+          },
+        ],
+        queryFn: () =>
+          frontendBlogApi.getArticles({
+            lang: locale,
+            page: 1,
+            pageSize: 10,
+            categoryId,
+          }),
+        staleTime: 5 * 60 * 1000,
+      });
+    },
+    [queryClient, locale],
+  );
   const [emblaRef, emblaApi] = useEmblaCarousel({
     align: 'center',
     containScroll: 'keepSnaps',
@@ -139,6 +174,7 @@ export function CategoryFilter({
           {/* "All" chip */}
           <button
             onClick={() => onSelectCategoryAction(undefined)}
+            onMouseEnter={() => prefetchCategory(undefined)}
             role="tab"
             aria-selected={!selectedCategoryId}
             className={`
@@ -161,6 +197,7 @@ export function CategoryFilter({
               <button
                 key={category.id}
                 onClick={() => onSelectCategoryAction(category.id)}
+                onMouseEnter={() => prefetchCategory(category.id)}
                 role="tab"
                 aria-selected={isActive}
                 className={`

@@ -18,6 +18,10 @@ export default function OAuthLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen bg-background text-foreground">{children}</div>
+    <div
+      className={`${inter.variable} min-h-screen bg-background text-foreground`}
+    >
+      {children}
+    </div>
   );
 }

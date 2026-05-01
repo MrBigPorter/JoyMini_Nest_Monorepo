@@ -1,7 +1,7 @@
 /**
  * Blog Module Seed Data
  * Generated from real monorepo project contents
- * @date 2026-04-08
+ * @date 2026-04-08 (updated 2026-05-01: expanded to 8 categories, 63 tags)
  */
 
 import { PrismaClient } from '@prisma/client';
@@ -21,114 +21,158 @@ const CATEGORIES = [
     name: { zh: '后端开发' },
     slug: 'backend',
     description: {
-      zh: 'NestJS, 数据库, 系统架构, 安全最佳实践',
+      zh: 'NestJS, 数据库, API 设计, 支付, 消息队列',
     },
   },
   {
     name: { zh: '前端开发' },
     slug: 'frontend',
     description: {
-      zh: 'Next.js, React, Tailwind CSS, 响应式设计',
+      zh: 'Next.js, React, Tailwind CSS, 状态管理, 动画',
     },
   },
   {
     name: { zh: '运维与部署' },
     slug: 'devops',
     description: {
-      zh: 'Docker, Kubernetes, CI/CD, 自动化部署',
+      zh: 'Docker, CI/CD, Cloudflare, Sentry, 可观测性',
     },
   },
   {
     name: { zh: '系统架构' },
     slug: 'architecture',
     description: {
-      zh: 'Monorepo 单体仓库, 微服务, 高可用设计',
+      zh: 'Monorepo, 微服务, 高可用, 设计模式, 实时通信',
     },
   },
   {
     name: { zh: '安全防护' },
     slug: 'security',
     description: {
-      zh: 'XSS 防护, 验证码, 内容过滤, AI 智能审核',
+      zh: 'XSS, JWT, ReCaptcha, 敏感词过滤, AI 审核, KYC',
+    },
+  },
+  {
+    name: { zh: '性能优化' },
+    slug: 'performance',
+    description: {
+      zh: '打包体积, SSR 渲染, CI/CD 缓存, 加载优化',
+    },
+  },
+  {
+    name: { zh: '移动开发' },
+    slug: 'mobile',
+    description: {
+      zh: 'Flutter, Dart, 跨平台开发, 移动端架构',
     },
   },
   {
     name: { zh: '实战项目' },
     slug: 'projects',
     description: {
-      zh: '生产环境实战经验, 踩坑记录, 最佳实践',
+      zh: '项目介绍, 架构总览, 技术选型, 最佳实践',
     },
   },
 ];
 
 // ==============================================
-// 🏷️ Blog Tags (extracted from this monorepo)
+// 🏷️ Blog Tags (extracted from this monorepo — 63 tags across 7 domains)
 // ==============================================
 const TAGS = [
-  // Backend
+  // ===================== Backend / API =====================
   { name: { zh: 'NestJS' }, slug: 'nestjs', color: '#e0234e' },
   { name: { zh: 'Prisma' }, slug: 'prisma', color: '#2D3748' },
-  {
-    name: { zh: 'PostgreSQL' },
-    slug: 'postgresql',
-    color: '#336791',
-  },
+  { name: { zh: 'PostgreSQL' }, slug: 'postgresql', color: '#336791' },
   { name: { zh: 'Redis' }, slug: 'redis', color: '#dc382d' },
   { name: { zh: 'BullMQ' }, slug: 'bullmq', color: '#7248d4' },
-  {
-    name: { zh: 'TypeScript' },
-    slug: 'typescript',
-    color: '#3178c6',
-  },
+  { name: { zh: 'TypeScript' }, slug: 'typescript', color: '#3178c6' },
+  { name: { zh: 'WebSocket' }, slug: 'websocket', color: '#22c55e' },
+  { name: { zh: 'Authentication' }, slug: 'authentication', color: '#8b5cf6' },
+  { name: { zh: 'Authorization / RBAC' }, slug: 'authorization', color: '#a855f7' },
+  { name: { zh: 'API Design' }, slug: 'api-design', color: '#0ea5e9' },
+  { name: { zh: 'Media Processing' }, slug: 'media-processing', color: '#ec4899' },
+  { name: { zh: 'Upload' }, slug: 'upload', color: '#14b8a6' },
+  { name: { zh: 'Queue' }, slug: 'queue', color: '#8b5cf6' },
+  { name: { zh: 'Distributed Lock' }, slug: 'distributed-lock', color: '#f59e0b' },
+  { name: { zh: 'Device Security' }, slug: 'device-security', color: '#ef4444' },
+  { name: { zh: 'KYC' }, slug: 'kyc', color: '#6366f1' },
+  { name: { zh: 'Payment' }, slug: 'payment', color: '#22c55e' },
+  { name: { zh: 'E-commerce' }, slug: 'ecommerce', color: '#10b981' },
+  { name: { zh: 'Chat / IM' }, slug: 'im', color: '#06b6d4' },
+  { name: { zh: 'Message Queue' }, slug: 'message-queue', color: '#0ea5e9' },
 
-  // Frontend
+  // ===================== Frontend =====================
   { name: { zh: 'Next.js' }, slug: 'nextjs', color: '#000000' },
   { name: { zh: 'React' }, slug: 'react', color: '#61dafb' },
-  {
-    name: { zh: 'Tailwind CSS' },
-    slug: 'tailwind',
-    color: '#06b6d4',
-  },
-  {
-    name: { zh: 'Shadcn UI' },
-    slug: 'shadcn-ui',
-    color: '#000000',
-  },
+  { name: { zh: 'Tailwind CSS' }, slug: 'tailwind', color: '#06b6d4' },
+  { name: { zh: 'Shadcn UI' }, slug: 'shadcn-ui', color: '#000000' },
   { name: { zh: '服务端渲染' }, slug: 'ssr', color: '#10b981' },
+  { name: { zh: 'i18n / 多语言' }, slug: 'i18n', color: '#06b6d4' },
+  { name: { zh: 'SEO' }, slug: 'seo', color: '#10b981' },
+  { name: { zh: 'PWA' }, slug: 'pwa', color: '#8b5cf6' },
+  { name: { zh: 'Animation' }, slug: 'animation', color: '#f472b6' },
+  { name: { zh: 'Video / HLS' }, slug: 'hls', color: '#22c55e' },
+  { name: { zh: 'React Query' }, slug: 'react-query', color: '#ef4444' },
+  { name: { zh: 'Zustand' }, slug: 'zustand', color: '#f59e0b' },
+  { name: { zh: 'React Hook Form' }, slug: 'react-hook-form', color: '#ec4899' },
+  { name: { zh: 'Zod' }, slug: 'zod', color: '#1e3a5f' },
+  { name: { zh: 'OAuth' }, slug: 'oauth', color: '#4285f4' },
+  { name: { zh: 'Rich Text Editor' }, slug: 'rich-text-editor', color: '#f59e0b' },
+  { name: { zh: 'CMS' }, slug: 'cms', color: '#f59e0b' },
+  { name: { zh: 'AI Translation' }, slug: 'ai-translation', color: '#14b8a6' },
+  { name: { zh: 'SmartTable' }, slug: 'smart-table', color: '#6366f1' },
+  { name: { zh: 'Middleware' }, slug: 'middleware', color: '#ef4444' },
+  { name: { zh: 'DataSynchronizer' }, slug: 'data-sync', color: '#6366f1' },
 
-  // DevOps
+  // ===================== DevOps =====================
   { name: { zh: 'Docker' }, slug: 'docker', color: '#2496ed' },
   { name: { zh: 'Cloudflare' }, slug: 'cloudflare', color: '#f38020' },
   { name: { zh: 'Monorepo' }, slug: 'monorepo', color: '#f59e0b' },
   { name: { zh: 'Turbo' }, slug: 'turbo', color: '#ef4444' },
+  { name: { zh: 'CI/CD' }, slug: 'cicd', color: '#f97316' },
+  { name: { zh: 'Sentry' }, slug: 'sentry', color: '#fb7185' },
+  { name: { zh: 'Lighthouse' }, slug: 'lighthouse', color: '#f59e0b' },
+  { name: { zh: 'Monitoring' }, slug: 'monitoring', color: '#0ea5e9' },
+  { name: { zh: 'Prisma Migration' }, slug: 'prisma-migration', color: '#2D3748' },
 
-  // Security
+  // ===================== Security =====================
   { name: { zh: 'XSS' }, slug: 'xss', color: '#dc2626' },
   { name: { zh: 'ReCaptcha' }, slug: 'recaptcha', color: '#4285f4' },
   { name: { zh: 'AhoCorasick' }, slug: 'aho-corasick', color: '#8b5cf6' },
   { name: { zh: 'AI Moderation' }, slug: 'ai-moderation', color: '#14b8a6' },
+  { name: { zh: 'Content Security' }, slug: 'content-security', color: '#6366f1' },
+  { name: { zh: 'Bot Detection' }, slug: 'bot-detection', color: '#dc2626' },
+  { name: { zh: '敏感词过滤' }, slug: 'sensitive-word', color: '#8b5cf6' },
+  { name: { zh: 'JWT' }, slug: 'jwt', color: '#000000' },
 
-  // Architecture
+  // ===================== Mobile / Flutter =====================
+  { name: { zh: 'Flutter' }, slug: 'flutter', color: '#02569B' },
+  { name: { zh: 'Dart' }, slug: 'dart', color: '#0175C2' },
+  { name: { zh: 'Riverpod' }, slug: 'riverpod', color: '#8b5cf6' },
+  { name: { zh: 'GoRouter' }, slug: 'gorouter', color: '#22c55e' },
+  { name: { zh: 'Dio' }, slug: 'dio', color: '#0ea5e9' },
+  { name: { zh: 'Firebase' }, slug: 'firebase', color: '#FFCA28' },
+  { name: { zh: 'WebRTC' }, slug: 'webrtc', color: '#22c55e' },
+  { name: { zh: 'Deep Link' }, slug: 'deep-link', color: '#8b5cf6' },
+  { name: { zh: '状态管理' }, slug: 'state-management', color: '#a855f7' },
+  { name: { zh: 'Design Tokens' }, slug: 'design-tokens', color: '#f59e0b' },
+  { name: { zh: 'Image Cache' }, slug: 'image-cache', color: '#14b8a6' },
+  { name: { zh: 'S3 Upload' }, slug: 's3-upload', color: '#f97316' },
+  { name: { zh: '设备指纹' }, slug: 'device-fingerprint', color: '#ef4444' },
+  { name: { zh: 'KYC Guard' }, slug: 'kyc-guard', color: '#6366f1' },
+  { name: { zh: '动画扩展' }, slug: 'motion-x', color: '#f472b6' },
+
+  // ===================== Architecture & Best Practices =====================
   { name: { zh: 'Microservices' }, slug: 'microservices', color: '#22c55e' },
-  {
-    name: { zh: 'High Availability' },
-    slug: 'high-availability',
-    color: '#f97316',
-  },
-  { name: { zh: 'Message Queue' }, slug: 'message-queue', color: '#0ea5e9' },
-
-  // AI
+  { name: { zh: 'High Availability' }, slug: 'high-availability', color: '#f97316' },
   { name: { zh: 'LLM' }, slug: 'llm', color: '#6366f1' },
-  {
-    name: { zh: 'Prompt Engineering' },
-    slug: 'prompt-engineering',
-    color: '#ec4899',
-  },
-
-  // Best Practices
+  { name: { zh: 'Prompt Engineering' }, slug: 'prompt-engineering', color: '#ec4899' },
   { name: { zh: 'Best Practices' }, slug: 'best-practices', color: '#22c55e' },
   { name: { zh: 'Performance' }, slug: 'performance', color: '#f59e0b' },
   { name: { zh: 'Error Handling' }, slug: 'error-handling', color: '#ef4444' },
+  { name: { zh: 'Platform Adapter' }, slug: 'platform-adapter', color: '#06b6d4' },
+  { name: { zh: '实时通信' }, slug: 'real-time', color: '#0ea5e9' },
+  { name: { zh: '缓存策略' }, slug: 'cache', color: '#f59e0b' },
 ];
 
 // ==============================================
@@ -191,7 +235,7 @@ const ARTICLES = [
     excerpt:
       '从零实现工业级敏感词过滤系统，包含完整算法原理、架构设计和性能优化方案。',
     categorySlug: 'security',
-    tags: ['security', 'algorithm', 'aho-corasick', 'nestjs', 'performance'],
+    tags: ['security', 'aho-corasick', 'nestjs', 'performance', 'sensitive-word'],
   },
   {
     title: 'ReCaptcha v3 无感人机验证完整实现方案',
@@ -240,7 +284,7 @@ Google 服务不可用时自动降级，不影响正常用户使用
     excerpt:
       '完整的 ReCaptcha v3 前后端实现方案，包含分级策略、错误降级和生产环境最佳实践。',
     categorySlug: 'security',
-    tags: ['security', 'recaptcha', 'anti-bot', 'nestjs', 'frontend'],
+    tags: ['security', 'recaptcha', 'nestjs', 'bot-detection', 'best-practices'],
   },
   {
     title: '零成本AI评论审核系统：Gemini 2.0 Flash 实战',
@@ -306,7 +350,7 @@ sequenceDiagram
     excerpt:
       '基于 Google Gemini 2.0 Flash 构建零成本智能评论审核系统，完整架构设计与实现细节。',
     categorySlug: 'security',
-    tags: ['ai-moderation', 'gemini', 'bullmq', 'nestjs', 'security'],
+    tags: ['ai-moderation', 'bullmq', 'nestjs', 'security', 'llm'],
   },
   {
     title: 'NestJS 五层安全防护体系设计与实现',
@@ -500,7 +544,7 @@ Content-Security-Policy:
     excerpt:
       'XSS攻击完整指南，包含攻击原理、三种类型、七层防御模型和现代Web应用最佳实践。',
     categorySlug: 'security',
-    tags: ['xss', 'security', 'web-security', 'csp', 'best-practices'],
+    tags: ['xss', 'security', 'best-practices', 'content-security'],
   },
 ];
 

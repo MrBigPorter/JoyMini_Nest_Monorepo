@@ -3,7 +3,6 @@
 import { Link } from '@/navigation';
 import { ComponentProps } from 'react';
 import { motion } from 'framer-motion';
-import { useState } from 'react';
 
 type LinkProps = ComponentProps<typeof Link>;
 
@@ -57,17 +56,10 @@ export function AnimatedLink({
   hoverScale = 1.05,
   ...props
 }: AnimatedLinkProps) {
-  const [isHovered, setIsHovered] = useState(false);
-  const [isTapped, setIsTapped] = useState(false);
-
   // 构建动画配置
   const animationProps = {
     ...(showHoverFeedback && { whileHover: { scale: hoverScale } }),
     ...(showTapFeedback && { whileTap: { scale: tapScale } }),
-    onHoverStart: () => setIsHovered(true),
-    onHoverEnd: () => setIsHovered(false),
-    onTapStart: () => setIsTapped(true),
-    onTap: () => setIsTapped(false),
   };
 
   return (

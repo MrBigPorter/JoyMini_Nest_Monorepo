@@ -2,33 +2,99 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { frontendBlogApi } from '@/lib/api/frontendBlogApi';
+import { useLocalizedQueryKey } from '@/lib/api/queryKeys';
+import {
+  syncArticles,
+  getCachedArticles,
+  getCachedTotalPages,
+  syncCategories,
+  getCachedCategories,
+  syncArticleContent,
+  getCachedArticleContent,
+  syncTags,
+  getCachedTags,
+} from '@/lib/db/sync';
 import type {
   FrontendCategory,
   FrontendCategoryWithArticles,
+  FrontendTag,
   FrontendTagWithArticles,
+  FrontendPaginatedResponse,
+  FrontendArticle,
 } from '@/lib/types/frontend-blog';
 import { useCurrentLocale } from './useCurrentLocale';
 
 /**
  * 获取前端博客文章列表 Hook（简化版）
- * 使用 TanStack Query 自动缓存
+ * 使用 TanStack Query + IndexedDB Local-First 策略：
+ *   1. 并行发起网络请求（不 await，让它在后台运行）
+ *   2. 网络成功后同步数据到 IndexedDB
+ *   3. 先尝试从 IndexedDB 返回缓存数据（即时渲染）
+ *   4. 无缓存时 fallback 到网络响应
  */
 export function useFrontendArticles(params?: {
   page?: number;
   pageSize?: number;
   categoryId?: string;
   tagId?: string;
+  initialData?: FrontendPaginatedResponse<FrontendArticle>;
+  queryKeyPrefix?: string;
 }) {
   const locale = useCurrentLocale();
+  const keyPrefix = params?.queryKeyPrefix || 'frontendArticles';
+
+  const { page = 1, pageSize = 10 } = params || {};
 
   return useQuery({
-    queryKey: ['frontendArticles', locale, params],
-    queryFn: async () => {
-      return await frontendBlogApi.getArticles(params);
+    queryKey: useLocalizedQueryKey(keyPrefix, {
+      page,
+      pageSize,
+      categoryId: params?.categoryId,
+      tagId: params?.tagId,
+    }),
+    queryFn: async (): Promise<FrontendPaginatedResponse<FrontendArticle>> => {
+      // 1. 并行发起网络请求（不阻塞渲染）
+      const networkPromise = frontendBlogApi.getArticles({
+        lang: locale,
+        page,
+        pageSize,
+        categoryId: params?.categoryId,
+        tagId: params?.tagId,
+      });
+
+      // 2. 网络成功时同步到 IndexedDB（后台 fire-and-forget）
+      networkPromise
+        .then((data) => {
+          if (data?.items) {
+            syncArticles(data.items, locale, page, params?.categoryId);
+          }
+        })
+        .catch(() => {
+          // 网络失败不阻塞 UI
+        });
+
+      // 3. 先尝试读取 IndexedDB 缓存
+      const cached = await getCachedArticles(locale, page, params?.categoryId);
+
+      // 4. 有缓存 → 立即返回（即时渲染），网络后台更新
+      if (cached.length > 0) {
+        return {
+          items: cached,
+          totalPages: await getCachedTotalPages(locale),
+          total: cached.length,
+          page,
+          pageSize,
+        } as FrontendPaginatedResponse<FrontendArticle>;
+      }
+
+      // 5. 无缓存 → 等待网络响应
+      return networkPromise;
     },
     staleTime: 5 * 60 * 1000, // 5分钟缓存
-    retry: 2, // 失败时重试2次
-    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // 指数退避重试
+    networkMode: 'offlineFirst', // 离线时允许从 IndexedDB 读取缓存
+    initialData: params?.initialData,
+    retry: 2,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
 }
 
@@ -50,6 +116,12 @@ export function useFrontendFeaturedArticles() {
 /**
  * 根据 Slug 获取前端博客文章详情 Hook（简化版）
  *
+ * 使用 Local-First IndexedDB 策略缓存文章正文：
+ *   1. 并行发起网络请求（不 await，让它在后台运行）
+ *   2. 网络成功后同步文章正文到 IndexedDB
+ *   3. 先尝试从 IndexedDB 返回缓存数据（即时渲染，支持离线阅读）
+ *   4. 无缓存时 fallback 到网络响应
+ *
  * 当 initialData 中 content/contentMd 被剥离时（为节省 Cloudflare Workers CPU），
  * 设置 staleTime: 0 让 React Query 立即发起后台 refetch 获取完整文章。
  */
@@ -65,10 +137,36 @@ export function useFrontendArticleBySlug(slug: string, initialData?: any) {
 
   return useQuery({
     queryKey: ['frontendArticle', slug, locale],
-    queryFn: () => frontendBlogApi.getArticleBySlug(slug, locale),
+    queryFn: async () => {
+      // 1. 并行发起网络请求（不阻塞渲染）
+      const networkPromise = frontendBlogApi.getArticleBySlug(slug, locale);
+
+      // 2. 网络成功时同步文章正文到 IndexedDB（后台 fire-and-forget）
+      networkPromise
+        .then((data) => {
+          if (data?.content || data?.contentMd) {
+            syncArticleContent(data, locale);
+          }
+        })
+        .catch(() => {
+          // 网络失败不阻塞 UI
+        });
+
+      // 3. 先尝试读取 IndexedDB 缓存
+      const cached = await getCachedArticleContent(slug, locale);
+
+      // 4. 有缓存 → 立即返回（即时渲染，支持离线阅读）
+      if (cached) {
+        return cached;
+      }
+
+      // 5. 无缓存 → 等待网络响应
+      return networkPromise;
+    },
     // 如果 content 被剥离，立即 refetch 获取完整文章数据
     // 否则按正常 1 小时缓存
     staleTime: isContentStripped ? 0 : 60 * 60 * 1000,
+    networkMode: 'offlineFirst', // 离线时允许从 IndexedDB 读取缓存
     enabled: !!slug,
     initialData,
   });
@@ -123,14 +221,46 @@ export function useFrontendSearchArticles(
 
 /**
  * 获取前端博客分类列表 Hook（简化版）
+ *
+ * 使用 Local-First IndexedDB 策略：
+ *   1. 并行发起网络请求（不 await，让它在后台运行）
+ *   2. 网络成功后同步数据到 IndexedDB
+ *   3. 先尝试从 IndexedDB 返回缓存数据（即时渲染）
+ *   4. 无缓存时 fallback 到网络响应
  */
 export function useFrontendCategories(initialData?: FrontendCategory[]) {
   const locale = useCurrentLocale();
 
   return useQuery({
     queryKey: ['frontendCategories', locale],
-    queryFn: () => frontendBlogApi.getCategories(locale),
+    queryFn: async () => {
+      // 1. 并行发起网络请求（不阻塞渲染）
+      const networkPromise = frontendBlogApi.getCategories(locale);
+
+      // 2. 网络成功时同步到 IndexedDB（后台 fire-and-forget）
+      networkPromise
+        .then((data) => {
+          if (data?.length) {
+            syncCategories(data, locale);
+          }
+        })
+        .catch(() => {
+          // 网络失败不阻塞 UI
+        });
+
+      // 3. 先尝试读取 IndexedDB 缓存
+      const cached = await getCachedCategories(locale);
+
+      // 4. 有缓存 → 立即返回（即时渲染），网络后台更新
+      if (cached.length > 0) {
+        return cached;
+      }
+
+      // 5. 无缓存 → 等待网络响应
+      return networkPromise;
+    },
     staleTime: 60 * 60 * 1000, // 1小时缓存
+    networkMode: 'offlineFirst', // 离线时允许从 IndexedDB 读取缓存
     initialData,
   });
 }
@@ -163,14 +293,46 @@ export function useFrontendCategoryBySlug(
 
 /**
  * 获取前端博客标签列表 Hook（简化版）
+ *
+ * 使用 Local-First IndexedDB 策略：
+ *   1. 并行发起网络请求（不 await，让它在后台运行）
+ *   2. 网络成功后同步数据到 IndexedDB
+ *   3. 先尝试从 IndexedDB 返回缓存数据（即时渲染）
+ *   4. 无缓存时 fallback 到网络响应
  */
 export function useFrontendTags(options?: { initialData?: any[] }) {
   const locale = useCurrentLocale();
 
   return useQuery({
     queryKey: ['frontendTags', locale],
-    queryFn: () => frontendBlogApi.getTags(locale),
+    queryFn: async () => {
+      // 1. 并行发起网络请求（不阻塞渲染）
+      const networkPromise = frontendBlogApi.getTags(locale);
+
+      // 2. 网络成功时同步到 IndexedDB（后台 fire-and-forget）
+      networkPromise
+        .then((data) => {
+          if (data?.length) {
+            syncTags(data, locale);
+          }
+        })
+        .catch(() => {
+          // 网络失败不阻塞 UI
+        });
+
+      // 3. 先尝试读取 IndexedDB 缓存
+      const cached = await getCachedTags(locale);
+
+      // 4. 有缓存 → 立即返回（即时渲染），网络后台更新
+      if (cached.length > 0) {
+        return cached;
+      }
+
+      // 5. 无缓存 → 等待网络响应
+      return networkPromise;
+    },
     staleTime: 60 * 60 * 1000, // 1小时缓存
+    networkMode: 'offlineFirst', // 离线时允许从 IndexedDB 读取缓存
     initialData: options?.initialData,
   });
 }
