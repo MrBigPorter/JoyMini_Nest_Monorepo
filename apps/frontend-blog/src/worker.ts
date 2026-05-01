@@ -131,6 +131,38 @@ export default {
       isrStatus: 'miss',
     };
 
+    // ── 103 Early Hints ──────────────────────────────────────────────
+    // Warm critical connections (CDN + API) before HTML body arrives.
+    // Requires Cloudflare Early Hints enabled in Dashboard:
+    //   Speed → Optimization → Early Hints → On
+    // ─────────────────────────────────────────────────────────────────
+    if (
+      request.method === 'GET' &&
+      !this.isStaticAsset(url) &&
+      url.pathname !== '/'
+    ) {
+      const cdnOrigin = env.NEXT_PUBLIC_CDN_URL
+        ? new URL(env.NEXT_PUBLIC_CDN_URL).origin
+        : 'https://img.joyminis.com';
+      const apiOrigin = env.NEXT_PUBLIC_API_URL
+        ? new URL(env.NEXT_PUBLIC_API_URL).origin
+        : 'https://api.joyminis.com';
+
+      ctx.waitUntil(
+        Promise.resolve(
+          new Response(null, {
+            status: 103,
+            headers: {
+              Link: [
+                `<${cdnOrigin}>; rel=preconnect`,
+                `<${apiOrigin}>; rel=preconnect`,
+              ].join(', '),
+            },
+          }),
+        ),
+      );
+    }
+
     try {
       // Add security headers
       const securityHeaders = {
