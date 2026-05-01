@@ -12,6 +12,23 @@ interface CategoriesPageClientProps {
   initialData?: FrontendCategory[];
 }
 
+/**
+ * 防御性渲染：将任意值安全转换为可渲染的字符串
+ * 防止后端返回 {en, zh} 国际化对象时导致 React 报错
+ */
+function renderString(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (value && typeof value === 'object') {
+    // 尝试提取 Localized 对象中的第一个非空字符串值
+    const obj = value as Record<string, unknown>;
+    const firstString = Object.values(obj).find(
+      (v): v is string => typeof v === 'string' && v !== '',
+    );
+    if (firstString) return firstString;
+  }
+  return String(value ?? '');
+}
+
 export default function CategoriesPageClient({
   initialData = [],
 }: CategoriesPageClientProps) {
@@ -62,26 +79,26 @@ export default function CategoriesPageClient({
           >
             <div className="flex items-start gap-4">
               <div className="text-3xl">
-                {category.name.includes('产品')
+                {renderString(category.name).includes('产品')
                   ? '🚀'
-                  : category.name.includes('技术')
+                  : renderString(category.name).includes('技术')
                     ? '💻'
-                    : category.name.includes('行业')
+                    : renderString(category.name).includes('行业')
                       ? '💡'
-                      : category.name.includes('团队')
+                      : renderString(category.name).includes('团队')
                         ? '👥'
-                        : category.name.includes('最佳')
+                        : renderString(category.name).includes('最佳')
                           ? ''
-                          : category.name.includes('教程')
+                          : renderString(category.name).includes('教程')
                             ? '📚'
                             : '📂'}
               </div>
               <div className="flex-1 min-w-0">
                 <h2 className="text-xl font-semibold mb-2 group-hover:text-primary transition-colors">
-                  {category.name}
+                  {renderString(category.name)}
                 </h2>
                 <p className="text-muted-foreground mb-3 line-clamp-2">
-                  {category.description}
+                  {renderString(category.description)}
                 </p>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <FileText className="w-4 h-4" />

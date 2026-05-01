@@ -24,9 +24,9 @@ const teamMembers = [
   {
     name: 'Porter',
     roleKey: 'teamRoleFullStack',
-    avatar: 'https://picsum.photos/id/237/400/400',
-    github: 'https://gitlab.com/MrSuperPorter',
-    bio: 'Full-stack developer passionate about creating elegant solutions',
+    avatar:
+      'https://img.joyminis.com/Gemini_Generated_Image_l8u1b7l8u1b7l8u1.png',
+    github: 'https://github.com/MrBigPorter',
     skills: ['TypeScript', 'React', 'Node.js', 'Flutter', 'DevOps'],
   },
 ];
@@ -39,7 +39,6 @@ const techStackGroups = [
     items: [
       { name: 'Next.js 15', icon: '⚡', descriptionKey: 'techNextjs' },
       { name: 'React 19', icon: '⚛️', descriptionKey: 'techReact' },
-      { name: 'Vue.js', icon: '🟢', descriptionKey: 'techVue' },
       { name: 'TypeScript', icon: '📘', descriptionKey: 'techTypescript' },
       { name: 'Tailwind CSS', icon: '🎨', descriptionKey: 'techTailwind' },
     ],
@@ -229,18 +228,20 @@ export default async function AboutPage({
                   <div className="mt-8 grid grid-cols-3 gap-4 w-full max-w-xs">
                     <div className="text-center p-3 rounded-lg bg-muted/50">
                       <div className="text-2xl font-bold text-primary">10+</div>
-                      <div className="text-xs text-muted-foreground">Years</div>
+                      <div className="text-xs text-muted-foreground">
+                        {t('about.founderStatYears')}
+                      </div>
                     </div>
                     <div className="text-center p-3 rounded-lg bg-muted/50">
                       <div className="text-2xl font-bold text-primary">50+</div>
                       <div className="text-xs text-muted-foreground">
-                        Projects
+                        {t('about.founderStatProjects')}
                       </div>
                     </div>
                     <div className="text-center p-3 rounded-lg bg-muted/50">
                       <div className="text-2xl font-bold text-primary">4</div>
                       <div className="text-xs text-muted-foreground">
-                        Stacks
+                        {t('about.founderStatStacks')}
                       </div>
                     </div>
                   </div>
@@ -259,12 +260,14 @@ export default async function AboutPage({
                   </div>
 
                   <p className="text-lg text-muted-foreground leading-relaxed">
-                    {teamMembers[0].bio}
+                    {t('about.founderBio')}
                   </p>
 
                   {/* Expertise */}
                   <div>
-                    <h4 className="font-semibold mb-3">Expertise</h4>
+                    <h4 className="font-semibold mb-3">
+                      {t('about.founderExpertise')}
+                    </h4>
                     <div className="flex flex-wrap gap-2">
                       {teamMembers[0].skills.map((skill, index) => (
                         <span
@@ -279,7 +282,9 @@ export default async function AboutPage({
 
                   {/* Contact & Social */}
                   <div className="pt-6 border-t border-border/50">
-                    <h4 className="font-semibold mb-4">Connect</h4>
+                    <h4 className="font-semibold mb-4">
+                      {t('about.founderConnect')}
+                    </h4>
                     <div className="flex flex-wrap gap-4">
                       <Link
                         href={teamMembers[0].github}
@@ -287,14 +292,14 @@ export default async function AboutPage({
                         className="inline-flex items-center gap-3 px-6 py-3 rounded-xl bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20 text-primary hover:from-primary/20 hover:to-secondary/20 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/10 transition-all duration-300"
                       >
                         <Github className="w-5 h-5" />
-                        <span className="font-medium">GitHub</span>
+                        <span className="font-medium">{t('about.github')}</span>
                       </Link>
                       <Link
                         href="mailto:mrsuperporter@gmail.com"
                         className="inline-flex items-center gap-3 px-6 py-3 rounded-xl bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20 text-primary hover:from-primary/20 hover:to-secondary/20 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/10 transition-all duration-300"
                       >
                         <Mail className="w-5 h-5" />
-                        <span className="font-medium">Email</span>
+                        <span className="font-medium">{t('about.email')}</span>
                       </Link>
                     </div>
                   </div>

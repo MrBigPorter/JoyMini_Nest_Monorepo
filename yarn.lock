@@ -7838,6 +7838,7 @@ __metadata:
     clsx: "npm:^2.0.0"
     compression-webpack-plugin: "npm:^11.1.0"
     dayjs: "npm:^1.11.10"
+    dexie: "npm:4.4.2"
     embla-carousel-react: "npm:^8.6.0"
     eslint: "npm:^8.0.0"
     eslint-config-next: "npm:15.1.6"
@@ -18384,6 +18385,13 @@ __metadata:
   version: 0.0.1581282
   resolution: "devtools-protocol@npm:0.0.1581282"
   checksum: 10c0/8df3b3bccaa8e5ac8915c29bb6ebece350ca8781ec7689bec90dfa6a479682a1b389abd964fe7dc7610d91c96850311aa614c4414b478bee70cabd3cf154ac93
+  languageName: node
+  linkType: hard
+
+"dexie@npm:4.4.2":
+  version: 4.4.2
+  resolution: "dexie@npm:4.4.2"
+  checksum: 10c0/b6171347e8d7579600cc4b2ab4b1e3422991451f8f69c926caa15bdf223be9ca8ae86da87e141a2f626fa5d4647c6a9b917ffaa3f878be17c37c4c7533d5eaa6
   languageName: node
   linkType: hard
 

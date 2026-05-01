@@ -2,6 +2,7 @@ import { serverGet } from '@/lib/serverFetch';
 import { getEnabledLocales } from '@/lib/i18n/config';
 import HomePageClient from './page.client.tsx';
 import type { FrontendArticle } from '@/lib/types/frontend-blog';
+import type { FrontendCategory } from '@/lib/types/frontend-blog';
 import type { Locale } from '@/lib/i18n/config';
 import type { FrontendPaginatedResponse } from '@/lib/types/frontend-blog';
 
@@ -40,16 +41,43 @@ export default async function HomePage({
       FrontendPaginatedResponse<FrontendArticle>
     >('/v1/frontend/blog/articles', { lang: locale, page: 1, pageSize: 10 });
 
+    // SSR: Fetch categories for CategoryFilter (no skeleton flash)
+    let initialCategories: FrontendCategory[] = [];
+    try {
+      initialCategories = await serverGet<FrontendCategory[]>(
+        '/v1/frontend/blog/categories',
+        { lang: locale },
+      );
+    } catch {
+      // Categories fetch failure is non-critical
+      initialCategories = [];
+    }
+
     // 提取文章ID用于客户端查询收藏状态
     const articleIds =
       initialData.items?.map((article: FrontendArticle) => article.id) || [];
 
+    // P1-1: LCP preload — extract first cover image for early hint
+    const firstCoverImage = initialData.items?.[0]?.coverImage;
+
     return (
-      <HomePageClient
-        initialData={initialData}
-        initialArticleIds={articleIds}
-        locale={locale}
-      />
+      <>
+        {/* P1-1: Inject LCP image preload link into <head> via SSR */}
+        {firstCoverImage && (
+          <link
+            rel="preload"
+            as="image"
+            href={firstCoverImage}
+            fetchPriority="high"
+          />
+        )}
+        <HomePageClient
+          initialData={initialData}
+          initialArticleIds={articleIds}
+          initialCategories={initialCategories}
+          locale={locale}
+        />
+      </>
     );
   } catch (error) {
     // 返回空数据，让客户端显示骨架屏
@@ -63,6 +91,7 @@ export default async function HomePage({
           totalPages: 0,
         }}
         initialArticleIds={[]}
+        initialCategories={[]}
         locale={locale}
       />
     );

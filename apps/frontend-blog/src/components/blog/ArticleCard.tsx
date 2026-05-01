@@ -12,6 +12,7 @@ import { BlurhashImage } from './BlurhashImage';
 import { HlsVideoPlayer } from './HlsVideoPlayer';
 import { isVideoUrl } from '@/lib/utils/media';
 import { Play } from 'lucide-react';
+import type { NetworkQuality } from '@/lib/hooks/useNetworkQuality';
 
 /** Format seconds to MM:SS */
 function formatDuration(seconds: number): string {
@@ -40,6 +41,10 @@ interface ArticleCardProps {
   imageAspect?: 'video' | 'square' | 'auto';
   /** 默认封面图片URL (不设置则纯文本时无封面) */
   fallbackImage?: string;
+  /** 是否为关键首屏图片，启用 priority + fetchPriority=high */
+  priority?: boolean;
+  /** P0-3b: Network-aware adaptive quality settings */
+  networkQuality?: NetworkQuality;
 }
 
 export function ArticleCard({
@@ -52,10 +57,47 @@ export function ArticleCard({
   imagePosition = 'top',
   imageAspect = 'video',
   fallbackImage = '',
+  priority = false,
+  networkQuality,
 }: ArticleCardProps) {
   const [videoPlaying, setVideoPlaying] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
   const coverImageUrl = article.coverImage || fallbackImage || '';
+
+  // Predictive image prefetch via IntersectionObserver
+  // When card is 200px from viewport, warm the SW cache by loading the image
+  useEffect(() => {
+    if (!coverImageUrl || priority || isVideoUrl(coverImageUrl)) return;
+
+    const el = cardRef.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            // Image is about to enter viewport — prefetch into SW cache
+            const img = new Image();
+            img.src = coverImageUrl;
+            // Also add to Service Worker cache via a fetch request
+            fetch(coverImageUrl, { mode: 'no-cors' }).catch(() => {
+              // Silent fail — SW will still cache if registered
+            });
+            observer.disconnect();
+            break;
+          }
+        }
+      },
+      {
+        rootMargin: '200px',
+        threshold: 0,
+      },
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [coverImageUrl, priority]);
 
   // Check if article has HLS video available (from meta.video.hlsUrl)
   const hlsUrl =
@@ -64,6 +106,11 @@ export function ArticleCard({
       : undefined;
 
   /** Click play button → play video inline, prevent navigation */
+  // P0-3b: Use adaptive quality from network conditions
+  const imageQuality = priority
+    ? 85 // Priority images always get high quality
+    : (networkQuality?.quality ?? 65);
+
   const handlePlayVideo = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -111,6 +158,7 @@ export function ArticleCard({
 
   return (
     <div
+      ref={cardRef}
       className={`group relative bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 transition-all hover:shadow-md hover:border-primary/20 transform duration-150 ease-in-out ${
         compact ? 'p-4' : 'p-6'
       }`}
@@ -194,13 +242,15 @@ export function ArticleCard({
                 src={coverImageUrl}
                 alt={article.title}
                 fill
+                priority={priority}
+                quality={imageQuality}
                 blurhash={
                   'meta' in article
                     ? (article as FrontendArticle).meta?.images?.blurhash
                     : undefined
                 }
                 className="transition-transform duration-300 group-hover:scale-105"
-                sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                sizes="(max-width: 768px) 90vw, (max-width: 1024px) 45vw, 600px"
               />
             )
           ) : (

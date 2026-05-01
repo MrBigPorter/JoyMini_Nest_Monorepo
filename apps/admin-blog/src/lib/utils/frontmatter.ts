@@ -189,7 +189,10 @@ function setField(result: ParsedMarkdown, key: string, value: string): void {
 
     case 'tags':
     case 'tag':
-      result.tags = value
+      // Strip YAML inline list brackets: [Tag1, Tag2] → "Tag1, Tag2"
+      // Also handle the legacy inline-list syntax [A, B, C] where [ and ] are preserved
+      const cleaned = value.replace(/^\[|\]$/g, '').trim();
+      result.tags = cleaned
         .split(',')
         .map((t) => t.trim())
         .filter((t) => t.length > 0);

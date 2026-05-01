@@ -15,7 +15,9 @@ const withBundleAnalyzer = BundleAnalyzer({
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const withPWA = require('next-pwa')({
   dest: 'public',
-  disable: process.env.NODE_ENV === 'development',
+  disable:
+    process.env.NODE_ENV === 'development' &&
+    process.env.NEXT_PWA_ENABLE !== 'true',
   register: true,
   skipWaiting: true,
   // 排除 Source Map 和 react-loadable-manifest，避免 Workbox 预缓存时 404
@@ -45,13 +47,16 @@ const withPWA = require('next-pwa')({
       },
     },
     {
-      urlPattern: /\.(?:jpg|jpeg|gif|png|svg|ico|webp)$/i,
-      handler: 'CacheFirst',
+      urlPattern: /\.(?:jpg|jpeg|gif|png|svg|ico|webp|avif)$/i,
+      handler: 'StaleWhileRevalidate',
       options: {
         cacheName: 'static-image-assets',
         expiration: {
-          maxEntries: 64,
+          maxEntries: 200,
           maxAgeSeconds: 30 * 24 * 60 * 60, // 30天
+        },
+        cacheableResponse: {
+          statuses: [0, 200],
         },
       },
     },
@@ -68,28 +73,39 @@ const withPWA = require('next-pwa')({
     },
     {
       urlPattern: /^https?:\/\/api\.joyminis\.com\/.*/i,
-      handler: 'NetworkFirst',
+      handler: 'StaleWhileRevalidate',
       options: {
         cacheName: 'api-cache',
-        networkTimeoutSeconds: 10,
         expiration: {
-          maxEntries: 16,
-          maxAgeSeconds: 5 * 60, // 5分钟
+          maxEntries: 50,
+          maxAgeSeconds: 7 * 24 * 60 * 60, // 7天（支持离线）
         },
         cacheableResponse: {
           statuses: [0, 200],
         },
       },
     },
+    // Navigation pages (locale-prefixed) — NetworkFirst for offline support
     {
-      urlPattern: /^https?:\/\/.*\.(joyminis\.com|localhost).*$/i,
+      urlPattern: /^\/(zh|en|ko|ja)\//,
       handler: 'NetworkFirst',
       options: {
-        cacheName: 'pages-cache',
-        networkTimeoutSeconds: 10,
+        cacheName: 'navigation-pages',
         expiration: {
-          maxEntries: 32,
-          maxAgeSeconds: 24 * 60 * 60, // 24小时
+          maxEntries: 50,
+          maxAgeSeconds: 7 * 24 * 60 * 60, // 7天
+        },
+        networkTimeoutSeconds: 5,
+      },
+    },
+    {
+      urlPattern: /^https?:\/\/.*\.(joyminis\.com|localhost).*$/i,
+      handler: 'StaleWhileRevalidate',
+      options: {
+        cacheName: 'pages-cache',
+        expiration: {
+          maxEntries: 50,
+          maxAgeSeconds: 7 * 24 * 60 * 60, // 7天（支持离线）
         },
         cacheableResponse: {
           statuses: [0, 200],
@@ -134,6 +150,11 @@ const baseConfig: NextConfig = {
     unoptimized: isAppMode,
     // 现代图片格式自动转换
     formats: ['image/avif', 'image/webp'],
+    // 限制生成的图片尺寸，避免为卡片视图（~600px）生成 3840w 的巨图
+    // 默认值 [640, 750, 828, 1080, 1200, 1920, 2048, 3840] 会导致单张图片 1.8-2.2MB
+    deviceSizes: [480, 640, 768, 1024, 1280],
+    // 明确的小图尺寸，用于 blurhash 等场景
+    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
     minimumCacheTTL: 86400,
   },
 
@@ -167,6 +188,11 @@ const baseConfig: NextConfig = {
           {
             key: 'X-DNS-Prefetch-Control',
             value: 'on',
+          },
+          {
+            key: 'Link',
+            value:
+              '<https://img.joyminis.com>; rel=preconnect; crossOrigin=anonymous',
           },
           {
             key: 'Strict-Transport-Security',

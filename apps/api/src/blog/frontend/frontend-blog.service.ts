@@ -424,21 +424,24 @@ export class FrontendBlogService {
     const fieldValue = entity[field];
     // 如果字段本身就是 Localized 对象（如 {en: "...", zh: "..."}）
     if (fieldValue && typeof fieldValue === 'object' && fieldValue !== null) {
-      // 优先返回指定语言的值
-      if (fieldValue[locale] && typeof fieldValue[locale] === 'string') {
+      // 优先返回指定语言的值（使用显式非空字符串检查，避免空字符串被当作 falsy 跳过）
+      if (typeof fieldValue[locale] === 'string' && fieldValue[locale] !== '') {
         return fieldValue[locale];
       }
       // 回退到中文
-      if (fieldValue['zh'] && typeof fieldValue['zh'] === 'string') {
+      if (typeof fieldValue['zh'] === 'string' && fieldValue['zh'] !== '') {
         return fieldValue['zh'];
       }
-      // 回退到第一个可用的字符串值
+      // 回退到第一个可用的非空字符串值
       const firstStringValue = Object.values(fieldValue).find(
-        (v) => typeof v === 'string',
+        (v): v is string => typeof v === 'string' && v !== '',
       );
       if (firstStringValue) {
         return firstStringValue;
       }
+      // 修复：如果所有值都是空字符串，返回空字符串而不是原始 {en, zh} 对象
+      // 避免前端渲染时出现 "Objects are not valid as a React child" 错误
+      return '';
     }
 
     // 检查 Localized 字段（原始格式）
@@ -490,7 +493,8 @@ export class FrontendBlogService {
 
     // 检查中文独立字段
     const zhValue = entity[field]; // 原始字段通常是中文
-    if (zhValue !== null && zhValue !== undefined && zhValue !== '') {
+    // 修复：只返回非空字符串，避免返回原始 {en, zh} 对象
+    if (typeof zhValue === 'string' && zhValue !== '') {
       return zhValue;
     }
 

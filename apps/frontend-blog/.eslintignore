@@ -12,6 +12,8 @@ node_modules/
 *.min.js
 *.d.ts
 next-env.d.ts
+public/sw.js
+public/workbox-*.js
 
 # Test coverage
 coverage/

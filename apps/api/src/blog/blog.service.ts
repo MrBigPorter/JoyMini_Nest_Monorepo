@@ -534,13 +534,24 @@ export class BlogService {
    * 按标签名称查找或创建标签，返回标签 ID
    */
   private async findOrCreateTag(tagName: string): Promise<string> {
-    // 查找名称匹配的标签（中文或英文）
+    // 生成标准化 slug：去除特殊字符、转小写、连字符
+    const normalizeSlug = (name: string): string =>
+      name
+        .toLowerCase()
+        .replace(/[^\w\s\u4e00-\u9fa5]/g, '')
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-+|-+$/g, '');
+
+    const searchSlug = normalizeSlug(tagName);
+
+    // 查找名称匹配的标签（中文、英文或标准化 slug）
     const existing = await this.prisma.blogTag.findFirst({
       where: {
         OR: [
           { name: { path: ['zh'], equals: tagName } },
           { name: { path: ['en'], equals: tagName } },
-          { slug: tagName.toLowerCase().replace(/\s+/g, '-') },
+          { slug: searchSlug },
         ],
       },
       select: { id: true },
@@ -551,17 +562,12 @@ export class BlogService {
     }
 
     // 创建新标签
-    const slug = tagName
-      .toLowerCase()
-      .replace(/[^\w\s\u4e00-\u9fa5]/g, '')
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-+|-+$/g, '');
+    const slug = searchSlug || tagName.toLowerCase().replace(/\s+/g, '-');
 
     const tag = await this.prisma.blogTag.create({
       data: {
         name: { zh: tagName },
-        slug: slug || tagName.toLowerCase().replace(/\s+/g, '-'),
+        slug,
       },
     });
 
