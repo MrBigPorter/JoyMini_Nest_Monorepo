@@ -23,6 +23,10 @@ const withPWA = require('next-pwa')({
   // 排除 Source Map 和 react-loadable-manifest，避免 Workbox 预缓存时 404
   // 排除 Source Map、react-loadable-manifest 以及所有 server-only 文件，避免 Workbox 预缓存时 404
   exclude: [/\.map$/, /react-loadable-manifest\.json$/, /\/_next\/server\/.*/],
+  // 离线导航回退：当网络不可用且缓存中无页面时，显示自定义离线页面
+  fallbacks: {
+    document: '/offline.html',
+  },
   runtimeCaching: [
     {
       urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/i,
@@ -136,6 +140,12 @@ const baseConfig: NextConfig = {
   output: isAppMode ? 'export' : 'standalone',
 
   images: {
+    // 使用自定义 Cloudflare Image Resizing loader
+    // Cloudflare Workers 没有 Node.js sharp 原生模块，/_next/image 无法压缩
+    // 改为 /cdn-cgi/image/，由 Cloudflare 边缘节点处理图片变换
+    // 注意：unoptimized: true 会禁用自定义 loader，所以不能设置
+    loader: 'custom',
+    loaderFile: './src/lib/utils/cloudflareImageLoader.ts',
     remotePatterns: [
       { protocol: 'https', hostname: 'img.joyminis.com' },
       { protocol: 'https', hostname: '*.googleusercontent.com' },
@@ -146,10 +156,7 @@ const baseConfig: NextConfig = {
       { protocol: 'https', hostname: '*.githubusercontent.com' },
       { protocol: 'https', hostname: 'placehold.co' },
     ],
-    // App模式下禁用图片优化
-    unoptimized: isAppMode,
-    // 现代图片格式自动转换
-    formats: ['image/avif', 'image/webp'],
+    // Cloudflare /cdn-cgi/image/ 自动处理 AVIF/WebP 格式转换（f=auto）
     // 限制生成的图片尺寸，避免为卡片视图（~600px）生成 3840w 的巨图
     // 默认值 [640, 750, 828, 1080, 1200, 1920, 2048, 3840] 会导致单张图片 1.8-2.2MB
     deviceSizes: [480, 640, 768, 1024, 1280],

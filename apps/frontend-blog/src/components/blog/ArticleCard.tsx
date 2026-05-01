@@ -107,9 +107,9 @@ export function ArticleCard({
 
   /** Click play button → play video inline, prevent navigation */
   // P0-3b: Use adaptive quality from network conditions
-  const imageQuality = priority
-    ? 85 // Priority images always get high quality
-    : (networkQuality?.quality ?? 65);
+  // Note: Don't pass quality for priority images — CDN (img.joyminis.com) rejects ?q=85
+  // Use undefined so Next.js applies its default (75) which CDN accepts
+  const imageQuality = priority ? undefined : (networkQuality?.quality ?? 65);
 
   const handlePlayVideo = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
