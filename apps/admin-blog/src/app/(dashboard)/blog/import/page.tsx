@@ -734,10 +734,7 @@ export default function BlogImportPage() {
                   )}
 
                   <div className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap max-h-[400px] overflow-y-auto bg-gray-50 dark:bg-white/5 rounded p-3 font-mono text-xs leading-relaxed">
-                    {previewContent.content.slice(0, 2000)}
-                    {previewContent.content.length > 2000 && (
-                      <span className="text-gray-400">... (truncated)</span>
-                    )}
+                    {previewContent.content}
                   </div>
                 </div>
               </Card>
