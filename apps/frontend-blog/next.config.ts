@@ -422,7 +422,8 @@ const wrappedConfig = withBundleAnalyzer(withPWA(withNextIntl(dynamicConfig)));
 
 // 只在 production 构建时启用 Sentry 插件，避免开发/CI 时加载 Sentry 依赖
 // Sentry 初始化逻辑在 instrumentation.ts 和 instrumentation-client.ts 中处理
-export default process.env.NODE_ENV === 'production'
+// 当 SENTRY_ORG 未设置时跳过插件，避免 build 因缺少配置而失败
+export default (process.env.NODE_ENV === 'production' && process.env.SENTRY_ORG)
   ? withSentryConfig(wrappedConfig, {
       org: process.env.SENTRY_ORG,
       project: 'tarsier-labs',
