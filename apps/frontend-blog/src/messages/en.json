@@ -285,7 +285,7 @@
   "pwa": {
     "install": {
       "title": "Install App",
-      "message": "Add JoyMinis Blog to your home screen for a better reading experience!",
+      "message": "Add Tarsier Labs to your home screen for a better reading experience!",
       "button": "Install Now",
       "dontShow": "Don't Show Again"
     },

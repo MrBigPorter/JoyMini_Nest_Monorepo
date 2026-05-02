@@ -1,7 +1,7 @@
 {
-  "name": "JoyMinis 技术博客",
-  "short_name": "JoyMinis",
-  "description": "JoyMinis技术博客 - 探索前端与全栈开发",
+  "name": "Tarsier Labs",
+  "short_name": "Tarsier",
+  "description": "Tarsier Labs - 探索前端与全栈开发",
   "theme_color": "#3b82f6",
   "background_color": "#ffffff",
   "display": "standalone",

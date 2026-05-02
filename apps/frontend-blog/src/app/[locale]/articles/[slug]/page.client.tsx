@@ -22,6 +22,7 @@ import { Badge } from '@/components/ui/badge';
 import ArticleMarkdown from '@/components/blog/ArticleMarkdown';
 import CommentList from '@/components/blog/CommentList';
 import { BookmarkButton } from '@/components/blog/BookmarkButton';
+import { useAuth } from '@/lib/hooks';
 
 // ---------------------------------------------------------------------------
 // Loading placeholder
@@ -52,6 +53,7 @@ export default function ArticlePageClient({
 }: ArticlePageClientProps) {
   const params = useParams();
   const locale = useLocale();
+  const { isAuthenticated } = useAuth();
   const router = useRouter();
   const t = useTranslations('article');
   const tc = useTranslations('common');
@@ -254,9 +256,11 @@ export default function ArticlePageClient({
           </div>
 
           {/* Action buttons */}
-          <div className="flex items-center gap-2">
-            <BookmarkButton articleId={article.id} />
-          </div>
+          {isAuthenticated && (
+            <div className="flex items-center gap-2">
+              <BookmarkButton articleId={article.id} />
+            </div>
+          )}
         </header>
 
         {/* Article content — render markdown with syntax highlighting, fall back to HTML */}

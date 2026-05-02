@@ -285,7 +285,7 @@
   "pwa": {
     "install": {
       "title": "アプリのインストール",
-      "message": "より良い読書体験のためにJoyMinisブログをホーム画面に追加しましょう！",
+      "message": "より良い読書体験のためにTarsier Labsをホーム画面に追加しましょう！",
       "button": "今すぐインストール",
       "dontShow": "今後表示しない"
     },

@@ -66,6 +66,53 @@ function isHtmlContent(content: string): boolean {
   return /^\s*<\w+[^>]*>/.test(content.trim());
 }
 
+/**
+ * Wrap potentially wide HTML elements (images, tables, SVGs, figures, pre blocks)
+ * in a scrollable container so they behave like code blocks — natural width
+ * preserved, horizontal scrollbar on overflow, no page-level horizontal scroll.
+ *
+ * ORDER MATTERS: <pre> wrapping must come FIRST so that content inside <pre>
+ * blocks (which may contain <img>, <svg>, etc. as code examples) is NOT
+ * accidentally matched by subsequent regex replacements.
+ */
+function wrapWideContent(html: string): string {
+  let result = html;
+
+  // Wrap <pre> blocks FIRST — these contain ASCII architecture diagrams,
+  // flowcharts, and code blocks with box-drawing characters that are wider
+  // than the viewport. Must go first to protect inner content from later regexes.
+  result = result.replace(
+    /(<pre[^>]*>[\s\S]*?<\/pre>)/gi,
+    (match) => `<div class="article-media-wrapper">${match}</div>`,
+  );
+
+  // Wrap <table> elements (commonly rendered from markdown tables or diagrams)
+  result = result.replace(
+    /(<table[\s>][\s\S]*?<\/table>)/gi,
+    (match) => `<div class="article-media-wrapper">${match}</div>`,
+  );
+
+  // Wrap <figure> elements (often contain img + figcaption)
+  result = result.replace(
+    /(<figure[\s>][\s\S]*?<\/figure>)/gi,
+    (match) => `<div class="article-media-wrapper">${match}</div>`,
+  );
+
+  // Wrap standalone <img> tags (not already inside a wrapper)
+  result = result.replace(
+    /<img\s[^>]*>/gi,
+    (match) => `<div class="article-media-wrapper">${match}</div>`,
+  );
+
+  // Wrap <svg> blocks (inline diagrams)
+  result = result.replace(
+    /(<svg[^>]*>[\s\S]*?<\/svg>)/gi,
+    (match) => `<div class="article-media-wrapper">${match}</div>`,
+  );
+
+  return result;
+}
+
 export default function ArticleMarkdown({ content }: ArticleMarkdownProps) {
   // For HTML content (Quill editor or pre-rendered markdown), render directly
   if (isHtmlContent(content)) {
@@ -85,7 +132,7 @@ export default function ArticleMarkdown({ content }: ArticleMarkdownProps) {
           prose-blockquote:border-primary prose-blockquote:bg-primary/5 prose-blockquote:px-4 prose-blockquote:py-2 prose-blockquote:rounded-r-lg
           prose-strong:text-gray-900 dark:prose-strong:text-white
           prose-li:my-0 prose-li:border-0"
-        dangerouslySetInnerHTML={{ __html: content }}
+        dangerouslySetInnerHTML={{ __html: wrapWideContent(content) }}
       />
     );
   }
@@ -143,6 +190,34 @@ export default function ArticleMarkdown({ content }: ArticleMarkdownProps) {
               <code className={className} {...props}>
                 {children}
               </code>
+            );
+          },
+          // Wrap <img> in scrollable container (like code blocks)
+          img({ src, alt, ...props }) {
+            return (
+              <div className="article-media-wrapper">
+                <img src={src} alt={alt} {...props} />
+              </div>
+            );
+          },
+          // Wrap <table> in scrollable container (tables with many columns)
+          table({ children, ...props }) {
+            return (
+              <div className="article-media-wrapper">
+                <table {...props}>{children}</table>
+              </div>
+            );
+          },
+          // Wrap <pre> in scrollable container — catches code blocks WITHOUT a
+          // detected language (e.g. ASCII architecture diagrams, plain text code
+          // blocks). Code blocks WITH a language are handled by the `code`
+          // component above via SyntaxHighlighter (PreTag="div"), so they are
+          // NOT wrapped in <pre> by ReactMarkdown — no double-wrapping risk.
+          pre({ children, ...props }) {
+            return (
+              <div className="article-media-wrapper">
+                <pre {...props}>{children}</pre>
+              </div>
             );
           },
         }}

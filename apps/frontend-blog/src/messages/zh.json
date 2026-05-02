@@ -285,7 +285,7 @@
   "pwa": {
     "install": {
       "title": "安装应用",
-      "message": "将JoyMinis博客添加到主屏幕，获得更好的阅读体验！",
+      "message": "将Tarsier Labs添加到主屏幕，获得更好的阅读体验！",
       "button": "立即安装",
       "dontShow": "不再提示"
     },
