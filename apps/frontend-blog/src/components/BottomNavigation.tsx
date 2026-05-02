@@ -137,6 +137,8 @@ export default function BottomNavigation() {
         <div className="h-14" />
         {/* 安全区域占位：必须在 nav items 之后，填充 Home Indicator 区域 */}
         <div style={{ height: 'var(--safe-area-bottom)' }} />
+        {/* iOS Safari toolbar 收起时背景兜底：向下延伸覆盖 home indicator 白边 */}
+        <div className="absolute bottom-0 left-0 right-0 h-[100px] bg-background translate-y-full pointer-events-none" />
       </nav>
     );
   }
@@ -294,6 +296,12 @@ export default function BottomNavigation() {
               key={item.href}
               href={item.href}
               className="flex flex-col items-center justify-center flex-1 h-full relative"
+              // P1-2 修复：非首页链接禁用自动 prefetch
+              // 原因：BottomNav 始终在视口内，Next.js 默认对视口内 Link 自动 prefetch
+              //       导致 categories/tags/about 在首页加载时立即触发 ISR revalidation
+              //       形成并发 ISR 风暴（日志中 t=10.67s 的 4 个 10s+ rpc default.revalidate）
+              // 首页链接 (href='/') 保持默认 prefetch，从其他页返回首页时有收益
+              prefetch={item.href === '/' ? undefined : false}
             >
               <div className="flex flex-col items-center justify-center">
                 <div className="relative">
@@ -326,6 +334,12 @@ export default function BottomNavigation() {
       </div>
       {/* 安全区域占位：必须在 nav items 之后，填充 Home Indicator 区域 */}
       <div style={{ height: 'var(--safe-area-bottom)' }} />
+      {/* iOS Safari toolbar 收起时背景兜底：
+          toolbar 收起动画中 env(safe-area-inset-bottom) 仍报 0px，
+          viewport 已向下扩展至 home indicator 区域但 spacer=0 → 白边。
+          此挡板将 nav 背景向下延伸 100px，彻底覆盖过渡期白边。
+          translate-y-full 推到 nav 底边之下，pointer-events-none 不影响交互。 */}
+      <div className="absolute bottom-0 left-0 right-0 h-[100px] bg-background translate-y-full pointer-events-none" />
     </nav>
   );
 }

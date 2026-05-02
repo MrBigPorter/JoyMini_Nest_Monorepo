@@ -1,27 +1,27 @@
-# GoRouter 路由系统：30+ 路由、ShellRoute 与 RouteAuthConfig
+---
+title: "GoRouter Route System: 30+ Routes, ShellRoute, and RouteAuthConfig"
+description: "A comprehensive guide to building a production-grade GoRouter navigation system with 30+ routes, StatefulShellRoute for persistent bottom navigation, and RouteAuthConfig for per-route authentication guarding."
+slug: gorouter-route-system-shell-route-auth
+tags: [Flutter, GoRouter, Routing, Navigation, Auth]
+---
 
-> **目标读者：** Flutter 移动端工程师
-> **标签：** `#Flutter` `#GoRouter` `#Routing` `#Navigation` `#Auth`
-> **难度：** 中级
-> **预计阅读时间：** 25 分钟
+# GoRouter Route System: 30+ Routes, ShellRoute, and RouteAuthConfig
+
+## 1. Overview
+
+A production-grade Flutter application with 30+ pages requires a **declarative**, **type-safe** routing system that supports:
+
+- **Shell routes** — persistent UI (bottom navigation bar, top bar)
+- **Auth guards** — redirect unauthenticated users to the login page
+- **Deep links** — push notifications and OAuth callbacks
+- **Nested navigation** — independent navigation within each tab
+- **Route transition animations** — slide, fade, no animation
+
+This article explores a GoRouter-based routing architecture with 30+ route definitions, `ShellRoute` for bottom navigation, and `RouteAuthConfig` for per-route authentication requirements.
 
 ---
 
-## 1. 概述
-
-一个拥有 30+ 页面的生产级 Flutter 应用需要一个**声明式**、**类型安全**的路由系统，支持：
-
-- **Shell 路由** — 持久化 UI（底部导航栏、顶栏）
-- **认证守卫** — 将未登录用户重定向到登录页
-- **深度链接** — 推送通知和 OAuth 回调
-- **嵌套导航** — 标签页内的独立导航
-- **路由转场动画** — 滑动、淡入、无动画
-
-本文探讨一个基于 GoRouter 的路由架构，包含 30+ 路由定义、用于底部导航的 `ShellRoute` 以及用于按路由配置认证需求的 `RouteAuthConfig`。
-
----
-
-## 2. 架构总览
+## 2. Architecture Overview
 
 ```
 MaterialApp.router
@@ -51,9 +51,9 @@ MaterialApp.router
 
 ---
 
-## 3. GoRouter 设置
+## 3. GoRouter Setup
 
-### 3.1 路由配置
+### 3.1 Route Configuration
 
 ```dart
 class AppRouter {
@@ -62,7 +62,7 @@ class AppRouter {
     debugLogDiagnostics: kDebugMode,
     redirect: _authGuard,
     routes: [
-      // 公开路由（无底部导航栏）
+      // Public routes (no bottom navigation bar)
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
           return AuthShell(navigationShell: navigationShell);
@@ -83,13 +83,13 @@ class AppRouter {
         ],
       ),
 
-      // 主应用路由（带底部导航栏）
+      // Main app routes (with bottom navigation bar)
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
           return BottomNavShell(navigationShell: navigationShell);
         },
         branches: [
-          // Tab 0：首页
+          // Tab 0: Home
           StatefulShellBranch(
             routes: [
               GoRoute(
@@ -107,7 +107,7 @@ class AppRouter {
             ],
           ),
 
-          // Tab 1：发现
+          // Tab 1: Explore
           StatefulShellBranch(
             routes: [
               GoRoute(
@@ -117,7 +117,7 @@ class AppRouter {
             ],
           ),
 
-          // Tab 2：订单
+          // Tab 2: Orders
           StatefulShellBranch(
             routes: [
               GoRoute(
@@ -135,7 +135,7 @@ class AppRouter {
             ],
           ),
 
-          // Tab 3：个人中心
+          // Tab 3: Profile
           StatefulShellBranch(
             routes: [
               GoRoute(
@@ -153,7 +153,7 @@ class AppRouter {
         ],
       ),
 
-      // 顶级路由（全屏，无底部导航栏）
+      // Top-level routes (full-screen, no bottom navigation bar)
       GoRoute(
         path: '/checkout',
         builder: (context, state) => const CheckoutScreen(),
@@ -181,7 +181,7 @@ class AppRouter {
 }
 ```
 
-### 3.2 RouteAuthConfig — 按路由配置认证需求
+### 3.2 RouteAuthConfig — Per-Route Authentication Requirements
 
 ```dart
 class RouteAuthConfig {
@@ -214,68 +214,68 @@ class RouteAuthConfig {
 
 ---
 
-## 4. 认证守卫 — 全局重定向
+## 4. Auth Guard — Global Redirect
 
-### 4.1 实现
+### 4.1 Implementation
 
-GoRouter 的 `redirect` 回调是实现认证检查的理想位置——它在每次导航之前运行：
+GoRouter's `redirect` callback is the ideal place for auth checks — it runs before every navigation:
 
 ```dart
 static Future<String?> _authGuard(BuildContext context, GoRouterState state) async {
   final authNotifier = context.read<AuthNotifier>();
   final location = state.matchedLocation;
 
-  // 查找匹配的路由配置
+  // Find matching route config
   final config = RouteAuthConfig.routeConfigs.entries.firstWhere(
     (e) => _matchesRoute(location, e.key),
     orElse: () => MapEntry(location, const RouteAuthConfig()),
   ).value;
 
-  // 未认证 → 重定向到登录
+  // Unauthenticated → redirect to login
   if (config.requireAuth && !authNotifier.isAuthenticated) {
     return '/login?redirect=$location';
   }
 
-  // 需要 KYC 但未验证 → 重定向到 KYC
+  // Requires KYC but not verified → redirect to KYC
   if (config.requireKyc && !authNotifier.isKycVerified) {
     return '/profile/kyc';
   }
 
-  // 角色限制
+  // Role restriction
   if (config.allowedRoles.isNotEmpty &&
       !config.allowedRoles.contains(authNotifier.user?.role)) {
-    return '/home';  // 重定向到首页而不是显示禁止访问页面
+    return '/home';  // Redirect to home instead of showing forbidden page
   }
 
-  // 已登录用户在登录页 → 重定向到首页
+  // Authenticated user on login page → redirect to home
   if (location == '/login' && authNotifier.isAuthenticated) {
     return '/home';
   }
 
-  return null;  // 允许导航
+  return null;  // Allow navigation
 }
 
 static bool _matchesRoute(String location, String pattern) {
-  // 简单模式匹配：'/chat/:conversationId' → '/chat/abc123'
+  // Simple pattern matching: '/chat/:conversationId' → '/chat/abc123'
   final locationParts = location.split('/');
   final patternParts = pattern.split('/');
 
   if (locationParts.length != patternParts.length) return false;
 
   for (int i = 0; i < locationParts.length; i++) {
-    if (patternParts[i].startsWith(':')) continue;  // 动态段
+    if (patternParts[i].startsWith(':')) continue;  // Dynamic segment
     if (patternParts[i] != locationParts[i]) return false;
   }
   return true;
 }
 ```
 
-### 4.2 登录后重定向
+### 4.2 Post-Login Redirect
 
-`redirect` 查询参数保留了用户原本的目标页面：
+The `redirect` query parameter preserves the user's original destination:
 
 ```dart
-// 登录页读取 redirect 参数
+// Login page reads the redirect parameter
 class LoginScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -296,7 +296,7 @@ class LoginScreen extends StatelessWidget {
 
 ---
 
-## 5. ShellRoute — 持久化底部导航
+## 5. ShellRoute — Persistent Bottom Navigation
 
 ### 5.1 BottomNavShell
 
@@ -319,10 +319,10 @@ class BottomNavShell extends StatelessWidget {
           );
         },
         items: const [
-          LuckyNavItem(icon: Icons.home, label: '首页'),
-          LuckyNavItem(icon: Icons.explore, label: '发现'),
-          LuckyNavItem(icon: Icons.receipt, label: '订单'),
-          LuckyNavItem(icon: Icons.person, label: '我的'),
+          LuckyNavItem(icon: Icons.home, label: 'Home'),
+          LuckyNavItem(icon: Icons.explore, label: 'Explore'),
+          LuckyNavItem(icon: Icons.receipt, label: 'Orders'),
+          LuckyNavItem(icon: Icons.person, label: 'Profile'),
         ],
       ),
     );
@@ -332,7 +332,7 @@ class BottomNavShell extends StatelessWidget {
 
 ### 5.2 AuthShell
 
-对于公开路由（登录、注册），使用一个没有底部导航栏的简单壳：
+For public routes (login, register), a simple shell without the bottom navigation bar:
 
 ```dart
 class AuthShell extends StatelessWidget {
@@ -344,7 +344,7 @@ class AuthShell extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       body: navigationShell,
-      // 认证页面不需要底部导航栏
+      // Auth pages do not need a bottom navigation bar
     );
   }
 }
@@ -352,14 +352,14 @@ class AuthShell extends StatelessWidget {
 
 ---
 
-## 6. 深度链接处理
+## 6. Deep Link Handling
 
-### 6.1 深度链接配置
+### 6.1 Deep Link Configuration
 
-GoRouter 原生支持深度链接。在应用的 manifest 中进行配置：
+GoRouter supports deep links natively. Configure them in the app manifest:
 
 ```xml
-<!-- Android：AndroidManifest.xml -->
+<!-- Android: AndroidManifest.xml -->
 <intent-filter>
   <action android:name="android.intent.action.VIEW" />
   <category android:name="android.intent.category.DEFAULT" />
@@ -369,7 +369,7 @@ GoRouter 原生支持深度链接。在应用的 manifest 中进行配置：
 ```
 
 ```xml
-<!-- iOS：Info.plist -->
+<!-- iOS: Info.plist -->
 <key>FlutterDeepLinkingEnabled</key>
 <true/>
 <key>CFBundleURLTypes</key>
@@ -381,10 +381,10 @@ GoRouter 原生支持深度链接。在应用的 manifest 中进行配置：
 </array>
 ```
 
-### 6.2 深度链接的路由定义
+### 6.2 Deep Link Route Definitions
 
 ```dart
-// OAuth 回调
+// OAuth callback
 GoRoute(
   path: '/oauth/callback',
   builder: (context, state) => OAuthCallbackScreen(
@@ -393,7 +393,7 @@ GoRoute(
   ),
 ),
 
-// 支付重定向
+// Payment redirect
 GoRoute(
   path: '/payment/callback',
   builder: (context, state) => PaymentCallbackScreen(
@@ -403,14 +403,14 @@ GoRoute(
 ),
 ```
 
-### 6.3 应用启动时的深度链接处理
+### 6.3 Deep Link Handling at App Startup
 
 ```dart
 class AppStartup {
   static Future<void> handleLaunchUri() async {
-    final uri = await getInitialUri();  // app_links 包
+    final uri = await getInitialUri();  // app_links package
     if (uri != null) {
-      // 解析并导航
+      // Parse and navigate
       if (uri.pathSegments.contains('reset-password')) {
         final token = uri.queryParameters['token'];
         AppRouter.router.go('/reset-password', extra: token);
@@ -422,9 +422,9 @@ class AppStartup {
 
 ---
 
-## 7. 转场动画
+## 7. Transition Animations
 
-使用 `customTransitionBuilder` 为每个路由自定义转场动画：
+Use `customTransitionBuilder` to customize transition animations per route:
 
 ```dart
 GoRoute(
@@ -449,32 +449,32 @@ GoRoute(
 
 ---
 
-## 8. 从任意位置导航
+## 8. Navigating from Anywhere
 
-### 8.1 使用 `context.go` vs `context.push`
+### 8.1 Using `context.go` vs `context.push`
 
 ```dart
-// 替换当前路由（无返回导航）
+// Replace current route (no back navigation)
 context.go('/home');
 
-// 推入栈（返回按钮回到上一页）
+// Push onto stack (back button returns to previous page)
 context.push('/treasure/123');
 
-// 弹出返回
+// Pop back
 context.pop();
 
-// 导航到某个标签页
+// Navigate to a specific tab
 final shell = StatefulNavigationShell.of(context);
-shell.goBranch(2);  // 切换到订单标签页
+shell.goBranch(2);  // Switch to orders tab
 ```
 
-### 8.2 从非 Widget 代码中导航
+### 8.2 Navigating from Non-Widget Code
 
 ```dart
-// 从服务/notifier 中
+// From a service / notifier
 class AuthNotifier extends ChangeNotifier {
   void onLoginSuccess() {
-    // 使用全局导航键
+    // Use the global navigation key
     AppRouter.router.go('/home');
   }
 }
@@ -482,72 +482,72 @@ class AuthNotifier extends ChangeNotifier {
 
 ---
 
-## 9. 测试路由
+## 9. Testing Routes
 
 ```dart
 void main() {
-  testWidgets('应将未认证用户重定向到登录页', (tester) async {
+  testWidgets('redirects unauthenticated users to login', (tester) async {
     await tester.pumpWidget(
       MaterialApp.router(
         routerConfig: AppRouter.router,
       ),
     );
 
-    // 尝试导航到个人中心（requireAuth: true）
+    // Try navigating to profile (requireAuth: true)
     AppRouter.router.go('/profile');
     await tester.pumpAndSettle();
 
-    // 应被重定向到 /login
+    // Should be redirected to /login
     expect(find.text('Login'), findsOneWidget);
   });
 
-  testWidgets('应在登录后保留 redirect 参数', (tester) async {
+  testWidgets('preserves redirect parameter after login', (tester) async {
     AppRouter.router.go('/orders');
     await tester.pumpAndSettle();
 
-    // 应重定向到 /login?redirect=/orders
+    // Should redirect to /login?redirect=/orders
     expect(find.text('Login'), findsOneWidget);
     expect(AppRouter.router.state.uri.queryParameters['redirect'], '/orders');
   });
 
-  testWidgets('应能导航到标签分支', (tester) async {
+  testWidgets('navigates to tab branches', (tester) async {
     await tester.pumpWidget(
       MaterialApp.router(routerConfig: AppRouter.router),
     );
 
     AppRouter.router.go('/home');
     await tester.pumpAndSettle();
-    expect(find.text('首页'), findsOneWidget);
+    expect(find.text('Home'), findsOneWidget);
 
-    // 点击底部导航
-    await tester.tap(find.text('发现'));
+    // Tap bottom navigation
+    await tester.tap(find.text('Explore'));
     await tester.pumpAndSettle();
-    expect(find.text('发现'), findsOneWidget);
+    expect(find.text('Explore'), findsOneWidget);
   });
 }
 ```
 
 ---
 
-## 10. 生产环境检查清单
+## 10. Production Checklist
 
-- [ ] **StatefulShellRoute** — 使用 `indexedStack` 变体以保留标签页状态（滚动位置、表单输入）在标签页切换时不丢失
-- [ ] **错误处理** — 为 GoRouter 添加 `errorBuilder` 实现 404 页面：
+- [ ] **StatefulShellRoute** — Use the `indexedStack` variant to preserve tab state (scroll position, form input) when switching tabs
+- [ ] **Error handling** — Add an `errorBuilder` to GoRouter for 404 pages:
   ```dart
   errorBuilder: (context, state) => NotFoundScreen(error: state.error),
   ```
-- [ ] **URL 策略** — Web 部署使用 `PathUrlStrategy()` 以支持干净的 URL，无需 `#`
-- [ ] **懒加载** — 考虑对很少使用的页面（KYC、管理后台）使用 `deferred as` 导入，减少初始包大小
-- [ ] **路由转场** — 大多数路由保持简单的转场动画（淡入/缩放）；模态风格的页面使用滑动
-- [ ] **分析统计** — 订阅 GoRouter 的 `routerDelegate` 变化以进行页面浏览追踪
+- [ ] **URL strategy** — Use `PathUrlStrategy()` for web deployment to support clean URLs without `#`
+- [ ] **Lazy loading** — Consider using `deferred as` imports for rarely used pages (KYC, admin) to reduce initial bundle size
+- [ ] **Route transitions** — Keep simple transitions (fade/scale) for most routes; use slide for modal-style pages
+- [ ] **Analytics** — Subscribe to GoRouter's `routerDelegate` changes for page view tracking
 
 ---
 
-## 11. 总结
+## 11. Summary
 
-- **GoRouter** 配合 30+ 路由提供声明式、类型安全的导航
-- **StatefulShellRoute** 支持持久化底部导航，各标签页状态独立
-- **RouteAuthConfig** 将按路由的认证需求（认证、KYC、角色）映射到集中守卫逻辑
-- 通过 GoRouter 的 `redirect` 回调实现的 **认证守卫** 处理未认证用户，重定向到登录页并保留目标地址
-- **深度链接** 原生支持 OAuth 回调、推送通知和支付重定向
-- 可以使用 `CustomTransitionPage` 为每个路由自定义**转场动画**
+- **GoRouter** with 30+ routes provides declarative, type-safe navigation
+- **StatefulShellRoute** supports persistent bottom navigation with independent tab state
+- **RouteAuthConfig** maps per-route auth requirements (auth, KYC, role) to centralized guard logic
+- The **auth guard** implemented via GoRouter's `redirect` callback handles unauthenticated users, redirecting to login while preserving the destination
+- **Deep links** are natively supported for OAuth callbacks, push notifications, and payment redirects
+- **Transition animations** can be customized per route using `CustomTransitionPage`

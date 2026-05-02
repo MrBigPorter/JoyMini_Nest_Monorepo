@@ -5,6 +5,7 @@ import { Link } from '@/navigation';
 import { formatDistanceToNow } from 'date-fns';
 import { getDateFnsLocale } from '@/lib/utils/date-locale';
 import { useCallback, useRef, useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import type { Article } from '@/lib/types/blog';
 import type { FrontendArticle } from '@/lib/types/frontend-blog';
 import { BookmarkIconButton } from '@/lib/components/BookmarkButton';
@@ -61,6 +62,7 @@ export function ArticleCard({
   priority = false,
   networkQuality,
 }: ArticleCardProps) {
+  const router = useRouter();
   const [videoPlaying, setVideoPlaying] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -280,6 +282,13 @@ export function ArticleCard({
         href={`/articles/${article.slug}`}
         className="block"
         onPointerDown={() => setNavDirection('forward')}
+        // P1-2 修复：禁用自动 prefetch，改为 hover/touch 时按需 prefetch
+        // 原因：首屏 10 篇文章的 Link 全部进入视口，会立即触发 10 个文章页 prefetch
+        //       每个 prefetch 都触发对应页面的 ISR revalidation，造成并发 ISR 风暴
+        // 效果：只有用户真正悬停或触摸时才 prefetch，精准预热用户感兴趣的页面
+        prefetch={false}
+        onMouseEnter={() => router.prefetch(`/articles/${article.slug}`)}
+        onTouchStart={() => router.prefetch(`/articles/${article.slug}`)}
       >
         <div className="space-y-3">
           {/* 标题 */}

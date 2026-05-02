@@ -1,31 +1,31 @@
-# ShareService + DeepLinkService：多平台分享与深度链接集成
+---
+title: "ShareService + DeepLinkService: Multi-Platform Sharing and Deep Link Integration"
+slug: share-service-deep-link-platform-integration
+tags: Flutter, Sharing, DeepLink, PlatformIntegration, Navigation
+description: A multi-platform sharing and deep link system with platform-specific URL schemes, cold/warm start handling, duplicate prevention, and OAuth URL filtering.
+---
 
-> **目标读者：** Flutter 移动端工程师
-> **标签：** `#Flutter` `#Sharing` `#DeepLink` `#PlatformIntegration` `#Navigation`
-> **难度：** 中级
-> **预计阅读时间：** 15 分钟
+# ShareService + DeepLinkService: Multi-Platform Sharing and Deep Link Integration
+
+## Overview
+
+The sharing and deep link system consists of two services handling external communication:
+
+- [`ShareService`](JoyMini_Flutter_App/lib/features/share/services/share_service.dart) (172 lines) — Multi-platform sharing with platform-specific URL schemes
+- [`DeepLinkService`](JoyMini_Flutter_App/lib/features/share/services/deep_link_service.dart) (126 lines) — Deep link interception with cold/warm start handling
+- [`ShareContent`](JoyMini_Flutter_App/lib/features/share/models/share_content.dart) (50 lines) — Typed share content model with factory constructors
 
 ---
 
-## 概述
+## 1. ShareService: Multi-Platform Sharing
 
-分享和深度链接系统由两个处理外部通信的服务组成：
+The service provides a unified API for system sharing and platform-specific social sharing.
 
-- [`ShareService`](JoyMini_Flutter_App/lib/features/share/services/share_service.dart)（172 行）— 多平台分享，支持平台特定的 URL scheme
-- [`DeepLinkService`](JoyMini_Flutter_App/lib/features/share/services/deep_link_service.dart)（126 行）— 深度链接拦截，支持冷启动/热启动处理
-- [`ShareContent`](JoyMini_Flutter_App/lib/features/share/models/share_content.dart)（50 行）— 类型化分享内容模型，带工厂构造函数
-
----
-
-## 1. ShareService：多平台分享
-
-该服务为系统分享和平台特定的社交分享提供统一 API。
-
-### 系统分享
+### System Sharing
 
 ```dart
 class ShareService {
-  /// 原生系统分享面板
+  /// Native system share sheet
   static Future<void> shareNative({
     required String text,
     String? subject,
@@ -42,9 +42,9 @@ class ShareService {
 }
 ```
 
-### 平台特定分享
+### Platform-Specific Sharing
 
-平台特定分享使用在 iOS 和 Android 之间不同的 URL scheme：
+Platform-specific sharing uses URL schemes that differ between iOS and Android:
 
 ```dart
 static Future<void> shareWhatsApp({
@@ -58,22 +58,22 @@ static Future<void> shareWhatsApp({
   if (await canLaunchUrl(Uri.parse(whatsappUrl))) {
     await launchUrl(Uri.parse(whatsappUrl));
   } else {
-    // 如果未安装 WhatsApp，回退到系统分享
+    // Fallback to system share if WhatsApp not installed
     await shareNative(text: text);
   }
 }
 ```
 
-| 平台 | iOS URL Scheme | Android URL Scheme |
+| Platform | iOS URL Scheme | Android URL Scheme |
 |----------|---------------|-------------------|
 | WhatsApp | `https://api.whatsapp.com/send?text=` | `whatsapp://send?text=` |
 | Telegram | `tg://msg?text=` | `tg://msg?text=` |
-| Twitter/X | `https://twitter.com/intent/tweet?text=` | 相同（基于 Web） |
+| Twitter/X | `https://twitter.com/intent/tweet?text=` | Same (web-based) |
 | Facebook | `fb://share?text=` | `fb://share?text=` |
 
-### iPad 分享位置
+### iPad Share Positioning
 
-在 iPad 上，系统分享面板需要指定来源位置：
+On iPad, the system share sheet needs an origin position:
 
 ```dart
 static Future<void> shareNative({required BuildContext context, ...}) async {
@@ -92,9 +92,9 @@ static Future<void> shareNative({required BuildContext context, ...}) async {
 }
 ```
 
-### 缩略图预下载
+### Thumbnail Pre-download
 
-对于包含图片的分享，缩略图会在分享前预下载，并设置 3 秒超时：
+For shares containing images, thumbnails are pre-downloaded before sharing with a 3-second timeout:
 
 ```dart
 static Future<XFile?> _preloadThumbnail(String url) async {
@@ -106,14 +106,14 @@ static Future<XFile?> _preloadThumbnail(String url) async {
     await file.writeAsBytes(response.bodyBytes);
     return XFile(file.path);
   } catch (_) {
-    return null;  // 缩略图加载失败不影响主要分享流程
+    return null;  // Thumbnail failure doesn't block main share flow
   }
 }
 ```
 
-### Web 回退
+### Web Fallback
 
-在 Web 上，原生分享可能不可用：
+On web, native sharing may not be available:
 
 ```dart
 static void openSystemOrSheet({
@@ -121,10 +121,10 @@ static void openSystemOrSheet({
   required BuildContext context,
 }) {
   if (kIsWeb) {
-    // Web：使用自定义分享面板替代系统对话框
+    // Web: use custom share sheet instead of system dialog
     showCustomShareSheet(context, text);
   } else {
-    // 原生：尝试系统分享，失败时回退
+    // Native: try system share, fallback on failure
     shareNative(text: text).catchError((_) {
       showCustomShareSheet(context, text);
     });
@@ -134,9 +134,9 @@ static void openSystemOrSheet({
 
 ---
 
-## 2. ShareContent 模型
+## 2. ShareContent Model
 
-[`ShareContent`](JoyMini_Flutter_App/lib/features/share/models/share_content.dart) 是一个类型化模型，为不同的分享场景提供工厂构造函数：
+[`ShareContent`](JoyMini_Flutter_App/lib/features/share/models/share_content.dart) is a typed model providing factory constructors for different share scenarios:
 
 ```dart
 class ShareContent {
@@ -165,8 +165,8 @@ class ShareContent {
     int memberCount = 0,
   }) {
     return ShareContent(
-      title: '团购：$productName',
-      description: '与 $memberCount 人一起参与团购！',
+      title: 'Group Buy: $productName',
+      description: 'Join $memberCount people in this group buy!',
       linkUrl: 'https://joymini.com/group/$groupId',
     );
   }
@@ -175,13 +175,13 @@ class ShareContent {
 
 ---
 
-## 3. DeepLinkService：深度链接处理
+## 3. DeepLinkService: Deep Link Handling
 
-深度链接服务处理冷启动（通过链接启动应用）和热启动（应用已在运行）两种场景。
+The deep link service handles both cold starts (app launched via link) and warm starts (app already running).
 
-### 初始化
+### Initialization
 
-在 [`AppBootstrap.initSystem()`](app-bootstrap-data-barrier-parallel-init.md) 中作为 fire-and-forget 初始化：
+Initialized as fire-and-forget in [`AppBootstrap.initSystem()`](app-bootstrap-data-barrier-parallel-init.md):
 
 ```dart
 class DeepLinkService {
@@ -189,31 +189,31 @@ class DeepLinkService {
   static DateTime? _lastProcessTime;
   
   static void init() {
-    // 冷启动：检查应用是否通过深度链接启动
+    // Cold start: check if app was launched via deep link
     _checkInitialLink();
     
-    // 热启动：监听传入的链接
+    // Warm start: listen for incoming links
     _listenForLinks();
   }
 }
 ```
 
-### 冷启动处理
+### Cold Start Handling
 
 ```dart
 static Future<void> _checkInitialLink() async {
   final initialUri = await appLinks.getInitialLink();
   if (initialUri != null) {
-    // 存储，供 GoRouter 重定向时使用
+    // Store for GoRouter redirect consumption
     _pendingLink = initialUri;
   }
 }
 ```
 
-待处理链接由 GoRouter 的重定向逻辑消费：
+The pending link is consumed by GoRouter's redirect logic:
 
 ```dart
-// 在 GoRouter 重定向中：
+// In GoRouter redirect:
 final pendingLink = DeepLinkService._pendingLink;
 if (pendingLink != null && isAppRouterReady) {
   DeepLinkService._pendingLink = null;
@@ -221,21 +221,21 @@ if (pendingLink != null && isAppRouterReady) {
 }
 ```
 
-### 热启动处理
+### Warm Start Handling
 
 ```dart
 static void _listenForLinks() {
   appLinks.uriLinkStream.listen((Uri uri) {
-    // 重复预防
+    // Duplicate prevention
     if (_isDuplicate(uri)) return;
     
     _lastProcessTime = DateTime.now();
     _lastProcessedLink = uri.toString();
     
-    // 过滤 OAuth URL（单独处理）
+    // Filter OAuth URLs (handled separately)
     if (_isOAuthUrl(uri)) return;
     
-    // 通过 GoRouter 导航
+    // Navigate via GoRouter
     GoRouter.of(navigatorKey.currentContext!).go(uri.toString());
   });
 }
@@ -247,38 +247,38 @@ static bool _isDuplicate(Uri uri) {
 }
 ```
 
-### OAuth URL 过滤
+### OAuth URL Filtering
 
-包含 OAuth 回调 URL（例如 `/auth/google/login`）的深度链接会被有意排除在导航处理之外——它们由专门的 OAuth 流程处理：
+Deep links containing OAuth callback URLs (e.g., `/auth/google/login`) are intentionally excluded from navigation handling — they are processed by the dedicated OAuth flow:
 
 ```dart
 static bool _isOAuthUrl(Uri uri) {
   return uri.path.startsWith('/auth/') || 
          uri.path.startsWith('/oauth/') ||
-         uri.host == '__/auth';  // Firebase OAuth 回调
+         uri.host == '__/auth';  // Firebase OAuth callback
 }
 ```
 
-### GoRouter 就绪协调
+### GoRouter Readiness Coordination
 
-一个关键的同步点：深度链接服务必须等待 GoRouter 完全初始化后才能处理深度链接：
+A critical synchronization point: the deep link service must wait for GoRouter to be fully initialized before processing deep links:
 
 ```dart
-// 在全局 handler 或路由器设置中
+// In global handler or router setup
 static bool isAppRouterReady = false;
 
-// 深度链接 handler 等待路由器就绪
+// Deep link handler waits for router readiness
 static void _processPendingLink() {
   if (_pendingLink == null) return;
   
-  // 轮询直到路由器就绪
+  // Poll until router is ready
   Future.delayed(Duration(milliseconds: 100), () {
     if (isAppRouterReady) {
       GoRouter.of(navigatorKey.currentContext!)
           .go(_pendingLink!.toString());
       _pendingLink = null;
     } else {
-      _processPendingLink();  // 重试
+      _processPendingLink();  // Retry
     }
   });
 }
@@ -286,67 +286,68 @@ static void _processPendingLink() {
 
 ---
 
-## 4. 分享 + 深度链接集成流程
+## 4. Share + Deep Link Integration Flow
 
 ```
-用户点击分享链接
+User taps shared link
          │
          ▼
 ┌─────────────────┐
-│ 系统通过 URL    │
-│ scheme 打开应用 │
+│ System opens app│
+│ via URL scheme  │
 └────────┬────────┘
          │
     ┌────┴────┐
-    │ 冷启动   │          热启动
-    └────┬────┘     ┌───────────┐
-         │          │ uriLink-  │
-    ┌────▼────┐     │ Stream    │
-    │ get-    │     │ 触发      │
-    │ Initial-│     └─────┬─────┘
+    │ Cold    │          Warm
+    │ Start   │     ┌───────────┐
+    └────┬────┘     │ uriLink-  │
+         │          │ Stream    │
+    ┌────▼────┐     │ triggers  │
+    │ get-    │     └─────┬─────┘
+    │ Initial-│           │
     │ Link()  │           │
     └────┬────┘           │
          │                │
          ▼                ▼
     ┌────────────────────────┐
     │ DeepLinkService        │
-    │ 处理 URI               │
+    │ processes URI          │
     └────────┬───────────────┘
              │
              ▼
     ┌────────────────────────┐
-    │ 过滤：OAuth？→ 跳过   │
-    │ 重复？→ 跳过          │
+    │ Filter: OAuth? → Skip  │
+    │ Duplicate? → Skip      │
     └────────┬───────────────┘
              │
              ▼
     ┌────────────────────────┐
-    │ GoRouter 重定向        │
-    │ 导航到 URI             │
-    │ (未就绪时等待)         │
+    │ GoRouter redirect      │
+    │ navigates to URI       │
+    │ (waits if not ready)   │
     └────────────────────────┘
 ```
 
 ---
 
-## 5. 设计决策
+## 5. Design Decisions
 
-| 决策 | 理由 |
+| Decision | Rationale |
 |----------|-----------|
-| **Fire-and-forget 初始化** | 深度链接设置不阻塞应用启动——注册后到达的链接通过 stream 处理 |
-| **重复预防** | `_lastProcessedLink` + 时间窗口防止异步竞态导致的双重导航 |
-| **OAuth URL 过滤** | OAuth 回调有自己的流程（令牌提取、状态验证）——避免与通用导航冲突 |
-| **GoRouter 就绪轮询** | 深度链接可能在 GoRouter 初始化之前到达；轮询确保可靠导航 |
-| **平台特定 URL scheme** | iOS 和 Android 对同一社交应用有不同的 URL scheme |
-| **3 秒缩略图超时** | 分享图片是可选的，非关键——超时防止分享因图片加载慢而阻塞 |
+| **Fire-and-forget init** | Deep link setup doesn't block app startup — links arriving after registration are handled via stream |
+| **Duplicate prevention** | `_lastProcessedLink` + time window prevents double-navigation from async races |
+| **OAuth URL filtering** | OAuth callbacks have their own flow (token extraction, state validation) — avoid conflict with generic navigation |
+| **GoRouter readiness polling** | Deep links may arrive before GoRouter init; polling ensures reliable navigation |
+| **Platform-specific URL schemes** | iOS and Android use different URL schemes for the same social apps |
+| **3-second thumbnail timeout** | Share images are optional, non-critical — timeout prevents slow image loading from blocking share |
 
 ---
 
-## 关键要点
+## Key Takeaways
 
-1. **`ShareService`** 提供原生系统分享 + 平台特定分享（WhatsApp/Telegram/Twitter/Facebook），支持 iPad 位置适配和缩略图预下载。
-2. **`DeepLinkService`** 处理冷启动（通过 `getInitialLink`）和热启动（通过 `uriLinkStream`），并具备重复预防机制。
-3. **`ShareContent`** 工厂构造函数（`product()`、`group()`）为不同场景提供类型安全的分享。
-4. **OAuth URL 过滤** 防止深度链接导航与 OAuth 回调处理之间的冲突。
-5. 通过轮询实现的 **GoRouter 就绪协调** 确保深度链接即使在路由器初始化之前到达也能可靠处理。
-6. **平台自适应 URL scheme** 针对 iOS 和 Android 社交分享，在目标应用未安装时优雅回退到系统分享。
+1. **`ShareService`** provides native system share + platform-specific sharing (WhatsApp/Telegram/Twitter/Facebook) with iPad positioning and thumbnail pre-download.
+2. **`DeepLinkService`** handles cold starts (via `getInitialLink`) and warm starts (via `uriLinkStream`) with duplicate prevention.
+3. **`ShareContent`** factory constructors (`product()`, `group()`) provide type-safe sharing for different scenarios.
+4. **OAuth URL filtering** prevents conflict between deep link navigation and OAuth callback handling.
+5. **GoRouter readiness coordination** via polling ensures reliable deep link handling even if links arrive before router initialization.
+6. **Platform-adaptive URL schemes** target iOS and Android social sharing, gracefully falling back to system sharing when the target app is not installed.

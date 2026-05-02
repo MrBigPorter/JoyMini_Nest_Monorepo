@@ -20,7 +20,10 @@ const withPWA = require('next-pwa')({
     process.env.NEXT_PWA_ENABLE !== 'true',
   register: true,
   skipWaiting: true,
-  // 排除 Source Map 和 react-loadable-manifest，避免 Workbox 预缓存时 404
+  // P0-2 修复：SW 更新激活时自动清除旧版本缓存
+  // 原因：skipWaiting:true 让新 SW 立即接管，但旧 chunk 仍在缓存中
+  // 若不清除，新主 bundle 引用旧 chunk 的 module ID → e[n].call TypeError
+  cleanupOutdatedCaches: true,
   // 排除 Source Map、react-loadable-manifest 以及所有 server-only 文件，避免 Workbox 预缓存时 404
   exclude: [/\.map$/, /react-loadable-manifest\.json$/, /\/_next\/server\/.*/],
   // 离线导航回退：当网络不可用且缓存中无页面时，显示自定义离线页面
@@ -64,14 +67,21 @@ const withPWA = require('next-pwa')({
         },
       },
     },
+    // P0-2 修复：Next.js 静态 chunk 使用 CacheFirst 替代 StaleWhileRevalidate
+    // 原因：_next/static/ 文件名含 content hash，天然 immutable
+    //   StaleWhileRevalidate 会在 SW 更新后混用新旧 chunk → e[n].call TypeError
+    //   CacheFirst 配合 cleanupOutdatedCaches 确保同一版本内命中缓存，
+    //   SW 更新时旧缓存被清除，下次请求拿到正确的新版本 chunk
+    // maxEntries 从 32 提升到 200：Next.js 单页面可产生 15-30 个 chunk，32 远不够
     {
-      urlPattern: /\.(?:js|css|mjs)$/i,
-      handler: 'StaleWhileRevalidate',
+      urlPattern: ({ url }: { url: URL }) =>
+        url.pathname.startsWith('/_next/static/'),
+      handler: 'CacheFirst',
       options: {
-        cacheName: 'static-js-css-assets',
+        cacheName: 'next-static-assets',
         expiration: {
-          maxEntries: 32,
-          maxAgeSeconds: 24 * 60 * 60, // 24小时
+          maxEntries: 200,
+          maxAgeSeconds: 365 * 24 * 60 * 60, // 1年（hash 变则文件名变，安全）
         },
       },
     },
@@ -91,7 +101,7 @@ const withPWA = require('next-pwa')({
     },
     // Navigation pages (locale-prefixed) — NetworkFirst for offline support
     {
-      urlPattern: /^\/(zh|en|ko|ja)\//,
+      urlPattern: /^\/(zh|en|ko|ja|fr|de)\//,
       handler: 'NetworkFirst',
       options: {
         cacheName: 'navigation-pages',
@@ -102,20 +112,9 @@ const withPWA = require('next-pwa')({
         networkTimeoutSeconds: 5,
       },
     },
-    {
-      urlPattern: /^https?:\/\/.*\.(joyminis\.com|localhost).*$/i,
-      handler: 'StaleWhileRevalidate',
-      options: {
-        cacheName: 'pages-cache',
-        expiration: {
-          maxEntries: 50,
-          maxAgeSeconds: 7 * 24 * 60 * 60, // 7天（支持离线）
-        },
-        cacheableResponse: {
-          statuses: [0, 200],
-        },
-      },
-    },
+    // 注意：已删除过宽泛的 pages-cache StaleWhileRevalidate 规则
+    // 原因：/^https?:\/\/.*\.(joyminis\.com|localhost).*$/ 会匹配所有域名响应
+    //       与 navigation-pages 的 NetworkFirst 冲突，策略优先级不明确
   ],
 });
 
@@ -332,10 +331,10 @@ const baseConfig: NextConfig = {
                 drop_console: true,
                 passes: 2,
                 pure_getters: true,
-                unsafe: true,
-                unsafe_math: true,
-                unsafe_methods: true,
-                booleans_as_integers: true,
+                // P2-4 修复：移除 unsafe_* 标志
+                // 原因：unsafe/unsafe_math/unsafe_methods/booleans_as_integers
+                //       在 iOS WKWebView 特定 JS 引擎上可能引发隐性 runtime bug
+                //       与 e[n].call 错误存在叠加关系，收益远低于风险
                 hoist_funs: true,
                 hoist_props: true,
                 reduce_vars: true,

@@ -140,7 +140,10 @@ export default function LoginPageClient() {
         if (rawPath) {
           console.log('Redirecting to:', rawPath);
           sessionStorage.removeItem('redirectAfterLogin');
-          router.push(withLocale(rawPath, locale as any));
+          // rawPath 由写入方（ProtectedLink / ProtectedRoute / BookmarkButton）
+          // 存入时已含 locale 前缀（如 /zh/bookmarks），禁止再调用 withLocale()，
+          // 否则变成 /zh/zh/bookmarks。
+          router.push(rawPath);
         } else {
           console.log('Redirecting to home');
           router.push(withLocale('/', locale as any));

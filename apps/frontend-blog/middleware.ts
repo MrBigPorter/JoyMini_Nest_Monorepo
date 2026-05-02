@@ -9,6 +9,14 @@ import {
   getLoginRedirectUrl,
 } from './src/lib/auth/protected-routes';
 
+// P2-1: 模块顶层初始化一次，避免每次请求重建实例
+const intlMiddleware = createMiddleware({
+  locales: LOCALES,
+  defaultLocale: DEFAULT_LOCALE,
+  localeDetection: false, // 禁用自动检测，完全依赖统一检测逻辑
+  localePrefix: 'always', // 保持always模式
+});
+
 // 增强中间件：使用统一的语言检测逻辑
 export default function middleware(request: NextRequest) {
   // 1. 使用统一的语言检测函数
@@ -23,10 +31,23 @@ export default function middleware(request: NextRequest) {
     (locale) => pathname.startsWith(`/${locale}/`) || pathname === `/${locale}`,
   );
 
-  // 4. 如果没有语言前缀，添加检测到的语言
+  // 4. 如果没有语言前缀，添加检测到的语言并重定向
+  // P0-1 修复：语言重定向响应必须禁止 CDN 缓存
+  //   - 原因：Cloudflare 会缓存未设 Cache-Control 的 302 响应
+  //   - 后果：所有用户收到同一个缓存的 302 /zh，英文用户被强制跳中文
+  // P1-4 修复：根路径直接重定向到 /{locale}/ (带 trailing slash)
+  //   - 原因：不带 slash 时 next-intl 会再做一次 /zh → /zh/ 的重定向
+  //   - 效果：3 次重定向跳数减少为 2 次
   if (!hasLocalePrefix) {
-    url.pathname = `/${detectedLocale}${pathname === '/' ? '' : pathname}`;
-    return NextResponse.redirect(url);
+    url.pathname =
+      pathname === '/'
+        ? `/${detectedLocale}/`
+        : `/${detectedLocale}${pathname}`;
+
+    const response = NextResponse.redirect(url);
+    response.headers.set('Cache-Control', 'no-store, no-cache');
+    response.headers.set('Vary', 'Accept-Language, Cookie');
+    return response;
   }
 
   // 5. URL路径优先：如果已有合法语言前缀，信任用户选择，避免闪烁
@@ -34,26 +55,16 @@ export default function middleware(request: NextRequest) {
   const isCurrentLocaleValid = isSupportedLocale(currentLocale);
 
   if (!isCurrentLocaleValid) {
-    // 无效语言，重定向到默认语言
+    // 无效语言，重定向到默认语言（同样禁止缓存）
     url.pathname = `/${DEFAULT_LOCALE}${pathname}`;
-    return NextResponse.redirect(url);
+    const response = NextResponse.redirect(url);
+    response.headers.set('Cache-Control', 'no-store, no-cache');
+    return response;
   }
 
-  // 6.  认证拦截 - 三层防护第一层
+  // 6. 认证拦截 - 三层防护第一层
   // 这是最高优先级的检查，发生在任何代码运行之前
   const authToken = request.cookies.get('token')?.value;
-
-  // 调试日志：记录路径匹配情况
-  console.log('🔍 Middleware认证检查:', {
-    originalPathname: pathname,
-    currentLocale,
-    authTokenExists: !!authToken,
-    isProtectedRoute: isProtectedRoute(pathname),
-    pathWithoutLocale: pathname.replace(/^\/[a-z]{2}(-[A-Z]{2})?/, ''),
-    cookies: request.cookies
-      .getAll()
-      .map((c) => ({ name: c.name, value: c.value ? '***' : 'empty' })),
-  });
 
   if (isProtectedRoute(pathname) && !authToken) {
     // 未登录访问受保护路由，直接重定向到登录页
@@ -62,28 +73,10 @@ export default function middleware(request: NextRequest) {
       getLoginRedirectUrl(currentLocale, pathname),
       request.url,
     );
-
-    console.log('🚨 Middleware拦截未认证请求:', {
-      from: pathname,
-      to: loginUrl.toString(),
-      reason: '未登录访问受保护路由',
-    });
-
     return NextResponse.redirect(loginUrl);
   }
 
-  console.log(' Middleware放行请求:', {
-    pathname,
-    reason: authToken ? '已认证' : '非受保护路由',
-  });
-
   // 7. 使用next-intl中间件处理其他逻辑
-  const intlMiddleware = createMiddleware({
-    locales: LOCALES,
-    defaultLocale: DEFAULT_LOCALE,
-    localeDetection: false, // 禁用自动检测，完全依赖统一检测逻辑
-    localePrefix: 'always', // 保持always模式
-  });
 
   return intlMiddleware(request);
 }

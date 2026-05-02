@@ -1,28 +1,33 @@
-# AppStartup 数据预热 — 应用启动时的多路数据预加载屏障
+---
+title: "AppStartup: Data Pre-Warming — Multi-Path Data Preloading Barrier on App Launch"
+description: "Learn how to preload critical data before runApp() using a phase-based startup pipeline with parallel execution, progress tracking, and graceful degradation, eliminating blank screens and waterfall requests."
+slug: app-startup-data-pre-warming
+tags: [Flutter, Startup, Performance, Architecture, Preloading, Data Barrier]
+---
 
-> **Article F9** | **Difficulty:** ⭐⭐⭐⭐ | **Source:** `joy_mini_app/lib/core/startup/`
+# AppStartup: Data Pre-Warming — Multi-Path Data Preloading Barrier on App Launch
 
-## 1. 问题背景
+## 1. Problem Context
 
-移动应用启动时面临一个核心矛盾：**用户体验延迟 vs 数据就绪依赖**。
+Mobile applications face a core contradiction at startup: **user experience delay vs. data readiness dependency**.
 
 ```
-冷启动时间线：
+Cold Launch Timeline:
 [App Launch] → [Flutter Engine Init] → [runApp()] → [First Frame]
                                                          ↓
-                                              用户看到空白/骨架屏
+                                               User sees blank/skeleton screen
                                                          ↓
                                               [Async Data Fetching]
                                                          ↓
                                               [Real UI Rendered]
 ```
 
-传统做法是 runApp 后逐个发请求，导致：
-- **闪烁跳跃**：骨架屏 → 真实内容 → 又变骨架屏
-- **竞态条件**：页面 A 需要的数据依赖页面 B 的数据
-- **瀑布请求**：请求串行执行，白屏时间 = Σ(每个请求)
+The traditional approach fires requests one by one after runApp, leading to:
+- **Flickering**: skeleton screen → real content → back to skeleton
+- **Race conditions**: Page A depends on data from Page B
+- **Waterfall requests**: serial execution, blank time = Σ(each request)
 
-**AppStartup** 的解法：**在 runApp 之前预先加载所有关键数据**，首个页面渲染时数据已就绪。
+**AppStartup** solves this by: **preloading all critical data before runApp()**, so data is ready when the first page renders.
 
 ```
 [App Launch] → [Startup Preloader] → [Multi-path parallel fetch]
@@ -32,9 +37,9 @@
                                     [runApp()] → [First Frame with data]
 ```
 
-## 2. 核心架构
+## 2. Core Architecture
 
-### 2.1 AppStartup 类
+### 2.1 AppStartup Class
 
 ```dart
 class AppStartup {
@@ -43,64 +48,64 @@ class AppStartup {
   late final UserStore _userStore;
   late final WalletStore _walletStore;
 
-  /// 启动屏障 — 所有关键数据就绪后 runApp
+  /// Startup barrier — runApp after all critical data is ready
   Future<void> initialize() async {
-    // Phase 1: 基础设施
+    // Phase 1: Infrastructure
     await _initInfrastructure();
 
-    // Phase 2: 并行预加载
+    // Phase 2: Parallel preload
     await _preloadCriticalData();
 
-    // Phase 3: 状态机就绪
+    // Phase 3: Store hydration
     await _hydrateStores();
   }
 
   Future<void> _initInfrastructure() async {
-    // 初始化 Flutter 插件（无需 await，后台进行）
+    // Initialize Flutter plugins (no need to await, runs in background)
     WidgetsFlutterBinding.ensureInitialized();
 
-    // 初始化日志
+    // Initialize logging
     await Logger.init();
 
-    // 初始化 Sentry / Crashlytics
+    // Initialize Sentry / Crashlytics
     await SentryFlutter.init(
       (options) => options.dsn = _config.sentryDsn,
     );
   }
 
   Future<void> _preloadCriticalData() async {
-    // 并行执行，不相互阻塞
+    // Execute in parallel, no mutual blocking
     await Future.wait([
-      _authNotifier.tryAutoLogin(),       // Token 自动登录
-      _configStore.fetchRemoteConfig(),    // 远程配置
-      _userStore.hydrate(),                // 用户缓存
-      _walletStore.hydrate(),              // 钱包缓存
-      _prefetchApiData(),                  // API 数据预热
-    ], eagerError: false); // 不因单个失败阻断整个流程
+      _authNotifier.tryAutoLogin(),       // Token auto-login
+      _configStore.fetchRemoteConfig(),    // Remote config
+      _userStore.hydrate(),                // User cache
+      _walletStore.hydrate(),              // Wallet cache
+      _prefetchApiData(),                  // API data warmup
+    ], eagerError: false); // Don't block the entire flow on a single failure
   }
 
   Future<void> _hydrateStores() async {
-    // 确保 Provider 树上的 Store 已填充
+    // Ensure Provider tree stores are populated
     _authNotifier.setInitialized();
     _configStore.setInitialized();
   }
 }
 ```
 
-### 2.2 StartupPhase — 阶段化执行
+### 2.2 StartupPhase — Phased Execution
 
 ```dart
 enum StartupPhase {
-  /// 基础设施（必须成功）
+  /// Infrastructure (must succeed)
   infrastructure,
 
-  /// 认证（必须成功，否则跳转登录页）
+  /// Authentication (must succeed, otherwise redirect to login)
   authentication,
 
-  /// 核心数据（容忍失败，降级处理）
+  /// Core data (tolerates failure, graceful degradation)
   coreData,
 
-  /// 预热数据（失败不影响启动）
+  /// Warmup data (failure doesn't affect startup)
   warmup,
 }
 
@@ -132,7 +137,7 @@ class StartupPipeline {
 
       final phaseStopwatch = Stopwatch()..start();
 
-      // 同 phase 任务并行
+      // Same-phase tasks run in parallel
       final results = await Future.wait(
         tasks.map((t) => _executeTask(t)),
         eagerError: phase == StartupPhase.infrastructure,
@@ -155,16 +160,16 @@ class StartupPipeline {
       return TaskResult.success(task.name);
     } catch (e, stack) {
       if (task.isCritical) rethrow;
-      _logger.warning('[Startup] ⚠️ ${task.name} failed: $e');
+      _logger.warning('[Startup] ${task.name} failed: $e');
       return TaskResult.failure(task.name, e);
     }
   }
 }
 ```
 
-## 3. 并行预加载策略
+## 3. Parallel Preloading Strategy
 
-### 3.1 核心预加载任务
+### 3.1 Core Preloading Tasks
 
 ```dart
 // ============ Phase: Infrastructure ============
@@ -186,7 +191,7 @@ class InitCrashReportingTask extends StartupTask {
   @override
   StartupPhase get phase => StartupPhase.infrastructure;
   @override
-  bool get isCritical => false; // 崩溃上报失败不影响启动
+  bool get isCritical => false; // Crash reporting failure doesn't block startup
   @override
   Future<void> execute() => Crashlytics.init();
 }
@@ -199,7 +204,7 @@ class AutoLoginTask extends StartupTask {
   @override
   StartupPhase get phase => StartupPhase.authentication;
   @override
-  bool get isCritical => false; // 未登录也允许启动
+  bool get isCritical => false; // Not logged in is also allowed to start
   @override
   Duration? get timeout => const Duration(seconds: 5);
 
@@ -272,7 +277,7 @@ class PrefetchHomeDataTask extends StartupTask {
 }
 ```
 
-### 3.2 预加载注册
+### 3.2 Preloading Registration
 
 ```dart
 void configureStartup() {
@@ -302,9 +307,9 @@ void configureStartup() {
 }
 ```
 
-## 4. 启动屏障实现
+## 4. Startup Barrier Implementation
 
-### 4.1 带进度通知的屏障
+### 4.1 Barrier with Progress Notification
 
 ```dart
 class StartupBarrier {
@@ -314,12 +319,12 @@ class StartupBarrier {
   StartupBarrier(this._pipeline)
       : progressNotifier = ValueNotifier(0.0);
 
-  /// 等待所有必要数据就绪
+  /// Wait until all necessary data is ready
   Future<StartupReport> waitForReady() async {
     final totalTasks = _pipeline.totalTaskCount;
     var completedTasks = 0;
 
-    // 监听进度
+    // Listen to progress
     _pipeline.onTaskCompleted.listen((_) {
       completedTasks++;
       progressNotifier.value = completedTasks / totalTasks;
@@ -327,14 +332,14 @@ class StartupBarrier {
 
     final report = await _pipeline.run();
 
-    // 确保进度最终为 1.0
+    // Ensure progress finalizes at 1.0
     progressNotifier.value = 1.0;
     return report;
   }
 }
 ```
 
-### 4.2 启动画面集成
+### 4.2 Splash Screen Integration
 
 ```dart
 class SplashScreen extends StatefulWidget {
@@ -359,19 +364,19 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _runStartup() async {
-    // 监听进度
+    // Listen to progress
     _barrier.progressNotifier.addListener(() {
       _progressController.value = _barrier.progressNotifier.value;
     });
 
-    // 等待启动完成
+    // Wait for startup to complete
     final report = await _barrier.waitForReady();
 
     if (mounted) {
-      // 分析启动性能
+      // Analyze startup performance
       Analytics.recordStartup(report);
 
-      // 导航到主页面
+      // Navigate to main page
       _navigateToHome();
     }
   }
@@ -384,7 +389,7 @@ class _SplashScreenState extends State<SplashScreen> {
         // Logo
         Image.asset('assets/logo.png', width: 120),
         const SizedBox(height: 24),
-        // 进度条
+        // Progress bar
         AnimatedBuilder(
           animation: _progressController,
           builder: (context, child) => LinearProgressIndicator(
@@ -392,7 +397,7 @@ class _SplashScreenState extends State<SplashScreen> {
           ),
         ),
         const SizedBox(height: 8),
-        // 版本号
+        // Version number
         Text('v${AppVersion.current}'),
       ],
     );
@@ -400,11 +405,11 @@ class _SplashScreenState extends State<SplashScreen> {
 }
 ```
 
-## 5. 主入口集成
+## 5. Main Entry Integration
 
 ```dart
 void main() async {
-  // 1. 启动屏障
+  // 1. Startup barrier
   final startup = AppStartup();
   await startup.initialize();
 
@@ -422,29 +427,29 @@ void main() async {
 }
 ```
 
-## 6. 性能指标
+## 6. Performance Metrics
 
-### 6.1 并行 vs 串行对比
+### 6.1 Parallel vs. Serial Comparison
 
 ```
-串行启动：
+Serial Startup:
   init_logger(200ms) → crash(100ms) → auto_login(800ms) → 
   hydrate_user(300ms) → hydrate_wallet(300ms) → 
   remote_config(500ms) → prefetch_home(600ms)
-  = 2800ms 总耗时
+  = 2800ms total
 
-并行启动（AppStartup）：
-  phase 1: [init_logger + crash]         = 200ms (并行)
+Parallel Startup (AppStartup):
+  phase 1: [init_logger + crash]         = 200ms (parallel)
   phase 2: [auto_login]                  = 800ms
-  phase 3: [hydrate_user + wallet + cfg] = 500ms (并行)
+  phase 3: [hydrate_user + wallet + cfg] = 500ms (parallel)
   phase 4: [prefetch_home]               = 600ms
-  = 2100ms 总耗时（优化 25%）
+  = 2100ms total (25% improvement)
 
-+ runApp 提前：数据加载与 Flutter Engine 初始化重叠
-  = 实际感知延迟 < 800ms
++ runApp earlier: data loading overlaps with Flutter Engine initialization
+  = Actual perceived latency < 800ms
 ```
 
-### 6.2 启动报告
+### 6.2 Startup Report
 
 ```dart
 class StartupReport {
@@ -465,14 +470,14 @@ class StartupReport {
 }
 ```
 
-## 7. 错误处理与降级
+## 7. Error Handling & Degradation
 
-| 场景 | 处理方式 | 用户体验 |
-|------|----------|----------|
-| Token 过期 | 自动清除→未登录状态 | 显示登录页面 |
-| 远程配置加载失败 | 使用本地缓存配置 | 功能不变 |
-| 钱包加载失败 | 显示余额加载中 | 交易功能受限 |
-| 预加载超时 | 忽略该任务 | 页面进入后自行加载 |
+| Scenario | Handling | User Experience |
+|----------|----------|-----------------|
+| Token expired | Auto-clear → unauthenticated state | Show login page |
+| Remote config load failure | Use local cached config | Features unchanged |
+| Wallet load failure | Show balance loading | Transaction features limited |
+| Preload timeout | Skip the task | Page loads data on its own after entry |
 
 ```dart
 class StartupErrorHandler {
@@ -481,18 +486,18 @@ class StartupErrorHandler {
 
     final error = result.error;
     if (error is TokenExpiredException) {
-      // 静默处理：清除 token，用户未登录体验
+      // Silent handling: clear token, user experiences unauthenticated flow
       GetIt.instance<AuthNotifier>().forceLogout();
       return;
     }
 
     if (error is TimeoutException) {
-      // 超时不阻断启动
+      // Timeout does not block startup
       Logger.warning('[Startup] Timeout: ${result.taskName}');
       return;
     }
 
-    // 无法恢复的错误 → 上报并显示错误页
+    // Unrecoverable error → report and show error screen
     Crashlytics.recordError(error, StackTrace.current);
     Navigator.pushReplacementNamed(context, '/error',
       arguments: StartupErrorScreen(result),
@@ -501,19 +506,15 @@ class StartupErrorHandler {
 }
 ```
 
-## 8. 总结
+## 8. Summary
 
-| 方面 | AppStartup 预热 | 传统懒加载 |
-|------|----------------|-----------|
-| 首帧时间 | 略长（等待关键数据） | 快（空数据渲染） |
-| 首帧可用性 | ✅ 数据就绪，直接交互 | ❌ 骨架屏，加载中 |
-| 并行度 | 多阶段并行 | 通常串行 |
-| 错误恢复 | 分阶段降级策略 | 页面级错误处理 |
-| 启动耗时 | 2-3s（含数据加载） | 1s + 3s 页面加载 |
-| 用户感知 | 2-3s → 可用 | 1s → 3s 转圈 |
+| Aspect | AppStartup Pre-Warming | Traditional Lazy Loading |
+|--------|------------------------|--------------------------|
+| Time to first frame | Slightly longer (waits for critical data) | Fast (renders empty data) |
+| First frame usability | ✅ Data ready, immediate interaction | ❌ Skeleton screen, loading |
+| Parallelism | Multi-phase parallel | Usually serial |
+| Error recovery | Per-phase degradation strategy | Page-level error handling |
+| Startup duration | 2-3s (includes data loading) | 1s + 3s page loading |
+| User perception | 2-3s → usable | 1s → 3s spinner |
 
-**核心思想**：将网络请求从"进入页面后"提前到"runApp 之前"，利用启动画面 2-3 秒的"天然等待期"完成数据预加载，实现首帧即可用。
-
----
-
-**下一篇预告**: [F10 — BaseModalConfig + RadixSheet + RadixModal] — 弹窗体系架构
+**Core idea**: Move network requests from "after page entry" to "before runApp()", leveraging the splash screen's 2-3 second "natural waiting period" to complete data preloading, achieving first-frame readiness.

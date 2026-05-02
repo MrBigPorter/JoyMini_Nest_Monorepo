@@ -8,8 +8,20 @@
 
 ## 🎯 翻译原则
 
-**静态文案多语言**: 页面标题、按钮、导航、提示文字
-❌ **动态内容不翻译**: 文章内容、评论、分类名称等接口返回数据保持原样
+本系统的翻译分为**两层**，不要混淆：
+
+### 第一层：静态 UI 文案 (`src/messages/`)
+
+**静态文案多语言**: 页面标题、按钮、导航、提示文字等 UI 字符串
+→ 通过 `src/messages/{locale}.json` 文件管理，使用 i18n key 引用
+
+### 第二层：动态内容（AI 自动翻译）
+
+**文章内容、分类名称、标签名称** → 通过 **Gemini AI 翻译管线**自动翻译
+- 翻译由后台队列任务驱动（[`blog-ai.processor.ts`](../../apps/api/src/blog/processors/blog-ai.processor.ts))
+- 翻译结果存储在数据库的 `Localized` 字段中（`titleLocalized`, `contentLocalized` 等）
+- 前端按当前 locale 自动读取对应翻译
+- 详见 [`ARTICLE_AUTHORING_STANDARD.md`](../development/ARTICLE_AUTHORING_STANDARD.md) 的编写规范
 
 ---
 

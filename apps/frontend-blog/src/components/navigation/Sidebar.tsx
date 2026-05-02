@@ -102,6 +102,8 @@ export default function Sidebar() {
               href={item.href}
               className={linkClassName}
               title={item.label}
+              // P1-2 修复：非首页链接禁用自动 prefetch，避免触发 ISR 风暴
+              prefetch={item.href === '/' ? undefined : false}
             >
               {linkContent}
             </NavLink>

@@ -22,6 +22,7 @@ export function detectLocale(request?: NextRequest): SupportedLocale {
   if (request) {
     const url = new URL(request.url);
     const pathLocale = extractLocaleFromPath(url.pathname);
+
     if (pathLocale) {
       // SSR环境：URL路径是唯一事实来源，完全忽略Cookie
       return pathLocale;
@@ -30,6 +31,7 @@ export function detectLocale(request?: NextRequest): SupportedLocale {
     // 从Accept-Language头部检测浏览器语言
     const acceptLanguage = request.headers.get('accept-language');
     const browserLocale = parseAcceptLanguage(acceptLanguage);
+
     if (browserLocale) {
       return browserLocale;
     }
@@ -45,6 +47,7 @@ export function detectLocale(request?: NextRequest): SupportedLocale {
 
   // 只有SSR环境才继续后续逻辑
   const cookieLocale = getLocaleFromCookie(request);
+
   if (cookieLocale && isSupportedLocale(cookieLocale)) {
     return cookieLocale;
   }
