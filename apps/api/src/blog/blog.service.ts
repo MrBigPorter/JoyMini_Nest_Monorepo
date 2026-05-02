@@ -30,6 +30,7 @@ import type { LocalizedString } from '@lucky/shared';
 import { getLocalizedValue, DEFAULT_LOCALE } from '@lucky/shared';
 import { SystemConfigService } from '../admin/system-config/system-config.service';
 import { LanguageService } from '@api/common/services/language.service';
+import { AiService, AiServiceLevel } from '@api/common/ai/ai.service';
 
 @Injectable()
 export class BlogService {
@@ -42,6 +43,7 @@ export class BlogService {
     @InjectQueue(MEDIA_PROCESSOR_QUEUE) private mediaProcessorQueue: Queue,
     private systemConfigService: SystemConfigService,
     private languageService: LanguageService,
+    private aiService: AiService,
   ) {
     this.marked = new Marked({
       gfm: true,
@@ -1163,6 +1165,13 @@ export class BlogService {
   ) {
     await this.checkArticleOwner(articleId, authorId);
 
+    // Check AI service budget before enqueuing
+    if (this.aiService.getServiceLevel() === AiServiceLevel.DISABLED) {
+      throw new BadRequestException(
+        'AI translation service is currently disabled due to daily budget limit. Please try again tomorrow.',
+      );
+    }
+
     // 投递翻译任务到队列
     await this.blogAiQueue.add('translate-article', {
       articleId,
@@ -1180,6 +1189,13 @@ export class BlogService {
    * 翻译分类
    */
   async translateCategory(categoryId: string, targetLang?: string) {
+    // Check AI service budget before enqueuing
+    if (this.aiService.getServiceLevel() === AiServiceLevel.DISABLED) {
+      throw new BadRequestException(
+        'AI translation service is currently disabled due to daily budget limit. Please try again tomorrow.',
+      );
+    }
+
     // 投递翻译任务到队列
     await this.blogAiQueue.add('translate-category', {
       categoryId,
@@ -1197,6 +1213,13 @@ export class BlogService {
    * 翻译标签
    */
   async translateTag(tagId: string, targetLang?: string) {
+    // Check AI service budget before enqueuing
+    if (this.aiService.getServiceLevel() === AiServiceLevel.DISABLED) {
+      throw new BadRequestException(
+        'AI translation service is currently disabled due to daily budget limit. Please try again tomorrow.',
+      );
+    }
+
     // 投递翻译任务到队列
     await this.blogAiQueue.add('translate-tag', {
       tagId,
@@ -1406,6 +1429,13 @@ export class BlogService {
    * 为特定语言批量投递全库翻译任务
    */
   async queueFullLocaleTranslation(targetLang: string) {
+    // Check AI service budget before enqueuing batch translations
+    if (this.aiService.getServiceLevel() === AiServiceLevel.DISABLED) {
+      throw new BadRequestException(
+        'AI translation service is currently disabled due to daily budget limit. Please try again tomorrow.',
+      );
+    }
+
     // 获取默认源语言
     const defaultSourceLang = await this.getDefaultSourceLang();
 

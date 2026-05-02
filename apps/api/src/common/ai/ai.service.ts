@@ -1,11 +1,11 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  GoogleGenerativeAI,
   GenerativeModel,
-  HarmBlockThreshold,
   HarmCategory,
-  VertexAI,
-} from '@google-cloud/vertexai';
+  HarmBlockThreshold,
+} from '@google/generative-ai';
 
 export interface AiModerationResult {
   score: number; // 0-100, 越高越危险
@@ -29,42 +29,55 @@ export enum AiServiceLevel {
   DISABLED = 0,
 }
 
+interface GeminiKeyInstance {
+  keySuffix: string; // last 4 chars for logging
+  genAI: GoogleGenerativeAI;
+  model: GenerativeModel;
+  dailyTokens: number;
+  blocked: boolean; // true when exhausted or rate-limited
+  blockedReason: string | null;
+  blockedUntil: number; // timestamp when block expires (0 = permanent until midnight)
+}
+
 @Injectable()
 export class AiService implements OnModuleInit {
   private readonly logger = new Logger(AiService.name);
 
-  private vertexAI?: VertexAI;
-  private geminiModel?: GenerativeModel;
-  private isEnabled = false;
+  private keyInstances: GeminiKeyInstance[] = [];
+  private activeKeyIndex = 0;
 
-  // Article not found 用量监控 & 限流
+  // Per-minute usage monitoring & rate limiting (shared across all keys)
   private usageCounter = {
     requests: 0,
     tokens: 0,
     resetAt: Date.now() + 60000,
   };
 
-  // Article not found 服务等级 - 自动降级系统
+  // Daily date tracking for midnight reset
+  private currentDate = '';
+
+  // Service level - auto degradation system
   private serviceLevel = AiServiceLevel.FULL;
   private levelUpdatedAt = Date.now();
 
-  // Article not found 熔断保护
+  // Circuit breaker (for non-429 failures)
   private circuitBreaker = {
     consecutiveFailures: 0,
     openUntil: 0,
     lastFailureAt: 0,
   };
 
-  // Article not found Gemini 2.5 Flash 免费配额安全阈值 (预留20%缓冲)
+  // Gemini 2.5 Flash free tier safe thresholds (20% buffer)
   private readonly LIMITS = {
-    RPM: 12, // 每分钟最多12次 (官方15)
-    TPM: 800000, // 每分钟最多800k token (官方1M)
-    DAILY: 800000, // 每天最多800k token (官方1M)
-    FAILURE_THRESHOLD: 5, // 连续失败5次开启熔断
-    CIRCUIT_BREAKER_DURATION: 900000, // 熔断15分钟
+    RPM: 12, // max 12 requests/min (official 15)
+    TPM: 800000, // max 800k tokens/min (official 1M)
+    DAILY_PER_KEY: 800000, // max 800k tokens/day per key (official 1M)
+    FAILURE_THRESHOLD: 5, // 5 consecutive failures → open circuit breaker
+    CIRCUIT_BREAKER_DURATION: 900000, // circuit breaker 15min
+    KEY_429_COOLDOWN: 60000, // 60s cooldown for a key that got 429
   };
 
-  //  语言名称映射表 - 全局共享
+  // Language name mapping - shared globally
   private readonly LANG_NAMES: Record<string, string> = {
     zh: 'Chinese',
     en: 'English',
@@ -77,9 +90,9 @@ export class AiService implements OnModuleInit {
   constructor(private configService: ConfigService) {}
 
   async onModuleInit() {
-    await this.initializeVertexAI();
+    await this.initializeGemini();
 
-    // 定时重置计数器
+    // Periodic counter reset
     setInterval(() => {
       this.resetCounters();
     }, 1000);
@@ -87,13 +100,52 @@ export class AiService implements OnModuleInit {
 
   private resetCounters() {
     const now = Date.now();
+
+    // Reset per-minute counters
     if (now >= this.usageCounter.resetAt) {
       this.usageCounter.requests = 0;
       this.usageCounter.tokens = 0;
       this.usageCounter.resetAt = now + 60000;
     }
 
-    // 自动恢复服务等级 (每5分钟检查一次)
+    // Check for date change (midnight reset for ALL keys)
+    const today = new Date().toISOString().slice(0, 10);
+    if (this.currentDate !== today) {
+      this.currentDate = today;
+
+      // Reset all keys at midnight
+      for (const key of this.keyInstances) {
+        key.dailyTokens = 0;
+        key.blocked = false;
+        key.blockedReason = null;
+        key.blockedUntil = 0;
+      }
+      this.activeKeyIndex = 0;
+
+      // Also reset service level if it was disabled due to daily exhaustion
+      if (this.serviceLevel === AiServiceLevel.DISABLED) {
+        this.serviceLevel = AiServiceLevel.FULL;
+        this.levelUpdatedAt = now;
+      }
+
+      this.logger.log(
+        `📅 Daily token counter reset for all ${this.keyInstances.length} keys (${today})`,
+      );
+    }
+
+    // Unblock keys that have cooled down from 429 (non-midnight unblocking)
+    for (const key of this.keyInstances) {
+      if (key.blocked && key.blockedUntil > 0 && now >= key.blockedUntil) {
+        key.blocked = false;
+        key.blockedReason = null;
+        key.blockedUntil = 0;
+        this.logger.debug(
+          `🔑 Key ...${key.keySuffix} unblocked after cooldown`,
+        );
+      }
+    }
+
+    // Auto-recover service level (check every 5 minutes)
     if (
       now - this.levelUpdatedAt > 300000 &&
       this.serviceLevel < AiServiceLevel.FULL
@@ -105,46 +157,44 @@ export class AiService implements OnModuleInit {
       );
     }
 
-    // 关闭熔断
+    // Close circuit breaker
     if (
       this.circuitBreaker.openUntil > 0 &&
       now >= this.circuitBreaker.openUntil
     ) {
       this.circuitBreaker.openUntil = 0;
       this.circuitBreaker.consecutiveFailures = 0;
-      this.logger.log(
-        'Article not found AI circuit breaker closed, service restored',
-      );
+      this.logger.log(`🔌 AI circuit breaker closed, service restored`);
     }
   }
 
-  private initializeVertexAI() {
-    const googleCredsRaw = this.configService.get<string>(
-      'GOOGLE_VISION_CREDENTIALS',
-    );
+  private initializeGemini() {
+    const apiKeyRaw = this.configService.get<string>('GOOGLE_GEMINI_API_KEY');
 
-    if (!googleCredsRaw) {
+    if (!apiKeyRaw) {
       this.logger.warn(
-        'Google Vertex AI credentials not configured, AI service disabled',
+        'Google Gemini API key not configured, AI service disabled',
       );
       return;
     }
 
+    // Support multiple API keys separated by comma
+    const keys = apiKeyRaw
+      .split(',')
+      .map((k) => k.trim())
+      .filter((k) => k.length > 0);
+
+    if (keys.length === 0) {
+      this.logger.warn('No valid API keys found, AI service disabled');
+      return;
+    }
+
     try {
-      const credentials = JSON.parse(googleCredsRaw);
+      for (let i = 0; i < keys.length; i++) {
+        const apiKey = keys[i];
+        const genAI = new GoogleGenerativeAI(apiKey);
 
-      const projectId =
-        credentials.project_id || this.configService.get('GOOGLE_PROJECT_ID');
-
-      if (projectId) {
-        this.vertexAI = new VertexAI({
-          project: projectId,
-          location: 'us-central1',
-          googleAuthOptions: { credentials },
-        });
-
-        // Article not found Gemini 2.5 Flash 版本 - 原生支持 Node 20+ OpenSSL 3.0
-        this.geminiModel = this.vertexAI.getGenerativeModel({
+        const model = genAI.getGenerativeModel({
           model: 'gemini-2.5-flash',
           safetySettings: [
             {
@@ -170,27 +220,113 @@ export class AiService implements OnModuleInit {
           },
         });
 
-        this.isEnabled = true;
-        this.logger.log(
-          `Article not found Vertex AI initialized with Gemini 2.5 Flash`,
-        );
+        this.keyInstances.push({
+          keySuffix: apiKey.slice(-4),
+          genAI,
+          model,
+          dailyTokens: 0,
+          blocked: false,
+          blockedReason: null,
+          blockedUntil: 0,
+        });
       }
+
+      this.currentDate = new Date().toISOString().slice(0, 10);
+      this.activeKeyIndex = 0;
+
+      this.logger.log(
+        `🤖 Google AI Studio initialized with ${keys.length} key(s) (Gemini 2.5 Flash)`,
+      );
+      this.logger.log(
+        `   Active key: ...${this.keyInstances[0].keySuffix} (index 0)`,
+      );
     } catch (e) {
-      this.logger.error('Failed to initialize Vertex AI', e);
+      this.logger.error('Failed to initialize Google AI Studio', e);
     }
   }
 
   /**
-   * Article not found 流量控制检查
-   * 返回 true 表示允许请求
+   * Try to rotate to the next available key
+   * Returns true if a new active key was found, false if all keys are exhausted
+   */
+  private rotateToNextKey(): boolean {
+    const totalKeys = this.keyInstances.length;
+    if (totalKeys === 0) {
+      return false;
+    }
+
+    // If only one key, no rotation possible
+    if (totalKeys === 1) {
+      if (this.keyInstances[0].blocked) {
+        this.serviceLevel = AiServiceLevel.DISABLED;
+        this.levelUpdatedAt = Date.now();
+        this.logger.warn(
+          `🛑 Single key ...${this.keyInstances[0].keySuffix} exhausted, service DISABLED`,
+        );
+        return false;
+      }
+      return true; // stays on key 0
+    }
+
+    const startIndex = this.activeKeyIndex;
+
+    // Try each key starting from the next one
+    for (let attempt = 0; attempt < totalKeys; attempt++) {
+      const candidateIndex = (startIndex + 1 + attempt) % totalKeys;
+      const candidate = this.keyInstances[candidateIndex];
+
+      const isBlocked = candidate.blocked;
+      const isExhausted = candidate.dailyTokens >= this.LIMITS.DAILY_PER_KEY;
+
+      if (!isBlocked && !isExhausted) {
+        // Found an available key
+        this.activeKeyIndex = candidateIndex;
+        this.logger.log(
+          `🔑 Switched to key ...${candidate.keySuffix} (index ${candidateIndex})`,
+        );
+        return true;
+      }
+    }
+
+    // All keys exhausted — disable service
+    this.serviceLevel = AiServiceLevel.DISABLED;
+    this.levelUpdatedAt = Date.now();
+
+    const statusLog = this.keyInstances
+      .map(
+        (k, i) =>
+          `[${i}] ...${k.keySuffix}: ${k.dailyTokens}/${this.LIMITS.DAILY_PER_KEY} tokens, blocked=${k.blocked}${k.blockedReason ? ` (${k.blockedReason})` : ''}`,
+      )
+      .join(', ');
+    this.logger.warn(
+      `🛑 ALL ${totalKeys} keys exhausted. Service DISABLED until midnight. Status: ${statusLog}`,
+    );
+
+    return false;
+  }
+
+  /**
+   * Traffic control check
+   * Returns true if request is allowed
    */
   private checkRateLimit(estimatedTokens: number): boolean {
-    // 熔断开启
+    // Circuit breaker open
     if (this.circuitBreaker.openUntil > Date.now()) {
       return false;
     }
 
-    // 检查每分钟配额
+    // Check if active key is blocked
+    const activeKey = this.keyInstances[this.activeKeyIndex];
+    if (activeKey?.blocked) {
+      // Try to rotate to another key first
+      if (this.rotateToNextKey()) {
+        // Found another key, allow the request
+        return true;
+      }
+      return false;
+    }
+
+    // Check per-minute request quota (shared across all keys)
     if (this.usageCounter.requests >= this.LIMITS.RPM) {
       if (this.serviceLevel > AiServiceLevel.ESSENTIAL) {
         this.serviceLevel = AiServiceLevel.ESSENTIAL;
@@ -200,6 +336,7 @@ export class AiService implements OnModuleInit {
       return false;
     }
 
+    // Check per-minute token quota (shared)
     if (this.usageCounter.tokens + estimatedTokens >= this.LIMITS.TPM) {
       if (this.serviceLevel > AiServiceLevel.MINIMAL) {
         this.serviceLevel = AiServiceLevel.MINIMAL;
@@ -209,19 +346,71 @@ export class AiService implements OnModuleInit {
       return false;
     }
 
+    // Check daily token budget for the ACTIVE key (per-key hard cap)
+    if (
+      activeKey &&
+      activeKey.dailyTokens + estimatedTokens >= this.LIMITS.DAILY_PER_KEY
+    ) {
+      this.logger.warn(
+        `⚠️  Key ...${activeKey.keySuffix} DAILY budget cap reached (${activeKey.dailyTokens}/${this.LIMITS.DAILY_PER_KEY})`,
+      );
+      // Mark this key as exhausted and try next
+      activeKey.blocked = true;
+      activeKey.blockedReason = 'daily_exhausted';
+      activeKey.blockedUntil = 0; // permanent until midnight
+
+      if (this.rotateToNextKey()) {
+        return true; // next key is available
+      }
+      return false; // all keys exhausted
+    }
+
     return true;
   }
 
   private recordSuccess(tokens: number) {
     this.usageCounter.requests++;
     this.usageCounter.tokens += tokens;
+
+    // Record against the active key
+    const activeKey = this.keyInstances[this.activeKeyIndex];
+    if (activeKey) {
+      activeKey.dailyTokens += tokens;
+    }
+
     this.circuitBreaker.consecutiveFailures = 0;
   }
 
-  private recordFailure() {
+  private recordFailure(error?: any) {
     this.circuitBreaker.consecutiveFailures++;
     this.circuitBreaker.lastFailureAt = Date.now();
 
+    // Handle 429 rate limiting (per-key)
+    if (error?.status === 429 || error?.message?.includes('429')) {
+      const activeKey = this.keyInstances[this.activeKeyIndex];
+      if (activeKey) {
+        activeKey.blocked = true;
+        activeKey.blockedReason = 'rate_limited';
+        activeKey.blockedUntil = Date.now() + this.LIMITS.KEY_429_COOLDOWN;
+        this.logger.warn(
+          `⚠️  Key ...${activeKey.keySuffix} hit 429 rate limit, blocking for ${this.LIMITS.KEY_429_COOLDOWN / 1000}s`,
+        );
+      }
+
+      // Try to rotate to next key immediately
+      this.rotateToNextKey();
+
+      // Also degrade service level for 429
+      if (this.serviceLevel > AiServiceLevel.MINIMAL) {
+        this.serviceLevel = AiServiceLevel.MINIMAL;
+        this.levelUpdatedAt = Date.now();
+        this.logger.warn(
+          `⚠️  Service downgraded to MINIMAL mode due to 429 error`,
+        );
+      }
+    }
+
+    // Circuit breaker for non-429 consecutive failures
     if (
       this.circuitBreaker.consecutiveFailures >= this.LIMITS.FAILURE_THRESHOLD
     ) {
@@ -235,38 +424,43 @@ export class AiService implements OnModuleInit {
   }
 
   /**
-   * 通用文本生成接口 - 所有AI功能的统一入口
+   * Universal text generation interface — unified entry for all AI features
    */
   async generateText(
     prompt: string,
     options?: AiGenerationOptions,
     requiredLevel: AiServiceLevel = AiServiceLevel.FULL,
   ): Promise<string | null> {
-    if (!this.isEnabled || !this.geminiModel) {
+    const activeKey = this.keyInstances[this.activeKeyIndex];
+
+    if (!activeKey || this.keyInstances.length === 0) {
       return null;
     }
 
-    // 服务等级检查
+    // Service level check
     if (this.serviceLevel < requiredLevel) {
       return null;
     }
 
-    // 流量控制检查
+    // Traffic control check
     const estimatedTokens =
       Math.ceil(prompt.length / 4) + (options?.maxOutputTokens || 512);
     if (!this.checkRateLimit(estimatedTokens)) {
       return null;
     }
 
+    // Get fresh active key (may have changed after checkRateLimit rotation)
+    const currentKey = this.keyInstances[this.activeKeyIndex];
+
     try {
-      const result = await this.geminiModel.generateContent({
+      const result = await currentKey.model.generateContent({
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         generationConfig: options,
       });
 
       const response = result.response;
 
-      // 安全边界检查
+      // Safety boundary check
       if (
         !response ||
         !response.candidates ||
@@ -279,27 +473,12 @@ export class AiService implements OnModuleInit {
       this.recordSuccess(estimatedTokens);
       return response.candidates[0]?.content?.parts?.[0]?.text || null;
     } catch (e: any) {
-      this.recordFailure();
+      this.recordFailure(e);
 
-      // 特殊处理429错误（资源耗尽）
-      if (e.code === 429 || e.status === 'RESOURCE_EXHAUSTED') {
+      // Special handling for 429 errors (resource exhausted)
+      if (e.status === 429 || e.message?.includes('429')) {
         this.logger.warn(
-          `⚠️  Vertex AI API 429 Resource Exhausted. Downgrading service level.`,
-        );
-
-        // 立即降级服务等级
-        if (this.serviceLevel > AiServiceLevel.MINIMAL) {
-          this.serviceLevel = AiServiceLevel.MINIMAL;
-          this.levelUpdatedAt = Date.now();
-          this.logger.warn(
-            `⚠️  Service downgraded to MINIMAL mode due to 429 error`,
-          );
-        }
-
-        // 开启熔断保护
-        this.circuitBreaker.openUntil = Date.now() + 300000; // 5分钟熔断
-        this.logger.warn(
-          `🔥 Circuit breaker OPENED for 5 minutes due to 429 error`,
+          `⚠️  AI Studio API 429 Resource Exhausted on key ...${currentKey.keySuffix}. Rotating keys.`,
         );
       }
 
@@ -309,7 +488,7 @@ export class AiService implements OnModuleInit {
   }
 
   /**
-   * 增强版文本生成接口 - 支持指数退避重试
+   * Enhanced text generation with exponential backoff retry
    */
   async generateTextWithRetry(
     prompt: string,
@@ -321,14 +500,12 @@ export class AiService implements OnModuleInit {
       try {
         const result = await this.generateText(prompt, options, requiredLevel);
 
-        // 如果成功返回结果
         if (result !== null) {
           return result;
         }
 
-        // 如果返回null但服务可用，可能是限流，等待后重试
         if (this.isAvailable() && attempt < maxRetries) {
-          const delay = Math.pow(2, attempt) * 1000; // 指数退避：1秒、2秒、4秒
+          const delay = Math.pow(2, attempt) * 1000; // exp backoff: 1s, 2s, 4s
           this.logger.debug(
             `AI request limited, waiting ${delay}ms before retry (attempt ${attempt + 1}/${maxRetries})`,
           );
@@ -338,20 +515,18 @@ export class AiService implements OnModuleInit {
 
         return null;
       } catch (error: any) {
-        // 如果是429错误，使用指数退避重试
         if (
-          (error.code === 429 || error.status === 'RESOURCE_EXHAUSTED') &&
+          (error.status === 429 || error.message?.includes('429')) &&
           attempt < maxRetries
         ) {
-          const delay = Math.pow(2, attempt) * 2000; // 更长的退避：2秒、4秒、8秒
+          const delay = Math.pow(2, attempt) * 2000; // longer backoff: 2s, 4s, 8s
           this.logger.warn(
-            `Vertex AI 429 error, waiting ${delay}ms before retry (attempt ${attempt + 1}/${maxRetries})`,
+            `AI Studio 429 error, waiting ${delay}ms before retry (attempt ${attempt + 1}/${maxRetries})`,
           );
           await new Promise((resolve) => setTimeout(resolve, delay));
           continue;
         }
 
-        // 其他错误或达到最大重试次数
         this.logger.error(
           `AI generation failed after ${attempt + 1} attempts`,
           error,
@@ -364,7 +539,88 @@ export class AiService implements OnModuleInit {
   }
 
   /**
-   * 评论内容智能审核 - 等级 ESSENTIAL
+   * Generate content from image (for KYC OCR) — shared with KycProviderService
+   */
+  async generateContentFromImage(
+    prompt: string,
+    imageBuffer: Buffer,
+    mimeType: string = 'image/jpeg',
+  ): Promise<string | null> {
+    const activeKey = this.keyInstances[this.activeKeyIndex];
+
+    if (!activeKey || this.keyInstances.length === 0) {
+      return null;
+    }
+
+    if (this.serviceLevel < AiServiceLevel.FULL) {
+      return null;
+    }
+
+    // Estimate: base64 image size ~ 4/3 of buffer size
+    const estimatedTokens =
+      Math.ceil(prompt.length / 4) +
+      Math.ceil(imageBuffer.length / 3 / 4) +
+      512;
+    if (!this.checkRateLimit(estimatedTokens)) {
+      return null;
+    }
+
+    // Get fresh active key (may have changed after checkRateLimit rotation)
+    const currentKey = this.keyInstances[this.activeKeyIndex];
+
+    try {
+      const imageBase64 = imageBuffer.toString('base64');
+
+      const result = await currentKey.model.generateContent({
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              { text: prompt },
+              {
+                inlineData: {
+                  mimeType,
+                  data: imageBase64,
+                },
+              },
+            ],
+          },
+        ],
+        generationConfig: {
+          temperature: 0,
+          maxOutputTokens: 4096,
+        },
+      });
+
+      const response = result.response;
+
+      if (
+        !response ||
+        !response.candidates ||
+        response.candidates.length === 0
+      ) {
+        this.recordFailure();
+        return null;
+      }
+
+      this.recordSuccess(estimatedTokens);
+      return response.candidates[0]?.content?.parts?.[0]?.text || null;
+    } catch (e: any) {
+      this.recordFailure(e);
+
+      if (e.status === 429 || e.message?.includes('429')) {
+        this.logger.warn(
+          `⚠️  AI Studio 429 in image generation on key ...${currentKey.keySuffix}. Rotating keys.`,
+        );
+      }
+
+      this.logger.error('AI image generation error', e);
+      return null;
+    }
+  }
+
+  /**
+   * Comment content moderation — level ESSENTIAL
    */
   async moderateComment(
     content: string,
@@ -417,10 +673,9 @@ Return JSON format:
     try {
       const jsonStr = this.extractJsonObject(response);
       const parsed = JSON.parse(jsonStr);
-      // 防御性编程：确保返回的数据符合接口契约
       return {
         score: typeof parsed.score === 'number' ? parsed.score : 0,
-        passed: parsed.passed !== false, // 默认通过
+        passed: parsed.passed !== false,
         reason: typeof parsed.reason === 'string' ? parsed.reason : null,
         categories: Array.isArray(parsed.categories) ? parsed.categories : [],
         autoReplySuggestion:
@@ -435,7 +690,7 @@ Return JSON format:
   }
 
   /**
-   * 生成自动回复 - 等级 FULL
+   * Generate auto reply — level FULL
    */
   async generateAutoReply(
     comment: string,
@@ -473,7 +728,7 @@ RULES:
   }
 
   /**
-   * ⏳ 预留：生成向量嵌入
+   * ⏳ Reserved: generate vector embeddings
    */
   generateEmbedding(text: string): Promise<number[] | null> {
     this.logger.debug('Embedding generation requested, feature coming soon');
@@ -481,17 +736,20 @@ RULES:
   }
 
   /**
-   * ⏳ 预留：语义搜索匹配
+   * ⏳ Reserved: semantic search matching
    */
   semanticSearch(query: string, documents: string[]): Promise<number[]> {
     return Promise.resolve([]);
   }
 
   /**
-   * 通用文本翻译 - 等级 FULL
+   * Universal text translation — level FULL
    */
   async translateText(text: string, targetLang: string): Promise<string> {
-    if (!this.isEnabled || this.serviceLevel < AiServiceLevel.FULL) {
+    if (
+      this.keyInstances.length === 0 ||
+      this.serviceLevel < AiServiceLevel.FULL
+    ) {
       return text;
     }
 
@@ -557,13 +815,16 @@ ${text}
   }
 
   /**
-   * Markdown 文档翻译 - 等级 FULL
+   * Markdown document translation — level FULL
    */
   async translateMarkdown(
     markdown: string,
     targetLang: string,
   ): Promise<string> {
-    if (!this.isEnabled || this.serviceLevel < AiServiceLevel.FULL) {
+    if (
+      this.keyInstances.length === 0 ||
+      this.serviceLevel < AiServiceLevel.FULL
+    ) {
       return markdown;
     }
 
@@ -628,7 +889,10 @@ ${markdown}
   }
 
   isAvailable(): boolean {
-    return this.isEnabled && this.circuitBreaker.openUntil <= Date.now();
+    return (
+      this.keyInstances.length > 0 &&
+      this.circuitBreaker.openUntil <= Date.now()
+    );
   }
 
   getServiceLevel(): AiServiceLevel {
@@ -636,9 +900,26 @@ ${markdown}
   }
 
   getUsageStats() {
+    const totalDaily = this.keyInstances.reduce(
+      (sum, k) => sum + k.dailyTokens,
+      0,
+    );
+
     return {
+      totalKeys: this.keyInstances.length,
+      activeKeyIndex: this.activeKeyIndex,
+      keys: this.keyInstances.map((k, i) => ({
+        index: i,
+        keySuffix: k.keySuffix,
+        dailyTokens: k.dailyTokens,
+        dailyLimit: this.LIMITS.DAILY_PER_KEY,
+        blocked: k.blocked,
+        blockedReason: k.blockedReason,
+        isActive: i === this.activeKeyIndex,
+      })),
       requests: this.usageCounter.requests,
       tokens: this.usageCounter.tokens,
+      totalDailyTokens: totalDaily,
       resetIn: Math.max(0, this.usageCounter.resetAt - Date.now()),
       serviceLevel: AiServiceLevel[this.serviceLevel],
       circuitBreakerOpen: this.circuitBreaker.openUntil > Date.now(),
