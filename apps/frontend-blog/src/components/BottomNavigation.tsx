@@ -247,7 +247,6 @@ export default function BottomNavigation() {
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background border-t border-border">
-
       {/* 实际导航内容 */}
       <div className="h-14 px-4 flex items-center justify-around">
         {navItems.map((item) => {
