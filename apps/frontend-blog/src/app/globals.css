@@ -237,3 +237,33 @@ input:-webkit-autofill:active {
     animation: none;
   }
 }
+
+/* ------------------------------------------------------------------ */
+/*  Scrollable wrapper for wide article content                       */
+/*  Used in ArticleMarkdown.tsx for images, tables, SVGs, and figures */
+/*  that are wider than the viewport. Behaves like code blocks:       */
+/*  natural width preserved, horizontal scrollbar on overflow.        */
+/* ------------------------------------------------------------------ */
+.article-media-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+  margin: 1.5em 0;
+  border-radius: 0.5rem;
+}
+
+.article-media-wrapper > img,
+.article-media-wrapper > svg,
+.article-media-wrapper > table,
+.article-media-wrapper > pre {
+  max-width: none;
+  height: auto;
+  display: block;
+}
+
+/* Ensure <pre> blocks inside the wrapper don't have their own margins
+   (the wrapper provides the spacing) and preserve natural width */
+.article-media-wrapper > pre {
+  margin: 0;
+  border-radius: inherit;
+}

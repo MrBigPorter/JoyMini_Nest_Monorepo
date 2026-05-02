@@ -38,41 +38,6 @@ export function useIsClient(): boolean {
 }
 
 /**
- * 可选依赖安全加载Hook
- *
- * 使用原则：所有动态导入的可选依赖必须使用此Hook
- *
- * @example
- * ```typescript
- * const capacitorPreferences = useOptionalModule<typeof import('@capacitor/preferences')>('@capacitor/preferences');
- *
- * if (capacitorPreferences) {
- *   // 安全使用可选模块
- *   await capacitorPreferences.Preferences.set({ key: 'test', value: 'data' });
- * } else {
- *   // fallback逻辑
- *   localStorage.setItem('test', 'data');
- * }
- * ```
- */
-export function useOptionalModule<T>(moduleName: string): T | null {
-  const [module, setModule] = useState<T | null>(null);
-
-  useEffect(() => {
-    import(moduleName)
-      .then((mod) => setModule(mod))
-      .catch(() => {
-        console.warn(
-          `Optional module ${moduleName} not available, using fallback`,
-        );
-        setModule(null);
-      });
-  }, [moduleName]);
-
-  return module;
-}
-
-/**
  * 类型安全访问Hook（防止null/undefined错误）
  *
  * 使用原则：所有可能为null/undefined的值必须使用此Hook

@@ -285,7 +285,7 @@
   "pwa": {
     "install": {
       "title": "Installer l'application",
-      "message": "Ajoutez JoyMinis Blog à votre écran d'accueil pour une meilleure expérience de lecture !",
+      "message": "Ajoutez Tarsier Labs à votre écran d'accueil pour une meilleure expérience de lecture !",
       "button": "Installer maintenant",
       "dontShow": "Ne plus afficher"
     },
