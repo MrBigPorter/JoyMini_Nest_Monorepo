@@ -66,10 +66,7 @@ export function AnimatedLink({
     <motion.div
       initial={false} // 关键：禁止初始动画，统一 SSR/CSR
       {...animationProps}
-      style={{
-        cursor: 'pointer',
-        willChange: 'transform',
-      }}
+      style={{ cursor: 'pointer' }}
       suppressHydrationWarning // 压制 hydration 警告
     >
       <Link className={className} {...props}>

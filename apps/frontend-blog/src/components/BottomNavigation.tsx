@@ -130,9 +130,14 @@ export default function BottomNavigation() {
     setActiveStates(newActiveStates);
   }, [pathname]);
 
-  // 水合完成前不渲染
+  // 水合完成前渲染同等高度的空壳，避免 main 区域 padding-bottom 在动画中跳变
   if (!isClient) {
-    return null;
+    return (
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background border-t border-border">
+        <div style={{ height: 'var(--safe-area-bottom)' }} />
+        <div className="h-14" />
+      </nav>
+    );
   }
 
   const navItems = [

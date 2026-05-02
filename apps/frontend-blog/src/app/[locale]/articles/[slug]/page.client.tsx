@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useMemo, useCallback } from 'react';
+import { setNavDirection } from '@/lib/navigation/direction';
 import Image from 'next/image';
 import { useParams, useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
@@ -101,6 +102,7 @@ export default function ArticlePageClient({
   // Falls back to home page if no history (direct entry to article)
   // -------------------------------------------------------------------
   const handleBack = useCallback(() => {
+    setNavDirection('backward');
     if (window.history.length > 1) {
       router.back();
     } else {

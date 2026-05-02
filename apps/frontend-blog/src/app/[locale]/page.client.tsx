@@ -21,6 +21,7 @@ import { CategoryFilter } from '@/components/blog/CategoryFilter';
 import { LoadMore } from '@/components/blog/LoadMore';
 import { PageErrorBoundary } from '@/lib/components/ErrorBoundary';
 import { HomePageSkeleton } from '@/lib/components/SkeletonLoader';
+import { useHomePageContext } from '@/lib/providers/HomePageStateProvider';
 import type {
   FrontendArticle,
   FrontendCategory,
@@ -63,31 +64,58 @@ function HomePageClientContent({ initialData, ...props }: HomePageClientProps) {
   const networkQuality = useNetworkQuality();
 
   // ──────────────────────────────────────────────────
-  // Initialize state from URL search params (category, page)
-  // This preserves filter state when navigating back from article detail
+  // Initialize state from URL search params (category)
   // ──────────────────────────────────────────────────
   const [selectedCategoryId, setSelectedCategoryId] = useState<
     string | undefined
   >(searchParams.get('category') || undefined);
 
-  const [page, setPage] = useState(() => {
-    const p = searchParams.get('page');
-    return p ? Math.max(1, Number(p)) : 1;
-  });
+  // ──────────────────────────────────────────────────
+  // KeepAlive state from Layout-level Context.
+  // allArticles + page + isInitialCategory survive home ↔ article-detail
+  // navigation because the provider lives in [locale]/layout.tsx which
+  // stays mounted while only children (the page) swap.
+  // ──────────────────────────────────────────────────
+  const {
+    allArticles,
+    page,
+    isInitialCategory,
+    setAllArticles,
+    setPage,
+    setIsInitialCategory,
+    resetState,
+  } = useHomePageContext();
 
-  // Track whether user has switched away from the SSR-initial category
-  // When false, we stop passing initialData to React Query to prevent
-  // stale SSR data from contaminating new query keys (category switch → empty category)
-  const isInitialCategory = useRef(true);
+  // On first mount (fresh load or hard refresh), seed Context from SSR
+  // initialData and URL params. When returning from article detail,
+  // Context already has the accumulated data → skip seeding.
+  const initialSeedDone = useRef(false);
+
+  useEffect(() => {
+    if (initialSeedDone.current) return;
+    initialSeedDone.current = true;
+
+    // Seed accumulated articles from SSR data
+    if (allArticles.length === 0 && initialData?.items?.length) {
+      setAllArticles(initialData.items);
+    }
+
+    // On fresh load/hard refresh: clean stale ?page=N from URL.
+    // Refreshing always goes to page 1, so the URL should reflect that.
+    // The KeepAlive Context preserves page across SPA navigation instead.
+    if (searchParams.get('page')) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete('page');
+      router.replace(`?${params.toString()}`, { scroll: false });
+    }
+
+    // Intentionally empty deps: runs once on mount only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Track latest scroll position in real-time via scroll event listener.
   // This avoids reading window.scrollY at cleanup time (which Next.js resets to 0 before unmount).
   const scrollPosRef = useRef(0);
-
-  // Accumulated articles for "Load More"
-  const [allArticles, setAllArticles] = useState<FrontendArticle[]>(
-    () => initialData?.items || [],
-  );
 
   // ──────────────────────────────────────────────────
   // Sync state → URL search params (one-way, prevents infinite loop)
@@ -102,6 +130,8 @@ function HomePageClientContent({ initialData, ...props }: HomePageClientProps) {
       params.delete('category');
     }
 
+    // Sync page to URL for SPA navigation (Load More).
+    // On hard refresh, the seed effect above cleans ?page=N so we always start at page 1.
     if (page > 1) {
       params.set('page', String(page));
     } else {
@@ -143,7 +173,7 @@ function HomePageClientContent({ initialData, ...props }: HomePageClientProps) {
     page,
     pageSize: PAGE_SIZE,
     categoryId: selectedCategoryId,
-    initialData: isInitialCategory.current ? initialData : undefined,
+    initialData: isInitialCategory ? initialData : undefined,
     queryKeyPrefix: 'homeArticles',
   });
 
@@ -159,8 +189,13 @@ function HomePageClientContent({ initialData, ...props }: HomePageClientProps) {
   // - First load or category switch resolved (page === 1): replace articles
   useEffect(() => {
     if (page > 1 && prevPageRef.current !== page) {
-      // Page changed (Load More)
-      setAllArticles((prev) => [...prev, ...articles]);
+      // Page changed (Load More) — deduplicate by ID to prevent duplicates
+      // when React Query reuses stale initialData for a different page query
+      setAllArticles((prev) => {
+        const existingIds = new Set(prev.map((a) => a.id));
+        const newArticles = articles.filter((a) => !existingIds.has(a.id));
+        return [...prev, ...newArticles];
+      });
       prevPageRef.current = page;
     } else if (page === 1 && articles.length > 0) {
       // First load, category switch resolved, or SSR hydration
@@ -289,9 +324,9 @@ function HomePageClientContent({ initialData, ...props }: HomePageClientProps) {
       // No-op: clicking the same tab that's already active should do nothing
       if (categoryId === selectedCategoryId) return;
 
-      // Mark that user has switched away from the SSR-initial category
-      // This prevents stale initialData from polluting new React Query keys
-      isInitialCategory.current = false;
+      // Mark that user has switched away from the SSR-initial category,
+      // reset accumulated data and page — all via context's resetState.
+      setIsInitialCategory(false);
 
       // Use View Transitions API (Chrome 111+) for smooth crossfade
       if (
@@ -306,8 +341,7 @@ function HomePageClientContent({ initialData, ...props }: HomePageClientProps) {
           }
         ).startViewTransition(() => {
           setSelectedCategoryId(categoryId);
-          setPage(1);
-          setAllArticles([]);
+          resetState();
         });
         // Ensure transition doesn't block for too long (fallback timeout)
         setTimeout(() => {
@@ -316,11 +350,10 @@ function HomePageClientContent({ initialData, ...props }: HomePageClientProps) {
       } else {
         // Fallback for browsers without View Transitions support
         setSelectedCategoryId(categoryId);
-        setPage(1);
-        setAllArticles([]);
+        resetState();
       }
     },
-    [selectedCategoryId],
+    [selectedCategoryId, setIsInitialCategory, resetState],
   );
 
   // Handle load more

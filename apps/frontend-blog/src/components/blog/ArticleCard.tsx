@@ -11,6 +11,7 @@ import { BookmarkIconButton } from '@/lib/components/BookmarkButton';
 import { BlurhashImage } from './BlurhashImage';
 import { HlsVideoPlayer } from './HlsVideoPlayer';
 import { isVideoUrl } from '@/lib/utils/media';
+import { setNavDirection } from '@/lib/navigation/direction';
 import { Play } from 'lucide-react';
 import type { NetworkQuality } from '@/lib/hooks/useNetworkQuality';
 
@@ -275,7 +276,11 @@ export function ArticleCard({
       )}
 
       {/* 标题 + 摘要 + 元信息 — wrapped in Link for navigation */}
-      <Link href={`/articles/${article.slug}`} className="block">
+      <Link
+        href={`/articles/${article.slug}`}
+        className="block"
+        onPointerDown={() => setNavDirection('forward')}
+      >
         <div className="space-y-3">
           {/* 标题 */}
           <h3
