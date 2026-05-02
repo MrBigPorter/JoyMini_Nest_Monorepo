@@ -269,7 +269,7 @@ export class BlogAiProcessor extends WorkerHost {
 
     // 构建批量翻译prompt
     const translationPrompt = `
-Translate the following Chinese article to ${targetLang}:
+Translate the following article to ${targetLang}. The source content is primarily Chinese but may contain mixed Chinese/English text, code blocks, and diagrams.
 
 TITLE: ${sourceTitle}
 
@@ -301,6 +301,20 @@ For example:
 - "JWT认证" (Chinese) -> "JWT認証" (Japanese), NOT "JWT认证" (unchanged)
 - "SQL注入" (Chinese) -> "SQLインジェクション" (Japanese), NOT "SQL注入" (unchanged)
 
+CRITICAL: CODE BLOCKS MUST BE PRESERVED VERBATIM.
+Code blocks are enclosed in triple backticks (\`\`\`language ... \`\`\`).
+- Do NOT translate anything inside code blocks (comments, variable names, string literals, function names).
+- Do NOT modify code block formatting, indentation, or syntax.
+- Code blocks often contain Dart, TypeScript, JavaScript, or other programming languages where comments may be in Chinese - leave them as-is inside the code block.
+- Example: If a code block contains "// 主色阶梯", keep it exactly as "// 主色阶梯" inside the code block.
+
+CRITICAL: ASCII / UNICODE DIAGRAMS MUST BE PRESERVED.
+Diagrams use box-drawing characters (┌, ─, ┐, │, └, ┘, ├, ┤, ┬, ┴, ┼, →, ▼).
+- Preserve the diagram layout and box-drawing characters exactly.
+- If labels inside the diagram are in Chinese, translate them but do NOT break the diagram alignment.
+- Keep label lengths as close to the original as possible to preserve layout.
+- Example: If a diagram has "│  初始状态  │", translate the label but keep the box structure: "│  Initial  │".
+
 CRITICAL: Every Chinese word/phrase MUST be translated. NO Chinese characters allowed in the output.
 For example:
 - "前端开发" (Chinese) -> "Frontend Development" (English) / "フロントエンド開発" (Japanese) / "프론트엔드 개발" (Korean)
@@ -312,7 +326,9 @@ For example:
 
 1. Keep all technical terms in English (NestJS, React, etc.)
 2. Maintain the original Markdown formatting
-3. Return the translation in this exact JSON format:
+3. Preserve all code blocks verbatim
+4. Preserve all ASCII diagram structure
+5. Return the translation in this exact JSON format:
 
 {
   "title": "Translated title",

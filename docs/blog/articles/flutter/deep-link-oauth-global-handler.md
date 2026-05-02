@@ -1,18 +1,23 @@
-# Deep Link OAuth + GlobalOAuthHandler — 统一认证入口架构
+---
+title: "Deep Link OAuth + GlobalOAuthHandler: Unified Authentication Entry Architecture"
+description: "A comprehensive architecture for handling deep links, universal links, and OAuth callbacks in Flutter, with a unified handler that manages authentication gating, route resolution, and deferred navigation."
+slug: deep-link-oauth-global-handler
+tags: [Flutter, Deep Link, OAuth, Authentication, Routing, Security]
+---
 
-> **Article F8** | **Difficulty:** ⭐⭐⭐⭐ | **Source:** `joy_mini_app/lib/core/deep_link/`, `joy_mini_app/lib/core/oauth/`
+# Deep Link OAuth + GlobalOAuthHandler: Unified Authentication Entry Architecture
 
-## 1. 问题空间
+## 1. Problem Space
 
-移动应用面临两种外部入口的认证需求：
+Mobile applications face authentication challenges from two types of external entry points:
 
-| 入口类型 | 示例 | 挑战 |
-|----------|------|------|
-| **Deep Link** | `joymini://payment?orderId=xxx` | 用户可能未登录，需登录后继续 |
-| **Universal Link** | `https://joymini.app/oauth/callback` | 跨应用跳转，状态保持 |
-| **OAuth 回调** | Google/Facebook/Apple 登录返回 | 多 provider 统一处理 |
+| Entry Type | Example | Challenge |
+|------------|---------|-----------|
+| **Deep Link** | `joymini://payment?orderId=xxx` | User may not be logged in; must continue after login |
+| **Universal Link** | `https://joymini.app/oauth/callback` | Cross-app navigation, state preservation |
+| **OAuth Callback** | Google / Facebook / Apple login return | Multiple providers, unified handling |
 
-**GlobalOAuthHandler** 将这些入口统一为一个抽象层：
+**GlobalOAuthHandler** unifies these entry points into a single abstraction layer:
 
 ```
 [External Link]
@@ -22,18 +27,18 @@ DeepLinkParser.parse(url)
 RouteIdentifier.identify(parsed)
       ↓
 AuthGuard.check(route)
-  ├── 已登录 → GlobalOAuthHandler.handle(route)
-  └── 未登录 → AuthNotifier → login → GlobalOAuthHandler.handle(route)
+  ├── Authenticated → GlobalOAuthHandler.handle(route)
+  └── Unauthenticated → AuthNotifier → login → GlobalOAuthHandler.handle(route)
 ```
 
-## 2. Deep Link 解析引擎
+## 2. Deep Link Parsing Engine
 
-### 2.1 URL 解析
+### 2.1 URL Parsing
 
 ```dart
 class DeepLinkParser {
   static DeepLinkResult? parse(Uri uri) {
-    // 自定义 scheme: joymini://path?params
+    // Custom scheme: joymini://path?params
     if (uri.scheme == 'joymini') {
       return _parseCustomScheme(uri);
     }
@@ -81,7 +86,7 @@ class DeepLinkParser {
 }
 ```
 
-### 2.2 DeepLinkResult 模型
+### 2.2 DeepLinkResult Model
 
 ```dart
 class DeepLinkResult {
@@ -97,16 +102,16 @@ class DeepLinkResult {
     required this.raw,
   });
 
-  /// 是否需要认证
+  /// Whether authentication is required
   bool get requiresAuth => switch (route) {
     '/payment'        => true,
     '/profile'        => true,
     '/group/:id'      => true,
-    '/oauth/callback' => false, // OAuth 本身就是认证
+    '/oauth/callback' => false, // OAuth itself is authentication
     _                 => false,
   };
 
-  /// 从 params 中安全读取参数
+  /// Safely read a parameter from params
   T? param<T>(String key) {
     final value = params[key];
     if (value == null) return null;
@@ -119,9 +124,9 @@ class DeepLinkResult {
 }
 ```
 
-## 3. GlobalOAuthHandler — 统一处理中心
+## 3. GlobalOAuthHandler — Unified Processing Hub
 
-### 3.1 架构设计
+### 3.1 Architecture Design
 
 ```dart
 class GlobalOAuthHandler {
@@ -141,7 +146,7 @@ class GlobalOAuthHandler {
         _authNotifier = authNotifier,
         _goRouter = goRouter;
 
-  /// 处理 incoming link（从 AppDelegate / WidgetsBinding 调用）
+  /// Handle incoming link (called from AppDelegate / WidgetsBinding)
   Future<void> handleIncomingLink(Uri uri) async {
     _logger.info('[OAuthHandler] Incoming: $uri');
 
@@ -157,7 +162,7 @@ class GlobalOAuthHandler {
       return;
     }
 
-    // 认证检查
+    // Auth check
     if (parsed.requiresAuth && !_authNotifier.isAuthenticated) {
       _logger.info('[OAuthHandler] Auth required, deferring until login');
       await _authNotifier.deferUntilAuthenticated(
@@ -173,14 +178,14 @@ class GlobalOAuthHandler {
     IdentifiedRoute route,
     DeepLinkResult link,
   ) async {
-    // 构建 GoRouter location
+    // Build GoRouter location
     final location = route.buildLocation(link.params);
     await _goRouter.push(location);
   }
 }
 ```
 
-### 3.2 路由识别器
+### 3.2 Route Identifier
 
 ```dart
 class RouteIdentifier {
@@ -212,7 +217,7 @@ class RouteIdentifier {
     final path = link.route;
     final params = link.params;
 
-    // 静态路由匹配
+    // Static route matching
     if (_templates.containsKey(path)) {
       final template = _templates[path]!;
       final missing = template.requiredParams
@@ -228,7 +233,7 @@ class RouteIdentifier {
       );
     }
 
-    // 动态路由匹配 (/group/:id → /group/42)
+    // Dynamic route matching (/group/:id → /group/42)
     for (final entry in _templates.entries) {
       if (entry.value.matches(path, params)) {
         return IdentifiedRoute(
@@ -243,28 +248,28 @@ class RouteIdentifier {
 }
 ```
 
-### 3.3 延迟认证恢复
+### 3.3 Deferred Authentication Recovery
 
-当 deep link 需要认证但用户未登录时，需要"记住"目标路由，登录后自动跳转：
+When a deep link requires authentication but the user is not logged in, the system needs to "remember" the target route and auto-navigate after login:
 
 ```dart
 class AuthNotifier {
   Completer<IdentifiedRoute>? _pendingRoute;
 
-  /// 注册延迟路由，认证完成后自动导航
+  /// Register a deferred route; auto-navigate after authentication completes
   Future<void> deferUntilAuthenticated({
     required VoidCallback onAuthenticated,
   }) {
     final completer = Completer<void>();
     _pendingRoute = Completer<IdentifiedRoute>();
 
-    // 触发登录流程
+    // Trigger login flow
     _navigateToLogin();
 
     return completer.future;
   }
 
-  /// 认证完成后调用
+  /// Called after authentication completes
   Future<void> _onAuthenticated() async {
     if (_pendingRoute != null) {
       final route = await _pendingRoute!.future;
@@ -275,7 +280,7 @@ class AuthNotifier {
 }
 ```
 
-## 4. OAuth Provider 统一层
+## 4. OAuth Provider Abstraction Layer
 
 ### 4.1 AbstractOAuthProvider
 
@@ -299,7 +304,7 @@ class OAuthResult {
 }
 ```
 
-### 4.2 各 Provider 实现
+### 4.2 Provider Implementations
 
 ```dart
 class GoogleOAuthProvider extends OAuthProvider {
@@ -371,7 +376,7 @@ class FacebookOAuthProvider extends OAuthProvider {
 }
 ```
 
-### 4.3 Provider 注册中心
+### 4.3 Provider Registry
 
 ```dart
 class OAuthProviderRegistry {
@@ -391,7 +396,7 @@ class OAuthProviderRegistry {
 }
 ```
 
-## 5. 平台集成
+## 5. Platform Integration
 
 ### 5.1 iOS — AppDelegate
 
@@ -404,7 +409,7 @@ class AppDelegate: FlutterAppDelegate {
     open url: URL,
     options: [UIApplication.OpenURLOptionsKey: Any] = [:]
   ) -> Bool {
-    // 将 URL 传递给 Flutter
+    // Pass the URL to Flutter
     if let controller = window?.rootViewController as? FlutterViewController {
       let channel = FlutterMethodChannel(
         name: "com.joymini/deeplink",
@@ -441,7 +446,7 @@ class MainActivity : FlutterActivity() {
 }
 ```
 
-### 5.3 Flutter 侧接收
+### 5.3 Flutter Side Reception
 
 ```dart
 class DeepLinkPlatformBridge {
@@ -458,23 +463,23 @@ class DeepLinkPlatformBridge {
 }
 ```
 
-## 6. 安全考量
+## 6. Security Considerations
 
-### 6.1 State 参数防 CSRF
+### 6.1 State Parameter for CSRF Protection
 
 ```dart
 class OAuthStateManager {
-  /// 生成一次性 state token
+  /// Generate a one-time state token
   String generateState() {
     final random = Random.secure();
     final bytes = List<int>.generate(32, (_) => random.nextInt(256));
     return base64UrlEncode(bytes);
   }
 
-  /// 验证回调中的 state 是否匹配
+  /// Verify the received state matches the stored one
   bool validateState(String receivedState) {
     final stored = _storage.getString('oauth_state');
-    _storage.remove('oauth_state'); // 一次性使用
+    _storage.remove('oauth_state'); // Single use
     return stored == receivedState;
   }
 }
@@ -510,7 +515,7 @@ class PkceHelper {
 }
 ```
 
-## 7. 完整数据流
+## 7. Complete Data Flow
 
 ```
 User taps "Payment" in email
@@ -543,7 +548,7 @@ AuthGuard.check(route)
   │               → GoRouter.push('/payment?orderId=ABC123')
 ```
 
-## 8. 测试策略
+## 8. Testing Strategy
 
 ```dart
 void main() {
@@ -571,7 +576,7 @@ void main() {
         Uri.parse('joymini://payment?orderId=123'),
       );
 
-      // 应触发登录流程而非直接导航
+      // Should trigger login flow rather than direct navigation
       verify(() => authNotifier.deferUntilAuthenticated(any()));
     });
 
@@ -587,7 +592,3 @@ void main() {
   });
 }
 ```
-
----
-
-**下一篇预告**: [F9 — AppStartup 数据预热] — 应用启动时的多路数据预加载屏障

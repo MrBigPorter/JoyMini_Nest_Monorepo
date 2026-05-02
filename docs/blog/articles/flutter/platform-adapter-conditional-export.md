@@ -1,27 +1,30 @@
-# Platform Adapter 条件导出 — 跨平台代码的条件编译模式
+---
+title: "Platform Adapter: Conditional Export — Cross-Platform Conditional Compilation Pattern"
+description: "Exploration of the Platform Adapter pattern using Dart's conditional exports to encapsulate platform-specific implementations behind a unified interface, supporting iOS, Android, and Web with proper dead code elimination."
+slug: platform-adapter-conditional-export
+tags: [Flutter, Architecture, CrossPlatform, ConditionalExport, Adapter]
+---
 
-> **Article F12** | **Difficulty:** ⭐⭐⭐ | **Source:** `joy_mini_app/lib/core/adapter/`
+## 1. Problem Context
 
-## 1. 问题背景
+In Flutter cross-platform applications, approximately 15-20% of code requires **platform-specific implementations**:
 
-Flutter 跨平台应用中，约 15-20% 的代码需要 **平台特定实现**：
-
-| 功能 | iOS | Android | Web |
+| Feature | iOS | Android | Web |
 |------|-----|---------|-----|
-| **状态栏** | SystemChrome | SystemChrome | 不支持 |
-| **Haptic Feedback** | `HapticFeedback.mediumImpact` | `HapticFeedback.mediumImpact` | 静默 |
-| **本地通知** | `UNUserNotificationCenter` | `FCM + NotificationCompat` | 不支持 |
-| **App 内支付** | StoreKit | Google Play Billing | 不支持 |
-| **文件选择** | `UIImagePickerController` | `ActivityResultContracts` | `<input type="file">` |
-| **剪贴板** | `UIPasteboard` | `ClipboardManager` | `navigator.clipboard` |
+| **Status Bar** | SystemChrome | SystemChrome | Not supported |
+| **Haptic Feedback** | `HapticFeedback.mediumImpact` | `HapticFeedback.mediumImpact` | Silent |
+| **Local Notifications** | `UNUserNotificationCenter` | `FCM + NotificationCompat` | Not supported |
+| **In-App Payments** | StoreKit | Google Play Billing | Not supported |
+| **File Picker** | `UIImagePickerController` | `ActivityResultContracts` | `<input type="file">` |
+| **Clipboard** | `UIPasteboard` | `ClipboardManager` | `navigator.clipboard` |
 
-**Platform Adapter** 模式用 **条件导出**（Conditional Export）将平台差异封装在适配器接口之后。
+**Platform Adapter** pattern uses **Conditional Export** to encapsulate platform differences behind an adapter interface.
 
-## 2. 条件导出原理
+## 2. Conditional Export Principles
 
-### 2.1 Dart 的条件导出
+### 2.1 Dart Conditional Export
 
-Dart 通过 `export` + `part` 的条件指令实现平台特化：
+Dart achieves platform specialization through `export` + conditional directives:
 
 ```dart
 // core/adapter/platform_adapter.dart
@@ -30,43 +33,43 @@ export 'platform_adapter_stub.dart'
     if (dart.library.html) 'platform_adapter_web.dart';
 ```
 
-**关键规则**：
-- `stub` 版本作为默认（编译时兜底）
-- `dart.library.io` 匹配 iOS/Android/macOS
-- `dart.library.html` 匹配 Web
-- 编译器在编译期选择匹配的实现
+**Key Rules**:
+- `stub` version serves as default (compile-time fallback)
+- `dart.library.io` matches iOS/Android/macOS
+- `dart.library.html` matches Web
+- The compiler selects the matching implementation at compile time
 
-### 2.2 抽象接口定义
+### 2.2 Abstract Interface Definition
 
 ```dart
-// platform_adapter_stub.dart (默认实现)
+// platform_adapter_stub.dart (default implementation)
 abstract class PlatformAdapter {
-  /// 平台名称
+  /// Platform name
   String get platformName => 'unknown';
 
-  /// 是否支持本地通知
+  /// Whether local notifications are supported
   bool get supportsLocalNotifications => false;
 
-  /// 是否支持 App 内支付
+  /// Whether in-app purchases are supported
   bool get supportsInAppPurchase => false;
 
-  /// 显示 Toast
+  /// Show a toast
   void showToast(String message) {}
 
-  /// 复制到剪贴板
+  /// Copy to clipboard
   Future<void> copyToClipboard(String text) async {}
 
-  /// 获取设备型号
+  /// Get device model
   String getDeviceModel() => 'unknown';
 
-  /// 获取系统版本
+  /// Get system version
   String getSystemVersion() => '0.0';
 }
 ```
 
-## 3. 各平台实现
+## 3. Platform Implementations
 
-### 3.1 iOS/Android 原生实现
+### 3.1 iOS/Android Native Implementation
 
 ```dart
 // platform_adapter_io.dart
@@ -81,7 +84,7 @@ class PlatformAdapter {
 
   void showToast(String message) {
     HapticFeedback.lightImpact();
-    // 使用 FlutterToast 或 SnackBar
+    // Use FlutterToast or SnackBar
     Fluttertoast.showToast(msg: message);
   }
 
@@ -92,7 +95,7 @@ class PlatformAdapter {
   }
 
   String getDeviceModel() {
-    // 通过 MethodChannel 获取
+    // Via MethodChannel
     return _deviceInfo.model ?? 'unknown';
   }
 
@@ -102,7 +105,7 @@ class PlatformAdapter {
 }
 ```
 
-### 3.2 Web 实现
+### 3.2 Web Implementation
 
 ```dart
 // platform_adapter_web.dart
@@ -116,7 +119,7 @@ class PlatformAdapter {
   bool get supportsInAppPurchase => false;
 
   void showToast(String message) {
-    // Web 使用 DOM Toast
+    // Web uses DOM Toast
     final toast = html.DivElement()
       ..text = message
       ..style.position = 'fixed'
@@ -143,9 +146,9 @@ class PlatformAdapter {
 }
 ```
 
-## 4. 适配器工厂
+## 4. Adapter Factory
 
-### 4.1 单例访问
+### 4.1 Singleton Access
 
 ```dart
 // platform_adapter.dart
@@ -161,12 +164,12 @@ class PlatformAdapterFactory {
     return _instance!;
   }
 
-  /// 平台类型判断
+  /// Platform type detection
   static bool get isMobile =>
       instance.platformName == 'mobile' || instance.platformName == 'ios';
 
   static bool get isIOS {
-    // 通过 defaultTargetPlatform 判断
+    // Via defaultTargetPlatform
     return defaultTargetPlatform == TargetPlatform.iOS;
   }
 
@@ -178,7 +181,7 @@ class PlatformAdapterFactory {
 }
 ```
 
-### 4.2 Context 扩展
+### 4.2 Context Extension
 
 ```dart
 extension PlatformContextExtension on BuildContext {
@@ -191,14 +194,14 @@ extension PlatformContextExtension on BuildContext {
 }
 ```
 
-## 5. 适配器模式在 Flutter 中的应用
+## 5. Adapter Pattern Applications in Flutter
 
-### 5.1 StatusBar 适配
+### 5.1 StatusBar Adapter
 
 ```dart
 class StatusBarAdapter {
   static void setStyle(Brightness brightness) {
-    if (kIsWeb) return; // Web 不支持
+    if (kIsWeb) return; // Web not supported
 
     SystemChrome.setSystemUIOverlayStyle(
       SystemUIOverlayStyle(
@@ -218,12 +221,12 @@ class StatusBarAdapter {
 }
 ```
 
-### 5.2 Haptic 反馈适配
+### 5.2 Haptic Feedback Adapter
 
 ```dart
 class HapticAdapter {
   static void lightTap() {
-    if (kIsWeb) return; // Web 无震动 API
+    if (kIsWeb) return; // Web has no vibration API
     HapticFeedback.lightImpact();
   }
 
@@ -244,11 +247,11 @@ class HapticAdapter {
 }
 ```
 
-### 5.3 键盘适配
+### 5.3 Keyboard Adapter
 
 ```dart
 class KeyboardAdapter {
-  /// 关闭键盘（各平台行为不同）
+  /// Dismiss keyboard (behavior varies by platform)
   static void dismiss(BuildContext context) {
     final currentFocus = FocusScope.of(context);
 
@@ -256,37 +259,37 @@ class KeyboardAdapter {
       currentFocus.unfocus();
     }
 
-    // iOS: 还需要 resignFirstResponder
+    // iOS: also needs resignFirstResponder
     if (Platform.isIOS) {
       SystemChannels.textInput.invokeMethod('TextInput.hide');
     }
   }
 
-  /// 是否显示键盘
+  /// Whether keyboard is visible
   static bool get isKeyboardVisible {
-    // 通过 MediaQuery 或 ViewInsets
+    // Via MediaQuery or ViewInsets
     return WidgetsBinding.instance.window.viewInsets.bottom > 0;
   }
 }
 ```
 
-### 5.4 安全区域适配
+### 5.4 Safe Area Adapter
 
 ```dart
 class SafeAreaAdapter {
-  /// 获取底部安全区域高度
+  /// Get bottom safe area padding
   static double getBottomPadding(BuildContext context) {
     if (kIsWeb) return 0;
     return MediaQuery.of(context).padding.bottom;
   }
 
-  /// 获取顶部安全区域高度
+  /// Get top safe area padding
   static double getTopPadding(BuildContext context) {
     if (kIsWeb) return 0;
     return MediaQuery.of(context).padding.top;
   }
 
-  /// iPhone X+ 刘海屏适配
+  /// iPhone X+ notch adaptation
   static Widget wrapWithSafeArea({
     required Widget child,
     bool top = true,
@@ -306,19 +309,19 @@ class SafeAreaAdapter {
 }
 ```
 
-## 6. 更复杂的适配：Feature Adapter
+## 6. Advanced Adaptation: Feature Adapter
 
-对于大型功能（如支付、通知），使用 **Feature Adapter** 模式：
+For large features (e.g., payments, notifications), use the **Feature Adapter** pattern:
 
 ```dart
-// 支付适配器接口
+// Payment adapter interface
 abstract class PaymentAdapter {
   Future<bool> isAvailable();
   Future<PaymentResult> processPayment(PaymentRequest request);
   Stream<PaymentEvent> get paymentEvents;
 }
 
-// iOS 实现
+// iOS implementation
 class IosPaymentAdapter extends PaymentAdapter {
   @override
   Future<bool> isAvailable() async {
@@ -328,11 +331,11 @@ class IosPaymentAdapter extends PaymentAdapter {
 
   @override
   Future<PaymentResult> processPayment(PaymentRequest request) async {
-    // StoreKit 实现
+    // StoreKit implementation
   }
 }
 
-// Android 实现
+// Android implementation
 class AndroidPaymentAdapter extends PaymentAdapter {
   @override
   Future<bool> isAvailable() async {
@@ -341,7 +344,7 @@ class AndroidPaymentAdapter extends PaymentAdapter {
   }
 }
 
-// Web 实现（空操作）
+// Web implementation (no-op)
 class WebPaymentAdapter extends PaymentAdapter {
   @override
   Future<bool> isAvailable() async => false;
@@ -353,7 +356,7 @@ class WebPaymentAdapter extends PaymentAdapter {
 }
 ```
 
-### 6.1 运行时注入
+### 6.1 Runtime Injection
 
 ```dart
 class PaymentAdapterFactory {
@@ -369,31 +372,31 @@ class PaymentAdapterFactory {
 }
 ```
 
-## 7. 条件导出 vs 运行时判断
+## 7. Conditional Export vs Runtime Checking
 
-| 方面 | 条件导出 (Conditional Export) | 运行时判断 (kIsWeb / Platform) |
-|------|-----------------------------|-------------------------------|
-| **检查时机** | 编译期 | 运行时 |
-| **死代码消除** | ✅ 彻底移除 | ❌ 保留所有分支 |
-| **包体积** | 更小（仅包含目标平台代码） | 更大（包含所有平台） |
-| **可测试性** | 需要 mock 编译配置 | 可直接 mock Platform |
-| **复杂度** | 多文件维护 | 单文件 if/else |
-| **适用场景** | 平台特定依赖（dart:html） | 简单行为差异 |
+| Aspect | Conditional Export | Runtime Checking (kIsWeb / Platform) |
+|--------|-------------------|---------------------------------------|
+| **Check Timing** | Compile time | Runtime |
+| **Dead Code Elimination** | ✅ Fully removed | ❌ All branches retained |
+| **Bundle Size** | Smaller (target platform code only) | Larger (all platforms included) |
+| **Testability** | Needs mock compile config | Can directly mock Platform |
+| **Complexity** | Multi-file maintenance | Single-file if/else |
+| **Use Case** | Platform-specific imports (dart:html) | Simple behavioral differences |
 
-**最佳实践**：
-- **条件导出**：平台特有的 import（如 `dart:html`、`package:storekit`）
-- **运行时判断**：简单的行为差异（如动画时长、布局方向）
+**Best Practices**:
+- **Conditional Export**: Platform-specific imports (e.g., `dart:html`, `package:storekit`)
+- **Runtime Checking**: Simple behavioral differences (e.g., animation duration, layout direction)
 
-## 8. 完整示例：文件选择器
+## 8. Complete Example: File Picker
 
 ```dart
-// 1. 抽象接口 (stub)
+// 1. Abstract interface (stub)
 // file_picker_stub.dart
 abstract class FilePickerAdapter {
   Future<List<PlatformFile>> pickImages({bool multiple = false});
 }
 
-// 2. iOS/Android 实现
+// 2. iOS/Android implementation
 // file_picker_io.dart
 class FilePickerAdapter {
   Future<List<PlatformFile>> pickImages({bool multiple = false}) async {
@@ -405,7 +408,7 @@ class FilePickerAdapter {
   }
 }
 
-// 3. Web 实现
+// 3. Web implementation
 // file_picker_web.dart
 class FilePickerAdapter {
   Future<List<PlatformFile>> pickImages({bool multiple = false}) async {
@@ -414,7 +417,7 @@ class FilePickerAdapter {
       ..multiple = multiple;
     input.click();
 
-    // 等待用户选择
+    // Wait for user selection
     await input.onChange.first;
     return input.files!.map((file) => PlatformFile(
       name: file.name,
@@ -424,20 +427,20 @@ class FilePickerAdapter {
   }
 }
 
-// 4. 条件导出
+// 4. Conditional export
 // file_picker.dart
 export 'file_picker_stub.dart'
     if (dart.library.io) 'file_picker_io.dart'
     if (dart.library.html) 'file_picker_web.dart';
 ```
 
-## 9. 测试策略
+## 9. Testing Strategy
 
 ```dart
 void main() {
   group('PlatformAdapter', () {
     test('uses io implementation on mobile', () {
-      // 通过编译配置模拟
+      // Simulate via compile config
       // dart test --define=flutter.platform=ios
       final adapter = PlatformAdapterFactory.instance;
       expect(adapter.platformName, anyOf('mobile', 'ios'));
@@ -446,12 +449,8 @@ void main() {
     test('copyToClipboard works on all platforms', () async {
       final adapter = PlatformAdapterFactory.instance;
       await adapter.copyToClipboard('test');
-      // 不抛出异常 = 通过
+      // No exception thrown = pass
     });
   });
 }
 ```
-
----
-
-**下一篇预告**: [F14 — GlobalHandler + CallKit + WebRTC 通话] — 全局事件总线和通话系统

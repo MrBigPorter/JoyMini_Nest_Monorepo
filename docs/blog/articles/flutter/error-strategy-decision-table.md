@@ -1,73 +1,78 @@
-# ErrorStrategy 5 种策略 + 可配置决策表 — 应用级错误处理框架
+---
+title: "ErrorStrategy: 5 Strategies + Configurable Decision Table — Application-Level Error Handling Framework"
+slug: error-strategy-decision-table
+tags: Flutter, ErrorHandling, Architecture, Dart, StateMachine
+description: An application-level error handling framework with 5 configurable strategies (silent, toast, retry, degrade, block) and a decision table engine for Flutter apps.
+---
 
-> **Article F15** | **Difficulty:** ⭐⭐⭐⭐ | **Source:** `joy_mini_app/lib/core/error/`
+# ErrorStrategy: 5 Strategies + Configurable Decision Table — Application-Level Error Handling Framework
 
-## 1. 为什么需要 ErrorStrategy？
+## 1. Why ErrorStrategy?
 
-移动应用面临的错误类型多种多样，统一处理方式不可行：
+Mobile applications face a wide variety of error types — a one-size-fits-all approach does not work:
 
-| 错误类型 | 示例 | 用户期望 |
+| Error Type | Example | User Expectation |
 |----------|------|----------|
-| **网络断开** | `SocketException: No route to host` | 显示离线提示，按钮变灰 |
-| **Token 过期** | `401 Unauthorized` | 静默刷新 Token，无感知 |
-| **余额不足** | `400 Insufficient balance` | 显示具体错误，引导充值 |
-| **服务器错误** | `500 Internal Server Error` | 显示"稍后重试"，自动重试 |
-| **表单验证** | `400 Validation failed` | 字段级错误提示 |
-| **数据为空** | `404 Not found` | 显示空状态，不弹错误 |
+| **Network disconnected** | `SocketException: No route to host` | Show offline notice, gray out button |
+| **Token expired** | `401 Unauthorized` | Silently refresh token, transparent |
+| **Insufficient balance** | `400 Insufficient balance` | Show specific error, guide to top up |
+| **Server error** | `500 Internal Server Error` | Show "retry later", auto-retry |
+| **Form validation** | `400 Validation failed` | Field-level error hints |
+| **Empty data** | `404 Not found` | Show empty state, no error toast |
 
-**ErrorStrategy** 抽象出 **5 种策略**，通过可配置的 **决策表** 匹配错误→策略。
+**ErrorStrategy** abstracts **5 strategies**, matched via a configurable **decision table** that maps errors → strategies.
 
-## 2. 五策略模型
+## 2. Five Strategy Model
 
 ```dart
-/// 错误处理策略
+/// Error handling strategy
 enum ErrorStrategy {
-  /// 1. 静默处理 — 不通知用户，后台恢复
+  /// 1. Silent — do not notify user, recover in background
   silent,
 
-  /// 2. 提示 — 显示 Toast/SnackBar
+  /// 2. Toast — display Toast/SnackBar
   toast,
 
-  /// 3. 重试 — 显示重试按钮，用户点击重试
+  /// 3. Retry — show retry button, user clicks to retry
   retry,
 
-  /// 4. 降级 — 显示降级 UI，功能受限但可用
+  /// 4. Degrade — show degraded UI, limited functionality but usable
   degrade,
 
-  /// 5. 阻断 — 显示错误页面，阻止继续操作
+  /// 5. Block — show error page, prevent further operation
   block,
 }
 ```
 
-### 2.1 策略详解
+### 2.1 Strategy Details
 
-| 策略 | 触发条件 | 用户可见 | 行为 |
+| Strategy | Trigger Condition | User Visible | Behavior |
 |------|----------|----------|------|
-| **silent** | Token 刷新、后台同步、日志上报 | ❌ 无感知 | 记录日志，继续执行 |
-| **toast** | 表单验证失败、操作失败 | ✅ 短暂提示 | 显示错误消息 3s |
-| **retry** | 网络超时、上传失败 | ✅ 操作按钮 | 显示"重试"按钮+错误描述 |
-| **degrade** | 某个模块不可用、功能降级 | ✅ 功能受限 | 显示降级提示 + 替代方案 |
-| **block** | 认证过期、非法操作、版本强制更新 | ✅ 全屏阻断 | 显示错误页，阻止使用 |
+| **silent** | Token refresh, background sync, log upload | ❌ Transparent | Log, continue execution |
+| **toast** | Form validation failure, operation failure | ✅ Brief notification | Show error message for 3s |
+| **retry** | Network timeout, upload failure | ✅ Action button | Show "Retry" button + error description |
+| **degrade** | Module unavailable, feature degraded | ✅ Limited functionality | Show degrade notice + alternative |
+| **block** | Auth expired, illegal operation, forced update | ✅ Full-screen block | Show error page, prevent use |
 
-## 3. 决策表引擎
+## 3. Decision Table Engine
 
-### 3.1 规则定义
+### 3.1 Rule Definition
 
 ```dart
 class ErrorRule {
-  /// 匹配条件
+  /// Match conditions
   final bool Function(Object error, StackTrace? stack) matcher;
 
-  /// 应用策略
+  /// Applied strategy
   final ErrorStrategy strategy;
 
-  /// 用户可见的消息
+  /// User-visible message
   final String? message;
 
-  /// 是否记录到 Crashlytics
+  /// Whether to report to Crashlytics
   final bool report;
 
-  /// 重试配置（仅 retry 策略）
+  /// Retry configuration (only for retry strategy)
   final RetryConfig? retryConfig;
 
   const ErrorRule({
@@ -80,7 +85,7 @@ class ErrorRule {
 }
 ```
 
-### 3.2 决策表
+### 3.2 Decision Table
 
 ```dart
 class ErrorDecisionTable {
@@ -91,7 +96,7 @@ class ErrorDecisionTable {
   }
 
   void _buildDefaultRules() {
-    // ---- silent 策略 ----
+    // ---- silent strategy ----
 
     add(ErrorRule(
       matcher: (e, _) => e is TokenExpiredException,
@@ -105,7 +110,7 @@ class ErrorDecisionTable {
       report: false,
     ));
 
-    // ---- toast 策略 ----
+    // ---- toast strategy ----
 
     add(ErrorRule(
       matcher: (e, _) => e is BadRequestException,
@@ -118,7 +123,7 @@ class ErrorDecisionTable {
       strategy: ErrorStrategy.toast,
     ));
 
-    // ---- retry 策略 ----
+    // ---- retry strategy ----
 
     add(ErrorRule(
       matcher: (e, _) => e is NetworkException,
@@ -135,7 +140,7 @@ class ErrorDecisionTable {
       retryConfig: RetryConfig(maxRetries: 2, strategy: BackoffStrategy.exponential),
     ));
 
-    // ---- degrade 策略 ----
+    // ---- degrade strategy ----
 
     add(ErrorRule(
       matcher: (e, _) => e is ServiceUnavailableException,
@@ -150,7 +155,7 @@ class ErrorDecisionTable {
       message: 'This feature is not available in your region',
     ));
 
-    // ---- block 策略 ----
+    // ---- block strategy ----
 
     add(ErrorRule(
       matcher: (e, _) => e is ForcedUpdateException,
@@ -168,10 +173,10 @@ class ErrorDecisionTable {
     ));
   }
 
-  /// 添加自定义规则
+  /// Add custom rule
   void add(ErrorRule rule) => _rules.add(rule);
 
-  /// 匹配决策
+  /// Match decision
   ErrorDecision decide(Object error, [StackTrace? stack]) {
     for (final rule in _rules) {
       if (rule.matcher(error, stack)) {
@@ -184,7 +189,7 @@ class ErrorDecisionTable {
       }
     }
 
-    // 默认：提示
+    // Default: toast
     return ErrorDecision(
       strategy: ErrorStrategy.toast,
       message: _defaultMessage(error),
@@ -214,7 +219,7 @@ class ErrorDecision {
 }
 ```
 
-## 4. 策略执行器
+## 4. Strategy Executor
 
 ```dart
 class ErrorStrategyExecutor {
@@ -224,16 +229,16 @@ class ErrorStrategyExecutor {
   ErrorStrategyExecutor(this._context)
       : _table = ErrorDecisionTable();
 
-  /// 执行错误处理
+  /// Execute error handling
   Future<void> execute(Object error, [StackTrace? stack]) async {
     final decision = _table.decide(error, stack);
 
-    // 上报
+    // Report
     if (decision.report) {
       await _reportError(error, stack, decision);
     }
 
-    // 执行策略
+    // Execute strategy
     switch (decision.strategy) {
       case ErrorStrategy.silent:
         await _executeSilent(error);
@@ -249,7 +254,7 @@ class ErrorStrategyExecutor {
   }
 
   Future<void> _executeSilent(Object error) async {
-    // 仅记录日志，无 UI 反馈
+    // Log only, no UI feedback
     Logger.warning('[ErrorStrategy] Silent: $error');
   }
 
@@ -277,7 +282,7 @@ class ErrorStrategyExecutor {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(ctx);
-              // 触发重试（通过 callback 或 event）
+              // Trigger retry (via callback or event)
               _retrySubject.add(decision);
             },
             child: const Text('Retry'),
@@ -288,7 +293,7 @@ class ErrorStrategyExecutor {
   }
 
   Future<void> _executeDegrade(ErrorDecision decision) async {
-    // 显示降级 banner
+    // Show degrade banner
     _degradeBanner = DegradeBanner(
       message: decision.message,
       onDismiss: () => _hideDegradeBanner(),
@@ -319,17 +324,17 @@ class ErrorStrategyExecutor {
 }
 ```
 
-## 5. 错误分类体系
+## 5. Error Classification System
 
 ```dart
-/// 基础错误类
+/// Base error class
 sealed class AppException implements Exception {
   final String message;
   final int? code;
   AppException(this.message, {this.code});
 }
 
-// ===== 网络层 =====
+// ===== Network layer =====
 class NetworkException extends AppException {
   NetworkException([String message = 'Network unavailable'])
       : super(message);
@@ -340,7 +345,7 @@ class TimeoutException extends AppException {
       : super(message);
 }
 
-// ===== API 层 =====
+// ===== API layer =====
 class ApiException extends AppException {
   final int statusCode;
   ApiException(this.statusCode, super.message);
@@ -392,7 +397,7 @@ class ServiceUnavailableException extends ApiException {
       : super(503, message);
 }
 
-// ===== 业务层 =====
+// ===== Business layer =====
 class InsufficientBalanceException extends AppException {
   InsufficientBalanceException()
       : super('Insufficient balance');
@@ -414,7 +419,7 @@ class FeatureDisabledException extends AppException {
 }
 ```
 
-## 6. HTTP 层集成
+## 6. HTTP Layer Integration
 
 ```dart
 class ErrorInterceptor extends Interceptor {
@@ -426,12 +431,12 @@ class ErrorInterceptor extends Interceptor {
     final decision = _table.decide(appError, err.stackTrace);
 
     if (decision.strategy == ErrorStrategy.silent) {
-      // 静默处理，继续传递
+      // Silent handling, continue passing
       handler.next(err);
       return;
     }
 
-    // 记录到上下文中，由 UI 层消费
+    // Record in context, consumed by UI layer
     ErrorContext.current?.addError(decision);
 
     handler.next(err);
@@ -475,7 +480,7 @@ class ErrorInterceptor extends Interceptor {
 }
 ```
 
-## 7. 组件层集成：ErrorWidgetBuilder
+## 7. Component Layer Integration: ErrorWidgetBuilder
 
 ```dart
 class ErrorWidgetBuilder extends StatelessWidget {
@@ -526,7 +531,7 @@ class ErrorWidgetBuilder extends StatelessWidget {
   Widget _buildDegradeWidget() {
     return Column(
       children: [
-        // 降级横幅
+        // Degrade banner
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(8),
@@ -539,7 +544,7 @@ class ErrorWidgetBuilder extends StatelessWidget {
             ],
           ),
         ),
-        // 降级后的替代 UI
+        // Fallback UI after degradation
         _buildFallbackContent(),
       ],
     );
@@ -567,7 +572,7 @@ class ErrorWidgetBuilder extends StatelessWidget {
 }
 ```
 
-## 8. 决策表可视化
+## 8. Decision Table Visualization
 
 ```
 ┌────────────────────────────────────────────────────────────────┐
@@ -578,23 +583,23 @@ class ErrorWidgetBuilder extends StatelessWidget {
 │ TokenExpiredException│ silent       │ —        │ ❌            │
 │ DioEx: cancel        │ silent       │ —        │ ❌            │
 ├──────────────────────┼──────────────┼──────────┼───────────────┤
-│ BadRequestException  │ toast        │具体消息   │ ❌            │
-│ ValidationException  │ toast        │字段错误   │ ❌            │
-│ RateLimitException   │ toast        │"稍后重试" │ ✅            │
+│ BadRequestException  │ toast        │Specific   │ ❌            │
+│ ValidationException  │ toast        │Field error│ ❌            │
+│ RateLimitException   │ toast        │"Retry"    │ ✅            │
 ├──────────────────────┼──────────────┼──────────┼───────────────┤
-│ NetworkException     │ retry        │网络断开   │ ✅            │
-│ TimeoutException     │ retry        │超时      │ ❌            │
-│ 500 ServerError      │ retry        │服务器错误 │ ✅            │
+│ NetworkException     │ retry        │Disconnect │ ✅            │
+│ TimeoutException     │ retry        │Timeout   │ ❌            │
+│ 500 ServerError      │ retry        │Server err│ ✅            │
 ├──────────────────────┼──────────────┼──────────┼───────────────┤
-│ ServiceUnavailableEx │ degrade      │暂不可用   │ ✅            │
-│ FeatureDisabledEx    │ degrade      │区域限制   │ ❌            │
+│ ServiceUnavailableEx │ degrade      │Unavailabl│ ✅            │
+│ FeatureDisabledEx    │ degrade      │Region    │ ❌            │
 ├──────────────────────┼──────────────┼──────────┼───────────────┤
-│ ForcedUpdateException│ block        │更新 App  │ ✅            │
-│ account_disabled     │ block        │账号禁用   │ ✅            │
+│ ForcedUpdateException│ block        │Update    │ ✅            │
+│ account_disabled     │ block        │Disabled  │ ✅            │
 └──────────────────────┴──────────────┴──────────┴───────────────┘
 ```
 
-## 9. 测试
+## 9. Testing
 
 ```dart
 void main() {
@@ -625,18 +630,14 @@ void main() {
 }
 ```
 
-## 10. 总结
+## 10. Summary
 
-| 策略 | 用户影响 | 典型场景 | 示例代码量 |
+| Strategy | User Impact | Typical Scenario | Example Code Size |
 |------|----------|----------|-----------|
-| **silent** | 无 | Token 刷新、后台同步 | 3 行 |
-| **toast** | 短暂提示 | 验证失败、操作错误 | 10 行 |
-| **retry** | 用户需操作 | 网络超时、上传失败 | 30 行 |
-| **degrade** | 功能受限 | 模块不可用、区域限制 | 50 行 |
-| **block** | 阻断使用 | 强制更新、账号禁用 | 40 行 |
+| **silent** | None | Token refresh, background sync | 3 lines |
+| **toast** | Brief notification | Validation failure, operation error | 10 lines |
+| **retry** | User action required | Network timeout, upload failure | 30 lines |
+| **degrade** | Limited functionality | Module unavailable, region restriction | 50 lines |
+| **block** | Blocks usage | Forced update, account disabled | 40 lines |
 
-**核心思想**：将错误处理从"到处 try-catch"升级为"声明式决策表"，让错误处理可预测、可配置、可测试。
-
----
-
-**下一篇预告**: [F16 — DeviceFingerprint 设备指纹 + 风控体系] — 移动端设备指纹与风险控制
+**Core idea**: upgrade error handling from "try-catch everywhere" to a "declarative decision table", making error handling predictable, configurable, and testable.

@@ -1,37 +1,42 @@
-# Design Tokens 生成系统 — 1215 行代码生成的 Flutter 设计语言
+---
+title: "Design Tokens Generation System — 1215 Lines of Code Generating Flutter Design Language"
+slug: design-tokens-generated-system
+tags: Flutter, DesignTokens, Theme, UI, CodeGeneration
+description: A comprehensive Design Tokens generation system for Flutter covering color tokens, typography, spacing, radius, shadows, motion, and light/dark theme switching with automated code generation.
+---
 
-> **Article F6** | **Difficulty:** ⭐⭐⭐⭐ | **Source:** `joy_mini_app/lib/gen/` (generated design tokens, ~1215L)
+# Design Tokens Generation System — 1215 Lines of Code Generating Flutter Design Language
 
-## 1. 为什么需要 Design Tokens？
+## 1. Why Design Tokens?
 
-在 JoyMini 这种社交+电商+游戏混合应用中，**视觉一致性**直接影响品牌信任度和用户体验。传统做法存在三大痛点：
+In a social + e-commerce + gaming hybrid app like JoyMini, **visual consistency** directly impacts brand trust and user experience. Traditional approaches have three major pain points:
 
-| 痛点 | 表现 | 后果 |
+| Pain Point | Manifestation | Consequence |
 |------|------|------|
-| **硬编码散落** | `Color(0xFFE53935)` 散布在 200+ 文件中 | 修改主题色需要全局搜索替换 |
-| **设计师-开发脱节** | Figma 设计稿用 `Primary/500`，代码写 `#FF6B35` | 实现与设计偏离 |
-| **多主题维护** | Light/Dark 两套值手动同步 | 漏改导致 UI 异常 |
+| **Hardcoded values scattered** | `Color(0xFFE53935)` scattered across 200+ files | Changing theme color requires global search-and-replace |
+| **Designer-Developer disconnect** | Figma uses `Primary/500`, code writes `#FF6B35` | Implementation drifts from design |
+| **Multi-theme maintenance** | Light/Dark values synced manually | Missed updates cause UI bugs |
 
-**Design Tokens** 的解法：所有视觉决策集中到一份声明式配置 → 代码生成 → 强类型访问。
+**Design Tokens** solution: centralize all visual decisions into a declarative config → code generation → strongly-typed access.
 
 ```
 Figma Tokens Studio
        ↓ (export JSON)
    tokens.json
        ↓ (build_runner)
-   tokens.g.dart  ← 1215 行生成代码
+   tokens.g.dart  ← 1215 lines generated code
        ↓
-   context.extension 主题访问
+   context.extension theme access
 ```
 
-## 2. Token 分类体系
+## 2. Token Classification System
 
-生成的 tokens 覆盖 **6 大类别**，每类包含 Light/Dark 两套值：
+Generated tokens cover **6 major categories**, each with Light/Dark values:
 
-### 2.1 颜色（Color Tokens）
+### 2.1 Color Tokens
 
 ```dart
-// tokens.g.dart — 颜色令牌（~400 行）
+// tokens.g.dart — Color tokens (~400 lines)
 class AppColorTokens {
   const AppColorTokens({
     required this.primary,
@@ -43,12 +48,12 @@ class AppColorTokens {
     required this.info,
   });
 
-  // 主色阶梯
+  // Primary color scale
   final ColorSwatchToken primary;    // Primary/50 ~ Primary/900
   final ColorSwatchToken secondary;  // Secondary/50 ~ Secondary/900
-  final NeutralToken neutral;        // Neutral/0 ~ Neutral/1000 (含透明度)
+  final NeutralToken neutral;        // Neutral/0 ~ Neutral/1000 (with opacity)
 
-  // 语义色
+  // Semantic colors
   final ColorToken success;    // #34C759
   final ColorToken warning;    // #FF9500
   final ColorToken error;      // #FF3B30
@@ -56,7 +61,7 @@ class AppColorTokens {
 }
 ```
 
-**ColorSwatchToken** 是一个包含 10 级色阶的值对象：
+**ColorSwatchToken** is a value object containing 10-level color scales:
 
 ```dart
 class ColorSwatchToken {
@@ -65,7 +70,7 @@ class ColorSwatchToken {
   final Color shade200;
   final Color shade300;
   final Color shade400;
-  final Color shade500;  // 主色
+  final Color shade500;  // Primary
   final Color shade600;
   final Color shade700;
   final Color shade800;
@@ -73,29 +78,29 @@ class ColorSwatchToken {
 }
 ```
 
-**NeutralToken** 额外支持透明度变体：
+**NeutralToken** additionally supports opacity variants:
 
 ```dart
 class NeutralToken {
-  final Color shade0;    // 纯白
-  final Color shade50;   // 背景
-  final Color shade100;  // 卡片
-  final Color shade200;  // 分割线
-  final Color shade300;  // 禁用态
+  final Color shade0;    // Pure white
+  final Color shade50;   // Background
+  final Color shade100;  // Card
+  final Color shade200;  // Divider
+  final Color shade300;  // Disabled
   final Color shade400;
-  final Color shade500;  // 次要文字
+  final Color shade500;  // Secondary text
   final Color shade600;
   final Color shade700;
-  final Color shade800;  // 主要文字
-  final Color shade900;  // 标题
-  final Color shade1000; // 纯黑
+  final Color shade800;  // Primary text
+  final Color shade900;  // Headings
+  final Color shade1000; // Pure black
 
-  // 带透明度
-  final Color overlay;   // 遮罩层
+  // With opacity
+  final Color overlay;   // Overlay
 }
 ```
 
-### 2.2 字体（Typography Tokens）
+### 2.2 Typography Tokens
 
 ```dart
 class AppTypographyTokens {
@@ -117,7 +122,7 @@ class AppTypographyTokens {
 }
 ```
 
-**TextStyleToken** 结构：
+**TextStyleToken** structure:
 
 ```dart
 class TextStyleToken {
@@ -138,7 +143,7 @@ class TextStyleToken {
 }
 ```
 
-### 2.3 间距（Spacing Tokens）
+### 2.3 Spacing Tokens
 
 ```dart
 class AppSpacingTokens {
@@ -155,7 +160,7 @@ class AppSpacingTokens {
 }
 ```
 
-### 2.4 圆角（Radius Tokens）
+### 2.4 Radius Tokens
 
 ```dart
 class AppRadiusTokens {
@@ -166,11 +171,11 @@ class AppRadiusTokens {
   final double lg;       // 12
   final double xl;       // 16
   final double xxl;      // 24
-  final double full;     // 9999 (圆形)
+  final double full;     // 9999 (circular)
 }
 ```
 
-### 2.5 阴影（Shadow Tokens）
+### 2.5 Shadow Tokens
 
 ```dart
 class AppShadowTokens {
@@ -196,7 +201,7 @@ class ShadowToken {
 }
 ```
 
-### 2.6 动效（Motion Tokens）
+### 2.6 Motion Tokens
 
 ```dart
 class AppMotionTokens {
@@ -206,13 +211,13 @@ class AppMotionTokens {
   final Curve curveEaseIn;
   final Curve curveEaseOut;
   final Curve curveEaseInOut;
-  final Curve curveSpring;        // 过冲弹性曲线
+  final Curve curveSpring;        // Overshoot spring curve
 }
 ```
 
-## 3. 主题容器：`AppTheme` 类
+## 3. Theme Container: `AppTheme` Class
 
-生成的 `AppTheme` 将 tokens 包装为完整的 Flutter 主题：
+The generated `AppTheme` wraps tokens into a complete Flutter theme:
 
 ```dart
 class AppTheme {
@@ -232,17 +237,17 @@ class AppTheme {
     required this.motion,
   });
 
-  // 预置 Light/Dark 主题
+  // Preset Light/Dark themes
   static final AppTheme light = _buildLightTheme();
   static final AppTheme dark = _buildDarkTheme();
 
-  // 转换为 Flutter ThemeData
+  // Convert to Flutter ThemeData
   ThemeData toThemeData() {
     return ThemeData(
       useMaterial3: true,
       colorScheme: _buildColorScheme(),
       textTheme: _buildTextTheme(),
-      // ... 映射 tokens → ThemeData 属性
+      // ... map tokens → ThemeData properties
     );
   }
 
@@ -261,9 +266,9 @@ class AppTheme {
 }
 ```
 
-## 4. `context.extension` 主题访问模式
+## 4. `context.extension` Theme Access Pattern
 
-最关键的架构决策：**通过 `BuildContext` 扩展暴露 tokens**，而非全局单例。
+The critical architectural decision: expose tokens via **`BuildContext` extension**, not global singletons.
 
 ```dart
 extension AppThemeExtension on BuildContext {
@@ -276,10 +281,10 @@ extension AppThemeExtension on BuildContext {
 }
 ```
 
-### 4.1 使用示例
+### 4.1 Usage Example
 
 ```dart
-// ❌ 旧方式：硬编码
+// ❌ Old way: hardcoded
 Container(
   padding: const EdgeInsets.all(16),
   decoration: BoxDecoration(
@@ -295,7 +300,7 @@ Container(
   ),
 )
 
-// ✅ 新方式：Design Tokens
+// ✅ New way: Design Tokens
 Container(
   padding: EdgeInsets.all(context.spacing.lg),
   decoration: BoxDecoration(
@@ -311,9 +316,9 @@ Container(
 )
 ```
 
-### 4.2 InheritedWidget 实现
+### 4.2 InheritedWidget Implementation
 
-`AppTheme.of(context)` 通过自定义 InheritedWidget 实现：
+`AppTheme.of(context)` is implemented via a custom InheritedWidget:
 
 ```dart
 class AppThemeWidget extends InheritedWidget {
@@ -337,9 +342,9 @@ class AppThemeWidget extends InheritedWidget {
 }
 ```
 
-## 5. 代码生成流水线
+## 5. Code Generation Pipeline
 
-### 5.1 输入格式（JSON）
+### 5.1 Input Format (JSON)
 
 ```json
 {
@@ -366,10 +371,10 @@ class AppThemeWidget extends InheritedWidget {
 }
 ```
 
-### 5.2 生成器核心逻辑
+### 5.2 Generator Core Logic
 
 ```dart
-// build_runner generator — token 代码生成
+// build_runner generator — token code generation
 class DesignTokenGenerator extends Generator {
   @override
   Future<String> generate(LibraryReader library, BuildStep buildStep) async {
@@ -380,35 +385,35 @@ class DesignTokenGenerator extends Generator {
 
     final buffer = StringBuffer();
     buffer.writeln('// Auto-generated by DesignTokenGenerator');
-    buffer.writeln('// DO NOT EDIT — 修改 tokens.json 后重新生成');
+    buffer.writeln('// DO NOT EDIT — regenerate by modifying tokens.json');
     buffer.writeln();
 
-    // 生成颜色令牌类
+    // Generate color token classes
     _generateColorTokens(buffer, tokens['global']['color']);
 
-    // 生成字体令牌类
+    // Generate typography token classes
     _generateTypographyTokens(buffer, tokens['global']['typography']);
 
-    // 生成间距/圆角/阴影/动效
+    // Generate spacing / radius / shadow / motion
     _generateSpacingTokens(buffer, tokens['global']['spacing']);
     _generateRadiusTokens(buffer, tokens['global']['borderRadius']);
     _generateShadowTokens(buffer, tokens['global']['shadow']);
     _generateMotionTokens(buffer, tokens['global']['motion']);
 
-    // 生成 AppTheme 组装
+    // Generate AppTheme assembly
     _generateAppTheme(buffer, tokens);
 
     return buffer.toString();
   }
 
   void _generateColorTokens(StringBuffer buf, Map<String, dynamic> colors) {
-    // 为每个色系生成 ColorSwatchToken / ColorToken
+    // Generate ColorSwatchToken / ColorToken for each color family
     for (final entry in colors.entries) {
       final name = entry.key;
       final value = entry.value as Map<String, dynamic>;
 
       if (value.containsKey('50')) {
-        // 生成 ColorSwatchToken（10 级色阶）
+        // Generate ColorSwatchToken (10-level scale)
         buf.writeln('  static const ColorSwatchToken $name = '
             'ColorSwatchToken(');
         for (final shade in _shades) {
@@ -417,7 +422,7 @@ class DesignTokenGenerator extends Generator {
         }
         buf.writeln('  );');
       } else {
-        // 生成单色 ColorToken
+        // Generate single ColorToken
         final hex = value['value'] as String;
         buf.writeln('  static const ColorToken $name = '
             'ColorToken(Color(${_hexToInt(hex)}));');
@@ -427,13 +432,13 @@ class DesignTokenGenerator extends Generator {
 }
 ```
 
-### 5.3 验证层
+### 5.3 Validation Layer
 
-生成器包含 **3 道验证**，确保 tokens 数据完整性：
+The generator includes **3 validations** to ensure token data integrity:
 
 ```dart
 class TokenValidator {
-  /// 验证 1: 必需色阶完整性
+  /// Validation 1: Required shade completeness
   static void validateColorSwatch(Map<String, dynamic> swatch) {
     const requiredShades = ['50', '100', '200', '300', '400',
       '500', '600', '700', '800', '900'];
@@ -443,9 +448,9 @@ class TokenValidator {
     }
   }
 
-  /// 验证 2: 对比度合规
+  /// Validation 2: Contrast compliance
   static void validateContrast(AppTheme theme) {
-    // WCAG AA: 正常文本 ≥ 4.5:1
+    // WCAG AA: normal text ≥ 4.5:1
     final contrast = _calculateContrast(
       theme.colors.neutral.shade800,
       theme.colors.neutral.shade0,
@@ -453,7 +458,7 @@ class TokenValidator {
     assert(contrast >= 4.5, 'Body text contrast ${contrast.toStringAsFixed(1)}:1 < 4.5:1');
   }
 
-  /// 验证 3: 类型安全
+  /// Validation 3: Type safety
   static void validateTokenTypes(Map<String, dynamic> json) {
     for (final entry in json.entries) {
       final value = entry.value;
@@ -466,7 +471,7 @@ class TokenValidator {
 }
 ```
 
-## 6. Light / Dark 主题切换
+## 6. Light / Dark Theme Switching
 
 ```dart
 class ThemeProvider extends ChangeNotifier {
@@ -489,7 +494,7 @@ class ThemeProvider extends ChangeNotifier {
 }
 ```
 
-在 `MaterialApp` 中集成：
+Integration in `MaterialApp`:
 
 ```dart
 MaterialApp(
@@ -498,43 +503,39 @@ MaterialApp(
   themeMode: Provider.of<ThemeProvider>(context).mode,
   builder: (context, child) {
     return AppThemeWidget(
-      theme: AppTheme.of(context), // 同步当前主题
+      theme: AppTheme.of(context), // Sync current theme
       child: child!,
     );
   },
 )
 ```
 
-## 7. 性能考量
+## 7. Performance Considerations
 
-| 模式 | 内存 | 重建范围 | 适用场景 |
+| Mode | Memory | Rebuild Scope | Use Case |
 |------|------|----------|----------|
-| InheritedWidget | 单例（~2KB） | 子树 | 🏆 推荐 |
-| Provider + ChangeNotifier | 额外监听器 | 全局 | 主题切换 |
-| Static singleton | 常驻内存 | 无 | 仅读取 |
+| InheritedWidget | Singleton (~2KB) | Subtree | 🏆 Recommended |
+| Provider + ChangeNotifier | Extra listeners | Global | Theme switching |
+| Static singleton | Resident memory | None | Read-only |
 
-**关键优化**：`updateShouldNotify` 做引用比较，避免不必要重建：
+**Key optimization**: `updateShouldNotify` uses reference comparison to avoid unnecessary rebuilds:
 
 ```dart
 @override
 bool updateShouldNotify(covariant AppThemeWidget oldWidget) {
   return oldWidget.theme != theme;
-  // 引用比较：AppTheme.light / AppTheme.dark 是编译期常量
+  // Reference comparison: AppTheme.light / AppTheme.dark are compile-time constants
 }
 ```
 
-## 8. 总结
+## 8. Summary
 
-| 方面 | Design Tokens | 传统硬编码 |
+| Aspect | Design Tokens | Traditional Hardcoding |
 |------|--------------|-----------|
-| 一致性 | ⭐⭐⭐⭐⭐ 单源 truth | ⭐⭐ 散落各处 |
-| 修改变更 | 改 tokens.json → 全局生效 | 改 50+ 文件 |
-| 多主题 | 原生支持 | 手动 if/else |
-| 类型安全 | 编译期检查 | runtime 才能发现 |
-| 开发体验 | IDE 自动补全 | 需要搜索颜色值 |
+| Consistency | ⭐⭐⭐⭐⭐ Single source of truth | ⭐⭐ Scattered everywhere |
+| Change management | Modify tokens.json → global effect | Modify 50+ files |
+| Multi-theme | Native support | Manual if/else |
+| Type safety | Compile-time check | Runtime discovery |
+| Developer experience | IDE autocomplete | Need to search color values |
 
-**Design Tokens 生成系统** 将 JoyMini 的视觉语言从"散落的魔法数字"升级为"可维护的设计系统"。1215 行生成代码的背后，是代码生成 + 类型安全 + 上下文扩展三位一体的架构决策。
-
----
-
-**下一篇预告**: [F7 — Pipeline Runner 顺序执行模式] — 构建异步操作的有序执行流水线
+The **Design Tokens Generation System** upgrades JoyMini's visual language from "scattered magic numbers" to a "maintainable design system." The 1215 lines of generated code represent a trinity architecture of code generation + type safety + context extension.

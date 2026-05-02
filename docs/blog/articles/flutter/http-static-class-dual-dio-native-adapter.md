@@ -1,35 +1,33 @@
-# Http 静态类：双 Dio + NativeAdapter 三模式请求器
-
-> **目标读者：** Flutter/Dart 移动端工程师
-> **标签：** `#Flutter` `#Dio` `#HTTP` `#Networking` `#Mobile`
-> **难度：** 中级
-> **预计阅读时间：** 20 分钟
-
+---
+title: "Http Static Class: Dual Dio + NativeAdapter — Three-Mode Request Architecture"
+description: "Analysis of a Flutter HTTP client architecture based on a static Http class with dual Dio instances (public + authenticated) and a NativeAdapter for platform-specific transport, covering token management, error normalization, and testing."
+slug: http-static-class-dual-dio-native-adapter
+tags: [Flutter, Dio, HTTP, Networking, Mobile]
 ---
 
-## 1. 概述
+## 1. Overview
 
-移动应用必须跨不同环境（开发、测试、生产）处理网络请求，同时支持令牌刷新、请求/响应日志、错误处理和缓存控制等功能。本文探讨一个基于 **静态 `Http` 类**、**双 Dio 实例** 和 **NativeAdapter** 实现平台特定传输的 Flutter HTTP 客户端架构。
+Mobile applications must handle network requests across different environments (development, test, production) while supporting token refresh, request/response logging, error handling, and cache control. This article explores a Flutter HTTP client architecture based on a static **`Http` class**, **dual Dio instances**, and a **NativeAdapter** for platform-specific transport.
 
-| 组件 | 角色 |
+| Component | Role |
 |-----------|------|
-| **`Http` 静态类** | 所有 API 调用的类单例全局入口点 |
-| **双 Dio 实例** | 一个 `Dio` 用于公开端点，一个用于需要认证的端点 |
-| **NativeAdapter** | 平台特定的 HTTP 传输层（Android/iOS 使用 dart:io，支持后台请求） |
-| **拦截器** | 令牌注入、401 刷新、日志记录、错误归一化 |
+| **`Http` Static Class** | Class-level singleton global entry point for all API calls |
+| **Dual Dio Instances** | One `Dio` for public endpoints, one for authenticated endpoints |
+| **NativeAdapter** | Platform-specific HTTP transport layer (Android/iOS using dart:io, supports background requests) |
+| **Interceptors** | Token injection, 401 refresh, logging, error normalization |
 
 ---
 
-## 2. 双 Dio 架构
+## 2. Dual Dio Architecture
 
-### 2.1 为什么需要两个实例？
+### 2.1 Why Two Instances?
 
-单个 `Dio` 实例配合条件逻辑也能工作，但双实例提供了更清晰的分离：
+A single `Dio` instance with conditional logic would work, but dual instances provide cleaner separation:
 
-| 实例 | 基础 URL | 拦截器 | 使用场景 |
+| Instance | Base URL | Interceptors | Use Cases |
 |----------|----------|--------------|----------|
-| `_publicDio` | `https://api.example.com/public` | 日志、缓存 | 文章、横幅、分类 |
-| `_authDio` | `https://api.example.com/api` | 令牌注入、401 刷新、日志 | 用户资料、钱包、订单 |
+| `_publicDio` | `https://api.example.com/public` | Logging, caching | Articles, banners, categories |
+| `_authDio` | `https://api.example.com/api` | Token injection, 401 refresh, logging | User profile, wallet, orders |
 
 ```dart
 class Http {
@@ -70,9 +68,9 @@ class Http {
 }
 ```
 
-### 2.2 初始化
+### 2.2 Initialization
 
-在 `main()` 中一次性调用，在 `runApp()` 之前：
+Called once in `main()`, before `runApp()`:
 
 ```dart
 void main() {
@@ -90,11 +88,11 @@ void main() {
 
 ---
 
-## 3. 认证拦截器 — 令牌注入
+## 3. Auth Interceptor — Token Injection
 
-### 3.1 实现
+### 3.1 Implementation
 
-认证拦截器从存储单例中读取当前访问令牌，并将其作为 Bearer 令牌注入：
+The auth interceptor reads the current access token from the storage singleton and injects it as a Bearer token:
 
 ```dart
 Interceptor _createAuthInterceptor(String Function() getAccessToken) {
@@ -110,15 +108,15 @@ Interceptor _createAuthInterceptor(String Function() getAccessToken) {
 }
 ```
 
-### 3.2 401 刷新拦截器
+### 3.2 401 Refresh Interceptor
 
-当发生 401 响应时，拦截器尝试刷新令牌，然后重试失败的请求：
+When a 401 response occurs, the interceptor attempts to refresh the token, then retries the failed request:
 
 ```dart
 Interceptor _createRefreshInterceptor(
   Future<String?> Function() onTokenRefresh,
 ) {
-  final _retryCount = 0;  // 每个请求的计数器
+  final _retryCount = 0;  // Per-request counter
 
   return InterceptorsWrapper(
     onError: (error, handler) async {
@@ -126,9 +124,9 @@ Interceptor _createRefreshInterceptor(
         return handler.next(error);
       }
 
-      // 避免无限刷新循环
+      // Avoid infinite refresh loops
       if (_isRefreshing) {
-        // 将请求排队，等待刷新完成后重试
+        // Queue the request, retry after refresh completes
         _pendingRequests.add(() => handler.resolve(await _retry(error.requestOptions)));
         return;
       }
@@ -138,7 +136,7 @@ Interceptor _createRefreshInterceptor(
         final newToken = await onTokenRefresh();
         if (newToken != null) {
           _isRefreshing = false;
-          // 使用新令牌重试所有排队的请求
+          // Retry all queued requests with the new token
           error.requestOptions.headers['Authorization'] = 'Bearer $newToken';
           handler.resolve(await _retry(error.requestOptions));
         }
@@ -151,24 +149,24 @@ Interceptor _createRefreshInterceptor(
 }
 ```
 
-**关键模式：** `_isRefreshing` 标志防止并发刷新调用——如果多个请求同时返回 401，只会触发一次刷新，其余请求排队等待刷新完成后重试。
+**Key Pattern:** The `_isRefreshing` flag prevents concurrent refresh calls — if multiple requests return 401 simultaneously, only one refresh is triggered, and the rest queue up to retry after the refresh completes.
 
 ---
 
-## 4. NativeAdapter — 平台特定传输
+## 4. NativeAdapter — Platform-Specific Transport
 
-### 4.1 问题
+### 4.1 The Problem
 
-Dio 默认的 `HttpClientAdapter` 在所有平台上都能工作，但在 Flutter 中有些场景需要：
+Dio's default `HttpClientAdapter` works on all platforms, but some scenarios in Flutter require:
 
-- iOS 上的 **后台请求**（NSURLSession 后台配置）
-- 用于安全性的 **证书固定**
-- 用于调试的 **代理配置**
-- 用于电池优化的 **连接保活** 调优
+- **Background requests** on iOS (NSURLSession background configuration)
+- **Certificate pinning** for security
+- **Proxy configuration** for debugging
+- **Connection keep-alive** tuning for battery optimization
 
-### 4.2 实现
+### 4.2 Implementation
 
-`NativeAdapter` 封装了平台特定的 HTTP 客户端：
+`NativeAdapter` wraps the platform-specific HTTP client:
 
 ```dart
 class NativeAdapter extends HttpClientAdapter {
@@ -208,13 +206,13 @@ class NativeAdapter extends HttpClientAdapter {
 }
 ```
 
-### 4.3 将 NativeAdapter 与 Dio 结合使用
+### 4.3 Using NativeAdapter with Dio
 
 ```dart
 static Dio _createDio(/* ... */) {
   final dio = Dio(BaseOptions(/* ... */));
   
-  // 使用 NativeAdapter 实现平台特定功能
+  // Use NativeAdapter for platform-specific features
   dio.httpClientAdapter = NativeAdapter(
     timeout: const Duration(seconds: 30),
   );
@@ -225,9 +223,9 @@ static Dio _createDio(/* ... */) {
 
 ---
 
-## 5. 公开 API 方法
+## 5. Public API Methods
 
-`Http` 静态类暴露了类型安全、简洁的方法：
+The `Http` static class exposes type-safe, concise methods:
 
 ```dart
 // GET
@@ -265,10 +263,10 @@ static Future<ApiResponse<T>> post<T>(
   }
 }
 
-// PUT, PATCH, DELETE — 相同的模式
+// PUT, PATCH, DELETE — same pattern
 ```
 
-### 5.1 响应处理
+### 5.1 Response Handling
 
 ```dart
 static ApiResponse<T> _handleResponse<T>(
@@ -277,7 +275,7 @@ static ApiResponse<T> _handleResponse<T>(
 ) {
   final body = response.data;
 
-  // 标准 API 信封格式：{ code, message, data }
+  // Standard API envelope format: { code, message, data }
   if (body is Map && body.containsKey('code') && body.containsKey('data')) {
     if (body['code'] != 0) {
       return ApiResponse.error(body['message'] ?? 'Unknown error');
@@ -289,7 +287,7 @@ static ApiResponse<T> _handleResponse<T>(
     return ApiResponse.success(data as T);
   }
 
-  // 非信封格式响应
+  // Non-envelope response
   if (fromJson != null) {
     return ApiResponse.success(fromJson(body));
   }
@@ -299,9 +297,9 @@ static ApiResponse<T> _handleResponse<T>(
 
 ---
 
-## 6. 错误归一化
+## 6. Error Normalization
 
-所有错误——网络故障、超时、服务器错误、业务错误——都被归一化为单一的 `ApiResponse` 类型：
+All errors — network failures, timeouts, server errors, business errors — are normalized into a single `ApiResponse` type:
 
 ```dart
 class ApiResponse<T> {
@@ -325,37 +323,37 @@ static ApiResponse<T> _handleError<T>(DioException e) {
     case DioExceptionType.connectionTimeout:
     case DioExceptionType.sendTimeout:
     case DioExceptionType.receiveTimeout:
-      return ApiResponse.error('连接超时，请检查网络。');
+      return ApiResponse.error('Connection timed out. Please check your network.');
     case DioExceptionType.connectionError:
-      return ApiResponse.error('无网络连接。');
+      return ApiResponse.error('No network connection.');
     case DioExceptionType.badResponse:
       final statusCode = e.response?.statusCode;
       final message = e.response?.data?['message'] ?? _httpStatusMessage(statusCode);
       return ApiResponse.error(message);
     case DioExceptionType.cancel:
-      return ApiResponse.error('请求已取消。');
+      return ApiResponse.error('Request cancelled.');
     default:
-      return ApiResponse.error('发生意外错误。');
+      return ApiResponse.error('An unexpected error occurred.');
   }
 }
 
 static String _httpStatusMessage(int? code) {
   switch (code) {
-    case 400: return '请求无效。';
-    case 401: return '会话已过期，请重新登录。';
-    case 403: return '访问被拒绝。';
-    case 404: return '资源未找到。';
-    case 500: return '服务器错误，请稍后重试。';
-    default: return '错误 ($code)，请重试。';
+    case 400: return 'Invalid request.';
+    case 401: return 'Session expired, please log in again.';
+    case 403: return 'Access denied.';
+    case 404: return 'Resource not found.';
+    case 500: return 'Server error, please try again later.';
+    default: return 'Error ($code), please retry.';
   }
 }
 ```
 
 ---
 
-## 7. 使用示例
+## 7. Usage Examples
 
-### 7.1 公开端点（无需认证）
+### 7.1 Public Endpoint (No Auth Required)
 
 ```dart
 final response = await Http.get<List<Article>>(
@@ -371,7 +369,7 @@ if (response.isSuccess) {
 }
 ```
 
-### 7.2 认证端点
+### 7.2 Authenticated Endpoint
 
 ```dart
 final response = await Http.post<Order>(
@@ -382,7 +380,7 @@ final response = await Http.post<Order>(
 );
 ```
 
-### 7.3 文件上传
+### 7.3 File Upload
 
 ```dart
 static Future<ApiResponse<String>> uploadFile(File file) async {
@@ -400,7 +398,7 @@ static Future<ApiResponse<String>> uploadFile(File file) async {
 
 ---
 
-## 8. 测试策略
+## 8. Testing Strategy
 
 ### 8.1 Mock Dio
 
@@ -408,7 +406,7 @@ static Future<ApiResponse<String>> uploadFile(File file) async {
 @GenerateMocks([Dio])
 void main() {
   group('Http.get', () {
-    test('应成功返回数据', () async {
+    test('should return data on success', () async {
       when(mockDio.get('/test')).thenAnswer((_) async => Response(
         data: {'code': 0, 'data': 'hello'},
         statusCode: 200,
@@ -420,7 +418,7 @@ void main() {
       expect(result.data, 'hello');
     });
 
-    test('应在网络故障时返回错误', () async {
+    test('should return error on network failure', () async {
       when(mockDio.get('/test')).thenThrow(DioException(
         type: DioExceptionType.connectionError,
         requestOptions: RequestOptions(path: '/test'),
@@ -428,16 +426,16 @@ void main() {
 
       final result = await Http.get<String>('/test');
       expect(result.isSuccess, false);
-      expect(result.error, contains('无网络连接'));
+      expect(result.error, contains('No network connection'));
     });
   });
 }
 ```
 
-### 8.2 令牌刷新集成测试
+### 8.2 Token Refresh Integration Test
 
 ```dart
-test('应在收到 401 时刷新令牌并重试', () async {
+test('should refresh token and retry on 401', () async {
   final refreshCalled = false;
   Http.init(
     publicBaseUrl: 'https://api.test.com',
@@ -451,7 +449,7 @@ test('应在收到 401 时刷新令牌并重试', () async {
     },
   );
 
-  // 第一次调用返回 401，刷新成功，第二次调用成功
+  // First call returns 401, refresh succeeds, second call succeeds
   // ...
   expect(refreshCalled, true);
 });
@@ -459,24 +457,24 @@ test('应在收到 401 时刷新令牌并重试', () async {
 
 ---
 
-## 9. 生产环境检查清单
+## 9. Production Readiness Checklist
 
-- [ ] **证书固定** — 使用带 `SecurityContext` 的 `NativeAdapter` 固定证书，防止中间人攻击
-- [ ] **重试策略** — 添加重试拦截器（例如对幂等的 GET 请求进行 3 次指数退避重试）
-- [ ] **超时调优** — WiFi 设置 `connectTimeout: 15s`，移动数据设置 `connectTimeout: 30s`；根据用户网络质量调整
-- [ ] **日志记录** — 调试模式下启用详细日志，发布版禁用以避免泄漏敏感数据
-- [ ] **缓存支持** — 使用 `dio_cache_interceptor` 包为公开 GET 请求添加 `CacheInterceptor`
-- [ ] **后台请求** — 在 iOS 上，配置 `HttpClientAdapter` 使用 `backgroundSessionConfiguration` 进行上传/下载，使任务在应用进入后台后仍能继续
-- [ ] **错误追踪** — 将 `DioException` 发送到 Sentry/Crashlytics，附带请求详情（路径、方法、状态码）以便调试
+- [ ] **Certificate Pinning** — Use `NativeAdapter` with `SecurityContext` for certificate pinning against MITM attacks
+- [ ] **Retry Strategy** — Add retry interceptor (e.g., 3 exponential backoff retries for idempotent GET requests)
+- [ ] **Timeout Tuning** — WiFi `connectTimeout: 15s`, Mobile data `connectTimeout: 30s`; adjust based on user network quality
+- [ ] **Logging** — Enable verbose logging in debug mode; disable in release builds to avoid leaking sensitive data
+- [ ] **Cache Support** — Add `CacheInterceptor` using `dio_cache_interceptor` package for public GET requests
+- [ ] **Background Requests** — On iOS, configure `HttpClientAdapter` with `backgroundSessionConfiguration` for uploads/downloads that need to continue after app backgrounding
+- [ ] **Error Tracking** — Send `DioException` to Sentry/Crashlytics with request details (path, method, status code) for debugging
 
 ---
 
-## 10. 总结
+## 10. Summary
 
-具有双 Dio 实例的 `Http` 静态类提供：
+The `Http` static class with dual Dio instances provides:
 
-- **关注点分离** — 公开端点和认证端点拥有独立的拦截器和基础 URL
-- **自动令牌管理** — 401 拦截器使用单飞模式透明地处理刷新
-- **平台原生传输** — `NativeAdapter` 支持证书固定、后台请求和代理配置
-- **统一错误处理** — 所有错误归一化为 `ApiResponse<T>`，带有用户友好的消息
-- **简洁的 API** — 带泛型的静态方法使调用点简洁且类型安全
+- **Separation of Concerns** — Public and authenticated endpoints have independent interceptors and base URLs
+- **Automatic Token Management** — 401 interceptor handles refresh transparently using the single-flight pattern
+- **Native Platform Transport** — `NativeAdapter` supports certificate pinning, background requests, and proxy configuration
+- **Unified Error Handling** — All errors normalized into `ApiResponse<T>` with user-friendly messages
+- **Concise API** — Static methods with generics keep call sites clean and type-safe

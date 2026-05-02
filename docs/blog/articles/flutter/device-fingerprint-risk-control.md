@@ -1,43 +1,48 @@
-# DeviceFingerprint 设备指纹 + 风控体系 — 移动端安全基线
+---
+title: "DeviceFingerprint: Device Fingerprinting and Risk Control — Mobile Security Baseline"
+description: "A comprehensive mobile security system using device fingerprinting with multi-dimensional signal collection, environment risk detection, risk level classification, and privacy-compliant implementation."
+slug: device-fingerprint-risk-control
+tags: [Flutter, Security, Fingerprinting, Risk Control, Anti-Fraud, Mobile Security]
+---
 
-> **Article F16** | **Difficulty:** ⭐⭐⭐⭐ | **Source:** `joy_mini_app/lib/core/security/`
+# DeviceFingerprint: Device Fingerprinting and Risk Control — Mobile Security Baseline
 
-## 1. 为什么需要设备指纹？
+## 1. Why Device Fingerprinting?
 
-JoyMini 涉及支付、社交、抽奖等敏感操作，需要可靠的 **设备身份** 来防范：
+JoyMini involves sensitive operations like payments, social features, and lucky draws, requiring reliable **device identity** to prevent:
 
-| 风险场景 | 攻击方式 | 设备指纹的防御 |
-|----------|----------|----------------|
-| **批量注册** | 模拟器 + 临时手机号 | 检测模拟器/设备农场 |
-| **撞库攻击** | 脚本遍历密码 | 同一设备多次失败 → 临时封禁 |
-| **薅羊毛** | 多账号切换刷奖励 | 同一设备关联多个账号 → 风控标记 |
-| **账号盗用** | 登录他人账号后改密 | 设备变更 → 触发验证流程 |
-| **支付欺诈** | 模拟支付回调 | 设备指纹 + 支付单绑定 |
+| Risk Scenario | Attack Vector | Device Fingerprint Defense |
+|---------------|---------------|----------------------------|
+| **Mass registration** | Emulator + temporary phone number | Detect emulator / device farm |
+| **Credential stuffing** | Scripted password brute-forcing | Multiple failures on same device → temp ban |
+| **Bonus abuse** | Multi-account switching for rewards | Same device linked to multiple accounts → risk flag |
+| **Account takeover** | Login to others' accounts then change password | Device change → trigger verification flow |
+| **Payment fraud** | Simulated payment callbacks | Device fingerprint + payment binding |
 
-**DeviceFingerprint** 生成一个高熵的、稳定的设备标识，而非依赖易重置的 `deviceId`。
+**DeviceFingerprint** generates a high-entropy, stable device identifier that does not rely on the easily resettable `deviceId`.
 
-## 2. 指纹生成算法
+## 2. Fingerprint Generation Algorithm
 
-### 2.1 多维信号采集
+### 2.1 Multi-Dimensional Signal Collection
 
 ```dart
 class DeviceFingerprintCollector {
-  /// 收集设备信号
+  /// Collect device signals
   Future<Map<String, dynamic>> collect() async {
     return {
-      // 硬件信号
+      // Hardware signals
       'device': await _collectHardwareSignals(),
 
-      // 系统信号
+      // System signals
       'system': await _collectSystemSignals(),
 
-      // 网络信号
+      // Network signals
       'network': await _collectNetworkSignals(),
 
-      // 应用信号
+      // Application signals
       'app': _collectAppSignals(),
 
-      // 传感器信号
+      // Sensor signals
       'sensor': await _collectSensorSignals(),
     };
   }
@@ -62,7 +67,7 @@ class DeviceFingerprintCollector {
       return {
         'model': di.model,           // "iPhone15,2"
         'systemName': di.systemName,
-        'sysctl': di.sysctl,         // 硬件深度信息
+        'sysctl': di.sysctl,         // Deep hardware info
         'utsname': {
           'machine': di.utsname.machine,   // "iPhone15,2"
           'nodename': di.utsname.nodename,
@@ -116,7 +121,7 @@ class DeviceFingerprintCollector {
   }
 
   Future<Map<String, dynamic>> _collectSensorSignals() async {
-    // 通过传感器校准数据生成额外熵
+    // Generate additional entropy from sensor calibration data
     return {
       'accelerometer': await _getAccelerometerCalibration(),
       'gyroscope': await _getGyroscopeCalibration(),
@@ -125,7 +130,7 @@ class DeviceFingerprintCollector {
 }
 ```
 
-### 2.2 指纹哈希生成
+### 2.2 Fingerprint Hash Generation
 
 ```dart
 class DeviceFingerprint {
@@ -139,27 +144,27 @@ class DeviceFingerprint {
     final collector = DeviceFingerprintCollector();
     final signals = await collector.collect();
 
-    // 1. 序列化信号
+    // 1. Serialize signals
     final jsonStr = jsonEncode(_normalizeSignals(signals));
 
-    // 2. 加盐 + SHA-256
+    // 2. Salt + SHA-256
     final salted = '$_SALT|$jsonStr';
     final hash = sha256.convert(utf8.encode(salted)).toString();
 
-    // 3. 取前 40 位作为指纹
+    // 3. Take first 40 characters as the fingerprint
     _fingerprint = hash.substring(0, 40);
     _fingerprintHash = hash;
 
-    // 4. 持久化（验证稳定性）
+    // 4. Persist (verify stability)
     await _persistFingerprint();
   }
 
   String get value => _fingerprint;
   String get fullHash => _fingerprintHash;
 
-  /// 信号归一化（确保同一设备每次生成相同指纹）
+  /// Signal normalization (ensures the same device generates the same fingerprint every time)
   Map<String, dynamic> _normalizeSignals(Map<String, dynamic> signals) {
-    // 递归排序 key
+    // Recursively sort keys
     return _sortKeys(signals);
   }
 
@@ -181,26 +186,26 @@ class DeviceFingerprint {
     return sorted;
   }
 
-  /// 验证指纹稳定性
+  /// Verify fingerprint stability
   Future<bool> verifyStability() async {
     final stored = await _loadPersistedFingerprint();
-    if (stored == null) return true; // 首次生成
+    if (stored == null) return true; // First time generation
 
-    // 比较信号级别的相似度
+    // Compare signal-level similarity
     return _calculateSimilarity(_fingerprint, stored) > 0.9;
   }
 }
 ```
 
-## 3. 风险检测引擎
+## 3. Risk Detection Engine
 
-### 3.1 环境风险检测
+### 3.1 Environment Risk Detection
 
 ```dart
 class RiskDetector {
   final Logger _logger = Logger('RiskDetector');
 
-  /// 检测结果
+  /// Detection results
   Future<RiskAssessment> assess() async {
     final checks = await Future.wait([
       _checkEmulator(),
@@ -235,7 +240,7 @@ class RiskDetector {
 }
 ```
 
-### 3.2 单项检测实现
+### 3.2 Individual Check Implementations
 
 ```dart
 class _EmulatorCheck {
@@ -261,7 +266,7 @@ class _EmulatorCheck {
 class _RootCheck {
   static Future<CheckResult> run() async {
     if (Platform.isIOS) {
-      // iOS 越狱检测
+      // iOS jailbreak detection
       final paths = [
         '/Applications/Cydia.app',
         '/private/var/lib/apt',
@@ -276,7 +281,7 @@ class _RootCheck {
       );
     }
 
-    // Android Root 检测
+    // Android root detection
     final buildTags = await _getBuildTags();
     final isRooted = buildTags?.contains('test-keys') == true ||
         _checkSuBinary() ||
@@ -300,8 +305,8 @@ class _RootCheck {
   }
 
   static bool _checkMagisk() {
-    // 通过 PackageManager 检测 Magisk
-    return false; // 简化示例
+    // Detect Magisk via PackageManager
+    return false; // Simplified example
   }
 }
 
@@ -325,15 +330,15 @@ class _VpnCheck {
 }
 ```
 
-## 4. 风险等级与响应
+## 4. Risk Levels and Responses
 
 ```dart
 enum RiskLevel {
-  safe,      // 正常设备
-  low,       // VPN/代理
-  medium,    // 模拟器/越狱
-  high,      // Root + 可疑行为
-  critical,  // 设备农场/自动化工具
+  safe,      // Normal device
+  low,       // VPN / proxy
+  medium,    // Emulator / jailbreak
+  high,      // Root + suspicious behavior
+  critical,  // Device farm / automation tools
 }
 
 class RiskAssessment {
@@ -351,34 +356,34 @@ class RiskAssessment {
 }
 ```
 
-### 4.1 风险响应策略
+### 4.1 Risk Response Strategy
 
 ```dart
 class RiskResponseStrategy {
   static void respond(RiskAssessment assessment, BuildContext context) {
     switch (assessment.riskLevel) {
       case RiskLevel.safe:
-        // 正常操作
+        // Normal operation
         break;
 
       case RiskLevel.low:
-        // 记录日志，不做拦截
+        // Log, no blocking
         Logger.info('[Risk] Low: ${assessment.flags}');
         break;
 
       case RiskLevel.medium:
-        // 额外验证：发送短信验证码
+        // Additional verification: send SMS code
         _requireSmsVerification(context);
         break;
 
       case RiskLevel.high:
-        // 限制功能：不允许提现/大额支付
+        // Restrict features: disallow withdrawals / large payments
         _restrictSensitiveOperations(context);
         _showWarning(context);
         break;
 
       case RiskLevel.critical:
-        // 阻止操作：不允许登录
+        // Block operation: disallow login
         _blockOperation(context);
         _reportToServer(assessment);
         break;
@@ -403,7 +408,7 @@ class RiskResponseStrategy {
   }
 
   static void _restrictSensitiveOperations(BuildContext context) {
-    // 在 Store 中设置限制标志
+    // Set restriction flags in the Store
     context.read<SecurityStore>().restrictOperations();
   }
 
@@ -418,11 +423,11 @@ class RiskResponseStrategy {
 }
 ```
 
-## 5. 设备指纹 API 上报
+## 5. Device Fingerprint API Reporting
 
 ```dart
 class DeviceFingerprintApiService {
-  /// 登录时上报设备指纹
+  /// Report device fingerprint on login
   Future<void> reportOnLogin({
     required String userId,
     required String fingerprint,
@@ -438,7 +443,7 @@ class DeviceFingerprintApiService {
     });
   }
 
-  /// 敏感操作时验证设备指纹
+  /// Verify device fingerprint for sensitive operations
   Future<DeviceVerificationResult> verifyForOperation({
     required String userId,
     required String operation,
@@ -459,9 +464,9 @@ class DeviceFingerprintApiService {
 }
 ```
 
-## 6. 后端风控联动
+## 6. Backend Risk Control Integration
 
-后端（NestJS）收到设备指纹后，执行服务器端风控：
+After receiving the device fingerprint, the backend (NestJS) performs server-side risk control:
 
 ```
 Flutter App                        Server
@@ -472,27 +477,27 @@ Flutter App                        Server
     |                          ┌─────┴─────┐
     |                          │ Risk Engine│
     |                          ├───────────┤
-    |                          │ 1. 查设备库│
-    |                          │ 2. 关联账号│
-    |                          │ 3. 行为分析│
-    |                          │ 4. 决策   │
+    |                          │ 1. Query DB│
+    |                          │ 2. Account │
+    |                          │ 3. Behavior│
+    |                          │ 4. Decision│
     |                          └─────┬─────┘
     |                                |
     |<-- { token, riskLevel } ------|
     |                                |
 ```
 
-## 7. 隐私合规
+## 7. Privacy Compliance
 
 ```dart
 class FingerprintPrivacyManager {
-  /// GDPR / 隐私合规处理
+  /// GDPR / privacy compliance handling
   static bool get isCollectionAllowed {
-    // 检查用户是否同意设备指纹采集
+    // Check if user has consented to device fingerprint collection
     return Storage().getBool('fingerprint_consent') ?? false;
   }
 
-  /// 请求采集许可
+  /// Request collection consent
   static Future<bool> requestConsent(BuildContext context) async {
     final result = await showDialog<bool>(
       context: context,
@@ -522,16 +527,16 @@ class FingerprintPrivacyManager {
     return result ?? false;
   }
 
-  /// 匿名化处理（不存储原始信号）
+  /// Anonymize (do not store raw signals)
   static String anonymize(String fingerprint) {
-    // 只存储前 8 位 + 后 8 位
+    // Store only first 8 + last 8 characters
     return '${fingerprint.substring(0, 8)}...'
         '${fingerprint.substring(fingerprint.length - 8)}';
   }
 }
 ```
 
-## 8. 测试策略
+## 8. Testing Strategy
 
 ```dart
 void main() {
@@ -556,13 +561,9 @@ void main() {
   group('RiskDetector', () {
     test('returns Safe for normal device', () async {
       final assessment = await RiskDetector().assess();
-      // 在 CI 中可能是模拟器，所以至少不是 critical
+      // In CI this may be an emulator, so at least not critical
       expect(assessment.riskLevel, isNot(RiskLevel.critical));
     });
   });
 }
 ```
-
----
-
-**下一篇预告**: [F17 — ServerTimeHelper 时间校准 + Countdown 倒计时] — 服务端时间同步与倒计时系统

@@ -134,7 +134,9 @@ export const metadata: Metadata = {
   },
 };
 
-export const revalidate = 60; // ISR 60秒重新验证
+// P2-3 修复：layout revalidate 与 page.tsx 错开，避免同时到期触发 ISR 风暴
+// page.tsx=60s, layout=120s, categories=180s, tags=240s, about=600s
+export const revalidate = 120;
 
 export const viewport: Viewport = {
   width: 'device-width',

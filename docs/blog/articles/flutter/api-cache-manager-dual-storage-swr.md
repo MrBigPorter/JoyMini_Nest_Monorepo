@@ -1,49 +1,47 @@
-# ApiCacheManager：双存储 + SWR 缓存策略
-
-> **读者对象：** Flutter 移动端工程师  
-> **标签：** `#Flutter` `#Caching` `#SWR` `#Performance` `#Offline`  
-> **难度：** 中级  
-> **预估阅读时间：** ~20 分钟
-
+---
+title: "ApiCacheManager: Dual Storage + SWR Cache Strategy"
+description: "Analysis of ApiCacheManager, a dual-storage cache (RAM + Disk) using SWR (Stale-While-Revalidate) strategy for handling unreliable mobile networks and preventing blank UI states."
+slug: api-cache-manager-dual-storage-swr
+tags: [Flutter, Caching, SWR, Performance, Offline]
 ---
 
-## 1. 概述
+## 1. Overview
 
-移动应用面临不可靠的网络——用户乘坐电梯、进入隧道或信号较弱。缓存层确保 UI 永远不会空白。本文分析 `ApiCacheManager`，一个采用 **SWR（Stale-While-Revalidate，过期时重新验证）** 策略的双存储缓存（RAM + 磁盘）。
+Mobile applications face unreliable networks — users riding elevators, entering tunnels, or experiencing weak signals. A caching layer ensures the UI never shows a blank state. This article analyzes `ApiCacheManager`, a dual-storage cache (RAM + Disk) employing the **SWR (Stale-While-Revalidate)** strategy.
 
-| 组件 | 存储 | 速度 | 容量 | 持久性 |
+| Component | Storage | Speed | Capacity | Persistence |
 |-----------|---------|-------|----------|-------------|
-| **L1：InMemoryCache** | RAM（`Map`） | 即时 | 50 条目 | 应用重启后丢失 |
-| **L2：DiskCache** | SQLite/文件 | 快速 | 500+ 条目 | 重启后保留 |
+| **L1: InMemoryCache** | RAM (`Map`) | Instant | 50 entries | Lost on app restart |
+| **L2: DiskCache** | SQLite/File | Fast | 500+ entries | Survives restart |
 
 ---
 
-## 2. SWR 策略
+## 2. SWR Strategy
 
-**Stale-While-Revalidate（SWR）** 的含义：
+**Stale-While-Revalidate (SWR)** works as follows:
 
-1. **立即**返回缓存数据（即使已过期）→ 即时 UI
-2. **在后台**从网络获取最新数据 → 更新缓存
-3. 最新数据到达时更新 UI
+1. **Immediately** return cached data (even if stale) → instant UI
+2. **In the background**, fetch the latest data from the network → update cache
+3. Update UI when fresh data arrives
 
 ```
-请求 ─→ L1 RAM ─→ L2 磁盘 ─→ 网络
+Request ─→ L1 RAM ─→ L2 Disk ─→ Network
                │          │          │
                │          │          ▼
-               │          │     (获取最新)
+               │          │     (Fetch Fresh)
                │          │          │
                ▼          ▼          ▼
-          返回        返回       更新 L1+L2
-          (即时)      (快速)    → 通知 UI
+           Return      Return     Update L1+L2
+          (Instant)   (Fast)     → Notify UI
 ```
 
-### 2.1 TTL 配置
+### 2.1 TTL Configuration
 
 ```dart
 class CacheConfig {
-  final Duration staleTtl;   // 数据被视为"过期"的时间
-  final Duration maxTtl;     // 数据"失效"的时间（强制刷新）
-  final bool swrEnabled;     // 启用过期重新验证
+  final Duration staleTtl;   // Data is considered "stale" after this
+  final Duration maxTtl;     // Data "expires" after this (force refresh)
+  final bool swrEnabled;     // Enable stale-while-revalidate
 
   const CacheConfig({
     this.staleTtl = const Duration(minutes: 5),
@@ -51,7 +49,7 @@ class CacheConfig {
     this.swrEnabled = true,
   });
 
-  // 预定义配置
+  // Predefined configurations
   static const articles = CacheConfig(staleTtl: Duration(minutes: 2), maxTtl: Duration(hours: 1));
   static const categories = CacheConfig(staleTtl: Duration(minutes: 10), maxTtl: Duration(hours: 24));
   static const banners = CacheConfig(staleTtl: Duration(minutes: 5), maxTtl: Duration(hours: 6));
@@ -61,7 +59,7 @@ class CacheConfig {
 
 ---
 
-## 3. 内存缓存（L1）
+## 3. In-Memory Cache (L1)
 
 ```dart
 class InMemoryCache {
@@ -88,12 +86,12 @@ class InMemoryCache {
     final age = DateTime.now().difference(entry.cachedAt);
 
     if (age > entry.config.maxTtl) {
-      _store.remove(key);  // 已失效
+      _store.remove(key);  // Expired
       return CacheResult.expired();
     }
 
     if (age > entry.config.staleTtl) {
-      return CacheResult.stale(entry.data);  // 过期但可用
+      return CacheResult.stale(entry.data);  // Stale but usable
     }
 
     return CacheResult.fresh(entry.data);
@@ -135,9 +133,9 @@ class CacheResult {
 
 ---
 
-## 4. 磁盘缓存（L2）
+## 4. Disk Cache (L2)
 
-### 4.1 基于 SQLite 的磁盘缓存
+### 4.1 SQLite-Based Disk Cache
 
 ```dart
 class DiskCache {
@@ -209,9 +207,9 @@ class DiskCache {
 
 ---
 
-## 5. ApiCacheManager — 协调器
+## 5. ApiCacheManager — Coordinator
 
-### 5.1 实现
+### 5.1 Implementation
 
 ```dart
 class ApiCacheManager {
@@ -236,30 +234,30 @@ class ApiCacheManager {
     required T Function(String json) fromJson,
     String Function(T data)? toJson,
   }) async {
-    // 步骤 1：检查 L1（RAM）
+    // Step 1: Check L1 (RAM)
     final l1Result = _l1.get(cacheKey);
     if (l1Result != null && l1Result.isFresh) {
-      _logger.fine('L1 命中：$cacheKey');
+      _logger.fine('L1 hit: $cacheKey');
       return fromJson(l1Result.data as String);
     }
 
-    // 步骤 2：检查 L2（磁盘）
+    // Step 2: Check L2 (Disk)
     final l2Result = await _l2.get(cacheKey);
     if (l2Result != null && l2Result.isFresh) {
-      _logger.fine('L2 命中（新鲜）：$cacheKey');
-      _l1.set(cacheKey, l2Result.data, config);  // 提升到 L1
+      _logger.fine('L2 hit (fresh): $cacheKey');
+      _l1.set(cacheKey, l2Result.data, config);  // Promote to L1
       return fromJson(l2Result.data as String);
     }
 
-    // 步骤 3：SWR — 立即返回过期数据，后台刷新
+    // Step 3: SWR — return stale data immediately, refresh in background
     if (config.swrEnabled && l2Result != null && l2Result.isStale) {
-      _logger.fine('SWR：$cacheKey（过期，正在刷新）');
-      _refreshCache(cacheKey, config, networkCall, toJson!);  // 即发即忘
+      _logger.fine('SWR: $cacheKey (stale, refreshing)');
+      _refreshCache(cacheKey, config, networkCall, toJson!);  // Fire-and-forget
       return fromJson(l2Result.data as String);
     }
 
-    // 步骤 4：无缓存 — 从网络获取
-    _logger.fine('缓存未命中：$cacheKey（正在获取网络）');
+    // Step 4: No cache — fetch from network
+    _logger.fine('Cache miss: $cacheKey (fetching network)');
     return _fetchAndCache(cacheKey, config, networkCall, fromJson, toJson!);
   }
 
@@ -289,8 +287,8 @@ class ApiCacheManager {
       _l1.set(key, json, config);
       await _l2.set(key, json, config);
     } catch (e) {
-      _logger.warning('SWR 刷新失败：$key（$e）');
-      // 保留过期数据；不影响用户体验
+      _logger.warning('SWR refresh failed: $key ($e)');
+      // Keep stale data; user experience unaffected
     }
   }
 
@@ -306,7 +304,7 @@ class ApiCacheManager {
 }
 ```
 
-### 5.2 在 Repository 中使用
+### 5.2 Usage in Repository
 
 ```dart
 class ArticleRepository {
@@ -336,20 +334,20 @@ class ArticleRepository {
 
 ---
 
-## 6. 缓存失效策略
+## 6. Cache Invalidation Strategy
 
-### 6.1 何时失效
+### 6.1 When to Invalidate
 
-| 事件 | 缓存键模式 | 操作 |
+| Event | Cache Key Pattern | Action |
 |-------|-------------------|--------|
-| 用户创建文章 | `articles:*` | 使所有文章缓存失效 |
-| 用户更新资料 | `user:*` | 使用户相关缓存失效 |
-| 管理员发布横幅 | `banners:*` | 使横幅缓存失效 |
-| 用户登出 | `user:*`、`orders:*` | 清除所有用户相关缓存 |
-| 网络返回 404 | 特定键 | 移除该单条缓存条目 |
-| 定期清理 | 不适用 | 每小时清除过期条目 |
+| User creates article | `articles:*` | Invalidate all article caches |
+| User updates profile | `user:*` | Invalidate user-related caches |
+| Admin publishes banner | `banners:*` | Invalidate banner caches |
+| User logs out | `user:*`, `orders:*` | Clear all user-related caches |
+| Network returns 404 | Specific key | Remove that single cache entry |
+| Periodic cleanup | N/A | Clear expired entries every hour |
 
-### 6.2 基于推送的失效
+### 6.2 Push-Based Invalidation
 
 ```dart
 class CacheInvalidator {
@@ -359,22 +357,22 @@ class CacheInvalidator {
   void onArticleUpdated(String slug) => _cache.invalidate('articles:$slug');
   void onUserUpdated(String userId) => _cache.invalidate('user:$userId');
   void onBannersChanged() => _cache.invalidate('banners:');
-  void onLogout() => _cache.clear();  // 登出时完全清除
+  void onLogout() => _cache.clear();  // Full clear on logout
 }
 ```
 
 ---
 
-## 7. 测试
+## 7. Testing
 
 ```dart
 void main() {
   group('ApiCacheManager', () {
-    test('应从 L1 返回新鲜数据', () async {
+    test('should return fresh data from L1', () async {
       final cache = ApiCacheManager(l1: InMemoryCache(), l2: MockDiskCache());
       await cache.init();
 
-      // 预填充缓存
+      // Pre-fill cache
       await cache.fetch(
         cacheKey: 'test',
         config: CacheConfig(),
@@ -383,7 +381,7 @@ void main() {
         toJson: (data) => data,
       );
 
-      // 第二次调用应命中 L1
+      // Second call should hit L1
       final result = await cache.fetch(
         cacheKey: 'test',
         config: CacheConfig(),
@@ -395,13 +393,13 @@ void main() {
       expect(result, 'fresh-data');
     });
 
-    test('应返回过期数据并在后台刷新（SWR）', () async {
+    test('should return stale data and refresh in background (SWR)', () async {
       final cache = ApiCacheManager(l1: InMemoryCache(), l2: MockDiskCache());
       await cache.init();
 
-      // 插入过期条目
+      // Insert stale entry
       await cache._l2.set('test', 'stale-data', CacheConfig(staleTtl: Duration(seconds: 1)));
-      await Future.delayed(const Duration(milliseconds: 1100));  // 超过过期 TTL
+      await Future.delayed(const Duration(milliseconds: 1100));  // Exceeds stale TTL
 
       var networkCalled = false;
       final result = await cache.fetch<String>(
@@ -415,9 +413,9 @@ void main() {
         toJson: (data) => data,
       );
 
-      // 应立即返回过期数据
+      // Should return stale data immediately
       expect(result, 'stale-data');
-      expect(networkCalled, true);  // 后台刷新已触发
+      expect(networkCalled, true);  // Background refresh triggered
     });
   });
 }
@@ -425,24 +423,24 @@ void main() {
 
 ---
 
-## 8. 生产环境调优
+## 8. Production Tuning
 
-| 参数 | 建议值 | 理由 |
-|-----------|---------------|-----------|
-| L1 最大条目数 | 50-100 | 移动端 RAM 有限；50 条覆盖可见屏幕 |
-| L2 最大条目数 | 500-1000 | SQLite 轻松处理；应用启动时清理 |
-| 过期 TTL（文章） | 2 分钟 | 内容频繁变更 |
-| 过期 TTL（分类） | 10 分钟 | 很少变更 |
-| 过期 TTL（横幅） | 5 分钟 | 活动周期性更新 |
-| 最大 TTL | 1-24 小时 | 至少每次会话强制刷新一次 |
-| SWR | 启用 | 对感知性能至关重要 |
+| Parameter | Recommended Value | Rationale |
+|-----------|-------------------|-----------|
+| L1 max entries | 50-100 | Limited mobile RAM; 50 entries cover visible screen |
+| L2 max entries | 500-1000 | SQLite handles easily; clean on app startup |
+| Stale TTL (articles) | 2 minutes | Content changes frequently |
+| Stale TTL (categories) | 10 minutes | Rarely changes |
+| Stale TTL (banners) | 5 minutes | Campaigns update periodically |
+| Max TTL | 1-24 hours | Force refresh at least once per session |
+| SWR | Enabled | Critical for perceived performance |
 
 ---
 
-## 9. 总结
+## 9. Summary
 
-- **双存储**：L1（RAM，即时，50 条目）+ L2（SQLite，快速，500+ 条目，持久化）
-- **SWR 策略**：立即返回过期数据，后台刷新——消除加载转圈
-- **可配置 TTL**：按端点设置过期/最大 TTL，实现细粒度控制
-- **缓存失效**：基于前缀的失效，在相关事件（创建、更新、删除）时触发
-- **即发即忘刷新**：SWR 后台刷新永不抛出异常——过期数据在网络故障时仍可用
+- **Dual Storage**: L1 (RAM, instant, 50 entries) + L2 (SQLite, fast, 500+ entries, persistent)
+- **SWR Strategy**: Return stale data immediately, refresh in background — eliminates loading spinners
+- **Configurable TTLs**: Per-endpoint stale/max TTL settings for granular control
+- **Cache Invalidation**: Prefix-based invalidation triggered on relevant events (create, update, delete)
+- **Fire-and-Forget Refresh**: SWR background refresh never throws — stale data remains usable on network failure

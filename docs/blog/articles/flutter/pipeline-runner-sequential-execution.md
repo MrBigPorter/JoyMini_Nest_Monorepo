@@ -1,72 +1,75 @@
-# Pipeline Runner 顺序执行模式 — 可靠异步流水线架构
+---
+title: "Pipeline Runner: Sequential Execution Pattern — Reliable Async Pipeline Architecture"
+description: "Analysis of the Pipeline Runner pattern for executing multi-step async operations with sequential ordering, per-step retry strategies, timeouts, error boundaries, and built-in observability."
+slug: pipeline-runner-sequential-execution
+tags: [Flutter, Architecture, Pipeline, Async, ErrorHandling]
+---
 
-> **Article F7** | **Difficulty:** ⭐⭐⭐ | **Source:** `joy_mini_app/lib/core/pipeline/`
+## 1. Problem Context
 
-## 1. 问题背景
+In mobile applications, many operations require **executing multiple async steps in sequence**, with clear error handling strategies when any step fails:
 
-移动应用中，许多操作需要 **按顺序执行多个异步步骤**，且任意步骤失败时需要明确的错误处理策略：
-
-| 场景 | 步骤链 | 失败处理 |
+| Scenario | Step Chain | Failure Handling |
 |------|--------|----------|
-| **用户注册** | 验证手机 → 创建账号 → 初始化钱包 → 发送欢迎消息 | 任意步骤失败 → 回滚已创建资源 |
-| **下单支付** | 校验库存 → 锁定价格 → 扣减余额 → 创建订单 → 发送通知 | 库存不足 → 中止；扣款失败 → 重试 |
-| **图片上传** | 压缩 → 生成 blurhash → 上传 S3 → 更新数据库记录 | 压缩失败 → 跳过模糊图；上传失败 → 重试 3 次 |
+| **User Registration** | Verify phone → Create account → Init wallet → Send welcome message | Any step fails → roll back created resources |
+| **Order Payment** | Check inventory → Lock price → Deduct balance → Create order → Send notification | Insufficient inventory → abort; deduction fails → retry |
+| **Image Upload** | Compress → Generate blurhash → Upload to S3 → Update database record | Compression fails → skip blurhash; upload fails → retry 3 times |
 
-**Pipeline Runner** 抽象出有序执行模式，解决：
+**Pipeline Runner** abstracts the sequential execution pattern, solving:
 
-1. **顺序编排**：步骤按声明顺序执行，前一步输出作为后一步输入
-2. **错误边界**：每步可定义独立的重试策略和超时
-3. **优雅中止**：关键步骤失败时跳过后续依赖步骤
-4. **可观测性**：每步耗时、成功/失败次数自动收集
+1. **Sequential Orchestration**: Steps execute in declared order, with previous step output serving as next step input
+2. **Error Boundaries**: Each step can define independent retry strategy and timeout
+3. **Graceful Abort**: When a critical step fails, skip subsequent dependent steps
+4. **Observability**: Per-step duration, success/failure counts automatically collected
 
-## 2. 核心架构
+## 2. Core Architecture
 
-### 2.1 PipelineStep 抽象
+### 2.1 PipelineStep Abstraction
 
 ```dart
-/// 流水线步骤基类
+/// Base class for pipeline steps
 abstract class PipelineStep<TInput, TOutput> {
-  /// 步骤名称（用于日志和监控）
+  /// Step name (for logging and monitoring)
   String get name;
 
-  /// 是否关键步骤（失败时中止整个 pipeline）
+  /// Whether this step is critical (failure aborts the entire pipeline)
   bool get isCritical => false;
 
-  /// 最大重试次数
+  /// Maximum retry attempts
   int get maxRetries => 0;
 
-  /// 重试间隔（毫秒）
+  /// Retry interval (milliseconds)
   int get retryDelayMs => 500;
 
-  /// 超时（毫秒），0 = 不超时
+  /// Timeout (milliseconds), 0 = no timeout
   int get timeoutMs => 0;
 
-  /// 执行步骤
+  /// Execute the step
   Future<TOutput> execute(TInput input);
 }
 ```
 
-### 2.2 PipelineContext — 步骤间共享数据
+### 2.2 PipelineContext — Shared Data Between Steps
 
 ```dart
 class PipelineContext {
   final Map<String, dynamic> _data = {};
   final List<PipelineEvent> _events = [];
 
-  /// 存储步骤输出
+  /// Store step output
   void set<T>(String key, T value) {
     _data[key] = value;
   }
 
-  /// 读取步骤输出
+  /// Read step output
   T? get<T>(String key) => _data[key] as T?;
 
-  /// 记录事件（用于监控）
+  /// Record event (for monitoring)
   void recordEvent(PipelineEvent event) {
     _events.add(event);
   }
 
-  /// 获取执行报告
+  /// Get execution report
   PipelineReport toReport() => PipelineReport(
     totalSteps: _events.length,
     duration: _calculateDuration(),
@@ -76,13 +79,13 @@ class PipelineContext {
 }
 ```
 
-### 2.3 PipelineRunner — 执行引擎
+### 2.3 PipelineRunner — Execution Engine
 
 ```dart
 class PipelineRunner {
   final Logger _logger = Logger('Pipeline');
 
-  /// 运行一组有序步骤
+  /// Run an ordered set of steps
   Future<PipelineReport> run({
     required List<PipelineStep> steps,
     required PipelineContext context,
@@ -95,7 +98,7 @@ class PipelineRunner {
       final stepTimer = Stopwatch()..start();
 
       try {
-        // 超时包装
+        // Timeout wrapper
         currentInput = await _executeWithTimeout(
           step,
           currentInput,
@@ -163,9 +166,9 @@ class PipelineRunner {
 }
 ```
 
-## 3. 重试策略
+## 3. Retry Strategy
 
-### 3.1 带重试的执行
+### 3.1 Execution with Retry
 
 ```dart
 Future<dynamic> _handleStepError(
@@ -176,13 +179,13 @@ Future<dynamic> _handleStepError(
 ) async {
   if (step.maxRetries <= 0) return false;
 
-  // 不可重试的错误类型
+  // Non-retryable error types
   if (error is PipelineNonRetryableException) return false;
 
   for (var attempt = 1; attempt <= step.maxRetries; attempt++) {
     try {
       await Future.delayed(
-        Duration(milliseconds: step.retryDelayMs * attempt), // 退避
+        Duration(milliseconds: step.retryDelayMs * attempt), // Backoff
       );
 
       _logger.info('[Pipeline] 🔄 ${step.name} retry $attempt'
@@ -198,13 +201,13 @@ Future<dynamic> _handleStepError(
 }
 ```
 
-### 3.2 可配置退避策略
+### 3.2 Configurable Backoff Strategy
 
 ```dart
 enum BackoffStrategy {
-  fixed,       // 固定间隔
-  linear,      // 线性递增
-  exponential, // 指数退避
+  fixed,       // Fixed interval
+  linear,      // Linear increase
+  exponential, // Exponential backoff
 }
 
 class RetryConfig {
@@ -231,9 +234,9 @@ class RetryConfig {
 }
 ```
 
-## 4. 实战示例
+## 4. Practical Examples
 
-### 4.1 注册流水线
+### 4.1 Registration Pipeline
 
 ```dart
 class RegistrationPipeline {
@@ -244,13 +247,13 @@ class RegistrationPipeline {
 
     return _runner.run(
       steps: [
-        // Step 1: 验证手机号
+        // Step 1: Verify phone number
         _VerifyPhoneStep(),
-        // Step 2: 创建账号（关键）
+        // Step 2: Create account (critical)
         _CreateAccountStep(isCritical: true),
-        // Step 3: 初始化钱包（关键）
+        // Step 3: Initialize wallet (critical)
         _InitWalletStep(isCritical: true),
-        // Step 4: 发送欢迎消息（非关键，失败可忽略）
+        // Step 4: Send welcome message (non-critical, failure is ignorable)
         _SendWelcomeStep(maxRetries: 1),
       ],
       context: context,
@@ -303,7 +306,7 @@ class _InitWalletStep extends PipelineStep<User, Wallet> {
 }
 ```
 
-### 4.2 图片上传流水线
+### 4.2 Image Upload Pipeline
 
 ```dart
 class ImageUploadPipeline {
@@ -312,7 +315,7 @@ class ImageUploadPipeline {
       steps: [
         CompressImageStep(maxRetries: 2),
         GenerateBlurhashStep(
-          isCritical: false, // 失败不阻断上传
+          isCritical: false, // Failure does not block upload
         ),
         UploadToS3Step(
           isCritical: true,
@@ -349,9 +352,9 @@ class CompressImageStep extends PipelineStep<File, CompressedImage> {
 }
 ```
 
-## 5. 可观测性集成
+## 5. Observability Integration
 
-### 5.1 事件类型体系
+### 5.1 Event Type Hierarchy
 
 ```dart
 sealed class PipelineEvent {
@@ -390,7 +393,7 @@ class PipelineCompletedEvent extends PipelineEvent {
 }
 ```
 
-### 5.2 监控集成
+### 5.2 Monitoring Integration
 
 ```dart
 class PipelineMonitor {
@@ -410,23 +413,19 @@ class PipelineMonitor {
 }
 ```
 
-## 6. 与其他模式的对比
+## 6. Comparison with Other Patterns
 
-| 模式 | 编排方式 | 错误处理 | 适用场景 |
+| Pattern | Orchestration | Error Handling | Use Case |
 |------|----------|----------|----------|
-| **Pipeline Runner** | 显式步骤列表 | 每步独立策略 | 多步骤业务流程 |
-| **Completer + Future** | 链式 `.then()` | 全局 catch | 简单 2-3 步 |
-| **Stream** | 事件驱动 | StreamController | 不确定步骤数 |
-| **Bloc** | 状态机 | 状态转移 | UI 状态管理 |
+| **Pipeline Runner** | Explicit step list | Per-step independent strategy | Multi-step business processes |
+| **Completer + Future** | Chained `.then()` | Global catch | Simple 2-3 steps |
+| **Stream** | Event-driven | StreamController | Unknown step count |
+| **Bloc** | State machine | State transitions | UI state management |
 
-## 7. 最佳实践
+## 7. Best Practices
 
-1. **步骤粒度适中**：每步做一件事，不要太细（避免过多上下文切换）也不要太粗（避免错误定位困难）
-2. **关键步骤前置**：将 `isCritical: true` 的步骤尽量靠前，快速失败减少资源浪费
-3. **超时必有兜底**：涉及网络/IO 的步骤必须设置 `timeoutMs`
-4. **非关键步骤容错**：如日志、分析、缓存预热等设置 `isCritical: false`
-5. **上下文最小化**：只传递必要数据，避免巨型 context 对象
-
----
-
-**下一篇预告**: [F8 — Deep Link OAuth + GlobalOAuthHandler] — 深度链接与 OAuth 统一处理
+1. **Right-Sized Step Granularity**: Each step should do one thing — not too fine (avoiding excessive context switching) nor too coarse (avoiding difficult error localization)
+2. **Critical Steps First**: Place `isCritical: true` steps early to fail fast and minimize resource waste
+3. **Always Set Timeouts**: Network/IO steps must set `timeoutMs`
+4. **Non-Critical Step Tolerance**: Set `isCritical: false` for logging, analytics, cache warming, etc.
+5. **Minimal Context**: Pass only necessary data to avoid giant context objects

@@ -1,47 +1,47 @@
-# AuthNotifier + TokenStorage：Flutter 认证状态机
-
-> **读者对象：** Flutter 移动端工程师  
-> **标签：** `#Flutter` `#Auth` `#StateManagement` `#Token` `#ChangeNotifier`  
-> **难度：** 中级  
-> **预估阅读时间：** ~20 分钟
-
+---
+title: "AuthNotifier + TokenStorage: Flutter Authentication State Machine"
+slug: auth-notifier-token-storage-auth-state-machine
+tags: Flutter, Auth, StateManagement, Token, ChangeNotifier
+description: Implements a robust authentication state machine using AuthNotifier and TokenStorage in Flutter, covering login, token refresh, secure storage, Provider integration, and security best practices.
 ---
 
-## 1. 概述
+# AuthNotifier + TokenStorage: Flutter Authentication State Machine
 
-移动端认证面临独特的挑战：令牌必须在应用重启后持久保留、过期时无缝刷新，并且 UI 必须即时响应认证状态变化。本文分析一个 `AuthNotifier` + `TokenStorage` 架构，实现了一个健壮的认证状态机。
+## 1. Overview
 
-| 组件 | 文件 | 角色 |
+Mobile authentication faces unique challenges: tokens must persist across app restarts, seamlessly refresh on expiry, and the UI must react instantly to auth state changes. This article analyzes an `AuthNotifier` + `TokenStorage` architecture that implements a robust authentication state machine.
+
+| Component | File | Role |
 |-----------|------|------|
-| **AuthNotifier** | `auth_notifier.dart` | 管理认证状态转换的 ChangeNotifier |
-| **TokenStorage** | `token_storage.dart` | 封装 FlutterSecureStorage 用于持久化令牌 |
-| **SecureStorage** | `flutter_secure_storage` | 加密键值存储（Keychain/Keystore） |
+| **AuthNotifier** | `auth_notifier.dart` | ChangeNotifier managing auth state transitions |
+| **TokenStorage** | `token_storage.dart` | Wraps FlutterSecureStorage for token persistence |
+| **SecureStorage** | `flutter_secure_storage` | Encrypted key-value store (Keychain/Keystore) |
 
 ---
 
-## 2. 认证状态机
+## 2. Authentication State Machine
 
-### 2.1 状态
+### 2.1 States
 
 ```
-┌──────────┐    ┌──────────┐    ┌──────────────┐
-│  初始状态  │───→│  检查中   │───→│  已认证       │
-└──────────┘    └──────────┘    └──────────────┘
+┌──────────┐    ┌──────────┐    ┌────────────────┐
+│  Initial  │───→│ Checking  │───→│  Authenticated  │
+└──────────┘    └──────────┘    └────────────────┘
                        │                │
                        │                │
                        ▼                ▼
-                ┌──────────┐    ┌──────────────┐
-                │  未认证   │    │  Token 过期   │
-                └──────────┘    └──────────────┘
+                ┌──────────┐    ┌────────────────┐
+                │Unauth'd  │    │ Token Expired   │
+                └──────────┘    └────────────────┘
                                        │
-                                       │ （刷新）
+                                       │ (Refresh)
                                        ▼
                                 ┌──────────────┐
-                                │  刷新中       │──→ 已认证
+                                │  Refreshing   │──→ Authenticated
                                 └──────────────┘
 ```
 
-### 2.2 实现
+### 2.2 Implementation
 
 ```dart
 enum AuthStatus {
@@ -78,7 +78,7 @@ class AuthNotifier extends ChangeNotifier {
 }
 ```
 
-### 2.3 应用启动 — 检查存储的令牌
+### 2.3 App Startup — Check Stored Tokens
 
 ```dart
 Future<void> checkAuthStatus() async {
@@ -95,7 +95,7 @@ Future<void> checkAuthStatus() async {
       return;
     }
 
-    // 尝试刷新令牌以验证存储的令牌
+    // Attempt to refresh token to validate stored tokens
     _accessToken = accessToken;
     _refreshToken = refreshToken;
 
@@ -107,12 +107,12 @@ Future<void> checkAuthStatus() async {
       _user = result.data!.user;
       _status = AuthStatus.authenticated;
     } else {
-      // 令牌过期且刷新失败
+      // Token expired and refresh failed
       await _tokenStorage.clearAll();
       _status = AuthStatus.unauthenticated;
     }
   } catch (e) {
-    // 启动时网络错误——静默重试
+    // Network error on startup — silently retry
     _status = AuthStatus.unauthenticated;
   }
 
@@ -120,7 +120,7 @@ Future<void> checkAuthStatus() async {
 }
 ```
 
-### 2.4 登录
+### 2.4 Login
 
 ```dart
 Future<AuthResult> login(String phone, String password) async {
@@ -150,22 +150,22 @@ Future<AuthResult> login(String phone, String password) async {
     }
   } catch (e) {
     _status = AuthStatus.unauthenticated;
-    _error = '网络错误，请重试。';
+    _error = 'Network error, please try again.';
     notifyListeners();
     return AuthResult.failure(_error!);
   }
 }
 ```
 
-### 2.5 令牌刷新（由 HTTP 拦截器调用）
+### 2.5 Token Refresh (Called by HTTP Interceptor)
 
 ```dart
 Future<String?> refreshToken() async {
   if (_refreshToken == null) return null;
 
-  // 防止并发刷新调用
+  // Prevent concurrent refresh calls
   if (_status == AuthStatus.refreshing) {
-    // 等待正在进行的刷新完成
+    // Wait for the ongoing refresh to complete
     await _refreshCompleter?.future;
     return _accessToken;
   }
@@ -186,7 +186,7 @@ Future<String?> refreshToken() async {
       notifyListeners();
       return _accessToken;
     } else {
-      // 刷新失败——强制登出
+      // Refresh failed — force logout
       await logout();
       _refreshCompleter!.complete(null);
       return null;
@@ -200,14 +200,14 @@ Future<String?> refreshToken() async {
 }
 ```
 
-### 2.6 登出
+### 2.6 Logout
 
 ```dart
 Future<void> logout() async {
   try {
-    await _authApi.logout();  // 通知服务端使令牌失效
+    await _authApi.logout();  // Notify server to invalidate tokens
   } catch (_) {
-    // 尽力而为；仍然清除本地状态
+    // Best effort; still clear local state
   }
 
   await _tokenStorage.clearAll();
@@ -222,9 +222,9 @@ Future<void> logout() async {
 
 ---
 
-## 3. TokenStorage — 安全持久化
+## 3. TokenStorage — Secure Persistence
 
-### 3.1 实现
+### 3.1 Implementation
 
 ```dart
 class TokenStorage {
@@ -268,19 +268,19 @@ class TokenStorage {
 }
 ```
 
-### 3.2 为什么选择 FlutterSecureStorage？
+### 3.2 Why FlutterSecureStorage?
 
-| 特性 | SharedPreferences | FlutterSecureStorage |
+| Feature | SharedPreferences | FlutterSecureStorage |
 |---------|------------------|---------------------|
-| 加密 | 否（明文） | Android 上 AES-256，iOS 上 Keychain |
-| 生物识别锁 | 否 | 可选（Android） |
-| 卸载时清除 | 否 | 是 |
-| 性能 | 快速 | 稍慢（加密开销） |
-| 用途 | 主题、设置 | **令牌、PII** |
+| Encryption | No (plaintext) | AES-256 on Android, Keychain on iOS |
+| Biometric Lock | No | Optional (Android) |
+| Cleared on Uninstall | No | Yes |
+| Performance | Fast | Slower (encryption overhead) |
+| Use Case | Theme, settings | **Tokens, PII** |
 
 ---
 
-## 4. Provider 集成
+## 4. Provider Integration
 
 ```dart
 // main.dart
@@ -292,14 +292,14 @@ void main() async {
   final authApi = AuthApi(Http.authDio);
   final authNotifier = AuthNotifier(tokenStorage: tokenStorage, authApi: authApi);
 
-  // 在第一帧之前检查存储的令牌
+  // Check stored tokens before the first frame
   await authNotifier.checkAuthStatus();
 
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider.value(value: authNotifier),
-        // ... 其他 provider
+        // ... other providers
       ],
       child: const LuckyApp(),
     ),
@@ -309,9 +309,9 @@ void main() async {
 
 ---
 
-## 5. UI 绑定
+## 5. UI Binding
 
-### 5.1 响应式组件
+### 5.1 Reactive Components
 
 ```dart
 class AuthConsumer extends StatelessWidget {
@@ -337,21 +337,21 @@ class AuthConsumer extends StatelessWidget {
 }
 ```
 
-### 5.2 登出按钮
+### 5.2 Logout Button
 
 ```dart
 ElevatedButton(
   onPressed: () async {
     await context.read<AuthNotifier>().logout();
-    // GoRouter 重定向处理导航到 /login
+    // GoRouter redirect handles navigation to /login
   },
-  child: const Text('登出'),
+  child: const Text('Logout'),
 )
 ```
 
 ---
 
-## 6. 测试
+## 6. Testing
 
 ```dart
 void main() {
@@ -366,12 +366,12 @@ void main() {
       authNotifier = AuthNotifier(tokenStorage: mockStorage, authApi: mockApi);
     });
 
-    test('初始状态为 initial', () {
+    test('initial state is initial', () {
       expect(authNotifier.status, AuthStatus.initial);
       expect(authNotifier.isAuthenticated, false);
     });
 
-    test('无存储令牌时应进入未认证状态', () async {
+    test('should be unauthenticated when no stored tokens', () async {
       when(mockStorage.getAccessToken()).thenAnswer((_) async => null);
 
       await authNotifier.checkAuthStatus();
@@ -379,7 +379,7 @@ void main() {
       expect(authNotifier.status, AuthStatus.unauthenticated);
     });
 
-    test('应成功登录', () async {
+    test('should login successfully', () async {
       when(mockApi.login('09170000000', 'password')).thenAnswer((_) async =>
         ApiResponse.success(AuthTokens(
           accessToken: 'access',
@@ -400,26 +400,26 @@ void main() {
 
 ---
 
-## 7. 安全最佳实践
+## 7. Security Best Practices
 
-| 实践 | 实现 |
+| Practice | Implementation |
 |----------|---------------|
-| **短期访问令牌** | 15 分钟过期；减少令牌被盗的窗口期 |
-| **长期刷新令牌** | 30 天过期；每次使用时轮换（原地轮换） |
-| **安全存储** | FlutterSecureStorage（Keychain/Keystore） |
-| **令牌不在 SharedPreferences 中** | SharedPrefs 是明文；令牌必须加密 |
-| **生物识别锁** | 高价值操作（提现）可选 `biometrics: true` |
-| **401 时登出** | 如果刷新失败，AuthNotifier 强制登出 |
-| **卸载时清除存储** | 应用删除时 FlutterSecureStorage 自动清除 |
-| **不记录令牌** | 绝不在发布版本中打印/记录令牌 |
+| **Short-lived access tokens** | 15-minute expiry; reduces token theft window |
+| **Long-lived refresh tokens** | 30-day expiry; rotated on each use (rotation in-place) |
+| **Secure storage** | FlutterSecureStorage (Keychain/Keystore) |
+| **No tokens in SharedPreferences** | SharedPrefs is plaintext; tokens must be encrypted |
+| **Biometric lock** | Optional `biometrics: true` for high-value operations (withdrawal) |
+| **Logout on 401** | AuthNotifier forces logout if refresh fails |
+| **Clear storage on uninstall** | FlutterSecureStorage auto-clears on app deletion |
+| **Never log tokens** | Never print/log tokens in release builds |
 
 ---
 
-## 8. 总结
+## 8. Summary
 
-- **AuthNotifier** 实现了一个 6 状态认证机：`initial → checking → authenticated/unauthenticated → refreshing/tokenExpired`
-- **TokenStorage** 封装 `FlutterSecureStorage` 用于加密令牌持久化
-- **单次刷新** 防止并发刷新调用，将同时到达的 401 请求排队
-- **启动时令牌检查** 在 `runApp()` 之前运行，显示正确的初始屏幕
-- **Provider + Consumer 绑定** 使 UI 即时响应认证状态变化
-- **最佳实践**：短期访问令牌、安全存储、不记录令牌、敏感操作使用生物识别锁
+- **AuthNotifier** implements a 6-state auth machine: `initial → checking → authenticated/unauthenticated → refreshing/tokenExpired`
+- **TokenStorage** wraps `FlutterSecureStorage` for encrypted token persistence
+- **Single refresh** prevents concurrent refresh calls, queuing simultaneous 401 requests
+- **Startup token check** runs before `runApp()`, displaying the correct initial screen
+- **Provider + Consumer binding** makes UI react instantly to auth state changes
+- **Best practices**: short-lived access tokens, secure storage, never log tokens, biometric lock for sensitive operations

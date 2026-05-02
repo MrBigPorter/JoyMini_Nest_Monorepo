@@ -1,23 +1,26 @@
-# ServerTimeHelper 时间校准 + Countdown 倒计时 — 服务端时间同步系统
+---
+title: "ServerTimeHelper: Time Calibration + Countdown — Server Time Sync System"
+description: "Analysis of ServerTimeHelper for synchronizing mobile client time with server time, solving issues like user clock tampering, timezone inconsistencies, and network latency in countdown timers and check-in logic."
+slug: server-time-helper-calibration-countdown
+tags: [Flutter, Time, Sync, Countdown, Calibration]
+---
 
-> **Article F17** | **Difficulty:** ⭐⭐⭐ | **Source:** `joy_mini_app/lib/core/time/`
+## 1. Problem Context
 
-## 1. 问题背景
+Mobile time handling faces several thorny issues:
 
-移动端时间处理面临多个棘手问题：
-
-| 问题 | 影响 | 示例 |
+| Problem | Impact | Example |
 |------|------|------|
-| **用户篡改系统时间** | 倒计时不准、签到作弊 | 用户把手机时间调快 1 小时后领取签到奖励 |
-| **时区不一致** | 显示时间混乱 | 用户手机时区 = EST，服务器时区 = PHT |
-| **网络延迟** | 倒计时开始时间漂移 | API 返回 `2024-03-15T10:00:00Z`，收到时已过 2s |
-| **跨天计算** | 日期计算错误 | `DateTime.now().day` 在 UTC+8 凌晨可能还是前一天 |
+| **User Tampering with System Time** | Inaccurate countdowns, check-in cheating | User sets phone clock ahead 1 hour to claim check-in reward |
+| **Timezone Inconsistency** | Confusing time display | User timezone = EST, server timezone = PHT |
+| **Network Latency** | Countdown start time drift | API returns `2024-03-15T10:00:00Z`, received 2s later |
+| **Cross-Day Calculation** | Date calculation errors | `DateTime.now().day` at UTC+8 midnight may still be previous day |
 
-**ServerTimeHelper** 的解法：**以服务器时间为唯一基准**，客户端只计算偏移量。
+**ServerTimeHelper's** solution: **Use server time as the sole authority**, the client only calculates the offset.
 
-## 2. 时间校准核心
+## 2. Time Calibration Core
 
-### 2.1 校准算法
+### 2.1 Calibration Algorithm
 
 ```dart
 class ServerTimeHelper {
@@ -25,54 +28,54 @@ class ServerTimeHelper {
   factory ServerTimeHelper() => _instance;
   ServerTimeHelper._();
 
-  /// 服务器与客户端的时间差（毫秒）
+  /// Time difference between server and client (milliseconds)
   /// serverTime = clientTime + _offset
   int _offset = 0;
 
-  /// 校准状态
+  /// Calibration status
   bool _isCalibrated = false;
 
-  /// 最后一次校准时间
+  /// Last calibration time
   DateTime? _lastCalibratedAt;
 
-  /// 校准精度（毫秒）
+  /// Calibration precision (milliseconds)
   int _precisionMs = 0;
 
-  /// 获取校准后的服务器时间
+  /// Get calibrated server time
   DateTime get serverNow {
     return DateTime.now().add(Duration(milliseconds: _offset));
   }
 
-  /// 获取当前时间戳（毫秒，服务器时间）
+  /// Get current timestamp (milliseconds, server time)
   int get serverTimestamp {
     return DateTime.now().millisecondsSinceEpoch + _offset;
   }
 
-  /// 执行校准
+  /// Perform calibration
   Future<void> calibrate() async {
     final stopwatch = Stopwatch()..start();
 
     try {
-      // 发送请求，记录客户端发送时间
+      // Send request, record client send time
       final clientSendTime = DateTime.now();
 
       final response = await Http.get('/api/v1/system/time');
 
-      // 记录客户端接收时间
+      // Record client receive time
       final clientRecvTime = DateTime.now();
 
-      // 服务器返回的时间（RFC 3339）
+      // Server returned time (RFC 3339)
       final serverTimeStr = response.data['serverTime'] as String;
       final serverTime = DateTime.parse(serverTimeStr);
 
-      // 估算网络往返时间（RTT）
+      // Estimate network round-trip time (RTT)
       final rtt = clientRecvTime.difference(clientSendTime);
 
-      // 估算服务器在处理请求时的时间
-      // 假设网络延迟对称：服务器处理时间 ≈ RTT / 2
+      // Estimate the server time when processing the request
+      // Assuming symmetric network latency: server processing time ≈ RTT / 2
       final estimatedServerTime = clientSendTime.add(rtt ~/ 2);
 
-      // 计算偏移
+      // Calculate offset
       _offset = serverTime.difference(estimatedServerTime).inMilliseconds;
       _precisionMs = rtt.inMilliseconds;
       _isCalibrated = true;
@@ -81,7 +84,7 @@ class ServerTimeHelper {
       Logger.info('[TimeSync] Calibrated: offset=${_offset}ms, '
           'rtt=${rtt.inMilliseconds}ms');
     } catch (e) {
-      // 校准失败，使用上次偏移或默认为 0
+      // Calibration failed, use previous offset or default to 0
       Logger.warning('[TimeSync] Calibration failed: $e');
       if (!_isCalibrated) {
         _offset = 0;
@@ -91,13 +94,13 @@ class ServerTimeHelper {
 }
 ```
 
-### 2.2 自动定期校准
+### 2.2 Automatic Periodic Calibration
 
 ```dart
 class TimeSyncScheduler {
   Timer? _timer;
 
-  /// 启动定期校准（默认每 5 分钟一次）
+  /// Start periodic calibration (default every 5 minutes)
   void start({Duration interval = const Duration(minutes: 5)}) {
     _timer?.cancel();
     _timer = Timer.periodic(interval, (_) async {
@@ -105,7 +108,7 @@ class TimeSyncScheduler {
     });
   }
 
-  /// 应用从后台恢复时立即校准
+  /// Calibrate immediately when app resumes from background
   void onAppResumed() {
     ServerTimeHelper().calibrate();
   }
@@ -117,7 +120,7 @@ class TimeSyncScheduler {
 }
 ```
 
-## 3. 倒计时组件
+## 3. Countdown Component
 
 ### 3.1 CountdownController
 
@@ -127,18 +130,18 @@ class CountdownController {
   final VoidCallback? onTick;
   final VoidCallback? onFinish;
 
-  DateTime? _targetTime;  // 服务器时间基准的目标时间
+  DateTime? _targetTime;  // Target time based on server time
   Duration _remaining = Duration.zero;
 
-  /// 当前剩余时间
+  /// Current remaining time
   Duration get remaining => _remaining;
 
-  /// 是否运行中
+  /// Whether running
   bool get isRunning => _timer?.isActive ?? false;
 
   CountdownController({this.onTick, this.onFinish});
 
-  /// 启动倒计时（targetTime 为服务器时间戳）
+  /// Start countdown (targetTime is server timestamp)
   void start({
     required DateTime targetTime,
     Duration? initialRemaining,
@@ -160,7 +163,7 @@ class CountdownController {
   }
 
   void _tick() {
-    // 使用服务器时间重新计算
+    // Recalculate using server time
     _remaining = _targetTime!
         .difference(ServerTimeHelper().serverNow);
 
@@ -257,7 +260,7 @@ enum CountdownFormat {
   /// HH:MM:SS
   hms,
 
-  /// MM:SS（小时为 0 时不显示）
+  /// MM:SS (hides hours when zero)
   ms,
 
   /// Xh Xm Xs
@@ -265,7 +268,7 @@ enum CountdownFormat {
 }
 ```
 
-### 3.3 倒计时 Circular Progress
+### 3.3 Countdown Circular Progress
 
 ```dart
 class CountdownCircle extends StatelessWidget {
@@ -313,15 +316,15 @@ class CountdownCircle extends StatelessWidget {
 }
 ```
 
-## 4. 服务器时间戳拦截器
+## 4. Server Time Interceptor
 
-### 4.1 自动校准拦截器
+### 4.1 Auto-Calibration Interceptor
 
 ```dart
 class TimeSyncInterceptor extends Interceptor {
   @override
   void onResponse(Response response, ResponseInterceptorHandler handler) {
-    // 从响应头获取服务器时间
+    // Get server time from response header
     final serverDate = response.headers.value('Date');
     if (serverDate != null) {
       try {
@@ -329,14 +332,14 @@ class TimeSyncInterceptor extends Interceptor {
         final clientNow = DateTime.now();
         final offset = serverTime.difference(clientNow).inMilliseconds;
 
-        // 更新偏移（加权移动平均，防止单次抖动）
+        // Update offset (weighted moving average to prevent single jitter)
         final helper = ServerTimeHelper();
         final currentOffset = helper.offset;
         helper.updateOffset(
           (currentOffset * 0.7 + offset * 0.3).round(),
         );
       } catch (_) {
-        // 解析失败忽略
+        // Ignore parse failures
       }
     }
 
@@ -345,21 +348,21 @@ class TimeSyncInterceptor extends Interceptor {
 }
 ```
 
-## 5. 业务场景
+## 5. Business Scenarios
 
-### 5.1 签到
+### 5.1 Check-In
 
 ```dart
 class CheckInService {
   Future<bool> canCheckIn() async {
     final serverNow = ServerTimeHelper().serverNow;
 
-    // 读取上次签到时间（已转为服务器时间存储）
+    // Read last check-in time (stored as server time)
     final lastCheckIn = await Storage().getString('last_check_in');
     if (lastCheckIn == null) return true;
 
     final lastDate = DateTime.parse(lastCheckIn);
-    // 使用服务器时间判断是否新的一天
+    // Use server time to determine if it's a new day
     return serverNow.day != lastDate.day ||
         serverNow.month != lastDate.month ||
         serverNow.year != lastDate.year;
@@ -367,7 +370,7 @@ class CheckInService {
 }
 ```
 
-### 5.2 闪购倒计时
+### 5.2 Flash Sale Countdown
 
 ```dart
 class FlashSaleCountdown extends StatelessWidget {
@@ -379,7 +382,7 @@ class FlashSaleCountdown extends StatelessWidget {
     final now = ServerTimeHelper().serverNow;
 
     if (now.isBefore(startTime)) {
-      // 未开始：显示开始倒计时
+      // Not started: show start countdown
       return Column(
         children: [
           const Text('Starts in'),
@@ -394,20 +397,20 @@ class FlashSaleCountdown extends StatelessWidget {
         ],
       );
     } else if (now.isBefore(endTime)) {
-      // 进行中：显示结束倒计时
+      // In progress: show end countdown
       return CountdownText(
         targetTime: endTime,
         format: CountdownFormat.full,
       );
     } else {
-      // 已结束
+      // Ended
       return const Text('Flash Sale Ended');
     }
   }
 }
 ```
 
-### 5.3 抽奖倒计时
+### 5.3 Lucky Draw Countdown
 
 ```dart
 class LuckyDrawTimer extends StatefulWidget {
@@ -427,11 +430,11 @@ class LuckyDrawTimer extends StatefulWidget {
 }
 ```
 
-## 6. 时间格式化工具
+## 6. Time Formatting Utilities
 
 ```dart
 class TimeFormatter {
-  /// 相对时间（基于服务器时间）
+  /// Relative time (based on server time)
   static String relative(DateTime targetTime) {
     final now = ServerTimeHelper().serverNow;
     final diff = targetTime.difference(now);
@@ -451,7 +454,7 @@ class TimeFormatter {
     }
   }
 
-  /// 日期格式
+  /// Date format
   static String _formatDate(DateTime date) {
     return '${date.year}-${_pad(date.month)}-${_pad(date.day)}';
   }
@@ -460,7 +463,7 @@ class TimeFormatter {
 }
 ```
 
-## 7. 完整校准流程
+## 7. Complete Calibration Flow
 
 ```
 App Launch
@@ -471,20 +474,20 @@ GET /api/v1/system/time
     ↓
 Server returns: { serverTime: "2024-03-15T10:00:00.000Z" }
     ↓
-计算：
+Calculation:
   clientSendTime = 10:00:00.100
   clientRecvTime = 10:00:00.300
   RTT = 200ms
   estimatedServerTime = clientSendTime + RTT/2 = 10:00:00.200
   offset = serverTime - estimatedServerTime = -200ms
-  → 客户端比服务器快 200ms
+  → Client is 200ms ahead of server
     ↓
 ServerTimeHelper.serverNow == DateTime.now() - 200ms
     ↓
-所有倒计时、签到判断使用校准后的服务器时间
+All countdowns, check-in decisions use calibrated server time
 ```
 
-## 8. 测试
+## 8. Testing
 
 ```dart
 void main() {
@@ -497,7 +500,7 @@ void main() {
 
     test('serverNow is close to DateTime.now()', () {
       final helper = ServerTimeHelper();
-      // 未校准时应接近本地时间
+      // Should be close to local time when not calibrated
       final diff = helper.serverNow.difference(DateTime.now());
       expect(diff.inMilliseconds.abs(), lessThan(100));
     });
@@ -519,7 +522,3 @@ void main() {
   });
 }
 ```
-
----
-
-**下一篇预告**: [F18 — ImageCacheManager L1/L2 + ResponsiveImageService CDN 阶梯] — 图片缓存与 CDN 自适应

@@ -36,22 +36,18 @@ export default async function HomePage({
   const locale = routeLocale;
 
   try {
-    // SSR: Fetch articles (use native fetch, Cloudflare Workers compatible)
-    const initialData = await serverGet<
-      FrontendPaginatedResponse<FrontendArticle>
-    >('/v1/frontend/blog/articles', { lang: locale, page: 1, pageSize: 10 });
-
-    // SSR: Fetch categories for CategoryFilter (no skeleton flash)
-    let initialCategories: FrontendCategory[] = [];
-    try {
-      initialCategories = await serverGet<FrontendCategory[]>(
-        '/v1/frontend/blog/categories',
-        { lang: locale },
-      );
-    } catch {
-      // Categories fetch failure is non-critical
-      initialCategories = [];
-    }
+    // P1-1 修复：并行请求 articles + categories，节省约 40-60% SSR 等待时间
+    // 原因：两个 API 完全独立，串行等待白白翻倍 SSR 耗时
+    // 证据：GET /zh/ Wall Time 1.21s，其中约 1.1s 全在等 API I/O
+    const [initialData, initialCategories] = await Promise.all([
+      serverGet<FrontendPaginatedResponse<FrontendArticle>>(
+        '/v1/frontend/blog/articles',
+        { lang: locale, page: 1, pageSize: 10 },
+      ),
+      serverGet<FrontendCategory[]>('/v1/frontend/blog/categories', {
+        lang: locale,
+      }).catch(() => [] as FrontendCategory[]), // categories 失败不阻断主流程
+    ]);
 
     // 提取文章ID用于客户端查询收藏状态
     const articleIds =

@@ -143,13 +143,15 @@ function OAuthCallbackContent() {
           user,
         );
 
-        // 重定向到首页或指定页面（带 locale 前缀）
+        // 重定向到首页或指定页面
         setTimeout(() => {
           const locale = getUserLocale() as SupportedLocale;
           const rawPath = sessionStorage.getItem('redirectAfterLogin');
           if (rawPath) {
             sessionStorage.removeItem('redirectAfterLogin');
-            router.push(withLocale(rawPath, locale));
+            // rawPath 由写入方已含 locale 前缀（如 /zh/bookmarks），
+            // 禁止再调用 withLocale()，否则变成 /zh/zh/bookmarks。
+            router.push(rawPath);
           } else {
             router.push(withLocale('/', locale));
           }
