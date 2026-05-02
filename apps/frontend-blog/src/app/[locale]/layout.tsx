@@ -17,6 +17,7 @@ import { LOCALES } from '@/lib/i18n/config';
 import { InstallPrompt } from '@/components/pwa/InstallPrompt';
 import { OfflineIndicator } from '@/components/pwa/OfflineIndicator';
 import { UpdateAvailable } from '@/components/pwa/UpdateAvailable';
+import { HomePageStateProvider } from '@/lib/providers/HomePageStateProvider';
 import '../globals.css';
 
 const locales = LOCALES;
@@ -185,7 +186,9 @@ export default async function LocaleLayout({
         <Header />
         <Sidebar />
         <main className="pt-0 lg:pt-[var(--content-padding-top)] pb-[var(--content-padding-bottom)] min-h-[100dvh] md:ml-16 md:transition-all md:duration-300">
-          <PageTransition>{children}</PageTransition>
+          <HomePageStateProvider>
+            <PageTransition>{children}</PageTransition>
+          </HomePageStateProvider>
         </main>
         <BottomNavigation />
 

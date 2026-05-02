@@ -114,13 +114,32 @@ export async function syncArticleContent(
   article: FrontendArticle,
   locale: string,
 ): Promise<void> {
-  await db.articleContents.put({
-    slug: article.slug,
-    content: article.content,
-    contentMd: article.contentMd,
-    updatedAt: article.updatedAt,
-    locale,
-  });
+  await Promise.all([
+    // 1. 存储文章正文内容
+    db.articleContents.put({
+      slug: article.slug,
+      content: article.content,
+      contentMd: article.contentMd,
+      updatedAt: article.updatedAt,
+      locale,
+    }),
+    // 2. 同时存储文章元数据到 articles 表，确保 getCachedArticleContent
+    //    能通过 baseArticle 获取完整元数据（title, excerpt, coverImage 等）。
+    //    upsert 不影响已有的 viewCount/commentCount 等字段。
+    db.articles.put({
+      id: article.id,
+      slug: article.slug,
+      title: article.title || '',
+      coverImage: article.coverImage || '',
+      excerpt: article.excerpt || '',
+      category: article.category,
+      tags: article.tags,
+      createdAt: article.publishedAt || article.updatedAt,
+      updatedAt: article.updatedAt,
+      locale,
+      page: 0,
+    }),
+  ]);
 }
 
 /**
