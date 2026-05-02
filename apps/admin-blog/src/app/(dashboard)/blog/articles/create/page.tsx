@@ -222,6 +222,7 @@ export default function CreateArticlePage() {
               label={t('articleExcerpt')}
               placeholder={t('articleExcerptPlaceholder')}
               {...localize('excerpt')}
+              maxLength={1000}
             />
 
             {/* Category */}

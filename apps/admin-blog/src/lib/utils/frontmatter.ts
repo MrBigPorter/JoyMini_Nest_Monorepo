@@ -184,7 +184,7 @@ function setField(result: ParsedMarkdown, key: string, value: string): void {
 
     case 'excerpt':
     case 'description':
-      result.excerpt = truncate(value, 500);
+      result.excerpt = truncate(value, 1000);
       break;
 
     case 'tags':
@@ -253,7 +253,7 @@ function parseNonYamlMarkdown(raw: string): ParsedMarkdown {
     for (let i = titleLineIndex + 1; i < lines.length; i++) {
       const trimmed = lines[i].trim();
       if (trimmed.startsWith('> ')) {
-        result.excerpt = truncate(trimmed.replace(/^>\s+/, '').trim(), 500);
+        result.excerpt = truncate(trimmed.replace(/^>\s+/, '').trim(), 1000);
         excerptLineIndex = i;
         break;
       }

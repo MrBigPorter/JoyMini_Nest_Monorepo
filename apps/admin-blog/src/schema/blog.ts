@@ -11,7 +11,7 @@ export const articleSchema = z.object({
   ),
   content: localizedStringSchema(z.string().min(1, 'Content is required')),
   excerpt: localizedStringSchema(
-    z.string().max(500, 'Excerpt must be at most 500 characters').optional(),
+    z.string().max(1000, 'Excerpt must be at most 1000 characters').optional(),
   ),
   categoryId: z.string().optional(),
   tagIds: z.array(z.string()).default([]),

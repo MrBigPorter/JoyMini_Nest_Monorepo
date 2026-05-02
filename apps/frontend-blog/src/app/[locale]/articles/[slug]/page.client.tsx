@@ -1,9 +1,8 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import Image from 'next/image';
-import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import {
   Calendar,
@@ -52,6 +51,7 @@ export default function ArticlePageClient({
 }: ArticlePageClientProps) {
   const params = useParams();
   const locale = useLocale();
+  const router = useRouter();
   const t = useTranslations('article');
   const tc = useTranslations('common');
 
@@ -96,6 +96,19 @@ export default function ArticlePageClient({
   }, [article]);
 
   // -------------------------------------------------------------------
+  // Back navigation handler
+  // Uses router.back() to preserve history including search params
+  // Falls back to home page if no history (direct entry to article)
+  // -------------------------------------------------------------------
+  const handleBack = useCallback(() => {
+    if (window.history.length > 1) {
+      router.back();
+    } else {
+      router.push(`/${locale}`);
+    }
+  }, [router, locale]);
+
+  // -------------------------------------------------------------------
   // Loading / Error states
   // -------------------------------------------------------------------
   if (isLoading) return <LoadingSkeleton />;
@@ -114,13 +127,13 @@ export default function ArticlePageClient({
             {t('notFoundDescription') ||
               'The article you are looking for does not exist or has been removed.'}
           </p>
-          <Link
-            href={`/${locale}`}
+          <button
+            onClick={handleBack}
             className="inline-flex items-center gap-2 text-primary hover:text-primary-600"
           >
             <ArrowLeft className="h-4 w-4" />
             {tc('backToArticles') || 'Back to Articles'}
-          </Link>
+          </button>
         </div>
       </div>
     );
@@ -160,15 +173,15 @@ export default function ArticlePageClient({
       )}
 
       <div className="max-w-5xl mx-auto px-4 py-8 md:py-12">
-        {/* Back link */}
+        {/* Back link — uses router.back() to preserve home page URL search params */}
         <div className="mb-8">
-          <Link
-            href={`/${locale}`}
+          <button
+            onClick={handleBack}
             className="inline-flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-primary transition-colors"
           >
             <ArrowLeft className="h-4 w-4" />
             {tc('backToArticles') || 'Back to Articles'}
-          </Link>
+          </button>
         </div>
 
         {/* Header */}
