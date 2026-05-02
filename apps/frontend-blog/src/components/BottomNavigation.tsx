@@ -134,8 +134,9 @@ export default function BottomNavigation() {
   if (!isClient) {
     return (
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background border-t border-border">
-        <div style={{ height: 'var(--safe-area-bottom)' }} />
         <div className="h-14" />
+        {/* 安全区域占位：必须在 nav items 之后，填充 Home Indicator 区域 */}
+        <div style={{ height: 'var(--safe-area-bottom)' }} />
       </nav>
     );
   }
@@ -246,8 +247,6 @@ export default function BottomNavigation() {
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background border-t border-border">
-      {/* 安全区域占位 */}
-      <div style={{ height: 'var(--safe-area-bottom)' }} />
 
       {/* 实际导航内容 */}
       <div className="h-14 px-4 flex items-center justify-around">
@@ -326,6 +325,8 @@ export default function BottomNavigation() {
           );
         })}
       </div>
+      {/* 安全区域占位：必须在 nav items 之后，填充 Home Indicator 区域 */}
+      <div style={{ height: 'var(--safe-area-bottom)' }} />
     </nav>
   );
 }
