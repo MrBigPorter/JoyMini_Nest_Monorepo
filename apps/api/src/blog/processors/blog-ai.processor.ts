@@ -712,6 +712,14 @@ CRITICAL JSON VALIDITY RULES:
     },
     job: Job,
   ) {
+    // Fast-fail: check AI service budget before processing
+    if (this.aiService.getServiceLevel() === AiServiceLevel.DISABLED) {
+      this.logger.warn(
+        `Skipping article translation (${data.articleId} → ${data.targetLang}): AI service disabled (daily budget exceeded)`,
+      );
+      return;
+    }
+
     this.logger.debug(
       `Translating article: ${data.articleId} to ${data.targetLang}`,
     );
@@ -956,6 +964,14 @@ CRITICAL JSON VALIDITY RULES:
     },
     job: Job,
   ) {
+    // Fast-fail: check AI service budget before processing
+    if (this.aiService.getServiceLevel() === AiServiceLevel.DISABLED) {
+      this.logger.warn(
+        `Skipping category translation (${data.categoryId} → ${data.targetLang}): AI service disabled (daily budget exceeded)`,
+      );
+      return;
+    }
+
     this.logger.debug(
       `Translating category: ${data.categoryId} to ${data.targetLang}`,
     );
@@ -1119,6 +1135,14 @@ CRITICAL JSON VALIDITY RULES:
     },
     job: Job,
   ) {
+    // Fast-fail: check AI service budget before processing
+    if (this.aiService.getServiceLevel() === AiServiceLevel.DISABLED) {
+      this.logger.warn(
+        `Skipping tag translation (${data.tagId} → ${data.targetLang}): AI service disabled (daily budget exceeded)`,
+      );
+      return;
+    }
+
     this.logger.debug(`Translating tag: ${data.tagId} to ${data.targetLang}`);
 
     // 创建/更新翻译任务记录

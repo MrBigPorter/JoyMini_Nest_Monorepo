@@ -11,12 +11,7 @@ import {
   GetFaceLivenessSessionResultsCommand,
   RekognitionClient,
 } from '@aws-sdk/client-rekognition';
-import {
-  GenerativeModel,
-  HarmBlockThreshold,
-  HarmCategory,
-  VertexAI,
-} from '@google-cloud/vertexai';
+import { AiService } from '@api/common/ai/ai.service';
 // UploadService 仅用于兼容旧方法，核心逻辑不需要它了
 import { UploadService } from '@api/common/upload/upload.service';
 import {
@@ -58,13 +53,10 @@ export class KycProviderService {
   private readonly livenessPassScore: number;
   private readonly faceMatchScore: number;
 
-  // Vertex AI (Gemini)
-  private vertexAI?: VertexAI;
-  private geminiModel?: GenerativeModel;
-
   constructor(
     private configService: ConfigService,
     private uploadService: UploadService,
+    private aiService: AiService,
   ) {
     // --- 1. AWS Rekognition 初始化 ---
     const region = this.configService.get<string>('AWS_REGION', 'us-east-1');
@@ -86,56 +78,6 @@ export class KycProviderService {
         ? { credentials: { accessKeyId, secretAccessKey } }
         : {}),
     });
-
-    // --- 2. Vertex AI 初始化 ---
-    const googleCredsRaw = this.configService.get<string>(
-      'GOOGLE_VISION_CREDENTIALS',
-    );
-    if (googleCredsRaw) {
-      try {
-        const credentials = JSON.parse(googleCredsRaw);
-        const projectId =
-          credentials.project_id || this.configService.get('GOOGLE_PROJECT_ID');
-
-        if (projectId) {
-          this.vertexAI = new VertexAI({
-            project: projectId,
-            location: 'us-central1',
-            googleAuthOptions: { credentials },
-          });
-
-          this.geminiModel = this.vertexAI.getGenerativeModel({
-            model: 'gemini-2.5-flash',
-            safetySettings: [
-              {
-                category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-                threshold: HarmBlockThreshold.BLOCK_NONE,
-              },
-              {
-                category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-                threshold: HarmBlockThreshold.BLOCK_NONE,
-              },
-              {
-                category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-                threshold: HarmBlockThreshold.BLOCK_NONE,
-              }, // 关键：防止误判证件照
-              {
-                category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-                threshold: HarmBlockThreshold.BLOCK_NONE,
-              },
-            ],
-            generationConfig: {
-              temperature: 0,
-              maxOutputTokens: 2048,
-              responseMimeType: 'application/json',
-            },
-          });
-          this.logger.log(`Vertex AI initialized: ${projectId}`);
-        }
-      } catch (e) {
-        this.logger.error('Failed to parse GOOGLE_VISION_CREDENTIALS', e);
-      }
-    }
   }
 
   /**
@@ -143,10 +85,6 @@ export class KycProviderService {
    * 适用于：前端上传瞬间的实时识别
    */
   async ocrIdCardByBuffer(imageBuffer: Buffer): Promise<IdCardResult> {
-    if (!this.geminiModel) {
-      throw new InternalServerErrorException('Vertex AI Client not configured');
-    }
-
     try {
       // 直接调 AI，省去下载
       const result = await this.extractWithGemini(imageBuffer);
@@ -227,12 +165,11 @@ export class KycProviderService {
 
   /**
    * Gemini 核心提取逻辑 (升级版：加入反欺诈指令 + 代码级误报过滤)
+   * 通过 AiService 发送请求（自带每日预算控制 + 速率限制）
    */
   private async extractWithGemini(
     imageBuffer: Buffer,
   ): Promise<IdCardResult | null> {
-    if (!this.geminiModel) return null;
-
     //  优化后的 Prompt：增加了对字体容错的指令
     const prompt = `
 Act as a KYC Security Expert. Analyze this ID card image for OCR and FRAUD detection.
@@ -262,25 +199,11 @@ Fraud fields:
 `.trim();
 
     try {
-      const result = await this.geminiModel.generateContent({
-        contents: [
-          {
-            role: 'user',
-            parts: [
-              { text: prompt },
-              {
-                inlineData: {
-                  mimeType: 'image/jpeg',
-                  data: imageBuffer.toString('base64'),
-                },
-              },
-            ],
-          },
-        ],
-      });
-
-      const response = result.response;
-      const text = response.candidates?.[0]?.content?.parts?.[0]?.text;
+      const text = await this.aiService.generateContentFromImage(
+        prompt,
+        imageBuffer,
+        'image/jpeg',
+      );
       if (!text) return null;
 
       const jsonStr = this.extractJsonObject(text);
@@ -387,7 +310,7 @@ Fraud fields:
         rawText: 'Extracted by Gemini AI (2.5-flash) with Fraud Check',
       };
     } catch (e) {
-      this.logger.error('Vertex AI Error', e);
+      this.logger.error('AI Service Error', e);
       return null;
     }
   }
