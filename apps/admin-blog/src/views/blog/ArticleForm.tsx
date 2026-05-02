@@ -168,6 +168,7 @@ export const ArticleForm = forwardRef<ArticleFormRef, ArticleFormProps>(
             name="excerpt"
             label={t('excerpt')}
             placeholder={t('excerptPlaceholder')}
+            maxLength={1000}
           />
 
           <div className="p-4 rounded-lg shadow-sm">

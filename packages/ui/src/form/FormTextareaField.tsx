@@ -39,6 +39,7 @@ export function FormTextareaField<
   helpText,
   variant = "default",
   layout = "vertical",
+  maxLength,
 }: Readonly<BaseFieldProps<TFieldValues>>) {
   const theme = useFormTheme();
 
@@ -47,6 +48,16 @@ export function FormTextareaField<
       name={name}
       renderAction={({ field, error }) => {
         const finalVariant = error ? "error" : variant;
+        const charCount =
+          maxLength !== undefined ? (field.value?.length ?? 0) : undefined;
+        const isNearLimit =
+          charCount !== undefined &&
+          maxLength !== undefined &&
+          charCount > maxLength * 0.8;
+        const isOverLimit =
+          charCount !== undefined &&
+          maxLength !== undefined &&
+          charCount > maxLength;
 
         return (
           <FormItem>
@@ -127,6 +138,21 @@ export function FormTextareaField<
                     }}
                   />
                 </FormControl>
+
+                {maxLength !== undefined && charCount !== undefined && (
+                  <div
+                    className={cn(
+                      "flex justify-end mt-1 text-xs transition-colors",
+                      isOverLimit && "text-red-500",
+                      isNearLimit && !isOverLimit && "text-amber-500",
+                      !isNearLimit && !isOverLimit && "text-gray-400",
+                    )}
+                  >
+                    <span>
+                      {charCount}/{maxLength}
+                    </span>
+                  </div>
+                )}
 
                 {helpText && (
                   <HelpText

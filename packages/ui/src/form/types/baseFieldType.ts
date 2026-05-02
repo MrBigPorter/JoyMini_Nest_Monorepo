@@ -61,4 +61,6 @@ export interface BaseFieldProps<
   variant?: VariantKey;
   /** Layout type for the form item, can be 'horizontal' or 'vertical' */
   layout?: "horizontal" | "vertical";
+  /** Maximum character length for textarea/input fields, shows a character counter */
+  maxLength?: number;
 }

@@ -1,6 +1,14 @@
 'use client';
 
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import {
+  useState,
+  useCallback,
+  useRef,
+  useEffect,
+  useMemo,
+  Suspense,
+} from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCurrentLocale } from '@/lib/hooks/useCurrentLocale';
@@ -33,33 +41,109 @@ interface HomePageClientProps {
 
 const PAGE_SIZE = 10;
 
-export default function HomePageClient({
-  initialData,
-  ...props
-}: HomePageClientProps) {
+/**
+ * Wrapper with Suspense boundary required by useSearchParams().
+ * Next.js requires this to avoid opting the page into client-side rendering at build time.
+ */
+export default function HomePageClient(props: HomePageClientProps) {
+  return (
+    <Suspense fallback={<HomePageSkeleton />}>
+      <HomePageClientContent {...props} />
+    </Suspense>
+  );
+}
+
+function HomePageClientContent({ initialData, ...props }: HomePageClientProps) {
   const t = useTranslations();
   const currentLocale = useCurrentLocale();
+  const searchParams = useSearchParams();
+  const router = useRouter();
 
   // P0-3a: Network-aware adaptive quality
   const networkQuality = useNetworkQuality();
 
-  // Category filter state
+  // ──────────────────────────────────────────────────
+  // Initialize state from URL search params (category, page)
+  // This preserves filter state when navigating back from article detail
+  // ──────────────────────────────────────────────────
   const [selectedCategoryId, setSelectedCategoryId] = useState<
     string | undefined
-  >(undefined);
-  // Pagination
-  const [page, setPage] = useState(1);
+  >(searchParams.get('category') || undefined);
+
+  const [page, setPage] = useState(() => {
+    const p = searchParams.get('page');
+    return p ? Math.max(1, Number(p)) : 1;
+  });
+
+  // Track whether user has switched away from the SSR-initial category
+  // When false, we stop passing initialData to React Query to prevent
+  // stale SSR data from contaminating new query keys (category switch → empty category)
+  const isInitialCategory = useRef(true);
+
+  // Track latest scroll position in real-time via scroll event listener.
+  // This avoids reading window.scrollY at cleanup time (which Next.js resets to 0 before unmount).
+  const scrollPosRef = useRef(0);
+
   // Accumulated articles for "Load More"
   const [allArticles, setAllArticles] = useState<FrontendArticle[]>(
     () => initialData?.items || [],
   );
 
+  // ──────────────────────────────────────────────────
+  // Sync state → URL search params (one-way, prevents infinite loop)
+  // Updates the URL when category or page changes without triggering navigation
+  // ──────────────────────────────────────────────────
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams.toString());
+
+    if (selectedCategoryId) {
+      params.set('category', selectedCategoryId);
+    } else {
+      params.delete('category');
+    }
+
+    if (page > 1) {
+      params.set('page', String(page));
+    } else {
+      params.delete('page');
+    }
+
+    const newSearch = params.toString();
+    const currentSearch = searchParams.toString();
+
+    // Only update if actually changed (prevents infinite loop)
+    if (newSearch !== currentSearch) {
+      router.replace(`?${newSearch}`, { scroll: false });
+    }
+  }, [selectedCategoryId, page, searchParams, router]);
+
+  // ──────────────────────────────────────────────────
+  // Track scroll position in real-time + save on unmount
+  // window.scrollY is reset to 0 by Next.js before the cleanup effect runs,
+  // so we track position via scroll event listener and use ref value at cleanup.
+  // ──────────────────────────────────────────────────
+  useEffect(() => {
+    const handleScroll = () => {
+      scrollPosRef.current = window.scrollY;
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      // Use ref value (captured before Next.js reset scrollY to 0)
+      sessionStorage.setItem('homeScrollY', String(scrollPosRef.current));
+      sessionStorage.setItem('homeNavigatedTo', window.location.pathname);
+    };
+  }, []);
+
   // Main articles query (P0-1: Local-First with IndexedDB via useFrontendArticles)
+  // NOTE: initialData is only passed for the initial SSR category. Once the user
+  // switches to a different category, we clear it to avoid React Query treating
+  // stale SSR data as valid data for the new query key.
   const { data, isLoading, error, refetch, isFetching } = useFrontendArticles({
     page,
     pageSize: PAGE_SIZE,
     categoryId: selectedCategoryId,
-    initialData,
+    initialData: isInitialCategory.current ? initialData : undefined,
     queryKeyPrefix: 'homeArticles',
   });
 
@@ -84,6 +168,30 @@ export default function HomePageClient({
       prevPageRef.current = page;
     }
   }, [articles, page]);
+
+  // ──────────────────────────────────────────────────
+  // Restore scroll position after articles are rendered
+  // Only restores if the previous navigation destination was an article detail page
+  // (i.e., user clicked an article → read → router.back())
+  // ──────────────────────────────────────────────────
+  useEffect(() => {
+    if (allArticles.length > 0) {
+      const navigatedTo = sessionStorage.getItem('homeNavigatedTo');
+      const savedScrollY = sessionStorage.getItem('homeScrollY');
+
+      // Only restore if we came back from an article detail page
+      if (navigatedTo?.includes('/articles/') && savedScrollY) {
+        // Use requestAnimationFrame to ensure DOM is fully painted
+        requestAnimationFrame(() => {
+          window.scrollTo(0, Number(savedScrollY));
+        });
+      }
+
+      // Always clean up session storage on mount
+      sessionStorage.removeItem('homeScrollY');
+      sessionStorage.removeItem('homeNavigatedTo');
+    }
+  }, [allArticles]);
 
   // ──────────────────────────────────────────────────
   // P0-2c: Bottom auto-prefetch — prefetch next page
@@ -176,29 +284,44 @@ export default function HomePageClient({
   ]);
 
   // Handle category change
-  const handleCategoryChange = useCallback((categoryId?: string) => {
-    // Use View Transitions API (Chrome 111+) for smooth crossfade
-    if (typeof document !== 'undefined' && 'startViewTransition' in document) {
-      const transition = (
-        document as Document & {
-          startViewTransition: (cb: () => void) => { finished: Promise<void> };
-        }
-      ).startViewTransition(() => {
+  const handleCategoryChange = useCallback(
+    (categoryId?: string) => {
+      // No-op: clicking the same tab that's already active should do nothing
+      if (categoryId === selectedCategoryId) return;
+
+      // Mark that user has switched away from the SSR-initial category
+      // This prevents stale initialData from polluting new React Query keys
+      isInitialCategory.current = false;
+
+      // Use View Transitions API (Chrome 111+) for smooth crossfade
+      if (
+        typeof document !== 'undefined' &&
+        'startViewTransition' in document
+      ) {
+        const transition = (
+          document as Document & {
+            startViewTransition: (cb: () => void) => {
+              finished: Promise<void>;
+            };
+          }
+        ).startViewTransition(() => {
+          setSelectedCategoryId(categoryId);
+          setPage(1);
+          setAllArticles([]);
+        });
+        // Ensure transition doesn't block for too long (fallback timeout)
+        setTimeout(() => {
+          transition.finished.catch(() => {});
+        }, 1000);
+      } else {
+        // Fallback for browsers without View Transitions support
         setSelectedCategoryId(categoryId);
         setPage(1);
         setAllArticles([]);
-      });
-      // Ensure transition doesn't block for too long (fallback timeout)
-      setTimeout(() => {
-        transition.finished.catch(() => {});
-      }, 1000);
-    } else {
-      // Fallback for browsers without View Transitions support
-      setSelectedCategoryId(categoryId);
-      setPage(1);
-      setAllArticles([]);
-    }
-  }, []);
+      }
+    },
+    [selectedCategoryId],
+  );
 
   // Handle load more
   const handleLoadMore = useCallback(() => {
