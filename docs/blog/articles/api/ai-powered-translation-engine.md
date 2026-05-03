@@ -1,3 +1,19 @@
+---
+title: 'AI 驱动翻译引擎：Google AI Studio Gemini 多层弹性架构'
+slug: ai-powered-translation-engine
+description: JoyMini API 的 AI 翻译引擎基于 Google AI Studio Gemini 构建，涵盖速率限制、服务级别降级、断路器、指数退避重试和 429 特殊处理等多层弹性模式，支撑批量翻译、评论审核和自动回复场景。
+tags:
+  - NestJS
+  - Google AI Studio
+  - Gemini
+  - LLM
+  - Translation
+  - Content Moderation
+  - Circuit Breaker
+  - Rate Limiting
+  - TypeScript
+---
+
 # AI 驱动翻译引擎：Google AI Studio Gemini 多层弹性架构
 
 **日期：** 2026-05-01（更新：2026-05-02）

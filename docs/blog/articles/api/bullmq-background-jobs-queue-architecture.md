@@ -1,3 +1,18 @@
+---
+title: 'API 后台任务体系 — BullMQ 队列架构与 Worker 实现'
+slug: bullmq-background-jobs-queue-architecture
+description: JoyMini API 基于 BullMQ（Redis 驱动队列）构建的后台任务体系，涵盖 3 个队列、4 个 Worker 的架构设计，包括图片压缩管道、Sharp 合成、视频 HLS 转码和封面提取的完整实现。
+tags:
+  - NestJS
+  - BullMQ
+  - Redis
+  - Queue
+  - Background Jobs
+  - Image Processing
+  - Video Transcoding
+  - TypeScript
+---
+
 # API 后台任务体系 — BullMQ 队列架构与 Worker 实现
 
 ## 一、概述

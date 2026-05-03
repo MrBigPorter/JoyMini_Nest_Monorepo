@@ -1,3 +1,10 @@
+---
+title: 'SmartTable — 泛型智能表格：列驱动搜索 + 表格 + 分页一体化'
+slug: smart-table-generic-data-grid
+tags: Next.js, Admin, React, TypeScript, Components, Table, Data Grid
+description: The admin blog's SmartTable is a ProTable-style generic component that eliminates boilerplate for every list page. Define columns once, get search form, data table, pagination, toolbar, and export — all automatically wired together.
+---
+
 # SmartTable — 泛型智能表格：列驱动搜索 + 表格 + 分页一体化
 
 > **Article A1** — The admin blog's SmartTable is a ProTable-style generic component that eliminates boilerplate for every list page. Define columns once, get search form, data table, pagination, toolbar, and export — all automatically wired together.

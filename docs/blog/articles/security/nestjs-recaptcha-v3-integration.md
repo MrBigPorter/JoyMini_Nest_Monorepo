@@ -1,4 +1,7 @@
 ---
+title: 'NestJS reCAPTCHA v3 集成实战：无感知人机验证，从零拦截脚本机器人'
+slug: nestjs-recaptcha-v3-integration
+description: 博客系统的评论接口面临脚本机器人攻击，通过集成 Google reCAPTCHA v3 实现无感知人机验证。涵盖 RecaptchaService、四档分值处理策略、Guard 集成和前端 Token 获取的完整实现。
 tags:
   - NestJS
   - reCAPTCHA

@@ -1,3 +1,18 @@
+---
+title: 'GroupService 拼团系统：Redis 乐观锁 + BullMQ 结算队列'
+slug: group-service-redis-lock-settlement
+description: JoyMini 的拼团系统基于 Redis 乐观锁防止超售、BullMQ 结算队列处理异步分账，涵盖团购创建、参团、自动成团和结算的完整事务性流程。
+tags:
+  - NestJS
+  - Group
+  - Redis
+  - Lock
+  - BullMQ
+  - Settlement
+  - Concurrency
+  - TypeScript
+---
+
 # GroupService 拼团系统：Redis 乐观锁 + BullMQ 结算队列
 
 > **源码参考**: [`group.service.ts`](apps/api/src/common/group/group.service.ts) (672 行)

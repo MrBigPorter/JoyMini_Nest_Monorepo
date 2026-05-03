@@ -1,3 +1,17 @@
+---
+title: 'CSRF 双中间件保护：智能跳过策略 + Token 双存储'
+slug: csrf-double-middleware-protection
+description: 基于 NestJS 中间件的 CSRF 防护体系，支持 JWT/Webhook/Auth 路由智能跳过，Cookie + Session 双存储 Token 方案，涵盖 CsrfTokenMiddleware 和 CsrfMiddleware 的双中间件架构。
+tags:
+  - NestJS
+  - CSRF
+  - Security
+  - Middleware
+  - Cookie
+  - Session
+  - TypeScript
+---
+
 # CSRF 双中间件保护：智能跳过策略 + Token 双存储
 
 > 基于 NestJS 中间件的 CSRF 防护体系 — 支持 JWT/Webhook/Auth 路由智能跳过，Cookie + Session 双存储

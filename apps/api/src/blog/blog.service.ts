@@ -2033,6 +2033,17 @@ export class BlogService {
         article.contentLocalized[targetLang] &&
         article.contentLocalized[targetLang].trim().length > 0
       ) {
+        // 额外检查：如果目标语言内容和源语言（zh）完全相同，说明是数据损坏而非真正翻译
+        const sourceTitle = article.titleLocalized?.zh;
+        const sourceContent = article.contentLocalized?.zh;
+        if (
+          sourceTitle &&
+          sourceContent &&
+          article.titleLocalized[targetLang] === sourceTitle &&
+          article.contentLocalized[targetLang] === sourceContent
+        ) {
+          return false; // 内容与源语言完全相同，视为未翻译（数据损坏）
+        }
         return true;
       }
     }
@@ -2460,10 +2471,10 @@ export class BlogService {
     const targetLanguages = languageCode ? [languageCode] : ['en', 'ja']; // 默认检查英语和日语
 
     for (const lang of targetLanguages) {
-      // 1. 检查标题是否未翻译
-      const titleEn = article.titleLocalized?.[lang];
+      // 1. 检查标题是否未翻译（与源语言相同）
+      const titleTarget = article.titleLocalized?.[lang];
       const titleZh = article.titleLocalized?.zh;
-      if (titleEn && titleZh && titleEn === titleZh) {
+      if (titleTarget && titleZh && titleTarget === titleZh) {
         issues.push({
           language: lang,
           issueType: 'TITLE_NOT_TRANSLATED',
@@ -2472,15 +2483,30 @@ export class BlogService {
         });
       }
 
-      // 2. 检查内容是否完整
-      const contentEn = article.contentLocalized?.[lang] || '';
+      // 2. 检查内容是否完整（长度不足源语言30%）
+      const contentTarget = article.contentLocalized?.[lang] || '';
       const contentZh = article.contentLocalized?.zh || '';
-      if (contentZh && contentEn.length < contentZh.length * 0.3) {
+      if (contentZh && contentTarget.length < contentZh.length * 0.3) {
         issues.push({
           language: lang,
           issueType: 'CONTENT_INCOMPLETE',
           severity: 'MEDIUM',
-          description: `${lang.toUpperCase()}内容不完整（${contentEn.length}/${contentZh.length}字符）`,
+          description: `${lang.toUpperCase()}内容不完整（${contentTarget.length}/${contentZh.length}字符）`,
+        });
+      }
+
+      // 2b. 检查内容是否与源语言完全相同（静默数据损坏场景）
+      if (
+        contentTarget &&
+        contentZh &&
+        contentTarget.length >= contentZh.length * 0.3 &&
+        contentTarget === contentZh
+      ) {
+        issues.push({
+          language: lang,
+          issueType: 'CONTENT_NOT_TRANSLATED',
+          severity: 'HIGH',
+          description: `${lang.toUpperCase()}内容与中文内容完全相同，AI返回了原文`,
         });
       }
 

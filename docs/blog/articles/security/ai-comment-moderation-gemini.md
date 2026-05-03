@@ -1,3 +1,16 @@
+---
+title: 'AI 评论审核：Gemini 2.0 Flash 零成本实现自动内容过滤'
+slug: ai-comment-moderation-gemini
+description: 博客系统通过集成 Google Gemini 2.0 Flash（永久免费）实现 AI 自动评论审核。涵盖三级审核机制、异步 BullMQ 队列处理、自动回复 Prompt 设计和非阻塞架构设计要点。
+tags:
+  - AI
+  - Gemini
+  - Comment
+  - Content Moderation
+  - Security
+  - NestJS
+---
+
 # AI 评论审核：Gemini 2.0 Flash 零成本实现自动内容过滤
 
 > **Tags:** `AI`, `Gemini`, `Comment`, `Content Moderation`, `Security`, `NestJS`

@@ -1,3 +1,10 @@
+---
+title: 'DataSynchronizer — 深度比较 + 循环安全序列化的数据同步器'
+slug: data-synchronizer-deep-compare-cycle-safe
+tags: Next.js, Admin, TypeScript, Data Synchronization, Utility, State Management
+description: DataSynchronizer 是一个零依赖的 344 行工具类，提供深度比较（deepEqual）、循环安全序列化（safeStringify）、防抖（debounce）和重试（withRetry）四种核心能力，专为多语言表单编辑和离线数据同步场景设计。
+---
+
 # DataSynchronizer — 深度比较 + 循环安全序列化的数据同步器
 
 > **难度**: ⭐⭐⭐⭐  

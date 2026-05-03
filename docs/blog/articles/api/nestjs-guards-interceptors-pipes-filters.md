@@ -1,3 +1,18 @@
+---
+title: 'API 安全与数据处理管道 — NestJS Guards / Interceptors / Pipes / Filters 四层架构'
+slug: nestjs-guards-interceptors-pipes-filters
+description: JoyMini API 基于 NestJS 四层管道架构（Guard → Interceptor → Pipe → Filter）构建完整的请求处理链路，涵盖认证授权、数据清洗、异常兜底等横切关注点。
+tags:
+  - NestJS
+  - Guards
+  - Interceptors
+  - Pipes
+  - Filters
+  - Architecture
+  - Security
+  - TypeScript
+---
+
 # API 安全与数据处理管道 — NestJS Guards / Interceptors / Pipes / Filters 四层架构
 
 ## 一、概述

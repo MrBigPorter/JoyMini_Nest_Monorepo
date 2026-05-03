@@ -1,3 +1,18 @@
+---
+title: 'Redis 分布式锁系统：基于装饰器的并发控制'
+slug: redis-distributed-lock-system
+description: JoyMini API 的分布式锁系统基于 Redis SET NX PX 原子操作和 Lua 脚本解锁，通过 @DistributedLock 装饰器提供声明式 API，涵盖 Cron 任务防重、API 端点限流和嵌套临界区三种模式。
+tags:
+  - NestJS
+  - Redis
+  - Distributed Lock
+  - Concurrency
+  - Decorator
+  - Cron
+  - Idempotency
+  - TypeScript
+---
+
 # Redis 分布式锁系统：基于装饰器的并发控制
 
 **Date:** 2026-05-01  

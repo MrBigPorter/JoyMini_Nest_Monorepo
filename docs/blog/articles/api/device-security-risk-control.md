@@ -1,3 +1,19 @@
+---
+title: '设备安全与风险控制：金融科技应用的多层防御'
+slug: device-security-risk-control
+description: JoyMini API 的设备安全多层防御体系，涵盖设备指纹、速率限制、CSRF 双中间件、reCAPTCHA v3 验证和 OTP 限流器，构建从请求到响应的完整安全链路。
+tags:
+  - NestJS
+  - Security
+  - Device Fingerprinting
+  - Risk Control
+  - Redis
+  - Rate Limiting
+  - CSRF
+  - reCAPTCHA
+  - TypeScript
+---
+
 # 设备安全与风险控制：金融科技应用的多层防御
 
 **Date:** 2026-05-01  

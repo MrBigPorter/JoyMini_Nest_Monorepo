@@ -1,3 +1,10 @@
+---
+title: 'HttpClient — 401 自动刷新 + 请求去重 + 指数退避重试'
+slug: http-client-auth-refresh-retry
+tags: Next.js, Admin, HTTP Client, Axios, Authentication, TypeScript, Error Handling
+description: The admin panel's HttpClient wraps Axios with declarative features: single-flight token refresh, request deduplication (GET + non-GET), exponential backoff retry (max 3), business code validation, and Sentry tracing — all in one 519-line class.
+---
+
 # HttpClient — 401 自动刷新 + 请求去重 + 指数退避重试
 
 > **Article A4** — The admin panel's HttpClient wraps Axios with declarative features: single-flight token refresh, request deduplication (GET + non-GET), exponential backoff retry (max 3), business code validation, and Sentry tracing — all in one 519-line class.

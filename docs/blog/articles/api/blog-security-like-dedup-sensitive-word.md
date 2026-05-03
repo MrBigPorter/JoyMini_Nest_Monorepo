@@ -1,3 +1,16 @@
+---
+title: '博客安全体系：Like 去重守卫 + AC 自动机敏感词过滤'
+slug: blog-security-like-dedup-sensitive-word
+description: 博客 API 的两道安全防线：基于指纹 + Redis 的点赞去重守卫（LikeDeduplicationGuard）和基于 AC 自动机的敏感词过滤 Pipe，实现零侵入的安全集成。
+tags:
+  - NestJS
+  - Security
+  - Redis
+  - Rate Limiting
+  - Sensitive Word Filter
+  - TypeScript
+---
+
 # 博客安全体系：Like 去重守卫 + AC 自动机敏感词过滤
 
 > **源码参考**: [`like-deduplication.guard.ts`](apps/api/src/blog/guards/like-deduplication.guard.ts) (76 行) · [`sensitive-word-filter.pipe.ts`](apps/api/src/blog/pipes/sensitive-word-filter.pipe.ts) (201 行)

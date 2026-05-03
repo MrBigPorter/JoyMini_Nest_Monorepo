@@ -1,3 +1,10 @@
+---
+title: '缓存契约模式：15 个统一的 React Query 缓存模块'
+slug: cache-contract-pattern-15-modules
+tags: Next.js, Admin, React Query, Caching, TypeScript, Architecture, Data Fetching
+description: lib/cache/ 目录包含 15 个缓存模块，每个模块遵循相同的契约模式，将 URL 搜索参数与 API 查询参数和 React Query 缓存键连接起来，解决后台面板中分页、过滤器和缓存失效同步的常见痛点。
+---
+
 # 缓存契约模式：15 个统一的 React Query 缓存模块
 
 ## 概述

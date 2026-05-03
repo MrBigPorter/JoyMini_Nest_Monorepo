@@ -1,3 +1,10 @@
+---
+title: '安全工具链：Zod 验证 + PII 脱敏 + XSS 防护'
+slug: security-utils-zod-pii-xss
+tags: Next.js, Admin, Security, Zod, PII, XSS, TypeScript, Validation
+description: security-utils.ts 模块是管理后台的前端安全工具包，在 276 行中涵盖五个安全关注点：Zod 输入验证、PII 数据脱敏、XSS 防护、SQL 注入启发式检测和密码强度评估。
+---
+
 # 安全工具链：Zod 验证 + PII 脱敏 + XSS 防护
 
 ## 概述

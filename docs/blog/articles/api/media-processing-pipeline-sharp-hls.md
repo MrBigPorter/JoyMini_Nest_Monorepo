@@ -1,3 +1,18 @@
+---
+title: 'Media Processing Pipeline: Sharp 图像压缩 + FFmpeg HLS 视频转码'
+slug: media-processing-pipeline-sharp-hls
+description: JoyMini API 的媒体处理管道基于 Sharp 进行图像多格式变体生成和 BlurHash 编码，基于 FFmpeg 进行视频 HLS 自适应转码，全部通过 BullMQ 异步驱动。
+tags:
+  - NestJS
+  - Media Processing
+  - Sharp
+  - FFmpeg
+  - HLS
+  - BlurHash
+  - BullMQ
+  - TypeScript
+---
+
 # Media Processing Pipeline: Sharp 图像压缩 + FFmpeg HLS 视频转码
 
 > 自动化的博客媒体处理管道 — BullMQ 驱动，支持图像多格式变体生成、BlurHash 编码、视频 HLS 自适应转码

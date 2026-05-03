@@ -1,3 +1,18 @@
+---
+title: 'API 文件上传体系 — Cloudflare R2 S3 + BullMQ 媒体处理管道'
+slug: file-upload-cloudflare-r2-media-processing
+description: JoyMini API 的文件上传体系基于 Cloudflare R2 S3 对象存储和 BullMQ 异步队列，涵盖图片压缩（Sharp）、视频 HLS 转码（FFmpeg）和 BlurHash 生成的完整媒体处理管道。
+tags:
+  - NestJS
+  - File Upload
+  - Cloudflare R2
+  - S3
+  - BullMQ
+  - Image Processing
+  - Video Transcoding
+  - TypeScript
+---
+
 # API 文件上传体系 — Cloudflare R2 S3 + BullMQ 媒体处理管道
 
 ## 一、概述

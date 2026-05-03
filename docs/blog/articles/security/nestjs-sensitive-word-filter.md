@@ -1,3 +1,15 @@
+---
+title: 'NestJS 敏感词过滤：AC 自动机 Pipe 实现与性能优化'
+slug: nestjs-sensitive-word-filter
+description: 博客系统的评论内容通过 AC 自动机算法实现敏感词检测，以 NestJS Pipe 形式透明集成。涵盖三级敏感词分级策略、10 万词库 < 1ms 检测性能、Redis 热更新机制和多层防线设计。
+tags:
+  - NestJS
+  - Sensitive Word Filter
+  - Security
+  - Prisma
+  - Redis
+---
+
 # NestJS 敏感词过滤：AC 自动机 Pipe 实现与性能优化
 
 > **Tags:** `NestJS`, `Sensitive Word Filter`, `Security`, `Prisma`, `Redis`

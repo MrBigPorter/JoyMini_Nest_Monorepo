@@ -1,4 +1,7 @@
 ---
+title: 'NestJS JWT + RBAC 权限系统实战：从开放接口到细粒度权限控制'
+slug: nestjs-jwt-permission-system
+description: 博客系统的管理接口从完全开放状态逐步演进到 JWT 认证 + RBAC 权限双层防护体系，涵盖 AdminJwtAuthGuard、PermissionsGuard、@RequirePermission 装饰器和 RolePermissions 配置的完整实现。
 tags:
   - NestJS
   - JWT

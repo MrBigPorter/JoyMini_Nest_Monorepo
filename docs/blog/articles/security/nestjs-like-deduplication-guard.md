@@ -1,3 +1,15 @@
+---
+title: 'NestJS 点赞去重：指纹 + Redis Guard 模式与分布式锁'
+slug: nestjs-like-deduplication-guard
+description: 博客系统的点赞接口通过指纹 + Redis Guard 模式实现防刷赞机制。涵盖指纹公式（MD5 哈希）、SET NX 原子操作、24 小时过期策略和 Redis 不可用时的优雅降级方案。
+tags:
+  - NestJS
+  - Security
+  - Performance
+  - Redis
+  - TypeScript
+---
+
 # NestJS 点赞去重：指纹 + Redis Guard 模式与分布式锁
 
 > **Tags:** `NestJS`, `Security`, `Performance`, `Redis`, `TypeScript`
