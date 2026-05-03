@@ -1,13 +1,13 @@
 ---
-title: "HydratedStateNotifier: Abstract State Persistence in Flutter"
-description: "Exploration of HydratedStateNotifier, an abstract base class that automatically persists and restores state using configurable storage backends, solving state survival across app restarts for theme preferences, locale, onboarding, and more."
+title: 'HydratedStateNotifier：Flutter 中的抽象状态持久化'
+description: 探讨 HydratedStateNotifier 抽象基类，它通过可配置的存储后端自动持久化和恢复状态，解决主题偏好、语言、引导页等状态在应用重启后的存活问题。
 slug: hydrated-state-notifier-abstract-persistence
-tags: [Flutter, StateManagement, Persistence, Hydrated, Riverpod]
+tags: Flutter, StateManagement, Persistence, Hydrated, Riverpod
 ---
 
-## 1. Overview
+## 1. 概述
 
-Mobile state management faces a challenge — **state must survive app restarts**. The user's theme preference, selected language, or partially filled form should persist across process termination. This article explores `HydratedStateNotifier` — an abstract base class that automatically persists and restores state using a configurable storage backend.
+移动端状态管理面临一个挑战——**状态必须在应用重启后存活**。用户的主题偏好、选择的语言或部分填写的表单应在进程终止后持久保留。本文探讨 `HydratedStateNotifier`——一个通过可配置存储后端自动持久化和恢复状态的抽象基类。
 
 ```
            HydratedStateNotifier<T>
@@ -28,9 +28,9 @@ Mobile state management faces a challenge — **state must survive app restarts*
 
 ---
 
-## 2. The Problem
+## 2. 问题
 
-Without persistence:
+没有持久化的情况：
 
 ```dart
 class ThemeNotifier extends ChangeNotifier {
@@ -43,13 +43,13 @@ class ThemeNotifier extends ChangeNotifier {
 }
 ```
 
-User selects dark mode → switches app → system kills process → user returns → **back to light mode**. Frustrating.
+用户选择深色模式 → 切换应用 → 系统杀死进程 → 用户返回 → **回到浅色模式**。令人沮丧。
 
 ---
 
-## 3. HydratedStateNotifier Implementation
+## 3. HydratedStateNotifier 实现
 
-### 3.1 Abstract Base Class
+### 3.1 抽象基类
 
 ```dart
 abstract class HydratedStateNotifier<T> extends ChangeNotifier {
@@ -121,7 +121,7 @@ abstract class HydratedStateNotifier<T> extends ChangeNotifier {
 }
 ```
 
-### 3.2 Storage Backend Interface
+### 3.2 存储后端接口
 
 ```dart
 abstract class StorageBackend {
@@ -132,7 +132,7 @@ abstract class StorageBackend {
 }
 ```
 
-### 3.3 File Storage Implementation
+### 3.3 文件存储实现
 
 ```dart
 class FileStorageBackend implements StorageBackend {
@@ -174,7 +174,7 @@ class FileStorageBackend implements StorageBackend {
 
 ---
 
-## 4. Concrete Examples
+## 4. 具体示例
 
 ### 4.1 ThemePreferenceNotifier
 
@@ -263,7 +263,7 @@ class OnboardingNotifier extends HydratedStateNotifier<bool> {
 
 ---
 
-## 5. Initialization Flow
+## 5. 初始化流程
 
 ```dart
 void main() async {
@@ -298,9 +298,9 @@ void main() async {
 
 ---
 
-## 6. Migration Strategy
+## 6. 迁移策略
 
-When the state schema changes (e.g., new fields are added), handle migrations:
+当状态 Schema 发生变化时（例如新增字段），需要处理迁移：
 
 ```dart
 class UserPreferencesNotifier extends HydratedStateNotifier<UserPreferences> {
@@ -335,7 +335,7 @@ class UserPreferencesNotifier extends HydratedStateNotifier<UserPreferences> {
 
 ---
 
-## 7. Testing
+## 7. 测试
 
 ```dart
 void main() {
@@ -379,34 +379,34 @@ void main() {
 
 ---
 
-## 8. Comparison with Alternatives
+## 8. 方案对比
 
-| Approach | Pros | Cons |
+| 方案 | 优点 | 缺点 |
 |----------|------|------|
-| **HydratedStateNotifier** | Abstract, testable, migration support, any storage backend | Requires manual implementation |
-| **HydratedBloc** (package) | Built-in, works with Bloc, JSON codegen | Heavy dependency, Bloc-only |
-| **SharedPreferences** | Simple, built-in | Unencrypted, callback-based, no hydration lifecycle |
-| **Riverpod + codegen** | Type-safe, automated | Requires riverpod_generator, less custom storage flexibility |
-| **getStorage** | Fast, simple | No migration support, basic types only |
+| **HydratedStateNotifier** | 抽象、可测试、支持迁移、任意存储后端 | 需要手动实现 |
+| **HydratedBloc**（包） | 内置、与 Bloc 配合、JSON 代码生成 | 依赖重、仅限 Bloc |
+| **SharedPreferences** | 简单、内置 | 未加密、基于回调、无 hydration 生命周期 |
+| **Riverpod + codegen** | 类型安全、自动化 | 需要 riverpod_generator、自定义存储灵活性低 |
+| **getStorage** | 快速、简单 | 无迁移支持、仅基础类型 |
 
 ---
 
-## 9. Production Readiness Checklist
+## 9. 生产就绪检查清单
 
-- [ ] **Encryption** — Use `encrypted_storage` backend for sensitive state (auth tokens, PII)
-- [ ] **Debounced Writes** — For rapidly changing state (search input, scroll position), debounce persistence to reduce flash wear
-- [ ] **Version Field** — Always include `_version` in persisted JSON for future migrations
-- [ ] **Error Tolerance** — Corrupted files should fall back to `defaultValue`, not crash the app
-- [ ] **Selective Hydration** — Not all state needs persistence; hydrate only notifiers that require it
-- [ ] **Storage Limits** — Consider a maximum storage size (e.g., 1MB) and clean up old/unused keys
-- [ ] **Testing** — Use `InMemoryStorageBackend` for unit tests; test migration paths for each schema version
+- [ ] **加密**——对敏感状态（认证 Token、PII）使用 `encrypted_storage` 后端
+- [ ] **防抖写入**——对于快速变化的状态（搜索输入、滚动位置），防抖持久化以减少闪存磨损
+- [ ] **版本字段**——始终在持久化 JSON 中包含 `_version` 字段，以便未来迁移
+- [ ] **错误容忍**——损坏的文件应回退到 `defaultValue`，而不是崩溃应用
+- [ ] **选择性 Hydration**——并非所有状态都需要持久化；只 hydration 需要持久化的 notifier
+- [ ] **存储限制**——考虑最大存储大小（例如 1MB）并清理旧的/未使用的键
+- [ ] **测试**——使用 `InMemoryStorageBackend` 进行单元测试；测试每个 Schema 版本的迁移路径
 
 ---
 
-## 10. Summary
+## 10. 总结
 
-- **HydratedStateNotifier<T>** is an abstract base class that adds automatic persistence to any `ChangeNotifier`
-- **StorageBackend** interface allows swapping between FileStorage, SharedPreferences, encrypted storage, or in-memory storage (for testing)
-- **Schema Versioning** via `_version` field enables smooth data migration across app updates
-- **Hydration** happens at app startup, before the first frame, ensuring state is immediately available
-- **Debounced Persistence** reduces write frequency for rapidly changing state
+- **HydratedStateNotifier<T>** 是一个抽象基类，为任何 `ChangeNotifier` 添加自动持久化能力
+- **StorageBackend** 接口允许在 FileStorage、SharedPreferences、加密存储或内存存储（用于测试）之间切换
+- **Schema 版本化**通过 `_version` 字段实现跨应用更新的平滑数据迁移
+- **Hydration** 在应用启动时、首帧之前完成，确保状态立即可用
+- **防抖持久化**减少快速变化状态的写入频率

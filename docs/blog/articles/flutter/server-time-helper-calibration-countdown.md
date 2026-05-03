@@ -1,26 +1,26 @@
 ---
-title: "ServerTimeHelper: Time Calibration + Countdown — Server Time Sync System"
-description: "Analysis of ServerTimeHelper for synchronizing mobile client time with server time, solving issues like user clock tampering, timezone inconsistencies, and network latency in countdown timers and check-in logic."
+title: 'ServerTimeHelper：时间校准 + 倒计时——服务端时间同步系统'
+description: 深入分析 ServerTimeHelper 如何同步移动客户端与服务器时间，解决用户篡改时钟、时区不一致和网络延迟在倒计时和签到逻辑中引发的问题。
 slug: server-time-helper-calibration-countdown
-tags: [Flutter, Time, Sync, Countdown, Calibration]
+tags: Flutter, Time, Sync, Countdown, Calibration
 ---
 
-## 1. Problem Context
+## 1. 背景
 
-Mobile time handling faces several thorny issues:
+移动端时间处理面临几个棘手问题：
 
-| Problem | Impact | Example |
+| 问题 | 影响 | 示例 |
 |------|------|------|
-| **User Tampering with System Time** | Inaccurate countdowns, check-in cheating | User sets phone clock ahead 1 hour to claim check-in reward |
-| **Timezone Inconsistency** | Confusing time display | User timezone = EST, server timezone = PHT |
-| **Network Latency** | Countdown start time drift | API returns `2024-03-15T10:00:00Z`, received 2s later |
-| **Cross-Day Calculation** | Date calculation errors | `DateTime.now().day` at UTC+8 midnight may still be previous day |
+| **用户篡改系统时间** | 倒计时不准、签到作弊 | 用户将手机时钟拨快 1 小时以领取签到奖励 |
+| **时区不一致** | 时间显示混乱 | 用户时区 = EST，服务器时区 = PHT |
+| **网络延迟** | 倒计时起始时间漂移 | API 返回 `2024-03-15T10:00:00Z`，收到时已过 2 秒 |
+| **跨日计算** | 日期计算错误 | UTC+8 午夜时 `DateTime.now().day` 可能仍是前一天 |
 
-**ServerTimeHelper's** solution: **Use server time as the sole authority**, the client only calculates the offset.
+**ServerTimeHelper** 的解决方案：**以服务器时间为唯一权威来源**，客户端只计算偏移量。
 
-## 2. Time Calibration Core
+## 2. 时间校准核心
 
-### 2.1 Calibration Algorithm
+### 2.1 校准算法
 
 ```dart
 class ServerTimeHelper {
@@ -94,7 +94,7 @@ class ServerTimeHelper {
 }
 ```
 
-### 2.2 Automatic Periodic Calibration
+### 2.2 自动定期校准
 
 ```dart
 class TimeSyncScheduler {
@@ -120,7 +120,7 @@ class TimeSyncScheduler {
 }
 ```
 
-## 3. Countdown Component
+## 3. 倒计时组件
 
 ### 3.1 CountdownController
 
@@ -186,7 +186,7 @@ class CountdownController {
 }
 ```
 
-### 3.2 CountdownText Widget
+### 3.2 CountdownText 组件
 
 ```dart
 class CountdownText extends StatefulWidget {
@@ -268,7 +268,7 @@ enum CountdownFormat {
 }
 ```
 
-### 3.3 Countdown Circular Progress
+### 3.3 倒计时圆形进度
 
 ```dart
 class CountdownCircle extends StatelessWidget {
@@ -316,9 +316,9 @@ class CountdownCircle extends StatelessWidget {
 }
 ```
 
-## 4. Server Time Interceptor
+## 4. 服务器时间拦截器
 
-### 4.1 Auto-Calibration Interceptor
+### 4.1 自动校准拦截器
 
 ```dart
 class TimeSyncInterceptor extends Interceptor {
@@ -348,9 +348,9 @@ class TimeSyncInterceptor extends Interceptor {
 }
 ```
 
-## 5. Business Scenarios
+## 5. 业务场景
 
-### 5.1 Check-In
+### 5.1 签到
 
 ```dart
 class CheckInService {
@@ -370,7 +370,7 @@ class CheckInService {
 }
 ```
 
-### 5.2 Flash Sale Countdown
+### 5.2 秒杀倒计时
 
 ```dart
 class FlashSaleCountdown extends StatelessWidget {
@@ -410,7 +410,7 @@ class FlashSaleCountdown extends StatelessWidget {
 }
 ```
 
-### 5.3 Lucky Draw Countdown
+### 5.3 抽奖倒计时
 
 ```dart
 class LuckyDrawTimer extends StatefulWidget {
@@ -430,7 +430,7 @@ class LuckyDrawTimer extends StatefulWidget {
 }
 ```
 
-## 6. Time Formatting Utilities
+## 6. 时间格式化工具
 
 ```dart
 class TimeFormatter {
@@ -463,7 +463,7 @@ class TimeFormatter {
 }
 ```
 
-## 7. Complete Calibration Flow
+## 7. 完整校准流程
 
 ```
 App Launch
@@ -487,7 +487,7 @@ ServerTimeHelper.serverNow == DateTime.now() - 200ms
 All countdowns, check-in decisions use calibrated server time
 ```
 
-## 8. Testing
+## 8. 测试
 
 ```dart
 void main() {
@@ -522,3 +522,11 @@ void main() {
   });
 }
 ```
+
+## 9. 总结
+
+1. **服务器时间为唯一权威来源**——客户端只计算偏移量，不依赖本地系统时间，从根本上杜绝用户篡改时钟导致的作弊问题。
+2. **校准算法**——通过 RTT/2 估算服务器处理请求时的实际时间，结合加权移动平均消除单次抖动。
+3. **自动定期校准**——每 5 分钟自动校准一次，应用从后台恢复时立即校准，确保偏移量始终准确。
+4. **倒计时组件体系**——`CountdownController` + `CountdownText` + `CountdownCircle` 提供文本和圆形进度两种倒计时展示形式。
+5. **业务场景覆盖**——签到跨日判断、秒杀开始/结束倒计时、抽奖触发等场景均基于校准后的服务器时间。

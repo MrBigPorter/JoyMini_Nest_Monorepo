@@ -1,4 +1,4 @@
-# Blog Article Authoring Standard v1.0.0
+# Blog Article Authoring Standard v2.0.0
 
 > Standard for authoring blog articles in the Lucky Nest monorepo.  
 > Ensures correct parsing, proper metadata extraction, clean AI translation, and correct frontend rendering.
@@ -9,17 +9,20 @@
 
 1. [Required YAML Frontmatter](#1-required-yaml-frontmatter)
 2. [Rules](#2-rules)
-3. [Pre-Submit Checklist](#3-pre-submit-checklist)
-4. [Template](#4-template)
-5. [Common Mistakes & How to Avoid Them](#5-common-mistakes--how-to-avoid-them)
-6. [Troubleshooting](#6-troubleshooting)
-7. [Related Documents](#7-related-documents)
+3. [Article Style Guide](#3-article-style-guide)
+4. [Pre-Submit Checklist](#4-pre-submit-checklist)
+5. [Template](#5-template)
+6. [Common Mistakes & How to Avoid Them](#6-common-mistakes--how-to-avoid-them)
+7. [Troubleshooting](#7-troubleshooting)
+8. [Related Documents](#8-related-documents)
 
 ---
 
 ## 1. Required YAML Frontmatter
 
 Every blog article **MUST** start with a YAML frontmatter block. Without it, the import system cannot extract tags, description, or slug correctly.
+
+### Recommended Format (Comma-Separated Tags)
 
 ```markdown
 ---
@@ -28,11 +31,33 @@ slug: your-article-slug
 tags: Tag1, Tag2, Tag3
 description: A concise 1-2 sentence summary of the article (used as excerpt/SEO description)
 ---
-
-# Your Article Title
-
-Article content starts here...
 ```
+
+### Alternative Tags Formats
+
+The parser ([`parseFrontmatter()`](apps/admin-blog/src/lib/utils/frontmatter.ts:61)) supports **three** tags formats. Choose based on your needs:
+
+**Format A — Comma-separated (preferred for simplicity):**
+```yaml
+tags: Flutter, Dart, Auth, StateManagement
+```
+
+**Format B — YAML list (preferred for many/long tags):**
+```yaml
+tags:
+  - NestJS
+  - Google AI Studio
+  - Gemini
+  - Circuit Breaker
+  - Rate Limiting
+```
+
+**Format C — Array brackets (supported for backward compatibility):**
+```yaml
+tags: [Flutter, Caching, SWR, Performance]
+```
+
+> **Note:** All three formats produce identical results after parsing. Choose Format A for simple articles (≤6 tags), Format B for articles with many tags or long tag names.
 
 ### Field Reference
 
@@ -40,10 +65,27 @@ Article content starts here...
 |-------|----------|------------|-------------|
 | `title` | ✅ Yes | 200 chars | Article title, same as the `# Title` heading below |
 | `slug` | ✅ Yes | — | URL-friendly identifier; **must match the filename** (e.g., `slug: my-article` ↔ `my-article.md`) |
-| `tags` | ✅ Yes | — | Comma-separated tag names (e.g., `Flutter, Dart, Auth`); use existing tags when possible |
+| `tags` | ✅ Yes | — | Tags in any supported format (comma-separated, YAML list, or array); use existing tags when possible |
 | `description` | ✅ Yes | 1000 chars | Natural-language summary; appears in ArticleCard, SEO `<meta>`, social share previews |
+| `category` | ❌ No | — | Optional category label (e.g., `Projects`, `frontend`); used for grouping in some views |
+| `date` | ❌ No | — | Optional publication date (e.g., `2026-04-30`); ISO 8601 date format |
 
-> **Note:** The `# Title` heading in the body should match the frontmatter `title:` field, though this is not strictly enforced by the parser.
+> **Note 1:** The `# Title` heading in the body should match the frontmatter `title:` field, though this is not strictly enforced by the parser.
+>
+> **Note 2:** If `description` is missing from frontmatter, the parser falls back to the first `> quote` block in the body. However, **always prefer** using `description:` in frontmatter for best SEO and card display.
+
+### Field Ordering Convention
+
+While the parser accepts fields in any order, the **recommended** field order is:
+
+```
+title → slug → tags → description → [category] → [date]
+```
+
+Examples from the codebase:
+- [`admin/zustand-auth-store-ssr-hydration.md`](docs/blog/articles/admin/zustand-auth-store-ssr-hydration.md:1) — `title → slug → tags → description`
+- [`api/ai-powered-translation-engine.md`](docs/blog/articles/api/ai-powered-translation-engine.md:1) — `title → slug → description → tags` (YAML list)
+- [`frontend/admin-blog-form-architecture.md`](docs/blog/articles/frontend/admin-blog-form-architecture.md:1) — `title → description → date → category → tags`
 
 ---
 
@@ -125,6 +167,8 @@ Reuse existing tags from the blog's tag system when possible. Creating inconsist
 
 Common tags: `Flutter`, `Dart`, `NestJS`, `Next.js`, `TypeScript`, `React`, `Prisma`, `PostgreSQL`, `Redis`, `Docker`, `DevOps`, `Security`, `Architecture`, `Testing`
 
+> **Note:** Tags are case-insensitive in the parser but should follow PascalCase convention (e.g., `Flutter` not `flutter`, `StateManagement` not `statemanagement`).
+
 ### Rule 7: Zero Chinese Characters in Code Blocks
 
 This includes:
@@ -138,9 +182,159 @@ This includes:
 
 Only **code blocks** and **diagram labels** must be English. The article's explanatory text can be in Chinese — the AI translation pipeline will handle translating it to other languages.
 
+> **Important:** All article categories should use Chinese for prose (title, description, body content). This ensures consistency across the blog. Currently, Flutter articles are the only category written in English — they should be converted to Chinese to match the rest of the codebase.
+
 ---
 
-## 3. Pre-Submit Checklist
+## 3. Article Style Guide
+
+To maintain a consistent look and feel across all blog articles, follow these style conventions. The reference implementation for this style guide is the `backend/` category — these articles have the most mature and consistent style in the codebase.
+
+### 3.1 Section Numbering
+
+Use **Arabic numerals** for all section headings:
+
+```markdown
+## 1. Section Title
+### 1.1 Subsection Title
+### 1.2 Subsection Title
+## 2. Next Section
+```
+
+> **Avoid:** Chinese numbering (`## 一、`, `## 二、`) — this is inconsistent with the rest of the blog.
+
+### 3.2 First Section Name
+
+The first section after `# Title` should be a Chinese problem-context section. Choose based on article type:
+
+| Article Type | Recommended First Section |
+|--------------|--------------------------|
+| Problem-solution | `## 1. 背景` |
+| Technical deep-dive | `## 1. 引言` |
+| Architecture overview | `## 1. 架构概览` |
+| Tutorial/Guide | `## 1. 引言` |
+
+> **Avoid:** `## Overview` (English) — use Chinese `## 1. 概述` instead.
+
+### 3.3 Post-Title Metadata Block
+
+**Do NOT add a metadata block after `# Title`.** Jump directly into `## 1. ...`.
+
+```markdown
+# Title
+
+## 1. 背景
+
+Content starts here...
+```
+
+> **Exception:** If the article has version tracking or date-specific content, a minimal `**日期：** 2026-01-01` line is acceptable.
+
+### 3.4 Summary / Ending Section
+
+Every article should end with a summary section. Use **`## N. 总结`** with a numbered list of key points:
+
+```markdown
+## N. 总结
+
+1. First key point...
+2. Second key point...
+3. Third key point...
+```
+
+Optionally, add a source reference line after the summary:
+
+```markdown
+*本文源码基于 [`path/to/file.ts`](path/to/file.ts)（N行），完整包含...等全部实现。*
+```
+
+> **Avoid:** `## Key Takeaways`, `## Summary`, `## 关键要点` — use `## 总结`.
+
+### 3.5 Title Quoting Style
+
+Use **no quotes** for simple titles, **single quotes** for titles containing special characters:
+
+```yaml
+# Simple title — no quotes
+title: Next.js 多语言零闪烁架构
+
+# Title with special characters — single quotes
+title: 'Zustand 认证存储 + SSR Hydration — 管理后台三 Store 架构'
+```
+
+> **Avoid:** Double quotes `title: "..."` unless the title contains single quotes.
+
+### 3.6 Inline Code and File References
+
+- File paths: Use backtick inline code: `` `apps/api/src/app.module.ts` ``
+- Code references: Use backtick inline code: `` `parseFrontmatter()` ``
+- Links to files: Use markdown links with relative paths: [`frontmatter.ts`](apps/admin-blog/src/lib/utils/frontmatter.ts)
+- Links with line numbers: [`parseFrontmatter()`](apps/admin-blog/src/lib/utils/frontmatter.ts:61)
+
+### 3.7 Separator Lines
+
+Use `---` sparingly:
+- Between major sections in long articles (500+ lines)
+- Before the final summary section
+- Do NOT use `---` between every section
+
+### 3.8 Code Block Language Tags
+
+Always specify the language in code block fences:
+
+```markdown
+```dart
+// Dart code
+```
+
+```typescript
+// TypeScript code
+```
+
+```bash
+# Shell commands
+```
+
+```json
+{
+  "key": "value"
+}
+```
+```
+
+> **Avoid:** Language-less code blocks ` ``` ` — they won't get syntax highlighting.
+
+### 3.9 Table of Contents
+
+Include a Table of Contents only for articles longer than 500 lines:
+
+```markdown
+## 目录
+
+1. [Section 1](#1-section-1)
+2. [Section 2](#2-section-2)
+    - [2.1 Subsection](#21-subsection)
+3. [Section 3](#3-section-3)
+```
+
+Use `## 目录` (Chinese) not `## Table of Contents` (English).
+
+### 3.10 Writing Voice
+
+Adopt a **technical, direct, problem-solution** voice:
+
+- Start each section by stating the problem, then present the solution
+- Use numbered lists for enumerating problems, steps, or key points
+- Use tables for comparisons (e.g., pros/cons, before/after, configuration matrix)
+- Use ASCII diagrams for simple flow visualization
+- Use Mermaid diagrams for complex architecture visualization
+- Bold key concepts: `**分布式锁 + 状态机双保险**`
+- Reference actual source code with file paths and line numbers
+- Keep paragraphs short (3-5 sentences max)
+
+---
+
+## 4. Pre-Submit Checklist
 
 Before committing a new article, verify each item:
 
@@ -148,8 +342,18 @@ Before committing a new article, verify each item:
 - [ ] YAML frontmatter `---` block is present at line 1
 - [ ] `title:` is filled (≤200 chars)
 - [ ] `slug:` matches the filename (without `.md` extension)
-- [ ] `tags:` has at least one tag, comma-separated
+- [ ] `tags:` has at least one tag (any supported format: comma-separated, YAML list, or array)
 - [ ] `description:` is a natural-language summary (not metadata markers)
+- [ ] Field ordering follows the convention: `title → slug → tags → description`
+
+### Style
+- [ ] Section numbering uses Arabic numerals (`## 1.`, `## 2.`) not Chinese (`## 一、`)
+- [ ] First section name is in Chinese (e.g., `## 1. 概述`, not `## Overview`)
+- [ ] Summary section is in Chinese (`## 关键要点` or `## 总结`, not `## Summary`)
+- [ ] Title uses no quotes or single quotes (not double quotes)
+- [ ] Code blocks have language tags
+- [ ] Table of Contents (if present) uses `## 目录` not `## Table of Contents`
+- [ ] Post-title metadata follows one consistent pattern
 
 ### Code Blocks
 - [ ] All code comments are in English
@@ -166,6 +370,7 @@ Before committing a new article, verify each item:
 - [ ] No duplicate `> ` excerpt block in the body if using frontmatter `description`
 - [ ] Article renders correctly in preview (check both light/dark themes)
 - [ ] Links to other docs/articles use correct relative paths
+- [ ] Prose is in Chinese (for consistency with the rest of the blog)
 
 ### Build
 - [ ] Run `yarn workspace @lucky/api lint` (or relevant workspace lint)
@@ -180,24 +385,27 @@ Copy this template when creating a new article:
 
 ```markdown
 ---
-title: Your Article Title
+title: '文章标题：副标题'
 slug: your-article-slug
-tags: Tag1, Tag2, Tag3
-description: A concise 1-2 sentence summary of the article for SEO and card display.
+tags:
+  - Tag1
+  - Tag2
+  - Tag3
+description: 用 1-2 句话概括文章核心内容，用于 SEO 和卡片展示。
 ---
 
-# Your Article Title
+# 文章标题：副标题
 
-## 1. Introduction
+## 1. 背景
 
-Brief overview of the problem and what this article covers.
+简要介绍问题背景和本文涵盖的内容。
 
 ```dart
 // English comments only
 final variable = someValue;
 ```
 
-## 2. Main Content
+## 2. 主体内容
 
 ```
 ┌──────────┐    ┌──────────────┐
@@ -205,13 +413,19 @@ final variable = someValue;
 └──────────┘    └──────────────┘
 ```
 
-### 2.1 Subsection
+### 2.1 子章节
 
-Detailed explanation here...
+详细解释...
 
-## 3. Summary
+---
 
-Key takeaways and conclusion.
+## N. 总结
+
+1. 要点 1
+2. 要点 2
+3. 要点 3
+
+*本文源码基于 [`path/to/file.ts`](path/to/file.ts)（N行），完整包含...等全部实现。*
 ```
 
 ---
@@ -228,6 +442,8 @@ Key takeaways and conclusion.
 | 6 | No `tags:` line | Tags missing from frontmatter | Add `tags: Flutter, Dart` in frontmatter |
 | 7 | Duplicate excerpt in body | `> excerpt...` in body + `description:` in frontmatter | Remove the `> ` block from body |
 | 8 | Chinese colon in title | `AuthNotifier + TokenStorage：Flutter` (uses `：`) | Use English colon: `AuthNotifier + TokenStorage: Flutter` |
+| 9 | English prose in non-English category | Flutter articles written in English | Convert prose to Chinese (see Rule 8) |
+| 10 | Missing `description` in frontmatter | Article has no `description:` field | Add a natural-language `description:` summary |
 
 ---
 
@@ -256,6 +472,7 @@ Key takeaways and conclusion.
 
 1. Add `tags: Tag1, Tag2` to YAML frontmatter
 2. If using legacy format (no frontmatter), add `Tags: Tag1, Tag2` as the first line after the `---` separator
+3. Verify the tags format is one of the three supported formats (comma-separated, YAML list, or array)
 
 ---
 

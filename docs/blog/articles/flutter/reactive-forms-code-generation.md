@@ -1,91 +1,59 @@
 ---
-title: "ReactiveForms + JSON Schema Code-Generated Forms"
-description: "A Flutter reactive form system featuring stream-based ReactiveFormController with value/status/error BehaviorSubjects, JSON Schema server-driven form configuration, Prisma Schema to Dart code generation, dynamic FormFieldGenerator with 12+ field builders, cross-field subscriptions, computed fields, conditional visibility via dependsOn pattern, debounced auto-save draft restoration, and a complete dynamic product form demonstration."
+title: '响应式表单 + JSON Schema 代码生成表单系统'
+description: '一套 Flutter 响应式表单系统，包含基于 Stream 的 ReactiveFormController（value/status/error BehaviorSubject）、JSON Schema 服务端驱动表单配置、Prisma Schema 到 Dart 代码生成、支持 12+ 字段类型的动态 FormFieldGenerator、跨字段订阅、计算字段、基于 dependsOn 模式的条件可见性、防抖自动保存草稿恢复，以及完整的动态商品表单实战演示。'
 slug: reactive-forms-code-generation
-tags: [Flutter, Forms, Reactive, JSON Schema, Code Generation]
+tags: Flutter, Forms, Reactive, JSON Schema, Code Generation
 ---
 
-# ReactiveForms + JSON Schema Code-Generated Forms
+## 1. 为什么需要响应式表单 + 代码生成？
 
-## Table of Contents
+在构建包含大量表单的 Flutter 应用时，传统方式面临以下挑战：
 
-- [Why Reactive Forms + Code Generation?](#1-why-reactive-forms--code-generation)
-- [Architecture Overview: ReactiveForm Engine + JSON Schema](#2-architecture-overview-reactiveform-engine--json-schema)
-- [ReactiveFormController: Value / Status / Error Streams](#3-reactiveformcontroller-value--status--error-streams)
-  - [Controller Implementation](#31-controller-implementation)
-  - [Combined Form State](#32-combined-form-state)
-- [Form Field Type System: text / number / select / date / file](#4-form-field-type-system-text--number--select--date--file)
-  - [Field Configuration](#41-field-configuration)
-- [JSON Schema Defines Form Configuration](#5-json-schema-defines-form-configuration)
-  - [JSON Schema Example](#51-json-schema-example)
-  - [Schema Parser](#52-schema-parser)
-- [Code Generation: From Prisma Schema to Form Configuration](#6-code-generation-from-prisma-schema-to-form-configuration)
-  - [Prisma Schema Example](#61-prisma-schema-example)
-  - [Code Generator (Node.js Script)](#62-code-generator-nodejs-script)
-  - [Generated Output (Dart Constants)](#63-generated-output-dart-constants)
-- [Dynamic Form Rendering: FormFieldGenerator](#7-dynamic-form-rendering-formfieldgenerator)
-- [Form State Subscription & Cross-Field Combination](#8-form-state-subscription--cross-field-combination)
-  - [Computed Fields (Total = Price × Quantity)](#81-computed-fields-total--price--quantity)
-- [Conditional Show/Hide Based on Other Field Values](#9-conditional-showhide-based-on-other-field-values)
-  - [Reactive Visibility Builder](#91-reactive-visibility-builder)
-- [Auto-Save & Restore Form Drafts](#10-auto-save--restore-form-drafts)
-  - [Draft Manager](#101-draft-manager)
-  - [Auto-Save Component](#102-auto-save-component)
-- [Practice: Dynamic Product Form](#11-practice-dynamic-product-form)
-- [Summary](#12-summary)
-  - [Key Takeaways](#121-key-takeaways)
-  - [When to Use This Pattern](#122-when-to-use-this-pattern)
-  - [Related Articles](#123-related-articles)
+1. **重复劳动**：每个表单都需要手动编写控制器、验证逻辑和错误处理——即使结构相似
+2. **后端不同步**：后端模型变更时，前端表单必须手动更新，极易遗漏
+3. **无法热更新**：表单逻辑打包在应用二进制文件中，无法动态调整
+4. **样板代码过重**：每个字段都需要 `TextEditingController`、验证状态和错误展示
 
-## 1. Why Reactive Forms + Code Generation?
+**响应式表单 + JSON Schema + 代码生成的核心思路**：
 
-When building Flutter applications with many forms, traditional approaches face these challenges:
+- **JSON Schema 驱动**：表单结构由后端 JSON 定义，前端动态渲染
+- **响应式控制器**：基于 Stream 的控制器，其值和状态可被订阅
+- **代码生成**：从 Prisma Schema 自动生成表单配置，消除重复工作
 
-1. **Repetitive work**: Every form requires manually writing controllers, validation logic, and error handling — even when structures are similar
-2. **Backend out of sync**: When backend models change, frontend forms must be updated manually, easily leading to omissions
-3. **No hot updates**: Form logic is bundled into the app binary and cannot be adjusted dynamically
-4. **Boilerplate code overload**: Each field requires `TextEditingController`, validation state, and error display
-
-**Core ideas of Reactive Forms + JSON Schema + Code Generation**:
-
-- **JSON Schema driven**: Form structure is defined by backend JSON, rendered dynamically on the frontend
-- **Reactive controller**: Stream-based controllers whose values and states can be subscribed to
-- **Code generation**: Automatically generate form configurations from Prisma Schema, eliminating repetitive work
-
-## 2. Architecture Overview: ReactiveForm Engine + JSON Schema
+## 2. 架构概览：ReactiveForm 引擎 + JSON Schema
 
 ```
-                  ┌──────────────────────────────────────┐
-                  │     JSON Schema (Server-Side)        │
-                  │  formId, version, sections[]          │
-                  └─────────────┬────────────────────────┘
-                                │ Parse
-                                ▼
-                  ┌──────────────────────────────────────┐
-                  │      FormSchemaParser                 │
-                  │  JSON → FormSchema + sections         │
-                  └─────────────┬────────────────────────┘
-                                │
-          ┌─────────────────────┼──────────────────────────┐
-          ▼                     ▼                          ▼
-┌─────────────────────┐  ┌─────────────────────┐  ┌─────────────────────┐
-│ FormFieldGenerator  │  │ ReactiveFormGroup    │  │   AutoSaveForm      │
-│ (Dynamic Render)    │  │ (Controller Set)     │  │ (Auto-Save Drafts)  │
-└─────────────────────┘  └─────────────────────┘  └─────────────────────┘
-          │                     │
-          ▼                     ▼
-┌─────────────────────┐  ┌─────────────────────┐
-│ ReactiveFormCtrl    │◄─┤  Stream Architecture │
-│ valueStream         │  │  statusStream        │
-│ errorStream         │  │  combinedStream      │
-└─────────────────────┘  └─────────────────────┘
+                   ┌──────────────────────────────────────┐
+                   │     JSON Schema (Server-Side)        │
+                   │  formId, version, sections[]          │
+                   └─────────────┬────────────────────────┘
+                                 │ Parse
+                                 ▼
+                   ┌──────────────────────────────────────┐
+                   │      FormSchemaParser                 │
+                   │  JSON → FormSchema + sections         │
+                   └─────────────┬────────────────────────┘
+                                 │
+           ┌─────────────────────┼──────────────────────────┐
+           ▼                     ▼                          ▼
+ ┌─────────────────────┐  ┌─────────────────────┐  ┌─────────────────────┐
+ │ FormFieldGenerator  │  │ ReactiveFormGroup    │  │   AutoSaveForm      │
+ │ (Dynamic Render)    │  │ (Controller Set)     │  │ (Auto-Save Drafts)  │
+ └─────────────────────┘  └─────────────────────┘  └─────────────────────┘
+           │                     │
+           ▼                     ▼
+ ┌─────────────────────┐  ┌─────────────────────┐
+ │ ReactiveFormCtrl    │◄─┤  Stream Architecture │
+ │ valueStream         │  │  statusStream        │
+ │ errorStream         │  │  combinedStream      │
+ └─────────────────────┘  └─────────────────────┘
 ```
 
-## 3. ReactiveFormController: Value / Status / Error Streams
+## 3. ReactiveFormController：值 / 状态 / 错误流
 
-`ReactiveFormController<T>` is the core of reactive forms. It encapsulates the field's value, validation status, and error information, publishing changes via Stream.
+`ReactiveFormController<T>` 是响应式表单的核心。它封装了字段的值、验证状态和错误信息，通过 Stream 发布变更。
 
-### 3.1 Controller Implementation
+### 3.1 控制器实现
 
 ```dart
 /// Reactive form field status
@@ -238,7 +206,7 @@ class ReactivePatternValidator implements FieldValidator {
 }
 ```
 
-### 3.2 Combined Form State
+### 3.2 组合表单状态
 
 ```dart
 /// Reactive form group — manages multiple controllers
@@ -314,9 +282,9 @@ class ReactiveFormGroup {
 }
 ```
 
-## 4. Form Field Type System: text / number / select / date / file
+## 4. 表单字段类型体系：text / number / select / date / file
 
-The `FormFieldType` enum defines 15+ native form field types, covering a wide range of form scenarios.
+`FormFieldType` 枚举定义了 15+ 种原生表单字段类型，覆盖了广泛的表单场景。
 
 ```dart
 /// Form field type enum
@@ -341,7 +309,7 @@ enum FormFieldType {
 }
 ```
 
-### 4.1 Field Configuration
+### 4.1 字段配置
 
 ```dart
 /// Form field configuration (parsed from JSON Schema)
@@ -473,11 +441,11 @@ class ValidationRule {
 }
 ```
 
-## 5. JSON Schema Defines Form Configuration
+## 5. JSON Schema 定义表单配置
 
-Form configuration is stored on the server in JSON Schema format. The frontend fetches it via API and renders dynamically. This allows forms to be updated without publishing a new app version.
+表单配置以 JSON Schema 格式存储在服务端。前端通过 API 获取并动态渲染。这样可以在不发布新版本的情况下更新表单。
 
-### 5.1 JSON Schema Example
+### 5.1 JSON Schema 示例
 
 ```json
 {
@@ -619,7 +587,7 @@ Form configuration is stored on the server in JSON Schema format. The frontend f
 }
 ```
 
-### 5.2 Schema Parser
+### 5.2 Schema 解析器
 
 ```dart
 class FormSchemaParser {
@@ -759,11 +727,11 @@ class FormSectionConfig {
 
 ---
 
-## 6. Code Generation: From Prisma Schema to Form Configuration
+## 6. 代码生成：从 Prisma Schema 到表单配置
 
-The code generator converts **Prisma Schema models** into JSON form configurations. This bridges the gap between backend data models and frontend forms.
+代码生成器将 **Prisma Schema 模型** 转换为 JSON 表单配置。这弥合了后端数据模型与前端表单之间的鸿沟。
 
-### 6.1 Prisma Schema Example
+### 6.1 Prisma Schema 示例
 
 ```prisma
 model Product {
@@ -788,7 +756,7 @@ enum ProductStatus {
 }
 ```
 
-### 6.2 Code Generator (Node.js Script)
+### 6.2 代码生成器（Node.js 脚本）
 
 ```typescript
 // scripts/generate-form-config.ts
@@ -924,7 +892,7 @@ writeFileSync(
 );
 ```
 
-### 6.3 Generated Output (Dart Constants)
+### 6.3 生成的输出（Dart 常量）
 
 ```dart
 // This file is auto-generated. Do not edit manually.
@@ -1014,9 +982,9 @@ class ProductFormConfig {
 
 ---
 
-## 7. Dynamic Form Rendering: FormFieldGenerator
+## 7. 动态表单渲染：FormFieldGenerator
 
-[`FormFieldGenerator`] receives `FormFieldConfig` and renders the corresponding widget, connecting it to `ReactiveFormController`.
+[`FormFieldGenerator`] 接收 `FormFieldConfig` 并渲染对应的 Widget，同时连接到 `ReactiveFormController`。
 
 ```dart
 class FormFieldGenerator extends StatelessWidget {
@@ -1465,9 +1433,9 @@ class FormFieldGenerator extends StatelessWidget {
 
 ---
 
-## 8. Form State Subscription & Cross-Field Combination
+## 8. 表单状态订阅与跨字段组合
 
-Reactive forms enable powerful **cross-field subscription patterns** through stream combiners.
+响应式表单通过流组合器实现了强大的**跨字段订阅模式**。
 
 ```dart
 class CrossFieldSubscription extends StatefulWidget {
@@ -1553,7 +1521,7 @@ CrossFieldSubscription(
 );
 ```
 
-### 8.1 Computed Fields (Total = Price × Quantity)
+### 8.1 计算字段（总价 = 价格 × 数量）
 
 ```dart
 class ComputedFieldExample extends StatefulWidget {
@@ -1607,13 +1575,13 @@ class _ComputedFieldExampleState extends State<ComputedFieldExample> {
 
 ---
 
-## 9. Conditional Show/Hide Based on Other Field Values
+## 9. 基于其他字段值的条件显示/隐藏
 
-The visibility system uses the `dependsOn` / `dependsOnValue` pattern from JSON Schema. `FormFieldGenerator` automatically checks visibility before rendering.
+可见性系统使用 JSON Schema 中的 `dependsOn` / `dependsOnValue` 模式。[`FormFieldGenerator`] 在渲染前自动检查可见性。
 
-### 9.1 Reactive Visibility Builder
+### 9.1 响应式可见性构建器
 
-For more complex conditions, use a dedicated component that re-renders when the dependency field changes:
+对于更复杂的条件，使用一个专用组件，在依赖字段变化时重新渲染：
 
 ```dart
 class ReactiveVisibilityBuilder extends StatelessWidget {
@@ -1670,11 +1638,11 @@ ReactiveVisibilityBuilder(
 
 ---
 
-## 10. Auto-Save & Restore Form Drafts
+## 10. 自动保存与恢复表单草稿
 
-Form drafts are automatically saved to local storage (using the [`HydratedStateNotifier`](./hydrated-state-notifier-abstract-persistence.md) pattern) and restored when the user returns.
+表单草稿会自动保存到本地存储（使用 [`HydratedStateNotifier`](./hydrated-state-notifier-abstract-persistence.md) 模式），并在用户返回时恢复。
 
-### 10.1 Draft Manager
+### 10.1 草稿管理器
 
 ```dart
 class FormDraftManager {
@@ -1714,7 +1682,7 @@ class FormDraftManager {
 }
 ```
 
-### 10.2 Auto-Save Component
+### 10.2 自动保存组件
 
 ```dart
 class AutoSaveForm extends StatefulWidget {
@@ -1797,9 +1765,9 @@ class _AutoSaveFormState extends State<AutoSaveForm> {
 
 ---
 
-## 11. Practice: Dynamic Product Form
+## 11. 实战：动态商品表单
 
-Below is a complete integration example of all components — a JSON Schema-driven product listing form with auto-save, conditional fields, and reactive validation.
+以下是一个完整的集成示例——基于 JSON Schema 驱动的商品发布表单，包含自动保存、条件字段和响应式验证。
 
 ```dart
 class DynamicProductFormScreen extends StatefulWidget {
@@ -1839,7 +1807,7 @@ class _DynamicProductFormScreenState extends State<DynamicProductFormScreen> {
     if (!isValid) {
       setState(() {
         _isSubmitting = false;
-        _submitError = 'Please fix the errors above';
+        _submitError = '请修复以上错误';
       });
       return;
     }
@@ -1852,12 +1820,12 @@ class _DynamicProductFormScreenState extends State<DynamicProductFormScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Product published successfully!')),
+          const SnackBar(content: Text('商品发布成功！')),
         );
         Navigator.of(context).pop();
       }
     } catch (e) {
-      setState(() => _submitError = 'Submission failed: $e');
+      setState(() => _submitError = '提交失败：$e');
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
@@ -1874,7 +1842,7 @@ class _DynamicProductFormScreenState extends State<DynamicProductFormScreen> {
     final theme = LuckyFormThemeWidget.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: Text(_schema.title ?? 'Form')),
+      appBar: AppBar(title: Text(_schema.title ?? '表单')),
       body: AutoSaveForm(
         formId: widget.formId,
         formGroup: _formGroup,
@@ -1949,7 +1917,7 @@ class _DynamicProductFormScreenState extends State<DynamicProductFormScreen> {
                               ),
                             )
                           : const Text(
-                              'Submit',
+                              '提交',
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
@@ -1975,40 +1943,40 @@ class _DynamicProductFormScreenState extends State<DynamicProductFormScreen> {
 
 ---
 
-## 12. Summary
+## 12. 总结
 
-The `ReactiveForms` + JSON Schema system provides a complete server-driven dynamic form solution for Flutter:
+`ReactiveForms` + JSON Schema 系统为 Flutter 提供了一套完整的服务端驱动动态表单解决方案：
 
-| Component | Responsibility | Key Features |
-|-----------|---------------|-------------|
-| `ReactiveFormController` | Reactive field state | Value / Status / Error streams |
-| `ReactiveFormGroup` | Multi-field orchestration | Combined validation, value mapping |
-| `FormFieldConfig` | Field definition | Type system for 15+ form field types |
-| `FormSchemaParser` | JSON deserialization | Parse server-driven form configurations |
-| `FormFieldGenerator` | Dynamic component rendering | Map config to widgets, connect controllers |
-| `Code Generator` | Prisma → Form config | Auto-generate form configs from backend models |
-| `FormDraftManager` | Draft persistence | Debounced auto-save / restore |
-| `CrossFieldSubscription` | Reactive composition | Computed fields, conditional visibility |
+| 组件 | 职责 | 关键特性 |
+|------|------|----------|
+| `ReactiveFormController` | 响应式字段状态 | 值 / 状态 / 错误流 |
+| `ReactiveFormGroup` | 多字段编排 | 组合验证、值映射 |
+| `FormFieldConfig` | 字段定义 | 15+ 表单字段类型体系 |
+| `FormSchemaParser` | JSON 反序列化 | 解析服务端驱动的表单配置 |
+| `FormFieldGenerator` | 动态组件渲染 | 配置映射到 Widget，连接控制器 |
+| `代码生成器` | Prisma → 表单配置 | 从后端模型自动生成表单配置 |
+| `FormDraftManager` | 草稿持久化 | 防抖自动保存 / 恢复 |
+| `CrossFieldSubscription` | 响应式组合 | 计算字段、条件可见性 |
 
-### 12.1 Key Takeaways
+### 关键要点
 
-- **JSON Schema as single source of truth** — Forms can be delivered from the backend and updated without a new release
-- **Code generation from Prisma Schema** — Eliminates repetitive form coding; backend field changes propagate automatically
-- **Reactive streams enable complex interactions** — Conditional visibility, computed fields, and cross-field validation all become declarative
-- **Debounced auto-save prevents data loss** — 2-second debounce balances responsiveness with storage I/O
-- **15 field types cover all form scenarios** — From simple text to OTP input to file upload
-- **`dependsOn` pattern handles 90% of conditional fields** — Simple equality check, no complex expression parsing needed
+- **JSON Schema 作为单一事实来源**——表单可从后端下发，无需发布新版本即可更新
+- **从 Prisma Schema 代码生成**——消除重复的表单编码工作；后端字段变更自动传播
+- **响应式流支持复杂交互**——条件可见性、计算字段和跨字段验证都变得声明式
+- **防抖自动保存防止数据丢失**——2 秒防抖在响应速度和存储 I/O 之间取得平衡
+- **15 种字段类型覆盖所有表单场景**——从简单文本到 OTP 输入再到文件上传
+- **`dependsOn` 模式处理 90% 的条件字段**——简单的相等检查，无需复杂的表达式解析
 
-### 12.2 When to Use This Pattern
+### 适用场景
 
-This reactive form system is suitable for:
-- Applications with 10+ different form types (registration, product, KYC, checkout, etc.)
-- Forms that need to be updated from the server without App Store deployment
-- Scenarios requiring code generation to keep frontend forms in sync with backend models
-- Complex form logic (conditional fields, computed values) that is difficult to maintain imperatively
+该响应式表单系统适用于：
+- 包含 10+ 种不同表单类型的应用（注册、商品、KYC、结账等）
+- 需要从服务端更新而无需 App Store 部署的表单
+- 需要代码生成以保持前端表单与后端模型同步的场景
+- 复杂表单逻辑（条件字段、计算值）难以用命令式方式维护的情况
 
-### 12.3 Related Articles
+### 相关文章
 
-- [**F19: LuckyFormTheme + Validator System**](./lucky-form-theme-validator-system.md) — Theme system and validator chain supporting individual form fields
-- [**F5: HydratedStateNotifier Abstract Persistence**](./hydrated-state-notifier-abstract-persistence.md) — Persistence pattern used for form draft auto-save
-- [**F21: GlobalUploadService S3 + Compression + MIME**](./global-upload-service-s3-compression-mime.md) — File upload pipeline for `FormFieldType.file`
+- [**F19: LuckyFormTheme + 验证器系统**](./lucky-form-theme-validator-system.md) —— 支持单个表单字段的主题系统和验证器链
+- [**F5: HydratedStateNotifier 抽象持久化**](./hydrated-state-notifier-abstract-persistence.md) —— 用于表单草稿自动保存的持久化模式
+- [**F21: GlobalUploadService S3 + 压缩 + MIME**](./global-upload-service-s3-compression-mime.md) —— `FormFieldType.file` 的文件上传管道

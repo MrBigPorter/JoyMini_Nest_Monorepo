@@ -1,23 +1,21 @@
 ---
-title: "Design Tokens Generation System — 1215 Lines of Code Generating Flutter Design Language"
+title: 'Design Tokens 生成系统——1215 行代码生成 Flutter 设计语言'
 slug: design-tokens-generated-system
 tags: Flutter, DesignTokens, Theme, UI, CodeGeneration
-description: A comprehensive Design Tokens generation system for Flutter covering color tokens, typography, spacing, radius, shadows, motion, and light/dark theme switching with automated code generation.
+description: 一套完整的 Flutter Design Tokens 生成系统，涵盖颜色、排版、间距、圆角、阴影和动效 Token，支持亮色/暗色主题切换和自动化代码生成。
 ---
 
-# Design Tokens Generation System — 1215 Lines of Code Generating Flutter Design Language
+## 1. 为什么需要 Design Tokens？
 
-## 1. Why Design Tokens?
+在 JoyMini 这样的社交 + 电商 + 游戏混合应用中，**视觉一致性**直接影响品牌信任和用户体验。传统方式存在三个主要痛点：
 
-In a social + e-commerce + gaming hybrid app like JoyMini, **visual consistency** directly impacts brand trust and user experience. Traditional approaches have three major pain points:
-
-| Pain Point | Manifestation | Consequence |
+| 痛点 | 表现 | 后果 |
 |------|------|------|
-| **Hardcoded values scattered** | `Color(0xFFE53935)` scattered across 200+ files | Changing theme color requires global search-and-replace |
-| **Designer-Developer disconnect** | Figma uses `Primary/500`, code writes `#FF6B35` | Implementation drifts from design |
-| **Multi-theme maintenance** | Light/Dark values synced manually | Missed updates cause UI bugs |
+| **硬编码值散落各处** | `Color(0xFFE53935)` 散落在 200+ 文件中 | 修改主题色需要全局搜索替换 |
+| **设计与开发脱节** | Figma 使用 `Primary/500`，代码写 `#FF6B35` | 实现偏离设计 |
+| **多主题维护** | 亮色/暗色值手动同步 | 遗漏更新导致 UI 错误 |
 
-**Design Tokens** solution: centralize all visual decisions into a declarative config → code generation → strongly-typed access.
+**Design Tokens** 的解决方案：将所有视觉决策集中到声明式配置 → 代码生成 → 强类型访问。
 
 ```
 Figma Tokens Studio
@@ -29,11 +27,11 @@ Figma Tokens Studio
    context.extension theme access
 ```
 
-## 2. Token Classification System
+## 2. Token 分类体系
 
-Generated tokens cover **6 major categories**, each with Light/Dark values:
+生成的 Token 覆盖 **6 大类别**，每类包含亮色/暗色值：
 
-### 2.1 Color Tokens
+### 2.1 颜色 Token
 
 ```dart
 // tokens.g.dart — Color tokens (~400 lines)
@@ -61,7 +59,7 @@ class AppColorTokens {
 }
 ```
 
-**ColorSwatchToken** is a value object containing 10-level color scales:
+**ColorSwatchToken** 是一个包含 10 级色阶的值对象：
 
 ```dart
 class ColorSwatchToken {
@@ -78,7 +76,7 @@ class ColorSwatchToken {
 }
 ```
 
-**NeutralToken** additionally supports opacity variants:
+**NeutralToken** 额外支持透明度变体：
 
 ```dart
 class NeutralToken {
@@ -100,7 +98,7 @@ class NeutralToken {
 }
 ```
 
-### 2.2 Typography Tokens
+### 2.2 排版 Token
 
 ```dart
 class AppTypographyTokens {
@@ -122,7 +120,7 @@ class AppTypographyTokens {
 }
 ```
 
-**TextStyleToken** structure:
+**TextStyleToken** 结构：
 
 ```dart
 class TextStyleToken {
@@ -143,7 +141,7 @@ class TextStyleToken {
 }
 ```
 
-### 2.3 Spacing Tokens
+### 2.3 间距 Token
 
 ```dart
 class AppSpacingTokens {
@@ -160,7 +158,7 @@ class AppSpacingTokens {
 }
 ```
 
-### 2.4 Radius Tokens
+### 2.4 圆角 Token
 
 ```dart
 class AppRadiusTokens {
@@ -175,7 +173,7 @@ class AppRadiusTokens {
 }
 ```
 
-### 2.5 Shadow Tokens
+### 2.5 阴影 Token
 
 ```dart
 class AppShadowTokens {
@@ -201,7 +199,7 @@ class ShadowToken {
 }
 ```
 
-### 2.6 Motion Tokens
+### 2.6 动效 Token
 
 ```dart
 class AppMotionTokens {
@@ -215,9 +213,9 @@ class AppMotionTokens {
 }
 ```
 
-## 3. Theme Container: `AppTheme` Class
+## 3. 主题容器：`AppTheme` 类
 
-The generated `AppTheme` wraps tokens into a complete Flutter theme:
+生成的 `AppTheme` 将 Token 封装为完整的 Flutter 主题：
 
 ```dart
 class AppTheme {
@@ -266,9 +264,9 @@ class AppTheme {
 }
 ```
 
-## 4. `context.extension` Theme Access Pattern
+## 4. `context.extension` 主题访问模式
 
-The critical architectural decision: expose tokens via **`BuildContext` extension**, not global singletons.
+关键的架构决策：通过 **`BuildContext` 扩展**暴露 Token，而非全局单例。
 
 ```dart
 extension AppThemeExtension on BuildContext {
@@ -281,7 +279,7 @@ extension AppThemeExtension on BuildContext {
 }
 ```
 
-### 4.1 Usage Example
+### 4.1 使用示例
 
 ```dart
 // ❌ Old way: hardcoded
@@ -316,9 +314,9 @@ Container(
 )
 ```
 
-### 4.2 InheritedWidget Implementation
+### 4.2 InheritedWidget 实现
 
-`AppTheme.of(context)` is implemented via a custom InheritedWidget:
+`AppTheme.of(context)` 通过自定义 InheritedWidget 实现：
 
 ```dart
 class AppThemeWidget extends InheritedWidget {
@@ -342,9 +340,9 @@ class AppThemeWidget extends InheritedWidget {
 }
 ```
 
-## 5. Code Generation Pipeline
+## 5. 代码生成管道
 
-### 5.1 Input Format (JSON)
+### 5.1 输入格式（JSON）
 
 ```json
 {
@@ -371,7 +369,7 @@ class AppThemeWidget extends InheritedWidget {
 }
 ```
 
-### 5.2 Generator Core Logic
+### 5.2 生成器核心逻辑
 
 ```dart
 // build_runner generator — token code generation
@@ -432,9 +430,9 @@ class DesignTokenGenerator extends Generator {
 }
 ```
 
-### 5.3 Validation Layer
+### 5.3 验证层
 
-The generator includes **3 validations** to ensure token data integrity:
+生成器包含 **3 项验证**，确保 Token 数据完整性：
 
 ```dart
 class TokenValidator {
@@ -471,7 +469,7 @@ class TokenValidator {
 }
 ```
 
-## 6. Light / Dark Theme Switching
+## 6. 亮色/暗色主题切换
 
 ```dart
 class ThemeProvider extends ChangeNotifier {
@@ -494,7 +492,7 @@ class ThemeProvider extends ChangeNotifier {
 }
 ```
 
-Integration in `MaterialApp`:
+在 `MaterialApp` 中集成：
 
 ```dart
 MaterialApp(
@@ -510,15 +508,15 @@ MaterialApp(
 )
 ```
 
-## 7. Performance Considerations
+## 7. 性能考量
 
-| Mode | Memory | Rebuild Scope | Use Case |
-|------|------|----------|----------|
-| InheritedWidget | Singleton (~2KB) | Subtree | 🏆 Recommended |
-| Provider + ChangeNotifier | Extra listeners | Global | Theme switching |
-| Static singleton | Resident memory | None | Read-only |
+| 模式 | 内存 | 重建范围 | 使用场景 |
+|------|------|---------|---------|
+| InheritedWidget | 单例（~2KB） | 子树 | 🏆 推荐 |
+| Provider + ChangeNotifier | 额外监听器 | 全局 | 主题切换 |
+| 静态单例 | 常驻内存 | 无 | 只读 |
 
-**Key optimization**: `updateShouldNotify` uses reference comparison to avoid unnecessary rebuilds:
+**关键优化**：`updateShouldNotify` 使用引用比较避免不必要的重建：
 
 ```dart
 @override
@@ -528,14 +526,14 @@ bool updateShouldNotify(covariant AppThemeWidget oldWidget) {
 }
 ```
 
-## 8. Summary
+## 8. 总结
 
-| Aspect | Design Tokens | Traditional Hardcoding |
+| 维度 | Design Tokens | 传统硬编码 |
 |------|--------------|-----------|
-| Consistency | ⭐⭐⭐⭐⭐ Single source of truth | ⭐⭐ Scattered everywhere |
-| Change management | Modify tokens.json → global effect | Modify 50+ files |
-| Multi-theme | Native support | Manual if/else |
-| Type safety | Compile-time check | Runtime discovery |
-| Developer experience | IDE autocomplete | Need to search color values |
+| 一致性 | ⭐⭐⭐⭐⭐ 单一事实来源 | ⭐⭐ 散落各处 |
+| 变更管理 | 修改 tokens.json → 全局生效 | 修改 50+ 文件 |
+| 多主题 | 原生支持 | 手动 if/else |
+| 类型安全 | 编译期检查 | 运行时发现 |
+| 开发体验 | IDE 自动补全 | 需要搜索颜色值 |
 
-The **Design Tokens Generation System** upgrades JoyMini's visual language from "scattered magic numbers" to a "maintainable design system." The 1215 lines of generated code represent a trinity architecture of code generation + type safety + context extension.
+**Design Tokens 生成系统**将 JoyMini 的视觉语言从"散落的魔法数字"升级为"可维护的设计系统"。1215 行生成代码代表了代码生成 + 类型安全 + 上下文扩展的三位一体架构。

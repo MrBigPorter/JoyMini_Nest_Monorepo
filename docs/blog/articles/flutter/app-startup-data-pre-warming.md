@@ -1,15 +1,13 @@
 ---
-title: "AppStartup: Data Pre-Warming — Multi-Path Data Preloading Barrier on App Launch"
-description: "Learn how to preload critical data before runApp() using a phase-based startup pipeline with parallel execution, progress tracking, and graceful degradation, eliminating blank screens and waterfall requests."
+title: 'AppStartup：数据预热——应用启动时的多路数据预加载屏障'
+description: 学习如何在 runApp() 之前使用基于阶段的启动管道预加载关键数据，支持并行执行、进度跟踪和优雅降级，消除白屏和水瀑请求。
 slug: app-startup-data-pre-warming
-tags: [Flutter, Startup, Performance, Architecture, Preloading, Data Barrier]
+tags: Flutter, Startup, Performance, Architecture, Preloading, DataBarrier
 ---
 
-# AppStartup: Data Pre-Warming — Multi-Path Data Preloading Barrier on App Launch
+## 1. 背景
 
-## 1. Problem Context
-
-Mobile applications face a core contradiction at startup: **user experience delay vs. data readiness dependency**.
+移动应用在启动时面临一个核心矛盾：**用户体验延迟 vs. 数据就绪依赖**。
 
 ```
 Cold Launch Timeline:
@@ -22,12 +20,12 @@ Cold Launch Timeline:
                                               [Real UI Rendered]
 ```
 
-The traditional approach fires requests one by one after runApp, leading to:
-- **Flickering**: skeleton screen → real content → back to skeleton
-- **Race conditions**: Page A depends on data from Page B
-- **Waterfall requests**: serial execution, blank time = Σ(each request)
+传统方式在 runApp 之后逐个发起请求，导致：
+- **闪烁**：骨架屏 → 真实内容 → 回到骨架屏
+- **竞态条件**：页面 A 依赖页面 B 的数据
+- **水瀑请求**：串行执行，空白时间 = Σ(每个请求)
 
-**AppStartup** solves this by: **preloading all critical data before runApp()**, so data is ready when the first page renders.
+**AppStartup** 的解决方案：**在 runApp() 之前预加载所有关键数据**，确保首屏渲染时数据已就绪。
 
 ```
 [App Launch] → [Startup Preloader] → [Multi-path parallel fetch]
@@ -37,9 +35,9 @@ The traditional approach fires requests one by one after runApp, leading to:
                                     [runApp()] → [First Frame with data]
 ```
 
-## 2. Core Architecture
+## 2. 核心架构
 
-### 2.1 AppStartup Class
+### 2.1 AppStartup 类
 
 ```dart
 class AppStartup {
@@ -92,7 +90,7 @@ class AppStartup {
 }
 ```
 
-### 2.2 StartupPhase — Phased Execution
+### 2.2 StartupPhase——分阶段执行
 
 ```dart
 enum StartupPhase {
@@ -167,9 +165,9 @@ class StartupPipeline {
 }
 ```
 
-## 3. Parallel Preloading Strategy
+## 3. 并行预加载策略
 
-### 3.1 Core Preloading Tasks
+### 3.1 核心预加载任务
 
 ```dart
 // ============ Phase: Infrastructure ============
@@ -277,7 +275,7 @@ class PrefetchHomeDataTask extends StartupTask {
 }
 ```
 
-### 3.2 Preloading Registration
+### 3.2 预加载注册
 
 ```dart
 void configureStartup() {
@@ -307,9 +305,9 @@ void configureStartup() {
 }
 ```
 
-## 4. Startup Barrier Implementation
+## 4. 启动屏障实现
 
-### 4.1 Barrier with Progress Notification
+### 4.1 带进度通知的屏障
 
 ```dart
 class StartupBarrier {
@@ -339,7 +337,7 @@ class StartupBarrier {
 }
 ```
 
-### 4.2 Splash Screen Integration
+### 4.2 启动屏集成
 
 ```dart
 class SplashScreen extends StatefulWidget {
@@ -405,7 +403,7 @@ class _SplashScreenState extends State<SplashScreen> {
 }
 ```
 
-## 5. Main Entry Integration
+## 5. 主入口集成
 
 ```dart
 void main() async {
@@ -427,9 +425,9 @@ void main() async {
 }
 ```
 
-## 6. Performance Metrics
+## 6. 性能指标
 
-### 6.1 Parallel vs. Serial Comparison
+### 6.1 并行 vs 串行对比
 
 ```
 Serial Startup:
@@ -449,7 +447,7 @@ Parallel Startup (AppStartup):
   = Actual perceived latency < 800ms
 ```
 
-### 6.2 Startup Report
+### 6.2 启动报告
 
 ```dart
 class StartupReport {
@@ -470,14 +468,14 @@ class StartupReport {
 }
 ```
 
-## 7. Error Handling & Degradation
+## 7. 错误处理与降级
 
-| Scenario | Handling | User Experience |
-|----------|----------|-----------------|
-| Token expired | Auto-clear → unauthenticated state | Show login page |
-| Remote config load failure | Use local cached config | Features unchanged |
-| Wallet load failure | Show balance loading | Transaction features limited |
-| Preload timeout | Skip the task | Page loads data on its own after entry |
+| 场景 | 处理方式 | 用户体验 |
+|------|---------|---------|
+| Token 过期 | 自动清除 → 未认证状态 | 显示登录页 |
+| 远程配置加载失败 | 使用本地缓存配置 | 功能不变 |
+| 钱包加载失败 | 显示余额加载中 | 交易功能受限 |
+| 预加载超时 | 跳过该任务 | 页面进入后自行加载数据 |
 
 ```dart
 class StartupErrorHandler {
@@ -506,15 +504,15 @@ class StartupErrorHandler {
 }
 ```
 
-## 8. Summary
+## 8. 总结
 
-| Aspect | AppStartup Pre-Warming | Traditional Lazy Loading |
-|--------|------------------------|--------------------------|
-| Time to first frame | Slightly longer (waits for critical data) | Fast (renders empty data) |
-| First frame usability | ✅ Data ready, immediate interaction | ❌ Skeleton screen, loading |
-| Parallelism | Multi-phase parallel | Usually serial |
-| Error recovery | Per-phase degradation strategy | Page-level error handling |
-| Startup duration | 2-3s (includes data loading) | 1s + 3s page loading |
-| User perception | 2-3s → usable | 1s → 3s spinner |
+| 维度 | AppStartup 预热 | 传统懒加载 |
+|------|----------------|-----------|
+| 首帧时间 | 稍长（等待关键数据） | 快（渲染空数据） |
+| 首帧可用性 | ✅ 数据就绪，可立即交互 | ❌ 骨架屏，加载中 |
+| 并行度 | 多阶段并行 | 通常串行 |
+| 错误恢复 | 逐阶段降级策略 | 页面级错误处理 |
+| 启动时长 | 2-3s（含数据加载） | 1s + 3s 页面加载 |
+| 用户感知 | 2-3s → 可用 | 1s → 3s 转圈 |
 
-**Core idea**: Move network requests from "after page entry" to "before runApp()", leveraging the splash screen's 2-3 second "natural waiting period" to complete data preloading, achieving first-frame readiness.
+**核心思想**：将网络请求从"页面进入后"移到"runApp() 之前"，利用启动屏 2-3 秒的"自然等待期"完成数据预加载，实现首帧即就绪。

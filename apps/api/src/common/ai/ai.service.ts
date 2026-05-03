@@ -6,10 +6,10 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 import { GeminiProvider } from './providers/gemini.provider';
 import { GroqProvider } from './providers/groq.provider';
 import { DeepSeekProvider } from './providers/deepseek.provider';
+import { SystemConfigService } from '@api/admin/system-config/system-config.service';
 import {
   AiProviderInstance,
   AiProviderUsageStats,
@@ -70,8 +70,8 @@ export class AiService implements OnModuleInit {
     RPM: 12, // max 12 requests/min
     TPM: 800000, // max 800k tokens/min
     DAILY_PER_KEY: 800000, // max 800k tokens/day per key
-    FAILURE_THRESHOLD: 5, // 5 consecutive failures → open circuit breaker
-    CIRCUIT_BREAKER_DURATION: 900000, // circuit breaker 15min
+    FAILURE_THRESHOLD: 10, // 10 consecutive real failures → open circuit breaker (raised from 5)
+    CIRCUIT_BREAKER_DURATION: 300000, // circuit breaker 5min (reduced from 15min)
     KEY_429_COOLDOWN: 60000, // 60s cooldown for a key that got 429
   };
 
@@ -86,8 +86,12 @@ export class AiService implements OnModuleInit {
   };
 
   // Cached provider config to avoid DB reads on every request
-  private providerConfigCache: { provider: string; model: string } | null =
-    null;
+  // strict: true = DB explicit config, no fallback; false = env auto-detected, fallback allowed
+  private providerConfigCache: {
+    provider: string;
+    model: string;
+    strict: boolean;
+  } | null = null;
   private providerConfigCacheAt = 0;
   private readonly PROVIDER_CONFIG_TTL = 30000; // 30s cache TTL
 
@@ -96,6 +100,7 @@ export class AiService implements OnModuleInit {
     private geminiProvider: GeminiProvider,
     private groqProvider: GroqProvider,
     private deepSeekProvider: DeepSeekProvider,
+    private systemConfigService: SystemConfigService,
   ) {}
 
   async onModuleInit() {
@@ -121,6 +126,7 @@ export class AiService implements OnModuleInit {
   private async getProviderConfig(): Promise<{
     provider: string;
     model: string;
+    strict: boolean;
   }> {
     const now = Date.now();
     if (
@@ -131,33 +137,75 @@ export class AiService implements OnModuleInit {
     }
 
     try {
-      // Try to read from SystemConfig — we use ConfigService as a fallback
-      // The actual SystemConfig read happens in the controller; here we use defaults
-      const defaultConfig = { provider: 'gemini', model: 'gemini-2.5-flash' };
+      // 1. Try to read from SystemConfig DB table (set by admin UI)
+      const dbConfig = await this.systemConfigService.get<{
+        provider: string;
+        model: string;
+      }>('AI_TRANSLATION_PROVIDER', {
+        provider: '',
+        model: '',
+      });
 
-      // Check if GROQ_API_KEY is configured — if so, we can use Groq
-      const groqKey = this.configService.get<string>('GROQ_API_KEY');
-      if (!groqKey) {
-        // No Groq key, force Gemini
-        this.providerConfigCache = defaultConfig;
+      if (dbConfig && dbConfig.provider) {
+        // User explicitly configured a provider → strict mode (no fallback)
+        const config = { ...dbConfig, strict: true };
+        this.providerConfigCache = config;
         this.providerConfigCacheAt = now;
-        return defaultConfig;
+        return config;
       }
 
-      // Default to Gemini if no config stored yet
+      // 2. Fallback: detect available providers from env vars (not strict)
+      const groqKey = this.configService.get<string>('GROQ_API_KEY');
+      if (groqKey) {
+        const groqConfig = {
+          provider: 'groq',
+          model: 'llama-3.3-70b-versatile',
+          strict: false,
+        };
+        this.providerConfigCache = groqConfig;
+        this.providerConfigCacheAt = now;
+        return groqConfig;
+      }
+
+      const deepseekKey = this.configService.get<string>('DEEPSEEK_API_KEY');
+      if (deepseekKey) {
+        const deepseekConfig = {
+          provider: 'deepseek',
+          model: 'deepseek-chat',
+          strict: false,
+        };
+        this.providerConfigCache = deepseekConfig;
+        this.providerConfigCacheAt = now;
+        return deepseekConfig;
+      }
+
+      // 3. Last resort: Gemini (free tier)
+      const defaultConfig = {
+        provider: 'gemini',
+        model: 'gemini-2.5-flash',
+        strict: false,
+      };
       this.providerConfigCache = defaultConfig;
       this.providerConfigCacheAt = now;
       return defaultConfig;
     } catch {
-      return { provider: 'gemini', model: 'gemini-2.5-flash' };
+      return { provider: 'gemini', model: 'gemini-2.5-flash', strict: false };
     }
   }
 
   /**
    * Set provider config (called from controller when user updates via UI)
    */
-  setProviderConfig(config: { provider: string; model: string }): void {
-    this.providerConfigCache = config;
+  setProviderConfig(config: {
+    provider: string;
+    model: string;
+    strict?: boolean;
+  }): void {
+    this.providerConfigCache = {
+      provider: config.provider,
+      model: config.model,
+      strict: config.strict ?? true, // UI 手动设置默认为 strict
+    };
     this.providerConfigCacheAt = Date.now();
   }
 
@@ -210,14 +258,9 @@ export class AiService implements OnModuleInit {
     }
 
     // Unblock keys that have cooled down from 429
+    // Fix: delegate to each provider (provider.keys was always empty — dead code)
     for (const provider of this.providers) {
-      for (const key of provider.keys) {
-        if (key.blocked && key.blockedUntil > 0 && now >= key.blockedUntil) {
-          key.blocked = false;
-          key.blockedReason = null;
-          key.blockedUntil = 0;
-        }
-      }
+      provider.unblockExpiredKeys(now);
     }
 
     // Auto-recover service level (check every 5 minutes)
@@ -339,16 +382,33 @@ export class AiService implements OnModuleInit {
       primaryProvider.activeModel = config.model;
     }
 
+    // Track whether at least one provider was actually invoked (has keys & is available).
+    // Only real invocation failures should count toward the circuit breaker.
+    // "Provider has no key configured" is a config issue, not a transient error.
+    let anyProviderAttempted = false;
+
     // Try primary provider
-    const result = await primaryProvider.generateText(prompt, options);
-    if (result !== null) {
-      this.recordSuccess(estimatedTokens);
-      return result;
+    if (primaryProvider.isAvailable()) {
+      anyProviderAttempted = true;
+      const result = await primaryProvider.generateText(prompt, options);
+      if (result !== null) {
+        this.recordSuccess(estimatedTokens);
+        return result;
+      }
+    }
+
+    // Strict mode: user explicitly configured a provider → do NOT fall back to others
+    if (config.strict) {
+      this.logger.warn(
+        `⛔ [${primaryProvider.displayName}] strict mode: all keys exhausted, skip fallback`,
+      );
+      return null;
     }
 
     // Try fallback providers in order
     for (const fallback of fallbackProviders) {
       if (!fallback.isAvailable()) continue;
+      anyProviderAttempted = true;
 
       const fallbackResult = await fallback.generateText(prompt, options);
       if (fallbackResult !== null) {
@@ -361,8 +421,16 @@ export class AiService implements OnModuleInit {
     }
 
     // All providers failed
-    this.recordFailure();
-    this.logger.warn(`❌ All AI providers failed for generateText()`);
+    if (anyProviderAttempted) {
+      // At least one provider was available and invoked but returned null — real failure
+      this.recordFailure();
+      this.logger.warn(`❌ All AI providers failed for generateText()`);
+    } else {
+      // No provider had usable keys — config/quota issue, do NOT open circuit breaker
+      this.logger.warn(
+        `⚠️ No AI providers available (no keys configured or all exhausted)`,
+      );
+    }
     return null;
   }
 
@@ -646,11 +714,17 @@ ${text}
       AiServiceLevel.FULL,
     );
 
-    return result || text;
+    if (!result) {
+      throw new Error(
+        `Translation failed: AI returned null for target language "${targetLang}" (text length: ${text.length})`,
+      );
+    }
+    return result;
   }
 
   /**
    * Markdown document translation — level FULL
+   * Automatically chunks large documents to avoid 413 / context-limit errors.
    */
   async translateMarkdown(
     markdown: string,
@@ -660,6 +734,23 @@ ${text}
       return markdown;
     }
 
+    // For large documents, split into sections and translate each one separately.
+    // Threshold: ~10000 chars ≈ 2500 tokens input (safe for all providers incl. Groq)
+    const MAX_SINGLE_CALL_CHARS = 10000;
+    if (markdown.length > MAX_SINGLE_CALL_CHARS) {
+      return this.translateMarkdownInChunks(markdown, targetLang);
+    }
+
+    return this.translateMarkdownSingle(markdown, targetLang);
+  }
+
+  /**
+   * Translate a single Markdown chunk (≤ MAX_SINGLE_CALL_CHARS)
+   */
+  private async translateMarkdownSingle(
+    markdown: string,
+    targetLang: string,
+  ): Promise<string> {
     const langName = this.LANG_NAMES[targetLang] || targetLang;
 
     const prompt = `
@@ -720,6 +811,86 @@ ${markdown}
     return result || markdown;
   }
 
+  /**
+   * Split large Markdown into header-based chunks, translate each, then rejoin.
+   * Prevents 413 / context-limit errors on long articles.
+   */
+  private async translateMarkdownInChunks(
+    markdown: string,
+    targetLang: string,
+  ): Promise<string> {
+    const MAX_CHUNK_CHARS = 8000;
+    const chunks = this.splitMarkdownIntoChunks(markdown, MAX_CHUNK_CHARS);
+
+    this.logger.debug(
+      `大文档分块翻译: ${markdown.length} 字符 → ${chunks.length} 块 (目标语言: ${targetLang})`,
+    );
+
+    const translatedChunks: string[] = [];
+    for (const chunk of chunks) {
+      // Each chunk is ≤ MAX_CHUNK_CHARS, safe for single-call
+      const translated = await this.translateMarkdownSingle(chunk, targetLang);
+      translatedChunks.push(translated);
+    }
+
+    return translatedChunks.join('\n\n');
+  }
+
+  /**
+   * Split Markdown into sections by H2/H3 headers.
+   * If a section still exceeds maxChunkSize, further split by paragraphs.
+   */
+  private splitMarkdownIntoChunks(
+    markdown: string,
+    maxChunkSize: number,
+  ): string[] {
+    // Split at every H2/H3 heading (keeps the heading with its section)
+    const sections = markdown.split(/(?=\n#{2,3} )/);
+
+    const chunks: string[] = [];
+    let current = '';
+
+    for (const section of sections) {
+      if (current.length > 0 && current.length + section.length > maxChunkSize) {
+        chunks.push(current.trimEnd());
+        current = section;
+      } else {
+        current += section;
+      }
+    }
+    if (current.trim()) {
+      chunks.push(current.trimEnd());
+    }
+
+    // If any section is still too large, split by paragraphs
+    const finalChunks: string[] = [];
+    for (const chunk of chunks) {
+      if (chunk.length <= maxChunkSize) {
+        finalChunks.push(chunk);
+        continue;
+      }
+
+      const paragraphs = chunk.split(/\n{2,}/);
+      let paraBuffer = '';
+      for (const para of paragraphs) {
+        if (
+          paraBuffer.length > 0 &&
+          paraBuffer.length + para.length + 2 > maxChunkSize
+        ) {
+          finalChunks.push(paraBuffer.trimEnd());
+          paraBuffer = para;
+        } else {
+          paraBuffer += (paraBuffer ? '\n\n' : '') + para;
+        }
+      }
+      if (paraBuffer.trim()) {
+        finalChunks.push(paraBuffer.trimEnd());
+      }
+    }
+
+    return finalChunks.length > 0 ? finalChunks : [markdown];
+  }
+
   isAvailable(): boolean {
     return (
       this.providers.some((p) => p.isAvailable()) &&
@@ -732,9 +903,11 @@ ${markdown}
   }
 
   getUsageStats() {
+    // Fix: provider.keys is always empty (providers use private keyInstances).
+    // Use getUsageStats() directly for all providers that have been initialized.
     const providerStats = this.providers
-      .filter((p) => p.keys.length > 0)
-      .map((p) => p.getUsageStats());
+      .map((p) => p.getUsageStats())
+      .filter((s) => s.keys.length > 0);
 
     const totalDailyTokens = providerStats.reduce(
       (sum, p) => sum + p.keys.reduce((s, k) => s + k.dailyTokens, 0),

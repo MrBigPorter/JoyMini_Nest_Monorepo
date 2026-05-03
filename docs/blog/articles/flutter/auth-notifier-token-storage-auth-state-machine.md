@@ -1,27 +1,27 @@
 ---
-title: "AuthNotifier + TokenStorage: Flutter Authentication State Machine"
+title: 'AuthNotifier + TokenStorage：Flutter 认证状态机'
 slug: auth-notifier-token-storage-auth-state-machine
 tags: Flutter, Auth, StateManagement, Token, ChangeNotifier
-description: Implements a robust authentication state machine using AuthNotifier and TokenStorage in Flutter, covering login, token refresh, secure storage, Provider integration, and security best practices.
+description: 使用 AuthNotifier 和 TokenStorage 在 Flutter 中实现健壮的认证状态机，涵盖登录、Token 刷新、安全存储、Provider 集成和安全最佳实践。
 ---
 
-# AuthNotifier + TokenStorage: Flutter Authentication State Machine
+# AuthNotifier + TokenStorage：Flutter 认证状态机
 
-## 1. Overview
+## 1. 背景
 
-Mobile authentication faces unique challenges: tokens must persist across app restarts, seamlessly refresh on expiry, and the UI must react instantly to auth state changes. This article analyzes an `AuthNotifier` + `TokenStorage` architecture that implements a robust authentication state machine.
+移动端认证面临独特的挑战：Token 必须在应用重启后持久化、在过期时无缝刷新，并且 UI 必须即时响应认证状态变化。本文分析了一个 `AuthNotifier` + `TokenStorage` 架构，实现了健壮的认证状态机。
 
-| Component | File | Role |
-|-----------|------|------|
-| **AuthNotifier** | `auth_notifier.dart` | ChangeNotifier managing auth state transitions |
-| **TokenStorage** | `token_storage.dart` | Wraps FlutterSecureStorage for token persistence |
-| **SecureStorage** | `flutter_secure_storage` | Encrypted key-value store (Keychain/Keystore) |
+| 组件 | 文件 | 角色 |
+|------|------|------|
+| **AuthNotifier** | `auth_notifier.dart` | 管理认证状态转换的 ChangeNotifier |
+| **TokenStorage** | `token_storage.dart` | 封装 FlutterSecureStorage 用于 Token 持久化 |
+| **SecureStorage** | `flutter_secure_storage` | 加密的键值存储（Keychain/Keystore） |
 
 ---
 
-## 2. Authentication State Machine
+## 2. 认证状态机
 
-### 2.1 States
+### 2.1 状态
 
 ```
 ┌──────────┐    ┌──────────┐    ┌────────────────┐
@@ -41,7 +41,7 @@ Mobile authentication faces unique challenges: tokens must persist across app re
                                 └──────────────┘
 ```
 
-### 2.2 Implementation
+### 2.2 实现
 
 ```dart
 enum AuthStatus {
@@ -78,7 +78,7 @@ class AuthNotifier extends ChangeNotifier {
 }
 ```
 
-### 2.3 App Startup — Check Stored Tokens
+### 2.3 应用启动——检查已存储的 Token
 
 ```dart
 Future<void> checkAuthStatus() async {
@@ -120,7 +120,7 @@ Future<void> checkAuthStatus() async {
 }
 ```
 
-### 2.4 Login
+### 2.4 登录
 
 ```dart
 Future<AuthResult> login(String phone, String password) async {
@@ -157,7 +157,7 @@ Future<AuthResult> login(String phone, String password) async {
 }
 ```
 
-### 2.5 Token Refresh (Called by HTTP Interceptor)
+### 2.5 Token 刷新（由 HTTP 拦截器调用）
 
 ```dart
 Future<String?> refreshToken() async {
@@ -200,7 +200,7 @@ Future<String?> refreshToken() async {
 }
 ```
 
-### 2.6 Logout
+### 2.6 退出登录
 
 ```dart
 Future<void> logout() async {
@@ -222,9 +222,9 @@ Future<void> logout() async {
 
 ---
 
-## 3. TokenStorage — Secure Persistence
+## 3. TokenStorage——安全持久化
 
-### 3.1 Implementation
+### 3.1 实现
 
 ```dart
 class TokenStorage {
@@ -268,19 +268,19 @@ class TokenStorage {
 }
 ```
 
-### 3.2 Why FlutterSecureStorage?
+### 3.2 为什么选择 FlutterSecureStorage？
 
-| Feature | SharedPreferences | FlutterSecureStorage |
-|---------|------------------|---------------------|
-| Encryption | No (plaintext) | AES-256 on Android, Keychain on iOS |
-| Biometric Lock | No | Optional (Android) |
-| Cleared on Uninstall | No | Yes |
-| Performance | Fast | Slower (encryption overhead) |
-| Use Case | Theme, settings | **Tokens, PII** |
+| 特性 | SharedPreferences | FlutterSecureStorage |
+|------|------------------|---------------------|
+| 加密 | 否（明文） | Android 上 AES-256，iOS 上 Keychain |
+| 生物识别锁 | 否 | 可选（Android） |
+| 卸载时清除 | 否 | 是 |
+| 性能 | 快 | 较慢（加密开销） |
+| 适用场景 | 主题、设置 | **Token、PII** |
 
 ---
 
-## 4. Provider Integration
+## 4. Provider 集成
 
 ```dart
 // main.dart
@@ -309,9 +309,9 @@ void main() async {
 
 ---
 
-## 5. UI Binding
+## 5. UI 绑定
 
-### 5.1 Reactive Components
+### 5.1 响应式组件
 
 ```dart
 class AuthConsumer extends StatelessWidget {
@@ -337,7 +337,7 @@ class AuthConsumer extends StatelessWidget {
 }
 ```
 
-### 5.2 Logout Button
+### 5.2 退出按钮
 
 ```dart
 ElevatedButton(
@@ -351,7 +351,7 @@ ElevatedButton(
 
 ---
 
-## 6. Testing
+## 6. 测试
 
 ```dart
 void main() {
@@ -400,26 +400,26 @@ void main() {
 
 ---
 
-## 7. Security Best Practices
+## 7. 安全最佳实践
 
-| Practice | Implementation |
-|----------|---------------|
-| **Short-lived access tokens** | 15-minute expiry; reduces token theft window |
-| **Long-lived refresh tokens** | 30-day expiry; rotated on each use (rotation in-place) |
-| **Secure storage** | FlutterSecureStorage (Keychain/Keystore) |
-| **No tokens in SharedPreferences** | SharedPrefs is plaintext; tokens must be encrypted |
-| **Biometric lock** | Optional `biometrics: true` for high-value operations (withdrawal) |
-| **Logout on 401** | AuthNotifier forces logout if refresh fails |
-| **Clear storage on uninstall** | FlutterSecureStorage auto-clears on app deletion |
-| **Never log tokens** | Never print/log tokens in release builds |
+| 实践 | 实现 |
+|------|------|
+| **短生命周期的访问 Token** | 15 分钟过期；减少 Token 被盗窗口 |
+| **长生命周期的刷新 Token** | 30 天过期；每次使用时轮换（原地轮换） |
+| **安全存储** | FlutterSecureStorage（Keychain/Keystore） |
+| **Token 不放在 SharedPreferences** | SharedPrefs 是明文；Token 必须加密 |
+| **生物识别锁** | 高价值操作（提现）可选 `biometrics: true` |
+| **401 时退出登录** | 如果刷新失败，AuthNotifier 强制退出 |
+| **卸载时清除存储** | FlutterSecureStorage 在应用删除时自动清除 |
+| **绝不记录 Token** | 在发布版本中绝不打印/记录 Token |
 
 ---
 
-## 8. Summary
+## 8. 总结
 
-- **AuthNotifier** implements a 6-state auth machine: `initial → checking → authenticated/unauthenticated → refreshing/tokenExpired`
-- **TokenStorage** wraps `FlutterSecureStorage` for encrypted token persistence
-- **Single refresh** prevents concurrent refresh calls, queuing simultaneous 401 requests
-- **Startup token check** runs before `runApp()`, displaying the correct initial screen
-- **Provider + Consumer binding** makes UI react instantly to auth state changes
-- **Best practices**: short-lived access tokens, secure storage, never log tokens, biometric lock for sensitive operations
+- **AuthNotifier** 实现了一个 6 状态认证机：`initial → checking → authenticated/unauthenticated → refreshing/tokenExpired`
+- **TokenStorage** 封装 `FlutterSecureStorage` 用于加密的 Token 持久化
+- **单次刷新**防止并发刷新调用，将同时到达的 401 请求排队
+- **启动时 Token 检查**在 `runApp()` 之前运行，显示正确的初始屏幕
+- **Provider + Consumer 绑定**使 UI 即时响应认证状态变化
+- **最佳实践**：短生命周期的访问 Token、安全存储、绝不记录 Token、敏感操作使用生物识别锁

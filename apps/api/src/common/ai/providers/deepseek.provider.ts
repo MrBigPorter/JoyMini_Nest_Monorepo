@@ -159,7 +159,9 @@ export class DeepSeekProvider implements AiProviderInstance {
         this.logger.warn(
           `⚠️ DeepSeek key ...${currentKey.keySuffix} hit 429, blocking for ${this.KEY_429_COOLDOWN / 1000}s`,
         );
-        this.rotateToNextKey();
+        if (this.rotateToNextKey()) {
+          return this.generateText(prompt, options); // retry with next key
+        }
       } else if (e.response?.status === 400) {
         this.logger.error(
           `DeepSeek API 400 error on key ...${currentKey.keySuffix}: ${e.response?.data?.error?.message || 'Bad request'}`,
@@ -171,7 +173,19 @@ export class DeepSeekProvider implements AiProviderInstance {
         currentKey.blocked = true;
         currentKey.blockedReason = 'invalid_key';
         currentKey.blockedUntil = 0;
-        this.rotateToNextKey();
+        if (this.rotateToNextKey()) {
+          return this.generateText(prompt, options); // retry with next key
+        }
+      } else if (e.response?.status === 402) {
+        this.logger.error(
+          `DeepSeek API 402 error on key ...${currentKey.keySuffix}: Insufficient balance, blocking key permanently`,
+        );
+        currentKey.blocked = true;
+        currentKey.blockedReason = 'insufficient_balance';
+        currentKey.blockedUntil = 0; // 余额问题不会自动恢复，永久封锁直到手动重置
+        if (this.rotateToNextKey()) {
+          return this.generateText(prompt, options); // retry with next key
+        }
       } else if (e.code === 'ECONNABORTED' || e.code === 'ETIMEDOUT') {
         this.logger.warn(
           `DeepSeek API timeout on key ...${currentKey.keySuffix}`,
@@ -234,6 +248,16 @@ export class DeepSeekProvider implements AiProviderInstance {
     this.logger.log(
       `📅 DeepSeek daily counters reset for ${this.keyInstances.length} keys`,
     );
+  }
+
+  unblockExpiredKeys(now: number): void {
+    for (const key of this.keyInstances) {
+      if (key.blocked && key.blockedUntil > 0 && now >= key.blockedUntil) {
+        key.blocked = false;
+        key.blockedReason = null;
+        key.blockedUntil = 0;
+      }
+    }
   }
 
   getUsageStats(): AiProviderUsageStats {
