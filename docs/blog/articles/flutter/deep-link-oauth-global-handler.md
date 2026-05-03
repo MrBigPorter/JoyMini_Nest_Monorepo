@@ -1,23 +1,21 @@
 ---
-title: "Deep Link OAuth + GlobalOAuthHandler: Unified Authentication Entry Architecture"
-description: "A comprehensive architecture for handling deep links, universal links, and OAuth callbacks in Flutter, with a unified handler that manages authentication gating, route resolution, and deferred navigation."
+title: 'Deep Link OAuth + GlobalOAuthHandler：统一认证入口架构'
+description: 'Flutter 中深度链接、通用链接和 OAuth 回调的统一处理架构，涵盖认证门控、路由解析和延迟导航。'
 slug: deep-link-oauth-global-handler
-tags: [Flutter, Deep Link, OAuth, Authentication, Routing, Security]
+tags: Flutter, DeepLink, OAuth, Authentication, Routing, Security
 ---
 
-# Deep Link OAuth + GlobalOAuthHandler: Unified Authentication Entry Architecture
+## 1. 问题空间
 
-## 1. Problem Space
+移动应用面临两种外部入口的认证挑战：
 
-Mobile applications face authentication challenges from two types of external entry points:
+| 入口类型 | 示例 | 挑战 |
+|----------|------|------|
+| **深度链接** | `joymini://payment?orderId=xxx` | 用户可能未登录；登录后需继续导航 |
+| **通用链接** | `https://joymini.app/oauth/callback` | 跨应用导航，状态保持 |
+| **OAuth 回调** | Google / Facebook / Apple 登录返回 | 多 Provider，统一处理 |
 
-| Entry Type | Example | Challenge |
-|------------|---------|-----------|
-| **Deep Link** | `joymini://payment?orderId=xxx` | User may not be logged in; must continue after login |
-| **Universal Link** | `https://joymini.app/oauth/callback` | Cross-app navigation, state preservation |
-| **OAuth Callback** | Google / Facebook / Apple login return | Multiple providers, unified handling |
-
-**GlobalOAuthHandler** unifies these entry points into a single abstraction layer:
+**GlobalOAuthHandler** 将这些入口统一到单一抽象层：
 
 ```
 [External Link]
@@ -31,9 +29,9 @@ AuthGuard.check(route)
   └── Unauthenticated → AuthNotifier → login → GlobalOAuthHandler.handle(route)
 ```
 
-## 2. Deep Link Parsing Engine
+## 2. 深度链接解析引擎
 
-### 2.1 URL Parsing
+### 2.1 URL 解析
 
 ```dart
 class DeepLinkParser {
@@ -86,7 +84,7 @@ class DeepLinkParser {
 }
 ```
 
-### 2.2 DeepLinkResult Model
+### 2.2 DeepLinkResult 模型
 
 ```dart
 class DeepLinkResult {
@@ -124,9 +122,9 @@ class DeepLinkResult {
 }
 ```
 
-## 3. GlobalOAuthHandler — Unified Processing Hub
+## 3. GlobalOAuthHandler — 统一处理中枢
 
-### 3.1 Architecture Design
+### 3.1 架构设计
 
 ```dart
 class GlobalOAuthHandler {
@@ -185,7 +183,7 @@ class GlobalOAuthHandler {
 }
 ```
 
-### 3.2 Route Identifier
+### 3.2 路由标识器
 
 ```dart
 class RouteIdentifier {
@@ -248,9 +246,9 @@ class RouteIdentifier {
 }
 ```
 
-### 3.3 Deferred Authentication Recovery
+### 3.3 延迟认证恢复
 
-When a deep link requires authentication but the user is not logged in, the system needs to "remember" the target route and auto-navigate after login:
+当深度链接需要认证但用户未登录时，系统需要"记住"目标路由，在登录后自动导航：
 
 ```dart
 class AuthNotifier {
@@ -280,7 +278,7 @@ class AuthNotifier {
 }
 ```
 
-## 4. OAuth Provider Abstraction Layer
+## 4. OAuth Provider 抽象层
 
 ### 4.1 AbstractOAuthProvider
 
@@ -304,7 +302,7 @@ class OAuthResult {
 }
 ```
 
-### 4.2 Provider Implementations
+### 4.2 Provider 实现
 
 ```dart
 class GoogleOAuthProvider extends OAuthProvider {
@@ -376,7 +374,7 @@ class FacebookOAuthProvider extends OAuthProvider {
 }
 ```
 
-### 4.3 Provider Registry
+### 4.3 Provider 注册中心
 
 ```dart
 class OAuthProviderRegistry {
@@ -396,7 +394,7 @@ class OAuthProviderRegistry {
 }
 ```
 
-## 5. Platform Integration
+## 5. 平台集成
 
 ### 5.1 iOS — AppDelegate
 
@@ -446,7 +444,7 @@ class MainActivity : FlutterActivity() {
 }
 ```
 
-### 5.3 Flutter Side Reception
+### 5.3 Flutter 端接收
 
 ```dart
 class DeepLinkPlatformBridge {
@@ -463,9 +461,9 @@ class DeepLinkPlatformBridge {
 }
 ```
 
-## 6. Security Considerations
+## 6. 安全考量
 
-### 6.1 State Parameter for CSRF Protection
+### 6.1 State 参数防 CSRF
 
 ```dart
 class OAuthStateManager {
@@ -485,7 +483,7 @@ class OAuthStateManager {
 }
 ```
 
-### 6.2 PKCE (Proof Key for Code Exchange)
+### 6.2 PKCE（Proof Key for Code Exchange）
 
 ```dart
 class PkceHelper {
@@ -515,7 +513,7 @@ class PkceHelper {
 }
 ```
 
-## 7. Complete Data Flow
+## 7. 完整数据流
 
 ```
 User taps "Payment" in email
@@ -548,7 +546,7 @@ AuthGuard.check(route)
   │               → GoRouter.push('/payment?orderId=ABC123')
 ```
 
-## 8. Testing Strategy
+## 8. 测试策略
 
 ```dart
 void main() {
@@ -592,3 +590,12 @@ void main() {
   });
 }
 ```
+
+## 9. 总结
+
+1. **深度链接解析引擎** 支持自定义 Scheme、通用链接和 Firebase Dynamic Link 三种入口的统一解析
+2. **GlobalOAuthHandler** 作为统一处理中枢，协调解析、路由标识和认证门控
+3. **延迟认证恢复** 机制在用户未登录时保存目标路由，登录后自动完成导航
+4. **OAuth Provider 抽象层** 通过统一接口支持 Google、Apple、Facebook 等多 Provider 接入
+5. **安全防护** 通过 State 参数防 CSRF 和 PKCE 协议保障 OAuth 流程安全
+6. **平台集成** 通过 MethodChannel 桥接 iOS/Android 原生层与 Flutter 层

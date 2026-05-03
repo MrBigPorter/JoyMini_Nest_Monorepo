@@ -1,15 +1,13 @@
 ---
-title: "GlobalHandler + CallKit + WebRTC Calls: Global Event Bus and Real-Time Call Architecture"
-description: "A unified global event handling system using GlobalHandler for event routing with priority levels, integrated with WebRTC peer-to-peer calling, iOS CallKit integration via MethodChannel, and call recovery management."
+title: 'GlobalHandler + CallKit + WebRTC：全局事件总线与实时通话架构'
+description: 统一的全局事件处理系统，通过 GlobalHandler 实现带优先级的消息路由，集成 WebRTC 点对点通话、iOS CallKit 原生集成（MethodChannel）以及通话恢复管理。
 slug: global-handler-callkit-webrtc
-tags: [flutter, webrtc, callkit, architecture, real-time]
+tags: Flutter, WebRTC, CallKit, Architecture, Realtime
 ---
 
-# GlobalHandler + CallKit + WebRTC Calls: Global Event Bus and Real-Time Call Architecture
+## 1. 问题背景
 
-## 1. Problem Background
-
-JoyMini, as a social application, needs to handle multiple types of **externally triggered events** simultaneously:
+JoyMini 作为社交应用，需要同时处理多种类型的**外部触发事件**：
 
 ```
 External Event Sources:
@@ -28,11 +26,11 @@ External Event Sources:
       └── Incoming call display → Connect/Hang up
 ```
 
-**GlobalHandler** unifies all these events into a single entry point, dispatching them by **event priority**.
+**GlobalHandler** 将所有事件统一到单一入口，按**事件优先级**进行分发。
 
-## 2. GlobalHandler — Global Event Hub
+## 2. GlobalHandler——全局事件中枢
 
-### 2.1 Event Routing
+### 2.1 事件路由
 
 ```dart
 class GlobalHandler {
@@ -86,7 +84,7 @@ class GlobalHandler {
 }
 ```
 
-### 2.2 Event Model
+### 2.2 事件模型
 
 ```dart
 enum EventType {
@@ -133,7 +131,7 @@ enum EventPriority {
 }
 ```
 
-### 2.3 Push Notification Handling
+### 2.3 推送通知处理
 
 ```dart
 class PushNotificationHandler {
@@ -172,9 +170,9 @@ class PushNotificationHandler {
 }
 ```
 
-## 3. WebRTC Call System
+## 3. WebRTC 通话系统
 
-### 3.1 Call State Machine
+### 3.1 通话状态机
 
 ```dart
 enum CallState {
@@ -206,7 +204,7 @@ enum CallDirection {
 }
 ```
 
-### 3.2 WebRTC Service
+### 3.2 WebRTC 服务
 
 ```dart
 class WebRTCService {
@@ -298,7 +296,7 @@ class WebRTCService {
 }
 ```
 
-### 3.3 Call Signaling via WebSocket
+### 3.3 WebSocket 信令
 
 ```dart
 class CallSignalService {
@@ -352,9 +350,9 @@ class CallSignalService {
 }
 ```
 
-## 4. CallKit Integration (iOS)
+## 4. CallKit 集成（iOS）
 
-### 4.1 Native CallKit Handling
+### 4.1 原生 CallKit 处理
 
 ```objc
 // CallKitManager.swift
@@ -447,7 +445,7 @@ class CallKitManager: NSObject, CXProviderDelegate {
 }
 ```
 
-### 4.2 Flutter Side MethodChannel
+### 4.2 Flutter 端 MethodChannel
 
 ```dart
 class CallKitBridge {
@@ -509,7 +507,7 @@ class CallKitBridge {
 }
 ```
 
-## 5. Call UI Layer
+## 5. 通话 UI 层
 
 ### 5.1 CallScreen
 
@@ -601,7 +599,7 @@ class _CallScreenState extends State<CallScreen>
 }
 ```
 
-### 5.2 Call Duration Formatting
+### 5.2 通话时长格式化
 
 ```dart
 class CallDurationFormatter {
@@ -620,7 +618,7 @@ class CallDurationFormatter {
 }
 ```
 
-## 6. Complete Call Flow
+## 6. 完整通话流程
 
 ```
 Alice calls Bob:
@@ -650,7 +648,7 @@ Alice (Flutter)                    Server (WebSocket)                Bob (Flutte
           CallScreen pop                       CallScreen pop
 ```
 
-## 7. Fault Tolerance and Recovery
+## 7. 容错与恢复
 
 ```dart
 class CallRecoveryManager {
@@ -683,19 +681,19 @@ class CallRecoveryManager {
 }
 ```
 
-## 8. Summary
+## 8. 总结
 
-| Component | Responsibility | Key Pattern |
+| 组件 | 职责 | 关键模式 |
 |-----------|---------------|-------------|
-| **GlobalHandler** | Unified event entry and dispatch | Strategy pattern + Event priority |
-| **WebRTCService** | P2P media connection management | State machine + ICE restart |
-| **CallSignalService** | Signaling via WebSocket | Publish-subscribe pattern |
-| **CallKitBridge** | iOS native call integration | MethodChannel bridge |
-| **CallRecoveryManager** | Disconnect reconnection and recovery | ICE restart + Session recovery |
+| **GlobalHandler** | 统一事件入口与分发 | 策略模式 + 事件优先级 |
+| **WebRTCService** | P2P 媒体连接管理 | 状态机 + ICE restart |
+| **CallSignalService** | WebSocket 信令 | 发布-订阅模式 |
+| **CallKitBridge** | iOS 原生通话集成 | MethodChannel 桥接 |
+| **CallRecoveryManager** | 断线重连与恢复 | ICE restart + 会话恢复 |
 
-**Architecture Highlights**:
-1. **Single Event Entry**: All external events handled through `GlobalHandler.handle()` unified entry
-2. **Priority Scheduling**: Call invitations are `critical` level, can interrupt current operations
-3. **CallKit Integration**: iOS system-level incoming call display, works even if app is killed
-4. **WebRTC + TURN**: P2P preferred, falls back to TURN relay when NAT traversal fails
-5. **State Machine**: Call has 6 well-defined states, avoiding race conditions
+**架构亮点**：
+1. **单一事件入口**：所有外部事件通过 `GlobalHandler.handle()` 统一入口处理
+2. **优先级调度**：通话邀请为 `critical` 级别，可中断当前操作
+3. **CallKit 集成**：iOS 系统级来电显示，即使 App 被杀死也能工作
+4. **WebRTC + TURN**：优先 P2P，NAT 穿透失败时回退到 TURN 中继
+5. **状态机**：通话有 6 个明确定义的状态，避免竞态条件

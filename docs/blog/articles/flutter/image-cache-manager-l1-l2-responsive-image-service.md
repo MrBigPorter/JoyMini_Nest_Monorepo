@@ -1,66 +1,29 @@
 ---
-title: "ImageCacheManager L1/L2 Dual Cache + ResponsiveImageService CDN Resolution Ladder"
-description: "A dual-layer image cache system with L1 memory cache (LinkedHashMap LRU) and L2 disk cache (SQLite), combined with responsive CDN resolution selection based on viewport width, DPR, and network quality."
+title: 'ImageCacheManager：L1/L2 双层缓存 + ResponsiveImageService CDN 分辨率阶梯'
+description: '双层图片缓存系统，包含 L1 内存缓存（LinkedHashMap LRU）和 L2 磁盘缓存（SQLite），结合基于视口宽度、DPR 和网络质量的响应式 CDN 分辨率选择。'
 slug: image-cache-manager-l1-l2-responsive-image-service
-tags: [flutter, cache, image, performance, optimization]
+tags: Flutter, Cache, Image, Performance, Optimization
 ---
 
-# ImageCacheManager L1/L2 Dual Cache + ResponsiveImageService CDN Resolution Ladder
+## 1. 为什么社交电商需要双层缓存？
 
-## Table of Contents
+在社交电商应用中，图片是用户体验的核心。用户每天浏览数百张商品图片、卖家头像、直播缩略图和聊天分享图片。如果每张图片都从网络加载，不仅会消耗大量带宽，还会导致页面加载缓慢、列表滚动卡顿，甚至在高并发下出现图片加载失败。
 
-- [Why Social E-Commerce Needs Dual-Layer Caching?](#why-social-e-commerce-needs-dual-layer-caching)
-- [Architecture Overview: L1 Memory + L2 Disk](#architecture-overview-l1-memory--l2-disk)
-  - [Key Design Principles](#key-design-principles)
-- [L1 Cache: LinkedHashMap-Based LRU Memory Cache](#l1-cache-linkedhashmap-based-lru-memory-cache)
-  - [LRU Cache Implementation](#lru-cache-implementation)
-  - [Why LinkedHashMap for LRU?](#why-linkedhashmap-for-lru)
-- [L2 Cache: Disk Persistence Storage](#l2-cache-disk-persistence-storage)
-  - [SQLite Table Structure](#sqlite-table-structure)
-  - [Disk Cache Manager](#disk-cache-manager)
-- [Cache Penetration Protection: L1 → L2 → Network](#cache-penetration-protection-l1--l2--network)
-  - [ImageCacheManager: Unified API](#imagecachemanager-unified-api)
-  - [Cache Lookup Flow Diagram](#cache-lookup-flow-diagram)
-- [ResponsiveImageService: CDN Resolution Ladder](#responsiveimageservice-cdn-resolution-ladder)
-  - [Image Size Selection Algorithm](#image-size-selection-algorithm)
-  - [Network Quality Detection](#network-quality-detection)
-  - [CDN Resolution Ladder Visualization](#cdn-resolution-ladder-visualization)
-- [Prefetch Strategy: Proactive Loading Before Viewport](#prefetch-strategy-proactive-loading-before-viewport)
-  - [Prefetch Controller](#prefetch-controller)
-  - [ListView Integration](#listview-integration)
-- [Memory Pressure Handling: didHaveMemoryPressure](#memory-pressure-handling-didhavememorypressure)
-  - [Memory Pressure Observer](#memory-pressure-observer)
-  - [Application Integration](#application-integration)
-- [Cache Eviction Strategy: LRU + TTL + Disk Quota](#cache-eviction-strategy-lru--ttl--disk-quota)
-  - [Combined Eviction Decision Matrix](#combined-eviction-decision-matrix)
-- [Tracking Image Loading State with ImageStreamListener](#tracking-image-loading-state-with-imagestreamlistener)
-  - [CachedNetworkImage Component](#cachednetworkimage-component)
-- [Performance Benchmarks and Optimization Results](#performance-benchmarks-and-optimization-results)
-  - [Key Findings](#key-findings)
-- [Summary](#summary)
-  - [Key Takeaways](#key-takeaways)
-  - [When to Use This Pattern](#when-to-use-this-pattern)
-  - [Related Articles](#related-articles)
+**单层缓存的局限性：**
 
-## Why Social E-Commerce Needs Dual-Layer Caching?
+| 缓存类型 | 优势 | 劣势 |
+|---------|------|------|
+| **内存缓存（L1）** | 读取极快（纳秒级） | 容量有限，应用被杀后丢失 |
+| **磁盘缓存（L2）** | 持久化存储，容量大 | 读取较慢（毫秒级），I/O 开销 |
 
-In social e-commerce applications, images are the core of user experience. Users browse hundreds of product images, seller avatars, live stream thumbnails, and chat-shared images daily. Loading every image from the network not only consumes significant bandwidth but also causes slow page loading, scroll jank, and even image loading failures under high concurrency.
+单独使用任何一种都无法满足社交电商的需求：
 
-**Limitations of Single-Layer Caching:**
+- **仅内存缓存**：冷启动后所有图片需要重新加载，浪费带宽且初始加载缓慢
+- **仅磁盘缓存**：频繁磁盘 I/O 导致列表滚动时卡顿
 
-| Cache Type | Advantage | Disadvantage |
-|-----------|-----------|-------------|
-| **Memory Cache (L1)** | Extremely fast read (nanosecond) | Limited capacity, lost when app is killed |
-| **Disk Cache (L2)** | Persistent storage, large capacity | Slower read (millisecond), I/O overhead |
+**双层缓存架构**将两者结合：L1 内存缓存提供极速读取，L2 磁盘缓存提供持久化存储。查找时先检查 L1（命中即返回），未命中则查 L2，L2 也未命中时才发起网络请求，并将结果逐层回填。
 
-Using either alone cannot meet social e-commerce demands:
-
-- **Memory cache only**: After cold start, all images need reloading, wasting bandwidth with slow initial loading
-- **Disk cache only**: Frequent disk I/O causes jank during list scrolling
-
-**Dual-layer cache architecture** combines both: L1 memory cache provides lightning-fast reads, L2 disk cache provides persistent storage. Lookup first checks L1 (return on hit), then L2 on miss, and only on L2 miss makes a network request, backfilling each layer with results.
-
-## Architecture Overview: L1 Memory + L2 Disk
+## 2. 架构概览：L1 内存 + L2 磁盘
 
 ```
 ┌─────────────────────────────────────────────────┐
@@ -82,19 +45,19 @@ Using either alone cannot meet social e-commerce demands:
 └─────────────────────────────────────────────────┘
 ```
 
-### Key Design Principles
+### 核心设计原则
 
-1. **Lookup Speed First**: L1 memory cache uses O(1) lookup complexity via LinkedHashMap
-2. **Persistence Fallback**: L2 disk cache ensures cached images load even after cold start
-3. **Controlled Capacity**: L1 limits entries (100 items), L2 limits total size (200MB)
-4. **Automatic Eviction**: LRU strategy evicts least recently accessed entries
-5. **Freshness**: 24-hour TTL ensures images do not become stale
+1. **查找速度优先**：L1 内存缓存通过 LinkedHashMap 实现 O(1) 查找复杂度
+2. **持久化兜底**：L2 磁盘缓存确保冷启动后仍能加载已缓存的图片
+3. **容量可控**：L1 限制条目数（100 项），L2 限制总大小（200MB）
+4. **自动淘汰**：LRU 策略淘汰最近最少访问的条目
+5. **新鲜度**：24 小时 TTL 确保图片不会过时
 
-## L1 Cache: LinkedHashMap-Based LRU Memory Cache
+## 3. L1 缓存：基于 LinkedHashMap 的 LRU 内存缓存
 
-`LruMemoryCache` is the first layer of the dual cache, using `LinkedHashMap` for efficient LRU (Least Recently Used) eviction.
+`LruMemoryCache` 是双层缓存的第一层，使用 `LinkedHashMap` 实现高效的 LRU（最近最少使用）淘汰。
 
-### LRU Cache Implementation
+### LRU 缓存实现
 
 ```dart
 /// L1 memory cache: LinkedHashMap-based LRU implementation
@@ -142,28 +105,28 @@ class LruMemoryCache {
 }
 ```
 
-Setting `accessOrder: true` on `LinkedHashMap` initialization means each access (get/put) moves the corresponding entry to the end of the linked list. Thus, entries at the head of the list are the least recently used and can be directly evicted when the cache is full.
+在 `LinkedHashMap` 初始化时设置 `accessOrder: true`，意味着每次访问（get/put）都会将对应条目移动到链表末尾。因此，链表头部的条目就是最近最少使用的，缓存满时可以直接淘汰。
 
-### Why LinkedHashMap for LRU?
+### 为什么选择 LinkedHashMap 实现 LRU？
 
-| Data Structure | Lookup Complexity | Eviction Complexity | Memory Overhead |
-|---------------|-------------------|--------------------|-----------------|
-| `LinkedHashMap` + accessOrder | O(1) | O(1) | Low |
-| `HashMap` + timestamp sort | O(1) | O(n log n) | Medium |
-| `List` sequential scan | O(n) | O(n) | Lowest |
-| `SplayTreeMap` | O(log n) | O(log n) | Medium |
+| 数据结构 | 查找复杂度 | 淘汰复杂度 | 内存开销 |
+|---------|-----------|-----------|---------|
+| `LinkedHashMap` + accessOrder | O(1) | O(1) | 低 |
+| `HashMap` + 时间戳排序 | O(1) | O(n log n) | 中 |
+| `List` 顺序扫描 | O(n) | O(n) | 最低 |
+| `SplayTreeMap` | O(log n) | O(log n) | 中 |
 
-`LinkedHashMap` is the optimal choice because:
+`LinkedHashMap` 是最优选择，因为：
 
-1. **Lookup O(1)**: Hash-table-based key-value lookup
-2. **Eviction O(1)**: With `accessOrder`, the head of the linked list is the eviction candidate
-3. **Automatic Maintenance**: Dart's `LinkedHashMap` natively supports iteration order control
+1. **查找 O(1)**：基于哈希表的键值查找
+2. **淘汰 O(1)**：使用 `accessOrder` 后，链表头部即为淘汰候选
+3. **自动维护**：Dart 的 `LinkedHashMap` 原生支持迭代顺序控制
 
-## L2 Cache: Disk Persistence Storage
+## 4. L2 缓存：磁盘持久化存储
 
-`DiskCacheManager` uses SQLite database for disk persistence, ensuring cached images remain available after cold start.
+`DiskCacheManager` 使用 SQLite 数据库进行磁盘持久化，确保冷启动后已缓存的图片仍然可用。
 
-### SQLite Table Structure
+### SQLite 表结构
 
 ```sql
 CREATE TABLE image_cache (
@@ -182,14 +145,14 @@ CREATE INDEX idx_image_cache_expires_at ON image_cache(expires_at);
 CREATE INDEX idx_image_cache_accessed_at ON image_cache(accessed_at);
 ```
 
-**Key Field Descriptions:**
+**关键字段说明：**
 
-- **`url_hash`**: SHA-256 hash of the image URL, avoiding index performance impact from long URLs
-- **`accessed_at`**: Records last access time for LRU eviction strategy
-- **`expires_at`**: Pre-computed expiration time, avoiding repeated calculation of `created_at + TTL`
-- **Dual Indexing**: `url_hash` for fast lookup, `expires_at` and `accessed_at` for batch eviction
+- **`url_hash`**：图片 URL 的 SHA-256 哈希，避免长 URL 对索引性能的影响
+- **`accessed_at`**：记录最后访问时间，用于 LRU 淘汰策略
+- **`expires_at`**：预计算的过期时间，避免每次查询重复计算 `created_at + TTL`
+- **双索引**：`url_hash` 用于快速查找，`expires_at` 和 `accessed_at` 用于批量淘汰
 
-### Disk Cache Manager
+### 磁盘缓存管理器
 
 ```dart
 class DiskCacheManager {
@@ -417,19 +380,19 @@ class DiskCacheEntry {
 }
 ```
 
-**Key Design Decisions for Disk Cache:**
+**磁盘缓存的关键设计决策：**
 
-1. **Pre-computed TTL**: `expires_at` field is computed at insert time, avoiding repeated calculation on query
-2. **Dual Indexing**: `url_hash` index speeds up lookup, `expires_at` and `accessed_at` indexes speed up batch eviction
-3. **Quota Check**: Checks disk quota before each write, batch evicts least recently used entries when necessary
-4. **Startup Cleanup**: Automatically cleans expired entries on app start to avoid disk space waste
-5. **File Validation**: Verifies physical file existence on query to prevent data inconsistency
+1. **预计算 TTL**：`expires_at` 字段在插入时计算，避免每次查询重复计算
+2. **双索引**：`url_hash` 索引加速查找，`expires_at` 和 `accessed_at` 索引加速批量淘汰
+3. **配额检查**：每次写入前检查磁盘配额，必要时批量淘汰最近最少使用的条目
+4. **启动清理**：应用启动时自动清理过期条目，避免磁盘空间浪费
+5. **文件验证**：查询时验证物理文件是否存在，防止数据不一致
 
-## Cache Penetration Protection: L1 → L2 → Network
+## 5. 缓存穿透防护：L1 → L2 → 网络
 
-`ImageCacheManager` provides a unified API encapsulating the L1 → L2 → Network three-level lookup flow.
+`ImageCacheManager` 提供统一的 API，封装了 L1 → L2 → 网络三级查找流程。
 
-### ImageCacheManager: Unified API
+### ImageCacheManager：统一 API
 
 ```dart
 /// Cache source enum
@@ -580,7 +543,7 @@ class ImageCacheManager {
 }
 ```
 
-### Cache Lookup Flow Diagram
+### 缓存查找流程图
 
 ```
                   ┌─────────────┐
@@ -646,11 +609,11 @@ class ImageCacheManager {
         │   └───────────────────────────────────────────┘
 ```
 
-## ResponsiveImageService: CDN Resolution Ladder
+## 6. ResponsiveImageService：CDN 分辨率阶梯
 
-`ResponsiveImageService` selects the most appropriate CDN image resolution based on viewport width, device pixel ratio (DPR), and current network quality. This prevents loading overly small images (causing blurriness on high-resolution screens) or excessively large images (wasting bandwidth on low-end networks).
+`ResponsiveImageService` 根据视口宽度、设备像素比（DPR）和当前网络质量，选择最合适的 CDN 图片分辨率。这可以避免加载过小的图片（在高分辨率屏幕上模糊）或过大的图片（在低端网络上浪费带宽）。
 
-### Image Size Selection Algorithm
+### 图片尺寸选择算法
 
 ```dart
 /// CDN resolution ladder service
@@ -725,17 +688,17 @@ class ResponsiveImageService {
 }
 ```
 
-**Selection Algorithm Examples:**
+**选择算法示例：**
 
-| Device | Viewport Width | DPR | Image Ratio | Network | Calculated Width | After Discount | Selected Resolution |
-|--------|---------------|-----|------------|---------|-----------------|---------------|-------------------|
+| 设备 | 视口宽度 | DPR | 图片占比 | 网络 | 计算宽度 | 折扣后 | 选中分辨率 |
+|------|---------|-----|---------|------|---------|-------|-----------|
 | iPhone 15 | 390 | 3.0 | 100% | WiFi | 1170 | 1170 | **1080** |
 | iPhone 15 | 390 | 3.0 | 100% | 4G | 1170 | 936 | **1080** |
 | iPhone 15 | 390 | 3.0 | 100% | 3G | 1170 | 585 | **600** |
 | iPad Pro | 1024 | 2.0 | 50% | WiFi | 1024 | 1024 | **1080** |
-| Low-end Android | 360 | 1.0 | 100% | 2G | 360 | 108 | **200** |
+| 低端 Android | 360 | 1.0 | 100% | 2G | 360 | 108 | **200** |
 
-### Network Quality Detection
+### 网络质量检测
 
 ```dart
 /// Network quality enum
@@ -788,7 +751,7 @@ class NetworkQualityProvider {
 }
 ```
 
-### CDN Resolution Ladder Visualization
+### CDN 分辨率阶梯可视化
 
 ```
 Required Width: 1170px (iPhone 15, DPR 3.0, WiFi)
@@ -814,11 +777,11 @@ Network Discount Effect (3G, discount 0.5):
                   Selected: 600 (closest and ≥ 585px)
 ```
 
-## Prefetch Strategy: Proactive Loading Before Viewport
+## 7. 预取策略：在进入视口前主动加载
 
-`PrefetchController` implements a proactive loading strategy, loading images into cache before the user scrolls to them. This eliminates the impact of network latency on user experience.
+`PrefetchController` 实现了主动加载策略，在用户滚动到图片位置之前就将图片加载到缓存中。这消除了网络延迟对用户体验的影响。
 
-### Prefetch Controller
+### 预取控制器
 
 ```dart
 /// Prefetch controller: proactively load images before they enter the viewport
@@ -912,7 +875,7 @@ class PrefetchController {
 }
 ```
 
-### ListView Integration
+### ListView 集成
 
 ```dart
 class ProductGridWithPrefetch extends StatefulWidget {
@@ -995,18 +958,18 @@ class _ProductGridWithPrefetchState extends State<ProductGridWithPrefetch> {
 }
 ```
 
-**Prefetch Strategy Advantages:**
+**预取策略优势：**
 
-- **2-Screen Buffer**: When user scrolls to an image position, the image is already in cache
-- **Batch Processing**: Prefetches 5 images at a time to avoid instantaneous network storms
-- **Bidirectional Prefetch**: Prefetches both below and above (smooth scrolling both directions)
-- **Intelligent Throttling**: Only triggers on scroll stop or position change, avoiding frequent requests
+- **2 屏缓冲**：用户滚动到图片位置时，图片已在缓存中
+- **批量处理**：每次预取 5 张图片，避免瞬时网络风暴
+- **双向预取**：同时预取上下方向（双向滚动流畅）
+- **智能节流**：仅在滚动停止或位置变化时触发，避免频繁请求
 
-## Memory Pressure Handling: didHaveMemoryPressure
+## 8. 内存压力处理：didHaveMemoryPressure
 
-When the system is low on memory, proactively release L1 cache and Flutter's built-in image cache to prevent the app from being killed by the system.
+当系统内存不足时，主动释放 L1 缓存和 Flutter 内置图片缓存，防止应用被系统杀死。
 
-### Memory Pressure Observer
+### 内存压力观察者
 
 ```dart
 /// Memory pressure observer: listen for system memory warnings and release cache
@@ -1030,7 +993,7 @@ class MemoryPressureObserver extends WidgetsBindingObserver {
 }
 ```
 
-### Application Integration
+### 应用集成
 
 ```dart
 class MyApp extends StatefulWidget {
@@ -1066,32 +1029,32 @@ class _MyAppState extends State<MyApp> {
 }
 ```
 
-## Cache Eviction Strategy: LRU + TTL + Disk Quota
+## 9. 缓存淘汰策略：LRU + TTL + 磁盘配额
 
-The dual-layer cache system uses three strategies together to manage cache capacity, ensuring the cache does not grow unbounded.
+双层缓存系统联合使用三种策略管理缓存容量，确保缓存不会无限增长。
 
-### Combined Eviction Decision Matrix
+### 联合淘汰决策矩阵
 
-| Condition | L1 Memory Cache | L2 Disk Cache |
-|-----------|----------------|---------------|
-| **Entry count reaches limit** | Evict least recently used entry (LRU) | — |
-| **TTL expired** | Discovered on next access, reload | Batch delete on startup + filter on query |
-| **Disk quota exceeded** | — | Batch evict least recently used entries |
-| **System memory pressure** | Clear entire L1 | Preserve L2 |
-| **Manual clear** | `clearMemory()` | `clear()` |
+| 条件 | L1 内存缓存 | L2 磁盘缓存 |
+|------|------------|------------|
+| **条目数达到上限** | 淘汰最近最少使用的条目（LRU） | — |
+| **TTL 过期** | 下次访问时发现，重新加载 | 启动时批量删除 + 查询时过滤 |
+| **磁盘配额超限** | — | 批量淘汰最近最少使用的条目 |
+| **系统内存压力** | 清空整个 L1 | 保留 L2 |
+| **手动清除** | `clearMemory()` | `clear()` |
 
-**Eviction Strategy Priority (when multiple conditions trigger simultaneously):**
+**淘汰策略优先级（多条件同时触发时）：**
 
-1. **System memory pressure** > Clear L1 (highest priority, prevent app from being killed)
-2. **TTL expired** > Delete expired entries
-3. **Disk quota exceeded** > Evict least recently used entries
-4. **LRU full** > Evict least recently used entry
+1. **系统内存压力** > 清空 L1（最高优先级，防止应用被杀死）
+2. **TTL 过期** > 删除过期条目
+3. **磁盘配额超限** > 淘汰最近最少使用的条目
+4. **LRU 满** > 淘汰最近最少使用的条目
 
-## Tracking Image Loading State with ImageStreamListener
+## 10. 使用 ImageStreamListener 追踪图片加载状态
 
-`CachedNetworkImage` component encapsulates the entire image loading process, using `ValueNotifier` to track loading state in real-time.
+`CachedNetworkImage` 组件封装了整个图片加载过程，使用 `ValueNotifier` 实时追踪加载状态。
 
-### CachedNetworkImage Component
+### CachedNetworkImage 组件
 
 ```dart
 /// Cache-aware network image component
@@ -1222,48 +1185,46 @@ class _CachedNetworkImageState extends State<CachedNetworkImage> {
 enum ImageLoadingState { loading, success, error }
 ```
 
-## Performance Benchmarks and Optimization Results
+## 11. 性能基准测试与优化结果
 
-| Metric | No Cache | L1 Memory Only | L1 + L2 Dual Cache |
-|--------|----------|---------------|-------------------|
-| **Cold start load time (10 images)** | 8.5 sec | 8.5 sec | **1.2 sec** |
-| **Warm start load time (10 images)** | 8.5 sec | **0.1 sec** | **0.1 sec** |
-| **List scroll jank rate** | 15% | 2% | **1%** |
-| **Per-session data consumption** | 45MB | 45MB | **3.5MB** |
-| **Cache hit rate (L1)** | 0% | 60% | 60% |
-| **Cache hit rate (L2)** | 0% | 0% | **25%** |
-| **Total cache hit rate** | 0% | 60% | **85%** |
+| 指标 | 无缓存 | 仅 L1 内存 | L1 + L2 双层缓存 |
+|------|--------|-----------|-----------------|
+| **冷启动加载时间（10 张图片）** | 8.5 秒 | 8.5 秒 | **1.2 秒** |
+| **热启动加载时间（10 张图片）** | 8.5 秒 | **0.1 秒** | **0.1 秒** |
+| **列表滚动卡顿率** | 15% | 2% | **1%** |
+| **每次会话数据消耗** | 45MB | 45MB | **3.5MB** |
+| **缓存命中率（L1）** | 0% | 60% | 60% |
+| **缓存命中率（L2）** | 0% | 0% | **25%** |
+| **总缓存命中率** | 0% | 60% | **85%** |
 
-### Key Findings
+### 关键发现
 
-1. **85% cache hit rate**: Most image loads do not require network requests
-2. **1% scroll jank**: L1 memory cache's nanosecond-level reads ensure smooth scrolling
-3. **92% bandwidth savings**: Reduced from 45MB to 3.5MB
-4. **7x cold start acceleration**: L2 disk cache speeds up cold start by 7x
-5. **Network discount effective**: Auto-lowers resolution on 3G, saving bandwidth while maintaining usable experience
+1. **85% 缓存命中率**：大多数图片加载无需网络请求
+2. **1% 滚动卡顿**：L1 内存缓存的纳秒级读取确保滚动流畅
+3. **92% 带宽节省**：从 45MB 降至 3.5MB
+4. **7 倍冷启动加速**：L2 磁盘缓存使冷启动速度提升 7 倍
+5. **网络折扣有效**：3G 网络自动降低分辨率，在节省带宽的同时保持可用体验
 
-## Summary
+## 12. 总结
 
-### Key Takeaways
+1. **双层缓存架构**：L1 内存（LinkedHashMap LRU）+ L2 磁盘（SQLite），兼顾速度与持久化
+2. **三级查找流程**：L1 → L2 → 网络，逐层穿透，逐层回填
+3. **CDN 分辨率阶梯**：基于视口宽度、DPR 和网络质量选择最优分辨率
+4. **智能预取**：提前 2 屏加载图片，消除网络延迟感知
+5. **内存压力响应**：监听系统内存警告，主动释放缓存
+6. **多策略淘汰**：LRU + TTL + 磁盘配额 + 内存压力，四层防护
+7. **85% 总命中率**：大幅减少网络请求，提升性能和用户体验
 
-1. **Dual-layer cache architecture**: L1 memory (LinkedHashMap LRU) + L2 disk (SQLite) combined for speed and persistence
-2. **Three-level lookup flow**: L1 → L2 → Network, penetrate layer by layer, backfill layer by layer
-3. **CDN resolution ladder**: Selects optimal resolution based on viewport width, DPR, and network quality
-4. **Intelligent prefetch**: Loads images 2 screens ahead, eliminating network latency perception
-5. **Memory pressure response**: Listens for system memory warnings, proactively releases cache
-6. **Multi-strategy eviction**: LRU + TTL + Disk Quota + Memory Pressure, four layers of protection
-7. **85% total hit rate**: Significantly reduces network requests, improving performance and user experience
+### 适用场景
 
-### When to Use This Pattern
+- **图片密集型应用**：社交电商、内容 Feed、图片分享应用
+- **多分辨率适配需求**：需要同时支持手机和平板等多种设备
+- **弱网优化**：需要在 2G/3G 网络下降低分辨率以节省带宽
+- **性能敏感场景**：列表滚动需要保持 60fps 流畅度
+- **流量敏感用户**：需要控制用户数据消耗
 
-- **Image-intensive applications**: Social e-commerce, content feeds, image sharing apps
-- **Multi-resolution adaptation needs**: Requires supporting multiple devices like phones and tablets
-- **Weak network optimization**: Needs lower resolution on 2G/3G to save bandwidth
-- **Performance-sensitive scenarios**: List scrolling needs to maintain 60fps smoothness
-- **Data-sensitive users**: Need to control user data consumption
+### 相关文章
 
-### Related Articles
-
-- [`ApiCacheManager`: Dual Storage + SWR Cache Strategy](docs/blog/articles/flutter/api-cache-manager-dual-storage-swr.md)
-- [`GlobalUploadService`: S3 Direct Upload + Compression Pipeline + MIME Correction](docs/blog/articles/flutter/global-upload-service-s3-compression-mime.md)
-- [`UnifiedInterceptor`: Error Strategy Dispatch + Single-Flight Token Refresh](docs/blog/articles/flutter/unified-interceptor-error-strategy-token-refresh.md)
+- [`ApiCacheManager`：双存储 + SWR 缓存策略](docs/blog/articles/flutter/api-cache-manager-dual-storage-swr.md)
+- [`GlobalUploadService`：S3 直传 + 压缩管道 + MIME 校正](docs/blog/articles/flutter/global-upload-service-s3-compression-mime.md)
+- [`UnifiedInterceptor`：错误策略分发 + 单飞 Token 刷新](docs/blog/articles/flutter/unified-interceptor-error-strategy-token-refresh.md)

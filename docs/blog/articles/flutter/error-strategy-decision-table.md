@@ -1,28 +1,26 @@
 ---
-title: "ErrorStrategy: 5 Strategies + Configurable Decision Table — Application-Level Error Handling Framework"
+title: 'ErrorStrategy：5 种策略 + 可配置决策表——应用级错误处理框架'
 slug: error-strategy-decision-table
 tags: Flutter, ErrorHandling, Architecture, Dart, StateMachine
-description: An application-level error handling framework with 5 configurable strategies (silent, toast, retry, degrade, block) and a decision table engine for Flutter apps.
+description: 一个应用级错误处理框架，提供 5 种可配置策略（静默、提示、重试、降级、阻断）和决策表引擎，适用于 Flutter 应用。
 ---
 
-# ErrorStrategy: 5 Strategies + Configurable Decision Table — Application-Level Error Handling Framework
+## 1. 为什么需要 ErrorStrategy？
 
-## 1. Why ErrorStrategy?
+移动应用面临多种多样的错误类型——一刀切的方式行不通：
 
-Mobile applications face a wide variety of error types — a one-size-fits-all approach does not work:
-
-| Error Type | Example | User Expectation |
+| 错误类型 | 示例 | 用户期望 |
 |----------|------|----------|
-| **Network disconnected** | `SocketException: No route to host` | Show offline notice, gray out button |
-| **Token expired** | `401 Unauthorized` | Silently refresh token, transparent |
-| **Insufficient balance** | `400 Insufficient balance` | Show specific error, guide to top up |
-| **Server error** | `500 Internal Server Error` | Show "retry later", auto-retry |
-| **Form validation** | `400 Validation failed` | Field-level error hints |
-| **Empty data** | `404 Not found` | Show empty state, no error toast |
+| **网络断开** | `SocketException: No route to host` | 显示离线提示，按钮置灰 |
+| **Token 过期** | `401 Unauthorized` | 静默刷新 Token，用户无感知 |
+| **余额不足** | `400 Insufficient balance` | 显示具体错误，引导充值 |
+| **服务器错误** | `500 Internal Server Error` | 显示"稍后重试"，自动重试 |
+| **表单验证** | `400 Validation failed` | 字段级错误提示 |
+| **空数据** | `404 Not found` | 显示空状态，不弹错误提示 |
 
-**ErrorStrategy** abstracts **5 strategies**, matched via a configurable **decision table** that maps errors → strategies.
+**ErrorStrategy** 抽象出 **5 种策略**，通过可配置的**决策表**将错误映射到对应策略。
 
-## 2. Five Strategy Model
+## 2. 五种策略模型
 
 ```dart
 /// Error handling strategy
@@ -44,19 +42,19 @@ enum ErrorStrategy {
 }
 ```
 
-### 2.1 Strategy Details
+### 2.1 策略详情
 
-| Strategy | Trigger Condition | User Visible | Behavior |
+| 策略 | 触发条件 | 用户可见 | 行为 |
 |------|----------|----------|------|
-| **silent** | Token refresh, background sync, log upload | ❌ Transparent | Log, continue execution |
-| **toast** | Form validation failure, operation failure | ✅ Brief notification | Show error message for 3s |
-| **retry** | Network timeout, upload failure | ✅ Action button | Show "Retry" button + error description |
-| **degrade** | Module unavailable, feature degraded | ✅ Limited functionality | Show degrade notice + alternative |
-| **block** | Auth expired, illegal operation, forced update | ✅ Full-screen block | Show error page, prevent use |
+| **silent** | Token 刷新、后台同步、日志上传 | ❌ 无感知 | 记录日志，继续执行 |
+| **toast** | 表单验证失败、操作失败 | ✅ 短暂通知 | 显示错误信息 3 秒 |
+| **retry** | 网络超时、上传失败 | ✅ 操作按钮 | 显示"重试"按钮 + 错误描述 |
+| **degrade** | 模块不可用、功能降级 | ✅ 功能受限 | 显示降级提示 + 替代方案 |
+| **block** | 认证过期、非法操作、强制更新 | ✅ 全屏阻断 | 显示错误页面，阻止使用 |
 
-## 3. Decision Table Engine
+## 3. 决策表引擎
 
-### 3.1 Rule Definition
+### 3.1 规则定义
 
 ```dart
 class ErrorRule {
@@ -85,7 +83,7 @@ class ErrorRule {
 }
 ```
 
-### 3.2 Decision Table
+### 3.2 决策表
 
 ```dart
 class ErrorDecisionTable {
@@ -219,7 +217,7 @@ class ErrorDecision {
 }
 ```
 
-## 4. Strategy Executor
+## 4. 策略执行器
 
 ```dart
 class ErrorStrategyExecutor {
@@ -324,7 +322,7 @@ class ErrorStrategyExecutor {
 }
 ```
 
-## 5. Error Classification System
+## 5. 错误分类体系
 
 ```dart
 /// Base error class
@@ -419,7 +417,7 @@ class FeatureDisabledException extends AppException {
 }
 ```
 
-## 6. HTTP Layer Integration
+## 6. HTTP 层集成
 
 ```dart
 class ErrorInterceptor extends Interceptor {
@@ -480,7 +478,7 @@ class ErrorInterceptor extends Interceptor {
 }
 ```
 
-## 7. Component Layer Integration: ErrorWidgetBuilder
+## 7. 组件层集成：ErrorWidgetBuilder
 
 ```dart
 class ErrorWidgetBuilder extends StatelessWidget {
@@ -572,7 +570,7 @@ class ErrorWidgetBuilder extends StatelessWidget {
 }
 ```
 
-## 8. Decision Table Visualization
+## 8. 决策表可视化
 
 ```
 ┌────────────────────────────────────────────────────────────────┐
@@ -599,7 +597,7 @@ class ErrorWidgetBuilder extends StatelessWidget {
 └──────────────────────┴──────────────┴──────────┴───────────────┘
 ```
 
-## 9. Testing
+## 9. 测试
 
 ```dart
 void main() {
@@ -630,14 +628,14 @@ void main() {
 }
 ```
 
-## 10. Summary
+## 10. 总结
 
-| Strategy | User Impact | Typical Scenario | Example Code Size |
+| 策略 | 用户影响 | 典型场景 | 示例代码量 |
 |------|----------|----------|-----------|
-| **silent** | None | Token refresh, background sync | 3 lines |
-| **toast** | Brief notification | Validation failure, operation error | 10 lines |
-| **retry** | User action required | Network timeout, upload failure | 30 lines |
-| **degrade** | Limited functionality | Module unavailable, region restriction | 50 lines |
-| **block** | Blocks usage | Forced update, account disabled | 40 lines |
+| **silent** | 无感知 | Token 刷新、后台同步 | 3 行 |
+| **toast** | 短暂通知 | 验证失败、操作错误 | 10 行 |
+| **retry** | 用户操作 | 网络超时、上传失败 | 30 行 |
+| **degrade** | 功能受限 | 模块不可用、地区限制 | 50 行 |
+| **block** | 阻断使用 | 强制更新、账号禁用 | 40 行 |
 
-**Core idea**: upgrade error handling from "try-catch everywhere" to a "declarative decision table", making error handling predictable, configurable, and testable.
+**核心思想**：将错误处理从"到处 try-catch"升级为"声明式决策表"，让错误处理变得可预测、可配置、可测试。

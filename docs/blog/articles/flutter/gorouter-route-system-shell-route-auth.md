@@ -1,27 +1,25 @@
 ---
-title: "GoRouter Route System: 30+ Routes, ShellRoute, and RouteAuthConfig"
-description: "A comprehensive guide to building a production-grade GoRouter navigation system with 30+ routes, StatefulShellRoute for persistent bottom navigation, and RouteAuthConfig for per-route authentication guarding."
+title: 'GoRouter 路由系统：30+ 路由、ShellRoute 与 RouteAuthConfig'
+description: '构建生产级 GoRouter 导航系统的完整指南，涵盖 30+ 路由定义、StatefulShellRoute 持久化底部导航，以及 RouteAuthConfig 按需认证守卫。'
 slug: gorouter-route-system-shell-route-auth
-tags: [Flutter, GoRouter, Routing, Navigation, Auth]
+tags: Flutter, GoRouter, Routing, Navigation, Auth
 ---
 
-# GoRouter Route System: 30+ Routes, ShellRoute, and RouteAuthConfig
+## 1. 概述
 
-## 1. Overview
+一个拥有 30+ 页面的生产级 Flutter 应用需要一个**声明式**、**类型安全**的路由系统，支持以下能力：
 
-A production-grade Flutter application with 30+ pages requires a **declarative**, **type-safe** routing system that supports:
+- **Shell 路由** — 持久化 UI（底部导航栏、顶部栏）
+- **认证守卫** — 将未登录用户重定向到登录页
+- **深度链接** — 推送通知和 OAuth 回调
+- **嵌套导航** — 每个标签页内独立的导航栈
+- **路由转场动画** — 滑动、淡入、无动画
 
-- **Shell routes** — persistent UI (bottom navigation bar, top bar)
-- **Auth guards** — redirect unauthenticated users to the login page
-- **Deep links** — push notifications and OAuth callbacks
-- **Nested navigation** — independent navigation within each tab
-- **Route transition animations** — slide, fade, no animation
-
-This article explores a GoRouter-based routing architecture with 30+ route definitions, `ShellRoute` for bottom navigation, and `RouteAuthConfig` for per-route authentication requirements.
+本文探讨基于 GoRouter 的路由架构，包含 30+ 路由定义、`ShellRoute` 底部导航实现，以及 `RouteAuthConfig` 按需认证配置方案。
 
 ---
 
-## 2. Architecture Overview
+## 2. 架构概览
 
 ```
 MaterialApp.router
@@ -51,9 +49,9 @@ MaterialApp.router
 
 ---
 
-## 3. GoRouter Setup
+## 3. GoRouter 配置
 
-### 3.1 Route Configuration
+### 3.1 路由配置
 
 ```dart
 class AppRouter {
@@ -181,7 +179,7 @@ class AppRouter {
 }
 ```
 
-### 3.2 RouteAuthConfig — Per-Route Authentication Requirements
+### 3.2 RouteAuthConfig — 按需认证配置
 
 ```dart
 class RouteAuthConfig {
@@ -214,11 +212,11 @@ class RouteAuthConfig {
 
 ---
 
-## 4. Auth Guard — Global Redirect
+## 4. 认证守卫 — 全局重定向
 
-### 4.1 Implementation
+### 4.1 实现
 
-GoRouter's `redirect` callback is the ideal place for auth checks — it runs before every navigation:
+GoRouter 的 `redirect` 回调是执行认证检查的理想位置——它在每次导航前运行：
 
 ```dart
 static Future<String?> _authGuard(BuildContext context, GoRouterState state) async {
@@ -270,9 +268,9 @@ static bool _matchesRoute(String location, String pattern) {
 }
 ```
 
-### 4.2 Post-Login Redirect
+### 4.2 登录后重定向
 
-The `redirect` query parameter preserves the user's original destination:
+`redirect` 查询参数保存用户原始目标地址：
 
 ```dart
 // Login page reads the redirect parameter
@@ -296,7 +294,7 @@ class LoginScreen extends StatelessWidget {
 
 ---
 
-## 5. ShellRoute — Persistent Bottom Navigation
+## 5. ShellRoute — 持久化底部导航
 
 ### 5.1 BottomNavShell
 
@@ -332,7 +330,7 @@ class BottomNavShell extends StatelessWidget {
 
 ### 5.2 AuthShell
 
-For public routes (login, register), a simple shell without the bottom navigation bar:
+对于公开路由（登录、注册），使用不带底部导航栏的简单 Shell：
 
 ```dart
 class AuthShell extends StatelessWidget {
@@ -352,11 +350,11 @@ class AuthShell extends StatelessWidget {
 
 ---
 
-## 6. Deep Link Handling
+## 6. 深度链接处理
 
-### 6.1 Deep Link Configuration
+### 6.1 深度链接配置
 
-GoRouter supports deep links natively. Configure them in the app manifest:
+GoRouter 原生支持深度链接。在应用清单中配置：
 
 ```xml
 <!-- Android: AndroidManifest.xml -->
@@ -381,7 +379,7 @@ GoRouter supports deep links natively. Configure them in the app manifest:
 </array>
 ```
 
-### 6.2 Deep Link Route Definitions
+### 6.2 深度链接路由定义
 
 ```dart
 // OAuth callback
@@ -403,7 +401,7 @@ GoRoute(
 ),
 ```
 
-### 6.3 Deep Link Handling at App Startup
+### 6.3 应用启动时的深度链接处理
 
 ```dart
 class AppStartup {
@@ -422,9 +420,9 @@ class AppStartup {
 
 ---
 
-## 7. Transition Animations
+## 7. 转场动画
 
-Use `customTransitionBuilder` to customize transition animations per route:
+使用 `customTransitionBuilder` 为每个路由自定义转场动画：
 
 ```dart
 GoRoute(
@@ -449,9 +447,9 @@ GoRoute(
 
 ---
 
-## 8. Navigating from Anywhere
+## 8. 从任意位置导航
 
-### 8.1 Using `context.go` vs `context.push`
+### 8.1 `context.go` vs `context.push`
 
 ```dart
 // Replace current route (no back navigation)
@@ -468,7 +466,7 @@ final shell = StatefulNavigationShell.of(context);
 shell.goBranch(2);  // Switch to orders tab
 ```
 
-### 8.2 Navigating from Non-Widget Code
+### 8.2 从非 Widget 代码导航
 
 ```dart
 // From a service / notifier
@@ -482,7 +480,7 @@ class AuthNotifier extends ChangeNotifier {
 
 ---
 
-## 9. Testing Routes
+## 9. 路由测试
 
 ```dart
 void main() {
@@ -529,25 +527,25 @@ void main() {
 
 ---
 
-## 10. Production Checklist
+## 10. 生产检查清单
 
-- [ ] **StatefulShellRoute** — Use the `indexedStack` variant to preserve tab state (scroll position, form input) when switching tabs
-- [ ] **Error handling** — Add an `errorBuilder` to GoRouter for 404 pages:
+- [ ] **StatefulShellRoute** — 使用 `indexedStack` 变体以保持标签页状态（滚动位置、表单输入）在切换时不被销毁
+- [ ] **错误处理** — 为 GoRouter 添加 `errorBuilder` 处理 404 页面：
   ```dart
   errorBuilder: (context, state) => NotFoundScreen(error: state.error),
   ```
-- [ ] **URL strategy** — Use `PathUrlStrategy()` for web deployment to support clean URLs without `#`
-- [ ] **Lazy loading** — Consider using `deferred as` imports for rarely used pages (KYC, admin) to reduce initial bundle size
-- [ ] **Route transitions** — Keep simple transitions (fade/scale) for most routes; use slide for modal-style pages
-- [ ] **Analytics** — Subscribe to GoRouter's `routerDelegate` changes for page view tracking
+- [ ] **URL 策略** — Web 部署使用 `PathUrlStrategy()` 以支持不含 `#` 的干净 URL
+- [ ] **懒加载** — 考虑对不常用页面（KYC、管理后台）使用 `deferred as` 导入，减少初始包体积
+- [ ] **路由转场** — 大多数路由使用简单转场（淡入/缩放）；模态风格页面使用滑动
+- [ ] **分析** — 订阅 GoRouter 的 `routerDelegate` 变更以进行页面浏览追踪
 
 ---
 
-## 11. Summary
+## 11. 总结
 
-- **GoRouter** with 30+ routes provides declarative, type-safe navigation
-- **StatefulShellRoute** supports persistent bottom navigation with independent tab state
-- **RouteAuthConfig** maps per-route auth requirements (auth, KYC, role) to centralized guard logic
-- The **auth guard** implemented via GoRouter's `redirect` callback handles unauthenticated users, redirecting to login while preserving the destination
-- **Deep links** are natively supported for OAuth callbacks, push notifications, and payment redirects
-- **Transition animations** can be customized per route using `CustomTransitionPage`
+1. **GoRouter** 配合 30+ 路由提供了声明式、类型安全的导航方案
+2. **StatefulShellRoute** 支持持久化底部导航，每个标签页拥有独立的导航栈状态
+3. **RouteAuthConfig** 将按需认证需求（登录、KYC、角色）映射到集中式守卫逻辑
+4. **认证守卫** 通过 GoRouter 的 `redirect` 回调实现，处理未登录用户重定向并保留目标地址
+5. **深度链接** 原生支持 OAuth 回调、推送通知和支付重定向
+6. **转场动画** 可通过 `CustomTransitionPage` 为每个路由单独定制

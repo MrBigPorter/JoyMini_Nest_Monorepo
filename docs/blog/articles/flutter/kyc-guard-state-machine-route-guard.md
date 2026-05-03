@@ -1,23 +1,23 @@
 ---
-title: "KycGuard: State Machine Route Guard + KycModal"
+title: 'KycGuard：状态机路由守卫 + KycModal'
 slug: kyc-guard-state-machine-route-guard
 tags: Flutter, KYC, RouteGuard, StateMachine, Verification
-description: A route-level guard that enforces KYC verification state before allowing protected operations, bridging the KYC state machine with UI layers via three distinct user journeys.
+description: 一种路由级守卫，在允许受保护操作之前强制检查 KYC 认证状态，通过三种不同的用户旅程将 KYC 状态机与 UI 层桥接。
 ---
 
-# KycGuard: State Machine Route Guard + KycModal
+# KycGuard：状态机路由守卫 + KycModal
 
-## Overview
+## 1. 背景
 
-[`KycGuard`](JoyMini_Flutter_App/lib/core/guards/kyc_guard.dart) is a route-level guard that enforces KYC verification state before allowing operations that require KYC authentication. It bridges the KYC state machine with the UI layer, providing three distinct user journeys based on the current KYC status.
+[`KycGuard`](JoyMini_Flutter_App/lib/core/guards/kyc_guard.dart) 是一种路由级守卫，在允许需要 KYC 认证的操作之前强制检查 KYC 验证状态。它将 KYC 状态机与 UI 层桥接，根据当前 KYC 状态提供三种不同的用户旅程。
 
-The guard works with [`KycModal`](JoyMini_Flutter_App/lib/components/kyc_modal.dart) to present the appropriate UI for each state.
+守卫与 [`KycModal`](JoyMini_Flutter_App/lib/components/kyc_modal.dart) 配合，为每种状态呈现适当的 UI。
 
 ---
 
-## 1. KYC State Machine
+## 2. KYC 状态机
 
-KYC verification follows a 4-state lifecycle:
+KYC 验证遵循 4 状态生命周期：
 
 ```
                     ┌──────────┐
@@ -41,7 +41,7 @@ KYC verification follows a 4-state lifecycle:
                                └──────────┘
 ```
 
-These states map to `KycStatusEnum` read from `userProvider`:
+这些状态映射到从 `userProvider` 读取的 `KycStatusEnum`：
 
 ```dart
 // Read from Riverpod provider
@@ -52,9 +52,9 @@ final kycStatus = ref.watch(
 
 ---
 
-## 2. Guard: `KycGuard.ensure()`
+## 3. 守卫：`KycGuard.ensure()`
 
-The guard accepts a callback that fires only when KYC is approved:
+守卫接受一个回调，仅在 KYC 通过时触发：
 
 ```dart
 class KycGuard {
@@ -87,22 +87,22 @@ class KycGuard {
 }
 ```
 
-### Three User Journeys
+### 3.1 三种用户旅程
 
-#### Journey 1: Approved → Direct Execution
+#### 旅程 1：已通过 → 直接执行
 
-When KYC is already approved, the guard passes through directly:
+当 KYC 已通过时，守卫直接放行：
 
 ```dart
 case KycStatusEnum.approved:
   onApproved();  // Execute protected operation directly
 ```
 
-No UI interruption — the user proceeds seamlessly.
+无 UI 中断——用户无缝继续操作。
 
-#### Journey 2: Under Review → Pending Panel
+#### 旅程 2：审核中 → 待审核面板
 
-When KYC has been submitted but is awaiting review, the guard shows a non-blocking panel:
+当 KYC 已提交但正在等待审核时，守卫显示一个非阻塞面板：
 
 ```dart
 static void _showPendingSheet(BuildContext context) {
@@ -128,11 +128,11 @@ static void _showPendingSheet(BuildContext context) {
 }
 ```
 
-This acknowledges the user's intent without creating a frustrating dead-end — they know their submission is being processed.
+这确认了用户的意图，而不会造成令人沮丧的死胡同——他们知道自己的提交正在处理中。
 
-#### Journey 3: Not Started / Rejected → Verification Modal
+#### 旅程 3：未开始/已拒绝 → 验证弹窗
 
-When KYC is incomplete or rejected, the guard presents the full verification modal:
+当 KYC 未完成或被拒绝时，守卫呈现完整的验证弹窗：
 
 ```dart
 static void _showVerifyModal(
@@ -163,26 +163,26 @@ static void _showVerifyModal(
 
 ---
 
-## 3. KycModal Component
+## 4. KycModal 组件
 
-[`KycModal`](JoyMini_Flutter_App/lib/components/kyc_modal.dart) is a reusable UI component embedded in the guard's verification modal. It displays:
+[`KycModal`](JoyMini_Flutter_App/lib/components/kyc_modal.dart) 是一个可复用的 UI 组件，嵌入在守卫的验证弹窗中。它展示：
 
-- **Status icon** — colored by KYC state (green check, orange clock, red error)
-- **Description text** — explaining why verification is needed
-- **Action button** — navigating to the full KYC verification flow `/me/kyc/verify`
+- **状态图标**——按 KYC 状态着色（绿色勾选、橙色时钟、红色错误）
+- **描述文本**——解释为何需要验证
+- **操作按钮**——导航到完整的 KYC 验证流程 `/me/kyc/verify`
 
 ---
 
-## 4. Integration Points
+## 5. 集成点
 
-The guard is used throughout the app wherever KYC-sensitive operations occur:
+守卫在应用中所有涉及 KYC 敏感操作的地方使用：
 
-| Operation | Integration Point | Guard Invocation |
-|-----------|-----------------|------------|
-| Withdraw | Wallet → Withdraw button | `KycGuard.ensure(context, onApproved: showWithdrawForm)` |
-| High-value purchase | Product detail → Buy button | `KycGuard.ensure(context, onApproved: placeOrder)` |
-| Payment method change | Settings → Payment methods | `KycGuard.ensure(context, onApproved: showChannelPicker)` |
-| Lucky draw prize claim | Prize result page | `KycGuard.ensure(context, onApproved: claimPrize)` |
+| 操作 | 集成点 | 守卫调用 |
+|------|--------|----------|
+| 提现 | 钱包 → 提现按钮 | `KycGuard.ensure(context, onApproved: showWithdrawForm)` |
+| 高额购买 | 商品详情 → 购买按钮 | `KycGuard.ensure(context, onApproved: placeOrder)` |
+| 支付方式变更 | 设置 → 支付方式 | `KycGuard.ensure(context, onApproved: showChannelPicker)` |
+| 抽奖奖品领取 | 奖品结果页 | `KycGuard.ensure(context, onApproved: claimPrize)` |
 
 ```dart
 // Example: Withdraw button handler
@@ -197,9 +197,9 @@ onPressed: () => KycGuard.ensure(
 
 ---
 
-## 5. Error Strategy Integration
+## 6. 错误策略集成
 
-The KYC guard integrates with the [`UnifiedInterceptor`](unified-interceptor-error-strategy-token-refresh.md) error strategy system. When the backend returns error code `93001` (KYC required), the interceptor's `redirect` strategy triggers the guard:
+KYC 守卫与 [`UnifiedInterceptor`](unified-interceptor-error-strategy-token-refresh.md) 错误策略系统集成。当后端返回错误码 `93001`（需要 KYC）时，拦截器的 `redirect` 策略触发守卫：
 
 ```dart
 // In error_config.dart
@@ -215,26 +215,26 @@ case 93001:
   );
 ```
 
-This creates a closed loop: backend rejects → interceptor detects error code → guard presents KYC flow → user verifies → operation retried.
+这形成了一个闭环：后端拒绝 → 拦截器检测错误码 → 守卫呈现 KYC 流程 → 用户验证 → 操作重试。
 
 ---
 
-## 6. Design Decisions
+## 7. 设计决策
 
-| Decision | Rationale |
-|----------|-----------|
-| **Static guard method** | Simpler than instantiating a guard class — just call `KycGuard.ensure()` |
-| **Callback-based** | `onApproved` callback fires only when KYC is ready, decoupling guard from operation |
-| **RadixSheet for pending** | Panel is less intrusive than a full-screen modal for waiting states |
-| **RadixModal for unverified** | Modal creates appropriate urgency to complete verification |
-| **Rejected = NotStarted** | Both states trigger the verification modal — user re-enters flow without over-distinction |
+| 决策 | 理由 |
+|------|------|
+| **静态守卫方法** | 比实例化守卫类更简单——只需调用 `KycGuard.ensure()` |
+| **基于回调** | `onApproved` 回调仅在 KYC 就绪时触发，解耦守卫与操作 |
+| **待审核用 RadixSheet** | 面板比全屏弹窗对等待状态的侵入性更小 |
+| **未验证用 RadixModal** | 弹窗营造适当的紧迫感以完成验证 |
+| **已拒绝 = 未开始** | 两种状态都触发验证弹窗——用户重新进入流程，无需过度区分 |
 
 ---
 
-## Key Takeaways
+## 8. 总结
 
-1. **Three distinct user journeys** based on KYC status — Approved (direct pass-through), Reviewing (pending panel), NotStarted/Rejected (verification modal).
-2. **Callback-based guard** — `onApproved` fires only when KYC is ready, keeping the guard generic and reusable.
-3. **KycModal component** provides reusable verification UI across all integration points.
-4. **Error strategy integration** — backend `93001` error code triggers the guard via `UnifiedInterceptor`'s redirect strategy, creating a closed feedback loop.
-5. **Leverages existing RadixSheet/RadixModal system** — consistent with the app's modal architecture without new UI primitives.
+1. **三种不同的用户旅程**：基于 KYC 状态——已通过（直接放行）、审核中（待审核面板）、未开始/已拒绝（验证弹窗）。
+2. **基于回调的守卫**：`onApproved` 仅在 KYC 就绪时触发，保持守卫的通用性和可复用性。
+3. **KycModal 组件**：在所有集成点提供可复用的验证 UI。
+4. **错误策略集成**：后端 `93001` 错误码通过 `UnifiedInterceptor` 的 redirect 策略触发守卫，形成闭环反馈。
+5. **利用现有 RadixSheet/RadixModal 系统**：与应用弹窗架构一致，无需新的 UI 原语。

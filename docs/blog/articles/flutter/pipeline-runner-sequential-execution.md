@@ -1,30 +1,32 @@
 ---
-title: "Pipeline Runner: Sequential Execution Pattern — Reliable Async Pipeline Architecture"
-description: "Analysis of the Pipeline Runner pattern for executing multi-step async operations with sequential ordering, per-step retry strategies, timeouts, error boundaries, and built-in observability."
+title: 'Pipeline Runner：顺序执行模式——可靠的异步管道架构'
 slug: pipeline-runner-sequential-execution
-tags: [Flutter, Architecture, Pipeline, Async, ErrorHandling]
+tags: Flutter, Architecture, Pipeline, Async, ErrorHandling
+description: Pipeline Runner 模式的分析，用于执行多步骤异步操作，支持顺序编排、每步重试策略、超时、错误边界和内置可观测性。
 ---
 
-## 1. Problem Context
+# Pipeline Runner：顺序执行模式——可靠的异步管道架构
 
-In mobile applications, many operations require **executing multiple async steps in sequence**, with clear error handling strategies when any step fails:
+## 1. 背景
 
-| Scenario | Step Chain | Failure Handling |
+在移动应用中，许多操作需要**按顺序执行多个异步步骤**，并在任何步骤失败时具有清晰的错误处理策略：
+
+| 场景 | 步骤链 | 失败处理 |
 |------|--------|----------|
-| **User Registration** | Verify phone → Create account → Init wallet → Send welcome message | Any step fails → roll back created resources |
-| **Order Payment** | Check inventory → Lock price → Deduct balance → Create order → Send notification | Insufficient inventory → abort; deduction fails → retry |
-| **Image Upload** | Compress → Generate blurhash → Upload to S3 → Update database record | Compression fails → skip blurhash; upload fails → retry 3 times |
+| **用户注册** | 验证手机 → 创建账户 → 初始化钱包 → 发送欢迎消息 | 任何步骤失败 → 回滚已创建资源 |
+| **订单支付** | 检查库存 → 锁定价格 → 扣除余额 → 创建订单 → 发送通知 | 库存不足 → 中止；扣款失败 → 重试 |
+| **图片上传** | 压缩 → 生成 blurhash → 上传到 S3 → 更新数据库记录 | 压缩失败 → 跳过 blurhash；上传失败 → 重试 3 次 |
 
-**Pipeline Runner** abstracts the sequential execution pattern, solving:
+**Pipeline Runner** 抽象了顺序执行模式，解决了以下问题：
 
-1. **Sequential Orchestration**: Steps execute in declared order, with previous step output serving as next step input
-2. **Error Boundaries**: Each step can define independent retry strategy and timeout
-3. **Graceful Abort**: When a critical step fails, skip subsequent dependent steps
-4. **Observability**: Per-step duration, success/failure counts automatically collected
+1. **顺序编排**：步骤按声明顺序执行，上一步输出作为下一步输入
+2. **错误边界**：每个步骤可以定义独立的重试策略和超时
+3. **优雅中止**：当关键步骤失败时，跳过后续依赖步骤
+4. **可观测性**：自动收集每步耗时、成功/失败计数
 
-## 2. Core Architecture
+## 2. 核心架构
 
-### 2.1 PipelineStep Abstraction
+### 2.1 PipelineStep 抽象
 
 ```dart
 /// Base class for pipeline steps
@@ -49,7 +51,7 @@ abstract class PipelineStep<TInput, TOutput> {
 }
 ```
 
-### 2.2 PipelineContext — Shared Data Between Steps
+### 2.2 PipelineContext——步骤间共享数据
 
 ```dart
 class PipelineContext {
@@ -79,7 +81,7 @@ class PipelineContext {
 }
 ```
 
-### 2.3 PipelineRunner — Execution Engine
+### 2.3 PipelineRunner——执行引擎
 
 ```dart
 class PipelineRunner {
@@ -166,9 +168,9 @@ class PipelineRunner {
 }
 ```
 
-## 3. Retry Strategy
+## 3. 重试策略
 
-### 3.1 Execution with Retry
+### 3.1 带重试的执行
 
 ```dart
 Future<dynamic> _handleStepError(
@@ -201,7 +203,7 @@ Future<dynamic> _handleStepError(
 }
 ```
 
-### 3.2 Configurable Backoff Strategy
+### 3.2 可配置的回退策略
 
 ```dart
 enum BackoffStrategy {
@@ -234,9 +236,9 @@ class RetryConfig {
 }
 ```
 
-## 4. Practical Examples
+## 4. 实践示例
 
-### 4.1 Registration Pipeline
+### 4.1 注册管道
 
 ```dart
 class RegistrationPipeline {
@@ -306,7 +308,7 @@ class _InitWalletStep extends PipelineStep<User, Wallet> {
 }
 ```
 
-### 4.2 Image Upload Pipeline
+### 4.2 图片上传管道
 
 ```dart
 class ImageUploadPipeline {
@@ -352,9 +354,9 @@ class CompressImageStep extends PipelineStep<File, CompressedImage> {
 }
 ```
 
-## 5. Observability Integration
+## 5. 可观测性集成
 
-### 5.1 Event Type Hierarchy
+### 5.1 事件类型层次
 
 ```dart
 sealed class PipelineEvent {
@@ -393,7 +395,7 @@ class PipelineCompletedEvent extends PipelineEvent {
 }
 ```
 
-### 5.2 Monitoring Integration
+### 5.2 监控集成
 
 ```dart
 class PipelineMonitor {
@@ -413,19 +415,19 @@ class PipelineMonitor {
 }
 ```
 
-## 6. Comparison with Other Patterns
+## 6. 与其他模式的对比
 
-| Pattern | Orchestration | Error Handling | Use Case |
+| 模式 | 编排方式 | 错误处理 | 适用场景 |
 |------|----------|----------|----------|
-| **Pipeline Runner** | Explicit step list | Per-step independent strategy | Multi-step business processes |
-| **Completer + Future** | Chained `.then()` | Global catch | Simple 2-3 steps |
-| **Stream** | Event-driven | StreamController | Unknown step count |
-| **Bloc** | State machine | State transitions | UI state management |
+| **Pipeline Runner** | 显式步骤列表 | 每步独立策略 | 多步骤业务流程 |
+| **Completer + Future** | 链式 `.then()` | 全局捕获 | 简单的 2-3 步 |
+| **Stream** | 事件驱动 | StreamController | 未知步骤数 |
+| **Bloc** | 状态机 | 状态转换 | UI 状态管理 |
 
-## 7. Best Practices
+## 7. 最佳实践
 
-1. **Right-Sized Step Granularity**: Each step should do one thing — not too fine (avoiding excessive context switching) nor too coarse (avoiding difficult error localization)
-2. **Critical Steps First**: Place `isCritical: true` steps early to fail fast and minimize resource waste
-3. **Always Set Timeouts**: Network/IO steps must set `timeoutMs`
-4. **Non-Critical Step Tolerance**: Set `isCritical: false` for logging, analytics, cache warming, etc.
-5. **Minimal Context**: Pass only necessary data to avoid giant context objects
+1. **适中的步骤粒度**：每个步骤只做一件事——不要太细（避免过多的上下文切换）也不要太粗（避免难以定位错误）
+2. **关键步骤优先**：将 `isCritical: true` 的步骤放在前面，快速失败，最小化资源浪费
+3. **始终设置超时**：网络/I/O 步骤必须设置 `timeoutMs`
+4. **非关键步骤容错**：对日志记录、分析、缓存预热等设置 `isCritical: false`
+5. **最小化上下文**：只传递必要数据，避免巨大的上下文对象

@@ -26,6 +26,8 @@ export interface AiProviderInstance {
   getUsageStats(): AiProviderUsageStats;
   rotateToNextKey(): boolean;
   resetDailyCounters(): void;
+  /** Unblock keys whose cooldown timer has expired. Called every second by AiService. */
+  unblockExpiredKeys(now: number): void;
 }
 
 export interface AiProviderUsageStats {
@@ -42,5 +44,7 @@ export interface AiProviderUsageStats {
     blocked: boolean;
     blockedReason: string | null;
     isActive: boolean;
+    currentRpm?: number;
+    rpmLimit?: number;
   }[];
 }

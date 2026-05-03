@@ -155,7 +155,9 @@ export class GeminiProvider implements AiProviderInstance {
         this.logger.warn(
           `⚠️ Gemini key ...${currentKey.keySuffix} hit 429, blocking for ${this.KEY_429_COOLDOWN / 1000}s`,
         );
-        this.rotateToNextKey();
+        if (this.rotateToNextKey()) {
+          return this.generateText(prompt, options); // retry with next key
+        }
       }
 
       this.logger.error(
@@ -282,6 +284,16 @@ export class GeminiProvider implements AiProviderInstance {
     this.logger.log(
       `📅 Gemini daily counters reset for ${this.keyInstances.length} keys`,
     );
+  }
+
+  unblockExpiredKeys(now: number): void {
+    for (const key of this.keyInstances) {
+      if (key.blocked && key.blockedUntil > 0 && now >= key.blockedUntil) {
+        key.blocked = false;
+        key.blockedReason = null;
+        key.blockedUntil = 0;
+      }
+    }
   }
 
   getUsageStats(): AiProviderUsageStats {

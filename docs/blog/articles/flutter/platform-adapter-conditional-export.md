@@ -1,30 +1,30 @@
 ---
-title: "Platform Adapter: Conditional Export — Cross-Platform Conditional Compilation Pattern"
-description: "Exploration of the Platform Adapter pattern using Dart's conditional exports to encapsulate platform-specific implementations behind a unified interface, supporting iOS, Android, and Web with proper dead code elimination."
+title: 'PlatformAdapter：条件导出——跨平台条件编译模式'
+description: 深入探讨 Flutter 中利用 Dart 条件导出机制实现的 PlatformAdapter 模式，将平台特定实现封装在统一接口之后，支持 iOS、Android 和 Web，并实现死代码消除。
 slug: platform-adapter-conditional-export
-tags: [Flutter, Architecture, CrossPlatform, ConditionalExport, Adapter]
+tags: Flutter, Architecture, CrossPlatform, ConditionalExport, Adapter
 ---
 
-## 1. Problem Context
+## 1. 背景
 
-In Flutter cross-platform applications, approximately 15-20% of code requires **platform-specific implementations**:
+在 Flutter 跨平台应用中，大约 15-20% 的代码需要**平台特定实现**：
 
-| Feature | iOS | Android | Web |
+| 功能 | iOS | Android | Web |
 |------|-----|---------|-----|
-| **Status Bar** | SystemChrome | SystemChrome | Not supported |
-| **Haptic Feedback** | `HapticFeedback.mediumImpact` | `HapticFeedback.mediumImpact` | Silent |
-| **Local Notifications** | `UNUserNotificationCenter` | `FCM + NotificationCompat` | Not supported |
-| **In-App Payments** | StoreKit | Google Play Billing | Not supported |
-| **File Picker** | `UIImagePickerController` | `ActivityResultContracts` | `<input type="file">` |
-| **Clipboard** | `UIPasteboard` | `ClipboardManager` | `navigator.clipboard` |
+| **状态栏** | SystemChrome | SystemChrome | 不支持 |
+| **触觉反馈** | `HapticFeedback.mediumImpact` | `HapticFeedback.mediumImpact` | 静默 |
+| **本地通知** | `UNUserNotificationCenter` | `FCM + NotificationCompat` | 不支持 |
+| **应用内支付** | StoreKit | Google Play Billing | 不支持 |
+| **文件选择器** | `UIImagePickerController` | `ActivityResultContracts` | `<input type="file">` |
+| **剪贴板** | `UIPasteboard` | `ClipboardManager` | `navigator.clipboard` |
 
-**Platform Adapter** pattern uses **Conditional Export** to encapsulate platform differences behind an adapter interface.
+**PlatformAdapter** 模式利用**条件导出（Conditional Export）**，将平台差异封装在适配器接口之后。
 
-## 2. Conditional Export Principles
+## 2. 条件导出原理
 
-### 2.1 Dart Conditional Export
+### 2.1 Dart 条件导出
 
-Dart achieves platform specialization through `export` + conditional directives:
+Dart 通过 `export` + 条件指令实现平台特化：
 
 ```dart
 // core/adapter/platform_adapter.dart
@@ -33,13 +33,13 @@ export 'platform_adapter_stub.dart'
     if (dart.library.html) 'platform_adapter_web.dart';
 ```
 
-**Key Rules**:
-- `stub` version serves as default (compile-time fallback)
-- `dart.library.io` matches iOS/Android/macOS
-- `dart.library.html` matches Web
-- The compiler selects the matching implementation at compile time
+**关键规则**：
+- `stub` 版本作为默认值（编译期回退）
+- `dart.library.io` 匹配 iOS/Android/macOS
+- `dart.library.html` 匹配 Web
+- 编译器在编译期选择匹配的实现
 
-### 2.2 Abstract Interface Definition
+### 2.2 抽象接口定义
 
 ```dart
 // platform_adapter_stub.dart (default implementation)
@@ -67,9 +67,9 @@ abstract class PlatformAdapter {
 }
 ```
 
-## 3. Platform Implementations
+## 3. 平台实现
 
-### 3.1 iOS/Android Native Implementation
+### 3.1 iOS/Android 原生实现
 
 ```dart
 // platform_adapter_io.dart
@@ -105,7 +105,7 @@ class PlatformAdapter {
 }
 ```
 
-### 3.2 Web Implementation
+### 3.2 Web 实现
 
 ```dart
 // platform_adapter_web.dart
@@ -146,9 +146,9 @@ class PlatformAdapter {
 }
 ```
 
-## 4. Adapter Factory
+## 4. 适配器工厂
 
-### 4.1 Singleton Access
+### 4.1 单例访问
 
 ```dart
 // platform_adapter.dart
@@ -181,7 +181,7 @@ class PlatformAdapterFactory {
 }
 ```
 
-### 4.2 Context Extension
+### 4.2 Context 扩展
 
 ```dart
 extension PlatformContextExtension on BuildContext {
@@ -194,9 +194,9 @@ extension PlatformContextExtension on BuildContext {
 }
 ```
 
-## 5. Adapter Pattern Applications in Flutter
+## 5. Flutter 中的适配器模式应用
 
-### 5.1 StatusBar Adapter
+### 5.1 状态栏适配器
 
 ```dart
 class StatusBarAdapter {
@@ -221,7 +221,7 @@ class StatusBarAdapter {
 }
 ```
 
-### 5.2 Haptic Feedback Adapter
+### 5.2 触觉反馈适配器
 
 ```dart
 class HapticAdapter {
@@ -247,7 +247,7 @@ class HapticAdapter {
 }
 ```
 
-### 5.3 Keyboard Adapter
+### 5.3 键盘适配器
 
 ```dart
 class KeyboardAdapter {
@@ -273,7 +273,7 @@ class KeyboardAdapter {
 }
 ```
 
-### 5.4 Safe Area Adapter
+### 5.4 安全区域适配器
 
 ```dart
 class SafeAreaAdapter {
@@ -309,9 +309,9 @@ class SafeAreaAdapter {
 }
 ```
 
-## 6. Advanced Adaptation: Feature Adapter
+## 6. 高级适配：Feature Adapter
 
-For large features (e.g., payments, notifications), use the **Feature Adapter** pattern:
+对于大型功能（如支付、通知），使用 **Feature Adapter** 模式：
 
 ```dart
 // Payment adapter interface
@@ -356,7 +356,7 @@ class WebPaymentAdapter extends PaymentAdapter {
 }
 ```
 
-### 6.1 Runtime Injection
+### 6.1 运行时注入
 
 ```dart
 class PaymentAdapterFactory {
@@ -372,22 +372,22 @@ class PaymentAdapterFactory {
 }
 ```
 
-## 7. Conditional Export vs Runtime Checking
+## 7. 条件导出 vs 运行时检查
 
-| Aspect | Conditional Export | Runtime Checking (kIsWeb / Platform) |
-|--------|-------------------|---------------------------------------|
-| **Check Timing** | Compile time | Runtime |
-| **Dead Code Elimination** | ✅ Fully removed | ❌ All branches retained |
-| **Bundle Size** | Smaller (target platform code only) | Larger (all platforms included) |
-| **Testability** | Needs mock compile config | Can directly mock Platform |
-| **Complexity** | Multi-file maintenance | Single-file if/else |
-| **Use Case** | Platform-specific imports (dart:html) | Simple behavioral differences |
+| 维度 | 条件导出 | 运行时检查（kIsWeb / Platform） |
+|------|---------|--------------------------------|
+| **检查时机** | 编译期 | 运行时 |
+| **死代码消除** | ✅ 完全移除 | ❌ 保留所有分支 |
+| **包体积** | 更小（仅目标平台代码） | 更大（包含所有平台） |
+| **可测试性** | 需要模拟编译配置 | 可直接模拟 Platform |
+| **复杂度** | 多文件维护 | 单文件 if/else |
+| **适用场景** | 平台特定导入（dart:html） | 简单行为差异 |
 
-**Best Practices**:
-- **Conditional Export**: Platform-specific imports (e.g., `dart:html`, `package:storekit`)
-- **Runtime Checking**: Simple behavioral differences (e.g., animation duration, layout direction)
+**最佳实践**：
+- **条件导出**：平台特定导入（如 `dart:html`、`package:storekit`）
+- **运行时检查**：简单行为差异（如动画时长、布局方向）
 
-## 8. Complete Example: File Picker
+## 8. 完整示例：文件选择器
 
 ```dart
 // 1. Abstract interface (stub)
@@ -434,7 +434,7 @@ export 'file_picker_stub.dart'
     if (dart.library.html) 'file_picker_web.dart';
 ```
 
-## 9. Testing Strategy
+## 9. 测试策略
 
 ```dart
 void main() {
@@ -454,3 +454,11 @@ void main() {
   });
 }
 ```
+
+## 10. 总结
+
+1. **PlatformAdapter 模式**利用 Dart 条件导出机制，在编译期将平台特定实现封装在统一接口之后，实现死代码消除。
+2. **条件导出 vs 运行时检查**：条件导出在编译期选择实现，完全移除其他平台的代码，包体积更小；运行时检查保留所有分支，适用于简单行为差异。
+3. **Feature Adapter** 模式适用于大型功能（支付、通知），通过抽象接口 + 运行时注入实现平台适配。
+4. **测试策略**：条件导出需要模拟编译配置进行测试，运行时检查可以直接模拟 Platform 对象。
+5. **最佳实践**：平台特定导入使用条件导出，简单行为差异使用运行时检查，两者互补而非互斥。

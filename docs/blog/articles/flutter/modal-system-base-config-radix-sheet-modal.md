@@ -1,47 +1,45 @@
 ---
-title: "BaseModalConfig + RadixSheet + RadixModal: Unified Modal Architecture"
-description: "A unified modal system architecture using BaseModalConfig abstract class, RadixSheet bottom sheet, RadixModal centered dialog, and RadixFullScreen with deduplication and queue management."
+title: 'BaseModalConfig + RadixSheet + RadixModal：统一弹窗架构'
+description: '基于 BaseModalConfig 抽象类、RadixSheet 底部弹窗、RadixModal 居中弹窗和 RadixFullScreen 的统一弹窗系统，支持去重和队列管理。'
 slug: modal-system-base-config-radix-sheet-modal
-tags: [flutter, ui, modal, architecture]
+tags: Flutter, UI, Modal, BottomSheet, Architecture
 ---
 
-# BaseModalConfig + RadixSheet + RadixModal: Unified Modal Architecture
+## 1. 为什么需要统一弹窗系统？
 
-## 1. Why a Unified Modal System?
+JoyMini 作为社交 + 电商应用，弹窗场景极其丰富：
 
-JoyMini, as a social + e-commerce application, has extremely rich modal scenarios:
+| 弹窗类型 | 场景 | 频率 |
+|----------|------|------|
+| **操作面板** | 分享/删除/选择操作 | 高 |
+| **底部弹窗** | 商品详情/地址选择 | 高 |
+| **对话框** | 确认/提示/输入 | 中 |
+| **全屏弹窗** | KYC 认证/图片裁剪 | 低 |
+| **弹出层** | 优惠券/签到奖励 | 中 |
 
-| Modal Type | Scenario | Frequency |
-|-----------|----------|-----------|
-| **Action Sheet** | Share/Delete/Selection actions | High |
-| **Modal Bottom Sheet** | Product details/Address selection | High |
-| **Dialog** | Confirmation/Prompt/Input | Medium |
-| **Fullscreen Modal** | KYC verification/Image cropping | Low |
-| **Popup** | Coupon/Check-in reward | Medium |
-
-The traditional approach (each page implements its own) leads to:
+传统方式（每个页面各自实现）导致的问题：
 
 ```
-❌ Chaotic Status Quo:
+❌ 混乱现状：
 - Page A: showModalBottomSheet(useSafeArea: true, ...)
 - Page B: showDialog(context, AlertDialog(...))  
 - Page C: DraggableScrollableSheet(...)
 - Page D: Custom AnimatedBuilder
 
-Problems: Inconsistent animations, non-uniform background colors, scattered dismiss gesture parameters
+问题：动画不统一、背景色不一致、关闭手势参数分散
 ```
 
-**BaseModalConfig + RadixSheet + RadixModal** solution:
+**BaseModalConfig + RadixSheet + RadixModal** 解决方案：
 
 ```
-✅ Unified System:
-BaseModalConfig (Abstract Configuration)
-  ├── RadixSheet (Bottom Sheet) — 75% of scenarios
-  ├── RadixModal (Centered Modal) — 20% of scenarios  
-  └── RadixFullScreen (Full Screen) — 5% of scenarios
+✅ 统一系统：
+BaseModalConfig (抽象配置)
+  ├── RadixSheet (底部弹窗) — 75% 场景
+  ├── RadixModal (居中弹窗) — 20% 场景  
+  └── RadixFullScreen (全屏) — 5% 场景
 ```
 
-## 2. BaseModalConfig — Abstract Configuration Layer
+## 2. BaseModalConfig — 抽象配置层
 
 ```dart
 abstract class BaseModalConfig {
@@ -97,9 +95,9 @@ enum ModalHeight {
 }
 ```
 
-## 3. RadixSheet — Bottom Sheet
+## 3. RadixSheet — 底部弹窗
 
-### 3.1 Core Implementation
+### 3.1 核心实现
 
 ```dart
 class RadixSheet extends StatefulWidget {
@@ -252,7 +250,7 @@ class _RadixSheetState extends State<RadixSheet>
 }
 ```
 
-### 3.2 Built-in Drag-to-Dismiss
+### 3.2 内置拖拽关闭
 
 ```dart
 class _RadixSheetState extends State<RadixSheet>
@@ -283,7 +281,7 @@ class _RadixSheetState extends State<RadixSheet>
 }
 ```
 
-## 4. RadixModal — Centered Modal
+## 4. RadixModal — 居中弹窗
 
 ```dart
 class RadixModal extends StatefulWidget {
@@ -360,7 +358,7 @@ class _RadixModalState extends State<RadixModal>
 }
 ```
 
-## 5. Preset Configuration Examples
+## 5. 预设配置示例
 
 ### 5.1 ConfirmationSheet
 
@@ -524,9 +522,9 @@ class ActionItem {
 }
 ```
 
-## 6. Modal Manager
+## 6. 弹窗管理器
 
-### 6.1 Deduplication and Queue Management
+### 6.1 去重与队列管理
 
 ```dart
 class ModalManager {
@@ -571,7 +569,7 @@ class ModalManager {
 }
 ```
 
-### 6.2 Global Access
+### 6.2 全局访问
 
 ```dart
 extension ModalExtension on BuildContext {
@@ -600,20 +598,20 @@ extension ModalExtension on BuildContext {
 }
 ```
 
-## 7. Comparison Summary
+## 7. 对比总结
 
-| Feature | RadixSheet (Bottom) | RadixModal (Centered) | RadixFullScreen (Full) |
-|---------|--------------------|----------------------|----------------------|
-| **Display Method** | `showModalBottomSheet` | `showDialog` | `Navigator.push` |
-| **Animation** | Slide Up + Fade | Scale + Fade (easeOutBack) | Slide Right |
-| **Drag to Dismiss** | ✅ Built-in | ❌ | ❌ |
-| **Use Cases** | Action lists/Forms/Selection | Confirmation/Prompt/Input | KYC/Image editing |
-| **Usage Share** | ~75% | ~20% | ~5% |
-| **Height Mode** | auto/quarter/half/full | auto | full |
+| 特性 | RadixSheet（底部） | RadixModal（居中） | RadixFullScreen（全屏） |
+|------|--------------------|--------------------|------------------------|
+| **展示方式** | `showModalBottomSheet` | `showDialog` | `Navigator.push` |
+| **动画** | 上滑 + 淡入 | 缩放 + 淡入（easeOutBack） | 右滑 |
+| **拖拽关闭** | ✅ 内置 | ❌ | ❌ |
+| **使用场景** | 操作列表/表单/选择 | 确认/提示/输入 | KYC/图片编辑 |
+| **使用占比** | ~75% | ~20% | ~5% |
+| **高度模式** | auto/quarter/half/full | auto | full |
 
-**Core Design Principles**:
-1. **Configuration-Driven**: A single `BaseModalConfig` derived class defines the complete modal behavior
-2. **Consistent Animation**: All modals use the same animation parameters (duration + curve)
-3. **Drag to Dismiss**: Bottom Sheet supports swipe-down gesture to close by default
-4. **Deduplication**: ModalManager ensures the same id modal is not displayed repeatedly
-5. **Queue**: Supports modal queuing, automatically showing the next modal after the current one closes
+**核心设计原则**：
+1. **配置驱动**：单个 `BaseModalConfig` 派生类定义完整的弹窗行为
+2. **动画统一**：所有弹窗使用相同的动画参数（时长 + 曲线）
+3. **拖拽关闭**：底部弹窗默认支持下滑手势关闭
+4. **去重机制**：ModalManager 确保同一 id 的弹窗不会重复展示
+5. **队列支持**：支持弹窗排队，当前弹窗关闭后自动展示下一个

@@ -1,28 +1,28 @@
 ---
-title: "ApiCacheManager: Dual Storage + SWR Cache Strategy"
-description: "Analysis of ApiCacheManager, a dual-storage cache (RAM + Disk) using SWR (Stale-While-Revalidate) strategy for handling unreliable mobile networks and preventing blank UI states."
+title: 'ApiCacheManager：双存储 + SWR 缓存策略'
+description: 分析 ApiCacheManager 双存储缓存（RAM + 磁盘）如何利用 SWR（Stale-While-Revalidate）策略应对不可靠的移动网络，防止 UI 空白状态。
 slug: api-cache-manager-dual-storage-swr
-tags: [Flutter, Caching, SWR, Performance, Offline]
+tags: Flutter, Caching, SWR, Performance, Offline
 ---
 
-## 1. Overview
+## 1. 概述
 
-Mobile applications face unreliable networks — users riding elevators, entering tunnels, or experiencing weak signals. A caching layer ensures the UI never shows a blank state. This article analyzes `ApiCacheManager`, a dual-storage cache (RAM + Disk) employing the **SWR (Stale-While-Revalidate)** strategy.
+移动应用面临不可靠的网络——用户乘坐电梯、进入隧道或信号弱时。缓存层确保 UI 永远不会显示空白状态。本文分析 `ApiCacheManager`，一个采用 **SWR（Stale-While-Revalidate）** 策略的双存储缓存（RAM + 磁盘）。
 
-| Component | Storage | Speed | Capacity | Persistence |
+| 组件 | 存储 | 速度 | 容量 | 持久性 |
 |-----------|---------|-------|----------|-------------|
-| **L1: InMemoryCache** | RAM (`Map`) | Instant | 50 entries | Lost on app restart |
-| **L2: DiskCache** | SQLite/File | Fast | 500+ entries | Survives restart |
+| **L1：InMemoryCache** | RAM（`Map`） | 即时 | 50 条 | 应用重启后丢失 |
+| **L2：DiskCache** | SQLite/文件 | 快速 | 500+ 条 | 重启后存活 |
 
 ---
 
-## 2. SWR Strategy
+## 2. SWR 策略
 
-**Stale-While-Revalidate (SWR)** works as follows:
+**Stale-While-Revalidate（SWR）** 的工作方式如下：
 
-1. **Immediately** return cached data (even if stale) → instant UI
-2. **In the background**, fetch the latest data from the network → update cache
-3. Update UI when fresh data arrives
+1. **立即**返回缓存数据（即使已过期）→ 即时 UI
+2. **在后台**从网络获取最新数据 → 更新缓存
+3. 新数据到达时更新 UI
 
 ```
 Request ─→ L1 RAM ─→ L2 Disk ─→ Network
@@ -35,7 +35,7 @@ Request ─→ L1 RAM ─→ L2 Disk ─→ Network
           (Instant)   (Fast)     → Notify UI
 ```
 
-### 2.1 TTL Configuration
+### 2.1 TTL 配置
 
 ```dart
 class CacheConfig {
@@ -59,7 +59,7 @@ class CacheConfig {
 
 ---
 
-## 3. In-Memory Cache (L1)
+## 3. 内存缓存（L1）
 
 ```dart
 class InMemoryCache {
@@ -133,9 +133,9 @@ class CacheResult {
 
 ---
 
-## 4. Disk Cache (L2)
+## 4. 磁盘缓存（L2）
 
-### 4.1 SQLite-Based Disk Cache
+### 4.1 基于 SQLite 的磁盘缓存
 
 ```dart
 class DiskCache {
@@ -207,9 +207,9 @@ class DiskCache {
 
 ---
 
-## 5. ApiCacheManager — Coordinator
+## 5. ApiCacheManager——协调器
 
-### 5.1 Implementation
+### 5.1 实现
 
 ```dart
 class ApiCacheManager {
@@ -304,7 +304,7 @@ class ApiCacheManager {
 }
 ```
 
-### 5.2 Usage in Repository
+### 5.2 在 Repository 中使用
 
 ```dart
 class ArticleRepository {
@@ -334,20 +334,20 @@ class ArticleRepository {
 
 ---
 
-## 6. Cache Invalidation Strategy
+## 6. 缓存失效策略
 
-### 6.1 When to Invalidate
+### 6.1 何时失效
 
-| Event | Cache Key Pattern | Action |
+| 事件 | 缓存键模式 | 操作 |
 |-------|-------------------|--------|
-| User creates article | `articles:*` | Invalidate all article caches |
-| User updates profile | `user:*` | Invalidate user-related caches |
-| Admin publishes banner | `banners:*` | Invalidate banner caches |
-| User logs out | `user:*`, `orders:*` | Clear all user-related caches |
-| Network returns 404 | Specific key | Remove that single cache entry |
-| Periodic cleanup | N/A | Clear expired entries every hour |
+| 用户创建文章 | `articles:*` | 使所有文章缓存失效 |
+| 用户更新资料 | `user:*` | 使用户相关缓存失效 |
+| 管理员发布横幅 | `banners:*` | 使横幅缓存失效 |
+| 用户退出登录 | `user:*`, `orders:*` | 清除所有用户相关缓存 |
+| 网络返回 404 | 特定键 | 移除该缓存条目 |
+| 定期清理 | N/A | 每小时清除过期条目 |
 
-### 6.2 Push-Based Invalidation
+### 6.2 推送式失效
 
 ```dart
 class CacheInvalidator {
@@ -363,7 +363,7 @@ class CacheInvalidator {
 
 ---
 
-## 7. Testing
+## 7. 测试
 
 ```dart
 void main() {
@@ -423,24 +423,24 @@ void main() {
 
 ---
 
-## 8. Production Tuning
+## 8. 生产调优
 
-| Parameter | Recommended Value | Rationale |
+| 参数 | 推荐值 | 理由 |
 |-----------|-------------------|-----------|
-| L1 max entries | 50-100 | Limited mobile RAM; 50 entries cover visible screen |
-| L2 max entries | 500-1000 | SQLite handles easily; clean on app startup |
-| Stale TTL (articles) | 2 minutes | Content changes frequently |
-| Stale TTL (categories) | 10 minutes | Rarely changes |
-| Stale TTL (banners) | 5 minutes | Campaigns update periodically |
-| Max TTL | 1-24 hours | Force refresh at least once per session |
-| SWR | Enabled | Critical for perceived performance |
+| L1 最大条目数 | 50-100 | 移动端 RAM 有限；50 条覆盖可见屏幕 |
+| L2 最大条目数 | 500-1000 | SQLite 轻松处理；应用启动时清理 |
+| 过期 TTL（文章） | 2 分钟 | 内容频繁变化 |
+| 过期 TTL（分类） | 10 分钟 | 很少变化 |
+| 过期 TTL（横幅） | 5 分钟 | 活动定期更新 |
+| 最大 TTL | 1-24 小时 | 每个会话至少强制刷新一次 |
+| SWR | 启用 | 对感知性能至关重要 |
 
 ---
 
-## 9. Summary
+## 9. 总结
 
-- **Dual Storage**: L1 (RAM, instant, 50 entries) + L2 (SQLite, fast, 500+ entries, persistent)
-- **SWR Strategy**: Return stale data immediately, refresh in background — eliminates loading spinners
-- **Configurable TTLs**: Per-endpoint stale/max TTL settings for granular control
-- **Cache Invalidation**: Prefix-based invalidation triggered on relevant events (create, update, delete)
-- **Fire-and-Forget Refresh**: SWR background refresh never throws — stale data remains usable on network failure
+- **双存储**：L1（RAM，即时，50 条）+ L2（SQLite，快速，500+ 条，持久化）
+- **SWR 策略**：立即返回过期数据，后台刷新——消除加载转圈
+- **可配置 TTL**：每个端点的过期/最大 TTL 设置，实现精细控制
+- **缓存失效**：基于前缀的失效，在相关事件（创建、更新、删除）时触发
+- **即发即忘刷新**：SWR 后台刷新永不抛出异常——网络故障时过期数据仍可用

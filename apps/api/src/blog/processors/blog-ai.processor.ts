@@ -25,6 +25,7 @@ export class BlogAiProcessor extends WorkerHost {
   private readonly marked: Marked;
   private readonly rateLimitDelayBase = 1000; // 1秒基础延迟
   private readonly rateLimitDelayMax = 30000; // 30秒最大延迟
+  private readonly interRequestDelay = 500; // 500ms between API calls to spread RPM load
   private readonly translationCache = new Map<
     string,
     { result: string; timestamp: number }
@@ -121,6 +122,13 @@ export class BlogAiProcessor extends WorkerHost {
   }
 
   /**
+   * 在API调用之间添加延迟，均匀分布请求频率以防止速率限制
+   */
+  private async delayBetweenRequests(): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, this.interRequestDelay));
+  }
+
+  /**
    * 带重试机制的翻译方法
    * @param text 要翻译的文本
    * @param targetLang 目标语言
@@ -144,13 +152,21 @@ export class BlogAiProcessor extends WorkerHost {
       return cached.result;
     }
 
+    // Bug 4 fix: AI service unavailable → fail fast, no pointless retries
+    if (!this.aiService.isAvailable()) {
+      throw new Error(
+        `翻译失败：AI服务不可用（目标语言 ${targetLang}，文本长度 ${text.length}）`,
+      );
+    }
+
     let lastError: any;
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
-        // 如果不是第一次尝试，先等待
+        // 如果不是第一次尝试，先等待（速率限制退避 + 频率控制延迟）
         if (attempt > 0) {
           await this.handleRateLimit(attempt - 1, lastError);
+          await this.delayBetweenRequests();
         }
 
         let result: string;
@@ -170,6 +186,13 @@ export class BlogAiProcessor extends WorkerHost {
               targetLang,
             },
           );
+
+          // Bug 4 fix: AI is down mid-retry → fail fast instead of burning more failure slots
+          if (!this.aiService.isAvailable()) {
+            throw new Error(
+              `翻译失败：AI服务不可用（目标语言 ${targetLang}，文本长度 ${text.length}）`,
+            );
+          }
 
           // 如果是最后一次尝试，抛出错误而不是返回原文（防止静默数据损坏）
           if (attempt === maxRetries) {
@@ -269,6 +292,21 @@ export class BlogAiProcessor extends WorkerHost {
     const sourceExcerpt =
       getSourceContent('excerpt', 'excerptLocalized') || article.excerpt || '';
 
+    // 大内容保护：批量翻译将整篇文章放入单个请求体，超出限制会导致 Groq 413 等错误
+    // 如果内容超过阈值，直接走传统翻译（translateMarkdown 内部会自动分块）
+    const MAX_BATCH_CONTENT_CHARS = 10000;
+    if (sourceContent.length > MAX_BATCH_CONTENT_CHARS) {
+      this.logger.debug(
+        `文章内容过长 (${sourceContent.length} 字符)，跳过批量翻译直接使用分块翻译 (文章 ${article.id}，语言 ${targetLang})`,
+      );
+      return await this.fallbackToTraditionalTranslation(
+        sourceTitle,
+        sourceContent,
+        sourceExcerpt,
+        targetLang,
+      );
+    }
+
     // 构建批量翻译prompt
     // 使用分隔符格式替代JSON，避免Markdown内容中的特殊字符导致JSON解析失败
     const translationPrompt = `
@@ -346,11 +384,25 @@ IMPORTANT: Return ONLY the three sections above with the exact delimiters. Do NO
     let lastError: any;
     const maxRetries = 2;
 
+    // Bug 3 fix: if AI is already unavailable, skip the 3-attempt loop immediately
+    if (!this.aiService.isAvailable()) {
+      this.logger.warn(
+        `AI服务不可用，跳过批量翻译，回退到传统翻译（文章 ${article.id}，语言 ${targetLang}）`,
+      );
+      return await this.fallbackToTraditionalTranslation(
+        sourceTitle,
+        sourceContent,
+        sourceExcerpt,
+        targetLang,
+      );
+    }
+
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
-        // 如果不是第一次尝试，先等待
+        // 如果不是第一次尝试，先等待（速率限制退避 + 频率控制延迟）
         if (attempt > 0) {
           await this.handleRateLimit(attempt - 1, lastError);
+          await this.delayBetweenRequests();
         }
 
         const result = await this.aiService.generateText(
@@ -427,8 +479,8 @@ IMPORTANT: Return ONLY the three sections above with the exact delimiters. Do NO
           },
         );
 
-        // 如果是最后一次尝试，回退到传统方法
-        if (attempt === maxRetries) {
+        // 如果是最后一次尝试，或 AI 已不可用，回退到传统方法
+        if (attempt === maxRetries || !this.aiService.isAvailable()) {
           this.logger.warn('批量翻译失败，回退到传统翻译方法');
           return await this.fallbackToTraditionalTranslation(
             sourceTitle,
@@ -503,21 +555,25 @@ IMPORTANT: Return ONLY the three sections above with the exact delimiters. Do NO
   ): Promise<{ title: string; content: string; excerpt: string | null }> {
     this.logger.debug('使用传统翻译方法');
 
+    // 在每次独立翻译调用之间添加延迟，避免12个请求在短时间内爆发
     const titleTranslated = await this.translateWithRetry(
       title,
       targetLang,
       2,
       false,
     );
+
+    await this.delayBetweenRequests();
     const contentTranslated = await this.translateWithRetry(
       content,
       targetLang,
       2,
       true,
     );
-    let excerptTranslated = null;
 
+    let excerptTranslated = null;
     if (excerpt && excerpt.trim().length > 0) {
+      await this.delayBetweenRequests();
       excerptTranslated = await this.translateWithRetry(
         excerpt,
         targetLang,
