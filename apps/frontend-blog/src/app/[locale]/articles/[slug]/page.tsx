@@ -125,11 +125,17 @@ export default async function ArticlePage({
     const article = await getCachedArticle(slug, locale);
 
     // Cloudflare Workers 免费版有 10ms CPU 限制。
-    // 剥离 content/contentMd 大字段以减小 RSC 负载大小，
+    // 剥离 content/contentMd/relatedArticles/meta 大字段以减小 RSC 负载大小，
     // 避免 JSON 解析 + RSC 序列化超限。
     // 完整的文章正文由客户端通过 useFrontendArticleBySlug 异步加载。
     const initialArticle = article
-      ? { ...article, content: undefined, contentMd: undefined }
+      ? {
+          ...article,
+          content: undefined,
+          contentMd: undefined,
+          relatedArticles: undefined,
+          meta: undefined,
+        }
       : undefined;
 
     return <ArticlePageClient initialArticle={initialArticle} />;

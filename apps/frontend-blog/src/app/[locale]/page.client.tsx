@@ -5,6 +5,7 @@ import {
   useCallback,
   useRef,
   useEffect,
+  useLayoutEffect,
   useMemo,
   Suspense,
 } from 'react';
@@ -22,6 +23,7 @@ import { LoadMore } from '@/components/blog/LoadMore';
 import { PageErrorBoundary } from '@/lib/components/ErrorBoundary';
 import { HomePageSkeleton } from '@/lib/components/SkeletonLoader';
 import { useHomePageContext } from '@/lib/providers/HomePageStateProvider';
+import { getNavDirection } from '@/lib/navigation/direction';
 import type {
   FrontendArticle,
   FrontendCategory,
@@ -91,13 +93,23 @@ function HomePageClientContent({ initialData, ...props }: HomePageClientProps) {
   // Context already has the accumulated data → skip seeding.
   const initialSeedDone = useRef(false);
 
+  // P0-4: Detect backward navigation to home (article detail → home).
+  // When true, we skip SSR initialData seeding and rely on Context data.
+  const isBackNavigation =
+    typeof window !== 'undefined' &&
+    getNavDirection() === 'backward' &&
+    allArticles.length > 0;
+
   useEffect(() => {
     if (initialSeedDone.current) return;
     initialSeedDone.current = true;
 
-    // Seed accumulated articles from SSR data
-    if (allArticles.length === 0 && initialData?.items?.length) {
-      setAllArticles(initialData.items);
+    // P0-4: On backward navigation, skip SSR seeding — Context already has data.
+    if (!isBackNavigation) {
+      // Seed accumulated articles from SSR data
+      if (allArticles.length === 0 && initialData?.items?.length) {
+        setAllArticles(initialData.items);
+      }
     }
 
     // On fresh load/hard refresh: clean stale ?page=N from URL.
@@ -169,11 +181,14 @@ function HomePageClientContent({ initialData, ...props }: HomePageClientProps) {
   // NOTE: initialData is only passed for the initial SSR category. Once the user
   // switches to a different category, we clear it to avoid React Query treating
   // stale SSR data as valid data for the new query key.
+  // P0-4: On backward navigation, skip SSR initialData — React Query will use
+  // its cached data (5min staleTime) instead of fresh SSR data.
   const { data, isLoading, error, refetch, isFetching } = useFrontendArticles({
     page,
     pageSize: PAGE_SIZE,
     categoryId: selectedCategoryId,
-    initialData: isInitialCategory ? initialData : undefined,
+    initialData:
+      isInitialCategory && !isBackNavigation ? initialData : undefined,
     queryKeyPrefix: 'homeArticles',
   });
 
@@ -205,21 +220,21 @@ function HomePageClientContent({ initialData, ...props }: HomePageClientProps) {
   }, [articles, page]);
 
   // ──────────────────────────────────────────────────
-  // Restore scroll position after articles are rendered
+  // Restore scroll position before paint (useLayoutEffect)
   // Only restores if the previous navigation destination was an article detail page
   // (i.e., user clicked an article → read → router.back())
+  //
+  // P0-4 fix: useLayoutEffect runs synchronously before browser paint,
+  // preventing the "flash of wrong position" that useEffect + rAF causes.
   // ──────────────────────────────────────────────────
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (allArticles.length > 0) {
       const navigatedTo = sessionStorage.getItem('homeNavigatedTo');
       const savedScrollY = sessionStorage.getItem('homeScrollY');
 
       // Only restore if we came back from an article detail page
       if (navigatedTo?.includes('/articles/') && savedScrollY) {
-        // Use requestAnimationFrame to ensure DOM is fully painted
-        requestAnimationFrame(() => {
-          window.scrollTo(0, Number(savedScrollY));
-        });
+        window.scrollTo(0, Number(savedScrollY));
       }
 
       // Always clean up session storage on mount
@@ -373,8 +388,14 @@ function HomePageClientContent({ initialData, ...props }: HomePageClientProps) {
   // (not first page load, not load more)
   const isCategorySwitching = isFetching && !isLoading && !!selectedCategoryId;
 
-  // Skeleton: only when completely empty on first load
-  if (isLoading && !hasInitialData && !hasCurrentData) {
+  // P0-4: Suppress loading skeleton on backward navigation.
+  // Context already has accumulated data, so we skip the skeleton even if
+  // React Query is still refetching (stale data is shown while fetching).
+  const showSkeleton =
+    isLoading && !hasInitialData && !hasCurrentData && !isBackNavigation;
+
+  // Skeleton: only when completely empty on first load (not on backward nav)
+  if (showSkeleton) {
     return <HomePageSkeleton />;
   }
 
