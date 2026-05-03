@@ -14,10 +14,8 @@ import BottomNavigation from '@/components/BottomNavigation';
 import { PageTransition } from '@/components/PageTransition';
 import I18nProvider from '@/lib/providers/I18nProvider';
 import { LOCALES } from '@/lib/i18n/config';
-import { InstallPrompt } from '@/components/pwa/InstallPrompt';
-import { OfflineIndicator } from '@/components/pwa/OfflineIndicator';
-import { UpdateAvailable } from '@/components/pwa/UpdateAvailable';
 import { HomePageStateProvider } from '@/lib/providers/HomePageStateProvider';
+import PwaComponents from '@/components/pwa/PwaComponents';
 import '../globals.css';
 
 const locales = LOCALES;
@@ -171,7 +169,8 @@ export default async function LocaleLayout({
   // 启用静态渲染
   setRequestLocale(locale);
 
-  //  使用静态 import 替代 readFileSync，确保 JSON 文件被打包进 Cloudflare Worker
+  // 静态导入所有语言的消息文件，webpack 会内联为 JS 对象
+  // Cloudflare Workers 中动态 import() 会增加异步开销，静态导入更高效
   const allMessages: Record<string, any> = {
     zh: zhMessages,
     en: enMessages,
@@ -194,17 +193,16 @@ export default async function LocaleLayout({
         </main>
         <BottomNavigation />
 
-        {/* PWA功能组件 */}
-        <InstallPrompt delay={5000} autoHideDelay={15000} />
-        <OfflineIndicator
-          position="top"
-          showRetryButton={true}
-          autoHideDelay={3000}
-        />
-        <UpdateAvailable
-          checkInterval={3600000}
-          showCloseButton={true}
-          autoShowDelay={5000}
+        {/* PWA功能组件 — 仅在客户端加载，SSR 时跳过以减少 CPU 时间 */}
+        <PwaComponents
+          installPromptDelay={5000}
+          installPromptAutoHideDelay={15000}
+          offlineIndicatorPosition="top"
+          offlineIndicatorShowRetryButton={true}
+          offlineIndicatorAutoHideDelay={3000}
+          updateAvailableCheckInterval={3600000}
+          updateAvailableShowCloseButton={true}
+          updateAvailableAutoShowDelay={5000}
         />
       </I18nProvider>
     </NextIntlClientProvider>

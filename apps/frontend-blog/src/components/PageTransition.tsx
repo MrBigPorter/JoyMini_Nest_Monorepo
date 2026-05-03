@@ -37,6 +37,7 @@ function getVariants(dir: NavDirection) {
  * 2. shouldAnimate === false 时 motionProps 为空，motion.div 退化为普通 div
  * 3. dirRef 在渲染阶段同步捕获方向，确保 pathname 变化瞬间方向正确
  * 4. initPopStateDetection 监听浏览器后退/前进按钮
+ * 5. 后退到首页时跳过动画（首页已通过 Context 保留数据，无需动画过渡）
  */
 export function PageTransition({ children }: PageTransitionProps) {
   const pathname = usePathname();
@@ -63,19 +64,31 @@ export function PageTransition({ children }: PageTransitionProps) {
   // 关键：始终传入 animate: {opacity:1, x:0}，确保 SSR 和 CSR hydration
   // 渲染的 style 完全一致（都是 {opacity:1, transform:"none"}），避免 hydration mismatch。
   // 不传 animate 时，SSR 渲染 style={}，而 CSR 渲染 style={opacity:1,transform:"none"}，产生不一致。
-  const motionProps = shouldAnimate
-    ? {
-        initial: variants.initial,
-        animate: variants.animate,
-        exit: variants.exit,
-        // iOS cubic-bezier：快速响应，柔和减速，贴近原生 push 动画
-        transition: { duration: 0.22, ease: [0.25, 0.46, 0.45, 0.94] as const },
-      }
-    : {
-        // 无动画时也传入 animate+initial，保证 SSR style 与 CSR 一致
-        initial: { opacity: 1, x: 0 },
-        animate: { opacity: 1, x: 0 },
-      };
+  //
+  // P0-4 修复：后退到首页时跳过动画。
+  // 首页已通过 HomePageStateProvider Context 保留了文章数据和滚动位置，
+  // 播放动画会让用户感觉页面在"重新渲染"。
+  // 检测到 dirRef.current === 'backward' 且目标路径是首页时，使用无动画的 motionProps。
+  const isBackToHome =
+    dirRef.current === 'backward' &&
+    pathname.split('/').filter(Boolean).length <= 1;
+  const motionProps =
+    shouldAnimate && !isBackToHome
+      ? {
+          initial: variants.initial,
+          animate: variants.animate,
+          exit: variants.exit,
+          // iOS cubic-bezier：快速响应，柔和减速，贴近原生 push 动画
+          transition: {
+            duration: 0.22,
+            ease: [0.25, 0.46, 0.45, 0.94] as const,
+          },
+        }
+      : {
+          // 无动画时也传入 animate+initial，保证 SSR style 与 CSR 一致
+          initial: { opacity: 1, x: 0 },
+          animate: { opacity: 1, x: 0 },
+        };
 
   return (
     <AnimatePresence mode="wait" initial={false}>
