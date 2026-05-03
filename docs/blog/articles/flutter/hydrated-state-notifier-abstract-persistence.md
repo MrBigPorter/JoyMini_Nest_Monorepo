@@ -1,9 +1,11 @@
 ---
-title: 'HydratedStateNotifier：Flutter 中的抽象状态持久化'
+title: 'HydratedStateNotifier: Flutter 中的抽象状态持久化'
 description: 探讨 HydratedStateNotifier 抽象基类，它通过可配置的存储后端自动持久化和恢复状态，解决主题偏好、语言、引导页等状态在应用重启后的存活问题。
 slug: hydrated-state-notifier-abstract-persistence
 tags: Flutter, StateManagement, Persistence, Hydrated, Riverpod
 ---
+
+# HydratedStateNotifier: Flutter 中的抽象状态持久化
 
 ## 1. 概述
 

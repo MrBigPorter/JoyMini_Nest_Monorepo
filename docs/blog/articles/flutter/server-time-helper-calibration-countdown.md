@@ -1,9 +1,11 @@
 ---
-title: 'ServerTimeHelper：时间校准 + 倒计时——服务端时间同步系统'
+title: 'ServerTimeHelper: 时间校准 + 倒计时——服务端时间同步系统'
 description: 深入分析 ServerTimeHelper 如何同步移动客户端与服务器时间，解决用户篡改时钟、时区不一致和网络延迟在倒计时和签到逻辑中引发的问题。
 slug: server-time-helper-calibration-countdown
 tags: Flutter, Time, Sync, Countdown, Calibration
 ---
+
+# ServerTimeHelper: 时间校准 + 倒计时——服务端时间同步系统
 
 ## 1. 背景
 

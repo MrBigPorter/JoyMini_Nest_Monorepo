@@ -1,11 +1,11 @@
 ---
-title: 'Pipeline Runner：顺序执行模式——可靠的异步管道架构'
+title: 'Pipeline Runner: 顺序执行模式——可靠的异步管道架构'
 slug: pipeline-runner-sequential-execution
 tags: Flutter, Architecture, Pipeline, Async, ErrorHandling
 description: Pipeline Runner 模式的分析，用于执行多步骤异步操作，支持顺序编排、每步重试策略、超时、错误边界和内置可观测性。
 ---
 
-# Pipeline Runner：顺序执行模式——可靠的异步管道架构
+# Pipeline Runner: 顺序执行模式——可靠的异步管道架构
 
 ## 1. 背景
 

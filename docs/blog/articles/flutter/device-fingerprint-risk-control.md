@@ -1,9 +1,11 @@
 ---
-title: 'DeviceFingerprint：设备指纹与风控——移动安全基线'
+title: 'DeviceFingerprint: 设备指纹与风控——移动安全基线'
 description: '基于设备指纹的移动安全系统，涵盖多维信号采集、环境风险检测、风险等级分类及隐私合规实现。'
 slug: device-fingerprint-risk-control
 tags: Flutter, Security, Fingerprinting, RiskControl, AntiFraud, MobileSecurity
 ---
+
+# DeviceFingerprint: 设备指纹与风控——移动安全基线
 
 ## 1. 为什么需要设备指纹？
 

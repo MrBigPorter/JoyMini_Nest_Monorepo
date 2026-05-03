@@ -1,9 +1,11 @@
 ---
-title: 'AppStartup：数据预热——应用启动时的多路数据预加载屏障'
+title: 'AppStartup: 数据预热——应用启动时的多路数据预加载屏障'
 description: 学习如何在 runApp() 之前使用基于阶段的启动管道预加载关键数据，支持并行执行、进度跟踪和优雅降级，消除白屏和水瀑请求。
 slug: app-startup-data-pre-warming
 tags: Flutter, Startup, Performance, Architecture, Preloading, DataBarrier
 ---
+
+# AppStartup: 数据预热——应用启动时的多路数据预加载屏障
 
 ## 1. 背景
 

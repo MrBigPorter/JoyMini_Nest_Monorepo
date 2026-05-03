@@ -1,9 +1,11 @@
 ---
-title: 'GlobalHandler + CallKit + WebRTC：全局事件总线与实时通话架构'
+title: 'GlobalHandler + CallKit + WebRTC: 全局事件总线与实时通话架构'
 description: 统一的全局事件处理系统，通过 GlobalHandler 实现带优先级的消息路由，集成 WebRTC 点对点通话、iOS CallKit 原生集成（MethodChannel）以及通话恢复管理。
 slug: global-handler-callkit-webrtc
 tags: Flutter, WebRTC, CallKit, Architecture, Realtime
 ---
+
+# GlobalHandler + CallKit + WebRTC: 全局事件总线与实时通话架构
 
 ## 1. 问题背景
 

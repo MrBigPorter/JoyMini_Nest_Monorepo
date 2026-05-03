@@ -165,6 +165,8 @@ export interface AiProviderUsageStats {
     blocked: boolean;
     blockedReason: string | null;
     isActive: boolean;
+    currentRpm?: number;    // 当前 RPM（滚动 60 秒窗口内的请求数）
+    rpmLimit?: number;      // RPM 上限（如 Groq 为 30）
   }[];
 }
 ```
@@ -205,13 +207,15 @@ export class GeminiProvider implements AiProviderInstance {
 
 ### 4.2 GroqProvider
 
-[`groq.provider.ts`](apps/api/src/common/ai/providers/groq.provider.ts)（245 行）
+[`groq.provider.ts`](apps/api/src/common/ai/providers/groq.provider.ts)（382 行）
 
 - **API：** OpenAI 兼容 API（`https://api.groq.com/openai/v1/chat/completions`）
 - **模型：** `llama-3.3-70b-versatile`（默认）、`llama3-70b-8192`、`llama-3.1-8b-instant`
 - **每日限额：** 500,000 tokens/天/Key
 - **API Key：** 从 `GROQ_API_KEY` 环境变量读取
 - **特点：** 使用 axios 发送 HTTP 请求，无需额外 SDK
+- **RPM 追踪：** 每 Key 独立追踪 60 秒滚动窗口内的请求数，上限 30 RPM
+- **智能 Key 选择：** `selectBestKey()` 按最低 RPM 选取最优 Key，而非简单轮换
 
 ```typescript
 @Injectable()
@@ -222,10 +226,14 @@ export class GroqProvider implements AiProviderInstance {
   activeModel = 'llama-3.3-70b-versatile';
 
   async generateText(prompt: string, options?: AiGenerationOptions): Promise<string | null> {
-    // 1. 检查 Key 是否可用
-    // 2. POST 到 Groq API
-    // 3. 处理 429 → 封禁 Key 60 秒，轮换到下一个 Key
-    // 4. 返回 response.data.choices[0].message.content
+    // 1. RPM-aware 智能 Key 选择：selectBestKey() 选取最低负载 Key
+    //    所有 Key 不可用（封禁/RPM 上限）→ 立即返回 null，不做等待
+    //    （防止重试风暴：等待会阻塞事件循环、生成更多 429 请求）
+    // 2. 记录请求时间戳（用于 RPM 滚动窗口计算）
+    // 3. POST 到 Groq API
+    // 4. 处理 429 → 读取 Retry-After header，封锁所有 Key，立即返回 null
+    // 5. 成功 → 更新每日计数器，返回内容
+    // 6. 失败 → 移除已记录的时间戳，返回 null
   }
 }
 ```
@@ -346,7 +354,8 @@ generateText 被调用
 | 场景 | 主 Provider | 行为 | 结果 |
 |------|------------|------|------|
 | Gemini 配额耗尽 | Gemini | 自动切换到 Groq | 翻译继续，用户无感知 |
-| Groq 429 限流 | Groq | 封禁该 Key 60 秒，轮换到下一个 Key | 短暂延迟后恢复 |
+| Groq 429 限流 | Groq | 读取 Retry-After header，封锁所有 Key，立即返回 null | Groq 不可用直至冷却到期（时长由 Retry-After 指定） |
+| Groq 账户级限流（所有 Key 共享） | Groq | 所有 Key 同时被封禁，无法通过轮换绕过 | 需切换至 Gemini/DeepSeek 或等待冷却到期 |
 | 所有 Provider 都失败 | 任意 | 断路器记录失败，5 次后断开 15 分钟 | 服务降级到 DISABLED |
 | 午夜 UTC | 任意 | 所有 Provider 计数器重置 | 自动恢复 FULL 服务 |
 
@@ -379,9 +388,10 @@ private readonly LIMITS = {
   DAILY_PER_KEY: 800000,      // 每 Key 每天最多 800k Token
   FAILURE_THRESHOLD: 5,       // 断路器触发阈值
   CIRCUIT_BREAKER_DURATION: 900000,  // 断路器 15 分钟
-  KEY_429_COOLDOWN: 60000,    // 429 冷却 60 秒
 };
 ```
+
+> **GroqProvider 429 冷却：** 上述 `KEY_429_COOLDOWN` 是 AiService 层的共享常量。GroqProvider 有自己的独立冷却机制：`KEY_429_COOLDOWN_DEFAULT = 120000`（2 分钟），并优先读取 Groq API 返回的 `Retry-After` header（可能长达 8400 秒/2.3 小时）。当触发 429 时，**所有 Groq Key 同时被封锁**，因为所有 Key 共享同一个账户级速率限制。
 
 - **每分钟重置：** 请求数和 Token 数每分钟归零
 - **跨 Provider 共享：** 所有 Provider 共用同一个速率计数器

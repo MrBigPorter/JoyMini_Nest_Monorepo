@@ -1,9 +1,11 @@
 ---
-title: 'LuckyFormTheme：表单主题系统 + 自定义验证器链'
+title: 'LuckyFormTheme: 表单主题系统 + 自定义验证器链'
 description: 'Flutter 表单框架，基于 InheritedWidget 的集中式主题配置、链式验证器（必填 → 邮箱 → 手机 → 长度 → 正则 → 自定义）、带防抖的异步验证、跨字段验证（密码确认、级联选择器、动态字段）、可配置的验证触发时机、状态机追踪和自动焦点管理。'
 slug: lucky-form-theme-validator-system
 tags: Flutter, Forms, Validation, UI, State Machine
 ---
+
+# LuckyFormTheme: 表单主题系统 + 自定义验证器链
 
 ## 1. 为什么需要统一表单框架？
 

@@ -129,6 +129,8 @@ export interface AiProviderUsageStats {
     blocked: boolean;
     blockedReason: string | null;
     isActive: boolean;
+    currentRpm?: number;    // 当前 RPM（滚动 60 秒窗口内的请求数）
+    rpmLimit?: number;      // RPM 上限（如 Groq 为 30）
   }[];
 }
 ```
@@ -210,7 +212,7 @@ private initialize() {
 
 ### GroqProvider
 
-**文件：** [`apps/api/src/common/ai/providers/groq.provider.ts`](../../apps/api/src/common/ai/providers/groq.provider.ts)（245 行）
+**文件：** [`apps/api/src/common/ai/providers/groq.provider.ts`](../../apps/api/src/common/ai/providers/groq.provider.ts)（382 行）
 
 | 属性 | 值 |
 |------|-----|
@@ -221,53 +223,65 @@ private initialize() {
 | 每日限额 | 500,000 tokens/天/Key |
 | API | OpenAI 兼容 API（axios） |
 | 环境变量 | `GROQ_API_KEY` |
+| RPM 追踪 | 每 Key 独立追踪 60 秒滚动窗口，上限 30 RPM |
+| Key 选择策略 | `selectBestKey()` — 按最低 RPM 选取最优 Key |
 
-**文本生成实现：**
+**关键特性（V2-V4 优化）：**
+1. **RPM 滚动追踪** — 每个 Key 维护 `requestTimestamps: number[]`，记录 60 秒窗口内的请求时间戳，`pruneStaleTimestamps()` 每秒清理过期记录
+2. **智能 Key 选择** — `selectBestKey()` 遍历所有 Key，跳过被封禁或超限的，选取当前 RPM 最低的 Key（而非简单轮换）
+3. **Retry-After header 处理** — 收到 429 响应后，读取 `Retry-After` header 作为冷却时长（可能长达 8400 秒），封锁所有 Key
+4. **封锁所有 Key** — 由于所有 Key 共享同一个 Groq 账户级速率限制，单个 Key 触发 429 后立即封锁所有 Key，避免重复请求重置限流时钟
+5. **立即返回 null** — 不在 `generateText()` 内等待或重试，防止阻塞事件循环产生重试风暴
+
+**文本生成实现（简化）：**
 ```typescript
 async generateText(prompt: string, options?: AiGenerationOptions): Promise<string | null> {
-  if (this.keyInstances.length === 0) return null;
+  // 1. RPM-aware 智能 Key 选择
+  const selected = this.selectBestKey();
+  if (!selected) return null;  // 所有 Key 不可用 → 立即返回 null
 
-  const key = this.keyInstances[this.activeKeyIndex];
-  if (key.blocked) {
-    if (!this.rotateToNextKey()) return null;
-  }
+  // 2. 记录请求时间戳（用于 RPM 滚动窗口）
+  this.pruneStaleTimestamps(currentKey);
+  currentKey.requestTimestamps.push(Date.now());
 
   try {
-    const response = await axios.post(
-      this.BASE_URL,
-      {
-        model: this.activeModel,
-        messages: [{ role: 'user', content: prompt }],
-        temperature: options?.temperature ?? 0.1,
-        max_tokens: options?.maxOutputTokens ?? 4096,
-      },
-      {
-        headers: {
-          'Authorization': `Bearer ${key.apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        timeout: 30000,
-      },
-    );
-
-    const content = response.data?.choices?.[0]?.message?.content;
-    if (content) {
-      key.dailyTokens += this.estimateTokens(prompt, content);
-      key.dailyRequests++;
-      return content;
+    // 3. POST 到 Groq API
+    const response = await axios.post(this.BASE_URL, { ... }, { ... });
+    const content = response.data?.choices?.[0]?.message?.content || null;
+    if (content !== null) {
+      currentKey.dailyTokens += /* estimated tokens */;
+      currentKey.dailyRequests++;
     }
-    return null;
-  } catch (error: any) {
-    if (error.response?.status === 429) {
-      key.blocked = true;
-      key.blockedReason = '429 Too Many Requests';
-      key.blockedUntil = Date.now() + this.KEY_429_COOLDOWN;
-      this.rotateToNextKey();
+    return content;
+  } catch (e: any) {
+    // 4. 失败 → 移除已记录的时间戳（失败请求不计入 RPM）
+    currentKey.requestTimestamps.pop();
+
+    if (e.response?.status === 429) {
+      // 5. 读取 Retry-After header，封锁所有 Key，立即返回 null
+      const retryAfter = e.response?.headers?.['retry-after'];
+      const cooldownMs = retryAfter
+        ? parseInt(retryAfter, 10) * 1000
+        : 120000; // 默认 2 分钟
+      for (const key of this.keyInstances) {
+        key.blocked = true;
+        key.blockedReason = 'rate_limited';
+        key.blockedUntil = Date.now() + cooldownMs;
+      }
+      return null;  // 不等待、不重试 — 防止重试风暴
     }
     return null;
   }
 }
 ```
+
+**辅助方法：**
+- `pruneStaleTimestamps(key)` — 移除超过 60 秒的时间戳
+- `selectBestKey(): boolean` — 选取最低 RPM 的可用 Key，返回 true 如果找到
+- `getMinRpmWaitTime(): number` — 计算最快可用的 Key 还需等待多少毫秒
+- `getMinBlockedWaitTime(): number` — 计算最快解封的 Key 还需等待多少毫秒
+- `rotateToNextKey(): boolean` — 接口兼容包装，委托给 `selectBestKey()`
+- `unblockExpiredKeys(now: number)` — 每秒由 AiService 调用，解封到期的 Key
 
 ### DeepSeekProvider
 
@@ -721,11 +735,11 @@ XXX_API_KEY=key1,key2,key3
 
 | 文件 | 类型 | 行数 | 说明 |
 |------|------|------|------|
-| [`apps/api/src/common/ai/interfaces/ai-provider.interface.ts`](../../apps/api/src/common/ai/interfaces/ai-provider.interface.ts) | 接口定义 | 47 | `AiProviderInstance`、`AiKeyInstance`、`AiProviderUsageStats` |
+| [`apps/api/src/common/ai/interfaces/ai-provider.interface.ts`](../../apps/api/src/common/ai/interfaces/ai-provider.interface.ts) | 接口定义 | 50 | `AiProviderInstance`、`AiKeyInstance`、`AiProviderUsageStats` |
 | [`apps/api/src/common/ai/ai.service.ts`](../../apps/api/src/common/ai/ai.service.ts) | 编排层 | 775 | Provider 注册、选择、故障转移、共享基础设施 |
 | [`apps/api/src/common/ai/ai.module.ts`](../../apps/api/src/common/ai/ai.module.ts) | 模块 | 13 | NestJS Module 定义，注册所有 Provider |
 | [`apps/api/src/common/ai/providers/gemini.provider.ts`](../../apps/api/src/common/ai/providers/gemini.provider.ts) | Provider | 306 | Gemini 实现（Google SDK） |
-| [`apps/api/src/common/ai/providers/groq.provider.ts`](../../apps/api/src/common/ai/providers/groq.provider.ts) | Provider | 245 | Groq 实现（OpenAI 兼容 API） |
+| [`apps/api/src/common/ai/providers/groq.provider.ts`](../../apps/api/src/common/ai/providers/groq.provider.ts) | Provider | 382 | Groq 实现（OpenAI 兼容 API，RPM 追踪） |
 | [`apps/api/src/common/ai/providers/deepseek.provider.ts`](../../apps/api/src/common/ai/providers/deepseek.provider.ts) | Provider | 258 | DeepSeek 实现（OpenAI 兼容 API） |
 | [`apps/api/src/blog/blog.controller.ts`](../../apps/api/src/blog/blog.controller.ts) | API 端点 | 394 | `GET/PATCH /admin/blog/ai/provider-config`、`GET /admin/blog/ai/providers`、`GET /admin/blog/ai/status` |
 

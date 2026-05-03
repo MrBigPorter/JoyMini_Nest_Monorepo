@@ -1,9 +1,11 @@
 ---
-title: 'GlobalUploadService：S3 直传 + 压缩管道 + MIME 校正'
+title: 'GlobalUploadService: S3 直传 + 压缩管道 + MIME 校正'
 description: 'Flutter 文件上传系统，支持 S3 预签名 URL 直传、基于魔数的 MIME 类型检测、压缩管道、带并发限制的上传队列、指数退避重试、大文件分片上传和实时进度追踪。'
 slug: global-upload-service-s3-compression-mime
 tags: Flutter, Upload, S3, Compression, MIME, Media
 ---
+
+# GlobalUploadService: S3 直传 + 压缩管道 + MIME 校正
 
 ## 1. 为什么需要全局上传服务？
 

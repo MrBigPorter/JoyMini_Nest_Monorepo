@@ -1,11 +1,11 @@
 ---
-title: 'ShareService + DeepLinkService：多平台分享与深度链接集成'
+title: 'ShareService + DeepLinkService: 多平台分享与深度链接集成'
 slug: share-service-deep-link-platform-integration
 tags: Flutter, Sharing, DeepLink, PlatformIntegration, Navigation
 description: 一个多平台分享和深度链接系统，支持平台特定的 URL Scheme、冷启动/热启动处理、重复预防和 OAuth URL 过滤。
 ---
 
-# ShareService + DeepLinkService：多平台分享与深度链接集成
+# ShareService + DeepLinkService: 多平台分享与深度链接集成
 
 ## 1. 背景
 

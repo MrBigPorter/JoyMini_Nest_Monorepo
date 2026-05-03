@@ -1,9 +1,11 @@
 ---
-title: 'ImageCacheManager：L1/L2 双层缓存 + ResponsiveImageService CDN 分辨率阶梯'
+title: 'ImageCacheManager: L1/L2 双层缓存 + ResponsiveImageService CDN 分辨率阶梯'
 description: '双层图片缓存系统，包含 L1 内存缓存（LinkedHashMap LRU）和 L2 磁盘缓存（SQLite），结合基于视口宽度、DPR 和网络质量的响应式 CDN 分辨率选择。'
 slug: image-cache-manager-l1-l2-responsive-image-service
 tags: Flutter, Cache, Image, Performance, Optimization
 ---
+
+# ImageCacheManager: L1/L2 双层缓存 + ResponsiveImageService CDN 分辨率阶梯
 
 ## 1. 为什么社交电商需要双层缓存？
 

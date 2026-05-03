@@ -1,9 +1,11 @@
 ---
-title: 'BaseModalConfig + RadixSheet + RadixModal：统一弹窗架构'
+title: 'BaseModalConfig + RadixSheet + RadixModal: 统一弹窗架构'
 description: '基于 BaseModalConfig 抽象类、RadixSheet 底部弹窗、RadixModal 居中弹窗和 RadixFullScreen 的统一弹窗系统，支持去重和队列管理。'
 slug: modal-system-base-config-radix-sheet-modal
 tags: Flutter, UI, Modal, BottomSheet, Architecture
 ---
+
+# BaseModalConfig + RadixSheet + RadixModal: 统一弹窗架构
 
 ## 1. 为什么需要统一弹窗系统？
 
