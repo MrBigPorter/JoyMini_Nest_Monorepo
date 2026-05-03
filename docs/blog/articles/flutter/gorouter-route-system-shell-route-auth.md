@@ -1,9 +1,11 @@
 ---
-title: 'GoRouter 路由系统：30+ 路由、ShellRoute 与 RouteAuthConfig'
+title: 'GoRouter 路由系统: 30+ 路由、ShellRoute 与 RouteAuthConfig'
 description: '构建生产级 GoRouter 导航系统的完整指南，涵盖 30+ 路由定义、StatefulShellRoute 持久化底部导航，以及 RouteAuthConfig 按需认证守卫。'
 slug: gorouter-route-system-shell-route-auth
 tags: Flutter, GoRouter, Routing, Navigation, Auth
 ---
+
+# GoRouter 路由系统: 30+ 路由、ShellRoute 与 RouteAuthConfig
 
 ## 1. 概述
 

@@ -1,9 +1,11 @@
 ---
-title: 'Deep Link OAuth + GlobalOAuthHandler：统一认证入口架构'
+title: 'Deep Link OAuth + GlobalOAuthHandler: 统一认证入口架构'
 description: 'Flutter 中深度链接、通用链接和 OAuth 回调的统一处理架构，涵盖认证门控、路由解析和延迟导航。'
 slug: deep-link-oauth-global-handler
 tags: Flutter, DeepLink, OAuth, Authentication, Routing, Security
 ---
+
+# Deep Link OAuth + GlobalOAuthHandler: 统一认证入口架构
 
 ## 1. 问题空间
 

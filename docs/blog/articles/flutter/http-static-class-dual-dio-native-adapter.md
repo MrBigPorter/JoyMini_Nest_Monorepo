@@ -1,9 +1,11 @@
 ---
-title: 'Http 静态类：双 Dio + NativeAdapter——三模式请求架构'
+title: 'Http 静态类: 双 Dio + NativeAdapter——三模式请求架构'
 description: 深入分析基于静态 Http 类的 Flutter HTTP 客户端架构，包含双 Dio 实例（公开 + 认证）和 NativeAdapter 平台特定传输层，涵盖 Token 管理、错误归一化和测试策略。
 slug: http-static-class-dual-dio-native-adapter
 tags: Flutter, Dio, HTTP, Networking, Mobile
 ---
+
+# Http 静态类: 双 Dio + NativeAdapter——三模式请求架构
 
 ## 1. 概述
 

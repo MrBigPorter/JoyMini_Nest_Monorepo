@@ -1,11 +1,11 @@
 ---
-title: 'AppBootstrap：数据屏障 + 5 路并行初始化'
+title: 'AppBootstrap: 数据屏障 + 5 路并行初始化'
 slug: app-bootstrap-data-barrier-parallel-init
 tags: Flutter, Startup, Architecture, StateManagement, Riverpod
 description: 一种两阶段初始化策略，通过数据屏障阻止 UI 渲染直到所有关键前置条件满足，彻底解决常见的"已登出闪烁"问题。
 ---
 
-# AppBootstrap：数据屏障 + 5 路并行初始化
+# AppBootstrap: 数据屏障 + 5 路并行初始化
 
 ## 1. 背景
 

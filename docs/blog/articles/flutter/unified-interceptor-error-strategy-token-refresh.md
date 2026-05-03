@@ -1,11 +1,11 @@
 ---
-title: 'UnifiedInterceptor：错误策略分发 + 单飞 Token 刷新'
+title: 'UnifiedInterceptor: 错误策略分发 + 单飞 Token 刷新'
 slug: unified-interceptor-error-strategy-token-refresh
 tags: Flutter, Dio, Interceptor, TokenRefresh, ErrorHandling
 description: UnifiedInterceptor 是一个 Dio HTTP 拦截器，作为 Flutter 应用中所有 HTTP 通信的中枢神经系统，处理设备指纹注入、错误策略分发、单飞 Token 刷新和服务器时间同步。
 ---
 
-# UnifiedInterceptor：错误策略分发 + 单飞 Token 刷新
+# UnifiedInterceptor: 错误策略分发 + 单飞 Token 刷新
 
 ## 1. 背景
 

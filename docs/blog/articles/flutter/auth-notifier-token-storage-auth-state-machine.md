@@ -1,11 +1,11 @@
 ---
-title: 'AuthNotifier + TokenStorage：Flutter 认证状态机'
+title: 'AuthNotifier + TokenStorage: Flutter 认证状态机'
 slug: auth-notifier-token-storage-auth-state-machine
 tags: Flutter, Auth, StateManagement, Token, ChangeNotifier
 description: 使用 AuthNotifier 和 TokenStorage 在 Flutter 中实现健壮的认证状态机，涵盖登录、Token 刷新、安全存储、Provider 集成和安全最佳实践。
 ---
 
-# AuthNotifier + TokenStorage：Flutter 认证状态机
+# AuthNotifier + TokenStorage: Flutter 认证状态机
 
 ## 1. 背景
 

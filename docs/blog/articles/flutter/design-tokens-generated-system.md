@@ -5,6 +5,8 @@ tags: Flutter, DesignTokens, Theme, UI, CodeGeneration
 description: 一套完整的 Flutter Design Tokens 生成系统，涵盖颜色、排版、间距、圆角、阴影和动效 Token，支持亮色/暗色主题切换和自动化代码生成。
 ---
 
+# Design Tokens 生成系统——1215 行代码生成 Flutter 设计语言
+
 ## 1. 为什么需要 Design Tokens？
 
 在 JoyMini 这样的社交 + 电商 + 游戏混合应用中，**视觉一致性**直接影响品牌信任和用户体验。传统方式存在三个主要痛点：

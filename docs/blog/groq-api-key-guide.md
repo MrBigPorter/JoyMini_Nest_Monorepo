@@ -39,6 +39,8 @@ GROQ_API_KEY=gsk_key1,gsk_key2,gsk_key3
 | Tokens per day | 500,000 |
 | Concurrent requests | Varies by model |
 
+> **⚠️ Important: All API keys share a single account-level rate limit.** Multiple keys do NOT multiply your total capacity. For example, 4 keys still means ~30 RPM total, not 120 RPM. The system's multi-key support is designed for RPM-aware smart selection (`selectBestKey()`) rather than capacity stacking. When one key hits a 429 rate limit, ALL keys are blocked simultaneously because they share the same account quota.
+
 ## Available Models
 
 | Model | Context Window | Best For |
@@ -70,10 +72,21 @@ GROQ_API_KEY=gsk_key1,gsk_key2,gsk_key3
 - Restart the API server after adding the key
 
 ### "Rate limit exceeded"
-- Groq free tier allows 30 requests per minute
-- The system automatically handles rate limiting with cooldown and key rotation
-- If you have multiple keys, they will be rotated automatically
+- Groq free tier allows ~30 requests per minute per account (all keys share this limit)
+- The system tracks per-key RPM using a **rolling 60-second window** and proactively selects the least-loaded key via `selectBestKey()`
+- When rate limiting occurs (HTTP 429), the system reads the **`Retry-After` header** and blocks **ALL keys** for the duration specified
+- Multiple keys do **NOT** multiply your rate limit — they share the same account-level quota
+- If all Groq keys are blocked, try switching the AI provider to **Gemini** or **DeepSeek** via the Admin UI
 
 ### Translation quality issues
 - Try switching to a different model (e.g., `llama-3.3-70b-versatile` for better quality)
 - Check the AI Service Status card for provider-specific error messages
+
+### Rate Limit Recovery (Retry-After header)
+When Groq returns a 429 (Too Many Requests) response, it may include a `Retry-After` header specifying the number of seconds to wait before retrying. The system respects this header precisely:
+
+- All keys are blocked immediately for the duration indicated in `Retry-After`
+- The cooldown can be as short as **60 seconds** or as long as **8400 seconds (~2.3 hours)** depending on violation severity
+- The `unblockExpiredKeys()` method runs every second and automatically unblocks keys when the cooldown expires
+- Until cooldown expires, all Groq translation requests will fail — the server will **not** retry aggressively (prevents retry storm that would reset the rate limit clock)
+- **Recommendation:** If Groq is blocked for an extended period, switch to Gemini or DeepSeek via the Admin UI (**Translation Progress** page → **AI Provider Config** card)

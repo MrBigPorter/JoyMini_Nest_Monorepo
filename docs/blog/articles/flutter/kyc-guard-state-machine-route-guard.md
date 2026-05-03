@@ -1,11 +1,11 @@
 ---
-title: 'KycGuard：状态机路由守卫 + KycModal'
+title: 'KycGuard: 状态机路由守卫 + KycModal'
 slug: kyc-guard-state-machine-route-guard
 tags: Flutter, KYC, RouteGuard, StateMachine, Verification
 description: 一种路由级守卫，在允许受保护操作之前强制检查 KYC 认证状态，通过三种不同的用户旅程将 KYC 状态机与 UI 层桥接。
 ---
 
-# KycGuard：状态机路由守卫 + KycModal
+# KycGuard: 状态机路由守卫 + KycModal
 
 ## 1. 背景
 

@@ -1,9 +1,11 @@
 ---
-title: 'PlatformAdapter：条件导出——跨平台条件编译模式'
+title: 'PlatformAdapter: 条件导出——跨平台条件编译模式'
 description: 深入探讨 Flutter 中利用 Dart 条件导出机制实现的 PlatformAdapter 模式，将平台特定实现封装在统一接口之后，支持 iOS、Android 和 Web，并实现死代码消除。
 slug: platform-adapter-conditional-export
 tags: Flutter, Architecture, CrossPlatform, ConditionalExport, Adapter
 ---
+
+# PlatformAdapter: 条件导出——跨平台条件编译模式
 
 ## 1. 背景
 

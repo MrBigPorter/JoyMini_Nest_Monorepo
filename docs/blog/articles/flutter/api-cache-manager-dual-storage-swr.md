@@ -1,9 +1,11 @@
 ---
-title: 'ApiCacheManager：双存储 + SWR 缓存策略'
+title: 'ApiCacheManager: 双存储 + SWR 缓存策略'
 description: 分析 ApiCacheManager 双存储缓存（RAM + 磁盘）如何利用 SWR（Stale-While-Revalidate）策略应对不可靠的移动网络，防止 UI 空白状态。
 slug: api-cache-manager-dual-storage-swr
 tags: Flutter, Caching, SWR, Performance, Offline
 ---
+
+# ApiCacheManager: 双存储 + SWR 缓存策略
 
 ## 1. 概述
 

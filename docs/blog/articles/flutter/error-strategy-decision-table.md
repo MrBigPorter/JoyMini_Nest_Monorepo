@@ -1,9 +1,11 @@
 ---
-title: 'ErrorStrategy：5 种策略 + 可配置决策表——应用级错误处理框架'
+title: 'ErrorStrategy: 5 种策略 + 可配置决策表——应用级错误处理框架'
 slug: error-strategy-decision-table
 tags: Flutter, ErrorHandling, Architecture, Dart, StateMachine
 description: 一个应用级错误处理框架，提供 5 种可配置策略（静默、提示、重试、降级、阻断）和决策表引擎，适用于 Flutter 应用。
 ---
+
+# ErrorStrategy: 5 种策略 + 可配置决策表——应用级错误处理框架
 
 ## 1. 为什么需要 ErrorStrategy？
 
