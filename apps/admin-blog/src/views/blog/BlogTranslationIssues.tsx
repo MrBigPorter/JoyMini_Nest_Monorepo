@@ -229,39 +229,18 @@ export default function BlogTranslationIssues() {
     });
     setTranslatingCategories(loadingMap);
 
-    let successCount = 0;
-    let failCount = 0;
-
     try {
-      for (let i = 0; i < ids.length; i++) {
-        try {
-          const response = await blogApi.translation.translateCategory(
-            ids[i],
-            selectedLanguage,
-          );
-          if (response?.success !== false) {
-            successCount++;
-          } else {
-            failCount++;
-          }
-        } catch {
-          failCount++;
-        }
-      }
-
-      if (failCount === 0) {
+      const response = await blogApi.translation.batchTranslateCategories(
+        ids,
+        selectedLanguage,
+      );
+      if (response?.success) {
         addToast(
           'success',
-          t('categoryTranslationSent', { count: successCount }),
+          t('categoryTranslationSent', { count: response.queued }),
         );
       } else {
-        addToast(
-          'info',
-          t('categoryTranslationPartial', {
-            success: successCount,
-            failed: failCount,
-          }),
-        );
+        addToast('error', t('translationFailed'));
       }
     } catch {
       addToast('error', t('translationFailed'));
@@ -339,36 +318,18 @@ export default function BlogTranslationIssues() {
     });
     setTranslatingTags(loadingMap);
 
-    let successCount = 0;
-    let failCount = 0;
-
     try {
-      for (let i = 0; i < ids.length; i++) {
-        try {
-          const response = await blogApi.translation.translateTag(
-            ids[i],
-            selectedLanguage,
-          );
-          if (response?.success !== false) {
-            successCount++;
-          } else {
-            failCount++;
-          }
-        } catch {
-          failCount++;
-        }
-      }
-
-      if (failCount === 0) {
-        addToast('success', t('tagTranslationSent', { count: successCount }));
-      } else {
+      const response = await blogApi.translation.batchTranslateTags(
+        ids,
+        selectedLanguage,
+      );
+      if (response?.success) {
         addToast(
-          'info',
-          t('tagTranslationPartial', {
-            success: successCount,
-            failed: failCount,
-          }),
+          'success',
+          t('tagTranslationSent', { count: response.queued }),
         );
+      } else {
+        addToast('error', t('translationFailed'));
       }
     } catch {
       addToast('error', t('translationFailed'));

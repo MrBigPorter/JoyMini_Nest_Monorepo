@@ -1234,6 +1234,64 @@ export class BlogService {
   }
 
   /**
+   * 批量翻译标签
+   */
+  async batchTranslateTags(tagIds: string[], targetLang?: string) {
+    if (this.aiService.getServiceLevel() === AiServiceLevel.DISABLED) {
+      throw new BadRequestException(
+        'AI translation service is currently disabled due to daily budget limit. Please try again tomorrow.',
+      );
+    }
+
+    const lang = targetLang || 'en';
+    let queued = 0;
+
+    for (const tagId of tagIds) {
+      await this.blogAiQueue.add('translate-tag', {
+        tagId,
+        targetLang: lang,
+      });
+      queued++;
+    }
+
+    return {
+      success: true,
+      message: `Batch translation queued for ${queued} tags`,
+      queued,
+      targetLang: lang,
+    };
+  }
+
+  /**
+   * 批量翻译分类
+   */
+  async batchTranslateCategories(categoryIds: string[], targetLang?: string) {
+    if (this.aiService.getServiceLevel() === AiServiceLevel.DISABLED) {
+      throw new BadRequestException(
+        'AI translation service is currently disabled due to daily budget limit. Please try again tomorrow.',
+      );
+    }
+
+    const lang = targetLang || 'en';
+    let queued = 0;
+
+    for (const categoryId of categoryIds) {
+      await this.blogAiQueue.add('translate-category', {
+        categoryId,
+        targetLang: lang,
+      });
+      queued++;
+    }
+
+    return {
+      success: true,
+      message: `Batch translation queued for ${queued} categories`,
+      queued,
+      targetLang: lang,
+    };
+  }
+
+  /**
    * 批量初始化语言翻译
    * 当开启新语言时，自动翻译所有文章、分类和标签
    */

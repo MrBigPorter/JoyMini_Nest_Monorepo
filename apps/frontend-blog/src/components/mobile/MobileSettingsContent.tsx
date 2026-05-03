@@ -48,6 +48,11 @@ export function MobileSettingsContent({ onClose }: MobileSettingsContentProps) {
   const showAuthLoading = authLoading || !isHydrated;
 
   const switchLocale = (nextLocale: string) => {
+    // 设置语言Cookie，让服务端知道用户的语言选择
+    if (typeof document !== 'undefined') {
+      document.cookie = `NEXT_LOCALE=${nextLocale}; path=/; max-age=31536000; SameSite=Lax`;
+      document.cookie = `locale=${nextLocale}; path=/; max-age=31536000; SameSite=Lax`;
+    }
     router.replace(pathname, { locale: nextLocale });
     setShowLanguageList(false);
     if (onClose) onClose();

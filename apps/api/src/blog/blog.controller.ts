@@ -191,6 +191,26 @@ export class BlogController {
     return this.blogService.translateTag(id, body?.targetLang);
   }
 
+  @Post('tags/batch-translate')
+  @ApiBearerAuth()
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiOperation({ summary: '批量翻译标签' })
+  async batchTranslateTags(
+    @Body() dto: { ids: string[]; targetLang?: string },
+  ) {
+    return this.blogService.batchTranslateTags(dto.ids, dto.targetLang);
+  }
+
+  @Post('categories/batch-translate')
+  @ApiBearerAuth()
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiOperation({ summary: '批量翻译分类' })
+  async batchTranslateCategories(
+    @Body() dto: { ids: string[]; targetLang?: string },
+  ) {
+    return this.blogService.batchTranslateCategories(dto.ids, dto.targetLang);
+  }
+
   @Post('articles/:id/trigger-video-transcode')
   @ApiBearerAuth()
   @UseGuards(AdminJwtAuthGuard)

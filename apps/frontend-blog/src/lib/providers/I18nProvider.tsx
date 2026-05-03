@@ -21,26 +21,31 @@ export default function I18nProvider({
     document.documentElement.lang = actualLocale;
     (globalThis as any).__NEXT_INTL_LOCALE__ = actualLocale;
 
-    // 2. 仅在以下情况做客户端语言检测回退：
-    //    - 当前语言是默认语言（说明服务端 Accept-Language 检测失败了）
-    //    - 浏览器语言与当前 URL 语言不同
-    //    - 浏览器语言在我们的支持列表中
+    // 2. 如果用户已有 NEXT_LOCALE cookie（手动选择过语言），跳过浏览器检测
+    //    这确保用户手动切换语言后不会被浏览器语言覆盖
+    const hasUserCookie = document.cookie.match(
+      new RegExp('(^| )NEXT_LOCALE=([^;]+)'),
+    );
+    if (hasUserCookie) return;
+
+    // 3. 如果当前 URL 语言不是默认语言，说明用户主动导航到了这个语言，也跳过检测
     if (actualLocale !== DEFAULT_LOCALE) return;
 
-    // 从 navigator.language 提取主语言代码（'en-US' → 'en'）
+    // 4. 只有首次访问（无 cookie、在默认语言）才做浏览器语言检测
+    //    从 navigator.language 提取主语言代码（'en-US' → 'en'）
     const browserLang = navigator.language.split('-')[0].toLowerCase();
 
     // 只在浏览器语言在支持列表中且与当前语言不同时才跳转
     if (!browserLang || browserLang === actualLocale) return;
     if (!(LOCALES as readonly string[]).includes(browserLang)) return;
 
-    // 3. 设置 NEXT_LOCALE cookie，后续请求服务端就能直接识别
+    // 5. 设置 NEXT_LOCALE cookie，后续请求服务端就能直接识别
     const expires = new Date(
       Date.now() + 365 * 24 * 60 * 60 * 1000,
     ).toUTCString();
     document.cookie = `NEXT_LOCALE=${browserLang}; path=/; expires=${expires}; SameSite=Lax`;
 
-    // 4. 使用 router.push() 替代 window.location.href
+    // 6. 使用 router.push() 替代 window.location.href
     //    原因：硬跳转会销毁整个 React 树，导致白屏闪烁。
     //    router.push() 保持 React 树存活，
     //    HomePageClient 的 <Suspense fallback={<HomePageSkeleton />}>
