@@ -228,7 +228,22 @@ jobs:
           command_timeout: 15m
           debug: true
 
-      # Step 2.2 / 步骤 2.2: Sync nginx config to VPS
+      # Step 2.2 / 步骤 2.2: Sync .env.prod to VPS (环境变量配置)
+      - name: Sync .env.prod to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT != '' && secrets.SSH_PORT || 22 }}
+          source: "deploy/.env.prod"
+          target: /opt/lucky/deploy
+          strip_components: 0
+          overwrite: true
+          timeout: 120s
+          command_timeout: 15m
+
+      # Step 2.3 / 步骤 2.3: Sync nginx config to VPS
       - name: Sync nginx config to VPS
         uses: appleboy/scp-action@v0.1.7
         with:
