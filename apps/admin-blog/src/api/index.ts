@@ -437,6 +437,20 @@ export const blogApi = {
       });
     },
 
+    batchTranslateTags: async (ids: string[], targetLang?: string) => {
+      return await http.post('/v1/admin/blog/tags/batch-translate', {
+        ids,
+        targetLang,
+      });
+    },
+
+    batchTranslateCategories: async (ids: string[], targetLang?: string) => {
+      return await http.post('/v1/admin/blog/categories/batch-translate', {
+        ids,
+        targetLang,
+      });
+    },
+
     triggerVideoTranscode: async (articleId: string, videoKey: string) => {
       return await http.post(
         `/v1/admin/blog/articles/${articleId}/trigger-video-transcode`,

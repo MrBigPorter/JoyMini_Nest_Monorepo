@@ -105,6 +105,8 @@ export default function Header() {
   const switchLocale = (nextLocale: string) => {
     // 设置语言Cookie，让服务端知道用户的语言选择
     if (typeof document !== 'undefined') {
+      // 设置标准 NEXT_LOCALE cookie（next-intl 识别）+ 向后兼容的 locale cookie
+      document.cookie = `NEXT_LOCALE=${nextLocale}; path=/; max-age=31536000; SameSite=Lax`;
       document.cookie = `locale=${nextLocale}; path=/; max-age=31536000; SameSite=Lax`;
     }
 

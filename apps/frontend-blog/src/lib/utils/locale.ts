@@ -18,17 +18,24 @@ export type SupportedLocale = Locale;
  */
 
 export function detectLocale(request?: NextRequest): SupportedLocale {
-  //  紧急修复：SSR环境强制从URL路径提取，完全忽略Cookie
+  // SSR环境：优先从URL路径提取
   if (request) {
     const url = new URL(request.url);
     const pathLocale = extractLocaleFromPath(url.pathname);
 
     if (pathLocale) {
-      // SSR环境：URL路径是唯一事实来源，完全忽略Cookie
+      // URL路径是唯一事实来源
       return pathLocale;
     }
 
-    // 从Accept-Language头部检测浏览器语言
+    // URL没有语言前缀时：先检查用户是否有NEXT_LOCALE cookie（手动选择的语言偏好）
+    // 再回退到Accept-Language浏览器语言检测（首次访问）
+    const cookieLocale = getLocaleFromCookie(request);
+    if (cookieLocale && isSupportedLocale(cookieLocale)) {
+      return cookieLocale;
+    }
+
+    // 从Accept-Language头部检测浏览器语言（首次访问）
     const acceptLanguage = request.headers.get('accept-language');
     const browserLocale = parseAcceptLanguage(acceptLanguage);
 
@@ -37,15 +44,13 @@ export function detectLocale(request?: NextRequest): SupportedLocale {
     }
   }
 
-  //  修复：客户端环境永远只信任URL路径，彻底断开死循环
-  // 客户端禁止读取Cookie、navigator或任何其他数据源
-  // URL是唯一真实来源，Cookie只在首次访问时由middleware处理
+  // 客户端环境永远只信任URL路径
   if (typeof window !== 'undefined') {
     const pathLocale = extractLocaleFromPath(window.location.pathname);
     return pathLocale || DEFAULT_LOCALE;
   }
 
-  // 只有SSR环境才继续后续逻辑
+  // SSR fallback：检查cookie
   const cookieLocale = getLocaleFromCookie(request);
 
   if (cookieLocale && isSupportedLocale(cookieLocale)) {

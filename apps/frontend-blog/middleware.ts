@@ -77,6 +77,12 @@ export default function middleware(request: NextRequest) {
   }
 
   // 7. 使用next-intl中间件处理其他逻辑
+  // 注意：intlMiddleware 可能对默认语言做特殊处理（如去掉前缀），
+  // 导致 /zh/xxx → /xxx → 又被我们的检测逻辑重定向到 /en/xxx
+  // 所以当 URL 已有合法语言前缀时，直接放行，不调用 intlMiddleware
+  if (currentLocale === DEFAULT_LOCALE) {
+    return NextResponse.next();
+  }
 
   return intlMiddleware(request);
 }
