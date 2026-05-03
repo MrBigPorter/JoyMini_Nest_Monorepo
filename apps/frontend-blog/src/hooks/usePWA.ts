@@ -2,10 +2,15 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import type { UsePWAReturn, BeforeInstallPromptEvent } from '@/types/pwa';
+import { getInstallState, clearInstallState } from '@/lib/pwa-install-store';
 
 /**
  * PWA功能Hook
  * 处理安装提示、离线状态、更新检查等PWA相关功能
+ *
+ * 注意: beforeinstallprompt 事件监听器已在 PwaComponents 中提前注册
+ * (因为 InstallPrompt 通过 dynamic() 懒加载，会错过该事件)。
+ * usePWA 初始化时从共享 store (pwa-install-store) 读取已捕获的事件。
  */
 export function usePWA(): UsePWAReturn {
   const [isInstallable, setIsInstallable] = useState(false);
@@ -39,27 +44,17 @@ export function usePWA(): UsePWAReturn {
     return () => mediaQuery.removeEventListener('change', handleChange);
   }, []);
 
-  // 监听安装提示事件
+  // 从共享 store 读取 PwaComponents 提前捕获的 beforeinstallprompt 事件
+  // InstallPrompt 通过 dynamic() 懒加载，挂载时浏览器可能已触发该事件
+  // PwaComponents (静态导入) 已提前注册监听器并将事件存入 store
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const handleBeforeInstallPrompt = (e: Event) => {
-      e.preventDefault();
-      // 检查用户是否已选择不再显示安装提示
-      const hidden = localStorage.getItem('pwa_install_prompt_hidden');
-      if (hidden === 'true') return;
-      setDeferredPrompt(e as BeforeInstallPromptEvent);
+    const state = getInstallState();
+    if (state.isInstallable && state.deferredPrompt) {
+      setDeferredPrompt(state.deferredPrompt);
       setIsInstallable(true);
-    };
-
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-
-    return () => {
-      window.removeEventListener(
-        'beforeinstallprompt',
-        handleBeforeInstallPrompt,
-      );
-    };
+    }
   }, []);
 
   // 监听离线状态
@@ -194,6 +189,7 @@ export function usePWA(): UsePWAReturn {
   const clearDeferredPrompt = useCallback(() => {
     setDeferredPrompt(null);
     setIsInstallable(false);
+    clearInstallState();
   }, []);
 
   return {
