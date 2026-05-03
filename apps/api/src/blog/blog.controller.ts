@@ -17,11 +17,17 @@ import { TriggerVideoTranscodeDto } from './dto/trigger-video-transcode.dto';
 import { ArticleStatus } from '@prisma/client';
 import { AdminJwtAuthGuard } from '@api/admin/auth/admin-jwt-auth.guard';
 import { CurrentUserId } from '@api/common/decorators/user.decorator';
+import { AiService } from '@api/common/ai/ai.service';
+import { SystemConfigService } from '@api/admin/system-config/system-config.service';
 
 @ApiTags('Blog')
 @Controller('admin/blog')
 export class BlogController {
-  constructor(private readonly blogService: BlogService) {}
+  constructor(
+    private readonly blogService: BlogService,
+    private readonly aiService: AiService,
+    private readonly systemConfigService: SystemConfigService,
+  ) {}
 
   @Get('articles')
   @ApiBearerAuth()
@@ -195,6 +201,64 @@ export class BlogController {
   ) {
     await this.blogService.triggerVideoTranscode(id, dto.videoKey);
     return { message: 'Video transcoding job enqueued' };
+  }
+
+  @Get('ai/status')
+  @ApiBearerAuth()
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiOperation({
+    summary: '获取AI服务状态（服务等级、API Key额度、健康状况）',
+  })
+  async getAiStatus() {
+    const serviceLevel = this.aiService.getServiceLevel();
+    const usageStats = this.aiService.getUsageStats();
+    const available = this.aiService.isAvailable();
+
+    return {
+      serviceLevel,
+      serviceLevelLabel:
+        ['DISABLED', 'MINIMAL', 'ESSENTIAL', 'FULL'][serviceLevel] || 'UNKNOWN',
+      available,
+      usageStats,
+    };
+  }
+
+  @Get('ai/providers')
+  @ApiBearerAuth()
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiOperation({ summary: '获取可用的AI提供商列表及模型' })
+  async getAiProviders() {
+    return this.aiService.getAvailableProviders();
+  }
+
+  @Get('ai/provider-config')
+  @ApiBearerAuth()
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiOperation({ summary: '获取当前AI提供商/模型配置' })
+  async getProviderConfig() {
+    const config = await this.systemConfigService.get<{
+      provider: string;
+      model: string;
+    }>('AI_TRANSLATION_PROVIDER', {
+      provider: 'gemini',
+      model: 'gemini-2.5-flash',
+    });
+    // Sync cache in AiService
+    this.aiService.setProviderConfig(config);
+    return config;
+  }
+
+  @Patch('ai/provider-config')
+  @ApiBearerAuth()
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiOperation({ summary: '更新AI提供商/模型配置' })
+  async updateProviderConfig(@Body() dto: { provider: string; model: string }) {
+    await this.systemConfigService.update('AI_TRANSLATION_PROVIDER', {
+      value: JSON.stringify(dto),
+    });
+    // Sync cache in AiService
+    this.aiService.setProviderConfig(dto);
+    return { success: true };
   }
 
   @Get('translation-progress')

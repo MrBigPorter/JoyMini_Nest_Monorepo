@@ -1,3 +1,10 @@
+---
+title: 'useChatSocket — Admin 客服实时通信的 Socket.IO 实践'
+slug: use-chat-socket-realtime-customer-service
+tags: Next.js, Admin, WebSocket, Socket.IO, TypeScript, React, Real-Time, Customer Service
+description: useChatSocket 是一个 250 行的自定义 React Hook，封装了 Socket.IO 实时通信的完整生命周期管理，包括连接管理、房间隔离、统一事件分发、消息映射和 ACK 超时发送模式。
+---
+
 # useChatSocket — Admin 客服实时通信的 Socket.IO 实践
 
 > **难度**: ⭐⭐⭐⭐  

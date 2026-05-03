@@ -1,3 +1,17 @@
+---
+title: 'LuckyDrawService 抽奖系统：加权随机 + 原子化票务引擎'
+slug: lucky-draw-service-lottery-ticket
+description: JoyMini 的抽奖系统基于加权随机算法和 Prisma 原子化票务操作，涵盖奖池管理、购票、开奖和兑奖的完整事务性流程，确保高并发下的数据一致性。
+tags:
+  - NestJS
+  - Lucky Draw
+  - Lottery
+  - Weighted Random
+  - Prisma
+  - Concurrency
+  - TypeScript
+---
+
 # LuckyDrawService 抽奖系统：加权随机 + 原子化票务引擎
 
 > **源码参考**: [`lucky-draw.service.ts`](apps/api/src/common/lucky-draw/lucky-draw.service.ts) (478 行)

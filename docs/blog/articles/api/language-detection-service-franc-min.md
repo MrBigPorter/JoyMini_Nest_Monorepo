@@ -1,3 +1,16 @@
+---
+title: 'LanguageDetectionService：混合策略语言检测引擎'
+slug: language-detection-service-franc-min
+description: JoyMini API 的语言检测服务采用 franc-min 库 + 启发式规则 + AI 兜底三层混合策略，支持 191 种语言识别，用于博客多语言翻译和用户内容语言自动匹配。
+tags:
+  - NestJS
+  - Language Detection
+  - franc-min
+  - AI
+  - Translation
+  - TypeScript
+---
+
 # LanguageDetectionService：混合策略语言检测引擎
 
 > **源码参考**: [`language-detection.service.ts`](apps/api/src/common/services/language-detection.service.ts) (524 行)

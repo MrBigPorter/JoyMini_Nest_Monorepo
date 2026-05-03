@@ -1,3 +1,10 @@
+---
+title: 'Sentry 可观测性 — Span 常量与工具函数'
+slug: sentry-observability-span-utils
+tags: Next.js, Admin, Sentry, Observability, TypeScript, Monitoring, Performance
+description: 管理后台的 Sentry 可观测性体系通过自定义 Span 常量和工具函数，实现了全链路追踪的统一命名规范、操作类型分类和属性标签标准化。
+---
+
 # Sentry 可观测性 — Span 常量与工具函数
 
 > **难度**: ⭐⭐⭐⭐  

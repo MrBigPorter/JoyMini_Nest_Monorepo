@@ -443,6 +443,29 @@ export const blogApi = {
         { videoKey },
       );
     },
+
+    /** 获取AI服务状态（服务等级、API Key额度、健康状况） */
+    getAiStatus: async () => {
+      return await http.get('/v1/admin/blog/ai/status');
+    },
+
+    /** 获取可用的AI提供商列表及模型 */
+    getAiProviders: async () => {
+      return await http.get('/v1/admin/blog/ai/providers');
+    },
+
+    /** 获取当前AI提供商/模型配置 */
+    getAiProviderConfig: async () => {
+      return await http.get('/v1/admin/blog/ai/provider-config');
+    },
+
+    /** 更新AI提供商/模型配置 */
+    updateAiProviderConfig: async (data: {
+      provider: string;
+      model: string;
+    }) => {
+      return await http.patch('/v1/admin/blog/ai/provider-config', data);
+    },
   },
 };
 

@@ -1,3 +1,17 @@
+---
+title: '头像服务、支付集成与公共缓存拦截器'
+slug: avatar-service-payment-cache-interceptor
+description: JoyMini API 的头像自动生成服务（Sharp 合成 + BullMQ 队列）、Xendit 支付集成（含分布式锁调账）和基于 Redis 的公共缓存拦截器实现。
+tags:
+  - NestJS
+  - Payment
+  - Xendit
+  - Avatar
+  - Caching
+  - Sharp
+  - BullMQ
+---
+
 # 头像服务、支付集成与公共缓存拦截器
 
 > **Audience:** 后端工程师，全栈开发者  

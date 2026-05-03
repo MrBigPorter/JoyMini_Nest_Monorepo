@@ -1,3 +1,18 @@
+---
+title: '邮件通知服务：管理员申请流程的 Resend 集成'
+slug: email-resend-notification-service
+description: JoyMini API 的邮件通知服务基于 Resend 构建，专注于管理员申请流程的审批通知场景，涵盖单方法服务设计、HTML 模板引擎和错误处理实现。
+tags:
+  - NestJS
+  - Email
+  - Resend
+  - Notification
+  - Admin
+  - Application
+  - Authentication
+  - TypeScript
+---
+
 # 邮件通知服务：管理员申请流程的 Resend 集成
 
 **Date:** 2026-05-01  

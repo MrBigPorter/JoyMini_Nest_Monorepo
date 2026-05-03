@@ -1,3 +1,10 @@
+---
+title: 'Zustand 认证存储 + SSR Hydration — 管理后台三 Store 架构'
+slug: zustand-auth-store-ssr-hydration
+tags: Next.js, Admin, Zustand, SSR, Authentication, TypeScript, State Management, Hydration
+description: 管理后台使用三个 Zustand Store（useAuthStore、useAppStore、useToastStore）分别管理认证状态、UI 偏好和全局通知，通过不同的持久化策略和 SSR 安全模式实现服务端渲染兼容。
+---
+
 # Zustand 认证存储 + SSR Hydration — 管理后台三 Store 架构
 
 > **难度**: ⭐⭐⭐⭐  

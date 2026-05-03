@@ -287,6 +287,337 @@ const TimeInfo = ({
   );
 };
 
+/** AI 服务状态卡片 - 显示服务等级、各 Provider 使用量、API Key 额度、健康状况 */
+const AiServiceStatusCard = ({
+  aiStatus,
+  aiStatusLoading,
+  t,
+}: {
+  aiStatus: any;
+  aiStatusLoading: boolean;
+  t: (key: string) => string;
+}) => {
+  if (aiStatusLoading) {
+    return (
+      <Card title="🤖 AI Service Status" className="col-span-1">
+        <div className="space-y-3">
+          <div className="h-5 bg-gray-100 rounded w-32 animate-pulse" />
+          <div className="h-4 bg-gray-100 rounded w-48 animate-pulse" />
+          <div className="h-4 bg-gray-100 rounded w-40 animate-pulse" />
+        </div>
+      </Card>
+    );
+  }
+
+  if (!aiStatus) return null;
+
+  const { serviceLevel, serviceLevelLabel, available, usageStats } = aiStatus;
+
+  const levelColors: Record<string, string> = {
+    FULL: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+    ESSENTIAL: 'bg-blue-100 text-blue-800 border-blue-300',
+    MINIMAL: 'bg-amber-100 text-amber-800 border-amber-300',
+    DISABLED: 'bg-red-100 text-red-800 border-red-300',
+  };
+
+  const levelColor =
+    levelColors[serviceLevelLabel] ||
+    'bg-gray-100 text-gray-800 border-gray-300';
+  const isHealthy = available && serviceLevel > 0;
+
+  const totalUsage = usageStats?.total;
+  const providers = usageStats?.providers || [];
+  const circuitBreaker = usageStats?.circuitBreaker;
+  const limits = usageStats?.limits;
+
+  return (
+    <Card title="🤖 AI Service Status" className="col-span-1">
+      <div className="space-y-3">
+        {/* 服务等级 */}
+        <div className="flex items-center justify-between">
+          <span className="text-gray-500 text-sm">Service Level</span>
+          <span
+            className={`px-2 py-0.5 text-xs font-medium rounded border ${levelColor}`}
+          >
+            {serviceLevelLabel}
+          </span>
+        </div>
+
+        {/* 健康状态 */}
+        <div className="flex items-center justify-between">
+          <span className="text-gray-500 text-sm">Health</span>
+          <div className="flex items-center gap-1.5">
+            <span
+              className={`inline-block w-2.5 h-2.5 rounded-full ${
+                isHealthy ? 'bg-emerald-500' : 'bg-red-500'
+              }`}
+            />
+            <span
+              className={`text-sm font-medium ${isHealthy ? 'text-emerald-700' : 'text-red-700'}`}
+            >
+              {isHealthy ? 'Healthy' : 'Unhealthy'}
+            </span>
+          </div>
+        </div>
+
+        {/* 电路熔断器状态 */}
+        {circuitBreaker && (
+          <div className="flex items-center justify-between">
+            <span className="text-gray-500 text-sm">Circuit Breaker</span>
+            <span
+              className={`text-xs font-medium ${
+                circuitBreaker.open ? 'text-red-600' : 'text-emerald-600'
+              }`}
+            >
+              {circuitBreaker.open
+                ? `OPEN (resets ${formatDistanceToNow(circuitBreaker.resetAfter, { addSuffix: true })})`
+                : 'Closed'}
+            </span>
+          </div>
+        )}
+
+        {/* 总请求统计 */}
+        {totalUsage && (
+          <div className="border-t border-gray-100 pt-2 mt-2">
+            <div className="text-xs font-medium text-gray-400 mb-1.5">
+              Total Usage
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="text-center">
+                <div className="text-sm font-semibold text-gray-700">
+                  {totalUsage.requests || 0}
+                </div>
+                <div className="text-xs text-gray-400">Requests</div>
+              </div>
+              <div className="text-center">
+                <div className="text-sm font-semibold text-gray-700">
+                  {totalUsage.tokens || 0}
+                </div>
+                <div className="text-xs text-gray-400">Tokens</div>
+              </div>
+              <div className="text-center">
+                <div className="text-sm font-semibold text-gray-700">
+                  {Math.round((totalUsage.totalDailyTokens || 0) / 1000)}k
+                </div>
+                <div className="text-xs text-gray-400">Daily Tokens</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 各 Provider 使用量 */}
+        {providers.length > 0 && (
+          <div className="border-t border-gray-100 pt-2 mt-2">
+            <div className="text-xs font-medium text-gray-400 mb-1.5">
+              Providers
+            </div>
+            <div className="space-y-3">
+              {providers.map((prov: any, pIdx: number) => (
+                <div key={pIdx}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-medium text-gray-600">
+                      {prov.displayName || prov.name}
+                    </span>
+                    <span className="text-xs text-gray-400">
+                      {prov.requests || 0} req /{' '}
+                      {Math.round((prov.tokens || 0) / 1000)}k tok
+                    </span>
+                  </div>
+                  {/* Provider 下的 API Keys */}
+                  {prov.keys && prov.keys.length > 0 && (
+                    <div className="space-y-1 pl-2">
+                      {prov.keys.map((key: any, kIdx: number) => {
+                        const pct = key.usagePercent || 0;
+                        const barColor =
+                          pct > 90
+                            ? 'bg-red-500'
+                            : pct > 70
+                              ? 'bg-amber-500'
+                              : 'bg-emerald-500';
+                        return (
+                          <div key={kIdx} className="flex items-center gap-2">
+                            <span className="text-xs text-gray-400 w-4">
+                              #{key.index + 1}
+                            </span>
+                            <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full transition-all ${barColor}`}
+                                style={{ width: `${Math.min(pct, 100)}%` }}
+                              />
+                            </div>
+                            <span className="text-xs text-gray-400 w-20 text-right">
+                              {Math.round((key.dailyTokens || 0) / 1000)}k /{' '}
+                              {Math.round((key.dailyLimit || 0) / 1000)}k
+                            </span>
+                            {key.blocked && (
+                              <span className="text-xs text-red-500 font-medium ml-1">
+                                BLOCKED
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 速率限制 */}
+        {limits && (
+          <div className="border-t border-gray-100 pt-2 mt-2">
+            <div className="text-xs font-medium text-gray-400 mb-1">
+              Rate Limits
+            </div>
+            <div className="text-xs text-gray-500">
+              RPM: {limits.RPM || '-'} | TPM: {limits.TPM || '-'} | TPD:{' '}
+              {limits.TPD || '-'}
+            </div>
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+};
+
+/** AI Provider 选择器 - 选择翻译使用的 AI 提供商和模型 */
+const ProviderSelector = ({
+  aiProviders,
+  aiProviderConfig,
+  aiProviderConfigLoading,
+  onSave,
+  t,
+}: {
+  aiProviders: any[];
+  aiProviderConfig: any;
+  aiProviderConfigLoading: boolean;
+  onSave: (provider: string, model: string) => Promise<void>;
+  t: (key: string) => string;
+}) => {
+  const [selectedProvider, setSelectedProvider] = React.useState<string>('');
+  const [selectedModel, setSelectedModel] = React.useState<string>('');
+  const [saving, setSaving] = React.useState(false);
+
+  // 当配置加载完成后初始化选择器状态
+  React.useEffect(() => {
+    if (aiProviderConfig) {
+      setSelectedProvider(aiProviderConfig.provider || '');
+      setSelectedModel(aiProviderConfig.model || '');
+    }
+  }, [aiProviderConfig]);
+
+  // 当前选中的提供商
+  const currentProvider = aiProviders?.find(
+    (p: any) => p.name === selectedProvider,
+  );
+
+  // 提供商切换时自动选择第一个模型
+  const handleProviderChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newProvider = e.target.value;
+    setSelectedProvider(newProvider);
+    const provider = aiProviders?.find((p: any) => p.name === newProvider);
+    if (provider && provider.models && provider.models.length > 0) {
+      setSelectedModel(provider.models[0]);
+    } else {
+      setSelectedModel('');
+    }
+  };
+
+  const handleSave = async () => {
+    if (!selectedProvider || !selectedModel) return;
+    setSaving(true);
+    try {
+      await onSave(selectedProvider, selectedModel);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (aiProviderConfigLoading) {
+    return (
+      <Card title="⚙️ AI Provider Config" className="col-span-1">
+        <div className="space-y-3">
+          <div className="h-5 bg-gray-100 rounded w-32 animate-pulse" />
+          <div className="h-8 bg-gray-100 rounded w-full animate-pulse" />
+          <div className="h-8 bg-gray-100 rounded w-full animate-pulse" />
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card title="⚙️ AI Provider Config" className="col-span-1">
+      <div className="space-y-3">
+        {/* Provider 下拉 */}
+        <div>
+          <label className="block text-xs font-medium text-gray-500 mb-1">
+            Provider
+          </label>
+          <select
+            value={selectedProvider}
+            onChange={handleProviderChange}
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="">-- Select Provider --</option>
+            {(aiProviders || []).map((p: any) => (
+              <option key={p.name} value={p.name} disabled={!p.available}>
+                {p.displayName || p.name}
+                {!p.available ? ' (unavailable)' : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Model 下拉 */}
+        <div>
+          <label className="block text-xs font-medium text-gray-500 mb-1">
+            Model
+          </label>
+          <select
+            value={selectedModel}
+            onChange={(e) => setSelectedModel(e.target.value)}
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            disabled={!currentProvider}
+          >
+            <option value="">-- Select Model --</option>
+            {(currentProvider?.models || []).map((m: string) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* 保存按钮 */}
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={handleSave}
+          disabled={
+            saving ||
+            !selectedProvider ||
+            !selectedModel ||
+            (aiProviderConfig?.provider === selectedProvider &&
+              aiProviderConfig?.model === selectedModel)
+          }
+          className="w-full"
+        >
+          {saving ? 'Saving...' : 'Save Config'}
+        </Button>
+
+        {/* 当前配置提示 */}
+        {aiProviderConfig && (
+          <div className="text-xs text-gray-400 text-center pt-1">
+            Current: {aiProviderConfig.provider} / {aiProviderConfig.model}
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+};
+
 export default function BlogTranslationProgress() {
   const { t: globalT, lang } = useTranslation();
   const { addToast } = useToastStore();
@@ -395,6 +726,47 @@ export default function BlogTranslationProgress() {
     },
   );
 
+  // AI 服务状态
+  const {
+    data: aiStatus,
+    loading: aiStatusLoading,
+    run: runAiStatus,
+  } = useRequest(() => blogApi.translation.getAiStatus(), {
+    manual: true,
+    pollingInterval: autoRefresh ? 15000 : undefined,
+  });
+
+  // AI 提供商列表
+  const {
+    data: aiProviders,
+    loading: aiProvidersLoading,
+    run: runAiProviders,
+  } = useRequest(() => blogApi.translation.getAiProviders(), {
+    manual: true,
+  });
+
+  // AI 提供商配置
+  const {
+    data: aiProviderConfig,
+    loading: aiProviderConfigLoading,
+    run: runAiProviderConfig,
+  } = useRequest(() => blogApi.translation.getAiProviderConfig(), {
+    manual: true,
+  });
+
+  // 保存 AI 提供商配置
+  const handleSaveProviderConfig = async (provider: string, model: string) => {
+    try {
+      await blogApi.translation.updateAiProviderConfig({ provider, model });
+      addToast('success', 'Provider config saved successfully');
+      // 刷新配置和状态
+      runAiProviderConfig();
+      runAiStatus();
+    } catch (err: any) {
+      addToast(err?.message || 'Failed to save provider config', 'error');
+    }
+  };
+
   // 初始加载和 autoRefresh 变化时触发请求
   React.useEffect(() => {
     runProgress();
@@ -403,6 +775,9 @@ export default function BlogTranslationProgress() {
     runUntranslated();
     runUntranslatedCategories();
     runUntranslatedTags();
+    runAiStatus();
+    runAiProviders();
+    runAiProviderConfig();
   }, [
     runProgress,
     runJobs,
@@ -410,6 +785,9 @@ export default function BlogTranslationProgress() {
     runUntranslated,
     runUntranslatedCategories,
     runUntranslatedTags,
+    runAiStatus,
+    runAiProviders,
+    runAiProviderConfig,
   ]);
 
   // autoRefresh 变化时重新配置轮询
@@ -590,6 +968,22 @@ export default function BlogTranslationProgress() {
               : 'info'
           }
           icon={BarChart3}
+        />
+      </div>
+
+      {/* 🤖 AI服务状态 + Provider 配置 */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <AiServiceStatusCard
+          aiStatus={aiStatus}
+          aiStatusLoading={aiStatusLoading}
+          t={t}
+        />
+        <ProviderSelector
+          aiProviders={aiProviders}
+          aiProviderConfig={aiProviderConfig}
+          aiProviderConfigLoading={aiProviderConfigLoading}
+          onSave={handleSaveProviderConfig}
+          t={t}
         />
       </div>
 

@@ -1,3 +1,10 @@
+---
+title: 'Middleware JWT 路由守卫 — Edge Runtime 下的认证防线'
+slug: middleware-jwt-route-guard
+tags: Next.js, Admin, Middleware, JWT, Authentication, Edge Runtime, Security, TypeScript
+description: 管理后台通过 Edge Runtime 下的 Middleware 实现路由级 JWT 认证守卫，在请求到达页面之前执行服务端验证，构成双层安全防线的第一道屏障。
+---
+
 # Middleware JWT 路由守卫 — Edge Runtime 下的认证防线
 
 > **难度**: ⭐⭐⭐⭐  

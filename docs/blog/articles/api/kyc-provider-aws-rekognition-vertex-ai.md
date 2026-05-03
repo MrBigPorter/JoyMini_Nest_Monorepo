@@ -1,3 +1,18 @@
+---
+title: 'KYC 双云供应商：AWS Rekognition + Google AI Studio Gemini 身份核验'
+slug: kyc-provider-aws-rekognition-vertex-ai
+description: JoyMini 的 KYC 身份核验系统采用 AWS Rekognition（人脸比对）和 Google AI Studio Gemini（OCR 证件识别）双云供应商架构，涵盖活体检测、证件识别和风险评分的完整流程。
+tags:
+  - NestJS
+  - KYC
+  - AWS Rekognition
+  - Google AI Studio
+  - Gemini
+  - Identity Verification
+  - Security
+  - TypeScript
+---
+
 # KYC 双云供应商：AWS Rekognition + Google AI Studio Gemini 身份核验
 
 > **源码参考**: [`kyc-provider.service.ts`](apps/api/src/common/kyc-provider/kyc-provider.service.ts) (542 行)

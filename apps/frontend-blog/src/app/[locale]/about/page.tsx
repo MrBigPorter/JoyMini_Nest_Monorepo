@@ -11,6 +11,8 @@ import {
   Sparkles,
 } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
+import { AboutFounderAvatar } from '@/components/about/AboutFounderAvatar';
 
 export const revalidate = 3600;
 export const dynamic = 'force-static';
@@ -213,16 +215,10 @@ export default async function AboutPage({
               <div className="grid lg:grid-cols-5 gap-8 items-center">
                 {/* Avatar section */}
                 <div className="lg:col-span-2 flex flex-col items-center">
-                  <div className="relative w-64 h-64">
-                    <div className="absolute inset-0 bg-gradient-to-r from-primary/20 to-secondary/20 rounded-full blur-xl opacity-50" />
-                    <img
-                      src={teamMembers[0].avatar}
-                      alt={teamMembers[0].name}
-                      className="relative w-full h-full rounded-full border-4 border-background object-cover shadow-2xl z-10"
-                    />
-                    {/* Status indicator */}
-                    <div className="absolute bottom-4 right-4 w-6 h-6 bg-green-500 rounded-full border-2 border-background z-20" />
-                  </div>
+                  <AboutFounderAvatar
+                    src={teamMembers[0].avatar}
+                    alt={teamMembers[0].name}
+                  />
 
                   {/* Quick stats */}
                   <div className="mt-8 grid grid-cols-3 gap-4 w-full max-w-xs">
@@ -411,12 +407,12 @@ export default async function AboutPage({
         <div className="max-w-6xl mx-auto px-4 text-center">
           <div className="mb-6">
             <div className="inline-flex items-center gap-2 text-2xl font-bold mb-2">
-              <img
+              <Image
                 src="/logo.png"
                 alt="Tarsier Labs"
-                className="w-6 h-6 object-contain"
                 width={24}
                 height={24}
+                className="w-6 h-6 object-contain"
               />
               Tarsier Labs
             </div>

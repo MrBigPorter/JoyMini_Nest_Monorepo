@@ -1,3 +1,17 @@
+---
+title: '通用 DTO 系统：Transform 装饰器工厂 + 分页 DTO'
+slug: generic-dto-system-transforms-pagination
+description: JoyMini API 的通用 DTO 系统基于 Transform 装饰器工厂模式，提供类型转换、数据清洗和标准分页 DTO，减少 Controller 层的重复代码并保证数据一致性。
+tags:
+  - NestJS
+  - DTO
+  - Validation
+  - Transform
+  - Decorator
+  - Pagination
+  - TypeScript
+---
+
 # 通用 DTO 系统：Transform 装饰器工厂 + 分页 DTO
 
 > **源码参考**: [`transforms.ts`](apps/api/src/common/dto/transforms.ts) (459 行)

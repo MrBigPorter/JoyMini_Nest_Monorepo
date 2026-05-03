@@ -1,100 +1,103 @@
-# ReactiveForms + JSON Schema 代码生成表单
+---
+title: "ReactiveForms + JSON Schema Code-Generated Forms"
+description: "A Flutter reactive form system featuring stream-based ReactiveFormController with value/status/error BehaviorSubjects, JSON Schema server-driven form configuration, Prisma Schema to Dart code generation, dynamic FormFieldGenerator with 12+ field builders, cross-field subscriptions, computed fields, conditional visibility via dependsOn pattern, debounced auto-save draft restoration, and a complete dynamic product form demonstration."
+slug: reactive-forms-code-generation
+tags: [Flutter, Forms, Reactive, JSON Schema, Code Generation]
+---
 
-> **文章难度：** ⭐⭐⭐⭐⭐ (专家)
-> **关注领域：** 表单引擎、响应式编程、代码生成、架构设计
-> **阅读时间：** 25 分钟
+# ReactiveForms + JSON Schema Code-Generated Forms
 
-## 目录
+## Table of Contents
 
-- [为什么需要响应式表单 + 代码生成？](#为什么需要响应式表单--代码生成)
-- [架构总览：ReactiveForm 引擎 + JSON Schema](#架构总览reactiveform-引擎--json-schema)
-- [ReactiveFormController：值 / 状态 / 错误流](#reactiveformcontroller值--状态--错误流)
-  - [控制器实现](#控制器实现)
-  - [组合表单状态](#组合表单状态)
-- [表单字段类型系统：text / number / select / date / file](#表单字段类型系统text--number--select--date--file)
-  - [字段配置](#字段配置)
-- [JSON Schema 定义表单配置](#json-schema-定义表单配置)
-  - [JSON Schema 示例](#json-schema-示例)
-  - [Schema 解析器](#schema-解析器)
-- [代码生成：从 Prisma Schema 到表单配置](#代码生成从-prisma-schema-到表单配置)
-  - [Prisma Schema 示例](#prisma-schema-示例)
-  - [代码生成器（Node.js 脚本）](#代码生成器nodejs-脚本)
-  - [生成输出（Dart 常量）](#生成输出dart-常量)
-- [动态表单渲染：FormFieldGenerator](#动态表单渲染formfieldgenerator)
-- [表单状态订阅与跨字段组合](#表单状态订阅与跨字段组合)
-  - [计算字段（总价 = 价格 × 数量）](#计算字段总价--价格--数量)
-- [基于其他字段值的条件显示/隐藏](#基于其他字段值的条件显示隐藏)
-  - [响应式可见性构建器](#响应式可见性构建器)
-- [自动保存与恢复表单草稿](#自动保存与恢复表单草稿)
-  - [草稿管理器](#草稿管理器)
-  - [自动保存组件](#自动保存组件)
-- [实践：动态商品表单](#实践动态商品表单)
-- [总结](#总结)
-  - [关键要点](#关键要点)
-  - [何时使用此模式](#何时使用此模式)
-  - [相关文章](#相关文章)
+- [Why Reactive Forms + Code Generation?](#1-why-reactive-forms--code-generation)
+- [Architecture Overview: ReactiveForm Engine + JSON Schema](#2-architecture-overview-reactiveform-engine--json-schema)
+- [ReactiveFormController: Value / Status / Error Streams](#3-reactiveformcontroller-value--status--error-streams)
+  - [Controller Implementation](#31-controller-implementation)
+  - [Combined Form State](#32-combined-form-state)
+- [Form Field Type System: text / number / select / date / file](#4-form-field-type-system-text--number--select--date--file)
+  - [Field Configuration](#41-field-configuration)
+- [JSON Schema Defines Form Configuration](#5-json-schema-defines-form-configuration)
+  - [JSON Schema Example](#51-json-schema-example)
+  - [Schema Parser](#52-schema-parser)
+- [Code Generation: From Prisma Schema to Form Configuration](#6-code-generation-from-prisma-schema-to-form-configuration)
+  - [Prisma Schema Example](#61-prisma-schema-example)
+  - [Code Generator (Node.js Script)](#62-code-generator-nodejs-script)
+  - [Generated Output (Dart Constants)](#63-generated-output-dart-constants)
+- [Dynamic Form Rendering: FormFieldGenerator](#7-dynamic-form-rendering-formfieldgenerator)
+- [Form State Subscription & Cross-Field Combination](#8-form-state-subscription--cross-field-combination)
+  - [Computed Fields (Total = Price × Quantity)](#81-computed-fields-total--price--quantity)
+- [Conditional Show/Hide Based on Other Field Values](#9-conditional-showhide-based-on-other-field-values)
+  - [Reactive Visibility Builder](#91-reactive-visibility-builder)
+- [Auto-Save & Restore Form Drafts](#10-auto-save--restore-form-drafts)
+  - [Draft Manager](#101-draft-manager)
+  - [Auto-Save Component](#102-auto-save-component)
+- [Practice: Dynamic Product Form](#11-practice-dynamic-product-form)
+- [Summary](#12-summary)
+  - [Key Takeaways](#121-key-takeaways)
+  - [When to Use This Pattern](#122-when-to-use-this-pattern)
+  - [Related Articles](#123-related-articles)
 
-## 为什么需要响应式表单 + 代码生成？
+## 1. Why Reactive Forms + Code Generation?
 
-在构建包含大量表单的 Flutter 应用时，传统做法面临以下问题：
+When building Flutter applications with many forms, traditional approaches face these challenges:
 
-1. **重复劳动**：每个表单都需要手写控制器、验证逻辑、错误处理——即使结构相似
-2. **后端不同步**：后端模型变更后，前端表单需要手动更新，容易遗漏
-3. **无法热更新**：表单逻辑捆绑在 App 二进制文件中，无法动态调整
-4. **大量样板代码**：每个字段需要 `TextEditingController`、验证状态、错误展示
+1. **Repetitive work**: Every form requires manually writing controllers, validation logic, and error handling — even when structures are similar
+2. **Backend out of sync**: When backend models change, frontend forms must be updated manually, easily leading to omissions
+3. **No hot updates**: Form logic is bundled into the app binary and cannot be adjusted dynamically
+4. **Boilerplate code overload**: Each field requires `TextEditingController`, validation state, and error display
 
-**响应式表单 + JSON Schema + 代码生成** 方案的核心思想：
+**Core ideas of Reactive Forms + JSON Schema + Code Generation**:
 
-- **JSON Schema 驱动**：表单结构由后端 JSON 定义，前端动态渲染
-- **响应式控制器**：基于 Stream 的控制器，值和状态变化可被订阅
-- **代码生成**：从 Prisma Schema 自动生成表单配置，消除重复工作
+- **JSON Schema driven**: Form structure is defined by backend JSON, rendered dynamically on the frontend
+- **Reactive controller**: Stream-based controllers whose values and states can be subscribed to
+- **Code generation**: Automatically generate form configurations from Prisma Schema, eliminating repetitive work
 
-## 架构总览：ReactiveForm 引擎 + JSON Schema
+## 2. Architecture Overview: ReactiveForm Engine + JSON Schema
 
 ```
-                  ┌──────────────────────────────┐
-                  │     JSON Schema (服务端)      │
-                  │  formId, version, sections[]   │
-                  └─────────────┬────────────────┘
-                                │ 解析
+                  ┌──────────────────────────────────────┐
+                  │     JSON Schema (Server-Side)        │
+                  │  formId, version, sections[]          │
+                  └─────────────┬────────────────────────┘
+                                │ Parse
                                 ▼
-                  ┌──────────────────────────────┐
-                  │      FormSchemaParser         │
-                  │  JSON → FormSchema + sections │
-                  └─────────────┬────────────────┘
+                  ┌──────────────────────────────────────┐
+                  │      FormSchemaParser                 │
+                  │  JSON → FormSchema + sections         │
+                  └─────────────┬────────────────────────┘
                                 │
-          ┌─────────────────────┼─────────────────────┐
-          ▼                     ▼                     ▼
-┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
-│ FormFieldGenerator│  │ ReactiveFormGroup │  │  AutoSaveForm    │
-│ (动态渲染)        │  │ (控制器集合)      │  │ (草稿自动保存)   │
-└──────────────────┘  └──────────────────┘  └──────────────────┘
+          ┌─────────────────────┼──────────────────────────┐
+          ▼                     ▼                          ▼
+┌─────────────────────┐  ┌─────────────────────┐  ┌─────────────────────┐
+│ FormFieldGenerator  │  │ ReactiveFormGroup    │  │   AutoSaveForm      │
+│ (Dynamic Render)    │  │ (Controller Set)     │  │ (Auto-Save Drafts)  │
+└─────────────────────┘  └─────────────────────┘  └─────────────────────┘
           │                     │
           ▼                     ▼
-┌──────────────────┐  ┌──────────────────┐
-│ ReactiveFormCtrl  │◄─┤  Stream 架构      │
-│ valueStream       │  │  statusStream     │
-│ errorStream       │  │  combinedStream   │
-└──────────────────┘  └──────────────────┘
+┌─────────────────────┐  ┌─────────────────────┐
+│ ReactiveFormCtrl    │◄─┤  Stream Architecture │
+│ valueStream         │  │  statusStream        │
+│ errorStream         │  │  combinedStream      │
+└─────────────────────┘  └─────────────────────┘
 ```
 
-## ReactiveFormController：值 / 状态 / 错误流
+## 3. ReactiveFormController: Value / Status / Error Streams
 
-`ReactiveFormController<T>` 是响应式表单的核心。它封装了字段的值、验证状态和错误信息，通过 Stream 对外发布变化。
+`ReactiveFormController<T>` is the core of reactive forms. It encapsulates the field's value, validation status, and error information, publishing changes via Stream.
 
-### 控制器实现
+### 3.1 Controller Implementation
 
 ```dart
-/// 响应式表单字段状态
+/// Reactive form field status
 enum ReactiveFieldStatus {
-  pristine,   // 未触及
-  dirty,      // 已修改
-  validating, // 验证中
-  valid,      // 有效
-  invalid,    // 无效
+  pristine,   // Not touched
+  dirty,      // Modified
+  validating, // Validating
+  valid,      // Valid
+  invalid,    // Invalid
 }
 
-/// 泛型响应式表单控制器
+/// Generic reactive form controller
 class ReactiveFormController<T> {
   final String fieldName;
   final List<FieldValidator> validators;
@@ -103,11 +106,11 @@ class ReactiveFormController<T> {
   ReactiveFieldStatus _status = ReactiveFieldStatus.pristine;
   String? _error;
 
-  // 值流（对外只读，对内可写）
+  // Value stream (read-only externally, writable internally)
   final BehaviorSubject<T> _valueSubject;
-  // 状态流
+  // Status stream
   final BehaviorSubject<ReactiveFieldStatus> _statusSubject;
-  // 错误流
+  // Error stream
   final BehaviorSubject<String?> _errorSubject;
 
   ReactiveFormController({
@@ -119,18 +122,18 @@ class ReactiveFormController<T> {
       _statusSubject = BehaviorSubject<ReactiveFieldStatus>.seeded(ReactiveFieldStatus.pristine),
       _errorSubject = BehaviorSubject<String?>.seeded(null);
 
-  // ── 公共 Stream API ──
+  // ── Public Stream API ──
 
-  /// 值变化流
+  /// Value change stream
   Stream<T> get valueStream => _valueSubject.stream;
 
-  /// 状态变化流
+  /// Status change stream
   Stream<ReactiveFieldStatus> get statusStream => _statusSubject.stream;
 
-  /// 错误信息流
+  /// Error info stream
   Stream<String?> get errorStream => _errorSubject.stream;
 
-  // ── 当前值快照 ──
+  // ── Current Value Snapshot ──
 
   T get value => _value;
   ReactiveFieldStatus get status => _status;
@@ -138,7 +141,7 @@ class ReactiveFormController<T> {
   bool get isValid => _status == ReactiveFieldStatus.valid;
   bool get isDirty => _status != ReactiveFieldStatus.pristine;
 
-  /// 更新值并自动触发验证
+  /// Update value and automatically trigger validation
   void updateValue(T newValue) {
     if (newValue == _value) return;
 
@@ -152,7 +155,7 @@ class ReactiveFormController<T> {
     validate();
   }
 
-  /// 手动触发验证
+  /// Manually trigger validation
   Future<bool> validate() async {
     _updateStatus(ReactiveFieldStatus.validating);
 
@@ -172,14 +175,14 @@ class ReactiveFormController<T> {
     return true;
   }
 
-  /// 标记为已修改
+  /// Mark as modified
   void markAsDirty() {
     if (_status == ReactiveFieldStatus.pristine) {
       _updateStatus(ReactiveFieldStatus.dirty);
     }
   }
 
-  /// 重置到初始状态
+  /// Reset to initial state
   void reset(T? initialValue) {
     _value = initialValue ?? ('' as T);
     _error = null;
@@ -188,9 +191,9 @@ class ReactiveFormController<T> {
     _updateStatus(ReactiveFieldStatus.pristine);
   }
 
-  /// 标记为提交中（用于表单提交时禁用按钮）
+  /// Mark as submitting (used to disable button during form submission)
   void setSubmitting(bool isSubmitting) {
-    // 状态扩展：可在流中添加标记
+    // Status extension: can add flag in stream
   }
 
   void _updateStatus(ReactiveFieldStatus newStatus) {
@@ -205,14 +208,14 @@ class ReactiveFormController<T> {
   }
 }
 
-/// 字段验证器接口
+/// Field validator interface
 abstract class FieldValidator {
   Future<String?> validate(String value);
 }
 
 class ReactiveRequiredValidator implements FieldValidator {
   final String message;
-  ReactiveRequiredValidator({this.message = '此字段为必填项'});
+  ReactiveRequiredValidator({this.message = 'This field is required'});
 
   @override
   Future<String?> validate(String value) async {
@@ -224,7 +227,7 @@ class ReactiveRequiredValidator implements FieldValidator {
 class ReactivePatternValidator implements FieldValidator {
   final RegExp pattern;
   final String message;
-  ReactivePatternValidator(this.pattern, {this.message = '格式不正确'});
+  ReactivePatternValidator(this.pattern, {this.message = 'Invalid format'});
 
   @override
   Future<String?> validate(String value) async {
@@ -235,34 +238,34 @@ class ReactivePatternValidator implements FieldValidator {
 }
 ```
 
-### 组合表单状态
+### 3.2 Combined Form State
 
 ```dart
-/// 响应式表单组——管理多个控制器
+/// Reactive form group — manages multiple controllers
 class ReactiveFormGroup {
   final Map<String, ReactiveFormController> _controllers = {};
 
-  /// 添加控制器
+  /// Add controller
   void addController(ReactiveFormController controller) {
     _controllers[controller.fieldName] = controller;
   }
 
-  /// 获取指定名称的控制器
+  /// Get controller by name
   ReactiveFormController<T>? controller<T>(String fieldName) {
     return _controllers[fieldName] as ReactiveFormController<T>?;
   }
 
-  /// 所有字段当前值
+  /// Current values of all fields
   Map<String, dynamic> get values {
     return _controllers.map((key, ctrl) => MapEntry(key, ctrl.value));
   }
 
-  /// 所有字段错误信息
+  /// Error info for all fields
   Map<String, String?> get errors {
     return _controllers.map((key, ctrl) => MapEntry(key, ctrl.error));
   }
 
-  /// 验证所有字段
+  /// Validate all fields
   Future<bool> validateAll() async {
     final results = await Future.wait(
       _controllers.values.map((c) => c.validate()),
@@ -270,12 +273,12 @@ class ReactiveFormGroup {
     return results.every((r) => r);
   }
 
-  /// 标记所有字段为已修改
+  /// Mark all fields as modified
   void markAllAsDirty() {
     _controllers.values.forEach((c) => c.markAsDirty());
   }
 
-  /// 组合有效性流（任一字段变化时触发）
+  /// Combined validity stream (triggered when any field changes)
   Stream<bool> get combinedValidityStream {
     if (_controllers.isEmpty) {
       return Stream.value(true);
@@ -288,7 +291,7 @@ class ReactiveFormGroup {
     });
   }
 
-  /// 组合值流（任一字段值变化时触发）
+  /// Combined value stream (triggered when any field value changes)
   Stream<Map<String, dynamic>> get combinedValueStream {
     if (_controllers.isEmpty) {
       return Stream.value({});
@@ -299,7 +302,7 @@ class ReactiveFormGroup {
     ).map((_) => values);
   }
 
-  /// 重置所有字段
+  /// Reset all fields
   void resetAll() {
     _controllers.values.forEach((c) => c.reset(null));
   }
@@ -311,37 +314,37 @@ class ReactiveFormGroup {
 }
 ```
 
-## 表单字段类型系统：text / number / select / date / file
+## 4. Form Field Type System: text / number / select / date / file
 
-`FormFieldType` 枚举定义了 15+ 种原生表单字段类型，支持丰富的表单场景。
+The `FormFieldType` enum defines 15+ native form field types, covering a wide range of form scenarios.
 
 ```dart
-/// 表单字段类型枚举
+/// Form field type enum
 enum FormFieldType {
-  text,          // 文本输入
-  number,        // 数字输入
-  phone,         // 电话号码
-  email,         // 邮箱地址
-  password,      // 密码（带显隐切换）
-  select,        // 下拉选择（单选）
-  multiSelect,   // 多选下拉
-  checkbox,      // 复选框
-  radio,         // 单选框
-  date,          // 日期选择器
-  time,          // 时间选择器
-  dateTime,      // 日期时间选择器
-  file,          // 文件上传
-  switch_toggle, // 开关切换
-  slider,        // 滑块
-  textArea,      // 多行文本
-  otp,           // OTP 验证码输入
+  text,          // Text input
+  number,        // Number input
+  phone,         // Phone number
+  email,         // Email address
+  password,      // Password (with show/hide toggle)
+  select,        // Dropdown select (single)
+  multiSelect,   // Multi-select dropdown
+  checkbox,      // Checkbox
+  radio,         // Radio button
+  date,          // Date picker
+  time,          // Time picker
+  dateTime,      // Date-time picker
+  file,          // File upload
+  switch_toggle, // Switch toggle
+  slider,        // Slider
+  textArea,      // Multi-line text
+  otp,           // OTP verification code input
 }
 ```
 
-### 字段配置
+### 4.1 Field Configuration
 
 ```dart
-/// 表单字段配置（由 JSON Schema 解析而来）
+/// Form field configuration (parsed from JSON Schema)
 class FormFieldConfig {
   final String name;
   final FormFieldType type;
@@ -352,23 +355,23 @@ class FormFieldConfig {
   final bool required;
   final dynamic placeholder;
 
-  // 类型特定选项
+  // Type-specific options
   final NumberOptions? numberOptions;
   final SelectOptions? selectOptions;
   final DateOptions? dateOptions;
   final FileOptions? fileOptions;
   final TextOptions? textOptions;
 
-  // 验证规则列表
+  // Validation rules list
   final List<ValidationRule> validationRules;
 
-  // 条件显示
+  // Conditional visibility
   final String? dependsOn;
   final dynamic dependsOnValue;
   final dynamic visibilityCondition;
 
-  // 布局
-  final int flex;       // flex: 1 = 半宽, 2 = 全宽
+  // Layout
+  final int flex;       // flex: 1 = half width, 2 = full width
   final String? section;
 
   const FormFieldConfig({
@@ -394,18 +397,18 @@ class FormFieldConfig {
   });
 }
 
-/// 数字选项
+/// Number options
 class NumberOptions {
   final double? min;
   final double? max;
   final int? decimalPlaces;
-  final String? prefix;  // 如 '₱'
-  final String? suffix;  // 如 'kg'
+  final String? prefix;  // e.g. '₱'
+  final String? suffix;  // e.g. 'kg'
 
   const NumberOptions({this.min, this.max, this.decimalPlaces, this.prefix, this.suffix});
 }
 
-/// 下拉选择选项
+/// Select options
 class SelectOptions {
   final List<SelectOption> options;
   final bool searchable;
@@ -421,7 +424,7 @@ class SelectOption {
   const SelectOption({required this.label, required this.value});
 }
 
-/// 日期选项
+/// Date options
 class DateOptions {
   final DateTime? minDate;
   final DateTime? maxDate;
@@ -429,10 +432,10 @@ class DateOptions {
   const DateOptions({this.minDate, this.maxDate});
 }
 
-/// 文件选项
+/// File options
 class FileOptions {
   final List<String> allowedExtensions;
-  final int maxFileSize;   // 字节
+  final int maxFileSize;   // bytes
   final int maxFileCount;
   final bool multiple;
 
@@ -444,7 +447,7 @@ class FileOptions {
   });
 }
 
-/// 文本选项
+/// Text options
 class TextOptions {
   final int? maxLength;
   final int? minLength;
@@ -454,7 +457,7 @@ class TextOptions {
   const TextOptions({this.maxLength, this.minLength, this.keyboardType, this.obscureText = false});
 }
 
-/// 验证规则
+/// Validation rule
 class ValidationRule {
   final String type;       // 'required', 'minLength', 'maxLength', 'pattern', 'min', 'max', 'email', etc.
   final dynamic value;
@@ -464,85 +467,85 @@ class ValidationRule {
   const ValidationRule({
     required this.type,
     this.value,
-    this.message = '无效值',
+    this.message = 'Invalid value',
     this.customValidatorId,
   });
 }
 ```
 
-## JSON Schema 定义表单配置
+## 5. JSON Schema Defines Form Configuration
 
-表单配置以 JSON Schema 的形式存储在服务端，前端通过 API 获取后动态渲染。这使得表单可以在不发布新版本的情况下更新。
+Form configuration is stored on the server in JSON Schema format. The frontend fetches it via API and renders dynamically. This allows forms to be updated without publishing a new app version.
 
-### JSON Schema 示例
+### 5.1 JSON Schema Example
 
 ```json
 {
   "formId": "product_listing",
   "version": "1.0.0",
-  "title": "发布商品",
+  "title": "List Product",
   "sections": [
     {
       "name": "basic_info",
-      "label": "基本信息",
+      "label": "Basic Information",
       "fields": [
         {
           "name": "title",
           "type": "text",
-          "label": "商品标题",
+          "label": "Product Title",
           "required": true,
           "textOptions": {
             "maxLength": 100,
             "minLength": 5
           },
           "validationRules": [
-            { "type": "required", "message": "商品标题为必填项" },
-            { "type": "minLength", "value": 5, "message": "标题至少需要 5 个字符" },
-            { "type": "maxLength", "value": 100, "message": "标题不能超过 100 个字符" }
+            { "type": "required", "message": "Product title is required" },
+            { "type": "minLength", "value": 5, "message": "Title requires at least 5 characters" },
+            { "type": "maxLength", "value": 100, "message": "Title cannot exceed 100 characters" }
           ]
         },
         {
           "name": "description",
           "type": "textArea",
-          "label": "商品描述",
+          "label": "Product Description",
           "textOptions": {
             "maxLength": 2000
           },
           "validationRules": [
-            { "type": "maxLength", "value": 2000, "message": "描述不能超过 2000 个字符" }
+            { "type": "maxLength", "value": 2000, "message": "Description cannot exceed 2000 characters" }
           ]
         },
         {
           "name": "categoryId",
           "type": "select",
-          "label": "商品分类",
+          "label": "Product Category",
           "required": true,
           "selectOptions": {
             "searchable": true,
             "options": [
-              { "label": "电子产品", "value": "electronics" },
-              { "label": "服装配饰", "value": "fashion" },
-              { "label": "家居生活", "value": "home" },
-              { "label": "美妆个护", "value": "beauty" },
-              { "label": "食品饮料", "value": "food" },
-              { "label": "运动户外", "value": "sports" },
-              { "label": "其他", "value": "other" }
+              { "label": "Electronics", "value": "electronics" },
+              { "label": "Fashion & Accessories", "value": "fashion" },
+              { "label": "Home & Living", "value": "home" },
+              { "label": "Beauty & Personal Care", "value": "beauty" },
+              { "label": "Food & Beverage", "value": "food" },
+              { "label": "Sports & Outdoors", "value": "sports" },
+              { "label": "Other", "value": "other" }
             ]
           },
           "validationRules": [
-            { "type": "required", "message": "请选择商品分类" }
+            { "type": "required", "message": "Please select a product category" }
           ]
         }
       ]
     },
     {
       "name": "pricing",
-      "label": "定价与库存",
+      "label": "Pricing & Inventory",
       "fields": [
         {
           "name": "price",
           "type": "number",
-          "label": "价格",
+          "label": "Price",
           "required": true,
           "numberOptions": {
             "min": 0,
@@ -550,34 +553,34 @@ class ValidationRule {
             "prefix": "₱"
           },
           "validationRules": [
-            { "type": "required", "message": "请输入价格" },
-            { "type": "min", "value": 0, "message": "价格不能为负" }
+            { "type": "required", "message": "Please enter a price" },
+            { "type": "min", "value": 0, "message": "Price cannot be negative" }
           ]
         },
         {
           "name": "stock",
           "type": "number",
-          "label": "库存数量",
+          "label": "Stock Quantity",
           "required": true,
           "numberOptions": {
             "min": 0,
             "decimalPlaces": 0
           },
           "validationRules": [
-            { "type": "required", "message": "请输入库存数量" },
-            { "type": "min", "value": 0, "message": "库存不能为负" }
+            { "type": "required", "message": "Please enter stock quantity" },
+            { "type": "min", "value": 0, "message": "Stock cannot be negative" }
           ]
         },
         {
           "name": "hasDiscount",
           "type": "switch_toggle",
-          "label": "开启促销",
+          "label": "Enable Promotion",
           "initialValue": false
         },
         {
           "name": "discountPrice",
           "type": "number",
-          "label": "促销价格",
+          "label": "Promotional Price",
           "dependsOn": "hasDiscount",
           "dependsOnValue": true,
           "numberOptions": {
@@ -586,19 +589,19 @@ class ValidationRule {
             "prefix": "₱"
           },
           "validationRules": [
-            { "type": "min", "value": 0, "message": "促销价格不能为负" }
+            { "type": "min", "value": 0, "message": "Promotional price cannot be negative" }
           ]
         }
       ]
     },
     {
       "name": "media",
-      "label": "商品图片",
+      "label": "Product Images",
       "fields": [
         {
           "name": "images",
           "type": "file",
-          "label": "商品照片",
+          "label": "Product Photos",
           "fileOptions": {
             "allowedExtensions": ["jpg", "jpeg", "png", "webp"],
             "maxFileSize": 5242880,
@@ -606,8 +609,8 @@ class ValidationRule {
             "multiple": true
           },
           "validationRules": [
-            { "type": "required", "message": "至少需要一张商品图片" },
-            { "type": "maxFileCount", "value": 10, "message": "最多 10 张图片" }
+            { "type": "required", "message": "At least one product image is required" },
+            { "type": "maxFileCount", "value": 10, "message": "Maximum 10 images" }
           ]
         }
       ]
@@ -616,7 +619,7 @@ class ValidationRule {
 }
 ```
 
-### Schema 解析器
+### 5.2 Schema Parser
 
 ```dart
 class FormSchemaParser {
@@ -710,7 +713,7 @@ class FormSchemaParser {
               ?.map((r) => ValidationRule(
                     type: r['type'] as String,
                     value: r['value'],
-                    message: r['message'] as String? ?? '无效值',
+                    message: r['message'] as String? ?? 'Invalid value',
                     customValidatorId: r['customValidatorId'] as String?,
                   ))
               .toList() ??
@@ -756,11 +759,11 @@ class FormSectionConfig {
 
 ---
 
-## 代码生成：从 Prisma Schema 到表单配置
+## 6. Code Generation: From Prisma Schema to Form Configuration
 
-代码生成器将 **Prisma Schema 模型**转换为 JSON 表单配置。这架起了后端数据模型与前端表单之间的桥梁。
+The code generator converts **Prisma Schema models** into JSON form configurations. This bridges the gap between backend data models and frontend forms.
 
-### Prisma Schema 示例
+### 6.1 Prisma Schema Example
 
 ```prisma
 model Product {
@@ -785,7 +788,7 @@ enum ProductStatus {
 }
 ```
 
-### 代码生成器（Node.js 脚本）
+### 6.2 Code Generator (Node.js Script)
 
 ```typescript
 // scripts/generate-form-config.ts
@@ -811,7 +814,7 @@ interface GeneratedField {
   label: string;
   required: boolean;
   validationRules: ValidationRule[];
-  // ... 类型特定选项
+  // ... type-specific options
 }
 
 function generateFormFromModel(model: PrismaModel): GeneratedForm {
@@ -828,7 +831,7 @@ function generateFormFromModel(model: PrismaModel): GeneratedForm {
       validationRules: rules,
     };
 
-    // 类型特定选项
+    // Type-specific options
     if (fieldType === 'number' && f.type === 'Decimal') {
       baseField['numberOptions'] = {
         decimalPlaces: 2,
@@ -858,7 +861,7 @@ function generateFormFromModel(model: PrismaModel): GeneratedForm {
     return baseField;
   });
 
-  // 检测依赖关系：hasDiscount → discountPrice
+  // Detect dependency: hasDiscount → discountPrice
   const discountPriceIdx = fields.findIndex(f => f.name === 'discountPrice');
   const hasDiscountIdx = fields.findIndex(f => f.name === 'hasDiscount');
   if (discountPriceIdx >= 0 && hasDiscountIdx >= 0) {
@@ -869,11 +872,11 @@ function generateFormFromModel(model: PrismaModel): GeneratedForm {
   return {
     formId: `${camelToKebab(model.name)}_form`,
     version: '1.0.0',
-    title: `添加${model.name.replace(/([A-Z])/g, ' $1').trim()}`,
+    title: `Add ${model.name.replace(/([A-Z])/g, ' $1').trim()}`,
     sections: [
       {
         name: 'main',
-        label: '基本信息',
+        label: 'Basic Information',
         fields,
       },
     ],
@@ -897,20 +900,20 @@ function mapPrismaTypeToFormType(prismaType: string, isEnum: boolean): string {
 function generateValidationRules(field: any): ValidationRule[] {
   const rules: any[] = [];
   if (!field.isOptional) {
-    rules.push({ type: 'required', message: `${field.name} 为必填项` });
+    rules.push({ type: 'required', message: `${field.name} is required` });
   }
   if (field.type === 'String' && field.name.includes('email')) {
-    rules.push({ type: 'email', message: '邮箱格式不正确' });
+    rules.push({ type: 'email', message: 'Invalid email format' });
   }
   if (field.type === 'Int' || field.type === 'Float' || field.type === 'Decimal') {
     if (field.name.includes('price') || field.name.includes('amount')) {
-      rules.push({ type: 'min', value: 0, message: '值必须为正数' });
+      rules.push({ type: 'min', value: 0, message: 'Value must be positive' });
     }
   }
   return rules;
 }
 
-// 对所有模型执行生成
+// Run generation for all models
 const schema = readFileSync('schema.prisma', 'utf8');
 const models = parsePrismaSchema(schema);
 
@@ -921,70 +924,70 @@ writeFileSync(
 );
 ```
 
-### 生成输出（Dart 常量）
+### 6.3 Generated Output (Dart Constants)
 
 ```dart
-// 此文件为自动生成。请勿手动编辑。
-// 基于 Prisma Schema v1.2.0 生成
+// This file is auto-generated. Do not edit manually.
+// Generated from Prisma Schema v1.2.0
 
 class ProductFormConfig {
   static const formSchema = FormSchema(
     formId: 'product_form',
     version: '1.0.0',
-    title: '添加商品',
+    title: 'Add Product',
     sections: [
       FormSectionConfig(
         name: 'main',
-        label: '基本信息',
+        label: 'Basic Information',
         fields: [
           FormFieldConfig(
             name: 'title',
             type: FormFieldType.text,
-            label: '标题',
+            label: 'Title',
             required: true,
             validationRules: [
-              ValidationRule(type: 'required', message: 'title 为必填项'),
+              ValidationRule(type: 'required', message: 'title is required'),
             ],
           ),
           FormFieldConfig(
             name: 'description',
             type: FormFieldType.textArea,
-            label: '描述',
+            label: 'Description',
             required: false,
           ),
           FormFieldConfig(
             name: 'categoryId',
             type: FormFieldType.select,
-            label: '分类 ID',
+            label: 'Category ID',
             required: true,
             validationRules: [
-              ValidationRule(type: 'required', message: 'categoryId 为必填项'),
+              ValidationRule(type: 'required', message: 'categoryId is required'),
             ],
           ),
           FormFieldConfig(
             name: 'price',
             type: FormFieldType.number,
-            label: '价格',
+            label: 'Price',
             required: true,
             numberOptions: NumberOptions(
               decimalPlaces: 2,
               prefix: '₱',
             ),
             validationRules: [
-              ValidationRule(type: 'required', message: 'price 为必填项'),
-              ValidationRule(type: 'min', value: 0, message: '值必须为正数'),
+              ValidationRule(type: 'required', message: 'price is required'),
+              ValidationRule(type: 'min', value: 0, message: 'Value must be positive'),
             ],
           ),
           FormFieldConfig(
             name: 'hasDiscount',
             type: FormFieldType.switch_toggle,
-            label: '开启促销',
+            label: 'Enable Promotion',
             initialValue: false,
           ),
           FormFieldConfig(
             name: 'discountPrice',
             type: FormFieldType.number,
-            label: '促销价格',
+            label: 'Promotional Price',
             numberOptions: NumberOptions(
               decimalPlaces: 2,
               prefix: '₱',
@@ -995,7 +998,7 @@ class ProductFormConfig {
           FormFieldConfig(
             name: 'images',
             type: FormFieldType.file,
-            label: '图片',
+            label: 'Images',
             fileOptions: FileOptions(
               allowedExtensions: ['jpg', 'jpeg', 'png', 'webp'],
               maxFileCount: 10,
@@ -1011,15 +1014,15 @@ class ProductFormConfig {
 
 ---
 
-## 动态表单渲染：FormFieldGenerator
+## 7. Dynamic Form Rendering: FormFieldGenerator
 
-[`FormFieldGenerator`] 接收 `FormFieldConfig` 并渲染对应的组件，同时连接到 `ReactiveFormController`。
+[`FormFieldGenerator`] receives `FormFieldConfig` and renders the corresponding widget, connecting it to `ReactiveFormController`.
 
 ```dart
 class FormFieldGenerator extends StatelessWidget {
   final FormFieldConfig config;
   final ReactiveFormGroup formGroup;
-  final Map<String, dynamic>? contextValues; // 用于可见性条件
+  final Map<String, dynamic>? contextValues; // For visibility conditions
 
   const FormFieldGenerator({
     super.key,
@@ -1030,12 +1033,12 @@ class FormFieldGenerator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 检查可见性条件
+    // Check visibility condition
     if (!_isVisible(context)) {
       return const SizedBox.shrink();
     }
 
-    // 获取或创建控制器
+    // Get or create controller
     final controller = _getOrCreateController();
 
     return _buildField(context, controller);
@@ -1047,7 +1050,7 @@ class FormFieldGenerator extends StatelessWidget {
       if (dependsController != null) {
         return dependsController.value == config.dependsOnValue;
       }
-      // 回退到上下文值
+      // Fallback to context values
       if (contextValues != null && contextValues!.containsKey(config.dependsOn)) {
         return contextValues![config.dependsOn] == config.dependsOnValue;
       }
@@ -1296,7 +1299,7 @@ class FormFieldGenerator extends StatelessWidget {
           child: InputDecorator(
             decoration: InputDecoration(
               labelText: config.label,
-              hintText: config.hintText ?? '选择日期',
+              hintText: config.hintText ?? 'Select date',
               suffixIcon: const Icon(Icons.calendar_today),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(theme.borderRadius),
@@ -1314,7 +1317,7 @@ class FormFieldGenerator extends StatelessWidget {
   }
 
   Widget _buildFileField(ReactiveFormController<List<String>> controller, LuckyFormThemeConfig theme) {
-    // 使用 image_picker 或 file_picker 包集成文件选择
+    // Use image_picker or file_picker package for file selection integration
     return StreamBuilder<List<String>>(
       stream: controller.valueStream.map((v) => v as List<String>? ?? []),
       initialData: (controller.value as List<String>?) ?? [],
@@ -1326,7 +1329,7 @@ class FormFieldGenerator extends StatelessWidget {
           children: [
             Text(config.label, style: TextStyle(fontSize: theme.labelFontSize)),
             const SizedBox(height: 8),
-            // 显示已有文件
+            // Display existing files
             Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -1338,12 +1341,12 @@ class FormFieldGenerator extends StatelessWidget {
                         controller.updateValue(updated);
                       },
                     )),
-                // 添加按钮
+                // Add button
                 ActionChip(
                   avatar: const Icon(Icons.add),
-                  label: Text('添加${config.fileOptions?.multiple ? '文件' : '文件'}'),
+                  label: Text('Add File'),
                   onPressed: () async {
-                    // 触发文件选择器
+                    // Trigger file picker
                     // final result = await FilePicker.platform.pickFiles(...);
                     // if (result != null) {
                     //   final urls = result.paths.whereType<String>().toList();
@@ -1442,12 +1445,12 @@ class FormFieldGenerator extends StatelessWidget {
               ),
             ),
             onChanged: (v) {
-              // 更新指定索引的 OTP 值
+              // Update OTP value at specified index
               final currentOtp = (controller.value as String?) ?? '';
               final otpChars = currentOtp.split('');
               otpChars[index] = v;
               controller.updateValue(otpChars.join());
-              // 自动聚焦下一个
+              // Auto focus next
               if (v.isNotEmpty && index < 5) {
                 FocusScope.of(context).nextFocus();
               }
@@ -1462,9 +1465,9 @@ class FormFieldGenerator extends StatelessWidget {
 
 ---
 
-## 表单状态订阅与跨字段组合
+## 8. Form State Subscription & Cross-Field Combination
 
-响应式表单通过流组合器实现强大的**跨字段订阅模式**。
+Reactive forms enable powerful **cross-field subscription patterns** through stream combiners.
 
 ```dart
 class CrossFieldSubscription extends StatefulWidget {
@@ -1500,7 +1503,7 @@ class _CrossFieldSubscriptionState extends State<CrossFieldSubscription> {
   }
 
   void _subscribe() {
-    // 创建当任一字段值变化时触发的流
+    // Create stream triggered when any field value changes
     final valueStreams = widget.formGroup._controllers.values
         .map((c) => c.valueStream)
         .toList();
@@ -1538,19 +1541,19 @@ class _CrossFieldSubscriptionState extends State<CrossFieldSubscription> {
   }
 }
 
-// 使用：仅当表单有效时才启用提交按钮
+// Usage: enable submit button only when form is valid
 CrossFieldSubscription(
   formGroup: formGroup,
   builder: (context, values, errors, isValid) {
     return ElevatedButton(
       onPressed: isValid ? _handleSubmit : null,
-      child: const Text('提交'),
+      child: const Text('Submit'),
     );
   },
 );
 ```
 
-### 计算字段（总价 = 价格 × 数量）
+### 8.1 Computed Fields (Total = Price × Quantity)
 
 ```dart
 class ComputedFieldExample extends StatefulWidget {
@@ -1580,7 +1583,7 @@ class _ComputedFieldExampleState extends State<ComputedFieldExample> {
 
   @override
   Widget build(BuildContext context) {
-    // 同时监听价格和数量以计算总价
+    // Simultaneously listen to price and quantity to compute total
     return StreamBuilder(
       stream: Rx.combineLatest2(
         formGroup.controller<num>('price')!.valueStream,
@@ -1593,7 +1596,7 @@ class _ComputedFieldExampleState extends State<ComputedFieldExample> {
           children: [
             FormFieldGenerator(config: /* price config */, formGroup: formGroup),
             FormFieldGenerator(config: /* qty config */, formGroup: formGroup),
-            Text('总计：₱${total.toStringAsFixed(2)}'),
+            Text('Total: ₱${total.toStringAsFixed(2)}'),
           ],
         );
       },
@@ -1604,13 +1607,13 @@ class _ComputedFieldExampleState extends State<ComputedFieldExample> {
 
 ---
 
-## 基于其他字段值的条件显示/隐藏
+## 9. Conditional Show/Hide Based on Other Field Values
 
-可见性系统使用 JSON Schema 中的 `dependsOn` / `dependsOnValue` 模式。`FormFieldGenerator` 在渲染前自动检查可见性。
+The visibility system uses the `dependsOn` / `dependsOnValue` pattern from JSON Schema. `FormFieldGenerator` automatically checks visibility before rendering.
 
-### 响应式可见性构建器
+### 9.1 Reactive Visibility Builder
 
-对于更复杂的条件，使用专用组件在依赖字段变化时重新渲染：
+For more complex conditions, use a dedicated component that re-renders when the dependency field changes:
 
 ```dart
 class ReactiveVisibilityBuilder extends StatelessWidget {
@@ -1645,7 +1648,7 @@ class ReactiveVisibilityBuilder extends StatelessWidget {
   }
 }
 
-// 使用：当开关打开时显示折扣字段
+// Usage: show discount fields when switch is on
 ReactiveVisibilityBuilder(
   formGroup: formGroup,
   dependsOnField: 'hasDiscount',
@@ -1667,17 +1670,17 @@ ReactiveVisibilityBuilder(
 
 ---
 
-## 自动保存与恢复表单草稿
+## 10. Auto-Save & Restore Form Drafts
 
-表单草稿自动保存到本地存储（使用 [`HydratedStateNotifier`](./hydrated-state-notifier-abstract-persistence.md) 模式），并在用户返回时恢复。
+Form drafts are automatically saved to local storage (using the [`HydratedStateNotifier`](./hydrated-state-notifier-abstract-persistence.md) pattern) and restored when the user returns.
 
-### 草稿管理器
+### 10.1 Draft Manager
 
 ```dart
 class FormDraftManager {
   static const _draftPrefix = 'form_draft_';
 
-  /// 保存表单值作为草稿
+  /// Save form values as draft
   static Future<void> saveDraft(String formId, Map<String, dynamic> values) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(
@@ -1689,7 +1692,7 @@ class FormDraftManager {
     );
   }
 
-  /// 加载表单草稿
+  /// Load form draft
   static Future<Map<String, dynamic>?> loadDraft(String formId) async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString('$_draftPrefix$formId');
@@ -1703,7 +1706,7 @@ class FormDraftManager {
     }
   }
 
-  /// 提交成功后清除草稿
+  /// Clear draft after successful submission
   static Future<void> clearDraft(String formId) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('$_draftPrefix$formId');
@@ -1711,7 +1714,7 @@ class FormDraftManager {
 }
 ```
 
-### 自动保存组件
+### 10.2 Auto-Save Component
 
 ```dart
 class AutoSaveForm extends StatefulWidget {
@@ -1746,7 +1749,7 @@ class _AutoSaveFormState extends State<AutoSaveForm> {
     final draft = await FormDraftManager.loadDraft(widget.formId);
     if (draft == null || draft.isEmpty) return;
 
-    // 恢复值到控制器
+    // Restore values to controllers
     for (final entry in draft.entries) {
       final controller = widget.formGroup.controller(entry.key);
       if (controller != null) {
@@ -1757,7 +1760,7 @@ class _AutoSaveFormState extends State<AutoSaveForm> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('已恢复草稿'),
+          content: Text('Draft restored'),
           duration: Duration(seconds: 2),
         ),
       );
@@ -1765,7 +1768,7 @@ class _AutoSaveFormState extends State<AutoSaveForm> {
   }
 
   void _subscribeToChanges() {
-    // 订阅所有值流
+    // Subscribe to all value streams
     for (final controller in widget.formGroup._controllers.values) {
       controller.valueStream.listen((_) {
         _debounceTimer?.cancel();
@@ -1794,9 +1797,9 @@ class _AutoSaveFormState extends State<AutoSaveForm> {
 
 ---
 
-## 实践：动态商品表单
+## 11. Practice: Dynamic Product Form
 
-以下是所有组件完整集成的示例——一个由 JSON Schema 驱动的商品发布表单，支持自动保存、条件字段和响应式验证。
+Below is a complete integration example of all components — a JSON Schema-driven product listing form with auto-save, conditional fields, and reactive validation.
 
 ```dart
 class DynamicProductFormScreen extends StatefulWidget {
@@ -1836,25 +1839,25 @@ class _DynamicProductFormScreenState extends State<DynamicProductFormScreen> {
     if (!isValid) {
       setState(() {
         _isSubmitting = false;
-        _submitError = '请修正以上错误';
+        _submitError = 'Please fix the errors above';
       });
       return;
     }
 
     try {
       final payload = _formGroup.values;
-      // 提交到 API
+      // Submit to API
       // await apiService.createProduct(payload);
       await FormDraftManager.clearDraft(widget.formId);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('商品发布成功！')),
+          const SnackBar(content: Text('Product published successfully!')),
         );
         Navigator.of(context).pop();
       }
     } catch (e) {
-      setState(() => _submitError = '提交失败：$e');
+      setState(() => _submitError = 'Submission failed: $e');
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
@@ -1871,7 +1874,7 @@ class _DynamicProductFormScreenState extends State<DynamicProductFormScreen> {
     final theme = LuckyFormThemeWidget.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: Text(_schema.title ?? '表单')),
+      appBar: AppBar(title: Text(_schema.title ?? 'Form')),
       body: AutoSaveForm(
         formId: widget.formId,
         formGroup: _formGroup,
@@ -1880,9 +1883,9 @@ class _DynamicProductFormScreenState extends State<DynamicProductFormScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // 渲染每个区块
+              // Render each section
               for (final section in _schema.sections) ...[
-                // 区块标题
+                // Section title
                 Text(
                   section.label,
                   style: TextStyle(
@@ -1893,7 +1896,7 @@ class _DynamicProductFormScreenState extends State<DynamicProductFormScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // 区块字段
+                // Section fields
                 Wrap(
                   spacing: 16,
                   runSpacing: 16,
@@ -1910,7 +1913,7 @@ class _DynamicProductFormScreenState extends State<DynamicProductFormScreen> {
                 const SizedBox(height: 24),
               ],
 
-              // 提交错误
+              // Submit error
               if (_submitError != null)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 16),
@@ -1920,7 +1923,7 @@ class _DynamicProductFormScreenState extends State<DynamicProductFormScreen> {
                   ),
                 ),
 
-              // 提交按钮（响应式启用/禁用）
+              // Submit button (reactively enabled/disabled)
               CrossFieldSubscription(
                 formGroup: _formGroup,
                 builder: (context, values, errors, isValid) {
@@ -1946,7 +1949,7 @@ class _DynamicProductFormScreenState extends State<DynamicProductFormScreen> {
                               ),
                             )
                           : const Text(
-                              '提交',
+                              'Submit',
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
@@ -1964,48 +1967,48 @@ class _DynamicProductFormScreenState extends State<DynamicProductFormScreen> {
   }
 
   double _fieldWidth(FormFieldConfig config) {
-    if (config.flex == 2) return MediaQuery.of(context).size.width - 32; // 全宽
-    return (MediaQuery.of(context).size.width - 48) / 2; // 半宽（两列）
+    if (config.flex == 2) return MediaQuery.of(context).size.width - 32; // full width
+    return (MediaQuery.of(context).size.width - 48) / 2; // half width (two columns)
   }
 }
 ```
 
 ---
 
-## 总结
+## 12. Summary
 
-`ReactiveForms` + JSON Schema 系统为 Flutter 提供了完整的动态服务端驱动表单解决方案：
+The `ReactiveForms` + JSON Schema system provides a complete server-driven dynamic form solution for Flutter:
 
-| 组件 | 职责 | 关键特性 |
+| Component | Responsibility | Key Features |
 |-----------|---------------|-------------|
-| `ReactiveFormController` | 响应式字段状态 | 值 / 状态 / 错误流 |
-| `ReactiveFormGroup` | 多字段编排 | 组合验证、值映射 |
-| `FormFieldConfig` | 字段定义 | 15+ 表单字段类型的类型系统 |
-| `FormSchemaParser` | JSON 反序列化 | 解析服务端驱动的表单配置 |
-| `FormFieldGenerator` | 动态组件渲染 | 将配置映射为组件，连接控制器 |
-| `代码生成器` | Prisma → 表单配置 | 从后端模型自动生成表单配置 |
-| `FormDraftManager` | 草稿持久化 | 防抖自动保存/恢复 |
-| `CrossFieldSubscription` | 响应式组合 | 计算字段、条件可见性 |
+| `ReactiveFormController` | Reactive field state | Value / Status / Error streams |
+| `ReactiveFormGroup` | Multi-field orchestration | Combined validation, value mapping |
+| `FormFieldConfig` | Field definition | Type system for 15+ form field types |
+| `FormSchemaParser` | JSON deserialization | Parse server-driven form configurations |
+| `FormFieldGenerator` | Dynamic component rendering | Map config to widgets, connect controllers |
+| `Code Generator` | Prisma → Form config | Auto-generate form configs from backend models |
+| `FormDraftManager` | Draft persistence | Debounced auto-save / restore |
+| `CrossFieldSubscription` | Reactive composition | Computed fields, conditional visibility |
 
-### 关键要点
+### 12.1 Key Takeaways
 
-- **JSON Schema 作为单一事实来源**——表单可从后端下发，无需发版即可更新
-- **从 Prisma Schema 代码生成**——消除重复的表单编码工作；后端字段变更自动传播
-- **响应式流实现复杂交互**——条件可见性、计算字段、跨字段验证都变成声明式
-- **防抖自动保存防止数据丢失**——2 秒防抖在响应速度和存储 I/O 之间取得平衡
-- **15 种字段类型覆盖所有表单场景**——从简单文本到 OTP 输入再到文件上传
-- **`dependsOn` 模式处理 90% 的条件字段**——简单的相等判断，无需复杂表达式解析
+- **JSON Schema as single source of truth** — Forms can be delivered from the backend and updated without a new release
+- **Code generation from Prisma Schema** — Eliminates repetitive form coding; backend field changes propagate automatically
+- **Reactive streams enable complex interactions** — Conditional visibility, computed fields, and cross-field validation all become declarative
+- **Debounced auto-save prevents data loss** — 2-second debounce balances responsiveness with storage I/O
+- **15 field types cover all form scenarios** — From simple text to OTP input to file upload
+- **`dependsOn` pattern handles 90% of conditional fields** — Simple equality check, no complex expression parsing needed
 
-### 何时使用此模式
+### 12.2 When to Use This Pattern
 
-此响应式表单系统适用于以下场景：
-- 应用有 10 种以上不同类型的表单（注册、商品、KYC、结算等）
-- 表单需要从服务端更新而无需 App Store 部署
-- 需要代码生成来保持前端表单与后端模型同步
-- 复杂表单逻辑（条件字段、计算值）难以用命令式方式维护
+This reactive form system is suitable for:
+- Applications with 10+ different form types (registration, product, KYC, checkout, etc.)
+- Forms that need to be updated from the server without App Store deployment
+- Scenarios requiring code generation to keep frontend forms in sync with backend models
+- Complex form logic (conditional fields, computed values) that is difficult to maintain imperatively
 
-### 相关文章
+### 12.3 Related Articles
 
-- [**F19: LuckyFormTheme + 验证器系统**](./lucky-form-theme-validator-system.md) — 为单个表单字段提供支持的主题系统和验证器链
-- [**F5: HydratedStateNotifier 抽象持久化**](./hydrated-state-notifier-abstract-persistence.md) — 表单草稿自动保存使用的持久化模式
-- [**F21: GlobalUploadService S3 + 压缩 + MIME 修正**](./global-upload-service-s3-compression-mime.md) — 用于 `FormFieldType.file` 的文件上传管道
+- [**F19: LuckyFormTheme + Validator System**](./lucky-form-theme-validator-system.md) — Theme system and validator chain supporting individual form fields
+- [**F5: HydratedStateNotifier Abstract Persistence**](./hydrated-state-notifier-abstract-persistence.md) — Persistence pattern used for form draft auto-save
+- [**F21: GlobalUploadService S3 + Compression + MIME**](./global-upload-service-s3-compression-mime.md) — File upload pipeline for `FormFieldType.file`

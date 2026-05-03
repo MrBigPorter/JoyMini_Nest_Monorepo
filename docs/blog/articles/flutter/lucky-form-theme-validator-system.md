@@ -1,105 +1,108 @@
-# LuckyFormTheme：表单主题系统 + 自定义验证器链
+---
+title: "LuckyFormTheme: Form Theme System + Custom Validator Chain"
+description: "A comprehensive Flutter form framework featuring InheritedWidget-based centralized theme configuration, chained validators (Required → Email → Phone → Length → Pattern → Custom), async validation with debouncing, cross-field validation (password confirmation, cascading selectors, dynamic fields), configurable validation triggers, state machine tracking, and automatic focus management."
+slug: lucky-form-theme-validator-system
+tags: [Flutter, Forms, Validation, UI, State Machine]
+---
 
-> **文章难度：** ⭐⭐⭐⭐ (高级)
-> **关注领域：** 表单设计、验证模式、UI 一致性、状态管理
-> **阅读时间：** 20 分钟
+# LuckyFormTheme: Form Theme System + Custom Validator Chain
 
-## 目录
+## Table of Contents
 
-- [Flutter 中表单一致性的挑战](#flutter-中表单一致性的挑战)
-- [架构总览：LuckyFormTheme + 验证器链](#架构总览luckyformtheme--验证器链)
-- [LuckyFormTheme：通过 InheritedWidget 统一样式配置](#luckyformtheme通过-inheritedwidget-统一样式配置)
-  - [主题配置](#主题配置)
-  - [InheritedWidget 提供者](#inheritedwidget-提供者)
-  - [应用级设置](#应用级设置)
-- [表单字段变体：Outlined / Filled / Underlined](#表单字段变体outlined--filled--underlined)
-  - [变体实现](#变体实现)
-  - [变体视觉对比](#变体视觉对比)
-- [链式验证器：Required → Email → Phone → Length → Pattern → Custom](#链式验证器required--email--phone--length--pattern--custom)
-  - [验证器接口](#验证器接口)
-  - [内置验证器](#内置验证器)
-  - [验证器链使用](#验证器链使用)
-  - [验证器执行流程](#验证器执行流程)
-- [异步验证器：实时服务器验证](#异步验证器实时服务器验证)
-  - [AsyncValidator 实现](#asyncvalidator-实现)
-  - [防抖异步验证](#防抖异步验证)
-- [表单联动：密码确认、级联选择、动态字段](#表单联动密码确认级联选择动态字段)
-  - [密码确认](#密码确认)
-  - [级联下拉选择（地区选择）](#级联下拉选择地区选择)
-  - [动态显示/隐藏字段](#动态显示隐藏字段)
-- [验证触发配置：onChange / onBlur / onSubmit / manual](#验证触发配置onchange--onblur--onsubmit--manual)
-  - [触发行为矩阵](#触发行为矩阵)
-  - [表单级提交警卫](#表单级提交验证)
-- [验证状态机：有效 / 无效 / 验证中 / 未触及 / 已修改](#验证状态机有效--无效--验证中--未触及--已修改)
-  - [状态机定义](#状态机定义)
-  - [状态转换图](#状态转换图)
-  - [状态消费者组件](#状态消费者组件)
-- [自动焦点管理：nextFieldAction](#自动焦点管理nextfieldaction)
-  - [焦点管理器](#焦点管理器)
-  - [与 LuckyTextField 集成](#与-luckytextfield-集成)
-- [实践：完整的注册表单](#实践完整的注册表单)
-- [总结](#总结)
-  - [关键要点](#关键要点)
-  - [何时使用此模式](#何时使用此模式)
-  - [相关文章](#相关文章)
+- [Form Consistency Challenges in Flutter](#form-consistency-challenges-in-flutter)
+- [Architecture Overview: LuckyFormTheme + Validator Chain](#architecture-overview-luckyformtheme--validator-chain)
+- [LuckyFormTheme: Unified Style Configuration via InheritedWidget](#luckyformtheme-unified-style-configuration-via-inheritedwidget)
+  - [Theme Configuration](#theme-configuration)
+  - [InheritedWidget Provider](#inheritedwidget-provider)
+  - [App-Level Setup](#app-level-setup)
+- [Form Field Variants: Outlined / Filled / Underlined](#form-field-variants-outlined--filled--underlined)
+  - [Variant Implementation](#variant-implementation)
+  - [Variant Visual Comparison](#variant-visual-comparison)
+- [Chained Validators: Required → Email → Phone → Length → Pattern → Custom](#chained-validators-required--email--phone--length--pattern--custom)
+  - [Validator Interface](#validator-interface)
+  - [Built-in Validators](#built-in-validators)
+  - [Validator Chain Usage](#validator-chain-usage)
+  - [Validator Execution Flow](#validator-execution-flow)
+- [Async Validators: Real-time Server Validation](#async-validators-real-time-server-validation)
+  - [AsyncValidator Implementation](#asyncvalidator-implementation)
+  - [Debounced Async Validation](#debounced-async-validation)
+- [Form Interlocking: Password Confirmation, Cascading Select, Dynamic Fields](#form-interlocking-password-confirmation-cascading-select-dynamic-fields)
+  - [Password Confirmation](#password-confirmation)
+  - [Cascading Dropdown Select (Region Selector)](#cascading-dropdown-select-region-selector)
+  - [Dynamic Show/Hide Fields](#dynamic-showhide-fields)
+- [Validation Trigger Configuration: onChange / onBlur / onSubmit / manual](#validation-trigger-configuration-onchange--onblur--onsubmit--manual)
+  - [Trigger Behavior Matrix](#trigger-behavior-matrix)
+  - [Form-Level Submit Validation](#form-level-submit-validation)
+- [Validation State Machine: Valid / Invalid / Validating / Pristine / Dirty](#validation-state-machine-valid--invalid--validating--pristine--dirty)
+  - [State Machine Definition](#state-machine-definition)
+  - [State Transition Diagram](#state-transition-diagram)
+  - [State Consumer Component](#state-consumer-component)
+- [Automatic Focus Management: nextFieldAction](#automatic-focus-management-nextfieldaction)
+  - [Focus Manager](#focus-manager)
+  - [LuckyTextField Integration](#luckytextfield-integration)
+- [Practice: Complete Registration Form](#practice-complete-registration-form)
+- [Summary](#summary)
+  - [Key Takeaways](#key-takeaways)
+  - [When to Use This Pattern](#when-to-use-this-pattern)
+  - [Related Articles](#related-articles)
 
-## Flutter 中表单一致性的挑战
+## Form Consistency Challenges in Flutter
 
-在 Flutter 中构建表单时，开发者经常面临以下挑战：
+When building forms in Flutter, developers often face the following challenges:
 
-1. **样式重复**：每个 `TextFormField` 都需要重复配置 `InputDecoration`、边框、颜色、圆角等属性
-2. **验证逻辑分散**：验证规则散落在各个表单中，难以复用
-3. **验证时机不灵活**：Flutter 内置的 `Form.validate()` 只在提交时触发，不支持 `onChange` 或 `onBlur` 验证
-4. **跨字段验证复杂**：密码确认、级联下拉等场景需要访问其他字段的值
-5. **异步验证困难**：检查用户名/邮箱是否已被注册需要服务器交互，但 Flutter 原生不支持异步验证
+1. **Style duplication**: Every `TextFormField` requires repeated configuration of `InputDecoration`, borders, colors, border radius, etc.
+2. **Scattered validation logic**: Validation rules are scattered across forms, making reuse difficult
+3. **Inflexible validation timing**: Flutter's built-in `Form.validate()` only triggers on submit, lacking `onChange` or `onBlur` validation
+4. **Complex cross-field validation**: Scenarios like password confirmation and cascading dropdowns require access to other field values
+5. **Difficult async validation**: Checking username/email availability requires server interaction, but Flutter natively lacks async validation support
 
-`LuckyFormTheme` + 验证器系统通过以下方式解决这些问题：
+The `LuckyFormTheme` + Validator system solves these problems through:
 
-- **集中式主题配置**：通过 `InheritedWidget` 提供全局统一的表单样式
-- **可链式组合的验证器**：每个验证器只负责一个规则，按顺序执行
-- **灵活的验证触发时机**：支持 `onChange`、`onBlur`、`onSubmit`、`manual` 四种模式
-- **异步验证支持**：内置防抖和优雅降级
-- **跨字段联动**：密码确认、级联选择、动态显示/隐藏
+- **Centralized theme configuration**: Provides globally unified form styles via `InheritedWidget`
+- **Chainable validators**: Each validator handles a single rule, executed sequentially
+- **Flexible validation trigger timing**: Supports four modes: `onChange`, `onBlur`, `onSubmit`, `manual`
+- **Async validation support**: Built-in debouncing and graceful degradation
+- **Cross-field interlocking**: Password confirmation, cascading selectors, dynamic show/hide
 
-## 架构总览：LuckyFormTheme + 验证器链
+## Architecture Overview: LuckyFormTheme + Validator Chain
 
 ```
 ┌────────────────────────────────────────────────────────────┐
 │                    LuckyFormThemeConfig                     │
 │  (colors / borders / typography / icons / animations)       │
 └─────────────────────────┬──────────────────────────────────┘
-                          │ 通过 InheritedWidget 下发
+                          │ Distributed via InheritedWidget
                           ▼
 ┌────────────────────────────────────────────────────────────┐
 │                   LuckyFormThemeWidget                      │
-│              context.luckyFormTheme 扩展方法                │
+│              context.luckyFormTheme extension method        │
 └─────────────────────────┬──────────────────────────────────┘
                           │
           ┌───────────────┼───────────────┐
           ▼               ▼               ▼
 ┌─────────────────┐ ┌────────────┐ ┌──────────────┐
-│  LuckyTextField  │ │ 验证器链    │ │ FocusManager │
-│ (3 种变体)       │ │ (链式)      │ │ (自动焦点)   │
+│  LuckyTextField  │ │ Validator   │ │ FocusManager │
+│ (3 variants)     │ │ Chain      │ │ (Auto Focus) │
 └─────────────────┘ └────────────┘ └──────────────┘
 ```
 
-## LuckyFormTheme：通过 InheritedWidget 统一样式配置
+## LuckyFormTheme: Unified Style Configuration via InheritedWidget
 
-`LuckyFormThemeConfig` 集中管理所有表单样式属性，通过 `InheritedWidget` 下发到整个组件树。
+`LuckyFormThemeConfig` centrally manages all form style properties, distributed to the entire widget tree via `InheritedWidget`.
 
-### 主题配置
+### Theme Configuration
 
 ```dart
-/// 完整的表单主题配置
+/// Complete form theme configuration
 class LuckyFormThemeConfig {
-  // ── 边框与背景 ──
+  // ── Borders & Background ──
   final double borderRadius;
   final Color? fillColor;
   final Color? focusedBorderColor;
   final Color? enabledBorderColor;
   final Color? errorBorderColor;
 
-  // ── 文本与字体 ──
+  // ── Text & Typography ──
   final double fontSize;
   final FontWeight fontWeight;
   final Color textColor;
@@ -107,20 +110,20 @@ class LuckyFormThemeConfig {
   final Color hintColor;
   final double labelFontSize;
 
-  // ── 高度与内边距 ──
+  // ── Height & Padding ──
   final double height;
   final EdgeInsetsGeometry contentPadding;
 
-  // ── 图标 ──
+  // ── Icons ──
   final double? iconSize;
   final Color? iconColor;
 
-  // ── 验证反馈 ──
+  // ── Validation Feedback ──
   final Color errorColor;
   final Color successColor;
   final Color validatingColor;
 
-  // ── 动画 ──
+  // ── Animations ──
   final Duration animationDuration;
 
   const LuckyFormThemeConfig({
@@ -145,7 +148,7 @@ class LuckyFormThemeConfig {
     this.animationDuration = const Duration(milliseconds: 200),
   });
 
-  /// 从主题数据创建（支持从 Design Tokens 生成）
+  /// Create from theme data (supports generation from Design Tokens)
   factory LuckyFormThemeConfig.fromThemeData(ThemeData theme) {
     return LuckyFormThemeConfig(
       borderRadius: 8,
@@ -158,10 +161,10 @@ class LuckyFormThemeConfig {
     );
   }
 
-  /// 亮色主题默认值
+  /// Light theme defaults
   static const light = LuckyFormThemeConfig();
 
-  /// 暗色主题默认值
+  /// Dark theme defaults
   static const dark = LuckyFormThemeConfig(
     fillColor: Color(0xFF1E293B),
     textColor: Color(0xFFF1F5F9),
@@ -170,7 +173,7 @@ class LuckyFormThemeConfig {
     enabledBorderColor: Color(0xFF334155),
   );
 
-  /// 合并两个配置（调用者覆盖默认值）
+  /// Merge two configs (caller overrides defaults)
   LuckyFormThemeConfig merge(LuckyFormThemeConfig? other) {
     if (other == null) return this;
     return LuckyFormThemeConfig(
@@ -198,7 +201,7 @@ class LuckyFormThemeConfig {
 }
 ```
 
-### InheritedWidget 提供者
+### InheritedWidget Provider
 
 ```dart
 class LuckyFormThemeWidget extends InheritedWidget {
@@ -222,13 +225,13 @@ class LuckyFormThemeWidget extends InheritedWidget {
   }
 }
 
-/// 通过 BuildContext 扩展便捷访问
+/// Convenient access via BuildContext extension
 extension LuckyFormThemeContext on BuildContext {
   LuckyFormThemeConfig get luckyFormTheme => LuckyFormThemeWidget.of(this);
 }
 ```
 
-### 应用级设置
+### App-Level Setup
 
 ```dart
 class MyApp extends StatelessWidget {
@@ -248,18 +251,18 @@ class MyApp extends StatelessWidget {
 }
 ```
 
-## 表单字段变体：Outlined / Filled / Underlined
+## Form Field Variants: Outlined / Filled / Underlined
 
-`LuckyTextField` 支持三种视觉变体，由 `LuckyFieldVariant` 枚举控制。
+`LuckyTextField` supports three visual variants, controlled by the `LuckyFieldVariant` enum.
 
-### 变体实现
+### Variant Implementation
 
 ```dart
-/// 表单字段变体
+/// Form field variant
 enum LuckyFieldVariant {
-  outlined,  // 轮廓边框，标签浮起
-  filled,    // 填充背景，无边框
-  underlined,// 底部线条，极简风格
+  outlined,  // Outline border, floating label
+  filled,    // Filled background, no border
+  underlined,// Bottom line, minimal style
 }
 
 class LuckyTextField extends StatefulWidget {
@@ -374,10 +377,10 @@ class _LuckyTextFieldState extends State<LuckyTextField> {
     _statusNotifier.value = ValidationStatus.valid;
   }
 
-  /// 手动触发验证（用于 onSubmit 模式）
+  /// Manually trigger validation (for onSubmit mode)
   Future<void> validate() => _validate();
 
-  /// 构建基于变体的 InputDecoration
+  /// Build variant-based InputDecoration
   InputDecoration _buildDecoration(LuckyFormThemeConfig theme, {String? errorText}) {
     switch (widget.variant) {
       case LuckyFieldVariant.outlined:
@@ -446,7 +449,7 @@ class _LuckyTextFieldState extends State<LuckyTextField> {
     }
   }
 
-  /// 验证状态后缀图标
+  /// Validation status suffix icon
   Widget? _buildSuffixIcon() {
     return ValueListenableBuilder<ValidationStatus>(
       valueListenable: _statusNotifier,
@@ -515,29 +518,29 @@ class _LuckyTextFieldState extends State<LuckyTextField> {
 }
 ```
 
-### 变体视觉对比
+### Variant Visual Comparison
 
-| 变体 | 视觉风格 | 适用场景 |
+| Variant | Visual Style | Use Case |
 |---------|-------------|----------|
-| **outlined** | 矩形边框，聚焦时标签浮起 | 登录/注册，独立字段 |
-| **filled** | 纯色背景，无边框 | 搜索栏，次要输入 |
-| **underlined** | 底部线条，极简风格 | 内联编辑，设置表单 |
+| **outlined** | Rectangular border, floating label on focus | Login/registration, standalone fields |
+| **filled** | Solid background, no border | Search bar, secondary input |
+| **underlined** | Bottom line, minimal style | Inline editing, settings forms |
 
 ---
 
-## 链式验证器：Required → Email → Phone → Length → Pattern → Custom
+## Chained Validators: Required → Email → Phone → Length → Pattern → Custom
 
-验证器系统建立在简单的抽象接口之上，为常见验证规则提供具体实现。验证器是**可链式组合**的——它们按顺序执行，在第一个失败处停止。
+The validator system is built on a simple abstract interface with concrete implementations for common validation rules. Validators are **chainable** — they execute in sequence, stopping at the first failure.
 
-### 验证器接口
+### Validator Interface
 
 ```dart
 abstract class FieldValidator {
-  /// 验证失败返回错误信息，验证通过返回 null
+  /// Returns error message on failure, null on success
   Future<String?> validate(String value);
 }
 
-/// 同步验证器便捷基类
+/// Convenient base class for synchronous validators
 abstract class SyncValidator implements FieldValidator {
   @override
   Future<String?> validate(String value) async => validateSync(value);
@@ -546,13 +549,13 @@ abstract class SyncValidator implements FieldValidator {
 }
 ```
 
-### 内置验证器
+### Built-in Validators
 
 ```dart
 class RequiredValidator extends SyncValidator {
   final String message;
 
-  RequiredValidator({this.message = '此字段为必填项'});
+  RequiredValidator({this.message = 'This field is required'});
 
   @override
   String? validateSync(String value) {
@@ -567,11 +570,11 @@ class EmailValidator extends SyncValidator {
     r'^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$',
   );
 
-  EmailValidator({this.message = '请输入有效的邮箱地址'});
+  EmailValidator({this.message = 'Please enter a valid email address'});
 
   @override
   String? validateSync(String value) {
-    if (value.isEmpty) return null; // 空值跳过（使用 RequiredValidator 做必填校验）
+    if (value.isEmpty) return null; // Skip empty (use RequiredValidator for required check)
     if (!_emailRegExp.hasMatch(value)) return message;
     return null;
   }
@@ -581,17 +584,17 @@ class PhoneValidator extends SyncValidator {
   final String message;
   final String? countryCode;
 
-  PhoneValidator({this.message = '请输入有效的手机号码', this.countryCode});
+  PhoneValidator({this.message = 'Please enter a valid phone number', this.countryCode});
 
   @override
   String? validateSync(String value) {
     if (value.isEmpty) return null;
 
-    // 移除常见格式字符
+    // Strip common formatting characters
     final digits = value.replaceAll(RegExp(r'[\s\-\(\)\+]'), '');
 
     if (countryCode != null && !digits.startsWith(countryCode!)) {
-      return '号码必须以 $countryCode 开头';
+      return 'Number must start with $countryCode';
     }
 
     if (digits.length < 10 || digits.length > 15) {
@@ -607,7 +610,7 @@ class MinLengthValidator extends SyncValidator {
   final String message;
 
   MinLengthValidator(this.minLength, {String? message})
-      : message = message ?? '至少需要 $minLength 个字符';
+      : message = message ?? 'At least $minLength characters required';
 
   @override
   String? validateSync(String value) {
@@ -622,7 +625,7 @@ class MaxLengthValidator extends SyncValidator {
   final String message;
 
   MaxLengthValidator(this.maxLength, {String? message})
-      : message = message ?? '不能超过 $maxLength 个字符';
+      : message = message ?? 'Cannot exceed $maxLength characters';
 
   @override
   String? validateSync(String value) {
@@ -636,7 +639,7 @@ class PatternValidator extends SyncValidator {
   final RegExp pattern;
   final String message;
 
-  PatternValidator(this.pattern, {this.message = '格式不正确'});
+  PatternValidator(this.pattern, {this.message = 'Invalid format'});
 
   @override
   String? validateSync(String value) {
@@ -659,49 +662,49 @@ class CustomValidator extends SyncValidator {
 }
 ```
 
-### 验证器链使用
+### Validator Chain Usage
 
 ```dart
 LuckyTextField(
-  label: '邮箱',
-  hintText: '请输入您的邮箱地址',
+  label: 'Email',
+  hintText: 'Enter your email address',
   keyboardType: TextInputType.emailAddress,
   validators: [
-    RequiredValidator(message: '邮箱为必填项'),
+    RequiredValidator(message: 'Email is required'),
     EmailValidator(),
-    MaxLengthValidator(254, message: '邮箱地址过长'),
+    MaxLengthValidator(254, message: 'Email address is too long'),
   ],
-  validationTrigger: ValidationTrigger.onBlur, // 离开焦点时验证
+  validationTrigger: ValidationTrigger.onBlur, // Validate on focus loss
 )
 ```
 
-### 验证器执行流程
+### Validator Execution Flow
 
 ```
-用户输入 "test@ex"
+User enters "test@ex"
          │
          ▼
-RequiredValidator.validate("test@ex") → null（非空）
+RequiredValidator.validate("test@ex") → null (non-empty)
          │
          ▼
-EmailValidator.validate("test@ex") → "请输入有效的邮箱地址"
+EmailValidator.validate("test@ex") → "Please enter a valid email address"
          │
          ▼
-         ⚠️ 验证失败 → 显示错误信息
-         （MaxLengthValidator 不会被调用——短路）
+         ⚠️ Validation failed → display error message
+         (MaxLengthValidator is never called — short-circuit)
 ```
 
 ---
 
-## 异步验证器：实时服务器验证
+## Async Validators: Real-time Server Validation
 
-异步验证器对于需要服务端验证的数据至关重要，例如**用户名可用性**或**邮箱唯一性**。它们继承自相同的 [`FieldValidator`] 接口，但执行 HTTP 请求。
+Async validators are essential for data requiring server-side validation, such as **username availability** or **email uniqueness**. They inherit from the same [`FieldValidator`] interface but execute HTTP requests.
 
-### AsyncValidator 实现
+### AsyncValidator Implementation
 
 ```dart
 abstract class AsyncValidator implements FieldValidator {
-  /// 重写此方法以执行异步验证
+  /// Override this to perform async validation
   @override
   Future<String?> validate(String value);
 }
@@ -712,19 +715,19 @@ class UsernameAvailabilityValidator extends AsyncValidator {
 
   UsernameAvailabilityValidator({
     required this.apiService,
-    this.message = '此用户名已被注册',
+    this.message = 'This username is already taken',
   });
 
   @override
   Future<String?> validate(String value) async {
     if (value.isEmpty) return null;
-    if (value.length < 3) return null; // 太短的值不检查
+    if (value.length < 3) return null; // Skip short values
 
     try {
       final available = await apiService.checkUsernameAvailability(value);
       return available ? null : message;
     } catch (e) {
-      // 网络错误——不阻止表单提交，仅显示警告
+      // Network error — don't block form submission, just show warning
       return null;
     }
   }
@@ -736,29 +739,29 @@ class EmailUniquenessValidator extends AsyncValidator {
 
   EmailUniquenessValidator({
     required this.apiService,
-    this.message = '此邮箱已被注册',
+    this.message = 'This email is already registered',
   });
 
   @override
   Future<String?> validate(String value) async {
     if (value.isEmpty) return null;
 
-    // 先进行基本邮箱格式检查（同步守卫）
+    // First perform basic email format check (sync guard)
     if (!RegExp(r'^[^@]+@[^@]+\.[^@]+$').hasMatch(value)) return null;
 
     try {
       final exists = await apiService.checkEmailExists(value);
       return exists ? message : null;
     } catch (e) {
-      return null; // 网络故障时优雅降级
+      return null; // Graceful degradation on network failure
     }
   }
 }
 ```
 
-### 防抖异步验证
+### Debounced Async Validation
 
-为避免每次按键都重复请求服务器，异步验证器应当**防抖处理**：
+To avoid sending a server request on every keystroke, async validators should be **debounced**:
 
 ```dart
 class DebouncedAsyncValidator extends AsyncValidator {
@@ -777,17 +780,17 @@ class DebouncedAsyncValidator extends AsyncValidator {
   Future<String?> validate(String value) async {
     if (value.isEmpty) return null;
 
-    // 如果值未变化且已有缓存结果，直接返回
+    // If value unchanged and cached result exists, return immediately
     if (value == _lastValue && _lastResult != null) {
       return _lastResult;
     }
 
     _lastValue = value;
 
-    // 等待防抖延迟
+    // Wait for debounce delay
     await Future.delayed(delay);
 
-    // 如果延迟期间值已变化，跳过此次验证
+    // If value changed during delay, skip this validation
     if (value != _lastValue) return null;
 
     _lastResult = await inner.validate(value);
@@ -798,11 +801,11 @@ class DebouncedAsyncValidator extends AsyncValidator {
 
 ---
 
-## 表单联动：密码确认、级联选择、动态字段
+## Form Interlocking: Password Confirmation, Cascading Select, Dynamic Fields
 
-表单联动是指字段的验证依赖于**其他字段**的值。
+Form interlocking refers to field validation that depends on **other fields'** values.
 
-### 密码确认
+### Password Confirmation
 
 ```dart
 class PasswordMatchValidator extends SyncValidator {
@@ -811,7 +814,7 @@ class PasswordMatchValidator extends SyncValidator {
 
   PasswordMatchValidator({
     required this.getPassword,
-    this.message = '两次输入的密码不一致',
+    this.message = 'Passwords do not match',
   });
 
   @override
@@ -822,7 +825,7 @@ class PasswordMatchValidator extends SyncValidator {
   }
 }
 
-// 在表单中使用
+// Usage in form
 class RegistrationForm extends StatefulWidget {
   @override
   State<RegistrationForm> createState() => _RegistrationFormState();
@@ -843,24 +846,24 @@ class _RegistrationFormState extends State<RegistrationForm> {
       child: Column(
         children: [
           LuckyTextField(
-            label: '密码',
+            label: 'Password',
             obscureText: true,
             controller: _passwordController,
             validators: [
-              RequiredValidator(message: '密码为必填项'),
+              RequiredValidator(message: 'Password is required'),
               MinLengthValidator(8),
               PatternValidator(
                 RegExp(r'(?=.*[A-Z])(?=.*[a-z])(?=.*\d)'),
-                message: '必须包含大写字母、小写字母和数字',
+                message: 'Must include uppercase, lowercase, and numbers',
               ),
             ],
           ),
           const SizedBox(height: 16),
           LuckyTextField(
-            label: '确认密码',
+            label: 'Confirm Password',
             obscureText: true,
             validators: [
-              RequiredValidator(message: '请确认您的密码'),
+              RequiredValidator(message: 'Please confirm your password'),
               PasswordMatchValidator(
                 getPassword: () => _passwordController.text,
               ),
@@ -873,7 +876,7 @@ class _RegistrationFormState extends State<RegistrationForm> {
 }
 ```
 
-### 级联下拉选择（地区选择）
+### Cascading Dropdown Select (Region Selector)
 
 ```dart
 class CascadingRegionSelector extends StatefulWidget {
@@ -939,48 +942,48 @@ class _CascadingRegionSelectorState extends State<CascadingRegionSelector> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 省/直辖市下拉
+        // Province dropdown
         DropdownButtonFormField<String>(
           value: _selectedProvince,
           decoration: InputDecoration(
-            labelText: '省份',
+            labelText: 'Province',
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(theme.borderRadius),
             ),
           ),
           items: _provinces.map((p) => DropdownMenuItem(value: p, child: Text(p))).toList(),
           onChanged: _onProvinceChanged,
-          validator: (v) => v == null ? '请选择一个省份' : null,
+          validator: (v) => v == null ? 'Please select a province' : null,
         ),
         const SizedBox(height: 12),
 
-        // 城市下拉（仅在选择省份后启用）
+        // City dropdown (only enabled after province selection)
         DropdownButtonFormField<String>(
           value: _selectedCity,
           decoration: InputDecoration(
-            labelText: '城市/直辖市',
+            labelText: 'City/Municipality',
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(theme.borderRadius),
             ),
           ),
           items: _cities.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
           onChanged: _onCityChanged,
-          validator: (v) => v == null ? '请选择一个城市' : null,
+          validator: (v) => v == null ? 'Please select a city' : null,
         ),
         const SizedBox(height: 12),
 
-        // 区/县下拉（仅在选择城市后启用）
+        // Barangay dropdown (only enabled after city selection)
         DropdownButtonFormField<String>(
           value: _selectedBarangay,
           decoration: InputDecoration(
-            labelText: '区/县',
+            labelText: 'District/Barangay',
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(theme.borderRadius),
             ),
           ),
           items: _barangays.map((b) => DropdownMenuItem(value: b, child: Text(b))).toList(),
           onChanged: (v) => setState(() => _selectedBarangay = v),
-          validator: (v) => v == null ? '请选择一个区/县' : null,
+          validator: (v) => v == null ? 'Please select a district' : null,
         ),
       ],
     );
@@ -988,7 +991,7 @@ class _CascadingRegionSelectorState extends State<CascadingRegionSelector> {
 }
 ```
 
-### 动态显示/隐藏字段
+### Dynamic Show/Hide Fields
 
 ```dart
 class DynamicFieldsForm extends StatefulWidget {
@@ -1006,39 +1009,39 @@ class _DynamicFieldsFormState extends State<DynamicFieldsForm> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 字段 1：是否有推荐码？
+          // Field 1: Do you have a referral code?
           SwitchListTile(
-            title: const Text('我有推荐码'),
+            title: const Text('I have a referral code'),
             value: _hasReferral,
             onChanged: (v) => setState(() => _hasReferral = v),
           ),
 
-          // 字段 2：推荐码（仅在勾选后显示）
+          // Field 2: Referral code (shown only when checked)
           if (_hasReferral)
             LuckyTextField(
-              label: '推荐码',
-              hintText: '输入推荐码',
+              label: 'Referral Code',
+              hintText: 'Enter referral code',
               validators: [
-                RequiredValidator(message: '请输入推荐码'),
+                RequiredValidator(message: 'Please enter a referral code'),
               ],
             ),
 
           const SizedBox(height: 16),
 
-          // 字段 3：是否以企业身份注册？
+          // Field 3: Registering as a business?
           SwitchListTile(
-            title: const Text('以企业身份注册'),
+            title: const Text('Register as a business'),
             value: _useBusinessName,
             onChanged: (v) => setState(() => _useBusinessName = v),
           ),
 
-          // 字段 4：企业名称（仅在勾选后显示）
+          // Field 4: Business name (shown only when checked)
           if (_useBusinessName)
             LuckyTextField(
-              label: '企业名称',
-              hintText: '输入注册的企业名称',
+              label: 'Business Name',
+              hintText: 'Enter registered business name',
               validators: [
-                RequiredValidator(message: '企业名称为必填项'),
+                RequiredValidator(message: 'Business name is required'),
                 MinLengthValidator(3),
               ],
             ),
@@ -1051,29 +1054,29 @@ class _DynamicFieldsFormState extends State<DynamicFieldsForm> {
 
 ---
 
-## 验证触发配置：onChange / onBlur / onSubmit / manual
+## Validation Trigger Configuration: onChange / onBlur / onSubmit / manual
 
-不同的用户体验模式需要不同的验证时机。[`ValidationTrigger`] 枚举提供了四种模式：
+Different user experience patterns require different validation timing. The [`ValidationTrigger`] enum provides four modes:
 
 ```dart
 enum ValidationTrigger {
-  onChange,  // 每次按键都验证
-  onBlur,    // 字段失去焦点时验证
-  onSubmit,  // 仅提交表单时验证
-  manual,    // 仅通过显式调用验证
+  onChange,  // Validate on every keystroke
+  onBlur,    // Validate when field loses focus
+  onSubmit,  // Validate only on form submit
+  manual,    // Validate only via explicit call
 }
 ```
 
-### 触发行为矩阵
+### Trigger Behavior Matrix
 
-| 触发方式 | 验证时机 | 最佳实践 |
+| Trigger | Validation Timing | Best Practice |
 |---------|---------------------|---------------|
-| `onChange` | 每次 `TextEditingController` 变化 | 字符计数、密码强度 |
-| `onBlur` | `FocusNode` 失去焦点时 | 邮箱、电话——避免过早提示错误 |
-| `onSubmit` | 仅在显式调用 `formKey.currentState!.validate()` 时 | 长表单，避免干扰用户 |
-| `manual` | 从不自动验证；仅通过 `field.validate()` 调用 | 自定义 UI 触发器 |
+| `onChange` | Every `TextEditingController` change | Character count, password strength |
+| `onBlur` | When `FocusNode` loses focus | Email, phone — avoid premature error hints |
+| `onSubmit` | Only on explicit `formKey.currentState!.validate()` call | Long forms, avoid interrupting user |
+| `manual` | Never auto-validate; only via `field.validate()` call | Custom UI triggers |
 
-### 表单级提交验证
+### Form-Level Submit Validation
 
 ```dart
 class MyForm extends StatefulWidget {
@@ -1086,7 +1089,7 @@ class _MyFormState extends State<MyForm> {
   final _fieldKeys = <GlobalKey<_LuckyTextFieldState>>[];
 
   Future<void> _onSubmit() async {
-    // 验证所有字段
+    // Validate all fields
     bool allValid = true;
     for (final fieldKey in _fieldKeys) {
       final field = fieldKey.currentState;
@@ -1099,12 +1102,12 @@ class _MyFormState extends State<MyForm> {
     }
 
     if (!allValid) {
-      // 聚焦第一个错误字段
-      // 显示错误提示
+      // Focus first error field
+      // Show error notification
       return;
     }
 
-    // 继续提交表单
+    // Continue with form submission
   }
 
   @override
@@ -1115,8 +1118,8 @@ class _MyFormState extends State<MyForm> {
         children: [
           LuckyTextField(
             key: _fieldKeys[0],
-            label: '邮箱',
-            validationTrigger: ValidationTrigger.onSubmit, // 仅在提交时验证
+            label: 'Email',
+            validationTrigger: ValidationTrigger.onSubmit, // Validate only on submit
             validators: [
               RequiredValidator(),
               EmailValidator(),
@@ -1125,7 +1128,7 @@ class _MyFormState extends State<MyForm> {
           const SizedBox(height: 16),
           ElevatedButton(
             onPressed: _onSubmit,
-            child: const Text('提交'),
+            child: const Text('Submit'),
           ),
         ],
       ),
@@ -1136,35 +1139,35 @@ class _MyFormState extends State<MyForm> {
 
 ---
 
-## 验证状态机：有效 / 无效 / 验证中 / 未触及 / 已修改
+## Validation State Machine: Valid / Invalid / Validating / Pristine / Dirty
 
-验证状态机追踪每个字段的用户交互和验证状态，使 UI 组件能够渲染相应的状态。
+The validation state machine tracks each field's user interaction and validation status, enabling UI components to render corresponding states.
 
-### 状态机定义
+### State Machine Definition
 
 ```dart
 enum ValidationStatus {
-  pristine,   // 用户尚未与此字段交互
-  dirty,      // 用户已输入但尚未验证
-  validating, // 验证进行中（例如异步检查）
-  valid,      // 验证通过
-  invalid,    // 验证失败
+  pristine,   // User has not interacted with this field
+  dirty,      // User has typed but not yet validated
+  validating, // Validation in progress (e.g., async check)
+  valid,      // Validation passed
+  invalid,    // Validation failed
 }
 ```
 
-### 状态转换图
+### State Transition Diagram
 
 ```
                   ┌─────────────┐
                   │   PRISTINE   │
                   └──────┬──────┘
-                         │ 用户输入
+                         │ User input
                          ▼
                   ┌─────────────┐
          ┌───────│    DIRTY     │────────┐
          │       └──────┬──────┘        │
          │              │                │
-         │    触发验证                    │
+         │    Trigger validation         │
          │              │                │
          │              ▼                │
          │       ┌─────────────┐         │
@@ -1175,15 +1178,15 @@ enum ValidationStatus {
          │    │         │         │      │
          ▼    ▼         ▼         ▼      │
     ┌────────┐  ┌─────────┐  ┌────────┐  │
-    │  VALID  │  │ INVALID  │  │ 超时   │ │
+    │  VALID  │  │ INVALID  │  │ Timeout│ │
     └────────┘  └─────────┘  └────────┘  │
          │         │                      │
          └────┬────┘                      │
-              │ 用户再次输入               │
+              │ User types again          │
               └───────────────────────────┘
 ```
 
-### 状态消费者组件
+### State Consumer Component
 
 ```dart
 class ValidationStateBuilder extends StatelessWidget {
@@ -1205,7 +1208,7 @@ class ValidationStateBuilder extends StatelessWidget {
   }
 }
 
-// 使用：根据状态显示不同边框颜色
+// Usage: Display different border colors based on state
 ValidationStateBuilder(
   statusNotifier: _statusNotifier,
   builder: (context, status) {
@@ -1229,7 +1232,7 @@ ValidationStateBuilder(
         border: Border.all(color: borderColor),
         borderRadius: BorderRadius.circular(8),
       ),
-      child: // ... 表单字段
+      child: // ... form field
     );
   },
 );
@@ -1237,11 +1240,11 @@ ValidationStateBuilder(
 
 ---
 
-## 自动焦点管理：nextFieldAction
+## Automatic Focus Management: nextFieldAction
 
-自动焦点管理器允许用户通过键盘的 Next/Done 按钮**在字段间跳转**，显著提升表单填写速度——尤其对于长注册表单。
+The automatic focus manager allows users to **navigate between fields** using the keyboard's Next/Done button, significantly improving form filling speed — especially for long registration forms.
 
-### 焦点管理器
+### Focus Manager
 
 ```dart
 class FormFocusManager {
@@ -1249,7 +1252,7 @@ class FormFocusManager {
   final List<String> _fieldOrder = [];
   int _currentIndex = 0;
 
-  /// 注册字段到焦点顺序中
+  /// Register a field in the focus order
   FocusNode registerField(String fieldId) {
     final node = FocusNode();
     _focusNodes[fieldId] = node;
@@ -1257,7 +1260,7 @@ class FormFocusManager {
     return node;
   }
 
-  /// 将焦点移到下一个字段
+  /// Move focus to the next field
   void focusNext(String currentFieldId) {
     final currentIndex = _fieldOrder.indexOf(currentFieldId);
     if (currentIndex < _fieldOrder.length - 1) {
@@ -1266,7 +1269,7 @@ class FormFocusManager {
     }
   }
 
-  /// 将焦点移到上一个字段
+  /// Move focus to the previous field
   void focusPrevious(String currentFieldId) {
     final currentIndex = _fieldOrder.indexOf(currentFieldId);
     if (currentIndex > 0) {
@@ -1275,12 +1278,12 @@ class FormFocusManager {
     }
   }
 
-  /// 检查是否为最后一个字段
+  /// Check if this is the last field
   bool isLastField(String fieldId) {
     return _fieldOrder.last == fieldId;
   }
 
-  /// 取消所有焦点（收起键盘）
+  /// Unfocus all (dismiss keyboard)
   void unfocusAll() {
     _focusNodes.values.forEach((n) => n.unfocus());
   }
@@ -1292,7 +1295,7 @@ class FormFocusManager {
 }
 ```
 
-### 与 LuckyTextField 集成
+### LuckyTextField Integration
 
 ```dart
 class AutoFocusForm extends StatefulWidget {
@@ -1315,7 +1318,7 @@ class _AutoFocusFormState extends State<AutoFocusForm> {
       children: [
         LuckyTextField(
           fieldId: 'fullName',
-          label: '姓名',
+          label: 'Full Name',
           textInputAction: TextInputAction.next,
           focusNode: _focusManager.registerField('fullName'),
           onSubmitted: (_) => _focusManager.focusNext('fullName'),
@@ -1324,7 +1327,7 @@ class _AutoFocusFormState extends State<AutoFocusForm> {
         const SizedBox(height: 16),
         LuckyTextField(
           fieldId: 'email',
-          label: '邮箱',
+          label: 'Email',
           keyboardType: TextInputType.emailAddress,
           textInputAction: TextInputAction.next,
           focusNode: _focusManager.registerField('email'),
@@ -1334,7 +1337,7 @@ class _AutoFocusFormState extends State<AutoFocusForm> {
         const SizedBox(height: 16),
         LuckyTextField(
           fieldId: 'phone',
-          label: '手机号',
+          label: 'Phone Number',
           keyboardType: TextInputType.phone,
           textInputAction: TextInputAction.next,
           focusNode: _focusManager.registerField('phone'),
@@ -1344,9 +1347,9 @@ class _AutoFocusFormState extends State<AutoFocusForm> {
         const SizedBox(height: 16),
         LuckyTextField(
           fieldId: 'password',
-          label: '密码',
+          label: 'Password',
           obscureText: true,
-          textInputAction: TextInputAction.done, // 最后一个字段 → Done
+          textInputAction: TextInputAction.done, // Last field → Done
           focusNode: _focusManager.registerField('password'),
           onSubmitted: (_) => _focusManager.unfocusAll(),
           validators: [
@@ -1362,9 +1365,9 @@ class _AutoFocusFormState extends State<AutoFocusForm> {
 
 ---
 
-## 实践：完整的注册表单
+## Practice: Complete Registration Form
 
-以下是所有组件在真实注册界面中的协作示例。
+Below is an example of all components working together in a real registration screen.
 
 ```dart
 class RegistrationScreen extends StatefulWidget {
@@ -1388,16 +1391,16 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   }
 
   Future<void> _handleSubmit() async {
-    // 触发所有字段验证
+    // Trigger validation on all fields
     if (!_formKey.currentState!.validate()) {
-      // 滚动到第一个错误字段
+      // Scroll to first error field
       return;
     }
 
     setState(() => _isSubmitting = true);
 
     try {
-      // 提交注册
+      // Submit registration
       await _apiService.register(
         username: _usernameController.text,
         email: _emailController.text,
@@ -1407,14 +1410,14 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('注册成功！')),
+          const SnackBar(content: Text('Registration successful!')),
         );
         Navigator.of(context).pushReplacementNamed('/home');
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('注册失败：$e')),
+          SnackBar(content: Text('Registration failed: $e')),
         );
       }
     } finally {
@@ -1427,7 +1430,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     final theme = context.luckyFormTheme;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('创建账号')),
+      appBar: AppBar(title: const Text('Create Account')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Form(
@@ -1435,21 +1438,21 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // 用户名（带异步可用性检查）
+              // Username (with async availability check)
               LuckyTextField(
                 fieldId: 'username',
-                label: '用户名',
-                hintText: '选择一个独一无二的用户名',
+                label: 'Username',
+                hintText: 'Choose a unique username',
                 prefixIcon: const Icon(Icons.person_outline),
                 textInputAction: TextInputAction.next,
                 focusNode: _focusManager.registerField('username'),
                 onSubmitted: (_) => _focusManager.focusNext('username'),
                 validators: [
-                  RequiredValidator(message: '用户名是必填项'),
-                  MinLengthValidator(3, message: '用户名至少需要 3 个字符'),
+                  RequiredValidator(message: 'Username is required'),
+                  MinLengthValidator(3, message: 'Username requires at least 3 characters'),
                   PatternValidator(
                     RegExp(r'^[a-zA-Z0-9_]+$'),
-                    message: '只能包含字母、数字和下划线',
+                    message: 'Only letters, numbers, and underscores allowed',
                   ),
                   DebouncedAsyncValidator(
                     inner: UsernameAvailabilityValidator(apiService: _apiService),
@@ -1459,10 +1462,10 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
               ),
               const SizedBox(height: 20),
 
-              // 邮箱
+              // Email
               LuckyTextField(
                 fieldId: 'email',
-                label: '邮箱地址',
+                label: 'Email Address',
                 hintText: 'you@example.com',
                 prefixIcon: const Icon(Icons.email_outlined),
                 keyboardType: TextInputType.emailAddress,
@@ -1470,7 +1473,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                 focusNode: _focusManager.registerField('email'),
                 onSubmitted: (_) => _focusManager.focusNext('email'),
                 validators: [
-                  RequiredValidator(message: '邮箱是必填项'),
+                  RequiredValidator(message: 'Email is required'),
                   EmailValidator(),
                   DebouncedAsyncValidator(
                     inner: EmailUniquenessValidator(apiService: _apiService),
@@ -1480,10 +1483,10 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
               ),
               const SizedBox(height: 20),
 
-              // 手机号
+              // Phone
               LuckyTextField(
                 fieldId: 'phone',
-                label: '手机号码',
+                label: 'Phone Number',
                 hintText: '+63 912 345 6789',
                 prefixIcon: const Icon(Icons.phone_outlined),
                 keyboardType: TextInputType.phone,
@@ -1491,47 +1494,47 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                 focusNode: _focusManager.registerField('phone'),
                 onSubmitted: (_) => _focusManager.focusNext('phone'),
                 validators: [
-                  RequiredValidator(message: '手机号是必填项'),
+                  RequiredValidator(message: 'Phone number is required'),
                   PhoneValidator(countryCode: '63'),
                 ],
                 validationTrigger: ValidationTrigger.onBlur,
               ),
               const SizedBox(height: 20),
 
-              // 密码
+              // Password
               LuckyTextField(
                 fieldId: 'password',
-                label: '密码',
-                hintText: '至少 8 个字符',
+                label: 'Password',
+                hintText: 'At least 8 characters',
                 prefixIcon: const Icon(Icons.lock_outlined),
                 obscureText: true,
                 textInputAction: TextInputAction.next,
                 focusNode: _focusManager.registerField('password'),
                 onSubmitted: (_) => _focusManager.focusNext('confirmPassword'),
                 validators: [
-                  RequiredValidator(message: '密码是必填项'),
+                  RequiredValidator(message: 'Password is required'),
                   MinLengthValidator(8),
                   PatternValidator(
                     RegExp(r'(?=.*[A-Z])(?=.*[a-z])(?=.*\d)'),
-                    message: '必须包含大写字母、小写字母和数字',
+                    message: 'Must include uppercase, lowercase, and numbers',
                   ),
                 ],
                 validationTrigger: ValidationTrigger.onBlur,
               ),
               const SizedBox(height: 20),
 
-              // 确认密码
+              // Confirm Password
               LuckyTextField(
                 fieldId: 'confirmPassword',
-                label: '确认密码',
-                hintText: '再次输入密码',
+                label: 'Confirm Password',
+                hintText: 'Re-enter password',
                 prefixIcon: const Icon(Icons.lock_outlined),
                 obscureText: true,
                 textInputAction: TextInputAction.done,
                 focusNode: _focusManager.registerField('confirmPassword'),
                 onSubmitted: (_) => _focusManager.unfocusAll(),
                 validators: [
-                  RequiredValidator(message: '请确认您的密码'),
+                  RequiredValidator(message: 'Please confirm your password'),
                   PasswordMatchValidator(
                     getPassword: () => _passwordController.text,
                   ),
@@ -1540,7 +1543,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
               ),
               const SizedBox(height: 32),
 
-              // 提交按钮
+              // Submit button
               SizedBox(
                 height: 48,
                 child: ElevatedButton(
@@ -1562,7 +1565,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                           ),
                         )
                       : const Text(
-                          '创建账号',
+                          'Create Account',
                           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                         ),
                 ),
@@ -1578,42 +1581,42 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
 ---
 
-## 总结
+## Summary
 
-`LuckyFormTheme` + `Validator` 系统提供了一个全面的表单框架，弥补了 Flutter 默认表单组件的不足：
+The `LuckyFormTheme` + `Validator` system provides a comprehensive form framework that fills the gaps in Flutter's default form components:
 
-| 组件 | 职责 | 关键特性 |
+| Component | Responsibility | Key Features |
 |-----------|---------------|-------------|
-| `LuckyFormThemeConfig` | 样式配置 | 20+ 样式属性，明暗主题支持 |
-| `LuckyFormThemeWidget` | 主题下发 | `InheritedWidget` + `context.luckyFormTheme` |
-| `LuckyTextField` | 表单字段包装 | 3 种变体（outlined/filled/underlined），主题感知 |
-| `FieldValidator` 链 | 验证规则 | Required → Email → Phone → Length → Pattern → Custom |
-| `AsyncValidator` | 服务器验证 | 防抖用户名/邮箱可用性检查 |
-| `PasswordMatchValidator` | 表单联动 | 跨字段验证 |
-| `ValidationStatus` | 状态机 | pristine → dirty → validating → valid/invalid |
-| `ValidationTrigger` | 时机控制 | onChange / onBlur / onSubmit / manual |
-| `FormFocusManager` | 焦点管理 | 通过 `TextInputAction.next` 自动跳转 |
+| `LuckyFormThemeConfig` | Style configuration | 20+ style properties, light/dark theme support |
+| `LuckyFormThemeWidget` | Theme distribution | `InheritedWidget` + `context.luckyFormTheme` |
+| `LuckyTextField` | Form field wrapper | 3 variants (outlined/filled/underlined), theme-aware |
+| `FieldValidator` chain | Validation rules | Required → Email → Phone → Length → Pattern → Custom |
+| `AsyncValidator` | Server validation | Debounced username/email availability check |
+| `PasswordMatchValidator` | Form interlocking | Cross-field validation |
+| `ValidationStatus` | State machine | pristine → dirty → validating → valid/invalid |
+| `ValidationTrigger` | Timing control | onChange / onBlur / onSubmit / manual |
+| `FormFocusManager` | Focus management | Auto-advance via `TextInputAction.next` |
 
-### 关键要点
+### Key Takeaways
 
-- **通过 `InheritedWidget` 集中管理表单样式**——不再重复配置 `InputDecoration`
-- **在链中组合验证器**——每个验证器职责单一，首个失败即短路
-- **防抖异步验证器**——500ms 防抖防止输入过程中过多的 API 调用
-- **大多数字段使用 `onBlur`**——`onChange` 验证对邮箱和电话等字段来说过于激进
-- **实现验证状态机**——为更好的 UI 反馈提供支持（颜色变化、图标、加载动画）
-- **自动焦点管理是用户体验利器**——长表单中键盘 Tab 导航显著提升填写速度
+- **Centralize form styles via `InheritedWidget`** — no more repeated `InputDecoration` configuration
+- **Compose validators in a chain** — each validator has a single responsibility, short-circuit on first failure
+- **Debounce async validators** — 500ms debounce prevents excessive API calls during typing
+- **Use `onBlur` for most fields** — `onChange` validation is too aggressive for fields like email and phone
+- **Implement a validation state machine** — enables better UI feedback (color changes, icons, loading animations)
+- **Automatic focus management is a UX win** — keyboard Tab navigation in long forms significantly improves filling speed
 
-### 何时使用此模式
+### When to Use This Pattern
 
-此表单系统适用于以下场景：
-- 应用中有多个表单需要视觉一致性
-- 需要异步验证（用户名/邮箱唯一性）
-- 需要可配置的验证时机
-- 需要表单联动（密码确认、级联下拉）
-- 需要键盘友好的自动焦点导航
+This form system is suitable for scenarios where:
+- Your app has multiple forms requiring visual consistency
+- You need async validation (username/email uniqueness)
+- You need configurable validation timing
+- You need form interlocking (password confirmation, cascading dropdowns)
+- You need keyboard-friendly auto-focus navigation
 
-### 相关文章
+### Related Articles
 
-- [**F6: Design Tokens 生成系统**](./design-tokens-generated-system.md) — 为 `LuckyFormThemeConfig` 颜色和间距提供支持的令牌系统
-- [**F20: ReactiveForms + 代码生成表单**](./reactive-forms-code-generation.md) — 在此主题系统基础上构建响应式表单控制器和 JSON Schema 自动生成
-- [**F5: HydratedStateNotifier 抽象持久化**](./hydrated-state-notifier-abstract-persistence.md) — 跨应用重启保存表单草稿
+- [**Design Tokens Generated System**](./design-tokens-generated-system.md) — Token system powering `LuckyFormThemeConfig` colors and spacing
+- [**ReactiveForms + Code-Generated Forms**](./reactive-forms-code-generation.md) — Reactive form controllers and JSON Schema auto-generation built on this theme system
+- [**HydratedStateNotifier Abstract Persistence**](./hydrated-state-notifier-abstract-persistence.md) — Save form drafts across app restarts

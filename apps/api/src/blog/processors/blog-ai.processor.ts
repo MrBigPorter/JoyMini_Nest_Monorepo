@@ -171,9 +171,11 @@ export class BlogAiProcessor extends WorkerHost {
             },
           );
 
-          // 如果是最后一次尝试，返回原文
+          // 如果是最后一次尝试，抛出错误而不是返回原文（防止静默数据损坏）
           if (attempt === maxRetries) {
-            return text;
+            throw new Error(
+              `翻译失败：结果与原文相同（长度 ${text.length}, 目标语言 ${targetLang}）`,
+            );
           }
           continue;
         }
@@ -268,6 +270,7 @@ export class BlogAiProcessor extends WorkerHost {
       getSourceContent('excerpt', 'excerptLocalized') || article.excerpt || '';
 
     // 构建批量翻译prompt
+    // 使用分隔符格式替代JSON，避免Markdown内容中的特殊字符导致JSON解析失败
     const translationPrompt = `
 Translate the following article to ${targetLang}. The source content is primarily Chinese but may contain mixed Chinese/English text, code blocks, and diagrams.
 
@@ -328,21 +331,16 @@ For example:
 2. Maintain the original Markdown formatting
 3. Preserve all code blocks verbatim
 4. Preserve all ASCII diagram structure
-5. Return the translation in this exact JSON format:
+5. Return the translation using the following delimiter format (do NOT use JSON):
 
-{
-  "title": "Translated title",
-  "excerpt": "Translated excerpt",
-  "content": "Translated content in Markdown"
-}
+---TITLE---
+Translated title here
+---EXCERPT---
+Translated excerpt here
+---CONTENT---
+Translated content in Markdown here
 
-CRITICAL JSON VALIDITY RULES:
-- The "content" field contains Markdown text which may include special characters
-- ESCAPE ALL double quotes inside values as " (e.g., "hello"world" -> "hello"world")
-- ESCAPE ALL backslashes as \\ (e.g., "path\to" -> "path\\to")
-- ESCAPE ALL newlines inside values as \\n
-- The output MUST be 100% valid JSON that passes JSON.parse()
-- Double-check: no unescaped quotes, no unescaped backslashes, no literal newlines in strings
+IMPORTANT: Return ONLY the three sections above with the exact delimiters. Do NOT add any other text, commentary, or formatting. The content section can contain any Markdown including code blocks, quotes, and special characters - just put it as-is between the delimiters.
 `;
 
     let lastError: any;
@@ -360,7 +358,8 @@ CRITICAL JSON VALIDITY RULES:
           {
             temperature: 0.3,
             maxOutputTokens: 8192,
-            responseMimeType: 'application/json',
+            // 不使用 responseMimeType: 'application/json'，因为Markdown内容中的特殊字符会导致JSON解析失败
+            // 改用分隔符格式（---TITLE---/---EXCERPT---/---CONTENT---），AI直接返回原始文本
           },
           AiServiceLevel.FULL,
         );
@@ -370,10 +369,9 @@ CRITICAL JSON VALIDITY RULES:
           throw new Error('AI service returned empty result');
         }
 
-        // 尝试解析JSON（带自动修复）
+        // 使用分隔符解析翻译结果（替代JSON解析）
         try {
-          const repaired = repairJsonResponse(result);
-          const parsed = JSON.parse(repaired);
+          const parsed = this.parseDelimitedTranslation(result);
 
           // 验证必需字段
           if (!parsed.title || !parsed.content) {
@@ -381,9 +379,9 @@ CRITICAL JSON VALIDITY RULES:
           }
 
           const batchResult = {
-            title: parsed.title,
-            content: parsed.content,
-            excerpt: parsed.excerpt || null,
+            title: parsed.title.trim(),
+            content: parsed.content.trim(),
+            excerpt: parsed.excerpt ? parsed.excerpt.trim() : null,
           };
 
           // 缓存结果
@@ -399,18 +397,8 @@ CRITICAL JSON VALIDITY RULES:
               ? parseError.message
               : 'Unknown parse error';
 
-          // 记录详细错误信息，便于排查
-          const errorPosition = errorMsg.match(/position\s+(\d+)/i);
-          const pos = errorPosition ? parseInt(errorPosition[1], 10) : -1;
-          let detail = '';
-          if (pos > 0 && result) {
-            const start = Math.max(0, pos - 50);
-            const end = Math.min(result.length, pos + 50);
-            detail = ` | context[${pos}]: ...${result.substring(start, end)}...`;
-          }
-
           this.logger.error(
-            `批量翻译JSON解析失败 (尝试 ${attempt + 1}/${maxRetries + 1})${detail}`,
+            `批量翻译分隔符解析失败 (尝试 ${attempt + 1}/${maxRetries + 1})`,
             {
               error: errorMsg,
               resultPreview: result ? result.substring(0, 500) : 'Empty result',
@@ -459,6 +447,49 @@ CRITICAL JSON VALIDITY RULES:
       sourceExcerpt,
       targetLang,
     );
+  }
+
+  /**
+   * 解析分隔符格式的翻译结果
+   * AI返回格式：
+   * ---TITLE---
+   * Translated title
+   * ---EXCERPT---
+   * Translated excerpt
+   * ---CONTENT---
+   * Translated content in Markdown
+   */
+  private parseDelimitedTranslation(raw: string): {
+    title: string;
+    content: string;
+    excerpt: string | null;
+  } {
+    // 尝试提取 ---TITLE--- 和 ---EXCERPT--- 和 ---CONTENT--- 之间的内容
+    const titleMatch = raw.match(/---TITLE---\s*([\s\S]*?)\s*---EXCERPT---/);
+    const excerptMatch = raw.match(
+      /---EXCERPT---\s*([\s\S]*?)\s*---CONTENT---/,
+    );
+    const contentMatch = raw.match(/---CONTENT---\s*([\s\S]*)$/);
+
+    if (!titleMatch) {
+      throw new Error('无法找到 ---TITLE--- 分隔符');
+    }
+    if (!contentMatch) {
+      throw new Error('无法找到 ---CONTENT--- 分隔符');
+    }
+
+    const title = titleMatch[1].trim();
+    const content = contentMatch[1].trim();
+    const excerpt = excerptMatch ? excerptMatch[1].trim() : null;
+
+    if (!title) {
+      throw new Error('翻译结果中标题为空');
+    }
+    if (!content) {
+      throw new Error('翻译结果中内容为空');
+    }
+
+    return { title, content, excerpt };
   }
 
   /**
@@ -545,6 +576,20 @@ CRITICAL JSON VALIDITY RULES:
   private renderMarkdown(md: string | null | undefined): string {
     if (!md) return '';
     return this.marked.parse(md) as string;
+  }
+
+  /**
+   * Detect if text is already English (technical term / proper noun).
+   * Returns true if text contains only ASCII printable characters
+   * and at least one letter — meaning no CJK or accented characters.
+   * This avoids wasting AI quota translating terms like "dio" → "dio".
+   */
+  private isEnglishText(text: string): boolean {
+    if (!text || text.trim().length === 0) return false;
+    // If text contains CJK characters (Chinese, Japanese, Korean), it's not English
+    if (/[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]/.test(text)) return false;
+    // If text contains only ASCII printable characters and at least one letter, it's English
+    return /^[\x20-\x7E]+$/.test(text.trim()) && /[a-zA-Z]/.test(text);
   }
 
   async process(job: Job): Promise<any> {
@@ -857,6 +902,41 @@ CRITICAL JSON VALIDITY RULES:
       const contentTranslated = batchResult.content;
       const excerptTranslated = batchResult.excerpt;
 
+      // 验证翻译质量：确保至少有一个字段真正被翻译了
+      // 防止AI服务静默返回原文导致数据损坏
+      const titleIsSame =
+        titleTranslated === sourceTitle && sourceTitle.trim().length > 10;
+      const contentIsSame =
+        contentTranslated === sourceContent && sourceContent.trim().length > 50;
+      const excerptIsSame =
+        excerptTranslated === sourceExcerpt && sourceExcerpt.trim().length > 10;
+
+      // 如果所有非空字段都与原文相同，且至少有一个非空字段，则判定为翻译失败
+      const meaningfulFields = [
+        sourceTitle.length > 10,
+        sourceContent.length > 50,
+        sourceExcerpt.length > 10,
+      ];
+      const anyMeaningfulField = meaningfulFields.some(Boolean);
+      const allFieldsSame = titleIsSame && contentIsSame && excerptIsSame;
+
+      if (anyMeaningfulField && allFieldsSame) {
+        this.logger.error(
+          `翻译验证失败：所有字段与原文相同（文章 ${data.articleId}，目标语言 ${data.targetLang}）`,
+          {
+            titleSame: titleIsSame,
+            contentSame: contentIsSame,
+            excerptSame: excerptIsSame,
+            titleLength: sourceTitle.length,
+            contentLength: sourceContent.length,
+            excerptLength: sourceExcerpt.length,
+          },
+        );
+        throw new Error(
+          `翻译验证失败：AI返回的所有字段内容与原文相同（${data.targetLang}）`,
+        );
+      }
+
       // 进度 80% - 保存翻译结果到数据库
       await this.translationJobService.updateProgress(dbJobId, 80);
 
@@ -1070,12 +1150,21 @@ CRITICAL JSON VALIDITY RULES:
       // 进度 20% - 准备完成，开始调用 AI 翻译名称
       await this.translationJobService.updateProgress(dbJobId, 20);
 
-      // 执行翻译 - 现在依赖AI服务中的Prompt规则保护技术术语
+      // 执行翻译
       const nameSource = getSourceContent('name', 'nameLocalized');
-      const nameTranslated = await this.aiService.translateText(
-        nameSource,
-        data.targetLang,
-      );
+      // 如果源内容已经是英文（技术术语/专有名词），直接复制到目标语言，跳过AI翻译
+      let nameTranslated: string;
+      if (this.isEnglishText(nameSource)) {
+        this.logger.debug(
+          `Category name "${nameSource}" is already English, copying directly to ${data.targetLang}`,
+        );
+        nameTranslated = nameSource;
+      } else {
+        nameTranslated = await this.aiService.translateText(
+          nameSource,
+          data.targetLang,
+        );
+      }
 
       // 进度 50% - 名称翻译完成，开始翻译描述
       await this.translationJobService.updateProgress(dbJobId, 50);
@@ -1084,10 +1173,19 @@ CRITICAL JSON VALIDITY RULES:
         'description',
         'descriptionLocalized',
       );
-      const descriptionTranslated = await this.aiService.translateText(
-        descriptionSource,
-        data.targetLang,
-      );
+      // 如果描述已经是英文，直接复制
+      let descriptionTranslated: string;
+      if (this.isEnglishText(descriptionSource)) {
+        this.logger.debug(
+          `Category description "${descriptionSource}" is already English, copying directly to ${data.targetLang}`,
+        );
+        descriptionTranslated = descriptionSource;
+      } else {
+        descriptionTranslated = await this.aiService.translateText(
+          descriptionSource,
+          data.targetLang,
+        );
+      }
 
       // 进度 80% - 翻译完成，保存到数据库
       await this.translationJobService.updateProgress(dbJobId, 80);
@@ -1239,12 +1337,21 @@ CRITICAL JSON VALIDITY RULES:
       // 进度 20% - 准备完成，开始调用 AI 翻译
       await this.translationJobService.updateProgress(dbJobId, 20);
 
-      // 执行翻译 - 现在依赖AI服务中的Prompt规则保护技术术语
+      // 执行翻译
       const nameSource = getSourceContent('name', 'nameLocalized');
-      const nameTranslated = await this.aiService.translateText(
-        nameSource,
-        data.targetLang,
-      );
+      // 如果源内容已经是英文（技术术语/专有名词），直接复制到目标语言，跳过AI翻译
+      let nameTranslated: string;
+      if (this.isEnglishText(nameSource)) {
+        this.logger.debug(
+          `Tag name "${nameSource}" is already English, copying directly to ${data.targetLang}`,
+        );
+        nameTranslated = nameSource;
+      } else {
+        nameTranslated = await this.aiService.translateText(
+          nameSource,
+          data.targetLang,
+        );
+      }
 
       // 进度 80% - 翻译完成，保存到数据库
       await this.translationJobService.updateProgress(dbJobId, 80);

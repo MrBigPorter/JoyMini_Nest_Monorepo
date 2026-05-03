@@ -1,3 +1,19 @@
+---
+title: 'AI 服务迁移：Vertex AI 到 Google AI Studio — 成本控制与多密钥轮换'
+slug: ai-service-migration-vertex-ai-to-ai-studio
+description: JoyMini API 将 AI 服务从 Vertex AI（按量付费）迁移到 Google AI Studio（免费层），涵盖多密钥轮换、断路器降级、速率限制和成本对比的完整迁移故事。
+tags:
+  - NestJS
+  - Google AI Studio
+  - Gemini
+  - LLM
+  - Cost Control
+  - Circuit Breaker
+  - Rate Limiting
+  - Multi-Key Rotation
+  - TypeScript
+---
+
 # AI 服务迁移：Vertex AI 到 Google AI Studio — 成本控制与多密钥轮换
 
 **Date:** 2026-05-02  

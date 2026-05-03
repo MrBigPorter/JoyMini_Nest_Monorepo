@@ -1,88 +1,91 @@
-# GlobalUploadService：S3 直接上传 + 压缩管道 + MIME 修正
+---
+title: "GlobalUploadService: S3 Direct Upload + Compression Pipeline + MIME Correction"
+description: "A comprehensive Flutter file upload system featuring S3 presigned URL direct upload, MIME type detection via magic bytes, compression pipeline, upload queue with concurrency limiting, retry with exponential backoff, chunked upload for large files, and real-time progress tracking."
+slug: global-upload-service-s3-compression-mime
+tags: [Flutter, Upload, S3, Compression, MIME, Media]
+---
 
-> **文章难度：** ⭐⭐⭐⭐ (高级)
-> **关注领域：** 文件上传、媒体处理、网络优化、错误处理
-> **阅读时间：** 20 分钟
+# GlobalUploadService: S3 Direct Upload + Compression Pipeline + MIME Correction
 
-## 目录
+## Table of Contents
 
-1. [为什么需要全局上传服务？](#为什么需要全局上传服务)
-2. [架构总览：上传管道](#架构总览上传管道)
-3. [GlobalUploadService：统一上传 API](#globaluploadservice统一上传-api)
-4. [通过预签名 URL 进行 S3 直接上传](#通过预签名-url-进行-s3-直接上传)
-5. [上传前压缩管道](#上传前压缩管道)
-6. [MIME 类型自动检测与修正](#mime-类型自动检测与修正)
-7. [使用 Stream<double> 跟踪上传进度](#使用-streamdouble-跟踪上传进度)
-8. [上传队列：并发限制 + 重试 + 取消](#上传队列并发限制--重试--取消)
-9. [大文件分块上传](#大文件分块上传)
-10. [上传结果类型](#上传结果类型)
-11. [实战：商品图片上传](#实战商品图片上传)
-12. [总结](#总结)
+1. [Why a Global Upload Service?](#1-why-a-global-upload-service)
+2. [Architecture Overview: Upload Pipeline](#2-architecture-overview-upload-pipeline)
+3. [GlobalUploadService: Unified Upload API](#3-globaluploadservice-unified-upload-api)
+4. [S3 Direct Upload via Presigned URL](#4-s3-direct-upload-via-presigned-url)
+5. [Pre-Upload Compression Pipeline](#5-pre-upload-compression-pipeline)
+6. [Automatic MIME Type Detection & Correction](#6-automatic-mime-type-detection--correction)
+7. [Tracking Upload Progress with Stream\<double\>](#7-tracking-upload-progress-with-streamdouble)
+8. [Upload Queue: Concurrency Limits + Retry + Cancel](#8-upload-queue-concurrency-limits--retry--cancel)
+9. [Large File Chunked Upload](#9-large-file-chunked-upload)
+10. [Upload Result Type](#10-upload-result-type)
+11. [Practice: Product Image Upload](#11-practice-product-image-upload)
+12. [Summary](#12-summary)
 
 ---
 
-## 为什么需要全局上传服务？
+## 1. Why a Global Upload Service?
 
-在社交电商应用中，文件上传无处不在：
+In social e-commerce applications, file uploads are everywhere:
 
-| 功能 | 文件类型 | 频率 |
+| Feature | File Type | Frequency |
 |---------|-----------|-----------|
-| 商品上架 | 图片（JPEG、WebP、PNG） | 每位卖家每天 |
-| KYC 验证 | 身份证照片、自拍照 | 每位用户一次 |
-| 个人资料头像 | 图片 | 偶尔 |
-| 聊天附件 | 图片、视频、文档 | 高频 |
-| 群组头像 | 图片 | 每次创建群组 |
+| Product Listing | Images (JPEG, WebP, PNG) | Per seller, daily |
+| KYC Verification | ID photos, selfies | Once per user |
+| Profile Avatar | Images | Occasionally |
+| Chat Attachments | Images, videos, documents | High frequency |
+| Group Avatar | Images | Per group creation |
 
-如果没有统一的上传服务，每个功能都各自实现上传逻辑，会导致：
+Without a unified upload service, each feature implements its own upload logic, leading to:
 
-| 问题 | 影响 |
+| Issue | Impact |
 |---------|--------|
-| **重复的预签名 URL 逻辑** | 每个功能独立获取和签名 URL |
-| **无压缩** | 原始 12MP 相机图片直接上传，浪费带宽 |
-| **MIME 类型错误** | 服务器因 Content-Type 不正确而拒绝上传 |
-| **无进度反馈** | 用户看不到上传指示，误以为应用卡死 |
-| **无队列管理** | 50 张图片同时上传，压垮网络 |
-| **无重试机制** | 弱信号下上传失败 → 用户需重新选择所有文件 |
+| **Duplicate presigned URL logic** | Each feature independently fetches and signs URLs |
+| **No compression** | Raw 12MP camera images uploaded directly, wasting bandwidth |
+| **MIME type errors** | Server rejects uploads due to incorrect Content-Type |
+| **No progress feedback** | Users can't see upload progress, think the app is frozen |
+| **No queue management** | 50 images uploaded simultaneously, saturating the network |
+| **No retry mechanism** | Upload fails under weak signal → user must reselect all files |
 
 ---
 
-## 架构总览：上传管道
+## 2. Architecture Overview: Upload Pipeline
 
 ```
-用户选择文件
+User selects file
         │
         ▼
 ┌────────────────────────────────┐
 │    GlobalUploadService         │
 │                                │
-│  1. 获取预签名 URL              │
-│     （通过 API /upload/presigned）│
+│  1. Fetch presigned URL        │
+│     (via API /upload/presigned) │
 │                                │
-│  2. MIME 检测                  │
-│     （魔数 → MIME 类型）         │
+│  2. MIME detection             │
+│     (magic bytes → MIME type)  │
 │                                │
-│  3. 压缩管道                    │
-│     ├─ 图片：缩放 + 质量        │
-│     ├─ 视频：缩略图             │
-│     └─ 文档：透传               │
+│  3. Compression pipeline       │
+│     ├─ Image: resize + quality │
+│     ├─ Video: thumbnail        │
+│     └─ Document: pass through  │
 │                                │
-│  4. 上传队列                    │
-│     （最大 3 并发）              │
+│  4. Upload queue               │
+│     (max 3 concurrent)         │
 │                                │
-│  5. S3 直接上传                 │
-│     （PUT 到预签名 URL）         │
-│     └─ 进度流                   │
+│  5. S3 direct upload           │
+│     (PUT to presigned URL)     │
+│     └─ Progress stream         │
 │                                │
-│  6. UploadResult                │
-│     （url、key、mime、size）      │
+│  6. UploadResult               │
+│     (url, key, mime, size)     │
 └────────────────────────────────┘
 ```
 
 ---
 
-## GlobalUploadService：统一上传 API
+## 3. GlobalUploadService: Unified Upload API
 
-该服务提供三种上传模式：单文件、多文件和压缩上传。
+The service provides three upload modes: single file, multiple files, and compressed upload.
 
 ```dart
 import 'dart:async';
@@ -102,24 +105,24 @@ class GlobalUploadService {
   final MimeDetector _mimeDetector = MimeDetector();
   final CompressionPipeline _compressionPipeline = CompressionPipeline();
 
-  /// 上传单个文件
+  /// Upload a single file
   Future<UploadResult> upload(UploadRequest request) async {
     return _queue.enqueue(() => _performUpload(request));
   }
 
-  /// 同时上传多个文件（遵循队列并发限制）
+  /// Upload multiple files simultaneously (respects queue concurrency limit)
   Future<List<UploadResult>> uploadMultiple(List<UploadRequest> requests) async {
     final futures = requests.map((r) => upload(r));
     return Future.wait(futures, eagerError: false);
   }
 
-  /// 自动压缩后上传
+  /// Auto-compress then upload
   Future<UploadResult> uploadWithCompression(UploadRequest request) async {
     final compressed = await _compressionPipeline.compress(request);
     return upload(compressed);
   }
 
-  /// 上传多个文件并压缩
+  /// Upload multiple files with compression
   Future<List<UploadResult>> uploadMultipleWithCompression(
     List<UploadRequest> requests,
   ) async {
@@ -131,18 +134,18 @@ class GlobalUploadService {
 
   Future<UploadResult> _performUpload(UploadRequest request) async {
     try {
-      // 步骤 1：检测/修正 MIME 类型
+      // Step 1: Detect/correct MIME type
       final correctedMime = await _mimeDetector.detect(request.filePath);
       final mimeType = correctedMime ?? request.mimeType ?? 'application/octet-stream';
 
-      // 步骤 2：获取预签名 URL
+      // Step 2: Get presigned URL
       final presignedUrl = await _fetchPresignedUrl(
         fileName: p.basename(request.filePath),
         mimeType: mimeType,
         module: request.module,
       );
 
-      // 步骤 3：上传到 S3
+      // Step 3: Upload to S3
       final result = await _uploadToS3(
         url: presignedUrl.url,
         filePath: request.filePath,
@@ -162,7 +165,7 @@ class GlobalUploadService {
       );
     } catch (e) {
       throw UploadException(
-        message: '上传失败：${request.filePath}',
+        message: 'Upload failed: ${request.filePath}',
         originalError: e,
       );
     }
@@ -173,7 +176,7 @@ class GlobalUploadService {
     required String mimeType,
     required String module,
   }) async {
-    // 调用后端 API 获取预签名 URL
+    // Call backend API to get presigned URL
     final response = await http.post(
       Uri.parse('$apiBaseUrl/upload/presigned'),
       headers: {'Content-Type': 'application/json'},
@@ -185,7 +188,7 @@ class GlobalUploadService {
     );
 
     if (response.statusCode != 200) {
-      throw UploadException('获取预签名 URL 失败：${response.statusCode}');
+      throw UploadException('Failed to get presigned URL: ${response.statusCode}');
     }
 
     final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -206,15 +209,15 @@ class GlobalUploadService {
     final file = File(filePath);
     final fileSize = await file.length();
 
-    // 读取文件字节
+    // Read file bytes
     final bytes = await file.readAsBytes();
 
-    // 创建 HTTP PUT 请求
+    // Create HTTP PUT request
     final request = http.MultipartRequest('PUT', Uri.parse(url));
     request.headers['Content-Type'] = mimeType;
     request.headers['Content-Length'] = fileSize.toString();
 
-    // 使用自定义客户端跟踪进度
+    // Custom client for progress tracking
     final progressStream = StreamController<List<int>>();
     int uploadedBytes = 0;
 
@@ -226,7 +229,7 @@ class GlobalUploadService {
     });
 
     try {
-      // 将文件写入流
+      // Write file to stream
       final chunkSize = 8192;
       for (int i = 0; i < bytes.length; i += chunkSize) {
         final end = (i + chunkSize < bytes.length) ? i + chunkSize : bytes.length;
@@ -234,7 +237,7 @@ class GlobalUploadService {
       }
       await progressStream.close();
 
-      // 执行上传
+      // Execute upload
       final response = await http.put(
         Uri.parse(url),
         headers: {
@@ -245,10 +248,10 @@ class GlobalUploadService {
       );
 
       if (response.statusCode != 200) {
-        throw UploadException('S3 上传失败，状态码：${response.statusCode}');
+        throw UploadException('S3 upload failed, status code: ${response.statusCode}');
       }
 
-      // 如果是图片，尝试获取图片尺寸
+      // If it's an image, try to get image dimensions
       int? width;
       int? height;
       if (mimeType.startsWith('image/')) {
@@ -270,13 +273,13 @@ class GlobalUploadService {
 }
 ```
 
-### 上传请求 / 结果类型
+### Upload Request / Result Types
 
 ```dart
 class UploadRequest {
   final String filePath;
-  final String module;       // 'product'、'kyc'、'avatar'、'chat'、'group'
-  final String? mimeType;    // 可选，为 null 时自动检测
+  final String module;       // 'product', 'kyc', 'avatar', 'chat', 'group'
+  final String? mimeType;    // Optional, auto-detected when null
   final void Function(double)? onProgress;
   final Map<String, String>? metadata;
 
@@ -291,9 +294,9 @@ class UploadRequest {
 
 class UploadResult {
   final String url;          // CDN URL
-  final String key;          // S3 对象键
-  final String bucket;       // S3 存储桶名称
-  final String mimeType;     // 检测/修正后的 MIME 类型
+  final String key;          // S3 object key
+  final String bucket;       // S3 bucket name
+  final String mimeType;     // Detected/corrected MIME type
   final int sizeBytes;
   final int? width;
   final int? height;
@@ -346,28 +349,28 @@ class UploadToS3Result {
 
 ---
 
-## 通过预签名 URL 进行 S3 直接上传
+## 4. S3 Direct Upload via Presigned URL
 
-关键的设计决策是**客户端直接上传**——文件直接发送到 S3，无需经过应用服务器。这是通过[预签名 URL](https://docs.aws.amazon.com/AmazonS3/latest/userguide/using-presigned-url.html)实现的。
+The key design decision is **client-side direct upload** — files are sent directly to S3 without passing through the application server. This is made possible via [presigned URLs](https://docs.aws.amazon.com/AmazonS3/latest/userguide/using-presigned-url.html).
 
-### 为什么使用预签名 URL？
+### Why Presigned URLs?
 
 ```
-不使用预签名 URL（反模式）：
-  App → API 服务器（接收文件）→ S3
-  ❌ 服务器处理大文件（内存压力）
-  ❌ 双倍带宽（App → 服务器 → S3）
-  ❌ 服务器 CPU 浪费在文件处理上
+Without Presigned URL (Anti-Pattern):
+  App → API Server (receives file) → S3
+  ❌ Server processes large files (memory pressure)
+  ❌ Double bandwidth (App → Server → S3)
+  ❌ Server CPU wasted on file processing
 
-使用预签名 URL（最佳实践）：
-  App → 获取预签名 URL（小 API 调用）
-  App → S3 直接上传（大文件）
-  ✅ 服务器从不接触文件
-  ✅ 单次带宽跳转
-  ✅ S3 负责扩展
+With Presigned URL (Best Practice):
+  App → Fetch presigned URL (small API call)
+  App → S3 direct upload (large file)
+  ✅ Server never touches the file
+  ✅ Single bandwidth hop
+  ✅ S3 handles scaling
 ```
 
-### 后端预签名 URL 生成（NestJS）
+### Backend Presigned URL Generation (NestJS)
 
 ```typescript
 // apps/api/src/common/upload/upload.service.ts
@@ -405,7 +408,7 @@ export class UploadService {
     });
 
     const url = await getSignedUrl(this.s3, command, {
-      expiresIn: 3600, // 1 小时
+      expiresIn: 3600, // 1 hour
     });
 
     return {
@@ -430,21 +433,21 @@ export class UploadService {
 }
 ```
 
-### 安全注意事项
+### Security Considerations
 
-| 关注点 | 缓解措施 |
+| Concern | Mitigation |
 |---------|------------|
-| **URL 过期** | 预签名 URL 在 1 小时后过期 |
-| **模块隔离** | 每个模块使用独立的 S3 存储桶 |
-| **文件类型限制** | 后端在签名前验证 mimeType |
-| **大小限制** | 后端在签名时拒绝过大的文件 |
-| **身份认证** | 预签名 URL 端点需要有效的认证令牌 |
+| **URL expiration** | Presigned URL expires after 1 hour |
+| **Module isolation** | Each module uses a separate S3 bucket |
+| **File type restriction** | Backend validates mimeType before signing |
+| **Size restriction** | Backend rejects oversized files during signing |
+| **Authentication** | Presigned URL endpoint requires valid auth token |
 
 ---
 
-## 上传前压缩管道
+## 5. Pre-Upload Compression Pipeline
 
-压缩管道在上传前应用**客户端优化**，减少带宽和服务器处理开销。
+The compression pipeline applies **client-side optimization** before upload, reducing bandwidth and server processing overhead.
 
 ### CompressionPipeline
 
@@ -452,13 +455,13 @@ export class UploadService {
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/painting.dart' as painting;
-import 'package:image/image.dart' as img; // dart 原生图片库
+import 'package:image/image.dart' as img; // Dart native image library
 
 class CompressionPipeline {
   final ImageCompressor _imageCompressor = ImageCompressor();
   final VideoProcessor _videoProcessor = VideoProcessor();
 
-  /// 上传前压缩文件
+  /// Compress file before upload
   Future<UploadRequest> compress(UploadRequest request) async {
     final extension = p.extension(request.filePath).toLowerCase();
 
@@ -468,7 +471,7 @@ class CompressionPipeline {
       return _videoProcessor.extractThumbnail(request);
     }
 
-    // 文档、音频等——透传
+    // Documents, audio, etc. — pass through
     return request;
   }
 
@@ -485,7 +488,7 @@ class CompressionPipeline {
 ```dart
 class ImageCompressor {
   static const _defaultQuality = 80;
-  static const _maxDimension = 2048; // 最大宽或高（像素）
+  static const _maxDimension = 2048; // Max width or height (pixels)
 
   Future<UploadRequest> compress(
     UploadRequest request, {
@@ -495,11 +498,11 @@ class ImageCompressor {
     final file = File(request.filePath);
     final bytes = await file.readAsBytes();
 
-    // 解码图片
+    // Decode image
     final image = img.decodeImage(bytes);
-    if (image == null) return request; // 无法解码，上传原图
+    if (image == null) return request; // Unable to decode, upload original
 
-    // 如果超过最大尺寸则缩放
+    // Scale down if exceeding max dimension
     img.Image resized = image;
     if (image.width > maxDimension || image.height > maxDimension) {
       resized = img.copyResize(
@@ -510,11 +513,11 @@ class ImageCompressor {
       );
     }
 
-    // 确定目标格式
+    // Determine target format
     final targetFormat = _selectFormat(request.mimeType ?? 'image/jpeg');
     final compressedBytes = _encodeImage(resized, targetFormat, quality);
 
-    // 将压缩文件写入临时位置
+    // Write compressed file to temporary location
     final tempDir = Directory.systemTemp;
     final tempPath = '${tempDir.path}/${DateTime.now().millisecondsSinceEpoch}_compressed.${_extensionFor(targetFormat)}';
     await File(tempPath).writeAsBytes(compressedBytes);
@@ -541,7 +544,7 @@ class ImageCompressor {
       case 'image/webp':
         return ImageFormat.webp;
       default:
-        return ImageFormat.jpeg; // 照片默认 JPEG
+        return ImageFormat.jpeg; // Photo defaults to JPEG
     }
   }
 
@@ -580,36 +583,36 @@ class ImageCompressor {
 enum ImageFormat { jpeg, png, webp, gif }
 ```
 
-### 压缩效果
+### Compression Results
 
-| 原始文件 | 压缩后 | 节省空间 |
+| Original File | After Compression | Space Saved |
 |----------|------------------|---------|
 | 12MB JPEG (4032×3024) | 450KB JPEG (2048×1536, q80) | **96%** |
 | 5MB PNG (1920×1080) | 320KB WebP (1920×1080, q80) | **94%** |
 | 2MB JPEG (800×600) | 180KB JPEG (800×600, q80) | **91%** |
-| 500KB PNG (logo) | 120KB PNG (无损) | **76%** |
+| 500KB PNG (logo) | 120KB PNG (lossless) | **76%** |
 
 ---
 
-## MIME 类型自动检测与修正
+## 6. Automatic MIME Type Detection & Correction
 
-一个常见问题：扩展名是 `.jpg`，但文件实际上是 PNG（更糟糕的是，可能是重命名的可执行文件）。`MimeDetector` 读取**魔数**（文件签名）来确定真实的 MIME 类型。
+A common problem: the extension is `.jpg`, but the file is actually a PNG (or worse, a renamed executable). The `MimeDetector` reads **magic bytes** (file signatures) to determine the real MIME type.
 
-### 魔数检测
+### Magic Byte Detection
 
 ```dart
 import 'dart:io';
 import 'dart:typed_data';
 
 class MimeDetector {
-  /// 从文件魔数检测 MIME 类型
+  /// Detect MIME type from file magic bytes
   Future<String?> detect(String filePath) async {
     final file = File(filePath);
     if (!await file.exists()) return null;
 
     final raf = await file.open(mode: FileMode.read);
     try {
-      // 读取前 12 个字节（对大多数格式足够）
+      // Read first 12 bytes (sufficient for most formats)
       final header = await raf.read(12);
       return _matchMagicBytes(header);
     } finally {
@@ -618,12 +621,12 @@ class MimeDetector {
   }
 
   String? _matchMagicBytes(Uint8List bytes) {
-    // JPEG：以 FF D8 FF 开头
+    // JPEG: starts with FF D8 FF
     if (bytes.length >= 3 && bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF) {
       return 'image/jpeg';
     }
 
-    // PNG：以 89 50 4E 47 0D 0A 1A 0A 开头
+    // PNG: starts with 89 50 4E 47 0D 0A 1A 0A
     if (bytes.length >= 8 &&
         bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E &&
         bytes[3] == 0x47 && bytes[4] == 0x0D && bytes[5] == 0x0A &&
@@ -631,7 +634,7 @@ class MimeDetector {
       return 'image/png';
     }
 
-    // GIF：以 GIF87a 或 GIF89a 开头
+    // GIF: starts with GIF87a or GIF89a
     if (bytes.length >= 6 &&
         bytes[0] == 0x47 && bytes[1] == 0x49 && bytes[2] == 0x46 &&
         (bytes[3] == 0x38 || bytes[3] == 0x39) &&
@@ -639,7 +642,7 @@ class MimeDetector {
       return 'image/gif';
     }
 
-    // WebP：以 RIFF....WEBP 开头
+    // WebP: starts with RIFF....WEBP
     if (bytes.length >= 12 &&
         bytes[0] == 0x52 && bytes[1] == 0x49 && bytes[2] == 0x46 &&
         bytes[3] == 0x46 && bytes[8] == 0x57 && bytes[9] == 0x45 &&
@@ -647,20 +650,20 @@ class MimeDetector {
       return 'image/webp';
     }
 
-    // PDF：以 %PDF 开头
+    // PDF: starts with %PDF
     if (bytes.length >= 4 &&
         bytes[0] == 0x25 && bytes[1] == 0x50 &&
         bytes[2] == 0x44 && bytes[3] == 0x46) {
       return 'application/pdf';
     }
 
-    // MP4：以 ftyp box 开头
+    // MP4: starts with ftyp box
     if (bytes.length >= 8 &&
         bytes[4] == 0x66 && bytes[5] == 0x74 && bytes[6] == 0x79 && bytes[7] == 0x70) {
       return 'video/mp4';
     }
 
-    // HEIC：以 ftypheic 或 ftypheix 开头
+    // HEIC: starts with ftypheic or ftypheix
     if (bytes.length >= 12 &&
         bytes[4] == 0x66 && bytes[5] == 0x74 && bytes[6] == 0x79 &&
         bytes[7] == 0x70 &&
@@ -669,14 +672,14 @@ class MimeDetector {
       return 'image/heic';
     }
 
-    return null; // 未知格式
+    return null; // Unknown format
   }
 }
 ```
 
-### 常见魔数签名
+### Common Magic Byte Signatures
 
-| 格式 | 魔数（十六进制） | 正确 MIME |
+| Format | Magic Bytes (Hex) | Correct MIME |
 |--------|-------------------|--------------|
 | JPEG | `FF D8 FF` | `image/jpeg` |
 | PNG | `89 50 4E 47` | `image/png` |
@@ -686,32 +689,32 @@ class MimeDetector {
 | MP4 | `xx xx xx xx 66 74 79 70` | `video/mp4` |
 | HEIC | `xx xx xx xx 66 74 79 70 68 65 69 63` | `image/heic` |
 
-### 为什么 MIME 修正很重要
+### Why MIME Correction Matters
 
 ```
-用户选择 photo.jpg（实际上是通过截图的 PNG）
-                                          │
-                                          ▼
-基于扩展名的 MIME："image/jpeg"           │
-魔数 MIME：      "image/png"              │
-                                          │
-S3 收到 PUT 请求，Content-Type：           │
-  "image/jpeg" → 存储为 .jpg               │
-  但实际是 PNG！                           │
-                                          │
-CDN 以 image/jpeg 方式提供                 │
-浏览器无法渲染 → 图片破损                   │
-                                          ▼
-                   ⚠️ 需要修正
+User selects photo.jpg (actually a screenshot saved as PNG)
+                                           │
+                                           ▼
+Extension-based MIME: "image/jpeg"         │
+Magic byte MIME:      "image/png"          │
+                                           │
+S3 receives PUT with Content-Type:         │
+  "image/jpeg" → stored as .jpg            │
+  But it's actually a PNG!                 │
+                                           │
+CDN serves as image/jpeg                   │
+Browser cannot render → broken image       │
+                                           ▼
+                    ⚠️ Needs correction
 ```
 
 ---
 
-## 使用 Stream<double> 跟踪上传进度
+## 7. Tracking Upload Progress with Stream\<double\>
 
-进度通过 [`Stream<double>`](https://api.dart.dev/stable/dart-async/Stream-class.html) 暴露，发射 0.0 到 1.0 之间的值，实现实时进度条。
+Progress is exposed via [`Stream<double>`](https://api.dart.dev/stable/dart-async/Stream-class.html), emitting values between 0.0 and 1.0 for real-time progress bars.
 
-### 上传进度提供者
+### Upload Progress Provider
 
 ```dart
 class UploadProgressNotifier extends ValueNotifier<Map<String, double>> {
@@ -748,7 +751,7 @@ class UploadProgressNotifier extends ValueNotifier<Map<String, double>> {
 }
 ```
 
-### 带进度的流式上传
+### Progress-Tracking Upload
 
 ```dart
 class ProgressTrackingUpload {
@@ -785,7 +788,7 @@ class ProgressTrackingUpload {
 }
 ```
 
-### 进度 UI 组件
+### Progress UI Component
 
 ```dart
 class UploadProgressBar extends StatelessWidget {
@@ -821,9 +824,9 @@ class UploadProgressBar extends StatelessWidget {
 
 ---
 
-## 上传队列：并发限制 + 重试 + 取消
+## 8. Upload Queue: Concurrency Limits + Retry + Cancel
 
-上传队列管理并发上传数、重试失败项，并支持取消。
+The upload queue manages concurrent uploads, retries failed items, and supports cancellation.
 
 ```dart
 class UploadQueue {
@@ -834,7 +837,7 @@ class UploadQueue {
 
   UploadQueue({this.maxConcurrent = 3});
 
-  /// 将上传加入队列并返回其 Future 结果
+  /// Enqueue upload and return its Future result
   Future<UploadResult> enqueue(Future<UploadResult> Function() uploadFn) {
     final completer = Completer<UploadResult>();
     final entry = _QueuedUpload(uploadFn: uploadFn, completer: completer);
@@ -869,7 +872,7 @@ class UploadQueue {
           entry.completer.completeError(e);
           return;
         }
-        // 指数退避
+        // Exponential backoff
         await Future.delayed(Duration(seconds: attempt * 2));
       }
     }
@@ -877,7 +880,7 @@ class UploadQueue {
 
   bool _isNonRetryable(Object error) {
     if (error is UploadException) {
-      // 4xx 错误不可重试
+      // 4xx errors are non-retryable
       if (error.message.contains('401') || error.message.contains('403')) {
         return true;
       }
@@ -885,12 +888,12 @@ class UploadQueue {
     return false;
   }
 
-  /// 取消所有等待中的上传
+  /// Cancel all pending uploads
   void cancelAll() {
     while (_pending.isNotEmpty) {
       final entry = _pending.removeFirst();
       entry.completer.completeError(
-        UploadException('用户取消了上传'),
+        UploadException('User cancelled upload'),
       );
     }
   }
@@ -907,25 +910,25 @@ class _QueuedUpload {
 }
 ```
 
-### 重试策略
+### Retry Strategy
 
-| 尝试次数 | 重试前等待 | 累计等待 |
+| Attempt | Wait Before Retry | Cumulative Wait |
 |---------|-------------------|------------|
-| 1（首次） | 0秒 | 0秒 |
-| 2（重试 1） | 2秒 | 2秒 |
-| 3（重试 2） | 4秒 | 6秒 |
+| 1 (First) | 0s | 0s |
+| 2 (Retry 1) | 2s | 2s |
+| 3 (Retry 2) | 4s | 6s |
 
-不可重试的错误（401 未授权、403 禁止访问、无效文件）直接失败。
+Non-retryable errors (401 Unauthorized, 403 Forbidden, invalid files) fail immediately.
 
 ---
 
-## 大文件分块上传
+## 9. Large File Chunked Upload
 
-对于超过 100MB 的文件（例如视频），上传服务切换到**多部分分块上传**，使用 S3 的 Multipart Upload API。
+For files exceeding 100MB (e.g., videos), the upload service switches to **multipart chunked upload** using S3's Multipart Upload API.
 
 ```dart
 class ChunkedUploader {
-  static const _chunkSize = 5 * 1024 * 1024; // S3 多部分上传最小 5MB
+  static const _chunkSize = 5 * 1024 * 1024; // S3 multipart upload minimum 5MB
   static const _largeFileThreshold = 100 * 1024 * 1024; // 100MB
 
   Future<UploadResult> upload(
@@ -937,7 +940,7 @@ class ChunkedUploader {
     final fileSize = await file.length();
 
     if (fileSize < _largeFileThreshold) {
-      // 小文件使用常规上传
+      // Small files use regular upload
       return GlobalUploadService().upload(UploadRequest(
         filePath: filePath,
         module: module,
@@ -945,7 +948,7 @@ class ChunkedUploader {
       ));
     }
 
-    // 大文件使用多部分上传
+    // Large files use multipart upload
     return _multipartUpload(filePath, fileSize, module, onProgress);
   }
 
@@ -955,11 +958,11 @@ class ChunkedUploader {
     String module,
     void Function(double)? onProgress,
   ) async {
-    // 步骤 1：初始化多部分上传
+    // Step 1: Initiate multipart upload
     final uploadId = await _initiateMultipartUpload(filePath, module);
 
     try {
-      // 步骤 2：上传各个部分
+      // Step 2: Upload individual parts
       final raf = await File(filePath).open(mode: FileMode.read);
       final parts = <int, String>{};
       int partNumber = 1;
@@ -981,11 +984,11 @@ class ChunkedUploader {
 
       await raf.close();
 
-      // 步骤 3：完成多部分上传
+      // Step 3: Complete multipart upload
       final result = await _completeMultipartUpload(uploadId, parts);
       return result;
     } catch (e) {
-      // 失败时中止
+      // Abort on failure
       await _abortMultipartUpload(uploadId);
       rethrow;
     }
@@ -1002,7 +1005,7 @@ class ChunkedUploader {
     );
 
     if (response.statusCode != 200) {
-      throw UploadException('初始化多部分上传失败');
+      throw UploadException('Failed to initialize multipart upload');
     }
 
     final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -1025,7 +1028,7 @@ class ChunkedUploader {
     );
 
     if (response.statusCode != 200) {
-      throw UploadException('上传第 $partNumber 部分失败');
+      throw UploadException('Failed to upload part $partNumber');
     }
 
     return response.headers['etag'] ?? '';
@@ -1048,7 +1051,7 @@ class ChunkedUploader {
     );
 
     if (response.statusCode != 200) {
-      throw UploadException('完成多部分上传失败');
+      throw UploadException('Failed to complete multipart upload');
     }
 
     final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -1074,20 +1077,20 @@ class ChunkedUploader {
 
 ---
 
-## 上传结果类型
+## 10. Upload Result Type
 
-[`UploadResult`] 类提供消费功能所需的所有元数据。
+The [`UploadResult`] class provides all metadata needed by consuming features.
 
 ```dart
 class UploadResult {
-  final String url;            // 用于展示的完整 CDN URL
-  final String key;            // 用于删除/引用的 S3 对象键
-  final String bucket;         // 存储桶名称（用于审计）
-  final String mimeType;       // 修正后的 MIME 类型
-  final int sizeBytes;         // 最终上传大小
-  final int? width;            // 图片宽度（如果是图片）
-  final int? height;           // 图片高度（如果是图片）
-  final String originalName;   // 原始文件名
+  final String url;            // Full CDN URL for display
+  final String key;            // S3 object key for deletion/reference
+  final String bucket;         // Bucket name (for audit)
+  final String mimeType;       // Corrected MIME type
+  final int sizeBytes;         // Final upload size
+  final int? width;            // Image width (if image)
+  final int? height;           // Image height (if image)
+  final String originalName;   // Original file name
 
   const UploadResult({
     required this.url,
@@ -1100,13 +1103,13 @@ class UploadResult {
     required this.originalName,
   });
 
-  /// 是否为图片
+  /// Whether this is an image
   bool get isImage => mimeType.startsWith('image/');
 
-  /// 是否为视频
+  /// Whether this is a video
   bool get isVideo => mimeType.startsWith('video/');
 
-  /// 格式化文件大小用于展示
+  /// Format file size for display
   String get formattedSize {
     if (sizeBytes < 1024) return '$sizeBytes B';
     if (sizeBytes < 1024 * 1024) {
@@ -1115,7 +1118,7 @@ class UploadResult {
     return '${(sizeBytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
 
-  /// 图片宽高比（如果有尺寸信息）
+  /// Image aspect ratio (if dimensions available)
   double? get aspectRatio {
     if (width == null || height == null || height == 0) return null;
     return width! / height!;
@@ -1136,9 +1139,9 @@ class UploadResult {
 
 ---
 
-## 实战：商品图片上传
+## 11. Practice: Product Image Upload
 
-以下是 `GlobalUploadService` 在实际商品创建流程中的使用方式。
+Below is how `GlobalUploadService` is used in an actual product creation flow.
 
 ```dart
 class ProductImageUploader extends StatefulWidget {
@@ -1169,12 +1172,12 @@ class _ProductImageUploaderState extends State<ProductImageUploader> {
         },
       )).toList();
 
-      // 跟踪所有上传
+      // Track all uploads
       for (final req in requests) {
         _progressNotifier.startTracking(req.filePath);
       }
 
-      // 压缩后上传（最大 3 并发）
+      // Upload with compression (max 3 concurrent)
       final results = await _uploadService.uploadMultipleWithCompression(requests);
 
       setState(() {
@@ -1185,7 +1188,7 @@ class _ProductImageUploaderState extends State<ProductImageUploader> {
       setState(() => _isUploading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('上传失败：$e')),
+          SnackBar(content: Text('Upload failed: $e')),
         );
       }
     }
@@ -1196,12 +1199,12 @@ class _ProductImageUploaderState extends State<ProductImageUploader> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 图片网格
+        // Image grid
         Wrap(
           spacing: 8,
           runSpacing: 8,
           children: [
-            // 已上传的图片
+            // Uploaded images
             ..._uploadedImages.map((result) => Stack(
               children: [
                 Image.network(
@@ -1225,7 +1228,7 @@ class _ProductImageUploaderState extends State<ProductImageUploader> {
               ],
             )),
 
-            // 上传按钮或进度指示
+            // Upload button or progress indicator
             if (_isUploading)
               ..._uploadedImages.length < _progressNotifier.value.length
                   ? [
@@ -1262,7 +1265,7 @@ class _ProductImageUploaderState extends State<ProductImageUploader> {
                     ]
                   : [],
 
-            // 添加更多按钮
+            // Add more button
             if (!_isUploading)
               GestureDetector(
                 onTap: _pickAndUploadImages,
@@ -1279,7 +1282,7 @@ class _ProductImageUploaderState extends State<ProductImageUploader> {
                     children: [
                       Icon(Icons.add_photo_alternate, size: 32, color: Colors.grey),
                       SizedBox(height: 4),
-                      Text('添加照片',
+                      Text('Add Photos',
                         style: TextStyle(fontSize: 12, color: Colors.grey),
                       ),
                     ],
@@ -1293,7 +1296,7 @@ class _ProductImageUploaderState extends State<ProductImageUploader> {
           Padding(
             padding: const EdgeInsets.only(top: 8),
             child: Text(
-              '已上传 ${_uploadedImages.length} 张图片',
+              '${_uploadedImages.length} images uploaded',
               style: TextStyle(fontSize: 12, color: Colors.grey[600]),
             ),
           ),
@@ -1303,76 +1306,76 @@ class _ProductImageUploaderState extends State<ProductImageUploader> {
 }
 ```
 
-### 上传流程时序图
+### Upload Flow Sequence Diagram
 
 ```
-用户                   App                    API 服务器              S3
+User                   App                    API Server              S3
  │                     │                         │                    │
- │ 选择 5 张照片        │                         │                    │
+ │ Select 5 photos     │                         │                    │
  ├────────────────────►│                         │                    │
  │                     │                         │                    │
- │                     │ 检测 MIME（魔数）         │                    │
- │                     ├─── 压缩图片 ────────────►│                    │
- │                     │   （缩放 2048px, q80）    │                    │
+ │                     │ Detect MIME (magic)     │                    │
+ │                     ├─── Compress images ────►│                    │
+ │                     │   (resize 2048px, q80)  │                    │
  │                     │                         │                    │
- │                     │ GET /upload/presigned    │                    │
+ │                     │ GET /upload/presigned   │                    │
  │                     ├────────────────────────►│                    │
- │                     │←── 预签名 URL（×5）──────┤                    │
+ │                     │←── Presigned URLs (×5) ─┤                    │
  │                     │                         │                    │
- │                     │ 队列（最大 3 并发）       │                    │
+ │                     │ Queue (max 3 concurrent)│                    │
  │                     │                         │                    │
- │                     │ PUT image1（进度）        │                    │
+ │                     │ PUT image1 (progress)   │                    │
  │                     ├─────────────────────────────────────────────►│
- │                     │ PUT image2（进度）        │                    │
+ │                     │ PUT image2 (progress)   │                    │
  │                     ├─────────────────────────────────────────────►│
- │                     │ PUT image3（进度）        │                    │
+ │                     │ PUT image3 (progress)   │                    │
  │                     ├─────────────────────────────────────────────►│
  │                     │                         │                    │
- │   进度：60%          │←── Stream<double> ──────┤                    │
+ │   Progress: 60%     │←── Stream<double> ──────┤                    │
  │◄────────────────────┤                         │                    │
  │                     │                         │                    │
- │   上传完成           │                         │                    │
+ │   Upload complete   │                         │                    │
  │◄────────────────────┤                         │                    │
- │  （5 × UploadResult）│                         │                    │
+ │  (5 × UploadResult) │                         │                    │
 ```
 
 ---
 
-## 总结
+## 12. Summary
 
-`GlobalUploadService` 为 Flutter 提供了一个完整、生产级的文件上传系统：
+`GlobalUploadService` provides a complete, production-grade file upload system for Flutter:
 
-| 组件 | 职责 | 关键特性 |
+| Component | Responsibility | Key Features |
 |-----------|---------------|-------------|
-| `GlobalUploadService` | 统一上传 API | 单文件/多文件/压缩变体 |
-| `MimeDetector` | MIME 修正 | 魔数检测（12+ 格式） |
-| `CompressionPipeline` | 上传前优化 | 图片缩放+质量、视频缩略图 |
-| `ImageCompressor` | 图片优化 | 最大 2048px，可配置质量 |
-| `UploadQueue` | 并发控制 | 最大 3 并发，重试（3×），取消 |
-| `ChunkedUploader` | 大文件支持 | S3 多部分，5MB 分块，100MB 阈值 |
-| `UploadProgressNotifier` | 进度跟踪 | 每文件 Stream<double>，总体进度 |
-| `UploadResult` | 结果元数据 | URL、键、MIME、尺寸、格式化大小 |
+| `GlobalUploadService` | Unified upload API | Single/multiple/compressed variants |
+| `MimeDetector` | MIME correction | Magic byte detection (12+ formats) |
+| `CompressionPipeline` | Pre-upload optimization | Image resize+quality, video thumbnails |
+| `ImageCompressor` | Image optimization | Max 2048px, configurable quality |
+| `UploadQueue` | Concurrency control | Max 3 concurrent, retry (3×), cancel |
+| `ChunkedUploader` | Large file support | S3 multipart, 5MB chunks, 100MB threshold |
+| `UploadProgressNotifier` | Progress tracking | Per-file Stream<double>, overall progress |
+| `UploadResult` | Result metadata | URL, key, MIME, size, formatted size |
 
-### 关键要点
+### Key Takeaways
 
-- **始终使用预签名 URL**——文件直接发送到 S3，不经过应用服务器（减少服务器负载、带宽和延迟）
-- **通过魔数检测 MIME，而非扩展名**——防止因 Content-Type 头部不正确导致的上传失败
-- **上传前压缩**——12MB 的相机照片变为 450KB，画质损失几乎不可察觉
-- **将并发上传限制为 3 个**——防止网络饱和，并允许单独的进度跟踪
-- **使用指数退避重试**——在 2秒/4秒/6秒 间隔内重试 3 次，可处理大多数瞬时网络故障
-- **超过 100MB 的文件使用多部分上传**——支持可恢复上传和并行部分上传
-- **清理临时文件**——压缩后的文件写入 `Directory.systemTemp`，上传后应删除
+- **Always use presigned URLs** — files go directly to S3 without passing through the application server (reduces server load, bandwidth, and latency)
+- **Detect MIME via magic bytes, not extension** — prevents upload failures caused by incorrect Content-Type headers
+- **Compress before upload** — 12MB camera photo becomes 450KB with nearly imperceptible quality loss
+- **Limit concurrent uploads to 3** — prevents network saturation and allows individual progress tracking
+- **Retry with exponential backoff** — 3 retries at 2s/4s/6s intervals handle most transient network failures
+- **Use multipart upload for files over 100MB** — supports resumable uploads and parallel part uploads
+- **Clean up temporary files** — compressed files are written to `Directory.systemTemp` and should be deleted after upload
 
-### 何时使用此模式
+### When to Use This Pattern
 
-此上传系统适用于以下场景：
-- 您的应用需要从用户设备上传图片、视频或文档
-- 您有多个需要文件上传的功能（商品、KYC、头像、聊天）
-- 上传可靠性至关重要（重试、队列、进度）
-- 您希望通过直接上传到 S3 来最小化服务器负载
+This upload system is suitable for scenarios where:
+- Your app needs to upload images, videos, or documents from user devices
+- You have multiple features requiring file upload (products, KYC, avatars, chat)
+- Upload reliability is critical (retry, queue, progress)
+- You want to minimize server load by uploading directly to S3
 
-### 相关文章
+### Related Articles
 
-- [**F18：ImageCacheManager L1/L2 + CDN 分辨率阶梯**](./image-cache-manager-l1-l2-responsive-image-service.md) — 在客户端缓存已上传的图片
-- [**API：文件上传 + Cloudflare R2 媒体处理**](../api/file-upload-cloudflare-r2-media-processing.md) — 后端预签名 URL 生成和媒体处理实现
-- [**F20：ReactiveForms + 代码生成表单**](./reactive-forms-code-generation.md) — 使用此上传服务的 `FormFieldType.file` 表单
+- [**ImageCacheManager L1/L2 + CDN Resolution Ladder**](./image-cache-manager-l1-l2-responsive-image-service.md) — Cache uploaded images on the client side
+- [**API: File Upload + Cloudflare R2 Media Processing**](../api/file-upload-cloudflare-r2-media-processing.md) — Backend presigned URL generation and media processing implementation
+- [**ReactiveForms + Code-Generated Forms**](./reactive-forms-code-generation.md) — Forms using `FormFieldType.file` with this upload service

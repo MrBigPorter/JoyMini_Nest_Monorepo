@@ -1,5 +1,6 @@
 ---
 title: 'NestJS 设备指纹风控系统：Redis 黑名单、多账号检测与 24h 提现冷却'
+slug: nestjs-device-fingerprint-antifraud
 description: '深入分析一个生产级 NestJS 设备安全服务，涵盖 Redis 双缓存策略、多账号检测、自动封禁与提现冷却的完整实现'
 tags:
   - NestJS

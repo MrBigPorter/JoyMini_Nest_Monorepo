@@ -1,3 +1,10 @@
+---
+title: 'API 客户端层：30+ 类型化模块模式'
+slug: api-client-layer-30-modules
+tags: Next.js, Admin, TypeScript, API, Architecture, HTTP Client, Type Safety
+description: 管理后台通过定义在 api/index.ts（1,145 行）中的类型化 API 客户端层与 NestJS 后端通信，导出 19 个 API 模块，利用共享的 http 客户端和集中式的类型定义形成三文件 API 层，覆盖 30+ 后端端点。
+---
+
 # API 客户端层：30+ 类型化模块模式
 
 ## 概述

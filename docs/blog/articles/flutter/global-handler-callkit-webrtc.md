@@ -1,33 +1,38 @@
-# GlobalHandler + CallKit + WebRTC 通话 — 全局事件总线与实时通话架构
+---
+title: "GlobalHandler + CallKit + WebRTC Calls: Global Event Bus and Real-Time Call Architecture"
+description: "A unified global event handling system using GlobalHandler for event routing with priority levels, integrated with WebRTC peer-to-peer calling, iOS CallKit integration via MethodChannel, and call recovery management."
+slug: global-handler-callkit-webrtc
+tags: [flutter, webrtc, callkit, architecture, real-time]
+---
 
-> **Article F14** | **Difficulty:** ⭐⭐⭐⭐⭐ | **Source:** `joy_mini_app/lib/core/global_handler/`, `joy_mini_app/lib/features/call/`
+# GlobalHandler + CallKit + WebRTC Calls: Global Event Bus and Real-Time Call Architecture
 
-## 1. 问题背景
+## 1. Problem Background
 
-JoyMini 作为社交应用，需要同时处理多种 **外部触发的事件**：
+JoyMini, as a social application, needs to handle multiple types of **externally triggered events** simultaneously:
 
 ```
-外部事件来源：
+External Event Sources:
   ├── Push Notification (FCM)
-  │   ├── 新消息通知 → 打开聊天
-  │   ├── 来电通知 → 显示通话界面
-  │   ├── 订单状态 → 打开订单详情
-  │   └── 营销通知 → 打开活动页面
+  │   ├── New message notification → Open chat
+  │   ├── Incoming call notification → Show call screen
+  │   ├── Order status → Open order details
+  │   └── Marketing notification → Open campaign page
   ├── Deep Link
-  │   ├── OAuth 回调 → 处理登录
-  │   └── 支付回调 → 显示支付结果
-  ├── WebSocket 事件
-  │   ├── 通话邀请 → 接听/拒绝
-  │   └── 好友请求 → 显示处理
+  │   ├── OAuth callback → Handle login
+  │   └── Payment callback → Show payment result
+  ├── WebSocket Events
+  │   ├── Call invitation → Accept/Reject
+  │   └── Friend request → Show processing
   └── CallKit (iOS)
-      └── 来电显示 → 接通/挂断
+      └── Incoming call display → Connect/Hang up
 ```
 
-**GlobalHandler** 将所有这些事件统一到一个入口，按 **事件优先级** 分配处理。
+**GlobalHandler** unifies all these events into a single entry point, dispatching them by **event priority**.
 
-## 2. GlobalHandler — 全局事件中枢
+## 2. GlobalHandler — Global Event Hub
 
-### 2.1 事件路由
+### 2.1 Event Routing
 
 ```dart
 class GlobalHandler {
@@ -37,20 +42,20 @@ class GlobalHandler {
 
   final Logger _logger = Logger('GlobalHandler');
 
-  /// 处理传入事件（统一入口）
+  /// Handle incoming event (unified entry point)
   Future<void> handle(IncomingEvent event) async {
     _logger.info('[GlobalHandler] Event: ${event.type} (${event.id})');
 
-    // 检查应用是否在前台
+    // Check if app is in foreground
     final isForeground = await _isAppForeground();
 
     if (!isForeground) {
-      // 后台启动 — 需要先导航到目标页面
+      // Background launch — navigate to target page first
       await _handleBackgroundEvent(event);
       return;
     }
 
-    // 前台事件 — 根据类型分发
+    // Foreground event — dispatch by type
     await _dispatchForegroundEvent(event);
   }
 
@@ -72,16 +77,16 @@ class GlobalHandler {
   }
 
   Future<void> _handleBackgroundEvent(IncomingEvent event) async {
-    // 存储待处理事件
+    // Store pending event
     _pendingEvent = event;
 
-    // 如果应用在后台被杀，冷启动时处理
-    // 如果只是在后台，等用户点击通知后再处理
+    // If app was killed while in background, handle on cold start
+    // If just in background, wait for user to tap notification
   }
 }
 ```
 
-### 2.2 事件模型
+### 2.2 Event Model
 
 ```dart
 enum EventType {
@@ -114,43 +119,43 @@ class IncomingEvent {
 }
 
 enum EventPriority {
-  /// 通话邀请（必须立即处理）
+  /// Call invitation (must be handled immediately)
   critical,
 
-  /// 新消息、订单更新
+  /// New messages, order updates
   high,
 
-  /// 营销、推广
+  /// Marketing, promotions
   normal,
 
-  /// 后台静默事件
+  /// Background silent events
   low,
 }
 ```
 
-### 2.3 推送通知处理
+### 2.3 Push Notification Handling
 
 ```dart
 class PushNotificationHandler {
   final GlobalHandler _handler = GlobalHandler();
 
-  /// FCM 前台消息
+  /// FCM foreground message
   Future<void> onMessage(RemoteMessage message) async {
     final event = _parseRemoteMessage(message);
     await _handler.handle(event);
   }
 
-  /// FCM 后台消息（用户点击通知）
+  /// FCM background message (user tapped notification)
   Future<void> onMessageOpenedApp(RemoteMessage message) async {
     final event = _parseRemoteMessage(message);
     await _handler.handle(event);
   }
 
-  /// FCM 静默消息（不显示通知栏）
+  /// FCM silent message (no notification bar)
   Future<void> onBackgroundMessage(RemoteMessage message) async {
     final event = _parseRemoteMessage(message);
 
-    // 后台 isolate 有限制，只处理关键事件
+    // Background isolate has limitations, only handle critical events
     if (event.priority == EventPriority.critical) {
       await _handler.handle(event);
     }
@@ -167,41 +172,41 @@ class PushNotificationHandler {
 }
 ```
 
-## 3. WebRTC 通话系统
+## 3. WebRTC Call System
 
-### 3.1 通话状态机
+### 3.1 Call State Machine
 
 ```dart
 enum CallState {
-  /// 空闲
+  /// Idle
   idle,
 
-  /// 呼出中（主叫等待接听）
+  /// Calling (caller waiting for answer)
   calling,
 
-  /// 来电中（被叫收到邀请）
+  /// Ringing (callee received invitation)
   ringing,
 
-  /// 通话中（连接已建立）
+  /// Connected (connection established)
   connected,
 
-  /// 挂断中
+  /// Ending
   ending,
 
-  /// 已结束
+  /// Ended
   ended,
 }
 
 enum CallDirection {
-  /// 主叫
+  /// Outgoing call
   outgoing,
 
-  /// 被叫
+  /// Incoming call
   incoming,
 }
 ```
 
-### 3.2 WebRTC 服务
+### 3.2 WebRTC Service
 
 ```dart
 class WebRTCService {
@@ -213,10 +218,10 @@ class WebRTCService {
   StreamSubscription? _signalSub;
 
   Future<void> startCall(String targetUserId) async {
-    // 1. 获取本地媒体流
+    // 1. Get local media stream
     _localStream = await _getUserMedia();
 
-    // 2. 创建 PeerConnection
+    // 2. Create PeerConnection
     final config = Configuration(
       iceServers: [
         RTCIceServer(url: 'stun:stun.l.google.com:19302'),
@@ -229,10 +234,10 @@ class WebRTCService {
     );
     _peerConnection = await RTCPeerConnection.create(config);
 
-    // 3. 添加本地流
+    // 3. Add local stream
     _peerConnection.addStream(_localStream);
 
-    // 4. 监听 ICE candidate
+    // 4. Listen for ICE candidates
     _peerConnection.onIceCandidate = (candidate) {
       _wsService.send(CallSignal(
         type: SignalType.iceCandidate,
@@ -241,12 +246,12 @@ class WebRTCService {
       ));
     };
 
-    // 5. 监听远程流
+    // 5. Listen for remote stream
     _peerConnection.onAddStream = (stream) {
       _onRemoteStream(stream);
     };
 
-    // 6. 创建 Offer
+    // 6. Create Offer
     final offer = await _peerConnection.createOffer();
     await _peerConnection.setLocalDescription(offer);
 
@@ -258,12 +263,12 @@ class WebRTCService {
   }
 
   Future<void> acceptCall(CallSignal signal) async {
-    // 1. 设置远程描述
+    // 1. Set remote description
     await _peerConnection.setRemoteDescription(
       RTCSessionDescription(signal.data['sdp'], 'offer'),
     );
 
-    // 2. 创建 Answer
+    // 2. Create Answer
     final answer = await _peerConnection.createAnswer();
     await _peerConnection.setLocalDescription(answer);
 
@@ -293,7 +298,7 @@ class WebRTCService {
 }
 ```
 
-### 3.3 通话信令通过 WebSocket
+### 3.3 Call Signaling via WebSocket
 
 ```dart
 class CallSignalService {
@@ -301,7 +306,7 @@ class CallSignalService {
   final Logger _logger = Logger('CallSignal');
 
   void connect() {
-    // 监听通话信令
+    // Listen for call signaling
     _ws.onMessage('call:invite', _handleCallInvite);
     _ws.onMessage('call:accept', _handleCallAccept);
     _ws.onMessage('call:ice_candidate', _handleIceCandidate);
@@ -314,7 +319,7 @@ class CallSignalService {
     final state = _callStateMachine.currentState;
 
     if (state == CallState.idle) {
-      // 显示来电界面
+      // Show incoming call UI
       _callStateMachine.transitionTo(CallState.ringing);
       GlobalHandler().handle(IncomingEvent(
         id: data['call_id'],
@@ -323,7 +328,7 @@ class CallSignalService {
         priority: EventPriority.critical,
       ));
     } else {
-      // 通话中 → 返回 busy
+      // Busy — return busy signal
       _ws.send(CallSignal(
         type: SignalType.busy,
         targetUserId: signal.fromUserId,
@@ -341,15 +346,15 @@ class CallSignalService {
     _callStateMachine.transitionTo(CallState.ended);
     _cleanup();
 
-    // 弹出通话结束页面
+    // Show call ended screen
     _showCallEndedScreen(data);
   }
 }
 ```
 
-## 4. CallKit 集成（iOS）
+## 4. CallKit Integration (iOS)
 
-### 4.1 原生侧 CallKit 处理
+### 4.1 Native CallKit Handling
 
 ```objc
 // CallKitManager.swift
@@ -387,7 +392,7 @@ class CallKitManager: NSObject, CXProviderDelegate {
 
         provider.reportNewIncomingCall(with: uuid, update: update) { error in
             if let error = error {
-                // 发送到 Flutter
+                // Send to Flutter
                 self.sendToFlutter(
                     method: "onCallError",
                     arguments: ["error": error.localizedDescription]
@@ -442,7 +447,7 @@ class CallKitManager: NSObject, CXProviderDelegate {
 }
 ```
 
-### 4.2 Flutter 侧 MethodChannel
+### 4.2 Flutter Side MethodChannel
 
 ```dart
 class CallKitBridge {
@@ -460,7 +465,7 @@ class CallKitBridge {
       case 'onCallAnswered':
         final uuid = call.arguments['callUuid'] as String;
         _eventController.add(CallKitEvent.answered(uuid));
-        // 启动 WebRTC 通话
+        // Start WebRTC call
         await WebRTCService().acceptCall();
         break;
 
@@ -484,7 +489,7 @@ class CallKitBridge {
     }
   }
 
-  /// 通知 CallKit 有来电
+  /// Notify CallKit of incoming call
   static Future<void> reportIncomingCall({
     required String callId,
     required String callerName,
@@ -497,14 +502,14 @@ class CallKitBridge {
     });
   }
 
-  /// 结束 CallKit 通话
+  /// End CallKit call
   static Future<void> endCall(String callId) async {
     await _channel.invokeMethod('endCall', {'callId': callId});
   }
 }
 ```
 
-## 5. 通话 UI 层
+## 5. Call UI Layer
 
 ### 5.1 CallScreen
 
@@ -529,22 +534,22 @@ class _CallScreenState extends State<CallScreen>
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // 远程视频
+          // Remote video
           _buildRemoteVideo(),
-          // 本地小窗
+          // Local preview
           Positioned(
             top: 60,
             right: 16,
             child: _buildLocalPreview(),
           ),
-          // 控制栏
+          // Control bar
           Positioned(
             bottom: 48,
             left: 0,
             right: 0,
             child: _buildCallControls(),
           ),
-          // 呼叫状态
+          // Call state
           if (_state == CallState.ringing ||
               _state == CallState.calling)
             Center(
@@ -559,31 +564,31 @@ class _CallScreenState extends State<CallScreen>
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
-        // 麦克风
+        // Microphone
         _ControlButton(
           icon: _isMuted ? Icons.mic_off : Icons.mic,
           onTap: () => _webrtc.toggleMute(),
         ),
-        // 扬声器
+        // Speaker
         _ControlButton(
           icon: _isSpeakerOn
               ? Icons.volume_up
               : Icons.volume_down,
           onTap: () => _webrtc.toggleSpeaker(),
         ),
-        // 挂断
+        // Hang up
         _ControlButton(
           icon: Icons.call_end,
           color: Colors.red,
           size: 64,
           onTap: () => _webrtc.endCall(),
         ),
-        // 切换摄像头
+        // Switch camera
         _ControlButton(
           icon: Icons.flip_camera_ios,
           onTap: () => _webrtc.switchCamera(),
         ),
-        // 视频开关
+        // Video toggle
         _ControlButton(
           icon: _isVideoOn
               ? Icons.videocam
@@ -596,7 +601,7 @@ class _CallScreenState extends State<CallScreen>
 }
 ```
 
-### 5.2 通话时长格式化
+### 5.2 Call Duration Formatting
 
 ```dart
 class CallDurationFormatter {
@@ -615,7 +620,7 @@ class CallDurationFormatter {
 }
 ```
 
-## 6. 完整通话流程
+## 6. Complete Call Flow
 
 ```
 Alice calls Bob:
@@ -634,24 +639,24 @@ Alice (Flutter)                    Server (WebSocket)                Bob (Flutte
     |                                    |--- ICE Candidates --------->|
     |<--- ICE Candidates ----------------|                              |
     |                                    |                              |
-    |========= DTLS/SRTP established ====|======= 通话中 ===============|
+    |========= DTLS/SRTP established ====|======= In Call ==============|
     |                                    |                              |
     |--- call:end ---------------------->|                              |
     |                                    |--- call:end --------------->|
     |                                    |                              |
-    |============= 通话结束 =============|==============================|
+    |============= Call Ended ===========|==============================|
 
     Alice: WebRTC cleanup                Bob: CallKit endCall
           CallScreen pop                       CallScreen pop
 ```
 
-## 7. 容错与恢复
+## 7. Fault Tolerance and Recovery
 
 ```dart
 class CallRecoveryManager {
-  /// 通话中断恢复
+  /// Call interruption recovery
   Future<void> recoverCall(String callId) async {
-    // 检查服务器是否还有通话会话
+    // Check if server still has call session
     final session = await api.getCallSession(callId);
 
     if (session == null || session.status == 'ended') {
@@ -659,10 +664,10 @@ class CallRecoveryManager {
       return;
     }
 
-    // 重新建立 PeerConnection
+    // Re-establish PeerConnection
     await _webrtc.reconnect(session);
 
-    // 通知对方重新发送 ICE
+    // Notify peer to resend ICE
     _ws.send(CallSignal(
       type: SignalType.reconnect,
       targetUserId: session.peerId,
@@ -670,31 +675,27 @@ class CallRecoveryManager {
     ));
   }
 
-  /// 网络切换处理（WiFi → 4G）
+  /// Network switch handling (WiFi → 4G)
   Future<void> onNetworkChanged() async {
-    // 重新 ICE restart
+    // Perform ICE restart
     await _webrtc.restartIce();
   }
 }
 ```
 
-## 8. 总结
+## 8. Summary
 
-| 组件 | 职责 | 关键模式 |
-|------|------|----------|
-| **GlobalHandler** | 统一事件入口和分发 | 策略模式 + 事件优先级 |
-| **WebRTCService** | P2P 媒体连接管理 | 状态机 + ICE restart |
-| **CallSignalService** | 信令通过 WebSocket | 发布-订阅模式 |
-| **CallKitBridge** | iOS 原生通话集成 | MethodChannel 桥接 |
-| **CallRecoveryManager** | 断线重连和恢复 | ICE restart + 会话恢复 |
+| Component | Responsibility | Key Pattern |
+|-----------|---------------|-------------|
+| **GlobalHandler** | Unified event entry and dispatch | Strategy pattern + Event priority |
+| **WebRTCService** | P2P media connection management | State machine + ICE restart |
+| **CallSignalService** | Signaling via WebSocket | Publish-subscribe pattern |
+| **CallKitBridge** | iOS native call integration | MethodChannel bridge |
+| **CallRecoveryManager** | Disconnect reconnection and recovery | ICE restart + Session recovery |
 
-**架构要点**：
-1. **单一事件入口**：所有外部事件通过 `GlobalHandler.handle()` 统一处理
-2. **优先级调度**：通话邀请为 `critical` 级别，可打断当前操作
-3. **CallKit 集成**：iOS 系统级来电显示，即使 App 被杀死
-4. **WebRTC + TURN**：P2P 优先，NAT 穿透失败时回退 TURN 中继
-5. **状态机**：通话有 6 个明确状态，避免竞态条件
-
----
-
-**下一篇预告**: [F15 — ErrorStrategy 5 种策略 + 可配置决策表] — 应用级错误处理框架
+**Architecture Highlights**:
+1. **Single Event Entry**: All external events handled through `GlobalHandler.handle()` unified entry
+2. **Priority Scheduling**: Call invitations are `critical` level, can interrupt current operations
+3. **CallKit Integration**: iOS system-level incoming call display, works even if app is killed
+4. **WebRTC + TURN**: P2P preferred, falls back to TURN relay when NAT traversal fails
+5. **State Machine**: Call has 6 well-defined states, avoiding race conditions

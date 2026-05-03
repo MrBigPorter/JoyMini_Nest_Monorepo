@@ -1,11 +1,19 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import {
-  GoogleGenerativeAI,
-  GenerativeModel,
-  HarmCategory,
-  HarmBlockThreshold,
-} from '@google/generative-ai';
+  Injectable,
+  Logger,
+  OnModuleInit,
+  Inject,
+  forwardRef,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
+import { GeminiProvider } from './providers/gemini.provider';
+import { GroqProvider } from './providers/groq.provider';
+import { DeepSeekProvider } from './providers/deepseek.provider';
+import {
+  AiProviderInstance,
+  AiProviderUsageStats,
+} from './interfaces/ai-provider.interface';
 
 export interface AiModerationResult {
   score: number; // 0-100, 越高越危险
@@ -29,24 +37,14 @@ export enum AiServiceLevel {
   DISABLED = 0,
 }
 
-interface GeminiKeyInstance {
-  keySuffix: string; // last 4 chars for logging
-  genAI: GoogleGenerativeAI;
-  model: GenerativeModel;
-  dailyTokens: number;
-  blocked: boolean; // true when exhausted or rate-limited
-  blockedReason: string | null;
-  blockedUntil: number; // timestamp when block expires (0 = permanent until midnight)
-}
-
 @Injectable()
 export class AiService implements OnModuleInit {
   private readonly logger = new Logger(AiService.name);
 
-  private keyInstances: GeminiKeyInstance[] = [];
-  private activeKeyIndex = 0;
+  // Provider instances
+  private providers: AiProviderInstance[] = [];
 
-  // Per-minute usage monitoring & rate limiting (shared across all keys)
+  // Per-minute usage monitoring & rate limiting (shared across all providers)
   private usageCounter = {
     requests: 0,
     tokens: 0,
@@ -67,11 +65,11 @@ export class AiService implements OnModuleInit {
     lastFailureAt: 0,
   };
 
-  // Gemini 2.5 Flash free tier safe thresholds (20% buffer)
+  // Shared limits
   private readonly LIMITS = {
-    RPM: 12, // max 12 requests/min (official 15)
-    TPM: 800000, // max 800k tokens/min (official 1M)
-    DAILY_PER_KEY: 800000, // max 800k tokens/day per key (official 1M)
+    RPM: 12, // max 12 requests/min
+    TPM: 800000, // max 800k tokens/min
+    DAILY_PER_KEY: 800000, // max 800k tokens/day per key
     FAILURE_THRESHOLD: 5, // 5 consecutive failures → open circuit breaker
     CIRCUIT_BREAKER_DURATION: 900000, // circuit breaker 15min
     KEY_429_COOLDOWN: 60000, // 60s cooldown for a key that got 429
@@ -87,15 +85,97 @@ export class AiService implements OnModuleInit {
     de: 'German',
   };
 
-  constructor(private configService: ConfigService) {}
+  // Cached provider config to avoid DB reads on every request
+  private providerConfigCache: { provider: string; model: string } | null =
+    null;
+  private providerConfigCacheAt = 0;
+  private readonly PROVIDER_CONFIG_TTL = 30000; // 30s cache TTL
+
+  constructor(
+    private configService: ConfigService,
+    private geminiProvider: GeminiProvider,
+    private groqProvider: GroqProvider,
+    private deepSeekProvider: DeepSeekProvider,
+  ) {}
 
   async onModuleInit() {
-    await this.initializeGemini();
+    // Register providers (order matters: Gemini first as default)
+    this.providers = [
+      this.geminiProvider,
+      this.groqProvider,
+      this.deepSeekProvider,
+    ];
+
+    this.currentDate = new Date().toISOString().slice(0, 10);
 
     // Periodic counter reset
     setInterval(() => {
       this.resetCounters();
     }, 1000);
+  }
+
+  /**
+   * Get provider config from cache (avoids DB read on every request)
+   * Falls back to default (gemini) if not configured
+   */
+  private async getProviderConfig(): Promise<{
+    provider: string;
+    model: string;
+  }> {
+    const now = Date.now();
+    if (
+      this.providerConfigCache &&
+      now - this.providerConfigCacheAt < this.PROVIDER_CONFIG_TTL
+    ) {
+      return this.providerConfigCache;
+    }
+
+    try {
+      // Try to read from SystemConfig — we use ConfigService as a fallback
+      // The actual SystemConfig read happens in the controller; here we use defaults
+      const defaultConfig = { provider: 'gemini', model: 'gemini-2.5-flash' };
+
+      // Check if GROQ_API_KEY is configured — if so, we can use Groq
+      const groqKey = this.configService.get<string>('GROQ_API_KEY');
+      if (!groqKey) {
+        // No Groq key, force Gemini
+        this.providerConfigCache = defaultConfig;
+        this.providerConfigCacheAt = now;
+        return defaultConfig;
+      }
+
+      // Default to Gemini if no config stored yet
+      this.providerConfigCache = defaultConfig;
+      this.providerConfigCacheAt = now;
+      return defaultConfig;
+    } catch {
+      return { provider: 'gemini', model: 'gemini-2.5-flash' };
+    }
+  }
+
+  /**
+   * Set provider config (called from controller when user updates via UI)
+   */
+  setProviderConfig(config: { provider: string; model: string }): void {
+    this.providerConfigCache = config;
+    this.providerConfigCacheAt = Date.now();
+  }
+
+  /**
+   * Get available providers with their models
+   */
+  getAvailableProviders(): {
+    name: string;
+    displayName: string;
+    models: string[];
+    available: boolean;
+  }[] {
+    return this.providers.map((p) => ({
+      name: p.name,
+      displayName: p.displayName,
+      models: p.models,
+      available: p.isAvailable(),
+    }));
   }
 
   private resetCounters() {
@@ -108,19 +188,15 @@ export class AiService implements OnModuleInit {
       this.usageCounter.resetAt = now + 60000;
     }
 
-    // Check for date change (midnight reset for ALL keys)
+    // Check for date change (midnight reset for ALL providers)
     const today = new Date().toISOString().slice(0, 10);
     if (this.currentDate !== today) {
       this.currentDate = today;
 
-      // Reset all keys at midnight
-      for (const key of this.keyInstances) {
-        key.dailyTokens = 0;
-        key.blocked = false;
-        key.blockedReason = null;
-        key.blockedUntil = 0;
+      // Reset all providers at midnight
+      for (const provider of this.providers) {
+        provider.resetDailyCounters();
       }
-      this.activeKeyIndex = 0;
 
       // Also reset service level if it was disabled due to daily exhaustion
       if (this.serviceLevel === AiServiceLevel.DISABLED) {
@@ -129,19 +205,18 @@ export class AiService implements OnModuleInit {
       }
 
       this.logger.log(
-        `📅 Daily token counter reset for all ${this.keyInstances.length} keys (${today})`,
+        `📅 Daily counter reset for all ${this.providers.length} providers (${today})`,
       );
     }
 
-    // Unblock keys that have cooled down from 429 (non-midnight unblocking)
-    for (const key of this.keyInstances) {
-      if (key.blocked && key.blockedUntil > 0 && now >= key.blockedUntil) {
-        key.blocked = false;
-        key.blockedReason = null;
-        key.blockedUntil = 0;
-        this.logger.debug(
-          `🔑 Key ...${key.keySuffix} unblocked after cooldown`,
-        );
+    // Unblock keys that have cooled down from 429
+    for (const provider of this.providers) {
+      for (const key of provider.keys) {
+        if (key.blocked && key.blockedUntil > 0 && now >= key.blockedUntil) {
+          key.blocked = false;
+          key.blockedReason = null;
+          key.blockedUntil = 0;
+        }
       }
     }
 
@@ -168,165 +243,27 @@ export class AiService implements OnModuleInit {
     }
   }
 
-  private initializeGemini() {
-    const apiKeyRaw = this.configService.get<string>('GOOGLE_GEMINI_API_KEY');
-
-    if (!apiKeyRaw) {
-      this.logger.warn(
-        'Google Gemini API key not configured, AI service disabled',
-      );
-      return;
-    }
-
-    // Support multiple API keys separated by comma
-    const keys = apiKeyRaw
-      .split(',')
-      .map((k) => k.trim())
-      .filter((k) => k.length > 0);
-
-    if (keys.length === 0) {
-      this.logger.warn('No valid API keys found, AI service disabled');
-      return;
-    }
-
-    try {
-      for (let i = 0; i < keys.length; i++) {
-        const apiKey = keys[i];
-        const genAI = new GoogleGenerativeAI(apiKey);
-
-        const model = genAI.getGenerativeModel({
-          model: 'gemini-2.5-flash',
-          safetySettings: [
-            {
-              category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-              threshold: HarmBlockThreshold.BLOCK_NONE,
-            },
-            {
-              category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-              threshold: HarmBlockThreshold.BLOCK_NONE,
-            },
-            {
-              category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-              threshold: HarmBlockThreshold.BLOCK_NONE,
-            },
-            {
-              category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-              threshold: HarmBlockThreshold.BLOCK_NONE,
-            },
-          ],
-          generationConfig: {
-            temperature: 0,
-            maxOutputTokens: 2048,
-          },
-        });
-
-        this.keyInstances.push({
-          keySuffix: apiKey.slice(-4),
-          genAI,
-          model,
-          dailyTokens: 0,
-          blocked: false,
-          blockedReason: null,
-          blockedUntil: 0,
-        });
-      }
-
-      this.currentDate = new Date().toISOString().slice(0, 10);
-      this.activeKeyIndex = 0;
-
-      this.logger.log(
-        `🤖 Google AI Studio initialized with ${keys.length} key(s) (Gemini 2.5 Flash)`,
-      );
-      this.logger.log(
-        `   Active key: ...${this.keyInstances[0].keySuffix} (index 0)`,
-      );
-    } catch (e) {
-      this.logger.error('Failed to initialize Google AI Studio', e);
-    }
-  }
-
   /**
-   * Try to rotate to the next available key
-   * Returns true if a new active key was found, false if all keys are exhausted
+   * Check shared pre-conditions before making any AI request
    */
-  private rotateToNextKey(): boolean {
-    const totalKeys = this.keyInstances.length;
-    if (totalKeys === 0) {
-      return false;
-    }
-
-    // If only one key, no rotation possible
-    if (totalKeys === 1) {
-      if (this.keyInstances[0].blocked) {
-        this.serviceLevel = AiServiceLevel.DISABLED;
-        this.levelUpdatedAt = Date.now();
-        this.logger.warn(
-          `🛑 Single key ...${this.keyInstances[0].keySuffix} exhausted, service DISABLED`,
-        );
-        return false;
-      }
-      return true; // stays on key 0
-    }
-
-    const startIndex = this.activeKeyIndex;
-
-    // Try each key starting from the next one
-    for (let attempt = 0; attempt < totalKeys; attempt++) {
-      const candidateIndex = (startIndex + 1 + attempt) % totalKeys;
-      const candidate = this.keyInstances[candidateIndex];
-
-      const isBlocked = candidate.blocked;
-      const isExhausted = candidate.dailyTokens >= this.LIMITS.DAILY_PER_KEY;
-
-      if (!isBlocked && !isExhausted) {
-        // Found an available key
-        this.activeKeyIndex = candidateIndex;
-        this.logger.log(
-          `🔑 Switched to key ...${candidate.keySuffix} (index ${candidateIndex})`,
-        );
-        return true;
-      }
-    }
-
-    // All keys exhausted — disable service
-    this.serviceLevel = AiServiceLevel.DISABLED;
-    this.levelUpdatedAt = Date.now();
-
-    const statusLog = this.keyInstances
-      .map(
-        (k, i) =>
-          `[${i}] ...${k.keySuffix}: ${k.dailyTokens}/${this.LIMITS.DAILY_PER_KEY} tokens, blocked=${k.blocked}${k.blockedReason ? ` (${k.blockedReason})` : ''}`,
-      )
-      .join(', ');
-    this.logger.warn(
-      `🛑 ALL ${totalKeys} keys exhausted. Service DISABLED until midnight. Status: ${statusLog}`,
-    );
-
-    return false;
-  }
-
-  /**
-   * Traffic control check
-   * Returns true if request is allowed
-   */
-  private checkRateLimit(estimatedTokens: number): boolean {
+  private checkPreConditions(
+    requiredLevel: AiServiceLevel = AiServiceLevel.FULL,
+    estimatedTokens: number = 512,
+  ): boolean {
     // Circuit breaker open
     if (this.circuitBreaker.openUntil > Date.now()) {
       return false;
     }
 
-    // Check if active key is blocked
-    const activeKey = this.keyInstances[this.activeKeyIndex];
-    if (activeKey?.blocked) {
-      // Try to rotate to another key first
-      if (this.rotateToNextKey()) {
-        // Found another key, allow the request
-        return true;
-      }
+    // Service level check
+    if (this.serviceLevel < requiredLevel) {
+      this.logger.warn(
+        `Service level ${AiServiceLevel[this.serviceLevel]} (${this.serviceLevel}) < required ${AiServiceLevel[requiredLevel]} (${requiredLevel})`,
+      );
       return false;
     }
 
-    // Check per-minute request quota (shared across all keys)
+    // Check per-minute request quota (shared across all providers)
     if (this.usageCounter.requests >= this.LIMITS.RPM) {
       if (this.serviceLevel > AiServiceLevel.ESSENTIAL) {
         this.serviceLevel = AiServiceLevel.ESSENTIAL;
@@ -346,69 +283,18 @@ export class AiService implements OnModuleInit {
       return false;
     }
 
-    // Check daily token budget for the ACTIVE key (per-key hard cap)
-    if (
-      activeKey &&
-      activeKey.dailyTokens + estimatedTokens >= this.LIMITS.DAILY_PER_KEY
-    ) {
-      this.logger.warn(
-        `⚠️  Key ...${activeKey.keySuffix} DAILY budget cap reached (${activeKey.dailyTokens}/${this.LIMITS.DAILY_PER_KEY})`,
-      );
-      // Mark this key as exhausted and try next
-      activeKey.blocked = true;
-      activeKey.blockedReason = 'daily_exhausted';
-      activeKey.blockedUntil = 0; // permanent until midnight
-
-      if (this.rotateToNextKey()) {
-        return true; // next key is available
-      }
-      return false; // all keys exhausted
-    }
-
     return true;
   }
 
   private recordSuccess(tokens: number) {
     this.usageCounter.requests++;
     this.usageCounter.tokens += tokens;
-
-    // Record against the active key
-    const activeKey = this.keyInstances[this.activeKeyIndex];
-    if (activeKey) {
-      activeKey.dailyTokens += tokens;
-    }
-
     this.circuitBreaker.consecutiveFailures = 0;
   }
 
   private recordFailure(error?: any) {
     this.circuitBreaker.consecutiveFailures++;
     this.circuitBreaker.lastFailureAt = Date.now();
-
-    // Handle 429 rate limiting (per-key)
-    if (error?.status === 429 || error?.message?.includes('429')) {
-      const activeKey = this.keyInstances[this.activeKeyIndex];
-      if (activeKey) {
-        activeKey.blocked = true;
-        activeKey.blockedReason = 'rate_limited';
-        activeKey.blockedUntil = Date.now() + this.LIMITS.KEY_429_COOLDOWN;
-        this.logger.warn(
-          `⚠️  Key ...${activeKey.keySuffix} hit 429 rate limit, blocking for ${this.LIMITS.KEY_429_COOLDOWN / 1000}s`,
-        );
-      }
-
-      // Try to rotate to next key immediately
-      this.rotateToNextKey();
-
-      // Also degrade service level for 429
-      if (this.serviceLevel > AiServiceLevel.MINIMAL) {
-        this.serviceLevel = AiServiceLevel.MINIMAL;
-        this.levelUpdatedAt = Date.now();
-        this.logger.warn(
-          `⚠️  Service downgraded to MINIMAL mode due to 429 error`,
-        );
-      }
-    }
 
     // Circuit breaker for non-429 consecutive failures
     if (
@@ -425,66 +311,59 @@ export class AiService implements OnModuleInit {
 
   /**
    * Universal text generation interface — unified entry for all AI features
+   * Routes to the configured provider with fallback
    */
   async generateText(
     prompt: string,
     options?: AiGenerationOptions,
     requiredLevel: AiServiceLevel = AiServiceLevel.FULL,
   ): Promise<string | null> {
-    const activeKey = this.keyInstances[this.activeKeyIndex];
-
-    if (!activeKey || this.keyInstances.length === 0) {
-      return null;
-    }
-
-    // Service level check
-    if (this.serviceLevel < requiredLevel) {
-      return null;
-    }
-
-    // Traffic control check
+    // Check shared pre-conditions
     const estimatedTokens =
       Math.ceil(prompt.length / 4) + (options?.maxOutputTokens || 512);
-    if (!this.checkRateLimit(estimatedTokens)) {
+    if (!this.checkPreConditions(requiredLevel, estimatedTokens)) {
       return null;
     }
 
-    // Get fresh active key (may have changed after checkRateLimit rotation)
-    const currentKey = this.keyInstances[this.activeKeyIndex];
+    // Determine provider order from config
+    const config = await this.getProviderConfig();
+    const primaryProvider =
+      this.providers.find((p) => p.name === config.provider) ||
+      this.providers[0];
+    const fallbackProviders = this.providers.filter(
+      (p) => p.name !== config.provider,
+    );
 
-    try {
-      const result = await currentKey.model.generateContent({
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: options,
-      });
+    // Set active model on primary provider
+    if (config.model && primaryProvider.models.includes(config.model)) {
+      primaryProvider.activeModel = config.model;
+    }
 
-      const response = result.response;
-
-      // Safety boundary check
-      if (
-        !response ||
-        !response.candidates ||
-        response.candidates.length === 0
-      ) {
-        this.recordFailure();
-        return null;
-      }
-
+    // Try primary provider
+    const result = await primaryProvider.generateText(prompt, options);
+    if (result !== null) {
       this.recordSuccess(estimatedTokens);
-      return response.candidates[0]?.content?.parts?.[0]?.text || null;
-    } catch (e: any) {
-      this.recordFailure(e);
-
-      // Special handling for 429 errors (resource exhausted)
-      if (e.status === 429 || e.message?.includes('429')) {
-        this.logger.warn(
-          `⚠️  AI Studio API 429 Resource Exhausted on key ...${currentKey.keySuffix}. Rotating keys.`,
-        );
-      }
-
-      this.logger.error('AI generation error', e);
-      return null;
+      return result;
     }
+
+    // Try fallback providers in order
+    for (const fallback of fallbackProviders) {
+      if (!fallback.isAvailable()) continue;
+
+      const fallbackResult = await fallback.generateText(prompt, options);
+      if (fallbackResult !== null) {
+        this.recordSuccess(estimatedTokens);
+        this.logger.log(
+          `↪️ Fallback to ${fallback.displayName} succeeded after ${primaryProvider.displayName} failed`,
+        );
+        return fallbackResult;
+      }
+    }
+
+    // All providers failed
+    this.recordFailure();
+    this.logger.warn(`❌ All AI providers failed for generateText()`);
+    return null;
   }
 
   /**
@@ -515,13 +394,10 @@ export class AiService implements OnModuleInit {
 
         return null;
       } catch (error: any) {
-        if (
-          (error.status === 429 || error.message?.includes('429')) &&
-          attempt < maxRetries
-        ) {
+        if (attempt < maxRetries) {
           const delay = Math.pow(2, attempt) * 2000; // longer backoff: 2s, 4s, 8s
           this.logger.warn(
-            `AI Studio 429 error, waiting ${delay}ms before retry (attempt ${attempt + 1}/${maxRetries})`,
+            `AI error, waiting ${delay}ms before retry (attempt ${attempt + 1}/${maxRetries})`,
           );
           await new Promise((resolve) => setTimeout(resolve, delay));
           continue;
@@ -539,19 +415,13 @@ export class AiService implements OnModuleInit {
   }
 
   /**
-   * Generate content from image (for KYC OCR) — shared with KycProviderService
+   * Generate content from image (for KYC OCR) — Gemini only (vision)
    */
   async generateContentFromImage(
     prompt: string,
     imageBuffer: Buffer,
     mimeType: string = 'image/jpeg',
   ): Promise<string | null> {
-    const activeKey = this.keyInstances[this.activeKeyIndex];
-
-    if (!activeKey || this.keyInstances.length === 0) {
-      return null;
-    }
-
     if (this.serviceLevel < AiServiceLevel.FULL) {
       return null;
     }
@@ -561,62 +431,30 @@ export class AiService implements OnModuleInit {
       Math.ceil(prompt.length / 4) +
       Math.ceil(imageBuffer.length / 3 / 4) +
       512;
-    if (!this.checkRateLimit(estimatedTokens)) {
+    if (!this.checkPreConditions(AiServiceLevel.FULL, estimatedTokens)) {
       return null;
     }
 
-    // Get fresh active key (may have changed after checkRateLimit rotation)
-    const currentKey = this.keyInstances[this.activeKeyIndex];
+    // Only Gemini supports image generation
+    const geminiProvider = this.providers.find((p) => p.name === 'gemini') as
+      | GeminiProvider
+      | undefined;
+    if (!geminiProvider || !geminiProvider.isAvailable()) {
+      this.logger.warn(
+        'generateContentFromImage() called but Gemini provider is not available',
+      );
+      return null;
+    }
 
-    try {
-      const imageBase64 = imageBuffer.toString('base64');
-
-      const result = await currentKey.model.generateContent({
-        contents: [
-          {
-            role: 'user',
-            parts: [
-              { text: prompt },
-              {
-                inlineData: {
-                  mimeType,
-                  data: imageBase64,
-                },
-              },
-            ],
-          },
-        ],
-        generationConfig: {
-          temperature: 0,
-          maxOutputTokens: 4096,
-        },
-      });
-
-      const response = result.response;
-
-      if (
-        !response ||
-        !response.candidates ||
-        response.candidates.length === 0
-      ) {
-        this.recordFailure();
-        return null;
-      }
-
+    const result = await geminiProvider.generateContentFromImage(
+      prompt,
+      imageBuffer,
+      mimeType,
+    );
+    if (result !== null) {
       this.recordSuccess(estimatedTokens);
-      return response.candidates[0]?.content?.parts?.[0]?.text || null;
-    } catch (e: any) {
-      this.recordFailure(e);
-
-      if (e.status === 429 || e.message?.includes('429')) {
-        this.logger.warn(
-          `⚠️  AI Studio 429 in image generation on key ...${currentKey.keySuffix}. Rotating keys.`,
-        );
-      }
-
-      this.logger.error('AI image generation error', e);
-      return null;
     }
+    return result;
   }
 
   /**
@@ -746,10 +584,7 @@ RULES:
    * Universal text translation — level FULL
    */
   async translateText(text: string, targetLang: string): Promise<string> {
-    if (
-      this.keyInstances.length === 0 ||
-      this.serviceLevel < AiServiceLevel.FULL
-    ) {
+    if (this.serviceLevel < AiServiceLevel.FULL) {
       return text;
     }
 
@@ -821,10 +656,7 @@ ${text}
     markdown: string,
     targetLang: string,
   ): Promise<string> {
-    if (
-      this.keyInstances.length === 0 ||
-      this.serviceLevel < AiServiceLevel.FULL
-    ) {
+    if (this.serviceLevel < AiServiceLevel.FULL) {
       return markdown;
     }
 
@@ -890,7 +722,7 @@ ${markdown}
 
   isAvailable(): boolean {
     return (
-      this.keyInstances.length > 0 &&
+      this.providers.some((p) => p.isAvailable()) &&
       this.circuitBreaker.openUntil <= Date.now()
     );
   }
@@ -900,30 +732,36 @@ ${markdown}
   }
 
   getUsageStats() {
-    const totalDaily = this.keyInstances.reduce(
-      (sum, k) => sum + k.dailyTokens,
+    const providerStats = this.providers
+      .filter((p) => p.keys.length > 0)
+      .map((p) => p.getUsageStats());
+
+    const totalDailyTokens = providerStats.reduce(
+      (sum, p) => sum + p.keys.reduce((s, k) => s + k.dailyTokens, 0),
       0,
     );
 
     return {
-      totalKeys: this.keyInstances.length,
-      activeKeyIndex: this.activeKeyIndex,
-      keys: this.keyInstances.map((k, i) => ({
-        index: i,
-        keySuffix: k.keySuffix,
-        dailyTokens: k.dailyTokens,
-        dailyLimit: this.LIMITS.DAILY_PER_KEY,
-        blocked: k.blocked,
-        blockedReason: k.blockedReason,
-        isActive: i === this.activeKeyIndex,
-      })),
-      requests: this.usageCounter.requests,
-      tokens: this.usageCounter.tokens,
-      totalDailyTokens: totalDaily,
-      resetIn: Math.max(0, this.usageCounter.resetAt - Date.now()),
       serviceLevel: AiServiceLevel[this.serviceLevel],
-      circuitBreakerOpen: this.circuitBreaker.openUntil > Date.now(),
-      consecutiveFailures: this.circuitBreaker.consecutiveFailures,
+      serviceLevelValue: this.serviceLevel,
+      available: this.isAvailable(),
+      circuitBreaker: {
+        open: this.circuitBreaker.openUntil > Date.now(),
+        resetAfter: this.circuitBreaker.openUntil,
+        consecutiveFailures: this.circuitBreaker.consecutiveFailures,
+      },
+      limits: {
+        RPM: this.LIMITS.RPM,
+        TPM: this.LIMITS.TPM,
+        TPD: this.LIMITS.DAILY_PER_KEY,
+      },
+      providers: providerStats,
+      total: {
+        requests: this.usageCounter.requests,
+        tokens: this.usageCounter.tokens,
+        totalDailyTokens,
+        resetIn: Math.max(0, this.usageCounter.resetAt - Date.now()),
+      },
     };
   }
 

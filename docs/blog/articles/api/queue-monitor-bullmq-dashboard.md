@@ -1,3 +1,17 @@
+---
+title: 'QueueMonitorService: BullMQ 队列监控仪表盘'
+slug: queue-monitor-bullmq-dashboard
+description: JoyMini API 的队列监控服务基于 BullMQ 事件系统构建实时仪表盘，跟踪队列状态、Job 进度、失败率和处理延迟，支持管理后台可视化运维。
+tags:
+  - NestJS
+  - BullMQ
+  - Queue
+  - Monitoring
+  - Dashboard
+  - Redis
+  - TypeScript
+---
+
 # QueueMonitorService: BullMQ 队列监控仪表盘
 
 > **源码参考**: [`queue-monitor.service.ts`](apps/api/src/common/queue/queue-monitor.service.ts) (372 行)
