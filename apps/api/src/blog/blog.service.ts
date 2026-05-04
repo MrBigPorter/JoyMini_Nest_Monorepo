@@ -2255,12 +2255,15 @@ export class BlogService {
     const total = await this.prisma.blogCategory.count();
 
     // 查询已完成翻译的分类 - 使用原生 SQL 查询避免 Prisma JSON 查询问题
+    // 查询已完成翻译的分类 - 使用原生 SQL 查询避免 Prisma JSON 查询问题
+    // 额外检查: 当目标语言不是 zh 时，排除字段中仍含中文（未翻译）的记录
     const result = await this.prisma.$queryRaw<{ count: bigint }[]>`
-      SELECT COUNT(*) as count FROM blog_categories 
-      WHERE name IS NOT NULL 
-        AND name != 'null'::jsonb 
-        AND name->>${targetLang} IS NOT NULL 
+      SELECT COUNT(*) as count FROM blog_categories
+      WHERE name IS NOT NULL
+        AND name != 'null'::jsonb
+        AND name->>${targetLang} IS NOT NULL
         AND name->>${targetLang} != ''
+        AND (${targetLang} = 'zh' OR name->>${targetLang} !~ '[\u4e00-\u9fff\u3400-\u4dbf]')
     `;
 
     const completed = Number(result[0]?.count || 0);
@@ -2280,12 +2283,15 @@ export class BlogService {
     const total = await this.prisma.blogTag.count();
 
     // 查询已完成翻译的标签 - 使用原生 SQL 查询避免 Prisma JSON 查询问题
+    // 查询已完成翻译的标签 - 使用原生 SQL 查询避免 Prisma JSON 查询问题
+    // 额外检查: 当目标语言不是 zh 时，排除字段中仍含中文（未翻译）的记录
     const result = await this.prisma.$queryRaw<{ count: bigint }[]>`
-      SELECT COUNT(*) as count FROM blog_tags 
-      WHERE name IS NOT NULL 
-        AND name != 'null'::jsonb 
-        AND name->>${targetLang} IS NOT NULL 
+      SELECT COUNT(*) as count FROM blog_tags
+      WHERE name IS NOT NULL
+        AND name != 'null'::jsonb
+        AND name->>${targetLang} IS NOT NULL
         AND name->>${targetLang} != ''
+        AND (${targetLang} = 'zh' OR name->>${targetLang} !~ '[\u4e00-\u9fff\u3400-\u4dbf]')
     `;
 
     const completed = Number(result[0]?.count || 0);
@@ -2433,6 +2439,9 @@ export class BlogService {
       });
 
       // 检测缺失翻译的分类
+      // 包含两种未翻译情况:
+      //   1. 字段为 NULL 或空（传统检测）
+      //   2. 非 zh 字段中包含中文字符（语义检测 - 修复的核心）
       const untranslatedCategories = await this.prisma.$queryRaw<
         { id: string; name: Record<string, string>; slug: string }[]
       >`
@@ -2443,9 +2452,13 @@ export class BlogService {
           OR "name"->${targetLang} IS NULL
           OR jsonb_typeof("name"->${targetLang}) = 'null'
           OR "name"->>${targetLang} = ''
+          OR (${targetLang} != 'zh' AND "name"->>${targetLang} ~ '[\u4e00-\u9fff\u3400-\u4dbf]')
       `;
 
       // 检测缺失翻译的标签
+      // 包含两种未翻译情况:
+      //   1. 字段为 NULL 或空（传统检测）
+      //   2. 非 zh 字段中包含中文字符（语义检测 - 修复的核心）
       const untranslatedTags = await this.prisma.$queryRaw<
         { id: string; name: Record<string, string>; slug: string }[]
       >`
@@ -2456,6 +2469,7 @@ export class BlogService {
           OR "name"->${targetLang} IS NULL
           OR jsonb_typeof("name"->${targetLang}) = 'null'
           OR "name"->>${targetLang} = ''
+          OR (${targetLang} != 'zh' AND "name"->>${targetLang} ~ '[\u4e00-\u9fff\u3400-\u4dbf]')
       `;
 
       const articleIssues = [];
@@ -2695,6 +2709,7 @@ export class BlogService {
         OR "name"->${languageCode} IS NULL
         OR jsonb_typeof("name"->${languageCode}) = 'null'
         OR "name"->>${languageCode} = ''
+        OR (${languageCode} != 'zh' AND "name"->>${languageCode} ~ '[\u4e00-\u9fff\u3400-\u4dbf]')
       ORDER BY created_at DESC
     `;
 
@@ -2729,6 +2744,7 @@ export class BlogService {
         OR "name"->${languageCode} IS NULL
         OR jsonb_typeof("name"->${languageCode}) = 'null'
         OR "name"->>${languageCode} = ''
+        OR (${languageCode} != 'zh' AND "name"->>${languageCode} ~ '[\u4e00-\u9fff\u3400-\u4dbf]')
       ORDER BY created_at DESC
     `;
 
@@ -2807,6 +2823,100 @@ export class BlogService {
       };
     } catch (error) {
       this.logger.error('批量修复翻译问题失败', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 批量修复未翻译的分类和标签
+   * 检测 name 字段中非 zh 语言键仍包含中文文本的记录，重新投递翻译任务
+   */
+  async repairUntranslatedCategoriesTags(languageCode?: string) {
+    const targetLang = languageCode || 'en';
+
+    this.logger.log(`开始批量修复未翻译的分类/标签，语言: ${targetLang}`);
+
+    try {
+      // 1. 查询未翻译的分类（非 zh 字段中包含中文）
+      const untranslatedCategories = await this.prisma.$queryRaw<
+        { id: string; name: Record<string, string>; slug: string }[]
+      >`
+        SELECT id, name, slug FROM blog_categories
+        WHERE name IS NOT NULL
+          AND name != 'null'::jsonb
+          AND name->>${targetLang} IS NOT NULL
+          AND name->>${targetLang} != ''
+          AND ${targetLang} != 'zh'
+          AND name->>${targetLang} ~ '[\u4e00-\u9fff\u3400-\u4dbf]'
+      `;
+
+      // 2. 查询未翻译的标签（非 zh 字段中包含中文）
+      const untranslatedTags = await this.prisma.$queryRaw<
+        { id: string; name: Record<string, string>; slug: string }[]
+      >`
+        SELECT id, name, slug FROM blog_tags
+        WHERE name IS NOT NULL
+          AND name != 'null'::jsonb
+          AND name->>${targetLang} IS NOT NULL
+          AND name->>${targetLang} != ''
+          AND ${targetLang} != 'zh'
+          AND name->>${targetLang} ~ '[\u4e00-\u9fff\u3400-\u4dbf]'
+      `;
+
+      let queuedCategories = 0;
+      let queuedTags = 0;
+
+      // 3. 批量投递分类翻译任务
+      for (const cat of untranslatedCategories) {
+        try {
+          await this.blogAiQueue.add('translate-category', {
+            categoryId: cat.id,
+            targetLang,
+            sourceLang: 'zh',
+            priority: 1,
+            isRetry: true,
+          });
+          queuedCategories++;
+          this.logger.debug(`已投递分类修复任务: ${cat.id} - ${cat.slug}`);
+        } catch (error) {
+          this.logger.error(`投递分类修复任务失败: ${cat.id}`, error);
+        }
+      }
+
+      // 4. 批量投递标签翻译任务
+      for (const tag of untranslatedTags) {
+        try {
+          await this.blogAiQueue.add('translate-tag', {
+            tagId: tag.id,
+            targetLang,
+            sourceLang: 'zh',
+            priority: 1,
+            isRetry: true,
+          });
+          queuedTags++;
+          this.logger.debug(`已投递标签修复任务: ${tag.id} - ${tag.slug}`);
+        } catch (error) {
+          this.logger.error(`投递标签修复任务失败: ${tag.id}`, error);
+        }
+      }
+
+      this.logger.log(
+        `分类/标签批量修复完成: ${queuedCategories} 个分类, ${queuedTags} 个标签`,
+      );
+
+      return {
+        success: true,
+        message: `已投递 ${queuedCategories} 个分类和 ${queuedTags} 个标签的修复任务`,
+        categories: {
+          total: untranslatedCategories.length,
+          queued: queuedCategories,
+        },
+        tags: { total: untranslatedTags.length, queued: queuedTags },
+        languageCode: targetLang,
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error) {
+      this.logger.error('批量修复分类/标签翻译失败', error);
       throw error;
     }
   }

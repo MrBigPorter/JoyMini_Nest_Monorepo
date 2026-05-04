@@ -527,7 +527,7 @@ IMPORTANT: Return ONLY the three sections above with the exact delimiters. Do NO
         const isKeysExhausted =
           error instanceof Error &&
           (error.message.includes('AI service returned empty result') ||
-           error.message.includes('AI returned null'));
+            error.message.includes('AI returned null'));
 
         if (isKeysExhausted) {
           const waitMs = 120000; // 2分钟

@@ -34,7 +34,7 @@ export class ContextEnricher {
       if (article) {
         ctx.articleTitle = article.title || '';
         ctx.articlePreview = article.content
-          ? article.content.replace(/[#*`\[\]]/g, '').slice(0, 500)
+          ? article.content.replace(/[#*`[\]]/g, '').slice(0, 500)
           : undefined;
         ctx.articleTags =
           article.tags?.map((t: { name: any }) => {
@@ -42,7 +42,11 @@ export class ContextEnricher {
             // BlogTag.name is JSON (e.g. { "en": "JavaScript", "zh": "JavaScript" })
             if (tagName && typeof tagName === 'object') {
               const obj = tagName as Record<string, unknown>;
-              return (Object.values(obj).find((v) => typeof v === 'string') as string) || '';
+              return (
+                (Object.values(obj).find(
+                  (v) => typeof v === 'string',
+                ) as string) || ''
+              );
             }
             return String(tagName ?? '');
           }) || [];
@@ -51,7 +55,11 @@ export class ContextEnricher {
               const catName = article.category!.name;
               if (catName && typeof catName === 'object') {
                 const obj = catName as Record<string, unknown>;
-                return (Object.values(obj).find((v) => typeof v === 'string') as string) || '';
+                return (
+                  (Object.values(obj).find(
+                    (v) => typeof v === 'string',
+                  ) as string) || ''
+                );
               }
               return String(catName ?? '');
             })()
