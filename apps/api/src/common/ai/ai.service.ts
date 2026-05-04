@@ -1,14 +1,9 @@
-import {
-  Injectable,
-  Logger,
-  OnModuleInit,
-  Inject,
-  forwardRef,
-} from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, Inject, forwardRef } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { GeminiProvider } from './providers/gemini.provider';
 import { GroqProvider } from './providers/groq.provider';
 import { DeepSeekProvider } from './providers/deepseek.provider';
+import { AutoReplyService } from './auto-reply/auto-reply.service';
 import { SystemConfigService } from '@api/admin/system-config/system-config.service';
 import {
   AiProviderInstance,
@@ -101,6 +96,8 @@ export class AiService implements OnModuleInit {
     private groqProvider: GroqProvider,
     private deepSeekProvider: DeepSeekProvider,
     private systemConfigService: SystemConfigService,
+    @Inject(forwardRef(() => AutoReplyService))
+    private autoReplyService: AutoReplyService,
   ) {}
 
   async onModuleInit() {
@@ -597,40 +594,25 @@ Return JSON format:
 
   /**
    * Generate auto reply — level FULL
+   * Uses the new AutoReplyService pipeline:
+   *   classify → enrich → build prompt → generate → validate
    */
   async generateAutoReply(
     comment: string,
-    articleTitle: string,
-    articleContent?: string,
+    articleId: string,
+    author?: string,
   ): Promise<string | null> {
     if (this.serviceLevel < AiServiceLevel.FULL) {
       return null;
     }
 
-    const prompt = `
-Act as a friendly blog community manager. Generate a natural, relevant reply to this comment.
-
-Article title: "${articleTitle}"
-${articleContent ? `Article content preview: "${articleContent.slice(0, 500)}"` : ''}
-User comment: "${comment}"
-
-RULES:
-1. Keep reply 1-2 sentences long
-2. Be natural and human-like, not robotic
-3. Be friendly and encouraging
-4. Reference the article or comment content
-5. Do NOT mention that you are an AI
-6. Respond in the same language as the comment
-`.trim();
-
-    return this.generateText(
-      prompt,
-      {
-        temperature: 0.7,
-        maxOutputTokens: 256,
-      },
-      AiServiceLevel.FULL,
+    const result = await this.autoReplyService.generateReply(
+      comment,
+      articleId,
+      author,
     );
+
+    return result.content || null;
   }
 
   /**
@@ -735,8 +717,8 @@ ${text}
     }
 
     // For large documents, split into sections and translate each one separately.
-    // Threshold: ~10000 chars ≈ 2500 tokens input (safe for all providers incl. Groq)
-    const MAX_SINGLE_CALL_CHARS = 10000;
+    // Threshold: ~5000 chars ≈ 1250 tokens input (safe for Groq free tier)
+    const MAX_SINGLE_CALL_CHARS = 5000;
     if (markdown.length > MAX_SINGLE_CALL_CHARS) {
       return this.translateMarkdownInChunks(markdown, targetLang);
     }
@@ -803,7 +785,7 @@ ${markdown}
       prompt,
       {
         temperature: 0.1,
-        maxOutputTokens: Math.max(2048, markdown.length * 3),
+        maxOutputTokens: Math.min(Math.max(2048, markdown.length), 4096),
       },
       AiServiceLevel.FULL,
     );
@@ -819,7 +801,7 @@ ${markdown}
     markdown: string,
     targetLang: string,
   ): Promise<string> {
-    const MAX_CHUNK_CHARS = 8000;
+    const MAX_CHUNK_CHARS = 4000;
     const chunks = this.splitMarkdownIntoChunks(markdown, MAX_CHUNK_CHARS);
 
     this.logger.debug(
@@ -827,10 +809,19 @@ ${markdown}
     );
 
     const translatedChunks: string[] = [];
-    for (const chunk of chunks) {
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
       // Each chunk is ≤ MAX_CHUNK_CHARS, safe for single-call
       const translated = await this.translateMarkdownSingle(chunk, targetLang);
       translatedChunks.push(translated);
+
+      // Stabilize: wait 60s between chunks to avoid Groq rate limits
+      if (i < chunks.length - 1) {
+        this.logger.debug(
+          `分块翻译等待 60s (块 ${i + 1}/${chunks.length})，避免触发 Groq 限流`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, 60000));
+      }
     }
 
     return translatedChunks.join('\n\n');
@@ -851,7 +842,10 @@ ${markdown}
     let current = '';
 
     for (const section of sections) {
-      if (current.length > 0 && current.length + section.length > maxChunkSize) {
+      if (
+        current.length > 0 &&
+        current.length + section.length > maxChunkSize
+      ) {
         chunks.push(current.trimEnd());
         current = section;
       } else {
