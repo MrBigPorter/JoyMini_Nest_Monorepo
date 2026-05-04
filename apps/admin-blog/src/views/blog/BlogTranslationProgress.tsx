@@ -2,7 +2,13 @@
 
 import React, { useState } from 'react';
 import { useRequest } from 'ahooks';
-import { Card, Badge, Button, Select } from '@/components/UIComponents';
+import {
+  Card,
+  Badge,
+  Button,
+  Select,
+  Skeleton,
+} from '@/components/UIComponents';
 import { useToastStore } from '@/store/useToastStore';
 import { blogApi } from '@/api';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -52,13 +58,6 @@ const Alert = ({
         {action && <div className="ml-4">{action}</div>}
       </div>
     </div>
-  );
-};
-
-// 简单的 Skeleton 组件
-const Skeleton = ({ className = '' }: { className?: string }) => {
-  return (
-    <div className={`animate-pulse bg-gray-200 rounded ${className}`}></div>
   );
 };
 

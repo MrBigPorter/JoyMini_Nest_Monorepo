@@ -2,17 +2,17 @@
 
 import React, { useState } from 'react';
 import { useRequest } from 'ahooks';
-import { Card, Badge, Button, Select } from '@/components/UIComponents';
+import {
+  Card,
+  Badge,
+  Button,
+  Select,
+  Skeleton,
+} from '@/components/UIComponents';
 import { useToastStore } from '@/store/useToastStore';
 import { blogApi } from '@/api';
 import { useTranslation } from '@/hooks/useTranslation';
 import { Search, CheckCircle, Wrench, Languages } from 'lucide-react';
-
-const Skeleton = ({ className = '' }: { className?: string }) => (
-  <div
-    className={`animate-pulse bg-gray-200 dark:bg-white/10 rounded ${className}`}
-  />
-);
 
 const Checkbox = ({
   checked,

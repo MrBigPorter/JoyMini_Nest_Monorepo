@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { PageHeader } from '@/components/scaffold/PageHeader';
-import { Card, Badge } from '@/components/UIComponents';
+import { Card, Badge, Skeleton } from '@/components/UIComponents';
 import { blogApi } from '@/api';
 import { BlogArticleModal } from '@/views/blog/BlogArticleModal';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -180,13 +180,31 @@ export default function BlogDashboardPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-          <p className="mt-4 text-sm text-muted-foreground">
-            {t('loadingBlogDashboard')}
-          </p>
+      <div className="space-y-6">
+        <PageHeader title={t('pageTitle')} description={t('pageDescription')} />
+        {/* Stats Cards Skeleton */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {[1, 2, 3, 4].map((i) => (
+            <Card key={i}>
+              <div className="p-4 space-y-3">
+                <Skeleton variant="text" className="w-24" />
+                <Skeleton variant="text" className="w-16 h-8" />
+                <Skeleton variant="text" className="w-20" />
+              </div>
+            </Card>
+          ))}
         </div>
+        {/* Recent Articles Table Skeleton */}
+        <Card>
+          <div className="p-4 space-y-4">
+            <Skeleton variant="text" className="w-40 h-6" />
+            <div className="space-y-3">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <Skeleton key={i} variant="text" className="h-12" />
+              ))}
+            </div>
+          </div>
+        </Card>
       </div>
     );
   }

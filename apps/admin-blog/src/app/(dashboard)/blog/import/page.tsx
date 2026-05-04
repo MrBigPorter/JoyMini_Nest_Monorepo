@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { useRequest } from 'ahooks';
 import { useToastStore } from '@/store/useToastStore';
-import { Card, Badge } from '@/components/UIComponents';
+import { Card, Badge, Skeleton } from '@/components/UIComponents';
 import { blogApi } from '@/api';
 import { PageHeader } from '@/components/scaffold/PageHeader';
 import { Button } from '@repo/ui';
@@ -795,10 +795,25 @@ export default function BlogImportPage() {
       {/* Loading overlay during file processing */}
       {loading && articles.length === 0 && (
         <Card>
-          <div className="flex flex-col items-center justify-center py-16 text-gray-400">
-            <Loader2 className="h-10 w-10 animate-spin mb-4" />
-            <p className="text-lg font-medium mb-2">正在读取文件...</p>
-            <p className="text-sm text-gray-500">正在解析 Markdown 文件</p>
+          <div className="p-8 space-y-6">
+            {/* Upload area skeleton */}
+            <div className="flex flex-col items-center gap-4">
+              <Skeleton variant="rect" className="w-full h-40 rounded-xl" />
+              <Skeleton variant="text" className="w-64" />
+              <Skeleton variant="text" className="w-40 h-10" />
+            </div>
+            {/* Files list skeleton */}
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="flex gap-4 items-center border-b pb-3">
+                  <Skeleton variant="text" className="w-8 h-8" />
+                  <div className="flex-1 space-y-1">
+                    <Skeleton variant="text" className="w-1/2" />
+                    <Skeleton variant="text" className="w-1/3" />
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </Card>
       )}

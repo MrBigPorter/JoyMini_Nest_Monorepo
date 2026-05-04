@@ -9,7 +9,7 @@ import { useToastStore } from '@/store/useToastStore';
 import { uploadApi, blogApi } from '@/api';
 import { RichTextEditor } from '@/components/blog/RichTextEditor';
 import { PageHeader } from '@/components/scaffold/PageHeader';
-import { Card } from '@/components/UIComponents';
+import { Card, Skeleton } from '@/components/UIComponents';
 import { SmartImage } from '@/components/ui/SmartImage';
 import { useBlogLocalizedForm } from '@/hooks/useBlogLocalizedForm';
 import { articleSchema, type ArticleFormInputs } from '@/schema/blog';
@@ -43,6 +43,7 @@ export default function CreateArticlePage() {
   >([]);
   const [loadingCategories, setLoadingCategories] = useState(false);
   const [loadingTags, setLoadingTags] = useState(false);
+  const pageLoading = loadingCategories || loadingTags;
 
   // Track video file keys uploaded during creation to trigger transcoding after article is created
   const videoKeysRef = useRef<string[]>([]);
@@ -170,6 +171,59 @@ export default function CreateArticlePage() {
     } as React.FormEvent;
     submitHandler(mockEvent);
   };
+
+  if (pageLoading) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title={t('pageTitle')}
+          showBackButton={true}
+          breadcrumbs={[
+            t('breadcrumbBlog'),
+            t('breadcrumbArticles'),
+            t('breadcrumbCreate'),
+          ]}
+        />
+        <Card>
+          <div className="p-6 space-y-6">
+            {/* Title field skeleton */}
+            <div className="space-y-2">
+              <Skeleton variant="text" className="w-20" />
+              <Skeleton variant="text" className="w-full h-10" />
+            </div>
+            {/* Content field skeleton */}
+            <div className="space-y-2">
+              <Skeleton variant="text" className="w-24" />
+              <Skeleton variant="rect" className="h-64 w-full" />
+            </div>
+            {/* Category selector skeleton */}
+            <div className="space-y-2">
+              <Skeleton variant="text" className="w-28" />
+              <Skeleton variant="text" className="w-full h-10" />
+            </div>
+            {/* Tags skeleton */}
+            <div className="space-y-2">
+              <Skeleton variant="text" className="w-16" />
+              <div className="flex gap-2">
+                {[1, 2, 3, 4].map((i) => (
+                  <Skeleton
+                    key={i}
+                    variant="text"
+                    className="w-20 h-8 rounded-full"
+                  />
+                ))}
+              </div>
+            </div>
+            {/* Media uploader skeleton */}
+            <div className="space-y-2">
+              <Skeleton variant="text" className="w-32" />
+              <Skeleton variant="rect" className="h-32 w-full" />
+            </div>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

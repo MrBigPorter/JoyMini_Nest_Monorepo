@@ -27,7 +27,7 @@ import {
 import { useTranslation } from '@/hooks/useTranslation';
 import { useLanguage, getLocalizedValue } from '@/hooks/LanguageProvider';
 import { blogApi } from '@/api';
-import { Card, Badge } from '@/components/UIComponents';
+import { Card, Badge, Skeleton } from '@/components/UIComponents';
 import { PageHeader } from '@/components/scaffold/PageHeader';
 import { SmartImage } from '@/components/ui/SmartImage';
 import { Button } from '@repo/ui';
@@ -194,11 +194,24 @@ export default function ArticlePreviewPage() {
           ]}
         />
         <Card>
-          <div className="flex flex-col items-center justify-center py-20 text-gray-400">
-            <Loader2 className="h-8 w-8 animate-spin mb-4" />
-            <p className="text-sm">
-              {globalT('common_loading') || 'Loading...'}
-            </p>
+          <div className="p-6 space-y-6">
+            {/* Featured image skeleton */}
+            <Skeleton variant="rect" className="h-48 w-full rounded-lg" />
+            {/* Title skeleton */}
+            <Skeleton variant="text" className="h-8 w-3/4" />
+            {/* Meta info skeleton */}
+            <div className="flex gap-2">
+              <Skeleton variant="text" className="w-20 h-6 rounded-full" />
+              <Skeleton variant="text" className="w-16 h-6 rounded-full" />
+            </div>
+            {/* Content skeleton */}
+            <div className="space-y-2">
+              <Skeleton variant="text" />
+              <Skeleton variant="text" className="w-5/6" />
+              <Skeleton variant="text" className="w-4/6" />
+              <Skeleton variant="text" className="w-3/4" />
+              <Skeleton variant="text" className="w-2/3" />
+            </div>
           </div>
         </Card>
       </div>

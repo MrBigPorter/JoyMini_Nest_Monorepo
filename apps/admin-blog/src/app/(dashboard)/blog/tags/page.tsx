@@ -13,7 +13,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { useToastStore } from '@/store/useToastStore';
-import { Card } from '@/components/UIComponents';
+import { Card, Skeleton } from '@/components/UIComponents';
 import { blogApi } from '@/api';
 import { PageHeader } from '@/components/scaffold/PageHeader';
 import { BlogTagModal } from '@/views/blog/BlogTagModal';
@@ -84,13 +84,35 @@ export default function TagsPage() {
 
   if (isLoading && tags.length === 0) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-          <p className="mt-4 text-sm text-muted-foreground">
-            {t('blog_tags_loadingTags')}
-          </p>
-        </div>
+      <div className="space-y-6">
+        <PageHeader
+          title={t('blog_tags_pageTitle')}
+          description={t('blog_tags_pageDescription')}
+        />
+        {/* Tags List Skeleton */}
+        <Card>
+          <div className="p-4 space-y-3">
+            <Skeleton variant="text" className="w-32 h-6" />
+            <div className="flex flex-wrap gap-2">
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                <Skeleton
+                  key={i}
+                  variant="text"
+                  className="w-24 h-8 rounded-full"
+                />
+              ))}
+            </div>
+          </div>
+        </Card>
+        {/* Tag Usage Tips Skeleton */}
+        <Card>
+          <div className="p-4 space-y-2">
+            <Skeleton variant="text" className="w-40" />
+            <Skeleton variant="text" />
+            <Skeleton variant="text" className="w-5/6" />
+            <Skeleton variant="text" className="w-2/3" />
+          </div>
+        </Card>
       </div>
     );
   }
