@@ -32,6 +32,27 @@ export const staggerContainer: Variants = {
   },
 };
 
+// --- Skeleton Component ---
+export interface SkeletonProps {
+  className?: string;
+  variant?: 'text' | 'card' | 'circle' | 'rect';
+}
+
+export const Skeleton: React.FC<SkeletonProps> = ({
+  className = '',
+  variant = 'text',
+}) => {
+  const baseClasses = 'animate-pulse bg-gray-200 dark:bg-white/10 rounded';
+  const variantClasses: Record<string, string> = {
+    text: 'h-4 w-full',
+    card: 'h-32 w-full',
+    circle: 'h-10 w-10 rounded-full',
+    rect: 'h-20 w-full',
+  };
+  const variantClass = variantClasses[variant] || variantClasses.text;
+  return <div className={`${baseClasses} ${variantClass} ${className}`} />;
+};
+
 // --- Helper: CSV Export ---
 const exportToCSV = (data: Record<string, unknown>[], filename: string) => {
   if (!data || !data.length) return;

@@ -18,7 +18,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { useToastStore } from '@/store/useToastStore';
-import { Card, Badge } from '@/components/UIComponents';
+import { Card, Badge, Skeleton } from '@/components/UIComponents';
 import { blogApi } from '@/api';
 import { PageHeader } from '@/components/scaffold/PageHeader';
 import { BlogCommentModal } from '@/views/blog/BlogCommentModal';
@@ -215,13 +215,35 @@ export default function CommentsPage() {
 
   if (isLoading && comments.length === 0) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-          <p className="mt-4 text-sm text-muted-foreground">
-            {t('loadingComments')}
-          </p>
+      <div className="space-y-6">
+        <PageHeader title={t('pageTitle')} description={t('pageDescription')} />
+        {/* Stats Cards Skeleton */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {[1, 2, 3, 4].map((i) => (
+            <Card key={i}>
+              <div className="p-4 space-y-2">
+                <Skeleton variant="text" className="w-20" />
+                <Skeleton variant="text" className="w-12 h-8" />
+              </div>
+            </Card>
+          ))}
         </div>
+        {/* Search/Filters + Comments List Skeleton */}
+        <Card>
+          <div className="p-4 space-y-4">
+            <div className="flex gap-2">
+              <Skeleton variant="text" className="w-32 h-10" />
+              <Skeleton variant="text" className="w-40 h-10" />
+            </div>
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="border-b last:border-0 pb-4 space-y-2">
+                <Skeleton variant="text" className="w-3/4" />
+                <Skeleton variant="text" className="w-1/2" />
+                <Skeleton variant="text" className="w-24 h-6" />
+              </div>
+            ))}
+          </div>
+        </Card>
       </div>
     );
   }

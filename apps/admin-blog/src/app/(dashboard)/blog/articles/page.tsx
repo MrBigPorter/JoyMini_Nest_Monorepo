@@ -15,7 +15,7 @@ import {
   MessageSquare,
 } from 'lucide-react';
 import { useToastStore } from '@/store/useToastStore';
-import { Card, Badge } from '@/components/UIComponents';
+import { Card, Badge, Skeleton } from '@/components/UIComponents';
 import { useMutation } from '@tanstack/react-query';
 
 import { blogApi } from '@/api';
@@ -64,6 +64,7 @@ interface SearchParams {
 export default function ArticlesPageV2() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingArticle, setEditingArticle] = useState<Article | null>(null);
+  const [initialLoading, setInitialLoading] = useState(true);
   const { addToast } = useToastStore();
   const router = useRouter();
   const actionRef = useRef<ActionType>(null);
@@ -128,6 +129,8 @@ export default function ArticlesPageV2() {
       } catch (error) {
         console.error('Failed to fetch categories:', error);
         // 可选：显示 toast 提示
+      } finally {
+        setInitialLoading(false);
       }
     };
     fetchCategories();
@@ -539,6 +542,36 @@ export default function ArticlesPageV2() {
     },
     [lang],
   );
+
+  // Show skeleton while initial data is loading
+  if (initialLoading) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title={t('pageTitle')} description={t('pageDescription')} />
+        <Card>
+          <div className="p-4 space-y-4">
+            {/* Table header skeleton */}
+            <div className="flex items-center justify-between">
+              <Skeleton variant="text" className="w-32 h-6" />
+              <Skeleton variant="text" className="w-24 h-8" />
+            </div>
+            {/* Table rows skeleton */}
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="flex gap-4 items-center border-b pb-3">
+                <Skeleton variant="text" className="w-10 h-10" />
+                <div className="flex-1 space-y-1">
+                  <Skeleton variant="text" className="w-3/4" />
+                  <Skeleton variant="text" className="w-1/2" />
+                </div>
+                <Skeleton variant="text" className="w-20 h-6" />
+                <Skeleton variant="text" className="w-16 h-6" />
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

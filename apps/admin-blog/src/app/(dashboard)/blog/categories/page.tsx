@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { FolderTree, Edit, Trash2 } from 'lucide-react';
 import { useToastStore } from '@/store/useToastStore';
-import { Card } from '@/components/UIComponents';
+import { Card, Skeleton } from '@/components/UIComponents';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { blogApi } from '@/api';
@@ -22,6 +22,7 @@ import type { FormSchema } from '@/type/search';
 
 export default function CategoriesPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [editingCategory, setEditingCategory] = useState<null | {
     id: string;
     name: Record<string, string | undefined> | string;
@@ -36,6 +37,11 @@ export default function CategoriesPage() {
 
   const t = (key: string, params?: Record<string, string | number>) =>
     globalT(`blog_categories_${key}`, params);
+
+  useEffect(() => {
+    // Clear initial loading state after SmartTable starts its own loading
+    setInitialLoading(false);
+  }, []);
 
   // 删除分类 mutation
   const deleteCategoryMutation = useMutation({
@@ -213,6 +219,40 @@ export default function CategoriesPage() {
       return { data: [], total: 0, success: false };
     }
   }, []);
+
+  // Show initial loading skeleton
+  if (initialLoading) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title={t('pageTitle')} description={t('pageDescription')} />
+        <Card>
+          <div className="p-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <Skeleton variant="text" className="w-32 h-6" />
+              <Skeleton variant="text" className="w-24 h-8" />
+            </div>
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="flex gap-4 items-center border-b pb-3">
+                <Skeleton variant="text" className="w-8 h-8" />
+                <div className="flex-1 space-y-1">
+                  <Skeleton variant="text" className="w-1/2" />
+                  <Skeleton variant="text" className="w-1/3" />
+                </div>
+                <Skeleton variant="text" className="w-16 h-6" />
+              </div>
+            ))}
+          </div>
+        </Card>
+        <Card>
+          <div className="p-4 space-y-2">
+            <Skeleton variant="text" className="w-40" />
+            <Skeleton variant="text" />
+            <Skeleton variant="text" className="w-5/6" />
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
