@@ -152,11 +152,25 @@ export class BlogAiProcessor extends WorkerHost {
       return cached.result;
     }
 
-    // Bug 4 fix: AI service unavailable → fail fast, no pointless retries
+    // Bug 4 fix: AI service unavailable → wait 120s then check again
+    // This allows Groq Keys that were temporarily exhausted (429 + strict mode)
+    // to recover instead of failing immediately.
     if (!this.aiService.isAvailable()) {
-      throw new Error(
-        `翻译失败：AI服务不可用（目标语言 ${targetLang}，文本长度 ${text.length}）`,
+      this.logger.warn(
+        `⚠️ AI服务当前不可用（Groq Key可能已耗尽），等待 120s 后自动重试...`,
+        { targetLang, textLength: text.length },
       );
+      await new Promise((resolve) => setTimeout(resolve, 120000));
+
+      // After waiting, check again — if still unavailable, then fail
+      if (!this.aiService.isAvailable()) {
+        this.logger.warn(
+          `⌛ AI服务等待超时：120s后仍不可用（目标语言 ${targetLang}，文本长度 ${text.length}），抛出错误`,
+        );
+        throw new Error(
+          `翻译失败：AI服务不可用（目标语言 ${targetLang}，文本长度 ${text.length}）`,
+        );
+      }
     }
 
     let lastError: any;
@@ -212,6 +226,41 @@ export class BlogAiProcessor extends WorkerHost {
         return result;
       } catch (error) {
         lastError = error;
+
+        // === Key 耗尽检测：Groq 所有 Key 不可用 + strict 模式 ===
+        // translateText() 抛出 "Translation failed: AI returned null..."
+        // 表示 strict 模式下 Groq 所有 Key 已耗尽，不进行回退。
+        // 此时等待 120s（匹配 Groq KEY_429_COOLDOWN_DEFAULT），让被封 Key 恢复。
+        const isKeysExhausted =
+          error instanceof Error && error.message.includes('AI returned null');
+
+        if (isKeysExhausted) {
+          const waitMs = 120000; // 2分钟，匹配 Groq KEY_429_COOLDOWN_DEFAULT
+          this.logger.warn(
+            `⚠️ Groq API 所有 Key 已暂时耗尽，等待 ${waitMs / 1000}s 后自动重试...`,
+            {
+              attempt: attempt + 1,
+              maxRetries: maxRetries + 1,
+              targetLang,
+            },
+          );
+
+          await new Promise((resolve) => setTimeout(resolve, waitMs));
+
+          // 继续重试（不抛错，等待 Key 恢复）
+          // 120s 后被封 Key 应该已恢复，继续重试大概率成功
+          if (attempt < maxRetries) {
+            continue;
+          }
+
+          // 最后一次尝试也耗尽 → 返回原文，不抛错，避免标记 FAILED
+          this.logger.warn(
+            `⌛ 翻译等待超时：所有 Groq Key 仍不可用（目标语言 ${targetLang}，文本长度 ${text.length}），返回原文待下次处理`,
+          );
+          return text;
+        }
+        // === Key 耗尽检测结束 ===
+
         this.logger.error(`翻译失败 (尝试 ${attempt + 1}/${maxRetries + 1})`, {
           error: error instanceof Error ? error.message : 'Unknown error',
           textLength: text.length,
@@ -470,6 +519,42 @@ IMPORTANT: Return ONLY the three sections above with the exact delimiters. Do NO
         }
       } catch (error) {
         lastError = error;
+
+        // === Key 耗尽检测：generateText 返回 null（strict 模式） ===
+        // batchTranslateArticle() 直接调用 generateText()，返回 null 时抛出
+        // "AI service returned empty result"，不经过 translateText() 的
+        // "AI returned null" 路径。所以要同时检测两种错误消息。
+        const isKeysExhausted =
+          error instanceof Error &&
+          (error.message.includes('AI service returned empty result') ||
+           error.message.includes('AI returned null'));
+
+        if (isKeysExhausted) {
+          const waitMs = 120000; // 2分钟
+          this.logger.warn(
+            `⚠️ Groq API 所有 Key 已暂时耗尽，等待 ${waitMs / 1000}s 后自动重试...`,
+            { attempt: attempt + 1, maxRetries: maxRetries + 1, targetLang },
+          );
+          await new Promise((resolve) => setTimeout(resolve, waitMs));
+
+          // 如果不是最后一次尝试，继续重试（不回退到传统翻译）
+          if (attempt < maxRetries) {
+            continue;
+          }
+
+          // 最后一次尝试也耗尽 → 回退到传统翻译
+          this.logger.warn(
+            `⌛ 批量翻译等待超时：所有 Groq Key 仍不可用（语言 ${targetLang}），回退到传统翻译方法`,
+          );
+          return await this.fallbackToTraditionalTranslation(
+            sourceTitle,
+            sourceContent,
+            sourceExcerpt,
+            targetLang,
+          );
+        }
+        // === Key 耗尽检测结束 ===
+
         this.logger.error(
           `批量翻译失败 (尝试 ${attempt + 1}/${maxRetries + 1})`,
           {

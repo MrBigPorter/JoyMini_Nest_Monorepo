@@ -174,22 +174,22 @@ export class GroqProvider implements AiProviderInstance {
       currentKey.requestTimestamps.pop();
       if (e.response?.status === 429) {
         // Read Retry-After header from Groq response
+        // Cap max cooldown at 3× default (360s = 6 min) to prevent absurdly long blocks
+        // like Groq returning retry-after: 7409 (2 hours+)
         const retryAfter = e.response?.headers?.['retry-after'];
-        const cooldownMs = retryAfter
-          ? parseInt(retryAfter, 10) * 1000
+        const parsedRetryAfter = retryAfter ? parseInt(retryAfter, 10) * 1000 : 0;
+        const cooldownMs = parsedRetryAfter > 0
+          ? Math.min(parsedRetryAfter, this.KEY_429_COOLDOWN_DEFAULT * 3)
           : this.KEY_429_COOLDOWN_DEFAULT;
         const cooldownUntil = Date.now() + cooldownMs;
 
-        // Block ALL keys immediately — all 4 keys share ONE Groq account rate limit.
-        // Trying other keys after a 429 would also get 429 and just reset the rate limit clock.
-        for (const key of this.keyInstances) {
-          key.blocked = true;
-          key.blockedReason = 'rate_limited';
-          key.blockedUntil = cooldownUntil;
-        }
+        // Block only the key that hit 429 — other keys are tried next via selectBestKey()
+        currentKey.blocked = true;
+        currentKey.blockedReason = 'rate_limited';
+        currentKey.blockedUntil = cooldownUntil;
 
         this.logger.warn(
-          `⚠️ Groq key ...${currentKey.keySuffix} hit 429, blocking ALL ${this.keyInstances.length} keys for ${cooldownMs / 1000}s (retry-after: ${retryAfter || 'N/A'})`,
+          `⚠️ Groq key ...${currentKey.keySuffix} hit 429, blocking key for ${cooldownMs / 1000}s (${this.keyInstances.length - 1} other keys still available)`,
         );
 
         // Return null immediately — do NOT wait, do NOT retry.
