@@ -213,6 +213,7 @@ export const BannerFormModal: React.FC<Props> = ({
             {Number(jumpCate) === JUMP_CATE.TREASURE && (
               <Controller
                 name="relatedTitleId"
+                control={form.control}
                 render={({ field, fieldState }) => (
                   <div>
                     <BannerBindProduct
