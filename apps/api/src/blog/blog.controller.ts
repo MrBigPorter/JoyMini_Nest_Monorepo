@@ -390,4 +390,19 @@ export class BlogController {
   async getUntranslatedTags(@Query('languageCode') languageCode: string) {
     return this.blogService.getUntranslatedTags(languageCode);
   }
+
+  @Post('translation/repair-categories-tags')
+  @ApiBearerAuth()
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiOperation({
+    summary:
+      '批量修复未翻译的分类和标签（检测含中文的非 zh 字段并重新投递翻译）',
+  })
+  async repairUntranslatedCategoriesTags(
+    @Body() body: { languageCode?: string },
+  ) {
+    return this.blogService.repairUntranslatedCategoriesTags(
+      body?.languageCode,
+    );
+  }
 }

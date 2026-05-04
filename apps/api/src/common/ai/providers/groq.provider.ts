@@ -101,7 +101,7 @@ export class GroqProvider implements AiProviderInstance {
       return null;
     }
 
-    let currentKey = this.keyInstances[this.activeKeyIndex];
+    const currentKey = this.keyInstances[this.activeKeyIndex];
 
     if (!currentKey || this.keyInstances.length === 0) {
       return null;
@@ -177,10 +177,13 @@ export class GroqProvider implements AiProviderInstance {
         // Cap max cooldown at 3× default (360s = 6 min) to prevent absurdly long blocks
         // like Groq returning retry-after: 7409 (2 hours+)
         const retryAfter = e.response?.headers?.['retry-after'];
-        const parsedRetryAfter = retryAfter ? parseInt(retryAfter, 10) * 1000 : 0;
-        const cooldownMs = parsedRetryAfter > 0
-          ? Math.min(parsedRetryAfter, this.KEY_429_COOLDOWN_DEFAULT * 3)
-          : this.KEY_429_COOLDOWN_DEFAULT;
+        const parsedRetryAfter = retryAfter
+          ? parseInt(retryAfter, 10) * 1000
+          : 0;
+        const cooldownMs =
+          parsedRetryAfter > 0
+            ? Math.min(parsedRetryAfter, this.KEY_429_COOLDOWN_DEFAULT * 3)
+            : this.KEY_429_COOLDOWN_DEFAULT;
         const cooldownUntil = Date.now() + cooldownMs;
 
         // Block only the key that hit 429 — other keys are tried next via selectBestKey()
@@ -219,7 +222,9 @@ export class GroqProvider implements AiProviderInstance {
     }
     return (
       this.keyInstances.length > 0 &&
-      this.keyInstances.some((k) => !k.blocked && k.requestTimestamps.length < this.RPM_LIMIT)
+      this.keyInstances.some(
+        (k) => !k.blocked && k.requestTimestamps.length < this.RPM_LIMIT,
+      )
     );
   }
 

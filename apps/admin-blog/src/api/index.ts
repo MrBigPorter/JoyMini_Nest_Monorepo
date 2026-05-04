@@ -451,6 +451,14 @@ export const blogApi = {
       });
     },
 
+    /** 批量修复未翻译的分类和标签（检测含中文的非 zh 字段并重新投递翻译） */
+    repairUntranslatedCategoriesTags: async (languageCode?: string) => {
+      return await http.post(
+        '/v1/admin/blog/translation/repair-categories-tags',
+        { languageCode },
+      );
+    },
+
     triggerVideoTranscode: async (articleId: string, videoKey: string) => {
       return await http.post(
         `/v1/admin/blog/articles/${articleId}/trigger-video-transcode`,
