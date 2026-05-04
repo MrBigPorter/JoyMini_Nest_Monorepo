@@ -79,3 +79,4 @@ apps/frontend-blog/public/workbox-*.js.br
 .yarn/install-state.gz
 .yarn/cache/
 /JoyMini_Flutter_App/
+/resume/
