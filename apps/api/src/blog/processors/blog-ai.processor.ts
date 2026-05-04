@@ -678,13 +678,14 @@ IMPORTANT: Return ONLY the three sections above with the exact delimiters. Do NO
     );
 
     try {
-      // 首先获取评论详情，检查是否是已登录用户发布的评论
+      // 首先获取评论详情，获取文章ID和作者信息
       const comment = await this.prisma.blogComment.findUnique({
         where: { id: data.commentId },
         select: {
           id: true,
           author: true,
           email: true,
+          articleId: true,
         },
       });
 
@@ -712,34 +713,36 @@ IMPORTANT: Return ONLY the three sections above with the exact delimiters. Do NO
         },
       });
 
-      // 如果审核通过且有自动回复建议，延迟投递回复任务
-      // 规则：所有通过审核且AI认为值得回复的评论都获得自动回复
+      // 如果审核通过且分数较低（安全友好的评论），生成自然的技术交流式自动回复
       if (result.passed && result.score < 30) {
-        // 使用AI建议的回复，如果没有则生成默认回复
-        let replyContent = result.autoReplySuggestion;
-        if (!replyContent || replyContent.trim().length === 0) {
-          // 生成默认回复
-          replyContent = this.generateDefaultReply(
-            data.content,
-            data.articleTitle,
-          );
-          this.logger.debug(`使用默认回复，AI建议为空: ${data.commentId}`);
-        }
+        // 使用新的 AutoReplyService 管道生成自然回复
+        // 分类 → 注入上下文 → 按类型选模板 → 生成 → 校验
+        const replyContent = await this.aiService.generateAutoReply(
+          data.content,
+          comment.articleId,
+          comment.author || undefined,
+        );
 
-        await this.blogAiQueue.add(
-          'auto-reply',
-          {
-            commentId: data.commentId,
-            replyContent: replyContent,
-            articleTitle: data.articleTitle,
-          },
-          {
-            delay: 30000, // 30秒后自动回复，模拟真人延迟
-          },
-        );
-        this.logger.debug(
-          `Scheduled AI auto reply for comment: ${data.commentId}, score: ${result.score}`,
-        );
+        if (replyContent && replyContent.trim().length > 0) {
+          await this.blogAiQueue.add(
+            'auto-reply',
+            {
+              commentId: data.commentId,
+              replyContent: replyContent,
+              articleTitle: data.articleTitle,
+            },
+            {
+              delay: 30000, // 30秒后自动回复，模拟真人延迟
+            },
+          );
+          this.logger.debug(
+            `Scheduled AI auto reply for comment: ${data.commentId}, score: ${result.score}`,
+          );
+        } else {
+          this.logger.debug(
+            `Auto-reply generation returned empty for comment: ${data.commentId}`,
+          );
+        }
       } else if (result.passed && result.score >= 30) {
         this.logger.debug(
           `评论审核通过但分数较高(${result.score})，不生成自动回复: ${data.commentId}`,
@@ -747,7 +750,7 @@ IMPORTANT: Return ONLY the three sections above with the exact delimiters. Do NO
       }
 
       this.logger.log(
-        `AI moderation completed: comment ${data.commentId}, score ${result.score}, passed: ${result.passed}, autoReplySuggestion: ${result.autoReplySuggestion ? '有' : '无'}`,
+        `AI moderation completed: comment ${data.commentId}, score ${result.score}, passed: ${result.passed}`,
       );
       return result;
     } catch (err) {
