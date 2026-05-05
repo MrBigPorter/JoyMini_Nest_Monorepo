@@ -12,7 +12,7 @@ import {
 
 import { useToastStore } from '@/store/useToastStore';
 import { blogApi } from '@/api';
-import { useTranslation } from '@/hooks/useTranslation';
+import { useTranslation, type TFunc } from '@/hooks/useTranslation';
 import { enUS, zhCN } from 'date-fns/locale';
 import {
   RefreshCw,
@@ -295,11 +295,11 @@ const AiServiceStatusCard = ({
 }: {
   aiStatus: any;
   aiStatusLoading: boolean;
-  t: (key: string) => string;
+  t: TFunc;
 }) => {
   if (aiStatusLoading) {
     return (
-      <Card title="🤖 AI Service Status" className="col-span-1">
+      <Card title={t('aiService.statusTitle')} className="col-span-1">
         <div className="space-y-3">
           <div className="h-5 bg-gray-100 rounded w-32 animate-pulse" />
           <div className="h-4 bg-gray-100 rounded w-48 animate-pulse" />
@@ -331,11 +331,13 @@ const AiServiceStatusCard = ({
   const limits = usageStats?.limits;
 
   return (
-    <Card title="🤖 AI Service Status" className="col-span-1">
+    <Card title={t('aiService.statusTitle')} className="col-span-1">
       <div className="space-y-3">
         {/* 服务等级 */}
         <div className="flex items-center justify-between">
-          <span className="text-gray-500 text-sm">Service Level</span>
+          <span className="text-gray-500 text-sm">
+            {t('aiService.serviceLevel')}
+          </span>
           <span
             className={`px-2 py-0.5 text-xs font-medium rounded border ${levelColor}`}
           >
@@ -345,7 +347,7 @@ const AiServiceStatusCard = ({
 
         {/* 健康状态 */}
         <div className="flex items-center justify-between">
-          <span className="text-gray-500 text-sm">Health</span>
+          <span className="text-gray-500 text-sm">{t('aiService.health')}</span>
           <div className="flex items-center gap-1.5">
             <span
               className={`inline-block w-2.5 h-2.5 rounded-full ${
@@ -355,7 +357,7 @@ const AiServiceStatusCard = ({
             <span
               className={`text-sm font-medium ${isHealthy ? 'text-emerald-700' : 'text-red-700'}`}
             >
-              {isHealthy ? 'Healthy' : 'Unhealthy'}
+              {isHealthy ? t('aiService.healthy') : t('aiService.unhealthy')}
             </span>
           </div>
         </div>
@@ -363,15 +365,21 @@ const AiServiceStatusCard = ({
         {/* 电路熔断器状态 */}
         {circuitBreaker && (
           <div className="flex items-center justify-between">
-            <span className="text-gray-500 text-sm">Circuit Breaker</span>
+            <span className="text-gray-500 text-sm">
+              {t('aiService.circuitBreaker')}
+            </span>
             <span
               className={`text-xs font-medium ${
                 circuitBreaker.open ? 'text-red-600' : 'text-emerald-600'
               }`}
             >
               {circuitBreaker.open
-                ? `OPEN (resets ${formatDistanceToNow(circuitBreaker.resetAfter, { addSuffix: true })})`
-                : 'Closed'}
+                ? t('aiService.circuitBreakerOpen', {
+                    time: formatDistanceToNow(circuitBreaker.resetAfter, {
+                      addSuffix: true,
+                    }),
+                  })
+                : t('aiService.circuitBreakerClosed')}
             </span>
           </div>
         )}
@@ -380,26 +388,32 @@ const AiServiceStatusCard = ({
         {totalUsage && (
           <div className="border-t border-gray-100 pt-2 mt-2">
             <div className="text-xs font-medium text-gray-400 mb-1.5">
-              Total Usage
+              {t('aiService.totalUsage')}
             </div>
             <div className="grid grid-cols-3 gap-2">
               <div className="text-center">
                 <div className="text-sm font-semibold text-gray-700">
                   {totalUsage.requests || 0}
                 </div>
-                <div className="text-xs text-gray-400">Requests</div>
+                <div className="text-xs text-gray-400">
+                  {t('aiService.requests')}
+                </div>
               </div>
               <div className="text-center">
                 <div className="text-sm font-semibold text-gray-700">
                   {totalUsage.tokens || 0}
                 </div>
-                <div className="text-xs text-gray-400">Tokens</div>
+                <div className="text-xs text-gray-400">
+                  {t('aiService.tokens')}
+                </div>
               </div>
               <div className="text-center">
                 <div className="text-sm font-semibold text-gray-700">
                   {Math.round((totalUsage.totalDailyTokens || 0) / 1000)}k
                 </div>
-                <div className="text-xs text-gray-400">Daily Tokens</div>
+                <div className="text-xs text-gray-400">
+                  {t('aiService.dailyTokens')}
+                </div>
               </div>
             </div>
           </div>
@@ -409,7 +423,7 @@ const AiServiceStatusCard = ({
         {providers.length > 0 && (
           <div className="border-t border-gray-100 pt-2 mt-2">
             <div className="text-xs font-medium text-gray-400 mb-1.5">
-              Providers
+              {t('aiService.providers')}
             </div>
             <div className="space-y-3">
               {providers.map((prov: any, pIdx: number) => (
@@ -419,8 +433,10 @@ const AiServiceStatusCard = ({
                       {prov.displayName || prov.name}
                     </span>
                     <span className="text-xs text-gray-400">
-                      {prov.requests || 0} req /{' '}
-                      {Math.round((prov.tokens || 0) / 1000)}k tok
+                      {t('aiService.reqPerTok', {
+                        req: prov.requests || 0,
+                        tok: Math.round((prov.tokens || 0) / 1000),
+                      })}
                     </span>
                   </div>
                   {/* Provider 下的 API Keys */}
@@ -437,7 +453,9 @@ const AiServiceStatusCard = ({
                         return (
                           <div key={kIdx} className="flex items-center gap-2">
                             <span className="text-xs text-gray-400 w-4">
-                              #{key.index + 1}
+                              {t('aiService.keyIndex', {
+                                index: key.index + 1,
+                              })}
                             </span>
                             <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
                               <div
@@ -446,12 +464,14 @@ const AiServiceStatusCard = ({
                               />
                             </div>
                             <span className="text-xs text-gray-400 w-20 text-right">
-                              {Math.round((key.dailyTokens || 0) / 1000)}k /{' '}
-                              {Math.round((key.dailyLimit || 0) / 1000)}k
+                              {t('aiService.keyDaily', {
+                                used: Math.round((key.dailyTokens || 0) / 1000),
+                                limit: Math.round((key.dailyLimit || 0) / 1000),
+                              })}
                             </span>
                             {key.blocked && (
                               <span className="text-xs text-red-500 font-medium ml-1">
-                                BLOCKED
+                                {t('aiService.blocked')}
                               </span>
                             )}
                           </div>
@@ -469,11 +489,14 @@ const AiServiceStatusCard = ({
         {limits && (
           <div className="border-t border-gray-100 pt-2 mt-2">
             <div className="text-xs font-medium text-gray-400 mb-1">
-              Rate Limits
+              {t('aiService.rateLimits')}
             </div>
             <div className="text-xs text-gray-500">
-              RPM: {limits.RPM || '-'} | TPM: {limits.TPM || '-'} | TPD:{' '}
-              {limits.TPD || '-'}
+              {t('aiService.rateLimitsFormat', {
+                rpm: limits.RPM || '-',
+                tpm: limits.TPM || '-',
+                tpd: limits.TPD || '-',
+              })}
             </div>
           </div>
         )}
@@ -494,7 +517,7 @@ const ProviderSelector = ({
   aiProviderConfig: any;
   aiProviderConfigLoading: boolean;
   onSave: (provider: string, model: string) => Promise<void>;
-  t: (key: string) => string;
+  t: TFunc;
 }) => {
   const [selectedProvider, setSelectedProvider] = React.useState<string>('');
   const [selectedModel, setSelectedModel] = React.useState<string>('');
@@ -537,7 +560,7 @@ const ProviderSelector = ({
 
   if (aiProviderConfigLoading) {
     return (
-      <Card title="⚙️ AI Provider Config" className="col-span-1">
+      <Card title={t('aiService.providerConfigTitle')} className="col-span-1">
         <div className="space-y-3">
           <div className="h-5 bg-gray-100 rounded w-32 animate-pulse" />
           <div className="h-8 bg-gray-100 rounded w-full animate-pulse" />
@@ -548,23 +571,23 @@ const ProviderSelector = ({
   }
 
   return (
-    <Card title="⚙️ AI Provider Config" className="col-span-1">
+    <Card title={t('aiService.providerConfigTitle')} className="col-span-1">
       <div className="space-y-3">
         {/* Provider 下拉 */}
         <div>
           <label className="block text-xs font-medium text-gray-500 mb-1">
-            Provider
+            {t('aiService.providerLabel')}
           </label>
           <select
             value={selectedProvider}
             onChange={handleProviderChange}
             className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
-            <option value="">-- Select Provider --</option>
+            <option value="">{t('aiService.selectProvider')}</option>
             {(aiProviders || []).map((p: any) => (
               <option key={p.name} value={p.name} disabled={!p.available}>
                 {p.displayName || p.name}
-                {!p.available ? ' (unavailable)' : ''}
+                {!p.available ? t('aiService.unavailable') : ''}
               </option>
             ))}
           </select>
@@ -573,7 +596,7 @@ const ProviderSelector = ({
         {/* Model 下拉 */}
         <div>
           <label className="block text-xs font-medium text-gray-500 mb-1">
-            Model
+            {t('aiService.modelLabel')}
           </label>
           <select
             value={selectedModel}
@@ -581,7 +604,7 @@ const ProviderSelector = ({
             className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             disabled={!currentProvider}
           >
-            <option value="">-- Select Model --</option>
+            <option value="">{t('aiService.selectModel')}</option>
             {(currentProvider?.models || []).map((m: string) => (
               <option key={m} value={m}>
                 {m}
@@ -604,13 +627,16 @@ const ProviderSelector = ({
           }
           className="w-full"
         >
-          {saving ? 'Saving...' : 'Save Config'}
+          {saving ? t('systemConfig.saving') : t('aiService.saveConfig')}
         </Button>
 
         {/* 当前配置提示 */}
         {aiProviderConfig && (
           <div className="text-xs text-gray-400 text-center pt-1">
-            Current: {aiProviderConfig.provider} / {aiProviderConfig.model}
+            {t('aiService.currentConfig', {
+              provider: aiProviderConfig.provider,
+              model: aiProviderConfig.model,
+            })}
           </div>
         )}
       </div>
@@ -626,6 +652,11 @@ export default function BlogTranslationProgress() {
   // preserve existing key naming in this view.
   const t = (key: string, params?: Record<string, string | number>) =>
     globalT(`blog_translation_${key}`, params);
+
+  // Helper to access top-level section keys (aiService, systemConfig) directly
+  // without the blog_translation_ prefix added by the local t() wrapper.
+  const sectionT = (key: string, params?: Record<string, string | number>) =>
+    globalT(key, params);
 
   // 动态date-fns本地化
   const dateLocale = (lang === 'zh' ? zhCN : enUS) as any;
@@ -1000,14 +1031,14 @@ export default function BlogTranslationProgress() {
         <AiServiceStatusCard
           aiStatus={aiStatus}
           aiStatusLoading={aiStatusLoading}
-          t={t}
+          t={sectionT}
         />
         <ProviderSelector
           aiProviders={aiProviders}
           aiProviderConfig={aiProviderConfig}
           aiProviderConfigLoading={aiProviderConfigLoading}
           onSave={handleSaveProviderConfig}
-          t={t}
+          t={sectionT}
         />
       </div>
 
@@ -1051,7 +1082,9 @@ export default function BlogTranslationProgress() {
                     className="rounded-lg border border-gray-100 dark:border-white/5 bg-card p-4 hover:shadow-md transition-shadow hover:border-gray-200 dark:hover:border-white/10 flex items-center justify-between"
                   >
                     <div className="flex-1">
-                      <div className="font-medium">{article.title}</div>
+                      <div className="font-medium">
+                        <LocalizedText value={article.title} />
+                      </div>
                       <div className="flex items-center gap-2 mt-1">
                         <Badge
                           color={
@@ -1164,7 +1197,11 @@ export default function BlogTranslationProgress() {
                   >
                     <div className="flex-1">
                       <div className="font-medium">
-                        {category.name?.zh || category.slug}
+                        {renderLocalizedText(
+                          category.name,
+                          lang,
+                          category.slug,
+                        )}
                       </div>
                       <div className="text-xs text-gray-500 mt-1">
                         slug: {category.slug}
@@ -1234,7 +1271,7 @@ export default function BlogTranslationProgress() {
                   >
                     <div className="flex-1">
                       <div className="font-medium">
-                        {tag.name?.zh || tag.slug}
+                        {renderLocalizedText(tag.name, lang, tag.slug)}
                       </div>
                       <div className="text-xs text-gray-500 mt-1">
                         slug: {tag.slug}

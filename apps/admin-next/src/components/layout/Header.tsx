@@ -21,7 +21,7 @@ import { useToastStore } from '@/store/useToastStore';
 import { Dropdown, Breadcrumbs } from '@/components/UIComponents';
 import { useRequest } from 'ahooks';
 import { routes } from '@/routes';
-import { ROLE_DISPLAY_NAMES } from '@/constants';
+import { getRoleI18nKey } from '@/constants';
 import { useTranslation } from '@/hooks/useTranslation';
 import { applicationApi } from '@/api';
 import { useAvailableLocales } from '@/hooks/useAvailableLocales';
@@ -217,8 +217,9 @@ export const Header: React.FC<HeaderProps> = ({
     logoutAction,
     {
       manual: true,
-      onSuccess: () => addToast('info', 'Logged out successfully'),
-      onError: (error) => addToast('error', `Logout failed: ${error.message}`),
+      onSuccess: () => addToast('info', t('header_loggedOut')),
+      onError: (error) =>
+        addToast('error', t('header_logoutFailed', { message: error.message })),
     },
   );
 
@@ -248,7 +249,8 @@ export const Header: React.FC<HeaderProps> = ({
 
   const pendingCount = pendingData?.count ?? 0;
 
-  const displayName = userInfo?.realName || userInfo?.username || 'Admin';
+  const displayName =
+    userInfo?.realName || userInfo?.username || t('user_fallbackName');
   const initial = displayName.charAt(0).toUpperCase();
   const gradient = avatarGradient(initial);
 
@@ -331,7 +333,7 @@ export const Header: React.FC<HeaderProps> = ({
                 </span>
                 {userInfo?.role && (
                   <span className="text-xs text-gray-400">
-                    {ROLE_DISPLAY_NAMES[userInfo.role] ?? userInfo.role}
+                    {t(getRoleI18nKey(userInfo.role)) || userInfo.role}
                   </span>
                 )}
               </div>

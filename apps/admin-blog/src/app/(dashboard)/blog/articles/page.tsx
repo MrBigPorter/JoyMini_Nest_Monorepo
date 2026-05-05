@@ -498,6 +498,7 @@ export default function ArticlesPageV2() {
           categoryId: params.category || undefined,
           page: params.current,
           pageSize: params.pageSize,
+          locale: lang,
         });
 
         // 转换API数据格式为前端期望的格式

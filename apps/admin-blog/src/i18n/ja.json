@@ -15,6 +15,8 @@
     "header_settings": "Settings",
     "header_logout": "Logout",
     "header_loggingOut": "Logging out…",
+    "header_loggedOut": "ログアウトしました",
+    "header_logoutFailed": "ログアウト失敗：{message}",
     "logout": "ログアウト",
     "add": "新規追加",
     "edit": "編集",
@@ -520,7 +522,10 @@
     "blog_import_retryFailed": "失敗を再試行",
     "blog_import_retryHint": "記事リストは保持されています。調整して再インポートしてください",
     "blog_import_hideExists": "既存の記事は選択できません",
-    "blog_import_emptyHint": "上の「ファイルをスキャン」ボタンをクリックして、ローカルの docs/blog/articles/ ディレクトリからMarkdown記事を検索します"
+    "blog_import_emptyHint": "上の「ファイルをスキャン」ボタンをクリックして、ローカルの docs/blog/articles/ ディレクトリからMarkdown記事を検索します",
+    "app_title": "ブログ管理",
+    "user_fallbackName": "管理者",
+    "header_switchLanguage": "言語を切り替え"
   },
   "systemConfig": {
     "pageTitle": "システム設定",
@@ -571,6 +576,8 @@
     "strategyTip2": "ソース言語を変更しても既存の翻訳には影響しません",
     "strategyTip3": "新しく作成されたコンテンツは新しいソース言語で翻訳されます",
     "strategyTip4": "翻訳戦略設定は「一般設定」タブで変更できます",
+    "defaultSourceLang": "翻訳のデフォルトソース言語",
+    "defaultSourceLangDesc": "AI翻訳のデフォルトソース言語。デフォルトは中国語 (zh)",
     "keyboardHint": "{enterKey} で保存、{escKey} でキャンセル"
   },
   "blogCard": {
@@ -591,6 +598,35 @@
     "allJobsCompleted": "すべての翻訳ジョブが完了しました",
     "translationNotStarted": "⏳ 翻訳はまだ開始されていません"
   },
+  "aiService": {
+    "statusTitle": "🤖 AI サービス状態",
+    "serviceLevel": "サービスレベル",
+    "health": "ヘルス",
+    "healthy": "正常",
+    "unhealthy": "異常",
+    "circuitBreaker": "サーキットブレーカー",
+    "circuitBreakerOpen": "OPEN ({time} 後にリセット)",
+    "circuitBreakerClosed": "クローズ",
+    "totalUsage": "総使用量",
+    "requests": "リクエスト",
+    "tokens": "トークン",
+    "dailyTokens": "1日のトークン",
+    "providers": "プロバイダー",
+    "reqPerTok": "{req} req / {tok}k tok",
+    "keyIndex": "#{index}",
+    "keyDaily": "{used}k / {limit}k",
+    "blocked": "ブロック中",
+    "rateLimits": "レート制限",
+    "rateLimitsFormat": "RPM: {rpm} | TPM: {tpm} | TPD: {tpd}",
+    "providerConfigTitle": "⚙️ AI プロバイダー設定",
+    "providerLabel": "プロバイダー",
+    "selectProvider": "-- プロバイダーを選択 --",
+    "unavailable": " (利用不可)",
+    "modelLabel": "モデル",
+    "selectModel": "-- モデルを選択 --",
+    "saveConfig": "設定を保存",
+    "currentConfig": "現在: {provider} / {model}"
+  },
   "login": {
     "title": "おかえりなさい",
     "subtitle": "認証情報を入力してダッシュボードにアクセス",
@@ -608,6 +644,10 @@
     "welcomeBack": "おかえりなさい、管理者！",
     "loginFailedNoToken": "ログイン失敗：アクセストークンが受信されませんでした。",
     "loginFailedGeneric": "ログインに失敗しました。もう一度お試しください。",
-    "copyright": "© {year} JoyMini Blog Admin. All rights reserved."
+    "copyright": "© {year} JoyMini Blog Admin. All rights reserved.",
+    "roleSuperAdmin": "スーパー管理者",
+    "roleAdmin": "管理者",
+    "roleEditor": "編集者",
+    "roleViewer": "閲覧者"
   }
 }

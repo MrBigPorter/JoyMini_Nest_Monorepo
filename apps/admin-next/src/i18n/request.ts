@@ -42,6 +42,14 @@ type RawLocaleJson = {
 function flatten(raw: RawLocaleJson): Record<string, unknown> {
   return {
     ...raw.translations,
+    // Flatten role keys (roleSuperAdmin, roleAdmin, etc.) to top level so
+    // next-intl can resolve them without requiring dot-path traversal into
+    // nested adminUsers objects, which can throw MISSING_MESSAGE in raw().
+    ...(raw.adminUsers
+      ? Object.fromEntries(
+          Object.entries(raw.adminUsers).filter(([k]) => k.startsWith('role')),
+        )
+      : {}),
     ...(raw.actSections ? { actSections: raw.actSections } : {}),
     ...(raw.orders ? { orders: raw.orders } : {}),
     ...(raw.groups ? { groups: raw.groups } : {}),

@@ -275,6 +275,28 @@ ssh root@<你的服务器IP> 'docker stats --no-stream'
 
 ### ❌ CI 显示红色
 
+### ❌ CI 显示绿色但代码没更新（最常见！）
+
+**现象**：GitHub Actions 显示 ✅ 绿色，Telegram 通知 ✅ Success，但线上还是旧代码。
+
+**原因**：`appleboy/ssh-action` 有 bug — SSH 脚本在 VPS 上 `exit 1`（健康检查失败→自动回滚）时，GitHub 端可能仍显示绿色。
+修复已在 2026-05-05 添加：新增 `Verify API externally` 步骤，从 GitHub runner 外部 curl 确认 API 真正可用。
+
+**临时解决办法**（立即生效）：
+
+```bash
+# 方式 A：手动强制部署（推荐）
+# 去 GitHub → Actions → "🚀 Master Deployment Control" → "Run workflow" → 选 main 分支
+
+# 方式 B：SSH 到 VPS 强制重建
+ssh root@<你的服务器IP> 'cd /opt/lucky && BACKEND_IMAGE=ghcr.io/mrbigporter/lucky-backend-prod:latest docker compose -f compose.prod.yml --env-file deploy/.env.prod up -d --no-build --force-recreate backend'
+
+# 方式 C：推送一个空 commit 触发后端 CI
+git commit --allow-empty -m "chore: force backend deploy"
+git push
+```
+
+
 1. 点进 GitHub Actions 看哪个步骤红了
 2. 常见原因：
    - **Nginx 配置错误**：VPS 上 `/etc/nginx/conf.d/` 有语法问题

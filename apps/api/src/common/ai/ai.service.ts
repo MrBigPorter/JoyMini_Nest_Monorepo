@@ -839,9 +839,7 @@ ${markdown}
 
       // Small delay between chunks to prevent request bursts (DeepSeek has no rate limits)
       if (i < chunks.length - 1) {
-        this.logger.debug(
-          `分块翻译延迟 50ms (块 ${i + 1}/${chunks.length})`,
-        );
+        this.logger.debug(`分块翻译延迟 50ms (块 ${i + 1}/${chunks.length})`);
         await new Promise((resolve) => setTimeout(resolve, 50)); // ⬇️ 500ms→50ms: DeepSeek 无速率限制
       }
     }

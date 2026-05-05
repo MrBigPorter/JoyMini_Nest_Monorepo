@@ -198,7 +198,10 @@ export class BlogAiProcessor extends WorkerHost {
             this.logger.debug(
               `原文已是英文，跳过重试直接使用 (目标语言: ${targetLang})`,
             );
-            this.translationCache.set(cacheKey, { result, timestamp: Date.now() });
+            this.translationCache.set(cacheKey, {
+              result,
+              timestamp: Date.now(),
+            });
             return result;
           }
 
@@ -224,7 +227,10 @@ export class BlogAiProcessor extends WorkerHost {
             this.logger.warn(
               `翻译结果与原文相同，直接使用原文 (长度 ${text.length}, 目标语言 ${targetLang})`,
             );
-            this.translationCache.set(cacheKey, { result, timestamp: Date.now() });
+            this.translationCache.set(cacheKey, {
+              result,
+              timestamp: Date.now(),
+            });
             return result;
           }
           continue;

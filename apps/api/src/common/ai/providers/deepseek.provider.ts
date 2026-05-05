@@ -206,7 +206,12 @@ export class DeepSeekProvider implements AiProviderInstance {
                 model: this.activeModel,
                 messages: [
                   ...(options?.systemPrompt
-                    ? [{ role: 'system' as const, content: options.systemPrompt }]
+                    ? [
+                        {
+                          role: 'system' as const,
+                          content: options.systemPrompt,
+                        },
+                      ]
                     : []),
                   { role: 'user' as const, content: prompt },
                 ],
@@ -222,10 +227,12 @@ export class DeepSeekProvider implements AiProviderInstance {
                 timeout: 120000,
               },
             );
-            const retryContent = retryResponse.data?.choices?.[0]?.message?.content || null;
+            const retryContent =
+              retryResponse.data?.choices?.[0]?.message?.content || null;
             if (retryContent !== null) {
               currentKey.dailyTokens +=
-                Math.ceil(prompt.length / 4) + Math.ceil(retryContent.length / 4);
+                Math.ceil(prompt.length / 4) +
+                Math.ceil(retryContent.length / 4);
               currentKey.dailyRequests++;
             }
             return retryContent;

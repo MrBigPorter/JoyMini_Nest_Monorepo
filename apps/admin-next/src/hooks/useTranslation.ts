@@ -33,8 +33,17 @@ export function useTranslation() {
       // Some keys (e.g. 'finance') match namespace objects, which would cause
       // INSUFFICIENT_PATH errors with tNext() — even when caught, next-intl
       // still logs them via its internal onError handler.
+      // Additionally, raw() can throw MISSING_MESSAGE for dot-path keys
+      // (e.g. 'adminUsers.roleSuperAdmin') when resolution fails internally,
+      // even though the translated value exists in the nested object. We catch
+      // that and return the key as fallback.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const raw = (tNext as any).raw?.(key as any);
+      let raw: unknown;
+      try {
+        raw = (tNext as any).raw?.(key as any);
+      } catch {
+        raw = undefined;
+      }
       if (typeof raw !== 'string') {
         return key;
       }

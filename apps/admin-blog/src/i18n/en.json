@@ -15,6 +15,8 @@
     "header_settings": "Settings",
     "header_logout": "Logout",
     "header_loggingOut": "Logging out…",
+    "header_loggedOut": "Logged out successfully",
+    "header_logoutFailed": "Logout failed: {message}",
     "logout": "Logout",
     "add": "Add New",
     "edit": "Edit",
@@ -202,6 +204,15 @@
     "blog_tq_clearFailed": "Failed to clear translation",
     "blog_tq_batchClearSuccess": "Cleared {count} articles and re-queued for translation",
     "blog_tq_batchClearFailed": "Batch clear failed",
+    "blog_tq_issue_content_too_short": "Translated content too short: {translatedLength} chars vs {sourceLength} chars (ratio {ratio})",
+    "blog_tq_issue_content_too_long": "Translated content too long: {translatedLength} chars vs {sourceLength} chars (ratio {ratio})",
+    "blog_tq_issue_heading_mismatch": "Heading count mismatch: {translatedCount} vs {sourceCount}",
+    "blog_tq_issue_code_block_mismatch": "Code block count mismatch: {translatedCount} vs {sourceCount}",
+    "blog_tq_issue_table_mismatch": "Table row count mismatch: {translatedCount} vs {sourceCount}",
+    "blog_tq_issue_list_mismatch": "List item count mismatch: {translatedCount} vs {sourceCount}",
+    "blog_tq_issue_untranslated_chars": "Untranslated: {chineseChars} Chinese characters remaining ({ratio}%)",
+    "blog_tq_issue_same_as_source": "Translation is identical to source, not translated",
+    "blog_tq_issue_missing_translation_field": "Missing translation field",
     "blog_article_translationRequestSent": "Translation request sent, will refresh automatically",
     "blog_article_translationFailed": "Translation failed, please try again later",
     "blog_article_retranslate": "Retranslate",
@@ -520,7 +531,10 @@
     "blog_import_retryFailed": "Retry Failed",
     "blog_import_retryHint": "Article list preserved, adjust and re-import",
     "blog_import_hideExists": "Existing articles are not selectable",
-    "blog_import_emptyHint": "Click the 'Scan Files' button above to discover Markdown articles from the local docs/blog/articles/ directory"
+    "blog_import_emptyHint": "Click the 'Scan Files' button above to discover Markdown articles from the local docs/blog/articles/ directory",
+    "app_title": "Blog Admin",
+    "user_fallbackName": "Admin",
+    "header_switchLanguage": "Switch language"
   },
   "systemConfig": {
     "pageTitle": "System Config",
@@ -571,7 +585,9 @@
     "strategyTip2": "Changing the source language will not affect existing translations.",
     "strategyTip3": "Newly created content will be translated using the new source language.",
     "strategyTip4": "Translation strategy settings can be modified in the \"General Config\" tab.",
-    "keyboardHint": "Press {enterKey} to save, {escKey} to cancel."
+    "keyboardHint": "Press {enterKey} to save, {escKey} to cancel.",
+    "defaultSourceLang": "Default Source Language for Translation",
+    "defaultSourceLangDesc": "Default source language for AI translation, defaults to Chinese (zh)"
   },
   "blogCard": {
     "translationProgress": "Translation Progress",
@@ -591,6 +607,35 @@
     "allJobsCompleted": "All translation jobs completed",
     "translationNotStarted": "⏳ Translation not started yet"
   },
+  "aiService": {
+    "statusTitle": "🤖 AI Service Status",
+    "serviceLevel": "Service Level",
+    "health": "Health",
+    "healthy": "Healthy",
+    "unhealthy": "Unhealthy",
+    "circuitBreaker": "Circuit Breaker",
+    "circuitBreakerOpen": "OPEN (resets {time})",
+    "circuitBreakerClosed": "Closed",
+    "totalUsage": "Total Usage",
+    "requests": "Requests",
+    "tokens": "Tokens",
+    "dailyTokens": "Daily Tokens",
+    "providers": "Providers",
+    "reqPerTok": "{req} req / {tok}k tok",
+    "keyIndex": "#{index}",
+    "keyDaily": "{used}k / {limit}k",
+    "blocked": "BLOCKED",
+    "rateLimits": "Rate Limits",
+    "rateLimitsFormat": "RPM: {rpm} | TPM: {tpm} | TPD: {tpd}",
+    "providerConfigTitle": "⚙️ AI Provider Config",
+    "providerLabel": "Provider",
+    "selectProvider": "-- Select Provider --",
+    "unavailable": " (unavailable)",
+    "modelLabel": "Model",
+    "selectModel": "-- Select Model --",
+    "saveConfig": "Save Config",
+    "currentConfig": "Current: {provider} / {model}"
+  },
   "login": {
     "title": "Welcome Back",
     "subtitle": "Enter your credentials to access the dashboard",
@@ -608,6 +653,10 @@
     "welcomeBack": "Welcome back, Admin!",
     "loginFailedNoToken": "Login failed: No access token received.",
     "loginFailedGeneric": "Login failed. Please try again.",
-    "copyright": "© {year} JoyMini Blog Admin. All rights reserved."
+    "copyright": "© {year} JoyMini Blog Admin. All rights reserved.",
+    "roleSuperAdmin": "Super Admin",
+    "roleAdmin": "Admin",
+    "roleEditor": "Editor",
+    "roleViewer": "Viewer"
   }
 }

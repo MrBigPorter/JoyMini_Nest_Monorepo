@@ -63,7 +63,7 @@ export default function BlogDashboardPage() {
       // Fetch all data in parallel
       const [articlesRes, categoriesRes, tagsRes, commentsRes] =
         await Promise.all([
-          blogApi.getArticles({ page: 1, pageSize: 5 }),
+          blogApi.getArticles({ page: 1, pageSize: 5, locale: lang }),
           blogApi.getCategories(),
           blogApi.getTags(),
           blogApi.getComments({ status: 'PENDING' }),

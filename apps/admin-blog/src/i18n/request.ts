@@ -21,14 +21,25 @@ type RawLocaleJson = {
   translations: Record<string, string>;
   blogCard?: Record<string, string>;
   systemConfig?: Record<string, unknown>;
+  aiService?: Record<string, unknown>;
   login?: Record<string, unknown>;
 };
 
 function flatten(raw: RawLocaleJson): Record<string, unknown> {
   return {
     ...raw.translations,
+    // Flatten role keys (roleSuperAdmin, roleAdmin, etc.) to top level so
+    // next-intl can resolve them without requiring dot-path traversal into
+    // nested objects like login, which can throw MISSING_MESSAGE in raw().
+    // Admin-blog stores role keys inside the login section of locale JSON.
+    ...(raw.login
+      ? Object.fromEntries(
+          Object.entries(raw.login).filter(([k]) => k.startsWith('role')),
+        )
+      : {}),
     ...(raw.blogCard ? { blogCard: raw.blogCard } : {}),
     ...(raw.systemConfig ? { systemConfig: raw.systemConfig } : {}),
+    ...(raw.aiService ? { aiService: raw.aiService } : {}),
     ...(raw.login ? { login: raw.login } : {}),
   };
 }
@@ -94,6 +105,11 @@ export default getRequestConfig(async ({ requestLocale }) => {
           systemConfig: {
             ...(enFlat.systemConfig as Record<string, unknown>),
             ...(localeFlat.systemConfig as Record<string, unknown> | undefined),
+          },
+          // aiService needs its own deep merge (nested objects, not flat strings)
+          aiService: {
+            ...(enFlat.aiService as Record<string, unknown>),
+            ...(localeFlat.aiService as Record<string, unknown> | undefined),
           },
           // login needs its own deep merge (nested objects, not flat strings)
           login: {

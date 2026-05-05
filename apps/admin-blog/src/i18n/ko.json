@@ -15,6 +15,8 @@
     "header_settings": "Settings",
     "header_logout": "Logout",
     "header_loggingOut": "Logging out…",
+    "header_loggedOut": "로그아웃되었습니다",
+    "header_logoutFailed": "로그아웃 실패: {message}",
     "logout": "로그아웃",
     "add": "새로 추가",
     "edit": "편집",
@@ -519,7 +521,10 @@
     "blog_import_retryFailed": "실패 재시도",
     "blog_import_retryHint": "문서 목록이 유지되었습니다. 조정 후 다시 가져오세요",
     "blog_import_hideExists": "기존 문서는 선택할 수 없습니다",
-    "blog_import_emptyHint": "위의 '파일 스캔' 버튼을 클릭하여 로컬 docs/blog/articles/ 디렉토리에서 Markdown 문서를 찾으세요"
+    "blog_import_emptyHint": "위의 '파일 스캔' 버튼을 클릭하여 로컬 docs/blog/articles/ 디렉토리에서 Markdown 문서를 찾으세요",
+    "app_title": "블로그 관리",
+    "user_fallbackName": "관리자",
+    "header_switchLanguage": "언어 전환"
   },
   "systemConfig": {
     "pageTitle": "시스템 설정",
@@ -570,6 +575,8 @@
     "strategyTip2": "소스 언어를 변경해도 기존 번역에는 영향을 미치지 않습니다",
     "strategyTip3": "새로 생성된 콘텐츠는 새 소스 언어로 번역됩니다",
     "strategyTip4": "번역 전략 설정은 '일반 설정' 탭에서 수정할 수 있습니다",
+    "defaultSourceLang": "번역 기본 소스 언어",
+    "defaultSourceLangDesc": "AI 번역의 기본 소스 언어입니다. 기본값은 중국어(zh)입니다",
     "keyboardHint": "{enterKey}를 눌러 저장, {escKey}를 눌러 취소"
   },
   "blogCard": {
@@ -590,6 +597,35 @@
     "allJobsCompleted": "모든 번역 작업이 완료되었습니다",
     "translationNotStarted": "⏳ 번역이 아직 시작되지 않았습니다"
   },
+  "aiService": {
+    "statusTitle": "🤖 AI 서비스 상태",
+    "serviceLevel": "서비스 수준",
+    "health": "상태",
+    "healthy": "정상",
+    "unhealthy": "비정상",
+    "circuitBreaker": "서킷 브레이커",
+    "circuitBreakerOpen": "OPEN ({time} 후 재설정)",
+    "circuitBreakerClosed": "닫힘",
+    "totalUsage": "총 사용량",
+    "requests": "요청",
+    "tokens": "토큰",
+    "dailyTokens": "일일 토큰",
+    "providers": "제공자",
+    "reqPerTok": "{req} req / {tok}k tok",
+    "keyIndex": "#{index}",
+    "keyDaily": "{used}k / {limit}k",
+    "blocked": "차단됨",
+    "rateLimits": "속도 제한",
+    "rateLimitsFormat": "RPM: {rpm} | TPM: {tpm} | TPD: {tpd}",
+    "providerConfigTitle": "⚙️ AI 제공자 설정",
+    "providerLabel": "제공자",
+    "selectProvider": "-- 제공자 선택 --",
+    "unavailable": " (사용 불가)",
+    "modelLabel": "모델",
+    "selectModel": "-- 모델 선택 --",
+    "saveConfig": "설정 저장",
+    "currentConfig": "현재: {provider} / {model}"
+  },
   "login": {
     "title": "환영합니다",
     "subtitle": "자격 증명을 입력하여 대시보드에 액세스하세요",
@@ -607,6 +643,10 @@
     "welcomeBack": "환영합니다, 관리자님!",
     "loginFailedNoToken": "로그인 실패: 액세스 토큰을 받지 못했습니다.",
     "loginFailedGeneric": "로그인에 실패했습니다. 다시 시도해주세요.",
-    "copyright": "© {year} JoyMini Blog Admin. All rights reserved."
+    "copyright": "© {year} JoyMini Blog Admin. All rights reserved.",
+    "roleSuperAdmin": "슈퍼 관리자",
+    "roleAdmin": "관리자",
+    "roleEditor": "편집자",
+    "roleViewer": "뷰어"
   }
 }

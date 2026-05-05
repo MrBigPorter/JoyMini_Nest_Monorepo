@@ -16,8 +16,8 @@ import { useAuthStore } from '@/store/useAuthStore';
 import { useToastStore } from '@/store/useToastStore';
 import { Dropdown } from '@/components/UIComponents';
 import { useRequest } from 'ahooks';
-import { ROLE_DISPLAY_NAMES } from '@/constants';
-import { useTranslation } from '@/hooks/useTranslation';
+import { getRoleI18nKey } from '@/constants';
+import { useTranslation, type TFunc } from '@/hooks/useTranslation';
 import { useAvailableLocales } from '@/hooks/useAvailableLocales';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -28,7 +28,7 @@ interface HeaderProps {
 }
 
 /** Language selector dropdown shown in the header */
-function LocaleDropdown() {
+function LocaleDropdown({ t }: { t: TFunc }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const { enabledLocales } = useAvailableLocales();
@@ -49,7 +49,7 @@ function LocaleDropdown() {
       <button
         onClick={() => setOpen(!open)}
         className="p-2 text-gray-500 hover:text-primary-500 transition-colors rounded-full hover:bg-gray-100 dark:hover:bg-white/5"
-        title="Switch language"
+        title={t('header_switchLanguage')}
       >
         <Languages size={18} />
       </button>
@@ -100,12 +100,14 @@ export const Header: React.FC<HeaderProps> = ({ onMenuButtonClickAction }) => {
     logoutAction,
     {
       manual: true,
-      onSuccess: () => addToast('info', 'Logged out successfully'),
-      onError: (error) => addToast('error', `Logout failed: ${error.message}`),
+      onSuccess: () => addToast('info', t('header_loggedOut')),
+      onError: (error) =>
+        addToast('error', t('header_logoutFailed', { message: error.message })),
     },
   );
 
-  const displayName = userInfo?.realName || userInfo?.username || 'Admin';
+  const displayName =
+    userInfo?.realName || userInfo?.username || t('user_fallbackName');
   const initial = displayName.charAt(0).toUpperCase();
 
   return (
@@ -123,7 +125,7 @@ export const Header: React.FC<HeaderProps> = ({ onMenuButtonClickAction }) => {
       {/* Right */}
       <div className="flex items-center gap-1 flex-shrink-0">
         {/* Language selector */}
-        <LocaleDropdown />
+        <LocaleDropdown t={t} />
 
         {/* Theme toggle */}
         <button
@@ -151,7 +153,7 @@ export const Header: React.FC<HeaderProps> = ({ onMenuButtonClickAction }) => {
                 </span>
                 {userInfo?.role && (
                   <span className="text-xs text-gray-400">
-                    {ROLE_DISPLAY_NAMES[userInfo.role] ?? userInfo.role}
+                    {t(getRoleI18nKey(userInfo.role)) || userInfo.role}
                   </span>
                 )}
               </div>

@@ -131,10 +131,13 @@ export default function ArticlePreviewPage() {
     data: article,
     loading,
     error,
-  } = useRequest<ArticlePreview, any[]>(() => blogApi.getArticleBySlug(slug), {
-    refreshDeps: [slug],
-    cacheKey: `article-preview-${slug}`,
-  });
+  } = useRequest<ArticlePreview, any[]>(
+    () => blogApi.getArticleBySlug(slug, locale),
+    {
+      refreshDeps: [slug, locale],
+      cacheKey: `article-preview-${slug}-${locale}`,
+    },
+  );
 
   // Derive localized values - API returns title+titleLocalized, content+contentLocalized etc.
   const localizedTitle = useMemo(

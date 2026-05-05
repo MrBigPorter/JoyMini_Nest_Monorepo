@@ -6,6 +6,7 @@ import { Card, Button, Skeleton } from '@/components/UIComponents';
 import { useToastStore } from '@/store/useToastStore';
 import { blogApi, systemConfigApi } from '@/api';
 import { useTranslation } from '@/hooks/useTranslation';
+import LocalizedText from '@/components/blog/LocalizedText';
 import {
   Search,
   CheckCircle,
@@ -110,7 +111,7 @@ const DEFAULT_LANGUAGES = [
 ];
 
 export default function BlogTranslationQualityDetection() {
-  const { t: globalT } = useTranslation();
+  const { t: globalT, lang } = useTranslation();
   const { addToast } = useToastStore();
 
   const t = (key: string, params?: Record<string, string | number>) =>
@@ -409,7 +410,7 @@ export default function BlogTranslationQualityDetection() {
                           >
                             <td className="px-4 py-3">
                               <div className="font-medium text-gray-900 dark:text-white text-sm">
-                                {article.title}
+                                <LocalizedText value={article.title} />
                               </div>
                               <div className="text-xs text-gray-400 mt-0.5">
                                 {article.slug}
@@ -424,17 +425,30 @@ export default function BlogTranslationQualityDetection() {
                             <td className="px-4 py-3">
                               <div className="space-y-1">
                                 {(article.issues ?? []).map(
-                                  (issue: string, idx: number) => (
-                                    <div
-                                      key={idx}
-                                      className="flex items-start gap-1"
-                                    >
-                                      <AlertTriangle className="w-3 h-3 text-amber-500 mt-0.5 shrink-0" />
-                                      <span className="text-xs text-gray-600 dark:text-gray-400">
-                                        {issue}
-                                      </span>
-                                    </div>
-                                  ),
+                                  (issue: any, idx: number) => {
+                                    // 解析 issueType 并尝试从 i18n 查找对应翻译
+                                    const issueType = issue?.issueType;
+                                    const issueParams = issue?.params;
+                                    const issueDesc =
+                                      issue?.description ?? issue;
+                                    const localizedDesc =
+                                      issueType &&
+                                      globalT(
+                                        `blog_tq_issue_${issueType.toLowerCase()}`,
+                                        issueParams,
+                                      );
+                                    return (
+                                      <div
+                                        key={idx}
+                                        className="flex items-start gap-1"
+                                      >
+                                        <AlertTriangle className="w-3 h-3 text-amber-500 mt-0.5 shrink-0" />
+                                        <span className="text-xs text-gray-600 dark:text-gray-400">
+                                          {localizedDesc || issueDesc}
+                                        </span>
+                                      </div>
+                                    );
+                                  },
                                 )}
                               </div>
                             </td>
