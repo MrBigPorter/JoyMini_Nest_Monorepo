@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Put,
   Patch,
   Delete,
   Body,
@@ -84,6 +85,16 @@ export class CommentController {
   @RequirePermission('blog', 'update')
   async rejectComment(@Param('id') id: string) {
     return this.commentService.rejectComment(id);
+  }
+
+  @Put(':id')
+  @ApiOperation({ summary: '更新评论状态和回复内容 (管理员)' })
+  @RequirePermission('blog', 'update')
+  async updateComment(
+    @Param('id') id: string,
+    @Body() body: { status?: CommentStatus; reply?: Record<string, string> },
+  ) {
+    return this.commentService.updateComment(id, body);
   }
 
   @Delete(':id')

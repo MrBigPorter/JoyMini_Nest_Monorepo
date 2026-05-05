@@ -476,6 +476,7 @@
     "blog_comments_replyOptional": "回复（可选）",
     "blog_comments_replyPlaceholder": "添加对评论的公开回复",
     "blog_comments_update": "更新",
+    "blog_comments_commented": "发表了评论",
     "blog_import_pageTitle": "导入文章",
     "blog_import_pageDescription": "从本地 docs/blog/articles/ 目录扫描 Markdown 文章并批量导入",
     "blog_import_scan": "扫描文件",

@@ -282,13 +282,13 @@ export const blogApi = {
     search?: string;
   }) => {
     const data = await http.get<{
-      list: any[];
+      items: any[];
       total: number;
       page: number;
       pageSize: number;
     }>('/v1/admin/blog/comments', params);
     return {
-      list: data.list,
+      list: data.items,
       total: data.total,
       page: data.page,
       pageSize: data.pageSize,
@@ -307,7 +307,7 @@ export const blogApi = {
     id: string,
     payload: {
       status?: string;
-      content?: string;
+      reply?: Record<string, string>;
     },
   ) => {
     return await http.put<any>(`/v1/admin/blog/comments/${id}`, payload);

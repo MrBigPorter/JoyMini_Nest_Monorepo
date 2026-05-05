@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { useToastStore } from '@/store/useToastStore';
 import { Card, Badge, Skeleton } from '@/components/UIComponents';
+import { ModalManager } from '@repo/ui';
 import { blogApi } from '@/api';
 import { PageHeader } from '@/components/scaffold/PageHeader';
 import { BlogCommentModal } from '@/views/blog/BlogCommentModal';
@@ -182,19 +183,32 @@ export default function CommentsPage() {
     }
   };
 
-  const handleDeleteComment = async (commentId: string) => {
-    if (!window.confirm(t('deleteConfirm'))) {
-      return;
-    }
-
-    try {
-      await blogApi.deleteComment(commentId);
-      addToast('success', t('commentDeleted'));
-      fetchComments(); // Refresh the list
-    } catch (error) {
-      console.error('Failed to delete comment:', error);
-      addToast('error', t('deleteFailed'));
-    }
+  const handleDeleteComment = (commentId: string) => {
+    ModalManager.open({
+      title: t('deleteComment'),
+      confirmText: t('deleteConfirm'),
+      cancelText: t('cancel'),
+      renderChildren: (
+        <div className="space-y-3">
+          <p>{t('deleteConfirmText')}</p>
+          <div className="text-sm text-amber-600 bg-amber-50 p-3 rounded-lg border border-amber-200">
+            <div className="font-semibold mb-1">
+              {t('actionCannotBeUndone')}
+            </div>
+          </div>
+        </div>
+      ),
+      onConfirm: async () => {
+        try {
+          await blogApi.deleteComment(commentId);
+          addToast('success', t('commentDeleted'));
+          fetchComments();
+        } catch (error) {
+          console.error('Failed to delete comment:', error);
+          addToast('error', t('deleteFailed'));
+        }
+      },
+    });
   };
 
   const handleEditComment = (comment: any) => {
@@ -428,6 +442,21 @@ export default function CommentsPage() {
                 </div>
               </div>
 
+              {/* Show parent comment context when comment is a reply */}
+              {comment.parent && (
+                <div className="mb-3 p-3 bg-gray-50 dark:bg-black/10 rounded-lg border border-gray-100 dark:border-white/5">
+                  <div className="flex items-center gap-2 mb-1">
+                    <User className="h-3 w-3 text-muted-foreground" />
+                    <span className="text-xs font-medium text-muted-foreground">
+                      {comment.parent.author} {t('commented')}:
+                    </span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {comment.parent.content}
+                  </p>
+                </div>
+              )}
+
               <div className="mb-3">
                 <p className="text-sm">{comment.content}</p>
               </div>
@@ -443,11 +472,20 @@ export default function CommentsPage() {
                   </a>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <button className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-200 transition-colors">
+                  <button
+                    onClick={() => router.push('/blog/articles')}
+                    className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-200 transition-colors"
+                  >
                     <Eye className="mr-1 h-3 w-3 inline" />
                     {t('viewArticle')}
                   </button>
-                  <button className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-200 transition-colors">
+                  <button
+                    onClick={() => {
+                      setEditingComment(comment);
+                      setIsModalOpen(true);
+                    }}
+                    className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-200 transition-colors"
+                  >
                     {t('reply')}
                   </button>
                 </div>

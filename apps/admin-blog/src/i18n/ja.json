@@ -476,6 +476,7 @@
     "blog_comments_replyOptional": "返信（任意）",
     "blog_comments_replyPlaceholder": "コメントへの公開返信を追加",
     "blog_comments_update": "更新",
+    "blog_comments_commented": "がコメントしました",
     "blog_import_pageTitle": "記事をインポート",
     "blog_import_pageDescription": "ローカルの docs/blog/articles/ ディレクトリから Markdown 記事をスキャンして一括インポート",
     "blog_import_scan": "ファイルをスキャン",

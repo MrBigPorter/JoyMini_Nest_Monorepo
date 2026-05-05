@@ -476,6 +476,7 @@
     "blog_comments_replyOptional": "Reply (optional)",
     "blog_comments_replyPlaceholder": "Add a public reply to the comment",
     "blog_comments_update": "Update",
+    "blog_comments_commented": "commented",
     "blog_import_pageTitle": "Import Articles",
     "blog_import_pageDescription": "Scan and batch import Markdown articles from the local docs/blog/articles/ directory",
     "blog_import_scan": "Scan Files",

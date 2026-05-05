@@ -23,6 +23,7 @@ import ArticleMarkdown from '@/components/blog/ArticleMarkdown';
 import CommentList from '@/components/blog/CommentList';
 import { BookmarkButton } from '@/components/blog/BookmarkButton';
 import { useAuth } from '@/lib/hooks';
+import { useIsClient } from '@/lib/hooks/useIsClient';
 
 // ---------------------------------------------------------------------------
 // Loading placeholder
@@ -54,6 +55,7 @@ export default function ArticlePageClient({
   const params = useParams();
   const locale = useLocale();
   const { isAuthenticated } = useAuth();
+  const isClient = useIsClient();
   const router = useRouter();
   const t = useTranslations('article');
   const tc = useTranslations('common');
@@ -256,7 +258,7 @@ export default function ArticlePageClient({
           </div>
 
           {/* Action buttons */}
-          {isAuthenticated && (
+          {isClient && isAuthenticated && (
             <div className="flex items-center gap-2">
               <BookmarkButton articleId={article.id} />
             </div>

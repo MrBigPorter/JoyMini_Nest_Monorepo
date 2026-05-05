@@ -475,6 +475,7 @@
     "blog_comments_replyOptional": "답변 (선택사항)",
     "blog_comments_replyPlaceholder": "댓글에 공개 답변 추가",
     "blog_comments_update": "업데이트",
+    "blog_comments_commented": "댓글을 남겼습니다",
     "blog_import_pageTitle": "게시물 가져오기",
     "blog_import_pageDescription": "로컬 docs/blog/articles/ 디렉토리에서 Markdown 게시물을 스캔하고 일괄 가져오기",
     "blog_import_scan": "파일 스캔",

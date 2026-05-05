@@ -9,6 +9,11 @@ import { frontendBlogApi } from '@/lib/api/frontendBlogApi';
 import { useCurrentLocale } from '@/lib/hooks/useCurrentLocale';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useToast } from '@/lib/hooks/useToast';
+import {
+  commentStatusManager,
+  createStatusCheckCallback,
+} from '@/lib/utils/commentStatus';
+import type { Comment } from '@/lib/types/blog';
 
 /**
  * 评论相关Hook
@@ -75,7 +80,17 @@ export function useComments() {
   };
 
   /**
-   * 发表评论
+   * 发表评论（带乐观更新）
+   *
+   * 乐观更新流程：
+   * 1. onMutate: 立即创建临时评论（temp-xxx）插入缓存，用户即时看到
+   * 2. onSuccess: 用真实评论数据替换临时评论，注册 commentStatusManager 轮询审核状态
+   * 3. onError: 回滚缓存，移除临时评论
+   * 4. 轮询检测到 APPROVED → invalidateQueries 刷新列表
+   *
+   * 注意：使用 getQueriesData/setQueryData 配合模糊匹配查询key，
+   * 因为无限查询的key包含 { pageSize } 后缀（如 [{ pageSize: 20 }]），
+   * 必须模糊匹配才能找到所有相关的缓存条目并更新。
    */
   const usePostComment = (articleId: string) => {
     return useMutation({
@@ -89,14 +104,141 @@ export function useComments() {
         };
         return await frontendBlogApi.postComment(articleId, commentData);
       },
-      onSuccess: () => {
-        // 使评论列表缓存失效
-        queryClient.invalidateQueries({
+      onMutate: async (data) => {
+        // 取消进行中的评论列表查询，避免覆盖乐观更新
+        // cancelQueries 支持模糊匹配，会取消所有匹配的查询
+        await queryClient.cancelQueries({
           queryKey: ['comments', 'infinite', articleId, locale],
         });
+
+        // 使用模糊匹配查找所有相关的缓存条目（包括带 { pageSize } 后缀的）
+        // 并保存用于错误时回滚
+        const previousEntries = queryClient.getQueriesData({
+          queryKey: ['comments', 'infinite', articleId, locale],
+        });
+
+        // 生成临时评论ID
+        const tempId = `temp-${Date.now()}`;
+
+        // 创建临时评论对象
+        const tempComment: Comment = {
+          id: tempId,
+          articleId,
+          author: 'Anonymous',
+          email: null,
+          website: null,
+          content: data.content,
+          parentId: data.parentId || null,
+          approved: false,
+          likes: 0,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          children: [],
+        };
+
+        // 更新所有匹配的缓存条目：将临时评论插入首页
+        previousEntries.forEach(([key]) => {
+          queryClient.setQueryData(key, (old: any) => {
+            if (!old) {
+              return {
+                pages: [
+                  {
+                    items: [tempComment],
+                    total: 1,
+                    page: 1,
+                    pageSize: 20,
+                    totalPages: 1,
+                  },
+                ],
+                pageParams: [1],
+              };
+            }
+
+            return {
+              ...old,
+              pages: old.pages.map((page: any, index: number) => {
+                if (index === 0) {
+                  return {
+                    ...page,
+                    items: [tempComment, ...(page.items || [])],
+                    total: (page.total || 0) + 1,
+                  };
+                }
+                return page;
+              }),
+            };
+          });
+        });
+
+        return { previousEntries, tempId };
+      },
+      onSuccess: (data, _variables, context) => {
+        if (!context) return;
+
+        // API返回的data有status字段，但Comment类型使用approved
+        const responseData = data as any;
+        const isApproved = responseData.status === 'APPROVED';
+
+        // 用真实评论数据替换所有匹配缓存中的临时评论
+        const entries = queryClient.getQueriesData({
+          queryKey: ['comments', 'infinite', articleId, locale],
+        });
+        entries.forEach(([key]) => {
+          queryClient.setQueryData(key, (old: any) => {
+            if (!old) return old;
+
+            return {
+              ...old,
+              pages: old.pages.map((page: any) => ({
+                ...page,
+                items: (page.items || []).map((item: Comment) => {
+                  if (item.id === context.tempId) {
+                    return {
+                      ...item,
+                      id: responseData.id,
+                      content: responseData.content,
+                      author: responseData.author || 'Anonymous',
+                      approved: isApproved,
+                      createdAt: responseData.createdAt,
+                      updatedAt: responseData.updatedAt,
+                    };
+                  }
+                  return item;
+                }),
+              })),
+            };
+          });
+        });
+
+        // 注册到 commentStatusManager 进行状态轮询
+        commentStatusManager.registerPendingComment(
+          context.tempId,
+          responseData.id,
+          articleId,
+          { maxPollAttempts: 20, pollInterval: 15000 }, // 最多20次，间隔15秒 = 5分钟
+        );
+
+        // 开始轮询
+        commentStatusManager.startStatusPolling(
+          context.tempId,
+          createStatusCheckCallback(articleId, responseData.id),
+        );
+
         success('评论发表成功');
       },
-      onError: (err) => {
+      onError: (err, _variables, context) => {
+        // 回滚所有匹配的缓存条目到之前的状态
+        if (context?.previousEntries) {
+          context.previousEntries.forEach(([key, data]) => {
+            queryClient.setQueryData(key, data);
+          });
+        }
+
+        // 清理 commentStatusManager 中的临时记录
+        if (context?.tempId) {
+          commentStatusManager.removePendingComment(context.tempId);
+        }
+
         const errorMessage =
           err instanceof Error ? err.message : '评论发表失败';
         error(`评论发表失败: ${errorMessage}`);

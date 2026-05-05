@@ -476,6 +476,7 @@
     "blog_comments_replyOptional": "Réponse (facultative)",
     "blog_comments_replyPlaceholder": "Ajouter une réponse publique au commentaire",
     "blog_comments_update": "Mettre à jour",
+    "blog_comments_commented": "a commenté",
     "blog_import_pageTitle": "Importer des articles",
     "blog_import_pageDescription": "Analyser et importer par lots les articles Markdown depuis le répertoire local docs/blog/articles/",
     "blog_import_scan": "Analyser",
