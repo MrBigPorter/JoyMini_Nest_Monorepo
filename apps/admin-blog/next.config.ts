@@ -1,13 +1,13 @@
-import type { NextConfig } from "next";
-import path from "path";
-import BundleAnalyzer from "@next/bundle-analyzer";
-import { withSentryConfig } from "@sentry/nextjs";
-import createNextIntlPlugin from "next-intl/plugin";
+import type { NextConfig } from 'next';
+import path from 'path';
+import BundleAnalyzer from '@next/bundle-analyzer';
+import { withSentryConfig } from '@sentry/nextjs';
+import createNextIntlPlugin from 'next-intl/plugin';
 
-const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
+const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
 
 const withBundleAnalyzer = BundleAnalyzer({
-  enabled: process.env.ANALYZE === "true",
+  enabled: process.env.ANALYZE === 'true',
   openAnalyzer: false,
 });
 
@@ -22,17 +22,17 @@ const nextConfig: NextConfig = {
   images: {
     dangerouslyAllowSVG: true,
     remotePatterns: [
-      { protocol: "https", hostname: "img.joyminis.com" },
-      { protocol: "https", hostname: "**" },
+      { protocol: 'https', hostname: 'img.joyminis.com' },
+      { protocol: 'https', hostname: '**' },
     ],
   },
   experimental: {
     optimizePackageImports: [
-      "@repo/ui",
-      "lucide-react",
-      "lodash",
-      "date-fns",
-      "framer-motion",
+      '@repo/ui',
+      'lucide-react',
+      'lodash',
+      'date-fns',
+      'framer-motion',
     ],
   },
   webpack: (config, { isServer, webpack }) => {
@@ -60,7 +60,7 @@ const nextConfig: NextConfig = {
     // Remove Sentry debug logging from production bundle
     if (!isServer) {
       const minimizer = config.optimization?.minimizer?.map((plugin: any) => {
-        if (plugin.constructor.name === "TerserPlugin") {
+        if (plugin.constructor.name === 'TerserPlugin') {
           return new (plugin.constructor as typeof plugin.constructor)({
             ...plugin.options,
             terserOptions: {
@@ -69,10 +69,10 @@ const nextConfig: NextConfig = {
                 ...plugin.options?.terserOptions?.compress,
                 drop_debugger: true,
                 pure_funcs: [
-                  "console.log",
-                  "console.info",
-                  "console.debug",
-                  "console.trace",
+                  'console.log',
+                  'console.info',
+                  'console.debug',
+                  'console.trace',
                 ],
               },
             },
@@ -94,7 +94,7 @@ const nextConfig: NextConfig = {
 const sentryConfig = {
   silent: true,
   hideSourceMaps: true,
-  tunnelRoute: "/monitoring",
+  tunnelRoute: '/monitoring',
 };
 
 export default withSentryConfig(

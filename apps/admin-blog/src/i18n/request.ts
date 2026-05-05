@@ -2,6 +2,7 @@ import { getRequestConfig } from 'next-intl/server';
 import { cookies } from 'next/headers';
 import { DEFAULT_LOCALE, AVAILABLE_LOCALES } from '@lucky/shared';
 import type { Locale } from '@lucky/shared';
+import { FALLBACK_LOCALE } from '@/lib/utils/locale';
 
 // ── Static imports — Turbopack compatible ─────────────────────────────────
 // Dynamic import() of JSON files is not reliably supported under Turbopack.
@@ -34,12 +35,13 @@ function flatten(raw: RawLocaleJson): Record<string, unknown> {
 
 export default getRequestConfig(async ({ requestLocale }) => {
   // ── 1. Resolve locale ─────────────────────────────────────────────────────
-  // Priority: NEXT_LOCALE cookie > requestLocale (from next-intl routing) > DEFAULT_LOCALE
-  // Note: next-intl middleware (createMiddleware) is NOT used in this project,
-  // so requestLocale always returns undefined. We read NEXT_LOCALE cookie directly.
-  let locale: Locale = DEFAULT_LOCALE;
+  // Priority: NEXT_LOCALE cookie (set by middleware from Accept-Language) > requestLocale > FALLBACK_LOCALE (en)
+  // Note: next-intl middleware (createMiddleware) is NOT used in this project.
+  // The middleware.ts already reads Accept-Language and sets NEXT_LOCALE cookie,
+  // so we only need to read the cookie here — no direct headers() call needed.
+  let locale: Locale | null = null;
 
-  // Read NEXT_LOCALE cookie directly since no next-intl middleware exists
+  // 1a. Read NEXT_LOCALE cookie — set by middleware from Accept-Language, or by user's manual switch
   try {
     const cookieStore = await cookies();
     const localeCookie = cookieStore.get('NEXT_LOCALE')?.value;
@@ -50,8 +52,8 @@ export default getRequestConfig(async ({ requestLocale }) => {
     // cookies() can throw in some contexts — fall through
   }
 
-  // Fallback to requestLocale if cookie wasn't set
-  if (locale === DEFAULT_LOCALE) {
+  // 1b. Fallback to requestLocale (always undefined since no next-intl middleware)
+  if (!locale) {
     try {
       const rl = await requestLocale;
       if (rl && AVAILABLE_LOCALES.includes(rl as Locale)) {
@@ -60,6 +62,11 @@ export default getRequestConfig(async ({ requestLocale }) => {
     } catch {
       // requestLocale rejected — fall through to default
     }
+  }
+
+  // 1c. Final fallback — use English when nothing matches
+  if (!locale) {
+    locale = FALLBACK_LOCALE;
   }
 
   // ── 2. Always load English as the baseline ─────────────────────────────────

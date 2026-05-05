@@ -2370,11 +2370,52 @@ export class BlogService {
         this.blogAiQueue.getFailed(),
       ]);
 
+      // 收集所有 job 中的 articleId / categoryId / tagId
+      const allJobs = [...activeJobs, ...waitingJobs, ...failedJobs];
+      const articleIds = new Set<string>();
+      const categoryIds = new Set<string>();
+      const tagIds = new Set<string>();
+      for (const job of allJobs) {
+        if (job.data?.articleId) articleIds.add(job.data.articleId);
+        if (job.data?.categoryId) categoryIds.add(job.data.categoryId);
+        if (job.data?.tagId) tagIds.add(job.data.tagId);
+      }
+
+      // 批量查询标题
+      const [articles, categories, tags] = await Promise.all([
+        articleIds.size > 0
+          ? this.prisma.blogArticle.findMany({
+              where: { id: { in: [...articleIds] } },
+              select: { id: true, title: true },
+            })
+          : Promise.resolve([]),
+        categoryIds.size > 0
+          ? this.prisma.blogCategory.findMany({
+              where: { id: { in: [...categoryIds] } },
+              select: { id: true, name: true },
+            })
+          : Promise.resolve([]),
+        tagIds.size > 0
+          ? this.prisma.blogTag.findMany({
+              where: { id: { in: [...tagIds] } },
+              select: { id: true, name: true },
+            })
+          : Promise.resolve([]),
+      ]);
+
+      const titleMap = new Map<string, string>();
+      for (const a of articles) titleMap.set(a.id, a.title);
+      for (const c of categories) titleMap.set(c.id, String(c.name ?? ''));
+      for (const t of tags) titleMap.set(t.id, String(t.name ?? ''));
+
       // 格式化任务信息
       const formatJob = (job: any) => ({
         id: job.id,
         name: job.name,
-        data: job.data,
+        data: {
+          ...job.data,
+          title: titleMap.get(job.data?.articleId ?? job.data?.categoryId ?? job.data?.tagId) || '',
+        },
         progress: job.progress,
         timestamp: job.timestamp,
         processedOn: job.processedOn,
@@ -2988,6 +3029,7 @@ export class BlogService {
     sourceContent: string,
     translatedContent: string,
     targetLang: string,
+    isShortText = false,
   ): {
     isComplete: boolean;
     completionRate: number;
@@ -3001,12 +3043,14 @@ export class BlogService {
     const lengthRatio = translatedLength / sourceLength;
 
     // 允许的长度范围: 不同语言有差异
+    // 对于短文本（标题/摘要，源文本 < 100 字符），使用更宽松的阈值
+    // 因为中文→英文翻译中，紧凑的中文标题会膨胀 2-4x 是正常现象
     const expectedRatioRange: Record<string, [number, number]> = {
-      en: [0.8, 2.5], // 英文可能更长
-      ja: [0.5, 1.5], // 日文可能更紧凑
-      ko: [0.6, 1.8], // 韩文中等
-      fr: [0.9, 2.0], // 法文略长
-      de: [0.8, 2.2], // 德文略长
+      en: isShortText && sourceLength < 100 ? [0.8, 4.0] : [0.8, 2.5],
+      ja: [0.5, 1.5],
+      ko: [0.6, 1.8],
+      fr: isShortText && sourceLength < 100 ? [0.9, 3.0] : [0.9, 2.0],
+      de: isShortText && sourceLength < 100 ? [0.8, 3.5] : [0.8, 2.2],
     };
 
     const [minRatio, maxRatio] = expectedRatioRange[targetLang] || [0.3, 3.0];
@@ -3162,17 +3206,19 @@ export class BlogService {
         continue;
       }
 
-      // 质量检测
+      // 质量检测（标题使用宽松长度阈值，因为中文→英文标题膨胀 2-4x 是正常现象）
       const titleQuality = this.detectTranslationQuality(
         sourceTitle || '',
         translatedTitle,
         targetLang,
+        true, // isShortText: 标题等短文本使用更宽松的长度阈值
       );
 
       const contentQuality = this.detectTranslationQuality(
         sourceContentMd || '',
         translatedContentMd,
         targetLang,
+        false, // 正文使用标准长度阈值
       );
 
       const allIssues = [
@@ -3240,6 +3286,159 @@ export class BlogService {
       message: `已投递 ${queued} 篇文章到翻译队列`,
       incompleteArticles: detection.incompleteArticles,
       queued,
+    };
+  }
+
+  /**
+   * 清空指定文章的翻译字段（重置为未翻译状态并自动投递翻译）
+   */
+  async clearArticleTranslations(
+    articleIds: string[],
+    targetLang: string,
+  ) {
+    if (!articleIds || articleIds.length === 0) {
+      throw new BadRequestException('articleIds is required');
+    }
+
+    const articles = await this.prisma.blogArticle.findMany({
+      where: { id: { in: articleIds } },
+      select: {
+        id: true,
+        titleLocalized: true,
+        contentLocalized: true,
+        contentMdLocalized: true,
+        excerptLocalized: true,
+      },
+    });
+
+    if (articles.length === 0) {
+      throw new NotFoundException('No articles found');
+    }
+
+    let cleared = 0;
+    for (const article of articles) {
+      const titleLoc = (article.titleLocalized as any) ?? {};
+      const contentLoc = (article.contentLocalized as any) ?? {};
+      const contentMdLoc = (article.contentMdLocalized as any) ?? {};
+      const excerptLoc = (article.excerptLocalized as any) ?? {};
+
+      // 删除目标语言的翻译字段
+      delete titleLoc[targetLang];
+      delete contentLoc[targetLang];
+      delete contentMdLoc[targetLang];
+      delete excerptLoc[targetLang];
+
+      await this.prisma.blogArticle.update({
+        where: { id: article.id },
+        data: {
+          titleLocalized: titleLoc,
+          contentLocalized: contentLoc,
+          contentMdLocalized: contentMdLoc,
+          excerptLocalized: excerptLoc,
+          translationStatus: 'PENDING',
+        },
+      });
+
+      // 投递重新翻译任务
+      await this.blogAiQueue.add(
+        'translate-article',
+        {
+          articleId: article.id,
+          targetLang,
+          sourceLang: 'zh',
+          force: true,
+        },
+        {
+          delay: cleared * 600,
+          removeOnComplete: true,
+        },
+      );
+      cleared++;
+    }
+
+    return {
+      success: true,
+      message: `已清空 ${cleared} 篇文章的 "${targetLang}" 翻译并重新投递翻译任务`,
+      cleared,
+    };
+  }
+
+  /**
+   * 停止/移除指定的翻译任务
+   */
+  async stopTranslationJob(jobId: string) {
+    const job = await this.blogAiQueue.getJob(jobId);
+    if (!job) {
+      throw new NotFoundException(`Job ${jobId} not found`);
+    }
+
+    await job.remove();
+
+    // 尝试同步更新 DB 记录（如果有对应的 TranslationJob 记录）
+    const jobData = job.data as any;
+    if (jobData?.articleId) {
+      await this.prisma.translationJob
+        .updateMany({
+          where: {
+            targetId: jobData.articleId,
+            targetLang: jobData.targetLang || 'en',
+            status: { in: ['QUEUED', 'PROCESSING'] },
+          },
+          data: { status: 'CANCELLED' },
+        })
+        .catch(() => {
+          // 可能没有对应 DB 记录，忽略
+        });
+    }
+
+    return {
+      success: true,
+      jobId,
+      message: `Job ${jobId} has been stopped and removed`,
+    };
+  }
+
+  /**
+   * 批量取消所有进行中和等待中的翻译任务
+   */
+  async stopAllTranslationJobs() {
+    const [activeJobs, waitingJobs] = await Promise.all([
+      this.blogAiQueue.getActive(),
+      this.blogAiQueue.getWaiting(),
+    ]);
+
+    const allJobs = [...activeJobs, ...waitingJobs];
+
+    if (allJobs.length === 0) {
+      return { success: true, stoppedCount: 0, message: '没有活跃或等待中的任务' };
+    }
+
+    // 收集所有 job 中的 targetId，用于同步更新 DB 记录
+    const articleIds = new Set<string>();
+    for (const job of allJobs) {
+      if (job.data?.articleId) articleIds.add(job.data.articleId);
+    }
+
+    // 并行移除所有 jobs
+    await Promise.all(allJobs.map((job) => job.remove().catch(() => {})));
+
+    // 批量更新 DB 中的 TranslationJob 记录为 CANCELLED
+    if (articleIds.size > 0) {
+      await this.prisma.translationJob
+        .updateMany({
+          where: {
+            targetId: { in: [...articleIds] },
+            status: { in: ['QUEUED', 'PROCESSING'] },
+          },
+          data: { status: 'CANCELLED' },
+        })
+        .catch(() => {});
+    }
+
+    return {
+      success: true,
+      stoppedCount: allJobs.length,
+      message: `已取消 ${allJobs.length} 个任务 (${activeJobs.length} 个进行中, ${waitingJobs.length} 个等待中)`,
     };
   }
 }

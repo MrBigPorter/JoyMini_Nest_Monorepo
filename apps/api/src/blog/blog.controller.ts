@@ -421,4 +421,33 @@ export class BlogController {
   async retranslateIncompleteArticles(@Body() body: { lang?: string }) {
     return this.blogService.retranslateIncompleteArticles(body?.lang || 'en');
   }
+
+  @Post('translation/clear-translations')
+  @ApiBearerAuth()
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiOperation({ summary: '清空指定文章的翻译字段（重置为未翻译状态并自动投递翻译）' })
+  async clearArticleTranslations(
+    @Body() body: { articleIds: string[]; targetLang: string },
+  ) {
+    return this.blogService.clearArticleTranslations(
+      body.articleIds,
+      body.targetLang || 'en',
+    );
+  }
+
+  @Post('translation/stop-job/:jobId')
+  @ApiBearerAuth()
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiOperation({ summary: '停止/移除指定的翻译任务' })
+  async stopTranslationJob(@Param('jobId') jobId: string) {
+    return this.blogService.stopTranslationJob(jobId);
+  }
+
+  @Post('translation/stop-all-jobs')
+  @ApiBearerAuth()
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiOperation({ summary: '批量取消所有进行中和等待中的翻译任务' })
+  async stopAllTranslationJobs() {
+    return this.blogService.stopAllTranslationJobs();
+  }
 }

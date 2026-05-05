@@ -9,6 +9,7 @@ import {
   Select,
   Skeleton,
 } from '@/components/UIComponents';
+
 import { useToastStore } from '@/store/useToastStore';
 import { blogApi } from '@/api';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -763,6 +764,30 @@ export default function BlogTranslationProgress() {
       runAiStatus();
     } catch (err: any) {
       addToast(err?.message || 'Failed to save provider config', 'error');
+    }
+  };
+
+  // 停止实时任务
+  const handleStopJob = async (jobId: string) => {
+    try {
+      await blogApi.translation.stopTranslationJob(jobId);
+      addToast('success', t('stopJobSuccess'));
+      runJobs();
+      runDbJobs();
+    } catch (err: any) {
+      addToast(err?.message || t('stopJobFailed'), 'error');
+    }
+  };
+
+  // 批量取消所有进行中和等待中的翻译任务
+  const handleStopAllJobs = async () => {
+    try {
+      await blogApi.translation.stopAllTranslationJobs();
+      addToast('success', t('stopAllJobsSuccess'));
+      runJobs();
+      runDbJobs();
+    } catch (err: any) {
+      addToast(err?.message || t('stopAllJobsFailed'), 'error');
     }
   };
 
@@ -1549,7 +1574,24 @@ export default function BlogTranslationProgress() {
       </Card>
 
       {/* 任务列表 */}
-      <Card title={t('liveJobsTitle')}>
+      <Card
+        title={
+          <div className="flex items-center justify-between w-full">
+            <span>{t('liveJobsTitle')}</span>
+            {(jobs?.active?.length > 0 || jobs?.waiting?.length > 0) && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-red-500 border-red-300 hover:bg-red-50"
+                onClick={handleStopAllJobs}
+              >
+                <XCircle className="w-4 h-4 mr-1" />
+                {t('stopAllJobs')}
+              </Button>
+            )}
+          </div>
+        }
+      >
         {jobsLoading ? (
           <div className="space-y-3">
             <Skeleton className="h-10" />
@@ -1568,26 +1610,44 @@ export default function BlogTranslationProgress() {
                   {t('activeJobs', { count: jobs.active.length })}
                 </h3>
                 <div className="space-y-2">
-                  {jobs.active.map((job: any) => (
-                    <div
-                      key={job.id}
-                      className="flex items-center justify-between p-3 bg-amber-50 rounded-lg"
-                    >
-                      <div>
-                        <div className="font-medium">{job.name}</div>
-                        <div className="text-sm text-gray-500">
-                          {job.data?.articleId ||
-                            job.data?.categoryId ||
-                            job.data?.tagId}
+                  {jobs.active.map((job: any) => {
+                    const jobName = job.data?.title || job.name;
+                    return (
+                      <div
+                        key={job.id}
+                        className="flex items-center justify-between p-3 bg-amber-50 rounded-lg"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-gray-500 truncate">
+                            {jobName}
+                          </div>
+                          <div className="text-sm text-gray-500 truncate">
+                            {job.data?.title
+                              ? `${job.data?.articleId?.substring(0, 8) || job.data?.categoryId?.substring(0, 8) || job.data?.tagId?.substring(0, 8)}... → ${(job.data?.targetLang || '').toUpperCase()}`
+                              : job.data?.articleId ||
+                                job.data?.categoryId ||
+                                job.data?.tagId}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <div className="text-sm text-gray-500">
+                            {t('progressWithPercent', {
+                              progress: job.progress || 0,
+                            })}
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-400 hover:text-red-600 hover:bg-red-50"
+                            onClick={() => handleStopJob?.(job.id)}
+                            title={t('stopJob')}
+                          >
+                            <XCircle className="w-4 h-4" />
+                          </Button>
                         </div>
                       </div>
-                      <div className="text-sm text-gray-500">
-                        {t('progressWithPercent', {
-                          progress: job.progress || 0,
-                        })}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -1599,24 +1659,42 @@ export default function BlogTranslationProgress() {
                   {t('waitingJobs', { count: jobs.waiting.length })}
                 </h3>
                 <div className="space-y-2">
-                  {jobs.waiting.slice(0, 5).map((job: any) => (
-                    <div
-                      key={job.id}
-                      className="flex items-center justify-between p-3 bg-blue-50 rounded-lg"
-                    >
-                      <div>
-                        <div className="font-medium">{job.name}</div>
-                        <div className="text-sm text-gray-500">
-                          {job.data?.articleId ||
-                            job.data?.categoryId ||
-                            job.data?.tagId}
+                  {jobs.waiting.slice(0, 5).map((job: any) => {
+                    const jobName = job.data?.title || job.name;
+                    return (
+                      <div
+                        key={job.id}
+                        className="flex items-center justify-between p-3 bg-blue-50 rounded-lg"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-gray-500 truncate">
+                            {jobName}
+                          </div>
+                          <div className="text-sm text-gray-500 truncate">
+                            {job.data?.title
+                              ? `${job.data?.articleId?.substring(0, 8) || job.data?.categoryId?.substring(0, 8) || job.data?.tagId?.substring(0, 8)}... → ${(job.data?.targetLang || '').toUpperCase()}`
+                              : job.data?.articleId ||
+                                job.data?.categoryId ||
+                                job.data?.tagId}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <div className="text-sm text-gray-500">
+                            {t('waiting')}
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-400 hover:text-red-600 hover:bg-red-50"
+                            onClick={() => handleStopJob?.(job.id)}
+                            title={t('stopJob')}
+                          >
+                            <XCircle className="w-4 h-4" />
+                          </Button>
                         </div>
                       </div>
-                      <div className="text-sm text-gray-500">
-                        {t('waiting')}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   {jobs.waiting.length > 5 && (
                     <div className="text-center text-sm text-gray-500 py-2">
                       {t('moreWaitingJobs', { count: jobs.waiting.length - 5 })}
@@ -1633,24 +1711,38 @@ export default function BlogTranslationProgress() {
                   {t('failedJobs', { count: jobs.failed.length })}
                 </h3>
                 <div className="space-y-2">
-                  {jobs.failed.slice(0, 3).map((job: any) => (
-                    <div
-                      key={job.id}
-                      className="flex items-center justify-between p-3 bg-red-50 rounded-lg"
-                    >
-                      <div>
-                        <div className="font-medium text-red-700">
-                          {job.name}
+                  {jobs.failed.slice(0, 3).map((job: any) => {
+                    const jobName = job.data?.title || job.name;
+                    return (
+                      <div
+                        key={job.id}
+                        className="flex items-center justify-between p-3 bg-red-50 rounded-lg"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-red-700 truncate">
+                            {jobName}
+                          </div>
+                          <div className="text-sm text-red-600 truncate">
+                            {job.failedReason || t('unknownError')}
+                          </div>
                         </div>
-                        <div className="text-sm text-red-600">
-                          {job.failedReason || t('unknownError')}
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Button variant="outline" size="sm">
+                            {t('retry')}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-400 hover:text-red-600 hover:bg-red-50"
+                            onClick={() => handleStopJob?.(job.id)}
+                            title={t('stopJob')}
+                          >
+                            <XCircle className="w-4 h-4" />
+                          </Button>
                         </div>
                       </div>
-                      <Button variant="outline" size="sm">
-                        {t('retry')}
-                      </Button>
-                    </div>
-                  ))}
+                    );
+                  })}
                   {jobs.failed.length > 3 && (
                     <div className="text-center text-sm text-gray-500 py-2">
                       {t('moreFailedJobs', { count: jobs.failed.length - 3 })}
