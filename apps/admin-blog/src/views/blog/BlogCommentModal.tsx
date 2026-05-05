@@ -75,7 +75,10 @@ export const BlogCommentModal: React.FC<BlogCommentModalProps> = ({
     defaultValues: getDefaultValues(),
     onSubmitAction: async (data) => {
       if (isEditing && editingComment) {
-        await updateComment(editingComment.id, data);
+        await updateComment(
+          editingComment.id,
+          data as Parameters<typeof updateComment>[1],
+        );
       }
     },
   });
