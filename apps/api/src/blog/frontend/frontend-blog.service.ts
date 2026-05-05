@@ -331,6 +331,7 @@ export class FrontendBlogService {
     const result: any = {
       id: article.id,
       slug: article.slug,
+      featured: article.featured ?? false,
       title: this.getLocalizedString(article, 'title', locale),
       excerpt: this.getLocalizedString(article, 'excerpt', locale),
       coverImage: this.getLocalizedString(article, 'coverImage', locale),

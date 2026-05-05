@@ -323,11 +323,11 @@ export const blogApi = {
   },
 
   approveComment: async (id: string) => {
-    return await http.post<any>(`/v1/admin/blog/comments/${id}/approve`);
+    return await http.patch<any>(`/v1/admin/blog/comments/${id}/approve`);
   },
 
   rejectComment: async (id: string) => {
-    return await http.post<any>(`/v1/admin/blog/comments/${id}/reject`);
+    return await http.patch<any>(`/v1/admin/blog/comments/${id}/reject`);
   },
 
   // Statistics

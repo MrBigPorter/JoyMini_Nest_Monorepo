@@ -394,7 +394,11 @@ function HomePageClientContent({ initialData, ...props }: HomePageClientProps) {
   // ──────────────────────────────────────────────────
   const displayArticles: FrontendArticle[] =
     allArticles.length > 0
-      ? allArticles
+      ? [...allArticles].sort((a, b) => {
+          const aFeatured = a.featured ?? false;
+          const bFeatured = b.featured ?? false;
+          return Number(bFeatured) - Number(aFeatured);
+        })
       : isInitialCategory && !isBackNavigation
         ? initialData?.items || []
         : [];

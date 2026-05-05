@@ -153,13 +153,17 @@ export function useLocalizedFormV2<T extends FieldValues>({
         });
 
         // 设置当前语言的值到表单
+        // 使用 setTimeout 延迟到渲染完成后执行，避免 React 警告：
+        // "Cannot update a component while rendering a different component"
         const currentLangValue = normalized[locale];
         if (currentLangValue !== undefined && currentLangValue !== rawValue) {
-          setValue(fieldPath, currentLangValue as PathValue<T, Path<T>>, {
-            shouldDirty: false,
-            shouldTouch: false,
-            shouldValidate: false,
-          });
+          setTimeout(() => {
+            setValue(fieldPath, currentLangValue as PathValue<T, Path<T>>, {
+              shouldDirty: false,
+              shouldTouch: false,
+              shouldValidate: false,
+            });
+          }, 0);
         }
       }
 
