@@ -97,7 +97,7 @@ export function CategoryFilter({
   // Loading skeleton
   if (isLoading) {
     return (
-      <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide px-4 sm:px-0">
+      <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
         {Array.from({ length: 6 }).map((_, i) => (
           <div
             key={i}
@@ -112,7 +112,7 @@ export function CategoryFilter({
 
   return (
     <div
-      className={`relative px-4 sm:px-0 transition-all duration-300 ${
+      className={`relative transition-all duration-300 ${
         isSticky
           ? 'bg-background/95 backdrop-blur-md shadow-[0_1px_3px_rgba(0,0,0,0.06)] dark:shadow-[0_1px_3px_rgba(0,0,0,0.3)]'
           : ''

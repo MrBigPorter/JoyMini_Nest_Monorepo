@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { supportsSyncRead } from '@/lib/utils/platform';
-import { setTokenCookie, clearTokenCookie } from '@/lib/utils/cookie-manager';
 import { cookieStorage } from './cookie-storage';
 
 export interface User {
@@ -120,17 +119,6 @@ export const useAuthStore = create<AuthState>()(
           _synced: true,
         });
 
-        // 同步设置Cookie（仅在客户端环境）
-        if (typeof window !== 'undefined') {
-          try {
-            setTokenCookie(tokens.accessToken);
-            console.log('Auth store: Cookie set successfully');
-          } catch (error) {
-            console.error('Auth store: Failed to set cookie:', error);
-            // 不抛出错误，继续执行
-          }
-        }
-
         console.log('Auth store: login successful, state updated');
 
         // 验证状态是否已设置
@@ -186,17 +174,6 @@ export const useAuthStore = create<AuthState>()(
       logout: () => {
         console.log('Auth store: logout called');
 
-        // 清除Cookie（仅在客户端环境）
-        if (typeof window !== 'undefined') {
-          try {
-            clearTokenCookie();
-            console.log('Auth store: Cookie cleared successfully');
-          } catch (error) {
-            console.error('Auth store: Failed to clear cookie:', error);
-            // 不抛出错误，继续执行
-          }
-        }
-
         set({
           user: null,
           accessToken: null,
@@ -207,17 +184,6 @@ export const useAuthStore = create<AuthState>()(
 
       setTokens: (tokens) => {
         console.log('Auth store: setTokens called', tokens);
-
-        // 同步更新Cookie（仅在客户端环境）
-        if (typeof window !== 'undefined' && tokens.accessToken) {
-          try {
-            setTokenCookie(tokens.accessToken);
-            console.log('Auth store: Cookie updated for token refresh');
-          } catch (error) {
-            console.error('Auth store: Failed to update cookie:', error);
-            // 不抛出错误，继续执行
-          }
-        }
 
         set({ ...tokens, _synced: true });
       },

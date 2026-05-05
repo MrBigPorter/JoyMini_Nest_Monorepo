@@ -21,7 +21,10 @@ import { ArticleCard } from '@/components/blog/ArticleCard';
 import { CategoryFilter } from '@/components/blog/CategoryFilter';
 import { LoadMore } from '@/components/blog/LoadMore';
 import { PageErrorBoundary } from '@/lib/components/ErrorBoundary';
-import { HomePageSkeleton } from '@/lib/components/SkeletonLoader';
+import {
+  HomePageSkeleton,
+  ArticleListSkeleton,
+} from '@/lib/components/SkeletonLoader';
 import { useHomePageContext } from '@/lib/providers/HomePageStateProvider';
 import { getNavDirection } from '@/lib/navigation/direction';
 import type {
@@ -65,6 +68,9 @@ function HomePageClientContent({ initialData, ...props }: HomePageClientProps) {
   // P0-3a: Network-aware adaptive quality
   const networkQuality = useNetworkQuality();
 
+  // Track hydration completion to avoid SSR/client mismatch with isFetching
+  const [isHydrated, setIsHydrated] = useState(false);
+
   // ──────────────────────────────────────────────────
   // Initialize state from URL search params (category)
   // ──────────────────────────────────────────────────
@@ -103,6 +109,9 @@ function HomePageClientContent({ initialData, ...props }: HomePageClientProps) {
   useEffect(() => {
     if (initialSeedDone.current) return;
     initialSeedDone.current = true;
+
+    // Mark hydration complete (runs only on client, not SSR)
+    setIsHydrated(true);
 
     // P0-4: On backward navigation, skip SSR seeding — Context already has data.
     if (!isBackNavigation) {
@@ -377,30 +386,39 @@ function HomePageClientContent({ initialData, ...props }: HomePageClientProps) {
     setPage((p) => p + 1);
   }, [isFetching]);
 
-  // Bookmark status
-  const articleIds = allArticles.map((a: FrontendArticle) => a.id);
+  // ──────────────────────────────────────────────────
+  // SSR-first rendering: use initialData directly when context is empty.
+  // This guarantees SSR and client first render produce identical output,
+  // eliminating hydration mismatches at the root cause.
+  // Context (allArticles) takes over once populated (Load More, backward nav, etc.)
+  // ──────────────────────────────────────────────────
+  const displayArticles: FrontendArticle[] =
+    allArticles.length > 0
+      ? allArticles
+      : isInitialCategory && !isBackNavigation
+        ? initialData?.items || []
+        : [];
+
+  // Bookmark status (use displayArticles to guarantee SSR/client parity)
+  const articleIds = displayArticles.map((a: FrontendArticle) => a.id);
   const { statusMap } = useBatchBookmarkStatusMap(articleIds);
 
-  // State checks
-  const hasInitialData = initialData?.items && initialData.items.length > 0;
-  const hasCurrentData = allArticles.length > 0;
   // Category is switching: query is fetching data for a newly selected category
   // (not first page load, not load more)
   const isCategorySwitching = isFetching && !isLoading && !!selectedCategoryId;
 
-  // P0-4: Suppress loading skeleton on backward navigation.
-  // Context already has accumulated data, so we skip the skeleton even if
-  // React Query is still refetching (stale data is shown while fetching).
-  const showSkeleton =
-    isLoading && !hasInitialData && !hasCurrentData && !isBackNavigation;
+  // Simplified skeleton: only show when data is loading and nothing to display
+  // BUT: during SSR and initial hydration, ignore isFetching to avoid mismatch
+  const showSkeleton = isHydrated && isFetching && displayArticles.length === 0;
 
-  // Skeleton: only when completely empty on first load (not on backward nav)
-  if (showSkeleton) {
+  // Full-page skeleton: genuinely no data at all and still loading
+  // Only show after hydration to avoid SSR/client mismatch
+  if (isHydrated && displayArticles.length === 0 && isFetching) {
     return <HomePageSkeleton />;
   }
 
   // Error: only when no data at all
-  if (error && !hasCurrentData) {
+  if (error && displayArticles.length === 0) {
     return (
       <PageErrorBoundary>
         <div className="flex flex-col items-center justify-center py-20">
@@ -446,22 +464,24 @@ function HomePageClientContent({ initialData, ...props }: HomePageClientProps) {
             </div>
           )}
 
-          {/* Article grid */}
-          {allArticles.length > 0 ? (
+          {/* Article grid / Skeleton / Empty state */}
+          {displayArticles.length > 0 ? (
             <>
               <div className="grid gap-6 md:grid-cols-2">
-                {allArticles.map((article: FrontendArticle, index: number) => {
-                  const bookmarkStatus = statusMap.get(article.id);
-                  return (
-                    <ArticleCard
-                      key={article.id}
-                      article={article}
-                      bookmarkStatus={bookmarkStatus}
-                      priority={index < 2}
-                      networkQuality={networkQuality}
-                    />
-                  );
-                })}
+                {displayArticles.map(
+                  (article: FrontendArticle, index: number) => {
+                    const bookmarkStatus = statusMap.get(article.id);
+                    return (
+                      <ArticleCard
+                        key={article.id}
+                        article={article}
+                        bookmarkStatus={bookmarkStatus}
+                        priority={index < 2}
+                        networkQuality={networkQuality}
+                      />
+                    );
+                  },
+                )}
               </div>
 
               {/* Loading indicator for load more */}
@@ -499,8 +519,11 @@ function HomePageClientContent({ initialData, ...props }: HomePageClientProps) {
                 hasMore={hasMore}
               />
             </>
-          ) : isCategorySwitching ? null : (
-            /* Empty state */
+          ) : showSkeleton ? (
+            /* Inline skeleton grid — keeps CategoryFilter visible during transitions */
+            <ArticleListSkeleton count={6} />
+          ) : (
+            /* Empty state — only when truly no articles (not loading/transitioning) */
             <div className="text-center py-20">
               <svg
                 className="w-16 h-16 mx-auto mb-4 text-slate-300 dark:text-slate-600"

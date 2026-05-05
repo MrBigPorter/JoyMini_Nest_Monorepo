@@ -4,11 +4,7 @@
  * 与语言设置保持一致的存储策略
  */
 
-import {
-  getTokenCookie,
-  setTokenCookie,
-  clearTokenCookie,
-} from '@/lib/utils/cookie-manager';
+import { getTokenCookie } from '@/lib/utils/cookie-manager';
 
 /**
  * Zustand StateStorage接口实现
@@ -81,22 +77,13 @@ export const cookieStorage: import('zustand/middleware').StateStorage = {
       const accessToken = parsed?.state?.accessToken;
 
       if (accessToken && typeof accessToken === 'string') {
-        // 同时存储完整的Zustand状态和单独的accessToken（向后兼容）
-        // 1. 存储完整的Zustand状态到Cookie
+        // 存储完整的Zustand状态到Cookie
         const encodedValue = encodeURIComponent(value);
-        const isProduction = process.env.NODE_ENV === 'production';
-        const secureFlag = isProduction ? '; Secure' : '';
-        const httpOnlyFlag = isProduction ? '; HttpOnly' : '';
-
-        document.cookie = `${name}=${encodedValue}; path=/; max-age=86400; SameSite=Lax${secureFlag}${httpOnlyFlag}`;
-
-        // 2. 同时存储单独的accessToken（向后兼容）
-        setTokenCookie(accessToken);
+        document.cookie = `${name}=${encodedValue}; path=/; max-age=86400; SameSite=Lax`;
       } else {
         // 如果没有accessToken，可能是登出操作
-        // 清除所有相关Cookie
+        // 清除Cookie
         document.cookie = `${name}=; path=/; max-age=0; SameSite=Lax`;
-        clearTokenCookie();
       }
     } catch (error) {
       console.warn(`Failed to set item to cookie storage (${name}):`, error);
@@ -112,10 +99,8 @@ export const cookieStorage: import('zustand/middleware').StateStorage = {
     }
 
     try {
-      // 清除完整的Zustand状态Cookie
+      // 清除Zustand状态Cookie
       document.cookie = `${name}=; path=/; max-age=0; SameSite=Lax`;
-      // 清除单独的accessToken Cookie（向后兼容）
-      clearTokenCookie();
     } catch (error) {
       console.warn(
         `Failed to remove item from cookie storage (${name}):`,

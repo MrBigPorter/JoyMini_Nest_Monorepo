@@ -405,4 +405,22 @@ export class BlogController {
       body?.languageCode,
     );
   }
+
+  @Get('translation/detect-incomplete')
+  @ApiBearerAuth()
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiOperation({ summary: '检测翻译不完整的文章' })
+  async detectIncompleteTranslations(@Query('lang') targetLang: string = 'en') {
+    return this.blogService.detectIncompleteTranslations(targetLang);
+  }
+
+  @Post('translation/retranslate-incomplete')
+  @ApiBearerAuth()
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiOperation({ summary: '批量重新翻译不完整的文章' })
+  async retranslateIncompleteArticles(
+    @Body() body: { lang?: string },
+  ) {
+    return this.blogService.retranslateIncompleteArticles(body?.lang || 'en');
+  }
 }
