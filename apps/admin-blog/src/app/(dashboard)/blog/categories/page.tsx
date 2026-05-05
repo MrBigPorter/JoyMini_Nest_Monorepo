@@ -125,7 +125,7 @@ export default function CategoriesPage() {
         <div className="flex items-center">
           <FolderTree className="mr-2 h-4 w-4 text-muted-foreground" />
           <div className="font-medium">
-            {renderLocalizedText(category.name)}
+            {renderLocalizedText(category.name, lang)}
           </div>
         </div>
       ),

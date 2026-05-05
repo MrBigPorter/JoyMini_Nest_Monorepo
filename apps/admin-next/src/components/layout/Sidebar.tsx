@@ -8,7 +8,7 @@ import { LogOut, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useToastStore } from '@/store/useToastStore';
-import { ROLE_DISPLAY_NAMES } from '@/constants';
+import { getRoleI18nKey } from '@/constants';
 import { routes, RouteConfig } from '@/routes';
 import { useRequest } from 'ahooks';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -92,8 +92,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
     logoutAction,
     {
       manual: true,
-      onSuccess: () => addToast('info', 'Logged out successfully'),
-      onError: (error) => addToast('error', `Logout failed: ${error.message}`),
+      onSuccess: () => addToast('info', t('header_loggedOut')),
+      onError: (error) =>
+        addToast('error', t('header_logoutFailed', { message: error.message })),
     },
   );
 
@@ -134,7 +135,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {} as Record<string, RouteConfig[]>,
     );
 
-  const displayName = userInfo?.realName || userInfo?.username || 'Admin';
+  const displayName =
+    userInfo?.realName || userInfo?.username || t('user_fallbackName');
 
   return (
     <>
@@ -217,7 +219,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {/* Collapse toggle — desktop only */}
             <button
               onClick={toggleSidebar}
-              title={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              title={
+                isSidebarCollapsed ? t('sidebar_expand') : t('sidebar_collapse')
+              }
               className="hidden lg:flex w-full items-center gap-3 px-4 py-3 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5 rounded-xl transition-colors"
             >
               {isSidebarCollapsed ? (
@@ -234,7 +238,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 transition={{ duration: 0.2 }}
                 className="overflow-hidden whitespace-nowrap text-sm"
               >
-                Collapse
+                {t('sidebar_collapse')}
               </motion.span>
             </button>
 
@@ -242,7 +246,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <button
               onClick={handleLogout}
               disabled={isLoggingOut}
-              title={isSidebarCollapsed ? 'Logout' : undefined}
+              title={isSidebarCollapsed ? t('logout') : undefined}
               className={`w-full flex items-center gap-3 rounded-xl px-4 py-3 text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors disabled:opacity-50 ${isSidebarCollapsed ? 'justify-center' : ''}`}
             >
               <LogOut size={18} className="flex-shrink-0" />
@@ -255,7 +259,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 transition={{ duration: 0.2 }}
                 className="overflow-hidden whitespace-nowrap text-sm font-medium"
               >
-                {isLoggingOut ? 'Logging out…' : t('logout')}
+                {isLoggingOut ? t('header_loggingOut') : t('logout')}
               </motion.span>
             </button>
 
@@ -266,7 +270,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   {displayName}
                 </p>
                 <p className="text-xs text-gray-400 truncate">
-                  {ROLE_DISPLAY_NAMES[userInfo.role] ?? userInfo.role}
+                  {t(getRoleI18nKey(userInfo.role)) || userInfo.role}
                 </p>
               </div>
             )}

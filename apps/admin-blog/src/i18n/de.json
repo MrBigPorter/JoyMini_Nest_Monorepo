@@ -15,6 +15,8 @@
     "header_settings": "Settings",
     "header_logout": "Logout",
     "header_loggingOut": "Logging out…",
+    "header_loggedOut": "Erfolgreich abgemeldet",
+    "header_logoutFailed": "Abmeldung fehlgeschlagen: {message}",
     "logout": "Abmelden",
     "add": "Neu hinzufügen",
     "edit": "Bearbeiten",
@@ -518,7 +520,10 @@
     "blog_import_retryFailed": "Fehlgeschlagene wiederholen",
     "blog_import_retryHint": "Artikelliste bleibt erhalten, anpassen und erneut importieren",
     "blog_import_hideExists": "Vorhandene Artikel können nicht ausgewählt werden",
-    "blog_import_emptyHint": "Klicken Sie oben auf 'Scannen', um Markdown-Artikel aus dem lokalen Verzeichnis docs/blog/articles/ zu finden"
+    "blog_import_emptyHint": "Klicken Sie oben auf 'Scannen', um Markdown-Artikel aus dem lokalen Verzeichnis docs/blog/articles/ zu finden",
+    "app_title": "Blog Admin",
+    "user_fallbackName": "Administrator",
+    "header_switchLanguage": "Sprache wechseln"
   },
   "systemConfig": {
     "pageTitle": "Systemkonfiguration",
@@ -569,6 +574,8 @@
     "strategyTip2": "Das Ändern der Quellsprache hat keine Auswirkungen auf vorhandene Übersetzungen",
     "strategyTip3": "Neu erstellte Inhalte werden mit der neuen Quellsprache übersetzt",
     "strategyTip4": "Die Übersetzungsstrategie-Einstellungen können im Tab «Allgemeine Konfiguration» geändert werden",
+    "defaultSourceLang": "Standard-Quellsprache für Übersetzungen",
+    "defaultSourceLangDesc": "Standard-Quellsprache für KI-Übersetzungen. Standard: Chinesisch (zh)",
     "keyboardHint": "Drücken Sie {enterKey} zum Speichern, {escKey} zum Abbrechen."
   },
   "blogCard": {
@@ -589,6 +596,35 @@
     "allJobsCompleted": "Alle Übersetzungsjobs abgeschlossen",
     "translationNotStarted": "⏳ Übersetzung noch nicht gestartet"
   },
+  "aiService": {
+    "statusTitle": "🤖 KI-Dienststatus",
+    "serviceLevel": "Dienstlevel",
+    "health": "Zustand",
+    "healthy": "Gesund",
+    "unhealthy": "Ungesund",
+    "circuitBreaker": "Unterbrechungsschalter",
+    "circuitBreakerOpen": "OFFEN (zurücksetzen in {time})",
+    "circuitBreakerClosed": "Geschlossen",
+    "totalUsage": "Gesamtnutzung",
+    "requests": "Anfragen",
+    "tokens": "Token",
+    "dailyTokens": "Tägliche Token",
+    "providers": "Anbieter",
+    "reqPerTok": "{req} Anf. / {tok}k Token",
+    "keyIndex": "#{index}",
+    "keyDaily": "{used}k / {limit}k",
+    "blocked": "BLOCKIERT",
+    "rateLimits": "Ratenbegrenzung",
+    "rateLimitsFormat": "RPM: {rpm} | TPM: {tpm} | TPD: {tpd}",
+    "providerConfigTitle": "⚙️ KI-Anbieterkonfiguration",
+    "providerLabel": "Anbieter",
+    "selectProvider": "-- Anbieter auswählen --",
+    "unavailable": " (nicht verfügbar)",
+    "modelLabel": "Modell",
+    "selectModel": "-- Modell auswählen --",
+    "saveConfig": "Konfiguration speichern",
+    "currentConfig": "Aktuell: {provider} / {model}"
+  },
   "login": {
     "title": "Willkommen zurück",
     "subtitle": "Geben Sie Ihre Anmeldedaten ein, um auf das Dashboard zuzugreifen",
@@ -606,6 +642,10 @@
     "welcomeBack": "Willkommen zurück, Administrator!",
     "loginFailedNoToken": "Anmeldung fehlgeschlagen: Kein Zugriffstoken erhalten.",
     "loginFailedGeneric": "Anmeldung fehlgeschlagen. Bitte versuchen Sie es erneut.",
-    "copyright": "© {year} JoyMini Blog Admin. Alle Rechte vorbehalten."
+    "copyright": "© {year} JoyMini Blog Admin. Alle Rechte vorbehalten.",
+    "roleSuperAdmin": "Super-Administrator",
+    "roleAdmin": "Administrator",
+    "roleEditor": "Bearbeiter",
+    "roleViewer": "Betrachter"
   }
 }

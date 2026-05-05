@@ -534,10 +534,10 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
   const categoryOptions = useMemo(
     () =>
       categories.map((c) => ({
-        label: renderLocalizedText(c.name, 'zh', c.id),
+        label: renderLocalizedText(c.name, lang, c.id),
         value: c.id,
       })),
-    [categories],
+    [categories, lang],
   );
 
   const statusOptions = useMemo(
@@ -769,7 +769,7 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
                       }`}
                       onClick={() => handleTagToggle(tag.id)}
                     >
-                      {renderLocalizedText(tag.name, 'zh', tag.id)}
+                      {renderLocalizedText(tag.name, lang, tag.id)}
                     </button>
                   );
                 })}

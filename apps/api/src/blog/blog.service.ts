@@ -1042,7 +1042,7 @@ export class BlogService {
   /**
    * 获取文章详情
    */
-  async getArticle(id: string, incrementView = false) {
+  async getArticle(id: string, incrementView = false, locale?: string) {
     const article = await this.prisma.blogArticle.findUnique({
       where: { id },
       include: {
@@ -1069,7 +1069,7 @@ export class BlogService {
     }
 
     // 应用 Localized 双向兼容转换并返回
-    const mapped = this.mapArticleToLocalized(article);
+    const mapped = this.mapArticleToLocalized(article, locale || 'zh');
     this.logger.debug('Mapped article for edit:', {
       id: mapped.id,
       title: mapped.title,
@@ -2414,7 +2414,10 @@ export class BlogService {
         name: job.name,
         data: {
           ...job.data,
-          title: titleMap.get(job.data?.articleId ?? job.data?.categoryId ?? job.data?.tagId) || '',
+          title:
+            titleMap.get(
+              job.data?.articleId ?? job.data?.categoryId ?? job.data?.tagId,
+            ) || '',
         },
         progress: job.progress,
         timestamp: job.timestamp,
@@ -3033,9 +3036,17 @@ export class BlogService {
   ): {
     isComplete: boolean;
     completionRate: number;
-    issues: string[];
+    issues: Array<{
+      issueType: string;
+      description: string;
+      params?: Record<string, number | string>;
+    }>;
   } {
-    const issues: string[] = [];
+    const issues: Array<{
+      issueType: string;
+      description: string;
+      params?: Record<string, number | string>;
+    }> = [];
 
     // 1. 长度检测 - 翻译后长度不应该差距太大
     const sourceLength = sourceContent.length;
@@ -3056,13 +3067,25 @@ export class BlogService {
     const [minRatio, maxRatio] = expectedRatioRange[targetLang] || [0.3, 3.0];
 
     if (lengthRatio < minRatio) {
-      issues.push(
-        `翻译内容过短: ${translatedLength} 字符 vs 原文 ${sourceLength} 字符 (比率 ${lengthRatio.toFixed(2)})`,
-      );
+      issues.push({
+        issueType: 'CONTENT_TOO_SHORT',
+        description: `翻译内容过短: ${translatedLength} 字符 vs 原文 ${sourceLength} 字符 (比率 ${lengthRatio.toFixed(2)})`,
+        params: {
+          translatedLength,
+          sourceLength,
+          ratio: Number(lengthRatio.toFixed(2)),
+        },
+      });
     } else if (lengthRatio > maxRatio) {
-      issues.push(
-        `翻译内容过长: ${translatedLength} 字符 vs 原文 ${sourceLength} 字符 (比率 ${lengthRatio.toFixed(2)})`,
-      );
+      issues.push({
+        issueType: 'CONTENT_TOO_LONG',
+        description: `翻译内容过长: ${translatedLength} 字符 vs 原文 ${sourceLength} 字符 (比率 ${lengthRatio.toFixed(2)})`,
+        params: {
+          translatedLength,
+          sourceLength,
+          ratio: Number(lengthRatio.toFixed(2)),
+        },
+      });
     }
 
     // 2. 章节结构检测 - Markdown 标题数量应该相近
@@ -3073,9 +3096,14 @@ export class BlogService {
     ).length;
 
     if (sourceHeadings > 0 && translatedHeadings < sourceHeadings * 0.8) {
-      issues.push(
-        `标题数量不匹配: 翻译后 ${translatedHeadings} 个 vs 原文 ${sourceHeadings} 个`,
-      );
+      issues.push({
+        issueType: 'HEADING_MISMATCH',
+        description: `标题数量不匹配: 翻译后 ${translatedHeadings} 个 vs 原文 ${sourceHeadings} 个`,
+        params: {
+          translatedCount: translatedHeadings,
+          sourceCount: sourceHeadings,
+        },
+      });
     }
 
     // 3. 代码块检测 - 代码块数量必须完全一致
@@ -3086,9 +3114,14 @@ export class BlogService {
     ).length;
 
     if (sourceCodeBlocks !== translatedCodeBlocks) {
-      issues.push(
-        `代码块数量不匹配: 翻译后 ${translatedCodeBlocks} 个 vs 原文 ${sourceCodeBlocks} 个`,
-      );
+      issues.push({
+        issueType: 'CODE_BLOCK_MISMATCH',
+        description: `代码块数量不匹配: 翻译后 ${translatedCodeBlocks} 个 vs 原文 ${sourceCodeBlocks} 个`,
+        params: {
+          translatedCount: translatedCodeBlocks,
+          sourceCount: sourceCodeBlocks,
+        },
+      });
     }
 
     // 4. 表格检测 - 表格行数应该相同
@@ -3100,9 +3133,14 @@ export class BlogService {
       sourceTableRows > 0 &&
       Math.abs(sourceTableRows - translatedTableRows) > 2
     ) {
-      issues.push(
-        `表格行数不匹配: 翻译后 ${translatedTableRows} 行 vs 原文 ${sourceTableRows} 行`,
-      );
+      issues.push({
+        issueType: 'TABLE_MISMATCH',
+        description: `表格行数不匹配: 翻译后 ${translatedTableRows} 行 vs 原文 ${sourceTableRows} 行`,
+        params: {
+          translatedCount: translatedTableRows,
+          sourceCount: sourceTableRows,
+        },
+      });
     }
 
     // 5. 列表项检测 - 列表项数量应该相近
@@ -3116,9 +3154,14 @@ export class BlogService {
       sourceListItems > 0 &&
       Math.abs(sourceListItems - translatedListItems) > sourceListItems * 0.2
     ) {
-      issues.push(
-        `列表项数量不匹配: 翻译后 ${translatedListItems} 个 vs 原文 ${sourceListItems} 个`,
-      );
+      issues.push({
+        issueType: 'LIST_MISMATCH',
+        description: `列表项数量不匹配: 翻译后 ${translatedListItems} 个 vs 原文 ${sourceListItems} 个`,
+        params: {
+          translatedCount: translatedListItems,
+          sourceCount: sourceListItems,
+        },
+      });
     }
 
     // 6. 未翻译检测 - 检查是否还有大量中文字符
@@ -3134,15 +3177,23 @@ export class BlogService {
 
       // 如果翻译后仍有超过30%的中文字符，说明翻译不完整
       if (untranslatedRatio > 0.3) {
-        issues.push(
-          `翻译不完整: 仍包含 ${chineseCharsInTranslated} 个中文字符 (${(untranslatedRatio * 100).toFixed(1)}%)`,
-        );
+        issues.push({
+          issueType: 'UNTRANSLATED_CHARS',
+          description: `翻译不完整: 仍包含 ${chineseCharsInTranslated} 个中文字符 (${(untranslatedRatio * 100).toFixed(1)}%)`,
+          params: {
+            chineseChars: chineseCharsInTranslated,
+            ratio: Number((untranslatedRatio * 100).toFixed(1)),
+          },
+        });
       }
     }
 
     // 7. 内容相似度检测 - 翻译结果不应与原文完全相同
     if (translatedContent === sourceContent) {
-      issues.push('翻译结果与原文完全相同，未进行翻译');
+      issues.push({
+        issueType: 'SAME_AS_SOURCE',
+        description: '翻译结果与原文完全相同，未进行翻译',
+      });
     }
 
     // 计算完成率
@@ -3200,7 +3251,12 @@ export class BlogService {
           id: article.id,
           slug: article.slug,
           title: sourceTitle,
-          issues: ['缺少翻译字段'],
+          issues: [
+            {
+              issueType: 'MISSING_TRANSLATION_FIELD',
+              description: '缺少翻译字段',
+            },
+          ],
           needsTranslation: true,
         });
         continue;
@@ -3222,8 +3278,14 @@ export class BlogService {
       );
 
       const allIssues = [
-        ...titleQuality.issues.map((i) => `[标题] ${i}`),
-        ...contentQuality.issues.map((i) => `[内容] ${i}`),
+        ...titleQuality.issues.map((i) => ({
+          ...i,
+          description: `[标题] ${i.description}`,
+        })),
+        ...contentQuality.issues.map((i) => ({
+          ...i,
+          description: `[内容] ${i.description}`,
+        })),
       ];
 
       if (allIssues.length > 0) {
@@ -3292,10 +3354,7 @@ export class BlogService {
   /**
    * 清空指定文章的翻译字段（重置为未翻译状态并自动投递翻译）
    */
-  async clearArticleTranslations(
-    articleIds: string[],
-    targetLang: string,
-  ) {
+  async clearArticleTranslations(articleIds: string[], targetLang: string) {
     if (!articleIds || articleIds.length === 0) {
       throw new BadRequestException('articleIds is required');
     }
@@ -3410,7 +3469,11 @@ export class BlogService {
     const allJobs = [...activeJobs, ...waitingJobs];
 
     if (allJobs.length === 0) {
-      return { success: true, stoppedCount: 0, message: '没有活跃或等待中的任务' };
+      return {
+        success: true,
+        stoppedCount: 0,
+        message: '没有活跃或等待中的任务',
+      };
     }
 
     // 收集所有 job 中的 targetId，用于同步更新 DB 记录

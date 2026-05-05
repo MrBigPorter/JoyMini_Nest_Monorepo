@@ -69,16 +69,19 @@ export class BlogController {
   @ApiBearerAuth()
   @UseGuards(AdminJwtAuthGuard)
   @ApiOperation({ summary: '获取文章详情' })
-  async getArticle(@Param('id') id: string) {
-    return this.blogService.getArticle(id, true);
+  async getArticle(@Param('id') id: string, @Query('locale') locale?: string) {
+    return this.blogService.getArticle(id, true, locale);
   }
 
   @Get('articles/slug/:slug')
   @ApiBearerAuth()
   @UseGuards(AdminJwtAuthGuard)
   @ApiOperation({ summary: '通过 Slug 获取文章' })
-  async getArticleBySlug(@Param('slug') slug: string) {
-    return this.blogService.getArticleBySlug(slug, true);
+  async getArticleBySlug(
+    @Param('slug') slug: string,
+    @Query('locale') locale?: string,
+  ) {
+    return this.blogService.getArticleBySlug(slug, true, locale);
   }
 
   @Post('articles')
@@ -425,7 +428,9 @@ export class BlogController {
   @Post('translation/clear-translations')
   @ApiBearerAuth()
   @UseGuards(AdminJwtAuthGuard)
-  @ApiOperation({ summary: '清空指定文章的翻译字段（重置为未翻译状态并自动投递翻译）' })
+  @ApiOperation({
+    summary: '清空指定文章的翻译字段（重置为未翻译状态并自动投递翻译）',
+  })
   async clearArticleTranslations(
     @Body() body: { articleIds: string[]; targetLang: string },
   ) {

@@ -56,6 +56,7 @@ export const blogApi = {
     categoryId?: string;
     tagId?: string;
     search?: string;
+    locale?: string;
   }) => {
     const response = await http.get<{
       items: any[];
@@ -77,7 +78,11 @@ export const blogApi = {
     return await http.get<any>(`/v1/admin/blog/articles/${id}`);
   },
 
-  getArticleBySlug: async (slug: string, ssrToken?: string) => {
+  getArticleBySlug: async (
+    slug: string,
+    locale?: string,
+    ssrToken?: string,
+  ) => {
     const config = ssrToken
       ? { headers: { Authorization: `Bearer ${ssrToken}` } }
       : undefined;

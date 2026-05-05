@@ -15,6 +15,10 @@
     "header_settings": "设置",
     "header_logout": "退出登录",
     "header_loggingOut": "正在退出…",
+    "header_loggedOut": "已退出登录",
+    "header_logoutFailed": "退出失败：{message}",
+    "header_loggedOut": "已退出登录",
+    "header_logoutFailed": "退出失败：{message}",
     "logout": "退出登录",
     "add": "新增",
     "edit": "编辑",
@@ -202,6 +206,15 @@
     "blog_tq_clearFailed": "清空翻译失败",
     "blog_tq_batchClearSuccess": "已清空 {count} 篇文章翻译并重新投递",
     "blog_tq_batchClearFailed": "批量清空翻译失败",
+    "blog_tq_issue_content_too_short": "翻译内容过短：{translatedLength} 字符 vs 原文 {sourceLength} 字符（比率 {ratio}）",
+    "blog_tq_issue_content_too_long": "翻译内容过长：{translatedLength} 字符 vs 原文 {sourceLength} 字符（比率 {ratio}）",
+    "blog_tq_issue_heading_mismatch": "标题数量不匹配：翻译后 {translatedCount} 个 vs 原文 {sourceCount} 个",
+    "blog_tq_issue_code_block_mismatch": "代码块数量不匹配：翻译后 {translatedCount} 个 vs 原文 {sourceCount} 个",
+    "blog_tq_issue_table_mismatch": "表格行数不匹配：翻译后 {translatedCount} 行 vs 原文 {sourceCount} 行",
+    "blog_tq_issue_list_mismatch": "列表项数量不匹配：翻译后 {translatedCount} 个 vs 原文 {sourceCount} 个",
+    "blog_tq_issue_untranslated_chars": "翻译不完整：仍包含 {chineseChars} 个中文字符（{ratio}%）",
+    "blog_tq_issue_same_as_source": "翻译结果与原文完全相同，未进行翻译",
+    "blog_tq_issue_missing_translation_field": "缺少翻译字段",
     "blog_article_translationRequestSent": "翻译请求已发送，将自动刷新",
     "blog_article_translationFailed": "翻译失败，请稍后重试",
     "blog_article_retranslate": "重新翻译",
@@ -520,7 +533,10 @@
     "blog_import_retryFailed": "重试失败",
     "blog_import_retryHint": "文章列表已保留，可调整后重新导入",
     "blog_import_hideExists": "已存在的文章不可选",
-    "blog_import_emptyHint": "点击上方「扫描文件」按钮，从本地 docs/blog/articles/ 目录中发现 Markdown 文章"
+    "blog_import_emptyHint": "点击上方「扫描文件」按钮，从本地 docs/blog/articles/ 目录中发现 Markdown 文章",
+    "app_title": "博客管理",
+    "user_fallbackName": "管理员",
+    "header_switchLanguage": "切换语言"
   },
   "systemConfig": {
     "pageTitle": "系统配置",
@@ -571,7 +587,9 @@
     "strategyTip2": "修改源语言不会影响已有的翻译内容",
     "strategyTip3": "新创建的内容会使用新的源语言进行翻译",
     "strategyTip4": "翻译策略配置可以在「通用配置」标签页中修改",
-    "keyboardHint": "按 {enterKey} 保存，按 {escKey} 取消"
+    "keyboardHint": "按 {enterKey} 保存，按 {escKey} 取消",
+    "defaultSourceLang": "翻译默认源语言",
+    "defaultSourceLangDesc": "AI 翻译的默认源语言，默认为中文 (zh)"
   },
   "blogCard": {
     "translationProgress": "翻译进度",
@@ -591,6 +609,35 @@
     "allJobsCompleted": "所有翻译任务已完成",
     "translationNotStarted": "⏳ 翻译尚未开始"
   },
+  "aiService": {
+    "statusTitle": "🤖 AI 服务状态",
+    "serviceLevel": "服务等级",
+    "health": "健康状态",
+    "healthy": "健康",
+    "unhealthy": "不健康",
+    "circuitBreaker": "熔断器",
+    "circuitBreakerOpen": "开启（{time} 后重置）",
+    "circuitBreakerClosed": "关闭",
+    "totalUsage": "总使用量",
+    "requests": "请求数",
+    "tokens": "令牌数",
+    "dailyTokens": "日令牌数",
+    "providers": "提供商",
+    "reqPerTok": "{req} 请求 / {tok}k 令牌",
+    "keyIndex": "#{index}",
+    "keyDaily": "{used}k / {limit}k",
+    "blocked": "已封禁",
+    "rateLimits": "速率限制",
+    "rateLimitsFormat": "RPM: {rpm} | TPM: {tpm} | TPD: {tpd}",
+    "providerConfigTitle": "⚙️ AI 提供商配置",
+    "providerLabel": "提供商",
+    "selectProvider": "-- 选择提供商 --",
+    "unavailable": "（不可用）",
+    "modelLabel": "模型",
+    "selectModel": "-- 选择模型 --",
+    "saveConfig": "保存配置",
+    "currentConfig": "当前：{provider} / {model}"
+  },
   "login": {
     "title": "欢迎回来",
     "subtitle": "输入您的凭据以访问管理后台",
@@ -608,6 +655,10 @@
     "welcomeBack": "欢迎回来，管理员！",
     "loginFailedNoToken": "登录失败：未收到访问令牌。",
     "loginFailedGeneric": "登录失败，请重试。",
-    "copyright": "© {year} JoyMini Blog Admin. 保留所有权利。"
+    "copyright": "© {year} JoyMini Blog Admin. 保留所有权利。",
+    "roleSuperAdmin": "超级管理员",
+    "roleAdmin": "管理员",
+    "roleEditor": "编辑者",
+    "roleViewer": "查看者"
   }
 }

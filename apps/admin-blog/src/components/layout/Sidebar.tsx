@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight, LogOut, X } from 'lucide-react';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useToastStore } from '@/store/useToastStore';
-import { ROLE_DISPLAY_NAMES } from '@/constants';
+import { getRoleI18nKey } from '@/constants';
 import { routes, RouteConfig } from '@/routes';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useRequest } from 'ahooks';
@@ -59,12 +59,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
     logoutAction,
     {
       manual: true,
-      onSuccess: () => addToast('info', 'Logged out successfully'),
-      onError: (error) => addToast('error', `Logout failed: ${error.message}`),
+      onSuccess: () => addToast('info', t('header_loggedOut')),
+      onError: (error) =>
+        addToast('error', t('header_logoutFailed', { message: error.message })),
     },
   );
 
-  const displayName = userInfo?.realName || userInfo?.username || 'Admin';
+  const displayName =
+    userInfo?.realName || userInfo?.username || t('user_fallbackName');
   const initial = displayName.charAt(0).toUpperCase();
 
   // Group routes by group
@@ -97,7 +99,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             animate={{ opacity: 1 }}
             className="text-lg font-bold text-gray-900 dark:text-white tracking-tight"
           >
-            Blog Admin
+            {t('app_title')}
           </motion.h1>
         )}
       </div>
@@ -151,7 +153,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
                 {userInfo?.role
-                  ? (ROLE_DISPLAY_NAMES[userInfo.role] ?? userInfo.role)
+                  ? t(getRoleI18nKey(userInfo.role)) || userInfo.role
                   : ''}
               </p>
             </div>
@@ -168,7 +170,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <LogOut size={20} className="flex-shrink-0" />
         {!collapsed && (
           <span className="text-sm">
-            {isLoggingOut ? 'Logging out...' : 'Logout'}
+            {isLoggingOut ? t('header_loggingOut') : t('header_logout')}
           </span>
         )}
       </button>

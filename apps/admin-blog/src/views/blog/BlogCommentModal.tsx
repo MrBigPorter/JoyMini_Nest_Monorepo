@@ -72,7 +72,7 @@ export const BlogCommentModal: React.FC<BlogCommentModalProps> = ({
 
   const blogForm = useBlogForm({
     schema: commentModerationSchema,
-    defaultValues: getDefaultValues(),
+    defaultValues: undefined,
     onSubmitAction: async (data) => {
       if (isEditing && editingComment) {
         await updateComment(

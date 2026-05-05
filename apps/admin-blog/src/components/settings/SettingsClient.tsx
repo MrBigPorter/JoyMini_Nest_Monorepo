@@ -22,23 +22,31 @@ import { ModalManager, Switch } from '@repo/ui';
 import { useTranslation } from '@/hooks/useTranslation';
 
 /** Blog-relevant config key readable labels and descriptions */
-const CONFIG_META: Record<string, { label: string; description?: string }> = {
-  'blog.translation.defaultSourceLang': {
-    label: 'Default Source Language for Translation',
-    description:
-      'Default source language for AI translation, defaults to Chinese (zh)',
-  },
-  'blog.translation.sourceLangDetection': {
-    label: 'Source Language Detection Strategy',
-    description:
-      'auto|manual|hybrid (hybrid: prefer Localized field detection, fall back to system default on failure)',
-  },
-  'blog.translation.fallbackChain': {
-    label: 'Source Language Fallback Chain',
-    description:
-      'JSON array, tried in order, e.g. ["zh", "en", "ja", "ko", "fr", "de"]',
-  },
-};
+function getConfigMeta(
+  key: string,
+  t: TFunc,
+): { label: string; description?: string } | undefined {
+  const meta: Record<string, { labelKey: string; descriptionKey?: string }> = {
+    'blog.translation.defaultSourceLang': {
+      labelKey: 'systemConfig.defaultSourceLang',
+      descriptionKey: 'systemConfig.defaultSourceLangDesc',
+    },
+    'blog.translation.sourceLangDetection': {
+      labelKey: 'systemConfig.detectionStrategy',
+      descriptionKey: 'systemConfig.detectionStrategyDesc',
+    },
+    'blog.translation.fallbackChain': {
+      labelKey: 'systemConfig.fallbackChain',
+      descriptionKey: 'systemConfig.fallbackChainDesc',
+    },
+  };
+  const entry = meta[key];
+  if (!entry) return undefined;
+  return {
+    label: t(entry.labelKey),
+    ...(entry.descriptionKey ? { description: t(entry.descriptionKey) } : {}),
+  };
+}
 
 type TFunc = (key: string, params?: Record<string, string | number>) => string;
 
@@ -174,7 +182,7 @@ function ConfigRow({
   const [draft, setDraft] = useState(item.value);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const meta = CONFIG_META[item.key];
+  const meta = getConfigMeta(item.key, t);
   const addToast = useToastStore((state) => state.addToast);
 
   const handleSave = async () => {

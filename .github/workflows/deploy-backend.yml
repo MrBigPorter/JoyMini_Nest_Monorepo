@@ -363,22 +363,88 @@ jobs:
             fi
 
       # =========================================
-      # 阶段三: Telegram 战报通知
+      # 阶段三: 事后验证 — 从 GitHub runner 外部 curl 确认部署真的生效
       # =========================================
-      # Step 4 / 步骤 4: Send deployment status notification to Telegram
+      # Step 4 / 步骤 4: Verify API is reachable from external (not just internal Docker healthcheck)
+      # This catches appleboy/ssh-action exit code propagation bugs where SSH script reports
+      # failure but GitHub shows green. See: https://github.com/appleboy/ssh-action
+      - name: 🔍 Verify API externally (curl from runner)
+        id: verify
+        continue-on-error: true
+        timeout-minutes: 2
+        env:
+          API_BASE: https://api.joyminis.com
+        run: |
+          set -euo pipefail
+          echo "→ Verifying API health from GitHub runner (external check)..."
+          echo ""
+
+          # 1. Health endpoint (unauthenticated)
+          HEALTH_URL="$API_BASE/api/v1/health"
+          echo "  [1/2] GET $HEALTH_URL"
+          HEALTH_RESP=$(curl -sS --max-time 15 "$HEALTH_URL" 2>&1) || {
+            echo "  ❌ Health endpoint UNREACHABLE from runner!"
+            echo "  Response: $HEALTH_RESP"
+            exit 1
+          }
+          echo "  ✅ Health endpoint reachable: $(echo "$HEALTH_RESP" | head -c 200)"
+          echo ""
+
+          # 2. Public blog articles endpoint (verifies NestJS routing works through nginx)
+          ARTICLES_URL="$API_BASE/api/v1/blog/articles?page=1&pageSize=1"
+          echo "  [2/2] GET $ARTICLES_URL"
+          ARTICLES_RESP=$(curl -sS --max-time 15 "$ARTICLES_URL" 2>&1) || {
+            echo "  ⚠️ Articles endpoint unreachable (non-fatal, might be empty DB)"
+            echo "  Response: $ARTICLES_RESP"
+          }
+          if echo "$ARTICLES_RESP" | grep -q '"code":10000'; then
+            echo "  ✅ Articles endpoint responding with code 10000"
+          else
+            echo "  ⚠️ Articles endpoint responded but unexpected format (non-fatal)"
+            echo "  Response: $(echo "$ARTICLES_RESP" | head -c 200)"
+          fi
+          echo ""
+          echo "✅ External verification PASSED — API is live and responding from public internet"
+
+      # Step 4.1 / 步骤 4.1: If verification failed, mark deploy job as failed
+      - name: ❌ Fail deploy if verification failed
+        if: steps.verify.outcome == 'failure'
+        run: |
+          echo "::error::Post-deploy verification FAILED!"
+          echo "::error::The SSH deploy step might have reported success falsely."
+          echo "::error::VPS might be running old code (auto-rollback triggered)."
+          echo "::error::Check VPS logs: ssh root@VPS 'docker logs --tail=50 lucky-backend-prod'"
+          exit 1
+
+      # =========================================
+      # 阶段四: Telegram 战报通知
+      # =========================================
+      # Step 5 / 步骤 5: Send deployment status notification to Telegram
       - name: 📱 Send Telegram Notification
-        if: always() # 无论成功失败，这步绝对不能丢！
+        if: always()
+        env:
+          VERIFY_STATUS: ${{ steps.verify.outcome }}
         run: |
           STATUS_EMOJI=" Success"
+          STATUS_TEXT="✅ Success"
+
           if [ "${{ job.status }}" != "success" ]; then
             STATUS_EMOJI="❌ Failed"
+            STATUS_TEXT="❌ Failed"
+          fi
+
+          # If job status says success but verification failed, override
+          if [ "${{ job.status }}" = "success" ] && [ "$VERIFY_STATUS" = "failure" ]; then
+            STATUS_EMOJI="⚠️ Partial"
+            STATUS_TEXT="⚠️ Deploy reported success but external verification failed (may be running old code)"
           fi
 
           MESSAGE="⚙️ *Lucky Backend Deployment Report*
-          📌 *Status*: $STATUS_EMOJI
+          📌 *Status*: $STATUS_TEXT
           🏷️ *Environment*: Production (VPS) — branch: \`${{ github.ref_name }}\`
           🔗 *API Health*: [api.joyminis.com](https://api.joyminis.com/api/v1/health)
-          📝 *Commit*: \`${{ github.sha }}\`"
+          📝 *Commit*: \`${{ github.sha }}\`
+          🔍 *External Verify*: \`$VERIFY_STATUS\`"
 
           curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage" \
             -d "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}" \

@@ -15,6 +15,8 @@
     "header_settings": "Settings",
     "header_logout": "Logout",
     "header_loggingOut": "Logging out…",
+    "header_loggedOut": "Déconnexion réussie",
+    "header_logoutFailed": "Échec de la déconnexion : {message}",
     "logout": "Déconnexion",
     "add": "Ajouter",
     "edit": "Modifier",
@@ -520,7 +522,10 @@
     "blog_import_retryFailed": "Réessayer les échecs",
     "blog_import_retryHint": "La liste des articles est conservée, ajustez et réimportez",
     "blog_import_hideExists": "Les articles existants ne sont pas sélectionnables",
-    "blog_import_emptyHint": "Cliquez sur le bouton 'Analyser' ci-dessus pour découvrir les articles Markdown depuis le répertoire local docs/blog/articles/"
+    "blog_import_emptyHint": "Cliquez sur le bouton 'Analyser' ci-dessus pour découvrir les articles Markdown depuis le répertoire local docs/blog/articles/",
+    "app_title": "Blog Admin",
+    "user_fallbackName": "Administrateur",
+    "header_switchLanguage": "Changer de langue"
   },
   "systemConfig": {
     "pageTitle": "Configuration système",
@@ -571,6 +576,8 @@
     "strategyTip2": "La modification de la langue source n'affecte pas les traductions existantes",
     "strategyTip3": "Le contenu nouvellement créé sera traduit en utilisant la nouvelle langue source",
     "strategyTip4": "Les paramètres de stratégie de traduction peuvent être modifiés dans l'onglet « Configuration générale »",
+    "defaultSourceLang": "Langue source par défaut pour la traduction",
+    "defaultSourceLangDesc": "Langue source par défaut pour la traduction IA. Par défaut : chinois (zh)",
     "keyboardHint": "Appuyez sur {enterKey} pour enregistrer, {escKey} pour annuler"
   },
   "blogCard": {
@@ -591,6 +598,35 @@
     "allJobsCompleted": "Toutes les tâches de traduction sont terminées",
     "translationNotStarted": "⏳ La traduction n'a pas encore commencé"
   },
+  "aiService": {
+    "statusTitle": "🤖 État du service IA",
+    "serviceLevel": "Niveau de service",
+    "health": "Santé",
+    "healthy": "En bonne santé",
+    "unhealthy": "En mauvaise santé",
+    "circuitBreaker": "Coupe-circuit",
+    "circuitBreakerOpen": "OUVERT (réinitialisation dans {time})",
+    "circuitBreakerClosed": "Fermé",
+    "totalUsage": "Utilisation totale",
+    "requests": "Requêtes",
+    "tokens": "Jetons",
+    "dailyTokens": "Jetons quotidiens",
+    "providers": "Fournisseurs",
+    "reqPerTok": "{req} req / {tok}k tok",
+    "keyIndex": "#{index}",
+    "keyDaily": "{used}k / {limit}k",
+    "blocked": "BLOQUÉ",
+    "rateLimits": "Limites de débit",
+    "rateLimitsFormat": "RPM: {rpm} | TPM: {tpm} | TPD: {tpd}",
+    "providerConfigTitle": "⚙️ Configuration du fournisseur IA",
+    "providerLabel": "Fournisseur",
+    "selectProvider": "-- Sélectionner un fournisseur --",
+    "unavailable": " (indisponible)",
+    "modelLabel": "Modèle",
+    "selectModel": "-- Sélectionner un modèle --",
+    "saveConfig": "Enregistrer la configuration",
+    "currentConfig": "Actuel: {provider} / {model}"
+  },
   "login": {
     "title": "Bon retour",
     "subtitle": "Entrez vos identifiants pour accéder au tableau de bord",
@@ -608,6 +644,10 @@
     "welcomeBack": "Bon retour, Administrateur !",
     "loginFailedNoToken": "Échec de la connexion : aucun jeton d'accès reçu.",
     "loginFailedGeneric": "Échec de la connexion. Veuillez réessayer.",
-    "copyright": "© {year} JoyMini Blog Admin. Tous droits réservés."
+    "copyright": "© {year} JoyMini Blog Admin. Tous droits réservés.",
+    "roleSuperAdmin": "Super administrateur",
+    "roleAdmin": "Administrateur",
+    "roleEditor": "Éditeur",
+    "roleViewer": "Observateur"
   }
 }
