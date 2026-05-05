@@ -31,6 +31,7 @@ export interface ArticleMeta {
 export interface FrontendArticle {
   id: string;
   slug: string;
+  featured?: boolean;
   title: string;
   excerpt: string;
   content?: string; // 可选，只在详情页返回

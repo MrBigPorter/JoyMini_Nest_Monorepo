@@ -774,7 +774,7 @@ export class BlogService {
         where,
         skip,
         take: pageSize,
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ featured: 'desc' }, { createdAt: 'desc' }],
         select: {
           id: true,
           title: true,
