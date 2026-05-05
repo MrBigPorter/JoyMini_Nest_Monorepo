@@ -158,18 +158,7 @@ export class AiService implements OnModuleInit {
       }
 
       // 2. Fallback: detect available providers from env vars (not strict)
-      const groqKey = this.configService.get<string>('GROQ_API_KEY');
-      if (groqKey) {
-        const groqConfig = {
-          provider: 'groq',
-          model: 'llama-3.3-70b-versatile',
-          strict: false,
-        };
-        this.providerConfigCache = groqConfig;
-        this.providerConfigCacheAt = now;
-        return groqConfig;
-      }
-
+      // Priority: DeepSeek (paid, no rate limits) > Groq (free, heavy 429) > Gemini (last resort)
       const deepseekKey = this.configService.get<string>('DEEPSEEK_API_KEY');
       if (deepseekKey) {
         const deepseekConfig = {
@@ -180,6 +169,18 @@ export class AiService implements OnModuleInit {
         this.providerConfigCache = deepseekConfig;
         this.providerConfigCacheAt = now;
         return deepseekConfig;
+      }
+
+      const groqKey = this.configService.get<string>('GROQ_API_KEY');
+      if (groqKey) {
+        const groqConfig = {
+          provider: 'groq',
+          model: 'llama-3.3-70b-versatile',
+          strict: false,
+        };
+        this.providerConfigCache = groqConfig;
+        this.providerConfigCacheAt = now;
+        return groqConfig;
       }
 
       // 3. Last resort: Gemini (free tier)
@@ -364,15 +365,24 @@ export class AiService implements OnModuleInit {
     options?: AiGenerationOptions,
     requiredLevel: AiServiceLevel = AiServiceLevel.FULL,
   ): Promise<string | null> {
-    // Check shared pre-conditions
+    // Determine provider config first (need to know if DeepSeek)
+    const config = await this.getProviderConfig();
+    const isDeepSeek = config.provider === 'deepseek';
+
+    // Calculate estimated tokens (used for pre-condition checks and recording)
     const estimatedTokens =
       Math.ceil(prompt.length / 4) + (options?.maxOutputTokens || 512);
-    if (!this.checkPreConditions(requiredLevel, estimatedTokens)) {
-      return null;
+
+    // [DeepSeek bypass] Paid DeepSeek API has no rate limits (no RPM/TPM limits).
+    // Skip shared pre-conditions for DeepSeek to allow full-speed translation.
+    // Other providers (Groq, Gemini) still protected by shared RPM/TPM limits.
+    // Easy to revert: delete the `isDeepSeek` condition and restore normal flow.
+    if (!isDeepSeek) {
+      if (!this.checkPreConditions(requiredLevel, estimatedTokens)) {
+        return null;
+      }
     }
 
-    // Determine provider order from config
-    const config = await this.getProviderConfig();
     const primaryProvider =
       this.providers.find((p) => p.name === config.provider) ||
       this.providers[0];
@@ -395,7 +405,11 @@ export class AiService implements OnModuleInit {
       anyProviderAttempted = true;
       const result = await primaryProvider.generateText(prompt, options);
       if (result !== null) {
-        this.recordSuccess(estimatedTokens);
+        // [DeepSeek bypass] Don't count DeepSeek's usage toward shared counters,
+        // preventing counter pollution when fallback providers are used.
+        if (!isDeepSeek) {
+          this.recordSuccess(estimatedTokens);
+        }
         return result;
       }
     }
@@ -723,8 +737,9 @@ ${text}
     }
 
     // For large documents, split into sections and translate each one separately.
-    // Threshold: ~5000 chars ≈ 1250 tokens input (safe for Groq free tier)
-    const MAX_SINGLE_CALL_CHARS = 5000;
+    // Threshold increased from 5000 to 20000 for DeepSeek (128K context window).
+    // DeepSeek can handle much larger single calls, reducing chunk count.
+    const MAX_SINGLE_CALL_CHARS = 20000;
     if (markdown.length > MAX_SINGLE_CALL_CHARS) {
       return this.translateMarkdownInChunks(markdown, targetLang);
     }
@@ -802,12 +817,13 @@ ${markdown}
   /**
    * Split large Markdown into header-based chunks, translate each, then rejoin.
    * Prevents 413 / context-limit errors on long articles.
+   * Chunk size increased for DeepSeek (128K context window).
    */
   private async translateMarkdownInChunks(
     markdown: string,
     targetLang: string,
   ): Promise<string> {
-    const MAX_CHUNK_CHARS = 4000;
+    const MAX_CHUNK_CHARS = 20000; // ⬆️ 4000→20000: DeepSeek 128K上下文，减少分块数
     const chunks = this.splitMarkdownIntoChunks(markdown, MAX_CHUNK_CHARS);
 
     this.logger.debug(
@@ -821,12 +837,12 @@ ${markdown}
       const translated = await this.translateMarkdownSingle(chunk, targetLang);
       translatedChunks.push(translated);
 
-      // Stabilize: wait 60s between chunks to avoid Groq rate limits
+      // Small delay between chunks to prevent request bursts (DeepSeek has no rate limits)
       if (i < chunks.length - 1) {
         this.logger.debug(
-          `分块翻译等待 60s (块 ${i + 1}/${chunks.length})，避免触发 Groq 限流`,
+          `分块翻译延迟 50ms (块 ${i + 1}/${chunks.length})`,
         );
-        await new Promise((resolve) => setTimeout(resolve, 60000));
+        await new Promise((resolve) => setTimeout(resolve, 50)); // ⬇️ 500ms→50ms: DeepSeek 无速率限制
       }
     }
 

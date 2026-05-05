@@ -34,8 +34,9 @@ export class DeepSeekProvider implements AiProviderInstance {
   private readonly logger = new Logger(DeepSeekProvider.name);
   private keyInstances: DeepSeekKeyState[] = [];
 
-  // DeepSeek free tier: 5M tokens total (permanent), 10M tokens/day
-  private readonly DAILY_LIMIT = 10_000_000; // 10M tokens/day per key
+  // Paid tier: no daily limit (set to max safe value to effectively disable)
+  // Free tier had 10M tokens/day limit, but paid keys don't have this restriction
+  private readonly DAILY_LIMIT = 999_999_999_999; // Effectively unlimited for paid keys
   private readonly KEY_429_COOLDOWN = 60000; // 60s cooldown for 429
 
   private readonly BASE_URL = 'https://api.deepseek.com/v1/chat/completions';
@@ -107,14 +108,8 @@ export class DeepSeekProvider implements AiProviderInstance {
       }
     }
 
-    // Check daily limit
-    if (currentKey.dailyTokens >= this.DAILY_LIMIT) {
-      currentKey.blocked = true;
-      currentKey.blockedReason = 'daily_exhausted';
-      currentKey.blockedUntil = 0;
-      if (!this.rotateToNextKey()) return null;
-      return this.generateText(prompt, options); // retry with next key
-    }
+    // Daily limit check (effectively disabled for paid keys - DAILY_LIMIT is 999B)
+    // Paid DeepSeek API keys have no daily token limit
 
     try {
       const response = await axios.post(
@@ -136,7 +131,7 @@ export class DeepSeekProvider implements AiProviderInstance {
             Authorization: `Bearer ${currentKey.apiKey}`,
             'Content-Type': 'application/json',
           },
-          timeout: 60000, // DeepSeek can be slower for long content
+          timeout: 120000, // DeepSeek can be slower for long content (120s for large articles)
         },
       );
 
@@ -190,6 +185,68 @@ export class DeepSeekProvider implements AiProviderInstance {
         this.logger.warn(
           `DeepSeek API timeout on key ...${currentKey.keySuffix}`,
         );
+      } else if (
+        e.message === 'aborted' ||
+        e.code === 'ERR_CANCELED' ||
+        e.code === 'ECONNRESET'
+      ) {
+        // "aborted" = 连接被 DeepSeek 服务器中断（网络瞬断/负载均衡断开）
+        // 不计入 Key 封锁，inline 重试（最多 2 次指数退避）
+        const maxRetries = 2;
+        for (let retry = 1; retry <= maxRetries; retry++) {
+          const delay = retry * 2000; // 2s, 4s 指数退避
+          this.logger.warn(
+            `DeepSeek connection aborted on key ...${currentKey.keySuffix}, retry ${retry}/${maxRetries} after ${delay}ms`,
+          );
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          try {
+            const retryResponse = await axios.post(
+              this.BASE_URL,
+              {
+                model: this.activeModel,
+                messages: [
+                  ...(options?.systemPrompt
+                    ? [{ role: 'system' as const, content: options.systemPrompt }]
+                    : []),
+                  { role: 'user' as const, content: prompt },
+                ],
+                temperature: options?.temperature ?? 0.1,
+                max_tokens: options?.maxOutputTokens ?? 4096,
+                stream: false,
+              },
+              {
+                headers: {
+                  Authorization: `Bearer ${currentKey.apiKey}`,
+                  'Content-Type': 'application/json',
+                },
+                timeout: 120000,
+              },
+            );
+            const retryContent = retryResponse.data?.choices?.[0]?.message?.content || null;
+            if (retryContent !== null) {
+              currentKey.dailyTokens +=
+                Math.ceil(prompt.length / 4) + Math.ceil(retryContent.length / 4);
+              currentKey.dailyRequests++;
+            }
+            return retryContent;
+          } catch (retryError: any) {
+            // 如果仍然是 aborted 类错误，继续重试
+            if (
+              retryError.message === 'aborted' ||
+              retryError.code === 'ERR_CANCELED' ||
+              retryError.code === 'ECONNRESET'
+            ) {
+              continue;
+            }
+            // 非 aborted 错误（如 429/401/402）→ 抛出给外层 catch 处理
+            throw retryError;
+          }
+        }
+        // 所有重试耗尽
+        this.logger.error(
+          `DeepSeek API error on key ...${currentKey.keySuffix}: connection aborted, all ${maxRetries} retries exhausted`,
+        );
+        return null;
       } else {
         this.logger.error(
           `DeepSeek API error on key ...${currentKey.keySuffix}: ${e.message}`,
@@ -221,9 +278,9 @@ export class DeepSeekProvider implements AiProviderInstance {
       const candidate = this.keyInstances[candidateIndex];
 
       const isBlocked = candidate.blocked;
-      const isExhausted = candidate.dailyTokens >= this.DAILY_LIMIT;
+      const isExhausted = false; // Paid keys have no daily limit
 
-      if (!isBlocked && !isExhausted) {
+      if (!isBlocked) {
         this.activeKeyIndex = candidateIndex;
         this.logger.log(
           `🔑 DeepSeek switched to key ...${candidate.keySuffix} (index ${candidateIndex})`,

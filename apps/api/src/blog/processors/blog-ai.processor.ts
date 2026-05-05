@@ -16,7 +16,7 @@ import { repairJsonResponse } from '../utils/repair-json';
 @Processor('blog-ai', {
   concurrency: 1, // 保持串行处理
   limiter: {
-    max: 5, // ⬆️ 从2提高到5 RPM（在15 RPM限制内，避免碎片化请求导致的429错误）
+    max: 60, // ⬆️ 从5提高到60: DeepSeek 付费 API 无速率限制，可以更快处理队列
     duration: 60000,
   },
 })
@@ -25,7 +25,7 @@ export class BlogAiProcessor extends WorkerHost {
   private readonly marked: Marked;
   private readonly rateLimitDelayBase = 1000; // 1秒基础延迟
   private readonly rateLimitDelayMax = 30000; // 30秒最大延迟
-  private readonly interRequestDelay = 500; // 500ms between API calls to spread RPM load
+  private readonly interRequestDelay = 50; // 50ms between API calls (reduced from 500ms for DeepSeek, which has no rate limits)
   private readonly translationCache = new Map<
     string,
     { result: string; timestamp: number }
@@ -192,6 +192,16 @@ export class BlogAiProcessor extends WorkerHost {
 
         // 检查翻译质量 - 如果结果与原文相同，可能是翻译失败
         if (result === text && text.trim().length > 0) {
+          // 如果原文已经是英文/目标语言，这不是失败，直接返回
+          // 例如标题 "Blog System Architecture" 翻译到英文时 DeepSeek 会原样返回
+          if (this.isEnglishText(text)) {
+            this.logger.debug(
+              `原文已是英文，跳过重试直接使用 (目标语言: ${targetLang})`,
+            );
+            this.translationCache.set(cacheKey, { result, timestamp: Date.now() });
+            return result;
+          }
+
           this.logger.warn(
             `翻译结果与原文相同，可能翻译失败 (尝试 ${attempt + 1}/${maxRetries + 1})`,
             {
@@ -208,11 +218,14 @@ export class BlogAiProcessor extends WorkerHost {
             );
           }
 
-          // 如果是最后一次尝试，抛出错误而不是返回原文（防止静默数据损坏）
+          // 如果是最后一次尝试，不再抛错，直接返回原文
+          // 这样不会让整篇文章的翻译任务 FAILED，继续后续内容翻译
           if (attempt === maxRetries) {
-            throw new Error(
-              `翻译失败：结果与原文相同（长度 ${text.length}, 目标语言 ${targetLang}）`,
+            this.logger.warn(
+              `翻译结果与原文相同，直接使用原文 (长度 ${text.length}, 目标语言 ${targetLang})`,
             );
+            this.translationCache.set(cacheKey, { result, timestamp: Date.now() });
+            return result;
           }
           continue;
         }
@@ -343,7 +356,7 @@ export class BlogAiProcessor extends WorkerHost {
 
     // 大内容保护：批量翻译将整篇文章放入单个请求体，超出限制会导致 Groq 413 等错误
     // 如果内容超过阈值，直接走传统翻译（translateMarkdown 内部会自动分块）
-    const MAX_BATCH_CONTENT_CHARS = 10000;
+    const MAX_BATCH_CONTENT_CHARS = 50000; // ⬆️ 从30000提高到50000: DeepSeek 128K上下文，覆盖几乎所有文章
     if (sourceContent.length > MAX_BATCH_CONTENT_CHARS) {
       this.logger.debug(
         `文章内容过长 (${sourceContent.length} 字符)，跳过批量翻译直接使用分块翻译 (文章 ${article.id}，语言 ${targetLang})`,

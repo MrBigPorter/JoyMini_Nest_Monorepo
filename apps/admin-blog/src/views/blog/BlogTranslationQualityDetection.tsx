@@ -13,6 +13,7 @@ import {
   Languages,
   BarChart3,
   RotateCcw,
+  Trash2,
 } from 'lucide-react';
 
 // ─── Quality Score Bar ────────────────────────────────────────────────
@@ -120,6 +121,8 @@ export default function BlogTranslationQualityDetection() {
     Record<string, boolean>
   >({});
   const [batchRetranslating, setBatchRetranslating] = useState(false);
+  const [clearingIds, setClearingIds] = useState<Record<string, boolean>>({});
+  const [batchClearing, setBatchClearing] = useState(false);
 
   // 获取启用的语言列表（使用 getBlogLocales，返回格式已知）
   const { data: localesRaw, loading: languagesLoading } = useRequest(
@@ -195,6 +198,43 @@ export default function BlogTranslationQualityDetection() {
     }
   };
 
+  // 清空单篇文章翻译并重新翻译
+  const handleClearArticle = async (articleId: string) => {
+    setClearingIds((prev) => ({ ...prev, [articleId]: true }));
+    try {
+      await blogApi.translation.clearArticleTranslations(
+        [articleId],
+        selectedLang,
+      );
+      addToast('success', t('clearSuccess'));
+      setTimeout(() => runDetect(), 1500);
+    } catch {
+      addToast('error', t('clearFailed'));
+    } finally {
+      setClearingIds((prev) => ({ ...prev, [articleId]: false }));
+    }
+  };
+
+  // 批量清空所有不完整文章的翻译并重新翻译
+  const handleBatchClear = async () => {
+    if (batchClearing || incompleteArticles.length === 0) return;
+    setBatchClearing(true);
+    try {
+      const ids = incompleteArticles.map((a: any) => a.id);
+      const res = await blogApi.translation.clearArticleTranslations(
+        ids,
+        selectedLang,
+      );
+      const cleared = (res as any)?.cleared ?? 0;
+      addToast('success', t('batchClearSuccess', { count: cleared }));
+      setTimeout(() => runDetect(), 1500);
+    } catch {
+      addToast('error', t('batchClearFailed'));
+    } finally {
+      setBatchClearing(false);
+    }
+  };
+
   const result = detectResult as any;
   const incompleteArticles: any[] = result?.incompleteArticles ?? [];
   const total: number = result?.total ?? 0;
@@ -245,16 +285,28 @@ export default function BlogTranslationQualityDetection() {
             </Button>
 
             {result && incompleteCount > 0 && (
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={handleBatchRetranslate}
-                isLoading={batchRetranslating}
-                disabled={batchRetranslating || incompleteCount === 0}
-              >
-                <RotateCcw className="w-4 h-4 mr-2" />
-                {t('batchRetranslateButton', { count: incompleteCount })}
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleBatchClear}
+                  isLoading={batchClearing}
+                  disabled={batchClearing || incompleteCount === 0}
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  {t('batchClearButton')}
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={handleBatchRetranslate}
+                  isLoading={batchRetranslating}
+                  disabled={batchRetranslating || incompleteCount === 0}
+                >
+                  <RotateCcw className="w-4 h-4 mr-2" />
+                  {t('batchRetranslateButton', { count: incompleteCount })}
+                </Button>
+              </div>
             )}
           </div>
         </div>
@@ -347,6 +399,7 @@ export default function BlogTranslationQualityDetection() {
                       {incompleteArticles.map((article: any) => {
                         const isRetranslating =
                           retranslatingIds[article.id] || false;
+                        const isClearing = clearingIds[article.id] || false;
                         const titleScore = article.titleCompletion ?? 100;
                         const contentScore = article.contentCompletion ?? 0;
                         return (
@@ -386,18 +439,30 @@ export default function BlogTranslationQualityDetection() {
                               </div>
                             </td>
                             <td className="px-4 py-3">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                isLoading={isRetranslating}
-                                disabled={isRetranslating}
-                                onClick={() =>
-                                  handleRetranslateArticle(article.id)
-                                }
-                              >
-                                <RotateCcw className="w-3 h-3 mr-1" />
-                                {t('retranslateButton')}
-                              </Button>
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  isLoading={isRetranslating}
+                                  disabled={isRetranslating || isClearing}
+                                  onClick={() =>
+                                    handleRetranslateArticle(article.id)
+                                  }
+                                >
+                                  <RotateCcw className="w-3 h-3 mr-1" />
+                                  {t('retranslateButton')}
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  isLoading={isClearing}
+                                  disabled={isClearing || isRetranslating}
+                                  onClick={() => handleClearArticle(article.id)}
+                                >
+                                  <Trash2 className="w-3 h-3 mr-1" />
+                                  {t('clearButton')}
+                                </Button>
+                              </div>
                             </td>
                           </tr>
                         );

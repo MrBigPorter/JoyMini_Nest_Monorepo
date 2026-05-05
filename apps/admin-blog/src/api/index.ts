@@ -476,6 +476,27 @@ export const blogApi = {
       );
     },
 
+    /** 清空指定文章的翻译字段（重置为未翻译状态）*/
+    clearArticleTranslations: async (
+      articleIds: string[],
+      targetLang: string,
+    ) => {
+      return await http.post('/v1/admin/blog/translation/clear-translations', {
+        articleIds,
+        targetLang,
+      });
+    },
+
+    /** 停止/移除指定的翻译任务 */
+    stopTranslationJob: async (jobId: string) => {
+      return await http.post(`/v1/admin/blog/translation/stop-job/${jobId}`);
+    },
+
+    /** 批量取消所有进行中和等待中的翻译任务 */
+    stopAllTranslationJobs: async () => {
+      return await http.post('/v1/admin/blog/translation/stop-all-jobs');
+    },
+
     triggerVideoTranscode: async (articleId: string, videoKey: string) => {
       return await http.post(
         `/v1/admin/blog/articles/${articleId}/trigger-video-transcode`,
