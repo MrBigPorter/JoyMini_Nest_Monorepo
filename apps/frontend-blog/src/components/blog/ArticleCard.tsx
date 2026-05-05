@@ -162,7 +162,7 @@ export function ArticleCard({
   return (
     <div
       ref={cardRef}
-      className={`group relative bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 transition-all hover:shadow-md hover:border-primary/20 transform duration-150 ease-in-out ${
+      className={`group relative w-full min-w-0 overflow-hidden bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 transition-all hover:shadow-md hover:border-primary/20 transform duration-150 ease-in-out ${
         compact ? 'p-4' : 'p-6'
       }`}
     >
@@ -280,7 +280,7 @@ export function ArticleCard({
       {/* 标题 + 摘要 + 元信息 — wrapped in Link for navigation */}
       <Link
         href={`/articles/${article.slug}`}
-        className="block"
+        className="block min-w-0"
         onPointerDown={() => setNavDirection('forward')}
         // P1-2 修复：禁用自动 prefetch，改为 hover/touch 时按需 prefetch
         // 原因：首屏 10 篇文章的 Link 全部进入视口，会立即触发 10 个文章页 prefetch
@@ -290,10 +290,10 @@ export function ArticleCard({
         onMouseEnter={() => router.prefetch(`/articles/${article.slug}`)}
         onTouchStart={() => router.prefetch(`/articles/${article.slug}`)}
       >
-        <div className="space-y-3">
+        <div className="min-w-0 space-y-3">
           {/* 标题 */}
           <h3
-            className={`font-semibold text-slate-800 dark:text-slate-200 group-hover:text-primary-600 dark:group-hover:text-primary-500 transition-colors line-clamp-2 ${
+            className={`break-words font-semibold text-slate-800 dark:text-slate-200 group-hover:text-primary-600 dark:group-hover:text-primary-500 transition-colors line-clamp-2 ${
               compact ? 'text-base pr-10' : 'text-lg pr-12'
             }`}
           >
@@ -302,16 +302,16 @@ export function ArticleCard({
 
           {/* 摘要 */}
           {!compact && (
-            <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed line-clamp-2 mt-1">
+            <p className="break-words text-slate-600 dark:text-slate-400 text-sm leading-relaxed line-clamp-2 mt-1">
               {article.excerpt}
             </p>
           )}
 
           {/* 底部元信息 */}
-          <div className="flex items-center justify-between pt-3 text-xs text-slate-500 dark:text-slate-400">
-            <div className="flex items-center gap-3">
+          <div className="flex min-w-0 items-center justify-between gap-3 pt-3 text-xs text-slate-500 dark:text-slate-400">
+            <div className="flex min-w-0 items-center gap-3">
               <span
-                className="flex items-center gap-1"
+                className="flex min-w-0 items-center gap-1"
                 suppressHydrationWarning
               >
                 <svg
@@ -337,7 +337,7 @@ export function ArticleCard({
 
               {!compact && (
                 <>
-                  <span className="flex items-center gap-1">
+                  <span className="flex min-w-0 items-center gap-1">
                     <svg
                       className="w-4 h-4"
                       fill="none"
@@ -381,7 +381,7 @@ export function ArticleCard({
             </div>
 
             {category && !compact && (
-              <span className="px-2.5 py-1 bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 rounded-md text-xs font-medium">
+              <span className="max-w-[42vw] truncate px-2.5 py-1 bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 rounded-md text-xs font-medium">
                 {category.name}
               </span>
             )}
