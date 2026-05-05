@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { detectLocaleFromRequest } from '@/lib/utils/locale';
+import type { Locale } from '@/lib/utils/locale';
 
 /**
  * Middleware — 在 dev 和 production 均生效（Cloudflare Workers Edge Runtime 支持 Next.js middleware）。
@@ -6,9 +8,19 @@ import { NextRequest, NextResponse } from 'next/server';
  *   - 未登录访问受保护页面 → 302 跳转 /login
  *   - 已登录访问 /login → 302 跳转 /（防止重复登录）
  * 注: 静态资源（/_next/*、favicon 等）直接放行，不走认证逻辑。
+ *
+ * Locale detection: 首次访问时根据 Accept-Language 设置 app_locale cookie。
+ *   优先顺序: URL 路径中的 locale（由 next-intl 处理）> app_locale cookie > Accept-Language
  */
 
 const PUBLIC_PATHS = ['/login', '/register-apply', '/privacy-policy'];
+
+/**
+ * Available locale codes — defined inline to avoid importing @lucky/shared.
+ * @lucky/shared → order-no.helper.ts uses node:crypto which cannot be
+ * resolved on Edge Runtime (where middleware runs).
+ */
+const AVAILABLE_LOCALES = ['en', 'zh', 'ja', 'ko', 'fr', 'de'] as const;
 
 function isExactOrSubPath(pathname: string, basePath: string): boolean {
   return pathname === basePath || pathname.startsWith(`${basePath}/`);
@@ -80,6 +92,33 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // ── Locale detection (first visit, no cookie) ─────────────────────────────
+  // Only auto-detect when user hasn't chosen a locale yet (no app_locale cookie).
+  // Unlike admin-blog, we ALWAYS set the cookie even for English, because
+  // admin-next's DEFAULT_LOCALE is 'zh' — an English browser should see English.
+  const existingLocale = request.cookies.get('app_locale')?.value;
+  let detectedLocale: string | undefined;
+
+  if (
+    !existingLocale ||
+    !(AVAILABLE_LOCALES as readonly string[]).includes(existingLocale)
+  ) {
+    const detected = detectLocaleFromRequest(request);
+    detectedLocale = detected;
+  }
+
+  // Helper: apply locale cookie to a response
+  const applyLocaleCookie = (res: NextResponse) => {
+    if (detectedLocale) {
+      res.cookies.set('app_locale', detectedLocale, {
+        path: '/',
+        maxAge: 31536000, // 1 year
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production',
+      });
+    }
+  };
+
   const token = request.cookies.get('auth_token')?.value ?? null;
   const hasToken = token !== null;
   const isTokenInvalid = hasToken && isJwtExpiredOrMalformed(token);
@@ -90,13 +129,16 @@ export function middleware(request: NextRequest) {
   if (pathname === '/login') {
     if (hasToken && !isTokenInvalid) {
       // 有效 token 访问登录页 → 重定向到首页（防止重复登录）
-      return NextResponse.redirect(new URL('/', request.url));
+      const response = NextResponse.redirect(new URL('/', request.url));
+      applyLocaleCookie(response);
+      return response;
     }
     // 无 token 或 token 无效 → 放行登录页，并清理脏 cookie
     const response = NextResponse.next();
     if (isTokenInvalid) {
       clearAuthCookie(request, response);
     }
+    applyLocaleCookie(response);
     response.headers.set('x-pathname', pathname);
     return response;
   }
@@ -107,18 +149,22 @@ export function middleware(request: NextRequest) {
     if (isTokenInvalid) {
       clearAuthCookie(request, response);
     }
+    applyLocaleCookie(response);
     return response;
   }
 
   // 有效 token 访问其他公开页（register-apply、privacy-policy）→ 跳首页
   if (hasToken && !isTokenInvalid && isPublicPath) {
-    return NextResponse.redirect(new URL('/', request.url));
+    const response = NextResponse.redirect(new URL('/', request.url));
+    applyLocaleCookie(response);
+    return response;
   }
 
   const response = NextResponse.next();
   if (isTokenInvalid) {
     clearAuthCookie(request, response);
   }
+  applyLocaleCookie(response);
   response.headers.set('x-pathname', pathname);
   return response;
 }

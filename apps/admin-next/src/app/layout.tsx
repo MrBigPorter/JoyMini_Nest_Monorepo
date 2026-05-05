@@ -58,6 +58,7 @@ export const viewport: Viewport = {
 import { Providers } from '@/components/Providers';
 import { NextIntlClientProvider } from 'next-intl';
 import { getLocale, getMessages } from 'next-intl/server';
+import I18nProvider from '@/lib/providers/I18nProvider';
 
 export default async function RootLayout({
   children,
@@ -88,7 +89,9 @@ export default async function RootLayout({
       </head>
       <body>
         <NextIntlClientProvider locale={locale} messages={messages}>
-          <Providers>{children}</Providers>
+          <I18nProvider>
+            <Providers>{children}</Providers>
+          </I18nProvider>
         </NextIntlClientProvider>
       </body>
     </html>

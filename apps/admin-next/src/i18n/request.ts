@@ -66,7 +66,10 @@ function flatten(raw: RawLocaleJson): Record<string, unknown> {
 
 export default getRequestConfig(async ({ requestLocale }) => {
   // ── 1. Resolve locale ─────────────────────────────────────────────────────
-  // Priority: requestLocale (from next-intl routing) > app_locale cookie > DEFAULT_LOCALE
+  // Priority: URL locale (from next-intl /[locale]/path routing) >
+  //           app_locale cookie (set by middleware from Accept-Language,
+  //             or by LanguageProvider.setLocale) >
+  //           DEFAULT_LOCALE (zh)
   let locale: Locale = DEFAULT_LOCALE;
 
   try {
@@ -78,7 +81,9 @@ export default getRequestConfig(async ({ requestLocale }) => {
     // requestLocale rejected — fall through to cookie
   }
 
-  // Fall back to cookie (backward compat with LanguageProvider.setLocale)
+  // Fall back to app_locale cookie.
+  // Now set by middleware.ts from Accept-Language header (first visit),
+  // or by LanguageProvider.setLocale() (manual switch).
   if (locale === DEFAULT_LOCALE) {
     try {
       const cookieStore = await cookies();
