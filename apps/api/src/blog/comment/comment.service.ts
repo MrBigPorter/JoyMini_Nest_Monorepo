@@ -188,7 +188,15 @@ export class CommentService {
         take: pageSize,
         orderBy: { createdAt: 'desc' },
         include: {
-          article: { select: { id: true, title: true } },
+          article: { select: { id: true, title: true, slug: true } },
+          parent: {
+            select: {
+              id: true,
+              author: true,
+              content: true,
+              createdAt: true,
+            },
+          },
         },
       }),
       this.prisma.blogComment.count({ where }),
@@ -240,6 +248,37 @@ export class CommentService {
       data: {
         status: CommentStatus.REJECTED,
       },
+    });
+  }
+
+  /**
+   * 更新评论状态和回复内容
+   */
+  async updateComment(
+    commentId: string,
+    data: { status?: CommentStatus; reply?: Record<string, string> },
+  ) {
+    const comment = await this.prisma.blogComment.findUnique({
+      where: { id: commentId },
+    });
+
+    if (!comment) {
+      throw new NotFoundException('评论不存在');
+    }
+
+    const updateData: any = {};
+
+    if (data.status) {
+      updateData.status = data.status;
+    }
+
+    if (data.reply !== undefined) {
+      updateData.reply = data.reply;
+    }
+
+    return this.prisma.blogComment.update({
+      where: { id: commentId },
+      data: updateData,
     });
   }
 

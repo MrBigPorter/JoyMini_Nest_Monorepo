@@ -1627,6 +1627,8 @@ model BlogComment {
   
   /// 是否为AI自动生成的回复
   isAiGenerated         Boolean     @default(false) @map("is_ai_generated")
+  /// 管理员回复内容 (多语言 JSON 对象, e.g. {"zh":"回复","en":"reply"})
+  reply                 Json?       @map("reply")
 
   createdAt DateTime       @default(now()) @map("created_at")
   updatedAt DateTime       @updatedAt @map("updated_at")
