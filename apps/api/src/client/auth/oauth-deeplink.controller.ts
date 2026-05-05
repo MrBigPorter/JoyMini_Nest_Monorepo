@@ -389,6 +389,15 @@ export class OAuthDeepLinkController {
         );
       }
 
+      // 设置 HttpOnly cookie，前端中间件可读取 token 进行路由保护
+      res.cookie('token', loginResult.accessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+        path: '/',
+      });
+
       const redirectUrl = new URL(redirectUri);
       redirectUrl.searchParams.set('token', loginResult.accessToken);
       redirectUrl.searchParams.set('refreshToken', loginResult.refreshToken);

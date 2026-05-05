@@ -459,6 +459,23 @@ export const blogApi = {
       );
     },
 
+    /** 检测翻译不完整的文章（新增）*/
+    detectIncompleteTranslations: async (targetLang: string = 'en') => {
+      return await http.get('/v1/admin/blog/translation/detect-incomplete', {
+        lang: targetLang,
+      });
+    },
+
+    /** 批量重新翻译不完整的文章（新增）*/
+    retranslateIncompleteArticles: async (targetLang: string = 'en') => {
+      return await http.post(
+        '/v1/admin/blog/translation/retranslate-incomplete',
+        {
+          lang: targetLang,
+        },
+      );
+    },
+
     triggerVideoTranscode: async (articleId: string, videoKey: string) => {
       return await http.post(
         `/v1/admin/blog/articles/${articleId}/trigger-video-transcode`,

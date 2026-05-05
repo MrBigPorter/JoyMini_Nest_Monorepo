@@ -2980,4 +2980,266 @@ export class BlogService {
       `Video transcoding triggered for article ${articleId}: ${videoKey}`,
     );
   }
+
+  /**
+   * 检测翻译质量 - 多维度检测翻译完整性
+   */
+  private detectTranslationQuality(
+    sourceContent: string,
+    translatedContent: string,
+    targetLang: string,
+  ): {
+    isComplete: boolean;
+    completionRate: number;
+    issues: string[];
+  } {
+    const issues: string[] = [];
+
+    // 1. 长度检测 - 翻译后长度不应该差距太大
+    const sourceLength = sourceContent.length;
+    const translatedLength = translatedContent.length;
+    const lengthRatio = translatedLength / sourceLength;
+
+    // 允许的长度范围: 不同语言有差异
+    const expectedRatioRange: Record<string, [number, number]> = {
+      en: [0.8, 2.5], // 英文可能更长
+      ja: [0.5, 1.5], // 日文可能更紧凑
+      ko: [0.6, 1.8], // 韩文中等
+      fr: [0.9, 2.0], // 法文略长
+      de: [0.8, 2.2], // 德文略长
+    };
+
+    const [minRatio, maxRatio] = expectedRatioRange[targetLang] || [0.3, 3.0];
+
+    if (lengthRatio < minRatio) {
+      issues.push(
+        `翻译内容过短: ${translatedLength} 字符 vs 原文 ${sourceLength} 字符 (比率 ${lengthRatio.toFixed(2)})`,
+      );
+    } else if (lengthRatio > maxRatio) {
+      issues.push(
+        `翻译内容过长: ${translatedLength} 字符 vs 原文 ${sourceLength} 字符 (比率 ${lengthRatio.toFixed(2)})`,
+      );
+    }
+
+    // 2. 章节结构检测 - Markdown 标题数量应该相近
+    const sourceHeadings = (sourceContent.match(/^#{1,6}\s+.+$/gm) || [])
+      .length;
+    const translatedHeadings = (
+      translatedContent.match(/^#{1,6}\s+.+$/gm) || []
+    ).length;
+
+    if (sourceHeadings > 0 && translatedHeadings < sourceHeadings * 0.8) {
+      issues.push(
+        `标题数量不匹配: 翻译后 ${translatedHeadings} 个 vs 原文 ${sourceHeadings} 个`,
+      );
+    }
+
+    // 3. 代码块检测 - 代码块数量必须完全一致
+    const sourceCodeBlocks = (sourceContent.match(/```[\s\S]*?```/g) || [])
+      .length;
+    const translatedCodeBlocks = (
+      translatedContent.match(/```[\s\S]*?```/g) || []
+    ).length;
+
+    if (sourceCodeBlocks !== translatedCodeBlocks) {
+      issues.push(
+        `代码块数量不匹配: 翻译后 ${translatedCodeBlocks} 个 vs 原文 ${sourceCodeBlocks} 个`,
+      );
+    }
+
+    // 4. 表格检测 - 表格行数应该相同
+    const sourceTableRows = (sourceContent.match(/^\|.+\|$/gm) || []).length;
+    const translatedTableRows = (translatedContent.match(/^\|.+\|$/gm) || [])
+      .length;
+
+    if (
+      sourceTableRows > 0 &&
+      Math.abs(sourceTableRows - translatedTableRows) > 2
+    ) {
+      issues.push(
+        `表格行数不匹配: 翻译后 ${translatedTableRows} 行 vs 原文 ${sourceTableRows} 行`,
+      );
+    }
+
+    // 5. 列表项检测 - 列表项数量应该相近
+    const sourceListItems = (sourceContent.match(/^[\s]*[-*+]\s+/gm) || [])
+      .length;
+    const translatedListItems = (
+      translatedContent.match(/^[\s]*[-*+]\s+/gm) || []
+    ).length;
+
+    if (
+      sourceListItems > 0 &&
+      Math.abs(sourceListItems - translatedListItems) > sourceListItems * 0.2
+    ) {
+      issues.push(
+        `列表项数量不匹配: 翻译后 ${translatedListItems} 个 vs 原文 ${sourceListItems} 个`,
+      );
+    }
+
+    // 6. 未翻译检测 - 检查是否还有大量中文字符
+    if (targetLang !== 'zh') {
+      const chineseCharsInTranslated = (
+        translatedContent.match(/[\u4e00-\u9fff]/g) || []
+      ).length;
+      const chineseCharsInSource = (sourceContent.match(/[\u4e00-\u9fff]/g) || [])
+        .length;
+      const untranslatedRatio =
+        chineseCharsInTranslated / Math.max(chineseCharsInSource, 1);
+
+      // 如果翻译后仍有超过30%的中文字符，说明翻译不完整
+      if (untranslatedRatio > 0.3) {
+        issues.push(
+          `翻译不完整: 仍包含 ${chineseCharsInTranslated} 个中文字符 (${(untranslatedRatio * 100).toFixed(1)}%)`,
+        );
+      }
+    }
+
+    // 7. 内容相似度检测 - 翻译结果不应与原文完全相同
+    if (translatedContent === sourceContent) {
+      issues.push('翻译结果与原文完全相同，未进行翻译');
+    }
+
+    // 计算完成率
+    const completionRate =
+      issues.length === 0 ? 100 : Math.max(0, 100 - issues.length * 15); // 每个问题扣15分
+
+    return {
+      isComplete: issues.length === 0,
+      completionRate,
+      issues,
+    };
+  }
+
+  /**
+   * 批量检测所有文章的翻译质量
+   */
+  async detectIncompleteTranslations(targetLang: string = 'en') {
+    const articles = await this.prisma.blogArticle.findMany({
+      where: {
+        status: { not: 'DRAFT' },
+      },
+      select: {
+        id: true,
+        slug: true,
+        title: true,
+        titleLocalized: true,
+        content: true,
+        contentLocalized: true,
+        contentMd: true,
+        contentMdLocalized: true,
+        excerpt: true,
+        excerptLocalized: true,
+        translationStatus: true,
+      },
+    });
+
+    const incompleteArticles = [];
+
+    for (const article of articles) {
+      const sourceTitle =
+        (article.titleLocalized as any)?.zh || article.title;
+      const sourceContentMd =
+        (article.contentMdLocalized as any)?.zh || article.contentMd;
+      const sourceExcerpt =
+        (article.excerptLocalized as any)?.zh || article.excerpt;
+
+      const translatedTitle = (article.titleLocalized as any)?.[targetLang];
+      const translatedContentMd = (article.contentMdLocalized as any)?.[
+        targetLang
+      ];
+      const translatedExcerpt = (article.excerptLocalized as any)?.[targetLang];
+
+      // 如果任何翻译字段缺失,直接标记为不完整
+      if (!translatedTitle || !translatedContentMd) {
+        incompleteArticles.push({
+          id: article.id,
+          slug: article.slug,
+          title: sourceTitle,
+          issues: ['缺少翻译字段'],
+          needsTranslation: true,
+        });
+        continue;
+      }
+
+      // 质量检测
+      const titleQuality = this.detectTranslationQuality(
+        sourceTitle || '',
+        translatedTitle,
+        targetLang,
+      );
+
+      const contentQuality = this.detectTranslationQuality(
+        sourceContentMd || '',
+        translatedContentMd,
+        targetLang,
+      );
+
+      const allIssues = [
+        ...titleQuality.issues.map((i) => `[标题] ${i}`),
+        ...contentQuality.issues.map((i) => `[内容] ${i}`),
+      ];
+
+      if (allIssues.length > 0) {
+        incompleteArticles.push({
+          id: article.id,
+          slug: article.slug,
+          title: sourceTitle,
+          issues: allIssues,
+          titleCompletion: titleQuality.completionRate,
+          contentCompletion: contentQuality.completionRate,
+          needsRetranslation: true,
+        });
+      }
+    }
+
+    return {
+      total: articles.length,
+      incompleteCount: incompleteArticles.length,
+      completionRate: (
+        ((articles.length - incompleteArticles.length) / articles.length) *
+        100
+      ).toFixed(2),
+      incompleteArticles,
+    };
+  }
+
+  /**
+   * 批量重新翻译不完整的文章
+   */
+  async retranslateIncompleteArticles(targetLang: string = 'en') {
+    const detection = await this.detectIncompleteTranslations(targetLang);
+
+    if (detection.incompleteCount === 0) {
+      return {
+        message: '所有文章翻译完整,无需重新翻译',
+        total: detection.total,
+      };
+    }
+
+    // 投递到翻译队列
+    let queued = 0;
+    for (const article of detection.incompleteArticles) {
+      await this.blogAiQueue.add(
+        'translate-article',
+        {
+          articleId: article.id,
+          targetLang,
+          sourceLang: 'zh',
+          force: true, // 强制重新翻译
+        },
+        {
+          delay: queued * 600, // 600ms间隔
+          removeOnComplete: true,
+        },
+      );
+      queued++;
+    }
+
+    return {
+      message: `已投递 ${queued} 篇文章到翻译队列`,
+      incompleteArticles: detection.incompleteArticles,
+      queued,
+    };
+  }
 }

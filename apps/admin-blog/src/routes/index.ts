@@ -11,6 +11,7 @@ import {
   Search,
   Settings,
   Upload,
+  ShieldCheck,
 } from 'lucide-react';
 
 export type RouteGroup = 'Dashboard' | 'Content' | 'Tools' | 'System';
@@ -85,6 +86,13 @@ export const routes: RouteConfig[] = [
     path: '/blog/translation-issues',
     name: 'translation_issues',
     icon: Search,
+    group: 'Tools',
+    hidden: false,
+  },
+  {
+    path: '/blog/translation-quality',
+    name: 'translation_quality',
+    icon: ShieldCheck,
     group: 'Tools',
     hidden: false,
   },

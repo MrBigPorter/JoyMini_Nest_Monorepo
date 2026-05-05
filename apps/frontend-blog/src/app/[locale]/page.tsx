@@ -25,24 +25,35 @@ export async function generateStaticParams() {
 
 export default async function HomePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ locale: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const { locale: routeLocale } = await params;
+  const urlSearchParams = await searchParams;
 
   // 关键修复：SSR环境直接使用URL路径中的语言
   // 访问 /en/ 时，routeLocale = 'en'
   // 这确保SSR和CSR使用相同的语言，避免闪烁
   const locale = routeLocale;
 
+  // 读取URL的category参数，确保SSR和客户端数据一致
+  // 刷新页面时，tab UI和数据会保持同步
+  const categoryId =
+    typeof urlSearchParams.category === 'string'
+      ? urlSearchParams.category
+      : undefined;
+
   try {
     // P1-1 修复：并行请求 articles + categories，节省约 40-60% SSR 等待时间
     // 原因：两个 API 完全独立，串行等待白白翻倍 SSR 耗时
     // 证据：GET /zh/ Wall Time 1.21s，其中约 1.1s 全在等 API I/O
+    // 修复：现在SSR会根据URL的category参数获取对应的文章数据
     const [initialData, initialCategories] = await Promise.all([
       serverGet<FrontendPaginatedResponse<FrontendArticle>>(
         '/v1/frontend/blog/articles',
-        { lang: locale, page: 1, pageSize: 10 },
+        { lang: locale, page: 1, pageSize: 10, categoryId },
       ),
       serverGet<FrontendCategory[]>('/v1/frontend/blog/categories', {
         lang: locale,
