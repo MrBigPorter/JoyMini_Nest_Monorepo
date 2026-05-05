@@ -418,9 +418,7 @@ export class BlogController {
   @ApiBearerAuth()
   @UseGuards(AdminJwtAuthGuard)
   @ApiOperation({ summary: '批量重新翻译不完整的文章' })
-  async retranslateIncompleteArticles(
-    @Body() body: { lang?: string },
-  ) {
+  async retranslateIncompleteArticles(@Body() body: { lang?: string }) {
     return this.blogService.retranslateIncompleteArticles(body?.lang || 'en');
   }
 }

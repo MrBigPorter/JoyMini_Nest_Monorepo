@@ -3082,8 +3082,9 @@ export class BlogService {
       const chineseCharsInTranslated = (
         translatedContent.match(/[\u4e00-\u9fff]/g) || []
       ).length;
-      const chineseCharsInSource = (sourceContent.match(/[\u4e00-\u9fff]/g) || [])
-        .length;
+      const chineseCharsInSource = (
+        sourceContent.match(/[\u4e00-\u9fff]/g) || []
+      ).length;
       const untranslatedRatio =
         chineseCharsInTranslated / Math.max(chineseCharsInSource, 1);
 
@@ -3137,8 +3138,7 @@ export class BlogService {
     const incompleteArticles = [];
 
     for (const article of articles) {
-      const sourceTitle =
-        (article.titleLocalized as any)?.zh || article.title;
+      const sourceTitle = (article.titleLocalized as any)?.zh || article.title;
       const sourceContentMd =
         (article.contentMdLocalized as any)?.zh || article.contentMd;
       const sourceExcerpt =
