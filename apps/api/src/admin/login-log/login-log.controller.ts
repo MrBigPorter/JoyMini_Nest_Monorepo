@@ -5,10 +5,7 @@ import { AdminJwtAuthGuard } from '../auth/admin-jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { Role } from '@lucky/shared';
-import {
-  maskSensitiveFields,
-  maskName,
-} from '@api/common/utils/data-masking';
+import { maskSensitiveFields, maskName } from '@api/common/utils/data-masking';
 
 @Controller('admin/login-logs')
 @UseGuards(AdminJwtAuthGuard, RolesGuard)
