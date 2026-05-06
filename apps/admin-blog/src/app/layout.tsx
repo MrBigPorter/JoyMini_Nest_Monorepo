@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://admin-blog.joyminis.com'),
+  metadataBase: new URL('https://blog-admin.joyminis.com'),
   title: {
     template: '%s | JoyMini Blog Admin',
     default: 'JoyMini Blog Admin',
@@ -10,14 +10,14 @@ export const metadata: Metadata = {
   description:
     'JoyMini Blog Admin — manage blog articles, categories, tags and comments.',
   keywords: ['JoyMini', 'blog', 'admin', 'dashboard', 'management'],
-  authors: [{ name: 'JoyMini', url: 'https://admin-blog.joyminis.com' }],
+  authors: [{ name: 'JoyMini', url: 'https://blog-admin.joyminis.com' }],
   creator: 'JoyMini',
   robots: { index: true, follow: true },
   openGraph: {
     title: 'JoyMini Blog Admin',
     description:
       'JoyMini Blog Admin Dashboard — manage blog articles, categories, tags and comments.',
-    url: 'https://admin-blog.joyminis.com',
+    url: 'https://blog-admin.joyminis.com',
     siteName: 'JoyMini Blog Admin',
     locale: 'en_US',
     type: 'website',
