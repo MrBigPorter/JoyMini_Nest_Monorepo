@@ -20,117 +20,126 @@ import '../globals.css';
 
 const locales = LOCALES;
 
-//  元数据放在语言层布局，支持多语言SEO标题
-export const metadata: Metadata = {
-  metadataBase: new URL(
-    process.env.NEXT_PUBLIC_SITE_URL || 'https://blog.joyminis.com',
-  ),
-  title: {
-    template: '%s | Tarsier Labs',
-    default: 'Tarsier Labs - Tech innovation lab from Bohol, Philippines',
-  },
-  description:
-    'Tech innovation lab from Bohol, Philippines. Explore articles about software development, AI, and technology.',
-  keywords: [
-    'technology',
-    'software development',
-    'AI',
-    'Bohol',
-    'Philippines',
-    'blog',
-    'tech innovation',
-  ],
+// 元数据放在语言层布局，支持多语言SEO标题
+// 使用 generateMetadata 函数以获取 locale 参数，生成语言感知的 canonical URL
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+  const { locale } = await params;
+  const baseUrl =
+    process.env.NEXT_PUBLIC_SITE_URL || 'https://blog.joyminis.com';
 
-  // Open Graph
-  openGraph: {
-    type: 'website',
-    locale: 'en_US',
-    url: process.env.NEXT_PUBLIC_SITE_URL || 'https://blog.joyminis.com',
-    siteName: 'Tarsier Labs',
-    title: 'Tarsier Labs - Tech innovation lab',
-    description: 'Tech innovation lab from Bohol, Philippines',
-    images: [
-      {
-        url: '/og-image.png',
-        width: 1200,
-        height: 630,
-        alt: 'Tarsier Labs',
-      },
-    ],
-  },
-
-  // Twitter
-  twitter: {
-    card: 'summary_large_image',
-    site: '@tarsierlabs',
-    creator: '@tarsierlabs',
-    title: 'Tarsier Labs',
-    description: 'Tech innovation lab from Bohol, Philippines',
-    images: ['/twitter-image.png'],
-  },
-
-  // 语言alternate标记
-  alternates: {
-    canonical: process.env.NEXT_PUBLIC_SITE_URL || 'https://blog.joyminis.com',
-    languages: {
-      en: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://blog.joyminis.com'}/en`,
-      zh: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://blog.joyminis.com'}/zh`,
-      ja: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://blog.joyminis.com'}/ja`,
-      ko: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://blog.joyminis.com'}/ko`,
+  return {
+    metadataBase: new URL(baseUrl),
+    title: {
+      template: '%s | Tarsier Labs',
+      default: 'Tarsier Labs - Tech innovation lab from Bohol, Philippines',
     },
-  },
+    description:
+      'Tech innovation lab from Bohol, Philippines. Explore articles about software development, AI, and technology.',
+    keywords: [
+      'technology',
+      'software development',
+      'AI',
+      'Bohol',
+      'Philippines',
+      'blog',
+      'tech innovation',
+    ],
 
-  // 其他meta标签
-  robots: {
-    index: true,
-    follow: true,
-    googleBot: {
+    // Open Graph
+    openGraph: {
+      type: 'website',
+      locale: 'en_US',
+      url: `${baseUrl}/${locale}`,
+      siteName: 'Tarsier Labs',
+      title: 'Tarsier Labs - Tech innovation lab',
+      description: 'Tech innovation lab from Bohol, Philippines',
+      images: [
+        {
+          url: '/og-image.png',
+          width: 1200,
+          height: 630,
+          alt: 'Tarsier Labs',
+        },
+      ],
+    },
+
+    // Twitter
+    twitter: {
+      card: 'summary_large_image',
+      site: '@tarsierlabs',
+      creator: '@tarsierlabs',
+      title: 'Tarsier Labs',
+      description: 'Tech innovation lab from Bohol, Philippines',
+      images: ['/twitter-image.png'],
+    },
+
+    // 语言alternate标记
+    alternates: {
+      canonical: `${baseUrl}/${locale}`,
+      languages: {
+        en: `${baseUrl}/en`,
+        zh: `${baseUrl}/zh`,
+        ja: `${baseUrl}/ja`,
+        ko: `${baseUrl}/ko`,
+      },
+    },
+
+    // 其他meta标签
+    robots: {
       index: true,
       follow: true,
-      'max-video-preview': -1,
-      'max-image-preview': 'large',
-      'max-snippet': -1,
+      googleBot: {
+        index: true,
+        follow: true,
+        'max-video-preview': -1,
+        'max-image-preview': 'large',
+        'max-snippet': -1,
+      },
     },
-  },
 
-  // 验证标记
-  verification: {
-    google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION,
-  },
+    // 验证标记
+    verification: {
+      google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION,
+    },
 
-  // 图标配置
-  icons: {
-    icon: [
-      { url: '/favicon.ico', type: 'image/x-icon' },
-      { url: '/icons/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
-      { url: '/icons/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
-      { url: '/icons/icon-192x192.png', sizes: '192x192', type: 'image/png' },
-      { url: '/icons/icon-512x512.png', sizes: '512x512', type: 'image/png' },
-    ],
-    apple: [
-      {
-        url: '/icons/apple-touch-icon.png',
-        sizes: '180x180',
-        type: 'image/png',
-      },
-      {
-        url: '/icons/apple-touch-icon-152x152.png',
-        sizes: '152x152',
-        type: 'image/png',
-      },
-      {
-        url: '/icons/apple-touch-icon-167x167.png',
-        sizes: '167x167',
-        type: 'image/png',
-      },
-      {
-        url: '/icons/apple-touch-icon-120x120.png',
-        sizes: '120x120',
-        type: 'image/png',
-      },
-    ],
-  },
-};
+    // 图标配置
+    icons: {
+      icon: [
+        { url: '/favicon.ico', type: 'image/x-icon' },
+        { url: '/icons/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
+        { url: '/icons/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
+        { url: '/icons/icon-192x192.png', sizes: '192x192', type: 'image/png' },
+        { url: '/icons/icon-512x512.png', sizes: '512x512', type: 'image/png' },
+      ],
+      apple: [
+        {
+          url: '/icons/apple-touch-icon.png',
+          sizes: '180x180',
+          type: 'image/png',
+        },
+        {
+          url: '/icons/apple-touch-icon-152x152.png',
+          sizes: '152x152',
+          type: 'image/png',
+        },
+        {
+          url: '/icons/apple-touch-icon-167x167.png',
+          sizes: '167x167',
+          type: 'image/png',
+        },
+        {
+          url: '/icons/apple-touch-icon-120x120.png',
+          sizes: '120x120',
+          type: 'image/png',
+        },
+      ],
+    },
+  };
+}
 
 // P2-3 修复：layout revalidate 与 page.tsx 错开，避免同时到期触发 ISR 风暴
 // page.tsx=60s, layout=120s, categories=180s, tags=240s, about=600s
