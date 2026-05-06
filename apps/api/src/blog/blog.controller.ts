@@ -9,8 +9,12 @@ import {
   Query,
   UseGuards,
   Header,
+  Sse,
+  MessageEvent,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
+import { Observable, from } from 'rxjs';
+import { switchMap } from 'rxjs/operators';
 import { BlogService } from './blog.service';
 import { CreateArticleDto, UpdateArticleDto, BatchImportDto } from './dto';
 import { TriggerVideoTranscodeDto } from './dto/trigger-video-transcode.dto';
@@ -415,6 +419,19 @@ export class BlogController {
   @ApiOperation({ summary: '检测翻译不完整的文章' })
   async detectIncompleteTranslations(@Query('lang') targetLang: string = 'en') {
     return this.blogService.detectIncompleteTranslations(targetLang);
+  }
+
+  @Get('translation/detect-incomplete/stream')
+  @Sse()
+  @ApiBearerAuth()
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiOperation({ summary: 'SSE流式检测翻译不完整的文章' })
+  detectIncompleteTranslationsStream(
+    @Query('lang') targetLang: string = 'en',
+  ): Observable<MessageEvent> {
+    return from(
+      this.blogService.detectIncompleteTranslationsStream(targetLang),
+    ).pipe(switchMap((obs) => obs));
   }
 
   @Post('translation/retranslate-incomplete')

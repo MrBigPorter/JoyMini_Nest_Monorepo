@@ -96,6 +96,13 @@ export const routes: RouteConfig[] = [
     group: 'Tools',
     hidden: false,
   },
+  {
+    path: '/blog/translation-quality-stream',
+    name: 'translation_quality_stream',
+    icon: ShieldCheck,
+    group: 'Tools',
+    hidden: false,
+  },
 
   // ── System ──
   {

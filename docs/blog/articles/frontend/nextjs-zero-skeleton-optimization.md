@@ -501,3 +501,187 @@ const { data } = useQuery({
 ---
 
 *本文基于实践总结，相关源码参考 [`apps/frontend-blog/src/worker.ts`](apps/frontend-blog/src/worker.ts)（边缘缓存实现）和 [`apps/frontend-blog/open-next.config.ts`](apps/frontend-blog/open-next.config.ts)（OpenNext 配置）。*
+
+---
+
+## 13. 补充：Hydration 感知渲染与骨架屏闪烁修复
+
+零骨架屏架构依赖 ISR 缓存和服务端预取来消除加载状态。但在实际落地中，存在一个隐藏的 **Hydration 闪烁** 问题，可能导致用户短暂看到骨架屏后页面才恢复正常。
+
+### 13.1 Hydration 闪烁的根因
+
+#### 问题场景
+
+当 `initialData` 为空（首次访问、缓存未命中、API 错误）时，渲染流程为：
+
+```
+SSR: 服务端渲染空数据 → 立即显示骨架屏
+           │
+           ▼  Hydration
+Client: 客户端接管 → 骨架屏闪烁（几百 ms）
+           │
+           ▼  data 加载完成
+Client: 替换为实际内容 → 页面闪烁完成
+```
+
+用户会经历「骨架屏 → 空白 → 内容」的闪烁过程，与零骨架屏的「直接看到内容」目标相矛盾。
+
+#### 代码层面的触发条件
+
+```typescript
+// Before: Hydration-unaware rendering
+export function HomePageClient({ initialData, locale }: Props) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["homeArticles", locale],
+    queryFn: () => getArticles({ lang: locale, page: 1, pageSize: 10 }),
+    initialData, // 可能为 undefined
+  });
+
+  // ❌ isLoading 在 Hydration 期间为 true，触发骨架屏
+  if (isLoading) {
+    return <Skeleton />;  // ← 闪烁的根源
+  }
+
+  return <ArticleList articles={data?.items || []} />;
+}
+```
+
+### 13.2 修复方案：Hydration-Aware 条件渲染
+
+#### 方案 A：服务端预取数据屏障（推荐）
+
+确保所有页面组件都接收**非空 initialData**，或在服务端组件中提供可靠的 fallback：
+
+```typescript
+// page.tsx — 服务端组件中的 fallback
+export default async function HomePage({ params }) {
+  const { locale } = await params;
+
+  let initialData;
+  try {
+    initialData = await getArticles({ lang: locale, page: 1, pageSize: 10 });
+  } catch (error) {
+    // ✅ 即使 API 失败，也提供空数据结构而非 undefined
+    initialData = { items: [], total: 0, page: 1, pageSize: 10 };
+  }
+
+  // ✅ initialData 永远不为 undefined
+  return <HomePageClient initialData={initialData} locale={locale} />;
+}
+```
+
+#### 方案 B：Hydration 完成前使用服务端渲染的内容
+
+这是更彻底的方案——在 Hydration 完成之前，客户端组件不执行任何条件渲染，直接使用服务端生成的 HTML：
+
+```typescript
+// page.client.tsx — Hydration-aware client component
+"use client";
+
+import { useState, useEffect } from "react";
+
+export function HomePageClient({ initialData, locale }: Props) {
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  // 在首次 mount 时标记 hydration 完成
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["homeArticles", locale],
+    queryFn: () => getArticles({ lang: locale, page: 1, pageSize: 10 }),
+    initialData,
+  });
+
+  // ⭐ 关键：Hydration 完成前，始终使用 initialData 渲染
+  // 不显示骨架屏，直接用服务端渲染的内容
+  const displayData = data ?? initialData;
+
+  // ⭐ 仅 Hydration 完成且数据真正加载中才显示骨架屏
+  if (isHydrated && isLoading && !displayData) {
+    return <Skeleton />;
+  }
+
+  return <ArticleList articles={displayData?.items || []} />;
+}
+```
+
+#### 渲染流程对比
+
+```
+Before (有闪烁):
+  SSR: 骨架屏 → Hydration: 骨架屏 → Data loaded: 内容
+                             ↑ 用户看到闪烁
+
+After (零闪烁):
+  SSR: 内容 → Hydration: 保持内容 → Data loaded: 静默更新
+              ↑ 用户看不到任何变化
+```
+
+### 13.3 缓存状态管理最佳实践
+
+结合 `useIsClient` Hook 管理浏览器 API 依赖的组件渲染：
+
+```typescript
+// hooks/useIsClient.ts
+"use client";
+
+import { useState, useEffect } from "react";
+
+export function useIsClient(): boolean {
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  return isClient;
+}
+```
+
+在需要浏览器 API（如 `localStorage`、`window`、`Canvas`）的组件中使用：
+
+```typescript
+function ThemeToggle() {
+  const isClient = useIsClient();
+
+  // ⭐ 在 SSR 阶段提供一致的 fallback
+  // 避免 Hydration mismatch
+  if (!isClient) {
+    return <div className="h-8 w-8" />; // Placeholder
+  }
+
+  // 只在客户端渲染实际交互组件
+  return <ActualThemeToggle />;
+}
+```
+
+### 13.4 多层页面与导航场景
+
+对于带有分页、分类筛选的列表页面，hydration 闪烁问题更为突出。以下场景都需要覆盖：
+
+| 场景 | Hydration 风险 | 处理方式 |
+|------|----------------|----------|
+| 首次加载（有缓存数据） | 低 | ISR 缓存命中，initialData 有值 |
+| 首次加载（无缓存） | 高 | 服务端 fallback 确保 initialData 非空 |
+| 分类切换（客户端导航） | 中 | React Query cache 命中，无 loading |
+| 后退导航 | 低 | 浏览器 BFCache + React Query 缓存 |
+| Load More（分页加载） | 无 | 客户端追加，不涉及 hydration |
+| API 错误 | 高 | 服务端 try/catch 提供空数据 |
+
+关键原则：
+
+1. **服务端始终提供非空 initialData** — 即使 API 失败，也要提供 `{ items: [] }` 而非 `undefined`
+2. **Hydration 期间不切换渲染状态** — 使用 `isHydrated` 标志延迟 skeleton 渲染
+3. **React Query staleTime 对齐 ISR revalidate** — 避免客户端在 Hydration 后立即发起重复请求
+4. **浏览器 API 相关组件使用 useIsClient** — 确保 SSR 和客户端首次渲染输出一致
+
+### 13.5 验证清单
+
+- [ ] 首次访问缓存命中页面 → 无骨架屏闪烁
+- [ ] 首次访问缓存未命中页面 → 服务端渲染后直接显示内容
+- [ ] 导航切换 → 无全屏加载状态，微进度条代替骨架屏
+- [ ] 后退导航 → 立即显示之前的内容
+- [ ] 浏览器 API 组件 → 无 Hydration Mismatch 警告
+- [ ] API 错误场景 → 显示空状态而非骨架屏卡死
