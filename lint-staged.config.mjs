@@ -1,19 +1,7 @@
-const quote = (file) => JSON.stringify(file);
-
 export default {
-  "apps/**/*.{ts,tsx,js,jsx,mjs,cjs}": ["prettier --write", "eslint --fix"],
-
-  "packages/**/*.{ts,tsx,js,jsx,mjs,cjs}": ["prettier --write", "eslint --fix"],
-
-  "*.{json,md,yml,yaml,mjs,cjs}": (files) => {
-    const filtered = files.filter(
-      (file) => !file.startsWith("starter-template/"),
-    );
-
-    if (filtered.length === 0) {
-      return [];
-    }
-
-    return [`prettier --write ${filtered.map(quote).join(" ")}`];
-  },
+  '*.{ts,tsx,js,jsx,json,md,yaml,yml}': ['prettier --write'],
+  '*.{ts,tsx,js,jsx}': ['eslint --fix'],
+  'apps/admin-next/src/**/*.{test,spec}.{ts,tsx}': [
+    () => 'yarn workspace @lucky/admin-next vitest related --run',
+  ],
 };
