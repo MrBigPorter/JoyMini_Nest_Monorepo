@@ -33,24 +33,24 @@ type KycFormInput = z.infer<ReturnType<typeof createKycFormSchema>>;
 interface Props {
   mode: 'create' | 'edit';
   initialData?: KycRecord; // 编辑模式下的回显数据
-  close: () => void;
-  reload: () => void;
-  t: TFunc;
+  closeAction: () => void;
+  reloadAction: () => void;
+  tAction: TFunc;
 }
 
 export const KycFormModal: React.FC<Props> = ({
   mode,
   initialData,
-  close,
-  reload,
-  t,
+  closeAction,
+  reloadAction,
+  tAction,
 }) => {
   const addToast = useToastStore((state) => state.addToast);
   const isEdit = mode === 'edit';
 
   // 2. 初始化 Form
   const form = useForm<KycFormInput>({
-    resolver: zodResolver(createKycFormSchema(t)),
+    resolver: zodResolver(createKycFormSchema(tAction)),
     defaultValues: {
       userId: '',
       realName: '',
@@ -102,13 +102,15 @@ export const KycFormModal: React.FC<Props> = ({
       onSuccess: () => {
         addToast(
           'success',
-          isEdit ? t('kyc_updatedSuccess') : t('kyc_createdSuccess'),
+          isEdit
+            ? tAction('kyc_updatedSuccess')
+            : tAction('kyc_createdSuccess'),
         );
-        reload();
-        close();
+        reloadAction();
+        closeAction();
       },
       onError: (err) => {
-        addToast('error', err.message || t('kyc_operationFailed'));
+        addToast('error', err.message || tAction('kyc_operationFailed'));
       },
     },
   );
@@ -126,14 +128,14 @@ export const KycFormModal: React.FC<Props> = ({
             <div className="bg-blue-50/50 dark:bg-blue-900/10 p-4 rounded-lg border border-blue-100 dark:border-blue-900/20">
               <FormTextField
                 name="userId"
-                label={t('kyc_formUserId')}
+                label={tAction('kyc_formUserId')}
                 required={true}
-                placeholder={t('kyc_formUserIdPlaceholder')}
+                placeholder={tAction('kyc_formUserIdPlaceholder')}
                 disabled={isEdit} // 编辑模式下禁止修改 UserID
               />
               {isEdit && (
                 <p className="text-xs text-blue-600 mt-2 flex items-center gap-1">
-                  ⓘ {t('kyc_formUserIdDisabledHint')}
+                  ⓘ {tAction('kyc_formUserIdDisabledHint')}
                 </p>
               )}
             </div>
@@ -141,15 +143,15 @@ export const KycFormModal: React.FC<Props> = ({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <FormTextField
                 name="realName"
-                label={t('kyc_formRealName')}
-                placeholder={t('kyc_formRealNamePlaceholder')}
+                label={tAction('kyc_formRealName')}
+                placeholder={tAction('kyc_formRealNamePlaceholder')}
               />
 
               <FormSelectField
                 name="idType"
-                label={t('kyc_formIdType')}
+                label={tAction('kyc_formIdType')}
                 options={KycIdTypesList.map((item) => ({
-                  label: t(
+                  label: tAction(
                     `kyc_idType_${KycIdCardType[item.value]?.toLowerCase()}`,
                   ),
                   value: String(item.value),
@@ -159,17 +161,17 @@ export const KycFormModal: React.FC<Props> = ({
 
             <FormTextField
               name="idNumber"
-              label={t('kyc_formIdNumber')}
-              placeholder={t('kyc_formIdNumberPlaceholder')}
+              label={tAction('kyc_formIdNumber')}
+              placeholder={tAction('kyc_formIdNumberPlaceholder')}
             />
 
             <FormTextareaField
               name="remark"
-              label={t('kyc_formRemark')}
+              label={tAction('kyc_formRemark')}
               placeholder={
                 isEdit
-                  ? t('kyc_formRemarkEditPlaceholder')
-                  : t('kyc_formRemarkCreatePlaceholder')
+                  ? tAction('kyc_formRemarkEditPlaceholder')
+                  : tAction('kyc_formRemarkCreatePlaceholder')
               }
             />
 
@@ -181,8 +183,8 @@ export const KycFormModal: React.FC<Props> = ({
 
       {/* Footer Actions */}
       <div className="p-5 border-t border-gray-100 dark:border-white/10 bg-gray-50/50 dark:bg-gray-800/50 flex justify-end gap-3">
-        <Button variant="outline" onClick={close} disabled={loading}>
-          {t('kyc_cancel')}
+        <Button variant="outline" onClick={closeAction} disabled={loading}>
+          {tAction('kyc_cancel')}
         </Button>
         <Button
           variant="primary"
@@ -190,7 +192,7 @@ export const KycFormModal: React.FC<Props> = ({
           isLoading={loading}
           className="min-w-[120px]"
         >
-          {isEdit ? t('kyc_saveChanges') : t('kyc_createRecord')}
+          {isEdit ? tAction('kyc_saveChanges') : tAction('kyc_createRecord')}
         </Button>
       </div>
     </div>

@@ -15,26 +15,26 @@ const PENDING_APPLICATIONS_UPDATED_EVENT = 'applications:pending-updated';
 // ─── Reject modal ─────────────────────────────────────────────────────────────
 function RejectModal({
   app,
-  onConfirm,
-  onClose,
+  onConfirmAction,
+  onCloseAction,
   loading,
-  t,
+  tAction,
 }: {
   app: AdminApplication;
-  onConfirm: (note: string) => void;
-  onClose: () => void;
+  onConfirmAction: (note: string) => void;
+  onCloseAction: () => void;
   loading: boolean;
-  t: (key: string, params?: Record<string, string | number>) => string;
+  tAction: (key: string, params?: Record<string, string | number>) => string;
 }) {
   const [note, setNote] = useState('');
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div className="bg-white dark:bg-dark-900 rounded-2xl p-6 w-full max-w-sm shadow-2xl border border-gray-100 dark:border-white/10">
         <h3 className="font-bold text-lg mb-1 text-gray-900 dark:text-white">
-          {t('adminUsers.appRejectTitle')}
+          {tAction('adminUsers.appRejectTitle')}
         </h3>
         <p className="text-sm text-gray-500 mb-4">
-          {t('adminUsers.appRejectDescription', {
+          {tAction('adminUsers.appRejectDescription', {
             name: app.realName,
             username: app.username,
           })}
@@ -42,7 +42,7 @@ function RejectModal({
         <textarea
           className="w-full border border-gray-200 dark:border-white/10 rounded-xl p-3 text-sm bg-gray-50 dark:bg-dark-800 text-gray-900 dark:text-white resize-none focus:outline-none focus:ring-2 focus:ring-primary-500/40"
           rows={3}
-          placeholder={t('adminUsers.appRejectPlaceholder')}
+          placeholder={tAction('adminUsers.appRejectPlaceholder')}
           maxLength={500}
           value={note}
           onChange={(e) => setNote(e.target.value)}
@@ -51,18 +51,18 @@ function RejectModal({
           <Button
             variant="outline"
             size="sm"
-            onClick={onClose}
+            onClick={onCloseAction}
             disabled={loading}
           >
-            {t('adminUsers.cancel')}
+            {tAction('adminUsers.cancel')}
           </Button>
           <Button
             size="sm"
             className="bg-red-500 hover:bg-red-600 text-white border-0"
-            onClick={() => onConfirm(note)}
+            onClick={() => onConfirmAction(note)}
             isLoading={loading}
           >
-            {t('adminUsers.appRejectConfirm')}
+            {tAction('adminUsers.appRejectConfirm')}
           </Button>
         </div>
       </div>
@@ -308,10 +308,10 @@ export function ApplicationsManagement() {
       {rejectTarget && (
         <RejectModal
           app={rejectTarget}
-          onConfirm={(note) => runReject(rejectTarget.id, note)}
-          onClose={() => setRejectTarget(null)}
+          onConfirmAction={(note: string) => runReject(rejectTarget.id, note)}
+          onCloseAction={() => setRejectTarget(null)}
           loading={rejecting}
-          t={t}
+          tAction={t}
         />
       )}
     </div>

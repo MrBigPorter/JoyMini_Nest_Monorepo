@@ -15,8 +15,8 @@ import { useTranslation } from '@/hooks/useTranslation';
 
 interface Props {
   sessionId: string;
-  onClose: () => void;
-  onSaved: () => void;
+  onCloseAction: () => void;
+  onSavedAction: () => void;
 }
 
 /** Product with bound flash-sale info */
@@ -26,8 +26,8 @@ interface BoundIdSet {
 
 export const FlashSaleBindProductModal: React.FC<Props> = ({
   sessionId,
-  onClose,
-  onSaved,
+  onCloseAction,
+  onSavedAction,
 }) => {
   const { t } = useTranslation();
   const addToast = useToastStore((s) => s.addToast);
@@ -89,7 +89,7 @@ export const FlashSaleBindProductModal: React.FC<Props> = ({
         setFlashPrice('');
         setFlashStock('0');
         fetchBound();
-        onSaved();
+        onSavedAction();
       },
     },
   );
@@ -109,7 +109,7 @@ export const FlashSaleBindProductModal: React.FC<Props> = ({
       onSuccess: () => {
         addToast('success', t('flashSale.unbindSuccess'));
         fetchBound();
-        onSaved();
+        onSavedAction();
       },
     },
   );
@@ -286,7 +286,7 @@ export const FlashSaleBindProductModal: React.FC<Props> = ({
 
       {/* Footer */}
       <div className="p-4 border-t border-gray-100 dark:border-white/10 flex justify-end">
-        <Button variant="ghost" onClick={onClose}>
+        <Button variant="ghost" onClick={onCloseAction}>
           {t('flashSale.close')}
         </Button>
       </div>

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { RecaptchaClientProvider } from '@/components/RecaptchaClientProvider';
 import { Login } from '@/views/Login';
 
 export const metadata: Metadata = {
@@ -13,5 +14,10 @@ export const metadata: Metadata = {
 };
 
 export default function LoginPage() {
-  return <Login />;
+  const siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY ?? '';
+  return (
+    <RecaptchaClientProvider siteKey={siteKey}>
+      <Login />
+    </RecaptchaClientProvider>
+  );
 }

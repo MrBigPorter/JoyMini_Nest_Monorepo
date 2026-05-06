@@ -7,6 +7,7 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { ClientUserService } from '@api/admin/client-user/client-user.service';
@@ -26,6 +27,11 @@ import { RequirePermission } from '@api/common/decorators/require-permission.dec
 import { OpAction, OpModule } from '@lucky/shared';
 import { CurrentUserId } from '@api/common/decorators/user.decorator';
 import { plainToInstance } from 'class-transformer';
+import {
+  maskSensitiveFields,
+  maskName,
+  maskPhone,
+} from '@api/common/utils/data-masking';
 
 @ApiTags('admin/client-user')
 @ApiBearerAuth()
@@ -41,12 +47,16 @@ export class ClientUserController {
   @Get('list')
   @RequirePermission(OpModule.USER, OpAction.USER.VIEW)
   @ApiOkResponse({ type: ClientUserListResultVo })
-  async findAll(@Query() dto: QueryClientUserDto) {
+  async findAll(@Query() dto: QueryClientUserDto, @Req() req: Request) {
     const data = await this.clientUserService.findAll(dto);
-    return {
+    const result = {
       ...data,
       list: plainToInstance(ClientUserListItemVo, data.list),
     };
+    return maskSensitiveFields(result, (req as any).user?.role, {
+      nickname: maskName,
+      phone: maskPhone,
+    });
   }
 
   /**
@@ -56,9 +66,13 @@ export class ClientUserController {
   @Get(':id')
   @RequirePermission(OpModule.USER, OpAction.USER.VIEW)
   @ApiOkResponse({ type: ClientUserDetailVo })
-  async findOne(@Param('id') id: string) {
+  async findOne(@Param('id') id: string, @Req() req: Request) {
     const data = await this.clientUserService.findOne(id);
-    return plainToInstance(ClientUserDetailVo, data);
+    const result = plainToInstance(ClientUserDetailVo, data);
+    return maskSensitiveFields(result, (req as any).user?.role, {
+      nickname: maskName,
+      phone: maskPhone,
+    });
   }
 
   /**

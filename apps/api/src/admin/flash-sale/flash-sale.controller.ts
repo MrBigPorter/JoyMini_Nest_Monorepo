@@ -29,7 +29,7 @@ export class FlashSaleController {
 
   /** GET /v1/admin/flash-sale/sessions */
   @Get('sessions')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.EDITOR)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.EDITOR, Role.VIEWER)
   getSessions() {
     return this.service.getSessions();
   }
@@ -62,7 +62,7 @@ export class FlashSaleController {
 
   /** GET /v1/admin/flash-sale/sessions/:id/products */
   @Get('sessions/:id/products')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.EDITOR)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.EDITOR, Role.VIEWER)
   getSessionProducts(@Param('id') sessionId: string) {
     return this.service.getSessionProducts(sessionId);
   }

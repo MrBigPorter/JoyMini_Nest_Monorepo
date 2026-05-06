@@ -7,6 +7,7 @@ import {
   Post,
   Put,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
@@ -23,6 +24,12 @@ import { AuditKycDto } from '@api/admin/kyc/dto/audit-kyc.dto';
 import { CurrentUserId } from '@api/common/decorators/user.decorator';
 import { RealIp } from '@api/common/decorators/http.decorators';
 import { AdminCreateKycDto } from '@api/admin/kyc/dto/admin-create-kyc.dto';
+import {
+  maskSensitiveFields,
+  maskName,
+  maskIdCard,
+  maskPhone,
+} from '@api/common/utils/data-masking';
 
 @ApiTags('Admin KYC Management')
 @ApiBearerAuth()
@@ -38,14 +45,20 @@ export class KycController {
   @Get('records')
   @RequirePermission(OpModule.USER, OpAction.USER.VIEW)
   @ApiOkResponse({ type: KycRecordListResponseDto })
-  async list(@Query() dto: QueryKycDto) {
+  async list(@Query() dto: QueryKycDto, @Req() req: Request) {
     const result = await this.kycService.getKycRecordList(dto);
-    return {
+    const response = {
       ...result,
       list: plainToInstance(KycRecordResponseDto, result.list, {
         excludeExtraneousValues: true,
       }),
     };
+    return maskSensitiveFields(response, (req as any).user?.role, {
+      realName: maskName,
+      idNumber: maskIdCard,
+      'user.nickname': maskName,
+      'user.phone': maskPhone,
+    });
   }
 
   /**
@@ -55,10 +68,16 @@ export class KycController {
   @Get('records/:id')
   @RequirePermission(OpModule.USER, OpAction.USER.VIEW)
   @ApiOkResponse({ type: KycRecordResponseDto })
-  async getKycRecord(@Param('id') id: string) {
+  async getKycRecord(@Param('id') id: string, @Req() req: Request) {
     const record = await this.kycService.detail(id);
-    return plainToInstance(KycRecordResponseDto, record, {
+    const response = plainToInstance(KycRecordResponseDto, record, {
       excludeExtraneousValues: true,
+    });
+    return maskSensitiveFields(response, (req as any).user?.role, {
+      realName: maskName,
+      idNumber: maskIdCard,
+      'user.nickname': maskName,
+      'user.phone': maskPhone,
     });
   }
 

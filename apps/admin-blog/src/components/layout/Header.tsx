@@ -108,7 +108,7 @@ export const Header: React.FC<HeaderProps> = ({ onMenuButtonClickAction }) => {
 
   const displayName =
     userInfo?.realName || userInfo?.username || t('user_fallbackName');
-  const initial = displayName.charAt(0).toUpperCase();
+  const initial = Array.from(displayName)[0].toUpperCase();
 
   return (
     <header className="h-16 bg-white/80 dark:bg-dark-900/80 backdrop-blur-md border-b border-gray-100 dark:border-white/5 flex items-center justify-between px-4 lg:px-8 z-30 sticky top-0 transition-colors duration-300">

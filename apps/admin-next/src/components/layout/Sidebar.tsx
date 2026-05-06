@@ -73,12 +73,12 @@ const SidebarItem: React.FC<{
 // ── Sidebar ───────────────────────────────────────────────────────────────────
 interface SidebarProps {
   mobileOpen: boolean;
-  onMobileClose: () => void;
+  onMobileCloseAction: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
   mobileOpen,
-  onMobileClose,
+  onMobileCloseAction,
 }) => {
   const { isSidebarCollapsed, toggleSidebar } = useAppStore();
   const logoutAction = useAuthStore((state) => state.logout);
@@ -206,7 +206,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           ? (pendingData?.count ?? 0)
                           : undefined
                       }
-                      onClick={onMobileClose}
+                      onClick={onMobileCloseAction}
                     />
                   ))}
                 </div>
@@ -288,7 +288,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
             className="fixed inset-0 bg-black/50 z-30 lg:hidden"
-            onClick={onMobileClose}
+            onClick={onMobileCloseAction}
           />
         )}
       </AnimatePresence>

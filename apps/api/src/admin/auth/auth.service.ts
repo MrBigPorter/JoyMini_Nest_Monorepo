@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 
 import { PasswordService } from '@api/common/service/password.service';
+import { RecaptchaService } from '@api/common/recaptcha/recaptcha.service';
 import { AdminLoginDto } from './dto/admin-login.dto';
 import type { StringValue } from 'ms';
 
@@ -23,6 +24,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly passwordService: PasswordService,
+    private readonly recaptchaService: RecaptchaService,
   ) {}
 
   // sign access token
@@ -68,10 +70,18 @@ export class AuthService {
 
   // admin login
   async adminLogin(
-    { username, password }: AdminLoginDto,
+    { username, password, recaptchaToken }: AdminLoginDto,
     ip: string,
     ua: string,
   ) {
+    // verify reCAPTCHA token if provided
+    if (recaptchaToken) {
+      const { success } = await this.recaptchaService.verifyToken(recaptchaToken);
+      if (!success) {
+        throw new UnauthorizedException('reCAPTCHA verification failed');
+      }
+    }
+
     // check username
     const admin = await this.prisma.adminUser.findUnique({
       where: { username },

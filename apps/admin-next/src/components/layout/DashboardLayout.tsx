@@ -52,11 +52,11 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({
     <div className="flex h-screen bg-gray-50 dark:bg-dark-950 text-slate-900 dark:text-slate-100 font-sans">
       <Sidebar
         mobileOpen={mobileMenuOpen}
-        onMobileClose={() => setMobileMenuOpen(false)}
+        onMobileCloseAction={() => setMobileMenuOpen(false)}
       />
       <div className="flex-1 flex flex-col w-full transition-all duration-300 ease-in-out">
         <Header
-          onMenuButtonClick={() => setMobileMenuOpen(true)}
+          onMenuButtonClickAction={() => setMobileMenuOpen(true)}
           breadcrumbs={pageInfo.breadcrumbs}
         />
         <MainContent>{children}</MainContent>

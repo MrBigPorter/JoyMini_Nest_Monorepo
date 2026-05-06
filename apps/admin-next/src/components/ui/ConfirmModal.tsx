@@ -7,8 +7,8 @@ import { AlertTriangle } from 'lucide-react';
 
 interface ConfirmModalProps {
   isOpen: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
+  onCloseAction: () => void;
+  onConfirmAction: () => void;
   title: string;
   description: React.ReactNode;
   confirmText?: string;
@@ -17,15 +17,20 @@ interface ConfirmModalProps {
 
 export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   isOpen,
-  onClose,
-  onConfirm,
+  onCloseAction,
+  onConfirmAction,
   title,
   description,
   confirmText = 'Confirm',
   isLoading = false,
 }) => {
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={title} size="sm">
+    <Modal
+      isOpen={isOpen}
+      onCloseAction={onCloseAction}
+      title={title}
+      size="sm"
+    >
       <div className="space-y-4">
         <div className="bg-red-50 dark:bg-red-900/10 p-4 rounded-lg flex items-start gap-3 border border-red-100 dark:border-red-900/20">
           <AlertTriangle
@@ -37,10 +42,15 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
           </div>
         </div>
         <div className="flex justify-end gap-3 pt-2">
-          <Button variant="ghost" onClick={onClose}>
+          <Button variant="ghost" onClick={onCloseAction}>
             Cancel
           </Button>
-          <Button variant="danger" onClick={onConfirm} isLoading={isLoading}>
+
+          <Button
+            variant="danger"
+            onClick={onConfirmAction}
+            isLoading={isLoading}
+          >
             {confirmText}
           </Button>
         </div>

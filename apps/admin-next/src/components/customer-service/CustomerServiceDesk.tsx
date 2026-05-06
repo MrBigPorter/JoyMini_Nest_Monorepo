@@ -131,11 +131,11 @@ export function CustomerServiceDesk() {
             <ChatWindow
               key={selectedConv.id}
               conversation={selectedConv}
-              onMessageSent={refreshList}
-              registerOnNewMessage={(fn) => {
+              onMessageSentAction={refreshList}
+              registerOnNewMessageAction={(fn) => {
                 onNewMessageRef.current = fn;
               }}
-              registerOnRecalled={(fn) => {
+              registerOnRecalledAction={(fn) => {
                 onRecalledRef.current = fn;
               }}
             />

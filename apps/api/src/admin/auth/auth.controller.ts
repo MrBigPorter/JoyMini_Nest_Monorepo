@@ -9,6 +9,7 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { Response } from 'express';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from '@api/common/jwt/jwt.guard';
@@ -74,6 +75,7 @@ export class AuthController {
    */
   @Post('admin/login')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   async loginAdmin(
     @Body() dto: AdminLoginDto,
     @RealIp() ip: string,

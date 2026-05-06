@@ -33,9 +33,9 @@ export const UserManagement: React.FC = () => {
         renderChildren: ({ close }) => (
           <UserDetailModal
             userId={record.id}
-            close={close}
-            reload={() => actionRef.current?.reload()}
-            t={t}
+            closeAction={close}
+            reloadAction={() => actionRef.current?.reload()}
+            tAction={t}
           />
         ),
       });

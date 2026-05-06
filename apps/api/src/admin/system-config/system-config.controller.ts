@@ -23,7 +23,7 @@ export class SystemConfigController {
 
   /** GET /v1/admin/system-config — 全部配置项 */
   @Get()
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
   getAll() {
     return this.service.getAll();
   }
@@ -54,7 +54,7 @@ export class SystemConfigController {
    * 获取所有语言列表及启用状态
    */
   @Get('locales')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
   getLocales() {
     return this.service.getEnabledLocales();
   }
@@ -77,7 +77,7 @@ export class SystemConfigController {
    * 获取当前默认源语言配置
    */
   @Get('translation/default-source-lang')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
   async getDefaultSourceLang() {
     const code = await this.service.get<string>(
       'blog.translation.defaultSourceLang',
@@ -113,7 +113,7 @@ export class SystemConfigController {
    * 获取 blog 已启用的语言列表（独立于 admin-next）
    */
   @Get('blog/locales')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
   getBlogLocales() {
     return this.service.getBlogLocales();
   }

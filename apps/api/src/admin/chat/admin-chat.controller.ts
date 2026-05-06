@@ -49,14 +49,14 @@ export class AdminChatController {
 
   /** GET /v1/admin/chat/conversations — 客服会话列表 */
   @Get('conversations')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.EDITOR)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.EDITOR, Role.VIEWER)
   getConversations(@Query() query: QueryConversationsDto) {
     return this.service.getConversations(query);
   }
 
   /** GET /v1/admin/chat/conversations/:id/messages — 消息历史 */
   @Get('conversations/:id/messages')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.EDITOR)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.EDITOR, Role.VIEWER)
   getMessages(
     @Param('id') conversationId: string,
     @Query() query: QueryMessagesDto,

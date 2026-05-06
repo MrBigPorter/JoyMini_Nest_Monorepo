@@ -20,18 +20,18 @@ import { MessageBubble, QuickRepliesPanel } from './index';
 
 interface ChatWindowProps {
   conversation: ChatConversation;
-  onMessageSent: () => void;
-  registerOnNewMessage?: (fn: (msg: ChatMessage) => void) => void;
-  registerOnRecalled?: (
+  onMessageSentAction: () => void;
+  registerOnNewMessageAction?: (fn: (msg: ChatMessage) => void) => void;
+  registerOnRecalledAction?: (
     fn: (d: { conversationId: string; messageId: string }) => void,
   ) => void;
 }
 
 export function ChatWindow({
   conversation,
-  onMessageSent,
-  registerOnNewMessage,
-  registerOnRecalled,
+  onMessageSentAction,
+  registerOnNewMessageAction,
+  registerOnRecalledAction,
 }: ChatWindowProps) {
   const [replyText, setReplyText] = useState('');
   const [sending, setSending] = useState(false);
@@ -54,13 +54,13 @@ export function ChatWindow({
 
   // ── 实时消息回调注册 ──────────────────────────────────────────
   useEffect(() => {
-    registerOnNewMessage?.((msg) => {
+    registerOnNewMessageAction?.((msg) => {
       setAllMessages((prev) => {
         if (prev.some((m) => m.id === msg.id)) return prev;
         return [...prev, msg];
       });
     });
-    registerOnRecalled?.((data) => {
+    registerOnRecalledAction?.((data) => {
       if (data.conversationId !== conversation.id) return;
       setAllMessages((prev) =>
         prev.map((m) =>
@@ -74,7 +74,12 @@ export function ChatWindow({
         ),
       );
     });
-  }, [conversation.id, registerOnNewMessage, registerOnRecalled, t]);
+  }, [
+    conversation.id,
+    registerOnNewMessageAction,
+    registerOnRecalledAction,
+    t,
+  ]);
 
   const { loading: loadingMsgs, run: fetchMessages } = useRequest(
     () =>
@@ -115,7 +120,7 @@ export function ChatWindow({
       await chatApi.reply(conversation.id, { content, type: 0 });
       if (!text) setReplyText('');
       fetchMessages();
-      onMessageSent();
+      onMessageSentAction();
     } finally {
       setSending(false);
     }
@@ -151,7 +156,7 @@ export function ChatWindow({
         meta,
       });
       fetchMessages();
-      onMessageSent();
+      onMessageSentAction();
     } finally {
       setUploading(false);
     }
@@ -180,7 +185,7 @@ export function ChatWindow({
       await chatApi.closeConversation(conversation.id, {
         reason: t('customerService.closeTicket'),
       });
-      onMessageSent();
+      onMessageSentAction();
       fetchMessages();
     } finally {
       setClosing(false);
@@ -202,7 +207,7 @@ export function ChatWindow({
       <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 dark:border-white/10 bg-white dark:bg-gray-900">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center text-white text-sm font-semibold">
-            {displayName.charAt(0).toUpperCase()}
+            {Array.from(displayName)[0].toUpperCase()}
           </div>
           <div>
             <p className="text-sm font-semibold text-gray-900 dark:text-white">

@@ -17,36 +17,46 @@ import { useToastStore } from '@/store/useToastStore';
 import { AddressResponse } from '@/type/types';
 import type { TFunc } from '@/hooks/useTranslation';
 
-const createAddressEditSchema = (t: (key: string) => string) =>
+const createAddressEditSchema = (tAction: (key: string) => string) =>
   z.object({
     firstName: z.string().optional(),
     lastName: z.string().optional(),
-    contactName: z.string().min(1, t('address_validation_contactNameRequired')),
-    phone: z.string().min(1, t('address_validation_phoneRequired')),
-    fullAddress: z.string().min(1, t('address_validation_fullAddressRequired')),
+    contactName: z
+      .string()
+      .min(1, tAction('address_validation_contactNameRequired')),
+    phone: z.string().min(1, tAction('address_validation_phoneRequired')),
+    fullAddress: z
+      .string()
+      .min(1, tAction('address_validation_fullAddressRequired')),
     isDefault: z.coerce.number(),
     provinceId: z.coerce
       .number()
-      .min(1, t('address_validation_provinceRequired')),
-    cityId: z.coerce.number().min(1, t('address_validation_cityRequired')),
+      .min(1, tAction('address_validation_provinceRequired')),
+    cityId: z.coerce
+      .number()
+      .min(1, tAction('address_validation_cityRequired')),
     barangayId: z.coerce
       .number()
-      .min(1, t('address_validation_barangayRequired')),
+      .min(1, tAction('address_validation_barangayRequired')),
   });
 
 type AddressEditFormInput = z.infer<ReturnType<typeof createAddressEditSchema>>;
 
 interface Props {
   data?: AddressResponse;
-  close: () => void;
-  t: TFunc;
+  closeAction: () => void;
+  tAction: TFunc;
 }
 
-export const AddressEditModal: React.FC<Props> = ({ data, close, t }) => {
+export const AddressEditModal: React.FC<Props> = ({
+  data,
+  closeAction,
+  tAction,
+}) => {
   const addToast = useToastStore((state) => state.addToast);
 
   const form = useForm<AddressEditFormInput>({
-    resolver: zodResolver(createAddressEditSchema(t)),
+    resolver: zodResolver(createAddressEditSchema(tAction)),
     defaultValues: {
       firstName: data?.firstName || '',
       lastName: data?.lastName || '',
@@ -125,11 +135,11 @@ export const AddressEditModal: React.FC<Props> = ({ data, close, t }) => {
     {
       manual: true,
       onSuccess: () => {
-        addToast('success', t('address_savedSuccess'));
-        close();
+        addToast('success', tAction('address_savedSuccess'));
+        closeAction();
       },
       onError: (err) => {
-        addToast('error', err.message || t('address_saveFailed'));
+        addToast('error', err.message || tAction('address_saveFailed'));
       },
     },
   );
@@ -141,21 +151,21 @@ export const AddressEditModal: React.FC<Props> = ({ data, close, t }) => {
           <div className="grid grid-cols-2 gap-4">
             <FormTextField
               name="contactName"
-              label={t('address_formContactName')}
+              label={tAction('address_formContactName')}
             />
           </div>
 
-          <FormTextField name="phone" label={t('address_formPhone')} />
+          <FormTextField name="phone" label={tAction('address_formPhone')} />
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 p-3 bg-gray-50 dark:bg-white/5 rounded-lg border border-gray-100 dark:border-white/10">
             <div className="md:col-span-3 text-xs text-gray-500 font-medium mb-1 uppercase tracking-wider">
-              {t('address_areaSelection')}
+              {tAction('address_areaSelection')}
             </div>
 
             <FormSelectField
               name="provinceId"
-              label={t('address_formProvince')}
-              placeholder={t('address_formProvincePlaceholder')}
+              label={tAction('address_formProvince')}
+              placeholder={tAction('address_formProvincePlaceholder')}
               options={provinces.map((p) => ({
                 label: p.provinceName,
                 value: String(p.provinceId),
@@ -168,8 +178,8 @@ export const AddressEditModal: React.FC<Props> = ({ data, close, t }) => {
 
             <FormSelectField
               name="cityId"
-              label={t('address_formCity')}
-              placeholder={t('address_formCityPlaceholder')}
+              label={tAction('address_formCity')}
+              placeholder={tAction('address_formCityPlaceholder')}
               disabled={!provinceId}
               options={cities.map((c) => ({
                 label: c.cityName,
@@ -182,8 +192,8 @@ export const AddressEditModal: React.FC<Props> = ({ data, close, t }) => {
 
             <FormSelectField
               name="barangayId"
-              label={t('address_formBarangay')}
-              placeholder={t('address_formBarangayPlaceholder')}
+              label={tAction('address_formBarangay')}
+              placeholder={tAction('address_formBarangayPlaceholder')}
               disabled={!cityId}
               options={barangays.map((b) => ({
                 label: b.barangayName,
@@ -194,25 +204,25 @@ export const AddressEditModal: React.FC<Props> = ({ data, close, t }) => {
 
           <FormTextareaField
             name="fullAddress"
-            label={t('address_formFullAddress')}
-            placeholder={t('address_formFullAddressPlaceholder')}
+            label={tAction('address_formFullAddress')}
+            placeholder={tAction('address_formFullAddressPlaceholder')}
           />
 
           <FormSelectField
             name="isDefault"
-            label={t('address_formIsDefault')}
+            label={tAction('address_formIsDefault')}
             options={[
-              { label: t('address_optionNo'), value: '0' },
-              { label: t('address_optionYes'), value: '1' },
+              { label: tAction('address_optionNo'), value: '0' },
+              { label: tAction('address_optionYes'), value: '1' },
             ]}
           />
 
           <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 dark:border-white/10">
-            <Button type="button" variant="outline" onClick={close}>
-              {t('address_cancel')}
+            <Button type="button" variant="outline" onClick={closeAction}>
+              {tAction('address_cancel')}
             </Button>
             <Button isLoading={loading} type="submit">
-              {t('address_saveChanges')}
+              {tAction('address_saveChanges')}
             </Button>
           </div>
         </form>

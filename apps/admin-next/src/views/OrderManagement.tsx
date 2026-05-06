@@ -336,7 +336,7 @@ export const OrderManagement: React.FC = () => {
                 ],
               },
             ]}
-            onSearch={(v) => run({ current: 1, pageSize: 10 }, v)}
+            onSearchAction={(v) => run({ current: 1, pageSize: 10 }, v)}
             onReset={reset}
           />
         </div>

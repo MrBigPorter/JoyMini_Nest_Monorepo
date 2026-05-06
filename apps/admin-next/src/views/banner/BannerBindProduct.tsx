@@ -32,10 +32,14 @@ interface TableMeta {
 interface Props {
   value?: string;
   onChange?: (value: string) => void;
-  t: TFunc;
+  tAction: TFunc;
 }
 
-export const BannerBindProduct: React.FC<Props> = ({ value, onChange, t }) => {
+export const BannerBindProduct: React.FC<Props> = ({
+  value,
+  onChange,
+  tAction: t,
+}) => {
   const [searchTerm, setSearchTerm] = useState('');
 
   const getTableData = useCallback(

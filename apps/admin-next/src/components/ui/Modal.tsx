@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 interface ModalProps {
   isOpen: boolean;
-  onClose: () => void;
+  onCloseAction: () => void;
   title: string;
   children: React.ReactNode;
   size?: 'sm' | 'md' | 'lg' | 'xl';
@@ -14,7 +14,7 @@ interface ModalProps {
 
 export const Modal: React.FC<ModalProps> = ({
   isOpen,
-  onClose,
+  onCloseAction,
   title,
   children,
   size = 'md',
@@ -34,7 +34,7 @@ export const Modal: React.FC<ModalProps> = ({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-          onClick={onClose}
+          onClick={onCloseAction}
         >
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 10 }}
@@ -49,7 +49,7 @@ export const Modal: React.FC<ModalProps> = ({
                 {title}
               </h3>
               <button
-                onClick={onClose}
+                onClick={onCloseAction}
                 className="text-gray-400 hover:text-gray-500 dark:hover:text-white transition-colors p-1 hover:bg-black/5 dark:hover:bg-white/10 rounded-full"
               >
                 <X className="w-5 h-5" />

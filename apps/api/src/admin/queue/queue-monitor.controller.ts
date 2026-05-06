@@ -1,6 +1,8 @@
-import { Controller, Get, Patch, Delete, Query, Body } from '@nestjs/common';
+import { Controller, Get, Patch, Delete, Query, Body, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { Roles } from '../auth/roles.decorator';
+import { AdminJwtAuthGuard } from '../auth/admin-jwt-auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
 import { Role } from '@lucky/shared';
 import {
   QueueMonitorService,
@@ -9,11 +11,12 @@ import {
 
 @ApiTags('Admin - Queue Monitor')
 @Controller('admin/queues')
-@Roles(Role.SUPER_ADMIN, Role.ADMIN)
+@UseGuards(AdminJwtAuthGuard, RolesGuard)
 export class QueueMonitorController {
   constructor(private readonly queueMonitorService: QueueMonitorService) {}
 
   @Get()
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
   @ApiOperation({ summary: '获取所有队列状态和统计信息' })
   @ApiResponse({ status: 200, description: '队列状态信息' })
   async getQueueStats(): Promise<QueueMonitoringResponse> {
@@ -21,6 +24,7 @@ export class QueueMonitorController {
   }
 
   @Patch('pause')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   @ApiOperation({ summary: '暂停指定队列' })
   @ApiResponse({ status: 200, description: '队列已暂停' })
   async pauseQueue(@Body() body: { queueName: string }) {
@@ -32,6 +36,7 @@ export class QueueMonitorController {
   }
 
   @Patch('resume')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   @ApiOperation({ summary: '恢复指定队列' })
   @ApiResponse({ status: 200, description: '队列已恢复' })
   async resumeQueue(@Body() body: { queueName: string }) {
@@ -43,6 +48,7 @@ export class QueueMonitorController {
   }
 
   @Delete('clean')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   @ApiOperation({ summary: '清理队列中的旧任务' })
   @ApiResponse({ status: 200, description: '清理完成' })
   async cleanQueue(
@@ -62,6 +68,7 @@ export class QueueMonitorController {
   }
 
   @Get('blog-ai/translation-stats')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
   @ApiOperation({ summary: '获取博客AI翻译队列的详细统计' })
   @ApiResponse({ status: 200, description: '翻译队列统计信息' })
   async getBlogAiTranslationStats() {

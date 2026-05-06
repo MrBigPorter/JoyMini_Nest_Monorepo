@@ -80,10 +80,10 @@ export class UserController {
 
   /**
    * Get roles summary — role descriptions, permission list, active user counts
-   * Guarded by SYSTEM:UPDATE_ROLE (SUPER_ADMIN only)
+   * Guarded by SYSTEM:VIEW (read-only, accessible by VIEWER)
    */
   @Get('roles-summary')
-  @RequirePermission(OpModule.SYSTEM, OpAction.SYSTEM.UPDATE_ROLE)
+  @RequirePermission(OpModule.SYSTEM, OpAction.SYSTEM.VIEW)
   async getRolesSummary() {
     return this.userService.getRolesSummary();
   }

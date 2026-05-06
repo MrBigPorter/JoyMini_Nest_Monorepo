@@ -58,7 +58,7 @@ export const CategoryManagement: React.FC = () => {
               <div className="flex justify-between items-start mb-4">
                 <div className="w-10 h-10 rounded-full bg-primary-100 dark:bg-primary-500/20 text-primary-600 dark:text-primary-400 flex items-center justify-center">
                   <span className="text-lg font-bold">
-                    {cat.name.charAt(0)}
+                    {Array.from(cat.name)[0]}
                   </span>
                 </div>
                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">

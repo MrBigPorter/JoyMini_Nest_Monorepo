@@ -1,5 +1,3 @@
-'use client';
-
 /**
  * useChatSocket — Admin 客服端 Socket.IO 实时连接
  *

@@ -31,14 +31,14 @@ export class AdminLuckyDrawController {
   // --- Activities ---
 
   @Get('activities')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.EDITOR)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.EDITOR, Role.VIEWER)
   @ApiOperation({ summary: 'List all lucky draw activities' })
   listActivities(@Query() paginateDto: PaginateDto) {
     return this.service.listActivities(paginateDto);
   }
 
   @Get('activities/:id')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.EDITOR)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.EDITOR, Role.VIEWER)
   @ApiOperation({ summary: 'Get a single activity by ID' })
   getActivity(@Param('id') id: string) {
     return this.service.getActivity(id);
@@ -68,7 +68,7 @@ export class AdminLuckyDrawController {
   // --- Prizes ---
 
   @Get('activities/:activityId/prizes')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.EDITOR)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.EDITOR, Role.VIEWER)
   @ApiOperation({ summary: 'List all prizes for an activity' })
   listPrizes(@Param('activityId') activityId: string) {
     return this.service.listPrizes(activityId);
@@ -98,7 +98,7 @@ export class AdminLuckyDrawController {
   // --- Results ---
 
   @Get('activities/:activityId/results')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
   @ApiOperation({ summary: 'List draw results for an activity' })
   listResults(
     @Param('activityId') activityId: string,
