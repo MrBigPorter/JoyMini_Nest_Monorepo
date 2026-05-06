@@ -391,7 +391,7 @@ jobs:
           echo ""
 
           # 2. Public blog articles endpoint (verifies NestJS routing works through nginx)
-          ARTICLES_URL="$API_BASE/api/v1/blog/articles?page=1&pageSize=1"
+          ARTICLES_URL="$API_BASE/api/v1/frontend/blog/articles?page=1&pageSize=1"
           echo "  [2/2] GET $ARTICLES_URL"
           ARTICLES_RESP=$(curl -sS --max-time 15 "$ARTICLES_URL" 2>&1) || {
             echo "  ⚠️ Articles endpoint unreachable (non-fatal, might be empty DB)"
