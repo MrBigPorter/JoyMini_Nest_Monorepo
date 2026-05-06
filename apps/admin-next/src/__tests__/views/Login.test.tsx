@@ -10,9 +10,15 @@ const mockLogin = vi.hoisted(() => vi.fn());
 const mockAddToast = vi.hoisted(() => vi.fn());
 const mockAuthLogin = vi.hoisted(() => vi.fn());
 const mockAuthClearCookie = vi.hoisted(() => vi.fn());
+const mockExecuteRecaptcha = vi.hoisted(() => vi.fn());
 
 // ── mocks ────────────────────────────────────────────────────────
 vi.mock('framer-motion', () => framerMotionMock);
+vi.mock('react-google-recaptcha-v3', () => ({
+  useGoogleReCaptcha: () => ({
+    executeRecaptcha: mockExecuteRecaptcha,
+  }),
+}));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mockRouterPush }),
 }));
