@@ -137,10 +137,10 @@ export const CouponList: React.FC<CouponListProps> = ({
         // 这里的 CreateCouponModal 就是你上一段代码里的组件
         renderChildren: ({ close, confirm }) => (
           <CouponModal
-            t={t}
+            tAction={t}
             editingData={record}
-            close={close}
-            confirm={() => {
+            closeAction={close}
+            confirmAction={() => {
               confirm(); // 关闭弹窗
               refresh(); // 刷新表格
               addToast(
@@ -390,7 +390,7 @@ export const CouponList: React.FC<CouponListProps> = ({
               status: (initialFormParams?.status as string) || 'ALL',
               couponType: (initialFormParams?.couponType as string) || 'ALL',
             }}
-            onSearch={handleSearch}
+            onSearchAction={handleSearch}
             onReset={handleReset}
           />
         </div>

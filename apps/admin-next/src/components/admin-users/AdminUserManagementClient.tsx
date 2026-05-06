@@ -445,7 +445,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                   role: filters.role,
                   status: filters.status,
                 }}
-                onSearch={handleSearch}
+                onSearchAction={handleSearch}
                 onReset={handleReset}
                 loading={usersLoading}
               />

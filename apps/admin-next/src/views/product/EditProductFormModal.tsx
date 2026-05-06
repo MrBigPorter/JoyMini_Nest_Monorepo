@@ -30,13 +30,13 @@ type ProductFormInputs = z.infer<typeof createProductSchema> & {
 
 interface EditProductFormModalProps {
   categories: Category[];
-  confirm: () => void;
+  confirmAction: () => void;
   product: Product;
 }
 
 export const EditProductFormModal: React.FC<EditProductFormModalProps> = ({
   categories,
-  confirm,
+  confirmAction,
   product,
 }) => {
   const addToast = useToastStore((s) => s.addToast);
@@ -45,7 +45,7 @@ export const EditProductFormModal: React.FC<EditProductFormModalProps> = ({
     manual: true,
     onSuccess: () => {
       addToast('success', 'Product updated successfully');
-      confirm();
+      confirmAction();
     },
   });
 

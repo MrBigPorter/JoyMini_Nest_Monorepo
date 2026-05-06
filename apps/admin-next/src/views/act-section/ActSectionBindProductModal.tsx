@@ -14,17 +14,17 @@ import { SmartImage } from '@/components/ui/SmartImage';
 import type { TFunc } from '@/hooks/useTranslation';
 
 interface Props {
-  onClose: () => void;
-  onConfirm: () => void;
+  onCloseAction: () => void;
+  onConfirmAction: () => void;
   editingData: actSectionWithProducts;
-  t: TFunc;
+  tAction: TFunc;
 }
 
 export const ActSectionBindProductModal: React.FC<Props> = ({
-  onClose,
-  onConfirm,
+  onCloseAction,
+  onConfirmAction,
   editingData,
-  t,
+  tAction,
 }) => {
   const [selectedRows, setSelectedRows] = useState<Product[]>([]);
   const [existingIds, setExistingSelectedRows] = useState<string[]>([]);
@@ -65,8 +65,8 @@ export const ActSectionBindProductModal: React.FC<Props> = ({
   const { run: bindProduct, loading } = useRequest(actSectionApi.bindProduct, {
     manual: true,
     onSuccess: () => {
-      addToast('success', t('actSections.toastProductsBound'));
-      onConfirm();
+      addToast('success', tAction('actSections.toastProductsBound'));
+      onConfirmAction();
     },
   });
 
@@ -74,7 +74,7 @@ export const ActSectionBindProductModal: React.FC<Props> = ({
     useRequest(actSectionApi.bindProduct, {
       manual: true,
       onSuccess: () => {
-        addToast('success', t('actSections.toastProductsBound'));
+        addToast('success', tAction('actSections.toastProductsBound'));
         getDetail(editingData.id);
       },
     });
@@ -84,7 +84,7 @@ export const ActSectionBindProductModal: React.FC<Props> = ({
     {
       manual: true,
       onSuccess: () => {
-        addToast('success', t('actSections.toastProductUnbound'));
+        addToast('success', tAction('actSections.toastProductUnbound'));
         getDetail(editingData.id);
       },
     },
@@ -100,7 +100,7 @@ export const ActSectionBindProductModal: React.FC<Props> = ({
       (product) => product.treasureId,
     );
     if (products.length === 0) {
-      addToast('error', t('actSections.toastSelectProduct'));
+      addToast('error', tAction('actSections.toastSelectProduct'));
       return;
     }
     bindProduct(editingData.id, { treasureIds: products });
@@ -109,17 +109,19 @@ export const ActSectionBindProductModal: React.FC<Props> = ({
   const unbind = useCallback(
     (product: Product) => {
       ModalManager.open({
-        title: t('actSections.unbindTitle'),
-        content: t('actSections.unbindContent', { name: product.treasureName }),
-        confirmText: t('actSections.unbind'),
-        cancelText: t('actSections.cancel'),
+        title: tAction('actSections.unbindTitle'),
+        content: tAction('actSections.unbindContent', {
+          name: product.treasureName,
+        }),
+        confirmText: tAction('actSections.unbind'),
+        cancelText: tAction('actSections.cancel'),
         onConfirm: () => {
           if (unbindLoading) return;
           unbindProduct(editingData.id, product.treasureId);
         },
       });
     },
-    [editingData.id, unbindLoading, unbindProduct, t],
+    [editingData.id, unbindLoading, unbindProduct, tAction],
   );
 
   // baseTable 检测到选中了行或者onSelectionChange:handleSelectionChange发生变化，会调用onSelectionChange
@@ -136,7 +138,7 @@ export const ActSectionBindProductModal: React.FC<Props> = ({
     return [
       {
         accessorKey: 'treasureName',
-        header: t('actSections.columnProductInfo'),
+        header: tAction('actSections.columnProductInfo'),
         cell: ({ row }) => (
           <div className="flex items-center gap-3">
             <SmartImage
@@ -156,14 +158,14 @@ export const ActSectionBindProductModal: React.FC<Props> = ({
       },
       {
         accessorKey: 'unitAmount',
-        header: t('actSections.columnPrice'),
+        header: tAction('actSections.columnPrice'),
         cell: ({ row }) => (
           <span className="font-mono text-xs">₱{row.original.unitAmount}</span>
         ),
       },
       {
         id: 'actions',
-        header: t('actSections.columnActions'),
+        header: tAction('actSections.columnActions'),
         enableSorting: false,
         cell: ({ row }) => {
           const isBinding = existingIds.includes(row.original.treasureId);
@@ -200,7 +202,7 @@ export const ActSectionBindProductModal: React.FC<Props> = ({
     existingIds,
     unbindLoading,
     unbind,
-    t,
+    tAction,
   ]);
 
   return (
@@ -208,7 +210,7 @@ export const ActSectionBindProductModal: React.FC<Props> = ({
       <div className="p-4 flex-1 overflow-y-auto space-y-4">
         <div className="flex gap-2">
           <Input
-            placeholder={t('actSections.searchProductPlaceholder')}
+            placeholder={tAction('actSections.searchProductPlaceholder')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             onKeyDown={(e) =>
@@ -233,7 +235,7 @@ export const ActSectionBindProductModal: React.FC<Props> = ({
           defaultSelectedRowKeys={existingIds}
           disabledRowKeys={existingIds}
           onSelectionChange={handleSelectionChange}
-          t={t}
+          t={tAction}
           pagination={{
             ...tableProps.pagination,
             onChange: (page, pageSize) => {
@@ -248,13 +250,13 @@ export const ActSectionBindProductModal: React.FC<Props> = ({
 
       <div className="p-4  flex justify-end gap-3 ">
         <div className="flex-1 content-center text-sm text-gray-500">
-          {t('actSections.items', { count: selectedRows.length })}
+          {tAction('actSections.items', { count: selectedRows.length })}
         </div>
-        <Button variant="ghost" onClick={onClose}>
-          {t('actSections.cancel')}
+        <Button variant="ghost" onClick={onCloseAction}>
+          {tAction('actSections.cancel')}
         </Button>
         <Button isLoading={loading} onClick={confirm}>
-          {t('actSections.confirmAdd')}
+          {tAction('actSections.confirmAdd')}
         </Button>
       </div>
     </div>

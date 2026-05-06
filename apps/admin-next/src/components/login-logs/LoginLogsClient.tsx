@@ -69,7 +69,9 @@ function LogRow({ log, t }: { log: UserLoginLog; t: (key: string) => string }) {
       <td className="px-4 py-3">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
-            {log.userNickname?.charAt(0).toUpperCase() ?? '?'}
+            {log.userNickname
+              ? Array.from(log.userNickname)[0].toUpperCase()
+              : '?'}
           </div>
           <div>
             <p className="text-sm font-medium text-gray-900 dark:text-white">

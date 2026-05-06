@@ -139,13 +139,13 @@ export const BannerManagement: React.FC<BannerManagementProps> = ({
         renderChildren: ({ close, confirm }) => (
           <BannerFormModal
             key={record ? `edit-${record.id}` : 'create-banner'}
-            close={close}
-            confirm={() => {
+            closeAction={close}
+            confirmAction={() => {
               confirm();
               void refresh();
             }}
             editingData={record}
-            t={t}
+            tAction={t}
           />
         ),
       });
@@ -324,7 +324,7 @@ export const BannerManagement: React.FC<BannerManagementProps> = ({
               title: filters.title,
               bannerCate: filters.bannerCate,
             }}
-            onSearch={handleSearch}
+            onSearchAction={handleSearch}
             onReset={handleReset}
             loading={bannersLoading}
           />

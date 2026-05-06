@@ -27,7 +27,7 @@ export class SupportChannelController {
 
   /** GET /v1/admin/support-channels */
   @Get()
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
   list(@Query() query: QuerySupportChannelsDto) {
     return this.service.list(query);
   }

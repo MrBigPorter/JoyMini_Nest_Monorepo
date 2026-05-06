@@ -28,10 +28,13 @@ import { WithdrawOrder } from '@/type/types';
 
 interface Props {
   data: WithdrawOrder;
-  confirm: () => void;
+  confirmAction: () => void;
 }
 
-export const WithdrawAuditModal: React.FC<Props> = ({ data, confirm }) => {
+export const WithdrawAuditModal: React.FC<Props> = ({
+  data,
+  confirmAction,
+}) => {
   const { t } = useTranslation();
   const [remark, setRemark] = useState('');
   const { copy } = useCopyToClipboard();
@@ -49,7 +52,7 @@ export const WithdrawAuditModal: React.FC<Props> = ({ data, confirm }) => {
     try {
       await runAsync({ withdrawId: data.withdrawId, status, remark });
       void revalidateFinanceAfterWithdrawAudit();
-      confirm();
+      confirmAction();
     } catch (e) {
       // 4xx 由 HTTP 拦截器统一 toast，此处不重复 console.error
       const status = (e as { response?: { status?: number } })?.response

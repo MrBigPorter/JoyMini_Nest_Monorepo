@@ -24,7 +24,7 @@ export class AdsController {
 
   /** GET /v1/admin/ads — 广告列表 */
   @Get()
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.EDITOR)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.EDITOR, Role.VIEWER)
   getList(@Query() query: QueryAdsDto) {
     return this.service.getList(query);
   }

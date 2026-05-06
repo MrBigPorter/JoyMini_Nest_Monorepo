@@ -17,7 +17,7 @@ import { useMemo, useCallback } from 'react';
 interface Props<T extends Record<string, any>> {
   schema: SearchFieldSchema<T>[];
   initialValues?: Partial<T>;
-  onSearch: (values: T) => void;
+  onSearchAction: (values: T) => void;
   onReset?: () => void;
   loading?: boolean;
 }
@@ -26,7 +26,7 @@ interface Props<T extends Record<string, any>> {
 export const SchemaSearchForm = <T extends Record<string, any>>({
   schema,
   initialValues = {},
-  onSearch,
+  onSearchAction,
   onReset,
   loading,
 }: Props<T>) => {
@@ -68,14 +68,14 @@ export const SchemaSearchForm = <T extends Record<string, any>>({
 
   // 3. 搜索处理
   const onSubmit = (values: T) => {
-    onSearch(cleanValues(values));
+    onSearchAction(cleanValues(values));
   };
 
   // 4. 重置处理
   const handleReset = () => {
     form.reset(resetValues); // 重置到 schema 默认值
     onReset?.();
-    onSearch(cleanValues(resetValues));
+    onSearchAction(cleanValues(resetValues));
   };
 
   // 5. 渲染字段

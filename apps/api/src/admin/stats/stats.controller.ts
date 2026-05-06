@@ -15,7 +15,7 @@ export class StatsController {
    * 总览统计：用户、订单、收入、财务汇总
    */
   @Get('overview')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
   async getOverview() {
     return this.statsService.getOverview();
   }
@@ -25,7 +25,7 @@ export class StatsController {
    * 趋势数据：最近 N 天的订单量、用户注册量
    */
   @Get('trend')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
   async getTrend(@Query('days') days?: string) {
     const d = days ? parseInt(days, 10) : 30;
     return this.statsService.getTrend(isNaN(d) ? 30 : d);

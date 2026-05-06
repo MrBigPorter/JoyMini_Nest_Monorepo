@@ -63,6 +63,16 @@ export const RolePermissions = {
     `${OpModule.USER}:${OpAction.USER.VIEW}`,
     `${OpModule.ORDER}:${OpAction.ORDER.VIEW}`,
     `${OpModule.MARKETING}:${OpAction.MARKETING.VIEW}`,
+
+    // 查看产品（夺宝）
+    `${OpModule.TREASURE}:${OpAction.TREASURE.VIEW}`,
+
+    // 查看财务数据（只读）
+    `${OpModule.FINANCE}:${OpAction.FINANCE.VIEW}`,
+    `${OpModule.FINANCE}:${OpAction.FINANCE.CHANNEL_VIEW}`,
+
+    // 查看系统设置/角色概览（只读，用于 roles 页面）
+    `${OpModule.SYSTEM}:${OpAction.SYSTEM.VIEW}`,
   ],
 
   // ------------------------------------------

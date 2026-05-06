@@ -84,9 +84,9 @@ export const KycList: React.FC<KycListProps> = ({
         renderChildren: ({ close }) => (
           <KycAuditModal
             data={record}
-            close={close}
-            reload={() => actionRef.current?.reload()}
-            t={t}
+            closeAction={close}
+            reloadAction={() => actionRef.current?.reload()}
+            tAction={t}
           />
         ),
       });
@@ -101,9 +101,9 @@ export const KycList: React.FC<KycListProps> = ({
       renderChildren: ({ close }) => (
         <KycFormModal
           mode="create"
-          close={close}
-          reload={() => actionRef.current?.reload()}
-          t={t}
+          closeAction={close}
+          reloadAction={() => actionRef.current?.reload()}
+          tAction={t}
         />
       ),
     });
@@ -118,9 +118,9 @@ export const KycList: React.FC<KycListProps> = ({
           <KycFormModal
             mode="edit"
             initialData={record}
-            close={close}
-            reload={() => actionRef.current?.reload()}
-            t={t}
+            closeAction={close}
+            reloadAction={() => actionRef.current?.reload()}
+            tAction={t}
           />
         ),
       });

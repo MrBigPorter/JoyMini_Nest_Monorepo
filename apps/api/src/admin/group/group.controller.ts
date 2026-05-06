@@ -17,12 +17,18 @@ import { GroupMembersResponseDto } from '@api/common/group/dto/group-members-res
 import { plainToInstance } from 'class-transformer';
 import { GroupForTreasureItemDto } from '@api/common/group/dto/group-for-treasure-item.dto';
 import { GroupDetailResponseDto } from '@api/common/group/dto/group-detail.response.dto';
+import { Roles } from '../auth/roles.decorator';
+import { AdminJwtAuthGuard } from '../auth/admin-jwt-auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Role } from '@lucky/shared';
 
 @Controller('admin/groups')
+@UseGuards(AdminJwtAuthGuard, RolesGuard)
 export class GroupController {
   constructor(private readonly groupService: GroupService) {}
 
   @Get('list')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
   @ApiOkResponse({ type: GroupListForTreasureResponseDto })
   async list(@Query() query: GroupListForTreasureDto) {
     const data = await this.groupService.listGroupForTreasure(null, query);
@@ -33,6 +39,7 @@ export class GroupController {
   }
 
   @Get(':groupId')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
   @ApiOkResponse({ type: GroupDetailResponseDto })
   async getGroupDetail(@Param('groupId') groupId: string) {
     const data = await this.groupService.getGroupDetail(groupId);

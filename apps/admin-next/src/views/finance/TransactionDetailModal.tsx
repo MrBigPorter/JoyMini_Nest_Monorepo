@@ -17,7 +17,7 @@ import { useTranslation } from '@/hooks/useTranslation';
 
 interface Props {
   data: WalletTransaction;
-  close: () => void;
+  closeAction: () => void;
 }
 
 // 辅助组件：信息行
@@ -36,7 +36,10 @@ const InfoRow: React.FC<{
   </div>
 );
 
-export const TransactionDetailModal: React.FC<Props> = ({ data, close }) => {
+export const TransactionDetailModal: React.FC<Props> = ({
+  data,
+  closeAction,
+}) => {
   const { t } = useTranslation();
   const { copy } = useCopyToClipboard();
 
@@ -215,7 +218,7 @@ export const TransactionDetailModal: React.FC<Props> = ({ data, close }) => {
       </div>
 
       <div className="flex justify-end pt-4">
-        <Button onClick={close} variant="outline">
+        <Button onClick={closeAction} variant="outline">
           {t('finance.transactionDetail.close')}
         </Button>
       </div>

@@ -23,18 +23,18 @@ import { SmartImage } from '@/components/ui/SmartImage';
 import type { TFunc } from '@/hooks/useTranslation';
 
 interface Props {
-  close: () => void;
-  confirm: () => void;
+  closeAction: () => void;
+  confirmAction: () => void;
   editingData?: Banner;
   defaultCate?: number; // 当前所在的 Tab
-  t: TFunc;
+  tAction: TFunc;
 }
 
 export const BannerFormModal: React.FC<Props> = ({
-  close,
-  confirm,
+  closeAction,
+  confirmAction,
   editingData,
-  t,
+  tAction,
 }) => {
   const addToast = useToastStore((s) => s.addToast);
 
@@ -82,9 +82,11 @@ export const BannerFormModal: React.FC<Props> = ({
       onSuccess: () => {
         addToast(
           'success',
-          editingData ? t('banners_toastUpdated') : t('banners_toastCreated'),
+          editingData
+            ? tAction('banners_toastUpdated')
+            : tAction('banners_toastCreated'),
         );
-        confirm();
+        confirmAction();
       },
     },
   );
@@ -116,15 +118,15 @@ export const BannerFormModal: React.FC<Props> = ({
           <div className="grid grid-cols-1 gap-4">
             <FormTextField
               name="title"
-              label={t('banners_formTitle')}
-              placeholder={t('banners_formTitlePlaceholder')}
+              label={tAction('banners_formTitle')}
+              placeholder={tAction('banners_formTitlePlaceholder')}
               required
             />
             <FormMediaUploaderField
               required
               maxFileCount={1}
               name="bannerImgUrl"
-              label={t('banners_formCreativeAsset')}
+              label={tAction('banners_formCreativeAsset')}
               renderImage={({ src, alt, className }) => (
                 <SmartImage
                   src={src}
@@ -143,17 +145,17 @@ export const BannerFormModal: React.FC<Props> = ({
           <div className="grid grid-cols-2 gap-4">
             <FormSelectField
               name="bannerCate"
-              label={t('banners_formPosition')}
+              label={tAction('banners_formPosition')}
               numeric={true}
               options={[
-                { label: t('banners_positionHome'), value: '1' },
-                { label: t('banners_positionActivity'), value: '2' },
-                { label: t('banners_positionProduct'), value: '3' },
+                { label: tAction('banners_positionHome'), value: '1' },
+                { label: tAction('banners_positionActivity'), value: '2' },
+                { label: tAction('banners_positionProduct'), value: '3' },
               ]}
             />
             <FormTextField
               name="sortOrder"
-              label={t('banners_formSortOrder')}
+              label={tAction('banners_formSortOrder')}
               type="number"
             />
           </div>
@@ -161,35 +163,35 @@ export const BannerFormModal: React.FC<Props> = ({
           <div className="grid grid-cols-2 gap-4">
             <FormDateField
               name="activityAtStart"
-              label={t('banners_formStartTime')}
+              label={tAction('banners_formStartTime')}
             />
             <FormDateField
               name="activityAtEnd"
-              label={t('banners_formEndTime')}
+              label={tAction('banners_formEndTime')}
             />
           </div>
 
           {/* 3. 智能跳转配置区 (核心) */}
           <div className="p-4 bg-gray-50 dark:bg-white/5 rounded-lg border border-gray-100 dark:border-white/10 space-y-3">
             <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              {t('banners_clickAction')}
+              {tAction('banners_clickAction')}
             </div>
 
             <FormSelectField
               name="jumpCate"
-              label={t('banners_navType')}
+              label={tAction('banners_navType')}
               numeric={true}
               options={[
                 {
-                  label: t('banners_navNone'),
+                  label: tAction('banners_navNone'),
                   value: String(JUMP_CATE.NONE),
                 },
                 {
-                  label: t('banners_navProduct'),
+                  label: tAction('banners_navProduct'),
                   value: String(JUMP_CATE.TREASURE),
                 },
                 {
-                  label: t('banners_navExternal'),
+                  label: tAction('banners_navExternal'),
                   value: String(JUMP_CATE.EXTERNAL),
                 },
               ]}
@@ -200,8 +202,8 @@ export const BannerFormModal: React.FC<Props> = ({
               <div className="animate-in fade-in slide-in-from-top-2">
                 <FormTextField
                   name="jumpUrl"
-                  label={t('banners_formTargetUrl')}
-                  placeholder={t('banners_formTargetUrlPlaceholder')}
+                  label={tAction('banners_formTargetUrl')}
+                  placeholder={tAction('banners_formTargetUrlPlaceholder')}
                   renderLeft={() => (
                     <Link size={16} className="mr-2 text-gray-400" />
                   )}
@@ -219,7 +221,7 @@ export const BannerFormModal: React.FC<Props> = ({
                     <BannerBindProduct
                       value={field.value}
                       onChange={field.onChange}
-                      t={t}
+                      tAction={tAction}
                     />
                     {fieldState.error && (
                       <div className="mt-1 text-sm text-red-500">
@@ -234,11 +236,11 @@ export const BannerFormModal: React.FC<Props> = ({
 
           <div className="flex justify-end items-center pt-2">
             <div className="flex gap-2">
-              <Button type="button" variant="ghost" onClick={close}>
-                {t('banners_cancel')}
+              <Button type="button" variant="ghost" onClick={closeAction}>
+                {tAction('banners_cancel')}
               </Button>
               <Button type="submit" isLoading={loading}>
-                {t('banners_save')}
+                {tAction('banners_save')}
               </Button>
             </div>
           </div>

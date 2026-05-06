@@ -7,6 +7,7 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -29,6 +30,11 @@ import { RequirePermission } from '@api/common/decorators/require-permission.dec
 import { CurrentUserId } from '@api/common/decorators/user.decorator';
 import { RefundAuditDto } from '@api/admin/order/dto/refund-audit.dto';
 import { RefundResponseAdminDto } from '@api/admin/order/dto/refund-response.admin.dto';
+import {
+  maskSensitiveFields,
+  maskName,
+  maskPhone,
+} from '@api/common/utils/data-masking';
 
 @ApiTags('Admin Order Management')
 @ApiBearerAuth()
@@ -47,15 +53,19 @@ export class OrderController {
   @RequirePermission(OpModule.ORDER, OpAction.ORDER.VIEW)
   @ApiOkResponse({ type: OrderResponseDto })
   @ApiExtraModels(PaginatedResponseDto, OrderResponseDto)
-  async findAll(@Query() query: QueryOrderDto) {
+  async findAll(@Query() query: QueryOrderDto, @Req() req: Request) {
     const result = await this.OrderService.findAll(query);
 
-    return {
+    const response = {
       ...result,
       list: plainToInstance(OrderResponseDto, result.list, {
         excludeExtraneousValues: true,
       }),
     };
+    return maskSensitiveFields(response, (req as any).user?.role, {
+      'user.nickname': maskName,
+      'user.phone': maskPhone,
+    });
   }
 
   /**
@@ -66,10 +76,14 @@ export class OrderController {
   @Get(':id')
   @RequirePermission(OpModule.ORDER, OpAction.ORDER.VIEW)
   @ApiOkResponse({ type: OrderResponseDto })
-  async findOne(@Param('id') id: string) {
+  async findOne(@Param('id') id: string, @Req() req: Request) {
     const order = await this.OrderService.finOne(id);
-    return plainToInstance(OrderResponseDto, order, {
+    const response = plainToInstance(OrderResponseDto, order, {
       excludeExtraneousValues: true,
+    });
+    return maskSensitiveFields(response, (req as any).user?.role, {
+      'user.nickname': maskName,
+      'user.phone': maskPhone,
     });
   }
 

@@ -67,7 +67,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const displayName =
     userInfo?.realName || userInfo?.username || t('user_fallbackName');
-  const initial = displayName.charAt(0).toUpperCase();
+  const initial = Array.from(displayName)[0].toUpperCase();
 
   // Group routes by group
   const groupedRoutes = sidebarRoutes.reduce(

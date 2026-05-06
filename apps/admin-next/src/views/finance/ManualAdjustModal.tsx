@@ -36,11 +36,14 @@ const getAdjustSchema = (t: (key: string) => string) =>
 type AdjustFormInput = z.infer<ReturnType<typeof getAdjustSchema>>;
 
 interface Props {
-  close: () => void;
-  confirm: () => void;
+  closeAction: () => void;
+  confirmAction: () => void;
 }
 
-export const ManualAdjustModal: React.FC<Props> = ({ close, confirm }) => {
+export const ManualAdjustModal: React.FC<Props> = ({
+  closeAction,
+  confirmAction,
+}) => {
   const { t } = useTranslation();
   const AdjustSchema = getAdjustSchema(t);
   const form = useForm<AdjustFormInput>({
@@ -56,7 +59,7 @@ export const ManualAdjustModal: React.FC<Props> = ({ close, confirm }) => {
     manual: true,
     onSuccess: () => {
       void revalidateFinanceAfterAdjust();
-      confirm();
+      confirmAction();
     },
   });
 
@@ -123,7 +126,7 @@ export const ManualAdjustModal: React.FC<Props> = ({ close, confirm }) => {
           />
 
           <div className="flex justify-end gap-3 pt-4">
-            <Button type="button" variant="ghost" onClick={close}>
+            <Button type="button" variant="ghost" onClick={closeAction}>
               {t('finance.manualAdjust.cancel')}
             </Button>
             <Button isLoading={loading} type="submit" variant="primary">

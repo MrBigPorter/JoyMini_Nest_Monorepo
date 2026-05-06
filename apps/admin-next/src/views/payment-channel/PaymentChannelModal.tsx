@@ -90,9 +90,9 @@ const PRESET_CODES = [
 
 interface Props {
   data?: PaymentChannel;
-  close: () => void;
-  reload: () => void;
-  t: (key: string, params?: Record<string, string | number>) => string;
+  closeAction: () => void;
+  reloadAction: () => void;
+  tAction: (key: string, params?: Record<string, string | number>) => string;
 }
 
 // 辅助函数：解析金额字符串
@@ -107,10 +107,10 @@ const parseFixedAmounts = (str?: string): number[] => {
 // --- 组件：模拟手机预览 ---
 const MobilePreview = ({
   values,
-  t,
+  tAction,
 }: {
   values: Partial<PaymentChannelFormInputs>;
-  t: (key: string, params?: Record<string, string | number>) => string;
+  tAction: (key: string, params?: Record<string, string | number>) => string;
 }) => {
   const fixedAmounts = useMemo(
     () => parseFixedAmounts(values.fixedAmountStr),
@@ -127,10 +127,10 @@ const MobilePreview = ({
         {/* Header */}
         <div className="bg-primary-600 h-32 p-4 pt-10 text-white flex flex-col justify-between">
           <div className="text-xs opacity-80">
-            {t('paymentChannel.modal.cashierPreview')}
+            {tAction('paymentChannel.modal.cashierPreview')}
           </div>
           <div className="font-bold text-xl">
-            {t('paymentChannel.modal.deposit')}
+            {tAction('paymentChannel.modal.deposit')}
           </div>
         </div>
 
@@ -154,12 +154,12 @@ const MobilePreview = ({
               )}
               <div>
                 <div className="font-bold text-sm text-gray-900 dark:text-white">
-                  {values.name || t('paymentChannel.modal.channelName')}
+                  {values.name || tAction('paymentChannel.modal.channelName')}
                 </div>
                 <div className="text-[10px] text-gray-500">
                   {values.type === 1
-                    ? t('paymentChannel.modal.instantDeposit')
-                    : t('paymentChannel.modal.bankTransfer')}
+                    ? tAction('paymentChannel.modal.instantDeposit')
+                    : tAction('paymentChannel.modal.bankTransfer')}
                 </div>
               </div>
             </div>
@@ -172,7 +172,7 @@ const MobilePreview = ({
           {values.type === 1 && (
             <div className="mt-4">
               <div className="text-xs text-gray-500 mb-2 font-medium">
-                {t('paymentChannel.modal.selectAmount')}
+                {tAction('paymentChannel.modal.selectAmount')}
               </div>
               <div className="grid grid-cols-3 gap-2">
                 {fixedAmounts.map((amt, idx) => (
@@ -187,7 +187,7 @@ const MobilePreview = ({
                 ))}
                 {fixedAmounts.length === 0 && (
                   <div className="col-span-3 text-center py-4 text-xs text-gray-400 border border-dashed rounded">
-                    {t('paymentChannel.modal.noFixedAmounts')}
+                    {tAction('paymentChannel.modal.noFixedAmounts')}
                   </div>
                 )}
               </div>
@@ -198,7 +198,7 @@ const MobilePreview = ({
           {values.isCustom && (
             <div className="mt-4 p-3 bg-white dark:bg-gray-800 border border-gray-200 rounded-lg flex justify-between items-center">
               <span className="text-xs text-gray-400">
-                {t('paymentChannel.modal.enterAmount')}
+                {tAction('paymentChannel.modal.enterAmount')}
               </span>
               <span className="text-xs font-mono text-gray-900">₱0.00</span>
             </div>
@@ -208,13 +208,13 @@ const MobilePreview = ({
           {values.type === 2 && (
             <div className="mt-4 p-3 bg-amber-50 border border-amber-100 rounded-lg text-amber-700 text-xs">
               <div>
-                {t('paymentChannel.modal.feeLabel', {
+                {tAction('paymentChannel.modal.feeLabel', {
                   fixed: String(values.feeFixed || 0),
                   rate: String((values.feeRate || 0) * 100),
                 })}
               </div>
               <div className="mt-1 opacity-70">
-                {t('paymentChannel.modal.minLabel', {
+                {tAction('paymentChannel.modal.minLabel', {
                   amount: String(values.minAmount),
                 })}
               </div>
@@ -225,7 +225,7 @@ const MobilePreview = ({
         {/* 底部按钮 */}
         <div className="mt-auto p-4">
           <div className="w-full bg-primary-600 text-white text-center py-3 rounded-full text-sm font-bold shadow-lg shadow-primary-500/30">
-            {t('paymentChannel.modal.confirm')}
+            {tAction('paymentChannel.modal.confirm')}
           </div>
         </div>
       </div>
@@ -250,9 +250,9 @@ const SectionTitle = ({
 
 export const PaymentChannelModal: React.FC<Props> = ({
   data,
-  close,
-  reload,
-  t,
+  closeAction,
+  reloadAction,
+  tAction,
 }) => {
   const addToast = useToastStore((state) => state.addToast);
 
@@ -323,11 +323,11 @@ export const PaymentChannelModal: React.FC<Props> = ({
         addToast(
           'success',
           data
-            ? t('paymentChannel.updatedSuccess')
-            : t('paymentChannel.createdSuccess'),
+            ? tAction('paymentChannel.updatedSuccess')
+            : tAction('paymentChannel.createdSuccess'),
         );
-        reload();
-        close();
+        reloadAction();
+        closeAction();
       },
       onError: (err) => addToast('error', err.message),
     },
@@ -339,13 +339,14 @@ export const PaymentChannelModal: React.FC<Props> = ({
       <div className="flex-1 overflow-y-auto p-8 bg-gray-100 dark:bg-black/20 custom-scrollbar border-r border-gray-200 dark:border-white/5 flex flex-col items-center justify-center">
         <div className="text-center mb-4">
           <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center justify-center gap-2">
-            <Smartphone size={20} /> {t('paymentChannel.modal.mobilePreview')}
+            <Smartphone size={20} />{' '}
+            {tAction('paymentChannel.modal.mobilePreview')}
           </h2>
           <p className="text-xs text-gray-500 mt-1">
-            {t('paymentChannel.modal.previewDescription')}
+            {tAction('paymentChannel.modal.previewDescription')}
           </p>
         </div>
-        <MobilePreview values={watchedValues} t={t} />
+        <MobilePreview values={watchedValues} tAction={tAction} />
       </div>
 
       {/* --- RIGHT: Configuration Form --- */}
@@ -360,13 +361,13 @@ export const PaymentChannelModal: React.FC<Props> = ({
               {/* 1. Basic Info */}
               <SectionTitle
                 icon={CreditCard}
-                title={t('paymentChannel.form.basicInfo')}
+                title={tAction('paymentChannel.form.basicInfo')}
               />
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs text-gray-500 mb-1 block">
-                      {t('paymentChannel.form.businessType')}
+                      {tAction('paymentChannel.form.businessType')}
                     </label>
                     <div className="flex bg-gray-100 dark:bg-white/5 p-1 rounded-lg">
                       <button
@@ -379,7 +380,7 @@ export const PaymentChannelModal: React.FC<Props> = ({
                             : 'text-gray-500 hover:text-gray-700',
                         )}
                       >
-                        {t('paymentChannel.form.moneyIn')}
+                        {tAction('paymentChannel.form.moneyIn')}
                       </button>
                       <button
                         type="button"
@@ -391,26 +392,26 @@ export const PaymentChannelModal: React.FC<Props> = ({
                             : 'text-gray-500 hover:text-gray-700',
                         )}
                       >
-                        {t('paymentChannel.form.moneyOut')}
+                        {tAction('paymentChannel.form.moneyOut')}
                       </button>
                     </div>
                   </div>
                   <div>
                     <FormSelectField
                       name="status"
-                      label={t('paymentChannel.form.status')}
+                      label={tAction('paymentChannel.form.status')}
                       numeric={true}
                       options={[
                         {
-                          label: t('paymentChannel.status.active'),
+                          label: tAction('paymentChannel.status.active'),
                           value: '1',
                         },
                         {
-                          label: t('paymentChannel.status.disabled'),
+                          label: tAction('paymentChannel.status.disabled'),
                           value: '0',
                         },
                         {
-                          label: t('paymentChannel.status.maintenance'),
+                          label: tAction('paymentChannel.status.maintenance'),
                           value: '2',
                         },
                       ]}
@@ -421,14 +422,14 @@ export const PaymentChannelModal: React.FC<Props> = ({
                 {/* Channel Code */}
                 <div>
                   <label className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1 block">
-                    {t('paymentChannel.form.channelCode')}
+                    {tAction('paymentChannel.form.channelCode')}
                   </label>
                   <div className="relative">
                     <input
                       list="xendit_codes"
                       {...form.register('code')}
                       className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                      placeholder={t(
+                      placeholder={tAction(
                         'paymentChannel.form.channelCodePlaceholder',
                       )}
                     />
@@ -437,7 +438,7 @@ export const PaymentChannelModal: React.FC<Props> = ({
                         (c) => !c.type || c.type === watchedValues.type,
                       ).map((c) => (
                         <option key={c.value} value={c.value}>
-                          {t(c.labelKey)}
+                          {tAction(c.labelKey)}
                         </option>
                       ))}
                     </datalist>
@@ -451,16 +452,20 @@ export const PaymentChannelModal: React.FC<Props> = ({
 
                 <FormTextField
                   name="name"
-                  label={t('paymentChannel.form.displayName')}
-                  placeholder={t('paymentChannel.form.displayNamePlaceholder')}
+                  label={tAction('paymentChannel.form.displayName')}
+                  placeholder={tAction(
+                    'paymentChannel.form.displayNamePlaceholder',
+                  )}
                 />
 
                 <div className="flex gap-2 items-start">
                   <div className="flex-1">
                     <FormTextField
                       name="icon"
-                      label={t('paymentChannel.form.iconUrl')}
-                      placeholder={t('paymentChannel.form.iconUrlPlaceholder')}
+                      label={tAction('paymentChannel.form.iconUrl')}
+                      placeholder={tAction(
+                        'paymentChannel.form.iconUrlPlaceholder',
+                      )}
                     />
                   </div>
                   {watchedValues.icon && (
@@ -480,7 +485,7 @@ export const PaymentChannelModal: React.FC<Props> = ({
                 <div className="grid grid-cols-2 gap-4">
                   <FormTextField
                     name="sortOrder"
-                    label={t('paymentChannel.form.sortOrder')}
+                    label={tAction('paymentChannel.form.sortOrder')}
                     type="number"
                   />
                 </div>
@@ -489,18 +494,18 @@ export const PaymentChannelModal: React.FC<Props> = ({
               {/* 2. Limits & Control */}
               <SectionTitle
                 icon={Settings2}
-                title={t('paymentChannel.form.limitsControl')}
+                title={tAction('paymentChannel.form.limitsControl')}
               />
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <FormTextField
                     name="minAmount"
-                    label={t('paymentChannel.form.minAmount')}
+                    label={tAction('paymentChannel.form.minAmount')}
                     type="number"
                   />
                   <FormTextField
                     name="maxAmount"
-                    label={t('paymentChannel.form.maxAmount')}
+                    label={tAction('paymentChannel.form.maxAmount')}
                     type="number"
                   />
                 </div>
@@ -508,10 +513,10 @@ export const PaymentChannelModal: React.FC<Props> = ({
                 <div className="flex items-center justify-between p-3 border rounded-lg bg-gray-50 dark:bg-white/5 dark:border-white/10">
                   <div>
                     <div className="text-sm font-medium text-gray-900 dark:text-white">
-                      {t('paymentChannel.form.allowCustomInput')}
+                      {tAction('paymentChannel.form.allowCustomInput')}
                     </div>
                     <div className="text-xs text-gray-500">
-                      {t('paymentChannel.form.allowCustomInputDesc')}
+                      {tAction('paymentChannel.form.allowCustomInputDesc')}
                     </div>
                   </div>
                   <FormCheckboxField name="isCustom" label="" />
@@ -523,19 +528,19 @@ export const PaymentChannelModal: React.FC<Props> = ({
                 <>
                   <SectionTitle
                     icon={Banknote}
-                    title={t('paymentChannel.form.rechargeSettings')}
+                    title={tAction('paymentChannel.form.rechargeSettings')}
                   />
                   <div className="space-y-2">
                     <label className="text-xs font-medium text-gray-700 dark:text-gray-300 block">
-                      {t('paymentChannel.form.fixedAmounts')}
+                      {tAction('paymentChannel.form.fixedAmounts')}
                       <span className="ml-2 text-[10px] text-primary-600 bg-primary-50 px-1 rounded">
-                        {t('paymentChannel.form.fixedAmountsHint')}
+                        {tAction('paymentChannel.form.fixedAmountsHint')}
                       </span>
                     </label>
                     <textarea
                       {...form.register('fixedAmountStr')}
                       className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                      placeholder={t(
+                      placeholder={tAction(
                         'paymentChannel.form.fixedAmountsPlaceholder',
                       )}
                     />
@@ -558,18 +563,18 @@ export const PaymentChannelModal: React.FC<Props> = ({
                 <>
                   <SectionTitle
                     icon={ArrowRightLeft}
-                    title={t('paymentChannel.form.withdrawalFees')}
+                    title={tAction('paymentChannel.form.withdrawalFees')}
                   />
                   <div className="grid grid-cols-2 gap-4">
                     <FormTextField
                       name="feeFixed"
-                      label={t('paymentChannel.form.fixedFee')}
+                      label={tAction('paymentChannel.form.fixedFee')}
                       type="number"
                     />
                     <div className="relative">
                       <FormTextField
                         name="feeRate"
-                        label={t('paymentChannel.form.feeRate')}
+                        label={tAction('paymentChannel.form.feeRate')}
                         type="number"
                       />
                       <span className="absolute right-3 top-8 text-gray-400 text-xs">
@@ -582,7 +587,7 @@ export const PaymentChannelModal: React.FC<Props> = ({
                   </div>
                   <div className="mt-2 text-[10px] text-gray-400 flex items-center gap-1">
                     <AlertCircle size={10} />{' '}
-                    {t('paymentChannel.form.totalFeeHint')}
+                    {tAction('paymentChannel.form.totalFeeHint')}
                   </div>
                 </>
               )}
@@ -593,14 +598,14 @@ export const PaymentChannelModal: React.FC<Props> = ({
               <Button
                 type="button"
                 variant="outline"
-                onClick={close}
+                onClick={closeAction}
                 disabled={loading}
               >
-                {t('paymentChannel.button.cancel')}
+                {tAction('paymentChannel.button.cancel')}
               </Button>
               <Button type="submit" variant="primary" isLoading={loading}>
                 <Save size={16} className="mr-2" />{' '}
-                {t('paymentChannel.button.saveConfig')}
+                {tAction('paymentChannel.button.saveConfig')}
               </Button>
             </div>
           </form>

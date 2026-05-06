@@ -23,9 +23,9 @@ import type { TFunc } from '@/hooks/useTranslation';
 
 interface Props {
   data: KycRecord;
-  close: () => void;
-  reload: () => void;
-  t: TFunc;
+  closeAction: () => void;
+  reloadAction: () => void;
+  tAction: TFunc;
 }
 
 // --- 组件：大图预览 (Lightbox) ---
@@ -163,7 +163,12 @@ const InfoRow = ({
   </div>
 );
 
-export const KycAuditModal: React.FC<Props> = ({ data, close, reload, t }) => {
+export const KycAuditModal: React.FC<Props> = ({
+  data,
+  closeAction,
+  reloadAction,
+  tAction,
+}) => {
   const [remark, setRemark] = useState('');
   const [previewImage, setPreviewImage] = useState<{
     src: string;
@@ -177,18 +182,18 @@ export const KycAuditModal: React.FC<Props> = ({ data, close, reload, t }) => {
   const { run: submitAudit, loading } = useRequest(kycApi.audit, {
     manual: true,
     onSuccess: () => {
-      addToast('success', t('kyc_auditSuccess'));
-      reload();
-      close();
+      addToast('success', tAction('kyc_auditSuccess'));
+      reloadAction();
+      closeAction();
     },
     onError: (err) => {
-      addToast('error', err.message || t('kyc_auditFailed'));
+      addToast('error', err.message || tAction('kyc_auditFailed'));
     },
   });
 
   const handleAudit = (action: 'APPROVE' | 'REJECT' | 'NEED_MORE') => {
     if (!remark && action !== 'APPROVE') {
-      return addToast('error', t('kyc_remarkRequired'));
+      return addToast('error', tAction('kyc_remarkRequired'));
     }
     submitAudit(data.id, { action, remark });
   };
@@ -201,41 +206,41 @@ export const KycAuditModal: React.FC<Props> = ({ data, close, reload, t }) => {
         <div className="flex-1 overflow-y-auto p-6 bg-gray-50 dark:bg-black/20 custom-scrollbar border-r border-gray-200 dark:border-white/5">
           <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
             <ScanText size={16} className="text-primary-600" />{' '}
-            {t('kyc_identityDocuments')}
+            {tAction('kyc_identityDocuments')}
           </h3>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             <EvidenceCard
-              title={t('kyc_idCardFront')}
+              title={tAction('kyc_idCardFront')}
               src={data.idCardFront}
               onPreview={(s, title) => setPreviewImage({ src: s, title })}
-              t={t}
+              t={tAction}
             />
             <EvidenceCard
-              title={t('kyc_idCardBack')}
+              title={tAction('kyc_idCardBack')}
               src={data.idCardBack}
               onPreview={(s, title) => setPreviewImage({ src: s, title })}
-              t={t}
+              t={tAction}
             />
           </div>
 
           <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
             <Video size={16} className="text-primary-600" />{' '}
-            {t('kyc_biometricVerification')}
+            {tAction('kyc_biometricVerification')}
           </h3>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-4">
             <EvidenceCard
-              title={t('kyc_selfiePhoto')}
+              title={tAction('kyc_selfiePhoto')}
               src={data.faceImage}
               onPreview={(s, title) => setPreviewImage({ src: s, title })}
-              t={t}
+              t={tAction}
             />
 
             <div className="group relative bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg overflow-hidden shadow-sm">
               <div className="px-3 py-2 border-b border-gray-100 dark:border-white/5 bg-gray-50/50 dark:bg-white/5 flex justify-between items-center">
                 <span className="text-xs font-semibold text-gray-600 dark:text-gray-300">
-                  {t('kyc_livenessVideo')}
+                  {tAction('kyc_livenessVideo')}
                 </span>
                 {data.livenessScore !== undefined && (
                   <span
@@ -246,7 +251,7 @@ export const KycAuditModal: React.FC<Props> = ({ data, close, reload, t }) => {
                         : 'bg-amber-100 text-amber-700',
                     )}
                   >
-                    {t('kyc_scoreLabel')}: {data.livenessScore.toFixed(0)}
+                    {tAction('kyc_scoreLabel')}: {data.livenessScore.toFixed(0)}
                   </span>
                 )}
               </div>
@@ -260,7 +265,9 @@ export const KycAuditModal: React.FC<Props> = ({ data, close, reload, t }) => {
                 ) : (
                   <div className="flex flex-col items-center text-gray-500 gap-1">
                     <Video size={24} className="opacity-30" />
-                    <span className="text-[10px]">{t('kyc_noVideo')}</span>
+                    <span className="text-[10px]">
+                      {tAction('kyc_noVideo')}
+                    </span>
                   </div>
                 )}
               </div>
@@ -276,20 +283,20 @@ export const KycAuditModal: React.FC<Props> = ({ data, close, reload, t }) => {
             <div className="flex items-center gap-2 mb-4">
               <User size={16} className="text-primary-600" />
               <h3 className="font-bold text-gray-800 dark:text-white text-sm">
-                {t('kyc_applicantData')}
+                {tAction('kyc_applicantData')}
               </h3>
             </div>
 
             <div className="space-y-1">
               <InfoRow
-                label={t('kyc_submittedName')}
+                label={tAction('kyc_submittedName')}
                 value={data.realName}
                 subValue={ocrData.name}
                 highlight
-                t={t}
+                t={tAction}
               />
               <InfoRow
-                label={t('kyc_idNumber')}
+                label={tAction('kyc_idNumber')}
                 value={
                   <code className="font-mono text-primary-700">
                     {data.idNumber}
@@ -297,20 +304,28 @@ export const KycAuditModal: React.FC<Props> = ({ data, close, reload, t }) => {
                 }
                 subValue={ocrData.idNumber}
                 highlight
-                t={t}
+                t={tAction}
               />
               <InfoRow
-                label={t('kyc_birthday')}
+                label={tAction('kyc_birthday')}
                 value={TimeHelper.formatDate(data.birthday)}
                 subValue={TimeHelper.formatDate(ocrData.birthday)}
-                t={t}
+                t={tAction}
               />
-              <InfoRow label={t('kyc_userId')} value={data.userId} t={t} />
-              <InfoRow label={t('kyc_phone')} value={data.user?.phone} t={t} />
               <InfoRow
-                label={t('kyc_submissionTime')}
+                label={tAction('kyc_userId')}
+                value={data.userId}
+                t={tAction}
+              />
+              <InfoRow
+                label={tAction('kyc_phone')}
+                value={data.user?.phone}
+                t={tAction}
+              />
+              <InfoRow
+                label={tAction('kyc_submissionTime')}
                 value={TimeHelper.formatDateTime(data.submittedAt)}
-                t={t}
+                t={tAction}
               />
             </div>
 
@@ -318,7 +333,8 @@ export const KycAuditModal: React.FC<Props> = ({ data, close, reload, t }) => {
               <div className="mt-6 p-3 bg-red-50 border border-red-100 rounded-lg text-red-700 text-xs flex gap-2">
                 <AlertTriangle size={16} className="shrink-0" />
                 <div>
-                  <strong>{t('kyc_riskAlert')}:</strong> {t('kyc_idMismatch')}
+                  <strong>{tAction('kyc_riskAlert')}:</strong>{' '}
+                  {tAction('kyc_idMismatch')}
                 </div>
               </div>
             )}
@@ -329,7 +345,7 @@ export const KycAuditModal: React.FC<Props> = ({ data, close, reload, t }) => {
             <div className="flex items-center gap-2 mb-2">
               <FileText size={14} className="text-gray-400" />
               <span className="text-xs font-bold text-gray-500 uppercase">
-                {t('kyc_decision')}
+                {tAction('kyc_decision')}
               </span>
             </div>
 
@@ -343,8 +359,8 @@ export const KycAuditModal: React.FC<Props> = ({ data, close, reload, t }) => {
               disabled={!isReviewing}
               placeholder={
                 isReviewing
-                  ? t('kyc_remarkPlaceholder')
-                  : t('kyc_auditorRemarks')
+                  ? tAction('kyc_remarkPlaceholder')
+                  : tAction('kyc_auditorRemarks')
               }
               value={
                 isReviewing
@@ -363,7 +379,7 @@ export const KycAuditModal: React.FC<Props> = ({ data, close, reload, t }) => {
                   isLoading={loading}
                   disabled={!remark}
                   onClick={() => handleAudit('REJECT')}
-                  title={t('kyc_reject')}
+                  title={tAction('kyc_reject')}
                 >
                   <XCircle size={18} />
                 </Button>
@@ -374,7 +390,7 @@ export const KycAuditModal: React.FC<Props> = ({ data, close, reload, t }) => {
                   isLoading={loading}
                   disabled={!remark}
                   onClick={() => handleAudit('NEED_MORE')}
-                  title={t('kyc_requestInfo')}
+                  title={tAction('kyc_requestInfo')}
                 >
                   ?
                 </Button>
@@ -385,7 +401,8 @@ export const KycAuditModal: React.FC<Props> = ({ data, close, reload, t }) => {
                   isLoading={loading}
                   onClick={() => handleAudit('APPROVE')}
                 >
-                  <CheckCircle2 size={16} className="mr-2" /> {t('kyc_approve')}
+                  <CheckCircle2 size={16} className="mr-2" />{' '}
+                  {tAction('kyc_approve')}
                 </Button>
               </div>
             ) : (
@@ -403,8 +420,8 @@ export const KycAuditModal: React.FC<Props> = ({ data, close, reload, t }) => {
                   <XCircle size={18} />
                 )}
                 <span>
-                  {t('kyc_currentStatus')}:{' '}
-                  {t(
+                  {tAction('kyc_currentStatus')}:{' '}
+                  {tAction(
                     `kyc_status_${KYC_STATUS_LABEL[data.kycStatus]?.toLowerCase().replace(/\s+/g, '_')}`,
                   )}
                 </span>

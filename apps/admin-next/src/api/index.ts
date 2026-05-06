@@ -546,7 +546,11 @@ export const authApi = {
   // 登录
   // x-skip-auth-refresh: '1' 告知拦截器跳过 token refresh 逻辑
   // 避免登录失败（凭证错误）时被误当作 token 过期，走 refresh → handleUnauthorized → window.location.href = '/login'
-  login: (data: { username: string; password: string }) =>
+  login: (data: {
+    username: string;
+    password: string;
+    recaptchaToken?: string;
+  }) =>
     http.post<LoginResponse>('/v1/auth/admin/login', data, {
       headers: { 'x-skip-auth-refresh': '1' },
     }),

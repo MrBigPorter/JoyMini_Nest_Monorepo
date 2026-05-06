@@ -196,12 +196,12 @@ function LocaleDropdown({
 
 // ── Header ────────────────────────────────────────────────────────────────────
 interface HeaderProps {
-  onMenuButtonClick: () => void;
+  onMenuButtonClickAction: () => void;
   breadcrumbs: string[];
 }
 
 export const Header: React.FC<HeaderProps> = ({
-  onMenuButtonClick,
+  onMenuButtonClickAction,
   breadcrumbs,
 }) => {
   const router = useRouter();
@@ -251,7 +251,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   const displayName =
     userInfo?.realName || userInfo?.username || t('user_fallbackName');
-  const initial = displayName.charAt(0).toUpperCase();
+  const initial = Array.from(displayName)[0].toUpperCase();
   const gradient = avatarGradient(initial);
 
   return (
@@ -259,7 +259,7 @@ export const Header: React.FC<HeaderProps> = ({
       {/* Left */}
       <div className="flex items-center gap-4 flex-1 min-w-0">
         <button
-          onClick={onMenuButtonClick}
+          onClick={onMenuButtonClickAction}
           className="lg:hidden text-gray-500 flex-shrink-0"
         >
           <Menu size={24} />

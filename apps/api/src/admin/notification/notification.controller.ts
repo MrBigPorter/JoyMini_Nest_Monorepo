@@ -19,7 +19,7 @@ export class AdminNotificationController {
    * 推送历史列表（分页、可按类型/关键词/时间过滤）
    */
   @Get('logs')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
   getLogs(@Query() query: QueryPushLogDto) {
     return this.service.getLogs(query);
   }
@@ -29,7 +29,7 @@ export class AdminNotificationController {
    * 设备数统计（按平台分组 + 7天活跃数）
    */
   @Get('devices/stats')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
   getDeviceStats() {
     return this.service.getDeviceStats();
   }

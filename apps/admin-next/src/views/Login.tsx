@@ -9,6 +9,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 
 import { z } from 'zod';
 import { useRequest } from 'ahooks';
+import { useGoogleReCaptcha } from 'react-google-recaptcha-v3';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useToastStore } from '@/store/useToastStore';
 import { Button, Input } from '@/components/UIComponents';
@@ -33,7 +34,9 @@ const loginSchema = (t: (key: string) => string) =>
 
 type LoginFormInputs = z.infer<ReturnType<typeof loginSchema>>;
 
-async function signIn(data: LoginFormInputs): Promise<LoginResponse> {
+async function signIn(
+  data: LoginFormInputs & { recaptchaToken?: string },
+): Promise<LoginResponse> {
   return await authApi.login(data);
 }
 
@@ -44,6 +47,7 @@ export const Login: React.FC = () => {
   const addToast = useToastStore((state) => state.addToast);
   const [csrfToken, setCsrfToken] = React.useState<string>('');
   const { t } = useTranslation();
+  const { executeRecaptcha } = useGoogleReCaptcha();
 
   // 生成 CSRF Token
   React.useEffect(() => {
@@ -126,8 +130,17 @@ export const Login: React.FC = () => {
   // try-catch 确保 runAsync 的异常不会变成 unhandled rejection 导致上层错误边界重载
   const onSubmit = async (data: LoginFormInputs) => {
     try {
+      // 获取 reCAPTCHA token（仅当 executeRecaptcha 可用时）
+      let recaptchaToken = '';
+      if (executeRecaptcha) {
+        recaptchaToken = await executeRecaptcha('admin_login');
+      }
       // sanitizeInput 在 submit handler 里手动处理（禁止在 Zod schema 里用 .transform()）
-      await runAsync({ ...data, username: sanitizeInput(data.username) });
+      await runAsync({
+        ...data,
+        username: sanitizeInput(data.username),
+        recaptchaToken,
+      });
     } catch {
       // 错误已通过 useRequest 的 onError 处理并显示 toast，这里静默即可
     }

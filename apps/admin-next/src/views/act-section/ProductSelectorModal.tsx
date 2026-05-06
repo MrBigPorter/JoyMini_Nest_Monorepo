@@ -22,25 +22,25 @@ import type { TFunc } from '@/hooks/useTranslation';
 type ActSectionFormInputs = z.infer<typeof ActSectionSchema>;
 
 interface Props {
-  close: () => void;
-  confirm: () => void;
+  closeAction: () => void;
+  confirmAction: () => void;
   editingData?: ActSection | null;
-  t: TFunc;
+  tAction: TFunc;
 }
 
 export const ProductSelectorModal: React.FC<Props> = ({
-  close,
-  confirm,
+  closeAction,
+  confirmAction,
   editingData,
-  t,
+  tAction,
 }) => {
   const addToast = useToastStore((s) => s.addToast);
 
   const { run: creatActSection, loading } = useRequest(actSectionApi.create, {
     manual: true,
     onSuccess: () => {
-      addToast('success', t('actSections.toastCreated'));
-      confirm();
+      addToast('success', tAction('actSections.toastCreated'));
+      confirmAction();
     },
   });
 
@@ -49,8 +49,8 @@ export const ProductSelectorModal: React.FC<Props> = ({
     {
       manual: true,
       onSuccess: () => {
-        addToast('success', t('actSections.toastUpdated'));
-        confirm();
+        addToast('success', tAction('actSections.toastUpdated'));
+        confirmAction();
       },
     },
   );
@@ -76,7 +76,7 @@ export const ProductSelectorModal: React.FC<Props> = ({
       }
       creatActSection(values);
     } catch {
-      addToast('error', t('actSections.toastSaveFailed'));
+      addToast('error', tAction('actSections.toastSaveFailed'));
     }
   };
 
@@ -112,36 +112,36 @@ export const ProductSelectorModal: React.FC<Props> = ({
               required
               autoComplete="off"
               name="title"
-              label={t('actSections.formTitle')}
-              placeholder={t('actSections.formTitlePlaceholder')}
+              label={tAction('actSections.formTitle')}
+              placeholder={tAction('actSections.formTitlePlaceholder')}
             />
             <FormTextField
               required
               name="key"
-              label={t('actSections.formKey')}
+              label={tAction('actSections.formKey')}
               autoComplete="off"
-              placeholder={t('actSections.formKeyPlaceholder')}
+              placeholder={tAction('actSections.formKeyPlaceholder')}
             />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FormSelectField
               required
               name="imgStyleType"
-              label={t('actSections.formStyleType')}
+              label={tAction('actSections.formStyleType')}
               numeric={true}
               options={[
-                { label: t('actSections.styleType0'), value: '0' },
-                { label: t('actSections.styleType1'), value: '1' },
+                { label: tAction('actSections.styleType0'), value: '0' },
+                { label: tAction('actSections.styleType1'), value: '1' },
                 {
-                  label: t('actSections.styleType2'),
+                  label: tAction('actSections.styleType2'),
                   value: '2',
                 },
                 {
-                  label: t('actSections.styleType3'),
+                  label: tAction('actSections.styleType3'),
                   value: '3',
                 },
                 {
-                  label: t('actSections.styleType4'),
+                  label: tAction('actSections.styleType4'),
                   value: '4',
                 },
               ]}
@@ -149,7 +149,7 @@ export const ProductSelectorModal: React.FC<Props> = ({
             <FormTextField
               required
               name="limit"
-              label={t('actSections.formLimit')}
+              label={tAction('actSections.formLimit')}
               type="number"
             />
           </div>
@@ -157,26 +157,29 @@ export const ProductSelectorModal: React.FC<Props> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FormDateField
               name="startAt"
-              label={t('actSections.formStartTime')}
+              label={tAction('actSections.formStartTime')}
             />
-            <FormDateField name="endAt" label={t('actSections.formEndTime')} />
+            <FormDateField
+              name="endAt"
+              label={tAction('actSections.formEndTime')}
+            />
           </div>
 
           <div className="flex flex-col">
             <FormCheckboxField
               name="status"
-              label={t('actSections.formEnable')}
+              label={tAction('actSections.formEnable')}
             />
           </div>
 
           <div className="mt-4 flex justify-end gap-3">
-            <Button type="button" variant="ghost" onClick={close}>
-              {t('actSections.cancel')}
+            <Button type="button" variant="ghost" onClick={closeAction}>
+              {tAction('actSections.cancel')}
             </Button>
             <Button isLoading={loading || updateLoading} type="submit">
               {editingData
-                ? t('actSections.updateSection')
-                : t('actSections.createSection')}
+                ? tAction('actSections.updateSection')
+                : tAction('actSections.createSection')}
             </Button>
           </div>
         </div>

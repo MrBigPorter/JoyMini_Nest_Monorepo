@@ -89,6 +89,7 @@ export const OpAction = {
 
   // ---  系统模块 ---
   SYSTEM: {
+    VIEW: "view_system", // 查看系统设置/角色概览（只读）
     CREATE_ADMIN: "create_admin", // 创建管理员
     UPDATE_ROLE: "update_role", // 修改角色权限
     CONFIG: "update_system_config", // 修改系统配置

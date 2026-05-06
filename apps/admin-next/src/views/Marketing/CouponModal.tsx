@@ -31,10 +31,10 @@ import { Coupon, CreateCouponPayload } from '@/type/types'; // Assuming your ful
 import type { TFunc } from '@/hooks/useTranslation';
 
 interface CouponFormModalProps {
-  close: () => void;
-  confirm: () => void;
+  closeAction: () => void;
+  confirmAction: () => void;
   editingData?: Coupon;
-  t: TFunc;
+  tAction: TFunc;
 }
 
 const transformFormToPayload = (
@@ -100,16 +100,16 @@ const transformPayloadToForm = (
 };
 
 export const CouponModal: React.FC<CouponFormModalProps> = ({
-  close,
-  confirm,
+  closeAction,
+  confirmAction,
   editingData,
-  t,
+  tAction,
 }) => {
   const isEditMode = !!editingData;
 
   const isCriticalDisabled = !!editingData?.issuedQuantity;
 
-  const couponSchema = useMemo(() => createCouponSchema(t), [t]);
+  const couponSchema = useMemo(() => createCouponSchema(tAction), [tAction]);
 
   const form = useForm<CreateCouponSchemaFormInput>({
     resolver: zodResolver(couponSchema),
@@ -172,7 +172,7 @@ export const CouponModal: React.FC<CouponFormModalProps> = ({
       manual: true,
       onSuccess: () => {
         // Close modal and refresh table list upon success
-        confirm();
+        confirmAction();
       },
     },
   );
@@ -191,7 +191,9 @@ export const CouponModal: React.FC<CouponFormModalProps> = ({
     <div className="space-y-6">
       {/* Add a title to distinguish the mode */}
       <div className="text-lg font-semibold">
-        {isEditMode ? t('coupon.editCoupon') : t('coupon.createCoupon')}
+        {isEditMode
+          ? tAction('coupon.editCoupon')
+          : tAction('coupon.createCoupon')}
       </div>
 
       <Form {...form}>
@@ -200,21 +202,21 @@ export const CouponModal: React.FC<CouponFormModalProps> = ({
             <FormTextField
               required
               name="couponName"
-              label={t('coupon.couponName')}
-              placeholder={t('coupon.couponNamePlaceholder')}
+              label={tAction('coupon.couponName')}
+              placeholder={tAction('coupon.couponNamePlaceholder')}
             />
 
             {/* Coupon Code is usually not recommended to change after creation, assuming it can be changed here */}
             <FormTextField
               disabled={!!editingData?.couponCode}
               name="couponCode"
-              label={t('coupon.couponCode')}
-              placeholder={t('coupon.couponCodePlaceholder')}
+              label={tAction('coupon.couponCode')}
+              placeholder={tAction('coupon.couponCodePlaceholder')}
             />
 
             <FormSelectField
               required
-              label={t('coupon.issueType')}
+              label={tAction('coupon.issueType')}
               name="issueType"
               // Assuming IssueType is a critical field, cannot be changed
               disabled={isCriticalDisabled}
@@ -228,7 +230,7 @@ export const CouponModal: React.FC<CouponFormModalProps> = ({
                         ? 'coupon.optionIssueTypeRedeemCode'
                         : 'coupon.optionIssueTypeInvite';
                 return {
-                  label: t(labelKey),
+                  label: tAction(labelKey),
                   value: option.value.toString(),
                 };
               })}
@@ -237,7 +239,7 @@ export const CouponModal: React.FC<CouponFormModalProps> = ({
             {/*  Critical fields lock start */}
             <FormSelectField
               required
-              label={t('coupon.couponType')}
+              label={tAction('coupon.couponType')}
               name="couponType"
               disabled={isCriticalDisabled}
               options={COUPON_TYPE_OPTIONS.map((option) => {
@@ -248,7 +250,7 @@ export const CouponModal: React.FC<CouponFormModalProps> = ({
                       ? 'coupon.optionCouponTypeDiscount'
                       : 'coupon.optionCouponTypeNoThreshold';
                 return {
-                  label: t(labelKey),
+                  label: tAction(labelKey),
                   value: option.value.toString(),
                 };
               })}
@@ -256,7 +258,7 @@ export const CouponModal: React.FC<CouponFormModalProps> = ({
 
             <FormSelectField
               required
-              label={t('coupon.discountType')}
+              label={tAction('coupon.discountType')}
               name="discountType"
               disabled={isCriticalDisabled}
               options={DISCOUNT_TYPE_OPTIONS.map((option) => {
@@ -265,7 +267,7 @@ export const CouponModal: React.FC<CouponFormModalProps> = ({
                     ? 'coupon.optionDiscountTypeFixedAmount'
                     : 'coupon.optionDiscountTypePercentage';
                 return {
-                  label: t(labelKey),
+                  label: tAction(labelKey),
                   value: option.value.toString(),
                 };
               })}
@@ -278,14 +280,14 @@ export const CouponModal: React.FC<CouponFormModalProps> = ({
               disabled={isCriticalDisabled}
               label={
                 discountTypeNum === DISCOUNT_TYPE.PERCENTAGE
-                  ? t('coupon.discountPercent')
-                  : t('coupon.discountAmount')
+                  ? tAction('coupon.discountPercent')
+                  : tAction('coupon.discountAmount')
               }
             />
 
             <FormTextField
               required
-              label={t('coupon.minPurchase')}
+              label={tAction('coupon.minPurchase')}
               name="minPurchase"
               type="number"
               disabled={isCriticalDisabled}
@@ -294,7 +296,7 @@ export const CouponModal: React.FC<CouponFormModalProps> = ({
             {discountTypeNum === DISCOUNT_TYPE.PERCENTAGE && (
               <FormTextField
                 required
-                label={t('coupon.maxDiscount')}
+                label={tAction('coupon.maxDiscount')}
                 type="number"
                 name="maxDiscount"
                 // Max discount is usually critical amount info too
@@ -305,14 +307,14 @@ export const CouponModal: React.FC<CouponFormModalProps> = ({
             {/* Total Quantity can usually increase, but not decrease. Allowed to edit for now. */}
             <FormTextField
               required
-              label={t('coupon.totalQuantity')}
+              label={tAction('coupon.totalQuantity')}
               type="number"
               name="totalQuantity"
             />
 
             <FormTextField
               required
-              label={t('coupon.perUserLimit')}
+              label={tAction('coupon.perUserLimit')}
               type="number"
               name="perUserLimit"
             />
@@ -320,7 +322,7 @@ export const CouponModal: React.FC<CouponFormModalProps> = ({
             {/* Valid Type is also a critical field */}
             <FormSelectField
               required
-              label={t('coupon.validType')}
+              label={tAction('coupon.validType')}
               name="validType"
               disabled={isCriticalDisabled}
               options={VALID_TYPE_OPTIONS.map((option) => {
@@ -329,7 +331,7 @@ export const CouponModal: React.FC<CouponFormModalProps> = ({
                     ? 'coupon.optionValidTypeFixedDateRange'
                     : 'coupon.optionValidTypeDaysAfterReceive';
                 return {
-                  label: t(labelKey),
+                  label: tAction(labelKey),
                   value: option.value.toString(),
                 };
               })}
@@ -338,7 +340,7 @@ export const CouponModal: React.FC<CouponFormModalProps> = ({
             {validTypeNum === VALID_TYPE.DAYS_AFTER_RECEIVE && (
               <FormTextField
                 required
-                label={t('coupon.validDays')}
+                label={tAction('coupon.validDays')}
                 type="number"
                 name="validDays"
                 disabled={isCriticalDisabled}
@@ -349,14 +351,14 @@ export const CouponModal: React.FC<CouponFormModalProps> = ({
               <>
                 <FormDateField
                   required
-                  label={t('coupon.validStartDate')}
+                  label={tAction('coupon.validStartDate')}
                   name="validStartAt"
                   // Date range is usually not heavily modified, depends on business logic
                   disabled={isCriticalDisabled}
                 />
                 <FormDateField
                   required
-                  label={t('coupon.validEndDate')}
+                  label={tAction('coupon.validEndDate')}
                   name="validEndAt"
                   disabled={isCriticalDisabled}
                 />
@@ -366,26 +368,28 @@ export const CouponModal: React.FC<CouponFormModalProps> = ({
             <div className="sm:col-span-2">
               <FormTextareaField
                 name="subTitle"
-                label={t('coupon.subtitle')}
-                placeholder={t('coupon.subtitlePlaceholder')}
+                label={tAction('coupon.subtitle')}
+                placeholder={tAction('coupon.subtitlePlaceholder')}
               />
             </div>
 
             <div className="sm:col-span-2">
               <FormTextareaField
                 name="description"
-                label={t('coupon.description')}
-                placeholder={t('coupon.descriptionPlaceholder')}
+                label={tAction('coupon.description')}
+                placeholder={tAction('coupon.descriptionPlaceholder')}
               />
             </div>
           </div>
 
           <div className="flex justify-end gap-3 pt-6">
-            <Button type="button" variant="ghost" onClick={close}>
-              {t('coupon.cancel')}
+            <Button type="button" variant="ghost" onClick={closeAction}>
+              {tAction('coupon.cancel')}
             </Button>
             <Button isLoading={loading} type="submit" variant="primary">
-              {isEditMode ? t('coupon.saveChanges') : t('coupon.createCoupon')}
+              {isEditMode
+                ? tAction('coupon.saveChanges')
+                : tAction('coupon.createCoupon')}
             </Button>
           </div>
         </form>

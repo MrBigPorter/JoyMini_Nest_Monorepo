@@ -23,16 +23,16 @@ import type { TFunc } from '@/hooks/useTranslation';
 
 interface Props {
   userId: string;
-  close: () => void;
-  reload: () => void;
-  t: TFunc;
+  closeAction: () => void;
+  reloadAction: () => void;
+  tAction: TFunc;
 }
 
 export const UserDetailModal: React.FC<Props> = ({
   userId,
-  reload,
-  close,
-  t,
+  reloadAction,
+  closeAction,
+  tAction,
 }) => {
   const [remark, setRemark] = useState('');
   const addToast = useToastStore((state) => state.addToast);
@@ -46,11 +46,11 @@ export const UserDetailModal: React.FC<Props> = ({
     {
       manual: true,
       onSuccess: () => {
-        addToast('success', t('users_detail_toastStatusUpdated'));
+        addToast('success', tAction('users_detail_toastStatusUpdated'));
         setRemark('');
         refresh();
-        reload();
-        close();
+        reloadAction();
+        closeAction();
       },
     },
   );
@@ -69,7 +69,7 @@ export const UserDetailModal: React.FC<Props> = ({
     {
       manual: true,
       onSuccess: () => {
-        addToast('success', t('users_detail_toastDeviceUpdated'));
+        addToast('success', tAction('users_detail_toastDeviceUpdated'));
         refresh();
       },
     },
@@ -80,7 +80,7 @@ export const UserDetailModal: React.FC<Props> = ({
     const targetStatus = isBanning ? 0 : 1;
 
     if (isBanning && !remark.trim()) {
-      addToast('error', t('users_detail_toastRemarkRequired'));
+      addToast('error', tAction('users_detail_toastRemarkRequired'));
       return;
     }
 
@@ -93,14 +93,14 @@ export const UserDetailModal: React.FC<Props> = ({
   const copyToClipboard = (text: string) => {
     if (!text) return;
     navigator.clipboard.writeText(text);
-    addToast('success', t('users_detail_toastCopied'));
+    addToast('success', tAction('users_detail_toastCopied'));
   };
 
   if (loading || !data)
     return (
       <div className="p-20 text-center animate-pulse text-gray-400 flex flex-col items-center gap-3">
         <div className="w-12 h-12 rounded-full border-4 border-slate-100 border-t-blue-500 animate-spin" />
-        {t('users_detail_loading')}
+        {tAction('users_detail_loading')}
       </div>
     );
 
@@ -118,7 +118,7 @@ export const UserDetailModal: React.FC<Props> = ({
             >
               <Shield size={15} />
               <span className="text-sm font-semibold">
-                {t('users_detail_overview')}
+                {tAction('users_detail_overview')}
               </span>
             </TabsTrigger>
             <TabsTrigger
@@ -127,7 +127,7 @@ export const UserDetailModal: React.FC<Props> = ({
             >
               <Smartphone size={15} />
               <span className="text-sm font-semibold">
-                {t('users_detail_devices')}
+                {tAction('users_detail_devices')}
               </span>
             </TabsTrigger>
             <TabsTrigger
@@ -136,7 +136,7 @@ export const UserDetailModal: React.FC<Props> = ({
             >
               <History size={15} />
               <span className="text-sm font-semibold">
-                {t('users_detail_logs')}
+                {tAction('users_detail_logs')}
               </span>
             </TabsTrigger>
           </TabsList>
@@ -148,12 +148,12 @@ export const UserDetailModal: React.FC<Props> = ({
             >
               <div className="grid grid-cols-2 gap-5">
                 <StatCard
-                  label={t('users_detail_cashBalance')}
+                  label={tAction('users_detail_cashBalance')}
                   value={`$${data.wallet.realBalance}`}
                   icon={<Wallet className="text-emerald-500" size={24} />}
                 />
                 <StatCard
-                  label={t('users_detail_coinBalance')}
+                  label={tAction('users_detail_coinBalance')}
                   value={data.wallet.coinBalance}
                   icon={<Wallet className="text-amber-500" size={24} />}
                 />
@@ -161,27 +161,27 @@ export const UserDetailModal: React.FC<Props> = ({
 
               <div className="bg-white dark:bg-white/5 p-6 rounded-3xl border border-slate-100 dark:border-white/10 shadow-sm">
                 <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-6">
-                  {t('users_detail_registrationIdentity')}
+                  {tAction('users_detail_registrationIdentity')}
                 </h4>
                 <div className="grid grid-cols-2 gap-x-8 gap-y-8">
                   <DetailItem
-                    label={t('users_detail_inviteCode')}
+                    label={tAction('users_detail_inviteCode')}
                     value={data.inviteCode}
                     copyable
                     onCopy={copyToClipboard}
                   />
                   <DetailItem
-                    label={t('users_detail_vipLevel')}
+                    label={tAction('users_detail_vipLevel')}
                     value={`Level ${data.vipLevel}`}
                   />
                   <DetailItem
-                    label={t('users_detail_phoneNumber')}
+                    label={tAction('users_detail_phoneNumber')}
                     value={data.phone}
                     copyable
                     onCopy={copyToClipboard}
                   />
                   <DetailItem
-                    label={t('users_detail_joinedDate')}
+                    label={tAction('users_detail_joinedDate')}
                     value={new Date(data.createdAt).toLocaleString()}
                   />
                 </div>
@@ -216,13 +216,14 @@ export const UserDetailModal: React.FC<Props> = ({
                       </div>
                       <div className="flex flex-col min-w-0">
                         <div className="text-[15px] font-bold flex items-center gap-2 mb-1">
-                          {device.deviceModel || t('users_detail_unknownModel')}
+                          {device.deviceModel ||
+                            tAction('users_detail_unknownModel')}
                           {device.isBanned && (
                             <Badge
                               variant="warning"
                               className="h-4 text-[9px] px-1.5 uppercase font-black"
                             >
-                              {t('users_detail_banned')}
+                              {tAction('users_detail_banned')}
                             </Badge>
                           )}
                         </div>
@@ -242,7 +243,7 @@ export const UserDetailModal: React.FC<Props> = ({
                         </div>
                         {device.banReason && (
                           <div className="text-[10px] text-red-500 mt-1 italic opacity-80 font-medium">
-                            {t('users_detail_banReason', {
+                            {tAction('users_detail_banReason', {
                               reason: device.banReason,
                             })}
                           </div>
@@ -260,16 +261,16 @@ export const UserDetailModal: React.FC<Props> = ({
                       onClick={() => toggleDeviceBan(device)}
                     >
                       {device.isBanned
-                        ? t('users_detail_unban')
-                        : t('users_detail_banDevice')}
+                        ? tAction('users_detail_unban')
+                        : tAction('users_detail_banDevice')}
                     </Button>
                   </div>
                 ))
               ) : (
                 <EmptyState
                   icon={<Smartphone size={40} />}
-                  title={t('users_detail_noDevices')}
-                  description={t('users_detail_noDevicesDesc')}
+                  title={tAction('users_detail_noDevices')}
+                  description={tAction('users_detail_noDevicesDesc')}
                 />
               )}
             </TabsContent>
@@ -283,11 +284,13 @@ export const UserDetailModal: React.FC<Props> = ({
                   <table className="w-full text-left text-[11px]">
                     <thead className="bg-slate-50 dark:bg-slate-800/80 text-slate-500 font-bold uppercase tracking-widest">
                       <tr>
-                        <th className="p-5">{t('users_detail_time')}</th>
+                        <th className="p-5">{tAction('users_detail_time')}</th>
                         <th className="p-5 text-center">
-                          {t('users_detail_locationIp')}
+                          {tAction('users_detail_locationIp')}
                         </th>
-                        <th className="p-5">{t('users_detail_deviceMeta')}</th>
+                        <th className="p-5">
+                          {tAction('users_detail_deviceMeta')}
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
@@ -323,8 +326,8 @@ export const UserDetailModal: React.FC<Props> = ({
               ) : (
                 <EmptyState
                   icon={<History size={40} />}
-                  title={t('users_detail_noLogs')}
-                  description={t('users_detail_noLogsDesc')}
+                  title={tAction('users_detail_noLogs')}
+                  description={tAction('users_detail_noLogsDesc')}
                 />
               )}
             </TabsContent>
@@ -364,14 +367,14 @@ export const UserDetailModal: React.FC<Props> = ({
               {data.nickname}
             </h3>
             <p className="text-[10px] text-slate-400 font-mono mt-2 bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-full uppercase tracking-widest border border-slate-200/50">
-              {t('users_detail_idLabel', { id: data.id })}
+              {tAction('users_detail_idLabel', { id: data.id })}
             </p>
           </div>
 
           <div className="space-y-4 text-center">
             <div className="p-6 bg-slate-50/50 dark:bg-slate-800/40 rounded-[2rem] border border-slate-100 dark:border-slate-800">
               <div className="text-[10px] text-slate-400 uppercase font-black tracking-widest mb-3">
-                {t('users_detail_accountSecurity')}
+                {tAction('users_detail_accountSecurity')}
               </div>
               <div className="flex flex-col gap-2">
                 <Badge
@@ -379,16 +382,16 @@ export const UserDetailModal: React.FC<Props> = ({
                   className="w-full justify-center py-2 text-[10px] font-black uppercase tracking-widest rounded-xl"
                 >
                   {isFrozen
-                    ? t('users_detail_accountFrozen')
-                    : t('users_detail_accountActive')}
+                    ? tAction('users_detail_accountFrozen')
+                    : tAction('users_detail_accountActive')}
                 </Badge>
                 <Badge
                   variant={data.kycStatus === 4 ? 'success' : 'warning'}
                   className="w-full justify-center py-2 text-[10px] font-black uppercase tracking-widest rounded-xl"
                 >
                   {data.kycStatus === 4
-                    ? t('users_detail_kycVerified')
-                    : t('users_detail_kycPending')}
+                    ? tAction('users_detail_kycVerified')
+                    : tAction('users_detail_kycPending')}
                 </Badge>
               </div>
             </div>
@@ -399,7 +402,7 @@ export const UserDetailModal: React.FC<Props> = ({
         <div className="p-8 border-t border-slate-100 dark:border-slate-800 bg-slate-50/30">
           <textarea
             className="w-full h-24 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 text-xs mb-5 focus:ring-4 focus:ring-red-500/5 outline-none resize-none transition-all dark:bg-slate-800 placeholder:italic"
-            placeholder={t('users_detail_remarkPlaceholder')}
+            placeholder={tAction('users_detail_remarkPlaceholder')}
             value={remark}
             onChange={(e) => setRemark(e.target.value)}
           />
@@ -412,12 +415,12 @@ export const UserDetailModal: React.FC<Props> = ({
             {isFrozen ? (
               <>
                 <CheckCircle size={20} className="mr-3" />{' '}
-                {t('users_detail_restoreAccount')}
+                {tAction('users_detail_restoreAccount')}
               </>
             ) : (
               <>
                 <Ban size={20} className="mr-3" />{' '}
-                {t('users_detail_freezeAccount')}
+                {tAction('users_detail_freezeAccount')}
               </>
             )}
           </Button>

@@ -149,10 +149,10 @@ export const ActSectionManagement: React.FC<ActSectionManagementProps> = ({
         title: t('actSections.modalTitleEdit'),
         renderChildren: ({ close, confirm }) => (
           <ProductSelectorModal
-            close={close}
-            confirm={confirm}
+            closeAction={close}
+            confirmAction={confirm}
             editingData={record}
-            t={t}
+            tAction={t}
           />
         ),
         onConfirm: refresh,
@@ -167,10 +167,10 @@ export const ActSectionManagement: React.FC<ActSectionManagementProps> = ({
         title: t('actSections.modalTitleBind'),
         renderChildren: ({ close, confirm }) => (
           <ActSectionBindProductModal
-            onClose={close}
-            onConfirm={confirm}
+            onCloseAction={close}
+            onConfirmAction={confirm}
             editingData={record}
-            t={t}
+            tAction={t}
           />
         ),
         onConfirm: refresh,
@@ -183,7 +183,11 @@ export const ActSectionManagement: React.FC<ActSectionManagementProps> = ({
     ModalManager.open({
       title: t('actSections.modalTitleCreate'),
       renderChildren: ({ close, confirm }) => (
-        <ProductSelectorModal close={close} confirm={confirm} t={t} />
+        <ProductSelectorModal
+          closeAction={close}
+          confirmAction={confirm}
+          tAction={t}
+        />
       ),
       onConfirm: refresh,
     });
@@ -367,7 +371,7 @@ export const ActSectionManagement: React.FC<ActSectionManagementProps> = ({
               title: (initialFormParams?.title as string) || '',
               status: (initialFormParams?.status as string) || 'ALL',
             }}
-            onSearch={handleSearch}
+            onSearchAction={handleSearch}
             onReset={handleReset}
           />
         </div>

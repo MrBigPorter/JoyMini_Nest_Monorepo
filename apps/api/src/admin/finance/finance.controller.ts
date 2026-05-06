@@ -5,6 +5,7 @@ import {
   Param,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
@@ -29,6 +30,11 @@ import { QueryRechargeOrdersDto } from '@api/admin/finance/dto/query-recharge-or
 import { RechargeResponseDto } from '@api/admin/finance/dto/recharge-response.dto';
 import { QueryStatisticsDto } from '@api/admin/finance/dto/query-statistics.dto';
 import { FinanceAdjustResponseDto } from '@api/admin/finance/dto/finance-adjust-response.dto';
+import {
+  maskSensitiveFields,
+  maskName,
+  maskPhone,
+} from '@api/common/utils/data-masking';
 
 @ApiTags('Admin Finance Management')
 @ApiBearerAuth()
@@ -40,9 +46,9 @@ export class FinanceController {
   @Get('transactions')
   @RequirePermission(OpModule.FINANCE, OpAction.FINANCE.VIEW)
   @ApiOkResponse({ type: TransactionListResponseDto })
-  async getTransactions(@Query() dto: QueryTransactionDto) {
+  async getTransactions(@Query() dto: QueryTransactionDto, @Req() req: Request) {
     const data = await this.financeService.getTransactions(dto);
-    return {
+    const response = {
       total: data.total,
       page: dto.page,
       pageSize: dto.pageSize,
@@ -50,6 +56,10 @@ export class FinanceController {
         excludeExtraneousValues: true,
       }),
     };
+    return maskSensitiveFields(response, (req as any).user?.role, {
+      'user.nickname': maskName,
+      'user.phone': maskPhone,
+    });
   }
 
   /**
@@ -82,17 +92,21 @@ export class FinanceController {
   @Get('withdrawals')
   @RequirePermission(OpModule.FINANCE, OpAction.FINANCE.VIEW)
   @ApiOkResponse({ type: WithdrawListResponseDto })
-  async getWithdrawals(@Query() dto: QueryWithdrawalsDto) {
+  async getWithdrawals(@Query() dto: QueryWithdrawalsDto, @Req() req: Request) {
     const data = await this.financeService.getWithdrawals(dto);
     const list = plainToInstance(WithdrawResponseDto, data.list, {
       excludeExtraneousValues: true,
     });
-    return {
+    const response = {
       total: data.total,
       page: dto.page,
       pageSize: dto.pageSize,
       list: list,
     };
+    return maskSensitiveFields(response, (req as any).user?.role, {
+      'user.nickname': maskName,
+      'user.phone': maskPhone,
+    });
   }
 
   /**
@@ -102,17 +116,21 @@ export class FinanceController {
   @Get('recharges')
   @RequirePermission(OpModule.FINANCE, OpAction.FINANCE.VIEW)
   @ApiOkResponse({ type: RechargeListResponseDto })
-  async getRecharges(@Query() dto: QueryRechargeOrdersDto) {
+  async getRecharges(@Query() dto: QueryRechargeOrdersDto, @Req() req: Request) {
     const data = await this.financeService.recharges(dto);
     const list = plainToInstance(RechargeResponseDto, data.list, {
       excludeExtraneousValues: true,
     });
-    return {
+    const response = {
       total: data.total,
       page: dto.page,
       pageSize: dto.pageSize,
       list: list,
     };
+    return maskSensitiveFields(response, (req as any).user?.role, {
+      'user.nickname': maskName,
+      'user.phone': maskPhone,
+    });
   }
 
   /**

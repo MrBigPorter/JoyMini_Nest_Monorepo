@@ -12,7 +12,7 @@ export class OperationLogController {
   constructor(private readonly operationLogService: OperationLogService) {}
 
   @Get('list')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
   async getList(@Query() query: QueryOperationLogDto) {
     return this.operationLogService.getList(query);
   }

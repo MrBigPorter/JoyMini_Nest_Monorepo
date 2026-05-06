@@ -87,9 +87,9 @@ export const WithdrawalList: React.FC<WithdrawalListProps> = ({
         renderChildren: ({ confirm }) => (
           <WithdrawAuditModal
             data={record}
-            confirm={() => {
+            confirmAction={() => {
               confirm();
-              actionRef.current?.reload(); // 审核完只需刷新数据，不需要 reset 页码
+              actionRef.current?.reload();
             }}
           />
         ),

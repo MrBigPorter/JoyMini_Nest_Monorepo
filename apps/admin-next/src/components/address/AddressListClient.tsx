@@ -63,8 +63,8 @@ export const AddressList: React.FC<AddressListProps> = ({
         renderChildren: ({ close }) => (
           <AddressEditModal
             data={record as AddressResponse}
-            t={t}
-            close={() => {
+            tAction={t}
+            closeAction={() => {
               close();
               actionRef.current?.reload();
             }}

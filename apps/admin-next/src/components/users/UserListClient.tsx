@@ -150,9 +150,9 @@ export function UserListClient({
         renderChildren: ({ close }) => (
           <UserDetailModal
             userId={record.id}
-            close={close}
-            reload={() => reloadRef.current()}
-            t={t}
+            closeAction={close}
+            reloadAction={() => reloadRef.current()}
+            tAction={t}
           />
         ),
       });
@@ -532,7 +532,7 @@ export function UserListClient({
           <SchemaSearchForm<UsersSearchFormValues>
             schema={searchSchema}
             initialValues={filters}
-            onSearch={handleSearch}
+            onSearchAction={handleSearch}
             onReset={handleReset}
             loading={isFetching}
           />

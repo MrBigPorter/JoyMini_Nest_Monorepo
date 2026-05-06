@@ -196,9 +196,9 @@ export const PaymentChannelList: React.FC<PaymentChannelListProps> = ({
         renderChildren: ({ close }) => (
           <PaymentChannelModal
             data={record}
-            close={close}
-            reload={refresh}
-            t={t}
+            closeAction={close}
+            reloadAction={refresh}
+            tAction={t}
           />
         ),
       });
@@ -428,7 +428,7 @@ export const PaymentChannelList: React.FC<PaymentChannelListProps> = ({
                 type: filters.type,
                 status: filters.status,
               }}
-              onSearch={handleSearch}
+              onSearchAction={handleSearch}
               onReset={handleReset}
             />
           </div>

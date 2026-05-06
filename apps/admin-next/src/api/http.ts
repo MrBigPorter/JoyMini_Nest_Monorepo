@@ -271,11 +271,11 @@ class HttpClient {
         return;
       }
 
+      // 403 权限错误：VIEWER 写操作预期会被拒绝，静默处理，不弹 toast 不打印
+      if (status === 403) return;
+
       const msg = data?.message || `Server Error: ${error.message}`;
       this.toastError(msg);
-
-      // 403 权限错误：toast 已提示用户，不需要 console.error 污染控制台
-      if (status === 403) return;
     } else if (error.request) {
       this.toastError('No response from server, please check your network');
     } else {
@@ -427,6 +427,11 @@ class HttpClient {
         return await operation();
       } catch (error) {
         lastError = error;
+
+        // 403 权限错误：VIEWER 写操作预期会被拒绝，静默返回空，不抛错不弹 toast
+        if ((error as any)?.response?.status === 403) {
+          return undefined as unknown as T;
+        }
 
         // 检查是否应该重试
         if (

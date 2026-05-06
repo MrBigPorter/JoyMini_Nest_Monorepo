@@ -466,7 +466,7 @@ export function OrderListClient({
           <SchemaSearchForm<OrderSearchForm>
             initialValues={filters}
             schema={searchSchema}
-            onSearch={handleSearch}
+            onSearchAction={handleSearch}
             onReset={handleReset}
             loading={isFetching}
           />
