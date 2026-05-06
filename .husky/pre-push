@@ -3,3 +3,7 @@
 # Run full lint before push — matches CI pipeline (yarn turbo run lint)
 # If this fails, CI will also fail, so fix it before pushing.
 yarn turbo run lint
+
+# Run full test suite before push — catches regressions before they reach CI
+# Turbo cache skips workspaces whose inputs haven't changed.
+yarn turbo run test
