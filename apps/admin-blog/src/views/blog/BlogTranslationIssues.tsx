@@ -122,6 +122,8 @@ export default function BlogTranslationIssues() {
         languageCode: selectedLanguage,
       });
 
+      if (!response) return;
+
       if (response.success) {
         addToast('success', t('batchFixStarted', { count: response.queued }));
         setTimeout(() => {

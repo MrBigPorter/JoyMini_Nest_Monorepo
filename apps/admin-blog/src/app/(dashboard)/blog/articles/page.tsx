@@ -79,7 +79,9 @@ export default function ArticlesPageV2() {
   // 删除文章 mutation
   const deleteArticleMutation = useMutation({
     mutationFn: (id: string) => blogApi.deleteArticle(id),
-    onSuccess: () => {
+    onSuccess: (data) => {
+      // 403 权限不足：withRetry 已弹 toast，静默返回
+      if (!data) return;
       addToast('success', t('articleDeleted'));
       actionRef.current?.reload();
     },
@@ -92,7 +94,9 @@ export default function ArticlesPageV2() {
   // 发布文章 mutation
   const publishArticleMutation = useMutation({
     mutationFn: (id: string) => blogApi.publishArticle(id),
-    onSuccess: () => {
+    onSuccess: (data) => {
+      // 403 权限不足：withRetry 已弹 toast，静默返回
+      if (!data) return;
       addToast('success', t('articlePublished'));
       actionRef.current?.reload();
     },
@@ -105,7 +109,9 @@ export default function ArticlesPageV2() {
   // 取消发布文章 mutation
   const unpublishArticleMutation = useMutation({
     mutationFn: (id: string) => blogApi.unpublishArticle(id),
-    onSuccess: () => {
+    onSuccess: (data) => {
+      // 403 权限不足：withRetry 已弹 toast，静默返回
+      if (!data) return;
       addToast('success', t('articleUnpublished'));
       actionRef.current?.reload();
     },

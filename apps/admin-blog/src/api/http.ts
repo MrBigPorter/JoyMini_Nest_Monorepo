@@ -28,6 +28,7 @@ class HttpClient {
         : Math.min(1000 * 2 ** attemptIndex, 30000),
     retryCondition: (error: any) => {
       if (process.env.NODE_ENV === 'test') return false;
+      // 网络错误或 5xx 服务器错误时重试；4xx 业务错误（含 403）不重试
       return (
         !error.response ||
         (error.response.status >= 500 && error.response.status < 600)
@@ -52,6 +53,39 @@ class HttpClient {
     });
 
     this.setupInterceptors();
+    this.suppressHandledRejections();
+  }
+
+  /**
+   * 全局屏蔽已被 toast 处理过的 HTTP 错误（如 403）触发 Next.js 错误遮罩。
+   * - 已在 handleHttpError / handleBizError 中弹出 toast 通知用户。
+   * - 阻止 unhandledrejection 事件上报，避免出现红色代码错误弹窗。
+   * - 收到真正未处理的其他错误仍会正常上报。
+   */
+  private suppressHandledRejections() {
+    if (typeof window === 'undefined') return;
+
+    window.addEventListener('unhandledrejection', (event) => {
+      const err = event.reason;
+
+      // AxiosError：已在拦截器中弹 toast 的 HTTP 状态码
+      const handledStatuses = new Set([400, 403, 404, 422, 429]);
+      if (err?.isAxiosError && handledStatuses.has(err?.response?.status)) {
+        event.preventDefault();
+        return;
+      }
+
+      // 业务错误（ApiResponse 格式，code 非 200/10000 且非 401）
+      if (
+        typeof err?.code === 'number' &&
+        err.code !== 200 &&
+        err.code !== 10000 &&
+        err.code !== 401 &&
+        err.code !== 40100
+      ) {
+        event.preventDefault();
+      }
+    });
   }
 
   private setupInterceptors() {
@@ -251,10 +285,12 @@ class HttpClient {
         return;
       }
 
+      // 403 权限错误：VIEWER 写操作预期会被拒绝，静默处理，不弹 toast 不打印
+      // （在 withRetry 中弹 toast 并返回空值，不抛错）
+      if (status === 403) return;
+
       const msg = data?.message || `Server Error: ${error.message}`;
       this.toastError(msg);
-
-      if (status === 403) return;
     } else if (error.request) {
       this.toastError('No response from server, please check your network');
     } else {
@@ -372,6 +408,14 @@ class HttpClient {
       } catch (error) {
         lastError = error;
 
+        // 403 权限错误：VIEWER 写操作预期会被拒绝，弹 toast 提示并返回空，不抛错
+        if ((error as any)?.response?.status === 403) {
+          const data = (error as any)?.response?.data;
+          const msg = data?.message || 'Forbidden';
+          this.toastError(msg);
+          return undefined as unknown as T;
+        }
+
         if (
           attempt === retryConfig.maxRetries ||
           !retryConfig.retryCondition(error)
@@ -434,6 +478,7 @@ class HttpClient {
     const res = await this.withRetry(() =>
       this.instance.post<ApiResponse<T>>(url, data, config),
     );
+    if (!res) return undefined as unknown as T;
     return res.data.data;
   }
 
@@ -445,6 +490,7 @@ class HttpClient {
     const res = await this.withRetry(() =>
       this.instance.put<ApiResponse<T>>(url, data, config),
     );
+    if (!res) return undefined as unknown as T;
     return res.data.data;
   }
 
@@ -456,6 +502,7 @@ class HttpClient {
     const res = await this.withRetry(() =>
       this.instance.patch<ApiResponse<T>>(url, data, config),
     );
+    if (!res) return undefined as unknown as T;
     return res.data.data;
   }
 
@@ -466,6 +513,7 @@ class HttpClient {
     const res = await this.withRetry(() =>
       this.instance.delete<ApiResponse<T>>(url, config),
     );
+    if (!res) return undefined as unknown as T;
     return res.data.data;
   }
 

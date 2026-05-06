@@ -2265,7 +2265,7 @@ export class BlogService {
         AND name != 'null'::jsonb
         AND name->>${targetLang} IS NOT NULL
         AND name->>${targetLang} != ''
-        AND (${targetLang} = 'zh' OR name->>${targetLang} !~ '[\u4e00-\u9fff\u3400-\u4dbf]')
+        AND (${targetLang} IN ('zh', 'ja') OR name->>${targetLang} !~ '[\u4e00-\u9fff\u3400-\u4dbf]')
     `;
 
     const completed = Number(result[0]?.count || 0);
@@ -2293,7 +2293,7 @@ export class BlogService {
         AND name != 'null'::jsonb
         AND name->>${targetLang} IS NOT NULL
         AND name->>${targetLang} != ''
-        AND (${targetLang} = 'zh' OR name->>${targetLang} !~ '[\u4e00-\u9fff\u3400-\u4dbf]')
+        AND (${targetLang} IN ('zh', 'ja') OR name->>${targetLang} !~ '[\u4e00-\u9fff\u3400-\u4dbf]')
     `;
 
     const completed = Number(result[0]?.count || 0);
@@ -2498,7 +2498,7 @@ export class BlogService {
           OR "name"->${targetLang} IS NULL
           OR jsonb_typeof("name"->${targetLang}) = 'null'
           OR "name"->>${targetLang} = ''
-          OR (${targetLang} != 'zh' AND "name"->>${targetLang} ~ '[\u4e00-\u9fff\u3400-\u4dbf]')
+          OR (${targetLang} NOT IN ('zh', 'ja') AND "name"->>${targetLang} ~ '[\u4e00-\u9fff\u3400-\u4dbf]')
       `;
 
       // 检测缺失翻译的标签
@@ -2515,7 +2515,7 @@ export class BlogService {
           OR "name"->${targetLang} IS NULL
           OR jsonb_typeof("name"->${targetLang}) = 'null'
           OR "name"->>${targetLang} = ''
-          OR (${targetLang} != 'zh' AND "name"->>${targetLang} ~ '[\u4e00-\u9fff\u3400-\u4dbf]')
+          OR (${targetLang} NOT IN ('zh', 'ja') AND "name"->>${targetLang} ~ '[\u4e00-\u9fff\u3400-\u4dbf]')
       `;
 
       const articleIssues = [];
@@ -2755,7 +2755,7 @@ export class BlogService {
         OR "name"->${languageCode} IS NULL
         OR jsonb_typeof("name"->${languageCode}) = 'null'
         OR "name"->>${languageCode} = ''
-        OR (${languageCode} != 'zh' AND "name"->>${languageCode} ~ '[\u4e00-\u9fff\u3400-\u4dbf]')
+        OR (${languageCode} NOT IN ('zh', 'ja') AND "name"->>${languageCode} ~ '[\u4e00-\u9fff\u3400-\u4dbf]')
       ORDER BY created_at DESC
     `;
 
@@ -2790,7 +2790,7 @@ export class BlogService {
         OR "name"->${languageCode} IS NULL
         OR jsonb_typeof("name"->${languageCode}) = 'null'
         OR "name"->>${languageCode} = ''
-        OR (${languageCode} != 'zh' AND "name"->>${languageCode} ~ '[\u4e00-\u9fff\u3400-\u4dbf]')
+        OR (${languageCode} NOT IN ('zh', 'ja') AND "name"->>${languageCode} ~ '[\u4e00-\u9fff\u3400-\u4dbf]')
       ORDER BY created_at DESC
     `;
 
@@ -2892,7 +2892,7 @@ export class BlogService {
           AND name != 'null'::jsonb
           AND name->>${targetLang} IS NOT NULL
           AND name->>${targetLang} != ''
-          AND ${targetLang} != 'zh'
+          AND ${targetLang} NOT IN ('zh', 'ja')
           AND name->>${targetLang} ~ '[\u4e00-\u9fff\u3400-\u4dbf]'
       `;
 
@@ -2905,7 +2905,7 @@ export class BlogService {
           AND name != 'null'::jsonb
           AND name->>${targetLang} IS NOT NULL
           AND name->>${targetLang} != ''
-          AND ${targetLang} != 'zh'
+          AND ${targetLang} NOT IN ('zh', 'ja')
           AND name->>${targetLang} ~ '[\u4e00-\u9fff\u3400-\u4dbf]'
       `;
 
@@ -3167,7 +3167,7 @@ export class BlogService {
     }
 
     // 6. 未翻译检测 - 检查是否还有大量中文字符
-    if (targetLang !== 'zh') {
+    if (targetLang !== 'zh' && targetLang !== 'ja') {
       const chineseCharsInTranslated = (
         translatedContent.match(/[\u4e00-\u9fff]/g) || []
       ).length;
