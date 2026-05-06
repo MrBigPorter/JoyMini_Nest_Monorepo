@@ -20,11 +20,14 @@ import { CreateArticleDto, UpdateArticleDto, BatchImportDto } from './dto';
 import { TriggerVideoTranscodeDto } from './dto/trigger-video-transcode.dto';
 import { ArticleStatus } from '@prisma/client';
 import { AdminJwtAuthGuard } from '@api/admin/auth/admin-jwt-auth.guard';
+import { PermissionsGuard } from '@api/common/guards/permissions.guard';
+import { RequirePermission } from '@api/common/decorators/require-permission.decorator';
 import { CurrentUserId } from '@api/common/decorators/user.decorator';
 import { AiService } from '@api/common/ai/ai.service';
 import { SystemConfigService } from '@api/admin/system-config/system-config.service';
 
 @ApiTags('Blog')
+@UseGuards(AdminJwtAuthGuard, PermissionsGuard)
 @Controller('admin/blog')
 export class BlogController {
   constructor(
@@ -35,7 +38,7 @@ export class BlogController {
 
   @Get('articles')
   @ApiBearerAuth()
-  @UseGuards(AdminJwtAuthGuard)
+  @RequirePermission('blog', 'article_view')
   @ApiOperation({ summary: '获取文章列表' })
   async getArticles(
     @Query('page') page?: number,
@@ -71,7 +74,7 @@ export class BlogController {
 
   @Get('articles/:id')
   @ApiBearerAuth()
-  @UseGuards(AdminJwtAuthGuard)
+  @RequirePermission('blog', 'article_view')
   @ApiOperation({ summary: '获取文章详情' })
   async getArticle(@Param('id') id: string, @Query('locale') locale?: string) {
     return this.blogService.getArticle(id, true, locale);
@@ -79,7 +82,7 @@ export class BlogController {
 
   @Get('articles/slug/:slug')
   @ApiBearerAuth()
-  @UseGuards(AdminJwtAuthGuard)
+  @RequirePermission('blog', 'article_view')
   @ApiOperation({ summary: '通过 Slug 获取文章' })
   async getArticleBySlug(
     @Param('slug') slug: string,
@@ -90,7 +93,7 @@ export class BlogController {
 
   @Post('articles')
   @ApiBearerAuth()
-  @UseGuards(AdminJwtAuthGuard)
+  @RequirePermission('blog', 'article_manage')
   @ApiOperation({ summary: '创建文章' })
   async createArticle(
     @CurrentUserId() userId: string,
@@ -101,7 +104,7 @@ export class BlogController {
 
   @Get('articles/scan-local')
   @ApiBearerAuth()
-  @UseGuards(AdminJwtAuthGuard)
+  @RequirePermission('blog', 'article_manage')
   @ApiOperation({ summary: '扫描本地 Markdown 文件，返回可导入的文章列表' })
   async scanLocalArticles() {
     return this.blogService.scanLocalMarkdownFiles();
@@ -109,7 +112,7 @@ export class BlogController {
 
   @Post('articles/batch-import')
   @ApiBearerAuth()
-  @UseGuards(AdminJwtAuthGuard)
+  @RequirePermission('blog', 'article_manage')
   @ApiOperation({ summary: '批量导入文章（从扫描结果中选择）' })
   @ApiBody({ type: BatchImportDto })
   async batchImportArticles(
@@ -121,7 +124,7 @@ export class BlogController {
 
   @Patch('articles/:id')
   @ApiBearerAuth()
-  @UseGuards(AdminJwtAuthGuard)
+  @RequirePermission('blog', 'article_manage')
   @ApiOperation({ summary: '更新文章' })
   async updateArticle(
     @CurrentUserId() userId: string,
@@ -133,7 +136,7 @@ export class BlogController {
 
   @Delete('articles/:id')
   @ApiBearerAuth()
-  @UseGuards(AdminJwtAuthGuard)
+  @RequirePermission('blog', 'article_manage')
   @ApiOperation({ summary: '删除文章' })
   async deleteArticle(
     @CurrentUserId() userId: string,
@@ -144,7 +147,7 @@ export class BlogController {
 
   @Post('articles/:id/publish')
   @ApiBearerAuth()
-  @UseGuards(AdminJwtAuthGuard)
+  @RequirePermission('blog', 'article_manage')
   @ApiOperation({ summary: '发布文章' })
   async publishArticle(
     @CurrentUserId() userId: string,
@@ -155,7 +158,7 @@ export class BlogController {
 
   @Post('articles/:id/unpublish')
   @ApiBearerAuth()
-  @UseGuards(AdminJwtAuthGuard)
+  @RequirePermission('blog', 'article_manage')
   @ApiOperation({ summary: '取消发布文章' })
   async unpublishArticle(
     @CurrentUserId() userId: string,
@@ -166,7 +169,7 @@ export class BlogController {
 
   @Post('articles/:id/translate')
   @ApiBearerAuth()
-  @UseGuards(AdminJwtAuthGuard)
+  @RequirePermission('blog', 'article_manage')
   @ApiOperation({ summary: '手动触发文章翻译' })
   async translateArticle(
     @CurrentUserId() userId: string,
@@ -178,7 +181,7 @@ export class BlogController {
 
   @Post('categories/:id/translate')
   @ApiBearerAuth()
-  @UseGuards(AdminJwtAuthGuard)
+  @RequirePermission('blog', 'category_manage')
   @ApiOperation({ summary: '手动触发分类翻译' })
   async translateCategory(
     @Param('id') id: string,
@@ -189,7 +192,7 @@ export class BlogController {
 
   @Post('tags/:id/translate')
   @ApiBearerAuth()
-  @UseGuards(AdminJwtAuthGuard)
+  @RequirePermission('blog', 'tag_manage')
   @ApiOperation({ summary: '手动触发标签翻译' })
   async translateTag(
     @Param('id') id: string,
@@ -200,7 +203,7 @@ export class BlogController {
 
   @Post('tags/batch-translate')
   @ApiBearerAuth()
-  @UseGuards(AdminJwtAuthGuard)
+  @RequirePermission('blog', 'tag_manage')
   @ApiOperation({ summary: '批量翻译标签' })
   async batchTranslateTags(
     @Body() dto: { ids: string[]; targetLang?: string },
@@ -210,7 +213,7 @@ export class BlogController {
 
   @Post('categories/batch-translate')
   @ApiBearerAuth()
-  @UseGuards(AdminJwtAuthGuard)
+  @RequirePermission('blog', 'category_manage')
   @ApiOperation({ summary: '批量翻译分类' })
   async batchTranslateCategories(
     @Body() dto: { ids: string[]; targetLang?: string },
@@ -220,7 +223,7 @@ export class BlogController {
 
   @Post('articles/:id/trigger-video-transcode')
   @ApiBearerAuth()
-  @UseGuards(AdminJwtAuthGuard)
+  @RequirePermission('blog', 'article_manage')
   @ApiOperation({ summary: '手动触发视频转码' })
   async triggerVideoTranscode(
     @Param('id') id: string,
@@ -232,7 +235,7 @@ export class BlogController {
 
   @Get('ai/status')
   @ApiBearerAuth()
-  @UseGuards(AdminJwtAuthGuard)
+  @RequirePermission('blog', 'ai_view')
   @ApiOperation({
     summary: '获取AI服务状态（服务等级、API Key额度、健康状况）',
   })
@@ -252,7 +255,7 @@ export class BlogController {
 
   @Get('ai/providers')
   @ApiBearerAuth()
-  @UseGuards(AdminJwtAuthGuard)
+  @RequirePermission('blog', 'ai_view')
   @ApiOperation({ summary: '获取可用的AI提供商列表及模型' })
   async getAiProviders() {
     return this.aiService.getAvailableProviders();
@@ -260,7 +263,7 @@ export class BlogController {
 
   @Get('ai/provider-config')
   @ApiBearerAuth()
-  @UseGuards(AdminJwtAuthGuard)
+  @RequirePermission('blog', 'ai_view')
   @ApiOperation({ summary: '获取当前AI提供商/模型配置' })
   async getProviderConfig() {
     const config = await this.systemConfigService.get<{
@@ -277,7 +280,7 @@ export class BlogController {
 
   @Patch('ai/provider-config')
   @ApiBearerAuth()
-  @UseGuards(AdminJwtAuthGuard)
+  @RequirePermission('blog', 'ai_manage')
   @ApiOperation({ summary: '更新AI提供商/模型配置' })
   async updateProviderConfig(@Body() dto: { provider: string; model: string }) {
     await this.systemConfigService.update('AI_TRANSLATION_PROVIDER', {
@@ -290,7 +293,7 @@ export class BlogController {
 
   @Get('translation-progress')
   @ApiBearerAuth()
-  @UseGuards(AdminJwtAuthGuard)
+  @RequirePermission('blog', 'translation_view')
   @ApiOperation({ summary: '获取翻译进度统计' })
   @Header('Cache-Control', 'no-cache, no-store, must-revalidate')
   @Header('Pragma', 'no-cache')
@@ -301,7 +304,7 @@ export class BlogController {
 
   @Get('translation-jobs')
   @ApiBearerAuth()
-  @UseGuards(AdminJwtAuthGuard)
+  @RequirePermission('blog', 'translation_view')
   @ApiOperation({ summary: '获取翻译任务列表' })
   async getTranslationJobs() {
     return this.blogService.getTranslationJobs();
@@ -309,7 +312,7 @@ export class BlogController {
 
   @Get('translation-jobs-detail')
   @ApiBearerAuth()
-  @UseGuards(AdminJwtAuthGuard)
+  @RequirePermission('blog', 'translation_view')
   @ApiOperation({ summary: '获取翻译任务详情（持久化记录）' })
   async getTranslationJobsDetail(
     @Query('targetLang') targetLang?: string,
@@ -328,7 +331,7 @@ export class BlogController {
 
   @Get('translation-logs')
   @ApiBearerAuth()
-  @UseGuards(AdminJwtAuthGuard)
+  @RequirePermission('blog', 'translation_view')
   @ApiOperation({ summary: '获取翻译日志' })
   async getTranslationLogs(
     @Query('page') page?: number,
@@ -342,7 +345,7 @@ export class BlogController {
 
   @Get('translation-issues')
   @ApiBearerAuth()
-  @UseGuards(AdminJwtAuthGuard)
+  @RequirePermission('blog', 'translation_view')
   @ApiOperation({ summary: '检测翻译问题' })
   @Header('Cache-Control', 'no-cache, no-store, must-revalidate')
   @Header('Pragma', 'no-cache')
@@ -353,7 +356,7 @@ export class BlogController {
 
   @Post('translation-fix-batch')
   @ApiBearerAuth()
-  @UseGuards(AdminJwtAuthGuard)
+  @RequirePermission('blog', 'translation_manage')
   @ApiOperation({ summary: '批量修复翻译问题' })
   async fixTranslationIssuesBatch(
     @Body()
@@ -368,7 +371,7 @@ export class BlogController {
 
   @Get('enabled-languages')
   @ApiBearerAuth()
-  @UseGuards(AdminJwtAuthGuard)
+  @RequirePermission('blog', 'translation_view')
   @ApiOperation({ summary: '获取启用语言列表' })
   async getEnabledLanguages() {
     return this.blogService.getEnabledLanguages();
@@ -376,7 +379,7 @@ export class BlogController {
 
   @Get('untranslated-articles')
   @ApiBearerAuth()
-  @UseGuards(AdminJwtAuthGuard)
+  @RequirePermission('blog', 'translation_view')
   @ApiOperation({ summary: '获取指定语言下未翻译的文章列表' })
   async getUntranslatedArticles(@Query('languageCode') languageCode: string) {
     return this.blogService.getUntranslatedArticles(languageCode);
@@ -384,7 +387,7 @@ export class BlogController {
 
   @Get('untranslated-categories')
   @ApiBearerAuth()
-  @UseGuards(AdminJwtAuthGuard)
+  @RequirePermission('blog', 'translation_view')
   @ApiOperation({ summary: '获取指定语言下未翻译的分类列表' })
   async getUntranslatedCategories(@Query('languageCode') languageCode: string) {
     return this.blogService.getUntranslatedCategories(languageCode);
@@ -392,7 +395,7 @@ export class BlogController {
 
   @Get('untranslated-tags')
   @ApiBearerAuth()
-  @UseGuards(AdminJwtAuthGuard)
+  @RequirePermission('blog', 'translation_view')
   @ApiOperation({ summary: '获取指定语言下未翻译的标签列表' })
   async getUntranslatedTags(@Query('languageCode') languageCode: string) {
     return this.blogService.getUntranslatedTags(languageCode);
@@ -400,7 +403,7 @@ export class BlogController {
 
   @Post('translation/repair-categories-tags')
   @ApiBearerAuth()
-  @UseGuards(AdminJwtAuthGuard)
+  @RequirePermission('blog', 'translation_manage')
   @ApiOperation({
     summary:
       '批量修复未翻译的分类和标签（检测含中文的非 zh 字段并重新投递翻译）',
@@ -415,7 +418,7 @@ export class BlogController {
 
   @Get('translation/detect-incomplete')
   @ApiBearerAuth()
-  @UseGuards(AdminJwtAuthGuard)
+  @RequirePermission('blog', 'translation_view')
   @ApiOperation({ summary: '检测翻译不完整的文章' })
   async detectIncompleteTranslations(@Query('lang') targetLang: string = 'en') {
     return this.blogService.detectIncompleteTranslations(targetLang);
@@ -424,7 +427,7 @@ export class BlogController {
   @Get('translation/detect-incomplete/stream')
   @Sse()
   @ApiBearerAuth()
-  @UseGuards(AdminJwtAuthGuard)
+  @RequirePermission('blog', 'translation_view')
   @ApiOperation({ summary: 'SSE流式检测翻译不完整的文章' })
   detectIncompleteTranslationsStream(
     @Query('lang') targetLang: string = 'en',
@@ -436,7 +439,7 @@ export class BlogController {
 
   @Post('translation/retranslate-incomplete')
   @ApiBearerAuth()
-  @UseGuards(AdminJwtAuthGuard)
+  @RequirePermission('blog', 'translation_manage')
   @ApiOperation({ summary: '批量重新翻译不完整的文章' })
   async retranslateIncompleteArticles(@Body() body: { lang?: string }) {
     return this.blogService.retranslateIncompleteArticles(body?.lang || 'en');
@@ -444,7 +447,7 @@ export class BlogController {
 
   @Post('translation/clear-translations')
   @ApiBearerAuth()
-  @UseGuards(AdminJwtAuthGuard)
+  @RequirePermission('blog', 'translation_manage')
   @ApiOperation({
     summary: '清空指定文章的翻译字段（重置为未翻译状态并自动投递翻译）',
   })
@@ -459,7 +462,7 @@ export class BlogController {
 
   @Post('translation/stop-job/:jobId')
   @ApiBearerAuth()
-  @UseGuards(AdminJwtAuthGuard)
+  @RequirePermission('blog', 'translation_manage')
   @ApiOperation({ summary: '停止/移除指定的翻译任务' })
   async stopTranslationJob(@Param('jobId') jobId: string) {
     return this.blogService.stopTranslationJob(jobId);
@@ -467,7 +470,7 @@ export class BlogController {
 
   @Post('translation/stop-all-jobs')
   @ApiBearerAuth()
-  @UseGuards(AdminJwtAuthGuard)
+  @RequirePermission('blog', 'translation_manage')
   @ApiOperation({ summary: '批量取消所有进行中和等待中的翻译任务' })
   async stopAllTranslationJobs() {
     return this.blogService.stopAllTranslationJobs();

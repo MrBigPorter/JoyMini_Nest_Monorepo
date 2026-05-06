@@ -76,6 +76,8 @@ export default function CreateArticlePage() {
         }
 
         const newArticle = await blogApi.createArticle(processedData);
+        // 403 权限不足：withRetry 已弹 toast，静默返回
+        if (!newArticle) return;
         const articleId = newArticle.id;
 
         // Trigger video transcoding for any videos uploaded during creation

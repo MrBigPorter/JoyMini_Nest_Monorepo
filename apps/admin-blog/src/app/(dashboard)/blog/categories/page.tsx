@@ -46,7 +46,9 @@ export default function CategoriesPage() {
   // 删除分类 mutation
   const deleteCategoryMutation = useMutation({
     mutationFn: (categoryId: string) => blogApi.deleteCategory(categoryId),
-    onSuccess: () => {
+    onSuccess: (data) => {
+      // 403 权限不足：withRetry 已弹 toast，静默返回
+      if (!data) return;
       addToast('success', t('categoryDeleted'));
       actionRef.current?.reload();
     },

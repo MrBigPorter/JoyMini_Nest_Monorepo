@@ -163,7 +163,9 @@ export default function CommentsPage() {
 
   const handleApproveComment = async (commentId: string) => {
     try {
-      await blogApi.approveComment(commentId);
+      const result = await blogApi.approveComment(commentId);
+      // 403 权限不足：withRetry 已弹 toast，静默返回
+      if (!result) return;
       addToast('success', t('commentApproved'));
       fetchComments(); // Refresh the list
     } catch (error) {
@@ -174,7 +176,9 @@ export default function CommentsPage() {
 
   const handleRejectComment = async (commentId: string) => {
     try {
-      await blogApi.rejectComment(commentId);
+      const result = await blogApi.rejectComment(commentId);
+      // 403 权限不足：withRetry 已弹 toast，静默返回
+      if (!result) return;
       addToast('success', t('commentRejected'));
       fetchComments(); // Refresh the list
     } catch (error) {
@@ -200,7 +204,9 @@ export default function CommentsPage() {
       ),
       onConfirm: async () => {
         try {
-          await blogApi.deleteComment(commentId);
+          const result = await blogApi.deleteComment(commentId);
+          // 403 权限不足：withRetry 已弹 toast，静默返回
+          if (!result) return;
           addToast('success', t('commentDeleted'));
           fetchComments();
         } catch (error) {

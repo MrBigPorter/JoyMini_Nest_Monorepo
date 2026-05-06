@@ -37,7 +37,9 @@ export const BlogCategoryModal: React.FC<BlogCategoryModalProps> = ({
     blogApi.createCategory,
     {
       manual: true,
-      onSuccess: () => {
+      onSuccess: (result: any) => {
+        // 403 权限不足：withRetry 已弹 toast，静默返回
+        if (!result) return;
         onSuccessAction();
         onCloseAction();
       },
@@ -51,7 +53,9 @@ export const BlogCategoryModal: React.FC<BlogCategoryModalProps> = ({
     blogApi.updateCategory,
     {
       manual: true,
-      onSuccess: () => {
+      onSuccess: (result: any) => {
+        // 403 权限不足：withRetry 已弹 toast，静默返回
+        if (!result) return;
         onSuccessAction();
         onCloseAction();
       },

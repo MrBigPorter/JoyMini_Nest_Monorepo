@@ -39,6 +39,21 @@ export const RolePermissions = {
     `${OpModule.TREASURE}:${OpAction.TREASURE.OFF_SHELF}`, // 下架
     `${OpModule.TREASURE}:${OpAction.TREASURE.LOTTERY}`, // 强制开奖
     `${OpModule.TREASURE}:${OpAction.TREASURE.DELETE}`, // 删除产品
+
+    //  6. Blog 管理权限
+    'blog:article_view',
+    'blog:article_manage',
+    'blog:category_view',
+    'blog:category_manage',
+    'blog:tag_view',
+    'blog:tag_manage',
+    'blog:view',    // 评论查看
+    'blog:update',  // 评论审核/回复
+    'blog:delete',  // 评论删除
+    'blog:translation_view',
+    'blog:translation_manage',
+    'blog:ai_view',
+    'blog:ai_manage',
   ],
 
   // ------------------------------------------
@@ -53,6 +68,19 @@ export const RolePermissions = {
     `${OpModule.MARKETING}:${OpAction.MARKETING.CREATE}`,
     `${OpModule.MARKETING}:${OpAction.MARKETING.UPDATE}`,
     // 注意：没给他 DELETE 权限，所以 Controller 上那个 Delete 接口他调不通
+
+    // Blog 内容管理权限（编辑/运营可管理内容，不可管理 AI 配置）
+    'blog:article_view',
+    'blog:article_manage',
+    'blog:category_view',
+    'blog:category_manage',
+    'blog:tag_view',
+    'blog:tag_manage',
+    'blog:view',   // 评论查看
+    'blog:update', // 评论审核/回复
+    'blog:translation_view',
+    'blog:translation_manage',
+    'blog:ai_view',
   ],
 
   // ------------------------------------------
@@ -73,6 +101,14 @@ export const RolePermissions = {
 
     // 查看系统设置/角色概览（只读，用于 roles 页面）
     `${OpModule.SYSTEM}:${OpAction.SYSTEM.VIEW}`,
+
+    // Blog 只读权限
+    'blog:article_view',
+    'blog:category_view',
+    'blog:tag_view',
+    'blog:view',   // 评论列表只读
+    'blog:translation_view',
+    'blog:ai_view',
   ],
 
   // ------------------------------------------

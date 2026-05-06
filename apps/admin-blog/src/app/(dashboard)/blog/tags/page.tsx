@@ -71,7 +71,9 @@ export default function TagsPage() {
       onCancel: () => {},
       onConfirm: async () => {
         try {
-          await blogApi.deleteTag(tagId);
+          const result = await blogApi.deleteTag(tagId);
+          // 403 权限不足：withRetry 已弹 toast，静默返回
+          if (!result) return;
           addToast('success', t('blog_tags_tagDeleted'));
           fetchTags(); // Refresh the list
         } catch (error) {
