@@ -76,7 +76,8 @@ export class AuthService {
   ) {
     // verify reCAPTCHA token if provided
     if (recaptchaToken) {
-      const { success } = await this.recaptchaService.verifyToken(recaptchaToken);
+      const { success } =
+        await this.recaptchaService.verifyToken(recaptchaToken);
       if (!success) {
         throw new UnauthorizedException('reCAPTCHA verification failed');
       }

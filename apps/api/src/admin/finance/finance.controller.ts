@@ -46,7 +46,10 @@ export class FinanceController {
   @Get('transactions')
   @RequirePermission(OpModule.FINANCE, OpAction.FINANCE.VIEW)
   @ApiOkResponse({ type: TransactionListResponseDto })
-  async getTransactions(@Query() dto: QueryTransactionDto, @Req() req: Request) {
+  async getTransactions(
+    @Query() dto: QueryTransactionDto,
+    @Req() req: Request,
+  ) {
     const data = await this.financeService.getTransactions(dto);
     const response = {
       total: data.total,
@@ -116,7 +119,10 @@ export class FinanceController {
   @Get('recharges')
   @RequirePermission(OpModule.FINANCE, OpAction.FINANCE.VIEW)
   @ApiOkResponse({ type: RechargeListResponseDto })
-  async getRecharges(@Query() dto: QueryRechargeOrdersDto, @Req() req: Request) {
+  async getRecharges(
+    @Query() dto: QueryRechargeOrdersDto,
+    @Req() req: Request,
+  ) {
     const data = await this.financeService.recharges(dto);
     const list = plainToInstance(RechargeResponseDto, data.list, {
       excludeExtraneousValues: true,
