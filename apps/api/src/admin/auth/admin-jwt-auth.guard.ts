@@ -15,6 +15,7 @@ type AdminJwtPayload = {
 
 type RequestLike = {
   headers?: Record<string, unknown>;
+  query?: Record<string, unknown>;
   user?: {
     id: string;
     userId: string;
@@ -76,6 +77,11 @@ export class AdminJwtAuthGuard implements CanActivate {
     const authHeader = request.headers?.authorization;
     if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
       return authHeader.slice(7);
+    }
+    // SSE fallback: EventSource cannot set custom headers, so accept token via query param
+    const queryToken = request.query?.token;
+    if (typeof queryToken === 'string' && queryToken.length > 0) {
+      return queryToken;
     }
     return null;
   }

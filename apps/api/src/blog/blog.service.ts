@@ -6,7 +6,9 @@ import {
   ForbiddenException,
   BadRequestException,
   Logger,
+  MessageEvent,
 } from '@nestjs/common';
+import { Observable } from 'rxjs';
 import { OnEvent } from '@nestjs/event-emitter';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { ArticleStatus, Prisma } from '@prisma/client';
@@ -3338,6 +3340,170 @@ export class BlogService {
           : '100.00',
       incompleteArticles,
     };
+  }
+
+  /**
+   * SSE 流式检测翻译不完整的文章
+   * 每处理一批就推送进度事件给前端
+   */
+  async detectIncompleteTranslationsStream(
+    targetLang: string = 'en',
+  ): Promise<Observable<MessageEvent>> {
+    return new Observable<MessageEvent>((subscriber) => {
+      (async () => {
+        try {
+          const BATCH_SIZE = 10;
+          const incompleteArticles: any[] = [];
+          let totalProcessed = 0;
+          let cursor: string | null = null;
+          let hasMore = true;
+
+          // 先获取总数
+          const total = await this.prisma.blogArticle.count({
+            where: { status: { not: 'DRAFT' } },
+          });
+
+          while (hasMore) {
+            const findArgs: Parameters<
+              typeof this.prisma.blogArticle.findMany
+            >[0] = {
+              where: { status: { not: 'DRAFT' } },
+              select: {
+                id: true,
+                slug: true,
+                title: true,
+                titleLocalized: true,
+                contentMd: true,
+                contentMdLocalized: true,
+                excerpt: true,
+                excerptLocalized: true,
+                translationStatus: true,
+              },
+              take: BATCH_SIZE,
+              orderBy: { id: 'asc' },
+            };
+            if (cursor) {
+              findArgs.skip = 1;
+              findArgs.cursor = { id: cursor };
+            }
+            const batch = await this.prisma.blogArticle.findMany(findArgs);
+
+            if (batch.length === 0) {
+              hasMore = false;
+              break;
+            }
+
+            for (const article of batch) {
+              const sourceTitle =
+                (article.titleLocalized as any)?.zh || article.title;
+              const sourceContentMd =
+                (article.contentMdLocalized as any)?.zh || article.contentMd;
+              const sourceExcerpt =
+                (article.excerptLocalized as any)?.zh || article.excerpt;
+
+              const translatedTitle = (article.titleLocalized as any)?.[
+                targetLang
+              ];
+              const translatedContentMd = (article.contentMdLocalized as any)?.[
+                targetLang
+              ];
+              const translatedExcerpt = (article.excerptLocalized as any)?.[
+                targetLang
+              ];
+
+              if (!translatedTitle || !translatedContentMd) {
+                incompleteArticles.push({
+                  id: article.id,
+                  slug: article.slug,
+                  title: sourceTitle,
+                  issues: [
+                    {
+                      issueType: 'MISSING_TRANSLATION_FIELD',
+                      description: '缺少翻译字段',
+                    },
+                  ],
+                  needsTranslation: true,
+                });
+                continue;
+              }
+
+              const titleQuality = this.detectTranslationQuality(
+                sourceTitle || '',
+                translatedTitle,
+                targetLang,
+                true,
+              );
+
+              const contentQuality = this.detectTranslationQuality(
+                sourceContentMd || '',
+                translatedContentMd,
+                targetLang,
+                false,
+              );
+
+              const allIssues = [
+                ...titleQuality.issues.map((i: any) => ({
+                  ...i,
+                  description: `[标题] ${i.description}`,
+                })),
+                ...contentQuality.issues.map((i: any) => ({
+                  ...i,
+                  description: `[内容] ${i.description}`,
+                })),
+              ];
+
+              if (allIssues.length > 0) {
+                incompleteArticles.push({
+                  id: article.id,
+                  slug: article.slug,
+                  title: sourceTitle,
+                  issues: allIssues,
+                  titleCompletion: titleQuality.completionRate,
+                  contentCompletion: contentQuality.completionRate,
+                  needsRetranslation: true,
+                });
+              }
+            }
+
+            totalProcessed += batch.length;
+            cursor = batch[batch.length - 1].id;
+            hasMore = batch.length === BATCH_SIZE;
+
+            // 每批处理完后推送进度事件
+            subscriber.next({
+              data: {
+                type: 'progress',
+                processed: totalProcessed,
+                total,
+                incompleteSoFar: incompleteArticles.length,
+              },
+            } as MessageEvent);
+          }
+
+          // 推送最终完成事件
+          subscriber.next({
+            data: {
+              type: 'complete',
+              total: totalProcessed,
+              incompleteCount: incompleteArticles.length,
+              completionRate:
+                totalProcessed > 0
+                  ? (
+                      ((totalProcessed - incompleteArticles.length) /
+                        totalProcessed) *
+                      100
+                    ).toFixed(2)
+                  : '100.00',
+              incompleteArticles,
+            },
+          } as MessageEvent);
+
+          subscriber.complete();
+        } catch (err) {
+          subscriber.error(err);
+        }
+      })();
+    });
   }
 
   /**
