@@ -3209,105 +3209,133 @@ export class BlogService {
 
   /**
    * 批量检测所有文章的翻译质量
+   * 使用游标分页分批处理，避免一次性加载全部文章导致OOM
    */
   async detectIncompleteTranslations(targetLang: string = 'en') {
-    const articles = await this.prisma.blogArticle.findMany({
-      where: {
-        status: { not: 'DRAFT' },
-      },
-      select: {
-        id: true,
-        slug: true,
-        title: true,
-        titleLocalized: true,
-        content: true,
-        contentLocalized: true,
-        contentMd: true,
-        contentMdLocalized: true,
-        excerpt: true,
-        excerptLocalized: true,
-        translationStatus: true,
-      },
-    });
+    const BATCH_SIZE = 10;
+    const incompleteArticles: any[] = [];
+    let totalProcessed = 0;
+    let cursor: string | null = null;
+    let hasMore = true;
 
-    const incompleteArticles = [];
+    while (hasMore) {
+      const findArgs: Parameters<typeof this.prisma.blogArticle.findMany>[0] = {
+        where: {
+          status: { not: 'DRAFT' },
+        },
+        select: {
+          id: true,
+          slug: true,
+          title: true,
+          titleLocalized: true,
+          // 只使用 Markdown 版进行质量检测，不加载冗余的 HTML 版
+          contentMd: true,
+          contentMdLocalized: true,
+          excerpt: true,
+          excerptLocalized: true,
+          translationStatus: true,
+        },
+        take: BATCH_SIZE,
+        orderBy: { id: 'asc' },
+      };
+      if (cursor) {
+        findArgs.skip = 1;
+        findArgs.cursor = { id: cursor };
+      }
+      const batch = await this.prisma.blogArticle.findMany(findArgs);
 
-    for (const article of articles) {
-      const sourceTitle = (article.titleLocalized as any)?.zh || article.title;
-      const sourceContentMd =
-        (article.contentMdLocalized as any)?.zh || article.contentMd;
-      const sourceExcerpt =
-        (article.excerptLocalized as any)?.zh || article.excerpt;
-
-      const translatedTitle = (article.titleLocalized as any)?.[targetLang];
-      const translatedContentMd = (article.contentMdLocalized as any)?.[
-        targetLang
-      ];
-      const translatedExcerpt = (article.excerptLocalized as any)?.[targetLang];
-
-      // 如果任何翻译字段缺失,直接标记为不完整
-      if (!translatedTitle || !translatedContentMd) {
-        incompleteArticles.push({
-          id: article.id,
-          slug: article.slug,
-          title: sourceTitle,
-          issues: [
-            {
-              issueType: 'MISSING_TRANSLATION_FIELD',
-              description: '缺少翻译字段',
-            },
-          ],
-          needsTranslation: true,
-        });
-        continue;
+      if (batch.length === 0) {
+        hasMore = false;
+        break;
       }
 
-      // 质量检测（标题使用宽松长度阈值，因为中文→英文标题膨胀 2-4x 是正常现象）
-      const titleQuality = this.detectTranslationQuality(
-        sourceTitle || '',
-        translatedTitle,
-        targetLang,
-        true, // isShortText: 标题等短文本使用更宽松的长度阈值
-      );
+      for (const article of batch) {
+        const sourceTitle =
+          (article.titleLocalized as any)?.zh || article.title;
+        const sourceContentMd =
+          (article.contentMdLocalized as any)?.zh || article.contentMd;
+        const sourceExcerpt =
+          (article.excerptLocalized as any)?.zh || article.excerpt;
 
-      const contentQuality = this.detectTranslationQuality(
-        sourceContentMd || '',
-        translatedContentMd,
-        targetLang,
-        false, // 正文使用标准长度阈值
-      );
+        const translatedTitle = (article.titleLocalized as any)?.[targetLang];
+        const translatedContentMd = (article.contentMdLocalized as any)?.[
+          targetLang
+        ];
+        const translatedExcerpt = (article.excerptLocalized as any)?.[
+          targetLang
+        ];
 
-      const allIssues = [
-        ...titleQuality.issues.map((i) => ({
-          ...i,
-          description: `[标题] ${i.description}`,
-        })),
-        ...contentQuality.issues.map((i) => ({
-          ...i,
-          description: `[内容] ${i.description}`,
-        })),
-      ];
+        // 如果任何翻译字段缺失,直接标记为不完整
+        if (!translatedTitle || !translatedContentMd) {
+          incompleteArticles.push({
+            id: article.id,
+            slug: article.slug,
+            title: sourceTitle,
+            issues: [
+              {
+                issueType: 'MISSING_TRANSLATION_FIELD',
+                description: '缺少翻译字段',
+              },
+            ],
+            needsTranslation: true,
+          });
+          continue;
+        }
 
-      if (allIssues.length > 0) {
-        incompleteArticles.push({
-          id: article.id,
-          slug: article.slug,
-          title: sourceTitle,
-          issues: allIssues,
-          titleCompletion: titleQuality.completionRate,
-          contentCompletion: contentQuality.completionRate,
-          needsRetranslation: true,
-        });
+        // 质量检测（标题使用宽松长度阈值）
+        const titleQuality = this.detectTranslationQuality(
+          sourceTitle || '',
+          translatedTitle,
+          targetLang,
+          true,
+        );
+
+        const contentQuality = this.detectTranslationQuality(
+          sourceContentMd || '',
+          translatedContentMd,
+          targetLang,
+          false,
+        );
+
+        const allIssues = [
+          ...titleQuality.issues.map((i) => ({
+            ...i,
+            description: `[标题] ${i.description}`,
+          })),
+          ...contentQuality.issues.map((i) => ({
+            ...i,
+            description: `[内容] ${i.description}`,
+          })),
+        ];
+
+        if (allIssues.length > 0) {
+          incompleteArticles.push({
+            id: article.id,
+            slug: article.slug,
+            title: sourceTitle,
+            issues: allIssues,
+            titleCompletion: titleQuality.completionRate,
+            contentCompletion: contentQuality.completionRate,
+            needsRetranslation: true,
+          });
+        }
       }
+
+      totalProcessed += batch.length;
+      cursor = batch[batch.length - 1].id;
+      hasMore = batch.length === BATCH_SIZE;
     }
 
     return {
-      total: articles.length,
+      total: totalProcessed,
       incompleteCount: incompleteArticles.length,
-      completionRate: (
-        ((articles.length - incompleteArticles.length) / articles.length) *
-        100
-      ).toFixed(2),
+      completionRate:
+        totalProcessed > 0
+          ? (
+              ((totalProcessed - incompleteArticles.length) / totalProcessed) *
+              100
+            ).toFixed(2)
+          : '100.00',
       incompleteArticles,
     };
   }
