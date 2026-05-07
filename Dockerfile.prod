@@ -179,7 +179,7 @@ FROM node:20-alpine AS production
 WORKDIR /app
 
 # Alpine 运行时依赖: openssl (Prisma 查询引擎) + wget (健康检查)
-RUN apk add --no-cache openssl wget
+RUN apk add --no-cache openssl wget ffmpeg
 
 # 从 pruner 拷贝裁剪后的 node_modules
 COPY --from=pruner /app/node_modules ./node_modules

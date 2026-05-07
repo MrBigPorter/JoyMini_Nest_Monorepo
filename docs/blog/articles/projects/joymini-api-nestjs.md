@@ -598,6 +598,7 @@ BullMQ 承担所有非实时任务：
 ## 相关阅读
 
 - [JoyMini Blog — 多语言博客平台的 SSG/SSR/ISR 混合渲染实践](joymini-blog-platform.md) — 前端博客技术解析
+- [JoyMini Admin Blog — 博客 CMS 管理后台](joymini-admin-blog.md) — 博客内容管理技术解析
 - [JoyMini Admin — Next.js 智能管理后台架构实践](joymini-admin-nextjs.md) — 运营后台技术解析
 - [JoyMini Flutter App — 跨平台超级 App 架构实践](joymini-flutter-super-app.md) — Flutter App 技术解析
 

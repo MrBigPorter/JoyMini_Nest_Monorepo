@@ -132,6 +132,18 @@ Completed or superseded plans are in the [archive directory](plans/archive/).
 
 ---
 
+## 🚀 Project Overview `articles/projects/`
+
+| Document                                                                                     | Description                                       | Status |
+| -------------------------------------------------------------------------------------------- | ------------------------------------------------- | ------ |
+| [JoyMini Flutter App — 跨平台超级 App 架构实践](articles/projects/joymini-flutter-super-app.md)       | Flutter 社交电商超级 App                           | ✅     |
+| [JoyMini API — 企业级 NestJS 后端架构实践](articles/projects/joymini-api-nestjs.md)                   | NestJS 统一后端平台                                | ✅     |
+| [JoyMini Admin — Next.js 智能管理后台](articles/projects/joymini-admin-nextjs.md)                     | 运营管理后台                                      | ✅     |
+| [JoyMini Admin Blog — 博客 CMS 管理后台](articles/projects/joymini-admin-blog.md)                     | 博客内容管理系统                                  | ✅     |
+| [JoyMini Blog — 多语言博客平台](articles/projects/joymini-blog-platform.md)                           | 公共博客前端                                      | ✅     |
+
+---
+
 ## 📝 Technical Blog Articles `articles/frontend/`
 
 | Document                                                                                                                          | Description                                                                  |
