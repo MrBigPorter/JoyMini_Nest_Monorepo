@@ -176,6 +176,7 @@ export const ArticleForm = forwardRef<ArticleFormRef, ArticleFormProps>(
               name="featuredImage"
               label={t('featuredImage')}
               maxFileCount={1}
+              maxFileSizeMB={250}
               renderImage={({ src, alt, className }) => (
                 <SmartImage
                   src={src}

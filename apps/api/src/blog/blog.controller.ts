@@ -445,6 +445,18 @@ export class BlogController {
     return this.blogService.retranslateIncompleteArticles(body?.lang || 'en');
   }
 
+  @Post('translation/retranslate-all-locales')
+  @ApiBearerAuth()
+  @RequirePermission('blog', 'translation_manage')
+  @ApiOperation({
+    summary: '一键修复：对所有已启用语言批量重译不完整的文章',
+    description:
+      '遍历所有已启用的目标语言（排除源语言），对每种语言调用检测+重译。修复之前 P0/P1 错误导致的污染数据。',
+  })
+  async retranslateAllLocales() {
+    return this.blogService.retranslateAllLocales();
+  }
+
   @Post('translation/clear-translations')
   @ApiBearerAuth()
   @RequirePermission('blog', 'translation_manage')

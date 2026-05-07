@@ -481,6 +481,13 @@ export const blogApi = {
       );
     },
 
+    /** 一键修复：对所有已启用语言批量重译不完整的文章 */
+    retranslateAllLocales: async () => {
+      return await http.post(
+        '/v1/admin/blog/translation/retranslate-all-locales',
+      );
+    },
+
     /** 清空指定文章的翻译字段（重置为未翻译状态）*/
     clearArticleTranslations: async (
       articleIds: string[],
@@ -602,6 +609,28 @@ export const uploadApi = {
       {
         extraFields,
       },
+    ),
+
+  /**
+   * Direct browser-to-R2 upload (bypasses NestJS Multer bottleneck).
+   *
+   * 1. Backend generates a presigned PUT URL
+   * 2. Browser PUTs the file directly to R2 (native axios onUploadProgress)
+   * 3. Backend confirms + enqueues media processing (transcode/compress) in BullMQ
+   *
+   * Returns `{ url: string; key: string }` where `url` is the CDN/public URL.
+   */
+  uploadMediaDirect: (
+    file: File,
+    onProgress?: (percent: number) => void,
+    extraFields?: Record<string, string>,
+  ) =>
+    http.uploadDirect<{ url: string; key: string }>(
+      '/v1/admin/upload/presigned-url',
+      '/v1/admin/upload/confirm',
+      file,
+      onProgress,
+      extraFields,
     ),
 
   // 批量上传

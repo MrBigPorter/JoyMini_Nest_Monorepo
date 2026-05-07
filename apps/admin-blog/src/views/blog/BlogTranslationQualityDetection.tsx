@@ -15,6 +15,7 @@ import {
   BarChart3,
   RotateCcw,
   Trash2,
+  Globe,
 } from 'lucide-react';
 
 // ─── Quality Score Bar ────────────────────────────────────────────────
@@ -124,6 +125,7 @@ export default function BlogTranslationQualityDetection() {
   const [batchRetranslating, setBatchRetranslating] = useState(false);
   const [clearingIds, setClearingIds] = useState<Record<string, boolean>>({});
   const [batchClearing, setBatchClearing] = useState(false);
+  const [allLocalesRetranslating, setAllLocalesRetranslating] = useState(false);
 
   // 获取启用的语言列表（使用 getBlogLocales，返回格式已知）
   const { data: localesRaw, loading: languagesLoading } = useRequest(
@@ -182,6 +184,22 @@ export default function BlogTranslationQualityDetection() {
       addToast('error', t('batchRetranslateFailed'));
     } finally {
       setBatchRetranslating(false);
+    }
+  };
+
+  // 一键修复所有语言
+  const handleRetranslateAllLocales = async () => {
+    if (allLocalesRetranslating) return;
+    setAllLocalesRetranslating(true);
+    try {
+      const res = await blogApi.translation.retranslateAllLocales();
+      const totalQueued = (res as any)?.totalQueued ?? 0;
+      addToast('success', `一键修复完成，共投递 ${totalQueued} 个翻译任务`);
+      setTimeout(() => runDetect(), 1500);
+    } catch (err: any) {
+      addToast('error', '一键修复失败');
+    } finally {
+      setAllLocalesRetranslating(false);
     }
   };
 
@@ -284,6 +302,20 @@ export default function BlogTranslationQualityDetection() {
               <Search className="w-4 h-4 mr-2" />
               {t('detectButton')}
             </Button>
+
+            {!detecting && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRetranslateAllLocales}
+                isLoading={allLocalesRetranslating}
+                disabled={allLocalesRetranslating}
+                className="border-red-300 text-red-600 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-900/20"
+              >
+                <Globe className="w-4 h-4 mr-2" />
+                一键修复所有语言
+              </Button>
+            )}
 
             {result && incompleteCount > 0 && (
               <div className="flex items-center gap-2">

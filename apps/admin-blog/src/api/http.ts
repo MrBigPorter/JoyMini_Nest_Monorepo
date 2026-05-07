@@ -534,6 +534,7 @@ class HttpClient {
 
     const res = await this.instance.post<ApiResponse<T>>(url, formData, {
       ...config,
+      timeout: 600_000, // 10 minutes for large file uploads
       headers: { 'Content-Type': 'multipart/form-data' },
       onUploadProgress: (e) => {
         if (onProgress && e.total) {
@@ -543,6 +544,69 @@ class HttpClient {
       },
     });
     return res.data.data;
+  }
+
+  /**
+   * Direct browser-to-R2 upload via presigned URL.
+   *
+   * Flow:
+   * 1. Requests a presigned PUT URL from the backend
+   * 2. PUTs the file directly to R2 (bypasses NestJS — no Multer memory bottleneck)
+   * 3. Confirms the upload so the backend triggers media processing (BullMQ)
+   *
+   * Returns the final CDN URL of the uploaded file.
+   */
+  public async uploadDirect<T = { url: string; key: string }>(
+    presignedUrlEndpoint: string,
+    confirmEndpoint: string,
+    file: File,
+    onProgress?: (percent: number) => void,
+    extraFields?: Record<string, string>,
+  ): Promise<T> {
+    // Step 1: Request presigned URL
+    const presignedRes = await this.instance.post<
+      ApiResponse<{ url: string; key: string; cdnUrl: string | null }>
+    >(presignedUrlEndpoint, { fileName: file.name, fileType: file.type });
+    const { url: uploadUrl, key, cdnUrl } = presignedRes.data.data;
+
+    // Step 2: PUT file directly to R2 using XMLHttpRequest
+    // Native XHR avoids axios interceptors that add non-signed headers (Authorization, Accept-Language)
+    // which would cause 400 Bad Request from R2 (signature mismatch)
+    await new Promise<void>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('PUT', uploadUrl);
+      xhr.setRequestHeader('Content-Type', file.type);
+
+      xhr.upload.onprogress = (e) => {
+        if (onProgress && e.lengthComputable) {
+          const percent = Math.round((e.loaded * 100) / e.total);
+          onProgress(percent);
+        }
+      };
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve();
+        } else {
+          reject(new Error(`Upload failed with status ${xhr.status}`));
+        }
+      };
+
+      xhr.onerror = () => reject(new Error('Upload failed: network error'));
+      xhr.send(file);
+    });
+
+    // Step 3: Confirm upload (enqueue media processing)
+    const confirmRes = await this.instance.post<
+      ApiResponse<{ url: string; key: string }>
+    >(confirmEndpoint, {
+      key,
+      originalName: file.name,
+      articleId: extraFields?.articleId || undefined,
+      mimeType: file.type,
+    });
+
+    return confirmRes.data.data as T;
   }
 
   public async download(
