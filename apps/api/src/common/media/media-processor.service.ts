@@ -209,9 +209,7 @@ export class MediaProcessorService {
     const fs = await import('fs/promises');
     const path = await import('path');
     const os = await import('os');
-    const { execSync, exec } = await import('child_process');
-    const { promisify } = await import('util');
-    const execAsync = promisify(exec);
+    const { execSync } = await import('child_process');
 
     const tmpDir = await fs.mkdtemp(
       path.join(os.tmpdir(), `hls-${articleId}-`),
@@ -243,22 +241,24 @@ export class MediaProcessorService {
       const sourceHeight = parseInt(sourceHeightStr, 10);
       const sourceAspectRatio = sourceWidth / sourceHeight;
 
-      // Define quality targets with target widths (heights computed dynamically)
+      // Define quality targets with target HEIGHTS (widths computed dynamically)
+      // Using height-based resolution for portrait video support:
+      // e.g. a 1080x2336 portrait video will correctly downscale to 720px height
       interface QualityTarget {
         name: string;
-        targetWidth: number;
+        targetHeight: number;
         bandwidth: string;
       }
       const qualityTargets: QualityTarget[] = [
-        { name: '480p', targetWidth: 854, bandwidth: '800k' },
-        { name: '720p', targetWidth: 1280, bandwidth: '2800k' },
+        { name: '480p', targetHeight: 480, bandwidth: '800k' },
+        { name: '720p', targetHeight: 720, bandwidth: '2800k' },
       ];
 
       // Only add 1080p if source is tall enough
       if (sourceHeight >= 1080) {
         qualityTargets.push({
           name: '1080p',
-          targetWidth: 1920,
+          targetHeight: 1080,
           bandwidth: '5000k',
         });
       }
@@ -271,9 +271,9 @@ export class MediaProcessorService {
 
         // Compute target dimensions preserving original aspect ratio
         // Clamp to source dimensions to avoid upscaling
-        const targetWidth = Math.min(qt.targetWidth, sourceWidth);
-        const computedHeight = Math.round(targetWidth / sourceAspectRatio);
-        const targetHeight = Math.min(computedHeight, sourceHeight);
+        const targetHeight = Math.min(qt.targetHeight, sourceHeight);
+        const computedWidth = Math.round(targetHeight * sourceAspectRatio);
+        const targetWidth = Math.min(computedWidth, sourceWidth);
 
         // H.264 requires even dimensions for chroma subsampling
         const evenWidth = targetWidth % 2 === 0 ? targetWidth : targetWidth - 1;
@@ -285,17 +285,38 @@ export class MediaProcessorService {
         // MUST create subdirectory before ffmpeg writes to it — ffmpeg cannot create dirs themselves
         await fs.mkdir(qualityDir, { recursive: true });
 
-        await execAsync(
-          `ffmpeg -i "${inputPath}" ` +
-            `-vf "scale=${resolution}" ` +
-            `-c:v libx264 -crf 23 -preset medium ` +
-            `-c:a aac -b:a 128k ` +
-            `-hls_time 6 ` +
-            `-hls_playlist_type vod ` +
-            `-hls_segment_filename "${qualityDir}/segment_%03d.ts" ` +
-            `-start_number 0 ` +
-            `"${qualityDir}/playlist.m3u8"`,
-          { encoding: 'utf-8', timeout: 300000 }, // 5 min timeout
+        // Use spawn instead of exec to avoid maxBuffer overflow from ffmpeg stderr progress output.
+        // child_process.exec has a default maxBuffer of 1MB which ffmpeg's continuous progress
+        // output easily exceeds during long transcodes, causing silent process termination.
+        await this.spawnFfmpeg(
+          [
+            '-i',
+            inputPath,
+            '-vf',
+            `scale=${resolution}`,
+            '-threads',
+            '0', // Auto-detect CPU cores
+            '-c:v',
+            'libx264',
+            '-crf',
+            '23',
+            '-preset',
+            'medium',
+            '-c:a',
+            'aac',
+            '-b:a',
+            '128k',
+            '-hls_time',
+            '6',
+            '-hls_playlist_type',
+            'vod',
+            '-hls_segment_filename',
+            `${qualityDir}/segment_%03d.ts`,
+            '-start_number',
+            '0',
+            `${qualityDir}/playlist.m3u8`,
+          ],
+          { timeout: 300000 }, // 5 min timeout
         );
 
         variantStreams.push(
@@ -336,6 +357,58 @@ export class MediaProcessorService {
       this.logger.error(`Video transcoding failed: ${error}`);
       throw error;
     }
+  }
+
+  /**
+   * Execute ffmpeg via spawn (not exec) to avoid maxBuffer overflow.
+   *
+   * child_process.exec buffers stdout/stderr in memory with a default maxBuffer of 1MB.
+   * ffmpeg continuously outputs progress information to stderr (e.g. "frame= 123 fps=3.2 ..."),
+   * which easily exceeds 1MB during long transcodes. When maxBuffer is exceeded, Node.js
+   * silently kills the process and throws a generic "Command failed" error without the
+   * actual ffmpeg error output.
+   *
+   * spawn streams output via events and has no buffer limit, making it suitable for
+   * long-running ffmpeg processes.
+   */
+  private spawnFfmpeg(
+    args: string[],
+    options: { timeout: number },
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const { spawn } =
+        require('child_process') as typeof import('child_process');
+      const child = spawn('ffmpeg', args);
+      let stderr = '';
+      let timedOut = false;
+
+      const timer = setTimeout(() => {
+        timedOut = true;
+        child.kill('SIGTERM');
+        reject(new Error(`ffmpeg timed out after ${options.timeout}ms`));
+      }, options.timeout);
+
+      child.stderr.on('data', (data: Buffer) => {
+        stderr += data.toString();
+      });
+
+      child.on('close', (code: number | null) => {
+        clearTimeout(timer);
+        if (timedOut) return;
+        if (code !== 0) {
+          // Include the last 2KB of stderr for debugging the actual ffmpeg error
+          const tail = stderr.slice(-2048);
+          reject(new Error(`ffmpeg exited with code ${code}\n${tail}`));
+        } else {
+          resolve();
+        }
+      });
+
+      child.on('error', (err: Error) => {
+        clearTimeout(timer);
+        reject(err);
+      });
+    });
   }
 
   /**
