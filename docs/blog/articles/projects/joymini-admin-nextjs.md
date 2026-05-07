@@ -376,5 +376,6 @@ const useAppStore = create<AppState>()(
 > 📌 **本文是 JoyMini 项目系列介绍之一：**
 > - [JoyMini Super App — Flutter 驱动的社交电商平台](./joymini-flutter-super-app.md)
 > - [JoyMini API — 企业级 NestJS 后端架构实践](./joymini-api-nestjs.md)
+> - [JoyMini Admin Blog — 博客 CMS 管理后台](./joymini-admin-blog.md)
 > - **JoyMini Admin — Next.js 智能管理后台**（本文）
 > - [JoyMini Blog — 多语言博客平台的 SSG/SSR/ISR 实践](./joymini-blog-platform.md)
