@@ -25,7 +25,7 @@ interface TranscodeVideoJobData {
 
 @Processor(MEDIA_PROCESSOR_QUEUE, {
   concurrency: 2, // Allow 2 concurrent jobs
-  lockDuration: 300_000, // 5 min — matches ffmpeg timeout; video transcoding blocks event loop via execSync so lock cannot be auto-renewed
+  lockDuration: 900_000, // 15 min — increased from 5 min; video transcoding via ffmpeg execSync can exceed 5 min for large/long videos
 })
 export class MediaProcessor extends WorkerHost {
   private readonly logger = new Logger(MediaProcessor.name);
