@@ -8,12 +8,12 @@
 # ==========================================
 # 内存预算 (1GB 服务器):
 #   OS + Docker: ~130 MB
-#   Backend:     ≤300 MB
+#   Backend:     ≤500 MB (Node.js 350MB + ffmpeg 150MB)
 #   PostgreSQL:  ≤200 MB
 #   Redis:       ≤150 MB (maxmemory 128MB)
 #   Nginx:       ≤30 MB
 #   Swap 兜底:   1 GB
-#   总计:        ~810 MB + 1 GB swap
+#   总计:        ~1010 MB + 1 GB swap
 # ==========================================
 
 services:
@@ -37,13 +37,13 @@ services:
     env_file:
       - deploy/.env.prod
     environment:
-      # 限制 Node.js 堆内存 (防 OOM)
-      - NODE_OPTIONS=--max-old-space-size=256
+      # 限制 Node.js 堆内存 (防 OOM) — 配合 500M 容器限制，留 ~150MB 给 ffmpeg 视频转码
+      - NODE_OPTIONS=--max-old-space-size=300
       # 迁移默认自动执行（entrypoint.sh）；若需跳过设 SKIP_MIGRATIONS=true
     deploy:
       resources:
         limits:
-          memory: 300M
+          memory: 500M
         reservations:
           memory: 150M
     expose:
