@@ -1061,12 +1061,13 @@ IMPORTANT: Return ONLY the three sections above with the exact delimiters. Do NO
       // 进度 70% - AI 返回翻译结果
       await this.translationJobService.updateProgress(dbJobId, 70);
 
-      const titleTranslated = batchResult.title;
-      const contentTranslated = batchResult.content;
-      const excerptTranslated = batchResult.excerpt;
+      let titleTranslated = batchResult.title;
+      let contentTranslated = batchResult.content;
+      let excerptTranslated = batchResult.excerpt;
 
-      // 验证翻译质量：确保至少有一个字段真正被翻译了
-      // 防止AI服务静默返回原文导致数据损坏
+      // 验证翻译质量：逐字段检查，防止AI服务静默返回原文导致数据损坏
+      // 全有或全无策略：如果有任何一个有意义的字段返回原文，则不保存任何内容
+      // 文章保持在 FAILED 状态，等待 detectIncompleteTranslations 后续发现并重试
       const titleIsSame =
         titleTranslated === sourceTitle && sourceTitle.trim().length > 10;
       const contentIsSame =
@@ -1074,18 +1075,16 @@ IMPORTANT: Return ONLY the three sections above with the exact delimiters. Do NO
       const excerptIsSame =
         excerptTranslated === sourceExcerpt && sourceExcerpt.trim().length > 10;
 
-      // 如果所有非空字段都与原文相同，且至少有一个非空字段，则判定为翻译失败
-      const meaningfulFields = [
-        sourceTitle.length > 10,
-        sourceContent.length > 50,
-        sourceExcerpt.length > 10,
-      ];
-      const anyMeaningfulField = meaningfulFields.some(Boolean);
-      const allFieldsSame = titleIsSame && contentIsSame && excerptIsSame;
+      // 收集所有验证失败的字段描述
+      const failedFields: string[] = [];
+      if (titleIsSame) failedFields.push('标题');
+      if (contentIsSame) failedFields.push('内容');
+      if (excerptIsSame) failedFields.push('摘要');
 
-      if (anyMeaningfulField && allFieldsSame) {
+      // 有任何一个有意义的字段验证失败，则整体失败（全有或全无）
+      if (failedFields.length > 0) {
         this.logger.error(
-          `翻译验证失败：所有字段与原文相同（文章 ${data.articleId}，目标语言 ${data.targetLang}）`,
+          `翻译验证失败：字段返回原文（文章 ${data.articleId}，目标语言 ${data.targetLang}），失败的字段: ${failedFields.join(', ')}`,
           {
             titleSame: titleIsSame,
             contentSame: contentIsSame,
@@ -1096,7 +1095,7 @@ IMPORTANT: Return ONLY the three sections above with the exact delimiters. Do NO
           },
         );
         throw new Error(
-          `翻译验证失败：AI返回的所有字段内容与原文相同（${data.targetLang}）`,
+          `翻译验证失败：AI返回以下字段内容与原文相同（${data.targetLang}）: ${failedFields.join(', ')}`,
         );
       }
 
@@ -1104,7 +1103,7 @@ IMPORTANT: Return ONLY the three sections above with the exact delimiters. Do NO
       await this.translationJobService.updateProgress(dbJobId, 80);
 
       // 保存翻译结果到Localized JSON字段
-
+      // 注意：此处所有翻译字段均已通过验证，不需要 null 回退逻辑
       const updateData: any = {
         translationStatus: 'COMPLETED',
         translatedAt: new Date(),

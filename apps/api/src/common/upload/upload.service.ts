@@ -390,7 +390,9 @@ export class UploadService {
 
     // If articleId is provided, enqueue media processing job
     if (articleId) {
-      const isVideo = file.mimetype.startsWith('video/');
+      const VIDEO_EXT = /\.(mp4|avi|mov|mkv|webm)$/i;
+      const isVideo =
+        file.mimetype.startsWith('video/') || VIDEO_EXT.test(file.originalname);
       const jobName = isVideo ? 'transcode-video' : 'compress-image';
 
       // For video, set initial meta status to 'pending' immediately
@@ -444,5 +446,81 @@ export class UploadService {
       url,
       originalName: file.originalname,
     };
+  }
+
+  /**
+   * Confirm a direct-to-R2 upload (presigned URL flow) and enqueue processing.
+   *
+   * Called after the browser has uploaded the file directly to R2 via presigned URL.
+   * This method records the upload, enqueues media processing (transcode / compress),
+   * and returns the public URL.
+   *
+   * @param key - R2 object key (from generatePresignedUrl)
+   * @param originalName - original file name (for extension-based type detection)
+   * @param articleId - optional, enqueues media processing if provided
+   * @param mimeType - optional, the declared MIME type of the uploaded file
+   */
+  async confirmUpload(
+    key: string,
+    originalName: string,
+    articleId?: string,
+    mimeType?: string,
+  ) {
+    const url = `${this.publicDomain.replace(/\/$/, '')}/${key}`;
+
+    if (articleId) {
+      const VIDEO_EXT = /\.(mp4|avi|mov|mkv|webm)$/i;
+      const isVideo =
+        (mimeType && mimeType.startsWith('video/')) ||
+        VIDEO_EXT.test(originalName);
+      const jobName = isVideo ? 'transcode-video' : 'compress-image';
+
+      // For video, set initial meta status to 'pending' immediately
+      if (isVideo) {
+        this.prisma.blogArticle
+          .findUnique({ where: { id: articleId }, select: { meta: true } })
+          .then((article: { meta: unknown } | null) => {
+            let existingMeta: Record<string, unknown> = {};
+            if (
+              article?.meta &&
+              typeof article.meta === 'object' &&
+              !Array.isArray(article.meta)
+            ) {
+              existingMeta = article.meta as Record<string, unknown>;
+            }
+            return this.prisma.blogArticle.update({
+              where: { id: articleId },
+              data: {
+                meta: {
+                  ...existingMeta,
+                  video: {
+                    status: 'pending',
+                  },
+                },
+              },
+            });
+          })
+          .catch((err: unknown) => {
+            const msg = err instanceof Error ? err.message : String(err);
+            this.logger.warn(
+              `Failed to set initial video status for article ${articleId}: ${msg}`,
+            );
+          });
+      }
+
+      this.mediaProcessorQueue
+        .add(jobName, {
+          articleId,
+          imageKey: key,
+          videoKey: key,
+          mimeType: mimeType ?? 'application/octet-stream',
+        })
+        .catch((err: unknown) => {
+          const msg = err instanceof Error ? err.message : String(err);
+          this.logger.warn(`Failed to enqueue media processing job: ${msg}`);
+        });
+    }
+
+    return { url, key };
   }
 }

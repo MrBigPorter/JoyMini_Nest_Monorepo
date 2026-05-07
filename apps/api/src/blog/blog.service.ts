@@ -198,22 +198,26 @@ export class BlogService {
       },
     });
 
-    // 异步投递翻译任务，不阻塞请求
-    // 使用默认源语言（从系统配置获取，默认为'zh'）
+    // 异步投递翻译任务到所有已启用语言，不阻塞请求
+    const { list: locales } = await this.systemConfigService.getBlogLocales();
+    const enabledCodes = locales.filter((l) => l.enabled).map((l) => l.code);
     const defaultSourceLang = await this.systemConfigService.get<string>(
       'blog.translation.defaultSourceLang',
       'zh',
     );
 
-    this.blogAiQueue
-      .add('translate-article', {
-        articleId: article.id,
-        sourceLang: defaultSourceLang,
-        targetLang: 'en',
-      })
-      .catch((err) => {
-        // 静默失败，不影响主流程
-      });
+    for (const targetLang of enabledCodes) {
+      if (targetLang === defaultSourceLang) continue;
+      this.blogAiQueue
+        .add('translate-article', {
+          articleId: article.id,
+          sourceLang: defaultSourceLang,
+          targetLang,
+        })
+        .catch((err) => {
+          // 静默失败，不影响主流程
+        });
+    }
 
     return article;
   }
@@ -651,22 +655,27 @@ export class BlogService {
       },
     });
 
-    // 只有标题或内容有变更时才重新翻译
+    // 只有标题或内容有变更时才重新翻译到所有已启用语言
     if (dto.title !== undefined || dto.content !== undefined) {
+      const { list: locales } = await this.systemConfigService.getBlogLocales();
+      const enabledCodes = locales.filter((l) => l.enabled).map((l) => l.code);
       const defaultSourceLang = await this.systemConfigService.get<string>(
         'blog.translation.defaultSourceLang',
         'zh',
       );
 
-      this.blogAiQueue
-        .add('translate-article', {
-          articleId: updatedArticle.id,
-          sourceLang: defaultSourceLang,
-          targetLang: 'en',
-        })
-        .catch((err) => {
-          // 静默失败
-        });
+      for (const targetLang of enabledCodes) {
+        if (targetLang === defaultSourceLang) continue;
+        this.blogAiQueue
+          .add('translate-article', {
+            articleId: updatedArticle.id,
+            sourceLang: defaultSourceLang,
+            targetLang,
+          })
+          .catch((err) => {
+            // 静默失败
+          });
+      }
     }
 
     return updatedArticle;
@@ -3516,6 +3525,7 @@ export class BlogService {
       return {
         message: '所有文章翻译完整,无需重新翻译',
         total: detection.total,
+        queued: 0,
       };
     }
 
@@ -3542,6 +3552,48 @@ export class BlogService {
       message: `已投递 ${queued} 篇文章到翻译队列`,
       incompleteArticles: detection.incompleteArticles,
       queued,
+      total: detection.total,
+    };
+  }
+
+  /**
+   * 一键修复：对所有已启用语言批量重译不完整的文章
+   * 遍历所有已启用的目标语言（排除源语言），对每种语言调用检测+重译
+   * 这可以修复之前 P0/P1 错误导致的所有污染数据
+   */
+  async retranslateAllLocales() {
+    const { list: locales } = await this.systemConfigService.getBlogLocales();
+    const enabledCodes = locales.filter((l) => l.enabled).map((l) => l.code);
+    const defaultSourceLang = await this.getDefaultSourceLang();
+
+    const results: Array<{
+      locale: string;
+      message: string;
+      queued: number;
+      total: number;
+    }> = [];
+
+    let totalQueued = 0;
+
+    for (const targetLang of enabledCodes) {
+      if (targetLang === defaultSourceLang) continue;
+
+      this.logger.log(`开始一键修复语言: ${targetLang}`);
+      const result = await this.retranslateIncompleteArticles(targetLang);
+      results.push({
+        locale: targetLang,
+        message: result.message,
+        queued: result.queued,
+        total: result.total,
+      });
+      totalQueued += result.queued;
+    }
+
+    return {
+      success: true,
+      message: `一键修复完成：共处理 ${results.length} 个语言，投递 ${totalQueued} 个翻译任务`,
+      results,
+      totalQueued,
     };
   }
 

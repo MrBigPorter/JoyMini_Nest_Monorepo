@@ -285,7 +285,7 @@ export class MediaProcessorService {
 
         execSync(
           `ffmpeg -i "${inputPath}" ` +
-            `-vf "scale=${resolution}:force_original_aspect_ratio=decrease" ` +
+            `-vf "scale=${resolution}" ` +
             `-c:v libx264 -crf 23 -preset medium ` +
             `-c:a aac -b:a 128k ` +
             `-hls_time 6 ` +

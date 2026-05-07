@@ -130,7 +130,9 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
       onProgress?: (percent: number) => void,
       extraFields?: Record<string, string>,
     ) => {
-      return uploadApi.uploadMedia(file, onProgress, extraFields);
+      // Use direct browser-to-R2 upload (presigned URL) to avoid Multer memory
+      // bottleneck and enable native axios upload progress tracking.
+      return uploadApi.uploadMediaDirect(file, onProgress, extraFields);
     },
     {
       manual: true,

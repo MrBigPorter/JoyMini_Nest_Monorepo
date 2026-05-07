@@ -33,6 +33,7 @@ type FormMediaUploaderFieldProps<
   | "renderRight"
 > & {
   maxFileCount?: number;
+  maxFileSizeMB?: number;
   accept?: Record<string, string[]>; // react-dropzone Accept type: { 'image/*': ['.png', '.jpg'] }
   showRemoveButton?: boolean;
   previewClassName?: string;
@@ -66,8 +67,9 @@ export function FormMediaUploaderField<
   helpTextClassName,
   accept,
   maxFileCount,
+  maxFileSizeMB,
   renderImage,
-}: Readonly<FormMediaUploaderFieldProps<TFieldValues>>) {
+ }: Readonly<FormMediaUploaderFieldProps<TFieldValues>>) {
   const theme = useFormTheme();
 
   return (
@@ -127,6 +129,7 @@ export function FormMediaUploaderField<
                   <MediaUploader.Root
                     value={field.value}
                     maxFileCount={maxFileCount}
+                    maxFileSizeMB={maxFileSizeMB}
                     accept={accept}
                     onUpload={handleUpload}
                   >
