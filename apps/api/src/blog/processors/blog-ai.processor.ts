@@ -433,6 +433,11 @@ For example:
 - "AC自动机" (Chinese) -> "AC Automaton" (English) / "ACオートマトン" (Japanese) / "AC 오토마톤" (Korean)
 - "敏感词过滤" (Chinese) -> "Sensitive Word Filtering" (English) / "機密語フィルタリング" (Japanese) / "민감어 필터링" (Korean)
 
+CRITICAL: ALL THREE FIELDS (---TITLE---, ---EXCERPT---, ---CONTENT---) MUST BE TRANSLATED to ${targetLang}.
+The TITLE and EXCERPT are NOT metadata or labels — they are article content that MUST be translated.
+Even if the title or excerpt is very short (2-3 characters), it MUST be translated to the target language.
+Do NOT leave any source language text in ---TITLE--- or ---EXCERPT--- or ---CONTENT---.
+
 1. Keep all technical terms in English (NestJS, React, etc.)
 2. Maintain the original Markdown formatting
 3. Preserve all code blocks verbatim
@@ -1062,12 +1067,13 @@ IMPORTANT: Return ONLY the three sections above with the exact delimiters. Do NO
       await this.translationJobService.updateProgress(dbJobId, 70);
 
       let titleTranslated = batchResult.title;
-      let contentTranslated = batchResult.content;
+      const contentTranslated = batchResult.content;
       let excerptTranslated = batchResult.excerpt;
 
       // 验证翻译质量：逐字段检查，防止AI服务静默返回原文导致数据损坏
-      // 全有或全无策略：如果有任何一个有意义的字段返回原文，则不保存任何内容
-      // 文章保持在 FAILED 状态，等待 detectIncompleteTranslations 后续发现并重试
+      // 策略变更：不再使用全有或全无策略，而是采用最佳努力逐字段处理
+      // - 内容字段（最重要）：如果失败则整体失败，抛出错误
+      // - 标题/摘要字段：尝试单独重译，失败则置空（保留已有翻译）
       const titleIsSame =
         titleTranslated === sourceTitle && sourceTitle.trim().length > 10;
       const contentIsSame =
@@ -1081,40 +1087,101 @@ IMPORTANT: Return ONLY the three sections above with the exact delimiters. Do NO
       if (contentIsSame) failedFields.push('内容');
       if (excerptIsSame) failedFields.push('摘要');
 
-      // 有任何一个有意义的字段验证失败，则整体失败（全有或全无）
+      // 逐字段处理：内容失败 => 整体失败；标题/摘要失败 => 单独重译
+      let retryTitleFailed = false;
+      let retryExcerptFailed = false;
+
       if (failedFields.length > 0) {
-        this.logger.error(
-          `翻译验证失败：字段返回原文（文章 ${data.articleId}，目标语言 ${data.targetLang}），失败的字段: ${failedFields.join(', ')}`,
-          {
-            titleSame: titleIsSame,
-            contentSame: contentIsSame,
-            excerptSame: excerptIsSame,
-            titleLength: sourceTitle.length,
-            contentLength: sourceContent.length,
-            excerptLength: sourceExcerpt.length,
-          },
+        // 内容失败 => 整体失败（内容是最重要的字段，不能部分保存）
+        if (contentIsSame) {
+          this.logger.error(
+            `翻译验证失败：内容字段返回原文（文章 ${data.articleId}，目标语言 ${data.targetLang}）`,
+            { contentLength: sourceContent.length },
+          );
+          throw new Error(
+            `翻译验证失败：AI返回内容与原文相同（${data.targetLang}）`,
+          );
+        }
+
+        this.logger.warn(
+          `翻译部分字段失败（文章 ${data.articleId}，目标语言 ${data.targetLang}），失败的字段: ${failedFields.join(', ')}，尝试单独重译`,
+          { titleSame: titleIsSame, excerptSame: excerptIsSame },
         );
-        throw new Error(
-          `翻译验证失败：AI返回以下字段内容与原文相同（${data.targetLang}）: ${failedFields.join(', ')}`,
-        );
+
+        // 标题单独重译
+        if (titleIsSame) {
+          try {
+            const retriedTitle = await this.translateWithRetry(
+              `Translate the following title to ${data.targetLang}. Return ONLY the translated text, no explanations:\n\n${sourceTitle}`,
+              `retry-title-${data.articleId}-${data.targetLang}`,
+            );
+            if (retriedTitle && retriedTitle !== sourceTitle) {
+              titleTranslated = retriedTitle;
+              this.logger.log(
+                `标题单独重译成功（文章 ${data.articleId}，目标语言 ${data.targetLang}）`,
+              );
+            } else {
+              retryTitleFailed = true;
+              this.logger.warn(
+                `标题单独重译仍返回原文（文章 ${data.articleId}，目标语言 ${data.targetLang}）`,
+              );
+            }
+          } catch (e) {
+            retryTitleFailed = true;
+            this.logger.warn(
+              `标题单独重译失败（文章 ${data.articleId}，目标语言 ${data.targetLang}）`,
+              e,
+            );
+          }
+        }
+
+        // 摘要单独重译
+        if (excerptIsSame) {
+          try {
+            const retriedExcerpt = await this.translateWithRetry(
+              `Translate the following excerpt to ${data.targetLang}. Return ONLY the translated text, no explanations:\n\n${sourceExcerpt}`,
+              `retry-excerpt-${data.articleId}-${data.targetLang}`,
+            );
+            if (retriedExcerpt && retriedExcerpt !== sourceExcerpt) {
+              excerptTranslated = retriedExcerpt;
+              this.logger.log(
+                `摘要单独重译成功（文章 ${data.articleId}，目标语言 ${data.targetLang}）`,
+              );
+            } else {
+              retryExcerptFailed = true;
+              this.logger.warn(
+                `摘要单独重译仍返回原文（文章 ${data.articleId}，目标语言 ${data.targetLang}）`,
+              );
+            }
+          } catch (e) {
+            retryExcerptFailed = true;
+            this.logger.warn(
+              `摘要单独重译失败（文章 ${data.articleId}，目标语言 ${data.targetLang}）`,
+              e,
+            );
+          }
+        }
       }
 
       // 进度 80% - 保存翻译结果到数据库
       await this.translationJobService.updateProgress(dbJobId, 80);
 
       // 保存翻译结果到Localized JSON字段
-      // 注意：此处所有翻译字段均已通过验证，不需要 null 回退逻辑
+      // 失败字段（重译后仍失败）将置空，保留之前已有的翻译值
       const updateData: any = {
-        translationStatus: 'COMPLETED',
+        translationStatus:
+          retryTitleFailed || retryExcerptFailed
+            ? 'COMPLETED_WITH_WARNINGS'
+            : 'COMPLETED',
         translatedAt: new Date(),
       };
 
       // 写入Localized多语言字段，同时保留原始语言内容
-      // 确保源语言内容不为空，如果为空则使用原始字段值
+      // 对于重译失败的字段不写入 targetLang，避免用原文覆盖已有翻译
       updateData.titleLocalized = {
         ...((article.titleLocalized as any) || {}),
         [sourceLang]: sourceTitle || article.title || '', // 多重回退确保有值
-        [data.targetLang]: titleTranslated,
+        ...(!retryTitleFailed ? { [data.targetLang]: titleTranslated } : {}),
       };
 
       updateData.contentMdLocalized = {
@@ -1155,7 +1222,9 @@ IMPORTANT: Return ONLY the three sections above with the exact delimiters. Do NO
       updateData.excerptLocalized = {
         ...((article.excerptLocalized as any) || {}),
         [sourceLang]: sourceExcerpt || article.excerpt || '', // 确保有值
-        [data.targetLang]: excerptTranslated,
+        ...(!retryExcerptFailed
+          ? { [data.targetLang]: excerptTranslated }
+          : {}),
       };
 
       await this.prisma.blogArticle.update({
