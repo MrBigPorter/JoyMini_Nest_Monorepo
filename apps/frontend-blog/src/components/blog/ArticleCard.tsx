@@ -302,7 +302,7 @@ export function ArticleCard({
 
           {/* 摘要 */}
           {!compact && (
-            <p className="break-words text-slate-600 dark:text-slate-400 text-sm leading-relaxed line-clamp-2 mt-1">
+            <p className="break-words text-slate-600 dark:text-slate-400 text-sm leading-relaxed line-clamp-2 mt-1 min-h-[3rem]">
               {article.excerpt}
             </p>
           )}

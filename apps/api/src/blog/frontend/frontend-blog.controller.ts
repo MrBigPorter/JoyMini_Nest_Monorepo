@@ -9,11 +9,15 @@ import {
   NotFoundException,
   UseGuards,
   UseInterceptors,
+  Sse,
+  MessageEvent,
 } from '@nestjs/common';
 import { CacheTTL } from '@nestjs/cache-manager';
 import { PublicCacheInterceptor } from '@api/common/cache/public-cache.interceptor';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { Request } from 'express';
+import { Observable } from 'rxjs';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { FrontendBlogService } from './frontend-blog.service';
 import { BlogService } from '../blog.service';
 import { LanguageService } from '@api/common/services/language.service';
@@ -28,6 +32,7 @@ export class FrontendBlogController {
     private readonly frontendBlogService: FrontendBlogService,
     private readonly blogService: BlogService,
     private readonly languageService: LanguageService,
+    private eventEmitter: EventEmitter2,
   ) {}
 
   @Get('articles')
@@ -268,6 +273,62 @@ export class FrontendBlogController {
   ) {
     return this.blogService.createComment(slug, createCommentDto);
   }
+
+  // ================= SSE 实时推送 =================
+  // 注意：静态路由 comments/stream 必须在动态路由 comments/:id/* 之前注册，否则会被遮蔽
+
+  @Get('comments/stream')
+  @Sse()
+  @ApiOperation({ summary: 'SSE 评论回复实时推送（前端专用）' })
+  @ApiResponse({ status: 200, description: '返回 SSE 事件流' })
+  commentStream(
+    @Query('articleId') articleId?: string,
+  ): Observable<MessageEvent> {
+    const logger = new (require('@nestjs/common').Logger)('SSE');
+    logger.log(
+      `[SSE] 新订阅者连接, articleId filter="${articleId ?? '(全部)'}"`,
+    );
+
+    return new Observable<MessageEvent>((subscriber) => {
+      const handler = (payload: {
+        articleId: string;
+        parentId: string;
+        replyId: string;
+        content: string;
+        author: string;
+        createdAt: string;
+      }) => {
+        logger.debug(
+          `[SSE] 收到 event: articleId=${payload.articleId}, parentId=${payload.parentId}, replyId=${payload.replyId}`,
+        );
+
+        // 只推送指定文章的回复事件
+        if (!articleId || payload.articleId === articleId) {
+          logger.log(
+            `[SSE] ✅ 推送给订阅者 (filter="${articleId}"): replyId=${payload.replyId}`,
+          );
+          subscriber.next({ data: payload } as MessageEvent);
+        } else {
+          logger.debug(
+            `[SSE] ⏭ 跳过: event.articleId=${payload.articleId} ≠ filter=${articleId}`,
+          );
+        }
+      };
+
+      this.eventEmitter.on('blog.comment.reply.created', handler);
+      logger.log(
+        `[SSE] handler 已注册, 当前监听器数: ${this.eventEmitter.listenerCount('blog.comment.reply.created')}`,
+      );
+
+      // 客户端断开连接时清理
+      return () => {
+        this.eventEmitter.off('blog.comment.reply.created', handler);
+        logger.log(`[SSE] 订阅者断开, articleId filter="${articleId}"`);
+      };
+    });
+  }
+
+  // ================= 动态路由（必须在静态路由 comments/stream 之后）=================
 
   @Get('comments/:id/status')
   @ApiOperation({ summary: '查询评论状态（前端专用）' })

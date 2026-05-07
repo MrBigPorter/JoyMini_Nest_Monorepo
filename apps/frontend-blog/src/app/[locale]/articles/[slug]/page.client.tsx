@@ -3,7 +3,8 @@
 import React, { useMemo, useCallback } from 'react';
 import { setNavDirection } from '@/lib/navigation/direction';
 import Image from 'next/image';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
+import { useRouter } from '@/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import {
   Calendar,
@@ -102,17 +103,13 @@ export default function ArticlePageClient({
 
   // -------------------------------------------------------------------
   // Back navigation handler
-  // Uses router.back() to preserve history including search params
-  // Falls back to home page if no history (direct entry to article)
+  // Navigate to homepage with current locale preserved
+  // @/navigation's router.push('/') auto-prepends the active locale (e.g., /ja/)
   // -------------------------------------------------------------------
   const handleBack = useCallback(() => {
     setNavDirection('backward');
-    if (window.history.length > 1) {
-      router.back();
-    } else {
-      router.push(`/${locale}`);
-    }
-  }, [router, locale]);
+    router.push('/');
+  }, [router]);
 
   // -------------------------------------------------------------------
   // Loading / Error states
@@ -285,8 +282,10 @@ export default function ArticlePageClient({
           />
         )}
 
-        {/* Comment system */}
-        {article.slug && <CommentList articleId={article.slug} />}
+        {/* Comment system — articleId=slug (REST API), articleDbId=id (SSE 过滤) */}
+        {article.slug && (
+          <CommentList articleId={article.slug} articleDbId={article.id} />
+        )}
       </div>
     </>
   );

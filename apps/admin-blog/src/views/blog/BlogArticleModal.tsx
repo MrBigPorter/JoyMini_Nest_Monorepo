@@ -18,7 +18,6 @@ import { Form, FormSelectField } from '@repo/ui/form';
 import { useBlogLocalizedForm } from '@/hooks/useBlogLocalizedForm';
 import { articleSchema, type ArticleFormInputs } from '@/schema/blog';
 import { useTranslation } from '@/hooks/useTranslation';
-import type { Locale } from '@/hooks/LanguageProvider';
 import { useAvailableLocales } from '@/hooks/useAvailableLocales';
 import { renderLocalizedText } from '@/utils/localizedText';
 
@@ -486,28 +485,6 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
     return '';
   };
 
-  // 包装语言切换函数，同时更新子表单
-  const handleLocaleChange = (newLocale: Locale) => {
-    if (newLocale === currentLocale) return;
-
-    // 调用基础的语言切换函数
-    baseHandleLocaleChange(newLocale);
-
-    // 更新子表单 - 使用安全的本地化值提取
-    const currentValues = getValues();
-    setTimeout(() => {
-      articleFormRef.current?.reset({
-        title: getLocalizedValue(currentValues.title, newLocale),
-        content: getLocalizedValue(currentValues.content, newLocale),
-        excerpt: getLocalizedValue(currentValues.excerpt, newLocale),
-        featuredImage: getLocalizedValue(
-          currentValues.featuredImage,
-          newLocale,
-        ),
-      });
-    }, 0);
-  };
-
   // Handle image/video upload for RichTextEditor
   const handleEditorUpload = async (
     file: File,
@@ -581,21 +558,7 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
           <form onSubmit={submitHandler} className="space-y-6">
             {/* 顶部操作栏 */}
             <div className="flex items-center justify-between mb-4">
-              {/* Language Switcher */}
               <div className="flex items-center gap-2">
-                <div className="flex gap-2">
-                  {availableLocaleCodes.map((lang) => (
-                    <Button
-                      key={lang}
-                      type="button"
-                      variant={currentLocale === lang ? 'primary' : 'outline'}
-                      size="sm"
-                      onClick={() => handleLocaleChange(lang as Locale)}
-                    >
-                      {lang.toUpperCase()}
-                    </Button>
-                  ))}
-                </div>
                 {isEditing ? (
                   <Button
                     type="button"

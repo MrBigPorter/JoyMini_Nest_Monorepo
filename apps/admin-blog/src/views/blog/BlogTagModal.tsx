@@ -9,7 +9,6 @@ import { blogApi } from '@/api';
 import { useRequest } from 'ahooks';
 import { useLanguage } from '@/hooks/LanguageProvider';
 import { useLocalizedFormV2 } from '@/hooks/useLocalizedFormV2';
-import { LanguageSwitch } from '@/components/blog/LanguageSwitch';
 import {
   extractCurrentLocaleValue,
   normalizeLocalizedValue,
@@ -149,7 +148,6 @@ export const BlogTagModal: React.FC<BlogTagModalProps> = ({
         <form onSubmit={submitHandler} className="space-y-4">
           <div className="flex justify-between items-center">
             <h3 className="text-sm font-medium">{t('tags_name')}</h3>
-            <LanguageSwitch />
           </div>
           <FormTextField
             label=""

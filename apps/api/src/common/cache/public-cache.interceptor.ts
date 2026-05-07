@@ -50,6 +50,9 @@ export class PublicCacheInterceptor extends CacheInterceptor {
       req.url?.split('?')[0] ||
       '/';
 
+    // 跳过 SSE 端点（路径以 /stream 结尾），流式响应不应被缓存
+    if (path.endsWith('/stream')) return undefined;
+
     // 稳定化 query
     const queryStr = serializeQuery(req.query);
 

@@ -19,6 +19,7 @@ import { Link, useRouter } from '@/navigation';
 import { usePostComment } from '@/lib/hooks/useComments';
 import { useCommentsInfiniteQuerySimple } from '@/lib/hooks/useCommentsAdapter';
 import { useAuth } from '@/lib/hooks/useAuth';
+import { useCommentSSE } from '@/lib/hooks/useCommentSSE';
 import { commentStatusManager, CommentStatus } from '@/lib/utils/commentStatus';
 import type { Comment } from '@/lib/types/blog';
 import { formatDistanceToNow } from 'date-fns';
@@ -28,7 +29,10 @@ import { InfiniteScrollLoader } from '@/components/shared/LoadingIndicator';
 import { useInfiniteScrollDetectionSimple } from '@/lib/hooks/useInfiniteScrollDetection';
 
 interface CommentListProps {
+  /** 文章 slug，用于 REST API 调用（如获取评论列表） */
   articleId: string;
+  /** 文章 DB ID，用于 SSE 端点过滤；若未提供则降级使用 articleId（slug） */
+  articleDbId?: string;
 }
 
 interface CommentProps {
@@ -302,10 +306,30 @@ function Comment({ comment, depth = 0, articleId }: CommentProps) {
   );
 }
 
-export default function CommentList({ articleId }: CommentListProps) {
+export default function CommentList({
+  articleId,
+  articleDbId,
+}: CommentListProps) {
+  // 同步日志 — 确认组件渲染，检查 props
+  if (typeof window !== 'undefined') {
+    console.log(
+      '[CommentList] 渲染, articleId:',
+      articleId,
+      '| articleDbId:',
+      articleDbId,
+      '| SSE将用:',
+      articleDbId || articleId,
+    );
+  }
+
   const t = useTranslations();
   const router = useRouter();
   const [commentContent, setCommentContent] = useState('');
+
+  // SSE 实时监听新回复
+  // - articleDbId (DB ID) 用于 SSE URL 过滤（后端 event payload 用 DB ID）
+  // - articleId (slug) 用于 React Query 缓存匹配（queryKey 用 slug）
+  useCommentSSE(articleDbId || articleId, articleId);
 
   // 使用新的 React Query 无限滚动钩子
   const {

@@ -1683,6 +1683,10 @@ export class BlogService {
       data: commentData,
     });
 
+    this.logger.log(
+      `[COMMENT] 新评论创建: id=${comment.id}, articleId=${comment.articleId}, parentId=${comment.parentId ?? 'null(顶级)'}, author=${comment.author}`,
+    );
+
     // Update article comment count
     await this.prisma.blogArticle.update({
       where: { id: article.id },
