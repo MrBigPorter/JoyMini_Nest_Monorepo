@@ -209,7 +209,9 @@ export class MediaProcessorService {
     const fs = await import('fs/promises');
     const path = await import('path');
     const os = await import('os');
-    const { execSync } = await import('child_process');
+    const { execSync, exec } = await import('child_process');
+    const { promisify } = await import('util');
+    const execAsync = promisify(exec);
 
     const tmpDir = await fs.mkdtemp(
       path.join(os.tmpdir(), `hls-${articleId}-`),
@@ -283,7 +285,7 @@ export class MediaProcessorService {
         // MUST create subdirectory before ffmpeg writes to it — ffmpeg cannot create dirs themselves
         await fs.mkdir(qualityDir, { recursive: true });
 
-        execSync(
+        await execAsync(
           `ffmpeg -i "${inputPath}" ` +
             `-vf "scale=${resolution}" ` +
             `-c:v libx264 -crf 23 -preset medium ` +
