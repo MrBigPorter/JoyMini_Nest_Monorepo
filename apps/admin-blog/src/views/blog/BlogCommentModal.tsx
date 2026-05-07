@@ -12,7 +12,6 @@ import { blogApi } from '@/api';
 import { useRequest } from 'ahooks';
 import { useLanguage } from '@/hooks/LanguageProvider';
 import { useLocalizedFormV2 } from '@/hooks/useLocalizedFormV2';
-import { LanguageSwitch } from '@/components/blog/LanguageSwitch';
 import {
   extractCurrentLocaleValue,
   normalizeLocalizedValue,
@@ -126,7 +125,6 @@ export const BlogCommentModal: React.FC<BlogCommentModalProps> = ({
             <h3 className="text-sm font-medium">
               {t('blog_comments_replyOptional')}
             </h3>
-            <LanguageSwitch />
           </div>
           <FormTextareaField
             label=""

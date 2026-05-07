@@ -21,7 +21,6 @@ import {
   FormMediaUploaderField,
 } from '@repo/ui/form';
 import { useLanguage } from '@/hooks/LanguageProvider';
-import { LanguageSwitch } from '@/components/blog/LanguageSwitch';
 import { useTranslation } from '@/hooks/useTranslation';
 
 export default function CreateArticlePage() {
@@ -262,7 +261,6 @@ export default function CreateArticlePage() {
           <form onSubmit={submitHandler} className="space-y-6">
             <div className="flex justify-between items-center">
               <h3 className="text-sm font-medium">{t('articleContent')}</h3>
-              <LanguageSwitch />
             </div>
 
             {/* Title */}

@@ -6,6 +6,7 @@ import {
 } from '@nestjs/bullmq';
 import { Marked } from 'marked';
 import { Logger } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Job, Queue } from 'bullmq';
 import { AiService, AiServiceLevel } from '@api/common/ai/ai.service';
 import { PrismaService } from '@api/common/prisma/prisma.service';
@@ -36,6 +37,7 @@ export class BlogAiProcessor extends WorkerHost {
     private aiService: AiService,
     private prisma: PrismaService,
     private translationJobService: TranslationJobService,
+    private eventEmitter: EventEmitter2,
     @InjectQueue('blog-ai') private blogAiQueue: Queue,
   ) {
     super();
@@ -795,6 +797,7 @@ IMPORTANT: Return ONLY the three sections above with the exact delimiters. Do NO
           author: true,
           email: true,
           articleId: true,
+          parentId: true,
         },
       });
 
@@ -821,6 +824,31 @@ IMPORTANT: Return ONLY the three sections above with the exact delimiters. Do NO
             : CommentStatus.REJECTED,
         },
       });
+
+      // 如果审核通过且是回复评论（有 parentId），立即通过 SSE 推送给前端
+      if (result.passed && comment.parentId) {
+        const ssePayload = {
+          articleId: comment.articleId,
+          parentId: comment.parentId,
+          replyId: comment.id,
+          content: data.content,
+          author: comment.author || 'Anonymous',
+          createdAt: new Date().toISOString(),
+        };
+        this.logger.log(
+          `[SSE-EMIT] 审核通过的回复，准备 emit: ${JSON.stringify(ssePayload)}`,
+        );
+        const listenerCount = this.eventEmitter.listenerCount(
+          'blog.comment.reply.created',
+        );
+        this.logger.log(`[SSE-EMIT] 当前监听器数: ${listenerCount}`);
+        this.eventEmitter.emit('blog.comment.reply.created', ssePayload);
+        this.logger.log(`[SSE-EMIT] emit 已发出`);
+      } else {
+        this.logger.debug(
+          `[SSE-EMIT] 跳过 SSE emit: passed=${result.passed}, parentId=${comment.parentId ?? 'null(顶级评论)'}`,
+        );
+      }
 
       // 如果审核通过且分数较低（安全友好的评论），生成自然的技术交流式自动回复
       if (result.passed && result.score < 30) {
@@ -893,7 +921,7 @@ IMPORTANT: Return ONLY the three sections above with the exact delimiters. Do NO
       }
 
       // 创建AI自动回复 - 使用脱敏名称"Porter"
-      await this.prisma.blogComment.create({
+      const reply = await this.prisma.blogComment.create({
         data: {
           articleId: comment.articleId,
           parentId: comment.id,
@@ -912,6 +940,20 @@ IMPORTANT: Return ONLY the three sections above with the exact delimiters. Do NO
           data: { commentCount: { increment: 1 } },
         })
         .catch(() => {});
+
+      // 发送 SSE 事件通知前端有新回复
+      const aiSsePayload = {
+        articleId: comment.articleId,
+        parentId: comment.id,
+        replyId: reply.id,
+        content: data.replyContent,
+        author: 'Porter',
+        createdAt: new Date().toISOString(),
+      };
+      this.logger.log(
+        `[SSE-EMIT] AI auto reply emit: ${JSON.stringify(aiSsePayload)}, 监听器数: ${this.eventEmitter.listenerCount('blog.comment.reply.created')}`,
+      );
+      this.eventEmitter.emit('blog.comment.reply.created', aiSsePayload);
 
       this.logger.log(`AI auto reply created for comment ${data.commentId}`);
     } catch (err) {
