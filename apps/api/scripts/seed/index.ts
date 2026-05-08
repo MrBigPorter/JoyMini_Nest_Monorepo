@@ -111,6 +111,10 @@ export async function runSeed() {
   const { seedLoginLogs } = await import('./seed-login-logs');
   await seedLoginLogs();
 
+  // [17] 博客分类 & 标签（幂等，safe to run on production）
+  const { seedBlogCategoriesTags } = await import('./seed-blog-categories-tags');
+  await seedBlogCategoriesTags();
+
   console.log('\n✨  Seed 完成！\n');
 }
 

@@ -16,7 +16,7 @@ ENV_FILE="$PROJECT_DIR/deploy/.env.prod"
 CERT_DIR="$PROJECT_DIR/certs"
 
 # Let's Encrypt 域名 (与 certbot 申请时一致)
-DOMAIN="admin.joyminis.com"
+DOMAIN="api.joyminis.com"
 LE_CERT_DIR="/etc/letsencrypt/live/$DOMAIN"
 
 echo "[$(date)] 开始 SSL 证书续期检查..."

@@ -2,8 +2,9 @@
 
 import { useLocale } from 'next-intl';
 import { Link } from '@/navigation';
-import { formatDistanceToNow } from 'date-fns';
-import { getDateFnsLocale } from '@/lib/utils/date-locale';
+// TODO: Restore published date display — uncomment the two lines below and the JSX block
+// import { formatDistanceToNow } from 'date-fns';
+// import { getDateFnsLocale } from '@/lib/utils/date-locale';
 import { useCallback, useRef, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Article } from '@/lib/types/blog';
@@ -310,7 +311,8 @@ export function ArticleCard({
           {/* 底部元信息 */}
           <div className="flex min-w-0 items-center justify-between gap-3 pt-3 text-xs text-slate-500 dark:text-slate-400">
             <div className="flex min-w-0 items-center gap-3">
-              <span
+              {/* TODO: Restore published date display — hidden to avoid showing outdated dates */}
+              {/* <span
                 className="flex min-w-0 items-center gap-1"
                 suppressHydrationWarning
               >
@@ -333,7 +335,7 @@ export function ArticleCard({
                     ? { addSuffix: true, locale: getDateFnsLocale(locale) }
                     : { addSuffix: true },
                 )}
-              </span>
+              </span> */}
 
               {!compact && (
                 <>

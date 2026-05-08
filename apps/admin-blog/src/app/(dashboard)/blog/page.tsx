@@ -309,7 +309,8 @@ export default function BlogDashboardPage() {
                       {article.comments || 0}
                     </div>
                   </td>
-                  <td className="py-3 px-4 text-gray-600 dark:text-gray-300">
+                  {/* TODO: Restore published date display — hidden to avoid showing outdated dates */}
+                  {/* <td className="py-3 px-4 text-gray-600 dark:text-gray-300">
                     {article.publishedAt
                       ? new Date(article.publishedAt).toLocaleDateString(
                           'zh-CN',
@@ -320,7 +321,7 @@ export default function BlogDashboardPage() {
                           },
                         )
                       : t('notPublished')}
-                  </td>
+                  </td> */}
                 </tr>
               ))}
             </tbody>

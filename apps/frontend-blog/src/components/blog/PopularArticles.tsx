@@ -107,14 +107,15 @@ export function PopularArticles() {
                   </svg>
                   {article.views}
                 </span>
-                {article.publishedAt && (
+                {/* TODO: Restore published date display — hidden to avoid showing outdated dates */}
+                {/* {article.publishedAt && (
                   <>
                     <span>·</span>
                     <span>
                       {new Date(article.publishedAt).toLocaleDateString()}
                     </span>
                   </>
-                )}
+                )} */}
               </div>
             </div>
           </Link>

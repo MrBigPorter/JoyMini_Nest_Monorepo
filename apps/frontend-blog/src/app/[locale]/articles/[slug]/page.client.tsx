@@ -7,7 +7,8 @@ import { useParams } from 'next/navigation';
 import { useRouter } from '@/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import {
-  Calendar,
+  // TODO: Restore published date display — uncomment Calendar when date is shown again
+  // Calendar,
   Clock,
   Eye,
   Heart,
@@ -226,14 +227,15 @@ export default function ArticlePageClient({
                 <span>{article.author.name}</span>
               </div>
             )}
-            {article.publishedAt && (
+            {/* TODO: Restore published date display — hidden to avoid showing outdated dates */}
+            {/* {article.publishedAt && (
               <div className="flex items-center gap-1">
                 <Calendar className="h-4 w-4" />
                 <time dateTime={article.publishedAt}>
                   {formatDate(article.publishedAt)}
                 </time>
               </div>
-            )}
+            )} */}
             <div className="flex items-center gap-1">
               <Clock className="h-4 w-4" />
               <span>

@@ -151,10 +151,11 @@ export function HeroSection({ articles }: HeroSectionProps) {
                 </p>
                 <div className="flex items-center gap-4 text-xs md:text-sm text-white/60">
                   <span>{mainArticle.author?.name}</span>
-                  <span>·</span>
+                  {/* TODO: Restore published date display — hidden to avoid showing outdated dates */}
+                  {/* <span>·</span>
                   <span>
                     {new Date(mainArticle.publishedAt).toLocaleDateString()}
-                  </span>
+                  </span> */}
                   <span>·</span>
                   <span>{mainArticle.views} views</span>
                 </div>

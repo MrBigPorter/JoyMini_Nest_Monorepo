@@ -17,7 +17,8 @@
 import { PrismaClient } from '@prisma/client';
 import { loadEnvForHost } from '../utils/load-env-for-host';
 
-loadEnvForHost();
+// loadEnvForHost() is only called when this file is run standalone (see main() below).
+// When imported by the main seed runner (index.ts), env is already configured.
 
 const prisma = new PrismaClient();
 
@@ -230,6 +231,7 @@ export async function seedBlogCategoriesTags() {
 
 // ── Standalone entry ─────────────────────────────────────────
 async function main() {
+  loadEnvForHost(); // only needed when run directly
   console.log('\n🌱  Blog categories & tags seed ─────────────────');
   console.log(`    ${new Date().toISOString()}\n`);
 

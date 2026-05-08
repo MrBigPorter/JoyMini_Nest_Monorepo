@@ -548,7 +548,7 @@ test("正确登录后跳转到 Dashboard", async ({ page }) => {
 
 ```bash
 # 生产服务器（第一次部署后执行一次）
-docker exec -it lucky-backend-prod node apps/api/dist/scripts/cli/create-admin.js
+docker exec -it lucky-backend-prod node /app/apps/api/dist/cli/cli/create-admin.js
 
 # 本地开发
 yarn workspace @lucky/api create-admin

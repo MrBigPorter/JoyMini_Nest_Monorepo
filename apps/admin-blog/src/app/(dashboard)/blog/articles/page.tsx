@@ -381,25 +381,26 @@ export default function ArticlesPageV2() {
         </div>
       ),
     },
-    {
-      dataIndex: 'publishedAt',
-      title: t('publishedDate'),
-      render: (dom, article: Article) => (
-        <div className="text-sm text-gray-700 dark:text-gray-300">
-          {article.publishedAt ? (
-            new Date(article.publishedAt).toLocaleDateString('zh-CN', {
-              year: 'numeric',
-              month: '2-digit',
-              day: '2-digit',
-            })
-          ) : (
-            <span className="text-gray-400 dark:text-gray-500">
-              {t('notPublished')}
-            </span>
-          )}
-        </div>
-      ),
-    },
+    // TODO: Restore published date display — hidden to avoid showing outdated dates
+    // {
+    //   dataIndex: 'publishedAt',
+    //   title: t('publishedDate'),
+    //   render: (dom, article: Article) => (
+    //     <div className="text-sm text-gray-700 dark:text-gray-300">
+    //       {article.publishedAt ? (
+    //         new Date(article.publishedAt).toLocaleDateString('zh-CN', {
+    //           year: 'numeric',
+    //           month: '2-digit',
+    //           day: '2-digit',
+    //         })
+    //       ) : (
+    //         <span className="text-gray-400 dark:text-gray-500">
+    //           {t('notPublished')}
+    //         </span>
+    //       )}
+    //     </div>
+    //   ),
+    // },
     {
       dataIndex: 'actions',
       title: t('actions'),

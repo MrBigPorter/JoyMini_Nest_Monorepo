@@ -456,10 +456,11 @@ export function FeaturedProjects({ articles }: FeaturedProjectsProps) {
                     <span>·</span>
                   </>
                 )}
-                <span>
+                {/* TODO: Restore published date display — hidden to avoid showing outdated dates */}
+                {/* <span>
                   {new Date(currentArticle.publishedAt).toLocaleDateString()}
                 </span>
-                <span>·</span>
+                <span>·</span> */}
                 <span>{currentArticle.views} views</span>
               </div>
             </Link>

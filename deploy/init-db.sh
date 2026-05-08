@@ -83,31 +83,17 @@ if [ "$MIGRATE_ONLY" = true ]; then
 fi
 
 # ------------------------------------------
-# Step 3: 运行 Seed 数据
+# Step 3: 运行 Seed 数据（直接使用生产镜像，避免重新安装依赖）
 # ------------------------------------------
 echo ""
 echo "→ [3/3] 写入初始 Seed 数据 ..."
-echo "   (首次运行需要下载 tsx + prisma, 约 1 分钟)"
 
 docker run --rm \
   --network "$NETWORK" \
   --env DATABASE_URL="$DB_URL" \
-  -v "$ROOT_DIR/apps/api:/workspace/api:ro" \
-  -v "$ROOT_DIR/packages:/workspace/packages:ro" \
-  -w /workspace/api \
-  node:20-alpine \
-  sh -c "
-    set -e
-    echo '--- 安装运行时工具 ---'
-    apk add --no-cache openssl >/dev/null 2>&1
-    npm install -g tsx prisma --silent
-    echo '--- 安装项目依赖 ---'
-    npm install --silent
-    echo '--- 生成 Prisma Client ---'
-    prisma generate --schema=prisma/schema.prisma
-    echo '--- 执行 Seed ---'
-    tsx scripts/seed/index.ts
-  "
+  --entrypoint "" \
+  "$BACKEND_IMAGE" \
+  node /app/apps/api/dist/cli/seed/index.js
 
 echo " Seed 数据写入完成"
 
@@ -129,10 +115,10 @@ echo ""
 echo "查看后端日志: docker logs -f lucky-backend-prod"
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  💡 创建/重置超级管理员 (推荐方式):"
+echo "   💡 创建/重置超级管理员 (推荐方式):"
 echo ""
 echo "     docker exec -it lucky-backend-prod \\"
-echo "       node apps/api/dist/scripts/cli/create-admin.js"
+echo "       node /app/apps/api/dist/cli/cli/create-admin.js"
 echo ""
 echo "  📝 交互式输入用户名、显示名、密码 (密码不回显)"
 echo "  🔁 可重复运行 — 已存在则提示是否重置密码"
