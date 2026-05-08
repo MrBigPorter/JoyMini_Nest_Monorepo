@@ -37,15 +37,15 @@ services:
     env_file:
       - deploy/.env.prod
     environment:
-      # 限制 Node.js 堆内存 (防 OOM) — 配合 500M 容器限制，留 ~150MB 给 ffmpeg 视频转码
-      - NODE_OPTIONS=--max-old-space-size=300
+      # 限制 Node.js 堆内存 (防 OOM) — 配合 600M 容器限制，留 ~200MB 给 ffmpeg 视频转码
+      - NODE_OPTIONS=--max-old-space-size=400
       # 迁移默认自动执行（entrypoint.sh）；若需跳过设 SKIP_MIGRATIONS=true
     deploy:
       resources:
         limits:
-          memory: 500M
+          memory: 600M
         reservations:
-          memory: 150M
+          memory: 200M
     expose:
       - "3000"
     healthcheck:
