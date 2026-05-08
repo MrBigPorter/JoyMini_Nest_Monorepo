@@ -5,6 +5,19 @@ import { useQueryClient } from '@tanstack/react-query';
 import type { Comment } from '@/lib/types/blog';
 
 // ---------------------------------------------------------------------------
+// Module-level SSE singleton registry
+// 防止 Fast Refresh / HMR / React StrictMode 创建重复连接
+// key = articleId (DB ID)，value = { es, refCount, cacheKey }
+// ---------------------------------------------------------------------------
+interface SSEEntry {
+  es: EventSource;
+  refCount: number;
+  cacheKey: string;
+  onMessageHandlers: Set<(data: CommentReplyEvent) => void>;
+}
+const sseRegistry = new Map<string, SSEEntry>();
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
@@ -34,15 +47,14 @@ interface InfiniteCommentCache {
 /**
  * SSE 评论回复实时推送 Hook
  *
- * @param articleId   - 文章 DB ID，用于 SSE 端点 ?articleId= 过滤；后端 event payload 中的 articleId 是此值
- * @param cacheArticleId - 文章 slug，与 useCommentsInfiniteQuerySimple 的 queryKey 一致，用于 React Query 缓存匹配
- *                        若不传则降级使用 articleId（两者相同时可不传）
+ * @param articleId      - 文章 DB ID，用于 SSE 端点 ?articleId= 过滤
+ * @param cacheArticleId - 文章 slug，与 useCommentsInfiniteQuerySimple 的 queryKey 一致
+ *                         若不传则降级使用 articleId
  */
 export function useCommentSSE(
   articleId: string | undefined,
   cacheArticleId?: string,
 ) {
-  // 同步日志 — 确认 hook 被调用（不依赖 useEffect）
   if (typeof window !== 'undefined') {
     console.log(
       '[SSE-HOOK] useCommentSSE 被调用, articleId(DB ID):',
@@ -53,107 +65,119 @@ export function useCommentSSE(
   }
 
   const queryClient = useQueryClient();
-  const eventSourceRef = useRef<EventSource | null>(null);
+  // 用于标识本次挂载注册的 handler，cleanup 时仅移除自己
+  const handlerRef = useRef<((data: CommentReplyEvent) => void) | null>(null);
 
   useEffect(() => {
-    if (!articleId) {
-      console.warn('[SSE] articleId 为空，跳过连接');
-      return;
-    }
+    if (!articleId || typeof window === 'undefined') return;
 
-    // cacheKey 用于 React Query 缓存匹配（slug），articleId 用于 SSE URL 过滤（DB ID）
     const cacheKey = cacheArticleId || articleId;
 
-    // 构建 SSE 连接 URL
-    const baseUrl =
-      typeof window !== 'undefined'
-        ? process.env.NEXT_PUBLIC_API_BASE_URL || '/api'
-        : '/api';
-    const sseUrl = `${baseUrl.replace(/\/+$/, '')}/v1/frontend/blog/comments/stream?articleId=${articleId}`;
+    // -----------------------------------------------------------------------
+    // 创建本次挂载的消息处理器
+    // -----------------------------------------------------------------------
+    const handler = (data: CommentReplyEvent) => {
+      console.log('[SSE] 解包后 payload:', data);
 
-    console.log(
-      '[SSE] 准备连接:',
-      sseUrl,
-      '| articleId:',
-      articleId,
-      '| 类型:',
-      typeof articleId,
-    );
+      // Step 1: 直接插入缓存（即时 UI 更新）
+      // ⚠️ 不在这里调用 invalidateQueries：
+      //    立即 refetch 会用 server 返回的平铺数据覆盖 setQueryData 插入的嵌套 reply
+      //    导致页面不更新。改为延迟 5s 后静默刷新（确保最终一致性）。
+      const inserted = insertReplyIntoCache(queryClient, cacheKey, data);
 
-    // 创建 EventSource 连接
-    const es = new EventSource(sseUrl);
-    eventSourceRef.current = es;
-
-    console.log(
-      '[SSE] EventSource 已创建, readyState:',
-      es.readyState,
-      '(0=CONNECTING,1=OPEN,2=CLOSED)',
-    );
-
-    es.onopen = () => {
-      console.log(
-        '[SSE] ✅ 连接已建立, articleId:',
-        articleId,
-        '| readyState:',
-        es.readyState,
-      );
-    };
-
-    es.onmessage = (event: MessageEvent) => {
-      console.log(
-        '[SSE] 📨 收到原始消息, type:',
-        event.type,
-        '| data:',
-        event.data,
-      );
-      try {
-        // NestJS @Sse() 会双重包裹数据: { data: { articleId: '...' } }
-        // 需要解包获取实际 payload，与 admin blog useSSE 一致
-        const parsed = JSON.parse(event.data);
-        console.log('[SSE] parsed:', parsed);
-        const data: CommentReplyEvent =
-          (parsed as { data?: CommentReplyEvent }).data ?? parsed;
-        console.log('[SSE] 解包后 payload:', data);
-
-        // Step 1: 将新回复直接插入缓存（即时 UI 更新）
-        // 注意：用 cacheKey(slug) 查缓存，而非 articleId(DB ID)
-        insertReplyIntoCache(queryClient, cacheKey, data);
-
-        // Step 2: 异步使缓存失效，确保最终一致性
-        queryClient.invalidateQueries({
-          queryKey: ['comments', 'infinite', cacheKey],
-          refetchType: 'active',
-        });
-      } catch (err) {
-        console.error(
-          '[SSE] 解析事件数据失败:',
-          err,
-          '| 原始 data:',
-          event.data,
-        );
+      if (inserted) {
+        // 延迟刷新：给 React 足够时间渲染 setQueryData 的结果
+        setTimeout(() => {
+          queryClient.invalidateQueries({
+            queryKey: ['comments', 'infinite', cacheKey],
+            refetchType: 'active',
+          });
+        }, 5000);
       }
     };
+    handlerRef.current = handler;
 
-    es.onerror = (err) => {
-      console.error(
-        '[SSE] ❌ 连接异常',
-        err,
-        '| readyState:',
-        es.readyState,
-        '(0=CONNECTING,1=OPEN,2=CLOSED)',
-      );
-    };
-
-    // 清理：断开 SSE 连接
-    return () => {
+    // -----------------------------------------------------------------------
+    // 单例：复用已有的 SSE 连接
+    // -----------------------------------------------------------------------
+    const existing = sseRegistry.get(articleId);
+    if (existing) {
+      existing.refCount++;
+      existing.onMessageHandlers.add(handler);
       console.log(
-        '[SSE] 清理，关闭连接, articleId:',
-        articleId,
-        '| cacheKey:',
-        cacheKey,
+        `[SSE] 复用已有连接 articleId=${articleId}, refCount=${existing.refCount}`,
       );
-      es.close();
-      eventSourceRef.current = null;
+    } else {
+      const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || '/api';
+      const sseUrl = `${baseUrl.replace(/\/+$/, '')}/v1/frontend/blog/comments/stream?articleId=${articleId}`;
+      console.log('[SSE] 新建连接:', sseUrl);
+
+      const es = new EventSource(sseUrl);
+      const handlers = new Set<(data: CommentReplyEvent) => void>();
+      handlers.add(handler);
+
+      const entry: SSEEntry = {
+        es,
+        refCount: 1,
+        cacheKey,
+        onMessageHandlers: handlers,
+      };
+      sseRegistry.set(articleId, entry);
+
+      es.onopen = () => {
+        console.log(
+          '[SSE] ✅ 连接已建立, articleId:',
+          articleId,
+          '| readyState:',
+          es.readyState,
+        );
+      };
+
+      es.onmessage = (event: MessageEvent) => {
+        console.log(
+          '[SSE] 📨 收到原始消息, type:',
+          event.type,
+          '| data:',
+          event.data,
+        );
+        try {
+          const parsed = JSON.parse(event.data);
+          const data: CommentReplyEvent =
+            (parsed as { data?: CommentReplyEvent }).data ?? parsed;
+          // 广播给所有注册的 handler
+          const reg = sseRegistry.get(articleId);
+          reg?.onMessageHandlers.forEach((h) => h(data));
+        } catch (err) {
+          console.error('[SSE] 解析事件数据失败:', err);
+        }
+      };
+
+      es.onerror = (err) => {
+        console.error('[SSE] ❌ 连接异常', err, '| readyState:', es.readyState);
+      };
+    }
+
+    // -----------------------------------------------------------------------
+    // 清理：引用计数减一；归零时关闭连接
+    // -----------------------------------------------------------------------
+    return () => {
+      const reg = sseRegistry.get(articleId);
+      if (!reg) return;
+
+      if (handlerRef.current) {
+        reg.onMessageHandlers.delete(handlerRef.current);
+        handlerRef.current = null;
+      }
+      reg.refCount--;
+      console.log(
+        `[SSE] 清理 articleId=${articleId}, refCount=${reg.refCount}`,
+      );
+
+      if (reg.refCount <= 0) {
+        reg.es.close();
+        sseRegistry.delete(articleId);
+        console.log('[SSE] 连接已关闭并移除 articleId:', articleId);
+      }
     };
   }, [articleId, cacheArticleId, queryClient]);
 }
@@ -164,18 +188,14 @@ export function useCommentSSE(
 
 /**
  * 将新回复直接插入到 React Query 缓存中
- *
- * 遍历所有匹配的缓存条目（不同 locale / pageSize 的变体），
- * 找到 parentId 对应的父评论，将新回复追加到其 children 数组中。
- * 如果父评论尚未加载到缓存中，则静默跳过（等用户滚动到该页时会自然刷新）。
+ * 返回 true 表示成功插入，false 表示未找到父评论（跳过）
  */
 function insertReplyIntoCache(
   queryClient: ReturnType<typeof useQueryClient>,
   articleId: string,
   data: CommentReplyEvent,
-) {
-  // 获取所有匹配的缓存条目
-  const entries = queryClient.getQueriesData({
+): boolean {
+  const entries = queryClient.getQueriesData<InfiniteCommentCache>({
     queryKey: ['comments', 'infinite', articleId],
     exact: false,
   });
@@ -184,7 +204,6 @@ function insertReplyIntoCache(
     `[SSE-CACHE] 查找缓存 articleId="${articleId}", 找到条目数: ${entries.length}`,
   );
   if (entries.length === 0) {
-    // 列出所有现有的 comments 缓存 key 供对比
     const allCommentKeys = queryClient.getQueriesData({
       queryKey: ['comments'],
     });
@@ -192,10 +211,9 @@ function insertReplyIntoCache(
       '[SSE-CACHE] 未找到匹配缓存，现有 comments 缓存 keys:',
       allCommentKeys.map(([k]) => k),
     );
-    return;
+    return false;
   }
 
-  // 构建要插入的回复对象
   const newReply: Comment = {
     id: data.replyId,
     articleId: data.articleId,
@@ -211,6 +229,8 @@ function insertReplyIntoCache(
     children: [],
   };
 
+  let anyInserted = false;
+
   entries.forEach(([queryKey]) => {
     queryClient.setQueryData(
       queryKey,
@@ -223,36 +243,47 @@ function insertReplyIntoCache(
           if (!page?.items) return page;
 
           const updatedItems = page.items.map((comment) => {
-            // 检查当前评论是否为目标父评论
+            // 直接父评论
             if (comment.id === data.parentId) {
               replyInserted = true;
+              // 防止重复插入
+              const alreadyExists = (comment.children || []).some(
+                (c) => c.id === data.replyId,
+              );
+              if (alreadyExists) return comment;
               return {
                 ...comment,
                 children: [...(comment.children || []), newReply],
               };
             }
 
-            // 如果当前评论已有 children，也检查 children 中是否嵌套了目标父评论
+            // 嵌套：父评论是某顶级评论的子评论
             if (comment.children?.length) {
-              const hasParentInChildren = comment.children.some(
+              const parentIdx = comment.children.findIndex(
                 (child) => child.id === data.parentId,
               );
-              if (hasParentInChildren) {
+              if (parentIdx !== -1) {
                 replyInserted = true;
-                return {
-                  ...comment,
-                  children: [...comment.children, newReply],
-                };
+                const alreadyExists = (
+                  comment.children[parentIdx].children || []
+                ).some((c) => c.id === data.replyId);
+                if (alreadyExists) return comment;
+                const updatedChildren = comment.children.map((child, idx) =>
+                  idx === parentIdx
+                    ? {
+                        ...child,
+                        children: [...(child.children || []), newReply],
+                      }
+                    : child,
+                );
+                return { ...comment, children: updatedChildren };
               }
             }
 
             return comment;
           });
 
-          return {
-            ...page,
-            items: updatedItems,
-          };
+          return { ...page, items: updatedItems };
         });
 
         if (!replyInserted) {
@@ -262,14 +293,14 @@ function insertReplyIntoCache(
           return old;
         }
 
+        anyInserted = true;
         console.log(
           `[SSE-CACHE] ✅ 回复已插入缓存, parentId="${data.parentId}", replyId="${data.replyId}"`,
         );
-        return {
-          ...old,
-          pages: updatedPages,
-        };
+        return { ...old, pages: updatedPages };
       },
     );
   });
+
+  return anyInserted;
 }
