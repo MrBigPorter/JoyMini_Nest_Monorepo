@@ -1,19 +1,19 @@
 # ==========================================
-# 生产环境 Docker Compose (1GB VPS)
+# 生产环境 Docker Compose (8GB VPS)
 # ==========================================
 # 本地构建 + 部署: ./deploy/deploy.sh
 # 仅重启:         ./deploy/deploy.sh --quick
 # 停止: docker compose -f compose.prod.yml down
 # 日志: docker compose -f compose.prod.yml logs -f
 # ==========================================
-# 内存预算 (1GB 服务器):
-#   OS + Docker: ~130 MB
-#   Backend:     ≤500 MB (Node.js 350MB + ffmpeg 150MB)
-#   PostgreSQL:  ≤200 MB
-#   Redis:       ≤150 MB (maxmemory 128MB)
-#   Nginx:       ≤30 MB
-#   Swap 兜底:   1 GB
-#   总计:        ~1010 MB + 1 GB swap
+# 内存预算 (8GB 服务器):
+#   OS + Docker: ~500 MB
+#   Backend:     ≤2 GB  (Node.js 1.5GB + ffmpeg 512MB)
+#   PostgreSQL:  ≤2 GB
+#   Redis:       ≤512 MB (maxmemory 400MB)
+#   Nginx:       ≤64 MB
+#   Swap 兜底:   2 GB
+#   总计:        ~4.6 GB 容器 + 2 GB swap，预留 ~1.4 GB 弹性空间
 # ==========================================
 
 services:
@@ -37,15 +37,15 @@ services:
     env_file:
       - deploy/.env.prod
     environment:
-      # 限制 Node.js 堆内存 (防 OOM) — 配合 600M 容器限制，留 ~200MB 给 ffmpeg 视频转码
-      - NODE_OPTIONS=--max-old-space-size=400
+      # 限制 Node.js 堆内存 (防 OOM) — 配合 2G 容器限制，留 ~512MB 给 ffmpeg 视频转码
+      - NODE_OPTIONS=--max-old-space-size=1536
       # 迁移默认自动执行（entrypoint.sh）；若需跳过设 SKIP_MIGRATIONS=true
     deploy:
       resources:
         limits:
-          memory: 600M
+          memory: 2G
         reservations:
-          memory: 200M
+          memory: 512M
     expose:
       - "3000"
     healthcheck:
@@ -64,92 +64,6 @@ services:
         condition: service_healthy
     networks: [app]
 
-  # =========================================
-  # Admin Next 前端 (Node.js SSR 服务器)
-  # =========================================
-  # 镜像来源:
-  #   - CI 部署: GHCR 拉取 (ghcr.io/mrbigporter/lucky-admin-next-prod:latest)
-  #   - 本地部署: deploy.sh 本地构建
-  # =========================================
-  admin-next:
-    image: ${ADMIN_IMAGE:-lucky-admin-next-prod:latest}
-    container_name: lucky-admin-next-prod
-    restart: unless-stopped
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-    environment:
-      - NODE_ENV=production
-      - PORT=3001
-      - HOSTNAME=0.0.0.0
-      - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-https://api.joyminis.com/api}
-      # Server Components 直连后端（内网，不走公网）
-      - INTERNAL_API_URL=http://lucky-backend-prod:3000/api
-      - NEXT_PUBLIC_APP_ENV=production
-      # Google reCAPTCHA v3 Site Key
-      - NEXT_PUBLIC_RECAPTCHA_SITE_KEY=${NEXT_PUBLIC_RECAPTCHA_SITE_KEY:-}
-    deploy:
-      resources:
-        limits:
-          memory: 200M
-        reservations:
-          memory: 100M
-    expose:
-      - "3001"
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "wget -qO- http://localhost:3001/ >/dev/null 2>&1 || exit 1",
-        ]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-    networks: [app]
-
-  # =========================================
-  # Admin Blog 前端 (Node.js SSR 服务器)
-  # =========================================
-  # 镜像来源:
-  #   - CI 部署: GHCR 拉取 (ghcr.io/mrbigporter/lucky-admin-blog-prod:latest)
-  #   - 本地部署: deploy.sh 本地构建
-  # =========================================
-  admin-blog:
-    image: ${ADMIN_BLOG_IMAGE:-lucky-admin-blog-prod:latest}
-    container_name: lucky-admin-blog-prod
-    restart: unless-stopped
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-    environment:
-      - NODE_ENV=production
-      - PORT=3002
-      - HOSTNAME=0.0.0.0
-      - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-https://api.joyminis.com/api}
-      - INTERNAL_API_URL=http://lucky-backend-prod:3000/api
-      - NEXT_PUBLIC_APP_ENV=production
-    deploy:
-      resources:
-        limits:
-          memory: 200M
-        reservations:
-          memory: 100M
-    expose:
-      - "3002"
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "wget -qO- http://localhost:3002/ >/dev/null 2>&1 || exit 1",
-        ]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-    networks: [app]
 
   # =========================================
   # Nginx 反向代理 + API 网关
@@ -166,7 +80,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 30M
+          memory: 64M
     ports:
       - "80:80"
       - "443:443"
@@ -178,10 +92,6 @@ services:
       - nginx_cache:/var/cache/nginx
     depends_on:
       backend:
-        condition: service_healthy
-      admin-next:
-        condition: service_healthy
-      admin-blog:
         condition: service_healthy
     networks: [app]
 
@@ -201,9 +111,9 @@ services:
     deploy:
       resources:
         limits:
-          memory: 150M
+          memory: 512M
         reservations:
-          memory: 64M
+          memory: 128M
     env_file:
       - deploy/.env.prod
     volumes:
@@ -235,17 +145,17 @@ services:
     deploy:
       resources:
         limits:
-          memory: 200M
+          memory: 2G
         reservations:
-          memory: 64M
-    # 优化 PG 内存使用 (1GB 服务器)
+          memory: 256M
+    # 优化 PG 内存使用 (8GB 服务器)
     command: >
       postgres
-        -c shared_buffers=32MB
-        -c work_mem=4MB
-        -c maintenance_work_mem=32MB
-        -c effective_cache_size=128MB
-        -c max_connections=30
+        -c shared_buffers=256MB
+        -c work_mem=16MB
+        -c maintenance_work_mem=256MB
+        -c effective_cache_size=1GB
+        -c max_connections=100
     env_file:
       - deploy/.env.prod
     volumes:

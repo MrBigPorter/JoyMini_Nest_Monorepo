@@ -44,7 +44,7 @@ fi
 MEM_TOTAL=$(free | awk '/^Mem:/{print $2}')
 MEM_USED=$(free | awk '/^Mem:/{print $3}')
 MEM_PERCENT=$((MEM_USED * 100 / MEM_TOTAL))
-if [ "$MEM_PERCENT" -gt 90 ]; then
+if [ "$MEM_PERCENT" -gt 85 ]; then
     alert "内存使用率过高: ${MEM_PERCENT}%"
 fi
 
@@ -64,7 +64,7 @@ SWAP_TOTAL=$(free | awk '/^Swap:/{print $2}')
 if [ "$SWAP_TOTAL" -gt 0 ]; then
     SWAP_PERCENT=$((SWAP_USED * 100 / SWAP_TOTAL))
     if [ "$SWAP_PERCENT" -gt 50 ]; then
-        alert "Swap 使用率偏高: ${SWAP_PERCENT}% — 内存可能不足"
+        alert "Swap 使用率偏高: ${SWAP_PERCENT}% — 内存使用偏高，建议排查"
     fi
 fi
 
