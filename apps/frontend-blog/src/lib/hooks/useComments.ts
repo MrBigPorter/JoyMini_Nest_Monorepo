@@ -210,15 +210,17 @@ export function useComments() {
           });
         });
 
-        // 注册到 commentStatusManager 进行状态轮询
+        // 注册到 commentStatusManager 进行状态跟踪
+        // SSE 为主要更新机制（blog.comment.moderated 事件）；
+        // 轮询作为 SSE 断连时的降级保底，仅 3 次 × 60 秒 = 3 分钟兜底
         commentStatusManager.registerPendingComment(
           context.tempId,
           responseData.id,
           articleId,
-          { maxPollAttempts: 20, pollInterval: 15000 }, // 最多20次，间隔15秒 = 5分钟
+          { maxPollAttempts: 3, pollInterval: 60000 },
         );
 
-        // 开始轮询
+        // 启动降级轮询（SSE 到达后 updateCommentStatus 会自动 clearPollingTimer）
         commentStatusManager.startStatusPolling(
           context.tempId,
           createStatusCheckCallback(articleId, responseData.id),

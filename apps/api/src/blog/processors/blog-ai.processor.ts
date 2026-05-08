@@ -825,6 +825,16 @@ IMPORTANT: Return ONLY the three sections above with the exact delimiters. Do NO
         },
       });
 
+      // 无论是否通过审核，都通过 SSE 推送审核结果（前端用于替代轮询）
+      this.eventEmitter.emit('blog.comment.moderated', {
+        commentId: comment.id,
+        articleId: comment.articleId,
+        status: result.passed ? 'approved' : 'rejected',
+      });
+      this.logger.log(
+        `[SSE-EMIT] blog.comment.moderated: commentId=${comment.id}, status=${result.passed ? 'approved' : 'rejected'}`,
+      );
+
       // 如果审核通过且是回复评论（有 parentId），立即通过 SSE 推送给前端
       if (result.passed && comment.parentId) {
         const ssePayload = {

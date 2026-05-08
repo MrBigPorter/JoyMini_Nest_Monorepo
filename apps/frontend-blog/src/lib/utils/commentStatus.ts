@@ -71,9 +71,6 @@ class CommentStatusManager {
     };
 
     this.pendingComments.set(tempId, pendingComment);
-    console.log(
-      `[评论状态] 注册临时评论: ${tempId} -> ${realId}, 文章: ${articleId}`,
-    );
   }
 
   /**
@@ -102,8 +99,6 @@ class CommentStatusManager {
       );
     }
 
-    console.log(`[评论状态] 更新评论状态: ${tempId} ${oldStatus} -> ${status}`);
-
     // 通知监听器
     this.notifyStatusChange(tempId, status);
   }
@@ -114,6 +109,23 @@ class CommentStatusManager {
   getCommentStatus(tempId: string): CommentStatus | null {
     const comment = this.pendingComments.get(tempId);
     return comment?.status || null;
+  }
+
+  /**
+   * 通过真实评论 ID 更新状态（供 SSE 事件使用，无需知道 tempId）
+   */
+  updateByRealId(realId: string, status: 'approved' | 'rejected'): void {
+    for (const [tempId, info] of this.pendingComments.entries()) {
+      if (info.realId === realId) {
+        this.updateCommentStatus(tempId, status);
+        return;
+      }
+    }
+
+    // 未找到（可能已过期清理），静默忽略
+    console.debug(
+      `[评论状态] updateByRealId: 未找到 realId=${realId} 对应的临时评论`,
+    );
   }
 
   /**
@@ -130,7 +142,6 @@ class CommentStatusManager {
     this.clearPollingTimer(tempId);
     this.pendingComments.delete(tempId);
     this.statusListeners.delete(tempId);
-    console.log(`[评论状态] 移除临时评论: ${tempId}`);
   }
 
   /**
@@ -160,10 +171,6 @@ class CommentStatusManager {
     // 清理现有定时器
     this.clearPollingTimer(tempId);
 
-    console.log(
-      `[评论状态] 开始状态轮询: ${tempId}, 间隔: ${comment.pollInterval}ms`,
-    );
-
     comment.pollTimer = setInterval(async () => {
       comment.pollAttempts++;
 
@@ -171,13 +178,8 @@ class CommentStatusManager {
         const status = await checkStatusCallback();
 
         if (status === 'approved' || status === 'rejected') {
-          // 最终状态，更新并停止轮询
           this.updateCommentStatus(tempId, status);
         } else if (comment.pollAttempts >= comment.maxPollAttempts) {
-          // 达到最大尝试次数，停止轮询
-          console.log(
-            `[评论状态] 轮询超时: ${tempId}, 尝试次数: ${comment.pollAttempts}`,
-          );
           this.clearPollingTimer(tempId);
           this.updateCommentStatus(tempId, 'unknown');
         }
@@ -248,7 +250,6 @@ class CommentStatusManager {
     for (const [tempId, comment] of this.pendingComments.entries()) {
       const age = now.getTime() - comment.submittedAt.getTime();
       if (age > expiredTime) {
-        console.log(`[评论状态] 清理过期评论: ${tempId}, 年龄: ${age}ms`);
         this.removePendingComment(tempId);
       }
     }
