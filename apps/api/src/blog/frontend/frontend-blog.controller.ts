@@ -283,6 +283,7 @@ export class FrontendBlogController {
   @ApiOperation({ summary: 'SSE 评论回复实时推送（前端专用）' })
   @ApiResponse({ status: 200, description: '返回 SSE 事件流' })
   commentStream(
+    @Req() req: Request,
     @Query('articleId') articleId?: string,
   ): Observable<MessageEvent> {
     const logger = new (require('@nestjs/common').Logger)('SSE');
@@ -291,6 +292,23 @@ export class FrontendBlogController {
     );
 
     return new Observable<MessageEvent>((subscriber) => {
+      let cleanedUp = false;
+
+      // --- 安全兜底清理：HTTP 连接断开时强制释放资源 ---
+      const forceCleanup = () => {
+        if (cleanedUp) return;
+        cleanedUp = true;
+        this.eventEmitter.off('blog.comment.reply.created', replyHandler);
+        this.eventEmitter.off('blog.comment.moderated', moderatedHandler);
+        if (!subscriber.closed) {
+          subscriber.unsubscribe();
+        }
+        logger.log(
+          `[SSE] 连接关闭 (req.on('close')), articleId filter="${articleId}"`,
+        );
+      };
+      req.on('close', forceCleanup);
+
       // --- handler: AI 自动回复 ---
       const replyHandler = (payload: {
         articleId: string;
@@ -300,6 +318,7 @@ export class FrontendBlogController {
         author: string;
         createdAt: string;
       }) => {
+        if (cleanedUp) return;
         logger.debug(
           `[SSE] 收到 event: articleId=${payload.articleId}, parentId=${payload.parentId}, replyId=${payload.replyId}`,
         );
@@ -324,6 +343,7 @@ export class FrontendBlogController {
         articleId: string;
         status: 'approved' | 'rejected';
       }) => {
+        if (cleanedUp) return;
         if (!articleId || payload.articleId === articleId) {
           logger.log(
             `[SSE] ✅ 推送审核结果 (filter="${articleId}"): commentId=${payload.commentId}, status=${payload.status}`,
@@ -342,8 +362,7 @@ export class FrontendBlogController {
 
       // 客户端断开连接时清理
       return () => {
-        this.eventEmitter.off('blog.comment.reply.created', replyHandler);
-        this.eventEmitter.off('blog.comment.moderated', moderatedHandler);
+        forceCleanup();
         logger.log(`[SSE] 订阅者断开, articleId filter="${articleId}"`);
       };
     });
