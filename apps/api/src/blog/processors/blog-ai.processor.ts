@@ -1122,6 +1122,19 @@ IMPORTANT: Return ONLY the three sections above with the exact delimiters. Do NO
       const contentTranslated = batchResult.content;
       let excerptTranslated = batchResult.excerpt;
 
+      // ==== DIAGNOSTIC LOG: 翻译前后内容对比 ====
+      const truncate = (s: string | null | undefined, max: number) =>
+        s ? (s.length > max ? s.substring(0, max) + '...' : s) : '(empty)';
+      this.logger.log(
+        `[DIAG] 翻译对比 (文章 ${data.articleId} -> ${data.targetLang}):\n` +
+          `  源标题[${sourceTitle.length}ch]: ${truncate(sourceTitle, 120)}\n` +
+          `  译标题[${titleTranslated.length}ch]: ${truncate(titleTranslated, 120)}\n` +
+          `  源摘要[${sourceExcerpt.length}ch]: ${truncate(sourceExcerpt, 120)}\n` +
+          `  译摘要[${(excerptTranslated || '').length}ch]: ${truncate(excerptTranslated, 120)}\n` +
+          `  源内容[${sourceContent.length}ch]\n` +
+          `  译内容[${contentTranslated.length}ch]`,
+      );
+
       // 验证翻译质量：逐字段检查，防止AI服务静默返回原文导致数据损坏
       // 策略变更：不再使用全有或全无策略，而是采用最佳努力逐字段处理
       // - 内容字段（最重要）：如果失败则整体失败，抛出错误
@@ -1132,6 +1145,12 @@ IMPORTANT: Return ONLY the three sections above with the exact delimiters. Do NO
         contentTranslated === sourceContent && sourceContent.trim().length > 50;
       const excerptIsSame =
         excerptTranslated === sourceExcerpt && sourceExcerpt.trim().length > 10;
+
+      if (titleIsSame || contentIsSame || excerptIsSame) {
+        this.logger.warn(
+          `[DIAG] 翻译结果与原文相同: ${[titleIsSame ? '标题' : '', contentIsSame ? '内容' : '', excerptIsSame ? '摘要' : ''].filter(Boolean).join(', ')}`,
+        );
+      }
 
       // 收集所有验证失败的字段描述
       const failedFields: string[] = [];
@@ -1149,6 +1168,10 @@ IMPORTANT: Return ONLY the three sections above with the exact delimiters. Do NO
           this.logger.error(
             `翻译验证失败：内容字段返回原文（文章 ${data.articleId}，目标语言 ${data.targetLang}）`,
             { contentLength: sourceContent.length },
+          );
+          // 清除缓存，避免重试时又返回缓存的错误结果
+          this.translationCache.delete(
+            `batch-${data.articleId}-${data.targetLang}`,
           );
           throw new Error(
             `翻译验证失败：AI返回内容与原文相同（${data.targetLang}）`,
@@ -1326,12 +1349,9 @@ IMPORTANT: Return ONLY the three sections above with the exact delimiters. Do NO
         })
         .catch(() => {});
 
-      // 不要重新抛出错误，避免队列无限重试
-      return {
-        success: false,
-        error: err instanceof Error ? err.message : 'Unknown error',
-        articleId: data.articleId,
-      };
+      // 重新抛出错误，让 BullMQ 正确标记任务为失败并在队列 UI 中显示
+      // 队列已配置 attempts: 3 + exponential backoff，不会无限重试
+      throw err;
     }
   }
 
@@ -1515,12 +1535,9 @@ IMPORTANT: Return ONLY the three sections above with the exact delimiters. Do NO
         err instanceof Error ? err.message : 'Unknown error',
       );
 
-      // 不要重新抛出错误，避免队列无限重试
-      return {
-        success: false,
-        error: err instanceof Error ? err.message : 'Unknown error',
-        categoryId: data.categoryId,
-      };
+      // 重新抛出错误，让 BullMQ 正确标记任务为失败
+      // 队列已配置 attempts: 3 + exponential backoff，不会无限重试
+      throw err;
     }
   }
 
@@ -1673,12 +1690,9 @@ IMPORTANT: Return ONLY the three sections above with the exact delimiters. Do NO
         err instanceof Error ? err.message : 'Unknown error',
       );
 
-      // 不要重新抛出错误，避免队列无限重试
-      return {
-        success: false,
-        error: err instanceof Error ? err.message : 'Unknown error',
-        tagId: data.tagId,
-      };
+      // 重新抛出错误，让 BullMQ 正确标记任务为失败
+      // 队列已配置 attempts: 3 + exponential backoff，不会无限重试
+      throw err;
     }
   }
 }

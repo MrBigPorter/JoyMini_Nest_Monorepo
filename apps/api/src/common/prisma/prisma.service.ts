@@ -65,10 +65,47 @@ export class PrismaService
     onQuery('query', (e) => {
       if (!this.isDev) return; // 生产不输出
       const took = e.duration;
-      const prefix = took > this.slowMs ? '🐢 SLOW' : 'SQL';
-      this.logger.log(
-        `${prefix} ${took}ms ${e.query}${e.params ? ` | params=${e.params}` : ''}`,
-      );
+      const isSlow = took > this.slowMs;
+
+      // 参数截断：UPDATE/INSERT 的 params 可能包含完整的 contentLocalized JSON（超长），
+      // 截断到 200 字符以避免日志过长，同时保留有用信息（如 ID、状态值）
+      const truncateParams = (params: string, maxLen = 200): string => {
+        if (!params || params.length <= maxLen) return params;
+        return params.slice(0, maxLen) + '...(truncated)';
+      };
+
+      if (isSlow) {
+        // 慢查询：输出完整 SQL，但截断 params（性能排查只需看 SQL 结构，不需要看全部数据）
+        this.logger.log(
+          `🐢 SLOW ${took}ms ${e.query}${e.params ? ` | params=${truncateParams(e.params)}` : ''}`,
+        );
+      } else {
+        // 快速查询：仅输出摘要（操作为主+表名），大幅减少日志量
+        // 从 SQL 中提取操作类型和数据表
+        const q = e.query.trim();
+        const op = q.split(/\s+/)[0]?.toUpperCase() || 'SQL';
+        // 提取表名（SELECT/FROM/UPDATE/INSERT INTO/DELETE FROM 后的第一个标识符）
+        let table = '';
+        if (op === 'SELECT' || op === 'DELETE') {
+          const fromIdx = q.toUpperCase().indexOf('FROM');
+          if (fromIdx >= 0) {
+            const afterFrom = q.slice(fromIdx + 4).trim();
+            table = afterFrom.split(/\s+/)[0]?.replace(/"public"\./g, '') || '';
+          }
+        } else if (op === 'UPDATE') {
+          const afterOp = q.slice(6).trim();
+          table = afterOp.split(/\s+/)[0]?.replace(/"public"\./g, '') || '';
+        } else if (op === 'INSERT') {
+          const intoIdx = q.toUpperCase().indexOf('INTO');
+          if (intoIdx >= 0) {
+            const afterInto = q.slice(intoIdx + 4).trim();
+            table = afterInto.split(/\s+/)[0]?.replace(/"public"\./g, '') || '';
+          }
+        }
+        this.logger.log(
+          `SQL ${took}ms [${op}] "${table}"${e.params ? ` | ${truncateParams(e.params)}` : ''}`,
+        );
+      }
     });
   }
 

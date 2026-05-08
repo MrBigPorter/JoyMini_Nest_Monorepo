@@ -22,6 +22,14 @@ import { MEDIA_PROCESSOR_QUEUE } from '@api/common/media/media-processor.constan
     PrismaModule,
     BullModule.registerQueue({
       name: 'blog-ai',
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: {
+          type: 'exponential',
+          delay: 5000,
+        },
+        removeOnFail: false, // 保留失败任务以便在 UI 中查看
+      },
     }),
     BullModule.registerQueue({
       name: MEDIA_PROCESSOR_QUEUE,

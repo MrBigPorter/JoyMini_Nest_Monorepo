@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "TranslationStatus" ADD VALUE 'COMPLETED_WITH_WARNINGS';

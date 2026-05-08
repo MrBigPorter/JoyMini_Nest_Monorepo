@@ -1556,12 +1556,13 @@ export class BlogService {
         },
         {
           delay: index * 600, // ⬆️ 间隔600ms（更保守，每分钟约100个任务）
-          attempts: 2, // 最多重试2次
+          attempts: 3, // 最多重试3次（队列默认配置）
           backoff: {
             type: 'exponential',
             delay: 5000, // 第一次重试5秒后
           },
-          removeOnComplete: true, // 完成后移除任务
+          removeOnComplete: true, // 完成后移除任务，节约队列内存
+          removeOnFail: false, // 保留失败任务以便在队列 UI 中检查错误原因
         },
       );
       totalJobs++;
@@ -1578,12 +1579,13 @@ export class BlogService {
         },
         {
           delay: (articles.length + index) * 600, // 从文章任务之后继续600ms间隔
-          attempts: 2, // 最多重试2次
+          attempts: 3, // 最多重试3次（队列默认配置）
           backoff: {
             type: 'exponential',
             delay: 5000, // 第一次重试5秒后
           },
           removeOnComplete: true, // 完成后移除任务
+          removeOnFail: false, // 保留失败任务以便在队列 UI 中检查错误原因
         },
       );
       totalJobs++;
@@ -1600,12 +1602,13 @@ export class BlogService {
         },
         {
           delay: (articles.length + categories.length + index) * 600, // 从文章和分类任务之后继续600ms间隔
-          attempts: 2, // 最多重试2次
+          attempts: 3, // 最多重试3次（队列默认配置）
           backoff: {
             type: 'exponential',
             delay: 5000, // 第一次重试5秒后
           },
           removeOnComplete: true, // 完成后移除任务
+          removeOnFail: false, // 保留失败任务以便在队列 UI 中检查错误原因
         },
       );
       totalJobs++;
@@ -3064,24 +3067,40 @@ export class BlogService {
     }> = [];
 
     // 1. 长度检测 - 翻译后长度不应该差距太大
+    // 源内容为空时（如 contentMd 未存储）跳过长度检测，避免除以零
     const sourceLength = sourceContent.length;
     const translatedLength = translatedContent.length;
-    const lengthRatio = translatedLength / sourceLength;
+    const lengthRatio = sourceLength > 0 ? translatedLength / sourceLength : 1;
 
     // 允许的长度范围: 不同语言有差异
     // 对于短文本（标题/摘要，源文本 < 100 字符），使用更宽松的阈值
-    // 因为中文→英文翻译中，紧凑的中文标题会膨胀 2-4x 是正常现象
+    // 中文→欧洲语言翻译中，紧凑的中文标题会膨胀 3-6x 是正常现象
+    // 如果源内容非常短（< 300 字符），可能是 contentMd 未存储而 contentHtml 有完整内容，
+    // 此时翻译后内容远长于源内容是正常的
+    const isVeryShortSource = sourceLength > 0 && sourceLength < 300;
     const expectedRatioRange: Record<string, [number, number]> = {
-      en: isShortText && sourceLength < 100 ? [0.8, 4.0] : [0.8, 2.5],
-      ja: [0.5, 1.5],
-      ko: [0.6, 1.8],
-      fr: isShortText && sourceLength < 100 ? [0.9, 3.0] : [0.9, 2.0],
-      de: isShortText && sourceLength < 100 ? [0.8, 3.5] : [0.8, 2.2],
+      en: isVeryShortSource
+        ? [0.3, 10.0]
+        : isShortText && sourceLength < 100
+          ? [0.3, 6.0]
+          : [0.3, 3.5],
+      ja: isVeryShortSource ? [0.3, 8.0] : [0.3, 2.5],
+      ko: isVeryShortSource ? [0.3, 8.0] : [0.3, 3.0],
+      fr: isVeryShortSource
+        ? [0.3, 10.0]
+        : isShortText && sourceLength < 100
+          ? [0.3, 6.0]
+          : [0.3, 3.5],
+      de: isVeryShortSource
+        ? [0.3, 10.0]
+        : isShortText && sourceLength < 100
+          ? [0.3, 6.0]
+          : [0.3, 3.5],
     };
 
-    const [minRatio, maxRatio] = expectedRatioRange[targetLang] || [0.3, 3.0];
+    const [minRatio, maxRatio] = expectedRatioRange[targetLang] || [0.3, 6.0];
 
-    if (lengthRatio < minRatio) {
+    if (sourceLength > 0 && lengthRatio < minRatio) {
       issues.push({
         issueType: 'CONTENT_TOO_SHORT',
         description: `翻译内容过短: ${translatedLength} 字符 vs 原文 ${sourceLength} 字符 (比率 ${lengthRatio.toFixed(2)})`,
@@ -3091,7 +3110,7 @@ export class BlogService {
           ratio: Number(lengthRatio.toFixed(2)),
         },
       });
-    } else if (lengthRatio > maxRatio) {
+    } else if (sourceLength > 0 && lengthRatio > maxRatio) {
       issues.push({
         issueType: 'CONTENT_TOO_LONG',
         description: `翻译内容过长: ${translatedLength} 字符 vs 原文 ${sourceLength} 字符 (比率 ${lengthRatio.toFixed(2)})`,
@@ -3103,14 +3122,15 @@ export class BlogService {
       });
     }
 
-    // 2. 章节结构检测 - Markdown 标题数量应该相近
+    // 2. 标题结构检测 - AI 合并/拆分标题是正常格式优化
+    // 仅当标题大幅丢失（剩余不足 30%）时标记，避免小差异误报
     const sourceHeadings = (sourceContent.match(/^#{1,6}\s+.+$/gm) || [])
       .length;
     const translatedHeadings = (
       translatedContent.match(/^#{1,6}\s+.+$/gm) || []
     ).length;
 
-    if (sourceHeadings > 0 && translatedHeadings < sourceHeadings * 0.8) {
+    if (sourceHeadings > 3 && translatedHeadings < sourceHeadings * 0.3) {
       issues.push({
         issueType: 'HEADING_MISMATCH',
         description: `标题数量不匹配: 翻译后 ${translatedHeadings} 个 vs 原文 ${sourceHeadings} 个`,
@@ -3121,14 +3141,15 @@ export class BlogService {
       });
     }
 
-    // 3. 代码块检测 - 代码块数量必须完全一致
+    // 3. 代码块检测 - AI 拆分/合并代码块是正常优化
+    // 仅当代码块大幅丢失（剩余不足 40%）时标记
     const sourceCodeBlocks = (sourceContent.match(/```[\s\S]*?```/g) || [])
       .length;
     const translatedCodeBlocks = (
       translatedContent.match(/```[\s\S]*?```/g) || []
     ).length;
 
-    if (sourceCodeBlocks !== translatedCodeBlocks) {
+    if (sourceCodeBlocks > 2 && translatedCodeBlocks < sourceCodeBlocks * 0.4) {
       issues.push({
         issueType: 'CODE_BLOCK_MISMATCH',
         description: `代码块数量不匹配: 翻译后 ${translatedCodeBlocks} 个 vs 原文 ${sourceCodeBlocks} 个`,
@@ -3139,15 +3160,13 @@ export class BlogService {
       });
     }
 
-    // 4. 表格检测 - 表格行数应该相同
+    // 4. 表格检测 - AI 优化表格格式导致行数变化是正常的
+    // 仅当表格行大幅丢失（剩余不足 40%）时标记
     const sourceTableRows = (sourceContent.match(/^\|.+\|$/gm) || []).length;
     const translatedTableRows = (translatedContent.match(/^\|.+\|$/gm) || [])
       .length;
 
-    if (
-      sourceTableRows > 0 &&
-      Math.abs(sourceTableRows - translatedTableRows) > 2
-    ) {
+    if (sourceTableRows > 3 && translatedTableRows < sourceTableRows * 0.4) {
       issues.push({
         issueType: 'TABLE_MISMATCH',
         description: `表格行数不匹配: 翻译后 ${translatedTableRows} 行 vs 原文 ${sourceTableRows} 行`,
@@ -3158,17 +3177,14 @@ export class BlogService {
       });
     }
 
-    // 5. 列表项检测 - 列表项数量应该相近
+    // 5. 列表项检测 - 仅当列表项大幅丢失（剩余不足 40%）时标记
     const sourceListItems = (sourceContent.match(/^[\s]*[-*+]\s+/gm) || [])
       .length;
     const translatedListItems = (
       translatedContent.match(/^[\s]*[-*+]\s+/gm) || []
     ).length;
 
-    if (
-      sourceListItems > 0 &&
-      Math.abs(sourceListItems - translatedListItems) > sourceListItems * 0.2
-    ) {
+    if (sourceListItems > 3 && translatedListItems < sourceListItems * 0.4) {
       issues.push({
         issueType: 'LIST_MISMATCH',
         description: `列表项数量不匹配: 翻译后 ${translatedListItems} 个 vs 原文 ${sourceListItems} 个`,
@@ -3181,25 +3197,32 @@ export class BlogService {
 
     // 6. 未翻译检测 - 检查是否还有大量中文字符
     if (targetLang !== 'zh' && targetLang !== 'ja') {
-      const chineseCharsInTranslated = (
-        translatedContent.match(/[\u4e00-\u9fff]/g) || []
-      ).length;
-      const chineseCharsInSource = (
-        sourceContent.match(/[\u4e00-\u9fff]/g) || []
-      ).length;
-      const untranslatedRatio =
-        chineseCharsInTranslated / Math.max(chineseCharsInSource, 1);
+      // 源内容极短（< 300字符）时跳过此检测，因为：
+      // 1. 内容可能存储在 contentHtml 而非 contentMd，源内容不完整
+      // 2. 少量剩余中文字符在短源内容中会产生误导性的高比率
+      // 3. 绝对数量少的剩余中文（如代码注释、技术术语）不代表翻译不完整
+      if (sourceLength >= 300) {
+        const chineseCharsInTranslated = (
+          translatedContent.match(/[\u4e00-\u9fff]/g) || []
+        ).length;
+        const chineseCharsInSource = (
+          sourceContent.match(/[\u4e00-\u9fff]/g) || []
+        ).length;
+        const untranslatedRatio =
+          chineseCharsInTranslated / Math.max(chineseCharsInSource, 1);
 
-      // 如果翻译后仍有超过30%的中文字符，说明翻译不完整
-      if (untranslatedRatio > 0.3) {
-        issues.push({
-          issueType: 'UNTRANSLATED_CHARS',
-          description: `翻译不完整: 仍包含 ${chineseCharsInTranslated} 个中文字符 (${(untranslatedRatio * 100).toFixed(1)}%)`,
-          params: {
-            chineseChars: chineseCharsInTranslated,
-            ratio: Number((untranslatedRatio * 100).toFixed(1)),
-          },
-        });
+        // 双重条件：比率 > 30% 且 绝对数量 > 50 字符
+        // 避免少量代码块/URL中的中文字符误报
+        if (untranslatedRatio > 0.3 && chineseCharsInTranslated > 50) {
+          issues.push({
+            issueType: 'UNTRANSLATED_CHARS',
+            description: `翻译不完整: 仍包含 ${chineseCharsInTranslated} 个中文字符 (${(untranslatedRatio * 100).toFixed(1)}%)`,
+            params: {
+              chineseChars: chineseCharsInTranslated,
+              ratio: Number((untranslatedRatio * 100).toFixed(1)),
+            },
+          });
+        }
       }
     }
 
@@ -3243,9 +3266,11 @@ export class BlogService {
           slug: true,
           title: true,
           titleLocalized: true,
-          // 只使用 Markdown 版进行质量检测，不加载冗余的 HTML 版
+          // 同时加载 Markdown 和 HTML 版内容，当 contentMd 非常短时使用 content 作为补充源
           contentMd: true,
           contentMdLocalized: true,
+          content: true,
+          contentLocalized: true,
           excerpt: true,
           excerptLocalized: true,
           translationStatus: true,
@@ -3265,17 +3290,35 @@ export class BlogService {
       }
 
       for (const article of batch) {
-        const sourceTitle =
-          (article.titleLocalized as any)?.zh || article.title;
-        const sourceContentMd =
-          (article.contentMdLocalized as any)?.zh || article.contentMd;
-        const sourceExcerpt =
-          (article.excerptLocalized as any)?.zh || article.excerpt;
+        // 使用原始字段（非本地化字段）作为源语言内容
+        // title/contentMd/excerpt 始终是文章的原始语言，不受 detectSourceLanguage 干扰
+        const sourceTitle = article.title;
+        // 优先使用 contentMd，如果 contentMd 很短（< 300 字符）且 content 更长，则使用 content 作为源内容
+        let sourceContentMd = article.contentMd || '';
+        if (
+          sourceContentMd.length < 300 &&
+          article.content &&
+          article.content.length > sourceContentMd.length
+        ) {
+          sourceContentMd = article.content;
+          this.logger.debug(
+            `[质量检测] 文章 ${article.id} 使用 content 替代 contentMd (contentMd: ${article.contentMd?.length || 0}ch, content: ${article.content.length}ch)`,
+          );
+        }
+        const sourceExcerpt = article.excerpt;
 
         const translatedTitle = (article.titleLocalized as any)?.[targetLang];
-        const translatedContentMd = (article.contentMdLocalized as any)?.[
+        // 翻译内容同样优先使用 Markdown 版
+        let translatedContentMd = (article.contentMdLocalized as any)?.[
           targetLang
         ];
+        // 如果 Markdown 翻译为空但 HTML 翻译存在，使用 HTML 翻译
+        if (!translatedContentMd && article.contentLocalized) {
+          const htmlTrans = (article.contentLocalized as any)?.[targetLang];
+          if (htmlTrans) {
+            translatedContentMd = htmlTrans;
+          }
+        }
         const translatedExcerpt = (article.excerptLocalized as any)?.[
           targetLang
         ];
@@ -3386,8 +3429,11 @@ export class BlogService {
                 slug: true,
                 title: true,
                 titleLocalized: true,
+                // 同时加载 Markdown 和 HTML 版内容，当 contentMd 非常短时使用 content 作为补充源
                 contentMd: true,
                 contentMdLocalized: true,
+                content: true,
+                contentLocalized: true,
                 excerpt: true,
                 excerptLocalized: true,
                 translationStatus: true,
@@ -3407,19 +3453,38 @@ export class BlogService {
             }
 
             for (const article of batch) {
-              const sourceTitle =
-                (article.titleLocalized as any)?.zh || article.title;
-              const sourceContentMd =
-                (article.contentMdLocalized as any)?.zh || article.contentMd;
-              const sourceExcerpt =
-                (article.excerptLocalized as any)?.zh || article.excerpt;
+              // 使用原始字段（非本地化字段）作为源语言内容
+              const sourceTitle = article.title;
+              // 优先使用 contentMd，如果 contentMd 很短（< 300 字符）且 content 更长，则使用 content 作为源内容
+              let sourceContentMd = article.contentMd || '';
+              if (
+                sourceContentMd.length < 300 &&
+                article.content &&
+                article.content.length > sourceContentMd.length
+              ) {
+                sourceContentMd = article.content;
+                this.logger.debug(
+                  `[质量检测/流] 文章 ${article.id} 使用 content 替代 contentMd (contentMd: ${article.contentMd?.length || 0}ch, content: ${article.content.length}ch)`,
+                );
+              }
+              const sourceExcerpt = article.excerpt;
 
               const translatedTitle = (article.titleLocalized as any)?.[
                 targetLang
               ];
-              const translatedContentMd = (article.contentMdLocalized as any)?.[
+              // 翻译内容同样优先使用 Markdown 版
+              let translatedContentMd = (article.contentMdLocalized as any)?.[
                 targetLang
               ];
+              // 如果 Markdown 翻译为空但 HTML 翻译存在，使用 HTML 翻译
+              if (!translatedContentMd && article.contentLocalized) {
+                const htmlTrans = (article.contentLocalized as any)?.[
+                  targetLang
+                ];
+                if (htmlTrans) {
+                  translatedContentMd = htmlTrans;
+                }
+              }
               const translatedExcerpt = (article.excerptLocalized as any)?.[
                 targetLang
               ];
@@ -3602,6 +3667,42 @@ export class BlogService {
   }
 
   /**
+   * 从文章的本地化字段中检测源语言
+   * 逻辑：在 Localized JSON 中查找非 targetLang 且内容最长的语言作为源语言
+   */
+  private detectSourceLanguage(
+    titleLoc: Record<string, any>,
+    contentMdLoc: Record<string, any>,
+    targetLang: string,
+  ): string {
+    // 收集每个语言的内容总长度
+    const langLengths: Record<string, number> = {};
+
+    for (const loc of [titleLoc, contentMdLoc]) {
+      if (!loc || typeof loc !== 'object') continue;
+      for (const [lang, content] of Object.entries(loc)) {
+        if (lang === targetLang) continue; // 跳过目标语言
+        if (typeof content === 'string') {
+          langLengths[lang] = (langLengths[lang] || 0) + content.length;
+        }
+      }
+    }
+
+    // 按内容长度降序排列，取最长的语言作为源语言
+    const sorted = Object.entries(langLengths).sort((a, b) => b[1] - a[1]);
+
+    if (sorted.length > 0) {
+      this.logger.log(
+        `检测到文章源语言: ${sorted[0][0]} (内容长度: ${sorted[0][1]})`,
+      );
+      return sorted[0][0];
+    }
+
+    // 默认回退到中文
+    return 'zh';
+  }
+
+  /**
    * 清空指定文章的翻译字段（重置为未翻译状态并自动投递翻译）
    */
   async clearArticleTranslations(articleIds: string[], targetLang: string) {
@@ -3631,6 +3732,13 @@ export class BlogService {
       const contentMdLoc = (article.contentMdLocalized as any) ?? {};
       const excerptLoc = (article.excerptLocalized as any) ?? {};
 
+      // 检测实际源语言（不再硬编码为 'zh'）
+      const detectedSourceLang = this.detectSourceLanguage(
+        titleLoc,
+        contentMdLoc,
+        targetLang,
+      );
+
       // 删除目标语言的翻译字段
       delete titleLoc[targetLang];
       delete contentLoc[targetLang];
@@ -3648,13 +3756,13 @@ export class BlogService {
         },
       });
 
-      // 投递重新翻译任务
+      // 投递重新翻译任务（使用检测到的源语言）
       await this.blogAiQueue.add(
         'translate-article',
         {
           articleId: article.id,
           targetLang,
-          sourceLang: 'zh',
+          sourceLang: detectedSourceLang,
           force: true,
         },
         {
