@@ -353,7 +353,6 @@ export default function CommentsPage() {
               <option value="all">{t('allStatus')}</option>
               <option value="APPROVED">{t('approved')}</option>
               <option value="PENDING">{t('pending')}</option>
-              <option value="SPAM">{t('spam')}</option>
               <option value="REJECTED">Rejected</option>
             </select>
             <select

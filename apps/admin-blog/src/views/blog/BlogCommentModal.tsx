@@ -64,7 +64,7 @@ export const BlogCommentModal: React.FC<BlogCommentModalProps> = ({
 
     return {
       ...editingComment,
-      status: status as 'PENDING' | 'APPROVED' | 'REJECTED' | 'SPAM',
+      status: status as 'PENDING' | 'APPROVED' | 'REJECTED',
       reply: normalizeLocalizedValue(editingComment.reply),
     };
   }, [editingComment]);
@@ -117,7 +117,6 @@ export const BlogCommentModal: React.FC<BlogCommentModalProps> = ({
               { label: t('blog_comments_pending'), value: 'PENDING' },
               { label: t('blog_comments_approved'), value: 'APPROVED' },
               { label: t('blog_comments_rejected'), value: 'REJECTED' },
-              { label: t('blog_comments_spam'), value: 'SPAM' },
             ]}
             {...register('status')}
           />
