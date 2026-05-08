@@ -12,6 +12,7 @@ import {
   Sse,
   MessageEvent,
 } from '@nestjs/common';
+
 import { CacheTTL } from '@nestjs/cache-manager';
 import { PublicCacheInterceptor } from '@api/common/cache/public-cache.interceptor';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
@@ -290,7 +291,8 @@ export class FrontendBlogController {
     );
 
     return new Observable<MessageEvent>((subscriber) => {
-      const handler = (payload: {
+      // --- handler: AI 自动回复 ---
+      const replyHandler = (payload: {
         articleId: string;
         parentId: string;
         replyId: string;
@@ -302,12 +304,13 @@ export class FrontendBlogController {
           `[SSE] 收到 event: articleId=${payload.articleId}, parentId=${payload.parentId}, replyId=${payload.replyId}`,
         );
 
-        // 只推送指定文章的回复事件
         if (!articleId || payload.articleId === articleId) {
           logger.log(
             `[SSE] ✅ 推送给订阅者 (filter="${articleId}"): replyId=${payload.replyId}`,
           );
-          subscriber.next({ data: payload } as MessageEvent);
+          subscriber.next({
+            data: { type: 'reply', ...payload },
+          } as MessageEvent);
         } else {
           logger.debug(
             `[SSE] ⏭ 跳过: event.articleId=${payload.articleId} ≠ filter=${articleId}`,
@@ -315,14 +318,32 @@ export class FrontendBlogController {
         }
       };
 
-      this.eventEmitter.on('blog.comment.reply.created', handler);
+      // --- handler: 审核结果（替代前端轮询）---
+      const moderatedHandler = (payload: {
+        commentId: string;
+        articleId: string;
+        status: 'approved' | 'rejected';
+      }) => {
+        if (!articleId || payload.articleId === articleId) {
+          logger.log(
+            `[SSE] ✅ 推送审核结果 (filter="${articleId}"): commentId=${payload.commentId}, status=${payload.status}`,
+          );
+          subscriber.next({
+            data: { type: 'moderated', ...payload },
+          } as MessageEvent);
+        }
+      };
+
+      this.eventEmitter.on('blog.comment.reply.created', replyHandler);
+      this.eventEmitter.on('blog.comment.moderated', moderatedHandler);
       logger.log(
         `[SSE] handler 已注册, 当前监听器数: ${this.eventEmitter.listenerCount('blog.comment.reply.created')}`,
       );
 
       // 客户端断开连接时清理
       return () => {
-        this.eventEmitter.off('blog.comment.reply.created', handler);
+        this.eventEmitter.off('blog.comment.reply.created', replyHandler);
+        this.eventEmitter.off('blog.comment.moderated', moderatedHandler);
         logger.log(`[SSE] 订阅者断开, articleId filter="${articleId}"`);
       };
     });

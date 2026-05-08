@@ -310,18 +310,6 @@ export default function CommentList({
   articleId,
   articleDbId,
 }: CommentListProps) {
-  // 同步日志 — 确认组件渲染，检查 props
-  if (typeof window !== 'undefined') {
-    console.log(
-      '[CommentList] 渲染, articleId:',
-      articleId,
-      '| articleDbId:',
-      articleDbId,
-      '| SSE将用:',
-      articleDbId || articleId,
-    );
-  }
-
   const t = useTranslations();
   const router = useRouter();
   const [commentContent, setCommentContent] = useState('');

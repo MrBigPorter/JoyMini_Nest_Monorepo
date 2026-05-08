@@ -3,17 +3,16 @@
 import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { Comment } from '@/lib/types/blog';
+import { commentStatusManager } from '@/lib/utils/commentStatus';
 
 // ---------------------------------------------------------------------------
 // Module-level SSE singleton registry
-// 防止 Fast Refresh / HMR / React StrictMode 创建重复连接
-// key = articleId (DB ID)，value = { es, refCount, cacheKey }
 // ---------------------------------------------------------------------------
 interface SSEEntry {
   es: EventSource;
   refCount: number;
   cacheKey: string;
-  onMessageHandlers: Set<(data: CommentReplyEvent) => void>;
+  onMessageHandlers: Set<(data: SSEEvent) => void>;
 }
 const sseRegistry = new Map<string, SSEEntry>();
 
@@ -21,7 +20,9 @@ const sseRegistry = new Map<string, SSEEntry>();
 // Types
 // ---------------------------------------------------------------------------
 
+/** AI 自动回复事件 */
 interface CommentReplyEvent {
+  type?: 'reply';
   articleId: string;
   parentId: string;
   replyId: string;
@@ -29,6 +30,16 @@ interface CommentReplyEvent {
   author: string;
   createdAt: string;
 }
+
+/** 审核结果事件（替代前端轮询） */
+interface CommentModeratedEvent {
+  type: 'moderated';
+  commentId: string;
+  articleId: string;
+  status: 'approved' | 'rejected';
+}
+
+type SSEEvent = CommentReplyEvent | CommentModeratedEvent;
 
 /** 无限查询缓存中单页的数据结构 */
 interface InfiniteCommentPage {
@@ -55,38 +66,25 @@ export function useCommentSSE(
   articleId: string | undefined,
   cacheArticleId?: string,
 ) {
-  if (typeof window !== 'undefined') {
-    console.log(
-      '[SSE-HOOK] useCommentSSE 被调用, articleId(DB ID):',
-      articleId,
-      '| cacheArticleId(slug):',
-      cacheArticleId ?? '(未传，用articleId)',
-    );
-  }
-
   const queryClient = useQueryClient();
-  // 用于标识本次挂载注册的 handler，cleanup 时仅移除自己
-  const handlerRef = useRef<((data: CommentReplyEvent) => void) | null>(null);
+  const handlerRef = useRef<((data: SSEEvent) => void) | null>(null);
 
   useEffect(() => {
     if (!articleId || typeof window === 'undefined') return;
 
     const cacheKey = cacheArticleId || articleId;
 
-    // -----------------------------------------------------------------------
-    // 创建本次挂载的消息处理器
-    // -----------------------------------------------------------------------
-    const handler = (data: CommentReplyEvent) => {
-      console.log('[SSE] 解包后 payload:', data);
+    const handler = (data: SSEEvent) => {
+      // 审核结果事件：替代轮询，直接更新 commentStatusManager
+      if (data.type === 'moderated') {
+        commentStatusManager.updateByRealId(data.commentId, data.status);
+        return;
+      }
 
-      // Step 1: 直接插入缓存（即时 UI 更新）
-      // ⚠️ 不在这里调用 invalidateQueries：
-      //    立即 refetch 会用 server 返回的平铺数据覆盖 setQueryData 插入的嵌套 reply
-      //    导致页面不更新。改为延迟 5s 后静默刷新（确保最终一致性）。
-      const inserted = insertReplyIntoCache(queryClient, cacheKey, data);
-
+      // AI 自动回复事件：插入缓存，延迟刷新
+      const replyData = data as CommentReplyEvent;
+      const inserted = insertReplyIntoCache(queryClient, cacheKey, replyData);
       if (inserted) {
-        // 延迟刷新：给 React 足够时间渲染 setQueryData 的结果
         setTimeout(() => {
           queryClient.invalidateQueries({
             queryKey: ['comments', 'infinite', cacheKey],
@@ -104,16 +102,12 @@ export function useCommentSSE(
     if (existing) {
       existing.refCount++;
       existing.onMessageHandlers.add(handler);
-      console.log(
-        `[SSE] 复用已有连接 articleId=${articleId}, refCount=${existing.refCount}`,
-      );
     } else {
       const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || '/api';
       const sseUrl = `${baseUrl.replace(/\/+$/, '')}/v1/frontend/blog/comments/stream?articleId=${articleId}`;
-      console.log('[SSE] 新建连接:', sseUrl);
 
       const es = new EventSource(sseUrl);
-      const handlers = new Set<(data: CommentReplyEvent) => void>();
+      const handlers = new Set<(data: SSEEvent) => void>();
       handlers.add(handler);
 
       const entry: SSEEntry = {
@@ -124,26 +118,10 @@ export function useCommentSSE(
       };
       sseRegistry.set(articleId, entry);
 
-      es.onopen = () => {
-        console.log(
-          '[SSE] ✅ 连接已建立, articleId:',
-          articleId,
-          '| readyState:',
-          es.readyState,
-        );
-      };
-
       es.onmessage = (event: MessageEvent) => {
-        console.log(
-          '[SSE] 📨 收到原始消息, type:',
-          event.type,
-          '| data:',
-          event.data,
-        );
         try {
           const parsed = JSON.parse(event.data);
-          const data: CommentReplyEvent =
-            (parsed as { data?: CommentReplyEvent }).data ?? parsed;
+          const data: SSEEvent = (parsed as { data?: SSEEvent }).data ?? parsed;
           // 广播给所有注册的 handler
           const reg = sseRegistry.get(articleId);
           reg?.onMessageHandlers.forEach((h) => h(data));
@@ -152,8 +130,8 @@ export function useCommentSSE(
         }
       };
 
-      es.onerror = (err) => {
-        console.error('[SSE] ❌ 连接异常', err, '| readyState:', es.readyState);
+      es.onerror = () => {
+        // EventSource 会自动重连，静默处理
       };
     }
 
@@ -165,18 +143,16 @@ export function useCommentSSE(
       if (!reg) return;
 
       if (handlerRef.current) {
-        reg.onMessageHandlers.delete(handlerRef.current);
+        reg.onMessageHandlers.delete(
+          handlerRef.current as (data: SSEEvent) => void,
+        );
         handlerRef.current = null;
       }
       reg.refCount--;
-      console.log(
-        `[SSE] 清理 articleId=${articleId}, refCount=${reg.refCount}`,
-      );
 
       if (reg.refCount <= 0) {
         reg.es.close();
         sseRegistry.delete(articleId);
-        console.log('[SSE] 连接已关闭并移除 articleId:', articleId);
       }
     };
   }, [articleId, cacheArticleId, queryClient]);
@@ -200,9 +176,6 @@ function insertReplyIntoCache(
     exact: false,
   });
 
-  console.log(
-    `[SSE-CACHE] 查找缓存 articleId="${articleId}", 找到条目数: ${entries.length}`,
-  );
   if (entries.length === 0) {
     const allCommentKeys = queryClient.getQueriesData({
       queryKey: ['comments'],
@@ -294,9 +267,6 @@ function insertReplyIntoCache(
         }
 
         anyInserted = true;
-        console.log(
-          `[SSE-CACHE] ✅ 回复已插入缓存, parentId="${data.parentId}", replyId="${data.replyId}"`,
-        );
         return { ...old, pages: updatedPages };
       },
     );
