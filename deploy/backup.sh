@@ -10,7 +10,7 @@ set -euo pipefail
 BACKUP_DIR="/opt/lucky/backups"
 COMPOSE_FILE="/opt/lucky/compose.prod.yml"
 ENV_FILE="/opt/lucky/deploy/.env.prod"
-KEEP_DAYS=7
+KEEP_DAYS=30
 DATE=$(date +%Y%m%d_%H%M%S)
 
 mkdir -p "$BACKUP_DIR"
