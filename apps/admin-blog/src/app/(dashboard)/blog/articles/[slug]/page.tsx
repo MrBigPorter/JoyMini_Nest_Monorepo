@@ -13,7 +13,8 @@ import {
   ArrowLeft,
   Eye,
   Clock,
-  Calendar,
+  // TODO: Restore published date display — uncomment Calendar when date is shown again
+  // Calendar,
   User,
   Heart,
   MessageSquare,
@@ -339,7 +340,8 @@ export default function ArticlePreviewPage() {
             <span>{authorName}</span>
           </div>
 
-          {article.publishedAt && (
+          {/* TODO: Restore published date display — hidden to avoid showing outdated dates */}
+          {/* {article.publishedAt && (
             <>
               <span className="text-gray-300 dark:text-white/20">·</span>
               <div className="flex items-center gap-2">
@@ -353,7 +355,7 @@ export default function ArticlePreviewPage() {
                 </span>
               </div>
             </>
-          )}
+          )} */}
 
           {(localizedContent || localizedContentMd) && (
             <>
