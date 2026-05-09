@@ -178,8 +178,9 @@ export class MediaProcessorService {
       await fs.writeFile(inputPath, buffer);
 
       // Extract frame at 1 second, scale to 1280px width
+      // -update 1 tells image2 muxer to overwrite single file (suppresses sequence pattern warning)
       execSync(
-        `ffmpeg -i "${inputPath}" -ss 00:00:01 -vframes 1 -vf "scale=1280:-1" -q:v 3 "${outputPath}"`,
+        `ffmpeg -i "${inputPath}" -ss 00:00:01 -vframes 1 -vf "scale=1280:-1" -q:v 3 -update 1 "${outputPath}"`,
         { encoding: 'utf-8', timeout: 30000 },
       );
 
