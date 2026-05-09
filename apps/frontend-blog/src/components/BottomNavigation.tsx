@@ -14,6 +14,43 @@ export default function BottomNavigation() {
   const [activeStates, setActiveStates] = useState<Record<string, boolean>>({});
   const [isClient, setIsClient] = useState(false);
 
+  // iOS Safari: dynamically calculate safe-area-bottom using visualViewport API.
+  // env(safe-area-inset-bottom) is static and does NOT update when iOS Safari
+  // toolbars show/hide during scroll, causing a visible gap below the bottom nav.
+  // window.visualViewport fires 'resize' when toolbars toggle, allowing us to
+  // compute the actual bottom inset in real-time.
+  useEffect(() => {
+    const updateSafeArea = () => {
+      if (typeof window !== 'undefined' && window.visualViewport) {
+        const vv = window.visualViewport;
+        // window.innerHeight = layout viewport height (includes browser chrome area)
+        // vv.height = visual viewport height (visible area excluding chrome)
+        // vv.offsetTop = distance from top of layout viewport to visual viewport
+        // The remainder is the bottom chrome area (toolbar + safe area)
+        const safeAreaBottom = window.innerHeight - (vv.height + vv.offsetTop);
+        document.documentElement.style.setProperty(
+          '--safe-area-bottom',
+          `${Math.max(safeAreaBottom, 0)}px`,
+        );
+      }
+    };
+
+    // Set on mount
+    updateSafeArea();
+
+    // Listen for iOS Safari toolbar show/hide
+    if (typeof window !== 'undefined' && window.visualViewport) {
+      window.visualViewport.addEventListener('resize', updateSafeArea);
+    }
+
+    return () => {
+      if (typeof window !== 'undefined' && window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', updateSafeArea);
+      }
+    };
+    // Re-run on route change (SPA navigation may affect viewport state)
+  }, [pathname]);
+
   useEffect(() => {
     setIsClient(true);
 
