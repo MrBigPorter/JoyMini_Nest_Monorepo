@@ -242,20 +242,45 @@ export function ArticleCard({
                 </>
               )
             ) : (
-              <BlurhashImage
-                src={coverImageUrl}
-                alt={article.title}
-                fill
-                priority={priority}
-                quality={imageQuality}
-                blurhash={
-                  'meta' in article
-                    ? (article as FrontendArticle).meta?.images?.blurhash
-                    : undefined
+              <Link
+                href={`/articles/${article.slug}`}
+                className="block w-full h-full"
+                prefetch={false}
+                onPointerDown={() => {
+                  setNavDirection('forward');
+                  if (typeof window !== 'undefined') {
+                    const path = window.location.pathname;
+                    const search = window.location.search;
+                    const localePrefix = `/${locale}`;
+                    const pathWithoutLocale = path.startsWith(localePrefix)
+                      ? path.slice(localePrefix.length) || '/'
+                      : path;
+                    const savedUrl = pathWithoutLocale + search;
+                    sessionStorage.setItem('previousPageUrl', savedUrl);
+                  }
+                }}
+                onMouseEnter={() =>
+                  router.prefetch(`/articles/${article.slug}`)
                 }
-                className="transition-transform duration-300 group-hover:scale-105"
-                sizes="(max-width: 768px) 90vw, (max-width: 1024px) 45vw, 600px"
-              />
+                onTouchStart={() =>
+                  router.prefetch(`/articles/${article.slug}`)
+                }
+              >
+                <BlurhashImage
+                  src={coverImageUrl}
+                  alt={article.title}
+                  fill
+                  priority={priority}
+                  quality={imageQuality}
+                  blurhash={
+                    'meta' in article
+                      ? (article as FrontendArticle).meta?.images?.blurhash
+                      : undefined
+                  }
+                  className="transition-transform duration-300 group-hover:scale-105 cursor-pointer"
+                  sizes="(max-width: 768px) 90vw, (max-width: 1024px) 45vw, 600px"
+                />
+              </Link>
             )
           ) : (
             /* Gradient placeholder for text-only articles — maintains consistent card height */

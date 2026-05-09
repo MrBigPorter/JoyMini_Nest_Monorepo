@@ -27,6 +27,7 @@ import {
 } from '@/lib/components/SkeletonLoader';
 import { useHomePageContext } from '@/lib/providers/HomePageStateProvider';
 import { getNavDirection } from '@/lib/navigation/direction';
+import cloudflareImageLoader from '@/lib/utils/cloudflareImageLoader';
 import type {
   FrontendArticle,
   FrontendCategory,
@@ -321,14 +322,25 @@ function HomePageClientContent({ initialData, ...props }: HomePageClientProps) {
               })
               .then((data) => {
                 if (data?.items?.length) {
-                  // Warm SW cache by fetching cover images
-                  const coverUrls = data.items
-                    .map((a: FrontendArticle) => a.coverImage)
-                    .filter(Boolean);
-                  for (const url of coverUrls) {
-                    fetch(url as string, { mode: 'no-cors' }).catch(() => {
-                      // Silent — SW will cache what it can
-                    });
+                  // Warm browser + SW cache by prefetching loader-transformed URLs.
+                  // The raw coverImage URL won't match what Next.js <Image> requests,
+                  // because cloudflareImageLoader transforms it to /cdn-cgi/image/...
+                  // Prefetching the transformed URL ensures a cache hit when <Image> loads.
+
+                  const imageSizes = [480, 640]; // matches ArticleCard viewport widths
+                  const defaultQuality = 65; // ArticleCard default for non-priority
+                  for (const article of data.items) {
+                    if (!article.coverImage) continue;
+                    for (const width of imageSizes) {
+                      const transformedUrl = cloudflareImageLoader({
+                        src: article.coverImage,
+                        width,
+                        quality: defaultQuality,
+                      });
+                      fetch(transformedUrl, { mode: 'cors' }).catch(() => {
+                        // Silent — CDN supports CORS, cache is warmed
+                      });
+                    }
                   }
                 }
               })
