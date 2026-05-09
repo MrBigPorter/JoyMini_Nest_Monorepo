@@ -35,7 +35,17 @@ export function HlsVideoPlayer({
   const [hasError, setHasError] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [userClicked, setUserClicked] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
   const hlsRef = useRef<Hls | null>(null);
+
+  // Track mount state to prevent SSR/client hydration mismatch.
+  // The play overlay (showPlayOverlay) is only rendered AFTER hydration
+  // completes. During SSR and initial client render (before useEffect runs),
+  // the video is rendered directly — its native `poster` attribute handles
+  // the poster display, so the experience is identical without the overlay.
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const handlePlay = useCallback(() => {
     setIsPlaying(true);
@@ -171,7 +181,10 @@ export function HlsVideoPlayer({
     [hlsUrl, userClicked, initVideo],
   );
 
-  const showPlayOverlay = clickToPlay && !userClicked && !hasError;
+  // Only show the play overlay after hydration to prevent SSR/client mismatch.
+  // The native <video poster="..."> displays the thumbnail on both server and
+  // client, so users see the same thing either way.
+  const showPlayOverlay = isMounted && clickToPlay && !userClicked && !hasError;
 
   return (
     <div

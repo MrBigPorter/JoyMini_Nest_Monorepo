@@ -70,6 +70,13 @@ export default function RootLayout({
             `,
           }}
         />
+
+        {/* Cloudflare Web Analytics — 收集真实用户 LCP/CLS/FCP 数据 */}
+        <script
+          defer
+          src="https://static.cloudflareinsights.com/beacon.min.js"
+          data-cf-beacon='{"token": "1ad32917390d4dda86d53395209e19a5"}'
+        />
       </head>
       <body className="antialiased bg-background text-foreground">
         <Providers>{children}</Providers>
