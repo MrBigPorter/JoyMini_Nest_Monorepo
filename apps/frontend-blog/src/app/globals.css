@@ -254,6 +254,15 @@ input:-webkit-autofill:active {
   border-radius: 0.5rem;
 }
 
+/* Reserve space for images to prevent CLS from late-loading images.
+   The 16/9 ratio is a fallback — when the <img> loads, its intrinsic
+   dimensions override the inline aspect-ratio on the <img> itself,
+   but this gives the wrapper a defined height before load, preventing
+   the content below from shifting. */
+.article-media-wrapper:has(> img) {
+  aspect-ratio: 16 / 9;
+}
+
 .article-media-wrapper > img,
 .article-media-wrapper > svg,
 .article-media-wrapper > table,
@@ -275,6 +284,7 @@ input:-webkit-autofill:active {
 .article-media-wrapper > video {
   width: 100%;
   height: auto;
+  aspect-ratio: 16 / 9;
   border-radius: 0.5rem;
 }
 

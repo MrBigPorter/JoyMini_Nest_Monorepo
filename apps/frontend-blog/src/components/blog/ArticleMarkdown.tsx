@@ -502,10 +502,20 @@ export default function ArticleMarkdown({
             );
           },
           // Wrap <img> in scrollable container (like code blocks)
+          // Default width/height (800x450 ≈ 16:9) provide an intrinsic
+          // aspect-ratio BEFORE the image loads, preventing layout shift.
+          // Once the image loads, its intrinsic dimensions override these.
           img({ src, alt, ...props }) {
             return (
               <div className="article-media-wrapper">
-                <img src={src} alt={alt} {...props} />
+                <img
+                  src={src}
+                  alt={alt}
+                  width={800}
+                  height={450}
+                  loading="lazy"
+                  {...props}
+                />
               </div>
             );
           },
