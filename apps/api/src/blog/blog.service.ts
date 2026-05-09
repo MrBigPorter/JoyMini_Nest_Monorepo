@@ -3644,19 +3644,24 @@ export class BlogService {
 
     let totalQueued = 0;
 
-    for (const targetLang of enabledCodes) {
-      if (targetLang === defaultSourceLang) continue;
+    // 并行投递所有语言的翻译任务（Phase 2 优化）
+    const langResults = await Promise.all(
+      enabledCodes
+        .filter((targetLang) => targetLang !== defaultSourceLang)
+        .map(async (targetLang) => {
+          this.logger.log(`开始一键修复语言: ${targetLang}`);
+          const result = await this.retranslateIncompleteArticles(targetLang);
+          totalQueued += result.queued;
+          return {
+            locale: targetLang,
+            message: result.message,
+            queued: result.queued,
+            total: result.total,
+          };
+        }),
+    );
 
-      this.logger.log(`开始一键修复语言: ${targetLang}`);
-      const result = await this.retranslateIncompleteArticles(targetLang);
-      results.push({
-        locale: targetLang,
-        message: result.message,
-        queued: result.queued,
-        total: result.total,
-      });
-      totalQueued += result.queued;
-    }
+    results.push(...langResults);
 
     return {
       success: true,

@@ -37,9 +37,6 @@ export class PermissionsGuard implements CanActivate {
       throw new UnauthorizedException('unauthorized');
     }
 
-    console.log(
-      `Checking permission "${requiredPermission}" for role "${role}"`,
-    );
     // 5. 超级管理员跳过所有检查
     if (role === Role.SUPER_ADMIN) {
       return true;
