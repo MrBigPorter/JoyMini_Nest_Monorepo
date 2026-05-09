@@ -50,16 +50,6 @@ export class BlogController {
     @Query('search') search?: string,
     @Query('locale') locale?: string,
   ) {
-    console.log('BlogController: getArticles', {
-      page,
-      pageSize,
-      status,
-      categoryId,
-      tagId,
-      authorId,
-      search,
-      locale,
-    });
     return this.blogService.getArticles({
       page,
       pageSize,
