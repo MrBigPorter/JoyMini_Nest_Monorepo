@@ -174,9 +174,31 @@ export function HlsVideoPlayer({
   const showPlayOverlay = clickToPlay && !userClicked && !hasError;
 
   return (
-    <div className={`relative group overflow-hidden bg-black ${className}`}>
+    <div
+      className={`relative group overflow-hidden bg-black rounded-lg ${className}`}
+      style={
+        showPlayOverlay && poster
+          ? {
+              backgroundImage: `url(${poster})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+            }
+          : undefined
+      }
+    >
+      {/* Dark gradient overlay when showing poster */}
+      {showPlayOverlay && (
+        <div
+          className={`absolute inset-0 z-10 transition-opacity duration-300 ${
+            poster
+              ? 'bg-black/30'
+              : 'bg-gradient-to-br from-slate-800 to-slate-900'
+          }`}
+        />
+      )}
+
       {isLoading && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/50">
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/50">
           <div className="w-10 h-10 border-2 border-white/30 border-t-white rounded-full animate-spin" />
         </div>
       )}
@@ -220,7 +242,7 @@ export function HlsVideoPlayer({
           className="absolute inset-0 flex items-center justify-center cursor-pointer z-20"
           onClick={handlePlayClick}
         >
-          <div className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-all">
+          <div className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/35 hover:scale-110 transition-all duration-200 shadow-lg">
             <svg
               className="w-8 h-8 text-white ml-1"
               fill="currentColor"

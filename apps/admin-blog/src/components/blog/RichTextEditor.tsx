@@ -154,6 +154,10 @@ export const RichTextEditor = ({
       return;
     }
 
+    // 修复: 在打开文件选择器之前保存光标位置（否则文件选择器会窃取焦点导致 getSelection() 返回 null）
+    const quill = quillRef.current?.getEditor();
+    const savedRange = quill ? quill.getSelection() : null;
+
     const input = document.createElement('input');
     input.setAttribute('type', 'file');
     input.setAttribute('accept', 'image/*');
@@ -181,7 +185,7 @@ export const RichTextEditor = ({
         const quill = quillRef.current?.getEditor();
         if (quill) {
           // 修复: 如果没有选中位置默认在末尾插入
-          let range = quill.getSelection();
+          let range = savedRange;
           if (!range) {
             range = { index: quill.getLength(), length: 0 };
           }
@@ -275,6 +279,10 @@ export const RichTextEditor = ({
       return;
     }
 
+    // 修复: 在打开文件选择器之前保存光标位置（否则文件选择器会窃取焦点导致 getSelection() 返回 null）
+    const quill = quillRef.current?.getEditor();
+    const savedRange = quill ? quill.getSelection() : null;
+
     const input = document.createElement('input');
     input.setAttribute('type', 'file');
     input.setAttribute('accept', 'video/*');
@@ -301,7 +309,7 @@ export const RichTextEditor = ({
 
         const quill = quillRef.current?.getEditor();
         if (quill) {
-          let range = quill.getSelection();
+          let range = savedRange;
           if (!range) {
             range = { index: quill.getLength(), length: 0 };
           }

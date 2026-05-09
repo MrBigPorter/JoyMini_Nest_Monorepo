@@ -155,12 +155,19 @@ export function useFrontendArticleBySlug(slug: string, initialData?: any) {
       // 3. 先尝试读取 IndexedDB 缓存
       const cached = await getCachedArticleContent(slug, locale);
 
-      // 4. 有缓存 → 立即返回（即时渲染，支持离线阅读）
+      // 4. 有缓存且包含 contentVideo → 立即返回（即时渲染，支持离线阅读）
       if (cached) {
-        return cached;
+        const hasContentVideo =
+          cached.meta &&
+          typeof cached.meta === 'object' &&
+          Array.isArray((cached.meta as Record<string, unknown>).contentVideo);
+        if (hasContentVideo) {
+          return cached;
+        }
+        // 缓存缺少 contentVideo（旧缓存），等网络获取最新数据
       }
 
-      // 5. 无缓存 → 等待网络响应
+      // 5. 无缓存 / 缓存缺少 contentVideo → 等待网络响应
       return networkPromise;
     },
     // 如果 content 被剥离，立即 refetch 获取完整文章数据

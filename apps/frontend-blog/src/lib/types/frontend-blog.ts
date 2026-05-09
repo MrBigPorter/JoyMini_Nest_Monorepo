@@ -25,6 +25,16 @@ export interface ArticleMeta {
     qualities: string[];
     poster?: string; // URL of extracted video thumbnail frame (JPEG)
   };
+  /**
+   * Array of video mappings for rich-text-embedded videos.
+   * Populated by media.processor.ts after transcoding completes.
+   * Frontend uses this to replace <video src="xxx.mp4"> with HLS m3u8 URL.
+   */
+  contentVideo?: Array<{
+    videoKey: string; // R2 object key, e.g. "videos/uuid.mp4"
+    hlsUrl: string;  // Transcoded HLS URL, e.g. ".../master.m3u8"
+    poster?: string; // Optional poster/thumbnail frame URL
+  }>;
   [key: string]: unknown;
 }
 

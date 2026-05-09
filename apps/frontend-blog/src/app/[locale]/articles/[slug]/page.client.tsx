@@ -263,14 +263,13 @@ export default function ArticlePageClient({
               <MessageSquare className="h-4 w-4" />
               <span>{article.commentsCount || 0}</span>
             </div>
+            {/* Action buttons */}
+            {isClient && isAuthenticated && (
+              <div className="flex items-center gap-1">
+                <BookmarkButton articleId={article.id} />
+              </div>
+            )}
           </div>
-
-          {/* Action buttons */}
-          {isClient && isAuthenticated && (
-            <div className="flex items-center gap-2">
-              <BookmarkButton articleId={article.id} />
-            </div>
-          )}
         </header>
 
         {/* Article content — render markdown with syntax highlighting, fall back to HTML */}
@@ -290,6 +289,7 @@ export default function ArticlePageClient({
         ) : (
           <ArticleMarkdown
             content={article.contentMd || article.content || ''}
+            meta={article.meta}
           />
         )}
 

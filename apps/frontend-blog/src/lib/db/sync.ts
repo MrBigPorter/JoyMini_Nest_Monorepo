@@ -115,11 +115,12 @@ export async function syncArticleContent(
   locale: string,
 ): Promise<void> {
   await Promise.all([
-    // 1. 存储文章正文内容
+    // 1. 存储文章正文内容（含 meta，用于 contentVideo 等字段）
     db.articleContents.put({
       slug: article.slug,
       content: article.content,
       contentMd: article.contentMd,
+      meta: article.meta,
       updatedAt: article.updatedAt,
       locale,
     }),
@@ -164,6 +165,9 @@ export async function getCachedArticleContent(
     coverImage: baseArticle?.coverImage || '',
     content: record.content,
     contentMd: record.contentMd,
+    meta: record.meta as
+      | import('@/lib/types/frontend-blog').ArticleMeta
+      | undefined,
     views: baseArticle?.viewCount || 0,
     likes: 0,
     commentsCount: baseArticle?.commentCount || 0,

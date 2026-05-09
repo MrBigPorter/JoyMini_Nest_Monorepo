@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { BlogService } from '../blog.service';
 import { LanguageService } from '@api/common/services/language.service';
 import { PrismaService } from '@api/common/prisma/prisma.service';
@@ -6,6 +6,8 @@ import { ArticleStatus } from '@prisma/client';
 
 @Injectable()
 export class FrontendBlogService {
+  private readonly logger = new Logger(FrontendBlogService.name);
+
   constructor(
     private readonly blogService: BlogService,
     private readonly languageService: LanguageService,
@@ -349,8 +351,22 @@ export class FrontendBlogService {
 
     // 如果需要包含内容
     if (includeContent) {
-      result.content = this.getLocalizedString(article, 'content', locale);
-      result.contentMd = this.getLocalizedString(article, 'contentMd', locale);
+      // 获取本地化内容（不含视频后处理，保持原始状态）
+      result.content = this.getLocalizedString(article, 'content', locale, { skipVideoInjection: true });
+      result.contentMd = this.getLocalizedString(article, 'contentMd', locale, { skipVideoInjection: true });
+
+      // 关键修复：始终执行视频位置智能注入（如果 content 包含视频）
+      // 即使 contentMd 已经有视频（通常在末尾），也重新注入到正确位置
+      // 通过 HTML 里视频前面的标题定位，在 Markdown 对应标题后插入，保持阅读顺序正确
+      // 这样前端可以始终用 contentMd（保留代码高亮），视频也出现在正确位置
+      if (result.content && /<video[\s\S]*?<\/video>/i.test(result.content)) {
+        // 如果 contentMd 不存在或为空，用 content 作为基础
+        const baseMd = result.contentMd || result.content || '';
+        result.contentMd = this.injectVideosIntoMarkdown(
+          baseMd,
+          result.content,
+        );
+      }
     }
 
     // 处理分类
@@ -420,7 +436,9 @@ export class FrontendBlogService {
     entity: any,
     field: string,
     locale: string,
+    options: { skipVideoInjection?: boolean } = {},
   ): string {
+    const { skipVideoInjection = false } = options;
     // 首先检查字段本身是否已经是 Localized 对象
     const fieldValue = entity[field];
     // 如果字段本身就是 Localized 对象（如 {en: "...", zh: "..."}）
@@ -449,29 +467,33 @@ export class FrontendBlogService {
     const localizedField = entity[`${field}Localized`];
 
     if (localizedField && localizedField[locale]) {
-      // Fix: For content field, preserve video/figure HTML tags from original content
-      // when the localized version (AI-translated text) is missing them.
+      // Fix: For content/contentMd fields, preserve video/figure HTML tags from original
+      // HTML content when the localized version (AI-translated text) is missing them.
       // The translation processor saves only rendered markdown text, losing video tags.
-      if (field === 'content') {
-        // The original content may be in entity['content'] (raw Prisma field) OR
-        // in contentLocalized['zh'] (when the article was saved via the localized form).
-        // Debug logs showed entity['content'] can be EMPTY while contentLocalized['zh'] has the content.
-        const sourceContent = localizedField['zh'] || entity['content'] || '';
+      // 仅在未设置 skipVideoInjection 时才执行视频追加（会追加到末尾）
+      if (!skipVideoInjection && (field === 'content' || field === 'contentMd')) {
+        // Always extract videos from the HTML source (contentLocalized['zh'] or entity['content']),
+        // because contentMd is plain Markdown and never contains <video> tags.
+        const htmlSource =
+          (entity['contentLocalized'] as any)?.['zh'] ||
+          entity['content'] ||
+          '';
         const localizedValue = localizedField[locale];
         if (
-          sourceContent &&
-          typeof sourceContent === 'string' &&
+          htmlSource &&
+          typeof htmlSource === 'string' &&
           typeof localizedValue === 'string' &&
-          /<video[\s\S]*?<\/video>/i.test(sourceContent) &&
+          /<video[\s\S]*?<\/video>/i.test(htmlSource) &&
           !/<video[\s\S]*?<\/video>/i.test(localizedValue)
         ) {
           // Extract video blocks (Quill video tags - <video> with <source>, may or may not have figure wrapper)
-          const videoBlocks = sourceContent.match(
+          const videoBlocks = htmlSource.match(
             /<figure[^>]*>[\s\S]*?<video[\s\S]*?<\/video>[\s\S]*?<\/figure>|<video[\s\S]*?<\/video>/gi,
           );
           if (videoBlocks && videoBlocks.length > 0) {
-            // Prepend video blocks before the translated text, since they were at the start of the original content
-            return videoBlocks.join('\n') + '\n' + localizedValue;
+            // Append video blocks to end of the translated text
+            // rehypeRaw plugin supports raw HTML in Markdown, so this works for both paths
+            return localizedValue + '\n\n' + videoBlocks.join('\n\n');
           }
         }
       }
@@ -501,5 +523,139 @@ export class FrontendBlogService {
 
     // 最后回退到空字符串
     return '';
+  }
+
+  /**
+   * 将 content（Quill HTML）中的 <video> 块注入到 contentMd（Markdown）的正确位置。
+   * 通过识别 HTML 中每个视频前面的标题，在 Markdown 对应标题行后插入视频 HTML 块。
+   * 这样前端用 contentMd 渲染时既有代码高亮（Prism），又能在正确位置显示视频。
+   */
+  private injectVideosIntoMarkdown(
+    contentMd: string,
+    contentHtml: string,
+  ): string {
+    const videoRegex =
+      /<figure[^>]*>[\s\S]*?<video[\s\S]*?<\/video>[\s\S]*?<\/figure>|<video[\s\S]*?<\/video>/gi;
+
+    // 首先从 contentMd 中移除所有已存在的视频标签（通常在末尾，由翻译processor追加）
+    // 避免重复注入导致视频出现多次
+    let cleanedMd = contentMd
+      .replace(videoRegex, '')  // 移除视频标签
+      .replace(/\n{3,}/g, '\n\n')  // 清理多余空行（3个以上连续换行 → 2个）
+      .trim();
+
+    // 收集所有视频块及其在 HTML 中的位置
+    const videos: Array<{ index: number; block: string }> = [];
+    let m: RegExpExecArray | null;
+    const re = new RegExp(videoRegex.source, 'gi');
+    while ((m = re.exec(contentHtml)) !== null) {
+      videos.push({ index: m.index, block: m[0] });
+    }
+    if (videos.length === 0) return cleanedMd;
+
+    const mdLines = cleanedMd.split('\n');
+
+    // 每个视频的插入操作 { lineIndex: 插入到该行之后, block: 视频块, position: 视频在HTML中的位置百分比 }
+    const insertions: Array<{ lineIndex: number; block: string; position: number }> = [];
+
+    for (const { index: videoIdx, block } of videos) {
+      const htmlBefore = contentHtml.substring(0, videoIdx);
+      const positionPercent = (videoIdx / contentHtml.length) * 100;
+
+      // 找到视频前最近的 HTML 标题
+      const headingRegex = /<h([1-6])[^>]*>([\s\S]*?)<\/h\1>/gi;
+      let lastHeading: { level: number; text: string } | null = null;
+      let hm: RegExpExecArray | null;
+      const hr = new RegExp(headingRegex.source, 'gi');
+      while ((hm = hr.exec(htmlBefore)) !== null) {
+        const level = parseInt(hm[1]);
+        // 去掉内部标签（如 <br>、<strong> 等），得到纯文本
+        const text = hm[2]
+          .replace(/<[^>]+>/g, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+        if (text) lastHeading = { level, text };
+      }
+
+      let insertLineIndex = -1; // -1 表示特殊处理
+
+      if (lastHeading) {
+        const { level, text } = lastHeading;
+        const mdPrefix = '#'.repeat(level) + ' ';
+
+        // 在 Markdown 行中找到匹配的标题（从前往后查找第一个匹配）
+        for (let i = 0; i < mdLines.length; i++) {
+          const line = mdLines[i].trim();
+          if (line.startsWith(mdPrefix)) {
+            const mdText = line.slice(mdPrefix.length).trim();
+            if (this.textSimilar(mdText, text)) {
+              insertLineIndex = i;
+              this.logger.debug(
+                `[视频注入] 找到匹配标题: "${text}" -> Markdown 行 ${i}: "${line}"`,
+              );
+              break;
+            }
+          }
+        }
+
+        if (insertLineIndex === -1) {
+          this.logger.warn(
+            `[视频注入] 未找到匹配标题 "${text}" (H${level})，视频位于 HTML ${positionPercent.toFixed(1)}% 处`,
+          );
+        }
+      } else {
+        this.logger.debug(
+          `[视频注入] 视频前没有标题，位于 HTML ${positionPercent.toFixed(1)}% 处`,
+        );
+      }
+
+      insertions.push({ lineIndex: insertLineIndex, block, position: positionPercent });
+    }
+
+    // 从下往上插入，避免行号偏移
+    insertions.sort((a, b) => b.lineIndex - a.lineIndex);
+
+    for (const { lineIndex, block, position } of insertions) {
+      if (lineIndex >= 0) {
+        // 找到匹配标题：将视频块插入到对应标题行之后
+        mdLines.splice(lineIndex + 1, 0, '', block, '');
+        this.logger.debug(`[视频注入] 插入到标题后 (行 ${lineIndex + 1})`);
+      } else {
+        // 没有找到匹配的标题：根据视频在 HTML 中的位置决定插入位置
+        if (position < 20) {
+          // 视频在 HTML 前 20% → 插入到 Markdown 开头
+          mdLines.unshift(block, '');
+          this.logger.debug(`[视频注入] 插入到文档开头 (HTML位置: ${position.toFixed(1)}%)`);
+        } else {
+          // 视频在 HTML 后 80% → 插入到 Markdown 末尾
+          mdLines.push('', block);
+          this.logger.debug(`[视频注入] 插入到文档末尾 (HTML位置: ${position.toFixed(1)}%)`);
+        }
+      }
+    }
+
+    return mdLines.join('\n');
+  }
+
+  /**
+   * 文本相似度比较：去掉非字母数字和非中文字符后全小写对比
+   */
+  private textSimilar(a: string, b: string): boolean {
+    const normalize = (s: string) =>
+      s
+        .toLowerCase()
+        .replace(/[^\w\u4e00-\u9fa5]/g, '');
+    const na = normalize(a);
+    const nb = normalize(b);
+
+    // 完全匹配
+    if (na === nb) return true;
+
+    // 一个包含另一个（移除长度限制，支持短标题）
+    if (na.length > 0 && nb.length > 0) {
+      if (na.includes(nb) || nb.includes(na)) return true;
+    }
+
+    return false;
   }
 }

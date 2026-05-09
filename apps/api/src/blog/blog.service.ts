@@ -18,7 +18,7 @@ import {
   BatchImportDto,
   BatchImportResult,
   BatchImportResultItem,
-} from './dto/batch-import.dto';
+} from '@api/blog/dto';
 import { plainToInstance } from 'class-transformer';
 import {
   CommentListResponseDto,
@@ -678,7 +678,149 @@ export class BlogService {
       }
     }
 
+    // Scan rich text content for embedded videos, backfill meta.contentVideo[]
+    this.logger.log(`updateArticle: calling scanRichTextVideos for ${articleId}`);
+    await this.scanRichTextVideos(articleId).catch((err: Error) => {
+      this.logger.warn(
+        `scanRichTextVideos failed for article ${articleId}: ${err.message}`,
+      );
+    });
+
     return updatedArticle;
+  }
+
+  /**
+   * Scan rich text contentLocalized for <video src="..."> tags and backfill
+   * meta.contentVideo[] with any missing entries. Also triggers transcoding
+   * for any new mp4 videos whose HLS output doesn't exist yet.
+   *
+   * This ensures that: (a) existing articles which were saved without articleId
+   * during upload get their videos transcoded, and (b) the frontend can look up
+   * HLS URLs via meta.contentVideo[] even if the old single meta.video was
+   * overwritten.
+   */
+  private async scanRichTextVideos(articleId: string): Promise<void> {
+    this.logger.log(`scanRichTextVideos: started for article ${articleId}`);
+
+    const article = await this.prisma.blogArticle.findUnique({
+      where: { id: articleId },
+      select: { contentLocalized: true, meta: true },
+    });
+    if (!article) {
+      this.logger.warn(`scanRichTextVideos: article ${articleId} not found`);
+      return;
+    }
+
+    const contentLocalized = article.contentLocalized as Record<
+      string,
+      string
+    > | null;
+    if (!contentLocalized) {
+      this.logger.log(
+        `scanRichTextVideos: no contentLocalized for ${articleId}, skipping`,
+      );
+      return;
+    }
+
+    this.logger.log(
+      `scanRichTextVideos: ${articleId} has locales: [${Object.keys(contentLocalized).join(', ')}]`,
+    );
+
+    // Collect <video src="..."> URLs from all locale content
+    const allHtml = Object.values(contentLocalized).filter(
+      (v): v is string => typeof v === 'string' && v.length > 0,
+    );
+
+    const videoRegex = /<video\s+[^>]*src="([^"]+)"/gi;
+    const foundKeys = new Set<string>();
+    let origin = '';
+
+    for (const html of allHtml) {
+      let match: RegExpExecArray | null;
+      while ((match = videoRegex.exec(html)) !== null) {
+        const src = match[1];
+        try {
+          const url = new URL(src);
+          if (!origin) origin = url.origin;
+          const key = url.pathname.replace(/^\//, '');
+          if (key.includes('uploads/blog/videos/')) {
+            foundKeys.add(key);
+          }
+        } catch {
+          // Not a valid URL — skip
+        }
+      }
+    }
+
+    if (foundKeys.size === 0) {
+      this.logger.log(
+        `scanRichTextVideos: no <video> tags in content for ${articleId}`,
+      );
+      return;
+    }
+
+    const existingMeta = (article.meta as Record<string, unknown>) || {};
+    const existingContentVideo = Array.isArray(existingMeta.contentVideo)
+      ? (existingMeta.contentVideo as Array<{ videoKey: string }>)
+      : [];
+    const existingVideoKeys = new Set(
+      existingContentVideo.map((e) => e.videoKey),
+    );
+
+    const newKeys = [...foundKeys].filter((k) => !existingVideoKeys.has(k));
+    if (newKeys.length === 0) {
+      this.logger.log(
+        `scanRichTextVideos: all ${foundKeys.size} video(s) already in meta.contentVideo for ${articleId}`,
+      );
+      return;
+    }
+
+    // Build HLS URL — use origin from video src, fall back to empty string
+    const hlsUrl = origin
+      ? `${origin.replace(/\/$/, '')}/uploads/blog/videos/${articleId}/hls/master.m3u8`
+      : `/uploads/blog/videos/${articleId}/hls/master.m3u8`;
+
+    const newEntries: Array<{
+      videoKey: string;
+      hlsUrl: string;
+      poster: string | null;
+    }> = newKeys.map((videoKey) => ({
+      videoKey,
+      hlsUrl,
+      poster: null,
+    }));
+
+    // Append to meta.contentVideo
+    await this.prisma.blogArticle.update({
+      where: { id: articleId },
+      data: {
+        meta: {
+          ...existingMeta,
+          contentVideo: [...existingContentVideo, ...newEntries],
+        } as unknown as Prisma.InputJsonValue,
+      },
+    });
+
+    // Trigger transcoding for each new mp4 video
+    for (const videoKey of newKeys) {
+      if (videoKey.endsWith('.mp4')) {
+        this.mediaProcessorQueue
+          .add('transcode-video', {
+            articleId,
+            videoKey,
+            mimeType: 'video/mp4',
+          })
+          .catch((err: Error) => {
+            this.logger.warn(
+              `Failed to enqueue transcode for ${videoKey}: ${err.message}`,
+            );
+          });
+      }
+    }
+
+    this.logger.log(
+      `scanRichTextVideos: added ${newEntries.length} video(s) to meta.contentVideo for article ${articleId}`,
+    );
   }
 
   /**
