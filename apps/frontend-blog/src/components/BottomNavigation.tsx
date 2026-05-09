@@ -23,14 +23,40 @@ export default function BottomNavigation() {
     const updateSafeArea = () => {
       if (typeof window !== 'undefined' && window.visualViewport) {
         const vv = window.visualViewport;
+        const layoutHeight = window.innerHeight;
+
         // window.innerHeight = layout viewport height (includes browser chrome area)
         // vv.height = visual viewport height (visible area excluding chrome)
         // vv.offsetTop = distance from top of layout viewport to visual viewport
         // The remainder is the bottom chrome area (toolbar + safe area)
-        const safeAreaBottom = window.innerHeight - (vv.height + vv.offsetTop);
+        const safeAreaBottom = layoutHeight - (vv.height + vv.offsetTop);
+
+        // KEYBOARD DETECTION (fix for blank space below bottom nav):
+        //
+        // When the virtual keyboard opens on mobile, visualViewport.height drops
+        // dramatically (e.g., from ~812px to ~400px). This makes safeAreaBottom
+        // jump to ~400px (keyboard height), incorrectly setting --safe-area-bottom
+        // to a huge value. This cascades through CSS variables:
+        //   --nav-height = 56px + 412px = 468px
+        //   --content-padding-bottom = 468px
+        //   main padding-bottom = 468px → blank space below bottom nav
+        //
+        // We detect keyboard by checking if the visual viewport is significantly
+        // smaller than the full window height. A drop >200px strongly indicates
+        // keyboard open (normal Safari toolbar toggle is ~44-60px).
+        // When keyboard is detected, we skip updating the CSS variable and keep
+        // the default env(safe-area-inset-bottom) value declared in globals.css.
+        const isKeyboardOpen = safeAreaBottom > 200;
+        if (isKeyboardOpen) {
+          return;
+        }
+
+        // Safety cap: the actual iOS Safari bottom chrome (toolbar + home indicator)
+        // should never exceed ~80px on any device. Prevents edge cases.
+        const clamped = Math.min(Math.max(safeAreaBottom, 0), 80);
         document.documentElement.style.setProperty(
           '--safe-area-bottom',
-          `${Math.max(safeAreaBottom, 0)}px`,
+          `${clamped}px`,
         );
       }
     };
