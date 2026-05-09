@@ -195,6 +195,9 @@ export const RichTextEditor = ({
             insertIndex,
             length: quill.getLength(),
           });
+
+          // Capture DOM state BEFORE insertEmbed for fallback comparison
+          const beforeHtml = quill.root.innerHTML;
           quill.insertEmbed(insertIndex, 'image', url, 'user');
 
           // After inserting, move caret to just after the embed but ensure index is valid
@@ -213,16 +216,47 @@ export const RichTextEditor = ({
           }
 
           // 修复: 插入图片后手动触发 onChange 事件
+          // Also check if insertEmbed actually changed the DOM — if not, fall back
+          // to dangerouslyPasteHTML (same safeguard as videoHandler)
           setTimeout(() => {
-            const content = quill.root.innerHTML;
-            console.debug(
-              '[RichTextEditor] imageHandler: editor content after insert',
-              { contentSnippet: content.slice(0, 200) },
-            );
-            onChangeAction(content);
+            const afterHtml = quill.root.innerHTML;
+            if (afterHtml === beforeHtml) {
+              // insertEmbed silently failed — fall back to dangerouslyPasteHTML
+              console.warn(
+                '[RichTextEditor] imageHandler: insertEmbed did not change content, falling back to dangerouslyPasteHTML',
+              );
+              const imgHtml = `<img src="${url}" class="max-w-full" />`;
+              try {
+                quill.clipboard.dangerouslyPasteHTML(insertIndex, imgHtml);
+              } catch (e) {
+                console.error(
+                  '[RichTextEditor] imageHandler: dangerouslyPasteHTML failed',
+                  e,
+                );
+              }
+              // Re-read content after fallback
+              setTimeout(() => {
+                const content = quill.root.innerHTML;
+                console.debug(
+                  '[RichTextEditor] imageHandler: editor content after fallback insert',
+                  { contentSnippet: content.slice(0, 200) },
+                );
+                onChangeAction(content);
+                setIsUploading(false);
+              }, 0);
+            } else {
+              const content = afterHtml;
+              console.debug(
+                '[RichTextEditor] imageHandler: editor content after insert',
+                { contentSnippet: content.slice(0, 200) },
+              );
+              onChangeAction(content);
+              setIsUploading(false);
+            }
           }, 0);
+        } else {
+          setIsUploading(false);
         }
-        setIsUploading(false);
       } catch (error) {
         setIsUploading(false);
         console.error('Upload failed in component:', error);

@@ -12,7 +12,7 @@ export const MainContent: React.FC<{ children: React.ReactNode }> = ({
   return (
     <main className="flex-1 overflow-auto p-4 lg:p-6 custom-scrollbar">
       <div className="space-y-6">
-        <AnimatePresence mode="wait">
+        <AnimatePresence mode="popLayout">
           <motion.div
             key={pathname}
             initial={{ opacity: 0, y: 10 }}
