@@ -85,6 +85,7 @@ Sentry.init({
     'ResizeObserver loop completed with undelivered notifications',
     'Network Error',
     'Failed to fetch',
+    'Connection closed',
     /^AbortError/,
   ],
 });

@@ -156,13 +156,14 @@ export class MediaProcessorService {
   }
 
   /**
-   * Extract a single frame from the video as a JPEG poster/thumbnail.
-   * Uses ffmpeg to grab frame at 1-second mark.
+   * Extract a single frame from the video as JPEG + WebP poster/thumbnail.
+   * Uses ffmpeg to grab frame at 1-second mark, then sharp to convert to WebP.
+   * Returns both JPEG and WebP URLs for browser-based format selection.
    */
   async extractVideoThumbnail(
     buffer: Buffer,
     articleId: string,
-  ): Promise<string> {
+  ): Promise<{ jpg: string; webp: string }> {
     const fs = await import('fs/promises');
     const path = await import('path');
     const os = await import('os');
@@ -178,22 +179,47 @@ export class MediaProcessorService {
       await fs.writeFile(inputPath, buffer);
 
       // Extract frame at 1 second, scale to 1280px width
+      // -q:v 8 balances quality (~80% visual) with file size (~150-300KB vs 300-600KB at -q:v 3)
       // -update 1 tells image2 muxer to overwrite single file (suppresses sequence pattern warning)
       execSync(
-        `ffmpeg -i "${inputPath}" -ss 00:00:01 -vframes 1 -vf "scale=1280:-1" -q:v 3 -update 1 "${outputPath}"`,
+        `ffmpeg -i "${inputPath}" -ss 00:00:01 -vframes 1 -vf "scale=1280:-1" -q:v 8 -update 1 "${outputPath}"`,
         { encoding: 'utf-8', timeout: 30000 },
       );
 
       const posterBuffer = await fs.readFile(outputPath);
-      const key = `uploads/blog/videos/${articleId}/poster.jpg`;
+      const jpgKey = `uploads/blog/videos/${articleId}/poster.jpg`;
+      const webpKey = `uploads/blog/videos/${articleId}/poster.webp`;
 
+      // Upload JPEG poster
       await this.uploadService.uploadToPublicBucket(
-        key,
+        jpgKey,
         posterBuffer,
         'image/jpeg',
       );
 
-      return `${this.getPublicDomain()}/${key}`;
+      // Also generate and upload WebP variant for ~30-50% smaller file size
+      // WebP provides equivalent visual quality at lower file size, improving LCP
+      try {
+        const webpBuffer = await sharp(posterBuffer)
+          .webp({ quality: 80 })
+          .toBuffer();
+        await this.uploadService.uploadToPublicBucket(
+          webpKey,
+          webpBuffer,
+          'image/webp',
+        );
+      } catch (webpError) {
+        this.logger.warn(
+          `Failed to generate WebP poster for article ${articleId}: ${webpError}`,
+        );
+        // Non-fatal — continue with JPEG only
+      }
+
+      const baseUrl = `${this.getPublicDomain()}/uploads/blog/videos/${articleId}`;
+      return {
+        jpg: `${baseUrl}/poster.jpg`,
+        webp: `${baseUrl}/poster.webp`,
+      };
     } finally {
       await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
     }

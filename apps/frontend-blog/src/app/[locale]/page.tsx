@@ -1,5 +1,6 @@
 import { serverGet } from '@/lib/serverFetch';
 import { getEnabledLocales } from '@/lib/i18n/config';
+import cloudflareImageLoader from '@/lib/utils/cloudflareImageLoader';
 import HomePageClient from './page.client.tsx';
 import type { FrontendArticle } from '@/lib/types/frontend-blog';
 import type { FrontendCategory } from '@/lib/types/frontend-blog';
@@ -64,20 +65,47 @@ export default async function HomePage({
     const articleIds =
       initialData.items?.map((article: FrontendArticle) => article.id) || [];
 
-    // P1-1: LCP preload — extract first cover image for early hint
+    // P1-1: LCP preload — extract first cover image + video poster (JPEG + WebP) for early hint
     const firstCoverImage = initialData.items?.[0]?.coverImage;
+    const firstVideoPoster = initialData.items?.[0]?.meta?.video?.poster;
+    const firstVideoPosterWebp =
+      initialData.items?.[0]?.meta?.video?.posterWebp;
+
+    // Transform cover image URL through cloudflareImageLoader so the preload URL
+    // matches what Next.js <Image> will request via /cdn-cgi/image/... (Cloudflare Image Resizing).
+    // Without this, the preload URL (raw R2) ≠ rendered URL (Cloudflare-transformed) → preload miss.
+    // The hero image uses sizes="(max-width: 1024px) 100vw, 66vw", so at 1440px viewport
+    // it renders ~950px wide. Preload at 1200px to cover desktop LCP scenarios.
+    const preloadedCoverImage = firstCoverImage
+      ? cloudflareImageLoader({
+          src: firstCoverImage,
+          width: 1200,
+          quality: 75,
+        })
+      : undefined;
+
+    // Collect unique image URLs to preload (cover + video poster, deduplicated)
+    // Prefer WebP variant for video poster (~30-50% smaller file size)
+    const preloadImages = new Set<string>();
+    if (preloadedCoverImage) preloadImages.add(preloadedCoverImage);
+    if (firstVideoPosterWebp) {
+      preloadImages.add(firstVideoPosterWebp);
+    } else if (firstVideoPoster) {
+      preloadImages.add(firstVideoPoster);
+    }
 
     return (
       <>
-        {/* P1-1: Inject LCP image preload link into <head> via SSR */}
-        {firstCoverImage && (
+        {/* P1-1: Inject LCP image preload links into <head> via SSR */}
+        {[...preloadImages].map((imgUrl) => (
           <link
+            key={imgUrl}
             rel="preload"
             as="image"
-            href={firstCoverImage}
+            href={imgUrl}
             fetchPriority="high"
           />
-        )}
+        ))}
         <HomePageClient
           initialData={initialData}
           initialArticleIds={articleIds}

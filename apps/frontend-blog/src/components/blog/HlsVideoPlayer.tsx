@@ -6,6 +6,7 @@ import Hls from 'hls.js';
 interface HlsVideoPlayerProps {
   hlsUrl: string;
   poster?: string;
+  posterWebp?: string;
   className?: string;
   autoPlay?: boolean;
   muted?: boolean;
@@ -25,6 +26,7 @@ interface HlsVideoPlayerProps {
 export function HlsVideoPlayer({
   hlsUrl,
   poster,
+  posterWebp,
   className = '',
   autoPlay = false,
   muted = true,
@@ -37,6 +39,9 @@ export function HlsVideoPlayer({
   const [userClicked, setUserClicked] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const hlsRef = useRef<Hls | null>(null);
+
+  // Prefer WebP poster for LCP optimization (~30-50% smaller file size)
+  const effectivePoster = posterWebp || poster;
 
   // Track mount state to prevent SSR/client hydration mismatch.
   // The play overlay (showPlayOverlay) is only rendered AFTER hydration
@@ -123,6 +128,16 @@ export function HlsVideoPlayer({
     [hlsUrl, autoPlay],
   );
 
+  // ─── Set fetchpriority="high" on video element for LCP poster optimization ───
+  // This hints the browser to prioritize poster image loading over other fetches.
+  // Chromium respects this attribute on <video> elements for poster loading.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (effectivePoster && video) {
+      video.setAttribute('fetchpriority', 'high');
+    }
+  }, [effectivePoster]);
+
   // ─── Normal mode: auto-load on mount ───
   useEffect(() => {
     if (clickToPlay) return;
@@ -190,9 +205,9 @@ export function HlsVideoPlayer({
     <div
       className={`relative group overflow-hidden bg-black rounded-lg ${className}`}
       style={
-        showPlayOverlay && poster
+        showPlayOverlay && effectivePoster
           ? {
-              backgroundImage: `url(${poster})`,
+              backgroundImage: `url(${effectivePoster})`,
               backgroundSize: 'cover',
               backgroundPosition: 'center',
             }
@@ -203,7 +218,7 @@ export function HlsVideoPlayer({
       {showPlayOverlay && (
         <div
           className={`absolute inset-0 z-10 transition-opacity duration-300 ${
-            poster
+            effectivePoster
               ? 'bg-black/30'
               : 'bg-gradient-to-br from-slate-800 to-slate-900'
           }`}
@@ -239,7 +254,7 @@ export function HlsVideoPlayer({
         <video
           ref={videoRef}
           className="w-full h-full object-contain"
-          poster={poster}
+          poster={effectivePoster}
           controls
           playsInline
           muted={muted}
