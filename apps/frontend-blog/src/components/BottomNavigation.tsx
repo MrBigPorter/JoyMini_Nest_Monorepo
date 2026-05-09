@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { usePathname } from '@/navigation';
 import { getIsActive } from '@/lib/utils/navigation';
@@ -13,6 +13,20 @@ export default function BottomNavigation() {
   const pathname = usePathname();
   const [activeStates, setActiveStates] = useState<Record<string, boolean>>({});
   const [isClient, setIsClient] = useState(false);
+  const wasKeyboardOpen = useRef(false);
+  const scrollYBeforeKeyboard = useRef(0);
+
+  // Save scroll position when any input/textarea gets focus (before keyboard opens)
+  useEffect(() => {
+    const handleFocusIn = (e: FocusEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+        scrollYBeforeKeyboard.current = window.scrollY;
+      }
+    };
+    document.addEventListener('focusin', handleFocusIn);
+    return () => document.removeEventListener('focusin', handleFocusIn);
+  }, []);
 
   // iOS Safari: dynamically calculate safe-area-bottom using visualViewport API.
   // env(safe-area-inset-bottom) is static and does NOT update when iOS Safari
@@ -48,7 +62,20 @@ export default function BottomNavigation() {
         // the default env(safe-area-inset-bottom) value declared in globals.css.
         const isKeyboardOpen = safeAreaBottom > 200;
         if (isKeyboardOpen) {
-          return;
+          wasKeyboardOpen.current = true;
+          return; // Don't update CSS variable when keyboard is open
+        }
+
+        // Keyboard just closed — restore scroll position so the page goes back
+        // to where the user was before the input was focused.
+        if (wasKeyboardOpen.current) {
+          wasKeyboardOpen.current = false;
+          requestAnimationFrame(() => {
+            window.scrollTo({
+              top: scrollYBeforeKeyboard.current,
+              behavior: 'smooth',
+            });
+          });
         }
 
         // Safety cap: the actual iOS Safari bottom chrome (toolbar + home indicator)
