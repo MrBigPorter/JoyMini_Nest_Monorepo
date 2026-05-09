@@ -1,7 +1,7 @@
 # Admin Next 技术全景文档
 
 > 适用场景：技术分享 / 答题 / 项目描述 / 团队 Onboarding  
-> 范围：`apps/admin-next`（Lucky Nest Monorepo）  
+> 范围：`apps/admin-next`（JoyMini Nest Monorepo）  
 > 更新时间：2026-03-24
 
 ---

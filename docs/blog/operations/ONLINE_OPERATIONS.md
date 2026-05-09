@@ -1,6 +1,6 @@
 # Online Operations Runbook
 
-> **Purpose**: Centralized reference for operating the Lucky Nest Monorepo in production.
+> **Purpose**: Centralized reference for operating the JoyMini Nest Monorepo in production.
 > **Audience**: Developers who need to deploy code, run seeds, or diagnose issues on the production server.
 
 ---

@@ -1,5 +1,5 @@
 # ==========================================
-# Lucky Nest Monorepo — 开发环境命令
+# JoyMini Nest Monorepo — 开发环境命令
 # ==========================================
 # 使用: make <target>
 # 例如: make setup   make up   make down

@@ -1,4 +1,4 @@
-# 📚 文档导航 — Lucky Nest Monorepo
+# 📚 文档导航 — JoyMini Nest Monorepo
 
 > **32 个文档，6 大分类 + 1 个归档区。先看「必读」，再按需查。**  
 > 最后更新：2026-03-24

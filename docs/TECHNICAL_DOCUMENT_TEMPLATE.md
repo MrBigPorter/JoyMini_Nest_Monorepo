@@ -1,6 +1,6 @@
 # 技术文档标准模板 v1.0
 
-> Lucky Nest Monorepo 统一技术文档规范
+> JoyMini Nest Monorepo 统一技术文档规范
 
 ---
 

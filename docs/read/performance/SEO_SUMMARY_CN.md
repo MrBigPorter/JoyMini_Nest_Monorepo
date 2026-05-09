@@ -1,4 +1,4 @@
-# Lucky Nest Monorepo — SEO 学习总结（营销站视角）
+# JoyMini Nest Monorepo — SEO 学习总结（营销站视角）
 
 > 文档时间：2026-03-18  
 > 适用范围：`apps/admin-next` 相关 SEO 技术  

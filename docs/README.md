@@ -1,4 +1,4 @@
-# 📚 文档导航 — Lucky Nest Monorepo
+# 📚 文档导航 — JoyMini Nest Monorepo
 
 > **基于Flutter文档模式优化的统一文档体系**  
 > 最后更新：2026-03-26

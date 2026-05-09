@@ -1,4 +1,4 @@
-# @lucky/api — NestJS Enterprise Backend API
+# JoyMIni Api— NestJS Enterprise Backend API
 
 [![NestJS](https://img.shields.io/badge/NestJS-11-E0234E?logo=nestjs)](apps/api/package.json)
 [![Prisma](https://img.shields.io/badge/Prisma-6-2D3748?logo=prisma)](apps/api/prisma/schema.prisma)
@@ -7,13 +7,13 @@
 [![Jest](https://img.shields.io/badge/Jest-29-C21325?logo=jest)](apps/api/jest.config.js)
 [![Swagger](https://img.shields.io/badge/Swagger-OpenAPI-85EA2D?logo=swagger)](apps/api/src/main.ts)
 
-> A production-grade REST API built with NestJS 11, Prisma 6, and PostgreSQL 16. Part of the [Lucky Nest Monorepo](../README.md).
+> A production-grade REST API built with NestJS 11, Prisma 6, and PostgreSQL 16. Part of the [JoyMini Nest Monorepo](../README.md).
 
 ---
 
 ## ✨ Overview
 
-`@lucky/api` is the backend API powering the Lucky Nest platform. It provides RESTful endpoints for user management, authentication (JWT + OAuth 2.0), financial transactions, KYC verification, real-time messaging, e-commerce operations, and content management.
+`JoyMIni Api` is the backend API powering the Lucky Nest platform. It provides RESTful endpoints for user management, authentication (JWT + OAuth 2.0), financial transactions, KYC verification, real-time messaging, e-commerce operations, and content management.
 
 The API follows NestJS modular architecture with dependency injection, guards-based authorization (RBAC), DTO validation, Swagger documentation, and Prisma-based data access with full migration management.
 
@@ -234,4 +234,4 @@ The documentation includes request/response schemas, authentication requirements
 
 ## 📄 License
 
-Part of the Lucky Nest Monorepo. See the [root license](../README.md) for details.
+Part of the JoyMini Nest Monorepo. See the [root license](../README.md) for details.

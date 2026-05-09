@@ -5,7 +5,7 @@
 [![Vite](https://img.shields.io/badge/Vite-5-646CFF?logo=vite)
 [![AWS Amplify](https://img.shields.io/badge/AWS_Amplify-6-FF9900?logo=awsamplify)
 
-> Face liveness verification web application built with AWS Rekognition and Amplify. Part of the [Lucky Nest Monorepo](../README.md).
+> Face liveness verification web application built with AWS Rekognition and Amplify. Part of the [JoyMini Nest Monorepo](../README.md).
 
 ---
 
@@ -77,4 +77,4 @@ yarn workspace @lucky/liveness-web build
 
 ## 📄 License
 
-Part of the Lucky Nest Monorepo. See the [root license](../README.md) for details.
+Part of the JoyMini Nest Monorepo. See the [root license](../README.md) for details.

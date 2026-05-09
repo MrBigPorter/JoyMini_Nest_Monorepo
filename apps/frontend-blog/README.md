@@ -1,4 +1,4 @@
-# Lucky Blog — Multi-Platform Blog Platform
+# Tarsier Blog — Multi-Platform Blog Platform
 
 [![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)](apps/frontend-blog/package.json)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](apps/frontend-blog/package.json)
@@ -8,13 +8,13 @@
 [![PWA](https://img.shields.io/badge/PWA-Enabled-5A0FC8?logo=pwa)](apps/frontend-blog/src/app/layout.tsx)
 [![IndexedDB](https://img.shields.io/badge/IndexedDB-Dexie.js-2C2255?logo=indexeddb)](apps/frontend-blog/src/lib/db/db.ts)
 
-> A high-performance, multi-platform blog application built with Next.js 15, supporting Web, iOS, and Android via Capacitor 6. Part of the [Lucky Nest Monorepo](../README.md).
+> A high-performance, multi-platform blog application built with Next.js 15, supporting Web, iOS, and Android via Capacitor 6. Part of the [JoyMini Nest Monorepo](../README.md).
 
 ---
 
 ## ✨ Overview
 
-Lucky Blog is a modern blog platform that delivers content across **Web**, **iOS**, and **Android** from a single codebase. It uses a **Unified Platform Adapter Architecture** to detect the runtime environment and adapt behavior accordingly — providing native app experiences via Capacitor while maintaining full PWA capabilities on the web.
+Tarsier Blog is a modern blog platform that delivers content across **Web**, **iOS**, and **Android** from a single codebase. It uses a **Unified Platform Adapter Architecture** to detect the runtime environment and adapt behavior accordingly — providing native app experiences via Capacitor while maintaining full PWA capabilities on the web.
 
 The blog features a **Local-First offline architecture** powered by Dexie.js (IndexedDB), ensuring content is instantly available even without a network connection. Combined with Service Worker caching and Cloudflare edge ISR, the blog achieves sub-200ms TTFB globally and seamless offline reading.
 
@@ -429,4 +429,4 @@ See [BLOG_CACHING_ARCHITECTURE.md](../docs/blog/caching/BLOG_CACHING_ARCHITECTUR
 
 ## 📄 License
 
-Part of the Lucky Nest Monorepo. See the [root license](../README.md) for details.
+Part of the JoyMini Nest Monorepo. See the [root license](../README.md) for details.

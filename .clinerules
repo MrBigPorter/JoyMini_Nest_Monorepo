@@ -1,4 +1,4 @@
-# Lucky Nest Monorepo - Project Conventions
+# JoyMini Nest Monorepo - Project Conventions
 
 Full-stack monorepo: Next.js (frontend/admin) + NestJS (API) + Prisma (PostgreSQL).
 

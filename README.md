@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🏗️ Lucky Nest Monorepo
+# 🏗️ JoyMini Backend Platform Nest Monorepo
 
 **Production-grade full-stack e-commerce platform** — Admin dashboard, public blog with mobile app, real-time chat, AI-powered features, and more.
 
@@ -41,7 +41,7 @@
 
 ## ✨ Overview
 
-Lucky Nest is a **production-grade e-commerce platform** built as a monorepo. It serves as both an operational admin system and a public-facing content platform with native mobile support.
+JoyMini Nest is a **production-grade e-commerce platform** built as a monorepo. It serves as both an operational admin system and a public-facing content platform with native mobile support.
 
 **Live URLs:** [`admin.joyminis.com`](https://admin.joyminis.com) Admin Dashboard · [`app.joyminis.com`](https://app.joyminis.com) Main App OAuth & Mobile Entry · [`blog.joyminis.com`](https://blog.joyminis.com) Public Blog
 
