@@ -412,8 +412,11 @@ export default function ArticleMarkdown({
                 );
               }
               if (isValidElement(child)) {
+                // Cast to any to work around React 19 types where
+                // isValidElement narrows props to {} (unknown)
+                const el = child as any;
                 // Check if React element is a block-level component
-                const type = child.type as any;
+                const type = el.type as any;
                 if (typeof type === 'string') {
                   return [
                     'div',
@@ -430,11 +433,11 @@ export default function ArticleMarkdown({
                 // Check if it's our HlsVideoPlayer or wrapped component
                 if (type?.name === 'HlsVideoPlayer') return true;
                 // Check className for our wrapper
-                if (child.props?.className?.includes('article-media-wrapper'))
+                if (el.props?.className?.includes('article-media-wrapper'))
                   return true;
                 // Check if child has a node prop (from rehypeRaw) with a block-level tagName
-                if (child.props?.node?.tagName) {
-                  const tagName = child.props.node.tagName.toLowerCase();
+                if (el.props?.node?.tagName) {
+                  const tagName = el.props.node.tagName.toLowerCase();
                   return [
                     'div',
                     'video',
