@@ -479,7 +479,7 @@ export class MediaProcessorService {
     }
   }
 
-  private getPublicDomain(): string {
+  public getPublicDomain(): string {
     // This should match the public domain from UploadService
     // We access it via the upload service's internal config
     return process.env.CF_R2_PUBLIC_DOMAIN || '';

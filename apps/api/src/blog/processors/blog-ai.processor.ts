@@ -419,6 +419,13 @@ Code blocks are enclosed in triple backticks (\`\`\`language ... \`\`\`).
 - Code blocks often contain Dart, TypeScript, JavaScript, or other programming languages where comments may be in Chinese - leave them as-is inside the code block.
 - Example: If a code block contains "// 主色阶梯", keep it exactly as "// 主色阶梯" inside the code block.
 
+CRITICAL: HTML VIDEO TAGS MUST BE PRESERVED VERBATIM.
+Video content is enclosed in HTML tags like <video src="..."> or <figure class="media"><video ...>...</video></figure>.
+- Do NOT modify, translate, or remove any HTML video-related tags or attributes.
+- Preserve the entire <video> element including all attributes (src, controls, class, poster, etc.).
+- Also preserve any <source> tags and <figure> wrappers around videos.
+- Video URLs (src attribute values) must remain exactly as-is.
+
 CRITICAL: ASCII / UNICODE DIAGRAMS MUST BE PRESERVED.
 Diagrams use box-drawing characters (┌, ─, ┐, │, └, ┘, ├, ┤, ┬, ┴, ┼, →, ▼).
 - Preserve the diagram layout and box-drawing characters exactly.
@@ -442,7 +449,7 @@ Do NOT leave any source language text in ---TITLE--- or ---EXCERPT--- or ---CONT
 
 1. Keep all technical terms in English (NestJS, React, etc.)
 2. Maintain the original Markdown formatting
-3. Preserve all code blocks verbatim
+3. Preserve all code blocks and HTML video tags verbatim
 4. Preserve all ASCII diagram structure
 5. Return the translation using the following delimiter format (do NOT use JSON):
 
@@ -1259,35 +1266,39 @@ IMPORTANT: Return ONLY the three sections above with the exact delimiters. Do NO
         ...(!retryTitleFailed ? { [data.targetLang]: titleTranslated } : {}),
       };
 
-      updateData.contentMdLocalized = {
-        ...((article.contentMdLocalized as any) || {}),
-        [sourceLang]:
-          sourceContent || article.contentMd || article.content || '', // 多重回退
-        [data.targetLang]: contentTranslated,
-      };
-      // 从原始内容中提取视频标签，用于追加到翻译后的内容中
-      // AI 翻译只处理文本，视频嵌入标签会丢失
-      const originalHtml = sourceContent || article.content || '';
+      // 从 HTML 版内容中提取视频标签（contentMd 是纯 Markdown 不含视频，必须从 HTML 源提取）
+      // AI 翻译只处理文本，视频嵌入标签翻译后会丢失，需要手动追加回去
+      // 关键修复：始终从 article.content（原始Quill HTML）提取视频，确保不丢失
+      const originalHtml = article.content || '';
       const videoTagRegex =
         /<figure[^>]*>[\s\S]*?<video[\s\S]*?<\/video>[\s\S]*?<\/figure>|<video[\s\S]*?<\/video>/gi;
       const preservedVideoTags = (originalHtml.match(videoTagRegex) || []).join(
-        '\n',
+        '\n\n',
       );
 
+      // 中文源语言内容：sourceContent（Markdown文本） + preservedVideoTags（从原始HTML提取）
+      const sourceContentWithVideos = preservedVideoTags
+        ? sourceContent + '\n\n' + preservedVideoTags
+        : sourceContent;
+
+      updateData.contentMdLocalized = {
+        ...((article.contentMdLocalized as any) || {}),
+        // 中文源语言：Markdown + 视频（确保中文版也有视频，修复旧数据缺失问题）
+        [sourceLang]: sourceContentWithVideos || article.contentMd || article.content || '',
+        // 目标语言：翻译后的文本 + 视频（同样追加到末尾）
+        [data.targetLang]: preservedVideoTags
+          ? contentTranslated + '\n\n' + preservedVideoTags
+          : contentTranslated,
+      };
+
       // 自动渲染对应语言HTML
-      // 注意：sourceContent 优先从 contentLocalized / contentMdLocalized 提取
-      //       这确保了已保存的富文本内容（如视频）不会被旧 article.content 覆盖
       updateData.contentLocalized = {
         ...((article.contentLocalized as any) || {}),
-        [sourceLang]:
-          sourceLang === 'zh'
-            ? ((article.contentLocalized as any)?.[sourceLang] as string) ||
-              sourceContent ||
-              article.content // 优先保留已有 HTML 内容（含视频），再回退到旧字段
-            : this.renderMarkdown(sourceContent || article.content || ''), // 保留原始语言
+        // 中文源语言：优先使用原始 article.content（包含视频的Quill HTML），确保不丢失
+        [sourceLang]: article.content || this.renderMarkdown(sourceContentWithVideos),
+        // 目标语言：Markdown → HTML + 视频
         [data.targetLang]: (() => {
           const translatedHtml = this.renderMarkdown(contentTranslated);
-          // 如果原始内容有视频标签，追加到翻译后的 HTML 末尾
           return preservedVideoTags
             ? translatedHtml + '\n' + preservedVideoTags
             : translatedHtml;

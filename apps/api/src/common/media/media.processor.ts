@@ -4,6 +4,7 @@ import { Logger } from '@nestjs/common';
 import { MediaProcessorService } from './media-processor.service';
 import { UploadService } from '@api/common/upload/upload.service';
 import { PrismaService } from '@api/common/prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 import { MEDIA_PROCESSOR_QUEUE } from './media-processor.constants';
 
 /** Max image file size to process (50MB) - larger files are skipped */
@@ -21,6 +22,17 @@ interface TranscodeVideoJobData {
   articleId: string;
   videoKey: string;
   mimeType: string;
+}
+
+/**
+ * Entry stored in meta.contentVideo[] for each transcoded video.
+ * Allows the frontend to map a <video src="xxx.mp4"> in rich-text content
+ * to its corresponding HLS m3u8 URL by matching videoKey.
+ */
+interface ContentVideoEntry {
+  videoKey: string;
+  hlsUrl: string;
+  poster: string | null;
 }
 
 @Processor(MEDIA_PROCESSOR_QUEUE, {
@@ -207,7 +219,15 @@ export class MediaProcessor extends WorkerHost {
         select: { meta: true },
       });
 
-      const existingMeta = (article?.meta as Record<string, any>) || {};
+      const existingMeta = (article?.meta as Record<string, unknown>) || {};
+      const existingContentVideo = Array.isArray(existingMeta.contentVideo)
+        ? (existingMeta.contentVideo as ContentVideoEntry[])
+        : [];
+      const newEntry: ContentVideoEntry = {
+        videoKey,
+        hlsUrl: videoVariants.hlsUrl,
+        poster: posterUrl ?? null,
+      };
       await this.prisma.blogArticle.update({
         where: { id: articleId },
         data: {
@@ -218,9 +238,69 @@ export class MediaProcessor extends WorkerHost {
               poster: posterUrl,
               status: 'completed',
             },
-          } as any,
+            contentVideo: [...existingContentVideo, newEntry],
+          } as unknown as Prisma.InputJsonValue,
         },
       });
+
+      // Also replace the original video URL in article content with the transcoded HLS URL
+      try {
+        const publicDomain = this.mediaProcessorService.getPublicDomain();
+        const originalUrl = `${publicDomain}/${videoKey}`;
+        const hlsUrl = videoVariants.hlsUrl;
+
+        if (originalUrl !== hlsUrl) {
+          const articleContent = await this.prisma.blogArticle.findUnique({
+            where: { id: articleId },
+            select: { content: true, contentLocalized: true },
+          });
+
+          let needsUpdate = false;
+          const updatedData: Record<string, any> = {};
+
+          // Replace in main content (HTML string)
+          if (articleContent?.content?.includes(originalUrl)) {
+            updatedData.content = articleContent.content.split(originalUrl).join(hlsUrl);
+            needsUpdate = true;
+          }
+
+          // Replace in contentLocalized (per-locale overrides)
+          if (articleContent?.contentLocalized) {
+            const localized = articleContent.contentLocalized as Record<string, string>;
+            const updatedLocalized: Record<string, string> = {};
+            let localizedChanged = false;
+
+            for (const [locale, text] of Object.entries(localized)) {
+              if (text.includes(originalUrl)) {
+                updatedLocalized[locale] = text.split(originalUrl).join(hlsUrl);
+                localizedChanged = true;
+              } else {
+                updatedLocalized[locale] = text;
+              }
+            }
+
+            if (localizedChanged) {
+              updatedData.contentLocalized = updatedLocalized as any;
+              needsUpdate = true;
+            }
+          }
+
+          if (needsUpdate) {
+            await this.prisma.blogArticle.update({
+              where: { id: articleId },
+              data: updatedData as any,
+            });
+            this.logger.log(
+              `Replaced original video URL with HLS URL in article ${articleId} content`,
+            );
+          }
+        }
+      } catch (contentError) {
+        // Non-fatal — don't fail the transcoding job for content replacement errors
+        this.logger.warn(
+          `Failed to update article content with HLS URL: ${contentError}`,
+        );
+      }
 
       this.logger.log(`Video transcoding completed for article ${articleId}`);
     } catch (error) {

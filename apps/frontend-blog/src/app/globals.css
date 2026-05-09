@@ -257,7 +257,8 @@ input:-webkit-autofill:active {
 .article-media-wrapper > img,
 .article-media-wrapper > svg,
 .article-media-wrapper > table,
-.article-media-wrapper > pre {
+.article-media-wrapper > pre,
+.article-media-wrapper > video {
   max-width: none;
   height: auto;
   display: block;
@@ -269,3 +270,29 @@ input:-webkit-autofill:active {
   margin: 0;
   border-radius: inherit;
 }
+
+/* Video responsive styles: full width, rounded corners matching prose images */
+.article-media-wrapper > video {
+  width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+}
+
+/* Quill editor video styles */
+.ql-video,
+video.ql-video {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 0.5rem;
+  margin: 1rem 0;
+  background-color: #000;
+}
+
+/* Ensure videos in dark mode have proper background */
+.dark .ql-video,
+.dark video.ql-video {
+  background-color: #000;
+}
+

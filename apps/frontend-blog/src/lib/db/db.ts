@@ -28,6 +28,7 @@ export interface ArticleContentRecord {
   slug: string;
   content?: string;
   contentMd?: string;
+  meta?: unknown;
   updatedAt: string;
   locale: string;
 }

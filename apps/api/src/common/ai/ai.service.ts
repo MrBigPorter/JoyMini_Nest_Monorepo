@@ -797,6 +797,7 @@ Requirements:
 3. Keep technical terms and proper nouns unchanged
 4. Maintain original structure and formatting
 5. Return only the translated Markdown
+6. Preserve HTML video tags (<video>, <source>, <figure>) verbatim - do NOT modify, translate, or remove them
 
 Document:
 ${markdown}

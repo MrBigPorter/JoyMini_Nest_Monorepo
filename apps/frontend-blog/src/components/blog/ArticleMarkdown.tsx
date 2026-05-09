@@ -1,10 +1,15 @@
 'use client';
 
+import { useEffect, useRef, isValidElement, Children } from 'react';
+import { ArticleMeta } from '@/lib/types/frontend-blog';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
+import Hls from 'hls.js';
 import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { HlsVideoPlayer } from './HlsVideoPlayer';
+import { NativeVideoPlayer } from './NativeVideoPlayer';
 
 // Register languages on demand — only what blog articles typically use
 import typescript from 'react-syntax-highlighter/dist/esm/languages/prism/typescript';
@@ -55,6 +60,7 @@ SyntaxHighlighter.registerLanguage('gql', graphql);
 
 interface ArticleMarkdownProps {
   content: string;
+  meta?: ArticleMeta;
 }
 
 /**
@@ -104,6 +110,14 @@ function wrapWideContent(html: string): string {
     (match) => `<div class="article-media-wrapper">${match}</div>`,
   );
 
+  // Wrap <video> elements — Quill embeds <video> with optional nested <source>.
+  // Must wrap the entire <video>...</video> block for proper responsive layout.
+  // This also ensures videos appended by the backend video-preservation logic are styled correctly.
+  result = result.replace(
+    /(<video[^>]*>[\s\S]*?<\/video>)/gi,
+    (match) => `<div class="article-media-wrapper">${match}</div>`,
+  );
+
   // Wrap <svg> blocks (inline diagrams)
   result = result.replace(
     /(<svg[^>]*>[\s\S]*?<\/svg>)/gi,
@@ -113,11 +127,212 @@ function wrapWideContent(html: string): string {
   return result;
 }
 
-export default function ArticleMarkdown({ content }: ArticleMarkdownProps) {
+export default function ArticleMarkdown({
+  content,
+  meta,
+}: ArticleMarkdownProps) {
+  const articleRef = useRef<HTMLElement>(null);
+
+  // For HTML content path: implement click-to-play with poster overlay.
+  // Videos are NOT loaded on mount — only when user clicks the play button.
+  // HLS is initialized lazily on first click per video.
+  // Multi-video coordination: only one video plays at a time.
+  useEffect(() => {
+    if (!isHtmlContent(content)) return;
+    if (!articleRef.current) return;
+
+    const container = articleRef.current;
+    const hlsInstances: Hls[] = [];
+    const overlayMap = new Map<HTMLVideoElement, HTMLDivElement>();
+
+    container.querySelectorAll<HTMLVideoElement>('video').forEach((video) => {
+      // Determine HLS URL
+      let hlsUrl = video.getAttribute('src') || '';
+      if (!hlsUrl.includes('.m3u8')) {
+        const source = video.querySelector<HTMLSourceElement>(
+          'source[src*=".m3u8"]',
+        );
+        hlsUrl = source?.getAttribute('src') || '';
+      }
+
+      // If still not m3u8, look up in meta.contentVideo by matching videoKey
+      if (!hlsUrl.includes('.m3u8') && meta?.contentVideo) {
+        const srcAttr = video.getAttribute('src') || '';
+        const matched = meta.contentVideo.find((entry) =>
+          srcAttr.includes(entry.videoKey),
+        );
+
+        if (matched?.hlsUrl) {
+          hlsUrl = matched.hlsUrl;
+          // Also set poster from contentVideo entry if available
+          if (matched?.poster) {
+            video.setAttribute('poster', matched.poster);
+          }
+        }
+      }
+
+      // Get poster (from attribute or closest image sibling)
+      const poster = video.getAttribute('poster') || '';
+
+      // Set preload=none so browser doesn't fetch the video on mount
+      video.setAttribute('preload', 'none');
+      // Give the video an intrinsic aspect-ratio so the container has height
+      // even when preload="none" and no dimensions are known yet.
+      video.style.aspectRatio = '16/9';
+      video.style.width = '100%';
+      video.dataset.hlsUrl = hlsUrl || video.getAttribute('src') || '';
+
+      // Ensure the video's parent is position:relative for overlay
+      const parent = video.parentElement;
+      if (parent && getComputedStyle(parent).position === 'static') {
+        parent.style.position = 'relative';
+      }
+
+      // ── Build overlay ──────────────────────────────────────────────────
+      const overlay = document.createElement('div');
+      overlay.style.cssText = `
+        position:absolute; inset:0; z-index:10;
+        display:flex; align-items:center; justify-content:center;
+        cursor:pointer; border-radius:0.5rem; overflow:hidden;
+      `;
+
+      // Poster background or dark gradient
+      if (poster) {
+        overlay.style.backgroundImage = `url(${poster})`;
+        overlay.style.backgroundSize = 'cover';
+        overlay.style.backgroundPosition = 'center';
+      } else {
+        overlay.style.background =
+          'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)';
+      }
+
+      // Semi-transparent dark tint
+      const tint = document.createElement('div');
+      tint.style.cssText = `
+        position:absolute; inset:0;
+        background:${poster ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.15)'};
+      `;
+
+      // Play button circle
+      const btn = document.createElement('div');
+      btn.style.cssText = `
+        position:relative; z-index:1;
+        width:64px; height:64px; border-radius:50%;
+        background:rgba(255,255,255,0.2);
+        backdrop-filter:blur(6px);
+        display:flex; align-items:center; justify-content:center;
+        box-shadow:0 4px 20px rgba(0,0,0,0.4);
+        transition:transform 0.2s, background 0.2s;
+      `;
+      btn.innerHTML = `<svg width="32" height="32" fill="white" viewBox="0 0 24 24" style="margin-left:4px"><path d="M8 5v14l11-7z"/></svg>`;
+      btn.onmouseenter = () => {
+        btn.style.transform = 'scale(1.1)';
+        btn.style.background = 'rgba(255,255,255,0.35)';
+      };
+      btn.onmouseleave = () => {
+        btn.style.transform = 'scale(1)';
+        btn.style.background = 'rgba(255,255,255,0.2)';
+      };
+
+      overlay.appendChild(tint);
+      overlay.appendChild(btn);
+
+      // Insert overlay right after the video
+      video.insertAdjacentElement('afterend', overlay);
+      overlayMap.set(video, overlay);
+
+      // ── Click handler ──────────────────────────────────────────────────
+      let initialized = false;
+      const initAndPlay = () => {
+        if (initialized) return;
+        initialized = true;
+
+        // Remove overlay
+        overlay.remove();
+        overlayMap.delete(video);
+
+        // Notify other videos to pause
+        window.dispatchEvent(
+          new CustomEvent('hls-video-play', {
+            detail: { hlsUrl: video.dataset.hlsUrl },
+          }),
+        );
+
+        const isHls = hlsUrl && hlsUrl.includes('.m3u8');
+
+        if (isHls) {
+          // Remove native src before attaching hls.js
+          video.removeAttribute('src');
+
+          if (Hls.isSupported()) {
+            const hls = new Hls({
+              enableWorker: true,
+              lowLatencyMode: true,
+              backBufferLength: 30,
+            });
+            hls.loadSource(hlsUrl);
+            hls.attachMedia(video);
+            hls.on(Hls.Events.MANIFEST_PARSED, () => {
+              video.play().catch(() => {});
+            });
+            hlsInstances.push(hls);
+          } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+            video.src = hlsUrl;
+            video.play().catch(() => {});
+          }
+        } else {
+          // Regular mp4 — restore src and play natively
+          const nativeSrc =
+            video.dataset.hlsUrl ||
+            video.querySelector('source')?.getAttribute('src') ||
+            '';
+          if (nativeSrc) video.src = nativeSrc;
+          video.setAttribute('preload', 'metadata');
+          video.play().catch(() => {});
+        }
+      };
+
+      overlay.addEventListener('click', initAndPlay);
+
+      // Play coordination: when this video plays, notify others
+      video.addEventListener('play', () => {
+        window.dispatchEvent(
+          new CustomEvent('hls-video-play', {
+            detail: { hlsUrl: video.dataset.hlsUrl },
+          }),
+        );
+      });
+    });
+
+    // Listen for other videos playing — pause if not the active one
+    const handleOtherVideoPlay = (e: Event) => {
+      const activeHlsUrl = (e as CustomEvent).detail?.hlsUrl;
+      if (!activeHlsUrl) return;
+      container
+        .querySelectorAll<HTMLVideoElement>('video[data-hls-url]')
+        .forEach((v) => {
+          if (v.dataset.hlsUrl !== activeHlsUrl && !v.paused) {
+            v.pause();
+          }
+        });
+    };
+
+    window.addEventListener('hls-video-play', handleOtherVideoPlay);
+
+    return () => {
+      window.removeEventListener('hls-video-play', handleOtherVideoPlay);
+      hlsInstances.forEach((h) => h.destroy());
+      // Clean up overlays
+      overlayMap.forEach((overlay) => overlay.remove());
+      overlayMap.clear();
+    };
+  }, [content]);
+
   // For HTML content (Quill editor or pre-rendered markdown), render directly
   if (isHtmlContent(content)) {
     return (
       <article
+        ref={articleRef}
         className="prose prose-slate dark:prose-invert max-w-none break-words
           prose-headings:font-bold prose-headings:text-gray-900 dark:prose-headings:text-white
           prose-p:text-gray-700 dark:prose-p:text-gray-300
@@ -159,6 +374,97 @@ export default function ArticleMarkdown({ content }: ArticleMarkdownProps) {
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeRaw]}
         components={{
+          // Prevent wrapping block-level elements (video, div, etc.) in <p> tags
+          // to avoid "In HTML, <div> cannot be a descendant of <p>" hydration errors.
+          // React Markdown incorrectly wraps raw HTML (from rehypeRaw) in <p> tags.
+          p({ children, node, ...props }) {
+            // If this <p> is from rehypeRaw and contains block-level elements,
+            // render as div instead to avoid invalid HTML nesting
+            if (node?.children) {
+              const hasBlockChild = node.children.some((child: any) => {
+                if (child.type === 'element') {
+                  const tagName = child.tagName?.toLowerCase() || '';
+                  return [
+                    'div',
+                    'video',
+                    'figure',
+                    'table',
+                    'pre',
+                    'iframe',
+                    'blockquote',
+                    'ul',
+                    'ol',
+                  ].includes(tagName);
+                }
+                return false;
+              });
+              if (hasBlockChild) {
+                return <div>{children}</div>;
+              }
+            }
+
+            // Check if children contains any block-level elements
+            const hasBlockElement = (child: any): boolean => {
+              if (typeof child === 'string') {
+                // Check if string contains raw HTML block elements
+                return /<(div|video|figure|table|pre|iframe|blockquote|h[1-6]|ul|ol)[\s>]/i.test(
+                  child,
+                );
+              }
+              if (isValidElement(child)) {
+                // Check if React element is a block-level component
+                const type = child.type as any;
+                if (typeof type === 'string') {
+                  return [
+                    'div',
+                    'video',
+                    'figure',
+                    'table',
+                    'pre',
+                    'iframe',
+                    'blockquote',
+                    'ul',
+                    'ol',
+                  ].includes(type);
+                }
+                // Check if it's our HlsVideoPlayer or wrapped component
+                if (type?.name === 'HlsVideoPlayer') return true;
+                // Check className for our wrapper
+                if (child.props?.className?.includes('article-media-wrapper'))
+                  return true;
+                // Check if child has a node prop (from rehypeRaw) with a block-level tagName
+                if (child.props?.node?.tagName) {
+                  const tagName = child.props.node.tagName.toLowerCase();
+                  return [
+                    'div',
+                    'video',
+                    'figure',
+                    'table',
+                    'pre',
+                    'iframe',
+                    'blockquote',
+                    'ul',
+                    'ol',
+                  ].includes(tagName);
+                }
+              }
+              if (Array.isArray(child)) {
+                return child.some(hasBlockElement);
+              }
+              return false;
+            };
+
+            const childrenArray = Children.toArray(children);
+            const containsBlock = childrenArray.some(hasBlockElement);
+
+            // If contains block elements, return as fragment (no p wrapper)
+            if (containsBlock) {
+              return <>{children}</>;
+            }
+
+            // Otherwise render normal <p> tag
+            return <p>{children}</p>;
+          },
           hr() {
             return <hr className="border-0 !border-none h-0 m-0 p-0 !hidden" />;
           },
@@ -218,6 +524,55 @@ export default function ArticleMarkdown({ content }: ArticleMarkdownProps) {
               <div className="article-media-wrapper">
                 <pre {...props}>{children}</pre>
               </div>
+            );
+          },
+          // Render <video> elements with HLS support via HlsVideoPlayer
+          video({ src, node, ...props }) {
+            const srcStr = typeof src === 'string' ? src : '';
+            // Look up in meta.contentVideo to find HLS URL + poster for mp4 video
+            const matched = meta?.contentVideo?.find((entry) =>
+              srcStr.includes(entry.videoKey),
+            );
+            const effectiveHlsUrl = matched?.hlsUrl || srcStr;
+            // Extract poster from contentVideo entry, fallback to HTML attribute
+            const posterStr =
+              matched?.poster ||
+              (typeof props.poster === 'string' ? props.poster : undefined);
+
+            // Check if this is a raw HTML video from rehypeRaw (has node prop)
+            // If so, don't wrap in div to avoid invalid nesting inside <p>
+            const isRawHtml = !!node;
+
+            if (effectiveHlsUrl.includes('.m3u8')) {
+              const player = (
+                <HlsVideoPlayer
+                  hlsUrl={effectiveHlsUrl}
+                  poster={posterStr}
+                  autoPlay={false}
+                  muted={false}
+                  clickToPlay={true}
+                  className="w-full rounded-lg aspect-video"
+                />
+              );
+              return isRawHtml ? (
+                player
+              ) : (
+                <div className="article-media-wrapper">{player}</div>
+              );
+            }
+
+            // For regular mp4 / non-HLS: click-to-play with poster overlay
+            const player = (
+              <NativeVideoPlayer
+                src={srcStr}
+                poster={posterStr}
+                className="w-full"
+              />
+            );
+            return isRawHtml ? (
+              player
+            ) : (
+              <div className="article-media-wrapper">{player}</div>
             );
           },
         }}

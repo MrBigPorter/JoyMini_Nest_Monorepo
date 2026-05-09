@@ -57,6 +57,7 @@ export function registerHtml5VideoBlot(Quill: any): void {
         if (ext === 'mp4') mime = 'video/mp4';
         else if (ext === 'webm') mime = 'video/webm';
         else if (ext === 'ogg' || ext === 'ogv') mime = 'video/ogg';
+        else if (ext === 'm3u8') mime = 'application/vnd.apple.mpegurl';
       }
 
       try {
