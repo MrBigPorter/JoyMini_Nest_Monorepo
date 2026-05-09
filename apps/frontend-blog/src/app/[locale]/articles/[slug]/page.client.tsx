@@ -109,7 +109,16 @@ export default function ArticlePageClient({
   // -------------------------------------------------------------------
   const handleBack = useCallback(() => {
     setNavDirection('backward');
-    router.push('/');
+    const previousUrl =
+      typeof window !== 'undefined'
+        ? sessionStorage.getItem('previousPageUrl')
+        : null;
+    if (previousUrl) {
+      router.push(previousUrl);
+      sessionStorage.removeItem('previousPageUrl');
+    } else {
+      router.push('/');
+    }
   }, [router]);
 
   // -------------------------------------------------------------------

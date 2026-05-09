@@ -282,7 +282,21 @@ export function ArticleCard({
       <Link
         href={`/articles/${article.slug}`}
         className="block min-w-0"
-        onPointerDown={() => setNavDirection('forward')}
+        onPointerDown={() => {
+          setNavDirection('forward');
+          if (typeof window !== 'undefined') {
+            const path = window.location.pathname;
+            const search = window.location.search;
+            const localePrefix = `/${locale}`;
+            const pathWithoutLocale = path.startsWith(localePrefix)
+              ? path.slice(localePrefix.length) || '/'
+              : path;
+            sessionStorage.setItem(
+              'previousPageUrl',
+              pathWithoutLocale + search,
+            );
+          }
+        }}
         // P1-2 修复：禁用自动 prefetch，改为 hover/touch 时按需 prefetch
         // 原因：首屏 10 篇文章的 Link 全部进入视口，会立即触发 10 个文章页 prefetch
         //       每个 prefetch 都触发对应页面的 ISR revalidation，造成并发 ISR 风暴
