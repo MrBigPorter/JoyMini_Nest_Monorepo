@@ -91,7 +91,7 @@ export function PageTransition({ children }: PageTransitionProps) {
         };
 
   return (
-    <AnimatePresence mode="wait" initial={false}>
+    <AnimatePresence mode="popLayout" initial={false}>
       <motion.div
         key={pathname}
         className="min-h-screen bg-background"

@@ -117,6 +117,16 @@ export default {
     env: Env,
     ctx: ExecutionContext,
   ): Promise<Response> {
+    // 生产环境禁用所有 console.* 日志
+    if (env.NODE_ENV === 'production') {
+      console.log = () => {};
+      console.info = () => {};
+      console.debug = () => {};
+      console.trace = () => {};
+      console.warn = () => {};
+      console.error = () => {};
+    }
+
     const startTime = Date.now();
     const url = new URL(request.url);
     const requestId = crypto.randomUUID();

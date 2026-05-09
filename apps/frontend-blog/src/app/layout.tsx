@@ -37,6 +37,22 @@ export default function RootLayout({
           }}
         />
 
+        {/* 禁用浏览器原生滚动恢复 — 刷新页面回到顶部 */}
+        {/* 我们的自定义后退导航滚动恢复（sessionStorage + window.scrollTo）不受影响 */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  if ('scrollRestoration' in history) {
+                    history.scrollRestoration = 'manual';
+                  }
+                } catch(e) {}
+              })();
+            `,
+          }}
+        />
+
         {/* 简化主题脚本（借鉴 admin-next） */}
         <script
           dangerouslySetInnerHTML={{

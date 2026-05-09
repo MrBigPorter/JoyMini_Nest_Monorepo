@@ -6,6 +6,12 @@
 //
 //  修复：如果 middleware 未执行，RootPage 必须自己检测 Accept-Language
 // 之前只读 cookie，导致首次访问始终 fallback 到 DEFAULT_LOCALE='zh'
+//
+//  注意：此页面仅在直接访问 https://blog.joyminis.com/ 时触发。
+// 内部 SPA 导航通过 @/navigation Link 自动添加 locale 前缀，不会经过此页面。
+// 因此服务端 redirect() 不会与 AnimatePresence 动画产生竞态条件
+// （fresh page load 时没有动画在运行）。
+// 参见: plans/frontend-blog-hooks-error-fix.md 的完整分析
 
 import { redirect } from 'next/navigation';
 import { cookies, headers } from 'next/headers';
