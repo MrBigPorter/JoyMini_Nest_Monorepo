@@ -15,9 +15,9 @@ import { CommentStatus } from '@prisma/client';
 import { repairJsonResponse } from '../utils/repair-json';
 
 @Processor('blog-ai', {
-  concurrency: 1, // 保持串行处理
+  concurrency: 5, // 并行处理5篇文章（DeepSeek 付费 API 无速率限制）
   limiter: {
-    max: 60, // ⬆️ 从5提高到60: DeepSeek 付费 API 无速率限制，可以更快处理队列
+    max: 100, // 提高到100: 适应5倍并发
     duration: 60000,
   },
 })
@@ -26,7 +26,7 @@ export class BlogAiProcessor extends WorkerHost {
   private readonly marked: Marked;
   private readonly rateLimitDelayBase = 1000; // 1秒基础延迟
   private readonly rateLimitDelayMax = 30000; // 30秒最大延迟
-  private readonly interRequestDelay = 50; // 50ms between API calls (reduced from 500ms for DeepSeek, which has no rate limits)
+  private readonly interRequestDelay = 20; // 20ms between API calls (reduced for higher throughput with DeepSeek paid API)
   private readonly translationCache = new Map<
     string,
     { result: string; timestamp: number }
