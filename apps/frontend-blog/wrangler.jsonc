@@ -22,6 +22,7 @@
   "vars": {
     "NODE_ENV": "production",
     "NEXT_PUBLIC_ENVIRONMENT": "cloudflare",
+    "NEXT_PUBLIC_SENTRY_DSN": "https://da7b3c4672335a682ea9c56a4a994f2f@o4511086990524416.ingest.us.sentry.io/4511314890260480",
     "NEXT_PUBLIC_API_BASE_URL": "https://api.joyminis.com/api",
     "INTERNAL_API_URL": "https://api.joyminis.com/api",
     "NEXT_PUBLIC_OAUTH_API_ORIGIN": "https://api.joyminis.com",
@@ -230,6 +231,7 @@
       "vars": {
         "NODE_ENV": "staging",
         "NEXT_PUBLIC_ENVIRONMENT": "cloudflare",
+        "NEXT_PUBLIC_SENTRY_DSN": "https://da7b3c4672335a682ea9c56a4a994f2f@o4511086990524416.ingest.us.sentry.io/4511314890260480",
         "NEXT_PUBLIC_API_BASE_URL": "https://staging-api.joyminis.com/api",
         "INTERNAL_API_URL": "https://staging-api.joyminis.com/api",
         "NEXT_PUBLIC_OAUTH_API_ORIGIN": "https://staging-api.joyminis.com",
