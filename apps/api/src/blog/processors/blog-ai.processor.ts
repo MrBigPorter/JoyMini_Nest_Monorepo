@@ -1284,7 +1284,8 @@ IMPORTANT: Return ONLY the three sections above with the exact delimiters. Do NO
       updateData.contentMdLocalized = {
         ...((article.contentMdLocalized as any) || {}),
         // 中文源语言：Markdown + 视频（确保中文版也有视频，修复旧数据缺失问题）
-        [sourceLang]: sourceContentWithVideos || article.contentMd || article.content || '',
+        [sourceLang]:
+          sourceContentWithVideos || article.contentMd || article.content || '',
         // 目标语言：翻译后的文本 + 视频（同样追加到末尾）
         [data.targetLang]: preservedVideoTags
           ? contentTranslated + '\n\n' + preservedVideoTags
@@ -1295,7 +1296,8 @@ IMPORTANT: Return ONLY the three sections above with the exact delimiters. Do NO
       updateData.contentLocalized = {
         ...((article.contentLocalized as any) || {}),
         // 中文源语言：优先使用原始 article.content（包含视频的Quill HTML），确保不丢失
-        [sourceLang]: article.content || this.renderMarkdown(sourceContentWithVideos),
+        [sourceLang]:
+          article.content || this.renderMarkdown(sourceContentWithVideos),
         // 目标语言：Markdown → HTML + 视频
         [data.targetLang]: (() => {
           const translatedHtml = this.renderMarkdown(contentTranslated);

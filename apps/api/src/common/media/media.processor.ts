@@ -260,13 +260,18 @@ export class MediaProcessor extends WorkerHost {
 
           // Replace in main content (HTML string)
           if (articleContent?.content?.includes(originalUrl)) {
-            updatedData.content = articleContent.content.split(originalUrl).join(hlsUrl);
+            updatedData.content = articleContent.content
+              .split(originalUrl)
+              .join(hlsUrl);
             needsUpdate = true;
           }
 
           // Replace in contentLocalized (per-locale overrides)
           if (articleContent?.contentLocalized) {
-            const localized = articleContent.contentLocalized as Record<string, string>;
+            const localized = articleContent.contentLocalized as Record<
+              string,
+              string
+            >;
             const updatedLocalized: Record<string, string> = {};
             let localizedChanged = false;
 
