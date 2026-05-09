@@ -383,6 +383,7 @@ function HomePageClientContent({ initialData, ...props }: HomePageClientProps) {
         ).startViewTransition(() => {
           setSelectedCategoryId(categoryId);
           resetState();
+          window.scrollTo(0, 0);
         });
         // Ensure transition doesn't block for too long (fallback timeout)
         setTimeout(() => {

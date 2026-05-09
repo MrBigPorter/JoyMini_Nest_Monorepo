@@ -122,6 +122,11 @@ const isAppMode = process.env.BUILD_TARGET === 'app';
 
 // 基础通用配置
 const baseConfig: NextConfig = {
+  // 生产环境禁用所有 console.* 日志（同时作用于客户端和服务端）
+  compiler: {
+    removeConsole: process.env.NODE_ENV === 'production',
+  },
+
   typescript: {
     ignoreBuildErrors: true,
   },
