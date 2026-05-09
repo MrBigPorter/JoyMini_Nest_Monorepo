@@ -1,6 +1,6 @@
 # Blog Article Authoring Standard v2.0.0
 
-> Standard for authoring blog articles in the Lucky Nest monorepo.  
+> Standard for authoring blog articles in the JoyMini Nest Monorepo.  
 > Ensures correct parsing, proper metadata extraction, clean AI translation, and correct frontend rendering.
 
 ---

@@ -26,7 +26,7 @@ This error caused build failures for the `admin-next` and `frontend-blog` servic
 
 ### Architecture Context
 
-The Lucky Nest monorepo uses a Docker Compose setup where multiple services build shared packages:
+The JoyMini Nest Monorepo uses a Docker Compose setup where multiple services build shared packages:
 
 1. **`admin-next` service** - Builds `@repo/ui` package as part of its startup command
 2. **`frontend-blog` service** - Also builds `@repo/ui` package independently
@@ -294,7 +294,7 @@ The ENOTEMPTY build error was successfully resolved by implementing a retry mech
 - Requires minimal code changes
 - Preserves existing developer workflows
 
-The fix has been validated in development environments and ensures reliable Docker Compose builds for the Lucky Nest monorepo.
+The fix has been validated in development environments and ensures reliable Docker Compose builds for the JoyMini Nest Monorepo.
 
 ---
 

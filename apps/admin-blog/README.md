@@ -1,4 +1,4 @@
-# @lucky/admin-blog — Blog CMS Admin Dashboard
+# Tarsier admin-blog — Blog CMS Admin Dashboard
 
 [![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)](apps/admin-blog/package.json)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](apps/admin-blog/package.json)
@@ -7,13 +7,13 @@
 [![Cloudflare](https://img.shields.io/badge/Cloudflare-Workers%20%2B%20Pages-F38020?logo=cloudflare)
 [![Sentry](https://img.shields.io/badge/Sentry-10-362D59?logo=sentry)
 
-> Blog content management dashboard built with Next.js 15 App Router. Part of the [Lucky Nest Monorepo](../README.md).
+> Blog content management dashboard built with Next.js 15 App Router. Part of the [JoyMini Nest Monorepo](../README.md).
 
 ---
 
 ## ✨ Overview
 
-`@lucky/admin-blog` is the administrative interface for managing blog content on the Lucky Nest platform. It provides editors and administrators with tools to create, edit, and manage articles, categories, tags, comments, and media assets for the public-facing blog at [blog.joyminis.com](https://blog.joyminis.com).
+`Tarsier admin-blog` is the administrative interface for managing blog content on the Lucky Nest platform. It provides editors and administrators with tools to create, edit, and manage articles, categories, tags, comments, and media assets for the public-facing blog at [blog.joyminis.com](https://blog.joyminis.com).
 
 Built with **Next.js 15 App Router**, **Zustand** for client-state persistence, **TanStack Query** for server-state caching, and **React Quill** for rich text editing with Markdown support. Deployed on **Cloudflare Workers** via OpenNext.
 
@@ -116,4 +116,4 @@ yarn workspace @lucky/admin-blog deploy:cloudflare:preview
 
 ## 📄 License
 
-Part of the Lucky Nest Monorepo. See the [root license](../README.md) for details.
+Part of the JoyMini Nest Monorepo. See the [root license](../README.md) for details.

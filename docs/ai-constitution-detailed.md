@@ -1,4 +1,4 @@
-# Lucky Nest Monorepo - AI Constitution (Detailed Reference)
+# JoyMini Nest Monorepo - AI Constitution (Detailed Reference)
 
 > 完整版 AI 宪法，包含详细规则、思考过程和验证流程。
 > 当需要查具体规则或代码示例时引用此文件。

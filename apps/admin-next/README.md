@@ -1,4 +1,4 @@
-# @lucky/admin-next — Enterprise Admin Dashboard
+# JoyMIni admin-next — Enterprise Admin Dashboard
 
 [![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)](apps/admin-next/package.json)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](apps/admin-next/package.json)
@@ -7,13 +7,13 @@
 [![Vitest](https://img.shields.io/badge/Vitest-4-green?logo=vitest)](apps/admin-next/vitest.config.ts)
 [![Sentry](https://img.shields.io/badge/Sentry-10-362D59?logo=sentry)](apps/admin-next/package.json)
 
-> A full-featured enterprise admin dashboard built with Next.js 15 App Router, React 19, and TypeScript. Part of the [Lucky Nest Monorepo](../README.md).
+> A full-featured enterprise admin dashboard built with Next.js 15 App Router, React 19, and TypeScript. Part of the [JoyMini Nest Monorepo](../README.md).
 
 ---
 
 ## ✨ Overview
 
-`@lucky/admin-next` is the administrative control panel for the Lucky Nest platform. It provides a comprehensive set of management tools for operators to handle users, orders, finance, content, KYC verification, real-time customer service, and more.
+`JoyMIni admin-next` is the administrative control panel for the Lucky Nest platform. It provides a comprehensive set of management tools for operators to handle users, orders, finance, content, KYC verification, real-time customer service, and more.
 
 The dashboard is built with **Next.js 15 App Router** for optimal SSR/SSG performance, **Zustand** for client-state persistence, **TanStack Query** for server-state caching, and **Socket.IO** for real-time communications. It supports **6 languages** via `next-intl` with zero-flicker theme hydration.
 
@@ -283,4 +283,4 @@ The test suite covers:
 
 ## 📄 License
 
-Part of the Lucky Nest Monorepo. See the [root license](../README.md) for details.
+Part of the JoyMini Nest Monorepo. See the [root license](../README.md) for details.

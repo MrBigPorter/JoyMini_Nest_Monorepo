@@ -8,7 +8,7 @@
 
 ## 0:00 - 0:30 项目定位
 
-`admin-next` 是 Lucky Nest Monorepo 下的电商后台前端，基于 Next.js 15 App Router，覆盖用户、订单、营销、财务、系统配置和客服 IM。它不是纯 CRUD 台，而是带实时客服能力的中后台平台。
+`admin-next` 是 JoyMini Nest Monorepo 下的电商后台前端，基于 Next.js 15 App Router，覆盖用户、订单、营销、财务、系统配置和客服 IM。它不是纯 CRUD 台，而是带实时客服能力的中后台平台。
 
 ---
 

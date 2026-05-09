@@ -8,7 +8,7 @@
 
 ## 1) 项目定位（一句话）
 
-`admin-next` 是 Lucky Nest Monorepo 下的后台管理前端，基于 Next.js 15 App Router，采用 SSR + Client Hybrid 渲染，覆盖用户、订单、营销、财务、系统配置和 IM 客服等业务域。
+`admin-next` 是 JoyMini Nest Monorepo 下的后台管理前端，基于 Next.js 15 App Router，采用 SSR + Client Hybrid 渲染，覆盖用户、订单、营销、财务、系统配置和 IM 客服等业务域。
 
 ---
 
