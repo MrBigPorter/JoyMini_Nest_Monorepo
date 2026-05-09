@@ -291,10 +291,8 @@ export function ArticleCard({
             const pathWithoutLocale = path.startsWith(localePrefix)
               ? path.slice(localePrefix.length) || '/'
               : path;
-            sessionStorage.setItem(
-              'previousPageUrl',
-              pathWithoutLocale + search,
-            );
+            const savedUrl = pathWithoutLocale + search;
+            sessionStorage.setItem('previousPageUrl', savedUrl);
           }
         }}
         // P1-2 修复：禁用自动 prefetch，改为 hover/touch 时按需 prefetch

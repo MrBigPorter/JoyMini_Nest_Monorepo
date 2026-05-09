@@ -138,6 +138,12 @@ function HomePageClientContent({ initialData, ...props }: HomePageClientProps) {
   // This avoids reading window.scrollY at cleanup time (which Next.js resets to 0 before unmount).
   const scrollPosRef = useRef(0);
 
+  // Tracks whether scroll has been restored after backward navigation.
+  // Prevents re-restoring on subsequent re-renders (e.g., data fetching
+  // completing → allArticles changes → useLayoutEffect re-runs).
+  // Fixes strict-mode double-mount race condition.
+  const scrollRestoredRef = useRef(false);
+
   // ──────────────────────────────────────────────────
   // Sync state → URL search params (one-way, prevents infinite loop)
   // Updates the URL when category or page changes without triggering navigation
@@ -176,13 +182,18 @@ function HomePageClientContent({ initialData, ...props }: HomePageClientProps) {
   useEffect(() => {
     const handleScroll = () => {
       scrollPosRef.current = window.scrollY;
+      // Save scroll position on every scroll event (realtime).
+      // NOT in cleanup — cleanup runs with scrollY=0 during Strict Mode
+      // double-mount (no scroll event fired between mount and cleanup),
+      // which overwrites the correct stored value with "0".
+      sessionStorage.setItem('homeScrollY', String(window.scrollY));
     };
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => {
       window.removeEventListener('scroll', handleScroll);
-      // Use ref value (captured before Next.js reset scrollY to 0)
-      sessionStorage.setItem('homeScrollY', String(scrollPosRef.current));
-      sessionStorage.setItem('homeNavigatedTo', window.location.pathname);
+      // Do NOT save homeScrollY here — Strict Mode cleanup fires before
+      // any scroll event, saving scrollPosRef.current=0 and overwriting
+      // the real scroll position.
     };
   }, []);
 
@@ -233,23 +244,30 @@ function HomePageClientContent({ initialData, ...props }: HomePageClientProps) {
   // Only restores if the previous navigation destination was an article detail page
   // (i.e., user clicked an article → read → router.back())
   //
-  // P0-4 fix: useLayoutEffect runs synchronously before browser paint,
-  // preventing the "flash of wrong position" that useEffect + rAF causes.
+  // Uses scrollRestoredRef to prevent re-restoring on subsequent re-renders
+  // (e.g., allArticles changes from data fetching), which also prevents
+  // React Strict Mode double-mount from undoing the restoration.
+  //
+  // Do NOT clear sessionStorage here — let the scroll tracking effect's
+  // cleanup naturally overwrite on the next navigation away from home.
   // ──────────────────────────────────────────────────
   useLayoutEffect(() => {
     if (allArticles.length > 0) {
       const savedScrollY = sessionStorage.getItem('homeScrollY');
 
       // Restore scroll if we came back via backward navigation
-      if (isBackNavigation && savedScrollY) {
+      // and haven't already restored (prevents strict-mode race condition)
+      if (isBackNavigation && savedScrollY && !scrollRestoredRef.current) {
+        scrollRestoredRef.current = true;
         window.scrollTo(0, Number(savedScrollY));
       }
 
-      // Always clean up session storage on mount
-      sessionStorage.removeItem('homeScrollY');
-      sessionStorage.removeItem('homeNavigatedTo');
+      // Do NOT remove from sessionStorage here.
+      // The scroll tracking useEffect cleanup will naturally overwrite
+      // on the next navigation away from home. This prevents strict mode
+      // double-mount from clearing the value prematurely.
     }
-  }, [allArticles]);
+  }, [allArticles, isBackNavigation]);
 
   // ──────────────────────────────────────────────────
   // P0-2c: Bottom auto-prefetch — prefetch next page

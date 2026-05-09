@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo, useCallback } from 'react';
-import { setNavDirection } from '@/lib/navigation/direction';
+import { setNavDirection, getNavDirection } from '@/lib/navigation/direction';
 import Image from 'next/image';
 import { useParams } from 'next/navigation';
 import { useRouter } from '@/navigation';
@@ -114,10 +114,10 @@ export default function ArticlePageClient({
         ? sessionStorage.getItem('previousPageUrl')
         : null;
     if (previousUrl) {
-      router.push(previousUrl);
+      router.push(previousUrl, { scroll: false });
       sessionStorage.removeItem('previousPageUrl');
     } else {
-      router.push('/');
+      router.push('/', { scroll: false });
     }
   }, [router]);
 
