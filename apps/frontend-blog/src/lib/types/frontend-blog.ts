@@ -10,6 +10,7 @@
  * Rich media meta for blog articles
  * Contains blurhash, image variants, and video HLS info
  */
+
 export interface ArticleMeta {
   blurhash?: string;
   images?: {
@@ -32,7 +33,7 @@ export interface ArticleMeta {
    */
   contentVideo?: Array<{
     videoKey: string; // R2 object key, e.g. "videos/uuid.mp4"
-    hlsUrl: string;  // Transcoded HLS URL, e.g. ".../master.m3u8"
+    hlsUrl: string; // Transcoded HLS URL, e.g. ".../master.m3u8"
     poster?: string; // Optional poster/thumbnail frame URL
   }>;
   [key: string]: unknown;

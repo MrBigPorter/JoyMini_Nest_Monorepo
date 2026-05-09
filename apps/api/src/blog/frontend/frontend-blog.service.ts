@@ -352,8 +352,12 @@ export class FrontendBlogService {
     // 如果需要包含内容
     if (includeContent) {
       // 获取本地化内容（不含视频后处理，保持原始状态）
-      result.content = this.getLocalizedString(article, 'content', locale, { skipVideoInjection: true });
-      result.contentMd = this.getLocalizedString(article, 'contentMd', locale, { skipVideoInjection: true });
+      result.content = this.getLocalizedString(article, 'content', locale, {
+        skipVideoInjection: true,
+      });
+      result.contentMd = this.getLocalizedString(article, 'contentMd', locale, {
+        skipVideoInjection: true,
+      });
 
       // 关键修复：始终执行视频位置智能注入（如果 content 包含视频）
       // 即使 contentMd 已经有视频（通常在末尾），也重新注入到正确位置
@@ -471,7 +475,10 @@ export class FrontendBlogService {
       // HTML content when the localized version (AI-translated text) is missing them.
       // The translation processor saves only rendered markdown text, losing video tags.
       // 仅在未设置 skipVideoInjection 时才执行视频追加（会追加到末尾）
-      if (!skipVideoInjection && (field === 'content' || field === 'contentMd')) {
+      if (
+        !skipVideoInjection &&
+        (field === 'content' || field === 'contentMd')
+      ) {
         // Always extract videos from the HTML source (contentLocalized['zh'] or entity['content']),
         // because contentMd is plain Markdown and never contains <video> tags.
         const htmlSource =
@@ -540,8 +547,8 @@ export class FrontendBlogService {
     // 首先从 contentMd 中移除所有已存在的视频标签（通常在末尾，由翻译processor追加）
     // 避免重复注入导致视频出现多次
     let cleanedMd = contentMd
-      .replace(videoRegex, '')  // 移除视频标签
-      .replace(/\n{3,}/g, '\n\n')  // 清理多余空行（3个以上连续换行 → 2个）
+      .replace(videoRegex, '') // 移除视频标签
+      .replace(/\n{3,}/g, '\n\n') // 清理多余空行（3个以上连续换行 → 2个）
       .trim();
 
     // 收集所有视频块及其在 HTML 中的位置
@@ -556,7 +563,11 @@ export class FrontendBlogService {
     const mdLines = cleanedMd.split('\n');
 
     // 每个视频的插入操作 { lineIndex: 插入到该行之后, block: 视频块, position: 视频在HTML中的位置百分比 }
-    const insertions: Array<{ lineIndex: number; block: string; position: number }> = [];
+    const insertions: Array<{
+      lineIndex: number;
+      block: string;
+      position: number;
+    }> = [];
 
     for (const { index: videoIdx, block } of videos) {
       const htmlBefore = contentHtml.substring(0, videoIdx);
@@ -609,7 +620,11 @@ export class FrontendBlogService {
         );
       }
 
-      insertions.push({ lineIndex: insertLineIndex, block, position: positionPercent });
+      insertions.push({
+        lineIndex: insertLineIndex,
+        block,
+        position: positionPercent,
+      });
     }
 
     // 从下往上插入，避免行号偏移
@@ -625,11 +640,15 @@ export class FrontendBlogService {
         if (position < 20) {
           // 视频在 HTML 前 20% → 插入到 Markdown 开头
           mdLines.unshift(block, '');
-          this.logger.debug(`[视频注入] 插入到文档开头 (HTML位置: ${position.toFixed(1)}%)`);
+          this.logger.debug(
+            `[视频注入] 插入到文档开头 (HTML位置: ${position.toFixed(1)}%)`,
+          );
         } else {
           // 视频在 HTML 后 80% → 插入到 Markdown 末尾
           mdLines.push('', block);
-          this.logger.debug(`[视频注入] 插入到文档末尾 (HTML位置: ${position.toFixed(1)}%)`);
+          this.logger.debug(
+            `[视频注入] 插入到文档末尾 (HTML位置: ${position.toFixed(1)}%)`,
+          );
         }
       }
     }
@@ -642,9 +661,7 @@ export class FrontendBlogService {
    */
   private textSimilar(a: string, b: string): boolean {
     const normalize = (s: string) =>
-      s
-        .toLowerCase()
-        .replace(/[^\w\u4e00-\u9fa5]/g, '');
+      s.toLowerCase().replace(/[^\w\u4e00-\u9fa5]/g, '');
     const na = normalize(a);
     const nb = normalize(b);
 

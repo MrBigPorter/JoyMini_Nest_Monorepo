@@ -13,6 +13,7 @@ import { OnEvent } from '@nestjs/event-emitter';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { ArticleStatus, Prisma } from '@prisma/client';
 import { CreateArticleDto, UpdateArticleDto, CreateCommentDto } from './dto';
+
 import {
   ScannedArticle,
   BatchImportDto,
@@ -679,7 +680,9 @@ export class BlogService {
     }
 
     // Scan rich text content for embedded videos, backfill meta.contentVideo[]
-    this.logger.log(`updateArticle: calling scanRichTextVideos for ${articleId}`);
+    this.logger.log(
+      `updateArticle: calling scanRichTextVideos for ${articleId}`,
+    );
     await this.scanRichTextVideos(articleId).catch((err: Error) => {
       this.logger.warn(
         `scanRichTextVideos failed for article ${articleId}: ${err.message}`,
