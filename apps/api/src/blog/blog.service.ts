@@ -1545,7 +1545,7 @@ export class BlogService {
 
     let totalJobs = 0;
 
-    // 批量投递文章翻译任务到队列，每个Job间隔600ms适配Gemini限流
+    // 批量投递文章翻译任务到队列，每个Job间隔200ms（DeepSeek付费API无速率限制）
     for (const [index, article] of articles.entries()) {
       await this.blogAiQueue.add(
         'translate-article',
@@ -1555,7 +1555,7 @@ export class BlogService {
           sourceLang: defaultSourceLang,
         },
         {
-          delay: index * 600, // ⬆️ 间隔600ms（更保守，每分钟约100个任务）
+          delay: index * 200, // 间隔200ms（DeepSeek付费API无速率限制，加快投递速度）
           attempts: 3, // 最多重试3次（队列默认配置）
           backoff: {
             type: 'exponential',
@@ -1578,7 +1578,7 @@ export class BlogService {
           sourceLang: defaultSourceLang,
         },
         {
-          delay: (articles.length + index) * 600, // 从文章任务之后继续600ms间隔
+          delay: (articles.length + index) * 200, // 从文章任务之后继续200ms间隔
           attempts: 3, // 最多重试3次（队列默认配置）
           backoff: {
             type: 'exponential',
@@ -1601,7 +1601,7 @@ export class BlogService {
           sourceLang: defaultSourceLang,
         },
         {
-          delay: (articles.length + categories.length + index) * 600, // 从文章和分类任务之后继续600ms间隔
+          delay: (articles.length + categories.length + index) * 200, // 从文章和分类任务之后继续200ms间隔
           attempts: 3, // 最多重试3次（队列默认配置）
           backoff: {
             type: 'exponential',
