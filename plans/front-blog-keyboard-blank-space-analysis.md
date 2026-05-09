@@ -1,4 +1,4 @@
-# Front Blog Keyboard Blank Space Analysis
+# Front Blog Keyboard Blank Space Analysis & Fix
 
 ## Problem
 
@@ -52,111 +52,90 @@ This affects two areas:
    ```
    → Gets `height: 412px`, extending the nav background far below the visible buttons.
 
-### Why the bottom nav "rises up"
+## Fix — Already Implemented
 
-On iOS Safari, `position: fixed` elements are positioned relative to the **layout viewport**, not the **visual viewport**. When the keyboard opens:
+### Modification 1: Keyboard Detection in `updateSafeArea`
 
-- The layout viewport height (`window.innerHeight`) stays the same
-- The visual viewport shrinks
-- The keyboard overlays on top of the layout viewport
+**File**: [`apps/frontend-blog/src/components/BottomNavigation.tsx`](../apps/frontend-blog/src/components/BottomNavigation.tsx)
 
-The `--safe-area-bottom` gets set to ~412px, making the nav element itself 468px tall (56px buttons + 412px spacer). The actual navigation buttons (top 56px of this) happen to appear at the right visual position because they're pushed up by the large spacer below them. This makes it look like the nav "rose up" to sit above the keyboard, but there's a huge blank area below.
+Added keyboard detection logic in `updateSafeArea()`:
+- If `safeAreaBottom > 200px` (typical toolbar toggle is ~44-60px, keyboard is ~300-400px), consider keyboard open
+- When keyboard is open → `return` early, don't update `--safe-area-bottom`
+- Keep the default `env(safe-area-inset-bottom)` value from `globals.css`
+- Added 80px safety cap to prevent any edge case
 
-## Visual Explanation
+### Behavior after fix
 
+| Event | Before (bug) | After (fix) |
+|-------|-------------|-------------|
+| Click input → keyboard opens | `--safe-area-bottom` = ~412px → huge blank space | `--safe-area-bottom` unchanged → **no blank space** |
+| Keyboard closes | `--safe-area-bottom` resets via `visualViewport.resize` | `--safe-area-bottom` resets via `visualViewport.resize` → **normal** |
+| Safari toolbar toggle | `--safe-area-bottom` updates normally | Still updates normally (value < 200px) |
+
+## Enhancement — Keyboard Close Auto-scroll (Planned)
+
+### Problem
+
+When the keyboard opens on iOS, Safari auto-scrolls the page to make the focused input visible above the keyboard. However, when the keyboard closes, **iOS does NOT scroll back** — the page stays in the scrolled-up position, leaving the user looking at the middle of the page with a blank area where the keyboard used to be.
+
+### Solution
+
+Track the scroll position before the keyboard opens, and restore it when the keyboard closes.
+
+**Approach**:
+1. Add a `focusin` event listener that saves `window.scrollY` when any `input`/`textarea` receives focus
+2. Track keyboard open/close state using `wasKeyboardOpen` ref
+3. In `updateSafeArea()`, when keyboard transitions from open → closed:
+   - Restore the saved scroll position using `window.scrollTo()` with smooth scrolling
+   - Use `requestAnimationFrame` to ensure layout is ready
+
+### Implementation Details
+
+**Add imports**: Add `useRef` to the React import
+
+**Add state/refs** (inside component, after `isClient` state):
+```typescript
+const wasKeyboardOpen = useRef(false);
+const scrollYBeforeKeyboard = useRef(0);
 ```
-┌─────────────────────────────┐
-│                             │
-│      Page Content           │
-│                             │
-│                             │
-│                             │
-├─────────────────────────────│
-│  [nav buttons] (56px)      │ ← Bottom nav visible area
-├─────────────────────────────│ ← Keyboard top edge
-│                             │
-│  Keyboard area (~350px)     │ ← This is where the keyboard sits
-│                             │
-├─────────────────────────────│
-│  Blank spacer (~412px)      │ ← The --safe-area-bottom spacer INSIDE nav
-│                             │     behind the keyboard, extending nav downward
-├─────────────────────────────│ ← Layout viewport bottom (fixed bottom-0 anchor)
-│  Background ext (100px)     │
-└─────────────────────────────┘
+
+**Add focusin listener** (new useEffect):
+```typescript
+// Save scroll position before keyboard opens
+useEffect(() => {
+  const handleFocusIn = (e: FocusEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+      scrollYBeforeKeyboard.current = window.scrollY;
+    }
+  };
+  document.addEventListener('focusin', handleFocusIn);
+  return () => document.removeEventListener('focusin', handleFocusIn);
+}, []);
 ```
 
-The blank space the user sees is actually the **main content's padding-bottom** (~468px) plus the **nav's internal spacer**, making the page content area much taller than needed, creating a visible void between content and the bottom of the visible screen area.
+**Modify updateSafeArea** to add scroll restoration on keyboard close:
+```typescript
+const isKeyboardOpen = safeAreaBottom > 200;
+if (isKeyboardOpen) {
+  wasKeyboardOpen.current = true;
+  return; // Don't update CSS variable
+}
 
-## Solution Options
-
-### Option A: Keyboard detection (Recommended)
-
-Detect when the keyboard is open and skip updating `--safe-area-bottom` during that time.
-
-**How**: Add a heuristic to distinguish keyboard open from toolbar toggle:
-- If `vv.height` drops by more than ~200px (typical keyboard height), assume keyboard is open
-- During keyboard open, don't update `--safe-area-bottom`
-- Reset `--safe-area-bottom` to its default (`env(safe-area-inset-bottom)`) when keyboard closes
-
-**Pros**: Simple, widely compatible, no new APIs needed
-**Cons**: Heuristic might have edge cases
-
-### Option B: Use `navigator.virtualKeyboard` API
-
-Modern browsers (Chrome 94+, Safari 16.4+) support the [`VirtualKeyboard` API](https://developer.mozilla.org/en-US/docs/Web/API/VirtualKeyboard).
-
-```javascript
-if ('virtualKeyboard' in navigator) {
-  navigator.virtualKeyboard.overlaysContent = true;
-  navigator.virtualKeyboard.addEventListener('geometrychange', (e) => {
-    const { height } = e.target.boundingRect;
-    // height > 0 means keyboard is open
+// Keyboard just closed — restore scroll position
+if (wasKeyboardOpen.current) {
+  wasKeyboardOpen.current = false;
+  requestAnimationFrame(() => {
+    window.scrollTo({
+      top: scrollYBeforeKeyboard.current,
+      behavior: 'smooth',
+    });
   });
 }
 ```
 
-**Pros**: Accurate keyboard detection
-**Cons**: Not available in all browsers Safari versions; requires polyfill for older devices
-
-### Option C: Cap `--safe-area-bottom` to a maximum value
-
-Set a reasonable maximum (e.g., 50-80px) for the safe area bottom, since the actual Safari chrome should never exceed this.
-
-```javascript
-const safeAreaBottom = Math.min(
-  window.innerHeight - (vv.height + vv.offsetTop),
-  80, // max expected chrome height
-);
-```
-
-**Pros**: Simple one-line fix
-**Cons**: Could cut off legitimate safe area on unusual devices
-
-### Option D: Reset on blur
-
-Listen for `blur` events on inputs to reset `--safe-area-bottom` when focus leaves form elements.
-
-**Pros**: Directly tied to user interaction
-**Cons**: Doesn't prevent the initial incorrect calculation when keyboard opens
-
-## Recommended Approach: Option A (Keyboard Detection)
-
-I recommend **Option A** as the primary fix with **Option C** as a safety cap.
-
-The fix modifies [`updateSafeArea()`](../apps/frontend-blog/src/components/BottomNavigation.tsx:22-36) to:
-1. Detect keyboard open by checking if visual viewport height dropped by > 200px relative to full height
-2. Skip updating `--safe-area-bottom` when keyboard is detected
-3. Fall back to `env(safe-area-inset-bottom)` when keyboard is open
-4. Cap the safe area value at 80px as a safety measure
-
-### Additional consideration
-
-The `--safe-area-bottom` CSS variable is declared on `:root` in [`globals.css`](../apps/frontend-blog/src/app/globals.css:8) with a default value of `env(safe-area-inset-bottom, 0px)`. When the component updates it via `document.documentElement.style.setProperty`, it creates an inline style that overrides the CSS variable. When keyboard closes and the resize event fires again with the correct visual viewport height, the value should return to normal. But there could be a timing issue where the keyboard resize event sequence doesn't restore it properly.
-
-## Files to Modify
+### Files to Modify
 
 | File | Change |
 |------|--------|
-| [`apps/frontend-blog/src/components/BottomNavigation.tsx`](../apps/frontend-blog/src/components/BottomNavigation.tsx) | Add keyboard detection logic in `updateSafeArea()`, add keyboard open/close event listeners |
-
-No CSS changes needed — the fix is purely in the JavaScript logic that sets `--safe-area-bottom`.
+| [`apps/frontend-blog/src/components/BottomNavigation.tsx`](../apps/frontend-blog/src/components/BottomNavigation.tsx) | Add `useRef` to imports, add refs, add `focusin` listener, add scroll restoration in `updateSafeArea()` |
