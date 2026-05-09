@@ -238,11 +238,10 @@ function HomePageClientContent({ initialData, ...props }: HomePageClientProps) {
   // ──────────────────────────────────────────────────
   useLayoutEffect(() => {
     if (allArticles.length > 0) {
-      const navigatedTo = sessionStorage.getItem('homeNavigatedTo');
       const savedScrollY = sessionStorage.getItem('homeScrollY');
 
-      // Only restore if we came back from an article detail page
-      if (navigatedTo?.includes('/articles/') && savedScrollY) {
+      // Restore scroll if we came back via backward navigation
+      if (isBackNavigation && savedScrollY) {
         window.scrollTo(0, Number(savedScrollY));
       }
 

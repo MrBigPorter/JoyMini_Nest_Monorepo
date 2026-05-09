@@ -55,7 +55,7 @@ export function CategoryFilter({
     [queryClient, locale],
   );
   const [emblaRef, emblaApi] = useEmblaCarousel({
-    align: 'center',
+    align: 'start',
     containScroll: 'keepSnaps',
     dragFree: false,
     slidesToScroll: 1,
@@ -179,7 +179,7 @@ export function CategoryFilter({
             aria-selected={!selectedCategoryId}
             className={`
               flex-shrink-0 px-5 py-2.5 rounded-lg text-sm font-semibold
-              transition-all duration-200 whitespace-nowrap
+              transition-colors duration-200 whitespace-nowrap
               ${
                 !selectedCategoryId
                   ? 'bg-blue-600 text-white shadow-sm shadow-blue-300 dark:shadow-blue-900'
@@ -202,7 +202,7 @@ export function CategoryFilter({
                 aria-selected={isActive}
                 className={`
                   flex-shrink-0 px-5 py-2.5 rounded-lg text-sm font-semibold
-                  transition-all duration-200 whitespace-nowrap
+                  transition-colors duration-200 whitespace-nowrap
                   ${
                     isActive
                       ? 'bg-blue-600 text-white shadow-sm shadow-blue-300 dark:shadow-blue-900'
