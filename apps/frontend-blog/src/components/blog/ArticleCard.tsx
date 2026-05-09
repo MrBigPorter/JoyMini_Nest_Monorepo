@@ -198,6 +198,11 @@ export function ArticleCard({
                       ? (article as FrontendArticle).meta?.video?.poster
                       : undefined
                   }
+                  posterWebp={
+                    'meta' in article
+                      ? (article as FrontendArticle).meta?.video?.posterWebp
+                      : undefined
+                  }
                   className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                   clickToPlay
                 />

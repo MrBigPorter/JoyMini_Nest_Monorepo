@@ -198,15 +198,15 @@ export class MediaProcessor extends WorkerHost {
       const videoVariants =
         await this.mediaProcessorService.transcodeVideoToHls(buffer, articleId);
 
-      // Extract video thumbnail poster (frame at 1s)
-      let posterUrl: string | undefined;
+      // Extract video thumbnail poster (frame at 1s) — returns both JPEG and WebP URLs
+      let posterUrl: { jpg: string; webp: string } | undefined;
       try {
         posterUrl = await this.mediaProcessorService.extractVideoThumbnail(
           buffer,
           articleId,
         );
         this.logger.log(
-          `Video poster generated for article ${articleId}: ${posterUrl}`,
+          `Video poster generated for article ${articleId}: ${posterUrl?.jpg}`,
         );
       } catch (thumbError) {
         this.logger.warn(`Failed to generate video poster: ${thumbError}`);
@@ -226,7 +226,7 @@ export class MediaProcessor extends WorkerHost {
       const newEntry: ContentVideoEntry = {
         videoKey,
         hlsUrl: videoVariants.hlsUrl,
-        poster: posterUrl ?? null,
+        poster: posterUrl?.jpg ?? null,
       };
       await this.prisma.blogArticle.update({
         where: { id: articleId },
@@ -235,7 +235,8 @@ export class MediaProcessor extends WorkerHost {
             ...existingMeta,
             video: {
               ...videoVariants,
-              poster: posterUrl,
+              poster: posterUrl?.jpg,
+              posterWebp: posterUrl?.webp,
               status: 'completed',
             },
             contentVideo: [...existingContentVideo, newEntry],

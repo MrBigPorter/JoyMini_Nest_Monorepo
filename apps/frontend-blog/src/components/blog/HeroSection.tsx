@@ -81,6 +81,7 @@ export function HeroSection({ articles }: HeroSectionProps) {
                     ? mainArticle.coverImage
                     : undefined)
                 }
+                posterWebp={mainArticle.meta?.video?.posterWebp}
                 className="w-full h-full"
                 autoPlay={false}
                 muted
@@ -206,6 +207,7 @@ export function HeroSection({ articles }: HeroSectionProps) {
                           ? article.coverImage
                           : undefined)
                       }
+                      posterWebp={article.meta?.video?.posterWebp}
                       className="w-full h-full"
                       muted
                       autoPlay={false}

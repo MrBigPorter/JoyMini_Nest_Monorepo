@@ -66,6 +66,12 @@ function HomePageClientContent({ initialData, ...props }: HomePageClientProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
 
+  // Debounce ref for rapid category switching — prevents multiple RSC fetches
+  // when user clicks through categories faster than the router can navigate.
+  const categoryDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+
   // P0-3a: Network-aware adaptive quality
   const networkQuality = useNetworkQuality();
 
@@ -371,41 +377,50 @@ function HomePageClientContent({ initialData, ...props }: HomePageClientProps) {
     currentLocale,
   ]);
 
-  // Handle category change
+  // Handle category change — debounced to prevent rapid-fire RSC fetches
+  // when user clicks through categories faster than the router can navigate.
+  // Only the LAST click within 300ms triggers the actual category switch.
   const handleCategoryChange = useCallback(
     (categoryId?: string) => {
       // No-op: clicking the same tab that's already active should do nothing
       if (categoryId === selectedCategoryId) return;
 
-      // Mark that user has switched away from the SSR-initial category,
-      // reset accumulated data and page — all via context's resetState.
-      setIsInitialCategory(false);
+      // Clear any pending category switch (debounce)
+      if (categoryDebounceRef.current) {
+        clearTimeout(categoryDebounceRef.current);
+      }
 
-      // Use View Transitions API (Chrome 111+) for smooth crossfade
-      if (
-        typeof document !== 'undefined' &&
-        'startViewTransition' in document
-      ) {
-        const transition = (
-          document as Document & {
-            startViewTransition: (cb: () => void) => {
-              finished: Promise<void>;
-            };
-          }
-        ).startViewTransition(() => {
+      categoryDebounceRef.current = setTimeout(() => {
+        // Mark that user has switched away from the SSR-initial category,
+        // reset accumulated data and page — all via context's resetState.
+        setIsInitialCategory(false);
+
+        // Use View Transitions API (Chrome 111+) for smooth crossfade
+        if (
+          typeof document !== 'undefined' &&
+          'startViewTransition' in document
+        ) {
+          const transition = (
+            document as Document & {
+              startViewTransition: (cb: () => void) => {
+                finished: Promise<void>;
+              };
+            }
+          ).startViewTransition(() => {
+            setSelectedCategoryId(categoryId);
+            resetState();
+            window.scrollTo(0, 0);
+          });
+          // Ensure transition doesn't block for too long (fallback timeout)
+          setTimeout(() => {
+            transition.finished.catch(() => {});
+          }, 1000);
+        } else {
+          // Fallback for browsers without View Transitions support
           setSelectedCategoryId(categoryId);
           resetState();
-          window.scrollTo(0, 0);
-        });
-        // Ensure transition doesn't block for too long (fallback timeout)
-        setTimeout(() => {
-          transition.finished.catch(() => {});
-        }, 1000);
-      } else {
-        // Fallback for browsers without View Transitions support
-        setSelectedCategoryId(categoryId);
-        resetState();
-      }
+        }
+      }, 300);
     },
     [selectedCategoryId, setIsInitialCategory, resetState],
   );
