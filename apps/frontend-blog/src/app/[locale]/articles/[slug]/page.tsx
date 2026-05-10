@@ -1,5 +1,6 @@
 import { getCachedArticle } from '@/lib/cached/article';
 import ArticlePageClient from './page.client';
+import { getOptimizedImageUrl } from '@/lib/utils/cloudflareImageLoader';
 import type { Metadata } from 'next';
 
 // Next.js 15 perfect cache pattern
@@ -138,7 +139,47 @@ export default async function ArticlePage({
         }
       : undefined;
 
-    return <ArticlePageClient initialArticle={initialArticle} />;
+    // ── SSR preload for LCP cover image ──────────────────────────────────
+    // Extract the cover image URL from the article (it IS available during SSR
+    // since only content/contentMd/relatedArticles/meta are stripped above).
+    // Transform it through Cloudflare Image Resizing so the preload URL matches
+    // what the browser will eventually render (via /cdn-cgi/image/...).
+    //
+    // Width=1200 covers desktop ~950px hero scenarios (article page prose container
+    // max-width is ~800px, so 1200px generously covers both use cases).
+    //
+    // NOTE: Video poster URLs (meta.video.poster/posterWebp) are NOT available
+    // during SSR because `meta` is stripped above to reduce RSC payload size.
+    // Those are transformed client-side via `getOptimizedImageUrl` in:
+    //   - HlsVideoPlayer.tsx (for hero section video posters)
+    //   - ArticleMarkdown.tsx (for inline article content image/video poster)
+    // See: apps/frontend-blog/src/components/blog/HlsVideoPlayer.tsx
+    // See: apps/frontend-blog/src/components/blog/ArticleMarkdown.tsx
+    const preloadedCoverImage = article?.coverImage
+      ? getOptimizedImageUrl({
+          src: article.coverImage,
+          width: 1200,
+          quality: 75,
+        })
+      : undefined;
+
+    return (
+      <>
+        {/* SSR preload: inject <link rel="preload"> for the cover image.
+            Next.js App Router automatically hoists <link> elements from Server
+            Component JSX into the <head> during SSR, so these preload hints
+            are available in the initial HTML before any client JS executes. */}
+        {preloadedCoverImage && (
+          <link
+            rel="preload"
+            as="image"
+            href={preloadedCoverImage}
+            fetchPriority="high"
+          />
+        )}
+        <ArticlePageClient initialArticle={initialArticle} />
+      </>
+    );
   } catch (error) {
     console.error('Article page server error:', error);
 

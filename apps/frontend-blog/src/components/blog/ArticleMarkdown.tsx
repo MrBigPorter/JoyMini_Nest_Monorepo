@@ -10,6 +10,7 @@ import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { HlsVideoPlayer } from './HlsVideoPlayer';
 import { NativeVideoPlayer } from './NativeVideoPlayer';
+import { getOptimizedImageUrl } from '@/lib/utils/cloudflareImageLoader';
 
 // Register languages on demand — only what blog articles typically use
 import typescript from 'react-syntax-highlighter/dist/esm/languages/prism/typescript';
@@ -122,6 +123,60 @@ function wrapWideContent(html: string): string {
   result = result.replace(
     /(<svg[^>]*>[\s\S]*?<\/svg>)/gi,
     (match) => `<div class="article-media-wrapper">${match}</div>`,
+  );
+
+  return result;
+}
+
+/**
+ * Transform media URLs in HTML content through Cloudflare Image Resizing.
+ *
+ * This addresses two problems identified from RUM data:
+ * 1. Video poster URLs bypass Cloudflare Image Resizing (raw R2 URLs)
+ * 2. Cover images inside article HTML content bypass Cloudflare Image Resizing
+ *
+ * The function finds `<img src="...">` and `<video poster="...">` attributes
+ * and replaces their URLs with optimized `/cdn-cgi/image/...` URLs.
+ *
+ * Since this runs client-side (article content is fetched after SSR),
+ * the transformation applies AFTER the content is loaded, ensuring the
+ * images benefit from Cloudflare's edge resizing + automatic format selection.
+ *
+ * @param html - Raw HTML string containing `<img>` and/or `<video>` tags
+ * @returns HTML with media URLs transformed through Cloudflare Image Resizing
+ */
+function transformMediaUrls(html: string): string {
+  let result = html;
+
+  // Transform <img src="..."> URLs
+  // Matches: <img ... src="https://img.joyminis.com/..." ...>
+  // Replaces the src value with a Cloudflare-optimized URL at 1200px width
+  // (covers both hero ~950px and inline article image ~800px scenarios)
+  result = result.replace(
+    /(<img\s[^>]*?src\s*=\s*")([^"]+)("[^>]*?>)/gi,
+    (_match, prefix, srcUrl, suffix) => {
+      const optimized = getOptimizedImageUrl({
+        src: srcUrl,
+        width: 1200,
+        quality: 75,
+      });
+      return `${prefix}${optimized}${suffix}`;
+    },
+  );
+
+  // Transform <video poster="..."> URLs
+  // Matches: <video ... poster="https://img.joyminis.com/..." ...>
+  // Replaces the poster value with a Cloudflare-optimized URL at 1200px width
+  result = result.replace(
+    /(<video\s[^>]*?poster\s*=\s*")([^"]+)("[^>]*?>)/gi,
+    (_match, prefix, posterUrl, suffix) => {
+      const optimized = getOptimizedImageUrl({
+        src: posterUrl,
+        width: 1200,
+        quality: 75,
+      });
+      return `${prefix}${optimized}${suffix}`;
+    },
   );
 
   return result;
@@ -330,6 +385,14 @@ export default function ArticleMarkdown({
 
   // For HTML content (Quill editor or pre-rendered markdown), render directly
   if (isHtmlContent(content)) {
+    // First, transform media URLs through Cloudflare Image Resizing so that
+    // <img src> and <video poster> attributes use /cdn-cgi/image/... URLs
+    // instead of raw R2 URLs. This is a client-side optimization since the
+    // full article content is loaded via API on the client (not SSR'd).
+    const transformedContent = transformMediaUrls(content);
+    // Then wrap wide elements for scrollable overflow handling
+    const wrappedContent = wrapWideContent(transformedContent);
+
     return (
       <article
         ref={articleRef}
@@ -347,7 +410,7 @@ export default function ArticleMarkdown({
           prose-blockquote:border-primary prose-blockquote:bg-primary/5 prose-blockquote:px-4 prose-blockquote:py-2 prose-blockquote:rounded-r-lg
           prose-strong:text-gray-900 dark:prose-strong:text-white
           prose-li:my-0 prose-li:border-0"
-        dangerouslySetInnerHTML={{ __html: wrapWideContent(content) }}
+        dangerouslySetInnerHTML={{ __html: wrappedContent }}
       />
     );
   }

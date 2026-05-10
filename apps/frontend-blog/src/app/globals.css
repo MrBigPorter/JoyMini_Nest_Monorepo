@@ -258,12 +258,33 @@ input:-webkit-autofill:active {
    The 16/9 ratio is a fallback — when the <img> loads, its intrinsic
    dimensions override the inline aspect-ratio on the <img> itself,
    but this gives the wrapper a defined height before load, preventing
-   the content below from shifting. */
+   the content below from shifting.
+
+   Note: This only applies to images WITHOUT explicit width/height
+   attributes (Quill editor HTML content). Markdown content images
+   have explicit width={800} height={450} set in ReactMarkdown's
+   img component, so they get their intrinsic aspect-ratio from those
+   attributes directly. */
 .article-media-wrapper:has(> img) {
   aspect-ratio: 16 / 9;
 }
 
-.article-media-wrapper > img,
+/* For images WITHOUT explicit dimensions (Quill HTML content path),
+   ensure they fill the wrapper width and use object-fit to prevent
+   layout shift when their intrinsic aspect ratio differs from 16/9.
+   Images WITH explicit dimensions (Markdown content path via
+   ReactMarkdown's img component with width={800} height={450})
+   are naturally constrained by those attributes. */
+.article-media-wrapper > img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  max-width: none;
+  display: block;
+}
+
+/* For SVG, tables, and pre blocks — keep max-width:none to preserve
+   natural width with horizontal scrolling (wrapper handles overflow) */
 .article-media-wrapper > svg,
 .article-media-wrapper > table,
 .article-media-wrapper > pre,
