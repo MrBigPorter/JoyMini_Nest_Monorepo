@@ -1,6 +1,8 @@
 import { serverGet } from '@/lib/serverFetch';
 import { getEnabledLocales } from '@/lib/i18n/config';
-import cloudflareImageLoader from '@/lib/utils/cloudflareImageLoader';
+import cloudflareImageLoader, {
+  getOptimizedImageUrl,
+} from '@/lib/utils/cloudflareImageLoader';
 import HomePageClient from './page.client.tsx';
 import type { FrontendArticle } from '@/lib/types/frontend-blog';
 import type { FrontendCategory } from '@/lib/types/frontend-blog';
@@ -86,12 +88,27 @@ export default async function HomePage({
 
     // Collect unique image URLs to preload (cover + video poster, deduplicated)
     // Prefer WebP variant for video poster (~30-50% smaller file size)
+    // ⚠️ CRITICAL: Must transform poster URLs through getOptimizedImageUrl() so the
+    // preload URL matches what HlsVideoPlayer renders. If preload URL (raw R2) ≠
+    // rendered URL (Cloudflare-transformed) → preload cache miss → wasted download.
     const preloadImages = new Set<string>();
     if (preloadedCoverImage) preloadImages.add(preloadedCoverImage);
     if (firstVideoPosterWebp) {
-      preloadImages.add(firstVideoPosterWebp);
+      preloadImages.add(
+        getOptimizedImageUrl({
+          src: firstVideoPosterWebp,
+          width: 1200,
+          quality: 75,
+        }),
+      );
     } else if (firstVideoPoster) {
-      preloadImages.add(firstVideoPoster);
+      preloadImages.add(
+        getOptimizedImageUrl({
+          src: firstVideoPoster,
+          width: 1200,
+          quality: 75,
+        }),
+      );
     }
 
     return (

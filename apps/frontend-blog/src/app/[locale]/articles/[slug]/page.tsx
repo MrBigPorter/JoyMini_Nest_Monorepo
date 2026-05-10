@@ -145,9 +145,14 @@ export default async function ArticlePage({
     // Transform it through Cloudflare Image Resizing so the preload URL matches
     // what the browser will eventually render (via /cdn-cgi/image/...).
     //
-    // Width=1200 covers desktop ~950px hero scenarios (article page prose container
-    // max-width is ~800px, so 1200px generously covers both use cases).
+    // ⚠️ CRITICAL: preload width MUST match the rendered width. The article
+    // content renders images through two paths:
+    //   1. HTML path (Quill editor): transformMediaUrls() → 1200px
+    //   2. Markdown path (contentMd): custom <img> → getOptimizedImageUrl(1200px)
+    // Both now use getOptimizedImageUrl at 1200px width (since Fix C2 below).
+    // 1200px covers PC desktop ~800px prose container + 1.5x HiDPI scaling.
     //
+    // If preload width ≠ rendered width → cache miss → no benefit.
     // NOTE: Video poster URLs (meta.video.poster/posterWebp) are NOT available
     // during SSR because `meta` is stripped above to reduce RSC payload size.
     // Those are transformed client-side via `getOptimizedImageUrl` in:

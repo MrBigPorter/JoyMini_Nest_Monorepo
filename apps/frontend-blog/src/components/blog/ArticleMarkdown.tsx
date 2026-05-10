@@ -569,10 +569,20 @@ export default function ArticleMarkdown({
           // aspect-ratio BEFORE the image loads, preventing layout shift.
           // Once the image loads, its intrinsic dimensions override these.
           img({ src, alt, ...props }) {
+            // Route markdown images through Cloudflare Image Resizing.
+            // getOptimizedImageUrl() is safe for any URL — it only transforms
+            // img.joyminis.com URLs and returns others (data:/blob:/external) as-is.
+            // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+            const srcStr = typeof src === 'string' ? src : '';
+            const optimizedSrc = getOptimizedImageUrl({
+              src: srcStr,
+              width: 1200,
+              quality: 75,
+            });
             return (
               <div className="article-media-wrapper">
                 <img
-                  src={src}
+                  src={optimizedSrc}
                   alt={alt}
                   width={800}
                   height={450}
