@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import Hls from 'hls.js';
+import { getOptimizedImageUrl } from '@/lib/utils/cloudflareImageLoader';
 
 interface HlsVideoPlayerProps {
   hlsUrl: string;
@@ -41,7 +42,14 @@ export function HlsVideoPlayer({
   const hlsRef = useRef<Hls | null>(null);
 
   // Prefer WebP poster for LCP optimization (~30-50% smaller file size)
-  const effectivePoster = posterWebp || poster;
+  // Transform the poster URL through Cloudflare Image Resizing so it benefits
+  // from `/cdn-cgi/image/` width/quality optimization + automatic format selection.
+  // Width=1200 covers both hero section (~950px) and article detail (~800px) scenarios.
+  // Without this, the poster URL is a raw R2 object URL — no resizing/compression.
+  const rawPoster = posterWebp || poster;
+  const effectivePoster = rawPoster
+    ? getOptimizedImageUrl({ src: rawPoster, width: 1200, quality: 75 })
+    : undefined;
 
   // Track mount state to prevent SSR/client hydration mismatch.
   // The play overlay (showPlayOverlay) is only rendered AFTER hydration
