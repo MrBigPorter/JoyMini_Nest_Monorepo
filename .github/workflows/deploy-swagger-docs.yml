@@ -1,0 +1,98 @@
+# ============================================================
+# Swagger Docs Cloudflare Pages 部署流水线
+# ============================================================
+# 推送 main/test 分支且 API 相关文件变更时自动触发
+# 流程: 安装依赖 → 导出 Swagger 规范 → 部署到 Cloudflare Pages
+# ============================================================
+
+name: Deploy Swagger Docs (Cloudflare Pages)
+
+on:
+  push:
+    branches: [main, test]
+    paths:
+      - "apps/api/**"
+      - "apps/swagger-docs/**"
+      - ".github/workflows/deploy-swagger-docs.yml"
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: "🖥️ Runner"
+        type: choice
+        options: [ubuntu-latest, self-hosted]
+        default: ubuntu-latest
+
+concurrency:
+  group: deploy-swagger-docs-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  deployments: write
+
+jobs:
+  deploy:
+    runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
+    environment: ${{ github.ref_name == 'main' && 'production' || 'preview' }}
+
+    steps:
+      - name: 1. Checkout Code
+        uses: actions/checkout@v4
+
+      - name: 2. Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 3. Enable Corepack (Yarn 4)
+        run: corepack enable && corepack prepare yarn@4.9.2 --activate
+
+      - name: Cache Yarn
+        uses: actions/cache@v4
+        with:
+          path: |
+            .yarn/cache
+            .yarn/install-state.gz
+          key: yarn-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-
+
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        id: nm-cache
+        with:
+          path: node_modules
+          key: nm-swagger-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: |
+            nm-swagger-${{ runner.os }}-
+
+      - name: 4. Install Dependencies
+        run: yarn install --immutable
+
+      - name: 5. Build shared packages
+        run: |
+          node packages/shared/scripts/build.js &
+          node packages/ui/scripts/build.js &
+          wait
+
+      - name: 6. Export Swagger OpenAPI Spec
+        run: yarn workspace @lucky/api export:swagger:full
+
+      - name: 7. Deploy to Cloudflare Pages
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: "JoyMinis-Api-Platfam"
+          directory: apps/swagger-docs
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 8. Publish Deployment Summary
+        if: always()
+        run: |
+          cat <<EOF >> "$GITHUB_STEP_SUMMARY"
+          ## ☁️ Swagger Docs Cloudflare Deployment
+
+          - Environment: ${{ github.ref_name == 'main' && 'production' || 'preview' }}
+          - Commit: \`${{ github.sha }}\`
+          - Endpoints: 293 (full API)
+          EOF
