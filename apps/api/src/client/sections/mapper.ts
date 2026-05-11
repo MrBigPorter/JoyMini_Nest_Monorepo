@@ -59,6 +59,7 @@ export function mapTreasure(row: Row) {
     productName: row.product_name ?? '',
     treasureSeq: row.treasure_seq ?? '',
     treasureCoverImg: row.treasure_cover_img ?? '',
+    blurhash: row.blurhash ?? '',
     mainImageList: Array.isArray(row.main_image_list)
       ? row.main_image_list
       : [],

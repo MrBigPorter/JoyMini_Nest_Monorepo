@@ -40,6 +40,7 @@ export class BannersService {
         showType: true, // 1=单图 2=轮播
         fileType: true, // 1=图片 2=视频
         bannerImgUrl: true, // showType=1
+        blurhash: true,
         bannerArray: true, // showType=2 (Json[])
         jumpCate: true,
         jumpUrl: true,

@@ -25,6 +25,10 @@ export class BannerResponseDto {
   @Expose()
   bannerImgUrl!: string;
 
+  @ApiProperty({ description: 'Blurhash placeholder', required: false })
+  @Expose()
+  blurhash?: string;
+
   @ApiProperty({
     description: 'File type, 1 pic 2 video',
     example: 1,

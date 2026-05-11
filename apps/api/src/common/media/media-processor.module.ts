@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { PrismaModule } from '@api/common/prisma/prisma.module';
 import { UploadModule } from '@api/common/upload/upload.module';
@@ -12,7 +12,7 @@ import { MEDIA_PROCESSOR_QUEUE } from './media-processor.constants';
       name: MEDIA_PROCESSOR_QUEUE,
     }),
     PrismaModule,
-    UploadModule,
+    forwardRef(() => UploadModule),
   ],
   controllers: [],
   providers: [MediaProcessorService, MediaProcessor],

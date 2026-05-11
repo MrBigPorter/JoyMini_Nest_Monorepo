@@ -86,6 +86,10 @@ export class AdminTreasureResponseDto {
   @Expose()
   treasureCoverImg?: string;
 
+  @ApiProperty({ description: 'Blurhash placeholder', required: false })
+  @Expose()
+  blurhash?: string;
+
   @ApiProperty({ description: '状态: 0-下架 1-上架' })
   @Expose()
   state!: number;

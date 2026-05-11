@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Image, ImageProps } from '@unpic/react';
 import { ImageOff, Loader2 } from 'lucide-react';
 import { cn } from '@repo/ui';
@@ -14,12 +14,33 @@ interface SmartImageProps extends Omit<ImageProps, 'cdn'> {
   className?: string;
   /** 图片本身的类名 */
   imgClassName?: string;
+  /** Blurhash placeholder string for low-quality image placeholder */
+  blurhash?: string;
+}
+
+/**
+ * Decode a blurhash-like string into RGB values for a CSS gradient background.
+ * This is a simplified CSS-based placeholder that creates a blurred color effect.
+ * For a full blurhash decode, use the `blurhash` npm package.
+ */
+function blurhashToCssBackground(blurhash: string): string {
+  // Simple approach: use the blurhash string as a seed for a CSS gradient
+  // This creates a visually appealing placeholder without the blurhash decoder
+  let hash = 0;
+  for (let i = 0; i < blurhash.length; i++) {
+    hash = blurhash.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const r = (hash & 0xff0000) >> 16;
+  const g = (hash & 0x00ff00) >> 8;
+  const b = hash & 0x0000ff;
+  return `rgb(${r}, ${g}, ${b})`;
 }
 
 export const SmartImageImpl: React.FC<SmartImageProps> = ({
   src,
   enableOptimization,
   fallbackSrc,
+  blurhash,
   className,
   imgClassName,
   alt = '',
@@ -32,6 +53,11 @@ export const SmartImageImpl: React.FC<SmartImageProps> = ({
   );
 
   const imgRef = React.useRef<HTMLImageElement | null>(null);
+
+  const blurhashBackground = useMemo(() => {
+    if (!blurhash) return undefined;
+    return blurhashToCssBackground(blurhash);
+  }, [blurhash]);
 
   // 1. 判断是否为本地图片 (Blob URL 或 Base64)
   const isLocalImage = src?.startsWith('blob:') || src?.startsWith('data:');
@@ -123,14 +149,24 @@ export const SmartImageImpl: React.FC<SmartImageProps> = ({
   return (
     <div
       className={cn(
-        'relative overflow-hidden bg-gray-100 dark:bg-gray-800 flex items-center justify-center',
+        'relative overflow-hidden flex items-center justify-center',
         className,
       )}
+      style={{
+        backgroundColor: blurhashBackground ?? undefined,
+      }}
     >
-      {/* --- 1. Loading 状态 (骨架屏/转圈) --- */}
+      {/* --- 1. Loading 状态 (blurhash 占位 / 转圈) --- */}
       {status === 'loading' && (
         <div className="absolute inset-0 flex items-center justify-center z-10">
-          <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+          {blurhash ? (
+            <div
+              className="w-full h-full animate-pulse"
+              style={{ backgroundColor: blurhashBackground }}
+            />
+          ) : (
+            <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+          )}
         </div>
       )}
 

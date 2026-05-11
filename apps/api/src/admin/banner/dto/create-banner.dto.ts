@@ -27,6 +27,11 @@ export class CreateBannerDto {
   @IsString()
   bannerImgUrl!: string;
 
+  @ApiPropertyOptional({ description: 'Blurhash placeholder for banner image' })
+  @IsOptional()
+  @IsString()
+  blurhash?: string;
+
   @ApiPropertyOptional({
     description: 'Related title ID',
     example: '123e4567-e89b-12d3-a456-426614174000',

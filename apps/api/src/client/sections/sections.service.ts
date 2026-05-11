@@ -51,6 +51,7 @@ const TREASURE_SELECT = `
   t.product_name,
   t.treasure_seq,
   t.treasure_cover_img,
+  t.blurhash,
   t.main_image_list,
   t.rule_content,
   t."desc",

@@ -55,6 +55,11 @@ export class CreateTreasureDto {
   @IsString()
   treasureCoverImg!: string;
 
+  @ApiPropertyOptional({ description: 'Blurhash placeholder for cover image' })
+  @IsOptional()
+  @IsString()
+  blurhash?: string;
+
   @ApiPropertyOptional({ description: 'Description / Details HTML' })
   @IsOptional()
   @IsString()

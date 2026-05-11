@@ -188,6 +188,7 @@ export const BannerManagement: React.FC<BannerManagementProps> = ({
           <div className="w-32 h-16 bg-gray-100 rounded-md overflow-hidden  relative group">
             <SmartImage
               src={info.getValue()}
+              blurhash={info.row.original.blurhash}
               width={128}
               height={64}
               className="w-full h-full object-cover"

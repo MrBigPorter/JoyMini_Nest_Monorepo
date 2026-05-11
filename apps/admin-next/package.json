@@ -48,6 +48,7 @@
     "react-google-recaptcha-v3": "^1.11.0",
     "react-hook-form": "^7.71.2",
     "react-is": "^19.0.0",
+    "react-quill-new": "^3.7.0",
     "recharts": "^3.5.1",
     "server-only": "^0.0.1",
     "socket.io-client": "^4.8.3",

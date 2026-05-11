@@ -35,7 +35,17 @@ export class BannerService {
 
     return this.prisma.banner.create({
       data: {
-        ...dto,
+        title: dto.title,
+        bannerImgUrl: dto.bannerImgUrl,
+        blurhash: dto.blurhash,
+        fileType: dto.fileType,
+        bannerCate: dto.bannerCate,
+        jumpCate: dto.jumpCate,
+        jumpUrl: dto.jumpUrl,
+        sortOrder: dto.sortOrder,
+        relatedTitleId: dto.relatedTitleId,
+        activityAtStart: dto.activityAtStart,
+        activityAtEnd: dto.activityAtEnd,
         state: BANNER_STATE.ACTIVE,
         validState: BANNER_VALID_STATE.VALID,
       },

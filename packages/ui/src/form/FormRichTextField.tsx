@@ -114,9 +114,21 @@ export const FormRichTextField = ({
               error ? "border-red-500" : "border-gray-200 dark:border-gray-800",
             )}
           >
-            {/* ReactQuill 未加载前显示骨架屏占位 */}
+            {/* ReactQuill 未加载前显示骨架屏占位 — 模拟工具栏+编辑区布局，防止布局跳跃 */}
             {!ReactQuill ? (
-              <div className="h-[340px] bg-gray-100 dark:bg-gray-800 animate-pulse rounded" />
+              <div className="flex flex-col rounded overflow-hidden">
+                {/* 模拟工具栏 */}
+                <div className="h-[42px] bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center gap-1 px-2">
+                  {[...Array(8)].map((_, i) => (
+                    <div
+                      key={i}
+                      className="h-5 w-5 bg-gray-200 dark:bg-gray-700 animate-pulse rounded"
+                    />
+                  ))}
+                </div>
+                {/* 模拟编辑区 */}
+                <div className="h-[298px] bg-gray-50 dark:bg-gray-800/50 animate-pulse" />
+              </div>
             ) : (
               <ReactQuill
                 ref={quillRef}

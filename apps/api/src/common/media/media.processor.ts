@@ -1,6 +1,6 @@
 import { OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
-import { Logger } from '@nestjs/common';
+import { Inject, forwardRef, Logger } from '@nestjs/common';
 import { MediaProcessorService } from './media-processor.service';
 import { UploadService } from '@api/common/upload/upload.service';
 import { PrismaService } from '@api/common/prisma/prisma.service';
@@ -46,6 +46,7 @@ export class MediaProcessor extends WorkerHost {
 
   constructor(
     private readonly mediaProcessorService: MediaProcessorService,
+    @Inject(forwardRef(() => UploadService))
     private readonly uploadService: UploadService,
     private readonly prisma: PrismaService,
   ) {
