@@ -35,4 +35,12 @@ export class ConfirmUploadDto {
   @IsOptional()
   @IsString()
   mimeType?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Optional media usage hint (blog): "cover" (coverImage) or "content" (rich-text). Used to route transcoding results to meta.video vs meta.contentVideo.',
+  })
+  @IsOptional()
+  @IsString()
+  mediaUsage?: string;
 }

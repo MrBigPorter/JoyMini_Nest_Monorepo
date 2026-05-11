@@ -204,6 +204,14 @@
   color: #e5e7eb !important;
 }
 
+/* Editor-internal video: disable pointer events so HTML5 <video> controls don't
+   intercept clicks. This lets Quill's selection system properly select the
+   BlockEmbed blot, enabling users to delete videos with Backspace/Delete.
+   In-editor video playback is intentionally disabled — the video is a static preview. */
+.ql-editor video.ql-video {
+  pointer-events: none;
+}
+
 /* 图片样式 */
 .ql-editor img {
   max-width: 100% !important;

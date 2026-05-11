@@ -156,6 +156,12 @@ export const blogApi = {
     return await http.post<any>(`/v1/admin/blog/articles/${id}/translate`);
   },
 
+  clearArticleTranslations: async (id: string) => {
+    return await http.post<any>(
+      `/v1/admin/blog/articles/${id}/clear-translations`,
+    );
+  },
+
   publishArticle: async (id: string) => {
     return await http.post<any>(`/v1/admin/blog/articles/${id}/publish`);
   },

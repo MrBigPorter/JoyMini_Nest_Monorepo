@@ -53,7 +53,7 @@ export const RichTextEditor = ({
         const link = document.createElement('link');
         link.rel = 'stylesheet';
         link.href =
-          'https://cdn.jsdelivr.net/npm/react-quill-new@3.2.0/dist/quill.snow.css';
+          'https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css';
         document.head.appendChild(link);
       }
     };
@@ -202,7 +202,7 @@ export const RichTextEditor = ({
 
           // Capture DOM state BEFORE insertEmbed for fallback comparison
           const beforeHtml = quill.root.innerHTML;
-          quill.insertEmbed(insertIndex, 'image', url, 'user');
+          quill.insertEmbed(insertIndex, 'image', url, 'api');
 
           // After inserting, move caret to just after the embed but ensure index is valid
           const newIndex = Math.max(
@@ -354,9 +354,11 @@ export const RichTextEditor = ({
             );
           }
 
-          // 使用自定义 Html5VideoBlot 插入 <video> 元素，确保编辑器内可见可播放
-          // Pass source 'user' to ensure Quill treats this as a user action
-          quill.insertEmbed(insertIndex, 'html5-video', url, 'user');
+          // Pass source 'api' to prevent Quill's onChange from firing (our setTimeout
+          // callback below is the single source of truth for onChangeAction calls).
+          // If we used 'user', onChange would fire twice — once here (source='user')
+          // and once in the setTimeout callback — causing the content to double.
+          quill.insertEmbed(insertIndex, 'html5-video', url, 'api');
 
           // Move caret to just after the embed; clamp to avoid "range isn't in document"
           const newIndex = Math.max(
@@ -412,6 +414,9 @@ export const RichTextEditor = ({
                   { contentSnippet: content.slice(0, 200) },
                 );
                 onChangeAction(content);
+                // setIsUploading(false) must be inside setTimeout, after onChangeAction,
+                // to avoid a re-render that could cause Quill to rebuild mid-operation.
+                setIsUploading(false);
               }, 0);
             } else {
               const content = afterHtml;
@@ -420,10 +425,12 @@ export const RichTextEditor = ({
                 { contentSnippet: content.slice(0, 200) },
               );
               onChangeAction(content);
+              // setIsUploading(false) must be inside setTimeout, after onChangeAction,
+              // to avoid a re-render that could cause Quill to rebuild mid-operation.
+              setIsUploading(false);
             }
           }, 0);
         }
-        setIsUploading(false);
       } catch (error) {
         setIsUploading(false);
         console.error('Video upload failed:', error);

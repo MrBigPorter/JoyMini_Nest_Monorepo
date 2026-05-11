@@ -459,13 +459,15 @@ export class UploadService {
    * @param originalName - original file name (for extension-based type detection)
    * @param articleId - optional, enqueues media processing if provided
    * @param mimeType - optional, the declared MIME type of the uploaded file
+   * @param mediaUsage - optional (blog): 'cover' | 'content'. Helps route video transcoding output.
    */
   async confirmUpload(
     key: string,
     originalName: string,
     articleId?: string,
     mimeType?: string,
-  ) {
+    mediaUsage?: string,
+  ): Promise<{ url: string; key: string }> {
     const url = `${this.publicDomain.replace(/\/$/, '')}/${key}`;
 
     if (articleId) {
@@ -475,8 +477,12 @@ export class UploadService {
         VIDEO_EXT.test(originalName);
       const jobName = isVideo ? 'transcode-video' : 'compress-image';
 
+      // If caller indicates this is a rich-text content video, don't touch meta.video.status
+      // (meta.video is reserved for coverImage video state used on homepage cards).
+      const isContentVideo = mediaUsage === 'content';
+
       // For video, set initial meta status to 'pending' immediately
-      if (isVideo) {
+      if (isVideo && !isContentVideo) {
         this.prisma.blogArticle
           .findUnique({ where: { id: articleId }, select: { meta: true } })
           .then((article: { meta: unknown } | null) => {
@@ -514,6 +520,7 @@ export class UploadService {
           imageKey: key,
           videoKey: key,
           mimeType: mimeType ?? 'application/octet-stream',
+          mediaUsage,
         })
         .catch((err: unknown) => {
           const msg = err instanceof Error ? err.message : String(err);

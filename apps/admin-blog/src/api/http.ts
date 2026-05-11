@@ -597,14 +597,21 @@ class HttpClient {
     });
 
     // Step 3: Confirm upload (enqueue media processing)
-    const confirmRes = await this.instance.post<
-      ApiResponse<{ url: string; key: string }>
-    >(confirmEndpoint, {
+    const confirmPayload: Record<string, unknown> = {
       key,
       originalName: file.name,
-      articleId: extraFields?.articleId || undefined,
       mimeType: file.type,
-    });
+      ...(extraFields ?? {}),
+    };
+
+    // Avoid sending empty strings as fields (keeps DTO optional semantics)
+    for (const [k, v] of Object.entries(confirmPayload)) {
+      if (v === '') delete confirmPayload[k];
+    }
+
+    const confirmRes = await this.instance.post<
+      ApiResponse<{ url: string; key: string }>
+    >(confirmEndpoint, confirmPayload);
 
     return confirmRes.data.data as T;
   }

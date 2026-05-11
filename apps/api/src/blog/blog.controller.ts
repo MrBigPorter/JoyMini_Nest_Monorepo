@@ -223,6 +223,14 @@ export class BlogController {
     return { message: 'Video transcoding job enqueued' };
   }
 
+  @Post('articles/:id/clear-translations')
+  @ApiBearerAuth()
+  @RequirePermission('blog', 'article_manage')
+  @ApiOperation({ summary: '清除文章所有其他语言的翻译（不自动翻译，保存时触发翻译）' })
+  async clearArticleLocaleTranslations(@Param('id') id: string) {
+    return this.blogService.clearArticleTranslationsForLocales(id);
+  }
+
   @Get('ai/status')
   @ApiBearerAuth()
   @RequirePermission('blog', 'ai_view')

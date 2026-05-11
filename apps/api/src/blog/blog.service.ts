@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import { BlogAiProcessor } from './processors/blog-ai.processor';
 import * as path from 'path';
 import {
   Injectable,
@@ -47,6 +48,7 @@ export class BlogService {
     private systemConfigService: SystemConfigService,
     private languageService: LanguageService,
     private aiService: AiService,
+    private blogAiProcessor: BlogAiProcessor,
   ) {
     this.marked = new Marked({
       gfm: true,
@@ -693,14 +695,17 @@ export class BlogService {
   }
 
   /**
-   * Scan rich text contentLocalized for <video src="..."> tags and backfill
-   * meta.contentVideo[] with any missing entries. Also triggers transcoding
-   * for any new mp4 videos whose HLS output doesn't exist yet.
+   * Scan rich text contentLocalized for <video src="..."> tags and trigger
+   * transcoding for any new mp4 videos that have not been enqueued yet.
    *
-   * This ensures that: (a) existing articles which were saved without articleId
-   * during upload get their videos transcoded, and (b) the frontend can look up
-   * HLS URLs via meta.contentVideo[] even if the old single meta.video was
-   * overwritten.
+   * IMPORTANT: This method does NOT write placeholder entries to
+   * meta.contentVideo[]. Only the transcode-video job handler
+   * (MediaProcessor.handleTranscodeVideo) writes to contentVideo when
+   * transcoding actually completes. This ensures that contentVideo never
+   * contains stale/placeholder HLS URLs that point to non-existent files.
+   *
+   * This ensures existing articles saved without articleId during upload
+   * still get their videos transcoded by enqueuing jobs retroactively.
    */
   private async scanRichTextVideos(articleId: string): Promise<void> {
     this.logger.log(`scanRichTextVideos: started for article ${articleId}`);
@@ -736,7 +741,6 @@ export class BlogService {
 
     const videoRegex = /<video\s+[^>]*src="([^"]+)"/gi;
     const foundKeys = new Set<string>();
-    let origin = '';
 
     for (const html of allHtml) {
       let match: RegExpExecArray | null;
@@ -744,9 +748,16 @@ export class BlogService {
         const src = match[1];
         try {
           const url = new URL(src);
-          if (!origin) origin = url.origin;
           const key = url.pathname.replace(/^\//, '');
-          if (key.includes('uploads/blog/videos/')) {
+          // Match any video file in blog uploads — handles both:
+          //   uploads/blog/{articleId}/{filename}.mp4 (direct upload path, current)
+          //   uploads/blog/videos/{jobId}/{filename}.mp4 (legacy path, rarely used)
+          // Must check extension so we don't match cover images (jpg/png etc.).
+          // The .mp4 check at line 778 is the final gate for actually enqueuing jobs.
+          if (
+            key.startsWith('uploads/blog/') &&
+            /\.(mp4|webm|mov|avi|mkv)$/i.test(key)
+          ) {
             foundKeys.add(key);
           }
         } catch {
@@ -755,13 +766,8 @@ export class BlogService {
       }
     }
 
-    if (foundKeys.size === 0) {
-      this.logger.log(
-        `scanRichTextVideos: no <video> tags in content for ${articleId}`,
-      );
-      return;
-    }
-
+    // ── Compute diff against existing contentVideo[] ──
+    // existing keys stored in DB's meta.contentVideo
     const existingMeta = (article.meta as Record<string, unknown>) || {};
     const existingContentVideo = Array.isArray(existingMeta.contentVideo)
       ? (existingMeta.contentVideo as Array<{ videoKey: string }>)
@@ -770,60 +776,58 @@ export class BlogService {
       existingContentVideo.map((e) => e.videoKey),
     );
 
+    // Keys found in current content that are NOT yet in contentVideo[] → need transcoding
     const newKeys = [...foundKeys].filter((k) => !existingVideoKeys.has(k));
-    if (newKeys.length === 0) {
-      this.logger.log(
-        `scanRichTextVideos: all ${foundKeys.size} video(s) already in meta.contentVideo for ${articleId}`,
-      );
-      return;
-    }
+    // Keys in contentVideo[] that are NO LONGER in current content → need cleanup
+    const staleKeys = [...existingVideoKeys].filter((k) => !foundKeys.has(k));
+    const hasChanges = newKeys.length > 0 || staleKeys.length > 0;
 
-    // Build HLS URL — use origin from video src, fall back to empty string
-    const hlsUrl = origin
-      ? `${origin.replace(/\/$/, '')}/uploads/blog/videos/${articleId}/hls/master.m3u8`
-      : `/uploads/blog/videos/${articleId}/hls/master.m3u8`;
-
-    const newEntries: Array<{
-      videoKey: string;
-      hlsUrl: string;
-      poster: string | null;
-    }> = newKeys.map((videoKey) => ({
-      videoKey,
-      hlsUrl,
-      poster: null,
-    }));
-
-    // Append to meta.contentVideo
-    await this.prisma.blogArticle.update({
-      where: { id: articleId },
-      data: {
-        meta: {
-          ...existingMeta,
-          contentVideo: [...existingContentVideo, ...newEntries],
-        } as unknown as Prisma.InputJsonValue,
-      },
-    });
-
-    // Trigger transcoding for each new mp4 video
-    for (const videoKey of newKeys) {
-      if (videoKey.endsWith('.mp4')) {
-        this.mediaProcessorQueue
-          .add('transcode-video', {
-            articleId,
-            videoKey,
-            mimeType: 'video/mp4',
-          })
-          .catch((err: Error) => {
-            this.logger.warn(
-              `Failed to enqueue transcode for ${videoKey}: ${err.message}`,
-            );
-          });
+    // Enqueue transcoding for new videos
+    if (newKeys.length > 0) {
+      for (const videoKey of newKeys) {
+        if (videoKey.endsWith('.mp4')) {
+          this.mediaProcessorQueue
+            .add('transcode-video', {
+              articleId,
+              videoKey,
+              mimeType: 'video/mp4',
+            })
+            .catch((err: Error) => {
+              this.logger.warn(
+                `Failed to enqueue transcode for ${videoKey}: ${err.message}`,
+              );
+            });
+        }
       }
+      this.logger.log(
+        `scanRichTextVideos: enqueued transcode for ${newKeys.length} new video(s) in article ${articleId}`,
+      );
     }
 
-    this.logger.log(
-      `scanRichTextVideos: added ${newEntries.length} video(s) to meta.contentVideo for article ${articleId}`,
-    );
+    // Cleanup stale contentVideo entries (videos removed from content)
+    if (staleKeys.length > 0) {
+      const cleaned = existingContentVideo.filter(
+        (e) => !staleKeys.includes(e.videoKey),
+      );
+      await this.prisma.blogArticle.update({
+        where: { id: articleId },
+        data: {
+          meta: {
+            ...existingMeta,
+            contentVideo: cleaned,
+          } as unknown as Prisma.InputJsonValue,
+        },
+      });
+      this.logger.log(
+        `scanRichTextVideos: cleaned ${staleKeys.length} stale video(s) from meta.contentVideo for ${articleId}: ${staleKeys.join(', ')}`,
+      );
+    }
+
+    if (!hasChanges) {
+      this.logger.log(
+        `scanRichTextVideos: no changes — ${foundKeys.size} video(s) in content match meta.contentVideo for ${articleId}`,
+      );
+    }
   }
 
   /**
@@ -3927,6 +3931,90 @@ export class BlogService {
       success: true,
       message: `已清空 ${cleared} 篇文章的 "${targetLang}" 翻译并重新投递翻译任务`,
       cleared,
+    };
+  }
+
+  /**
+   * 清除文章所有其他已启用语言的翻译，保留源语言内容，并投递重新翻译。
+   * Phase 2: 用于用户在源语言编辑器插入视频后，一键清除其他语言并触发 AI 重新翻译。
+   * AI 翻译处理器（processArticleTranslation）会自动从源语言 HTML 提取 video 标签
+   * 追加到翻译后的内容中，确保视频在所有语言中自然出现。
+   */
+  async clearArticleTranslationsForLocales(
+    articleId: string,
+  ): Promise<{ success: boolean; cleared: string[]; message: string }> {
+    const article = await this.prisma.blogArticle.findUnique({
+      where: { id: articleId },
+      select: {
+        id: true,
+        titleLocalized: true,
+        contentLocalized: true,
+        contentMdLocalized: true,
+        excerptLocalized: true,
+      },
+    });
+    if (!article) throw new NotFoundException('Article not found');
+
+    const { list: locales } = await this.systemConfigService.getBlogLocales();
+    const enabledCodes = locales.filter((l) => l.enabled).map((l) => l.code);
+    const sourceLang = await this.systemConfigService.get<string>(
+      'blog.translation.defaultSourceLang',
+      'zh',
+    );
+
+    const titleLoc = (article.titleLocalized as any) ?? {};
+    const contentLoc = (article.contentLocalized as any) ?? {};
+    const contentMdLoc = (article.contentMdLocalized as any) ?? {};
+    const excerptLoc = (article.excerptLocalized as any) ?? {};
+
+    const clearedLangs: string[] = [];
+
+    for (const targetLang of enabledCodes) {
+      if (targetLang === sourceLang) continue;
+
+      // 检查该语言是否有翻译内容
+      const hasContent = contentLoc[targetLang] || contentMdLoc[targetLang];
+      if (!hasContent) continue;
+
+      // 清除该语言的翻译字段
+      delete titleLoc[targetLang];
+      delete contentLoc[targetLang];
+      delete contentMdLoc[targetLang];
+      delete excerptLoc[targetLang];
+      clearedLangs.push(targetLang);
+    }
+
+    if (clearedLangs.length === 0) {
+      return {
+        success: true,
+        cleared: [],
+        message: 'No translations to clear',
+      };
+    }
+
+    // 更新数据库，清除翻译
+    await this.prisma.blogArticle.update({
+      where: { id: articleId },
+      data: {
+        titleLocalized: titleLoc,
+        contentLocalized: contentLoc,
+        contentMdLocalized: contentMdLoc,
+        excerptLocalized: excerptLoc,
+        translationStatus: 'PENDING',
+      },
+    });
+
+    // 同时清除内存中的翻译缓存，确保下次编辑保存后重新调用 AI 翻译
+    this.blogAiProcessor.clearTranslationCache(articleId);
+
+    this.logger.log(
+      `clearArticleTranslationsForLocales: cleared [${clearedLangs.join(', ')}] for article ${articleId}. Translation will happen on next save.`,
+    );
+
+    return {
+      success: true,
+      cleared: clearedLangs,
+      message: `已清除 ${clearedLangs.length} 个语言的翻译，保存文章时将自动重新翻译`,
     };
   }
 

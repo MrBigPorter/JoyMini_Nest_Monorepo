@@ -188,65 +188,72 @@ export function ArticleCard({
           }`}
         >
           {coverImageUrl ? (
-            isVideoUrl(coverImageUrl) ? (
-              hlsUrl ? (
-                /* HLS video — use HlsVideoPlayer for adaptive streaming */
-                <HlsVideoPlayer
-                  hlsUrl={hlsUrl}
-                  poster={
-                    'meta' in article
-                      ? (article as FrontendArticle).meta?.video?.poster
-                      : undefined
-                  }
-                  posterWebp={
-                    'meta' in article
-                      ? (article as FrontendArticle).meta?.video?.posterWebp
-                      : undefined
-                  }
+            // PRIORITY ORDER: 1) meta.video.hlsUrl → HlsVideoPlayer (match HeroSection behavior).
+            //    Even if coverImage is a static .png, if HLS is available we show the player
+            //    with poster as cover. This fixes the inconsistency where HeroSection shows HLS
+            //    but ArticleCard shows a static image for the same article.
+            // 2) Raw video URL (no HLS) → native <video>
+            // 3) Static image → BlurhashImage
+            hlsUrl ? (
+              /* HLS video — use HlsVideoPlayer for adaptive streaming */
+              <HlsVideoPlayer
+                hlsUrl={hlsUrl}
+                poster={
+                  'meta' in article
+                    ? (article as FrontendArticle).meta?.video?.poster ||
+                      coverImageUrl
+                    : coverImageUrl || undefined
+                }
+                posterWebp={
+                  'meta' in article
+                    ? (article as FrontendArticle).meta?.video?.posterWebp
+                    : undefined
+                }
+                className="w-full h-full"
+                videoClassName="object-cover transition-transform duration-300 group-hover:scale-105"
+                clickToPlay
+              />
+            ) : isVideoUrl(coverImageUrl) ? (
+              /* Raw video (no HLS) — use native <video> with click-to-play overlay */
+              <>
+                <video
+                  ref={videoRef}
+                  src={coverImageUrl}
                   className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                  clickToPlay
+                  muted
+                  playsInline
+                  preload="metadata"
+                  controls={videoPlaying}
+                  onPlay={() => setVideoPlaying(true)}
+                  onPause={() => {
+                    /* keep controls visible after first play */
+                  }}
                 />
-              ) : (
-                /* Raw video — use native <video> with click-to-play overlay */
-                <>
-                  <video
-                    ref={videoRef}
-                    src={coverImageUrl}
-                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                    muted
-                    playsInline
-                    preload="metadata"
-                    controls={videoPlaying}
-                    onPlay={() => setVideoPlaying(true)}
-                    onPause={() => {
-                      /* keep controls visible after first play */
-                    }}
-                  />
-                  {/* Play button overlay — only shows before first play */}
-                  {!videoPlaying && (
-                    <button
-                      type="button"
-                      onClick={handlePlayVideo}
-                      className="absolute inset-0 flex items-center justify-center bg-black/20 transition-opacity hover:bg-black/30 cursor-pointer z-10"
-                      aria-label="Play video"
-                    >
-                      <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center transition-transform group-hover:scale-110">
-                        <Play className="w-6 h-6 text-white fill-white ml-0.5" />
-                      </div>
-                    </button>
-                  )}
-                  {/* Duration badge */}
-                  {'meta' in article &&
-                  (article as FrontendArticle).meta?.video?.duration ? (
-                    <span className="absolute bottom-2 right-2 z-20 px-1.5 py-0.5 bg-black/70 backdrop-blur-sm text-white text-[10px] font-medium rounded">
-                      {formatDuration(
-                        (article as FrontendArticle).meta!.video!.duration,
-                      )}
-                    </span>
-                  ) : null}
-                </>
-              )
+                {/* Play button overlay — only shows before first play */}
+                {!videoPlaying && (
+                  <button
+                    type="button"
+                    onClick={handlePlayVideo}
+                    className="absolute inset-0 flex items-center justify-center bg-black/20 transition-opacity hover:bg-black/30 cursor-pointer z-10"
+                    aria-label="Play video"
+                  >
+                    <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center transition-transform group-hover:scale-110">
+                      <Play className="w-6 h-6 text-white fill-white ml-0.5" />
+                    </div>
+                  </button>
+                )}
+                {/* Duration badge */}
+                {'meta' in article &&
+                (article as FrontendArticle).meta?.video?.duration ? (
+                  <span className="absolute bottom-2 right-2 z-20 px-1.5 py-0.5 bg-black/70 backdrop-blur-sm text-white text-[10px] font-medium rounded">
+                    {formatDuration(
+                      (article as FrontendArticle).meta!.video!.duration,
+                    )}
+                  </span>
+                ) : null}
+              </>
             ) : (
+              /* Static image — use BlurhashImage */
               <Link
                 href={`/articles/${article.slug}`}
                 className="block w-full h-full"

@@ -70,6 +70,10 @@ export default function CreateArticlePage() {
             if (value instanceof File) {
               const res = await upload.runAsync(value);
               processedData.featuredImage[lang] = res.url;
+              // Track coverImage video keys for HLS transcoding after article creation
+              if (value.type.startsWith('video/') && res.key) {
+                videoKeysRef.current.push(res.key);
+              }
             }
           }
         }
