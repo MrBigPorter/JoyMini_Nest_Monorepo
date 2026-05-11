@@ -34,7 +34,10 @@ export class FrontendBlogController {
     private readonly blogService: BlogService,
     private readonly languageService: LanguageService,
     private eventEmitter: EventEmitter2,
-  ) {}
+  ) {
+    // SSE 连接可能较多，提高 EventEmitter 监听器上限避免 MaxListenersExceededWarning
+    this.eventEmitter.setMaxListeners(100);
+  }
 
   @Get('articles')
   @ApiOperation({ summary: '前端博客文章列表（简化版）' })

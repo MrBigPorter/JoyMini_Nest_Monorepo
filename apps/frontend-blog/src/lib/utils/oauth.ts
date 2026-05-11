@@ -4,7 +4,6 @@
  */
 
 import { authApi } from '@/lib/api/authApi';
-import { useAuthStore } from '@/lib/stores/auth.store';
 
 /**
  * 处理Google OAuth登录

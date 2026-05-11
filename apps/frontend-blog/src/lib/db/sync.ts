@@ -8,7 +8,6 @@ import type {
   FrontendArticle,
   FrontendCategory,
   FrontendTag,
-  FrontendPaginatedResponse,
 } from '@/lib/types/frontend-blog';
 
 // ──────────────────────────────────────────────────

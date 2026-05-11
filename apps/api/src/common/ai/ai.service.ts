@@ -847,14 +847,16 @@ ${markdown}
     const translatedChunks: string[] = [];
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
-      const originalHasPlaceholder = chunk.includes('⏸️') || chunk.includes('🖼️');
+      const originalHasPlaceholder =
+        chunk.includes('⏸️') || chunk.includes('🖼️');
 
       // Each chunk is ≤ MAX_CHUNK_CHARS, safe for single-call
       const translated = await this.translateMarkdownSingle(chunk, targetLang);
       translatedChunks.push(translated);
 
       // === DIAG: 检查翻译后 chunk 是否还保留占位符 ===
-      const translatedHasPlaceholder = translated.includes('⏸️') || translated.includes('🖼️');
+      const translatedHasPlaceholder =
+        translated.includes('⏸️') || translated.includes('🖼️');
       if (originalHasPlaceholder && !translatedHasPlaceholder) {
         this.logger.warn(
           `[DIAG] ⚠️ 分块翻译 chunk[${i + 1}/${chunks.length}] 占位符丢失！原 chunk 尾部 200ch="${truncate(chunk.substring(chunk.length - 200), 200)}", 译 chunk 尾部 200ch="${truncate(translated.substring(translated.length - 200), 200)}"`,

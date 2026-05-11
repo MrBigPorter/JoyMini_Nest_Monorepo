@@ -42,7 +42,6 @@ export function BookmarkButton({
   initialBookmarked = false,
   size = 'md',
   showLabel = false,
-  showLoading = true,
   onBookmarkChange,
   className = '',
   alwaysVisible = true,
@@ -52,7 +51,7 @@ export function BookmarkButton({
   const [isLoading, setIsLoading] = useState(false);
   const { isAuthenticated } = useAuth();
   const router = useRouter();
-  const { show, success, error, info } = useToast();
+  const { success, error, info } = useToast();
 
   // 如果有预加载状态，使用它
   useEffect(() => {

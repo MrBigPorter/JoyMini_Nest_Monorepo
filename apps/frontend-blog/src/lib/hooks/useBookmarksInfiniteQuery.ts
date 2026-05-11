@@ -3,7 +3,6 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { frontendBlogApi } from '@/lib/api/frontendBlogApi';
 import { useCurrentLocale } from '@/lib/hooks/useCurrentLocale';
-import type { BookmarkedArticle } from '@/lib/types/frontend-blog';
 
 /**
  * 收藏分页参数
@@ -52,7 +51,7 @@ export function useBookmarksInfiniteQuery(options?: {
         totalPages: response.totalPages || 0,
       };
     },
-    getNextPageParam: (lastPage, allPages) => {
+    getNextPageParam: (lastPage) => {
       const currentPage = lastPage.page;
       const totalPages = lastPage.totalPages;
 

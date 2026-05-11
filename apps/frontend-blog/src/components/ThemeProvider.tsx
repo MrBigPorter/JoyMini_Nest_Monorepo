@@ -27,9 +27,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
     // 从 localStorage 读取主题
     const savedTheme = localStorage.getItem('theme') as Theme | null;
-    const systemDark = window.matchMedia(
-      '(prefers-color-scheme: dark)',
-    ).matches;
     const initialTheme = savedTheme || 'dark';
 
     setThemeState(initialTheme);

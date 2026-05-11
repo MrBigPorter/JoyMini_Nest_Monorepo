@@ -129,7 +129,7 @@ export class BlogAiProcessor extends WorkerHost {
     let hash = 0;
     for (let i = 0; i < str.length; i++) {
       const char = str.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
+      hash = (hash << 5) - hash + char;
       hash = hash & hash; // Convert to 32bit integer
     }
     return Math.abs(hash).toString(16).substring(0, 8);
@@ -1302,7 +1302,7 @@ IMPORTANT: Return ONLY the three sections above with the exact delimiters. Do NO
 
       // First try extracting media from sourceContent (Markdown may have video tags
       // from previous translation saves where videos were appended to end)
-      let mediaResult = extractMediaAndReplaceWithPlaceholders(sourceContent);
+      const mediaResult = extractMediaAndReplaceWithPlaceholders(sourceContent);
       if (mediaResult.count > 0) {
         // sourceContent had media tags → placeholders are inline at original positions
         mediaMap = mediaResult.mediaMap;
@@ -1485,7 +1485,8 @@ IMPORTANT: Return ONLY the three sections above with the exact delimiters. Do NO
       const titleIsSame =
         titleTranslated === sourceTitle && sourceTitle.trim().length > 10;
       const contentIsSame =
-        contentTranslated === sourceContentForAi && sourceContentForAi.trim().length > 50;
+        contentTranslated === sourceContentForAi &&
+        sourceContentForAi.trim().length > 50;
       const excerptIsSame =
         excerptTranslated === sourceExcerpt && sourceExcerpt.trim().length > 10;
 
@@ -1615,16 +1616,20 @@ IMPORTANT: Return ONLY the three sections above with the exact delimiters. Do NO
       // === DIAG: 保存前最终确认 ===
       const finalVideoCount = (finalContent.match(/<video/gi) || []).length;
       const finalPlaceholderPattern = /⏸️VIDEO_\d+|🖼️IMG_\d+/g;
-      const finalPlaceholderCount = (finalContent.match(finalPlaceholderPattern) || []).length;
+      const finalPlaceholderCount = (
+        finalContent.match(finalPlaceholderPattern) || []
+      ).length;
       this.logger.log(
         `[DIAG] 保存前确认: contentMdLocalized[${data.targetLang}] 长度=${finalContent.length}ch, <video>=${finalVideoCount}, 残留占位符=${finalPlaceholderCount}, 末尾 200ch="${truncate(finalContent.slice(-200), 200)}"`,
       );
 
       // Build source Markdown content with media restored (for source language save)
-      const sourceMediaRestored = mediaMap.size > 0
-        ? restoreMediaPlaceholders(sourceContentForAi, mediaMap)
-        : sourceContent;
-      const sourceMarkdownWithVideos = sourceMediaRestored || article.contentMd || article.content || '';
+      const sourceMediaRestored =
+        mediaMap.size > 0
+          ? restoreMediaPlaceholders(sourceContentForAi, mediaMap)
+          : sourceContent;
+      const sourceMarkdownWithVideos =
+        sourceMediaRestored || article.contentMd || article.content || '';
 
       updateData.contentMdLocalized = {
         ...((article.contentMdLocalized as any) || {}),
@@ -1641,7 +1646,9 @@ IMPORTANT: Return ONLY the three sections above with the exact delimiters. Do NO
         [sourceLang]:
           article.content || this.renderMarkdown(sourceMarkdownWithVideos),
         // Target language: render translated Markdown (already has media tags restored) to HTML
-        [data.targetLang]: this.renderMarkdown(finalContent || contentTranslated),
+        [data.targetLang]: this.renderMarkdown(
+          finalContent || contentTranslated,
+        ),
       };
 
       updateData.excerptLocalized = {

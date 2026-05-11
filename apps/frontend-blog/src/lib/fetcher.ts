@@ -10,13 +10,7 @@
  * 这是唯一知道环境差异的文件，所有其他代码都只使用这个统一接口
  */
 
-import {
-  detectEnvironment,
-  isClient,
-  isServer,
-  isBuildTime,
-  isRuntimeServer,
-} from './env';
+import { detectEnvironment, isServer } from './env';
 
 /**
  * Fetcher 请求选项

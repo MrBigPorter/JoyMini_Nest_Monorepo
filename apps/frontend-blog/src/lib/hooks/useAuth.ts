@@ -1,6 +1,6 @@
 import { useCallback, useEffect } from 'react';
 import { useAuthStore, type User } from '@/lib/stores/auth.store';
-import { authApi, type LoginResponse } from '@/lib/api/authApi';
+import { authApi } from '@/lib/api/authApi';
 
 export function useAuth() {
   const store = useAuthStore();

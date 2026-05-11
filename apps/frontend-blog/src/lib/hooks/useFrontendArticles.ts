@@ -17,7 +17,6 @@ import {
 import type {
   FrontendCategory,
   FrontendCategoryWithArticles,
-  FrontendTag,
   FrontendTagWithArticles,
   FrontendPaginatedResponse,
   FrontendArticle,

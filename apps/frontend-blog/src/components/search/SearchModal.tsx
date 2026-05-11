@@ -8,7 +8,6 @@ import { useRouter } from '@/navigation';
 import { useFrontendSearchArticles } from '@/lib/hooks/useFrontendArticles';
 import { useEscapeKey } from '@/lib/hooks/useKeyboardShortcut';
 import { SearchResults } from './SearchResults';
-import { SearchBar } from '@/components/ui/SearchBar';
 
 interface SearchModalProps {
   isOpen: boolean;

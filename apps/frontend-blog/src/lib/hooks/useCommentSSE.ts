@@ -81,17 +81,10 @@ export function useCommentSSE(
         return;
       }
 
-      // AI 自动回复事件：插入缓存，延迟刷新
+      // AI 自动回复事件：直接插入缓存，不触发 invalidateQueries
+      // 避免 5 秒后 refetch 拿到后端 60s 缓存中的旧数据导致评论消失
       const replyData = data as CommentReplyEvent;
-      const inserted = insertReplyIntoCache(queryClient, cacheKey, replyData);
-      if (inserted) {
-        setTimeout(() => {
-          queryClient.invalidateQueries({
-            queryKey: ['comments', 'infinite', cacheKey],
-            refetchType: 'active',
-          });
-        }, 5000);
-      }
+      insertReplyIntoCache(queryClient, cacheKey, replyData);
     };
     handlerRef.current = handler;
 
@@ -267,6 +260,17 @@ function insertReplyIntoCache(
         }
 
         anyInserted = true;
+        // 同时更新 total 计数，使评论数保持同步
+        if (old.pages[0] && typeof (old.pages[0] as any).total === 'number') {
+          const updatedFirstPage = {
+            ...updatedPages[0],
+            total: (old.pages[0] as any).total + 1,
+          };
+          return {
+            ...old,
+            pages: [updatedFirstPage, ...updatedPages.slice(1)],
+          };
+        }
         return { ...old, pages: updatedPages };
       },
     );

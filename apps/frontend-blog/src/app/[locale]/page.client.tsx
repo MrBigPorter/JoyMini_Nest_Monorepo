@@ -106,6 +106,22 @@ function HomePageClientContent({ initialData, ...props }: HomePageClientProps) {
   // Context already has the accumulated data → skip seeding.
   const initialSeedDone = useRef(false);
 
+  // Use refs for values needed in mount-only effect to satisfy exhaustive-deps
+  const searchParamsRef = useRef(searchParams);
+  const routerRef = useRef(router);
+  const initialDataRef = useRef(initialData);
+  const allArticlesRef = useRef(allArticles);
+  const setAllArticlesRef = useRef(setAllArticles);
+  const setIsHydratedRef = useRef(setIsHydrated);
+
+  // Keep refs in sync
+  searchParamsRef.current = searchParams;
+  routerRef.current = router;
+  initialDataRef.current = initialData;
+  allArticlesRef.current = allArticles;
+  setAllArticlesRef.current = setAllArticles;
+  setIsHydratedRef.current = setIsHydrated;
+
   // P0-4: Detect backward navigation to home (article detail → home).
   // When true, we skip SSR initialData seeding and rely on Context data.
   const isBackNavigation =
@@ -117,28 +133,35 @@ function HomePageClientContent({ initialData, ...props }: HomePageClientProps) {
     if (initialSeedDone.current) return;
     initialSeedDone.current = true;
 
+    const currentSearchParams = searchParamsRef.current;
+    const currentRouter = routerRef.current;
+    const currentInitialData = initialDataRef.current;
+    const currentAllArticles = allArticlesRef.current;
+    const currentSetAllArticles = setAllArticlesRef.current;
+    const currentSetIsHydrated = setIsHydratedRef.current;
+
     // Mark hydration complete (runs only on client, not SSR)
-    setIsHydrated(true);
+    currentSetIsHydrated(true);
 
     // P0-4: On backward navigation, skip SSR seeding — Context already has data.
     if (!isBackNavigation) {
       // Seed accumulated articles from SSR data
-      if (allArticles.length === 0 && initialData?.items?.length) {
-        setAllArticles(initialData.items);
+      if (
+        currentAllArticles.length === 0 &&
+        currentInitialData?.items?.length
+      ) {
+        currentSetAllArticles(currentInitialData.items);
       }
     }
 
     // On fresh load/hard refresh: clean stale ?page=N from URL.
     // Refreshing always goes to page 1, so the URL should reflect that.
     // The KeepAlive Context preserves page across SPA navigation instead.
-    if (searchParams.get('page')) {
-      const params = new URLSearchParams(searchParams.toString());
+    if (currentSearchParams.get('page')) {
+      const params = new URLSearchParams(currentSearchParams.toString());
       params.delete('page');
-      router.replace(`?${params.toString()}`, { scroll: false });
+      currentRouter.replace(`?${params.toString()}`, { scroll: false });
     }
-
-    // Intentionally empty deps: runs once on mount only.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Track latest scroll position in real-time via scroll event listener.

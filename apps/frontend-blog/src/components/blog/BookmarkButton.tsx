@@ -7,7 +7,6 @@ import { useAuth } from '@/lib/hooks/useAuth';
 import { blogApi } from '@/lib/api/blogApi';
 import useSWR from 'swr';
 import { useRouter } from '@/navigation';
-import { withLocale } from '@/lib/utils/locale';
 
 interface BookmarkButtonProps {
   articleId: string;
