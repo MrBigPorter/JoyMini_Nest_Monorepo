@@ -56,7 +56,7 @@ export default function Header() {
 
   const locale = useLocale() as string;
   const t = useTranslations();
-  const { theme, toggleTheme } = useTheme();
+  const { toggleTheme } = useTheme();
   const { enabledLocales, isLoading: localesLoading } = useAvailableLocales();
 
   const currentLocale = locale;
@@ -113,13 +113,6 @@ export default function Header() {
     // 路由切换
     router.replace(pathname, { locale: nextLocale });
     setLangMenuOpen(false);
-  };
-
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      setSearchModalOpen(true);
-    }
   };
 
   const handleSearchInputClick = () => {

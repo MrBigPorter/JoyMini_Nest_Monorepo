@@ -156,8 +156,7 @@ export function HlsVideoPlayer({
     initVideo(false);
 
     return () => destroyVideo();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hlsUrl, clickToPlay]);
+  }, [hlsUrl, clickToPlay, initVideo, destroyVideo]);
 
   // ─── Click-to-play mode: listen for other videos starting ───
   useEffect(() => {

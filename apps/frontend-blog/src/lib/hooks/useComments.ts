@@ -7,7 +7,6 @@ import {
 } from '@tanstack/react-query';
 import { frontendBlogApi } from '@/lib/api/frontendBlogApi';
 import { useCurrentLocale } from '@/lib/hooks/useCurrentLocale';
-import { useAuth } from '@/lib/hooks/useAuth';
 import { useToast } from '@/lib/hooks/useToast';
 import {
   commentStatusManager,
@@ -20,7 +19,6 @@ import type { Comment } from '@/lib/types/blog';
  */
 export function useComments() {
   const locale = useCurrentLocale();
-  const { isAuthenticated } = useAuth();
   const queryClient = useQueryClient();
   const { success, error } = useToast();
 

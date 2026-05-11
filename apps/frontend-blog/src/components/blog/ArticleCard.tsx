@@ -127,14 +127,6 @@ export function ArticleCard({
   }, []);
 
   const locale = useLocale();
-  const [isClient, setIsClient] = useState(false);
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
-
-  // 处理两种类型的差异
-  const publishedDate =
-    'publishedAt' in article ? article.publishedAt : (article as any).createdAt;
 
   const views = 'views' in article ? article.views : 0;
   const commentsCount = 'commentsCount' in article ? article.commentsCount : 0;

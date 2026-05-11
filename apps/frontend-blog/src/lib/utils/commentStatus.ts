@@ -83,7 +83,6 @@ class CommentStatusManager {
       return;
     }
 
-    const oldStatus = comment.status;
     comment.status = status;
 
     // 如果状态变为最终状态(approved/rejected)，清理轮询定时器

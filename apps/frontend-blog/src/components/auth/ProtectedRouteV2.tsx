@@ -142,7 +142,6 @@ export function LoginGuardV2({
 }) {
   const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
-  const platform = usePlatform();
 
   // 计算有效认证状态
   const effectiveAuth = (() => {

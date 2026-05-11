@@ -561,7 +561,7 @@ export class FrontendBlogService {
 
     // 首先从 contentMd 中移除所有已存在的视频标签（通常在末尾，由翻译processor追加）
     // 避免重复注入导致视频出现多次
-    let cleanedMd = contentMd
+    const cleanedMd = contentMd
       .replace(videoRegex, '') // 移除视频标签
       .replace(/\n{3,}/g, '\n\n') // 清理多余空行（3个以上连续换行 → 2个）
       .trim();
@@ -590,11 +590,13 @@ export class FrontendBlogService {
             // 双向匹配：src 包含 videoKey，或 pathKey 包含 videoKey
             const entry = contentVideo.find(
               (e) =>
-                srcUrl.includes(e.videoKey) ||
-                pathKey.includes(e.videoKey),
+                srcUrl.includes(e.videoKey) || pathKey.includes(e.videoKey),
             );
             if (entry?.hlsUrl) {
-              let newBlock = block.replace(/src="([^"]+)"/, `src="${entry.hlsUrl}"`);
+              let newBlock = block.replace(
+                /src="([^"]+)"/,
+                `src="${entry.hlsUrl}"`,
+              );
               // 同时注入 poster（如果可用），避免前端再查一次
               if (entry.poster) {
                 newBlock = newBlock.replace(

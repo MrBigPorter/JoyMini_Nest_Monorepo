@@ -14,7 +14,6 @@ import {
   Globe,
   User,
   Bookmark,
-  Settings,
   LogOut,
   ChevronRight,
   Check,

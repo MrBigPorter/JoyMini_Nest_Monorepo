@@ -9,7 +9,6 @@ interface PageSkeletonProps {
 export function PageSkeleton({
   type = 'article-list',
   count = 6,
-  className = '',
 }: PageSkeletonProps) {
   const renderArticleListSkeleton = () => (
     <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 py-12 md:py-16">

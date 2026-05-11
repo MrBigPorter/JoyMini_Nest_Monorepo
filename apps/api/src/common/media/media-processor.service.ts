@@ -188,7 +188,11 @@ export class MediaProcessorService {
       );
 
       const posterBuffer = await fs.readFile(outputPath);
-      const videoId = videoKey.split('/').pop()?.replace(/\.[^/.]+$/, '') || 'unknown';
+      const videoId =
+        videoKey
+          .split('/')
+          .pop()
+          ?.replace(/\.[^/.]+$/, '') || 'unknown';
       const jpgKey = `uploads/blog/videos/${articleId}/${videoId}/poster.jpg`;
       const webpKey = `uploads/blog/videos/${articleId}/${videoId}/poster.webp`;
 
@@ -366,7 +370,11 @@ export class MediaProcessorService {
       await fs.writeFile(path.join(outputDir, 'master.m3u8'), masterPlaylist);
 
       // Upload all HLS files to R2
-      const videoId = videoKey.split('/').pop()?.replace(/\.[^/.]+$/, '') || 'unknown';
+      const videoId =
+        videoKey
+          .split('/')
+          .pop()
+          ?.replace(/\.[^/.]+$/, '') || 'unknown';
       const hlsFolder = `uploads/blog/videos/${articleId}/${videoId}/hls`;
       const publicDomain = this.getPublicDomain();
 

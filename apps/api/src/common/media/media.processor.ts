@@ -243,7 +243,11 @@ export class MediaProcessor extends WorkerHost {
 
       // Transcode to HLS
       const videoVariants =
-        await this.mediaProcessorService.transcodeVideoToHls(buffer, articleId, videoKey);
+        await this.mediaProcessorService.transcodeVideoToHls(
+          buffer,
+          articleId,
+          videoKey,
+        );
 
       // Extract video thumbnail poster (frame at 1s) — returns both JPEG and WebP URLs
       let posterUrl: { jpg: string; webp: string } | undefined;

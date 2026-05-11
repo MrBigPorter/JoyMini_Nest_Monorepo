@@ -60,7 +60,6 @@ export function HeroSection({ articles }: HeroSectionProps) {
 
   const hasHlsVideo = mainArticle?.meta?.video?.hlsUrl;
   const coverIsVideo = isVideoUrl(mainArticle?.coverImage);
-  const mainMediaIsVideo = hasHlsVideo || coverIsVideo;
 
   return (
     <section className="mb-12 md:mb-16">

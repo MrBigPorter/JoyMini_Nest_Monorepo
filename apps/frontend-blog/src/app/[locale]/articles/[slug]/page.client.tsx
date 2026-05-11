@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo, useCallback } from 'react';
-import { setNavDirection, getNavDirection } from '@/lib/navigation/direction';
+import { setNavDirection } from '@/lib/navigation/direction';
 import Image from 'next/image';
 import { useParams } from 'next/navigation';
 import { useRouter } from '@/navigation';
@@ -156,16 +156,6 @@ export default function ArticlePageClient({
   // -------------------------------------------------------------------
   // Format helpers
   // -------------------------------------------------------------------
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return '';
-    const date = new Date(dateString);
-    return date.toLocaleDateString(locale === 'zh' ? 'zh-CN' : 'en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
-  };
-
   const calculateReadingTime = (content: string) => {
     const wordsPerMinute = 200;
     const textLength = content?.length || 0;

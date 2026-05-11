@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { blogApi } from '@/lib/api/blogApi';
-import { LOCALES_METADATA, type Locale } from '@/lib/i18n/config';
+import { LOCALES_METADATA } from '@/lib/i18n/config';
 
 interface LocaleConfig {
   code: string;

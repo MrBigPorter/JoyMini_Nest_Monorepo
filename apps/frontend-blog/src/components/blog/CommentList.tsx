@@ -4,7 +4,6 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   MessageSquare,
-  Heart,
   Reply,
   MoreHorizontal,
   ChevronDown,
@@ -15,7 +14,7 @@ import {
   CheckCircle,
   XCircle,
 } from 'lucide-react';
-import { Link, useRouter } from '@/navigation';
+import { useRouter } from '@/navigation';
 import { usePostComment } from '@/lib/hooks/useComments';
 import { useCommentsInfiniteQuerySimple } from '@/lib/hooks/useCommentsAdapter';
 import { useAuth } from '@/lib/hooks/useAuth';
@@ -44,7 +43,7 @@ interface CommentProps {
 function Comment({ comment, depth = 0, articleId }: CommentProps) {
   const t = useTranslations();
   const locale = useLocale();
-  const { user, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
   const router = useRouter();
 
   // 美观的回复展开策略：
@@ -317,21 +316,21 @@ export default function CommentList({
   // SSE 实时监听新回复
   // - articleDbId (DB ID) 用于 SSE URL 过滤（后端 event payload 用 DB ID）
   // - articleId (slug) 用于 React Query 缓存匹配（queryKey 用 slug）
-  useCommentSSE(articleDbId || articleId, articleId);
+  // 使用 useRef 锁定 articleDbId，避免异步加载导致 articleId 变化引发重复 SSE 连接
+  const sseArticleIdRef = useRef(articleDbId || articleId);
+  useCommentSSE(sseArticleIdRef.current, articleId);
 
   // 使用新的 React Query 无限滚动钩子
   const {
     items: serverComments,
     total,
     page,
-    pageSize,
     totalPages,
     isLoading,
     isLoadingMore,
     hasMore,
     error,
     loadMore,
-    reload,
   } = useCommentsInfiniteQuerySimple(articleId, {
     pageSize: 20,
     enabled: true,
@@ -339,7 +338,7 @@ export default function CommentList({
 
   const { mutate: postComment, isPending: isPosting } =
     usePostComment(articleId);
-  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { isAuthenticated } = useAuth();
 
   const totalComments = total;
   // 直接使用服务端评论（已包含乐观更新），并添加数据去重保护

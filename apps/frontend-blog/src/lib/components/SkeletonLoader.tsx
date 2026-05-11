@@ -53,13 +53,11 @@ export function Skeleton({
 export function TextSkeleton({
   lines = 1,
   lineHeight = 4,
-  spacing = 2,
   width = '100%',
   lastLineWidth = '80%',
 }: {
   lines?: number;
   lineHeight?: number;
-  spacing?: number;
   width?: string;
   lastLineWidth?: string;
 }) {
