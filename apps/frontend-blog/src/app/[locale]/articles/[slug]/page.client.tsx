@@ -26,6 +26,7 @@ import CommentList from '@/components/blog/CommentList';
 import { BookmarkButton } from '@/components/blog/BookmarkButton';
 import { useAuth } from '@/lib/hooks';
 import { useIsClient } from '@/lib/hooks/useIsClient';
+import { isVideoUrl } from '@/lib/utils/media';
 
 // ---------------------------------------------------------------------------
 // Loading placeholder
@@ -271,6 +272,22 @@ export default function ArticlePageClient({
             )}
           </div>
         </header>
+
+        {/* Hero banner — shows static image only for non-video covers.
+             Video covers (coverImage is a video URL) do NOT show a banner on the detail page.
+             Cover videos are only for list cards (ArticleCard / HeroSection on homepage). */}
+        {article.coverImage && !isVideoUrl(article.coverImage) ? (
+          <div className="relative w-full aspect-video rounded-xl overflow-hidden mb-10 bg-slate-100 dark:bg-slate-800">
+            <Image
+              src={article.coverImage}
+              alt={article.title || ''}
+              fill
+              className="object-cover"
+              priority
+              sizes="(max-width: 1024px) 100vw, 1024px"
+            />
+          </div>
+        ) : null}
 
         {/* Article content — render markdown with syntax highlighting, fall back to HTML */}
         <div className="min-h-[400px]">

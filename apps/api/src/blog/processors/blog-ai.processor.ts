@@ -5,6 +5,7 @@ import {
   InjectQueue,
 } from '@nestjs/bullmq';
 import { Marked } from 'marked';
+import TurndownService from 'turndown';
 import { Logger } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Job, Queue } from 'bullmq';
@@ -13,6 +14,10 @@ import { PrismaService } from '@api/common/prisma/prisma.service';
 import { TranslationJobService } from '../translation-job.service';
 import { CommentStatus } from '@prisma/client';
 import { repairJsonResponse } from '../utils/repair-json';
+import {
+  extractMediaAndReplaceWithPlaceholders,
+  restoreMediaPlaceholders,
+} from '../utils/media-placeholder';
 
 @Processor('blog-ai', {
   concurrency: 5, // 并行处理5篇文章（DeepSeek 付费 API 无速率限制）
@@ -24,6 +29,7 @@ import { repairJsonResponse } from '../utils/repair-json';
 export class BlogAiProcessor extends WorkerHost {
   private readonly logger = new Logger(BlogAiProcessor.name);
   private readonly marked: Marked;
+  private readonly turndown: TurndownService;
   private readonly rateLimitDelayBase = 1000; // 1秒基础延迟
   private readonly rateLimitDelayMax = 30000; // 30秒最大延迟
   private readonly interRequestDelay = 20; // 20ms between API calls (reduced for higher throughput with DeepSeek paid API)
@@ -44,6 +50,30 @@ export class BlogAiProcessor extends WorkerHost {
     this.marked = new Marked({
       gfm: true,
       breaks: true,
+    });
+    this.turndown = new TurndownService({
+      headingStyle: 'atx',
+      codeBlockStyle: 'fenced',
+      emDelimiter: '*',
+    });
+    // Quill 代码块兼容规则：turndown 默认只识别 <pre><code>，
+    // 但 Quill 用 <pre class="ql-syntax">（无 <code> 子元素）。
+    // 不加此规则时，代码块会被 turndown 输出为纯文本，翻译后代码块消失。
+    // 这是兜底规则，用于 sourceContent 为空必须走 turndown 降级路径的极端情况。
+    this.turndown.addRule('quillCodeBlock', {
+      filter: (node) => {
+        return (
+          node.nodeName === 'PRE' &&
+          typeof (node as any).className === 'string' &&
+          (node as any).className.includes('ql-syntax')
+        );
+      },
+      replacement: (_content, node) => {
+        const lang = (node as any).getAttribute?.('data-language') || '';
+        // 取 textContent 避免 turndown 对内容二次转义
+        const code = ((node as any).textContent || '').replace(/\r\n/g, '\n');
+        return `\n\n\`\`\`${lang}\n${code}\n\`\`\`\n\n`;
+      },
     });
     // 定期清理过期缓存
     setInterval(() => this.cleanupCache(), 5 * 60 * 1000); // 每5分钟清理一次
@@ -66,6 +96,43 @@ export class BlogAiProcessor extends WorkerHost {
     if (cleanedCount > 0) {
       this.logger.debug(`清理了 ${cleanedCount} 个过期翻译缓存项`);
     }
+  }
+
+  /**
+   * 清除指定文章的翻译缓存。
+   * 在用户清除翻译时调用，确保下次编辑保存后重新调用 AI 翻译，而不是返回旧缓存结果。
+   */
+  clearTranslationCache(articleId: string): void {
+    const batchKeyPattern = `batch-${articleId}-`;
+    const retryKeyPattern = `retry-${articleId}-`;
+
+    let clearedCount = 0;
+    for (const key of this.translationCache.keys()) {
+      if (key.startsWith(batchKeyPattern) || key.startsWith(retryKeyPattern)) {
+        this.translationCache.delete(key);
+        clearedCount++;
+      }
+    }
+
+    if (clearedCount > 0) {
+      this.logger.log(
+        `已清除文章 ${articleId} 的 ${clearedCount} 个翻译缓存条目`,
+      );
+    }
+  }
+
+  /**
+   * Simple string hash function for cache key versioning
+   * Generates a short hash from content to detect changes
+   */
+  private simpleHash(str: string): string {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    return Math.abs(hash).toString(16).substring(0, 8);
   }
 
   /**
@@ -309,8 +376,14 @@ export class BlogAiProcessor extends WorkerHost {
     article: any,
     targetLang: string,
     sourceLang: string,
+    contentOverride?: string,
   ): Promise<{ title: string; content: string; excerpt: string | null }> {
-    const cacheKey = `batch-${article.id}-${targetLang}`;
+    // Include content hash in cache key so edited content gets a different key
+    // This prevents stale cache from returning ⏸️VIDEO_N placeholders that don't match current mediaMap
+    const contentHash = contentOverride
+      ? this.simpleHash(contentOverride)
+      : 'no-content';
+    const cacheKey = `batch-${article.id}-${targetLang}-${contentHash}`;
     const cached = this.translationCache.get(cacheKey);
 
     if (cached && Date.now() - cached.timestamp < this.cacheTTL) {
@@ -355,6 +428,7 @@ export class BlogAiProcessor extends WorkerHost {
     const sourceTitle =
       getSourceContent('title', 'titleLocalized') || article.title || '';
     const sourceContent =
+      contentOverride ||
       getSourceContent('contentMd', 'contentMdLocalized') ||
       getSourceContent('content', 'contentLocalized') ||
       article.content ||
@@ -419,13 +493,6 @@ Code blocks are enclosed in triple backticks (\`\`\`language ... \`\`\`).
 - Code blocks often contain Dart, TypeScript, JavaScript, or other programming languages where comments may be in Chinese - leave them as-is inside the code block.
 - Example: If a code block contains "// 主色阶梯", keep it exactly as "// 主色阶梯" inside the code block.
 
-CRITICAL: HTML VIDEO TAGS MUST BE PRESERVED VERBATIM.
-Video content is enclosed in HTML tags like <video src="..."> or <figure class="media"><video ...>...</video></figure>.
-- Do NOT modify, translate, or remove any HTML video-related tags or attributes.
-- Preserve the entire <video> element including all attributes (src, controls, class, poster, etc.).
-- Also preserve any <source> tags and <figure> wrappers around videos.
-- Video URLs (src attribute values) must remain exactly as-is.
-
 CRITICAL: ASCII / UNICODE DIAGRAMS MUST BE PRESERVED.
 Diagrams use box-drawing characters (┌, ─, ┐, │, └, ┘, ├, ┤, ┬, ┴, ┼, →, ▼).
 - Preserve the diagram layout and box-drawing characters exactly.
@@ -449,9 +516,10 @@ Do NOT leave any source language text in ---TITLE--- or ---EXCERPT--- or ---CONT
 
 1. Keep all technical terms in English (NestJS, React, etc.)
 2. Maintain the original Markdown formatting
-3. Preserve all code blocks and HTML video tags verbatim
+3. Preserve all code blocks verbatim
 4. Preserve all ASCII diagram structure
-5. Return the translation using the following delimiter format (do NOT use JSON):
+5. Preserve ALL Unicode placeholder markers (⏸️VIDEO_N, 🖼️IMG_N) exactly as-is — do NOT translate, remove, or modify them
+6. Return the translation using the following delimiter format (do NOT use JSON):
 
 ---TITLE---
 Translated title here
@@ -742,6 +810,115 @@ IMPORTANT: Return ONLY the three sections above with the exact delimiters. Do NO
     // 随机选择一个模板
     const randomIndex = Math.floor(Math.random() * templates.length);
     return templates[randomIndex];
+  }
+
+  /**
+   * 将媒体占位符（⏸️VIDEO_N, 🖼️IMG_N）注入到 Markdown 内容的正确位置。
+   *
+   * 问题背景：首次翻译含视频的新文章时，sourceContent（Markdown）没有视频标签，
+   * 视频只存在于原始 Quill HTML 中。旧方案用 turndown 把整个 HTML 转 Markdown，
+   * 会破坏 Quill 的 <pre class="ql-syntax"> 代码块（turndown 不识别该格式）。
+   *
+   * 新策略：以原始高质量 Markdown 为主体，通过以下算法把视频放到正确位置：
+   * 1. 在 htmlWithPlaceholders 中找到每个占位符的位置
+   * 2. 取该占位符之前的 HTML 片段，找最后一个 <hN> 标题
+   * 3. 在 Markdown 中找到对应标题行，把占位符插入该行之后
+   * 4. 找不到对应标题时，追加到 Markdown 末尾（兜底）
+   *
+   * @param markdown - 原始 Markdown 内容（不含媒体标签，保留代码块、标题等完整格式）
+   * @param htmlWithPlaceholders - 原始 HTML（媒体已被 extractMediaAndReplaceWithPlaceholders 替换为占位符）
+   * @param mediaMap - 占位符 → 原始媒体 HTML 的映射（用于枚举所有占位符）
+   * @returns 插入了占位符的 Markdown（占位符在各自标题后独占一个段落）
+   */
+  private injectMediaPlaceholdersIntoMarkdown(
+    markdown: string,
+    htmlWithPlaceholders: string,
+    mediaMap: Map<string, string>,
+  ): string {
+    if (!markdown || mediaMap.size === 0) return markdown;
+
+    // 按索引顺序排列占位符（VIDEO_0, VIDEO_1 … 顺序与 HTML 中出现顺序一致）
+    const placeholders = [...mediaMap.keys()].sort((a, b) => {
+      const na = parseInt(a.match(/\d+$/)?.[0] ?? '0', 10);
+      const nb = parseInt(b.match(/\d+$/)?.[0] ?? '0', 10);
+      return na - nb;
+    });
+
+    let result = markdown;
+
+    // 倒序处理：从最后一个占位符开始，确保前面的插入不影响后面的位置计算
+    for (let i = placeholders.length - 1; i >= 0; i--) {
+      const placeholder = placeholders[i];
+      const placeholderIdx = htmlWithPlaceholders.indexOf(placeholder);
+
+      if (placeholderIdx === -1) {
+        // 占位符在 HTML 中没有找到（理论上不应发生），追加到末尾
+        result = result.trimEnd() + '\n\n' + placeholder + '\n\n';
+        this.logger.warn(
+          `[媒体注入] ${placeholder} 在 htmlWithPlaceholders 中未找到，追加到末尾`,
+        );
+        continue;
+      }
+
+      // 取该占位符之前的 HTML 内容，从中找最后一个 <hN>…</hN> 标题
+      const htmlBefore = htmlWithPlaceholders.substring(0, placeholderIdx);
+      const headingRegex = /<h([1-6])[^>]*>([\s\S]*?)<\/h\1>/gi;
+      let lastHeading: { level: number; text: string } | null = null;
+      let match: RegExpExecArray | null;
+      while ((match = headingRegex.exec(htmlBefore)) !== null) {
+        // 去掉标题内的内嵌 HTML 标签（如 <strong>、<em>），取纯文本
+        const rawText = match[2].replace(/<[^>]+>/g, '').trim();
+        if (rawText) {
+          lastHeading = { level: parseInt(match[1], 10), text: rawText };
+        }
+      }
+
+      let inserted = false;
+
+      if (lastHeading) {
+        // 在 Markdown 中找对应的标题行
+        // 用"包含标题纯文本"的方式匹配（处理 Markdown 标题内可能有 **bold** 等格式的情况）
+        const mdPrefix = '#'.repeat(lastHeading.level);
+        const escapedText = lastHeading.text.replace(
+          /[.*+?^${}()|[\]\\]/g,
+          '\\$&',
+        );
+        const mdHeadingRegex = new RegExp(
+          `^(${mdPrefix}\\s+.*?${escapedText}.*?)$`,
+          'm',
+        );
+        const mdMatch = result.match(mdHeadingRegex);
+
+        if (mdMatch && mdMatch.index !== undefined) {
+          const insertAt = mdMatch.index + mdMatch[0].length;
+          result =
+            result.substring(0, insertAt) +
+            '\n\n' +
+            placeholder +
+            '\n\n' +
+            result.substring(insertAt);
+          inserted = true;
+          this.logger.debug(
+            `[媒体注入] ${placeholder} → 插入标题 "${lastHeading.text}" (h${lastHeading.level}) 之后`,
+          );
+        } else {
+          this.logger.warn(
+            `[媒体注入] ${placeholder} 找不到 Markdown 中对应标题 "${lastHeading.text}" (h${lastHeading.level})，追加到末尾`,
+          );
+        }
+      }
+
+      if (!inserted) {
+        // 找不到匹配标题 → 追加到 Markdown 末尾（兜底，宁可位置不完美也不丢视频）
+        result = result.trimEnd() + '\n\n' + placeholder + '\n\n';
+        this.logger.debug(
+          `[媒体注入] ${placeholder} 兜底追加到末尾（无匹配标题或标题在 Markdown 中缺失）`,
+        );
+      }
+    }
+
+    // 清理连续多余空行
+    return result.replace(/\n{3,}/g, '\n\n').trim();
   }
 
   /**
@@ -1111,15 +1288,111 @@ IMPORTANT: Return ONLY the three sections above with the exact delimiters. Do NO
         article.excerpt ||
         '';
 
+      // === PLACEHOLDER-BASED MEDIA PRESERVATION ===
+      // Extract HTML media tags (<figure><video>, <img>) and replace with Unicode
+      // placeholders BEFORE AI translation. This prevents AI from stripping/modifying
+      // media tags — the industry-standard approach used by Crowdin, Lokalise, Phrase, etc.
+      // After translation, placeholders are restored to original HTML.
+      let mediaMap = new Map<string, string>();
+      let sourceContentForAi = sourceContent;
+
+      // Helper: truncate for logging
+      const truncate = (s: string | null | undefined, max: number) =>
+        s ? (s.length > max ? s.substring(0, max) + '...' : s) : '(empty)';
+
+      // First try extracting media from sourceContent (Markdown may have video tags
+      // from previous translation saves where videos were appended to end)
+      let mediaResult = extractMediaAndReplaceWithPlaceholders(sourceContent);
+      if (mediaResult.count > 0) {
+        // sourceContent had media tags → placeholders are inline at original positions
+        mediaMap = mediaResult.mediaMap;
+        sourceContentForAi = mediaResult.text;
+        // Normalize: ensure every placeholder is on its own line (standalone paragraph)
+        // Prevents AI from treating inline placeholders as text corruption and removing them
+        sourceContentForAi = sourceContentForAi
+          .replace(/⏸️VIDEO_\d+/g, '\n\n$&\n\n')
+          .replace(/🖼️IMG_\d+/g, '\n\n$&\n\n')
+          .replace(/\n{3,}/g, '\n\n');
+        this.logger.log(
+          `[DIAG] 占位符提取: 从 sourceContent (${sourceContent.length}ch) 中找到 ${mediaResult.count} 个媒体元素，sourceContentForAi 长度=${sourceContentForAi.length}ch`,
+        );
+      } else {
+        // First-time translation: sourceContent is pure Markdown without media tags.
+        // Extract media from original HTML content (Quill editor output).
+        // Replace media tags with placeholders INLINE in the HTML (keeping original positions),
+        // then convert the result to Markdown via turndown.
+        // This ensures placeholders appear at their CORRECT positions in the content,
+        // surrounded by real text, so the AI will naturally preserve them during translation.
+        const originalHtml =
+          ((article as any).contentLocalized as any)?.[sourceLang] ||
+          article.content ||
+          '';
+        const htmlMediaResult =
+          extractMediaAndReplaceWithPlaceholders(originalHtml);
+        if (htmlMediaResult.count > 0) {
+          mediaMap = htmlMediaResult.mediaMap;
+
+          if (sourceContent.trim()) {
+            // ✅ 新策略（主路径）：以原始 Markdown 为主体，把占位符注入正确标题后。
+            // 不再用 turndown 整体转换 HTML ——turndown 无法识别 Quill 的
+            // <pre class="ql-syntax"> 格式，会把代码块输出为纯文本，导致代码块消失。
+            sourceContentForAi = this.injectMediaPlaceholdersIntoMarkdown(
+              sourceContent,
+              htmlMediaResult.text,
+              htmlMediaResult.mediaMap,
+            );
+            this.logger.log(
+              `[DIAG] 占位符注入: 从 originalHtml 中找到 ${htmlMediaResult.count} 个媒体元素，` +
+                `以 sourceContent 为 Markdown 主体注入占位符。` +
+                `sourceContentForAi 长度=${sourceContentForAi.length}ch，` +
+                `是否含⏸️=${sourceContentForAi.includes('⏸️')}`,
+            );
+          } else {
+            // ⚠️ 降级路径（sourceContent 为空）：不得不用 turndown 从 HTML 转 Markdown。
+            // 此时 Quill 代码块规则（构造函数中已注册）会把 <pre class="ql-syntax">
+            // 转为 fenced code block，尽量减少代码块丢失。
+            sourceContentForAi = this.turndown.turndown(htmlMediaResult.text);
+            this.logger.log(
+              `[DIAG] 占位符注入(降级): sourceContent 为空，改用 turndown 转换 ` +
+                `originalHtml。sourceContentForAi 长度=${sourceContentForAi.length}ch，` +
+                `是否含⏸️=${sourceContentForAi.includes('⏸️')}`,
+            );
+          }
+
+          // 确保每个占位符独占一个段落（AI 更容易识别并原样保留）
+          sourceContentForAi = sourceContentForAi
+            .replace(/⏸️VIDEO_\d+/g, '\n\n$&\n\n')
+            .replace(/🖼️IMG_\d+/g, '\n\n$&\n\n')
+            .replace(/\n{3,}/g, '\n\n');
+        } else {
+          this.logger.log(
+            `[DIAG] 占位符提取: sourceContent 和 originalHtml 均未找到媒体元素 (${sourceContent.length}ch)`,
+          );
+        }
+      }
+
+      // === DIAG: 记录 sourceContentForAi 的末尾 300 字符，验证占位符是否在预期位置 ===
+      this.logger.log(
+        `[DIAG] sourceContentForAi 概览: 长度=${sourceContentForAi.length}ch，mediaMap.size=${mediaMap.size}，末尾 300ch="${truncate(sourceContentForAi.slice(-300), 300)}"，是否含⏸️=${sourceContentForAi.includes('⏸️')}`,
+      );
+
       // 进度 10% - 准备完成，开始调用 AI 翻译
       await this.translationJobService.updateProgress(dbJobId, 10);
 
+      // === DIAG: 记录翻译路径选择 ===
+      const willFallback = sourceContentForAi.length > 50000;
+      this.logger.log(
+        `[DIAG] 翻译路径选择: content长度=${sourceContentForAi.length}ch, 阈值=50000, ${willFallback ? '→ fallbackToTraditionalTranslation (分块翻译)' : '→ batchTranslateArticle (单次批量)'}`,
+      );
+
       // 使用批量翻译方法 - 将标题、摘要、正文合并为单个API请求
       // 这样可以避免碎片化请求导致的429错误
+      // Pass sourceContentForAi (with placeholders) to ensure AI never sees raw HTML media tags
       const batchResult = await this.batchTranslateArticle(
         article,
         data.targetLang,
         sourceLang,
+        sourceContentForAi,
       );
 
       // 进度 70% - AI 返回翻译结果
@@ -1129,18 +1402,81 @@ IMPORTANT: Return ONLY the three sections above with the exact delimiters. Do NO
       const contentTranslated = batchResult.content;
       let excerptTranslated = batchResult.excerpt;
 
-      // ==== DIAGNOSTIC LOG: 翻译前后内容对比 ====
-      const truncate = (s: string | null | undefined, max: number) =>
-        s ? (s.length > max ? s.substring(0, max) + '...' : s) : '(empty)';
+      // Restore media placeholders in translated content back to original HTML.
+      // Step 1: Detect placeholders that the AI silently dropped (AI sometimes removes
+      // Unicode emoji markers it considers "decorative" or "rendering artifacts").
+      // For any dropped placeholder, append the original media HTML at the end as recovery
+      // — video at wrong position is infinitely better than no video at all.
+      let contentForRestore = contentTranslated;
+      if (mediaMap.size > 0) {
+        const droppedPlaceholders: string[] = [];
+        for (const [placeholder, originalHtml] of mediaMap) {
+          if (!contentTranslated.includes(placeholder)) {
+            contentForRestore =
+              contentForRestore.trimEnd() + '\n\n' + originalHtml;
+            droppedPlaceholders.push(placeholder);
+          }
+        }
+        if (droppedPlaceholders.length > 0) {
+          this.logger.warn(
+            `[DIAG] ⚠️ AI 丢弃了 ${droppedPlaceholders.length} 个占位符 ` +
+              `(${droppedPlaceholders.join(', ')})，已将对应媒体 HTML 追加到末尾恢复。`,
+          );
+        }
+      }
+
+      // Step 2: Restore any remaining placeholders (that AI did keep) → original HTML
+      const finalContent =
+        mediaMap.size > 0
+          ? restoreMediaPlaceholders(contentForRestore, mediaMap)
+          : contentTranslated;
+
+      // ==== DIAGNOSTIC LOG: 翻译前后内容对比 + 占位符完整性检查 ====
       this.logger.log(
         `[DIAG] 翻译对比 (文章 ${data.articleId} -> ${data.targetLang}):\n` +
           `  源标题[${sourceTitle.length}ch]: ${truncate(sourceTitle, 120)}\n` +
           `  译标题[${titleTranslated.length}ch]: ${truncate(titleTranslated, 120)}\n` +
           `  源摘要[${sourceExcerpt.length}ch]: ${truncate(sourceExcerpt, 120)}\n` +
           `  译摘要[${(excerptTranslated || '').length}ch]: ${truncate(excerptTranslated, 120)}\n` +
-          `  源内容[${sourceContent.length}ch]\n` +
-          `  译内容[${contentTranslated.length}ch]`,
+          `  源内容[${sourceContent.length}ch] → 译内容[${contentTranslated.length}ch]`,
       );
+
+      // === DIAG: 检查 AI 对占位符的保留情况 ===
+      // expectedCount = mediaMap 中的占位符总数（我们注入给 AI 的数量）
+      // keptCount     = AI 翻译后 contentTranslated 中仍存在的占位符数量
+      // AI 保留的占位符会被 restoreMediaPlaceholders 还原；
+      // AI 丢弃的占位符已由上方 recovery 逻辑把原始 HTML 追加到末尾。
+      const placeholderPattern = /⏸️VIDEO_\d+|🖼️IMG_\d+/g;
+      const keptPlaceholderCount = (
+        contentTranslated.match(placeholderPattern) || []
+      ).length;
+      const expectedPlaceholderCount = mediaMap.size;
+      if (expectedPlaceholderCount > 0) {
+        if (keptPlaceholderCount === expectedPlaceholderCount) {
+          this.logger.log(
+            `[DIAG] 占位符完整性: ✅ AI 保留了全部 ${keptPlaceholderCount}/${expectedPlaceholderCount} 个占位符，将在正确位置还原`,
+          );
+        } else {
+          this.logger.warn(
+            `[DIAG] ⚠️ AI 仅保留了 ${keptPlaceholderCount}/${expectedPlaceholderCount} 个占位符，` +
+              `${expectedPlaceholderCount - keptPlaceholderCount} 个被丢弃（已通过 recovery 追加到末尾）。` +
+              `contentTranslated 末尾 300ch="${truncate(contentTranslated.slice(-300), 300)}"`,
+          );
+        }
+      }
+
+      // === DIAG: 检查 finalContent 中是否有 <video> 标签 ===
+      const videoTagCount = (finalContent.match(/<video/gi) || []).length;
+      const imgTagCount = (finalContent.match(/<img/gi) || []).length;
+      this.logger.log(
+        `[DIAG] finalContent 媒体标签: ${videoTagCount} 个<video>, ${imgTagCount} 个<img>`,
+      );
+      // 如果有 mediaMap 但没有 video 标签，说明还原失败
+      if (mediaMap.size > 0 && videoTagCount === 0 && imgTagCount === 0) {
+        this.logger.warn(
+          `[DIAG] ⚠️ 严重警告: mediaMap 有 ${mediaMap.size} 个条目，但 finalContent 中没有任何 <video> 或 <img> 标签！`,
+        );
+      }
 
       // 验证翻译质量：逐字段检查，防止AI服务静默返回原文导致数据损坏
       // 策略变更：不再使用全有或全无策略，而是采用最佳努力逐字段处理
@@ -1149,7 +1485,7 @@ IMPORTANT: Return ONLY the three sections above with the exact delimiters. Do NO
       const titleIsSame =
         titleTranslated === sourceTitle && sourceTitle.trim().length > 10;
       const contentIsSame =
-        contentTranslated === sourceContent && sourceContent.trim().length > 50;
+        contentTranslated === sourceContentForAi && sourceContentForAi.trim().length > 50;
       const excerptIsSame =
         excerptTranslated === sourceExcerpt && sourceExcerpt.trim().length > 10;
 
@@ -1266,45 +1602,46 @@ IMPORTANT: Return ONLY the three sections above with the exact delimiters. Do NO
         ...(!retryTitleFailed ? { [data.targetLang]: titleTranslated } : {}),
       };
 
-      // 从 HTML 版内容中提取视频标签（contentMd 是纯 Markdown 不含视频，必须从 HTML 源提取）
-      // AI 翻译只处理文本，视频嵌入标签翻译后会丢失，需要手动追加回去
-      // 关键修复：始终从 article.content（原始Quill HTML）提取视频，确保不丢失
-      const originalHtml = article.content || '';
-      const videoTagRegex =
-        /<figure[^>]*>[\s\S]*?<video[\s\S]*?<\/video>[\s\S]*?<\/figure>|<video[\s\S]*?<\/video>/gi;
-      const preservedVideoTags = (originalHtml.match(videoTagRegex) || []).join(
-        '\n\n',
+      // === PLACEHOLDER-BASED MEDIA PRESERVATION ===
+      // Media tags were extracted into Unicode placeholders BEFORE AI translation
+      // (see placeholder extraction above), and restored to original HTML AFTER
+      // translation (see `finalContent` above). The translated content already has
+      // media tags at their original positions — no need for video extraction + append.
+      // This replaces the old fragile approach that relied on:
+      //   1. Extracting video tags from original HTML after translation
+      //   2. Appending them at the END of translated content (wrong position)
+      //   3. AI prompt instructing "preserve video tags" (unreliable)
+
+      // === DIAG: 保存前最终确认 ===
+      const finalVideoCount = (finalContent.match(/<video/gi) || []).length;
+      const finalPlaceholderPattern = /⏸️VIDEO_\d+|🖼️IMG_\d+/g;
+      const finalPlaceholderCount = (finalContent.match(finalPlaceholderPattern) || []).length;
+      this.logger.log(
+        `[DIAG] 保存前确认: contentMdLocalized[${data.targetLang}] 长度=${finalContent.length}ch, <video>=${finalVideoCount}, 残留占位符=${finalPlaceholderCount}, 末尾 200ch="${truncate(finalContent.slice(-200), 200)}"`,
       );
 
-      // 中文源语言内容：sourceContent（Markdown文本） + preservedVideoTags（从原始HTML提取）
-      const sourceContentWithVideos = preservedVideoTags
-        ? sourceContent + '\n\n' + preservedVideoTags
+      // Build source Markdown content with media restored (for source language save)
+      const sourceMediaRestored = mediaMap.size > 0
+        ? restoreMediaPlaceholders(sourceContentForAi, mediaMap)
         : sourceContent;
+      const sourceMarkdownWithVideos = sourceMediaRestored || article.contentMd || article.content || '';
 
       updateData.contentMdLocalized = {
         ...((article.contentMdLocalized as any) || {}),
-        // 中文源语言：Markdown + 视频（确保中文版也有视频，修复旧数据缺失问题）
-        [sourceLang]:
-          sourceContentWithVideos || article.contentMd || article.content || '',
-        // 目标语言：翻译后的文本 + 视频（同样追加到末尾）
-        [data.targetLang]: preservedVideoTags
-          ? contentTranslated + '\n\n' + preservedVideoTags
-          : contentTranslated,
+        // Source language: Markdown content with media tags restored (fixes legacy data)
+        [sourceLang]: sourceMarkdownWithVideos,
+        // Target language: translated Markdown with media tags at original positions
+        [data.targetLang]: finalContent || contentTranslated,
       };
 
-      // 自动渲染对应语言HTML
+      // Auto-render HTML for each language
       updateData.contentLocalized = {
         ...((article.contentLocalized as any) || {}),
-        // 中文源语言：优先使用原始 article.content（包含视频的Quill HTML），确保不丢失
+        // Source language: prefer original article.content (Quill HTML with videos), fallback to rendered Markdown
         [sourceLang]:
-          article.content || this.renderMarkdown(sourceContentWithVideos),
-        // 目标语言：Markdown → HTML + 视频
-        [data.targetLang]: (() => {
-          const translatedHtml = this.renderMarkdown(contentTranslated);
-          return preservedVideoTags
-            ? translatedHtml + '\n' + preservedVideoTags
-            : translatedHtml;
-        })(),
+          article.content || this.renderMarkdown(sourceMarkdownWithVideos),
+        // Target language: render translated Markdown (already has media tags restored) to HTML
+        [data.targetLang]: this.renderMarkdown(finalContent || contentTranslated),
       };
 
       updateData.excerptLocalized = {

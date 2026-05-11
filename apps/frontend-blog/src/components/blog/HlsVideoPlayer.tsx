@@ -9,6 +9,8 @@ interface HlsVideoPlayerProps {
   poster?: string;
   posterWebp?: string;
   className?: string;
+  /** Class applied to the inner <video> element (use this for object-fit, hover scale, etc.) */
+  videoClassName?: string;
   autoPlay?: boolean;
   muted?: boolean;
   /** When true, don't load video on mount — show poster + play button instead.
@@ -29,6 +31,7 @@ export function HlsVideoPlayer({
   poster,
   posterWebp,
   className = '',
+  videoClassName = '',
   autoPlay = false,
   muted = true,
   clickToPlay = false,
@@ -211,7 +214,7 @@ export function HlsVideoPlayer({
 
   return (
     <div
-      className={`relative group overflow-hidden bg-black rounded-lg ${className}`}
+      className={`relative group overflow-hidden bg-slate-100 dark:bg-slate-800 rounded-lg ${className}`}
       style={
         showPlayOverlay && effectivePoster
           ? {
@@ -261,8 +264,10 @@ export function HlsVideoPlayer({
       ) : (
         <video
           ref={videoRef}
-          className="w-full h-full object-contain"
-          poster={effectivePoster}
+          className={`w-full h-full object-contain ${videoClassName} ${
+            showPlayOverlay ? 'opacity-0' : ''
+          }`}
+          poster={showPlayOverlay ? undefined : effectivePoster}
           controls
           playsInline
           muted={muted}

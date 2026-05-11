@@ -359,18 +359,59 @@ export class FrontendBlogService {
         skipVideoInjection: true,
       });
 
-      // 关键修复：始终执行视频位置智能注入（如果 content 包含视频）
-      // 即使 contentMd 已经有视频（通常在末尾），也重新注入到正确位置
-      // 通过 HTML 里视频前面的标题定位，在 Markdown 对应标题后插入，保持阅读顺序正确
-      // 这样前端可以始终用 contentMd（保留代码高亮），视频也出现在正确位置
-      if (result.content && /<video[\s\S]*?<\/video>/i.test(result.content)) {
-        // 如果 contentMd 不存在或为空，用 content 作为基础
+      // 视频注入逻辑：
+      // 检查 content（HTML）和 contentMd（Markdown）两个字段是否有视频标签。
+      // - contentHasVideo: contentLocalized 渲染后的 HTML 中是否有视频
+      // - mdHasVideo: contentMdLocalized 的 Markdown 中是否有视频
+      //
+      // 三种场景：
+      // 1. 新翻译（占位符修复后）：两个字段都有视频且在正确位置 → 跳过注入，只做 HLS 替换
+      // 2. 旧翻译（占位符修复前）：只有 contentMd 有视频（在末尾），content 无视频 → 执行 injectVideosIntoMarkdown
+      // 3. 首次查看（Quill 文章）：content HTML 有视频，contentMd 无视频 → 执行 injectVideosIntoMarkdown
+      const contentHasVideo =
+        result.content && /<video[\s\S]*?<\/video>/i.test(result.content);
+      const mdHasVideo =
+        result.contentMd && /<video[\s\S]*?<\/video>/i.test(result.contentMd);
+
+      if (contentHasVideo || mdHasVideo) {
         const baseMd = result.contentMd || result.content || '';
-        result.contentMd = this.injectVideosIntoMarkdown(
-          baseMd,
-          result.content,
-        );
+        const contentVideo = Array.isArray(result.meta?.contentVideo)
+          ? result.meta.contentVideo
+          : undefined;
+
+        if (contentHasVideo && mdHasVideo) {
+          // 两个字段都有视频 → 占位符修复的数据（视频在正确位置）
+          // 跳过 injectVideosIntoMarkdown，只做 HLS URL 替换以保持正确位置
+          result.contentMd = baseMd;
+          if (contentVideo?.length) {
+            result.contentMd = this.replaceVideoSrcInHtml(
+              result.contentMd,
+              contentVideo,
+            );
+          }
+        } else {
+          // 旧数据（只有 contentMd 有视频且在末尾，或只有 content HTML 有视频）：
+          // 使用传统 injectVideosIntoMarkdown 逻辑将视频定位到标题附近
+          result.contentMd = this.injectVideosIntoMarkdown(
+            baseMd,
+            result.content,
+            contentVideo,
+          );
+        }
       }
+    }
+
+    // Phase 1: 替换 content 中的 MP4 src 为 HLS src
+    // 前端 Quill 文章渲染使用 content（dangerouslySetInnerHTML），而非 contentMd
+    // 直接修改 content 确保 HLS 播放，减少前端运行时查找开销
+    const contentVideoArr = Array.isArray(result.meta?.contentVideo)
+      ? result.meta.contentVideo
+      : undefined;
+    if (result.content && contentVideoArr?.length) {
+      result.content = this.replaceVideoSrcInHtml(
+        result.content,
+        contentVideoArr,
+      );
     }
 
     // 处理分类
@@ -440,9 +481,8 @@ export class FrontendBlogService {
     entity: any,
     field: string,
     locale: string,
-    options: { skipVideoInjection?: boolean } = {},
+    _options: { skipVideoInjection?: boolean } = {},
   ): string {
-    const { skipVideoInjection = false } = options;
     // 首先检查字段本身是否已经是 Localized 对象
     const fieldValue = entity[field];
     // 如果字段本身就是 Localized 对象（如 {en: "...", zh: "..."}）
@@ -471,39 +511,9 @@ export class FrontendBlogService {
     const localizedField = entity[`${field}Localized`];
 
     if (localizedField && localizedField[locale]) {
-      // Fix: For content/contentMd fields, preserve video/figure HTML tags from original
-      // HTML content when the localized version (AI-translated text) is missing them.
-      // The translation processor saves only rendered markdown text, losing video tags.
-      // 仅在未设置 skipVideoInjection 时才执行视频追加（会追加到末尾）
-      if (
-        !skipVideoInjection &&
-        (field === 'content' || field === 'contentMd')
-      ) {
-        // Always extract videos from the HTML source (contentLocalized['zh'] or entity['content']),
-        // because contentMd is plain Markdown and never contains <video> tags.
-        const htmlSource =
-          (entity['contentLocalized'] as any)?.['zh'] ||
-          entity['content'] ||
-          '';
-        const localizedValue = localizedField[locale];
-        if (
-          htmlSource &&
-          typeof htmlSource === 'string' &&
-          typeof localizedValue === 'string' &&
-          /<video[\s\S]*?<\/video>/i.test(htmlSource) &&
-          !/<video[\s\S]*?<\/video>/i.test(localizedValue)
-        ) {
-          // Extract video blocks (Quill video tags - <video> with <source>, may or may not have figure wrapper)
-          const videoBlocks = htmlSource.match(
-            /<figure[^>]*>[\s\S]*?<video[\s\S]*?<\/video>[\s\S]*?<\/figure>|<video[\s\S]*?<\/video>/gi,
-          );
-          if (videoBlocks && videoBlocks.length > 0) {
-            // Append video blocks to end of the translated text
-            // rehypeRaw plugin supports raw HTML in Markdown, so this works for both paths
-            return localizedValue + '\n\n' + videoBlocks.join('\n\n');
-          }
-        }
-      }
+      // 注意：placeholder 替换方案已在 translation processor 中确保视频标签
+      // 在原始位置得到保留。不再需要从原文提取视频标签追加到末尾。
+      // injectVideosIntoMarkdown 会处理 HLS URL 替换和遗留数据的重新定位。
       return localizedField[locale];
     }
 
@@ -540,6 +550,11 @@ export class FrontendBlogService {
   private injectVideosIntoMarkdown(
     contentMd: string,
     contentHtml: string,
+    contentVideo?: Array<{
+      videoKey: string;
+      hlsUrl: string;
+      poster?: string | null;
+    }>,
   ): string {
     const videoRegex =
       /<figure[^>]*>[\s\S]*?<video[\s\S]*?<\/video>[\s\S]*?<\/figure>|<video[\s\S]*?<\/video>/gi;
@@ -559,6 +574,45 @@ export class FrontendBlogService {
       videos.push({ index: m.index, block: m[0] });
     }
     if (videos.length === 0) return cleanedMd;
+
+    // ── 将 mp4 URL 替换为 HLS URL（从 meta.contentVideo[] 查找） ──
+    // 这样前端收到 contentMd 时，<video src> 已经指向 HLS 流，
+    // 不再依赖前端运行时匹配 contentVideo[]，解决 MP4 直出问题。
+    if (contentVideo && contentVideo.length > 0) {
+      for (let i = 0; i < videos.length; i++) {
+        const block = videos[i].block;
+        const srcMatch = block.match(/src="([^"]+)"/);
+        if (srcMatch) {
+          const srcUrl = srcMatch[1];
+          try {
+            const url = new URL(srcUrl);
+            const pathKey = url.pathname.replace(/^\//, '');
+            // 双向匹配：src 包含 videoKey，或 pathKey 包含 videoKey
+            const entry = contentVideo.find(
+              (e) =>
+                srcUrl.includes(e.videoKey) ||
+                pathKey.includes(e.videoKey),
+            );
+            if (entry?.hlsUrl) {
+              let newBlock = block.replace(/src="([^"]+)"/, `src="${entry.hlsUrl}"`);
+              // 同时注入 poster（如果可用），避免前端再查一次
+              if (entry.poster) {
+                newBlock = newBlock.replace(
+                  /<video\s/,
+                  `<video poster="${entry.poster}" `,
+                );
+              }
+              videos[i] = { ...videos[i], block: newBlock };
+              this.logger.debug(
+                `[视频注入] 替换 video[${i}] mp4 → HLS: ${entry.hlsUrl}`,
+              );
+            }
+          } catch {
+            // URL 解析失败，保留原始 mp4
+          }
+        }
+      }
+    }
 
     const mdLines = cleanedMd.split('\n');
 
@@ -613,6 +667,7 @@ export class FrontendBlogService {
           this.logger.warn(
             `[视频注入] 未找到匹配标题 "${text}" (H${level})，视频位于 HTML ${positionPercent.toFixed(1)}% 处`,
           );
+          // 关键：视频的 src 已替换为 HLS，即使没有匹配标题也会被插入到文档开头/末尾
         }
       } else {
         this.logger.debug(
@@ -654,6 +709,34 @@ export class FrontendBlogService {
     }
 
     return mdLines.join('\n');
+  }
+
+  /**
+   * 替换 content（Quill HTML）中的 MP4 video src 为 HLS src。
+   * Phase 1: HLS 修复 — 前端 Quill 文章渲染直接使用 content（dangerouslySetInnerHTML），
+   * 而非 contentMd。因此必须直接替换 content 中的视频 URL 为 HLS URL，
+   * 确保前端 HLS 播放而无需运行时查找。
+   */
+  private replaceVideoSrcInHtml(
+    html: string,
+    contentVideo: Array<{
+      videoKey: string;
+      hlsUrl: string;
+      poster?: string | null;
+    }>,
+  ): string {
+    if (!html || !contentVideo?.length) return html;
+    return html.replace(
+      /<video\s+([^>]*?)src="([^"]+)"([^>]*)>/gi,
+      (_fullMatch, beforeSrc, srcUrl, afterSrc) => {
+        const entry = contentVideo.find((e) => srcUrl.includes(e.videoKey));
+        if (!entry?.hlsUrl) return _fullMatch;
+        const newAttrs = (beforeSrc + ' ' + afterSrc).trim();
+        const cleanAttrs = newAttrs.replace(/\s+poster="[^"]*"/gi, '');
+        const posterAttr = entry.poster ? ` poster="${entry.poster}"` : '';
+        return `<video${posterAttr} src="${entry.hlsUrl}" ${cleanAttrs}>`;
+      },
+    );
   }
 
   /**

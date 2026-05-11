@@ -39,7 +39,7 @@ interface ArticleFormProps {
   onUploadAction?: (file: File) => Promise<string>;
   locale?: string; // 可选：当前语言
   isLocalized?: boolean; // 可选：是否多语言模式
-  onFieldChangeAction?: (field: string, value: string) => void; // 新增：字段变化回调
+  onFieldChangeAction?: (field: string, value: unknown) => void; // 新增：字段变化回调
 }
 
 // 辅助函数：安全提取字符串值（支持多语言对象 -> 返回指定 locale 的值）

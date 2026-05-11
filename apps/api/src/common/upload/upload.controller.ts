@@ -133,6 +133,7 @@ export class UploadController {
       dto.originalName,
       dto.articleId,
       dto.mimeType,
+      dto.mediaUsage,
     );
   }
 }

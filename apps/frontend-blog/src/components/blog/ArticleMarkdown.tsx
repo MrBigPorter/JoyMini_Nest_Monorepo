@@ -59,6 +59,84 @@ SyntaxHighlighter.registerLanguage('nginx', nginx);
 SyntaxHighlighter.registerLanguage('graphql', graphql);
 SyntaxHighlighter.registerLanguage('gql', graphql);
 
+const STANDARD_HTML_TAGS = new Set([
+  'a',
+  'abbr',
+  'address',
+  'article',
+  'aside',
+  'b',
+  'bdi',
+  'bdo',
+  'blockquote',
+  'br',
+  'caption',
+  'cite',
+  'code',
+  'col',
+  'colgroup',
+  'data',
+  'dd',
+  'del',
+  'details',
+  'dfn',
+  'div',
+  'dl',
+  'dt',
+  'em',
+  'figcaption',
+  'figure',
+  'footer',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'header',
+  'hgroup',
+  'hr',
+  'i',
+  'iframe',
+  'img',
+  'input',
+  'ins',
+  'kbd',
+  'label',
+  'legend',
+  'li',
+  'main',
+  'mark',
+  'nav',
+  'ol',
+  'p',
+  'picture',
+  'pre',
+  'q',
+  's',
+  'samp',
+  'section',
+  'small',
+  'source',
+  'span',
+  'strong',
+  'sub',
+  'summary',
+  'sup',
+  'table',
+  'tbody',
+  'td',
+  'tfoot',
+  'th',
+  'thead',
+  'time',
+  'tr',
+  'u',
+  'ul',
+  'var',
+  'video',
+]);
+
 interface ArticleMarkdownProps {
   content: string;
   meta?: ArticleMeta;
@@ -71,6 +149,54 @@ interface ArticleMarkdownProps {
  */
 function isHtmlContent(content: string): boolean {
   return /^\s*<\w+[^>]*>/.test(content.trim());
+}
+
+/**
+ * Sanitize Markdown content to escape non-standard HTML tags before ReactMarkdown
+ * rendering with rehypeRaw. Non-standard tags like <boxshadow> would be parsed as
+ * real HTML and cause React console errors ("tag is unrecognized in this browser").
+ *
+ * Preserves:
+ * - Code blocks (``` ```) — not touched at all
+ * - Standard HTML tags (div, video, figure, table, code, span, etc.)
+ * - Inline code (`code`) — not touched
+ *
+ * Only escapes < and > of non-standard HTML tags outside code blocks.
+ */
+function sanitizeMarkdownForReact(md: string): string {
+  // First, protect code blocks by replacing them with placeholders
+  const codeBlocks: string[] = [];
+  let result = md.replace(/```[\s\S]*?```/g, (match) => {
+    codeBlocks.push(match);
+    return `\x00CODE_BLOCK_${codeBlocks.length - 1}\x00`;
+  });
+
+  // Also protect inline code
+  result = result.replace(/`[^`]+`/g, (match) => {
+    codeBlocks.push(match);
+    return `\x00CODE_BLOCK_${codeBlocks.length - 1}\x00`;
+  });
+
+  // Escape non-standard HTML tags outside code blocks
+  result = result.replace(
+    /<(\/?)([a-zA-Z][a-zA-Z0-9]*)\b([^>]*)>/g,
+    (_match, slash: string, tagName: string, attrs: string) => {
+      if (STANDARD_HTML_TAGS.has(tagName.toLowerCase())) {
+        return _match; // Keep standard tags as-is
+      }
+      // Escape angle brackets for non-standard tags
+      // Use HTML entities to prevent rehypeRaw from parsing non-standard tags
+      // as real HTML elements (e.g. <toutput> → <toutput>)
+      return '&lt;' + slash + tagName + attrs + '&gt;';
+    },
+  );
+
+  // Restore code blocks
+  result = result.replace(/\x00CODE_BLOCK_(\d+)\x00/g, (_m, idx: string) => {
+    return codeBlocks[parseInt(idx, 10)] || _m;
+  });
+
+  return result;
 }
 
 /**
@@ -213,14 +339,17 @@ export default function ArticleMarkdown({
       // If still not m3u8, look up in meta.contentVideo by matching videoKey
       if (!hlsUrl.includes('.m3u8') && meta?.contentVideo) {
         const srcAttr = video.getAttribute('src') || '';
+        // 大小写不敏感匹配，避免 .MP4 与 .mp4 不匹配的问题
         const matched = meta.contentVideo.find((entry) =>
-          srcAttr.includes(entry.videoKey),
+          srcAttr.toLowerCase().includes(entry.videoKey.toLowerCase()),
         );
 
         if (matched?.hlsUrl) {
           hlsUrl = matched.hlsUrl;
-          // Also set poster from contentVideo entry if available
-          if (matched?.poster) {
+          // Also set poster from contentVideo entry if available.
+          // Use != null (not truthy check) because backend stores null explicitly
+          // when thumbnail extraction fails.
+          if (matched?.poster != null) {
             video.setAttribute('poster', matched.poster);
           }
         }
@@ -228,6 +357,21 @@ export default function ArticleMarkdown({
 
       // Get poster (from attribute or closest image sibling)
       const poster = video.getAttribute('poster') || '';
+
+      // ── MP4-only with no poster → play natively ──────────────────────────
+      // Newly uploaded video, not yet transcoded. No HLS, no poster available.
+      // Let the browser render the video directly (shows first frame).
+      if (!hlsUrl.includes('.m3u8') && !poster) {
+        video.style.opacity = '1';
+        video.setAttribute('controls', '');
+        video.setAttribute('preload', 'metadata');
+        video.style.aspectRatio = '16/9';
+        video.style.width = '100%';
+        return; // skip overlay creation for this video
+      }
+
+      // Immediately hide video to prevent black flash before overlay is created.
+      video.style.opacity = '0';
 
       // Set preload=none so browser doesn't fetch the video on mount
       video.setAttribute('preload', 'none');
@@ -301,6 +445,9 @@ export default function ArticleMarkdown({
       const initAndPlay = () => {
         if (initialized) return;
         initialized = true;
+
+        // Restore video visibility (hidden initially to prevent black flash)
+        video.style.opacity = '1';
 
         // Remove overlay
         overlay.remove();
@@ -616,14 +763,20 @@ export default function ArticleMarkdown({
           video({ src, node, ...props }) {
             const srcStr = typeof src === 'string' ? src : '';
             // Look up in meta.contentVideo to find HLS URL + poster for mp4 video
+            // 大小写不敏感匹配，避免 .MP4 与 .mp4 不匹配的问题
             const matched = meta?.contentVideo?.find((entry) =>
-              srcStr.includes(entry.videoKey),
+              srcStr.toLowerCase().includes(entry.videoKey.toLowerCase()),
             );
             const effectiveHlsUrl = matched?.hlsUrl || srcStr;
-            // Extract poster from contentVideo entry, fallback to HTML attribute
+            // Extract poster from contentVideo entry, fallback to HTML attribute.
+            // Use != null to distinguish null (explicitly no poster — thumbnail extraction
+            // failed) from undefined (no matching entry found).
             const posterStr =
-              matched?.poster ||
-              (typeof props.poster === 'string' ? props.poster : undefined);
+              matched?.poster != null
+                ? matched.poster
+                : typeof props.poster === 'string'
+                  ? props.poster
+                  : undefined;
 
             // Check if this is a raw HTML video from rehypeRaw (has node prop)
             // If so, don't wrap in div to avoid invalid nesting inside <p>
@@ -638,6 +791,7 @@ export default function ArticleMarkdown({
                   muted={false}
                   clickToPlay={true}
                   className="w-full rounded-lg aspect-video"
+                  videoClassName="object-contain"
                 />
               );
               return isRawHtml ? (
@@ -647,12 +801,31 @@ export default function ArticleMarkdown({
               );
             }
 
-            // For regular mp4 / non-HLS: click-to-play with poster overlay
+            // For regular mp4 / non-HLS:
+            // - Has poster → click-to-play with poster overlay (NativeVideoPlayer)
+            // - No poster (newly uploaded, not yet transcoded) → native <video> directly
+            if (posterStr) {
+              const player = (
+                <NativeVideoPlayer
+                  src={srcStr}
+                  poster={posterStr}
+                  className="w-full"
+                />
+              );
+              return isRawHtml ? (
+                player
+              ) : (
+                <div className="article-media-wrapper">{player}</div>
+              );
+            }
+            // No poster — render native video directly; browser shows first frame
             const player = (
-              <NativeVideoPlayer
+              <video
                 src={srcStr}
-                poster={posterStr}
-                className="w-full"
+                controls
+                playsInline
+                preload="metadata"
+                className="w-full rounded-lg bg-black aspect-video"
               />
             );
             return isRawHtml ? (
@@ -663,7 +836,7 @@ export default function ArticleMarkdown({
           },
         }}
       >
-        {content}
+        {sanitizeMarkdownForReact(content)}
       </ReactMarkdown>
     </article>
   );

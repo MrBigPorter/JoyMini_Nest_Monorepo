@@ -43,6 +43,12 @@ export function getOptimizedImageUrl({
     return src;
   }
 
+  // Skip video file extensions — Cloudflare Image Resizing only supports images.
+  // Video URLs (e.g. mp4, webm) would return 415 Unsupported Media Type.
+  if (/\.(mp4|webm|ogg|mov|avi|mkv|m3u8|ts)(\?|#|$)/i.test(src)) {
+    return src;
+  }
+
   try {
     const url = new URL(src);
 

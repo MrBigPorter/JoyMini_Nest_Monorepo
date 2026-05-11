@@ -163,6 +163,7 @@ export class MediaProcessorService {
   async extractVideoThumbnail(
     buffer: Buffer,
     articleId: string,
+    videoKey: string,
   ): Promise<{ jpg: string; webp: string }> {
     const fs = await import('fs/promises');
     const path = await import('path');
@@ -187,8 +188,9 @@ export class MediaProcessorService {
       );
 
       const posterBuffer = await fs.readFile(outputPath);
-      const jpgKey = `uploads/blog/videos/${articleId}/poster.jpg`;
-      const webpKey = `uploads/blog/videos/${articleId}/poster.webp`;
+      const videoId = videoKey.split('/').pop()?.replace(/\.[^/.]+$/, '') || 'unknown';
+      const jpgKey = `uploads/blog/videos/${articleId}/${videoId}/poster.jpg`;
+      const webpKey = `uploads/blog/videos/${articleId}/${videoId}/poster.webp`;
 
       // Upload JPEG poster
       await this.uploadService.uploadToPublicBucket(
@@ -215,7 +217,7 @@ export class MediaProcessorService {
         // Non-fatal — continue with JPEG only
       }
 
-      const baseUrl = `${this.getPublicDomain()}/uploads/blog/videos/${articleId}`;
+      const baseUrl = `${this.getPublicDomain()}/uploads/blog/videos/${articleId}/${videoId}`;
       return {
         jpg: `${baseUrl}/poster.jpg`,
         webp: `${baseUrl}/poster.webp`,
@@ -232,6 +234,7 @@ export class MediaProcessorService {
   async transcodeVideoToHls(
     buffer: Buffer,
     articleId: string,
+    videoKey: string,
   ): Promise<VideoVariants> {
     const fs = await import('fs/promises');
     const path = await import('path');
@@ -363,7 +366,8 @@ export class MediaProcessorService {
       await fs.writeFile(path.join(outputDir, 'master.m3u8'), masterPlaylist);
 
       // Upload all HLS files to R2
-      const hlsFolder = `uploads/blog/videos/${articleId}/hls`;
+      const videoId = videoKey.split('/').pop()?.replace(/\.[^/.]+$/, '') || 'unknown';
+      const hlsFolder = `uploads/blog/videos/${articleId}/${videoId}/hls`;
       const publicDomain = this.getPublicDomain();
 
       await this.uploadDirectory(outputDir, hlsFolder);

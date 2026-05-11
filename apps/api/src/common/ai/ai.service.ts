@@ -795,9 +795,9 @@ Requirements:
 1. Preserve ALL Markdown formatting: headers, lists, code blocks, links, bold, italic
 2. Do NOT translate code inside code blocks
 3. Keep technical terms and proper nouns unchanged
-4. Maintain original structure and formatting
-5. Return only the translated Markdown
-6. Preserve HTML video tags (<video>, <source>, <figure>) verbatim - do NOT modify, translate, or remove them
+4. Preserve ALL Unicode placeholder markers (⏸️VIDEO_N, 🖼️IMG_N) exactly as-is — do NOT translate, remove, or modify them
+5. Maintain original structure and formatting
+6. Return only the translated Markdown
 
 Document:
 ${markdown}
@@ -807,7 +807,9 @@ ${markdown}
       prompt,
       {
         temperature: 0.1,
-        maxOutputTokens: Math.min(Math.max(2048, markdown.length), 4096),
+        // ⬆️ 4096→8192: 大 chunk (up to 20000 chars) 的输出翻译可能更长
+        // 8192 tokens ≈ 6000 words = ~48000 chars Latin, ~16000 chars CJK
+        maxOutputTokens: Math.min(Math.max(2048, markdown.length * 2), 8192),
       },
       AiServiceLevel.FULL,
     );
@@ -831,12 +833,37 @@ ${markdown}
       `大文档分块翻译: ${markdown.length} 字符 → ${chunks.length} 块 (目标语言: ${targetLang})`,
     );
 
+    // === DIAG: 记录每个 chunk 的首尾字符，追踪占位符分布 ===
+    const truncate = (s: string, max: number) =>
+      s.length > max ? s.substring(0, max) + '...' : s;
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
+      const hasPlaceholder = chunk.includes('⏸️') || chunk.includes('🖼️');
+      this.logger.log(
+        `[DIAG] 分块翻译: chunk[${i + 1}/${chunks.length}] 长度=${chunk.length}ch, 含占位符=${hasPlaceholder}, 头部 100ch="${truncate(chunk.substring(0, 100), 100)}", 尾部 100ch="${truncate(chunk.substring(chunk.length - 100), 100)}"`,
+      );
+    }
+
     const translatedChunks: string[] = [];
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
+      const originalHasPlaceholder = chunk.includes('⏸️') || chunk.includes('🖼️');
+
       // Each chunk is ≤ MAX_CHUNK_CHARS, safe for single-call
       const translated = await this.translateMarkdownSingle(chunk, targetLang);
       translatedChunks.push(translated);
+
+      // === DIAG: 检查翻译后 chunk 是否还保留占位符 ===
+      const translatedHasPlaceholder = translated.includes('⏸️') || translated.includes('🖼️');
+      if (originalHasPlaceholder && !translatedHasPlaceholder) {
+        this.logger.warn(
+          `[DIAG] ⚠️ 分块翻译 chunk[${i + 1}/${chunks.length}] 占位符丢失！原 chunk 尾部 200ch="${truncate(chunk.substring(chunk.length - 200), 200)}", 译 chunk 尾部 200ch="${truncate(translated.substring(translated.length - 200), 200)}"`,
+        );
+      } else if (originalHasPlaceholder) {
+        this.logger.log(
+          `[DIAG] 分块翻译: chunk[${i + 1}/${chunks.length}] 占位符 ✅ 保留`,
+        );
+      }
 
       // Small delay between chunks to prevent request bursts (DeepSeek has no rate limits)
       if (i < chunks.length - 1) {
@@ -845,7 +872,15 @@ ${markdown}
       }
     }
 
-    return translatedChunks.join('\n\n');
+    const result = translatedChunks.join('\n\n');
+
+    // === DIAG: 最终结果检查 ===
+    const resultHasPlaceholder = result.includes('⏸️') || result.includes('🖼️');
+    this.logger.log(
+      `[DIAG] 分块翻译完成: 合并后长度=${result.length}ch, 含占位符=${resultHasPlaceholder}, 尾部 200ch="${truncate(result.substring(result.length - 200), 200)}"`,
+    );
+
+    return result;
   }
 
   /**

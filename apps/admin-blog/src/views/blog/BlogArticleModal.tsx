@@ -63,6 +63,7 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
   const [tags, setTags] = useState<{ id: string; name: unknown }[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
+  const [isClearingTranslations, setIsClearingTranslations] = useState(false);
 
   // (translation helper defined above as blog-article scoped `t`)
 
@@ -206,7 +207,7 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
                 // Pass articleId when editing so media processing is triggered
                 const extraFields =
                   isEditing && editingArticle?.id
-                    ? { articleId: editingArticle.id }
+                    ? { articleId: editingArticle.id, mediaUsage: 'cover' }
                     : undefined;
                 const res = await upload.runAsync(
                   value,
@@ -486,23 +487,26 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
   };
 
   // Handle image/video upload for RichTextEditor
-  const handleEditorUpload = async (
-    file: File,
-    onProgress?: (pct: number) => void,
-  ): Promise<string> => {
-    try {
-      // Pass articleId when editing so media processing is triggered
-      const extraFields =
-        isEditing && editingArticle?.id
-          ? { articleId: editingArticle.id }
-          : undefined;
-      const res = await upload.runAsync(file, onProgress, extraFields);
-      return res.url;
-    } catch (error) {
-      addToast('error', t('failedUploadImage'));
-      throw error;
-    }
-  };
+  // useCallback is CRITICAL: stabilizes onUploadAction reference to prevent
+  // react-quill-new from re-initializing the editor every time the parent re-renders.
+  const handleEditorUpload = useCallback(
+    async (file: File, onProgress?: (pct: number) => void): Promise<string> => {
+      try {
+        // Pass articleId when editing so media processing is triggered
+        const extraFields =
+          isEditing && editingArticle?.id
+            ? { articleId: editingArticle.id, mediaUsage: 'content' }
+            : undefined;
+        const res = await upload.runAsync(file, onProgress, extraFields);
+        return res.url;
+      } catch (error) {
+        addToast('error', t('failedUploadImage'));
+        throw error;
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- upload is a useRequest result object that changes reference on every render; adding it would break useCallback's stability. upload.runAsync is stable and sufficient.
+    [isEditing, editingArticle?.id, upload.runAsync, addToast, t],
+  );
 
   // Handle tag selection (multi-select)
   const handleTagToggle = (tagId: string) => {
@@ -560,29 +564,122 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 {isEditing ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="flex items-center gap-2"
-                    isLoading={isTranslating}
-                    onClick={async () => {
-                      if (!editingArticle?.id) return;
-                      try {
-                        setIsTranslating(true);
-                        await blogApi.translateArticle(editingArticle.id);
-                        addToast('success', t('translationRequestSent'));
-                      } catch (error) {
-                        console.error('Translation failed:', error);
-                        addToast('error', t('translationFailed'));
-                      } finally {
-                        setIsTranslating(false);
-                      }
-                    }}
-                  >
-                    <Globe size={16} />
-                    {t('retranslate')}
-                  </Button>
+                  <>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="flex items-center gap-2"
+                      isLoading={isTranslating}
+                      onClick={async () => {
+                        if (!editingArticle?.id) return;
+                        try {
+                          setIsTranslating(true);
+                          await blogApi.translateArticle(editingArticle.id);
+                          addToast('success', t('translationRequestSent'));
+                        } catch (error) {
+                          console.error('Translation failed:', error);
+                          addToast('error', t('translationFailed'));
+                        } finally {
+                          setIsTranslating(false);
+                        }
+                      }}
+                    >
+                      <Globe size={16} />
+                      {t('retranslate')}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="flex items-center gap-2"
+                      isLoading={isClearingTranslations}
+                      onClick={async () => {
+                        if (!editingArticle?.id) return;
+                        try {
+                          setIsClearingTranslations(true);
+                          const result = await blogApi.clearArticleTranslations(
+                            editingArticle.id,
+                          );
+                          addToast(
+                            'success',
+                            `${t('translationsCleared')}: ${result.cleared?.join(', ') || ''}`,
+                          );
+
+                          // 重新获取文章数据（翻译已清除），更新表单
+                          const fresh = await blogApi.getArticle(
+                            editingArticle.id,
+                          );
+                          if (fresh) {
+                            const stripNulls = (obj: Record<string, any>) => {
+                              const r: Record<string, any> = {};
+                              for (const [k, v] of Object.entries(obj)) {
+                                if (v !== null) r[k] = v;
+                              }
+                              return r;
+                            };
+                            const titleObj = stripNulls(
+                              fresh.titleLocalized ||
+                                fresh.titleLocalizedFull ||
+                                {},
+                            );
+                            const excerptObj = stripNulls(
+                              fresh.excerptLocalized ||
+                                fresh.excerptLocalizedFull ||
+                                {},
+                            );
+                            const featuredImageObj = stripNulls(
+                              fresh.coverImageLocalized ||
+                                fresh.coverImageLocalizedFull ||
+                                {},
+                            );
+                            const contentObj: Record<string, string> = {};
+                            enabledLocales.forEach((locale: any) => {
+                              const c =
+                                fresh.contentLocalized?.[locale.code] || '';
+                              if (c) contentObj[locale.code] = c;
+                            });
+                            reset({
+                              title: titleObj,
+                              content: contentObj,
+                              excerpt: excerptObj,
+                              featuredImage: featuredImageObj,
+                              categoryId:
+                                typeof fresh.categoryId === 'string'
+                                  ? fresh.categoryId
+                                  : fresh.category?.id || '',
+                              tagIds: Array.isArray(fresh.tagIds)
+                                ? fresh.tagIds
+                                : Array.isArray(fresh.tags)
+                                  ? fresh.tags.map((t: any) =>
+                                      typeof t === 'object' && t?.id ? t.id : t,
+                                    )
+                                  : [],
+                              status: fresh.status || 'DRAFT',
+                              featured: fresh.featured ?? false,
+                            });
+                            setTimeout(() => {
+                              articleFormRef.current?.reset({
+                                title: titleObj[currentLocale] ?? '',
+                                content: contentObj[currentLocale] ?? '',
+                                excerpt: excerptObj[currentLocale] ?? '',
+                                featuredImage:
+                                  featuredImageObj[currentLocale] ?? '',
+                              });
+                            }, 0);
+                          }
+                        } catch (error) {
+                          console.error('Clear translations failed:', error);
+                          addToast('error', t('clearTranslationsFailed'));
+                        } finally {
+                          setIsClearingTranslations(false);
+                        }
+                      }}
+                    >
+                      <Globe size={16} />
+                      {t('clearTranslations')}
+                    </Button>
+                  </>
                 ) : (
                   <div className="text-xs text-gray-500 flex items-center gap-1">
                     <Globe size={14} />
@@ -593,6 +690,7 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
             </div>
 
             {/* 独立多语言表单 */}
+
             <ArticleForm
               ref={articleFormRef}
               onUploadAction={handleEditorUpload}
@@ -602,7 +700,7 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
                   try {
                     const extraFields =
                       isEditing && editingArticle?.id
-                        ? { articleId: editingArticle.id }
+                        ? { articleId: editingArticle.id, mediaUsage: 'cover' }
                         : undefined;
                     const res = await upload.runAsync(
                       value,
@@ -677,6 +775,9 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
                 }
 
                 // 普通字段：当ArticleForm的字段变化时，同步更新父表单的多语言字段
+                const valueStr =
+                  typeof value === 'string' ? value : String(value ?? '');
+
                 const currentValues = getValues();
                 const localizedField =
                   currentValues[field as keyof typeof currentValues];
@@ -690,7 +791,7 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
                     field as any,
                     {
                       ...localizedField,
-                      [currentLocale]: value,
+                      [currentLocale]: valueStr,
                     },
                     {
                       shouldDirty: true,
@@ -702,7 +803,7 @@ export const BlogArticleModal: React.FC<BlogArticleModalProps> = ({
                   // 如果还不是多语言对象，创建一个
                   const newLocalized: Record<string, string> = {};
                   availableLocaleCodes.forEach((lang) => {
-                    newLocalized[lang] = lang === currentLocale ? value : '';
+                    newLocalized[lang] = lang === currentLocale ? valueStr : '';
                   });
                   setValue(field as any, newLocalized, {
                     shouldDirty: true,

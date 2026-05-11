@@ -22,6 +22,8 @@ interface TranscodeVideoJobData {
   articleId: string;
   videoKey: string;
   mimeType: string;
+  /** Optional hint from uploader: 'cover' | 'content' */
+  mediaUsage?: string;
 }
 
 /**
@@ -165,8 +167,49 @@ export class MediaProcessor extends WorkerHost {
   private async handleTranscodeVideo(
     job: Job<TranscodeVideoJobData>,
   ): Promise<void> {
-    const { articleId, videoKey, mimeType } = job.data;
+    const { articleId, videoKey, mimeType, mediaUsage } = job.data;
     this.logger.log(`Transcoding video for article ${articleId}: ${videoKey}`);
+
+    // Determine if this video is the article's coverImage.
+    // 1) Prefer explicit hint from uploader (mediaUsage)
+    // 2) Fall back to comparing videoKey with coverImage URL pathname
+    // coverImage videos update meta.video (for homepage cards);
+    // rich-text content videos only update meta.contentVideo[] (for detail page).
+    const article = await this.prisma.blogArticle.findUnique({
+      where: { id: articleId },
+      select: { coverImage: true, coverImageLocalized: true },
+    });
+    const coverKeys = new Set<string>();
+    if (article?.coverImage) {
+      try {
+        const url = new URL(article.coverImage);
+        coverKeys.add(url.pathname.replace(/^\//, ''));
+      } catch {
+        /* ignore invalid URL */
+      }
+    }
+    // Also check localized cover images
+    if (article?.coverImageLocalized) {
+      try {
+        const localized = article.coverImageLocalized as Record<string, string>;
+        for (const url of Object.values(localized)) {
+          try {
+            const parsed = new URL(url);
+            coverKeys.add(parsed.pathname.replace(/^\//, ''));
+          } catch {
+            /* ignore */
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    const isCoverImageVideo =
+      mediaUsage === 'cover'
+        ? true
+        : mediaUsage === 'content'
+          ? false
+          : coverKeys.has(videoKey);
 
     // Check file size before downloading
     const sizeOk = await this.checkFileSize(
@@ -178,14 +221,18 @@ export class MediaProcessor extends WorkerHost {
       this.logger.log(
         `Skipping video transcoding for article ${articleId} due to file size`,
       );
-      // Set status to 'failed' so frontend knows processing was skipped
-      await this.setVideoStatus(articleId, 'failed');
+      // Only set meta.video.status for cover videos
+      if (isCoverImageVideo) {
+        await this.setVideoStatus(articleId, 'failed');
+      }
       return;
     }
 
     try {
-      // Mark video as 'processing' before starting
-      await this.setVideoStatus(articleId, 'processing');
+      // Mark meta.video.status only for cover videos
+      if (isCoverImageVideo) {
+        await this.setVideoStatus(articleId, 'processing');
+      }
 
       // Download original from R2
       const buffer = await this.uploadService.getFileBuffer(
@@ -196,7 +243,7 @@ export class MediaProcessor extends WorkerHost {
 
       // Transcode to HLS
       const videoVariants =
-        await this.mediaProcessorService.transcodeVideoToHls(buffer, articleId);
+        await this.mediaProcessorService.transcodeVideoToHls(buffer, articleId, videoKey);
 
       // Extract video thumbnail poster (frame at 1s) — returns both JPEG and WebP URLs
       let posterUrl: { jpg: string; webp: string } | undefined;
@@ -204,6 +251,7 @@ export class MediaProcessor extends WorkerHost {
         posterUrl = await this.mediaProcessorService.extractVideoThumbnail(
           buffer,
           articleId,
+          videoKey,
         );
         this.logger.log(
           `Video poster generated for article ${articleId}: ${posterUrl?.jpg}`,
@@ -214,107 +262,105 @@ export class MediaProcessor extends WorkerHost {
       }
 
       // Update article meta with video variants + poster + status
-      const article = await this.prisma.blogArticle.findUnique({
+      const articleMeta = await this.prisma.blogArticle.findUnique({
         where: { id: articleId },
         select: { meta: true },
       });
 
-      const existingMeta = (article?.meta as Record<string, unknown>) || {};
+      const existingMeta = (articleMeta?.meta as Record<string, unknown>) || {};
       const existingContentVideo = Array.isArray(existingMeta.contentVideo)
         ? (existingMeta.contentVideo as ContentVideoEntry[])
         : [];
-      const newEntry: ContentVideoEntry = {
-        videoKey,
-        hlsUrl: videoVariants.hlsUrl,
-        poster: posterUrl?.jpg ?? null,
-      };
-      await this.prisma.blogArticle.update({
-        where: { id: articleId },
-        data: {
-          meta: {
-            ...existingMeta,
-            video: {
-              ...videoVariants,
-              poster: posterUrl?.jpg,
-              posterWebp: posterUrl?.webp,
-              status: 'completed',
-            },
-            contentVideo: [...existingContentVideo, newEntry],
-          } as unknown as Prisma.InputJsonValue,
-        },
-      });
 
-      // Also replace the original video URL in article content with the transcoded HLS URL
-      try {
-        const publicDomain = this.mediaProcessorService.getPublicDomain();
-        const originalUrl = `${publicDomain}/${videoKey}`;
-        const hlsUrl = videoVariants.hlsUrl;
-
-        if (originalUrl !== hlsUrl) {
-          const articleContent = await this.prisma.blogArticle.findUnique({
-            where: { id: articleId },
-            select: { content: true, contentLocalized: true },
-          });
-
-          let needsUpdate = false;
-          const updatedData: Record<string, any> = {};
-
-          // Replace in main content (HTML string)
-          if (articleContent?.content?.includes(originalUrl)) {
-            updatedData.content = articleContent.content
-              .split(originalUrl)
-              .join(hlsUrl);
-            needsUpdate = true;
-          }
-
-          // Replace in contentLocalized (per-locale overrides)
-          if (articleContent?.contentLocalized) {
-            const localized = articleContent.contentLocalized as Record<
-              string,
-              string
-            >;
-            const updatedLocalized: Record<string, string> = {};
-            let localizedChanged = false;
-
-            for (const [locale, text] of Object.entries(localized)) {
-              if (text.includes(originalUrl)) {
-                updatedLocalized[locale] = text.split(originalUrl).join(hlsUrl);
-                localizedChanged = true;
-              } else {
-                updatedLocalized[locale] = text;
-              }
-            }
-
-            if (localizedChanged) {
-              updatedData.contentLocalized = updatedLocalized as any;
-              needsUpdate = true;
-            }
-          }
-
-          if (needsUpdate) {
-            await this.prisma.blogArticle.update({
-              where: { id: articleId },
-              data: updatedData as any,
-            });
-            this.logger.log(
-              `Replaced original video URL with HLS URL in article ${articleId} content`,
-            );
-          }
+      if (isCoverImageVideo) {
+        // ── CoverImage video: update meta.video for homepage cards ──
+        // Find existing entry in contentVideo[] by videoKey to avoid duplicates
+        const existingIdx = existingContentVideo.findIndex(
+          (e) => e.videoKey === videoKey,
+        );
+        const updatedContentVideo = [...existingContentVideo];
+        const newEntry: ContentVideoEntry = {
+          videoKey,
+          hlsUrl: videoVariants.hlsUrl,
+          poster: posterUrl?.jpg ?? null,
+        };
+        if (existingIdx >= 0) {
+          updatedContentVideo[existingIdx] = newEntry;
+        } else {
+          updatedContentVideo.push(newEntry);
         }
-      } catch (contentError) {
-        // Non-fatal — don't fail the transcoding job for content replacement errors
-        this.logger.warn(
-          `Failed to update article content with HLS URL: ${contentError}`,
+
+        const articleRecord = await this.prisma.blogArticle.findUnique({
+          where: { id: articleId },
+          select: { coverImage: true, coverImageLocalized: true },
+        });
+
+        await this.prisma.blogArticle.update({
+          where: { id: articleId },
+          data: {
+            // Auto-fill coverImage from video poster if not already set
+            ...(posterUrl?.jpg && !articleRecord?.coverImage
+              ? { coverImage: posterUrl.jpg }
+              : {}),
+            meta: {
+              ...existingMeta,
+              video: {
+                ...videoVariants,
+                poster: posterUrl?.jpg,
+                posterWebp: posterUrl?.webp,
+                status: 'completed',
+              },
+              contentVideo: updatedContentVideo,
+            } as unknown as Prisma.InputJsonValue,
+          },
+        });
+
+        this.logger.log(
+          `CoverImage video transcoding completed for article ${articleId}: meta.video updated`,
+        );
+      } else {
+        // ── Content (rich-text) video: only update meta.contentVideo[] ──
+        // Do NOT touch meta.video to avoid overwriting the coverImage video's data.
+        const existingIdx = existingContentVideo.findIndex(
+          (e) => e.videoKey === videoKey,
+        );
+        const updatedContentVideo = [...existingContentVideo];
+        const newEntry: ContentVideoEntry = {
+          videoKey,
+          hlsUrl: videoVariants.hlsUrl,
+          poster: posterUrl?.jpg ?? null,
+        };
+        if (existingIdx >= 0) {
+          updatedContentVideo[existingIdx] = newEntry;
+        } else {
+          updatedContentVideo.push(newEntry);
+        }
+
+        await this.prisma.blogArticle.update({
+          where: { id: articleId },
+          data: {
+            meta: {
+              ...existingMeta,
+              contentVideo: updatedContentVideo,
+            } as unknown as Prisma.InputJsonValue,
+          },
+        });
+
+        // NOTE: Content is NOT modified here. We keep the original mp4 URL in content;
+        // frontend ArticleMarkdown looks up meta.contentVideo[] by videoKey to find HLS URL at render time.
+
+        this.logger.log(
+          `Content video transcoding completed for article ${articleId}: meta.contentVideo[] updated`,
         );
       }
-
-      this.logger.log(`Video transcoding completed for article ${articleId}`);
     } catch (error) {
       this.logger.error(
         `Video transcoding failed for article ${articleId}: ${error}`,
       );
-      // Update status to 'failed'
-      await this.setVideoStatus(articleId, 'failed').catch(() => {});
+      // Update meta.video.status only for cover videos
+      if (isCoverImageVideo) {
+        await this.setVideoStatus(articleId, 'failed').catch(() => {});
+      }
       throw error;
     }
   }
