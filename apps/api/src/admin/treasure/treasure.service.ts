@@ -34,6 +34,7 @@ export class TreasureService {
           // 1. 基础字段映射
           treasureName: rest.treasureName,
           treasureCoverImg: rest.treasureCoverImg,
+          blurhash: rest.blurhash,
           desc: rest.desc,
           costAmount: rest.costAmount,
           unitAmount: rest.unitAmount,
@@ -246,6 +247,7 @@ export class TreasureService {
         ...(rest.treasureCoverImg && {
           treasureCoverImg: rest.treasureCoverImg,
         }),
+        ...(rest.blurhash && { blurhash: rest.blurhash }),
         ...(rest.unitAmount && { unitAmount: rest.unitAmount }),
         ...(rest.desc && { desc: rest.desc }),
         ...(rest.costAmount && { costAmount: rest.costAmount }),

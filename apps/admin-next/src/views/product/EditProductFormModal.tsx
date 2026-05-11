@@ -112,9 +112,11 @@ export const EditProductFormModal: React.FC<EditProductFormModalProps> = ({
     try {
       // 1. 处理主图上传
       let coverUrl: string;
+      let coverBlurhash: string | undefined;
       if (values.treasureCoverImg instanceof File) {
-        const { url } = await upload.runAsync(values.treasureCoverImg);
-        coverUrl = url;
+        const res = await upload.runAsync(values.treasureCoverImg);
+        coverUrl = res.url;
+        coverBlurhash = res.blurhash;
       } else {
         coverUrl = values.treasureCoverImg as string;
       }
@@ -134,6 +136,7 @@ export const EditProductFormModal: React.FC<EditProductFormModalProps> = ({
         seqShelvesQuantity: Number(values.seqShelvesQuantity),
         categoryIds: [Number(values.categoryIds)],
         treasureCoverImg: coverUrl,
+        blurhash: coverBlurhash,
         desc: values.desc,
         ruleContent: values.ruleContent,
 

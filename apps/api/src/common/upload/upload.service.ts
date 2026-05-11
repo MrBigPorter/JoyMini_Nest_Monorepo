@@ -1,8 +1,10 @@
 import {
   ConflictException,
+  Inject,
   Injectable,
   InternalServerErrorException,
   Logger,
+  forwardRef,
 } from '@nestjs/common';
 import {
   GetObjectCommand,
@@ -18,7 +20,9 @@ import * as mime from 'mime';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { MEDIA_PROCESSOR_QUEUE } from '@api/common/media/media-processor.constants';
+import { MediaProcessorService } from '@api/common/media/media-processor.service';
 import { PrismaService } from '@api/common/prisma/prisma.service';
+import sharp from 'sharp';
 
 const getMimeExtension = (mimeType: string): string | false =>
   mime.extension(mimeType) as string | false;
@@ -36,6 +40,8 @@ export class UploadService {
     @InjectQueue(MEDIA_PROCESSOR_QUEUE)
     private readonly mediaProcessorQueue: Queue,
     private readonly prisma: PrismaService,
+    @Inject(forwardRef(() => MediaProcessorService))
+    private readonly mediaProcessorService: MediaProcessorService,
   ) {
     // initial
     const accountId = this.configService.getOrThrow<string>('CF_R2_ACCOUNT_ID');
@@ -388,6 +394,25 @@ export class UploadService {
 
     const url = `${this.publicDomain.replace(/\/$/, '')}/${key}`;
 
+    // Generate BlurHash for all image uploads (not just blog articles)
+    let blurhash = '';
+    const isImage = file.mimetype.startsWith('image/');
+    if (isImage) {
+      try {
+        const metadata = await sharp(file.buffer).metadata();
+        const width = metadata.width ?? 32;
+        const height = metadata.height ?? 32;
+        blurhash = await this.mediaProcessorService.generateBlurHash(
+          file.buffer,
+          width,
+          height,
+        );
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        this.logger.warn(`Failed to generate BlurHash for upload: ${msg}`);
+      }
+    }
+
     // If articleId is provided, enqueue media processing job
     if (articleId) {
       const VIDEO_EXT = /\.(mp4|avi|mov|mkv|webm)$/i;
@@ -445,6 +470,7 @@ export class UploadService {
       ...result,
       url,
       originalName: file.originalname,
+      blurhash,
     };
   }
 

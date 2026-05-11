@@ -59,10 +59,14 @@ export const BannerFormModal: React.FC<Props> = ({
   const { run: submit, loading } = useRequest(
     async (values) => {
       let bannerImgUrl: string;
+      let bannerBlurhash: string | undefined;
 
       if (values.bannerImgUrl instanceof File) {
-        const { url } = await uploadApi.uploadMedia(values.bannerImgUrl);
+        const { url, blurhash } = await uploadApi.uploadMedia(
+          values.bannerImgUrl,
+        );
         bannerImgUrl = url;
+        bannerBlurhash = blurhash;
       } else {
         bannerImgUrl = values.bannerImgUrl;
       }
@@ -70,6 +74,7 @@ export const BannerFormModal: React.FC<Props> = ({
       const payload = {
         ...values,
         bannerImgUrl,
+        blurhash: bannerBlurhash,
       };
 
       if (editingData) {

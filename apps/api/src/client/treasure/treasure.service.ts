@@ -79,7 +79,7 @@ export class TreasureService {
     }
 
     // 5. 排序优化
-    // 如果是查预售，按“开始时间”升序排（最近开始的排前面）
+    // 如果是查预售，按"开始时间"升序排（最近开始的排前面）
     // 否则按创建时间倒序
     const orderBy: Prisma.TreasureOrderByWithRelationInput = {};
     if (filterType === TreasureFilterType.PRE_SALE) {
@@ -100,6 +100,7 @@ export class TreasureService {
           treasureName: true,
           productName: true,
           treasureCoverImg: true,
+          blurhash: true,
           unitAmount: true,
           marketAmount: true, // 划线价
           soloAmount: true, // 单买价
@@ -164,6 +165,7 @@ export class TreasureService {
         treasureName: true,
         productName: true,
         treasureCoverImg: true,
+        blurhash: true,
         unitAmount: true,
         marketAmount: true, // 划线价
         soloAmount: true, // 单买价
@@ -269,6 +271,7 @@ export class TreasureService {
         t.treasure_name,
         t.product_name,
         t.treasure_cover_img,
+        t.blurhash,
         t.unit_amount,         -- 价格
         t.market_amount,       -- 原价
         t.seq_shelves_quantity,-- 总库存
@@ -357,6 +360,7 @@ export class TreasureService {
         treasureId: item.treasure_id,
         treasureName: item.treasure_name,
         treasureCoverImg: item.treasure_cover_img,
+        blurhash: item.blurhash ?? '',
         unitAmount: item.unit_amount,
         marketAmount: item.market_amount,
         buyQuantityRate: Number(item.progress_percent) / 100,

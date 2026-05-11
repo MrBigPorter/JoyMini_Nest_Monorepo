@@ -7679,6 +7679,7 @@ __metadata:
     react-google-recaptcha-v3: "npm:^1.11.0"
     react-hook-form: "npm:^7.71.2"
     react-is: "npm:^19.0.0"
+    react-quill-new: "npm:^3.7.0"
     recharts: "npm:^3.5.1"
     server-only: "npm:^0.0.1"
     socket.io-client: "npm:^4.8.3"

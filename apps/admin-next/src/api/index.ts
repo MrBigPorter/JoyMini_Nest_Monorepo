@@ -599,7 +599,7 @@ export const uploadApi = {
     onProgress?: (percent: number) => void,
     extraFields?: Record<string, string>,
   ) =>
-    http.upload<{ url: string; key: string }>(
+    http.upload<{ url: string; key: string; blurhash?: string }>(
       '/v1/admin/upload/image',
       file,
       onProgress,

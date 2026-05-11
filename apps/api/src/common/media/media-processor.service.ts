@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import sharp from 'sharp';
 import { encode as blurhashEncode } from 'blurhash';
 import { UploadService } from '@api/common/upload/upload.service';
@@ -23,7 +23,10 @@ export interface VideoVariants {
 export class MediaProcessorService {
   private readonly logger = new Logger(MediaProcessorService.name);
 
-  constructor(private readonly uploadService: UploadService) {}
+  constructor(
+    @Inject(forwardRef(() => UploadService))
+    private readonly uploadService: UploadService,
+  ) {}
 
   /**
    * Compress image and generate WebP/JPEG variants + BlurHash
@@ -111,7 +114,7 @@ export class MediaProcessorService {
   /**
    * Generate BlurHash from image buffer
    */
-  private async generateBlurHash(
+  async generateBlurHash(
     buffer: Buffer,
     width: number,
     height: number,

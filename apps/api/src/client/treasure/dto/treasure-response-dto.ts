@@ -30,6 +30,9 @@ export class TreasureResponseDto {
   @ApiProperty()
   treasureCoverImg!: string;
 
+  @ApiProperty({ description: 'Blurhash placeholder', required: false })
+  blurhash?: string;
+
   @ApiProperty({ description: '单次参与金额 (拼团价)' })
   @DecimalToString()
   unitAmount!: number;

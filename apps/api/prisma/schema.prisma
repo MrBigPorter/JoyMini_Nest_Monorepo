@@ -331,6 +331,8 @@ model Treasure {
   productName        String?            @map("product_name") @db.VarChar(200)
   /// 封面图URL
   treasureCoverImg   String?            @map("treasure_cover_img") @db.VarChar(255)
+  /// BlurHash 模糊占位图
+  blurhash           String?            @map("blurhash") @db.VarChar(255)
   /// 主图列表（JSON数组）
   mainImageList      Json?              @map("main_image_list")
   /// 产品成本（PHP）
@@ -548,6 +550,8 @@ model Banner {
   updatedAt       DateTime  @updatedAt @map("updated_at")
   title           String?   @db.VarChar(200)
   bannerImgUrl    String?   @map("banner_img_url") @db.VarChar(255)
+  /// BlurHash 模糊占位图
+  blurhash        String?   @map("blurhash") @db.VarChar(255)
   videoUrl        String?   @map("video_url") @db.VarChar(255)
   /// 1=图片 2=视频
   fileType        Int       @default(1) @map("file_type") @db.SmallInt

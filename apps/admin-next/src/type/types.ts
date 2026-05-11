@@ -136,6 +136,7 @@ export interface CreateProduct {
 
   categoryIds: number[];
   treasureCoverImg: string;
+  blurhash?: string;
   desc?: string;
   ruleContent?: string;
 
@@ -250,6 +251,9 @@ export interface Banner {
 
   /** banner 图片地址 */
   bannerImgUrl: string;
+
+  /** Blurhash placeholder for the banner image */
+  blurhash?: string;
 
   /** 文件类型：1 = 图片，2 = 视频（具体按你后端约定） */
   fileType: number;
