@@ -25,4 +25,9 @@ export const CHAT_MEMBER_ROLE_VALUES = ['OWNER', 'ADMIN', 'MEMBER'] as const;
  *
  * Match this to apps/api/prisma/schema.prisma enum ConversationType.
  */
-export const CONVERSATION_TYPE_VALUES = ['GROUP', 'DIRECT', 'SUPPORT', 'BUSINESS'] as const;
+export const CONVERSATION_TYPE_VALUES = [
+  'GROUP',
+  'DIRECT',
+  'SUPPORT',
+  'BUSINESS',
+] as const;
