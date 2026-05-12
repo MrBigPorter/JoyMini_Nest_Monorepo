@@ -1,7 +1,7 @@
 import {
   IsString,
   IsOptional,
-  IsEnum,
+  IsIn,
   IsArray,
   IsObject,
   IsBoolean,
@@ -10,7 +10,8 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { ArticleStatus } from '@prisma/client';
+
+const ARTICLE_STATUS_VALUES = ['DRAFT', 'PUBLISHED', 'ARCHIVED'] as const;
 
 /**
  * 扫描结果中的单篇文章（API 响应，非 DTO）
@@ -93,12 +94,12 @@ export class BatchImportItem {
 
   @ApiPropertyOptional({
     description: '文章状态',
-    enum: ArticleStatus,
-    default: ArticleStatus.DRAFT,
+    enum: ARTICLE_STATUS_VALUES,
+    default: 'DRAFT',
   })
   @IsOptional()
-  @IsEnum(ArticleStatus)
-  status?: ArticleStatus;
+  @IsIn(ARTICLE_STATUS_VALUES as unknown as string[])
+  status?: (typeof ARTICLE_STATUS_VALUES)[number];
 
   @ApiPropertyOptional({ description: '分类 ID（优先于 subdir 映射）' })
   @IsOptional()
@@ -119,12 +120,12 @@ export class BatchImportDto {
 
   @ApiPropertyOptional({
     description: '默认文章状态',
-    enum: ArticleStatus,
-    default: ArticleStatus.DRAFT,
+    enum: ARTICLE_STATUS_VALUES,
+    default: 'DRAFT',
   })
   @IsOptional()
-  @IsEnum(ArticleStatus)
-  defaultStatus?: ArticleStatus;
+  @IsIn(ARTICLE_STATUS_VALUES as unknown as string[])
+  defaultStatus?: (typeof ARTICLE_STATUS_VALUES)[number];
 
   @ApiPropertyOptional({
     description: '是否覆盖已存在的文章（同 slug）',
