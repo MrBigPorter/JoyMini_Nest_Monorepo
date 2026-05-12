@@ -178,7 +178,7 @@ export class ClientWalletService {
       // 如果 count 为 0，说明被抢占了，或者订单有问题
       if (updateResult.count === 0) {
         // 做个简单的查库，返回具体原因，方便日志排查
-        const order = await ctx.rechargeOrder.findUnique({
+        const order = await this.prismaService.rechargeOrder.findUnique({
           where: { rechargeNo: orderNo },
         });
         if (!order) {
