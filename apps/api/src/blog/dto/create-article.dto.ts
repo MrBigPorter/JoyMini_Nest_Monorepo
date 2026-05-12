@@ -1,14 +1,15 @@
 import {
   IsString,
   IsOptional,
-  IsEnum,
+  IsIn,
   IsArray,
   IsObject,
   IsBoolean,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { ArticleStatus } from '@prisma/client';
 import type { LocalizedString } from '@lucky/shared';
+
+const ARTICLE_STATUS_VALUES = ['DRAFT', 'PUBLISHED', 'ARCHIVED'] as const;
 
 export class CreateArticleDto {
   @ApiProperty({
@@ -38,12 +39,12 @@ export class CreateArticleDto {
 
   @ApiPropertyOptional({
     description: '文章状态',
-    enum: ArticleStatus,
-    default: ArticleStatus.DRAFT,
+    enum: ARTICLE_STATUS_VALUES,
+    default: 'DRAFT',
   })
   @IsOptional()
-  @IsEnum(ArticleStatus)
-  status?: ArticleStatus;
+  @IsIn(ARTICLE_STATUS_VALUES as unknown as string[])
+  status?: (typeof ARTICLE_STATUS_VALUES)[number];
 
   @ApiPropertyOptional({ description: '分类 ID' })
   @IsOptional()
