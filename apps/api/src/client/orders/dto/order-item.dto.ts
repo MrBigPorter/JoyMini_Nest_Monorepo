@@ -37,6 +37,13 @@ class TreasureDTo {
   })
   treasureCoverImg!: string;
   @ApiProperty({
+    description: 'Blurhash placeholder',
+    required: false,
+    example: 'LKO2?U%2Tw=w]~RBVZR}[4@?ngkB',
+    type: String,
+  })
+  blurhash?: string;
+  @ApiProperty({
     description: 'productName',
     example: 'Vase Product',
     type: String,
