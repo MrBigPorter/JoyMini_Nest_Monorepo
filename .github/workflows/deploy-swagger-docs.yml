@@ -77,7 +77,8 @@ jobs:
       - name: 6. Generate Prisma Client
         run: yarn workspace @lucky/api prisma generate
 
-      - name: 7. Export Swagger OpenAPI Spec
+      - name: 7. Export Swagger OpenAPI Spec (skip if pre-generated)
+        if: ${{ !hashFiles('apps/swagger-docs/swagger-spec.json') }}
         env:
           JWT_SECRET: your-super-secret-jwt-key-change-in-production
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/joy_mini?schema=public
@@ -90,7 +91,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          projectName: "JoyMinis-Api-Platfam"
+          projectName: "JoyMinis-Api-Platform"
           directory: apps/swagger-docs
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
 
