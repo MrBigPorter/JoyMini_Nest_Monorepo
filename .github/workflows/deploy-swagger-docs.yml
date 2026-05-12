@@ -2,7 +2,8 @@
 # Swagger Docs Cloudflare Pages 部署流水线
 # ============================================================
 # 推送 main/test 分支且 API 相关文件变更时自动触发
-# 流程: 安装依赖 → 导出 Swagger 规范 → 部署到 Cloudflare Pages
+# 流程: 安装依赖 → 构建 shared packages → 部署到 Cloudflare Pages
+# 注意: Swagger spec 文件已在本地生成并提交到仓库，CI 仅负责部署
 # ============================================================
 
 name: Deploy Swagger Docs (Cloudflare Pages)
@@ -77,16 +78,7 @@ jobs:
       - name: 6. Generate Prisma Client
         run: yarn workspace @lucky/api prisma generate
 
-      - name: 7. Export Swagger OpenAPI Spec (skip if pre-generated)
-        if: ${{ !hashFiles('apps/swagger-docs/swagger-spec.json') }}
-        env:
-          JWT_SECRET: your-super-secret-jwt-key-change-in-production
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/joy_mini?schema=public
-          REDIS_URL: redis://:devpassword@localhost:6379/0
-          CF_R2_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: yarn workspace @lucky/api export:swagger:full
-
-      - name: 8. Deploy to Cloudflare Pages
+      - name: 7. Deploy to Cloudflare Pages
         uses: cloudflare/pages-action@v1
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -95,7 +87,7 @@ jobs:
           directory: apps/swagger-docs
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 9. Publish Deployment Summary
+      - name: 8. Publish Deployment Summary
         if: always()
         run: |
           cat <<EOF >> "$GITHUB_STEP_SUMMARY"
