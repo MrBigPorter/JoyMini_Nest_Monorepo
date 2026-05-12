@@ -2,7 +2,7 @@
 
 ## Problem
 
-When clicking on an input field (search input, comment textarea, login fields) in [`frontend-blog`](../apps/frontend-blog) on mobile, the bottom navigation bar visibly "rises up" but leaves a large blank/white space below it.
+When clicking on an input field (search input, comment textarea, login fields) in [`frontend-blog`](../../apps/frontend-blog) on mobile, the bottom navigation bar visibly "rises up" but leaves a large blank/white space below it.
 
 ## Root Cause
 
@@ -56,7 +56,7 @@ This affects two areas:
 
 ### Modification 1: Keyboard Detection in `updateSafeArea`
 
-**File**: [`apps/frontend-blog/src/components/BottomNavigation.tsx`](../apps/frontend-blog/src/components/BottomNavigation.tsx)
+**File**: [`apps/frontend-blog/src/components/BottomNavigation.tsx`](../../apps/frontend-blog/src/components/BottomNavigation.tsx)
 
 Added keyboard detection logic in `updateSafeArea()`:
 - If `safeAreaBottom > 200px` (typical toolbar toggle is ~44-60px, keyboard is ~300-400px), consider keyboard open
@@ -138,4 +138,4 @@ if (wasKeyboardOpen.current) {
 
 | File | Change |
 |------|--------|
-| [`apps/frontend-blog/src/components/BottomNavigation.tsx`](../apps/frontend-blog/src/components/BottomNavigation.tsx) | Add `useRef` to imports, add refs, add `focusin` listener, add scroll restoration in `updateSafeArea()` |
+| [`apps/frontend-blog/src/components/BottomNavigation.tsx`](../../apps/frontend-blog/src/components/BottomNavigation.tsx) | Add `useRef` to imports, add refs, add `focusin` listener, add scroll restoration in `updateSafeArea()` |

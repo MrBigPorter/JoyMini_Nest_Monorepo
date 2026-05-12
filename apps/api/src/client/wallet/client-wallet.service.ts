@@ -54,6 +54,13 @@ export class ClientWalletService {
       return { status: 'IGNORED', reason: 'Unknown Format' };
     }
 
+    // 诊断日志: 打印 payload 顶层 key 和 event 字段值
+    const topKeys = Object.keys(payload).join(', ');
+    const eventVal = typeof payload.event === 'string' ? payload.event : 'N/A';
+    this.logger.log(
+      `[Webhook Router] Entry: keys=[${topKeys}], event="${eventVal}"`,
+    );
+
     const event = typeof payload.event === 'string' ? payload.event : null;
 
     //  判定逻辑 1: 是否为代付/提现 (Payout)
@@ -65,16 +72,36 @@ export class ClientWalletService {
       return this.handlePayoutWebhook(payload.data);
     }
 
-    // 判定逻辑 2: 依据 external_id
+    // 判定逻辑 2: Invoice V2 (Xendit Invoice V2 API 回调)
+    // 依据：event 字段以 'invoice.' 开头，数据在 payload.data 中
+    if (event && event.startsWith('invoice.')) {
+      this.logger.log(
+        `[Webhook Router] Identified as INVOICE V2 (Event: ${event})`,
+      );
+      if (isRecord(payload.data)) {
+        // 诊断日志: 记录 V2 data 的顶层 key
+        const dataKeys = Object.keys(payload.data).join(', ');
+        this.logger.log(`[Webhook Router] INVOICE V2 data keys=[${dataKeys}]`);
+        return this.handleInvoiceWebhook(payload.data);
+      }
+      this.logger.warn(
+        `[Webhook Router] INVOICE V2 event without data, ignored.`,
+      );
+      return { status: 'IGNORED', reason: 'Missing data field' };
+    }
+
+    // 判定逻辑 3: 依据 external_id (V1 扁平格式)
     if (typeof payload.external_id === 'string') {
       this.logger.log(
-        `[Webhook Router] Identified as INVOICE (Order: ${payload.external_id})`,
+        `[Webhook Router] Identified as INVOICE V1 (Order: ${payload.external_id})`,
       );
       return this.handleInvoiceWebhook(payload);
     }
 
-    // 兜底逻辑：无法识别
-    this.logger.warn(`[Webhook Router] Unknown payload format, ignored.`);
+    // 诊断日志: 兜底逻辑——记录完整 payload 以便排查未知格式
+    this.logger.warn(
+      `[Webhook Router] Unknown payload format, ignored. Full payload: ${JSON.stringify(payload)}`,
+    );
     return { status: 'IGNORED', reason: 'Unknown Format' };
   }
 
@@ -87,13 +114,22 @@ export class ClientWalletService {
       return { status: 'IGNORED', message: 'Invalid Payload' };
     }
 
+    // 注意：Xendit V2 API 使用 camelCase (externalId)，V1 使用 snake_case (external_id)
     const orderNo =
-      typeof payload.external_id === 'string' ? payload.external_id : null;
+      typeof payload.external_id === 'string'
+        ? payload.external_id
+        : typeof payload.externalId === 'string'
+          ? payload.externalId
+          : null;
     const status = typeof payload.status === 'string' ? payload.status : null;
     const amount = payload.amount;
     const transactionId = typeof payload.id === 'string' ? payload.id : null;
 
     if (!orderNo || !status || !transactionId) {
+      // 诊断日志: 记录实际接收到的字段值，帮助排查字段名不匹配问题
+      this.logger.warn(
+        `[Invoice] Missing Required Fields: orderNo=${orderNo}, status=${status}, transactionId=${transactionId}, payload_keys=[${Object.keys(payload).join(', ')}]`,
+      );
       return { status: 'IGNORED', message: 'Missing Required Fields' };
     }
 

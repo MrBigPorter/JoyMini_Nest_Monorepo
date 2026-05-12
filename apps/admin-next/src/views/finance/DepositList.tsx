@@ -67,7 +67,7 @@ export const DepositList: React.FC<DepositListProps> = ({
       ModalManager.open({
         title: t('finance.deposits.detailTitle'),
         renderChildren: ({ close }) => (
-          <DepositDetailModal data={record} closeAction={close} />
+          <DepositDetailModal data={record} closeAction={close} tAction={t} />
         ),
       });
     },

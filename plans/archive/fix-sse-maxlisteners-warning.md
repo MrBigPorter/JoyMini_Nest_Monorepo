@@ -28,7 +28,7 @@ Additionally, the `articleId` parameter can change (e.g., from slug to DB ID whe
 
 The `EventEmitter2` is a global event bus — having many listeners for different SSE connections is expected. Increase the limit to avoid the warning.
 
-**File:** [`apps/api/src/blog/frontend/frontend-blog.controller.ts`](../apps/api/src/blog/frontend/frontend-blog.controller.ts)
+**File:** [`apps/api/src/blog/frontend/frontend-blog.controller.ts`](../../apps/api/src/blog/frontend/frontend-blog.controller.ts)
 
 In the constructor, add:
 ```ts
@@ -61,7 +61,7 @@ This prevents the effect from re-running when `articleDbId` loads asynchronously
 
 ### Fix 3 (Backend): Add heartbeat timeout for stale connection cleanup
 
-**File:** [`apps/api/src/blog/frontend/frontend-blog.controller.ts`](../apps/api/src/blog/frontend/frontend-blog.controller.ts)
+**File:** [`apps/api/src/blog/frontend/frontend-blog.controller.ts`](../../apps/api/src/blog/frontend/frontend-blog.controller.ts)
 
 Add a heartbeat interval that periodically sends a comment to the client. If the client doesn't respond (or the response stream is broken), force-cleanup the connection. This is a more robust safety net.
 

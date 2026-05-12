@@ -135,8 +135,8 @@ flowchart TD
 
 | File | Change | Risk |
 |------|--------|------|
-| [`apps/api/src/blog/frontend/frontend-blog.service.ts`](../apps/api/src/blog/frontend/frontend-blog.service.ts) | Add early-return in `mapArticleForFrontend` when `contentMd` already has videos | Low — only affects the conditional path |
-| [`apps/frontend-blog/src/components/blog/ArticleMarkdown.tsx`](../apps/frontend-blog/src/components/blog/ArticleMarkdown.tsx) | Revert `isHtmlContent` + fix `sanitizeMarkdownForReact` escape | Low — restores original behavior |
+| [`apps/api/src/blog/frontend/frontend-blog.service.ts`](../../apps/api/src/blog/frontend/frontend-blog.service.ts) | Add early-return in `mapArticleForFrontend` when `contentMd` already has videos | Low — only affects the conditional path |
+| [`apps/frontend-blog/src/components/blog/ArticleMarkdown.tsx`](../../apps/frontend-blog/src/components/blog/ArticleMarkdown.tsx) | Revert `isHtmlContent` + fix `sanitizeMarkdownForReact` escape | Low — restores original behavior |
 
 ## Verification
 

@@ -6,7 +6,7 @@ import { Button } from '@repo/ui';
 import { RechargeOrder } from '@/type/types';
 import { NumHelper, TimeHelper } from '@lucky/shared';
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard';
-import { useTranslation } from '@/hooks/useTranslation';
+import type { TFunc } from '@/hooks/useTranslation';
 
 const InfoRow = ({
   label,
@@ -24,8 +24,8 @@ const InfoRow = ({
 export const DepositDetailModal: React.FC<{
   data: RechargeOrder;
   closeAction: () => void;
-}> = ({ data, closeAction }) => {
-  const { t } = useTranslation();
+  tAction: TFunc;
+}> = ({ data, closeAction, tAction: t }) => {
   const { copy } = useCopyToClipboard();
 
   return (

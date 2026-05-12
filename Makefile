@@ -112,6 +112,18 @@ dev-blog:
 	cd apps/frontend-blog && PORT=4002 yarn dev --turbopack -p 4002
 
 # ──────────────────────────────────────────
+# Tunnel (Cloudflare 公网隧道)
+# ──────────────────────────────────────────
+
+## [Tunnel] 🚇 启动 Cloudflare Tunnel（将本地 API 暴露到公网 dev-api.joyminis.com）
+tunnel:
+	cloudflared tunnel --config cloudflared.yml run lucky-nest-monorepo
+
+## [Tunnel] 🛑 停止 Cloudflare Tunnel
+tunnel-kill:
+	-pkill cloudflared 2>/dev/null || killall cloudflared 2>/dev/null || echo "⚠️  cloudflared 未运行"
+
+# ──────────────────────────────────────────
 # 数据库 / 后端开发辅助
 # ──────────────────────────────────────────
 

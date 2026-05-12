@@ -24,7 +24,7 @@ When the placeholder is **inline** (Scenario B), the AI (especially Groq models)
 
 ## Fix: Normalize Placeholders to Standalone Paragraphs
 
-**Where**: [`apps/api/src/blog/processors/blog-ai.processor.ts`](../apps/api/src/blog/processors/blog-ai.processor.ts)
+**Where**: [`apps/api/src/blog/processors/blog-ai.processor.ts`](../../apps/api/src/blog/processors/blog-ai.processor.ts)
 
 **What**: After turndown conversion, post-process the Markdown to ensure every placeholder is wrapped with blank lines:
 
@@ -52,7 +52,7 @@ This must be applied in **both** code paths:
 
 | File | Change |
 |------|--------|
-| [`apps/api/src/blog/processors/blog-ai.processor.ts`](../apps/api/src/blog/processors/blog-ai.processor.ts) | Add placeholder normalization after both extraction paths (lines ~1139 and ~1161) |
+| [`apps/api/src/blog/processors/blog-ai.processor.ts`](../../apps/api/src/blog/processors/blog-ai.processor.ts) | Add placeholder normalization after both extraction paths (lines ~1139 and ~1161) |
 
 ## Verification
 

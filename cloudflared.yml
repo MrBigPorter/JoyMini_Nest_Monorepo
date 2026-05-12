@@ -12,21 +12,21 @@ tunnel: bd7bd901-8cc2-4d6c-bba6-7f98eddfce5e
 credentials-file: ~/.cloudflared/bd7bd901-8cc2-4d6c-bba6-7f98eddfce5e.json
 
 ingress:
-  # Frontend Blog (Next.js) - Port 3000
+  # Blog Frontend → Docker Nginx (routes by Host header)
   - hostname: blog-dev.joyminis.com
-    service: http://localhost:3000
-  
-  # Admin Dashboard (Next.js) - Port 3001
-  - hostname: dev.admin.joyminis.com
-    service: http://localhost:3001
-  
-  # API Service (NestJS) - Port 3002
-  - hostname: dev.api.joyminis.com
-    service: http://localhost:3002
-  
-  # Liveness Web (Vite) - Port 3003
-  - hostname: dev.liveness.joyminis.com
-    service: http://localhost:3003
-  
+    service: http://localhost:80
+
+  # Admin Frontend → Docker Nginx
+  - hostname: admin-dev.joyminis.com
+    service: http://localhost:80
+
+  # API Service → Docker Nginx (handles /api/* paths)
+  - hostname: dev-api.joyminis.com
+    service: http://localhost:80
+
+  # Liveness Service → Docker Nginx
+  - hostname: liveness-dev.joyminis.com
+    service: http://localhost:80
+
   # Fallback rule - return 404 for unmatched requests
   - service: http_status:404
