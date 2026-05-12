@@ -74,10 +74,18 @@ jobs:
           node packages/ui/scripts/build.js &
           wait
 
-      - name: 6. Export Swagger OpenAPI Spec
+      - name: 6. Create .env for swagger export
+        run: |
+          cat > apps/api/.env << 'EOF'
+          JWT_SECRET=swagger-export-dummy-secret-for-ci
+          DATABASE_URL=postgresql://dummy:dummy@localhost:5432/dummy
+          REDIS_URL=redis://localhost:6379/0
+          EOF
+
+      - name: 7. Export Swagger OpenAPI Spec
         run: yarn workspace @lucky/api export:swagger:full
 
-      - name: 7. Deploy to Cloudflare Pages
+      - name: 8. Deploy to Cloudflare Pages
         uses: cloudflare/pages-action@v1
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -86,7 +94,7 @@ jobs:
           directory: apps/swagger-docs
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 8. Publish Deployment Summary
+      - name: 9. Publish Deployment Summary
         if: always()
         run: |
           cat <<EOF >> "$GITHUB_STEP_SUMMARY"
