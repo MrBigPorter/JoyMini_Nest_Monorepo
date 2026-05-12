@@ -1,6 +1,7 @@
-import { IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ConversationType } from '@prisma/client';
+import { CONVERSATION_TYPE_VALUES } from '@api/common/chat/dto/chat-shared-enums';
 
 export class QueryConversationsDto {
   @IsOptional()
@@ -17,7 +18,7 @@ export class QueryConversationsDto {
 
   /** 按会话类型筛选，默认只看 BUSINESS */
   @IsOptional()
-  @IsEnum(ConversationType)
+  @IsIn(CONVERSATION_TYPE_VALUES as unknown as string[])
   type?: ConversationType;
 
   /** 关键词：会话名称 / 用户昵称 */
