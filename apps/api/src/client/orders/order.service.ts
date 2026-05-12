@@ -575,6 +575,7 @@ export class OrderService {
             select: {
               treasureName: true,
               treasureCoverImg: true,
+              blurhash: true,
               productName: true,
               virtual: true,
               cashAmount: true,
@@ -633,6 +634,7 @@ export class OrderService {
           select: {
             treasureName: true,
             treasureCoverImg: true,
+            blurhash: true,
             productName: true,
             virtual: true,
             cashAmount: true,

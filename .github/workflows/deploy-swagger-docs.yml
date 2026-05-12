@@ -74,7 +74,10 @@ jobs:
           node packages/ui/scripts/build.js &
           wait
 
-      - name: 6. Create .env for swagger export
+      - name: 6. Generate Prisma Client
+        run: yarn workspace @lucky/api prisma generate
+
+      - name: 7. Create .env for swagger export
         run: |
           cat > apps/api/.env << 'EOF'
           JWT_SECRET=swagger-export-dummy-secret-for-ci
@@ -82,10 +85,10 @@ jobs:
           REDIS_URL=redis://localhost:6379/0
           EOF
 
-      - name: 7. Export Swagger OpenAPI Spec
+      - name: 8. Export Swagger OpenAPI Spec
         run: yarn workspace @lucky/api export:swagger:full
 
-      - name: 8. Deploy to Cloudflare Pages
+      - name: 9. Deploy to Cloudflare Pages
         uses: cloudflare/pages-action@v1
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -94,7 +97,7 @@ jobs:
           directory: apps/swagger-docs
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 9. Publish Deployment Summary
+      - name: 10. Publish Deployment Summary
         if: always()
         run: |
           cat <<EOF >> "$GITHUB_STEP_SUMMARY"
