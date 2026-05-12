@@ -1,6 +1,10 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { ConversationType } from '@prisma/client';
-import { ChatMemberRole, CHAT_MEMBER_ROLE_VALUES } from './chat-shared-enums';
+import {
+  ChatMemberRole,
+  CHAT_MEMBER_ROLE_VALUES,
+  CONVERSATION_TYPE_VALUES,
+} from './chat-shared-enums';
 
 // 1. Simple ID Response (for creation)
 export class ConversationIdResponseDto {
@@ -14,7 +18,7 @@ export class ConversationListResponseDto {
   id!: string;
 
   @ApiProperty({
-    enum: Object.values(ConversationType),
+    enum: CONVERSATION_TYPE_VALUES,
     description: 'Type of conversation',
   })
   type!: ConversationType;
@@ -81,7 +85,7 @@ export class ConversationDetailResponseDto {
   @ApiProperty({ required: false })
   avatar?: string;
 
-  @ApiProperty({ enum: Object.values(ConversationType) })
+  @ApiProperty({ enum: CONVERSATION_TYPE_VALUES })
   type!: ConversationType;
 
   @ApiProperty()

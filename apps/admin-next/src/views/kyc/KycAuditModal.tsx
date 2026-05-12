@@ -435,9 +435,7 @@ export const KycAuditModal: React.FC<Props> = ({
                 )}
                 <span>
                   {tAction('kyc_currentStatus')}:{' '}
-                  {tAction(
-                    KYC_STATUS_KEY_MAP[data.kycStatus] ?? 'kyc_unknown',
-                  )}
+                  {tAction(KYC_STATUS_KEY_MAP[data.kycStatus] ?? 'kyc_unknown')}
                 </span>
               </div>
             )}
