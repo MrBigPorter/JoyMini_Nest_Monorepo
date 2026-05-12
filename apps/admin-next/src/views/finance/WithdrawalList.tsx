@@ -91,6 +91,7 @@ export const WithdrawalList: React.FC<WithdrawalListProps> = ({
               confirm();
               actionRef.current?.reload();
             }}
+            tAction={t}
           />
         ),
       });

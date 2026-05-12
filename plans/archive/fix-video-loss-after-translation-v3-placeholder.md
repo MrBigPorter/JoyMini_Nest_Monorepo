@@ -150,7 +150,7 @@ function restoreMediaPlaceholders(text: string, mediaMap: Map<string, string>): 
 
 #### Step 2: Integrate into Translation Processor
 
-In [`blog-ai.processor.ts`](../apps/api/src/blog/processors/blog-ai.processor.ts):
+In [`blog-ai.processor.ts`](../../apps/api/src/blog/processors/blog-ai.processor.ts):
 
 **A.** In `processArticleTranslation` (around line 1114-1119), AFTER getting `sourceContent` but BEFORE calling `batchTranslateArticle`:
 
@@ -253,8 +253,8 @@ Final Content: "...translated text... <video src=...>...</video> ...translated t
 
 | File | Change | Status |
 |------|--------|--------|
-| [`apps/api/src/blog/utils/media-placeholder.ts`](../apps/api/src/blog/utils/media-placeholder.ts) | **NEW** — Media placeholder utility (extract + restore) | ✅ P0 |
-| [`apps/api/src/blog/processors/blog-ai.processor.ts`](../apps/api/src/blog/processors/blog-ai.processor.ts) | Integrate placeholder extraction BEFORE AI call, restore AFTER | ✅ P0 |
+| [`apps/api/src/blog/utils/media-placeholder.ts`](../../apps/api/src/blog/utils/media-placeholder.ts) | **NEW** — Media placeholder utility (extract + restore) | ✅ P0 |
+| [`apps/api/src/blog/processors/blog-ai.processor.ts`](../../apps/api/src/blog/processors/blog-ai.processor.ts) | Integrate placeholder extraction BEFORE AI call, restore AFTER | ✅ P0 |
 | [`apps/api/src/blog/processors/blog-ai.processor.ts`](../apps/api/src/blog/processors/blog-ai.processor.ts:1269-1312) | Remove old video-tag-extraction-and-append logic, replaced by placeholder restoration | ✅ P0 |
 | [`apps/api/src/blog/processors/blog-ai.processor.ts`](../apps/api/src/blog/processors/blog-ai.processor.ts:382-463) | Update batch translation prompt — remove "preserve video tags" instruction (no longer needed) | ✅ P1 |
 | [`apps/api/src/common/ai/ai.service.ts`](../apps/api/src/common/ai/ai.service.ts:800) | Remove "preserve HTML video tags" from translateMarkdownSingle prompt | ✅ P1 |

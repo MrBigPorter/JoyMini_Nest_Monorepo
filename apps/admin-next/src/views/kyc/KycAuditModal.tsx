@@ -14,12 +14,26 @@ import {
   AlertTriangle,
   FileText,
 } from 'lucide-react';
-import { KYC_STATUS, KYC_STATUS_LABEL, TimeHelper } from '@lucky/shared';
+import { KYC_STATUS, TimeHelper } from '@lucky/shared';
 import { useToastStore } from '@/store/useToastStore';
 import { KycRecord } from '@/type/types';
 import { kycApi } from '@/api';
 import { Image } from '@unpic/react';
 import type { TFunc } from '@/hooks/useTranslation';
+
+/**
+ * Direct mapping from KYC_STATUS numeric values to existing translation keys.
+ * The keys follow the convention: `kyc_status` + PascalCase status name.
+ * @see apps/admin-next/src/i18n/en.json lines 316-321
+ */
+const KYC_STATUS_KEY_MAP: Record<number, string> = {
+  [KYC_STATUS.DRAFT]: 'kyc_statusDraft',
+  [KYC_STATUS.REVIEWING]: 'kyc_statusReviewing',
+  [KYC_STATUS.REJECTED]: 'kyc_statusRejected',
+  [KYC_STATUS.NEED_MORE]: 'kyc_statusNeedMore',
+  [KYC_STATUS.APPROVED]: 'kyc_statusApproved',
+  [KYC_STATUS.AUTO_REJECTED]: 'kyc_statusAutoRejected',
+};
 
 interface Props {
   data: KycRecord;
@@ -242,7 +256,7 @@ export const KycAuditModal: React.FC<Props> = ({
                 <span className="text-xs font-semibold text-gray-600 dark:text-gray-300">
                   {tAction('kyc_livenessVideo')}
                 </span>
-                {data.livenessScore !== undefined && (
+                {data.livenessScore != null && (
                   <span
                     className={cn(
                       'text-[10px] px-1.5 rounded font-bold',
@@ -422,7 +436,7 @@ export const KycAuditModal: React.FC<Props> = ({
                 <span>
                   {tAction('kyc_currentStatus')}:{' '}
                   {tAction(
-                    `kyc_status_${KYC_STATUS_LABEL[data.kycStatus]?.toLowerCase().replace(/\s+/g, '_')}`,
+                    KYC_STATUS_KEY_MAP[data.kycStatus] ?? 'kyc_unknown',
                   )}
                 </span>
               </div>

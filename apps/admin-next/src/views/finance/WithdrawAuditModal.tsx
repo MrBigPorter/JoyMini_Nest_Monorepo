@@ -23,19 +23,21 @@ import {
   WithdrawStatus,
 } from '@lucky/shared';
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard';
-import { useTranslation } from '@/hooks/useTranslation';
+import type { TFunc } from '@/hooks/useTranslation';
 import { WithdrawOrder } from '@/type/types';
 
 interface Props {
   data: WithdrawOrder;
   confirmAction: () => void;
+  /** t function from parent's useTranslation, passed in because ModalManager renders outside NextIntlClientProvider context */
+  tAction: TFunc;
 }
 
 export const WithdrawAuditModal: React.FC<Props> = ({
   data,
   confirmAction,
+  tAction: t,
 }) => {
-  const { t } = useTranslation();
   const [remark, setRemark] = useState('');
   const { copy } = useCopyToClipboard();
 
