@@ -506,10 +506,23 @@ export class AuthService {
     const maxAttempts =
       this.configService.get<number>('EMAIL_OTP_MAX_ATTEMPTS') ?? 5;
     const isProd = this.configService.get<string>('NODE_ENV') === 'production';
-    const code = isProd
-      ? gen6Code()
-      : (this.configService.get<string>('EMAIL_OTP_DEV_CODE') ?? '666666');
+    const testEmailsRaw =
+      this.configService.get<string>('EMAIL_OTP_TEST_EMAIL') ?? '';
+    const testEmails = testEmailsRaw
+      .split(',')
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean);
+    const isTestEmail = testEmails.includes(normalizedEmail);
+    const code = isTestEmail
+      ? '999999'
+      : isProd
+        ? gen6Code()
+        : (this.configService.get<string>('EMAIL_OTP_DEV_CODE') ?? '666666');
     const pepper = this.configService.get<string>('OTP_PEPPER') ?? '';
+
+    if (isTestEmail) {
+      this.logger.log(`[Test Email] Using fixed code for ${normalizedEmail}`);
+    }
 
     await this.prisma.smsVerificationCode.create({
       data: {
