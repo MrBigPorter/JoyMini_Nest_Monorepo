@@ -4,6 +4,7 @@ export * from "./SwipeableList/SwipeableItem";
 export * from "./SwipeableList";
 export * from "./Modal/ModalFixed.tsx";
 export * from "./Modal/modal-manager.tsx";
+export * from "./Modal/ModalProvider.tsx";
 export * from "./ui/table.tsx";
 export * from "./ui/checkbox.tsx";
 export * from "./ui/badge.tsx";
