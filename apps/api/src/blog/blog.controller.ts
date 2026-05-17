@@ -11,6 +11,7 @@ import {
   Header,
   Sse,
   MessageEvent,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { Observable, from } from 'rxjs';
@@ -41,8 +42,8 @@ export class BlogController {
   @RequirePermission('blog', 'article_view')
   @ApiOperation({ summary: '获取文章列表' })
   async getArticles(
-    @Query('page') page?: number,
-    @Query('pageSize') pageSize?: number,
+    @Query('page', new ParseIntPipe({ optional: true })) page?: number,
+    @Query('pageSize', new ParseIntPipe({ optional: true })) pageSize?: number,
     @Query('status') status?: ArticleStatus,
     @Query('categoryId') categoryId?: string,
     @Query('tagId') tagId?: string,
@@ -317,8 +318,8 @@ export class BlogController {
   async getTranslationJobsDetail(
     @Query('targetLang') targetLang?: string,
     @Query('status') status?: string,
-    @Query('page') page?: number,
-    @Query('pageSize') pageSize?: number,
+    @Query('page', new ParseIntPipe({ optional: true })) page?: number,
+    @Query('pageSize', new ParseIntPipe({ optional: true })) pageSize?: number,
   ) {
     const statusArray = status ? status.split(',') : undefined;
     return this.blogService.getTranslationJobsDetail(
@@ -334,8 +335,8 @@ export class BlogController {
   @RequirePermission('blog', 'translation_view')
   @ApiOperation({ summary: '获取翻译日志' })
   async getTranslationLogs(
-    @Query('page') page?: number,
-    @Query('pageSize') pageSize?: number,
+    @Query('page', new ParseIntPipe({ optional: true })) page?: number,
+    @Query('pageSize', new ParseIntPipe({ optional: true })) pageSize?: number,
   ) {
     return this.blogService.getTranslationLogs({
       page: page ? Number(page) : 1,

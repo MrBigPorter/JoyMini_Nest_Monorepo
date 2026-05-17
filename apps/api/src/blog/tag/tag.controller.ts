@@ -8,6 +8,7 @@ import {
   Param,
   Query,
   UseGuards,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { TagService } from './tag.service';
@@ -35,7 +36,7 @@ export class TagController {
   @Get('popular')
   @ApiOperation({ summary: '获取热门标签' })
   @RequirePermission('blog', 'tag_view')
-  async getPopularTags(@Query('limit') limit?: number) {
+  async getPopularTags(@Query('limit', new ParseIntPipe({ optional: true })) limit?: number) {
     return this.tagService.getPopularTags(limit);
   }
 

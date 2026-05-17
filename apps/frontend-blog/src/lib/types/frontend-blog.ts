@@ -177,3 +177,17 @@ export interface BookmarkStatusResponse {
   isBookmarked: boolean;
   bookmarkedAt?: string;
 }
+
+/**
+ * 点赞响应
+ */
+export interface LikeResponse {
+  likeCount: number;
+}
+
+/**
+ * 点赞状态响应
+ */
+export interface LikeStatusResponse {
+  liked: boolean;
+}

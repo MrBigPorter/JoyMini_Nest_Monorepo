@@ -8,6 +8,7 @@ import {
   Req,
   UseGuards,
   Body,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { BookmarkService } from './bookmark.service';
 import { AuthGuard } from '@nestjs/passport';
@@ -44,8 +45,8 @@ export class BookmarkController {
   @ApiResponse({ status: 401, description: '未授权' })
   async getBookmarks(
     @Req() req: Request,
-    @Query('page') page?: number,
-    @Query('pageSize') pageSize?: number,
+    @Query('page', new ParseIntPipe({ optional: true })) page?: number,
+    @Query('pageSize', new ParseIntPipe({ optional: true })) pageSize?: number,
     @Query('locale') locale?: string,
   ) {
     return this.bookmarkService.getUserBookmarks(req.user.id, {

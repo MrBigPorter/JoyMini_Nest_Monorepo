@@ -8,7 +8,7 @@
 .PHONY: setup up up-infra down restart logs ps build clean wipe help \
         dev-admin dev-blog exec-api migrate seed prisma-studio \
         check-dockerfiles generate-certs \
-        check fix audit type-check \
+        check format fix audit type-check \
         deploy deploy-backend deploy-admin deploy-quick deploy-sync \
         rollback rollback-backend rollback-db \
         switch-admin-dns rollback-admin-dns verify-blog-cache \
@@ -123,6 +123,15 @@ tunnel:
 tunnel-kill:
 	-pkill cloudflared 2>/dev/null || killall cloudflared 2>/dev/null || echo "⚠️  cloudflared 未运行"
 
+## [Tunnel] 🔄 重启 Cloudflare Tunnel（kill + 启动，使用最新 cloudflared.yml 配置）
+tunnel-restart: tunnel-kill
+	cloudflared tunnel --config cloudflared.yml run lucky-nest-monorepo &
+
+## [DNS] 🧹 刷新 macOS DNS 缓存（新增域名解析后执行，解决 DNS_PROBE_FINISHED_NXDOMAIN）
+dns-flush:
+	sudo dscacheutil -flushcache && sudo killall -HUP mDNSResponder
+	@echo "✓ macOS DNS 缓存已清除"
+
 # ──────────────────────────────────────────
 # 数据库 / 后端开发辅助
 # ──────────────────────────────────────────
@@ -166,10 +175,14 @@ type-check:
 	@echo ""
 	@echo "✅ Type-check complete. Review any errors above."
 
+## [质量] 🎨 仅运行 Prettier 格式化（不执行 ESLint fix，仅处理代码样式）
+format:
+	yarn prettier --write "**/*.{ts,tsx,js,jsx,json,md,css,scss,mjs,cjs}"
+
 ## [质量] 🔧 自动修复可修复问题（prettier + eslint --fix）
 fix:
 	@echo "==> Prettier: formatting all files..."
-	yarn prettier --write "**/*.{ts,tsx,js,jsx,json,md,css,scss,mjs,cjs}"
+	$(MAKE) format
 	@echo ""
 	@echo "==> ESLint: auto-fixing what's fixable..."
 	-yarn workspace @lucky/api lint --fix 2>/dev/null

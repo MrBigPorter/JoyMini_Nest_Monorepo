@@ -9,6 +9,10 @@
       {
         "appID": "A1B2C3D4E5.com.porter.joyminis.test",
         "paths": [ "/group/*", "/oauth/callback" ]
+      },
+      {
+        "appID": "PK28T343BP.com.tarsier.blog",
+        "paths": [ "/article/*", "/oauth/callback", "/group/*" ]
       }
     ]
   }

@@ -16,6 +16,7 @@ import I18nProvider from '@/lib/providers/I18nProvider';
 import { LOCALES } from '@/lib/i18n/config';
 import { HomePageStateProvider } from '@/lib/providers/HomePageStateProvider';
 import PwaComponents from '@/components/pwa/PwaComponents';
+import { ToastContainer } from '@/lib/components/ToastContainer';
 import '../globals.css';
 
 const locales = LOCALES;
@@ -213,6 +214,7 @@ export default async function LocaleLayout({
           updateAvailableShowCloseButton={true}
           updateAvailableAutoShowDelay={5000}
         />
+        <ToastContainer />
       </I18nProvider>
     </NextIntlClientProvider>
   );

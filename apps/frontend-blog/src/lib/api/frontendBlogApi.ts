@@ -13,6 +13,8 @@ import type {
   BookmarkedArticle,
   BookmarkResponse,
   BookmarkStatusResponse,
+  LikeResponse,
+  LikeStatusResponse,
 } from '@/lib/types/frontend-blog';
 
 /**
@@ -295,6 +297,28 @@ export const frontendBlogApi = {
     http.post<Comment>(
       `/v1/frontend/blog/articles/${articleId}/comments`,
       data,
+    ),
+
+  // ================= 点赞接口 =================
+
+  /**
+   * 点赞文章
+   */
+  likeArticle: (slug: string) =>
+    http.post<LikeResponse>(`/v1/frontend/blog/articles/${slug}/like`),
+
+  /**
+   * 取消点赞
+   */
+  unlikeArticle: (slug: string) =>
+    http.post<LikeResponse>(`/v1/frontend/blog/articles/${slug}/unlike`),
+
+  /**
+   * 检查文章点赞状态
+   */
+  checkLikeStatus: (slug: string) =>
+    http.get<LikeStatusResponse>(
+      `/v1/frontend/blog/articles/${slug}/like-status`,
     ),
 };
 

@@ -13,6 +13,7 @@ import {
   Req,
   Ip,
   Headers,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { CommentService } from './comment.service';
@@ -33,8 +34,8 @@ export class CommentController {
   @ApiOperation({ summary: '获取所有评论列表 (管理员)' })
   @RequirePermission('blog', 'view')
   async getAllComments(
-    @Query('page') page?: number,
-    @Query('pageSize') pageSize?: number,
+    @Query('page', new ParseIntPipe({ optional: true })) page?: number,
+    @Query('pageSize', new ParseIntPipe({ optional: true })) pageSize?: number,
     @Query('status') status?: CommentStatus,
     @Query('articleId') articleId?: string,
   ) {
