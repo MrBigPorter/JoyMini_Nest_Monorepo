@@ -18,5 +18,8 @@ import kvTagCache from '@opennextjs/cloudflare/overrides/tag-cache/kv-next-tag-c
 export default defineCloudflareConfig({
   incrementalCache: kvIncrementalCache,
   tagCache: kvTagCache,
-  queue: () => import('@opennextjs/cloudflare/overrides/queue/do-queue').then((m) => m.default),
+  queue: () =>
+    import('@opennextjs/cloudflare/overrides/queue/do-queue').then(
+      (m) => m.default,
+    ),
 });

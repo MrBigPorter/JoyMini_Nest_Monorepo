@@ -177,7 +177,7 @@ type-check:
 
 ## [质量] 🎨 仅运行 Prettier 格式化（不执行 ESLint fix，仅处理代码样式）
 format:
-	yarn prettier --write "**/*.{ts,tsx,js,jsx,json,md,css,scss,mjs,cjs}"
+	yarn prettier --write "**/*.{ts,tsx,js,jsx,css,scss}"
 
 ## [质量] 🔧 自动修复可修复问题（prettier + eslint --fix）
 fix:

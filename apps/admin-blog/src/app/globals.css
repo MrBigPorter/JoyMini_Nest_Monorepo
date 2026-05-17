@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 @custom-variant dark (&:is(.dark *));
 
@@ -42,7 +42,7 @@
 }
 
 @theme {
-  --font-sans: "Inter", sans-serif;
+  --font-sans: 'Inter', sans-serif;
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
   --color-primary: hsl(var(--primary));
@@ -76,7 +76,8 @@
   --color-dark-950: #0b0b12;
 }
 
-html, body {
+html,
+body {
   overflow: hidden;
 }
 

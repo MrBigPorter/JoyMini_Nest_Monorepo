@@ -13,9 +13,7 @@ import type { ModalProps } from "./Types.ts";
 import { modalStore } from "./modal-store.ts";
 
 export const ModalManager = {
-  open: (
-    props: Omit<ModalProps, "onFinishClose">,
-  ): { close: () => void } => {
+  open: (props: Omit<ModalProps, "onFinishClose">): { close: () => void } => {
     return modalStore.open(props);
   },
 };

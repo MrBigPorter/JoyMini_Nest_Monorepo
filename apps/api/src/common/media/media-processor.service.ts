@@ -283,13 +283,13 @@ export class MediaProcessorService {
       // Non-16:9 source videos are handled via ffmpeg scale+pad (see below).
       interface QualityTarget {
         name: string;
-        width: number;  // Standard 16:9 width
+        width: number; // Standard 16:9 width
         height: number; // Standard height
         bandwidth: string;
       }
       const qualityTargets: QualityTarget[] = [
-        { name: '480p',  width: 854,  height: 480,  bandwidth: '800k' },
-        { name: '720p',  width: 1280, height: 720,  bandwidth: '2800k' },
+        { name: '480p', width: 854, height: 480, bandwidth: '800k' },
+        { name: '720p', width: 1280, height: 720, bandwidth: '2800k' },
       ];
 
       // Only add 1080p if source's larger dimension is >= 1080
