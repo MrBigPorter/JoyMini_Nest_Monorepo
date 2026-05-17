@@ -36,7 +36,9 @@ export class TagController {
   @Get('popular')
   @ApiOperation({ summary: '获取热门标签' })
   @RequirePermission('blog', 'tag_view')
-  async getPopularTags(@Query('limit', new ParseIntPipe({ optional: true })) limit?: number) {
+  async getPopularTags(
+    @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
+  ) {
     return this.tagService.getPopularTags(limit);
   }
 

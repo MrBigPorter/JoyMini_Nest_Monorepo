@@ -52,9 +52,7 @@ function getState(): readonly ModalInstance[] {
  * Open a modal.  Returns `{ close }` — same contract as the old
  * ReactDOM.createRoot-based implementation.
  */
-function open(
-  props: Omit<ModalProps, "onFinishClose">,
-): { close: () => void } {
+function open(props: Omit<ModalProps, "onFinishClose">): { close: () => void } {
   const id = `modal-${++nextId}`;
   instances = [...instances, { id, props }];
   notify();

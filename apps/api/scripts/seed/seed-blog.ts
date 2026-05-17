@@ -88,13 +88,29 @@ const TAGS = [
   { name: { zh: 'TypeScript' }, slug: 'typescript', color: '#3178c6' },
   { name: { zh: 'WebSocket' }, slug: 'websocket', color: '#22c55e' },
   { name: { zh: 'Authentication' }, slug: 'authentication', color: '#8b5cf6' },
-  { name: { zh: 'Authorization / RBAC' }, slug: 'authorization', color: '#a855f7' },
+  {
+    name: { zh: 'Authorization / RBAC' },
+    slug: 'authorization',
+    color: '#a855f7',
+  },
   { name: { zh: 'API Design' }, slug: 'api-design', color: '#0ea5e9' },
-  { name: { zh: 'Media Processing' }, slug: 'media-processing', color: '#ec4899' },
+  {
+    name: { zh: 'Media Processing' },
+    slug: 'media-processing',
+    color: '#ec4899',
+  },
   { name: { zh: 'Upload' }, slug: 'upload', color: '#14b8a6' },
   { name: { zh: 'Queue' }, slug: 'queue', color: '#8b5cf6' },
-  { name: { zh: 'Distributed Lock' }, slug: 'distributed-lock', color: '#f59e0b' },
-  { name: { zh: 'Device Security' }, slug: 'device-security', color: '#ef4444' },
+  {
+    name: { zh: 'Distributed Lock' },
+    slug: 'distributed-lock',
+    color: '#f59e0b',
+  },
+  {
+    name: { zh: 'Device Security' },
+    slug: 'device-security',
+    color: '#ef4444',
+  },
   { name: { zh: 'KYC' }, slug: 'kyc', color: '#6366f1' },
   { name: { zh: 'Payment' }, slug: 'payment', color: '#22c55e' },
   { name: { zh: 'E-commerce' }, slug: 'ecommerce', color: '#10b981' },
@@ -114,10 +130,18 @@ const TAGS = [
   { name: { zh: 'Video / HLS' }, slug: 'hls', color: '#22c55e' },
   { name: { zh: 'React Query' }, slug: 'react-query', color: '#ef4444' },
   { name: { zh: 'Zustand' }, slug: 'zustand', color: '#f59e0b' },
-  { name: { zh: 'React Hook Form' }, slug: 'react-hook-form', color: '#ec4899' },
+  {
+    name: { zh: 'React Hook Form' },
+    slug: 'react-hook-form',
+    color: '#ec4899',
+  },
   { name: { zh: 'Zod' }, slug: 'zod', color: '#1e3a5f' },
   { name: { zh: 'OAuth' }, slug: 'oauth', color: '#4285f4' },
-  { name: { zh: 'Rich Text Editor' }, slug: 'rich-text-editor', color: '#f59e0b' },
+  {
+    name: { zh: 'Rich Text Editor' },
+    slug: 'rich-text-editor',
+    color: '#f59e0b',
+  },
   { name: { zh: 'CMS' }, slug: 'cms', color: '#f59e0b' },
   { name: { zh: 'AI Translation' }, slug: 'ai-translation', color: '#14b8a6' },
   { name: { zh: 'SmartTable' }, slug: 'smart-table', color: '#6366f1' },
@@ -133,14 +157,22 @@ const TAGS = [
   { name: { zh: 'Sentry' }, slug: 'sentry', color: '#fb7185' },
   { name: { zh: 'Lighthouse' }, slug: 'lighthouse', color: '#f59e0b' },
   { name: { zh: 'Monitoring' }, slug: 'monitoring', color: '#0ea5e9' },
-  { name: { zh: 'Prisma Migration' }, slug: 'prisma-migration', color: '#2D3748' },
+  {
+    name: { zh: 'Prisma Migration' },
+    slug: 'prisma-migration',
+    color: '#2D3748',
+  },
 
   // ===================== Security =====================
   { name: { zh: 'XSS' }, slug: 'xss', color: '#dc2626' },
   { name: { zh: 'ReCaptcha' }, slug: 'recaptcha', color: '#4285f4' },
   { name: { zh: 'AhoCorasick' }, slug: 'aho-corasick', color: '#8b5cf6' },
   { name: { zh: 'AI Moderation' }, slug: 'ai-moderation', color: '#14b8a6' },
-  { name: { zh: 'Content Security' }, slug: 'content-security', color: '#6366f1' },
+  {
+    name: { zh: 'Content Security' },
+    slug: 'content-security',
+    color: '#6366f1',
+  },
   { name: { zh: 'Bot Detection' }, slug: 'bot-detection', color: '#dc2626' },
   { name: { zh: '敏感词过滤' }, slug: 'sensitive-word', color: '#8b5cf6' },
   { name: { zh: 'JWT' }, slug: 'jwt', color: '#000000' },
@@ -164,13 +196,25 @@ const TAGS = [
 
   // ===================== Architecture & Best Practices =====================
   { name: { zh: 'Microservices' }, slug: 'microservices', color: '#22c55e' },
-  { name: { zh: 'High Availability' }, slug: 'high-availability', color: '#f97316' },
+  {
+    name: { zh: 'High Availability' },
+    slug: 'high-availability',
+    color: '#f97316',
+  },
   { name: { zh: 'LLM' }, slug: 'llm', color: '#6366f1' },
-  { name: { zh: 'Prompt Engineering' }, slug: 'prompt-engineering', color: '#ec4899' },
+  {
+    name: { zh: 'Prompt Engineering' },
+    slug: 'prompt-engineering',
+    color: '#ec4899',
+  },
   { name: { zh: 'Best Practices' }, slug: 'best-practices', color: '#22c55e' },
   { name: { zh: 'Performance' }, slug: 'performance', color: '#f59e0b' },
   { name: { zh: 'Error Handling' }, slug: 'error-handling', color: '#ef4444' },
-  { name: { zh: 'Platform Adapter' }, slug: 'platform-adapter', color: '#06b6d4' },
+  {
+    name: { zh: 'Platform Adapter' },
+    slug: 'platform-adapter',
+    color: '#06b6d4',
+  },
   { name: { zh: '实时通信' }, slug: 'real-time', color: '#0ea5e9' },
   { name: { zh: '缓存策略' }, slug: 'cache', color: '#f59e0b' },
 ];
@@ -235,7 +279,13 @@ const ARTICLES = [
     excerpt:
       '从零实现工业级敏感词过滤系统，包含完整算法原理、架构设计和性能优化方案。',
     categorySlug: 'security',
-    tags: ['security', 'aho-corasick', 'nestjs', 'performance', 'sensitive-word'],
+    tags: [
+      'security',
+      'aho-corasick',
+      'nestjs',
+      'performance',
+      'sensitive-word',
+    ],
   },
   {
     title: 'ReCaptcha v3 无感人机验证完整实现方案',
@@ -284,7 +334,13 @@ Google 服务不可用时自动降级，不影响正常用户使用
     excerpt:
       '完整的 ReCaptcha v3 前后端实现方案，包含分级策略、错误降级和生产环境最佳实践。',
     categorySlug: 'security',
-    tags: ['security', 'recaptcha', 'nestjs', 'bot-detection', 'best-practices'],
+    tags: [
+      'security',
+      'recaptcha',
+      'nestjs',
+      'bot-detection',
+      'best-practices',
+    ],
   },
   {
     title: '零成本AI评论审核系统：Gemini 2.0 Flash 实战',

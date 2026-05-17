@@ -69,7 +69,7 @@ export function FormMediaUploaderField<
   maxFileCount,
   maxFileSizeMB,
   renderImage,
- }: Readonly<FormMediaUploaderFieldProps<TFieldValues>>) {
+}: Readonly<FormMediaUploaderFieldProps<TFieldValues>>) {
   const theme = useFormTheme();
 
   return (

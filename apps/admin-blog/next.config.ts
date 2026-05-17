@@ -58,7 +58,7 @@ const nextConfig: NextConfig = {
           (resource: { request: string }) => {
             resource.request = path.resolve(
               __dirname,
-              "./src/lib/crypto-shim.ts",
+              './src/lib/crypto-shim.ts',
             );
           },
         ),

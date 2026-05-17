@@ -300,10 +300,7 @@ function scanMarkdownFilesRecursive(dir: string): string[] {
  * 获取文件相对于 articles/ 目录的子目录名
  * 例如: docs/blog/articles/frontend/foo.md → "frontend"
  */
-function getSubdirectory(
-  filepath: string,
-  articlesDir: string,
-): string | null {
+function getSubdirectory(filepath: string, articlesDir: string): string | null {
   const rel = path.relative(articlesDir, filepath);
   const dir = path.dirname(rel);
   // 如果文件直接在 articles/ 下（没有子目录），返回 null
@@ -412,11 +409,18 @@ async function findOrCreateTag(
       headers: { Authorization: `Bearer ${token}` },
     });
     if (searchRes.ok) {
-      const tags = (await searchRes.json()) as Array<{ id: string; name: Record<string, string> }>;
+      const tags = (await searchRes.json()) as Array<{
+        id: string;
+        name: Record<string, string>;
+      }>;
       // 精确匹配（忽略大小写）
       const exactMatch = tags.find((t) => {
-        const nameValues = Object.values(t.name || {}).filter(Boolean) as string[];
-        return nameValues.some((n) => n.toLowerCase() === tagName.toLowerCase());
+        const nameValues = Object.values(t.name || {}).filter(
+          Boolean,
+        ) as string[];
+        return nameValues.some(
+          (n) => n.toLowerCase() === tagName.toLowerCase(),
+        );
       });
       if (exactMatch) {
         return exactMatch.id;
@@ -458,7 +462,9 @@ async function findOrCreateTag(
     }
 
     const text = await createRes.text();
-    console.warn(`     ⚠️  创建标签 "${tagName}" 失败 (${createRes.status}): ${text}`);
+    console.warn(
+      `     ⚠️  创建标签 "${tagName}" 失败 (${createRes.status}): ${text}`,
+    );
     return null;
   } catch {
     return null;
@@ -519,7 +525,8 @@ async function createArticle(
 
 async function main() {
   // ── 检测运行模式 ──────────────────────────────────────────────
-  const isDryRun = process.env.DRY_RUN === "true" || process.argv.includes("--dry-run");
+  const isDryRun =
+    process.env.DRY_RUN === "true" || process.argv.includes("--dry-run");
   const isNonInteractive =
     !!process.env.ADMIN_USERNAME && !!process.env.ADMIN_PASSWORD;
 
@@ -528,7 +535,8 @@ async function main() {
   const envApiUrl = process.env.API_URL;
   const envUsername = process.env.ADMIN_USERNAME;
   const envPassword = process.env.ADMIN_PASSWORD;
-  const envStatus = (process.env.PUBLISH_STATUS as "DRAFT" | "PUBLISHED") || "PUBLISHED";
+  const envStatus =
+    (process.env.PUBLISH_STATUS as "DRAFT" | "PUBLISHED") || "PUBLISHED";
   const envSourceDir = process.env.SOURCE_DIR || "docs/blog/articles";
   const categoryMap = getCategoryMap();
 
@@ -657,12 +665,10 @@ async function main() {
   // ── Step: 确认导入 ────────────────────────────────────────────
   console.log("  即将导入以下文章:");
   articles.forEach((a, i) => {
-    const catLabel = a.subdir && categoryMap[a.subdir]
-      ? ` [${categoryMap[a.subdir]}]`
-      : "";
-    const tagsLabel = a.tags && a.tags.length > 0
-      ? ` 🏷️${a.tags.join(", ")}`
-      : "";
+    const catLabel =
+      a.subdir && categoryMap[a.subdir] ? ` [${categoryMap[a.subdir]}]` : "";
+    const tagsLabel =
+      a.tags && a.tags.length > 0 ? ` 🏷️${a.tags.join(", ")}` : "";
     console.log(`    ${i + 1}. ${a.title}${catLabel}${tagsLabel}`);
   });
   console.log("");
@@ -688,7 +694,9 @@ async function main() {
     console.log("=========================================");
     console.log(`  共发现 ${articles.length} 篇文章`);
     console.log(`  状态: ${status === "PUBLISHED" ? "已发布" : "草稿"}`);
-    console.log("\n  设置 DRY_RUN=false 或移除环境变量后重新运行以实际创建。\n");
+    console.log(
+      "\n  设置 DRY_RUN=false 或移除环境变量后重新运行以实际创建。\n",
+    );
     return;
   }
 
@@ -705,14 +713,18 @@ async function main() {
     const prefix = `[${i + 1}/${articles.length}]`;
 
     // 根据子目录查找分类 ID
-    const categorySlug = article.subdir ? categoryMap[article.subdir] : undefined;
+    const categorySlug = article.subdir
+      ? categoryMap[article.subdir]
+      : undefined;
 
     // ── Slug 去重 ──────────────────────────────────────────────
     const slug = filenameToSlug(article.filename);
     try {
       const existingId = await findArticleBySlug(apiBase, token!, slug);
       if (existingId) {
-        console.log(`  ${prefix} ⏭️  跳过: ${article.title} (已存在, ID: ${existingId})`);
+        console.log(
+          `  ${prefix} ⏭️  跳过: ${article.title} (已存在, ID: ${existingId})`,
+        );
         skipCount++;
         continue;
       }
@@ -738,10 +750,19 @@ async function main() {
 
     try {
       process.stdout.write(`  ${prefix} 正在导入: ${article.title} ... `);
-      const result = await createArticle(apiBase, token!, article, status, categorySlug, tagIds);
+      const result = await createArticle(
+        apiBase,
+        token!,
+        article,
+        status,
+        categorySlug,
+        tagIds,
+      );
       successCount++;
       const tagInfo = tagIds.length > 0 ? ` 🏷️${tagIds.length}个标签` : "";
-      console.log(`✅ 成功 (ID: ${result.id || "ok"})${categorySlug ? ` [${categorySlug}]` : ""}${tagInfo}`);
+      console.log(
+        `✅ 成功 (ID: ${result.id || "ok"})${categorySlug ? ` [${categorySlug}]` : ""}${tagInfo}`,
+      );
     } catch (err) {
       failCount++;
       console.log(`❌ 失败`);

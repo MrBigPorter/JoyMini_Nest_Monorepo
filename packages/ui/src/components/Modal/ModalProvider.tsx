@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import React, { useSyncExternalStore } from 'react';
-import { createPortal } from 'react-dom';
-import { modalStore } from './modal-store';
-import { ModalFixed } from './ModalFixed';
+import React, { useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
+import { modalStore } from "./modal-store";
+import { ModalFixed } from "./ModalFixed";
 
 /**
  * Renders all active modals via createPortal into document.body.
@@ -22,7 +22,7 @@ export function ModalProvider(): React.ReactNode {
   );
 
   // SSR guard — document is undefined during server rendering
-  if (typeof document === 'undefined') return null;
+  if (typeof document === "undefined") return null;
 
   if (instances.length === 0) return null;
 
