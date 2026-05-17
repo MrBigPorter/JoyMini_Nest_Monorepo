@@ -1777,18 +1777,41 @@ export class BlogService {
 
   /**
    * 取消文章点赞
+   *
+   * 安全措施：
+   * - 如果 likeCount 已经 <= 0，直接返回当前值，不递减
+   * - 防止 unlike 端点无保护时 likeCount 被恶意刷到负数
    */
   async unlikeArticle(slug: string, fingerprint: string) {
     const article = await this.prisma.blogArticle.findUnique({
       where: { slug },
+      select: { likeCount: true },
     });
     if (!article) throw new NotFoundException('Article not found');
 
-    return this.prisma.blogArticle.update({
+    // 先删除 Redis 指纹键（无论 likeCount 是否为 0），解除点赞锁定
+    // 必须放在 likeCount 检查之前，否则当 likeCount 已为 0 时会跳过删除
+    if (fingerprint) {
+      const redisKey = `blog:like:fingerprint:${fingerprint}`;
+      this.redisService.del(redisKey).catch((err: Error) => {
+        this.logger.warn(
+          `Failed to delete like fingerprint from Redis: ${err.message}`,
+        );
+      });
+    }
+
+    // 已经为 0 或负数时不允许再减，防止 likeCount 变为负数
+    if (article.likeCount <= 0) {
+      return { likeCount: article.likeCount };
+    }
+
+    const result = await this.prisma.blogArticle.update({
       where: { slug },
       data: { likeCount: { decrement: 1 } },
       select: { likeCount: true },
     });
+
+    return result;
   }
 
   /**

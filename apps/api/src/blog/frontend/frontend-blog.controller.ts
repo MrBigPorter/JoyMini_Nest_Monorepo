@@ -248,7 +248,9 @@ export class FrontendBlogController {
   @ApiOperation({ summary: '前端博客热门标签（简化版）' })
   @ApiResponse({ status: 200, description: '返回热门标签列表' })
   @CacheTTL(1800) // 缓存30分钟
-  async getFrontendPopularTags(@Query('limit', new ParseIntPipe({ optional: true })) limit = 20) {
+  async getFrontendPopularTags(
+    @Query('limit', new ParseIntPipe({ optional: true })) limit = 20,
+  ) {
     return this.frontendBlogService.getFrontendPopularTags(limit);
   }
 
@@ -408,7 +410,13 @@ export class FrontendBlogController {
   @ApiOperation({ summary: '取消点赞' })
   @ApiResponse({ status: 201, description: '取消点赞成功' })
   async unlikeArticle(@Param('slug') slug: string, @Req() req: Request) {
-    const fingerprint = req.body?.serverFingerprint || '';
+    // 生成指纹用于取消点赞（与 LikeDeduplicationGuard / checkLikeStatus 相同的算法）
+    const { createHash } = require('crypto');
+    const ip = req.ip || req.connection?.remoteAddress || 'unknown';
+    const userAgent = req.headers['user-agent'] || 'unknown';
+    const salt = 'blog_like_salt_2026';
+    const raw = `${ip}:${userAgent}:${slug}:${salt}`;
+    const fingerprint = createHash('md5').update(raw).digest('hex');
     return this.blogService.unlikeArticle(slug, fingerprint);
   }
 
