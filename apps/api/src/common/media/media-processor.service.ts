@@ -276,26 +276,30 @@ export class MediaProcessorService {
       const [sourceWidthStr, sourceHeightStr] = probeDimensions.split(',');
       const sourceWidth = parseInt(sourceWidthStr, 10);
       const sourceHeight = parseInt(sourceHeightStr, 10);
-      const sourceAspectRatio = sourceWidth / sourceHeight;
-
-      // Define quality targets with target HEIGHTS (widths computed dynamically)
-      // Using height-based resolution for portrait video support:
-      // e.g. a 1080x2336 portrait video will correctly downscale to 720px height
+      // Define quality targets with FIXED standard 16:9 resolutions.
+      // CRITICAL: iOS AVPlayer / VideoToolbox hard-decoder REQUIRES standard
+      // resolutions (width % 16 == 0, height % 2 == 0). Non-standard dimensions
+      // like 860×480 cause CoreMediaErrorDomain error -12642 (FormatUnsupported).
+      // Non-16:9 source videos are handled via ffmpeg scale+pad (see below).
       interface QualityTarget {
         name: string;
-        targetHeight: number;
+        width: number;  // Standard 16:9 width
+        height: number; // Standard height
         bandwidth: string;
       }
       const qualityTargets: QualityTarget[] = [
-        { name: '480p', targetHeight: 480, bandwidth: '800k' },
-        { name: '720p', targetHeight: 720, bandwidth: '2800k' },
+        { name: '480p',  width: 854,  height: 480,  bandwidth: '800k' },
+        { name: '720p',  width: 1280, height: 720,  bandwidth: '2800k' },
       ];
 
-      // Only add 1080p if source is tall enough
-      if (sourceHeight >= 1080) {
+      // Only add 1080p if source's larger dimension is >= 1080
+      // Use max(w,h) for portrait video support (e.g. 1080×2336 qualifies)
+      const maxSourceDimension = Math.max(sourceWidth, sourceHeight);
+      if (maxSourceDimension >= 1080) {
         qualityTargets.push({
           name: '1080p',
-          targetHeight: 1080,
+          width: 1920,
+          height: 1080,
           bandwidth: '5000k',
         });
       }
@@ -306,18 +310,19 @@ export class MediaProcessorService {
       for (const qt of qualityTargets) {
         const qualityDir = path.join(outputDir, qt.name);
 
-        // Compute target dimensions preserving original aspect ratio
-        // Clamp to source dimensions to avoid upscaling
-        const targetHeight = Math.min(qt.targetHeight, sourceHeight);
-        const computedWidth = Math.round(targetHeight * sourceAspectRatio);
-        const targetWidth = Math.min(computedWidth, sourceWidth);
-
-        // H.264 requires even dimensions for chroma subsampling
-        const evenWidth = targetWidth % 2 === 0 ? targetWidth : targetWidth - 1;
-        const evenHeight =
-          targetHeight % 2 === 0 ? targetHeight : targetHeight - 1;
-
-        const resolution = `${evenWidth}:${evenHeight}`;
+        // Build scale filter that handles non-16:9 source videos:
+        //   1. force_original_aspect_ratio=decrease — scales source to fit
+        //      within the target box while preserving aspect ratio (no stretch)
+        //   2. pad — adds black bars to reach exact target resolution
+        //   Result: encoded frames always have standard 16:9 dimensions.
+        //   For portrait video (e.g. 1080×2336): → center with side pillarboxes
+        //   For cinematic video (e.g. 1920×800): → center with top/bottom letterbox
+        // NOTE: Do NOT wrap dimensions in min(iw, X) — FFmpeg's filter expression parser
+        // treats the comma inside min() as a parameter delimiter, breaking the syntax.
+        // force_original_aspect_ratio=decrease already prevents upscaling.
+        const scaleFilter =
+          `scale=${qt.width}:${qt.height}:force_original_aspect_ratio=decrease,` +
+          `pad=${qt.width}:${qt.height}:(ow-iw)/2:(oh-ih)/2`;
 
         // MUST create subdirectory before ffmpeg writes to it — ffmpeg cannot create dirs themselves
         await fs.mkdir(qualityDir, { recursive: true });
@@ -330,11 +335,19 @@ export class MediaProcessorService {
             '-i',
             inputPath,
             '-vf',
-            `scale=${resolution}`,
+            scaleFilter,
+            '-r',
+            '30', // Fixed 30fps — Level 4.0 max at 1080p is 30fps; source may be 60fps
             '-threads',
             '0', // Auto-detect CPU cores
             '-c:v',
             'libx264',
+            '-profile:v',
+            'main', // iOS VideoToolbox only supports up to Main Profile (profile_idc=77)
+            '-level',
+            '4.0', // Level 4.0 covers 1080p@30fps, broadest iOS device compatibility
+            '-pix_fmt',
+            'yuv420p', // Required: iOS HW decoder only supports 4:2:0 chroma subsampling
             '-crf',
             '23',
             '-preset',
@@ -356,8 +369,15 @@ export class MediaProcessorService {
           { timeout: 300000 }, // 5 min timeout
         );
 
+        // CODECS attribute is REQUIRED by Apple HLS Authoring Specification for streams
+        // containing H.264 video and AAC audio. Without it, iOS AVFoundation may reject
+        // the stream with CoreMediaErrorDomain -12642 (FormatUnsupported) because the
+        // system can't pre-validate decoder capability before attempting playback.
+        // Format: avc1.<profile_hex><constraints_hex><level_hex>,mp4a.40.2 (AAC-LC)
+        // Here: Main Profile (4D) + constraint_set1_flag (40) + Level 4.0 (28) = avc1.4D4028
+        const codecs = 'avc1.4D4028,mp4a.40.2';
         variantStreams.push(
-          `#EXT-X-STREAM-INF:BANDWIDTH=${parseInt(qt.bandwidth) * 1000},RESOLUTION=${resolution}\n${qt.name}/playlist.m3u8`,
+          `#EXT-X-STREAM-INF:BANDWIDTH=${parseInt(qt.bandwidth) * 1000},RESOLUTION=${qt.width}:${qt.height},CODECS="${codecs}"\n${qt.name}/playlist.m3u8`,
         );
       }
 

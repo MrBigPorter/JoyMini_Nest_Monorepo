@@ -95,6 +95,29 @@ import { BlogModule } from '@api/blog/blog.module';
         CACHE_PREFIX: Joi.string().default('lucky:'),
         REDIS_URL: Joi.string().required(),
         PORT: Joi.number().default(3000),
+
+        // ==================== OAuth Providers ====================
+        // Google OAuth
+        GOOGLE_CLIENT_ID: Joi.string().optional(),
+        GOOGLE_CLIENT_SECRET: Joi.string().optional(),
+        GOOGLE_REDIRECT_URI: Joi.string().uri().optional(),
+
+        // Facebook OAuth
+        FACEBOOK_APP_ID: Joi.string().optional(),
+        FACEBOOK_APP_SECRET: Joi.string().optional(),
+        FACEBOOK_REDIRECT_URI: Joi.string().uri().optional(),
+
+        // Apple Sign In with Apple
+        APPLE_CLIENT_ID: Joi.string().optional(),
+        APPLE_REDIRECT_URI: Joi.string().uri().optional(),
+        APPLE_TEAM_ID: Joi.string().optional(),
+        APPLE_KEY_ID: Joi.string().optional(),
+        // .p8 私钥内容（多行字符串，用 Base64 编码后传入）
+        APPLE_PRIVATE_KEY: Joi.string().optional(),
+
+        // Github OAuth
+        GITHUB_CLIENT_ID: Joi.string().optional(),
+        GITHUB_CLIENT_SECRET: Joi.string().optional(),
         // 其余变量也可顺手校验：PORT、CORS_ORIGIN、DATABASE_URL...
       }),
       validationOptions: {

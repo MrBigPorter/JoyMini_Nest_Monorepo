@@ -16,6 +16,7 @@ import { SystemConfigModule } from '../admin/system-config/system-config.module'
 import { LanguageService } from '@api/common/services/language.service';
 import { LanguageDetectionService } from '@api/common/services/language-detection.service';
 import { MEDIA_PROCESSOR_QUEUE } from '@api/common/media/media-processor.constants';
+import { LikeDeduplicationGuard } from './guards/like-deduplication.guard';
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { MEDIA_PROCESSOR_QUEUE } from '@api/common/media/media-processor.constan
     TranslationJobService,
     LanguageService,
     LanguageDetectionService,
+    LikeDeduplicationGuard,
   ],
   exports: [BlogService, TranslationJobService],
 })

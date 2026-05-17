@@ -24,6 +24,7 @@ import { Badge } from '@/components/ui/badge';
 import ArticleMarkdown from '@/components/blog/ArticleMarkdown';
 import CommentList from '@/components/blog/CommentList';
 import { BookmarkButton } from '@/components/blog/BookmarkButton';
+import { LikeButton } from '@/components/blog/LikeButton';
 import { useAuth } from '@/lib/hooks';
 import { useIsClient } from '@/lib/hooks/useIsClient';
 import { isVideoUrl } from '@/lib/utils/media';
@@ -246,10 +247,7 @@ export default function ArticlePageClient({
               <Eye className="h-4 w-4" />
               <span>{article.views || 0}</span>
             </div>
-            <div className="flex items-center gap-1">
-              <Heart className="h-4 w-4" />
-              <span>{article.likes || 0}</span>
-            </div>
+            <LikeButton slug={article.slug} initialCount={article.likes || 0} />
             <div className="flex items-center gap-1">
               <MessageSquare className="h-4 w-4" />
               <span>{article.commentsCount || 0}</span>

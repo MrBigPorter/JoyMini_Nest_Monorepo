@@ -14,6 +14,7 @@ import { OnEvent } from '@nestjs/event-emitter';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { ArticleStatus, Prisma } from '@prisma/client';
 import { CreateArticleDto, UpdateArticleDto, CreateCommentDto } from './dto';
+import { createHash } from 'crypto';
 
 import {
   ScannedArticle,
@@ -35,6 +36,7 @@ import { getLocalizedValue, DEFAULT_LOCALE } from '@lucky/shared';
 import { SystemConfigService } from '../admin/system-config/system-config.service';
 import { LanguageService } from '@api/common/services/language.service';
 import { AiService, AiServiceLevel } from '@api/common/ai/ai.service';
+import { RedisService } from '@api/common/redis/redis.service';
 
 @Injectable()
 export class BlogService {
@@ -49,6 +51,7 @@ export class BlogService {
     private languageService: LanguageService,
     private aiService: AiService,
     private blogAiProcessor: BlogAiProcessor,
+    private redisService: RedisService,
   ) {
     this.marked = new Marked({
       gfm: true,
@@ -1790,10 +1793,12 @@ export class BlogService {
 
   /**
    * 检查点赞状态
+   * 通过 Redis 中的指纹键判断当前用户是否已点赞
    */
-  checkLikeStatus(slug: string, fingerprint: string) {
-    // 后续实现指纹检查逻辑
-    return { liked: false };
+  async checkLikeStatus(slug: string, fingerprint: string) {
+    const redisKey = `blog:like:fingerprint:${fingerprint}`;
+    const exists = await this.redisService.get(redisKey);
+    return { liked: exists !== null };
   }
 
   /**

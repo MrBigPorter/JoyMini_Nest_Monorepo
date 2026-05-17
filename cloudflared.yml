@@ -16,6 +16,10 @@ ingress:
   - hostname: blog-dev.joyminis.com
     service: http://localhost:80
 
+  # Blog Admin Frontend → Docker Nginx
+  - hostname: blog-admin-dev.joyminis.com
+    service: http://localhost:80
+
   # Admin Frontend → Docker Nginx
   - hostname: admin-dev.joyminis.com
     service: http://localhost:80

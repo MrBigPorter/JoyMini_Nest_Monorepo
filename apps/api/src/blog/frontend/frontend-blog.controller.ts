@@ -11,6 +11,7 @@ import {
   UseInterceptors,
   Sse,
   MessageEvent,
+  ParseIntPipe,
 } from '@nestjs/common';
 
 import { CacheTTL } from '@nestjs/cache-manager';
@@ -24,6 +25,7 @@ import { BlogService } from '../blog.service';
 import { LanguageService } from '@api/common/services/language.service';
 import { CreateCommentDto } from '../dto/create-comment.dto';
 import { JwtAuthGuard } from '@api/common/jwt/jwt.guard';
+import { LikeDeduplicationGuard } from '../guards/like-deduplication.guard';
 
 @ApiTags('Frontend Blog')
 @Controller('frontend/blog')
@@ -45,8 +47,8 @@ export class FrontendBlogController {
   @CacheTTL(300) // 缓存5分钟
   async getFrontendArticles(
     @Req() req: Request,
-    @Query('page') page?: number,
-    @Query('pageSize') pageSize?: number,
+    @Query('page', new ParseIntPipe({ optional: true })) page?: number,
+    @Query('pageSize', new ParseIntPipe({ optional: true })) pageSize?: number,
     @Query('categoryId') categoryId?: string,
     @Query('tagId') tagId?: string,
   ) {
@@ -100,7 +102,7 @@ export class FrontendBlogController {
   @ApiResponse({ status: 200, description: '返回热门文章列表' })
   @CacheTTL(600) // 缓存10分钟
   async getFrontendPopularArticles(
-    @Query('limit') limit = 10,
+    @Query('limit', new ParseIntPipe({ optional: true })) limit = 10,
     @Req() req: Request,
   ) {
     // 解析请求语言
@@ -115,7 +117,7 @@ export class FrontendBlogController {
   @CacheTTL(600) // 缓存10分钟
   async getFrontendRelatedArticles(
     @Param('id') articleId: string,
-    @Query('limit') limit = 5,
+    @Query('limit', new ParseIntPipe({ optional: true })) limit = 5,
     @Req() req: Request,
   ) {
     // 解析请求语言
@@ -147,8 +149,8 @@ export class FrontendBlogController {
   async getFrontendCategoryBySlug(
     @Param('slug') slug: string,
     @Req() req: Request,
-    @Query('page') page?: number,
-    @Query('pageSize') pageSize?: number,
+    @Query('page', new ParseIntPipe({ optional: true })) page?: number,
+    @Query('pageSize', new ParseIntPipe({ optional: true })) pageSize?: number,
   ) {
     // 解析请求语言
     const locale = this.languageService.resolveLanguage(req);
@@ -188,8 +190,8 @@ export class FrontendBlogController {
   async getFrontendTagBySlug(
     @Param('slug') slug: string,
     @Req() req: Request,
-    @Query('page') page?: number,
-    @Query('pageSize') pageSize?: number,
+    @Query('page', new ParseIntPipe({ optional: true })) page?: number,
+    @Query('pageSize', new ParseIntPipe({ optional: true })) pageSize?: number,
   ) {
     // 解析请求语言
     const locale = this.languageService.resolveLanguage(req);
@@ -213,8 +215,8 @@ export class FrontendBlogController {
   async searchFrontendArticles(
     @Query('q') query: string,
     @Req() req: Request,
-    @Query('page') page?: number,
-    @Query('pageSize') pageSize?: number,
+    @Query('page', new ParseIntPipe({ optional: true })) page?: number,
+    @Query('pageSize', new ParseIntPipe({ optional: true })) pageSize?: number,
   ) {
     // 解析请求语言
     const locale = this.languageService.resolveLanguage(req);
@@ -246,7 +248,7 @@ export class FrontendBlogController {
   @ApiOperation({ summary: '前端博客热门标签（简化版）' })
   @ApiResponse({ status: 200, description: '返回热门标签列表' })
   @CacheTTL(1800) // 缓存30分钟
-  async getFrontendPopularTags(@Query('limit') limit = 20) {
+  async getFrontendPopularTags(@Query('limit', new ParseIntPipe({ optional: true })) limit = 20) {
     return this.frontendBlogService.getFrontendPopularTags(limit);
   }
 
@@ -259,8 +261,8 @@ export class FrontendBlogController {
   @CacheTTL(60) // 缓存1分钟
   async getArticleComments(
     @Param('slug') slug: string,
-    @Query('page') page?: number,
-    @Query('pageSize') pageSize?: number,
+    @Query('page', new ParseIntPipe({ optional: true })) page?: number,
+    @Query('pageSize', new ParseIntPipe({ optional: true })) pageSize?: number,
   ) {
     return this.blogService.getArticleComments(slug, { page, pageSize });
   }
@@ -387,5 +389,40 @@ export class FrontendBlogController {
   @ApiResponse({ status: 404, description: '评论不存在' })
   async getCommentReplies(@Param('id') commentId: string) {
     return this.blogService.getCommentReplies(commentId);
+  }
+
+  // ================= 点赞接口 =================
+  // 注意：LikeDeduplicationGuard 基于 IP+UA 生成指纹，防止 24h 内重复点赞
+
+  @Post('articles/:slug/like')
+  @UseGuards(LikeDeduplicationGuard)
+  @ApiOperation({ summary: '点赞文章（带去重保护）' })
+  @ApiResponse({ status: 201, description: '点赞成功' })
+  @ApiResponse({ status: 429, description: '24小时内已点赞过该文章' })
+  async likeArticle(@Param('slug') slug: string, @Req() req: Request) {
+    const fingerprint = req.body?.serverFingerprint || '';
+    return this.blogService.likeArticle(slug, fingerprint);
+  }
+
+  @Post('articles/:slug/unlike')
+  @ApiOperation({ summary: '取消点赞' })
+  @ApiResponse({ status: 201, description: '取消点赞成功' })
+  async unlikeArticle(@Param('slug') slug: string, @Req() req: Request) {
+    const fingerprint = req.body?.serverFingerprint || '';
+    return this.blogService.unlikeArticle(slug, fingerprint);
+  }
+
+  @Get('articles/:slug/like-status')
+  @ApiOperation({ summary: '检查文章点赞状态' })
+  @ApiResponse({ status: 200, description: '返回点赞状态' })
+  async checkLikeStatus(@Param('slug') slug: string, @Req() req: Request) {
+    // 生成指纹用于查询（与 LikeDeduplicationGuard 相同的算法）
+    const { createHash } = require('crypto');
+    const ip = req.ip || req.connection?.remoteAddress || 'unknown';
+    const userAgent = req.headers['user-agent'] || 'unknown';
+    const salt = 'blog_like_salt_2026';
+    const raw = `${ip}:${userAgent}:${slug}:${salt}`;
+    const fingerprint = createHash('md5').update(raw).digest('hex');
+    return this.blogService.checkLikeStatus(slug, fingerprint);
   }
 }

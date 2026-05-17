@@ -11,13 +11,15 @@ const withBundleAnalyzer = BundleAnalyzer({
   openAnalyzer: false,
 });
 
-// PWA配置 - 开发环境禁用，避免缓存干扰
+// PWA配置 - 仅 production 部署启用，开发环境和 preview 部署禁用
+// 开发环境（Docker/本地）：NODE_ENV=development
+// preview 部署（test分支→blog-dev.joyminis.com）：NEXT_PUBLIC_APP_ENV=preview
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const withPWA = require('next-pwa')({
   dest: 'public',
   disable:
-    process.env.NODE_ENV === 'development' &&
-    process.env.NEXT_PWA_ENABLE !== 'true',
+    process.env.NODE_ENV === 'development' ||
+    process.env.NEXT_PUBLIC_APP_ENV === 'preview',
   register: true,
   skipWaiting: true,
   // P0-2 修复：SW 更新激活时自动清除旧版本缓存

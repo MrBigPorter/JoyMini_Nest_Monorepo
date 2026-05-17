@@ -20,6 +20,7 @@ import {
   getUserFriendlyErrorMessage,
 } from '@api/common/oauth/oauth-errors';
 import * as crypto from 'crypto';
+import * as jwt from 'jsonwebtoken';
 
 interface OAuthStateData {
   // 必需字段
@@ -651,12 +652,47 @@ export class OAuthDeepLinkController {
     return JSON.parse(Buffer.from(payload, 'base64').toString('utf-8'));
   }
 
-  // TODO: Apple Client Secret生成（根据用户要求，先不做）
+  /**
+   * 生成 Apple Sign In with Apple 的 client_secret
+   *
+   * Apple 要求 client_secret 是一个用 ES256 算法签发的 JWT，
+   * 使用 Apple Developer 后台的 .p8 私钥、Team ID 和 Key ID 实时签发。
+   *
+   * 参考 Apple 文档：
+   * https://developer.apple.com/documentation/sign_in_with_apple/generate_and_validate_tokens
+   */
   private generateAppleClientSecret(): string {
-    // TODO: Apple 的 Client Secret 不是一个静态字符串！
-    // 它是你需要用你的 .p8 秘钥、Team ID 和 Key ID，通过 ES256 算法实时签发的一个 JWT Token。
-    // 如果你不重写这里，Apple 登录会一直报错 400 invalid_client。
-    return 'apple_client_secret_jwt';
+    const teamId = this.configService.get<string>('APPLE_TEAM_ID');
+    const keyId = this.configService.get<string>('APPLE_KEY_ID');
+    const privateKey = this.configService.get<string>('APPLE_PRIVATE_KEY');
+    const clientId = this.configService.get<string>('APPLE_CLIENT_ID');
+
+    if (!teamId || !keyId || !privateKey || !clientId) {
+      this.logger.error(
+        'Apple OAuth credentials not configured. Check APPLE_TEAM_ID, APPLE_KEY_ID, APPLE_PRIVATE_KEY, APPLE_CLIENT_ID env vars.',
+      );
+      throw new OAuthProviderError(
+        'Apple OAuth credentials not configured',
+        'apple',
+      );
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+
+    const claims: Record<string, string | number> = {
+      iss: teamId,
+      iat: now,
+      exp: now + 60 * 60 * 24 * 30, // 30 天有效期（Apple 建议最长 6 个月）
+      aud: 'https://appleid.apple.com',
+      sub: clientId,
+    };
+
+    const options: jwt.SignOptions = {
+      algorithm: 'ES256',
+      keyid: keyId,
+    };
+
+    return jwt.sign(claims, privateKey, options);
   }
 
   // ==========================================

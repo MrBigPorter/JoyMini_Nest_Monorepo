@@ -9,10 +9,6 @@
     {
       "pattern": "blog.joyminis.com/*",
       "zone_name": "joyminis.com"
-    },
-    {
-      "pattern": "blog-dev.joyminis.com/*",
-      "zone_name": "joyminis.com"
     }
   ],
   "assets": {

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GoogleOAuthProvider } from '@/lib/components/GoogleOAuthProvider';
 import { ThemeProvider } from './ThemeProvider';
+import { ToastProvider } from '@/lib/hooks/useToast';
 
 /**
  * 统一的客户端 Providers 组件
@@ -28,7 +29,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <GoogleOAuthProvider>
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <ToastProvider>{children}</ToastProvider>
+        </ThemeProvider>
       </GoogleOAuthProvider>
     </QueryClientProvider>
   );
