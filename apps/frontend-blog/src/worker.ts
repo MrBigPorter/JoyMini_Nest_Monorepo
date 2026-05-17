@@ -226,6 +226,14 @@ export default {
         }
       }
 
+      // Serve Apple App Site Association file for Universal Links
+      if (url.pathname === '/.well-known/apple-app-site-association') {
+        const aasaResponse = await this.serveAASA(env);
+        if (aasaResponse) {
+          return this.addHeaders(aasaResponse, securityHeaders);
+        }
+      }
+
       // Handle static assets from R2
       if (this.isStaticAsset(url)) {
         const assetResponse = await this.serveStaticAsset(url, env.R2_STORAGE);
@@ -419,6 +427,28 @@ export default {
       });
     } catch (error) {
       console.warn('R2 asset error:', error);
+      return null;
+    }
+  },
+
+  // Serve the Apple App Site Association file for Universal Links
+  async serveAASA(env: Env): Promise<Response | null> {
+    try {
+      const object = await env.R2_STORAGE.get(
+        '.well-known/apple-app-site-association',
+      );
+      if (!object) return null;
+
+      const headers = new Headers();
+      headers.set('Content-Type', 'application/json');
+      headers.set('Cache-Control', 'public, max-age=3600');
+
+      return new Response(object.body, {
+        headers,
+        status: 200,
+      });
+    } catch (error) {
+      console.warn('AASA serve error:', error);
       return null;
     }
   },

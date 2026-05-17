@@ -11,8 +11,12 @@
         "paths": [ "/group/*", "/oauth/callback" ]
       },
       {
-        "appID": "PK28T343BP.com.tarsier.blog",
-        "paths": [ "/article/*", "/oauth/callback", "/group/*" ]
+        "appID": "PK28T343BP.com.tarsier.labs",
+        "paths": [
+          "*",
+          "NOT /_next/*",
+          "NOT /__/*"
+        ]
       }
     ]
   }

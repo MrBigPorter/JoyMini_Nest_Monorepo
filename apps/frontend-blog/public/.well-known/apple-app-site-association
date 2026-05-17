@@ -1,0 +1,23 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "A1B2C3D4E5.com.porter.joyminis",
+        "paths": [ "/group/*", "/oauth/callback" ]
+      },
+      {
+        "appID": "A1B2C3D4E5.com.porter.joyminis.test",
+        "paths": [ "/group/*", "/oauth/callback" ]
+      },
+      {
+        "appID": "PK28T343BP.com.tarsier.labs",
+        "paths": [
+          "*",
+          "NOT /_next/*",
+          "NOT /__/*"
+        ]
+      }
+    ]
+  }
+}
