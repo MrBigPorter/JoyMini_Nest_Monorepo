@@ -291,7 +291,7 @@ export default async function AboutPage({
                         <span className="font-medium">{t('about.github')}</span>
                       </Link>
                       <Link
-                        href="mailto:mrsuperporter@gmail.com"
+                        href="mailto:mrporterdev@gmail.com"
                         className="inline-flex items-center gap-3 px-6 py-3 rounded-xl bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20 text-primary hover:from-primary/20 hover:to-secondary/20 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/10 transition-all duration-300"
                       >
                         <Mail className="w-5 h-5" />
