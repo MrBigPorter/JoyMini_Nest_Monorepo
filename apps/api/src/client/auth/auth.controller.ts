@@ -8,6 +8,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -44,6 +45,7 @@ import { FacebookProvider } from '@api/client/auth/providers/facebook.provider';
 import { AppleProvider } from '@api/client/auth/providers/apple.provider';
 import { FirebaseProvider } from '@api/client/auth/providers/firebase.provider';
 import { GithubProvider } from '@api/client/auth/providers/github.provider';
+import { ClearUserDataResponseDto } from '@api/client/auth/dto/clear-user-data.response.dto';
 import { FirebaseLoginDto } from '@api/client/auth/dto/firebase-login.dto';
 import { VerifiedOauthProfile } from './providers/provider.types';
 
@@ -261,6 +263,28 @@ export class AuthController {
       device.ip,
       device.userAgent,
     );
+    return {
+      code: 10000,
+      message: 'success',
+      data: result,
+    };
+  }
+
+  /**
+   * 清除用户数据并删除账号
+   * 匿名化评论 → 删除书签 → 软删除账号(status=0)
+   * 满足 Apple App Store (5.1.1) 和 Google Play 审核要求
+   */
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Delete('account/data')
+  @ApiOperation({ summary: 'Clear all user data and soft-delete account' })
+  @ApiOkResponse({ type: ClearUserDataResponseDto })
+  @HttpCode(HttpStatus.OK)
+  async clearUserData(
+    @CurrentUserId() userId: string,
+  ) {
+    const result = await this.auth.clearUserData(userId);
     return {
       code: 10000,
       message: 'success',

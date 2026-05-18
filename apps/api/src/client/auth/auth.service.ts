@@ -69,6 +69,68 @@ export class AuthService {
     private readonly emailService: EmailService,
   ) {}
 
+  /**
+   * 清除用户数据并软删除账号
+   * 1. 匿名化博客评论（通过 OAuth email 匹配）
+   * 2. 删除所有书签
+   * 3. 软删除用户账号（status=0）
+   * 4. 财务记录（订单/钱包/交易）保留，满足法律合规要求
+   */
+  async clearUserData(userId: string): Promise<{
+    accountDeleted: boolean;
+    anonymizedComments: number;
+    deletedBookmarks: number;
+  }> {
+    // 1. 收集用户的 OAuth 第三方邮箱
+    const oauthAccounts = await this.prisma.oauthAccount.findMany({
+      where: { userId, providerEmail: { not: null } },
+      select: { providerEmail: true },
+    });
+
+    const userEmails = [
+      ...new Set(
+        oauthAccounts
+          .map((a) => a.providerEmail)
+          .filter(Boolean) as string[],
+      ),
+    ];
+
+    // 2. 匿名化匹配的评论
+    let anonymizedComments = 0;
+    if (userEmails.length > 0) {
+      const result = await this.prisma.blogComment.updateMany({
+        where: { email: { in: userEmails } },
+        data: {
+          author: '[deleted]',
+          content: '[deleted]',
+        },
+      });
+      anonymizedComments = result.count;
+    }
+
+    // 3. 删除所有书签
+    const bookmarkResult = await this.prisma.userBookmark.deleteMany({
+      where: { userId },
+    });
+
+    // 4. 软删除用户账号（status=0）
+    //    财务记录（订单/钱包/交易）保留，Apple/Google 审核均允许保留财务数据
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { status: 0 },
+    });
+
+    this.logger.log(
+      `User ${userId} account soft-deleted, ${anonymizedComments} comments anonymized, ${bookmarkResult.count} bookmarks deleted`,
+    );
+
+    return {
+      accountDeleted: true,
+      anonymizedComments,
+      deletedBookmarks: bookmarkResult.count,
+    };
+  }
+
   // sign access token
   private async issueToken(user: { id: string }) {
     const payload: JwtPayload = { sub: user.id };
