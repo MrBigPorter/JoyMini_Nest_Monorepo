@@ -11,21 +11,28 @@ export class LanguageService {
    * 优先级：查询参数 > Accept-Language 头部 > 默认语言
    */
   resolveLanguage(req: Request): string {
-    // 1. 查询参数
+    // 1. 查询参数 — 优先检查 lang
     const queryLang = req.query.lang as string;
     if (queryLang) {
       const normalized = this.normalizeLanguageCode(queryLang);
       if (this.isSupported(normalized)) return normalized;
     }
 
-    // 2. Accept-Language 头部
+    // 2. 查询参数 — 兼容 locale 参数名（用于 BookmarkController 等）
+    const queryLocale = req.query.locale as string;
+    if (queryLocale) {
+      const normalized = this.normalizeLanguageCode(queryLocale);
+      if (this.isSupported(normalized)) return normalized;
+    }
+
+    // 3. Accept-Language 头部
     const acceptLanguage = req.headers['accept-language'];
     if (acceptLanguage) {
       const lang = this.parseAcceptLanguage(acceptLanguage);
       if (lang && this.isSupported(lang)) return lang;
     }
 
-    // 3. 默认语言
+    // 4. 默认语言
     return this.defaultLanguage;
   }
 

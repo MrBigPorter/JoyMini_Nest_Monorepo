@@ -1898,10 +1898,16 @@ export class BlogService {
       select: {
         id: true,
         title: true,
+        titleEn: true,
         slug: true,
+        excerpt: true,
+        excerptEn: true,
         coverImage: true,
         viewCount: true,
         publishedAt: true,
+        titleLocalized: true,
+        excerptLocalized: true,
+        coverImageLocalized: true,
       },
     });
   }
@@ -1930,9 +1936,15 @@ export class BlogService {
       select: {
         id: true,
         title: true,
+        titleEn: true,
+        excerpt: true,
+        excerptEn: true,
         slug: true,
         coverImage: true,
         publishedAt: true,
+        titleLocalized: true,
+        excerptLocalized: true,
+        coverImageLocalized: true,
       },
     });
   }
