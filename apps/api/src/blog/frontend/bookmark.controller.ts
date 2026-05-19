@@ -20,13 +20,17 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 import { Request } from 'express';
+import { LanguageService } from '@api/common/services/language.service';
 
 @ApiTags('frontend-blog-bookmarks')
 @Controller('frontend/blog')
 @UseGuards(AuthGuard('jwt'))
 @ApiBearerAuth()
 export class BookmarkController {
-  constructor(private readonly bookmarkService: BookmarkService) {}
+  constructor(
+    private readonly bookmarkService: BookmarkService,
+    private readonly languageService: LanguageService,
+  ) {}
 
   @Get('bookmarks')
   @ApiOperation({ summary: '获取用户收藏列表' })
@@ -37,9 +41,9 @@ export class BookmarkController {
     description: '每页数量，默认为10',
   })
   @ApiQuery({
-    name: 'locale',
+    name: 'lang',
     required: false,
-    description: '语言代码，默认为zh',
+    description: '语言代码，默认为zh，支持 lang 或 locale 参数',
   })
   @ApiResponse({ status: 200, description: '返回收藏列表' })
   @ApiResponse({ status: 401, description: '未授权' })
@@ -47,8 +51,11 @@ export class BookmarkController {
     @Req() req: Request,
     @Query('page', new ParseIntPipe({ optional: true })) page?: number,
     @Query('pageSize', new ParseIntPipe({ optional: true })) pageSize?: number,
-    @Query('locale') locale?: string,
   ) {
+    // 使用 LanguageService 解析语言，与其他前端端点保持一致
+    // 支持 lang 查询参数、locale 查询参数、Accept-Language 头部
+    const locale = this.languageService.resolveLanguage(req);
+
     return this.bookmarkService.getUserBookmarks(req.user.id, {
       page,
       pageSize,
