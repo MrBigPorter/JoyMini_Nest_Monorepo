@@ -15,9 +15,9 @@ COMPOSE_FILE="$PROJECT_DIR/compose.prod.yml"
 ENV_FILE="$PROJECT_DIR/deploy/.env.prod"
 CERT_DIR="$PROJECT_DIR/certs"
 
-# Let's Encrypt 域名 (与 certbot 申请时一致)
-DOMAIN="api.joyminis.com"
-LE_CERT_DIR="/etc/letsencrypt/live/$DOMAIN"
+# Let's Encrypt 主域名（与 certbot 申请时一致，多域名证书存在第一个域名的目录下）
+FIRST_DOMAIN="api.joyminis.com"
+LE_CERT_DIR="/etc/letsencrypt/live/$FIRST_DOMAIN"
 
 echo "[$(date)] 开始 SSL 证书续期检查..."
 
