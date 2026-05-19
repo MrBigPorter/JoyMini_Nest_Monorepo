@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useCallback } from 'react';
+import React, { useCallback } from 'react';
 import { setNavDirection } from '@/lib/navigation/direction';
 import Image from 'next/image';
 import { useParams } from 'next/navigation';
@@ -82,29 +82,6 @@ export default function ArticlePageClient({
   );
 
   // -------------------------------------------------------------------
-  // Structured data for SEO (JSON-LD)
-  // -------------------------------------------------------------------
-  const structuredData = useMemo(() => {
-    if (!article) return null;
-    return {
-      '@context': 'https://schema.org',
-      '@type': 'Article',
-      headline: article.title,
-      description: article.excerpt,
-      image: article.coverImage,
-      datePublished: article.publishedAt,
-      dateModified: article.updatedAt,
-      author: article.author
-        ? {
-            '@context': 'https://schema.org',
-            '@type': 'Person',
-            name: article.author.name,
-          }
-        : undefined,
-    };
-  }, [article]);
-
-  // -------------------------------------------------------------------
   // Back navigation handler
   // Navigate to homepage with current locale preserved
   // @/navigation's router.push('/') auto-prepends the active locale (e.g., /ja/)
@@ -170,13 +147,6 @@ export default function ArticlePageClient({
 
   return (
     <>
-      {structuredData && (
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
-        />
-      )}
-
       <div className="max-w-5xl mx-auto px-4 py-8 md:py-12">
         {/* Back link — uses router.back() to preserve home page URL search params */}
         <div className="mb-8">

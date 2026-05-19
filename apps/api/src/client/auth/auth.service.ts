@@ -89,9 +89,7 @@ export class AuthService {
 
     const userEmails = [
       ...new Set(
-        oauthAccounts
-          .map((a) => a.providerEmail)
-          .filter(Boolean) as string[],
+        oauthAccounts.map((a) => a.providerEmail).filter(Boolean) as string[],
       ),
     ];
 

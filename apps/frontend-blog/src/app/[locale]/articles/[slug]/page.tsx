@@ -1,6 +1,7 @@
 import { getCachedArticle } from '@/lib/cached/article';
 import ArticlePageClient from './page.client';
 import { getOptimizedImageUrl } from '@/lib/utils/cloudflareImageLoader';
+import { generateArticleSchema } from '@/lib/seo/schema';
 import type { Metadata } from 'next';
 
 // Next.js 15 perfect cache pattern
@@ -76,7 +77,14 @@ export async function generateMetadata({
                 alt: article.title,
               },
             ]
-          : [],
+          : [
+              {
+                url: '/og-image.png',
+                width: 1200,
+                height: 630,
+                alt: 'Tarsier Labs',
+              },
+            ],
       },
 
       // Twitter
@@ -84,7 +92,7 @@ export async function generateMetadata({
         card: 'summary_large_image',
         title: article.title,
         description,
-        images: article.coverImage ? [article.coverImage] : [],
+        images: article.coverImage ? [article.coverImage] : ['/og-image.png'],
       },
 
       // 规范URL
@@ -169,6 +177,16 @@ export default async function ArticlePage({
         })
       : undefined;
 
+    // ── SSR JSON-LD structured data ────────────────────────────────────
+    // Render structured data in the Server Component so it appears in the
+    // initial HTML. This ensures Googlebot (URL Inspection Tool) and social
+    // media crawlers (Facebook, Twitter, WhatsApp, Telegram, Discord) that
+    // do NOT execute JavaScript can see the complete schema including
+    // publisher/Organization/logo.
+    const articleSchema = article
+      ? generateArticleSchema(article, locale)
+      : null;
+
     return (
       <>
         {/* SSR preload: inject <link rel="preload"> for the cover image.
@@ -183,6 +201,17 @@ export default async function ArticlePage({
             fetchPriority="high"
           />
         )}
+
+        {/* SSR JSON-LD: in the initial HTML for crawlers that don't execute JS */}
+        {articleSchema && (
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{
+              __html: JSON.stringify(articleSchema),
+            }}
+          />
+        )}
+
         <ArticlePageClient initialArticle={initialArticle} />
       </>
     );
