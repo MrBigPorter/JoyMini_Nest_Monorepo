@@ -281,9 +281,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Clear all user data and soft-delete account' })
   @ApiOkResponse({ type: ClearUserDataResponseDto })
   @HttpCode(HttpStatus.OK)
-  async clearUserData(
-    @CurrentUserId() userId: string,
-  ) {
+  async clearUserData(@CurrentUserId() userId: string) {
     const result = await this.auth.clearUserData(userId);
     return {
       code: 10000,

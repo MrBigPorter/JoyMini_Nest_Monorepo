@@ -30,35 +30,35 @@ export default async function sitemap({
 
   // 静态页面 - 高优先级
   sitemapEntries.push({
-    url: `${baseUrl}/${locale}`,
+    url: `${baseUrl}/${locale}/`,
     lastModified: new Date(),
     changeFrequency: 'daily' as const,
     priority: 1.0,
   });
 
   sitemapEntries.push({
-    url: `${baseUrl}/${locale}/about`,
+    url: `${baseUrl}/${locale}/about/`,
     lastModified: new Date(),
     changeFrequency: 'monthly' as const,
     priority: 0.7,
   });
 
   sitemapEntries.push({
-    url: `${baseUrl}/${locale}/categories`,
+    url: `${baseUrl}/${locale}/categories/`,
     lastModified: new Date(),
     changeFrequency: 'weekly' as const,
     priority: 0.8,
   });
 
   sitemapEntries.push({
-    url: `${baseUrl}/${locale}/tags`,
+    url: `${baseUrl}/${locale}/tags/`,
     lastModified: new Date(),
     changeFrequency: 'weekly' as const,
     priority: 0.8,
   });
 
   sitemapEntries.push({
-    url: `${baseUrl}/${locale}/search`,
+    url: `${baseUrl}/${locale}/search/`,
     lastModified: new Date(),
     changeFrequency: 'daily' as const,
     priority: 0.6,
@@ -74,7 +74,7 @@ export default async function sitemap({
 
     articlesResponse.items?.forEach((article) => {
       sitemapEntries.push({
-        url: `${baseUrl}/${locale}/articles/${article.slug}`,
+        url: `${baseUrl}/${locale}/articles/${article.slug}/`,
         lastModified: new Date(article.updatedAt),
         changeFrequency: 'weekly' as const,
         priority: 0.9,
@@ -85,7 +85,7 @@ export default async function sitemap({
     const categories = await frontendBlogApi.getCategories(locale);
     categories.forEach((category) => {
       sitemapEntries.push({
-        url: `${baseUrl}/${locale}/categories/${category.slug}`,
+        url: `${baseUrl}/${locale}/categories/${category.slug}/`,
         lastModified: new Date(),
         changeFrequency: 'weekly' as const,
         priority: 0.8,
@@ -96,7 +96,7 @@ export default async function sitemap({
     const tags = await frontendBlogApi.getTags(locale);
     tags.forEach((tag) => {
       sitemapEntries.push({
-        url: `${baseUrl}/${locale}/tags/${tag.slug}`,
+        url: `${baseUrl}/${locale}/tags/${tag.slug}/`,
         lastModified: new Date(),
         changeFrequency: 'weekly' as const,
         priority: 0.7,
