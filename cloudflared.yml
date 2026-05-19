@@ -32,5 +32,9 @@ ingress:
   - hostname: liveness-dev.joyminis.com
     service: http://localhost:80
 
+  # CodePush Server — 热更新服务 (直连容器端口，不需要 Nginx)
+  - hostname: codepush.joyminis.com
+    service: http://localhost:3000
+
   # Fallback rule - return 404 for unmatched requests
   - service: http_status:404

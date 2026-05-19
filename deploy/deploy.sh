@@ -90,6 +90,9 @@ sync_configs() {
     scp nginx/whitelist.conf                "$SSH_TARGET:$VPS_DIR/nginx/"
     scp redis/redis.conf                    "$SSH_TARGET:$VPS_DIR/redis/"
 
+    # CodePush 热更新服务
+    scp compose.codepush.yml                "$SSH_TARGET:$VPS_DIR/"
+
     # 静态文件目录 (如果存在)
     if [ -d "nginx/html" ] && [ "$(ls -A nginx/html 2>/dev/null)" ]; then
         scp -r nginx/html/ "$SSH_TARGET:$VPS_DIR/nginx/"

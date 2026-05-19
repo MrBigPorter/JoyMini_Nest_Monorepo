@@ -1,0 +1,216 @@
+# ==========================================
+# CodePush Server — Docker Compose
+# ==========================================
+# 独立的 CodePush 热更新服务，与 compose.prod.yml 共存
+#
+# 使用方法:
+#   docker compose -f compose.codepush.yml up -d
+#
+# 组件:
+#   - code-push-server (lisong/code-push-server npm v5.7.1, MIT)
+#     GitHub: https://github.com/lisong/code-push-server
+#   - MySQL 8.0 (数据库 — code-push-server 必备)
+#   - Redis 7-alpine (可选，用于登录频率限制)
+#
+# 环境变量 (来自 config/config.js):
+#   RDS_HOST, RDS_PORT, RDS_USERNAME, DATA_BASE    — MySQL 连接
+#   STORAGE_DIR, LOCAL_DOWNLOAD_URL                 — 本地存储
+#   TOKEN_SECRET            — JWT 签名密钥 (首次启动自动生成)
+#   STORAGE_TYPE            — local / qiniu / s3 / oss / tencentcloud
+#   REDIS_HOST, REDIS_PORT  — Redis 连接
+#
+# 存储: 本地文件系统 (STORAGE_TYPE=local)
+#   更新包 (.zip) 存储在 codepush-storage volume
+#
+# 认证方式:
+#   1. 手动插入管理员用户到 MySQL (无需 SMTP)
+#   2. 通过 REST API 登录获取 JWT token
+#   3. 通过 REST API 创建 Access Key
+#
+# 内存预算 (8GB 服务器):
+#   OS + Docker:         ~500 MB
+#   现有服务 (compose.prod.yml): ~4.6 GB
+#   MySQL 8.0:          ~256-512 MB
+#   code-push-server:   ~80-128 MB
+#   Redis:              ~16-32 MB
+#   Swap 兜底:           2 GB
+#   总计:                ~5.8 GB 容器 + 2 GB swap，预留 ~200 MB 弹性空间
+# ==========================================
+
+services:
+  # =========================================
+  # MySQL 8.0 — code-push-server 的数据库
+  # 注意：与 compose.prod.yml 的 PostgreSQL 不同，
+  # 这是独立的 MySQL 实例
+  # =========================================
+  codepush-mysql:
+    image: mysql:8.0
+    container_name: lucky-codepush-mysql
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+    volumes:
+      - codepush-mysql-data:/var/lib/mysql
+    environment:
+      # CRITICAL: code-push-server-db init CLI 和 code-push-server 运行时
+      # 均不支持密码认证 (无 --password 选项 / 无 RDS_PASSWORD 环境变量)
+      # 此 MySQL 仅暴露在内部 Docker 网络 (无 host 端口映射)，安全风险可控
+      MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+      MYSQL_DATABASE: codepush
+    # CRITICAL: MySQL 8.0 默认使用 caching_sha2_password 认证插件，
+    # 但 code-push-server 使用的旧版 Sequelize v4.44.4 + mysql2 驱动
+    # 不支持此协议。必须降级为 mysql_native_password 才能正常连接。
+    command: --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root --silent || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    expose:
+      - "3306"
+    networks: [app]
+
+  # =========================================
+  # Redis 7-alpine — 可选，用于登录频率限制
+  # 不配置 Redis 也能正常运行
+  # =========================================
+  codepush-redis:
+    image: redis:7-alpine
+    container_name: lucky-codepush-redis
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 32M
+        reservations:
+          memory: 16M
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    expose:
+      - "6379"
+    networks: [app]
+
+  # =========================================
+  # CodePush Server
+  # 使用 lisong/code-push-server npm 包 (v5.7.1)
+  # - MySQL 驱动 (mysql2)
+  # - 本地文件系统存储 (STORAGE_TYPE=local)
+  # - JWT 认证
+  # =========================================
+  codepush:
+    image: node:18-alpine
+    container_name: lucky-codepush-prod
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 80M
+    command: >
+      sh -c "
+        echo '>>> Installing code-push-server...' &&
+        npm install -g code-push-server@5.7.1 &&
+
+        echo '>>> Waiting for MySQL to be ready...' &&
+        mysql_ready=false &&
+        for i in \$$(seq 1 30); do
+          if node -e \"require('net').createConnection({host:'codepush-mysql',port:3306},function(){process.exit(0)}).on('error',function(){process.exit(1)})\" 2>/dev/null; then
+            echo '  MySQL is ready!'
+            mysql_ready=true
+            break
+          fi
+          echo \"  attempt \$$i/30...\"
+          sleep 2
+        done &&
+        if [ \"\$$mysql_ready\" = false ]; then
+          echo '  All 30 attempts failed, exiting.'
+          exit 1
+        fi &&
+
+        echo '>>> Initializing database schema...' &&
+        code-push-server-db init --dbhost codepush-mysql --dbuser root --dbport 3306 --force &&
+
+        echo '>>> Generating TOKEN_SECRET if missing...' &&
+        if [ -z \"\$${TOKEN_SECRET}\" ] || [ \"\$${TOKEN_SECRET}\" = '<generate-with-openssl-rand-63-chars>' ]; then
+          export TOKEN_SECRET=\$$(node -e \"console.log(require('crypto').randomBytes(48).toString('base64').replace(/[^A-Za-z0-9]/g,'').slice(0,63))\")
+          echo '  Generated new TOKEN_SECRET.'
+        fi &&
+
+        echo '>>> Starting code-push-server on port 3000...' &&
+        code-push-server
+      "
+    environment:
+      # ── MySQL 连接 (config/config.js: RDS_*) ──
+      - RDS_HOST=codepush-mysql
+      - RDS_PORT=3306
+      - RDS_USERNAME=root
+      - DATA_BASE=codepush
+
+      # ── 本地文件存储 ──
+      - STORAGE_TYPE=local
+      - STORAGE_DIR=/data/storage
+      - LOCAL_DOWNLOAD_URL=https://codepush.joyminis.com/download
+      - DATA_DIR=/data/tmp
+
+      # ── JWT 签名密钥 (若未设置，启动时自动生成随机密钥) ──
+      # 如需固定密钥，可通过环境变量 TOKEN_SECRET 传入
+      - TOKEN_SECRET=${TOKEN_SECRET:-<generate-with-openssl-rand-63-chars>}
+
+      # ── 服务器配置 ──
+      - PORT=3000
+      - NODE_ENV=production
+
+      # ── Redis (可选) ──
+      - REDIS_HOST=codepush-redis
+      - REDIS_PORT=6379
+    healthcheck:
+      # TCP 端口探测：不依赖 HTTP 路由，只检查 3000 端口是否在监听
+      test: ["CMD-SHELL", "node -e \"require('net').createConnection({port:3000,host:'localhost'},()=>process.exit(0)).on('error',()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
+    volumes:
+      - codepush-storage:/data/storage
+      - codepush-tmp:/data/tmp
+    depends_on:
+      codepush-mysql:
+        condition: service_healthy
+      codepush-redis:
+        condition: service_healthy
+    expose:
+      - "3000"
+    networks: [app]
+
+networks:
+  app:
+    external: true  # 使用 compose.prod.yml 中定义的 app 网络
+
+volumes:
+  codepush-mysql-data:
+  codepush-storage:
+  codepush-tmp:
