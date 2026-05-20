@@ -194,6 +194,7 @@ volumes:
 | `BlurhashImage` srcSet 不同（quality=75 vs quality=45）    | `useNetworkQuality` 初始值读 `navigator.connection`        | 固定初始值为 `'unknown'`，useEffect 更新 | `useNetworkQuality.ts`           |
 | `<img>` srcSet 属性不同（width 列表差异）                  | Turbopack dev 模式下 image config server/client 不同步     | `suppressHydrationWarning`               | `BlurhashImage.tsx`              |
 | `isBackNavigation` 导致 displayArticles 顺序不同           | `typeof window !== 'undefined'` 在 render 路径里           | `useState(false)` + `useEffect` 设置     | `page.client.tsx`                |
+| `AboutFounderAvatar` 的 `<img>` data-nimg/srcSet 属性不同  | Turbopack server/client bundle 不同步：fill 分支 SSR 用 plain `<img>`，client bundle 用旧 `<Image>` 代码，导致 `data-nimg="fill"` 和 `srcSet` 在客户端出现 | `suppressHydrationWarning` 双层防御 + 增强 `dev-clean.sh` 进程杀死逻辑 | `BlurhashImage.tsx` + `dev-clean.sh` |
 
 ---
 

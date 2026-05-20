@@ -1,4 +1,4 @@
-import { IsString, MinLength } from 'class-validator';
+import { IsString, MinLength } from "class-validator";
 
 export class AdminLoginDto {
   @IsString()
@@ -8,4 +8,3 @@ export class AdminLoginDto {
   @MinLength(6)
   password!: string;
 }
-

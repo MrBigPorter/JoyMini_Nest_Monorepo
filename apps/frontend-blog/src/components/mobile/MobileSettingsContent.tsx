@@ -15,6 +15,7 @@ import {
   User,
   Bookmark,
   LogOut,
+  Shield,
   ChevronRight,
   Check,
 } from 'lucide-react';
@@ -262,6 +263,21 @@ export function MobileSettingsContent({ onClose }: MobileSettingsContentProps) {
             <ChevronRight className="w-5 h-5 text-red-500/70" />
           </button>
         )}
+
+        {/* 隐私政策 */}
+        <Link
+          href="/privacy"
+          onClick={onClose}
+          className="w-full flex items-center justify-between p-4 rounded-xl hover:bg-accent transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+              <Shield className="w-5 h-5 text-primary" />
+            </div>
+            <div className="font-medium">{t('common.privacy')}</div>
+          </div>
+          <ChevronRight className="w-5 h-5 text-muted-foreground" />
+        </Link>
       </div>
     </div>
   );

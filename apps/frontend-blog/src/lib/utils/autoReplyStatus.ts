@@ -402,7 +402,7 @@ export function isAutoReplyComment(comment: any): boolean {
     comment.author === 'Porter' ||
     comment.author === 'System' ||
     comment.isAiGenerated === true ||
-    comment.email === 'porter@joyminis.com' ||
-    comment.email === 'system@joyminis.com'
+    comment.email === 'mrporterdev@gmail.com' ||
+    comment.email === 'mrporterdev@gmail.com'
   );
 }

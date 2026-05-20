@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import Image from 'next/image';
 import { decode } from 'blurhash';
+import { getOptimizedImageUrl } from '@/lib/utils/cloudflareImageLoader';
 
 interface BlurhashImageProps {
   src?: string;
@@ -48,29 +48,27 @@ function setCachedBlurhashUrl(
   url: string,
 ): void {
   const cacheKey = `${hash}:${width}:${height}`;
-  // Evict oldest if over limit
   if (blurhashCache.size >= BLURHASH_CACHE_MAX) {
-    const oldestKey = blurhashCache.keys().next().value;
-    if (oldestKey) blurhashCache.delete(oldestKey);
+    // Delete oldest entry (LRU)
+    const firstKey = blurhashCache.keys().next().value;
+    if (firstKey) blurhashCache.delete(firstKey);
   }
   blurhashCache.set(cacheKey, url);
 }
 
 /**
- * Decodes a BlurHash string into a data URL for use as a CSS background.
- * Results are cached globally to avoid re-decoding on component remount.
- * Uses the `blurhash` package's `decode` function directly (no react-blurhash dependency).
+ * Decode a blurhash string into a small data URL (CSS background).
+ * Runs synchronously on the calling thread (blurhash decode is fast for small sizes).
  */
 function blurhashToDataUrl(
   hash: string,
   width: number,
   height: number,
 ): string {
-  try {
-    // Check cache first
-    const cached = getCachedBlurhashUrl(hash, width, height);
-    if (cached) return cached;
+  const cached = getCachedBlurhashUrl(hash, width, height);
+  if (cached) return cached;
 
+  try {
     const pixels = decode(hash, width, height);
     const canvas = document.createElement('canvas');
     canvas.width = width;
@@ -91,18 +89,25 @@ function blurhashToDataUrl(
 }
 
 /**
- * Image component with BlurHash overlay
+ * BlurhashImage - client component that handles progressive image loading.
  *
- * Rendering approach (smooth like text, no flash):
- * - Image renders at full opacity immediately (no fade-in transition)
- * - Blurhash placeholder is placed ON TOP of the image as an overlay (z-20)
- * - When the real image finishes loading, the blurhash overlay fades OUT
- * - Image was already rendered and visible behind the overlay the whole time
- * - This eliminates the "flash" that occurs when image fades in and blurhash disappears
+ * Uses plain <img> elements instead of Next.js <Image> for ALL cases because:
+ * 1. Next.js 15.2.4+ has a bug where suppressHydrationWarning is not forwarded
+ *    to the rendered <img> element, making hydration errors inevitable when
+ *    Turbopack's SSR and browser bundles get out of sync.
+ * 2. Using <img> with a custom Cloudflare Image Resizing URL avoids the dual
+ *    code path problem entirely — both 'fill' and '!fill' branches produce the
+ *    same <img> element, so even if SSR and browser bundles are out of sync,
+ *    the rendered HTML is identical and no hydration mismatch occurs.
+ * 3. Cloudflare Image Resizing provides equivalent optimization (format selection,
+ *    resizing, CDN delivery) at the edge without Next.js server-side processing.
  *
- * Performance optimizations:
- * - Global blurhash LRU cache avoids re-decoding on category switch remount
- * - Blurhash overlay fade-out (300ms) provides buttery-smooth transition
+ * Key features:
+ * - Blurhash placeholder decoding (client-side, cached globally)
+ * - Fade-in transition from blurhash overlay to actual image
+ * - LRU cache for decoded blurhash data URLs (avoids re-decoding)
+ * - Graceful error fallback with SVG placeholder
+ * - Supports both fill (absolute positioning) and explicit dimensions modes
  */
 export function BlurhashImage({
   src,
@@ -173,38 +178,40 @@ export function BlurhashImage({
       {/* Actual image - always at full opacity, no transition needed */}
       {/* Blurhash overlay sits on top (z-20) and fades out when image loads */}
       {!hasError ? (
-        fill ? (
-          <Image
-            src={src}
-            alt={alt}
+        <img
+          src={getOptimizedImageUrl({
+            src,
+            width: fill ? 1280 : width,
+            quality: quality ?? 75,
+          })}
+          alt={alt}
+          width={fill ? undefined : width}
+          height={fill ? undefined : height}
+          sizes={sizes}
+          className="object-cover"
+          loading={priority ? 'eager' : 'lazy'}
+          fetchPriority={priority ? 'high' : 'auto'}
+          decoding="async"
+          onLoad={handleLoad}
+          onError={handleError}
+          style={
             fill
-            priority={priority}
-            quality={quality}
-            sizes={sizes}
-            className="object-cover"
-            onLoad={handleLoad}
-            onError={handleError}
-            // Next.js Image passes this through to <img>.
-            // Turbopack dev can generate slightly different srcSet on server vs
-            // client (known issue). suppressHydrationWarning silences the warning
-            // without affecting functionality — the browser picks the best srcSet
-            // entry regardless of which side's value is used.
-            suppressHydrationWarning
-          />
-        ) : (
-          <Image
-            src={src}
-            alt={alt}
-            width={width}
-            height={height}
-            priority={priority}
-            quality={quality}
-            className="object-cover"
-            onLoad={handleLoad}
-            onError={handleError}
-            suppressHydrationWarning
-          />
-        )
+              ? {
+                  position: 'absolute',
+                  height: '100%',
+                  width: '100%',
+                  left: 0,
+                  top: 0,
+                  right: 0,
+                  bottom: 0,
+                  objectFit: 'cover',
+                  color: 'transparent',
+                }
+              : {
+                  color: 'transparent',
+                }
+          }
+        />
       ) : (
         <div className="flex items-center justify-center w-full h-full bg-slate-100 dark:bg-slate-800 text-slate-400 relative z-10">
           <svg
@@ -223,24 +230,19 @@ export function BlurhashImage({
         </div>
       )}
 
-      {/* BlurHash overlay - always rendered on TOP of image, fades out when loaded */}
-      {placeholderUrl && (
+      {/* Blurhash overlay — rendered on top of image (z-20), fades out on load */}
+      {blurhash && placeholderUrl && (
         <div
-          className={`absolute inset-0 z-20 bg-cover bg-center transition-opacity duration-300 ${
-            isLoaded ? 'opacity-0 pointer-events-none' : 'opacity-100'
-          }`}
+          className="absolute inset-0 z-20 transition-opacity duration-300"
           style={{
             backgroundImage: `url(${placeholderUrl})`,
             backgroundSize: 'cover',
-            filter: 'blur(8px)',
-            transform: 'scale(1.1)',
+            backgroundPosition: 'center',
+            opacity: isLoaded ? 0 : 1,
+            pointerEvents: 'none',
           }}
+          aria-hidden="true"
         />
-      )}
-
-      {/* Gray placeholder overlay when no blurhash */}
-      {!placeholderUrl && !isLoaded && (
-        <div className="absolute inset-0 z-20 bg-slate-200 dark:bg-slate-700 animate-pulse" />
       )}
     </div>
   );

@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import dynamic from 'next/dynamic';
 import Headroom from 'react-headroom';
 import { useLocale, useTranslations } from 'next-intl';
 import { Link, useRouter, usePathname } from '@/navigation';
@@ -21,25 +20,9 @@ import { useAuth } from '@/lib/hooks/useAuth';
 import { useAuthStore } from '@/lib/stores/auth.store';
 import { useSearchShortcut } from '@/lib/hooks/useKeyboardShortcut';
 import { ProtectedLink } from '@/components/auth/ProtectedLink';
-
-const SearchModal = dynamic(
-  () => import('./search/SearchModal').then((mod) => mod.SearchModal),
-  { ssr: false },
-);
-const MobileSettingsDrawer = dynamic(
-  () =>
-    import('./mobile/MobileSettingsDrawer').then(
-      (mod) => mod.MobileSettingsDrawer,
-    ),
-  { ssr: false },
-);
-const MobileSettingsContent = dynamic(
-  () =>
-    import('./mobile/MobileSettingsContent').then(
-      (mod) => mod.MobileSettingsContent,
-    ),
-  { ssr: false },
-);
+import { SearchModal } from './search/SearchModal';
+import { MobileSettingsDrawer } from './mobile/MobileSettingsDrawer';
+import { MobileSettingsContent } from './mobile/MobileSettingsContent';
 
 interface LocaleConfig {
   code: string;
@@ -337,6 +320,21 @@ export default function Header() {
                     </div>
                   )}
               </div>
+
+              {/* 隐私政策链接 */}
+              <Link
+                href="/privacy"
+                className="text-xs text-muted-foreground hover:text-foreground hover:underline transition-colors whitespace-nowrap"
+              >
+                {t('common.privacy')}
+              </Link>
+
+              <span
+                className="text-muted-foreground/20 select-none"
+                aria-hidden="true"
+              >
+                |
+              </span>
 
               {/* 登录/用户按钮 */}
               {showAuthLoading ? (

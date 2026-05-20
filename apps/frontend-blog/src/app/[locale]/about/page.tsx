@@ -29,7 +29,14 @@ const teamMembers = [
     avatar:
       'https://img.joyminis.com/Gemini_Generated_Image_l8u1b7l8u1b7l8u1.png',
     github: 'https://github.com/MrBigPorter',
-    skills: ['TypeScript', 'React', 'Node.js', 'Flutter', 'DevOps'],
+    skills: [
+      'TypeScript',
+      'React',
+      'React Native',
+      'Node.js',
+      'Flutter',
+      'DevOps',
+    ],
   },
 ];
 
@@ -54,6 +61,22 @@ const techStackGroups = [
       { name: 'Shorebird', icon: '🔄', descriptionKey: 'techShorebird' },
       { name: 'Capacitor', icon: '🔋', descriptionKey: 'techCapacitor' },
       { name: 'sembast', icon: '💾', descriptionKey: 'techSembast' },
+      { name: 'React Native', icon: '📱', descriptionKey: 'techReactNative' },
+      { name: 'Redux Toolkit', icon: '🔄', descriptionKey: 'techReduxToolkit' },
+      { name: 'RTK Query', icon: '🔌', descriptionKey: 'techRtkQuery' },
+      { name: 'Reanimated', icon: '✨', descriptionKey: 'techReanimated' },
+      {
+        name: 'React Navigation',
+        icon: '🧭',
+        descriptionKey: 'techReactNavigation',
+      },
+      {
+        name: 'Gesture Handler',
+        icon: '🤌',
+        descriptionKey: 'techGestureHandler',
+      },
+      { name: 'MMKV', icon: '💾', descriptionKey: 'techMmkv' },
+      { name: 'i18next', icon: '🌐', descriptionKey: 'techI18next' },
     ],
   },
   {
@@ -418,14 +441,7 @@ export default async function AboutPage({
             </div>
             <p className="text-muted-foreground">{t('about.madeWithLove')}</p>
           </div>
-          <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground">
-            <Link
-              href="/privacy"
-              className="hover:text-foreground transition-colors underline underline-offset-2"
-            >
-              Privacy Policy
-            </Link>
-            <span aria-hidden="true">·</span>
+          <div className="text-sm text-muted-foreground">
             <span>{t('about.copyright')}</span>
           </div>
         </div>

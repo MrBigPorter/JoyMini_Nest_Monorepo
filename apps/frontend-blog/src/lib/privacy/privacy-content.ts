@@ -79,7 +79,7 @@ Depending on your jurisdiction, you may have the right to:
 - **Objection**: Object to processing of your data for marketing purposes
 - **Withdraw Consent**: Withdraw consent at any time (does not affect lawfulness of prior processing)
 
-To exercise these rights, contact us at **privacy@tarsierlabs.com**.
+To exercise these rights, contact us at **mrporterdev@gmail.com**.
 
 ## 6. Third-Party Services
 
@@ -118,7 +118,7 @@ We may update this Privacy Policy from time to time. Material changes will be no
 
 If you have questions about this Privacy Policy, please contact us:
 
-- **Email**: privacy@tarsierlabs.com
+- **Email**: mrporterdev@gmail.com
 - **Address**: Tarsier Labs, Bohol, Philippines
 - **In-App**: Settings → About Tarsier
 
@@ -197,7 +197,7 @@ If you have questions about this Privacy Policy, please contact us:
 - **反对权**：反对为营销目的处理您的数据
 - **撤回同意**：随时撤回同意（不影响此前处理的合法性）
 
-如需行使这些权利，请通过 **privacy@tarsierlabs.com** 联系我们。
+如需行使这些权利，请通过 **mrporterdev@gmail.com** 联系我们。
 
 ## 6. 第三方服务
 
@@ -236,7 +236,7 @@ If you have questions about this Privacy Policy, please contact us:
 
 如果您对本隐私政策有任何疑问，请联系我们：
 
-- **电子邮件**：privacy@tarsierlabs.com
+- **电子邮件**：mrporterdev@gmail.com
 - **地址**：Tarsier Labs，菲律宾保和省
 - **应用内**：设置 → 关于Tarsier
 
@@ -301,7 +301,7 @@ If you have questions about this Privacy Policy, please contact us:
 - **異議権**：マーケティング目的でのデータ処理に異議を唱える権利
 - **同意の撤回**：いつでも同意を撤回する権利（それ以前の処理の合法性には影響しません）
 
-これらの権利を行使するには、**privacy@tarsierlabs.com** までお問い合わせください。
+これらの権利を行使するには、**mrporterdev@gmail.com** までお問い合わせください。
 
 ## 6. 第三者サービス
 
@@ -340,7 +340,7 @@ If you have questions about this Privacy Policy, please contact us:
 
 本プライバシーポリシーに関するご質問は、以下までお問い合わせください：
 
-- **メール**：privacy@tarsierlabs.com
+- **メール**：mrporterdev@gmail.com
 - **住所**：Tarsier Labs、フィリピン・ボホール州
 - **アプリ内**：設定 → Tarsierについて
 
@@ -405,7 +405,7 @@ If you have questions about this Privacy Policy, please contact us:
 - **반대권**: 마케팅 목적의 데이터 처리에 반대할 권리
 - **동의 철회권**: 언제든지 동의를 철회할 권리(이전 처리의 적법성에는 영향 없음)
 
-이러한 권리를 행사하려면 **privacy@tarsierlabs.com**으로 연락해 주십시오.
+이러한 권리를 행사하려면 **mrporterdev@gmail.com**으로 연락해 주십시오.
 
 ## 6. 제3자 서비스
 
@@ -444,7 +444,7 @@ If you have questions about this Privacy Policy, please contact us:
 
 본 개인정보처리방침에 관한 질문이 있으시면 다음으로 연락해 주십시오:
 
-- **이메일**: privacy@tarsierlabs.com
+- **이메일**: mrporterdev@gmail.com
 - **주소**: Tarsier Labs, 필리핀 보홀주
 - **앱 내**: 설정 → Tarsier 소개
 
@@ -509,7 +509,7 @@ Selon votre juridiction, vous pouvez avoir le droit de :
 - **Opposition** : Vous opposer au traitement de vos données à des fins marketing
 - **Retrait du consentement** : Retirer votre consentement à tout moment (sans affecter la légalité du traitement antérieur)
 
-Pour exercer ces droits, contactez-nous à **privacy@tarsierlabs.com**.
+Pour exercer ces droits, contactez-nous à **mrporterdev@gmail.com**.
 
 ## 6. Services tiers
 
@@ -548,7 +548,7 @@ Nous pouvons mettre à jour cette politique de confidentialité de temps à autr
 
 Si vous avez des questions concernant cette politique de confidentialité, veuillez nous contacter :
 
-- **E-mail** : privacy@tarsierlabs.com
+- **E-mail** : mrporterdev@gmail.com
 - **Adresse** : Tarsier Labs, Bohol, Philippines
 - **Dans l'application** : Paramètres → À propos de Tarsier
 
@@ -613,7 +613,7 @@ Abhängig von Ihrem Gerichtsstand haben Sie möglicherweise das Recht auf:
 - **Widerspruch**: Widerspruch gegen die Verarbeitung Ihrer Daten zu Marketingzwecken
 - **Widerruf der Einwilligung**: Jederzeitiger Widerruf der Einwilligung (die Rechtmäßigkeit der bisherigen Verarbeitung bleibt unberührt)
 
-Zur Ausübung dieser Rechte kontaktieren Sie uns unter **privacy@tarsierlabs.com**.
+Zur Ausübung dieser Rechte kontaktieren Sie uns unter **mrporterdev@gmail.com**.
 
 ## 6. Drittanbieterdienste
 
@@ -652,7 +652,7 @@ Wir können diese Datenschutzerklärung von Zeit zu Zeit aktualisieren. Wesentli
 
 Bei Fragen zu dieser Datenschutzerklärung kontaktieren Sie uns bitte:
 
-- **E-Mail**: privacy@tarsierlabs.com
+- **E-Mail**: mrporterdev@gmail.com
 - **Adresse**: Tarsier Labs, Bohol, Philippinen
 - **In der App**: Einstellungen → Über Tarsier
 
