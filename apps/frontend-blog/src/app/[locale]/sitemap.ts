@@ -44,6 +44,13 @@ export default async function sitemap({
   });
 
   sitemapEntries.push({
+    url: `${baseUrl}/${locale}/privacy/`,
+    lastModified: new Date(),
+    changeFrequency: 'monthly' as const,
+    priority: 0.5,
+  });
+
+  sitemapEntries.push({
     url: `${baseUrl}/${locale}/categories/`,
     lastModified: new Date(),
     changeFrequency: 'weekly' as const,
