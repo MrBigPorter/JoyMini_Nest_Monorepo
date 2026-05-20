@@ -196,11 +196,6 @@ export function ArticleCard({
                       coverImageUrl
                     : coverImageUrl || undefined
                 }
-                posterWebp={
-                  'meta' in article
-                    ? (article as FrontendArticle).meta?.video?.posterWebp
-                    : undefined
-                }
                 className="w-full h-full"
                 videoClassName="object-cover transition-transform duration-300 group-hover:scale-105"
                 clickToPlay
@@ -334,13 +329,13 @@ export function ArticleCard({
       >
         <div className="min-w-0 space-y-3">
           {/* 标题 */}
-          <h3
+          <h2
             className={`break-words font-semibold text-slate-800 dark:text-slate-200 group-hover:text-primary-600 dark:group-hover:text-primary-500 transition-colors line-clamp-2 ${
               compact ? 'text-base pr-10' : 'text-lg pr-12'
             }`}
           >
             {article.title}
-          </h3>
+          </h2>
 
           {/* 摘要 */}
           {!compact && (

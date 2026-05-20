@@ -373,6 +373,7 @@ contentLocalized[targetLang] = (() => {
 | 8   | **Variants uploaded to wrong bucket**       | Used private bucket for public media                 | Created uploadToPublicBucket() method                                | [`upload.service.ts`](apps/api/src/common/upload/upload.service.ts)                                                                                                            |
 | 9   | **Large videos cause OOM**                  | No file size checks before processing                | Check file size before download: max 500MB                           | [`media.processor.ts:57`](apps/api/src/common/media/media.processor.ts:57)                                                                                                     |
 | 10  | **DOMPurify SSR crash**                     | Turbopack resolves dynamic import statically         | next/dynamic with ssr:false                                          | [`SanitizedContent.tsx`](apps/frontend-blog/src/components/SanitizedContent.tsx)                                                                                               |
+| 11  | **Android HLS audio no playback**           | FFmpeg native `aac` encoder outputs LATM-encapsulated AAC; ExoPlayer HLS demuxer only supports ADTS | Added `-bsf:a aac_adtstoasc` bitstream filter to force ADTS output  | [`media-processor.service.ts:340`](apps/api/src/common/media/media-processor.service.ts:340), [`HlsVideoPlayer.tsx`](apps/frontend-blog/src/components/blog/HlsVideoPlayer.tsx) |
 
 ---
 

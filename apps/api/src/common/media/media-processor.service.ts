@@ -159,15 +159,16 @@ export class MediaProcessorService {
   }
 
   /**
-   * Extract a single frame from the video as JPEG + WebP poster/thumbnail.
-   * Uses ffmpeg to grab frame at 1-second mark, then sharp to convert to WebP.
-   * Returns both JPEG and WebP URLs for browser-based format selection.
+   * Extract a single frame from the video as JPEG poster/thumbnail.
+   * Uses ffmpeg to grab frame at 1-second mark.
+   * Cloudflare CDN's f=auto handles automatic format conversion (AVIF > WebP > JPEG)
+   * so only JPEG is generated and stored.
    */
   async extractVideoThumbnail(
     buffer: Buffer,
     articleId: string,
     videoKey: string,
-  ): Promise<{ jpg: string; webp: string }> {
+  ): Promise<{ jpg: string }> {
     const fs = await import('fs/promises');
     const path = await import('path');
     const os = await import('os');
@@ -197,37 +198,17 @@ export class MediaProcessorService {
           .pop()
           ?.replace(/\.[^/.]+$/, '') || 'unknown';
       const jpgKey = `uploads/blog/videos/${articleId}/${videoId}/poster.jpg`;
-      const webpKey = `uploads/blog/videos/${articleId}/${videoId}/poster.webp`;
 
-      // Upload JPEG poster
+      // Upload JPEG poster — Cloudflare CDN will auto-convert to WebP/AVIF as needed
       await this.uploadService.uploadToPublicBucket(
         jpgKey,
         posterBuffer,
         'image/jpeg',
       );
 
-      // Also generate and upload WebP variant for ~30-50% smaller file size
-      // WebP provides equivalent visual quality at lower file size, improving LCP
-      try {
-        const webpBuffer = await sharp(posterBuffer)
-          .webp({ quality: 80 })
-          .toBuffer();
-        await this.uploadService.uploadToPublicBucket(
-          webpKey,
-          webpBuffer,
-          'image/webp',
-        );
-      } catch (webpError) {
-        this.logger.warn(
-          `Failed to generate WebP poster for article ${articleId}: ${webpError}`,
-        );
-        // Non-fatal — continue with JPEG only
-      }
-
       const baseUrl = `${this.getPublicDomain()}/uploads/blog/videos/${articleId}/${videoId}`;
       return {
         jpg: `${baseUrl}/poster.jpg`,
-        webp: `${baseUrl}/poster.webp`,
       };
     } finally {
       await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
@@ -356,6 +337,12 @@ export class MediaProcessorService {
             'aac',
             '-b:a',
             '128k',
+            // Force AAC ADTS encapsulation (not LATM) for Android ExoPlayer compatibility.
+            // FFmpeg's native aac encoder outputs raw AAC frames; the mpegts muxer wraps
+            // them in LATM by default in some versions, which ExoPlayer cannot decode.
+            // aac_adtstoasc adds standard ADTS headers before muxing into TS segments.
+            '-bsf:a',
+            'aac_adtstoasc',
             '-hls_time',
             '6',
             '-hls_playlist_type',

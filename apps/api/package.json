@@ -26,6 +26,7 @@
     "seed:treasures": "tsx scripts/seed/seed-treasures.ts",
     "seed:blog": "tsx scripts/seed/seed-blog-categories-tags.ts",
     "create-admin": "tsx scripts/cli/create-admin.ts",
+    "batch-retranscode-videos": "tsx scripts/cli/batch-retranscode-videos.ts",
     "build:cli": "tsc -p tsconfig.cli.json",
     "export:swagger": "TS_NODE_TRANSPILE_ONLY=true ts-node -r tsconfig-paths/register scripts/cli/export-swagger.ts",
     "export:swagger:full": "TS_NODE_TRANSPILE_ONLY=true ts-node -r tsconfig-paths/register scripts/cli/export-swagger.ts --full --output ../../apps/swagger-docs"

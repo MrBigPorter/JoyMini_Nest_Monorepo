@@ -250,8 +250,9 @@ export class MediaProcessor extends WorkerHost {
           videoKey,
         );
 
-      // Extract video thumbnail poster (frame at 1s) — returns both JPEG and WebP URLs
-      let posterUrl: { jpg: string; webp: string } | undefined;
+      // Extract video thumbnail poster (frame at 1s) — returns JPEG URL
+      // Cloudflare CDN's f=auto handles automatic WebP/AVIF conversion
+      let posterUrl: { jpg: string } | undefined;
       try {
         posterUrl = await this.mediaProcessorService.extractVideoThumbnail(
           buffer,
@@ -312,7 +313,6 @@ export class MediaProcessor extends WorkerHost {
               video: {
                 ...videoVariants,
                 poster: posterUrl?.jpg,
-                posterWebp: posterUrl?.webp,
                 status: 'completed',
               },
               contentVideo: updatedContentVideo,

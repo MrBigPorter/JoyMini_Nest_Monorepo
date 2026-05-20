@@ -162,16 +162,27 @@ export default async function ArticlePage({
     // 1200px covers PC desktop ~800px prose container + 1.5x HiDPI scaling.
     //
     // If preload width ≠ rendered width → cache miss → no benefit.
-    // NOTE: Video poster URLs (meta.video.poster/posterWebp) are NOT available
-    // during SSR because `meta` is stripped above to reduce RSC payload size.
-    // Those are transformed client-side via `getOptimizedImageUrl` in:
-    //   - HlsVideoPlayer.tsx (for hero section video posters)
-    //   - ArticleMarkdown.tsx (for inline article content image/video poster)
-    // See: apps/frontend-blog/src/components/blog/HlsVideoPlayer.tsx
-    // See: apps/frontend-blog/src/components/blog/ArticleMarkdown.tsx
+    //
+    // ── SSR preload for video poster (if article has a hero video) ────────
+    // `meta` is NOT stripped above (only content/contentMd/relatedArticles are),
+    // so article.meta?.video?.poster is available during SSR.
+    // Transform it through Cloudflare Image Resizing so the preload URL matches
+    // what HlsVideoPlayer will render.
     const preloadedCoverImage = article?.coverImage
       ? getOptimizedImageUrl({
           src: article.coverImage,
+          width: 1200,
+          quality: 75,
+        })
+      : undefined;
+
+    // Extract video poster from article meta. `meta` is retained in initialArticle
+    // (only content/contentMd/relatedArticles are stripped), so video poster URL
+    // is available during SSR.
+    const videoPoster = article?.meta?.video?.poster;
+    const preloadedVideoPoster = videoPoster
+      ? getOptimizedImageUrl({
+          src: videoPoster,
           width: 1200,
           quality: 75,
         })
@@ -198,6 +209,20 @@ export default async function ArticlePage({
             rel="preload"
             as="image"
             href={preloadedCoverImage}
+            fetchPriority="high"
+          />
+        )}
+
+        {/* SSR preload: inject <link rel="preload"> for the video poster.
+            When the article has a hero video with a poster thumbnail, preload
+            it here so the browser can start downloading immediately, avoiding
+            the LCP penalty from waiting for client JS to hydrate and request
+            the poster image. */}
+        {preloadedVideoPoster && (
+          <link
+            rel="preload"
+            as="image"
+            href={preloadedVideoPoster}
             fetchPriority="high"
           />
         )}

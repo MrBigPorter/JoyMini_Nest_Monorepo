@@ -6,6 +6,7 @@ import { Card, Button, Skeleton } from '@/components/UIComponents';
 import { useToastStore } from '@/store/useToastStore';
 import { blogApi, systemConfigApi } from '@/api';
 import { useTranslation } from '@/hooks/useTranslation';
+import { processChunkedBatch } from '@/lib/utils/batchProcessor';
 import LocalizedText from '@/components/blog/LocalizedText';
 import {
   Search,
@@ -235,17 +236,21 @@ export default function BlogTranslationQualityDetection() {
   };
 
   // 批量清空所有不完整文章的翻译并重新翻译
+  // 分块处理以避免 Cloudflare Workers 10ms CPU 限制导致 504
   const handleBatchClear = async () => {
     if (batchClearing || incompleteArticles.length === 0) return;
     setBatchClearing(true);
     try {
       const ids = incompleteArticles.map((a: any) => a.id);
-      const res = await blogApi.translation.clearArticleTranslations(
-        ids,
-        selectedLang,
+      const result = await processChunkedBatch<string>(
+        (chunk) =>
+          blogApi.translation.clearArticleTranslations(chunk, selectedLang),
+        { items: ids, chunkSize: 5, delayMs: 500 },
       );
-      const cleared = (res as any)?.cleared ?? 0;
-      addToast('success', t('batchClearSuccess', { count: cleared }));
+      addToast('success', t('batchClearSuccess', { count: result.succeeded }));
+      if (result.failed > 0) {
+        addToast('error', `${result.failed} articles failed to clear`);
+      }
       setTimeout(() => runDetect(), 1500);
     } catch {
       addToast('error', t('batchClearFailed'));

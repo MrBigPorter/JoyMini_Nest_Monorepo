@@ -165,7 +165,7 @@ const baseConfig: NextConfig = {
     // Cloudflare /cdn-cgi/image/ 自动处理 AVIF/WebP 格式转换（f=auto）
     // 限制生成的图片尺寸，避免为卡片视图（~600px）生成 3840w 的巨图
     // 默认值 [640, 750, 828, 1080, 1200, 1920, 2048, 3840] 会导致单张图片 1.8-2.2MB
-    deviceSizes: [480, 640, 768, 1024, 1280],
+    deviceSizes: [333, 480, 640, 768, 1024, 1280],
     // 明确的小图尺寸，用于 blurhash 等场景
     imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
     minimumCacheTTL: 86400,
@@ -362,10 +362,61 @@ const baseConfig: NextConfig = {
         }
         return plugin;
       });
+      /**
+       * splitChunks — manual cache groups to keep individual JS chunks < 300KB.
+       *
+       * Next.js webpack defaults group shared dependencies into the framework
+       * chunk, but Sentry (~80KB gzipped) and heavy vendor libs like hls.js
+       * (~60KB) get bundled into the main entry chunk, making it ~900KB+ (1MB
+       * unminified). By extracting them into named cache groups we ensure:
+       *   - Sentry is cached separately and only loaded when needed
+       *   - React/vendor libs are in a stable chunk (long-term caching)
+       *   - UI lib (framer-motion, etc.) is isolated from app code
+       *
+       * Each cache group targets a specific set of npm packages. The
+       * `priority` controls which group wins when a module matches
+       * multiple patterns (higher = wins). `reuseExistingChunk` prevents
+       * duplication when a module already exists in an earlier chunk.
+       */
       config.optimization = {
         ...config.optimization,
         minimize: true,
         minimizer,
+        splitChunks: {
+          chunks: 'all',
+          maxInitialRequests: 25,
+          minSize: 20000,
+          cacheGroups: {
+            // Sentry (~80KB gzipped) — low priority so it doesn't steal from app
+            sentry: {
+              test: /[\\/]node_modules[\\/]@sentry[\\/]/,
+              name: 'vendor-sentry',
+              priority: 10,
+              reuseExistingChunk: true,
+            },
+            // Video playback libs — hls.js (~60KB), dashjs, etc.
+            video: {
+              test: /[\\/]node_modules[\\/](hls\.js|mux\.js|dashjs)[\\/]/,
+              name: 'vendor-video',
+              priority: 20,
+              reuseExistingChunk: true,
+            },
+            // Heavy UI/animation libs — framer-motion is ~30KB gzipped
+            ui: {
+              test: /[\\/]node_modules[\\/](framer-motion|@react-spring|popmotion)[\\/]/,
+              name: 'vendor-ui',
+              priority: 15,
+              reuseExistingChunk: true,
+            },
+            // All remaining vendor code split into a stable "vendor" chunk
+            vendor: {
+              test: /[\\/]node_modules[\\/]/,
+              name: 'vendor-libs',
+              priority: 5,
+              reuseExistingChunk: true,
+            },
+          },
+        },
       };
     }
 

@@ -67,11 +67,9 @@ export default async function HomePage({
     const articleIds =
       initialData.items?.map((article: FrontendArticle) => article.id) || [];
 
-    // P1-1: LCP preload — extract first cover image + video poster (JPEG + WebP) for early hint
+    // P1-1: LCP preload — extract first cover image + video poster (JPEG) for early hint
     const firstCoverImage = initialData.items?.[0]?.coverImage;
     const firstVideoPoster = initialData.items?.[0]?.meta?.video?.poster;
-    const firstVideoPosterWebp =
-      initialData.items?.[0]?.meta?.video?.posterWebp;
 
     // Transform cover image URL through cloudflareImageLoader so the preload URL
     // matches what Next.js <Image> will request via /cdn-cgi/image/... (Cloudflare Image Resizing).
@@ -87,21 +85,13 @@ export default async function HomePage({
       : undefined;
 
     // Collect unique image URLs to preload (cover + video poster, deduplicated)
-    // Prefer WebP variant for video poster (~30-50% smaller file size)
     // ⚠️ CRITICAL: Must transform poster URLs through getOptimizedImageUrl() so the
     // preload URL matches what HlsVideoPlayer renders. If preload URL (raw R2) ≠
     // rendered URL (Cloudflare-transformed) → preload cache miss → wasted download.
+    // Cloudflare CDN's f=auto handles automatic WebP/AVIF conversion.
     const preloadImages = new Set<string>();
     if (preloadedCoverImage) preloadImages.add(preloadedCoverImage);
-    if (firstVideoPosterWebp) {
-      preloadImages.add(
-        getOptimizedImageUrl({
-          src: firstVideoPosterWebp,
-          width: 1200,
-          quality: 75,
-        }),
-      );
-    } else if (firstVideoPoster) {
+    if (firstVideoPoster) {
       preloadImages.add(
         getOptimizedImageUrl({
           src: firstVideoPoster,
