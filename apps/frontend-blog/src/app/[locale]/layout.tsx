@@ -10,7 +10,7 @@ import deMessages from '@/messages/de.json';
 import { notFound } from 'next/navigation';
 import Header from '@/components/Header';
 import Sidebar from '@/components/navigation/Sidebar';
-import BottomNavigation from '@/components/BottomNavigation';
+import BottomNavigation from '@/components/BottomNavigationClient';
 import { PageTransition } from '@/components/PageTransition';
 import I18nProvider from '@/lib/providers/I18nProvider';
 import { LOCALES } from '@/lib/i18n/config';

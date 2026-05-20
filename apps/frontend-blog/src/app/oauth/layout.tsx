@@ -1,11 +1,5 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
 import '../globals.css';
-
-const inter = Inter({
-  subsets: ['latin'],
-  variable: '--font-inter',
-});
 
 export const metadata: Metadata = {
   title: 'OAuth Callback - Tarsier Labs',
@@ -18,10 +12,6 @@ export default function OAuthLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div
-      className={`${inter.variable} min-h-screen bg-background text-foreground`}
-    >
-      {children}
-    </div>
+    <div className="min-h-screen bg-background text-foreground">{children}</div>
   );
 }

@@ -7,7 +7,7 @@
 
 
 .PHONY: setup up up-infra down restart logs ps build clean wipe help \
-        dev-admin dev-blog exec-api migrate seed prisma-studio \
+        dev-admin dev-blog dev-blog-clean exec-api migrate seed prisma-studio \
         check-dockerfiles generate-certs \
         check format fix audit type-check \
         deploy deploy-backend deploy-admin deploy-quick deploy-sync \
@@ -112,6 +112,16 @@ dev-admin:
 dev-blog:
 	cd apps/frontend-blog && PORT=4002 yarn dev --turbopack -p 4002
 
+## [前端] 🧹 清理 Blog 开发缓存后重启 (清除 Turbopack 持久化缓存，解决 Hydration Error)
+dev-blog-clean:
+	@echo "→ 杀掉 blog dev server (port 4002)..."
+	@lsof -ti:4002 | xargs kill -9 2>/dev/null || echo "  ⏭️  无进程占用 4002 端口"
+	@sleep 1
+	@echo "→ 清除 .next .turbo 缓存..."
+	@rm -rf apps/frontend-blog/.next apps/frontend-blog/.turbo
+	@echo "→ 重启 dev server..."
+	@cd apps/frontend-blog && PORT=4002 yarn dev --turbopack -p 4002
+
 # ──────────────────────────────────────────
 # Tunnel (Cloudflare 公网隧道)
 # ──────────────────────────────────────────
@@ -178,7 +188,7 @@ type-check:
 
 ## [质量] 🎨 仅运行 Prettier 格式化（不执行 ESLint fix，仅处理代码样式）
 format:
-	yarn prettier --write "**/*.{ts,tsx,js,jsx,css,scss}"
+	yarn format
 
 ## [质量] 🔧 自动修复可修复问题（prettier + eslint --fix）
 fix:

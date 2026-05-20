@@ -124,10 +124,12 @@ function HomePageClientContent({ initialData, ...props }: HomePageClientProps) {
 
   // P0-4: Detect backward navigation to home (article detail → home).
   // When true, we skip SSR initialData seeding and rely on Context data.
-  const isBackNavigation =
-    typeof window !== 'undefined' &&
-    getNavDirection() === 'backward' &&
-    allArticles.length > 0;
+  //
+  // ⚠️ SSR/hydration safety: NEVER use `typeof window !== 'undefined'` in the
+  // render path — server always returns false, client returns true → mismatch.
+  // Instead, use useState(false) so server and client initial renders agree,
+  // then update in useEffect (post-hydration) to the real value.
+  const [isBackNavigation, setIsBackNavigation] = useState(false);
 
   useEffect(() => {
     if (initialSeedDone.current) return;
@@ -143,8 +145,13 @@ function HomePageClientContent({ initialData, ...props }: HomePageClientProps) {
     // Mark hydration complete (runs only on client, not SSR)
     currentSetIsHydrated(true);
 
+    // P0-4: Compute isBackNavigation here (post-hydration) — safe to read window
+    const backNav =
+      getNavDirection() === 'backward' && currentAllArticles.length > 0;
+    setIsBackNavigation(backNav);
+
     // P0-4: On backward navigation, skip SSR seeding — Context already has data.
-    if (!isBackNavigation) {
+    if (!backNav) {
       // Seed accumulated articles from SSR data
       if (
         currentAllArticles.length === 0 &&

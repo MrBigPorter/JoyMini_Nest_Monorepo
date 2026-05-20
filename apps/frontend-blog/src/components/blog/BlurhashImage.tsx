@@ -184,6 +184,12 @@ export function BlurhashImage({
             className="object-cover"
             onLoad={handleLoad}
             onError={handleError}
+            // Next.js Image passes this through to <img>.
+            // Turbopack dev can generate slightly different srcSet on server vs
+            // client (known issue). suppressHydrationWarning silences the warning
+            // without affecting functionality — the browser picks the best srcSet
+            // entry regardless of which side's value is used.
+            suppressHydrationWarning
           />
         ) : (
           <Image
@@ -196,6 +202,7 @@ export function BlurhashImage({
             className="object-cover"
             onLoad={handleLoad}
             onError={handleError}
+            suppressHydrationWarning
           />
         )
       ) : (

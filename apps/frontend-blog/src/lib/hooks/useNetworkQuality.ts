@@ -116,22 +116,29 @@ function getQualityFromType(
  * ```
  */
 export function useNetworkQuality(): NetworkQuality {
-  const [quality, setQuality] = useState<NetworkQuality>(() => {
-    if (typeof navigator === 'undefined') {
-      return getQualityFromType('unknown', false);
-    }
-
-    const conn = (navigator as any).connection;
-    if (!conn) {
-      return getQualityFromType('unknown', false);
-    }
-
-    const saveData = typeof conn.saveData === 'boolean' ? conn.saveData : false;
-    return getQualityFromType(conn.effectiveType || 'unknown', saveData);
-  });
+  // ⚠️ SSR/hydration safety: ALWAYS start with 'unknown' (quality: 75).
+  //
+  // If we read navigator.connection here in the initializer, the server renders
+  // with quality:75 (no navigator) but the client may hydrate with quality:45
+  // (e.g. navigator.connection.effectiveType === '3g' on slow/Cloudflare links).
+  // Different quality → different srcSet URLs → React hydration mismatch.
+  //
+  // By using a static initial value we guarantee server === client during
+  // hydration. The actual network quality is applied in useEffect (post-hydration)
+  // so React re-renders with the correct srcSet without any mismatch error.
+  const [quality, setQuality] = useState<NetworkQuality>(() =>
+    getQualityFromType('unknown', false),
+  );
 
   useEffect(() => {
+    // Read real network quality after hydration completes (client-only)
     const conn = (navigator as any).connection;
+    if (conn) {
+      const saveData =
+        typeof conn.saveData === 'boolean' ? conn.saveData : false;
+      setQuality(getQualityFromType(conn.effectiveType || 'unknown', saveData));
+    }
+
     if (!conn) return;
 
     const handleChange = () => {

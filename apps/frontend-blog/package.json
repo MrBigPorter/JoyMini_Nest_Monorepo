@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:clean": "bash scripts/dev-clean.sh",
     "build": "next build",
     "postbuild": "bash scripts/copy-manifests.sh",
     "build:app": "BUILD_TARGET=app next build",
@@ -54,6 +55,7 @@
     "@emotion/react": "^11.11.4",
     "@emotion/server": "^11.11.0",
     "@emotion/styled": "^11.11.0",
+    "@fontsource-variable/inter": "^5.2.8",
     "@hookform/resolvers": "^3.3.2",
     "@lucky/shared": "workspace:*",
     "@opennextjs/cloudflare": "^1.17.1",

@@ -5796,6 +5796,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@fontsource-variable/inter@npm:^5.2.8":
+  version: 5.2.8
+  resolution: "@fontsource-variable/inter@npm:5.2.8"
+  checksum: 10c0/35b46df31c8c18f55f87228acf6297e4dac6cc9f38d0faaafdaf5a40e40c386cf1bfb115fb0fe0dcdb9b7e14f582843693ccf070d9c903072a5b2fc0f8dfde56
+  languageName: node
+  linkType: hard
+
 "@formatjs/ecma402-abstract@npm:2.3.6":
   version: 2.3.6
   resolution: "@formatjs/ecma402-abstract@npm:2.3.6"
@@ -7818,6 +7825,7 @@ __metadata:
     "@emotion/react": "npm:^11.11.4"
     "@emotion/server": "npm:^11.11.0"
     "@emotion/styled": "npm:^11.11.0"
+    "@fontsource-variable/inter": "npm:^5.2.8"
     "@hookform/resolvers": "npm:^3.3.2"
     "@lucky/shared": "workspace:*"
     "@next/bundle-analyzer": "npm:15.4.3"
