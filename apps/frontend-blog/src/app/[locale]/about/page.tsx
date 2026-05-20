@@ -418,9 +418,16 @@ export default async function AboutPage({
             </div>
             <p className="text-muted-foreground">{t('about.madeWithLove')}</p>
           </div>
-          <p className="text-sm text-muted-foreground">
-            {t('about.copyright')}
-          </p>
+          <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground">
+            <Link
+              href="/privacy"
+              className="hover:text-foreground transition-colors underline underline-offset-2"
+            >
+              Privacy Policy
+            </Link>
+            <span aria-hidden="true">·</span>
+            <span>{t('about.copyright')}</span>
+          </div>
         </div>
       </footer>
     </div>
