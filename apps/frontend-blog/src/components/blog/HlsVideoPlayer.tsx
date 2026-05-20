@@ -371,7 +371,7 @@ export function HlsVideoPlayer({
       ) : (
         <video
           ref={videoRef}
-          className={`w-full h-full object-contain ${videoClassName}`}
+          className={`w-full h-full ${videoClassName}`}
           poster={effectivePoster}
           controls
           playsInline
