@@ -7,15 +7,33 @@ import { Link } from '@/navigation';
 // import { getDateFnsLocale } from '@/lib/utils/date-locale';
 import { useCallback, useRef, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import type { Article } from '@/lib/types/blog';
 import type { FrontendArticle } from '@/lib/types/frontend-blog';
 import { BookmarkIconButton } from '@/lib/components/BookmarkButton';
 import { BlurhashImage } from './BlurhashImage';
-import { HlsVideoPlayer } from './HlsVideoPlayer';
 import { isVideoUrl } from '@/lib/utils/media';
+
+/**
+ * HlsVideoPlayer is loaded client-side only.
+ * hls.js requires browser APIs — SSR-ing it gains nothing and
+ * causes className hydration mismatches when Turbopack partially
+ * hot-reloads server vs client bundles. ssr:false eliminates
+ * the mismatch entirely because the server never renders it.
+ */
 import { setNavDirection } from '@/lib/navigation/direction';
 import { Play } from 'lucide-react';
 import type { NetworkQuality } from '@/lib/hooks/useNetworkQuality';
+
+const HlsVideoPlayer = dynamic(
+  () => import('./HlsVideoPlayer').then((m) => ({ default: m.HlsVideoPlayer })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="w-full h-full bg-slate-200 dark:bg-slate-700 animate-pulse rounded-lg" />
+    ),
+  },
+);
 
 /** Format seconds to MM:SS */
 function formatDuration(seconds: number): string {

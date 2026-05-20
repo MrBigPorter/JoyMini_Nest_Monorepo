@@ -12,9 +12,26 @@ export default function BottomNavigation() {
   const t = useTranslations();
   const pathname = usePathname();
   const [activeStates, setActiveStates] = useState<Record<string, boolean>>({});
-  const [isClient, setIsClient] = useState(false);
   const wasKeyboardOpen = useRef(false);
   const scrollYBeforeKeyboard = useRef(0);
+
+  // 检测是否为子页面（路径段数 >= 2）
+  // 例如 /articles/some-article, /categories/tech, /tags/javascript
+  // 一级页面（/、/about、/categories 等）段数为 0 或 1，应显示 nav
+  const pathSegments = pathname.split('/').filter(Boolean);
+  const isDeepPage = pathSegments.length >= 2;
+
+  // 管理 --nav-height CSS 变量，配合 SPA 导航。
+  // CSS :has() 规则负责 SSR 阶段（data-no-nav 属性在 HTML 中），
+  // 这个 useEffect 负责客户端 SPA 导航到/离开子页面时的变量切换。
+  useEffect(() => {
+    if (isDeepPage) {
+      document.documentElement.style.setProperty('--nav-height', '0px');
+    } else {
+      // 设为空字符串 = 移除内联样式，让 globals.css 的级联值生效
+      document.documentElement.style.setProperty('--nav-height', '');
+    }
+  }, [isDeepPage]);
 
   // Save scroll position when any input/textarea gets focus (before keyboard opens)
   useEffect(() => {
@@ -104,135 +121,7 @@ export default function BottomNavigation() {
     // Re-run on route change (SPA navigation may affect viewport state)
   }, [pathname]);
 
-  useEffect(() => {
-    setIsClient(true);
-
-    // 在客户端计算所有导航项的激活状态
-    const newActiveStates: Record<string, boolean> = {};
-    const navItems = [
-      {
-        href: '/',
-        labelKey: 'common.home',
-        icon: (
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-5 w-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 0 0 1 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
-            />
-          </svg>
-        ),
-      },
-      {
-        href: '/categories',
-        labelKey: 'common.categories',
-        icon: (
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-5 w-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
-            />
-          </svg>
-        ),
-      },
-      {
-        href: '/tags',
-        labelKey: 'common.tags',
-        icon: (
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-5 w-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
-            />
-          </svg>
-        ),
-      },
-      {
-        href: '/bookmarks',
-        labelKey: 'common.bookmarks',
-        protected: true,
-        icon: (
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-5 w-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
-            />
-          </svg>
-        ),
-      },
-      {
-        href: '/about',
-        labelKey: 'common.about',
-        icon: (
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-5 w-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-            />
-          </svg>
-        ),
-      },
-    ];
-
-    navItems.forEach((item) => {
-      newActiveStates[item.href] = getIsActive(pathname, item.href);
-    });
-
-    setActiveStates(newActiveStates);
-  }, [pathname]);
-
-  // 水合完成前渲染同等高度的空壳，避免 main 区域 padding-bottom 在动画中跳变
-  if (!isClient) {
-    return (
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background border-t border-border">
-        <div className="h-14" />
-        {/* 安全区域占位：必须在 nav items 之后，填充 Home Indicator 区域 */}
-        <div style={{ height: 'var(--safe-area-bottom)' }} />
-        {/* iOS Safari toolbar 收起时背景兜底：向下延伸覆盖 home indicator 白边 */}
-        <div className="absolute bottom-0 left-0 right-0 h-[100px] bg-background translate-y-full pointer-events-none" />
-      </nav>
-    );
-  }
-
+  // 导航项配置 — 单一定义，供 useEffect（计算 activeStates）和 render 共用
   const navItems = [
     {
       href: '/',
@@ -337,8 +226,27 @@ export default function BottomNavigation() {
     },
   ];
 
+  useEffect(() => {
+    // 在客户端计算所有导航项的激活状态
+    const newActiveStates: Record<string, boolean> = {};
+
+    navItems.forEach((item) => {
+      newActiveStates[item.href] = getIsActive(pathname, item.href);
+    });
+
+    setActiveStates(newActiveStates);
+  }, [pathname]);
+
+  // 子页面（路径深度 ≥ 2）不渲染 nav
+  if (isDeepPage) {
+    return null;
+  }
+
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background border-t border-border">
+    <nav
+      className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background border-t border-border"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+    >
       {/* 实际导航内容 */}
       <div className="h-14 px-4 flex items-center justify-around">
         {navItems.map((item) => {
@@ -422,14 +330,6 @@ export default function BottomNavigation() {
           );
         })}
       </div>
-      {/* 安全区域占位：必须在 nav items 之后，填充 Home Indicator 区域 */}
-      <div style={{ height: 'var(--safe-area-bottom)' }} />
-      {/* iOS Safari toolbar 收起时背景兜底：
-          toolbar 收起动画中 env(safe-area-inset-bottom) 仍报 0px，
-          viewport 已向下扩展至 home indicator 区域但 spacer=0 → 白边。
-          此挡板将 nav 背景向下延伸 100px，彻底覆盖过渡期白边。
-          translate-y-full 推到 nav 底边之下，pointer-events-none 不影响交互。 */}
-      <div className="absolute bottom-0 left-0 right-0 h-[100px] bg-background translate-y-full pointer-events-none" />
     </nav>
   );
 }

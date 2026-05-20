@@ -1,5 +1,9 @@
 @import 'tailwindcss';
 
+body {
+  font-family: 'Inter Variable', 'Inter', system-ui, sans-serif;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 :root {
@@ -31,6 +35,13 @@
   --radius: 0.5rem;
   --popover: 0 0% 100%;
   --popover-foreground: 222.2 84% 4.9%;
+}
+
+/* 子页面（文章详情、分类详情、标签详情）隐藏 BottomNavigation 时，
+   同步将 main 的 --nav-height 置为 0，避免 56px 空白区域。
+   :has() 是 CSS 原生选择器，SSR 安全、无闪烁。 */
+main:has([data-no-nav]) {
+  --nav-height: 0px;
 }
 
 .dark {

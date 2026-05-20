@@ -111,7 +111,6 @@ services:
     volumes:
       - .:/app
       - admin_next_nm:/app/node_modules
-      - admin_next_build:/app/apps/admin-next/.next
       - pkg_shared_nm:/app/packages/shared/node_modules
       - pkg_ui_nm:/app/packages/ui/node_modules
       - pkg_eslint_nm:/app/packages/eslint-config/node_modules
@@ -168,7 +167,6 @@ services:
     volumes:
       - .:/app
       - admin_blog_nm:/app/node_modules
-      - admin_blog_build:/app/apps/admin-blog/.next
       - pkg_shared_nm:/app/packages/shared/node_modules
       - pkg_ui_nm:/app/packages/ui/node_modules
       - pkg_eslint_nm:/app/packages/eslint-config/node_modules
@@ -221,7 +219,6 @@ services:
     volumes:
       - .:/app
       - blog_next_nm:/app/node_modules
-      - blog_next_build:/app/apps/frontend-blog/.next
       - pkg_shared_nm:/app/packages/shared/node_modules
       - pkg_ui_nm:/app/packages/ui/node_modules
       - pkg_eslint_nm:/app/packages/eslint-config/node_modules
@@ -327,11 +324,8 @@ volumes:
   redis_data:
   backend_nm:
   admin_next_nm:
-  admin_next_build:
   admin_blog_nm:
-  admin_blog_build:
   blog_next_nm:
-  blog_next_build:
   pkg_shared_nm:
   pkg_ui_nm:
   pkg_eslint_nm:

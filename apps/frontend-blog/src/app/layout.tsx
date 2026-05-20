@@ -1,12 +1,7 @@
-import { Inter } from 'next/font/google';
+import '@fontsource-variable/inter';
 import { Providers } from '@/components/Providers';
 import { CloudflareInsights } from '@/components/CloudflareInsights';
 import './globals.css';
-
-const inter = Inter({
-  subsets: ['latin'],
-  variable: '--font-inter',
-});
 
 export default function RootLayout({
   children,
@@ -14,7 +9,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={inter.variable} suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
       <head>
         {/* CDN preconnect — 提前建立连接，减少 Cloudflare 冷启动时的 DNS + TLS 延迟 */}
         <link
