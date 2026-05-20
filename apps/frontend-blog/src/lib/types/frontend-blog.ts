@@ -25,7 +25,6 @@ export interface ArticleMeta {
     duration: number;
     qualities: string[];
     poster?: string; // URL of extracted video thumbnail frame (JPEG)
-    posterWebp?: string; // WebP variant of poster for smaller file size (~30-50% smaller)
   };
   /**
    * Array of video mappings for rich-text-embedded videos.

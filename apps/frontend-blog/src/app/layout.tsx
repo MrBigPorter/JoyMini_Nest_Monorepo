@@ -1,5 +1,6 @@
 import { Inter } from 'next/font/google';
 import { Providers } from '@/components/Providers';
+import { CloudflareInsights } from '@/components/CloudflareInsights';
 import './globals.css';
 
 const inter = Inter({
@@ -15,6 +16,14 @@ export default function RootLayout({
   return (
     <html lang="en" className={inter.variable} suppressHydrationWarning>
       <head>
+        {/* CDN preconnect — 提前建立连接，减少 Cloudflare 冷启动时的 DNS + TLS 延迟 */}
+        <link
+          rel="preconnect"
+          href="https://img.joyminis.com"
+          crossOrigin="anonymous"
+        />
+        <link rel="dns-prefetch" href="https://img.joyminis.com" />
+
         {/* PWA manifest - 告诉浏览器这是一个 PWA 应用 */}
         <link rel="manifest" href="/manifest.json" />
 
@@ -70,16 +79,12 @@ export default function RootLayout({
             `,
           }}
         />
-
-        {/* Cloudflare Web Analytics — 收集真实用户 LCP/CLS/FCP 数据 */}
-        <script
-          defer
-          src="https://static.cloudflareinsights.com/beacon.min.js"
-          data-cf-beacon='{"token": "1ad32917390d4dda86d53395209e19a5"}'
-        />
       </head>
       <body className="antialiased bg-background text-foreground">
         <Providers>{children}</Providers>
+
+        {/* Cloudflare Web Analytics — lazy-loaded after page becomes interactive */}
+        <CloudflareInsights />
       </body>
     </html>
   );

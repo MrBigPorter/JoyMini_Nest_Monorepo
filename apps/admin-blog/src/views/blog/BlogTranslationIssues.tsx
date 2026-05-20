@@ -11,6 +11,7 @@ import {
 } from '@/components/UIComponents';
 import { useToastStore } from '@/store/useToastStore';
 import { blogApi } from '@/api';
+import { processChunkedBatch } from '@/lib/utils/batchProcessor';
 import { useTranslation } from '@/hooks/useTranslation';
 import { Search, CheckCircle, Wrench, Languages } from 'lucide-react';
 
@@ -105,7 +106,7 @@ export default function BlogTranslationIssues() {
     runIssues();
   }, [selectedLanguage, runIssues]);
 
-  // 处理批量修复
+  // 处理批量修复 — 分块处理以避免 Cloudflare Workers 10ms CPU 限制导致 504
   const handleBatchFix = async () => {
     if (fixingInProgress) return;
 
@@ -117,21 +118,24 @@ export default function BlogTranslationIssues() {
           : translationIssues?.issues?.map((issue: any) => issue.articleId) ||
             [];
 
-      const response = await blogApi.translation.fixTranslationIssuesBatch({
-        articleIds: articleIds.length > 0 ? articleIds : undefined,
-        languageCode: selectedLanguage,
-      });
+      if (articleIds.length === 0) return;
 
-      if (!response) return;
+      const result = await processChunkedBatch<string>(
+        (chunk) =>
+          blogApi.translation.fixTranslationIssuesBatch({
+            articleIds: chunk,
+            languageCode: selectedLanguage,
+          }),
+        { items: articleIds, chunkSize: 5, delayMs: 500 },
+      );
 
-      if (response.success) {
-        addToast('success', t('batchFixStarted', { count: response.queued }));
-        setTimeout(() => {
-          runIssues();
-        }, 1000);
-      } else {
-        addToast('error', t('batchFixFailed'));
+      addToast('success', t('batchFixStarted', { count: result.succeeded }));
+      if (result.failed > 0) {
+        addToast('error', `${result.failed} articles failed to fix`);
       }
+      setTimeout(() => {
+        runIssues();
+      }, 1000);
     } catch (error) {
       console.error(t('batchFixFailed'), error);
       addToast('error', t('batchFixNetworkError'));
@@ -216,6 +220,7 @@ export default function BlogTranslationIssues() {
     }
   };
 
+  // 批量翻译分类 — 分块处理以避免 Cloudflare Workers 10ms CPU 限制导致 504
   const handleBatchTranslateCategories = async () => {
     const ids =
       selectedCategories.length > 0
@@ -232,17 +237,17 @@ export default function BlogTranslationIssues() {
     setTranslatingCategories(loadingMap);
 
     try {
-      const response = await blogApi.translation.batchTranslateCategories(
-        ids,
-        selectedLanguage,
+      const result = await processChunkedBatch<string>(
+        (chunk) =>
+          blogApi.translation.batchTranslateCategories(chunk, selectedLanguage),
+        { items: ids, chunkSize: 5, delayMs: 500 },
       );
-      if (response?.success) {
-        addToast(
-          'success',
-          t('categoryTranslationSent', { count: response.queued }),
-        );
-      } else {
-        addToast('error', t('translationFailed'));
+      addToast(
+        'success',
+        t('categoryTranslationSent', { count: result.succeeded }),
+      );
+      if (result.failed > 0) {
+        addToast('error', `${result.failed} categories failed to translate`);
       }
     } catch {
       addToast('error', t('translationFailed'));
@@ -305,6 +310,7 @@ export default function BlogTranslationIssues() {
     }
   };
 
+  // 批量翻译标签 — 分块处理以避免 Cloudflare Workers 10ms CPU 限制导致 504
   const handleBatchTranslateTags = async () => {
     const ids =
       selectedTags.length > 0
@@ -321,17 +327,14 @@ export default function BlogTranslationIssues() {
     setTranslatingTags(loadingMap);
 
     try {
-      const response = await blogApi.translation.batchTranslateTags(
-        ids,
-        selectedLanguage,
+      const result = await processChunkedBatch<string>(
+        (chunk) =>
+          blogApi.translation.batchTranslateTags(chunk, selectedLanguage),
+        { items: ids, chunkSize: 5, delayMs: 500 },
       );
-      if (response?.success) {
-        addToast(
-          'success',
-          t('tagTranslationSent', { count: response.queued }),
-        );
-      } else {
-        addToast('error', t('translationFailed'));
+      addToast('success', t('tagTranslationSent', { count: result.succeeded }));
+      if (result.failed > 0) {
+        addToast('error', `${result.failed} tags failed to translate`);
       }
     } catch {
       addToast('error', t('translationFailed'));

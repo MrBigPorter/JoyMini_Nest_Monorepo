@@ -34,7 +34,7 @@ export function HeroSection({ articles }: HeroSectionProps) {
     if (intervalRef.current) clearInterval(intervalRef.current);
     intervalRef.current = setInterval(() => {
       setActiveIndex((prev) => (prev + 1) % Math.min(articles.length, 5));
-    }, 5000);
+    }, 8000);
   }, [articles.length]);
 
   const stopAutoPlay = useCallback(() => {
@@ -80,7 +80,6 @@ export function HeroSection({ articles }: HeroSectionProps) {
                     ? mainArticle.coverImage
                     : undefined)
                 }
-                posterWebp={mainArticle.meta?.video?.posterWebp}
                 className="w-full h-full"
                 videoClassName="object-cover"
                 autoPlay={false}
@@ -93,7 +92,7 @@ export function HeroSection({ articles }: HeroSectionProps) {
                 controls={false}
                 muted
                 playsInline
-                preload="metadata"
+                preload="none"
               />
             ) : mainArticle.coverImage ? (
               <BlurhashImage
@@ -207,7 +206,6 @@ export function HeroSection({ articles }: HeroSectionProps) {
                           ? article.coverImage
                           : undefined)
                       }
-                      posterWebp={article.meta?.video?.posterWebp}
                       className="w-full h-full"
                       videoClassName="object-cover"
                       muted
@@ -219,7 +217,7 @@ export function HeroSection({ articles }: HeroSectionProps) {
                       className="w-full h-full object-cover"
                       muted
                       playsInline
-                      preload="metadata"
+                      preload="none"
                     />
                   ) : article.coverImage ? (
                     <BlurhashImage

@@ -489,41 +489,58 @@ function ArticleRenderer({ content }: { content: string }) {
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeRaw]}
-        components={{
-          hr() {
-            return <hr className="border-0 !border-none h-0 m-0 p-0 !hidden" />;
-          },
-          code({ className, children, ...props }) {
-            const match = /language-(\w+)/.exec(className || '');
-            const language = match ? match[1] : '';
-
-            // Only use SyntaxHighlighter for code blocks with a detected language
-            if (language) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        components={
+          {
+            // <t> is not a valid HTML element — some article content may contain
+            // formatting tags like <t>text</t> from editor imports. Render as <span>.
+            t: ({ children }: { children: React.ReactNode }) => {
+              return <span>{children}</span>;
+            },
+            hr() {
               return (
-                <SyntaxHighlighter
-                  style={oneDark}
-                  language={language}
-                  PreTag="div"
-                  customStyle={{
-                    margin: '1em 0',
-                    borderRadius: '0.5rem',
-                    fontSize: '0.875rem',
-                    lineHeight: '1.5',
-                  }}
-                >
-                  {String(children).replace(/\n$/, '')}
-                </SyntaxHighlighter>
+                <hr className="border-0 !border-none h-0 m-0 p-0 !hidden" />
               );
-            }
+            },
+            code({
+              className,
+              children,
+              ...props
+            }: {
+              className?: string;
+              children?: React.ReactNode;
+            }) {
+              const match = /language-(\w+)/.exec(className || '');
+              const language = match ? match[1] : '';
 
-            // Inline code or code block without language — keep default styling
-            return (
-              <code className={className} {...props}>
-                {children}
-              </code>
-            );
-          },
-        }}
+              // Only use SyntaxHighlighter for code blocks with a detected language
+              if (language) {
+                return (
+                  <SyntaxHighlighter
+                    style={oneDark}
+                    language={language}
+                    PreTag="div"
+                    customStyle={{
+                      margin: '1em 0',
+                      borderRadius: '0.5rem',
+                      fontSize: '0.875rem',
+                      lineHeight: '1.5',
+                    }}
+                  >
+                    {String(children).replace(/\n$/, '')}
+                  </SyntaxHighlighter>
+                );
+              }
+
+              // Inline code or code block without language — keep default styling
+              return (
+                <code className={className} {...props}>
+                  {children}
+                </code>
+              );
+            },
+          } as any
+        }
       >
         {content}
       </ReactMarkdown>

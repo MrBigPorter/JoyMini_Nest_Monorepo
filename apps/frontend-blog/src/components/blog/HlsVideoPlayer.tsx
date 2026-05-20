@@ -7,7 +7,6 @@ import { getOptimizedImageUrl } from '@/lib/utils/cloudflareImageLoader';
 interface HlsVideoPlayerProps {
   hlsUrl: string;
   poster?: string;
-  posterWebp?: string;
   className?: string;
   /** Class applied to the inner <video> element (use this for object-fit, hover scale, etc.) */
   videoClassName?: string;
@@ -29,7 +28,6 @@ interface HlsVideoPlayerProps {
 export function HlsVideoPlayer({
   hlsUrl,
   poster,
-  posterWebp,
   className = '',
   videoClassName = '',
   autoPlay = false,
@@ -42,16 +40,21 @@ export function HlsVideoPlayer({
   const [isPlaying, setIsPlaying] = useState(false);
   const [userClicked, setUserClicked] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  const [errorType, setErrorType] = useState<
+    'codec' | 'network' | 'manifest' | 'unknown' | null
+  >(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const MAX_RETRIES = 2;
+  const RETRY_DELAY_MS = 1500;
   const hlsRef = useRef<Hls | null>(null);
 
-  // Prefer WebP poster for LCP optimization (~30-50% smaller file size)
   // Transform the poster URL through Cloudflare Image Resizing so it benefits
   // from `/cdn-cgi/image/` width/quality optimization + automatic format selection.
+  // Cloudflare's f=auto handles WebP/AVIF conversion automatically.
   // Width=1200 covers both hero section (~950px) and article detail (~800px) scenarios.
   // Without this, the poster URL is a raw R2 object URL — no resizing/compression.
-  const rawPoster = posterWebp || poster;
-  const effectivePoster = rawPoster
-    ? getOptimizedImageUrl({ src: rawPoster, width: 1200, quality: 75 })
+  const effectivePoster = poster
+    ? getOptimizedImageUrl({ src: poster, width: 1200, quality: 75 })
     : undefined;
 
   // Track mount state to prevent SSR/client hydration mismatch.
@@ -92,6 +95,7 @@ export function HlsVideoPlayer({
 
       setIsLoading(true);
       setHasError(false);
+      setErrorType(null);
 
       if (Hls.isSupported()) {
         const hls = new Hls({
@@ -114,6 +118,27 @@ export function HlsVideoPlayer({
         });
 
         hls.on(Hls.Events.ERROR, (_event, data) => {
+          // ── Classify error type for smart degradation ──
+          const details = data.details || '';
+          if (
+            details.includes('SampleQueueMappingException') ||
+            details.includes('audio/mp4a-latm') ||
+            details.includes('audio/mp4a-lc') ||
+            data.type === Hls.ErrorTypes.MEDIA_ERROR
+          ) {
+            setErrorType('codec');
+          } else if (
+            data.type === Hls.ErrorTypes.NETWORK_ERROR ||
+            details.includes('network') ||
+            details.includes('loadError')
+          ) {
+            setErrorType('network');
+          } else if (details.includes('manifest')) {
+            setErrorType('manifest');
+          } else {
+            setErrorType('unknown');
+          }
+
           if (data.fatal) {
             setHasError(true);
             setIsLoading(false);
@@ -189,6 +214,43 @@ export function HlsVideoPlayer({
     return () => destroyVideo();
   }, [clickToPlay, destroyVideo]);
 
+  // ─── Retry effect: auto-reload on fatal error with fresh hls.js instance ───
+  useEffect(() => {
+    if (!hasError || retryCount >= MAX_RETRIES) return;
+
+    const timer = setTimeout(() => {
+      destroyVideo();
+      initVideo(false);
+      setRetryCount((prev) => prev + 1);
+      setHasError(false);
+      setErrorType(null);
+    }, RETRY_DELAY_MS);
+
+    return () => clearTimeout(timer);
+  }, [
+    hasError,
+    retryCount,
+    MAX_RETRIES,
+    RETRY_DELAY_MS,
+    destroyVideo,
+    initVideo,
+  ]);
+
+  // ─── Reset retry state when video source changes ───
+  useEffect(() => {
+    setRetryCount(0);
+    setErrorType(null);
+  }, [hlsUrl]);
+
+  const handleRetry = useCallback(() => {
+    setRetryCount(0);
+    setHasError(false);
+    setErrorType(null);
+    destroyVideo();
+    // Brief delay to ensure cleanup before re-init
+    setTimeout(() => initVideo(false), 500);
+  }, [destroyVideo, initVideo]);
+
   const handlePlayClick = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
@@ -242,31 +304,75 @@ export function HlsVideoPlayer({
       )}
 
       {hasError ? (
-        <div className="flex items-center justify-center w-full h-full bg-slate-900 text-slate-400">
-          <div className="text-center p-4">
-            <svg
-              className="w-10 h-10 mx-auto mb-2"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
-              />
-            </svg>
-            <p className="text-sm">Video unavailable</p>
+        <div
+          className="relative flex items-center justify-center w-full h-full bg-slate-900 text-slate-400"
+          style={
+            effectivePoster
+              ? {
+                  backgroundImage: `url(${effectivePoster})`,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                }
+              : undefined
+          }
+        >
+          {/* Dark overlay for poster readability */}
+          {effectivePoster && <div className="absolute inset-0 bg-black/50" />}
+
+          <div className="relative z-10 text-center p-4">
+            {errorType === 'codec' ? (
+              <>
+                <svg
+                  className="w-10 h-10 mx-auto mb-2 text-amber-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.5}
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"
+                  />
+                </svg>
+                <p className="text-sm text-white/90">
+                  Video codec not supported on this device
+                </p>
+                <p className="text-xs text-white/60 mt-1">
+                  Please try a different browser
+                </p>
+              </>
+            ) : (
+              <>
+                <svg
+                  className="w-10 h-10 mx-auto mb-2"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.5}
+                    d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+                  />
+                </svg>
+                <p className="text-sm text-white/90">Video unavailable</p>
+                <button
+                  onClick={handleRetry}
+                  className="mt-2 px-4 py-1.5 text-xs bg-white/20 text-white/80 rounded-full hover:bg-white/30 hover:text-white transition-colors"
+                >
+                  Retry
+                </button>
+              </>
+            )}
           </div>
         </div>
       ) : (
         <video
           ref={videoRef}
-          className={`w-full h-full object-contain ${videoClassName} ${
-            showPlayOverlay ? 'opacity-0' : ''
-          }`}
-          poster={showPlayOverlay ? undefined : effectivePoster}
+          className={`w-full h-full object-contain ${videoClassName}`}
+          poster={effectivePoster}
           controls
           playsInline
           muted={muted}
