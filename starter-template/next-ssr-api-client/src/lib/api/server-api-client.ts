@@ -1,4 +1,4 @@
-import { cookies } from 'next/headers';
+import { cookies } from "next/headers";
 
 interface ApiResponse<T> {
   code: number;
@@ -10,23 +10,26 @@ function getApiBaseUrl() {
   return (
     process.env.INTERNAL_API_URL ||
     process.env.NEXT_PUBLIC_API_BASE_URL ||
-    'http://localhost:3000/api'
+    "http://localhost:3000/api"
   );
 }
 
 async function buildHeaders() {
   const cookieStore = await cookies();
-  const token = cookieStore.get('auth_token')?.value;
+  const token = cookieStore.get("auth_token")?.value;
 
   return {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 }
 
-export async function serverGet<T>(path: string, revalidate: number | false = 30): Promise<T> {
+export async function serverGet<T>(
+  path: string,
+  revalidate: number | false = 30,
+): Promise<T> {
   const res = await fetch(`${getApiBaseUrl()}${path}`, {
-    method: 'GET',
+    method: "GET",
     headers: await buildHeaders(),
     next: { revalidate: revalidate === false ? 0 : revalidate },
   });
@@ -37,9 +40,10 @@ export async function serverGet<T>(path: string, revalidate: number | false = 30
 
   const json = (await res.json()) as ApiResponse<T>;
   if (json.code !== 10000 && json.code !== 200) {
-    throw new Error(`[server-api-client] ${path} -> ${json.message || 'API error'}`);
+    throw new Error(
+      `[server-api-client] ${path} -> ${json.message || "API error"}`,
+    );
   }
 
   return json.data;
 }
-
