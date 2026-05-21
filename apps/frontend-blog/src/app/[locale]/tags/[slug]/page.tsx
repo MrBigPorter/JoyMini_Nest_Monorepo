@@ -1,8 +1,35 @@
 import { serverGet } from '@/lib/serverFetch';
 import TagClientView from './TagClientView';
 import type { FrontendTagWithArticles } from '@/lib/types/frontend-blog';
+import type { Metadata } from 'next';
+import { getEnabledLocales, type Locale } from '@/lib/i18n/config';
 
 export const revalidate = 600;
+
+/**
+ * 生成标签详情页 SEO metadata
+ * 包含 canonical URL + hreflang 多语言标记
+ */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string; slug: string }>;
+}): Promise<Metadata> {
+  const { locale, slug } = await params;
+  const baseUrl =
+    process.env.NEXT_PUBLIC_SITE_URL || 'https://blog.joyminis.com';
+
+  return {
+    alternates: {
+      canonical: `${baseUrl}/${locale}/tags/${slug}`,
+      languages: Object.fromEntries(
+        getEnabledLocales()
+          .filter((l: Locale) => l !== locale)
+          .map((l: Locale) => [l, `${baseUrl}/${l}/tags/${slug}`]),
+      ),
+    },
+  };
+}
 
 export default async function TagPage({
   params,

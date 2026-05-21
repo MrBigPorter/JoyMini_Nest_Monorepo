@@ -1,4 +1,5 @@
 import { MetadataRoute } from 'next';
+import { getEnabledLocales } from '@/lib/i18n/config';
 
 /**
  * Robots.txt 生成器
@@ -6,10 +7,13 @@ import { MetadataRoute } from 'next';
  *
  * 访问路径: /robots.txt
  * 缓存策略: 静态生成
+ *
+ * 改进：显式列出所有 locale sitemap，帮助 Google 更快发现所有语言页面
  */
 export default function robots(): MetadataRoute.Robots {
   const baseUrl =
     process.env.NEXT_PUBLIC_SITE_URL || 'https://blog.joyminis.com';
+  const locales = getEnabledLocales();
 
   return {
     rules: {
@@ -31,7 +35,11 @@ export default function robots(): MetadataRoute.Robots {
         '/.env.*',
       ],
     },
-    sitemap: `${baseUrl}/sitemap.xml`,
+    // 显式列出所有 locale sitemap，帮助搜索引擎更快发现所有语言页面
+    sitemap: [
+      `${baseUrl}/sitemap.xml`,
+      ...locales.map((l) => `${baseUrl}/${l}/sitemap.xml`),
+    ],
     host: baseUrl,
   };
 }

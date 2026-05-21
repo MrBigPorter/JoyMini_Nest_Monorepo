@@ -3,6 +3,7 @@ import ArticlePageClient from './page.client';
 import { getOptimizedImageUrl } from '@/lib/utils/cloudflareImageLoader';
 import { generateArticleSchema } from '@/lib/seo/schema';
 import type { Metadata } from 'next';
+import { getEnabledLocales, type Locale } from '@/lib/i18n/config';
 
 // Next.js 15 perfect cache pattern
 // ISR: revalidate every hour, cache between requests
@@ -95,9 +96,16 @@ export async function generateMetadata({
         images: article.coverImage ? [article.coverImage] : ['/og-image.png'],
       },
 
-      // 规范URL
+      // 规范URL + hreflang 多语言标记
+      // 告诉 Google 不同语言版本是翻译关系，而非重复内容
+      // 这将解决 "Crawled - currently not indexed" 的跨语言重复判定问题
       alternates: {
         canonical: `${baseUrl}/${locale}/articles/${slug}`,
+        languages: Object.fromEntries(
+          getEnabledLocales()
+            .filter((l: Locale) => l !== locale)
+            .map((l: Locale) => [l, `${baseUrl}/${l}/articles/${slug}`]),
+        ),
       },
 
       // 其他meta

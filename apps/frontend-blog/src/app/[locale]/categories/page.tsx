@@ -3,6 +3,7 @@ import { getEnabledLocales } from '@/lib/i18n/config';
 import CategoriesPageClient from './page.client';
 import type { FrontendCategory } from '@/lib/types/frontend-blog';
 import type { Locale } from '@/lib/i18n/config';
+import type { Metadata } from 'next';
 
 // Next.js 15 perfect cache pattern
 // revalidate combination
@@ -12,6 +13,31 @@ export const revalidate = 600;
 // generate static params for all locales
 export async function generateStaticParams() {
   return getEnabledLocales().map((locale: Locale) => ({ locale }));
+}
+
+/**
+ * 生成分类列表页 SEO metadata
+ * 包含 canonical URL + hreflang 多语言标记
+ */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+  const { locale } = await params;
+  const baseUrl =
+    process.env.NEXT_PUBLIC_SITE_URL || 'https://blog.joyminis.com';
+
+  return {
+    alternates: {
+      canonical: `${baseUrl}/${locale}/categories`,
+      languages: Object.fromEntries(
+        getEnabledLocales()
+          .filter((l: Locale) => l !== locale)
+          .map((l: Locale) => [l, `${baseUrl}/${l}/categories`]),
+      ),
+    },
+  };
 }
 
 // cloudflare cache headers
