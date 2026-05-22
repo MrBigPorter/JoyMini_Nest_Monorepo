@@ -7,6 +7,7 @@ import { useAppStore } from '@/store/useAppStore';
 import { ToastContainer } from '@/components/UIComponents';
 import { useToastStore } from '@/store/useToastStore';
 import ChunkReloadHandler from './ChunkReloadHandler';
+import { AutoLoginHandler } from './AutoLoginHandler';
 
 /**
  * 创建 QueryClient 单例（浏览器）/ 每次新建（服务器）
@@ -59,6 +60,7 @@ export const Providers: React.FC<{ children: React.ReactNode }> = ({
   return (
     <QueryClientProvider client={queryClient}>
       <ModalProvider />
+      <AutoLoginHandler />
       <ChunkReloadHandler />
       <ToastContainer toasts={toasts} removeToastAction={removeToast} />
       {children}

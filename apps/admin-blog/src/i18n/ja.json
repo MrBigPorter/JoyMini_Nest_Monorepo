@@ -661,6 +661,7 @@
     "welcomeBack": "おかえりなさい、管理者！",
     "loginFailedNoToken": "ログイン失敗：アクセストークンが受信されませんでした。",
     "loginFailedGeneric": "ログインに失敗しました。もう一度お試しください。",
+    "loggingIn": "ログイン中...",
     "copyright": "© {year} JoyMini Blog Admin. All rights reserved.",
     "roleSuperAdmin": "スーパー管理者",
     "roleAdmin": "管理者",

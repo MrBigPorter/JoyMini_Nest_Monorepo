@@ -657,6 +657,7 @@
     "welcomeBack": "Bon retour, Administrateur !",
     "loginFailedNoToken": "Échec de la connexion : aucun jeton d'accès reçu.",
     "loginFailedGeneric": "Échec de la connexion. Veuillez réessayer.",
+    "loggingIn": "Connexion en cours...",
     "copyright": "© {year} JoyMini Blog Admin. Tous droits réservés.",
     "roleSuperAdmin": "Super administrateur",
     "roleAdmin": "Administrateur",

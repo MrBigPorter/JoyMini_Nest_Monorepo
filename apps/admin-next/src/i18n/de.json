@@ -1024,6 +1024,7 @@
     "welcomeBack": "Willkommen zurück, Administrator!",
     "loginFailedNoToken": "Anmeldung fehlgeschlagen: Kein Zugriffstoken erhalten.",
     "loginFailedGeneric": "Anmeldung fehlgeschlagen. Bitte versuchen Sie es erneut.",
+    "loggingIn": "Anmeldung läuft...",
     "copyright": "© {year} JoyMini Admin. Alle Rechte vorbehalten."
   }
 }

@@ -6,6 +6,7 @@ import { useAppStore } from '@/store/useAppStore';
 import { ToastContainer } from '@/components/UIComponents';
 import { useToastStore } from '@/store/useToastStore';
 import ChunkReloadHandler from './ChunkReloadHandler';
+import { AutoLoginHandler } from './AutoLoginHandler';
 
 function makeQueryClient() {
   return new QueryClient({
@@ -42,6 +43,7 @@ export const Providers: React.FC<{ children: React.ReactNode }> = ({
 
   return (
     <QueryClientProvider client={queryClient}>
+      <AutoLoginHandler />
       <ChunkReloadHandler />
       <ToastContainer toasts={toasts} removeToastAction={removeToast} />
       {children}

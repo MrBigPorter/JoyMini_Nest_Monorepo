@@ -1599,6 +1599,7 @@
     "welcomeBack": "Welcome back, Admin!",
     "loginFailedNoToken": "Login failed: No access token received.",
     "loginFailedGeneric": "Login failed. Please try again.",
+    "loggingIn": "Logging in...",
     "copyright": "© {year} JoyMini Admin. All rights reserved."
   }
 }
