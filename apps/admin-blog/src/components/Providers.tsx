@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAppStore } from '@/store/useAppStore';
 import { ToastContainer } from '@/components/UIComponents';
@@ -43,7 +43,9 @@ export const Providers: React.FC<{ children: React.ReactNode }> = ({
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AutoLoginHandler />
+      <Suspense fallback={null}>
+        <AutoLoginHandler />
+      </Suspense>
       <ChunkReloadHandler />
       <ToastContainer toasts={toasts} removeToastAction={removeToast} />
       {children}
