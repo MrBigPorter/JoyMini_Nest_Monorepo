@@ -1024,6 +1024,7 @@
     "welcomeBack": "Bon retour, Administrateur !",
     "loginFailedNoToken": "Échec de la connexion : aucun jeton d'accès reçu.",
     "loginFailedGeneric": "Échec de la connexion. Veuillez réessayer.",
+    "loggingIn": "Connexion en cours...",
     "copyright": "© {year} JoyMini Admin. Tous droits réservés."
   }
 }

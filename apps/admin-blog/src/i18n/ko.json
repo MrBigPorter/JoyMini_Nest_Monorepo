@@ -656,6 +656,7 @@
     "welcomeBack": "환영합니다, 관리자님!",
     "loginFailedNoToken": "로그인 실패: 액세스 토큰을 받지 못했습니다.",
     "loginFailedGeneric": "로그인에 실패했습니다. 다시 시도해주세요.",
+    "loggingIn": "로그인 중...",
     "copyright": "© {year} JoyMini Blog Admin. All rights reserved.",
     "roleSuperAdmin": "슈퍼 관리자",
     "roleAdmin": "관리자",

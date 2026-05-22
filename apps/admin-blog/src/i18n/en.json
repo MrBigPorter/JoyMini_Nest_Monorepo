@@ -666,6 +666,7 @@
     "welcomeBack": "Welcome back, Admin!",
     "loginFailedNoToken": "Login failed: No access token received.",
     "loginFailedGeneric": "Login failed. Please try again.",
+    "loggingIn": "Logging in...",
     "copyright": "© {year} JoyMini Blog Admin. All rights reserved.",
     "roleSuperAdmin": "Super Admin",
     "roleAdmin": "Admin",

@@ -145,7 +145,13 @@ export function middleware(request: NextRequest) {
 
   // 未登录或 token 无效访问其他受保护页面 → 跳登录页
   if ((!hasToken || isTokenInvalid) && !isPublicPath) {
-    const response = NextResponse.redirect(new URL('/login', request.url));
+    const loginUrl = new URL('/login', request.url);
+    // 保留 test/code 参数用于 auto-login（demo/interview 场景）
+    const test = searchParams.get('test');
+    const code = searchParams.get('code');
+    if (test) loginUrl.searchParams.set('test', test);
+    if (code) loginUrl.searchParams.set('code', code);
+    const response = NextResponse.redirect(loginUrl);
     if (isTokenInvalid) {
       clearAuthCookie(request, response);
     }

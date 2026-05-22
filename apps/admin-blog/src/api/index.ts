@@ -17,6 +17,12 @@ export const authApi = {
       headers: { 'x-skip-auth-refresh': '1' },
     }),
 
+  // 测试登录（demo/interview 自动登录 via ?test=&code=）
+  testLogin: (data: { test: string; code: string }) =>
+    http.post<LoginResponse>('/v1/auth/admin/test-login', data, {
+      headers: { 'x-skip-auth-refresh': '1' },
+    }),
+
   // 登出
   logout: () => http.post('/v1/auth/admin/logout'),
 

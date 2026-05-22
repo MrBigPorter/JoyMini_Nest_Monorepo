@@ -10,6 +10,7 @@ import {
 import { PasswordService } from '@api/common/service/password.service';
 import { RecaptchaService } from '@api/common/recaptcha/recaptcha.service';
 import { AdminLoginDto } from './dto/admin-login.dto';
+import { AdminTestLoginDto } from './dto/admin-test-login.dto';
 import type { StringValue } from 'ms';
 
 interface JwtPayload {
@@ -36,7 +37,11 @@ export class AuthService {
     );
   }
 
-  private async issueTokenPair(user: { id: string; role?: string }) {
+  private async issueTokenPair(
+    user: { id: string; role?: string },
+    accessOverride?: StringValue,
+    refreshOverride?: StringValue,
+  ) {
     const payload: JwtPayload = { sub: user.id, type: 'admin' };
 
     if (user.role) {
@@ -45,9 +50,11 @@ export class AuthService {
 
     const secret = this.getAdminJwtSecret();
     const accessExpireIn =
+      accessOverride ||
       (process.env.ADMIN_JWT_ACCESS_EXPIRATION as StringValue | undefined) ||
       '12h';
     const refreshExpireIn =
+      refreshOverride ||
       (process.env.ADMIN_JWT_REFRESH_EXPIRATION as StringValue | undefined) ||
       '7d';
 
@@ -65,6 +72,92 @@ export class AuthService {
     return {
       accessToken,
       refreshToken,
+    };
+  }
+
+  // admin test login (demo/interview auto-login via URL params)
+  async adminTestLogin(
+    { test, code }: AdminTestLoginDto,
+    ip: string,
+    ua: string,
+  ) {
+    const testUsername = process.env.ADMIN_TEST_USERNAME?.trim();
+    const testCode = process.env.ADMIN_TEST_CODE?.trim();
+
+    // if env vars not configured, reject
+    if (!testUsername || !testCode) {
+      throw new UnauthorizedException('invalid credentials');
+    }
+
+    // validate test identifier and code
+    if (test.trim().toLowerCase() !== testUsername.toLowerCase()) {
+      throw new UnauthorizedException('invalid credentials');
+    }
+    if (code.trim() !== testCode) {
+      throw new UnauthorizedException('invalid credentials');
+    }
+
+    // find admin user
+    const admin = await this.prisma.adminUser.findUnique({
+      where: { username: testUsername },
+      select: {
+        id: true,
+        username: true,
+        realName: true,
+        role: true,
+        status: true,
+      },
+    });
+
+    if (!admin || admin.status !== 1) {
+      throw new UnauthorizedException('invalid credentials');
+    }
+
+    // update lastLoginAt and create login log
+    const result = await this.prisma.$transaction(async (ctx) => {
+      const updatedUser = await ctx.adminUser.update({
+        where: { id: admin.id },
+        data: {
+          lastLoginAt: new Date(),
+          lastLoginIp: ip,
+        },
+      });
+
+      await ctx.adminOperationLog.create({
+        data: {
+          adminId: admin.id,
+          adminName: admin.realName || admin.username,
+          module: 'auth',
+          action: 'test_login',
+          requestIp: ip,
+          details: JSON.stringify({
+            msg: 'test login success',
+            ip,
+            ua,
+          }),
+        },
+      });
+
+      return updatedUser;
+    });
+
+    // issue short-lived token (test login: 30min access + 1h refresh)
+    const tokens = await this.issueTokenPair(
+      { id: admin.id, role: admin.role },
+      '30m',
+      '1h',
+    );
+
+    return {
+      tokens,
+      userInfo: {
+        id: result.id,
+        username: result.username,
+        realName: result.realName,
+        role: result.role,
+        status: result.status,
+        lastLoginAt: result.lastLoginAt ? result.lastLoginAt.getTime() : null,
+      },
     };
   }
 

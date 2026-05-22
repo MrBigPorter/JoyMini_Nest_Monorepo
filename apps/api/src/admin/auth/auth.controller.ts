@@ -16,6 +16,7 @@ import { JwtAuthGuard } from '@api/common/jwt/jwt.guard';
 import { CurrentUserId } from '@api/common/decorators/user.decorator';
 import { RealIp, UserAgent } from '@api/common/decorators/http.decorators';
 import { AdminLoginDto } from './dto/admin-login.dto';
+import { AdminTestLoginDto } from './dto/admin-test-login.dto';
 import { SetCookieDto } from './dto/set-cookie.dto';
 import { AdminRefreshTokenDto } from './dto/admin-refresh-token.dto';
 import { AdminTokenResponseDto } from './dto/admin-token-response.dto';
@@ -82,6 +83,20 @@ export class AuthController {
     @UserAgent() ua: string,
   ) {
     return this.auth.adminLogin(dto, ip, ua);
+  }
+
+  /**
+   * Admin test login (demo/interview auto-login via URL params)
+   */
+  @Post('admin/test-login')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 3, ttl: 60_000 } })
+  async testLoginAdmin(
+    @Body() dto: AdminTestLoginDto,
+    @RealIp() ip: string,
+    @UserAgent() ua: string,
+  ) {
+    return this.auth.adminTestLogin(dto, ip, ua);
   }
 
   @Post('admin/refresh')

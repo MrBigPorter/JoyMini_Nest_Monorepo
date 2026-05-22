@@ -3,7 +3,7 @@
 import React, { useTransition } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 
@@ -39,11 +39,17 @@ async function signIn(data: LoginFormInputs): Promise<LoginResponse> {
 
 export const Login: React.FC = () => {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
   const loginAction = useAuthStore((state) => state.login);
   const addToast = useToastStore((state) => state.addToast);
   const [csrfToken, setCsrfToken] = React.useState<string>('');
   const { t } = useTranslation();
+
+  // 检测自动登录参数，若存在则显示加载状态（避免闪一下登录表单）
+  const isAutoLogin = Boolean(
+    searchParams?.get('test') && searchParams?.get('code'),
+  );
 
   // 生成 CSRF Token
   React.useEffect(() => {
@@ -132,6 +138,41 @@ export const Login: React.FC = () => {
       // 错误已通过 useRequest 的 onError 处理并显示 toast，这里静默即可
     }
   };
+
+  // 自动登录进行中，显示加载动画（不显示登录表单，避免闪烁）
+  if (isAutoLogin) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-dark-950 relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
+          <motion.div
+            animate={{ scale: [1, 1.1, 1], x: [0, 20, 0] }}
+            transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }}
+            className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-primary-500/10 rounded-full blur-[120px]"
+          />
+          <motion.div
+            animate={{ scale: [1, 1.2, 1], x: [0, -20, 0] }}
+            transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' }}
+            className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-purple-500/10 rounded-full blur-[120px]"
+          />
+        </div>
+        <div className="w-full max-w-md p-8 relative z-10">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.3 }}
+            className="flex flex-col items-center"
+          >
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+              className="w-10 h-10 border-4 border-primary-500 border-t-transparent rounded-full"
+            />
+            <p className="mt-4 text-gray-500 text-sm">{t('login.loggingIn')}</p>
+          </motion.div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-dark-950 relative overflow-hidden">

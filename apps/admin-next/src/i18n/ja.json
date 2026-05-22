@@ -1599,6 +1599,7 @@
     "welcomeBack": "おかえりなさい、管理者！",
     "loginFailedNoToken": "ログイン失敗：アクセストークンが受信されませんでした。",
     "loginFailedGeneric": "ログインに失敗しました。もう一度お試しください。",
+    "loggingIn": "ログイン中...",
     "copyright": "© {year} JoyMini Admin. All rights reserved."
   }
 }

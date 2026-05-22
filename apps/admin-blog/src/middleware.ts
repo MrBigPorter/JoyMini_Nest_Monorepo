@@ -107,6 +107,11 @@ export function middleware(request: NextRequest) {
     // Redirect to login
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('redirect', pathname);
+    // 保留 test/code 参数用于 auto-login（demo/interview 场景）
+    const test = request.nextUrl.searchParams.get('test');
+    const code = request.nextUrl.searchParams.get('code');
+    if (test) loginUrl.searchParams.set('test', test);
+    if (code) loginUrl.searchParams.set('code', code);
     // Apply locale cookie to redirect response too
     const response = NextResponse.redirect(loginUrl);
     applyLocaleCookie(response);
