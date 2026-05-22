@@ -21,6 +21,7 @@ vi.mock('react-google-recaptcha-v3', () => ({
 }));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mockRouterPush }),
+  useSearchParams: () => new URLSearchParams(),
 }));
 vi.mock('next/link', () => ({
   default: ({

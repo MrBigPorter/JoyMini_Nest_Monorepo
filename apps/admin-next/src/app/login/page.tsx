@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
 import { RecaptchaClientProvider } from '@/components/RecaptchaClientProvider';
 import { Login } from '@/views/Login';
 
@@ -17,7 +18,9 @@ export default function LoginPage() {
   const siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY ?? '';
   return (
     <RecaptchaClientProvider siteKey={siteKey}>
-      <Login />
+      <Suspense fallback={<div className="min-h-screen" />}>
+        <Login />
+      </Suspense>
     </RecaptchaClientProvider>
   );
 }
