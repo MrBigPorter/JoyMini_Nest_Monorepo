@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
 import { Login } from '@/views/Login';
 
 export const metadata: Metadata = {
@@ -13,5 +14,9 @@ export const metadata: Metadata = {
 };
 
 export default function LoginPage() {
-  return <Login />;
+  return (
+    <Suspense fallback={<div className="min-h-screen" />}>
+      <Login />
+    </Suspense>
+  );
 }
