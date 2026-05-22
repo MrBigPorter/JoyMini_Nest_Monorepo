@@ -88,7 +88,6 @@ jobs:
       - name: Build internal packages
         run: |
           node packages/shared/scripts/build.js
-          node packages/ui/scripts/build.js
 
       - name: Lint + Type Check
         run: |
