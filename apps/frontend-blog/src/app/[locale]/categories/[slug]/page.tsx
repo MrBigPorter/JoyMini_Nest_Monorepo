@@ -28,6 +28,10 @@ export async function generateMetadata({
           .map((l: Locale) => [l, `${baseUrl}/${l}/categories/${slug}`]),
       ),
     },
+    robots: {
+      index: true,
+      follow: true,
+    },
   };
 }
 
