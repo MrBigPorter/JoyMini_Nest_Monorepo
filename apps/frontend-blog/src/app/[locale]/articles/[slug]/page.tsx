@@ -117,13 +117,14 @@ export async function generateMetadata({
   } catch (error) {
     console.error('Failed to generate metadata for article:', error);
 
-    // 降级方案：返回基础metadata
+    // 降级方案：API可能因重启/网络抖动短暂超时，不影响SEO索引
+    // 保持 index:true 防止临时故障导致 Google 永久排除页面
     return {
       title: 'Article Not Found',
       description: 'The requested article could not be found.',
       robots: {
-        index: false,
-        follow: false,
+        index: true,
+        follow: true,
       },
     };
   }
