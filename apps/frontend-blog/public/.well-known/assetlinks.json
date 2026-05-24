@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.tarsier.labs",
+      "sha256_cert_fingerprints": [
+        "93:C0:D3:0B:5B:61:51:63:BA:C1:4C:45:36:80:09:CB:76:F3:74:5F:AA:2B:06:9B:EE:62:93:0D:79:6E:5D:97"
+      ]
+    }
+  }
+]

@@ -9,6 +9,7 @@ import type {
   FrontendTag,
   FrontendCategoryWithArticles,
 } from '@/lib/types/frontend-blog';
+import { getOptimizedImageUrl } from '@/lib/utils/cloudflareImageLoader';
 
 /**
  * 生成文章页面的结构化数据
@@ -25,7 +26,15 @@ export function generateArticleSchema(
     '@type': 'BlogPosting',
     headline: article.title,
     description: article.excerpt || article.content?.substring(0, 200),
-    image: article.coverImage ? [article.coverImage] : [],
+    image: article.coverImage
+      ? [
+          getOptimizedImageUrl({
+            src: article.coverImage,
+            width: 1200,
+            quality: 75,
+          }),
+        ]
+      : [],
     datePublished: article.publishedAt,
     dateModified: article.updatedAt,
     author: {
