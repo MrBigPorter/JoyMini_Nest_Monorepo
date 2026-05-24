@@ -72,7 +72,11 @@ export async function generateMetadata({
         images: article.coverImage
           ? [
               {
-                url: article.coverImage,
+                url: getOptimizedImageUrl({
+                  src: article.coverImage,
+                  width: 1200,
+                  quality: 75,
+                }),
                 width: 1200,
                 height: 630,
                 alt: article.title,
@@ -80,7 +84,7 @@ export async function generateMetadata({
             ]
           : [
               {
-                url: '/og-image.png',
+                url: `${baseUrl}/og-image.png`,
                 width: 1200,
                 height: 630,
                 alt: 'Tarsier Labs',
@@ -93,7 +97,15 @@ export async function generateMetadata({
         card: 'summary_large_image',
         title: article.title,
         description,
-        images: article.coverImage ? [article.coverImage] : ['/og-image.png'],
+        images: article.coverImage
+          ? [
+              getOptimizedImageUrl({
+                src: article.coverImage,
+                width: 1200,
+                quality: 75,
+              }),
+            ]
+          : [`${baseUrl}/og-image.png`],
       },
 
       // 规范URL + hreflang 多语言标记
