@@ -181,26 +181,24 @@ export class TagService {
   async getPopularTags(limit = 20) {
     const tags = await this.prisma.blogTag.findMany({
       take: limit,
-      orderBy: {
-        articles: { _count: 'desc' },
-      },
       include: {
-        articles: {
-          where: { status: 'PUBLISHED' },
-          select: { id: true },
+        _count: {
+          select: {
+            articles: {
+              where: { status: 'PUBLISHED' },
+            },
+          },
         },
       },
     });
 
-    return tags.map((tag: any) => {
-      const { articles, ...rest } = tag;
-      return {
-        ...rest,
-        _count: {
-          articles: articles.length,
-        },
-      };
-    });
+    // Sort in-memory by published article count (Prisma can't orderBy filtered _count directly)
+    tags.sort((a, b) => b._count.articles - a._count.articles);
+
+    return tags.map((tag: any) => ({
+      ...tag,
+      articleCount: tag._count.articles,
+    }));
   }
 
   /**
