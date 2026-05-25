@@ -12,7 +12,7 @@ import {
 import { Observable } from 'rxjs';
 import { OnEvent } from '@nestjs/event-emitter';
 import { PrismaService } from '@api/common/prisma/prisma.service';
-import { ArticleStatus, Prisma } from '@prisma/client';
+import { ArticleStatus, CommentStatus, Prisma } from '@prisma/client';
 import { CreateArticleDto, UpdateArticleDto, CreateCommentDto } from './dto';
 import { createHash } from 'crypto';
 
@@ -1526,10 +1526,27 @@ export class BlogService {
       this.prisma.blogArticle.count({
         where: { status: ArticleStatus.PUBLISHED },
       }),
-      this.prisma.blogCategory.count(),
-      this.prisma.blogTag.count(),
-      this.prisma.blogArticle.aggregate({ _sum: { viewCount: true } }),
-      this.prisma.blogComment.count(),
+      // Only count categories that have at least one PUBLISHED article
+      this.prisma.blogCategory.count({
+        where: {
+          articles: { some: { status: ArticleStatus.PUBLISHED } },
+        },
+      }),
+      // Only count tags that have at least one PUBLISHED article
+      this.prisma.blogTag.count({
+        where: {
+          articles: { some: { status: ArticleStatus.PUBLISHED } },
+        },
+      }),
+      // Only sum views for PUBLISHED articles
+      this.prisma.blogArticle.aggregate({
+        _sum: { viewCount: true },
+        where: { status: ArticleStatus.PUBLISHED },
+      }),
+      // Only count APPROVED comments
+      this.prisma.blogComment.count({
+        where: { status: CommentStatus.APPROVED },
+      }),
     ]);
 
     const oneWeekAgo = new Date();
@@ -1557,27 +1574,25 @@ export class BlogService {
    */
   async getPopularTags(limit: number) {
     const tags = await this.prisma.blogTag.findMany({
-      orderBy: {
-        articles: { _count: 'desc' },
-      },
       take: limit,
       include: {
-        articles: {
-          where: { status: 'PUBLISHED' },
-          select: { id: true },
+        _count: {
+          select: {
+            articles: {
+              where: { status: ArticleStatus.PUBLISHED },
+            },
+          },
         },
       },
     });
 
-    return tags.map((tag: any) => {
-      const { articles, ...rest } = tag;
-      return {
-        ...rest,
-        _count: {
-          articles: articles.length,
-        },
-      };
-    });
+    // Sort in-memory by published article count (Prisma can't orderBy filtered _count directly)
+    tags.sort((a, b) => b._count.articles - a._count.articles);
+
+    return tags.map((tag: any) => ({
+      ...tag,
+      articleCount: tag._count.articles,
+    }));
   }
 
   /**
@@ -1866,12 +1881,6 @@ export class BlogService {
     this.logger.log(
       `[COMMENT] 新评论创建: id=${comment.id}, articleId=${comment.articleId}, parentId=${comment.parentId ?? 'null(顶级)'}, author=${comment.author}`,
     );
-
-    // Update article comment count
-    await this.prisma.blogArticle.update({
-      where: { id: article.id },
-      data: { commentCount: { increment: 1 } },
-    });
 
     // Add to AI moderation queue
     await this.blogAiQueue.add(
