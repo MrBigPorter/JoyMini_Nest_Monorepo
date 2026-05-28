@@ -49,5 +49,7 @@ jobs:
           aws ecs update-service \
             --cluster $ECS_CLUSTER \
             --service $ECS_SERVICE \
+            --desired-count 1 \
             --force-new-deployment \
             --region $AWS_REGION
+      
