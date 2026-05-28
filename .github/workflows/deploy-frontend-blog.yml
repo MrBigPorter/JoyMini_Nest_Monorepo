@@ -8,6 +8,7 @@ on:
       - 'packages/**'
       - 'apps/frontend-blog/Dockerfile'
       - '.github/workflows/deploy-frontend-blog.yml'
+  workflow_dispatch:
 
 env:
   AWS_REGION: ${{ secrets.AWS_REGION }}
