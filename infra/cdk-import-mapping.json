@@ -1,0 +1,14 @@
+{
+  "EcsFrontendCpuHighAlarmA84E2FFF": {
+    "AlarmName": "tarsier-labs-cpu-high"
+  },
+  "EcsFrontendTarsierLabsCluster29BF2D33": {
+    "ClusterName": "tarsier-labs-cluster"
+  },
+  "EcsFrontendTarsierLabsEcrRepo083064C1": {
+    "RepositoryName": "tarsier-labs"
+  },
+  "S3R2SyncJoyMiniImagesBucket9070096D": {
+    "BucketName": "joymini-images-prod"
+  }
+}

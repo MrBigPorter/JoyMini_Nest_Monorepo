@@ -1,8 +1,8 @@
 # ==========================================
-# JoyMini Nest Monorepo — 开发环境命令
+# JoyMini Nest Monorepo — Dev Command Center
 # ==========================================
-# 使用: make <target>
-# 例如: make setup   make up   make down
+# Usage: make <target>
+# Examples: make setup   make up   make down
 # ==========================================
 
 
@@ -14,164 +14,168 @@
         rollback rollback-backend rollback-db \
         switch-admin-dns rollback-admin-dns verify-blog-cache \
         publish-blog-docs \
-        logs-prod logs-backend logs-nginx logs-db logs-turn
+        logs-prod logs-backend logs-nginx logs-db logs-turn \
+        aws-load-test aws-check-scaling aws-scaling-activities aws-check-cpu \
+        aws-force-deploy aws-ecs-logs aws-ecs-exec aws-cost-check \
+        aws-stop-all aws-start-all \
+        aws-sync-dlq-check aws-sync-dlq-purge
 
 .DEFAULT_GOAL := help
 
 # ──────────────────────────────────────────
-# 初始化
+# Setup
 # ──────────────────────────────────────────
 
-## [初始化] 首次 clone 后运行：创建 .env 软链接 + 生成开发证书
+## [Setup] First-time clone: create .env symlink + generate dev certs
 setup: generate-certs
-	@echo "→ 创建 .env 软链接 → deploy/.env.dev"
+	@echo "→ Creating .env symlink → deploy/.env.dev"
 	@ln -sf deploy/.env.dev .env
-	@echo "✓ 完成！"
-	@echo "👉 运行 'make up' 启动全套环境"
-	@echo "👉 或运行 'make up-infra' 后，再新开终端运行 'make dev-admin' 或 'make dev-blog'"
+	@echo "✓ Done!"
+	@echo "👉 Run 'make up' to start full stack"
+	@echo "👉 Or run 'make up-infra' first, then 'make dev-admin' or 'make dev-blog' in another terminal"
 
-## [证书] 生成多域名 SAN 开发自签名证书 (依赖 mkcert)
+## [Certs] Generate multi-domain SAN dev certs (requires mkcert)
 generate-certs:
 	@if [ ! -f certs/dev.joyminis.com.pem ]; then \
-		echo "→ 使用 mkcert 生成受信任的开发证书..."; \
+		echo "→ Generating trusted dev certs with mkcert..."; \
 		mkdir -p certs; \
 		mkcert -key-file certs/dev.joyminis.com-key.pem \
 			   -cert-file certs/dev.joyminis.com.pem \
 			   dev.joyminis.com blog-dev.joyminis.com admin-dev.joyminis.com blog-admin-dev.joyminis.com dev-api.joyminis.com localhost 127.0.0.1; \
 		chmod 644 certs/*; \
-		echo "✓ 证书生成成功，已经被系统信任！"; \
+		echo "✓ Certs generated and trusted by system!"; \
 	else \
-		echo "✓ 开发证书已存在"; \
+		echo "✓ Dev certs already exist"; \
 	fi
 
 # ──────────────────────────────────────────
-# Docker 全套环境
+# Docker (Full Stack)
 # ──────────────────────────────────────────
 
-## [Docker] 检查 Dockerfile 一致性（Yarn 版本等）
+## [Docker] Check Dockerfile consistency (Yarn version etc.)
 check-dockerfiles:
 	@bash scripts/check-yarn-version.sh
 
-## [Docker] 🚀 启动全套开发环境（自动清理幽灵容器，防止冲突）
+## [Docker] 🚀 Start full dev stack (auto-removes orphan containers)
 up: check-dockerfiles
 	docker compose up -d --build --remove-orphans
 
-## [Docker] 🚀 只启动基础设施（DB + Redis + API + Nginx，适合配合本地前端调试）
+## [Docker] 🚀 Start only infrastructure (DB + Redis + API + Nginx, good for local frontend dev)
 up-infra: check-dockerfiles
 	docker compose up -d --build --remove-orphans db redis backend nginx
 
-## [Docker] 🛑 停止所有容器（自动清理孤儿容器）
+## [Docker] 🛑 Stop all containers (auto-removes orphans)
 down:
 	docker compose down --remove-orphans
 
-## [Docker] 🔄 重启所有服务
+## [Docker] 🔄 Restart all services
 restart:
 	docker compose restart
 
-## [Docker] 重新构建镜像（改动 package.json 或 Dockerfile 后使用）
+## [Docker] Rebuild images (use after changing package.json or Dockerfile)
 build: check-dockerfiles
 	docker compose build --no-cache
 
-## [Docker] 📋 查看运行状态
+## [Docker] 📋 View running containers
 ps:
 	docker compose ps
 
-## [Docker] 📝 查看所有服务日志（Ctrl+C 退出）
+## [Docker] 📝 View logs for all services (Ctrl+C to exit)
 logs:
 	docker compose logs -f
 
-## [Docker] 📝 查看指定服务日志（用法: make log s=backend）
+## [Docker] 📝 View logs for a specific service (usage: make log s=backend)
 log:
 	docker compose logs -f $(s)
 
 # ──────────────────────────────────────────
-# 危险操作区 (清理与重置)
+# Danger Zone (Cleanup & Reset)
 # ──────────────────────────────────────────
 
-## [环境清理] 🧹 清理容器和未使用的镜像（不删数据库数据！）
+## [Cleanup] 🧹 Remove containers & unused images (keeps DB data!)
 clean:
 	docker compose down --remove-orphans
 	docker image prune -f
-	@echo "✓ 环境已清理（数据库和 Redis 数据已保留）"
+	@echo "✓ Environment cleaned (DB and Redis data preserved)"
 
-## [终极重置] ⚠️ 格式化：清理一切，包括数据库和缓存数据（谨慎使用！）
+## [Nuke] ⚠️ Full reset: removes everything including DB + cache volumes (use with care!)
 wipe:
 	docker compose down -v --remove-orphans
 	docker image prune -a -f
-	@echo "☠️  所有容器、网络、镜像及数据卷已被彻底清除！"
+	@echo "☠️  All containers, networks, images & volumes destroyed!"
 
 # ──────────────────────────────────────────
-# 本地前端开发 (比 Docker HMR 响应更快)
+# Local Frontend Dev (faster HMR than Docker)
 # ──────────────────────────────────────────
 
-## [前端] 启动 Admin 后台 (需先 make up-infra)
+## [Frontend] Start Admin panel (requires make up-infra first)
 dev-admin:
 	yarn workspace @lucky/admin-next dev
 
-## [前端] 启动 Blog 前台 (使用 Turbopack, 需先 make up-infra)
+## [Frontend] Start Blog frontend (uses Turbopack, requires make up-infra first)
 dev-blog:
 	cd apps/frontend-blog && PORT=4002 yarn dev --turbopack -p 4002
 
-## [前端] 🧹 清理 Blog 开发缓存后重启 (清除 Turbopack 持久化缓存，解决 Hydration Error)
+## [Frontend] 🧹 Clear blog dev cache & restart (clears Turbopack persistent cache, fixes Hydration Error)
 dev-blog-clean:
-	@echo "→ 杀掉 blog dev server (port 4002)..."
-	@lsof -ti:4002 | xargs kill -9 2>/dev/null || echo "  ⏭️  无进程占用 4002 端口"
+	@echo "→ Killing blog dev server (port 4002)..."
+	@lsof -ti:4002 | xargs kill -9 2>/dev/null || echo "  ⏭️  No process on port 4002"
 	@sleep 1
-	@echo "→ 清除 .next .turbo 缓存..."
+	@echo "→ Clearing .next .turbo cache..."
 	@rm -rf apps/frontend-blog/.next apps/frontend-blog/.turbo
-	@echo "→ 重启 dev server..."
+	@echo "→ Restarting dev server..."
 	@cd apps/frontend-blog && PORT=4002 yarn dev --turbopack -p 4002
 
 # ──────────────────────────────────────────
-# Tunnel (Cloudflare 公网隧道)
+# Tunnel (Cloudflare Public Tunnel)
 # ──────────────────────────────────────────
 
-## [Tunnel] 🚇 启动 Cloudflare Tunnel（将本地 API 暴露到公网 dev-api.joyminis.com）
+## [Tunnel] 🚇 Start Cloudflare Tunnel (exposes local API at dev-api.joyminis.com)
 tunnel:
 	cloudflared tunnel --config cloudflared.yml run lucky-nest-monorepo
 
-## [Tunnel] 🛑 停止 Cloudflare Tunnel
+## [Tunnel] 🛑 Stop Cloudflare Tunnel
 tunnel-kill:
-	-pkill cloudflared 2>/dev/null || killall cloudflared 2>/dev/null || echo "⚠️  cloudflared 未运行"
+	-pkill cloudflared 2>/dev/null || killall cloudflared 2>/dev/null || echo "⚠️  cloudflared not running"
 
-## [Tunnel] 🔄 重启 Cloudflare Tunnel（kill + 启动，使用最新 cloudflared.yml 配置）
+## [Tunnel] 🔄 Restart Cloudflare Tunnel (kill + start, uses latest cloudflared.yml)
 tunnel-restart: tunnel-kill
 	cloudflared tunnel --config cloudflared.yml run lucky-nest-monorepo &
 
-## [DNS] 🧹 刷新 macOS DNS 缓存（新增域名解析后执行，解决 DNS_PROBE_FINISHED_NXDOMAIN）
+## [DNS] 🧹 Flush macOS DNS cache (run after adding new domains, fixes DNS_PROBE_FINISHED_NXDOMAIN)
 dns-flush:
 	sudo dscacheutil -flushcache && sudo killall -HUP mDNSResponder
-	@echo "✓ macOS DNS 缓存已清除"
+	@echo "✓ macOS DNS cache cleared"
 
 # ──────────────────────────────────────────
-# 数据库 / 后端开发辅助
+# Database / Backend Dev Tools
 # ──────────────────────────────────────────
 
-## [API] 进入后端容器 Shell
+## [API] Enter backend container shell
 exec-api:
 	docker compose exec backend sh
 
-## [DB] 运行 Prisma 结构迁移 (同步数据库)
+## [DB] Run Prisma migration (sync database schema)
 migrate:
 	docker compose exec backend yarn workspace @lucky/api prisma migrate dev
 
-## [DB] 重置数据库并运行 Seed (⚠️ 会清空现有数据)
+## [DB] Reset DB & run seed (⚠️ will wipe existing data)
 seed:
 	docker compose exec backend yarn workspace @lucky/api seed
 
-## [DB] 打开 Prisma Studio (网页版可视化数据库)
+## [DB] Open Prisma Studio (web-based DB browser)
 prisma-studio:
 	docker compose exec backend yarn workspace @lucky/api prisma studio
 
 # ──────────────────────────────────────────
-# 代码质量 (lint / fix / audit)
+# Code Quality (lint / fix / audit)
 # ──────────────────────────────────────────
 
-## [质量] 🔍 运行全量 lint（与 CI 一致，检测 ERROR）
+## [Quality] 🔍 Run full lint (same as CI, checks ERROR-level issues)
 check:
 	yarn turbo run lint
 
-## [质量] 🧪 运行全量 TypeScript 严格类型检查（tsc --noEmit，覆盖所有 workspace）
+## [Quality] 🧪 Run full TypeScript strict type-check (tsc --noEmit, covers all workspaces)
 type-check:
 	@echo "==> Running strict type-check across all workspaces..."
 	@echo ""
@@ -186,11 +190,11 @@ type-check:
 	@echo ""
 	@echo "✅ Type-check complete. Review any errors above."
 
-## [质量] 🎨 仅运行 Prettier 格式化（不执行 ESLint fix，仅处理代码样式）
+## [Quality] 🎨 Run Prettier formatting only (no ESLint fix)
 format:
 	yarn format
 
-## [质量] 🔧 自动修复可修复问题（prettier + eslint --fix）
+## [Quality] 🔧 Auto-fix fixable issues (prettier + eslint --fix)
 fix:
 	@echo "==> Prettier: formatting all files..."
 	$(MAKE) format
@@ -203,7 +207,7 @@ fix:
 	@echo "✅ Auto-fix complete. Remaining issues (if any) require manual fixes."
 	@echo "   Run 'make check' to verify."
 
-## [质量] 📊 按严重程度分类的警告报告
+## [Quality] 📊 Categorized warning report by severity
 define audit_workspace
 	@echo "========================================"
 	@echo "  $(1)"
@@ -238,75 +242,74 @@ audit:
 	$(call audit_workspace,@lucky/frontend-blog)
 
 # ──────────────────────────────────────────
-# 生产部署 (VPS)
+# Production Deployment (VPS)
 # ──────────────────────────────────────────
-# 所有 deploy/rollback 命令会交互式提示输入 VPS_IP，
-# 也可以在调用时用 VPS_IP=1.2.3.4 预设：
-#   make deploy VPS_IP=1.2.3.4
+# All deploy/rollback commands will prompt for VPS_IP interactively,
+# or you can preset it: make deploy VPS_IP=1.2.3.4
 # ──────────────────────────────────────────
 
-## [Deploy] 🚀 全量部署 (后端 + 前端)
+## [Deploy] 🚀 Full deployment (backend + frontend)
 deploy:
 	bash deploy/deploy.sh
 
-## [Deploy] 仅部署后端
+## [Deploy] Backend only
 deploy-backend:
 	bash deploy/deploy.sh --backend
 
-## [Deploy] 仅部署前端 (admin-next)
+## [Deploy] Frontend only (admin-next)
 deploy-admin:
 	bash deploy/deploy.sh --admin
 
-## [Deploy] 跳过构建，仅重启服务
+## [Deploy] Skip build, just restart services
 deploy-quick:
 	bash deploy/deploy.sh --quick
 
-## [Deploy] 仅同步配置文件
+## [Deploy] Sync config files only
 deploy-sync:
 	bash deploy/deploy.sh --sync
 
-## [Rollback] 🔙 回滚容器 (后端 + 前端)
+## [Rollback] 🔙 Roll back containers (backend + frontend)
 rollback:
 	bash deploy/rollback.sh
 
-## [Rollback] 仅回滚后端
+## [Rollback] Backend only
 rollback-backend:
 	bash deploy/rollback.sh --backend
 
-## [Rollback] ⚠️ 恢复数据库备份 (高风险!)
+## [Rollback] ⚠️ Restore DB backup (high risk!)
 rollback-db:
 	bash deploy/rollback.sh --db
 
-## [Cloudflare] 🔁 切换 admin DNS 到 Cloudflare Workers (dry-run)
+## [Cloudflare] 🔁 Switch admin DNS to Cloudflare Workers (dry-run)
 switch-admin-dns:
 	bash deploy/switch-admin-cloudflare.sh
 
-## [Cloudflare] 🔁 切换 admin DNS 回 VPS (dry-run)
+## [Cloudflare] 🔁 Switch admin DNS back to VPS (dry-run)
 rollback-admin-dns:
 	bash deploy/cloudflare-rollback.sh
 
-## [Cloudflare] ✅ 验证 blog 前端缓存状态 (Cloudflare Workers)
+## [Cloudflare] ✅ Verify blog frontend cache status (Cloudflare Workers)
 verify-blog-cache:
 	bash deploy/verify-blog-cache.sh
 
 # ──────────────────────────────────────────
-# 博客文档发布
+# Blog Docs Publishing
 # ──────────────────────────────────────────
 
-## [Blog Doc] 📝 预览将要发布的博客文章（不实际创建）
+## [Blog Doc] 📝 Preview blog articles to be published (dry-run, no actual creation)
 publish-blog-docs-dry-run:
 	DRY_RUN=true PUBLISH_STATUS=$(PUBLISH_STATUS) \
 	API_URL=$(API_URL) \
 	SOURCE_DIR=$(SOURCE_DIR) \
 	npx tsx scripts/batch-import-blog-articles.ts
 
-## [Blog Doc] 🚀 将 docs/blog/articles/ 下的文章发布到博客系统
-## 用法: make publish-blog-docs API_URL=https://api.joyminis.com/api
-##       默认为 DRAFT 模式，设置 PUBLISH_STATUS=PUBLISHED 直接发布
+## [Blog Doc] 🚀 Publish articles from docs/blog/articles/ to the blog system
+## Usage: make publish-blog-docs API_URL=https://api.joyminis.com/api
+##       Defaults to DRAFT; set PUBLISH_STATUS=PUBLISHED to publish immediately
 publish-blog-docs:
 	@if [ -z "$(API_URL)" ]; then \
 		echo ""; \
-		echo "  ❌ 请提供 API_URL"; \
+		echo "  ❌ Please provide API_URL"; \
 		echo "  Usage: make publish-blog-docs API_URL=https://api.joyminis.com/api"; \
 		echo "         make publish-blog-docs API_URL=http://localhost:3000/api PUBLISH_STATUS=DRAFT"; \
 		echo ""; \
@@ -318,14 +321,14 @@ publish-blog-docs:
 	npx tsx scripts/batch-import-blog-articles.ts
 
 # ──────────────────────────────────────────
-# 生产日志 (VPS)
+# Production Logs (VPS)
 # ──────────────────────────────────────────
-# 这些命令会通过 SSH 连接到 VPS 查看生产容器日志。
-# 终端会交互式提示输入 VPS_IP，也可以在调用时预设：
+# These commands SSH into the VPS to view production container logs.
+# The terminal will prompt for VPS_IP interactively, or preset it:
 #   make logs-prod VPS_IP=1.2.3.4
 # ──────────────────────────────────────────
 
-## [Logs] 📝 查看 VPS 所有服务日志 (Ctrl+C 退出，类似 tail -f)
+## [Logs] 📝 View all VPS service logs (Ctrl+C to exit, like tail -f)
 logs-prod:
 	@if [ -z "$(VPS_IP)" ]; then \
 		read -p "VPS IP: " VPS_IP; \
@@ -334,7 +337,7 @@ logs-prod:
 		ssh root@$(VPS_IP) 'docker compose -f /opt/lucky/compose.prod.yml logs -f'; \
 	fi
 
-## [Logs] 🔙 查看后端日志 (Ctrl+C 退出)
+## [Logs] 🔙 View backend logs (Ctrl+C to exit)
 logs-backend:
 	@if [ -z "$(VPS_IP)" ]; then \
 		read -p "VPS IP: " VPS_IP; \
@@ -343,7 +346,7 @@ logs-backend:
 		ssh root@$(VPS_IP) 'docker logs -f --tail=100 lucky-backend-prod'; \
 	fi
 
-## [Logs] 🌐 查看 Nginx 日志 (最近 50 行)
+## [Logs] 🌐 View Nginx logs (last 50 lines)
 logs-nginx:
 	@if [ -z "$(VPS_IP)" ]; then \
 		read -p "VPS IP: " VPS_IP; \
@@ -352,7 +355,7 @@ logs-nginx:
 		ssh root@$(VPS_IP) 'docker logs --tail=50 lucky-nginx-prod'; \
 	fi
 
-## [Logs] 🗄️ 查看数据库日志 (最近 50 行)
+## [Logs] 🗄️ View DB logs (last 50 lines)
 logs-db:
 	@if [ -z "$(VPS_IP)" ]; then \
 		read -p "VPS IP: " VPS_IP; \
@@ -361,7 +364,7 @@ logs-db:
 		ssh root@$(VPS_IP) 'docker logs --tail=50 lucky-db-prod'; \
 	fi
 
-## [Logs] 📞 查看 TURN 服务器日志 (最近 100 行)
+## [Logs] 📞 View TURN server logs (last 100 lines)
 logs-turn:
 	@if [ -z "$(VPS_IP)" ]; then \
 		read -p "VPS IP: " VPS_IP; \
@@ -371,16 +374,271 @@ logs-turn:
 	fi
 
 # ──────────────────────────────────────────
-# 帮助
+# AWS ECS (Production Ops)
+# ──────────────────────────────────────────
+# These commands operate the frontend-blog service on AWS ECS Fargate.
+# Requires AWS CLI credentials (IAM user).
 # ──────────────────────────────────────────
 
-## [Help] 显示此帮助信息
+CLUSTER := tarsier-labs-cluster
+SERVICE := tarsier-labs-service
+CONTAINER := frontend-blog
+AWS_REGION := ap-southeast-1
+
+## [AWS] 🚀 Run load test (hey -n 100000 -c 50, simulates 50 concurrent × 100K requests)
+aws-load-test:
+	@echo "→ Starting load test: 100K requests × 50 concurrency"
+	@echo "   URL: $(URL)"
+	@echo "   In another terminal, run 'make aws-check-scaling' to watch scaling"
+	@echo ""
+	@if [ -z "$(URL)" ]; then \
+		echo "  ❌ Please provide URL"; \
+		echo "  Usage: make aws-load-test URL=https://tarsier.joyminis.com/zh/"; \
+		exit 1; \
+	fi
+	hey -n 100000 -c 50 $(URL)
+
+## [AWS] 📊 Watch ECS task count (refreshes every 5s)
+aws-check-scaling:
+	watch -n 5 AWS_PAGER="" aws ecs describe-services \
+		--cluster $(CLUSTER) \
+		--services $(SERVICE) \
+		--query "services[0].runningCount"
+
+## [AWS] 🔍 Check Auto Scaling trigger history (verify scaling worked)
+aws-scaling-activities:
+	AWS_PAGER="" aws application-autoscaling describe-scaling-activities \
+		--service-namespace ecs \
+		--resource-id service/$(CLUSTER)/$(SERVICE)
+
+## [AWS] 📈 View ECS service CPU utilization (last 1 hour)
+aws-check-cpu:
+	@echo "→ Checking $(SERVICE) CPU utilization (last 1h)..."
+	AWS_PAGER="" aws cloudwatch get-metric-statistics \
+		--namespace AWS/ECS \
+		--metric-name CPUUtilization \
+		--dimensions Name=ClusterName,Value=$(CLUSTER) Name=ServiceName,Value=$(SERVICE) \
+		--start-time "$(shell date -u -v-1H '+%Y-%m-%dT%H:%M:%SZ')" \
+		--end-time "$(shell date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+		--period 60 \
+		--statistics Average \
+		--query "Datapoints[*].[Timestamp,Average]" \
+		--output table
+
+## [AWS] 🔄 Force ECS rolling update (pull latest image & restart containers)
+aws-force-deploy:
+	@echo "→ Force-triggering $(SERVICE) rolling update..."
+	AWS_PAGER="" aws ecs update-service \
+		--cluster $(CLUSTER) \
+		--service $(SERVICE) \
+		--force-new-deployment
+
+## [AWS] 📝 Tail ECS container CloudWatch logs (last 100, follow mode)
+aws-ecs-logs:
+	@echo "→ Fetching latest task ID..."
+	$(eval TASK := $(shell AWS_PAGER="" aws ecs list-tasks --cluster $(CLUSTER) --service-name $(SERVICE) --query "taskArns[0]" --output text 2>/dev/null))
+	@if [ "$(TASK)" = "None" ] || [ -z "$(TASK)" ]; then \
+		echo "  ❌ No running task found"; \
+		exit 1; \
+	fi
+	@echo "   Task: $(TASK)"
+	AWS_PAGER="" aws logs tail /ecs/$(CONTAINER) --follow --since 5m
+
+## [AWS] 🔑 SSH into a running ECS container (requires ECS Exec enabled)
+aws-ecs-exec:
+	@echo "→ Fetching latest task ID..."
+	$(eval TASK := $(shell AWS_PAGER="" aws ecs list-tasks --cluster $(CLUSTER) --service-name $(SERVICE) --query "taskArns[0]" --output text 2>/dev/null))
+	@if [ "$(TASK)" = "None" ] || [ -z "$(TASK)" ]; then \
+		echo "  ❌ No running task found"; \
+		exit 1; \
+	fi
+	@echo "   Task: $(TASK)"
+	AWS_PAGER="" aws ecs execute-command \
+		--cluster $(CLUSTER) \
+		--task $(TASK) \
+		--container $(CONTAINER) \
+		--command "/bin/sh" \
+		--interactive
+
+## [AWS] 🛑 Stop all ECS containers (set desiredCount=0, stops Fargate billing)
+aws-stop-all:
+	@echo "→ Stopping $(SERVICE)..."
+	@echo "  ⚠️  Setting desiredCount=0 — all containers will be stopped"
+	@read -p "  Confirm? (y/N): " yn; \
+	if [ "$$yn" != "y" ] && [ "$$yn" != "Y" ]; then \
+		echo "  ❌ Cancelled"; \
+		exit 1; \
+	fi
+	AWS_PAGER="" aws ecs update-service \
+		--cluster $(CLUSTER) \
+		--service $(SERVICE) \
+		--desired-count 0
+	@echo ""
+	@echo "  ✅ All containers stopped. Fargate billing stopped."
+	@echo "  ⚠️  ALB (~$$16.50/mo) still exists — can't delete via CLI, need to remove CDK stack manually."
+	@echo "  👉 Restart: make aws-start-all"
+
+## [AWS] ▶️ Restore ECS containers (set desiredCount=1)
+aws-start-all:
+	@echo "→ Restoring $(SERVICE)..."
+	AWS_PAGER="" aws ecs update-service \
+		--cluster $(CLUSTER) \
+		--service $(SERVICE) \
+		--desired-count 1
+	@echo ""
+	@echo "  ✅ desiredCount=1, containers will start in a few seconds"
+	@echo "  👉 Monitor status: make aws-check-scaling"
+
+## [AWS] 💰 One-click AWS cost check — flags any potentially wasteful resources
+aws-cost-check:
+	@echo ""
+	@echo "┌─────────────────────────────────────────┐"
+	@echo "│   💰 AWS Cost Check                      │"
+	@echo "└─────────────────────────────────────────┘"
+	@echo ""
+	@echo "━━━ 🚢 ECS Services ━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "→ Checking $(SERVICE)..."
+	@AWS_PAGER="" aws ecs describe-services --cluster $(CLUSTER) --services $(SERVICE) \
+		--query "services[0].{running: runningCount, desired: desiredCount, status: status}" \
+		--output table 2>/dev/null; \
+		rc=$$?; \
+		if [ $$rc -ne 0 ]; then \
+			echo "  ⚠️  API call failed — check AWS CLI config"; \
+		fi
+	@echo "→ Checking for extra ECS Services..."
+	@EXTRA=$$(aws ecs list-services --cluster $(CLUSTER) --query "serviceArns[?contains(@, '$(SERVICE)')==\`false\`]" --output text 2>/dev/null); \
+		if [ -n "$$EXTRA" ] && [ "$$EXTRA" != "None" ]; then \
+			echo "  ⚠️  Unexpected Service found:"; \
+			echo "     $$EXTRA"; \
+		else \
+			echo "  ✅ No extra services"; \
+		fi
+	@echo ""
+	@echo "━━━ 🌐 Load Balancers ━━━━━━━━━━━━━━━━━━━"
+	@ALB_COUNT=$$(aws elbv2 describe-load-balancers --query "length(LoadBalancers)" --output text 2>/dev/null); \
+		if [ "$$ALB_COUNT" = "0" ] || [ -z "$$ALB_COUNT" ]; then \
+			echo "  ⚠️  No ALB found — may have been deleted accidentally"; \
+		elif [ "$$ALB_COUNT" = "1" ]; then \
+			echo "  ✅ 1 ALB — as expected"; \
+		else \
+			echo "  ⚠️  $$ALB_COUNT ALBs found! Each ~$$22/mo"; \
+			AWS_PAGER="" aws elbv2 describe-load-balancers --query "LoadBalancers[*].{name: LoadBalancerName, dns: DNSName}" --output table; \
+		fi
+	@echo ""
+	@echo "━━━ 🖥️ EC2 Instances ━━━━━━━━━━━━━━━━━━━━"
+	@EC2_COUNT=$$(aws ec2 describe-instances --filters Name=instance-state-name,Values=running --query "length(Reservations[*].Instances[*])" --output text 2>/dev/null); \
+		if [ -z "$$EC2_COUNT" ] || [ "$$EC2_COUNT" = "0" ]; then \
+			echo "  ✅ 0 EC2 instances — Fargate doesn't need them, saves money"; \
+		else \
+			echo "  ⚠️  $$EC2_COUNT EC2 instances running! Fargate doesn't need these"; \
+			AWS_PAGER="" aws ec2 describe-instances --filters Name=instance-state-name,Values=running --query "Reservations[*].Instances[*].{id: InstanceId, type: InstanceType, launch: LaunchTime}" --output table; \
+		fi
+	@echo ""
+	@echo "━━━ 💰 Monthly Cost Estimate ━━━━━━━━━━━━━━━"
+	@echo '  ECS Fargate (1×1024/2048): ~$$18/mo'
+	@echo '  ALB:                     ~$$16.50/mo'
+	@echo '  ─────────────────────────────────'
+	@echo '  Total:                   ~$$34-35/mo'
+	@echo ""
+	@echo "📋 Conclusion:"
+	@ALB_COUNT=$$(aws elbv2 describe-load-balancers --query "length(LoadBalancers)" --output text 2>/dev/null); \
+	EC2_COUNT=$$(aws ec2 describe-instances --filters Name=instance-state-name,Values=running --query "length(Reservations[*].Instances[*])" --output text 2>/dev/null); \
+	EXTRA=$$(aws ecs list-services --cluster $(CLUSTER) --query "serviceArns[?contains(@, '$(SERVICE)')==\`false\`]" --output text 2>/dev/null); \
+	HAS_WARN=0; \
+	if [ -n "$$EXTRA" ] && [ "$$EXTRA" != "None" ]; then HAS_WARN=1; fi; \
+	if [ "$$ALB_COUNT" != "1" ] && [ -n "$$ALB_COUNT" ]; then HAS_WARN=1; fi; \
+	if [ "$$EC2_COUNT" != "0" ] && [ -n "$$EC2_COUNT" ]; then HAS_WARN=1; fi; \
+	if [ $$HAS_WARN -eq 1 ]; then \
+		echo "  ⚠️  Suspicious resources found — check lines marked ⚠️ above"; \
+	else \
+		echo "  ✅ All clear, no unexpected spending"; \
+	fi
+	@echo ""
+
+# ──────────────────────────────────────────
+# AWS S3→R2 Sync (DLQ Operations)
+# ──────────────────────────────────────────
+
+## [AWS-Sync] 📋 Check S3→R2 Sync DLQ for failed file records
+aws-sync-dlq-check:
+	@echo "→ Checking S3→R2 Sync DLQ for failed files..."
+	@DLQ_URL=$$(AWS_PAGER="" aws sqs get-queue-url --queue-name s3-to-r2-sync-dlq --query "QueueUrl" --output text --region $(AWS_REGION) 2>/dev/null); \
+	if [ -z "$$DLQ_URL" ]; then \
+		echo "  ❌ DLQ not found. Has 'cdk deploy' been run?"; \
+		exit 1; \
+	fi; \
+	echo "  Queue: $$DLQ_URL"; \
+	echo "→ Receiving up to 10 messages..."; \
+	AWS_PAGER="" aws sqs receive-message \
+		--queue-url "$$DLQ_URL" \
+		--max-number-of-messages 10 \
+		--region $(AWS_REGION) \
+		--query "Messages[*].Body" \
+		--output json; \
+	MSG_COUNT=$$(AWS_PAGER="" aws sqs receive-message \
+		--queue-url "$$DLQ_URL" \
+		--max-number-of-messages 10 \
+		--region $(AWS_REGION) \
+		--query "length(Messages)" \
+		--output text 2>/dev/null); \
+	if [ "$$MSG_COUNT" = "None" ] || [ -z "$$MSG_COUNT" ] || [ "$$MSG_COUNT" = "0" ]; then \
+		echo "  ✅ DLQ is empty — no recent failures"; \
+	else \
+		echo "  ⚠️  $$MSG_COUNT failure(s) found — inspect above"; \
+		echo "  👉 After reviewing, purge: make aws-sync-dlq-purge"; \
+	fi
+
+## [AWS-Sync] 🧹 Purge all messages from S3→R2 Sync DLQ (after reviewing failures)
+aws-sync-dlq-purge:
+	@echo "⚠️  This will delete ALL messages from the DLQ permanently!"
+	@read -p "  Confirm? (y/N): " yn; \
+	if [ "$$yn" != "y" ] && [ "$$yn" != "Y" ]; then \
+		echo "  ❌ Cancelled"; \
+		exit 1; \
+	fi; \
+	DLQ_URL=$$(AWS_PAGER="" aws sqs get-queue-url --queue-name s3-to-r2-sync-dlq --query "QueueUrl" --output text --region $(AWS_REGION) 2>/dev/null); \
+	if [ -z "$$DLQ_URL" ]; then \
+		echo "  ❌ DLQ not found"; \
+		exit 1; \
+	fi; \
+	AWS_PAGER="" aws sqs purge-queue --queue-url "$$DLQ_URL" --region $(AWS_REGION); \
+	echo "✅ DLQ purged successfully"
+
+# ──────────────────────────────────────────
+# AWS CDK Infra (S3-R2 Sync)
+# ──────────────────────────────────────────
+
+## [AWS-CDK] 🏗️ Deploy CDK stack (local — reads .env.prod for email)
+aws-infra-deploy:
+	@echo "→ Deploying CDK stack..."
+	cd infra && npx cdk deploy --app "npx ts-node bin/infra.ts" --require-approval never
+
+## [AWS-CDK] 🔍 Show CDK diff (preview changes before deploy)
+aws-infra-diff:
+	@echo "→ CDK diff..."
+	cd infra && npx cdk diff --app "npx ts-node bin/infra.ts"
+
+## [AWS-CDK] 🗑️ Destroy CDK stack (DANGER — deletes all resources)
+aws-infra-destroy:
+	@echo "⚠️  This will DESTROY the entire CDK stack!"
+	@read -p "  Are you sure? (type 'destroy' to confirm): " confirm; \
+	if [ "$$confirm" != "destroy" ]; then \
+		echo "❌ Cancelled"; \
+		exit 1; \
+	fi; \
+	cd infra && npx cdk destroy --app "npx ts-node bin/infra.ts" --force
+
+# ──────────────────────────────────────────
+# Help
+# ──────────────────────────────────────────
+
+## [Help] Show this help message
 help:
 	@echo ""
-	@echo "  🚀 Lucky Nest — 开发者工具箱"
+	@echo "  🚀 Lucky Nest — Developer Toolbox"
 	@echo "  ─────────────────────────────────────────"
 	@grep -E '^## ' Makefile | sed 's/## /  /'
 	@echo ""
-	@echo "  💡 生产部署/日志时 VPS IP 会在终端交互式提示输入"
-	@echo "     也可预设: make deploy VPS_IP=1.2.3.4"
+	@echo "  💡 For VPS deploy/log commands, you'll be prompted for VPS_IP interactively"
+	@echo "     or preset it: make deploy VPS_IP=1.2.3.4"
 	@echo ""
