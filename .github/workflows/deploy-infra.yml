@@ -1,0 +1,73 @@
+name: Deploy AWS Infra (CDK)
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: "🖥️ Runner (ubuntu-latest = GitHub托管 / self-hosted = 本地Mac算力)"
+        type: choice
+        options: [ubuntu-latest, self-hosted]
+        default: ubuntu-latest
+
+env:
+  AWS_REGION: ap-southeast-1
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-infra-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: 🏗️ CDK Deploy
+    runs-on: ${{ inputs.runner }}
+    environment: production
+
+    steps:
+      # Step 1 / 步骤 1: Checkout repository source code
+      - name: 1. Checkout Code
+        uses: actions/checkout@v4
+
+      # Step 2 / 步骤 2: Setup Node.js runtime
+      - name: 2. Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Step 3 / 步骤 3: Configure AWS credentials for CDK deploy
+      - name: 3. Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Step 4 / 步骤 4: Install CDK dependencies
+      - name: 4. Install dependencies
+        working-directory: infra
+        run: yarn install --frozen-lockfile
+
+      # Step 5 / 步骤 5: Deploy CDK stack
+      # SYNC_NOTIFICATION_EMAIL is read from GitHub Secrets (set in repo settings)
+      - name: 5. CDK Deploy
+        working-directory: infra
+        env:
+          SYNC_NOTIFICATION_EMAIL: ${{ secrets.SYNC_NOTIFICATION_EMAIL }}
+        run: npx cdk deploy --app "npx ts-node bin/infra.ts" --require-approval never
+
+      # Step 6 / 步骤 6: Print deploy summary
+      - name: 6. Deploy Summary
+        if: always()
+        run: |
+          cat <<EOF >> "$GITHUB_STEP_SUMMARY"
+          ## 🏗️ CDK Infrastructure Deployment
+
+          - Stack: \`TarsierLabsStack\`
+          - Region: \`${{ env.AWS_REGION }}\`
+          - Notification Email: \`${{ secrets.SYNC_NOTIFICATION_EMAIL }}\`
+          - Commit: \`${{ github.sha }}\`
+          - Status: ${{ job.status }}
+          EOF

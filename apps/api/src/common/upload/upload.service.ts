@@ -29,10 +29,20 @@ const getMimeExtension = (mimeType: string): string | false =>
 
 @Injectable()
 export class UploadService {
-  private readonly s3Client: S3Client;
-  private readonly publicBucket: string;
-  private readonly privateBucket: string;
-  private readonly publicDomain: string;
+  private readonly r2Client: S3Client;
+  private s3Client!: S3Client; // 非空断言，s3/dual 模式才创建
+  private readonly storageMode: string;
+
+  // R2 bucket 配置
+  private readonly r2PublicBucket: string;
+  private readonly r2PrivateBucket: string;
+  private readonly r2PublicDomain: string;
+
+  // S3 bucket 配置
+  private readonly s3PublicBucket: string;
+  private readonly s3PrivateBucket: string;
+  private readonly s3PublicDomain: string;
+
   private readonly logger = new Logger(UploadService.name);
 
   constructor(
@@ -43,35 +53,77 @@ export class UploadService {
     @Inject(forwardRef(() => MediaProcessorService))
     private readonly mediaProcessorService: MediaProcessorService,
   ) {
-    // initial
-    const accountId = this.configService.getOrThrow<string>('CF_R2_ACCOUNT_ID');
-    const accessKeyId = this.configService.getOrThrow<string>(
+    // 1. 存储模式
+    this.storageMode = this.configService.get<string>('STORAGE_MODE', 'r2');
+
+    // 2. R2 Client（始终创建）
+    const r2AccountId =
+      this.configService.getOrThrow<string>('CF_R2_ACCOUNT_ID');
+    const r2AccessKeyId = this.configService.getOrThrow<string>(
       'CF_R2_ACCESS_KEY_ID',
     );
-    const secretAccessKey = this.configService.getOrThrow<string>(
+    const r2SecretAccessKey = this.configService.getOrThrow<string>(
       'CF_R2_SECRET_ACCESS_KEY',
     );
-    this.publicBucket = this.configService.getOrThrow<string>(
+    this.r2Client = new S3Client({
+      region: 'auto',
+      endpoint: `https://${r2AccountId}.r2.cloudflarestorage.com`,
+      credentials: {
+        accessKeyId: r2AccessKeyId,
+        secretAccessKey: r2SecretAccessKey,
+      },
+    });
+
+    // 3. S3 Client（s3 或 dual 模式才创建）
+    if (this.storageMode === 's3' || this.storageMode === 'dual') {
+      this.s3Client = new S3Client({
+        region: this.configService.getOrThrow<string>('AWS_REGION'),
+        credentials: {
+          accessKeyId:
+            this.configService.getOrThrow<string>('AWS_ACCESS_KEY_ID'),
+          secretAccessKey: this.configService.getOrThrow<string>(
+            'AWS_SECRET_ACCESS_KEY',
+          ),
+        },
+      });
+    }
+
+    // 4. R2 bucket 配置
+    this.r2PublicBucket = this.configService.get<string>(
       'R2_BUCKET_PUBLIC',
       'mini-shop',
     );
-    this.privateBucket = this.configService.getOrThrow<string>(
+    this.r2PrivateBucket = this.configService.get<string>(
       'R2_BUCKET_PRIVATE',
       'mini-kyc-private',
     );
-    this.publicDomain = this.configService.getOrThrow<string>(
+    this.r2PublicDomain = this.configService.getOrThrow<string>(
       'CF_R2_PUBLIC_DOMAIN',
     );
 
-    //connect to r2 Cloudflare
-    this.s3Client = new S3Client({
-      region: 'auto',
-      endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
-      credentials: {
-        accessKeyId,
-        secretAccessKey,
-      },
-    });
+    // 5. S3 bucket 配置
+    this.s3PublicBucket = this.configService.get<string>(
+      'S3_BUCKET_PUBLIC',
+      'joymini-images-prod',
+    );
+    this.s3PrivateBucket = this.configService.get<string>(
+      'S3_BUCKET_PRIVATE',
+      'joymini-kyc-prod',
+    );
+    this.s3PublicDomain =
+      this.configService.getOrThrow<string>('S3_PUBLIC_DOMAIN');
+  }
+
+  /** 根据 storageMode 返回当前主用的 S3Client */
+  private getActiveClient(): S3Client {
+    if (this.storageMode === 'r2') return this.r2Client;
+    return this.s3Client; // s3 或 dual 模式都用 s3
+  }
+
+  /** 根据 storageMode 返回当前主用的公开域名 */
+  private getActiveDomain(): string {
+    if (this.storageMode === 'r2') return this.r2PublicDomain;
+    return this.s3PublicDomain; // s3/dual 模式用 CloudFront
   }
 
   /**
@@ -95,57 +147,83 @@ export class UploadService {
   }
 
   /**
-   * Internal method to upload file to S3
-   * @param body
-   * @param key
-   * @param bucket
-   * @param contentType
-   * @param encrypt
-   * @private
+   * Internal method to upload file
+   * - r2 模式：只写 R2
+   * - s3 模式：只写 S3
+   * - dual 模式：同时写 S3（主）+ R2（备）
    */
   private async internalPutToS3(
     body: Buffer | Uint8Array | Blob | string,
     key: string,
     bucket: string,
     contentType: string,
-    encrypt: boolean = false, // 默认不加密，按需开启
+    encrypt: boolean = false,
   ) {
+    const activeClient = this.getActiveClient();
+    const putCommand = new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      Body: body,
+      ContentType: contentType,
+      ...(encrypt ? { ServerSideEncryption: 'AES256' } : {}),
+    });
+
     try {
-      await this.s3Client.send(
-        new PutObjectCommand({
-          Bucket: bucket,
-          Key: key,
-          Body: body,
-          ContentType: contentType,
-          ...(encrypt ? { ServerSideEncryption: 'AES256' } : {}),
-        }),
-      );
+      await activeClient.send(putCommand);
       this.logger.log(`File uploaded successfully to ${bucket}/${key}`);
-      return { key };
     } catch (error) {
       this.logger.error('Internal Upload Error', error);
       throw new InternalServerErrorException('Internal Upload Error');
     }
+
+    // Dual 模式：同步写入 R2（灾备）
+    if (this.storageMode === 'dual') {
+      try {
+        const r2Bucket =
+          bucket === this.s3PublicBucket
+            ? this.r2PublicBucket
+            : this.r2PrivateBucket;
+        await this.r2Client.send(
+          new PutObjectCommand({
+            Bucket: r2Bucket,
+            Key: key,
+            Body: body,
+            ContentType: contentType,
+            ...(encrypt ? { ServerSideEncryption: 'AES256' } : {}),
+          }),
+        );
+        this.logger.log(`Dual: Synced to R2 ${r2Bucket}/${key}`);
+      } catch (r2Error) {
+        // 双写失败不阻塞主流程，只记 warning
+        this.logger.warn(
+          `Dual: Failed to sync to R2 — ${String(r2Error)}`,
+        );
+      }
+    }
+
+    return { key };
   }
 
   /**
-   * Get bucket configuration based on module
+   * Get bucket configuration based on module and storage mode
    * @param module
    * @private
    */
   private getBucketConfig(module: string) {
-    //define private modules
+    // define private modules
     const privateModules = ['kyc', 'finance', 'contract', 'id-card'];
+    const isPrivate = privateModules.includes(module);
 
-    if (privateModules.includes(module)) {
+    if (this.storageMode === 'r2') {
       return {
-        bucket: this.privateBucket,
-        isPrivate: true,
+        bucket: isPrivate ? this.r2PrivateBucket : this.r2PublicBucket,
+        isPrivate,
       };
     }
+    // s3 或 dual 模式：主存储是 S3
     return {
-      bucket: this.publicBucket,
-      isPrivate: false,
+      bucket: isPrivate ? this.s3PrivateBucket : this.s3PublicBucket,
+      isPrivate,
     };
   }
 
@@ -163,7 +241,7 @@ export class UploadService {
         Bucket: bucketConfig.bucket,
         Key: key,
       });
-      const response = await this.s3Client.send(command);
+      const response = await this.getActiveClient().send(command);
       return response.ContentLength ?? 0;
     } catch (error) {
       this.logger.warn(
@@ -203,7 +281,7 @@ export class UploadService {
 
     try {
       // 签发 10 分钟有效的上传链接
-      const url = await getSignedUrl(this.s3Client, command, {
+      const url = await getSignedUrl(this.getActiveClient(), command, {
         expiresIn: 600,
       });
 
@@ -213,7 +291,7 @@ export class UploadService {
       if (!isPrivate) {
         //  重点：如果是公开模块(chat)，直接拼接永久 CDN 链接
         // 这样前端存进数据库的就是一个永久链接，任何时候都能看
-        publicUrl = `${this.publicDomain}/${key}`;
+        publicUrl = `${this.getActiveDomain()}/${key}`;
       }
 
       this.logger.log(`Generated upload URL for ${module} in bucket ${bucket}`);
@@ -248,7 +326,7 @@ export class UploadService {
     const { bucket, isPrivate } = this.getBucketConfig(module);
 
     if (!isPrivate) {
-      const domain = this.publicDomain.replace(/\/$/, '');
+      const domain = this.getActiveDomain().replace(/\/$/, '');
       return `${domain}/${normalized}`;
     }
 
@@ -264,7 +342,7 @@ export class UploadService {
 
     try {
       // 签发 5 分钟有效的下载链接
-      return await getSignedUrl(this.s3Client, command, {
+      return await getSignedUrl(this.getActiveClient(), command, {
         expiresIn: 300,
       });
     } catch (error) {
@@ -295,7 +373,7 @@ export class UploadService {
       this.assertOwnedKey(normalized, module, userId);
     }
 
-    const data = await this.s3Client.send(
+    const data = await this.getActiveClient().send(
       new GetObjectCommand({ Bucket: bucket, Key: key }),
     );
 
@@ -360,10 +438,11 @@ export class UploadService {
    * @param mimeType
    */
   async uploadToPublicBucket(key: string, buffer: Buffer, mimeType: string) {
+    const bucketConfig = this.getBucketConfig('blog');
     return this.internalPutToS3(
       buffer,
       key,
-      this.publicBucket,
+      bucketConfig.bucket,
       mimeType,
       false,
     );
@@ -384,15 +463,17 @@ export class UploadService {
     const fileExt = extname(file.originalname);
     const key = `${folder}/${uuidv4()}${fileExt}`;
 
+    const bucketConfig = this.getBucketConfig('blog');
+
     const result = await this.internalPutToS3(
       file.buffer,
       key,
-      this.publicBucket,
+      bucketConfig.bucket,
       file.mimetype,
       false,
     );
 
-    const url = `${this.publicDomain.replace(/\/$/, '')}/${key}`;
+    const url = `${this.getActiveDomain().replace(/\/$/, '')}/${key}`;
 
     // Generate BlurHash for all image uploads (not just blog articles)
     let blurhash = '';
@@ -475,13 +556,13 @@ export class UploadService {
   }
 
   /**
-   * Confirm a direct-to-R2 upload (presigned URL flow) and enqueue processing.
+   * Confirm a direct upload (presigned URL flow) and enqueue processing.
    *
-   * Called after the browser has uploaded the file directly to R2 via presigned URL.
+   * Called after the browser has uploaded the file directly via presigned URL.
    * This method records the upload, enqueues media processing (transcode / compress),
    * and returns the public URL.
    *
-   * @param key - R2 object key (from generatePresignedUrl)
+   * @param key - object key (from generatePresignedUrl)
    * @param originalName - original file name (for extension-based type detection)
    * @param articleId - optional, enqueues media processing if provided
    * @param mimeType - optional, the declared MIME type of the uploaded file
@@ -494,7 +575,7 @@ export class UploadService {
     mimeType?: string,
     mediaUsage?: string,
   ): Promise<{ url: string; key: string }> {
-    const url = `${this.publicDomain.replace(/\/$/, '')}/${key}`;
+    const url = `${this.getActiveDomain().replace(/\/$/, '')}/${key}`;
 
     if (articleId) {
       const VIDEO_EXT = /\.(mp4|avi|mov|mkv|webm)$/i;
