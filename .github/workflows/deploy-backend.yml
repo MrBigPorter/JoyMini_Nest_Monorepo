@@ -242,6 +242,21 @@ jobs:
           timeout: 120s
           command_timeout: 15m
 
+      # Step 2.3 / 步骤 2.3: Sync .env.prod to VPS（确保 VPS 环境变量与仓库保持同步）
+      - name: Sync .env.prod to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT != '' && secrets.SSH_PORT || 22 }}
+          source: "deploy/.env.prod"
+          target: /opt/lucky/deploy
+          overwrite: true
+          timeout: 120s
+          command_timeout: 15m
+          debug: true
+
       # Step 3 / 步骤 3: Pull image, migrate DB, restart service, health-check, and rollback via SSH
       - name: Deploy via SSH (登录服务器执行脚本)
         uses: appleboy/ssh-action@v1.2.0
@@ -257,7 +272,7 @@ jobs:
           timeout: 120s
           command_timeout: 30m
           debug: true
-          envs: GHCR_TOKEN,GHCR_USER,IMAGE
+          envs: GHCR_TOKEN,GHCR_USER,IMAGE,IMAGE_NAME
           script: |
             set -e
             cd /opt/lucky
@@ -337,8 +352,8 @@ jobs:
               echo "❌ 健康检查超时! 正在回滚..."
               docker logs --tail=50 lucky-backend-prod
               if [ -n "$PREV_IMAGE_SHA" ]; then
-                echo "→ 回滚到旧镜像: $PREV_IMAGE_SHA"
-                BACKEND_IMAGE="lucky-backend-prod@${PREV_IMAGE_SHA}" docker compose -f compose.prod.yml \
+                echo "→ 回滚到旧镜像: ${IMAGE_NAME}@${PREV_IMAGE_SHA}"
+                BACKEND_IMAGE="${IMAGE_NAME}@${PREV_IMAGE_SHA}" docker compose -f compose.prod.yml \
                   --env-file deploy/.env.prod \
                   up -d --no-build --force-recreate backend
                 echo "⚠️  已回滚到旧版本！请检查新镜像日志排查原因。"
