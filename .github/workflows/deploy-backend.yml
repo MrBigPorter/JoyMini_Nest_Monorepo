@@ -242,21 +242,6 @@ jobs:
           timeout: 120s
           command_timeout: 15m
 
-      # Step 2.3 / 步骤 2.3: Sync .env.prod to VPS（确保 VPS 环境变量与仓库保持同步）
-      - name: Sync .env.prod to VPS
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USERNAME }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT != '' && secrets.SSH_PORT || 22 }}
-          source: "deploy/.env.prod"
-          target: /opt/lucky/deploy
-          overwrite: true
-          timeout: 120s
-          command_timeout: 15m
-          debug: true
-
       # Step 3 / 步骤 3: Pull image, migrate DB, restart service, health-check, and rollback via SSH
       - name: Deploy via SSH (登录服务器执行脚本)
         uses: appleboy/ssh-action@v1.2.0
@@ -276,6 +261,12 @@ jobs:
           script: |
             set -e
             cd /opt/lucky
+
+            # Sync .env.prod from GitHub raw URL (appleboy/scp-action can't handle dotfiles)
+            echo "→ 同步 .env.prod..."
+            curl -fsSL -o deploy/.env.prod \
+              "https://raw.githubusercontent.com/${GHCR_USER}/JoyMini_Nest_Monorepo/main/deploy/.env.prod"
+            echo " .env.prod 同步完成"
 
             retry() {
               local max="$1"
