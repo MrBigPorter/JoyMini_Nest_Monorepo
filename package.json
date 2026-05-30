@@ -61,7 +61,7 @@
     "@typescript-eslint/eslint-plugin": "^8.57.2",
     "@typescript-eslint/parser": "^8.57.2",
     "compression-webpack-plugin": "^12.0.0",
-    "eslint": "^10.2.1",
+    "eslint": "^8.57",
     "husky": "^9.1.7",
     "jest": "^30.2.0",
     "lint-staged": "^15.5.2",
