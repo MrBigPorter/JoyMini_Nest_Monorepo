@@ -242,6 +242,13 @@ jobs:
           timeout: 120s
           command_timeout: 15m
 
+      # Step 2.3 / 步骤 2.3: Read .env.prod into an env var (avoids SCP dotfile issue + private repo auth)
+      - name: Read .env.prod for SSH transfer
+        id: env_prod
+        run: |
+          ENV_PROD_B64=$(base64 -w0 < deploy/.env.prod)
+          echo "ENV_PROD_B64=$ENV_PROD_B64" >> "$GITHUB_ENV"
+
       # Step 3 / 步骤 3: Pull image, migrate DB, restart service, health-check, and rollback via SSH
       - name: Deploy via SSH (登录服务器执行脚本)
         uses: appleboy/ssh-action@v1.2.0
@@ -257,16 +264,15 @@ jobs:
           timeout: 120s
           command_timeout: 30m
           debug: true
-          envs: GHCR_TOKEN,GHCR_USER,IMAGE,IMAGE_NAME
+          envs: GHCR_TOKEN,GHCR_USER,IMAGE,IMAGE_NAME,ENV_PROD_B64
           script: |
             set -e
             cd /opt/lucky
 
-            # Sync .env.prod from GitHub raw URL (appleboy/scp-action can't handle dotfiles)
-            echo "→ 同步 .env.prod..."
-            curl -fsSL -o deploy/.env.prod \
-              "https://raw.githubusercontent.com/${GHCR_USER}/JoyMini_Nest_Monorepo/main/deploy/.env.prod"
-            echo " .env.prod 同步完成"
+            # Sync .env.prod — passed as base64 env var from CI runner checkout
+            echo "→ 写入 .env.prod..."
+            echo "$ENV_PROD_B64" | base64 -d > deploy/.env.prod
+            echo " .env.prod 写入完成"
 
             retry() {
               local max="$1"
