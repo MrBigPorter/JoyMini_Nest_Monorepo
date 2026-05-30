@@ -110,8 +110,12 @@ export class UploadService {
       'S3_BUCKET_PRIVATE',
       'joymini-kyc-prod',
     );
-    this.s3PublicDomain =
-      this.configService.getOrThrow<string>('S3_PUBLIC_DOMAIN');
+    if (this.storageMode === 's3' || this.storageMode === 'dual') {
+      this.s3PublicDomain =
+        this.configService.getOrThrow<string>('S3_PUBLIC_DOMAIN');
+    } else {
+      this.s3PublicDomain = '';
+    }
   }
 
   /** 根据 storageMode 返回当前主用的 S3Client */
