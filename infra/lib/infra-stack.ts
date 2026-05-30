@@ -217,6 +217,20 @@ export class InfraStack extends cdk.Stack {
           ],
         },
       ],
+      cors: [
+        {
+          allowedOrigins: [
+            "https://admin.joyminis.com",
+            "https://blog-admin.joyminis.com",
+            "https://blog.joyminis.com",
+            "https://dev.joyminis.com",
+          ],
+          allowedMethods: [s3.HttpMethods.PUT],
+          allowedHeaders: ["Content-Type"],
+          exposedHeaders: ["ETag"],
+          maxAge: 3600,
+        },
+      ],
     });
 
     // CloudFront Distribution — CDN
