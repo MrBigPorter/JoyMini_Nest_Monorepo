@@ -35,7 +35,11 @@ function chunk<T>(arr: T[], size: number): T[][] {
   );
 }
 
-export async function handler() {
+export async function handler(event: any) {
+  // === Dispatch：实时 SQS 事件 vs 定时 EventBridge 事件 ===
+  if (event.Records && event.Records[0]?.eventSource === "aws:sqs") {
+    return handleSqsEvent(event);
+  }
   console.log(`Starting S3→R2 sync: bucket=${S3_BUCKET}, region=${S3_REGION}`);
 
   // Step 1: Read R2 credentials from Secrets Manager
@@ -104,7 +108,7 @@ export async function handler() {
       results.forEach((r, i) => {
         if (r.status === "rejected") {
           failedKeys.push(batch[i].Key!);
-          console.error(`❌ Failed: ${batch[i].Key}`, r.reason);
+          console.error(`Failed: ${batch[i].Key}`, r.reason);
         } else if (r.value === "synced") {
           syncedCount++;
         } else {
@@ -246,4 +250,92 @@ async function syncFile(
     }),
   );
   return "synced";
+}
+
+// ============================================
+//  handleSqsEvent() — 处理 SQS 实时事件
+// ============================================
+async function handleSqsEvent(event: any): Promise<any> {
+  const s3Client = new S3Client({ region: S3_REGION });
+  const r2Creds = await loadR2Credentials(); // 复用凭证加载逻辑
+  const r2Client = new S3Client({
+    region: "auto",
+    endpoint: `https://${r2Creds.accountId}.r2.cloudflarestorage.com`,
+    credentials: {
+      accessKeyId: r2Creds.accessKeyId,
+      secretAccessKey: r2Creds.secretAccessKey,
+    },
+  });
+
+  let syncedCount = 0;
+  let skippedCount = 0;
+  let failedKeys: string[] = [];
+
+  for (const record of event.Records) {
+    // SQS body 里包着 S3 Event Notification 的 JSON
+    const s3Event = JSON.parse(record.body);
+
+    // S3 事件可能有多个 records（但 batchSize:1 所以通常只有 1 个）
+    for (const s3Record of s3Event.Records || []) {
+      const key = decodeURIComponent(s3Record.s3.object.key);
+
+      try {
+        // 从 S3 获取 object 信息
+        const headResult = await s3Client.send(
+          new HeadObjectCommand({ Bucket: S3_BUCKET, Key: key }),
+        );
+
+        const result = await syncFile(
+          { Key: key, ETag: headResult.ETag },
+          s3Client,
+          r2Client,
+          r2Creds.bucket,
+        );
+
+        if (result === "synced") syncedCount++;
+        else skippedCount++;
+
+        console.log(`[Realtime] ${result}: ${key}`);
+      } catch (err) {
+        failedKeys.push(key);
+        console.error(`[Realtime] Failed: ${key}`, err);
+      }
+    }
+  }
+
+  console.log(
+    `[Realtime] Complete: synced=${syncedCount}, skipped=${skippedCount}, failed=${failedKeys.length}`,
+  );
+
+  // 有失败的还是走现有 DLQ + SNS
+  if (failedKeys.length > 0) {
+    const sqsClient = new SQSClient({ region: S3_REGION });
+    await sqsClient.send(
+      new SendMessageCommand({
+        QueueUrl: DLQ_URL,
+        MessageBody: JSON.stringify({
+          failedKeys,
+          source: "realtime",
+          timestamp: new Date().toISOString(),
+        }),
+      }),
+    );
+  }
+
+  return { statusCode: 200, syncedCount, skippedCount };
+}
+
+// 在文件顶部，secretResponse 外面加一个缓存变量
+let _r2Creds: R2Credentials | null = null;
+
+async function loadR2Credentials(): Promise<R2Credentials> {
+  if (_r2Creds) return _r2Creds;
+  const secretResponse = await secretsClient.send(
+    new GetSecretValueCommand({ SecretId: SECRET_NAME }),
+  );
+  if (!secretResponse.SecretString) {
+    throw new Error(`Secret ${SECRET_NAME} has no SecretString`);
+  }
+  _r2Creds = JSON.parse(secretResponse.SecretString);
+  return _r2Creds!;
 }
