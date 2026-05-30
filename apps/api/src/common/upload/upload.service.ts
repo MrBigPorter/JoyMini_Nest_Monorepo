@@ -199,9 +199,7 @@ export class UploadService {
         this.logger.log(`Dual: Synced to R2 ${r2Bucket}/${key}`);
       } catch (r2Error) {
         // 双写失败不阻塞主流程，只记 warning
-        this.logger.warn(
-          `Dual: Failed to sync to R2 — ${String(r2Error)}`,
-        );
+        this.logger.warn(`Dual: Failed to sync to R2 — ${String(r2Error)}`);
       }
     }
 

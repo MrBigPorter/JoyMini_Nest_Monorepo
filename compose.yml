@@ -100,7 +100,7 @@ services:
              CACHE=/app/node_modules/.admin-install-hash &&
              if [ ! -f \"$$CACHE\" ] || [ \"$$(cat $$CACHE 2>/dev/null)\" != \"$$LOCK_HASH\" ] || ! command -v next >/dev/null 2>&1; then
                echo '>>> dependency check triggered - running install...' &&
-               yarn install &&
+               yarn workspaces focus @lucky/admin-next &&
                echo \"$$LOCK_HASH\" > \"$$CACHE\";
              else
                echo '>>> yarn.lock unchanged - skipping install';
@@ -111,11 +111,6 @@ services:
     volumes:
       - .:/app
       - admin_next_nm:/app/node_modules
-      - pkg_shared_nm:/app/packages/shared/node_modules
-      - pkg_ui_nm:/app/packages/ui/node_modules
-      - pkg_eslint_nm:/app/packages/eslint-config/node_modules
-      - pkg_tsconfig_nm:/app/packages/typescript-config/node_modules
-      - pkg_config_nm:/app/packages/config/node_modules
     environment:
       NEXT_PUBLIC_API_BASE_URL: /api
       # Server Components 直连后端（跳过 nginx 公网往返，降低 SSR 延迟）
@@ -156,7 +151,7 @@ services:
              CACHE=/app/node_modules/.admin-blog-install-hash &&
              if [ ! -f \"$$CACHE\" ] || [ \"$$(cat $$CACHE 2>/dev/null)\" != \"$$LOCK_HASH\" ] || ! command -v next >/dev/null 2>&1; then
                echo '>>> dependency check triggered - running install...' &&
-               yarn install &&
+               yarn workspaces focus @lucky/admin-blog &&
                echo \"$$LOCK_HASH\" > \"$$CACHE\";
              else
                echo '>>> yarn.lock unchanged - skipping install';
@@ -167,11 +162,6 @@ services:
     volumes:
       - .:/app
       - admin_blog_nm:/app/node_modules
-      - pkg_shared_nm:/app/packages/shared/node_modules
-      - pkg_ui_nm:/app/packages/ui/node_modules
-      - pkg_eslint_nm:/app/packages/eslint-config/node_modules
-      - pkg_tsconfig_nm:/app/packages/typescript-config/node_modules
-      - pkg_config_nm:/app/packages/config/node_modules
     environment:
       NEXT_PUBLIC_API_BASE_URL: /api
       INTERNAL_API_URL: http://lucky-backend-dev:3000/api
@@ -208,7 +198,7 @@ services:
              CACHE=/app/node_modules/.blog-install-hash &&
              if [ ! -f \"$$CACHE\" ] || [ \"$$(cat $$CACHE 2>/dev/null)\" != \"$$LOCK_HASH\" ] || ! command -v next >/dev/null 2>&1; then
                echo '>>> dependency check triggered - running install...' &&
-               yarn install &&
+               yarn workspaces focus @lucky/frontend-blog &&
                echo \"$$LOCK_HASH\" > \"$$CACHE\";
              else
                echo '>>> yarn.lock unchanged - skipping install';
@@ -219,11 +209,6 @@ services:
     volumes:
       - .:/app
       - blog_next_nm:/app/node_modules
-      - pkg_shared_nm:/app/packages/shared/node_modules
-      - pkg_ui_nm:/app/packages/ui/node_modules
-      - pkg_eslint_nm:/app/packages/eslint-config/node_modules
-      - pkg_tsconfig_nm:/app/packages/typescript-config/node_modules
-      - pkg_config_nm:/app/packages/config/node_modules
     environment:
       NEXT_PUBLIC_API_BASE_URL: /api
       INTERNAL_API_URL: http://lucky-backend-dev:3000/api
@@ -265,6 +250,8 @@ services:
       backend:
         condition: service_started
       admin-next:
+        condition: service_healthy
+      frontend-blog:
         condition: service_healthy
     networks: [app]
 

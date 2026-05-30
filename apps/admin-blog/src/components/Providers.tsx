@@ -2,6 +2,7 @@
 
 import React, { Suspense, useEffect, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ModalProvider } from '@repo/ui';
 import { useAppStore } from '@/store/useAppStore';
 import { ToastContainer } from '@/components/UIComponents';
 import { useToastStore } from '@/store/useToastStore';
@@ -43,6 +44,7 @@ export const Providers: React.FC<{ children: React.ReactNode }> = ({
 
   return (
     <QueryClientProvider client={queryClient}>
+      <ModalProvider />
       <Suspense fallback={null}>
         <AutoLoginHandler />
       </Suspense>

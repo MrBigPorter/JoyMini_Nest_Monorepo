@@ -15,11 +15,7 @@ export class EcsFrontendConstruct extends Construct {
   public readonly alb: elbv2.ApplicationLoadBalancer;
   public readonly repository: ecr.Repository;
 
-  constructor(
-    scope: Construct,
-    id: string,
-    props: EcsFrontendConstructProps,
-  ) {
+  constructor(scope: Construct, id: string, props: EcsFrontendConstructProps) {
     super(scope, id);
 
     const { vpc } = props;
@@ -98,15 +94,11 @@ export class EcsFrontendConstruct extends Construct {
     });
 
     // 📋 Task Definition
-    const taskDef = new ecs.FargateTaskDefinition(
-      this,
-      "TarsierLabsTaskDef",
-      {
-        memoryLimitMiB: 2048,
-        cpu: 1024,
-        family: "tarsier-labs-task",
-      },
-    );
+    const taskDef = new ecs.FargateTaskDefinition(this, "TarsierLabsTaskDef", {
+      memoryLimitMiB: 2048,
+      cpu: 1024,
+      family: "tarsier-labs-task",
+    });
 
     // 📦 Container
     const container = taskDef.addContainer("FrontendBlog", {
