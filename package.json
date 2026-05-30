@@ -75,6 +75,7 @@
     "node": ">=18"
   },
   "resolutions": {
+    "tslib": "^2",
     "typescript": "5.5.4",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
