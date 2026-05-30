@@ -19,6 +19,8 @@ import * as sns from "aws-cdk-lib/aws-sns";
 import * as subscriptions from "aws-cdk-lib/aws-sns-subscriptions";
 import * as path from "path";
 import * as fs from "fs";
+import * as s3n from "aws-cdk-lib/aws-s3-notifications";
+import * as lambdaEventSources from "aws-cdk-lib/aws-lambda-event-sources";
 
 export class InfraStack extends cdk.Stack {
   public readonly vpc: ec2.Vpc;
@@ -221,8 +223,7 @@ export class InfraStack extends cdk.Stack {
     const distribution = new cloudfront.Distribution(this, "JoyMiniImagesCdn", {
       defaultBehavior: {
         origin: origins.S3BucketOrigin.withOriginAccessControl(imageBucket),
-        viewerProtocolPolicy:
-          cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+        viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
         cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
       },
       domainNames: ["images.joyminis.com"],
@@ -249,6 +250,18 @@ export class InfraStack extends cdk.Stack {
     const dlq = new sqs.Queue(this, "S3R2SyncDlq", {
       queueName: "s3-to-r2-sync-dlq",
       retentionPeriod: cdk.Duration.days(14),
+    });
+
+    // SQS 主队列 — 接收 S3 实时事件
+    const syncQueue = new sqs.Queue(this, "S3R2SyncQueue", {
+      queueName: "s3-to-r2-sync-queue",
+      visibilityTimeout: cdk.Duration.minutes(16), // 比 Lambda timeout(15min) 长一点
+      retentionPeriod: cdk.Duration.days(1), // 1天没处理就丢弃
+      deadLetterQueue: {
+        // 失败3次进 DLQ
+        queue: dlq,
+        maxReceiveCount: 3,
+      },
     });
 
     // ============================================
@@ -312,15 +325,32 @@ export class InfraStack extends cdk.Stack {
           SECRET_NAME: r2Secret.secretName,
           DLQ_URL: dlq.queueUrl,
           SNS_TOPIC_ARN: syncFailureTopic?.topicArn || "",
+          SYNC_QUEUE_URL: syncQueue.queueUrl,
         },
       },
     );
 
+    // 实时同步：SQS 事件源 → Lambda
+    syncLambda.addEventSource(
+      new lambdaEventSources.SqsEventSource(syncQueue, {
+        batchSize: 1, // 一次只处理一条消息
+        enabled: true,
+      }),
+    );
+
     // 授权：Lambda 可以读 S3 + 读 Secrets Manager + 写 SQS DLQ + 发 SNS
     imageBucket.grantRead(syncLambda);
+    // S3 事件通知 — 有新文件就发到 SQS
+    imageBucket.addEventNotification(
+      s3.EventType.OBJECT_CREATED, // 监听 PutObject、CopyObject、CompleteMultipartUpload
+      new s3n.SqsDestination(syncQueue),
+    );
     r2Secret.grantRead(syncLambda);
     dlq.grantSendMessages(syncLambda);
     syncFailureTopic?.grantPublish(syncLambda);
+
+    syncQueue.grantConsumeMessages(syncLambda); // Lambda 可以拉取+删除 SQS 消息
+    imageBucket.grantPut(syncLambda); // 如果有需要写回 S3
 
     // ============================================
     //  EventBridge 定时器 — 每天 3:00 AM UTC
