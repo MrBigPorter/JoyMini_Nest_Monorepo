@@ -7,6 +7,10 @@
   "minify": true,
   "routes": [
     {
+      "pattern": "blog.joyminis.com/*",
+      "zone_name": "joyminis.com"
+    },
+    {
       "pattern": "blog.tarsierlabs.app/*",
       "zone_name": "tarsierlabs.app"
     }
