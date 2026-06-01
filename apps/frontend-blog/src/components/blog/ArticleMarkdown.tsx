@@ -32,32 +32,34 @@ import docker from 'react-syntax-highlighter/dist/esm/languages/prism/docker';
 import nginx from 'react-syntax-highlighter/dist/esm/languages/prism/nginx';
 import graphql from 'react-syntax-highlighter/dist/esm/languages/prism/graphql';
 
-SyntaxHighlighter.registerLanguage('typescript', typescript);
-SyntaxHighlighter.registerLanguage('javascript', javascript);
-SyntaxHighlighter.registerLanguage('tsx', tsx);
-SyntaxHighlighter.registerLanguage('jsx', jsx);
-SyntaxHighlighter.registerLanguage('bash', bash);
-SyntaxHighlighter.registerLanguage('sh', bash);
-SyntaxHighlighter.registerLanguage('shell', bash);
-SyntaxHighlighter.registerLanguage('json', json);
-SyntaxHighlighter.registerLanguage('css', css);
-SyntaxHighlighter.registerLanguage('scss', scss);
-SyntaxHighlighter.registerLanguage('yaml', yaml);
-SyntaxHighlighter.registerLanguage('yml', yaml);
-SyntaxHighlighter.registerLanguage('sql', sql);
-SyntaxHighlighter.registerLanguage('markdown', markdown);
-SyntaxHighlighter.registerLanguage('md', markdown);
-SyntaxHighlighter.registerLanguage('python', python);
-SyntaxHighlighter.registerLanguage('py', python);
-SyntaxHighlighter.registerLanguage('go', go);
-SyntaxHighlighter.registerLanguage('rust', rust);
-SyntaxHighlighter.registerLanguage('rs', rust);
-SyntaxHighlighter.registerLanguage('java', java);
-SyntaxHighlighter.registerLanguage('docker', docker);
-SyntaxHighlighter.registerLanguage('dockerfile', docker);
-SyntaxHighlighter.registerLanguage('nginx', nginx);
-SyntaxHighlighter.registerLanguage('graphql', graphql);
-SyntaxHighlighter.registerLanguage('gql', graphql);
+if (typeof window !== 'undefined') {
+  SyntaxHighlighter.registerLanguage('typescript', typescript);
+  SyntaxHighlighter.registerLanguage('javascript', javascript);
+  SyntaxHighlighter.registerLanguage('tsx', tsx);
+  SyntaxHighlighter.registerLanguage('jsx', jsx);
+  SyntaxHighlighter.registerLanguage('bash', bash);
+  SyntaxHighlighter.registerLanguage('sh', bash);
+  SyntaxHighlighter.registerLanguage('shell', bash);
+  SyntaxHighlighter.registerLanguage('json', json);
+  SyntaxHighlighter.registerLanguage('css', css);
+  SyntaxHighlighter.registerLanguage('scss', scss);
+  SyntaxHighlighter.registerLanguage('yaml', yaml);
+  SyntaxHighlighter.registerLanguage('yml', yaml);
+  SyntaxHighlighter.registerLanguage('sql', sql);
+  SyntaxHighlighter.registerLanguage('markdown', markdown);
+  SyntaxHighlighter.registerLanguage('md', markdown);
+  SyntaxHighlighter.registerLanguage('python', python);
+  SyntaxHighlighter.registerLanguage('py', python);
+  SyntaxHighlighter.registerLanguage('go', go);
+  SyntaxHighlighter.registerLanguage('rust', rust);
+  SyntaxHighlighter.registerLanguage('rs', rust);
+  SyntaxHighlighter.registerLanguage('java', java);
+  SyntaxHighlighter.registerLanguage('docker', docker);
+  SyntaxHighlighter.registerLanguage('dockerfile', docker);
+  SyntaxHighlighter.registerLanguage('nginx', nginx);
+  SyntaxHighlighter.registerLanguage('graphql', graphql);
+  SyntaxHighlighter.registerLanguage('gql', graphql);
+}
 
 const STANDARD_HTML_TAGS = new Set([
   'a',
