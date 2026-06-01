@@ -11,7 +11,7 @@
       "zone_name": "joyminis.com"
     },
     {
-      "pattern": "blog.tarsierlabs.app/*",
+      "pattern": "tarsierlabs.app/*",
       "zone_name": "tarsierlabs.app"
     }
   ],
@@ -26,7 +26,7 @@
     "NEXT_PUBLIC_API_BASE_URL": "https://api.joyminis.com/api",
     "INTERNAL_API_URL": "https://api.joyminis.com/api",
     "NEXT_PUBLIC_OAUTH_API_ORIGIN": "https://api.joyminis.com",
-    "NEXT_PUBLIC_SITE_URL": "https://blog.tarsierlabs.app",
+    "NEXT_PUBLIC_SITE_URL": "https://tarsierlabs.app",
     "ENABLE_ISR": "true",
     "ENABLE_STREAMING": "true",
     "ENABLE_EDGE_MIDDLEWARE": "true",
@@ -129,7 +129,7 @@
         "NEXT_PUBLIC_API_BASE_URL": "https://api.joyminis.com/api",
         "INTERNAL_API_URL": "https://api.joyminis.com/api",
         "NEXT_PUBLIC_OAUTH_API_ORIGIN": "https://api.joyminis.com",
-        "NEXT_PUBLIC_SITE_URL": "https://blog.tarsierlabs.app",
+        "NEXT_PUBLIC_SITE_URL": "https://tarsierlabs.app",
         "ENABLE_ISR": "true",
         "ENABLE_STREAMING": "true",
         "ENABLE_EDGE_MIDDLEWARE": "true",

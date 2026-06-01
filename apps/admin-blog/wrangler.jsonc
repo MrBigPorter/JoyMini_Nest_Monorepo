@@ -7,7 +7,7 @@
   "minify": true,
   "routes": [
     {
-      "pattern": "blog-admin.tarsierlabs.app/*",
+      "pattern": "admin.tarsierlabs.app/*",
       "zone_name": "tarsierlabs.app"
     }
   ],

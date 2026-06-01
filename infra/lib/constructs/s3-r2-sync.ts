@@ -50,8 +50,8 @@ export class S3R2SyncConstruct extends Construct {
         {
           allowedOrigins: [
             "https://admin.joyminis.com",
-            "https://blog-admin.tarsierlabs.app",
-            "https://blog.tarsierlabs.app",
+            "https://admin.tarsierlabs.app",
+            "https://tarsierlabs.app",
             "https://dev.joyminis.com",
           ],
           allowedMethods: [s3.HttpMethods.PUT],

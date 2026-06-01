@@ -305,7 +305,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           DEPLOYMENT_ID: ${{ steps.github_deploy.outputs.deployment_id }}
         run: |
-          BLOG_URL="${{ github.ref_name == 'main' && 'https://blog.tarsierlabs.app' || 'https://blog-dev.joyminis.com' }}"
+          BLOG_URL="${{ github.ref_name == 'main' && 'https://tarsierlabs.app' || 'https://blog-dev.joyminis.com' }}"
           curl -sS -X POST \
             -H "Authorization: Bearer $GH_TOKEN" \
             -H "Accept: application/vnd.github+json" \
@@ -324,13 +324,13 @@ jobs:
             --max-time 10 \
             --output /dev/null \
             --write-out "%{http_code}" \
-            "https://blog.tarsierlabs.app" 2>&1)
+            "https://tarsierlabs.app" 2>&1)
           CURL_EXIT=$?
           if [ $CURL_EXIT -eq 0 ] && [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 500 ]; then
-            echo "✅ Smoke check passed (blog.tarsierlabs.app → HTTP $HTTP_CODE)"
+            echo "✅ Smoke check passed (tarsierlabs.app → HTTP $HTTP_CODE)"
             exit 0
           fi
-          echo "⚠️ blog.tarsierlabs.app unreachable (exit=$CURL_EXIT, http=$HTTP_CODE), trying workers.dev fallback..."
+          echo "⚠️ tarsierlabs.app unreachable (exit=$CURL_EXIT, http=$HTTP_CODE), trying workers.dev fallback..."
           # 回退到 Workers 自带 URL
           WORKER_URL="https://lucky-blog-prod.${CLOUDFLARE_ACCOUNT_ID}.workers.dev"
           HTTP_CODE=$(curl --silent --show-error --location \
@@ -353,7 +353,7 @@ jobs:
 
           - Environment: ${{ github.ref_name == 'main' && 'production' || 'preview' }}
           - Commit: \`${{ github.sha }}\`
-          - URL: ${{ github.ref_name == 'main' && 'https://blog.tarsierlabs.app' || 'https://blog-dev.joyminis.com' }}
+          - URL: ${{ github.ref_name == 'main' && 'https://tarsierlabs.app' || 'https://blog-dev.joyminis.com' }}
           EOF
 
       - name: 13. Send Telegram Notification
@@ -368,8 +368,8 @@ jobs:
           fi
 
           if [ "${{ github.ref_name }}" = "main" ]; then
-            BLOG_URL="https://blog.tarsierlabs.app"
-            BLOG_DOMAIN_LABEL="blog.tarsierlabs.app"
+            BLOG_URL="https://tarsierlabs.app"
+            BLOG_DOMAIN_LABEL="tarsierlabs.app"
           else
             BLOG_URL="https://blog-dev.joyminis.com"
             BLOG_DOMAIN_LABEL="blog-dev.joyminis.com"

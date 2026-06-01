@@ -26,7 +26,7 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-DOMAIN="${1:-blog.tarsierlabs.app}"
+DOMAIN="${1:-tarsierlabs.app}"
 BASE_URL="https://$DOMAIN"
 CURL="curl -sL"  # always follow redirects
 
