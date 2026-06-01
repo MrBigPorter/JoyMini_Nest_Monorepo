@@ -45,6 +45,32 @@ export class OAuthDeepLinkController {
     private readonly configService: ConfigService,
   ) {}
 
+  /**
+   * Dynamically determine the OAuth provider redirect_uri based on
+   * the app-level redirectUri parameter passed by the frontend.
+   *
+   * If the frontend is on the blog domain (tarsierlabs.app), use the blog
+   * domain's callback URL so cookies are scoped to the blog domain.
+   * Otherwise, fall back to the env config (api.joyminis.com for Flutter app etc.).
+   *
+   * This allows the blog domain to receive OAuth callbacks directly (via nginx proxy),
+   * so the HttpOnly `token` cookie is scoped to the blog domain and readable by Next.js middleware.
+   * The Flutter app (which calls api.joyminis.com directly) is unaffected.
+   * tarsier.joyminis.com is the old AWS deployment and is not handled here.
+   */
+  private resolveOAuthRedirectUri(
+    provider: string,
+    appRedirectUri: string | undefined,
+  ): string {
+    // Blog domain (VPS deployment): tarsierlabs.app
+    if (appRedirectUri?.includes('tarsierlabs.app')) {
+      return `https://tarsierlabs.app/auth/${provider}/callback`;
+    }
+    // Fallback to env config (e.g., GOOGLE_REDIRECT_URI for Flutter app)
+    const envKey = `${provider.toUpperCase()}_REDIRECT_URI`;
+    return this.configService.get<string>(envKey) || '';
+  }
+
   // ==========================================
   // 第一步：发起授权（直接302）
   // ==========================================
@@ -59,9 +85,6 @@ export class OAuthDeepLinkController {
     @Query('state') webState?: string,
   ) {
     const clientId = this.configService.get<string>('GOOGLE_CLIENT_ID');
-    const redirectUriConfig = this.configService.get<string>(
-      'GOOGLE_REDIRECT_URI',
-    );
 
     const stateData: OAuthStateData = {
       provider: 'google',
@@ -74,9 +97,10 @@ export class OAuthDeepLinkController {
     };
 
     const state = this.encodeState(stateData);
+    const oauthRedirectUri = this.resolveOAuthRedirectUri('google', redirectUri);
     const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
     authUrl.searchParams.set('client_id', clientId || '');
-    authUrl.searchParams.set('redirect_uri', redirectUriConfig || '');
+    authUrl.searchParams.set('redirect_uri', oauthRedirectUri);
     authUrl.searchParams.set('response_type', 'code');
     authUrl.searchParams.set('scope', 'openid email profile');
     authUrl.searchParams.set('state', state);
@@ -95,9 +119,6 @@ export class OAuthDeepLinkController {
     @Query('state') webState?: string,
   ) {
     const appId = this.configService.get<string>('FACEBOOK_APP_ID');
-    const redirectUriConfig = this.configService.get<string>(
-      'FACEBOOK_REDIRECT_URI',
-    );
 
     const stateData: OAuthStateData = {
       provider: 'facebook',
@@ -110,9 +131,10 @@ export class OAuthDeepLinkController {
     };
 
     const state = this.encodeState(stateData);
+    const oauthRedirectUri = this.resolveOAuthRedirectUri('facebook', redirectUri);
     const authUrl = new URL('https://www.facebook.com/v18.0/dialog/oauth');
     authUrl.searchParams.set('client_id', appId || '');
-    authUrl.searchParams.set('redirect_uri', redirectUriConfig || '');
+    authUrl.searchParams.set('redirect_uri', oauthRedirectUri);
     authUrl.searchParams.set('response_type', 'code');
     authUrl.searchParams.set('scope', 'email public_profile');
     authUrl.searchParams.set('state', state);
@@ -131,8 +153,6 @@ export class OAuthDeepLinkController {
     @Query('state') webState?: string,
   ) {
     const clientId = this.configService.get<string>('APPLE_CLIENT_ID');
-    const redirectUriConfig =
-      this.configService.get<string>('APPLE_REDIRECT_URI');
 
     const stateData: OAuthStateData = {
       provider: 'apple',
@@ -145,9 +165,10 @@ export class OAuthDeepLinkController {
     };
 
     const state = this.encodeState(stateData);
+    const oauthRedirectUri = this.resolveOAuthRedirectUri('apple', redirectUri);
     const authUrl = new URL('https://appleid.apple.com/auth/authorize');
     authUrl.searchParams.set('client_id', clientId || '');
-    authUrl.searchParams.set('redirect_uri', redirectUriConfig || '');
+    authUrl.searchParams.set('redirect_uri', oauthRedirectUri);
     authUrl.searchParams.set('response_type', 'code');
     authUrl.searchParams.set('scope', 'name email');
     authUrl.searchParams.set('response_mode', 'form_post'); // 强制Apple返回POST
@@ -192,7 +213,8 @@ export class OAuthDeepLinkController {
         throw new OAuthStateError('State expired', 'google');
       }
 
-      const tokens = await this.exchangeGoogleCode(code);
+      const oauthRedirectUri = this.resolveOAuthRedirectUri('google', stateData.redirectUri);
+      const tokens = await this.exchangeGoogleCode(code, oauthRedirectUri);
       const userInfo = await this.getGoogleUserInfo(tokens.access_token);
 
       const loginResult = await this.authService.loginWithOauth(
@@ -258,7 +280,8 @@ export class OAuthDeepLinkController {
         throw new OAuthStateError('State expired', 'facebook');
       }
 
-      const tokens = await this.exchangeFacebookCode(code);
+      const oauthRedirectUri = this.resolveOAuthRedirectUri('facebook', stateData.redirectUri);
+      const tokens = await this.exchangeFacebookCode(code, oauthRedirectUri);
       const userInfo = await this.getFacebookUserInfo(tokens.access_token);
 
       const loginResult = await this.authService.loginWithOauth(
@@ -315,7 +338,8 @@ export class OAuthDeepLinkController {
         throw new OAuthStateError('State expired', 'apple');
       }
 
-      const tokens = await this.exchangeAppleCode(code);
+      const oauthRedirectUri = this.resolveOAuthRedirectUri('apple', stateData.redirectUri);
+      const tokens = await this.exchangeAppleCode(code, oauthRedirectUri);
       const userInfo = this.parseAppleIdToken(tokens.id_token);
 
       // 修复: 只有第一次登录才会下发 user 字符串，解析出名字
@@ -533,10 +557,10 @@ export class OAuthDeepLinkController {
 
   private async exchangeGoogleCode(
     code: string,
+    redirectUri: string,
   ): Promise<{ access_token: string }> {
     const clientId = this.configService.get<string>('GOOGLE_CLIENT_ID');
     const clientSecret = this.configService.get<string>('GOOGLE_CLIENT_SECRET');
-    const redirectUri = this.configService.get<string>('GOOGLE_REDIRECT_URI');
 
     const response = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
@@ -545,7 +569,7 @@ export class OAuthDeepLinkController {
         code,
         client_id: clientId || '',
         client_secret: clientSecret || '',
-        redirect_uri: redirectUri || '',
+        redirect_uri: redirectUri,
         grant_type: 'authorization_code',
       }),
     });
@@ -576,16 +600,16 @@ export class OAuthDeepLinkController {
 
   private async exchangeFacebookCode(
     code: string,
+    redirectUri: string,
   ): Promise<{ access_token: string }> {
     const appId = this.configService.get<string>('FACEBOOK_APP_ID');
     const appSecret = this.configService.get<string>('FACEBOOK_APP_SECRET');
-    const redirectUri = this.configService.get<string>('FACEBOOK_REDIRECT_URI');
 
     const url = new URL('https://graph.facebook.com/v18.0/oauth/access_token');
     url.searchParams.set('code', code);
     url.searchParams.set('client_id', appId || '');
     url.searchParams.set('client_secret', appSecret || '');
-    url.searchParams.set('redirect_uri', redirectUri || '');
+    url.searchParams.set('redirect_uri', redirectUri);
 
     const response = await fetch(url.toString(), {
       method: 'GET',
@@ -621,9 +645,11 @@ export class OAuthDeepLinkController {
     return response.json() as any;
   }
 
-  private async exchangeAppleCode(code: string): Promise<{ id_token: string }> {
+  private async exchangeAppleCode(
+    code: string,
+    redirectUri: string,
+  ): Promise<{ id_token: string }> {
     const clientId = this.configService.get<string>('APPLE_CLIENT_ID');
-    const redirectUri = this.configService.get<string>('APPLE_REDIRECT_URI');
 
     const response = await fetch('https://appleid.apple.com/auth/token', {
       method: 'POST',
@@ -632,7 +658,7 @@ export class OAuthDeepLinkController {
         code,
         client_id: clientId || '',
         client_secret: this.generateAppleClientSecret(), // TODO: 需要实现动态Apple Client Secret生成
-        redirect_uri: redirectUri || '',
+        redirect_uri: redirectUri,
         grant_type: 'authorization_code',
       }),
     });

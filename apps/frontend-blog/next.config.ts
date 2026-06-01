@@ -26,8 +26,22 @@ const withPWA = require('next-pwa')({
   // 原因：skipWaiting:true 让新 SW 立即接管，但旧 chunk 仍在缓存中
   // 若不清除，新主 bundle 引用旧 chunk 的 module ID → e[n].call TypeError
   cleanupOutdatedCaches: true,
-  // 排除 Source Map、react-loadable-manifest 以及所有 server-only 文件，避免 Workbox 预缓存时 404
-  exclude: [/\.map$/, /react-loadable-manifest\.json$/, /\/_next\/server\/.*/, /app-build-manifest\.json$/],
+  // 排除 Source Map、react-loadable-manifest、server-only 文件以及 build-manifest
+  // 注意：exclude 只作用于 webpack 编译期资源，对 Next.js 后处理添加的 build-manifest 可能无效
+  //       因此额外使用 manifestTransforms 作为 final 过滤兜底
+  exclude: [/\.map$/, /react-loadable-manifest\.json$/, /\/_next\/server\/.*/, /(?:app-)?build-manifest\.json$/],
+  // Workbox manifestTransforms 可在最终汇总的预缓存清单上做后处理过滤
+  // 解决 exclude 无法过滤非 webpack 资源（如 build-manifest.json、/_next/server/ 等）的问题
+  manifestTransforms: [
+    async (entries) => ({
+      manifest: entries.filter(
+        (entry) =>
+          !entry.url.includes('build-manifest.json') &&
+          !entry.url.startsWith('/_next/server/')
+      ),
+      warnings: [],
+    }),
+  ],
   // 离线导航回退：当网络不可用且缓存中无页面时，显示自定义离线页面
   fallbacks: {
     document: '/offline.html',
@@ -88,7 +102,8 @@ const withPWA = require('next-pwa')({
       },
     },
     {
-      urlPattern: /^https?:\/\/api\.joyminis\.com\/.*/i,
+      // 同域 API 代理后，匹配 /api/* 路径
+      urlPattern: /^\/api\/.*/i,
       handler: 'StaleWhileRevalidate',
       options: {
         cacheName: 'api-cache',
