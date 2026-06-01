@@ -268,9 +268,9 @@ jobs:
             echo "→ 拉取镜像: $IMAGE"
             retry 4 10 docker pull "$IMAGE"
 
-            # 3. 保存当前前端博客镜像 SHA (用于回滚)
-            PREV_IMAGE_SHA=$(docker inspect lucky-frontend-blog-prod \
-              --format '{{.Image}}' 2>/dev/null || echo "")
+            # 3. 保存当前前端博客镜像引用 (用于回滚)
+            PREV_IMAGE_REF=$(docker inspect lucky-frontend-blog-prod \
+              --format '{{range .RepoDigests}}{{.}}{{end}}' 2>/dev/null || echo "")
 
             # 4. 用新镜像重启前端博客
             echo "→ 重启 frontend-blog 容器..."
@@ -283,7 +283,8 @@ jobs:
             HEALTHY=false
             for i in $(seq 1 20); do
               if docker exec lucky-frontend-blog-prod \
-                wget -qO- --timeout=10 http://localhost:3000/en >/dev/null 2>&1; then
+                node -e "const h=require('http');h.get('http://127.0.0.1:3000/en',r=>{process.exit(r.statusCode===200?0:1)}).on('error',()=>process.exit(1))" \
+                >/dev/null 2>&1; then
                 echo " 前端博客响应正常 (第 ${i} 次, 约 $((i*3))s)"
                 HEALTHY=true
                 break
@@ -295,9 +296,9 @@ jobs:
             if [ "$HEALTHY" = false ]; then
               echo "❌ 健康检查超时! 正在回滚..."
               docker logs --tail=50 lucky-frontend-blog-prod
-              if [ -n "$PREV_IMAGE_SHA" ]; then
-                echo "→ 回滚到旧镜像: ${IMAGE%%:*}@${PREV_IMAGE_SHA}"
-                FRONTEND_BLOG_IMAGE="${IMAGE%%:*}@${PREV_IMAGE_SHA}" \
+              if [ -n "$PREV_IMAGE_REF" ]; then
+                echo "→ 回滚到旧镜像: $PREV_IMAGE_REF"
+                FRONTEND_BLOG_IMAGE="$PREV_IMAGE_REF" \
                   docker compose -f compose.prod.yml \
                   --env-file deploy/.env.prod \
                   up -d --no-build --force-recreate frontend-blog

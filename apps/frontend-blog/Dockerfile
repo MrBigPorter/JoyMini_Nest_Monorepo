@@ -29,6 +29,9 @@ COPY --from=builder /app/apps/frontend-blog/.next/standalone ./
 COPY --from=builder /app/apps/frontend-blog/.next/static ./apps/frontend-blog/.next/static
 COPY --from=builder /app/apps/frontend-blog/public ./apps/frontend-blog/public
 
+# curl for health checks and debugging
+RUN apk add --no-cache curl
+
 EXPOSE 3000
 
 CMD ["node", "apps/frontend-blog/server.js"]
