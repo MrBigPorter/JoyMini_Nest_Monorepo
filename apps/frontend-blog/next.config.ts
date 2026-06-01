@@ -27,7 +27,7 @@ const withPWA = require('next-pwa')({
   // 若不清除，新主 bundle 引用旧 chunk 的 module ID → e[n].call TypeError
   cleanupOutdatedCaches: true,
   // 排除 Source Map、react-loadable-manifest 以及所有 server-only 文件，避免 Workbox 预缓存时 404
-  exclude: [/\.map$/, /react-loadable-manifest\.json$/, /\/_next\/server\/.*/],
+  exclude: [/\.map$/, /react-loadable-manifest\.json$/, /\/_next\/server\/.*/, /app-build-manifest\.json$/],
   // 离线导航回退：当网络不可用且缓存中无页面时，显示自定义离线页面
   fallbacks: {
     document: '/offline.html',
