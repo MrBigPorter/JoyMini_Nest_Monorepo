@@ -27,6 +27,7 @@ SSH_TARGET="${VPS_USER}@${VPS_IP}"
 
 # 镜像名称
 BACKEND_IMAGE="lucky-backend-prod:latest"
+FRONTEND_BLOG_IMAGE="lucky-frontend-blog-prod:latest"
 
 # 颜色
 RED='\033[0;31m'
@@ -41,19 +42,22 @@ err()  { echo -e "${RED}[ERROR]${NC} $*"; exit 1; }
 
 # ---- 解析参数 ----
 BUILD_BACKEND=true
+BUILD_FRONTEND_BLOG=true
 SKIP_BUILD=false
 SYNC_ONLY=false
 
 for arg in "$@"; do
     case $arg in
-        --backend) ;;
-        --quick)   SKIP_BUILD=true ;;
-        --sync)    SYNC_ONLY=true ;;
+        --backend)         BUILD_FRONTEND_BLOG=false ;;
+        --frontend-blog)   BUILD_BACKEND=false ;;
+        --quick)           SKIP_BUILD=true ;;
+        --sync)            SYNC_ONLY=true ;;
         --help)
             echo "用法: ./deploy/deploy.sh [选项]"
-            echo "  --backend   仅构建/部署后端 (当前唯一模式)"
-            echo "  --quick     跳过构建, 仅重启服务"
-            echo "  --sync      仅同步配置文件"
+            echo "  --backend        仅构建/部署后端"
+            echo "  --frontend-blog  仅构建/部署前端博客"
+            echo "  --quick          跳过构建, 仅重启服务"
+            echo "  --sync           仅同步配置文件"
             exit 0
             ;;
         *) err "未知参数: $arg" ;;
@@ -123,6 +127,16 @@ if [ "$SKIP_BUILD" = false ]; then
             .
         log " 后端镜像构建完成"
     fi
+
+    if [ "$BUILD_FRONTEND_BLOG" = true ]; then
+        log "构建前端博客镜像: $FRONTEND_BLOG_IMAGE"
+        docker build \
+            --platform linux/amd64 \
+            -f apps/frontend-blog/Dockerfile \
+            -t "$FRONTEND_BLOG_IMAGE" \
+            .
+        log " 前端博客镜像构建完成"
+    fi
 fi
 
 # ============================================================
@@ -133,6 +147,7 @@ if [ "$SKIP_BUILD" = false ]; then
 
     IMAGES_TO_SEND=""
     [ "$BUILD_BACKEND" = true ] && IMAGES_TO_SEND="$BACKEND_IMAGE"
+    [ "$BUILD_FRONTEND_BLOG" = true ] && IMAGES_TO_SEND="$IMAGES_TO_SEND $FRONTEND_BLOG_IMAGE"
     IMAGES_TO_SEND=$(echo "$IMAGES_TO_SEND" | xargs)  # trim
 
     if [ -n "$IMAGES_TO_SEND" ]; then
@@ -150,6 +165,7 @@ log "在 VPS 上启动服务..."
 
 # 将本地标志传入 heredoc (本地展开)
 _DEPLOY_BACKEND=$BUILD_BACKEND
+_DEPLOY_FRONTEND_BLOG=$BUILD_FRONTEND_BLOG
 
 ssh "$SSH_TARGET" << REMOTE_SCRIPT
     set -e
@@ -198,13 +214,24 @@ ssh "$SSH_TARGET" << REMOTE_SCRIPT
     PREV_IMAGE=\$(docker inspect lucky-backend-prod \
         --format '{{.Config.Image}}' 2>/dev/null || echo "")
 
+    # ── 保存当前前端博客镜像 SHA (用于回滚) ──────────────────────────
+    PREV_FRONTEND_IMAGE=\$(docker inspect lucky-frontend-blog-prod \
+        --format '{{.Config.Image}}' 2>/dev/null || echo "")
+
     # ── 启动/更新服务 ─────────────────────────────────────────────
     BACKEND_IMAGE_VAL="lucky-backend-prod:latest"
+    FRONTEND_BLOG_IMAGE_VAL="lucky-frontend-blog-prod:latest"
 
-    echo "→ 启动/更新服务 (不在服务器上构建)..."
+    # 构建 services 列表: 仅包含需要更新的服务
+    SERVICES="nginx redis db"
+    [ "$_DEPLOY_BACKEND" = "true" ] && SERVICES="\$SERVICES backend"
+    [ "$_DEPLOY_FRONTEND_BLOG" = "true" ] && SERVICES="\$SERVICES frontend-blog"
+
+    echo "→ 启动/更新服务: \$SERVICES"
     BACKEND_IMAGE="\$BACKEND_IMAGE_VAL" \
+    FRONTEND_BLOG_IMAGE="\$FRONTEND_BLOG_IMAGE_VAL" \
         docker compose -f compose.prod.yml --env-file deploy/.env.prod \
-        up -d --no-build --force-recreate
+        up -d --no-build --force-recreate \$SERVICES
 
     # ── 健康检查 + 自动回滚 (仅后端, 与 CI 保持一致) ─────────────────
     if [ "$_DEPLOY_BACKEND" = "true" ]; then
@@ -250,7 +277,8 @@ REMOTE_SCRIPT
 log " 部署完成！"
 echo ""
 echo -e "${CYAN}验证:${NC}"
-echo "  curl -k https://$VPS_IP/api/v1/health"
-echo "  ssh $SSH_TARGET 'docker compose -f $VPS_DIR/compose.prod.yml logs -f'"
+echo "  API:     curl -k https://$VPS_IP/api/v1/health"
+echo "  Blog:    https://tarsierlabs.app (DNS 指向 VPS 后生效)"
+echo "  Logs:    ssh $SSH_TARGET 'docker compose -f $VPS_DIR/compose.prod.yml logs -f'"
 echo ""
 
