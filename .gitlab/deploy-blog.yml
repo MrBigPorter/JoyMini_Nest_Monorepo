@@ -85,8 +85,8 @@ deploy-blog:
       fi
 
       if [ "$CI_COMMIT_BRANCH" = "main" ]; then
-        BLOG_URL="https://blog.tarsierlabs.app"
-        BLOG_DOMAIN_LABEL="blog.tarsierlabs.app"
+        BLOG_URL="https://tarsierlabs.app"
+        BLOG_DOMAIN_LABEL="tarsierlabs.app"
       else
         BLOG_URL="https://blog-dev.joyminis.com"
         BLOG_DOMAIN_LABEL="blog-dev.joyminis.com"

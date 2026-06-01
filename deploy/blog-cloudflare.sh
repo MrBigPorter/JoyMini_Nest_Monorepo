@@ -22,7 +22,7 @@ BUILD_DIR="$PROJECT_DIR/.next"
 CF_ACCOUNT_ID="${CLOUDFLARE_ACCOUNT_ID:-}"
 CF_API_TOKEN="${CLOUDFLARE_API_TOKEN:-}"
 CF_ZONE_ID="${CLOUDFLARE_ZONE_ID:-}"
-DOMAIN="${DOMAIN:-blog.tarsierlabs.app}"
+DOMAIN="${DOMAIN:-tarsierlabs.app}"
 ENVIRONMENT="${ENVIRONMENT:-production}"
 
 # Logging functions

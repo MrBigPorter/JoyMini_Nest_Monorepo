@@ -17,7 +17,7 @@
 [![Turborepo](https://img.shields.io/badge/Turborepo-EF4444?logo=turborepo)](https://turbo.build/)
 [![Sentry](https://img.shields.io/badge/Sentry-362D59?logo=sentry)](https://sentry.io/)
 
-**Live Demos:** [Admin Panel](https://admin.joyminis.com) · [Main App](https://app.joyminis.com) · [Public Blog](https://blog.tarsierlabs.app) · [API Health](https://api.joyminis.com/api/v1/health)
+**Live Demos:** [Admin Panel](https://admin.joyminis.com) · [Main App](https://app.joyminis.com) · [Public Blog](https://tarsierlabs.app) · [API Health](https://api.joyminis.com/api/v1/health)
 
 </div>
 
@@ -43,7 +43,7 @@
 
 JoyMini Nest is a **production-grade e-commerce platform** built as a monorepo. It serves as both an operational admin system and a public-facing content platform with native mobile support.
 
-**Live URLs:** [`admin.joyminis.com`](https://admin.joyminis.com) Admin Dashboard · [`app.joyminis.com`](https://app.joyminis.com) Main App OAuth & Mobile Entry · [`blog.tarsierlabs.app`](https://blog.tarsierlabs.app) Public Blog
+**Live URLs:** [`admin.joyminis.com`](https://admin.joyminis.com) Admin Dashboard · [`app.joyminis.com`](https://app.joyminis.com) Main App OAuth & Mobile Entry · [`tarsierlabs.app`](https://tarsierlabs.app) Public Blog
 
 **What makes this project stand out:**
 
