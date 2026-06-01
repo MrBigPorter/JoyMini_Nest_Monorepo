@@ -1,13 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Mail, Lock, ArrowRight, RefreshCw, Facebook } from 'lucide-react';
 import { useAuth } from '@/lib/hooks/useAuth';
+import { useOAuthPopup } from '@/lib/hooks/useOAuthPopup';
+import { useAuthStore, type User } from '@/lib/stores/auth.store';
 import { authApi } from '@/lib/api/authApi';
 import { LoginGuard } from '@/components/auth/ProtectedRoute';
-import { withLocale } from '@/lib/utils/locale';
+import { withLocale, type SupportedLocale } from '@/lib/utils/locale';
 
 export default function LoginPageClient() {
   const t = useTranslations();
@@ -22,9 +24,6 @@ export default function LoginPageClient() {
   const platform = searchParams.get('platform'); // 'ios' 或 'android'
   const inviteCode = searchParams.get('inviteCode'); // 邀请码
 
-  // 判断是否来自App
-  const isFromApp = client === 'app' && callback;
-
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [isSendingCode, setIsSendingCode] = useState(false);
@@ -32,48 +31,132 @@ export default function LoginPageClient() {
   const [error, setError] = useState<string | null>(null);
   const [isOAuthLoading, setIsOAuthLoading] = useState(false);
 
-  // 生成Web flow的state参数（用于CSRF保护）
-  const generateWebState = () => {
-    const state = {
-      provider: 'google',
-      nonce: Math.random().toString(36).substring(7),
-      timestamp: Date.now(),
-      client: client || 'web',
-    };
-    // 使用标准的base64编码，替换URL不安全的字符
-    const base64 = btoa(JSON.stringify(state));
-    return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-  };
+  // ─── OAuth Popup Hook ────────────────────────────────────────────
+  const { openOAuthPopup } = useOAuthPopup({
+    inviteCode,
+    client,
+    appCallback: callback,
+    appPlatform: platform,
+  });
 
-  // 处理Google登录按钮点击 - 使用后端deep link endpoints
-  const handleGoogleLoginClick = () => {
+  // Auth store actions (for popup OAuth login flow)
+  const setTokens = useAuthStore((s) => s.setTokens);
+  const login = useAuthStore((s) => s.login);
+
+  // ─── JWT Decode ──────────────────────────────────────────────────
+  interface JWTPayload {
+    sub?: string;
+    name?: string;
+    picture?: string;
+    email?: string;
+    [key: string]: unknown;
+  }
+
+  const PROVIDER_CONFIG = {
+    google: {
+      defaultNickname: 'Google User',
+      defaultId: 'unknown-google-user',
+    },
+    facebook: {
+      defaultNickname: 'Facebook User',
+      defaultId: 'unknown-facebook-user',
+    },
+    generic: { defaultNickname: 'OAuth User', defaultId: 'unknown-oauth-user' },
+  } as const;
+
+  type OAuthProvider = keyof typeof PROVIDER_CONFIG;
+
+  function decodeJWT(token: string): JWTPayload | null {
+    try {
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(
+        atob(base64)
+          .split('')
+          .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+          .join(''),
+      );
+      return JSON.parse(jsonPayload);
+    } catch {
+      return null;
+    }
+  }
+
+  // ─── Handle OAuth Login (from popup result) ──────────────────────
+  const handleOAuthLogin = useCallback(
+    async (token: string, refreshToken: string, provider: OAuthProvider) => {
+      try {
+        const config = PROVIDER_CONFIG[provider];
+        const payload = decodeJWT(token);
+        const userId = payload?.sub || config.defaultId;
+
+        // 先设置token到store，让http.ts能获取到
+        setTokens({ accessToken: token, refreshToken: refreshToken || '' });
+
+        let user: User;
+
+        try {
+          user = await authApi.getProfile();
+        } catch (apiError) {
+          console.warn(
+            'Failed to fetch user profile from API, using JWT data:',
+            apiError,
+          );
+          user = {
+            id: userId,
+            phone: '',
+            phoneMd5: '',
+            nickname: payload?.name || config.defaultNickname,
+            avatar: payload?.picture || '',
+            email: payload?.email || '',
+            inviteCode: null,
+            vipLevel: 0,
+            lastLoginAt: null,
+            kycStatus: 'pending',
+            selfExclusionExpireAt: 0,
+          };
+        }
+
+        login(
+          {
+            accessToken: token,
+            refreshToken: refreshToken || '',
+          },
+          user,
+        );
+
+        // 重定向到首页或指定页面
+        setTimeout(() => {
+          const rawPath = sessionStorage.getItem('redirectAfterLogin');
+          if (rawPath) {
+            sessionStorage.removeItem('redirectAfterLogin');
+            router.push(rawPath);
+          } else {
+            router.push(withLocale('/', currentLocale as SupportedLocale));
+          }
+        }, 100);
+      } catch (err: unknown) {
+        throw new Error(
+          err instanceof Error ? err.message : `${provider} OAuth failed`,
+        );
+      }
+    },
+    [setTokens, login, router, currentLocale],
+  );
+
+  // 处理Google登录按钮点击 - 使用弹窗模式
+  const handleGoogleLoginClick = async () => {
     try {
       setError(null);
       setIsOAuthLoading(true);
 
-      const params = new URLSearchParams();
-
-      // Web flow: redirect back to blog callback
-      if (!isFromApp) {
-        params.set('redirect_uri', `${window.location.origin}/oauth/callback`);
-        params.set('state', generateWebState());
-      }
-      // App flow: use deep link callback
-      else {
-        if (callback) params.set('callback', callback);
-        if (platform) params.set('platform', platform);
-      }
-
-      // 通用参数
-      params.set('client', client || 'web');
-      if (inviteCode) params.set('inviteCode', inviteCode);
-
-      // 重定向到后端 OAuth 发起
-      // 生产环境使用API域名直接跳转，开发环境使用相对路径走dev nginx
-      const oauthOrigin = process.env.NEXT_PUBLIC_OAUTH_API_ORIGIN || '';
-      window.location.href = `${oauthOrigin}/auth/google/login?${params.toString()}`;
+      const result = await openOAuthPopup('google');
+      await handleOAuthLogin(result.token, result.refreshToken, 'google');
     } catch (err: any) {
-      setError(err.message || t('auth.oauth.googleFailed'));
+      if (err.message !== 'cancelled' && err.message !== 'popup_blocked') {
+        setError(err.message || t('auth.oauth.googleFailed'));
+      }
+    } finally {
       setIsOAuthLoading(false);
     }
   };
@@ -154,35 +237,19 @@ export default function LoginPageClient() {
     }
   };
 
-  // 处理Facebook登录按钮点击 - 使用后端deep link endpoints
-  const handleFacebookLoginClick = () => {
+  // 处理Facebook登录按钮点击 - 使用弹窗模式
+  const handleFacebookLoginClick = async () => {
     try {
       setError(null);
       setIsOAuthLoading(true);
 
-      const params = new URLSearchParams();
-
-      // Web flow: redirect back to blog callback
-      if (!isFromApp) {
-        params.set('redirect_uri', `${window.location.origin}/oauth/callback`);
-        params.set('state', generateWebState());
-      }
-      // App flow: use deep link callback
-      else {
-        if (callback) params.set('callback', callback);
-        if (platform) params.set('platform', platform);
-      }
-
-      // 通用参数
-      params.set('client', client || 'web');
-      if (inviteCode) params.set('inviteCode', inviteCode);
-
-      // 重定向到后端 OAuth 发起
-      // 生产环境使用API域名直接跳转，开发环境使用相对路径走dev nginx
-      const oauthOrigin = process.env.NEXT_PUBLIC_OAUTH_API_ORIGIN || '';
-      window.location.href = `${oauthOrigin}/auth/facebook/login?${params.toString()}`;
+      const result = await openOAuthPopup('facebook');
+      await handleOAuthLogin(result.token, result.refreshToken, 'facebook');
     } catch (err: any) {
-      setError(err.message || t('auth.oauth.facebookFailed'));
+      if (err.message !== 'cancelled' && err.message !== 'popup_blocked') {
+        setError(err.message || t('auth.oauth.facebookFailed'));
+      }
+    } finally {
       setIsOAuthLoading(false);
     }
   };

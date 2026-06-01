@@ -1,6 +1,7 @@
 import { serverGet } from '@/lib/serverFetch';
 import { getEnabledLocales } from '@/lib/i18n/config';
 import CategoriesPageClient from './page.client';
+import { SITE_URL } from '@/lib/constants/site';
 import type { FrontendCategory } from '@/lib/types/frontend-blog';
 import type { Locale } from '@/lib/i18n/config';
 import type { Metadata } from 'next';
@@ -25,8 +26,7 @@ export async function generateMetadata({
   params: Promise<{ locale: string }>;
 }): Promise<Metadata> {
   const { locale } = await params;
-  const baseUrl =
-    process.env.NEXT_PUBLIC_SITE_URL || 'https://blog.joyminis.com';
+  const baseUrl = SITE_URL;
 
   return {
     alternates: {

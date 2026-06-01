@@ -1,3 +1,4 @@
+import { SITE_URL } from '@/lib/constants/site';
 import type { Metadata } from 'next';
 import { getEnabledLocales, type Locale } from '@/lib/i18n/config';
 import { getPrivacyPolicyContent } from '@/lib/privacy/privacy-content';
@@ -16,8 +17,7 @@ export async function generateMetadata({
   params: Promise<{ locale: string }>;
 }): Promise<Metadata> {
   const { locale } = await params;
-  const baseUrl =
-    process.env.NEXT_PUBLIC_SITE_URL || 'https://blog.joyminis.com';
+  const baseUrl = SITE_URL;
 
   return {
     title: 'Privacy Policy | Tarsier Labs',

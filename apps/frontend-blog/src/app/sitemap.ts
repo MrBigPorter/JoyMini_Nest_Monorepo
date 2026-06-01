@@ -1,4 +1,5 @@
 import { MetadataRoute } from 'next';
+import { SITE_URL } from '@/lib/constants/site';
 import { getEnabledLocales } from '@/lib/i18n/config';
 
 /**
@@ -10,8 +11,7 @@ import { getEnabledLocales } from '@/lib/i18n/config';
  */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const locales = getEnabledLocales();
-  const baseUrl =
-    process.env.NEXT_PUBLIC_SITE_URL || 'https://blog.joyminis.com';
+  const baseUrl = SITE_URL;
 
   const sitemaps: MetadataRoute.Sitemap = [];
 

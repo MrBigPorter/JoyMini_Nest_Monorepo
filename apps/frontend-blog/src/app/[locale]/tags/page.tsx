@@ -1,6 +1,7 @@
 import { serverGet } from '@/lib/serverFetch';
 import { getEnabledLocales } from '@/lib/i18n/config';
 import TagsPageClient from './page.client';
+import { SITE_URL } from '@/lib/constants/site';
 import type { Locale } from '@/lib/i18n/config';
 import type { FrontendTag } from '@/lib/types/frontend-blog';
 import type { Metadata } from 'next';
@@ -25,8 +26,7 @@ export async function generateMetadata({
   params: Promise<{ locale: string }>;
 }): Promise<Metadata> {
   const { locale } = await params;
-  const baseUrl =
-    process.env.NEXT_PUBLIC_SITE_URL || 'https://blog.joyminis.com';
+  const baseUrl = SITE_URL;
 
   return {
     alternates: {
@@ -41,18 +41,17 @@ export async function generateMetadata({
 }
 
 interface TagsPageProps {
-  params: {
-    locale: string;
-  };
+  params: Promise<{ locale: string }>;
 }
 
 export default async function TagsPage({ params }: TagsPageProps) {
+  const { locale } = await params;
   let tags: FrontendTag[] = [];
 
   try {
     // 简化架构：直接API调用，避免复杂平台感知抽象
     tags = await serverGet<FrontendTag[]>('/v1/frontend/blog/tags', {
-      lang: params.locale,
+      lang: locale,
     });
   } catch (error) {
     console.error('Tags page server error:', error);

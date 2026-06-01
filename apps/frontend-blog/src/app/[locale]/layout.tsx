@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { NextIntlClientProvider } from 'next-intl';
+import { SITE_URL } from '@/lib/constants/site';
 import { setRequestLocale } from 'next-intl/server';
 import zhMessages from '@/messages/zh.json';
 import enMessages from '@/messages/en.json';
@@ -29,8 +30,7 @@ export async function generateMetadata({
   params: Promise<{ locale: string }>;
 }): Promise<Metadata> {
   const { locale } = await params;
-  const baseUrl =
-    process.env.NEXT_PUBLIC_SITE_URL || 'https://blog.joyminis.com';
+  const baseUrl = SITE_URL;
 
   return {
     metadataBase: new URL(baseUrl),

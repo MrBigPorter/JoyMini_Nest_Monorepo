@@ -2,6 +2,7 @@ import { getCachedArticle } from '@/lib/cached/article';
 import ArticlePageClient from './page.client';
 import { getOptimizedImageUrl } from '@/lib/utils/cloudflareImageLoader';
 import { generateArticleSchema } from '@/lib/seo/schema';
+import { SITE_URL } from '@/lib/constants/site';
 import type { Metadata } from 'next';
 import { getEnabledLocales, type Locale } from '@/lib/i18n/config';
 
@@ -31,8 +32,7 @@ export async function generateMetadata({
   params: Promise<{ locale: string; slug: string }>;
 }): Promise<Metadata> {
   const { locale, slug } = await params;
-  const baseUrl =
-    process.env.NEXT_PUBLIC_SITE_URL || 'https://blog.joyminis.com';
+  const baseUrl = SITE_URL;
 
   try {
     const article = await getCachedArticle(slug, locale);

@@ -1,4 +1,5 @@
 import { MetadataRoute } from 'next';
+import { SITE_URL } from '@/lib/constants/site';
 import { getEnabledLocales } from '@/lib/i18n/config';
 
 /**
@@ -11,8 +12,7 @@ import { getEnabledLocales } from '@/lib/i18n/config';
  * 改进：显式列出所有 locale sitemap，帮助 Google 更快发现所有语言页面
  */
 export default function robots(): MetadataRoute.Robots {
-  const baseUrl =
-    process.env.NEXT_PUBLIC_SITE_URL || 'https://blog.joyminis.com';
+  const baseUrl = SITE_URL;
   const locales = getEnabledLocales();
 
   return {

@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title id="pageTitle">Signing in...</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: #f9fafb;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      color: #1f2937;
+    }
+    .container {
+      text-align: center;
+      padding: 2rem;
+      max-width: 360px;
+    }
+    .spinner {
+      width: 48px;
+      height: 48px;
+      border: 4px solid #e5e7eb;
+      border-top-color: #3b82f6;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 1.5rem;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .checkmark {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: #ecfdf5;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 1.5rem;
+    }
+    .checkmark svg {
+      width: 28px;
+      height: 28px;
+      stroke: #059669;
+    }
+    .status-text {
+      font-size: 1.125rem;
+      font-weight: 500;
+      line-height: 1.4;
+    }
+    .status-sub {
+      margin-top: 0.5rem;
+      font-size: 0.875rem;
+      color: #6b7280;
+      line-height: 1.4;
+    }
+    .error-icon {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: #fef2f2;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 1.5rem;
+    }
+    .error-icon svg {
+      width: 28px;
+      height: 28px;
+      stroke: #dc2626;
+    }
+    .hidden {
+      display: none !important;
+    }
+    @media (prefers-color-scheme: dark) {
+      body {
+        background: #111827;
+        color: #f3f4f6;
+      }
+      .spinner {
+        border-color: #374151;
+        border-top-color: #60a5fa;
+      }
+      .checkmark {
+        background: #064e3b;
+      }
+      .checkmark svg {
+        stroke: #34d399;
+      }
+      .status-sub {
+        color: #9ca3af;
+      }
+      .error-icon {
+        background: #7f1d1d;
+      }
+      .error-icon svg {
+        stroke: #fca5a5;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Loading state -->
+    <div id="loadingState">
+      <div class="spinner"></div>
+      <p class="status-text" id="loadingText">Signing in...</p>
+      <p class="status-sub" id="loadingSub">Please wait while we complete the authentication process.</p>
+    </div>
+
+    <!-- Success state -->
+    <div id="successState" class="hidden">
+      <div class="checkmark">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+        </svg>
+      </div>
+      <p class="status-text" id="successText">Sign in successful!</p>
+      <p class="status-sub" id="successSub">This window will close automatically.</p>
+    </div>
+
+    <!-- Error state -->
+    <div id="errorState" class="hidden">
+      <div class="error-icon">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </div>
+      <p class="status-text" id="errorText">Sign in failed</p>
+      <p class="status-sub" id="errorSub">You can close this window and try again.</p>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      'use strict';
+
+      // ─── Multi-language translations ──────────────────────────────
+      var TRANSLATIONS = {
+        zh: {
+          title: '正在登录...',
+          loading: '正在登录...',
+          loadingSub: '请稍候，正在完成身份验证。',
+          success: '登录成功！',
+          successSub: '窗口即将自动关闭。',
+          error: '登录失败',
+          errorSubMissing: '登录失败，缺少认证令牌',
+          errorSub: '您可以关闭此窗口，然后重试。',
+        },
+        en: {
+          title: 'Signing in...',
+          loading: 'Signing in...',
+          loadingSub: 'Please wait while we complete the authentication process.',
+          success: 'Sign in successful!',
+          successSub: 'This window will close automatically.',
+          error: 'Sign in failed',
+          errorSubMissing: 'Sign in failed, missing authentication token',
+          errorSub: 'You can close this window and try again.',
+        },
+        ja: {
+          title: 'ログイン中...',
+          loading: 'ログイン中...',
+          loadingSub: '認証処理を完了するまでお待ちください。',
+          success: 'ログイン成功！',
+          successSub: 'ウィンドウは自動的に閉じます。',
+          error: 'ログイン失敗',
+          errorSubMissing: 'ログイン失敗、認証トークンが見つかりません',
+          errorSub: 'このウィンドウを閉じて、もう一度お試しください。',
+        },
+        ko: {
+          title: '로그인 중...',
+          loading: '로그인 중...',
+          loadingSub: '인증 처리 중입니다. 잠시만 기다려 주세요.',
+          success: '로그인 성공!',
+          successSub: '창이 자동으로 닫힙니다.',
+          error: '로그인 실패',
+          errorSubMissing: '로그인 실패, 인증 토큰이 없습니다',
+          errorSub: '이 창을 닫고 다시 시도해 주세요.',
+        },
+        fr: {
+          title: 'Connexion en cours...',
+          loading: 'Connexion en cours...',
+          loadingSub: 'Veuillez patienter pendant la finalisation de l\'authentification.',
+          success: 'Connexion réussie !',
+          successSub: 'Cette fenêtre va se fermer automatiquement.',
+          error: 'Échec de connexion',
+          errorSubMissing: 'Échec de connexion, jeton d\'authentification manquant',
+          errorSub: 'Vous pouvez fermer cette fenêtre et réessayer.',
+        },
+        de: {
+          title: 'Anmeldung läuft...',
+          loading: 'Anmeldung läuft...',
+          loadingSub: 'Bitte warten Sie, während der Authentifizierungsvorgang abgeschlossen wird.',
+          success: 'Anmeldung erfolgreich!',
+          successSub: 'Dieses Fenster wird automatisch geschlossen.',
+          error: 'Anmeldung fehlgeschlagen',
+          errorSubMissing: 'Anmeldung fehlgeschlagen, Authentifizierungstoken fehlt',
+          errorSub: 'Sie können dieses Fenster schließen und es erneut versuchen.',
+        },
+      };
+
+      // ─── Locale detection ──────────────────────────────────────────
+      // Try NEXT_LOCALE cookie first, then legacy 'locale' cookie, fallback to 'zh'
+      function getLocale() {
+        try {
+          var match = document.cookie.match(/(?:^| )NEXT_LOCALE=([^;]+)/);
+          if (match) return match[1];
+          match = document.cookie.match(/(?:^| )locale=([^;]+)/);
+          if (match) return match[1];
+        } catch (e) {
+          // ignore
+        }
+        return 'zh';
+      }
+
+      var locale = getLocale();
+      // Fallback to 'zh' if locale is not in translations
+      if (!TRANSLATIONS[locale]) {
+        locale = 'zh';
+      }
+      var t = TRANSLATIONS[locale];
+
+      // ─── Update UI with localized text ────────────────────────────
+      document.getElementById('pageTitle').textContent = t.title;
+      document.getElementById('loadingText').textContent = t.loading;
+      document.getElementById('loadingSub').textContent = t.loadingSub;
+      document.getElementById('successText').textContent = t.success;
+      document.getElementById('successSub').textContent = t.successSub;
+      document.getElementById('errorText').textContent = t.error;
+      document.getElementById('errorSub').textContent = t.errorSub;
+
+      // ─── Parse URL parameters ──────────────────────────────────────
+      var params = new URLSearchParams(window.location.search);
+      var token = params.get('token');
+      var refreshToken = params.get('refreshToken');
+      var provider = params.get('provider');
+      var errorParam = params.get('error');
+
+      // ─── Show/hide states ──────────────────────────────────────────
+      var loadingState = document.getElementById('loadingState');
+      var successState = document.getElementById('successState');
+      var errorState = document.getElementById('errorState');
+
+      function showLoading() {
+        loadingState.classList.remove('hidden');
+        successState.classList.add('hidden');
+        errorState.classList.add('hidden');
+      }
+
+      function showSuccess() {
+        loadingState.classList.add('hidden');
+        successState.classList.remove('hidden');
+        errorState.classList.add('hidden');
+      }
+
+      function showError() {
+        loadingState.classList.add('hidden');
+        successState.classList.add('hidden');
+        errorState.classList.remove('hidden');
+      }
+
+      // ─── Main logic ────────────────────────────────────────────────
+      function main() {
+        // Handle OAuth error from backend
+        if (errorParam) {
+          document.getElementById('errorSub').textContent = errorParam;
+          showError();
+          return;
+        }
+
+        // Handle missing token
+        if (!token) {
+          document.getElementById('errorSub').textContent = t.errorSubMissing;
+          showError();
+          return;
+        }
+
+        // Build result object
+        var result = {
+          token: token,
+          refreshToken: refreshToken || '',
+          provider: provider || 'generic',
+        };
+
+        // ─── Channel 1: postMessage (primary) ───────────────────────
+        try {
+          if (window.opener && !window.opener.closed) {
+            window.opener.postMessage(
+              { type: 'OAUTH_TOKEN', payload: result },
+              '*'
+            );
+          }
+        } catch (e) {
+          console.warn('[OAuth Popup] postMessage failed:', e);
+        }
+
+        // ─── Channel 2 & 3: localStorage ────────────────────────────
+        // localStorage.setItem triggers StorageEvent for other tabs (Channel 2)
+        // and also allows polling via getItem (Channel 3, for background tab)
+        try {
+          localStorage.setItem('oauth_token_result', JSON.stringify(result));
+          // Clean up old keys that might linger from previous attempts
+          // We keep the key for 10 seconds then remove it
+          setTimeout(function () {
+            try {
+              // Only remove if it hasn't been replaced by a newer attempt
+              var current = localStorage.getItem('oauth_token_result');
+              if (current === JSON.stringify(result)) {
+                localStorage.removeItem('oauth_token_result');
+              }
+            } catch (e) {
+              // ignore
+            }
+          }, 10000);
+        } catch (e) {
+          console.warn('[OAuth Popup] localStorage setItem failed:', e);
+        }
+
+        // ─── Clean up URL (remove sensitive params) ──────────────────
+        try {
+          if (window.history && window.history.replaceState) {
+            window.history.replaceState(
+              null,
+              '',
+              window.location.pathname + window.location.hash
+            );
+          }
+        } catch (e) {
+          // ignore
+        }
+
+        // ─── Show success state ──────────────────────────────────────
+        showSuccess();
+
+        // ─── Close window after delay ────────────────────────────────
+        setTimeout(function () {
+          try {
+            window.close();
+          } catch (e) {
+            // window.close() may fail if popup wasn't opened by script
+            // Show a message to the user that they can close manually
+            document.getElementById('successSub').textContent =
+              locale === 'zh'
+                ? '请手动关闭此窗口。'
+                : locale === 'ja'
+                ? 'このウィンドウを手動で閉じてください。'
+                : locale === 'ko'
+                ? '이 창을 수동으로 닫아 주세요.'
+                : locale === 'fr'
+                ? 'Veuillez fermer cette fenêtre manuellement.'
+                : locale === 'de'
+                ? 'Bitte schließen Sie dieses Fenster manuell.'
+                : 'Please close this window manually.';
+          }
+        }, 800);
+      }
+
+      main();
+    })();
+  </script>
+</body>
+</html>

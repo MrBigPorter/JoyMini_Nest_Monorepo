@@ -1,4 +1,5 @@
 import { MetadataRoute } from 'next';
+import { SITE_URL } from '@/lib/constants/site';
 import { frontendBlogApi } from '@/lib/api/frontendBlogApi';
 import { getEnabledLocales } from '@/lib/i18n/config';
 import type { Locale } from '@/lib/i18n/config';
@@ -23,8 +24,7 @@ export default async function sitemap({
 
   // 安全解构参数，提供默认值
   const { locale } = params || { locale: 'zh' };
-  const baseUrl =
-    process.env.NEXT_PUBLIC_SITE_URL || 'https://blog.joyminis.com';
+  const baseUrl = SITE_URL;
 
   const sitemapEntries: MetadataRoute.Sitemap = [];
 
