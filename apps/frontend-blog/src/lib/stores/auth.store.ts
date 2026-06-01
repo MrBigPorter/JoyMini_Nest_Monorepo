@@ -174,6 +174,10 @@ export const useAuthStore = create<AuthState>()(
       logout: () => {
         console.log('Auth store: logout called');
 
+        // Clear OAuth popup callback token from localStorage
+        // so a stale token doesn't trigger automatic login on next popup flow.
+        localStorage.removeItem('oauth_token_result');
+
         set({
           user: null,
           accessToken: null,

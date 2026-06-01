@@ -29,6 +29,9 @@ export function useKeyboardShortcut({
 }: UseKeyboardShortcutOptions) {
   const handleKeyDown = useCallback(
     (event: KeyboardEvent) => {
+      // 忽略不合法的键盘事件（如浏览器扩展触发的合成事件）
+      if (!event.key) return;
+
       // 检查按键匹配
       const keyMatches = event.key.toLowerCase() === key.toLowerCase();
       const ctrlMatches = ctrlKey ? event.ctrlKey : !event.ctrlKey;

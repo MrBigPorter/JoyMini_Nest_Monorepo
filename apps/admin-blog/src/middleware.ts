@@ -9,45 +9,8 @@ import type { Locale } from '@/lib/utils/locale';
  */
 const AVAILABLE_LOCALES = ['en', 'zh', 'ja', 'ko', 'fr', 'de'] as const;
 
-function decodeJwtPayload(token: string): { exp?: number } | null {
-  try {
-    const parts = token.split('.');
-    if (parts.length !== 3) return null;
-    const payload = parts[1];
-    const decoded = JSON.parse(atob(payload));
-    return decoded;
-  } catch {
-    return null;
-  }
-}
-
-function isJwtExpiredOrMalformed(token: string): boolean {
-  const payload = decodeJwtPayload(token);
-  if (!payload) return true;
-  if (!payload.exp) return true;
-  return Date.now() >= payload.exp * 1000;
-}
-
-function clearAuthCookie(request: NextRequest, response: NextResponse) {
-  const domain = process.env.AUTH_COOKIE_DOMAIN || undefined;
-  response.cookies.set('auth_token', '', {
-    httpOnly: true,
-    secure: true,
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 0,
-    ...(domain ? { domain } : {}),
-  });
-}
-
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-
-  // Public paths that don't require authentication
-  const publicPaths = ['/login', '/privacy-policy'];
-  const isPublicPath = publicPaths.some(
-    (path) => pathname === path || pathname.startsWith(path + '/'),
-  );
 
   // Allow static files and Next.js internals
   if (
@@ -89,41 +52,6 @@ export function middleware(request: NextRequest) {
       });
     }
   };
-
-  // ── Auth check ────────────────────────────────────────────────────────────
-  const authToken = request.cookies.get('auth_token')?.value;
-
-  // If no token or token is expired
-  if (!authToken || isJwtExpiredOrMalformed(authToken)) {
-    // If it's a public path, allow access
-    if (isPublicPath) {
-      const response = NextResponse.next();
-      applyLocaleCookie(response);
-      if (authToken && isJwtExpiredOrMalformed(authToken)) {
-        clearAuthCookie(request, response);
-      }
-      return response;
-    }
-    // Redirect to login
-    const loginUrl = new URL('/login', request.url);
-    loginUrl.searchParams.set('redirect', pathname);
-    // 保留 test/code 参数用于 auto-login（demo/interview 场景）
-    const test = request.nextUrl.searchParams.get('test');
-    const code = request.nextUrl.searchParams.get('code');
-    if (test) loginUrl.searchParams.set('test', test);
-    if (code) loginUrl.searchParams.set('code', code);
-    // Apply locale cookie to redirect response too
-    const response = NextResponse.redirect(loginUrl);
-    applyLocaleCookie(response);
-    return response;
-  }
-
-  // If authenticated and trying to access login page, redirect to home
-  if (pathname === '/login') {
-    const response = NextResponse.redirect(new URL('/', request.url));
-    applyLocaleCookie(response);
-    return response;
-  }
 
   // Set x-pathname header for route matching in layouts
   const response = NextResponse.next();

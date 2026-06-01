@@ -7,8 +7,8 @@
   "minify": true,
   "routes": [
     {
-      "pattern": "blog-admin.joyminis.com/*",
-      "zone_name": "joyminis.com"
+      "pattern": "blog-admin.tarsierlabs.app/*",
+      "zone_name": "tarsierlabs.app"
     }
   ],
   "assets": {
@@ -19,7 +19,6 @@
     "NODE_ENV": "production",
     "NEXT_PUBLIC_ENVIRONMENT": "cloudflare",
     "NEXT_PUBLIC_API_BASE_URL": "https://api.joyminis.com/api",
-    "NEXT_PUBLIC_OAUTH_API_ORIGIN": "https://api.joyminis.com",
-    "AUTH_COOKIE_DOMAIN": ".joyminis.com"
+    "NEXT_PUBLIC_OAUTH_API_ORIGIN": "https://api.joyminis.com"
   }
 }

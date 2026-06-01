@@ -3,6 +3,7 @@
  * 生成JSON-LD Schema标记，增强搜索引擎理解
  */
 
+import { SITE_URL } from '@/lib/constants/site';
 import type {
   FrontendArticle,
   FrontendCategory,
@@ -18,8 +19,7 @@ export function generateArticleSchema(
   article: FrontendArticle,
   locale: string,
 ) {
-  const baseUrl =
-    process.env.NEXT_PUBLIC_SITE_URL || 'https://blog.joyminis.com';
+  const baseUrl = SITE_URL;
 
   const schema = {
     '@context': 'https://schema.org',
@@ -71,8 +71,7 @@ export function generateCategorySchema(
   category: FrontendCategory | FrontendCategoryWithArticles,
   locale: string,
 ) {
-  const baseUrl =
-    process.env.NEXT_PUBLIC_SITE_URL || 'https://blog.joyminis.com';
+  const baseUrl = SITE_URL;
 
   const schema = {
     '@context': 'https://schema.org',
@@ -93,8 +92,7 @@ export function generateCategorySchema(
  * 生成组织结构化数据
  */
 export function generateOrganizationSchema() {
-  const baseUrl =
-    process.env.NEXT_PUBLIC_SITE_URL || 'https://blog.joyminis.com';
+  const baseUrl = SITE_URL;
 
   const schema = {
     '@context': 'https://schema.org',
@@ -143,8 +141,7 @@ export function generateBreadcrumbSchema(
  * 生成标签页面的结构化数据
  */
 export function generateTagSchema(tag: FrontendTag, locale: string) {
-  const baseUrl =
-    process.env.NEXT_PUBLIC_SITE_URL || 'https://blog.joyminis.com';
+  const baseUrl = SITE_URL;
 
   const schema = {
     '@context': 'https://schema.org',

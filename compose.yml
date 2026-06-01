@@ -199,6 +199,8 @@ services:
              if [ ! -f \"$$CACHE\" ] || [ \"$$(cat $$CACHE 2>/dev/null)\" != \"$$LOCK_HASH\" ] || ! command -v next >/dev/null 2>&1; then
                echo '>>> dependency check triggered - running install...' &&
                yarn workspaces focus @lucky/frontend-blog &&
+               echo '>>> Removing duplicate React in workspace to prevent dual-instance HMR crashes...' &&
+               rm -rf apps/frontend-blog/node_modules/react apps/frontend-blog/node_modules/react-dom &&
                echo \"$$LOCK_HASH\" > \"$$CACHE\";
              else
                echo '>>> yarn.lock unchanged - skipping install';

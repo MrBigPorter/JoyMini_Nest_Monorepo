@@ -1,5 +1,6 @@
 import { serverGet } from '@/lib/serverFetch';
 import CategoryClientView from './CategoryClientView';
+import { SITE_URL } from '@/lib/constants/site';
 import type { FrontendCategoryWithArticles } from '@/lib/types/frontend-blog';
 import type { Metadata } from 'next';
 import { getEnabledLocales, type Locale } from '@/lib/i18n/config';
@@ -16,8 +17,7 @@ export async function generateMetadata({
   params: Promise<{ locale: string; slug: string }>;
 }): Promise<Metadata> {
   const { locale, slug } = await params;
-  const baseUrl =
-    process.env.NEXT_PUBLIC_SITE_URL || 'https://blog.joyminis.com';
+  const baseUrl = SITE_URL;
 
   return {
     alternates: {
@@ -38,9 +38,9 @@ export async function generateMetadata({
 export default async function CategoryPage({
   params,
 }: {
-  params: { locale: string; slug: string };
+  params: Promise<{ locale: string; slug: string }>;
 }) {
-  const { locale, slug } = params;
+  const { locale, slug } = await params;
 
   try {
     const data = await serverGet<FrontendCategoryWithArticles>(

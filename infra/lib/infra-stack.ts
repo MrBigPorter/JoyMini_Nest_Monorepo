@@ -21,6 +21,11 @@ import * as path from "path";
 import * as fs from "fs";
 import * as s3n from "aws-cdk-lib/aws-s3-notifications";
 import * as lambdaEventSources from "aws-cdk-lib/aws-lambda-event-sources";
+import * as rds from "aws-cdk-lib/aws-rds";
+import * as apigatewayv2 from "aws-cdk-lib/aws-apigatewayv2";
+import * as apigatewayv2Integrations from "aws-cdk-lib/aws-apigatewayv2-integrations";
+// import * as route53 from "aws-cdk-lib/aws-route53";
+// import * as route53Targets from "aws-cdk-lib/aws-route53-targets";
 
 export class InfraStack extends cdk.Stack {
   public readonly vpc: ec2.Vpc;
@@ -221,8 +226,8 @@ export class InfraStack extends cdk.Stack {
         {
           allowedOrigins: [
             "https://admin.joyminis.com",
-            "https://blog-admin.joyminis.com",
-            "https://blog.joyminis.com",
+            "https://blog-admin.tarsierlabs.app",
+            "https://blog.tarsierlabs.app",
             "https://dev.joyminis.com",
           ],
           allowedMethods: [s3.HttpMethods.PUT],
@@ -377,6 +382,89 @@ export class InfraStack extends cdk.Stack {
         hour: "3",
       }),
       targets: [new targets.LambdaFunction(syncLambda)],
+    });
+
+    // 数据库安全组 — 只允许 ECS 访问
+    const dbSecurityGroup = new ec2.SecurityGroup(this, "TarsierLabsDbSG", {
+      vpc: this.vpc,
+      description: "Security group for RDS PostgreSQL",
+      allowAllOutbound: true,
+    });
+
+    // 允许 ECS 任务通过 5432 端口访问数据库
+    dbSecurityGroup.addIngressRule(
+      ec2.Peer.ipv4(this.vpc.vpcCidrBlock),
+      ec2.Port.tcp(5432),
+      "Allow PostgreSQL access from within VPC",
+    );
+
+    //RDS PostgreSQL 实例（PRIVATE_ISOLATED 子网 — 生产安全配置）
+    const dbInstance = new rds.DatabaseInstance(this, "TarsierLabsPostgres", {
+      engine: rds.DatabaseInstanceEngine.postgres({
+        version: rds.PostgresEngineVersion.VER_16,
+      }),
+      instanceType: ec2.InstanceType.of(
+        ec2.InstanceClass.T3,
+        ec2.InstanceSize.MICRO,
+      ),
+      vpc: this.vpc,
+      vpcSubnets: {
+        subnetType: ec2.SubnetType.PRIVATE_ISOLATED,
+      },
+      securityGroups: [dbSecurityGroup],
+      allocatedStorage: 20,
+      maxAllocatedStorage: 100,
+      storageType: rds.StorageType.GP3,
+      backupRetention: cdk.Duration.days(7),
+      deletionProtection: false,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      multiAz: false,
+      publiclyAccessible: false,
+      credentials: rds.Credentials.fromGeneratedSecret("postgres"),
+      databaseName: "joymini",
+    });
+    // 输出数据库连接地址
+    new cdk.CfnOutput(this, "DatabaseEndpoint", {
+      value: dbInstance.dbInstanceEndpointAddress,
+      description: "RDS PostgreSQL endpoint address",
+    });
+
+    // ==================== API Gateway + Lambda (Phase 3) ====================
+    // 1. Lambda 函数 — 最简单的 Serverless 函数
+    const helloLambda = new lambdaNodejs.NodejsFunction(this, "HelloLambda", {
+      entry: path.join(__dirname, "../lambda/hello-handler.ts"),
+      runtime: lambda.Runtime.NODEJS_22_X,
+      architecture: lambda.Architecture.ARM_64,
+      memorySize: 128,
+      timeout: cdk.Duration.seconds(10),
+      description: "Serverless API handler",
+    });
+
+    // 2. API Gateway HTTP API — 暴露 Lambda 为 REST API
+    const httpApi = new apigatewayv2.HttpApi(this, "TarsierLabsHttpApi", {
+      apiName: "TarsierLabs Serverless API",
+      description: "API Gateway + Lambda",
+      corsPreflight: {
+        allowOrigins: ["*"],
+        allowMethods: [apigatewayv2.CorsHttpMethod.GET],
+      },
+      createDefaultStage: true,
+    });
+
+    // 3. 添加路由: GET /hello → 触发 Lambda
+    httpApi.addRoutes({
+      path: "/hello",
+      methods: [apigatewayv2.HttpMethod.GET],
+      integration: new apigatewayv2Integrations.HttpLambdaIntegration(
+        "HelloLambdaIntegration",
+        helloLambda,
+      ),
+    });
+
+    // 输出 API 地址
+    new cdk.CfnOutput(this, "HttpApiUrl", {
+      value: httpApi.url!,
+      description: "API Gateway HTTP API endpoint (GET /hello)",
     });
   }
 }
