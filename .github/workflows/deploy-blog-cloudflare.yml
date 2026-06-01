@@ -283,7 +283,7 @@ jobs:
             HEALTHY=false
             for i in $(seq 1 20); do
               if docker exec lucky-frontend-blog-prod \
-                wget -qO- http://localhost:3000/en >/dev/null 2>&1; then
+                wget -qO- --timeout=10 http://localhost:3000/en >/dev/null 2>&1; then
                 echo " 前端博客响应正常 (第 ${i} 次, 约 $((i*3))s)"
                 HEALTHY=true
                 break
@@ -296,8 +296,8 @@ jobs:
               echo "❌ 健康检查超时! 正在回滚..."
               docker logs --tail=50 lucky-frontend-blog-prod
               if [ -n "$PREV_IMAGE_SHA" ]; then
-                echo "→ 回滚到旧镜像: ${IMAGE_NAME}@${PREV_IMAGE_SHA}"
-                FRONTEND_BLOG_IMAGE="${IMAGE_NAME}@${PREV_IMAGE_SHA}" \
+                echo "→ 回滚到旧镜像: ${IMAGE%%:*}@${PREV_IMAGE_SHA}"
+                FRONTEND_BLOG_IMAGE="${IMAGE%%:*}@${PREV_IMAGE_SHA}" \
                   docker compose -f compose.prod.yml \
                   --env-file deploy/.env.prod \
                   up -d --no-build --force-recreate frontend-blog
