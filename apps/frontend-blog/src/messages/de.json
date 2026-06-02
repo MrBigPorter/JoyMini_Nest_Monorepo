@@ -92,7 +92,8 @@
       "githubNotSupported": "GitHub-Anmeldung wird noch nicht unterstützt",
       "googleFailed": "Google-Anmeldung fehlgeschlagen",
       "facebookFailed": "Facebook-Anmeldung fehlgeschlagen",
-      "facebookNotReady": "Facebook SDK ist nicht bereit"
+      "facebookNotReady": "Facebook SDK ist nicht bereit",
+      "popupBlocked": "Popup wurde blockiert. Bitte erlauben Sie Popups für diese Website und versuchen Sie es erneut"
     },
     "login": {
       "title": "Anmelden",

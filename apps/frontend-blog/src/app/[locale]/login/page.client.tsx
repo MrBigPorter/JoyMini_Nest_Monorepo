@@ -1,22 +1,21 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { useLocale, useTranslations } from 'next-intl';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
+import { useSearchParams } from 'next/navigation';
+import { useRouter } from '@/navigation';
 import { Mail, Lock, ArrowRight, RefreshCw, Facebook } from 'lucide-react';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useOAuthPopup } from '@/lib/hooks/useOAuthPopup';
 import { useAuthStore, type User } from '@/lib/stores/auth.store';
 import { authApi } from '@/lib/api/authApi';
 import { LoginGuard } from '@/components/auth/ProtectedRoute';
-import { withLocale, type SupportedLocale } from '@/lib/utils/locale';
 
 export default function LoginPageClient() {
   const t = useTranslations();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { loginWithEmail, isLoading } = useAuth();
-  const currentLocale = useLocale();
 
   // 获取URL参数
   const client = searchParams.get('client'); // 'app' 或 'web'
@@ -130,18 +129,30 @@ export default function LoginPageClient() {
           const rawPath = sessionStorage.getItem('redirectAfterLogin');
           if (rawPath) {
             sessionStorage.removeItem('redirectAfterLogin');
-            router.push(rawPath);
+            // rawPath 已含 locale 前缀（如 /en/bookmarks），
+            // next-intl router 会自动添加 locale，故需先移除前缀
+            const pathWithoutLocale =
+              rawPath.replace(/^\/[a-z]{2}(-[A-Z]{2})?(?=\/|$)/, '') || '/';
+            console.log(
+              '[OAuth] Redirecting to:',
+              rawPath,
+              '→',
+              pathWithoutLocale,
+            );
+            router.push(pathWithoutLocale);
           } else {
-            router.push(withLocale('/', currentLocale as SupportedLocale));
+            console.log('[OAuth] Redirecting to home');
+            router.push('/'); // next-intl router 会自动添加 locale 前缀
           }
         }, 100);
       } catch (err: unknown) {
+        console.error('[OAuth] handleOAuthLogin error:', err);
         throw new Error(
           err instanceof Error ? err.message : `${provider} OAuth failed`,
         );
       }
     },
-    [setTokens, login, router, currentLocale],
+    [setTokens, login, router],
   );
 
   // 处理Google登录按钮点击 - 使用弹窗模式
@@ -153,7 +164,10 @@ export default function LoginPageClient() {
       const result = await openOAuthPopup('google');
       await handleOAuthLogin(result.token, result.refreshToken, 'google');
     } catch (err: any) {
-      if (err.message !== 'cancelled' && err.message !== 'popup_blocked') {
+      console.error('[OAuth] Google login error:', err.message);
+      if (err.message === 'popup_blocked') {
+        setError(t('auth.oauth.popupBlocked'));
+      } else if (err.message !== 'cancelled') {
         setError(err.message || t('auth.oauth.googleFailed'));
       }
     } finally {
@@ -217,19 +231,21 @@ export default function LoginPageClient() {
       // 等待store状态更新，然后让LoginGuard处理重定向
       // 使用setTimeout确保状态已更新
       setTimeout(() => {
-        const locale = currentLocale;
         console.log('Checking redirect path after login...');
         const rawPath = sessionStorage.getItem('redirectAfterLogin');
         if (rawPath) {
           console.log('Redirecting to:', rawPath);
           sessionStorage.removeItem('redirectAfterLogin');
           // rawPath 由写入方（ProtectedLink / ProtectedRoute / BookmarkButton）
-          // 存入时已含 locale 前缀（如 /zh/bookmarks），禁止再调用 withLocale()，
-          // 否则变成 /zh/zh/bookmarks。
-          router.push(rawPath);
+          // 存入时已含 locale 前缀（如 /zh/bookmarks），
+          // next-intl router 会自动添加 locale，故需先移除前缀
+          const pathWithoutLocale =
+            rawPath.replace(/^\/[a-z]{2}(-[A-Z]{2})?(?=\/|$)/, '') || '/';
+          console.log('After locale strip:', pathWithoutLocale);
+          router.push(pathWithoutLocale);
         } else {
           console.log('Redirecting to home');
-          router.push(withLocale('/', locale as any));
+          router.push('/'); // next-intl router 会自动添加 locale 前缀
         }
       }, 100);
     } catch (err: any) {
@@ -246,7 +262,10 @@ export default function LoginPageClient() {
       const result = await openOAuthPopup('facebook');
       await handleOAuthLogin(result.token, result.refreshToken, 'facebook');
     } catch (err: any) {
-      if (err.message !== 'cancelled' && err.message !== 'popup_blocked') {
+      console.error('[OAuth] Facebook login error:', err.message);
+      if (err.message === 'popup_blocked') {
+        setError(t('auth.oauth.popupBlocked'));
+      } else if (err.message !== 'cancelled') {
         setError(err.message || t('auth.oauth.facebookFailed'));
       }
     } finally {

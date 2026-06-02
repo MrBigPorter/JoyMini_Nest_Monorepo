@@ -29,7 +29,12 @@ const withPWA = require('next-pwa')({
   // 排除 Source Map、react-loadable-manifest、server-only 文件以及 build-manifest
   // 注意：exclude 只作用于 webpack 编译期资源，对 Next.js 后处理添加的 build-manifest 可能无效
   //       因此额外使用 manifestTransforms 作为 final 过滤兜底
-  exclude: [/\.map$/, /react-loadable-manifest\.json$/, /\/_next\/server\/.*/, /(?:app-)?build-manifest\.json$/],
+  exclude: [
+    /\.map$/,
+    /react-loadable-manifest\.json$/,
+    /\/_next\/server\/.*/,
+    /(?:app-)?build-manifest\.json$/,
+  ],
   // Workbox manifestTransforms 可在最终汇总的预缓存清单上做后处理过滤
   // 解决 exclude 无法过滤非 webpack 资源（如 build-manifest.json、/_next/server/ 等）的问题
   manifestTransforms: [
@@ -37,7 +42,7 @@ const withPWA = require('next-pwa')({
       manifest: entries.filter(
         (entry) =>
           !entry.url.includes('build-manifest.json') &&
-          !entry.url.startsWith('/_next/server/')
+          !entry.url.startsWith('/_next/server/'),
       ),
       warnings: [],
     }),

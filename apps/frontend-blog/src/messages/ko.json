@@ -92,7 +92,8 @@
       "githubNotSupported": "GitHub 로그인은 아직 지원되지 않습니다",
       "googleFailed": "Google 로그인에 실패했습니다",
       "facebookFailed": "Facebook 로그인에 실패했습니다",
-      "facebookNotReady": "Facebook SDK가 준비되지 않았습니다"
+      "facebookNotReady": "Facebook SDK가 준비되지 않았습니다",
+      "popupBlocked": "팝업이 차단되었습니다. 이 사이트의 팝업을 허용한 후 다시 시도해주세요"
     },
     "login": {
       "title": "로그인",

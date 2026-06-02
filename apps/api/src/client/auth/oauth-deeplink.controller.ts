@@ -97,7 +97,10 @@ export class OAuthDeepLinkController {
     };
 
     const state = this.encodeState(stateData);
-    const oauthRedirectUri = this.resolveOAuthRedirectUri('google', redirectUri);
+    const oauthRedirectUri = this.resolveOAuthRedirectUri(
+      'google',
+      redirectUri,
+    );
     const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
     authUrl.searchParams.set('client_id', clientId || '');
     authUrl.searchParams.set('redirect_uri', oauthRedirectUri);
@@ -131,7 +134,10 @@ export class OAuthDeepLinkController {
     };
 
     const state = this.encodeState(stateData);
-    const oauthRedirectUri = this.resolveOAuthRedirectUri('facebook', redirectUri);
+    const oauthRedirectUri = this.resolveOAuthRedirectUri(
+      'facebook',
+      redirectUri,
+    );
     const authUrl = new URL('https://www.facebook.com/v18.0/dialog/oauth');
     authUrl.searchParams.set('client_id', appId || '');
     authUrl.searchParams.set('redirect_uri', oauthRedirectUri);
@@ -213,7 +219,10 @@ export class OAuthDeepLinkController {
         throw new OAuthStateError('State expired', 'google');
       }
 
-      const oauthRedirectUri = this.resolveOAuthRedirectUri('google', stateData.redirectUri);
+      const oauthRedirectUri = this.resolveOAuthRedirectUri(
+        'google',
+        stateData.redirectUri,
+      );
       const tokens = await this.exchangeGoogleCode(code, oauthRedirectUri);
       const userInfo = await this.getGoogleUserInfo(tokens.access_token);
 
@@ -280,7 +289,10 @@ export class OAuthDeepLinkController {
         throw new OAuthStateError('State expired', 'facebook');
       }
 
-      const oauthRedirectUri = this.resolveOAuthRedirectUri('facebook', stateData.redirectUri);
+      const oauthRedirectUri = this.resolveOAuthRedirectUri(
+        'facebook',
+        stateData.redirectUri,
+      );
       const tokens = await this.exchangeFacebookCode(code, oauthRedirectUri);
       const userInfo = await this.getFacebookUserInfo(tokens.access_token);
 
@@ -338,7 +350,10 @@ export class OAuthDeepLinkController {
         throw new OAuthStateError('State expired', 'apple');
       }
 
-      const oauthRedirectUri = this.resolveOAuthRedirectUri('apple', stateData.redirectUri);
+      const oauthRedirectUri = this.resolveOAuthRedirectUri(
+        'apple',
+        stateData.redirectUri,
+      );
       const tokens = await this.exchangeAppleCode(code, oauthRedirectUri);
       const userInfo = this.parseAppleIdToken(tokens.id_token);
 
