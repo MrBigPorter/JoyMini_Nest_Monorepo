@@ -38,7 +38,13 @@ const withPWA = require('next-pwa')({
   // Workbox manifestTransforms 可在最终汇总的预缓存清单上做后处理过滤
   // 解决 exclude 无法过滤非 webpack 资源（如 build-manifest.json、/_next/server/ 等）的问题
   manifestTransforms: [
-    async (entries) => ({
+    async (
+      entries: Array<{
+        url: string;
+        revision: string | null;
+        integrity?: string;
+      }>,
+    ) => ({
       manifest: entries.filter(
         (entry) =>
           !entry.url.includes('build-manifest.json') &&
@@ -223,13 +229,9 @@ const baseConfig: NextConfig = {
         source: '/article/:slug',
         destination: '/en/articles/:slug',
       },
-      // Apple Universal Links 要求 Content-Type: application/json
-      // 但 Next.js 对无扩展名的静态文件返回 application/octet-stream
-      // 重命名为 .json 后缀后通过 rewrite 暴露原始路径
-      {
-        source: '/.well-known/apple-app-site-association',
-        destination: '/.well-known/apple-app-site-association.json',
-      },
+      // 注意：/.well-known/apple-app-site-association 和 /.well-known/assetlinks.json
+      // 已改为 Route Handler 实现（src/app/.well-known/*/route.ts），
+      // 在 Next.js 层直接返回 Content-Type: application/json，不再需要 rewrite。
     ];
   },
 
@@ -367,6 +369,7 @@ const baseConfig: NextConfig = {
     }
 
     if (!isServer) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const minimizer = config.optimization?.minimizer?.map((plugin: any) => {
         if (plugin.constructor.name === 'TerserPlugin') {
           return new (plugin.constructor as typeof plugin.constructor)({

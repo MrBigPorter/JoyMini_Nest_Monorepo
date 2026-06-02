@@ -307,8 +307,9 @@
         // and also allows polling via getItem (Channel 3, for background tab)
         try {
           localStorage.setItem('oauth_token_result', JSON.stringify(result));
-          // Clean up old keys that might linger from previous attempts
-          // We keep the key for 10 seconds then remove it
+          // Clean up old keys that might linger from previous attempts.
+          // Keep for 30 s — must outlive the parent's GRACE_PERIOD_MS (15 s)
+          // plus any additional timer-throttling delay on low-end devices.
           setTimeout(function () {
             try {
               // Only remove if it hasn't been replaced by a newer attempt
@@ -319,7 +320,7 @@
             } catch (e) {
               // ignore
             }
-          }, 10000);
+          }, 30000);
         } catch (e) {
           console.warn('[OAuth Popup] localStorage setItem failed:', e);
         }

@@ -227,10 +227,25 @@ export default {
       }
 
       // Serve Apple App Site Association file for Universal Links
+      // R2 key must match the actual filename in public/ → apple-app-site-association.json
       if (url.pathname === '/.well-known/apple-app-site-association') {
-        const aasaResponse = await this.serveAASA(env);
+        const aasaResponse = await this.serveWellKnownJson(
+          env,
+          '.well-known/apple-app-site-association.json',
+        );
         if (aasaResponse) {
           return this.addHeaders(aasaResponse, securityHeaders);
+        }
+      }
+
+      // Serve Android App Links verification file
+      if (url.pathname === '/.well-known/assetlinks.json') {
+        const assetLinksResponse = await this.serveWellKnownJson(
+          env,
+          '.well-known/assetlinks.json',
+        );
+        if (assetLinksResponse) {
+          return this.addHeaders(assetLinksResponse, securityHeaders);
         }
       }
 
@@ -432,11 +447,10 @@ export default {
   },
 
   // Serve the Apple App Site Association file for Universal Links
-  async serveAASA(env: Env): Promise<Response | null> {
+  // R2 key must match the actual filename in public/ → apple-app-site-association.json
+  async serveWellKnownJson(env: Env, key: string): Promise<Response | null> {
     try {
-      const object = await env.R2_STORAGE.get(
-        '.well-known/apple-app-site-association',
-      );
+      const object = await env.R2_STORAGE.get(key);
       if (!object) return null;
 
       const headers = new Headers();
