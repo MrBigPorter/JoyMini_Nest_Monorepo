@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { supportsSyncRead } from '@/lib/utils/platform';
+import { setTokenCookie, clearTokenCookie } from '@/lib/utils/cookie-manager';
 import { cookieStorage } from './cookie-storage';
 
 export interface User {
@@ -119,6 +120,9 @@ export const useAuthStore = create<AuthState>()(
           _synced: true,
         });
 
+        // 同步设置 token cookie，供 middleware 认证拦截使用
+        setTokenCookie(tokens.accessToken);
+
         console.log('Auth store: login successful, state updated');
 
         // 验证状态是否已设置
@@ -178,6 +182,9 @@ export const useAuthStore = create<AuthState>()(
         // so a stale token doesn't trigger automatic login on next popup flow.
         localStorage.removeItem('oauth_token_result');
 
+        // 清除 token cookie，确保 middleware 能拦截后续请求
+        clearTokenCookie();
+
         set({
           user: null,
           accessToken: null,
@@ -190,6 +197,11 @@ export const useAuthStore = create<AuthState>()(
         console.log('Auth store: setTokens called', tokens);
 
         set({ ...tokens, _synced: true });
+
+        // 同步设置 token cookie
+        if (tokens?.accessToken) {
+          setTokenCookie(tokens.accessToken);
+        }
       },
 
       setUser: (user) => {
