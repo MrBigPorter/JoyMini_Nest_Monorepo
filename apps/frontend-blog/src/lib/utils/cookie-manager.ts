@@ -19,17 +19,20 @@ export function setLocaleCookie(locale: string): void {
 
 /**
  * 设置认证Token Cookie（跨平台适配）
+ *
+ * 注意：HttpOnly cookie 由服务端在 OAuth 回调时设置（oauth-deeplink.controller.ts），
+ * 客户端 JS 仅设置非 HttpOnly 的同名 cookie 用于前端状态同步。
+ * 服务端设置的 HttpOnly cookie 优先级更高，用于中间件路由保护。
  */
 export function setTokenCookie(token: string): void {
   if (typeof document === 'undefined') return;
 
-  // 设置1天有效期的cookie，HttpOnly和Secure在生产环境启用
+  // 设置1天有效期的cookie，Secure在生产环境启用
   const isProduction = process.env.NODE_ENV === 'production';
   const secureFlag = isProduction ? '; Secure' : '';
-  const httpOnlyFlag = isProduction ? '; HttpOnly' : '';
 
-  // Web环境：设置HTTP Cookie
-  document.cookie = `token=${token}; path=/; max-age=86400; SameSite=Lax${secureFlag}${httpOnlyFlag}`;
+  // Web环境：设置HTTP Cookie（不含 HttpOnly，由服务端负责 HttpOnly cookie）
+  document.cookie = `token=${token}; path=/; max-age=86400; SameSite=Lax${secureFlag}`;
 
   // App环境（Capacitor）：同时设置原生存储
   if (isCapacitor) {

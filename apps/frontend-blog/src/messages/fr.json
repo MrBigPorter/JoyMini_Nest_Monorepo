@@ -92,7 +92,8 @@
       "githubNotSupported": "La connexion GitHub n'est pas encore prise en charge",
       "googleFailed": "Échec de la connexion Google",
       "facebookFailed": "Échec de la connexion Facebook",
-      "facebookNotReady": "Le SDK Facebook n'est pas prêt"
+      "facebookNotReady": "Le SDK Facebook n'est pas prêt",
+      "popupBlocked": "La fenêtre contextuelle a été bloquée. Veuillez autoriser les pop-ups pour ce site et réessayer"
     },
     "login": {
       "title": "Connexion",

@@ -92,7 +92,8 @@
       "githubNotSupported": "GitHub ログインはまだサポートされていません",
       "googleFailed": "Google ログインに失敗しました",
       "facebookFailed": "Facebook ログインに失敗しました",
-      "facebookNotReady": "Facebook SDK が準備できていません"
+      "facebookNotReady": "Facebook SDK が準備できていません",
+      "popupBlocked": "ポップアップがブロックされました。このサイトのポップアップを許可してから再度お試しください"
     },
     "login": {
       "title": "ログイン",

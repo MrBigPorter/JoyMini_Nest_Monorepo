@@ -92,7 +92,8 @@
       "githubNotSupported": "GitHub 登录暂不支持",
       "googleFailed": "Google 登录失败",
       "facebookFailed": "Facebook 登录失败",
-      "facebookNotReady": "Facebook SDK 未就绪"
+      "facebookNotReady": "Facebook SDK 未就绪",
+      "popupBlocked": "弹窗被浏览器拦截，请允许此网站弹出窗口后重试"
     },
     "login": {
       "title": "登录",

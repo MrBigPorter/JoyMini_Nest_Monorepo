@@ -92,7 +92,8 @@
       "githubNotSupported": "GitHub login is not supported yet",
       "googleFailed": "Google login failed",
       "facebookFailed": "Facebook login failed",
-      "facebookNotReady": "Facebook SDK is not ready"
+      "facebookNotReady": "Facebook SDK is not ready",
+      "popupBlocked": "Popup was blocked. Please allow popups for this site and try again."
     },
     "login": {
       "title": "Login",
