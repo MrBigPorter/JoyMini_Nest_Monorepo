@@ -144,9 +144,13 @@ const isAppMode = process.env.BUILD_TARGET === 'app';
 
 // 基础通用配置
 const baseConfig: NextConfig = {
-  // 生产环境禁用所有 console.* 日志（同时作用于客户端和服务端）
+  // 生产环境保留 error/warn/log，仅移除 console.assert / debugger 等
+  // 诊断日志（[AuthStore]、[LoginGuard] 等）依赖 console.log，不能全部移除
   compiler: {
-    removeConsole: process.env.NODE_ENV === 'production',
+    removeConsole:
+      process.env.NODE_ENV === 'production'
+        ? { exclude: ['error', 'warn', 'log'] }
+        : false,
   },
 
   typescript: {
@@ -212,12 +216,19 @@ const baseConfig: NextConfig = {
     ];
   },
 
-  // 基础重写配置 — 解决 RN 分享 URL (/article/:slug) 与 Next.js 路由 (/:locale/articles/:slug) 不匹配
+  // 基础重写配置
   rewrites: async () => {
     return [
       {
         source: '/article/:slug',
         destination: '/en/articles/:slug',
+      },
+      // Apple Universal Links 要求 Content-Type: application/json
+      // 但 Next.js 对无扩展名的静态文件返回 application/octet-stream
+      // 重命名为 .json 后缀后通过 rewrite 暴露原始路径
+      {
+        source: '/.well-known/apple-app-site-association',
+        destination: '/.well-known/apple-app-site-association.json',
       },
     ];
   },
@@ -365,7 +376,9 @@ const baseConfig: NextConfig = {
               compress: {
                 ...plugin.options?.terserOptions?.compress,
                 drop_debugger: true,
-                drop_console: true,
+                // 保留 console.log 用于诊断日志（[AuthStore]、[LoginGuard] 等）
+                // 不设置 drop_console，由上层 compiler.removeConsole 控制
+                drop_console: false,
                 passes: 2,
                 pure_getters: true,
                 // P2-4 修复：移除 unsafe_* 标志
