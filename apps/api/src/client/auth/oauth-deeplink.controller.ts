@@ -705,7 +705,9 @@ export class OAuthDeepLinkController {
   private generateAppleClientSecret(): string {
     const teamId = this.configService.get<string>('APPLE_TEAM_ID');
     const keyId = this.configService.get<string>('APPLE_KEY_ID');
-    const privateKey = this.configService.get<string>('APPLE_PRIVATE_KEY');
+    const privateKey = (
+      this.configService.get<string>('APPLE_PRIVATE_KEY') || ''
+    ).replace(/\\n/g, '\n');
     const clientId = this.configService.get<string>('APPLE_CLIENT_ID');
 
     if (!teamId || !keyId || !privateKey || !clientId) {
