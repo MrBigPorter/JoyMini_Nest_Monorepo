@@ -37,8 +37,13 @@ const POPUP_CLOSE_CHECK_MS = 500;
  * Grace period (ms) after popup close before considering the flow cancelled.
  * This prevents a race condition where the popup closes a few ms before the
  * token arrives.
+ *
+ * Set to 15 s to survive Chrome's aggressive background-tab timer throttling:
+ * when the popup is in focus the parent tab may be frozen, so the 200 ms poll
+ * timer won't fire until after the tab is unfrozen.  The `focus` event handler
+ * below is the primary fast-path; this is the safety-net.
  */
-const GRACE_PERIOD_MS = 5000;
+const GRACE_PERIOD_MS = 15000;
 
 /**
  * Overall timeout (ms) for the entire OAuth flow.
@@ -116,11 +121,14 @@ function generateState(client: string): string {
  * 2. **StorageEvent** (COOP fallback) – works when cross-origin isolation breaks `opener`
  * 3. **localStorage polling 200ms** (Chrome background tab workaround) – bypasses
  *    Chrome's aggressive StorageEvent throttling for background tabs
+ * 4. **window `focus` event** (frozen-tab fast-path) – fires immediately when the
+ *    popup closes and focus returns to the parent, even if Chrome has frozen all
+ *    timers; reads localStorage directly on the event
  *
  * ## Race condition handling:
- * The popup close detection includes a 5-second grace period before rejecting
+ * The popup close detection includes a 15-second grace period before rejecting
  * as "cancelled". This prevents the case where the popup closes a few ms before
- * the token message arrives.
+ * the token message arrives, and gives throttled/frozen timers time to recover.
  */
 export function useOAuthPopup(options: UseOAuthPopupOptions = {}) {
   const { inviteCode, client, appCallback, appPlatform } = options;
@@ -189,6 +197,7 @@ export function useOAuthPopup(options: UseOAuthPopupOptions = {}) {
           if (overallTimeout) clearTimeout(overallTimeout);
           window.removeEventListener('message', handleMessage);
           window.removeEventListener('storage', handleStorage);
+          window.removeEventListener('focus', handleFocus);
           abortController.abort();
         }
 
@@ -249,6 +258,32 @@ export function useOAuthPopup(options: UseOAuthPopupOptions = {}) {
         window.addEventListener('storage', handleStorage);
 
         // ═══════════════════════════════════════════════════════════
+        // Channel 4: window focus (primary fast-path for Chrome frozen tabs)
+        // ═══════════════════════════════════════════════════════════
+        // When the OAuth popup closes the parent tab immediately regains
+        // focus.  The `focus` event fires even when Chrome has frozen all
+        // timers in the background tab, so this is the most reliable way
+        // to pick up the token without waiting for a throttled interval.
+        function handleFocus() {
+          if (signal.aborted) return;
+          try {
+            const stored = localStorage.getItem(OAUTH_STORAGE_KEY);
+            if (stored) {
+              const data = JSON.parse(stored) as OAuthTokenResult;
+              if (data.token) {
+                console.log(
+                  '[OAuthPopup] focus: token found in localStorage, resolving',
+                );
+                resolveWith(data);
+              }
+            }
+          } catch {
+            // ignore
+          }
+        }
+        window.addEventListener('focus', handleFocus);
+
+        // ═══════════════════════════════════════════════════════════
         // Channel 3: localStorage polling every 200ms
         // (Bypasses Chrome background tab StorageEvent throttling)
         // ═══════════════════════════════════════════════════════════
@@ -283,6 +318,24 @@ export function useOAuthPopup(options: UseOAuthPopupOptions = {}) {
               // Don't reject immediately — wait for GRACE_PERIOD_MS in
               // case the token arrives just after the popup closes.
               graceTimer = setTimeout(() => {
+                // ── Final localStorage check before giving up ──────
+                // Guards against the case where Chrome froze the poll
+                // timer AND the focus event was somehow missed.
+                try {
+                  const stored = localStorage.getItem(OAUTH_STORAGE_KEY);
+                  if (stored) {
+                    const data = JSON.parse(stored) as OAuthTokenResult;
+                    if (data.token) {
+                      console.log(
+                        '[OAuthPopup] grace: token found at last check, resolving',
+                      );
+                      resolveWith(data);
+                      return;
+                    }
+                  }
+                } catch {
+                  // ignore
+                }
                 rejectWith(new Error('cancelled'));
               }, GRACE_PERIOD_MS);
             }
