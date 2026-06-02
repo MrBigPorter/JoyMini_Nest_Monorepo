@@ -705,14 +705,12 @@ export class OAuthDeepLinkController {
   private generateAppleClientSecret(): string {
     const teamId = this.configService.get<string>('APPLE_TEAM_ID');
     const keyId = this.configService.get<string>('APPLE_KEY_ID');
-    const privateKey = (
-      this.configService.get<string>('APPLE_PRIVATE_KEY') || ''
-    ).replace(/\\n/g, '\n');
+    const privateKey = this.getApplePrivateKey();
     const clientId = this.configService.get<string>('APPLE_CLIENT_ID');
 
     if (!teamId || !keyId || !privateKey || !clientId) {
       this.logger.error(
-        'Apple OAuth credentials not configured. Check APPLE_TEAM_ID, APPLE_KEY_ID, APPLE_PRIVATE_KEY, APPLE_CLIENT_ID env vars.',
+        `Apple OAuth credentials not configured. teamId=${!!teamId} keyId=${!!keyId} privateKey=${!!privateKey && privateKey.length > 0} clientId=${!!clientId}`,
       );
       throw new OAuthProviderError(
         'Apple OAuth credentials not configured',
@@ -736,6 +734,63 @@ export class OAuthDeepLinkController {
     };
 
     return jwt.sign(claims, privateKey, options);
+  }
+
+  /**
+   * 获取 Apple .p8 私钥，支持多种格式：
+   *
+   * 1. APPLE_PRIVATE_KEY_BASE64（优先级最高）— base64 编码的 PEM 文件内容，
+   *    单行无换行符，对 Docker Compose env_file 最友好。
+   * 2. APPLE_PRIVATE_KEY（降级）— 原始 PEM，支持单行内用 \n 表示换行。
+   *
+   * 为什么需要两种格式？
+   * Docker Compose `env_file` 使用标准 dotenv 解析，不支持多行值。
+   * 如果 APPLE_PRIVATE_KEY 包含实际换行符，dotenv 会截断在第一行，
+   * 导致私钥不完整（只有 "-----BEGIN PRIVATE KEY-----"）。
+   * Base64 编码没有任何换行符问题，是最安全的方式。
+   */
+  private getApplePrivateKey(): string {
+    // 优先级 1: Base64 编码的私钥（单行，对 dotenv 最友好）
+    const base64Key = this.configService.get<string>('APPLE_PRIVATE_KEY_BASE64');
+    if (base64Key) {
+      try {
+        const decoded = Buffer.from(base64Key, 'base64').toString('utf-8');
+        if (decoded.includes('-----BEGIN') && decoded.includes('-----END')) {
+          this.logger.debug('Using APPLE_PRIVATE_KEY_BASE64 (base64 decoded)');
+          return decoded;
+        }
+        this.logger.warn(
+          `APPLE_PRIVATE_KEY_BASE64 decoded but doesn't look like a valid PEM key`,
+        );
+      } catch (e) {
+        this.logger.warn(
+          'Failed to decode APPLE_PRIVATE_KEY_BASE64, falling back to APPLE_PRIVATE_KEY',
+        );
+      }
+    }
+
+    // 优先级 2: 原始 PEM（支持单行 \n 或实际换行符）
+    const rawKey = this.configService.get<string>('APPLE_PRIVATE_KEY') || '';
+    const key = rawKey.replace(/\\n/g, '\n').trim();
+
+    // 诊断日志
+    this.logger.debug(
+      `Apple private key loaded from APPLE_PRIVATE_KEY. ` +
+      `Length: ${key.length}, ` +
+      `Starts with: ${key.substring(0, 35)}..., ` +
+      `Ends with: ...${key.substring(Math.max(0, key.length - 30))}`,
+    );
+
+    if (!key.includes('-----BEGIN') || !key.includes('-----END')) {
+      this.logger.warn(
+        `APPLE_PRIVATE_KEY appears truncated or malformed (length=${key.length}). ` +
+        `This usually means the env file has the key with actual newlines (multi-line) ` +
+        `which Docker Compose truncates. ` +
+        `Use APPLE_PRIVATE_KEY_BASE64 instead.`,
+      );
+    }
+
+    return key;
   }
 
   // ==========================================
