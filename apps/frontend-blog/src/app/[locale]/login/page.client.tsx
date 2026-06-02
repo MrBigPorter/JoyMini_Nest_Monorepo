@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { useSearchParams } from 'next/navigation';
 import { Mail, Lock, ArrowRight, RefreshCw, Facebook } from 'lucide-react';
@@ -20,6 +20,16 @@ export default function LoginPageClient() {
   const callback = searchParams.get('callback'); // Deep Link URL
   const platform = searchParams.get('platform'); // 'ios' 或 'android'
   const inviteCode = searchParams.get('inviteCode'); // 邀请码
+
+  // 保存 redirect 参数到 sessionStorage，供 LoginGuard 登录后跳转使用
+  // middleware 在拦截未登录用户访问受保护路由时，会附带 ?redirect=/en/bookmarks
+  useEffect(() => {
+    const redirect = searchParams.get('redirect');
+    if (redirect) {
+      sessionStorage.setItem('redirectAfterLogin', redirect);
+      console.log('[LoginPage] Saved redirect to sessionStorage:', redirect);
+    }
+  }, [searchParams]);
 
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
