@@ -132,6 +132,7 @@ export class BlogService {
     let slug = baseSlug;
     let counter = 1;
 
+    // eslint-disable-next-line no-constant-condition
     while (true) {
       const existing = await this.prisma.blogArticle.findFirst({
         where: {

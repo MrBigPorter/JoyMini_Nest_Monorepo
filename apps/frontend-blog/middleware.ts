@@ -90,5 +90,10 @@ export default function middleware(request: NextRequest) {
 export const config = {
   // 优化匹配器：确保覆盖所有客户端跳转，包括_next/data请求
   // 排除：api路由、auth路由、静态文件、favicon等
-  matcher: ['/((?!api|auth|_next|favicon.ico|robots.txt|sitemap.xml).*)'],
+  // well-known: 必须排除，否则 .well-known/assetlinks.json 和
+  //   .well-known/apple-app-site-association 会被中间件重定向到
+  //   /{locale}/.well-known/...，导致 Google Play Console / Apple 验证失败
+  matcher: [
+    '/((?!api|auth|_next|well-known|favicon.ico|robots.txt|sitemap.xml).*)',
+  ],
 };
