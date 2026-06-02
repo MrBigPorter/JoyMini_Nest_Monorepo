@@ -84,6 +84,7 @@ export class TagService {
     // Check for duplicate slug and append number if needed
     let finalSlug = slug;
     let counter = 1;
+    // eslint-disable-next-line no-constant-condition
     while (true) {
       const existingTag = await this.prisma.blogTag.findUnique({
         where: { slug: finalSlug },

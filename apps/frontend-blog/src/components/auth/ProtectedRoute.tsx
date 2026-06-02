@@ -121,8 +121,22 @@ export function LoginGuard({
       const redirectPath = sessionStorage.getItem('redirectAfterLogin');
       if (redirectPath) {
         sessionStorage.removeItem('redirectAfterLogin');
-        router.push(redirectPath);
+        // redirectPath 已含 locale 前缀（如 /en/bookmarks），
+        // next-intl router 会自动添加 locale，故需先移除前缀
+        const pathWithoutLocale =
+          redirectPath.replace(/^\/[a-z]{2}(-[A-Z]{2})?(?=\/|$)/, '') || '/';
+        console.log(
+          '[LoginGuard] Redirecting to:',
+          redirectPath,
+          '→',
+          pathWithoutLocale,
+        );
+        router.push(pathWithoutLocale);
       } else {
+        console.log(
+          '[LoginGuard] No redirect path found, redirecting to:',
+          redirectTo,
+        );
         router.push(redirectTo);
       }
     }

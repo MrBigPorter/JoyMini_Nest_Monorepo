@@ -99,7 +99,11 @@ export const useAuthStore = create<AuthState>()(
       _synced: initialState._synced,
 
       login: (tokens, user) => {
-        console.log('Auth store: login called', { tokens, user });
+        console.log('[AuthStore] login called', {
+          hasToken: !!tokens?.accessToken,
+          hasRefreshToken: !!tokens?.refreshToken,
+          hasUser: !!user?.id,
+        });
 
         // Validate tokens and user before setting state
         if (!tokens?.accessToken || !tokens?.refreshToken) {
@@ -123,56 +127,16 @@ export const useAuthStore = create<AuthState>()(
         // 同步设置 token cookie，供 middleware 认证拦截使用
         setTokenCookie(tokens.accessToken);
 
-        console.log('Auth store: login successful, state updated');
+        console.log('[AuthStore] login successful, state updated');
 
-        // 验证状态是否已设置
-        setTimeout(() => {
-          const currentState = get();
-          console.log('Auth store: After login state check', {
-            hasToken: !!currentState.accessToken,
-            hasUser: !!currentState.user,
-            isHydrated: currentState.isHydrated,
-            isSynced: currentState._synced,
-          });
-
-          // 检查Cookie是否已更新
-          if (typeof window !== 'undefined') {
-            try {
-              const token = cookieStorage.getItem('auth-storage');
-              if (token && typeof token === 'string') {
-                console.log(
-                  'Auth store: Cookie after login:',
-                  token.substring(0, 200),
-                );
-              } else if (token instanceof Promise) {
-                // 如果是Promise，等待它完成
-                token
-                  .then((value) => {
-                    if (value) {
-                      console.log(
-                        'Auth store: Cookie after login (async):',
-                        value.substring(0, 200),
-                      );
-                    } else {
-                      console.log(
-                        'Auth store: No data in Cookie after login (async)',
-                      );
-                    }
-                  })
-                  .catch((error) => {
-                    console.error(
-                      'Auth store: Failed to check Cookie (async):',
-                      error,
-                    );
-                  });
-              } else {
-                console.log('Auth store: No data in Cookie after login');
-              }
-            } catch (error) {
-              console.error('Auth store: Failed to check Cookie:', error);
-            }
-          }
-        }, 100);
+        // 验证状态是否已设置（生产环境保留关键日志）
+        const currentState = get();
+        console.log('[AuthStore] After login state check', {
+          hasToken: !!currentState.accessToken,
+          hasUser: !!currentState.user,
+          isHydrated: currentState.isHydrated,
+          isSynced: currentState._synced,
+        });
       },
 
       logout: () => {

@@ -3,7 +3,6 @@
 import { useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { useSearchParams } from 'next/navigation';
-import { useRouter } from '@/navigation';
 import { Mail, Lock, ArrowRight, RefreshCw, Facebook } from 'lucide-react';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useOAuthPopup } from '@/lib/hooks/useOAuthPopup';
@@ -13,7 +12,6 @@ import { LoginGuard } from '@/components/auth/ProtectedRoute';
 
 export default function LoginPageClient() {
   const t = useTranslations();
-  const router = useRouter();
   const searchParams = useSearchParams();
   const { loginWithEmail, isLoading } = useAuth();
 
@@ -124,27 +122,10 @@ export default function LoginPageClient() {
           user,
         );
 
-        // 重定向到首页或指定页面
-        setTimeout(() => {
-          const rawPath = sessionStorage.getItem('redirectAfterLogin');
-          if (rawPath) {
-            sessionStorage.removeItem('redirectAfterLogin');
-            // rawPath 已含 locale 前缀（如 /en/bookmarks），
-            // next-intl router 会自动添加 locale，故需先移除前缀
-            const pathWithoutLocale =
-              rawPath.replace(/^\/[a-z]{2}(-[A-Z]{2})?(?=\/|$)/, '') || '/';
-            console.log(
-              '[OAuth] Redirecting to:',
-              rawPath,
-              '→',
-              pathWithoutLocale,
-            );
-            router.push(pathWithoutLocale);
-          } else {
-            console.log('[OAuth] Redirecting to home');
-            router.push('/'); // next-intl router 会自动添加 locale 前缀
-          }
-        }, 100);
+        // 重定向由 LoginGuard 自动处理
+        console.log(
+          '[OAuth] Login successful, LoginGuard will handle redirect',
+        );
       } catch (err: unknown) {
         console.error('[OAuth] handleOAuthLogin error:', err);
         throw new Error(
@@ -152,7 +133,7 @@ export default function LoginPageClient() {
         );
       }
     },
-    [setTokens, login, router],
+    [setTokens, login],
   );
 
   // 处理Google登录按钮点击 - 使用弹窗模式
@@ -227,27 +208,8 @@ export default function LoginPageClient() {
 
     try {
       await loginWithEmail(email, code);
-      console.log('Login successful, waiting for store update...');
-      // 等待store状态更新，然后让LoginGuard处理重定向
-      // 使用setTimeout确保状态已更新
-      setTimeout(() => {
-        console.log('Checking redirect path after login...');
-        const rawPath = sessionStorage.getItem('redirectAfterLogin');
-        if (rawPath) {
-          console.log('Redirecting to:', rawPath);
-          sessionStorage.removeItem('redirectAfterLogin');
-          // rawPath 由写入方（ProtectedLink / ProtectedRoute / BookmarkButton）
-          // 存入时已含 locale 前缀（如 /zh/bookmarks），
-          // next-intl router 会自动添加 locale，故需先移除前缀
-          const pathWithoutLocale =
-            rawPath.replace(/^\/[a-z]{2}(-[A-Z]{2})?(?=\/|$)/, '') || '/';
-          console.log('After locale strip:', pathWithoutLocale);
-          router.push(pathWithoutLocale);
-        } else {
-          console.log('Redirecting to home');
-          router.push('/'); // next-intl router 会自动添加 locale 前缀
-        }
-      }, 100);
+      // 重定向由 LoginGuard 自动处理
+      console.log('[Email] Login successful, LoginGuard will handle redirect');
     } catch (err: any) {
       setError(err.message || t('auth.loginFailed'));
     }
