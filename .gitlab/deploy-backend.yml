@@ -93,8 +93,30 @@ deploy-backend:
       echo "→ 拉取镜像: $IMAGE_NAME:latest"
       retry 4 10 docker pull "$IMAGE_NAME:latest"
 
+      echo "→ 确保 PostgreSQL + Redis 已就绪..."
+      docker compose -f compose.prod.yml --env-file deploy/.env.prod up -d db redis
+
+      echo "→ 等待 PostgreSQL 就绪 (最多 60s)..."
+      for i in $(seq 1 30); do
+        if docker exec lucky-db-prod pg_isready -U lucky_prod -d lucky_prod >/dev/null 2>&1; then
+          echo "  PostgreSQL 已就绪 (${i}次)"
+          break
+        fi
+        if [ "$i" -eq 30 ]; then
+          echo "❌ PostgreSQL 启动超时"
+          docker logs --tail=20 lucky-db-prod
+          exit 1
+        fi
+        sleep 2
+      done
+
       echo "→ 运行数据库迁移..."
-      NETWORK=$(docker inspect lucky-db-prod --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{end}}' | awk '{print $1}')
+      NETWORK=$(docker inspect lucky-db-prod --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{end}}' 2>/dev/null | awk '{print $1}')
+      if [ -z "$NETWORK" ]; then
+        echo "❌ 无法获取 lucky-db-prod 的容器网络，数据库未正确启动"
+        echo "   首次部署请先执行: bash deploy/init-db.sh"
+        exit 1
+      fi
       docker run --rm \
         --network "$NETWORK" \
         --env-file deploy/.env.prod \
