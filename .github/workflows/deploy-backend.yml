@@ -369,13 +369,17 @@ jobs:
               exit 1
             fi
 
-            # 9. 状态报告
+            # 9. 启动 nginx (backend 健康后才能启动, depends_on: backend condition: service_healthy)
+            echo "→ 启动 nginx..."
+            docker compose -f compose.prod.yml --env-file deploy/.env.prod up -d --no-build nginx
+
+            # 10. 状态报告
             docker compose -f compose.prod.yml ps
 
-            # 10. 清理旧镜像
+            # 11. 清理旧镜像
             docker image prune -f
 
-            # 11. 热重载 nginx 配置（如有变更，无需重启容器）
+            # 12. 热重载 nginx 配置（如有变更，无需重启容器）
             echo "→ 校验并重载 nginx 配置..."
             if docker exec lucky-nginx-prod nginx -t 2>&1; then
               docker exec lucky-nginx-prod nginx -s reload

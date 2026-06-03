@@ -152,6 +152,9 @@ deploy-backend:
         exit 1
       fi
 
+      echo "→ 启动 nginx..."
+      docker compose -f compose.prod.yml --env-file deploy/.env.prod up -d --no-build nginx
+
       docker compose -f compose.prod.yml ps
 
       docker image prune -f
