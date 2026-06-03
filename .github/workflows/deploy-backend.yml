@@ -296,11 +296,34 @@ jobs:
             echo "→ 拉取镜像: $IMAGE"
             retry 4 10 docker pull "$IMAGE"
 
-            # 3. 运行数据库迁移 (临时容器 — 失败时不影响正在运行的后端!)
+            # 3. 确保 db + redis 已就绪 (迁移前必须确保数据库运行)
+            echo "→ 确保 PostgreSQL + Redis 已就绪..."
+            docker compose -f compose.prod.yml --env-file deploy/.env.prod up -d db redis
+
+            echo "→ 等待 PostgreSQL 就绪 (最多 60s)..."
+            for i in $(seq 1 30); do
+              if docker exec lucky-db-prod pg_isready -U lucky_prod -d lucky_prod >/dev/null 2>&1; then
+                echo "  PostgreSQL 已就绪 (${i}次)"
+                break
+              fi
+              if [ "$i" -eq 30 ]; then
+                echo "❌ PostgreSQL 启动超时"
+                docker logs --tail=20 lucky-db-prod
+                exit 1
+              fi
+              sleep 2
+            done
+
+            # 4. 运行数据库迁移 (临时容器 — 失败时不影响正在运行的后端)
             echo "→ 运行数据库迁移..."
             NETWORK=$(docker inspect lucky-db-prod \
-              --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{end}}' \
+              --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{end}}' 2>/dev/null \
               | awk '{print $1}')
+            if [ -z "$NETWORK" ]; then
+              echo "❌ 无法获取 lucky-db-prod 的容器网络，数据库未正确启动"
+              echo "   首次部署请先执行: bash deploy/init-db.sh"
+              exit 1
+            fi
             docker run --rm \
               --network "$NETWORK" \
               --env-file deploy/.env.prod \
@@ -310,17 +333,17 @@ jobs:
                 --schema=apps/api/prisma/schema.prisma
             echo " 迁移完成"
 
-            # 4. 保存当前镜像 SHA (用于健康检查失败时自动回滚)
+            # 5. 保存当前镜像 SHA (用于健康检查失败时自动回滚)
             PREV_IMAGE_SHA=$(docker inspect lucky-backend-prod \
               --format '{{.Image}}' 2>/dev/null || echo "")
 
-            # 5. 用新镜像重启后端
+            # 6. 用新镜像重启后端
             echo "→ 重启后端容器..."
             BACKEND_IMAGE="$IMAGE" docker compose -f compose.prod.yml \
               --env-file deploy/.env.prod \
               up -d --no-build --force-recreate backend
 
-            # 6. 健康检查 (最多等 90 秒)
+            # 7. 健康检查 (最多等 90 秒)
             echo "→ 等待健康检查..."
             HEALTHY=false
             for i in $(seq 1 30); do
@@ -332,7 +355,7 @@ jobs:
               sleep 3
             done
 
-            # 7. 健康检查失败 → 自动回滚到旧镜像
+            # 8. 健康检查失败 → 自动回滚到旧镜像
             if [ "$HEALTHY" = false ]; then
               echo "❌ 健康检查超时! 正在回滚..."
               docker logs --tail=50 lucky-backend-prod
@@ -346,13 +369,13 @@ jobs:
               exit 1
             fi
 
-            # 8. 状态报告
+            # 9. 状态报告
             docker compose -f compose.prod.yml ps
 
-            # 9. 清理旧镜像
+            # 10. 清理旧镜像
             docker image prune -f
 
-            # 10. 热重载 nginx 配置（如有变更，无需重启容器）
+            # 11. 热重载 nginx 配置（如有变更，无需重启容器）
             echo "→ 校验并重载 nginx 配置..."
             if docker exec lucky-nginx-prod nginx -t 2>&1; then
               docker exec lucky-nginx-prod nginx -s reload
