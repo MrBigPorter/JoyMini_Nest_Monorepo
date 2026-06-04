@@ -1,152 +1,152 @@
-# 技术文档标准模板 v1.0
+# Technical Document Standard Template v1.0
 
-> JoyMini Nest Monorepo 统一技术文档规范
-
----
-
-## 🔰 说明
-
-这是项目统一的技术文档标准模板。所有新功能实现、架构设计、问题修复都必须按照此模板编写文档。
-
-此模板是基于项目现有优秀文档抽象出的 **七层黄金结构**，经过实战验证是最适合技术团队的文档结构。
+> JoyMini Nest Monorepo — Unified Technical Documentation Standard
 
 ---
 
-# {功能名称} 技术实现文档
+## 🔰 About
 
-## 📋 问题描述
+This is the standard template for all technical documentation in this project. Every new feature implementation, architecture design, and bug fix **must** follow this template.
 
-> 我们遇到了什么问题？为什么要做这个？
-
-1.  问题1：具体描述
-2.  问题2：具体描述
-3.  问题3：具体描述
+The template distills the **7-Layer Golden Structure** extracted from the project's best existing documents — proven in production to be the most effective structure for engineering teams.
 
 ---
 
-## 🎯 根因分析
+# {Feature Name} — Technical Implementation
 
-> 为什么会有这个问题？根本原因是什么？
+## 📋 Problem Statement
 
-| 表层现象           | 深层根因             |
-| ------------------ | -------------------- |
-| {用户能看到的现象} | {技术层面的根本原因} |
+> What problem are we solving? Why is this necessary?
 
-> 💡 不要停留在表面现象，必须挖到最底层的根因
-
----
-
-## 方案选型
-
-> 我们考虑了哪些方案？最终选择了什么？为什么？
-
-| 方案         | 实现成本 | 运行成本 | 质量           | 优缺点           |
-| ------------ | -------- | -------- | -------------- | ---------------- |
-| 方案 A       | 高       | 高       | ⭐⭐⭐         | 优缺点列表       |
-| 方案 B       | 中       | 低       | ⭐⭐⭐⭐       | 优缺点列表       |
-| **最终方案** | **低**   | **零**   | **⭐⭐⭐⭐⭐** | **选择核心理由** |
-
-> 必须列出至少 2 个备选方案，并说明不选的理由
+1. Problem 1: detailed description
+2. Problem 2: detailed description
+3. Problem 3: detailed description
 
 ---
 
-## 🏗️ 系统架构
+## 🎯 Root Cause Analysis
 
-> 整体设计是什么样的？
+> Why does this problem exist? What is the fundamental cause?
+
+| Surface symptom | Root cause |
+|----------------|------------|
+| {What the user sees} | {The technical root cause} |
+
+> 💡 Don't stop at the symptom — dig until you find the root cause.
+
+---
+
+## Solution Options
+
+> What options were considered? Which was chosen and why?
+
+| Option | Implementation cost | Running cost | Quality | Pros / Cons |
+|--------|-------------------|-------------|---------|-------------|
+| Option A | High | High | ⭐⭐⭐ | List pros & cons |
+| Option B | Medium | Low | ⭐⭐⭐⭐ | List pros & cons |
+| **Chosen** | **Low** | **Zero** | **⭐⭐⭐⭐⭐** | **Rationale** |
+
+> You must list at least 2 alternatives and explain why they were rejected.
+
+---
+
+## 🏗️ System Architecture
+
+> What does the overall design look like?
 
 ```
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│   输入层        │────▶│   处理层        │────▶│   输出层        │
+│   Input Layer   │────▶│  Processing     │────▶│   Output Layer  │
 └─────────────────┘     └─────────────────┘     └─────────────────┘
 ```
 
-### 核心组件
+### Core Components
 
-1.  **组件 1** - 职责说明，边界定义
-2.  **组件 2** - 职责说明，边界定义
-3.  **组件 3** - 职责说明，边界定义
+1. **Component 1** — Responsibility, boundary definition
+2. **Component 2** — Responsibility, boundary definition
+3. **Component 3** — Responsibility, boundary definition
 
 ---
 
-## 🔄 完整工作流程
+## 🔄 Complete Workflow
 
-> 数据是怎么流动的？每个环节做什么？
+> How does data flow? What does each step do?
 
 ```mermaid
 sequenceDiagram
-    participant A as 用户
-    participant B as API
-    participant C as 数据库
-    participant D as 队列
+    participant U as User
+    participant A as API
+    participant D as Database
+    participant Q as Queue
 
-    A->>B: 请求
-    B->>C: 写入数据
-    B->>D: 投递任务
-    B-->>A: 返回成功
-    Note over A,B:  用户延迟 < 100ms
+    U->>A: Request
+    A->>D: Write data
+    A->>Q: Enqueue task
+    A-->>U: Return success
+    Note over U,A: Latency < 100ms
 ```
 
 ---
 
-## ⚙️ 技术实现细节
+## ⚙️ Implementation Details
 
-> 关键实现点、边界条件、安全考虑
+> Key implementation points, edge cases, and security considerations
 
-### 核心特性
+### Core Features
 
-- {特性1：具体说明}
-- {特性2：具体说明}
-- {特性3：具体说明}
-- ⚠️ {已知限制：边界条件}
+- {Feature 1: explanation}
+- {Feature 2: explanation}
+- {Feature 3: explanation}
+- ⚠️ {Known limitation: edge case description}
 
-### 数据库变更
+### Database Changes
 
-| 字段名  | 类型   | 说明          |
-| ------- | ------ | ------------- |
+| Field | Type | Description |
+|-------|------|-------------|
 | {field} | {type} | {description} |
 
-### 关键代码
+### Key Code
 
 ```typescript
-// 最核心的 5-10 行代码，说明实现原理
+// The 5-10 most critical lines showing the implementation principle
 ```
 
 ---
 
-## 📊 成本与性能
+## 📊 Cost & Performance
 
-> 生产环境运行成本和性能指标
+> Production running costs and performance metrics
 
-| 场景          | 平均延迟 | 月度运行成本 |
-| ------------- | -------- | ------------ |
-| 100 请求/天   | < 100ms  | ¥ 0.00       |
-| 1000 请求/天  | < 150ms  | ¥ 0.00       |
-| 10000 请求/天 | < 200ms  | 约 ¥ 3 / 月  |
-
----
-
-## 🚀 扩展能力
-
-> 未来可以做什么？
-
-1.  扩展功能 1：说明
-2.  扩展功能 2：说明
-3.  扩展功能 3：说明
+| Scenario | Avg latency | Monthly cost |
+|----------|-----------|-------------|
+| 100 req/day | < 100ms | $0.00 |
+| 1,000 req/day | < 150ms | $0.00 |
+| 10,000 req/day | < 200ms | ~$3 / month |
 
 ---
 
-## 📝 部署注意事项
+## 🚀 Future Extensibility
 
-> 上线时需要注意什么？
+> What can be done in the future?
 
-1.  环境变量配置：`{ENV_VAR}`
-2.  启动验证步骤
-3.  回滚方案
-4.  监控指标
+1. Extension 1: description
+2. Extension 2: description
+3. Extension 3: description
 
 ---
 
-**文档版本**: 1.0
-**创建时间**: {YYYY-MM-DD}
-**作者**: {name}
-**状态**: 已实现 / 🚧 开发中 / ⏳ 规划中
+## 📝 Deployment Notes
+
+> What needs attention when going live?
+
+1. Environment variable: `{ENV_VAR}`
+2. Startup verification steps
+3. Rollback plan
+4. Monitoring metrics
+
+---
+
+**Document version**: 1.0
+**Created**: {YYYY-MM-DD}
+**Author**: {name}
+**Status**: ✅ Implemented / 🚧 In Progress / ⏳ Planned
