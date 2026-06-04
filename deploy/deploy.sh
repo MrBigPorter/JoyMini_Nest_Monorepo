@@ -80,7 +80,7 @@ sync_configs() {
     log "同步配置文件..."
 
     # 确保目录存在
-    ssh "$SSH_TARGET" "mkdir -p $VPS_DIR/{certs,nginx/html,redis,deploy}"
+    ssh "$SSH_TARGET" "mkdir -p $VPS_DIR/{nginx/conf.d,nginx/html,redis,deploy}"
 
     # 核心配置
     scp compose.prod.yml                    "$SSH_TARGET:$VPS_DIR/"
@@ -90,12 +90,14 @@ sync_configs() {
     scp deploy/baseline-db.sh              "$SSH_TARGET:$VPS_DIR/deploy/"
     scp deploy/install-turn.sh              "$SSH_TARGET:$VPS_DIR/deploy/"
     scp deploy/init-cert.sh                 "$SSH_TARGET:$VPS_DIR/deploy/"
-    scp nginx/nginx.prod.conf               "$SSH_TARGET:$VPS_DIR/nginx/"
+
+    # Nginx 多域名配置（conf.d/ 目录 + whitelist）
+    scp -r nginx/conf.d/                    "$SSH_TARGET:$VPS_DIR/nginx/"
     scp nginx/whitelist.conf                "$SSH_TARGET:$VPS_DIR/nginx/"
     scp redis/redis.conf                    "$SSH_TARGET:$VPS_DIR/redis/"
 
-    # CodePush 热更新服务
-    scp compose.codepush.yml                "$SSH_TARGET:$VPS_DIR/"
+    # 保留旧版 nginx.prod.conf 作为参考（不再使用）
+    scp nginx/nginx.prod.conf               "$SSH_TARGET:$VPS_DIR/nginx/"
 
     # 静态文件目录 (如果存在)
     if [ -d "nginx/html" ] && [ "$(ls -A nginx/html 2>/dev/null)" ]; then
