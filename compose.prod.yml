@@ -83,11 +83,12 @@ services:
           memory: 64M
     ports:
       - "80:80"
+      - "443:443"
     volumes:
-      # 挂载 conf.d/ 目录，nginx 自动加载所有 .conf 文件
+      # 挂载 conf.d/ 目录，nginx 自动加载所有 .conf 文件（whitelist.conf 已含在内）
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
-      # whitelist.conf 仍然单独挂载（用户自定义 IP）
-      - ./nginx/whitelist.conf:/etc/nginx/conf.d/whitelist.conf:ro
+      # SSL 证书（自签名，用于 Cloudflare Full 模式 SSL 终止）
+      - ./certs:/etc/nginx/certs:ro
       # 静态文件（.well-known 等）
       - ./nginx/html:/var/www/html:ro
       - nginx_cache:/var/cache/nginx
@@ -95,8 +96,8 @@ services:
       # 允许通过 host.docker.internal 访问其他 compose 栈的容器
       - "host.docker.internal:host-gateway"
     depends_on:
-      backend:
-        condition: service_healthy
+      # 仅控制启动顺序，backend 挂了 nginx 仍可独立运行（返回 502 而非 521）
+      - backend
     networks: [app]
 
   # =========================================
