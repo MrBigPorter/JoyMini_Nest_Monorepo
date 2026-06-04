@@ -1,263 +1,231 @@
-# 📚 文档导航 — JoyMini Nest Monorepo
+# 📚 Documentation — JoyMini Nest Monorepo
 
-> **基于Flutter文档模式优化的统一文档体系**  
-> 最后更新：2026-03-26
+> **Unified documentation system based on the Flutter doc pattern**  
+> Last updated: 2026-06-04
 
 ---
 
-## 🎯 文档优化目标
+## 🎯 Goals
 
-基于Flutter项目的成功文档模式，我们建立了统一的文档体系，旨在：
+A unified documentation system designed to:
 
-1. **提升AI协作效率**：标准化的文档格式让AI能更快理解项目
-2. **统一开发规范**：所有技术栈使用相同的文档结构和规范
-3. **改善知识传承**：清晰的文档层次和交叉引用
-4. **自动化文档维护**：建立文档质量检查和更新流程
+1. **Boost AI collaboration** — Standardized format helps AI tools understand the project faster
+2. **Enforce consistent conventions** — All tech stacks follow the same doc structure and standards
+3. **Preserve institutional knowledge** — Clear hierarchy with cross-references
+4. **Automate maintenance** — Quality checks and update workflows
 
-## 📁 文档目录结构
+---
+
+## 📁 Directory Layout
 
 ```
 docs/
-├── flutter/                    # Flutter项目文档（已有）
+├── nextjs/                    # Next.js project docs
 │   ├── AI_COLLABORATION_WORKFLOW.md
-│   ├── FLUTTER_COMMANDS_CHEATSHEET.md
-│   ├── IMAGE_OPTIMIZATION_PHASE1.md
-│   ├── HOME_PAGE_IMAGE_OPTIMIZATION_INTEGRATION.md
-│   └── templates/
-│
-├── nextjs/                    # Next.js项目文档（新增）
-│   ├── AI_COLLABORATION_WORKFLOW.md
+│   ├── AUTH_ARCHITECTURE_ZERO_FLICKER.md
+│   ├── AUTH_INTERCEPTION_ARCHITECTURE.md
 │   ├── BUGFIX_auth_hydration_layout_issues.md
 │   ├── BUGFIX_header_dropdown_hover_interaction.md
 │   ├── BUGFIX_navigation_active_state_hydration.md
 │   ├── BUGFIX_react_markdown_integration.md
 │   ├── BUGFIX_tailwind_v4_migration.md
 │   ├── COMMANDS_CHEATSHEET.md
-│   └── PROVIDERS_GUIDE.md
+│   ├── CSS_CONSTANTS_HYDRATION_SOLUTION.md
+│   ├── I18N_ARCHITECTURE.md
+│   ├── LANGUAGE_ZERO_FLICKER_FINAL_ARCHITECTURE.md
+│   ├── NEXTJS_RENDERING_MODES_FINAL_GUIDE.md
+│   ├── PAGE_TRANSITION_ANIMATION_IMPLEMENTATION.md
+│   ├── PROVIDERS_GUIDE.md
+│   └── ZERO_SKELETON_OPTIMIZATION_GUIDE.md
 │
-├── nestjs/                    # NestJS项目文档（新增）
+├── nestjs/                    # NestJS project docs
 │   ├── AI_COLLABORATION_WORKFLOW.md
 │   └── COMMANDS_CHEATSHEET.md
 │
-├── templates/                 # 通用模板
-│   └── IMPORTANT_CODE_CHANGE_TEMPLATE.md
+├── oauth/                     # OAuth / third-party login docs
+│   ├── README.md
+│   ├── THIRD_PARTY_LOGIN_UNIFIED_SOLUTION_V2.md
+│   ├── current-implementation/
+│   └── guides/
 │
-└── README.md                  # 本文档（导航）
+├── blog/                      # Blog system docs (architecture, development, security)
+│   ├── README.md
+│   ├── architecture/
+│   ├── development/
+│   ├── security/
+│   ├── i18n/
+│   ├── operations/
+│   ├── features/
+│   ├── api/
+│   ├── articles/              # Published blog articles (Chinese)
+│   └── plans/
+│
+├── read/                      # Onboarding / newcomer docs
+│
+├── history/                   # Past phase records
+│
+├── apple-oauth-setup.md
+├── ai-constitution-detailed.md
+├── full-deployment-guide.md
+├── LANGUAGE_DETECTION_IMPROVEMENT.md
+├── HYDRATION_MISMATCH_GUIDE.md
+└── README.md                  # This file (navigation index)
 ```
-
-## 🚀 快速开始
-
-### 新人必读（按顺序）
-
-1. **项目全景**：`../README.md`（仓库根目录）
-2. **架构设计**：`../ARCHITECTURE_CN.md`
-3. **运维手册**：`../RUNBOOK.md`
-
-### AI协作开发（必读）
-
-1. **Flutter项目**：`flutter/AI_COLLABORATION_WORKFLOW.md`
-2. **Next.js项目**：`nextjs/AI_COLLABORATION_WORKFLOW.md`
-3. **NestJS项目**：`nestjs/AI_COLLABORATION_WORKFLOW.md`
-
-### 命令速查（开发必备）
-
-1. **Flutter命令**：`flutter/FLUTTER_COMMANDS_CHEATSHEET.md`
-2. **Next.js命令**：`nextjs/COMMANDS_CHEATSHEET.md`
-3. **NestJS命令**：`nestjs/COMMANDS_CHEATSHEET.md`
-
-## 🔄 文档使用指南
-
-### 1. AI协作工作流程文档
-
-#### 核心原则：
-
-- **透明原则**：所有重要修改必须充分沟通
-- **确认原则**：获得用户明确确认后才能实施
-- **文档原则**：所有规范必须文档化，不依赖记忆
-- **系统原则**：通过文档化、清单化、流程化的系统保障规范执行
-
-#### 使用流程：
-
-```
-用户请求 → AI分析请求 → 判断重要性 →
-    ↓ (重要修改)                    ↓ (常规修改)
-启动沟通流程                    直接实施
-    ↓                            ↓
-问题陈述阶段 → 用户确认        实施完成
-    ↓                            ↓
-方案设计阶段 → 用户确认        结果报告
-    ↓
-风险评估阶段 → 用户确认
-    ↓
-实施授权阶段 → 用户明确同意
-    ↓
-开始实施 → 进度报告 → 完成总结
-```
-
-### 2. 命令速查表文档
-
-#### 使用原则：
-
-1. **执行前必查**：每次执行命令前查阅对应速查表
-2. **记录命令**：所有执行的命令必须在沟通中明确写出
-3. **验证结果**：执行后验证命令效果
-4. **更新文档**：发现新的有用命令时更新文档
-
-#### 命令分类：
-
-- 开发环境命令
-- 代码质量命令
-- 测试命令
-- 运行命令
-- 构建命令
-- 部署命令
-- 调试命令
-- 项目特定命令
-
-### 3. 技术专题文档
-
-#### 现有专题：
-
-- **图片优化系统**：`flutter/IMAGE_OPTIMIZATION_PHASE1.md`
-- **首页图片优化集成**：`flutter/HOME_PAGE_IMAGE_OPTIMIZATION_INTEGRATION.md`
-
-#### 文档格式：
-
-```
-# [主题]：技术实现文档
-
-## 📋 概述
-## 🏗️ 架构设计
-## 🚀 技术特性
-## 📊 性能指标
-## 🔧 集成指南
-## 🎯 使用场景
-## 📈 预期效果
-## 🔄 后续优化方向
-## 🛠️ 故障排查
-## 📝 版本记录
-```
-
-## 📊 文档质量保障
-
-### 检查清单机制
-
-#### 重要修改强制检查清单：
-
-```
-[ ] 1. 是否属于"重要修改"范畴？
-[ ] 2. 是否已完成问题陈述并获得用户确认？
-[ ] 3. 是否已完成方案设计并获得用户确认？
-[ ] 4. 是否已完成风险评估并获得用户确认？
-[ ] 5. 是否已获得用户明确的实施授权？
-[ ] 6. 是否已查阅所有相关文档？
-[ ] 7. 是否已准备好实施环境？
-[ ] 8. 是否已制定详细的实施计划？
-```
-
-#### 命令执行强制检查清单：
-
-```
-[ ] 1. 是否已查阅对应技术栈的命令速查表？
-[ ] 2. 是否使用了项目特定命令（如 `make` 命令）？
-[ ] 3. 是否考虑了当前环境（开发/测试/生产）？
-[ ] 4. 是否添加了必要的参数和标志？
-[ ] 5. 是否记录了命令的执行目的？
-[ ] 6. 是否验证了命令的执行结果？
-```
-
-### 文档引用机制
-
-#### 必须引用的文档：
-
-1. **核心指令文件**：`.github/copilot-instructions.md`（每次对话开始必读）
-2. **工作流程文档**：对应技术栈的 `AI_COLLABORATION_WORKFLOW.md`
-3. **命令速查表**：对应技术栈的 `COMMANDS_CHEATSHEET.md`
-4. **沟通模板**：`docs/templates/`目录下的相应模板
-
-## 🔍 按问题查找文档
-
-| 我遇到的问题         | 去看哪里                                          |
-| -------------------- | ------------------------------------------------- |
-| 如何开始AI协作开发？ | 对应技术栈的 `AI_COLLABORATION_WORKFLOW.md`       |
-| 不知道用什么命令？   | 对应技术栈的 `COMMANDS_CHEATSHEET.md`             |
-| 需要技术方案参考？   | `flutter/IMAGE_OPTIMIZATION_PHASE1.md`（模板）    |
-| 项目架构理解？       | `../ARCHITECTURE_CN.md`                           |
-| 运维部署问题？       | `../RUNBOOK.md`                                   |
-| 数据库迁移问题？     | `nestjs/COMMANDS_CHEATSHEET.md`（数据库命令部分） |
-| Next.js部署问题？    | `nextjs/COMMANDS_CHEATSHEET.md`（部署命令部分）   |
-
-## 📈 预期效果
-
-### 对AI协作的改善：
-
-- **上下文获取时间减少50%**：统一的文档格式让AI能更快理解项目
-- **命令执行准确率提升80%**：标准化的命令速查表减少错误
-- **协作流程更顺畅**：清晰的AI工作流程提高协作效率
-
-### 对开发团队的改善：
-
-- **文档一致性**：所有技术栈使用相同的文档格式
-- **知识传承**：新成员能更快上手不同技术栈
-- **问题排查**：标准化的故障排查章节提高问题解决效率
-
-## 🔄 文档维护约定
-
-### 新增文档：
-
-1. **选择目录**：根据技术栈选择 `flutter/`、`nextjs/` 或 `nestjs/` 目录
-2. **使用模板**：技术专题文档使用标准模板格式
-3. **更新导航**：在本文档中添加相应条目
-4. **交叉引用**：建立文档间的引用关系
-
-### 更新文档：
-
-1. **版本记录**：在文档末尾添加版本记录
-2. **更新日期**：更新文档的最后修改日期
-3. **通知相关方**：如果涉及重大变更，通知相关开发人员
-
-### 文档质量检查：
-
-1. **完整性检查**：确保文档包含所有必要章节
-2. **链接检查**：确保所有交叉引用链接有效
-3. **格式检查**：确保文档格式符合标准
-4. **内容检查**：确保内容准确、及时
-
-## 🚀 下一步计划
-
-### Phase 3：自动化文档维护（计划中）
-
-1. **文档质量检查脚本**：自动化检查文档链接、格式、完整性
-2. **文档生成自动化**：从代码注释自动生成API文档
-3. **文档版本管理**：与代码版本同步更新
-4. **文档使用统计**：跟踪文档使用情况，优化内容
-
-### 扩展计划：
-
-1. **更多技术栈支持**：根据需要添加其他技术栈的文档
-2. **视频教程**：创建关键工作流程的视频教程
-3. **交互式文档**：创建可交互的文档示例
-4. **社区贡献**：建立文档贡献指南和流程
-
-## 📞 技术支持
-
-### 遇到文档问题时：
-
-1. **查阅本文档**：首先查阅本文档的导航部分
-2. **检查对应文档**：根据技术栈查找对应文档
-3. **报告问题**：在文档中标记问题或联系维护人员
-4. **提出建议**：提出文档改进建议
-
-### 紧急情况：
-
-1. **查阅运维文档**：`../RUNBOOK.md`
-2. **检查命令速查**：对应技术栈的 `COMMANDS_CHEATSHEET.md`
-3. **寻求帮助**：联系项目负责人或技术负责人
 
 ---
 
-**文档体系版本：v1.0.0**
-**创建日期：2026-03-26**
-**基于：Flutter文档模式优化**
+## 🚀 Quick Start
 
-> **提醒**：本文档体系是AI协作开发规范的一部分，所有开发工作必须遵守。
+### Newcomer — Read in Order
+
+1. **Project overview**: [`../README.md`](../README.md) (root README)
+2. **Project architecture**: [`../RUNBOOK.md`](../RUNBOOK.md)
+3. **Deployment guide**: [`full-deployment-guide.md`](full-deployment-guide.md)
+
+### AI Collaboration — Required Reading
+
+1. **NestJS**: [`nestjs/AI_COLLABORATION_WORKFLOW.md`](nestjs/AI_COLLABORATION_WORKFLOW.md)
+2. **Next.js**: [`nextjs/AI_COLLABORATION_WORKFLOW.md`](nextjs/AI_COLLABORATION_WORKFLOW.md)
+
+### Command Cheatsheets
+
+1. **NestJS**: [`nestjs/COMMANDS_CHEATSHEET.md`](nestjs/COMMANDS_CHEATSHEET.md)
+2. **Next.js**: [`nextjs/COMMANDS_CHEATSHEET.md`](nextjs/COMMANDS_CHEATSHEET.md)
+
+---
+
+## 🔍 Finding Documents by Topic
+
+| If you need…                                  | Look here                                                      |
+| --------------------------------------------- | -------------------------------------------------------------- |
+| Understand project architecture               | [`../RUNBOOK.md`](../RUNBOOK.md)                               |
+| Deploy or troubleshoot                        | [`full-deployment-guide.md`](full-deployment-guide.md)         |
+| Set up OAuth / third-party login              | [`oauth/README.md`](oauth/README.md)                           |
+| Write a new technical document                | [`TECHNICAL_DOCUMENT_TEMPLATE.md`](TECHNICAL_DOCUMENT_TEMPLATE.md) |
+| Read AI constitution & rules                  | [`ai-constitution-detailed.md`](ai-constitution-detailed.md)   |
+| Onboard as a new developer                    | [`read/`](read/) directory                                     |
+| Fix a hydration mismatch                      | [`HYDRATION_MISMATCH_GUIDE.md`](HYDRATION_MISMATCH_GUIDE.md)   |
+| Improve language detection                    | [`LANGUAGE_DETECTION_IMPROVEMENT.md`](LANGUAGE_DETECTION_IMPROVEMENT.md) |
+| Read published blog articles (Chinese)        | [`blog/articles/`](blog/articles/) directory                   |
+| Browse blog system architecture               | [`blog/architecture/`](blog/architecture/)                     |
+| Blog development guides                       | [`blog/development/`](blog/development/)                       |
+| Blog security docs                            | [`blog/security/`](blog/security/)                             |
+| i18n implementation                           | [`blog/i18n/`](blog/i18n/)                                     |
+| Blog operations / DevOps                      | [`blog/operations/`](blog/operations/)                         |
+
+---
+
+## 📖 Language Policy
+
+| Document type | Language | Audience |
+|---|---|---|
+| **Project documentation** (architecture, deployment, guides, templates) | **English** | International developers, AI tools |
+| **Published blog articles** (`docs/blog/articles/`) | **Chinese** | Chinese tech readers |
+| **Plans** (`plans/`, `docs/blog/plans/`) | **Chinese** | Internal team |
+
+---
+
+## 📊 Quality Assurance
+
+### Pre-Commit Checklist
+
+```
+[x] 1. Is this a significant change requiring communication?
+[x] 2. Have you stated the problem and gotten confirmation?
+[x] 3. Have you designed the solution and gotten approval?
+[x] 4. Have you assessed risks and gotten confirmation?
+[x] 5. Do you have explicit authorization to proceed?
+[x] 6. Have you reviewed all related documentation?
+[x] 7. Is the environment ready for implementation?
+[x] 8. Is there a detailed implementation plan?
+```
+
+### Command Execution Checklist
+
+```
+[x] 1. Have you checked the relevant command cheatsheet?
+[x] 2. Are you using the project-specific command (e.g. `make`)?
+[x] 3. Is the environment correct (dev/staging/production)?
+[x] 4. Are required flags and arguments included?
+[x] 5. Is the command's purpose documented?
+[x] 6. Has the result been verified?
+```
+
+### Must-Reference Documents
+
+1. **AI instructions**: `.github/copilot-instructions.md` (read at start of every session)
+2. **Workflow**: Corresponding tech stack `AI_COLLABORATION_WORKFLOW.md`
+3. **Cheatsheet**: Corresponding tech stack `COMMANDS_CHEATSHEET.md`
+4. **Template**: [`TECHNICAL_DOCUMENT_TEMPLATE.md`](TECHNICAL_DOCUMENT_TEMPLATE.md)
+
+---
+
+## 📈 Expected Benefits
+
+### AI Collaboration
+
+- **50% less context-gathering time** — Unified format lets AI understand the project faster
+- **80% higher command accuracy** — Standardized cheatsheets reduce mistakes
+- **Smoother workflow** — Clear AI collaboration processes
+
+### Developer Experience
+
+- **Consistency** — All tech stacks share the same doc format
+- **Knowledge transfer** — New members can ramp up across different stacks
+- **Troubleshooting** — Standardized debug sections speed up resolution
+
+---
+
+## 🔄 Maintenance Conventions
+
+### Adding New Documents
+
+1. **Choose directory** by tech stack (`nestjs/`, `nextjs/`, `oauth/`, etc.)
+2. **Use the template**: [`TECHNICAL_DOCUMENT_TEMPLATE.md`](TECHNICAL_DOCUMENT_TEMPLATE.md)
+3. **Update this navigation** — add entry to the tables above
+4. **Cross-reference** — link to related documents
+
+### Updating Documents
+
+1. **Version record** — add a changelog entry at the bottom
+2. **Update date** — refresh the last-updated field
+3. **Notify stakeholders** — if the change is significant
+
+### Quality Checks
+
+1. **Completeness** — ensure all required sections are present
+2. **Links** — verify all cross-references work
+3. **Format** — confirm the document follows the standard template
+4. **Accuracy** — ensure the content is up to date
+
+---
+
+## 🚀 Future Plans
+
+1. **Automated quality checks** — script to verify links, format, and completeness
+2. **Auto-generated API docs** — from code comments
+3. **Versioned docs** — synchronised with code releases
+4. **Usage analytics** — track which docs are most accessed
+
+---
+
+## 📞 Support
+
+### When You Have a Documentation Question
+
+1. **Check this index** — the tables above cover most topics
+2. **Navigate to the relevant doc** — per tech stack
+3. **Report problems** — flag issues or contact the maintainer
+4. **Suggest improvements** — PRs and suggestions welcome
+
+### Emergencies
+
+1. **Deployment issues**: [`full-deployment-guide.md`](full-deployment-guide.md)
+2. **Operations**: [`../RUNBOOK.md`](../RUNBOOK.md)
+
+---
+
+**Documentation system version: v1.0.0**  
+**Created: 2026-03-26**  
+**English version: 2026-06-04**  
+**Based on: Flutter documentation pattern**
