@@ -91,10 +91,13 @@ sync_configs() {
     scp deploy/install-turn.sh              "$SSH_TARGET:$VPS_DIR/deploy/"
     scp deploy/init-cert.sh                 "$SSH_TARGET:$VPS_DIR/deploy/"
 
-    # Nginx 多域名配置（conf.d/ 目录 + whitelist）
+    # Nginx 多域名配置（conf.d/ 目录）
     scp -r nginx/conf.d/                    "$SSH_TARGET:$VPS_DIR/nginx/"
-    scp nginx/whitelist.conf                "$SSH_TARGET:$VPS_DIR/nginx/"
     scp redis/redis.conf                    "$SSH_TARGET:$VPS_DIR/redis/"
+
+    # SSL 证书（用于 Cloudflare Full 模式 443 SSL 终止）
+    scp certs/server.crt                     "$SSH_TARGET:$VPS_DIR/certs/"
+    scp certs/server.key                     "$SSH_TARGET:$VPS_DIR/certs/"
 
     # 保留旧版 nginx.prod.conf 作为参考（不再使用）
     scp nginx/nginx.prod.conf               "$SSH_TARGET:$VPS_DIR/nginx/"
@@ -219,6 +222,20 @@ ssh "$SSH_TARGET" << REMOTE_SCRIPT
     # ── 保存当前前端博客镜像 SHA (用于回滚) ──────────────────────────
     PREV_FRONTEND_IMAGE=\$(docker inspect lucky-frontend-blog-prod \
         --format '{{.Config.Image}}' 2>/dev/null || echo "")
+
+    # ── 验证 Redis 密码一致性 ──────────────────────────────────────
+    # 如果 .env.prod 中的密码与运行中的 Redis 不匹配，backend 会连接失败
+    REDIS_PASSWORD=\$(grep '^REDIS_PASSWORD=' deploy/.env.prod | cut -d= -f2)
+    if [ -n "\$REDIS_PASSWORD" ]; then
+        echo "→ 验证 Redis 密码..."
+        if docker exec lucky-redis-prod redis-cli -a "\$REDIS_PASSWORD" ping 2>/dev/null | grep -q PONG; then
+            echo "  Redis 密码正确"
+        else
+            echo "  ⚠️  Redis 密码不匹配，强制重建 Redis 容器..."
+            docker compose -f compose.prod.yml --env-file deploy/.env.prod up -d --force-recreate redis
+            echo "  Redis 已重建"
+        fi
+    fi
 
     # ── 启动/更新服务 ─────────────────────────────────────────────
     BACKEND_IMAGE_VAL="lucky-backend-prod:latest"
