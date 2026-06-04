@@ -83,13 +83,17 @@ services:
           memory: 64M
     ports:
       - "80:80"
-      - "443:443"
     volumes:
-      - ./nginx/nginx.prod.conf:/etc/nginx/conf.d/default.conf
-      - ./nginx/whitelist.conf:/etc/nginx/conf.d/whitelist.conf
-      - ./certs:/etc/nginx/certs
-      - ./nginx/html:/var/www/html
+      # 挂载 conf.d/ 目录，nginx 自动加载所有 .conf 文件
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      # whitelist.conf 仍然单独挂载（用户自定义 IP）
+      - ./nginx/whitelist.conf:/etc/nginx/conf.d/whitelist.conf:ro
+      # 静态文件（.well-known 等）
+      - ./nginx/html:/var/www/html:ro
       - nginx_cache:/var/cache/nginx
+    extra_hosts:
+      # 允许通过 host.docker.internal 访问其他 compose 栈的容器
+      - "host.docker.internal:host-gateway"
     depends_on:
       backend:
         condition: service_healthy
