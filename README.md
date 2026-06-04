@@ -17,7 +17,7 @@
 [![Turborepo](https://img.shields.io/badge/Turborepo-EF4444?logo=turborepo)](https://turbo.build/)
 [![Sentry](https://img.shields.io/badge/Sentry-362D59?logo=sentry)](https://sentry.io/)
 
-**Live Demos:** [Admin Panel](https://admin.joyminis.com) · [Main App](https://app.joyminis.com) · [Public Blog](https://tarsierlabs.app) · [API Health](https://api.joyminis.com/api/v1/health)
+**Live Demos:** [Admin Panel](https://admin.joyminis.com) · [Main App](https://app.joyminis.com) · [Public Blog](https://tarsierlabs.app) · [Blog Admin](https://admin.tarsierlabs.app) · [API Health](https://api.joyminis.com/api/v1/health)
 
 </div>
 
@@ -43,7 +43,7 @@
 
 JoyMini Nest is a **production-grade e-commerce platform** built as a monorepo. It serves as both an operational admin system and a public-facing content platform with native mobile support.
 
-**Live URLs:** [`admin.joyminis.com`](https://admin.joyminis.com) Admin Dashboard · [`app.joyminis.com`](https://app.joyminis.com) Main App OAuth & Mobile Entry · [`tarsierlabs.app`](https://tarsierlabs.app) Public Blog
+**Live URLs:** [`admin.joyminis.com`](https://admin.joyminis.com) Admin Dashboard · [`app.joyminis.com`](https://app.joyminis.com) Main App OAuth & Mobile Entry · [`tarsierlabs.app`](https://tarsierlabs.app) Public Blog · [`admin.tarsierlabs.app`](https://admin.tarsierlabs.app) Blog Admin
 
 **What makes this project stand out:**
 
@@ -361,7 +361,7 @@ Dynamic quality targets → ffmpeg scale filter with force_original_aspect_ratio
 graph TB
     subgraph Clients["Clients"]
         Admin["Admin Panel<br/>admin.joyminis.com"]
-        Blog["Public Blog<br/>blog.tarsierlabs.app"]
+        Blog["Public Blog<br/>tarsierlabs.app"]
         App["Main App<br/>app.joyminis.com"]
         Mobile["Mobile App<br/>Capacitor iOS/Android"]
         Liveness["Liveness Web<br/>Vite + React"]
@@ -652,7 +652,7 @@ As the **founder and solo developer** of this project, I:
 - 🏛️ **Architected** the entire monorepo structure (Yarn 4 + Turborepo)
 - 🎨 **Built** the admin dashboard from scratch ([`admin.joyminis.com`](https://admin.joyminis.com), Next.js 15, React 19, Tailwind CSS)
 - ⚙️ **Developed** the backend API ([`api.joyminis.com`](https://api.joyminis.com/api/v1/health), NestJS 11, Prisma 6, PostgreSQL)
-- 📱 **Created** the public blog with Capacitor mobile app ([`blog.tarsierlabs.app`](https://blog.tarsierlabs.app), iOS/Android)
+- 📱 **Created** the public blog with Capacitor mobile app ([`tarsierlabs.app`](https://tarsierlabs.app), iOS/Android)
 - 🌐 **Deployed** the main app entry point ([`app.joyminis.com`](https://app.joyminis.com), OAuth callbacks, mobile deep-link)
 - 🔐 **Implemented** authentication (JWT, OAuth 2.0, RBAC)
 - 🌐 **Set up** internationalization (6 languages, zero-flicker hydration)
