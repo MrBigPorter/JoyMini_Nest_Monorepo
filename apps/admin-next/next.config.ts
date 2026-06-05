@@ -11,9 +11,11 @@ const withBundleAnalyzer = BundleAnalyzer({
   openAnalyzer: false,
 });
 
-// admin-next is deployed exclusively to Cloudflare Workers via @opennextjs/cloudflare.
-// No standalone/Docker output needed.
+// When DOCKER_BUILD=true (set in Dockerfile), output standalone for ECS deployment.
+// Cloudflare Workers build (default) remains unaffected.
 const nextConfig: NextConfig = {
+  output: process.env.DOCKER_BUILD === 'true' ? 'standalone' : undefined,
+
   // Skip type errors caused by @types/react version mismatch across monorepo packages
   typescript: {
     ignoreBuildErrors: true,

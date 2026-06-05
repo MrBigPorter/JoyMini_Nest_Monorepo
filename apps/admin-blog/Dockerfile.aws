@@ -1,22 +1,14 @@
 # ============================================================
-# Admin Next — 生产构建 Dockerfile (Next.js standalone)
+# Admin Blog — AWS ECS 专用 Dockerfile (Next.js standalone)
 # ============================================================
-# 多阶段构建：安装依赖 → next build → standalone 产物 → 轻量 runner
-# 旧: output: 'export' + busybox (静态文件) → 已迁移到 Node.js 服务器
-# 当前生产主入口：Cloudflare Workers（deploy-admin-cloudflare.yml）
-# 本镜像用途：VPS 回滚/应急兜底（非默认主流量入口）
-# 用法: compose.prod.yml 中的 admin-next 服务
+# 仅用于 AWS ECS Fargate 部署，不影响 Cloudflare Workers 构建
 # ============================================================
 
 # ============================================================
 # Stage 1: Builder — 安装依赖 + next build
 # ============================================================
-FROM node:20-bullseye-slim AS builder
+FROM node:20-alpine AS builder
 WORKDIR /app
-
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends python3 make g++ openssl \
-    && rm -rf /var/lib/apt/lists/*
 
 RUN corepack enable && corepack prepare yarn@4.9.2 --activate
 
@@ -27,6 +19,7 @@ ENV YARN_ENABLE_GLOBAL_CACHE=0
 COPY package.json yarn.lock .yarnrc.yml ./
 COPY .yarn ./.yarn
 
+COPY apps/admin-blog/package.json          ./apps/admin-blog/package.json
 COPY apps/admin-next/package.json          ./apps/admin-next/package.json
 COPY apps/api/package.json                 ./apps/api/package.json
 COPY apps/liveness-web/package.json        ./apps/liveness-web/package.json
@@ -40,7 +33,7 @@ COPY packages/config/package.json          ./packages/config/package.json
 RUN yarn install
 
 # 3) 拷贝源码
-COPY apps/admin-next/ ./apps/admin-next/
+COPY apps/admin-blog/ ./apps/admin-blog/
 COPY packages/        ./packages/
 COPY turbo.json tsconfig.json ./
 
@@ -49,44 +42,32 @@ RUN node packages/shared/scripts/build.js
 RUN node packages/ui/scripts/build.js
 
 # 5) 构建 (next build → output: 'standalone')
-ARG NEXT_PUBLIC_API_BASE_URL=https://api.joyminis.com/api
-ARG NEXT_PUBLIC_APP_ENV=production
-ARG NEXT_PUBLIC_DEPLOYED_AT=unknown
-ARG NEXT_PUBLIC_GIT_SHA=unknown
-ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
-ENV NEXT_PUBLIC_APP_ENV=$NEXT_PUBLIC_APP_ENV
-ENV NEXT_PUBLIC_DEPLOYED_AT=$NEXT_PUBLIC_DEPLOYED_AT
-ENV NEXT_PUBLIC_GIT_SHA=$NEXT_PUBLIC_GIT_SHA
 ENV DOCKER_BUILD=true
 ENV NODE_ENV=production
 
-RUN yarn workspace @lucky/admin-next build
+RUN yarn workspace @lucky/admin-blog build
 
 # ============================================================
-# Stage 2: Runner — 仅包含 standalone 产物 (体积最小)
+# Stage 2: Runner — 仅包含 standalone 产物
 # ============================================================
 FROM node:20-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
-# Next.js standalone server 监听端口
-ENV PORT=3001
+ENV PORT=3002
 ENV HOSTNAME=0.0.0.0
 
-# 创建非 root 用户 (安全最佳实践)
-RUN addgroup --system --gid 1001 nodejs \
-    && adduser --system --uid 1001 nextjs
+# curl for health checks
+RUN apk add --no-cache curl
 
 # standalone 产物 (包含精简版 node_modules)
-COPY --from=builder --chown=nextjs:nodejs /app/apps/admin-next/.next/standalone ./
+COPY --from=builder /app/apps/admin-blog/.next/standalone ./
 # 静态资源 (_next/static/)
-COPY --from=builder --chown=nextjs:nodejs /app/apps/admin-next/.next/static ./apps/admin-next/.next/static
+COPY --from=builder /app/apps/admin-blog/.next/static ./apps/admin-blog/.next/static
 # public 目录
-COPY --from=builder --chown=nextjs:nodejs /app/apps/admin-next/public ./apps/admin-next/public
+COPY --from=builder /app/apps/admin-blog/public ./apps/admin-blog/public
 
-USER nextjs
-
-EXPOSE 3001
+EXPOSE 3002
 
 # standalone 模式的启动入口
-CMD ["node", "apps/admin-next/server.js"]
+CMD ["node", "apps/admin-blog/server.js"]
