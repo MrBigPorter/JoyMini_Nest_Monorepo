@@ -80,7 +80,9 @@ export class InfraStack extends cdk.Stack {
       description: "Allow traffic from ALB to ECS",
       allowAllOutbound: true,
     });
-    ecsSg.connections.allowFrom(albSg, ec2.Port.tcp(3000), "Allow from ALB");
+    ecsSg.connections.allowFrom(albSg, ec2.Port.tcp(3000), "Allow frontend-blog + API from ALB");
+    ecsSg.connections.allowFrom(albSg, ec2.Port.tcp(3001), "Allow admin-next from ALB");
+    ecsSg.connections.allowFrom(albSg, ec2.Port.tcp(3002), "Allow admin-blog from ALB");
 
     // 🌐 ALB
     const alb = new elbv2.ApplicationLoadBalancer(this, "TarsierLabsAlb", {
@@ -174,21 +176,259 @@ export class InfraStack extends cdk.Stack {
       datapointsToAlarm: 1,
     });
 
-    // Target Group（挂在 HTTPS 监听器上）
-    httpsListener.addTargets("FrontendBlogTarget", {
-      port: 3000,
-      protocol: elbv2.ApplicationProtocol.HTTP,
-      targets: [service],
-      healthCheck: {
-        path: "/zh/",
-        interval: cdk.Duration.seconds(30),
+    // 🎯 显式 Target Group — frontend-blog
+    const frontendTargetGroup = new elbv2.ApplicationTargetGroup(
+      this,
+      "FrontendBlogTG",
+      {
+        vpc: this.vpc,
+        port: 3000,
+        protocol: elbv2.ApplicationProtocol.HTTP,
+        targets: [service],
+        healthCheck: {
+          path: "/zh/",
+          interval: cdk.Duration.seconds(30),
+        },
       },
+    );
+
+    // 🔀 默认路由: 无匹配路径 → frontend-blog (不设 priority/conditions = 默认动作)
+    httpsListener.addAction("DefaultFrontendBlog", {
+      action: elbv2.ListenerAction.forward([frontendTargetGroup]),
     });
 
     // Output
     new cdk.CfnOutput(this, "AlbDnsUrl", {
       value: alb.loadBalancerDnsName,
       description: "ALB Visit URL",
+    });
+
+    // #####################################################################
+    //  🆕 新服务 1: API Backend (NestJS, 根 Dockerfile.prod, port 3000)
+    // #####################################################################
+
+    const apiTaskDef = new ecs.FargateTaskDefinition(
+      this,
+      "ApiBackendTaskDef",
+      {
+        memoryLimitMiB: 512,
+        cpu: 256,
+        family: "api-backend-task",
+      },
+    );
+
+    const apiContainer = apiTaskDef.addContainer("ApiBackend", {
+      image: ecs.ContainerImage.fromEcrRepository(repository, "backend-latest"),
+      containerName: "api-backend",
+      memoryLimitMiB: 512,
+      cpu: 256,
+      environment: {
+        NODE_ENV: "production",
+        PORT: "3000",
+        DATABASE_URL: "postgresql://postgres@localhost:5432/joymini",
+      },
+      logging: ecs.LogDrivers.awsLogs({ streamPrefix: "api-backend" }),
+    });
+    apiContainer.addPortMappings({
+      containerPort: 3000,
+      protocol: ecs.Protocol.TCP,
+    });
+
+    const apiService = new ecs.FargateService(this, "ApiBackendService", {
+      cluster,
+      taskDefinition: apiTaskDef,
+      serviceName: "api-backend-service",
+      securityGroups: [ecsSg],
+      vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
+      assignPublicIp: true,
+      desiredCount: 1,
+      enableExecuteCommand: true,
+      healthCheckGracePeriod: cdk.Duration.seconds(120),
+      circuitBreaker: { rollback: true },
+      minHealthyPercent: 100,
+    });
+
+    // Auto Scaling
+    const apiScaling = apiService.autoScaleTaskCount({
+      maxCapacity: 2,
+      minCapacity: 1,
+    });
+    apiScaling.scaleOnCpuUtilization("ApiCpuScaling", {
+      targetUtilizationPercent: 70,
+    });
+
+    const apiTargetGroup = new elbv2.ApplicationTargetGroup(
+      this,
+      "ApiBackendTG",
+      {
+        vpc: this.vpc,
+        port: 3000,
+        protocol: elbv2.ApplicationProtocol.HTTP,
+        targets: [apiService],
+        healthCheck: {
+          path: "/api/v1/health",
+          interval: cdk.Duration.seconds(30),
+          healthyHttpCodes: "200",
+        },
+      },
+    );
+
+    // #####################################################################
+    //  🆕 新服务 2: admin-next (Next.js, port 3001)
+    // #####################################################################
+
+    const adminNextTaskDef = new ecs.FargateTaskDefinition(
+      this,
+      "AdminNextTaskDef",
+      {
+        memoryLimitMiB: 1024,
+        cpu: 512,
+        family: "admin-next-task",
+      },
+    );
+
+    const adminNextContainer = adminNextTaskDef.addContainer("AdminNext", {
+      image: ecs.ContainerImage.fromEcrRepository(repository, "admin-next-latest"),
+      containerName: "admin-next",
+      memoryLimitMiB: 1024,
+      cpu: 512,
+      environment: {
+        NODE_ENV: "production",
+        PORT: "3001",
+        HOSTNAME: "0.0.0.0",
+      },
+      logging: ecs.LogDrivers.awsLogs({ streamPrefix: "admin-next" }),
+    });
+    adminNextContainer.addPortMappings({
+      containerPort: 3001,
+      protocol: ecs.Protocol.TCP,
+    });
+
+    const adminNextService = new ecs.FargateService(this, "AdminNextService", {
+      cluster,
+      taskDefinition: adminNextTaskDef,
+      serviceName: "admin-next-service",
+      securityGroups: [ecsSg],
+      vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
+      assignPublicIp: true,
+      desiredCount: 1,
+      enableExecuteCommand: true,
+      healthCheckGracePeriod: cdk.Duration.seconds(120),
+      circuitBreaker: { rollback: true },
+      minHealthyPercent: 100,
+    });
+
+    // Auto Scaling
+    const adminNextScaling = adminNextService.autoScaleTaskCount({
+      maxCapacity: 2,
+      minCapacity: 1,
+    });
+    adminNextScaling.scaleOnCpuUtilization("AdminNextCpuScaling", {
+      targetUtilizationPercent: 70,
+    });
+
+    const adminNextTargetGroup = new elbv2.ApplicationTargetGroup(
+      this,
+      "AdminNextTG",
+      {
+        vpc: this.vpc,
+        port: 3001,
+        protocol: elbv2.ApplicationProtocol.HTTP,
+        targets: [adminNextService],
+        healthCheck: {
+          path: "/en/admin/login",
+          interval: cdk.Duration.seconds(30),
+        },
+      },
+    );
+
+    // #####################################################################
+    //  🆕 新服务 3: admin-blog (Next.js, port 3002)
+    // #####################################################################
+
+    const adminBlogTaskDef = new ecs.FargateTaskDefinition(
+      this,
+      "AdminBlogTaskDef",
+      {
+        memoryLimitMiB: 1024,
+        cpu: 512,
+        family: "admin-blog-task",
+      },
+    );
+
+    const adminBlogContainer = adminBlogTaskDef.addContainer("AdminBlog", {
+      image: ecs.ContainerImage.fromEcrRepository(repository, "admin-blog-latest"),
+      containerName: "admin-blog",
+      memoryLimitMiB: 1024,
+      cpu: 512,
+      environment: {
+        NODE_ENV: "production",
+        PORT: "3002",
+        HOSTNAME: "0.0.0.0",
+      },
+      logging: ecs.LogDrivers.awsLogs({ streamPrefix: "admin-blog" }),
+    });
+    adminBlogContainer.addPortMappings({
+      containerPort: 3002,
+      protocol: ecs.Protocol.TCP,
+    });
+
+    const adminBlogService = new ecs.FargateService(this, "AdminBlogService", {
+      cluster,
+      taskDefinition: adminBlogTaskDef,
+      serviceName: "admin-blog-service",
+      securityGroups: [ecsSg],
+      vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
+      assignPublicIp: true,
+      desiredCount: 1,
+      enableExecuteCommand: true,
+      healthCheckGracePeriod: cdk.Duration.seconds(120),
+      circuitBreaker: { rollback: true },
+      minHealthyPercent: 100,
+    });
+
+    // Auto Scaling
+    const adminBlogScaling = adminBlogService.autoScaleTaskCount({
+      maxCapacity: 2,
+      minCapacity: 1,
+    });
+    adminBlogScaling.scaleOnCpuUtilization("AdminBlogCpuScaling", {
+      targetUtilizationPercent: 70,
+    });
+
+    const adminBlogTargetGroup = new elbv2.ApplicationTargetGroup(
+      this,
+      "AdminBlogTG",
+      {
+        vpc: this.vpc,
+        port: 3002,
+        protocol: elbv2.ApplicationProtocol.HTTP,
+        targets: [adminBlogService],
+        healthCheck: {
+          path: "/en/admin/blogs",
+          interval: cdk.Duration.seconds(30),
+        },
+      },
+    );
+
+    // 🔀 路径路由规则 (priority 越低越优先匹配)
+    // /api/* → API backend
+    httpsListener.addAction("ApiBackendRule", {
+      action: elbv2.ListenerAction.forward([apiTargetGroup]),
+      conditions: [elbv2.ListenerCondition.pathPatterns(["/api/*"])],
+      priority: 10,
+    });
+    // /admin/* → admin-next
+    httpsListener.addAction("AdminNextRule", {
+      action: elbv2.ListenerAction.forward([adminNextTargetGroup]),
+      conditions: [elbv2.ListenerCondition.pathPatterns(["/admin/*"])],
+      priority: 20,
+    });
+    // /blog-admin/* → admin-blog
+    httpsListener.addAction("AdminBlogRule", {
+      action: elbv2.ListenerAction.forward([adminBlogTargetGroup]),
+      conditions: [elbv2.ListenerCondition.pathPatterns(["/blog-admin/*"])],
+      priority: 30,
     });
 
     // ============================================

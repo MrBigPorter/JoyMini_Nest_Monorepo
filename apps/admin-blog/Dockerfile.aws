@@ -1,0 +1,73 @@
+# ============================================================
+# Admin Blog — AWS ECS 专用 Dockerfile (Next.js standalone)
+# ============================================================
+# 仅用于 AWS ECS Fargate 部署，不影响 Cloudflare Workers 构建
+# ============================================================
+
+# ============================================================
+# Stage 1: Builder — 安装依赖 + next build
+# ============================================================
+FROM node:20-alpine AS builder
+WORKDIR /app
+
+RUN corepack enable && corepack prepare yarn@4.9.2 --activate
+
+# Docker 下关闭全局缓存，让 .yarn/cache 写入工作目录，layer 缓存才能命中
+ENV YARN_ENABLE_GLOBAL_CACHE=0
+
+# 1) 拷贝依赖声明 → 利用 Docker 层缓存
+COPY package.json yarn.lock .yarnrc.yml ./
+COPY .yarn ./.yarn
+
+COPY apps/admin-blog/package.json          ./apps/admin-blog/package.json
+COPY apps/admin-next/package.json          ./apps/admin-next/package.json
+COPY apps/api/package.json                 ./apps/api/package.json
+COPY apps/liveness-web/package.json        ./apps/liveness-web/package.json
+COPY packages/shared/package.json          ./packages/shared/package.json
+COPY packages/ui/package.json              ./packages/ui/package.json
+COPY packages/eslint-config/package.json   ./packages/eslint-config/package.json
+COPY packages/typescript-config/package.json ./packages/typescript-config/package.json
+COPY packages/config/package.json          ./packages/config/package.json
+
+# 2) 安装依赖
+RUN yarn install
+
+# 3) 拷贝源码
+COPY apps/admin-blog/ ./apps/admin-blog/
+COPY packages/        ./packages/
+COPY turbo.json tsconfig.json ./
+
+# 4) Pre-build workspace packages
+RUN node packages/shared/scripts/build.js
+RUN node packages/ui/scripts/build.js
+
+# 5) 构建 (next build → output: 'standalone')
+ENV DOCKER_BUILD=true
+ENV NODE_ENV=production
+
+RUN yarn workspace @lucky/admin-blog build
+
+# ============================================================
+# Stage 2: Runner — 仅包含 standalone 产物
+# ============================================================
+FROM node:20-alpine AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV PORT=3002
+ENV HOSTNAME=0.0.0.0
+
+# curl for health checks
+RUN apk add --no-cache curl
+
+# standalone 产物 (包含精简版 node_modules)
+COPY --from=builder /app/apps/admin-blog/.next/standalone ./
+# 静态资源 (_next/static/)
+COPY --from=builder /app/apps/admin-blog/.next/static ./apps/admin-blog/.next/static
+# public 目录
+COPY --from=builder /app/apps/admin-blog/public ./apps/admin-blog/public
+
+EXPOSE 3002
+
+# standalone 模式的启动入口
+CMD ["node", "apps/admin-blog/server.js"]

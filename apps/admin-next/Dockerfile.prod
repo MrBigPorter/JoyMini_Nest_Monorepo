@@ -37,7 +37,7 @@ COPY packages/typescript-config/package.json ./packages/typescript-config/packag
 COPY packages/config/package.json          ./packages/config/package.json
 
 # 2) 安装依赖
-RUN yarn install --immutable
+RUN yarn install
 
 # 3) 拷贝源码
 COPY apps/admin-next/ ./apps/admin-next/
@@ -57,6 +57,7 @@ ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
 ENV NEXT_PUBLIC_APP_ENV=$NEXT_PUBLIC_APP_ENV
 ENV NEXT_PUBLIC_DEPLOYED_AT=$NEXT_PUBLIC_DEPLOYED_AT
 ENV NEXT_PUBLIC_GIT_SHA=$NEXT_PUBLIC_GIT_SHA
+ENV DOCKER_BUILD=true
 ENV NODE_ENV=production
 
 RUN yarn workspace @lucky/admin-next build

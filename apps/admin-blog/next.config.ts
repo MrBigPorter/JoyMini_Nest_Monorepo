@@ -11,7 +11,11 @@ const withBundleAnalyzer = BundleAnalyzer({
   openAnalyzer: false,
 });
 
+// When DOCKER_BUILD=true (set in Dockerfile), output standalone for ECS deployment.
+// Cloudflare Workers build (default) remains unaffected.
 const nextConfig: NextConfig = {
+  output: process.env.DOCKER_BUILD === 'true' ? 'standalone' : undefined,
+
   typescript: {
     ignoreBuildErrors: true,
   },
