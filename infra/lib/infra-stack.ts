@@ -207,6 +207,51 @@ export class InfraStack extends cdk.Stack {
     //  🆕 新服务 1: API Backend (NestJS, 根 Dockerfile.prod, port 3000)
     // #####################################################################
 
+    // 数据库安全组 — 只允许 ECS 访问
+    const dbSecurityGroup = new ec2.SecurityGroup(this, "TarsierLabsDbSG", {
+      vpc: this.vpc,
+      description: "Security group for RDS PostgreSQL",
+      allowAllOutbound: true,
+    });
+
+    // 允许 ECS 任务通过 5432 端口访问数据库
+    dbSecurityGroup.addIngressRule(
+      ec2.Peer.ipv4(this.vpc.vpcCidrBlock),
+      ec2.Port.tcp(5432),
+      "Allow PostgreSQL access from within VPC",
+    );
+
+    // RDS PostgreSQL 实例（PRIVATE_ISOLATED 子网 — 生产安全配置）
+    const dbInstance = new rds.DatabaseInstance(this, "TarsierLabsPostgres", {
+      engine: rds.DatabaseInstanceEngine.postgres({
+        version: rds.PostgresEngineVersion.VER_16,
+      }),
+      instanceType: ec2.InstanceType.of(
+        ec2.InstanceClass.T3,
+        ec2.InstanceSize.MICRO,
+      ),
+      vpc: this.vpc,
+      vpcSubnets: {
+        subnetType: ec2.SubnetType.PRIVATE_ISOLATED,
+      },
+      securityGroups: [dbSecurityGroup],
+      allocatedStorage: 20,
+      maxAllocatedStorage: 100,
+      storageType: rds.StorageType.GP3,
+      backupRetention: cdk.Duration.days(7),
+      deletionProtection: false,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      multiAz: false,
+      publiclyAccessible: false,
+      credentials: rds.Credentials.fromGeneratedSecret("postgres"),
+      databaseName: "joymini",
+    });
+    // 输出数据库连接地址
+    new cdk.CfnOutput(this, "DatabaseEndpoint", {
+      value: dbInstance.dbInstanceEndpointAddress,
+      description: "RDS PostgreSQL endpoint address",
+    });
+
     const apiTaskDef = new ecs.FargateTaskDefinition(
       this,
       "ApiBackendTaskDef",
@@ -222,10 +267,25 @@ export class InfraStack extends cdk.Stack {
       containerName: "api-backend",
       memoryLimitMiB: 512,
       cpu: 256,
+      // Construct DATABASE_URL at runtime from individual env vars + secret
+      // URL-encode the password to handle special characters (@, :, /, etc.)
+      command: [
+        "sh",
+        "-c",
+        "export DATABASE_URL=\"postgresql://${DB_USER}:$(node -p \"encodeURIComponent(process.env.DB_PASSWORD)\")@${DB_HOST}:${DB_PORT}/${DB_NAME}\" && exec /entrypoint.sh",
+      ],
       environment: {
         NODE_ENV: "production",
         PORT: "3000",
-        DATABASE_URL: "postgresql://postgres@localhost:5432/joymini",
+        HOST: "0.0.0.0",
+        SKIP_MIGRATIONS: "true",
+        DB_HOST: dbInstance.dbInstanceEndpointAddress,
+        DB_PORT: "5432",
+        DB_NAME: "joymini",
+        DB_USER: "postgres",
+      },
+      secrets: {
+        DB_PASSWORD: ecs.Secret.fromSecretsManager(dbInstance.secret!, "password"),
       },
       logging: ecs.LogDrivers.awsLogs({ streamPrefix: "api-backend" }),
     });
@@ -266,7 +326,7 @@ export class InfraStack extends cdk.Stack {
         protocol: elbv2.ApplicationProtocol.HTTP,
         targets: [apiService],
         healthCheck: {
-          path: "/api/v1/health",
+          path: "/api/health",
           interval: cdk.Duration.seconds(30),
           healthyHttpCodes: "200",
         },
@@ -624,50 +684,6 @@ export class InfraStack extends cdk.Stack {
       targets: [new targets.LambdaFunction(syncLambda)],
     });
 
-    // 数据库安全组 — 只允许 ECS 访问
-    const dbSecurityGroup = new ec2.SecurityGroup(this, "TarsierLabsDbSG", {
-      vpc: this.vpc,
-      description: "Security group for RDS PostgreSQL",
-      allowAllOutbound: true,
-    });
-
-    // 允许 ECS 任务通过 5432 端口访问数据库
-    dbSecurityGroup.addIngressRule(
-      ec2.Peer.ipv4(this.vpc.vpcCidrBlock),
-      ec2.Port.tcp(5432),
-      "Allow PostgreSQL access from within VPC",
-    );
-
-    //RDS PostgreSQL 实例（PRIVATE_ISOLATED 子网 — 生产安全配置）
-    const dbInstance = new rds.DatabaseInstance(this, "TarsierLabsPostgres", {
-      engine: rds.DatabaseInstanceEngine.postgres({
-        version: rds.PostgresEngineVersion.VER_16,
-      }),
-      instanceType: ec2.InstanceType.of(
-        ec2.InstanceClass.T3,
-        ec2.InstanceSize.MICRO,
-      ),
-      vpc: this.vpc,
-      vpcSubnets: {
-        subnetType: ec2.SubnetType.PRIVATE_ISOLATED,
-      },
-      securityGroups: [dbSecurityGroup],
-      allocatedStorage: 20,
-      maxAllocatedStorage: 100,
-      storageType: rds.StorageType.GP3,
-      backupRetention: cdk.Duration.days(7),
-      deletionProtection: false,
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
-      multiAz: false,
-      publiclyAccessible: false,
-      credentials: rds.Credentials.fromGeneratedSecret("postgres"),
-      databaseName: "joymini",
-    });
-    // 输出数据库连接地址
-    new cdk.CfnOutput(this, "DatabaseEndpoint", {
-      value: dbInstance.dbInstanceEndpointAddress,
-      description: "RDS PostgreSQL endpoint address",
-    });
 
     // ==================== API Gateway + Lambda (Phase 3) ====================
     // 1. Lambda 函数 — 最简单的 Serverless 函数
