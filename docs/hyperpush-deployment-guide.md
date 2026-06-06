@@ -32,7 +32,7 @@
 │  Cloudflare (CDN / SSL / DNS Proxy)                     │
 │  ┌──────────────────────────────────────────────────┐   │
 │  │  Pages: hyperpush.org  (SPA 前端)                  │   │
-│  │  DNS:   cp.hyperpush.org A → 129.121.97.120       │   │
+│  │  DNS:   cp.hyperpush.org A → <VPS_IP>       │   │
 │  │         (orange cloud / proxied)                  │   │
 │  └──────────────────────────────────────────────────┘   │
 └────────────────────┬────────────────────────────────────┘
@@ -77,7 +77,7 @@
 | 域名 | 用途 | DNS 类型 | 目标 |
 |------|------|----------|------|
 | `hyperpush.org` | SPA 前端 | Cloudflare Pages (自定义域名) | Pages 项目 |
-| `cp.hyperpush.org` | API + CodePush 子域名 | A 记录 (橙云) | `129.121.97.120` |
+| `cp.hyperpush.org` | API + CodePush 子域名 | A 记录 (橙云) | `<VPS_IP>` |
 
 ### 2.2 为什么需要独立子域名
 
@@ -118,14 +118,14 @@ DNS:admin.joyminis.com,\
 DNS:*.joyminis.com"
 
 # 上传到 VPS
-scp /tmp/server.crt root@129.121.97.120:/opt/lucky/certs/
-scp /tmp/server.key root@129.121.97.120:/opt/lucky/certs/
+scp /tmp/server.crt root@<VPS_IP>:/opt/lucky/certs/
+scp /tmp/server.key root@<VPS_IP>:/opt/lucky/certs/
 
 # 重启 nginx 加载新证书
-ssh root@129.121.97.120 "docker exec lucky-nginx-prod nginx -s reload"
+ssh root@<VPS_IP> "docker exec lucky-nginx-prod nginx -s reload"
 
 # 验证新证书
-ssh root@129.121.97.120 "docker exec lucky-nginx-prod openssl x509 \
+ssh root@<VPS_IP> "docker exec lucky-nginx-prod openssl x509 \
   -in /etc/nginx/certs/server.crt -noout -text | grep -A1 'Subject Alternative Name'"
 ```
 
@@ -152,7 +152,7 @@ if [ "$RESOLVED_IP" != "$SERVER_IP" ]; then
 fi
 ```
 
-**当域名开启 Cloudflare 橙云代理时：** DNS 解析返回 Cloudflare 边缘节点 IP（`104.21.x.x`），而不是 VPS IP（`129.121.97.120`）。因此 `init-cert.sh` 的 DNS 检查会失败。
+**当域名开启 Cloudflare 橙云代理时：** DNS 解析返回 Cloudflare 边缘节点 IP（`104.21.x.x`），而不是 VPS IP（`<VPS_IP>`）。因此 `init-cert.sh` 的 DNS 检查会失败。
 
 **解决方案：**
 - 方案 A：暂时关闭 Cloudflare 橙云（灰色云）→ 等 DNS 传播 → 执行 `init-cert.sh` → 恢复橙云
@@ -214,13 +214,13 @@ server {
 ```bash
 # 1. 本地修改配置文件
 # 2. 上传到 VPS
-scp nginx/conf.d/40-hyperpush.conf root@129.121.97.120:/opt/lucky/nginx/conf.d/
+scp nginx/conf.d/40-hyperpush.conf root@<VPS_IP>:/opt/lucky/nginx/conf.d/
 
 # ⚠️ 不要 scp 到 /etc/nginx/conf.d/ - 这是容器内部路径
 # 正确的路径是宿主机的挂载卷: /opt/lucky/nginx/conf.d/
 
 # 3. reload nginx
-ssh root@129.121.97.120 "docker exec lucky-nginx-prod nginx -s reload"
+ssh root@<VPS_IP> "docker exec lucky-nginx-prod nginx -s reload"
 ```
 
 ### 4.4 ⚠️ `proxy_pass` 末尾斜杠行为
@@ -275,7 +275,7 @@ CORS_ORIGINS=https://hyperpush.org,https://cp.hyperpush.org
 **更新流程：**
 ```bash
 # 1. SSH 到 VPS
-ssh root@129.121.97.120
+ssh root@<VPS_IP>
 
 # 2. 编辑 .env
 vi /opt/hyperpush/.env
@@ -431,7 +431,7 @@ curl -s https://cp.hyperpush.org/codepush/v1/version 2>/dev/null | head -5
 
 **根因：**
 - 所有域名开启了 Cloudflare 橙云代理
-- DNS 解析返回 Cloudflare IP（`104.21.x.x`），不是 VPS IP（`129.121.97.120`）
+- DNS 解析返回 Cloudflare IP（`104.21.x.x`），不是 VPS IP（`<VPS_IP>`）
 - 脚本的 DNS 检查阻止继续
 
 **修复：**
@@ -456,10 +456,10 @@ curl -s https://cp.hyperpush.org/codepush/v1/version 2>/dev/null | head -5
 **修复：**
 ```bash
 # ✅ 正确：写入宿主机路径
-scp file root@129.121.97.120:/opt/lucky/nginx/conf.d/
+scp file root@<VPS_IP>:/opt/lucky/nginx/conf.d/
 
 # ❌ 错误：写入容器内部路径
-scp file root@129.121.97.120:/etc/nginx/conf.d/
+scp file root@<VPS_IP>:/etc/nginx/conf.d/
 ```
 
 **预防：**
@@ -476,7 +476,7 @@ scp file root@129.121.97.120:/etc/nginx/conf.d/
 
 **修复：**
 ```bash
-ssh root@129.121.97.120 "cd /opt/hyperpush && docker compose -f deploy/compose.prod.yml restart app"
+ssh root@<VPS_IP> "cd /opt/hyperpush && docker compose -f deploy/compose.prod.yml restart app"
 ```
 
 **预防：**

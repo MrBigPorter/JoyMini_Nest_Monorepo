@@ -123,7 +123,7 @@ export class PrismaService
         await sleep(backoff);
       }
     }
-    throw new Error('Prisma failed to connect');
+    this.logger.error('Prisma failed to connect after 8 retries — starting without DB');
   }
 
   async onModuleDestroy() {

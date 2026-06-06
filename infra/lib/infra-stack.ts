@@ -267,13 +267,7 @@ export class InfraStack extends cdk.Stack {
       containerName: "api-backend",
       memoryLimitMiB: 512,
       cpu: 256,
-      // Construct DATABASE_URL at runtime from individual env vars + secret
-      // URL-encode the password to handle special characters (@, :, /, etc.)
-      command: [
-        "sh",
-        "-c",
-        "export DATABASE_URL=\"postgresql://${DB_USER}:$(node -p \"encodeURIComponent(process.env.DB_PASSWORD)\")@${DB_HOST}:${DB_PORT}/${DB_NAME}\" && exec /entrypoint.sh",
-      ],
+      // entrypoint.sh constructs DATABASE_URL at runtime from DB_* env vars
       environment: {
         NODE_ENV: "production",
         PORT: "3000",
@@ -326,7 +320,7 @@ export class InfraStack extends cdk.Stack {
         protocol: elbv2.ApplicationProtocol.HTTP,
         targets: [apiService],
         healthCheck: {
-          path: "/api/health",
+          path: "/api/v1/health",
           interval: cdk.Duration.seconds(30),
           healthyHttpCodes: "200",
         },

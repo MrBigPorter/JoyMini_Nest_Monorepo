@@ -362,7 +362,7 @@ if [ "$RESOLVED_IP" != "$SERVER_IP" ]; then
 fi
 ```
 
-All domains use Cloudflare Orange Cloud (proxy) → DNS returns Cloudflare edge IPs (`104.21.x.x`) instead of the VPS IP (`129.121.97.120`) → script blocks.
+All domains use Cloudflare Orange Cloud (proxy) → DNS returns Cloudflare edge IPs (`104.21.x.x`) instead of the VPS IP (`<VPS_IP>`) → script blocks.
 
 ### 8.2 Solution
 
@@ -386,11 +386,11 @@ DNS:admin.joyminis.com,\
 DNS:*.joyminis.com"
 
 # Upload to VPS
-scp /tmp/server.crt root@129.121.97.120:/opt/lucky/certs/
-scp /tmp/server.key root@129.121.97.120:/opt/lucky/certs/
+scp /tmp/server.crt root@<VPS_IP>:/opt/lucky/certs/
+scp /tmp/server.key root@<VPS_IP>:/opt/lucky/certs/
 
 # Reload nginx
-ssh root@129.121.97.120 "docker exec lucky-nginx-prod nginx -s reload"
+ssh root@<VPS_IP> "docker exec lucky-nginx-prod nginx -s reload"
 ```
 
 ### 8.3 Why Self-Signed Works
@@ -459,8 +459,8 @@ git pull
 #    Check deploy/.env.prod
 
 # 3. Sync nginx config (if modified)
-scp nginx/conf.d/*.conf root@129.121.97.120:/opt/lucky/nginx/conf.d/
-ssh root@129.121.97.120 "docker exec lucky-nginx-prod nginx -s reload"
+scp nginx/conf.d/*.conf root@<VPS_IP>:/opt/lucky/nginx/conf.d/
+ssh root@<VPS_IP> "docker exec lucky-nginx-prod nginx -s reload"
 
 # 4. Run deployment script
 ./deploy/deploy.sh
@@ -474,7 +474,7 @@ curl -s -o /dev/null -w "HTTP %{http_code}\n" https://tarsierlabs.app/
 
 ```bash
 # 1. SSH to VPS
-ssh root@129.121.97.120
+ssh root@<VPS_IP>
 
 # 2. Check container status
 docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
@@ -591,7 +591,7 @@ curl -s -o /dev/null -w "HTTP %{http_code}\n" https://cp.hyperpush.org/graphql \
 
 ```bash
 # === SSH ===
-ssh root@129.121.97.120
+ssh root@<VPS_IP>
 
 # === Containers ===
 docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
@@ -650,7 +650,7 @@ flowchart TD
         PAGES[Pages: hyperpush.org<br/>admin.joyminis.com]
     end
 
-    subgraph "VPS 129.121.97.120"
+    subgraph "VPS <VPS_IP>"
         NGINX["lucky-nginx-prod<br/>80/443"]
         BACKEND["backend:3000<br/>NestJS API"]
         BLOG["frontend-blog:3000<br/>Next.js SSR"]
