@@ -373,7 +373,7 @@ curl -s -u admin:PASSWORD http://localhost:3001/api/users | \
 
 ```bash
 #!/bin/bash
-SERVER="root@129.121.97.120"
+SERVER="root@<VPS_IP>"
 SECRET="YOUR_GRAFANA_AUTH_SECRET"
 
 # Generate fresh token
