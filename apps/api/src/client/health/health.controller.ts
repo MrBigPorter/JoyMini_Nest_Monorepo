@@ -12,7 +12,8 @@ export class HealthController {
   @Get()
   async health() {
     const db = await this.prisma.ping();
-    const commitSha = this.configService.get<string>('APP_VERSION') || 'unknown';
+    const commitSha =
+      this.configService.get<string>('APP_VERSION') || 'unknown';
     const envStatus = {
       nodeEnv: this.configService.get<string>('NODE_ENV'),
       dbReachable: !!db,

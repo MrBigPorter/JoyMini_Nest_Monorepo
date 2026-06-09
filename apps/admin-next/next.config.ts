@@ -210,7 +210,8 @@ const nextConfig: NextConfig = {
 // so Sentry is fully bundled for server-side error reporting.
 const config = withBundleAnalyzer(withNextIntl(nextConfig));
 const shouldUseSentryPlugin =
-  process.env.NODE_ENV === 'production' && process.env.SENTRY_BUILD_PLUGIN !== 'false';
+  process.env.NODE_ENV === 'production' &&
+  process.env.SENTRY_BUILD_PLUGIN !== 'false';
 export default shouldUseSentryPlugin
   ? withSentryConfig(config, {
       /**
