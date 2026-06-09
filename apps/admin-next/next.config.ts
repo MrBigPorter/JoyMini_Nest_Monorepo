@@ -209,7 +209,9 @@ const nextConfig: NextConfig = {
 // ECS Docker builds (deploy-admin-next-ecs.yml) don't set this flag,
 // so Sentry is fully bundled for server-side error reporting.
 const config = withBundleAnalyzer(withNextIntl(nextConfig));
-export default process.env.NODE_ENV === 'production' && process.env.SENTRY_BUILD_PLUGIN !== 'false'
+const shouldUseSentryPlugin =
+  process.env.NODE_ENV === 'production' && process.env.SENTRY_BUILD_PLUGIN !== 'false';
+export default shouldUseSentryPlugin
   ? withSentryConfig(config, {
       /**
        * Sentry 构建时插件配置。
