@@ -6,6 +6,7 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 
 import { PasswordService } from '@api/common/service/password.service';
 import { RecaptchaService } from '@api/common/recaptcha/recaptcha.service';
@@ -26,6 +27,7 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly passwordService: PasswordService,
     private readonly recaptchaService: RecaptchaService,
+    private readonly configService: ConfigService,
   ) {}
 
   // sign access token
@@ -354,6 +356,22 @@ export class AuthService {
     } catch {
       throw new UnauthorizedException('invalid refresh token');
     }
+  }
+
+  /**
+   * 生成 Grafana SSO token（用于 admin 面板导航到 Grafana 的免登录跳转）
+   * 使用 GRAFANA_AUTH_SECRET 签名 JWT，有效期 24h
+   */
+  async generateGrafanaToken(email: string): Promise<{ token: string }> {
+    const secret = this.configService.get<string>('GRAFANA_AUTH_SECRET');
+    if (!secret) {
+      throw new UnauthorizedException('Grafana SSO is not configured');
+    }
+    const token = await this.jwt.signAsync(
+      { email },
+      { secret, expiresIn: '24h' },
+    );
+    return { token };
   }
 
   /**

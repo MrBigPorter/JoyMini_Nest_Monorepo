@@ -141,6 +141,8 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           platforms: linux/amd64
+          build-args: |
+            GIT_SHA=${{ github.sha }}
           # ---- Docker layer GHA 缓存 ----
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -249,6 +251,14 @@ jobs:
           GHCR_TOKEN: ${{ secrets.VPS_GHCR_PAT }}
           GHCR_USER: ${{ github.repository_owner }}
           IMAGE: ${{ env.IMAGE_NAME }}:latest
+          # 以下3个 Secret 需要用户在 GitHub 仓库 Settings > Secrets and variables > Actions 中手动添加
+          # 从本地 deploy/.env.prod 复制对应的值：
+          #   EMAIL_OTP_TEST_EMAIL=mrsuperportertest@gmail.com
+          #   APPLE_PRIVATE_KEY_BASE64=<base64 of .p8 file>
+          #   GRAFANA_AUTH_SECRET=<your grafana auth secret>
+          EMAIL_OTP_TEST_EMAIL: ${{ secrets.EMAIL_OTP_TEST_EMAIL }}
+          APPLE_PRIVATE_KEY_BASE64: ${{ secrets.APPLE_PRIVATE_KEY_BASE64 }}
+          GRAFANA_AUTH_SECRET: ${{ secrets.GRAFANA_AUTH_SECRET }}
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USERNAME }}
@@ -257,10 +267,30 @@ jobs:
           timeout: 120s
           command_timeout: 30m
           debug: true
-          envs: GHCR_TOKEN,GHCR_USER,IMAGE,IMAGE_NAME
+          envs: GHCR_TOKEN,GHCR_USER,IMAGE,IMAGE_NAME,EMAIL_OTP_TEST_EMAIL,APPLE_PRIVATE_KEY_BASE64,GRAFANA_AUTH_SECRET
           script: |
             set -e
             cd /opt/lucky
+
+            # ── Helper: 写入/更新 .env.prod 中的环境变量 ──
+            upsert_env() {
+              local key="$1"
+              local val="$2"
+              local file="deploy/.env.prod"
+              if [ -z "$val" ]; then
+                echo "⏭️  ${key} 为空（未设置 Secret），跳过"
+                return 0
+              fi
+              # 如果已存在则替换，否则追加
+              if grep -q "^${key}=" "$file" 2>/dev/null; then
+                # 使用 # 作为 sed 分隔符（避免 key/value 中的 / 冲突）
+                sed -i "s#^${key}=.*#${key}=${val}#" "$file"
+                echo "✅ 已更新 ${key} 到 deploy/.env.prod"
+              else
+                echo "${key}=${val}" >> "$file"
+                echo "✅ 已追加 ${key} 到 deploy/.env.prod"
+              fi
+            }
 
             retry() {
               local max="$1"
@@ -295,6 +325,14 @@ jobs:
             # 2. 拉取新镜像
             echo "→ 拉取镜像: $IMAGE"
             retry 4 10 docker pull "$IMAGE"
+
+            # 2.5 同步关键环境变量到 VPS 的 .env.prod
+            #     deploy/.env.prod 在 .gitignore 中，CI/CD checkout 无法获取，
+            #     所以通过 SSH envs 传入 GitHub Secrets，用 sed 写入 VPS 文件。
+            echo "→ 同步关键环境变量到 deploy/.env.prod..."
+            upsert_env "EMAIL_OTP_TEST_EMAIL"    "$EMAIL_OTP_TEST_EMAIL"
+            upsert_env "APPLE_PRIVATE_KEY_BASE64" "$APPLE_PRIVATE_KEY_BASE64"
+            upsert_env "GRAFANA_AUTH_SECRET"      "$GRAFANA_AUTH_SECRET"
 
             # 3. 确保 db + redis 已就绪 (迁移前必须确保数据库运行)
             echo "→ 确保 PostgreSQL + Redis 已就绪..."

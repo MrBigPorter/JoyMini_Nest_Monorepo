@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpStatus,
   Post,
+  Req,
   Res,
   UseGuards,
 } from '@nestjs/common';
@@ -147,5 +148,17 @@ export class AuthController {
   clearAuthCookie(@Res({ passthrough: true }) res: Response) {
     res.clearCookie('auth_token', this.buildAdminCookieBaseOptions());
     return { ok: true };
+  }
+
+  /**
+   * 获取 Grafana SSO Token（用于 admin 面板导航到 Grafana 的免登录跳转）
+   * 返回 JWT token，前端拼接为 https://monitor.joyminis.com?token=<token>
+   */
+  @Get('admin/grafana-token')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  async getGrafanaToken(@Req() req: { user: { email: string } }) {
+    return this.auth.generateGrafanaToken(req.user.email);
   }
 }

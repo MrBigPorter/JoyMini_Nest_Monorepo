@@ -176,6 +176,8 @@ RUN rm -rf \
 # Stage 3: Production — 最终镜像
 # ============================================================
 FROM node:20-alpine AS production
+ARG GIT_SHA
+ENV APP_VERSION=$GIT_SHA
 WORKDIR /app
 
 # Alpine 运行时依赖: openssl (Prisma 查询引擎) + wget (健康检查)

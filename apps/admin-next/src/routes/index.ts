@@ -25,6 +25,7 @@ import {
   LogIn,
   SlidersHorizontal,
   Sparkles,
+  Activity,
 } from 'lucide-react';
 
 export type RouteGroup =
@@ -136,6 +137,12 @@ export const routes: RouteConfig[] = [
   },
 
   // System
+  {
+    path: '/monitor',
+    name: 'monitor',
+    icon: Activity,
+    group: 'System',
+  },
   { path: '/finance', name: 'finance', icon: Wallet, group: 'System' },
   {
     path: '/payment-channels',

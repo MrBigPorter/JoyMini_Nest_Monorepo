@@ -24,6 +24,10 @@ import * as lambdaEventSources from "aws-cdk-lib/aws-lambda-event-sources";
 import * as rds from "aws-cdk-lib/aws-rds";
 import * as apigatewayv2 from "aws-cdk-lib/aws-apigatewayv2";
 import * as apigatewayv2Integrations from "aws-cdk-lib/aws-apigatewayv2-integrations";
+import * as logs from "aws-cdk-lib/aws-logs";
+import * as iam from "aws-cdk-lib/aws-iam";
+import * as cloudtrail from "aws-cdk-lib/aws-cloudtrail";
+import * as wafv2 from "aws-cdk-lib/aws-wafv2";
 // import * as route53 from "aws-cdk-lib/aws-route53";
 // import * as route53Targets from "aws-cdk-lib/aws-route53-targets";
 
@@ -37,6 +41,66 @@ export class InfraStack extends cdk.Stack {
     this.vpc = new ec2.Vpc(this, "TarsierLabsVpc", {
       maxAzs: 2,
       natGateways: 0,
+    });
+
+    // ============================================
+    //  VPC Flow Logs — network traffic auditing
+    // ============================================
+    const flowLogLogGroup = new logs.LogGroup(this, "VpcFlowLogGroup", {
+      logGroupName: "/aws/vpc/tarsier-labs-flow-logs",
+      retention: logs.RetentionDays.ONE_YEAR,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
+    const flowLogRole = new iam.Role(this, "VpcFlowLogRole", {
+      assumedBy: new iam.ServicePrincipal("vpc-flow-logs.amazonaws.com"),
+      description: "Role for VPC Flow Logs to publish to CloudWatch Logs",
+    });
+    flowLogRole.addToPolicy(
+      new iam.PolicyStatement({
+        actions: [
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+          "logs:DescribeLogGroups",
+          "logs:DescribeLogStreams",
+        ],
+        resources: [flowLogLogGroup.logGroupArn],
+      }),
+    );
+
+    new ec2.FlowLog(this, "VpcFlowLog", {
+      resourceType: ec2.FlowLogResourceType.fromVpc(this.vpc),
+      destination: ec2.FlowLogDestination.toCloudWatchLogs(
+        flowLogLogGroup,
+        flowLogRole,
+      ),
+      trafficType: ec2.FlowLogTrafficType.ALL,
+      flowLogName: "tarsier-labs-vpc-flow-log",
+    });
+
+    // ============================================
+    //  CloudTrail — API activity auditing
+    // ============================================
+    const trailBucket = new s3.Bucket(this, "CloudTrailBucket", {
+      bucketName: `tarsier-labs-cloudtrail-${this.account}-${this.region}`,
+      encryption: s3.BucketEncryption.S3_MANAGED,
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      autoDeleteObjects: true,
+    });
+
+    new cloudtrail.Trail(this, "TarsierLabsCloudTrail", {
+      trailName: "tarsier-labs-cloudtrail",
+      sendToCloudWatchLogs: true,
+      cloudWatchLogGroup: new logs.LogGroup(this, "CloudTrailLogGroup", {
+        logGroupName: "/aws/cloudtrail/tarsier-labs",
+        retention: logs.RetentionDays.ONE_YEAR,
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
+      }),
+      bucket: trailBucket,
+      includeGlobalServiceEvents: true,
+      isMultiRegionTrail: true,
+      managementEvents: cloudtrail.ReadWriteType.ALL,
     });
 
     // ============================================
@@ -54,6 +118,88 @@ export class InfraStack extends cdk.Stack {
     const cluster = new ecs.Cluster(this, "TarsierLabsCluster", {
       vpc: this.vpc,
       clusterName: "tarsier-labs-cluster",
+    });
+
+    // ============================================
+    //  WAF WebACL — application-layer security
+    // ============================================
+    const webAcl = new wafv2.CfnWebACL(this, "TarsierLabsWebAcl", {
+      name: "tarsier-labs-web-acl",
+      description:
+        "WAF for Tarsier Labs ALB — rate limiting, SQLi, XSS, known bad inputs",
+      scope: "REGIONAL",
+      defaultAction: { allow: {} },
+      visibilityConfig: {
+        cloudWatchMetricsEnabled: true,
+        metricName: "tarsier-labs-web-acl",
+        sampledRequestsEnabled: true,
+      },
+      rules: [
+        {
+          name: "RateLimit",
+          priority: 1,
+          statement: {
+            rateBasedStatement: {
+              limit: 2000,
+              aggregateKeyType: "IP",
+            },
+          },
+          action: { block: {} },
+          visibilityConfig: {
+            cloudWatchMetricsEnabled: true,
+            metricName: "tarsier-labs-rate-limit",
+            sampledRequestsEnabled: true,
+          },
+        },
+        {
+          name: "AWSManagedRulesCommonRuleSet",
+          priority: 10,
+          statement: {
+            managedRuleGroupStatement: {
+              vendorName: "AWS",
+              name: "AWSManagedRulesCommonRuleSet",
+            },
+          },
+          overrideAction: { none: {} },
+          visibilityConfig: {
+            cloudWatchMetricsEnabled: true,
+            metricName: "tarsier-labs-aws-common",
+            sampledRequestsEnabled: true,
+          },
+        },
+        {
+          name: "AWSManagedRulesSQLiRuleSet",
+          priority: 20,
+          statement: {
+            managedRuleGroupStatement: {
+              vendorName: "AWS",
+              name: "AWSManagedRulesSQLiRuleSet",
+            },
+          },
+          overrideAction: { none: {} },
+          visibilityConfig: {
+            cloudWatchMetricsEnabled: true,
+            metricName: "tarsier-labs-sqli",
+            sampledRequestsEnabled: true,
+          },
+        },
+        {
+          name: "AWSManagedRulesKnownBadInputsRuleSet",
+          priority: 30,
+          statement: {
+            managedRuleGroupStatement: {
+              vendorName: "AWS",
+              name: "AWSManagedRulesKnownBadInputsRuleSet",
+            },
+          },
+          overrideAction: { none: {} },
+          visibilityConfig: {
+            cloudWatchMetricsEnabled: true,
+            metricName: "tarsier-labs-known-bad-inputs",
+            sampledRequestsEnabled: true,
+          },
+        },
+      ],
     });
 
     // 🔒 ALB Security Group
@@ -116,6 +262,12 @@ export class InfraStack extends cdk.Stack {
       port: 443,
       open: true,
       certificates: [tarsierCert],
+    });
+
+    // 🛡️ Associate WAF WebACL with ALB
+    new wafv2.CfnWebACLAssociation(this, "WebAclAlbAssociation", {
+      resourceArn: alb.loadBalancerArn,
+      webAclArn: webAcl.attrArn,
     });
 
     // 📋 Task Definition
@@ -221,7 +373,7 @@ export class InfraStack extends cdk.Stack {
       "Allow PostgreSQL access from within VPC",
     );
 
-    // RDS PostgreSQL 实例（PRIVATE_ISOLATED 子网 — 生产安全配置）
+    // RDS PostgreSQL 实例（Multi-AZ + 自动备份 + 自动扩容 — 生产安全配置）
     const dbInstance = new rds.DatabaseInstance(this, "TarsierLabsPostgres", {
       engine: rds.DatabaseInstanceEngine.postgres({
         version: rds.PostgresEngineVersion.VER_16,
@@ -238,10 +390,11 @@ export class InfraStack extends cdk.Stack {
       allocatedStorage: 20,
       maxAllocatedStorage: 100,
       storageType: rds.StorageType.GP3,
-      backupRetention: cdk.Duration.days(7),
-      deletionProtection: false,
+      backupRetention: cdk.Duration.days(30),
+      deletionProtection: true,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
-      multiAz: false,
+      multiAz: true,
+      autoMinorVersionUpgrade: true,
       publiclyAccessible: false,
       credentials: rds.Credentials.fromGeneratedSecret("postgres"),
       databaseName: "joymini",
