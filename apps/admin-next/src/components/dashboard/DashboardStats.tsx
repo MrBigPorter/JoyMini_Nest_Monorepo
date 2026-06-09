@@ -93,14 +93,10 @@ export async function DashboardStats({ locale: _locale }: { locale?: Locale }) {
   const [finance, usersRes] = await (async () => {
     // 并行请求，任一失败则 fallback 为 null
     return Promise.all([
-      serverGet<FinanceStatistics>(
-        '/v1/admin/finance/statistics',
-        undefined,
-        {
-          revalidate: 60,
-          tags: ['dashboard:stats', FINANCE_TAG, FINANCE_STATS_TAG],
-        },
-      ).catch(() => null),
+      serverGet<FinanceStatistics>('/v1/admin/finance/statistics', undefined, {
+        revalidate: 60,
+        tags: ['dashboard:stats', FINANCE_TAG, FINANCE_STATS_TAG],
+      }).catch(() => null),
       serverGet<PaginatedResponse<ClientUserListItem>>(
         '/v1/admin/client-user/list',
         { page: 1, pageSize: 1 },
