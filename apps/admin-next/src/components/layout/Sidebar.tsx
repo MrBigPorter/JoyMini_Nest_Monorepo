@@ -12,7 +12,7 @@ import { getRoleI18nKey } from '@/constants';
 import { routes, RouteConfig } from '@/routes';
 import { useRequest } from 'ahooks';
 import { motion, AnimatePresence } from 'framer-motion';
-import { applicationApi } from '@/api';
+import { applicationApi, authApi } from '@/api';
 import { useTranslation } from '@/hooks/useTranslation';
 
 const PENDING_APPLICATIONS_UPDATED_EVENT = 'applications:pending-updated';
@@ -24,7 +24,7 @@ const SidebarItem: React.FC<{
   label: string;
   isCollapsed: boolean;
   badge?: number;
-  onClick?: () => void;
+  onClick?: (e: React.MouseEvent) => void;
 }> = ({ to, icon, label, isCollapsed, badge, onClick }) => {
   const pathname = usePathname();
   const isActive =
@@ -123,6 +123,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
     };
   }, [canReviewApplications, refreshPendingCount]);
 
+  // Monitor nav handler — opens Grafana in a new tab with SSO token
+  const handleMonitorNav = React.useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      onMobileCloseAction?.();
+      authApi
+        .getGrafanaToken()
+        .then((res) => {
+          window.open(
+            `https://monitor.joyminis.com?token=${res.token}`,
+            '_blank',
+          );
+        })
+        .catch(() => {
+          addToast('error', 'Failed to open monitoring dashboard');
+        });
+    },
+    [onMobileCloseAction, addToast],
+  );
+
   const groupedRoutes = routes
     .filter((route) => !route.hidden)
     .reduce(
@@ -206,7 +227,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           ? (pendingData?.count ?? 0)
                           : undefined
                       }
-                      onClick={onMobileCloseAction}
+                      onClick={
+                        route.path === '/monitor'
+                          ? handleMonitorNav
+                          : onMobileCloseAction
+                      }
                     />
                   ))}
                 </div>

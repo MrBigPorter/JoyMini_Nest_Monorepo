@@ -680,6 +680,18 @@ export class OAuthDeepLinkController {
 
     if (!response.ok) {
       const errorText = await response.text();
+      // ── [DIAG] Apple OAuth 失败时的详细日志 ──
+      const clientId = this.configService.get<string>('APPLE_CLIENT_ID');
+      const keyExists = !!this.configService.get<string>('APPLE_PRIVATE_KEY_BASE64');
+      const rawKey = this.configService.get<string>('APPLE_PRIVATE_KEY') || '';
+      this.logger.warn(
+        `[DIAG] exchangeAppleCode FAILED status=${response.status} ` +
+        `error="${errorText}" ` +
+        `clientId="${clientId}" ` +
+        `APPLE_PRIVATE_KEY_BASE64_present=${keyExists} ` +
+        `APPLE_PRIVATE_KEY_length=${rawKey.length} ` +
+        `APPLE_PRIVATE_KEY_starts_with="${rawKey.substring(0, 35)}..."`,
+      );
       throw new OAuthProviderError(
         `Failed to exchange Apple code: ${response.status} - ${errorText}`,
         'apple',

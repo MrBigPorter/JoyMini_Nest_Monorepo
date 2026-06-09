@@ -587,6 +587,10 @@ export const authApi = {
       { refreshToken },
     ),
 
+  // 获取 Grafana SSO Token（用于 admin 面板导航到监控面板）
+  getGrafanaToken: () =>
+    http.get<{ token: string }>('/v1/auth/admin/grafana-token'),
+
   // 修改密码
   changePassword: (data: { oldPassword: string; newPassword: string }) =>
     http.post('/auth/change-password', data),

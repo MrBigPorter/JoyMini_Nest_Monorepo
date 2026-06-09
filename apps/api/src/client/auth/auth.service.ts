@@ -626,7 +626,7 @@ export class AuthService {
       throw new BadRequestException('code required');
     }
 
-    // === Test account OTP bypass for App Store review ===
+    // ── [DIAG] 日志：记录 EMAIL_OTP_TEST_EMAIL 配置状态 ──
     const testEmailsRaw =
       this.configService.get<string>('EMAIL_OTP_TEST_EMAIL') ?? '';
     const testEmails = testEmailsRaw
@@ -634,6 +634,13 @@ export class AuthService {
       .map((e) => e.trim().toLowerCase())
       .filter(Boolean);
     const isTestEmail = testEmails.includes(normalizedEmail);
+
+    this.logger.debug(
+      `[DIAG] loginWithEmailCode email=${normalizedEmail} ` +
+      `EMAIL_OTP_TEST_EMAIL="${testEmailsRaw}" ` +
+      `parsedTestEmails=[${testEmails.join(',')}] ` +
+      `isTestEmail=${isTestEmail}`,
+    );
 
     if (isTestEmail) {
       this.logger.log(
