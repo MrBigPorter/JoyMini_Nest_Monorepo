@@ -170,6 +170,10 @@ jobs:
           NEXT_PUBLIC_SENTRY_PROFILES_SAMPLE_RATE: ${{ github.ref_name == 'main' && '0.005' || github.ref_name == 'test' && '0.02' || '0' }}
           NEXT_PUBLIC_DEPLOYED_AT: ${{ steps.build_meta.outputs.deployed_at }}
           NEXT_PUBLIC_GIT_SHA: ${{ steps.build_meta.outputs.git_sha }}
+          # Skip Sentry webpack build plugin for Cloudflare Workers to keep bundle
+          # under 3 MiB free plan limit. Server-side Sentry (@sentry/node + @opentelemetry)
+          # is ~15 MiB when bundled. Client-side @sentry/browser is unaffected.
+          SENTRY_BUILD_PLUGIN: "false"
         run: |
           # -c is a wrangler flag (config file path), NOT an open-next flag.
           # opennextjs-cloudflare build auto-reads open-next.config.ts — no -c needed.

@@ -201,8 +201,15 @@ const nextConfig: NextConfig = {
 // Only apply Sentry config in production — in dev mode it adds unnecessary
 // overhead to every webpack/Turbopack compilation and can interfere with
 // hot module replacement.
+//
+// Cloudflare Workers builds (deploy-admin-cloudflare.yml) set
+// SENTRY_BUILD_PLUGIN=false to skip Sentry's webpack plugin entirely.
+// This prevents @sentry/node + @opentelemetry (~15 MiB) from being
+// bundled into the Worker, keeping it under Cloudflare's 3 MiB free plan limit.
+// ECS Docker builds (deploy-admin-next-ecs.yml) don't set this flag,
+// so Sentry is fully bundled for server-side error reporting.
 const config = withBundleAnalyzer(withNextIntl(nextConfig));
-export default process.env.NODE_ENV === 'production'
+export default process.env.NODE_ENV === 'production' && process.env.SENTRY_BUILD_PLUGIN !== 'false'
   ? withSentryConfig(config, {
       /**
        * Sentry 构建时插件配置。

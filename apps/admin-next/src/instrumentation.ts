@@ -68,15 +68,24 @@ export async function register() {
     // Cloudflare Workers edge runtime.
     // Dynamic import ensures the edge-compatible bundle is loaded (no Node.js deps).
     // NOTE: Cloudflare Workers edge runtime does not support Node native profilers.
-    const { init } = await import('@sentry/nextjs');
-    init({
-      dsn,
-      enabled,
-      environment: appEnv,
-      debug: sentryDebug,
-      tracesSampleRate,
-      sendDefaultPii: false,
-    });
+    //
+    // When SENTRY_BUILD_PLUGIN=false (Cloudflare Workers build), @sentry/nextjs
+    // is not bundled into the Worker. The try/catch ensures startup doesn't fail;
+    // Sentry server-side errors are silently ignored. Client-side @sentry/browser
+    // still captures browser errors regardless.
+    try {
+      const { init } = await import('@sentry/nextjs');
+      init({
+        dsn,
+        enabled,
+        environment: appEnv,
+        debug: sentryDebug,
+        tracesSampleRate,
+        sendDefaultPii: false,
+      });
+    } catch {
+      // Sentry not bundled — silent fallback for Cloudflare Workers
+    }
   }
 }
 
