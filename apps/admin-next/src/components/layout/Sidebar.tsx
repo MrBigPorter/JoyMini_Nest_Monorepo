@@ -123,7 +123,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
     };
   }, [canReviewApplications, refreshPendingCount]);
 
-  // Monitor nav handler — opens Grafana in a new tab with SSO token
+  // Monitor nav handler — opens Grafana Explore in a new tab with SSO token + pre-filtered Loki query
+  const MONITOR_URL =
+    process.env.NEXT_PUBLIC_MONITOR_URL ?? 'https://monitor.joyminis.com';
+
   const handleMonitorNav = React.useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault();
@@ -132,8 +135,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
       authApi
         .getGrafanaToken()
         .then((res) => {
+          const exploreState = {
+            datasource: 'Loki',
+            queries: [
+              {
+                refId: 'A',
+                expr: '{container=~".*lucky.*"}',
+              },
+            ],
+            range: {
+              from: 'now-1h',
+              to: 'now',
+            },
+          };
+          const leftParam = encodeURIComponent(JSON.stringify(exploreState));
           window.open(
-            `https://monitor.joyminis.com?token=${res.token}`,
+            `${MONITOR_URL}/explore?orgId=1&left=${leftParam}&token=${res.token}`,
             '_blank',
           );
         })
