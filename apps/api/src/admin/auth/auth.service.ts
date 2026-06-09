@@ -4,6 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import {
   BadRequestException,
   Injectable,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -365,7 +366,7 @@ export class AuthService {
   async generateGrafanaToken(email: string): Promise<{ token: string }> {
     const secret = this.configService.get<string>('GRAFANA_AUTH_SECRET');
     if (!secret) {
-      throw new UnauthorizedException('Grafana SSO is not configured');
+      throw new ServiceUnavailableException('Grafana SSO is not configured');
     }
     const token = await this.jwt.signAsync(
       { email },
