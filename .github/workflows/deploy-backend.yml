@@ -407,6 +407,14 @@ jobs:
               exit 1
             fi
 
+            # 8.1 同步本地标签 — 健康检查通过后才打标签，确保回滚时本地标签不被污染
+            #     compose.prod.yml 默认 image: ${BACKEND_IMAGE:-lucky-backend-prod:latest}
+            #     若不设置 BACKEND_IMAGE，docker compose 会使用本地 lucky-backend-prod:latest 标签。
+            #     健康检查通过后打标签，保证手动重启始终使用最新可用的 CI/CD 镜像。
+            #     回滚场景：健康检查失败 → rollback 用旧 SHA → 本地标签未变，不受影响。
+            echo "→ 同步本地标签: docker tag $IMAGE lucky-backend-prod:latest"
+            docker tag "$IMAGE" lucky-backend-prod:latest
+
             # 9. 启动 nginx (backend 健康后才能启动, depends_on: backend condition: service_healthy)
             echo "→ 启动 nginx..."
             docker compose -f compose.prod.yml --env-file deploy/.env.prod up -d --no-build nginx
