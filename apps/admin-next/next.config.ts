@@ -1,7 +1,6 @@
 import type { NextConfig } from 'next';
 import path from 'path';
 import BundleAnalyzer from '@next/bundle-analyzer';
-import { withSentryConfig } from '@sentry/nextjs';
 import createNextIntlPlugin from 'next-intl/plugin';
 
 const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
@@ -208,12 +207,20 @@ const nextConfig: NextConfig = {
 // bundled into the Worker, keeping it under Cloudflare's 3 MiB free plan limit.
 // ECS Docker builds (deploy-admin-next-ecs.yml) don't set this flag,
 // so Sentry is fully bundled for server-side error reporting.
+//
+// IMPORTANT: @sentry/nextjs is lazy-required rather than statically imported
+// at the top of this file. OpenNext's bundler includes every statically
+// imported package in the server handler, even if never called. Lazy require
+// ensures @sentry/nextjs (~15 MiB with @sentry/node + @opentelemetry) is
+// only loaded when SENTRY_BUILD_PLUGIN != 'false'.
 const config = withBundleAnalyzer(withNextIntl(nextConfig));
 const shouldUseSentryPlugin =
   process.env.NODE_ENV === 'production' &&
   process.env.SENTRY_BUILD_PLUGIN !== 'false';
+
 export default shouldUseSentryPlugin
-  ? withSentryConfig(config, {
+  ? // eslint-disable-next-line @typescript-eslint/no-var-requires
+    require('@sentry/nextjs').withSentryConfig(config, {
       /**
        * Sentry 构建时插件配置。
        * Sentry build-time plugin options.
