@@ -7623,8 +7623,6 @@ __metadata:
     "@opennextjs/cloudflare": "npm:^1.17.1"
     "@playwright/test": "npm:^1.58.2"
     "@repo/ui": "workspace:*"
-    "@sentry/browser": "npm:^10"
-    "@sentry/nextjs": "npm:^10"
     "@tailwindcss/postcss": "npm:^4.1.17"
     "@tanstack/react-query": "npm:^5.90.11"
     "@tanstack/react-table": "npm:^8.21.3"
@@ -11430,7 +11428,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@sentry/browser@npm:10.45.0, @sentry/browser@npm:^10":
+"@sentry/browser@npm:10.45.0":
   version: 10.45.0
   resolution: "@sentry/browser@npm:10.45.0"
   dependencies:
