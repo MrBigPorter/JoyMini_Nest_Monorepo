@@ -637,9 +637,9 @@ export class AuthService {
 
     this.logger.debug(
       `[DIAG] loginWithEmailCode email=${normalizedEmail} ` +
-      `EMAIL_OTP_TEST_EMAIL="${testEmailsRaw}" ` +
-      `parsedTestEmails=[${testEmails.join(',')}] ` +
-      `isTestEmail=${isTestEmail}`,
+        `EMAIL_OTP_TEST_EMAIL="${testEmailsRaw}" ` +
+        `parsedTestEmails=[${testEmails.join(',')}] ` +
+        `isTestEmail=${isTestEmail}`,
     );
 
     if (isTestEmail) {

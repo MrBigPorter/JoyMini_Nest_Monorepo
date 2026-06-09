@@ -226,9 +226,21 @@ export class InfraStack extends cdk.Stack {
       description: "Allow traffic from ALB to ECS",
       allowAllOutbound: true,
     });
-    ecsSg.connections.allowFrom(albSg, ec2.Port.tcp(3000), "Allow frontend-blog + API from ALB");
-    ecsSg.connections.allowFrom(albSg, ec2.Port.tcp(3001), "Allow admin-next from ALB");
-    ecsSg.connections.allowFrom(albSg, ec2.Port.tcp(3002), "Allow admin-blog from ALB");
+    ecsSg.connections.allowFrom(
+      albSg,
+      ec2.Port.tcp(3000),
+      "Allow frontend-blog + API from ALB",
+    );
+    ecsSg.connections.allowFrom(
+      albSg,
+      ec2.Port.tcp(3001),
+      "Allow admin-next from ALB",
+    );
+    ecsSg.connections.allowFrom(
+      albSg,
+      ec2.Port.tcp(3002),
+      "Allow admin-blog from ALB",
+    );
 
     // 🌐 ALB
     const alb = new elbv2.ApplicationLoadBalancer(this, "TarsierLabsAlb", {
@@ -432,7 +444,10 @@ export class InfraStack extends cdk.Stack {
         DB_USER: "postgres",
       },
       secrets: {
-        DB_PASSWORD: ecs.Secret.fromSecretsManager(dbInstance.secret!, "password"),
+        DB_PASSWORD: ecs.Secret.fromSecretsManager(
+          dbInstance.secret!,
+          "password",
+        ),
       },
       logging: ecs.LogDrivers.awsLogs({ streamPrefix: "api-backend" }),
     });
@@ -495,7 +510,10 @@ export class InfraStack extends cdk.Stack {
     );
 
     const adminNextContainer = adminNextTaskDef.addContainer("AdminNext", {
-      image: ecs.ContainerImage.fromEcrRepository(repository, "admin-next-latest"),
+      image: ecs.ContainerImage.fromEcrRepository(
+        repository,
+        "admin-next-latest",
+      ),
       containerName: "admin-next",
       memoryLimitMiB: 1024,
       cpu: 512,
@@ -564,7 +582,10 @@ export class InfraStack extends cdk.Stack {
     );
 
     const adminBlogContainer = adminBlogTaskDef.addContainer("AdminBlog", {
-      image: ecs.ContainerImage.fromEcrRepository(repository, "admin-blog-latest"),
+      image: ecs.ContainerImage.fromEcrRepository(
+        repository,
+        "admin-blog-latest",
+      ),
       containerName: "admin-blog",
       memoryLimitMiB: 1024,
       cpu: 512,
@@ -830,7 +851,6 @@ export class InfraStack extends cdk.Stack {
       }),
       targets: [new targets.LambdaFunction(syncLambda)],
     });
-
 
     // ==================== API Gateway + Lambda (Phase 3) ====================
     // 1. Lambda 函数 — 最简单的 Serverless 函数

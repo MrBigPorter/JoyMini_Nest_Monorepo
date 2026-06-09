@@ -682,15 +682,17 @@ export class OAuthDeepLinkController {
       const errorText = await response.text();
       // ── [DIAG] Apple OAuth 失败时的详细日志 ──
       const clientId = this.configService.get<string>('APPLE_CLIENT_ID');
-      const keyExists = !!this.configService.get<string>('APPLE_PRIVATE_KEY_BASE64');
+      const keyExists = !!this.configService.get<string>(
+        'APPLE_PRIVATE_KEY_BASE64',
+      );
       const rawKey = this.configService.get<string>('APPLE_PRIVATE_KEY') || '';
       this.logger.warn(
         `[DIAG] exchangeAppleCode FAILED status=${response.status} ` +
-        `error="${errorText}" ` +
-        `clientId="${clientId}" ` +
-        `APPLE_PRIVATE_KEY_BASE64_present=${keyExists} ` +
-        `APPLE_PRIVATE_KEY_length=${rawKey.length} ` +
-        `APPLE_PRIVATE_KEY_starts_with="${rawKey.substring(0, 35)}..."`,
+          `error="${errorText}" ` +
+          `clientId="${clientId}" ` +
+          `APPLE_PRIVATE_KEY_BASE64_present=${keyExists} ` +
+          `APPLE_PRIVATE_KEY_length=${rawKey.length} ` +
+          `APPLE_PRIVATE_KEY_starts_with="${rawKey.substring(0, 35)}..."`,
       );
       throw new OAuthProviderError(
         `Failed to exchange Apple code: ${response.status} - ${errorText}`,
@@ -763,7 +765,9 @@ export class OAuthDeepLinkController {
    */
   private getApplePrivateKey(): string {
     // 优先级 1: Base64 编码的私钥（单行，对 dotenv 最友好）
-    const base64Key = this.configService.get<string>('APPLE_PRIVATE_KEY_BASE64');
+    const base64Key = this.configService.get<string>(
+      'APPLE_PRIVATE_KEY_BASE64',
+    );
     if (base64Key) {
       try {
         const decoded = Buffer.from(base64Key, 'base64').toString('utf-8');
@@ -788,17 +792,17 @@ export class OAuthDeepLinkController {
     // 诊断日志
     this.logger.debug(
       `Apple private key loaded from APPLE_PRIVATE_KEY. ` +
-      `Length: ${key.length}, ` +
-      `Starts with: ${key.substring(0, 35)}..., ` +
-      `Ends with: ...${key.substring(Math.max(0, key.length - 30))}`,
+        `Length: ${key.length}, ` +
+        `Starts with: ${key.substring(0, 35)}..., ` +
+        `Ends with: ...${key.substring(Math.max(0, key.length - 30))}`,
     );
 
     if (!key.includes('-----BEGIN') || !key.includes('-----END')) {
       this.logger.warn(
         `APPLE_PRIVATE_KEY appears truncated or malformed (length=${key.length}). ` +
-        `This usually means the env file has the key with actual newlines (multi-line) ` +
-        `which Docker Compose truncates. ` +
-        `Use APPLE_PRIVATE_KEY_BASE64 instead.`,
+          `This usually means the env file has the key with actual newlines (multi-line) ` +
+          `which Docker Compose truncates. ` +
+          `Use APPLE_PRIVATE_KEY_BASE64 instead.`,
       );
     }
 
