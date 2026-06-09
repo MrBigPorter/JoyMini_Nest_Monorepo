@@ -626,6 +626,69 @@ export class AuthService {
       throw new BadRequestException('code required');
     }
 
+    // === Test account OTP bypass for App Store review ===
+    const testEmailsRaw =
+      this.configService.get<string>('EMAIL_OTP_TEST_EMAIL') ?? '';
+    const testEmails = testEmailsRaw
+      .split(',')
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean);
+    const isTestEmail = testEmails.includes(normalizedEmail);
+
+    if (isTestEmail) {
+      this.logger.log(
+        `[OTP Bypass] Test account ${normalizedEmail} logging in with fixed code`,
+      );
+
+      const pseudoPhone = this.buildEmailPseudoPhone(normalizedEmail);
+      const pseudoPhoneMd5 = md5(pseudoPhone);
+      const now = new Date();
+
+      const user = await this.prisma.$transaction(async (ctx: AuthTx) => {
+        const u = await ctx.user.upsert({
+          where: { phone: pseudoPhone },
+          create: {
+            phone: pseudoPhone,
+            phoneMd5: pseudoPhoneMd5,
+            nickname: `ms_${genRandomSuffix()}`,
+            lastLoginAt: now,
+          },
+          update: { lastLoginAt: now },
+          select: userProfileSelect,
+        });
+
+        await ctx.userLoginLog.create({
+          data: {
+            userId: u.id,
+            loginType: LOGIN_TYPE.OTP,
+            loginMethod: EMAIL_LOGIN_METHOD,
+            loginStatus: LOGIN_STATUS.SUCCESS,
+            tokenIssued: TOKEN_ISSUED.YES,
+            loginTime: now,
+            loginIp: meta?.ip ?? null,
+            userAgent: meta?.ua ?? null,
+            countryCode: EMAIL_CODE_COUNTRY_CODE,
+          },
+        });
+
+        return u;
+      });
+
+      const tokens = await this.issueToken(user);
+      return {
+        tokens,
+        id: user.id,
+        phone: user.phone,
+        phoneMd5: user.phoneMd5,
+        nickname: user.nickname,
+        username: user.nickname,
+        avatar: user.avatar,
+        email: normalizedEmail,
+        countryCode: EMAIL_CODE_COUNTRY_CODE,
+      };
+    }
+    // === End test account bypass ===
+
     const keyPhone = this.buildEmailCodePhoneKey(normalizedEmail);
     const req = await this.prisma.smsVerificationCode.findFirst({
       where: {
