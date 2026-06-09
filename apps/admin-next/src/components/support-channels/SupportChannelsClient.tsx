@@ -3,11 +3,6 @@
 import React, { useMemo, useState } from 'react';
 import { useRequest } from 'ahooks';
 import { chatApi, supportChannelApi } from '@/api';
-import {
-  SENTRY_SPAN_ATTR_KEY,
-  SENTRY_SPAN_NAME,
-} from '@/lib/sentry-span-constants';
-import { withUiActionSpan } from '@/lib/sentry-span';
 import type {
   CreateSupportChannelPayload,
   QuerySupportChannelsParams,
@@ -111,21 +106,12 @@ export function SupportChannels({
     }
     setSubmitting(true);
     try {
-      await withUiActionSpan(
-        SENTRY_SPAN_NAME.SUPPORT_CHANNEL_CREATE,
-        {
-          [SENTRY_SPAN_ATTR_KEY.SUPPORT_BUSINESS_ID_MODE]: businessIdMode,
-          [SENTRY_SPAN_ATTR_KEY.SUPPORT_BUSINESS_ID]: finalBusinessId,
-        },
-        async () => {
-          await supportChannelApi.create({
-            id: finalBusinessId,
-            name: form.name.trim(),
-            description: form.description?.trim() || undefined,
-            avatar: form.avatar?.trim() || undefined,
-          });
-        },
-      );
+      await supportChannelApi.create({
+        id: finalBusinessId,
+        name: form.name.trim(),
+        description: form.description?.trim() || undefined,
+        avatar: form.avatar?.trim() || undefined,
+      });
       addToast('success', t('supportChannels.created'));
       setCreating(false);
       setForm(DEFAULT_FORM);

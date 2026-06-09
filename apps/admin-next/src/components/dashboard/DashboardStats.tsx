@@ -15,11 +15,6 @@ import {
 } from 'lucide-react';
 import { Card } from '@/components/UIComponents';
 import { serverGet } from '@/lib/serverFetch';
-import {
-  SENTRY_SPAN_ATTR_KEY,
-  SENTRY_SPAN_NAME,
-} from '@/lib/sentry-span-constants';
-import { withSsrSpan } from '@/lib/sentry-span';
 import { FINANCE_STATS_TAG, FINANCE_TAG } from '@/lib/cache/finance-cache';
 import { getTranslations } from 'next-intl/server';
 import type { FinanceStatistics, ClientUserListItem } from '@/type/types';
@@ -95,30 +90,24 @@ export async function DashboardStats({ locale: _locale }: { locale?: Locale }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const t = (await getTranslations()) as any;
 
-  const [finance, usersRes] = await withSsrSpan(
-    SENTRY_SPAN_NAME.DASHBOARD_STATS_FETCH,
-    {
-      [SENTRY_SPAN_ATTR_KEY.APP_SECTION]: 'dashboard',
-    },
-    async () => {
-      // 并行请求，任一失败则 fallback 为 null
-      return Promise.all([
-        serverGet<FinanceStatistics>(
-          '/v1/admin/finance/statistics',
-          undefined,
-          {
-            revalidate: 60,
-            tags: ['dashboard:stats', FINANCE_TAG, FINANCE_STATS_TAG],
-          },
-        ).catch(() => null),
-        serverGet<PaginatedResponse<ClientUserListItem>>(
-          '/v1/admin/client-user/list',
-          { page: 1, pageSize: 1 },
-          { revalidate: 300, tags: ['dashboard:stats', 'admin:users'] },
-        ).catch(() => null),
-      ]);
-    },
-  );
+  const [finance, usersRes] = await (async () => {
+    // 并行请求，任一失败则 fallback 为 null
+    return Promise.all([
+      serverGet<FinanceStatistics>(
+        '/v1/admin/finance/statistics',
+        undefined,
+        {
+          revalidate: 60,
+          tags: ['dashboard:stats', FINANCE_TAG, FINANCE_STATS_TAG],
+        },
+      ).catch(() => null),
+      serverGet<PaginatedResponse<ClientUserListItem>>(
+        '/v1/admin/client-user/list',
+        { page: 1, pageSize: 1 },
+        { revalidate: 300, tags: ['dashboard:stats', 'admin:users'] },
+      ).catch(() => null),
+    ]);
+  })();
 
   const totalUsers = usersRes?.total ?? 0;
 

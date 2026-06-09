@@ -55,10 +55,6 @@ const nextConfig: NextConfig = {
   // Exclude build tools that bleed in via monorepo hoisting (e.g. @nestjs/cli → webpack).
   // These packages are only needed in apps/api — never at admin-next runtime.
   // Without this, Next.js file tracing picks up webpack + full toolchain (~4 MiB).
-  // Exclude Sentry Node.js + OpenTelemetry deps from file tracing.
-  // These are only needed at runtime when Sentry is actually initialized
-  // (via dynamic import() in instrumentation.ts register()). The file tracer
-  // should not pre-bundle them into the Worker, saving ~1-2 MiB.
   outputFileTracingExcludes: {
     '*': [
       './node_modules/webpack/**',
@@ -81,12 +77,6 @@ const nextConfig: NextConfig = {
       './node_modules/browserslist/**',
       './node_modules/baseline-browser-mapping/**',
       './node_modules/node-releases/**',
-      // Sentry Node.js SDK + OpenTelemetry — only needed at runtime when
-      // Sentry is actively capturing errors, not at build time
-      './node_modules/@sentry/node/**',
-      './node_modules/@sentry/opentelemetry/**',
-      './node_modules/@opentelemetry/**',
-      './node_modules/require-in-the-middle/**',
     ],
   },
 
@@ -143,8 +133,7 @@ const nextConfig: NextConfig = {
       );
     }
 
-    // Remove Sentry debug logging from production bundle
-    // Replaces deprecated disableLogger option
+    // Remove debug logging from production bundle
     if (!isServer) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const minimizer = config.optimization?.minimizer?.map((plugin: any) => {
@@ -177,78 +166,10 @@ const nextConfig: NextConfig = {
       };
     }
 
-    // 修复 Sentry + OpenTelemetry require-in-the-middle 动态 require 警告
-    config.plugins.push(
-      new webpack.ContextReplacementPlugin(/require-in-the-middle/, false),
-    );
-
-    // 忽略已知安全警告
-    config.ignoreWarnings = config.ignoreWarnings || [];
-    config.ignoreWarnings.push(
-      { module: /require-in-the-middle/ },
-      { module: /@opentelemetry\/instrumentation/ },
-      {
-        message:
-          /Critical dependency: require function is used in a way in which dependencies cannot be statically extracted/,
-      },
-    );
-
     return config;
   },
 };
 
-// Only apply Sentry config in production — in dev mode it adds unnecessary
-// overhead to every webpack/Turbopack compilation and can interfere with
-// hot module replacement.
-//
-// Cloudflare Workers builds (deploy-admin-cloudflare.yml) set
-// SENTRY_BUILD_PLUGIN=false to skip Sentry's webpack plugin entirely.
-// This prevents @sentry/node + @opentelemetry (~15 MiB) from being
-// bundled into the Worker, keeping it under Cloudflare's 3 MiB free plan limit.
-// ECS Docker builds (deploy-admin-next-ecs.yml) don't set this flag,
-// so Sentry is fully bundled for server-side error reporting.
-//
-// IMPORTANT: @sentry/nextjs is lazy-required rather than statically imported
-// at the top of this file. OpenNext's bundler includes every statically
-// imported package in the server handler, even if never called. Lazy require
-// ensures @sentry/nextjs (~15 MiB with @sentry/node + @opentelemetry) is
-// only loaded when SENTRY_BUILD_PLUGIN != 'false'.
 const config = withBundleAnalyzer(withNextIntl(nextConfig));
-const shouldUseSentryPlugin =
-  process.env.NODE_ENV === 'production' &&
-  process.env.SENTRY_BUILD_PLUGIN !== 'false';
 
-export default shouldUseSentryPlugin
-  ? // eslint-disable-next-line @typescript-eslint/no-var-requires
-    require('@sentry/nextjs').withSentryConfig(config, {
-      /**
-       * Sentry 构建时插件配置。
-       * Sentry build-time plugin options.
-       *
-       * org / project: 填入你的 Sentry 组织和项目 slug（Source Map 上传时需要）。
-       * 当 SENTRY_AUTH_TOKEN 未设置时，source map 上传会被自动跳过，不影响构建。
-       *
-       * org / project: fill in your Sentry org and project slugs (needed for source map upload).
-       * When SENTRY_AUTH_TOKEN is absent, source map upload is silently skipped — build still succeeds.
-       */
-      org: process.env.SENTRY_ORG,
-      project: process.env.SENTRY_PROJECT,
-
-      // 静默构建日志，避免 CI 日志污染
-      // Suppress verbose build output to keep CI logs clean
-      silent: !process.env.CI,
-
-      // 仅在提供 auth token 时上传 source map（避免无 token 时构建报错）
-      // Only upload source maps when auth token is available (no-op otherwise)
-      sourcemaps: {
-        disable: !process.env.SENTRY_AUTH_TOKEN,
-      },
-
-      // 关闭 Sentry 隧道路由（减少 Cloudflare Worker bundle + 路由复杂度）
-      // Disable Sentry tunnel route (reduces Cloudflare Worker bundle size + routing complexity)
-      tunnelRoute: undefined,
-
-      // 关闭自动 tree-shaking 日志（已在 Sentry.init 的 enabled 字段控制）
-      // disableLogger: true, // Deprecated, use webpack.treeshake.removeDebugLogging instead
-    })
-  : config;
+export default config;

@@ -5,12 +5,7 @@ import axios, {
   CanceledError,
   InternalAxiosRequestConfig,
 } from 'axios';
-import type { ApiResponse, RequestConfig, RequestTraceConfig } from './types'; // 注意：这里不要写 .ts 后缀
-import {
-  SENTRY_SPAN_ATTR_KEY,
-  SENTRY_SPAN_NAME,
-} from '@/lib/sentry-span-constants';
-import { withHttpClientSpan } from '@/lib/sentry-span';
+import type { ApiResponse, RequestConfig } from './types'; // 注意：这里不要写 .ts 后缀
 import { useToastStore } from '@/store/useToastStore';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -387,33 +382,12 @@ class HttpClient {
   }
 
   private traceRequest<T>(
-    method: string,
-    url: string,
-    config: RequestConfig | undefined,
+    _method: string,
+    _url: string,
+    _config: RequestConfig | undefined,
     fn: () => Promise<T>,
   ): Promise<T> {
-    const trace = config?.trace;
-
-    if (trace === false) {
-      return fn();
-    }
-
-    const traceConfig: RequestTraceConfig | undefined =
-      typeof trace === 'object' ? trace : undefined;
-
-    if (traceConfig?.enabled === false) {
-      return fn();
-    }
-
-    return withHttpClientSpan(
-      traceConfig?.name ?? SENTRY_SPAN_NAME.HTTP_CLIENT_REQUEST,
-      {
-        [SENTRY_SPAN_ATTR_KEY.HTTP_METHOD]: method.toUpperCase(),
-        [SENTRY_SPAN_ATTR_KEY.HTTP_ROUTE]: url,
-        ...traceConfig?.attributes,
-      },
-      fn,
-    );
+    return fn();
   }
 
   private async withRetry<T>(
