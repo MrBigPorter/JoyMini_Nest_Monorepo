@@ -25,6 +25,7 @@ import { BlogService } from '../blog.service';
 import { LanguageService } from '@api/common/services/language.service';
 import { CreateCommentDto } from '../dto/create-comment.dto';
 import { JwtAuthGuard } from '@api/common/jwt/jwt.guard';
+import { OptionalJwtAuthGuard } from '@api/common/jwt/option-jwt.guard';
 import { LikeDeduplicationGuard } from '../guards/like-deduplication.guard';
 
 @ApiTags('Frontend Blog')
@@ -257,16 +258,18 @@ export class FrontendBlogController {
   // ================= 评论接口 =================
 
   @Get('articles/:slug/comments')
+  @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({ summary: '文章评论列表（前端专用）' })
   @ApiResponse({ status: 200, description: '返回评论列表' })
   @ApiResponse({ status: 404, description: '文章不存在' })
-  @CacheTTL(60) // 缓存1分钟
   async getArticleComments(
     @Param('slug') slug: string,
     @Query('page', new ParseIntPipe({ optional: true })) page?: number,
     @Query('pageSize', new ParseIntPipe({ optional: true })) pageSize?: number,
+    @Req() req?: Request,
   ) {
-    return this.blogService.getArticleComments(slug, { page, pageSize });
+    const blockerId = (req as any)?.user?.id;
+    return this.blogService.getArticleComments(slug, { page, pageSize, blockerId });
   }
 
   @Post('articles/:slug/comments')
@@ -391,6 +394,28 @@ export class FrontendBlogController {
   @ApiResponse({ status: 404, description: '评论不存在' })
   async getCommentReplies(@Param('id') commentId: string) {
     return this.blogService.getCommentReplies(commentId);
+  }
+
+  @Post('comments/:id/flag')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Flag a comment for review' })
+  @ApiResponse({ status: 201, description: 'Flag recorded' })
+  async flagComment(
+    @Param('id') commentId: string,
+    @Req() req: Request,
+  ) {
+    return this.blogService.flagComment(commentId, req.user!.id);
+  }
+
+  @Post('comments/:id/block')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Block a comment author' })
+  @ApiResponse({ status: 201, description: 'User blocked' })
+  async blockCommentUser(
+    @Param('id') commentId: string,
+    @Req() req: Request,
+  ) {
+    return this.blogService.blockCommentUser(commentId, req.user!.id);
   }
 
   // ================= 点赞接口 =================
