@@ -1667,6 +1667,29 @@ model UserBookmark {
   @@map("user_bookmarks")
 }
 
+/// 评论举报记录
+model BlogCommentFlag {
+  id         String   @id @default(cuid()) @db.VarChar(32)
+  commentId  String   @db.VarChar(32)
+  reporterId String   @db.VarChar(32)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([commentId], map: "idx_blog_comment_flag_comment_id")
+  @@map("blog_comment_flags")
+}
+
+/// 用户拉黑记录
+model BlogUserBlock {
+  id            String   @id @default(cuid()) @db.VarChar(32)
+  blockerId     String   @db.VarChar(32)
+  blockedUserId String   @db.VarChar(32)
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@unique([blockerId, blockedUserId])
+  @@index([blockerId], map: "idx_blog_user_block_blocker_id")
+  @@map("blog_user_blocks")
+}
+
 /// 翻译任务日志
 model TranslationJob {
   id          String   @id @default(cuid()) @db.VarChar(32)

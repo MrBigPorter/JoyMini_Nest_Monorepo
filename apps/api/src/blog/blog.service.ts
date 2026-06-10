@@ -2048,24 +2048,36 @@ export class BlogService {
     });
     if (!article) throw new NotFoundException('Article not found');
 
-    const { page = 1, pageSize = 20 } = params;
+    const { page = 1, pageSize = 20, blockerId } = params;
 
     const skip = (page - 1) * pageSize;
 
-    // 获取所有已审核评论（包括回复）
+    // If user is authenticated, look up blocked authors to exclude
+    let blockedUserIds: string[] = [];
+    if (blockerId) {
+      const blocks = await this.prisma.blogUserBlock.findMany({
+        where: { blockerId },
+        select: { blockedUserId: true },
+      });
+      blockedUserIds = blocks.map((b) => b.blockedUserId);
+    }
+
+    const whereClause: any = {
+      articleId: article.id,
+      status: 'APPROVED',
+    };
+    if (blockedUserIds.length > 0) {
+      whereClause.author = { notIn: blockedUserIds };
+    }
+
+    // 获取所有已审核评论（包括回复），过滤已拉黑作者
     const [allComments, total] = await Promise.all([
       this.prisma.blogComment.findMany({
-        where: {
-          articleId: article.id,
-          status: 'APPROVED',
-        },
+        where: whereClause,
         orderBy: { createdAt: 'desc' },
       }),
       this.prisma.blogComment.count({
-        where: {
-          articleId: article.id,
-          status: 'APPROVED',
-        },
+        where: whereClause,
       }),
     ]);
 
@@ -2266,6 +2278,87 @@ export class BlogService {
       commentId,
       replies: processedReplies,
     };
+  }
+
+  /**
+   * Flag a comment for moderation review.
+   * Records the flag and logs a warning for developer attention.
+   */
+  async flagComment(commentId: string, reporterId: string) {
+    const comment = await this.prisma.blogComment.findUnique({
+      where: { id: commentId },
+      select: { id: true, content: true, articleId: true },
+    });
+
+    if (!comment) {
+      throw new NotFoundException(`Comment ${commentId} not found`);
+    }
+
+    await this.prisma.blogCommentFlag.create({
+      data: { commentId, reporterId },
+    });
+
+    this.logger.warn(
+      `[FLAG] commentId=${commentId}, reporterId=${reporterId}, content=${comment.content.slice(0, 50)}`,
+    );
+
+    return { success: true };
+  }
+
+  /**
+   * Block a user by their comment.
+   * Records the block and returns the blocked user's identifier
+   * so the frontend can instantly hide all their comments.
+   */
+  async blockCommentUser(commentId: string, blockerId: string) {
+    const comment = await this.prisma.blogComment.findUnique({
+      where: { id: commentId },
+      select: { id: true, author: true, articleId: true },
+    });
+
+    if (!comment) {
+      throw new NotFoundException(`Comment ${commentId} not found`);
+    }
+
+    const blockedUserId = comment.author;
+
+    if (blockedUserId === blockerId) {
+      throw new BadRequestException('Cannot block yourself');
+    }
+
+    await this.prisma.blogUserBlock.upsert({
+      where: { blockerId_blockedUserId: { blockerId, blockedUserId } },
+      create: { blockerId, blockedUserId },
+      update: {},
+    });
+
+    this.logger.log(
+      `[BLOCK] blockerId=${blockerId}, blockedUserId=${blockedUserId}`,
+    );
+
+    // Invalidate cache for this article's comments
+    try {
+      const article = await this.prisma.blogArticle.findUnique({
+        where: { id: comment.articleId },
+        select: { slug: true },
+      });
+      if (article?.slug) {
+        // Delete all cache keys matching the article's comment list pattern
+        const cacheKeys = await this.redisService.keys(
+          `*${article.slug}/comments*`,
+        );
+        if (cacheKeys.length > 0) {
+          await this.redisService.del(...cacheKeys);
+          this.logger.log(
+            `[BLOCK] Invalidated ${cacheKeys.length} cache keys for article slug=${article.slug}`,
+          );
+        }
+      }
+    } catch (err) {
+      this.logger.warn(`[BLOCK] Failed to invalidate cache: ${err}`);
+    }
+
+    return { blockedUserId };
   }
 
   /**
