@@ -13,6 +13,7 @@ import type { FrontendArticle } from '@/lib/types/frontend-blog';
 import { BookmarkIconButton } from '@/lib/components/BookmarkButton';
 import { BlurhashImage } from './BlurhashImage';
 import { isVideoUrl } from '@/lib/utils/media';
+import { getOptimizedImageUrl } from '@/lib/utils/cloudflareImageLoader';
 
 /**
  * HlsVideoPlayer is loaded client-side only.
@@ -88,23 +89,33 @@ export function ArticleCard({
   const coverImageUrl = article.coverImage || fallbackImage || '';
 
   // Predictive image prefetch via IntersectionObserver
-  // When card is 200px from viewport, warm the SW cache by loading the image
+  // When card is 200px from viewport, warm browser + SW cache with the
+  // CDN-optimized URL so that BlurhashImage can hit cache when it renders.
+  // Using the same getOptimizedImageUrl(width=1280) that BlurhashImage uses
+  // in fill mode ensures the cached variant matches what's displayed.
   useEffect(() => {
     if (!coverImageUrl || priority || isVideoUrl(coverImageUrl)) return;
 
     const el = cardRef.current;
     if (!el) return;
 
+    // Pre-compute the CDN-optimized URL matching BlurhashImage's fill mode
+    const optimizedUrl = getOptimizedImageUrl({
+      src: coverImageUrl,
+      width: 1280,
+      quality: 75,
+    });
+
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
           if (entry.isIntersecting) {
-            // Image is about to enter viewport — prefetch into SW cache
+            // Warm browser HTTP cache via Image() preload
             const img = new Image();
-            img.src = coverImageUrl;
-            // Also add to Service Worker cache via a fetch request
-            fetch(coverImageUrl, { mode: 'no-cors' }).catch(() => {
-              // Silent fail — SW will still cache if registered
+            img.src = optimizedUrl;
+            // Warm Service Worker cache via fetch (CORS mode — CDN supports it)
+            fetch(optimizedUrl, { mode: 'cors' }).catch(() => {
+              // Silent fail — cache is best-effort
             });
             observer.disconnect();
             break;

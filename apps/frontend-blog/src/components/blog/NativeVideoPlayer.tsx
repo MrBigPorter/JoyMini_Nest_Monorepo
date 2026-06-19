@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import { getOptimizedImageUrl } from '@/lib/utils/cloudflareImageLoader';
 
 interface NativeVideoPlayerProps {
   src: string;
@@ -20,6 +21,13 @@ export function NativeVideoPlayer({
   const videoRef = useRef<HTMLVideoElement>(null);
   const [clicked, setClicked] = useState(false);
 
+  // Transform poster through Cloudflare Image Resizing so it benefits
+  // from /cdn-cgi/image/ optimization (format selection + resizing).
+  // Matches the pattern used by HlsVideoPlayer.
+  const effectivePoster = poster
+    ? getOptimizedImageUrl({ src: poster, width: 1200, quality: 75 })
+    : undefined;
+
   const handleClick = () => {
     setClicked(true);
     // give React a tick to render the real <video>, then play
@@ -34,7 +42,7 @@ export function NativeVideoPlayer({
       <video
         ref={videoRef}
         src={src}
-        poster={poster}
+        poster={effectivePoster}
         controls
         playsInline
         preload="metadata"
@@ -44,14 +52,14 @@ export function NativeVideoPlayer({
     );
   }
 
-  /* ���─ Before click: poster + play button ── */
+  /* ── Before click: poster + play button ── */
   return (
     <div
       className={`relative cursor-pointer overflow-hidden rounded-lg bg-black ${className}`}
       style={
-        poster
+        effectivePoster
           ? {
-              backgroundImage: `url(${poster})`,
+              backgroundImage: `url(${effectivePoster})`,
               backgroundSize: 'cover',
               backgroundPosition: 'center',
             }
@@ -61,13 +69,13 @@ export function NativeVideoPlayer({
     >
       {/* Tint overlay */}
       <div
-        className={`absolute inset-0 ${poster ? 'bg-black/30' : 'bg-black/15'}`}
+        className={`absolute inset-0 ${effectivePoster ? 'bg-black/30' : 'bg-black/15'}`}
       />
 
       {/* Hidden video to give the container proper aspect-ratio height */}
       <video
         src={src}
-        poster={poster}
+        poster={effectivePoster}
         preload="none"
         className="w-full opacity-0 pointer-events-none"
         style={{ aspectRatio: '16/9' }}
