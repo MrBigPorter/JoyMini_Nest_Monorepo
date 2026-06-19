@@ -276,34 +276,38 @@ function wrapWideContent(html: string): string {
 function transformMediaUrls(html: string): string {
   let result = html;
 
-  // Transform <img src="..."> URLs
-  // Matches: <img ... src="https://img.joyminis.com/..." ...>
-  // Replaces the src value with a Cloudflare-optimized URL at 1200px width
-  // (covers both hero ~950px and inline article image ~800px scenarios)
+  // Transform <img src="..."> or <img src='...'> URLs
+  // Now supports both double-quoted and single-quoted src attributes
+  // (Quill editor normally uses double quotes, but some third-party HTML
+  //  generators or manual edits may produce single-quoted attributes).
+  // Groups:
+  //   1 = everything before src value (e.g. '<img class="a" src=')
+  //   2 = opening quote (" or ')
+  //   3 = the URL
+  //   4 = closing quote + rest of tag
   result = result.replace(
-    /(<img\s[^>]*?src\s*=\s*")([^"]+)("[^>]*?>)/gi,
-    (_match, prefix, srcUrl, suffix) => {
+    /(<img\s[^>]*?src\s*=\s*)(["'])([^"']+?)(\2[^>]*?>)/gi,
+    (_match, prefix, _quote, srcUrl, suffix) => {
       const optimized = getOptimizedImageUrl({
         src: srcUrl,
         width: 1200,
         quality: 75,
       });
-      return `${prefix}${optimized}${suffix}`;
+      return `${prefix}${_quote}${optimized}${suffix}`;
     },
   );
 
-  // Transform <video poster="..."> URLs
-  // Matches: <video ... poster="https://img.joyminis.com/..." ...>
-  // Replaces the poster value with a Cloudflare-optimized URL at 1200px width
+  // Transform <video poster="..."> or <video poster='...'> URLs
+  // Same single/double quote support as the img regex above
   result = result.replace(
-    /(<video\s[^>]*?poster\s*=\s*")([^"]+)("[^>]*?>)/gi,
-    (_match, prefix, posterUrl, suffix) => {
+    /(<video\s[^>]*?poster\s*=\s*)(["'])([^"']+?)(\2[^>]*?>)/gi,
+    (_match, prefix, _quote, posterUrl, suffix) => {
       const optimized = getOptimizedImageUrl({
         src: posterUrl,
         width: 1200,
         quality: 75,
       });
-      return `${prefix}${optimized}${suffix}`;
+      return `${prefix}${_quote}${optimized}${suffix}`;
     },
   );
 

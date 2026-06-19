@@ -25,6 +25,22 @@ interface BlurhashImageProps {
 const blurhashCache = new Map<string, string>();
 const BLURHASH_CACHE_MAX = 100;
 
+/**
+ * Module-level cache for "image has been loaded" state.
+ * Keyed by the CDN-optimized image URL.
+ *
+ * When BlurhashImage is remounted (e.g. React reconciliation switching
+ * displayArticles from initialData to allArticles), the component's
+ * useState(isLoaded=false) resets, causing the blurhash overlay to
+ * reappear over an already-loaded image. This cache persists across
+ * mounts within the same page session so we can restore isLoaded=true
+ * immediately.
+ *
+ * Limited to 200 entries to prevent memory leaks. Uses LRU eviction.
+ */
+const loadedImageCache = new Map<string, boolean>();
+const LOADED_IMAGE_CACHE_MAX = 200;
+
 function getCachedBlurhashUrl(
   hash: string,
   width: number,
@@ -109,6 +125,9 @@ function blurhashToDataUrl(
  * - Graceful error fallback with SVG placeholder
  * - Supports both fill (absolute positioning) and explicit dimensions modes
  */
+const _componentName = 'BlurhashImage';
+let _mountCounter = 0;
+
 export function BlurhashImage({
   src,
   alt,
@@ -122,30 +141,164 @@ export function BlurhashImage({
   sizes = '(max-width: 768px) 90vw, (max-width: 1024px) 45vw, 600px',
 }: BlurhashImageProps) {
   // Hooks MUST be called before any early return (Rules of Hooks)
-  const [isLoaded, setIsLoaded] = useState(false);
+
+  // DEBUG: per-instance id for log correlation
+  const instanceId = useRef(`bi-${++_mountCounter}`);
+  const renderCount = useRef(0);
+  renderCount.current++;
+
+  // DEBUG: log mount / unmount
+  useEffect(() => {
+    console.log(
+      `[${_componentName}:${instanceId.current}] MOUNT render#=${renderCount.current}`,
+      { src, blurhash, quality, fill, priority, alt: alt?.slice(0, 30) },
+    );
+    return () => {
+      console.log(
+        `[${_componentName}:${instanceId.current}] UNMOUNT render#=${renderCount.current}`,
+      );
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Pre-compute the CDN-optimized URL so we can use it as the cache key
+  // and avoid computing it inline in the JSX below.
+  const imageUrl = src
+    ? getOptimizedImageUrl({
+        src,
+        width: fill ? 1280 : width,
+        quality: quality ?? 75,
+      })
+    : undefined;
+
+  // DEBUG: log when imageUrl changes
+  const prevImageUrlRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (
+      prevImageUrlRef.current !== undefined &&
+      prevImageUrlRef.current !== imageUrl
+    ) {
+      console.log(
+        `[${_componentName}:${instanceId.current}] imageUrl CHANGED`,
+        {
+          from: prevImageUrlRef.current,
+          to: imageUrl,
+        },
+      );
+    }
+    prevImageUrlRef.current = imageUrl;
+  }, [imageUrl]);
+
+  // Check if this image was already loaded in a previous component instance.
+  // The loadedImageCache persists across mounts within the same page session,
+  // preventing the blurhash overlay from reappearing when React reconciliation
+  // causes a remount (e.g. displayArticles switching from initialData to allArticles).
+  const cacheHit = imageUrl ? loadedImageCache.has(imageUrl) : false;
+  const [isLoaded, setIsLoaded] = useState(cacheHit);
   const [hasError, setHasError] = useState(false);
   const [placeholderUrl, setPlaceholderUrl] = useState<string>('');
+  const imgRef = useRef<HTMLImageElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // DEBUG: log loadedImageCache state
+  console.log(
+    `[${_componentName}:${instanceId.current}] RENDER render#=${renderCount.current}`,
+    {
+      cacheHit,
+      isLoaded,
+      hasError,
+      hasPlaceholderUrl: !!placeholderUrl,
+      imageUrl: imageUrl?.slice(-60),
+      src: src?.slice(-40),
+      blurhash: blurhash?.slice(0, 12),
+      quality,
+    },
+  );
+
+  // Helper to mark an image URL as loaded in the module-level cache
+  const markLoaded = useCallback((url: string) => {
+    if (loadedImageCache.size >= LOADED_IMAGE_CACHE_MAX) {
+      const firstKey = loadedImageCache.keys().next().value;
+      if (firstKey) loadedImageCache.delete(firstKey);
+    }
+    loadedImageCache.set(url, true);
+    console.log(
+      `[${_componentName}:${instanceId.current}] image LOADED & cached`,
+      { url: url?.slice(-60) },
+    );
+  }, []);
 
   // Decode blurhash on mount (client-side only)
   // Uses global cache so re-mounts don't re-decode
   useEffect(() => {
     if (blurhash && typeof window !== 'undefined') {
+      console.log(
+        `[${_componentName}:${instanceId.current}] decoding blurhash`,
+        { blurhash: blurhash?.slice(0, 12) },
+      );
       const url = blurhashToDataUrl(blurhash, 32, 32);
       if (url) {
         setPlaceholderUrl(url);
+        console.log(
+          `[${_componentName}:${instanceId.current}] placeholderUrl set`,
+        );
+      } else {
+        console.warn(
+          `[${_componentName}:${instanceId.current}] blurhash decode returned empty`,
+        );
       }
+    } else {
+      console.log(
+        `[${_componentName}:${instanceId.current}] skipping blurhash decode`,
+        { blurhash: !!blurhash, hasWindow: typeof window !== 'undefined' },
+      );
     }
   }, [blurhash]);
 
+  // DEBUG: log isLoaded changes
+  const prevIsLoadedRef = useRef(isLoaded);
+  useEffect(() => {
+    if (prevIsLoadedRef.current !== isLoaded) {
+      console.log(
+        `[${_componentName}:${instanceId.current}] isLoaded CHANGED`,
+        {
+          from: prevIsLoadedRef.current,
+          to: isLoaded,
+        },
+      );
+    }
+    prevIsLoadedRef.current = isLoaded;
+  }, [isLoaded]);
+
+  // Check if the <img> element already completed loading BEFORE React
+  // attached the onLoad/onError handlers (e.g. SSR image loaded before
+  // hydration JS arrived, or browser cache served instantly).
+  // If img.complete is true, the load event already fired and was missed,
+  // so we must mark it as loaded manually.
+  useEffect(() => {
+    if (imgRef.current?.complete && imageUrl) {
+      console.log(
+        `[${_componentName}:${instanceId.current}] img.complete=true on mount (load event was missed), marking loaded`,
+      );
+      setIsLoaded(true);
+      markLoaded(imageUrl);
+    }
+  }, [imageUrl, markLoaded]);
+
   const handleLoad = useCallback(() => {
+    console.log(`[${_componentName}:${instanceId.current}] <img> onLoad FIRED`);
     setIsLoaded(true);
-  }, []);
+    if (imageUrl) markLoaded(imageUrl);
+  }, [imageUrl, markLoaded]);
 
   const handleError = useCallback(() => {
+    console.error(
+      `[${_componentName}:${instanceId.current}] <img> onError FIRED`,
+      { imageUrl: imageUrl?.slice(-60) },
+    );
     setHasError(true);
     setIsLoaded(true);
-  }, []);
+    if (imageUrl) markLoaded(imageUrl);
+  }, [imageUrl, markLoaded]);
 
   // If no src is provided, render a gradient placeholder
   if (!src) {
@@ -179,11 +332,8 @@ export function BlurhashImage({
       {/* Blurhash overlay sits on top (z-20) and fades out when image loads */}
       {!hasError ? (
         <img
-          src={getOptimizedImageUrl({
-            src,
-            width: fill ? 1280 : width,
-            quality: quality ?? 75,
-          })}
+          ref={imgRef}
+          src={imageUrl}
           alt={alt}
           width={fill ? undefined : width}
           height={fill ? undefined : height}
