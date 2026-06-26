@@ -214,10 +214,41 @@ services:
         condition: service_healthy
     networks: [app]
 
+  # =========================================
+  # Ollama 本地 LLM 服务（可选 — 生产环境）
+  # =========================================
+  # Ollama 是可选依赖，AiService 会自动降级到 DeepSeek/Groq/Gemini
+  #
+  # 生产环境建议在宿主机直接安装 Ollama（避免 Docker 额外开销）：
+  #   curl -fsSL https://ollama.com/install.sh | sh
+  #
+  # 取消注释以启用 Docker 方式：
+  #
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   container_name: joymini-ollama-prod
+  #   restart: unless-stopped
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: 4G
+  #       reservations:
+  #         memory: 1G
+  #   volumes:
+  #     - ollama_data:/root/.ollama
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 5
+  #     start_period: 120s
+  #   networks: [app]
+
 networks:
   app:
 
 volumes:
   db_data:
   redis_data:
+  ollama_data:
   nginx_cache:

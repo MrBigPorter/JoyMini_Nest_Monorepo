@@ -9,7 +9,8 @@
       "@api/*": ["src/*"],
       "@common/*": ["../common/src/*"],
       "@lucky/shared": ["../../packages/shared/dist/index"],
-      "@lucky/shared/*": ["../../packages/shared/dist/*"]
+      "@lucky/shared/*": ["../../packages/shared/dist/*"],
+      "@langchain/langgraph/prebuilt": ["../../node_modules/@langchain/langgraph/dist/prebuilt/index"]
     },
     "moduleResolution": "node",
     "strict": true,

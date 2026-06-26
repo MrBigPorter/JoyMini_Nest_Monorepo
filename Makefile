@@ -18,7 +18,10 @@
         aws-load-test aws-check-scaling aws-scaling-activities aws-check-cpu \
         aws-force-deploy aws-ecs-logs aws-ecs-exec aws-cost-check \
         aws-stop-all aws-start-all \
-        aws-sync-dlq-check aws-sync-dlq-purge
+        aws-sync-dlq-check aws-sync-dlq-purge \
+        ollama-start ollama-stop ollama-restart ollama-status ollama-logs \
+        ollama-pull ollama-list ollama-ps ollama-run ollama-rm \
+        ollama-test ollama-health
 
 .DEFAULT_GOAL := help
 
@@ -166,6 +169,105 @@ seed:
 ## [DB] Open Prisma Studio (web-based DB browser)
 prisma-studio:
 	docker compose exec backend yarn workspace @lucky/api prisma studio
+
+# ──────────────────────────────────────────
+# Ollama (Local LLM Service)
+# ──────────────────────────────────────────
+
+## [Ollama] 🚀 Start Ollama service (macOS via brew)
+ollama-start:
+	brew services start ollama
+
+## [Ollama] 🛑 Stop Ollama service
+ollama-stop:
+	brew services stop ollama
+
+## [Ollama] 🔄 Restart Ollama service
+ollama-restart:
+	brew services restart ollama
+
+## [Ollama] 📋 Check Ollama service status
+ollama-status:
+	brew services info ollama
+
+## [Ollama] 📝 View Ollama logs (tail -f)
+ollama-logs:
+	@echo "→ Viewing Ollama logs (Ctrl+C to exit)..."
+	@if [ -f ~/.ollama/ollama.log ]; then \
+		tail -f ~/.ollama/ollama.log; \
+	else \
+		echo "  ❌ Log file not found at ~/.ollama/ollama.log"; \
+		echo "  Try: make ollama-status"; \
+	fi
+
+## [Ollama] 📦 Pull recommended models (chat + embedding)
+ollama-pull:
+	@echo "→ Pulling recommended models..."
+	ollama pull qwen3.5:0.8b
+	ollama pull mxbai-embed-large
+	@echo "✓ Done! Run 'make ollama-list' to verify"
+
+## [Ollama] 📋 List downloaded models
+ollama-list:
+	ollama list
+
+## [Ollama] 🧠 Show currently loaded models (running in memory)
+ollama-ps:
+	ollama ps
+
+## [Ollama] 💬 Run a model interactively (usage: make ollama-run m=qwen3.5:0.8b)
+ollama-run:
+	@if [ -z "$(m)" ]; then \
+		echo "  Usage: make ollama-run m=qwen3.5:0.8b"; \
+		echo "  Available models: make ollama-list"; \
+		exit 1; \
+	fi
+	ollama run $(m)
+
+## [Ollama] 🗑️ Remove a model (usage: make ollama-rm m=qwen3.5:0.8b)
+ollama-rm:
+	@if [ -z "$(m)" ]; then \
+		echo "  Usage: make ollama-rm m=qwen3.5:0.8b"; \
+		echo "  Current models: make ollama-list"; \
+		exit 1; \
+	fi
+	@read -p "  Remove model '$(m)'? (y/N): " yn; \
+	if [ "$$yn" != "y" ] && [ "$$yn" != "Y" ]; then \
+		echo "  ❌ Cancelled"; \
+		exit 1; \
+	fi
+	ollama rm $(m)
+
+## [Ollama] 🌐 REST API health check (verify Ollama is responding)
+ollama-health:
+	@echo "→ Checking /api/tags (Ollama API)..."
+	@curl -s http://localhost:11434/api/tags | head -c 200
+	@echo ""
+	@echo "→ Checking /api/version..."
+	@curl -s http://localhost:11434/api/version
+	@echo ""
+
+## [Ollama] 🧪 Run quick inference test (verify a model works)
+ollama-test:
+	@if [ -z "$(m)" ]; then \
+		echo "  → Using default model: qwen3.5:0.8b"; \
+		$(MAKE) ollama-test-internal m=qwen3.5:0.8b; \
+	else \
+		$(MAKE) ollama-test-internal m=$(m); \
+	fi
+
+ollama-test-internal:
+	@echo "→ Testing model: $(m)"
+	@echo "   Prompt: 'Hello, respond with OK only'"
+	@echo "───────────────────────────────────────────"
+	@curl -s http://localhost:11434/api/generate \
+		-d '{"model": "$(m)", "prompt": "Hello, respond with OK only", "stream": false}' \
+		| python3 -c "import sys,json; print(json.load(sys.stdin).get('response','ERROR'))" 2>/dev/null || \
+		curl -s http://localhost:11434/api/generate \
+		-d "{\"model\": \"$(m)\", \"prompt\": \"Hello, respond with OK only\", \"stream\": false}" \
+		| grep -o '"response":"[^"]*"' | head -1
+	@echo "───────────────────────────────────────────"
+	@echo "✓ Test complete"
 
 # ──────────────────────────────────────────
 # Code Quality (lint / fix / audit)

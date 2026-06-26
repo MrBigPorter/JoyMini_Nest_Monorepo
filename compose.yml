@@ -58,6 +58,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      ollama:
+        condition: service_started
     networks: [app]
 
   # =========================================
@@ -305,12 +307,34 @@ services:
       retries: 10
     networks: [app]
 
+  # =========================================
+  # Ollama 本地 LLM 服务（开发环境）
+  # =========================================
+  # macOS 上 Docker 无法使用 GPU 透传，推理在 CPU 上进行
+  # 线上 Linux 服务器可使用 --gpus all 启用 GPU 加速
+  ollama:
+    image: ollama/ollama:latest
+    container_name: joymini-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list 2>/dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    restart: unless-stopped
+    networks: [app]
+
 networks:
   app:
 
 volumes:
   db_data:
   redis_data:
+  ollama_data:
   backend_nm:
   admin_next_nm:
   admin_blog_nm:
