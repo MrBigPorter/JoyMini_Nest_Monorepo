@@ -9,9 +9,7 @@ export class AiCustomerService {
   private readonly logger = new Logger(AiCustomerService.name);
   private compiledGraph: ReturnType<typeof buildCustomerGraph> | null = null;
 
-  constructor(
-    private readonly aiService: AiService,
-  ) {}
+  constructor(private readonly aiService: AiService) {}
 
   /**
    * 应用启动时初始化图谱
@@ -63,16 +61,18 @@ export class AiCustomerService {
     );
   }
 
-  async testIntent(userMessage: string): Promise<{ intent: string }> {
-    this.logger.log(`Testing intent classification: "${userMessage}"`);
+  async testChat(message: string, userId: string) {
+    this.logger.log(`Testing chat classification: "${message}"`);
     const result = await intentRouterNode({
-      messages: [new HumanMessage(userMessage)],
+      messages: [new HumanMessage(message)],
       intent: '',
       agentSteps: [],
       agentOutput: '',
       sources: [],
-      userId: '',
+      userId: userId,
     });
-    return { intent: result.intent ?? '' };
+    return {
+      intent: result.intent ?? '',
+    };
   }
 }

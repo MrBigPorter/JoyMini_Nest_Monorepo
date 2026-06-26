@@ -1,5 +1,4 @@
 import { TimeHelper } from "../date/TimeHelper";
-import crypto from "node:crypto";
 /**
  * 业务前缀枚举
  * 统一管理所有单据的前缀，拒绝硬编码
@@ -54,10 +53,17 @@ export class OrderNoHelper {
   // Private Helpers
   // ==========================================
 
-  /** 把 userId 映射成固定长度数字串（用于分库路由） */
+  /**
+   * 把 userId 映射成固定长度数字串（用于分库路由）
+   * 使用 DJB2 字符串哈希（非加密），兼容 Node.js 和浏览器环境
+   * 注意：此 hash 仅用于路由/分表，非安全用途
+   */
   private static _hashToDigits(input: string, len: number): string {
-    const hash = crypto.createHash("sha256").update(input).digest();
-    const n = hash.readUInt32BE(0) % 10 ** len;
+    let hash = 5381;
+    for (let i = 0; i < input.length; i++) {
+      hash = (hash * 33) ^ input.charCodeAt(i);
+    }
+    const n = Math.abs(hash) % 10 ** len;
     return n.toString().padStart(len, "0");
   }
 

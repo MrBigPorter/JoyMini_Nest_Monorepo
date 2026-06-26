@@ -11,6 +11,6 @@ import { LuckyDrawModule } from '@api/common/lucky-draw/lucky-draw.module';
   imports: [PrismaModule, WalletModule, GroupModule, LuckyDrawModule],
   controllers: [OrderController],
   providers: [OrderService, PrismaService],
-  exports: [],
+  exports: [OrderService],
 })
 export class OrderModule {}

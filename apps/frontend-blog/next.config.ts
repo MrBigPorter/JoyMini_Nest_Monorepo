@@ -1,5 +1,4 @@
 import type { NextConfig } from 'next';
-import path from 'path';
 import BundleAnalyzer from '@next/bundle-analyzer';
 import { withSentryConfig } from '@sentry/nextjs';
 import createNextIntlPlugin from 'next-intl/plugin';
@@ -355,17 +354,6 @@ const baseConfig: NextConfig = {
         buffer: false,
       };
 
-      config.plugins.push(
-        new webpack.NormalModuleReplacementPlugin(
-          /^node:crypto$/,
-          (resource: { request: string }) => {
-            resource.request = path.resolve(
-              __dirname,
-              './src/lib/crypto-shim.ts',
-            );
-          },
-        ),
-      );
     }
 
     if (!isServer) {
