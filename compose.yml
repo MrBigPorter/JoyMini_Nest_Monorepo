@@ -58,8 +58,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      ollama:
-        condition: service_started
+      # ollama:            # [DISABLED] 当前使用 online 模式
+      #   condition: service_started
     networks: [app]
 
   # =========================================
@@ -308,25 +308,26 @@ services:
     networks: [app]
 
   # =========================================
-  # Ollama 本地 LLM 服务（开发环境）
+  # [DISABLED] Ollama 本地 LLM 服务 — 当前使用 online (DeepSeek) 模式
   # =========================================
   # macOS 上 Docker 无法使用 GPU 透传，推理在 CPU 上进行
   # 线上 Linux 服务器可使用 --gpus all 启用 GPU 加速
-  ollama:
-    image: ollama/ollama:latest
-    container_name: joymini-ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-    healthcheck:
-      test: ["CMD-SHELL", "ollama list 2>/dev/null || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 120s
-    restart: unless-stopped
-    networks: [app]
+  # 如需启用，取消注释以下 ollama 服务块，并在 backend depends_on 中取消 ollama 的注释
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   container_name: joymini-ollama
+  #   ports:
+  #     - "11434:11434"
+  #   volumes:
+  #     - ollama_data:/root/.ollama
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "ollama list 2>/dev/null || exit 1"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 5
+  #     start_period: 120s
+  #   restart: unless-stopped
+  #   networks: [app]
 
 networks:
   app:
@@ -334,7 +335,7 @@ networks:
 volumes:
   db_data:
   redis_data:
-  ollama_data:
+  # ollama_data:  # 与 ollama 服务关联，ollama 禁用后不再需要
   backend_nm:
   admin_next_nm:
   admin_blog_nm:

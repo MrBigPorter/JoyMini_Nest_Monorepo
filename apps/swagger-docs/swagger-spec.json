@@ -452,6 +452,33 @@
         ]
       }
     },
+    "/auth/account/data": {
+      "delete": {
+        "operationId": "AuthController_clearUserData",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClearUserDataResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Clear all user data and soft-delete account",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/auth/google/login": {
       "get": {
         "operationId": "OAuthDeepLinkController_googleLogin",
@@ -1456,6 +1483,30 @@
         ]
       }
     },
+    "/auth/admin/test-login": {
+      "post": {
+        "operationId": "AuthController_testLoginAdmin",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminTestLoginDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin Auth Management"
+        ]
+      }
+    },
     "/auth/admin/refresh": {
       "post": {
         "operationId": "AuthController_refreshAdminToken",
@@ -1544,6 +1595,25 @@
             "description": ""
           }
         },
+        "tags": [
+          "admin Auth Management"
+        ]
+      }
+    },
+    "/auth/admin/grafana-token": {
+      "get": {
+        "operationId": "AuthController_getGrafanaToken",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "tags": [
           "admin Auth Management"
         ]
@@ -10291,6 +10361,129 @@
         ]
       }
     },
+    "/frontend/blog/comments/{id}/flag": {
+      "post": {
+        "operationId": "FrontendBlogController_flagComment",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Flag recorded"
+          }
+        },
+        "summary": "Flag a comment for review",
+        "tags": [
+          "Frontend Blog"
+        ]
+      }
+    },
+    "/frontend/blog/comments/{id}/block": {
+      "post": {
+        "operationId": "FrontendBlogController_blockCommentUser",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "User blocked"
+          }
+        },
+        "summary": "Block a comment author",
+        "tags": [
+          "Frontend Blog"
+        ]
+      }
+    },
+    "/frontend/blog/articles/{slug}/like": {
+      "post": {
+        "operationId": "FrontendBlogController_likeArticle",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "点赞成功"
+          },
+          "429": {
+            "description": "24小时内已点赞过该文章"
+          }
+        },
+        "summary": "点赞文章（带去重保护）",
+        "tags": [
+          "Frontend Blog"
+        ]
+      }
+    },
+    "/frontend/blog/articles/{slug}/unlike": {
+      "post": {
+        "operationId": "FrontendBlogController_unlikeArticle",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "取消点赞成功"
+          }
+        },
+        "summary": "取消点赞",
+        "tags": [
+          "Frontend Blog"
+        ]
+      }
+    },
+    "/frontend/blog/articles/{slug}/like-status": {
+      "get": {
+        "operationId": "FrontendBlogController_checkLikeStatus",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "返回点赞状态"
+          }
+        },
+        "summary": "检查文章点赞状态",
+        "tags": [
+          "Frontend Blog"
+        ]
+      }
+    },
     "/frontend/blog/bookmarks": {
       "get": {
         "operationId": "BookmarkController_getBookmarks",
@@ -10314,13 +10507,11 @@
             }
           },
           {
-            "name": "locale",
+            "name": "lang",
             "required": false,
             "in": "query",
-            "description": "语言代码，默认为zh",
-            "schema": {
-              "type": "string"
-            }
+            "description": "语言代码，默认为zh，支持 lang 或 locale 参数",
+            "schema": {}
           }
         ],
         "responses": {
@@ -10950,6 +11141,36 @@
           "Admin Blog - Comments"
         ]
       }
+    },
+    "/ai/customer/test-chat": {
+      "post": {
+        "operationId": "AiCustomerController_testChat",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestChatDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Test AI customer intent classification",
+        "tags": [
+          "AI Customer"
+        ]
+      }
     }
   },
   "info": {
@@ -11452,6 +11673,28 @@
         },
         "required": [
           "idToken"
+        ]
+      },
+      "ClearUserDataResponseDto": {
+        "type": "object",
+        "properties": {
+          "accountDeleted": {
+            "type": "boolean",
+            "description": "Whether the account was soft-deleted"
+          },
+          "anonymizedComments": {
+            "type": "number",
+            "description": "Number of comments anonymized"
+          },
+          "deletedBookmarks": {
+            "type": "number",
+            "description": "Number of bookmarks deleted"
+          }
+        },
+        "required": [
+          "accountDeleted",
+          "anonymizedComments",
+          "deletedBookmarks"
         ]
       },
       "CategoryItemDto": {
@@ -12150,6 +12393,25 @@
           "password"
         ]
       },
+      "AdminTestLoginDto": {
+        "type": "object",
+        "properties": {
+          "test": {
+            "type": "string",
+            "description": "test identifier (admin username)",
+            "example": "demo_viewer"
+          },
+          "code": {
+            "type": "string",
+            "description": "test verification code",
+            "example": "test8888"
+          }
+        },
+        "required": [
+          "test",
+          "code"
+        ]
+      },
       "AdminRefreshTokenDto": {
         "type": "object",
         "properties": {
@@ -12354,8 +12616,14 @@
         "properties": {
           "treasureName": {
             "type": "string",
-            "description": "treasureName",
-            "example": "Ancient Vase"
+            "description": "商品封面名称",
+            "example": "Ancient Vase",
+            "x-field-meta": {
+              "label": {
+                "zh": "商品封面名称",
+                "en": "Treasure Name"
+              }
+            }
           },
           "treasureCoverImg": {
             "type": "string",
@@ -12369,13 +12637,35 @@
           },
           "productName": {
             "type": "string",
-            "description": "productName",
-            "example": "Vase Product"
+            "description": "产品名称",
+            "example": "Vase Product",
+            "x-field-meta": {
+              "label": {
+                "zh": "产品名称",
+                "en": "Product Name"
+              }
+            }
           },
           "virtual": {
             "type": "number",
-            "description": "isVirtual",
-            "example": 1
+            "description": "商品类型 (1=虚拟商品, 2=实体商品)",
+            "example": 1,
+            "x-field-meta": {
+              "label": {
+                "zh": "商品类型",
+                "en": "Product Type"
+              },
+              "enum": {
+                "1": {
+                  "zh": "虚拟商品",
+                  "en": "Virtual Product"
+                },
+                "2": {
+                  "zh": "实体商品",
+                  "en": "Physical Product"
+                }
+              }
+            }
           },
           "cashAmount": {
             "type": "string",
@@ -12450,13 +12740,26 @@
           },
           "orderNo": {
             "type": "string",
-            "description": "Order No",
-            "example": "202406010001"
+            "description": "订单编号",
+            "example": "202406010001",
+            "x-field-meta": {
+              "label": {
+                "zh": "订单编号",
+                "en": "Order No"
+              }
+            }
           },
           "createdAt": {
             "type": "number",
-            "description": "createdAt",
-            "example": 1704067200000
+            "description": "下单时间",
+            "example": 1704067200000,
+            "x-field-meta": {
+              "label": {
+                "zh": "下单时间",
+                "en": "Order Time"
+              },
+              "type": "date"
+            }
           },
           "updatedAt": {
             "type": "number",
@@ -12465,8 +12768,14 @@
           },
           "buyQuantity": {
             "type": "number",
-            "description": "buyQuantity",
-            "example": 2
+            "description": "购买数量",
+            "example": 2,
+            "x-field-meta": {
+              "label": {
+                "zh": "购买数量",
+                "en": "Quantity"
+              }
+            }
           },
           "treasureId": {
             "type": "string",
@@ -12475,61 +12784,204 @@
           },
           "unitPrice": {
             "type": "string",
-            "description": "unitPrice",
-            "example": "9.99"
+            "description": "单价",
+            "example": "9.99",
+            "x-field-meta": {
+              "label": {
+                "zh": "单价",
+                "en": "Unit Price"
+              },
+              "type": "amount"
+            }
           },
           "originalAmount": {
             "type": "string",
-            "description": "originalAmount",
-            "example": "19.98"
+            "description": "原价",
+            "example": "19.98",
+            "x-field-meta": {
+              "label": {
+                "zh": "原价",
+                "en": "Original Amount"
+              },
+              "type": "amount"
+            }
           },
           "discountAmount": {
             "type": "string",
-            "description": "discountAmount",
-            "example": "2.00"
+            "description": "折扣金额",
+            "example": "2.00",
+            "x-field-meta": {
+              "label": {
+                "zh": "折扣金额",
+                "en": "Discount"
+              },
+              "type": "amount"
+            }
           },
           "couponAmount": {
             "type": "string",
-            "description": "couponAmount",
-            "example": "3.00"
+            "description": "优惠券抵扣",
+            "example": "3.00",
+            "x-field-meta": {
+              "label": {
+                "zh": "优惠券抵扣",
+                "en": "Coupon"
+              },
+              "type": "amount"
+            }
           },
           "coinAmount": {
             "type": "string",
-            "description": "coinAmount",
-            "example": "5.00"
+            "description": "金币抵扣",
+            "example": "5.00",
+            "x-field-meta": {
+              "label": {
+                "zh": "金币抵扣",
+                "en": "Coins"
+              },
+              "type": "amount"
+            }
           },
           "finalAmount": {
             "type": "string",
-            "description": "finalAmount",
-            "example": "9.98"
+            "description": "实付金额",
+            "example": "9.98",
+            "x-field-meta": {
+              "label": {
+                "zh": "实付金额",
+                "en": "Amount"
+              },
+              "type": "amount"
+            }
           },
           "orderStatus": {
             "type": "number",
-            "description": "orderStatus",
-            "example": 1
+            "description": "订单状态 (1=待支付, 2=支付中, 3=已支付, 4=已取消, 5=已退款, 6=待成团, 7=待发货, 8=已发货, 9=已完成)",
+            "example": 1,
+            "x-field-meta": {
+              "label": {
+                "zh": "订单状态",
+                "en": "Order Status"
+              },
+              "enum": {
+                "1": {
+                  "zh": "待支付",
+                  "en": "Pending Payment"
+                },
+                "2": {
+                  "zh": "支付中",
+                  "en": "Processing Payment"
+                },
+                "3": {
+                  "zh": "已支付",
+                  "en": "Paid"
+                },
+                "4": {
+                  "zh": "已取消",
+                  "en": "Cancelled"
+                },
+                "5": {
+                  "zh": "已退款",
+                  "en": "Refunded"
+                },
+                "6": {
+                  "zh": "待成团",
+                  "en": "Waiting for Group"
+                },
+                "7": {
+                  "zh": "待发货",
+                  "en": "Ready to Ship"
+                },
+                "8": {
+                  "zh": "已发货",
+                  "en": "Shipped"
+                },
+                "9": {
+                  "zh": "已完成",
+                  "en": "Completed"
+                }
+              }
+            }
           },
           "payStatus": {
             "type": "number",
-            "description": "payStatus",
-            "example": 1
+            "description": "支付状态 (0=未支付, 1=已支付, 2=支付失败)",
+            "example": 1,
+            "x-field-meta": {
+              "label": {
+                "zh": "支付状态",
+                "en": "Payment Status"
+              },
+              "enum": {
+                "0": {
+                  "zh": "未支付",
+                  "en": "Unpaid"
+                },
+                "1": {
+                  "zh": "已支付",
+                  "en": "Paid"
+                },
+                "2": {
+                  "zh": "支付失败",
+                  "en": "Failed"
+                }
+              }
+            }
           },
           "refundStatus": {
             "type": "number",
-            "description": "refundStatus",
-            "example": 0
+            "description": "退款状态 (0=未退款, 1=退款中, 2=已退款, 3=退款失败)",
+            "example": 0,
+            "x-field-meta": {
+              "label": {
+                "zh": "退款状态",
+                "en": "Refund Status"
+              },
+              "enum": {
+                "0": {
+                  "zh": "未退款",
+                  "en": "No Refund"
+                },
+                "1": {
+                  "zh": "退款中",
+                  "en": "Refunding"
+                },
+                "2": {
+                  "zh": "已退款",
+                  "en": "Refunded"
+                },
+                "3": {
+                  "zh": "退款失败",
+                  "en": "Refund Failed"
+                }
+              }
+            }
           },
           "paidAt": {
             "type": "number",
-            "description": "paidAt",
-            "example": null
+            "description": "支付时间",
+            "example": null,
+            "x-field-meta": {
+              "label": {
+                "zh": "支付时间",
+                "en": "Payment Time"
+              },
+              "type": "date"
+            }
           },
           "treasure": {
-            "description": "treasure",
+            "description": "商品信息",
             "allOf": [
               {
                 "$ref": "#/components/schemas/TreasureDTo"
               }
-            ]
+            ],
+            "x-field-meta": {
+              "label": {
+                "zh": "商品信息",
+                "en": "Product Info"
+              }
+            }
           },
           "group": {
             "description": "groupInfo",
@@ -18486,6 +18938,18 @@
         },
         "required": [
           "content"
+        ]
+      },
+      "TestChatDto": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "Message"
+          }
+        },
+        "required": [
+          "message"
         ]
       }
     }

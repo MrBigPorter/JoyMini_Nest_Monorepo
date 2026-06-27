@@ -21,3 +21,4 @@ export * from "./constants/business.constants";
 export * from "./constants/kyc.constants";
 export * from "./config/rbac.config";
 export * from "./im/constants";
+export * from "./decorators/field-meta";

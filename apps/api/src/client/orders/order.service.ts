@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { WalletService } from '@api/client/wallet/wallet.service';
-import { Prisma } from '@prisma/client';
+import { Order, Prisma } from '@prisma/client';
 import { CheckoutDto } from '@api/client/orders/dto/checkout.dto';
 import {
   BizPrefix,
@@ -26,8 +26,16 @@ import { LuckyDrawService } from '@api/common/lucky-draw/lucky-draw.service';
 
 const D = (n: number | string) => new Prisma.Decimal(n);
 
+export interface IOrderService {
+  listOrders(
+    userId: string,
+    query: { status?: string; page?: number; pageSize?: number },
+  ): Promise<any>;
+  getOrderDetail(userId: string, orderId: string): Promise<any>;
+}
+
 @Injectable()
-export class OrderService {
+export class OrderService implements IOrderService {
   private readonly logger = new Logger(OrderService.name);
 
   constructor(

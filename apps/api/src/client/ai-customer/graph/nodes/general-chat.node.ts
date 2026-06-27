@@ -8,9 +8,12 @@
  */
 import { ChatPromptTemplate } from '@langchain/core/prompts';
 import { AgentState } from '@api/client/ai-customer/graph/state';
-import { ChatOllama } from '@langchain/ollama';
 import { StringOutputParser } from '@langchain/core/output_parsers';
 import { AIMessage } from '@langchain/core/messages';
+import {
+  createLLM,
+  LlmProviderConfig,
+} from '@api/client/ai-customer/graph/llm-factory';
 
 const GENERAL_CHAT_PROMPT = ChatPromptTemplate.fromMessages([
   [
@@ -38,9 +41,10 @@ const GENERAL_CHAT_PROMPT = ChatPromptTemplate.fromMessages([
  * 输出写入 agentOutput，由 answerSynthesizer 透传给用户。
  */
 
-export const generalChatNode = async (
-  state: typeof AgentState.State,
-): Promise<Partial<typeof AgentState.State>> => {
+export const createGeneralChatNode = (llmConfig: LlmProviderConfig) =>
+  async (
+    state: typeof AgentState.State,
+  ): Promise<Partial<typeof AgentState.State>> => {
   const lastMessage = state.messages[state.messages.length - 1];
   // 拿到用户输入的信息
   const userInput =
@@ -49,11 +53,7 @@ export const generalChatNode = async (
       : JSON.stringify(lastMessage?.content ?? '');
 
   //创建ollama模型实例（temperature=0.7，允许一定的创造性）
-  const model = new ChatOllama({
-    model: 'qwen3.5:0.8b',
-    temperature: 0.7,
-    baseUrl: process.env.OLLAMA_BASE_URL || 'http://localhost:11434',
-  });
+  const model = createLLM(llmConfig, { temperature: 0.7 });
 
   //组装 chain: prompt=>model=>string parser
   //GENERAL_CHAT_PROMPT.pipe(model) ─── 格式化 Prompt，生成 System + Human 消息列表

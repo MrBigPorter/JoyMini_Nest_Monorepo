@@ -1,6 +1,6 @@
 import { HttpAdapterHost, NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { ValidationPipe, VersioningType } from '@nestjs/common';
+import { ValidationPipe, VersioningType, Logger } from '@nestjs/common';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import { json } from 'express';
@@ -15,6 +15,7 @@ import {
   CsrfMiddleware,
   CsrfTokenMiddleware,
 } from '@api/common/middleware/csrf.middleware';
+import { applyFieldMetaToSwagger } from '@api/common/ai/utils/apply-field-meta';
 
 const isProd = process.env.NODE_ENV === 'production';
 
@@ -115,6 +116,15 @@ async function bootstrap() {
       .addBearerAuth()
       .build();
     const doc = SwaggerModule.createDocument(app, swaggerCfg);
+
+    // ★ Phase 2: 将 @FieldMeta 元数据注入 Swagger Schema description
+    //    try-catch 包裹，即使失败也不影响 Swagger 页面加载
+    try {
+      applyFieldMetaToSwagger(doc, 'zh');
+    } catch (err) {
+      Logger.warn('applyFieldMetaToSwagger failed (non-blocking): ' + String(err));
+    }
+
     SwaggerModule.setup('docs', app, doc);
   }
 

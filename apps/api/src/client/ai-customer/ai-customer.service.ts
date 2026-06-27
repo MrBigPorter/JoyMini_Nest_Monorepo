@@ -1,15 +1,22 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { AiService } from '@api/common/ai/ai.service';
-import { intentRouterNode } from '@api/client/ai-customer/graph/nodes/intent-router.node';
 import { HumanMessage } from '@langchain/core/messages';
 import { buildCustomerGraph } from '@api/client/ai-customer/graph/customer.graph';
+import { ConfigService } from '@nestjs/config';
+import { LlmProviderConfig } from '@api/client/ai-customer/graph/llm-factory';
+import { OrderService } from '@api/client/orders/order.service';
 
 @Injectable()
 export class AiCustomerService {
   private readonly logger = new Logger(AiCustomerService.name);
   private compiledGraph: ReturnType<typeof buildCustomerGraph> | null = null;
+  private llmConfig: LlmProviderConfig | null = null;
 
-  constructor(private readonly aiService: AiService) {}
+  constructor(
+    private readonly aiService: AiService,
+    private readonly configService: ConfigService,
+    private readonly orderService: OrderService,
+  ) {}
 
   /**
    * 应用启动时初始化图谱
@@ -30,8 +37,22 @@ export class AiCustomerService {
   async initGraph() {
     if (this.compiledGraph) return;
     try {
-      this.compiledGraph = buildCustomerGraph();
-      this.logger.log('AiCustomer Graph compiled successfully');
+      this.llmConfig = {
+        type: this.configService.get<'online' | 'local'>(
+          'AI_LLM_TYPE',
+          'local',
+        ),
+        model: this.configService.get<string>('OLLAMA_MODEL', 'qwen3.5:0.8b'),
+        baseURL: this.configService.get<string>(
+          'AI_OLLAMA_BASE_URL',
+          'http://localhost:11434',
+        ),
+        apiKey: this.configService.get<string>('DEEPSEEK_API_KEY'),
+      };
+      this.compiledGraph = buildCustomerGraph(
+        this.llmConfig,
+        this.orderService,
+      );
     } catch (error) {
       this.logger.error('Failed to compile AiCustomer Graph', error);
       throw error;
@@ -63,7 +84,10 @@ export class AiCustomerService {
 
   async testChat(message: string, userId: string) {
     this.logger.log(`Testing chat classification: "${message}"`);
-    const result = await intentRouterNode({
+    if (!this.compiledGraph) {
+      throw new Error('Graph not initialized. Call initGraph() first.');
+    }
+    const result = await this.compiledGraph.invoke({
       messages: [new HumanMessage(message)],
       intent: '',
       agentSteps: [],
@@ -71,8 +95,17 @@ export class AiCustomerService {
       sources: [],
       userId: userId,
     });
+
+    const agentDebug = result.agentSteps?.slice(-1)[0];
+
     return {
       intent: result.intent ?? '',
+      agentOutput: result.agentOutput ?? '',
+      debug: {
+        toolCalls: agentDebug?.totalToolCalls ?? 0,
+        lastToolCall: agentDebug?.lastToolCall ?? null,
+        totalMessages: agentDebug?.totalMessages ?? 0,
+      },
     };
   }
 }

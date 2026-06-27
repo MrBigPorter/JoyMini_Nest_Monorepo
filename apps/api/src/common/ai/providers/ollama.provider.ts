@@ -11,8 +11,8 @@ import {
 @Injectable()
 export class OllamaProvider implements AiProviderInstance {
   readonly name = 'ollama';
-  readonly displayName = 'Ollama (Local LLM)';
-  readonly models = ['qwen3.5:0.8b', 'mxbai-embed-large'];
+  readonly displayName = 'Ollama (OpenAI-compatible)';
+  readonly models = ['qwen3.5:0.8b', 'mxbai-embed-large', 'deepseek-chat'];
   activeModel = 'qwen3.5:0.8b';
 
   keys: AiKeyInstance[] = [];
@@ -21,6 +21,8 @@ export class OllamaProvider implements AiProviderInstance {
   private readonly logger = new Logger(OllamaProvider.name);
   private baseUrl = '';
   private available = false;
+  private apiKey = '';
+  private isExternalApi = false;
 
   // Ollama local instance: no daily limit, simplified key tracking
   private readonly DAILY_LIMIT = 999_999_999_999;
@@ -32,6 +34,7 @@ export class OllamaProvider implements AiProviderInstance {
   private initialize() {
     const baseUrl = this.configService.get<string>('AI_OLLAMA_BASE_URL');
     const model = this.configService.get<string>('OLLAMA_MODEL');
+    const apiKey = this.configService.get<string>('DEEPSEEK_API_KEY');
 
     if (!baseUrl) {
       this.logger.log('Ollama base URL not configured, provider disabled');
@@ -39,15 +42,22 @@ export class OllamaProvider implements AiProviderInstance {
     }
 
     this.baseUrl = `${baseUrl.replace(/\/+$/, '')}/v1/chat/completions`;
+    this.apiKey = apiKey ?? '';
 
     if (model) {
       this.activeModel = model;
     }
 
-    // Single "key" placeholder for Ollama (no auth needed)
+    // Detect external API (DeepSeek, OpenAI-compatible) vs local Ollama
+    this.isExternalApi = this.apiKey.length > 0;
+
+    const keySuffix = this.isExternalApi
+      ? this.apiKey.substring(0, 8) + '...'
+      : 'local';
+
     this.keys = [
       {
-        keySuffix: 'local',
+        keySuffix,
         dailyTokens: 0,
         dailyRequests: 0,
         blocked: false,
@@ -60,7 +70,7 @@ export class OllamaProvider implements AiProviderInstance {
     this.available = true;
 
     this.logger.log(
-      `🟢 Ollama provider initialized (model: ${this.activeModel}, url: ${this.baseUrl})`,
+      `🟢 Ollama provider initialized (model: ${this.activeModel}, url: ${this.baseUrl}${this.isExternalApi ? ', auth: Bearer' : ', no auth'})`,
     );
   }
 
@@ -75,6 +85,15 @@ export class OllamaProvider implements AiProviderInstance {
     if (!currentKey) return null;
 
     try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      // Add Bearer auth for external APIs (DeepSeek, OpenAI-compatible)
+      if (this.isExternalApi && this.apiKey) {
+        headers['Authorization'] = `Bearer ${this.apiKey}`;
+      }
+
       const response = await axios.post(
         this.baseUrl,
         {
@@ -90,10 +109,8 @@ export class OllamaProvider implements AiProviderInstance {
           stream: false,
         },
         {
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          timeout: 120000, // 120s timeout for local LLM (slower on CPU)
+          headers,
+          timeout: this.isExternalApi ? 30000 : 120000, // 30s for external API, 120s for local
         },
       );
 

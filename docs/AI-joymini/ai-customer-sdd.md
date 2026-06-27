@@ -36,7 +36,8 @@ JoyMini 是一个菲律宾电商平台（社交电商/Social Commerce），技�
 | 客户端前端 | Next.js `frontend-blog` | 面向终端消费者 |
 | 管理后台 | Next.js `admin-next` | 面向运营管理员 |
 | AI 基础设施 | [`AiService`](apps/api/src/common/ai/ai.service.ts) | 多 Provider 自动降级、熔断、限流、Embedding |
-| Agent 框架 | `@langchain/langgraph` + `@langchain/core` | StateGraph + createReactAgent |
+| Agent 框架 | `@langchain/langgraph` + `@langchain/core` + `langchain` | StateGraph + `createAgent`（替代已弃用的 `createReactAgent`） |
+| LLM Factory | [`graph/llm-factory.ts`](apps/api/src/client/ai-customer/graph/llm-factory.ts) | 统一 `createLLM()`，通过 `AI_LLM_PROVIDER` 在 Ollama/DeepSeek 间切换 |
 | 向量数据库 | pgvector (`vector(1536)`) | 知识库语义检索 |
 | 消息持久化 | Prisma + PostgreSQL | 跨会话历史记录 |
 | 共享包 | [`packages/shared`](packages/shared) | 枚举、类型、工具函数 |
@@ -255,26 +256,32 @@ export function routeByIntent(state: AgentState): string {
 
 | 维度 | 内容 |
 |------|------|
-| **描述** | ReAct Agent 节点：用 `createReactAgent` 绑定 order-tools + wallet-tools，执行工具调用循环，返回结果给 state。复用参考项目模式 |
-| **术语** | `ReAct Pattern`、`createReactAgent`、`AgentExecutor`、`Tool Calling Loop`、`AgentAction`、`AgentFinish` |
-| **自试点** | `createReactAgent` 和手动 `AgentExecutor` 的区别？ReAct 循环什么时候停止？Agent 的 maxIterations 默认值是多少？ |
-| **参考** | [`jisu-ai-customer/order-agent.js:8`](study/LLM/project/jisu-ai-customer/server/src/graphs/nodes/order-agent.js:8)（完整 ReAct Agent 模式） |
-| **代码提示** | `const agentApp = createReactAgent({ llm, tools: [...orderTools, ...walletTools], messageModifier: ORDER_SYSTEM_PROMPT })`。在 node 中调用 `const result = await agentApp.invoke({ messages: state.messages })`，将 result.messages 追加到 state。注意将工具数组通过构造器传入（依赖注入） |
+| **描述** | ReAct Agent 节点：用 `createAgent`（from `langchain` 包）绑定 order-tools + wallet-tools，通过 `createLLM()` 获取 LLM 实例，执行工具调用循环，返回结果给 state |
+| **术语** | `ReAct Pattern`、`createAgent`、`AgentExecutor`、`Tool Calling Loop`、`LLM Factory` |
+| **自试点** | `createAgent`（`langchain` 包）和已弃用的 `createReactAgent`（`@langchain/langgraph/prebuilt`）参数有何不同？为什么用 `model` 替代 `llm`，用 `systemPrompt` 替代 `messageModifier`？ |
+| **参考** | [`llm-factory.ts`](apps/api/src/client/ai-customer/graph/llm-factory.ts)（`createLLM` 工厂）；[`langchain` 包 `CreateAgentParams`](node_modules/langchain/dist/agents/types.d.ts:399)（新 API 类型定义） |
+| **代码提示** | 使用 `import { createAgent } from 'langchain'`（注意：非 `@langchain/langgraph/prebuilt`）。关键参数变化：`model`（替代 `llm`）、`tools`、`systemPrompt`（替代 `messageModifier`/`prompt`）。通过 `createLLM({ temperature: 0 })` 获取 LLM 实例，而非直接 `new ChatOllama()` |
 
 ```typescript
-// order-agent.node.ts 核心
-const createOrderAgentNode = (orderTools: Tool[], walletTools: Tool[]) => {
-  const agentApp = createReactAgent({
-    llm: aiService.getGeminiModel(),  // 或 Groq/DeepSeek
-    tools: [...orderTools, ...walletTools],
-    messageModifier: '你是 JoyMini 的订单助手...',
-  })
+// order-agent.node.ts 核心（当前实现）
+import { createAgent } from 'langchain';
+import { createLLM } from '@api/client/ai-customer/graph/llm-factory';
+
+const createOrderAgentNode = (orderService: OrderService) => {
+  const tools = createOrderTools(orderService);
+  const llm = createLLM({ temperature: 0 });
+  
+  const agentApp = createAgent({
+    model: llm,                              // 注意：新 API 用 model，非 llm
+    tools,
+    systemPrompt: '你是 JoyMini 的订单助手...',  // 新 API 用 systemPrompt
+  });
   
   return async (state: AgentState) => {
-    const result = await agentApp.invoke({ messages: state.messages })
-    return { messages: result.messages }
-  }
-}
+    const result = await agentApp.invoke({ messages: state.messages });
+    return { messages: result.messages };
+  };
+};
 ```
 
 #### F-08 创建 `graph/nodes/coupon-agent.node.ts`
@@ -933,10 +940,10 @@ graph TB
         S --> G[Customer Graph]
         
         subgraph "StateGraph"
-            IR[intentRouter] -->|conditional| OA[orderAgent]
+            IR[intentRouter: createLLM] -->|conditional| OA[orderAgent: createLLM + createAgent]
             IR -->|conditional| CA[couponAgent]
             IR -->|conditional| RN[ragNode]
-            IR -->|conditional| AS[answerSynthesizer]
+            IR -->|conditional| AS[answerSynthesizer: createLLM]
             OA --> AS
             CA --> AS
             RN --> AS
@@ -947,11 +954,18 @@ graph TB
         C -->|SSE| SSE
     end
     
-    subgraph "AI 基础设施"
-        AS[ai-service]
+    subgraph "LLM Factory"
+        LF[createLLM<br/>AI_LLM_PROVIDER]
+        LF -->|deepseek| DS[ChatOpenAI → DeepSeek API]
+        LF -->|ollama| OL[ChatOllama → local Ollama]
     end
     
-    G -->|LLM 调用| AS
+    subgraph "AI 基础设施"
+        AS[ai-service<br/>AiService 多 Provider]
+    end
+    
+    G -->|createLLM| LF
+    G -->|AiService 嵌入/翻译| AS
 ```
 
 ### 7.2 StateGraph 节点流程
@@ -1152,7 +1166,7 @@ Treasure 状态变更（state: 0→1 或 1→0）
 
 ### 9.4 文件清单
 
-#### 后端新增文件（Phase 1，11 个）
+#### 后端新增文件（Phase 1，12 个）
 
 ```text
 apps/api/src/client/ai-customer/
@@ -1163,14 +1177,15 @@ apps/api/src/client/ai-customer/
 │   ├── chat-stream.dto.ts         # POST /chat/stream 请求 DTO
 │   └── rag-query.dto.ts           # POST /rag/query 请求 DTO
 └── graph/
+    ├── llm-factory.ts             # 🔥 createLLM() 统一 LLM 工厂
     ├── state.ts                    # AgentState 定义
     ├── customer.graph.ts           # StateGraph 构建
     ├── nodes/
-    │   ├── intent-router.node.ts   # 意图分类节点
-    │   ├── order-agent.node.ts     # 订单 ReAct Agent
+    │   ├── intent-router.node.ts   # 意图分类节点（使用 createLLM）
+    │   ├── order-agent.node.ts     # 订单 ReAct Agent（createLLM + createAgent）
     │   ├── coupon-agent.node.ts    # 优惠券 ReAct Agent
     │   ├── rag.node.ts             # RAG 节点（Phase 1 Stub）
-    │   └── answer-synthesizer.node.ts  # 答案合成节点
+    │   └── answer-synthesizer.node.ts  # 答案合成节点（使用 createLLM）
     └── tools/
         ├── order-tools.ts          # 3 个订单工具
         ├── wallet-tools.ts         # 2 个钱包工具
@@ -1181,11 +1196,16 @@ apps/api/src/client/ai-customer/
 
 | 文件 | 修改内容 | Phase |
 |------|---------|-------|
-| [`apps/api/package.json`](apps/api/package.json) | 添加 `@langchain/core`、`@langchain/langgraph` | P0 |
+| [`apps/api/package.json`](apps/api/package.json) | 添加 `@langchain/core`、`@langchain/langgraph`、`@langchain/openai`、`langchain` | P0/P1 |
 | [`order.module.ts`](apps/api/src/client/orders/order.module.ts) | `exports: [OrderService]` | P0 |
 | [`coupon.module.ts`](apps/api/src/client/coupon/coupon.module.ts) | `exports: [ClientCouponService]` | P0 |
 | [`treasure.module.ts`](apps/api/src/client/treasure/treasure.module.ts) | `exports: [TreasureService]` | P0 |
 | [`client.module.ts`](apps/api/src/client/client.module.ts) | imports 添加 `AiCustomerModule` | P1 |
+| [`apps/api/.env`](apps/api/.env) | 新增 `AI_LLM_PROVIDER=deepseek\|ollama` | P1 |
+| [`intent-router.node.ts`](apps/api/src/client/ai-customer/graph/nodes/intent-router.node.ts) | 改用 `createLLM()` 替代 `ChatOllama` | P1 |
+| [`general-chat.node.ts`](apps/api/src/client/ai-customer/graph/nodes/general-chat.node.ts) | 改用 `createLLM()` 替代 `ChatOllama` | P1 |
+| [`answer-synthesizer.node.ts`](apps/api/src/client/ai-customer/graph/nodes/answer-synthesizer.node.ts) | 改用 `createLLM()` 替代 `ChatOllama` | P1 |
+| [`order-agent.node.ts`](apps/api/src/client/ai-customer/graph/nodes/order-agent.node.ts) | 改用 `createLLM()` + `createAgent`（`langchain` 包新 API） | P1 |
 | [`schema.prisma`](apps/api/prisma/schema.prisma) | 添加 KnowledgeDocument + KnowledgeEmbedding | P3 |
 
 #### 前端新增文件（Phase 2，4 个）
@@ -1225,6 +1245,8 @@ apps/frontend-blog/src/
 | 向量数据库 | pgvector / Pinecone / ChromaDB | pgvector | 无需额外服务，复用 PostgreSQL |
 | RAG 同步方式 | 事件触发 / 定时任务 / 手动 | 事件触发 + 手动 | 实时性强，结合手动上传灵活性 |
 | Checkpointer | MemorySaver / PostgresSaver / RedisSaver | PostgresSaver (Phase 3) | 持久化 + 复用 PG，无需额外中间件 |
+| **LLM 实例化方式** | 分散 `new ChatOllama` / 统一工厂 | **`createLLM()` 工厂** | 🔥 一行 `.env` 切换 Provider，避免部署时 Ollama 不可用导致全挂；开发用 Ollama，生产用 DeepSeek |
+| **Agent API** | `createReactAgent`（已弃用）/ `createAgent` | **`createAgent` from `langchain`** | 🔥 新 API 参数更清晰（`model`/`systemPrompt`），`langchain` 包提供完整类型支持 |
 
 ### 9.7 学习路线覆盖
 
@@ -1265,12 +1287,12 @@ apps/frontend-blog/src/
 
 > 从原 `ai-customer-development-checklist.md` 迁移，保持完整可勾选状态
 
-#### Phase 0：基础设施（2/27）
+#### Phase 0：基础设施（2/29）
 
 - [ ] **P0-01** 安装 LangGraph 依赖（`@langchain/core` + `@langchain/langgraph`）
 - [ ] **P0-02** 修复 Module Exports（`order.module.ts`、`coupon.module.ts`、`treasure.module.ts`）
 
-#### Phase 1：核心 Agent 引擎（14/27）
+#### Phase 1：核心 Agent 引擎（16/29）
 
 - [ ] **F-01** 创建 `ai-customer.module.ts`
 - [ ] **F-02** 创建 `graph/state.ts`
@@ -1278,7 +1300,7 @@ apps/frontend-blog/src/
 - [ ] **F-04** 创建 `graph/tools/wallet-tools.ts`（2 个工具）
 - [ ] **F-05** 创建 `graph/tools/coupon-tools.ts`（3 个工具）
 - [ ] **F-06** 创建 `graph/nodes/intent-router.node.ts`
-- [ ] **F-07** 创建 `graph/nodes/order-agent.node.ts`
+- [ ] **F-07** 创建 `graph/nodes/order-agent.node.ts`（使用 `createAgent` from `langchain` + `createLLM()`）
 - [ ] **F-08** 创建 `graph/nodes/coupon-agent.node.ts`
 - [ ] **F-09** 创建 `graph/nodes/rag.node.ts`（Phase 1 Stub）
 - [ ] **F-10** 创建 `graph/nodes/answer-synthesizer.node.ts`
@@ -1286,22 +1308,24 @@ apps/frontend-blog/src/
 - [ ] **F-12** 创建 `ai-customer.service.ts`
 - [ ] **F-13** 创建 `ai-customer.controller.ts`
 - [ ] **F-14** 在 `client.module.ts` 中注册
+- [ ] **F-28** 🔥 创建 `graph/llm-factory.ts`（`createLLM()` 统一工厂）
+- [ ] **F-29** 🔥 安装 `@langchain/openai` + `langchain` 包，所有 Graph 节点改用 `createLLM()`
 
-#### Phase 2：前端聊天 UI（4/27）
+#### Phase 2：前端聊天 UI（4/29）
 
 - [ ] **F-15** 创建 `app/[locale]/ai-chat/page.tsx`
 - [ ] **F-16** 创建 `app/[locale]/ai-chat/page.client.tsx`
 - [ ] **F-17** 创建 `lib/hooks/useAiChat.ts`
 - [ ] **F-18** 创建 `lib/api/aiChatApi.ts`
 
-#### Phase 3：RAG + 持久化（4/27）
+#### Phase 3：RAG + 持久化（4/29）
 
 - [ ] **F-19** Prisma 迁移：KnowledgeDocument + KnowledgeEmbedding
 - [ ] **F-20** pgvector 设置 + 数据导入脚本
 - [ ] **F-21** 完整 `rag.node.ts`（替换 Phase 1 Stub）
 - [ ] **F-22** PostgreSQL Checkpointer（持久化记忆）
 
-#### Phase 4：高阶能力（5/27）
+#### Phase 4：高阶能力（5/29）
 
 - [ ] **F-23** Multi-Agent Supervisor Pattern
 - [ ] **F-24** Human-in-the-Loop（HITL）审批
@@ -1313,5 +1337,6 @@ apps/frontend-blog/src/
 
 | 日期 | 版本 | 变更内容 | 作者 |
 |------|------|---------|------|
+| 2026-06-26 | v2.1 | 🔥 LLM Factory 封装：新增 `graph/llm-factory.ts`（`createLLM()`），所有 Graph 节点改用统一 LLM 工厂；`createAgent` from `langchain` 替代弃用的 `createReactAgent`；新增 `AI_LLM_PROVIDER` 环境变量；新增 `@langchain/openai` + `langchain` 依赖 | Roo |
 | 2026-06-24 | v2.0 | 合并 12+ 文档为统一 SDD，遵循 spec-code 8 节结构 | Roo |
 | 2026-06-xx | v1.x | 原始分散文档创建 | 大伟 |

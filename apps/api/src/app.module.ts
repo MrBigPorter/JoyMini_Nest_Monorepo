@@ -26,6 +26,7 @@ import { EmailModule } from '@api/common/email/email.module';
 import { RecaptchaModule } from '@api/common/recaptcha/recaptcha.module';
 import { AiModule } from '@api/common/ai/ai.module';
 import { BlogModule } from '@api/blog/blog.module';
+import { AiCustomerModule } from '@api/client/ai-customer/ai-customer.module';
 
 // 根模块（第2步，挂子模块、配置、JWT等）
 @Module({
@@ -161,6 +162,8 @@ import { BlogModule } from '@api/blog/blog.module';
     EmailModule,
     RecaptchaModule,
     BlogModule,
+    AiModule,
+    AiCustomerModule,
 
     // 其他模块：PrismaModule、ThrottlerModule、UsersModule、AuthModule 等
   ],

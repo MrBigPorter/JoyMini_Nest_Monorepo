@@ -7573,7 +7573,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@langchain/langgraph@npm:^1.4.4":
+"@langchain/langgraph@npm:^1.4.4, @langchain/langgraph@npm:^1.4.7":
   version: 1.4.7
   resolution: "@langchain/langgraph@npm:1.4.7"
   dependencies:
@@ -7588,25 +7588,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@langchain/langgraph@npm:^1.4.6":
-  version: 1.4.6
-  resolution: "@langchain/langgraph@npm:1.4.6"
-  dependencies:
-    "@langchain/langgraph-checkpoint": "npm:^1.1.3"
-    "@langchain/langgraph-sdk": "npm:~1.9.25"
-    "@langchain/protocol": "npm:^0.0.18"
-    "@standard-schema/spec": "npm:1.1.0"
-  peerDependencies:
-    "@langchain/core": ^1.1.48
-    zod: ^3.25.32 || ^4.2.0
-    zod-to-json-schema: ^3.x
-  peerDependenciesMeta:
-    zod-to-json-schema:
-      optional: true
-  checksum: 10c0/3ddc5f3e82f13d862bad74a4dbe045d285fb673d5b6d14b6d51107ba1c418a506d9215d862098a4aeaafb368aa6a94cdf92572964be9cd2826ee5aadd80edb33
-  languageName: node
-  linkType: hard
-
 "@langchain/ollama@npm:^1.3.0":
   version: 1.3.0
   resolution: "@langchain/ollama@npm:1.3.0"
@@ -7615,6 +7596,19 @@ __metadata:
   peerDependencies:
     "@langchain/core": ^1.0.0
   checksum: 10c0/abb3d2c6991addcf2883c66687df7187f1cb378be80a349a60d4b71fbd3778b2422136be95e0dffdc4fed221634554f47cd6aadc7765290df5470d0e7d1283d4
+  languageName: node
+  linkType: hard
+
+"@langchain/openai@npm:^1.5.3":
+  version: 1.5.3
+  resolution: "@langchain/openai@npm:1.5.3"
+  dependencies:
+    js-tiktoken: "npm:^1.0.12"
+    openai: "npm:^6.41.0"
+    zod: "npm:^3.25.76 || ^4"
+  peerDependencies:
+    "@langchain/core": ^1.2.1
+  checksum: 10c0/56948c30a9fcddcb30f1fd779fe451db253f2bbb058973aad8fdbf7b934e3db3d18af3fa44aea2f40dbf9e4980aa58ab7d609fe422a35e4951d65c7b83ea4009
   languageName: node
   linkType: hard
 
@@ -7803,8 +7797,9 @@ __metadata:
     "@google-cloud/vision": "npm:^5.3.4"
     "@google/generative-ai": "npm:^0.21.0"
     "@langchain/core": "npm:^1.2.1"
-    "@langchain/langgraph": "npm:^1.4.6"
+    "@langchain/langgraph": "npm:^1.4.7"
     "@langchain/ollama": "npm:^1.3.0"
+    "@langchain/openai": "npm:^1.5.3"
     "@lucky/shared": "workspace:*"
     "@markedjs/html-differ": "npm:^5.0.4"
     "@nestjs/axios": "npm:^4.0.1"
@@ -24648,8 +24643,8 @@ __metadata:
   linkType: hard
 
 "langsmith@npm:>=0.5.0 <1.0.0":
-  version: 0.7.11
-  resolution: "langsmith@npm:0.7.11"
+  version: 0.7.12
+  resolution: "langsmith@npm:0.7.12"
   dependencies:
     p-queue: "npm:6.6.2"
   peerDependencies:
@@ -24669,7 +24664,7 @@ __metadata:
       optional: true
     ws:
       optional: true
-  checksum: 10c0/853887265651acc209f2695c53bb76efe036973a54f87dc11563b39ee70142118df99d911e64480b71326a4a0f031280fecccbea3fb77cb078c796d1165ac888
+  checksum: 10c0/67de9be41caa550694d1815c325616c02e8782b0bc4147b990a578d50a2a7cbfbce0cc7edfa1b242ab3ff50fc74ff25f5c79411c73d0698d9e3c88e8bd951107
   languageName: node
   linkType: hard
 
@@ -27494,6 +27489,30 @@ __metadata:
     is-docker: "npm:^2.1.1"
     is-wsl: "npm:^2.2.0"
   checksum: 10c0/bb6b3a58401dacdb0aad14360626faf3fb7fba4b77816b373495988b724fb48941cad80c1b65d62bb31a17609b2cd91c41a181602caea597ca80dfbcc27e84c9
+  languageName: node
+  linkType: hard
+
+"openai@npm:^6.41.0":
+  version: 6.45.0
+  resolution: "openai@npm:6.45.0"
+  peerDependencies:
+    "@aws-sdk/credential-provider-node": ">=3.972.0 <4"
+    "@smithy/hash-node": ">=4.3.0 <5"
+    "@smithy/signature-v4": ">=5.4.0 <6"
+    ws: ^8.18.0
+    zod: ^3.25 || ^4.0
+  peerDependenciesMeta:
+    "@aws-sdk/credential-provider-node":
+      optional: true
+    "@smithy/hash-node":
+      optional: true
+    "@smithy/signature-v4":
+      optional: true
+    ws:
+      optional: true
+    zod:
+      optional: true
+  checksum: 10c0/d59fdcb75d20e81f6b1d4c0a0591dfd10b8078ed6a0d2ae1abc7768efc70106a1e94ccbc9b9c01d31dcecc73285be767d7418a115647c631f4cb58202f55eafa
   languageName: node
   linkType: hard
 

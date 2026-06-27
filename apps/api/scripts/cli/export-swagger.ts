@@ -34,10 +34,11 @@ import 'reflect-metadata';
 import { Test, TestingModule } from '@nestjs/testing';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
-import { AppModule } from '../../src/app.module';
-import { GoogleProvider } from '../../src/client/auth/providers/google.provider';
-import { FirebaseProvider } from '../../src/client/auth/providers/firebase.provider';
+import { AppModule } from '@api/app.module';
+import { GoogleProvider } from '@api/client/auth/providers/google.provider';
+import { FirebaseProvider } from '@api/client/auth/providers/firebase.provider';
 import { loadEnvForHost } from '../utils/load-env-for-host';
+import { applyFieldMetaToSwagger } from '@api/common/ai/utils/apply-field-meta';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -226,6 +227,17 @@ async function main() {
 
     if (!fullDoc) {
       throw new Error('SwaggerModule.createDocument() returned null/undefined');
+    }
+
+    // ★ Phase 2: 将 @FieldMeta 元数据注入 Swagger Schema（description + x-field-meta）
+    try {
+      applyFieldMetaToSwagger(fullDoc as any, 'zh');
+      console.log('  ✓ 已注入 @FieldMeta 元数据（x-field-meta + description）');
+    } catch (err) {
+      console.warn(
+        '  ⚠ applyFieldMetaToSwagger failed (non-blocking):',
+        String(err),
+      );
     }
 
     // 6. Apply filtering (unless --full mode)
