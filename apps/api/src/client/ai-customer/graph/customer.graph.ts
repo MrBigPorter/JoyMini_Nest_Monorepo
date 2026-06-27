@@ -9,7 +9,7 @@ import { createGeneralChatNode } from './nodes/general-chat.node';
 import { createOrderAgentNode, orderAgentNode } from './nodes/order-agent.node';
 import { ragNode } from './nodes/rag.node';
 import { LlmProviderConfig } from '@api/client/ai-customer/graph/llm-factory';
-import { IOrderService } from '@api/client/orders/order.service';
+import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-registry.service';
 
 /**
  * Build and compile the AI Customer StateGraph
@@ -24,7 +24,7 @@ import { IOrderService } from '@api/client/orders/order.service';
  */
 export function buildCustomerGraph(
   llmConfig: LlmProviderConfig,
-  orderService: IOrderService,
+  registry: ToolRegistryService,
 ) {
   //第 1 步：建工厂
   const workflow = new StateGraph(AgentState)
@@ -35,7 +35,7 @@ export function buildCustomerGraph(
     //工人C（知识库） ragNode：处理政策、优惠券、活动等知识问答的 RAG 节点
     .addNode('ragNode', ragNode)
     //orderAgent：处理订单相关问题的 agent 节点
-    .addNode('orderAgent', createOrderAgentNode(llmConfig, orderService))
+    .addNode('orderAgent', createOrderAgentNode(llmConfig, registry))
     //// 工人B（闲聊）generalChat：处理闲聊问题的 agent 节点
     .addNode('generalChat', createGeneralChatNode(llmConfig))
     //包装员	answerSynthesizer：将 agent 或 RAG 的输出整理成最终的自然语言回答

@@ -1,10 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { AiService } from '@api/common/ai/ai.service';
 import { HumanMessage } from '@langchain/core/messages';
 import { buildCustomerGraph } from '@api/client/ai-customer/graph/customer.graph';
 import { ConfigService } from '@nestjs/config';
 import { LlmProviderConfig } from '@api/client/ai-customer/graph/llm-factory';
-import { OrderService } from '@api/client/orders/order.service';
+import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-registry.service';
 
 @Injectable()
 export class AiCustomerService {
@@ -13,9 +12,8 @@ export class AiCustomerService {
   private llmConfig: LlmProviderConfig | null = null;
 
   constructor(
-    private readonly aiService: AiService,
     private readonly configService: ConfigService,
-    private readonly orderService: OrderService,
+    private readonly registry: ToolRegistryService,
   ) {}
 
   /**
@@ -49,10 +47,7 @@ export class AiCustomerService {
         ),
         apiKey: this.configService.get<string>('DEEPSEEK_API_KEY'),
       };
-      this.compiledGraph = buildCustomerGraph(
-        this.llmConfig,
-        this.orderService,
-      );
+      this.compiledGraph = buildCustomerGraph(this.llmConfig, this.registry);
     } catch (error) {
       this.logger.error('Failed to compile AiCustomer Graph', error);
       throw error;

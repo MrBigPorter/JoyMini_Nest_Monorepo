@@ -18,6 +18,8 @@
 | — | **FieldMeta Phase 2** — Swagger 元数据注入 | ✅ **description + x-field-meta，验证通过** |
 | — | **FieldMeta Phase 3** — 前端类型生成 | ✅ **2 文件 17 字段自动生成** |
 | — | **FieldMeta classNameMap 优化** | ✅ **消除 DTO 注册表，零维护** |
+| — | **ToolRegistry 架构 — multi:true 自动注入** | ✅ **零手动注册，TypeScript 全通过** |
+| — | **TaggedTool 标签系统** | ✅ **Agent 只拿自己标签的工具** |
 
 ### Doc 04 验证
 
@@ -120,6 +122,78 @@ User Input → [intentRouter(createLLM)] → [orderAgent(createLLM+createAgent) 
 ```
 
 所有节点统一通过 `createLLM()` 获取 LLM 实例，Provider 切换只需改 `.env` 一行配置。
+
+### ToolRegistry 架构 — NestJS multi:true 自动注入 + TaggedTool 标签系统
+
+**问题背景:** 最初 ToolRegistry 是手动 `register()` 模式，每个 domain 工具需要在 `ai-customer.service.ts` 里手动调用 `createOrderTools(this.orderService, this.registry)`。用户指出："为什么要在运行之前调用？那这里不是很庞大" —— 手动调用只是把代码从 graph 文件搬到了 service 文件，没有根本解决扩展性问题。
+
+**解决方案演进 (3 个阶段):**
+
+| 阶段 | 方案 | 问题 |
+|------|------|------|
+| Phase 1 | 手动 `register()` | 手动调用只是代码搬迁 |
+| Phase 2 | **NestJS `multi:true` 自动注入** | ✅ 零手动调用，但 Agent 拿到所有工具 |
+| Phase 3 | **+ TaggedTool 标签系统** | ✅ Agent 只拿自己标签的工具 |
+
+**最终架构:**
+
+```mermaid
+flowchart LR
+    subgraph OrderModule["📦 OrderModule"]
+        OM[OrderModule] -->|providers| P1["{ provide: 'AI_TOOLS',<br/>multi: true,<br/>useFactory: createOrderTools }"]
+        OM -->|exports| E1["exports: ['AI_TOOLS']"]
+    end
+
+    subgraph FutureModule["📦 FutureModule e.g. WalletModule"]
+        FM[FutureModule] -->|providers| P2["{ provide: 'AI_TOOLS',<br/>multi: true,<br/>useFactory: createWalletTools }"]
+        FM -->|exports| E2["exports: ['AI_TOOLS']"]
+    end
+
+    subgraph ToolRegistry["🛠️ ToolRegistryService"]
+        TR[ToolRegistryService] -->|@Inject&#40;'AI_TOOLS'&#41;| ALL["TaggedTool[]<br/>{ tool, tags: ['order'] }<br/>{ tool, tags: ['wallet'] }"]
+        ALL -->|getToolsByTag&#40;'order'&#41;| ORD["→ Order 工具"]
+        ALL -->|getToolsByTag&#40;'wallet'&#41;| WAL["→ Wallet 工具"]
+    end
+```
+
+**核心文件:**
+
+| 文件 | 操作 | 说明 |
+|------|------|------|
+| [`tool-registry.service.ts`](apps/api/src/client/ai-customer/graph/tools/tool-registry.service.ts) | 改造 | `@Inject(AI_TOOLS)` DI 注入 + `TaggedTool` 接口 + `getToolsByTag()` |
+| [`order-tools.ts`](apps/api/src/client/ai-customer/graph/tools/order-tools.ts) | 改造 | 返回 `TaggedTool[]`，每个工具带 `tags: ['order']` |
+| [`order.module.ts`](apps/api/src/client/orders/order.module.ts) | 改造 | 新增 `multi: true` provider + `exports: ['AI_TOOLS']` |
+| [`ai-customer.service.ts`](apps/api/src/client/ai-customer/ai-customer.service.ts) | 简化 | 移除 `OrderService` 注入 + 移除手动 `createOrderTools()` |
+| [`order-agent.node.ts`](apps/api/src/client/ai-customer/graph/nodes/order-agent.node.ts) | 修改 | `getAllTools()` → `getToolsByTag('order')` |
+
+**关键概念解释:**
+
+| 概念 | 说明 |
+|------|------|
+| `AI_TOOLS` 注入 Token | 一个「篮子标签」`export const AI_TOOLS = 'AI_TOOLS'`，各模块用此标签放入工具 |
+| `multi: true` | NestJS 特性 — 多个 provider 用相同 token 时不覆盖，而是**合并成一个数组** |
+| `exports: ['AI_TOOLS']` | **必须导出**，否则跨模块不可见（NestJS provider 默认私有） |
+| `TaggedTool` | `{ tool: DynamicStructuredTool, tags: string[] }` — 给工具打标签，按标签过滤 |
+| `getToolsByTag('order')` | Agent 节点只拿自己需要的工具，不污染 LLM 上下文 |
+
+**Bug 修复记录:**
+
+| 问题 | 根因 | 修复 |
+|------|------|------|
+| `UnknownDependenciesException` | `OrderModule` 未 `exports: ['AI_TOOLS']` | 在 `OrderModule` 添加 `exports: [OrderService, 'AI_TOOLS']` |
+
+**验证结果:**
+```bash
+cd apps/api && npx tsc --noEmit   # ✅ 零错误
+```
+
+**未来扩展（3 步加一个 domain）:**
+
+1. 创建 `wallet-tools.ts` 返回 `TaggedTool[]`（标签 `'wallet'`）
+2. 在 `wallet.module.ts` 加 `{ provide: 'AI_TOOLS', multi: true, useFactory: createWalletTools, inject: [WalletService] }` + `exports: ['AI_TOOLS']`
+3. 在对应的 Agent node 使用 `getToolsByTag('wallet')`
+
+**不需要修改的文件:** `ai-customer.service.ts`, `customer.graph.ts`, `ai-customer.module.ts`
 
 ### FieldMeta Phase 1 — 装饰器 + toLLM
 
@@ -251,6 +325,28 @@ VSCode 可能显示不存在的文件路径（如 `graph/graph/llm-factory.ts`�
 ### 面试 Q&A 文档
 
 创建于 [`docs/study/interview-ai-agent-order-system.md`](docs/study/interview-ai-agent-order-system.md)
+
+### 当前架构数据流
+
+```
+启动时:
+  OrderModule.init()
+    → NestJS 执行 useFactory: createOrderTools(orderService)
+    → 返回 TaggedTool[{ tool: getUserOrders, tags: ['order'] }, { tool: getOrderInfo, tags: ['order'] }]
+    → multi:true 合并到 'AI_TOOLS' 数组
+
+  AiCustomerService.initGraph()
+    → buildCustomerGraph(llmConfig, registry)
+    → createOrderAgentNode(llmConfig, registry)
+    → registry.getToolsByTag('order')  → 只拿到 Order 工具
+    → llm.bindTools(orderTools)        → LLM 只看到 Order 工具
+
+运行时:
+  User: "Show my orders"
+    → intentRouter → orderAgent
+    → LLM 从绑定的 Order 工具中选择调用 getUserOrders
+    → 返回订单数据
+```
 
 ### 未来扩展方向
 

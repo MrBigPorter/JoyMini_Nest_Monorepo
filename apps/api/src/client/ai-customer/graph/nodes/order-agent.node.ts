@@ -1,12 +1,11 @@
 import { AgentState } from '@api/client/ai-customer/graph/state';
-import { IOrderService } from '@api/client/orders/order.service';
-import { createOrderTools } from '@api/client/ai-customer/graph/tools/order-tools';
 import {
   createLLM,
   LlmProviderConfig,
 } from '@api/client/ai-customer/graph/llm-factory';
 import { ToolMessage } from '@langchain/core/messages/tool';
 import { Logger } from '@nestjs/common';
+import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-registry.service';
 /**
  * orderAgent 占位节点 — 用于 graph 无条件注册
  * Phase 1 阶段只是透传，等 chatStream 接入后由 createOrderAgentNode 替换
@@ -26,7 +25,7 @@ export const orderAgentNode = async (
  */
 export const createOrderAgentNode = (
   llmConfig: LlmProviderConfig,
-  orderService: IOrderService,
+  registry: ToolRegistryService,
 ) => {
   const logger = new Logger('OrderAgent');
   return async (
@@ -34,11 +33,11 @@ export const createOrderAgentNode = (
   ): Promise<Partial<typeof AgentState.State>> => {
     const userId = state.userId;
 
-    // 1. 创建工具（无需 userId 参数，由 LLM 通过 tool 参数传递）
-    const tools = createOrderTools(orderService);
+    const tools = registry.getToolsByTag('order');
     const llm = createLLM(llmConfig, {
       temperature: 0,
     });
+    const llmWithTools = llm.bindTools(tools);
 
     // 2. 手动 Agent 循环（替代 createAgent），精确控制 maxIterations
     /**
@@ -49,7 +48,6 @@ export const createOrderAgentNode = (
      *   → LLM 再思考："订单已发货，预计明天到"
      *   → 用自然语言回答用户
      */
-    const llmWithTools = llm.bindTools(tools);
     let currentMessages: any[] = [
       {
         role: 'system',
