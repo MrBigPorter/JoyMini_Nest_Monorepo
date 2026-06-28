@@ -1,31 +1,39 @@
 /**
- * "纯函数" 工厂：创建钱包 + KYC 查询工具
+ * "纯函数" 工厂：创建钱包 + KYC 查询 + 提现操作工具
  *
- * Phase 1 — 3 个查询工具，不包含提现操作：
- *   1. getWalletBalance   — 查询余额
+ * 当前工具：
+ *   1. getWalletBalance      — 查询余额
  *   2. getWalletTransactions — 查询充值/提现记录
- *   3. getKycStatus       — 查询实名认证状态
+ *   3. getKycStatus          — 查询实名认证状态
+ *   4. getPaymentChannels    — 查询提现渠道
+ *   5. applyWithdraw         — 申请提现（两阶段确认）
  *
  * 所有返回数据通过 toLLM() 语义化，避免 LLM 看到 raw DB 字段。
  */
 import { WalletService } from '@api/client/wallet/wallet.service';
 import { ClientWalletService } from '@api/client/wallet/client-wallet.service';
 import { KycService } from '@api/client/kyc/kyc.service';
+import { PaymentChannelService } from '@api/common/payment-channel/payment-channel.service';
 import { TaggedTool } from '@api/client/ai-customer/graph/tools/tool-registry.service';
 import { Logger } from '@nestjs/common';
 import { tool } from '@langchain/core/tools';
 import { toLLM } from '@api/common/ai/utils/to-llm';
 import { WalletBalanceResponseDto } from '@api/client/wallet/dto/wallet-balance.response.dto';
 import { z } from 'zod';
-import { TransactionResponseDto } from '@api/client/wallet/dto/transaction-response.dto';
+import { RechargeHistoryItemDto } from '@api/client/wallet/dto/recharge.dto';
 import { WithdrawalItemResponseDto } from '@api/client/wallet/dto/withdrawal-item-response.dto';
+import { WithdrawApplyResponseDto } from '@api/client/wallet/dto/withdraw-apply-response.dto';
+import { PaymentConfigItemDto } from '@api/client/payment-channel/dto/payment-channel.dto';
+import { ApplyWithdrawDto } from '@api/client/wallet/dto/apply-withdraw.dto';
 import { KycResponseDto } from '@api/client/kyc/dto/kyc.response.dto';
 import { plainToInstance } from 'class-transformer';
+import { Prisma } from '@prisma/client';
 import {
   toolFailure,
   ToolResult,
   toolSuccess,
 } from '@api/client/ai-customer/graph/tools/tool-result';
+import { KYC_STATUS, KYC_STATUS_LABEL } from '@lucky/shared';
 
 /** getWalletBalance 返回数据 */
 interface BalanceData {
@@ -54,10 +62,26 @@ interface TransactionsData {
 /** getKycStatus 返回数据 */
 type KycStatusData = Record<string, any>;
 
+/**
+ * 简单的内存幂等性检查，防止 30s 内重复提现
+ */
+const recentWithdraws = new Set<string>();
+const WITHDRAW_COOLDOWN_MS = 30_000;
+
+function isRecentWithdraw(key: string): boolean {
+  return recentWithdraws.has(key);
+}
+
+function markRecentWithdraw(key: string): void {
+  recentWithdraws.add(key);
+  setTimeout(() => recentWithdraws.delete(key), WITHDRAW_COOLDOWN_MS);
+}
+
 export const createWalletTools = (
   walletService: WalletService,
   clientWalletService: ClientWalletService,
   kycService: KycService,
+  paymentChannelService: PaymentChannelService,
 ): TaggedTool[] => {
   const logger = new Logger('walletTools');
   return [
@@ -128,7 +152,7 @@ export const createWalletTools = (
                 },
               );
               result.recharges = (rechargeRes.list ?? []).map((item: any) =>
-                toLLM(item, TransactionResponseDto, 'zh'),
+                toLLM(item, RechargeHistoryItemDto, 'zh'),
               );
               result.rechargeTotal = rechargeRes.total;
             }
@@ -207,6 +231,137 @@ export const createWalletTools = (
             userId: z.string().describe('The Current user ID'),
           }),
           description: `Get the current user's KYC (Know Your Customer / identity verification) status. Returns approval status, submitted documents and risk level.`,
+        },
+      ),
+      tags: ['wallet'],
+    },
+    {
+      /**
+       * 查询可用提现渠道（如 GCash、PayMaya、银行转账），包括手续费、最小/最大金额、渠道名称等信息
+       *  1. channelId — 渠道 ID
+       *  2. channelName — 渠道名称
+       *  3. minAmount — 最小提现金额
+       *  4. maxAmount — 最大提现金额
+       *  5. feeRate — 手续费率（百分比）
+       *  6. fixedFee — 固定手续费（金额）
+       *  7. currency — 币种
+       *  8. description — 渠道描述
+       */
+      tool: tool(
+        async ({ userId, amount }: { userId: string; amount?: number }) => {
+          try {
+            const channels = await paymentChannelService.getClientConfig(2);
+            const filtered =
+              amount !== undefined
+                ? channels.filter((ch) => {
+                    const min = Number(ch.minAmount);
+                    const max = Number(ch.maxAmount);
+                    return amount >= min && amount <= max;
+                  })
+                : channels;
+            const result = filtered.map((ch) =>
+              toLLM(
+                plainToInstance(PaymentConfigItemDto, ch),
+                PaymentConfigItemDto,
+                'zh',
+              ),
+            );
+            return toolSuccess(result);
+          } catch (e) {
+            return toolFailure(
+              `Failed to query payment channels: ${(e as Error).message}`,
+            );
+          }
+        },
+        {
+          name: 'getPaymentChannels',
+          schema: z.object({
+            userId: z.string().describe('The Current user ID'),
+          }),
+          description:
+            'Get available withdrawal payment channels such as GCash, PayMaya, Bank Transfer, including fee info, min/max amounts, and channel names.',
+        },
+      ),
+      tags: ['wallet'],
+    },
+    {
+      /**
+       * 申请提现（两阶段确认）
+       *  1. amount — 提现金额
+       *  2. channelId — 提现渠道 ID
+       *  3. account — 提现账户（如 GCash 手机号）
+       *  4. accountName — 提现账户持有人姓名
+       *  5. userId — 当前用户 ID
+       */
+      tool: tool(
+        async ({
+          userId,
+          amount,
+          channelId,
+          account,
+          accountName,
+        }: {
+          userId: string;
+          amount: number;
+          channelId: number;
+          account: string;
+          accountName: string;
+        }) => {
+          try {
+            // kYC 检查
+            const kyc = await kycService.getMyKyc(userId);
+            if (!kyc || kyc.kycStatus !== KYC_STATUS.APPROVED) {
+              return toolFailure(
+                `KYC not approved. Please complete identity verification first. Current status: ${kyc?.kycStatus} ?? 'unknown'}`,
+              );
+            }
+            //余额检查
+            const balance = await walletService.balance(userId);
+            const realBalance = new Prisma.Decimal(balance.realBalance ?? '0');
+            if (realBalance.lessThan(new Prisma.Decimal(amount))) {
+              return toolFailure(
+                `Insufficient balance. Available: ₱${realBalance.toString()}, requested: ₱${amount}`,
+              );
+            }
+            //幂等性检查（30秒内重复提现）
+            const idKey = `${userId}:${amount}:${channelId}:${account}`;
+            if (isRecentWithdraw(idKey)) {
+              return toolSuccess({
+                message:
+                  'Duplicate withdrawal request detected within 30 seconds. Please wait before trying again.',
+              });
+            }
+            markRecentWithdraw(idKey);
+            // ── 4. 执行提现 ──
+            const dto = new ApplyWithdrawDto();
+            dto.amount = amount;
+            dto.channelId = channelId;
+            dto.account = account;
+            dto.accountName = accountName;
+            const order = await clientWalletService.applyWithdraw(userId, dto);
+            const dtoRes = plainToInstance(WithdrawApplyResponseDto, order);
+            const llmResult = toLLM(dtoRes, WithdrawApplyResponseDto, 'zh');
+            return toolSuccess(llmResult);
+          } catch (e) {
+            return toolFailure(`Withdrawal failed: ${(e as Error).message}`);
+          }
+        },
+        {
+          name: 'applyWithdraw',
+          schema: z.object({
+            userId: z.string().describe('The Current user ID'),
+            amount: z.number().positive().describe('Withdrawal amount in PHP'),
+            channelId: z
+              .number()
+              .int()
+              .positive()
+              .describe('Payment channel ID from getPaymentChannels'),
+            account: z
+              .string()
+              .describe('Withdrawal account number e.g. GCash mobile number'),
+            accountName: z.string().describe('Account holder name'),
+          }),
+          description: `Submit a withdrawal request. IMPORTANT: 1. Always call getPaymentChannels first to let user choose a channel. 2. Present a preview with estimated fee. 3. Must get user explicit confirmation before calling this tool. 4. Verify KYC and balance first.`,
         },
       ),
       tags: ['wallet'],

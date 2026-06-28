@@ -21,6 +21,7 @@ export class WalletModule implements OnApplicationBootstrap {
     private readonly clientWalletService: ClientWalletService,
     private readonly kycService: KycService,
     private readonly toolRegistry: ToolRegistryService,
+    private readonly paymentChannelService: PaymentChannelService,
   ) {}
 
   /**
@@ -32,6 +33,7 @@ export class WalletModule implements OnApplicationBootstrap {
       this.walletService,
       this.clientWalletService,
       this.kycService,
+      this.paymentChannelService,
     );
     this.toolRegistry.registerMany(tools);
   }
