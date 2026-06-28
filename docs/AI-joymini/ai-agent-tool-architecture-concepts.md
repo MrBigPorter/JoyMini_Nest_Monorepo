@@ -90,12 +90,12 @@ buildCustomerGraph(llmConfig, services: AgentServices)
 |------|------|
 | **是什么** | 在 Service Registry 基础上更进一步：不仅注册 service，还注册**最终的工具实例**（`DynamicStructuredTool`） |
 | **关键区别** | 调用者（graph/agent）直接拿到**已经组装好的工具**，不需要自己调用 `createOrderTools()` |
-| **最终实现** | **NestJS `multi:true` 自动注入** + **`TaggedTool` 标签系统** |
+| **最终实现** | **NestJS `@Global ToolRegistryModule` + `OnApplicationBootstrap` 编程式注册** + **`TaggedTool` 标签系统** |
 
 **解决什么问题：**
 - **service 参数膨胀** ✅ — `buildCustomerGraph(llmConfig, toolRegistry)` 永远 2 个参数
 - **graph 代码膨胀** ✅ — `toolRegistry.getToolsByTag('order')` 按需发现，graph 永远不需要改
-- **domain 自治** ✅ — 每个 domain 通过 `multi:true` **自动注册**，不需要手动调用 `register()`
+- **domain 自治** ✅ — 每个 domain 通过 `OnApplicationBootstrap` **自动注册**，不需要手动调用 `register()`
 - **Agent 安全** ✅ — `TaggedTool` 标签系统确保 Agent 只拿到自己 domain 的工具
 
 **典型场景：**
@@ -107,7 +107,6 @@ buildCustomerGraph(llmConfig, services: AgentServices)
 
 ```typescript
 // === tool-registry.service.ts — 核心注册服务 ===
-export const AI_TOOLS = 'AI_TOOLS';
 export interface TaggedTool {
   tool: DynamicStructuredTool;
   tags: string[];  // e.g. ['order'], ['wallet']
@@ -115,9 +114,12 @@ export interface TaggedTool {
 
 @Injectable()
 export class ToolRegistryService {
-  constructor(
-    @Inject(AI_TOOLS) private readonly allTaggedTools: TaggedTool[],
-  ) {}
+  private allTaggedTools: TaggedTool[] = [];
+
+  /** 各 domain 模块在 OnApplicationBootstrap 中调用此方法注册工具 */
+  registerMany(tools: TaggedTool[]): void {
+    this.allTaggedTools.push(...tools);
+  }
 
   getAllTools(): DynamicStructuredTool[] {
     return this.allTaggedTools.map(t => t.tool);
@@ -130,20 +132,32 @@ export class ToolRegistryService {
   }
 }
 
-// === order.module.ts — 每个 domain 模块自动注册 ===
+// === tool-registry.module.ts — @Global 共享模块 ===
+@Global()
 @Module({
-  providers: [
-    OrderService,
-    {
-      provide: AI_TOOLS,
-      useFactory: (orderService: OrderService) =>
-        createOrderTools(orderService),  // → TaggedTool[]
-      inject: [OrderService],
-      multi: true,  // ← 不覆盖，追加到 AI_TOOLS 数组
-    } as any,
-  ],
-  exports: [OrderService, AI_TOOLS],  // ← 必须导出
+  providers: [ToolRegistryService],
+  exports: [ToolRegistryService],
 })
+export class ToolRegistryModule {}
+
+// === order.module.ts — 每个 domain 模块通过 OnApplicationBootstrap 自行注册 ===
+@Module({
+  imports: [PrismaModule, WalletModule, GroupModule, LuckyDrawModule],
+  controllers: [OrderController],
+  providers: [OrderService, PrismaService],
+  exports: [OrderService],
+})
+export class OrderModule implements OnApplicationBootstrap {
+  constructor(
+    private readonly orderService: OrderService,
+    private readonly toolRegistry: ToolRegistryService,
+  ) {}
+
+  onApplicationBootstrap() {
+    const tools = createOrderTools(this.orderService);  // → TaggedTool[]
+    this.toolRegistry.registerMany(tools);
+  }
+}
 
 // === order-tools.ts — 纯函数工厂，返回 TaggedTool[] ===
 export const createOrderTools = (orderService: IOrderService): TaggedTool[] => {
@@ -168,19 +182,20 @@ buildCustomerGraph(llmConfig, registry: ToolRegistryService) {
 
 | 概念 | 说明 |
 |------|------|
-| `AI_TOOLS` Token | `export const AI_TOOLS = 'AI_TOOLS'` — 一个「篮子标签」，各模块用此标签放入工具 |
-| `multi: true` | NestJS 特性 — 多个 provider 用相同 token 时不覆盖，而是**合并成一个数组** |
-| `exports: ['AI_TOOLS']` | **必须导出**，否则跨模块不可见（NestJS provider 默认私有） |
+| `ToolRegistryModule (@Global)` | `@Global()` 模块全局提供 `ToolRegistryService`，任何模块无需显式 import 即可注入 |
+| `registerMany()` | 各 domain 模块在 `OnApplicationBootstrap` 钩子中调用此方法注册 `TaggedTool[]` |
+| `OnApplicationBootstrap` | NestJS 生命周期钩子，在所有模块初始化完成后执行，确保所有依赖就绪 |
 | `TaggedTool` | `{ tool: DynamicStructuredTool, tags: string[] }` — 给工具打标签，按标签过滤 |
 | `getToolsByTag('order')` | Agent 节点只拿自己需要的工具，不污染 LLM 上下文 |
 
-**架构演进（3 个阶段）：**
+**架构演进（4 个阶段）：**
 
 | 阶段 | 方案 | 问题 |
 |------|------|------|
 | Phase 1 | 手动 `register()` — 每个 domain 在 service 里调用 `registry.register(tool)` | 手动调用只是代码搬迁，参数仍然膨胀 |
 | Phase 2 | **NestJS `multi:true` 自动注入** — 在 `*.module.ts` 用 `{ provide: AI_TOOLS, multi: true }` 声明 | Agent 拿到所有 domain 的工具，混淆 LLM |
-| Phase 3 | **+ TaggedTool 标签系统** — 每个工具带 `tags: ['order']`，Agent 按需获取 | ✅ 最终方案 |
+| Phase 3 | **+ TaggedTool 标签系统** — 每个工具带 `tags: ['order']`，Agent 按需获取 | ✅ 标签隔离，但发现 **钻石依赖作用域隔离问题**：`multi:true` 在多模块嵌套导入时存在 scope 问题，部分 module 的 provider 无法被正确消费 |
+| Phase 4 | **`OnApplicationBootstrap` 编程式注册** — 各 domain module 在生命周期钩子中调用 `registerMany()` | ✅ 最终方案：完全避免 DI scope 限制，无钻石依赖问题 |
 
 **为什么是最佳方案：** 零新依赖、零网络开销、完整 TypeScript 类型安全、自动注册无需手动调用、标签隔离确保 Agent 安全、未来可升级为 MCP。
 
@@ -242,7 +257,7 @@ const result = await mcpClient.callTool('getUserOrders', { userId: 'abc' });
 ```mermaid
 flowchart LR
     subgraph 现在
-        A[ToolRegistry<br/>NestJS DI<br/>零新依赖]
+        A[ToolRegistry<br/>OnApplicationBootstrap<br/>@Global ToolRegistryModule<br/>零新依赖]
     end
     subgraph 未来
         B[MCP Adapter<br/>包装 ToolRegistry<br/>成 MCP Server]
@@ -254,13 +269,23 @@ flowchart LR
     style B fill:#FF9800,color:white
 ```
 
-**Phase 1（现在 ✓）：** 实现 `ToolRegistryService` + NestJS `multi:true` 自动注入 + `TaggedTool` 标签系统
+**Phase 1（现在 ✓）：** 实现 `ToolRegistryService` + `@Global ToolRegistryModule` + `OnApplicationBootstrap` 编程式注册 + `TaggedTool` 标签系统
 - 纯 NestJS 实现，零新依赖 ✅
-- 每个 domain 模块通过 `{ provide: AI_TOOLS, multi: true }` **自动注册**，不需要手动调用任何注册函数 ✅
+- 每个 domain 模块通过 `OnApplicationBootstrap` 生命周期钩子**自动注册**，不需要手动调用任何注册函数 ✅
+- `ToolRegistryModule` 使用 `@Global()` 装饰器，全局提供 `ToolRegistryService` ✅
 - `customer.graph.ts` 通过 `registry.getToolsByTag('order')` 按标签获取工具，graph 永远不需要改 ✅
 - `buildCustomerGraph` 永远只需 `(llmConfig, toolRegistry)` 两个参数 ✅
 - Agent 节点只拿到自己标签的工具，不污染 LLM 上下文 ✅
 - TypeScript 编译通过，零错误 ✅
+
+> ⚠️ **坑：NestJS `multi:true` 钻石依赖**
+>
+> 在 `multi:true` DI 方案（Phase 3）中，当出现**钻石依赖**（如 `AiCustomerModule` 同时导入 `OrderModule` 和 `WalletModule`，而 `OrderModule` 也导入 `WalletModule`）时：
+> - NestJS 处理 `OrderModule` → 发现依赖 `WalletModule` → 初始化 `WalletModule` → `WalletModule` 的 `AI_TOOLS` multi-provider 绑定到 `OrderModule` 的作用域
+> - NestJS 处理 `AiCustomerModule` → 直接导入 `WalletModule` → 发现 `WalletModule` 已被缓存 → **复用实例** → `AI_TOOLS` 不再重新求值
+> - 结果：`WalletModule` 的 `AI_TOOLS` 被 `OrderModule` 作用域"消费"，`ToolRegistryService` 收不到钱包工具
+> - **表现**：`llm.bindTools([])` → 空数组 → LLM 退化为 XML 标签调用（如 `<get_wallet_balance>` 幻觉）
+> - **修复**：迁移到 Phase 4 编程式注册，完全规避 DI scope 问题
 
 **Phase 2（未来）：** MCP 适配
 - 当项目拆分为微服务或需要跨语言工具时

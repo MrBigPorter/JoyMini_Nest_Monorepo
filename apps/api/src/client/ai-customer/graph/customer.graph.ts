@@ -4,6 +4,10 @@ import {
   createIntentRouterNode,
   routerByIntent,
 } from './nodes/intent-router.node';
+import {
+  createWalletAgentNode,
+  walletAgentNode,
+} from '@api/client/ai-customer/graph/nodes/wallet-agent.node';
 import { createAnswerSynthesizerNode } from './nodes/answer-synthesizer.node';
 import { createGeneralChatNode } from './nodes/general-chat.node';
 import { createOrderAgentNode, orderAgentNode } from './nodes/order-agent.node';
@@ -36,6 +40,7 @@ export function buildCustomerGraph(
     .addNode('ragNode', ragNode)
     //orderAgent：处理订单相关问题的 agent 节点
     .addNode('orderAgent', createOrderAgentNode(llmConfig, registry))
+    .addNode('walletAgent', createWalletAgentNode(llmConfig, registry))
     //// 工人B（闲聊）generalChat：处理闲聊问题的 agent 节点
     .addNode('generalChat', createGeneralChatNode(llmConfig))
     //包装员	answerSynthesizer：将 agent 或 RAG 的输出整理成最终的自然语言回答
@@ -52,11 +57,18 @@ export function buildCustomerGraph(
       ragNode: 'ragNode', // 如果是政策问题 → 送工人C
       generalChat: 'generalChat', // 如果是闲聊 → 送工人B
       orderAgent: 'orderAgent', // 如果是订单问题 → 送工人A
+      walletAgent: 'walletAgent', // 如果是钱包问题 → 送工人D
+      // 以下 agent 尚未实现 → fallback 到 generalChat
+      couponAgent: 'generalChat',
+      userAgent: 'generalChat',
+      productAgent: 'generalChat',
+      luckyAgent: 'generalChat',
     })
 
     // All agent/nodes → Answer Synthesizer
     //所有工人都把成品送到包装员 ──
     .addEdge('orderAgent', 'answerSynthesizer')
+    .addEdge('walletAgent', 'answerSynthesizer')
     .addEdge('ragNode', 'answerSynthesizer')
     .addEdge('generalChat', 'answerSynthesizer')
 

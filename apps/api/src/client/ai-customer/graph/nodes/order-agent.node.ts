@@ -6,6 +6,9 @@ import {
 import { ToolMessage } from '@langchain/core/messages/tool';
 import { Logger } from '@nestjs/common';
 import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-registry.service';
+import { MAX_ITERATIONS } from '@api/client/ai-customer/graph/constants';
+import { AgentNodeOutput } from '@api/client/ai-customer/graph/types/agent-types';
+
 /**
  * orderAgent 占位节点 — 用于 graph 无条件注册
  * Phase 1 阶段只是透传，等 chatStream 接入后由 createOrderAgentNode 替换
@@ -28,9 +31,7 @@ export const createOrderAgentNode = (
   registry: ToolRegistryService,
 ) => {
   const logger = new Logger('OrderAgent');
-  return async (
-    state: typeof AgentState.State,
-  ): Promise<Partial<typeof AgentState.State>> => {
+  return async (state: typeof AgentState.State): Promise<AgentNodeOutput> => {
     const userId = state.userId;
 
     const tools = registry.getToolsByTag('order');
@@ -51,21 +52,24 @@ export const createOrderAgentNode = (
     let currentMessages: any[] = [
       {
         role: 'system',
-        content: `You are a professional order inquire assistant for JoyMini platform.
-You have access to order query tools. Follow these rules:
-1. First understand what the user needs (order list? specific order details?)
-2. The current user's ID is: ${userId}
-3. When calling tools, you MUST always include the userId parameter with the above ID
-4. Use the appropriate tool to fetch the data
-5. Present the information clearly and concisely in English
-6. If the user asks about something outside order scope, politely guide them back
-7. If a tool returns an error message, tell the user the order may not exist or may not belong to them, and suggest they check the order number.
+        content: `You are the order inquiry assistant for JoyMini platform. Respond in English.
+
+You can query the following information:
+1. Order List - View all orders of the user
+2. Order Detail - View detailed information of a specific order
+
+Rules:
+- First understand what the user needs (order list? or a specific order detail?)
+- Current user ID: ${userId}
+- Always pass the userId parameter when calling tools
+- Present data clearly and concisely in English
+- If the user asks about something outside orders, politely guide them back
+- If a tool returns an error, inform the user the order may not exist or may not belong to them, suggest checking the order number
 `,
       },
       ...state.messages.slice(-6),
     ];
     let iterations = 0;
-    const MAX_ITERATIONS = 3;
     let totalToolCalls = 0;
     try {
       while (iterations < MAX_ITERATIONS) {
@@ -100,13 +104,14 @@ You have access to order query tools. Follow these rules:
         agentOutput:
           'Sorry, I encountered an issue processing your order request. Please try again later.',
         messages: state.messages,
+        agentSteps: [],
       };
     }
 
     const lastMessage = currentMessages[currentMessages.length - 1];
     const lastToolCall = (lastMessage as any)?.tool_calls?.[0];
     logger.log(
-      `[order-agent] totalMsgs=${currentMessages.length}, toolCalls=${lastToolCall?.length ?? 0}`,
+      `[order-agent] totalMsgs=${currentMessages.length}, totalToolCalls=${totalToolCalls}`,
     );
     if (lastToolCall) {
       logger.log(

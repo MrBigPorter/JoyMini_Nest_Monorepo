@@ -1,5 +1,6 @@
 import { Annotation, messagesStateReducer } from '@langchain/langgraph';
 import { BaseMessage } from '@langchain/core/messages';
+import { AgentStep } from '@api/client/ai-customer/graph/types/agent-types';
 
 /**
  * 因为 LangGraph 支持 并行 Node（多个 Node 同时修改同一个 State）。如果没有 Reducer，两个 Node 同时写 messages 就会冲突。有了 Reducer，LangGraph 知道「追加就是安全的合并」。
@@ -47,8 +48,8 @@ export const AgentState = Annotation.Root({
   ////记录 Agent 每一步做了什么（比如：调用了什么工具、查了什么数据库、得到了什么结果）
   //每个 Node 都可以往里面追加自己的执行日志
   //用途：前端 SSE 流式输出「思考链」，让用户看到 Agent 正在思考
-  agentSteps: Annotation<any[]>({
-    reducer: (a: any[], b: any[]) => a.concat(b),
+  agentSteps: Annotation<AgentStep[]>({
+    reducer: (a: AgentStep[], b: AgentStep[]) => a.concat(b),
     default: () => [],
   }),
   agentOutput: Annotation<string>({

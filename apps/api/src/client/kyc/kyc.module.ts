@@ -10,6 +10,6 @@ import { DeviceModule } from '@api/common/device/device.module';
   imports: [PrismaModule, UploadModule, DeviceModule],
   controllers: [KycController],
   providers: [KycService, KycProviderService],
-  exports: [],
+  exports: [KycService],
 })
 export class KycModule {}

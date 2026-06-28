@@ -11,7 +11,6 @@ import { ClientCouponModule } from '@api/client/coupon/coupon.module';
 import { FlashSaleModule } from '@api/admin/flash-sale/flash-sale.module';
 import { AiCustomerService } from '@api/client/ai-customer/ai-customer.service';
 import { AiCustomerController } from '@api/client/ai-customer/ai-customer.controller';
-import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-registry.service';
 
 @Module({
   imports: [
@@ -27,7 +26,6 @@ import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-re
     FlashSaleModule,
   ],
   controllers: [AiCustomerController],
-  // 提供 ToolRegistryService（注入 AI_TOOLS）
-  providers: [AiCustomerService, ToolRegistryService],
+  providers: [AiCustomerService],
 })
 export class AiCustomerModule {}

@@ -21,6 +21,7 @@ import { ClientCouponModule } from '@api/client/coupon/coupon.module';
 import { ClientLuckyDrawModule } from '@api/client/lucky-draw/lucky-draw.module';
 import { ClientFlashSaleModule } from '@api/client/flash-sale/flash-sale.module';
 import { ClientSystemConfigModule } from './system-config/system-config.module';
+import { ToolRegistryModule } from '@api/client/ai-customer/graph/tools/tool-registry.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { ClientSystemConfigModule } from './system-config/system-config.module';
     ClientLuckyDrawModule,
     ClientFlashSaleModule,
     ClientSystemConfigModule, // 新增：客户端系统配置模块
+    ToolRegistryModule,
   ],
   providers: [],
   controllers: [HealthController],

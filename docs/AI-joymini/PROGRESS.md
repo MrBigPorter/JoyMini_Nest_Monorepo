@@ -18,7 +18,7 @@
 | — | **FieldMeta Phase 2** — Swagger 元数据注入 | ✅ **description + x-field-meta，验证通过** |
 | — | **FieldMeta Phase 3** — 前端类型生成 | ✅ **2 文件 17 字段自动生成** |
 | — | **FieldMeta classNameMap 优化** | ✅ **消除 DTO 注册表，零维护** |
-| — | **ToolRegistry 架构 — multi:true 自动注入** | ✅ **零手动注册，TypeScript 全通过** |
+| — | **ToolRegistry 架构 — OnApplicationBootstrap 编程式注册** | ✅ **@Global ToolRegistryModule + registerMany()** |
 | — | **TaggedTool 标签系统** | ✅ **Agent 只拿自己标签的工具** |
 
 ### Doc 04 验证
@@ -123,56 +123,64 @@ User Input → [intentRouter(createLLM)] → [orderAgent(createLLM+createAgent) 
 
 所有节点统一通过 `createLLM()` 获取 LLM 实例，Provider 切换只需改 `.env` 一行配置。
 
-### ToolRegistry 架构 — NestJS multi:true 自动注入 + TaggedTool 标签系统
+### ToolRegistry 架构 — OnApplicationBootstrap 编程式注册 + @Global ToolRegistryModule + TaggedTool 标签系统
 
 **问题背景:** 最初 ToolRegistry 是手动 `register()` 模式，每个 domain 工具需要在 `ai-customer.service.ts` 里手动调用 `createOrderTools(this.orderService, this.registry)`。用户指出："为什么要在运行之前调用？那这里不是很庞大" —— 手动调用只是把代码从 graph 文件搬到了 service 文件，没有根本解决扩展性问题。
 
-**解决方案演进 (3 个阶段):**
+**解决方案演进 (4 个阶段):**
 
 | 阶段 | 方案 | 问题 |
 |------|------|------|
 | Phase 1 | 手动 `register()` | 手动调用只是代码搬迁 |
 | Phase 2 | **NestJS `multi:true` 自动注入** | ✅ 零手动调用，但 Agent 拿到所有工具 |
-| Phase 3 | **+ TaggedTool 标签系统** | ✅ Agent 只拿自己标签的工具 |
+| Phase 3 | **+ TaggedTool 标签系统** | ✅ Agent 只拿自己标签的工具；但发现**钻石依赖作用域隔离问题** |
+| Phase 4 | **`OnApplicationBootstrap` 编程式注册 + `@Global ToolRegistryModule`** | ✅ 完全避免 DI scope 限制 |
+
+> **坑：多模块钻石依赖** — 当 `AiCustomerModule` 同时导入 `OrderModule` 和 `WalletModule`，且 `OrderModule` 也导入 `WalletModule`，NestJS 的 `multi:true` provider 会被缓存消费，导致 `WalletModule` 的工具无法到达 `ToolRegistryService`。详见架构文档 [推荐路径] 的警告说明。
 
 **最终架构:**
 
 ```mermaid
 flowchart LR
+    subgraph ToolRegistryModule["🌐 @Global ToolRegistryModule"]
+        TR[ToolRegistryService<br/>registerMany&#40;&#41;]
+    end
+
+    subgraph WalletModule["📦 WalletModule"]
+        WM[WalletModule] -->|onApplicationBootstrap| R1["registerMany&#40;createWalletTools&#40;...&#41;&#41;"]
+    end
+
     subgraph OrderModule["📦 OrderModule"]
-        OM[OrderModule] -->|providers| P1["{ provide: 'AI_TOOLS',<br/>multi: true,<br/>useFactory: createOrderTools }"]
-        OM -->|exports| E1["exports: ['AI_TOOLS']"]
+        OM[OrderModule] -->|onApplicationBootstrap| R2["registerMany&#40;createOrderTools&#40;...&#41;&#41;"]
     end
 
-    subgraph FutureModule["📦 FutureModule e.g. WalletModule"]
-        FM[FutureModule] -->|providers| P2["{ provide: 'AI_TOOLS',<br/>multi: true,<br/>useFactory: createWalletTools }"]
-        FM -->|exports| E2["exports: ['AI_TOOLS']"]
-    end
+    R1 --> TR
+    R2 --> TR
 
-    subgraph ToolRegistry["🛠️ ToolRegistryService"]
-        TR[ToolRegistryService] -->|@Inject&#40;'AI_TOOLS'&#41;| ALL["TaggedTool[]<br/>{ tool, tags: ['order'] }<br/>{ tool, tags: ['wallet'] }"]
-        ALL -->|getToolsByTag&#40;'order'&#41;| ORD["→ Order 工具"]
-        ALL -->|getToolsByTag&#40;'wallet'&#41;| WAL["→ Wallet 工具"]
-    end
+    TR -->|getToolsByTag&#40;'order'&#41;| ORD["→ Order 工具"]
+    TR -->|getToolsByTag&#40;'wallet'&#41;| WAL["→ Wallet 工具"]
 ```
 
 **核心文件:**
 
 | 文件 | 操作 | 说明 |
 |------|------|------|
-| [`tool-registry.service.ts`](apps/api/src/client/ai-customer/graph/tools/tool-registry.service.ts) | 改造 | `@Inject(AI_TOOLS)` DI 注入 + `TaggedTool` 接口 + `getToolsByTag()` |
-| [`order-tools.ts`](apps/api/src/client/ai-customer/graph/tools/order-tools.ts) | 改造 | 返回 `TaggedTool[]`，每个工具带 `tags: ['order']` |
-| [`order.module.ts`](apps/api/src/client/orders/order.module.ts) | 改造 | 新增 `multi: true` provider + `exports: ['AI_TOOLS']` |
-| [`ai-customer.service.ts`](apps/api/src/client/ai-customer/ai-customer.service.ts) | 简化 | 移除 `OrderService` 注入 + 移除手动 `createOrderTools()` |
-| [`order-agent.node.ts`](apps/api/src/client/ai-customer/graph/nodes/order-agent.node.ts) | 修改 | `getAllTools()` → `getToolsByTag('order')` |
+| [`tool-registry.service.ts`](apps/api/src/client/ai-customer/graph/tools/tool-registry.service.ts) | 改造 | 移除 `@Inject(AI_TOOLS)`，添加 `registerMany()` |
+| [`tool-registry.module.ts`](apps/api/src/client/ai-customer/graph/tools/tool-registry.module.ts) | **新建** | `@Global()` 模块，提供 `ToolRegistryService` 全局单例 |
+| [`wallet.module.ts`](apps/api/src/client/wallet/wallet.module.ts) | 改造 | 实现 `OnApplicationBootstrap`，调用 `registerMany(createWalletTools(...))` |
+| [`order.module.ts`](apps/api/src/client/orders/order.module.ts) | 改造 | 实现 `OnApplicationBootstrap`，替换 `multi:true` provider 为 `registerMany()` |
+| [`ai-customer.module.ts`](apps/api/src/client/ai-customer/ai-customer.module.ts) | 简化 | 移除 `AI_TOOLS` provider，恢复干净 |
+| [`client.module.ts`](apps/api/src/client/client.module.ts) | 修改 | 导入 `ToolRegistryModule` |
+| [`ai-customer.service.ts`](apps/api/src/client/ai-customer/ai-customer.service.ts) | 未变 | 不再需要手动注册工具 |
+| [`customer.graph.ts`](apps/api/src/client/ai-customer/graph/customer.graph.ts) | 未变 | 仍通过 `registry.getToolsByTag('order')` 获取 |
 
 **关键概念解释:**
 
 | 概念 | 说明 |
 |------|------|
-| `AI_TOOLS` 注入 Token | 一个「篮子标签」`export const AI_TOOLS = 'AI_TOOLS'`，各模块用此标签放入工具 |
-| `multi: true` | NestJS 特性 — 多个 provider 用相同 token 时不覆盖，而是**合并成一个数组** |
-| `exports: ['AI_TOOLS']` | **必须导出**，否则跨模块不可见（NestJS provider 默认私有） |
+| `ToolRegistryModule (@Global)` | `@Global()` 模块，任何模块无需 import 即可注入 `ToolRegistryService` |
+| `registerMany()` | 各 domain 模块在 `OnApplicationBootstrap` 钩子中调用此方法注册工具 |
+| `OnApplicationBootstrap` | NestJS 生命周期钩子，在所有模块初始化完成后执行 |
 | `TaggedTool` | `{ tool: DynamicStructuredTool, tags: string[] }` — 给工具打标签，按标签过滤 |
 | `getToolsByTag('order')` | Agent 节点只拿自己需要的工具，不污染 LLM 上下文 |
 
@@ -180,18 +188,20 @@ flowchart LR
 
 | 问题 | 根因 | 修复 |
 |------|------|------|
-| `UnknownDependenciesException` | `OrderModule` 未 `exports: ['AI_TOOLS']` | 在 `OrderModule` 添加 `exports: [OrderService, 'AI_TOOLS']` |
+| `UnknownDependenciesException` (早期) | `OrderModule` 未 `exports: ['AI_TOOLS']` | 添加 `exports: [OrderService, 'AI_TOOLS']` |
+| **Wallet Agent toolCalls=0，LLM 退化为 XML 标签调用** | **NestJS `multi:true` 钻石依赖：WalletModule 被 OrderModule 和 AiCustomerModule 同时导入，AI_TOOLS 被 Order 作用域"消费"** | **从 `multi:true` DI 迁移到 `OnApplicationBootstrap` 编程式注册 + `@Global ToolRegistryModule`** |
 
 **验证结果:**
 ```bash
 cd apps/api && npx tsc --noEmit   # ✅ 零错误
+# testChat API: toolCalls: 1 ✅ 返回真实钱包余额数据
 ```
 
 **未来扩展（3 步加一个 domain）:**
 
-1. 创建 `wallet-tools.ts` 返回 `TaggedTool[]`（标签 `'wallet'`）
-2. 在 `wallet.module.ts` 加 `{ provide: 'AI_TOOLS', multi: true, useFactory: createWalletTools, inject: [WalletService] }` + `exports: ['AI_TOOLS']`
-3. 在对应的 Agent node 使用 `getToolsByTag('wallet')`
+1. 创建 `xxx-tools.ts` 返回 `TaggedTool[]`（标签 `'xxx'`）
+2. 在 `xxx.module.ts` 实现 `OnApplicationBootstrap`，注入 `ToolRegistryService`，在钩子中调用 `this.toolRegistry.registerMany(createXxxTools(...))`
+3. 在对应的 Agent node 使用 `registry.getToolsByTag('xxx')`
 
 **不需要修改的文件:** `ai-customer.service.ts`, `customer.graph.ts`, `ai-customer.module.ts`
 
@@ -330,15 +340,19 @@ VSCode 可能显示不存在的文件路径（如 `graph/graph/llm-factory.ts`�
 
 ```
 启动时:
-  OrderModule.init()
-    → NestJS 执行 useFactory: createOrderTools(orderService)
-    → 返回 TaggedTool[{ tool: getUserOrders, tags: ['order'] }, { tool: getOrderInfo, tags: ['order'] }]
-    → multi:true 合并到 'AI_TOOLS' 数组
+  NestJS 初始化所有模块:
+    OrderModule.onApplicationBootstrap()
+      → this.toolRegistry.registerMany(createOrderTools(orderService))
+      → TaggedTool[{ tool: getUserOrders, tags: ['order'] }, { tool: getOrderInfo, tags: ['order'] }] 存入 registry
 
-  AiCustomerService.initGraph()
+    WalletModule.onApplicationBootstrap()
+      → this.toolRegistry.registerMany(createWalletTools(walletService, clientWalletService, kycService))
+      → TaggedTool[{ tool: getWalletBalance, tags: ['wallet'] }, ...] 存入 registry
+
+  AiCustomerService.onApplicationBootstrap()
     → buildCustomerGraph(llmConfig, registry)
     → createOrderAgentNode(llmConfig, registry)
-    → registry.getToolsByTag('order')  → 只拿到 Order 工具
+    → registry.getToolsByTag('order')  → 拿到 Order 工具
     → llm.bindTools(orderTools)        → LLM 只看到 Order 工具
 
 运行时:

@@ -57,9 +57,9 @@ const INTENT_PROMPT = ChatPromptTemplate.fromMessages([
 User inquires about order status, shipping, refund progress, order details, etc.
 Examples: "Where is my order", "I want a refund", "Check order status", "Show my last order"
 
-### wallet — Wallet / Balance
-User inquires about wallet balance, recharge history, transactions, withdrawals, etc.
-Examples: "How much money do I have", "Check my balance", "I want to withdraw", "My transaction history"
+### wallet — Wallet / Balance / KYC
+User inquires about wallet balance, recharge history, transactions, withdrawals, KYC/real-name verification status, etc.
+Examples: "How much money do I have", "Check my balance", "I want to withdraw", "My transaction history", "My KYC status", "Am I verified"
 
 ### coupon — Coupon
 User inquires about their coupons, available coupons to claim, claiming a coupon, etc.
