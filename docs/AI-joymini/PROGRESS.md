@@ -20,6 +20,8 @@
 | — | **FieldMeta classNameMap 优化** | ✅ **消除 DTO 注册表，零维护** |
 | — | **ToolRegistry 架构 — OnApplicationBootstrap 编程式注册** | ✅ **@Global ToolRegistryModule + registerMany()** |
 | — | **TaggedTool 标签系统** | ✅ **Agent 只拿自己标签的工具** |
+| — | **Wallet Agent 取提现 Phase 1 MVP** | ✅ **5 Tools + 2-phase confirmation，实测通过** |
+| — | **PaymentChannel DTO 字段标准化** | ✅ **@FieldMeta + @Expose + @DecimalToString** |
 
 ### Doc 04 验证
 
@@ -362,6 +364,49 @@ VSCode 可能显示不存在的文件路径（如 `graph/graph/llm-factory.ts`�
     → 返回订单数据
 ```
 
+### Wallet Agent — 取提现 Phase 1 MVP (2026-06-28)
+
+**背景:** 用户要求 Wallet Agent 支持取提现功能。作为架构师分析后，选择 Phase 1 MVP 方案（两阶段确认模式，无额外安全验证）。
+
+**实现功能（5 个 Tool）:**
+
+| Tool | 功能 | 说明 |
+|------|------|------|
+| `getWalletBalance` | 查余额 | 现金余额 ₱908.00，金币余额 0 coins |
+| `getWalletTransactions` | 交易记录 | 充值/提现记录，支持分页 |
+| `getKycStatus` | 查 KYC | 实名认证状态 + 风险等级 |
+| `getPaymentChannels` | 查提现渠道 | GCash (₱100-₱50k, 费₱5), Bank (₱200-₱100k, 费₱10) |
+| `applyWithdraw` | 申请提现 | 两阶段确认，内部 KYC + balance + 幂等性检查 |
+
+**修改文件（6 个）:**
+
+| 文件 | 变更 |
+|------|------|
+| [`wallet-tools.ts`](apps/api/src/client/ai-customer/graph/tools/wallet-tools.ts) | +getPaymentChannels + applyWithdraw 工具，内存 30s 幂等性，修复 kyc.status → kyc.kycStatus |
+| [`wallet-agent.node.ts`](apps/api/src/client/ai-customer/graph/nodes/wallet-agent.node.ts) | System Prompt 增加两阶段提现流程（Preview → Confirm & Execute） |
+| [`payment-channel.dto.ts`](apps/api/src/client/payment-channel/dto/payment-channel.dto.ts) | 8 字段加 @FieldMeta，@Expose({ name: 'feeFixed' }) 映射 fee，@DecimalToString() |
+| [`withdraw-apply-response.dto.ts`](apps/api/src/client/wallet/dto/withdraw-apply-response.dto.ts) | @FieldMeta 标注（withdrawId, withdrawNo, withdrawAmount, withdrawStatus） |
+| [`recharge.dto.ts`](apps/api/src/client/wallet/dto/recharge.dto.ts) | RechargeHistoryItemDto 加 @FieldMeta（修复历史记录为空 bug） |
+| [`wallet.module.ts`](apps/api/src/client/wallet/wallet.module.ts) | 注入 PaymentChannelService，4 参数传给 createWalletTools |
+
+**验证结果:**
+```bash
+POST /api/v1/ai-customer/test-chat
+{"message":"帮我取款100,Gcash账户:09451297266,账户姓名:porter，信息正确，提交该提现申请"}
+# → code: 10000 ✅
+# → toolCalls: 3 (getWalletBalance + getKycStatus + getPaymentChannels)
+# → 正确展示渠道信息: GCash ₱100-₱50k, Bank ₱200-₱100k 不符合
+# → 两阶段确认: 展示预览，问用户确认 → 用户确认后执行
+```
+
+**已知 UX 问题（待优化）:**
+
+| 问题 | 方案（已出代码） | 改动 |
+|------|-----------------|------|
+| 展示不符合金额的渠道 | 方案B: getPaymentChannels 加 amount 过滤 | wallet-tools.ts |
+| 用户说"提交"仍需再次确认 | System Prompt 识别关键词跳过预览 | wallet-agent.node.ts |
+| testChat 无跨消息记忆 | 需实现 Checkpointer + chatStream | ai-customer.service.ts |
+
 ### 未来扩展方向
 
 | 方向 | 说明 |
@@ -371,11 +416,14 @@ VSCode 可能显示不存在的文件路径（如 `graph/graph/llm-factory.ts`�
 | 缓存策略 | 相同用户的订单列表短时缓存，减少 DB 查询 |
 | 更多 Agent | walletAgent、couponAgent、userAgent 等已预留路由，待接入 |
 
-## ⏳ 待开始
+## ⏳ 待优化
 
-| # | 文档 | 内容 |
-|---|------|------|
-| 08-12 | 各 Agent 节点 | Wallet/Coupon/User/Product/RAG etc. |
+| # | 项目 | 内容 | 代码已准备 |
+|---|------|------|:----------:|
+| 01 | 渠道过滤 | getPaymentChannels 加 amount 过滤，只返回符合金额的渠道 | ✅ |
+| 02 | 确认流程优化 | System Prompt 识别"提交"关键词跳过预览步骤 | ✅ |
+| 03 | 多轮记忆 | 实现 Checkpointer + chatStream，支持跨消息上下文 | ❌ |
+| 04 | Phase 2 安全 | 交易密码/OTP 验证、渠道绑定、风控系统 | ❌ |
 
 ## 🔧 基础设施
 
