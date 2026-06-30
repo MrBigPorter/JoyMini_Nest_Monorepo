@@ -86,8 +86,8 @@ export function createCouponSchema(t: TFunc) {
           });
         }
       }
-      // 2. couponType = 2 时，discountType 和 maxDiscount 必填
-      if (+data.couponType === COUPON_TYPE.DISCOUNT) {
+      // 2. discountType = PERCENTAGE 时，maxDiscount 必填
+      if (+data.discountType === 2) {
         if (data.maxDiscount === undefined || data.maxDiscount === null) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,

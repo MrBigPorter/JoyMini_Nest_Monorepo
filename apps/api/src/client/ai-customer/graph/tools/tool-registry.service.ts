@@ -19,13 +19,42 @@ export interface TaggedTool {
  */
 @Injectable()
 export class ToolRegistryService {
+  /** 所有已注册的工具（含标签） */
   private allTaggedTools: TaggedTool[] = [];
+
+  /**
+   * 验证各 agent tag 是否已注册工具。
+   * 由 AiCustomerModule.onApplicationBootstrap() 在最后调用（此时所有 domain module 已注册完毕）。
+   */
+
+  validateRegistration(
+    expectedTags: string[],
+    logger: { error: (msg: string) => void; log: (msg: string) => void },
+  ): void {
+    const registeredTags = new Set(this.allTaggedTools.flatMap((t) => t.tags));
+    for (const tag of expectedTags) {
+      if (!registeredTags.has(tag)) {
+        logger.error(
+          `🚨 Tool registration MISSING for tag "${tag}"! ` +
+            `Did you forget to add OnApplicationBootstrap + registerMany()` +
+            ` in the corresponding Module?`,
+        );
+      } else {
+        const count = this.allTaggedTools.filter((t) =>
+          t.tags.includes(tag),
+        ).length;
+        logger.log(`✅ Tag "${tag}": ${count} tools registered`);
+      }
+    }
+  }
 
   /**
    * 注册多个工具
    */
   registerMany(tools: TaggedTool[]): void {
-    this.allTaggedTools.push(...tools);
+    const existingNames = new Set(this.allTaggedTools.map((t) => t.tool.name));
+    const newTools = tools.filter((t) => !existingNames.has(t.tool.name));
+    this.allTaggedTools.push(...newTools);
   }
 
   /**

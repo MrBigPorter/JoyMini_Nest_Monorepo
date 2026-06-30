@@ -18,8 +18,10 @@ export const ragNode = async (
       ? lastMessage.content
       : JSON.stringify(lastMessage?.content ?? '');
   return {
-    agentOutput: `[Knowledge Base]\nQuestion:
+    taskResults: {
+      ragNode: `[Knowledge Base]\nQuestion:
     ${userInput}\n\nThe knowledge base feature is currently under development. Please try again later or contact customer support for assistance.
     `,
+    },
   };
 };

@@ -5,6 +5,10 @@ import { toLLM } from '@api/common/ai/utils/to-llm';
 import { OrderItemDto } from '@api/client/orders/dto/order-item.dto';
 import { Logger } from '@nestjs/common';
 import { TaggedTool } from '@api/client/ai-customer/graph/tools/tool-registry.service';
+import {
+  toolFailure,
+  toolSuccess,
+} from '@api/client/ai-customer/graph/tools/tool-result';
 
 /**
  * "纯函数" 工厂：创建订单查询工具
@@ -50,20 +54,16 @@ export const createOrderTools = (orderService: IOrderService): TaggedTool[] => {
             const llmList = (result.list ?? []).map((item: OrderItemDto) =>
               toLLM(item, OrderItemDto, 'zh'),
             );
-            return JSON.stringify(
-              {
-                total: result.total,
-                page: result.page,
-                pageSize: result.pageSize,
-                orders: llmList,
-              },
-              null,
-              2,
-            );
-          } catch (e) {
-            return JSON.stringify({
-              error: `Failed to query orders: ${(e as Error).message}`,
+            return toolSuccess({
+              total: result.total,
+              page: result.page,
+              pageSize: result.pageSize,
+              orders: llmList,
             });
+          } catch (e) {
+            return toolFailure(
+              `Failed to query orders: ${(e as Error).message}`,
+            );
           }
         },
         {

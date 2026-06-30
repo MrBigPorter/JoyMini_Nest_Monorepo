@@ -28,7 +28,13 @@ export class OtpService {
   }
 
   // 1) 请求验证码
-  async request({ phone }: { phone: string }) {
+  async request({
+    phone,
+    codeType = CODE_TYPE.LOGIN,
+  }: {
+    phone: string;
+    codeType?: number;
+  }) {
     const p = phone.trim();
     if (!p) throw new BadRequestException({ message: 'phone required' });
 
@@ -36,7 +42,7 @@ export class OtpService {
     const recent = await this.prisma.smsVerificationCode.findFirst({
       where: {
         phone: p,
-        codeType: CODE_TYPE.LOGIN,
+        codeType: codeType,
         createdAt: { gte: new Date(Date.now() - OTP_INTERVAL_SECONDS * 1000) },
       },
       select: { id: true },
@@ -55,7 +61,7 @@ export class OtpService {
     await this.prisma.smsVerificationCode.create({
       data: {
         phone: p,
-        codeType: CODE_TYPE.LOGIN,
+        codeType: codeType,
         codeHash: codeHash,
         sendStatus: SEND_STATUS.SENT,
         verifyStatus: VERIFY_STATUS.PENDING,
@@ -77,7 +83,15 @@ export class OtpService {
   }
 
   // 2) 校验验证码（仅校验，不发 token）
-  async verify({ phone, code }: { phone: string; code: string }) {
+  async verify({
+    phone,
+    code,
+    codeType = CODE_TYPE.LOGIN,
+  }: {
+    phone: string;
+    code: string;
+    codeType?: number;
+  }) {
     const p = (phone || '').trim();
     const c = (code || '').trim();
     if (!p || !c) throw new BadRequestException('phone required');
@@ -86,7 +100,7 @@ export class OtpService {
     const req = await this.prisma.smsVerificationCode.findFirst({
       where: {
         phone,
-        codeType: CODE_TYPE.LOGIN,
+        codeType,
         verifyStatus: VERIFY_STATUS.PENDING,
       },
       orderBy: { createdAt: 'desc' },

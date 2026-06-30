@@ -132,27 +132,34 @@ export const CouponList: React.FC<CouponListProps> = ({
 
   const handleOpenModal = useCallback(
     (record?: Coupon) => {
-      ModalManager.open({
-        title: record ? t('coupon.editCoupon') : t('coupon.createCoupon'),
-        // 这里的 CreateCouponModal 就是你上一段代码里的组件
-        renderChildren: ({ close, confirm }) => (
-          <CouponModal
-            tAction={t}
-            editingData={record}
-            closeAction={close}
-            confirmAction={() => {
-              confirm(); // 关闭弹窗
-              refresh(); // 刷新表格
-              addToast(
-                'success',
-                record
-                  ? t('coupon.updatedSuccess')
-                  : t('coupon.createdSuccess'),
-              );
-            }}
-          />
-        ),
-      });
+      console.log('[CouponList] handleOpenModal called', record ? 'edit mode' : 'create mode', record?.id);
+      try {
+        ModalManager.open({
+          title: record ? t('coupon.editCoupon') : t('coupon.createCoupon'),
+          // 这里的 CreateCouponModal 就是你上一段代码里的组件
+          renderChildren: ({ close, confirm }) => (
+            <CouponModal
+              tAction={t}
+              editingData={record}
+              closeAction={close}
+              confirmAction={() => {
+                console.log('[CouponList] confirmAction called');
+                confirm(); // 关闭弹窗
+                refresh(); // 刷新表格
+                addToast(
+                  'success',
+                  record
+                    ? t('coupon.updatedSuccess')
+                    : t('coupon.createdSuccess'),
+                );
+              }}
+            />
+          ),
+        });
+        console.log('[CouponList] ModalManager.open succeeded');
+      } catch (error) {
+        console.error('[CouponList] ModalManager.open error:', error);
+      }
     },
     [refresh, addToast, t],
   );

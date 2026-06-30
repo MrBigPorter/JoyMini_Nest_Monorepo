@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, OnApplicationBootstrap, Logger } from '@nestjs/common';
 import { OrderModule } from '@api/client/orders/order.module';
 import { WalletModule } from '@api/client/wallet/wallet.module';
 import { TreasureModule } from '@api/client/treasure/treasure.module';
@@ -11,6 +11,14 @@ import { ClientCouponModule } from '@api/client/coupon/coupon.module';
 import { FlashSaleModule } from '@api/admin/flash-sale/flash-sale.module';
 import { AiCustomerService } from '@api/client/ai-customer/ai-customer.service';
 import { AiCustomerController } from '@api/client/ai-customer/ai-customer.controller';
+import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-registry.service';
+
+/**
+ * 中心化注册表：在此添加新的 agent tag。
+ * 当新增一个 domain agent（如 kycAgent）时，将对应的 tag 加入此数组。
+ * AiCustomerModule.onApplicationBootstrap() 会验证所有期望的 tag 都已注册工具。
+ */
+const EXPECTED_AGENT_TAGS = ['order', 'wallet', 'coupon'];
 
 @Module({
   imports: [
@@ -28,4 +36,19 @@ import { AiCustomerController } from '@api/client/ai-customer/ai-customer.contro
   controllers: [AiCustomerController],
   providers: [AiCustomerService],
 })
-export class AiCustomerModule {}
+export class AiCustomerModule implements OnApplicationBootstrap {
+  private readonly logger = new Logger(AiCustomerModule.name);
+
+  constructor(private readonly toolRegistry: ToolRegistryService) {}
+
+  /**
+   * 所有 domain module 的 OnApplicationBootstrap 已执行完毕（工具已注册），
+   * 此时验证各 agent tag 是否都有对应的工具。
+   */
+  onApplicationBootstrap() {
+    this.toolRegistry.validateRegistration(EXPECTED_AGENT_TAGS, {
+      error: (msg: string) => this.logger.error(msg),
+      log: (msg: string) => this.logger.log(msg),
+    });
+  }
+}

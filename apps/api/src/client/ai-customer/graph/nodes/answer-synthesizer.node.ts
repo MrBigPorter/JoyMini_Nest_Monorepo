@@ -70,12 +70,17 @@ export const createAnswerSynthesizerNode =
       typeof lastMessage?.content === 'string'
         ? lastMessage.content
         : JSON.stringify(lastMessage?.content ?? '');
-    const { intent, agentOutput } = state;
+    const { intent, taskResults } = state;
 
+    // 合并所有 Agent 的输出
+    const agentOutput = Object.entries(taskResults || {})
+      .map(([agent, result]) => `[${agent}]: ${result}`)
+      .join('\n\n');
     //如果agentOutput为空，返回友好提示
     if (!agentOutput) {
       return {
         messages: [
+          ...state.messages,
           new AIMessage(
             'Sorry, I could not find the information you requested. Please try again later or contact our customer support team for assistance.',
           ),
@@ -85,7 +90,7 @@ export const createAnswerSynthesizerNode =
     // generalChat 的输出已经是最终答案，直接透传
     if (intent === 'general') {
       return {
-        messages: [new AIMessage(agentOutput)],
+        messages: [...state.messages, new AIMessage(agentOutput)],
       };
     }
 
@@ -100,6 +105,16 @@ export const createAnswerSynthesizerNode =
     });
 
     return {
-      messages: [new AIMessage(result)],
+      messages: [...state.messages, new AIMessage(result)],
+      //每轮结束，清空 taskResults 和 intent，下次请求重新分类
+      taskResults: {},
+      intent: '', // 清空 intent，下次请求走 IntentRouter 重新分类
+      // Supervisor 流程结束 → 重置 supervisor 状态
+      ...(state.pendingTasks && state.pendingTasks.length > 0
+        ? {
+            pendingTasks: [],
+            supervisorRound: 0,
+          }
+        : {}),
     };
   };

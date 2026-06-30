@@ -8,9 +8,11 @@ import { KycModule } from '@api/client/kyc/kyc.module';
 import { KycService } from '@api/client/kyc/kyc.service';
 import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-registry.service';
 import { createWalletTools } from '@api/client/ai-customer/graph/tools/wallet-tools';
+import { OtpService } from '@api/client/otp/otp.service';
+import { OtpModule } from '@api/client/otp/otp.module';
 
 @Module({
-  imports: [KycModule],
+  imports: [KycModule, OtpModule],
   providers: [WalletService, ClientWalletService, PaymentChannelService],
   controllers: [WalletController, PaymentWebhookController],
   exports: [WalletService, ClientWalletService],
@@ -22,6 +24,7 @@ export class WalletModule implements OnApplicationBootstrap {
     private readonly kycService: KycService,
     private readonly toolRegistry: ToolRegistryService,
     private readonly paymentChannelService: PaymentChannelService,
+    private readonly otpService: OtpService,
   ) {}
 
   /**
@@ -34,6 +37,7 @@ export class WalletModule implements OnApplicationBootstrap {
       this.clientWalletService,
       this.kycService,
       this.paymentChannelService,
+      this.otpService,
     );
     this.toolRegistry.registerMany(tools);
   }

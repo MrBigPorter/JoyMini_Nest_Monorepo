@@ -41,30 +41,33 @@ const GENERAL_CHAT_PROMPT = ChatPromptTemplate.fromMessages([
  * 输出写入 agentOutput，由 answerSynthesizer 透传给用户。
  */
 
-export const createGeneralChatNode = (llmConfig: LlmProviderConfig) =>
+export const createGeneralChatNode =
+  (llmConfig: LlmProviderConfig) =>
   async (
     state: typeof AgentState.State,
   ): Promise<Partial<typeof AgentState.State>> => {
-  const lastMessage = state.messages[state.messages.length - 1];
-  // 拿到用户输入的信息
-  const userInput =
-    typeof lastMessage?.content === 'string'
-      ? lastMessage.content
-      : JSON.stringify(lastMessage?.content ?? '');
+    const lastMessage = state.messages[state.messages.length - 1];
+    // 拿到用户输入的信息
+    const userInput =
+      typeof lastMessage?.content === 'string'
+        ? lastMessage.content
+        : JSON.stringify(lastMessage?.content ?? '');
 
-  //创建ollama模型实例（temperature=0.7，允许一定的创造性）
-  const model = createLLM(llmConfig, { temperature: 0.7 });
+    //创建ollama模型实例（temperature=0.7，允许一定的创造性）
+    const model = createLLM(llmConfig, { temperature: 0.7 });
 
-  //组装 chain: prompt=>model=>string parser
-  //GENERAL_CHAT_PROMPT.pipe(model) ─── 格式化 Prompt，生成 System + Human 消息列表
-  // .pipe(model) ─── 发给 ChatOllama，返回 AIMessage { content: '...' }
-  //.pipe(StringOutputParser) ─── 从 AIMessage 里提取纯文本 '...'
-  const chain = GENERAL_CHAT_PROMPT.pipe(model).pipe(new StringOutputParser());
-  //执行生成回复
-  const result = await chain.invoke({ input: userInput });
-  //AIMessage 会被 answerSynthesizer 透传给用户
-  return {
-    agentOutput: result,
-    messages: [new AIMessage(result)],
+    //组装 chain: prompt=>model=>string parser
+    //GENERAL_CHAT_PROMPT.pipe(model) ─── 格式化 Prompt，生成 System + Human 消息列表
+    // .pipe(model) ─── 发给 ChatOllama，返回 AIMessage { content: '...' }
+    //.pipe(StringOutputParser) ─── 从 AIMessage 里提取纯文本 '...'
+    const chain = GENERAL_CHAT_PROMPT.pipe(model).pipe(
+      new StringOutputParser(),
+    );
+    //执行生成回复
+    const result = await chain.invoke({ input: userInput });
+    //AIMessage 会被 answerSynthesizer 透传给用户
+    return {
+      taskResults: { generalChat: result },
+      messages: [new AIMessage(result)],
+    };
   };
-};

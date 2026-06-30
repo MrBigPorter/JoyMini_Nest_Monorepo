@@ -612,15 +612,275 @@ export async function ragNode(state: AgentState) {
 
 ### Phase 4：高阶能力（5 Features）
 
-#### F-23 Multi-Agent Supervisor Pattern
+#### F-23 Multi-Agent Supervisor Pattern ✅ 已实现 2026-06-30 ⚠️ 方案 B 待重构
+
+> **2026-06-30 方案 B 决策：** 由于 Bug 5（Supervisor LLM 幻觉），将采用**单轮单 Agent（方案 B）**替代 Supervisor LLM 分解。
+> - `supervisorNode` 将去掉 LLM 分解代码（`SUPERVISOR_PROMPT`、`createLLM`、`StringOutputParser`），降级为纯 round 计数器
+> - `intentRouter` 不再输出 `supervised` 意图；prompt 增加多领域检测规则，多领域只输出主意图
+> - 多余领域在后续对话轮次中处理（GATEWAY 跳过路由器）
+> - 详见 [`33-工作流型智能体16挑战对标.md`](33-工作流型智能体16挑战对标.md)
 
 | 维度 | 内容 |
 |------|------|
-| **描述** | 引入 Supervisor Agent：协调多个 Specialist Agent（订单、优惠券、RAG、客服），由 Supervisor 决定是否让 Specialist 介入或直接回答 |
-| **术语** | `Multi-Agent System`、`Supervisor Pattern`、`Orchestration`、`Agent Handoff` |
-| **自试点** | Supervisor 模式和当前的条件边模式有什么区别？什么场景下需要引入 Supervisor？通信开销如何控制？ |
-| **进度** | [ ] TODO |
+| **描述** | 基于 LangGraph StateGraph 的 **指针式 Supervisor 模式**。核心思路：`intentGateway` 分流（`FLOW_INTENTS` 缓存优化）→ `IntentRouter` 分类单/多步骤 → `supervisorNode` 分解任务 → `supervisorRouter` 指针式逐个派发 → `agentDoneRouter` 回环 Supervisor → `answerSynthesizer` 汇总。**删除旧 reroute 机制**，使用 `isSupervised` + `tasks` + `supervisorRound` 三个状态字段实现有状态循环。 |
+| **术语** | `Supervisor Pattern`、`Pointer-based Routing`、`FLOW_INTENTS`（4 项缓存）、`VALID_INTENTS`（10 项分类）、`Two-phase Supervisor`、`agentDoneRouter`、`taskResults merge reducer`、`Zero Overhead Principle` |
+| **自试点** | Supervisor 通过指针（`supervisorRound-1`）而不是 `remaining.filter()` 路由的原因？为什么每个 Agent 需要独立的 `agentDoneRouter` 条件边？`taskResults` 使用 merge reducer 解决了什么覆盖问题？FLOW_INTENTS 缓存优化为什么只缓存 4 个意图？ |
+| **参考** | 完整架构总结：[`docs/AI-joymini/24-Supervisor架构完整总结.md`](docs/AI-joymini/24-Supervisor架构完整总结.md)；旧文档：[`docs/AI-joymini/19-MultiAgentSupervisor与HITL.md`](docs/AI-joymini/19-MultiAgentSupervisor与HITL.md)（OUTDATED）；[`docs/AI-joymini/23-AgentReroute架构.md`](docs/AI-joymini/23-AgentReroute架构.md)（DEPRECATED） |
+| **代码提示** | 见下方关键代码片段 |
+| **进度** | [x] 已实现 |
 
+**关键架构图：**
+
+```mermaid
+flowchart TD
+    User[用户发送请求] --> IG[intentGateway]
+
+    IG -->|有FLOW_INTENTS缓存| RBY[routerByIntent]
+    IG -->|无缓存| IR[intentRouter 分类]
+
+    IR -->|简单请求| RBY
+    IR -->|多步骤请求| SN[supervisorNode]
+
+    RBY -->|orderAgent| OA[orderAgent]
+    RBY -->|walletAgent| WA[walletAgent]
+    RBY -->|ragNode| RN[ragNode]
+    RBY -->|generalChat| GC[generalChat]
+    RBY -->|couponAgent 等| GC_fallback
+    RBY -->|supervisorNode| SN
+
+    SN -->|Round 0 分解| SR[supervisorRouter]
+    SR -->|tasks0.agent| OA_seq[orderAgent]
+    SR -->|tasks1.agent| WA_seq[walletAgent]
+
+    OA_seq -->|isSupervised| ADR[agentDoneRouter]
+    WA_seq -->|isSupervised| ADR
+    RN --> AS[answerSynthesizer]
+    GC --> AS
+
+    ADR -->|isSupervised=true 回环| SN
+    ADR -->|isSupervised=false| AS
+
+    AS --> END[输出给用户]
+```
+
+**涉及文件（4 个）：**
+
+| 文件 | 操作 | 说明 |
+|------|------|------|
+| [`state.ts`](apps/api/src/client/ai-customer/graph/state.ts) | 修改 | 新增 `isSupervised`、`tasks`、`taskResults`、`supervisorRound` 字段 |
+| [`intent-router.node.ts`](apps/api/src/client/ai-customer/graph/nodes/intent-router.node.ts) | 修改 | VALID_INTENTS 10 项 + "supervised" 意图，routerByIntent 设置 `isSupervised: true` |
+| [`supervisor.node.ts`](apps/api/src/client/ai-customer/graph/nodes/supervisor.node.ts) | **新建** | 两阶段 Supervisor：Round 0 用 `StringOutputParser` 解析 LLM JSON，Round > 0 仅递增计数器 |
+| [`customer.graph.ts`](apps/api/src/client/ai-customer/graph/customer.graph.ts) | 修改 | 新增 `intentGateway`、`agentDoneRouter`、`supervisorRouter`，注册 supervisorNode |
+
+**核心概念详解：**
+
+1. **FLOW_INTENTS 缓存优化** — 仅缓存 4 个意图：`['order', 'wallet', 'rag', 'supervised']`。多轮对话中，`intentGateway` 在 `START` 后直接跳转到 `routerByIntent`，跳过 LLM 分类步骤（O(1) 开销）。非 FLOW_INTENTS 的意图（如 `coupon`）每次仍走 `intentRouter` 完整分类。
+
+2. **两阶段 Supervisor 节点** — `createSupervisorNode` 分两阶段执行：
+   - **Round 0**：调用 LLM（`StringOutputParser` + 手动 JSON 解析），将用户请求分解为 `tasks` 数组
+   - **Round > 0**：仅递增 `supervisorRound` 计数器（O(1)，无 LLM 调用），`supervisorRouter` 用 `round-1` 作为指针取下一个任务
+
+3. **指针式路由** — `supervisorRouter` 用 `state.tasks[round - 1].agent` 直接定位下一个 Agent，比 `remaining.filter()` 更高效、更可预测。
+
+4. **agentDoneRouter 回环** — 每个使用 supervisor 的 Agent（orderAgent、walletAgent）通过条件边检查 `state.isSupervised`，为 true 则返回 `supervisorNode`，形成闭环。ragNode 和 generalChat 尚未统一为 agentDoneRouter。
+
+5. **taskResults merge reducer** — 使用 `{...a, ...b}` 合并策略，确保多个 Agent 的输出不会互相覆盖。
+
+6. **状态重置** — `answerSynthesizer` 在最终合成前重置 `isSupervised=false`、`tasks=[]`、`supervisorRound=0`，防止状态残留影响下一轮对话。
+
+**Step 1 — state.ts：新增 4 个字段**
+
+```typescript
+// Supervisor 标记：当前请求需要多 Agent 协作
+isSupervised: Annotation<boolean>({
+  reducer: (a: boolean, b: boolean) => b,
+  default: () => false,
+}),
+// Supervisor 分配的任务列表（LLM 分解输出）
+tasks: Annotation<Array<{ agent: string; description: string }>>({
+  reducer: (a, b) => b,
+  default: () => [],
+}),
+// 子 Agent 执行结果汇总（merge reducer 防止覆盖）
+taskResults: Annotation<Record<string, any>>({
+  reducer: (a, b) => ({ ...a, ...b }),
+  default: () => ({}),
+}),
+// 轮次计数器（指针式路由索引 = round - 1）
+supervisorRound: Annotation<number>({
+  reducer: (a: number, b: number) => b,
+  default: () => 0,
+}),
+```
+
+**Step 2 — intent-router.node.ts：新增 "supervised" 意图**
+
+```typescript
+const VALID_INTENTS = [
+  'order', 'wallet', 'coupon', 'user', 'product',
+  'lucky-draw', 'rag', 'general', 'supervised', 'unknown',
+] as const;
+```
+
+PROMPT 加入 supervised 描述：
+> `supervised` — 用户请求涉及多个独立操作（如"查余额+领优惠券"），需要多个 Agent 协作完成。请输出 supervised。
+
+`routerByIntent` 中 `isSupervised: true` 标记状态：
+```typescript
+const routeMap: Record<string, string> = {
+  order: 'orderAgent',
+  wallet: 'walletAgent',
+  coupon: 'couponAgent',    // → fallback generalChat（待实现）
+  rag: 'ragNode',
+  general: 'generalChat',
+  supervised: 'supervisorNode',
+  // 未实现的 agent 映射到 generalChat
+};
+
+const routerByIntent = (state: typeof AgentState.State): string => {
+  const intent = state.intent;
+  if (intent === 'supervised') {
+    return 'supervisorNode';
+  }
+  // 返回 mapping 中的节点名，不存在则 fallback generalChat
+  return routeMap[intent] ?? 'generalChat';
+};
+```
+
+**Step 3 — supervisor.node.ts：新建 Supervisor 节点（两阶段设计）**
+
+```typescript
+const SUPERVISOR_PROMPT = ChatPromptTemplate.fromMessages([
+  ['system', `You are a customer service Supervisor. Analyze user request,
+decompose into independent tasks.
+
+Available agents:
+- orderAgent: Order queries
+- walletAgent: Wallet/balance/withdraw/recharge
+- ragNode: Policy/rules questions
+- generalChat: Casual chat, greetings
+- couponAgent: Coupon queries
+
+Output ONLY a valid JSON object with a "tasks" array.
+Each task has "agent" and "description" fields.`],
+  ['placeholder', '{messages}'],
+]);
+
+export const createSupervisorNode =
+  (llmConfig: LlmProviderConfig) =>
+  async (state: typeof AgentState.State): Promise<Partial<typeof AgentState.State>> => {
+    const currentRound = state.supervisorRound ?? 0;
+
+    // Round > 0: task already dispatched, just increment round counter
+    if (currentRound > 0) {
+      return { supervisorRound: currentRound + 1 };
+    }
+
+    // Round 0: decompose request into tasks using LLM
+    const llm = createLLM(llmConfig, { temperature: 0 });
+    const chain = SUPERVISOR_PROMPT.pipe(llm).pipe(new StringOutputParser());
+    const raw = await chain.invoke({ messages: state.messages });
+
+    // Parse JSON from LLM output
+    let tasks = [];
+    try {
+      const cleaned = raw.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+      const parsed = JSON.parse(cleaned);
+      tasks = parsed.tasks || [];
+    } catch (e) {
+      tasks = [];
+    }
+
+    return {
+      tasks,
+      supervisorRound: (state.supervisorRound ?? 0) + 1,
+    };
+  };
+```
+
+**Step 4 — customer.graph.ts：3 个路由函数 + 图组装**
+
+```typescript
+// FLOW_INTENTS — 仅缓存 4 个意图用于多轮跳过
+const FLOW_INTENTS: Intent[] = ['order', 'wallet', 'rag', 'supervised'];
+
+// intentGateway — START 后的第一道门
+const intentGateway = (state: typeof AgentState.State): string => {
+  if (state.intent && FLOW_INTENTS.includes(state.intent as Intent)) {
+    return routerByIntent(state);
+  }
+  return 'intentRouter';
+};
+
+// agentDoneRouter — Agent 执行完毕后的路由决策
+const agentDoneRouter = (state: typeof AgentState.State): string => {
+  if (state.isSupervised) return 'supervisorNode';
+  return 'answerSynthesizer';
+};
+
+// supervisorRouter — 指针式路由：round-1 作为 task 索引
+const supervisorRouter = (state: typeof AgentState.State): string => {
+  const maxRounds = 5;
+  const round = state.supervisorRound ?? 0;
+  const taskIndex = round - 1;
+  if (round >= maxRounds || taskIndex >= (state.tasks.length ?? 0)) {
+    return 'answerSynthesizer';
+  }
+  return state.tasks[taskIndex].agent;
+};
+
+// 图节点注册
+workflow
+  .addNode('supervisorNode', createSupervisorNode(llmConfig))
+  .addConditionalEdges(START, intentGateway, {
+    intentRouter: 'intentRouter',
+    orderAgent: 'orderAgent',
+    walletAgent: 'walletAgent',
+    ragNode: 'ragNode',
+  })
+  .addConditionalEdges('intentRouter', routerByIntent, {
+    intentRouter: 'intentRouter',
+    ragNode: 'ragNode',
+    generalChat: 'generalChat',
+    orderAgent: 'orderAgent',
+    walletAgent: 'walletAgent',
+    supervisorNode: 'supervisorNode',
+    couponAgent: 'generalChat',  // fallback
+    userAgent: 'generalChat',    // 未实现
+    productAgent: 'generalChat', // 未实现
+    luckyAgent: 'generalChat',   // 未实现
+  })
+  .addConditionalEdges('orderAgent', agentDoneRouter, {
+    supervisorNode: 'supervisorNode',
+    answerSynthesizer: 'answerSynthesizer',
+  })
+  .addConditionalEdges('walletAgent', agentDoneRouter, {
+    supervisorNode: 'supervisorNode',
+    answerSynthesizer: 'answerSynthesizer',
+  })
+  .addEdge('ragNode', 'answerSynthesizer')
+  .addEdge('generalChat', 'answerSynthesizer')
+  .addConditionalEdges('supervisorNode', supervisorRouter, {
+    orderAgent: 'orderAgent',
+    walletAgent: 'walletAgent',
+    couponAgent: 'generalChat', // todo
+    ragNode: 'ragNode',
+    generalChat: 'generalChat',
+    answerSynthesizer: 'answerSynthesizer',
+  })
+  .addEdge('answerSynthesizer', END);
+```
+
+**验收标准：**
+
+| 场景 | 行为 |
+|------|------|
+| 简单请求（"查余额"） | IntentRouter 输出 `wallet`，不走 Supervisor，零开销 |
+| 多步骤请求（"查余额+查订单"） | IntentRouter 输出 `supervised`，走 Supervisor 分解→指针派发→agentDoneRouter 回环→汇总 |
+| 多轮对话（意图缓存） | 第二轮 START → `intentGateway` 检测 FLOW_INTENTS 命中 → 直接跳转，跳过 LLM 分类 |
+| 正常完成 | `agentDoneRouter` 路由到 answerSynthesizer 输出 |
+| Supervisor 死循环保护 | `supervisorRouter` 检查 `supervisorRound >= 5` 时跳转到 answerSynthesizer |
+| couponAgent 未实现 | supervisorRouter 中 `couponAgent: 'generalChat' // todo`，待创建 coupon-agent.node.ts |
 #### F-24 Human-in-the-Loop（HITL）审批
 
 | 维度 | 内容 |
@@ -656,6 +916,36 @@ export async function ragNode(state: AgentState) {
 | **术语** | `MCP (Model Context Protocol)`、`JSON-RPC`、`Tool Discovery`、`Resource Provider` |
 | **自试点** | MCP 和普通 REST API 的区别是什么？MCP 的 3 个核心概念（Tool/Resource/Prompt）对应 JoyMini 的哪些能力？ |
 | **进度** | [ ] TODO |
+
+#### F-28 16 项工作流挑战对标
+
+| 维度 | 内容 |
+|------|------|
+| **描述** | 以 16 项工作流智能体挑战为框架，系统性评估当前架构的覆盖情况，识别差距并制定改进计划 |
+| **术语** | `State Design`、`Conditional Routing`、`Loop Termination`、`Fault Tolerance`、`Idempotency`、`Structured Output`、`HITL`、`Observability`、`Cost Optimization` 等 |
+| **参考** | 完整对标文档：[`docs/AI-joymini/33-工作流型智能体16挑战对标.md`](docs/AI-joymini/33-工作流型智能体16挑战对标.md) |
+| **进度** | [x] 文档完成，代码待实施 |
+
+**覆盖情况（12/16 已覆盖）：**
+
+| 优先级 | 挑战 | 状态 | 说明 |
+|--------|------|:----:|------|
+| P0 | #01 State 设计 | ✅ | StateGraph 状态定义完善 |
+| P0 | #02 条件路由 | ⚠️ | ragNode/generalChat 未使用 agentDoneRouter |
+| P0 | #03 循环终止 | ✅ | supervisorRouter 有 maxRounds=5 保护 |
+| P0 | #04 并行合并 | ⚠️ | 方案 B 后不再需要并行 |
+| P0 | #05 节点容错 | ⚠️ | 基础 try-catch，无重试机制 |
+| P0 | #07 幂等性 | ✅ | wallet 提现 30s 窗口 |
+| P1 | #08 持久化 | ⚠️ | MemorySaver 实现，未迁移 PostgreSQL |
+| P1 | #10 工具选择错误 | ✅ | 方案 B 解决 |
+| P1 | #11 HITL | ⚠️ | 已设计未实现 |
+| P2 | #12 可视化 | ⚠️ | 已规划未实现 |
+| P2 | #06 工具稳定性 | ❌ | 缺少文档和测试 |
+| P2 | #09 结构化输出 | ❌ | 代码有类型，缺少文档 |
+| P2 | #13 中间步骤展示 | ❌ | agentSteps 存在，缺少文档 |
+| P3 | #15 延迟优化 | ❌ | 缺少文档和实现 |
+| P3 | #16 成本优化 | ❌ | 缺少文档和实现 |
+| — | #14 可视化工作流编辑器 | ❌ | 不适用于当前场景 |
 
 ---
 

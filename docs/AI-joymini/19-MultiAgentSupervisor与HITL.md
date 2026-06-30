@@ -1,5 +1,19 @@
 # 19. Multi-Agent Supervisor + Human-in-the-Loop
 
+> ⚠️ **OUTDATED — 本文档描述的是初期设计方案，实际实现有差异**
+>
+> 本文档编写于 Supervisor Pattern 的早期设计阶段，部分内容与实际代码实现不一致：
+> - `withStructuredOutput` 方案 → 实际使用 `StringOutputParser` + JSON 手动解析
+> - `agent-executor.node.ts` 独立执行器 → 实际使用 `supervisorRouter` 指针式逐个派发
+> - `interrupt()` HITL 方案 → 实际尚未实现 HITL
+> - Supervisor 从 START 无条件进入 → 实际先走 intentGateway → intentRouter → routerByIntent 分流
+>
+> 实际实现详情见 [`24-Supervisor架构完整总结`](24-Supervisor架构完整总结.md)
+>
+> **2026-06-30 更新 — 方案 B 决策：** 由于 Bug 5（Supervisor LLM 幻觉），决定采用**单轮单 Agent（方案 B）**替代 Supervisor LLM 分解。
+> Supervisor Node 将去掉 LLM 分解代码，降级为纯 round 计数器。
+> 详见 [`33-工作流型智能体16挑战对标.md`](33-工作流型智能体16挑战对标.md) 和 [`24-Supervisor架构完整总结.md`](24-Supervisor架构完整总结.md#七方案-b-变更计划)
+
 ## 🎯 本步骤目标
 
 实现两种高级 Agent 模式：

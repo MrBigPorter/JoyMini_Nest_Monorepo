@@ -14,6 +14,9 @@ import {
   LlmProviderConfig,
 } from '@api/client/ai-customer/graph/llm-factory';
 
+import { Logger } from '@nestjs/common';
+const logger = new Logger('IntentRouter');
+
 /**
  * 要素 1：System Message = 规则 + 示例
  * 你说："写好规则，给 demo 做参考，这样明确不会随意跑题"
@@ -49,47 +52,107 @@ import {
 const INTENT_PROMPT = ChatPromptTemplate.fromMessages([
   [
     'system',
-    `You are an e-commerce customer service intent classifier. Classify the user input into one of the following nine categories. Output ONLY the category name, nothing else.
+    `You are an e-commerce customer service intent classifier and task planner.
+
+## Previous Intent
+{previousIntent}
+If the user's current input is a follow-up, detail, or continuation of the previous topic, KEEP the previous intent.
+Only change intent if the user clearly switches to a different topic.
+
+## Conversation History (for context)
+{conversationContext}
+
+The Conversation History shows recent messages between user and assistant.
+Use it to understand the context when the user's current input is short or ambiguous,
+like 'yes', 'confirm', 'ok', '确认', '是的', '好的' — these are likely follow-ups
+to the previous topic. Output the SAME intent as the previous topic.
+
+## CRITICAL: Multi-domain detection (HIGHEST PRIORITY)
+If the user mentions topics from MULTIPLE independent domains in the SAME sentence, you must output a JSON plan.
+
+## Output Format
+
+### For single-domain requests (one topic only):
+Output ONLY the category name (one word), nothing else.
+
+### For multi-domain requests (multiple topics in one sentence):
+Output a JSON object with intent and tasks array:
+{{"intent":"supervised","tasks":[{{"agent":"walletAgent","description":"Check wallet balance"}},{{"agent":"orderAgent","description":"Check order status"}}]}}
+
+## Agent Name Mapping
+- order → orderAgent
+- wallet → walletAgent
+- coupon → couponAgent
+- rag → ragNode
+- general → generalChat
+- user → userAgent
+- product → productAgent
+- lucky-draw → luckyAgent
 
 ## Categories
 
-### order — Order related
-User inquires about order status, shipping, refund progress, order details, etc.
-Examples: "Where is my order", "I want a refund", "Check order status", "Show my last order"
+### supervised (MULTI-DOMAIN — JSON OUTPUT)
+The user asks about MULTIPLE independent domains in ONE sentence. Different agents are needed for different parts.
+You MUST output a JSON object with tasks array (see Output Format above).
 
-### wallet — Wallet / Balance / KYC
-User inquires about wallet balance, recharge history, transactions, withdrawals, KYC/real-name verification status, etc.
-Examples: "How much money do I have", "Check my balance", "I want to withdraw", "My transaction history", "My KYC status", "Am I verified"
+Examples that MUST output JSON (supervised with tasks):
+- "查一下我的余额和订单" → {{"intent":"supervised","tasks":[{{"agent":"walletAgent","description":"查余额"}},{{"agent":"orderAgent","description":"查订单"}}]}}
+- "帮我看看钱包和订单状态" → {{"intent":"supervised","tasks":[{{"agent":"walletAgent","description":"看钱包状态"}},{{"agent":"orderAgent","description":"看订单状态"}}]}}
+- "查询取款记录和商品订单" → {{"intent":"supervised","tasks":[{{"agent":"walletAgent","description":"查取款记录"}},{{"agent":"orderAgent","description":"查商品订单"}}]}}
+- "商品订单和优惠券" → {{"intent":"supervised","tasks":[{{"agent":"orderAgent","description":"查商品订单"}},{{"agent":"couponAgent","description":"查优惠券"}}]}}
+- "查取款和优惠券" → {{"intent":"supervised","tasks":[{{"agent":"walletAgent","description":"查取款"}},{{"agent":"couponAgent","description":"查优惠券"}}]}}
+- "check my balance and orders" → {{"intent":"supervised","tasks":[{{"agent":"walletAgent","description":"Check balance"}},{{"agent":"orderAgent","description":"Check orders"}}]}}
+- "check my wallet and find my order" → {{"intent":"supervised","tasks":[{{"agent":"walletAgent","description":"Check wallet"}},{{"agent":"orderAgent","description":"Find order"}}]}}
+- "我想查余额和订单" → {{"intent":"supervised","tasks":[{{"agent":"walletAgent","description":"查余额"}},{{"agent":"orderAgent","description":"查订单"}}]}}
+- "查看我的取款和商品" → {{"intent":"supervised","tasks":[{{"agent":"walletAgent","description":"查取款"}},{{"agent":"orderAgent","description":"查商品"}}]}}
+- "购买商品订单和优惠券" → {{"intent":"supervised","tasks":[{{"agent":"orderAgent","description":"购买商品订单"}},{{"agent":"couponAgent","description":"查优惠券"}}]}}
 
-### coupon — Coupon
-User inquires about their coupons, available coupons to claim, claiming a coupon, etc.
-Examples: "What coupons do I have", "Any available coupons", "Claim a discount coupon"
+Examples that are NOT supervised (single domain, output ONE WORD only):
+- "查我的余额" → wallet
+- "查我的取款记录" → wallet
+- "查我的订单" → order
+- "查我的商品" → order
+- "查优惠券" → coupon
+- "check my balance" → wallet
+- "check my withdrawal records" → wallet
+- "check my orders" → order
+- "where is my delivery" → order
 
-### user — Personal info
-User inquires about personal information, account details, membership level, shipping address, etc.
-Examples: "My profile info", "My membership level", "My shipping address"
+### order (single domain)
+Domain: product acquisition lifecycle (what did I buy? where is my delivery?)
+Keywords: order, orders, delivery, 订单, 商品, 物流, 快递
 
-### product — Product / Group buy
-User searches for products, checks product details, inquires about group buying, etc.
-Examples: "Search for Bluetooth earphones", "How much is this item", "Any group buys available"
+### wallet (single domain)
+Domain: money flow (balance, deposits, withdrawals)
+Keywords: balance, withdraw, deposit, recharge, 余额, 取款, 钱包, 充值, 提现
 
-### lucky-draw — Lucky draw
-User inquires about lottery tickets, winning records, performing a draw, etc.
-Examples: "My lottery tickets", "Did I win", "I want to draw"
+### coupon (single domain)
+Domain: discounts/offers
+Keywords: coupon, discount, 优惠券, 折扣
 
-### rag — Policies / Rules
-User asks about return policy, shipping policy, coupon rules, privacy policy, etc.
-Examples: "How to return", "How long does shipping take", "Can I use this coupon", "Privacy policy"
+### user (single domain)
+Domain: personal information, account details, membership
 
-### general — General chat
-Greetings, thanks, self-introduction, casual chat that doesn't need data query.
-Examples: "Hello", "Thank you", "Who are you", "Nice weather today"
+### product (single domain)
+Domain: product search/browsing
 
-### unknown — Cannot determine
-Use this when none of the above categories fit. Falls back to general chat.
-Examples: Gibberish, garbled text, incomprehensible input
+### lucky-draw (single domain)
+Domain: lottery/raffle, winning records
 
-Output only one word: order or wallet or coupon or user or product or lucky-draw or rag or general or unknown`,
+### rag (single domain)
+Domain: policies, rules, return policy, shipping policy
+
+### general (single domain)
+Domain: casual chat, greetings, thanks
+
+### unknown (single domain)
+Use when none of the above fit.
+
+## CRITICAL RULES
+1. For single-domain requests: output ONLY ONE WORD (the category name).
+2. For multi-domain requests: output VALID JSON with "intent":"supervised" and "tasks" array.
+3. No markdown, no backticks, no extra text in either case.
+4. Each task's "agent" must be from the Agent Name Mapping above.`,
   ],
   ['human', '{input}'],
 ]);
@@ -104,6 +167,7 @@ const VALID_INTENTS = [
   'lucky-draw',
   'rag',
   'general',
+  'supervised', //多步骤请求
   'unknown',
 ] as const;
 
@@ -140,7 +204,7 @@ export const createIntentRouterNode =
   ): Promise<Partial<typeof AgentState.State>> => {
     //从对话里取出用户最后说的那句话
     const lastMessage = state.messages[state.messages.length - 1];
-    console.log('lastMessage', lastMessage);
+    logger.debug('lastMessage', lastMessage);
 
     // 比如 "帮我查看订单"
     const userInput =
@@ -148,9 +212,28 @@ export const createIntentRouterNode =
         ? lastMessage.content
         : JSON.stringify(lastMessage?.content ?? '');
     //创建ollama模型实例（temperature=0 确保文档）
-    console.log(
+    logger.log(
       `[intentRouter] classify user input: "${userInput.slice(0, 50)}..."`,
     );
+
+    // 构建对话上下文：取最近 4 条历史消息（排除当前最后一条用户消息）
+    const contextMessages = state.messages.slice(-5, -1);
+    const conversationContext = contextMessages
+      .map((msg) => {
+        const type =
+          typeof msg._getType === 'function' ? msg._getType() : 'unknown';
+        const role =
+          type === 'human' ? 'User' : type === 'ai' ? 'Assistant' : type;
+        const content =
+          typeof msg.content === 'string'
+            ? msg.content
+            : JSON.stringify(msg.content ?? '');
+        // 截断长内容，避免 token 浪费
+        const truncated =
+          content.length > 200 ? content.slice(0, 200) + '...' : content;
+        return `${role}: ${truncated}`;
+      })
+      .join('\n');
 
     // 创建 LLM 实例（temperature=0 保证每次分类结果一致）
     const model = createLLM(llmConfig, { temperature: 0 });
@@ -159,17 +242,56 @@ export const createIntentRouterNode =
     // INTENT_PROMPT(用户输入) → LLM 分类 → 提取纯文本结果
     const chain = INTENT_PROMPT.pipe(model).pipe(new StringOutputParser());
     //执行分类，LLM 返回 "order"
-    const raw = await chain.invoke({ input: userInput });
-    //清理一下，转小写
-    const trimmed = raw.trim().toLowerCase();
+    const raw = await chain.invoke({
+      input: userInput,
+      previousIntent: state.intent || 'none',
+      conversationContext: conversationContext || '(no recent history)',
+    });
+
+    // 方案 B：尝试解析 JSON（多领域检测）
+    // LLM 输出可能有两种格式：
+    // 1. JSON: {"intent":"supervised","tasks":[{"agent":"walletAgent","description":"查余额"}]}
+    // 2. Single word: "order", "wallet", etc.
+    const trimmed = raw.trim();
+    // 检查是否以 { 开头 → JSON 格式（多领域）
+    if (trimmed.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (parsed.intent === 'supervised' && Array.isArray(parsed.tasks)) {
+          logger.log(
+            `[intentRouter] multi-domain detected: ${parsed.tasks.length} tasks`,
+          );
+          parsed.tasks.forEach((t: { agent: string; description: string }) =>
+            logger.log(`  → ${t.agent}: ${t.description}`),
+          );
+          return {
+            intent: 'supervised',
+            pendingTasks: parsed.tasks,
+            taskResults: {},
+            agentSteps: [],
+          };
+        }
+      } catch {
+        logger.warn(
+          `[intentRouter] failed to parse JSON: ${trimmed.slice(0, 100)}`,
+        );
+      }
+    }
+
+    // 清理一下，转小写
+    const singleWord = trimmed.toLowerCase();
     //检查结果是否在允许的列表里
-    const finalIntent: Intent = VALID_INTENTS.includes(trimmed as Intent)
-      ? (trimmed as Intent)
+    const finalIntent: Intent = VALID_INTENTS.includes(singleWord as Intent)
+      ? (singleWord as Intent)
       : 'unknown';
+
+    logger.log(`[intentRouter] classified as: ${finalIntent}`);
 
     // 6. ：把分类结果写回状态，传给下一个工人
     return {
       intent: finalIntent,
+      taskResults: {},
+      agentSteps: [],
     };
   };
 
@@ -199,6 +321,7 @@ export const routerByIntent = (state: typeof AgentState.State): string => {
     'lucky-draw': 'luckyAgent',
     rag: 'ragNode',
     general: 'generalChat',
+    supervised: 'supervisorNode',
   };
   return routeMap[state.intent] || 'generalChat';
 };

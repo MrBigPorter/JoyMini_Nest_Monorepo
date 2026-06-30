@@ -40,6 +40,9 @@
                                     └── unknown    → generalChatNode (fallback)
 ```
 
+> **2026-06-30 更新 — 方案 B 多领域检测：** intentRouter 将增加多领域检测规则。当用户输入涉及多个领域（如"购买商品订单和优惠券"）时，router 只输出主意图，剩余需求在后续对话轮次中处理。不再输出 `supervised` 意图，Supervisor Node 降级为纯 round 计数器。
+> 详见 [`33-工作流型智能体16挑战对标.md`](33-工作流型智能体16挑战对标.md)
+
 ---
 
 ## 🔧 前提条件

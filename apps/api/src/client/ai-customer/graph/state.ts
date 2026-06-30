@@ -39,11 +39,33 @@ export const AgentState = Annotation.Root({
     default: () => [],
   }),
   //流水线第一站「Intent Router Node」会判断用户意图
-  //结果可能是：'order' / 'wallet' / 'coupon' / 'knowledge' / 'general'
+  //结果可能是：'order' / 'wallet' / 'coupon' / 'knowledge' / 'general' / 'supervised'
   //因为意图是唯一值（用户当前只能有一种意图），所以用覆盖 reducer
   intent: Annotation<string>({
     reducer: (a: string, b: string) => b,
     default: () => '',
+  }),
+  // Supervisor: 待处理的多 Agent 任务列表
+  // 非空 = 当前在 supervisor 模式（多 Agent 协作）
+  // 空数组 = 不在 supervisor 模式（单 Agent）
+  // isSupervised 字段已移除——用 pendingTasks.length > 0 替代
+  pendingTasks: Annotation<Array<{ agent: string; description: string }>>({
+    reducer: (a, b) => b,
+    default: () => [],
+  }),
+  // Supervisor: 子 Agent 执行结果汇总
+  // 使用覆盖 reducer，answerSynthesizer 可以通过 taskResults: {} 清空旧结果
+  taskResults: Annotation<Record<string, any>>({
+    reducer: (a, b) => {
+      if (Object.keys(b).length === 0) return {};
+      return { ...a, ...b };
+    },
+    default: () => ({}),
+  }),
+  // Supervisor: 执行轮次（防止死循环）
+  supervisorRound: Annotation<number>({
+    reducer: (a: number, b: number) => b,
+    default: () => 0,
   }),
   ////记录 Agent 每一步做了什么（比如：调用了什么工具、查了什么数据库、得到了什么结果）
   //每个 Node 都可以往里面追加自己的执行日志
@@ -51,10 +73,6 @@ export const AgentState = Annotation.Root({
   agentSteps: Annotation<AgentStep[]>({
     reducer: (a: AgentStep[], b: AgentStep[]) => a.concat(b),
     default: () => [],
-  }),
-  agentOutput: Annotation<string>({
-    reducer: (a: string, b: string) => b,
-    default: () => '',
   }),
   // 当用户问商品政策、退货规则等问题时
   //RAG Node 会去数据库检索相关的知识文档
@@ -68,5 +86,9 @@ export const AgentState = Annotation.Root({
   userId: Annotation<string>({
     reducer: (a: string, b: string) => b,
     default: () => '',
+  }),
+  debug: Annotation<boolean>({
+    reducer: (a: boolean, b: boolean) => b,
+    default: () => false,
   }),
 });

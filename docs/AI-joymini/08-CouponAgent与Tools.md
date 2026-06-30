@@ -1,5 +1,15 @@
 # 08. Coupon Agent + Tools（优惠券助手）
 
+> **⚠️ PENDING — couponAgent 尚未实现**
+>
+> 本文档描述的 `coupon-tools.ts` 和 `coupon-agent.node.ts` 已在计划中但尚未创建：
+> - `coupon-tools.ts` — 未创建
+> - `coupon-agent.node.ts` — 未创建
+> - customer.graph.ts 中 coupon 路由 → 当前 fallback 到 generalChat
+>
+> 方案 B 决策后，couponAgent 创建是待办事项之一。
+> 详见 [`33-工作流型智能体16挑战对标.md`](33-工作流型智能体16挑战对标.md)
+
 ## 🎯 本步骤目标
 
 1. 创建 `graph/tools/coupon-tools.ts` — 3 个优惠券工具的工厂函数

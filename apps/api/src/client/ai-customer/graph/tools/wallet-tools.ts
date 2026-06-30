@@ -33,7 +33,8 @@ import {
   ToolResult,
   toolSuccess,
 } from '@api/client/ai-customer/graph/tools/tool-result';
-import { KYC_STATUS, KYC_STATUS_LABEL } from '@lucky/shared';
+import { CODE_TYPE, KYC_STATUS, KYC_STATUS_LABEL } from '@lucky/shared';
+import { OtpService } from '@api/client/otp/otp.service';
 
 /** getWalletBalance 返回数据 */
 interface BalanceData {
@@ -82,6 +83,7 @@ export const createWalletTools = (
   clientWalletService: ClientWalletService,
   kycService: KycService,
   paymentChannelService: PaymentChannelService,
+  otpService: OtpService,
 ): TaggedTool[] => {
   const logger = new Logger('walletTools');
   return [
@@ -114,6 +116,78 @@ export const createWalletTools = (
           }),
           description:
             'Get the current user wallet balance,including real balance (cash), coin balance,frozen balance,total recharge and total withdraw.',
+        },
+      ),
+      tags: ['wallet'],
+    },
+    {
+      /**
+       * 请求提现 OTP 验证码
+       * 1. phone — 用户手机号（接收 OTP）
+       * 2. userId — 当前用户 ID
+       */
+      tool: tool(
+        async ({ userId, phone }: { userId: string; phone: string }) => {
+          try {
+            const result = await otpService.request({
+              phone,
+              codeType: CODE_TYPE.WITHDRAW,
+            });
+            return toolSuccess({
+              message: `OTP sent successfully to ${phone}. Please check your phone for the verification code.`,
+            });
+          } catch (e) {
+            return toolFailure(`Failed to send OTP: ${(e as Error).message}`);
+          }
+        },
+        {
+          name: 'requestWithdrawOtp',
+          schema: z.object({
+            userId: z.string().describe('The Current user ID'),
+            phone: z.string().describe('User phone number to receive SMS OTP'),
+          }),
+          description:
+            'Send an OTP verification code to the user phone for withdrawal authorization. Call this after user confirms withdrawal details.',
+        },
+      ),
+      tags: ['wallet'],
+    },
+    {
+      tool: tool(
+        async ({
+          userId,
+          phone,
+          code,
+        }: {
+          userId: string;
+          phone: string;
+          code: string;
+        }) => {
+          try {
+            await otpService.verify({
+              phone,
+              code,
+              codeType: CODE_TYPE.WITHDRAW,
+            });
+            return toolSuccess({
+              verified: true,
+              message: `OTP verified successfully for ${phone}. You can now proceed with the withdrawal.`,
+            });
+          } catch (e) {
+            return toolFailure(`Failed to verify OTP: ${(e as Error).message}`);
+          }
+        },
+        {
+          name: 'verifyWithdrawOtp',
+          schema: z.object({
+            userId: z.string().describe('The Current user ID'),
+            phone: z
+              .string()
+              .describe('User phone number bound to the account'),
+            code: z.string().describe('OTP code received via SMS, 6 digits'),
+          }),
+          description:
+            'Verify the OTP code sent to the user phone for withdrawal authorization. Must call after requestWithdrawOtp.',
         },
       ),
       tags: ['wallet'],
@@ -259,13 +333,16 @@ export const createWalletTools = (
                     return amount >= min && amount <= max;
                   })
                 : channels;
-            const result = filtered.map((ch) =>
-              toLLM(
+            const result = filtered.map((ch) => {
+              const llmResult = toLLM(
                 plainToInstance(PaymentConfigItemDto, ch),
                 PaymentConfigItemDto,
                 'zh',
-              ),
-            );
+              );
+              // 问题 A: 过滤 fixedAmounts，防止 LLM 金额幻觉
+              delete (llmResult as any).fixedAmounts;
+              return llmResult;
+            });
             return toolSuccess(result);
           } catch (e) {
             return toolFailure(
@@ -277,6 +354,11 @@ export const createWalletTools = (
           name: 'getPaymentChannels',
           schema: z.object({
             userId: z.string().describe('The Current user ID'),
+            amount: z
+              .number()
+              .positive()
+              .optional()
+              .describe('Filter channels by withdrawal amount'),
           }),
           description:
             'Get available withdrawal payment channels such as GCash, PayMaya, Bank Transfer, including fee info, min/max amounts, and channel names.',

@@ -6,8 +6,10 @@ import {
 import { ToolMessage } from '@langchain/core/messages/tool';
 import { Logger } from '@nestjs/common';
 import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-registry.service';
+import { stripToolResult } from '@api/client/ai-customer/graph/tools/tool-result';
 import { MAX_ITERATIONS } from '@api/client/ai-customer/graph/constants';
 import { AgentNodeOutput } from '@api/client/ai-customer/graph/types/agent-types';
+import { filterAgentMessages } from '@api/client/ai-customer/graph/utils/filter-messages';
 
 /**
  * orderAgent 占位节点 — 用于 graph 无条件注册
@@ -54,23 +56,66 @@ export const createOrderAgentNode = (
         role: 'system',
         content: `You are the order inquiry assistant for JoyMini platform. Respond in English.
 
-You can query the following information:
-1. Order List - View all orders of the user
-2. Order Detail - View detailed information of a specific order
+## Current User
+The current user's ID is: "${userId}".
+Use this ID when calling any tool that requires the userId parameter.
+Do NOT ask the user for their userId — you already have it.
 
-Rules:
-- First understand what the user needs (order list? or a specific order detail?)
-- Current user ID: ${userId}
-- Always pass the userId parameter when calling tools
-- Present data clearly and concisely in English
-- If the user asks about something outside orders, politely guide them back
+## Your Workflow (Follow these steps exactly)
+
+Step 1: Understand what the user needs
+- View all orders → getUserOrders
+- View specific order detail → getOrderDetail
+
+Step 2: Pick the right tool from the list above
+
+Step 3: Call the tool to get real data (must pass userId parameter)
+
+Step 4: Present the tool result to the user
+
+Step 5: Respond in English
+
+## Available Tools
+
+1. **Order List** - View all orders of the user (supports pagination)
+2. **Order Detail** - View detailed information of a specific order
+
+## Hard Rules (Violation = mistake)
+
+- **You MUST call at least one tool** to answer questions. NEVER make up data.
+- Never use your own knowledge to fabricate order data. All data must come from tool calls.
+- Always pass the userId parameter when calling tools.
+- If a tool returns an error, tell the user the real error. Don't hide it.
+
+## Example (Follow this pattern)
+
+User: "Show me my orders"
+→ You call getUserOrders(userId="${userId}")
+→ After getting the result, present the ACTUAL data returned by the tool. Do NOT make up order numbers or amounts.
+→ Reply with the real data, for example:
+"You have [count from tool result] orders:
+1. Order [orderNo from tool result] — ₱[total from tool result], [status from tool result]
+2. Order [orderNo from tool result] — ₱[total from tool result], [status from tool result]"
+
+## Display Format
+
+- Show: order number, total amount, status, and creation date
+- For order detail, also show: items, shipping address, tracking number
+- If the question is not about orders, politely guide the user back
 - If a tool returns an error, inform the user the order may not exist or may not belong to them, suggest checking the order number
 `,
       },
-      ...state.messages.slice(-6),
+      // Filter: remove tool_calls and other agents' AI pure-text (supervisor mode)
+      ...filterAgentMessages(state.messages, state.pendingTasks).slice(-6),
     ];
     let iterations = 0;
+
     let totalToolCalls = 0;
+    let lastToolCallInfo: {
+      name: string;
+      args: Record<string, any>;
+      result?: string;
+    } | null = null;
     try {
       while (iterations < MAX_ITERATIONS) {
         const response = await llmWithTools.invoke(currentMessages);
@@ -86,9 +131,14 @@ Rules:
           const foundTool = tools.find((t) => t.name === toolCall.name);
           if (foundTool) {
             const result = await (foundTool as any).invoke(toolCall.args);
+            lastToolCallInfo = {
+              name: toolCall.name,
+              args: toolCall.args,
+              result,
+            };
             currentMessages = [
               ...currentMessages,
-              new ToolMessage(result, toolCall.id ?? ''),
+              new ToolMessage(stripToolResult(result), toolCall.id ?? ''),
             ];
           }
         }
@@ -101,43 +151,45 @@ Rules:
     } catch (error) {
       logger.error(`[order-agent] agent error:`, error);
       return {
-        agentOutput:
-          'Sorry, I encountered an issue processing your order request. Please try again later.',
+        taskResults: {
+          orderAgent:
+            'Sorry, I encountered an issue processing your order request. Please try again later.',
+        },
         messages: state.messages,
         agentSteps: [],
       };
     }
 
-    const lastMessage = currentMessages[currentMessages.length - 1];
-    const lastToolCall = (lastMessage as any)?.tool_calls?.[0];
+    const lastMsg = currentMessages[currentMessages.length - 1];
     logger.log(
       `[order-agent] totalMsgs=${currentMessages.length}, totalToolCalls=${totalToolCalls}`,
     );
-    if (lastToolCall) {
+    if (lastToolCallInfo) {
       logger.log(
-        `[order-agent] lastTool="${lastToolCall.name}" args=${JSON.stringify(lastToolCall.args)}`,
+        `[order-agent] lastTool="${lastToolCallInfo.name}" args=${JSON.stringify(lastToolCallInfo.args)}`,
       );
     }
 
-    const content =
-      typeof lastMessage.content === 'string' ? lastMessage.content : '';
+    const content = typeof lastMsg.content === 'string' ? lastMsg.content : '';
 
     return {
-      // 纯文本输出 → 传给 answerSynthesizer
-      agentOutput: content,
-      // 保留原始的输入消息（不是 agent 内部消息）
-      messages: state.messages,
+      taskResults: { orderAgent: content },
+      messages: currentMessages.slice(1),
       agentSteps: [
         {
           node: 'orderAgent',
           totalToolCalls,
           iterations,
-          lastToolCall: lastToolCall
-            ? { name: lastToolCall.name, args: lastToolCall.args }
+          lastToolCall: lastToolCallInfo
+            ? {
+                name: lastToolCallInfo.name,
+                args: lastToolCallInfo.args,
+                result: lastToolCallInfo.result,
+              }
             : null,
           totalMessages: currentMessages.length,
         },
       ],
-    };
+    } satisfies AgentNodeOutput;
   };
 };

@@ -38,6 +38,11 @@ export class AiCustomerController {
   @HttpCode(200)
   @ApiOperation({ summary: 'Test AI customer intent classification' })
   async testChat(@Body() dto: TestChatDto, @CurrentUserId() userId: string) {
-    return this.aiCustomerService.testChat(dto.message, userId);
+    return this.aiCustomerService.testChat(
+      dto.message,
+      userId,
+      dto.debug ?? false,
+      dto.sessionId,
+    );
   }
 }

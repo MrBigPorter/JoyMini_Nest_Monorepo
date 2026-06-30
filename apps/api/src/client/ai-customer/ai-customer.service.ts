@@ -4,6 +4,7 @@ import { buildCustomerGraph } from '@api/client/ai-customer/graph/customer.graph
 import { ConfigService } from '@nestjs/config';
 import { LlmProviderConfig } from '@api/client/ai-customer/graph/llm-factory';
 import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-registry.service';
+import { TestChatResult } from '@api/client/ai-customer/graph/types/agent-types';
 
 @Injectable()
 export class AiCustomerService {
@@ -77,30 +78,52 @@ export class AiCustomerService {
     );
   }
 
-  async testChat(message: string, userId: string) {
+  async testChat(
+    message: string,
+    userId: string,
+    debug = false,
+    sessionId?: string,
+  ) {
     this.logger.log(`Testing chat classification: "${message}"`);
     if (!this.compiledGraph) {
       throw new Error('Graph not initialized. Call initGraph() first.');
     }
-    const result = await this.compiledGraph.invoke({
-      messages: [new HumanMessage(message)],
-      intent: '',
-      agentSteps: [],
-      agentOutput: '',
-      sources: [],
-      userId: userId,
-    });
+
+    const threadId = sessionId ?? `${userId}:${Date.now()}`;
+
+    const result = await this.compiledGraph.invoke(
+      {
+        messages: [new HumanMessage(message)],
+        userId: userId,
+        debug,
+      },
+      {
+        configurable: {
+          thread_id: threadId,
+        },
+      },
+    );
 
     const agentDebug = result.agentSteps?.slice(-1)[0];
 
+    // 从 messages 中取最后一条消息作为最终输出
+    // answerSynthesizer 每轮结束会清空 taskResults，但合成结果已存入 messages
+    const allMessages = result.messages ?? [];
+    const lastMsg = allMessages[allMessages.length - 1];
+    const agentOutput = typeof lastMsg?.content === 'string'
+      ? lastMsg.content
+      : '';
+
     return {
       intent: result.intent ?? '',
-      agentOutput: result.agentOutput ?? '',
+      agentOutput,
       debug: {
         toolCalls: agentDebug?.totalToolCalls ?? 0,
         lastToolCall: agentDebug?.lastToolCall ?? null,
         totalMessages: agentDebug?.totalMessages ?? 0,
       },
-    };
+      // debug=true 时返回完整 agentSteps（含序列化消息）
+      ...(debug ? { agentSteps: result.agentSteps ?? [] } : {}),
+    } satisfies TestChatResult;
   }
 }
