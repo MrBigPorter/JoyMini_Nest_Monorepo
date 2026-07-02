@@ -124,6 +124,17 @@ Do NOT ask the user for their userId — you already have it.
 | **修复** | 创建 `filterAgentMessages()` 共享函数：普通模式过滤 tool/tool_calls，Supervisor 模式额外过滤其他 Agent 的 AI 纯文本 |
 | **防御** | `isSupervised` 门控 — 单 Agent 请求零影响；共享函数单一维护点 |
 
+### P0-06: 复合意图合并越权声明泄漏 🔥
+
+| 项目 | 内容 |
+|------|------|
+| **文件** | [`wallet-agent.node.ts`](../../apps/api/src/client/ai-customer/graph/nodes/wallet-agent.node.ts), [`coupon-agent.node.ts`](../../apps/api/src/client/ai-customer/graph/nodes/coupon-agent.node.ts), [`order-agent.node.ts`](../../apps/api/src/client/ai-customer/graph/nodes/order-agent.node.ts), [`answer-synthesizer.node.ts`](../../apps/api/src/client/ai-customer/graph/nodes/answer-synthesizer.node.ts), [`filter-messages.ts`](../../apps/api/src/client/ai-customer/graph/utils/filter-messages.ts) |
+| **根因** | 三层失效叠加：(1) Agent prompt 中的"politely guide back"让 LLM 主动声明越权 (2) `filter-messages` 的 supervised 话题无差别保留给所有 Agent (3) `answerSynthesizer` 原样拼接所有输出不做过滤 |
+| **影响** | 复合查询（如"查看优惠券+取款记录"）最终回复中包含"outside my scope"类 disclaimer 文本 |
+| **修复** | (1) 三 Agent 增加 CRITICAL Scope Restriction 章节，移除"politely guide" (2) `filter-messages` 按 `pendingTasks` 过滤 supervised 话题 (3) `answerSynthesizer` 增加 prompt 指令 + 代码级 `cleanResult()` 函数 |
+| **防御** | 三层防御：(1) Agent prompt 铁律 (2) 消息话题精准过滤 (3) 合并层内容清洗 |
+| **文档** | [`41-复合意图合并越权声明修复总结.md`](41-复合意图合并越权声明修复总结.md) |
+
 ---
 
 ## 4. 潜在风险全景图
@@ -351,6 +362,7 @@ registerMany(tools: TaggedTool[]): void {
 | R09 | 并发隔离验证 | P2 | LangGraph 的 state 是隔离的，但可以加集成测试确认 |
 | R10 | Agent Metric 收集 | P2 | 记录每次 agent 运行的 tool call 次数、耗时、成功率 |
 | R11 | ESLint 注册检查 | P3 | 检测 `.module.ts` 是否实现了 `OnApplicationBootstrap` + 调用了 `registerMany` |
+| R12 🔥 | **Agent prompt 中的 "politely guide" 反模式** | **P0** | **复合意图场景必现 Bug** — Agent 做了分内工作还主动声明"不归我管"，`answerSynthesizer` 拼接后泄漏到最终回复。修复：替换为 `CRITICAL: Scope Restriction`，见 [`41-复合意图合并越权声明修复总结.md`](41-复合意图合并越权声明修复总结.md) |
 
 ---
 
@@ -421,21 +433,49 @@ The current user's ID is: "${userId}".
 "[name from tool result] — [discount from tool result]"
 ```
 
+### 6.5 Scope Restriction 写法（Supervisor 模式必须）
+
+所有 Agent 的 `## Hard Rules` 顶部必须包含 CRITICAL Scope Restriction 章节：
+
+```typescript
+## Hard Rules (Violation = mistake)
+
+### CRITICAL: Scope Restriction
+- You ONLY handle [domain] topics: [specific list].
+- If the user's message mentions topics outside your scope ([other domains]),
+  ABSOLUTELY do NOT mention them. Do NOT say "this is outside my scope" or
+  "I cannot help with that" or "please contact another team".
+  Other specialized assistants will handle those parts.
+- Only respond to the [domain]-related part of the user's question.
+  Ignore all non-[domain] content completely.
+```
+
+**反模式**（已从所有 Agent 中移除）：
+
+```typescript
+// ❌ 禁止 — 复合意图场景必现 Bug
+"- If the question is not about [domain], politely guide the user back."
+```
+
 ---
 
 ## 7. 架构防御总览
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                   4-Layer Defense System                         │
-├─────────────┬──────────────────────┬────────────┬───────────────┤
-│ Layer       │ 机制                 │ 状态       │ 文档          │
-├─────────────┼──────────────────────┼────────────┼───────────────┤
-│ Layer 1     │ 启动时验证注册       │ ✅ 已实现  │ tool-regis... │
-│ Layer 2     │ Agent 运行时检查     │ ❌ 未实现  │ R01           │
-│ Layer 3     │ 集成测试             │ ❌ 未实现  │ tool-regis... │
-│ Layer 4     │ ESLint 规则          │ ❌ 未实现  │ tool-regis... │
-└─────────────┴──────────────────────┴────────────┴───────────────┘
+┌──────────────────────────────────────────────────────────────────────────┐
+│                   5-Layer Defense System                                   │
+├─────────────┬────────────────────────────┬────────────┬──────────────────┤
+│ Layer       │ 机制                       │ 状态       │ 文档             │
+├─────────────┼────────────────────────────┼────────────┼──────────────────┤
+│ Layer 1     │ 启动时验证注册             │ ✅ 已实现  │ tool-registry    │
+│ Layer 2     │ Agent 运行时检查           │ ❌ 未实现  │ R01              │
+│ Layer 3     │ 集成测试                   │ ❌ 未实现  │ R01              │
+│ Layer 4     │ ESLint 规则                │ ❌ 未实现  │ R11              │
+│ Layer 5 🔥  │ 复合意图三层防御           │ ✅ 已实现  │ §41, 本文 P0-06 │
+│             │ ├─ Agent Scope Restriction │            │                  │
+│             │ ├─ Message Topic 精准过滤   │            │                  │
+│             │ └─ 合并层内容清洗           │            │                  │
+└─────────────┴────────────────────────────┴────────────┴──────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────┐
 │                   Prompt 防御                                    │
@@ -446,6 +486,8 @@ The current user's ID is: "${userId}".
 │ Example 用占位符           │ ✅ 已修复         │ 本文 §6.4       │
 │ 铁律：必须调用工具         │ ✅ 已有           │ 本文 §6.3       │
 │ Step-by-step Workflow     │ ✅ 已有           │ 本文 §6.2       │
+│ Scope Restriction 🔥      │ ✅ 已修复         │ 本文 §6.5, §41  │
+│ 禁止 "politely guide" 🔥  │ ✅ 已修复         │ 本文 §6.5, §41  │
 └───────────────────────────┴──────────────────┴──────────────────┘
 ```
 
@@ -456,3 +498,4 @@ The current user's ID is: "${userId}".
 | 日期 | 版本 | 变更内容 |
 |------|------|----------|
 | 2026-06-30 | v1.0 | 初始版本：总结 userId 问题、已修复问题、潜在风险全景图、最佳实践 |
+| 2026-07-02 | v1.1 | 新增 P0-06 复合意图合并越权声明泄漏、R12 polite guide 反模式风险、§6.5 Scope Restriction 写法、Layer 5 三层防御架构 |

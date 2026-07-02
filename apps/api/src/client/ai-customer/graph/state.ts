@@ -1,33 +1,55 @@
 import { Annotation, messagesStateReducer } from '@langchain/langgraph';
 import { BaseMessage } from '@langchain/core/messages';
 import { AgentStep } from '@api/client/ai-customer/graph/types/agent-types';
+import {
+  FlowType,
+  FlowStatus,
+  getInitialStatus,
+} from '@api/client/ai-customer/graph/types/flow-types';
 
 /**
- * 因为 LangGraph 支持 并行 Node（多个 Node 同时修改同一个 State）。如果没有 Reducer，两个 Node 同时写 messages 就会冲突。有了 Reducer，LangGraph 知道「追加就是安全的合并」。
- * Annotation.Root() 里定义的每个属性都是一个 Annotation，Annotation 是 LangGraph 的状态管理单元。每个 Annotation 都有自己的 reducer 和默认值。
- * 1. messages: 保存所有的对话消息，HumanMessage 和 AIMessage 都会被追加到这个数组里。
- * 2. intent: 保存用户当前的意图，Intent Router Node 会根据用户输入更新这个值。
- * 3. agentSteps: 保存 Agent 每一步的执行日志，前端可以用来展示 Agent 的思考过程。
- * 4. sources: 保存 RAG Node 检索到的知识文档来源，前端可以用来展示信息来源。
- * @param a 旧值，当前 state 中已有的值
- * @param b 新值，Node 正在写入的值
+ * ================================================================
+ * AgentState — LangGraph 状态定义（14 个字段）
+ * ================================================================
  *
- * 假设 intent 字段的 State 变化过程：
+ * Annotation.Root() 里定义的每个属性都是一个 Annotation，Annotation 是 LangGraph 的状态管理单元。
+ * 每个 Annotation 都有自己的 reducer 和默认值。
  *
- * // 初始状态（default: () => ''）
- * state.intent = ''
+ * LangGraph 支持并行 Node，如果没有 Reducer，两个 Node 同时写一个字段会冲突。
+ * 有了 Reducer，LangGraph 知道如何合并。
  *
- * // Step 1: Intent Router Node 写入 'order'
- * // LangGraph 内部调用: reducer('', 'order')
- * //  a b
- * // 执行 (a, b) => b → 返回 'order'
- * // 结果: state.intent = 'order'
+ * Reducer 类型说明：
+ * - replace (a, b) => b：覆盖旧值（intent, flowType, flowStatus 等）
+ * - merge  ({...a, ...b})：合并对象（flowData, taskResults）
+ * - concat a.concat(b)：追加数组（messages, agentSteps, sources）
  *
- * // Step 2: 另一个 Node 写入 'wallet'
- * // LangGraph 内部调用: reducer('order', 'wallet')
- * //                                a       b
- * // 执行 (a, b) => b → 返回 'wallet'
- * // 结果: state.intent = 'wallet' （旧值 'order' 被覆盖）
+ * ===== 14 个字段概览 =====
+ *
+ * ## 核心对话（3 个）
+ * 1. messages:      对话消息列表（messagesStateReducer 自动追加）
+ * 2. intent:        当前意图（intentRouter 设置，answerSynthesizer 每轮清空）
+ * 3. userId:        用户唯一标识（由 ai-customer.service.ts 传入）
+ *
+ * ## Supervisor 多 Agent（4 个）
+ * 4. pendingTasks:  待处理的多 Agent 任务列表（非空 = supervisor 模式）
+ * 5. taskResults:   子 Agent 执行结果汇总（merge reducer，answerSynthesizer 可清空）
+ * 6. supervisorRound: 轮次计数器（防止死循环）
+ * 7. agentSteps:    Agent 执行日志（前端 SSE 展示思考链用）
+ *
+ * ## RAG（1 个）
+ * 8. sources:       知识文档来源（可追加，用于前端展示信息来源）
+ *
+ * ## Phase 1 — Flow 状态管理（4 个）
+ * 9. flowType:      业务类型（DEPOSIT/WITHDRAWAL 等，Agent 提示词中展示）
+ * 10. flowStatus:    流程状态（IDLE/FILLING/CONFIRMING 等，由工具更新）
+ * 11. flowData:      表单数据（slot filling，merge reducer）
+ * 12. currentAgent:  当前 Agent 名称（用于中断恢复，Phase 3 预留）
+ *
+ * ## Phase 2 — 路由缓存（1 个）
+ * 13. routeCache:    缓存上一轮路由结果，answerSynthesizer 不清空（跳过 LLM 分类）
+ *
+ * ## 调试（1 个）
+ * 14. debug:         调试模式开关
  */
 export const AgentState = Annotation.Root({
   //LangGraph 内置的 reducer，自动追加新消息，不会覆盖旧消息
@@ -86,6 +108,58 @@ export const AgentState = Annotation.Root({
   userId: Annotation<string>({
     reducer: (a: string, b: string) => b,
     default: () => '',
+  }),
+  // ============================================================
+  // Phase 1 — Flow 状态管理（强类型）
+  // ============================================================
+  /** 当前业务类型（如 DEPOSIT、WITHDRAWAL、ORDER_QUERY 等） */
+  flowType: Annotation<FlowType>({
+    reducer: (a: FlowType, b: FlowType) => b,
+    default: () => '' as FlowType,
+  }),
+  /** 当前业务流程状态（如 IDLE、FILLING、CONFIRMING 等） */
+  flowStatus: Annotation<FlowStatus>({
+    reducer: (a: FlowStatus, b: FlowStatus) => b,
+    default: () => 'IDLE' as FlowStatus,
+  }),
+  /** 业务流程数据（slot filling 表单数据、中间结果等），使用 merge reducer */
+  flowData: Annotation<Record<string, any>>({
+    reducer: (a: Record<string, any>, b: Record<string, any>) => {
+      // undefined/null = 节点未指定 flowData，保持现有数据不变
+      if (b == null) return a;
+      // 空对象 = 显式清空（话题切换时 intentRouter 传入 {}）
+      if (Object.keys(b).length === 0) return {};
+      // 正常合并（agent 通过 updateFlowData 逐步填充）
+      return { ...a, ...b };
+    },
+    default: () => ({}),
+  }),
+  /** 当前正在执行的 Agent 名称（用于日志和中断恢复） */
+  currentAgent: Annotation<string>({
+    reducer: (a: string, b: string) => b,
+    default: () => '',
+  }),
+  // ============================================================
+  // Phase 2 — Route Cache（缓存上一轮路由结果）
+  // ============================================================
+  /** 路由缓存：缓存上一轮的 intent 分类结果，answerSynthesizer 不清空此字段 */
+  routeCache: Annotation<string>({
+    reducer: (a: string, b: string) => b,
+    default: () => '',
+  }),
+  // ============================================================
+  // Phase 3 — Message Topic Tracking（Human 消息按话题标记）
+  // ============================================================
+  /** 消息话题标记：记录每条 Human 消息被 intentRouter 分类时的 intent。
+   *  key = 消息在 state.messages 中的索引
+   *  value = intentRouter 分类结果（如 'coupon', 'wallet', 'supervised'）
+   *  用于 supervisor 模式下按话题过滤 Human 消息，防止跨话题污染 */
+  messageTopics: Annotation<Record<number, string>>({
+    reducer: (a: Record<number, string>, b: Record<number, string>) => ({
+      ...a,
+      ...b,
+    }),
+    default: () => ({}),
   }),
   debug: Annotation<boolean>({
     reducer: (a: boolean, b: boolean) => b,

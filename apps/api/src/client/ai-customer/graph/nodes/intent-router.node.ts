@@ -13,6 +13,10 @@ import {
   createLLM,
   LlmProviderConfig,
 } from '@api/client/ai-customer/graph/llm-factory';
+import {
+  intentToFlowType,
+  getInitialStatus,
+} from '@api/client/ai-customer/graph/types/flow-types';
 
 import { Logger } from '@nestjs/common';
 const logger = new Logger('IntentRouter');
@@ -178,14 +182,16 @@ export type Intent = (typeof VALID_INTENTS)[number];
  *
  * 1. 从 state.messages 中取得最后一条消息，作为用户输入
  * 2. 使用 ChatOllama + INTENT_PROMPT 对用户输入进行意图分类
- * 3. 将分类结果写入 state.intent
+ * 3. 将分类结果写入 state.intent + state.routeCache（Phase 2）
+ *    - intent：每轮被 answerSynthesizer 清空
+ *    - routeCache：被保留，下一轮直接走路由缓存跳过 LLM 分类
  *
  * 用户说 "帮我查看订单"
  *          ↓
  * 分拣员听了之后判断：
  * "这是 order 类别"
  *          ↓
- * 然后在纸条上写 intent = "order"
+ * 然后在纸条上写 intent = "order" + routeCache = "order"
  *          ↓
  * 把纸条传给下一个工人
  *
@@ -264,11 +270,17 @@ export const createIntentRouterNode =
           parsed.tasks.forEach((t: { agent: string; description: string }) =>
             logger.log(`  → ${t.agent}: ${t.description}`),
           );
+          const supervisedFlowType = intentToFlowType('supervised');
           return {
             intent: 'supervised',
+            routeCache: 'supervised', // Phase 2: 缓存路由结果
+            flowType: supervisedFlowType, // supervised 无特定业务类型
+            flowStatus: getInitialStatus(supervisedFlowType),
             pendingTasks: parsed.tasks,
             taskResults: {},
             agentSteps: [],
+            // Phase 3: 记录当前 Human 消息的话题，用于 supervisor 模式下按话题过滤
+            messageTopics: { [state.messages.length - 1]: 'supervised' },
           };
         }
       } catch {
@@ -288,10 +300,40 @@ export const createIntentRouterNode =
     logger.log(`[intentRouter] classified as: ${finalIntent}`);
 
     // 6. ：把分类结果写回状态，传给下一个工人
+    const matchedFlowType = intentToFlowType(finalIntent);
+
+    // ---- 话题切换检测：跨业务域时清空 flowData ----
+    // 将 FlowType 映射到业务域，用于判断用户是否从一类业务切换到另一类
+    // 例如：WITHDRAWAL（wallet 域）→ COUPON_QUERY（coupon 域）= 话题切换
+    const FLOWTYPE_DOMAIN: Record<string, string> = {
+      WITHDRAWAL: 'wallet',
+      DEPOSIT: 'wallet',
+      BALANCE_QUERY: 'wallet',
+      COUPON_QUERY: 'coupon',
+      COUPON_CLAIM: 'coupon',
+      ORDER_QUERY: 'order',
+      POLICY: 'rag',
+      GENERAL: 'general',
+    };
+    const currentDomain = state.flowType ? FLOWTYPE_DOMAIN[state.flowType] : '';
+    // 计算新意图的业务域，与当前域比较：不同域 = 话题切换
+    const newDomain = matchedFlowType ? FLOWTYPE_DOMAIN[matchedFlowType] : '';
+    const isTopicSwitch =
+      currentDomain !== '' && newDomain !== '' && currentDomain !== newDomain;
+    // ---- 话题切换检测结束 ----
+
     return {
       intent: finalIntent,
+      routeCache: finalIntent, // Phase 2: 缓存路由结果，answerSynthesizer 不清空
+      flowType: matchedFlowType,
+      flowStatus: getInitialStatus(matchedFlowType),
       taskResults: {},
       agentSteps: [],
+      // 话题切换时清空 flowData（空对象触发 reducer 清空逻辑）
+      // 非话题切换时不返回 flowData，避免 undefined 触发 reducer 意外清空
+      ...(isTopicSwitch ? { flowData: {} as Record<string, any> } : {}),
+      // Phase 3: 记录当前 Human 消息的话题，用于 supervisor 模式下按话题过滤
+      messageTopics: { [state.messages.length - 1]: finalIntent },
     };
   };
 
@@ -323,5 +365,7 @@ export const routerByIntent = (state: typeof AgentState.State): string => {
     general: 'generalChat',
     supervised: 'supervisorNode',
   };
-  return routeMap[state.intent] || 'generalChat';
+  // Phase 3: intent 优先于 routeCache（answerSynthesizer 不再清空 intent）
+  const effectiveIntent = state.intent || state.routeCache || '';
+  return routeMap[effectiveIntent] || 'generalChat';
 };

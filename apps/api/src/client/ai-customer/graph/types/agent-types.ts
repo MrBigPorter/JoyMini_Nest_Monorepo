@@ -43,6 +43,10 @@ import { AgentState } from '@api/client/ai-customer/graph/state';
 import { LlmProviderConfig } from '@api/client/ai-customer/graph/llm-factory';
 import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-registry.service';
 import { SerializedMessage } from '@api/client/ai-customer/graph/utils/serialize-messages';
+import {
+  FlowType,
+  FlowStatus,
+} from '@api/client/ai-customer/graph/types/flow-types';
 
 export interface AgentStep {
   /** 节点名称，如 'orderAgent'、'walletAgent' */
@@ -80,6 +84,22 @@ export interface AgentNodeOutput {
   messages: BaseMessage[];
   /** Agent 执行步骤日志 */
   agentSteps: AgentStep[];
+  /**
+   * 从 tool calls 中提取的 flowData（updateFlowData 调用累积的数据）
+   * LangGraph merge reducer 会自动合并到 state.flowData
+   */
+  flowData?: Record<string, any>;
+  /**
+   * 从 tool calls 中提取的最新 flowType（updateFlowStatus 调用中携带）
+   * 用于从 BALANCE_QUERY 升级为 WITHDRAWAL/DEPOSIT
+   * LangGraph replace reducer 会自动覆盖 state.flowType
+   */
+  flowType?: FlowType;
+  /**
+   * 从 tool calls 中提取的最新 flowStatus（updateFlowStatus 调用）
+   * LangGraph replace reducer 会自动覆盖 state.flowStatus
+   */
+  flowStatus?: FlowStatus;
 }
 
 /**
@@ -109,6 +129,12 @@ export type AgentNodeFactory = (
 export interface TestChatResult {
   intent: string;
   agentOutput: string;
+  /** 当前 flowData（用于验证跨业务上下文隔离） */
+  flowData: Record<string, any>;
+  /** 当前 flowType */
+  flowType: string;
+  /** 当前 flowStatus */
+  flowStatus: string;
   debug: {
     toolCalls: number;
     lastToolCall: { name: string; args: Record<string, any>; result?: string } | null;

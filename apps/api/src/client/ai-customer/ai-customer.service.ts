@@ -110,13 +110,15 @@ export class AiCustomerService {
     // answerSynthesizer 每轮结束会清空 taskResults，但合成结果已存入 messages
     const allMessages = result.messages ?? [];
     const lastMsg = allMessages[allMessages.length - 1];
-    const agentOutput = typeof lastMsg?.content === 'string'
-      ? lastMsg.content
-      : '';
+    const agentOutput =
+      typeof lastMsg?.content === 'string' ? lastMsg.content : '';
 
     return {
       intent: result.intent ?? '',
       agentOutput,
+      flowData: result.flowData ?? {},
+      flowType: result.flowType ?? '',
+      flowStatus: result.flowStatus ?? 'IDLE',
       debug: {
         toolCalls: agentDebug?.totalToolCalls ?? 0,
         lastToolCall: agentDebug?.lastToolCall ?? null,

@@ -2,7 +2,6 @@ import { END, MemorySaver, START, StateGraph } from '@langchain/langgraph';
 import { AgentState } from './state';
 import {
   createIntentRouterNode,
-  Intent,
   routerByIntent,
 } from './nodes/intent-router.node';
 import { createWalletAgentNode } from '@api/client/ai-customer/graph/nodes/wallet-agent.node';
@@ -16,22 +15,13 @@ import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-re
 import { createSupervisorNode } from '@api/client/ai-customer/graph/nodes/supervisor.node';
 
 /**
- * 定义所有支持的意图类型
- * 这些意图类型用于在 intentRouter 节点中进行分类和路由
+ * intentGateway — 入口路由
  *
+ * Phase 3: 每轮都走 intentRouter 让 LLM 重新分类。
+ * 不再使用 routeCache 作为快捷路由（避免话题切换时路由错误）。
+ * intentRouter 通过 previousIntent + conversationContext 理解简短消息的上下文。
  */
-const FLOW_INTENTS: Intent[] = ['order', 'wallet', 'coupon', 'rag', 'supervised'];
-
-/**
- * 根据 state.intent 决定下一步的节点
- * 如果 state.intent 是已知的意图类型，则直接返回该意图作为下一节点
- * 否则返回 'intentRouter'，表示需要重新分类用户意图
- * @param state
- */
-const intentGateway = (state: typeof AgentState.State): string => {
-  if (state.intent && FLOW_INTENTS.includes(state.intent as Intent)) {
-    return routerByIntent(state);
-  }
+const intentGateway = (_state: typeof AgentState.State): string => {
   return 'intentRouter';
 };
 
@@ -43,7 +33,8 @@ const intentGateway = (state: typeof AgentState.State): string => {
  * 3. Normal completion → answerSynthesizer
  */
 const agentDoneRouter = (state: typeof AgentState.State): string => {
-  if (state.pendingTasks && state.pendingTasks.length > 0) return 'supervisorNode';
+  if (state.pendingTasks && state.pendingTasks.length > 0)
+    return 'supervisorNode';
   return 'answerSynthesizer';
 };
 
@@ -73,20 +64,29 @@ const supervisorRouter = (state: typeof AgentState.State): string => {
 /**
  * Build and compile the AI Customer StateGraph
  *
+ * === Phase 2 路由机制 ===
+ * intentGateway 优先检查 state.routeCache：
+ *   - 有 routeCache → 直接路由到对应 Agent（跳过 LLM 分类）
+ *   - 无 routeCache → 走 intentRouter 让 LLM 分类
+ * intentRouter 同时写入 state.intent + state.routeCache
+ * answerSynthesizer 每轮清空 intent 但保留 routeCache
+ *
  * Node flow:
- * 1. START → intentRouter (classify user intent)
- * 2. intentRouter → routerByIntent (conditional edge to agent)
+ * 1. START → intentGateway
+ * 2. intentGateway → (有 routeCache) → routerByIntent → Agent
+ * 2. intentGateway → (无 routeCache) → intentRouter → routerByIntent → Agent
  * 3. Agent/RAG/GeneralChat → answerSynthesizer
  * 4. answerSynthesizer → END
- * Turn 1: "I want to withdraw"
- *   START → intentGateway (intent='' → 'intentRouter')
+ *
+ * Turn 1: "I want to withdraw"（首次对话，routeCache 为空）
+ *   START → intentGateway (routeCache='' → 'intentRouter')
  *     → intentRouter 分类 'wallet'
  *     → routerByIntent → walletAgent
  *     → answerSynthesizer → END
- *     [state.intent = 'wallet']
+ *     [state.intent = ''; state.routeCache = 'wallet']  ← intent 清空但 routeCache 保留
  *
- * Turn 2: "My balance is 500"
- *   START → intentGateway (intent='wallet' → 'wallet')  ← 跳过分类！
+ * Turn 2: "My balance is 500"（routeCache='wallet' 命中）
+ *   START → intentGateway (routeCache='wallet' → 'wallet')  ← 跳过 LLM 分类！
  *     → walletAgent 直接
  *     → answerSynthesizer → END
  *
@@ -94,20 +94,23 @@ const supervisorRouter = (state: typeof AgentState.State): string => {
  *
  * START
  *   │
- *   ├─ intentGateway (有意图) ─→ orderAgent / walletAgent / ragNode / supervisorNode
- *   │                              │
- *   └─ intentGateway (无意图) ─→ intentRouter
- *                                   │
- *                                   ├── routerByIntent ─→ orderAgent / walletAgent / ragNode /
- *                                   │                      generalChat / supervisorNode /
- *                                   │                      couponAgent→generalChat / 等
- *                                   │
- *                                   └── supervisorNode
- *                                         │
- *                                         └── supervisorRouter ─→ orderAgent / walletAgent /
- *                                                                 couponAgent→generalChat /
- *                                                                 ragNode / generalChat /
- *                                                                 answerSynthesizer
+ *   ├─ intentGateway (有 routeCache) ─→ routerByIntent
+ *   │                                      │
+ *   │                                      ├── orderAgent / walletAgent / couponAgent / ...
+ *   │                                      │
+ *   └─ intentGateway (无 routeCache) ─→ intentRouter
+ *                                           │
+ *                                           └── routerByIntent ─→ orderAgent / walletAgent /
+ *                                                                  ragNode / generalChat /
+ *                                                                  couponAgent / supervisorNode
+ *                                                                       │
+ *                                                                  supervisorNode
+ *                                                                       │
+ *                                                                  supervisorRouter
+ *                                                                       │
+ *                                                                  └─ orderAgent / walletAgent /
+ *                                                                     couponAgent / ragNode /
+ *                                                                     generalChat / answerSynthesizer
  */
 
 export function buildCustomerGraph(
@@ -140,6 +143,8 @@ export function buildCustomerGraph(
       walletAgent: 'walletAgent',
       couponAgent: 'couponAgent',
       ragNode: 'ragNode',
+      generalChat: 'generalChat',
+      supervisorNode: 'supervisorNode',
     })
 
     // ── Edges ── 生产线的起点 ── 铺传送带
