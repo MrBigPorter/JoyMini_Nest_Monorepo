@@ -17,6 +17,7 @@ import {
   createLLM,
   LlmProviderConfig,
 } from '@api/client/ai-customer/graph/llm-factory';
+import { cleanResult } from '@api/client/ai-customer/graph/utils/clean-result';
 
 /**
  * Answer Synthesizer Prompt
@@ -34,6 +35,9 @@ const SYNTHESIZER_PROMPT = ChatPromptTemplate.fromMessages([
   [
     'system',
     `You are JoyMini, a friendly and professional e-commerce customer service AI assistant.
+
+## IMPORTANT: Result Filtering Rule
+The query results below come from MULTIPLE specialized agents. Some agents may include disclaimers like "this is outside my scope" or "I cannot help with that" or "please contact another team". IGNORE those disclaimers — each agent was only given their relevant part of the user's question. Only present the actual data and information from each agent's results. If an agent's result only contains a disclaimer with no useful data, silently skip that agent's output entirely.
 
 Based on the following query results, generate a clear and friendly response for the user.
 Keep your tone warm and professional, and keep responses concise.
@@ -72,9 +76,12 @@ export const createAnswerSynthesizerNode =
         : JSON.stringify(lastMessage?.content ?? '');
     const { intent, taskResults } = state;
 
-    // 合并所有 Agent 的输出
+    // 过滤越权声明：使用外部 cleanResult 模块
+    // 参见 @api/client/ai-customer/graph/utils/clean-result.ts
+
+    // 合并所有 Agent 的输出（过滤越权声明后）
     const agentOutput = Object.entries(taskResults || {})
-      .map(([agent, result]) => `[${agent}]: ${result}`)
+      .map(([agent, result]) => `[${agent}]: ${cleanResult(String(result))}`)
       .join('\n\n');
     //如果agentOutput为空，返回友好提示
     if (!agentOutput) {
@@ -106,9 +113,10 @@ export const createAnswerSynthesizerNode =
 
     return {
       messages: [...state.messages, new AIMessage(result)],
-      //每轮结束，清空 taskResults 和 intent，下次请求重新分类
+      // Phase 3: 每轮都走 intentRouter 重新分类，不再使用 routeCache 快捷路由。
+      // 保留 intent 让下一轮 intentRouter 能拿到准确的 previousIntent。
+      // taskResults 仍然需要清空，避免下一轮 agent 看到上一轮的工具结果。
       taskResults: {},
-      intent: '', // 清空 intent，下次请求走 IntentRouter 重新分类
       // Supervisor 流程结束 → 重置 supervisor 状态
       ...(state.pendingTasks && state.pendingTasks.length > 0
         ? {
