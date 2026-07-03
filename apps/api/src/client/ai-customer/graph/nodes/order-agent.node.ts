@@ -1,15 +1,31 @@
+// ============================================================
+// order-agent.node.ts — Order Inquiry Agent
+// ============================================================
+// 面试题对应: interview-ai-agent-order-system.md Q3/Q4/Q5/Q6/Q7
+//
+// 代码结构 = 面试答案结构 = LLM 执行流程:
+//   ① 承接 Handoff     → 从 StateGraph 接收 state
+//   ② 上下文过滤 Filter  → 提取本 Agent 相关对话
+//   ③ Prompt 构造 Prompt → 10-section system prompt
+//   ④ ReAct 循环 Loop   → LLM 思考→工具→结果 最多3轮
+//   ⑤ 结果输出 Output   → 成功/失败 → AgentNodeOutput
+// ============================================================
+
 import { AgentState } from '@api/client/ai-customer/graph/state';
-import {
-  createLLM,
-  LlmProviderConfig,
-} from '@api/client/ai-customer/graph/llm-factory';
+import { LlmProviderConfig } from '@api/client/ai-customer/graph/llm-factory';
 import { Logger } from '@nestjs/common';
 import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-registry.service';
 import { AgentNodeOutput } from '@api/client/ai-customer/graph/types/agent-types';
-import { filterAgentMessages } from '@api/client/ai-customer/graph/utils/filter-messages';
+import { prepareAgentContext } from '@api/client/ai-customer/graph/utils/prepare-context';
 import { MAX_CONTEXT_MESSAGES } from '@api/client/ai-customer/graph/constants';
 import { buildAgentPrompt } from '@api/client/ai-customer/graph/agents/prompt-builder';
 import { runAgentLoop } from '@api/client/ai-customer/graph/agents/agent-runner';
+import {
+  buildAgentResult,
+  buildInitialMessages,
+  createAgentLLM,
+} from '@api/client/ai-customer/graph/agents/agent-result';
+import { orderPromptConfig } from '@api/client/ai-customer/graph/agents/prompts/order-prompt';
 
 /**
  * orderAgent 占位节点 — 用于 graph 无条件注册
@@ -22,9 +38,6 @@ export const orderAgentNode = async (
 
 /**
  * 生成 order agent 节点函数的工厂
- *
- * 通过 prompt-builder 自动构建标准化 system prompt，
- * 通过 agent-runner 执行 ReAct 循环。
  */
 export const createOrderAgentNode = (
   llmConfig: LlmProviderConfig,
@@ -32,55 +45,37 @@ export const createOrderAgentNode = (
 ) => {
   const logger = new Logger('OrderAgent');
   return async (state: typeof AgentState.State): Promise<AgentNodeOutput> => {
+    // ================================================================
+    // ① 承接 — Flow Handoff（Q3: 从 StateGraph 接收 state）
+    // ================================================================
     const userId = state.userId;
     const tools = registry.getToolsByTag('order');
-    const llm = createLLM(llmConfig, { temperature: 0 });
-    const llmWithTools = llm.bindTools(tools);
+    const llmWithTools = createAgentLLM(llmConfig, tools);
 
+    // ================================================================
+    // ② 上下文过滤 — Context Filtering（Q5: 历史窗口 + 跨Agent隔离）
+    // ================================================================
+    const agentContext = prepareAgentContext(
+      state.messages,
+      state.pendingTasks,
+      state.messageTopics,
+      'orderAgent',
+    ).slice(-MAX_CONTEXT_MESSAGES);
+
+    // ================================================================
+    // ③ Prompt 构造 — System Prompt（Q6: 数据转换 + Q7: 规则注入）
+    // ================================================================
     const systemPrompt = buildAgentPrompt({
-      role: 'You are the order inquiry assistant for JoyMini platform. Respond in English.',
-      domainName: 'order',
+      ...orderPromptConfig,
       userId,
-      workflow: `Step 1: Understand what the user needs
-- View all orders → getUserOrders
-- View specific order detail → getOrderDetail
-
-Step 2: Pick the right tool from the list above
-
-Step 3: Call the tool to get real data (must pass userId parameter)
-
-Step 4: Present the tool result to the user
-
-Step 5: Respond in English`,
-      availableTools: `1. **Order List** - View all orders of the user (supports pagination)
-2. **Order Detail** - View detailed information of a specific order`,
-      examples: `User: "Show me my orders"
-→ You call getUserOrders(userId="${userId}")
-→ After getting the result, present the ACTUAL data returned by the tool. Do NOT make up order numbers or amounts.
-→ Reply with the real data, for example:
-"You have [count from tool result] orders:
-1. Order [orderNo from tool result] — ₱[total from tool result], [status from tool result]
-2. Order [orderNo from tool result] — ₱[total from tool result], [status from tool result]"`,
-      displayFormat: `- Show: order number, total amount, status, and creation date
-- For order detail, also show: items, shipping address, tracking number
-- If a tool returns an error, inform the user the order may not exist or may not belong to them, suggest checking the order number`,
-      scopeRestriction: {
-        domain: 'order',
-        handles: ['order list', 'order detail', 'order status', 'tracking'],
-        outside: ['wallet', 'coupons', 'products', 'lucky-draw'],
-      },
+      flowType: state.flowType,
+      flowStatus: state.flowStatus,
     });
+    const initialMessages = buildInitialMessages(systemPrompt, agentContext);
 
-    const initialMessages = [
-      { role: 'system', content: systemPrompt },
-      ...filterAgentMessages(
-        state.messages,
-        state.pendingTasks,
-        state.messageTopics,
-        'orderAgent',
-      ).slice(-MAX_CONTEXT_MESSAGES),
-    ];
-
+    // ================================================================
+    // ④ ReAct 循环 — LLM + Tools 手动循环（Q5: 手动 while）
+    // ================================================================
     const result = await runAgentLoop({
       llmWithTools,
       initialMessages,
@@ -89,21 +84,9 @@ Step 5: Respond in English`,
       logger,
     });
 
-    if (result.error) {
-      return {
-        taskResults: {
-          orderAgent:
-            'Sorry, I encountered an issue processing your order request. Please try again later.',
-        },
-        messages: state.messages,
-        agentSteps: [],
-      };
-    }
-
-    return {
-      taskResults: { orderAgent: result.content },
-      messages: result.currentMessages.slice(1),
-      agentSteps: result.agentSteps,
-    } satisfies AgentNodeOutput;
+    // ================================================================
+    // ⑤ 结果输出 — Error Handling + Result Output（Q7: 两层防御）
+    // ================================================================
+    return buildAgentResult('orderAgent').from(result, state.messages);
   };
 };

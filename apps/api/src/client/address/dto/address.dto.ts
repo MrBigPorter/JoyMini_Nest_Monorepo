@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { FieldMeta } from '@lucky/shared';
 import {
   IsBoolean,
   IsNotEmpty,
@@ -135,34 +136,42 @@ export class QueryAddressListDto {
 
 @Exclude()
 export class AddressResponseDto {
+  @FieldMeta({ label: { zh: '地址ID', en: 'Address ID' } })
   @ApiProperty({ description: 'Address ID' })
   @Expose()
   addressId!: string;
 
+  @FieldMeta({ label: { zh: '联系人', en: 'Contact Name' } })
   @ApiProperty({ description: 'Contact Name' })
   @Expose()
   contactName?: string;
 
+  @FieldMeta({ label: { zh: '省/区', en: 'Province' } })
   @ApiProperty({ description: 'Province Name' })
   @Expose()
   province!: string;
 
+  @FieldMeta({ label: { zh: '市', en: 'City' } })
   @ApiProperty({ description: 'City Name' })
   @Expose()
   city!: string;
 
+  @FieldMeta({ label: { zh: '区/村', en: 'Barangay' } })
   @ApiProperty({ description: 'Barangay Name' })
   @Expose()
   barangay!: string;
 
+  @FieldMeta({ label: { zh: '详细地址', en: 'Full Address' } })
   @ApiProperty({ description: 'Full Address' })
   @Expose()
   fullAddress!: string;
 
+  @FieldMeta({ label: { zh: '联系电话', en: 'Phone' } })
   @ApiProperty({ description: 'Phone Number' })
   @Expose()
   phone!: string;
 
+  @FieldMeta({ label: { zh: '地址标签', en: 'Label' } })
   @ApiProperty({ description: 'Label' })
   @Expose()
   label?: string;
@@ -179,10 +188,18 @@ export class AddressResponseDto {
   @Expose()
   barangayId!: number;
 
+  @FieldMeta({ label: { zh: '邮政编码', en: 'Postal Code' } })
   @ApiProperty({ description: 'Postal Code' })
   @Expose()
   postalCode!: string;
 
+  @FieldMeta({
+    label: { zh: '是否默认', en: 'Is Default' },
+    enum: {
+      0: { zh: '否', en: 'No' },
+      1: { zh: '是', en: 'Yes' },
+    },
+  })
   @ApiProperty({ description: 'Is default' })
   @Expose()
   isDefault!: number;

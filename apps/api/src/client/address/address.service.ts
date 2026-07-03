@@ -16,6 +16,65 @@ export class AddressService {
   ) {}
 
   /**
+   * Resolve province/city/barangay text names to numeric IDs.
+   * Used by the AI agent tool to convert user-provided region names to DB IDs.
+   * Uses case-insensitive contains matching.
+   */
+  async resolveGeoIds(
+    provinceName: string,
+    cityName: string,
+    barangayName: string,
+  ): Promise<{
+    provinceId: number;
+    cityId: number;
+    barangayId: number;
+  }> {
+    const province = await this.prismaService.province.findFirst({
+      where: {
+        provinceName: { contains: provinceName, mode: 'insensitive' },
+        status: 1,
+      },
+    });
+    if (!province) {
+      throw new BadRequestException(
+        `Proview "${provinceName}" not found. Available provinces: Metro Manila, Cavite, Laguna, etc.`,
+      );
+    }
+
+    const city = await this.prismaService.city.findFirst({
+      where: {
+        provinceId: province.provinceId,
+        cityName: { contains: cityName, mode: 'insensitive' },
+        status: 1,
+      },
+    });
+    if (!city) {
+      throw new BadRequestException(
+        `City "${cityName}" not found in ${province.provinceName}.`,
+      );
+    }
+
+    const barangay = await this.prismaService.barangay.findFirst({
+      where: {
+        cityId: city.cityId,
+        barangayName: { contains: barangayName, mode: 'insensitive' },
+        status: 1,
+      },
+    });
+    if (!barangay) {
+      throw new BadRequestException(
+        `Barangay "${barangayName}" not found in ${city.cityName}.`,
+      );
+    }
+
+    return {
+      provinceId: province.provinceId,
+      cityId: city.cityId,
+      barangayId: barangay.barangayId,
+    };
+  }
+
+  /**
    * Create a new address for the user.
    * @param userId
    * @param dto

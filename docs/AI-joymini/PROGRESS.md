@@ -160,8 +160,9 @@
 | — | **Bug 10 — taskResults merge vs replace 模式混乱** | ✅ **state.ts reducer 改为 merge-with-clear: 空对象=清空，非空=合并** |
 | — | **Bug 11 — intentRouter 上下文缺失（"确认"无法路由）** | ✅ **conversationContext 从 state.messages 提取近 4 条传给 LLM prompt** |
 | — | **Bug 12 — isSupervised / pendingTasks 冗余** | ✅ **移除 isSupervised，filter-messages.ts 改用 pendingTasks.length > 0** |
+| — | **08 Coupon Agent + Tools 文档更新** | ✅ **文档已从 PENDING 更新为 DONE，同步实际实现（4 工具 + runAgentLoop 模式 + TaggedTool）** |
 | — | **3 场景端到端验证** | ✅ **"领券+确认" / "优惠券+存款切换" / "优惠券+余额多域" 全部通过** |
-
+| — | **tools-reference.md — 21 个 Tool 完整功能解析** | ✅ **架构总览 + 5 类工具卡片 + 安全汇总 + 速查表，每工具含参数/返回/数据流/注意事项** |
 ### Doc 04 验证
 
 ```bash

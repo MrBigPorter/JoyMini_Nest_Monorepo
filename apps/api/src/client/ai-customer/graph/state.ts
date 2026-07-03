@@ -67,6 +67,12 @@ export const AgentState = Annotation.Root({
     reducer: (a: string, b: string) => b,
     default: () => '',
   }),
+  // 上一轮的 intent，由 answerSynthesizer 在每轮结束时更新
+  // 用于判断 intent 是否变化，决定是否清空 taskResults
+  previousIntent: Annotation<string>({
+    reducer: (a: string, b: string) => b,
+    default: () => '',
+  }),
   // Supervisor: 待处理的多 Agent 任务列表
   // 非空 = 当前在 supervisor 模式（多 Agent 协作）
   // 空数组 = 不在 supervisor 模式（单 Agent）
@@ -136,14 +142,6 @@ export const AgentState = Annotation.Root({
   }),
   /** 当前正在执行的 Agent 名称（用于日志和中断恢复） */
   currentAgent: Annotation<string>({
-    reducer: (a: string, b: string) => b,
-    default: () => '',
-  }),
-  // ============================================================
-  // Phase 2 — Route Cache（缓存上一轮路由结果）
-  // ============================================================
-  /** 路由缓存：缓存上一轮的 intent 分类结果，answerSynthesizer 不清空此字段 */
-  routeCache: Annotation<string>({
     reducer: (a: string, b: string) => b,
     default: () => '',
   }),

@@ -93,8 +93,16 @@ export interface AgentLoopOptions {
 export async function runAgentLoop(
   options: AgentLoopOptions,
 ): Promise<AgentLoopResult> {
-  const { llmWithTools, initialMessages, tools, agentName, logger, flowDataAccumulator } = options;
+  const {
+    llmWithTools,
+    initialMessages,
+    tools,
+    agentName,
+    logger,
+    flowDataAccumulator,
+  } = options;
   let currentMessages = [...initialMessages];
+
   let iterations = 0;
   let totalToolCalls = 0;
   let lastToolCallInfo: LastToolCallInfo | null = null;

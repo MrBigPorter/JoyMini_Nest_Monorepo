@@ -17,15 +17,12 @@
  *   R4: 必须包含 Hard Rules
  *   R5: Example 使用占位符而非具体值
  *   R6: 工具文件存在性验证
- *   R7: filterAgentMessages 调用检查
+ *   R7: prepareAgentContext 调用检查
  */
 
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
-import {
-  buildAgentPrompt,
-  type AgentPromptConfig,
-} from './prompt-builder';
+import { buildAgentPrompt, type AgentPromptConfig } from './prompt-builder';
 
 // ==============================================================
 // Constants
@@ -33,11 +30,12 @@ import {
 
 const AGENT_NODES_DIR = resolve(__dirname, '../nodes');
 const AGENT_TOOLS_DIR = resolve(__dirname, '../tools');
+const AGENT_PROMPTS_DIR = resolve(__dirname, 'prompts');
 
 interface AgentFile {
   /** 源文件名，相对于 AGENT_NODES_DIR */
   path: string;
-  /** Agent name，传给 filterAgentMessages 的 agentName */
+  /** Agent name，传给 prepareAgentContext 的 agentName */
   name: string;
   /** 工具 tag 名称 */
   tag: string;
@@ -47,6 +45,7 @@ const agentFiles: AgentFile[] = [
   { path: 'wallet-agent.node.ts', name: 'walletAgent', tag: 'wallet' },
   { path: 'coupon-agent.node.ts', name: 'couponAgent', tag: 'coupon' },
   { path: 'order-agent.node.ts', name: 'orderAgent', tag: 'order' },
+  { path: 'user-agent.node.ts', name: 'userAgent', tag: 'user' },
 ];
 
 // ==============================================================
@@ -75,44 +74,15 @@ describe('Layer 1: Agent Source Validation', () => {
       }
     });
 
-    // ── R2: 必须包含 scopeRestriction 配置 ────────────────
-    test('R2: config has scopeRestriction with domain, handles, outside', () => {
-      expect(content).toContain('scopeRestriction:');
-      expect(content).toContain('domain:');
-      expect(content).toContain('handles:');
-      expect(content).toContain('outside:');
-    });
-
     // ── R3: 必须导入并使用 buildAgentPrompt ───────────────
     test('R3: imports and uses buildAgentPrompt', () => {
-      expect(content).toContain("import { buildAgentPrompt }");
+      expect(content).toContain('import { buildAgentPrompt }');
       expect(content).toContain('buildAgentPrompt({');
     });
 
-    // ── R4: 必须包含 scopeRestriction 配置（触发 Hard Rules 自动注入） ─
-    // Hard Rules 由 prompt-builder 自动构建（含 CRITICAL: Scope Restriction）。
-    // hardRules 字段为可选（如 orderAgent 依赖 COMMON_HARD_RULES 默认值），
-    // 但 scopeRestriction 为必填，能触发 buildHardRules() 生成完整 Hard Rules 章节。
-    test('R4: config has scopeRestriction (triggers Hard Rules auto-injection)', () => {
-      expect(content).toContain('scopeRestriction:');
-      expect(content).toContain('domain:');
-      expect(content).toContain('handles:');
-      expect(content).toContain('outside:');
-    });
-
-    // ── R5: Example 使用 [* from tool result] 占位符而非具体值 ────
-    // Agent 使用的占位符模式有：
-    //   [amount from tool result], [name from tool result], [count from tool result],
-    //   [orderNo from tool result], [status from tool result], [discount from tool result],
-    //   [expiry from tool result], [total from tool result]
-    // 统一匹配: 方括号内任意文本后跟 "from tool result"
-    test('R5: examples use [* from tool result] placeholders instead of concrete values', () => {
-      expect(content).toMatch(/\[[^\]]*from tool result[^\]]*\]/);
-    });
-
-    // ── R7: 必须调用 filterAgentMessages 并传入正确名称 ───
-    test('R7: calls filterAgentMessages with correct agent name', () => {
-      expect(content).toContain('filterAgentMessages(');
+    // ── R7: 必须调用 prepareAgentContext 并传入正确名称 ───
+    test('R7: calls prepareAgentContext with correct agent name', () => {
+      expect(content).toContain('prepareAgentContext(');
       expect(content).toContain(`'${name}'`);
     });
   });
@@ -135,18 +105,18 @@ describe('Layer 2: Prompt Template Output Validation', () => {
         userId: 'test_user_id',
         flowContext: true,
         workflow: 'Step 1: Check balance\nStep 2: Withdraw',
-        availableTools: '1. **Wallet Balance** - Query balance\n2. **Apply Withdraw** - Submit request',
+        availableTools:
+          '1. **Wallet Balance** - Query balance\n2. **Apply Withdraw** - Submit request',
         domainRules: '## Withdrawal Rules\n- Two-step process',
         examples: 'User: "What is my balance?"\n→ [from tool result]',
-        displayFormat: '- Cash balance is REAL MONEY\n- Coin balance is IN-APP CURRENCY',
+        displayFormat:
+          '- Cash balance is REAL MONEY\n- Coin balance is IN-APP CURRENCY',
         scopeRestriction: {
           domain: 'wallet/KYC',
           handles: ['balance', 'transactions', 'withdrawal', 'KYC'],
           outside: ['coupons', 'orders', 'products', 'lucky-draw'],
         },
-        hardRules: [
-          '- You can ONLY query KYC status',
-        ],
+        hardRules: ['- You can ONLY query KYC status'],
         extraSections: [
           '## CRITICAL - Amount Tracking:\n- Remember the exact withdrawal amount',
         ],
@@ -166,9 +136,7 @@ describe('Layer 2: Prompt Template Output Validation', () => {
           handles: ['coupon list', 'claim coupon', 'redeem code'],
           outside: ['wallet', 'orders', 'products', 'lucky-draw'],
         },
-        hardRules: [
-          '- Do NOT retry failed tool calls with same parameters',
-        ],
+        hardRules: ['- Do NOT retry failed tool calls with same parameters'],
       },
     },
     {
@@ -178,7 +146,8 @@ describe('Layer 2: Prompt Template Output Validation', () => {
         domainName: 'order',
         userId: 'test_user_id',
         workflow: 'Step 1: View orders\nStep 2: Order detail\nStep 3: Respond',
-        availableTools: '1. **Order List** - View all orders\n2. **Order Detail** - View specific order',
+        availableTools:
+          '1. **Order List** - View all orders\n2. **Order Detail** - View specific order',
         examples: 'User: "Show me my orders"\n→ [from tool result]',
         displayFormat: '- Show order number, total, status, date',
         scopeRestriction: {
@@ -237,7 +206,9 @@ describe('Layer 2: Prompt Template Output Validation', () => {
         handles: ['balance'],
         outside: ['coupons'],
       },
-      extraSections: ['## CRITICAL - Amount Tracking:\n- Remember withdrawal amount'],
+      extraSections: [
+        '## CRITICAL - Amount Tracking:\n- Remember withdrawal amount',
+      ],
     };
 
     test('includes Current Flow Context when flowContext=true', () => {
@@ -264,7 +235,8 @@ describe('Layer 2: Prompt Template Output Validation', () => {
     test('includes Domain Rules when provided', () => {
       const configWithRules: AgentPromptConfig = {
         ...walletConfig,
-        domainRules: '## Withdrawal Rules\n- Step 1: Preview\n- Step 2: Confirm',
+        domainRules:
+          '## Withdrawal Rules\n- Step 1: Preview\n- Step 2: Confirm',
       };
       const prompt = buildAgentPrompt(configWithRules);
       expect(prompt).toContain('## Withdrawal Rules');
@@ -287,19 +259,70 @@ describe('Layer 2: Prompt Template Output Validation', () => {
 // ==============================================================
 
 describe('Layer 3: R6 — Tool File Existence', () => {
-  test.each(agentFiles)('$tag tools file exists and is non-empty', ({ tag }) => {
-    const toolFilePath = resolve(AGENT_TOOLS_DIR, `${tag}-tools.ts`);
-    const toolFileContent = readFileSync(toolFilePath, 'utf-8');
-    expect(toolFileContent.length).toBeGreaterThan(0);
-    // 文件应包含工具创建函数或工具数组导出
-    expect(toolFileContent).toMatch(/create\w*Tools|export\s+(const|function|class)/i);
-  });
+  test.each(agentFiles)(
+    '$tag tools file exists and is non-empty',
+    ({ tag }) => {
+      const toolFilePath = resolve(AGENT_TOOLS_DIR, `${tag}-tools.ts`);
+      const toolFileContent = readFileSync(toolFilePath, 'utf-8');
+      expect(toolFileContent.length).toBeGreaterThan(0);
+      // 文件应包含工具创建函数或工具数组导出
+      expect(toolFileContent).toMatch(
+        /create\w*Tools|export\s+(const|function|class)/i,
+      );
+    },
+  );
 
   test('flow tools file exists and exports tools', () => {
     const flowToolPath = resolve(AGENT_TOOLS_DIR, 'flow-tools.ts');
     const flowToolContent = readFileSync(flowToolPath, 'utf-8');
     expect(flowToolContent.length).toBeGreaterThan(0);
     expect(flowToolContent).toContain('createFlowTools');
+  });
+});
+
+// ==============================================================
+// Layer 5: Prompt Config Source Validation
+// 验证提取后的 prompt 配置文件（graph/agents/prompts/）包含必需的配置结构。
+// R2/R4/R5 从 Layer 1 迁移至此，因为配置已从 agent node 文件抽取到独立 prompt 文件。
+// ==============================================================
+
+describe('Layer 5: Prompt Config Source Validation', () => {
+  const promptConfigFiles: { path: string; name: string }[] = [
+    { path: 'coupon-prompt.ts', name: 'couponAgent' },
+    { path: 'wallet-prompt.ts', name: 'walletAgent' },
+    { path: 'order-prompt.ts', name: 'orderAgent' },
+    { path: 'user-prompt.ts', name: 'userAgent' },
+  ];
+
+  describe.each(promptConfigFiles)('$name prompt config', ({ path, name }) => {
+    let content: string;
+
+    beforeAll(() => {
+      content = readFileSync(resolve(AGENT_PROMPTS_DIR, path), 'utf-8');
+    });
+
+    // ── R2: 必须包含 scopeRestriction 配置 ────────────────
+    test('R2: config has scopeRestriction with domain, handles, outside', () => {
+      expect(content).toContain('scopeRestriction:');
+      expect(content).toContain('domain:');
+      expect(content).toContain('handles:');
+      expect(content).toContain('outside:');
+    });
+
+    // ── R4: scopeRestriction 触发 Hard Rules 自动注入 ──────
+    // Hard Rules 由 prompt-builder 自动构建（含 CRITICAL: Scope Restriction）。
+    // scopeRestriction 为必填，能触发 buildHardRules() 生成完整 Hard Rules 章节。
+    test('R4: config has scopeRestriction (triggers Hard Rules auto-injection)', () => {
+      expect(content).toContain('scopeRestriction:');
+      expect(content).toContain('domain:');
+      expect(content).toContain('handles:');
+      expect(content).toContain('outside:');
+    });
+
+    // ── R5: Example 使用 [* from tool result] 占位符而非具体值 ────
+    test('R5: examples use [* from tool result] placeholders instead of concrete values', () => {
+      expect(content).toMatch(/\[[^\]]*from tool result[^\]]*\]/);
+    });
   });
 });
 
@@ -347,7 +370,7 @@ describe('Layer 4: Validator self-test', () => {
       '## Role',
       'You are a test assistant.',
       '## Hard Rules',
-      '- politely guide the user back.' ,
+      '- politely guide the user back.',
     ].join('\n');
 
     const errors = getValidationErrors(badPrompt);
@@ -412,7 +435,11 @@ describe('Layer 4: Validator self-test', () => {
         userId: 't',
         workflow: 't',
         examples: 't',
-        scopeRestriction: { domain: 'wallet/KYC', handles: ['a'], outside: ['coupons', 'orders', 'products'] },
+        scopeRestriction: {
+          domain: 'wallet/KYC',
+          handles: ['a'],
+          outside: ['coupons', 'orders', 'products'],
+        },
       },
       {
         role: 't',
@@ -420,7 +447,11 @@ describe('Layer 4: Validator self-test', () => {
         userId: 't',
         workflow: 't',
         examples: 't',
-        scopeRestriction: { domain: 'coupon', handles: ['a'], outside: ['wallet', 'orders'] },
+        scopeRestriction: {
+          domain: 'coupon',
+          handles: ['a'],
+          outside: ['wallet', 'orders'],
+        },
       },
       {
         role: 't',
@@ -428,7 +459,11 @@ describe('Layer 4: Validator self-test', () => {
         userId: 't',
         workflow: 't',
         examples: 't',
-        scopeRestriction: { domain: 'order', handles: ['a'], outside: ['wallet', 'coupons'] },
+        scopeRestriction: {
+          domain: 'order',
+          handles: ['a'],
+          outside: ['wallet', 'coupons'],
+        },
       },
     ];
     for (const cfg of minConfigs) {
@@ -448,6 +483,8 @@ describe('Layer 4: Validator self-test', () => {
     expect(errors).toContain('Missing section: Example');
     expect(errors).toContain('Missing section: Workflow');
     expect(errors).toContain('Missing placeholder: [* from tool result]');
-    expect(errors).toContain('Missing instruction: Do NOT ask the user for their userId');
+    expect(errors).toContain(
+      'Missing instruction: Do NOT ask the user for their userId',
+    );
   });
 });

@@ -1,32 +1,44 @@
-import {
-  createLLM,
-  type LlmProviderConfig,
-} from '@api/client/ai-customer/graph/llm-factory';
+// ============================================================
+// wallet-agent.node.ts — Wallet & KYC Agent
+// ============================================================
+// 面试题对应: interview-ai-agent-order-system.md Q3/Q4/Q5/Q6/Q7/Q8
+//
+// 代码结构 = 面试答案结构 = LLM 执行流程:
+//   ① 承接 Handoff     → 从 StateGraph 接收 state + 获取 domain + flow tools
+//   ② 上下文过滤 Filter  → 提取本 Agent 相关对话
+//   ③ Prompt 构造 Prompt → 10-section system prompt（含 extraSections）
+//   ④ ReAct 循环 Loop   → LLM 思考→工具→结果，自动提取 flow data
+//   ⑤ 结果输出 Output   → 成功/失败 + flowData/flowType/flowStatus
+// ============================================================
+// 特殊说明（Q8: 工程化考量）:
+//   - Wallet 是唯一"写操作" Agent（提现申请）
+//   - 使用 flow tools（updateFlowData / updateFlowStatus）跟踪流程状态
+//   - 支持 debug 模式：序列化完整消息到 agentSteps
+//   - OTP 验证：两阶段确认（preview → OTP → execute）
+// ============================================================
+
+import { type LlmProviderConfig } from '@api/client/ai-customer/graph/llm-factory';
 import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-registry.service';
 import { Logger } from '@nestjs/common';
 import { AgentState } from '@api/client/ai-customer/graph/state';
-import {
-  MAX_CONTEXT_MESSAGES,
-} from '@api/client/ai-customer/graph/constants';
+import { MAX_CONTEXT_MESSAGES } from '@api/client/ai-customer/graph/constants';
 import { AgentNodeOutput } from '@api/client/ai-customer/graph/types/agent-types';
 import { serializeMessages } from '@api/client/ai-customer/graph/utils/serialize-messages';
-import { filterAgentMessages } from '@api/client/ai-customer/graph/utils/filter-messages';
-import {
-  FlowType,
-  FlowStatus,
-} from '@api/client/ai-customer/graph/types/flow-types';
+import { prepareAgentContext } from '@api/client/ai-customer/graph/utils/prepare-context';
 import { buildAgentPrompt } from '@api/client/ai-customer/graph/agents/prompt-builder';
-import { runAgentLoop, FlowDataAccumulator } from '@api/client/ai-customer/graph/agents/agent-runner';
+import {
+  runAgentLoop,
+  FlowDataAccumulator,
+} from '@api/client/ai-customer/graph/agents/agent-runner';
+import {
+  buildAgentResult,
+  buildInitialMessages,
+  createAgentLLM,
+} from '@api/client/ai-customer/graph/agents/agent-result';
+import { walletPromptConfig } from '@api/client/ai-customer/graph/agents/prompts/wallet-prompt';
 
 /**
- * walletAgent 无条件注册存根
- *
- * 主实现在 createWalletAgentNode（下方），此 export 仅用于 graph 编译时
- * 无条件注册一个节点名（walletAgent），graph 运行时通过 StateGraph 节点名
- * 查找 createWalletAgentNode 返回的实际闭包执行。
- *
- * 保留此存根是为了满足 LangGraph 编译时节点注册的要求。
- * 实际逻辑完全由 createWalletAgentNode 完成。
+ * walletAgent 占位节点 — 用于 graph 无条件注册
  */
 export const walletAgentNode = async (
   state: typeof AgentState.State,
@@ -37,8 +49,11 @@ export const walletAgentNode = async (
 /**
  * 生成 wallet agent 节点函数的工厂
  *
- * 通过 prompt-builder 自动构建标准化 system prompt，
- * 通过 agent-runner 执行 ReAct 循环并自动提取 flow data。
+ * 特殊处理（区别于标准 Agent）:
+ * 1. 获取两组工具：domain tools（wallet）+ flow tools（updateFlowData/updateFlowStatus）
+ * 2. 使用 FlowDataAccumulator 自动从工具调用中提取 flow 状态
+ * 3. debug 模式下序列化完整消息链到 agentSteps
+ * 4. 返回 flowData/flowType/flowStatus 供下游 answerSynthesizer 使用
  */
 export const createWalletAgentNode = (
   llmConfig: LlmProviderConfig,
@@ -46,112 +61,47 @@ export const createWalletAgentNode = (
 ) => {
   const logger = new Logger('WalletAgent');
   return async (state: typeof AgentState.State): Promise<AgentNodeOutput> => {
+    // ================================================================
+    // ① 承接 — Flow Handoff（Q3: 从 StateGraph 接收 state）
+    //    特殊：获取 domain tools + flow tools 两组工具
+    // ================================================================
     const { messages, userId, debug } = state;
-    // Flow state accumulators
-    const flowDataAccumulator: FlowDataAccumulator = {
-      flowData: {},
-    };
-    // 获取工具（domain tools + flow tools）
-    const domainTools = registry.getToolsByTag('wallet');
-    const flowTools = registry.getToolsByTag('flow');
-    const tools = [...domainTools, ...flowTools];
+    const flowDataAccumulator: FlowDataAccumulator = { flowData: {} };
+    const tools = [
+      ...registry.getToolsByTag('wallet'),
+      ...registry.getToolsByTag('flow'),
+    ];
+    const llmWithTools = createAgentLLM(llmConfig, tools);
     logger.log(
       `[wallet-agent] userId=${userId}, tools=${tools.map((t) => t.name).join(',')}`,
     );
 
-    const llmWithTools = createLLM(llmConfig, {
-      temperature: 0,
-    }).bindTools(tools);
+    // ================================================================
+    // ② 上下文过滤 — Context Filtering（Q5: 历史窗口 + 跨Agent隔离）
+    // ================================================================
+    const agentContext = prepareAgentContext(
+      messages,
+      state.pendingTasks,
+      state.messageTopics,
+      'walletAgent',
+    ).slice(-MAX_CONTEXT_MESSAGES);
 
+    // ================================================================
+    // ③ Prompt 构造 — System Prompt（Q6: 数据转换 + Q7: 规则注入）
+    //    特殊：wallet 有 extraSections（金额追踪提醒）
+    // ================================================================
     const systemPrompt = buildAgentPrompt({
-      role: 'You are the wallet and KYC assistant for JoyMini platform. Respond in English.',
-      domainName: 'wallet',
+      ...walletPromptConfig,
       userId,
-      flowContext: true,
-      workflow: `Step 1: Understand what the user needs
-- Check balance / transactions → getWalletBalance / getWalletTransactions
-- Check KYC status → getKycStatus
-- View payment channels → getPaymentChannels
-- Withdraw money → follow the Withdrawal Rules below
-
-Step 2: Pick the right tool from the available list
-
-Step 3: Call the tool to get real data (must pass userId parameter)
-
-Step 4: Present the tool result to the user
-
-Step 5: If more info needed, continue the conversation with the user`,
-      availableTools: `1. **Wallet Balance** - Query cash balance (real money), coin balance (in-app currency), frozen amount, total recharge/withdraw
-2. **Transaction History** - View recharge/withdraw records, filterable by type
-3. **KYC Status** - Check real-name verification status
-4. **Payment Channels** - List available withdrawal channels (e.g. GCash, PayMaya, Bank)
-5. **Apply Withdraw** - Submit a withdrawal request (requires: amount, account, accountName, channelId)`,
-      domainRules: `## Withdrawal Rules (TWO-STEP process):
-
-### Step 1 - Preview
-- If the user explicitly says "submit", "confirm", "提交", "确认" in their request, SKIP preview and go DIRECTLY to Step 2 (call applyWithdraw with the confirmed details).
-- Otherwise, call \`getPaymentChannels\` (pass the amount to filter matching channels)
-- Present matching channel options: name, min/max amount, fee information
-- Ask user to confirm: amount, channel, account number, account name
-
-### Step 2 - Confirm & Execute
-- ONLY after user confirms, call \`applyWithdraw\` with the confirmed details
-- IMPORTANT: \`applyWithdraw\` internally checks KYC + balance + prevents duplicates
-- Return the withdrawal result (withdrawNo, status) to the user
-
-### OTP VERIFICATION:
-- After user confirms withdrawal details, call requestWithdrawOtp to send verification code
-- Tell user "to check their phone/email for the OTP, Please input the OTP to confirm the withdrawal"
-- Only after user provides the OTP code, call verifyWithdrawOtp
-- Only proceed with applyWithdraw after verifyWithdrawOtp returns success
-- If user provides OTP together with withdrawal request in one message, verify OTP first then proceed`,
-      scopeRestriction: {
-        domain: 'wallet/KYC',
-        handles: ['balance', 'transactions', 'withdrawal', 'payment channels', 'KYC'],
-        outside: ['coupons', 'orders', 'products', 'lucky-draw'],
-      },
-      hardRules: [
-        '- You can ONLY **query** KYC status — do NOT ask users to submit KYC documents',
-        '- If KYC is not completed, tell the user: "Please complete KYC verification in your profile first"',
-      ],
-      examples: `User: "What's my balance?"
-→ You call getWalletBalance(userId="${userId}")
-→ After getting the result, present the ACTUAL data returned by the tool. Do NOT make up amounts.
-→ Reply with the real data, for example:
-"Your balance:
-- Cash: ₱[amount from tool result]
-- Coins: [amount from tool result] coins
-- Frozen: ₱[amount from tool result]"`,
-      extraSections: [
-        `## CRITICAL - Amount Tracking:
-- The user specifies a withdrawal amount
-- You MUST remember this exact amount throughout the entire flow
-- When calling applyWithdraw, ALWAYS use the amount the user originally specified`,
-      ],
-      displayFormat: `- **Cash balance** (realBalance) is REAL MONEY (PHP pesos). Use ₱ or PHP as the unit.
-- **Coin balance** (coinBalance) is IN-APP CURRENCY, NOT real money. Use "coins" as the unit.
-- Cash and coins are SEPARATE assets. They CANNOT be converted or added together.
-- NEVER combine them or say "you have X total balance".
-- Always present them separately with their respective units clearly labeled.
-- Transaction history supports pagination (page, pageSize params)`,
+      flowType: state.flowType,
+      flowStatus: state.flowStatus,
     });
+    const initialMessages = buildInitialMessages(systemPrompt, agentContext);
 
-    const initialMessages = [
-      {
-        role: 'system',
-        content: systemPrompt,
-      },
-      // Filter: remove tool_calls and other agents' AI pure-text (supervisor mode)
-      ...filterAgentMessages(
-        state.messages,
-        state.pendingTasks,
-        state.messageTopics,
-        'walletAgent',
-      ).slice(
-        -MAX_CONTEXT_MESSAGES,
-      ),
-    ];
-
+    // ================================================================
+    // ④ ReAct 循环 — LLM + Tools 手动循环（Q5: 手动 while）
+    //    特殊：传入 flowDataAccumulator 自动提取 flow 状态
+    // ================================================================
     const result = await runAgentLoop({
       llmWithTools,
       initialMessages,
@@ -161,37 +111,32 @@ Step 5: If more info needed, continue the conversation with the user`,
       flowDataAccumulator,
     });
 
+    // ================================================================
+    // ⑤ 结果输出 — Error Handling + Result Output（Q7: 两层防御）
+    //    特殊：
+    //     - 错误路径：使用 state.messages（修复 Bug 1）
+    //     - 成功路径：携带 flowData/flowType/flowStatus
+    //     - debug 模式：序列化消息到 agentSteps
+    // ================================================================
     if (result.error) {
       logger.error(`[wallet-agent] agent error:`, result.error);
-      return {
-        taskResults: {
-          walletAgent:
-            'Sorry, I encountered an issue processing your wallet request. Please try again later.',
-        },
-        messages: result.currentMessages.slice(1),
-        agentSteps: [],
-      };
     }
 
-    // Add debug messages if debug mode is enabled
+    // 处理 debug 模式下的消息序列化
     const agentSteps = result.agentSteps.map((step) => ({
       ...step,
       messages: debug ? serializeMessages(result.currentMessages) : undefined,
     }));
 
-    return {
-      taskResults: { walletAgent: result.content },
-      messages: result.currentMessages.slice(1),
-      agentSteps,
-      // Return accumulated flow data so LangGraph merge reducer persists it to state.flowData
-      flowData:
+    return buildAgentResult('walletAgent')
+      .agentSteps(agentSteps)
+      .flowData(
         Object.keys(flowDataAccumulator.flowData).length > 0
           ? flowDataAccumulator.flowData
           : undefined,
-      // Return latest flow type so LangGraph replace reducer persists it to state.flowType
-      flowType: flowDataAccumulator.flowType,
-      // Return latest flow status so LangGraph replace reducer persists it to state.flowStatus
-      flowStatus: flowDataAccumulator.flowStatus,
-    } satisfies AgentNodeOutput;
+      )
+      .flowType(flowDataAccumulator.flowType)
+      .flowStatus(flowDataAccumulator.flowStatus)
+      .from(result, state.messages);
   };
 };

@@ -111,12 +111,18 @@ export const createAnswerSynthesizerNode =
       userInput,
     });
 
+    // 判断 intent 是否变化：只有跨 domain 切换时才清空 taskResults
+    // 同 domain 的 follow-up（如 coupon→coupon）保留上一轮结构数据
+    const intentChanged =
+      state.previousIntent && state.intent !== state.previousIntent;
+
     return {
       messages: [...state.messages, new AIMessage(result)],
-      // Phase 3: 每轮都走 intentRouter 重新分类，不再使用 routeCache 快捷路由。
-      // 保留 intent 让下一轮 intentRouter 能拿到准确的 previousIntent。
-      // taskResults 仍然需要清空，避免下一轮 agent 看到上一轮的工具结果。
-      taskResults: {},
+      // 记录当前 intent 作为下一轮的 previousIntent
+      previousIntent: state.intent,
+      // taskResults: intent 变化时清空（避免跨 domain 污染），
+      // intent 不变时保留（支持同 domain 的 follow-up 上下文延续）
+      ...(intentChanged ? { taskResults: {} } : {}),
       // Supervisor 流程结束 → 重置 supervisor 状态
       ...(state.pendingTasks && state.pendingTasks.length > 0
         ? {

@@ -19,7 +19,7 @@ import { createFlowTools } from '@api/client/ai-customer/graph/tools/flow-tools'
  * 当新增一个 domain agent（如 kycAgent）时，将对应的 tag 加入此数组。
  * AiCustomerModule.onApplicationBootstrap() 会验证所有期望的 tag 都已注册工具。
  */
-const EXPECTED_AGENT_TAGS = ['order', 'wallet', 'coupon', 'flow'];
+const EXPECTED_AGENT_TAGS = ['order', 'wallet', 'coupon', 'flow', 'user'];
 
 @Module({
   imports: [

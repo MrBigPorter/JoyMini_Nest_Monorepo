@@ -1,19 +1,34 @@
+// ============================================================
+// coupon-agent.node.ts — Coupon Agent
+// ============================================================
+// 面试题对应: interview-ai-agent-order-system.md Q3/Q4/Q5/Q6/Q7
+//
+// 代码结构 = 面试答案结构 = LLM 执行流程:
+//   ① 承接 Handoff     → 从 StateGraph 接收 state
+//   ② 上下文过滤 Filter  → 提取本 Agent 相关对话
+//   ③ Prompt 构造 Prompt → 10-section system prompt
+//   ④ ReAct 循环 Loop   → LLM 思考→工具→结果 最多3轮
+//   ⑤ 结果输出 Output   → 成功/失败 → AgentNodeOutput
+// ============================================================
+
 import { AgentState } from '@api/client/ai-customer/graph/state';
-import {
-  createLLM,
-  LlmProviderConfig,
-} from '@api/client/ai-customer/graph/llm-factory';
+import { LlmProviderConfig } from '@api/client/ai-customer/graph/llm-factory';
 import { Logger } from '@nestjs/common';
 import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-registry.service';
 import { AgentNodeOutput } from '@api/client/ai-customer/graph/types/agent-types';
-import { filterAgentMessages } from '@api/client/ai-customer/graph/utils/filter-messages';
+import { prepareAgentContext } from '@api/client/ai-customer/graph/utils/prepare-context';
 import { MAX_CONTEXT_MESSAGES } from '@api/client/ai-customer/graph/constants';
 import { buildAgentPrompt } from '@api/client/ai-customer/graph/agents/prompt-builder';
 import { runAgentLoop } from '@api/client/ai-customer/graph/agents/agent-runner';
+import {
+  buildAgentResult,
+  buildInitialMessages,
+  createAgentLLM,
+} from '@api/client/ai-customer/graph/agents/agent-result';
+import { couponPromptConfig } from '@api/client/ai-customer/graph/agents/prompts/coupon-prompt';
 
 /**
  * couponAgent 占位节点 — 用于 graph 无条件注册
- * Phase 1 阶段只是透传，等 chatStream 接入后由 createCouponAgentNode 替换
  */
 export const couponAgentNode = async (
   state: typeof AgentState.State,
@@ -23,9 +38,6 @@ export const couponAgentNode = async (
 
 /**
  * 生成 coupon agent 节点函数的工厂
- *
- * 通过 prompt-builder 自动构建标准化 system prompt，
- * 通过 agent-runner 执行 ReAct 循环。
  */
 export const createCouponAgentNode = (
   llmConfig: LlmProviderConfig,
@@ -33,57 +45,37 @@ export const createCouponAgentNode = (
 ) => {
   const logger = new Logger('CouponAgent');
   return async (state: typeof AgentState.State): Promise<AgentNodeOutput> => {
+    // ================================================================
+    // ① 承接 — Flow Handoff（Q3: 从 StateGraph 接收 state）
+    // ================================================================
     const userId = state.userId;
     const tools = registry.getToolsByTag('coupon');
-    const llm = createLLM(llmConfig, { temperature: 0 });
-    const llmWithTools = llm.bindTools(tools);
+    const llmWithTools = createAgentLLM(llmConfig, tools);
 
+    // ================================================================
+    // ② 上下文过滤 — Context Filtering（Q5: 历史窗口 + 跨Agent隔离）
+    // ================================================================
+    const agentContext = prepareAgentContext(
+      state.messages,
+      state.pendingTasks,
+      state.messageTopics,
+      'couponAgent',
+    ).slice(-MAX_CONTEXT_MESSAGES);
+
+    // ================================================================
+    // ③ Prompt 构造 — System Prompt（Q6: 数据转换 + Q7: 规则注入）
+    // ================================================================
     const systemPrompt = buildAgentPrompt({
-      role: 'You are the coupon inquiry assistant for JoyMini platform. Respond in English.',
-      domainName: 'coupon',
+      ...couponPromptConfig,
       userId,
-      workflow: `Step 1: Understand what the user needs
-- View my coupons list → getUserCoupons
-- View claimable coupons → getClaimableCoupons
-- Claim a coupon → claimCoupon
-- Redeem a coupon code → redeemCouponCode
-
-Step 2: Pick the right tool from the list above
-
-Step 3: Call the tool to get real data (must pass userId parameter)
-
-Step 4: Present the tool result to the user
-
-Step 5: Respond in English`,
-      examples: `User: "Show me my coupons"
-→ You call getUserCoupons(userId="${userId}")
-→ After getting the result, present the ACTUAL data returned by the tool. Do NOT make up coupon names or amounts.
-→ Reply with the real data, for example:
-"You have 2 coupons:
-1. [name from tool result] — [discount from tool result], valid until [expiry from tool result]
-2. [name from tool result] — [discount from tool result], valid until [expiry from tool result]"`,
-      displayFormat: `- Show: coupon name, discount value, minimum purchase, validity period, and status`,
-      scopeRestriction: {
-        domain: 'coupon',
-        handles: ['coupon list', 'claimable coupons', 'claim coupon', 'redeem code'],
-        outside: ['wallet', 'orders', 'products', 'lucky-draw'],
-      },
-      hardRules: [
-        '- **If a tool call fails (returns an error/failure), DO NOT retry the same call with the same parameters.** Tell the user why it failed and suggest alternatives.',
-        '- If the conversation history already shows a failed tool call for the same coupon/code, do NOT call the same tool again — just inform the user based on the previous result.',
-      ],
+      flowType: state.flowType,
+      flowStatus: state.flowStatus,
     });
+    const initialMessages = buildInitialMessages(systemPrompt, agentContext);
 
-    const initialMessages = [
-      { role: 'system', content: systemPrompt },
-      ...filterAgentMessages(
-        state.messages,
-        state.pendingTasks,
-        state.messageTopics,
-        'couponAgent',
-      ).slice(-MAX_CONTEXT_MESSAGES),
-    ];
-
+    // ================================================================
+    // ④ ReAct 循环 — LLM + Tools 手动循环（Q5: 手动 while）
+    // ================================================================
     const result = await runAgentLoop({
       llmWithTools,
       initialMessages,
@@ -92,21 +84,9 @@ Step 5: Respond in English`,
       logger,
     });
 
-    if (result.error) {
-      return {
-        taskResults: {
-          couponAgent:
-            'Sorry, I encountered an issue processing your coupon request. Please try again later.',
-        },
-        messages: state.messages,
-        agentSteps: [],
-      };
-    }
-
-    return {
-      taskResults: { couponAgent: result.content },
-      messages: result.currentMessages.slice(1),
-      agentSteps: result.agentSteps,
-    } satisfies AgentNodeOutput;
+    // ================================================================
+    // ⑤ 结果输出 — Error Handling + Result Output（Q7: 两层防御）
+    // ================================================================
+    return buildAgentResult('couponAgent').from(result, state.messages);
   };
 };

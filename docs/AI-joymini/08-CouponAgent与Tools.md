@@ -1,22 +1,22 @@
 # 08. Coupon Agent + Tools（优惠券助手）
 
-> **⚠️ PENDING — couponAgent 尚未实现**
+> **✅ DONE — couponAgent 已实现**
 >
-> 本文档描述的 `coupon-tools.ts` 和 `coupon-agent.node.ts` 已在计划中但尚未创建：
-> - `coupon-tools.ts` — 未创建
-> - `coupon-agent.node.ts` — 未创建
-> - customer.graph.ts 中 coupon 路由 → 当前 fallback 到 generalChat
+> 本文档描述的 `coupon-tools.ts` 和 `coupon-agent.node.ts` 已于 2026-06-30 **全部实现并投入使用**。
 >
-> 方案 B 决策后，couponAgent 创建是待办事项之一。
-> 详见 [`33-工作流型智能体16挑战对标.md`](33-工作流型智能体16挑战对标.md)
+> 实际实现与本文档最初的方案有较大差异，经历了多次重构：
+> - 原始方案：`createReactAgent` + 硬编码 `ChatOllama` + 3 个工具
+> - 当前架构：`runAgentLoop` + `prompt-builder` + `ToolRegistryService` + `LlmProviderConfig` + 4 个工具
+>
+> 详见下方「实际实现 vs 文档方案」对比。
 
 ## 🎯 本步骤目标
 
-1. 创建 `graph/tools/coupon-tools.ts` — 3 个优惠券工具的工厂函数
-2. 创建 `graph/nodes/coupon-agent.node.ts` — 使用 `createReactAgent` 构建 Coupon ReAct Agent
+1. ~~创建 `graph/tools/coupon-tools.ts` — 3 个优惠券工具的工厂函数~~ ✅ **已完成（实际 4 个工具）**
+2. ~~创建 `graph/nodes/coupon-agent.node.ts` — 使用 `createReactAgent` 构建 Coupon ReAct Agent~~ ✅ **已完成（改用 `runAgentLoop` 模式）**
 3. 掌握 `ClientCouponService` 的三个方法及 `claimCoupon` 的事务处理
 
-完成本步骤后，`couponAgent` 节点可以处理"我的优惠券"、"有哪些券可以领"、"领取优惠券"等优惠券相关查询。
+完成本步骤后，`couponAgent` 节点可以处理"我的优惠券"、"有哪些券可以领"、"领取优惠券"、"兑换码兑换"等优惠券相关查询。
 
 ---
 
@@ -25,10 +25,10 @@
 ### 承上：上一步做了什么？
 
 [07-WalletAgent与Tools.md](07-WalletAgent与Tools.md) 完成了：
-- `graph/tools/wallet-tools.ts` — 3 个钱包工具的工厂函数
-- `graph/nodes/wallet-agent.node.ts` — Wallet ReAct Agent
-- 双 Service 注入模式（`WalletService` + `ClientWalletService`）
-- 写操作安全确认设计
+- `graph/tools/wallet-tools.ts` — 5 个钱包工具的工厂函数
+- `graph/nodes/wallet-agent.node.ts` — Wallet Agent（含 OTP 验证）
+- `ToolRegistry` 架构 — `OnApplicationBootstrap` 编程式注册 + `@Global ToolRegistryModule`
+- `TaggedTool` 标签系统
 
 ### 启下：下一步做什么？
 
@@ -40,10 +40,11 @@
 
 ```
 用户输入 → intentRouter (coupon) → couponAgent (本步骤)
-                                     ├── coupon_my_list (我的优惠券)
-                                     ├── coupon_claimable (可领优惠券)
-                                     └── coupon_claim (领取优惠券)
-                                  → answerSynthesizer
+                                      ├── getUserCoupons (我的优惠券)
+                                      ├── getClaimableCoupons (可领优惠券)
+                                      ├── claimCoupon (领取优惠券)
+                                      └── redeemCouponCode (兑换码兑换)
+                                   → answerSynthesizer
 ```
 
 ---
@@ -52,220 +53,201 @@
 
 - [x] 06 文档已完成（Agent 工厂函数模式）
 - [x] `coupon.module.ts` 已修复 exports（`exports: [ClientCouponService]`）
+- [x] `ToolRegistryService` 已实现（`tag` 标签过滤）
+- [x] `agent-runner.ts` + `prompt-builder.ts` 已就绪（Agent 运行框架）
+- [x] `llm-factory.ts` 已就绪（统一 LLM 创建）
 
 ### ClientCouponService 方法速查
 
 | 方法 | 行号 | 签名 | 说明 |
 |------|------|------|------|
 | `getMyCoupons` | [`coupon.service.ts`](apps/api/src/client/coupon/coupon.service.ts):13 | `(userId, dto: QueryMyCouponsDto)` | 用户已领取的优惠券列表，自动清理过期券 |
-| `claimCoupon` | [`coupon.service.ts`](apps/api/src/client/coupon/coupon.service.ts):71 | `(userId, dto)` | **写操作** — 领取优惠券（含 Prisma 事务） |
+| `claimCoupon` | [`coupon.service.ts`](apps/api/src/client/coupon/coupon.service.ts):71 | `(userId, couponId, source?)` | **写操作** — 领取优惠券（含 Prisma 事务） |
 | `getClaimableCoupons` | [`coupon.service.ts`](apps/api/src/client/coupon/coupon.service.ts):173 | `(userId)` | 可领取的优惠券模板列表（排除已领过的） |
+| `redeemCode` | [`coupon.service.ts`](apps/api/src/client/coupon/coupon.service.ts):? | `(userId, code)` | **写操作** — 兑换码兑换优惠券 |
 
 ---
 
-## ⚙️ 实现步骤
+## ⚙️ 实际实现
 
 ### Step 1: 创建 Coupon Tools 工厂函数
 
-**文件**: `apps/api/src/client/ai-customer/graph/tools/coupon-tools.ts`
+**文件**: [`apps/api/src/client/ai-customer/graph/tools/coupon-tools.ts`](apps/api/src/client/ai-customer/graph/tools/coupon-tools.ts)
+
+实际实现使用 `TaggedTool` 模式（标签 `'coupon'`），返回 4 个工具：
+
+| Tool | 功能 | 读/写 | 说明 |
+|------|------|-------|------|
+| `getUserCoupons` | 查询我的优惠券 | 读 | 支持按状态筛选 + 分页 |
+| `getClaimableCoupons` | 可领取的优惠券（领券中心） | 读 | 排除已领取过的模板 |
+| `claimCoupon` | 领取优惠券 | **写** | 按模板 ID 领取 |
+| `redeemCouponCode` | 兑换码兑换 | **写** | 不区分大小写 |
+
+**核心模式:**
+- 使用 `tool()` 函数包装（来自 `@langchain/core/tools`）
+- 返回 `TaggedTool` 结构：`{ tool: DynamicStructuredTool, tags: ['coupon'] }`
+- 用 `toolSuccess`/`toolFailure` 包裹返回结果
+- 用 `toLLM()` + `plainToInstance` 序列化 DTO 为 LLM 友好的语义化数据
+
+**代码片段:**
 
 ```typescript
-import { tool } from '@langchain/core/tools';
-import { z } from 'zod';
-import { ClientCouponService } from '@api/client/coupon/coupon.service';
-
-/**
- * 优惠券工具 — 工厂函数
- *
- * @param couponService - NestJS 注入的 ClientCouponService 实例
- * @returns LangChain tool 数组
- */
-export function createCouponTools(couponService: ClientCouponService) {
-  /**
-   * Tool 1: 查询我的优惠券
-   *
-   * 返回当前用户已领取的优惠券列表，自动清理过期券。
-   */
-  const myCouponsTool = tool(
-    async ({ userId, status, page, pageSize }) => {
-      try {
-        const result = await couponService.getMyCoupons(userId, {
-          status,
-          page,
-          pageSize,
-        } as any);
-        return JSON.stringify(result);
-      } catch (error: any) {
-        return `查询优惠券失败：${error.message}`;
-      }
-    },
+// coupon-tools.ts — TaggedTool 工厂模式
+export const createCouponTools = (
+  couponService: ClientCouponService,
+): TaggedTool[] => {
+  return [
     {
-      name: 'coupon_my_list',
-      description:
-        '查询当前登录用户已领取的优惠券列表。支持按使用状态和分页筛选。' +
-        '系统会自动清理已过期的优惠券。' +
-        'userId 由系统自动传入。',
-      schema: z.object({
-        userId: z.string().describe('用户ID（由系统自动传入）'),
-        status: z
-          .enum(['unused', 'used', 'expired'])
-          .optional()
-          .describe('优惠券使用状态筛选'),
-        page: z.number().optional().default(1).describe('页码'),
-        pageSize: z.number().optional().default(10).describe('每页数量'),
-      }),
+      tool: tool(
+        async ({ userId, status, page, pageSize }) => {
+          try {
+            const result = await couponService.getMyCoupons(userId, {
+              status, page: page ?? 1, pageSize: pageSize ?? 10,
+            });
+            const llmList = (result.list ?? []).map((item) =>
+              toLLM(plainToInstance(MyCouponResponseDto, item), MyCouponResponseDto, 'zh'),
+            );
+            return toolSuccess({ total: result.total, coupons: llmList, ... });
+          } catch (e) {
+            return toolFailure(`Failed to query coupons: ${(e as Error).message}`);
+          }
+        },
+        {
+          name: 'getUserCoupons',
+          schema: z.object({ ... }),
+          description: "Get the current user's coupon list...",
+        },
+      ),
+      tags: ['coupon'],
     },
-  );
-
-  /**
-   * Tool 2: 查询可领取的优惠券
-   *
-   * 返回当前用户可以领取的优惠券模板列表，
-   * 排除已经领取过的优惠券类型。
-   */
-  const claimableCouponsTool = tool(
-    async ({ userId }) => {
-      try {
-        const result = await couponService.getClaimableCoupons(userId);
-        return JSON.stringify(result);
-      } catch (error: any) {
-        return `查询可领优惠券失败：${error.message}`;
-      }
-    },
-    {
-      name: 'coupon_claimable',
-      description:
-        '查询当前登录用户可以领取的优惠券列表。返回还未领取过的优惠券模板，包含优惠券面额、使用条件等信息。' +
-        'userId 由系统自动传入。',
-      schema: z.object({
-        userId: z.string().describe('用户ID（由系统自动传入）'),
-      }),
-    },
-  );
-
-  /**
-   * Tool 3: 领取优惠券
-   *
-   * 【写操作】根据优惠券模板ID领取一张优惠券。
-   * 使用 Prisma 事务确保原子性。
-   */
-  const claimCouponTool = tool(
-    async ({ userId, couponTemplateId }) => {
-      try {
-        const result = await couponService.claimCoupon(userId, {
-          couponTemplateId,
-        } as any);
-        return JSON.stringify(result);
-      } catch (error: any) {
-        return `领取优惠券失败：${error.message}`;
-      }
-    },
-    {
-      name: 'coupon_claim',
-      description:
-        '【写操作-需确认】为当前登录用户领取一张优惠券。需要用户提供优惠券模板ID。' +
-        '重要：执行前先向用户展示可领取的优惠券列表让用户选择，执行前和用户确认！' +
-        'userId 由系统自动传入。',
-      schema: z.object({
-        userId: z.string().describe('用户ID（由系统自动传入）'),
-        couponTemplateId: z.string().describe('优惠券模板ID（从可领列表中选择）'),
-      }),
-    },
-  );
-
-  return [myCouponsTool, claimableCouponsTool, claimCouponTool];
-}
+    // ... claimCoupon, redeemCouponCode, getClaimableCoupons
+  ];
+};
 ```
+
+**与初始方案的主要差异:**
+| 项目 | 初始方案 | 实际实现 |
+|------|----------|----------|
+| 工具数量 | 3 | 4（新增 `redeemCouponCode`） |
+| 工具命名 | `coupon_my_list`, `coupon_claimable`, `coupon_claim` | `getUserCoupons`, `getClaimableCoupons`, `claimCoupon`, `redeemCouponCode` |
+| 返回值格式 | `JSON.stringify` | `toolSuccess`/`toolFailure` |
+| DTO 序列化 | 无 | `toLLM` + `plainToInstance` |
+| 注册方式 | 直接返回数组 | `TaggedTool[]` → `ToolRegistryService.registerMany()` |
 
 ### Step 2: 创建 Coupon Agent 节点
 
-**文件**: `apps/api/src/client/ai-customer/graph/nodes/coupon-agent.node.ts`
+**文件**: [`apps/api/src/client/ai-customer/graph/nodes/coupon-agent.node.ts`](apps/api/src/client/ai-customer/graph/nodes/coupon-agent.node.ts)
+
+实际实现包含两个导出：
+
+1. **`couponAgentNode`** — 占位节点，用于 graph 无条件注册（Phase 1 阶段透传）
+2. **`createCouponAgentNode`** — 工厂函数，生产真正的 Coupon Agent
 
 ```typescript
-import { createReactAgent } from '@langchain/langgraph/prebuilt';
-import { ChatOllama } from '@langchain/ollama';
-import { ClientCouponService } from '@api/client/coupon/coupon.service';
-import { createCouponTools } from '../tools/coupon-tools';
-import { AgentStateType } from '../state';
+// coupon-agent.node.ts — 占位节点（graph 注册用）
+export const couponAgentNode = async (
+  state: typeof AgentState.State,
+): Promise<Partial<typeof AgentState.State>> => {
+  return state; // Phase 1 透传
+};
 
-/**
- * 构建 Coupon ReAct Agent
- *
- * 处理优惠券查询、可领取列表查询和领取操作。
- */
-function buildCouponAgent(couponService: ClientCouponService) {
-  return createReactAgent({
-    llm: new ChatOllama({
-      model: 'qwen3.5:0.8b',
-      temperature: 0.1,
-      baseUrl: process.env.OLLAMA_BASE_URL || 'http://localhost:11434',
-    }),
-    tools: createCouponTools(couponService),
-    recursionLimit: 10,
-  });
-}
+// 工厂函数（生产用）
+export const createCouponAgentNode = (
+  llmConfig: LlmProviderConfig,
+  registry: ToolRegistryService,
+) => {
+  return async (state: typeof AgentState.State): Promise<AgentNodeOutput> => {
+    const tools = registry.getToolsByTag('coupon');
+    const llm = createLLM(llmConfig, { temperature: 0 });
+    const llmWithTools = llm.bindTools(tools);
 
-/**
- * Coupon Agent Node 工厂函数
- */
-export function createCouponAgentNode(couponService: ClientCouponService) {
-  const agent = buildCouponAgent(couponService);
+    const systemPrompt = buildAgentPrompt({
+      role: 'You are the coupon inquiry assistant for JoyMini platform.',
+      domainName: 'coupon',
+      userId,
+      workflow: `Step 1: Understand what the user needs
+- View my coupons list → getUserCoupons
+- View claimable coupons → getClaimableCoupons
+- Claim a coupon → claimCoupon
+- Redeem a coupon code → redeemCouponCode
+...`,
+      scopeRestriction: {
+        domain: 'coupon',
+        handles: ['coupon list', 'claimable coupons', 'claim coupon', 'redeem code'],
+        outside: ['wallet', 'orders', 'products', 'lucky-draw'],
+      },
+      hardRules: [
+        '- **If a tool call fails, DO NOT retry the same call** with the same parameters.',
+        '- If the conversation history already shows a failed tool call, do NOT call the same tool again.',
+      ],
+    });
 
-  return async (
-    state: typeof AgentState.State,
-  ): Promise<Partial<typeof AgentState.State>> => {
-    const lastMessage = state.messages[state.messages.length - 1];
+    const result = await runAgentLoop({
+      llmWithTools, initialMessages, tools, agentName: 'couponAgent', logger,
+    });
 
-    try {
-      const result = await agent.invoke({
-        messages: [
-          {
-            role: 'user',
-            content: `[当前用户ID: ${state.userId}]\n${lastMessage.content}`,
-          },
-        ],
-      });
-
-      const lastResultMessage = result.messages[result.messages.length - 1];
-      const output =
-        typeof lastResultMessage?.content === 'string'
-          ? lastResultMessage.content
-          : JSON.stringify(lastResultMessage?.content ?? '');
-
-      return {
-        agentOutput: output,
-        messages: result.messages,
-      };
-    } catch (error: any) {
-      return {
-        agentOutput: `优惠券查询出错：${error.message}`,
-      };
-    }
+    return {
+      taskResults: { couponAgent: result.content },
+      messages: result.currentMessages.slice(1),
+      agentSteps: result.agentSteps,
+    };
   };
-}
+};
 ```
 
-### Step 3: 优惠券查询的典型对话流程
+**与初始方案的主要差异:**
+| 项目 | 初始方案 | 实际实现 |
+|------|----------|----------|
+| Agent 模式 | `createReactAgent` (LangChain prebuilt) | `runAgentLoop` + `prompt-builder` + `bindTools` |
+| LLM 创建 | 硬编码 `ChatOllama` | `createLLM(llmConfig)` 依赖注入 |
+| 工具获取 | 直接 `createCouponTools(couponService)` | `registry.getToolsByTag('coupon')` |
+| System Prompt | 硬编码字符串 | `buildAgentPrompt()` 标准化构建 |
+| 消息过滤 | 无 | `filterAgentMessages()` + `MAX_CONTEXT_MESSAGES` |
+| 返回类型 | `Partial<typeof AgentState.State>` | `AgentNodeOutput`（含 `taskResults`, `agentSteps`） |
+| 错误处理 | 简单 try-catch | `runAgentLoop` 内建错误处理 + fallback |
+
+### Step 3: 注册流程
+
+与 Wallet/Order 工具一样，Coupon 工具通过 `OnApplicationBootstrap` 编程式注册：
+
+```
+NestJS 启动时:
+  CouponModule.onApplicationBootstrap()
+    → this.toolRegistry.registerMany(createCouponTools(couponService))
+    → TaggedTool[{ tool: getUserCoupons, tags: ['coupon'] }, ...] 存入 registry
+
+AiCustomerService.onApplicationBootstrap()
+  → buildCustomerGraph(llmConfig, registry)
+  → createCouponAgentNode(llmConfig, registry)
+  → registry.getToolsByTag('coupon') → 拿到 Coupon 工具
+  → llm.bindTools(couponTools) → LLM 只看到 Coupon 工具
+```
+
+### Step 4: 优惠券查询的典型对话流程
 
 ```
 用户: "我有哪些优惠券？"
-Agent: 调用 coupon_my_list → 返回列表
-Agent: "亲，您目前有以下优惠券：
-       1. 满100减20券（未使用，有效期至2025-12-31）
-       2. 全场9折券（已使用）"
+Agent: 调用 getUserCoupons → 返回列表
+Agent: "You have 2 coupons:
+        1. 新人满50减10券 — discount 10, valid until 2025-12-31
+        2. 全场9折券 — discount 10%, already used"
 
 用户: "有什么券可以领吗？"
-Agent: 调用 coupon_claimable → 返回列表
-Agent: "亲，您现在可以领取以下优惠券：
-       1. 新人满50减10券
-       2. 满200减50券（限时）
-       请问您想领取哪一张？"
+Agent: 调用 getClaimableCoupons → 返回列表
+Agent: "You can claim these coupons:
+        1. 新人满50减10券
+        2. 满200减50券（限时）
+        Which one would you like to claim?"
 
 用户: "领第一张"
-Agent: "好的，为您领取新人满50减10券，确认吗？"
+Agent: "Claim coupon [templateId: xxx]? Please confirm."
 用户: "确认"
-Agent: 调用 coupon_claim → 执行领取
-Agent: "领取成功！已为您添加新人满50减10券，有效期30天～"
+Agent: 调用 claimCoupon → 执行领取
+Agent: "Successfully claimed the coupon!"
+
+用户: "我有一个兑换码 ABC123"
+Agent: 调用 redeemCouponCode("ABC123") → 兑换
+Agent: "Successfully redeemed the coupon code!"
 ```
 
 ---
@@ -275,6 +257,12 @@ Agent: "领取成功！已为您添加新人满50减10券，有效期30天～"
 ```bash
 # 编译检查
 yarn workspace @lucky/api build
+
+# 端到端测试
+POST /api/v1/ai-customer/test-chat
+{"message":"Show my coupons"}
+# → code: 10000 ✅
+# → 返回真实优惠券数据
 ```
 
 ---
@@ -299,16 +287,19 @@ async claimCoupon(userId: string, dto: { couponTemplateId: string }) {
 
 Agent 调用时无需关心事务细节，一次 `invoke` 即可完成所有操作。
 
-### 优惠券工具的推荐流程
+### 写操作安全确认
 
-| 步骤 | Agent 动作 | 用户动作 |
-|------|-----------|---------|
-| 1 | 询问用户想做什么 | "我想领优惠券" |
-| 2 | 调用 `coupon_claimable` 获取可领列表 | - |
-| 3 | 展示列表给用户选择 | "领第一张" |
-| 4 | 和用户确认 | "确认" |
-| 5 | 调用 `coupon_claim` | - |
-| 6 | 显示领取结果 | "谢谢" |
+`claimCoupon` 和 `redeemCouponCode` 都是写操作，通过 System Prompt 的硬规则要求 Agent 在执行前和用户确认。
+
+### 错误处理
+
+- 工具内 try-catch 包裹，失败返回 `toolFailure()` 给 LLM
+- hardRules 禁止 LLM 重试相同参数的失败调用
+- Agent 级别 fallback：如果 `runAgentLoop` 返回 error，输出友好的错误消息
+
+### Tags 系统
+
+所有 Coupon 工具都有 `tags: ['coupon']`，确保 `couponAgent` 的 LLM 只看到 Coupon 相关的工具，避免 Tool 选择错误。
 
 ---
 

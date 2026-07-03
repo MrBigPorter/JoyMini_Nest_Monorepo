@@ -29,7 +29,7 @@ export function toolFailure(error: string): string {
  * 用于 agent node 中解析 tool 返回值
  */
 
-export function parseToolResul<T extends Record<string, any>>(
+export function parseToolResult<T extends Record<string, any>>(
   json: string,
 ): ToolResult<T> {
   return JSON.parse(json) as ToolResult<T>;

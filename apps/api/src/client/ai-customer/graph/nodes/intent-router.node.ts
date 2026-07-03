@@ -273,7 +273,6 @@ export const createIntentRouterNode =
           const supervisedFlowType = intentToFlowType('supervised');
           return {
             intent: 'supervised',
-            routeCache: 'supervised', // Phase 2: 缓存路由结果
             flowType: supervisedFlowType, // supervised 无特定业务类型
             flowStatus: getInitialStatus(supervisedFlowType),
             pendingTasks: parsed.tasks,
@@ -315,6 +314,7 @@ export const createIntentRouterNode =
       POLICY: 'rag',
       GENERAL: 'general',
     };
+
     const currentDomain = state.flowType ? FLOWTYPE_DOMAIN[state.flowType] : '';
     // 计算新意图的业务域，与当前域比较：不同域 = 话题切换
     const newDomain = matchedFlowType ? FLOWTYPE_DOMAIN[matchedFlowType] : '';
@@ -324,10 +324,8 @@ export const createIntentRouterNode =
 
     return {
       intent: finalIntent,
-      routeCache: finalIntent, // Phase 2: 缓存路由结果，answerSynthesizer 不清空
       flowType: matchedFlowType,
       flowStatus: getInitialStatus(matchedFlowType),
-      taskResults: {},
       agentSteps: [],
       // 话题切换时清空 flowData（空对象触发 reducer 清空逻辑）
       // 非话题切换时不返回 flowData，避免 undefined 触发 reducer 意外清空
@@ -365,7 +363,6 @@ export const routerByIntent = (state: typeof AgentState.State): string => {
     general: 'generalChat',
     supervised: 'supervisorNode',
   };
-  // Phase 3: intent 优先于 routeCache（answerSynthesizer 不再清空 intent）
-  const effectiveIntent = state.intent || state.routeCache || '';
+  const effectiveIntent = state.intent || '';
   return routeMap[effectiveIntent] || 'generalChat';
 };

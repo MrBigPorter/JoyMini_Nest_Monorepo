@@ -47,6 +47,10 @@ export interface AgentPromptConfig {
   hardRules?: string[];
   /** 是否包含 Current Flow Context 章节（可选，默认 false） */
   flowContext?: boolean;
+  /** 当前流程类型（如 'coupon', 'wallet'），用于 flowContext 章节 */
+  flowType?: string;
+  /** 当前流程状态（如 'IDLE', 'SELECTING', 'CONFIRMING'），用于 flowContext 章节 */
+  flowStatus?: string;
   /**
    * 额外的自定义章节（可选），追加到 Display Format 之后。
    * 每个元素是一个独立的 markdown 章节标题 + 内容。
@@ -63,7 +67,7 @@ const COMMON_HARD_RULES = [
   '- **You MUST call at least one tool** to answer questions. NEVER make up data.',
   '- Never use your own knowledge to fabricate data. All data must come from tool calls.',
   '- Always pass the userId parameter when calling tools.',
-  '- If a tool returns an error, tell the user the real error. Don\'t hide it.',
+  "- If a tool returns an error, tell the user the real error. Don't hide it.",
 ];
 
 // ============================================================
@@ -91,10 +95,12 @@ Use this ID when calling any tool that requires the userId parameter.
 Do NOT ask the user for their userId — you already have it.`;
 }
 
-function buildFlowContext(): string {
+function buildFlowContext(flowType?: string, flowStatus?: string): string {
+  const type = flowType || '(not set)';
+  const status = flowStatus || 'IDLE';
   return `## Current Flow Context
-- Flow Type: \${(state as any).flowType || '(not set)'}
-- Flow Status: \${(state as any).flowStatus || 'IDLE'}
+- Flow Type: ${type}
+- Flow Status: ${status}
 Use updateFlowData to save information collected from the user.
 Use updateFlowStatus to advance the workflow (e.g. FILLING → CONFIRMING → COMPLETED).`;
 }
@@ -142,11 +148,13 @@ export function buildAgentPrompt(config: AgentPromptConfig): string {
 
   // 3. Current Flow Context (optional)
   if (config.flowContext) {
-    sections.push(buildFlowContext());
+    sections.push(buildFlowContext(config.flowType, config.flowStatus));
   }
 
   // 4. Workflow
-  sections.push(`## Your Workflow (Follow these steps exactly)\n\n${config.workflow}`);
+  sections.push(
+    `## Your Workflow (Follow these steps exactly)\n\n${config.workflow}`,
+  );
 
   // 5. Available Tools (optional)
   if (config.availableTools) {
