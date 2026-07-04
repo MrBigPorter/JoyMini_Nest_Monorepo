@@ -130,6 +130,7 @@ const AGENT_MAP: Record<string, AgentEntry> = {
 const DEPENDENCY_MAP: Record<string, string[]> = {
   product: ['coupon', 'wallet'],
   order: ['coupon', 'wallet'],
+  coupon: ['product'],
 };
 
 function resolveExecutionOrder(labels: string[]): string[] {

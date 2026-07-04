@@ -90,4 +90,27 @@ export const AgentState = Annotation.Root({
     reducer: (a: boolean, b: boolean) => b,
     default: () => false,
   }),
+
+  /**
+   * flowState — Active multi-step flow tracking
+   *
+   * Tracks the current active business flow across graph invocations.
+   * Set by orchestrator when labels indicate a multi-step process
+   * (e.g. withdrawal, address-add, address-update).
+   * Cleared when a topic switch is detected or flow completes.
+   * Used by intentRouter as a strong hint for ambiguous follow-ups.
+   *
+   * Schema:
+   * - activeFlow: string — flow identifier ('withdrawal', 'address-add', etc.) or '' if none
+   * - step: string    — current step in the flow ('confirm', 'otp', 'fill-field', etc.)
+   * - data: object    — accumulated flow data (partial form fields, etc.)
+   */
+  flowState: Annotation<{
+    activeFlow: string;
+    step: string;
+    data: Record<string, any>;
+  }>({
+    reducer: (a, b) => b,
+    default: () => ({ activeFlow: '', step: '', data: {} }),
+  }),
 });

@@ -43,107 +43,129 @@ const logger = new Logger('IntentRouter');
  * 2. 分数体现置信度：高分数 = 明确意图，低分数 = 可能意图
  * 3. 单域场景只有一个标签（score >= 0.7），多域场景多个标签
  * 4. general 标签 score >= 0.7 表示纯粹闲聊，其他标签分数低表示不确定
+ *
+ * NOTE: This prompt uses f-string style template variables ({varName}).
+ * JSON examples in comments are described conceptually to avoid
+ * LangChain template parser interpreting escaped curly braces
+ * ({{...}}) as variable references — which caused the error
+ * "Missing value for input variable 'label, score'" when the
+ * parser found comma-separated content inside double braces.
  */
 const INTENT_PROMPT = ChatPromptTemplate.fromMessages([
   [
     'system',
-    `You are an e-commerce customer service intent classifier. Always output JSON.
-
-## Output Format (ALWAYS USE THIS)
-{{
-  "intent": "order",
-  "labels": [
-    {{"label": "order", "score": 0.92}},
-    {{"label": "coupon", "score": 0.75}}
-  ]
-}}
-
-- "intent": the highest-scoring label name. If no label reaches 0.5, use "general".
-- "labels": array of {label, score}. Include ALL labels with score >= 0.3.
-- Scores are 0.0 (definitely not) to 1.0 (definitely yes).
-- CRITICAL: Output ONLY valid JSON. No markdown, no backticks, no extra text.
-
-## Previous Intent (Context Reference)
-{previousIntent}
-The user's previous topic was "{previousIntent}". This is a weak hint — consider it
-as context but do NOT force the same intent. Let the current input's content
-determine the scores. If the user's input strongly matches a different domain,
-set that domain's score higher even if it differs from previous intent.
-
-## Conversation History (for context)
-{conversationContext}
-
-Use the conversation to understand follow-ups like "yes", "confirm", "ok".
-If the user's input is very short and ambiguous, use the conversation context
-to determine the most likely intent.
-
-## Label Categories (score criteria)
-
-### order (single domain)
-Score guide:
-- 0.9+: Clear order-related request (e.g. "show my orders", "where is my delivery")
-- 0.7-0.89: Likely order-related
-- 0.5-0.69: Possibly order-related (ambiguous)
-- <0.5: Not order-related
-
-Keywords: order, orders, delivery, tracking, parcel, purchase, bought, checkout, payment, refund
-
-### wallet (single domain)
-Score guide:
-- 0.9+: Clear wallet/balance request (e.g. "check my balance", "withdraw money")
-- 0.7-0.89: Likely wallet-related
-- <0.7: Weakly related
-
-Keywords: balance, withdraw, deposit, recharge, wallet, transfer, cash
-
-### coupon (single domain)
-Score guide:
-- 0.9+: Clear coupon request (e.g. "show my coupons", "apply discount code")
-- 0.7-0.89: Likely coupon-related
-- <0.7: Weakly related
-
-Keywords: coupon, discount, voucher, promo, code, offer
-
-### user (single domain)
-Score guide:
-- 0.9+: Clear user profile/address request (e.g. "update my address", "view profile")
-- 0.7-0.89: Likely user-related
-- <0.7: Weakly related
-
-Keywords: address, profile, personal info, membership, password, phone, email, account settings
-
-### product (single domain)
-Score guide:
-- 0.9+: Clear product search/browse (e.g. "find me cheap products", "show hot items")
-- 0.7-0.89: Likely product-related
-- <0.7: Weakly related
-
-### lucky-draw (single domain)
-Score guide:
-- 0.9+: Clear lucky draw request (e.g. "my lottery tickets", "winning records")
-- 0.7-0.89: Likely lucky-draw-related
-- <0.7: Weakly related
-
-### rag (single domain)
-Score guide:
-- 0.9+: Clear policy/rule question (e.g. "what is your return policy")
-- 0.7-0.89: Likely policy-related
-- <0.7: Weakly related
-
-### general (single domain)
-Score guide:
-- 0.9+: Pure casual chat (e.g. "hello", "thank you", "hi")
-- 0.7-0.89: Likely casual
-- 0.5-0.69: Ambiguous — could be casual or a weak request
-- Use general as fallback when other labels are all below 0.5
-
-## CRITICAL RULES
-1. ALWAYS output valid JSON. No exceptions.
-2. Include ALL labels with score >= 0.3 in the labels array.
-3. The "intent" field MUST match the highest-scoring label name.
-4. If ALL labels are below 0.5, set intent to "general" with a single label {"label":"general","score":0.5}.
-5. For multi-domain requests (user mentions multiple topics), assign scores >= 0.7 to each relevant label.
-6. No markdown, no backticks, no extra text — ONLY the JSON object.`,
+    [
+      'You are an e-commerce customer service intent classifier. Always output JSON.',
+      '',
+      '## Output Format (ALWAYS USE THIS)',
+      'Always output a JSON object with these fields:',
+      '- "intent": string — the highest-scoring label name. If no label reaches 0.5, use "general".',
+      '- "labels": array of objects, each with "label" (string) and "score" (number 0.0 to 1.0)',
+      '',
+      'Example structure (use parentheses not curly braces in description):',
+      '  intent = "order"',
+      '  labels = [ (label: "order", score: 0.92), (label: "coupon", score: 0.75) ]',
+      '',
+      '- Include ALL labels with score >= 0.3 in the labels array.',
+      '- Scores are 0.0 (definitely not) to 1.0 (definitely yes).',
+      '- CRITICAL: Output ONLY valid JSON. No markdown, no backticks, no extra text.',
+      '',
+      '## Previous Intent (strong hint for short follow-ups)',
+      'previousIntent: {previousIntent}',
+      '',
+      'CRITICAL RULES for previousIntent + short inputs:',
+      '- If user input is 1-3 words AND previousIntent is set to a non-"general" value,',
+      '  ALWAYS set previousIntent\'s score >= 0.7 as the primary intent.',
+      '- Confirmation keywords like "yes", "yes please proceed", "confirm", "proceed",',
+      '  "ok", "do it", "go ahead", "sure", "correct" strongly suggest continuing the',
+      '  previous topic — give previousIntent >= 0.8 for these keywords.',
+      '- Topic switch requires explicit rejection keywords like "no", "instead",',
+      '  "actually", "different", "change" — only then override previousIntent.',
+      '- When previousIntent is "none" or "general", use the conversation history below.',
+      '',
+      '## Conversation History (for context)',
+      '{conversationContext}',
+      '',
+      'Use the conversation to understand follow-ups. The conversation above shows',
+      'the recent assistant responses and user messages.',
+      '',
+      '## Active Flow State',
+      'activeFlow: {flowStateActiveFlow}',
+      'flowStep: {flowStateStep}',
+      '',
+      'If activeFlow is set (not empty), this means there is an ongoing multi-step',
+      'process like withdrawal or address management. Short confirmation inputs MUST',
+      'route to the active flow\'s domain. Only override if user explicitly says "no"',
+      'or mentions a completely different topic.',
+      '',
+      '## Label Categories (score criteria)',
+      '',
+      '### order (single domain)',
+      'Score guide:',
+      '- 0.9+: Clear order-related request (e.g. "show my orders", "where is my delivery")',
+      '- 0.7-0.89: Likely order-related',
+      '- 0.5-0.69: Possibly order-related (ambiguous)',
+      '- <0.5: Not order-related',
+      '',
+      'Keywords: order, orders, delivery, tracking, parcel, purchase, bought, checkout, payment, refund',
+      '',
+      '### wallet (single domain)',
+      'Score guide:',
+      '- 0.9+: Clear wallet/balance request (e.g. "check my balance", "withdraw money")',
+      '- 0.7-0.89: Likely wallet-related',
+      '- <0.7: Weakly related',
+      '',
+      'Keywords: balance, withdraw, deposit, recharge, wallet, transfer, cash, KYC, identity verification, real-name, verification',
+      '',
+      '### coupon (single domain)',
+      'Score guide:',
+      '- 0.9+: Clear coupon request (e.g. "show my coupons", "apply discount code")',
+      '- 0.7-0.89: Likely coupon-related',
+      '- <0.7: Weakly related',
+      '',
+      'Keywords: coupon, discount, voucher, promo, code, offer',
+      '',
+      '### user (single domain)',
+      'Score guide:',
+      '- 0.9+: Clear user profile/address request (e.g. "update my address", "view profile")',
+      '- 0.7-0.89: Likely user-related',
+      '- <0.7: Weakly related',
+      '',
+      'Keywords: address, profile, personal info, membership, password, phone, email, account settings',
+      '',
+      '### product (single domain)',
+      'Score guide:',
+      '- 0.9+: Clear product search/browse (e.g. "find me cheap products", "show hot items")',
+      '- 0.7-0.89: Likely product-related',
+      '- <0.7: Weakly related',
+      '',
+      '### lucky-draw (single domain)',
+      'Score guide:',
+      '- 0.9+: Clear lucky draw request (e.g. "my lottery tickets", "winning records")',
+      '- 0.7-0.89: Likely lucky-draw-related',
+      '- <0.7: Weakly related',
+      '',
+      '### rag (single domain)',
+      'Score guide:',
+      '- 0.9+: Clear policy/rule question (e.g. "what is your return policy")',
+      '- 0.7-0.89: Likely policy-related',
+      '- <0.7: Weakly related',
+      '',
+      '### general (single domain)',
+      'Score guide:',
+      '- 0.9+: Pure casual chat (e.g. "hello", "thank you", "hi")',
+      '- 0.7-0.89: Likely casual',
+      '- 0.5-0.69: Ambiguous — could be casual or a weak request',
+      '- Use general as fallback when other labels are all below 0.5',
+      '',
+      '## CRITICAL RULES',
+      '1. ALWAYS output valid JSON. No exceptions.',
+      '2. Include ALL labels with score >= 0.3 in the labels array.',
+      '3. The "intent" field MUST match the highest-scoring label name.',
+      '4. If ALL labels are below 0.5, set intent to "general" with a single label (label="general", score=0.5).',
+      '5. For multi-domain requests (user mentions multiple topics), assign scores >= 0.7 to each relevant label.',
+      '6. No markdown, no backticks, no extra text — ONLY the JSON object.',
+    ].join('\n'),
   ],
   ['human', '{input}'],
 ]);
@@ -202,6 +224,8 @@ export const createIntentRouterNode =
       input: userInput,
       previousIntent: state.previousIntent || 'none',
       conversationContext: conversationContext || '(no recent history)',
+      flowStateActiveFlow: state.flowState?.activeFlow || '',
+      flowStateStep: state.flowState?.step || '',
     });
 
     // 解析 JSON 输出
