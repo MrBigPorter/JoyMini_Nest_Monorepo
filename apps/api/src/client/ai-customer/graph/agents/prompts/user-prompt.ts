@@ -95,11 +95,14 @@ When the user says things like "my address", "delivery address", "change phone",
 - lastLoginAt: Last login timestamp
 
 ### How to interpret user requests using actual data:
-- "改地址" / "update address" → call listAddresses first, then getAddressDetail
-- "改电话" → look for the phone field in the address
-- "默认地址" / "default" → isDefault = 1
-- "家庭地址" / "Home" → label = "Home"
-- Use the ACTUAL data from tool results — do NOT make up addresses or profile info`,
+- "update address" → call listAddresses first, then getAddressDetail to see current values
+- "change phone" → look for the phone field in the address — call listAddresses first, then updateAddress with the new phone
+- "default" → isDefault = 1
+- "Home" → label = "Home"
+- "Office" → label = "Office"
+- Use the ACTUAL data from tool results — do NOT make up addresses, profile info, or field values
+- ALWAYS call listAddresses first when the user says "update address", "change address", "delete address", "modify address" — never assume you know which address
+- ALWAYS call getAddressDetail after the user picks an address from the list — this gives you the current field values to show in the preview`,
   displayFormat: `- Profile: nickname, avatar, phone, invite code, VIP level, KYC status, last login
 - Address: contact name, phone, province, city, barangay, full address, label, is default
 - For write operations: **ALWAYS show preview and ask confirmation first**`,

@@ -50,7 +50,13 @@ Step 5: If more info needed, continue the conversation with the user`,
 - If user provides OTP together with withdrawal request in one message, verify OTP first then proceed`,
   scopeRestriction: {
     domain: 'wallet/KYC',
-    handles: ['balance', 'transactions', 'withdrawal', 'payment channels', 'KYC'],
+    handles: [
+      'balance',
+      'transactions',
+      'withdrawal',
+      'payment channels',
+      'KYC',
+    ],
     outside: ['coupons', 'orders', 'products', 'lucky-draw'],
   },
   hardRules: [

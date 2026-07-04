@@ -5,8 +5,15 @@ import { RedisService } from '@api/common/redis/redis.service';
 import { GROUP_STATUS, TreasureFilterType } from '@lucky/shared';
 import { Prisma } from '@prisma/client';
 
+export interface ITreasureService {
+  list(query: TreasureQueryDto): Promise<{ list: any[]; total: number; page: number; pageSize: number }>;
+  detail(id: string): Promise<any>;
+  getStatus(id: string): Promise<any>;
+  getHotGroups(limit: number, userId?: string): Promise<any[]>;
+}
+
 @Injectable()
-export class TreasureService {
+export class TreasureService implements ITreasureService {
   constructor(
     private readonly prisma: PrismaService,
     public readonly redisService: RedisService,

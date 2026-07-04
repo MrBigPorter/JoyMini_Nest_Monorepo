@@ -846,6 +846,39 @@ const raw = await chain.invoke({
 | [`coupon-agent.node.ts`](apps/api/src/client/ai-customer/graph/nodes/coupon-agent.node.ts) | ✅ | | | | | ✅ |
 | [`order-agent.node.ts`](apps/api/src/client/ai-customer/graph/nodes/order-agent.node.ts) | ✅ | | | | | ✅ |
 | [`wallet-agent.node.ts`](apps/api/src/client/ai-customer/graph/nodes/wallet-agent.node.ts) | ✅ | | | | | ✅ |
+| [`product-agent.node.ts`](apps/api/src/client/ai-customer/graph/nodes/product-agent.node.ts) | ✅ | | ✅ | | | ✅ |
+
+### Doc 09 — Product Agent（商品搜索/浏览）
+
+**新建文件 (3):**
+
+| 文件 | 内容 |
+|------|------|
+| [`product-tools.ts`](apps/api/src/client/ai-customer/graph/tools/product-tools.ts) | 5 个只读工具：searchProducts, getProductDetail, getProductStatus, getHotProducts, getProductCategories |
+| [`product-prompt.ts`](apps/api/src/client/ai-customer/graph/agents/prompts/product-prompt.ts) | AgentPromptConfig 配置（role, workflow, domainRules, examples, displayFormat, scopeRestriction, hardRules） |
+| [`product-agent.node.ts`](apps/api/src/client/ai-customer/graph/nodes/product-agent.node.ts) | 5 步工厂：Handoff → Filter → Prompt → Loop → Output |
+
+**修改文件 (5):**
+
+| 文件 | 变更 |
+|------|------|
+| [`treasure.service.ts`](apps/api/src/client/treasure/treasure.service.ts) | 新增 `ITreasureService` 接口 + `implements ITreasureService` |
+| [`treasure.module.ts`](apps/api/src/client/treasure/treasure.module.ts) | 添加 `exports: [TreasureService]` |
+| [`category.module.ts`](apps/api/src/client/category/category.module.ts) | 添加 `exports: [CategoryService]` |
+| [`ai-customer.module.ts`](apps/api/src/client/ai-customer/ai-customer.module.ts) | 导入 CategoryModule，注入 TreasureService + CategoryService，注册 product 工具，'product' 加入 EXPECTED_AGENT_TAGS |
+| [`customer.graph.ts`](apps/api/src/client/ai-customer/graph/customer.graph.ts) | +createProductAgentNode 导入，+productAgent 节点，productAgent 路由从 generalChat fallback 改为实际节点 |
+| [`agent-validator.spec.ts`](apps/api/src/client/ai-customer/graph/agents/agent-validator.spec.ts) | +product-agent.node.ts 至 agentFiles 数组 |
+
+**验证结果:**
+```bash
+# TypeScript 类型检查通过 ✅
+npx tsc --noEmit  # exit 0
+
+# Agent Validator 全 59 测试通过 ✅
+npx jest --testPathPatterns="agent-validator" --forceExit
+# ✓ productAgent source validation (R1, R3, R7)
+# ✓ product tools file exists and is non-empty
+```
 
 ### 未来扩展方向
 
@@ -877,6 +910,7 @@ const raw = await chain.invoke({
 | 14 | **方案 B — agentDoneRouter 统一** | **统一所有节点使用 agentDoneRouter** | ✅ **已实现** |
 | 15 | **方案 B — intentRouter 多领域检测** | **prompt 加入多领域检测，只输出主意图** | ✅ **已实现** |
 | 16 | **16 挑战对标补齐** | **#06 工具稳定性 + #09 结构化输出 + #13 中间步骤展示 + #15 延迟 + #16 成本** | 🟡 文档已完成，代码待实施 |
+| 17 | **业务知识图谱** | **实体-关系三元组，覆盖 User/Wallet/Order/Coupon/Flow 5 领域，16 条业务规则** | 🟡 已开始 — [`business-knowledge-graph.md`](docs/AI-joymini/business-knowledge-graph.md) |
 
 ## 🔧 基础设施
 

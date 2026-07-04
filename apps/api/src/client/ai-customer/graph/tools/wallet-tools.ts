@@ -101,7 +101,7 @@ export const createWalletTools = (
           try {
             const result = await walletService.balance(userId);
             const dto = plainToInstance(WalletBalanceResponseDto, result);
-            const llmResult = toLLM(dto, WalletBalanceResponseDto, 'zh');
+            const llmResult = toLLM(dto, WalletBalanceResponseDto, 'en');
             return toolSuccess(llmResult);
           } catch (e) {
             return toolFailure(
@@ -226,7 +226,7 @@ export const createWalletTools = (
                 },
               );
               result.recharges = (rechargeRes.list ?? []).map((item: any) =>
-                toLLM(item, RechargeHistoryItemDto, 'zh'),
+                toLLM(item, RechargeHistoryItemDto, 'en'),
               );
               result.rechargeTotal = rechargeRes.total;
             }
@@ -238,7 +238,7 @@ export const createWalletTools = (
                   pageSize: pageSize ?? 10,
                 });
               result.withdrawals = withdrawRes.list.map((item: any) =>
-                toLLM(item, WithdrawalItemResponseDto, 'zh'),
+                toLLM(item, WithdrawalItemResponseDto, 'en'),
               );
               result.withdrawTotal = withdrawRes.total;
             }
@@ -291,7 +291,7 @@ export const createWalletTools = (
           try {
             const result = await kycService.getMyKyc(userId);
             const dto = plainToInstance(KycResponseDto, result);
-            const llmResult = toLLM(dto, KycResponseDto, 'zh');
+            const llmResult = toLLM(dto, KycResponseDto, 'en');
             return toolSuccess(llmResult);
           } catch (e) {
             return toolFailure(
@@ -422,7 +422,7 @@ export const createWalletTools = (
             dto.accountName = accountName;
             const order = await clientWalletService.applyWithdraw(userId, dto);
             const dtoRes = plainToInstance(WithdrawApplyResponseDto, order);
-            const llmResult = toLLM(dtoRes, WithdrawApplyResponseDto, 'zh');
+            const llmResult = toLLM(dtoRes, WithdrawApplyResponseDto, 'en');
             return toolSuccess(llmResult);
           } catch (e) {
             return toolFailure(`Withdrawal failed: ${(e as Error).message}`);

@@ -1,8 +1,23 @@
 /**
  * agent-runner — Agent 循环引擎
  *
+ * ── 是什么？ ──
+ * 手动实现的 ReAct Agent 循环（Reasoning + Acting = 推理 + 行动）。
  * 提取所有 Agent 共用的 while 循环 + tool 执行 + 错误处理逻辑。
- * 支持可选的 flow data 累积回调（wallet agent 使用）。
+ *
+ * ── 为什么手动实现，不用 LangChain 的 createReactAgent？ ──
+ * 1. 灵活提取 flow data：wallet agent 需要在工具执行前"截获" updateFlowData 调用
+ * 2. 更细粒度的错误处理：可以区分"工具未找到"和"工具执行报错"
+ * 3. 自定义迭代次数控制：MAX_ITERATIONS 常量控制，防止无限循环
+ * 4. flowDataAccumulator 可选回调：只有 wallet agent 需要，其他 agent 不需要
+ *
+ * ── 生活类比 ──
+ * 这就像你让助理去查一个事情：
+ * 1. 你问："帮我查一下这个客户的订单状态"（LLM 思考）
+ * 2. 助理说："我需要查一下客户 ID"→ 查数据库（工具调用）
+ * 3. 助理看结果："找到了，这是物流信息"（LLM 再次思考）
+ * 4. 如果还需要继续查 → 重复
+ * 5. 助理说："好了，这就是全部信息" → 结束循环
  */
 
 import { Logger } from '@nestjs/common';
@@ -28,7 +43,12 @@ export interface LastToolCallInfo {
 }
 
 /**
- * Flow data accumulator — 用于 wallet agent 从工具调用中提取 flow 状态
+ * FlowDataAccumulator — flow data 累加器
+ *
+ * ── 是什么？ ──
+ * 用于 wallet agent 从工具调用中提取 flow 状态。
+ * 原理：在工具执行前"截获" updateFlowData/updateFlowStatus 的参数，
+ * 提前更新 accumulator，供后续构建结果时使用。
  */
 export interface FlowDataAccumulator {
   flowData: Record<string, any>;
@@ -80,12 +100,27 @@ export interface AgentLoopOptions {
 // ============================================================
 
 /**
- * 执行 Agent 循环
+ * runAgentLoop — 执行 Agent 循环
  *
- * 手动实现的 ReAct Agent 循环：
- * 1. LLM 思考 → 决定是否调用工具
- * 2. 如果调用工具 → 执行工具 → 把结果喂回 LLM
- * 3. 重复直到 LLM 不再调用工具或达到最大迭代次数
+ * ── 流程 ──
+ * 1. LLM 思考 → 输出 AIMessage（可能带 tool_calls）
+ * 2. 如果 AIMessage 没有 tool_calls → LLM 已给出最终回答，退出循环
+ * 3. 如果有 tool_calls → 逐个执行工具
+ *    a. 如果传入了 flowDataAccumulator，在工具执行前提取 flow 状态
+ *    b. 找到对应的工具 → invoke → 结果通过 stripToolResult 剥离包装
+ *    c. 未找到工具 → 返回错误消息
+ * 4. 工具结果作为 ToolMessage 追加到消息列表
+ * 5. 重复直到 LLM 不再调用工具或达到 MAX_ITERATIONS
+ *
+ * ── 为什么要 stripToolResult？ ──
+ * 工具返回的是 { ok: true, data: { balance: 100 } }。
+ * LLM 不需要看到 "ok" 字段，只需要 { balance: 100 }。
+ * 这就是 stripToolResult 在创建 ToolMessage 前做的事。
+ *
+ * ── 为什么用 flowDataAccumulator？ ──
+ * wallet agent 的提现流程需要跟踪状态：IDLE→FILLING→CONFIRMING→COMPLETED。
+ * 每次 LLM 调用 updateFlowData/updateFlowStatus 时，accumulator 自动记录。
+ * 这样在循环结束后，可以知道当前的 flow 状态，用于构建结果。
  *
  * @param options - Agent 循环配置
  * @returns AgentLoopResult
@@ -208,7 +243,18 @@ export async function runAgentLoop(
 // ============================================================
 
 /**
- * 从工具调用中提取 flow data/status（wallet agent 专用）
+ * extractFlowData — 从工具调用中提取 flow data/status
+ *
+ * ── 为什么需要在工具执行前提取？ ──
+ * updateFlowData 和 updateFlowStatus 是"元工具"——它们不查数据库，
+ * 只是更新 state 里的 flow 状态。但 Agent 循环在 runAgentLoop 里执行，
+ * 无法直接修改外部的 state。所以需要用 accumulator 先"记录"这些更新，
+ * 循环结束后再统一应用到 state。
+ *
+ * ── 生活类比 ──
+ * 就像填表时，你每填完一栏，助理在旁边记笔记："姓名填了张三"。
+ * 等表全部填完后，助理把笔记整理成一份完整的表格。
+ * 而不是每填一栏就提交一次表格。
  */
 function extractFlowData(
   toolCall: { name: string; args?: Record<string, any> },

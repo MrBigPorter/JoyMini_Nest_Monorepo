@@ -1,14 +1,21 @@
 /**
  * agent-result — 统一成功/失败结果构建 + Agent 初始化工具
  *
+ * ── 是什么？ ──
  * 抽取 4 个 Agent 中重复的：
- *   - error/success 结果构建逻辑（Q7 "两层防御 — Agent 层兜底"）
- *   - LLM + Tools 初始化逻辑（Section ①）
- *   - initialMessages 构造逻辑（Section ③）
+ *   - error/success 结果构建逻辑
+ *   - LLM + Tools 初始化逻辑（createAgentLLM）
+ *   - initialMessages 构造逻辑（buildInitialMessages）
  *
- * 面试概念对应：
- *   Q7 "两层防御 — Agent 层兜底"
- *   统一错误消息管理，确保所有 Agent 输出相同形状的 AgentNodeOutput
+ * ── 为什么需要这个文件？ ──
+ * 重构前，4 个 Agent（wallet/order/coupon/user）各自有相同的 if/else 结果处理代码。
+ * 当一个 Agent 的 Bug 修复了（如 Bug 1: 错误路径需要用 state.messages 而非 result.currentMessages），
+ * 其他 3 个 Agent 可能忘记同步修复。
+ * 抽取到统一函数 → 修复一次，所有 Agent 受益。
+ *
+ * ── 生活类比 ──
+ * 这就像 4 家分店都用同一个"客户投诉处理流程"模板。
+ * 如果总店修改了流程，4 家分店自动同步，不需要每家单独去改。
  */
 
 import { BaseMessage } from '@langchain/core/messages';
@@ -29,11 +36,19 @@ import {
 } from '@api/client/ai-customer/graph/llm-factory';
 
 /**
- * 构建错误结果
+ * buildErrorResult — 构建错误结果
  *
+ * ── 做什么？ ──
  * 当 Agent 循环抛出异常或 result.error 存在时调用。
- * 使用 state.messages（原始输入消息）而非 result.currentMessages，
- * 避免将 tool_calls/tool 消息暴露给下游 answerSynthesizer。
+ *
+ * ── 为什么用 state.messages 而不是 result.currentMessages？ ──
+ * Bug 1 修复：result.currentMessages 包含 tool_calls/tool 消息，
+ * 如果传给 answerSynthesizer，它会把工具调用的内部细节也合成到回复里。
+ * state.messages（原始输入消息）只包含 Human 和 AI 纯文本，更干净。
+ *
+ * ── 怎么做？ ──
+ * return { taskResults: { [agentName]: errorMessage }, messages, agentSteps: [] }
+ * 其中 errorMessage 是给用户看的友好提示，不是给开发者看的技术错误。
  *
  * @param agentName - Agent 名称（用于 taskResults key）
  * @param messages - 原始输入消息（state.messages）
@@ -56,21 +71,23 @@ export function buildErrorResult(
 }
 
 /**
- * 链式结果构建器 — 封装 if/else + extra 收集
+ * buildAgentResult — 链式结果构建器
  *
- * 将 4 个 Agent 中重复的"检查 error → 构建 error/success 结果"模式
- * 封装为链式调用。支持通过 .flowData()/.agentSteps() 等注入 extra 字段。
+ * ── 是什么？ ──
+ * Builder Pattern（建造者模式）：一步步构建结果对象。
+ * 将 4 个 Agent 中重复的"检查 error → 构建 error/success 结果"模式封装为链式调用。
  *
- * 面试概念对应：
- *   Q7 "两层防御 — Agent 层兜底"
- *   统一出口，减少各 Agent 节点中的样板代码
- *
- * @example
- * // coupon/user/order — 无 extra
- * return buildAgentResult('couponAgent').from(result, state.messages);
+ * ── 生活类比 ──
+ * 就像在赛百味点三明治：先选面包（.agentSteps()）、再加肉（.flowData()）、
+ * 再加酱料（.flowType()）、最后结账（.from()）。
+ * 每一步都是可选的，最后一步决定"做好了"。
  *
  * @example
- * // wallet — 链式注入 extra
+ * // 标准 Agent — 无 extra
+ * return buildAgentResult('orderAgent').from(result, state.messages);
+ *
+ * @example
+ * // Wallet Agent — 链式注入 extra
  * return buildAgentResult('walletAgent')
  *   .agentSteps(agentSteps)
  *   .flowData(flowData)
@@ -112,11 +129,12 @@ export function buildAgentResult(agentName: string) {
 }
 
 /**
- * 构建成功结果
+ * buildSuccessResult — 构建成功结果
  *
+ * ── 做什么？ ──
  * 当 Agent 循环成功完成时调用。
  * 使用 result.currentMessages 保留本轮 Agent 产生的所有消息
- * （包括 tool_calls/tool 结果），供 answerSynthesizer 构建上下文。
+ *（包括 tool_calls/tool 结果），供 answerSynthesizer 构建上下文。
  *
  * @param agentName - Agent 名称（用于 taskResults key）
  * @param result - AgentLoopResult（来自 runAgentLoop 的返回值）
@@ -143,21 +161,17 @@ export function buildSuccessResult(
 /**
  * createAgentLLM — 统一 LLM 创建（绑定 Tools）
  *
+ * ── 做什么？ ──
  * 将 4 个 Agent 中重复的 "createLLM + bindTools" 模式封装为统一函数。
  * tools 由调用方从 registry 显式获取，来源清晰可见。
  *
- * 面试概念对应：
- *   Q4 "为什么用 LangGraph" + Q5 "手动 ReAct 循环"
- *   统一入口，确保所有 Agent 使用相同的 LLM 创建方式
+ * ── 为什么 bindTools？ ──
+ * LangChain 的 bindTools 是告诉 LLM"你可以使用这些工具"。
+ * LLM 在生成回复时，如果觉得需要调用工具，就会在 AIMessage 里输出 tool_calls。
+ * 没有 bindTools，LLM 就不知道可以用什么工具。
  *
  * @example
- * // 标准 Agent
  * const tools = registry.getToolsByTag('order');
- * const llmWithTools = createAgentLLM(llmConfig, tools);
- *
- * @example
- * // Wallet Agent（合并 domain + flow tools）
- * const tools = [...registry.getToolsByTag('wallet'), ...registry.getToolsByTag('flow')];
  * const llmWithTools = createAgentLLM(llmConfig, tools);
  */
 export function createAgentLLM(
@@ -172,20 +186,21 @@ export function createAgentLLM(
  * buildInitialMessages — 统一 initialMessages 构建
  * ================================================================
  *
- * 将 4 个 Agent 中重复的 initialMessages 构造逻辑封装为统一函数。
- * 默认固定行为: [{ role: 'system', content: systemPrompt }, ...filteredMessages]
- * 支持通过 options.inject 插入额外消息（如记忆上下文、摘要等）。
+ * ── 是什么？ ──
+ * LLM 的输入消息列表格式：[{ role: 'system', content: systemPrompt }, ...历史对话]。
+ * 这个函数负责组装这个列表。
  *
- * 面试概念对应：
- *   Q6 "数据转换 — 将业务数据注入 System Prompt"
- *   统一入口，减少各 Agent 节点中的样板代码
+ * ── 怎么做？ ──
+ * 默认固定行为：system message + filtered history。
+ * 支持通过 options.inject 插入额外消息（如记忆上下文、摘要等）。
+ * inject 参数是为未来扩展预留的（如长期记忆）。
  *
  * @example
- * // 默认 — 所有 4 个 Agent 的标准用法
+ * // 标准用法
  * const initialMessages = buildInitialMessages(systemPrompt, filteredMessages);
  *
  * @example
- * // 带注入消息（如未来需要插入记忆摘要）
+ * // 带注入消息（未来扩展：记忆摘要）
  * const initialMessages = buildInitialMessages(systemPrompt, filteredMessages, {
  *   inject: [memoryMessage],
  * });

@@ -46,6 +46,7 @@ const agentFiles: AgentFile[] = [
   { path: 'coupon-agent.node.ts', name: 'couponAgent', tag: 'coupon' },
   { path: 'order-agent.node.ts', name: 'orderAgent', tag: 'order' },
   { path: 'user-agent.node.ts', name: 'userAgent', tag: 'user' },
+  { path: 'product-agent.node.ts', name: 'productAgent', tag: 'product' },
 ];
 
 // ==============================================================

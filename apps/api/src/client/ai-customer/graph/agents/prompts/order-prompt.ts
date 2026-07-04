@@ -35,11 +35,11 @@ When the user says things like "recent orders", "big orders", "refunded orders",
 - trackingNumber: Logistics tracking number (if shipped)
 
 ### How to interpret user requests using actual data:
-- "最近的" / "recent" → sort by createdAt descending
-- "大额的" / "big" → filter by higher total amount
-- "退款中的" / "refunding" → status = refunding
-- "已退款的" / "refunded" → status = refunded
-- "已发货" / "shipped" → status = shipped
+- "recent" → sort by createdAt descending
+- "big" → filter by higher total amount
+- "refunding" → status = refunding
+- "refunded" → status = refunded
+- "shipped" → status = shipped
 - Use the ACTUAL data from tool results — do NOT make up order numbers or amounts`,
   availableTools: `1. **Order List** - View all orders of the user (supports pagination)
 2. **Order Detail** - View detailed information of a specific order`,

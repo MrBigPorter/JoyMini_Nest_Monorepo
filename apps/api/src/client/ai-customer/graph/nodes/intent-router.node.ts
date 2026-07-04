@@ -1,10 +1,30 @@
 /**
- * 9-Intent Classification Prompt
+ * Intent Router — 意图分类节点
  *
- * Design principles:
- * - Each category has clear description + examples for accurate LLM classification
- * - Output only the classification word (StringOutputParser + trim)
- * - 'unknown' as fallback to avoid forced misclassification
+ * ── 在哪里？ ──
+ * StateGraph 入口后的第一个节点。所有用户消息必经之路。
+ *
+ * ── 是什么？ ──
+ * Intent Classification（意图分类）：用 LLM 把用户输入分类成 9 种预定义意图之一。
+ * Pipeline: INTENT_PROMPT → LLM(temperature=0) → StringOutputParser → 校验 → 写入 state
+ *
+ * ── 为什么用 LLM 做分类，不用规则匹配（if/else 或正则）？ ──
+ * 1. 自然语言多样性：用户可以说"查余额"、"看看我还有多少钱"、"我的钱包里有多少"→
+ *    正则需要写 3 条规则，LLM 一条就够
+ * 2. 多领域检测：用户说"查余额和订单"→ LLM 可以输出 JSON { intent: 'supervised', tasks: [...] }
+ *    正则基本做不到
+ * 3. 可扩展性：新增一个意图只需改 Prompt，不用改代码
+ *
+ * ── 为什么 temperature=0？ ──
+ * 分类任务需要确定性（每次同样的输入得到同样的输出）。
+ * temperature=0 让 LLM 总是选择概率最高的分类，不会随机变化。
+ *
+ * ── 生活类比 ──
+ * 便利店入口处的店员：
+ * - 你说"买瓶水"→ 他指路到饮料区（wallet）
+ * - 你说"取快递"→ 他指到快递架（order）
+ * - 你说"买水和取快递"→ 他写一张纸条派两个部门（supervised）
+ * - 如果听不懂 → 带你去综合服务台（unknown → generalChat）
  */
 import { ChatPromptTemplate } from '@langchain/core/prompts';
 import { StringOutputParser } from '@langchain/core/output_parsers';
@@ -22,36 +42,18 @@ import { Logger } from '@nestjs/common';
 const logger = new Logger('IntentRouter');
 
 /**
- * 要素 1：System Message = 规则 + 示例
- * 你说："写好规则，给 demo 做参考，这样明确不会随意跑题"
- * 9-Intent Classification Prompt
- * System Message 就是 "岗前培训手册"，不给 LLM 定规则，它就会自由发挥。给 demo 示例是让 LLM 知道你想要的具体格式，不是抽象描述。
+ * INTENT_PROMPT — 9 意图分类 System Prompt
  *
- * 要素 2：输出格式约束
- * 你说："只可以输出一个字：订单，钱包，优惠券..."
- * Prompt 约束 + 代码兜底 = 双层保险。LLM 可能不听话，所以代码层还要再做一次校验。
+ * ── 结构 ──
+ * 1. Previous Intent：理解简短消息（"确认"、"好的"）的上下文
+ * 2. Conversation History：最近 4 条历史消息
+ * 3. Multi-domain detection：多领域检测（最高优先级）
+ * 4. Agent Name Mapping：分类结果 → Agent 名称映射
+ * 5. 9 个分类定义：每个分类有描述 + 关键词 + 正反面示例
  *
- * 要素 3：Human + 占位符
- * 没有 {input} 这个占位符，LLM 就不知道用户问了什么。它是运行时动态注入的变量。
- *
- * Design principles:
- * - Each category has clear description + examples for accurate LLM classification
- * - Output only the classification word (StringOutputParser + trim)
- * - 'unknown' as fallback to avoid forced misclassification
- *
- * System Message = 给 LLM 的「岗前培训」，告诉它你是谁、要做什么、怎么做。没有这个培训，LLM 就像一个新员工不知道自己的岗位职责。
- * {input} 是模板变量
- * const prompt = ChatPromptTemplate.fromMessages([
- *   ['system', '你是分类器，只输出一个词'],
- *   ['human', '{input}'],  // ← {input} 是占位符
- * ]);
- *
- * // 调用时传入实际值
- * await chain.invoke({ input: 'Where is my order' });
- * // ↑ 这个对象替换了 {input}
- * 最终发给 LLM 的消息是：
- * System: 你是分类器，只输出一个词
- * Human: Where is my order
+ * ── 为什么 Previous Intent 这么重要？ ──
+ * 用户可能只说"确认"或"好的"。没有 previousIntent，系统不知道"确认什么"。
+ * 有了它，LLM 就知道"上一轮用户在查余额，所以'确认'=确认查看余额"。
  */
 const INTENT_PROMPT = ChatPromptTemplate.fromMessages([
   [
@@ -135,7 +137,21 @@ Domain: discounts/offers
 Keywords: coupon, discount, 优惠券, 折扣
 
 ### user (single domain)
-Domain: personal information, account details, membership
+Domain: personal information, account details, membership, address management
+Keywords: address, profile, personal info, membership
+
+Examples:
+- "view my profile" → user
+- "update my profile" → user
+- "add a new address" → user
+- "change my shipping address" → user
+- "delete my address" → user
+- "show my addresses" → user
+
+Negative examples (NOT user even though address-related):
+- "where is my order" → order (delivery tracking, not address management)
+- "track my delivery" → order (logistics, not address management)
+- "check my parcel" → order (shipment tracking, not address management)
 
 ### product (single domain)
 Domain: product search/browsing
@@ -178,28 +194,26 @@ const VALID_INTENTS = [
 export type Intent = (typeof VALID_INTENTS)[number];
 
 /**
- * Intent Router Node
+ * createIntentRouterNode — 创建意图分类节点函数
  *
+ * ── 做什么？ ──
  * 1. 从 state.messages 中取得最后一条消息，作为用户输入
- * 2. 使用 ChatOllama + INTENT_PROMPT 对用户输入进行意图分类
- * 3. 将分类结果写入 state.intent + state.routeCache（Phase 2）
- *    - intent：每轮被 answerSynthesizer 清空
- *    - routeCache：被保留，下一轮直接走路由缓存跳过 LLM 分类
+ * 2. 构建对话上下文（最近 4 条历史消息）
+ * 3. 使用 ChatOllama + INTENT_PROMPT 对用户输入进行意图分类
+ * 4. 如果是 JSON（多领域）→ 解析 JSON，设置 pendingTasks
+ * 5. 如果是单领域 → 校验后在 VALID_INTENTS 列表中
+ * 6. 话题切换检测：不同业务域间切换时清空 flowData
+ * 7. 写入 messageTopics 标记当前 Human 消息的话题
  *
+ * ── 生活类比 ──
  * 用户说 "帮我查看订单"
  *          ↓
  * 分拣员听了之后判断：
  * "这是 order 类别"
  *          ↓
- * 然后在纸条上写 intent = "order" + routeCache = "order"
+ * 然后在纸条上写 intent = "order"
  *          ↓
  * 把纸条传给下一个工人
- *
- * 类比： 这就好比给一个新员工一份「问题分类手册」：
- *
- * 如果客人说「我的货到哪了」→ 分到 订单组
- * 如果客人说「你好」→ 分到 闲聊组
- * 如果客人说「怎么退货」→ 分到 政策组
  *
  * @param llmConfig
  */
@@ -278,7 +292,7 @@ export const createIntentRouterNode =
             pendingTasks: parsed.tasks,
             taskResults: {},
             agentSteps: [],
-            // Phase 3: 记录当前 Human 消息的话题，用于 supervisor 模式下按话题过滤
+            // 记录当前 Human 消息的话题，用于 supervisor 模式下按话题过滤
             messageTopics: { [state.messages.length - 1]: 'supervised' },
           };
         }
@@ -298,7 +312,7 @@ export const createIntentRouterNode =
 
     logger.log(`[intentRouter] classified as: ${finalIntent}`);
 
-    // 6. ：把分类结果写回状态，传给下一个工人
+    // 把分类结果写回状态，传给下一个工人
     const matchedFlowType = intentToFlowType(finalIntent);
 
     // ---- 话题切换检测：跨业务域时清空 flowData ----
@@ -330,24 +344,25 @@ export const createIntentRouterNode =
       // 话题切换时清空 flowData（空对象触发 reducer 清空逻辑）
       // 非话题切换时不返回 flowData，避免 undefined 触发 reducer 意外清空
       ...(isTopicSwitch ? { flowData: {} as Record<string, any> } : {}),
-      // Phase 3: 记录当前 Human 消息的话题，用于 supervisor 模式下按话题过滤
+      // 记录当前 Human 消息的话题，用于 supervisor 模式下按话题过滤
       messageTopics: { [state.messages.length - 1]: finalIntent },
     };
   };
 
 /**
- * Intent Router Node → Agent/RAG/GeneralChat 的路由函数
+ * routerByIntent — Intent Router Node → Agent/RAG/GeneralChat 的路由函数
  *
- * 根据 state.intent 返回对应的节点名称
- * 1. order → orderAgent
- * 2. wallet → walletAgent
- * 3. coupon → couponAgent
- * 4. user → userAgent
- * 5. product → productAgent
- * 6. lucky-draw → luckyAgent
- * 7. rag → ragNode
- * 8. general → generalChat
- * 9. unknown → generalChat (fallback)
+ * ── 是什么？ ──
+ * 根据 state.intent 返回对应的节点名称。是 StateGraph 的条件边路由函数。
+ *
+ * ── 怎么做？ ──
+ * 查 routeMap：'order' → 'orderAgent', 'wallet' → 'walletAgent', ...
+ * 如果 state.intent 为空或不在 map 中 → fallback 到 'generalChat'
+ *
+ * ── 为什么 fallback 到 generalChat 而不是报错？ ──
+ * 用户可能说了一句 LLM 无法分类的话（如乱码、未知语言）。
+ * fallback 到 generalChat 至少能给出"抱歉，我没理解您的问题"的友好回复。
+ * 这比直接报 500 错误要好得多（Fault Tolerance / 容错设计）。
  *
  * @param state
  */

@@ -52,7 +52,7 @@ export const createOrderTools = (orderService: IOrderService): TaggedTool[] => {
             });
             // 将列表中的每个订单通过 toLLM 语义化
             const llmList = (result.list ?? []).map((item: OrderItemDto) =>
-              toLLM(item, OrderItemDto, 'zh'),
+              toLLM(item, OrderItemDto, 'en'),
             );
             return toolSuccess({
               total: result.total,
@@ -99,7 +99,7 @@ export const createOrderTools = (orderService: IOrderService): TaggedTool[] => {
             );
             const result = await orderService.getOrderDetail(userId, orderId);
             // 将单条订单详情通过 toLLM 语义化
-            const llmResult = toLLM(result, OrderItemDto, 'zh');
+            const llmResult = toLLM(result, OrderItemDto, 'en');
             return JSON.stringify(llmResult, null, 2);
           } catch (e) {
             return JSON.stringify({

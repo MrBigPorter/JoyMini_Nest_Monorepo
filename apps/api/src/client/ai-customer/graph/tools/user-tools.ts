@@ -56,7 +56,7 @@ export const createUserTools = (
                 profile: toLLM(
                   plainToInstance(UserProfileResponseDto, result),
                   UserProfileResponseDto,
-                  'zh',
+                  'en',
                 ),
               }),
             )
@@ -100,7 +100,7 @@ export const createUserTools = (
                   toLLM(
                     plainToInstance(AddressResponseDto, item),
                     AddressResponseDto,
-                    'zh',
+                    'en',
                   ),
                 ),
               }),
@@ -139,7 +139,7 @@ export const createUserTools = (
                 address: toLLM(
                   plainToInstance(AddressResponseDto, result),
                   AddressResponseDto,
-                  'zh',
+                  'en',
                 ),
               }),
             )

@@ -7,6 +7,6 @@ import { CategoryController } from '@api/client/category/category.controller';
   imports: [PrismaModule],
   controllers: [CategoryController],
   providers: [CategoryService],
-  exports: [],
+  exports: [CategoryService],
 })
 export class CategoryModule {}

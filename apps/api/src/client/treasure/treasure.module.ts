@@ -9,5 +9,6 @@ import { ShareController } from '@api/client/treasure/share.controller';
   imports: [PrismaModule, RedisModule],
   controllers: [TreasureController, ShareController],
   providers: [TreasureService],
+  exports: [TreasureService],
 })
 export class TreasureModule {}

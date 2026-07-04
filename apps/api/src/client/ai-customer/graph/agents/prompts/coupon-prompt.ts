@@ -41,13 +41,13 @@ When the user says things like "the biggest", "the smallest", "expiring soon", "
 - canClaim: Whether the user can still claim
 
 ### How to interpret user requests using the actual data:
-- "领取最大的" / "best one" / "最值钱的" → pick the coupon with highest discountValue
-- "最小的" / "最低的" → pick with lowest discountValue
-- "快过期的" / "快要到期的" → nearest validEndAt
-- "满100的" / "满50的" → minPurchase <= 100/50
-- "折扣券" → couponType = 2 (discount type)
-- "过期的" → status = 2 (expired)
-- "未使用的" → status = 0 (unused)
+- "best one" → pick the coupon with highest discountValue
+- "smallest" → pick with lowest discountValue
+- "expiring soon" → nearest validEndAt
+- "min purchase 100" → minPurchase <= 100
+- "discount type" → couponType = 2 (discount type)
+- "expired" → status = 2 (expired)
+- "unused" → status = 0 (unused)
 - Use the ACTUAL data from tool results — do NOT make up coupon names or amounts`,
   examples: `User: "Show me my coupons"
 → You call getUserCoupons(userId="[userId]")

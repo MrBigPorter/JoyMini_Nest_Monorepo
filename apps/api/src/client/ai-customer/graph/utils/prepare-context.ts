@@ -1,10 +1,58 @@
 /**
- * 消息过滤工具
- * 统一管理 Agent 上下文消息的过滤逻辑
+ * 消息过滤工具 — Context Filtering
  *
- * 使用场景:
- * - 单 Agent 模式: 保留 Human + AI 纯文本，过滤 tool/tool_calls 消息
- * - Supervisor 多 Agent 模式: 额外过滤其他 Agent 的 AI 纯文本输出 + 按话题过滤 Human 消息
+ * ── 是什么？ ──
+ * 每个 Agent 在 Run 之前，需要从全部对话历史（state.messages）中提取出"本 Agent 应该看到"的部分。
+ * 这是 5-section 模板的第②步：Filter（上下文过滤）。
+ *
+ * ── 为什么需要过滤？ ──
+ * 1. API 合规（OpenAI/DeepSeek 强制要求）:
+ *    ToolMessage 必须紧跟在对应的 AI(tool_calls) 之后，不能孤立出现。
+ *    如果过滤掉了 AI(tool_calls) 但保留了 ToolMessage，API 会报 400 BadRequest。
+ * 2. 跨 Agent 隔离:
+ *    Supervisor 模式下，多个 Agent 共享同一个 messages 数组。
+ *    OrderAgent 不应该看到 UserAgent 的对话，否则会混淆。
+ * 3. 减少 Token 消耗: 过滤掉无关的工具调用记录，降低 LLM 上下文长度。
+ * 4. 避免重复工具调用: 如果不保留上次的 ToolMessage，LLM 可能重复调用同一个工具。
+ *
+ * ── 两种模式 ──
+ * [单 Agent 模式]（pendingTasks 为空数组）
+ * 保留规则:
+ * - Human 消息: 全部保留
+ * - AI 纯文本: 全部保留（LLM 给用户的自然语言回复）
+ * - AI(tool_calls): 只保留最后一个（lastToolCallerIdx）
+ * - ToolMessage: 只保留最后一个 AI(tc) 对应的所有连续 ToolMessage
+ *
+ * 算法（Index Backtracking）:
+ * ① 从后往前遍历 messages，找到最后一个 AI(tool_calls) 的索引
+ * ② 从该位置往后，收集所有连续的 ToolMessage 的索引
+ * ③ 过滤时，只保留 ① 的 AI(tc) + ② 的 ToolMessage
+ *
+ * [Supervisor 多 Agent 模式]（pendingTasks 非空）
+ * 保留规则:
+ * - Tool 消息: 全部丢弃（跨 Agent 无意义）
+ * - AI(tool_calls): 全部丢弃
+ * - AI 纯文本: 全部丢弃（其他 Agent 的输出不应该被当前 Agent 看到）
+ * - Human 消息: 按话题（topic）选择性保留
+ *
+ * 话题过滤（messageTopics）:
+ * 每个 Human 消息在 IntentRouter 中被打上话题标签。
+ * 如果话题匹配当前 Agent 的 domain（如 wallet），则保留。
+ * 如果话题是 supervised（触发多 Agent），按 pendingTasks 二次过滤。
+ *
+ * ── 生活类比 ──
+ * 就像公司内部的邮件分拣系统:
+ * - 单 Agent 模式 = 你只保留最后一封邮件和附件，之前的历史归档
+ * - Supervisor 模式 = 每个部门只收自己相关的邮件（市场部不看财务部的）
+ * - Topic 过滤 = 邮件上的标签（#财务/#市场/#技术）
+ * - Index Backtracking = "看最新的一封邮件就够了"
+ *
+ * ── 面试概念映射 ──
+ * - Index Backtracking: 反向遍历 + 索引追踪（常见于数组操作面试题）
+ * - API 合规: 外部 API 约束驱动的过滤逻辑（Constraint-Driven Design）
+ * - Cross-Agent Isolation: 多租户隔离思想在 Agent 上下文中的应用
+ * - Topic-Based Filtering: 基于标签的发布-订阅模式（Pub/Sub）
+ * - Token 预算管理: 上下文窗口优化（Context Window Optimization）
  */
 import { Logger } from '@nestjs/common';
 import { BaseMessage } from '@langchain/core/messages';
