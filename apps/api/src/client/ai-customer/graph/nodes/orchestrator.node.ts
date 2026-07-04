@@ -32,9 +32,16 @@ import { Logger } from '@nestjs/common';
 import { AgentState } from '@api/client/ai-customer/graph/state';
 import { LlmProviderConfig } from '@api/client/ai-customer/graph/llm-factory';
 import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-registry.service';
-import { MAX_CONTEXT_MESSAGES, MAX_ITERATIONS } from '@api/client/ai-customer/graph/constants';
-import { buildAgentPrompt, AgentPromptConfig } from '@api/client/ai-customer/graph/agents/prompt-builder';
+import {
+  MAX_CONTEXT_MESSAGES,
+  MAX_ITERATIONS,
+} from '@api/client/ai-customer/graph/constants';
+import {
+  buildAgentPrompt,
+  AgentPromptConfig,
+} from '@api/client/ai-customer/graph/agents/prompt-builder';
 import { runAgentLoop } from '@api/client/ai-customer/graph/agents/agent-runner';
+
 import {
   buildInitialMessages,
   createAgentLLM,
@@ -295,9 +302,7 @@ export const createOrchestratorNode =
     const labelNames = sortedLabels.map((l) => l.label);
     const executionOrder = resolveExecutionOrder(labelNames);
 
-    logger.log(
-      `[orchestrator] execution order: ${executionOrder.join(' → ')}`,
-    );
+    logger.log(`[orchestrator] execution order: ${executionOrder.join(' → ')}`);
 
     // ================================================================
     // 3. 流水线执行
@@ -376,9 +381,7 @@ export const createOrchestratorNode =
           }
         }
       } catch (err: any) {
-        logger.error(
-          `[orchestrator] ${entry.label} exception: ${err.message}`,
-        );
+        logger.error(`[orchestrator] ${entry.label} exception: ${err.message}`);
         agentOutputs.push({
           label: entry.label,
           content: `Sorry, I encountered an issue processing your ${label} request.`,

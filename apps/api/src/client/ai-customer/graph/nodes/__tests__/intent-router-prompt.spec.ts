@@ -21,6 +21,7 @@
  */
 import { ChatPromptTemplate } from '@langchain/core/prompts';
 import { describe, it, expect } from '@jest/globals';
+import { VALID_INTENTS } from '@api/client/ai-customer/graph/agents/prompts/intent-label-categories';
 
 // ============================================================
 // Group A: 模板解析 — 修复验证
@@ -153,10 +154,7 @@ describe('Group B: Intent Router JSON parsing logic', () => {
       parsed = JSON.parse(jsonStr);
     } catch {
       const singleWord = trimmed.toLowerCase().trim();
-      const validIntents = [
-        'order', 'wallet', 'coupon', 'user', 'product',
-        'lucky-draw', 'rag', 'general',
-      ];
+      const validIntents = VALID_INTENTS;
       const fallbackIntent = validIntents.includes(singleWord)
         ? singleWord
         : 'general';

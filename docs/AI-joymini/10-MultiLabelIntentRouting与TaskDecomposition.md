@@ -1,304 +1,399 @@
-# 10. Multi-Label Intent Classification + Task Decomposition Orchestration
+# 10. Pipeline Orchestrator — 多标签路由 + 流水线执行
+
+> **文档状态**: 已更新为 Pipeline/Orchestrator 简化方案（2026-07-04）
+> 
+> **之前版本**: 记录了旧版 Multi-Label + TaskDecomposer + Supervisor 方案，经讨论后简化为当前方案
 
 ## 🎯 本步骤目标
 
-将 Intent Router 从 **单标签分类**（输出一个意图）升级为 **多标签分类 + 评分**（输出多个意图 + 置信度），并通过新增 Task Decomposer 节点自动拆解为多 Agent 执行计划。
+将目前的 **Supervisor + 3 个 Router + 338 行 prepareContext + 65+ 行 Graph 边** 的复杂架构，简化为 **Pipeline Orchestrator**（一个 for 循环驱动多 Agent 执行）。同时将 Intent Router 从单标签分类升级为**多标签分类 + 评分**。
 
 ### 承上：上一步做了什么？
 
-[Doc 09](09-ProductAgent与Tools.md) 实现了 Product Agent（商品搜索/浏览），包括 5 个只读工具、Agent Prompt、Agent Node，并注册到 AiCustomerModule 和 CustomerGraph。
+[Doc 09](09-ProductAgent与Tools.md) 实现了 Product Agent（商品搜索/浏览），完成 7 个 Agent 的完整注册。
 
 ### 启下：下一步做什么？
 
-完成本升级后，系统可以自动处理**跨域问题**（如"用优惠券买这个"→ 同时路由到 productAgent + couponAgent），为未来更多 Agent 的协作打下基础。
-
-### 架构中的位置
-
-```mermaid
-flowchart TB
-    subgraph "Before: Single-Label"
-        A1[User] --> B1[intentRouter]
-        B1 -->|"one label: product"| C1[productAgent]
-        C1 --> D1["can't handle coupon ❌"]
-    end
-
-    subgraph "After: Multi-Label"
-        A2[User] --> B2[intentRouter]
-        B2 -->|"labels: [product, coupon]"| C2[taskDecomposer NEW]
-        C2 -->|"pendingTasks: [productAgent, couponAgent]"| D2[supervisorNode existing]
-        D2 --> E2[productAgent --> couponAgent]
-        E2 --> F2[answerSynthesizer ✅]
-    end
-```
+完成本升级后，系统架构从 **14 个状态字段、10+ 个节点、65+ 行边** 简化为 **4 个状态字段、3 个节点、2 条条件边**，同时解决跨域路由 Bug。
 
 ---
 
-## 🔧 问题回顾
+## ❓ 为什么要做这次重构？
 
-### Bug 复现
+### 当前架构的问题
 
-```
-User Turn 1: "find cheap products"
-             → intentRouter: "product"
-             → productAgent ✅ 正常返回商品列表
-
-User Turn 2: "can i use coupon to buy this one"
-             → intentRouter: "product" ← 误判!
-             → productAgent 跑了3轮，查了商品信息
-             → 发现问的是优惠券 → "I'm sorry... outside of product search"
-```
-
-### 根因
-
-1. **Previous Intent 规则优先级过高**——LLM 看到上一轮是 `product`，认为"buy this one"是继续上一轮，直接输出 `product`
-2. **多域检测只在特定例子匹配时触发**——"用优惠券买这个"不是"查余额和订单"的并列结构，不在 multi-domain examples 中
-3. **INTENT_PROMPT 无法灵活表达"多个可能"**——只能选一个，不能输出多个标签
-
----
-
-## 🏗️ 设计：Multi-Label Intent Classification
+| 问题 | 表现 | 根因 |
+|------|------|------|
+| **状态字段过多** | 14 个字段，新人理解成本高 | 过度设计 |
+| **Router 爆炸** | intentGateway + routerByIntent + agentDoneRouter + supervisorRouter 共 4 个路由函数 | 每个节点都要配条件边 |
+| **边爆炸** | 65+ 行 `.addConditionalEdges()`，改一个 Agent 要改 4 个地方 | LangGraph 的条件边机制要求显式声明所有可能目标 |
+| **消息过滤复杂** | `prepareAgentContext.ts` 338 行，7 个边界条件 | 试图在 Graph 层做消息隔离 |
+| **messageTopics Bug** | `'multi'` 标签不匹配任何 `agentToTopic`，消息被误过滤 | prepareContext 的过滤逻辑有遗漏 |
+| **维护成本高** | "过两天基本看不懂" | 复杂性在 Graph 层，而非 LLM 层 |
+| **扩展难** | 加一个新 Agent 要改 5+ 个文件 | 所有路由函数都要更新路由表 |
 
 ### 核心思路
 
-让 INTENT_PROMPT 的 LLM 输出多个标签（含置信度分数），而不是只选一个。新增 TaskDecomposer 节点将标签数组转换成 Supervisor 可执行的 pendingTasks。
-
-### 输出格式变化
-
-| 场景 | 当前格式 | 新格式 |
-|------|---------|--------|
-| 单意图 | `"order"`（一个单词） | `{"intent":"order","labels":[{"name":"order","score":0.95}]}` |
-| 多意图 | `{"intent":"supervised","tasks":[{"agent":"...","description":"..."}]}` | `{"intent":"multi","labels":[{"name":"product","score":0.85},{"name":"coupon","score":0.92}]}` |
-
-### 新 INTENT_PROMPT 结构变化
-
-```diff
-- ## Output Format
-- ### For single-domain requests (one topic only):
-- Output ONLY the category name (one word), nothing else.
-- ### For multi-domain requests (multiple topics in one sentence):
-- Output a JSON object with intent and tasks array
-
-+ ## Output Format
-+ Output a JSON object with the following structure:
-+ 
-+ ### Single-domain: output exactly one label
-+ {"intent":"order","labels":[{"name":"order","score":0.95}]}
-+ 
-+ ### Multi-domain: output multiple labels with scores
-+ {"intent":"multi","labels":[
-+   {"name":"product","score":0.85,"reason":"user mentions 'buy this one'"},
-+   {"name":"coupon","score":0.92,"reason":"user mentions 'use coupon'"}
-+ ]}
-+ 
-+ Rules:
-+ 1. For single-domain: intent = the label name, labels array has ONE entry
-+ 2. For multi-domain: intent = "multi", labels array has MULTIPLE entries
-+ 3. Score 0.0-1.0, higher = more confident
-+ 4. Include "reason" for multi-domain entries to help TaskDecomposer
-```
-
-```diff
-- ## CRITICAL: Multi-domain detection (HIGHEST PRIORITY)
-- If the user mentions topics from MULTIPLE independent domains...
-+ ## IMPORTANT: Priority Order
-+ 1. Multi-domain detection (HIGHEST) - Check FIRST if user mentions multiple domains
-+ 2. Single intent classification - Only if clearly one domain
-+ 3. Previous Intent (LOWEST) - Only use when current input is vague/ambiguous
-```
+> **把复杂性从 Graph 层移到 LLM 层。**
+> 
+> Graph 只做 3 件事：分类、执行、结束。
+> Agent 的 Scope Restriction Prompt 自行处理"什么该做、什么不该做"。
+> 不再在代码层过滤消息——LLM 知道忽略无关内容。
 
 ---
 
-## 🧩 新增组件：Task Decomposer
+## 🏗️ 新架构设计
 
-### 职责
+### 架构对比
 
-接收 `intentLabels[]` → 按分数排序 + 解析依赖关系 → 生成 `pendingTasks[]`
+```mermaid
+flowchart LR
+    subgraph "Before: 14 fields, 10+ nodes, 65+ edges"
+        direction TB
+        B1["START → intentGateway"]
+        B2["intentRouter → routerByIntent"]
+        B3["7 Agents × agentDoneRouter"]
+        B4["supervisorNode × supervisorRouter"]
+        B5["answerSynthesizer → END"]
+        B1 --> B2 --> B3 --> B4 --> B5
+    end
 
-### 文件
+    subgraph "After: 4 fields, 3 nodes, 2 edges"
+        direction TB
+        A1["START → intentRouter"]
+        A2["intentRouter → orchestrator"]
+        A3["orchestrator → END"]
+        A1 --> A2 --> A3
+    end
+```
 
-`apps/api/src/client/ai-customer/graph/nodes/task-decomposer.node.ts`
+### State 变化：14 字段 → 4 字段
 
-### 逻辑
+| 字段 | 保留/删除 | 原因 |
+|------|----------|------|
+| `messages` | ✅ **保留** | 核心对话数据 |
+| `intent` | ✅ **保留** | 当前意图（orchestrator 用） |
+| `previousIntent` | ✅ **保留** | 会话上下文 |
+| `userId` | ✅ **保留** | 工具调用必需 |
+| `labels` | **🆕 新增** | `[{name, score, reason?}]` 多标签评分 |
+| `pendingTasks` | ❌ 删除 | orchestrator 内部变量，不放在 state 中 |
+| `taskResults` | ❌ 删除 | orchestrator 内部变量 |
+| `supervisorRound` | ❌ 删除 | orchestrator for 循环自然结束 |
+| `agentSteps` | ❌ 删除 | 不需要追踪步骤 |
+| `sources` | ❌ 删除 | RAG 结果直接放在 messages 中 |
+| `flowType` | ❌ 删除 | wallet Agent 自行管理 |
+| `flowStatus` | ❌ 删除 | wallet Agent 自行管理 |
+| `flowData` | ❌ 删除 | wallet Agent 自行管理 |
+| `currentAgent` | ❌ 删除 | orchestrator 内部变量 |
+| `messageTopics` | ❌ 删除 | Agent 的 Scope Restriction 自行过滤 |
+| `debug` | ❌ 删除 | 不需要 |
+
+### Graph 变化：10+ 节点 → 3 节点
+
+```mermaid
+flowchart TB
+    START -->|"必须经过"| intentGateway
+    intentGateway --> intentRouter
+
+    intentRouter -->|"输出 labels[]"| orchestrator
+    
+    orchestrator -->|"执行完毕"| END
+
+    subgraph "orchestrator 内部 for 循环"
+        direction LR
+        O[labels.forEach] --> A1["Agent 1<br/>runAgentLoop"]
+        A1 --> A2["Agent 2<br/>runAgentLoop"]
+        A2 --> A3["..."]
+        A3 --> S["合成最终回复"]
+    end
+
+    style orchestrator fill:#4a4,color:#fff
+```
+
+### 被删除的文件
+
+| 文件 | 行数 | 替换方案 |
+|------|------|---------|
+| [`prepare-context.ts`](apps/api/src/client/ai-customer/graph/utils/prepare-context.ts) | 338 行 | ❌ 删除。Agent 的 Scope Restriction 自行过滤 |
+| [`supervisor.node.ts`](apps/api/src/client/ai-customer/graph/nodes/supervisor.node.ts) | 37 行 | ❌ 删除。Orchestrator for 循环替代 |
+| [`customer.graph.ts`](apps/api/src/client/ai-customer/graph/customer.graph.ts) 中的 Router 函数 | ~50 行 | ❌ 删除。`agentDoneRouter` + `supervisorRouter` 不再需要 |
+| [`state.ts`](apps/api/src/client/ai-customer/graph/state.ts) 中的 10 个字段 | ~200 行 | ❌ 删除 reducer 和文档注释 |
+| [`flow-types.ts`](apps/api/src/client/ai-customer/graph/types/flow-types.ts) | 全部 | ❌ 删除或大幅简化 |
+| [`flow-tools.ts`](apps/api/src/client/ai-customer/graph/tools/flow-tools.ts) | 全部 | ❌ 删除。wallet Agent 自行管理流程 |
+
+---
+
+## 🔧 Pipeline Orchestrator 详细设计
+
+### 核心逻辑
 
 ```typescript
-export const createTaskDecomposerNode =
-  () =>
+// orchestrator.node.ts — 流水线执行器
+export const createOrchestratorNode =
+  (llmConfig: LlmProviderConfig, registry: ToolRegistryService) =>
   async (
     state: typeof AgentState.State,
   ): Promise<Partial<typeof AgentState.State>> => {
-    const labels = state.intentLabels ?? [];
+    const labels = state.labels ?? [];
+    const agentResults: string[] = [];
 
-    // Step 1: Filter low-confidence labels (score < 0.5)
-    const validLabels = labels.filter((l) => l.score >= 0.5);
+    // Step 1: 按评分排序
+    const sorted = [...labels].sort((a, b) => b.score - a.score);
 
-    // Step 2: Sort by score descending
-    validLabels.sort((a, b) => b.score - a.score);
+    // Step 2: 依赖解析 — product 必须在 coupon/wallet 之前
+    const executionPlan = resolveExecutionOrder(sorted);
 
-    // Step 3: Resolve dependencies
-    // If "product" is needed as context for "coupon", reorder
-    const tasks = resolveDependencies(validLabels);
+    // Step 3: 遍历执行
+    for (const item of executionPlan) {
+      const agentName = LABEL_TO_AGENT[item.name];
+      if (!agentName) continue;
 
-    // Step 4: Convert labels to pendingTasks format
-    const pendingTasks = tasks.map((label) => ({
-      agent: labelToAgentMap[label.name],  // product → productAgent
-      description: label.reason ?? `Process ${label.name} request`,
-    }));
+      const result = await runAgent(
+        agentName,
+        state.messages,
+        state.userId,
+        llmConfig,
+        registry,
+      );
 
-    return {
-      intent: 'supervised',
-      pendingTasks,
-      supervisorRound: 0,
-      taskResults: {},
-      agentSteps: [],
-    };
+      agentResults.push(result.content);
+      // 将 Agent 的结果追加到 messages，供下一个 Agent 参考
+      state.messages.push(
+        new AIMessage({ content: `[${agentName} result]: ${result.content}` }),
+      );
+    }
+
+    // Step 4: 合成最终回复
+    const finalAnswer = agentResults.join('\n\n');
+    state.messages.push(
+      new AIMessage({ content: finalAnswer }),
+    );
+
+    return { messages: state.messages, intent: '', labels: [] };
   };
 ```
 
 ### 依赖解析规则
 
-```mermaid
-flowchart LR
-    subgraph "依赖关系表"
-        A["product + coupon"] --> B["product先: 确认商品<br/>coupon后: 查能否用券"]
-        C["product + wallet"] --> D["product先: 确认商品<br/>wallet后: 查余额够不够"]
-        E["order + coupon"] --> F["order先: 确认订单<br/>coupon后: 查优惠"]
-        G["其他组合"] --> H["按评分降序执行"]
-    end
-```
-
-硬编码依赖规则：
-
 | 前置标签 | 后置标签 | 原因 |
 |---------|---------|------|
-| `product` | `coupon` | 需要先知道是什么商品，才能查能否用券 |
+| `product` | `coupon` | 需要先知道商品信息，才能查能否用券 |
 | `product` | `wallet` | 需要先知道商品价格，才能查余额够不够 |
 | `order` | `coupon` | 需要先知道订单内容，才能查优惠适用性 |
 | `order` | `wallet` | 需要先知道订单金额，才能查退款到账 |
 
----
+无依赖关系的标签按评分排序。
 
-## 🔄 数据流变化
+### Agent 调用方式
 
-### 完整流程图
+每个 Agent 在 orchestrator 中被调用的方式：
 
-```mermaid
-flowchart TB
-    START --> intentGateway
-    intentGateway --> intentRouter
+```typescript
+async function runAgent(
+  agentName: string,
+  messages: BaseMessage[],
+  userId: string,
+  llmConfig: LlmProviderConfig,
+  registry: ToolRegistryService,
+): Promise<AgentLoopResult> {
+  const tools = registry.getToolsByTag(agentName);
+  const prompt = buildAgentPromptByConfig(agentName, {
+    userId,
+    scopeRestriction: config.scopeRestriction,
+    // ... Agent 特定配置
+  });
 
-    intentRouter -->|"intent='multi'"| taskDecomposer
-    intentRouter -->|"intent='supervised'"| supervisorNode
-    intentRouter -->|"single intent"| agentNode
-    
-    taskDecomposer --> supervisorNode
-    
-    supervisorNode --> supervisorRouter
-    supervisorRouter -->|pendingTasks[0]| productAgent
-    supervisorRouter -->|pendingTasks[1]| couponAgent
-    supervisorRouter -->|"all done"| answerSynthesizer
-    
-    productAgent --> agentDoneRouter
-    couponAgent --> agentDoneRouter
-    
-    agentDoneRouter -->|"more tasks"| supervisorNode
-    agentDoneRouter -->|"all done"| answerSynthesizer
-    
-    answerSynthesizer --> END
-
-    style taskDecomposer fill:#4a4,color:#fff
-    style intentRouter fill:#66a,color:#fff
+  const llmWithTools = createLLM(llmConfig).bindTools(tools);
+  
+  return runAgentLoop({
+    llmWithTools,
+    initialMessages: [new SystemMessage(prompt), ...messages],
+    tools,
+    agentName,
+    logger: new Logger(agentName),
+  });
+}
 ```
 
-### 状态变化
-
-| 阶段 | intent | pendingTasks | intentLabels |
-|------|--------|-------------|--------------|
-| 用户输入 | `""` | `[]` | `undefined` |
-| intentRouter 输出 multi | `"multi"` | `[]` | `[{name:"product",score:0.85},{name:"coupon",score:0.92}]` |
-| taskDecomposer 输出 | `"supervised"` | `[{agent:"productAgent",...},{agent:"couponAgent",...}]` | `undefined`（已消费） |
-| supervisor 执行中 | `"supervised"` | `[{agent:"productAgent",...},{agent:"couponAgent",...}]` | — |
-| 全部完成 | `"supervised"` | `[]`（agentDoneRouter 消费） | — |
+> **关键设计决策**: Agent 看到的不是"过滤后的上下文"，而是**完整对话历史**。
+> Agent 的 Scope Restriction Prompt 负责让 LLM 自行忽略无关内容。
+> 例如 couponAgent 看到完整的对话，但 Prompt 告诉它"只处理优惠券相关部分"。
 
 ---
 
-## 📁 受影响文件
+## 🔄 INTENT_PROMPT 升级
+
+### 输出格式变化
+
+| 场景 | 旧格式 | 新格式 |
+|------|--------|-------|
+| 单意图 | `"order"`（纯文本） | `{"intent":"order","labels":[{"name":"order","score":0.95}]}` |
+| 多意图 | 不支持（Previous Intent 覆盖） | `{"intent":"multi","labels":[{"name":"product","score":0.85},{"name":"coupon","score":0.92}]}` |
+
+### INTENT_PROMPT 变化
+
+```diff
+- ## CRITICAL: Previous Intent
+- If the user's current input is a follow-up... KEEP the previous intent
+
+- ## Output Format
+- For single-domain: Output ONLY the category name (one word)
+- For multi-domain: Output JSON with intent and tasks array
+
++ ## Output Format
++ ALWAYS output JSON with the following structure:
++ 
++ Single-domain:
++ {"intent":"order","labels":[{"name":"order","score":0.95}]}
++ 
++ Multi-domain:
++ {"intent":"multi","labels":[
++   {"name":"product","score":0.85},
++   {"name":"coupon","score":0.92}
++ ]}
++ 
++ ## Rules
++ 1. Score 0.0-1.0, higher = more confident. Only include scores >= 0.3.
++ 2. For multi-domain: set intent="multi", include ALL detected domains
++ 3. For single-domain: set intent=domain name, include ONE label
++ 4. Base classification on CURRENT message content, NOT previous intent.
++    Only use previous intent as context when current message is vague.
+```
+
+### Intent Router 解析逻辑变化
+
+```diff
+- // 方案 B：尝试解析 JSON（多领域检测）
+- // LLM 输出可能有两种格式：
+- // 1. JSON 2. Single word
+- 
+- const trimmed = raw.trim();
+- if (trimmed.startsWith('{')) {
+-   try {
+-     const parsed = JSON.parse(trimmed);
+-     ...
+-   }
+- }
+- // 清理一下，转小写
+- const singleWord = trimmed.toLowerCase();
+
++ // 新逻辑：LLM 始终输出 JSON
++ const trimmed = raw.trim();
++ let parsed: IntentOutput;
++ try {
++   parsed = JSON.parse(trimmed);
++ } catch {
++   // fallback: 当作纯文本单词
++   parsed = { intent: trimmed.toLowerCase(), labels: [] };
++ }
++ 
++ if (parsed.intent === 'multi' && parsed.labels?.length > 0) {
++   return {
++     intent: 'multi',
++     labels: parsed.labels,
++     // orchestrator 会处理所有后续逻辑
++   };
++ }
++ 
++ return {
++   intent: parsed.intent,
++   labels: parsed.labels ?? [{ name: parsed.intent, score: 1.0 }],
++ };
+```
+
+---
+
+## 📁 受影响文件清单
+
+### 删除的文件
+
+| 文件 | 理由 |
+|------|------|
+| [`prepare-context.ts`](apps/api/src/client/ai-customer/graph/utils/prepare-context.ts) | Agent 不再需要上下文过滤 |
+| [`supervisor.node.ts`](apps/api/src/client/ai-customer/graph/nodes/supervisor.node.ts) | 被 orchestrator 替代 |
+| [`flow-types.ts`](apps/api/src/client/ai-customer/graph/types/flow-types.ts) | 不再需要 FlowType/FlowStatus 枚举 |
+| [`flow-tools.ts`](apps/api/src/client/ai-customer/graph/tools/flow-tools.ts) | 不再需要 Flow 工具 |
 
 ### 修改的文件
 
-| 文件 | 改动内容 | 改动量 |
-|------|---------|--------|
-| [`intent-router.node.ts`](apps/api/src/client/ai-customer/graph/nodes/intent-router.node.ts) | INTENT_PROMPT 输出格式改为 JSON + 解析逻辑适配 | ~40 行 |
-| [`state.ts`](apps/api/src/client/ai-customer/graph/state.ts) | 新增 `intentLabels` 字段（被消费后清空） | ~10 行 |
-| [`customer.graph.ts`](apps/api/src/client/ai-customer/graph/customer.graph.ts) | 注册 taskDecomposer 节点 + intentRouter→taskDecomposer 边 | ~15 行 |
+| 文件 | 改动 |
+|------|------|
+| [`state.ts`](apps/api/src/client/ai-customer/graph/state.ts) | 从 14 字段精简为 4 字段 + `labels` 新字段 |
+| [`intent-router.node.ts`](apps/api/src/client/ai-customer/graph/nodes/intent-router.node.ts) | INTENT_PROMPT 改 JSON 格式 + 解析逻辑适配 |
+| [`customer.graph.ts`](apps/api/src/client/ai-customer/graph/customer.graph.ts) | 简化为 3 节点 + 2 条件边 |
+| [`routerByIntent`](apps/api/src/client/ai-customer/graph/nodes/intent-router.node.ts:369) | 增加 `multi` → `orchestrator` 路由 |
+| [`answer-synthesizer.node.ts`](apps/api/src/client/ai-customer/graph/nodes/answer-synthesizer.node.ts) | 简化（不再需要 taskResults 聚合） |
 
 ### 新增的文件
 
-| 文件 | 内容 | 行数 |
-|------|------|------|
-| `task-decomposer.node.ts` | TaskDecomposer 节点工厂函数 | ~60 行 |
+| 文件 | 内容 |
+|------|------|
+| [`orchestrator.node.ts`](apps/api/src/client/ai-customer/graph/nodes/orchestrator.node.ts) | Pipeline 执行器 ~100 行 |
 
-### 不动的文件（完全向后兼容）
+### 不动的文件
 
 | 文件 | 原因 |
 |------|------|
-| [`supervisor.node.ts`](apps/api/src/client/ai-customer/graph/nodes/supervisor.node.ts) | 只做 round++，无变化 |
 | 所有 Agent Node（order/wallet/coupon/user/product） | 不感知路由变化 |
-| [`agent-validator.spec.ts`](apps/api/src/client/ai-customer/graph/agents/agent-validator.spec.ts) | 加新测试 case |
 | 所有 Tool 文件 | 不变化 |
+| [`prompt-builder.ts`](apps/api/src/client/ai-customer/graph/agents/prompt-builder.ts) | Scope Restriction 逻辑不变 |
+| [`agent-runner.ts`](apps/api/src/client/ai-customer/graph/agents/agent-runner.ts) | ReAct 循环逻辑不变 |
+| [`agent-result.ts`](apps/api/src/client/ai-customer/graph/agents/agent-result.ts) | 结果构建逻辑不变 |
+| [`tool-registry.service.ts`](apps/api/src/client/ai-customer/graph/tools/tool-registry.service.ts) | 标签注册逻辑不变 |
+| [`agent-validator.spec.ts`](apps/api/src/client/ai-customer/graph/agents/agent-validator.spec.ts) | 加新测试 case |
 
 ---
 
 ## 📋 实现步骤
 
-### Phase 1: State 扩展
+### Phase 1: 新增 Orchestrator 节点
 
-1. 在 [`state.ts`](apps/api/src/client/ai-customer/graph/state.ts) 新增 `intentLabels` 字段
-   - 类型：`Array<{name: string, score: number, reason?: string}>`
-   - Reducer：覆盖（同 intent）
-   - Default：`[]`
+1. **新建** [`orchestrator.node.ts`](apps/api/src/client/ai-customer/graph/nodes/orchestrator.node.ts)
+   - `createOrchestratorNode` 工厂函数
+   - 接收 `llmConfig` + `registry`
+   - 内部 for 循环：遍历 labels → resolveExecutionOrder → runAgent → collect results
+   - 合成最终回复
 
-### Phase 2: INTENT_PROMPT 升级
+### Phase 2: 精简 State
 
-2. 修改 [`intent-router.node.ts`](apps/api/src/client/ai-customer/graph/nodes/intent-router.node.ts:58) 的 INTENT_PROMPT
-   - 输出格式改为 JSON（永远输出 JSON，不再输出纯文本单词）
-   - 多域检测优先级提升到最高
-   - Previous Intent 降为最低优先级
-   - 增加依赖关系类型的多域例子
+2. **修改** [`state.ts`](apps/api/src/client/ai-customer/graph/state.ts)
+   - 保留：`messages`, `intent`, `previousIntent`, `userId`
+   - 新增：`labels` — `Array<{name: string, score: number, reason?: string}>`
+   - 删除：`pendingTasks`, `taskResults`, `supervisorRound`, `agentSteps`, `sources`, `flowType`, `flowStatus`, `flowData`, `currentAgent`, `messageTopics`, `debug`
 
-3. 修改 intentRouter 的解析逻辑（第 271-304 行）
-   - 新增对 `intent: "multi"` JSON 的解析
-   - 将 labels 写入 `state.intentLabels`
-   - `intent` 字段设为 `"multi"`
-   - 保留对旧格式 `"supervised"` 的向后兼容
+### Phase 3: 升级 INTENT_PROMPT
 
-### Phase 3: Task Decomposer
+3. **修改** [`intent-router.node.ts`](apps/api/src/client/ai-customer/graph/nodes/intent-router.node.ts)
+   - INTENT_PROMPT 始终输出 JSON 格式
+   - 删除 Previous Intent 优先级规则
+   - 新增多标签分类示例
+   - 解析逻辑适配新格式
 
-4. 新建 `task-decomposer.node.ts`
-   - 按分数过滤（threshold: 0.5）
-   - 按分数排序
-   - 依赖解析
-   - 转换为 pendingTasks 格式
+### Phase 4: 精简 Graph
 
-### Phase 4: Graph 注册
+4. **修改** [`customer.graph.ts`](apps/api/src/client/ai-customer/graph/customer.graph.ts)
+   - 注册 orchestrator 节点
+   - 删除：agentDoneRouter, supervisorRouter
+   - 简化边：START → intentRouter → orchestrator → END
+   - 删除 7 个 Agent × agentDoneRouter 的条件边
 
-5. 修改 [`customer.graph.ts`](apps/api/src/client/ai-customer/graph/customer.graph.ts)
-   - 导入 `createTaskDecomposerNode`
-   - 注册 `.addNode('taskDecomposer', ...)`
-   - 添加条件边：`intentRouter → taskDecomposer`（当 intent="multi"）
-   - 添加边：`taskDecomposer → supervisorNode`
-   - 更新 `routerByIntent` 加入 `multi: 'taskDecomposer'`
+### Phase 5: 删除无用的文件
 
-### Phase 5: Agent Validator 测试
+5. **删除** [`prepare-context.ts`](apps/api/src/client/ai-customer/graph/utils/prepare-context.ts)
+6. **删除** [`supervisor.node.ts`](apps/api/src/client/ai-customer/graph/nodes/supervisor.node.ts)
+7. **删除或清理** [`flow-types.ts`](apps/api/src/client/ai-customer/graph/types/flow-types.ts)、[`flow-tools.ts`](apps/api/src/client/ai-customer/graph/tools/flow-tools.ts)
 
-6. 更新 [`agent-validator.spec.ts`](apps/api/src/client/ai-customer/graph/agents/agent-validator.spec.ts)
-   - 测试 TaskDecomposer 节点的存在
-   - 测试 INTENT_PROMPT 新输出格式的兼容性
+### Phase 6: 适配 wallet Agent
 
-### Phase 6: 集成验证
+8. **修改** [`wallet-agent.node.ts`](apps/api/src/client/ai-customer/graph/nodes/wallet-agent.node.ts)
+   - wallet Agent 之前依赖 `flowType`/`flowStatus`/`flowData` 状态字段
+   - 改为自行在 messages 中维护流程状态（或使用本地变量）
 
-7. 跑 type-check + test
-8. 用 testChat API 验证 `"can i use coupon to buy this one"` → 走 supervisor 路径，依次执行 productAgent + couponAgent
-9. 验证旧功能不受影响：`"check my balance"` → wallet，`"view my addresses"` → user
+### Phase 7: 验证
+
+9. **Type-check**: `yarn workspace @lucky/api typecheck`
+10. **单元测试**: `yarn workspace @lucky/api test -- --testPathPattern=agent-validator`
+11. **E2E 验证**: 用 testChat API 验证关键场景
 
 ---
 
@@ -306,32 +401,44 @@ flowchart TB
 
 ### 场景: "can i use coupon to buy this one"
 
-| 步骤 | 当前行为 | 升级后行为 |
-|------|---------|-----------|
-| Intent Router | `product`（误判） | `multi` + labels: [product:0.85, coupon:0.92] |
-| Task Decomposer | N/A | pendingTasks: [productAgent, couponAgent] |
-| Supervisor | N/A | 先后派发 productAgent → couponAgent |
-| productAgent | 查商品，发现不能处理优惠券 | 正常查商品信息 |
-| couponAgent | never reached | 查优惠券 + 该商品能否用券 |
-| Answer | "I'm sorry..." | "商品¥250，满200减30券可用，实付¥220" |
+| 步骤 | 当前行为（Bug） | 升级后行为 |
+|------|----------------|-----------|
+| Intent Router | `product`（Previous Intent 覆盖） | `multi` + labels: [product:0.85, coupon:0.92] |
+| Orchestrator | N/A | 按依赖解析：product → coupon |
+| productAgent | 查商品 → 发现不能处理优惠券 | 正常查商品信息 |
+| couponAgent | never reached | 查该商品能否用券 |
+| 最终回答 | "I'm sorry..." | "商品¥250，满200减30券可用，实付¥220" |
 
-### 场景: "check my balance"（单域，不影响）
+### 场景: "check my balance"（单域不受影响）
 
 | 步骤 | 当前行为 | 升级后行为 |
 |------|---------|-----------|
 | Intent Router | `"wallet"` | `{"intent":"wallet","labels":[{"name":"wallet","score":0.97}]}` |
-| routerByIntent | walletAgent | walletAgent（取 intent 字段） |
+| routerByIntent → orchestrator | walletAgent | orchestrator 看到 1 个 label → 只跑 walletAgent |
 | 结果 | 正常查余额 | ✅ 完全一致 |
+
+### 场景: "hi"（闲聊不受影响）
+
+| 步骤 | 当前行为 | 升级后行为 |
+|------|---------|-----------|
+| Intent Router | `"general"` | `{"intent":"general","labels":[{"name":"general","score":0.99}]}` |
+| orchestrator | generalChat | 1 个 label → 只跑 generalChat |
+| 结果 | 正常打招呼 | ✅ 完全一致 |
 
 ---
 
-## 🔒 向后兼容性
+## 📐 代码行数统计
 
-| 旧格式 | 是否仍支持 | 说明 |
-|--------|-----------|------|
-| 纯文本单词 `"order"` | ❌ 不再支持 | INTENT_PROMPT 改为始终输出 JSON |
-| JSON `{"intent":"supervised","tasks":[...]}` | ✅ 保留 | 解析逻辑不会删除，作为 fallback |
-| 单域 JSON `{"intent":"order","labels":[{"name":"order","score":0.95}]}` | ✅ 新格式 | 与旧单域行为一致 |
+| 类别 | 当前行数 | 升级后行数 | 变化 |
+|------|---------|-----------|------|
+| state.ts 字段定义 | ~250 行 | ~80 行 | -170 行 |
+| customer.graph.ts 边 | ~100 行 | ~30 行 | -70 行 |
+| prepare-context.ts | 338 行 | 0 行 | -338 行 |
+| supervisor.node.ts | 37 行 | 0 行 | -37 行 |
+| flow-types.ts | ~30 行 | 0 行 | -30 行 |
+| flow-tools.ts | ~50 行 | 0 行 | -50 行 |
+| orchestrator.node.ts | 0 行 | ~100 行 | +100 行 |
+| **总计** | **~805 行** | **~210 行** | **-595 行** |
 
 ---
 
@@ -339,28 +446,19 @@ flowchart TB
 
 ### 单元测试
 
-1. **INTENT_PROMPT 输出格式测试**（agent-validator 已有框架）
+1. **Orchestrator 逻辑测试**
+   - 单标签输入 → 只执行 1 个 Agent
+   - 多标签输入 → 按依赖顺序执行
+   - 空标签输入 → 不执行任何 Agent
+
+2. **INTENT_PROMPT 输出格式测试**
    - 单域输入 → 输出 JSON 包含 `intent` + `labels[0]`
    - 多域输入 → 输出 JSON 包含 `intent: "multi"` + 多个 `labels`
-   - 模糊输入 → 输出评分合理的 labels
-
-2. **TaskDecomposer 逻辑测试**
-   - 输入 `[product:0.85, coupon:0.92]` → 输出 `[productAgent, couponAgent]`
-   - 输入 `[product:0.85]` → 输出 `[productAgent]`
-   - 输入 `[general:0.3]`（低于阈值）→ 输出 `[]`（空 pendingTasks）
-   - 依赖解析：product + coupon → product 先执行
-   - 依赖解析：coupon + wallet（无直接依赖）→ 按评分排序
-
-### 集成测试
-
-3. **Graph 流程测试**
-   - intentRouter → multi → taskDecomposer → supervisorNode → agent → agentDoneRouter
-   - intentRouter → supervised → supervisorNode（旧格式，向后兼容）
-   - intentRouter → order → orderAgent（单域，不受影响）
 
 ### 端到端测试
 
-4. **testChat API 验证**
-   - `"can i use coupon to buy this one"` → debug.agentSteps 应在 supervisor 路径下
-   - `"check my balance"` → 直走 walletAgent，不受影响
-   - `"find cheap products"` → 直走 productAgent，不受影响
+3. **testChat API 验证**
+   - `"can i use coupon to buy this one"` → 依次执行 productAgent + couponAgent
+   - `"find cheap products"` → 直走 productAgent
+   - `"check my balance"` → 直走 walletAgent
+   - `"hi"` → 直走 generalChat
