@@ -104,10 +104,7 @@ export class AiCustomerService {
       },
     );
 
-    const agentDebug = result.agentSteps?.slice(-1)[0];
-
     // 从 messages 中取最后一条消息作为最终输出
-    // answerSynthesizer 每轮结束会清空 taskResults，但合成结果已存入 messages
     const allMessages = result.messages ?? [];
     const lastMsg = allMessages[allMessages.length - 1];
     const agentOutput =
@@ -116,16 +113,6 @@ export class AiCustomerService {
     return {
       intent: result.intent ?? '',
       agentOutput,
-      flowData: result.flowData ?? {},
-      flowType: result.flowType ?? '',
-      flowStatus: result.flowStatus ?? 'IDLE',
-      debug: {
-        toolCalls: agentDebug?.totalToolCalls ?? 0,
-        lastToolCall: agentDebug?.lastToolCall ?? null,
-        totalMessages: agentDebug?.totalMessages ?? 0,
-      },
-      // debug=true 时返回完整 agentSteps（含序列化消息）
-      ...(debug ? { agentSteps: result.agentSteps ?? [] } : {}),
     } satisfies TestChatResult;
   }
 }

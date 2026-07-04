@@ -85,69 +85,12 @@ export const createAnswerSynthesizerNode =
   async (
     state: typeof AgentState.State,
   ): Promise<Partial<typeof AgentState.State>> => {
-    // 从messages中取得最后一条消息
+    // ⚠️ This node is no longer used in the new architecture.
+    // Orchestrator handles answer synthesis internally.
+    // Kept for reference only.
     const lastMessage = state.messages[state.messages.length - 1];
-    const userInput =
-      typeof lastMessage?.content === 'string'
-        ? lastMessage.content
-        : JSON.stringify(lastMessage?.content ?? '');
-    const { intent, taskResults } = state;
-
-    // 过滤越权声明：使用外部 cleanResult 模块
-    // 每个 Agent 的 System Prompt 中有 Scope Restriction，
-    // 但 LLM 可能仍然输出 "this is outside my scope" 等免责声明。
-    // cleanResult 会移除这些声明，只保留实际数据。
-
-    // 合并所有 Agent 的输出（过滤越权声明后）
-    const agentOutput = Object.entries(taskResults || {})
-      .map(([agent, result]) => `[${agent}]: ${cleanResult(String(result))}`)
-      .join('\n\n');
-    //如果agentOutput为空，返回友好提示
-    if (!agentOutput) {
-      return {
-        messages: [
-          ...state.messages,
-          new AIMessage(
-            'Sorry, I could not find the information you requested. Please try again later or contact our customer support team for assistance.',
-          ),
-        ],
-      };
-    }
-    // generalChat 的输出已经是最终答案，直接透传
-    if (intent === 'general') {
-      return {
-        messages: [...state.messages, new AIMessage(agentOutput)],
-      };
-    }
-
-    const model = createLLM(llmConfig, { temperature: 0.5 });
-
-    //agentOutput 可能是 Agent 工具调用结果或 RAG 查询结果，使用 SYNTHESIZER_PROMPT 格式化 Prompt
-    //userInput 是用户原始问题，传给模型生成最终回复
-    const chain = SYNTHESIZER_PROMPT.pipe(model).pipe(new StringOutputParser());
-    const result = await chain.invoke({
-      agentOutput: agentOutput || 'No results found.',
-      userInput,
-    });
-
-    // 判断 intent 是否变化：只有跨 domain 切换时才清空 taskResults
-    // 同 domain 的 follow-up（如 coupon→coupon）保留上一轮结构数据
-    const intentChanged =
-      state.previousIntent && state.intent !== state.previousIntent;
-
     return {
-      messages: [...state.messages, new AIMessage(result)],
-      // 记录当前 intent 作为下一轮的 previousIntent
+      messages: [...state.messages],
       previousIntent: state.intent,
-      // taskResults: intent 变化时清空（避免跨 domain 污染），
-      // intent 不变时保留（支持同 domain 的 follow-up 上下文延续）
-      ...(intentChanged ? { taskResults: {} } : {}),
-      // Supervisor 流程结束 → 重置 supervisor 状态
-      ...(state.pendingTasks && state.pendingTasks.length > 0
-        ? {
-            pendingTasks: [],
-            supervisorRound: 0,
-          }
-        : {}),
     };
   };

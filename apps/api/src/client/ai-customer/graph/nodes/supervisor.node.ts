@@ -30,7 +30,8 @@ export const createSupervisorNode =
   async (
     state: typeof AgentState.State,
   ): Promise<Partial<typeof AgentState.State>> => {
-    const currentRound = state.supervisorRound ?? 0;
-    logger.log(`[supervisorNode] round ${currentRound} → ${currentRound + 1}`);
-    return { supervisorRound: currentRound + 1 };
+    // ⚠️ This node is no longer used in the new architecture.
+    // Orchestrator handles all agent dispatching internally.
+    // Kept for reference only.
+    return {};
   };

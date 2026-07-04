@@ -81,10 +81,11 @@ describe('Layer 1: Agent Source Validation', () => {
       expect(content).toContain('buildAgentPrompt({');
     });
 
-    // ── R7: 必须调用 prepareAgentContext 并传入正确名称 ───
-    test('R7: calls prepareAgentContext with correct agent name', () => {
-      expect(content).toContain('prepareAgentContext(');
-      expect(content).toContain(`'${name}'`);
+    // ── R7: 新架构中 Agent 节点使用 messages.slice() 获取上下文 ───
+    test('R7: agent uses messages.slice() for context filtering', () => {
+      const hasDirect = content.includes('state.messages.slice(-MAX_CONTEXT_MESSAGES)');
+      const hasDestructured = content.includes('messages.slice(-MAX_CONTEXT_MESSAGES)');
+      expect(hasDirect || hasDestructured).toBe(true);
     });
   });
 });

@@ -1,30 +1,19 @@
 /**
- * Intent Router — 意图分类节点
+ * Intent Router — 多标签意图分类节点
  *
- * ── 在哪里？ ──
- * StateGraph 入口后的第一个节点。所有用户消息必经之路。
+ * ── 和旧架构的区别 ──
+ * 旧架构: 输出单个词（'order'）或 JSON（多域 supervised）
+ * 新架构: 总是输出 JSON 格式 `{"intent":"...","labels":[{"label":"...","score":0.xx},...]}`
+ *         labels 数组支持多标签，每个标签带置信度分数
  *
- * ── 是什么？ ──
- * Intent Classification（意图分类）：用 LLM 把用户输入分类成 9 种预定义意图之一。
- * Pipeline: INTENT_PROMPT → LLM(temperature=0) → StringOutputParser → 校验 → 写入 state
+ * ── 为什么总是 JSON？ ──
+ * 1. 统一解析逻辑：不再区分"单域/多域"格式
+ * 2. 多标签支持：一个句子可以包含多个意图，每个带分数
+ * 3. 确定性路由：orchestrator 按分数降序 + 依赖解析执行
  *
- * ── 为什么用 LLM 做分类，不用规则匹配（if/else 或正则）？ ──
- * 1. 自然语言多样性：用户可以说"查余额"、"看看我还有多少钱"、"我的钱包里有多少"→
- *    正则需要写 3 条规则，LLM 一条就够
- * 2. 多领域检测：用户说"查余额和订单"→ LLM 可以输出 JSON { intent: 'supervised', tasks: [...] }
- *    正则基本做不到
- * 3. 可扩展性：新增一个意图只需改 Prompt，不用改代码
- *
- * ── 为什么 temperature=0？ ──
- * 分类任务需要确定性（每次同样的输入得到同样的输出）。
- * temperature=0 让 LLM 总是选择概率最高的分类，不会随机变化。
- *
- * ── 生活类比 ──
- * 便利店入口处的店员：
- * - 你说"买瓶水"→ 他指路到饮料区（wallet）
- * - 你说"取快递"→ 他指到快递架（order）
- * - 你说"买水和取快递"→ 他写一张纸条派两个部门（supervised）
- * - 如果听不懂 → 带你去综合服务台（unknown → generalChat）
+ * ── Previous Intent 的角色变化 ──
+ * 旧架构: Previous Intent 是硬性规则 —— 除非明确切换话题，否则保持上一轮意图
+ * 新架构: Previous Intent 是弱提示 —— LLM 参考但不强制，由分数比较决定
  */
 import { ChatPromptTemplate } from '@langchain/core/prompts';
 import { StringOutputParser } from '@langchain/core/output_parsers';
@@ -33,187 +22,141 @@ import {
   createLLM,
   LlmProviderConfig,
 } from '@api/client/ai-customer/graph/llm-factory';
-import {
-  intentToFlowType,
-  getInitialStatus,
-} from '@api/client/ai-customer/graph/types/flow-types';
-
 import { Logger } from '@nestjs/common';
+
 const logger = new Logger('IntentRouter');
 
 /**
- * INTENT_PROMPT — 9 意图分类 System Prompt
+ * INTENT_PROMPT — 多标签分类 System Prompt
  *
- * ── 结构 ──
- * 1. Previous Intent：理解简短消息（"确认"、"好的"）的上下文
- * 2. Conversation History：最近 4 条历史消息
- * 3. Multi-domain detection：多领域检测（最高优先级）
- * 4. Agent Name Mapping：分类结果 → Agent 名称映射
- * 5. 9 个分类定义：每个分类有描述 + 关键词 + 正反面示例
+ * 总是输出 JSON 格式：
+ * {
+ *   "intent": "order",           // 主意图（最高分标签）
+ *   "labels": [                   // 多标签分类结果
+ *     {"label": "order", "score": 0.92},
+ *     {"label": "coupon", "score": 0.75}
+ *   ]
+ * }
  *
- * ── 为什么 Previous Intent 这么重要？ ──
- * 用户可能只说"确认"或"好的"。没有 previousIntent，系统不知道"确认什么"。
- * 有了它，LLM 就知道"上一轮用户在查余额，所以'确认'=确认查看余额"。
+ * ── 设计原则 ──
+ * 1. Previous Intent 作为上下文参考，不是硬性规则
+ * 2. 分数体现置信度：高分数 = 明确意图，低分数 = 可能意图
+ * 3. 单域场景只有一个标签（score >= 0.7），多域场景多个标签
+ * 4. general 标签 score >= 0.7 表示纯粹闲聊，其他标签分数低表示不确定
  */
 const INTENT_PROMPT = ChatPromptTemplate.fromMessages([
   [
     'system',
-    `You are an e-commerce customer service intent classifier and task planner.
+    `You are an e-commerce customer service intent classifier. Always output JSON.
 
-## Previous Intent
+## Output Format (ALWAYS USE THIS)
+{{
+  "intent": "order",
+  "labels": [
+    {{"label": "order", "score": 0.92}},
+    {{"label": "coupon", "score": 0.75}}
+  ]
+}}
+
+- "intent": the highest-scoring label name. If no label reaches 0.5, use "general".
+- "labels": array of {label, score}. Include ALL labels with score >= 0.3.
+- Scores are 0.0 (definitely not) to 1.0 (definitely yes).
+- CRITICAL: Output ONLY valid JSON. No markdown, no backticks, no extra text.
+
+## Previous Intent (Context Reference)
 {previousIntent}
-If the user's current input is a follow-up, detail, or continuation of the previous topic, KEEP the previous intent.
-Only change intent if the user clearly switches to a different topic.
+The user's previous topic was "{previousIntent}". This is a weak hint — consider it
+as context but do NOT force the same intent. Let the current input's content
+determine the scores. If the user's input strongly matches a different domain,
+set that domain's score higher even if it differs from previous intent.
 
 ## Conversation History (for context)
 {conversationContext}
 
-The Conversation History shows recent messages between user and assistant.
-Use it to understand the context when the user's current input is short or ambiguous,
-like 'yes', 'confirm', 'ok', '确认', '是的', '好的' — these are likely follow-ups
-to the previous topic. Output the SAME intent as the previous topic.
+Use the conversation to understand follow-ups like "yes", "confirm", "ok".
+If the user's input is very short and ambiguous, use the conversation context
+to determine the most likely intent.
 
-## CRITICAL: Multi-domain detection (HIGHEST PRIORITY)
-If the user mentions topics from MULTIPLE independent domains in the SAME sentence, you must output a JSON plan.
-
-## Output Format
-
-### For single-domain requests (one topic only):
-Output ONLY the category name (one word), nothing else.
-
-### For multi-domain requests (multiple topics in one sentence):
-Output a JSON object with intent and tasks array:
-{{"intent":"supervised","tasks":[{{"agent":"walletAgent","description":"Check wallet balance"}},{{"agent":"orderAgent","description":"Check order status"}}]}}
-
-## Agent Name Mapping
-- order → orderAgent
-- wallet → walletAgent
-- coupon → couponAgent
-- rag → ragNode
-- general → generalChat
-- user → userAgent
-- product → productAgent
-- lucky-draw → luckyAgent
-
-## Categories
-
-### supervised (MULTI-DOMAIN — JSON OUTPUT)
-The user asks about MULTIPLE independent domains in ONE sentence. Different agents are needed for different parts.
-You MUST output a JSON object with tasks array (see Output Format above).
-
-Examples that MUST output JSON (supervised with tasks):
-- "查一下我的余额和订单" → {{"intent":"supervised","tasks":[{{"agent":"walletAgent","description":"查余额"}},{{"agent":"orderAgent","description":"查订单"}}]}}
-- "帮我看看钱包和订单状态" → {{"intent":"supervised","tasks":[{{"agent":"walletAgent","description":"看钱包状态"}},{{"agent":"orderAgent","description":"看订单状态"}}]}}
-- "查询取款记录和商品订单" → {{"intent":"supervised","tasks":[{{"agent":"walletAgent","description":"查取款记录"}},{{"agent":"orderAgent","description":"查商品订单"}}]}}
-- "商品订单和优惠券" → {{"intent":"supervised","tasks":[{{"agent":"orderAgent","description":"查商品订单"}},{{"agent":"couponAgent","description":"查优惠券"}}]}}
-- "查取款和优惠券" → {{"intent":"supervised","tasks":[{{"agent":"walletAgent","description":"查取款"}},{{"agent":"couponAgent","description":"查优惠券"}}]}}
-- "check my balance and orders" → {{"intent":"supervised","tasks":[{{"agent":"walletAgent","description":"Check balance"}},{{"agent":"orderAgent","description":"Check orders"}}]}}
-- "check my wallet and find my order" → {{"intent":"supervised","tasks":[{{"agent":"walletAgent","description":"Check wallet"}},{{"agent":"orderAgent","description":"Find order"}}]}}
-- "我想查余额和订单" → {{"intent":"supervised","tasks":[{{"agent":"walletAgent","description":"查余额"}},{{"agent":"orderAgent","description":"查订单"}}]}}
-- "查看我的取款和商品" → {{"intent":"supervised","tasks":[{{"agent":"walletAgent","description":"查取款"}},{{"agent":"orderAgent","description":"查商品"}}]}}
-- "购买商品订单和优惠券" → {{"intent":"supervised","tasks":[{{"agent":"orderAgent","description":"购买商品订单"}},{{"agent":"couponAgent","description":"查优惠券"}}]}}
-
-Examples that are NOT supervised (single domain, output ONE WORD only):
-- "查我的余额" → wallet
-- "查我的取款记录" → wallet
-- "查我的订单" → order
-- "查我的商品" → order
-- "查优惠券" → coupon
-- "check my balance" → wallet
-- "check my withdrawal records" → wallet
-- "check my orders" → order
-- "where is my delivery" → order
+## Label Categories (score criteria)
 
 ### order (single domain)
-Domain: product acquisition lifecycle (what did I buy? where is my delivery?)
-Keywords: order, orders, delivery, 订单, 商品, 物流, 快递
+Score guide:
+- 0.9+: Clear order-related request (e.g. "show my orders", "where is my delivery")
+- 0.7-0.89: Likely order-related
+- 0.5-0.69: Possibly order-related (ambiguous)
+- <0.5: Not order-related
+
+Keywords: order, orders, delivery, tracking, parcel, purchase, bought, checkout, payment, refund
 
 ### wallet (single domain)
-Domain: money flow (balance, deposits, withdrawals)
-Keywords: balance, withdraw, deposit, recharge, 余额, 取款, 钱包, 充值, 提现
+Score guide:
+- 0.9+: Clear wallet/balance request (e.g. "check my balance", "withdraw money")
+- 0.7-0.89: Likely wallet-related
+- <0.7: Weakly related
+
+Keywords: balance, withdraw, deposit, recharge, wallet, transfer, cash
 
 ### coupon (single domain)
-Domain: discounts/offers
-Keywords: coupon, discount, 优惠券, 折扣
+Score guide:
+- 0.9+: Clear coupon request (e.g. "show my coupons", "apply discount code")
+- 0.7-0.89: Likely coupon-related
+- <0.7: Weakly related
+
+Keywords: coupon, discount, voucher, promo, code, offer
 
 ### user (single domain)
-Domain: personal information, account details, membership, address management
-Keywords: address, profile, personal info, membership
+Score guide:
+- 0.9+: Clear user profile/address request (e.g. "update my address", "view profile")
+- 0.7-0.89: Likely user-related
+- <0.7: Weakly related
 
-Examples:
-- "view my profile" → user
-- "update my profile" → user
-- "add a new address" → user
-- "change my shipping address" → user
-- "delete my address" → user
-- "show my addresses" → user
-
-Negative examples (NOT user even though address-related):
-- "where is my order" → order (delivery tracking, not address management)
-- "track my delivery" → order (logistics, not address management)
-- "check my parcel" → order (shipment tracking, not address management)
+Keywords: address, profile, personal info, membership, password, phone, email, account settings
 
 ### product (single domain)
-Domain: product search/browsing
+Score guide:
+- 0.9+: Clear product search/browse (e.g. "find me cheap products", "show hot items")
+- 0.7-0.89: Likely product-related
+- <0.7: Weakly related
 
 ### lucky-draw (single domain)
-Domain: lottery/raffle, winning records
+Score guide:
+- 0.9+: Clear lucky draw request (e.g. "my lottery tickets", "winning records")
+- 0.7-0.89: Likely lucky-draw-related
+- <0.7: Weakly related
 
 ### rag (single domain)
-Domain: policies, rules, return policy, shipping policy
+Score guide:
+- 0.9+: Clear policy/rule question (e.g. "what is your return policy")
+- 0.7-0.89: Likely policy-related
+- <0.7: Weakly related
 
 ### general (single domain)
-Domain: casual chat, greetings, thanks
-
-### unknown (single domain)
-Use when none of the above fit.
+Score guide:
+- 0.9+: Pure casual chat (e.g. "hello", "thank you", "hi")
+- 0.7-0.89: Likely casual
+- 0.5-0.69: Ambiguous — could be casual or a weak request
+- Use general as fallback when other labels are all below 0.5
 
 ## CRITICAL RULES
-1. For single-domain requests: output ONLY ONE WORD (the category name).
-2. For multi-domain requests: output VALID JSON with "intent":"supervised" and "tasks" array.
-3. No markdown, no backticks, no extra text in either case.
-4. Each task's "agent" must be from the Agent Name Mapping above.`,
+1. ALWAYS output valid JSON. No exceptions.
+2. Include ALL labels with score >= 0.3 in the labels array.
+3. The "intent" field MUST match the highest-scoring label name.
+4. If ALL labels are below 0.5, set intent to "general" with a single label {"label":"general","score":0.5}.
+5. For multi-domain requests (user mentions multiple topics), assign scores >= 0.7 to each relevant label.
+6. No markdown, no backticks, no extra text — ONLY the JSON object.`,
   ],
   ['human', '{input}'],
 ]);
 
-// Valid intent list (used to validate LLM output)
-const VALID_INTENTS = [
-  'order',
-  'wallet',
-  'coupon',
-  'user',
-  'product',
-  'lucky-draw',
-  'rag',
-  'general',
-  'supervised', //多步骤请求
-  'unknown',
-] as const;
-
-export type Intent = (typeof VALID_INTENTS)[number];
-
 /**
- * createIntentRouterNode — 创建意图分类节点函数
+ * createIntentRouterNode — 创建多标签意图分类节点
  *
  * ── 做什么？ ──
- * 1. 从 state.messages 中取得最后一条消息，作为用户输入
+ * 1. 从 state.messages 取得最后一条消息作为用户输入
  * 2. 构建对话上下文（最近 4 条历史消息）
- * 3. 使用 ChatOllama + INTENT_PROMPT 对用户输入进行意图分类
- * 4. 如果是 JSON（多领域）→ 解析 JSON，设置 pendingTasks
- * 5. 如果是单领域 → 校验后在 VALID_INTENTS 列表中
- * 6. 话题切换检测：不同业务域间切换时清空 flowData
- * 7. 写入 messageTopics 标记当前 Human 消息的话题
- *
- * ── 生活类比 ──
- * 用户说 "帮我查看订单"
- *          ↓
- * 分拣员听了之后判断：
- * "这是 order 类别"
- *          ↓
- * 然后在纸条上写 intent = "order"
- *          ↓
- * 把纸条传给下一个工人
+ * 3. 使用 LLM + INTENT_PROMPT 进行多标签分类
+ * 4. 解析 JSON 输出，提取 labels 数组和 intent
+ * 5. 写入 state.intent + state.labels
  *
  * @param llmConfig
  */
@@ -222,18 +165,16 @@ export const createIntentRouterNode =
   async (
     state: typeof AgentState.State,
   ): Promise<Partial<typeof AgentState.State>> => {
-    //从对话里取出用户最后说的那句话
     const lastMessage = state.messages[state.messages.length - 1];
     logger.debug('lastMessage', lastMessage);
 
-    // 比如 "帮我查看订单"
     const userInput =
       typeof lastMessage?.content === 'string'
         ? lastMessage.content
         : JSON.stringify(lastMessage?.content ?? '');
-    //创建ollama模型实例（temperature=0 确保文档）
+
     logger.log(
-      `[intentRouter] classify user input: "${userInput.slice(0, 50)}..."`,
+      `[intentRouter] classify: "${userInput.slice(0, 50)}..."`,
     );
 
     // 构建对话上下文：取最近 4 条历史消息（排除当前最后一条用户消息）
@@ -248,136 +189,90 @@ export const createIntentRouterNode =
           typeof msg.content === 'string'
             ? msg.content
             : JSON.stringify(msg.content ?? '');
-        // 截断长内容，避免 token 浪费
         const truncated =
           content.length > 200 ? content.slice(0, 200) + '...' : content;
         return `${role}: ${truncated}`;
       })
       .join('\n');
 
-    // 创建 LLM 实例（temperature=0 保证每次分类结果一致）
     const model = createLLM(llmConfig, { temperature: 0 });
-
-    // 组装一条流水线
-    // INTENT_PROMPT(用户输入) → LLM 分类 → 提取纯文本结果
     const chain = INTENT_PROMPT.pipe(model).pipe(new StringOutputParser());
-    //执行分类，LLM 返回 "order"
+
     const raw = await chain.invoke({
       input: userInput,
-      previousIntent: state.intent || 'none',
+      previousIntent: state.previousIntent || 'none',
       conversationContext: conversationContext || '(no recent history)',
     });
 
-    // 方案 B：尝试解析 JSON（多领域检测）
-    // LLM 输出可能有两种格式：
-    // 1. JSON: {"intent":"supervised","tasks":[{"agent":"walletAgent","description":"查余额"}]}
-    // 2. Single word: "order", "wallet", etc.
+    // 解析 JSON 输出
     const trimmed = raw.trim();
-    // 检查是否以 { 开头 → JSON 格式（多领域）
-    if (trimmed.startsWith('{')) {
-      try {
-        const parsed = JSON.parse(trimmed);
-        if (parsed.intent === 'supervised' && Array.isArray(parsed.tasks)) {
-          logger.log(
-            `[intentRouter] multi-domain detected: ${parsed.tasks.length} tasks`,
-          );
-          parsed.tasks.forEach((t: { agent: string; description: string }) =>
-            logger.log(`  → ${t.agent}: ${t.description}`),
-          );
-          const supervisedFlowType = intentToFlowType('supervised');
-          return {
-            intent: 'supervised',
-            flowType: supervisedFlowType, // supervised 无特定业务类型
-            flowStatus: getInitialStatus(supervisedFlowType),
-            pendingTasks: parsed.tasks,
-            taskResults: {},
-            agentSteps: [],
-            // 记录当前 Human 消息的话题，用于 supervisor 模式下按话题过滤
-            messageTopics: { [state.messages.length - 1]: 'supervised' },
-          };
-        }
-      } catch {
-        logger.warn(
-          `[intentRouter] failed to parse JSON: ${trimmed.slice(0, 100)}`,
-        );
-      }
+    let parsed: any;
+
+    try {
+      // 尝试提取 JSON（LLM 可能输出带 markdown 代码块）
+      const jsonStr = trimmed.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+      parsed = JSON.parse(jsonStr);
+    } catch {
+      logger.warn(
+        `[intentRouter] failed to parse JSON: "${trimmed.slice(0, 100)}"`,
+      );
+      // Fallback: 尝试解析为单意图格式（兼容旧格式）
+      const singleWord = trimmed.toLowerCase().trim();
+      const validIntents = [
+        'order', 'wallet', 'coupon', 'user', 'product',
+        'lucky-draw', 'rag', 'general',
+      ];
+      const fallbackIntent = validIntents.includes(singleWord) ? singleWord : 'general';
+      return {
+        intent: fallbackIntent,
+        labels: [{ label: fallbackIntent, score: 0.7 }],
+      };
     }
 
-    // 清理一下，转小写
-    const singleWord = trimmed.toLowerCase();
-    //检查结果是否在允许的列表里
-    const finalIntent: Intent = VALID_INTENTS.includes(singleWord as Intent)
-      ? (singleWord as Intent)
-      : 'unknown';
+    // 验证解析结果
+    const intent: string = parsed?.intent || 'general';
+    let labels: { label: string; score: number }[] = parsed?.labels;
 
-    logger.log(`[intentRouter] classified as: ${finalIntent}`);
+    // 验证 labels 数组
+    if (!Array.isArray(labels) || labels.length === 0) {
+      labels = [{ label: intent, score: 0.7 }];
+    }
 
-    // 把分类结果写回状态，传给下一个工人
-    const matchedFlowType = intentToFlowType(finalIntent);
+    // 验证每个 label 的格式
+    labels = labels.filter(
+      (l: any) =>
+        typeof l.label === 'string' &&
+        typeof l.score === 'number' &&
+        l.score >= 0 &&
+        l.score <= 1,
+    );
 
-    // ---- 话题切换检测：跨业务域时清空 flowData ----
-    // 将 FlowType 映射到业务域，用于判断用户是否从一类业务切换到另一类
-    // 例如：WITHDRAWAL（wallet 域）→ COUPON_QUERY（coupon 域）= 话题切换
-    const FLOWTYPE_DOMAIN: Record<string, string> = {
-      WITHDRAWAL: 'wallet',
-      DEPOSIT: 'wallet',
-      BALANCE_QUERY: 'wallet',
-      COUPON_QUERY: 'coupon',
-      COUPON_CLAIM: 'coupon',
-      ORDER_QUERY: 'order',
-      POLICY: 'rag',
-      GENERAL: 'general',
-    };
+    if (labels.length === 0) {
+      labels = [{ label: intent, score: 0.7 }];
+    }
 
-    const currentDomain = state.flowType ? FLOWTYPE_DOMAIN[state.flowType] : '';
-    // 计算新意图的业务域，与当前域比较：不同域 = 话题切换
-    const newDomain = matchedFlowType ? FLOWTYPE_DOMAIN[matchedFlowType] : '';
-    const isTopicSwitch =
-      currentDomain !== '' && newDomain !== '' && currentDomain !== newDomain;
-    // ---- 话题切换检测结束 ----
+    // 确保 intent 在 labels 中（取最高分）
+    const sortedByScore = [...labels].sort((a, b) => b.score - a.score);
+    const primaryIntent = sortedByScore[0].label;
+
+    logger.log(
+      `[intentRouter] primary: ${primaryIntent}, labels: ${labels.map((l) => `${l.label}:${l.score.toFixed(2)}`).join(', ')}`,
+    );
 
     return {
-      intent: finalIntent,
-      flowType: matchedFlowType,
-      flowStatus: getInitialStatus(matchedFlowType),
-      agentSteps: [],
-      // 话题切换时清空 flowData（空对象触发 reducer 清空逻辑）
-      // 非话题切换时不返回 flowData，避免 undefined 触发 reducer 意外清空
-      ...(isTopicSwitch ? { flowData: {} as Record<string, any> } : {}),
-      // 记录当前 Human 消息的话题，用于 supervisor 模式下按话题过滤
-      messageTopics: { [state.messages.length - 1]: finalIntent },
+      intent: primaryIntent,
+      labels,
     };
   };
 
 /**
- * routerByIntent — Intent Router Node → Agent/RAG/GeneralChat 的路由函数
+ * routerByIntent — Intent Router Node → 路由函数
  *
- * ── 是什么？ ──
- * 根据 state.intent 返回对应的节点名称。是 StateGraph 的条件边路由函数。
- *
- * ── 怎么做？ ──
- * 查 routeMap：'order' → 'orderAgent', 'wallet' → 'walletAgent', ...
- * 如果 state.intent 为空或不在 map 中 → fallback 到 'generalChat'
- *
- * ── 为什么 fallback 到 generalChat 而不是报错？ ──
- * 用户可能说了一句 LLM 无法分类的话（如乱码、未知语言）。
- * fallback 到 generalChat 至少能给出"抱歉，我没理解您的问题"的友好回复。
- * 这比直接报 500 错误要好得多（Fault Tolerance / 容错设计）。
+ * 新架构：所有标签都路由到 orchestrator（流水线执行器）
+ * orchestrator 自行决定执行顺序。
  *
  * @param state
  */
 export const routerByIntent = (state: typeof AgentState.State): string => {
-  const routeMap: Record<string, string> = {
-    order: 'orderAgent',
-    wallet: 'walletAgent',
-    coupon: 'couponAgent',
-    user: 'userAgent',
-    product: 'productAgent',
-    'lucky-draw': 'luckyAgent',
-    rag: 'ragNode',
-    general: 'generalChat',
-    supervised: 'supervisorNode',
-  };
-  const effectiveIntent = state.intent || '';
-  return routeMap[effectiveIntent] || 'generalChat';
+  return 'orchestrator';
 };

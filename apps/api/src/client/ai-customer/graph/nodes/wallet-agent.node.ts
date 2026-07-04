@@ -76,12 +76,8 @@ import { AgentState } from '@api/client/ai-customer/graph/state';
 import { MAX_CONTEXT_MESSAGES } from '@api/client/ai-customer/graph/constants';
 import { AgentNodeOutput } from '@api/client/ai-customer/graph/types/agent-types';
 import { serializeMessages } from '@api/client/ai-customer/graph/utils/serialize-messages';
-import { prepareAgentContext } from '@api/client/ai-customer/graph/utils/prepare-context';
 import { buildAgentPrompt } from '@api/client/ai-customer/graph/agents/prompt-builder';
-import {
-  runAgentLoop,
-  FlowDataAccumulator,
-} from '@api/client/ai-customer/graph/agents/agent-runner';
+import { runAgentLoop } from '@api/client/ai-customer/graph/agents/agent-runner';
 import {
   buildAgentResult,
   buildInitialMessages,
@@ -116,14 +112,9 @@ export const createWalletAgentNode = (
     // ================================================================
     // ① 承接 — Flow Handoff
     //    从 StateGraph 接收 state
-    //    特殊：获取 domain tools + flow tools 两组工具
     // ================================================================
     const { messages, userId, debug } = state;
-    const flowDataAccumulator: FlowDataAccumulator = { flowData: {} };
-    const tools = [
-      ...registry.getToolsByTag('wallet'),
-      ...registry.getToolsByTag('flow'),
-    ];
+    const tools = registry.getToolsByTag('wallet');
     const llmWithTools = createAgentLLM(llmConfig, tools);
     logger.log(
       `[wallet-agent] userId=${userId}, tools=${tools.map((t) => t.name).join(',')}`,
@@ -131,14 +122,9 @@ export const createWalletAgentNode = (
 
     // ================================================================
     // ② 上下文过滤 — Context Filtering
-    //    提取本 Agent 相关对话（历史窗口 + 跨Agent隔离）
+    //    使用完整对话历史的最近窗口
     // ================================================================
-    const agentContext = prepareAgentContext(
-      messages,
-      state.pendingTasks,
-      state.messageTopics,
-      'walletAgent',
-    ).slice(-MAX_CONTEXT_MESSAGES);
+    const agentContext = messages.slice(-MAX_CONTEXT_MESSAGES);
 
     // ================================================================
     // ③ Prompt 构造 — System Prompt
@@ -147,14 +133,11 @@ export const createWalletAgentNode = (
     const systemPrompt = buildAgentPrompt({
       ...walletPromptConfig,
       userId,
-      flowType: state.flowType,
-      flowStatus: state.flowStatus,
     });
     const initialMessages = buildInitialMessages(systemPrompt, agentContext);
 
     // ================================================================
     // ④ ReAct 循环 — LLM + Tools 手动循环
-    //    特殊：传入 flowDataAccumulator 自动提取 flow 状态
     // ================================================================
     const result = await runAgentLoop({
       llmWithTools,
@@ -162,15 +145,10 @@ export const createWalletAgentNode = (
       tools,
       agentName: 'walletAgent',
       logger,
-      flowDataAccumulator,
     });
 
     // ================================================================
     // ⑤ 结果输出 — Error Handling + Result Output
-    //    特殊：
-    //     - 错误路径：使用 state.messages（修复 Bug 1 — currentMessages 可能不完整）
-    //     - 成功路径：携带 flowData/flowType/flowStatus
-    //     - debug 模式：序列化完整消息链到 agentSteps
     // ================================================================
     if (result.error) {
       logger.error(`[wallet-agent] agent error:`, result.error);
@@ -184,13 +162,6 @@ export const createWalletAgentNode = (
 
     return buildAgentResult('walletAgent')
       .agentSteps(agentSteps)
-      .flowData(
-        Object.keys(flowDataAccumulator.flowData).length > 0
-          ? flowDataAccumulator.flowData
-          : undefined,
-      )
-      .flowType(flowDataAccumulator.flowType)
-      .flowStatus(flowDataAccumulator.flowStatus)
       .from(result, state.messages);
   };
 };

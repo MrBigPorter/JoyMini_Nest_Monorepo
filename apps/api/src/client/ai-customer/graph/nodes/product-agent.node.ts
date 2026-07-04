@@ -14,7 +14,6 @@ import { LlmProviderConfig } from '@api/client/ai-customer/graph/llm-factory';
 import { Logger } from '@nestjs/common';
 import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-registry.service';
 import { AgentNodeOutput } from '@api/client/ai-customer/graph/types/agent-types';
-import { prepareAgentContext } from '@api/client/ai-customer/graph/utils/prepare-context';
 import { MAX_CONTEXT_MESSAGES } from '@api/client/ai-customer/graph/constants';
 import { buildAgentPrompt } from '@api/client/ai-customer/graph/agents/prompt-builder';
 import { runAgentLoop } from '@api/client/ai-customer/graph/agents/agent-runner';
@@ -53,12 +52,7 @@ export const createProductAgentNode = (
     // ================================================================
     // ② 上下文过滤 — Context Filtering
     // ================================================================
-    const agentContext = prepareAgentContext(
-      state.messages,
-      state.pendingTasks,
-      state.messageTopics,
-      'productAgent',
-    ).slice(-MAX_CONTEXT_MESSAGES);
+    const agentContext = state.messages.slice(-MAX_CONTEXT_MESSAGES);
 
     // ================================================================
     // ③ Prompt 构造 — System Prompt
@@ -66,8 +60,6 @@ export const createProductAgentNode = (
     const systemPrompt = buildAgentPrompt({
       ...productPromptConfig,
       userId,
-      flowType: state.flowType,
-      flowStatus: state.flowStatus,
     });
     const initialMessages = buildInitialMessages(systemPrompt, agentContext);
 

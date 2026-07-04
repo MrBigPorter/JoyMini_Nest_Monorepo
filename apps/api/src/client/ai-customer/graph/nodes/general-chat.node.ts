@@ -18,7 +18,7 @@
  *
  * ── 怎么做？ ──
  * 纯 LLM 对话节点，不绑定任何工具（不调用 bindTools）。
- * 输出直接设置到 taskResults 和 messages，answerSynthesizer 会将其透传。
+ * 输出直接设置到 messages。
  */
 import { ChatPromptTemplate } from '@langchain/core/prompts';
 import { AgentState } from '@api/client/ai-customer/graph/state';
@@ -84,9 +84,7 @@ export const createGeneralChatNode =
     );
     //执行生成回复
     const result = await chain.invoke({ input: userInput });
-    //AIMessage 会被 answerSynthesizer 透传给用户
     return {
-      taskResults: { generalChat: result },
       messages: [new AIMessage(result)],
     };
   };

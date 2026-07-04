@@ -2,20 +2,15 @@
  * agent-result — 统一成功/失败结果构建 + Agent 初始化工具
  *
  * ── 是什么？ ──
- * 抽取 4 个 Agent 中重复的：
+ * 抽取所有 Agent 中重复的：
  *   - error/success 结果构建逻辑
  *   - LLM + Tools 初始化逻辑（createAgentLLM）
  *   - initialMessages 构造逻辑（buildInitialMessages）
  *
- * ── 为什么需要这个文件？ ──
- * 重构前，4 个 Agent（wallet/order/coupon/user）各自有相同的 if/else 结果处理代码。
- * 当一个 Agent 的 Bug 修复了（如 Bug 1: 错误路径需要用 state.messages 而非 result.currentMessages），
- * 其他 3 个 Agent 可能忘记同步修复。
- * 抽取到统一函数 → 修复一次，所有 Agent 受益。
- *
- * ── 生活类比 ──
- * 这就像 4 家分店都用同一个"客户投诉处理流程"模板。
- * 如果总店修改了流程，4 家分店自动同步，不需要每家单独去改。
+ * ── 简化说明 ──
+ * 新架构（Pipeline Orchestrator）移除了 flowData/flowType/flowStatus 从 state 的存储。
+ * wallet agent 的 flowDataAccumulator 仍然是 Agent 内部的本地变量（不在 state 层级）。
+ * buildAgentResult 相应简化 —— 只保留 agentSteps 扩展，移除 flowData/flowType/flowStatus。
  */
 
 import { BaseMessage } from '@langchain/core/messages';
@@ -27,32 +22,12 @@ import {
 } from '@api/client/ai-customer/graph/types/agent-types';
 import { AgentLoopResult } from '@api/client/ai-customer/graph/agents/agent-runner';
 import {
-  FlowType,
-  FlowStatus,
-} from '@api/client/ai-customer/graph/types/flow-types';
-import {
   createLLM,
   LlmProviderConfig,
 } from '@api/client/ai-customer/graph/llm-factory';
 
 /**
  * buildErrorResult — 构建错误结果
- *
- * ── 做什么？ ──
- * 当 Agent 循环抛出异常或 result.error 存在时调用。
- *
- * ── 为什么用 state.messages 而不是 result.currentMessages？ ──
- * Bug 1 修复：result.currentMessages 包含 tool_calls/tool 消息，
- * 如果传给 answerSynthesizer，它会把工具调用的内部细节也合成到回复里。
- * state.messages（原始输入消息）只包含 Human 和 AI 纯文本，更干净。
- *
- * ── 怎么做？ ──
- * return { taskResults: { [agentName]: errorMessage }, messages, agentSteps: [] }
- * 其中 errorMessage 是给用户看的友好提示，不是给开发者看的技术错误。
- *
- * @param agentName - Agent 名称（用于 taskResults key）
- * @param messages - 原始输入消息（state.messages）
- * @param errorMessage - 可选的自定义错误消息（默认通用兜底消息）
  */
 export function buildErrorResult(
   agentName: string,
@@ -73,51 +48,24 @@ export function buildErrorResult(
 /**
  * buildAgentResult — 链式结果构建器
  *
- * ── 是什么？ ──
- * Builder Pattern（建造者模式）：一步步构建结果对象。
- * 将 4 个 Agent 中重复的"检查 error → 构建 error/success 结果"模式封装为链式调用。
- *
- * ── 生活类比 ──
- * 就像在赛百味点三明治：先选面包（.agentSteps()）、再加肉（.flowData()）、
- * 再加酱料（.flowType()）、最后结账（.from()）。
- * 每一步都是可选的，最后一步决定"做好了"。
- *
  * @example
- * // 标准 Agent — 无 extra
+ * // 标准用法
  * return buildAgentResult('orderAgent').from(result, state.messages);
  *
  * @example
- * // Wallet Agent — 链式注入 extra
+ * // 带 agentSteps 扩展
  * return buildAgentResult('walletAgent')
  *   .agentSteps(agentSteps)
- *   .flowData(flowData)
- *   .flowType(flowType)
- *   .flowStatus(flowStatus)
  *   .from(result, state.messages);
  */
 export function buildAgentResult(agentName: string) {
   const extra: {
     agentSteps?: AgentStep[];
-    flowData?: Record<string, any>;
-    flowType?: FlowType;
-    flowStatus?: FlowStatus;
   } = {};
 
   const api = {
     agentSteps(steps: AgentStep[]) {
       extra.agentSteps = steps;
-      return api;
-    },
-    flowData(data?: Record<string, any>) {
-      extra.flowData = data;
-      return api;
-    },
-    flowType(type?: FlowType) {
-      extra.flowType = type;
-      return api;
-    },
-    flowStatus(status?: FlowStatus) {
-      extra.flowStatus = status;
       return api;
     },
     from(result: AgentLoopResult, messages: BaseMessage[]): AgentNodeOutput {
@@ -130,24 +78,12 @@ export function buildAgentResult(agentName: string) {
 
 /**
  * buildSuccessResult — 构建成功结果
- *
- * ── 做什么？ ──
- * 当 Agent 循环成功完成时调用。
- * 使用 result.currentMessages 保留本轮 Agent 产生的所有消息
- *（包括 tool_calls/tool 结果），供 answerSynthesizer 构建上下文。
- *
- * @param agentName - Agent 名称（用于 taskResults key）
- * @param result - AgentLoopResult（来自 runAgentLoop 的返回值）
- * @param extra - 可选扩展字段（agentSteps / flowData / flowType / flowStatus）
  */
 export function buildSuccessResult(
   agentName: string,
   result: AgentLoopResult,
   extra?: {
     agentSteps?: AgentStep[];
-    flowData?: Record<string, any>;
-    flowType?: FlowType;
-    flowStatus?: FlowStatus;
   },
 ): AgentNodeOutput {
   return {
