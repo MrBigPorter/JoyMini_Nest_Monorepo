@@ -112,6 +112,60 @@ export interface AgentLoopOptions {
  * 4. 工具结果作为 ToolMessage 追加到消息列表
  * 5. 重复直到 LLM 不再调用工具或达到 MAX_ITERATIONS
  *
+ * ════════════════════════════════════════════════════════════════
+ * 【运行示例 — productAgent 处理 "那我要买Women Crossbody Bag Set，团购价格多少，加上优惠券，我还有多少钱"]
+ * ════════════════════════════════════════════════════════════════
+ *
+ * runAgentLoop 被 orchestrator 调用，传入:
+ *   llmWithTools: ChatOpenAI.bindTools([searchProducts, getProductDetail, ...])
+ *   initialMessages: [systemPrompt, ...contextMessages]
+ *   tools: [searchProducts, getProductDetail, getGroupBuyProducts, ...]
+ *   agentName: 'product'
+ *
+ * ── 循环执行过程 ──
+ *
+ * 迭代 #1:
+ *   llmWithTools.invoke([systemPrompt, contextMessages])
+ *   → LLM 思考: "用户想买 Women Crossbody Bag Set，查团购价。我需要调用 searchProducts"
+ *   → AIMessage.tool_calls = [
+ *       { name: 'searchProducts', args: { query: 'Women Crossbody Bag Set' }, id: 'call_abc123' }
+ *     ]
+ *
+ *   执行 tool_call:
+ *     foundTool = tools.find(t => t.name === 'searchProducts')
+ *     result = await searchProducts.invoke({ query: 'Women Crossbody Bag Set' })
+ *     → 返回: { ok: true, data: [{ name: 'Women Crossbody Bag Set', groupBuyPrice: 29.99, ... }] }
+ *     lastToolCallInfo = { name: 'searchProducts', args: {...}, result: {...} }
+ *     ToolMessage(stripToolResult(result), 'call_abc123')
+ *     → ToolMessage({ data: [{ name: 'Women Crossbody Bag Set', groupBuyPrice: 29.99 }] })
+ *     currentMessages.push(ToolMessage)
+ *     iterations = 1, totalToolCalls = 1
+ *
+ * 迭代 #2:
+ *   llmWithTools.invoke(currentMessages)  ← 现在包含系统提示 + 用户消息 + 上一个 AI 消息 + 工具结果
+ *   → LLM 思考: "查到了，Women Crossbody Bag Set 团购价 $29.99。用户还问了优惠券和钱包，
+ *     但这些不是 productAgent 的职责（Scope Restriction），我只回答商品信息"
+ *   → AIMessage.content = "I found the Women Crossbody Bag Set! The group buy price is $29.99 🎉"
+ *   → tool_calls = undefined (没有更多的工具调用)
+ *
+ *   没有 tool_calls → break 退出循环
+ *
+ * ── 循环结束后的结果 ──
+ *   return {
+ *     content: "I found the Women Crossbody Bag Set! The group buy price is $29.99 🎉",
+ *     currentMessages: [systemPrompt, HumanMessage, AIMessage(tool_call), ToolMessage, AIMessage],
+ *     agentSteps: [{ node: 'product', totalToolCalls: 1, iterations: 2, ... }],
+ *     totalToolCalls: 1,
+ *     iterations: 2,
+ *     lastToolCallInfo: { name: 'searchProducts', args: {...}, result: {...} }
+ *   }
+ *
+ * orchestrator 收到 result.content 后，将内容存入 agentOutputs:
+ *   agentOutputs.push({ label: 'product', content: "I found the Women Crossbody Bag Set!..." })
+ *
+ * 然后继续迭代 #2 (coupon)、#3 (wallet)，最后合成完整回复。
+ * ════════════════════════════════════════════════════════════════
+ *
  * ── 为什么要 stripToolResult？ ──
  * 工具返回的是 { ok: true, data: { balance: 100 } }。
  * LLM 不需要看到 "ok" 字段，只需要 { balance: 100 }。

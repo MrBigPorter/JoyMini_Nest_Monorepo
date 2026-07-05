@@ -78,6 +78,12 @@
 | 31 | [LLM 结果缓存](31-实现-LLM结果缓存.md) | 场景化 TTL + Cache-Aside + 管理后台清除 | "三级缓存降本，省 40-60% API 费用" |
 | 32 | [动态模型选择路由](32-实现-动态模型选择路由.md) | 三级分类 + auto/strict 模式 | "策略模式多 Provider，Groq 免费处理简单查询" |
 
+### Phase 9: 企业级架构 Enterprise Architecture（2 文档 — 路线图 + 问题排查）
+
+| # | 文档 | 说明 | 优先级 |
+|---|------|------|--------|
+| 42 | [企业级架构规划与路线图](42-Enterprise-Architecture-Roadmap.md) | Phase 1→3 完整路线图：RAG → 监控 → 人工兜底 → K8s → GPU 集群 | 📌 进行中 |
+
 ---
 
 ## 架构总览

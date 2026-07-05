@@ -1690,6 +1690,32 @@ model BlogUserBlock {
   @@map("blog_user_blocks")
 }
 
+// ============================================================
+// AI Customer — Intent Examples (pgvector)
+// ============================================================
+// Phase 2: Persist intent example sentences as vector embeddings
+// for cosine similarity classification using pgvector `<=>` operator.
+// Vector dimension: 1024 (bge-m3 embedding model).
+// Requires PostgreSQL 12+ with `CREATE EXTENSION vector;`
+// ============================================================
+
+model IntentExample {
+  /// Primary key
+  id String @id @default(cuid()) @db.VarChar(32)
+
+  /// Intent domain: wallet, order, coupon, user, product, lucky-draw, rag, general
+  domain String @db.VarChar(32)
+
+  /// Example sentence text
+  sentence String @db.Text
+
+  /// Vector embedding (1024d from Ollama bge-m3 model)
+  /// Uses pgvector extension: vector(1024)
+  embedding Unsupported("vector(1024)")?
+
+  @@index([domain], map: "idx_intent_examples_domain")
+  @@map("intent_examples")
+}
 /// 翻译任务日志
 model TranslationJob {
   id          String   @id @default(cuid()) @db.VarChar(32)

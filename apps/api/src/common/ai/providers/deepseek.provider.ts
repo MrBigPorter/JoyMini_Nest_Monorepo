@@ -264,6 +264,61 @@ export class DeepSeekProvider implements AiProviderInstance {
     }
   }
 
+  async generateEmbedding(text: string): Promise<number[] | null> {
+    const currentKey = this.keyInstances[this.activeKeyIndex];
+
+    if (!currentKey || this.keyInstances.length === 0) {
+      return null;
+    }
+
+    // DeepSeek embeddings API is OpenAI-compatible
+    // Endpoint: POST /v1/embeddings (replace /chat/completions with /embeddings)
+    const embeddingsUrl = this.BASE_URL.replace(
+      '/chat/completions',
+      '/embeddings',
+    );
+
+    try {
+      const response = await axios.post(
+        embeddingsUrl,
+        {
+          model: 'deepseek-embedding',
+          input: text,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${currentKey.apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          timeout: 30000,
+        },
+      );
+
+      const embedding = response.data?.data?.[0]?.embedding;
+      if (Array.isArray(embedding) && embedding.length > 0) {
+        currentKey.dailyRequests++;
+        return embedding as number[];
+      }
+
+      return null;
+    } catch (e: any) {
+      if (e.response?.status === 429) {
+        this.logger.warn(
+          `DeepSeek embedding 429 on key ...${currentKey.keySuffix}`,
+        );
+      } else if (e.response?.status === 400) {
+        this.logger.error(
+          `DeepSeek embedding 400 error: ${e.response?.data?.error?.message || 'Bad request'}`,
+        );
+      } else {
+        this.logger.error(
+          `DeepSeek embedding error on key ...${currentKey.keySuffix}: ${e.message}`,
+        );
+      }
+      return null;
+    }
+  }
+
   isAvailable(): boolean {
     return (
       this.keyInstances.length > 0 && this.keyInstances.some((k) => !k.blocked)

@@ -4,7 +4,7 @@
  * 用于前端展示「思考链」和调试
  */
 import { BaseMessage } from '@langchain/core/messages';
-import { AgentState } from '@api/client/ai-customer/graph/state';
+import { AgentState, DebugInfo } from '@api/client/ai-customer/graph/state';
 import { LlmProviderConfig } from '@api/client/ai-customer/graph/llm-factory';
 import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-registry.service';
 import { SerializedMessage } from '@api/client/ai-customer/graph/utils/serialize-messages';
@@ -76,8 +76,13 @@ export type AgentNodeFactory = (
 
 /**
  * 测试用的 Agent Node 输出类型
+ *
+ * debug=true 时返回完整流水线追踪数据（DebugInfo）。
+ * 包含 embedding 阶段（rawTop5、dedupedLabels）和执行阶段（executionOrder、agents）。
  */
 export interface TestChatResult {
   intent: string;
   agentOutput: string;
+  /** debug=true 时返回完整流水线追踪数据 */
+  debug?: DebugInfo;
 }

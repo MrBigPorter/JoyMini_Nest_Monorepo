@@ -3,6 +3,7 @@ import { AiService } from './ai.service';
 import { GeminiProvider } from './providers/gemini.provider';
 import { GroqProvider } from './providers/groq.provider';
 import { DeepSeekProvider } from './providers/deepseek.provider';
+import { OllamaProvider } from './providers/ollama.provider';
 import { AutoReplyService } from './auto-reply/auto-reply.service';
 import { CommentClassifier } from './auto-reply/comment-classifier';
 import { ContextEnricher } from './auto-reply/context-enricher';
@@ -17,6 +18,7 @@ import { SystemConfigModule } from '@api/admin/system-config/system-config.modul
     GeminiProvider,
     GroqProvider,
     DeepSeekProvider,
+    OllamaProvider,
     AutoReplyService,
     CommentClassifier,
     ContextEnricher,

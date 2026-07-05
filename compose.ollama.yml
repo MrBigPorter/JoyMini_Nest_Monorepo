@@ -1,21 +1,18 @@
 # ==========================================
-# Standalone Ollama Service (shared across projects)
+# Standalone Ollama Embedding Service (bge-m3 only)
 # ==========================================
-# This is an OPTIONAL service — the project works without Ollama
-# (AiService auto-falls back to DeepSeek → Groq → Gemini)
+# 仅提供本地 Embedding 服务（bge-m3 → 1024d 向量）
+# 文本生成仍使用 online DeepSeek API，不需要本地 LLM 模型
 #
 # Usage:
 #   Start: docker compose -f compose.ollama.yml up -d
 #   Stop:  docker compose -f compose.ollama.yml down
 #   Logs:  docker compose -f compose.ollama.yml logs -f
-#
-# For local dev on macOS, brew is simpler:
-#   brew install ollama && brew services start ollama
 # ==========================================
 
 services:
   # =========================================
-  # Ollama local model service
+  # Ollama Embedding service
   # =========================================
   ollama:
     image: ollama/ollama:latest
@@ -31,9 +28,10 @@ services:
       retries: 10
       start_period: 30s
     restart: unless-stopped
+    networks: [app]
 
   # =========================================
-  # Model initialization (pulls models on first start)
+  # Model initialization (pulls bge-m3 on first start)
   # =========================================
   ollama-init:
     image: ollama/ollama:latest
@@ -43,13 +41,17 @@ services:
         condition: service_healthy
     entrypoint: >
       sh -c "
-        echo '>>> Pulling LLM model: qwen3.5:0.8b ...' &&
-        ollama pull qwen3.5:0.8b &&
-        echo '>>> Pulling Embedding model: mxbai-embed-large ...' &&
-        ollama pull mxbai-embed-large &&
-        echo '>>> All models ready!'
+        echo '>>> Pulling Embedding model: bge-m3 ...' &&
+        ollama pull bge-m3 &&
+        echo '>>> bge-m3 ready!'
       "
     restart: 'no'
+    networks: [app]
+
+networks:
+  app:
+    external: true
+    name: joymini_app
 
 volumes:
   ollama_data:

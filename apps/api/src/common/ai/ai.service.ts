@@ -9,6 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import { GeminiProvider } from './providers/gemini.provider';
 import { GroqProvider } from './providers/groq.provider';
 import { DeepSeekProvider } from './providers/deepseek.provider';
+import { OllamaProvider } from './providers/ollama.provider';
 import { AutoReplyService } from './auto-reply/auto-reply.service';
 import { SystemConfigService } from '@api/admin/system-config/system-config.service';
 import {
@@ -101,6 +102,7 @@ export class AiService implements OnModuleInit {
     private geminiProvider: GeminiProvider,
     private groqProvider: GroqProvider,
     private deepSeekProvider: DeepSeekProvider,
+    private ollamaProvider: OllamaProvider,
     private systemConfigService: SystemConfigService,
     @Inject(forwardRef(() => AutoReplyService))
     private autoReplyService: AutoReplyService,
@@ -111,6 +113,7 @@ export class AiService implements OnModuleInit {
     this.providers = [
       this.geminiProvider,
       this.groqProvider,
+      this.ollamaProvider,
       this.deepSeekProvider,
     ];
 
@@ -636,11 +639,41 @@ Return JSON format:
   }
 
   /**
-   * ⏳ Reserved: generate vector embeddings
+   * Generate vector embedding for the given text.
+   *
+   * Phase 1: Uses Ollama provider's generateEmbedding() method.
+   * Phase 2: May use OpenAI text-embedding-3-small or pgvector.
+   *
+   * Returns a float array (768d for mxbai-embed-large, 1536d for text-embedding-3-small)
+   * or null if no embedding-capable provider is available.
    */
-  generateEmbedding(text: string): Promise<number[] | null> {
-    this.logger.debug('Embedding generation requested, feature coming soon');
-    return Promise.resolve(null);
+  async generateEmbedding(text: string): Promise<number[] | null> {
+    if (this.serviceLevel < AiServiceLevel.FULL) {
+      this.logger.debug(
+        'Embedding generation skipped: service level below FULL',
+      );
+      return null;
+    }
+
+    // Find any provider that supports generateEmbedding() (dynamic discovery)
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    const embeddingProvider = (this.providers as any[]).find(
+      (p: any) => typeof p.generateEmbedding === 'function' && p.isAvailable(),
+    );
+
+    if (!embeddingProvider) {
+      this.logger.warn('No embedding-capable provider available');
+      return null;
+    }
+
+    try {
+      const embedding = await embeddingProvider.generateEmbedding(text);
+      return embedding as number[] | null;
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Unknown error';
+      this.logger.error(`Embedding generation failed: ${msg}`);
+      return null;
+    }
   }
 
   /**

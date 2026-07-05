@@ -26,6 +26,8 @@ import {
 import { createOrchestratorNode } from './nodes/orchestrator.node';
 import { LlmProviderConfig } from '@api/client/ai-customer/graph/llm-factory';
 import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-registry.service';
+import { AiService } from '@api/common/ai/ai.service';
+import { PrismaService } from '@api/common/prisma/prisma.service';
 
 /**
  * intentGateway — 强制走 intentRouter 重新分类
@@ -40,17 +42,106 @@ const intentGateway = (_state: typeof AgentState.State): string => {
  * ── 节点流 ──
  * START → intentGateway → intentRouter → orchestrator → END
  *
+ * Intent Router 使用嵌入向量分类（IntentClassifier），
+ * 需要 AiService 实例来调用 generateEmbedding()。
+ *
+ * ════════════════════════════════════════════════════════════════
+ * 【运行示例 — "那我要买Women Crossbody Bag Set，团购价格多少，加上优惠券，我还有多少钱"]
+ * ════════════════════════════════════════════════════════════════
+ *
+ * 时间线（debug=true）:
+ *
+ * ┌─────────────────────────────────────────────────────────────┐
+ * │  STEP 1: START                                              │
+ * │  intentGateway 无条件路由到 intentRouter                     │
+ * └─────────────────────┬───────────────────────────────────────┘
+ *                       │
+ *                       ▼
+ * ┌─────────────────────────────────────────────────────────────┐
+ * │  STEP 2: intentRouter (IntentClassifier.classify)           │
+ * │  输入: "那我要买Women Crossbody Bag Set..."                  │
+ * │  行为:                                                     │
+ * │    a. ensureSeeded() → 已有 61 条数据 → 跳过               │
+ * │    b. generateEmbedding() → 向量                           │
+ * │    c. pgvector TOP-5 → 域去重 → 阈值过滤                   │
+ * │  输出:                                                     │
+ * │    intent: 'product'                                       │
+ * │    labels: [{product:0.86}, {coupon:0.60}, {wallet:0.59}]  │
+ * │    debugInfo.embedding: { method, rawTop5, dedupedLabels } │
+ * │  (debug=true 时写入)                                       │
+ * └─────────────────────┬───────────────────────────────────────┘
+ *                       │ routerByIntent → 始终返回 'orchestrator'
+ *                       ▼
+ * ┌─────────────────────────────────────────────────────────────┐
+ * │  STEP 3: orchestrator (流水线执行器)                        │
+ * │  输入: state.labels = [product:0.86, coupon:0.60, wallet:0.59]
+ * │  行为:                                                     │
+ * │    a. 排序: product(0.86) > coupon(0.60) > wallet(0.59)    │
+ * │    b. 依赖解析: resolveExecutionOrder → [product,coupon,wallet]
+ * │    c. Agent 循环:                                          │
+ * │       ┌──────────────────────────────────────────────┐     │
+ * │       │ 产品 Agent (productAgent)                    │     │
+ * │       │ 工具: searchProducts, getGroupBuyProducts    │     │
+ * │       │ 结果: "Women Crossbody Bag Set 团购价 $29.99"│     │
+ * │       ├──────────────────────────────────────────────┤     │
+ * │       │ 优惠券 Agent (couponAgent)                   │     │
+ * │       │ 工具: getMyCoupons, claimCoupon              │     │
+ * │       │ 结果: "您有 JOY10 优惠券可用"                 │     │
+ * │       ├──────────────────────────────────────────────┤     │
+ * │       │ 钱包 Agent (walletAgent)                     │     │
+ * │       │ 工具: getWalletBalance, requestWithdrawOtp   │     │
+ * │       │ 结果: "您的钱包余额为 $105.50"               │     │
+ * │       └──────────────────────────────────────────────┘     │
+ * │    d. 合成回复:                                            │
+ * │       synthesizeAnswers([product,coupon,wallet], userInput)│
+ * │       → "Women Crossbody Bag Set 团购价 $29.99 起!..."    │
+ * │  输出:                                                     │
+ * │    messages: [...原有, AIMessage(finalContent)]             │
+ * │    labels: [] ← 清空                                       │
+ * │    previousIntent: 'product'                               │
+ * │    debugInfo.execution: { executionOrder, agents[] }       │
+ * └─────────────────────┬───────────────────────────────────────┘
+ *                       │
+ *                       ▼
+ * ┌─────────────────────────────────────────────────────────────┐
+ * │  STEP 4: END                                                │
+ * │  compiledGraph 返回最终 state                                │
+ * │  ai-customer.service.ts 读取 result                         │
+ * │  debug=true → 返回 { intent, agentOutput, debug:{...} }    │
+ * └─────────────────────────────────────────────────────────────┘
+ *
+ * 第二轮对话（用户回复 "下单"）:
+ *  START → intentGateway (强制走 intentRouter 重新分类)
+ *       → intentRouter (classify("下单") → 短输入 + previousIntent='product'
+ *         → embedding 可能 low confidence → LLM fallback → 'order')
+ *       → orchestrator (executionOrder = ['order'])
+ *       → END
+ *
+ * MemorySaver 线程 id='session-xyz' 确保两轮对话的 state 共享。
+ * ════════════════════════════════════════════════════════════════
+ *
  * @param llmConfig
  * @param registry
+ * @param aiService      AiService 实例（用于 embedding 生成）
+ * @param prismaService  PrismaService 实例（用于 pgvector 查询）
  */
 export function buildCustomerGraph(
   llmConfig: LlmProviderConfig,
   registry: ToolRegistryService,
+  aiService: AiService,
+  prismaService: PrismaService,
 ) {
   const workflow = new StateGraph(AgentState)
 
-    // 注册节点
-    .addNode('intentRouter', createIntentRouterNode(llmConfig))
+    // 注册节点 — intentRouter 使用 IntentClassifier 分类意图
+    // 传入 registry 以实现 Dynamic Intent-Tool Alignment：
+    // IntentClassifier 在 seeding 时会检查每个域是否有已注册的工具，
+    // 如果某域（如 wallet）的工具尚未注册，则跳过该域的例句，
+    // 防止路由到 Agent 但 Agent 无工具可用的问题
+    .addNode(
+      'intentRouter',
+      createIntentRouterNode(llmConfig, aiService, prismaService, registry),
+    )
     .addNode('orchestrator', createOrchestratorNode(llmConfig, registry))
 
     // START → intentRouter（强制走 intentRouter 重新分类）

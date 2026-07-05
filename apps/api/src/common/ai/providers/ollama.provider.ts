@@ -12,7 +12,7 @@ import {
 export class OllamaProvider implements AiProviderInstance {
   readonly name = 'ollama';
   readonly displayName = 'Ollama (OpenAI-compatible)';
-  readonly models = ['qwen3.5:0.8b', 'mxbai-embed-large', 'deepseek-chat'];
+  readonly models = ['qwen3.5:0.8b', 'bge-m3', 'deepseek-chat'];
   activeModel = 'qwen3.5:0.8b';
 
   keys: AiKeyInstance[] = [];
@@ -72,6 +72,67 @@ export class OllamaProvider implements AiProviderInstance {
     this.logger.log(
       `🟢 Ollama provider initialized (model: ${this.activeModel}, url: ${this.baseUrl}${this.isExternalApi ? ', auth: Bearer' : ', no auth'})`,
     );
+  }
+
+  /**
+   * Generate vector embedding for the given text.
+   *
+   * Uses the Ollama native embeddings API:
+   *   POST {baseUrl}/api/embeddings
+   *   { "model": "mxbai-embed-large", "prompt": "text" }
+   *
+   * Returns a 1024-dimensional vector for bge-m3.
+   */
+  async generateEmbedding(text: string): Promise<number[] | null> {
+    if (!this.available) return null;
+
+    try {
+      // Use dedicated embedding URL if configured, otherwise derive from text-gen URL
+      // OLLAMA_EMBEDDING_BASE_URL → local Ollama (bge-m3)
+      // AI_OLLAMA_BASE_URL → DeepSeek API (text generation only)
+      const embedBaseUrl =
+        this.configService.get<string>('OLLAMA_EMBEDDING_BASE_URL') ??
+        this.baseUrl.replace('/v1/chat/completions', '');
+      const url = `${embedBaseUrl.replace(/\/+$/, '')}/api/embeddings`;
+
+      const response = await axios.post(
+        url,
+
+        {
+          model: 'bge-m3',
+          prompt: text,
+        },
+        {
+          timeout: 30000,
+        },
+      );
+
+      const embedding = response.data?.embedding;
+
+      if (Array.isArray(embedding) && embedding.length > 0) {
+        const currentKey = this.keys[this.activeKeyIndex];
+        if (currentKey) {
+          currentKey.dailyRequests++;
+        }
+        return embedding as number[];
+      }
+
+      this.logger.warn('Ollama embedding returned empty result');
+      return null;
+    } catch (e: any) {
+      if (e.code === 'ECONNREFUSED') {
+        this.logger.warn(
+          `Ollama connection refused for embedding at ${this.baseUrl} — is the Ollama service running?`,
+        );
+        this.available = false;
+      } else if (e.code === 'ECONNABORTED' || e.code === 'ETIMEDOUT') {
+        this.logger.warn('Ollama embedding request timed out');
+      } else {
+        this.logger.error(`Ollama embedding API error: ${e.message}`);
+      }
+
+      return null;
+    }
   }
 
   async generateText(

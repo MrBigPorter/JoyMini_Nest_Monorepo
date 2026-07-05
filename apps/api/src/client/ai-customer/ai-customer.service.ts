@@ -5,6 +5,8 @@ import { ConfigService } from '@nestjs/config';
 import { LlmProviderConfig } from '@api/client/ai-customer/graph/llm-factory';
 import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-registry.service';
 import { TestChatResult } from '@api/client/ai-customer/graph/types/agent-types';
+import { AiService } from '@api/common/ai/ai.service';
+import { PrismaService } from '@api/common/prisma/prisma.service';
 
 @Injectable()
 export class AiCustomerService {
@@ -15,6 +17,8 @@ export class AiCustomerService {
   constructor(
     private readonly configService: ConfigService,
     private readonly registry: ToolRegistryService,
+    private readonly aiService: AiService,
+    private readonly prismaService: PrismaService,
   ) {}
 
   /**
@@ -48,7 +52,12 @@ export class AiCustomerService {
         ),
         apiKey: this.configService.get<string>('DEEPSEEK_API_KEY'),
       };
-      this.compiledGraph = buildCustomerGraph(this.llmConfig, this.registry);
+      this.compiledGraph = buildCustomerGraph(
+        this.llmConfig,
+        this.registry,
+        this.aiService,
+        this.prismaService,
+      );
     } catch (error) {
       this.logger.error('Failed to compile AiCustomer Graph', error);
       throw error;
@@ -110,9 +119,19 @@ export class AiCustomerService {
     const agentOutput =
       typeof lastMsg?.content === 'string' ? lastMsg.content : '';
 
-    return {
+    this.logger.log(
+      `[testChat] result: intent="${result.intent}", labels=${JSON.stringify(result.labels ?? [])}, previousIntent="${result.previousIntent ?? ''}"`,
+    );
+
+    // debug=true 时返回完整流水线追踪数据
+    const response: TestChatResult = {
       intent: result.intent ?? '',
       agentOutput,
-    } satisfies TestChatResult;
+    };
+    if (debug) {
+      response.debug = result.debugInfo ?? undefined;
+    }
+
+    return response;
   }
 }
