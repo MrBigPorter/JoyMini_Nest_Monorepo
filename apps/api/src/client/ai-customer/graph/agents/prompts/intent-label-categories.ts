@@ -1,17 +1,58 @@
 /**
- * intent-label-categories — Intent Router 标签分类配置
+ * intent-label-categories — 意图标签的"字典"说明书
  *
- * ── 是什么？ ──
- * 纯配置，不含逻辑。定义 INTENT_PROMPT 中 Label Categories 章节的 8 个域。
- * 通过 builder 自动生成该章节内容，无需手动修改模板字符串。
+ * ═══════════════════════════════════════════════════════════════
+ * 📖 一句话解释
+ * ═══════════════════════════════════════════════════════════════
  *
- * ── 为什么提取？ ──
- * 之前 INTENT_PROMPT 是 130 行内联字符串，Label Categories 占 70%。
- * 每次新增域或修改评分标准都需要在模板中间查找位置。
- * 现在只需在数组中增删改一个配置对象。
+ * 这个文件只是"定义有哪些业务类型"。
+ * 相当于一本小字典，列出 AI 客服能处理的 8 种业务：
+ *   order（订单）、wallet（钱包）、coupon（优惠券）、
+ *   user（用户）、product（商品）、lucky-draw（抽奖）、
+ *   rag（知识库）、general（通用/闲聊）
  *
- * ── 使用方式 ──
- * import { INTENT_LABEL_CATEGORIES, VALID_INTENTS } from './intent-label-categories';
+ * 它是纯配置，不含任何逻辑。
+ *
+ *
+ * ═══════════════════════════════════════════════════════════════
+ * 🎯 它有什么用？
+ * ═══════════════════════════════════════════════════════════════
+ *
+ * 1. 给意图分类系统（IntentClassifier）提供"可选标签列表"
+ * 2. 自动生成 VALID_INTENTS 列表，其他地方导入使用
+ * 3. 统一管理标签名称，改名字只改这一个地方
+ *
+ * 比如 intent-router.node.ts 会这样用：
+ *   import { VALID_INTENTS } from './intent-label-categories';
+ *   然后检查 LLM 返回的标签名是否在 VALID_INTENTS 里。
+ *
+ *
+ * ═══════════════════════════════════════════════════════════════
+ * 📝 为什么这么简单？
+ * ═══════════════════════════════════════════════════════════════
+ *
+ * 旧版本还有 keywords（关键词）和 scoreGuide（评分指引）。
+ * 但自从换了 Embedding 方案后，域识别由向量相似度决定，
+ * 不再需要人工关键词和评分阈值。
+ *
+ * 所以简化成只剩下标签名称列表。
+ * 真正的"示例句子"放在 intent-examples/ 目录的各业务文件里。
+ *
+ *
+ * ═══════════════════════════════════════════════════════════════
+ * 🔄 标签列表详解
+ * ═══════════════════════════════════════════════════════════════
+ *
+ * | 标签名      | 对应业务        | 示例用户输入               |
+ * |-------------|----------------|---------------------------|
+ * | order       | 订单查询        | "我的订单到哪了"           |
+ * | wallet      | 钱包/KYC       | "我钱包多少钱"             |
+ * | coupon      | 优惠券          | "有什么券可以领"          |
+ * | user        | 用户资料/地址   | "帮我改地址"               |
+ * | product     | 商品搜索/浏览   | "有什么包包推荐"           |
+ * | lucky-draw  | 抽奖活动        | "抽奖怎么玩"               |
+ * | rag         | 知识库问答      | "你们发货用哪个快递"       |
+ * | general     | 闲聊/通用       | "你好"、"今天天气"         |
  */
 
 // ============================================================
@@ -21,12 +62,6 @@
 export interface LabelCategory {
   /** Label 名称，如 'order', 'wallet' */
   name: string;
-  /** 域类型描述，如 'single domain' */
-  domainType: string;
-  /** 评分指南（每行一个，生成时自动加 - 前缀） */
-  scoreGuide: string[];
-  /** 关键词列表（可选，生成 Keywords 行） */
-  keywords?: string[];
   /** 是否为有效 intent（影响 VALID_INTENTS 列表） */
   validLabel: boolean;
 }
@@ -36,131 +71,14 @@ export interface LabelCategory {
 // ============================================================
 
 export const INTENT_LABEL_CATEGORIES: LabelCategory[] = [
-  {
-    name: 'order',
-    domainType: 'single domain',
-    scoreGuide: [
-      '0.9+: Clear order-related request (e.g. "show my orders", "where is my delivery")',
-      '0.7-0.89: Likely order-related',
-      '0.5-0.69: Possibly order-related (ambiguous)',
-      '<0.5: Not order-related',
-    ],
-    keywords: [
-      'order',
-      'orders',
-      'delivery',
-      'tracking',
-      'parcel',
-      'purchase',
-      'bought',
-      'checkout',
-      'payment',
-      'refund',
-    ],
-    validLabel: true,
-  },
-  {
-    name: 'wallet',
-    domainType: 'single domain',
-    scoreGuide: [
-      '0.9+: Clear wallet/balance request (e.g. "check my balance", "withdraw money")',
-      '0.7-0.89: Likely wallet-related',
-      '<0.7: Weakly related',
-    ],
-    keywords: [
-      'balance',
-      'withdraw',
-      'deposit',
-      'recharge',
-      'wallet',
-      'transfer',
-      'cash',
-      'KYC',
-      'identity verification',
-      'real-name',
-      'verification',
-    ],
-    validLabel: true,
-  },
-  {
-    name: 'coupon',
-    domainType: 'single domain',
-    scoreGuide: [
-      '0.9+: Clear coupon request (e.g. "show my coupons", "apply discount code")',
-      '0.7-0.89: Likely coupon-related',
-      '<0.7: Weakly related',
-    ],
-    keywords: [
-      'coupon',
-      'discount',
-      'voucher',
-      'promo',
-      'code',
-      'offer',
-    ],
-    validLabel: true,
-  },
-  {
-    name: 'user',
-    domainType: 'single domain',
-    scoreGuide: [
-      '0.9+: Clear user profile/address request (e.g. "update my address", "view profile")',
-      '0.7-0.89: Likely user-related',
-      '<0.7: Weakly related',
-    ],
-    keywords: [
-      'address',
-      'profile',
-      'personal info',
-      'membership',
-      'password',
-      'phone',
-      'email',
-      'account settings',
-    ],
-    validLabel: true,
-  },
-  {
-    name: 'product',
-    domainType: 'single domain',
-    scoreGuide: [
-      '0.9+: Clear product search/browse (e.g. "find me cheap products", "show hot items")',
-      '0.7-0.89: Likely product-related',
-      '<0.7: Weakly related',
-    ],
-    validLabel: true,
-  },
-  {
-    name: 'lucky-draw',
-    domainType: 'single domain',
-    scoreGuide: [
-      '0.9+: Clear lucky draw request (e.g. "my lottery tickets", "winning records")',
-      '0.7-0.89: Likely lucky-draw-related',
-      '<0.7: Weakly related',
-    ],
-    validLabel: true,
-  },
-  {
-    name: 'rag',
-    domainType: 'single domain',
-    scoreGuide: [
-      '0.9+: Clear policy/rule question (e.g. "what is your return policy")',
-      '0.7-0.89: Likely policy-related',
-      '<0.7: Weakly related',
-    ],
-    validLabel: true,
-  },
-  {
-    name: 'general',
-    domainType: 'single domain',
-    scoreGuide: [
-      '0.9+: Pure casual chat (e.g. "hello", "thank you", "hi")',
-      '0.7-0.89: Likely casual',
-      '0.5-0.69: Ambiguous — could be casual or a weak request',
-      'Use general as fallback when other labels are all below 0.5',
-    ],
-    validLabel: true,
-  },
+  { name: 'order', validLabel: true },
+  { name: 'wallet', validLabel: true },
+  { name: 'coupon', validLabel: true },
+  { name: 'user', validLabel: true },
+  { name: 'product', validLabel: true },
+  { name: 'lucky-draw', validLabel: true },
+  { name: 'rag', validLabel: true },
+  { name: 'general', validLabel: true },
 ];
 
 // ============================================================

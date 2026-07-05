@@ -25,21 +25,17 @@
  * - 最后质检合成最终产品（synthesizeFinalAnswer）
  */
 
-import { AIMessage, BaseMessage } from '@langchain/core/messages';
-import { ChatPromptTemplate } from '@langchain/core/prompts';
+import { AIMessage } from '@langchain/core/messages';
 import { StringOutputParser } from '@langchain/core/output_parsers';
 import { Logger } from '@nestjs/common';
-import { AgentState } from '@api/client/ai-customer/graph/state';
+import {
+  AgentState,
+  DebugAgentExecution,
+} from '@api/client/ai-customer/graph/state';
 import { LlmProviderConfig } from '@api/client/ai-customer/graph/llm-factory';
 import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-registry.service';
-import {
-  MAX_CONTEXT_MESSAGES,
-  MAX_ITERATIONS,
-} from '@api/client/ai-customer/graph/constants';
-import {
-  buildAgentPrompt,
-  AgentPromptConfig,
-} from '@api/client/ai-customer/graph/agents/prompt-builder';
+import { MAX_CONTEXT_MESSAGES } from '@api/client/ai-customer/graph/constants';
+import { buildAgentPrompt } from '@api/client/ai-customer/graph/agents/prompt-builder';
 import { runAgentLoop } from '@api/client/ai-customer/graph/agents/agent-runner';
 
 import {
@@ -47,98 +43,15 @@ import {
   createAgentLLM,
 } from '@api/client/ai-customer/graph/agents/agent-result';
 import { createLLM } from '@api/client/ai-customer/graph/llm-factory';
-import { orderPromptConfig } from '@api/client/ai-customer/graph/agents/prompts/order-prompt';
-import { walletPromptConfig } from '@api/client/ai-customer/graph/agents/prompts/wallet-prompt';
-import { couponPromptConfig } from '@api/client/ai-customer/graph/agents/prompts/coupon-prompt';
-import { userPromptConfig } from '@api/client/ai-customer/graph/agents/prompts/user-prompt';
-import { productPromptConfig } from '@api/client/ai-customer/graph/agents/prompts/product-prompt';
+import { SYNTHESIZER_PROMPT } from '@api/client/ai-customer/graph/agents/prompts/synthesizer-prompt';
+import { GENERAL_CHAT_PROMPT } from '@api/client/ai-customer/graph/agents/prompts/general-chat-prompt';
+import {
+  AGENT_MAP,
+  DEPENDENCY_MAP,
+  AgentEntry,
+} from '@api/client/ai-customer/graph/config/orchestrator.config';
 
-// ============================================================
-// Types
-// ============================================================
-
-interface AgentEntry {
-  /** 节点名称（日志用），如 'orderAgent' */
-  label: string;
-  /** 工具标签，如 'order' */
-  tag: string;
-  /** Prompt 配置 */
-  promptConfig: Omit<AgentPromptConfig, 'userId'>;
-  /** Agent 类型 */
-  type: 'agent' | 'direct';
-}
-
-// ============================================================
-// Agent 注册表
-// ============================================================
-
-const AGENT_MAP: Record<string, AgentEntry> = {
-  order: {
-    label: 'orderAgent',
-    tag: 'order',
-    promptConfig: orderPromptConfig,
-    type: 'agent',
-  },
-  wallet: {
-    label: 'walletAgent',
-    tag: 'wallet',
-    promptConfig: walletPromptConfig,
-    type: 'agent',
-  },
-  coupon: {
-    label: 'couponAgent',
-    tag: 'coupon',
-    promptConfig: couponPromptConfig,
-    type: 'agent',
-  },
-  user: {
-    label: 'userAgent',
-    tag: 'user',
-    promptConfig: userPromptConfig,
-    type: 'agent',
-  },
-  product: {
-    label: 'productAgent',
-    tag: 'product',
-    promptConfig: productPromptConfig,
-    type: 'agent',
-  },
-  general: {
-    label: 'generalChat',
-    tag: 'general',
-    promptConfig: null as unknown as Omit<AgentPromptConfig, 'userId'>,
-    type: 'direct',
-  },
-  rag: {
-    label: 'ragNode',
-    tag: 'rag',
-    promptConfig: null as unknown as Omit<AgentPromptConfig, 'userId'>,
-    type: 'direct',
-  },
-  'lucky-draw': {
-    label: 'luckyAgent',
-    tag: 'lucky-draw',
-    promptConfig: null as unknown as Omit<AgentPromptConfig, 'userId'>,
-    type: 'direct',
-  },
-};
-
-// ============================================================
-// Dependency Resolution
-// ============================================================
-
-/**
- * 依赖解析规则：
- * - product → coupon/wallet: 先知道商品信息，才能问优惠券/钱包
- * - order → coupon/wallet: 先知道订单信息，才能问优惠券/钱包
- *
- * 其他标签按分数降序执行，互不依赖。
- */
-const DEPENDENCY_MAP: Record<string, string[]> = {
-  product: ['coupon', 'wallet'],
-  order: ['coupon', 'wallet'],
-  coupon: ['product'],
-};
+// (AGENT_MAP + DEPENDENCY_MAP 已抽离到 config/orchestrator.config.ts)
 
 function resolveExecutionOrder(labels: string[]): string[] {
   // 检查是否有依赖关系需要重排
@@ -159,26 +72,8 @@ function resolveExecutionOrder(labels: string[]): string[] {
 
 // ============================================================
 // General Chat — Direct LLM Handler
+// (GENERAL_CHAT_PROMPT 已抽离到 prompts/general-chat-prompt.ts)
 // ============================================================
-
-const GENERAL_CHAT_PROMPT = ChatPromptTemplate.fromMessages([
-  [
-    'system',
-    `You are JoyMini, a friendly and helpful e-commerce customer service AI assistant. 
-    
-    You are a friendly and enthusiastic customer service assistant. You can:
-    1. Answer general questions about the JoyMini platform
-    2. Engage in casual conversation and greetings
-    3. Guide users to use specific features (check orders, check balance, browse products, etc.)
-    
-    Note:
-    - If the user has a specific inquiry (e.g., check order, check balance), guide them to use the relevant feature
-    - Keep responses concise and friendly
-    - Do not make up information you are unsure about; guide the user to contact human support
-    `,
-  ],
-  ['human', '{input}'],
-]);
 
 async function handleGeneralChat(
   state: typeof AgentState.State,
@@ -190,9 +85,31 @@ async function handleGeneralChat(
       ? lastMessage.content
       : JSON.stringify(lastMessage?.content ?? '');
 
+  // Build conversation context from recent history (skip ToolMessages, keep Human + AI)
+  const contextMessages = state.messages
+    .slice(-10) // last 10 messages
+    .filter((m) => m._getType() === 'human' || m._getType() === 'ai')
+    .slice(0, -1); // exclude current user message
+  const conversationContext =
+    contextMessages.length > 0
+      ? contextMessages
+          .map(
+            (m) =>
+              `${m._getType() === 'human' ? 'User' : 'Assistant'}: ${
+                typeof m.content === 'string'
+                  ? m.content
+                  : JSON.stringify(m.content)
+              }`,
+          )
+          .join('\n')
+      : '(no recent conversation)';
+
   const model = createLLM(llmConfig, { temperature: 0.7 });
   const chain = GENERAL_CHAT_PROMPT.pipe(model).pipe(new StringOutputParser());
-  const result = await chain.invoke({ input: userInput });
+  const result = await chain.invoke({
+    input: userInput,
+    conversationContext,
+  });
 
   return {
     messages: [...state.messages, new AIMessage(result)],
@@ -203,31 +120,8 @@ async function handleGeneralChat(
 
 // ============================================================
 // Answer Synthesizer — Merge Multiple Agent Outputs
+// (SYNTHESIZER_PROMPT 已抽离到 prompts/synthesizer-prompt.ts)
 // ============================================================
-
-const SYNTHESIZER_PROMPT = ChatPromptTemplate.fromMessages([
-  [
-    'system',
-    `You are JoyMini, a friendly and professional e-commerce customer service AI assistant.
-
-You have received results from MULTIPLE specialized assistants on the same customer inquiry.
-Each result is prefixed with [agentName]:. Your job is to merge these results into a single,
-coherent, friendly response that addresses ALL parts of the user's question.
-
-Guidelines:
-- Present information from ALL assistants in a natural, flowing response
-- Use numbered lists or bullet points for clarity when showing multiple items
-- Keep your tone warm and professional
-- Keep responses concise but complete
-- If an assistant returned an error or disclaimer, silently skip it
-
-Results from assistants:
-{agentOutput}
-
-User's original question: {userInput}`,
-  ],
-  ['human', '{userInput}'],
-]);
 
 async function synthesizeAnswers(
   llmConfig: LlmProviderConfig,
@@ -273,6 +167,90 @@ async function synthesizeAnswers(
  * 4. 依次调用每个 Agent（流水线）
  * 5. 合成最终回复
  *
+ * ════════════════════════════════════════════════════════════════
+ * 【运行示例 — "那我要买Women Crossbody Bag Set，团购价格多少，加上优惠券，我还有多少钱"]
+ * ════════════════════════════════════════════════════════════════
+ *
+ * 第1步: 读取 labels（来自 intentRouter）
+ *   state.labels = [
+ *     {label:'product', score:0.86},
+ *     {label:'coupon',  score:0.60},
+ *     {label:'wallet',  score:0.59}
+ *   ]
+ *
+ * 第2步: 按分数降序排序
+ *   sortedLabels = [
+ *     {label:'product', score:0.86},
+ *     {label:'coupon',  score:0.60},
+ *     {label:'wallet',  score:0.59}
+ *   ]
+ *   labelNames = ['product', 'coupon', 'wallet']
+ *
+ * 第3步: 依赖解析 resolveExecutionOrder(['product','coupon','wallet'])
+ *   DEPENDENCY_MAP = { product: ['coupon','wallet'], order: ['coupon','wallet'] }
+ *   遍历: 找到 product → 它的依赖 [coupon,wallet] 都在 labelNames 中
+ *   重排: [product, coupon, wallet] (前置依赖 first, 然后是依赖者, 最后其他)
+ *   executionOrder = ['product', 'coupon', 'wallet']
+ *
+ * 第4步: 流水线循环 for (const label of executionOrder)
+ *
+ *   迭代 #1: label='product'
+ *     entry = AGENT_MAP['product'] = { label:'product', tag:'product', ... }
+ *     tools = registry.getToolsByTag('product')
+ *     → [searchProducts, getProductDetail, getGroupBuyProducts, ...]
+ *     buildAgentPrompt(entry.promptConfig) → systemPrompt
+ *     contextMessages = state.messages.slice(-MAX_CONTEXT_MESSAGES)
+ *     runAgentLoop({ llmWithTools, initialMessages, tools, agentName:'product', ... })
+ *     → LLM 思考: "用户要买 Women Crossbody Bag Set，查团购价"
+ *     → tool_call: searchProducts({ query: "Women Crossbody Bag Set" })
+ *     → 返回: [Women Crossbody Bag Set, group buy price: $29.99]
+ *     → LLM: "这款包团购价 $29.99"
+ *     agentOutputs.push({ label:'product', content: "Women Crossbody Bag Set 团购价 $29.99" })
+ *
+ *   迭代 #2: label='coupon'
+ *     tools = registry.getToolsByTag('coupon') → [getMyCoupons, claimCoupon, ...]
+ *     runAgentLoop(...)
+ *     → LLM: "用户有优惠券可用，查一下"
+ *     → tool_call: getMyCoupons({ userId: '123' })
+ *     → 返回: [{ code: 'JOY10', discount: '10%', validUntil: '2026-07-31' }]
+ *     → LLM: "您有 JOY10 优惠券可用"
+ *     agentOutputs.push({ label:'coupon', content: "您有 JOY10 优惠券" })
+ *
+ *   迭代 #3: label='wallet'
+ *     tools = registry.getToolsByTag('wallet') → [getWalletBalance, ...]
+ *     runAgentLoop(...)
+ *     → LLM: "用户问余额，查钱包"
+ *     → tool_call: getWalletBalance({ userId: '123' })
+ *     → 返回: { balance: 105.50 }
+ *     → agentOutputs.push({ label:'wallet', content: "钱包余额 $105.50" })
+ *
+ * 第5步: 合成回复 synthesizeAnswers(llmConfig, agentOutputs, userInput)
+ *   agentOutput = 三段拼接:
+ *     [product]: Women Crossbody Bag Set 团购价 $29.99
+ *     [coupon]: 您有 10% 优惠券 JOY10 可用
+ *     [wallet]: 您的钱包余额为 $105.50
+ *   LLM 合成: "Women Crossbody Bag Set 团购价 $29.99 起! 您还有 JOY10 优惠券可叠加使用，
+ *              钱包余额 $105.50 完全够支付，请问需要下单吗?"
+ *
+ * 第6步: 返回 stateUpdate（debug=true 时含 debugInfo.execution）
+ *   {
+ *     messages: [new AIMessage(finalContent)],
+ *     labels: [],         ← 清空，下一轮重新分类
+ *     previousIntent: 'product',
+ *     debugInfo: {
+ *       embedding: { ... },    ← 来自 intentRouter
+ *       execution: {
+ *         executionOrder: ['product', 'coupon', 'wallet'],
+ *         agents: [
+ *           { label:'product', tools:['searchProducts',...], status:'OK', ... },
+ *           { label:'coupon',  tools:['getMyCoupons',...],   status:'OK', ... },
+ *           { label:'wallet',  tools:['getWalletBalance',...],status:'OK', ... }
+ *         ]
+ *       }
+ *     }
+ *   }
+ * ════════════════════════════════════════════════════════════════
+ *
  * @param llmConfig - LLM 配置
  * @param registry - 工具注册表
  */
@@ -297,6 +275,23 @@ export const createOrchestratorNode =
 
     // ================================================================
     // 2. 排序 + 依赖解析
+    /**
+     * ════════════════════════════════════════════════════════════════
+     * 【运行示例】
+     *
+     * 原始 labels：
+     *   [{label:'product',score:0.86}, {label:'wallet',score:0.59}, {label:'coupon',score:0.60}]
+     *
+     * 排序后：
+     *   [{label:'product',score:0.86}, {label:'coupon',score:0.60}, {label:'wallet',score:0.59}]
+     *
+     * labelNames = ['product', 'coupon', 'wallet']
+     * 依赖解析:
+     *   DEPENDENCY_MAP['product'] = ['coupon','wallet']
+     *   coupon 和 wallet 都在 labels 中 → 重排
+     *   executionOrder = ['product', 'coupon', 'wallet']
+     * ════════════════════════════════════════════════════════════════
+     */
     // ================================================================
     const sortedLabels = [...labels].sort((a, b) => b.score - a.score);
     const labelNames = sortedLabels.map((l) => l.label);
@@ -308,6 +303,12 @@ export const createOrchestratorNode =
     // 3. 流水线执行
     // ================================================================
     const agentOutputs: { label: string; content: string }[] = [];
+
+    // debug 执行追踪
+    let debugAgents: DebugAgentExecution[] | undefined;
+    if (state.debug) {
+      debugAgents = [];
+    }
 
     for (const label of executionOrder) {
       const entry = AGENT_MAP[label];
@@ -325,6 +326,16 @@ export const createOrchestratorNode =
             const content =
               typeof lastMsg?.content === 'string' ? lastMsg.content : '';
             agentOutputs.push({ label: entry.label, content });
+            if (debugAgents) {
+              debugAgents.push({
+                label: entry.label,
+                tools: [],
+                contextMessages: 0,
+                lastMsg: '',
+                status: 'OK',
+                resultPreview: content.slice(0, 200),
+              });
+            }
           } else {
             // rag / lucky-draw — 未实现特殊处理，跳过
             logger.warn(
@@ -355,8 +366,21 @@ export const createOrchestratorNode =
           const tools = registry.getToolsByTag(entry.tag);
           const llmWithTools = createAgentLLM(llmConfig, tools);
 
+          // 🔍 详细日志：Agent 执行前的所有输入
+          const toolNames = tools.map((t) => t.name).join(', ');
+          const lastMsgContent =
+            typeof state.messages[state.messages.length - 1]?.content ===
+            'string'
+              ? (
+                  state.messages[state.messages.length - 1].content as string
+                ).slice(0, 100)
+              : '(non-string content)';
           logger.log(
-            `[orchestrator] running ${entry.label} with ${tools.length} tools`,
+            `[orchestrator] ── ${entry.label} ──\n` +
+              `  contextMessages: ${contextMessages.length} msgs\n` +
+              `  lastMsg: "${lastMsgContent}..."\n` +
+              `  tools (${tools.length}): [${toolNames}]\n` +
+              `  systemPrompt (preview): "${systemPrompt.slice(0, 200)}..."`,
           );
 
           // Run agent loop
@@ -368,16 +392,40 @@ export const createOrchestratorNode =
             logger,
           });
 
+          // 🔍 日志：Agent 执行结果
           if (result.error) {
             logger.error(
-              `[orchestrator] ${entry.label} error: ${result.error}`,
+              `[orchestrator] ${entry.label} result: ERROR — ${result.error}`,
             );
             agentOutputs.push({
               label: entry.label,
               content: `Sorry, I encountered an issue processing your ${label} request.`,
             });
+            if (debugAgents) {
+              debugAgents.push({
+                label: entry.label,
+                tools: toolNames.split(', ').filter(Boolean),
+                contextMessages: contextMessages.length,
+                lastMsg: lastMsgContent,
+                status: 'ERROR',
+                resultPreview: result.error.slice(0, 200),
+              });
+            }
           } else {
+            logger.log(
+              `[orchestrator] ${entry.label} result: OK — content preview: "${result.content.slice(0, 200)}..."`,
+            );
             agentOutputs.push({ label: entry.label, content: result.content });
+            if (debugAgents) {
+              debugAgents.push({
+                label: entry.label,
+                tools: toolNames.split(', ').filter(Boolean),
+                contextMessages: contextMessages.length,
+                lastMsg: lastMsgContent,
+                status: 'OK',
+                resultPreview: result.content.slice(0, 200),
+              });
+            }
           }
         }
       } catch (err: any) {
@@ -404,10 +452,27 @@ export const createOrchestratorNode =
       userInput,
     );
 
-    return {
+    const orchestratorResult: Partial<typeof AgentState.State> = {
       messages: [...state.messages, new AIMessage(finalContent)],
       previousIntent: state.intent,
       // 清空 labels，下一轮由 intentRouter 重新设置
       labels: [],
     };
+
+    // debug=true 时写入执行流水线追踪数据
+    if (state.debug && debugAgents) {
+      orchestratorResult.debugInfo = {
+        embedding: state.debugInfo?.embedding ?? {
+          method: '',
+          rawTop5: [],
+          dedupedLabels: [],
+        },
+        execution: {
+          executionOrder,
+          agents: debugAgents,
+        },
+      };
+    }
+
+    return orchestratorResult;
   };
