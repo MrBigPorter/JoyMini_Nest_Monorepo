@@ -16,26 +16,7 @@ import {
   CreateAddressDto,
   UpdateAddressDto,
 } from '@api/client/address/dto/address.dto';
-
-/**
- * Helper: wrap a promise with fetch/ajax-style .then().catch() chaining.
- * Eliminates repetitive try-catch blocks in tool handlers.
- *
- * @example
- *   toResult(authService.profile(userId))
- *     .then(result => toolSuccess({ data: result }))
- *     .catch(err => toolFailure(err.message))
- */
-function toResult<T>(promise: Promise<T>) {
-  return {
-    then: <R>(onFulfilled: (value: T) => R) => ({
-      catch: (onRejected: (err: Error) => string): Promise<string> =>
-        promise.then(onFulfilled).catch(onRejected) as Promise<string>,
-    }),
-    catch: (onRejected: (err: Error) => string): Promise<string> =>
-      promise.catch(onRejected) as Promise<string>,
-  };
-}
+import { toResultChain } from '@lucky/shared';
 
 export const createUserTools = (
   authService: AuthService,
@@ -50,7 +31,7 @@ export const createUserTools = (
     {
       tool: tool(
         async ({ userId }: { userId: string }) =>
-          toResult(authService.profile(userId))
+          toResultChain(authService.profile(userId))
             .then((result) =>
               toolSuccess({
                 profile: toLLM(
@@ -85,7 +66,7 @@ export const createUserTools = (
           page?: number;
           pageSize?: number;
         }) =>
-          toResult(
+          toResultChain(
             addressService.list(userId, {
               page: page ?? 1,
               pageSize: pageSize ?? 10,
@@ -133,7 +114,7 @@ export const createUserTools = (
        */
       tool: tool(
         async ({ userId, addressId }: { userId: string; addressId: string }) =>
-          toResult(addressService.detail(userId, addressId))
+          toResultChain(addressService.detail(userId, addressId))
             .then((result) =>
               toolSuccess({
                 address: toLLM(
@@ -211,7 +192,7 @@ export const createUserTools = (
             label,
             isDefault: isDefault ? 1 : 0,
           };
-          return toResult(addressService.create(userId, dto))
+          return toResultChain(addressService.create(userId, dto))
             .then((result) =>
               toolSuccess({
                 addressId: result.addressId,
@@ -336,7 +317,7 @@ export const createUserTools = (
             }).filter(([_, v]) => v !== undefined),
           );
 
-          return toResult(
+          return toResultChain(
             addressService.update(
               userId,
               addressId,
@@ -415,7 +396,7 @@ export const createUserTools = (
           logger.log(
             `[user-tools:deleteAddress] userId="${userId}", addressId="${addressId}"`,
           );
-          return toResult(addressService.delete(userId, addressId))
+          return toResultChain(addressService.delete(userId, addressId))
             .then(() =>
               toolSuccess({
                 success: true,

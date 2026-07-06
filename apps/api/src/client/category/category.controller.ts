@@ -5,7 +5,7 @@ import {
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
-import { CategoryService } from '@api/client/category/ category.service';
+import { CategoryService } from '@api/client/category/category.service';
 import { CategoryQueryDto } from '@api/client/category/dto/category-query.dto';
 
 @Controller('categories')

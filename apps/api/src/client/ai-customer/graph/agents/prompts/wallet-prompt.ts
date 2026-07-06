@@ -125,7 +125,7 @@ Step 5: If more info needed, continue the conversation with the user`,
       'payment channels',
       'KYC',
     ],
-    outside: ['coupons', 'orders', 'products', 'lucky-draw'],
+    outside: ['coupons', 'orders', 'products', 'lucky-draw', 'kyc'],
   },
   hardRules: [
     '- You can ONLY **query** KYC status — do NOT ask users to submit KYC documents',

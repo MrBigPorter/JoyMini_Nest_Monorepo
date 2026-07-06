@@ -6,21 +6,25 @@
  * 实现配置与逻辑分离。修改配置（新增 Agent、调整依赖）无需改动流水线执行逻辑。
  *
  * ── 如何新增一个 Agent ──
- * 1. 在 AGENT_MAP 添加新条目
+ * 1. 在 AGENT_MAP 添加新条目（使用 agentEntry helper）
  * 2. 在 DEPENDENCY_MAP 添加依赖规则（可选）
  * 3. 在对应的 module 注册工具（registerMany）
  * 4. 不需要修改 orchestrator.node.ts 的流水线循环
+ *
+ * ── 与 agent-tags.ts 的关系 ──
+ * agent-tags.ts 是 Base Config（基础配置），此文件是 Extension（扩展配置）。
+ * Base Config 定义 tag + label + type，Extension 加 promptConfig。
  */
 
-import {
-  buildAgentPrompt,
-  AgentPromptConfig,
-} from '@api/client/ai-customer/graph/agents/prompt-builder';
+import { AgentPromptConfig } from '@api/client/ai-customer/graph/agents/prompt-builder';
+import { AGENT_BASE_MAP, type AgentTag } from './agent-tags';
 import { orderPromptConfig } from '@api/client/ai-customer/graph/agents/prompts/order-prompt';
 import { walletPromptConfig } from '@api/client/ai-customer/graph/agents/prompts/wallet-prompt';
 import { couponPromptConfig } from '@api/client/ai-customer/graph/agents/prompts/coupon-prompt';
 import { userPromptConfig } from '@api/client/ai-customer/graph/agents/prompts/user-prompt';
 import { productPromptConfig } from '@api/client/ai-customer/graph/agents/prompts/product-prompt';
+import { luckyPromptConfig } from '@api/client/ai-customer/graph/agents/prompts/lucky-prompt';
+import { kycPromptConfig } from '@api/client/ai-customer/graph/agents/prompts/kyc-prompt';
 
 // ============================================================
 // Types
@@ -35,6 +39,30 @@ export interface AgentEntry {
   promptConfig: Omit<AgentPromptConfig, 'userId'>;
   /** Agent 类型 */
   type: 'agent' | 'direct';
+}
+
+// ============================================================
+// Helper: agentEntry — 从 Base Config 构建 AgentEntry
+// ============================================================
+//
+// agentEntry 将 Base Config（tag + label + type）与 Extension（promptConfig）合并。
+// 使用此 helper 的好处：
+// - tag 自动关联，不会拼写错误
+// - label/type 从 Base Config 推导，无需重复手写
+// - 新增 Agent：只需在 agent-tags.ts 加 1 行 + 在此加 1 行
+
+function agentEntry(
+  tag: AgentTag,
+  promptConfig: Omit<AgentPromptConfig, 'userId'> | null,
+): AgentEntry {
+  const base = AGENT_BASE_MAP[tag];
+  return {
+    label: base.label,
+    tag,
+    promptConfig:
+      promptConfig ?? (null as unknown as Omit<AgentPromptConfig, 'userId'>),
+    type: base.type as 'agent' | 'direct',
+  };
 }
 
 // ============================================================
@@ -66,62 +94,22 @@ export interface AgentEntry {
 // 4. 合成一条回复 "这款包团购价$XX，您有$YY优惠券可用，钱包余额$ZZ"
 //
 // ── 修改指引 ──
-// - 新增 Agent → 在这里添加条目 + 在 DEPENDENCY_MAP 添加依赖规则
+// - 新增 Agent → 在 agent-tags.ts 加 1 行 + 在这里加 agentEntry 调用
 // - 移除 Agent → 从 AGENT_MAP 删除条目（同时检查 DEPENDENCY_MAP）
-// - 修改标签 → 改动 tag 字段 + 确保 ToolRegistry 有对应标签的工具
-// - 注意: 'general', 'rag', 'lucky-draw' 是 type='direct'（不调 LLM+工具，直接处理）
+// - 注意: 'general', 'rag' 是 type='direct'（不调 LLM+工具，直接处理）
 //
 // ============================================================
 
 export const AGENT_MAP: Record<string, AgentEntry> = {
-  order: {
-    label: 'orderAgent',
-    tag: 'order',
-    promptConfig: orderPromptConfig,
-    type: 'agent',
-  },
-  wallet: {
-    label: 'walletAgent',
-    tag: 'wallet',
-    promptConfig: walletPromptConfig,
-    type: 'agent',
-  },
-  coupon: {
-    label: 'couponAgent',
-    tag: 'coupon',
-    promptConfig: couponPromptConfig,
-    type: 'agent',
-  },
-  user: {
-    label: 'userAgent',
-    tag: 'user',
-    promptConfig: userPromptConfig,
-    type: 'agent',
-  },
-  product: {
-    label: 'productAgent',
-    tag: 'product',
-    promptConfig: productPromptConfig,
-    type: 'agent',
-  },
-  general: {
-    label: 'generalChat',
-    tag: 'general',
-    promptConfig: null as unknown as Omit<AgentPromptConfig, 'userId'>,
-    type: 'direct',
-  },
-  rag: {
-    label: 'ragNode',
-    tag: 'rag',
-    promptConfig: null as unknown as Omit<AgentPromptConfig, 'userId'>,
-    type: 'direct',
-  },
-  'lucky-draw': {
-    label: 'luckyAgent',
-    tag: 'lucky-draw',
-    promptConfig: null as unknown as Omit<AgentPromptConfig, 'userId'>,
-    type: 'direct',
-  },
+  order: agentEntry('order', orderPromptConfig),
+  wallet: agentEntry('wallet', walletPromptConfig),
+  coupon: agentEntry('coupon', couponPromptConfig),
+  user: agentEntry('user', userPromptConfig),
+  product: agentEntry('product', productPromptConfig),
+  'lucky-draw': agentEntry('lucky-draw', luckyPromptConfig),
+  kyc: agentEntry('kyc', kycPromptConfig),
+  general: agentEntry('general', null),
+  rag: agentEntry('rag', null),
 };
 
 // ============================================================
@@ -155,4 +143,5 @@ export const DEPENDENCY_MAP: Record<string, string[]> = {
   product: ['coupon', 'wallet'],
   order: ['coupon', 'wallet'],
   coupon: ['product'],
+  wallet: ['kyc'],
 };

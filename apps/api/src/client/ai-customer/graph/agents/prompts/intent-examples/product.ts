@@ -1,19 +1,58 @@
 /**
- * product — Intent classification example sentences
+ * product — Intent classification example sentences (English only)
  *
- * Covers: product search, browsing, hot items, sales,
- * category navigation, recommendations, and pricing inquiries
- * (including group buy / wholesale pricing).
+ * Covers: search, hot items, categories, recommendations, pricing, details, stock
+ * ~40 sentences
  */
+
 export const productExamples: string[] = [
-  'Find me cheap products',
-  'Show hot items',
-  'Search for running shoes',
-  'What is on sale?',
-  'Show best sellers',
-  'Browse categories',
-  'Recommend something for me',
-  'What is the group buy price for Women Crossbody Bag Set',
-  'How much is the wholesale price for this item',
-  'Show me the bulk pricing for products',
+  // ── Search ──
+  'Search for shoes',
+  'Find iPhone cases',
+  'Look for wireless earphones',
+  'I want to buy a laptop',
+  'Search for products under 500',
+  'Find me a blue dress',
+
+  // ── Hot items / best sellers ──
+  'What are the best sellers?',
+  'Show me popular items',
+  'What products are trending?',
+  'What is everyone buying?',
+  'Show me top rated products',
+
+  // ── Category navigation ──
+  'Show me electronics',
+  'What categories do you have?',
+  "Browse women's clothing",
+  'List all available categories',
+  'Show me items in home and living',
+
+  // ── Recommendations ──
+  'What do you recommend?',
+  'Suggest products for me',
+  'What similar items are there?',
+  'Can you recommend a gift?',
+  'Show me products like this one',
+
+  // ── Pricing / wholesale ──
+  'How much does this cost?',
+  'What is the price of item 123?',
+  'Do you have wholesale pricing?',
+  'Is there a discount for bulk orders?',
+  'What is the cheapest option?',
+
+  // ── Product details ──
+  'Tell me more about this product',
+  'What are the specifications?',
+  'Show product description',
+  'What color options are available?',
+  'What is the warranty period?',
+
+  // ── Stock ──
+  'Is this item in stock?',
+  'Check availability for product 123',
+  'When will this be back in stock?',
+  'Do you have this in size large?',
+  'Is this available in my region?',
 ];

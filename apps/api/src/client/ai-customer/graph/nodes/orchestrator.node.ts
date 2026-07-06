@@ -36,15 +36,11 @@ import { LlmProviderConfig } from '@api/client/ai-customer/graph/llm-factory';
 import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-registry.service';
 import { MAX_CONTEXT_MESSAGES } from '@api/client/ai-customer/graph/constants';
 import { buildAgentPrompt } from '@api/client/ai-customer/graph/agents/prompt-builder';
-import { runAgentLoop } from '@api/client/ai-customer/graph/agents/agent-runner';
 
-import {
-  buildInitialMessages,
-  createAgentLLM,
-} from '@api/client/ai-customer/graph/agents/agent-result';
 import { createLLM } from '@api/client/ai-customer/graph/llm-factory';
 import { SYNTHESIZER_PROMPT } from '@api/client/ai-customer/graph/agents/prompts/synthesizer-prompt';
 import { GENERAL_CHAT_PROMPT } from '@api/client/ai-customer/graph/agents/prompts/general-chat-prompt';
+import { runStandardAgent } from '@api/client/ai-customer/graph/nodes/agent-factory';
 import {
   AGENT_MAP,
   DEPENDENCY_MAP,
@@ -345,54 +341,30 @@ export const createOrchestratorNode =
           }
         } else {
           // ================================================================
-          // 标准 Agent 流水线
+          // 标准 Agent 流水线（使用 runStandardAgent 工厂）
           // ================================================================
 
-          // Build system prompt (disable flowContext since conversation provides context)
-          const systemPrompt = buildAgentPrompt({
-            ...entry.promptConfig,
-            userId: state.userId,
-            flowContext: false,
-          });
+          const { result, tools, contextMessagesCount } =
+            await runStandardAgent({
+              userId: state.userId,
+              messages: state.messages,
+              promptConfig: entry.promptConfig,
+              tag: entry.tag,
+              agentName: entry.label,
+              llmConfig,
+              registry,
+              logger,
+            });
 
-          // Build context: full conversation history
-          const contextMessages = state.messages.slice(-MAX_CONTEXT_MESSAGES);
-          const initialMessages = buildInitialMessages(
-            systemPrompt,
-            contextMessages,
-          );
-
-          // Get tools
-          const tools = registry.getToolsByTag(entry.tag);
-          const llmWithTools = createAgentLLM(llmConfig, tools);
-
-          // 🔍 详细日志：Agent 执行前的所有输入
+          // 🔍 日志
           const toolNames = tools.map((t) => t.name).join(', ');
-          const lastMsgContent =
-            typeof state.messages[state.messages.length - 1]?.content ===
-            'string'
-              ? (
-                  state.messages[state.messages.length - 1].content as string
-                ).slice(0, 100)
-              : '(non-string content)';
           logger.log(
             `[orchestrator] ── ${entry.label} ──\n` +
-              `  contextMessages: ${contextMessages.length} msgs\n` +
-              `  lastMsg: "${lastMsgContent}..."\n` +
-              `  tools (${tools.length}): [${toolNames}]\n` +
-              `  systemPrompt (preview): "${systemPrompt.slice(0, 200)}..."`,
+              `  contextMessages: ${contextMessagesCount} msgs\n` +
+              `  tools (${tools.length}): [${toolNames}]`,
           );
 
-          // Run agent loop
-          const result = await runAgentLoop({
-            llmWithTools,
-            initialMessages,
-            tools,
-            agentName: entry.label,
-            logger,
-          });
-
-          // 🔍 日志：Agent 执行结果
+          // 结果处理
           if (result.error) {
             logger.error(
               `[orchestrator] ${entry.label} result: ERROR — ${result.error}`,
@@ -405,8 +377,8 @@ export const createOrchestratorNode =
               debugAgents.push({
                 label: entry.label,
                 tools: toolNames.split(', ').filter(Boolean),
-                contextMessages: contextMessages.length,
-                lastMsg: lastMsgContent,
+                contextMessages: contextMessagesCount,
+                lastMsg: '',
                 status: 'ERROR',
                 resultPreview: result.error.slice(0, 200),
               });
@@ -420,8 +392,8 @@ export const createOrchestratorNode =
               debugAgents.push({
                 label: entry.label,
                 tools: toolNames.split(', ').filter(Boolean),
-                contextMessages: contextMessages.length,
-                lastMsg: lastMsgContent,
+                contextMessages: contextMessagesCount,
+                lastMsg: '',
                 status: 'OK',
                 resultPreview: result.content.slice(0, 200),
               });

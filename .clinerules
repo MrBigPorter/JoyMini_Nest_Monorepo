@@ -8,6 +8,7 @@ Full-stack monorepo: Next.js (frontend/admin) + NestJS (API) + Prisma (PostgreSQ
 - **Components**: use `@repo/ui` package, no raw HTML elements
 - **Files**: utils in `src/lib/utils/`, hooks in `src/lib/hooks/`, types in `src/types/` or `packages/shared`
 - **Backend**: AdminJwtAuthGuard + RolesGuard for auth, DTOs for validation, Prisma transactions
+- **⚠️ Prisma: NEVER run `prisma migrate reset`** — this drops ALL tables and destroys ALL data. Use `prisma migrate dev --create-only` then `prisma migrate resolve` for conflict resolution, or direct SQL for specific table operations. See `PRISMA.md` "绝对禁止" section.
 - **Dev**: workspace-specific dev commands (e.g. `yarn workspace @lucky/admin-next dev`), no global `yarn dev`
 
 ## Thinking Process (before coding)

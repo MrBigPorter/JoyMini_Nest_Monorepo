@@ -36,18 +36,12 @@ export const createFlowTools = (): TaggedTool[] => {
     {
       tool: tool(
         async ({ data }: { data: Record<string, any> }) => {
-          try {
-            const keys = Object.keys(data);
-            return toolSuccess({
-              ok: true,
-              message: `flowData updated with keys: ${keys.join(', ')}`,
-              keys,
-            });
-          } catch (error) {
-            return toolFailure(
-              `Failed to update flowData: ${error instanceof Error ? error.message : 'unknown error'}`,
-            );
-          }
+          const keys = Object.keys(data);
+          return toolSuccess({
+            ok: true,
+            message: `flowData updated with keys: ${keys.join(', ')}`,
+            keys,
+          });
         },
         {
           name: 'updateFlowData',
@@ -87,26 +81,20 @@ export const createFlowTools = (): TaggedTool[] => {
           flowType: string;
           flowStatus: string;
         }) => {
-          try {
-            // 运行时校验
-            if (!isValidFlowStatus(flowType as any, flowStatus as FlowStatus)) {
-              return toolFailure(
-                `Invalid flowStatus "${flowStatus}" for flowType "${flowType}". ` +
-                  `Allowed statuses depend on the current business type. ` +
-                  `Please check the flow type and try again.`,
-              );
-            }
-            return toolSuccess({
-              ok: true,
-              message: `Flow status updated to ${flowStatus} (type: ${flowType})`,
-              flowType,
-              flowStatus,
-            });
-          } catch (error) {
+          // 运行时校验
+          if (!isValidFlowStatus(flowType as any, flowStatus as FlowStatus)) {
             return toolFailure(
-              `Failed to update flowStatus: ${error instanceof Error ? error.message : 'unknown error'}`,
+              `Invalid flowStatus "${flowStatus}" for flowType "${flowType}". ` +
+                `Allowed statuses depend on the current business type. ` +
+                `Please check the flow type and try again.`,
             );
           }
+          return toolSuccess({
+            ok: true,
+            message: `Flow status updated to ${flowStatus} (type: ${flowType})`,
+            flowType,
+            flowStatus,
+          });
         },
         {
           name: 'updateFlowStatus',

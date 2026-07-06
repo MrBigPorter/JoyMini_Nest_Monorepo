@@ -144,6 +144,12 @@
 | — | **3 场景端到端验证** | ✅ **"领券+确认" / "优惠券+存款切换" / "优惠券+余额多域" 全部通过** |
 | — | **tools-reference.md — 21 个 Tool 完整功能解析** | ✅ **架构总览 + 5 类工具卡片 + 安全汇总 + 速查表，每工具含参数/返回/数据流/注意事项** |
 | — | **产品 Agent Phase 1** | ✅ **产品搜索/浏览 Agent，支持按分类/价格/名称筛选** |
+| 46 | **Agent Config 重构计划** | ✅ **2 新文件 + 5 修改 + 11 死代码删除，tsc 0 错误，44/44 测试通过** |
+| — | **11 死代码文件清理** | ✅ **删除 order-agent/coupon-agent/user-agent/product-agent/lucky-agent/kyc-agent/wallet-agent/supervisor/rag/answer-synthesizer/general-chat 全部 node 文件** |
+| — | **AGENT_BASE_MAP — 单源真相** | ✅ **`as const satisfies` 类型安全 + 自动派生 5 种类型，10 Agent 元数据统一管理** |
+| — | **agentEntry() 辅助函数** | ✅ **Base Config + Extension 合并，消除 AGENT_MAP 手写冗余** |
+| — | **runStandardAgent() 工厂** | ✅ **封装 5 步 ReAct 执行流程，消除 7 个重复 agent node 文件** |
+| — | **As const satisfies 模式** | ✅ **零运行时开销 + 窄字面量类型自动派生，替代手写联合类型** |
 ### Doc 04 验证
 
 ```bash
@@ -158,10 +164,10 @@ apps/api/src/client/ai-customer/
 ├── graph/
 │   ├── state.ts                          # +agentOutput + userId 字段
 │   ├── customer.graph.ts                 # StateGraph 组装
-│   └── nodes/
-│       ├── answer-synthesizer.node.ts    # 3 种情况合成
-│       ├── general-chat.node.ts          # 闲聊节点
-│       └── rag.node.ts                   # 知识库 Phase 1 占位
+│   └── nodes/                            # 后续重构为 agent-factory.ts + orchestrator.node.ts
+│       ├── answer-synthesizer.node.ts    # ⛔ Doc 46 重构后已删除
+│       ├── general-chat.node.ts          # ⛔ Doc 46 重构后已删除
+│       └── rag.node.ts                   # ⛔ Doc 46 重构后已删除
 ├── ai-customer.service.ts                # +OnModuleInit 启动编译
 └── ai-customer.module.ts                 # Provider 注册
 ```
@@ -351,21 +357,30 @@ const classNameMap = new WeakMap<object, string>();
 flowchart TD
     User([User Input])
     subgraph LangGraph
-        intentRouter[Intent Router<br/>LLM + Prompt]
-        intentGateway[Intent Gateway<br/>>> state.intent]
-        wallet[Wallet Agent<br/>LLM + 5 Tools]
-        order[Order Agent<br/>LLM + 2 Tools]
-        coupon[Coupon Agent<br/>LLM + 4 Tools]
-        user[User Agent<br/>LLM + 1 Tool]
-        product[Product Agent<br/>LLM + 2 Tools]
-        general[General Chat<br/>Direct LLM]
-        rag[RAG Phase1]
-        answerSynthesizer[Answer Synthesizer<br/>3 种合并策略]
+        intentRouter[Intent Router<br/>LLM + Embedding]
+        orchestrator[Orchestrator<br/>for-loop + runStandardAgent]
     end
-    User --> intentGateway
-    intentGateway -->|"intent=''"| intentRouter
-    intentGateway -->|"intent!=''"| Agent
-    intentRouter -.->|orchestrator| orchestrator
+    subgraph "Config-driven Agents (AGENT_MAP)"
+        wallet[walletAgent<br/>LLM + 7 Tools]
+        order[orderAgent<br/>LLM + 2 Tools]
+        coupon[couponAgent<br/>LLM + 4 Tools]
+        user[userAgent<br/>LLM + 1 Tool]
+        product[productAgent<br/>LLM + 2 Tools]
+        lucky[luckyAgent<br/>LLM + Flash Tools]
+        kyc[kycAgent<br/>LLM + KYC Tools]
+        flow[flowTools<br/>Tool-only]
+        general[generalChat<br/>Direct LLM]
+    end
+    User --> intentRouter
+    intentRouter -->|"intent"| orchestrator
+    orchestrator -->|"AGENT_MAP[tag]"| wallet
+    orchestrator -->|"AGENT_MAP[tag]"| order
+    orchestrator -->|"AGENT_MAP[tag]"| coupon
+    orchestrator -->|"AGENT_MAP[tag]"| user
+    orchestrator -->|"AGENT_MAP[tag]"| product
+    orchestrator -->|"AGENT_MAP[tag]"| lucky
+    orchestrator -->|"AGENT_MAP[tag]"| kyc
+    orchestrator -->|"type:direct"| general
 ```
 
 ### Wallet Agent — 取提现 Phase 1 MVP (2026-06-28)
@@ -485,8 +500,8 @@ POST /api/v1/ai-customer/test-chat {"message":"优惠券和余额"}
   ```
 
 ### 未来扩展方向
-- KYC Agent
-- Lucky Draw Agent
+- ~~KYC Agent~~ ✅ 已完成（见 Doc 45）
+- ~~Lucky Draw Agent~~ ✅ 已完成（见 Doc 44 + 11）
 - RAG Phase 2（知识库增强）
 
 ## ⏳ 待优化
@@ -512,16 +527,18 @@ POST /api/v1/ai-customer/test-chat {"message":"优惠券和余额"}
 | 17 | **业务知识图谱** | **实体-关系三元组，覆盖 User/Wallet/Order/Coupon/Flow 5 领域，16 条业务规则** | 🟡 已开始 — [`business-knowledge-graph.md`](docs/AI-joymini/business-knowledge-graph.md) |
 | 18 | **🧠 Embedding 意图分类 Phase 1** | **内存域向量 + cosineSimilarity 替代 keywords/scoreGuide** | ✅ **已实现 2026-07-04** |
 | 19 | **🧠 Embedding 意图分类 Phase 2** | **pgvector 持久化：Prisma IntentExample 模型 + 迁移 + IntentClassifier 重构为 pgvector SQL 查询 + PrismaService DI 注入链 + 详细注释 + Line 143 bug 修复 + 测试重写** | ✅ **已实现 2026-07-05** |
-| 20 | **🧠 Embedding 意图分类 Phase 3（生产化）** | **见下方 Known Defects** | ❌ 未开始 |
+| 20 | **🧠 Embedding 意图分类 Phase 3（生产化）** | **Defects #01-#04 Phase 3a 完成** | ✅ Phase 3a 完成 (2026-07-06) |
 
-### Known Defects / 已知待优化（Phase 2 → Phase 3 生产化前必须修复）
+### ✅ Phase 3a 完成内容
 
-| # | 缺陷 / 优化项 | 说明 | 优先级 | 涉及文件 |
-|---|--------------|------|:------:|---------|
-| 01 | **单意图限制（LIMIT 1）** | pgvector SQL 用 `LIMIT 1`，多关键词输入（如"存款，取款，优惠券"）只返回最高分 domain，其他意图丢失。应改为按阈值（>0.5）返回多个 domain | P1 | [`intent-classifier.ts:219-224`](/apps/api/src/client/ai-customer/graph/utils/intent-classifier.ts:219) |
-| 02 | **例句覆盖率不足** | 仅 61 条手写例句（wallet=12, order=10, user=10, etc），覆盖面有限。企业级每个 domain 至少 100-200 条，建议从真实用户对话日志提取 | P1 | [`intent-examples/*.ts`](/apps/api/src/client/ai-customer/graph/agents/prompts/intent-examples/) |
-| 03 | **仅英文例句** | 所有例句为英文，菲律宾用户可能说 Tagalog/Cebuano。需要多语言例句 + 多语言 embedding | P1 | [`intent-examples/*.ts`](/apps/api/src/client/ai-customer/graph/agents/prompts/intent-examples/) |
-| 04 | **无分类监控/Metrics** | 每次分类结果（domain/confidence/延迟）没有记录，无法评估准确率。需记录到数据库 + Prometheus 指标 | P1 | [`intent-classifier.ts`](/apps/api/src/client/ai-customer/graph/utils/intent-classifier.ts) |
+| Defect | 修复内容 | 状态 |
+|--------|---------|:----:|
+| #01 | **单意图 → 多标签** (LIMIT 1 → LIMIT 5 + 域去重) — Phase 2 已修复 | ✅ |
+| #02 | **例句扩展**: 61 条 → ~350 条英文例句，覆盖 9 个 domain，每 domain 30-50 句 | ✅ 已完成 |
+| #03 | **多语言**: 用户决定保持纯英文。bge-m3 原生支持跨语言，多语言例句收益有限 | ✅ 已关闭 |
+| #04 | **分类监控**: `IntentClassificationLog` 模型 + 迁移 + `logClassification()` fire-and-forget 日志（sessionId, userInput, primaryIntent, labels, method, confidence, latencyMs, rawTop5） | ✅ 已完成 |
+
+### Known Defects / 已知待优化（Phase 3b 继续）
 | 05 | **无置信度校准** | 0.52 和 0.98 用相同阈值处理，需要 production 数据做 calibration curve | P2 | [`intent-classifier.ts:45`](/apps/api/src/client/ai-customer/graph/utils/intent-classifier.ts:45) |
 | 06 | **无反馈闭环** | 分类错误无法被捕获和纠正。需用户反馈 → 自动加入训练集 → 定期重新 seeding | P2 | [`intent-classifier.ts`](/apps/api/src/client/ai-customer/graph/utils/intent-classifier.ts) |
 | 07 | **冷启动重复 embedding** | 每次重启服务，`ensureSeeded()` 检查表空就 re-embed 全部 61 句，浪费 API 调用。应加 hash 缓存：检测 embedding 列是否有变化 | P2 | [`intent-classifier.ts:63`](/apps/api/src/client/ai-customer/graph/utils/intent-classifier.ts:63) |

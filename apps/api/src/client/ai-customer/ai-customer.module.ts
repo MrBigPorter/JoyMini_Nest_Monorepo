@@ -9,21 +9,29 @@ import { LuckyDrawModule } from '@api/common/lucky-draw/lucky-draw.module';
 import { KycModule } from '@api/client/kyc/kyc.module';
 import { AuthModule } from '@api/client/auth/auth.module';
 import { ClientCouponModule } from '@api/client/coupon/coupon.module';
-import { FlashSaleModule } from '@api/admin/flash-sale/flash-sale.module';
+import { ClientFlashSaleModule } from '@api/client/flash-sale/flash-sale.module';
 import { AiCustomerService } from '@api/client/ai-customer/ai-customer.service';
 import { AiCustomerController } from '@api/client/ai-customer/ai-customer.controller';
 import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-registry.service';
 import { createFlowTools } from '@api/client/ai-customer/graph/tools/flow-tools';
 import { createProductTools } from '@api/client/ai-customer/graph/tools/product-tools';
+import { createLuckyTools } from '@api/client/ai-customer/graph/tools/lucky-tools';
+import { createKycTools } from '@api/client/ai-customer/graph/tools/kyc-tools';
+import { AGENT_TAGS_FOR_TOOLS } from '@api/client/ai-customer/graph/config/agent-tags';
+import { LuckyDrawService } from '@api/common/lucky-draw/lucky-draw.service';
+import { ClientFlashSaleService } from '@api/client/flash-sale/flash-sale.service';
+import { KycService } from '@api/client/kyc/kyc.service';
 import { TreasureService } from '@api/client/treasure/treasure.service';
-import { CategoryService } from '@api/client/category/ category.service';
+import { CategoryService } from '@api/client/category/category.service';
 
 /**
- * 中心化注册表：在此添加新的 agent tag。
- * 当新增一个 domain agent（如 kycAgent）时，将对应的 tag 加入此数组。
- * AiCustomerModule.onApplicationBootstrap() 会验证所有期望的 tag 都已注册工具。
+ * 需要工具注册的 Agent tag 列表。
+ * 从 AGENT_BASE_MAP 自动推导，包含所有 type !== 'direct' 的 tag。
+ * 新增 Agent 只需在 agent-tags.ts 加 1 行，无需手动更新此数组。
+ *
+ * 当前值: ['order', 'wallet', 'coupon', 'flow', 'user', 'product', 'lucky-draw', 'kyc']
  */
-const EXPECTED_AGENT_TAGS = ['order', 'wallet', 'coupon', 'flow', 'user', 'product'];
+const EXPECTED_AGENT_TAGS = AGENT_TAGS_FOR_TOOLS;
 
 @Module({
   imports: [
@@ -37,7 +45,7 @@ const EXPECTED_AGENT_TAGS = ['order', 'wallet', 'coupon', 'flow', 'user', 'produ
     KycModule,
     AuthModule,
     ClientCouponModule,
-    FlashSaleModule,
+    ClientFlashSaleModule,
   ],
   controllers: [AiCustomerController],
   providers: [AiCustomerService],
@@ -49,6 +57,9 @@ export class AiCustomerModule implements OnApplicationBootstrap {
     private readonly toolRegistry: ToolRegistryService,
     private readonly treasureService: TreasureService,
     private readonly categoryService: CategoryService,
+    private readonly luckyDrawService: LuckyDrawService,
+    private readonly flashSaleService: ClientFlashSaleService,
+    private readonly kycService: KycService,
   ) {}
 
   /**
@@ -65,6 +76,16 @@ export class AiCustomerModule implements OnApplicationBootstrap {
       createProductTools(this.treasureService, this.categoryService),
     );
     this.logger.log('✅ Product tools registered');
+
+    // 注册 lucky-draw + flash sale 工具（依赖 LuckyDrawService + ClientFlashSaleService）
+    this.toolRegistry.registerMany(
+      createLuckyTools(this.luckyDrawService, this.flashSaleService),
+    );
+    this.logger.log('✅ Lucky tools registered');
+
+    // 注册 KYC 工具（依赖 KycService）
+    this.toolRegistry.registerMany(createKycTools(this.kycService));
+    this.logger.log('✅ KYC tools registered');
 
     this.toolRegistry.validateRegistration(EXPECTED_AGENT_TAGS, {
       error: (msg: string) => this.logger.error(msg),

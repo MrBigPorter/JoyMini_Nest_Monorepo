@@ -18,6 +18,8 @@
  * 外箱上都统一贴一个标签：上面打钩（ok=true）表示货物完好，打叉（ok=false）表示破损。
  * 快递员（system）不需要拆开每个箱子检查，看标签就知道货物状态。
  */
+import { toResultSync } from '@lucky/shared';
+
 export type ToolResult<T extends Record<string, any> = Record<string, any>> =
   | { ok: true; data: T }
   | { ok: false; error: string };
@@ -71,16 +73,13 @@ export function parseToolResult<T extends Record<string, any>>(
  * - 无法解析 → 原样返回
  */
 export function stripToolResult(raw: string): string {
-  try {
-    const parsed = JSON.parse(raw);
-    if (parsed.ok === true && parsed.data !== undefined) {
-      return JSON.stringify(parsed.data);
-    }
-    if (parsed.ok === false) {
-      return `Error: ${parsed.error}`;
-    }
-  } catch {
-    // 非 JSON 格式，原样返回
+  const parsed = toResultSync(() => JSON.parse(raw));
+  if (!parsed.success) return raw;
+  if (parsed.data.ok === true && parsed.data.data !== undefined) {
+    return JSON.stringify(parsed.data.data);
+  }
+  if (parsed.data.ok === false) {
+    return `Error: ${parsed.data.error}`;
   }
   return raw;
 }

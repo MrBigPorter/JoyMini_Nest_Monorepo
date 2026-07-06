@@ -7,5 +7,6 @@ import { ClientFlashSaleService } from './flash-sale.service';
   imports: [PrismaModule],
   controllers: [ClientFlashSaleController],
   providers: [ClientFlashSaleService],
+  exports: [ClientFlashSaleService],
 })
 export class ClientFlashSaleModule {}

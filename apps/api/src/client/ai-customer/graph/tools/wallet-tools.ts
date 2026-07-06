@@ -35,6 +35,7 @@ import {
 } from '@api/client/ai-customer/graph/tools/tool-result';
 import { CODE_TYPE, KYC_STATUS, KYC_STATUS_LABEL } from '@lucky/shared';
 import { OtpService } from '@api/client/otp/otp.service';
+import { toResult, toResultChain } from '@lucky/shared';
 
 /** getWalletBalance 返回数据 */
 interface BalanceData {
@@ -97,18 +98,16 @@ export const createWalletTools = (
        * 5. totalWithdraw — 累计提现金额
        */
       tool: tool(
-        async ({ userId }: { userId: string }) => {
-          try {
-            const result = await walletService.balance(userId);
-            const dto = plainToInstance(WalletBalanceResponseDto, result);
-            const llmResult = toLLM(dto, WalletBalanceResponseDto, 'en');
-            return toolSuccess(llmResult);
-          } catch (e) {
-            return toolFailure(
-              `Failed to query wallet balance: ${(e as Error).message}`,
-            );
-          }
-        },
+        async ({ userId }: { userId: string }) =>
+          toResultChain(walletService.balance(userId))
+            .then((data) => {
+              const dto = plainToInstance(WalletBalanceResponseDto, data);
+              const llmResult = toLLM(dto, WalletBalanceResponseDto, 'en');
+              return toolSuccess(llmResult);
+            })
+            .catch((err: Error) =>
+              toolFailure(`Failed to query wallet balance: ${err.message}`),
+            ),
         {
           name: 'getWalletBalance',
           schema: z.object({
@@ -127,19 +126,21 @@ export const createWalletTools = (
        * 2. userId — 当前用户 ID
        */
       tool: tool(
-        async ({ userId, phone }: { userId: string; phone: string }) => {
-          try {
-            const result = await otpService.request({
+        async ({ userId, phone }: { userId: string; phone: string }) =>
+          toResultChain(
+            otpService.request({
               phone,
               codeType: CODE_TYPE.WITHDRAW,
-            });
-            return toolSuccess({
-              message: `OTP sent successfully to ${phone}. Please check your phone for the verification code.`,
-            });
-          } catch (e) {
-            return toolFailure(`Failed to send OTP: ${(e as Error).message}`);
-          }
-        },
+            }),
+          )
+            .then(() =>
+              toolSuccess({
+                message: `OTP sent successfully to ${phone}. Please check your phone for the verification code.`,
+              }),
+            )
+            .catch((err: Error) =>
+              toolFailure(`Failed to send OTP: ${err.message}`),
+            ),
         {
           name: 'requestWithdrawOtp',
           schema: z.object({
@@ -162,21 +163,23 @@ export const createWalletTools = (
           userId: string;
           phone: string;
           code: string;
-        }) => {
-          try {
-            await otpService.verify({
+        }) =>
+          toResultChain(
+            otpService.verify({
               phone,
               code,
               codeType: CODE_TYPE.WITHDRAW,
-            });
-            return toolSuccess({
-              verified: true,
-              message: `OTP verified successfully for ${phone}. You can now proceed with the withdrawal.`,
-            });
-          } catch (e) {
-            return toolFailure(`Failed to verify OTP: ${(e as Error).message}`);
-          }
-        },
+            }),
+          )
+            .then(() =>
+              toolSuccess({
+                verified: true,
+                message: `OTP verified successfully for ${phone}. You can now proceed with the withdrawal.`,
+              }),
+            )
+            .catch((err: Error) =>
+              toolFailure(`Failed to verify OTP: ${err.message}`),
+            ),
         {
           name: 'verifyWithdrawOtp',
           schema: z.object({
@@ -214,42 +217,46 @@ export const createWalletTools = (
           page?: number;
           pageSize?: number;
         }): Promise<string> => {
-          try {
-            const result: Record<string, any> = {};
+          const result: Record<string, any> = {};
 
-            if (!type || type === 'recharge' || type === 'all') {
-              const rechargeRes = await clientWalletService.getRechargeHistory(
-                userId,
-                {
-                  page: page ?? 1,
-                  pageSize: pageSize ?? 10,
-                },
-              );
-              result.recharges = (rechargeRes.list ?? []).map((item: any) =>
-                toLLM(item, RechargeHistoryItemDto, 'en'),
-              );
-              result.rechargeTotal = rechargeRes.total;
-            }
-
-            if (!type || type === 'withdrawal' || type === 'all') {
-              const withdrawRes =
-                await clientWalletService.getWithdrawalHistory(userId, {
-                  page: page ?? 1,
-                  pageSize: pageSize ?? 10,
-                });
-              result.withdrawals = withdrawRes.list.map((item: any) =>
-                toLLM(item, WithdrawalItemResponseDto, 'en'),
-              );
-              result.withdrawTotal = withdrawRes.total;
-            }
-            result.page = page ?? 1;
-            result.pageSize = pageSize ?? 10;
-            return toolSuccess(result);
-          } catch (e) {
-            return toolFailure(
-              `Failed to query wallet transactions: ${(e as Error).message}`,
+          if (!type || type === 'recharge' || type === 'all') {
+            const rechargeRes = await toResult(
+              clientWalletService.getRechargeHistory(userId, {
+                page: page ?? 1,
+                pageSize: pageSize ?? 10,
+              }),
             );
+            if (!rechargeRes.success) {
+              return toolFailure(
+                `Failed to query wallet transactions: ${rechargeRes.error.message}`,
+              );
+            }
+            result.recharges = (rechargeRes.data.list ?? []).map(
+              (item: any) => toLLM(item, RechargeHistoryItemDto, 'en'),
+            );
+            result.rechargeTotal = rechargeRes.data.total;
           }
+
+          if (!type || type === 'withdrawal' || type === 'all') {
+            const withdrawRes = await toResult(
+              clientWalletService.getWithdrawalHistory(userId, {
+                page: page ?? 1,
+                pageSize: pageSize ?? 10,
+              }),
+            );
+            if (!withdrawRes.success) {
+              return toolFailure(
+                `Failed to query wallet transactions: ${withdrawRes.error.message}`,
+              );
+            }
+            result.withdrawals = withdrawRes.data.list.map((item: any) =>
+              toLLM(item, WithdrawalItemResponseDto, 'en'),
+            );
+            result.withdrawTotal = withdrawRes.data.total;
+          }
+          result.page = page ?? 1;
+          result.pageSize = pageSize ?? 10;
+          return toolSuccess(result);
         },
         {
           name: 'getWalletTransactions',
@@ -287,18 +294,16 @@ export const createWalletTools = (
        *  3. riskLevel — 风险等级（low / medium / high）
        */
       tool: tool(
-        async ({ userId }: { userId: string }) => {
-          try {
-            const result = await kycService.getMyKyc(userId);
-            const dto = plainToInstance(KycResponseDto, result);
-            const llmResult = toLLM(dto, KycResponseDto, 'en');
-            return toolSuccess(llmResult);
-          } catch (e) {
-            return toolFailure(
-              `Failed to query KYC status: ${(e as Error).message}`,
-            );
-          }
-        },
+        async ({ userId }: { userId: string }) =>
+          toResultChain(kycService.getMyKyc(userId))
+            .then((data) => {
+              const dto = plainToInstance(KycResponseDto, data);
+              const llmResult = toLLM(dto, KycResponseDto, 'en');
+              return toolSuccess(llmResult);
+            })
+            .catch((err: Error) =>
+              toolFailure(`Failed to query KYC status: ${err.message}`),
+            ),
         {
           name: 'getKycStatus',
           schema: z.object({
@@ -322,34 +327,32 @@ export const createWalletTools = (
        *  8. description — 渠道描述
        */
       tool: tool(
-        async ({ userId, amount }: { userId: string; amount?: number }) => {
-          try {
-            const channels = await paymentChannelService.getClientConfig(2);
-            const filtered =
-              amount !== undefined
-                ? channels.filter((ch) => {
-                    const min = Number(ch.minAmount);
-                    const max = Number(ch.maxAmount);
-                    return amount >= min && amount <= max;
-                  })
-                : channels;
-            const result = filtered.map((ch) => {
-              const llmResult = toLLM(
-                plainToInstance(PaymentConfigItemDto, ch),
-                PaymentConfigItemDto,
-                'zh',
-              );
-              // 问题 A: 过滤 fixedAmounts，防止 LLM 金额幻觉
-              delete (llmResult as any).fixedAmounts;
-              return llmResult;
-            });
-            return toolSuccess(result);
-          } catch (e) {
-            return toolFailure(
-              `Failed to query payment channels: ${(e as Error).message}`,
-            );
-          }
-        },
+        async ({ userId, amount }: { userId: string; amount?: number }) =>
+          toResultChain(paymentChannelService.getClientConfig(2))
+            .then((channels) => {
+              const filtered =
+                amount !== undefined
+                  ? channels.filter((ch: any) => {
+                      const min = Number(ch.minAmount);
+                      const max = Number(ch.maxAmount);
+                      return amount >= min && amount <= max;
+                    })
+                  : channels;
+              const result = filtered.map((ch: any) => {
+                const llmResult = toLLM(
+                  plainToInstance(PaymentConfigItemDto, ch),
+                  PaymentConfigItemDto,
+                  'zh',
+                );
+                // 问题 A: 过滤 fixedAmounts，防止 LLM 金额幻觉
+                delete (llmResult as any).fixedAmounts;
+                return llmResult;
+              });
+              return toolSuccess(result);
+            })
+            .catch((err: Error) =>
+              toolFailure(`Failed to query payment channels: ${err.message}`),
+            ),
         {
           name: 'getPaymentChannels',
           schema: z.object({
@@ -389,44 +392,62 @@ export const createWalletTools = (
           account: string;
           accountName: string;
         }) => {
-          try {
-            // kYC 检查
-            const kyc = await kycService.getMyKyc(userId);
-            if (!kyc || kyc.kycStatus !== KYC_STATUS.APPROVED) {
-              return toolFailure(
-                `KYC not approved. Please complete identity verification first. Current status: ${kyc?.kycStatus} ?? 'unknown'}`,
-              );
-            }
-            //余额检查
-            const balance = await walletService.balance(userId);
-            const realBalance = new Prisma.Decimal(balance.realBalance ?? '0');
-            if (realBalance.lessThan(new Prisma.Decimal(amount))) {
-              return toolFailure(
-                `Insufficient balance. Available: ₱${realBalance.toString()}, requested: ₱${amount}`,
-              );
-            }
-            //幂等性检查（30秒内重复提现）
-            const idKey = `${userId}:${amount}:${channelId}:${account}`;
-            if (isRecentWithdraw(idKey)) {
-              return toolSuccess({
-                message:
-                  'Duplicate withdrawal request detected within 30 seconds. Please wait before trying again.',
-              });
-            }
-            markRecentWithdraw(idKey);
-            // ── 4. 执行提现 ──
-            const dto = new ApplyWithdrawDto();
-            dto.amount = amount;
-            dto.channelId = channelId;
-            dto.account = account;
-            dto.accountName = accountName;
-            const order = await clientWalletService.applyWithdraw(userId, dto);
-            const dtoRes = plainToInstance(WithdrawApplyResponseDto, order);
-            const llmResult = toLLM(dtoRes, WithdrawApplyResponseDto, 'en');
-            return toolSuccess(llmResult);
-          } catch (e) {
-            return toolFailure(`Withdrawal failed: ${(e as Error).message}`);
+          // KYC 检查
+          const kycResult = await toResult(kycService.getMyKyc(userId));
+          if (!kycResult.success) {
+            return toolFailure(
+              `KYC not approved. Please complete identity verification first.`,
+            );
           }
+          const kyc = kycResult.data;
+          if (!kyc || kyc.kycStatus !== KYC_STATUS.APPROVED) {
+            return toolFailure(
+              `KYC not approved. Please complete identity verification first. Current status: ${kyc?.kycStatus ?? 'unknown'}`,
+            );
+          }
+          // 余额检查
+          const balanceResult = await toResult(walletService.balance(userId));
+          if (!balanceResult.success) {
+            return toolFailure(
+              `Failed to check balance: ${balanceResult.error.message}`,
+            );
+          }
+          const balance = balanceResult.data;
+          const realBalance = new Prisma.Decimal(balance.realBalance ?? '0');
+          if (realBalance.lessThan(new Prisma.Decimal(amount))) {
+            return toolFailure(
+              `Insufficient balance. Available: ₱${realBalance.toString()}, requested: ₱${amount}`,
+            );
+          }
+          // 幂等性检查（30秒内重复提现）
+          const idKey = `${userId}:${amount}:${channelId}:${account}`;
+          if (isRecentWithdraw(idKey)) {
+            return toolSuccess({
+              message:
+                'Duplicate withdrawal request detected within 30 seconds. Please wait before trying again.',
+            });
+          }
+          markRecentWithdraw(idKey);
+          // ── 执行提现 ──
+          const dto = new ApplyWithdrawDto();
+          dto.amount = amount;
+          dto.channelId = channelId;
+          dto.account = account;
+          dto.accountName = accountName;
+          const orderResult = await toResult(
+            clientWalletService.applyWithdraw(userId, dto),
+          );
+          if (!orderResult.success) {
+            return toolFailure(
+              `Withdrawal failed: ${orderResult.error.message}`,
+            );
+          }
+          const dtoRes = plainToInstance(
+            WithdrawApplyResponseDto,
+            orderResult.data,
+          );
+          const llmResult = toLLM(dtoRes, WithdrawApplyResponseDto, 'en');
+          return toolSuccess(llmResult);
         },
         {
           name: 'applyWithdraw',

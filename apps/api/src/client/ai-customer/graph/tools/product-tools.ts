@@ -15,7 +15,7 @@
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { ITreasureService } from '@api/client/treasure/treasure.service';
-import { CategoryService } from '@api/client/category/ category.service';
+import { CategoryService } from '@api/client/category/category.service';
 import { toLLM } from '@api/common/ai/utils/to-llm';
 import { TreasureResponseDto } from '@api/client/treasure/dto/treasure-response-dto';
 import { TreasureStatusDto } from '@api/client/treasure/dto/treasure-response-dto';
@@ -26,6 +26,7 @@ import {
   toolFailure,
   toolSuccess,
 } from '@api/client/ai-customer/graph/tools/tool-result';
+import { toResultChain } from '@lucky/shared';
 
 /**
  * "纯函数" 工厂：创建商品浏览/搜索工具
@@ -68,31 +69,31 @@ export const createProductTools = (
           filterType?: string;
           page?: number;
           pageSize?: number;
-        }) => {
-          try {
-            const result = await treasureService.list({
+        }) =>
+          toResultChain(
+            treasureService.list({
               page: page ?? 1,
               pageSize: pageSize ?? 10,
               q: q ?? undefined,
               categoryId: categoryId ?? undefined,
               filterType: filterType ?? 'ALL',
-            });
-            // 将列表中的每个商品通过 toLLM 语义化
-            const llmList = (result.list ?? []).map((item: any) =>
-              toLLM(item, TreasureResponseDto, 'en'),
-            );
-            return toolSuccess({
-              total: result.total,
-              page: result.page,
-              pageSize: result.pageSize,
-              products: llmList,
-            });
-          } catch (e) {
-            return toolFailure(
-              `Failed to search products: ${(e as Error).message}`,
-            );
-          }
-        },
+            }),
+          )
+            .then((data) => {
+              // 将列表中的每个商品通过 toLLM 语义化
+              const llmList = (data.list ?? []).map((item: any) =>
+                toLLM(item, TreasureResponseDto, 'en'),
+              );
+              return toolSuccess({
+                total: data.total,
+                page: data.page,
+                pageSize: data.pageSize,
+                products: llmList,
+              });
+            })
+            .catch((err: Error) =>
+              toolFailure(`Failed to search products: ${err.message}`),
+            ),
         {
           name: 'searchProducts',
           schema: z.object({
@@ -101,10 +102,7 @@ export const createProductTools = (
               .string()
               .optional()
               .describe('Search keyword to filter products by name'),
-            categoryId: z
-              .number()
-              .optional()
-              .describe('Filter by category ID'),
+            categoryId: z.number().optional().describe('Filter by category ID'),
             filterType: z
               .enum(['ALL', 'ON_SALE', 'PRE_SALE'])
               .optional()
@@ -135,18 +133,19 @@ export const createProductTools = (
           userId: string;
           productId: string;
         }) => {
-          try {
-            logger.log(
-              `[product-tools:getProductDetail] userId="${userId}", productId="${productId}"`,
+          logger.log(
+            `[product-tools:getProductDetail] userId="${userId}", productId="${productId}"`,
+          );
+          return toResultChain(treasureService.detail(productId))
+            .then((data) => {
+              const llmResult = toLLM(data, TreasureResponseDto, 'en');
+              return JSON.stringify(llmResult, null, 2);
+            })
+            .catch(() =>
+              JSON.stringify({
+                error: `Unable to find product information. The product may not exist.`,
+              }),
             );
-            const result = await treasureService.detail(productId);
-            const llmResult = toLLM(result, TreasureResponseDto, 'en');
-            return JSON.stringify(llmResult, null, 2);
-          } catch (e) {
-            return JSON.stringify({
-              error: `Unable to find product information. The product may not exist.`,
-            });
-          }
         },
         {
           name: 'getProductDetail',
@@ -176,18 +175,19 @@ export const createProductTools = (
           userId: string;
           productId: string;
         }) => {
-          try {
-            logger.log(
-              `[product-tools:getProductStatus] userId="${userId}", productId="${productId}"`,
+          logger.log(
+            `[product-tools:getProductStatus] userId="${userId}", productId="${productId}"`,
+          );
+          return toResultChain(treasureService.getStatus(productId))
+            .then((data) => {
+              const llmResult = toLLM(data, TreasureStatusDto, 'en');
+              return JSON.stringify(llmResult, null, 2);
+            })
+            .catch(() =>
+              JSON.stringify({
+                error: `Unable to find product status. The product may not exist.`,
+              }),
             );
-            const result = await treasureService.getStatus(productId);
-            const llmResult = toLLM(result, TreasureStatusDto, 'en');
-            return JSON.stringify(llmResult, null, 2);
-          } catch (e) {
-            return JSON.stringify({
-              error: `Unable to find product status. The product may not exist.`,
-            });
-          }
         },
         {
           name: 'getProductStatus',
@@ -210,27 +210,18 @@ export const createProductTools = (
      */
     {
       tool: tool(
-        async ({
-          userId,
-          limit,
-        }: {
-          userId: string;
-          limit?: number;
-        }) => {
-          try {
-            const take = Math.min(Number(limit) || 10, 20);
-            const result = await treasureService.getHotGroups(take, userId);
-            const llmList = (result ?? []).map((item: any) =>
-              toLLM(item, HotGroupItemDto, 'en'),
+        async ({ userId, limit }: { userId: string; limit?: number }) => {
+          const take = Math.min(Number(limit) || 10, 20);
+          return toResultChain(treasureService.getHotGroups(take, userId))
+            .then((data) => {
+              const llmList = (data ?? []).map((item: any) =>
+                toLLM(item, HotGroupItemDto, 'en'),
+              );
+              return toolSuccess({ products: llmList });
+            })
+            .catch((err: Error) =>
+              toolFailure(`Failed to get hot products: ${err.message}`),
             );
-            return toolSuccess({
-              products: llmList,
-            });
-          } catch (e) {
-            return toolFailure(
-              `Failed to get hot products: ${(e as Error).message}`,
-            );
-          }
         },
         {
           name: 'getHotProducts',
@@ -256,27 +247,24 @@ export const createProductTools = (
      */
     {
       tool: tool(
-        async ({ userId }: { userId: string }) => {
-          try {
-            const result = await categoryService.list({ state: 1 });
-            const categories = (result ?? []).map((c: any) => ({
-              id: c.id,
-              name: c.name,
-            }));
-            return toolSuccess({ categories });
-          } catch (e) {
-            return toolFailure(
-              `Failed to get product categories: ${(e as Error).message}`,
-            );
-          }
-        },
+        async ({ userId }: { userId: string }) =>
+          toResultChain(categoryService.list({ state: 1 }))
+            .then((data) => {
+              const categories = (data ?? []).map((c: any) => ({
+                id: c.id,
+                name: c.name,
+              }));
+              return toolSuccess({ categories });
+            })
+            .catch((err: Error) =>
+              toolFailure(`Failed to get product categories: ${err.message}`),
+            ),
         {
           name: 'getProductCategories',
           schema: z.object({
             userId: z.string().describe('The current user ID'),
           }),
-          description:
-            'Get the list of available product categories.',
+          description: 'Get the list of available product categories.',
         },
       ),
       tags: ['product'],

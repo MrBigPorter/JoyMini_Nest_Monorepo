@@ -1,5 +1,29 @@
 🔥 超浓缩记忆版（容器内一律从 /app + workspace）
 
+## ⛔ 绝对禁止
+
+| ❌ 禁止命令 | 原因 |
+|------------|------|
+| `prisma migrate reset` | **删除整个数据库所有表！** —— 会丢失所有生产/开发数据。**绝对不要执行！** |
+
+✅ **正确做法**：如果需要处理某个特定表的变动（如修改数据、重新 seeding），使用目标 SQL 操作：
+```sql
+-- 只清空特定表（保留其他所有数据）
+TRUNCATE TABLE "intent_examples" CASCADE;
+
+-- 或者只修改特定表的数据
+DELETE FROM "intent_examples" WHERE domain = 'wallet';
+```
+然后用 `prisma migrate dev --name <变更>` 仅应用 schema 变更，不影响数据。
+
+如果遇到迁移冲突（已有迁移被修改后无法应用）：
+```
+prisma migrate dev --create-only --skip-generate --name <变更>
+prisma migrate resolve --applied <迁移名>
+```
+这样创建新迁移文件并标记为已应用，**不会动数据库数据**。
+
+
 前提约定（记这个）：
 • 容器名：lucky-backend-dev
 • 容器代码根：/app
@@ -53,11 +77,16 @@ yarn workspace @lucky/api prisma generate --schema prisma/schema.prisma"
 
 4）常见场景 & 故障恢复
 
-4.A 开发库重置（可清空时用）
-docker exec -it lucky-backend-dev sh -lc "\
-cd /app && \
-yarn workspace @lucky/api prisma migrate reset --force --skip-seed --schema prisma/schema.prisma && \
-yarn workspace @lucky/api prisma generate --schema prisma/schema.prisma"
+4.A ⛔ ~~开发库重置（可清空时用）~~ — **绝对禁止使用 `prisma migrate reset`**
+    
+    ❌ 不要这样做：`prisma migrate reset --force` → 删除全部表，丢失所有数据
+    
+    ✅ 正确做法：只操作需要的特定表
+    ```sql
+    -- 清空特定表（保留其他表数据）
+    TRUNCATE TABLE "intent_examples" CASCADE;
+    TRUNCATE TABLE "intent_classification_logs" CASCADE;
+    ```
 
 4.B 已有线上数据库接入（Baseline 基线迁移）
 

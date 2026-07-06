@@ -9,6 +9,7 @@ import {
   toolFailure,
   toolSuccess,
 } from '@api/client/ai-customer/graph/tools/tool-result';
+import { toResultChain } from '@lucky/shared';
 
 /**
  * "纯函数" 工厂：创建订单查询工具
@@ -43,29 +44,29 @@ export const createOrderTools = (orderService: IOrderService): TaggedTool[] => {
           status?: string;
           page?: number;
           pageSize?: number;
-        }) => {
-          try {
-            const result = await orderService.listOrders(userId, {
+        }) =>
+          toResultChain(
+            orderService.listOrders(userId, {
               status: (status as any) ?? 'all',
               page: page ?? 1,
               pageSize: pageSize ?? 10,
-            });
-            // 将列表中的每个订单通过 toLLM 语义化
-            const llmList = (result.list ?? []).map((item: OrderItemDto) =>
-              toLLM(item, OrderItemDto, 'en'),
-            );
-            return toolSuccess({
-              total: result.total,
-              page: result.page,
-              pageSize: result.pageSize,
-              orders: llmList,
-            });
-          } catch (e) {
-            return toolFailure(
-              `Failed to query orders: ${(e as Error).message}`,
-            );
-          }
-        },
+            }),
+          )
+            .then((result) => {
+              const llmList = (result.list ?? []).map(
+                (item: OrderItemDto) =>
+                  toLLM(item, OrderItemDto, 'en'),
+              );
+              return toolSuccess({
+                total: result.total,
+                page: result.page,
+                pageSize: result.pageSize,
+                orders: llmList,
+              });
+            })
+            .catch((err) =>
+              toolFailure(`Failed to query orders: ${err.message}`),
+            ),
         {
           name: 'getUserOrders',
           schema: z.object({
@@ -88,24 +89,23 @@ export const createOrderTools = (orderService: IOrderService): TaggedTool[] => {
      * @param userId - 当前用户 ID，由 LLM 自动传递
      * @param orderId - 订单 ID
      * @returns JSON 字符串，包含订单详情
-     *
      */
     {
       tool: tool(
         async ({ userId, orderId }: { userId: string; orderId: string }) => {
-          try {
-            logger.log(
-              `[order-tools:getOrderInfo] userId="${userId}", orderId="${orderId}"`,
+          logger.log(
+            `[order-tools:getOrderInfo] userId="${userId}", orderId="${orderId}"`,
+          );
+          return toResultChain(orderService.getOrderDetail(userId, orderId))
+            .then((result) => {
+              const llmResult = toLLM(result, OrderItemDto, 'en');
+              return JSON.stringify(llmResult, null, 2);
+            })
+            .catch(() =>
+              JSON.stringify({
+                error: `Unable to find order information. The order may not exist or does not belong to you.`,
+              }),
             );
-            const result = await orderService.getOrderDetail(userId, orderId);
-            // 将单条订单详情通过 toLLM 语义化
-            const llmResult = toLLM(result, OrderItemDto, 'en');
-            return JSON.stringify(llmResult, null, 2);
-          } catch (e) {
-            return JSON.stringify({
-              error: `Unable to find order information. The order may not exist or does not belong to you.`,
-            });
-          }
         },
         {
           name: 'getOrderInfo',

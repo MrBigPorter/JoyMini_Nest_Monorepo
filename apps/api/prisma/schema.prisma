@@ -1716,6 +1716,52 @@ model IntentExample {
   @@index([domain], map: "idx_intent_examples_domain")
   @@map("intent_examples")
 }
+
+// ============================================================
+// AI Customer — Classification Monitoring (Phase 3)
+// ============================================================
+// Phase 3: Log each intent classification for monitoring, metrics,
+// accuracy analysis, and confidence calibration.
+// Recorded asynchronously (fire-and-forget) to not block classify().
+// ============================================================
+
+model IntentClassificationLog {
+  /// Primary key
+  id String @id @default(cuid()) @db.VarChar(32)
+
+  /// Session ID for multi-turn correlation
+  sessionId String @db.VarChar(64)
+
+  /// Original user input text
+  userInput String @db.Text
+
+  /// Primary intent domain determined by classifier
+  primaryIntent String @db.VarChar(32)
+
+  /// All matched labels as JSON array: [{label, score}]
+  allLabels String? @db.Text
+
+  /// Classification method: 'embedding' | 'llm_fallback'
+  method String @db.VarChar(16)
+
+  /// Confidence score of the primary label (0-1)
+  confidence Float?
+
+  /// Classification latency in milliseconds
+  latencyMs Int?
+
+  /// Raw TOP-5 pgvector results as JSON array: [{domain, similarity}]
+  rawTop5 String? @db.Text
+
+  /// Timestamp of classification
+  createdAt DateTime @default(now())
+
+  @@index([sessionId], map: "idx_classification_log_session")
+  @@index([primaryIntent], map: "idx_classification_log_intent")
+  @@index([createdAt], map: "idx_classification_log_created")
+  @@map("intent_classification_logs")
+}
+
 /// 翻译任务日志
 model TranslationJob {
   id          String   @id @default(cuid()) @db.VarChar(32)

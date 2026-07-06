@@ -11,6 +11,7 @@ import {
   toolFailure,
   toolSuccess,
 } from '@api/client/ai-customer/graph/tools/tool-result';
+import { toResultChain } from '@lucky/shared';
 
 /**
  * "纯函数" 工厂：创建优惠券查询/领取工具
@@ -43,32 +44,32 @@ export const createCouponTools = (
           status?: number;
           page?: number;
           pageSize?: number;
-        }) => {
-          try {
-            const result = await couponService.getMyCoupons(userId, {
+        }) =>
+          toResultChain(
+            couponService.getMyCoupons(userId, {
               status,
               page: page ?? 1,
               pageSize: pageSize ?? 10,
-            });
-            const llmList = (result.list ?? []).map((item: any) =>
-              toLLM(
-                plainToInstance(MyCouponResponseDto, item),
-                MyCouponResponseDto,
-                'zh',
-              ),
-            );
-            return toolSuccess({
-              total: result.total,
-              page: result.page,
-              pageSize: result.pageSize,
-              coupons: llmList,
-            });
-          } catch (e) {
-            return toolFailure(
-              `Failed to query coupons: ${(e as Error).message}`,
-            );
-          }
-        },
+            }),
+          )
+            .then((result) => {
+              const llmList = (result.list ?? []).map((item: any) =>
+                toLLM(
+                  plainToInstance(MyCouponResponseDto, item),
+                  MyCouponResponseDto,
+                  'zh',
+                ),
+              );
+              return toolSuccess({
+                total: result.total,
+                page: result.page,
+                pageSize: result.pageSize,
+                coupons: llmList,
+              });
+            })
+            .catch((err) =>
+              toolFailure(`Failed to query coupons: ${err.message}`),
+            ),
         {
           name: 'getUserCoupons',
           schema: z.object({
@@ -96,21 +97,20 @@ export const createCouponTools = (
     {
       tool: tool(
         async ({ userId, couponId }: { userId: string; couponId: string }) => {
-          try {
-            logger.log(
-              `[coupon-tools:claimCoupon] userId="${userId}", couponId="${couponId}"`,
+          logger.log(
+            `[coupon-tools:claimCoupon] userId="${userId}", couponId="${couponId}"`,
+          );
+          return toResultChain(couponService.claimCoupon(userId, couponId, 2))
+            .then((result) =>
+              toolSuccess({
+                userCouponId: result.id,
+                status: result.status,
+                message: 'Successfully claimed the coupon',
+              }),
+            )
+            .catch((err) =>
+              toolFailure(`Failed to claim coupon: ${err.message}`),
             );
-            const result = await couponService.claimCoupon(userId, couponId, 2);
-            return toolSuccess({
-              userCouponId: result.id,
-              status: result.status,
-              message: 'Successfully claimed the coupon',
-            });
-          } catch (e) {
-            return toolFailure(
-              `Failed to claim coupon: ${(e as Error).message}`,
-            );
-          }
         },
         {
           name: 'claimCoupon',
@@ -132,20 +132,19 @@ export const createCouponTools = (
     {
       tool: tool(
         async ({ userId, code }: { userId: string; code: string }) => {
-          try {
-            logger.log(
-              `[coupon-tools:redeemCode] userId="${userId}", code="${code}"`,
+          logger.log(
+            `[coupon-tools:redeemCode] userId="${userId}", code="${code}"`,
+          );
+          return toResultChain(couponService.redeemCode(userId, code))
+            .then(() =>
+              toolSuccess({
+                success: true,
+                message: 'Successfully redeemed the coupon code',
+              }),
+            )
+            .catch((err) =>
+              toolFailure(`Failed to redeem code: ${err.message}`),
             );
-            await couponService.redeemCode(userId, code);
-            return toolSuccess({
-              success: true,
-              message: 'Successfully redeemed the coupon code',
-            });
-          } catch (e) {
-            return toolFailure(
-              `Failed to redeem code: ${(e as Error).message}`,
-            );
-          }
         },
         {
           name: 'redeemCouponCode',
@@ -165,26 +164,26 @@ export const createCouponTools = (
      */
     {
       tool: tool(
-        async ({ userId }: { userId: string }) => {
-          try {
-            const result = await couponService.getClaimableCoupons(userId);
-            const llmList = (result ?? []).map((item: any) =>
-              toLLM(
-                plainToInstance(ClaimableCouponResponseDto, item),
-                ClaimableCouponResponseDto,
-                'zh',
+        async ({ userId }: { userId: string }) =>
+          toResultChain(couponService.getClaimableCoupons(userId))
+            .then((result) => {
+              const llmList = (result ?? []).map((item: any) =>
+                toLLM(
+                  plainToInstance(ClaimableCouponResponseDto, item),
+                  ClaimableCouponResponseDto,
+                  'zh',
+                ),
+              );
+              return toolSuccess({
+                coupons: llmList,
+                total: llmList.length,
+              });
+            })
+            .catch((err) =>
+              toolFailure(
+                `Failed to get claimable coupons: ${err.message}`,
               ),
-            );
-            return toolSuccess({
-              coupons: llmList,
-              total: llmList.length,
-            });
-          } catch (e) {
-            return toolFailure(
-              `Failed to get claimable coupons: ${(e as Error).message}`,
-            );
-          }
-        },
+            ),
         {
           name: 'getClaimableCoupons',
           schema: z.object({
