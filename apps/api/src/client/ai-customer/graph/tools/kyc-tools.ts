@@ -59,6 +59,10 @@
  */
 
 import { KycService } from '@api/client/kyc/kyc.service';
+import { KycResponseDto } from '@api/client/kyc/dto/kyc.response.dto';
+import { KycIdTypesResponseDto } from '@api/client/kyc/dto/kyc-id-types.response.dto';
+import { toLLM } from '@api/common/ai/utils/to-llm';
+import { plainToInstance } from 'class-transformer';
 import { TaggedTool } from '@api/client/ai-customer/graph/tools/tool-registry.service';
 import { Logger } from '@nestjs/common';
 import { tool } from '@langchain/core/tools';
@@ -87,15 +91,11 @@ export const createKycTools = (kycService: KycService): TaggedTool[] => {
         async ({ userId }: { userId: string }) => {
           logger.log(`[kyc-tools:getKycStatus] userId="${userId}"`);
           return toResultChain(kycService.getMyKyc(userId))
-            .then((result) =>
-              toolSuccess({
-                kycStatus: result.kycStatus,
-                idType: result.idType,
-                isSameAddress: result.isSameAddress,
-                riskLevel: result.riskLevel,
-                createdAt: result.createdAt,
-              }),
-            )
+            .then((result) => {
+              const dto = plainToInstance(KycResponseDto, result);
+              const llmResult = toLLM(dto, KycResponseDto, 'en');
+              return toolSuccess(llmResult);
+            })
             .catch((err) =>
               toolFailure(`Failed to get KYC status: ${err.message}`),
             );
@@ -120,16 +120,16 @@ export const createKycTools = (kycService: KycService): TaggedTool[] => {
         async () => {
           logger.log(`[kyc-tools:getIdTypes]`);
           return toResultChain(kycService.getIdTypes())
-            .then((result) =>
-              toolSuccess({
-                idTypes: result.map((type: any) => ({
-                  id: type.id,
-                  name: type.name,
-                  status: type.status,
-                  sortOrder: type.sortOrder,
-                })),
-              }),
-            )
+            .then((result) => {
+              const idTypes = result.map((item: any) =>
+                toLLM(
+                  plainToInstance(KycIdTypesResponseDto, item),
+                  KycIdTypesResponseDto,
+                  'en',
+                ),
+              );
+              return toolSuccess({ idTypes });
+            })
             .catch((err) =>
               toolFailure(`Failed to get ID types: ${err.message}`),
             );

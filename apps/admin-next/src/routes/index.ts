@@ -104,6 +104,18 @@ export const routes: RouteConfig[] = [
 
   // Customer Service
   {
+    path: '/knowledge',
+    name: 'knowledgeBase',
+    icon: FileText,
+    group: 'Customer Service',
+  },
+  {
+    path: '/ai-prompt',
+    name: 'aiPrompt',
+    icon: Sparkles,
+    group: 'Customer Service',
+  },
+  {
     path: '/customer-service',
     name: 'im',
     icon: MessageSquare,

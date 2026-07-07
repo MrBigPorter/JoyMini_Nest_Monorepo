@@ -8,24 +8,23 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-
 model User {
   /// 用户ID
-  id                    String                @id @default(cuid()) @map("id") @db.VarChar(32)
+  id         String   @id @default(cuid()) @map("id") @db.VarChar(32)
   /// 创建时间
-  createdAt             DateTime              @default(now()) @map("created_at")
+  createdAt  DateTime @default(now()) @map("created_at")
   /// 更新时间
-  updatedAt             DateTime              @updatedAt @map("updated_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
   /// 昵称
-  nickname              String?               @map("nickname") @db.VarChar(100)
+  nickname   String?  @map("nickname") @db.VarChar(100)
   /// 头像URL
-  avatar                String?               @map("avatar") @db.VarChar(255)
-  phone                 String                @unique @map("phone") @db.VarChar(20)
-  phoneMd5              String                @map("phone_md5") @db.VarChar(32)
+  avatar     String?  @map("avatar") @db.VarChar(255)
+  phone      String   @unique @map("phone") @db.VarChar(20)
+  phoneMd5   String   @map("phone_md5") @db.VarChar(32)
   /// 邀请码
-  inviteCode            String?               @unique @map("invite_code") @db.VarChar(20)
+  inviteCode String?  @unique @map("invite_code") @db.VarChar(20)
   /// VIP等级
-  vipLevel              Int                   @default(0) @map("vip_level") @db.SmallInt
+  vipLevel   Int      @default(0) @map("vip_level") @db.SmallInt
 
   /// 是否机器人: false-真人 true-机器人
   isRobot Boolean @default(false) @map("is_robot")
@@ -54,22 +53,19 @@ model User {
   withdrawOrders        WithdrawOrder[]
   fcmDevices            Device[]
   chatMessages          ChatMessage[]
-  ChatMember             ChatMember[]
-  friends               Friend[] @relation("UserFriends")
-  friendOf              Friend[] @relation("FriendUsers")
-  sentRequests     FriendRequest[] @relation("RequestSent")
-  receivedRequests FriendRequest[] @relation("RequestReceived")
-  sentJoinRequests     GroupJoinRequest[] @relation("UserApplications")
-  handledJoinRequests  GroupJoinRequest[] @relation("UserHandledRequests")
-  lotteryResults       LotteryResult[]
-  luckyDrawTickets     LuckyDrawTicket[]
-  luckyDrawResults     LuckyDrawResult[]
+  ChatMember            ChatMember[]
+  friends               Friend[]              @relation("UserFriends")
+  friendOf              Friend[]              @relation("FriendUsers")
+  sentRequests          FriendRequest[]       @relation("RequestSent")
+  receivedRequests      FriendRequest[]       @relation("RequestReceived")
+  sentJoinRequests      GroupJoinRequest[]    @relation("UserApplications")
+  handledJoinRequests   GroupJoinRequest[]    @relation("UserHandledRequests")
+  lotteryResults        LotteryResult[]
+  luckyDrawTickets      LuckyDrawTicket[]
+  luckyDrawResults      LuckyDrawResult[]
 
-  supportChannel       SupportChannel? @relation("SupportChannelBotUser")
-  userBookmark         UserBookmark[]
-
-
-
+  supportChannel SupportChannel? @relation("SupportChannelBotUser")
+  userBookmark   UserBookmark[]
 
   @@index([status], map: "idx_user_status")
   @@index([phoneMd5], map: "idx_user_phone_md5")
@@ -81,19 +77,19 @@ model User {
 
 model SupportChannel {
   /// 渠道 ID，同时作为 Flutter 端传入的 businessId
-  id          String   @id @db.VarChar(64)
+  id          String  @id @db.VarChar(64)
   /// 渠道显示名称（英文）
-  name        String   @db.VarChar(100)
+  name        String  @db.VarChar(100)
   /// 渠道描述（后台可见）
-  description String?  @db.VarChar(255)
+  description String? @db.VarChar(255)
   /// 对应的虚拟 bot User ID（一个 bot 仅绑定一个渠道）
-  botUserId   String   @unique @db.VarChar(32)
-  botUser     User     @relation("SupportChannelBotUser", fields: [botUserId], references: [id])
+  botUserId   String  @unique @db.VarChar(32)
+  botUser     User    @relation("SupportChannelBotUser", fields: [botUserId], references: [id])
   /// 软停用开关（历史消息引用 botUserId，不能硬删除）
-  isActive    Boolean  @default(true)
+  isActive    Boolean @default(true)
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([isActive], map: "idx_support_channel_is_active")
   @@map("support_channels")
@@ -175,26 +171,26 @@ model AdminUser {
 
 /// 管理员注册申请表（提交申请 → 超管审批 → 创建账号）
 model AdminRegisterApplication {
-  id            String    @id @default(cuid()) @map("app_id") @db.VarChar(32)
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
+  id        String   @id @default(cuid()) @map("app_id") @db.VarChar(32)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   /// 申请人填写
-  username      String    @map("username") @db.VarChar(50)
-  password      String    @map("password") @db.VarChar(255)
-  realName      String    @map("real_name") @db.VarChar(100)
-  email         String    @map("email") @db.VarChar(100)
-  applyReason   String?   @map("apply_reason")
+  username    String  @map("username") @db.VarChar(50)
+  password    String  @map("password") @db.VarChar(255)
+  realName    String  @map("real_name") @db.VarChar(100)
+  email       String  @map("email") @db.VarChar(100)
+  applyReason String? @map("apply_reason")
   /// 申请时 IP（用于安全审计）
-  applyIp       String?   @map("apply_ip") @db.VarChar(50)
+  applyIp     String? @map("apply_ip") @db.VarChar(50)
 
   /// 审批状态: pending | approved | rejected
-  status        String    @default("pending") @map("status") @db.VarChar(20)
+  status String @default("pending") @map("status") @db.VarChar(20)
 
   /// 审批信息
-  reviewedBy    String?   @map("reviewed_by") @db.VarChar(32)
-  reviewNote    String?   @map("review_note")
-  reviewedAt    DateTime? @map("reviewed_at")
+  reviewedBy String?   @map("reviewed_by") @db.VarChar(32)
+  reviewNote String?   @map("review_note")
+  reviewedAt DateTime? @map("reviewed_at")
 
   @@index([status], map: "idx_app_status")
   @@index([email], map: "idx_app_email")
@@ -320,102 +316,102 @@ model SmsVerificationCode {
 /// ======= 抽奖产品列表=========
 /// 抽奖产品表
 model Treasure {
-  treasureId         String             @id @default(cuid()) @map("treasure_id") @db.VarChar(32)
-  createdAt          DateTime           @default(now()) @map("created_at")
-  updatedAt          DateTime           @updatedAt @map("updated_at")
+  treasureId          String              @id @default(cuid()) @map("treasure_id") @db.VarChar(32)
+  createdAt           DateTime            @default(now()) @map("created_at")
+  updatedAt           DateTime            @updatedAt @map("updated_at")
   /// 产品序列号
-  treasureSeq        String?            @unique @map("treasure_seq") @db.VarChar(50)
+  treasureSeq         String?             @unique @map("treasure_seq") @db.VarChar(50)
   /// 产品名称
-  treasureName       String             @map("treasure_name") @db.VarChar(200)
+  treasureName        String              @map("treasure_name") @db.VarChar(200)
   /// 实物产品名称
-  productName        String?            @map("product_name") @db.VarChar(200)
+  productName         String?             @map("product_name") @db.VarChar(200)
   /// 封面图URL
-  treasureCoverImg   String?            @map("treasure_cover_img") @db.VarChar(255)
+  treasureCoverImg    String?             @map("treasure_cover_img") @db.VarChar(255)
   /// BlurHash 模糊占位图
-  blurhash           String?            @map("blurhash") @db.VarChar(255)
+  blurhash            String?             @map("blurhash") @db.VarChar(255)
   /// 主图列表（JSON数组）
-  mainImageList      Json?              @map("main_image_list")
+  mainImageList       Json?               @map("main_image_list")
   /// 产品成本（PHP）
-  costAmount         Decimal?           @map("cost_amount") @db.Decimal(10, 2)
+  costAmount          Decimal?            @map("cost_amount") @db.Decimal(10, 2)
   /// 单价/每份（PHP）
-  unitAmount         Decimal            @default(1.00) @map("unit_amount") @db.Decimal(10, 2)
+  unitAmount          Decimal             @default(1.00) @map("unit_amount") @db.Decimal(10, 2)
   /// 现金奖励金额
-  cashAmount         Decimal?           @map("cash_amount") @db.Decimal(10, 2)
+  cashAmount          Decimal?            @map("cash_amount") @db.Decimal(10, 2)
   /// 总库存/总份数
-  seqShelvesQuantity Int?               @map("seq_shelves_quantity")
+  seqShelvesQuantity  Int?                @map("seq_shelves_quantity")
   /// 已购买数量
-  seqBuyQuantity     Int                @default(0) @map("seq_buy_quantity")
+  seqBuyQuantity      Int                 @default(0) @map("seq_buy_quantity")
   /// 最小购买量（开奖所需份数）
-  minBuyQuantity     Int?               @map("min_buy_quantity")
+  minBuyQuantity      Int?                @map("min_buy_quantity")
   /// 单人最大购买量
-  maxPerBuyQuantity  Int?               @map("max_per_buy_quantity")
+  maxPerBuyQuantity   Int?                @map("max_per_buy_quantity")
   /// 购买率百分比
-  buyQuantityRate    Decimal?           @map("buy_quantity_rate") @db.Decimal(5, 2)
+  buyQuantityRate     Decimal?            @map("buy_quantity_rate") @db.Decimal(5, 2)
   /// 抽奖模式: 1-售罄模式 2-定时模式
-  lotteryMode        Int?               @map("lottery_mode") @db.SmallInt
+  lotteryMode         Int?                @map("lottery_mode") @db.SmallInt
   /// 开奖时间戳
-  lotteryTime        DateTime?          @map("lottery_time")
+  lotteryTime         DateTime?           @map("lottery_time")
   /// 延迟开奖时间
-  lotteryDelayTime   DateTime?          @map("lottery_delay_time")
+  lotteryDelayTime    DateTime?           @map("lottery_delay_time")
   /// '是否延迟: 0-否 1-是
   /// 0=否 1=是
-  lotteryDelayState  Int                @default(0) @map("lottery_delay_state") @db.SmallInt
+  lotteryDelayState   Int                 @default(0) @map("lottery_delay_state") @db.SmallInt
   /// 图片样式类型
-  imgStyleType       Int                @default(0) @map("img_style_type") @db.SmallInt
+  imgStyleType        Int                 @default(0) @map("img_style_type") @db.SmallInt
   /// 是否虚拟产品: 1-虚拟 2-实物
   /// 1=虚拟 2=实物
-  virtual            Int                @default(2) @map("virtual") @db.SmallInt
+  virtual             Int                 @default(2) @map("virtual") @db.SmallInt
   /// 组团最大人数
-  groupMaxNum        Int                @default(9999) @map("group_max_num")
+  groupMaxNum         Int                 @default(9999) @map("group_max_num")
   /// 单份最大使用金币数
-  maxUnitCoins       Decimal?           @map("max_unit_coins") @db.Decimal(10, 4)
+  maxUnitCoins        Decimal?            @map("max_unit_coins") @db.Decimal(10, 4)
   /// 最大折扣金额
-  maxUnitAmount      Decimal?           @map("max_unit_amount") @db.Decimal(10, 2)
+  maxUnitAmount       Decimal?            @map("max_unit_amount") @db.Decimal(10, 2)
   /// 慈善金额
-  charityAmount      Decimal?           @map("charity_amount") @db.Decimal(10, 2)
+  charityAmount       Decimal?            @map("charity_amount") @db.Decimal(10, 2)
   /// 现金状态
-  cashState          Int?               @map("cash_state") @db.SmallInt
+  cashState           Int?                @map("cash_state") @db.SmallInt
   /// 规则说明（HTML）
-  ruleContent        String?            @map("rule_content")
+  ruleContent         String?             @map("rule_content")
   /// 产品描述（HTML）
-  desc               String?            @map("desc")
+  desc                String?             @map("desc")
   /// 状态: 0-下架 1-上架
   /// 0=下架 1=上架
-  state              Int                @default(1) @map("state") @db.SmallInt
-  hotScore3d         Float              @default(0) @map("hot_score_3d")
-  hotScore7d         Float              @default(0) @map("hot_score_7d")
+  state               Int                 @default(1) @map("state") @db.SmallInt
+  hotScore3d          Float               @default(0) @map("hot_score_3d")
+  hotScore7d          Float               @default(0) @map("hot_score_7d")
   /// 奖励配置
-  bonusConfig        Json?              @map("bonus_config")
+  bonusConfig         Json?               @map("bonus_config")
   /// 成团人数
-  groupSize          Int                @default(5) @map("group_size")
+  groupSize           Int                 @default(5) @map("group_size")
   /// 成团时效
-  groupTimeLimit     Int                @default(86400) @map("group_time_limit")
-  salesEndAt         DateTime?          @map("sales_end_at")
-  salesStartAt       DateTime?          @map("sales_start_at")
+  groupTimeLimit      Int                 @default(86400) @map("group_time_limit")
+  salesEndAt          DateTime?           @map("sales_end_at")
+  salesStartAt        DateTime?           @map("sales_start_at")
   /// 物流类型: 1-实物 2-无需物流
-  shippingType       Int                @default(1) @map("shipping_type") @db.SmallInt
+  shippingType        Int                 @default(1) @map("shipping_type") @db.SmallInt
   /// 乐观锁版本号
-  version            Int                @default(0) @map("version")
+  version             Int                 @default(0) @map("version")
   /// 重量
-  weight             Decimal?           @map("weight") @db.Decimal(10, 3)
+  weight              Decimal?            @map("weight") @db.Decimal(10, 3)
   /// 虚拟销量 (基数，比如设为 1000，前端显示 1000 + seqBuyQuantity)
-  fakeSalesCount     Int                @default(0) @map("fake_sales_count")
-  status             String             @default("ACTIVE") @map("lifecycle_status") @db.VarChar(20)
+  fakeSalesCount      Int                 @default(0) @map("fake_sales_count")
+  status              String              @default("ACTIVE") @map("lifecycle_status") @db.VarChar(20)
   /// 虚拟头像列表 (存一堆头像 URL，前端直接展示)
-  virtualAvatars     Json?              @map("virtual_avatars")
-  enableRobot        Boolean            @default(false) @map("enable_robot")
-  marketAmount       Decimal?           @map("market_amount") @db.Decimal(10, 2)
-  soloAmount         Decimal?           @map("solo_amount") @db.Decimal(10, 2)
+  virtualAvatars      Json?               @map("virtual_avatars")
+  enableRobot         Boolean             @default(false) @map("enable_robot")
+  marketAmount        Decimal?            @map("market_amount") @db.Decimal(10, 2)
+  soloAmount          Decimal?            @map("solo_amount") @db.Decimal(10, 2)
   /// 团长奖励类型: 0-无 1-现金 2-金币 3-免单
-  leaderBonusType    Int                @default(0) @map("leader_bonus_type") @db.SmallInt
+  leaderBonusType     Int                 @default(0) @map("leader_bonus_type") @db.SmallInt
   /// 机器人介入延迟 (秒): 开团多久后未满则机器人介入
-  robotDelay         Int                @default(300) @map("robot_delay")
-  sectionItems       ActSectionItem[]
-  flashSaleProducts  FlashSaleProduct[]
+  robotDelay          Int                 @default(300) @map("robot_delay")
+  sectionItems        ActSectionItem[]
+  flashSaleProducts   FlashSaleProduct[]
   luckyDrawActivities LuckyDrawActivity[]
-  orders             Order[]
-  categories         TreasureCategory[]
-  groups             TreasureGroup[]
+  orders              Order[]
+  categories          TreasureCategory[]
+  groups              TreasureGroup[]
 
   @@index([status, salesEndAt], map: "idx_treasure_cron")
   @@index([lotteryMode])
@@ -736,52 +732,52 @@ model WalletTransaction {
 }
 
 model Order {
-  orderId            String         @id @default(cuid()) @map("order_id") @db.VarChar(32)
-  orderNo            String         @unique @map("order_no") @db.VarChar(50)
-  userId             String         @map("user_id") @db.VarChar(32)
-  treasureId         String         @map("treasure_id") @db.VarChar(32)
-  originalAmount     Decimal        @map("original_amount") @db.Decimal(10, 2)
-  discountAmount     Decimal        @map("discount_amount") @db.Decimal(10, 2)
-  couponAmount       Decimal        @map("coupon_amount") @db.Decimal(10, 2)
-  coinAmount         Decimal        @map("coin_amount") @db.Decimal(10, 2)
-  finalAmount        Decimal        @map("final_amount") @db.Decimal(10, 2)
-  buyQuantity        Int            @map("buy_quantity")
-  unitPrice          Decimal        @map("unit_price") @db.Decimal(10, 2)
+  orderId            String            @id @default(cuid()) @map("order_id") @db.VarChar(32)
+  orderNo            String            @unique @map("order_no") @db.VarChar(50)
+  userId             String            @map("user_id") @db.VarChar(32)
+  treasureId         String            @map("treasure_id") @db.VarChar(32)
+  originalAmount     Decimal           @map("original_amount") @db.Decimal(10, 2)
+  discountAmount     Decimal           @map("discount_amount") @db.Decimal(10, 2)
+  couponAmount       Decimal           @map("coupon_amount") @db.Decimal(10, 2)
+  coinAmount         Decimal           @map("coin_amount") @db.Decimal(10, 2)
+  finalAmount        Decimal           @map("final_amount") @db.Decimal(10, 2)
+  buyQuantity        Int               @map("buy_quantity")
+  unitPrice          Decimal           @map("unit_price") @db.Decimal(10, 2)
   /// // 1待支付 2已支付 3取消 4退款
-  orderStatus        Int            @default(1) @map("order_status") @db.SmallInt
-  payStatus          Int            @default(0) @map("pay_status") @db.SmallInt
-  refundStatus       Int            @default(0) @map("refund_status") @db.SmallInt
-  groupId            String?        @map("group_id") @db.VarChar(32)
-  isGroupOwner       Int            @default(0) @map("is_group_owner") @db.SmallInt
-  coinUsed           Decimal        @default(0) @map("coin_used") @db.Decimal(10, 2)
-  paidAt             DateTime?      @map("paid_at")
-  createdAt          DateTime       @default(now()) @map("created_at")
-  updatedAt          DateTime       @updatedAt @map("updated_at")
-  userCouponId       String?        @unique @map("user_coupon_id") @db.VarChar(32)
-  hasBonus           Int            @default(0) @map("has_bonus") @db.SmallInt
-  logisticsCo        String?        @map("logistics_co") @db.VarChar(50)
-  shippingAddress    Json?          @map("shipping_address")
+  orderStatus        Int               @default(1) @map("order_status") @db.SmallInt
+  payStatus          Int               @default(0) @map("pay_status") @db.SmallInt
+  refundStatus       Int               @default(0) @map("refund_status") @db.SmallInt
+  groupId            String?           @map("group_id") @db.VarChar(32)
+  isGroupOwner       Int               @default(0) @map("is_group_owner") @db.SmallInt
+  coinUsed           Decimal           @default(0) @map("coin_used") @db.Decimal(10, 2)
+  paidAt             DateTime?         @map("paid_at")
+  createdAt          DateTime          @default(now()) @map("created_at")
+  updatedAt          DateTime          @updatedAt @map("updated_at")
+  userCouponId       String?           @unique @map("user_coupon_id") @db.VarChar(32)
+  hasBonus           Int               @default(0) @map("has_bonus") @db.SmallInt
+  logisticsCo        String?           @map("logistics_co") @db.VarChar(50)
+  shippingAddress    Json?             @map("shipping_address")
   /// 0-待发货 1-已发货 2-已签收
-  shippingStatus     Int            @default(0) @map("shipping_status") @db.SmallInt
-  trackingNo         String?        @map("tracking_no") @db.VarChar(50)
+  shippingStatus     Int               @default(0) @map("shipping_status") @db.SmallInt
+  trackingNo         String?           @map("tracking_no") @db.VarChar(50)
   /// 实际退款金额 (记录财务流水)
-  refundAmount       Decimal?       @map("refund_amount") @db.Decimal(10, 2)
+  refundAmount       Decimal?          @map("refund_amount") @db.Decimal(10, 2)
   /// 退款原因
-  refundReason       String?        @map("refund_reason") @db.VarChar(255)
+  refundReason       String?           @map("refund_reason") @db.VarChar(255)
   /// 退款时间
-  refundedAt         DateTime?      @map("refunded_at")
-  refundAppliedBy    String?        @map("refund_applied_by")
-  refundAuditedBy    String?        @map("refund_audited_by")
-  refundRejectReason String?        @map("refund_reject_reason")
-  paymentMethod      Int?           @map("payment_method") @db.SmallInt
-  transactionId      String?        @map("transaction_id") @db.VarChar(100)
+  refundedAt         DateTime?         @map("refunded_at")
+  refundAppliedBy    String?           @map("refund_applied_by")
+  refundAuditedBy    String?           @map("refund_audited_by")
+  refundRejectReason String?           @map("refund_reject_reason")
+  paymentMethod      Int?              @map("payment_method") @db.SmallInt
+  transactionId      String?           @map("transaction_id") @db.VarChar(100)
   /// 秒杀来源（退款时恢复 flashStock 必需）
-  flashSaleProductId String?        @map("flash_sale_product_id") @db.VarChar(32)
-  group              TreasureGroup? @relation(fields: [groupId], references: [groupId], onDelete: Cascade)
-  treasure           Treasure       @relation(fields: [treasureId], references: [treasureId])
-  userCoupon         UserCoupon?    @relation(fields: [userCouponId], references: [id])
+  flashSaleProductId String?           @map("flash_sale_product_id") @db.VarChar(32)
+  group              TreasureGroup?    @relation(fields: [groupId], references: [groupId], onDelete: Cascade)
+  treasure           Treasure          @relation(fields: [treasureId], references: [treasureId])
+  userCoupon         UserCoupon?       @relation(fields: [userCouponId], references: [id])
   flashSaleProduct   FlashSaleProduct? @relation(fields: [flashSaleProductId], references: [id])
-  user               User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user               User              @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId], map: "idx_user_id_order")
   @@index([treasureId], map: "idx_treasure_id_order")
@@ -799,42 +795,42 @@ model SystemConfig {
 
 /// 优惠券模板表 (印钞模板)
 model Coupon {
-  id             String       @id @default(cuid()) @map("coupon_id") @db.VarChar(32)
-  createdAt      DateTime     @default(now()) @map("created_at")
-  updatedAt      DateTime     @updatedAt @map("updated_at")
+  id              String           @id @default(cuid()) @map("coupon_id") @db.VarChar(32)
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
   /// 优惠券名称
-  couponName     String       @map("coupon_name") @db.VarChar(200)
+  couponName      String           @map("coupon_name") @db.VarChar(200)
   /// 优惠券代码 (兑换码用)
-  couponCode     String?      @unique @map("coupon_code") @db.VarChar(50)
+  couponCode      String?          @unique @map("coupon_code") @db.VarChar(50)
   /// 类型: 1-满减券 2-折扣券 3-无门槛现金券
-  couponType     Int          @map("coupon_type") @db.SmallInt
+  couponType      Int              @map("coupon_type") @db.SmallInt
   /// 折扣类型: 1-固定金额(减10块) 2-百分比(打9折)
-  discountType   Int          @default(1) @map("discount_type") @db.SmallInt
+  discountType    Int              @default(1) @map("discount_type") @db.SmallInt
   /// 面额/折扣值 (如 10.00 或 0.90)
-  discountValue  Decimal      @map("discount_value") @db.Decimal(10, 2)
+  discountValue   Decimal          @map("discount_value") @db.Decimal(10, 2)
   /// 最低消费门槛 (0代表无门槛)
-  minPurchase    Decimal      @default(0) @map("min_purchase_amount") @db.Decimal(10, 2)
+  minPurchase     Decimal          @default(0) @map("min_purchase_amount") @db.Decimal(10, 2)
   /// 最高抵扣金额 (防止9折券买游艇亏死)
-  maxDiscount    Decimal?     @map("max_discount_amount") @db.Decimal(10, 2)
+  maxDiscount     Decimal?         @map("max_discount_amount") @db.Decimal(10, 2)
   /// 发放类型: 1-系统发放 2-用户领取 3-兑换码 4-邀请奖励
-  issueType      Int          @default(2) @map("issue_type") @db.SmallInt
+  issueType       Int              @default(2) @map("issue_type") @db.SmallInt
   /// 发行总量 (-1代表不限量)
-  totalQuantity  Int          @default(-1) @map("total_quantity")
+  totalQuantity   Int              @default(-1) @map("total_quantity")
   /// 已发放数量
-  issuedQuantity Int          @default(0) @map("issued_quantity")
+  issuedQuantity  Int              @default(0) @map("issued_quantity")
   /// 每人限领 (-1代表不限)
-  perUserLimit   Int          @default(1) @map("per_user_limit")
+  perUserLimit    Int              @default(1) @map("per_user_limit")
   /// 有效期类型: 1-固定日期范围 2-领券后N天有效
-  validType      Int          @default(1) @map("valid_type") @db.SmallInt
-  validDays      Int?         @map("valid_days")
-  validStartAt   DateTime?    @map("valid_start_time")
-  validEndAt     DateTime?    @map("valid_end_time")
+  validType       Int              @default(1) @map("valid_type") @db.SmallInt
+  validDays       Int?             @map("valid_days")
+  validStartAt    DateTime?        @map("valid_start_time")
+  validEndAt      DateTime?        @map("valid_end_time")
   /// 状态: 0-禁用/结束 1-进行中
-  status         Int          @default(1) @map("status") @db.SmallInt
-  description    String?      @map("description") @db.VarChar(500)
-  ruleDesc       String?      @map("rule_desc")
-  subTitle       String?      @map("sub_title") @db.VarChar(200)
-  userCoupons    UserCoupon[]
+  status          Int              @default(1) @map("status") @db.SmallInt
+  description     String?          @map("description") @db.VarChar(500)
+  ruleDesc        String?          @map("rule_desc")
+  subTitle        String?          @map("sub_title") @db.VarChar(200)
+  userCoupons     UserCoupon[]
   luckyDrawPrizes LuckyDrawPrize[]
 
   @@index([status])
@@ -1155,22 +1151,22 @@ model FlashSaleProduct {
 /// 推送设备表 (用于 FCM)
 model Device {
   /// FCM Token 作为主键 (Token 是唯一的且最重要)
-  token      String   @id @map("fcm_token") @db.VarChar(255)
+  token String @id @map("fcm_token") @db.VarChar(255)
 
   /// 平台类型: android / ios / web
-  platform   String   @map("platform") @db.VarChar(20)
+  platform String @map("platform") @db.VarChar(20)
 
   /// 绑定用户ID (可为空! 允许游客存在)
-  userId     String?  @map("user_id") @db.VarChar(32)
+  userId String? @map("user_id") @db.VarChar(32)
 
   /// 最后活跃时间 (用于清洗死粉，比如超过6个月不活跃就不发了)
   lastActive DateTime @default(now()) @map("last_active_at")
 
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   /// 关联用户 (当用户退出登录时，User 变成 null，但记录保留)
-  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([platform])
@@ -1184,21 +1180,21 @@ model Device {
 
 // 1. 通用会话表
 model Conversation {
-  id           String   @id @default(cuid()) // IM 内部 ID
+  id String @id @default(cuid()) // IM 内部 ID
 
   // 类型: "GROUP"(拼团), "DIRECT"(私信), "SUPPORT"(客服)
-  type         ConversationType
+  type ConversationType
 
   //  业务钩子: 存 TreasureGroup.groupId
-  businessId   String?  @unique
+  businessId String? @unique
 
   // 2. 普通群/私聊专用
-  name         String?          // 群名 (私聊可为空)
-  avatar       String?          // 群头像
-  ownerId      String?          // 群主ID (普通群用)
+  name    String? // 群名 (私聊可为空)
+  avatar  String? // 群头像
+  ownerId String? // 群主ID (普通群用)
 
   // [新增] 会话状态: NORMAL(正常), ARCHIVED(归档/解散), MUTED(全员禁言)
-  status       Int              @default(1)
+  status Int @default(1)
 
   /// 全员禁言开关: false-关 true-开
   isMuteAll        Boolean   @default(false) @map("is_mute_all")
@@ -1206,13 +1202,13 @@ model Conversation {
   joinNeedApproval Boolean   @default(false) @map("join_need_approval")
   /// 群公告内容 (支持简单的 String 或 JSON 结构)
   announcement     String?   @map("announcement") @db.VarChar(2000)
-  announcementAt DateTime?
+  announcementAt   DateTime?
 
   // 快照 (用于列表页快速渲染)
-  lastMsgContent String?
-  lastMsgType    Int?      @default(0)
-  lastMsgTime    DateTime?
-  lastMsgSeqId   Int       @default(0) //  全局 SeqID 发号器
+  lastMsgContent  String?
+  lastMsgType     Int?      @default(0)
+  lastMsgTime     DateTime?
+  lastMsgSeqId    Int       @default(0) //  全局 SeqID 发号器
   // [新增] 快照发送者: 列表页直接显示 "SenderName: Content"
   lastMsgSenderId String?
 
@@ -1221,12 +1217,12 @@ model Conversation {
   members      ChatMember[]
   joinRequests GroupJoinRequest[]
 
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 enum ConversationType {
-  GROUP  // 手动创建的群 (兴趣群、闲聊群)
+  GROUP // 手动创建的群 (兴趣群、闲聊群)
   DIRECT // 私聊 (点对点)
   SUPPORT // 客服聊天 (用户与客服之间)
   BUSINESS // 自动业务群 (拼团、客服、订单) - 也就是之前的 GROUP
@@ -1239,50 +1235,49 @@ model GroupJoinRequest {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // 关系方
-  groupId     String   @map("group_id") @db.VarChar(32)
+  groupId      String       @map("group_id") @db.VarChar(32)
   conversation Conversation @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
-  applicantId String   @map("applicant_id") @db.VarChar(32)
-  applicant   User     @relation("UserApplications", fields: [applicantId], references: [id])
+  applicantId String @map("applicant_id") @db.VarChar(32)
+  applicant   User   @relation("UserApplications", fields: [applicantId], references: [id])
 
-  handlerId   String?  @map("handler_id") @db.VarChar(32) // 处理人 (群主/管理员)
-  handler     User?    @relation("UserHandledRequests", fields: [handlerId], references: [id])
+  handlerId String? @map("handler_id") @db.VarChar(32) // 处理人 (群主/管理员)
+  handler   User?   @relation("UserHandledRequests", fields: [handlerId], references: [id])
 
   // 核心数据
-  reason      String?  @db.VarChar(200) // 申请理由
-  status      Int      @default(0)      // 0: Pending, 1: Accepted, 2: Rejected
-
-  // 索引优化
-  @@index([groupId, status]) // 管理员查“待办”列表时极快
-  @@unique([groupId, applicantId, status]) // 【关键】防止重复提交 Pending 状态的申请 (PostgreSQL 支持部分索引更好，但在 Prisma 里这样写有点难，我们在业务层做 Check)
+  reason String? @db.VarChar(200) // 申请理由
+  status Int     @default(0) // 0: Pending, 1: Accepted, 2: Rejected
   // 替代方案：不加 Unique，在 Service 层做逻辑判断
 
+  @@unique([groupId, applicantId, status]) // 【关键】防止重复提交 Pending 状态的申请 (PostgreSQL 支持部分索引更好，但在 Prisma 里这样写有点难，我们在业务层做 Check)
+  // 索引优化
+  @@index([groupId, status]) // 管理员查“待办”列表时极快
   @@map("group_join_requests")
 }
 
 // 2. 消息表
 model ChatMessage {
-  id             String   @id @default(cuid())
+  id String @id @default(cuid())
 
   conversationId String
   conversation   Conversation @relation(fields: [conversationId], references: [id])
 
-  senderId       String?  // Null = 系统消息
-  sender         User?    @relation(fields: [senderId], references: [id])
+  senderId String? // Null = 系统消息
+  sender   User?   @relation(fields: [senderId], references: [id])
 
-  type           Int      @default(0) // 0:Text, 1:Image, 2:Audio, 3:Video, 99:System
-  content        String   // 文本或 URL
-  meta           Json?    // {w, h, duration, size,blurHash }
+  type    Int    @default(0) // 0:Text, 1:Image, 2:Audio, 3:Video, 99:System
+  content String // 文本或 URL
+  meta    Json? // {w, h, duration, size,blurHash }
 
   //  核心机制
-  seqId          Int      // 序列号
-  clientTempId   String?  // 前端生成的 UUID (用于去重/ACK)
+  seqId        Int // 序列号
+  clientTempId String? // 前端生成的 UUID (用于去重/ACK)
 
-  isRecalled     Boolean  @default(false)
-  createdAt      DateTime @default(now())
+  isRecalled Boolean  @default(false)
+  createdAt  DateTime @default(now())
 
   // 这里的 [] 已经是“可选”含义，代表一个消息可以有 0 个或多个隐藏记录
-  hiddenByUsers  ChatMessageHide[]
+  hiddenByUsers ChatMessageHide[]
 
   @@index([conversationId, seqId]) // 关键索引：拉取历史记录
 }
@@ -1293,41 +1288,41 @@ model ChatMessageHide {
   messageId String
   createdAt DateTime @default(now())
 
+  // 这里的 message 保持必选是安全的，因为隐藏记录产生时，消息一定已经存在
+  message ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
   @@unique([userId, messageId])
   @@index([userId])
-
-  // 这里的 message 保持必选是安全的，因为隐藏记录产生时，消息一定已经存在
-  message   ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
 }
 
 // 3. 成员表
 model ChatMember {
-  id             String       @id @default(cuid())
+  id String @id @default(cuid())
 
   conversationId String
   conversation   Conversation @relation(fields: [conversationId], references: [id])
 
-  userId         String
-  user           User         @relation(fields: [userId], references: [id])
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
 
   // 角色权限
-  role           String       @default("MEMBER") // OWNER, ADMIN, MEMBER
+  role       String    @default("MEMBER") // OWNER, ADMIN, MEMBER
   /// 禁言截止时间 (WebRTC/Chat 逻辑判断: now() < mutedUntil ? 禁言 : 正常)
-  mutedUntil     DateTime?    @map("muted_until")
+  mutedUntil DateTime? @map("muted_until")
   /// 邀请人ID (溯源用，是谁把你拉进群的)
-  inviterId      String?      @map("inviter_id")
+  inviterId  String?   @map("inviter_id")
 
   // 个性化设置
-  nickname       String?      // 在群里的昵称
+  nickname String? // 在群里的昵称
   //  [建议] 增加置顶功能 (微信的置顶聊天)
-  isPinned       Boolean      @default(false)
-  isMuted        Boolean      @default(false)
+  isPinned Boolean @default(false)
+  isMuted  Boolean @default(false)
 
   // 阅读进度 (未读数 = Conversation.lastMsgSeqId - ChatMember.lastReadSeqId)
-  lastReadSeqId  Int          @default(0)
-  clearedSeqId   Int          @default(0) @map("cleared_seq_id")
+  lastReadSeqId Int @default(0)
+  clearedSeqId  Int @default(0) @map("cleared_seq_id")
 
-  joinedAt       DateTime     @default(now())
+  joinedAt DateTime @default(now())
 
   @@unique([conversationId, userId]) // 每个人在每个群只能有一条记录
   @@index([conversationId, role]) //  新增索引：快速查找群里的管理员
@@ -1338,14 +1333,14 @@ model Friend {
   id        String   @id @default(cuid()) @map("id") @db.VarChar(32)
   createdAt DateTime @default(now()) @map("created_at")
 
-  userId    String   @map("user_id") @db.VarChar(32)
-  user      User     @relation("UserFriends", fields: [userId], references: [id])
+  userId String @map("user_id") @db.VarChar(32)
+  user   User   @relation("UserFriends", fields: [userId], references: [id])
 
-  friendId  String   @map("friend_id") @db.VarChar(32)
-  friend    User     @relation("FriendUsers", fields: [friendId], references: [id])
+  friendId String @map("friend_id") @db.VarChar(32)
+  friend   User   @relation("FriendUsers", fields: [friendId], references: [id])
 
-  remark    String?  @db.VarChar(100) // 备注名
-  status    Int      @default(1)      // 1:已添加, 2:黑名单
+  remark String? @db.VarChar(100) // 备注名
+  status Int     @default(1) // 1:已添加, 2:黑名单
 
   @@unique([userId, friendId]) // 关键：防止重复加好友
   @@index([userId])
@@ -1358,19 +1353,19 @@ model FriendRequest {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  fromUserId String   @map("from_user_id") @db.VarChar(32) // 申请人
-  toUserId   String   @map("to_user_id") @db.VarChar(32)   // 被申请人
+  fromUserId String @map("from_user_id") @db.VarChar(32) // 申请人
+  toUserId   String @map("to_user_id") @db.VarChar(32) // 被申请人
 
-  reason     String?  @db.VarChar(200) // 验证消息 "我是老王"
+  reason String? @db.VarChar(200) // 验证消息 "我是老王"
 
   // 状态: 0=待处理, 1=已同意, 2=已拒绝
-  status     Int      @default(0) @db.SmallInt
+  status Int @default(0) @db.SmallInt
 
-  fromUser   User     @relation("RequestSent", fields: [fromUserId], references: [id])
-  toUser     User     @relation("RequestReceived", fields: [toUserId], references: [id])
+  fromUser User @relation("RequestSent", fields: [fromUserId], references: [id])
+  toUser   User @relation("RequestReceived", fields: [toUserId], references: [id])
 
   @@unique([fromUserId, toUserId]) // 防止重复申请
-  @@index([toUserId, status])      // 方便查"谁加了我"
+  @@index([toUserId, status]) // 方便查"谁加了我"
   @@map("friend_requests")
 }
 
@@ -1514,52 +1509,52 @@ enum TranslationStatus {
 
 /// 博客文章
 model BlogArticle {
-  id            String        @id @default(cuid()) @db.VarChar(32)
-  title         String        @db.VarChar(255)
-  slug          String        @unique @db.VarChar(255)
-  content       String        @db.Text
-  contentMd     String?       @db.Text
-  excerpt       String?       @db.Text
-  coverImage    String?       @db.VarChar(255)
+  id         String  @id @default(cuid()) @db.VarChar(32)
+  title      String  @db.VarChar(255)
+  slug       String  @unique @db.VarChar(255)
+  content    String  @db.Text
+  contentMd  String? @db.Text
+  excerpt    String? @db.Text
+  coverImage String? @db.VarChar(255)
 
   // ========== 新多语言字段 ==========
-  titleLocalized   Json?
-  excerptLocalized Json?
-  contentLocalized Json?
-  contentMdLocalized Json?
+  titleLocalized      Json?
+  excerptLocalized    Json?
+  contentLocalized    Json?
+  contentMdLocalized  Json?
   coverImageLocalized Json?
-  status        ArticleStatus @default(DRAFT)
-  publishedAt   DateTime?
-  viewCount     Int           @default(0)
-  likeCount     Int           @default(0)
-  commentCount  Int           @default(0)
-  featured      Boolean       @default(false)
-  meta          Json?
+  status              ArticleStatus @default(DRAFT)
+  publishedAt         DateTime?
+  viewCount           Int           @default(0)
+  likeCount           Int           @default(0)
+  commentCount        Int           @default(0)
+  featured            Boolean       @default(false)
+  meta                Json?
 
   // ========== 英文翻译 ==========
-  titleEn       String?       @db.VarChar(255)
-  contentEn     String?       @db.Text
-  contentMdEn   String?       @db.Text
-  excerptEn     String?       @db.Text
+  titleEn     String? @db.VarChar(255)
+  contentEn   String? @db.Text
+  contentMdEn String? @db.Text
+  excerptEn   String? @db.Text
 
   // ========== 翻译状态 ==========
   translationStatus TranslationStatus @default(PENDING)
-  translatedAt    DateTime?
-  
-  authorId      String        @db.VarChar(32)
-  author        AdminUser     @relation(fields: [authorId], references: [id], onDelete: Restrict)
-  
-  categoryId    String?       @db.VarChar(32)
-  category      BlogCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  
-  tags          BlogTag[]     @relation("BlogArticleTags")
-  comments      BlogComment[]
-  userBookmark UserBookmark[]
+  translatedAt      DateTime?
+
+  authorId String    @db.VarChar(32)
+  author   AdminUser @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  categoryId String?       @db.VarChar(32)
+  category   BlogCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  tags            BlogTag[]        @relation("BlogArticleTags")
+  comments        BlogComment[]
+  userBookmark    UserBookmark[]
   translationJobs TranslationJob[]
 
-  createdAt     DateTime      @default(now()) @map("created_at")
-  updatedAt     DateTime      @updatedAt @map("updated_at")
-  
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
   @@index([slug], map: "idx_blog_article_slug")
   @@index([status], map: "idx_blog_article_status")
   @@index([createdAt], map: "idx_blog_article_created_at")
@@ -1571,17 +1566,17 @@ model BlogArticle {
 
 /// 博客分类
 model BlogCategory {
-  id          String        @id @default(cuid()) @db.VarChar(32)
-  name        Json          @db.JsonB
-  slug        String        @unique @db.VarChar(100)
-  description Json?         @db.JsonB
-  parentId    String?       @db.VarChar(32)
-  parent      BlogCategory? @relation("BlogCategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
-  children    BlogCategory[] @relation("BlogCategoryHierarchy")
-  articles    BlogArticle[]
+  id              String           @id @default(cuid()) @db.VarChar(32)
+  name            Json             @db.JsonB
+  slug            String           @unique @db.VarChar(100)
+  description     Json?            @db.JsonB
+  parentId        String?          @db.VarChar(32)
+  parent          BlogCategory?    @relation("BlogCategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children        BlogCategory[]   @relation("BlogCategoryHierarchy")
+  articles        BlogArticle[]
   translationJobs TranslationJob[]
-  createdAt   DateTime      @default(now()) @map("created_at")
-  updatedAt   DateTime      @updatedAt @map("updated_at")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
 
   @@index([slug], map: "idx_blog_category_slug")
   @@index([parentId], map: "idx_blog_category_parent_id")
@@ -1590,54 +1585,54 @@ model BlogCategory {
 
 /// 博客标签
 model BlogTag {
-  id          String        @id @default(cuid()) @db.VarChar(32)
-  name        Json          @db.JsonB
-  slug        String        @unique @db.VarChar(50)
-  color       String?       @default("#3b82f6") @db.VarChar(7)
-  description Json?         @db.JsonB
-  articles    BlogArticle[] @relation("BlogArticleTags")
+  id              String           @id @default(cuid()) @db.VarChar(32)
+  name            Json             @db.JsonB
+  slug            String           @unique @db.VarChar(50)
+  color           String?          @default("#3b82f6") @db.VarChar(7)
+  description     Json?            @db.JsonB
+  articles        BlogArticle[]    @relation("BlogArticleTags")
   translationJobs TranslationJob[]
-  createdAt   DateTime      @default(now()) @map("created_at")
-  updatedAt   DateTime      @default(now()) @updatedAt @map("updated_at")
-  
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @default(now()) @updatedAt @map("updated_at")
+
   @@index([slug], map: "idx_blog_tag_slug")
   @@map("blog_tags")
 }
 
 /// 博客评论
 model BlogComment {
-  id        String         @id @default(cuid()) @db.VarChar(32)
-  articleId String         @db.VarChar(32)
-  article   BlogArticle    @relation(fields: [articleId], references: [id], onDelete: Cascade)
-  author    String         @db.VarChar(100)
-  email     String         @db.VarChar(100)
-  website   String?        @db.VarChar(255)
-  content   String         @db.Text
-  status    CommentStatus  @default(PENDING)
-  ipAddress String?        @db.VarChar(45)
-  userAgent String?        @db.Text
-  
-  parentId  String?        @db.VarChar(32)
-  parent    BlogComment?   @relation("BlogCommentHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
-  children  BlogComment[]  @relation("BlogCommentHierarchy")
-  
-  /// AI 审核评分 0-100 分数越高违规风险越大
-  aiModerationScore     Int?        @map("ai_moderation_score") @db.SmallInt
-  /// AI 审核原因说明
-  aiModerationReason    String?     @map("ai_moderation_reason") @db.Text
-  /// AI 检测到的违规分类标签 逗号分隔
-  aiModerationCategories String?    @map("ai_moderation_categories") @db.VarChar(255)
-  /// AI 审核完成时间
-  aiModeratedAt         DateTime?   @map("ai_moderated_at")
-  
-  /// 是否为AI自动生成的回复
-  isAiGenerated         Boolean     @default(false) @map("is_ai_generated")
-  /// 管理员回复内容 (多语言 JSON 对象, e.g. {"zh":"回复","en":"reply"})
-  reply                 Json?       @map("reply")
+  id        String        @id @default(cuid()) @db.VarChar(32)
+  articleId String        @db.VarChar(32)
+  article   BlogArticle   @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  author    String        @db.VarChar(100)
+  email     String        @db.VarChar(100)
+  website   String?       @db.VarChar(255)
+  content   String        @db.Text
+  status    CommentStatus @default(PENDING)
+  ipAddress String?       @db.VarChar(45)
+  userAgent String?       @db.Text
 
-  createdAt DateTime       @default(now()) @map("created_at")
-  updatedAt DateTime       @updatedAt @map("updated_at")
-  
+  parentId String?       @db.VarChar(32)
+  parent   BlogComment?  @relation("BlogCommentHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children BlogComment[] @relation("BlogCommentHierarchy")
+
+  /// AI 审核评分 0-100 分数越高违规风险越大
+  aiModerationScore      Int?      @map("ai_moderation_score") @db.SmallInt
+  /// AI 审核原因说明
+  aiModerationReason     String?   @map("ai_moderation_reason") @db.Text
+  /// AI 检测到的违规分类标签 逗号分隔
+  aiModerationCategories String?   @map("ai_moderation_categories") @db.VarChar(255)
+  /// AI 审核完成时间
+  aiModeratedAt          DateTime? @map("ai_moderated_at")
+
+  /// 是否为AI自动生成的回复
+  isAiGenerated Boolean @default(false) @map("is_ai_generated")
+  /// 管理员回复内容 (多语言 JSON 对象, e.g. {"zh":"回复","en":"reply"})
+  reply         Json?   @map("reply")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
   @@index([articleId], map: "idx_blog_comment_article_id")
   @@index([status], map: "idx_blog_comment_status")
   @@index([createdAt], map: "idx_blog_comment_created_at")
@@ -1648,19 +1643,18 @@ model BlogComment {
 
 /// 用户文章收藏表
 model UserBookmark {
-  id        String     @id @default(cuid()) @db.VarChar(32)
-  userId    String     @db.VarChar(32)
-  articleId String     @db.VarChar(32)
-  createdAt DateTime   @default(now()) @map("created_at")
-  updatedAt DateTime   @updatedAt @map("updated_at")
-  
+  id        String   @id @default(cuid()) @db.VarChar(32)
+  userId    String   @db.VarChar(32)
+  articleId String   @db.VarChar(32)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // 关联关系
+  user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  article BlogArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
   // 唯一约束：一个用户只能收藏同一篇文章一次
   @@unique([userId, articleId])
-  
-  // 关联关系
-  user    User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  article BlogArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
-  
   @@index([userId], map: "idx_user_bookmark_user_id")
   @@index([articleId], map: "idx_user_bookmark_article_id")
   @@index([createdAt], map: "idx_user_bookmark_created_at")
@@ -1713,6 +1707,11 @@ model IntentExample {
   /// Uses pgvector extension: vector(1024)
   embedding Unsupported("vector(1024)")?
 
+  /// MD5 hash of JSON.stringify(INTENT_EXAMPLE_GROUPS) at seed time
+  /// Used by Defect #07 to detect when examples change in source code
+  /// @default("") allows migration on existing tables — old rows get "" and trigger re-seed on next startup
+  configHash String @default("") @db.VarChar(64)
+
   @@index([domain], map: "idx_intent_examples_domain")
   @@map("intent_examples")
 }
@@ -1762,31 +1761,184 @@ model IntentClassificationLog {
   @@map("intent_classification_logs")
 }
 
+/// 知识文档 — 用于 AI Customer Service RAG 检索
+model KnowledgeDocument {
+  /// 主键 ID
+  id             String          @id @default(cuid()) @map("id") @db.VarChar(32)
+  /// 创建时间
+  createdAt      DateTime        @default(now()) @map("created_at")
+  /// 更新时间
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+  /// 文档标题（来自 frontmatter title）
+  title          String          @map("title") @db.VarChar(255)
+  /// 域名（product / order / wallet / coupon / kyc / user / lucky-draw / common）
+  domain         String          @map("domain") @db.VarChar(50)
+  /// 文档 ID（来自 frontmatter docId，用于去重）
+  docId          String          @map("doc_id") @db.VarChar(100)
+  /// 关键词数组（来自 frontmatter keywords）
+  keywords       String[]        @map("keywords") @db.VarChar(100)
+  /// 语言（en / zh / ja / ko / fr / de）
+  locale         String          @default("en") @map("locale") @db.VarChar(10)
+  /// 内容类型（policy / how-to / troubleshooting / faq / reference）
+  contentType    String          @default("policy") @map("content_type") @db.VarChar(30)
+  /// 优先级（P0 / P1 / P2）
+  priority       String          @default("P2") @map("priority") @db.VarChar(5)
+  /// 文档正文 Markdown
+  content        String          @map("content") @db.Text
+  /// 是否启用
+  isActive       Boolean         @default(true) @map("is_active")
+  /// 版本号（每次更新 +1）
+  version        Int             @default(1) @map("version") @db.SmallInt
+  documentChunks DocumentChunk[]
+
+  /// 唯一约束：同一语言的同一文档只能有一条记录
+  @@unique([docId, locale])
+  /// 索引：按 domain + isActive 查询
+  @@index([domain, isActive])
+  @@map("knowledge_documents")
+}
+
+model DocumentChunk {
+  id              String                       @id @default(cuid()) @map("id") @db.VarChar(32)
+  documentId      String                       @map("document_id") @db.VarChar(32)
+  chunkIndex      Int                          @map("chunk_index") @db.SmallInt
+  content         String                       @map("content") @db.Text
+  embedding       Unsupported("vector(1024)")?
+  tokenCount      Int?                         @map("token_count") @db.SmallInt
+  /// 生成此 chunk 时对应的文档版本（用于检测过期）
+  documentVersion Int                          @default(1) @map("document_version") @db.SmallInt
+  createdAt       DateTime                     @default(now()) @map("created_at")
+  updatedAt       DateTime                     @updatedAt @map("updated_at")
+
+  document KnowledgeDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@map("document_chunks")
+}
+
 /// 翻译任务日志
 model TranslationJob {
-  id          String   @id @default(cuid()) @db.VarChar(32)
-  type        String   @db.VarChar(50)   // translate-article | translate-category | translate-tag
-  targetId    String   @db.VarChar(32)   // articleId / categoryId / tagId
-  targetLang  String   @db.VarChar(10)
-  status      String   @db.VarChar(20)   // QUEUED | PROCESSING | COMPLETED | FAILED
-  progress    Int      @default(0) @db.SmallInt  // 0-100
-  errorMsg    String?  @db.Text
-  createdAt   DateTime @default(now()) @map("created_at")
+  id          String    @id @default(cuid()) @db.VarChar(32)
+  type        String    @db.VarChar(50) // translate-article | translate-category | translate-tag
+  targetId    String    @db.VarChar(32) // articleId / categoryId / tagId
+  targetLang  String    @db.VarChar(10)
+  status      String    @db.VarChar(20) // QUEUED | PROCESSING | COMPLETED | FAILED
+  progress    Int       @default(0) @db.SmallInt // 0-100
+  errorMsg    String?   @db.Text
+  createdAt   DateTime  @default(now()) @map("created_at")
   startedAt   DateTime? @map("started_at")
   completedAt DateTime? @map("completed_at")
 
   // 关系字段
-  articleId   String?   @db.VarChar(32)
-  article     BlogArticle? @relation(fields: [articleId], references: [id], onDelete: Cascade)
-  
-  categoryId  String?   @db.VarChar(32)
-  category    BlogCategory? @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  
-  tagId       String?   @db.VarChar(32)
-  tag         BlogTag? @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  articleId String?      @db.VarChar(32)
+  article   BlogArticle? @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  categoryId String?       @db.VarChar(32)
+  category   BlogCategory? @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  tagId String?  @db.VarChar(32)
+  tag   BlogTag? @relation(fields: [tagId], references: [id], onDelete: Cascade)
 
   @@index([status], map: "idx_translation_job_status")
   @@index([type, targetId], map: "idx_translation_job_type_target")
   @@index([targetLang], map: "idx_translation_job_target_lang")
   @@map("translation_jobs")
+}
+
+// ============================================================
+// AI Customer — Prompt Management (Phase 2)
+// ============================================================
+// Prompt config stored in DB, overrides hardcoded TS AgentPromptConfig.
+// Design aligns with docs/AI-joymini/RAG/13-RAG企业级落地架构深度分析.md
+// ============================================================
+
+/// Prompt config: stored in DB, overrides hardcoded TS AgentPromptConfig
+model KnowledgePrompt {
+  id            String @id @default(cuid()) @db.VarChar(32)
+  name          String @unique @db.VarChar(64)   // e.g. "order-agent", "wallet-agent"
+  displayName   String @db.VarChar(128)          // e.g. "Order Agent Prompt"
+  description   String? @db.VarChar(512)
+  category      String @db.VarChar(32)           // "agent" | "system" | "intent"
+  domain        String? @db.VarChar(32)          // domain if agent, null if system
+
+  /// TS file as fallback — if true and no DB override found, use TS defaults
+  tsFallback    Boolean @default(true)
+  activeVersion Int @default(1)
+
+  status        String @default("active")         // active | inactive | draft | archived
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  versions      KnowledgePromptVersion[]
+  testRuns      KnowledgePromptTestRun[]
+
+  @@index([category, status])
+  @@index([domain])
+  @@map("knowledge_prompts")
+}
+
+/// Prompt version: auto-created on each admin edit
+model KnowledgePromptVersion {
+  id            String @id @default(cuid()) @db.VarChar(32)
+  promptId      String
+  version       Int                               // auto-increment within prompt
+  config        Json                              // FULL merged AgentPromptConfig snapshot
+  changeLog     String? @db.VarChar(512)
+  authorId      String? @db.VarChar(32)
+
+  /// Aggregated metrics (updated by background job)
+  metrics       Json?                             // {avgToolSuccess, totalConversations, avgLatency, hallucinationRate}
+  isActive      Boolean @default(false)
+
+  prompt        KnowledgePrompt @relation(fields: [promptId], references: [id], onDelete: Cascade)
+  createdAt     DateTime @default(now())
+
+  @@unique([promptId, version])
+  @@index([promptId])
+  @@map("knowledge_prompt_versions")
+}
+
+/// Prompt test run: admin can manually test a prompt version
+model KnowledgePromptTestRun {
+  id              String @id @default(cuid()) @db.VarChar(32)
+  promptId        String
+  version         Int
+  testQuery       String @db.VarChar(512)
+  expectedOutcome String? @db.Text
+  actualOutput    String? @db.Text
+  score           Float?                          // 0-100
+  latencyMs       Int?
+  passed          Boolean?
+  createdBy       String? @db.VarChar(32)
+  createdAt       DateTime @default(now())
+
+  prompt          KnowledgePrompt @relation(fields: [promptId], references: [id], onDelete: Cascade)
+
+  @@index([promptId, version])
+  @@map("knowledge_prompt_test_runs")
+}
+
+/// Evaluation log: per-conversation metrics (fire-and-forget, non-blocking)
+model KnowledgePromptEvalLog {
+  id              String @id @default(cuid()) @db.VarChar(32)
+  promptName      String @db.VarChar(64)
+  version         Int
+  sessionId       String @db.VarChar(64)
+
+  /// Auto metrics (always collected)
+  toolCallCount   Int @default(0)
+  toolFailCount   Int @default(0)
+  totalTokens     Int @default(0)
+  latencyMs       Int?
+  hallucinationFlagged Boolean @default(false)    // heuristic: tool result mentions "no data"
+
+  /// LLM-as-Judge (nullable, sampled — future use)
+  judgeScore      Float?                          // 0-1, null if not sampled
+  judgeReason     String? @db.Text
+
+  createdAt       DateTime @default(now())
+
+  @@index([promptName, version])
+  @@index([createdAt])
+  @@map("knowledge_prompt_eval_logs")
 }

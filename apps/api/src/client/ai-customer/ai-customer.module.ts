@@ -11,6 +11,8 @@ import { AuthModule } from '@api/client/auth/auth.module';
 import { ClientCouponModule } from '@api/client/coupon/coupon.module';
 import { ClientFlashSaleModule } from '@api/client/flash-sale/flash-sale.module';
 import { AiCustomerService } from '@api/client/ai-customer/ai-customer.service';
+import { RagRetrievalService } from '@api/client/ai-customer/knowledge/rag-retrieval.service';
+import { PromptResolverService } from '@api/client/ai-customer/knowledge/prompt-resolver.service';
 import { AiCustomerController } from '@api/client/ai-customer/ai-customer.controller';
 import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-registry.service';
 import { createFlowTools } from '@api/client/ai-customer/graph/tools/flow-tools';
@@ -48,7 +50,7 @@ const EXPECTED_AGENT_TAGS = AGENT_TAGS_FOR_TOOLS;
     ClientFlashSaleModule,
   ],
   controllers: [AiCustomerController],
-  providers: [AiCustomerService],
+  providers: [AiCustomerService, RagRetrievalService, PromptResolverService],
 })
 export class AiCustomerModule implements OnApplicationBootstrap {
   private readonly logger = new Logger(AiCustomerModule.name);

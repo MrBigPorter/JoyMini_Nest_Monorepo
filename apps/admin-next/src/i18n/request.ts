@@ -25,6 +25,7 @@ type RawLocaleJson = {
   ads?: Record<string, string>;
   flashSale?: Record<string, string>;
   luckyDraw?: Record<string, string>;
+  knowledgeBase?: Record<string, string>;
   notifications?: Record<string, string>;
   customerService?: Record<string, string>;
   supportChannels?: Record<string, string>;
@@ -57,6 +58,7 @@ function flatten(raw: RawLocaleJson): Record<string, unknown> {
     ...(raw.ads ? { ads: raw.ads } : {}),
     ...(raw.flashSale ? { flashSale: raw.flashSale } : {}),
     ...(raw.luckyDraw ? { luckyDraw: raw.luckyDraw } : {}),
+    ...(raw.knowledgeBase ? { knowledgeBase: raw.knowledgeBase } : {}),
     ...(raw.notifications ? { notifications: raw.notifications } : {}),
     ...(raw.customerService ? { customerService: raw.customerService } : {}),
     ...(raw.supportChannels ? { supportChannels: raw.supportChannels } : {}),
@@ -154,6 +156,13 @@ export default getRequestConfig(async ({ requestLocale }) => {
           luckyDraw: {
             ...(enFlat.luckyDraw as Record<string, string>),
             ...(localeFlat.luckyDraw as Record<string, string> | undefined),
+          },
+          // knowledgeBase needs its own deep merge
+          knowledgeBase: {
+            ...(enFlat.knowledgeBase as Record<string, string>),
+            ...(localeFlat.knowledgeBase as
+              | Record<string, string>
+              | undefined),
           },
           // notifications needs its own deep merge
           notifications: {

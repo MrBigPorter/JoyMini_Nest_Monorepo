@@ -4,8 +4,11 @@
  */
 
 import http from './http';
-import type { PaginatedResponse, PaginationParams } from './types';
-import type { RequestConfig } from './types';
+import type {
+  PaginatedResponse,
+  PaginationParams,
+  RequestConfig,
+} from './types';
 import {
   Product,
   Category,
@@ -64,6 +67,11 @@ import {
   CreateLuckyDrawPrizePayload,
   UpdateLuckyDrawPrizePayload,
   QueryLuckyDrawResultsParams,
+  KnowledgeDocument,
+  DocumentChunk,
+  CreateKnowledgeDocPayload,
+  UpdateKnowledgeDocPayload,
+  QueryKnowledgeDocParams,
 } from '@/type/types';
 
 /**
@@ -1155,4 +1163,156 @@ export const luckyDrawApi = {
       ),
     };
   },
+};
+
+/**
+ * Knowledge Base (RAG) API
+ */
+export const knowledgeApi = {
+  /** List documents (paginated, filterable) */
+  list: (params?: QueryKnowledgeDocParams) =>
+    http.get<PaginatedResponse<KnowledgeDocument>>(
+      '/v1/admin/rag/documents',
+      params,
+    ),
+
+  /** Get document by ID */
+  getById: (id: string) =>
+    http.get<KnowledgeDocument>(`/v1/admin/rag/documents/${id}`),
+
+  /** Create a new document */
+  create: (data: CreateKnowledgeDocPayload) =>
+    http.post<KnowledgeDocument>('/v1/admin/rag/documents', data),
+
+  /** Update document */
+  update: (id: string, data: UpdateKnowledgeDocPayload) =>
+    http.patch<KnowledgeDocument>(`/v1/admin/rag/documents/${id}`, data),
+
+  /** Soft delete document */
+  delete: (id: string) => http.delete(`/v1/admin/rag/documents/${id}`),
+
+  /** Upload .md or .pdf file (multipart) */
+  upload: (
+    file: File,
+    extraFields?: Record<string, string>,
+    onProgress?: (percent: number) => void,
+  ) =>
+    http.upload<{ document: KnowledgeDocument; action: 'created' | 'updated' }>(
+      '/v1/admin/rag/documents/upload',
+      file,
+      onProgress,
+      { extraFields },
+    ),
+
+  /** Get chunks for a document */
+  getChunks: (documentId: string) =>
+    http.get<DocumentChunk[]>(`/v1/admin/rag/documents/${documentId}/chunks`),
+
+  /** Re-chunk and re-embed a document */
+  reindex: (documentId: string) =>
+    http.post<{
+      successCount: number;
+      failCount: number;
+      errors: { chunkIndex: number; reason: string }[];
+    }>(`/v1/admin/rag/documents/${documentId}/reindex`),
+
+  /** Get distinct domains for filter dropdown */
+  getDomains: () => http.get<string[]>('/v1/admin/rag/documents/meta/domains'),
+};
+
+/**
+ * AI Prompt Management API
+ */
+export const aiPromptApi = {
+  /** List prompts (paginated, filterable) */
+  list: (params?: import('@/type/types').QueryPromptParams) =>
+    http.get<PaginatedResponse<import('@/type/types').KnowledgePrompt>>(
+      '/v1/admin/ai-prompt',
+      params,
+    ),
+
+  /** Get prompt by ID with version history */
+  getById: (id: string) =>
+    http.get<import('@/type/types').KnowledgePrompt>(
+      `/v1/admin/ai-prompt/${id}`,
+    ),
+
+  /** Create a new prompt */
+  create: (data: import('@/type/types').CreatePromptPayload) =>
+    http.post<import('@/type/types').KnowledgePrompt>(
+      '/v1/admin/ai-prompt',
+      data,
+    ),
+
+  /** Update prompt metadata */
+  update: (id: string, data: import('@/type/types').UpdatePromptPayload) =>
+    http.put<import('@/type/types').KnowledgePrompt>(
+      `/v1/admin/ai-prompt/${id}`,
+      data,
+    ),
+
+  /** Archive a prompt (soft delete) */
+  delete: (id: string) => http.delete(`/v1/admin/ai-prompt/${id}`),
+
+  // ---- Versions ----
+
+  /** List versions for a prompt */
+  getVersions: (promptId: string) =>
+    http.get<import('@/type/types').KnowledgePromptVersion[]>(
+      `/v1/admin/ai-prompt/${promptId}/versions`,
+    ),
+
+  /** Create a new prompt version */
+  createVersion: (
+    promptId: string,
+    data: import('@/type/types').CreatePromptVersionPayload,
+  ) =>
+    http.post<import('@/type/types').KnowledgePromptVersion>(
+      `/v1/admin/ai-prompt/${promptId}/versions`,
+      data,
+    ),
+
+  /** Activate a specific version */
+  activateVersion: (promptId: string, version: number) =>
+    http.put(`/v1/admin/ai-prompt/${promptId}/activate/${version}`),
+
+  /** Diff two versions */
+  diffVersions: (promptId: string, v1: number, v2: number) =>
+    http.get<import('@/type/types').PromptDiffResult>(
+      `/v1/admin/ai-prompt/${promptId}/versions/${v1}/diff/${v2}`,
+    ),
+
+  // ---- Test ----
+
+  /** Run a manual test against the prompt */
+  runTest: (promptId: string, testQuery: string) =>
+    http.post(`/v1/admin/ai-prompt/${promptId}/test`, { testQuery }),
+
+  // ---- Metrics ----
+
+  /** Get per-version metrics comparison */
+  getMetrics: (promptId: string) =>
+    http.get<import('@/type/types').PromptMetrics>(
+      `/v1/admin/ai-prompt/${promptId}/metrics`,
+    ),
+
+  // ---- Templates & Tools ----
+
+  /** Get all available prompt template metadata */
+  getTemplates: () =>
+    http.get<{ templates: import('@/type/types').PromptTemplateMeta[] }>(
+      '/v1/admin/ai-prompt/templates',
+    ),
+
+  /** Get a specific prompt template by domain */
+  getTemplate: (domain: string) =>
+    http.get<import('@/type/types').PromptTemplateResponse>(
+      `/v1/admin/ai-prompt/templates/${domain}`,
+    ),
+
+  /** Get tools for a domain (or all tools if no domain specified) */
+  getTools: (domain?: string) =>
+    http.get<import('@/type/types').PromptToolsResponse>(
+      `/v1/admin/ai-prompt/tools${domain ? `?domain=${domain}` : ''}`,
+    ),
 };

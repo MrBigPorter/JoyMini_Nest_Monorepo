@@ -47,6 +47,7 @@
     "@langchain/langgraph": "^1.4.7",
     "@langchain/ollama": "^1.3.0",
     "@langchain/openai": "^1.5.3",
+    "@langchain/textsplitters": "^1.0.1",
     "@lucky/shared": "workspace:*",
     "@markedjs/html-differ": "^5.0.4",
     "@nestjs/axios": "^4.0.1",

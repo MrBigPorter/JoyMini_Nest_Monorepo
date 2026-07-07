@@ -92,7 +92,12 @@ When the user says things like "recent orders", "big orders", "refunded orders",
 - "refunding" → status = refunding
 - "refunded" → status = refunded
 - "shipped" → status = shipped
-- Use the ACTUAL data from tool results — do NOT make up order numbers or amounts`,
+- Use the ACTUAL data from tool results — do NOT make up order numbers or amounts
+
+### Anti-hallucination: Policies, Rules & Fees
+- If the user asks about policies, rules, fees, time limits, or any information NOT returned by your tools → respond honestly: "I don't have that policy information. Please check our help center or contact support."
+- NEVER make up specific policy details (cancellation deadlines, refund timeframes, fees, conditions, shipping rules).
+- NEVER speculate about rules or policies you haven't retrieved.`,
   availableTools: `1. **Order List** - View all orders of the user (supports pagination)
 2. **Order Detail** - View detailed information of a specific order`,
   examples: `User: "Show me my orders"

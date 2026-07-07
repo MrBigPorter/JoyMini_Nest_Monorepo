@@ -1627,3 +1627,166 @@ export interface QueryLuckyDrawResultsParams {
   activityId?: string;
   userId?: string;
 }
+
+// ==================== Knowledge Base (RAG) ====================
+
+export interface KnowledgeDocument {
+  id: string;
+  title: string;
+  domain: string;
+  docId: string;
+  keywords: string[];
+  locale: string;
+  contentType: string;
+  priority: string;
+  content: string;
+  isActive: boolean;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DocumentChunk {
+  id: string;
+  documentId: string;
+  chunkIndex: number;
+  content: string;
+  tokenCount: number;
+  documentVersion: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateKnowledgeDocPayload {
+  title: string;
+  domain: string;
+  docId: string;
+  keywords: string[];
+  locale?: string;
+  contentType?: string;
+  priority?: string;
+  content: string;
+}
+
+export interface UpdateKnowledgeDocPayload {
+  title?: string;
+  domain?: string;
+  docId?: string;
+  keywords?: string[];
+  locale?: string;
+  contentType?: string;
+  priority?: string;
+  content?: string;
+}
+
+export interface QueryKnowledgeDocParams extends PaginationParams {
+  domain?: string;
+  search?: string;
+  priority?: string;
+  isActive?: boolean;
+}
+
+// ==================== AI Prompt Management ====================
+
+export interface KnowledgePrompt {
+  id: string;
+  name: string;
+  displayName: string;
+  description: string | null;
+  category: string;
+  domain: string | null;
+  tsFallback: boolean;
+  activeVersion: number;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  versions?: KnowledgePromptVersion[];
+}
+
+export interface KnowledgePromptVersion {
+  id: string;
+  version: number;
+  config?: Record<string, unknown>;
+  changeLog: string | null;
+  metrics?: Record<string, unknown> | null;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface CreatePromptPayload {
+  name: string;
+  displayName: string;
+  description?: string;
+  category: string;
+  domain?: string;
+  config?: Record<string, unknown>;
+}
+
+export interface UpdatePromptPayload {
+  displayName?: string;
+  description?: string;
+  status?: string;
+  tsFallback?: boolean;
+}
+
+export interface QueryPromptParams extends PaginationParams {
+  category?: string;
+  domain?: string;
+  status?: string;
+  search?: string;
+}
+
+export interface CreatePromptVersionPayload {
+  config: Record<string, unknown>;
+  changeLog?: string;
+}
+
+export interface PromptDiffResult {
+  v1: { version: number; createdAt: string; changeLog: string | null };
+  v2: { version: number; createdAt: string; changeLog: string | null };
+  diff: Array<{
+    field: string;
+    type: 'added' | 'removed' | 'modified' | 'unchanged';
+    oldValue?: unknown;
+    newValue?: unknown;
+  }>;
+}
+
+// ---- Prompt Template & Tool Types (for template pre-fill + tool selector) ----
+
+export interface PromptTemplateMeta {
+  domain: string;
+  label: string;
+  description: string;
+}
+
+export interface PromptTemplateResponse {
+  domain: string;
+  config: Record<string, unknown>;
+}
+
+export interface PromptToolOption {
+  name: string;
+  description: string;
+}
+
+export interface PromptToolsResponse {
+  domain: string;
+  tools: PromptToolOption[];
+}
+
+export interface PromptMetrics {
+  prompt: KnowledgePrompt;
+  versions: Array<{
+    version: number;
+    metrics: Record<string, unknown> | null;
+    changeLog: string | null;
+    isActive: boolean;
+    createdAt: string;
+  }>;
+  evalStats: Array<{
+    version: number;
+    _count: { id: number };
+    _avg: { toolFailCount: number | null; latencyMs: number | null; totalTokens: number | null };
+  }>;
+}

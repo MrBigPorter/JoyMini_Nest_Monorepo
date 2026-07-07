@@ -7,7 +7,6 @@ import { BaseMessage } from '@langchain/core/messages';
 import { AgentState, DebugInfo } from '@api/client/ai-customer/graph/state';
 import { LlmProviderConfig } from '@api/client/ai-customer/graph/llm-factory';
 import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-registry.service';
-import { SerializedMessage } from '@api/client/ai-customer/graph/utils/serialize-messages';
 
 export interface AgentStep {
   /** 节点名称，如 'orderAgent'、'walletAgent' */
@@ -24,8 +23,6 @@ export interface AgentStep {
   } | null;
   /** agent 内部总消息数 */
   totalMessages: number;
-  /** debug=true 时，保存完整的消息序列 */
-  messages?: SerializedMessage[];
 }
 
 /**

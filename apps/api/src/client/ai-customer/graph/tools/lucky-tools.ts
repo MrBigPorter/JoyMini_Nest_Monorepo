@@ -67,6 +67,17 @@ import {
 } from '@api/client/ai-customer/graph/tools/tool-result';
 import { toResultChain } from '@lucky/shared';
 import { z } from 'zod';
+import { toLLM } from '@api/common/ai/utils/to-llm';
+import { plainToInstance } from 'class-transformer';
+import {
+  FlashSaleSessionItemDto,
+  FlashSaleProductItemDto,
+  FlashSaleProductDetailResponseDto,
+} from '@api/client/flash-sale/dto/flash-sale-response.dto';
+import {
+  LuckyDrawTicketDto,
+  LuckyDrawResultItemDto,
+} from '@api/common/lucky-draw/dto/lucky-draw-response.dto';
 
 /**
  * 创建 LuckyDraw + Flash Sale Agent 的所有工具
@@ -112,14 +123,17 @@ export const createLuckyTools = (
               unusedOnly,
             }),
           )
-            .then((data) =>
-              toolSuccess({
+            .then((data) => {
+              const llmList = (data.list ?? []).map((item: any) =>
+                toLLM(plainToInstance(LuckyDrawTicketDto, item), LuckyDrawTicketDto, 'en'),
+              );
+              return toolSuccess({
                 total: data.total,
                 page: data.page,
                 pageSize: data.pageSize,
-                tickets: data.list,
-              }),
-            )
+                tickets: llmList,
+              });
+            })
             .catch((err: Error) =>
               toolFailure(`Failed to list tickets: ${err.message}`),
             );
@@ -177,14 +191,17 @@ export const createLuckyTools = (
               pageSize: pageSize ?? 10,
             }),
           )
-            .then((data) =>
-              toolSuccess({
+            .then((data) => {
+              const llmList = (data.list ?? []).map((item: any) =>
+                toLLM(plainToInstance(LuckyDrawResultItemDto, item), LuckyDrawResultItemDto, 'en'),
+              );
+              return toolSuccess({
                 total: data.total,
                 page: data.page,
                 pageSize: data.pageSize,
-                results: data.list,
-              }),
-            )
+                results: llmList,
+              });
+            })
             .catch((err: Error) =>
               toolFailure(`Failed to list results: ${err.message}`),
             );
@@ -289,7 +306,17 @@ export const createLuckyTools = (
             `[lucky-tools:getTicketByOrder] userId="${userId}", orderId="${orderId}"`,
           );
           return toResultChain(luckyDrawService.getTicketByOrder(userId, orderId))
-            .then((data) => toolSuccess(data ?? { found: false }))
+            .then((data) => {
+              if (!data || !data.hasTicket) {
+                return toolSuccess({ hasTicket: false });
+              }
+              const llmTicket = toLLM(
+                plainToInstance(LuckyDrawTicketDto, data.ticket),
+                LuckyDrawTicketDto,
+                'en',
+              );
+              return toolSuccess({ hasTicket: true, ticket: llmTicket });
+            })
             .catch((err: Error) =>
               toolFailure(`Failed to get ticket by order: ${err.message}`),
             );
@@ -319,9 +346,12 @@ export const createLuckyTools = (
         async () => {
           logger.log(`[lucky-tools:getActiveSessions]`);
           return toResultChain(flashSaleService.getActiveSessions())
-            .then((data) =>
-              toolSuccess({ sessions: data.list }),
-            )
+            .then((data) => {
+              const llmList = (data.list ?? []).map((item: any) =>
+                toLLM(plainToInstance(FlashSaleSessionItemDto, item), FlashSaleSessionItemDto, 'en'),
+              );
+              return toolSuccess({ sessions: llmList });
+            })
             .catch((err: Error) =>
               toolFailure(`Failed to get active sessions: ${err.message}`),
             );
@@ -350,12 +380,20 @@ export const createLuckyTools = (
             `[lucky-tools:getSessionProducts] sessionId="${sessionId}"`,
           );
           return toResultChain(flashSaleService.getSessionProducts(sessionId))
-            .then((data) =>
-              toolSuccess({
-                session: data.session,
-                products: data.list,
-              }),
-            )
+            .then((data) => {
+              const llmSession = toLLM(
+                plainToInstance(FlashSaleSessionItemDto, data.session),
+                FlashSaleSessionItemDto,
+                'en',
+              );
+              const llmList = (data.list ?? []).map((item: any) =>
+                toLLM(plainToInstance(FlashSaleProductItemDto, item), FlashSaleProductItemDto, 'en'),
+              );
+              return toolSuccess({
+                session: llmSession,
+                products: llmList,
+              });
+            })
             .catch((err: Error) =>
               toolFailure(`Failed to get session products: ${err.message}`),
             );
@@ -388,7 +426,10 @@ export const createLuckyTools = (
             `[lucky-tools:getFlashProductDetail] productId="${productId}"`,
           );
           return toResultChain(flashSaleService.getProductDetail(productId))
-            .then((data) => toolSuccess(data))
+            .then((data) => {
+              const dto = plainToInstance(FlashSaleProductDetailResponseDto, data);
+              return toolSuccess(toLLM(dto, FlashSaleProductDetailResponseDto, 'en'));
+            })
             .catch((err: Error) =>
               toolFailure(`Failed to get flash product detail: ${err.message}`),
             );

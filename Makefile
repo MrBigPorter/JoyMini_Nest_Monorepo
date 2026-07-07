@@ -160,7 +160,7 @@ exec-api:
 
 ## [DB] Run Prisma migration (sync database schema)
 migrate:
-	docker compose exec backend yarn workspace @lucky/api prisma migrate dev
+	docker compose exec backend ./node_modules/.bin/prisma migrate dev
 
 ## [DB] Reset DB & run seed (⚠️ will wipe existing data)
 seed:
@@ -168,7 +168,7 @@ seed:
 
 ## [DB] Open Prisma Studio (web-based DB browser)
 prisma-studio:
-	docker compose exec backend yarn workspace @lucky/api prisma studio
+	docker compose exec backend ./node_modules/.bin/prisma studio
 
 # ──────────────────────────────────────────
 # Ollama (Local LLM Service)

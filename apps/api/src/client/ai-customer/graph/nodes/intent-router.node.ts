@@ -16,35 +16,23 @@
  * 2. Embedding 服务可能不可用（Ollama 未本地运行）
  * 3. 低置信度场景（所有域 < 0.5）需要 LLM 结合对话历史判断
  */
-import { ChatPromptTemplate } from '@langchain/core/prompts';
 import { StringOutputParser } from '@langchain/core/output_parsers';
 import { AgentState } from '@api/client/ai-customer/graph/state';
 import {
   createLLM,
   LlmProviderConfig,
 } from '@api/client/ai-customer/graph/llm-factory';
-import { buildIntentPrompt } from '@api/client/ai-customer/graph/agents/prompts/intent-prompt-builder';
+import { INTENT_PROMPT } from '@api/client/ai-customer/graph/agents/prompts/intent-prompt';
 import { VALID_INTENTS } from '@api/client/ai-customer/graph/agents/prompts/intent-label-categories';
 import { IntentClassifier } from '@api/client/ai-customer/graph/utils/intent-classifier';
 import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-registry.service';
 import { AiService } from '@api/common/ai/ai.service';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { Logger } from '@nestjs/common';
+import { extractUserInput } from '@api/client/ai-customer/graph/utils/extract-user-input';
+import { formatMessagePreview } from '@api/client/ai-customer/graph/utils/format-message-preview';
 
 const logger = new Logger('IntentRouter');
-
-/**
- * INTENT_PROMPT — LLM Fallback 使用的 System Prompt
- *
- * 旧版本包含 Label Categories 章节（keywords + scoreGuide），
- * 新版本不再需要 —— 域识别由 embedding 向量完成。
- * Fallback LLM 仅处理上下文相关的短输入，prompt 已大幅简化。
- */
-const INTENT_PROMPT = ChatPromptTemplate.fromMessages([
-  ['system', buildIntentPrompt()],
-  ['human', '{input}'],
-]);
-
 /**
  * 低置信度阈值：最高余弦相似度低于此值时使用 LLM fallback
  */
@@ -179,13 +167,8 @@ export const createIntentRouterNode =
   async (
     state: typeof AgentState.State,
   ): Promise<Partial<typeof AgentState.State>> => {
-    const lastMessage = state.messages[state.messages.length - 1];
-    logger.debug('lastMessage', lastMessage);
-
-    const userInput =
-      typeof lastMessage?.content === 'string'
-        ? lastMessage.content
-        : JSON.stringify(lastMessage?.content ?? '');
+    const userInput = extractUserInput(state);
+    logger.debug('lastMessage', state.messages[state.messages.length - 1]);
 
     logger.log(`[intentRouter] classify: "${userInput.slice(0, 50)}..."`);
 
@@ -267,22 +250,10 @@ async function llmFallback(
   state: typeof AgentState.State,
   userInput: string,
 ): Promise<Partial<typeof AgentState.State>> {
-  // 构建对话上下文
+  // 构建对话上下文（使用 formatMessagePreview 统一格式化）
   const contextMessages = state.messages.slice(-5, -1);
   const conversationContext = contextMessages
-    .map((msg) => {
-      const type =
-        typeof msg._getType === 'function' ? msg._getType() : 'unknown';
-      const role =
-        type === 'human' ? 'User' : type === 'ai' ? 'Assistant' : type;
-      const content =
-        typeof msg.content === 'string'
-          ? msg.content
-          : JSON.stringify(msg.content ?? '');
-      const truncated =
-        content.length > 200 ? content.slice(0, 200) + '...' : content;
-      return `${role}: ${truncated}`;
-    })
+    .map((msg) => formatMessagePreview(msg, 200))
     .join('\n');
 
   const model = createLLM(llmConfig, { temperature: 0 });

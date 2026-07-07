@@ -7,6 +7,8 @@ import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-re
 import { TestChatResult } from '@api/client/ai-customer/graph/types/agent-types';
 import { AiService } from '@api/common/ai/ai.service';
 import { PrismaService } from '@api/common/prisma/prisma.service';
+import { RagRetrievalService } from '@api/client/ai-customer/knowledge/rag-retrieval.service';
+import { PromptResolverService } from '@api/client/ai-customer/knowledge/prompt-resolver.service';
 
 @Injectable()
 export class AiCustomerService {
@@ -19,6 +21,8 @@ export class AiCustomerService {
     private readonly registry: ToolRegistryService,
     private readonly aiService: AiService,
     private readonly prismaService: PrismaService,
+    private readonly ragRetrievalService: RagRetrievalService,
+    private readonly promptResolver: PromptResolverService,
   ) {}
 
   /**
@@ -57,6 +61,8 @@ export class AiCustomerService {
         this.registry,
         this.aiService,
         this.prismaService,
+        this.ragRetrievalService,
+        this.promptResolver,
       );
     } catch (error) {
       this.logger.error('Failed to compile AiCustomer Graph', error);

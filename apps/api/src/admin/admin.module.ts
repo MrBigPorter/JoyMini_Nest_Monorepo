@@ -25,6 +25,8 @@ import { FlashSaleModule } from '@api/admin/flash-sale/flash-sale.module';
 import { RegisterApplicationModule } from '@api/admin/register-application/register-application.module';
 import { AdminLuckyDrawModule } from '@api/admin/lucky-draw/lucky-draw.module';
 import { SupportChannelModule } from '@api/admin/support-channel/support-channel.module';
+import { RagModule } from '@api/admin/rag/rag.module';
+import { AiPromptModule } from '@api/admin/ai-prompt/ai-prompt.module';
 
 @Module({
   imports: [
@@ -54,6 +56,8 @@ import { SupportChannelModule } from '@api/admin/support-channel/support-channel
     RegisterApplicationModule,
     AdminLuckyDrawModule,
     SupportChannelModule,
+    RagModule,
+    AiPromptModule,
   ],
   providers: [],
   controllers: [],

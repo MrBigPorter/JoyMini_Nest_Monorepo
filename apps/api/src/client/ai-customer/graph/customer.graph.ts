@@ -28,6 +28,8 @@ import { LlmProviderConfig } from '@api/client/ai-customer/graph/llm-factory';
 import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-registry.service';
 import { AiService } from '@api/common/ai/ai.service';
 import { PrismaService } from '@api/common/prisma/prisma.service';
+import { RagRetrievalService } from '@api/client/ai-customer/knowledge/rag-retrieval.service';
+import { PromptResolverService } from '@api/client/ai-customer/knowledge/prompt-resolver.service';
 
 /**
  * intentGateway — 强制走 intentRouter 重新分类
@@ -124,12 +126,16 @@ const intentGateway = (_state: typeof AgentState.State): string => {
  * @param registry
  * @param aiService      AiService 实例（用于 embedding 生成）
  * @param prismaService  PrismaService 实例（用于 pgvector 查询）
+ * @param ragRetrievalService  RagRetrievalService 实例（用于 RAG 检索）
+ * @param promptResolver  PromptResolverService 实例（用于运行时 prompt 合并）
  */
 export function buildCustomerGraph(
   llmConfig: LlmProviderConfig,
   registry: ToolRegistryService,
   aiService: AiService,
   prismaService: PrismaService,
+  ragRetrievalService?: RagRetrievalService,
+  promptResolver?: PromptResolverService,
 ) {
   const workflow = new StateGraph(AgentState)
 
@@ -142,7 +148,10 @@ export function buildCustomerGraph(
       'intentRouter',
       createIntentRouterNode(llmConfig, aiService, prismaService, registry),
     )
-    .addNode('orchestrator', createOrchestratorNode(llmConfig, registry))
+    .addNode(
+      'orchestrator',
+      createOrchestratorNode(llmConfig, registry, ragRetrievalService, promptResolver),
+    )
 
     // START → intentRouter（强制走 intentRouter 重新分类）
     .addConditionalEdges(START, intentGateway, {

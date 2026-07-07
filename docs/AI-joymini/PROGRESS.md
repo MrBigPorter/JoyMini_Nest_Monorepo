@@ -538,10 +538,106 @@ POST /api/v1/ai-customer/test-chat {"message":"优惠券和余额"}
 | #03 | **多语言**: 用户决定保持纯英文。bge-m3 原生支持跨语言，多语言例句收益有限 | ✅ 已关闭 |
 | #04 | **分类监控**: `IntentClassificationLog` 模型 + 迁移 + `logClassification()` fire-and-forget 日志（sessionId, userInput, primaryIntent, labels, method, confidence, latencyMs, rawTop5） | ✅ 已完成 |
 
+### ✅ Phase 3b 完成内容
+
+| Defect | 修复内容 | 状态 |
+|--------|---------|:----:|
+| #07 | **冷启动 hash 缓存**: `ensureSeeded()` 不再只检查 `COUNT(*)`，改用 MD5 hash 检测 `INTENT_EXAMPLE_GROUPS` 是否变化。hash 匹配→快路径跳过，hash 不匹配→全量重新 seeding。新增 `configHash` 列 + 迁移 + 11 项单元测试全部通过 | ✅ 已完成 (2026-07-06) |
+
+### ✅ Prompt 管理后台 — 完整 CRUD + 结构化表单 + 详情页 (2026-07-07)
+
+**总变更**: 39 文件, +2605 / -660 行
+
+#### 1. Prompt 管理后台前端 (admin-next)
+
+| 模块 | 文件 | 说明 |
+|------|------|------|
+| **列表页** | [`AiPromptClient.tsx`](/apps/admin-next/src/components/ai-prompt/AiPromptClient.tsx) | 完整 CRUD 列表页：搜索/分类/状态筛选、分页、编辑弹窗、删除确认 |
+| **详情页** | [`AiPromptDetailClient.tsx`](/apps/admin-next/src/components/ai-prompt/AiPromptDetailClient.tsx) | 详情页：Overview / Version History / Diff / Metrics 4 个折叠区块 + 创建版本弹窗 + 版本激活 |
+| **表单工具** | [`prompt-form-utils.ts`](/apps/admin-next/src/components/ai-prompt/prompt-form-utils.ts) | `configToForm()` / `formToConfig()` / `renderPrompt()` / `parseExtraSections()` / `formatToolList()` |
+| **表单 Tab** | [`PromptContentTab.tsx`](/apps/admin-next/src/components/ai-prompt/PromptContentTab.tsx) | 内容 Tab：systemPrompt / userPrompt / tools / templateDomain / flowContext / extraSections |
+| **表单 Tab** | [`ScopeTab.tsx`](/apps/admin-next/src/components/ai-prompt/ScopeTab.tsx) | 范围 Tab：allowedUserIds / blockedUserIds |
+| **表单 Tab** | [`AdvancedTab.tsx`](/apps/admin-next/src/components/ai-prompt/AdvancedTab.tsx) | 高级 Tab：hardRules / extraSections |
+| **表单 Tab** | [`PreviewTab.tsx`](/apps/admin-next/src/components/ai-prompt/PreviewTab.tsx) | 预览 Tab：实时渲染 prompt 预览 |
+| **子组件** | [`FieldRow.tsx`](/apps/admin-next/src/components/ai-prompt/FieldRow.tsx) | 通用表单行布局 |
+| **子组件** | [`TagInput.tsx`](/apps/admin-next/src/components/ai-prompt/TagInput.tsx) | 标签输入组件（userIds） |
+| **子组件** | [`ToolSelector.tsx`](/apps/admin-next/src/components/ai-prompt/ToolSelector.tsx) | 工具多选组件 |
+| **子组件** | [`ExtraSectionsList.tsx`](/apps/admin-next/src/components/ai-prompt/ExtraSectionsList.tsx) | 额外章节编辑列表 |
+| **API 层** | [`api/index.ts`](/apps/admin-next/src/api/index.ts) | 新增 `aiPromptApi` 全部方法（list/getById/create/update/delete/versions/diff/metrics/templates/tools） |
+| **类型** | [`types.ts`](/apps/admin-next/src/type/types.ts) | 新增 `KnowledgePrompt` / `KnowledgePromptVersion` / `PromptDiffResult` / `PromptMetrics` / `PromptTemplateMeta` / `PromptToolOption` 等 15+ 类型 |
+| **路由** | [`routes/index.ts`](/apps/admin-next/src/routes/index.ts) | 新增 `/ai-prompt` 路由 |
+| **i18n** | [`i18n/en.json`](/apps/admin-next/src/i18n/en.json) | 新增 69 行 AI Prompt 翻译键 |
+| **i18n** | [`i18n/request.ts`](/apps/admin-next/src/i18n/request.ts) | 新增 `AIPrompt` namespace 加载 |
+
+#### 2. Prompt 管理后台 API (NestJS)
+
+| 模块 | 文件 | 说明 |
+|------|------|------|
+| **Service** | [`ai-prompt.service.ts`](/apps/api/src/admin/ai-prompt/ai-prompt.service.ts) | 完整 CRUD：create/list/getById/update/delete + getVersions/createVersion/activateVersion/diffVersions/runTest/getMetrics + getTemplates/getTemplate/getTools |
+| **DTOs** | `apps/api/src/admin/ai-prompt/dto/` | CreatePromptDto / UpdatePromptDto / QueryPromptDto / CreatePromptVersionDto / QueryPromptVersionDto / PromptResponseDto / PromptVersionResponseDto / PromptDiffResponseDto / RunTestDto / PromptMetricsResponseDto |
+| **Controller** | `ai-prompt.controller.ts` | RESTful 路由 + AdminJwtAuthGuard + RolesGuard |
+| **Module** | `ai-prompt.module.ts` | Provider 注册 |
+
+#### 3. Prompt 运行时引擎 (Runtime)
+
+| 模块 | 文件 | 说明 |
+|------|------|------|
+| **Resolver** | [`prompt-resolver.service.ts`](/apps/api/src/client/ai-customer/knowledge/prompt-resolver.service.ts) | `mergeConfig()` 合并 DB 配置 + TS 默认模板 + 运行时覆盖；`recordEval()` 评估日志 |
+| **Builder** | [`prompt-builder.ts`](/apps/api/src/client/ai-customer/graph/agents/prompt-builder.ts) | `buildAgentPrompt()` 根据 AgentPromptConfig 构建最终 LLM prompt 字符串 |
+
+#### 4. 知识库 RAG 管理后台
+
+| 模块 | 文件 | 说明 |
+|------|------|------|
+| **RAG Service** | [`rag.service.ts`](/apps/api/src/admin/rag/rag.service.ts) | 文档 CRUD + 分页查询 + 状态管理 |
+| **RAG Sync** | [`rag-sync.service.ts`](/apps/api/src/admin/rag/rag-sync.service.ts) | 文档同步管线：chunking → embedding → 存储，含重试/错误处理 |
+| **RAG Chunk** | [`rag-chunk.service.ts`](/apps/api/src/admin/rag/rag-chunk.service.ts) | Chunk 管理 |
+| **RAG Embedding** | [`rag-embedding.service.ts`](/apps/api/src/admin/rag/rag-embedding.service.ts) | Embedding 生成服务 |
+| **RAG Controller** | `rag.controller.ts` + `rag.module.ts` | RESTful 路由注册 |
+| **RAG DTOs** | `create-rag-doc.dto.ts` / `update-rag-doc.dto.ts` / `query-rag-doc.dto.ts` / `rag-doc-response.dto.ts` / `upload-rag-doc.dto.ts` | 完整 DTO 定义 |
+| **Prisma Schema** | [`schema.prisma`](/apps/api/prisma/schema.prisma) | 新增 `KnowledgeDocument` / `DocumentChunk` / `KnowledgePrompt` / `KnowledgePromptVersion` / `PromptEvalLog` 模型 (+492 / -340 行) |
+| **Admin Module** | [`admin.module.ts`](/apps/api/src/admin/admin.module.ts) | 注册 RagModule + AiPromptModule |
+
+#### 5. AI Customer 改进
+
+| 模块 | 文件 | 说明 |
+|------|------|------|
+| **Orchestrator** | [`orchestrator.node.ts`](/apps/api/src/client/ai-customer/graph/nodes/orchestrator.node.ts) | 重大重构 (+455/-): RAG 集成、prompt-resolver 集成、agent 执行流程优化 |
+| **Intent Router** | [`intent-router.node.ts`](/apps/api/src/client/ai-customer/graph/nodes/intent-router.node.ts) | 改进路由逻辑 (+43/-) |
+| **Intent Classifier** | [`intent-classifier.ts`](/apps/api/src/client/ai-customer/graph/utils/intent-classifier.ts) | 重构分类逻辑 (+120/-) |
+| **Intent Classifier Spec** | [`intent-classifier.spec.ts`](/apps/api/src/client/ai-customer/graph/utils/intent-classifier.spec.ts) | 测试更新 (+126/-) |
+| **Intent Labels** | [`intent-label-categories.ts`](/apps/api/src/client/ai-customer/graph/agents/prompts/intent-label-categories.ts) | 标签扩展 (+138/-) |
+| **Customer Graph** | [`customer.graph.ts`](/apps/api/src/client/ai-customer/graph/customer.graph.ts) | Graph 组装更新 |
+| **KYC Tools** | [`kyc-tools.ts`](/apps/api/src/client/ai-customer/graph/tools/kyc-tools.ts) | 工具更新 (+38/-) |
+| **Lucky Tools** | [`lucky-tools.ts`](/apps/api/src/client/ai-customer/graph/tools/lucky-tools.ts) | 工具更新 (+83/-) |
+| **Order Prompt** | [`order-prompt.ts`](/apps/api/src/client/ai-customer/graph/agents/prompts/order-prompt.ts) | Prompt 模板更新 |
+| **Prepare Context** | [`prepare-context.ts`](/apps/api/src/client/ai-customer/graph/utils/prepare-context.ts) | 上下文准备更新 |
+| **Agent Types** | [`agent-types.ts`](/apps/api/src/client/ai-customer/graph/types/agent-types.ts) | 类型清理 (-3) |
+| **Serialize Messages** | [`serialize-messages.ts`](/apps/api/src/client/ai-customer/graph/utils/serialize-messages.ts) | 死代码删除 (-51) |
+
+#### 6. Bug 修复
+
+| # | Bug | Root Cause | Fix | Status |
+|---|-----|-----------|-----|:------:|
+| 01 | **编辑弹窗空白** — 点击编辑按钮后弹窗内容为空 | Backend [`ai-prompt.service.ts`](/apps/api/src/admin/ai-prompt/ai-prompt.service.ts:93) `list()` 的 `versions.select` 缺少 `isActive` 字段。前端 [`AiPromptClient.tsx`](/apps/admin-next/src/components/ai-prompt/AiPromptClient.tsx:100) 用 `editing?.versions?.find((v) => v.isActive)` 找活跃版本，因 `isActive` 未返回导致 `find()` 始终返回 `undefined`，`configToForm({})` 传入空数据 | 在 `versions.select` 中添加 `isActive: true` | ✅ |
+| 02 | **`<button>` 嵌套 hydration 错误** — AiPromptDetailPage 控制台报 "In HTML, `<button>` cannot be a descendant of `<button>`" | [`AiPromptDetailClient.tsx`](/apps/admin-next/src/components/ai-prompt/AiPromptDetailClient.tsx:659) Version History 区域 header 是 `<button>`（折叠/展开切换），内部包含 `<Button>` 组件（渲染为 `<motion.button>` → `<button>`），HTML 规范禁止交互元素嵌套 | 外层 `<button>` 改为 `<div>` 含 `role="button"` + `tabIndex={0}` + `onKeyDown` 键盘支持 + `cursor-pointer` | ✅ |
+
+### ✅ Doc 38 — RAG 企业级升级方案 (2026-07-07)
+
+| # | 内容 | 状态 |
+|---|------|:----:|
+| 01 | **6 大难点分析完成**: PDF 解析不保留布局、BM25 不支持中文、Reranker LLM 成本、pgvector SQL 类型安全、Chunking 变更需重索引、错误隔离 | ✅ 规划完成 |
+| 02 | **PDF 解析 → Unstructured.io API**: 1000 页/月免费，替换 pdf-parse。支持多栏/表格/OCR。未来可自部署开源版 | ✅ 规划完成 |
+| 03 | **BM25 中文搜索 → Elastic Cloud**: 14 天/$200 免费试用，替换 PostgreSQL ILIKE/tsvector。到期自动回退 GIN trigram | ✅ 规划完成 |
+| 04 | **Reranker → bge-reranker-v2-m3**: 本地 Ollama 部署，量化版 2GB RAM，50-100ms/pair，免费无限次 | ✅ 规划完成 |
+| 05 | **Multi-recall 架构**: Promise.all(pgvector + Elasticsearch) → mergeDedup → Reranker → 3 层降级 | ✅ 规划完成 |
+| 06 | **Enterprise Chunking**: keepSeparator=true + parentHeading + 表格/代码块保护 + 版本化 | ✅ 规划完成 |
+| 07 | **orchestrator.node.ts Bug 修复**: r.doc.title → r.title（flat 结构） | 🔧 待实施 |
+| 08 | **实施文档**: [`docs/AI-joymini/38-RAG-enterprise-implementation-plan.md`](38-RAG-enterprise-implementation-plan.md) 含完整 9 步代码 + 文件路径 + Mermaid 图 | ✅ 已完成 |
+
 ### Known Defects / 已知待优化（Phase 3b 继续）
 | 05 | **无置信度校准** | 0.52 和 0.98 用相同阈值处理，需要 production 数据做 calibration curve | P2 | [`intent-classifier.ts:45`](/apps/api/src/client/ai-customer/graph/utils/intent-classifier.ts:45) |
 | 06 | **无反馈闭环** | 分类错误无法被捕获和纠正。需用户反馈 → 自动加入训练集 → 定期重新 seeding | P2 | [`intent-classifier.ts`](/apps/api/src/client/ai-customer/graph/utils/intent-classifier.ts) |
-| 07 | **冷启动重复 embedding** | 每次重启服务，`ensureSeeded()` 检查表空就 re-embed 全部 61 句，浪费 API 调用。应加 hash 缓存：检测 embedding 列是否有变化 | P2 | [`intent-classifier.ts:63`](/apps/api/src/client/ai-customer/graph/utils/intent-classifier.ts:63) |
 | 08 | **无 A/B 测试框架** | 不知道 embedding 路径 vs LLM fallback 路径的准确率/延迟差异。需分桶对比实验 | P3 | [`intent-router.node.ts`](/apps/api/src/client/ai-customer/graph/nodes/intent-router.node.ts) |
 | 09 | **多轮对话分类退化** | 用户在第 2 轮说"确认"，embedding 可能匹配不到正确 domain。当前依赖 LLM fallback 解决，但无自动化验证 | P2 | [`intent-classifier.ts`](/apps/api/src/client/ai-customer/graph/utils/intent-classifier.ts) + [`intent-router.node.ts`](/apps/api/src/client/ai-customer/graph/nodes/intent-router.node.ts) |
 

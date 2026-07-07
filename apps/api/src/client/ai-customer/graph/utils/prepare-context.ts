@@ -88,7 +88,7 @@ interface DebugContext {
 }
 
 function formatMsgPreview(msg: BaseMessage, idx: number): string {
-  const type = (msg as any)._getType?.() ?? 'unknown';
+  const type = (msg as any).type ?? 'unknown';
   const tcCount = (msg as any).tool_calls?.length ?? 0;
 
   let icon: string;
@@ -129,7 +129,7 @@ function getFilterReason(
   idx: number,
   ctx: DebugContext,
 ): string {
-  const type = (msg as any)._getType?.() ?? '';
+  const type = (msg as any).type ?? '';
   const hasTc = !!(msg as any).tool_calls?.length;
 
   if (ctx.isSupervised) {
@@ -252,7 +252,7 @@ export function prepareAgentContext(
   if (!isSupervised) {
     // 从后往前找最后一个 AI(tool_calls)
     for (let i = messages.length - 1; i >= 0; i--) {
-      const type = (messages[i] as any)._getType?.() ?? '';
+      const type = (messages[i] as any).type ?? '';
       if (
         type === 'ai' &&
         (messages[i] as any).tool_calls?.length &&
@@ -265,7 +265,7 @@ export function prepareAgentContext(
     //（必须全部保留，否则 AI 引用的 tool_call_id 找不到对应响应）
     if (lastToolCallerIdx !== -1) {
       for (let j = lastToolCallerIdx + 1; j < messages.length; j++) {
-        const t = (messages[j] as any)._getType?.() ?? '';
+        const t = (messages[j] as any).type ?? '';
         if (t === 'tool') {
           toolIndicesToKeep.add(j);
         } else {
@@ -276,7 +276,7 @@ export function prepareAgentContext(
   }
 
   const filtered = messages.filter((msg, idx) => {
-    const type = (msg as any)._getType?.() ?? '';
+    const type = (msg as any).type ?? '';
 
     // ---- Supervisor 模式: 过滤所有 tool / tool_calls / 跨 Agent AI ----
     if (isSupervised) {
