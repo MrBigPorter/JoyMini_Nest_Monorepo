@@ -635,6 +635,18 @@ POST /api/v1/ai-customer/test-chat {"message":"优惠券和余额"}
 | 07 | **orchestrator.node.ts Bug 修复**: r.doc.title → r.title（flat 结构） | 🔧 待实施 |
 | 08 | **实施文档**: [`docs/AI-joymini/38-RAG-enterprise-implementation-plan.md`](38-RAG-enterprise-implementation-plan.md) 含完整 9 步代码 + 文件路径 + Mermaid 图 | ✅ 已完成 |
 
+### ✅ 2026-07-08 — RAG 基础设施升级实施
+
+| # | 内容 | 状态 |
+|---|------|:----:|
+| 01 | **Infinity Rerank 修复**: `/v1/rerank` → `/rerank`（Infinity v2 端点变更） | ✅ |
+| 02 | **Meilisearch BM25 存量数据填充**: `numberOfDocuments: 0 → 285`，覆盖全部知识文档 | ✅ |
+| 03 | **Re-index All 按钮**: 后端 `POST /admin/rag/documents/reindex-all` + 前端 KnowledgeBaseClient 新增按钮 | ✅ |
+| 04 | **删除同步 Meilisearch**: `delete()` 和 `reindex()` 时自动调用 `deleteMeilisearchChunks()` 清理孤儿数据 | ✅ |
+| 05 | **日志改进**: RAG 检索日志改为 `Layer raw results (before dedup): vec:N, meili:N, chunk:N, doc:N` | ✅ |
+| 06 | **Rerank 日志修复**: 区分"未配置 RERANK_BASE_URL"和"配置但连接失败"两种场景 | ✅ |
+| 07 | **MeilisearchService 注释重写**: 餐厅类比 + 大白话，覆盖每个方法和配置项 | ✅ |
+
 ### Known Defects / 已知待优化（Phase 3b 继续）
 | 05 | **无置信度校准** | 0.52 和 0.98 用相同阈值处理，需要 production 数据做 calibration curve | P2 | [`intent-classifier.ts:45`](/apps/api/src/client/ai-customer/graph/utils/intent-classifier.ts:45) |
 | 06 | **无反馈闭环** | 分类错误无法被捕获和纠正。需用户反馈 → 自动加入训练集 → 定期重新 seeding | P2 | [`intent-classifier.ts`](/apps/api/src/client/ai-customer/graph/utils/intent-classifier.ts) |
