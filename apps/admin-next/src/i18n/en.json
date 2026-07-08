@@ -991,6 +991,8 @@
     "contentPlaceholder": "Markdown content…",
     "contentRequired": "Content is required",
     "embeddingStatus": "Embedding Status",
+    "status": "Status",
+    "processStatus": "Processing: {status}",
     "chunksTotal": "Total Chunks",
     "chunksEmbedded": "Embedded",
     "chunksPending": "Pending",

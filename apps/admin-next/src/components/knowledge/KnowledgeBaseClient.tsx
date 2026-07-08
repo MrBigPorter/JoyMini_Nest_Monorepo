@@ -1107,6 +1107,9 @@ export function KnowledgeBaseClient() {
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-400">
                     {t('knowledgeBase.chunks')}
                   </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-400">
+                    {t('knowledgeBase.status')}
+                  </th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-400">
                     {t('actions')}
                   </th>
@@ -1170,6 +1173,17 @@ export function KnowledgeBaseClient() {
                         <ListTree size={12} />
                         {t('knowledgeBase.chunks')}
                       </button>
+                    </td>
+                    <td className="px-4 py-4">
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                        doc.processStatus === 'indexed' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                        doc.processStatus === 'embedded' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+                        doc.processStatus === 'chunked' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
+                        doc.processStatus === 'parsed' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' :
+                        'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
+                      }`}>
+                        {doc.processStatus || 'uploaded'}
+                      </span>
                     </td>
                     <td className="px-4 py-4 text-right">
                       <div className="flex items-center justify-end gap-1">

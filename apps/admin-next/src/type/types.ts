@@ -1642,6 +1642,7 @@ export interface KnowledgeDocument {
   content: string;
   isActive: boolean;
   version: number;
+  processStatus: string;
   createdAt: string;
   updatedAt: string;
 }
