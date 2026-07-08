@@ -9,6 +9,7 @@
 .PHONY: setup up up-core up-ai up-dev up-blog up-all up-infra down restart logs ps build clean wipe help menu \
         stop-ai stop-blog stop-all-extra \
         start-ollama start-infinity start-meilisearch start-blog mem \
+        start-unstructured stop-unstructured unstructured-status \
         dev-admin dev-blog dev-blog-clean exec-api migrate seed prisma-studio \
         check-dockerfiles generate-certs \
         check format fix audit type-check \
@@ -107,6 +108,20 @@ start-meilisearch:
 
 start-blog:
 	docker compose up -d admin-blog frontend-blog
+
+start-unstructured:
+	docker compose up -d unstructured
+
+stop-unstructured:
+	docker compose stop unstructured
+
+unstructured-status:
+	@echo "📋 Unstructured container status:"
+	docker compose ps unstructured
+	@echo ""
+	@echo "  启动: make start-unstructured"
+	@echo "  停止: make stop-unstructured"
+	@echo "  API:  http://localhost:8000"
 
 ## [Docker] 📊 Show memory usage of running containers
 mem:

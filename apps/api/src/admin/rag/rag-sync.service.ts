@@ -1,6 +1,7 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
+import axios from 'axios';
 import { RagChunkService } from './rag-chunk.service';
 import { RagEmbeddingService } from './rag-embedding.service';
 import { PrismaService } from '@api/common/prisma/prisma.service';
@@ -145,35 +146,120 @@ class MarkdownExtractor implements TextExtractor {
 }
 
 // =============================================================================
-// PDF 提取器
+// PDF 提取器（双引擎：Unstructured → pdf-parse 降级）
 // =============================================================================
-// 为什么这个提取器也不做 OCR？
-//   pdf-parse 是一个纯 JavaScript 的 PDF 解析器，它读取 PDF 文件中的文本流对象
-//   （Text Stream），提取出编码在 PDF 中的文字。它不执行光学字符识别（OCR）。
+// 采用双引擎策略：
 //
-// 这意味着：
-//   ✅ 文字型 PDF（从 Word/Google Docs 导出，或直接保存的文本 PDF）→ 正常提取
-//   ❌ 扫描型 PDF（纸质文件扫描成图片再转 PDF）→ data.text 为空字符串
+//   主引擎: Unstructured API（容器化部署）
+//     - 支持 OCR（扫描件可识别）
+//     - 支持表格提取 + Markdown 输出
+//     - 支持多栏排版保留
+//     - 需要手动启动: make start-unstructured
 //
-// 对于 JoyMini 的用例，知识文档都是数字生成的（政策文档、操作指南），
-// 不是纸质的扫描件，所以 pdf-parse 提取文本就足够了。
-// 如果未来需要处理扫描件，这里需要集成 OCR 引擎（如 Tesseract.js）。
+//   降级: pdf-parse（Node.js 原生）
+//     - 只支持文字型 PDF（Word/Google Docs 导出）
+//     - 不支持扫描件、表格、多栏
+//     - 不需要额外服务
 //
-// needsMetadata 标志：
-//   PDF 没有 YAML frontmatter，所以提取出来的 metadata 很有限（只有 author 和 pages）。
-//   前端通过 needsMetadata=true 知道需要弹窗让用户手动填写 domain、locale、keywords 等字段。
+// 策略:
+//   1. 优先尝试 Unstructured API
+//   2. 如果 Unstructured 不可用（容器未启动），降级到 pdf-parse
+//   3. 如果 pdf-parse 提取结果为空，提示用户启动 Unstructured
 // =============================================================================
+
+/** Unstructured API 基础 URL（Docker 内部网络） */
+const UNSTRUCTURED_URL =
+  process.env.UNSTRUCTURED_URL || 'http://joymini-unstructured:8000';
+
 class PdfExtractor implements TextExtractor {
   canHandle(filename: string): boolean {
     return filename.endsWith('.pdf');
   }
 
   async extract(file: Express.Multer.File): Promise<ExtractedDoc> {
-    // 动态 import pdf-parse
-    // 为什么动态 import？因为 pdf-parse 是一个较大的依赖（~2MB），
-    // 而且项目中可能不常用 PDF 上传。动态 import 确保：
-    // 1. 不使用时不会加载到内存
-    // 2. 环境未安装时优雅报错，而不是启动时就 crash
+    const title = file.originalname.replace(/\.pdf$/i, '');
+
+    // ── 优先尝试 Unstructured API ──
+    try {
+      const content = await this.extractWithUnstructured(file);
+      if (content && content.trim().length > 0) {
+        return {
+          title,
+          content,
+          metadata: { needsMetadata: true },
+        };
+      }
+    } catch {
+      // Unstructured 不可用，降级到 pdf-parse
+    }
+
+    // ── 降级: pdf-parse ──
+    const content = await this.extractWithPdfParse(file);
+
+    return {
+      title,
+      content,
+      metadata: { needsMetadata: true },
+    };
+  }
+
+  /**
+   * 通过 Unstructured API 解析 PDF（支持 OCR、表格、多栏）
+   * 需要先启动容器: make start-unstructured
+   */
+  private async extractWithUnstructured(
+    file: Express.Multer.File,
+  ): Promise<string> {
+    const FormData = (await import('form-data')).default;
+    const form = new FormData();
+    form.append('files', file.buffer, {
+      filename: file.originalname,
+      contentType: file.mimetype || 'application/pdf',
+    });
+
+    const response = await axios.post(
+      `${UNSTRUCTURED_URL}/general/v0/general`,
+      form,
+      {
+        headers: {
+          ...form.getHeaders(),
+          accept: 'application/json',
+        },
+        timeout: 120_000, // 大文件可能需 2 分钟
+      },
+    );
+
+    const elements = response.data as Array<{
+      type: string;
+      text?: string;
+      metadata?: { page_number?: number };
+    }>;
+
+    if (!Array.isArray(elements) || elements.length === 0) {
+      return '';
+    }
+
+    // 将解析结果拼接为 Markdown
+    return elements
+      .map((el) => {
+        if (el.type === 'Title') return `# ${el.text}`;
+        if (el.type === 'Header') return `## ${el.text}`;
+        if (el.type === 'SubHeader') return `### ${el.text}`;
+        if (el.type === 'Table') return el.text || '';
+        if (el.type === 'ListItem') return `- ${el.text}`;
+        if (el.type === 'Image') return ''; // 跳过图片
+        return el.text || '';
+      })
+      .filter(Boolean)
+      .join('\n\n');
+  }
+
+  /**
+   * 通过 pdf-parse 提取文本（降级方案，仅文字型 PDF 有效）
+   */
+  private async extractWithPdfParse(
+    file: Express.Multer.File,
+  ): Promise<string> {
     let pdfParse: any;
     try {
       pdfParse = (await import('pdf-parse')).default;
@@ -183,25 +269,8 @@ class PdfExtractor implements TextExtractor {
       );
     }
 
-    // pdfParse(file.buffer) 解析 PDF 文件结构：
-    // 1. 读取 PDF header → 版本号
-    // 2. 解析交叉引用表（xref table）→ 找到所有对象
-    // 3. 遍历页面对象（Page Objects）→ 提取文本流（Text Stream）
-    // 4. 拼接所有文本流 → 返回 data.text
-    // 整个过程不涉及 OCR，只读取 PDF 文件中已编码的文字数据。
     const data = await pdfParse(file.buffer);
-    const title = file.originalname.replace(/\.pdf$/i, '');
-
-    return {
-      title,
-      content: data.text,
-      metadata: {
-        author: data.metadata?.author || null,
-        pages: data.numpages,
-        // 关键标志：告诉前端用户需要手动补充 metadata
-        needsMetadata: true,
-      },
-    };
+    return data.text || '';
   }
 }
 

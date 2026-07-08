@@ -365,6 +365,32 @@ services:
     networks: [app]
 
   # =========================================
+  # Unstructured PDF 解析（手动启停，不上传文档时不开）
+  # =========================================
+  # 仅在需要解析 PDF 时启动：
+  #   docker compose up -d unstructured
+  # 用完关闭：
+  #   docker compose stop unstructured
+  #
+  # 首次启动需要下载模型（~2-5分钟）
+  # 支持: OCR、表格提取、多栏排版、Markdown 输出
+  # =========================================
+  unstructured:
+    image: downloads.unstructured.io/unstructured-io/unstructured-api:latest
+    container_name: joymini-unstructured
+    ports:
+      - "8000:8000"
+    command: ["--port", "8000", "--workers", "2"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    restart: "no"
+    networks: [app]
+
+  # =========================================
   # Meilisearch (BM25 关键词搜索, Rust 实现)
   # =========================================
   # 轻量级全文搜索引擎，替代 Elasticsearch。
