@@ -677,6 +677,41 @@ Return JSON format:
   }
 
   /**
+   * Rerank documents by relevance to a query — level FULL
+   * Uses duck-typing to find any provider that supports rerank().
+   * Returns sorted results with relevance scores, or null if no provider available.
+   */
+  async rerank(
+    query: string,
+    documents: string[],
+  ): Promise<Array<{ index: number; relevance_score: number }> | null> {
+    if (this.serviceLevel < AiServiceLevel.FULL) {
+      this.logger.debug('Rerank skipped: service level below FULL');
+      return null;
+    }
+
+    // Find any provider that supports rerank() (dynamic discovery)
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    const rerankProvider = (this.providers as any[]).find(
+      (p: any) => typeof p.rerank === 'function' && p.isAvailable(),
+    );
+
+    if (!rerankProvider) {
+      this.logger.warn('No rerank-capable provider available');
+      return null;
+    }
+
+    try {
+      const results = await rerankProvider.rerank(query, documents);
+      return results as Array<{ index: number; relevance_score: number }> | null;
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Unknown error';
+      this.logger.error(`Rerank failed: ${msg}`);
+      return null;
+    }
+  }
+
+  /**
    * ⏳ Reserved: semantic search matching
    */
   semanticSearch(query: string, documents: string[]): Promise<number[]> {

@@ -140,13 +140,9 @@ export function buildCustomerGraph(
   const workflow = new StateGraph(AgentState)
 
     // 注册节点 — intentRouter 使用 IntentClassifier 分类意图
-    // 传入 registry 以实现 Dynamic Intent-Tool Alignment：
-    // IntentClassifier 在 seeding 时会检查每个域是否有已注册的工具，
-    // 如果某域（如 wallet）的工具尚未注册，则跳过该域的例句，
-    // 防止路由到 Agent 但 Agent 无工具可用的问题
     .addNode(
       'intentRouter',
-      createIntentRouterNode(llmConfig, aiService, prismaService, registry),
+      createIntentRouterNode(llmConfig, aiService, prismaService),
     )
     .addNode(
       'orchestrator',

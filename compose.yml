@@ -60,6 +60,10 @@ services:
         condition: service_healthy
       ollama:
         condition: service_started
+      infinity:
+        condition: service_started
+      meilisearch:
+        condition: service_healthy
     networks: [app]
 
   # =========================================
@@ -337,6 +341,57 @@ services:
     restart: unless-stopped
     networks: [app]
 
+  # =========================================
+  # Infinity Rerank 服务（替代 Ollama /api/rerank）
+  # =========================================
+  # 专用 Rerank 推理服务器，原生支持 ARM64（Apple Silicon）
+  # 提供 Cohere 兼容的 /v1/rerank 接口
+  # 模型：BAAI/bge-reranker-v2-m3（~1.1GB，首次启动自动下载）
+  # =========================================
+  infinity:
+    image: michaelf34/infinity:latest
+    container_name: joymini-infinity
+    command: >
+      v2 --model-id BAAI/bge-reranker-v2-m3
+    ports:
+      - "7997:7997"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7997/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 120s
+    restart: unless-stopped
+    networks: [app]
+
+  # =========================================
+  # Meilisearch (BM25 关键词搜索, Rust 实现)
+  # =========================================
+  # 轻量级全文搜索引擎，替代 Elasticsearch。
+  # - 内存: ~100-256MB（ES ~1.5-2GB）
+  # - 镜像: ~50MB（ES ~1.3GB）
+  # - 启动: <5s（ES ~30-60s JVM 预热）
+  # - 内置中文分词 + BM25 变体
+  # =========================================
+  meilisearch:
+    image: getmeili/meilisearch:latest
+    container_name: joymini-meilisearch
+    ports:
+      - "7700:7700"
+    environment:
+      - MEILI_MASTER_KEY=${MEILISEARCH_MASTER_KEY:-dev-master-key}
+      - MEILI_NO_ANALYTICS=true
+      - MEILI_ENV=development
+    volumes:
+      - meili_data:/meili_data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:7700/health | grep -q 'status.*available' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks: [app]
+
 networks:
   app:
 
@@ -344,6 +399,7 @@ volumes:
   db_data:
   redis_data:
   ollama_data:
+  meili_data:
   backend_nm:
   admin_next_nm:
   admin_blog_nm:

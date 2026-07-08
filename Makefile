@@ -6,7 +6,7 @@
 # ==========================================
 
 
-.PHONY: setup up up-infra down restart logs ps build clean wipe help \
+.PHONY: setup up up-infra down restart logs ps build clean wipe help menu \
         dev-admin dev-blog dev-blog-clean exec-api migrate seed prisma-studio \
         check-dockerfiles generate-certs \
         check format fix audit type-check \
@@ -160,7 +160,7 @@ exec-api:
 
 ## [DB] Run Prisma migration (sync database schema)
 migrate:
-	docker compose exec backend ./node_modules/.bin/prisma migrate dev
+	docker compose exec backend ./node_modules/.bin/prisma migrate dev --schema=apps/api/prisma/schema.prisma
 
 ## [DB] Reset DB & run seed (⚠️ will wipe existing data)
 seed:
@@ -168,7 +168,11 @@ seed:
 
 ## [DB] Open Prisma Studio (web-based DB browser)
 prisma-studio:
-	docker compose exec backend ./node_modules/.bin/prisma studio
+	docker compose exec backend ./node_modules/.bin/prisma studio --schema=apps/api/prisma/schema.prisma
+
+## [DB] Regenerate Prisma Client (after schema changes)
+prisma-generate:
+	docker compose exec backend ./node_modules/.bin/prisma generate --schema=apps/api/prisma/schema.prisma
 
 # ──────────────────────────────────────────
 # Ollama (Local LLM Service)
@@ -731,16 +735,41 @@ aws-infra-destroy:
 	cd infra && npx cdk destroy --app "npx ts-node bin/infra.ts" --force
 
 # ──────────────────────────────────────────
-# Help
+# Help & Interactive Menu
 # ──────────────────────────────────────────
 
-## [Help] Show this help message
+## [Help] Show this help message (description + actual command name)
 help:
 	@echo ""
 	@echo "  🚀 Lucky Nest — Developer Toolbox"
 	@echo "  ─────────────────────────────────────────"
-	@grep -E '^## ' Makefile | sed 's/## /  /'
+	@awk '/^## /{desc=substr($$0,4); getline; if (/:/ && !/^define/) { sub(/:.*/,""); printf "  \033[1;36m%-22s\033[0m  %s\n", "make " $$0, desc } else { printf "  %s\n", desc } }' Makefile
 	@echo ""
 	@echo "  💡 For VPS deploy/log commands, you'll be prompted for VPS_IP interactively"
 	@echo "     or preset it: make deploy VPS_IP=1.2.3.4"
 	@echo ""
+	@echo "  💡 Try 'make menu' for interactive command picker (needs: brew install fzf)"
+	@echo ""
+
+## [Menu] 🎯 Interactive command picker (requires fzf — brew install fzf)
+menu:
+	@if ! command -v fzf >/dev/null 2>&1; then \
+		echo ""; \
+		echo "  ❌ fzf not found — install it first:"; \
+		echo ""; \
+		echo "     brew install fzf"; \
+		echo "     (fzf will also install key bindings and fuzzy completion)"; \
+		echo ""; \
+		exit 1; \
+	fi; \
+	CMD=$$(awk '/^## /{desc=substr($$0,4); getline; if (/:/ && !/^define/) { sub(/:.*/,""); printf "%-55s → make %s\n", desc, $$0 } }' Makefile | \
+		fzf --prompt="🎯 Select a make command > " \
+			--height=60% --layout=reverse --border \
+			--preview='echo "▶ {}"' | \
+		sed 's/.*→ make //'); \
+	if [ -n "$$CMD" ]; then \
+		echo ""; \
+		echo "  ▶ Running: make $$CMD"; \
+		echo "  ─────────────────────────────────────────"; \
+		$(MAKE) $$CMD; \
+	fi

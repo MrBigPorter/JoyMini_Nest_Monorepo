@@ -1790,3 +1790,46 @@ export interface PromptMetrics {
     _avg: { toolFailCount: number | null; latencyMs: number | null; totalTokens: number | null };
   }>;
 }
+
+// ── Intent Examples ──
+
+export interface IntentExampleSection {
+  section: string;
+  sentences: string[];
+}
+
+export interface IntentExampleGroup {
+  name: string;
+  examples: string[];
+  sections?: IntentExampleSection[];
+  requiredTags?: string[];
+  hasAdminOverride: boolean;
+  updatedAt: string | null;
+  isAdminCreated?: boolean;
+}
+
+export interface CreateIntentExamplesPayload {
+  domain: string;
+  sentences: string[];
+}
+
+export interface UpdateIntentExamplesPayload {
+  sentences: string[];
+  mode?: 'append' | 'replace';
+}
+
+export interface UpdateIntentExamplesResponse {
+  domain: string;
+  count: number;
+}
+
+export interface TestClassificationPayload {
+  input: string;
+}
+
+export interface TestClassificationResponse {
+  intent: string;
+  labels: { label: string; score: number }[];
+  method: 'embedding' | 'llm_fallback';
+  rawTop5?: { domain: string; similarity: number }[];
+}

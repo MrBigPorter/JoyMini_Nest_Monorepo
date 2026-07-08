@@ -1717,6 +1717,37 @@ model IntentExample {
 }
 
 // ============================================================
+// IntentExampleConfig — Admin panel configuration for intent examples
+// ============================================================
+// Stores admin-overridden sentences per domain, separate from the
+// runtime intent_examples table (which holds vector embeddings).
+// When admin updates sentences via the management UI, the config
+// is saved here and the runtime table is re-seeded with new vectors.
+// ============================================================
+
+model IntentExampleConfig {
+  /// Primary key
+  id String @id @default(cuid()) @db.VarChar(32)
+
+  /// Intent domain: wallet, order, coupon, user, product, lucky-draw, kyc, rag, general
+  domain String @unique @db.VarChar(32)
+
+  /// JSON array of sentences, e.g. ["Check my balance", "How much..."]
+  sentences String @db.Text
+
+  /// MD5 hash of JSON.stringify(sentences) for change detection
+  configHash String @db.VarChar(64)
+
+  /// Last update timestamp
+  updatedAt DateTime @updatedAt
+
+  /// Who made the change (admin user ID)
+  updatedBy String? @db.VarChar(32)
+
+  @@map("intent_example_configs")
+}
+
+// ============================================================
 // AI Customer — Classification Monitoring (Phase 3)
 // ============================================================
 // Phase 3: Log each intent classification for monitoring, metrics,

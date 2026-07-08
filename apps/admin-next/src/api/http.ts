@@ -48,7 +48,7 @@ class HttpClient {
 
     this.instance = axios.create({
       baseURL,
-      timeout: typeof window === 'undefined' ? 5_000 : 30_000, // SSR环境使用更短的超时
+      timeout: typeof window === 'undefined' ? 5_000 : 120_000, // SSR环境使用更短的超时
       headers: {
         'Content-Type': 'application/json',
       },

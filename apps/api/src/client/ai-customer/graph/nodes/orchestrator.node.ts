@@ -640,6 +640,9 @@ export const createOrchestratorNode =
           //   - createLLM(...).bindTools(tools) → llmWithTools
           //   - runAgentLoop({ llmWithTools, initialMessages, tools, agentName })
           // Merge DB prompt override over TS defaults (if PromptResolver available)
+          logger.log(
+            `[orchestrator] mergeConfig(${entry.tag}): promptConfig keys=[${Object.keys(entry.promptConfig).sort().join(', ')}]`,
+          );
           const mergedResult = promptResolver
             ? await promptResolver.mergeConfig(entry.tag, entry.promptConfig)
             : { config: entry.promptConfig, version: null, promptName: null };
@@ -684,15 +687,21 @@ export const createOrchestratorNode =
           );
 
           // Fire-and-forget eval log if this agent had a DB prompt override
-          if (promptResolver && mergedResult.promptName && mergedResult.version) {
+          if (
+            promptResolver &&
+            mergedResult.promptName &&
+            mergedResult.version
+          ) {
             const toolFailCount = result.error ? result.totalToolCalls : 0;
-            promptResolver.recordEval({
-              promptName: mergedResult.promptName,
-              version: mergedResult.version,
-              sessionId: `${state.userId}:${Date.now()}`,
-              toolCallCount: result.totalToolCalls,
-              toolFailCount,
-            }).catch(() => {}); // Fire-and-forget: suppress unhandled rejection
+            promptResolver
+              .recordEval({
+                promptName: mergedResult.promptName,
+                version: mergedResult.version,
+                sessionId: `${state.userId}:${Date.now()}`,
+                toolCallCount: result.totalToolCalls,
+                toolFailCount,
+              })
+              .catch(() => {}); // Fire-and-forget: suppress unhandled rejection
           }
         }
       } catch (err: any) {

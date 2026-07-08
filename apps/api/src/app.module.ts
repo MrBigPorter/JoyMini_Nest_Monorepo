@@ -25,6 +25,7 @@ import { EventsModule } from '@api/common/events/events.module';
 import { EmailModule } from '@api/common/email/email.module';
 import { RecaptchaModule } from '@api/common/recaptcha/recaptcha.module';
 import { AiModule } from '@api/common/ai/ai.module';
+import { MeilisearchModule } from '@api/common/meilisearch/meilisearch.module';
 import { BlogModule } from '@api/blog/blog.module';
 import { AiCustomerModule } from '@api/client/ai-customer/ai-customer.module';
 
@@ -163,6 +164,7 @@ import { AiCustomerModule } from '@api/client/ai-customer/ai-customer.module';
     RecaptchaModule,
     BlogModule,
     AiModule,
+    MeilisearchModule,
     AiCustomerModule,
 
     // 其他模块：PrismaModule、ThrottlerModule、UsersModule、AuthModule 等

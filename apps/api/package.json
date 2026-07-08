@@ -34,6 +34,7 @@
     "export:swagger:full": "TS_NODE_TRANSPILE_ONLY=true node_modules/.bin/ts-node -r tsconfig-paths/register scripts/cli/export-swagger.ts --full --output ../../apps/swagger-docs"
   },
   "prisma": {
+    "schema": "prisma/schema.prisma",
     "seed": "tsx scripts/seed/index.ts"
   },
   "dependencies": {
@@ -93,6 +94,7 @@
     "langchain": "^1.5.2",
     "libphonenumber-js": "^1.12.33",
     "marked": "^18.0.0",
+    "meilisearch": "^0.59.0",
     "morgan": "^1.10.1",
     "morgan-body": "^2.6.9",
     "p-limit": "^7.2.0",

@@ -5,7 +5,10 @@ import { Type } from 'class-transformer';
 export class QueryPromptDto {
   @IsString()
   @IsOptional()
-  @ApiPropertyOptional({ description: 'Filter by category', enum: ['agent', 'system', 'intent'] })
+  @ApiPropertyOptional({
+    description: 'Filter by category',
+    enum: ['agent', 'system', 'intent'],
+  })
   category?: string;
 
   @IsString()
@@ -15,7 +18,10 @@ export class QueryPromptDto {
 
   @IsString()
   @IsOptional()
-  @ApiPropertyOptional({ description: 'Filter by status', enum: ['active', 'inactive', 'draft', 'archived'] })
+  @ApiPropertyOptional({
+    description: 'Filter by status',
+    enum: ['active', 'inactive', 'draft', 'archived'],
+  })
   status?: string;
 
   @Type(() => Number)

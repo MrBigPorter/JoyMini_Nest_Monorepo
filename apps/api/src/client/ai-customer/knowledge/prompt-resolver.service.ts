@@ -114,34 +114,30 @@ export class PromptResolverService {
 
       // 2. 没有活跃 override → 返回 TS 默认
       if (!dbPrompt || dbPrompt.versions.length === 0) {
+        this.logger.log(
+          `[PromptResolver] mergeConfig(${domain}): no active override in DB, using TS defaults`,
+        );
         return { config: tsConfig, version: null, promptName: null };
       }
 
       const activeVersion = dbPrompt.versions[0];
       const dbConfig = activeVersion.config as Record<string, any>;
 
-      // 3. 合并：DB 配置覆盖 TS 默认
-      const merged: Omit<AgentPromptConfig, 'userId'> = {
-        ...tsConfig,
-        ...dbConfig,
-      };
-
-      // 4. scopeRestriction 深度合并
-      if (dbConfig.scopeRestriction && tsConfig.scopeRestriction) {
-        merged.scopeRestriction = {
-          ...tsConfig.scopeRestriction,
-          ...dbConfig.scopeRestriction,
-        };
-      } else if (dbConfig.scopeRestriction) {
-        merged.scopeRestriction = dbConfig.scopeRestriction;
-      }
-
+      // ── DEBUG LOG: 打印 DB 完整配置 ──
       this.logger.log(
-        `[PromptResolver] mergeConfig(${domain}): active v${activeVersion.version} applied`,
+        `[PromptResolver] mergeConfig(${domain}): DB found v${activeVersion.version}` +
+          `\n  DB config keys: [${Object.keys(dbConfig).sort().join(', ')}]` +
+          `\n  scopeRestriction: ${JSON.stringify(dbConfig.scopeRestriction)}` +
+          `\n  flowContext: ${dbConfig.flowContext}`,
+      );
+
+      // 3. 直接使用 DB 配置（不合并），TS 默认仅作为 fallback
+      this.logger.log(
+        `[PromptResolver] mergeConfig(${domain}): using DB config directly (no merge)`,
       );
 
       return {
-        config: merged,
+        config: dbConfig as Omit<AgentPromptConfig, 'userId'>,
         version: activeVersion.version,
         promptName: dbPrompt.name,
       };

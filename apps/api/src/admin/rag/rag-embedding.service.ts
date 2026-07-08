@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { AiService } from '@api/common/ai/ai.service';
+import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service';
 import pLimit from 'p-limit';
 
 // ========== 类型定义 ==========
@@ -83,6 +84,7 @@ export class RagEmbeddingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly aiService: AiService,
+    private readonly meilisearchService: MeilisearchService,
   ) {}
 
   /**
@@ -146,7 +148,31 @@ export class RagEmbeddingService {
         `(concurrency=${concurrency}, force=${force})`,
     );
 
-    // ---------- 第二步：并发控制处理所有 chunks ----------
+    // ---------- 第二步：查询文档元数据（用于 ES 索引） ----------
+    // 需要文档的 title、domain、docId、keywords、priority、contentType、locale
+    // 以便在向量化完成后同步索引到 Elasticsearch。
+    const document = await this.prisma.knowledgeDocument.findUnique({
+      where: { id: documentId },
+      select: {
+        id: true,
+        title: true,
+        domain: true,
+        docId: true,
+        keywords: true,
+        priority: true,
+        contentType: true,
+        locale: true,
+        isActive: true,
+      },
+    });
+
+    if (!document) {
+      this.logger.warn(
+        `embedDocument(${documentId}): document not found, skipping ES indexing`,
+      );
+    }
+
+    // ---------- 第三步：并发控制处理所有 chunks ----------
 
     const result: EmbeddingResult = {
       successCount: 0,
@@ -168,7 +194,7 @@ export class RagEmbeddingService {
     const limit = pLimit(concurrency);
 
     const tasks = chunksMapped.map((chunk) =>
-      limit(() => this.embedSingleChunk(chunk, result)),
+      limit(() => this.embedSingleChunk(chunk, result, document)),
     );
 
     await Promise.all(tasks);
@@ -185,15 +211,32 @@ export class RagEmbeddingService {
   }
 
   /**
-   * 处理单个 chunk 的向量化。
+   * 处理单个 chunk 的向量化 + ES 索引。
    * 包在 try/catch 里，失败只影响这一个 chunk。
    *
-   * @param chunk  当前处理的 chunk
-   * @param result 累加器，用来记录成功/失败
+   * 为什么在同一个方法里做向量化和 ES 索引？
+   *   1. 向量化成功后立即索引到 ES，保持数据一致性
+   *   2. ES 索引失败不影响向量化结果（降级策略）
+   *   3. 避免额外的遍历开销
+   *
+   * @param chunk    当前处理的 chunk
+   * @param result   累加器，用来记录成功/失败
+   * @param document 文档元数据（用于 ES 索引）
    */
   private async embedSingleChunk(
     chunk: { id: string; chunkIndex: number; content: string },
     result: EmbeddingResult,
+    document?: {
+      id: string;
+      title: string;
+      domain: string;
+      docId: string;
+      keywords: string[];
+      priority: string;
+      contentType: string;
+      locale: string;
+      isActive: boolean;
+    } | null,
   ): Promise<void> {
     try {
       // 调用 AiService.generateEmbedding() 将文本转为 1024 维向量
@@ -224,6 +267,26 @@ export class RagEmbeddingService {
         vectorStr,
         chunk.id,
       );
+
+      // ---------- 同步索引到 Meilisearch ----------
+      // 向量化成功后，将 chunk 内容同步到 Meilisearch 的 BM25 索引。
+      // Meilisearch 索引失败不会影响向量化结果（降级策略）。
+      if (document) {
+        await this.meilisearchService.indexChunk({
+          chunkId: chunk.id,
+          chunkIndex: chunk.chunkIndex,
+          content: chunk.content,
+          documentId: document.id,
+          title: document.title,
+          domain: document.domain,
+          docId: document.docId,
+          keywords: document.keywords,
+          priority: document.priority,
+          contentType: document.contentType,
+          locale: document.locale,
+          isActive: document.isActive,
+        });
+      }
 
       result.successCount++;
     } catch (error) {

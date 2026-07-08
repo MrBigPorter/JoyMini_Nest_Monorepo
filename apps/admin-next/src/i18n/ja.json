@@ -78,6 +78,7 @@
     "loginLogMgmt": "ログインログ",
     "luckyDrawMgmt": "ラッキードロー",
     "aiPrompt": "AI Prompt",
+    "intentExamples": "インテント分類",
     "settings": "システム設定",
     "pendingApplications": "保留中の申請",
     "tags": "タグ",

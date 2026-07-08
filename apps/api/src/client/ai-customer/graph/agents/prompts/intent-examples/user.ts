@@ -2,7 +2,9 @@
  * user — Intent classification example sentences (English only)
  *
  * Covers: profile, editing, addresses, password/security, phone/email, membership, settings, registration
- * ~45 sentences
+ * ~38 sentences (operation-only: requires API calls for real-time data)
+ *
+ * Knowledge-query sentences (流程/政策类) moved to rag.ts
  */
 
 export const userExamples: string[] = [
@@ -10,28 +12,24 @@ export const userExamples: string[] = [
   'View my profile',
   'Show my account information',
   'What is my username?',
-  'How do I see my profile details?',
   'Display my account info',
 
   // ── Profile editing ──
   'Edit my profile',
   'Change my display name',
   'Update my profile picture',
-  'How do I change my name?',
   'I want to update my profile',
 
   // ── Address management ──
   'Add a new address',
   'Change my shipping address',
   'Edit my billing address',
-  'How do I update my address?',
   'Remove my saved address',
 
   // ── Password / security ──
   'Change my password',
   'Reset my password',
   'I forgot my password',
-  'How do I change my password?',
   'Update my security settings',
   'Enable two-factor authentication',
 
@@ -42,21 +40,17 @@ export const userExamples: string[] = [
   'Verify my email',
   "I didn't receive the verification code",
 
-  // ── Membership ──
+  // ── Membership (operation: real-time status) ──
   'What membership tier am I on?',
   'Check my membership status',
   'How do I upgrade my membership?',
-  'What are the VIP benefits?',
-  'How do I become a VIP member?',
 
   // ── Account settings ──
   'Change my language preference',
   'Update notification settings',
   'Set my privacy preferences',
-  'How do I delete my account?',
 
-  // ── Registration ──
-  'How do I create an account?',
+  // ── Registration (operation: execute sign-up) ──
   'Sign up for a new account',
   'Register as a new user',
   'I want to register',

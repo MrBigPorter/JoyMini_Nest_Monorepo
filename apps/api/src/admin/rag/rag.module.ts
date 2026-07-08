@@ -5,9 +5,10 @@ import { RagService } from './rag.service';
 import { RagSyncService } from './rag-sync.service';
 import { RagChunkService } from './rag-chunk.service';
 import { RagEmbeddingService } from './rag-embedding.service';
+import { RagEmbeddingQueueModule } from './rag-embedding-queue.module';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, RagEmbeddingQueueModule],
   controllers: [RagController],
   providers: [RagService, RagSyncService, RagChunkService, RagEmbeddingService],
   exports: [RagChunkService, RagEmbeddingService],

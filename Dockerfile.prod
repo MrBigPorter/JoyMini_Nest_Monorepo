@@ -41,7 +41,7 @@ COPY packages/ ./packages/
 COPY turbo.json tsconfig.json ./
 
     # 4) Prisma generate (prisma CLI 提升到根 node_modules/.bin/prisma)
-RUN yarn workspace @lucky/api prisma generate
+RUN yarn workspace @lucky/api prisma generate --schema=apps/api/prisma/schema.prisma
 
     # 5) Build @lucky/shared (API imports from @lucky/shared/dist/*)
     #    esbuild 不在 focus 范围内，直接用 tsc (typescript 是 @lucky/api 的 devDep，会被提升到根 node_modules)

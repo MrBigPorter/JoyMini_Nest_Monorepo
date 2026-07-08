@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { ConfigService } from '@nestjs/config';
+import { EMBEDDING_QUEUE } from '@api/common/ai/queues/embedding/embedding-queue.constants';
 
 export interface QueueStats {
   name: string;
@@ -42,12 +43,18 @@ export interface QueueMonitoringResponse {
 @Injectable()
 export class QueueMonitorService {
   private readonly logger = new Logger(QueueMonitorService.name);
-  private readonly queueNames = ['blog-ai', 'avatar', 'group_settlement'];
+  private readonly queueNames = [
+    'blog-ai',
+    'avatar',
+    'group_settlement',
+    EMBEDDING_QUEUE,
+  ];
 
   constructor(
     @InjectQueue('blog-ai') private blogAiQueue: Queue,
     @InjectQueue('avatar') private avatarQueue: Queue,
     @InjectQueue('group_settlement') private settlementQueue: Queue,
+    @InjectQueue(EMBEDDING_QUEUE) private embeddingQueue: Queue,
     private configService: ConfigService,
   ) {}
 
@@ -80,6 +87,9 @@ export class QueueMonitorService {
         break;
       case 'group_settlement':
         queue = this.settlementQueue;
+        break;
+      case EMBEDDING_QUEUE:
+        queue = this.embeddingQueue;
         break;
       default:
         throw new Error(`Unknown queue: ${queueName}`);
@@ -150,6 +160,10 @@ export class QueueMonitorService {
     // Get job stats for settlement queue
     const settlementJobs = await this.getSettlementJobStats();
     result['group_settlement'] = settlementJobs;
+
+    // Get job stats for embedding queue
+    const embeddingJobs = await this.getEmbeddingJobStats();
+    result[EMBEDDING_QUEUE] = embeddingJobs;
 
     return result;
   }
@@ -285,6 +299,42 @@ export class QueueMonitorService {
     }
   }
 
+  private async getEmbeddingJobStats(): Promise<JobStats[]> {
+    try {
+      const jobs = await this.embeddingQueue.getJobs(['completed', 'failed']);
+
+      return [
+        {
+          type: 'embed-sentence',
+          count: jobs.length,
+          lastCompleted:
+            jobs.length > 0
+              ? new Date(
+                  Math.max(
+                    ...jobs
+                      .filter((j) => j.finishedOn)
+                      .map((j) => j.finishedOn || 0),
+                  ),
+                )
+              : undefined,
+          lastFailed:
+            jobs.length > 0
+              ? new Date(
+                  Math.max(
+                    ...jobs
+                      .filter((j) => j.failedReason)
+                      .map((j) => j.finishedOn || 0),
+                  ),
+                )
+              : undefined,
+        },
+      ];
+    } catch (error) {
+      this.logger.error('Failed to get embedding job stats:', error);
+      return [];
+    }
+  }
+
   private async getSystemStats() {
     return {
       redisConnected: await this.checkRedisConnection(),
@@ -365,6 +415,8 @@ export class QueueMonitorService {
         return this.avatarQueue;
       case 'group_settlement':
         return this.settlementQueue;
+      case EMBEDDING_QUEUE:
+        return this.embeddingQueue;
       default:
         throw new Error(`Unknown queue: ${queueName}`);
     }

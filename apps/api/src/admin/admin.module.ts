@@ -27,6 +27,7 @@ import { AdminLuckyDrawModule } from '@api/admin/lucky-draw/lucky-draw.module';
 import { SupportChannelModule } from '@api/admin/support-channel/support-channel.module';
 import { RagModule } from '@api/admin/rag/rag.module';
 import { AiPromptModule } from '@api/admin/ai-prompt/ai-prompt.module';
+import { IntentExamplesModule } from '@api/admin/intent-examples/intent-examples.module';
 
 @Module({
   imports: [
@@ -58,6 +59,7 @@ import { AiPromptModule } from '@api/admin/ai-prompt/ai-prompt.module';
     SupportChannelModule,
     RagModule,
     AiPromptModule,
+    IntentExamplesModule,
   ],
   providers: [],
   controllers: [],

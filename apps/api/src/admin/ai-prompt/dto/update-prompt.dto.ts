@@ -17,11 +17,16 @@ export class UpdatePromptDto {
   @IsString()
   @IsOptional()
   @MaxLength(32)
-  @ApiPropertyOptional({ description: 'Status', enum: ['active', 'inactive', 'draft', 'archived'] })
+  @ApiPropertyOptional({
+    description: 'Status',
+    enum: ['active', 'inactive', 'draft', 'archived'],
+  })
   status?: string;
 
   @IsBoolean()
   @IsOptional()
-  @ApiPropertyOptional({ description: 'Use TS file as fallback when no DB override' })
+  @ApiPropertyOptional({
+    description: 'Use TS file as fallback when no DB override',
+  })
   tsFallback?: boolean;
 }

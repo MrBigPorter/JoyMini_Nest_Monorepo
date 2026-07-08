@@ -2,7 +2,9 @@
  * product — Intent classification example sentences (English only)
  *
  * Covers: search, hot items, categories, recommendations, pricing, details, stock
- * ~40 sentences
+ * ~37 sentences (operation-only: requires API calls for real-time data)
+ *
+ * Knowledge-query sentences (流程/政策类) moved to rag.ts
  */
 
 export const productExamples: string[] = [
@@ -47,12 +49,8 @@ export const productExamples: string[] = [
   'What are the specifications?',
   'Show product description',
   'What color options are available?',
-  'What is the warranty period?',
 
-  // ── Stock ──
+  // ── Stock (operation: real-time availability) ──
   'Is this item in stock?',
   'Check availability for product 123',
-  'When will this be back in stock?',
-  'Do you have this in size large?',
-  'Is this available in my region?',
 ];

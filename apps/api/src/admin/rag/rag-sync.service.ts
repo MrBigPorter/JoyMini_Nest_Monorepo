@@ -1,7 +1,10 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { RagChunkService } from './rag-chunk.service';
 import { RagEmbeddingService } from './rag-embedding.service';
 import { PrismaService } from '@api/common/prisma/prisma.service';
+import { RAG_EMBEDDING_QUEUE } from './rag-embedding-queue.constants';
 
 // =============================================================================
 // 策略接口 — TextExtractor
@@ -214,6 +217,8 @@ export class RagSyncService {
     private readonly prisma: PrismaService,
     private readonly ragChunkService: RagChunkService,
     private readonly ragEmbeddingService: RagEmbeddingService,
+    @InjectQueue(RAG_EMBEDDING_QUEUE)
+    private readonly ragEmbeddingQueue: Queue,
   ) {
     // 注册提取器。新增格式只需在这里 push。
     this.extractors = [new MarkdownExtractor(), new PdfExtractor()];
@@ -350,14 +355,31 @@ export class RagSyncService {
       );
     }
 
-    // ==================== 第 6 步：向量化 ====================
-    // 调用 AiService.generateEmbedding() → Ollama bge-m3 → 1024 维向量
-    // 存入 pgvector 的 embedding 列（使用 raw SQL 因为 Prisma 不支持 Unsupported 类型）
+    // ==================== 第 6 步：提交向量化任务到队列 ====================
+    // 改为异步：不再同步等待所有 chunk 向量化完成。
+    // 而是提交一个 BullMQ job 到 rag-embedding 队列，立即返回。
     //
-    // 错误隔离：如果 Ollama 服务暂时不可用，embedDocument 会记录日志但不抛异常。
-    // 这样上传流程不会因为向量化失败而整体回滚。
+    // 为什么改异步？
+    //   大文档（如 10 万字）会产生 ~200 个 chunk，
+    //   每个 chunk 调用 Ollama bge-m3 约 200-500ms，
+    //   同步等待需要 60 秒，远超 API 网关 30 秒超时。
+    //
+    // 错误隔离：如果队列不可用，记录日志但不抛异常。
     // 未向量化的 chunks 可以通过前端的"reindex"按钮手动重试。
-    await this.ragEmbeddingService.embedDocument(document.id);
+    try {
+      await this.ragEmbeddingQueue.add('embed', {
+        documentId: document.id,
+      });
+      this.logger.log(
+        `Submitted embedding job for document ${document.id} (${chunks.length} chunks)`,
+      );
+    } catch (error) {
+      // 队列不可用时（如 Redis 宕机），不阻塞上传流程
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(
+        `Failed to submit embedding job for document ${document.id}: ${message}`,
+      );
+    }
 
     // ==================== 第 7 步：返回结果 ====================
     return {

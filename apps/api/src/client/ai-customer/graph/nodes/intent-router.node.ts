@@ -25,7 +25,6 @@ import {
 import { INTENT_PROMPT } from '@api/client/ai-customer/graph/agents/prompts/intent-prompt';
 import { VALID_INTENTS } from '@api/client/ai-customer/graph/agents/prompts/intent-label-categories';
 import { IntentClassifier } from '@api/client/ai-customer/graph/utils/intent-classifier';
-import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-registry.service';
 import { AiService } from '@api/common/ai/ai.service';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { Logger } from '@nestjs/common';
@@ -155,14 +154,12 @@ function parseFallback(trimmed: string): {
  * @param llmConfig      LLM 配置
  * @param aiService      AiService（用于 embedding）
  * @param prismaService  PrismaService（用于 pgvector）
- * @param toolRegistry   ToolRegistryService（可选，用于 Dynamic Intent-Tool Alignment）
  */
 export const createIntentRouterNode =
   (
     llmConfig: LlmProviderConfig,
     aiService: AiService,
     prismaService: PrismaService,
-    toolRegistry?: ToolRegistryService,
   ) =>
   async (
     state: typeof AgentState.State,
@@ -178,7 +175,6 @@ export const createIntentRouterNode =
     const classifier = new IntentClassifier(
       aiService,
       prismaService,
-      toolRegistry,
     );
     const embeddingResult = await classifier.classify(userInput);
 

@@ -1,49 +1,21 @@
 /**
  * kyc — Intent classification example sentences (English only)
  *
- * Covers: status, document types, process, rejection, pending time, upgrades
- * ~35 sentences
+ * Covers: status queries only (operation: real-time API check)
+ * ~5 sentences
+ *
+ * Knowledge-query sentences (流程/政策/原因类) moved to rag.ts
+ * because they can be answered from kyc-guide.en.md and kyc-troubleshooting.en.md
  */
 
 export const kycExamples: string[] = [
-  // ── Status queries ──
+  // ── Status queries (operation: real-time API check) ──
   'What is my KYC status?',
   'Is my KYC approved?',
   'Check my verification status',
   'Has my ID been verified?',
   'Am I KYC verified?',
 
-  // ── Document types ──
-  'What documents do I need for KYC?',
-  'Can I use my passport for verification?',
-  'What ID types are accepted?',
-  "Do you accept driver's license?",
-  'Can I use my UMID card?',
-
-  // ── Process questions ──
-  'How do I complete KYC?',
-  'How long does KYC verification take?',
-  'What is the KYC process?',
-  'How do I submit my documents?',
+  // ── Start verification (operation: initiate process) ──
   'I want to start KYC verification',
-
-  // ── Rejection reasons ──
-  'Why was my KYC rejected?',
-  'My document was not accepted',
-  'Why is my ID invalid?',
-  'What is wrong with my submission?',
-  'How do I resubmit my documents?',
-
-  // ── Pending time ──
-  'How long has my KYC been pending?',
-  'Why is my KYC taking so long?',
-  'When will my verification be complete?',
-  'My KYC has been pending for days',
-
-  // ── Upgrades / levels ──
-  'How do I upgrade my KYC level?',
-  'What is the highest KYC level?',
-  'What are the benefits of KYC level 2?',
-  'Can I increase my KYC limit?',
-  'What is the withdrawal limit after KYC?',
 ];

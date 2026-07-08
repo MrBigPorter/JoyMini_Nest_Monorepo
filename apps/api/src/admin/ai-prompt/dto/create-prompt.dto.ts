@@ -5,7 +5,10 @@ export class CreatePromptDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(64)
-  @ApiProperty({ description: 'Prompt identifier (e.g. order-agent, wallet-agent)', maxLength: 64 })
+  @ApiProperty({
+    description: 'Prompt identifier (e.g. order-agent, wallet-agent)',
+    maxLength: 64,
+  })
   name!: string;
 
   @IsString()
@@ -29,10 +32,16 @@ export class CreatePromptDto {
   @IsString()
   @IsOptional()
   @MaxLength(32)
-  @ApiPropertyOptional({ description: 'Domain (null for system prompts)', maxLength: 32 })
+  @ApiPropertyOptional({
+    description: 'Domain (null for system prompts)',
+    maxLength: 32,
+  })
   domain?: string;
 
   @IsOptional()
-  @ApiPropertyOptional({ description: 'Initial prompt config as JSON object', type: Object })
+  @ApiPropertyOptional({
+    description: 'Initial prompt config as JSON object',
+    type: Object,
+  })
   config?: Record<string, unknown>;
 }

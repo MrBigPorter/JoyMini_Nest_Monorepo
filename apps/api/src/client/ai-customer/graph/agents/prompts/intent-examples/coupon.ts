@@ -2,7 +2,9 @@
  * coupon — Intent classification example sentences (English only)
  *
  * Covers: listing, applying codes, balance/value, promos, expiry, issues
- * ~35 sentences
+ * ~29 sentences (operation-only: requires API calls for real-time data)
+ *
+ * Knowledge-query sentences (流程/政策类) moved to rag.ts
  */
 
 export const couponExamples: string[] = [
@@ -14,15 +16,14 @@ export const couponExamples: string[] = [
   'Show me all my discount codes',
   'What promos are available?',
 
-  // ── Applying codes ──
+  // ── Applying codes (operation only) ──
   'Apply coupon code SAVE10',
   'Use my discount code',
   'Redeem this voucher',
-  'How do I use a coupon?',
   'I want to use coupon WELCOME20',
   'Apply this promo code to my order',
 
-  // ── Balance / value ──
+  // ── Balance / value (operation: real-time check) ──
   'How much is my coupon worth?',
   'What is the value of this voucher?',
   'Check my coupon balance',
@@ -35,13 +36,13 @@ export const couponExamples: string[] = [
   'Do you have any special offers?',
   'What is the latest promo?',
 
-  // ── Expiry ──
+  // ── Expiry (operation: real-time check) ──
   'When does my coupon expire?',
   'Is my voucher still valid?',
   'Check expiry date of my coupon',
   'My coupon expired, can I extend it?',
 
-  // ── Issues ──
+  // ── Issues (operation: needs user's specific coupon data) ──
   'Why is my coupon not working?',
   'Coupon code is invalid',
   'This voucher cannot be applied',

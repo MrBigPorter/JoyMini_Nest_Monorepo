@@ -26,6 +26,7 @@ import {
   SlidersHorizontal,
   Sparkles,
   Activity,
+  BrainCircuit,
 } from 'lucide-react';
 
 export type RouteGroup =
@@ -113,6 +114,12 @@ export const routes: RouteConfig[] = [
     path: '/ai-prompt',
     name: 'aiPrompt',
     icon: Sparkles,
+    group: 'Customer Service',
+  },
+  {
+    path: '/intent-examples',
+    name: 'intentExamples',
+    icon: BrainCircuit,
     group: 'Customer Service',
   },
   {

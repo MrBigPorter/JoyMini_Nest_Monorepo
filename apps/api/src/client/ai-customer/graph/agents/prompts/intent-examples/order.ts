@@ -2,7 +2,9 @@
  * order — Intent classification example sentences (English only)
  *
  * Covers: listing, tracking/delivery, cancellation, returns/refunds, payment status, details
- * ~40 sentences
+ * ~33 sentences (operation-only: requires API calls for real-time data)
+ *
+ * Knowledge-query sentences (流程/政策类) moved to rag.ts
  */
 
 export const orderExamples: string[] = [
@@ -24,22 +26,16 @@ export const orderExamples: string[] = [
   'Why is my delivery delayed?',
   'What is the estimated delivery date?',
 
-  // ── Cancellation ──
+  // ── Cancellation (operation only) ──
   'Cancel my order',
   'I want to cancel order 12345',
   'Can I still cancel?',
-  'How do I cancel an order?',
   'Cancel my order please',
   'My order was cancelled, why?',
 
-  // ── Returns / refunds ──
+  // ── Returns / refunds (operation only) ──
   'I want to return this item',
-  'How do I request a refund?',
   'Return my order',
-  'What is the return policy?',
-  'Can I get a refund for this?',
-  'How long does a refund take?',
-  'I received a damaged item',
 
   // ── Payment status ──
   'Has my payment been processed?',
