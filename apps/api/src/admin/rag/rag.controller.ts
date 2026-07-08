@@ -220,6 +220,18 @@ export class RagController {
     return this.ragService.reindex(id);
   }
 
+  // ==================== Bulk operations ====================
+
+  @Post('reindex-all')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Reindex all active documents (bulk re-chunk + re-embed + sync to Meilisearch)',
+  })
+  async reindexAll() {
+    return this.ragService.reindexAll();
+  }
+
   // ==================== Metadata helpers ====================
 
   @Get('meta/domains')

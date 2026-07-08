@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { AiService } from '@api/common/ai/ai.service';
+import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service';
 
 // =============================================================================
 // 检索结果类型
@@ -35,7 +37,7 @@ export interface RetrievedChunk {
   priority: string;
   /** 内容类型（policy / how-to / faq / ...） */
   contentType: string;
-  /** 相似度分数（pgvector: 0~1 余弦相似度 / 关键字: 0.5 固定值） */
+  /** 相似度分数（pgvector: 0~1 余弦相似度 / ES BM25: 0~∞ / 关键字: 0.5 固定值） */
   score: number;
 }
 
@@ -46,18 +48,23 @@ export interface RetrievedChunk {
 /**
  * RAG 知识库检索服务。
  *
- * 3 层降级策略（优雅降级，不抛异常）：
+ * 4 层降级策略（优雅降级，不抛异常）：
  *   Layer 1 — pgvector 语义检索（bge-m3 多语言 embedding）
  *     跨语言："退货" → vector → 匹配 "Refund Policy" 段落
  *     查询粒度：chunk 级别（~500 字），精准定位
  *     失败场景：Ollama 宕机、chunk 未向量化、查询太短
  *
+ *   Layer 1.5 — Elasticsearch BM25 全文检索（新增）
+ *     概率检索模型，比 ILIKE 更智能（IDF 自动降权常见词）
+ *     多字段加权搜索（title^3 + content^1）
+ *     失败场景：ES 容器未启动、索引不存在
+ *
  *   Layer 2 — Chunk 关键字检索（ILIKE 模糊匹配）
  *     精确命中：用户提到具体数字/货号时比向量准确
- *     覆盖场景：Ollama 正常但某些 chunk embedding IS NULL
+ *     覆盖场景：ES 不可用但 PostgreSQL 正常
  *
  *   Layer 3 — 完整文档关键字检索（原始 Phase 1 逻辑）
- *     兜底：前两层都找不到时，在整篇文档里搜索
+ *     兜底：前三层都找不到时，在整篇文档里搜索
  *     场景：新文档刚上传、chunk 还没生成
  */
 @Injectable()
@@ -67,14 +74,16 @@ export class RagRetrievalService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly aiService: AiService,
+    private readonly meilisearchService: MeilisearchService,
+    private readonly configService: ConfigService,
   ) {}
 
   // ===========================================================================
-  // 公有方法：3 层降级检索
+  // 公有方法：4 层降级检索
   // ===========================================================================
 
   /**
-   * 检索知识库，自动执行 3 层降级。
+   * 检索知识库，自动执行 4 层降级。
    *
    * @param query   用户问题原文（中文/英文/混合）
    * @param options
@@ -95,49 +104,89 @@ export class RagRetrievalService {
 
     if (!query || query.trim().length === 0) return [];
 
+    // =====================================================================
+    // Hybrid Retrieval: 从所有层收集结果，合并去重，再重排序
+    // =====================================================================
+    // 为什么不是 early-return（找到一层就返回）？
+    //   不同检索层擅长不同场景：
+    //   - pgvector: 跨语言语义匹配（"退货" ↔ "Refund Policy"）
+    //   - ES BM25: 关键词精确匹配，IDF 降权常见词
+    //   - ILIKE: 精确子串匹配（货号、数字）
+    //   - 全文搜索: 兜底（新文档无 chunk）
+    //   合并后 reranker 能从更多候选中选出最相关的 topK。
+    //
+    // topK 放大系数：每层请求 topK * 4 个候选，给 reranker 更多选择空间。
+    // =====================================================================
+    const collectK = Math.max(topK * 4, 20); // 至少收集 20 个候选
+
     // -------------------- Layer 1: pgvector 语义检索 --------------------
-    // 利用 bge-m3 多语言 embedding 实现跨语言语义匹配。
-    // 中文问"怎么退款"能匹配英文文档的 "Refund Process" 段落。
-    const vectorResults = await this.vectorSearch(query, domain, topK);
-    if (vectorResults.length > 0) {
-      this.logger.debug(
-        `[retrieve] Layer 1 (pgvector): ${vectorResults.length} results`,
-      );
-      return vectorResults;
-    }
+    const vectorResults = await this.vectorSearch(query, domain, collectK);
+
+    // -------------------- Layer 1.5: Meilisearch BM25 全文检索 --------------------
+    const meiliResults = await this.meilisearchService.searchChunks(
+      query,
+      domain,
+      collectK,
+    );
 
     // 分词用于 Layer 2 / Layer 3
     const tokens = this.tokenize(query);
 
     // -------------------- Layer 2: Chunk 关键字检索 --------------------
-    // 在 document_chunks.content 上做 ILIKE 模糊匹配。
-    // 覆盖 embedding 失败的 chunk（embedding IS NULL）。
+    let chunkResults: RetrievedChunk[] = [];
     if (tokens.length > 0) {
-      const chunkResults = await this.keywordSearchChunks(tokens, domain, topK);
-      if (chunkResults.length > 0) {
-        this.logger.debug(
-          `[retrieve] Layer 2 (chunk keyword): ${chunkResults.length} results`,
-        );
-        return chunkResults;
-      }
+      chunkResults = await this.keywordSearchChunks(tokens, domain, collectK);
     }
 
     // -------------------- Layer 3: 完整文档关键字检索 --------------------
-    // 最彻底的兜底：在 KnowledgeDocument.content 全文搜索。
-    // 即使 chunk 完全不存在（新上传文档），也能查到。
     const docResults = await this.keywordSearchDocs(
       query,
       tokens,
       domain,
-      topK,
+      collectK,
       minScore,
     );
-    if (docResults.length > 0) {
-      this.logger.debug(
-        `[retrieve] Layer 3 (full doc): ${docResults.length} results`,
-      );
+
+    // =====================================================================
+    // Merge & Deduplicate: 按 chunkId 去重，保留最高分
+    // =====================================================================
+    const mergedMap = new Map<string, RetrievedChunk>();
+
+    const addToMap = (chunks: RetrievedChunk[]) => {
+      for (const chunk of chunks) {
+        const key = chunk.chunkId || chunk.docId; // chunkId 为空时用 docId
+        const existing = mergedMap.get(key);
+        if (!existing || chunk.score > existing.score) {
+          mergedMap.set(key, chunk);
+        }
+      }
+    };
+
+    addToMap(vectorResults);
+    addToMap(meiliResults);
+    addToMap(chunkResults);
+    addToMap(docResults);
+
+    let merged = Array.from(mergedMap.values());
+
+    if (merged.length === 0) {
+      this.logger.debug('[retrieve] No results from any layer');
+      return [];
     }
-    return docResults;
+
+    this.logger.log(
+      `[retrieve] Layer raw results (before dedup): ` +
+        `vec:${vectorResults.length}, meili:${meiliResults.length}, ` +
+        `chunk:${chunkResults.length}, doc:${docResults.length}` +
+        ` | merged: ${merged.length} unique chunks`,
+    );
+
+    // =====================================================================
+    // Reranker: 用 bge-reranker-v2-m3 对合并结果重排序
+    // =====================================================================
+    merged = await this.rerank(query, merged, topK);
+
+    return merged;
   }
 
   // ===========================================================================
@@ -395,6 +444,81 @@ export class RagRetrievalService {
       this.logger.warn(`[keywordSearchDocs] failed: ${message}`);
       return [];
     }
+  }
+
+  // ===========================================================================
+  // Reranker: bge-reranker-v2-m3 重排序
+  // ===========================================================================
+  //
+  // 调用 Ollama 的 /api/rerank 端点，用 bge-reranker-v2-m3 模型对候选 chunks
+  // 进行交叉编码重排序（cross-encoder），比 embedding 余弦相似度更准确。
+  //
+  // ── 为什么需要 reranker？ ──
+  // 各检索层（pgvector / ES BM25 / ILIKE）各自返回独立排序的结果。
+  // 合并后 chunks 的 score 来自不同尺度（余弦相似度 0~1、BM25 0~∞、固定 0.5），
+  // 无法直接比较。Reranker 用同一个模型对所有候选重新打分，保证排序一致性。
+  //
+  // ── 优雅降级 ──
+  // 如果 Ollama 不可用或模型未拉取，直接按合并后的原始分数降序返回 topK。
+  // 不会让检索失败。
+  //
+  // ── API 文档 ──
+  // POST {baseUrl}/api/rerank
+  // {
+  //   "model": "bge-reranker-v2-m3",
+  //   "query": "user query",
+  //   "documents": ["chunk1", "chunk2", ...]
+  // }
+  // Response: { "results": [{"index": 0, "relevance_score": 0.95}, ...] }
+  // ===========================================================================
+
+  private async rerank(
+    query: string,
+    chunks: RetrievedChunk[],
+    topK: number,
+  ): Promise<RetrievedChunk[]> {
+    if (chunks.length === 0) return chunks;
+
+    const documents = chunks.map((c) => c.content);
+
+    const results = await this.aiService.rerank(query, documents);
+
+    if (!results || results.length === 0) {
+      this.logger.warn(
+        '[rerank] AiService.rerank returned empty/null, falling back to unranked results',
+      );
+      return this.fallbackSort(chunks, topK);
+    }
+
+    // 按 reranker 分数降序排列，取 topK
+    const reranked = results
+      .filter((r) => r.index >= 0 && r.index < chunks.length)
+      .sort((a, b) => b.relevance_score - a.relevance_score)
+      .slice(0, topK)
+      .map((r) => ({
+        ...chunks[r.index],
+        score: r.relevance_score, // 用 reranker 分数覆盖原始分数
+      }));
+
+    this.logger.log(
+      `[rerank] Reranker re-ranked ${chunks.length} chunks → top ${reranked.length} ` +
+        `(top score: ${reranked[0]?.score.toFixed(4) ?? 'N/A'})`,
+    );
+
+    return reranked;
+  }
+
+  /**
+   * fallbackSort — 当 reranker 不可用时的降级排序
+   * 按原始 score 降序排列，取 topK。
+   */
+  private fallbackSort(
+    chunks: RetrievedChunk[],
+    topK: number,
+  ): RetrievedChunk[] {
+    return [...chunks]
+      .sort((a, b) => b.score - a.score)
+      .slice(0, topK);
   }
 
   // ===========================================================================

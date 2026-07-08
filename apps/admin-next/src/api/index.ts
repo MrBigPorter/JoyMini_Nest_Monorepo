@@ -1216,6 +1216,14 @@ export const knowledgeApi = {
       errors: { chunkIndex: number; reason: string }[];
     }>(`/v1/admin/rag/documents/${documentId}/reindex`),
 
+  /** Bulk reindex all active documents */
+  reindexAll: () =>
+    http.post<{
+      total: number;
+      submitted: number;
+      failed: number;
+    }>('/v1/admin/rag/documents/reindex-all'),
+
   /** Get distinct domains for filter dropdown */
   getDomains: () => http.get<string[]>('/v1/admin/rag/documents/meta/domains'),
 };
@@ -1314,5 +1322,52 @@ export const aiPromptApi = {
   getTools: (domain?: string) =>
     http.get<import('@/type/types').PromptToolsResponse>(
       `/v1/admin/ai-prompt/tools${domain ? `?domain=${domain}` : ''}`,
+    ),
+};
+
+/** Intent Examples API */
+export const intentExamplesApi = {
+  /** Get all domains with their example sentences */
+  getAll: () =>
+    http.get<import('@/type/types').IntentExampleGroup[]>(
+      '/v1/admin/intent-examples',
+    ),
+
+  /** Get example sentences for a specific domain */
+  getByDomain: (domain: string) =>
+    http.get<import('@/type/types').IntentExampleGroup>(
+      `/v1/admin/intent-examples/${domain}`,
+    ),
+
+  /** Create a new intent domain with example sentences */
+  createDomain: (data: import('@/type/types').CreateIntentExamplesPayload) =>
+    http.post<import('@/type/types').UpdateIntentExamplesResponse>(
+      '/v1/admin/intent-examples',
+      data,
+    ),
+
+  /** Update example sentences for a domain (triggers re-embedding). Supports append/replace mode. */
+  updateDomain: (
+    domain: string,
+    data: import('@/type/types').UpdateIntentExamplesPayload,
+  ) =>
+    http.put<import('@/type/types').UpdateIntentExamplesResponse>(
+      `/v1/admin/intent-examples/${domain}`,
+      data,
+    ),
+
+  /** Re-generate embeddings for a domain */
+  reindexDomain: (domain: string) =>
+    http.post<import('@/type/types').UpdateIntentExamplesResponse>(
+      `/v1/admin/intent-examples/${domain}/reindex`,
+    ),
+
+  /** Test intent classification with a sample input */
+  testClassification: (
+    data: import('@/type/types').TestClassificationPayload,
+  ) =>
+    http.post<import('@/type/types').TestClassificationResponse>(
+      '/v1/admin/intent-examples/test',
+      data,
     ),
 };

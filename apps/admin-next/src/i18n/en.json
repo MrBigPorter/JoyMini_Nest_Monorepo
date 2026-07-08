@@ -517,6 +517,7 @@
     "banners_validation_titleRequired": "Title is required",
     "banners_validation_relatedTitleRequired": "Related title ID must be provided when jump category is TREASURE",
     "aiPrompt": "AI Prompt",
+    "intentExamples": "Intent Examples",
     "create": "Create",
     "saving": "Saving..."
   },
@@ -973,6 +974,10 @@
     "reindex": "Re-index",
     "reindexSuccess": "Re-index complete: {success} success, {fail} failed",
     "reindexConfirm": "Re-chunk and re-embed this document? Existing chunks and embeddings will be replaced.",
+    "reindexAll": "Re-index All",
+    "reindexing": "Re-indexing...",
+    "reindexAllConfirm": "Re-index ALL active documents? This will re-chunk, re-embed, and re-sync to Meilisearch for every document.",
+    "reindexAllSuccess": "Re-index all complete: {submitted}/{total} submitted, {failed} failed",
     "deleteConfirm": "Delete this document? It will be soft-deleted (isActive=false).",
     "deleteSuccess": "Document deleted",
     "save": "Save",

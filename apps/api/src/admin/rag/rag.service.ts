@@ -1,10 +1,14 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { UpdateRagDocDto } from './dto/update-rag-doc.dto';
 import { QueryRagDocDto } from './dto/query-rag-doc.dto';
 import { CreateRagDocDto } from '@api/admin/rag/dto/create-rag-doc.dto';
 import { RagChunkService } from './rag-chunk.service';
 import { RagEmbeddingService } from './rag-embedding.service';
+import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service';
+import { RAG_EMBEDDING_QUEUE } from './rag-embedding-queue.constants';
 
 @Injectable()
 export class RagService {
@@ -14,6 +18,9 @@ export class RagService {
     private readonly prisma: PrismaService,
     private readonly ragChunkService: RagChunkService,
     private readonly ragEmbeddingService: RagEmbeddingService,
+    private readonly meilisearchService: MeilisearchService,
+    @InjectQueue(RAG_EMBEDDING_QUEUE)
+    private readonly ragEmbeddingQueue: Queue,
   ) {}
 
   async create(dto: CreateRagDocDto) {
@@ -85,7 +92,12 @@ export class RagService {
   }
 
   async delete(id: string) {
-    await this.getById(id);
+    const doc = await this.getById(id);
+
+    // 同步删除 Meilisearch 中的 chunks
+    // 软删除前把该文档所有 chunk 从 BM25 索引中清理掉
+    await this.deleteMeilisearchChunks(id);
+
     return this.prisma.knowledgeDocument.update({
       where: { id },
       data: { isActive: false },
@@ -123,7 +135,10 @@ export class RagService {
   async reindex(documentId: string) {
     const doc = await this.getById(documentId);
 
-    // 1. 删除旧 chunks
+    // 1. 同步删除 Meilisearch 中的旧 chunks（防止孤儿数据残留）
+    await this.deleteMeilisearchChunks(documentId);
+
+    // 2. 删除 PostgreSQL 中的旧 chunks
     await this.prisma.documentChunk.deleteMany({
       where: { documentId },
     });
@@ -145,14 +160,114 @@ export class RagService {
         documentVersion: doc.version,
       })),
     });
-    // ── Phase 4b: 向量化 ──
-    // 重新切片后需要重新生成所有 chunk 的向量。
+    // ── Phase 4b: 提交向量化任务到队列 ──
+    // 改为异步：提交 BullMQ job 到 rag-embedding 队列，立即返回。
     // force: true 表示覆盖已有向量（因为旧 chunks 已被删除，全新生成）
-    await this.ragEmbeddingService.embedDocument(documentId, { force: true });
+    try {
+      await this.ragEmbeddingQueue.add('embed', {
+        documentId,
+        force: true,
+      });
+      this.logger.log(
+        `Submitted reindex embedding job for document ${documentId} (${chunks.length} chunks)`,
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(
+        `Failed to submit reindex embedding job for document ${documentId}: ${message}`,
+      );
+    }
 
     return {
       chunksCreated: chunks.length,
       documentVersion: doc.version,
     };
+  }
+
+  // ==================== Meilisearch 同步 ====================
+
+  /**
+   * 删除文档在 Meilisearch 中的所有 chunks
+   *
+   * 为什么需要这个方法?
+   *   知识库删除/重新切片时，PostgreSQL 的 chunks 会被删除或重建，
+   *   但 Meilisearch 不会自动同步。必须手动调 deleteChunk。
+   *   否则 Meilisearch 里会残留孤儿数据。
+   *
+   * 什么时候调用:
+   *   - delete() 软删除文档时 -> 同步删 Meilisearch
+   *   - reindex() 重新切片时 -> 删旧 chunks，后面 indexChunk 加新的
+   */
+  private async deleteMeilisearchChunks(documentId: string): Promise<void> {
+    try {
+      const oldChunks = await this.prisma.documentChunk.findMany({
+        where: { documentId },
+        select: { id: true },
+      });
+
+      if (oldChunks.length === 0) return;
+
+      for (const chunk of oldChunks) {
+        await this.meilisearchService.deleteChunk(chunk.id);
+      }
+
+      this.logger.log(
+        `Deleted ${oldChunks.length} chunks from Meilisearch for document ${documentId}`,
+      );
+    } catch (error) {
+      // 删除失败不抛异常，Meilisearch 不可用时跳过
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.warn(
+        `Failed to delete Meilisearch chunks for document ${documentId}: ${message}`,
+      );
+    }
+  }
+
+  // ==================== Bulk operations ====================
+
+  /**
+   * reindexAll — 重新索引所有活跃文档（切片 + 向量化 + Meilisearch 索引）
+   *
+   * 用于批量修复 Meilisearch 存量数据为空的问题。
+   * 遍历所有 isActive=true 的文档，逐个提交 reindex 任务到 BullMQ 队列。
+   * 所有任务异步执行，不等待完成。
+   */
+  async reindexAll(): Promise<{
+    total: number;
+    submitted: number;
+    failed: number;
+  }> {
+    const docs = await this.prisma.knowledgeDocument.findMany({
+      where: { isActive: true },
+      select: { id: true, title: true },
+    });
+
+    this.logger.log(`[reindexAll] Found ${docs.length} active documents`);
+
+    let submitted = 0;
+    let failed = 0;
+
+    for (const doc of docs) {
+      try {
+        await this.reindex(doc.id);
+        submitted++;
+        this.logger.log(
+          `[reindexAll] Submitted reindex for "${doc.title}" (${doc.id})`,
+        );
+      } catch (error) {
+        failed++;
+        const message =
+          error instanceof Error ? error.message : 'Unknown error';
+        this.logger.error(
+          `[reindexAll] Failed to submit reindex for "${doc.title}": ${message}`,
+        );
+      }
+    }
+
+    this.logger.log(
+      `[reindexAll] Done: ${submitted} submitted, ${failed} failed (of ${docs.length} total)`,
+    );
+
+    return { total: docs.length, submitted, failed };
   }
 }

@@ -950,6 +950,31 @@ export function KnowledgeBaseClient() {
     setChunkModal({ id: doc.id, title: doc.title });
   };
 
+  const [reindexingAll, setReindexingAll] = useState(false);
+
+  const handleReindexAll = () => {
+    ModalManager.open({
+      title: t('knowledgeBase.reindexAllConfirm'),
+      confirmText: t('knowledgeBase.reindex'),
+      onConfirm: async () => {
+        setReindexingAll(true);
+        try {
+          const result = await knowledgeApi.reindexAll();
+          ModalManager.open({
+            title: t('knowledgeBase.reindexAllSuccess', {
+              total: result.total,
+              submitted: result.submitted,
+              failed: result.failed,
+            }),
+          });
+          await refresh();
+        } finally {
+          setReindexingAll(false);
+        }
+      },
+    });
+  };
+
   // ── Render ──
 
   return (
@@ -962,6 +987,20 @@ export function KnowledgeBaseClient() {
         buttonPrefixIcon={<Upload size={16} />}
         secondaryButtonText={t('knowledgeBase.newDoc')}
         secondaryButtonOnClick={handleNewDoc}
+        tertiaryButtonText={
+          reindexingAll
+            ? t('knowledgeBase.reindexing')
+            : t('knowledgeBase.reindexAll')
+        }
+        tertiaryButtonOnClick={handleReindexAll}
+        tertiaryButtonIcon={
+          reindexingAll ? (
+            <Loader2 size={14} className="animate-spin" />
+          ) : (
+            <RotateCcw size={14} />
+          )
+        }
+        tertiaryButtonVariant="outline"
       />
 
       {/* Filters */}
