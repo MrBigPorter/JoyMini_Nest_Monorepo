@@ -184,6 +184,92 @@ export class RagService {
     };
   }
 
+  // ==================== 分步处理状态机 ====================
+
+  /**
+   * 更新文档处理状态
+   */
+  private async updateStatus(documentId: string, status: string): Promise<void> {
+    await this.prisma.knowledgeDocument.update({
+      where: { id: documentId },
+      data: { processStatus: status },
+    });
+  }
+
+  /**
+   * 执行解析步骤: uploaded → parsed
+   * 实际解析由 ragSyncService.uploadFile() 完成，此处标记状态
+   */
+  async processStepParse(documentId: string): Promise<void> {
+    // 解析已在 upload 时完成，只需更新状态
+    await this.updateStatus(documentId, 'parsed');
+  }
+
+  /**
+   * 执行切片步骤: parsed → chunked
+   */
+  async processStepChunk(documentId: string): Promise<{ chunksCreated: number }> {
+    const doc = await this.getById(documentId);
+
+    // 删除旧 chunks
+    await this.prisma.documentChunk.deleteMany({
+      where: { documentId },
+    });
+
+    // 切片
+    const chunks = await this.ragChunkService.chunkText(doc.content);
+    if (chunks.length === 0) {
+      await this.updateStatus(documentId, 'chunked');
+      return { chunksCreated: 0 };
+    }
+
+    // 批量创建新 chunks
+    await this.prisma.documentChunk.createMany({
+      data: chunks.map((chunk) => ({
+        documentId,
+        chunkIndex: chunk.index,
+        content: chunk.content,
+        tokenCount: chunk.tokenCount,
+        documentVersion: doc.version,
+      })),
+    });
+
+    await this.updateStatus(documentId, 'chunked');
+    return { chunksCreated: chunks.length };
+  }
+
+  /**
+   * 执行向量化步骤: chunked → embedded
+   * 提交 BullMQ 任务异步处理
+   */
+  async processStepEmbed(documentId: string): Promise<void> {
+    await this.updateStatus(documentId, 'embedded');
+    try {
+      await this.ragEmbeddingQueue.add('embed', {
+        documentId,
+        force: true,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Failed to submit embedding job: ${message}`);
+    }
+  }
+
+  /**
+   * 获取文档处理进度
+   */
+  async getProcessStatus(documentId: string): Promise<{
+    status: string;
+    chunkInfo: { total: number; embedded: number; pending: number } | null;
+  }> {
+    const doc = await this.getById(documentId);
+    const chunkInfo = await this.ragEmbeddingService.getEmbeddingStatus(documentId);
+    return {
+      status: doc.processStatus,
+      chunkInfo,
+    };
+  }
+
   // ==================== Meilisearch 同步 ====================
 
   /**

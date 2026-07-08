@@ -1818,6 +1818,8 @@ model KnowledgeDocument {
   content        String          @map("content") @db.Text
   /// 是否启用
   isActive       Boolean         @default(true) @map("is_active")
+  /// 处理状态: uploaded → parsed → chunked → embedded → indexed
+  processStatus  String          @default("uploaded") @map("process_status") @db.VarChar(20)
   /// 版本号（每次更新 +1）
   version        Int             @default(1) @map("version") @db.SmallInt
   documentChunks DocumentChunk[]

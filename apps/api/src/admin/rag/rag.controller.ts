@@ -220,6 +220,31 @@ export class RagController {
     return this.ragService.reindex(id);
   }
 
+  // ==================== 分步处理 ====================
+
+  @Post(':id/process/chunk')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Chunk a document (parsed → chunked)' })
+  async processChunk(@Param('id') id: string) {
+    return this.ragService.processStepChunk(id);
+  }
+
+  @Post(':id/process/embed')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Embed a document (chunked → embedded), submit to BullMQ' })
+  async processEmbed(@Param('id') id: string) {
+    return this.ragService.processStepEmbed(id);
+  }
+
+  @Get(':id/process/status')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
+  @ApiOperation({ summary: 'Get document processing status' })
+  async getProcessStatus(@Param('id') id: string) {
+    return this.ragService.getProcessStatus(id);
+  }
+
   // ==================== Bulk operations ====================
 
   @Post('reindex-all')

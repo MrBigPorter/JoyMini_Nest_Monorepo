@@ -48,6 +48,10 @@ export class RagDocResponseDto {
   @Expose()
   version!: number;
 
+  @ApiProperty({ description: '处理状态: uploaded → parsed → chunked → embedded → indexed' })
+  @Expose()
+  processStatus!: string;
+
   @ApiProperty()
   @Expose()
   createdAt!: Date;
