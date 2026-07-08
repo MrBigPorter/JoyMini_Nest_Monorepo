@@ -123,6 +123,18 @@ unstructured-status:
 	@echo "  停止: make stop-unstructured"
 	@echo "  API:  http://localhost:8000"
 
+## [Prisma] 🗄️ Generate Prisma Client (after schema change)
+prisma-generate:
+	docker compose exec backend sh -c "cd /app/apps/api && npx prisma generate"
+
+## [Prisma] 🗄️ Create migration (dry-run, not applied)
+prisma-migrate:
+	docker compose exec backend sh -c "cd /app/apps/api && npx prisma migrate dev --name \"$(name)\" --create-only"
+
+## [Prisma] 🗄️ Apply pending migrations
+prisma-deploy:
+	docker compose exec backend sh -c "cd /app/apps/api && npx prisma migrate deploy"
+
 ## [Docker] 📊 Show memory usage of running containers
 mem:
 	docker stats --no-stream --format "table {{.Name}}\t{{.MemUsage}}\t{{.MemPerc}}"
