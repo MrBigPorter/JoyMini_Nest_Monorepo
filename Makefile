@@ -6,7 +6,9 @@
 # ==========================================
 
 
-.PHONY: setup up up-infra down restart logs ps build clean wipe help menu \
+.PHONY: setup up up-core up-ai up-dev up-blog up-all up-infra down restart logs ps build clean wipe help menu \
+        stop-ai stop-blog stop-all-extra \
+        start-ollama start-infinity start-meilisearch start-blog mem \
         dev-admin dev-blog dev-blog-clean exec-api migrate seed prisma-studio \
         check-dockerfiles generate-certs \
         check format fix audit type-check \
@@ -63,9 +65,52 @@ check-dockerfiles:
 up: check-dockerfiles
 	docker compose up -d --build --remove-orphans
 
-## [Docker] 🚀 Start only infrastructure (DB + Redis + API + Nginx, good for local frontend dev)
-up-infra: check-dockerfiles
+## [Docker] 🚀 Start only core infrastructure (DB + Redis + API + Nginx, ~800MB)
+up-core: check-dockerfiles
 	docker compose up -d --build --remove-orphans db redis backend nginx
+
+## [Docker] 🚀 Start core + AI services (ollama + infinity + meilisearch, ~5GB)
+up-ai: check-dockerfiles
+	docker compose up -d --build --remove-orphans db redis backend nginx ollama infinity meilisearch
+
+## [Docker] 🚀 Start core + AI + admin (日常开发, ~5.2GB)
+up-dev: check-dockerfiles
+	docker compose up -d --build --remove-orphans db redis backend nginx ollama infinity meilisearch admin-next
+
+## [Docker] 🚀 Start core + blog (blog 管理, ~1.6GB)
+up-blog: check-dockerfiles
+	docker compose up -d --build --remove-orphans db redis backend nginx admin-blog frontend-blog
+
+## [Docker] 🚀 Start all services (全开, ~5.8GB)
+up-all: check-dockerfiles
+	docker compose up -d --build --remove-orphans
+
+## [Docker] ⏹️ Stop memory-heavy services (省内存模式)
+stop-ai:
+	docker compose stop ollama infinity meilisearch
+
+stop-blog:
+	docker compose stop admin-blog frontend-blog
+
+stop-all-extra:
+	docker compose stop ollama infinity meilisearch admin-next admin-blog frontend-blog
+
+## [Docker] ▶️ Start individual services
+start-ollama:
+	docker compose up -d ollama
+
+start-infinity:
+	docker compose up -d infinity
+
+start-meilisearch:
+	docker compose up -d meilisearch
+
+start-blog:
+	docker compose up -d admin-blog frontend-blog
+
+## [Docker] 📊 Show memory usage of running containers
+mem:
+	docker stats --no-stream --format "table {{.Name}}\t{{.MemUsage}}\t{{.MemPerc}}"
 
 ## [Docker] 🛑 Stop all containers (auto-removes orphans)
 down:
