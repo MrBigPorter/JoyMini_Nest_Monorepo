@@ -68,6 +68,7 @@ function DiffSegment({
   range,
   index,
   isEditing,
+  editedValue,
   onStartEdit,
   onSaveEdit,
   onCancelEdit,
@@ -75,11 +76,12 @@ function DiffSegment({
   range: DiffRange;
   index: number;
   isEditing: boolean;
+  editedValue?: string;
   onStartEdit: () => void;
   onSaveEdit: (newValue: string) => void;
   onCancelEdit: () => void;
 }) {
-  const [editValue, setEditValue] = useState(range.value);
+  const [editValue, setEditValue] = useState(editedValue ?? range.value);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // Reset edit value when range changes
@@ -164,7 +166,7 @@ function DiffSegment({
                 : 'border-green-300'
         }`}
       >
-        {range.value}
+        {editedValue ?? range.value}
       </span>
       <Pencil
         size={10}
@@ -517,7 +519,7 @@ export function DiffReviewFull({ document }: { document: KnowledgeDocument }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
-  const [editableSegments, setEditableSegments] = useState<DiffRange[] | null>(null);
+  const [editedValues, setEditedValues] = useState<Record<number, string>>({});
   const [showOnlyDiff, setShowOnlyDiff] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -539,7 +541,7 @@ export function DiffReviewFull({ document }: { document: KnowledgeDocument }) {
       .then((data) => {
         if (!cancelled) {
           setDiffData(data);
-          setEditableSegments(data.diffRanges);
+          setEditedValues({});
           setLoading(false);
         }
       })
@@ -558,12 +560,12 @@ export function DiffReviewFull({ document }: { document: KnowledgeDocument }) {
   // ── Visible ranges (filter by diff-only toggle) ─────────────────────────
 
   const visibleRanges = useMemo(() => {
-    const source = editableSegments ?? diffData?.diffRanges ?? [];
+    const source = diffData?.diffRanges ?? [];
     if (showOnlyDiff) {
       return source.filter((r) => r.type !== 'equal');
     }
     return source;
-  }, [diffData, editableSegments, showOnlyDiff]);
+  }, [diffData, showOnlyDiff]);
 
   // ── Stats ───────────────────────────────────────────────────────────────
 
@@ -594,40 +596,31 @@ export function DiffReviewFull({ document }: { document: KnowledgeDocument }) {
   //   equal  + added  = B (Unstructured content)
   //   equal  + removed = A (pdf-parse rawContent)
   //
-  // 保存时要排除 'removed' 段，因为它们的内容来自 pdf-parse 而不是 Unstructured。
-  // 用户编辑过的段 type 变为 'equal'，会被正确包含。
+  // 保存时:
+  //   1. 取 diffRanges 的 equal + added 作为基础（B 的内容）
+  //   2. 如果有用户编辑的段（editedValues），用编辑值覆盖
+  //   3. 排除 removed 段（来自 pdf-parse）
 
   const fullContent = useMemo(() => {
-    const segments = editableSegments ?? diffData?.diffRanges;
+    const segments = diffData?.diffRanges;
     if (!segments) return document.content;
-    // 只拼接 equal + added（B 的内容），排除 removed（A 的内容）
     return segments
-      .filter((s) => s.type !== 'removed')
-      .map((s) => s.value)
+      .filter((s: DiffRange) => s.type !== 'removed')
+      .map((s: DiffRange, i: number) => editedValues[i] ?? s.value)
       .join('');
-  }, [editableSegments, diffData, document.content]);
+  }, [diffData, editedValues, document.content]);
 
   // ── Handle segment edit ─────────────────────────────────────────────────
   //
-  // 用户编辑一个 diff 段后，把 type 改成 'equal' 让红色/黄色消失。
-  // 编辑后的段会被包含在保存内容中。
+  // 用户编辑一个 diff 段后，只存编辑后的值（editedValues），不改 type。
+  // 所以颜色不变，仍然可点击。
 
   const handleStartEdit = useCallback((idx: number) => {
     setEditingIndex(idx);
   }, []);
 
   const handleSaveEdit = useCallback((idx: number, newValue: string) => {
-    setEditableSegments((prev) => {
-      if (!prev) return prev;
-      const updated = [...prev];
-      updated[idx] = {
-        ...updated[idx],
-        value: newValue,
-        type: 'equal',       // ← 标记为已修复，红色会消失
-        severity: 'ignore',  // ← 不再计入 diff 统计
-      };
-      return updated;
-    });
+    setEditedValues((prev) => ({ ...prev, [idx]: newValue }));
     setEditingIndex(null);
   }, []);
 
@@ -639,44 +632,42 @@ export function DiffReviewFull({ document }: { document: KnowledgeDocument }) {
 
   const handleNumberFix = useCallback(
     (errorIdx: number, correctValue: string) => {
-      // Find the position in the parsed content where this number occurs
-      const error = diffData?.numberErrors[errorIdx];
-      if (!error || !diffData) return;
+      const segments = diffData?.diffRanges;
+      if (!segments || !diffData) return;
 
-      // Replace the number in the full content at the approximate position
-      // We search for the parsed value in the content and replace it
-      setEditableSegments((prev) => {
-        if (!prev) return prev;
-        const content = prev.map((s) => s.value).join('');
-        const parsedNum = error.parsed ?? '';
-        if (!parsedNum) return prev;
+      const error = diffData.numberErrors[errorIdx];
+      if (!error) return;
 
-        const idx = content.indexOf(parsedNum);
-        if (idx === -1) return prev;
+      // Reconstruct current B content (equal + added, with edits applied)
+      const baseContent = segments
+        .filter((s) => s.type !== 'removed')
+        .map((s, i) => editedValues[i] ?? s.value)
+        .join('');
 
-        // Find which segment contains this position
-        let cursor = 0;
-        for (let i = 0; i < prev.length; i++) {
-          const seg = prev[i];
-          const segEnd = cursor + seg.value.length;
-          if (cursor <= idx && idx < segEnd) {
-            // Found the segment — replace the number
-            const updated = [...prev];
-            const localIdx = idx - cursor;
-            const before = seg.value.slice(0, localIdx);
-            const after = seg.value.slice(localIdx + parsedNum.length);
-            updated[i] = {
-              ...seg,
-              value: before + correctValue + after,
-            };
-            return updated;
-          }
-          cursor = segEnd;
+      const parsedNum = error.parsed ?? '';
+      if (!parsedNum) return;
+
+      const pos = baseContent.indexOf(parsedNum);
+      if (pos === -1) return;
+
+      // Find which segment contains this position in the ORIGINAL diffRanges
+      let cursor = 0;
+      for (let i = 0; i < segments.length; i++) {
+        const s = segments[i];
+        if (s.type === 'removed') continue; // skip removed — not in B content
+        const actualValue = editedValues[i] ?? s.value;
+        const segEnd = cursor + actualValue.length;
+        if (cursor <= pos && pos < segEnd) {
+          const localIdx = pos - cursor;
+          const before = actualValue.slice(0, localIdx);
+          const after = actualValue.slice(localIdx + parsedNum.length);
+          setEditedValues((prev) => ({ ...prev, [i]: before + correctValue + after }));
+          return;
         }
-        return prev;
-      });
+        cursor = segEnd;
+      }
     },
-    [diffData],
+    [diffData, editedValues],
   );
 
   // ── Save all changes ────────────────────────────────────────────────────
@@ -834,6 +825,7 @@ export function DiffReviewFull({ document }: { document: KnowledgeDocument }) {
                   key={`seg-${idx}`}
                   range={range}
                   index={idx}
+                  editedValue={editedValues[idx]}
                   isEditing={editingIndex === idx}
                   onStartEdit={() => handleStartEdit(idx)}
                   onSaveEdit={(val) => handleSaveEdit(idx, val)}
