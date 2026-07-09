@@ -14,7 +14,7 @@ MISMATCH_FOUND=0
 
 for file in $DOCKERFILES; do
   if grep -q "yarn@" "$file"; then
-    DOCKER_YARN_VERSION=$(grep -E 'npm install -g yarn@|yarn --version' "$file" | head -1 | sed -E 's/.*yarn@?([0-9]+\.[0-9]+\.[0-9]+).*/\1/')
+    DOCKER_YARN_VERSION=$(grep -E 'npm install -g yarn@|corepack prepare yarn@|yarn --version' "$file" | head -1 | sed -E 's/.*yarn@?([0-9]+\.[0-9]+\.[0-9]+).*/\1/')
     
     if [ -n "$DOCKER_YARN_VERSION" ] && [ "$DOCKER_YARN_VERSION" != "$EXPECTED_YARN_VERSION" ]; then
       echo "❌ $file 中的Yarn版本不匹配: $DOCKER_YARN_VERSION (应该是 $EXPECTED_YARN_VERSION)"
