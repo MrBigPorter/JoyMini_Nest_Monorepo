@@ -281,17 +281,26 @@ class PdfExtractor implements TextExtractor {
   private async extractWithPdfParse(
     file: Express.Multer.File,
   ): Promise<string> {
-    let pdfParse: any;
+    // pdf-parse v2.x: exports { PDFParse } class
+    // Constructor takes LoadParameters: { data: Uint8Array }
+    // Method: getText() → TextResult { text: string }
+    let pdfParseModule: any;
     try {
-      pdfParse = (await import('pdf-parse')).default;
+      pdfParseModule = require('pdf-parse');
     } catch {
       throw new BadRequestException(
         'pdf-parse not installed. Run: yarn add pdf-parse',
       );
     }
-
-    const data = await pdfParse(file.buffer);
-    return data.text || '';
+    const PDFParse = pdfParseModule.PDFParse;
+    if (!PDFParse) {
+      throw new BadRequestException(
+        'pdf-parse API mismatch: PDFParse not found in module',
+      );
+    }
+    const parser = new PDFParse({ data: new Uint8Array(file.buffer) });
+    const result = await parser.getText();
+    return result.text || '';
   }
 }
 

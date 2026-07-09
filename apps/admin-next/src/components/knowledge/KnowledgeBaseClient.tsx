@@ -7,6 +7,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
+import Link from 'next/link';
 import { useRequest } from 'ahooks';
 import {
   FileText,
@@ -1204,9 +1205,15 @@ export function KnowledgeBaseClient() {
                         >
                           <QualityBadge score={doc.qualityScore} />
                           <span className="text-[10px] text-teal-600 opacity-0 transition-opacity group-hover:opacity-100 dark:text-teal-400">
-                            Review
+                            Modal
                           </span>
                         </button>
+                        <Link
+                          href={`/knowledge/documents/${doc.id}/review`}
+                          className="text-[10px] text-teal-600 underline transition-colors hover:text-teal-500"
+                        >
+                          Full Review
+                        </Link>
                       </div>
                     </td>
                     <td className="px-4 py-4">
