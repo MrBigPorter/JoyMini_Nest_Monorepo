@@ -458,10 +458,10 @@ function DocDetailModal({
           </div>
         </div>
 
-        {/* 处理流水线 */}
+        {/* Processing Pipeline */}
         <div className="border-t border-gray-100 pt-4 mt-4 dark:border-white/10">
           <h3 className="mb-3 text-sm font-medium text-gray-900 dark:text-white">
-            处理进度
+            Processing
           </h3>
           <ProcessPipeline
             documentId={document.id}

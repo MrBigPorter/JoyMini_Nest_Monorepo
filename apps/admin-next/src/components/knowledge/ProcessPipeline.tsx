@@ -5,11 +5,11 @@ import { knowledgeApi } from '@/api';
 import { useTranslation } from '@/hooks/useTranslation';
 
 const STEPS = [
-  { key: 'uploaded', label: '上传', icon: '📤' },
-  { key: 'parsed', label: '解析', icon: '📄' },
-  { key: 'chunked', label: '切片', icon: '✂️' },
-  { key: 'embedded', label: '向量化', icon: '🔢' },
-  { key: 'indexed', label: '索引', icon: '📑' },
+  { key: 'uploaded', label: 'Upload', icon: '📤' },
+  { key: 'parsed', label: 'Parse', icon: '📄' },
+  { key: 'chunked', label: 'Chunk', icon: '✂️' },
+  { key: 'embedded', label: 'Embed', icon: '🔢' },
+  { key: 'indexed', label: 'Index', icon: '📑' },
 ];
 
 const STEP_ORDER = ['uploaded', 'parsed', 'chunked', 'embedded', 'indexed'];
@@ -104,52 +104,52 @@ export function ProcessPipeline({
       <div className="space-y-2">
         {processStatus === 'uploaded' && (
           <div className="rounded-lg bg-blue-50 p-3 text-sm text-blue-700 dark:bg-blue-900/20 dark:text-blue-300">
-            文档已上传，下一步: 切片（无需额外服务）
+            Uploaded. Next: Chunk (no extra services needed)
             <button
               onClick={() => handleStep('chunk')}
               disabled={processing === 'chunk'}
               className="ml-2 rounded-md bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-700 disabled:opacity-50"
             >
-              {processing === 'chunk' ? '处理中...' : '执行切片'}
+              {processing === 'chunk' ? 'Processing...' : 'Run Chunk'}
             </button>
           </div>
         )}
 
         {processStatus === 'parsed' && (
           <div className="rounded-lg bg-blue-50 p-3 text-sm text-blue-700 dark:bg-blue-900/20 dark:text-blue-300">
-            文档已解析，下一步: 切片（无需额外服务）
+            Parsed. Next: Chunk (no extra services needed)
             <button
               onClick={() => handleStep('chunk')}
               disabled={processing === 'chunk'}
               className="ml-2 rounded-md bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-700 disabled:opacity-50"
             >
-              {processing === 'chunk' ? '处理中...' : '执行切片'}
+              {processing === 'chunk' ? 'Processing...' : 'Run Chunk'}
             </button>
           </div>
         )}
 
         {processStatus === 'chunked' && (
           <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
-            需要启动: Ollama + Meilisearch
+            Needs: Ollama + Meilisearch running
             <button
               onClick={() => handleStep('embed')}
               disabled={processing === 'embed'}
               className="ml-2 rounded-md bg-amber-600 px-3 py-1 text-xs text-white hover:bg-amber-700 disabled:opacity-50"
             >
-              {processing === 'embed' ? '处理中...' : '执行向量化'}
+              {processing === 'embed' ? 'Processing...' : 'Run Embed'}
             </button>
           </div>
         )}
 
         {processStatus === 'embedded' && (
           <div className="rounded-lg bg-green-50 p-3 text-sm text-green-700 dark:bg-green-900/20 dark:text-green-300">
-            向量化完成，等待索引自动完成
+            Embedding complete. Index will complete automatically.
           </div>
         )}
 
         {processStatus === 'indexed' && (
           <div className="rounded-lg bg-green-50 p-3 text-sm text-green-700 dark:bg-green-900/20 dark:text-green-300">
-            ✅ 所有步骤已完成
+            ✅ All steps complete
           </div>
         )}
       </div>
