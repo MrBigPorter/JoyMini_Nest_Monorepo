@@ -525,9 +525,19 @@ export function DiffReviewFull({ document }: { document: KnowledgeDocument }) {
   const [saveSuccess, setSaveSuccess] = useState(false);
 
   // ── Load diff data ──────────────────────────────────────────────────────
+  // 如果已经保存过（localStorage 标记），不再加载 diff。
+  // 只有首次审核时才显示 diff。
 
   useEffect(() => {
     if (!document.rawContent) {
+      setLoading(false);
+      return;
+    }
+
+    // 检查 localStorage：如果已审核，不再显示 diff
+    const reviewedKey = `reviewed_doc_${document.id}`;
+    if (localStorage.getItem(reviewedKey) === 'true') {
+      setSaved(true);
       setLoading(false);
       return;
     }
@@ -671,6 +681,14 @@ export function DiffReviewFull({ document }: { document: KnowledgeDocument }) {
   );
 
   // ── Save all changes ────────────────────────────────────────────────────
+  // 保存后清除 diff，diffData=null 不会再加载 diff（因为已审核通过）。
+  // 刷新页面后也不会再显示 diff — 有 rawContent 但 no diffData = 已保存。
+
+  const [saved, setSaved] = useState(false);
+
+  // ── Has unsaved changes? ────────────────────────────────────────────────
+
+  const hasChanges = fullContent.trim() !== document.content.trim();
 
   const handleSaveAll = useCallback(async () => {
     if (fullContent.trim() === document.content.trim()) return;
@@ -680,17 +698,17 @@ export function DiffReviewFull({ document }: { document: KnowledgeDocument }) {
     try {
       await knowledgeApi.updateContent(document.id, fullContent);
       setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 3000);
+      setSaved(true);
+      setDiffData(null);
+      setEditedValues({});
+      // 标记 localStorage → 刷新后不再加载 diff
+      localStorage.setItem(`reviewed_doc_${document.id}`, 'true');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to save content');
     } finally {
       setSaving(false);
     }
   }, [document.id, document.content, fullContent]);
-
-  // ── Has unsaved changes? ────────────────────────────────────────────────
-
-  const hasChanges = fullContent.trim() !== document.content.trim();
 
   // ═════════════════════════════════════════════════════════════════════════
   // Render
@@ -807,6 +825,23 @@ export function DiffReviewFull({ document }: { document: KnowledgeDocument }) {
         <div className="flex flex-1 items-center justify-center text-green-500 text-sm">
           <Check size={16} className="mr-2" />
           Content fully matches — pdf-parse and Unstructured agree
+        </div>
+      )}
+
+      {/* Saved state — after user approves, diff is hidden permanently */}
+      {!loading && saved && !diffData && (
+        <div className="flex flex-1 flex-col items-center justify-center gap-4 text-gray-400">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
+            <Check size={24} className="text-green-500" />
+          </div>
+          <div className="text-center">
+            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Content Approved
+            </p>
+            <p className="text-xs text-gray-400 mt-1">
+              Changes saved to database — diff review complete
+            </p>
+          </div>
         </div>
       )}
 
