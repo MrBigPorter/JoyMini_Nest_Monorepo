@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { knowledgeApi } from '@/api';
 import { DiffReviewFull } from '@/components/knowledge/DiffReviewFull';
 import type { KnowledgeDocument } from '@/type/types';
@@ -56,24 +56,6 @@ export default function DocumentReviewPage() {
 
   return (
     <div className="h-[calc(100vh-4rem)] flex flex-col">
-      {/* Header */}
-      <div className="flex items-center gap-3 border-b border-gray-100 px-6 py-3 dark:border-white/10">
-        <button
-          onClick={() => router.back()}
-          className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-white/5"
-        >
-          <ArrowLeft size={18} />
-        </button>
-        <div className="flex items-center gap-2 min-w-0">
-          <h1 className="truncate text-base font-semibold text-gray-900 dark:text-white">
-            Quality Review
-          </h1>
-          <span className="text-sm text-gray-400">·</span>
-          <p className="truncate text-sm text-gray-500">{doc.title}</p>
-        </div>
-      </div>
-
-      {/* Full-page Diff Review — inline diff highlighting + click-to-edit */}
       <div className="flex-1 overflow-hidden">
         <DiffReviewFull document={doc} />
       </div>
