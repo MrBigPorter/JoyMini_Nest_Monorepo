@@ -1224,6 +1224,23 @@ export const knowledgeApi = {
       failed: number;
     }>('/v1/admin/rag/documents/reindex-all'),
 
+  /** Process chunk step (parsed → chunked) */
+  processChunk: (id: string) =>
+    http.post<{ chunksCreated: number }>(
+      `/v1/admin/rag/documents/${id}/process/chunk`,
+    ),
+
+  /** Process embed step (chunked → embedded) */
+  processEmbed: (id: string) =>
+    http.post<void>(`/v1/admin/rag/documents/${id}/process/embed`),
+
+  /** Get process status */
+  getProcessStatus: (id: string) =>
+    http.get<{
+      status: string;
+      chunkInfo: { total: number; embedded: number; pending: number } | null;
+    }>(`/v1/admin/rag/documents/${id}/process/status`),
+
   /** Get distinct domains for filter dropdown */
   getDomains: () => http.get<string[]>('/v1/admin/rag/documents/meta/domains'),
 };

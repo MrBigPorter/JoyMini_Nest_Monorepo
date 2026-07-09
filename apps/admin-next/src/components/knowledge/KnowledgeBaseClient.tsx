@@ -31,6 +31,7 @@ import { ModalManager } from '@repo/ui';
 import { knowledgeApi } from '@/api';
 import { PageHeader } from '@/components/scaffold/PageHeader';
 import { ServiceStatusBar } from './ServiceStatusBar';
+import { ProcessPipeline } from './ProcessPipeline';
 import { useTranslation } from '@/hooks/useTranslation';
 import type { TFunc } from '@/hooks/useTranslation';
 import type {
@@ -457,14 +458,30 @@ function DocDetailModal({
           </div>
         </div>
 
-        <div className="mt-5 flex justify-end">
-          <button
-            onClick={onClose}
-            className="rounded-xl border border-gray-200 px-4 py-2 text-sm text-gray-600 transition-colors hover:bg-gray-50 dark:border-white/10 dark:text-gray-400 dark:hover:bg-white/5"
-          >
-            {t('knowledgeBase.cancel')}
-          </button>
+        {/* 处理流水线 */}
+        <div className="border-t border-gray-100 pt-4 mt-4 dark:border-white/10">
+          <h3 className="mb-3 text-sm font-medium text-gray-900 dark:text-white">
+            处理进度
+          </h3>
+          <ProcessPipeline
+            documentId={document.id}
+            processStatus={document.processStatus || 'uploaded'}
+            onRefresh={() => {
+              knowledgeApi.getById(document.id).then((updated) => {
+                if (updated) document.processStatus = updated.processStatus;
+              });
+            }}
+          />
         </div>
+
+      <div className="mt-5 flex justify-end">
+        <button
+          onClick={onClose}
+          className="rounded-xl border border-gray-200 px-4 py-2 text-sm text-gray-600 transition-colors hover:bg-gray-50 dark:border-white/10 dark:text-gray-400 dark:hover:bg-white/5"
+        >
+          {t('knowledgeBase.cancel')}
+        </button>
+      </div>
       </div>
     </div>
   );
