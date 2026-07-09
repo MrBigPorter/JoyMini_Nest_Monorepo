@@ -94,14 +94,15 @@ export class RagService {
   async delete(id: string) {
     const doc = await this.getById(id);
 
-    // 同步删除 Meilisearch 中的 chunks
-    // 软删除前把该文档所有 chunk 从 BM25 索引中清理掉
+    // 1. 同步删除 Meilisearch 中的 chunks
     await this.deleteMeilisearchChunks(id);
 
-    return this.prisma.knowledgeDocument.update({
+    // 2. 物理删除文档（CASCADE 会自动删除关联的 chunks 和向量）
+    await this.prisma.knowledgeDocument.delete({
       where: { id },
-      data: { isActive: false },
     });
+
+    return doc;
   }
 
   async getDomains(): Promise<string[]> {
@@ -111,6 +112,76 @@ export class RagService {
       distinct: ['domain'],
     });
     return result.map((r) => r.domain).filter(Boolean);
+  }
+
+  /**
+   * 获取质量统计数据
+   * 返回按分数段的文档分布 + 最近的问题标记
+   */
+  async getQualityStats(): Promise<{
+    total: number;
+    needReview: number;
+    byScore: {
+      excellent: number;
+      good: number;
+      fair: number;
+      suspicious: number;
+    };
+    recentFlags: Array<{
+      documentId: string;
+      title: string;
+      score: number | null;
+      flags: string | null;
+      parsedAt: Date;
+    }>;
+  }> {
+    const docs = await this.prisma.knowledgeDocument.findMany({
+      where: { isActive: true },
+      select: {
+        id: true,
+        title: true,
+        qualityScore: true,
+        qualityFlags: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const total = docs.length;
+    const byScore = { excellent: 0, good: 0, fair: 0, suspicious: 0 };
+    const recentFlags: Array<{
+      documentId: string;
+      title: string;
+      score: number | null;
+      flags: string | null;
+      parsedAt: Date;
+    }> = [];
+
+    for (const doc of docs) {
+      const score = doc.qualityScore;
+
+      if (score === null || score === undefined) {
+        // uncheckd — skip
+      } else if (score >= 90) byScore.excellent++;
+      else if (score >= 70) byScore.good++;
+      else if (score >= 50) byScore.fair++;
+      else byScore.suspicious++;
+
+      // Collect flagged documents (last 10)
+      if (doc.qualityFlags && recentFlags.length < 10) {
+        recentFlags.push({
+          documentId: doc.id,
+          title: doc.title,
+          score: doc.qualityScore,
+          flags: doc.qualityFlags,
+          parsedAt: doc.createdAt,
+        });
+      }
+    }
+
+    const needReview = byScore.suspicious + byScore.fair;
+
+    return { total, needReview, byScore, recentFlags };
   }
 
   // ==================== Chunk operations ====================

@@ -1816,10 +1816,16 @@ model KnowledgeDocument {
   priority       String          @default("P2") @map("priority") @db.VarChar(5)
   /// 文档正文 Markdown
   content        String          @map("content") @db.Text
+  /// 原始文件内容（未解析 buffer 转文本），用于双栏对比审核
+  rawContent     String?         @map("raw_content") @db.Text
   /// 是否启用
   isActive       Boolean         @default(true) @map("is_active")
   /// 处理状态: uploaded → parsed → chunked → embedded → indexed
   processStatus  String          @default("uploaded") @map("process_status") @db.VarChar(20)
+  /// 质量评分 0-100（null=未检查）
+  qualityScore   Int?            @map("quality_score") @db.SmallInt
+  /// 质量标记（逗号分隔，如 "truncation,encoding_issue"）
+  qualityFlags   String?         @map("quality_flags") @db.VarChar(200)
   /// 版本号（每次更新 +1）
   version        Int             @default(1) @map("version") @db.SmallInt
   documentChunks DocumentChunk[]

@@ -40,6 +40,10 @@ export class RagDocResponseDto {
   @Expose()
   content!: string;
 
+  @ApiProperty({ description: '原始文件内容（buffer 转文本），用于双栏对比审核' })
+  @Expose()
+  rawContent!: string | null;
+
   @ApiProperty()
   @Expose()
   isActive!: boolean;
@@ -51,6 +55,14 @@ export class RagDocResponseDto {
   @ApiProperty({ description: '处理状态: uploaded → parsed → chunked → embedded → indexed' })
   @Expose()
   processStatus!: string;
+
+  @ApiProperty({ description: '质量评分 0-100（null=未检查）' })
+  @Expose()
+  qualityScore!: number | null;
+
+  @ApiProperty({ description: '质量标记（逗号分隔）' })
+  @Expose()
+  qualityFlags!: string | null;
 
   @ApiProperty()
   @Expose()

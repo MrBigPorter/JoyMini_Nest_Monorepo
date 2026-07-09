@@ -1243,6 +1243,26 @@ export const knowledgeApi = {
 
   /** Get distinct domains for filter dropdown */
   getDomains: () => http.get<string[]>('/v1/admin/rag/documents/meta/domains'),
+
+  /** Get quality statistics */
+  qualityStats: () =>
+    http.get<{
+      total: number;
+      needReview: number;
+      byScore: {
+        excellent: number;
+        good: number;
+        fair: number;
+        suspicious: number;
+      };
+      recentFlags: Array<{
+        documentId: string;
+        title: string;
+        score: number | null;
+        flags: string | null;
+        parsedAt: string;
+      }>;
+    }>('/v1/admin/rag/documents/quality-stats'),
 };
 
 /** Service Health API */

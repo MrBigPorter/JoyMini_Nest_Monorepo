@@ -19,3 +19,19 @@ Search existing patterns → Verify imports exist → type-check + lint + pretti
 
 ## Reference
 See `docs/ai-constitution-detailed.md` for full detailed rules with examples.
+
+## OpenSpec SDD — 规范驱动开发流程
+在收到新功能实施任务时，必须严格遵守以下三步循环，严禁直接生成代码：
+
+### Propose（提案）
+1. 读取当前任务的参考文档（`docs/AI-joymini/` 或 `docs/current-task.md`）
+2. 输出轻量级 Markdown 提案，包含：[目标]、[受影响的文件清单]、[每项改动的具体内容]、[验收标准]
+3. **等待用户确认后才能开始编码**
+
+### Apply（实施）
+4. 用户确认后，严格按照批准的提案实施
+5. 不擅自扩大修改范围
+
+### Archive（归档）
+6. 实现完成后，逐条对照验收标准验证
+7. 输出验证结论

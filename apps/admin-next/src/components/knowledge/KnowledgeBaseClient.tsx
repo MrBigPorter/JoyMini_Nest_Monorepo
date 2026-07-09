@@ -32,6 +32,8 @@ import { knowledgeApi } from '@/api';
 import { PageHeader } from '@/components/scaffold/PageHeader';
 import { ServiceStatusBar } from './ServiceStatusBar';
 import { ProcessPipeline } from './ProcessPipeline';
+import { QualityBadge } from './QualityBadge';
+import { QualityReviewPanel } from './QualityReviewPanel';
 import { useTranslation } from '@/hooks/useTranslation';
 import type { TFunc } from '@/hooks/useTranslation';
 import type {
@@ -895,6 +897,7 @@ export function KnowledgeBaseClient() {
     id: string;
     title: string;
   } | null>(null);
+  const [reviewModal, setReviewModal] = useState<KnowledgeDocument | null>(null);
 
   // Domains
   const { data: domains } = useRequest(() => knowledgeApi.getDomains(), {
@@ -966,6 +969,10 @@ export function KnowledgeBaseClient() {
 
   const handleViewChunks = (doc: KnowledgeDocument) => {
     setChunkModal({ id: doc.id, title: doc.title });
+  };
+
+  const handleReview = (doc: KnowledgeDocument) => {
+    setReviewModal(doc);
   };
 
   const [reindexingAll, setReindexingAll] = useState(false);
@@ -1125,6 +1132,9 @@ export function KnowledgeBaseClient() {
                     {t('knowledgeBase.locale')}
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-400">
+                    Quality
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-400">
                     {t('knowledgeBase.chunks')}
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-400">
@@ -1184,6 +1194,20 @@ export function KnowledgeBaseClient() {
                     </td>
                     <td className="px-4 py-4 text-gray-600 dark:text-gray-400">
                       {doc.locale}
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => handleReview(doc)}
+                          className="group flex items-center gap-1 rounded-md transition-colors hover:bg-gray-50 dark:hover:bg-white/5 px-1 py-0.5"
+                          title="Open quality review panel"
+                        >
+                          <QualityBadge score={doc.qualityScore} />
+                          <span className="text-[10px] text-teal-600 opacity-0 transition-opacity group-hover:opacity-100 dark:text-teal-400">
+                            Review
+                          </span>
+                        </button>
+                      </div>
                     </td>
                     <td className="px-4 py-4">
                       <button
@@ -1278,6 +1302,13 @@ export function KnowledgeBaseClient() {
           documentTitle={chunkModal.title}
           onClose={() => setChunkModal(null)}
           t={t}
+        />
+      )}
+
+      {reviewModal && (
+        <QualityReviewPanel
+          document={reviewModal}
+          onClose={() => setReviewModal(null)}
         />
       )}
     </div>

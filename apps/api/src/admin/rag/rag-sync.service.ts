@@ -4,6 +4,9 @@ import { Queue } from 'bullmq';
 import axios from 'axios';
 import { RagChunkService } from './rag-chunk.service';
 import { RagEmbeddingService } from './rag-embedding.service';
+import { RagQualityService } from './rag-quality.service';
+import { UploadService } from '@api/common/upload/upload.service';
+import { AiService } from '@api/common/ai/ai.service';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { RAG_EMBEDDING_QUEUE } from './rag-embedding-queue.constants';
 
@@ -146,25 +149,14 @@ class MarkdownExtractor implements TextExtractor {
 }
 
 // =============================================================================
-// PDF 提取器（双引擎：Unstructured → pdf-parse 降级）
+// PDF 提取器（Unstructured 主引擎，pdf-parse 降级）
 // =============================================================================
-// 采用双引擎策略：
+// 采用串行策略：
+//   1. 优先尝试 Unstructured API（支持 OCR、表格、多栏排版）
+//   2. 如果 Unstructured 不可用，降级到 pdf-parse（仅文字型 PDF）
 //
-//   主引擎: Unstructured API（容器化部署）
-//     - 支持 OCR（扫描件可识别）
-//     - 支持表格提取 + Markdown 输出
-//     - 支持多栏排版保留
-//     - 需要手动启动: make start-unstructured
-//
-//   降级: pdf-parse（Node.js 原生）
-//     - 只支持文字型 PDF（Word/Google Docs 导出）
-//     - 不支持扫描件、表格、多栏
-//     - 不需要额外服务
-//
-// 策略:
-//   1. 优先尝试 Unstructured API
-//   2. 如果 Unstructured 不可用（容器未启动），降级到 pdf-parse
-//   3. 如果 pdf-parse 提取结果为空，提示用户启动 Unstructured
+// 双引擎并行 + LLM Diff 审计（P1）代码已保留在 rag-quality.service.ts 中，
+// 后续需要时可以启用。
 // =============================================================================
 
 /** Unstructured API 基础 URL（Docker 内部网络） */
@@ -286,11 +278,16 @@ export class RagSyncService {
     private readonly prisma: PrismaService,
     private readonly ragChunkService: RagChunkService,
     private readonly ragEmbeddingService: RagEmbeddingService,
+    private readonly ragQualityService: RagQualityService,
+    private readonly uploadService: UploadService,
     @InjectQueue(RAG_EMBEDDING_QUEUE)
     private readonly ragEmbeddingQueue: Queue,
   ) {
     // 注册提取器。新增格式只需在这里 push。
-    this.extractors = [new MarkdownExtractor(), new PdfExtractor()];
+    this.extractors = [
+      new MarkdownExtractor(),
+      new PdfExtractor(),
+    ];
   }
 
   /**
@@ -349,6 +346,43 @@ export class RagSyncService {
     // 对于 .pdf：pdf-parse 提取文本流（非 OCR，只是读取 PDF 容器中的文字编码）
     const doc = await extractor.extract(file);
 
+    // ==================== 第 2b 步：原始文件存储到 R2 ====================
+    // 将原始文件上传到 R2，用于 QualityReviewPanel 的 PDF 预览。
+    // - .md 文件：直接存 buffer 文本（raw content 就是文本本身）
+    // - .pdf 文件：存到 R2，rawContent 存 CDN URL
+    // 如果 R2 上传失败（如未配置），fallback 到 buffer 转文本
+    let rawContent: string | null = null;
+    const isPdf = file.originalname.toLowerCase().endsWith('.pdf');
+    if (isPdf) {
+      try {
+        const uploadResult = await this.uploadService.uploadFile(file, 'knowledge');
+        rawContent = uploadResult.url;
+        this.logger.log(`[R2] Uploaded original file: ${uploadResult.url}`);
+      } catch (r2Error) {
+        const msg = r2Error instanceof Error ? r2Error.message : 'Unknown error';
+        this.logger.warn(`[R2] Upload failed for ${file.originalname}: ${msg}`);
+        rawContent = file.buffer.toString('utf-8');
+      }
+    } else {
+      rawContent = file.buffer.toString('utf-8');
+    }
+
+    // ==================== 第 2c 步：启发式质量检查 ====================
+    // 对提取的文本执行 4 项检查（空内容/截断/编码/字符保留率）。
+    // 检查失败不会阻塞上传，只是记录问题到 qualityScore/qualityFlags。
+    // 管理员可以在 Admin 面板看到质量评分和问题标记。
+    const qualityResult = this.ragQualityService.check(
+      doc.content,
+      file.buffer.length,
+    );
+    if (!qualityResult.passed) {
+      this.logger.warn(
+        `[Quality] ${file.originalname}: ` +
+        `score=${qualityResult.overallScore}, ` +
+        `flags=[${qualityResult.flags.join(', ')}]`,
+      );
+    }
+
     // ==================== 第 3 步：合并元数据 ====================
     // 优先级：frontmatter 中的值 > 前端用户填写 > 代码默认值
     // 例如：.md 文件的 frontmatter 中写了 domain: order，
@@ -362,11 +396,14 @@ export class RagSyncService {
       where: { docId_locale: { docId, locale } },
     });
 
+
     const data = {
       title: overrides?.domain
         ? `${doc.title} (${overrides.domain})`
         : doc.title,
       domain: overrides?.domain || doc.metadata.domain || 'general',
+      qualityScore: qualityResult.overallScore,
+      qualityFlags: qualityResult.flags.length > 0 ? qualityResult.flags.join(',') : null,
       keywords: overrides?.keywords
         ? overrides.keywords.split(',').map((s) => s.trim())
         : Array.isArray(doc.metadata.keywords)
@@ -376,6 +413,7 @@ export class RagSyncService {
         overrides?.contentType || doc.metadata.contentType || 'policy',
       priority: overrides?.priority || doc.metadata.priority || 'P2',
       content: doc.content,
+      rawContent: rawContent,
       isActive: true,
     };
 

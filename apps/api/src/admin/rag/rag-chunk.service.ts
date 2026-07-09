@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
+import { MarkdownTextSplitter } from '@langchain/textsplitters';
 
 // ========== Types ==========
 
@@ -24,12 +24,13 @@ export interface ChunkResult {
 // ========== Service ==========
 
 /**
- * RagChunkService — Pure text chunking using RecursiveCharacterTextSplitter.
+ * RagChunkService — Markdown-aware text chunking.
  *
  * Design:
- * - Uses LangChain's battle-tested RecursiveCharacterTextSplitter
- * - Separator priority: `## ` → `### ` → `\n\n` → `\n` → `。；` → ` ` → ``
- *   (markdown heading → paragraph → line → CJK sentence → word → character)
+ * - Uses LangChain's MarkdownTextSplitter, which respects heading hierarchy
+ *   (`#` → `##` → `###` → `\n\n` → `\n` → sentences)
+ * - Each chunk preserves its heading context, so retrieval knows which
+ *   section the content belongs to
  * - Pure function: no DB / vector dependencies — just text in, chunks out
  * - The caller (rag-sync.service.ts uploadFile) is responsible for
  *   persisting chunks and triggering embedding
@@ -66,11 +67,9 @@ export class RagChunkService {
       return [];
     }
 
-    const splitter = new RecursiveCharacterTextSplitter({
+    const splitter = new MarkdownTextSplitter({
       chunkSize,
       chunkOverlap,
-      separators: ['## ', '### ', '\n\n', '\n', '。；', ' ', ''],
-      // keepSeparator: false  — do not keep separators in chunk content
     });
 
     const rawChunks = await splitter.splitText(text);

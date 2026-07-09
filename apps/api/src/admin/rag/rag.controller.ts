@@ -94,7 +94,6 @@ export class RagController {
 
   @Delete(':id')
   @Roles(Role.SUPER_ADMIN, Role.ADMIN)
-  @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Soft delete document (sets isActive=false)' })
   @ApiParam({ name: 'id', description: 'Document UUID' })
   async delete(@Param('id') id: string): Promise<RagDocResponseDto> {
@@ -255,6 +254,15 @@ export class RagController {
   })
   async reindexAll() {
     return this.ragService.reindexAll();
+  }
+
+  // ==================== Quality stats ====================
+
+  @Get('quality-stats')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
+  @ApiOperation({ summary: 'Get quality statistics overview' })
+  async getQualityStats() {
+    return this.ragService.getQualityStats();
   }
 
   // ==================== Metadata helpers ====================

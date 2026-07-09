@@ -1640,9 +1640,12 @@ export interface KnowledgeDocument {
   contentType: string;
   priority: string;
   content: string;
+  rawContent: string | null;
   isActive: boolean;
   version: number;
   processStatus: string;
+  qualityScore: number | null;
+  qualityFlags: string | null;
   createdAt: string;
   updatedAt: string;
 }
