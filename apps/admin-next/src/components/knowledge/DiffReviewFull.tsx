@@ -13,6 +13,7 @@ import {
   AlertTriangle,
   Hash,
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { knowledgeApi } from '@/api';
 import type { KnowledgeDocument, DiffResponse, DiffRange } from '@/type/types';
 
@@ -515,6 +516,7 @@ function QualityFlagsBanner({ flags }: { flags: string[] }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export function DiffReviewFull({ document }: { document: KnowledgeDocument }) {
+  const router = useRouter();
   const [diffData, setDiffData] = useState<DiffResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -704,6 +706,12 @@ export function DiffReviewFull({ document }: { document: KnowledgeDocument }) {
     <div className="flex h-full flex-col">
       {/* ════════ Header ════════ */}
       <div className="flex items-center gap-3 border-b border-gray-100 px-6 py-3 dark:border-white/10">
+        <button
+          onClick={() => router.back()}
+          className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-white/5"
+        >
+          <ArrowLeft size={18} />
+        </button>
         <div className="flex items-center gap-2 min-w-0">
           <h1 className="truncate text-base font-semibold text-gray-900 dark:text-white">
             Quality Review
