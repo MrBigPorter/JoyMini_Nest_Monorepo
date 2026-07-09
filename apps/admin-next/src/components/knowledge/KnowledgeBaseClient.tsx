@@ -34,7 +34,6 @@ import { PageHeader } from '@/components/scaffold/PageHeader';
 import { ServiceStatusBar } from './ServiceStatusBar';
 import { ProcessPipeline } from './ProcessPipeline';
 import { QualityBadge } from './QualityBadge';
-import { QualityReviewPanel } from './QualityReviewPanel';
 import { useTranslation } from '@/hooks/useTranslation';
 import type { TFunc } from '@/hooks/useTranslation';
 import type {
@@ -898,7 +897,6 @@ export function KnowledgeBaseClient() {
     id: string;
     title: string;
   } | null>(null);
-  const [reviewModal, setReviewModal] = useState<KnowledgeDocument | null>(null);
 
   // Domains
   const { data: domains } = useRequest(() => knowledgeApi.getDomains(), {
@@ -970,10 +968,6 @@ export function KnowledgeBaseClient() {
 
   const handleViewChunks = (doc: KnowledgeDocument) => {
     setChunkModal({ id: doc.id, title: doc.title });
-  };
-
-  const handleReview = (doc: KnowledgeDocument) => {
-    setReviewModal(doc);
   };
 
   const [reindexingAll, setReindexingAll] = useState(false);
@@ -1197,22 +1191,38 @@ export function KnowledgeBaseClient() {
                       {doc.locale}
                     </td>
                     <td className="px-4 py-4">
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => handleReview(doc)}
-                          className="group flex items-center gap-1 rounded-md transition-colors hover:bg-gray-50 dark:hover:bg-white/5 px-1 py-0.5"
-                          title="Open quality review panel"
-                        >
+                      <div className="flex items-center gap-2">
+                        {/* Diff summary from auditResult */}
+                        {doc.auditResult ? (
+                          <div className="flex items-center gap-1.5">
+                            <span className={`text-[11px] font-mono font-semibold ${
+                              (100 - doc.auditResult.wer) >= 98
+                                ? 'text-green-600 dark:text-green-400'
+                                : (100 - doc.auditResult.wer) >= 90
+                                  ? 'text-yellow-600 dark:text-yellow-400'
+                                  : 'text-red-600 dark:text-red-400'
+                            }`}>
+                              {(100 - doc.auditResult.wer).toFixed(1)}%
+                            </span>
+                            {doc.auditResult.diffRanges.filter(r => r.severity === 'critical' && r.type !== 'equal').length > 0 && (
+                              <span className="text-[10px] text-red-500 font-medium">
+                                {doc.auditResult.diffRanges.filter(r => r.severity === 'critical' && r.type !== 'equal').length} critical
+                              </span>
+                            )}
+                            {doc.auditResult.numberErrors.length > 0 && (
+                              <span className="text-[10px] text-purple-500">
+                                {doc.auditResult.numberErrors.length} nums
+                              </span>
+                            )}
+                          </div>
+                        ) : (
                           <QualityBadge score={doc.qualityScore} />
-                          <span className="text-[10px] text-teal-600 opacity-0 transition-opacity group-hover:opacity-100 dark:text-teal-400">
-                            Modal
-                          </span>
-                        </button>
+                        )}
                         <Link
                           href={`/knowledge/documents/${doc.id}/review`}
                           className="text-[10px] text-teal-600 underline transition-colors hover:text-teal-500"
                         >
-                          Full Review
+                          Review
                         </Link>
                       </div>
                     </td>
@@ -1312,12 +1322,6 @@ export function KnowledgeBaseClient() {
         />
       )}
 
-      {reviewModal && (
-        <QualityReviewPanel
-          document={reviewModal}
-          onClose={() => setReviewModal(null)}
-        />
-      )}
     </div>
   );
 }
