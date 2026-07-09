@@ -1816,8 +1816,12 @@ model KnowledgeDocument {
   priority       String          @default("P2") @map("priority") @db.VarChar(5)
   /// 文档正文 Markdown
   content        String          @map("content") @db.Text
-  /// 原始文件内容（未解析 buffer 转文本），用于双栏对比审核
+  /// pdf-parse 输出（诚实基准线），用于双源对撞对比
   rawContent     String?         @map("raw_content") @db.Text
+  /// 原始文件 R2 URL（用于 PDF 预览）
+  fileUrl        String?         @map("file_url") @db.VarChar(512)
+  /// 双源对比结果（JSON），包含 diffRanges、wer、score 等
+  auditResult    Json?           @map("audit_result")
   /// 是否启用
   isActive       Boolean         @default(true) @map("is_active")
   /// 处理状态: uploaded → parsed → chunked → embedded → indexed

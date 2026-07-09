@@ -40,9 +40,17 @@ export class RagDocResponseDto {
   @Expose()
   content!: string;
 
-  @ApiProperty({ description: '原始文件内容（buffer 转文本），用于双栏对比审核' })
+  @ApiProperty({ description: 'pdf-parse 输出（诚实基准线），用于双源对撞对比' })
   @Expose()
   rawContent!: string | null;
+
+  @ApiProperty({ description: '原始文件 R2 URL（用于 PDF 预览）' })
+  @Expose()
+  fileUrl!: string | null;
+
+  @ApiProperty({ description: '双源对比结果（JSON），包含 diffRanges、wer、score 等' })
+  @Expose()
+  auditResult!: any;
 
   @ApiProperty()
   @Expose()

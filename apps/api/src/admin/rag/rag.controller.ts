@@ -14,6 +14,7 @@ import {
   MaxFileSizeValidator,
   HttpCode,
   HttpStatus,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -272,5 +273,35 @@ export class RagController {
   @ApiOperation({ summary: 'Get distinct domain list for filter dropdown' })
   async getDomains(): Promise<string[]> {
     return this.ragService.getDomains();
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 双源对撞 — Diff + Content Edit
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  @Get(':id/diff')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
+  @ApiOperation({
+    summary: 'Get dual-source diff (pdf-parse vs Unstructured) for a document',
+  })
+  @ApiParam({ name: 'id', description: 'Document UUID' })
+  async getDiff(@Param('id') id: string) {
+    return this.ragService.getDiff(id);
+  }
+
+  @Patch(':id/content')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @ApiOperation({
+    summary: 'Update document content (after manual review), triggers re-chunk + re-embed',
+  })
+  @ApiParam({ name: 'id', description: 'Document UUID' })
+  async updateContent(
+    @Param('id') id: string,
+    @Body('content') content: string,
+  ) {
+    if (!content) {
+      throw new BadRequestException('content is required');
+    }
+    return this.ragService.updateContent(id, content);
   }
 }

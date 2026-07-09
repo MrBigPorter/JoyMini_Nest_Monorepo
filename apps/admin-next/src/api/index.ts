@@ -1263,6 +1263,19 @@ export const knowledgeApi = {
         parsedAt: string;
       }>;
     }>('/v1/admin/rag/documents/quality-stats'),
+
+  /** Get dual-source diff for a document (pdf-parse vs Unstructured) */
+  getDiff: (documentId: string) =>
+    http.get<import('@/type/types').DiffResponse>(
+      `/v1/admin/rag/documents/${documentId}/diff`,
+    ),
+
+  /** Update document content after manual review (triggers re-chunk + re-embed) */
+  updateContent: (documentId: string, content: string) =>
+    http.patch<import('@/type/types').KnowledgeDocument>(
+      `/v1/admin/rag/documents/${documentId}/content`,
+      { content },
+    ),
 };
 
 /** Service Health API */

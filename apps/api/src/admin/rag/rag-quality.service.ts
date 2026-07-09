@@ -1,5 +1,31 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { diffChars, Change } from 'diff';
 import { AiService } from '@api/common/ai/ai.service';
+
+// =============================================================================
+// DiffRange — 双源对撞差异范围
+// =============================================================================
+
+export interface DiffRange {
+  type: 'equal' | 'added' | 'removed';
+  value: string;
+  count?: number;
+  severity?: 'critical' | 'minor' | 'ignore';
+}
+
+export interface NumberError {
+  raw: string;
+  parsed: string;
+  index: number;
+  severity: 'critical';
+}
+
+export interface DiffResult {
+  contentMatch: boolean;
+  diffRanges: DiffRange[];
+  numberErrors: NumberError[];
+  wer: number;
+}
 
 // =============================================================================
 // QualityCheckResult — 启发式质量检查结果
@@ -148,6 +174,127 @@ export class RagQualityService {
       };
     }
     return { passed: true, detail: `Content OK (${trimmed.length} chars)` };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 双源对撞 — Content Extraction Diff
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 为什么不做行级 diff？
+  //   pdf-parse 输出是纯文本（一行到底），Unstructured 输出是 Markdown（有格式）。
+  //   直接逐行对比会 100% 标红——因为格式完全不同。
+  //
+  // 正确做法：
+  //   1. extractPlainText()：去掉所有 Markdown 格式标记，提取纯文本内容
+  //   2. diffChars()：按字符级对比纯文本（检测漏字/多字/错字）
+  //   3. detectNumberErrors()：专项提取数字并逐位对比（检测 5000→500）
+  //
+  // 参考：docs/AI-joymini/62-Enterprise-Parse-Quality-Dual-Source-Architecture.md
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * 提取纯文本内容（去掉所有 Markdown 格式标记）
+   * 这是双源对撞的核心——只有抹平格式差异，才能对比真实内容。
+   */
+  private extractPlainText(text: string): string {
+    return text
+      .replace(/#{1,6}\s/g, '')         // 去掉 Markdown 标题标记
+      .replace(/\|/g, ' ')               // 去掉表格分隔符
+      .replace(/[-]{3,}/g, '')           // 去掉表格分割线
+      .replace(/[`*_~]/g, '')            // 去掉 Markdown 强调符号
+      .replace(/\n+/g, ' ')              // 换行→空格
+      .replace(/\s+/g, '')               // 去掉所有空白
+      .trim();
+  }
+
+  /**
+   * 数字专项检测：从两边提取所有数字，逐位对比
+   * 这是最关键的能力——Unstructured 可能把 5000 看错成 500
+   */
+  private detectNumberErrors(raw: string, parsed: string): NumberError[] {
+    const rawNums = raw.match(/\d+[\d,.]*/g) || [];
+    const parsedNums = parsed.match(/\d+[\d,.]*/g) || [];
+    const errors: NumberError[] = [];
+    const maxLen = Math.max(rawNums.length, parsedNums.length);
+    for (let i = 0; i < maxLen; i++) {
+      if (rawNums[i] !== parsedNums[i]) {
+        errors.push({
+          raw: rawNums[i],
+          parsed: parsedNums[i],
+          index: i,
+          severity: 'critical',
+        });
+      }
+    }
+    return errors;
+  }
+
+  /**
+   * computeDiff — 双源对撞主方法
+   * 1. 抹平格式，提取纯文本
+   * 2. diffChars 字符级对比
+   * 3. 数字专项检测
+   * 4. 计算字错率（WER）
+   * 5. 返回结构化 DiffResult
+   */
+  computeDiff(rawContent: string, content: string): DiffResult {
+    const rawPlain = this.extractPlainText(rawContent);
+    const parsedPlain = this.extractPlainText(content);
+
+    // 第一步：内容完全一致 → 解析正确，快速返回
+    if (rawPlain === parsedPlain) {
+      return {
+        contentMatch: true,
+        diffRanges: [{ type: 'equal', value: content, severity: 'ignore' }],
+        numberErrors: [],
+        wer: 0,
+      };
+    }
+
+    // 第二步：字符级 diff
+    const changes = diffChars(rawPlain, parsedPlain);
+
+    // 分类差异严重程度
+    const diffRanges: DiffRange[] = changes.map((c: Change) => {
+      let severity: 'critical' | 'minor' | 'ignore' = 'minor';
+
+      // 如果变化的是纯空白 → ignore
+      if (c.value.trim().length === 0) {
+        severity = 'ignore';
+      }
+      // 如果变化的内容包含数字 → critical（数字错是最致命的）
+      else if (/\d/.test(c.value)) {
+        severity = 'critical';
+      }
+
+      return {
+        type: c.added ? 'added' : c.removed ? 'removed' : 'equal',
+        value: c.count && c.count > 200 ? c.value.slice(0, 200) + '...' : c.value,
+        count: c.count,
+        severity,
+      };
+    });
+
+    // 第三步：数字专项检测
+    const numberErrors = this.detectNumberErrors(rawPlain, parsedPlain);
+
+    // 第四步：计算字错率（Word Error Rate）
+    // WER = (替换数 + 插入数 + 删除数) / 总字数
+    // 这里简化：用 changed chars / total chars
+    const totalLength = rawPlain.length || 1;
+    let changedChars = 0;
+    for (const c of changes) {
+      if (c.added || c.removed) {
+        changedChars += (c.count || c.value.length);
+      }
+    }
+    const wer = Math.round((changedChars / totalLength) * 10000) / 100;
+
+    return {
+      contentMatch: false,
+      diffRanges,
+      numberErrors,
+      wer,
+    };
   }
 
   // ──────────── LLM Diff 审计 ────────────

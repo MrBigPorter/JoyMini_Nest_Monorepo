@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { PrismaService } from '@api/common/prisma/prisma.service';
@@ -7,6 +7,7 @@ import { QueryRagDocDto } from './dto/query-rag-doc.dto';
 import { CreateRagDocDto } from '@api/admin/rag/dto/create-rag-doc.dto';
 import { RagChunkService } from './rag-chunk.service';
 import { RagEmbeddingService } from './rag-embedding.service';
+import { RagQualityService } from './rag-quality.service';
 import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service';
 import { RAG_EMBEDDING_QUEUE } from './rag-embedding-queue.constants';
 
@@ -18,6 +19,7 @@ export class RagService {
     private readonly prisma: PrismaService,
     private readonly ragChunkService: RagChunkService,
     private readonly ragEmbeddingService: RagEmbeddingService,
+    private readonly ragQualityService: RagQualityService,
     private readonly meilisearchService: MeilisearchService,
     @InjectQueue(RAG_EMBEDDING_QUEUE)
     private readonly ragEmbeddingQueue: Queue,
@@ -426,5 +428,114 @@ export class RagService {
     );
 
     return { total: docs.length, submitted, failed };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 双源对撞 — Diff 接口
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * getDiff — 执行双源对撞对比，返回结构化 DiffResult
+   * 对比 rawContent（pdf-parse 基准）和 content（Unstructured 解析）的差异。
+   * 结果包含：
+   *   - diffRanges: 字符级差异范围
+   *   - numberErrors: 数字专项检测结果
+   *   - wer: 字错率
+   *   - contentMatch: 内容是否完全一致
+   */
+  async getDiff(documentId: string) {
+    const doc = await this.getById(documentId);
+
+    if (!doc.rawContent) {
+      throw new BadRequestException(
+        `Document ${documentId} has no rawContent (pdf-parse baseline). Only PDF documents support diff.`,
+      );
+    }
+
+    const diffResult = this.ragQualityService.computeDiff(
+      doc.rawContent,
+      doc.content,
+    );
+
+    // 将对比结果存入 auditResult（异步，不阻塞返回）
+    try {
+      await this.prisma.knowledgeDocument.update({
+        where: { id: documentId },
+        data: {
+          auditResult: diffResult as any,
+        },
+      });
+    } catch (error) {
+      // 存储失败不影响前端展示
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.warn(`Failed to persist auditResult for ${documentId}: ${message}`);
+    }
+
+    return {
+      documentId,
+      rawContent: doc.rawContent,
+      content: doc.content,
+      ...diffResult,
+    };
+  }
+
+  /**
+   * updateContent — 更新文档 content（人工审核后修改），然后重新切片 + 向量化
+   */
+  async updateContent(documentId: string, newContent: string) {
+    const doc = await this.getById(documentId);
+
+    if (!newContent || newContent.trim().length === 0) {
+      throw new BadRequestException('Content cannot be empty');
+    }
+
+    // 1. 更新 content 和版本号
+    const updated = await this.prisma.knowledgeDocument.update({
+      where: { id: documentId },
+      data: {
+        content: newContent,
+        version: { increment: 1 },
+      },
+    });
+
+    // 2. 重新切片（删除旧 chunks，创建新 chunks）
+    await this.prisma.documentChunk.deleteMany({
+      where: { documentId },
+    });
+
+    const chunks = await this.ragChunkService.chunkText(newContent);
+
+    if (chunks.length > 0) {
+      await this.prisma.documentChunk.createMany({
+        data: chunks.map((chunk) => ({
+          documentId,
+          chunkIndex: chunk.index,
+          content: chunk.content,
+          tokenCount: chunk.tokenCount,
+          documentVersion: updated.version,
+        })),
+      });
+      this.logger.log(
+        `[updateContent] Re-chunked ${documentId} → ${chunks.length} chunks (v${updated.version})`,
+      );
+    }
+
+    // 3. 提交向量化任务
+    try {
+      await this.ragEmbeddingQueue.add('embed', {
+        documentId,
+        force: true,
+      });
+      this.logger.log(
+        `[updateContent] Submitted embedding job for ${documentId}`,
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(
+        `[updateContent] Failed to submit embedding job: ${message}`,
+      );
+    }
+
+    return updated;
   }
 }

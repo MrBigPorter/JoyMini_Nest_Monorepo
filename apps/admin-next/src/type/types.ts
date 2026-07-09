@@ -1641,6 +1641,8 @@ export interface KnowledgeDocument {
   priority: string;
   content: string;
   rawContent: string | null;
+  fileUrl: string | null;
+  auditResult: AuditResult | null;
   isActive: boolean;
   version: number;
   processStatus: string;
@@ -1648,6 +1650,39 @@ export interface KnowledgeDocument {
   qualityFlags: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+// ==================== Dual-Source Diff Types ====================
+
+export interface DiffRange {
+  type: 'equal' | 'added' | 'removed';
+  value: string;
+  count?: number;
+  severity?: 'critical' | 'minor' | 'ignore';
+}
+
+export interface NumberError {
+  raw: string;
+  parsed: string;
+  index: number;
+  severity: 'critical';
+}
+
+export interface DiffResponse {
+  documentId: string;
+  rawContent: string;
+  content: string;
+  contentMatch: boolean;
+  diffRanges: DiffRange[];
+  numberErrors: NumberError[];
+  wer: number;
+}
+
+export interface AuditResult {
+  contentMatch: boolean;
+  diffRanges: DiffRange[];
+  numberErrors: NumberError[];
+  wer: number;
 }
 
 export interface DocumentChunk {

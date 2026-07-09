@@ -33,6 +33,8 @@ import { RAG_EMBEDDING_QUEUE } from './rag-embedding-queue.constants';
 interface ExtractedDoc {
   title: string;
   content: string;
+  /** pdf-parse 原始文本输出（仅 PDF 提取器需要），用于双源对撞基准 */
+  rawContent?: string;
   metadata: Record<string, any>;
 }
 
@@ -170,14 +172,40 @@ class PdfExtractor implements TextExtractor {
 
   async extract(file: Express.Multer.File): Promise<ExtractedDoc> {
     const title = file.originalname.replace(/\.pdf$/i, '');
+    const logger = new Logger('PdfExtractor');
 
-    // ── 优先尝试 Unstructured API ──
+    // ── 1. 先用 pdf-parse 提取原始文本（诚实基准线）──
+    // pdf-parse 是"照妖镜"：输出物理真实，绝不漏字/瞎编。
+    // 用作双源对撞的 rawContent 基准。
+    let rawContent: string | null = null;
+    try {
+      rawContent = await this.extractWithPdfParse(file);
+    } catch (err) {
+      logger.warn(`pdf-parse failed: ${err instanceof Error ? err.message : 'Unknown'}`);
+    }
+
+    // ── 2. 优先尝试 Unstructured API（AI 解析线）──
     try {
       const content = await this.extractWithUnstructured(file);
       if (content && content.trim().length > 0) {
+        // 🔍 DEBUG: 对比 pdf-parse 和 Unstructured（纯内容，去格式）
+        if (rawContent) {
+          const pdfPlain = rawContent.replace(/\s+/g, '').slice(0, 200);
+          const usPlain = content.replace(/\s+/g, '').slice(0, 200);
+          const match = pdfPlain === usPlain;
+          logger.debug(`[COMPARE] ${file.originalname}`);
+          logger.debug(`[COMPARE] pdf-parse(${rawContent.length}chars) vs Unstructured(${content.length}chars)`);
+          logger.debug(`[COMPARE] Content match (no format): ${match ? '✅' : '❌'}`);
+          if (!match) {
+            logger.debug(`[COMPARE] pdf-parse raw[0:200]: ${rawContent.slice(0, 200)}`);
+            logger.debug(`[COMPARE] Unstructured raw[0:200]: ${content.slice(0, 200)}`);
+          }
+        }
+
         return {
           title,
           content,
+          rawContent: rawContent ?? undefined,
           metadata: { needsMetadata: true },
         };
       }
@@ -185,12 +213,13 @@ class PdfExtractor implements TextExtractor {
       // Unstructured 不可用，降级到 pdf-parse
     }
 
-    // ── 降级: pdf-parse ──
-    const content = await this.extractWithPdfParse(file);
+    // ── 降级: pdf-parse 同时作为 content 和 rawContent ──
+    const content = rawContent ?? await this.extractWithPdfParse(file);
 
     return {
       title,
       content,
+      rawContent: content,
       metadata: { needsMetadata: true },
     };
   }
@@ -346,24 +375,30 @@ export class RagSyncService {
     // 对于 .pdf：pdf-parse 提取文本流（非 OCR，只是读取 PDF 容器中的文字编码）
     const doc = await extractor.extract(file);
 
-    // ==================== 第 2b 步：原始文件存储到 R2 ====================
-    // 将原始文件上传到 R2，用于 QualityReviewPanel 的 PDF 预览。
-    // - .md 文件：直接存 buffer 文本（raw content 就是文本本身）
-    // - .pdf 文件：存到 R2，rawContent 存 CDN URL
-    // 如果 R2 上传失败（如未配置），fallback 到 buffer 转文本
-    let rawContent: string | null = null;
+    // ==================== 第 2b 步：双源提取 + 原始文件存储 ====================
+    // 双源对撞架构（详见 docs/AI-joymini/62-Enterprise-Parse-Quality-Dual-Source-Architecture.md）：
+    //   - PdfExtractor 已同时提取 pdf-parse（rawContent）和 Unstructured（content）
+    //   - 原始文件上传到 R2 → fileUrl（PDF 预览用）
+    //
+    // 为什么 rawContent 改存 pdf-parse 而不是 R2 URL？
+    //   pdf-parse 是"照妖镜"——它的输出物理真实、绝不瞎编。
+    //   双源对撞时拿它做基准去撞 Unstructured 的输出，差异就是 AI 可能犯错的地方。
+    //   R2 URL 单独存为 fileUrl 字段，用于前端 PDF 预览。
+    let rawContent: string | null = doc.rawContent ?? null;
+    let fileUrl: string | null = null;
     const isPdf = file.originalname.toLowerCase().endsWith('.pdf');
     if (isPdf) {
+      // ── 原始文件上传到 R2 → fileUrl（PDF 预览用）──
       try {
         const uploadResult = await this.uploadService.uploadFile(file, 'knowledge');
-        rawContent = uploadResult.url;
+        fileUrl = uploadResult.url;
         this.logger.log(`[R2] Uploaded original file: ${uploadResult.url}`);
       } catch (r2Error) {
         const msg = r2Error instanceof Error ? r2Error.message : 'Unknown error';
         this.logger.warn(`[R2] Upload failed for ${file.originalname}: ${msg}`);
-        rawContent = file.buffer.toString('utf-8');
       }
     } else {
+      // .md 文件：直接存 buffer 文本（MarkdownExtractor 不返回 rawContent）
       rawContent = file.buffer.toString('utf-8');
     }
 
@@ -414,6 +449,7 @@ export class RagSyncService {
       priority: overrides?.priority || doc.metadata.priority || 'P2',
       content: doc.content,
       rawContent: rawContent,
+      fileUrl: fileUrl,
       isActive: true,
     };
 
