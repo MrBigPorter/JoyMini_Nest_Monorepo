@@ -18,7 +18,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 # Enable and prepare Corepack with Yarn 4.9.2, because Node 20 comes with Corepack disabled by default
-RUN corepack enable && corepack prepare yarn@4.9.2 --activate
+RUN corepack enable && corepack prepare yarn@4.14.1 --activate
 
 # Docker 下关闭全局缓存，让 .yarn/cache 写入工作目录，layer 缓存才能命中
 ENV YARN_ENABLE_GLOBAL_CACHE=0
