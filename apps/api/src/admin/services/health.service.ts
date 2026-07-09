@@ -21,36 +21,71 @@ export class HealthService {
   ) {}
 
   async checkAll(): Promise<ServiceHealth[]> {
-    const [ollama, unstructured, meilisearch, infinity] = await Promise.all([
-      this.checkOllama(),
-      this.checkUnstructured(),
-      this.checkMeilisearch(),
-      this.checkInfinity(),
-    ]);
-    return [ollama, unstructured, meilisearch, infinity];
+    const [ollamaEmbed, deepseekLlm, unstructured, meilisearch, infinity] =
+      await Promise.all([
+        this.checkOllamaEmbedding(),
+        this.checkDeepSeekLLM(),
+        this.checkUnstructured(),
+        this.checkMeilisearch(),
+        this.checkInfinity(),
+      ]);
+    return [ollamaEmbed, deepseekLlm, unstructured, meilisearch, infinity];
   }
 
-  private async checkOllama(): Promise<ServiceHealth> {
-    const baseURL =
-      this.configService.get<string>('AI_OLLAMA_BASE_URL') ||
-      'http://joymini-ollama:11434';
+  /**
+   * 检查本地 Ollama 嵌入服务（bge-m3 模型）
+   * 用于: 意图分类 + RAG 向量检索
+   * URL: http://joymini-ollama:11434
+   */
+  private async checkOllamaEmbedding(): Promise<ServiceHealth> {
+    const url = 'http://joymini-ollama:11434';
     try {
-      const res = await axios.get(`${baseURL}/api/tags`, { timeout: 3000 });
-      const models: string[] = res.data?.models?.map((m: any) => m.name) ?? [];
+      const res = await axios.get(`${url}/api/tags`, { timeout: 3000 });
+      const models: string[] =
+        res.data?.models?.map((m: any) => m.name) ?? [];
       return {
         name: 'ollama',
         available: models.length > 0,
         label: 'Ollama',
-        description: '向量嵌入 (bge-m3) + LLM 推理',
-        details: { models, url: baseURL },
+        description: 'Embedding (bge-m3)',
+        details: { models, url },
       };
     } catch {
       return {
         name: 'ollama',
         available: false,
         label: 'Ollama',
-        description: '向量嵌入 (bge-m3) + LLM 推理',
-        details: { error: '连接失败', url: baseURL },
+        description: 'Embedding (bge-m3)',
+        details: { error: 'Not started', hint: 'make start-ollama', url },
+      };
+    }
+  }
+
+  /**
+   * 检查 DeepSeek API（LLM 文本生成）
+   * 用于: Agent 推理 + 对话生成
+   * URL: 从环境变量读取（默认 https://api.deepseek.com）
+   */
+  private async checkDeepSeekLLM(): Promise<ServiceHealth> {
+    const url =
+      this.configService.get<string>('AI_OLLAMA_BASE_URL') ||
+      'https://api.deepseek.com';
+    try {
+      await axios.get(url, { timeout: 3000 });
+      return {
+        name: 'deepseek',
+        available: true,
+        label: 'DeepSeek',
+        description: 'LLM (Text Generation)',
+        details: { url },
+      };
+    } catch {
+      return {
+        name: 'deepseek',
+        available: false,
+        label: 'DeepSeek',
+        description: 'LLM (Text Generation)',
+        details: { error: 'Connection failed', url },
       };
     }
   }
@@ -60,25 +95,29 @@ export class HealthService {
       this.configService.get<string>('UNSTRUCTURED_URL') ||
       'http://joymini-unstructured:8000';
     try {
-      await axios.get(`${url}/health`, { timeout: 3000 });
+      await axios.get(url, { timeout: 3000 });
       return {
         name: 'unstructured',
         available: true,
         label: 'Unstructured',
-        description: 'PDF 解析 (OCR/表格/多栏)',
+        description: 'PDF Parser (OCR/Table/Multicolumn)',
         details: { url },
       };
-    } catch {
+    } catch (err: any) {
+      const isRunning =
+        err.code !== 'ECONNREFUSED' && err.code !== 'ECONNABORTED';
       return {
         name: 'unstructured',
-        available: false,
+        available: isRunning,
         label: 'Unstructured',
-        description: 'PDF 解析 (OCR/表格/多栏)',
-        details: {
-          error: '未启动',
-          hint: 'make start-unstructured',
-          url,
-        },
+        description: 'PDF Parser (OCR/Table/Multicolumn)',
+        details: isRunning
+          ? { url, note: 'running (no standard health endpoint)' }
+          : {
+              error: 'Not started',
+              hint: 'make start-unstructured',
+              url,
+            },
       };
     }
   }
@@ -90,7 +129,7 @@ export class HealthService {
         name: 'meilisearch',
         available,
         label: 'Meilisearch',
-        description: 'BM25 关键词搜索',
+        description: 'BM25 Keyword Search',
         details: { available },
       };
     } catch {
@@ -98,8 +137,8 @@ export class HealthService {
         name: 'meilisearch',
         available: false,
         label: 'Meilisearch',
-        description: 'BM25 关键词搜索',
-        details: { error: '不可用' },
+        description: 'BM25 Keyword Search',
+        details: { error: 'Unavailable' },
       };
     }
   }
@@ -109,12 +148,12 @@ export class HealthService {
       this.configService.get<string>('RERANK_BASE_URL') ||
       'http://joymini-infinity:7997';
     try {
-      const res = await axios.get(`${url}/health`, { timeout: 3000 });
+      await axios.get(`${url}/health`, { timeout: 3000 });
       return {
         name: 'infinity',
-        available: res.status === 200,
+        available: true,
         label: 'Infinity',
-        description: 'Rerank 重排序 (bge-reranker-v2-m3)',
+        description: 'Rerank (bge-reranker-v2-m3)',
         details: { url },
       };
     } catch {
@@ -122,9 +161,9 @@ export class HealthService {
         name: 'infinity',
         available: false,
         label: 'Infinity',
-        description: 'Rerank 重排序 (bge-reranker-v2-m3)',
+        description: 'Rerank (bge-reranker-v2-m3)',
         details: {
-          error: '未启动',
+          error: 'Not started',
           hint: 'make start-infinity',
           url,
         },
