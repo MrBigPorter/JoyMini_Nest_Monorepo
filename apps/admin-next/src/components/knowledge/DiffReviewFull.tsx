@@ -589,14 +589,28 @@ export function DiffReviewFull({ document }: { document: KnowledgeDocument }) {
   }, [document.qualityFlags]);
 
   // ── Reconstruct full content from segments ──────────────────────────────
+  //
+  // diffWords(A, B) 的输出结构：
+  //   equal  + added  = B (Unstructured content)
+  //   equal  + removed = A (pdf-parse rawContent)
+  //
+  // 保存时要排除 'removed' 段，因为它们的内容来自 pdf-parse 而不是 Unstructured。
+  // 用户编辑过的段 type 变为 'equal'，会被正确包含。
 
   const fullContent = useMemo(() => {
     const segments = editableSegments ?? diffData?.diffRanges;
     if (!segments) return document.content;
-    return segments.map((s) => s.value).join('');
+    // 只拼接 equal + added（B 的内容），排除 removed（A 的内容）
+    return segments
+      .filter((s) => s.type !== 'removed')
+      .map((s) => s.value)
+      .join('');
   }, [editableSegments, diffData, document.content]);
 
   // ── Handle segment edit ─────────────────────────────────────────────────
+  //
+  // 用户编辑一个 diff 段后，把 type 改成 'equal' 让红色/黄色消失。
+  // 编辑后的段会被包含在保存内容中。
 
   const handleStartEdit = useCallback((idx: number) => {
     setEditingIndex(idx);
@@ -606,7 +620,12 @@ export function DiffReviewFull({ document }: { document: KnowledgeDocument }) {
     setEditableSegments((prev) => {
       if (!prev) return prev;
       const updated = [...prev];
-      updated[idx] = { ...updated[idx], value: newValue };
+      updated[idx] = {
+        ...updated[idx],
+        value: newValue,
+        type: 'equal',       // ← 标记为已修复，红色会消失
+        severity: 'ignore',  // ← 不再计入 diff 统计
+      };
       return updated;
     });
     setEditingIndex(null);
