@@ -3,6 +3,7 @@ import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
 import { RagEmbeddingService } from './rag-embedding.service';
 import { RAG_EMBEDDING_QUEUE } from './rag-embedding-queue.constants';
+import { PrismaService } from '@api/common/prisma/prisma.service';
 
 /**
  * Rag Embedding Job 数据类型
@@ -58,7 +59,10 @@ export interface RagEmbeddingJobData {
 export class RagEmbeddingProcessor extends WorkerHost {
   private readonly logger = new Logger(RagEmbeddingProcessor.name);
 
-  constructor(private readonly ragEmbeddingService: RagEmbeddingService) {
+  constructor(
+    private readonly ragEmbeddingService: RagEmbeddingService,
+    private readonly prisma: PrismaService,
+  ) {
     super();
   }
 
@@ -71,7 +75,8 @@ export class RagEmbeddingProcessor extends WorkerHost {
    * 2. 去档案室找出这篇文档的所有 chunk（数据库查询）
    * 3. 逐个送进 bge-m3 化验仪器（generateEmbedding）
    * 4. 每个 chunk 化验完立即登记结果（UPDATE embedding 列）
-   * 5. 全部完成，BullMQ 自动从窗口撕掉这张化验单
+   * 5. 全部完成 → 更新文档状态为 indexed
+   * 6. BullMQ 自动从窗口撕掉这张化验单
    */
   async process(job: Job<RagEmbeddingJobData, any, string>): Promise<void> {
     const { documentId, force } = job.data;
@@ -102,6 +107,23 @@ export class RagEmbeddingProcessor extends WorkerHost {
           result.errors
             .map((e) => `chunk[${e.chunkIndex}]: ${e.reason}`)
             .join('; '),
+      );
+    }
+
+    // 无论是否有失败的 chunk，都更新文档状态为 indexed
+    // 因为至少部分 chunk 已经向量化 + 索引到 Meilisearch
+    try {
+      await this.prisma.knowledgeDocument.update({
+        where: { id: documentId },
+        data: { processStatus: 'indexed' },
+      });
+      this.logger.log(
+        `[Job ${job.id}] Document ${documentId} status → indexed`,
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(
+        `[Job ${job.id}] Failed to update status to indexed: ${message}`,
       );
     }
   }
