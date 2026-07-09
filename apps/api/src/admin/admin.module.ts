@@ -28,6 +28,7 @@ import { SupportChannelModule } from '@api/admin/support-channel/support-channel
 import { RagModule } from '@api/admin/rag/rag.module';
 import { AiPromptModule } from '@api/admin/ai-prompt/ai-prompt.module';
 import { IntentExamplesModule } from '@api/admin/intent-examples/intent-examples.module';
+import { HealthModule } from '@api/admin/services/health.module';
 
 @Module({
   imports: [
@@ -60,6 +61,7 @@ import { IntentExamplesModule } from '@api/admin/intent-examples/intent-examples
     RagModule,
     AiPromptModule,
     IntentExamplesModule,
+    HealthModule,
   ],
   providers: [],
   controllers: [],

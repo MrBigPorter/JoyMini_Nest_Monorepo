@@ -1228,6 +1228,22 @@ export const knowledgeApi = {
   getDomains: () => http.get<string[]>('/v1/admin/rag/documents/meta/domains'),
 };
 
+/** Service Health API */
+export const serviceHealthApi = {
+  /** Check all backend service health status */
+  check: () =>
+    http.get<{
+      services: Array<{
+        name: string;
+        available: boolean;
+        label: string;
+        description: string;
+        details?: Record<string, any>;
+      }>;
+      allAvailable: boolean;
+    }>('/v1/admin/services/health'),
+};
+
 /**
  * AI Prompt Management API
  */

@@ -30,6 +30,7 @@ import {
 import { ModalManager } from '@repo/ui';
 import { knowledgeApi } from '@/api';
 import { PageHeader } from '@/components/scaffold/PageHeader';
+import { ServiceStatusBar } from './ServiceStatusBar';
 import { useTranslation } from '@/hooks/useTranslation';
 import type { TFunc } from '@/hooks/useTranslation';
 import type {
@@ -1002,6 +1003,8 @@ export function KnowledgeBaseClient() {
         }
         tertiaryButtonVariant="outline"
       />
+
+      <ServiceStatusBar />
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">

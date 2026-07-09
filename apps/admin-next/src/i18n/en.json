@@ -993,6 +993,7 @@
     "embeddingStatus": "Embedding Status",
     "status": "Status",
     "processStatus": "Processing: {status}",
+    "services": "Services",
     "chunksTotal": "Total Chunks",
     "chunksEmbedded": "Embedded",
     "chunksPending": "Pending",
