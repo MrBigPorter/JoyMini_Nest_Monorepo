@@ -1,6 +1,11 @@
 # 19. Multi-Agent Supervisor + Human-in-the-Loop
 
-> ⚠️ **OUTDATED — 本文档描述的是初期设计方案，实际实现有差异**
+> ⛔ **DEPRECATED — Supervisor LLM 方案已废弃**
+>
+> 由于 Bug 5（Supervisor LLM 幻觉），Supervisor 方案被废弃。
+> 当前架构为 **orchestrator 流水线**：多标签意图分类 → 依赖排序 → 顺序执行 Agent。
+> 写操作安全通过**两阶段确认**（预览→确认→执行）实现，而非 `interrupt()`。
+> 详见 [`24-Supervisor架构完整总结`](24-Supervisor架构完整总结.md)
 >
 > 本文档编写于 Supervisor Pattern 的早期设计阶段，部分内容与实际代码实现不一致：
 > - `withStructuredOutput` 方案 → 实际使用 `StringOutputParser` + JSON 手动解析

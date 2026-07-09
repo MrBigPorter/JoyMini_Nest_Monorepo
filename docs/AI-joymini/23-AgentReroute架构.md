@@ -1,6 +1,9 @@
 # 23 — Agent Re-routing 架构：解决意图分类误判
 
-> ⚠️ **DEPRECATED — 此架构已被 Supervisor Pattern 取代**
+> ⛔ **DEPRECATED — 此架构已被 orchestrator 流水线取代**
+>
+> Reroute 机制已被移除。当前架构通过多标签意图分类 + orchestrator 依赖排序解决意图误判问题。
+> 详见: [`orchestrator.config.ts`](../../apps/api/src/client/ai-customer/graph/config/orchestrator.config.ts)
 >
 > 本文档描述的 reroute 机制（`rerouteIntent` + `rerouteGateway`）已在 Supervisor Pattern 实现过程中被删除。
 > - `rerouteIntent` 字段已从 state.ts 中移除

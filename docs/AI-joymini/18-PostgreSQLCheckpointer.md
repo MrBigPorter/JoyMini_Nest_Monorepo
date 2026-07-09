@@ -1,5 +1,18 @@
 # 18. PostgreSQL Checkpointer（跨会话对话记忆）
 
+> ❌ **NOT IMPLEMENTED — 当前使用 MemorySaver（内存版）**
+>
+> 本文档描述的 `PostgresSaver` 未实现。当前使用的是 LangGraph 的 `MemorySaver`（内存存储），
+> 应用重启后对话历史会丢失。
+>
+> 实际代码: [`customer.graph.ts:167`](../../apps/api/src/client/ai-customer/graph/customer.graph.ts)
+> ```typescript
+> return workflow.compile({
+>   checkpointer: new MemorySaver(),  // 内存版，非 PostgreSQL
+> });
+> ```
+> 如需生产环境持久化，需要实现本文档描述的 `PostgresSaver` 方案。
+
 ## 🎯 本步骤目标
 
 使用 LangGraph 的 `PostgresSaver` 实现**跨会话对话历史持久化**，让 AI 客服能够记住用户之前的对话内容，支持多会话隔离和上下文恢复。

@@ -97,6 +97,7 @@
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "blurhash": "^2.0.5",
+    "pdf-parse": "^2.4.5",
     "react": "^19.2.5",
     "react-blurhash": "^0.3.0",
     "rimraf": "^6.0.1",

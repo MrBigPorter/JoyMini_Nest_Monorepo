@@ -1,5 +1,10 @@
 # 16. Flutter AI Chat Client — Socket.IO 集成
 
+> ⚠️ **NOT IMPLEMENTED — 项目无 Flutter 代码**
+>
+> 本文档描述的是 Flutter 移动端实现，但当前项目为 **Next.js (Web) + NestJS (API)**，
+> 不包含任何 Flutter/Dart 代码。本文档保留作为未来移动端开发的参考。
+
 ## 🎯 本步骤目标
 
 实现 Flutter 端的 AI 客服 **Socket 事件处理和消息渲染**，包括：

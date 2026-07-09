@@ -1,5 +1,11 @@
 # 20. Flutter Chat - AI 与人工客服融合方案
 
+> ❌ **NOT IMPLEMENTED — 项目无 Flutter 代码**
+>
+> 本文档描述的是 Flutter 移动端的人工客服与 AI 融合方案。
+> 当前项目为 **Next.js (Web) + NestJS (API)**，不包含 Flutter 代码。
+> 保留作为未来移动端开发参考。
+
 ## 🎯 本步骤目标
 
 设计如何在现有 Flutter Chat 框架中，将 AI 客服回复和人工客服回复**无缝融合到同一个对话界面**，用户无需切换页面即可获得完整客服体验。

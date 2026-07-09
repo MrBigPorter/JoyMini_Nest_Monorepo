@@ -1,5 +1,16 @@
 # 17. 完整 RAG 节点（pgvector 向量搜索）
 
+> 🟡 **功能已实现但架构已变 — 文档过时**
+>
+> 本文档描述的是独立 `RagNode` 架构（mxbai-embed-large 768d + 纯 pgvector）。
+> 当前实际实现为:
+> - RAG 集成在 `orchestrator.node.ts` 中作为 `direct` handler
+> - bge-m3 1024d embedding
+> - 4 层多路召回 (pgvector + Meilisearch + ILIKE + 全文)
+> - Infinity bge-reranker-v2-m3 重排序
+> - 参见: [`rag-retrieval.service.ts`](../../apps/api/src/client/ai-customer/knowledge/rag-retrieval.service.ts)
+> - 最新架构见: [`57-RAG-Infrastructure-Upgrade.md`](57-RAG-Infrastructure-Upgrade.md)
+
 ## 🎯 本步骤目标
 
 将 Phase 1 的 **关键词匹配 Stub** 升级为完整的 **向量相似度搜索**，实现基于 pgvector 的 RAG（Retrieval-Augmented Generation）检索。

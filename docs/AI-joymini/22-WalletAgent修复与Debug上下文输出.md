@@ -1,5 +1,16 @@
 # Wallet Agent 修复方案（4 个问题 + Debug 输出）
 
+> ✅ **ALL FIXES IMPLEMENTED**
+>
+> 本文档描述的 4 个问题均已修复:
+> - A: `fixedAmounts` 已从 `getPaymentChannels` 返回中删除
+> - B: `stripToolResult()` 解决 `INVALID_TOOL_RESULTS`
+> - C: MemorySaver + `thread_id` 实现会话隔离
+> - D: `debug` 模式已实现（返回完整 `debugInfo`）
+> 实际代码: [`wallet-tools.ts`](../../apps/api/src/client/ai-customer/graph/tools/wallet-tools.ts)
+
+# Wallet Agent 修复方案（4 个问题 + Debug 输出）
+
 ## 问题清单
 
 | # | 问题 | 严重性 | 根因 |

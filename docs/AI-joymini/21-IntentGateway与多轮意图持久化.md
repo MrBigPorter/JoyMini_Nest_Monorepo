@@ -1,5 +1,12 @@
 # 21. Intent Gateway — 多轮意图持久化与条件路由
 
+> ✅ **IMPLEMENTED — 代码已实现**
+>
+> Intent Gateway 模式已在 `intent-router.node.ts` 中实现。
+> 核心逻辑: `intentGateway()` 函数始终返回 `'intentRouter'` 强制重新分类。
+> `flowState.activeFlow` 用于跨轮流程追踪，`previousIntent` 用于上下文参考。
+> 实际代码: [`customer.graph.ts:37`](../../apps/api/src/client/ai-customer/graph/customer.graph.ts)
+
 ## 🎯 本步骤目标
 
 解决多轮对话中意图分类器在每轮重新分类时**覆盖已有意图**的问题，实现 Intent Gateway Pattern：当 `state.intent` 已经是一个非终端意图（如 wallet/order）时，跳过意图路由器，直接路由到对应的 Agent 节点。
