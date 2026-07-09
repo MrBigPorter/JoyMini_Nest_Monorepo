@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { diffChars, Change } from 'diff';
+import { diffWords, Change } from 'diff';
 import { AiService } from '@api/common/ai/ai.service';
 
 // =============================================================================
@@ -201,8 +201,7 @@ export class RagQualityService {
       .replace(/\|/g, ' ')               // 去掉表格分隔符
       .replace(/[-]{3,}/g, '')           // 去掉表格分割线
       .replace(/[`*_~]/g, '')            // 去掉 Markdown 强调符号
-      .replace(/\n+/g, ' ')              // 换行→空格
-      .replace(/\s+/g, '')               // 去掉所有空白
+      .replace(/\s+/g, ' ')              // 多个空白→一个空格（保留可读性）
       .trim();
   }
 
@@ -314,11 +313,16 @@ export class RagQualityService {
 
   /**
    * computeDiff — 双源对撞主方法
-   * 1. 抹平格式，提取纯文本
-   * 2. diffChars 字符级对比
-   * 3. 数字专项检测
+   * 1. 用 extractPlainText 判断内容是否完全一致（快速返回）
+   * 2. 用 diffWords 在原始文本上做词级对比（保留换行/空格/格式）
+   * 3. 数字专项检测（用纯文本，更准确）
    * 4. 计算字错率（WER）
    * 5. 返回结构化 DiffResult
+   *
+   * 为什么用 diffWords 而不用 diffChars：
+   * - diffChars(plainText, plainText) 抹平了空白，diffRanges 的 value 没有格式
+   * - diffWords 按单词边界分词，value 保留原文的换行和缩进
+   * - 空白差异（段落换行）天然不触发 diff，避免误报
    */
   computeDiff(rawContent: string, content: string): DiffResult {
     const rawPlain = this.extractPlainText(rawContent);
@@ -334,8 +338,8 @@ export class RagQualityService {
       };
     }
 
-    // 第二步：字符级 diff
-    const changes = diffChars(rawPlain, parsedPlain);
+    // 第二步：词级 diff — 在原始文本（带格式）上对比，value 保留原文
+    const changes = diffWords(rawContent, content);
 
     // 分类差异严重程度
     const diffRanges: DiffRange[] = changes.map((c: Change) => {
@@ -358,13 +362,11 @@ export class RagQualityService {
       };
     });
 
-    // 第三步：数字专项检测
+    // 第三步：数字专项检测（用纯文本避免格式干扰）
     const numberErrors = this.detectNumberErrors(rawPlain, parsedPlain);
 
     // 第四步：计算字错率（Word Error Rate）
-    // WER = (替换数 + 插入数 + 删除数) / 总字数
-    // 这里简化：用 changed chars / total chars
-    const totalLength = rawPlain.length || 1;
+    const totalLength = rawContent.length || 1;
     let changedChars = 0;
     for (const c of changes) {
       if (c.added || c.removed) {
