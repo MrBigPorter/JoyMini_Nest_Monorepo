@@ -316,15 +316,19 @@ export class RagService {
    * 提交 BullMQ 任务异步处理
    */
   async processStepEmbed(documentId: string): Promise<void> {
-    await this.updateStatus(documentId, 'embedded');
     try {
       await this.ragEmbeddingQueue.add('embed', {
         documentId,
         force: true,
       });
+      // 任务提交成功后才更新状态
+      await this.updateStatus(documentId, 'embedded');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`Failed to submit embedding job: ${message}`);
+      throw new BadRequestException(
+        `Failed to start embedding: ${message}. Make sure Ollama is running.`,
+      );
     }
   }
 
