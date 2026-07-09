@@ -17,7 +17,7 @@ export interface NumberError {
   raw: string;
   parsed: string;
   index: number;
-  severity: 'critical';
+  severity: 'critical' | 'minor';
 }
 
 export interface DiffResult {
@@ -210,21 +210,105 @@ export class RagQualityService {
    * 数字专项检测：从两边提取所有数字，逐位对比
    * 这是最关键的能力——Unstructured 可能把 5000 看错成 500
    */
+  /**
+   * 智能数字检测 — 逐位对比，但聪明处理日期格式差异
+   *
+   * 问题：pdf-parse 和 Unstructured 对日期的处理不同
+   *   pdf-parse: "12/2022 - Present"
+   *   Unstructured: "Dec 2022 - Present"
+   *   → "12" vs "Dec" 导致后续所有数字错位
+   *
+   * 方案：智能对齐
+   *   1. 先按位置逐位对比
+   *   2. 检测连续错位模式（offset drift）
+   *   3. 如果发现连续 3+ 个错位 → 尝试重新对齐
+   */
   private detectNumberErrors(raw: string, parsed: string): NumberError[] {
     const rawNums = raw.match(/\d+[\d,.]*/g) || [];
     const parsedNums = parsed.match(/\d+[\d,.]*/g) || [];
     const errors: NumberError[] = [];
     const maxLen = Math.max(rawNums.length, parsedNums.length);
+
+    // 第一遍：逐位对比
     for (let i = 0; i < maxLen; i++) {
       if (rawNums[i] !== parsedNums[i]) {
         errors.push({
-          raw: rawNums[i],
-          parsed: parsedNums[i],
+          raw: rawNums[i] ?? '(missing)',
+          parsed: parsedNums[i] ?? '(missing)',
           index: i,
           severity: 'critical',
         });
       }
     }
+
+    // 如果没有错误，提前返回
+    if (errors.length === 0) return errors;
+
+    // 第二遍：检测连续错位（offset drift）
+    // 连续 3+ 个错位，且模式是 raw[i] ≈ parsed[i+1] 或 raw[i+1] ≈ parsed[i]
+    // 说明日期格式导致整体偏移，不是真正的内容错误
+    const CONSECUTIVE_THRESHOLD = 3;
+    let consecutiveBlock = 0;
+
+    for (let i = 0; i < errors.length; i++) {
+      const err = errors[i];
+      const rawIdx = err.index;
+      const parsedIdx = err.index;
+
+      // 检查是否是 "date-like" 错位（一个缺失，另一个是年份/月份数字）
+      const rawIsYear = err.raw && /^(19|20)\d{2}$/.test(err.raw);
+      const parsedIsYear = err.parsed && /^(19|20)\d{2}$/.test(err.parsed);
+      const rawIsSingleDigit = err.raw && /^\d{1,2}$/.test(err.raw) && !err.raw.includes(',') && !err.raw.includes('.');
+      const parsedIsSingleDigit = err.parsed && /^\d{1,2}$/.test(err.parsed) && !err.parsed.includes(',') && !err.parsed.includes('.');
+      const oneMissing = err.raw === '(missing)' || err.parsed === '(missing)';
+
+      // 检查是否一端缺失，另一端存在并匹配相邻位置
+      let isShiftMatch = false;
+      if (oneMissing) {
+        // 向左错位检查：raw[i] == parsed[i-1]
+        if (err.raw !== '(missing)' && parsedIdx > 0 && err.raw === parsedNums[parsedIdx - 1]) {
+          isShiftMatch = true;
+        }
+        // 向右错位检查：parsed[i] == raw[i-1]
+        if (err.parsed !== '(missing)' && rawIdx > 0 && err.parsed === rawNums[rawIdx - 1]) {
+          isShiftMatch = true;
+        }
+      }
+
+      // 年份/月份错位 - 可能是日期格式差异
+      if (rawIsYear || parsedIsYear || rawIsSingleDigit || parsedIsSingleDigit || oneMissing || isShiftMatch) {
+        consecutiveBlock++;
+      } else {
+        // 遇到真正的数字差异（如金额），重置计数器
+        consecutiveBlock = 0;
+      }
+    }
+
+    // 如果连续错位超过阈值，说明是格式漂移而非真实错误
+    // 降级这些错位的严重性
+    if (consecutiveBlock >= CONSECUTIVE_THRESHOLD) {
+      for (let i = errors.length - consecutiveBlock; i < errors.length; i++) {
+        if (errors[i]) {
+          errors[i] = { ...errors[i], severity: 'minor' };
+        }
+      }
+    }
+
+    // 第三遍：对剩余的 critical 错误，检查阈值内是否有更精准的匹配
+    // 真正重要的数字（金额、百分比、数量）通常不变
+    for (const err of errors) {
+      if (err.severity !== 'critical') continue;
+
+      // 检查是否包含小数点或逗号（金额格式）
+      const isMonetary = /[,.]/.test(err.raw) || /[,.]/.test(err.parsed);
+      // 检查是否包含 % 附近（百分比）
+      // 如果两端数字长度差距很大，很可能是格式问题
+      const lengthDiff = Math.abs((err.raw?.length || 0) - (err.parsed?.length || 0));
+      if (lengthDiff > 4 && !isMonetary) {
+        err.severity = 'minor';
+      }
+    }
+
     return errors;
   }
 

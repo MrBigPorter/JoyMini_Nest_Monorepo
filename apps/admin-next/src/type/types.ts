@@ -1665,7 +1665,7 @@ export interface NumberError {
   raw: string;
   parsed: string;
   index: number;
-  severity: 'critical';
+  severity: 'critical' | 'minor';
 }
 
 export interface DiffResponse {

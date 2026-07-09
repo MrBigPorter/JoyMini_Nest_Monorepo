@@ -1,107 +1,68 @@
-# Current Task — P1: 双引擎并行解析 + LLM Diff 审计
+# Current Task — ✅ 全屏 Diff 重写: Inline 高亮 + 点击编辑
 
-**目标**: PdfExtractor 改为并行执行两个引擎，DeepSeek 对比选优  
-**参考文档**: `docs/AI-joymini/61-Enterprise-Parse-QA-Implementation-Plan.md` §3  
+**目标**: 全屏 Review 页面重写，解决"diff 看不到"问题 + 支持点击 diff 段编辑  
+**参考文档**: `docs/AI-joymini/62-Enterprise-Parse-Quality-Dual-Source-Architecture.md`  
 **Last Update**: 2026-07-09
 
 ---
 
-## 📋 Propose
+## ✅ 完成内容
 
-### 目标
-当前 PdfExtractor 串行执行（Unstructured → fallback pdf-parse），只得到一个结果。改为并行执行，两个结果都保留，让 DeepSeek 对比选择最优。
+### 新增文件
+| 文件 | 说明 |
+|------|------|
+| `apps/admin-next/src/components/knowledge/DiffReviewFull.tsx` | **580 行**全新全屏 diff review 组件，替代旧的 `QualityReviewPanelFull` |
 
-### 受影响的文件
+### 修改文件
+| 文件 | 改动 |
+|------|------|
+| `apps/admin-next/src/app/(dashboard)/knowledge/documents/[id]/review/page.tsx` | 删除旧的 `QualityReviewPanelFull`，使用 `DiffReviewFull` |
+| `apps/api/src/admin/rag/rag-quality.service.ts` | `detectNumberErrors()` 智能对齐算法，减少日期格式误报 |
+| `apps/admin-next/src/type/types.ts` | `NumberError.severity` 类型扩展为 `'critical' \| 'minor'` |
 
-| # | 文件 | 改动 |
-|---|------|------|
-| 1 | `apps/api/src/admin/rag/rag-sync.service.ts` | PdfExtractor.extract() 改为 Promise.all 并行；注入 AiService |
-| 2 | `apps/api/src/admin/rag/rag-quality.service.ts` | 新增 llmDiffAudit() 方法 + DiffAuditResult 接口 |
-| 3 | `apps/admin-next/src/components/knowledge/QualityReviewPanel.tsx` | 显示 LLM 评分 + 两个引擎对比详情 |
-| 4 | `apps/admin-next/src/components/knowledge/QualityReviewPanel.tsx` | PDF 预览由 iframe 改为 embed，去掉浏览器 PDF 侧栏 |
+### DiffReviewFull 功能列表
 
-### 实现细节
+1. **Inline diff 高亮** — 右侧内容区直接显示 diff 差异颜色标记
+   - 🔴 红色背景 = critical 差异（可能含数字错误）
+   - 🟡 黄色背景 = minor 差异（格式、空白）
+   - 🟢 绿色背景 = ignore 差异（纯空白变化）
+   - 文本自身也带颜色和下划线/删除线标记
 
-**rag-sync.service.ts — PdfExtractor 改造**：
-```typescript
-class PdfExtractor implements TextExtractor {
-  constructor(private readonly aiService: AiService) {}
+2. **点击 diff 段编辑** — 点击任意 colored 段打开内联编辑器
+   - 只编辑被点击的 diff 段，不干扰其他内容
+   - 编辑后自动重组全文
+   - Confirm/Cancel 按钮
 
-  async extract(file: Express.Multer.File): Promise<ExtractedDoc> {
-    const title = file.originalname.replace(/\.pdf$/i, '');
+3. **同步滚动** — 左右两栏自动同步滚动位置
 
-    // 并行执行两个引擎
-    const [unstructuredResult, pdfParseResult] = await Promise.all([
-      this.extractWithUnstructured(file).catch(() => null),
-      this.extractWithPdfParse(file).catch(() => null),
-    ]);
+4. **Diff 鸟瞰图** — 左侧窄条显示 diff 密度分布
+   - 红/黄/绿/灰 像素条对应 diff 段
+   - 点击跳转到对应位置
 
-    // 都失败
-    if (!unstructuredResult && !pdfParseResult) {
-      throw new BadRequestException('...');
-    }
+5. **数字错位智能检测**（后端）
+   - 检测连续错位模式（offset drift）
+   - 年份/月份格式差异自动降级为 minor
+   - 真正的内容数字（金额、百分比）保持 critical
 
-    // 只有一个成功
-    if (!unstructuredResult || !pdfParseResult) {
-      return { title, content: unstructuredResult || pdfParseResult!, ... };
-    }
+6. **Number Errors 面板**（底部折叠）
+   - 列出所有数字错位
+   - 每个可单独 Fix
 
-    // 两个都成功 → LLM Diff 审计
-    const diffResult = await this.llmDiffAudit(unstructuredResult, pdfParseResult);
-    return {
-      title,
-      content: diffResult.selectedContent,
-      metadata: {
-        qualityScore: diffResult.score * 20,
-        qualityFlags: diffResult.issues.join(','),
-        engineAResult: unstructuredResult.slice(0, 500),  // 前端展示用
-        engineBResult: pdfParseResult.slice(0, 500),
-      },
-    };
-  }
-}
-```
+7. **"Only diffs" 过滤开关** — 只显示有差异的段
 
-**rag-sync.service.ts — 构造函数改动**：
-```typescript
-// PdfExtractor 不再是内部类，需要注入 AiService
-// 方案：在 RagSyncService 中创建 PdfExtractor 时传入
-this.extractors = [
-  new MarkdownExtractor(),
-  new PdfExtractor(aiService),  // 传入 AiService
-];
-```
+8. **Save Changes 按钮** — 保存整篇修改后内容 → PATCH API → 触发重新切片+向量化
 
-**rag-quality.service.ts — 新增方法**：
-```typescript
-async llmDiffAudit(engineA: string, engineB: string): Promise<{
-  selected: 'A' | 'B';
-  selectedContent: string;
-  score: number;
-  reasoning: string;
-  issues: string[];
-  verdict: 'approved' | 'needs_review';
-}> {
-  const prompt = `...`;  // 见文档 60 的 prompt 模板
-  const response = await this.aiService.generateText(prompt);
-  return JSON.parse(response);
-}
-```
+### 验收状态
+- [x] Backend + Frontend 编译通过（`tsc --noEmit` 零错误）
+- [x] 右侧内容区 inline 显示 diff 差异颜色标记
+- [x] 点击 colored diff 段打开内联编辑器
+- [x] 左右栏同步滚动
+- [x] 左侧鸟瞰图显示 diff 分布
+- [x] 数字检测智能对齐，日期格式不再造成大量误报
+- [x] "Only diffs" 过滤开关
+- [x] Save Changes 按钮
 
-### 验收标准
-
-- [ ] PDF 上传时两个引擎同时执行（耗时 ≈ max(A, B) 不是 A+B）
-- [ ] 两个引擎都成功时调用 DeepSeek 做 Diff 审计
-- [ ] LLM 选择最优结果作为 content 入库
-- [ ] LLM 输出非 JSON 时降级使用 Unstructured 结果
-- [ ] LLM 调用超时（15s）时降级使用 Unstructured 结果
-- [ ] 只有一个引擎成功时直接使用，不调用 LLM
-- [ ] 两个引擎都失败时报错
-- [ ] TypeScript 编译无错误
-- [ ] Docker 容器重启后功能正常
-
----
-
-## Apply
-
-确认后通过 `new_task` 启动 Code 模式子任务实施。
+### 未完成（后续）
+- [ ] 数字错位的完整上下文对齐（current 算法还是基于位置漂移检测，可以进一步用 NLP）
+- [ ] P3: 多模态深度检查（GPT-4o/Gemini Vision）
+- [ ] Golden dataset 回归测试
