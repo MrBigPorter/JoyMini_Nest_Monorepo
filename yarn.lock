@@ -7888,6 +7888,7 @@ __metadata:
     p-limit: "npm:^7.2.0"
     passport: "npm:^0.7.0"
     passport-jwt: "npm:^4.0.1"
+    pdf-parse: "npm:^2.4.5"
     prettier: "npm:^3.8.3"
     prisma: "npm:^6.18.0"
     reflect-metadata: "npm:^0.2.2"

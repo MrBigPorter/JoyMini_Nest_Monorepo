@@ -1,68 +1,85 @@
-# Current Task — ✅ 全屏 Diff 重写: Inline 高亮 + 点击编辑
+# Current Task — Flutter AI Chat SSE 集成
 
-**目标**: 全屏 Review 页面重写，解决"diff 看不到"问题 + 支持点击 diff 段编辑  
-**参考文档**: `docs/AI-joymini/62-Enterprise-Parse-Quality-Dual-Source-Architecture.md`  
-**Last Update**: 2026-07-09
+**目标**: 对接 Flutter 移动端与 SSE 流式接口（打字机 + Action Card + 转人工）
+**参考**:
+
+- [`65-Flutter-AI-Chat-SSE-Integration.md`](docs/AI-joymini/65-Flutter-AI-Chat-SSE-Integration.md) — 技术实现
+- [`66-Flutter-AI-Chat-Enterprise-Spec.md`](docs/AI-joymini/66-Flutter-AI-Chat-Enterprise-Spec.md) — 企业级规格
+- Flutter 项目: `/Users/porter/Developer/JoyMini_Flutter_App/`
 
 ---
 
-## ✅ 完成内容
+## ✅ 已完成
+
+### SSE 后端基础
+
+- [`ai-customer.controller.ts`](apps/api/src/client/ai-customer/ai-customer.controller.ts) — SSE 端点 + 5 响应头
+- [`ai-customer.service.ts`](apps/api/src/client/ai-customer/ai-customer.service.ts) — streamEvents + 4 种事件 (token/step/done/error)
+- [`sse-rate-limiter.service.ts`](apps/api/src/client/ai-customer/sse-rate-limiter.service.ts) — 5 层 Redis 限流 + 熔断 + 超时
+- [`chat-stream.dto.ts`](apps/api/src/client/ai-customer/dto/chat-stream.dto.ts) — DTO
+- [`redis.service.ts`](apps/api/src/common/redis/redis.service.ts) — incr/decr/expire/setNx/eval/withTimeout
+- [`nginx/conf.d/10-api.conf`](nginx/conf.d/10-api.conf) — SSE proxy_buffering off
+
+### Score Gap Check
+
+| `dto/chat-stream.dto.ts` | 新增 DTO |
+| `ai-customer.module.ts` | 注册 SseRateLimiterService |
+
+### Redis 企业级限流
+
+| 层         | 限制                     | 技术                    |
+| ---------- | ------------------------ | ----------------------- |
+| Layer 1    | 每人 1 个连接            | Redis setNx + TTL 70s   |
+| Layer 1.5  | 每 IP 5 个连接           | Redis incr + expire 60s |
+| Layer 1.75 | 每设备 3 个连接          | Redis incr + expire 60s |
+| Layer 2    | 全局 200 个连接          | Redis incr/decr         |
+| Layer 3    | 令牌桶 6 个/每秒 1 个    | Redis Lua 脚本          |
+| 熔断器     | 连续 3 次失败 → 熔断 30s | 内存变量                |
+| 超时       | 2 秒超时降级             | withTimeout             |
 
 ### 新增文件
-| 文件 | 说明 |
-|------|------|
-| `apps/admin-next/src/components/knowledge/DiffReviewFull.tsx` | **580 行**全新全屏 diff review 组件，替代旧的 `QualityReviewPanelFull` |
+
+| 文件                          | 说明                     |
+| ----------------------------- | ------------------------ |
+| `sse-rate-limiter.service.ts` | 5 层 Redis 限流 + 熔断器 |
+| `dto/chat-stream.dto.ts`      | SSE 请求 DTO             |
 
 ### 修改文件
-| 文件 | 改动 |
-|------|------|
-| `apps/admin-next/src/app/(dashboard)/knowledge/documents/[id]/review/page.tsx` | 删除旧的 `QualityReviewPanelFull`，使用 `DiffReviewFull` |
-| `apps/api/src/admin/rag/rag-quality.service.ts` | `detectNumberErrors()` 智能对齐算法，减少日期格式误报 |
-| `apps/admin-next/src/type/types.ts` | `NumberError.severity` 类型扩展为 `'critical' \| 'minor'` |
 
-### DiffReviewFull 功能列表
+| 文件                        | 改动                                         |
+| --------------------------- | -------------------------------------------- |
+| `redis.service.ts`          | 新增 incr/decr/expire/setNx/eval/withTimeout |
+| `ai-customer.controller.ts` | 新增 chatStream + @RealIP + @CurrentDevice   |
+| `ai-customer.service.ts`    | 新增 chatStream(streamEvents)                |
+| `ai-customer.module.ts`     | 注册 SseRateLimiterService                   |
+| `nginx/conf.d/10-api.conf`  | 新增 SSE location(proxy_buffering off)       |
 
-1. **Inline diff 高亮** — 右侧内容区直接显示 diff 差异颜色标记
-   - 🔴 红色背景 = critical 差异（可能含数字错误）
-   - 🟡 黄色背景 = minor 差异（格式、空白）
-   - 🟢 绿色背景 = ignore 差异（纯空白变化）
-   - 文本自身也带颜色和下划线/删除线标记
+### 文档
 
-2. **点击 diff 段编辑** — 点击任意 colored 段打开内联编辑器
-   - 只编辑被点击的 diff 段，不干扰其他内容
-   - 编辑后自动重组全文
-   - Confirm/Cancel 按钮
+| 文件                                                | 说明                 |
+| --------------------------------------------------- | -------------------- |
+| `docs/coding-standards.md`                          | 9 维度企业级代码规范 |
+| `docs/AI-joymini/63-Intent-Score-Gap-Check-Spec.md` | Score Gap Check spec |
+| `docs/AI-joymini/64-SSE-Enterprise-Analysis.md`     | SSE 企业级分析       |
 
-3. **同步滚动** — 左右两栏自动同步滚动位置
+---
 
-4. **Diff 鸟瞰图** — 左侧窄条显示 diff 密度分布
-   - 红/黄/绿/灰 像素条对应 diff 段
-   - 点击跳转到对应位置
+## 🐛 Bug 修复（2026-07-10 Code Review）
 
-5. **数字错位智能检测**（后端）
-   - 检测连续错位模式（offset drift）
-   - 年份/月份格式差异自动降级为 minor
-   - 真正的内容数字（金额、百分比）保持 critical
+| #   | 问题                                                          | 修复文件                              | 状态 |
+| --- | ------------------------------------------------------------- | ------------------------------------- | ---- |
+| 1   | 熔断期间返回 `{ok:true}`，导致熔断形同虚设                    | `sse-rate-limiter.service.ts:86`      | ✅   |
+| 2   | `release()` 不清理 IP/Device 计数器，导致计数漂移             | `sse-rate-limiter.service.ts:159-175` | ✅   |
+| 3   | 全局计数器 `decr` 无下限检查，可能变负数                      | `sse-rate-limiter.service.ts:164-166` | ✅   |
+| 4   | Controller 的 `res.on('close')` 未传 ip/deviceId 给 release() | `ai-customer.controller.ts:133`       | ✅   |
 
-6. **Number Errors 面板**（底部折叠）
-   - 列出所有数字错位
-   - 每个可单独 Fix
+**验证**: `yarn workspace @lucky/api tsc --noEmit --pretty` → exit 0, 零错误
 
-7. **"Only diffs" 过滤开关** — 只显示有差异的段
+---
 
-8. **Save Changes 按钮** — 保存整篇修改后内容 → PATCH API → 触发重新切片+向量化
+## ❌ 待办
 
-### 验收状态
-- [x] Backend + Frontend 编译通过（`tsc --noEmit` 零错误）
-- [x] 右侧内容区 inline 显示 diff 差异颜色标记
-- [x] 点击 colored diff 段打开内联编辑器
-- [x] 左右栏同步滚动
-- [x] 左侧鸟瞰图显示 diff 分布
-- [x] 数字检测智能对齐，日期格式不再造成大量误报
-- [x] "Only diffs" 过滤开关
-- [x] Save Changes 按钮
-
-### 未完成（后续）
-- [ ] 数字错位的完整上下文对齐（current 算法还是基于位置漂移检测，可以进一步用 NLP）
-- [ ] P3: 多模态深度检查（GPT-4o/Gemini Vision）
-- [ ] Golden dataset 回归测试
+| 优先级 | 功能     | 说明                        |
+| ------ | -------- | --------------------------- |
+| 🟡 P1  | 前端集成 | fetchEventSource + 事件解析 |
+| 🟢 P2  | 可观测性 | Prometheus 指标             |

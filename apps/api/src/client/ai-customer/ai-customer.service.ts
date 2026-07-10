@@ -83,14 +83,102 @@ export class AiCustomerService {
   }
 
   /**
-   * @param input
+   * 流式聊天接口
+   * 1. 接收用户消息、用户 ID、会话 ID 和回调函数
+   * 2. 调用图谱的 streamEvents 方法，获取事件流
+   * 3. 根据事件类型调用相应的回调函数，将数据推送给前端
+   * 4. 如果发生错误，调用 onError 回调
+   * 5. 流结束时，调用 onDone 回调
+   * @param message
    * @param userId
    * @param sessionId
+   * @param callbacks
+   * @returns
    */
-  async chatStream(input: string, userId: string, sessionId: string) {
-    throw new Error(
-      'Not implemented yet — will be implemented with SSE streaming in a later step',
-    );
+  async chatStream(
+    message: string,
+    userId: string,
+    sessionId: string,
+    callbacks: {
+      onToken: (token: string) => void;
+      onStep: (step: string, data?: any) => void;
+      onDone: () => void;
+      onError: (error: Error) => void;
+    },
+  ): Promise<void> {
+    // 边界检查
+    if (!this.compiledGraph) {
+      callbacks.onError(new Error('Graph not initialized'));
+      return;
+    }
+    if (!message || !userId) {
+      callbacks.onError(new Error('Message and userId are required'));
+      return;
+    }
+
+    this.logger.log(`[chatStream] message="${message.slice(0, 50)}..."`);
+
+    try {
+      const threadId = sessionId ?? `${userId}:${Date.now()}`;
+
+      // ── streamEvents: LangGraph 事件流 ──
+      // streamEvents 是 graph.invoke() 的流式替代方案。
+      //
+      // invoke(): 等全部跑完 → 一次性返回结果（阻塞 2-5 秒）
+      // streamEvents(): 每步都发出事件 → 实时推送（首字 200ms）
+      //
+      // 事件流像一条传送带，上面有各种类型的事件包裹（eventName）：
+      //   on_chat_model_stream = LLM 正在生成文字（逐 token）
+      //   on_tool_start       = Agent 开始调工具（如查余额）
+      //   on_tool_end         = Agent 调完工具
+      //
+      // 我们用 for await 循环从传送带上逐个取包裹拆开看，
+      // 通过 callbacks 推给 Controller，Controller 再通过 SSE 推给浏览器。
+      // ────────────────────────────────────────────────────────────
+      callbacks.onStep('thinking', { content: 'analyzing your question...' });
+
+      const eventStream = await this.compiledGraph.streamEvents(
+        {
+          messages: [new HumanMessage(message)],
+          userId,
+          debug: false,
+        },
+        {
+          version: 'v2',
+          configurable: { thread_id: threadId },
+        },
+      );
+
+      this.logger.log(
+        `[chatStream] event stream started for eventStream=${eventStream}`,
+      );
+
+      // 循环遍历事件流中的每个事件
+      for await (const event of eventStream) {
+        const { event: eventName, data, name } = event;
+
+        // 1. LLM 正在生成回复 → 把当前 token 推给前端（打字机效果）
+        if (eventName === 'on_chat_model_stream') {
+          const chunk = data?.chunk;
+          if (chunk?.content) {
+            callbacks.onToken(chunk.content);
+          }
+        }
+        // 2. Agent 开始调工具 → 通知前端显示"正在查余额..."
+        else if (eventName === 'on_tool_start') {
+          callbacks.onStep('tool_start', { tool: name });
+        }
+        // 3. Agent 调完工具 → 通知前端"查完了"
+        else if (eventName === 'on_tool_end') {
+          callbacks.onStep('tool_end', { tool: name });
+        }
+      }
+
+      callbacks.onDone();
+    } catch (err: any) {
+      this.logger.error(`[chatStream] error: ${err.message}`);
+      callbacks.onError(err);
+    }
   }
 
   async testChat(

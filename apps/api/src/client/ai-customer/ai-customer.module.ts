@@ -1,4 +1,5 @@
 import { Module, OnApplicationBootstrap, Logger } from '@nestjs/common';
+import { SseRateLimiterService } from '@api/client/ai-customer/sse-rate-limiter.service';
 import { OrderModule } from '@api/client/orders/order.module';
 import { WalletModule } from '@api/client/wallet/wallet.module';
 import { TreasureModule } from '@api/client/treasure/treasure.module';
@@ -50,7 +51,12 @@ const EXPECTED_AGENT_TAGS = AGENT_TAGS_FOR_TOOLS;
     ClientFlashSaleModule,
   ],
   controllers: [AiCustomerController],
-  providers: [AiCustomerService, RagRetrievalService, PromptResolverService],
+  providers: [
+    AiCustomerService,
+    RagRetrievalService,
+    PromptResolverService,
+    SseRateLimiterService,
+  ],
 })
 export class AiCustomerModule implements OnApplicationBootstrap {
   private readonly logger = new Logger(AiCustomerModule.name);

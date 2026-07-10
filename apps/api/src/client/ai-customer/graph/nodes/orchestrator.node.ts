@@ -524,30 +524,85 @@ export const createOrchestratorNode =
     }
 
     // ================================================================
-    // 2. 排序 + 依赖解析
-    /**
-     * ════════════════════════════════════════════════════════════════
-     * 【运行示例】
-     *
-     * 原始 labels：
-     *   [{label:'product',score:0.86}, {label:'wallet',score:0.59}, {label:'coupon',score:0.60}]
-     *
-     * 排序后：
-     *   [{label:'product',score:0.86}, {label:'coupon',score:0.60}, {label:'wallet',score:0.59}]
-     *
-     * labelNames = ['product', 'coupon', 'wallet']
-     * 依赖解析:
-     *   DEPENDENCY_MAP['product'] = ['coupon','wallet']
-     *   coupon 和 wallet 都在 labels 中 → 重排
-     *   executionOrder = ['product', 'coupon', 'wallet']
-     * ════════════════════════════════════════════════════════════════
-     */
+    // 2. 排序 + Score Gap Check
     // ================================================================
-    const sortedLabels = [...labels].sort((a, b) => b.score - a.score);
-    const labelNames = sortedLabels.map((l) => l.label);
-    const executionOrder = resolveExecutionOrder(labelNames);
+    //
+    // Score Gap Check 是两层过滤：
+    //   Step 1 — MIN_SCORE: 去掉绝对分数太低的"噪音"标签
+    //   Step 2 — SCORE_GAP: 检查第1名和第2名的差距
+    //     ├─ gap ≥ 0.15 → 只执行 top-1（明确主意图）
+    //     ├─ gap < 0.15 → 保留与 top-1 差距内的候选者（模糊意图，排除尾部）
+    //     └─ 无标签 → fallback 到 generalChat
+    //
+    // ── 为什么需要 MIN_SCORE？ ──
+    // 如果所有标签分数都很低（如 rag=0.35, wallet=0.15），gap=0.20 看似"明确"，
+    // 但这是低分中的明确，实际上 query 可能跟任何业务都不相关。
+    // MIN_SCORE 确保只有"有信心"的标签才会被考虑执行。
+    //
+    // ── 为什么需要 close-contenders？ ──
+    // 如果 rag=0.90, wallet=0.88, order=0.50, product=0.30，gap=0.02 < 0.15，
+    // 此时不应该把 order 和 product 也放进去执行，它们是被高分的 rag/wallet 带进来的。
+    // close-contenders 策略只保留与 top-1 差距 < SCORE_GAP 的标签。
+    // ================================================================
 
-    logger.log(`[orchestrator] execution order: ${executionOrder.join(' → ')}`);
+    const MIN_SCORE = 0.65; // 绝对分数及格线（根据 pgvector 实际表现可调）
+    const SCORE_GAP = 0.15; // 分数差距阈值
+
+    // Step 1: 按分数降序排列
+    const sortedLabels = [...labels].sort((a, b) => b.score - a.score);
+
+    // Step 2: MIN_SCORE 过滤 — 去掉低分噪音标签
+    const validLabels = sortedLabels.filter((l) => l.score >= MIN_SCORE);
+
+    let effectiveLabels: string[] = [];
+
+    if (validLabels.length === 0) {
+      // 没有标签达到 MIN_SCORE → fallback 到 generalChat
+      logger.log(
+        `[orchestrator] no labels above MIN_SCORE (${MIN_SCORE}), ` +
+        `falling back to general chat`,
+      );
+      return handleGeneralChat(state, llmConfig);
+    }
+
+    if (validLabels.length === 1) {
+      // 只有一个标签及格，直接执行
+      effectiveLabels = [validLabels[0].label];
+      logger.log(
+        `[orchestrator] single label above MIN_SCORE: ${effectiveLabels[0]}`,
+      );
+    } else {
+      // 多个标签及格 → Gap Check
+      const topScore = validLabels[0].score;
+      const gap = topScore - validLabels[1].score;
+
+      if (gap >= SCORE_GAP) {
+        // top-1 明显胜出，只执行它
+        effectiveLabels = [validLabels[0].label];
+        logger.log(
+          `[orchestrator] score gap ${gap.toFixed(2)} >= ${SCORE_GAP}, ` +
+          `only executing: ${effectiveLabels[0]}`,
+        );
+      } else {
+        // 模糊：只保留与 top-1 分差在 SCORE_GAP 内的候选者
+        // 防止分数断层后面的标签被连带执行（尾部污染）
+        const closeContenders = validLabels.filter(
+          (l) => topScore - l.score < SCORE_GAP,
+        );
+        effectiveLabels = closeContenders.map((l) => l.label);
+        logger.log(
+          `[orchestrator] ambiguous intent (gap=${gap.toFixed(2)}), ` +
+          `close contenders: ${effectiveLabels.join(', ')}`,
+        );
+      }
+    }
+
+    const executionOrder = resolveExecutionOrder(effectiveLabels);
+
+    logger.log(
+      `[orchestrator] execution order: ${executionOrder.join(' → ')} ` +
+      `(from effective labels: ${effectiveLabels.join(', ')})`,
+    );
 
     // ================================================================
     // 3. 流水线执行

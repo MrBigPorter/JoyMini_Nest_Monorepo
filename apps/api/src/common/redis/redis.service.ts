@@ -87,8 +87,51 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
    */
   async del(...keys: string[]): Promise<number> {
     if (!keys || keys.length === 0) return 0;
-    // Node-Redis v4 的 del 接收 string | string[]
     return await this.client.del(keys);
+  }
+
+  // ==========================================
+  //  原子操作 (限流用)
+  // ==========================================
+
+  async incr(key: string): Promise<number> {
+    return await this.client.incr(key);
+  }
+
+  async decr(key: string): Promise<number> {
+    return await this.client.decr(key);
+  }
+
+  async expire(key: string, seconds: number): Promise<boolean> {
+    return await this.client.expire(key, seconds);
+  }
+
+  /**
+   * setNx — 原子写入，不存在时才写入（用于锁、限流）
+   * @returns true 表示写入成功（之前不存在），false 表示 key 已存在
+   */
+  async setNx(
+    key: string,
+    value: string,
+    ttlSeconds?: number,
+  ): Promise<boolean> {
+    if (ttlSeconds) {
+      const result = await this.client.set(key, value, {
+        NX: true,
+        EX: ttlSeconds,
+      });
+      return result !== null;
+    }
+    const result = await this.client.set(key, value, { NX: true });
+    return result !== null;
+  }
+
+  /**
+   * eval — 执行 Lua 脚本
+   * Lua 脚本在 Redis 中是原子执行的，适合令牌桶、分布式锁等场景
+   */
+  async eval(script: string, keys: string[], args: string[]): Promise<any> {
+    return await this.client.eval(script, { keys, arguments: args });
   }
 
   // ==========================================
@@ -99,11 +142,33 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     return await this.client.sIsMember(key, member);
   }
 
+  // ==========================================
+  //  Set 集合操作 (黑名单用)
+  // ==========================================
   async sadd(key: string, member: string): Promise<number> {
     return await this.client.sAdd(key, member);
   }
 
+  // ==========================================
+  //  Set 集合操作 (黑名单用)
+  // ==========================================
   async srem(key: string, member: string): Promise<number> {
     return await this.client.sRem(key, member);
+  }
+
+  /**
+   * withTimeout — 给任何 Redis 操作加超时
+   * Redis 变慢时不至于让请求卡死
+   */
+  async withTimeout<T>(promise: Promise<T>, timeoutMs = 2000): Promise<T> {
+    return Promise.race([
+      promise,
+      new Promise<T>((_, reject) =>
+        setTimeout(
+          () => reject(new Error(`Redis timeout after ${timeoutMs}ms`)),
+          timeoutMs,
+        ),
+      ),
+    ]);
   }
 }
