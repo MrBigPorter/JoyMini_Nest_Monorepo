@@ -19,7 +19,7 @@ import { FINANCE_STATS_TAG, FINANCE_TAG } from '@/lib/cache/finance-cache';
 import { getTranslations } from 'next-intl/server';
 import type { FinanceStatistics, ClientUserListItem } from '@/type/types';
 import type { PaginatedResponse } from '@/api/types';
-import type { Locale } from '@lucky/shared';
+import type { Locale } from '@/lib/shared-wrapper';
 
 // ── Trend 组件（纯展示，无交互） ───────────────────────────────
 function Trend({

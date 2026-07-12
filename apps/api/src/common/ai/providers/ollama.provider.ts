@@ -181,7 +181,7 @@ export class OllamaProvider implements AiProviderInstance {
           prompt: text,
         },
         {
-          timeout: 30000, // 30 秒超时 — 单个化验最多等 30 秒
+          timeout: 120000, // 120 秒超时 — 首次加载模型(~30s) + 推理
         },
       );
 

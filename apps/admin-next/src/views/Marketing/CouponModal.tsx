@@ -25,7 +25,7 @@ import {
   ISSUE_TYPE_OPTIONS,
   VALID_TYPE,
   VALID_TYPE_OPTIONS,
-} from '@lucky/shared';
+} from '@/lib/shared-wrapper';
 import { couponApi } from '@/api';
 import { Coupon, CreateCouponPayload } from '@/type/types'; // Assuming your full Coupon type is here
 import type { TFunc } from '@/hooks/useTranslation';

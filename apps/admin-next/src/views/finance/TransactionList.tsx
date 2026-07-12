@@ -9,7 +9,8 @@ import {
 } from '@/components/scaffold/SmartTable';
 import { financeApi } from '@/api';
 import { TransactionsListParams, WalletTransaction } from '@/type/types';
-import { TRANSACTION_TYPE, NumHelper } from '@lucky/shared';
+import { TRANSACTION_TYPE } from '@/lib/locale-constants';
+import { NumHelper } from '@/lib/shared-wrapper';
 import { ArrowDownRight, ArrowUpRight, Repeat } from 'lucide-react';
 import { FormSchema } from '@/type/search';
 import {

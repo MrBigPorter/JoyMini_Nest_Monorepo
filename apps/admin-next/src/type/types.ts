@@ -6,8 +6,8 @@ import {
   TransactionStatusValue,
   TransactionTypeValue,
   WithdrawStatus,
-} from '@lucky/shared';
-import type { Locale } from '@lucky/shared';
+} from '@/lib/shared-wrapper';
+import type { Locale } from '@/lib/shared-wrapper';
 
 export type Language = Locale;
 export type Theme = 'light' | 'dark';

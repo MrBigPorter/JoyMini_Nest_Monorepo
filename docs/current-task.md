@@ -1,85 +1,55 @@
-# Current Task — Flutter AI Chat SSE 集成
+# Current Task — AI Chat 集成到现有 ChatPage + 数据融合
 
-**目标**: 对接 Flutter 移动端与 SSE 流式接口（打字机 + Action Card + 转人工）
-**参考**:
-
-- [`65-Flutter-AI-Chat-SSE-Integration.md`](docs/AI-joymini/65-Flutter-AI-Chat-SSE-Integration.md) — 技术实现
-- [`66-Flutter-AI-Chat-Enterprise-Spec.md`](docs/AI-joymini/66-Flutter-AI-Chat-Enterprise-Spec.md) — 企业级规格
-- Flutter 项目: `/Users/porter/Developer/JoyMini_Flutter_App/`
+**目标**: 废弃独立的 AiChatPage，把 AI 聊天嵌入现有的聊天系统（对话列表 → ChatPage），并实现长期记忆持久化
+**方案**: [`docs/AI-joymini/67-AI-Chat-ChatPage-Integration-Plan.md`](docs/AI-joymini/67-AI-Chat-ChatPage-Integration-Plan.md)
+**数据融合**: [`docs/AI-joymini/68-IM-AI-Conversation-Data-Fusion.md`](docs/AI-joymini/68-IM-AI-Conversation-Data-Fusion.md)
+**Flutter**: `/Users/porter/Developer/JoyMini_Flutter_App/`
 
 ---
 
 ## ✅ 已完成
 
-### SSE 后端基础
+| 模块 | 说明 | 位置 |
+|------|------|------|
+| 后端 SSE 接口 | POST `/api/v1/ai/customer/chat-stream` (token/step/done/error) | 已提交 `c8ffba45` |
+| Redis 5 层限流 + 熔断 | SseRateLimiterService | Nest `apps/api/` |
+| Score Gap Check | orchestrator MIN_SCORE=0.65 + SCORE_GAP=0.15 | Nest `apps/api/` |
+| SseClient | Dio 流 + 行缓冲 + 4 种事件解析 | Flutter `core/services/ai/sse_client.dart` |
+| AiChatState | 消息列表 + 打字机追加 + sessionId | Flutter `core/store/ai_chat/ai_chat_state.dart` |
+| MessageType.ai(8) + card(9) | 枚举已加 | Flutter `chat_ui_model.dart` |
+| **Prisma schema 扩展** | Conversation 加 threadId/aiTitle/aiMetadata | `apps/api/prisma/schema.prisma` |
+| | ChatMessage 加 role/tokenCount/source | |
+| | ConversationType 枚举加 AI | |
+| **InfinityProvider** | 替换本地 Infinity（bge-m3）为 Jina AI 线上 API | `apps/api/src/common/ai/providers/jina.provider.ts` |
+| **OrbStack → Colima** | 换用轻量 Docker 虚拟机 + 磁盘移 MySSD | `~/.colima/` → `/Volumes/MySSD/colima` |
+| **Makefile 重构** | 按阶段分组、各容器独立开关、本地开发命令 | `Makefile` |
+| **Claude Code Skills** | superpowers/jr-code-review/flutter-gen/frontend-design/excalidraw-diagram/skill-creator | `.claude/skills/` |
 
-- [`ai-customer.controller.ts`](apps/api/src/client/ai-customer/ai-customer.controller.ts) — SSE 端点 + 5 响应头
-- [`ai-customer.service.ts`](apps/api/src/client/ai-customer/ai-customer.service.ts) — streamEvents + 4 种事件 (token/step/done/error)
-- [`sse-rate-limiter.service.ts`](apps/api/src/client/ai-customer/sse-rate-limiter.service.ts) — 5 层 Redis 限流 + 熔断 + 超时
-- [`chat-stream.dto.ts`](apps/api/src/client/ai-customer/dto/chat-stream.dto.ts) — DTO
-- [`redis.service.ts`](apps/api/src/common/redis/redis.service.ts) — incr/decr/expire/setNx/eval/withTimeout
-- [`nginx/conf.d/10-api.conf`](nginx/conf.d/10-api.conf) — SSE proxy_buffering off
+## ❌ 待办（实施顺序 — 后端优先）
 
-### Score Gap Check
+| 步 | 任务 | 层 | 文件 | 说明 |
+|----|------|-----|------|------|
+| 1 | **AiMemoryService 改造** | 后端 | `common/ai/ai-memory.service.ts` | 写 Conversation + ChatMessage，含原子 seqId |
+| 2 | **SSE 接口传 userId** | 后端 | `client/ai-customer/` | done 事件后调 saveContext |
+| 3 | AiChatViewModel 重构 | Flutter | `core/store/ai_chat/` | SessionService + SseStreamService 提取 |
+| 4 | MessageRepository 加 AI 方法 | Flutter | `ui/chat/repository/message_repository.dart` | saveOrUpdateAiMessages / getAiMessages |
+| 5 | ConversationList 注入 AI 条目 | Flutter | `ui/chat/providers/conversation_provider.dart` | build() 内加载 |
+| 6 | AiMsgBubble + ChatBubble.ai 分支 | Flutter | `ui/chat/components/` | 打字机气泡 |
+| 7 | ChatPage AI 模式 + 路由 | Flutter | `chat_room/chat_page.dart` + `app_router.dart` | 集成 |
 
-| `dto/chat-stream.dto.ts` | 新增 DTO |
-| `ai-customer.module.ts` | 注册 SseRateLimiterService |
+## ⏸️ 延期
 
-### Redis 企业级限流
+| 功能 | 原因 |
+|------|------|
+| Action Card | 用户说后面再做 |
+| 转人工 | 非基础路径 |
+| Markdown 渲染 | 纯文本可用 |
+| PostgreSQL Checkpointer | LangGraph 状态持久化 |
 
-| 层         | 限制                     | 技术                    |
-| ---------- | ------------------------ | ----------------------- |
-| Layer 1    | 每人 1 个连接            | Redis setNx + TTL 70s   |
-| Layer 1.5  | 每 IP 5 个连接           | Redis incr + expire 60s |
-| Layer 1.75 | 每设备 3 个连接          | Redis incr + expire 60s |
-| Layer 2    | 全局 200 个连接          | Redis incr/decr         |
-| Layer 3    | 令牌桶 6 个/每秒 1 个    | Redis Lua 脚本          |
-| 熔断器     | 连续 3 次失败 → 熔断 30s | 内存变量                |
-| 超时       | 2 秒超时降级             | withTimeout             |
+## 关键路径
 
-### 新增文件
-
-| 文件                          | 说明                     |
-| ----------------------------- | ------------------------ |
-| `sse-rate-limiter.service.ts` | 5 层 Redis 限流 + 熔断器 |
-| `dto/chat-stream.dto.ts`      | SSE 请求 DTO             |
-
-### 修改文件
-
-| 文件                        | 改动                                         |
-| --------------------------- | -------------------------------------------- |
-| `redis.service.ts`          | 新增 incr/decr/expire/setNx/eval/withTimeout |
-| `ai-customer.controller.ts` | 新增 chatStream + @RealIP + @CurrentDevice   |
-| `ai-customer.service.ts`    | 新增 chatStream(streamEvents)                |
-| `ai-customer.module.ts`     | 注册 SseRateLimiterService                   |
-| `nginx/conf.d/10-api.conf`  | 新增 SSE location(proxy_buffering off)       |
-
-### 文档
-
-| 文件                                                | 说明                 |
-| --------------------------------------------------- | -------------------- |
-| `docs/coding-standards.md`                          | 9 维度企业级代码规范 |
-| `docs/AI-joymini/63-Intent-Score-Gap-Check-Spec.md` | Score Gap Check spec |
-| `docs/AI-joymini/64-SSE-Enterprise-Analysis.md`     | SSE 企业级分析       |
-
----
-
-## 🐛 Bug 修复（2026-07-10 Code Review）
-
-| #   | 问题                                                          | 修复文件                              | 状态 |
-| --- | ------------------------------------------------------------- | ------------------------------------- | ---- |
-| 1   | 熔断期间返回 `{ok:true}`，导致熔断形同虚设                    | `sse-rate-limiter.service.ts:86`      | ✅   |
-| 2   | `release()` 不清理 IP/Device 计数器，导致计数漂移             | `sse-rate-limiter.service.ts:159-175` | ✅   |
-| 3   | 全局计数器 `decr` 无下限检查，可能变负数                      | `sse-rate-limiter.service.ts:164-166` | ✅   |
-| 4   | Controller 的 `res.on('close')` 未传 ip/deviceId 给 release() | `ai-customer.controller.ts:133`       | ✅   |
-
-**验证**: `yarn workspace @lucky/api tsc --noEmit --pretty` → exit 0, 零错误
-
----
-
-## ❌ 待办
-
-| 优先级 | 功能     | 说明                        |
-| ------ | -------- | --------------------------- |
-| 🟡 P1  | 前端集成 | fetchEventSource + 事件解析 |
-| 🟢 P2  | 可观测性 | Prometheus 指标             |
+```
+后端 Phase 1-2 → Flutter Phase 3-7 →
+  1 (AiMemoryService) → 2 (SSE userId) → 3 (ViewModel) → 4 (Repo) → 5 (ConvList)
+                                                              ↘ 6 (Bubble) → 7 (ChatPage)
+```

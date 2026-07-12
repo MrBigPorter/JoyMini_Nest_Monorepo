@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { systemConfigApi } from '@/api';
-import { AVAILABLE_LOCALES, type Locale } from '@lucky/shared';
+import { AVAILABLE_LOCALES } from '@/lib/locale-constants';
+import type { Locale } from '@/lib/locale-constants';
 
 interface LocaleConfig {
   code: Locale;

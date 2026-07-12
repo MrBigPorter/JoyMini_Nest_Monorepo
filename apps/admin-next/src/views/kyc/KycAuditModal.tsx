@@ -14,7 +14,8 @@ import {
   AlertTriangle,
   FileText,
 } from 'lucide-react';
-import { KYC_STATUS, TimeHelper } from '@lucky/shared';
+import { KYC_STATUS } from '@/lib/locale-constants';
+import { TimeHelper } from '@/lib/shared-wrapper';
 import { useToastStore } from '@/store/useToastStore';
 import { KycRecord } from '@/type/types';
 import { kycApi } from '@/api';

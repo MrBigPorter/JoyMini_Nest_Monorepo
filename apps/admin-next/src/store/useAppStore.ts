@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { Theme, Language } from '../type/types';
-import { AVAILABLE_LOCALES, DEFAULT_LOCALE } from '@lucky/shared';
+import { AVAILABLE_LOCALES, DEFAULT_LOCALE } from '@/lib/locale-constants';
 
 interface AppState {
   theme: Theme;

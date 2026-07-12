@@ -10,6 +10,7 @@ import { GeminiProvider } from './providers/gemini.provider';
 import { GroqProvider } from './providers/groq.provider';
 import { DeepSeekProvider } from './providers/deepseek.provider';
 import { OllamaProvider } from './providers/ollama.provider';
+import { JinaProvider } from './providers/jina.provider';
 import { AutoReplyService } from './auto-reply/auto-reply.service';
 import { SystemConfigService } from '@api/admin/system-config/system-config.service';
 import {
@@ -103,6 +104,7 @@ export class AiService implements OnModuleInit {
     private groqProvider: GroqProvider,
     private deepSeekProvider: DeepSeekProvider,
     private ollamaProvider: OllamaProvider,
+    private jinaProvider: JinaProvider,
     private systemConfigService: SystemConfigService,
     @Inject(forwardRef(() => AutoReplyService))
     private autoReplyService: AutoReplyService,
@@ -113,6 +115,7 @@ export class AiService implements OnModuleInit {
     this.providers = [
       this.geminiProvider,
       this.groqProvider,
+      this.jinaProvider,
       this.ollamaProvider,
       this.deepSeekProvider,
     ];

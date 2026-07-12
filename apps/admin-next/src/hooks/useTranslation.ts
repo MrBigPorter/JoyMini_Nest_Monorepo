@@ -15,7 +15,7 @@
 import { useCallback } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import { useLanguage } from '@/hooks/LanguageProvider';
-import type { Locale } from '@lucky/shared';
+import type { Locale } from '@/lib/shared-wrapper';
 
 export type TFunc = (
   key: string,

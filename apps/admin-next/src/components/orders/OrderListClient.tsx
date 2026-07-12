@@ -17,7 +17,7 @@ import { useToastStore } from '@/store/useToastStore';
 import { useTranslation } from '@/hooks/useTranslation';
 import type { FormSchema } from '@/type/search';
 import type { Order, OrderSearchForm } from '@/type/types';
-import { ORDER_STATUS } from '@lucky/shared';
+import { ORDER_STATUS } from '@/lib/locale-constants';
 import {
   buildOrdersListParams,
   ordersListQueryKey,

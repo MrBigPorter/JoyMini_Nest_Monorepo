@@ -8,7 +8,7 @@ import { getTranslations } from 'next-intl/server';
 import { serverGet } from '@/lib/serverFetch';
 import { FINANCE_STATS_TAG, FINANCE_TAG } from '@/lib/cache/finance-cache';
 import type { FinanceStatistics } from '@/type/types';
-import { NumHelper } from '@lucky/shared';
+import { NumHelper } from '@/lib/shared-wrapper';
 import { Clock, TrendingUp, TrendingDown, Wallet, Lock } from 'lucide-react';
 import { FinanceRefreshButton } from './FinanceRefreshButton';
 

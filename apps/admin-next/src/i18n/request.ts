@@ -1,7 +1,7 @@
 import { getRequestConfig } from 'next-intl/server';
 import { cookies } from 'next/headers';
-import { DEFAULT_LOCALE, AVAILABLE_LOCALES } from '@lucky/shared';
-import type { Locale } from '@lucky/shared';
+import { DEFAULT_LOCALE, AVAILABLE_LOCALES } from '@/lib/locale-constants';
+import type { Locale } from '@/lib/locale-constants';
 
 // ── Static imports — Turbopack compatible ─────────────────────────────────
 // Dynamic import() of JSON files is not reliably supported under Turbopack.
@@ -160,9 +160,7 @@ export default getRequestConfig(async ({ requestLocale }) => {
           // knowledgeBase needs its own deep merge
           knowledgeBase: {
             ...(enFlat.knowledgeBase as Record<string, string>),
-            ...(localeFlat.knowledgeBase as
-              | Record<string, string>
-              | undefined),
+            ...(localeFlat.knowledgeBase as Record<string, string> | undefined),
           },
           // notifications needs its own deep merge
           notifications: {

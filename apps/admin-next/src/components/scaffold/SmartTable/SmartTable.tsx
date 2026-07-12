@@ -17,7 +17,7 @@ import { useQuery } from '@tanstack/react-query';
 import { BaseTable } from '@/components/scaffold/BaseTable';
 import { SchemaSearchForm } from '@/components/scaffold/SchemaSearchForm';
 import { Badge, BadgeColor } from '@/components/UIComponents';
-import { NumHelper, TimeHelper } from '@lucky/shared';
+import { NumHelper, TimeHelper } from '@/lib/shared-wrapper';
 
 import type {
   ProColumns,

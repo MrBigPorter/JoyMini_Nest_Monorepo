@@ -7786,6 +7786,7 @@ __metadata:
     recharts: "npm:^3.5.1"
     server-only: "npm:^0.0.1"
     socket.io-client: "npm:^4.8.3"
+    tailwind-variants: "npm:^3.2.2"
     tailwindcss: "npm:^4.1.17"
     typescript: "npm:5.5.4"
     vite: "npm:^8.0.0"

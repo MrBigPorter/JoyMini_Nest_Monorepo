@@ -11,7 +11,7 @@ import {
 import { User as UserIcon, Eye, Ban, CheckCircle } from 'lucide-react';
 import { FormSchema } from '@/type/search';
 import { ClientUserListItem, QueryClientUserParams } from '@/type/types';
-import { KYC_STATUS } from '@lucky/shared';
+import { KYC_STATUS } from '@/lib/locale-constants';
 import { Badge, BadgeVariant } from '@repo/ui';
 import { clientUserApi } from '@/api';
 import { Card } from '@/components/UIComponents';

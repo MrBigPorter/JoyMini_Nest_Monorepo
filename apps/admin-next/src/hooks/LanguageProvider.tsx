@@ -17,7 +17,8 @@
 import React, { createContext, useCallback, type ReactNode } from 'react';
 import { useLocale } from 'next-intl';
 import { useRouter } from 'next/navigation';
-import { DEFAULT_LOCALE, type Locale } from '@lucky/shared';
+import { DEFAULT_LOCALE } from '@/lib/locale-constants';
+import type { Locale } from '@/lib/locale-constants';
 import { useAppStore } from '@/store/useAppStore';
 
 export interface LanguageContextType {

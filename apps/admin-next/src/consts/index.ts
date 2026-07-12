@@ -1,4 +1,4 @@
-import { ORDER_STATUS } from '@lucky/shared';
+import { ORDER_STATUS } from '@/lib/locale-constants';
 
 export const ORDER_STATUS_COLORS = {
   [ORDER_STATUS.PENDING_PAYMENT]: 'yellow', // 1 待支付

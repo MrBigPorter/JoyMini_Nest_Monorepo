@@ -7,7 +7,7 @@ import { Badge, BadgeColor } from '@/components/UIComponents';
 import { Card } from '@/components/UIComponents';
 import { AdminGroupItem, AdminGroupListParams } from '@/type/types';
 import { groupApi } from '@/api';
-import { GROUP_STATUS } from '@lucky/shared';
+import { GROUP_STATUS } from '@/lib/locale-constants';
 import {
   SmartTable,
   ProColumns,

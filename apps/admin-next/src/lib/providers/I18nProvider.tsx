@@ -4,8 +4,8 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLocale } from 'next-intl';
 import { detectLocaleFromBrowser, FALLBACK_LOCALE } from '@/lib/utils/locale';
-import { AVAILABLE_LOCALES } from '@lucky/shared';
-import type { Locale } from '@lucky/shared';
+import { AVAILABLE_LOCALES } from '@/lib/locale-constants';
+import type { Locale } from '@/lib/locale-constants';
 
 /**
  * Client-side I18nProvider — detects browser language on first visit.

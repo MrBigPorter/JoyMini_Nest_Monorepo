@@ -14,7 +14,7 @@ import {
 } from '@repo/ui';
 import { financeApi } from '@/api';
 import { revalidateFinanceAfterAdjust } from '@/lib/actions/finance-revalidate';
-import { DIRECTION, BALANCE_TYPE } from '@lucky/shared';
+import { DIRECTION, BALANCE_TYPE } from '@/lib/locale-constants';
 import { useTranslation } from '@/hooks/useTranslation';
 
 // Zod Schema 定义

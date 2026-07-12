@@ -58,10 +58,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      ollama:
-        condition: service_started
-      infinity:
-        condition: service_started
+#      ollama:
+#        condition: service_started
       meilisearch:
         condition: service_healthy
     networks: [app]
@@ -94,53 +92,58 @@ services:
   # =========================================
   # Admin 前端 (开发模式 — Next.js)
   # =========================================
-  admin-next:
-    build:
-      context: .
-      dockerfile: apps/admin-next/Dockerfile.dev
-    container_name: lucky-admin-next-dev
-    command: >
-      sh -c "corepack enable &&
-             export PATH=/app/node_modules/.bin:$$PATH &&
-             LOCK_HASH=$$(md5sum /app/yarn.lock | cut -d' ' -f1) &&
-             CACHE=/app/node_modules/.admin-install-hash &&
-             if [ ! -f \"$$CACHE\" ] || [ \"$$(cat $$CACHE 2>/dev/null)\" != \"$$LOCK_HASH\" ] || ! command -v next >/dev/null 2>&1; then
-               echo '>>> dependency check triggered - running install...' &&
-               yarn workspaces focus @lucky/admin-next &&
-               echo \"$$LOCK_HASH\" > \"$$CACHE\";
-             else
-               echo '>>> yarn.lock unchanged - skipping install';
-             fi &&
-             yarn workspace @lucky/admin-next dev"
-    expose:
-      - "4001"
-    volumes:
-      - .:/app
-      - admin_next_nm:/app/node_modules
-    environment:
-      NEXT_PUBLIC_API_BASE_URL: /api
-      # Server Components 直连后端（跳过 nginx 公网往返，降低 SSR 延迟）
-      INTERNAL_API_URL: http://lucky-backend-dev:3000/api
-      NEXT_PUBLIC_APP_ENV: development
-      HOSTNAME: "0.0.0.0"
-      # Google reCAPTCHA v3 Site Key (前端用，可公开)
-      NEXT_PUBLIC_RECAPTCHA_SITE_KEY: ${NEXT_PUBLIC_RECAPTCHA_SITE_KEY:-}
-      # middleware clearAuthCookie 用：清除 auth_token 时需要指定正确的 cookie domain
-      AUTH_COOKIE_DOMAIN: .joyminis.com
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          'node -e "require(''http'').get(''http://localhost:4001/'', r => process.exit(r.statusCode < 500 ? 0 : 1)).on(''error'', () => process.exit(1))"',
-        ]
-      interval: 10s
-      timeout: 10s
-      retries: 30
-      start_period: 120s
-    depends_on:
-      - shared-packages-builder
-      - backend
-    networks: [app]
+#   admin-next:
+#     build:
+#       context: .
+#       dockerfile: apps/admin-next/Dockerfile.dev
+#     container_name: lucky-admin-next-dev
+#     command: >
+#       sh -c "corepack enable &&
+#              export PATH=/app/node_modules/.bin:$$PATH &&
+#              LOCK_HASH=$$(md5sum /app/yarn.lock | cut -d' ' -f1) &&
+#              CACHE=/app/node_modules/.admin-install-hash &&
+#              if [ ! -f \"$$CACHE\" ] || [ \"$$(cat $$CACHE 2>/dev/null)\" != \"$$LOCK_HASH\" ] || ! command -v next >/dev/null 2>&1; then
+#                echo '>>> dependency check triggered - running install...' &&
+#                yarn workspaces focus @lucky/admin-next &&
+#                echo \"$$LOCK_HASH\" > \"$$CACHE\";
+#              else
+#                echo '>>> yarn.lock unchanged - skipping install';
+#              fi &&
+#              yarn workspace @lucky/admin-next dev:turbo"
+#     expose:
+#       - "4001"
+#     volumes:
+#       - .:/app
+#       - admin_next_nm:/app/node_modules
+#       - admin_next_data:/app/apps/admin-next/.next
+#     environment:
+#       NEXT_PUBLIC_API_BASE_URL: /api
+#       # Server Components 直连后端（跳过 nginx 公网往返，降低 SSR 延迟）
+#       INTERNAL_API_URL: http://lucky-backend-dev:3000/api
+#       NEXT_PUBLIC_APP_ENV: development
+#       HOSTNAME: "0.0.0.0"
+#       # Google reCAPTCHA v3 Site Key (前端用，可公开)
+#       NEXT_PUBLIC_RECAPTCHA_SITE_KEY: ${NEXT_PUBLIC_RECAPTCHA_SITE_KEY:-}
+#       # middleware clearAuthCookie 用：清除 auth_token 时需要指定正确的 cookie domain
+#       AUTH_COOKIE_DOMAIN: .joyminis.com
+#     stdin_open: true
+#     tty: true
+#     healthcheck:
+#       test:
+#         [
+#           "CMD-SHELL",
+#           'node -e "require(''net'').connect(4001).on(''error'', () => process.exit(1)).on(''connect'', () => process.exit(0))"',
+#         ]
+#       interval: 30s
+#       timeout: 5s
+#       retries: 3
+#       start_period: 120s
+#     depends_on:
+#       shared-packages-builder:
+#         condition: service_completed_successfully
+#       backend:
+#         condition: service_started
+#     networks: [app]
 
   # =========================================
   # Admin Blog (开发模式 — Next.js)
@@ -185,8 +188,10 @@ services:
       retries: 30
       start_period: 120s
     depends_on:
-      - shared-packages-builder
-      - backend
+      shared-packages-builder:
+        condition: service_completed_successfully
+      backend:
+        condition: service_started
     networks: [app]
 
   # =========================================
@@ -234,8 +239,10 @@ services:
       retries: 30
       start_period: 120s
     depends_on:
-      - shared-packages-builder
-      - backend
+      shared-packages-builder:
+        condition: service_completed_successfully
+      backend:
+        condition: service_started
     networks: [app]
 
   # =========================================
@@ -257,10 +264,6 @@ services:
     depends_on:
       backend:
         condition: service_started
-      admin-next:
-        condition: service_healthy
-      frontend-blog:
-        condition: service_healthy
     networks: [app]
 
   # =========================================
@@ -312,57 +315,51 @@ services:
     networks: [app]
 
   # =========================================
-  # Ollama Embedding 服务（仅 bge-m3）
+  # Ollama Embedding 服务（已废弃，由 Infinity 替代）
   # =========================================
-  # 仅用于本地 Embedding（bge-m3 → 1024d 向量）
-  # 文本生成仍使用 online DeepSeek API
-  #
-  # ⚠️ bge-m3 模型已预先通过手动拉取并存于 ollama_data 卷中
-  #   首次部署时需要手动拉取（Docker bridge 网络无法直接访问 registry.ollama.ai）：
-  #   docker compose stop ollama
-  #   docker run --rm --network host \
-  #     -v joymini_nest_monorepo_ollama_data:/root/.ollama \
-  #     ollama/ollama:latest ollama pull bge-m3
-  #   docker compose start ollama
+  # 之前用于本地 Embedding（bge-m3），现在由 Infinity 统一处理
+  # ollama 服务已注释，如需恢复执行：
+  #   docker compose up -d ollama
   # =========================================
-  ollama:
-    image: ollama/ollama:latest
-    container_name: joymini-ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-    healthcheck:
-      test: ["CMD-SHELL", "ollama list 2>/dev/null || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 120s
-    restart: unless-stopped
-    networks: [app]
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   container_name: joymini-ollama
+  #   ports:
+  #     - "11434:11434"
+  #   volumes:
+  #     - ollama_data:/root/.ollama
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "ollama list 2>/dev/null || exit 1"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 5
+  #     start_period: 120s
+  #   restart: unless-stopped
+  #   networks: [app]
 
   # =========================================
-  # Infinity Rerank 服务（替代 Ollama /api/rerank）
+  # ⏸️ Infinity Rerank 服务（已迁移到 Jina AI 线上 API）
+  # 如需切回本地 Infinity，取消下方全部注释（共 15 行）
   # =========================================
-  # 专用 Rerank 推理服务器，原生支持 ARM64（Apple Silicon）
-  # 提供 Cohere 兼容的 /v1/rerank 接口
-  # 模型：BAAI/bge-reranker-v2-m3（~1.1GB，首次启动自动下载）
-  # =========================================
-  infinity:
-    image: michaelf34/infinity:latest
-    container_name: joymini-infinity
-    command: >
-      v2 --model-id BAAI/bge-reranker-v2-m3
-    ports:
-      - "7997:7997"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:7997/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 120s
-    restart: unless-stopped
-    networks: [app]
+  # infinity:
+  #   image: michaelf34/infinity:latest
+  #   container_name: joymini-infinity
+  #   command: >
+  #     v2 --model-id BAAI/bge-reranker-v2-m3 --model-id BAAI/bge-m3
+  #   environment:
+  #     - HF_ENDPOINT=https://hf-mirror.com
+  #   ports:
+  #     - "7997:7997"
+  #   volumes:
+  #     - infinity_hf_cache:/root/.cache/huggingface
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:7997/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 20
+  #     start_period: 480s
+  #   restart: unless-stopped
+  #   networks: [app]
 
   # =========================================
   # Unstructured PDF 解析（手动启停，不上传文档时不开）
@@ -428,6 +425,7 @@ volumes:
   meili_data:
   backend_nm:
   admin_next_nm:
+  admin_next_data:
   admin_blog_nm:
   blog_next_nm:
   pkg_shared_nm:
@@ -435,3 +433,4 @@ volumes:
   pkg_eslint_nm:
   pkg_tsconfig_nm:
   pkg_config_nm:
+  # infinity_hf_cache:  # 已迁移到 Jina AI，切回时取消注释

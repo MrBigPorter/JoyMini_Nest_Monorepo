@@ -10,7 +10,7 @@ import { SchemaSearchForm } from '@/components/scaffold/SchemaSearchForm';
 import { useAntdTable, useRequest } from 'ahooks';
 import { orderApi } from '@/api';
 import { createColumnHelper, ColumnDef } from '@tanstack/react-table';
-import { ORDER_STATUS, ORDER_STATUS_LABEL } from '@lucky/shared';
+import { ORDER_STATUS, ORDER_STATUS_LABEL } from '@/lib/locale-constants';
 import { BaseTable } from '@/components/scaffold/BaseTable';
 import { ModalManager } from '@repo/ui';
 import dayjs from 'dayjs';

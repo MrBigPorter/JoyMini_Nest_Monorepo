@@ -2,7 +2,7 @@ import {
   WITHDRAW_STATUS,
   WithdrawStatus,
   RECHARGE_STATUS,
-} from '@lucky/shared';
+} from '@/lib/shared-wrapper';
 import type { ButtonVariant } from '@repo/ui';
 
 export type TLabelFn = (key: string) => string;

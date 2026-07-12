@@ -19,7 +19,7 @@ import {
 import { Badge, Card } from '@/components/UIComponents';
 import { useToastStore } from '@/store/useToastStore';
 import { BannerFormModal } from '@/views/banner/BannerFormModal';
-import { JUMP_CATE } from '@lucky/shared';
+import { JUMP_CATE } from '@/lib/locale-constants';
 import { Banner } from '@/type/types';
 import { SchemaSearchForm } from '@/components/scaffold/SchemaSearchForm';
 import { BaseTable } from '@/components/scaffold/BaseTable';

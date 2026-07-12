@@ -7,7 +7,7 @@ import { createColumnHelper, type ColumnDef } from '@tanstack/react-table';
 import { useQuery } from '@tanstack/react-query';
 import { User as UserIcon, Eye, Ban, CheckCircle } from 'lucide-react';
 import { Badge, type BadgeVariant } from '@repo/ui';
-import { KYC_STATUS } from '@lucky/shared';
+import { KYC_STATUS } from '@/lib/locale-constants';
 import { clientUserApi } from '@/api';
 import { PageHeader } from '@/components/scaffold/PageHeader';
 import { SchemaSearchForm } from '@/components/scaffold/SchemaSearchForm';

@@ -45,13 +45,6 @@ const nextConfig: NextConfig = {
   // 允许通过 nginx 反向代理的开发域名访问 /_next/* 资源
   allowedDevOrigins: ['admin-dev.joyminis.com'],
 
-  // ── Turbopack 开发模式：仅处理 node:crypto shim ──
-  turbopack: {
-    resolveAlias: {
-      'node:crypto': './src/lib/crypto-shim.ts',
-    },
-  },
-
   // Exclude build tools that bleed in via monorepo hoisting (e.g. @nestjs/cli → webpack).
   // These packages are only needed in apps/api — never at admin-next runtime.
   // Without this, Next.js file tracing picks up webpack + full toolchain (~4 MiB).
@@ -81,6 +74,11 @@ const nextConfig: NextConfig = {
   },
 
   experimental: {
+    turbo: {
+      resolveAlias: {
+        "node:crypto": "./src/lib/crypto-shim.ts",
+      },
+    },
     // Tree-shake heavy barrel-export packages so Turbopack only compiles used exports
     // @repo/ui is pre-built ESM with individual files — optimizePackageImports
     // ensures only the imported components (e.g. `cn`) are compiled, not the full barrel

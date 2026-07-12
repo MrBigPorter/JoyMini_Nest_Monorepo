@@ -33,7 +33,7 @@ import {
 } from '@repo/ui';
 import { CreateProductFormModal } from '@/views/product/CreateProductFormModal';
 import { EditProductFormModal } from '@/views/product/EditProductFormModal';
-import { TREASURE_STATE, TreasureFilterType } from '@lucky/shared';
+import { TREASURE_STATE, TreasureFilterType } from '@/lib/locale-constants';
 import { useToastStore } from '@/store/useToastStore';
 import { SmartImage } from '@/components/ui/SmartImage';
 import { format, formatDistanceToNow } from 'date-fns';

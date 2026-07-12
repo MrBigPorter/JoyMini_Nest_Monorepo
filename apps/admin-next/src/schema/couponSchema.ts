@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { COUPON_TYPE, ISSUE_TYPE, VALID_TYPE } from '@lucky/shared';
+import { COUPON_TYPE, ISSUE_TYPE, VALID_TYPE } from '@/lib/shared-wrapper';
 import type { TFunc } from '@/hooks/useTranslation';
 
 export function createCouponSchema(t: TFunc) {

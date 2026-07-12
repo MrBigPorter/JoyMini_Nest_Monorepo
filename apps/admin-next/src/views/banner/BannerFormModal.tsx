@@ -14,7 +14,7 @@ import {
   FormMediaUploaderField,
 } from '@repo/ui';
 import { useToastStore } from '@/store/useToastStore';
-import { JUMP_CATE } from '@lucky/shared';
+import { JUMP_CATE } from '@/lib/locale-constants';
 import { Link } from 'lucide-react';
 import { BannerFormInputs, BannerShema } from '@/schema/bannerShema';
 import { BannerBindProduct } from '@/views/banner/BannerBindProduct';

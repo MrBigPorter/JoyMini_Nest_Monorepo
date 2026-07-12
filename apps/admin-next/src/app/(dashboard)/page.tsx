@@ -16,7 +16,8 @@ import {
   dehydrate,
 } from '@tanstack/react-query';
 import { cookies } from 'next/headers';
-import { DEFAULT_LOCALE, AVAILABLE_LOCALES, type Locale } from '@lucky/shared';
+import { DEFAULT_LOCALE, AVAILABLE_LOCALES } from '@/lib/locale-constants';
+import type { Locale } from '@/lib/locale-constants';
 import { DashboardStats } from '@/components/dashboard/DashboardStats';
 import { DashboardStatsSkeleton } from '@/components/dashboard/DashboardStatsSkeleton';
 import { DashboardOrdersClient } from '@/components/dashboard/DashboardOrdersClient';

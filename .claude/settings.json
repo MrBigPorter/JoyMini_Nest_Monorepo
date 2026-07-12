@@ -1,0 +1,28 @@
+{
+  "skills": {
+    "superpowers": {
+      "path": ".claude/skills/superpowers/SKILL.md",
+      "description": "add feature, implement feature, build feature, develop feature, let's work on, step-by-step, feature development"
+    },
+    "jr-code-review": {
+      "path": ".claude/skills/jr-code-review/SKILL.md",
+      "description": "code review, review my changes, check my code, review diff, review this, check code quality"
+    },
+    "flutter-gen": {
+      "path": ".claude/skills/flutter-gen/SKILL.md",
+      "description": "flutter generate, flutter page, flutter component, flutter widget, riverpod, generate screen, flutter ui"
+    },
+    "frontend-design": {
+      "path": ".claude/skills/frontend-design/SKILL.md",
+      "description": "admin page, admin CRUD, admin design, admin generate, frontend design, dashboard page, admin-next"
+    },
+    "excalidraw-diagram": {
+      "path": ".claude/skills/excalidraw-diagram/SKILL.md",
+      "description": "diagram, excalidraw, architecture diagram, sequence diagram, flow chart, ER diagram, draw architecture, visualize"
+    },
+    "skill-creator": {
+      "path": ".claude/skills/skill-creator/SKILL.md",
+      "description": "create skill, new skill, save skill, save as skill, make this a skill, auto-generate skill, skill creator"
+    }
+  }
+}

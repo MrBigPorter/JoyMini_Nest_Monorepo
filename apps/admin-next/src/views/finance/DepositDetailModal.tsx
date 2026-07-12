@@ -4,7 +4,7 @@ import React from 'react';
 import { Copy } from 'lucide-react';
 import { Button } from '@repo/ui';
 import { RechargeOrder } from '@/type/types';
-import { NumHelper, TimeHelper } from '@lucky/shared';
+import { NumHelper, TimeHelper } from '@/lib/shared-wrapper';
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard';
 import type { TFunc } from '@/hooks/useTranslation';
 

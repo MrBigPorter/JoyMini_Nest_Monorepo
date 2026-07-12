@@ -1215,10 +1215,14 @@ model Conversation {
   // 关联
   messages     ChatMessage[]
   members      ChatMember[]
+  threadId     String?  @unique @map("thread_id") // LangGraph 的 thread_id，接上下文用
+  aiTitle      String?  @map("ai_title") // AI 对话的标题 (用于列表页显示)
+  aiMetadata   Json?    @map("ai_metadata") // AI 对话的元数据 (用于存储上下文信息)
   joinRequests GroupJoinRequest[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  
 }
 
 enum ConversationType {
@@ -1226,6 +1230,7 @@ enum ConversationType {
   DIRECT // 私聊 (点对点)
   SUPPORT // 客服聊天 (用户与客服之间)
   BUSINESS // 自动业务群 (拼团、客服、订单) - 也就是之前的 GROUP
+  AI // AI 对话，好比"智能客服机器人"
 }
 
 // 2. 新增：入群申请表
@@ -1275,6 +1280,15 @@ model ChatMessage {
 
   isRecalled Boolean  @default(false)
   createdAt  DateTime @default(now())
+
+  // 好比"购买渠道：线上/线下" — 同一件商品不同渠道买的，标签不一样
+  // role 告诉 LangGraph："这条是用户说的"还是"AI 回的"
+  role String? @default("user") // user/assistant/system/tool (用于系统消息区分)
+  // 好比"卡路里" — 减肥时才需要算，平时不看
+  // tokenCount 在 AI 对话超出上下文窗口时，按 token 数裁剪最旧的消息
+  tokenCount Int? @map("token_count") // 预留：消息的 token 数量 (用于计费/统计)
+  source     String? @default("user")  // user/ai/human_agent
+
 
   // 这里的 [] 已经是“可选”含义，代表一个消息可以有 0 个或多个隐藏记录
   hiddenByUsers ChatMessageHide[]

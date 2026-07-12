@@ -15,7 +15,7 @@ import {
 import { kycApi } from '@/api';
 import { useToastStore } from '@/store/useToastStore';
 import { KycRecord } from '@/type/types';
-import { KycIdTypesList, KycIdCardType } from '@lucky/shared';
+import { KycIdTypesList, KycIdCardType } from '@/lib/locale-constants';
 import type { TFunc } from '@/hooks/useTranslation';
 
 // 1. 定义 Schema (function factory to support i18n error messages)

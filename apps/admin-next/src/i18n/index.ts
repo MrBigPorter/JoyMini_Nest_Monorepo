@@ -6,7 +6,7 @@ import ko from './ko.json';
 import fr from './fr.json';
 import de from './de.json';
 
-import type { Locale } from '@lucky/shared';
+import type { Locale } from '@/lib/shared-wrapper';
 
 type LocaleFile = {
   translations: Record<string, string>;

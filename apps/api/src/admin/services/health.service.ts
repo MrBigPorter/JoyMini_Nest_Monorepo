@@ -21,42 +21,59 @@ export class HealthService {
   ) {}
 
   async checkAll(): Promise<ServiceHealth[]> {
-    const [ollamaEmbed, deepseekLlm, unstructured, meilisearch, infinity] =
+    const [jina, deepseekLlm, unstructured, meilisearch] =
       await Promise.all([
-        this.checkOllamaEmbedding(),
+        this.checkJina(),
         this.checkDeepSeekLLM(),
         this.checkUnstructured(),
         this.checkMeilisearch(),
-        this.checkInfinity(),
       ]);
-    return [ollamaEmbed, deepseekLlm, unstructured, meilisearch, infinity];
+    return [jina, deepseekLlm, unstructured, meilisearch];
   }
 
   /**
-   * 检查本地 Ollama 嵌入服务（bge-m3 模型）
-   * 用于: 意图分类 + RAG 向量检索
-   * URL: http://joymini-ollama:11434
+   * 检查 Jina AI 线上服务（替代本地 Infinity）
+   * 用于: Embedding + Reranker
+   * URL: https://api.jina.ai
    */
-  private async checkOllamaEmbedding(): Promise<ServiceHealth> {
-    const url = 'http://joymini-ollama:11434';
-    try {
-      const res = await axios.get(`${url}/api/tags`, { timeout: 3000 });
-      const models: string[] =
-        res.data?.models?.map((m: any) => m.name) ?? [];
+  private async checkJina(): Promise<ServiceHealth> {
+    const apiKey = this.configService.get<string>('JINA_API_KEY', '');
+    if (!apiKey) {
       return {
-        name: 'ollama',
-        available: models.length > 0,
-        label: 'Ollama',
-        description: 'Embedding (bge-m3)',
-        details: { models, url },
-      };
-    } catch {
-      return {
-        name: 'ollama',
+        name: 'jina',
         available: false,
-        label: 'Ollama',
-        description: 'Embedding (bge-m3)',
-        details: { error: 'Not started', hint: 'make start-ollama', url },
+        label: 'Jina AI',
+        description: 'Embedding + Reranker',
+        details: { error: 'JINA_API_KEY not configured' },
+      };
+    }
+    try {
+      const res = await axios.post(
+        'https://api.jina.ai/v1/embeddings',
+        { model: 'jina-embeddings-v3', input: 'health check', dimensions: 1 },
+        {
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          timeout: 5000,
+        },
+      );
+      const ok = !!res.data?.data?.[0]?.embedding;
+      return {
+        name: 'jina',
+        available: ok,
+        label: 'Jina AI',
+        description: 'Embedding + Reranker',
+        details: { status: ok ? 'healthy' : 'unexpected_response' },
+      };
+    } catch (err: any) {
+      return {
+        name: 'jina',
+        available: false,
+        label: 'Jina AI',
+        description: 'Embedding + Reranker',
+        details: { error: err.message, hint: 'check JINA_API_KEY' },
       };
     }
   }
@@ -143,31 +160,35 @@ export class HealthService {
     }
   }
 
-  private async checkInfinity(): Promise<ServiceHealth> {
-    const url =
-      this.configService.get<string>('RERANK_BASE_URL') ||
-      'http://joymini-infinity:7997';
-    try {
-      await axios.get(`${url}/health`, { timeout: 3000 });
-      return {
-        name: 'infinity',
-        available: true,
-        label: 'Infinity',
-        description: 'Rerank (bge-reranker-v2-m3)',
-        details: { url },
-      };
-    } catch {
-      return {
-        name: 'infinity',
-        available: false,
-        label: 'Infinity',
-        description: 'Rerank (bge-reranker-v2-m3)',
-        details: {
-          error: 'Not started',
-          hint: 'make start-infinity',
-          url,
-        },
-      };
-    }
-  }
+  /**
+   * ⏸️ Infinity Rerank 健康检查（已迁移到 Jina AI）
+   * 保留代码供切回时使用
+   */
+  // private async checkInfinity(): Promise<ServiceHealth> {
+  //   const url =
+  //     this.configService.get<string>('RERANK_BASE_URL') ||
+  //     'http://joymini-infinity:7997';
+  //   try {
+  //     await axios.get(`${url}/health`, { timeout: 3000 });
+  //     return {
+  //       name: 'infinity',
+  //       available: true,
+  //       label: 'Infinity',
+  //       description: 'Rerank (bge-reranker-v2-m3)',
+  //       details: { url },
+  //     };
+  //   } catch {
+  //     return {
+  //       name: 'infinity',
+  //       available: false,
+  //       label: 'Infinity',
+  //       description: 'Rerank (bge-reranker-v2-m3)',
+  //       details: {
+  //         error: 'Not started',
+  //         hint: 'make start-infinity',
+  //         url,
+  //       },
+  //     };
+  //   }
+  // }
 }

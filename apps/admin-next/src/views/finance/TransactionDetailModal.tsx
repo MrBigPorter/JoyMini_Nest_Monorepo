@@ -11,7 +11,7 @@ import {
   TRANSACTION_TYPE_LABEL,
   BALANCE_TYPE,
   TRANSACTION_STATUS,
-} from '@lucky/shared';
+} from '@/lib/shared-wrapper';
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard';
 import { useTranslation } from '@/hooks/useTranslation';
 

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { imageFileSchema } from '@/schema/index';
-import { JUMP_CATE } from '@lucky/shared';
+import { JUMP_CATE } from '@/lib/locale-constants';
 
 export const BannerShema = z
   .object({

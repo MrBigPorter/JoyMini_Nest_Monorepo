@@ -18,17 +18,15 @@ import {
   CouponModal, // 假设这是你上一段代码里的 Modal 组件
 } from './CouponModal'; // 请确保路径正确
 
+import { CalcHelper, NumHelper, TimeHelper } from '@/lib/shared-wrapper';
 import {
-  CalcHelper,
   COUPON_STATUS,
   COUPON_TYPE,
   COUPON_TYPE_OPTIONS,
   DISCOUNT_TYPE,
   ISSUE_TYPE,
-  NumHelper,
-  TimeHelper,
   VALID_TYPE,
-} from '@lucky/shared';
+} from '@/lib/locale-constants';
 import { Coupon, CouponListParams } from '@/type/types';
 import { couponApi } from '@/api';
 
@@ -132,7 +130,11 @@ export const CouponList: React.FC<CouponListProps> = ({
 
   const handleOpenModal = useCallback(
     (record?: Coupon) => {
-      console.log('[CouponList] handleOpenModal called', record ? 'edit mode' : 'create mode', record?.id);
+      console.log(
+        '[CouponList] handleOpenModal called',
+        record ? 'edit mode' : 'create mode',
+        record?.id,
+      );
       try {
         ModalManager.open({
           title: record ? t('coupon.editCoupon') : t('coupon.createCoupon'),

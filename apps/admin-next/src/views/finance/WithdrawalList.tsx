@@ -15,7 +15,7 @@ import {
   WITHDRAW_STATUS,
   WITHDRAW_STATUS_OPTIONS,
   NumHelper,
-} from '@lucky/shared';
+} from '@/lib/shared-wrapper';
 import { EyeIcon, ShieldCheck, Wallet, Landmark } from 'lucide-react';
 import { FormSchema } from '@/type/search';
 import {

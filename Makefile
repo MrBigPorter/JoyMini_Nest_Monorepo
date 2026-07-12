@@ -6,11 +6,14 @@
 # ==========================================
 
 
-.PHONY: setup up up-core up-ai up-dev up-blog up-all up-infra down restart logs ps build clean wipe help menu \
-        stop-ai stop-blog stop-all-extra \
-        start-ollama start-infinity start-meilisearch start-blog mem \
+.PHONY: setup up up-db up-backend up-ai up-dev up-full down restart logs ps build clean wipe help menu \
+        stop-ai stop-frontend stop-extra stop-blog \
+        start-db stop-db start-redis stop-redis start-backend stop-backend \
+        start-ollama-host stop-ollama-host start-meilisearch stop-meilisearch \
+        start-admin stop-admin start-nginx stop-nginx start-frontend stop-frontend start-dev \
         start-unstructured stop-unstructured unstructured-status \
-        dev-admin dev-blog dev-blog-clean exec-api migrate seed prisma-studio \
+        dev-admin dev-blog dev-blog-clean dev-api migrate-local prisma-studio-local \
+        exec-api migrate seed prisma-studio mem \
         check-dockerfiles generate-certs \
         check format fix audit type-check \
         deploy deploy-backend deploy-admin deploy-quick deploy-sync \
@@ -66,17 +69,21 @@ check-dockerfiles:
 up: check-dockerfiles
 	docker compose up -d --build --remove-orphans
 
-## [Docker] 🚀 Start only core infrastructure (DB + Redis + API + Nginx, ~800MB)
-up-core: check-dockerfiles
-	docker compose up -d --build --remove-orphans db redis backend nginx
+## [Docker] 🚀 [Phase: DB only] Start PostgreSQL + Redis only (~500MB)
+up-db:
+	docker compose up -d --build --remove-orphans db redis
 
-## [Docker] 🚀 Start core + AI services (ollama + infinity + meilisearch, ~5GB)
+## [Docker] 🚀 [Phase: Backend] Start core + backend (~1.5GB)
+up-backend: check-dockerfiles
+	docker compose up -d --build --remove-orphans db redis backend
+
+## [Docker] 🚀 Start core + AI services (meilisearch, ~3GB)
 up-ai: check-dockerfiles
-	docker compose up -d --build --remove-orphans db redis backend nginx ollama infinity meilisearch
+	docker compose up -d --build --remove-orphans db redis backend nginx meilisearch
 
-## [Docker] 🚀 Start core + AI + admin (日常开发, ~5.2GB)
+## [Docker] 🚀 Start core + AI + admin (日常开发, ~4.2GB)
 up-dev: check-dockerfiles
-	docker compose up -d --build --remove-orphans db redis backend nginx ollama infinity meilisearch admin-next
+	docker compose up -d --build --remove-orphans db redis backend nginx meilisearch admin-next
 
 ## [Docker] 🚀 Start core + blog (blog 管理, ~1.6GB)
 up-blog: check-dockerfiles
@@ -86,34 +93,79 @@ up-blog: check-dockerfiles
 up-all: check-dockerfiles
 	docker compose up -d --build --remove-orphans
 
-## [Docker] ⏹️ Stop memory-heavy services (省内存模式)
+## [Docker] ⏹️ Stop AI services (省内存)
 stop-ai:
-	docker compose stop ollama infinity meilisearch
+	docker compose stop meilisearch
+	@echo "✅ AI 服务已停"
 
-stop-blog:
-	docker compose stop admin-blog frontend-blog
+## [Docker] ⏹️ Stop frontend (省 ~200MB)
+stop-frontend:
+	docker compose stop admin-next frontend-blog nginx
+	@echo "✅ 前端已停"
 
-stop-all-extra:
-	docker compose stop ollama infinity meilisearch admin-next admin-blog frontend-blog
+## [Docker] ⏹️ Stop all extra (保留 db+redis+backend)
+stop-extra:
+	docker compose stop meilisearch admin-next frontend-blog nginx
+	@echo "✅ 非核心已停"
 
-## [Docker] ▶️ Start individual services
-start-ollama:
-	docker compose up -d ollama
+## [Docker] 🚀 Start dev environment (后端 + nginx，admin-next 本地跑：make dev-admin)
+start-dev:
+	docker compose up -d db redis backend nginx
+	@echo "✅ 开发环境已启动（admin-next 需本地运行：make dev-admin）"
 
-start-infinity:
-	docker compose up -d infinity
+## [Docker] ▶️ Start/Stop individual services
+start-db:
+	docker compose up -d db
+stop-db:
+	docker compose stop db
 
-start-meilisearch:
+start-redis:
+	docker compose up -d redis
+stop-redis:
+	docker compose stop redis
+
+start-backend:
+	docker compose up -d --build backend
+stop-backend:
+	docker compose stop backend
+
+start-ollama-host:
+	@if [ -z "$$(pgrep -f 'ollama serve')" ]; then \
+		echo "→ Starting Ollama serve..."; \
+		nohup ollama serve > /tmp/ollama.log 2>&1 & \
+		echo "✓ Ollama started (PID: $$!)"; \
+	else \
+		echo "✓ Ollama already running"; \
+	fi
+stop-ollama-host:
+	@PID=$$(pgrep -f 'ollama serve'); \
+	if [ -n "$$PID" ]; then \
+		kill $$PID 2>/dev/null; \
+		echo "✓ Ollama stopped"; \
+	else \
+		echo "⏭️  Ollama not running"; \
+	fi
+
 	docker compose up -d meilisearch
+stop-meilisearch:
+	docker compose stop meilisearch
+
+start-admin:
+	docker compose up -d admin-next
+stop-admin:
+	docker compose stop admin-next
 
 start-blog:
 	docker compose up -d admin-blog frontend-blog
 
-start-unstructured:
-	docker compose up -d unstructured
+start-nginx:
+	docker compose up -d nginx
+stop-nginx:
+	docker compose stop nginx
 
-stop-unstructured:
-	docker compose stop unstructured
+start-frontend:
+	docker compose up -d admin-next frontend-blog nginx
+	@echo "✅ 前端已启动"
 
 unstructured-status:
 	@echo "📋 Unstructured container status:"
@@ -122,6 +174,39 @@ unstructured-status:
 	@echo "  启动: make start-unstructured"
 	@echo "  停止: make stop-unstructured"
 	@echo "  API:  http://localhost:8000"
+
+## [Docker] 📊 Show memory + quick tips
+mem:
+	@docker stats --no-stream --format "table {{.Name}}\t{{.MemUsage}}\t{{.MemPerc}}"
+	@echo ""
+	@echo "💡 一键启动:"
+	@echo "   make start-dev  启动开发环境（db+redis+backend+nginx+admin）"
+	@echo ""
+	@echo "💡 省内存速查:"
+	@echo "   make stop-ai      停 meilisearch              省 ~150MB"
+	@echo "   make stop-frontend 停 admin + blog + nginx   省 ~200MB"
+	@echo "   make stop-extra    停全部非核心              省 ~350MB"
+	@echo ""
+	@echo "💡 按阶段启动:"
+	@echo "   make up-db      仅 DB + redis    ~500MB   跑迁移/本地后端"
+	@echo "   make up-backend  + backend        ~1.5GB  开发 API"
+	@echo "   make up-ai       + meilisearch    ~2.5GB    测试 AI 对话"
+
+# ──────────────────────────────────────────
+# Local Backend Dev (no Docker backend container)
+# ──────────────────────────────────────────
+
+## [API] Start NestJS backend locally (需要 make up-db 先跑)
+dev-api:
+	yarn workspace @lucky/api start:dev
+
+## [DB] Run Prisma migration locally
+migrate-local:
+	yarn workspace @lucky/api prisma migrate dev
+
+## [DB] Open Prisma Studio locally
+prisma-studio-local:
+	yarn workspace @lucky/api prisma studio
 
 ## [Prisma] 🗄️ Generate Prisma Client (after schema change)
 prisma-generate:
@@ -134,10 +219,6 @@ prisma-migrate:
 ## [Prisma] 🗄️ Apply pending migrations
 prisma-deploy:
 	docker compose exec backend sh -c "cd /app/apps/api && npx prisma migrate deploy"
-
-## [Docker] 📊 Show memory usage of running containers
-mem:
-	docker stats --no-stream --format "table {{.Name}}\t{{.MemUsage}}\t{{.MemPerc}}"
 
 ## [Docker] 🛑 Stop all containers (auto-removes orphans)
 down:
@@ -183,9 +264,9 @@ wipe:
 # Local Frontend Dev (faster HMR than Docker)
 # ──────────────────────────────────────────
 
-## [Frontend] Start Admin panel (requires make up-infra first)
+## [Frontend] 🚀 Start Admin panel locally (Turbopack, requires make up-db first)
 dev-admin:
-	yarn workspace @lucky/admin-next dev
+	PATH="$$(pwd)/node_modules/.bin:$$PATH" yarn workspace @lucky/admin-next dev:turbo
 
 ## [Frontend] Start Blog frontend (uses Turbopack, requires make up-infra first)
 dev-blog:
@@ -241,10 +322,6 @@ seed:
 ## [DB] Open Prisma Studio (web-based DB browser)
 prisma-studio:
 	docker compose exec backend ./node_modules/.bin/prisma studio --schema=apps/api/prisma/schema.prisma
-
-## [DB] Regenerate Prisma Client (after schema changes)
-prisma-generate:
-	docker compose exec backend ./node_modules/.bin/prisma generate --schema=apps/api/prisma/schema.prisma
 
 # ──────────────────────────────────────────
 # Ollama (Local LLM Service)

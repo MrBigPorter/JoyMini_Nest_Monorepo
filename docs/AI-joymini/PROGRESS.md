@@ -1,15 +1,16 @@
 # AI JoyMini 项目进度
 
-> 最后更新: 2026-07-10
+> 最后更新: 2026-07-12
 >
-> ## 🆕 最新交付 (2026-07-10)
+> ## 🆕 最新交付 (2026-07-12)
 >
-> - [#63 Score Gap Check](63-Intent-Score-Gap-Check-Spec.md) — orchestrator 分数差距过滤 ✅
-> - [#64 SSE 企业级分析](64-SSE-Enterprise-Analysis.md) — 7 维度分析文档 ✅
-> - SSE 流式接口 — Controller + Service + DTO ✅
-> - Redis 5 层限流 + 熔断 + 超时 ✅
-> - Nginx SSE 配置 ✅
->   分析方法: 逐篇文档 vs 代码交叉对比
+> - **Jina AI 迁移** — 替换本地 Infinity，embedding + reranker 走线上 API，多账户轮询 ✅
+> - **SSE 流式接口 全链路打通** — 后端代码已提交 + Flutter SseClient + AiChatState + 聊天页面 ✅
+> - **Flutter AI 聊天页面** — 打字机效果 + 状态指示 + 快捷问题 + sessionId 持久化 ✅
+> - **#63 Score Gap Check** — orchestrator 分数差距过滤 ✅
+> - **#64 SSE 企业级分析** — 7 维度分析文档 ✅
+>
+> 后端提交: `c8ffba45`
 
 ---
 
@@ -63,7 +64,7 @@
 | 12  | 知识文档          |     ✅ 29篇 .md，功能已升级到4层RAG     |
 | 13  | Prisma + pgvector |        ✅ `vector(1024)` bge-m3         |
 | 17  | 完整RAG节点       | ✅ 在 orchestrator 中，4层检索+reranker |
-| 57  | RAG 基础设施升级  |   ✅ Meilisearch + Infinity 今天完成    |
+| 57  | RAG 基础设施升级  |   ✅ Meilisearch + Jina AI（已迁移，替代本地 Infinity）    |
 
 ### Admin 面板
 
@@ -101,13 +102,18 @@
 
 ---
 
-### ❌ 代码未实现（17篇）
+### ✅ 代码已实现（文档#14、#15、#16 已完成）
 
 |   #    | 文档                        | 领域       | 代码证据                              |
 | :----: | :-------------------------- | :--------- | :------------------------------------ |
-| **14** | **SSE 流式接口**            | **核心**   | Controller + Service 代码写完，待联调 |
-|   15   | Flutter Chat 页面           | Flutter    | 项目无 `.dart`                        |
-|   16   | Flutter Chat Client         | Flutter    | 同上                                  |
+| **14** | **SSE 流式接口**            | **核心**   | 后端已提交 `c8ffba45` + Flutter SseClient + Page |
+|   15   | Flutter Chat 页面           | Flutter    | `app/page/ai_chat/ai_chat_page.dart`  |
+|   16   | Flutter Chat Client         | Flutter    | `core/services/ai/sse_client.dart`    |
+
+### ❌ 代码未实现（14篇）
+
+|   #    | 文档                        | 领域       | 代码证据                              |
+| :----: | :-------------------------- | :--------- | :------------------------------------ |
 | **18** | **PostgreSQL Checkpointer** | **持久化** | 只用 `MemorySaver`（内存）            |
 |   19   | MultiAgentSupervisor        | ⛔ 废弃    | Supervisor LLM 幻觉，方案放弃         |
 |   20   | Flutter 人工融合            | Flutter    | 无 Flutter                            |
@@ -134,7 +140,7 @@
 |   🟢 低   | LLM 缓存                |     31      | 重复问题重算     |     ~1天      |
 |   🟢 低   | 意图例句微调            |     无      | 偶尔误分类       |    ~0.5天     |
 |   🟢 低   | Score Gap Check         |     63      | 多标签无差别执行 | ✅ **已完成** |
-| ⚫ 不计划 | Flutter 移动端          | 15,16,20,27 | 项目无Flutter    |       -       |
+|   🟢 低   | Flutter SSE 基础集成    |   15,16     | SSE 打字机聊天   | ✅ **已完成** |
 | ⚫ 不计划 | Product Review          |    23-28    | 独立产品线       |       -       |
 
 ---
@@ -143,19 +149,17 @@
 
 ```
 总文档数: 65
-├─ ✅ 代码已实现: 41 (63%)
-├─ ❌ 代码未实现: 17 (26%)
-│   ├─ SSE 流式: 1（代码写完待联调）
-│   ├─ Flutter: 4
+├─ ✅ 代码已实现: 44 (68%)
+├─ ❌ 代码未实现: 14 (22%)
+│   ├─ PostgreSQL Checkpointer: 1
 │   ├─ Product Review: 6
 │   ├─ 持久化/缓存: 4
-│   └─ 测试/废弃: 2
+│   └─ 测试/废弃: 3
 ├─ ⛔ 方案废弃: 2 (3%)
 └─ ⚪ 纯分析文档: 19 (不涉及代码)
 
 核心对话 + RAG:        ████████████████████ 95%
 Admin 管理:            ██████████████████░░ 90%
-SSE 流式:              ██████░░░░░░░░░░░░░░ 30%（代码写完待联调+ Nginx+限流+重连）
+SSE 流式:              ████████████████████ 95%（后端+Flutter 基础流打通 ✅）
 持久化/缓存:           ░░░░░░░░░░░░░░░░░░░░ 0%
-Flutter 移动端:        ░░░░░░░░░░░░░░░░░░░░ 0%
 ```

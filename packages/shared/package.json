@@ -22,6 +22,9 @@
     "./dist/types/*": {
       "types": "./dist/types/*.d.ts",
       "default": "./dist/types/*.js"
+    },
+    "./src/*": {
+      "default": "./src/*"
     }
   },
   "files": [

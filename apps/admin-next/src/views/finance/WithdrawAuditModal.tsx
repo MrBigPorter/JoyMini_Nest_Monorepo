@@ -21,7 +21,7 @@ import {
   TimeHelper,
   WITHDRAW_STATUS,
   WithdrawStatus,
-} from '@lucky/shared';
+} from '@/lib/shared-wrapper';
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard';
 import type { TFunc } from '@/hooks/useTranslation';
 import { WithdrawOrder } from '@/type/types';

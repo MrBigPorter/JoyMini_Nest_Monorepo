@@ -25,7 +25,7 @@ import { getRoleI18nKey } from '@/constants';
 import { useTranslation } from '@/hooks/useTranslation';
 import { applicationApi } from '@/api';
 import { useAvailableLocales } from '@/hooks/useAvailableLocales';
-import type { Locale } from '@lucky/shared';
+import type { Locale } from '@/lib/shared-wrapper';
 
 const PENDING_APPLICATIONS_UPDATED_EVENT = 'applications:pending-updated';
 

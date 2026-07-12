@@ -17,7 +17,7 @@ import { FormSchema } from '@/type/search';
 import { Badge } from '@repo/ui';
 import { useToastStore } from '@/store/useToastStore';
 import { useRequest } from 'ahooks';
-import { RECHARGE_STATUS } from '@lucky/shared';
+import { RECHARGE_STATUS } from '@/lib/locale-constants';
 import {
   buildDepositsListParams,
   depositsListQueryKey,
