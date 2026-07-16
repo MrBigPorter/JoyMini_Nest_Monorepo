@@ -12,8 +12,9 @@
 #   PostgreSQL:  ≤2 GB
 #   Redis:       ≤512 MB (maxmemory 400MB)
 #   Nginx:       ≤64 MB
+#   Infinity:    ≤3 GB  (bge-m3 embedding 模型)
 #   Swap 兜底:   2 GB
-#   总计:        ~4.6 GB 容器 + 2 GB swap，预留 ~1.4 GB 弹性空间
+#   总计:        ~7.6 GB 容器 + 2 GB swap，刚刚够用
 # ==========================================
 
 services:
@@ -244,6 +245,38 @@ services:
   #     start_period: 120s
   #   networks: [app]
 
+  # =========================================
+  # Infinity Embedding 引擎 (bge-m3)
+  # =========================================
+  # 高性能本地 embedding 服务，替代 Jina AI 线上 embedding。
+  # 首次启动自动下载 BAAI/bge-m3 模型（~2.2G）。
+  # Reranker 继续走 Jina AI 线上 API（JinaProvider），
+  # Infinity 只做 embedding = 仅需加载 bge-m3 一个模型。
+  #
+  # 不对外暴露端口，通过 nginx 路由 /infinity/ → proxy_pass 访问。
+  # =========================================
+  infinity:
+    image: michaelf34/infinity:latest
+    container_name: joymini-infinity
+    command: >
+      v2 --model-id BAAI/bge-m3
+    volumes:
+      - infinity_hf_cache:/root/.cache/huggingface
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7997/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 20
+      start_period: 480s
+    restart: unless-stopped
+    networks: [app]
+    deploy:
+      resources:
+        limits:
+          memory: 3G
+        reservations:
+          memory: 1G
+
 networks:
   app:
 
@@ -252,3 +285,4 @@ volumes:
   redis_data:
   ollama_data:
   nginx_cache:
+  infinity_hf_cache:

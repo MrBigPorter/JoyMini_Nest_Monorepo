@@ -252,5 +252,13 @@ export function buildAgentPrompt(config: AgentPromptConfig): string {
     sections.push(...config.extraSections);
   }
 
-  return sections.join('\n\n');
+  const prompt = sections.join('\n\n');
+
+  // Log full prompt for debugging
+  const logger = new (require('@nestjs/common').Logger)('PromptBuilder');
+  logger.log(
+    `[PromptBuilder] ${config.domainName} prompt (${prompt.length} chars):\n${prompt}`,
+  );
+
+  return prompt;
 }

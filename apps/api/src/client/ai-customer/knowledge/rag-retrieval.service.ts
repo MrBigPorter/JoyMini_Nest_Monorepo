@@ -208,8 +208,10 @@ export class RagRetrievalService {
     topK: number = 5,
   ): Promise<RetrievedChunk[]> {
     try {
-      // 调用 bge-m3 模型生成查询文本的 embedding
-      const vec = await this.aiService.generateEmbedding(query);
+      // 调用 embedding 模型生成查询文本的向量
+      const vec = await this.aiService.generateEmbedding(query, {
+        task: 'retrieval.query',
+      });
       if (!vec || vec.length === 0) {
         this.logger.warn(
           '[vectorSearch] generateEmbedding returned null (Ollama down?)',

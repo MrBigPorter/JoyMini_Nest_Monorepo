@@ -112,6 +112,7 @@ export class MeilisearchService implements OnModuleInit {
 
       // 确保索引存在并配置
       await this.ensureIndex();
+      await this.ensureIntentExamplesIndex();
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       this.logger.warn(
@@ -228,6 +229,45 @@ export class MeilisearchService implements OnModuleInit {
     }
   }
 
+  /**
+   * 确保 intent_examples 索引存在并配置
+   *
+   * 用于 IntentClassifier 的 BM25 关键词搜索。
+   * 索引字段: text（搜索）、domain（返回）。
+   */
+  private async ensureIntentExamplesIndex(): Promise<void> {
+    if (!this.client) return;
+
+    const indexName = 'intent_examples';
+
+    try {
+      const index = this.client.index(indexName);
+
+      // 检查索引是否存在，不存在则创建
+      try {
+        await index.getRawInfo();
+        this.logger.debug(`Index "${indexName}" already exists`);
+      } catch {
+        await index.addDocuments([{ id: '__init__' }]);
+        await index.deleteDocument('__init__');
+        this.logger.log(`✅ Created index "${indexName}" in Meilisearch`);
+      }
+
+      // 配置搜索字段
+      await index.updateSearchableAttributes(['text']);
+
+      // 配置过滤字段
+      await index.updateFilterableAttributes(['domain']);
+
+      this.logger.log(
+        `✅ Configured index "${indexName}" (searchable: text; filterable: domain)`,
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.warn(`[ensureIntentExamplesIndex] Failed: ${message}`);
+    }
+  }
+
   // ===========================================================================
   // BM25 搜索（查）
   // ===========================================================================
@@ -335,6 +375,86 @@ export class MeilisearchService implements OnModuleInit {
       const message = error instanceof Error ? error.message : 'Unknown error';
       this.logger.warn(`[Meili BM25] Search failed: ${message}`);
       return [];
+    }
+  }
+
+  /**
+   * BM25 关键词搜索 intent_examples 索引
+   *
+   * 用于 IntentClassifier 的混合评分（BM25 + pgvector）。
+   * 在 intent_examples 索引的 text 字段中搜索，返回匹配的 domain 和 BM25 分数。
+   *
+   * @param query 用户输入
+   * @param limit 返回条数（默认 10）
+   * @returns 匹配的 domain 列表，按 BM25 分数降序
+   */
+  async searchIntentExamples(
+    query: string,
+    limit: number = 10,
+  ): Promise<{ domain: string; score: number }[]> {
+    if (!this.client) return [];
+
+    try {
+      const index = this.client.index('intent_examples');
+      const t0 = Date.now();
+      const response = await index.search(query, { limit });
+      const elapsed = Date.now() - t0;
+
+      const hits = response.hits || [];
+      this.logger.log(
+        `[Meili Intent] search "${query}" took ${elapsed}ms, estimatedTotalHits=${response.estimatedTotalHits}, hits=${hits.length}`,
+      );
+      // Position-based scoring: Meilisearch JS client doesn't expose _rankingScore.
+      // Since results are sorted by BM25 relevance, top hit = 1.0, decreasing linearly.
+      return hits.map((hit: any, i: number) => ({
+        domain: hit.domain as string,
+        score: hits.length > 1 ? 1.0 - (i / (hits.length - 1)) * 0.5 : 1.0,
+      }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.warn(`[Meili Intent] Search failed: ${message}`);
+
+      return [];
+    }
+  }
+
+  /**
+   * 批量索引 intent_examples 到 Meilisearch
+   *
+   * 在管理后台更新意图例句后调用，替换指定 domain 的全部索引数据。
+   * 先删除该 domain 的旧数据，再写入新数据。
+   *
+   * @param domain 业务域名称（如 'kyc', 'order'）
+   * @param texts 例句文本列表
+   */
+  async indexIntentExamples(domain: string, texts: string[]): Promise<void> {
+    if (!this.client) return;
+
+    try {
+      const index = this.client.index('intent_examples');
+
+      // 删除该 domain 的旧索引数据
+      try {
+        await index.deleteDocuments({ filter: `domain = "${domain}"` });
+      } catch {
+        // 索引为空或 domain 不存在时忽略
+      }
+
+      // 写入新数据
+      if (texts.length > 0) {
+        const documents = texts.map((text, i) => ({
+          id: `${domain}_${i}`,
+          domain,
+          text,
+        }));
+        await index.addDocuments(documents);
+        this.logger.log(
+          `[indexIntentExamples] Indexed ${texts.length} examples for domain "${domain}"`,
+        );
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.warn(`[indexIntentExamples] Failed: ${message}`);
     }
   }
 

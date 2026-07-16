@@ -9,6 +9,16 @@
  */
 
 export const kycExamples: string[] = [
+  // ── 中文短查询 ──
+  'kyc',
+  '查看kyc',
+  'KYC认证',
+  '实名认证',
+  '验证身份',
+  'KYC状态',
+  '我的认证状态',
+  '身份验证',
+
   // ── Status queries (operation: real-time API check) ──
   'What is my KYC status?',
   'Is my KYC approved?',

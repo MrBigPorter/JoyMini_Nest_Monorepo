@@ -175,6 +175,116 @@ export class SseRateLimiterService {
   }
 
   /**
+   * 两阶段 SSE 协议 — 阶段 1 限流（POST /chat）
+   *
+   * 只做令牌桶限频率。
+   * 不做 IP/设备/用户独占/全局并发（那些留给阶段 2 的实际 SSE 连接）。
+   *
+   * 为什么不能用 IP/设备计数？
+   *   IP 和设备计数器是设计给「并发连接」用的（incr → 连上，decr → 断开）。
+   *   POST /chat 只是创建预留记录，没对应的 release 调用，计数器只增不减，
+   *   很快就锁死自己。
+   */
+  async tryAcquireLight(
+    userId: string,
+    ip?: string,
+    deviceId?: string,
+  ): Promise<{ ok: true } | { ok: false; reason: string }> {
+    // ── 熔断器 ──
+    if (this.circuitOpen) {
+      if (Date.now() - this.lastFailureTime < this.CIRCUIT_TIMEOUT) {
+        return { ok: false, reason: '系统繁忙，请稍后重试' };
+      }
+      this.circuitOpen = false;
+    }
+
+    // ── 令牌桶（限频率） ──
+    const tokenKey = `${this.PREFIX_TOKEN}${userId}:init`;
+    const allowed = await this.checkTokenBucket(tokenKey);
+    if (!allowed) {
+      return { ok: false, reason: 'too many requests, please try again later' };
+    }
+
+    return { ok: true };
+  }
+
+  /**
+   * 两阶段 SSE 协议 — 阶段 2 限流（GET /stream）
+   *
+   * 用户已拿到 streamId 且已连上 GET，做完整限流：
+   *   1. 用户级：每人 1 个活跃连接
+   *   2. 全局级：最多 200 个并发
+   *
+   * 错误时回滚 Redis 操作（和 tryAcquire 一样）。
+   */
+  async tryAcquireStream(
+    userId: string,
+    ip?: string,
+    deviceId?: string,
+  ): Promise<{ ok: true } | { ok: false; reason: string }> {
+    if (this.circuitOpen) {
+      if (Date.now() - this.lastFailureTime < this.CIRCUIT_TIMEOUT) {
+        return { ok: false, reason: '系统繁忙，请稍后重试' };
+      }
+      this.circuitOpen = false;
+    }
+
+    // ── 用户级：每人 1 个活跃连接 ──
+    const userKey = `${this.PREFIX_USER}${userId}`;
+    const acquired = await this.redis.withTimeout(
+      this.redis.setNx(userKey, 'active', this.USER_TTL),
+      this.USER_TTL * 1000 + 1000,
+    );
+    if (!acquired) {
+      return { ok: false, reason: '您已有活跃的对话连接' };
+    }
+
+    try {
+      // ── 全局级：最多 200 个并发 ──
+      const current = await this.redis.withTimeout<number>(
+        this.redis.incr(this.KEY_GLOBAL),
+      );
+      if (current > this.MAX_CONCURRENT) {
+        await this.redis.withTimeout(this.redis.decr(this.KEY_GLOBAL));
+        await this.redis.withTimeout(this.redis.del(userKey));
+        return { ok: false, reason: '服务器繁忙，请稍后重试' };
+      }
+      await this.redis.withTimeout(this.redis.expire(this.KEY_GLOBAL, 600));
+
+      this.consecutiveFailures = 0;
+      this.circuitOpen = false;
+
+      return { ok: true };
+    } catch (err) {
+      this.consecutiveFailures++;
+      this.lastFailureTime = Date.now();
+      if (this.consecutiveFailures >= this.FAILURE_THRESHOLD) {
+        this.circuitOpen = true;
+        this.logger.warn(
+          `[tryAcquireStream] Redis error: ${err}. Circuit breaker opened.`,
+        );
+      }
+      await this.redis.withTimeout(this.redis.del(userKey)).catch(() => {});
+      await this.redis
+        .withTimeout(this.redis.decr(this.KEY_GLOBAL))
+        .catch(() => {});
+      this.logger.error(`[tryAcquireStream] ${err}`);
+      return { ok: false, reason: 'system busy, please try again later' };
+    }
+  }
+
+  /**
+   * 两阶段 SSE 协议 — 阶段 2 释放（同 release）
+   */
+  async releaseStream(
+    userId: string,
+    ip?: string,
+    deviceId?: string,
+  ): Promise<void> {
+    await this.release(userId, ip, deviceId);
+  }
+
+  /**
    * 心跳刷新 — 前端定期调用，延续 TTL
    * 防止连接还在但 Redis 过期了
    */

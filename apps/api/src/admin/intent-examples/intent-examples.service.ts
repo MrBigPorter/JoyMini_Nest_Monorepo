@@ -8,6 +8,7 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { AiService } from '@api/common/ai/ai.service';
+import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service';
 import { IntentClassifier } from '@api/client/ai-customer/graph/utils/intent-classifier';
 import { INTENT_EXAMPLE_GROUPS } from '@api/client/ai-customer/graph/agents/prompts/intent-examples';
 import { md5 } from '@api/common/crypto.util';
@@ -27,6 +28,7 @@ export class IntentExamplesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly aiService: AiService,
+    private readonly meilisearchService: MeilisearchService,
     @InjectQueue(EMBEDDING_QUEUE)
     private readonly embeddingQueue: Queue<EmbeddingJobData>,
   ) {}
@@ -319,6 +321,9 @@ export class IntentExamplesService {
       newHash,
     );
 
+    // Sync to Meilisearch for BM25 hybrid search (fire-and-forget)
+    this.meilisearchService.indexIntentExamples(domain, flatSentences);
+
     this.logger.log(
       `Replaced domain "${domain}": ${jobCount}/${flatSentences.length} embedding jobs submitted to queue`,
     );
@@ -356,7 +361,11 @@ export class IntentExamplesService {
   async testClassification(
     input: string,
   ): Promise<TestClassificationResponseDto> {
-    const classifier = new IntentClassifier(this.aiService, this.prisma);
+    const classifier = new IntentClassifier(
+      this.aiService,
+      this.prisma,
+      this.meilisearchService,
+    );
     const result = await classifier.classify(input);
     return {
       intent: result.intent,

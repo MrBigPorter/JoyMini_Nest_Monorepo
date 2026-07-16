@@ -101,6 +101,110 @@ function resolveExecutionOrder(labels: string[]): string[] {
 }
 
 // ============================================================
+// Multi-Intent LLM Decider — 多个 domain 匹配时由 LLM 判断
+// ============================================================
+//
+// decideMultiIntentWithLLM — 当多个 domain 同时高于阈值时，
+// 用 LLM 判断：全部执行 / 只选一个 / 问用户。
+//
+// 用于替代旧的 SCORE_GAP 逻辑（不同来源的分数不可比）。
+//
+// @returns { action, domain?, message? }
+//   action = "single" → 只执行 domain
+//   action = "all"    → 执行全部
+//   action = "ask"    → 反问用户（message 里放问句）
+// ============================================================
+
+const MULTI_INTENT_DECISION_PROMPT = ChatPromptTemplate.fromTemplate(
+  `You are an intent routing assistant. The user's message matched multiple business domains.
+
+Previous intent: {previousIntent}
+Previous assistant message: "{previousAssistantMessage}"
+
+User message: "{userInput}"
+
+Matched domains:
+{domainList}
+
+Your job: decide what to do.
+- If the user clearly wants ONE specific thing → respond: single:<domainName>
+- If the user's message relates to ALL matched domains → respond: all
+- If you are UNCERTAIN which one the user wants → respond: ask:<your clarifying question in the user's language>
+
+Rules:
+1. Use PREVIOUS INTENT as context. If user's short reply (e.g. "status", "yes", "check it") follows up on previous conversation, route to the relevant domain.
+2. "single" when user clearly wants one thing (consider previous context)
+3. "all" when query touches multiple domains
+4. "ask" when ambiguous - generate a clarifying question
+
+Examples:
+- previous=kyc, user="status" → single:kyc (user wants KYC status follow-up)
+- previous=kyc, user="check it" → single:kyc
+- previous=coupon, user="balance" → single:wallet (user switched topics)
+- "show my coupons" → single:coupon
+- "kyc" → ask:Would you like to check your KYC verification status or learn about KYC policies?
+
+Respond with ONLY one line, no explanation.`,
+);
+
+interface MultiIntentDecision {
+  action: 'single' | 'all' | 'ask';
+  domain?: string;
+  message?: string;
+}
+
+async function decideMultiIntentWithLLM(
+  llmConfig: LlmProviderConfig,
+  userInput: string,
+  domains: { label: string; score: number }[],
+  logger: Logger,
+  previousIntent?: string,
+  previousAssistantMessage?: string,
+): Promise<MultiIntentDecision> {
+  const domainList = domains
+    .map(
+      (d, i) =>
+        `${i + 1}. ${d.label} (score: ${d.score.toFixed(2)})`,
+    )
+    .join('\n');
+
+  const model = createLLM(llmConfig, { temperature: 0 });
+  const chain = MULTI_INTENT_DECISION_PROMPT.pipe(model).pipe(
+    new StringOutputParser(),
+  );
+  const raw = await chain.invoke({
+    userInput,
+    domainList,
+    previousIntent: previousIntent || 'none',
+    previousAssistantMessage: previousAssistantMessage || '(no previous message)',
+  });
+  const trimmed = raw.trim().toLowerCase();
+
+  logger.log(`[orchestrator] multi-intent LLM raw decision: "${trimmed}"`);
+
+  if (trimmed.startsWith('single:')) {
+    const domain = trimmed.slice(7).trim();
+    return { action: 'single', domain };
+  }
+
+  if (trimmed === 'all') {
+    return { action: 'all' };
+  }
+
+  if (trimmed.startsWith('ask:')) {
+    const message = trimmed.slice(4).trim();
+    return { action: 'ask', message };
+  }
+
+  // Fallback: if LLM returns something unexpected, ask user
+  return {
+    action: 'ask',
+    message:
+      'I found several topics that might match your request. Could you please clarify what you need?',
+  };
+}
+
+// ============================================================
 // General Chat — Direct LLM Handler（fallback）
 // (GENERAL_CHAT_PROMPT 已抽离到 prompts/general-chat-prompt.ts)
 // ============================================================
@@ -545,8 +649,7 @@ export const createOrchestratorNode =
     // close-contenders 策略只保留与 top-1 差距 < SCORE_GAP 的标签。
     // ================================================================
 
-    const MIN_SCORE = 0.65; // 绝对分数及格线（根据 pgvector 实际表现可调）
-    const SCORE_GAP = 0.15; // 分数差距阈值
+    const MIN_SCORE = 0.5; // 绝对分数及格线（和 IntentClassifier 阈值对齐）
 
     // Step 1: 按分数降序排列
     const sortedLabels = [...labels].sort((a, b) => b.score - a.score);
@@ -565,34 +668,69 @@ export const createOrchestratorNode =
       return handleGeneralChat(state, llmConfig);
     }
 
-    if (validLabels.length === 1) {
-      // 只有一个标签及格，直接执行
-      effectiveLabels = [validLabels[0].label];
+    // 去重：同一 domain 可能出现多次（BM25 + vector 各来一次），取最高分
+    const uniqueDomains = new Map<string, number>();
+    for (const l of validLabels) {
+      const existing = uniqueDomains.get(l.label) ?? 0;
+      if (l.score > existing) uniqueDomains.set(l.label, l.score);
+    }
+    const domainLabels = Array.from(uniqueDomains.entries())
+      .map(([label, score]) => ({ label, score }))
+      .sort((a, b) => b.score - a.score);
+
+    if (domainLabels.length === 1) {
+      // 只有一个域及格，直接执行
+      effectiveLabels = [domainLabels[0].label];
       logger.log(
-        `[orchestrator] single label above MIN_SCORE: ${effectiveLabels[0]}`,
+        `[orchestrator] single domain above MIN_SCORE: ${effectiveLabels[0]}`,
       );
     } else {
-      // 多个标签及格 → Gap Check
-      const topScore = validLabels[0].score;
-      const gap = topScore - validLabels[1].score;
+      // 多个域 → 用 LLM 判断是全部执行、选一个、还是问用户
+      logger.log(
+        `[orchestrator] multiple domains (${domainLabels.map((l) => `${l.label}:${l.score.toFixed(2)}`).join(', ')}), asking LLM to decide`,
+      );
 
-      if (gap >= SCORE_GAP) {
-        // top-1 明显胜出，只执行它
-        effectiveLabels = [validLabels[0].label];
+      // 获取上一轮 AI 回复（用于上下文理解用户的简短回复）
+      const lastAiMsg = [...state.messages]
+        .reverse()
+        .find((m) => m.type === 'ai');
+      const lastAssistantMessage = lastAiMsg
+        ? (typeof lastAiMsg.content === 'string'
+            ? lastAiMsg.content.slice(0, 200)
+            : JSON.stringify(lastAiMsg.content).slice(0, 200))
+        : '';
+
+      const llmDecision = await decideMultiIntentWithLLM(
+        llmConfig,
+        extractUserInput(state),
+        domainLabels,
+        logger,
+        state.previousIntent,
+        lastAssistantMessage,
+      );
+
+      if (llmDecision.action === 'ask') {
+        // LLM 认为不确定 → 回复反问句，不执行任何 agent
         logger.log(
-          `[orchestrator] score gap ${gap.toFixed(2)} >= ${SCORE_GAP}, ` +
-          `only executing: ${effectiveLabels[0]}`,
+          `[orchestrator] LLM decided to ask user: ${llmDecision.message}`,
+        );
+        return {
+          messages: [...state.messages, new AIMessage(llmDecision.message ?? 'Could you please clarify your request?')],
+          previousIntent: state.intent,
+          labels: [],
+        };
+      }
+
+      if (llmDecision.action === 'single') {
+        effectiveLabels = [llmDecision.domain!];
+        logger.log(
+          `[orchestrator] LLM chose single domain: ${llmDecision.domain}`,
         );
       } else {
-        // 模糊：只保留与 top-1 分差在 SCORE_GAP 内的候选者
-        // 防止分数断层后面的标签被连带执行（尾部污染）
-        const closeContenders = validLabels.filter(
-          (l) => topScore - l.score < SCORE_GAP,
-        );
-        effectiveLabels = closeContenders.map((l) => l.label);
+        // 'all' → 执行所有匹配的域
+        effectiveLabels = domainLabels.map((l) => l.label);
         logger.log(
-          `[orchestrator] ambiguous intent (gap=${gap.toFixed(2)}), ` +
-          `close contenders: ${effectiveLabels.join(', ')}`,
+          `[orchestrator] LLM decided to execute all domains: ${effectiveLabels.join(', ')}`,
         );
       }
     }

@@ -116,7 +116,7 @@ export function buildIntentPrompt(): string {
     '- "intent": string — the label name with the highest score. If no label reaches 0.5, use "general".',
     '- "labels": array of objects, each with "label" (string) and "score" (number 0.0 to 1.0)',
     '',
-    'Supported labels: order, wallet, coupon, user, product, lucky-draw, rag, general.',
+    'Supported labels: order, wallet, coupon, user, product, lucky-draw, kyc, rag, general.',
     '',
     'Example:',
     '  {{"intent": "order", "labels": [{{"label": "order", "score": 0.9}}, {{"label": "wallet", "score": 0.3}}]}}',

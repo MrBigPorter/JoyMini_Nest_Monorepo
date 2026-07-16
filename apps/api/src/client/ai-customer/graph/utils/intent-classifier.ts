@@ -66,6 +66,7 @@
  */
 import { AiService } from '@api/common/ai/ai.service';
 import { PrismaService } from '@api/common/prisma/prisma.service';
+import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service';
 import { Logger } from '@nestjs/common';
 import { deduplicateLabels } from '@api/client/ai-customer/graph/agents/prompts/intent-label-categories';
 
@@ -121,9 +122,12 @@ export class IntentClassifier {
   /** 低置信度阈值：低于此值时使用 LLM fallback */
   private readonly LOW_CONFIDENCE_THRESHOLD = 0.5;
 
+  /** BM25 和 pgvector 独立评分，不融合（不同域名的分数不可比） */
+
   constructor(
-    private readonly aiService: AiService, // 用于 generateEmbedding() -- 把文字转成向量
-    private readonly prismaService: PrismaService, // 用于 pgvector SQL 查询
+    private readonly aiService: AiService,
+    private readonly prismaService: PrismaService,
+    private readonly meilisearchService: MeilisearchService,
   ) {}
 
   /**
@@ -165,22 +169,76 @@ export class IntentClassifier {
   async classify(input: string): Promise<ClassificationResult> {
     const startTime = Date.now();
 
-    // -- 第一步：把用户输入的文字转成向量 --
-    // 🏪 类比：把顾客的话送进化验室，生成语义指纹
-    // 现在使用 bge-m3 (Ollama) 生成 embedding
-    const inputVector = await this.aiService.generateEmbedding(input);
+    // Normalize input for case-insensitive intent matching
+    // bge-m3 embeddings are case-sensitive (e.g. "kyc" ≠ "KYC"),
+    // but intent examples are stored in lowercase/mixed case.
+    const normalizedInput = input.trim().toLowerCase();
 
-    // 如果 embedding 失败（网络问题、API key 失效等），降级到 LLM
-    // 🏪 类比：化验室出故障了，直接找经理处理
-    if (!inputVector || inputVector.length === 0) {
-      logger.warn(`Failed to embed user input, using LLM fallback`);
+    // ── Layer 1 & 2: BM25 + Embedding 并发 ──
+    // BM25 关键词搜索和 embedding 生成互不依赖，并行执行以减少延迟
+    const bm25Start = Date.now();
+    let bm25DomainMap = new Map<string, number>();
+
+    const [bm25Result, embeddingResult] = await Promise.allSettled([
+      this.meilisearchService.searchIntentExamples(normalizedInput, 10),
+      this.aiService.generateEmbedding(normalizedInput, {
+        task: 'retrieval.passage',
+      }),
+    ]);
+
+    logger.debug(
+      `[IntentClassifier] BM25 search took ${Date.now() - bm25Start}ms`,
+    );
+
+    // 处理 BM25 结果
+    if (bm25Result.status === 'fulfilled') {
+      for (const hit of bm25Result.value) {
+        // Position-based score from searchIntentExamples: 0.5-1.0 range
+        const normalizedScore = hit.score;
+        const existing = bm25DomainMap.get(hit.domain) ?? 0;
+        if (normalizedScore > existing) {
+          bm25DomainMap.set(hit.domain, normalizedScore);
+        }
+      }
+      logger.log(
+        `[IntentClassifier] BM25 search took ${Date.now() - bm25Start}ms, ${bm25DomainMap.size} results` +
+          (bm25DomainMap.size > 0
+            ? `: ${JSON.stringify(Array.from(bm25DomainMap.entries()))}`
+            : ''),
+      );
+    } else {
+      logger.warn(
+        `[IntentClassifier] Meilisearch query failed: ${bm25Result.reason}`,
+      );
+    }
+
+    // 处理 embedding 结果
+    if (embeddingResult.status === 'rejected') {
+      logger.warn(
+        `[IntentClassifier] Embedding failed: ${embeddingResult.reason}, using LLM fallback`,
+      );
       const result: ClassificationResult = {
         intent: 'general',
         labels: [{ label: 'general', score: 0.5 }],
         method: 'llm_fallback',
       };
-      // Fire-and-forget: 不阻塞主流程
-      this.logClassification(input, result, Date.now() - startTime);
+      this.logClassification(normalizedInput, result, Date.now() - startTime);
+      return result;
+    }
+
+    const inputVector = embeddingResult.value;
+
+    // 如果 embedding 返回空向量，降级到 LLM
+    if (!inputVector || inputVector.length === 0) {
+      logger.warn(
+        `Failed to embed user input (empty vector), using LLM fallback`,
+      );
+      const result: ClassificationResult = {
+        intent: 'general',
+        labels: [{ label: 'general', score: 0.5 }],
+        method: 'llm_fallback',
+      };
+      this.logClassification(normalizedInput, result, Date.now() - startTime);
       return result;
     }
 
@@ -201,9 +259,10 @@ export class IntentClassifier {
       {
         domain: string;
         similarity: number;
+        sentence: string;
       }[]
     >(
-      `SELECT domain, 1 - (embedding <=> $1::vector) AS similarity
+      `SELECT domain, sentence, 1 - (embedding <=> $1::vector) AS similarity
        FROM intent_examples
        ORDER BY similarity DESC
          LIMIT 5`,
@@ -222,7 +281,7 @@ export class IntentClassifier {
         method: 'llm_fallback',
       };
       // Fire-and-forget: 不阻塞主流程
-      this.logClassification(input, result, Date.now() - startTime);
+      this.logClassification(normalizedInput, result, Date.now() - startTime);
       return result;
     }
 
@@ -233,7 +292,7 @@ export class IntentClassifier {
         rows
           .map(
             (r, i) =>
-              `  ${i + 1}. ${r.domain} -- similarity=${r.similarity.toFixed(4)}`,
+              `  ${i + 1}. ${r.domain} (${r.similarity.toFixed(4)}) "${(r as any).sentence?.slice(0, 80)}"`,
           )
           .join('\n'),
     );
@@ -250,6 +309,30 @@ export class IntentClassifier {
         const existing = domainMap.get(row.domain) ?? 0;
         if (row.similarity > existing) {
           domainMap.set(row.domain, row.similarity);
+        }
+      }
+    }
+
+    // ── BM25 + pgvector 独立加入 ──
+    // BM25 和 pgvector 各自独立，不融合。
+    // vector 命中的 domain 保留语义分数，BM25 独有的 domain 新增加入。
+    // 同一个 domain 两边都命中 → 保留 vector 分数（语义比关键词更可靠）。
+    if (bm25DomainMap.size > 0) {
+      for (const [domain, bm25Score] of bm25DomainMap) {
+        if (domainMap.has(domain)) {
+          // 两边都有 → 保留 vector 分数
+          const vectorScore = domainMap.get(domain)!;
+          logger.log(
+            `[IntentClassifier] both sources matched ${domain}: ` +
+            `vector=${vectorScore.toFixed(4)} (kept), bm25=${bm25Score.toFixed(4)} (independent source)`,
+          );
+        } else if (bm25Score >= this.LOW_CONFIDENCE_THRESHOLD) {
+          // BM25 独有 → 直接加入（关键词强命中，pgvector 漏检）
+          const score = Math.round(bm25Score * 10000) / 10000;
+          domainMap.set(domain, score);
+          logger.log(
+            `[IntentClassifier] bm25-only ${domain}: bm25=${bm25Score.toFixed(4)} → ${score.toFixed(4)} (vector missed)`,
+          );
         }
       }
     }
@@ -284,13 +367,44 @@ export class IntentClassifier {
         })),
       };
       // Fire-and-forget: 不阻塞主流程
-      this.logClassification(input, result, Date.now() - startTime);
+      this.logClassification(normalizedInput, result, Date.now() - startTime);
       return result;
     }
 
-    // 主意图 = 最高分域
+    // ── 差距阈值保护 ──────────────────────────────────────────────
+    // 当 top1 和 top2 的相似度差距极小（< 0.02）时，说明 pgvector
+    // 无法可靠区分这两个意图。此时如果 top1 是 rag/general（通用兜底
+    // 意图），而 top2 是具体业务意图（kyc/order/wallet），优先选择
+    // 具体业务意图。
+    //
+    // 为什么需要这个规则？
+    //   rag 包含 ~140 条示例，覆盖了几乎所有领域的 FAQ 问题（包括
+    //   KYC 流程、退款政策等）。它的聚类中心非常"宽"，容易和具体
+    //   业务意图的边界重叠。当用户说"查看kyc"时，embedding 同时匹配
+    //   了 rag（因为 rag 有 KYC FAQ 示例）和 kyc（因为 kyc 有状态
+    //   查询示例），分数仅差 0.0007。此时选择更具体的 kyc 更合理。
+    //
+    //   general 同理：它是 LLM fallback 的兜底标签，不应该在
+    //   有具体业务意图匹配时胜出。
+    const GAP_THRESHOLD = 0.02;
+    const CATCH_ALL_INTENTS = new Set(['rag', 'general']);
+    let primaryLabel = labels[0];
+    if (labels.length >= 2) {
+      const gap = labels[0].score - labels[1].score;
+      if (
+        gap >= 0 &&
+        gap < GAP_THRESHOLD &&
+        CATCH_ALL_INTENTS.has(labels[0].label)
+      ) {
+        primaryLabel = labels[1];
+        logger.log(
+          `[IntentClassifier] tiebreaker: ${labels[0].label}=${labels[0].score} vs ${labels[1].label}=${labels[1].score} (gap=${gap.toFixed(4)} < ${GAP_THRESHOLD}), chose: ${primaryLabel.label}`,
+        );
+      }
+    }
+
+    // 主意图 = 最高分域（或差距阈值修正后的意图）
     // 🏪 类比：领位员确定了，这位顾客是来 "order（订餐）" 的
-    const primaryLabel = labels[0];
     logger.log(
       `[IntentClassifier] deduped labels: ${labels.map((l) => `${l.label}:${l.score.toFixed(2)}`).join(', ')}`,
     );
@@ -312,7 +426,7 @@ export class IntentClassifier {
     };
 
     // Fire-and-forget: 不阻塞主流程
-    this.logClassification(input, result, Date.now() - startTime);
+    this.logClassification(normalizedInput, result, Date.now() - startTime);
     return result;
   }
 

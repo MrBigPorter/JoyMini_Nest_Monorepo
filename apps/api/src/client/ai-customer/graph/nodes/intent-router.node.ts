@@ -27,6 +27,7 @@ import { VALID_INTENTS } from '@api/client/ai-customer/graph/agents/prompts/inte
 import { IntentClassifier } from '@api/client/ai-customer/graph/utils/intent-classifier';
 import { AiService } from '@api/common/ai/ai.service';
 import { PrismaService } from '@api/common/prisma/prisma.service';
+import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service';
 import { Logger } from '@nestjs/common';
 import { extractUserInput } from '@api/client/ai-customer/graph/utils/extract-user-input';
 import { formatMessagePreview } from '@api/client/ai-customer/graph/utils/format-message-preview';
@@ -151,17 +152,25 @@ function parseFallback(trimmed: string): {
  *   → 依次执行 productAgent → couponAgent → walletAgent
  * ════════════════════════════════════════════════════════════════
  *
- * @param llmConfig      LLM 配置
- * @param aiService      AiService（用于 embedding）
- * @param prismaService  PrismaService（用于 pgvector）
+ * @param llmConfig          LLM 配置
+ * @param aiService          AiService（用于 embedding）
+ * @param prismaService      PrismaService（用于 pgvector）
+ * @param meilisearchService MeilisearchService（用于 BM25 关键词搜索）
  */
-export const createIntentRouterNode =
-  (
-    llmConfig: LlmProviderConfig,
-    aiService: AiService,
-    prismaService: PrismaService,
-  ) =>
-  async (
+export const createIntentRouterNode = (
+  llmConfig: LlmProviderConfig,
+  aiService: AiService,
+  prismaService: PrismaService,
+  meilisearchService: MeilisearchService,
+) => {
+  // 单例：classifier 在 graph 构建时创建，避免每次请求重复 new
+  const classifier = new IntentClassifier(
+    aiService,
+    prismaService,
+    meilisearchService,
+  );
+
+  return async (
     state: typeof AgentState.State,
   ): Promise<Partial<typeof AgentState.State>> => {
     const userInput = extractUserInput(state);
@@ -172,10 +181,6 @@ export const createIntentRouterNode =
     // ============================================================
     // Phase 1: Try Embedding-based Classification
     // ============================================================
-    const classifier = new IntentClassifier(
-      aiService,
-      prismaService,
-    );
     const embeddingResult = await classifier.classify(userInput);
 
     // 🔍 日志：embedding 完整结果
@@ -237,6 +242,7 @@ export const createIntentRouterNode =
 
     return stateUpdate;
   };
+};
 
 /**
  * LLM Fallback: 使用 LLM + 简化 prompt 进行意图分类

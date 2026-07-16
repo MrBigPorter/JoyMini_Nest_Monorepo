@@ -173,6 +173,12 @@ unstructured-status:
 	@echo ""
 	@echo "  启动: make start-unstructured"
 	@echo "  停止: make stop-unstructured"
+
+start-unstructured:
+	docker compose up -d unstructured
+
+stop-unstructured:
+	docker compose stop unstructured
 	@echo "  API:  http://localhost:8000"
 
 ## [Docker] 📊 Show memory + quick tips

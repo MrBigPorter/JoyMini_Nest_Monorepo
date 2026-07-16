@@ -100,6 +100,7 @@ export const INTENT_LABEL_CATEGORIES: LabelCategory[] = [
   { name: 'user', validLabel: true, type: 'business' },
   { name: 'product', validLabel: true, type: 'business' },
   { name: 'lucky-draw', validLabel: true, type: 'business' },
+  { name: 'kyc', validLabel: true, type: 'business' },
   { name: 'rag', validLabel: true, type: 'business' },
   { name: 'general', validLabel: true, type: 'general' },
 ];
@@ -152,10 +153,15 @@ const logger = new Logger('DedupRules');
  *   - [coupon:0.82, order:0.71] → [coupon:0.82, order:0.71]  ✅ 两个业务标签，不变
  */
 const businessOverGeneral: DedupRule = (labels) => {
-  const businessLabels = labels.filter((l) => BUSINESS_LABELS.includes(l.label));
+  const businessLabels = labels.filter(
+    (l) => !GENERAL_LABELS.includes(l.label),
+  );
   if (businessLabels.length > 0) {
     logger.log(
-      `[businessOverGeneral] removed general labels: ${labels.filter((l) => GENERAL_LABELS.includes(l.label)).map((l) => `${l.label}:${l.score}`).join(', ')}`,
+      `[businessOverGeneral] removed general labels: ${labels
+        .filter((l) => GENERAL_LABELS.includes(l.label))
+        .map((l) => `${l.label}:${l.score}`)
+        .join(', ')}`,
     );
     return businessLabels;
   }

@@ -36,10 +36,12 @@ export class JinaProvider implements AiProviderInstance {
   readonly name = 'jina';
   readonly displayName = 'Jina AI';
   readonly models = [
+    'jina-embeddings-v5-text-small',
     'jina-embeddings-v3',
+    'jina-reranker-v3',
     'jina-reranker-v2-base-multilingual',
   ];
-  activeModel = 'jina-embeddings-v3';
+  activeModel = 'jina-embeddings-v5-text-small';
   keys: AiKeyInstance[] = [];
   activeKeyIndex = 0;
   available = false;
@@ -146,30 +148,35 @@ export class JinaProvider implements AiProviderInstance {
    * @param text 要向量化的文本
    * @returns 1024 维向量数组，失败返回 null
    */
-  async generateEmbedding(text: string): Promise<number[] | null> {
+  async generateEmbedding(
+    text: string,
+    options?: { task?: string },
+  ): Promise<number[] | null> {
     if (!this.available) return null;
 
-    // 尝试所有 Key，轮询直到成功或全部用完
     const totalKeys = this.keyInstances.length;
     for (let attempt = 0; attempt < totalKeys; attempt++) {
       const currentKey = this.getCurrentKey();
 
       if (!currentKey) return null;
 
-      // 跳过被限流或超配额的 Key
       if (currentKey.blocked || currentKey.dailyTokens >= this.DAILY_LIMIT) {
         this.rotateToNextKey();
         continue;
       }
 
       try {
+        const body: Record<string, any> = {
+          model: 'jina-embeddings-v5-text-small',
+          input: text,
+          dimensions: 1024,
+          normalized: true,
+        };
+        if (options?.task) body.task = options.task;
+
         const response = await axios.post(
           `${this.apiBase}/embeddings`,
-          {
-            model: 'jina-embeddings-v3',
-            input: text,
-            dimensions: 1024,
-          },
+          body,
           {
             headers: {
               Authorization: `Bearer ${currentKey.apiKey}`,
@@ -238,7 +245,7 @@ export class JinaProvider implements AiProviderInstance {
   async rerank(
     query: string,
     documents: string[],
-  ): Promise<number[] | null> {
+  ): Promise<Array<{ index: number; relevance_score: number }> | null> {
     if (!this.available || documents.length === 0) return null;
 
     const totalKeys = this.keyInstances.length;
@@ -256,7 +263,7 @@ export class JinaProvider implements AiProviderInstance {
         const response = await axios.post(
           `${this.apiBase}/rerank`,
           {
-            model: 'jina-reranker-v2-base-multilingual',
+            model: 'jina-reranker-v3',
             query,
             documents,
           },
@@ -281,7 +288,7 @@ export class JinaProvider implements AiProviderInstance {
               (a: any, b: any) =>
                 (b.relevance_score ?? 0) - (a.relevance_score ?? 0),
             )
-            .map((r: any) => r.index);
+            .map((r: any) => ({ index: r.index, relevance_score: r.relevance_score }));
         }
 
         return null;

@@ -8,7 +8,15 @@
  */
 
 export const walletExamples: string[] = [
-  // ── Balance ──
+  // ── Balance (中文) ──
+  '查余额',
+  '我的余额',
+  '查看余额',
+  '我还有多少钱',
+  '余额查询',
+  '账户余额',
+
+  // ── Balance (English) ──
   'Check my balance',
   'How much money do I have in my wallet?',
   'What is my current balance?',

@@ -241,7 +241,9 @@ export class RagEmbeddingService {
     try {
       // 调用 AiService.generateEmbedding() 将文本转为 1024 维向量
       // 参考 intent-classifier.ts 第 132 行同样的用法
-      const vec = await this.aiService.generateEmbedding(chunk.content);
+      const vec = await this.aiService.generateEmbedding(chunk.content, {
+        task: 'retrieval.passage',
+      });
 
       if (!vec || vec.length === 0) {
         this.logger.warn(

@@ -164,4 +164,16 @@ export const ragExamples: string[] = [
   'Lucky draw terms and conditions',
   "Why can't I join the draw?",
   'I won but did not receive my prize',
+	// ── Contact support ──
+	'How to contact customer service',
+	'Contact support by email',
+	'What is the support email address',
+	'Customer service contact information',
+	'I need help from customer support',
+	'How do I talk to a human agent',
+	'How to reach customer support',
+	'How do I contact support?',
+	'How to get help',
+	'Customer service phone number',
+
 ];

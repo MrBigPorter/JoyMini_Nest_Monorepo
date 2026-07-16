@@ -8,7 +8,15 @@
  */
 
 export const orderExamples: string[] = [
-  // ── Order listing ──
+  // ── Order listing (中文) ──
+  '查看我的订单',
+  '我的订单',
+  '查看订单',
+  '订单列表',
+  '最近订单',
+  '显示我的所有订单',
+
+  // ── Order listing (English) ──
   'Show my orders',
   'List all my orders',
   'What are my recent orders?',

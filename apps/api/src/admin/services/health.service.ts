@@ -32,7 +32,7 @@ export class HealthService {
   }
 
   /**
-   * 检查 Jina AI 线上服务（替代本地 Infinity）
+   * 检查 Jina AI 线上服务
    * 用于: Embedding + Reranker
    * URL: https://api.jina.ai
    */
@@ -56,7 +56,7 @@ export class HealthService {
             Authorization: `Bearer ${apiKey}`,
             'Content-Type': 'application/json',
           },
-          timeout: 5000,
+          timeout: 10000,
         },
       );
       const ok = !!res.data?.data?.[0]?.embedding;
@@ -65,7 +65,10 @@ export class HealthService {
         available: ok,
         label: 'Jina AI',
         description: 'Embedding + Reranker',
-        details: { status: ok ? 'healthy' : 'unexpected_response' },
+        details: {
+          status: ok ? 'healthy' : 'unexpected_response',
+          apiKeySuffix: apiKey.slice(-4),
+        },
       };
     } catch (err: any) {
       return {
@@ -77,6 +80,36 @@ export class HealthService {
       };
     }
   }
+
+  /**
+   * 检查 Lightweight Embeddings（备选，当前未使用）
+   * 如需切回，取消注释并注释掉上面的 checkJina
+   */
+  // private async checkLightweightEmbeddings(): Promise<ServiceHealth> {
+  //   try {
+  //     const res = await axios.post(
+  //       'https://lamhieu-lightweight-embeddings.hf.space/v1/embeddings',
+  //       { model: 'bge-m3', input: 'health check' },
+  //       { headers: { 'Content-Type': 'application/json' }, timeout: 10000 },
+  //     );
+  //     const ok = !!res.data?.data?.[0]?.embedding;
+  //     return {
+  //       name: 'lightweight-embeddings',
+  //       available: ok,
+  //       label: 'Lightweight Embeddings',
+  //       description: 'Embedding + Reranker (free tier)',
+  //       details: { status: ok ? 'healthy' : 'unexpected_response', model: 'bge-m3' },
+  //     };
+  //   } catch (err: any) {
+  //     return {
+  //       name: 'lightweight-embeddings',
+  //       available: false,
+  //       label: 'Lightweight Embeddings',
+  //       description: 'Embedding + Reranker (free tier)',
+  //       details: { error: err.message },
+  //     };
+  //   }
+  // }
 
   /**
    * 检查 DeepSeek API（LLM 文本生成）

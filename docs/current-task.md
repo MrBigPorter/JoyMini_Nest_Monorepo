@@ -20,10 +20,13 @@
 | **Prisma schema 扩展** | Conversation 加 threadId/aiTitle/aiMetadata | `apps/api/prisma/schema.prisma` |
 | | ChatMessage 加 role/tokenCount/source | |
 | | ConversationType 枚举加 AI | |
-| **InfinityProvider** | 替换本地 Infinity（bge-m3）为 Jina AI 线上 API | `apps/api/src/common/ai/providers/jina.provider.ts` |
 | **OrbStack → Colima** | 换用轻量 Docker 虚拟机 + 磁盘移 MySSD | `~/.colima/` → `/Volumes/MySSD/colima` |
 | **Makefile 重构** | 按阶段分组、各容器独立开关、本地开发命令 | `Makefile` |
 | **Claude Code Skills** | superpowers/jr-code-review/flutter-gen/frontend-design/excalidraw-diagram/skill-creator | `.claude/skills/` |
+| **#70 本地 Infinity bge-m3** | 替换 Jina AI embedding → 自建服务器跑 bge-m3，reranker 保持 Jina | `infinity.provider.ts` + `compose.prod.yml` |
+| **MIN_SCORE 0.65→0.5** | 对齐 IntentClassifier 阈值 | `orchestrator.node.ts` |
+| **BM25+vector 拆开 + 多意图 LLM** | 去除融合/SCORE_GAP，多 domain 时 LLM 反问/全执行 | `intent-classifier.ts` + `orchestrator.node.ts` |
+| **#71 Flutter SSE 总结** | 完整端到端总结文档 | `docs/AI-joymini/71-Flutter-SSE全链路打通与后端总结.md` |
 
 ## ❌ 待办（实施顺序 — 后端优先）
 

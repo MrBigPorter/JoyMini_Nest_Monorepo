@@ -50,3 +50,16 @@ See `docs/ai-constitution-detailed.md` for full detailed rules with examples.
 
 6. 实现完成后，逐条对照验收标准验证
 7. 输出验证结论
+
+## Skills Registry — Auto-Load from `.claude/skills/`
+
+When user request matches a trigger phrase below, read the corresponding SKILL.md and follow its full workflow. Full registry at `.claude/settings.json`.
+
+| Trigger Phrases                                                                                      | Skill              | File                                         |
+| ---------------------------------------------------------------------------------------------------- | ------------------ | -------------------------------------------- |
+| code review, review code, check code, review diff, review this, check code quality                   | jr-code-review     | `.claude/skills/jr-code-review/SKILL.md`     |
+| add feature, implement, build, develop, let's work on, step-by-step, introduce feature               | superpowers        | `.claude/skills/superpowers/SKILL.md`        |
+| flutter, generate page, generate widget, riverpod, flutter ui, generate screen                       | flutter-gen        | `.claude/skills/flutter-gen/SKILL.md`        |
+| admin page, admin CRUD, admin design, frontend design, dashboard page, admin-next                    | frontend-design    | `.claude/skills/frontend-design/SKILL.md`    |
+| diagram, excalidraw, architecture diagram, sequence diagram, flow chart, ER diagram, draw, visualize | excalidraw-diagram | `.claude/skills/excalidraw-diagram/SKILL.md` |
+| create skill, new skill, save as skill, make this a skill, auto-generate skill                       | skill-creator      | `.claude/skills/skill-creator/SKILL.md`      |

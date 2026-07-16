@@ -28,6 +28,7 @@ import { LlmProviderConfig } from '@api/client/ai-customer/graph/llm-factory';
 import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-registry.service';
 import { AiService } from '@api/common/ai/ai.service';
 import { PrismaService } from '@api/common/prisma/prisma.service';
+import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service';
 import { RagRetrievalService } from '@api/client/ai-customer/knowledge/rag-retrieval.service';
 import { PromptResolverService } from '@api/client/ai-customer/knowledge/prompt-resolver.service';
 
@@ -124,16 +125,18 @@ const intentGateway = (_state: typeof AgentState.State): string => {
  *
  * @param llmConfig
  * @param registry
- * @param aiService      AiService 实例（用于 embedding 生成）
- * @param prismaService  PrismaService 实例（用于 pgvector 查询）
+ * @param aiService          AiService 实例（用于 embedding 生成）
+ * @param prismaService      PrismaService 实例（用于 pgvector 查询）
+ * @param meilisearchService MeilisearchService 实例（用于 BM25 关键词搜索）
  * @param ragRetrievalService  RagRetrievalService 实例（用于 RAG 检索）
- * @param promptResolver  PromptResolverService 实例（用于运行时 prompt 合并）
+ * @param promptResolver      PromptResolverService 实例（用于运行时 prompt 合并）
  */
 export function buildCustomerGraph(
   llmConfig: LlmProviderConfig,
   registry: ToolRegistryService,
   aiService: AiService,
   prismaService: PrismaService,
+  meilisearchService: MeilisearchService,
   ragRetrievalService?: RagRetrievalService,
   promptResolver?: PromptResolverService,
 ) {
@@ -142,11 +145,21 @@ export function buildCustomerGraph(
     // 注册节点 — intentRouter 使用 IntentClassifier 分类意图
     .addNode(
       'intentRouter',
-      createIntentRouterNode(llmConfig, aiService, prismaService),
+      createIntentRouterNode(
+        llmConfig,
+        aiService,
+        prismaService,
+        meilisearchService,
+      ),
     )
     .addNode(
       'orchestrator',
-      createOrchestratorNode(llmConfig, registry, ragRetrievalService, promptResolver),
+      createOrchestratorNode(
+        llmConfig,
+        registry,
+        ragRetrievalService,
+        promptResolver,
+      ),
     )
 
     // START → intentRouter（强制走 intentRouter 重新分类）

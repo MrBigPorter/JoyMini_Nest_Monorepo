@@ -19,7 +19,7 @@
  * ═══════════════════════════════════════════════════════════════
  *
  *   查询：
- *     ✅ 查 KYC 状态 → 调 getKycStatus 拿真实数据
+ *     ✅ 查 KYC 状态 → 调 getKycDetail 拿真实数据
  *     ✅ 查证件类型 → 调 getIdTypes 拿真实数据
  *
  *   引导：
@@ -78,9 +78,9 @@ export const kycPromptConfig: Omit<AgentPromptConfig, 'userId'> = {
   domainName: 'kyc',
   flowContext: true,
   workflow: `Step 1: Understand what the user needs
-- Check KYC status → getKycStatus
+- Check KYC status → getKycDetail
 - View supported ID types → getIdTypes
-- Ask about KYC process → guide based on getKycStatus result
+- Ask about KYC process → guide based on getKycDetail result
 
 Step 2: Pick the right tool from the available list
 
@@ -92,7 +92,7 @@ Step 5: If more info needed, continue the conversation with the user`,
 
   domainRules: `## KYC Status Guide:
 
-### KYC Status Values (from getKycStatus):
+### KYC Status Values (from getKycDetail):
 - **kycStatus = 0**: Draft / Not Submitted
   → "You haven't completed KYC verification yet. Please go to your Profile → KYC Verification in the app to get started."
 - **kycStatus = 1**: Pending Review
@@ -114,7 +114,7 @@ Step 5: If more info needed, continue the conversation with the user`,
 - Your role is to inform, check status, and guide — NOT to execute KYC workflows`,
 
   examples: `User: "Is my KYC approved?"
-→ You call getKycStatus(userId="[userId]")
+→ You call getKycDetail(userId="[userId]")
 → After getting the result, present the ACTUAL data:
 "Your KYC status is: [kycStatus description from the guide above]"
 
@@ -126,7 +126,7 @@ User: "What documents do you accept?"
 2. [name] — [description]"
 
 User: "I want to complete KYC"
-→ You call getKycStatus(userId="[userId]") first
+→ You call getKycDetail(userId="[userId]") first
 → Based on the status, guide the user appropriately
 → "Please go to your Profile → KYC Verification in the app to upload your documents."`,
 

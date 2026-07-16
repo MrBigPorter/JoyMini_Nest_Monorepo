@@ -11,6 +11,7 @@ import { GroqProvider } from './providers/groq.provider';
 import { DeepSeekProvider } from './providers/deepseek.provider';
 import { OllamaProvider } from './providers/ollama.provider';
 import { JinaProvider } from './providers/jina.provider';
+import { InfinityProvider } from './providers/infinity.provider';
 import { AutoReplyService } from './auto-reply/auto-reply.service';
 import { SystemConfigService } from '@api/admin/system-config/system-config.service';
 import {
@@ -105,6 +106,7 @@ export class AiService implements OnModuleInit {
     private deepSeekProvider: DeepSeekProvider,
     private ollamaProvider: OllamaProvider,
     private jinaProvider: JinaProvider,
+    private infinityProvider: InfinityProvider,
     private systemConfigService: SystemConfigService,
     @Inject(forwardRef(() => AutoReplyService))
     private autoReplyService: AutoReplyService,
@@ -115,7 +117,8 @@ export class AiService implements OnModuleInit {
     this.providers = [
       this.geminiProvider,
       this.groqProvider,
-      this.jinaProvider,
+      this.infinityProvider,  // 放 Jina 前面：embedding 走本地 bge-m3
+      this.jinaProvider,      // reranker 继续走 Jina 线上 API
       this.ollamaProvider,
       this.deepSeekProvider,
     ];
@@ -650,7 +653,10 @@ Return JSON format:
    * Returns a float array (768d for mxbai-embed-large, 1536d for text-embedding-3-small)
    * or null if no embedding-capable provider is available.
    */
-  async generateEmbedding(text: string): Promise<number[] | null> {
+  async generateEmbedding(
+    text: string,
+    options?: { task?: string },
+  ): Promise<number[] | null> {
     if (this.serviceLevel < AiServiceLevel.FULL) {
       this.logger.debug(
         'Embedding generation skipped: service level below FULL',
@@ -670,7 +676,7 @@ Return JSON format:
     }
 
     try {
-      const embedding = await embeddingProvider.generateEmbedding(text);
+      const embedding = await embeddingProvider.generateEmbedding(text, options);
       return embedding as number[] | null;
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Unknown error';

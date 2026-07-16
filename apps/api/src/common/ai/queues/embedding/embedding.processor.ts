@@ -88,7 +88,9 @@ export class EmbeddingProcessor extends WorkerHost {
     );
 
     // 送进化验仪器（bge-m3）生成向量
-    const vector = await this.aiService.generateEmbedding(sentence);
+    const vector = await this.aiService.generateEmbedding(sentence, {
+      task: 'retrieval.passage',
+    });
 
     if (!vector || vector.length === 0) {
       // 化验失败（仪器故障、网络问题等）

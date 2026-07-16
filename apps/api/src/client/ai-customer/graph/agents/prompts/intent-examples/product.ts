@@ -15,6 +15,9 @@ export const productExamples: string[] = [
   'I want to buy a laptop',
   'Search for products under 500',
   'Find me a blue dress',
+  '找便宜的产品',
+  '有什么实惠的商品推荐',
+  '便宜的东西有哪些',
 
   // ── Hot items / best sellers ──
   'What are the best sellers?',
@@ -43,6 +46,10 @@ export const productExamples: string[] = [
   'Do you have wholesale pricing?',
   'Is there a discount for bulk orders?',
   'What is the cheapest option?',
+  'Find the cheapest items',
+  'Show me affordable products',
+  '价格低的商品',
+  '最便宜的产品多少钱',
 
   // ── Product details ──
   'Tell me more about this product',

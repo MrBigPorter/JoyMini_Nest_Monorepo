@@ -11,6 +11,7 @@
 
 import { AiService } from '@api/common/ai/ai.service';
 import { PrismaService } from '@api/common/prisma/prisma.service';
+import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service';
 import { IntentClassifier } from './intent-classifier';
 
 // ============================================================
@@ -69,6 +70,16 @@ function createMockPrismaService(options: {
   };
 }
 
+/**
+ * 创建 mock MeilisearchService
+ * - 默认返回空数组（BM25 不可用/无结果）
+ */
+function createMockMeilisearchService(): Partial<MeilisearchService> {
+  return {
+    searchIntentExamples: jest.fn(async () => []),
+  };
+}
+
 // ============================================================
 // IntentClassifier
 // ============================================================
@@ -81,9 +92,7 @@ describe('IntentClassifier', () => {
       const prismaService = createMockPrismaService({
         // pgvector 返回 order 域，相似度 0.94
         queryRawUnsafeResults: {
-          'SELECT domain': [
-            { domain: 'order', similarity: 0.94 },
-          ],
+          'SELECT domain': [{ domain: 'order', similarity: 0.94 }],
         },
       }) as PrismaService;
 
@@ -92,7 +101,13 @@ describe('IntentClassifier', () => {
       embeddingMap.set('我要查订单', [0.1, 0.2, 0.3]);
       const aiService = createMockAiService(embeddingMap) as AiService;
 
-      const classifier = new IntentClassifier(aiService, prismaService);
+      const meilisearchService =
+        createMockMeilisearchService() as MeilisearchService;
+      const classifier = new IntentClassifier(
+        aiService,
+        prismaService,
+        meilisearchService,
+      );
       const result = await classifier.classify('我要查订单');
 
       expect(result.intent).toBe('order');
@@ -106,7 +121,13 @@ describe('IntentClassifier', () => {
 
       // Mock: 文字不在 map 中 -> 返回 null
       const aiService = createMockAiService(new Map()) as AiService;
-      const classifier = new IntentClassifier(aiService, prismaService);
+      const meilisearchService =
+        createMockMeilisearchService() as MeilisearchService;
+      const classifier = new IntentClassifier(
+        aiService,
+        prismaService,
+        meilisearchService,
+      );
 
       const result = await classifier.classify('hello');
 
@@ -120,7 +141,13 @@ describe('IntentClassifier', () => {
       const embeddingMap = new Map<string, number[]>();
       embeddingMap.set('hello', []); // 空向量
       const aiService = createMockAiService(embeddingMap) as AiService;
-      const classifier = new IntentClassifier(aiService, prismaService);
+      const meilisearchService =
+        createMockMeilisearchService() as MeilisearchService;
+      const classifier = new IntentClassifier(
+        aiService,
+        prismaService,
+        meilisearchService,
+      );
 
       const result = await classifier.classify('hello');
 
@@ -139,8 +166,14 @@ describe('IntentClassifier', () => {
       const embeddingMap = new Map<string, number[]>();
       embeddingMap.set('test', [0.5, 0.5, 0.5]);
       const aiService = createMockAiService(embeddingMap) as AiService;
+      const meilisearchService =
+        createMockMeilisearchService() as MeilisearchService;
 
-      const classifier = new IntentClassifier(aiService, prismaService);
+      const classifier = new IntentClassifier(
+        aiService,
+        prismaService,
+        meilisearchService,
+      );
       const result = await classifier.classify('test');
 
       expect(result.method).toBe('llm_fallback');
@@ -151,17 +184,21 @@ describe('IntentClassifier', () => {
       const prismaService = createMockPrismaService({
         // pgvector 返回低置信度 0.32（< 0.5）
         queryRawUnsafeResults: {
-          'SELECT domain': [
-            { domain: 'general', similarity: 0.32 },
-          ],
+          'SELECT domain': [{ domain: 'general', similarity: 0.32 }],
         },
       }) as PrismaService;
 
       const embeddingMap = new Map<string, number[]>();
       embeddingMap.set('嗯', [0.1, 0.1, 0.1]);
       const aiService = createMockAiService(embeddingMap) as AiService;
+      const meilisearchService =
+        createMockMeilisearchService() as MeilisearchService;
 
-      const classifier = new IntentClassifier(aiService, prismaService);
+      const classifier = new IntentClassifier(
+        aiService,
+        prismaService,
+        meilisearchService,
+      );
       const result = await classifier.classify('嗯');
 
       // 低置信度 -> method 应该为 llm_fallback
@@ -172,17 +209,21 @@ describe('IntentClassifier', () => {
     it('should round similarity to 2 decimal places', async () => {
       const prismaService = createMockPrismaService({
         queryRawUnsafeResults: {
-          'SELECT domain': [
-            { domain: 'wallet', similarity: 0.923456 },
-          ],
+          'SELECT domain': [{ domain: 'wallet', similarity: 0.923456 }],
         },
       }) as PrismaService;
 
       const embeddingMap = new Map<string, number[]>();
       embeddingMap.set('提现', [0.9, 0.1, 0.0]);
       const aiService = createMockAiService(embeddingMap) as AiService;
+      const meilisearchService =
+        createMockMeilisearchService() as MeilisearchService;
 
-      const classifier = new IntentClassifier(aiService, prismaService);
+      const classifier = new IntentClassifier(
+        aiService,
+        prismaService,
+        meilisearchService,
+      );
       const result = await classifier.classify('提现');
 
       // 0.923456 -> 四舍五入到 0.92

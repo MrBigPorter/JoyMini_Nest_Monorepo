@@ -831,25 +831,10 @@ export function DiffReviewFull({ document }: { document: KnowledgeDocument }) {
             </pre>
           }
           right={
-            <div className="leading-relaxed text-xs">
-              {visibleRanges.map((range, idx) => (
-                <DiffSegment
-                  key={`seg-${idx}`}
-                  range={range}
-                  index={idx}
-                  editedValue={editedValues[idx]}
-                  isEditing={editingIndex === idx}
-                  onStartEdit={() => handleStartEdit(idx)}
-                  onSaveEdit={(val) => handleSaveEdit(idx, val)}
-                  onCancelEdit={handleCancelEdit}
-                />
-              ))}
-              {/* Show a small indicator when no ranges visible (only diffs filter) */}
-              {visibleRanges.length === 0 && (
-                <p className="text-gray-400 text-[11px] italic mt-4">
-                  No differences found with current filter.
-                </p>
-              )}
+            <div className="h-full overflow-auto">
+              <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed text-gray-700 dark:text-gray-300 min-h-full">
+                {document.content}
+              </pre>
             </div>
           }
           leftHeader={
