@@ -21,7 +21,7 @@
  * ┌──────────────────┬──────────┬──────────────────────────────┐
  * │ 工具名称          │ 读写     │ 用途                         │
  * ├──────────────────┼──────────┼──────────────────────────────┤
- * │ ① getKycStatus   │ 只读     │ 查看用户的 KYC 认证状态       │
+ * │ ① getKycDetail   │ 只读     │ 查看用户的完整 KYC 认证信息   │
  * │ ② getIdTypes     │ 只读     │ 查看平台支持的证件类型列表     │
  * └──────────────────┴──────────┴──────────────────────────────┘
  *
@@ -84,12 +84,13 @@ export const createKycTools = (kycService: KycService): TaggedTool[] => {
 
   return [
     // ================================================================
-    // ① getKycStatus — 查看用户的 KYC 认证状态
+    // ① getKycDetail — 查看用户的完整 KYC 认证信息
+    //   (renamed from getKycStatus to avoid name collision with wallet-tools)
     // ================================================================
     {
       tool: tool(
         async ({ userId }: { userId: string }) => {
-          logger.log(`[kyc-tools:getKycStatus] userId="${userId}"`);
+          logger.log(`[kyc-tools:getKycDetail] userId="${userId}"`);
           return toResultChain(kycService.getMyKyc(userId))
             .then((result) => {
               const dto = plainToInstance(KycResponseDto, result);
@@ -97,11 +98,11 @@ export const createKycTools = (kycService: KycService): TaggedTool[] => {
               return toolSuccess(llmResult);
             })
             .catch((err) =>
-              toolFailure(`Failed to get KYC status: ${err.message}`),
+              toolFailure(`Failed to get KYC detail: ${err.message}`),
             );
         },
         {
-          name: 'getKycStatus',
+          name: 'getKycDetail',
           schema: z.object({
             userId: z.string().describe('The current user ID'),
           }),
@@ -109,6 +110,7 @@ export const createKycTools = (kycService: KycService): TaggedTool[] => {
             'Check the user KYC (real-name verification) status. Returns: kycStatus (0=draft/not-submitted, 1=pending-review, 2=approved, 3=rejected), idType, riskLevel, and timestamps. Use this to answer user questions about their KYC verification progress.',
         },
       ),
+      displayName: 'Checking verification status...',
       tags: ['kyc'],
     },
 
@@ -141,6 +143,7 @@ export const createKycTools = (kycService: KycService): TaggedTool[] => {
             'View the supported ID/document types for KYC verification. Returns a list of ID types (e.g., Passport, Driver License, National ID) that the platform accepts for real-name verification.',
         },
       ),
+      displayName: 'Loading ID types...',
       tags: ['kyc'],
     },
   ];

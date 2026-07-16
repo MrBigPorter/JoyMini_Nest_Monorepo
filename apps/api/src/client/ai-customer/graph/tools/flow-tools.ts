@@ -56,6 +56,7 @@ export const createFlowTools = (): TaggedTool[] => {
           }),
         },
       ),
+      displayName: 'Updating...',
       tags: ['flow'],
     },
 
@@ -114,6 +115,7 @@ export const createFlowTools = (): TaggedTool[] => {
           }),
         },
       ),
+      displayName: 'Updating...',
       tags: ['flow'],
     },
   ];

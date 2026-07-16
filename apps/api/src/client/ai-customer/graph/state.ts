@@ -344,4 +344,39 @@ export const AgentState = Annotation.Root({
     reducer: (a, b) => b,
     default: () => ({ activeFlow: '', step: '', data: {} }),
   }),
+
+  /**
+   * entryPoint — 用户入口上下文
+   *
+   * 用户从哪个业务页面进入客服，如 'order_detail' / 'deposit' / 'profile'。
+   * intentRouter 可用此信息辅助意图分类（如从订单页进入则优先 order 意图）。
+   */
+  entryPoint: Annotation<string>({
+    reducer: (a: string, b: string) => b,
+    default: () => '',
+  }),
+
+  /**
+   * entryMetadata — 业务元数据
+   *
+   * 从业务页面传入的上下文数据，如 { orderId: 'xxx' }。
+   * intentRouter 和 orchestrator 可根据此数据自动执行相关操作。
+   */
+  entryMetadata: Annotation<Record<string, any>>({
+    reducer: (a: Record<string, any>, b: Record<string, any>) => b,
+    default: () => ({}),
+  }),
+
+  /**
+   * transferToHuman — 转人工标记
+   *
+   * orchestrator 在以下情况设置为 true：
+   * 1. LLM 判断需要转人工（用户情绪激动、要求投诉等）
+   * 2. 工具调用连续失败
+   * AiCustomerService 收到此标记后 SSE 发 transfer 事件并通知管理员。
+   */
+  transferToHuman: Annotation<boolean>({
+    reducer: (a: boolean, b: boolean) => b,
+    default: () => false,
+  }),
 });

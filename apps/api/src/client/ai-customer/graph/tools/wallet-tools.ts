@@ -117,6 +117,7 @@ export const createWalletTools = (
             'Get the current user wallet balance,including real balance (cash), coin balance,frozen balance,total recharge and total withdraw.',
         },
       ),
+      displayName: 'Checking your balance...',
       tags: ['wallet'],
     },
     {
@@ -151,6 +152,7 @@ export const createWalletTools = (
             'Send an OTP verification code to the user phone for withdrawal authorization. Call this after user confirms withdrawal details.',
         },
       ),
+      displayName: 'Sending verification code...',
       tags: ['wallet'],
     },
     {
@@ -193,6 +195,7 @@ export const createWalletTools = (
             'Verify the OTP code sent to the user phone for withdrawal authorization. Must call after requestWithdrawOtp.',
         },
       ),
+      displayName: 'Verifying your code...',
       tags: ['wallet'],
     },
     {
@@ -284,6 +287,7 @@ export const createWalletTools = (
             "Get the current user's wallet trascation history,including recharge (deposit) and withdraw ((cash-out)) records.",
         },
       ),
+      displayName: 'Checking transaction history...',
       tags: ['wallet'],
     },
     {
@@ -312,6 +316,7 @@ export const createWalletTools = (
           description: `Get the current user's KYC (Know Your Customer / identity verification) status. Returns approval status, submitted documents and risk level.`,
         },
       ),
+      displayName: 'Checking KYC status...',
       tags: ['wallet'],
     },
     {
@@ -367,6 +372,7 @@ export const createWalletTools = (
             'Get available withdrawal payment channels such as GCash, PayMaya, Bank Transfer, including fee info, min/max amounts, and channel names.',
         },
       ),
+      displayName: 'Loading payment methods...',
       tags: ['wallet'],
     },
     {
@@ -467,6 +473,7 @@ export const createWalletTools = (
           description: `Submit a withdrawal request. IMPORTANT: 1. Always call getPaymentChannels first to let user choose a channel. 2. Present a preview with estimated fee. 3. Must get user explicit confirmation before calling this tool. 4. Verify KYC and balance first.`,
         },
       ),
+      displayName: 'Processing withdrawal...',
       tags: ['wallet'],
     },
   ];

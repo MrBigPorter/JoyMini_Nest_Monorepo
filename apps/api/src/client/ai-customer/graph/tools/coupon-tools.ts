@@ -87,6 +87,7 @@ export const createCouponTools = (
             "Get the current user's coupon list. Can filter by status: 0=unused, 1=used, 2=expired.",
         },
       ),
+      displayName: 'Looking up your coupons...',
       tags: ['coupon'],
     },
     /**
@@ -122,6 +123,7 @@ export const createCouponTools = (
             'Claim/collect a coupon by coupon template ID. The coupon must be available for manual claiming.',
         },
       ),
+      displayName: 'Claiming coupon...',
       tags: ['coupon'],
     },
     /**
@@ -156,6 +158,7 @@ export const createCouponTools = (
             'Redeem a coupon code to claim a specific coupon. The code is case-insensitive.',
         },
       ),
+      displayName: 'Redeeming coupon code...',
       tags: ['coupon'],
     },
     /**
@@ -193,6 +196,7 @@ export const createCouponTools = (
             'Get the list of coupons available for claiming (coupon center). Only active coupons (status=1) are shown.',
         },
       ),
+      displayName: 'Finding available coupons...',
       tags: ['coupon'],
     },
   ];

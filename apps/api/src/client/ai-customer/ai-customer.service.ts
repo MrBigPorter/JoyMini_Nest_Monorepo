@@ -4,11 +4,15 @@ import { buildCustomerGraph } from '@api/client/ai-customer/graph/customer.graph
 import { ConfigService } from '@nestjs/config';
 import { LlmProviderConfig } from '@api/client/ai-customer/graph/llm-factory';
 import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-registry.service';
+import { EventsGateway } from '@api/common/events/events.gateway';
+import { SocketEvents } from '@lucky/shared';
 import { TestChatResult } from '@api/client/ai-customer/graph/types/agent-types';
 import { AiService } from '@api/common/ai/ai.service';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { RagRetrievalService } from '@api/client/ai-customer/knowledge/rag-retrieval.service';
 import { PromptResolverService } from '@api/client/ai-customer/knowledge/prompt-resolver.service';
+import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service';
+import { AiMemoryService } from '@api/common/ai/ai-memory.service';
 
 @Injectable()
 export class AiCustomerService {
@@ -23,6 +27,9 @@ export class AiCustomerService {
     private readonly prismaService: PrismaService,
     private readonly ragRetrievalService: RagRetrievalService,
     private readonly promptResolver: PromptResolverService,
+    private readonly meilisearchService: MeilisearchService,
+    private readonly aiMemoryService: AiMemoryService,
+    private readonly eventsGateway: EventsGateway,
   ) {}
 
   /**
@@ -61,6 +68,7 @@ export class AiCustomerService {
         this.registry,
         this.aiService,
         this.prismaService,
+        this.meilisearchService,
         this.ragRetrievalService,
         this.promptResolver,
       );
@@ -104,7 +112,11 @@ export class AiCustomerService {
       onStep: (step: string, data?: any) => void;
       onDone: () => void;
       onError: (error: Error) => void;
+      onTransfer?: (reason: string) => void;
     },
+    conversationId?: string,
+    entryPoint?: string,
+    metadata?: Record<string, any>,
   ): Promise<void> {
     // 边界检查
     if (!this.compiledGraph) {
@@ -119,7 +131,16 @@ export class AiCustomerService {
     this.logger.log(`[chatStream] message="${message.slice(0, 50)}..."`);
 
     try {
-      const threadId = sessionId ?? `${userId}:${Date.now()}`;
+      // 获取或创建 AI 对话（支持传入已有 SUPPORT 对话 ID）
+      const conversation =
+        await this.aiMemoryService.createOrGetAiConversation(userId, conversationId);
+      const threadId = conversation.threadId!;
+
+      // 流开始前：记下已有消息数，流结束后只取增量
+      const prevState = await this.compiledGraph.getState({
+        configurable: { thread_id: threadId },
+      });
+      const prevCount = prevState?.values?.messages?.length ?? 0;
 
       // ── streamEvents: LangGraph 事件流 ──
       // streamEvents 是 graph.invoke() 的流式替代方案。
@@ -142,6 +163,8 @@ export class AiCustomerService {
           messages: [new HumanMessage(message)],
           userId,
           debug: false,
+          entryPoint: entryPoint ?? '',
+          entryMetadata: metadata ?? {},
         },
         {
           version: 'v2',
@@ -155,29 +178,74 @@ export class AiCustomerService {
 
       // 循环遍历事件流中的每个事件
       for await (const event of eventStream) {
-        const { event: eventName, data, name } = event;
+        const { event: eventName, data, name, metadata } = event;
 
         // 1. LLM 正在生成回复 → 把当前 token 推给前端（打字机效果）
+        //    注意：streamEvents 会捕获图中所有 LLM 调用，包括 intentRouter 的 LLM fallback。
+        //    我们需要跳过非 orchestrator 节点的 LLM 输出，避免意图分类的 JSON 泄漏到回复中。
         if (eventName === 'on_chat_model_stream') {
+          const node = metadata?.langgraph_node as string | undefined;
+          // 意图分类阶段（intentGateway / intentRouter）的 LLM 输出是内部 JSON，不推给用户
+          if (node === 'intentGateway' || node === 'intentRouter') continue;
           const chunk = data?.chunk;
           if (chunk?.content) {
             callbacks.onToken(chunk.content);
+            // Socket 推送：AI 逐字 token（给 Flutter App）
+            if (conversationId) {
+              this.eventsGateway.dispatch(conversationId, SocketEvents.AI_TOKEN, { content: chunk.content });
+            }
           }
         }
         // 2. Agent 开始调工具 → 通知前端显示"正在查余额..."
         else if (eventName === 'on_tool_start') {
-          callbacks.onStep('tool_start', { tool: name });
+          const displayName = this.registry.getDisplayName(name) ?? name;
+          callbacks.onStep('tool_start', { tool: displayName });
+          // Socket 推送：AI 处理步骤
+          if (conversationId) {
+            this.eventsGateway.dispatch(conversationId, SocketEvents.AI_STEP, { step: 'tool_start', tool: displayName });
+          }
         }
         // 3. Agent 调完工具 → 通知前端"查完了"
         else if (eventName === 'on_tool_end') {
           callbacks.onStep('tool_end', { tool: name });
+          if (conversationId) {
+            this.eventsGateway.dispatch(conversationId, SocketEvents.AI_STEP, { step: 'tool_end', tool: name });
+          }
         }
       }
+      // streamEvents 把所有消息追加到了 MemorySaver
+      // 现在用 getState 读最终状态
+      const finalState = await this.compiledGraph.getState({
+        configurable: { thread_id: threadId },
+      });
+      const allMessages = finalState?.values?.messages ?? [];
 
-      callbacks.onDone();
+      // 只取本轮新增的（跳过已有消息）
+      const newMessages = allMessages.slice(prevCount);
+
+      // 保存本轮对话到数据库
+      if (newMessages.length > 0) {
+        await this.aiMemoryService.saveContext(threadId, newMessages);
+      }
+
+      // 检查是否需要转人工
+      if (finalState?.values?.transferToHuman && callbacks.onTransfer) {
+        callbacks.onTransfer('ai_determined');
+        if (conversationId) {
+          this.eventsGateway.dispatch(conversationId, SocketEvents.AI_TRANSFER, { conversationId, reason: 'ai_determined' });
+        }
+      } else {
+        callbacks.onDone();
+        if (conversationId) {
+          this.eventsGateway.dispatch(conversationId, SocketEvents.AI_DONE, { conversationId });
+        }
+      }
     } catch (err: any) {
       this.logger.error(`[chatStream] error: ${err.message}`);
       callbacks.onError(err);
+      if (conversationId) {
+        this.eventsGateway.dispatch(conversationId, SocketEvents.AI_ERROR, { content: err.message });
+      }
     }
   }
 

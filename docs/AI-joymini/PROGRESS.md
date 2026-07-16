@@ -1,16 +1,26 @@
 # AI JoyMini 项目进度
 
-> 最后更新: 2026-07-12
+> 最后更新: 2026-07-16
 >
-> ## 🆕 最新交付 (2026-07-12)
+> ## 🆕 最新交付 (2026-07-16)
 >
-> - **Jina AI 迁移** — 替换本地 Infinity，embedding + reranker 走线上 API，多账户轮询 ✅
-> - **SSE 流式接口 全链路打通** — 后端代码已提交 + Flutter SseClient + AiChatState + 聊天页面 ✅
-> - **Flutter AI 聊天页面** — 打字机效果 + 状态指示 + 快捷问题 + sessionId 持久化 ✅
-> - **#63 Score Gap Check** — orchestrator 分数差距过滤 ✅
-> - **#64 SSE 企业级分析** — 7 维度分析文档 ✅
+> - **#72 SSE 数据格式规范与工具名显示** — SSE 扁平化 + displayName + 意图 JSON 过滤 ✅
+> - **#73 统一客服后端架构重设计** — 一个客服架构 spec：统一 SUPPORT 类型、AI 默认处理、SSE→Socket 转接 ✅
+> - **#74 Flutter ChatPage AI 合并评估报告** — 13 场景 + 6 关键问题分析 ✅
+> - **#75 AI 客服 Socket 统一消息通道** — 全走 Socket 架构：`/chat/message` → LangGraph → Socket `ai_token` ✅
 >
-> 后端提交: `c8ffba45`
+> 后端:
+> - `ChatService.sendMessage()` → SUPPORT 对话触发 AI (`AI_MESSAGE_REQUESTED`)
+> - `AiCustomerService.chatStream()` dispatch `ai_token`/`ai_done` 到 Socket
+> - `EventsGateway` 注入 + AI 事件常量 (`AI_TOKEN`/`AI_STEP`/`AI_DONE`/`AI_ERROR`/`AI_TRANSFER`)
+>
+> Flutter:
+> - `SocketChatMixin` 加 `aiEventStream`
+> - `ChatEventHandler` 订阅 AI 事件 + token 累积 + DB 持久化
+> - `LocalDatabaseService.saveAiMessage()` 新增
+> - `ChatPage` AI 模式使用统一 AppBar + `ModernChatInputBar`（移除"AI 智能客服"标签）
+> - 对话列表去掉强制注入的 AI 条目
+>
 
 ---
 
@@ -39,7 +49,8 @@
 |   21   | IntentGateway       |   ✅   | `customer.graph.ts:37`                                 |
 |   22   | WalletAgent 修复    |   ✅   | 4个问题全修                                            |
 |   23   | AgentReroute        |   ⛔   | 已被 orchestrator 替代                                 |
-| **63** | **Score Gap Check** | **✅** | **`orchestrator.node.ts:548-605` MIN_SCORE+SCORE_GAP** |
+| **63** | **Score Gap Check** |   ⛔   | **已被 #70 的 LLM 判断替代**                           |
+| **70** | **本地 Infinity + 多意图 LLM** | **✅** | **bge-m3 自建 + 拆融合 + LLM 反问/全执行**            |
 |   39   | 状态管理升级        |   ✅   | `state.ts` 8字段 + flowState                           |
 |   40   | 上下文隔离          |   ✅   | `flowState` + `topicSwitch`                            |
 
@@ -64,7 +75,7 @@
 | 12  | 知识文档          |     ✅ 29篇 .md，功能已升级到4层RAG     |
 | 13  | Prisma + pgvector |        ✅ `vector(1024)` bge-m3         |
 | 17  | 完整RAG节点       | ✅ 在 orchestrator 中，4层检索+reranker |
-| 57  | RAG 基础设施升级  |   ✅ Meilisearch + Jina AI（已迁移，替代本地 Infinity）    |
+| 57  | RAG 基础设施升级  |   ✅ Meilisearch + Infinity bge-m3 embedding + Jina reranker |
 
 ### Admin 面板
 
@@ -99,6 +110,10 @@
 |  44   | Lucky Agent spec            |
 |  45   | KYC Agent spec              |
 | 46-51 | Agent 重构 + Embedding 计划 |
+| **72** | **SSE 数据格式规范与工具名显示** |
+| **73** | **统一客服后端架构重设计** |
+| **74** | **Flutter ChatPage AI 合并评估报告** |
+| **75** | **AI 客服 Socket 统一消息通道架构** |
 
 ---
 

@@ -12,6 +12,8 @@ import { DynamicStructuredTool } from '@langchain/core/tools';
 export interface TaggedTool {
   tool: DynamicStructuredTool;
   tags: string[];
+  /** 用户友好描述（英文），SSE 推送时用。例如 "Searching products..." */
+  displayName?: string;
 }
 
 /**
@@ -47,6 +49,8 @@ export interface TaggedTool {
 export class ToolRegistryService {
   /** 所有已注册的工具（含标签） */
   private allTaggedTools: TaggedTool[] = [];
+  /** 工具名 → displayName 索引 */
+  private displayNameMap = new Map<string, string>();
 
   /**
    * 验证各 agent tag 是否已注册工具。
@@ -87,7 +91,21 @@ export class ToolRegistryService {
   registerMany(tools: TaggedTool[]): void {
     const existingNames = new Set(this.allTaggedTools.map((t) => t.tool.name));
     const newTools = tools.filter((t) => !existingNames.has(t.tool.name));
+    for (const t of newTools) {
+      if (t.displayName) {
+        this.displayNameMap.set(t.tool.name, t.displayName);
+      }
+    }
     this.allTaggedTools.push(...newTools);
+  }
+
+  /**
+   * 根据工具名获取用户友好描述
+   * @param toolName 工具内部名（如 'searchProducts'）
+   * @returns 用户友好描述（如 'Searching products...'），未注册则返回 undefined
+   */
+  getDisplayName(toolName: string): string | undefined {
+    return this.displayNameMap.get(toolName);
   }
 
   /**

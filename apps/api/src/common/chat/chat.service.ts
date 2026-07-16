@@ -35,6 +35,7 @@ import {
   ConversationReadEvent,
   MessageCreatedEvent,
   MessageRecalledEvent,
+  AiMessageRequestedEvent,
 } from '@api/common/chat/events/chat.events';
 
 import { CHAT_GROUP_EVENTS } from '@api/common/chat/events/chat-group.events';
@@ -180,6 +181,17 @@ export class ChatService {
         pushMemberIds,
       ),
     );
+
+    // ── AI 路由：SUPPORT 对话的用户消息 → 触发 LangGraph ──
+    // 用户在 SUPPORT 对话中发消息时，不走 Socket 人工客服，
+    // 而是先由 AI 处理。AI 的回复通过 Socket ai_token/ai_done 推送。
+    // 转人工后不再触发 AI（由数据库 handler 字段控制）。
+    if (conversationMeta.type === 'SUPPORT' || conversationMeta.type === 'AI') {
+      this.eventEmitter.emit(
+        CHAT_EVENTS.AI_MESSAGE_REQUESTED,
+        new AiMessageRequestedEvent(conversationId, content, userId),
+      );
+    }
 
     return { ...messageDto, isSelf: true };
   }

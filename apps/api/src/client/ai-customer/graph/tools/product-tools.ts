@@ -115,6 +115,7 @@ export const createProductTools = (
             'Search or browse products. Can filter by keyword, category, and sale status (ON_SALE, PRE_SALE).',
         },
       ),
+      displayName: 'Searching products...',
       tags: ['product'],
     },
 
@@ -157,6 +158,7 @@ export const createProductTools = (
             'Get detailed information about a specific product by product ID.',
         },
       ),
+      displayName: 'Getting product details...',
       tags: ['product'],
     },
 
@@ -199,6 +201,7 @@ export const createProductTools = (
             'Get real-time status of a product including stock, price, online/offline state, and whether it has expired.',
         },
       ),
+      displayName: 'Checking product status...',
       tags: ['product'],
     },
 
@@ -237,6 +240,7 @@ export const createProductTools = (
             'Get a list of hot/trending products based on purchase activity.',
         },
       ),
+      displayName: 'Loading trending products...',
       tags: ['product'],
     },
 
@@ -267,6 +271,7 @@ export const createProductTools = (
           description: 'Get the list of available product categories.',
         },
       ),
+      displayName: 'Loading categories...',
       tags: ['product'],
     },
   ];

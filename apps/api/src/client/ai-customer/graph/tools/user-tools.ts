@@ -53,6 +53,7 @@ export const createUserTools = (
             'Get the current user personal profile info: nickname, avatar, phone, invite code, VIP level, KYC status, last login time.',
         },
       ),
+      displayName: 'Loading your profile...',
       tags: ['user'],
     },
     {
@@ -104,6 +105,7 @@ export const createUserTools = (
             "List the current user's saved delivery addresses with pagination.",
         },
       ),
+      displayName: 'Looking up addresses...',
       tags: ['user'],
     },
     {
@@ -137,6 +139,7 @@ export const createUserTools = (
             'Get details of a specific delivery address by addressId.',
         },
       ),
+      displayName: 'Getting address details...',
       tags: ['user'],
     },
     /**
@@ -254,6 +257,7 @@ export const createUserTools = (
             'Create a new delivery address (text-based region names). **IMPORTANT: Two-phase flow required: 1) First call getUserProfile to pre-fill name/phone, 2) Collect info naturally one field at a time (like a form), 3) Show preview for confirmation, 4) Only call this on user confirmation.**',
         },
       ),
+      displayName: 'Saving new address...',
       tags: ['user'],
     },
     /**
@@ -378,6 +382,7 @@ export const createUserTools = (
             'Update an existing delivery address. Text-based region names supported. **IMPORTANT: First show a preview of the changes to the user and ask for confirmation before updating.**',
         },
       ),
+      displayName: 'Updating address...',
       tags: ['user'],
     },
     /**
@@ -417,6 +422,7 @@ export const createUserTools = (
             'Delete a delivery address by addressId. **IMPORTANT: Confirm with the user before deleting.** Show the address details first and ask for confirmation.',
         },
       ),
+      displayName: 'Deleting address...',
       tags: ['user'],
     },
   ];

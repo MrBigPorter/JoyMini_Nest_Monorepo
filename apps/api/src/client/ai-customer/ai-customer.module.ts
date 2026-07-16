@@ -1,5 +1,7 @@
 import { Module, OnApplicationBootstrap, Logger } from '@nestjs/common';
+import { EventsModule } from '@api/common/events/events.module';
 import { SseRateLimiterService } from '@api/client/ai-customer/sse-rate-limiter.service';
+import { StreamReservationStore } from '@api/client/ai-customer/stream-reservation.store';
 import { OrderModule } from '@api/client/orders/order.module';
 import { WalletModule } from '@api/client/wallet/wallet.module';
 import { TreasureModule } from '@api/client/treasure/treasure.module';
@@ -15,6 +17,7 @@ import { AiCustomerService } from '@api/client/ai-customer/ai-customer.service';
 import { RagRetrievalService } from '@api/client/ai-customer/knowledge/rag-retrieval.service';
 import { PromptResolverService } from '@api/client/ai-customer/knowledge/prompt-resolver.service';
 import { AiCustomerController } from '@api/client/ai-customer/ai-customer.controller';
+import { AiMessageListener } from '@api/client/ai-customer/ai-message.listener';
 import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-registry.service';
 import { createFlowTools } from '@api/client/ai-customer/graph/tools/flow-tools';
 import { createProductTools } from '@api/client/ai-customer/graph/tools/product-tools';
@@ -38,6 +41,7 @@ const EXPECTED_AGENT_TAGS = AGENT_TAGS_FOR_TOOLS;
 
 @Module({
   imports: [
+    EventsModule,
     OrderModule,
     WalletModule,
     TreasureModule,
@@ -53,9 +57,11 @@ const EXPECTED_AGENT_TAGS = AGENT_TAGS_FOR_TOOLS;
   controllers: [AiCustomerController],
   providers: [
     AiCustomerService,
+    AiMessageListener,
     RagRetrievalService,
     PromptResolverService,
     SseRateLimiterService,
+    StreamReservationStore,
   ],
 })
 export class AiCustomerModule implements OnApplicationBootstrap {

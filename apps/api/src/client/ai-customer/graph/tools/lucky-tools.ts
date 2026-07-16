@@ -161,6 +161,7 @@ export const createLuckyTools = (
             'View my lucky draw tickets. Returns ticket list with status (used/unused), expiration time, activity name, and winning result if already drawn.',
         },
       ),
+      displayName: 'Checking your tickets...',
       tags: ['lucky-draw'],
     },
 
@@ -225,6 +226,7 @@ export const createLuckyTools = (
             'View my lucky draw results / winning records. Returns prize name, type (1=coupon/2=coins/3=cash/4=no-win), prize value, and associated order ID.',
         },
       ),
+      displayName: 'Checking draw results...',
       tags: ['lucky-draw'],
     },
 
@@ -283,6 +285,7 @@ export const createLuckyTools = (
             'Use ONE lucky draw ticket. Returns the draw result: prize type (1=coupon/2=coins/3=cash/4=no-win), prize name, prize value, and whether the user won. Only call when the user explicitly asks to draw.',
         },
       ),
+      displayName: 'Entering the draw...',
       tags: ['lucky-draw', 'flow'],
     },
 
@@ -331,6 +334,7 @@ export const createLuckyTools = (
             'Check if an order has an associated lucky draw ticket. Returns ticket info (id, used status, drawn result) if found, or { found: false } if no ticket exists for this order.',
         },
       ),
+      displayName: 'Checking order tickets...',
       tags: ['lucky-draw'],
     },
 
@@ -363,6 +367,7 @@ export const createLuckyTools = (
             'View currently active flash sale sessions. Returns session list with title, start/end time, remaining time, and product count. Only returns sessions that are currently active.',
         },
       ),
+      displayName: 'Loading active sessions...',
       tags: ['lucky-draw'],
     },
 
@@ -409,6 +414,7 @@ export const createLuckyTools = (
             'View products in a specific flash sale session. Returns product list with flash price, original price, stock, product name, and images. The session ID comes from getActiveSessions.',
         },
       ),
+      displayName: 'Loading session products...',
       tags: ['lucky-draw'],
     },
 
@@ -445,6 +451,7 @@ export const createLuckyTools = (
             'View detailed info for a flash sale product. Returns flash price, stock, product details (name, images, description, rules), session info (title, remaining time). The product ID comes from getSessionProducts.',
         },
       ),
+      displayName: 'Getting flash deal details...',
       tags: ['lucky-draw'],
     },
   ];

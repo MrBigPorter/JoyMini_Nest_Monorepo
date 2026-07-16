@@ -167,6 +167,13 @@ export const SocketEvents = {
   LUCKY_DRAW_TICKET_ISSUED: "lucky_draw_ticket_issued",
   WALLET_CHANGE: "wallet_change", // 余额变动通知
 
+  // --- AI 客服事件 ---
+  AI_TOKEN: "ai_token",       // AI 逐字回复 token
+  AI_STEP: "ai_step",         // AI 处理步骤
+  AI_DONE: "ai_done",         // AI 回复完成
+  AI_ERROR: "ai_error",       // AI 处理出错
+  AI_TRANSFER: "ai_transfer", // 转人工
+
   // --- 好友/联系人业务 ---
   CONTACT_APPLY: "contact_apply",
   CONTACT_ACCEPT: "contact_accept",

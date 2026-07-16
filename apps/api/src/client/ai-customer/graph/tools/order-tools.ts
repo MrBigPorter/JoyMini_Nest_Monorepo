@@ -82,6 +82,7 @@ export const createOrderTools = (orderService: IOrderService): TaggedTool[] => {
             "Get the current user's order list. Can filter by status: all, paid, unpaid, refunded, cancelled.",
         },
       ),
+      displayName: 'Looking up your orders...',
       tags: ['order'],
     },
     /**
@@ -117,6 +118,7 @@ export const createOrderTools = (orderService: IOrderService): TaggedTool[] => {
             'Get detailed information about a specific order by order ID.',
         },
       ),
+      displayName: 'Getting order details...',
       tags: ['order'],
     },
   ];

@@ -13,6 +13,11 @@ export const CHAT_EVENTS = {
    * 用于实时通知在线 admin 有新的客服会话进来
    */
   SUPPORT_CONVERSATION_STARTED: 'chat.support.conversation.started',
+  /**
+   * SUPPORT 对话收到用户消息后触发 AI 处理
+   * ChatService 发出，AiCustomerListener 消费
+   */
+  AI_MESSAGE_REQUESTED: 'ai.message.requested',
 };
 
 export class MessageCreatedEvent {
@@ -61,5 +66,14 @@ export class SupportConversationStartedEvent {
     public readonly conversationId: string,
     public readonly businessId: string,
     public readonly userId: string, // 发起会话的用户 ID
+  ) {}
+}
+
+/** AI 消息处理请求：ChatService 在收到 SUPPORT 对话的用户消息后发出 */
+export class AiMessageRequestedEvent {
+  constructor(
+    public readonly conversationId: string,
+    public readonly content: string,
+    public readonly userId: string,
   ) {}
 }
