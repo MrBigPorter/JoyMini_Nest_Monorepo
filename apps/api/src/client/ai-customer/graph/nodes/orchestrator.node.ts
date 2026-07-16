@@ -483,9 +483,15 @@ function pushAgentResult(
   toolNames: string,
   contextMessagesCount: number,
   logger?: Logger,
-): void {
+): { forceTransfer: boolean } {
   const isError = !!result.error;
-  const content = isError ? AGENT_ERROR_MSG(label) : (result.content ?? '');
+  let content = isError ? AGENT_ERROR_MSG(label) : (result.content ?? '');
+
+  // 检测 LLM 发出的转人工标记 [TRANSFER_TO_HUMAN]
+  const forceTransfer = content.includes('[TRANSFER_TO_HUMAN]');
+  if (forceTransfer) {
+    content = content.replace('[TRANSFER_TO_HUMAN]', '').trim();
+  }
 
   agentOutputs.push({ label, content });
 
@@ -496,9 +502,11 @@ function pushAgentResult(
       contextMessages: contextMessagesCount,
       lastMsg: '',
       status: isError ? 'ERROR' : 'OK',
-      resultPreview: (isError ? result.error! : content).slice(0, 200),
+      resultPreview: content.slice(0, 200),
     });
   }
+
+  return { forceTransfer };
 }
 // ============================================================
 // Orchestrator Node Factory
@@ -678,6 +686,13 @@ export const createOrchestratorNode =
       .map(([label, score]) => ({ label, score }))
       .sort((a, b) => b.score - a.score);
 
+    // ── 转人工检测：用户要求找人工客服 ──
+    // 如果标签中包含 human_support，直接设 transferToHuman = true 终止处理
+    if (domainLabels.some((d) => d.label === 'human_support')) {
+      logger.log('[orchestrator] human_support detected, initiating transfer');
+      return { transferToHuman: true, labels: [] };
+    }
+
     if (domainLabels.length === 1) {
       // 只有一个域及格，直接执行
       effectiveLabels = [domainLabels[0].label];
@@ -763,6 +778,7 @@ export const createOrchestratorNode =
     //   type='direct' → 直接 LLM 调用（generalChat, RAG），无需工具
     //   type='agent'  → 标准 Agent 流水线（含 ToolRegistry + runAgentLoop）
     // ──────────────────────────────────────────────────────────────
+    let hasTransferRequest = false;
     for (const label of executionOrder) {
       // 从 AGENT_MAP 查找 Agent 配置
       // AGENT_MAP 在 orchestrator.config.ts 中定义，包含:
@@ -870,7 +886,7 @@ export const createOrchestratorNode =
               `[orchestrator] ${entry.label} result: OK — content preview: "${result.content.slice(0, 200)}..."`,
             );
           }
-          pushAgentResult(
+          const pushResult = pushAgentResult(
             entry.label,
             result,
             agentOutputs,
@@ -878,7 +894,7 @@ export const createOrchestratorNode =
             toolNames,
             contextMessagesCount,
           );
-
+          if (pushResult.forceTransfer) hasTransferRequest = true;
           // Fire-and-forget eval log if this agent had a DB prompt override
           if (
             promptResolver &&
@@ -926,8 +942,8 @@ export const createOrchestratorNode =
     const orchestratorResult: Partial<typeof AgentState.State> = {
       messages: [...state.messages, new AIMessage(finalContent)],
       previousIntent: state.intent,
-      // 清空 labels，下一轮由 intentRouter 重新设置
       labels: [],
+      transferToHuman: hasTransferRequest,
     };
 
     // debug=true 时写入执行流水线追踪数据

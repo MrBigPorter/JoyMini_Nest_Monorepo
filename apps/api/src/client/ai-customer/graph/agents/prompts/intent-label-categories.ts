@@ -53,6 +53,7 @@
  * | lucky-draw  | 抽奖活动        | business  | "抽奖怎么玩"               |
  * | rag         | 知识库问答      | business  | "你们发货用哪个快递"       |
  * | general     | 闲聊/通用       | general   | "你好"、"今天天气"         |
+ * | human_support | 转人工          | transfer  | "转人工"、"找客服"        |
  */
 
 import { Logger } from '@nestjs/common';
@@ -70,8 +71,9 @@ export interface LabelCategory {
    * 标签类型
    * - 'business': 业务标签，对应具体的 Agent（order/wallet/coupon/...）
    * - 'general': 通用/闲聊标签，仅当一个业务标签都不匹配时使用
+   * - 'transfer': 转人工标签，orchestrator 检测到此类型直接触发转人工
    */
-  type: 'business' | 'general';
+  type: 'business' | 'general' | 'transfer';
 }
 
 /**
@@ -103,6 +105,7 @@ export const INTENT_LABEL_CATEGORIES: LabelCategory[] = [
   { name: 'kyc', validLabel: true, type: 'business' },
   { name: 'rag', validLabel: true, type: 'business' },
   { name: 'general', validLabel: true, type: 'general' },
+  { name: 'human_support', validLabel: true, type: 'transfer' },
 ];
 
 // ============================================================
