@@ -17,6 +17,7 @@ import { SocketEvents } from '@lucky/shared';
 import {
   CHAT_EVENTS,
   MessageCreatedEvent,
+  AiMessageRequestedEvent,
 } from '@api/common/chat/events/chat.events';
 import type { Prisma } from '@prisma/client';
 
@@ -399,6 +400,12 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
           undefined,
           pushMemberIds,
         ),
+      );
+
+      // AI 路由：Socket 发消息也触发 AI 处理（与 ChatService.sendMessage 一致）
+      this.eventEmitter.emit(
+        CHAT_EVENTS.AI_MESSAGE_REQUESTED,
+        new AiMessageRequestedEvent(conversationId, content, userId),
       );
 
       return {
