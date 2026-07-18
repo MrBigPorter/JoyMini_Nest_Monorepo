@@ -367,7 +367,8 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       this.dispatch(conversationId, SocketEvents.CHAT_MESSAGE, {
         ...result,
-        isSelf: false, // 告知房间内其他人此消息非本人发送
+        isSelf: false,
+        createdAt: result.createdAt.getTime(),
       });
 
       // 触发完整的消息分发链：user_X 私有房间 + FCM 离线推送
@@ -403,10 +404,49 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       );
 
       // AI 路由：Socket 发消息也触发 AI 处理（与 ChatService.sendMessage 一致）
-      this.eventEmitter.emit(
-        CHAT_EVENTS.AI_MESSAGE_REQUESTED,
-        new AiMessageRequestedEvent(conversationId, content, userId),
-      );
+      // 只有 handlerId == null（AI 处理中）时才触发
+      // 同时刷新 handlerAssignedAt（延长超时计时）
+      const conv = await this.prismaService.conversation.findUnique({
+        where: { id: conversationId },
+        select: { handlerId: true, handlerAssignedAt: true, type: true },
+      });
+      // 超时判定：如果 handlerAssignedAt 超过 10 分钟，则认为超时，handlerId 置 null
+      // handlerId 为空时，表示 AI 正在处理，触发 AI_MESSAGE_REQUESTED 事件
+      const isAiType = conv?.type === 'SUPPORT' || conv?.type === 'AI';
+      const isAiHandler = conv?.handlerId == null;
+
+      if (conv?.handlerId != null) {
+        // 未超时 → 刷新 handlerAssignedAt
+        const HANDLER_TIMEOUT_MS = 10 * 60 * 1000;
+        if (conv.handlerAssignedAt) {
+          const elapsed = Date.now() - conv.handlerAssignedAt.getTime();
+          if (elapsed > HANDLER_TIMEOUT_MS) {
+            // 超时 → 重置为 AI 处理
+            await this.prismaService.conversation.update({
+              where: { id: conversationId },
+              data: { handlerId: null, handlerAssignedAt: null },
+            });
+          } else {
+            // 未超时 → 刷新 handlerAssignedAt
+            await this.prismaService.conversation.update({
+              where: { id: conversationId },
+              data: { handlerAssignedAt: new Date() },
+            });
+          }
+        } else {
+          // 有 handlerId 但没有分配时间 → 设一个初始时间
+          await this.prismaService.conversation.update({
+            where: { id: conversationId },
+            data: { handlerAssignedAt: new Date() },
+          });
+        }
+      }
+      if (isAiType && isAiHandler) {
+        this.eventEmitter.emit(
+          CHAT_EVENTS.AI_MESSAGE_REQUESTED,
+          new AiMessageRequestedEvent(conversationId, content, userId),
+        );
+      }
 
       return {
         status: 'ok',

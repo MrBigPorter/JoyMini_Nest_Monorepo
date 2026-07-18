@@ -1,58 +1,86 @@
-# Current Task — AI Chat 集成到现有 ChatPage + 数据融合
-
-**目标**: 废弃独立的 AiChatPage，把 AI 聊天嵌入现有的聊天系统（对话列表 → ChatPage），并实现长期记忆持久化
-**方案**: [`docs/AI-joymini/67-AI-Chat-ChatPage-Integration-Plan.md`](docs/AI-joymini/67-AI-Chat-ChatPage-Integration-Plan.md)
-**数据融合**: [`docs/AI-joymini/68-IM-AI-Conversation-Data-Fusion.md`](docs/AI-joymini/68-IM-AI-Conversation-Data-Fusion.md)
-**Flutter**: `/Users/porter/Developer/JoyMini_Flutter_App/`
+# Current Task — AI 操作确认卡片 + Callback 机制补全
 
 ---
 
-## ✅ 已完成
+## 需求背景
 
-| 模块 | 说明 | 位置 |
+两个问题共享同一个根因——**callback 机制不完整**：
+
+| 问题 | 现象 | 根因 |
 |------|------|------|
-| 后端 SSE 接口 | POST `/api/v1/ai/customer/chat-stream` (token/step/done/error) | 已提交 `c8ffba45` |
-| Redis 5 层限流 + 熔断 | SseRateLimiterService | Nest `apps/api/` |
-| Score Gap Check | orchestrator MIN_SCORE=0.65 + SCORE_GAP=0.15 | Nest `apps/api/` |
-| SseClient | Dio 流 + 行缓冲 + 4 种事件解析 | Flutter `core/services/ai/sse_client.dart` |
-| AiChatState | 消息列表 + 打字机追加 + sessionId | Flutter `core/store/ai_chat/ai_chat_state.dart` |
-| MessageType.ai(8) + card(9) | 枚举已加 | Flutter `chat_ui_model.dart` |
-| **Prisma schema 扩展** | Conversation 加 threadId/aiTitle/aiMetadata | `apps/api/prisma/schema.prisma` |
-| | ChatMessage 加 role/tokenCount/source | |
-| | ConversationType 枚举加 AI | |
-| **OrbStack → Colima** | 换用轻量 Docker 虚拟机 + 磁盘移 MySSD | `~/.colima/` → `/Volumes/MySSD/colima` |
-| **Makefile 重构** | 按阶段分组、各容器独立开关、本地开发命令 | `Makefile` |
-| **Claude Code Skills** | superpowers/jr-code-review/flutter-gen/frontend-design/excalidraw-diagram/skill-creator | `.claude/skills/` |
-| **#70 本地 Infinity bge-m3** | 替换 Jina AI embedding → 自建服务器跑 bge-m3，reranker 保持 Jina | `infinity.provider.ts` + `compose.prod.yml` |
-| **MIN_SCORE 0.65→0.5** | 对齐 IntentClassifier 阈值 | `orchestrator.node.ts` |
-| **BM25+vector 拆开 + 多意图 LLM** | 去除融合/SCORE_GAP，多 domain 时 LLM 反问/全执行 | `intent-classifier.ts` + `orchestrator.node.ts` |
-| **#71 Flutter SSE 总结** | 完整端到端总结文档 | `docs/AI-joymini/71-Flutter-SSE全链路打通与后端总结.md` |
+| **转人工信号被吞** | Socket 路径转人工后 handlerId 没写，下次消息又触发 AI | `AiMessageListener` 传的 callbacks 缺 `onTransfer` |
+| **写操作无卡片确认** | 提现/领券全靠 LLM 文字"确认吗？"，可被 prompt injection 绕过 | 没有 `AI_CONFIRM` 事件 + 按钮回调机制 |
 
-## ❌ 待办（实施顺序 — 后端优先）
+详见 `docs/AI-joymini/81-AI操作确认卡片与Callback补全.md`
 
-| 步 | 任务 | 层 | 文件 | 说明 |
-|----|------|-----|------|------|
-| 1 | **AiMemoryService 改造** | 后端 | `common/ai/ai-memory.service.ts` | 写 Conversation + ChatMessage，含原子 seqId |
-| 2 | **SSE 接口传 userId** | 后端 | `client/ai-customer/` | done 事件后调 saveContext |
-| 3 | AiChatViewModel 重构 | Flutter | `core/store/ai_chat/` | SessionService + SseStreamService 提取 |
-| 4 | MessageRepository 加 AI 方法 | Flutter | `ui/chat/repository/message_repository.dart` | saveOrUpdateAiMessages / getAiMessages |
-| 5 | ConversationList 注入 AI 条目 | Flutter | `ui/chat/providers/conversation_provider.dart` | build() 内加载 |
-| 6 | AiMsgBubble + ChatBubble.ai 分支 | Flutter | `ui/chat/components/` | 打字机气泡 |
-| 7 | ChatPage AI 模式 + 路由 | Flutter | `chat_room/chat_page.dart` + `app_router.dart` | 集成 |
+---
 
-## ⏸️ 延期
+## 实施计划（分批）
 
-| 功能 | 原因 |
+### P0 🚨 — 修 listener callback（~0.5d）
+
+| 改动 | 文件 | 说明 |
+|------|------|------|
+| 补全 `onTransfer` | `ai-message.listener.ts` | 加 onTransfer callback，确保 Socket 路径转人工正常 |
+| 确认所有路径一致 | `ai-customer.controller.ts`、`ai-message.listener.ts` | onTransfer/onConfirm 全部传参 |
+
+### P1 🔵 — 后端确认机制（~1.5d）
+
+| 改动 | 文件 | 说明 |
+|------|------|------|
+| 新建 `AiActionConfirmService` | `ai-action-confirm.service.ts` | ConfirmToken 生成/验证/过期管理（UUID + 60s TTL） |
+| 扩展 Socket 事件 | `packages/shared/src/im/constants.ts` | +3 事件：AI_CONFIRM / AI_CONFIRM_RESPONSE / AI_ACTION_RESULT |
+| 修改 orchestrator | `orchestrator.node.ts` | 写操作前插入确认检查点，替代直接调 tool |
+| 声明需要卡片确认的操作 | `wallet-tools.ts`、`coupon-tools.ts`、`lucky-tools.ts`、`user-tools.ts` | 标记写操作为 confirm-required |
+| 扩展 callback 接口 | 相关文件 | onConfirm/onConfirmResult |
+
+### P2 🟢 — Flutter 确认卡片 UI（~1d）
+
+| 改动 | 文件 | 说明 |
+|------|------|------|
+| 新增数据模型 | `ai_action_model.dart` | AI_CONFIRM / ACTION_RESULT 模型 |
+| 新增卡片 widget | `ai_confirm_card.dart` | 确认卡片（金额/渠道/费用 + 确认/取消按钮） |
+| 修改 chat_bubble | `chat_bubble.dart` | _buildContentFactory 加 case MessageType.card |
+| 处理 AI_CONFIRM 事件 | `chat_event_handler.dart` | 收到确认事件 → 渲染卡片 |
+| 同步事件常量 | `socket_events.dart`、`chat_extension.dart` | 后端事件 + 发送确认回执 |
+
+### 📋 待办（低优先级，不 blocking）
+
+| 任务 | 优先级 |
+|------|--------|
+| Flutter SSE 代码清理（删除已标记文件） | 🟡 中 |
+| Flutter 端重新编译部署 | 🟡 中 |
+| 中文 human_support 示例（Admin 面板） | 🟢 低 |
+| ChatPage 刷新后 handlerId 判断 | 🟢 低 |
+
+---
+
+## Review 发现的 Bug（code-review + security-review）
+
+### 🔴 需要在本任务中修复
+
+| Bug | 文件 | 说明 |
+|-----|------|------|
+| Socket 路径缺 conversation type 过滤 | `events.gateway.ts:419` | 群聊/私聊也会触发 AI（只检查 handlerId，没检查对话类型） |
+| Socket 路径 handler 永不超时 | `events.gateway.ts:412-417` | 无 timeout 检查，无条件刷新 handlerAssignedAt |
+| listener 缺 onTransfer | `ai-message.listener.ts` | 转人工信号被静默吞掉 |
+| applyWithdraw 无 OTP 强制校验 | `wallet-tools.ts:387` | 纯靠 LLM prompt 约束，可被 bypass |
+| 超时 reset 在事务外 | `chat.service.ts:107-136` | 事务失败时 handlerId 已修改，无法回滚 |
+
+### 🟡 已知但非阻塞
+
+| Bug | 文件 | 说明 |
+|-----|------|------|
+| LLM 转人工文案没流到用户 | `orchestrator.node.ts:713` | model.invoke() 非流式，transfer 路径不 token |
+| LLM 异常时无 fallback 消息 | `orchestrator.node.ts:722` | catch 返回 messages: undefined |
+| 缺 previousIntent | `orchestrator.node.ts:713` | human_support 路径漏了 |
+
+---
+
+## 参考文档
+
+| 文档 | 内容 |
 |------|------|
-| Action Card | 用户说后面再做 |
-| 转人工 | 非基础路径 |
-| Markdown 渲染 | 纯文本可用 |
-| PostgreSQL Checkpointer | LangGraph 状态持久化 |
-
-## 关键路径
-
-```
-后端 Phase 1-2 → Flutter Phase 3-7 →
-  1 (AiMemoryService) → 2 (SSE userId) → 3 (ViewModel) → 4 (Repo) → 5 (ConvList)
-                                                              ↘ 6 (Bubble) → 7 (ChatPage)
-```
+| `docs/AI-joymini/81-AI操作确认卡片与Callback补全.md` | 完整规格：方案/状态穷举/技术方案/工作量 |
+| `docs/AI-joymini/PROGRESS.md` | 项目整体进度 |
+| `docs/coding-standards.md` | 9 维度检查清单 |

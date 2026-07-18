@@ -23,6 +23,22 @@
     "skill-creator": {
       "path": ".claude/skills/skill-creator/SKILL.md",
       "description": "create skill, new skill, save skill, save as skill, make this a skill, auto-generate skill, skill creator"
+    },
+    "ai-intent-debug": {
+      "path": ".claude/skills/ai-intent-debug/SKILL.md",
+      "description": "intent classification debug, intent debug, intent classification issue, 意图分类异常, 意图分类排查, 走人工问题排查"
+    },
+    "coding-tutor": {
+      "path": ".claude/skills/coding-tutor/SKILL.md",
+      "description": "教学模式, teaching mode, 教我写代码, 手把手, code tutor, step by step teaching, 教学, 上课"
+    },
+    "business-analysis": {
+      "path": ".claude/skills/business-analysis/SKILL.md",
+      "description": "业务功能分析, 需求讨论, 风险评估, 行业调研, 原型状态穷举, 技术方案, 工作量估算"
+    },
+    "help": {
+      "path": ".claude/skills/help/SKILL.md",
+      "description": "help, 有哪些 skill, 你能做什么, 有什么功能, 技能列表"
     }
   }
 }

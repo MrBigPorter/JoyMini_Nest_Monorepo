@@ -1,12 +1,18 @@
 /**
- * intent-examples/index — 统一入口
+ * intent-examples/index — 代码定义的默认示例句子（Seed Data）
  *
- * 收集所有域的示例句子，供 IntentClassifier 初始化时使用。
- * 每个域一个文件，通过本入口统一导出。
+ * 这些是各 domain 的默认示例句子，在首次部署或清空数据库时作为初始数据。
+ * 用户可以通过 Admin 面板（PUT /admin/intent-examples/:domain）覆盖或追加示例。
  *
- * ── 模式 ──
- * 与 prompts/*-prompt.ts 相同：每个模块一个文件，通过 index.ts 统一集合。
- * 新增域时：创建新文件 + 在本入口添加 import 和 INTENT_EXAMPLE_GROUPS 条目。
+ * ── 新增 domain 的最佳实践 ──
+ * 1. 在 intent-label-categories.ts 的 INTENT_LABEL_CATEGORIES 中注册（必需）
+ * 2. 代码定义默认示例可选（仅当需要 seed 数据时在此文件添加）
+ * 3. Admin 面板可直接创建任意 domain 并添加示例，无需改代码
+ *
+ * ── 与 INTENT_LABEL_CATEGORIES 的关系 ──
+ * INTENT_EXAMPLE_GROUPS = 有代码默认示例的 domain（子集）
+ * INTENT_LABEL_CATEGORIES = 所有有效 domain（含 human_support 等无默认示例的）
+ * Admin service 使用 INTENT_LABEL_CATEGORIES 作为 domain 列表源。
  *
  * ── 与 agent-tags.ts 的关系 ──
  * requiredTags 从 INTENT_REQUIRED_TAGS 自动推导。

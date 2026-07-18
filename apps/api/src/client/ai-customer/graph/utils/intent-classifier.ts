@@ -69,6 +69,7 @@ import { PrismaService } from '@api/common/prisma/prisma.service';
 import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service';
 import { Logger } from '@nestjs/common';
 import { deduplicateLabels } from '@api/client/ai-customer/graph/agents/prompts/intent-label-categories';
+import { createLLM, LlmProviderConfig } from '../llm-factory';
 
 const logger = new Logger('IntentClassifier');
 
@@ -128,6 +129,7 @@ export class IntentClassifier {
     private readonly aiService: AiService,
     private readonly prismaService: PrismaService,
     private readonly meilisearchService: MeilisearchService,
+    private readonly llmConfig: LlmProviderConfig,
   ) {}
 
   /**
@@ -179,8 +181,11 @@ export class IntentClassifier {
     const bm25Start = Date.now();
     let bm25DomainMap = new Map<string, number>();
 
+    // 翻译非英文输入，供 BM25 关键词搜索
+
+    const bm25Input = await this.translateToEnglish(normalizedInput);
     const [bm25Result, embeddingResult] = await Promise.allSettled([
-      this.meilisearchService.searchIntentExamples(normalizedInput, 10),
+      this.meilisearchService.searchIntentExamples(bm25Input, 10),
       this.aiService.generateEmbedding(normalizedInput, {
         task: 'retrieval.passage',
       }),
@@ -312,6 +317,18 @@ export class IntentClassifier {
         }
       }
     }
+    // ── human_support BM25 惩罚 ──
+    // pgvector 命中了 human_support,如果 BM25 没命中 human_support 关键词，说明用户大概率没说要转人工，是语义误匹配
+    // 防止中文查询（如"优惠"）在翻译失败时误入 human_support
+    if (domainMap.has('human_support') && !bm25DomainMap.has('human_support')) {
+      const originalScore = domainMap.get('human_support') ?? 0;
+      // 0.7 惩罚系数，保留 4 位小数
+      const penalized = Math.round(originalScore * 0.7 * 10000) / 10000;
+      domainMap.set('human_support', penalized);
+      logger.log(
+        `[IntentClassifier] human_support penalized: original=${originalScore.toFixed(4)}, penalized=${penalized.toFixed(4)} (BM25 missed)`,
+      );
+    }
 
     // ── BM25 + pgvector 独立加入 ──
     // BM25 和 pgvector 各自独立，不融合。
@@ -324,7 +341,7 @@ export class IntentClassifier {
           const vectorScore = domainMap.get(domain)!;
           logger.log(
             `[IntentClassifier] both sources matched ${domain}: ` +
-            `vector=${vectorScore.toFixed(4)} (kept), bm25=${bm25Score.toFixed(4)} (independent source)`,
+              `vector=${vectorScore.toFixed(4)} (kept), bm25=${bm25Score.toFixed(4)} (independent source)`,
           );
         } else if (bm25Score >= this.LOW_CONFIDENCE_THRESHOLD) {
           // BM25 独有 → 直接加入（关键词强命中，pgvector 漏检）
@@ -478,6 +495,37 @@ export class IntentClassifier {
       );
     } catch (err) {
       logger.warn(`Failed to log classification: ${err}`);
+    }
+  }
+
+  /**
+   * 检测文本是否需要翻译（含中日韩文字）
+   */
+  private needsTranslation(text: string): boolean {
+    return /[\u4e00-\u9fff\u3040-\u309f\uac00-\ud7af]/.test(text);
+  }
+
+  /**
+   * 翻译非英文文本为英文（极简 prompt，只返回翻译结果）
+   * 翻译失败时回退到原文
+   */
+  private async translateToEnglish(text: string): Promise<string> {
+    if (!this.needsTranslation(text)) {
+      return text;
+    }
+    try {
+      const model = createLLM(this.llmConfig, {
+        temperature: 0,
+      });
+      const result = await model.invoke(
+        `Translate the following text to English. Only return the translated text, no explanations or extra text.\n\n"${text}"`,
+      );
+      const translated =
+        typeof result.content === 'string' ? result.content.trim() : '';
+      return translated || text;
+    } catch (err) {
+      logger.warn(`Translation failed: ${err}`);
+      return text;
     }
   }
 

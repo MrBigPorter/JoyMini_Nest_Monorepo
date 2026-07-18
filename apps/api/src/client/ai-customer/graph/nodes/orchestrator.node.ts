@@ -25,7 +25,11 @@
  * - 最后质检合成最终产品（synthesizeFinalAnswer）
  */
 
-import { AIMessage } from '@langchain/core/messages';
+import {
+  AIMessage,
+  SystemMessage,
+  HumanMessage,
+} from '@langchain/core/messages';
 import { StringOutputParser } from '@langchain/core/output_parsers';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
 import { Logger } from '@nestjs/common';
@@ -33,7 +37,6 @@ import {
   AgentState,
   DebugAgentExecution,
 } from '@api/client/ai-customer/graph/state';
-import { LlmProviderConfig } from '@api/client/ai-customer/graph/llm-factory';
 import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-registry.service';
 import { extractUserInput } from '@api/client/ai-customer/graph/utils/extract-user-input';
 import { formatMessage } from '@api/client/ai-customer/graph/utils/format-message-preview';
@@ -45,6 +48,7 @@ import {
 } from '@api/client/ai-customer/graph/agents/prompts/rag-prompt';
 
 import { createLLM } from '@api/client/ai-customer/graph/llm-factory';
+import type { LlmProviderConfig } from '@api/client/ai-customer/graph/llm-factory';
 import { SYNTHESIZER_PROMPT } from '@api/client/ai-customer/graph/agents/prompts/synthesizer-prompt';
 import { GENERAL_CHAT_PROMPT } from '@api/client/ai-customer/graph/agents/prompts/general-chat-prompt';
 import { runStandardAgent } from '@api/client/ai-customer/graph/nodes/agent-factory';
@@ -162,10 +166,7 @@ async function decideMultiIntentWithLLM(
   previousAssistantMessage?: string,
 ): Promise<MultiIntentDecision> {
   const domainList = domains
-    .map(
-      (d, i) =>
-        `${i + 1}. ${d.label} (score: ${d.score.toFixed(2)})`,
-    )
+    .map((d, i) => `${i + 1}. ${d.label} (score: ${d.score.toFixed(2)})`)
     .join('\n');
 
   const model = createLLM(llmConfig, { temperature: 0 });
@@ -176,7 +177,8 @@ async function decideMultiIntentWithLLM(
     userInput,
     domainList,
     previousIntent: previousIntent || 'none',
-    previousAssistantMessage: previousAssistantMessage || '(no previous message)',
+    previousAssistantMessage:
+      previousAssistantMessage || '(no previous message)',
   });
   const trimmed = raw.trim().toLowerCase();
 
@@ -671,7 +673,7 @@ export const createOrchestratorNode =
       // 没有标签达到 MIN_SCORE → fallback 到 generalChat
       logger.log(
         `[orchestrator] no labels above MIN_SCORE (${MIN_SCORE}), ` +
-        `falling back to general chat`,
+          `falling back to general chat`,
       );
       return handleGeneralChat(state, llmConfig);
     }
@@ -687,10 +689,38 @@ export const createOrchestratorNode =
       .sort((a, b) => b.score - a.score);
 
     // ── 转人工检测：用户要求找人工客服 ──
-    // 如果标签中包含 human_support，直接设 transferToHuman = true 终止处理
+    // 如果标签中包含 human_support，用 LLM 生成友好回复后再转人工
     if (domainLabels.some((d) => d.label === 'human_support')) {
-      logger.log('[orchestrator] human_support detected, initiating transfer');
-      return { transferToHuman: true, labels: [] };
+      logger.log(
+        '[orchestrator] human_support detected, generating transfer message via LLM',
+      );
+      try {
+        const model = createLLM(llmConfig, { temperature: 0.5 });
+        const userInput = extractUserInput(state);
+        const response = await model.invoke([
+          new SystemMessage(
+            'The user has requested to speak with a human agent. ' +
+              'Generate a brief, warm acknowledgment (1-2 sentences) confirming their request ' +
+              'and telling them you are transferring them to a human representative. ' +
+              'Be empathetic and professional. Do not ask questions or continue the conversation.',
+          ),
+          new HumanMessage(userInput),
+        ]);
+        const content =
+          typeof response.content === 'string'
+            ? response.content
+            : 'I understand you want to speak with a human agent. Let me transfer you now.';
+        return {
+          messages: [...state.messages, new AIMessage(content)],
+          transferToHuman: true,
+          labels: [],
+        };
+      } catch (err) {
+        logger.warn(
+          `[orchestrator] LLM transfer message failed, using fallback: ${err}`,
+        );
+        return { transferToHuman: true, labels: [] };
+      }
     }
 
     if (domainLabels.length === 1) {
@@ -710,9 +740,9 @@ export const createOrchestratorNode =
         .reverse()
         .find((m) => m.type === 'ai');
       const lastAssistantMessage = lastAiMsg
-        ? (typeof lastAiMsg.content === 'string'
-            ? lastAiMsg.content.slice(0, 200)
-            : JSON.stringify(lastAiMsg.content).slice(0, 200))
+        ? typeof lastAiMsg.content === 'string'
+          ? lastAiMsg.content.slice(0, 200)
+          : JSON.stringify(lastAiMsg.content).slice(0, 200)
         : '';
 
       const llmDecision = await decideMultiIntentWithLLM(
@@ -730,7 +760,12 @@ export const createOrchestratorNode =
           `[orchestrator] LLM decided to ask user: ${llmDecision.message}`,
         );
         return {
-          messages: [...state.messages, new AIMessage(llmDecision.message ?? 'Could you please clarify your request?')],
+          messages: [
+            ...state.messages,
+            new AIMessage(
+              llmDecision.message ?? 'Could you please clarify your request?',
+            ),
+          ],
           previousIntent: state.intent,
           labels: [],
         };
@@ -754,7 +789,7 @@ export const createOrchestratorNode =
 
     logger.log(
       `[orchestrator] execution order: ${executionOrder.join(' → ')} ` +
-      `(from effective labels: ${effectiveLabels.join(', ')})`,
+        `(from effective labels: ${effectiveLabels.join(', ')})`,
     );
 
     // ================================================================

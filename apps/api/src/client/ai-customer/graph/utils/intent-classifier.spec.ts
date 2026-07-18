@@ -84,6 +84,8 @@ function createMockMeilisearchService(): Partial<MeilisearchService> {
 // IntentClassifier
 // ============================================================
 
+const mockLlmConfig = { type: 'online' as const, model: 'test' };
+
 describe('IntentClassifier', () => {
   // -- classify --
 
@@ -107,6 +109,7 @@ describe('IntentClassifier', () => {
         aiService,
         prismaService,
         meilisearchService,
+        mockLlmConfig,
       );
       const result = await classifier.classify('我要查订单');
 
@@ -127,6 +130,7 @@ describe('IntentClassifier', () => {
         aiService,
         prismaService,
         meilisearchService,
+        mockLlmConfig,
       );
 
       const result = await classifier.classify('hello');
@@ -147,6 +151,7 @@ describe('IntentClassifier', () => {
         aiService,
         prismaService,
         meilisearchService,
+        mockLlmConfig,
       );
 
       const result = await classifier.classify('hello');
@@ -173,6 +178,7 @@ describe('IntentClassifier', () => {
         aiService,
         prismaService,
         meilisearchService,
+        mockLlmConfig,
       );
       const result = await classifier.classify('test');
 
@@ -198,6 +204,7 @@ describe('IntentClassifier', () => {
         aiService,
         prismaService,
         meilisearchService,
+        mockLlmConfig,
       );
       const result = await classifier.classify('嗯');
 
@@ -223,6 +230,7 @@ describe('IntentClassifier', () => {
         aiService,
         prismaService,
         meilisearchService,
+        mockLlmConfig,
       );
       const result = await classifier.classify('提现');
 

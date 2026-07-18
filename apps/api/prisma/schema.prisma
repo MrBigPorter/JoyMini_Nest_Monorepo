@@ -1218,6 +1218,10 @@ model Conversation {
   threadId     String?  @unique @map("thread_id") // LangGraph 的 thread_id，接上下文用
   aiTitle      String?  @map("ai_title") // AI 对话的标题 (用于列表页显示)
   aiMetadata   Json?    @map("ai_metadata") // AI 对话的元数据 (用于存储上下文信息)
+  /// 当前处理者 ID: null=AI 处理, 'awaiting_human'=转人工待分配, 非空=人工/admin 处理中
+  handlerId         String?   @map("handler_id")
+  /// 处理者分配时间（用于超时判断，超过 N 分钟无回复自动切回 AI）
+  handlerAssignedAt DateTime? @map("handler_assigned_at")
   joinRequests GroupJoinRequest[]
 
   createdAt DateTime @default(now())

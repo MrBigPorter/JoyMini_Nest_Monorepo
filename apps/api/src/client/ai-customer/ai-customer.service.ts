@@ -132,8 +132,10 @@ export class AiCustomerService {
 
     try {
       // 获取或创建 AI 对话（支持传入已有 SUPPORT 对话 ID）
-      const conversation =
-        await this.aiMemoryService.createOrGetAiConversation(userId, conversationId);
+      const conversation = await this.aiMemoryService.createOrGetAiConversation(
+        userId,
+        conversationId,
+      );
       const threadId = conversation.threadId!;
 
       // 流开始前：记下已有消息数，流结束后只取增量
@@ -157,6 +159,13 @@ export class AiCustomerService {
       // 通过 callbacks 推给 Controller，Controller 再通过 SSE 推给浏览器。
       // ────────────────────────────────────────────────────────────
       callbacks.onStep('thinking', { content: 'analyzing your question...' });
+      // Socket 推送：AI 正在分析（让前端显示"正在分析中..."）
+      if (conversationId) {
+        this.eventsGateway.dispatch(conversationId, SocketEvents.AI_STEP, {
+          step: 'thinking',
+          content: 'analyzing your question...',
+        });
+      }
 
       const eventStream = await this.compiledGraph.streamEvents(
         {
@@ -192,7 +201,11 @@ export class AiCustomerService {
             callbacks.onToken(chunk.content);
             // Socket 推送：AI 逐字 token（给 Flutter App）
             if (conversationId) {
-              this.eventsGateway.dispatch(conversationId, SocketEvents.AI_TOKEN, { content: chunk.content });
+              this.eventsGateway.dispatch(
+                conversationId,
+                SocketEvents.AI_TOKEN,
+                { content: chunk.content },
+              );
             }
           }
         }
@@ -202,14 +215,20 @@ export class AiCustomerService {
           callbacks.onStep('tool_start', { tool: displayName });
           // Socket 推送：AI 处理步骤
           if (conversationId) {
-            this.eventsGateway.dispatch(conversationId, SocketEvents.AI_STEP, { step: 'tool_start', tool: displayName });
+            this.eventsGateway.dispatch(conversationId, SocketEvents.AI_STEP, {
+              step: 'tool_start',
+              tool: displayName,
+            });
           }
         }
         // 3. Agent 调完工具 → 通知前端"查完了"
         else if (eventName === 'on_tool_end') {
           callbacks.onStep('tool_end', { tool: name });
           if (conversationId) {
-            this.eventsGateway.dispatch(conversationId, SocketEvents.AI_STEP, { step: 'tool_end', tool: name });
+            this.eventsGateway.dispatch(conversationId, SocketEvents.AI_STEP, {
+              step: 'tool_end',
+              tool: name,
+            });
           }
         }
       }
@@ -231,20 +250,98 @@ export class AiCustomerService {
       // 检查是否需要转人工
       if (finalState?.values?.transferToHuman && callbacks.onTransfer) {
         callbacks.onTransfer('ai_determined');
-        if (conversationId) {
-          this.eventsGateway.dispatch(conversationId, SocketEvents.AI_TRANSFER, { conversationId, reason: 'ai_determined' });
+
+        // 确定要标记的目标对话 ID
+        let targetConversationId = conversationId;
+        if (!targetConversationId) {
+          // SSE 旧路径可能未传 conversationId，查找用户的 SUPPORT 对话
+          const supportConv = await this.prismaService.conversation.findFirst({
+            where: {
+              type: 'SUPPORT',
+              members: { some: { userId } },
+            },
+            orderBy: { updatedAt: 'desc' },
+            select: { id: true },
+          });
+          if (supportConv) targetConversationId = supportConv.id;
+        }
+
+        // 标记对话已转人工，后续消息不再触发 AI
+        if (targetConversationId) {
+          await this.prismaService.conversation.update({
+            where: { id: targetConversationId },
+            data: {
+              handlerId: 'awaiting_human',
+              handlerAssignedAt: new Date(),
+            },
+          });
+          this.eventsGateway.dispatch(
+            targetConversationId,
+            SocketEvents.AI_TRANSFER,
+            { conversationId: targetConversationId, reason: 'ai_determined' },
+          );
         }
       } else {
         callbacks.onDone();
         if (conversationId) {
-          this.eventsGateway.dispatch(conversationId, SocketEvents.AI_DONE, { conversationId });
+          // 从 newMessages 中取最后一条 AI 回复内容
+          const lastAiContent =
+            newMessages
+              .filter((m: any) => m.type === 'ai')
+              .map((m: any) => (typeof m.content === 'string' ? m.content : ''))
+              .pop() ?? '';
+          if (lastAiContent) {
+            // 找对话里另一个成员（客服 side）作为 sender
+            const otherMember = await this.prismaService.chatMember.findFirst({
+              where: { conversationId, userId: { not: userId } },
+              select: { userId: true },
+            });
+
+            if (otherMember) {
+              // 像普通消息一样生成 seqId 并写入 chat_message 表
+              const conv = await this.prismaService.conversation.update({
+                where: { id: conversationId },
+                data: { lastMsgSeqId: { increment: 1 } },
+                select: { lastMsgSeqId: true },
+              });
+
+              const msg = await this.prismaService.chatMessage.create({
+                data: {
+                  conversationId,
+                  senderId: otherMember.userId,
+                  content: lastAiContent,
+                  type: 0, // TEXT
+                  seqId: conv.lastMsgSeqId,
+                },
+                include: { sender: { select: { id: true, nickname: true, avatar: true } } },
+              });
+
+              // 广播 CHAT_MESSAGE 事件
+              // 注意：createdAt 转为时间戳 number，Flutter SocketMessage 模型要求为 int 而非 Date string
+              this.eventsGateway.dispatch(
+                conversationId,
+                SocketEvents.CHAT_MESSAGE,
+                {
+                  ...msg,
+                  isSelf: false,
+                  createdAt: msg.createdAt.getTime(),
+                },
+              );
+            }
+          }
+
+          this.eventsGateway.dispatch(conversationId, SocketEvents.AI_DONE, {
+            conversationId,
+          });
         }
       }
     } catch (err: any) {
       this.logger.error(`[chatStream] error: ${err.message}`);
       callbacks.onError(err);
       if (conversationId) {
-        this.eventsGateway.dispatch(conversationId, SocketEvents.AI_ERROR, { content: err.message });
+        this.eventsGateway.dispatch(conversationId, SocketEvents.AI_ERROR, {
+          content: err.message,
+        });
       }
     }
   }

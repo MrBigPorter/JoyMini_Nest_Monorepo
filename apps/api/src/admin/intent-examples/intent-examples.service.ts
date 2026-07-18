@@ -8,9 +8,12 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { AiService } from '@api/common/ai/ai.service';
+import { ConfigService } from '@nestjs/config';
 import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service';
 import { IntentClassifier } from '@api/client/ai-customer/graph/utils/intent-classifier';
+import { LlmProviderConfig } from '@api/client/ai-customer/graph/llm-factory';
 import { INTENT_EXAMPLE_GROUPS } from '@api/client/ai-customer/graph/agents/prompts/intent-examples';
+import { INTENT_LABEL_CATEGORIES } from '@api/client/ai-customer/graph/agents/prompts/intent-label-categories';
 import { md5 } from '@api/common/crypto.util';
 import { EMBEDDING_QUEUE } from '@api/common/ai/queues/embedding/embedding-queue.constants';
 import type { EmbeddingJobData } from '@api/common/ai/queues/embedding/embedding.processor';
@@ -29,6 +32,7 @@ export class IntentExamplesService {
     private readonly prisma: PrismaService,
     private readonly aiService: AiService,
     private readonly meilisearchService: MeilisearchService,
+    private readonly configService: ConfigService,
     @InjectQueue(EMBEDDING_QUEUE)
     private readonly embeddingQueue: Queue<EmbeddingJobData>,
   ) {}
@@ -53,11 +57,13 @@ export class IntentExamplesService {
     // 3. Build response: DB domains first, then code-defined domains not yet in DB
     const seen = new Set<string>();
     const result: IntentExampleGroupResponseDto[] = [];
+    // Build a lookup map for INTENT_EXAMPLE_GROUPS (seed data)
+    const examplesMap = new Map(INTENT_EXAMPLE_GROUPS.map((g) => [g.name, g]));
 
     for (const { domain } of dbDomains) {
       seen.add(domain);
       const config = configMap.get(domain);
-      const codeGroup = INTENT_EXAMPLE_GROUPS.find((g) => g.name === domain);
+      const codeGroup = examplesMap.get(domain);
       const parsed = config
         ? this.parseConfigSentences(config.sentences)
         : null;
@@ -73,16 +79,20 @@ export class IntentExamplesService {
       });
     }
 
-    // Add code-defined domains not yet in DB (e.g. after fresh seed)
-    for (const group of INTENT_EXAMPLE_GROUPS) {
-      if (!seen.has(group.name)) {
+    // Add code-defined domains (from INTENT_LABEL_CATEGORIES) not yet in DB
+    // This allows admin to see and manage domains like 'human_support'
+    // even before any examples have been added for them.
+    for (const cat of INTENT_LABEL_CATEGORIES) {
+      if (!cat.validLabel) continue;
+      if (!seen.has(cat.name)) {
+        const codeGroup = examplesMap.get(cat.name);
         result.push({
-          name: group.name,
-          examples: group.examples,
-          requiredTags: group.requiredTags,
+          name: cat.name,
+          examples: codeGroup?.examples ?? [],
+          requiredTags: codeGroup?.requiredTags,
           hasAdminOverride: false,
           updatedAt: null,
-          isAdminCreated: false,
+          isAdminCreated: !codeGroup,
         });
       }
     }
@@ -97,10 +107,15 @@ export class IntentExamplesService {
    * Falls back to TS defaults if no data in intent_examples.
    */
   async getByDomain(domain: string): Promise<IntentExampleGroupResponseDto> {
-    const group = INTENT_EXAMPLE_GROUPS.find((g) => g.name === domain);
-    if (!group) {
+    // Allow domain if it exists in categories (including code-only like human_support)
+    const validCategory = INTENT_LABEL_CATEGORIES.find(
+      (c) => c.name === domain,
+    );
+    if (!validCategory) {
       throw new NotFoundException(`Domain "${domain}" not found`);
     }
+
+    const group = INTENT_EXAMPLE_GROUPS.find((g) => g.name === domain);
 
     // Read actual sentences from intent_examples
     const dbRows = await this.prisma.$queryRawUnsafe<{ sentence: string }[]>(
@@ -115,14 +130,16 @@ export class IntentExamplesService {
     const parsed = config ? this.parseConfigSentences(config.sentences) : null;
 
     return {
-      name: group.name,
+      name: domain,
       examples:
-        dbRows.length > 0 ? dbRows.map((r) => r.sentence) : group.examples,
+        dbRows.length > 0
+          ? dbRows.map((r) => r.sentence)
+          : (group?.examples ?? []),
       sections: parsed?.sections,
-      requiredTags: group.requiredTags,
+      requiredTags: group?.requiredTags,
       hasAdminOverride: !!config,
       updatedAt: config?.updatedAt?.toISOString() ?? null,
-      isAdminCreated: false,
+      isAdminCreated: !group,
     };
   }
 
@@ -193,14 +210,16 @@ export class IntentExamplesService {
     mode: 'append' | 'replace' = 'replace',
     userId?: string,
   ): Promise<UpdateIntentExamplesResponseDto> {
-    // Validate domain exists (either in code or in DB)
-    const group = INTENT_EXAMPLE_GROUPS.find((g) => g.name === domain);
+    // Validate domain exists (in categories, INTENT_EXAMPLE_GROUPS, or DB)
+    const validCategory = INTENT_LABEL_CATEGORIES.find(
+      (c) => c.name === domain,
+    );
     const dbExists = await this.prisma.$queryRawUnsafe<{ cnt: number }[]>(
       `SELECT COUNT(*) as cnt FROM intent_examples WHERE domain = $1`,
       domain,
     );
 
-    if (!group && dbExists[0].cnt === 0) {
+    if (!validCategory && dbExists[0].cnt === 0) {
       throw new NotFoundException(`Domain "${domain}" not found`);
     }
 
@@ -345,10 +364,19 @@ export class IntentExamplesService {
     if (!config) {
       // No admin override — re-index from TS constants
       const group = INTENT_EXAMPLE_GROUPS.find((g) => g.name === domain);
-      if (!group) {
-        throw new NotFoundException(`Domain "${domain}" not found`);
+      if (group) {
+        return this.replaceDomain(domain, group.examples);
       }
-      return this.replaceDomain(domain, group.examples);
+      // Domain has no code examples and no admin config — nothing to reindex
+      const validCategory = INTENT_LABEL_CATEGORIES.find(
+        (c) => c.name === domain,
+      );
+      if (validCategory) {
+        throw new NotFoundException(
+          `Domain "${domain}" has no example sentences yet. Please add examples via Admin panel first.`,
+        );
+      }
+      throw new NotFoundException(`Domain "${domain}" not found`);
     }
 
     const parsed = this.parseConfigSentences(config.sentences);
@@ -361,10 +389,19 @@ export class IntentExamplesService {
   async testClassification(
     input: string,
   ): Promise<TestClassificationResponseDto> {
+    const llmConfig: LlmProviderConfig = {
+      type: this.configService.get<'online' | 'local'>('AI_LLM_TYPE', 'local'),
+      model: this.configService.get<string>('OLLAMA_MODEL', 'qwen3.5:0.8b'),
+      baseURL: this.configService.get<string>(
+        'OLLAMA_BASE_URL',
+        'http://localhost:11434',
+      ),
+    };
     const classifier = new IntentClassifier(
       this.aiService,
       this.prisma,
       this.meilisearchService,
+      llmConfig,
     );
     const result = await classifier.classify(input);
     return {

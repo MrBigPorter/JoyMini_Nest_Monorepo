@@ -100,6 +100,42 @@ export class ChatService {
       if (meta?.thumb) finalMeta.thumb = meta.thumb;
     }
 
+    // ── Handler 超时检测：超过 10 分钟无回复，自动切回 AI ──
+    // 超时判定基于最后一条消息的时间（每次发消息刷新 handlerAssignedAt）
+    // 如果用户持续与人工聊天，超时计时会不断延长
+    const HANDLER_TIMEOUT_MS = 10 * 60 * 1000;
+    const currentConv = await this.prisma.conversation.findUnique({
+      where: { id: conversationId },
+      select: { handlerId: true, handlerAssignedAt: true, type: true },
+    });
+    if (currentConv?.handlerId != null) {
+      if (currentConv.handlerAssignedAt) {
+        const elapsed = Date.now() - currentConv.handlerAssignedAt.getTime();
+        if (elapsed > HANDLER_TIMEOUT_MS) {
+          this.logger.log(
+            `[Handler Timeout] conversation=${conversationId}, handler=${currentConv.handlerId}, resetting to AI`,
+          );
+          await this.prisma.conversation.update({
+            where: { id: conversationId },
+            data: { handlerId: null, handlerAssignedAt: null },
+          });
+          // 超时后不再刷新，让后续消息走 AI
+        } else {
+          // 未超时 → 刷新 handlerAssignedAt，延长超时计时
+          await this.prisma.conversation.update({
+            where: { id: conversationId },
+            data: { handlerAssignedAt: new Date() },
+          });
+        }
+      } else {
+        // 有 handlerId 但没有分配时间 → 设一个初始时间
+        await this.prisma.conversation.update({
+          where: { id: conversationId },
+          data: { handlerAssignedAt: new Date() },
+        });
+      }
+    }
+
     const { message, conversationMeta } = await this.prisma.$transaction(
       async (tx) => {
         const conv = await tx.conversation.update({
@@ -110,7 +146,12 @@ export class ChatService {
             lastMsgType: type,
             lastMsgTime: new Date(),
           },
-          select: { lastMsgSeqId: true, type: true, businessId: true },
+          select: {
+            lastMsgSeqId: true,
+            type: true,
+            businessId: true,
+            handlerId: true,
+          },
         });
 
         const msg = await tx.chatMessage.create({
@@ -138,6 +179,7 @@ export class ChatService {
           conversationMeta: {
             type: conv.type,
             businessId: conv.businessId ?? undefined,
+            handlerId: conv.handlerId ?? null,
           },
         };
       },
@@ -182,11 +224,14 @@ export class ChatService {
       ),
     );
 
-    // ── AI 路由：SUPPORT 对话的用户消息 → 触发 LangGraph ──
-    // 用户在 SUPPORT 对话中发消息时，不走 Socket 人工客服，
-    // 而是先由 AI 处理。AI 的回复通过 Socket ai_token/ai_done 推送。
-    // 转人工后不再触发 AI（由数据库 handler 字段控制）。
-    if (conversationMeta.type === 'SUPPORT' || conversationMeta.type === 'AI') {
+    // ── AI 路由：SUPPORT/AI 对话且 handlerId 为 null → 触发 LangGraph ──
+    // handlerId == null: AI 是当前处理者
+    // handlerId == 'awaiting_human': 已转人工待分配，跳过 AI
+    // handlerId 为其他非空值: 人工/admin 正在处理，跳过 AI
+    const isAiType =
+      conversationMeta.type === 'SUPPORT' || conversationMeta.type === 'AI';
+    const isAiHandler = conversationMeta.handlerId == null;
+    if (isAiType && isAiHandler) {
       this.eventEmitter.emit(
         CHAT_EVENTS.AI_MESSAGE_REQUESTED,
         new AiMessageRequestedEvent(conversationId, content, userId),

@@ -168,6 +168,7 @@ export const createIntentRouterNode = (
     aiService,
     prismaService,
     meilisearchService,
+    llmConfig,
   );
 
   return async (

@@ -150,57 +150,24 @@ export class AiMemoryService {
       );
     }
 
-    // ===== 第 2 步：预分配 seqId =====
-    const seqIds: number[] = [];
-    for (let i = 0; i < messages.length; i++) {
-      seqIds.push(await this.getNextSeqId(conversation.id));
-    }
+    // ===== Redis 热缓存（AI 上下文恢复用，不影响 IM） =====
+    // 注意：只缓存最近 3 条，不写 chat_message 表
+    // IM 消息完整性由 gateway（用户消息）和 AiCustomerService（AI 回复）负责
+    const cacheData = messages.slice(-3).map((msg) => ({
+      type: msg.type,
+      content: msg.type === 'human' ? '' : this.serializeContent(msg),
+      role: msg.type,
+      timestamp: Date.now(),
+    }));
 
-    // ===== 第 3+4 步：事务内写入消息 + 更新快照 =====
-    //
-    // 为什么需要事务？createMany 和 UPDATE 是两个独立操作
-    // 没有事务: 消息入库了但快照没更新 → 对话列表显示旧内容
-    // 有了事务: 要么全部成功，要么全部回滚
-
-    const messageData: Prisma.ChatMessageCreateManyInput[] = messages.map(
-      (msg, i) => ({
-        conversationId: conversation.id,
-        senderId: null,
-        type: this.mapRoleToChatType(msg._getType()),
-        content: this.serializeContent(msg),
-        role: msg.type,
-        tokenCount: this.estimateTokenCount(msg),
-        source: msg.type === 'human' ? 'user' : 'ai',
-        seqId: seqIds[i],
-        meta: msg.additional_kwargs as Prisma.InputJsonValue,
-      }),
-    );
-
-    await this.prisma.$transaction(async (tx) => {
-      // 第 3 步：批量写入消息
-      await tx.chatMessage.createMany({ data: messageData });
-
-      // 第 4 步：原子更新对话快照
-      await tx.$executeRaw`
-        UPDATE "Conversation"
-        SET
-          "lastMsgSeqId" = ${seqIds[seqIds.length - 1]},
-          "lastMsgContent" = ${this.getLastMsgPreview(messages)},
-          "lastMsgType" = 8,
-          "lastMsgTime" = NOW()
-        WHERE id = ${conversation.id}
-      `;
-    });
-
-    // ===== 第 5 步：Redis 热缓存（fire-and-forget） =====
     await this.redisService.set(
       `ai:hot:${threadId}`,
-      JSON.stringify(messageData.slice(-3)),
+      JSON.stringify(cacheData),
       3600,
     );
 
     this.logger.log(
-      `saveContext: saved ${messages.length} msgs, lastSeqId=${seqIds[seqIds.length - 1]}`,
+      `saveContext: cached ${messages.length} msgs for threadId=${threadId}`,
     );
   }
 

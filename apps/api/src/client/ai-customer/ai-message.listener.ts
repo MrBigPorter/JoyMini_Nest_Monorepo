@@ -14,9 +14,7 @@ import { CHAT_EVENTS } from '@api/common/chat/events/chat.events';
 export class AiMessageListener {
   private readonly logger = new Logger(AiMessageListener.name);
 
-  constructor(
-    private readonly aiCustomerService: AiCustomerService,
-  ) {}
+  constructor(private readonly aiCustomerService: AiCustomerService) {}
 
   @OnEvent(CHAT_EVENTS.AI_MESSAGE_REQUESTED)
   async handleAiMessageRequest(payload: {
@@ -25,7 +23,9 @@ export class AiMessageListener {
     userId: string;
   }): Promise<void> {
     const { conversationId, content, userId } = payload;
-    this.logger.log(`[AiMessageListener] AI request: conv=${conversationId}, msg="${content.slice(0, 50)}..."`);
+    this.logger.log(
+      `[AiMessageListener] AI request: conv=${conversationId}, msg="${content.slice(0, 50)}..."`,
+    );
 
     try {
       await this.aiCustomerService.chatStream(
@@ -37,11 +37,14 @@ export class AiMessageListener {
           onStep: () => {},
           onDone: () => {},
           onError: () => {},
+          onTransfer: () => {},
         },
         conversationId,
       );
     } catch (err: any) {
-      this.logger.error(`[AiMessageListener] AI processing failed: ${err.message}`);
+      this.logger.error(
+        `[AiMessageListener] AI processing failed: ${err.message}`,
+      );
     }
   }
 }
