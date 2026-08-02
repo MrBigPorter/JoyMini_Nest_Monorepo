@@ -38,6 +38,9 @@ export function ChatWindow({
   const [closing, setClosing] = useState(false);
   const [showQuickReplies, setShowQuickReplies] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [handlerMode, setHandlerMode] = useState<'ai' | 'human'>(
+    conversation.handlerId ? 'human' : 'ai',
+  );
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -220,16 +223,33 @@ export function ChatWindow({
         </div>
         <div className="flex items-center gap-2">
           {!isClosed && (
-            <button
-              onClick={() => void handleClose()}
-              disabled={closing}
-              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-orange-200 dark:border-orange-500/30 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-500/10 transition-colors disabled:opacity-50"
-            >
-              <X size={12} />
-              {closing
-                ? t('customerService.closing')
-                : t('customerService.closeTicket')}
-            </button>
+            <>
+              <button
+                onClick={async () => {
+                  const mode = conversation.handlerId ? 'ai' : 'human';
+                  await chatApi.switchHandler(conversation.id, mode);
+                  conversation.handlerId = mode === 'human' ? 'awaiting_human' : null;
+                  setHandlerMode(mode);
+                }}
+                className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+                  handlerMode === 'human' || conversation.handlerId
+                    ? 'border-purple-200 dark:border-purple-500/30 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-500/10'
+                    : 'border-teal-200 dark:border-teal-500/30 text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-500/10'
+                }`}
+              >
+                {handlerMode === 'human' || conversation.handlerId ? '👤 Human' : '🤖 AI'}
+              </button>
+              <button
+                onClick={() => void handleClose()}
+                disabled={closing}
+                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-orange-200 dark:border-orange-500/30 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-500/10 transition-colors disabled:opacity-50"
+              >
+                <X size={12} />
+                {closing
+                  ? t('customerService.closing')
+                  : t('customerService.closeTicket')}
+              </button>
+            </>
           )}
           <button
             onClick={fetchMessages}

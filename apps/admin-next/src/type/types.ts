@@ -1263,6 +1263,7 @@ export interface ChatConversation {
   type: ConversationType;
   name: string | null;
   status: number; // 1=正常 2=已关闭
+  handlerId: string | null;
   lastMsgContent: string | null;
   lastMsgTime: number;
   lastMsgSeqId: number;

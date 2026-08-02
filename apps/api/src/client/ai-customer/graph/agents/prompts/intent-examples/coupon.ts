@@ -22,6 +22,9 @@ export const couponExamples: string[] = [
   'Redeem this voucher',
   'I want to use coupon WELCOME20',
   'Apply this promo code to my order',
+  'Help me claim a coupon',
+  'I want to claim a coupon',
+  '领取优惠券',
 
   // ── Balance / value (operation: real-time check) ──
   'How much is my coupon worth?',

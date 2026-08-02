@@ -4,6 +4,8 @@ import {
   createParamDecorator,
   ExecutionContext,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   Patch,
   Post,
@@ -97,6 +99,16 @@ export class AdminChatController {
     @CurrentAdminName() adminName: string,
   ) {
     return this.service.closeConversation(conversationId, dto, adminName);
+  }
+
+  /** PATCH /v1/admin/chat/conversations/:id/handler — 切换 AI/人工模式 */
+  @Patch('conversations/:id/handler')
+  @HttpCode(HttpStatus.OK)
+  async switchHandler(
+    @Param('id') id: string,
+    @Body() dto: { mode: 'ai' | 'human' },
+  ) {
+    return this.service.switchHandler(id, dto.mode);
   }
 
   /** POST /v1/admin/chat/upload-token — 获取媒体上传签名 URL */

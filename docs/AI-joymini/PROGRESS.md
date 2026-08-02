@@ -61,6 +61,7 @@
 | **80** | **超时刷新 Bug 修复**          |   ✅   | 每次发消息刷新 handlerAssignedAt           |
 | **81** | **确认卡片 + Callback 补全**   |   ⚪   | 文档阶段                                   |
 | **82** | **AI 回复 IM 同步修复**       |   ✅   | 停 saveContext 写 chat_message + 数据清理  |
+| **83** | **确认卡片详细设计**          |   ⚪   | 详细方案：流程/API/token/Flutter/工作量   |
 
 ### Agent + 工具
 

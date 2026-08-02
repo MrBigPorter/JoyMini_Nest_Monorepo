@@ -105,7 +105,6 @@ export const INTENT_LABEL_CATEGORIES: LabelCategory[] = [
   { name: 'kyc', validLabel: true, type: 'business' },
   { name: 'rag', validLabel: true, type: 'business' },
   { name: 'general', validLabel: true, type: 'general' },
-  { name: 'human_support', validLabel: true, type: 'transfer' },
 ];
 
 // ============================================================

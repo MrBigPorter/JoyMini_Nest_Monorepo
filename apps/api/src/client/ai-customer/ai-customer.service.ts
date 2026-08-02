@@ -13,6 +13,9 @@ import { RagRetrievalService } from '@api/client/ai-customer/knowledge/rag-retri
 import { PromptResolverService } from '@api/client/ai-customer/knowledge/prompt-resolver.service';
 import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service';
 import { AiMemoryService } from '@api/common/ai/ai-memory.service';
+import { AiActionConfirmService } from './ai-action-confirm.service';
+import { handleEventStream } from './ai-stream.handler';
+import { publishAiReply } from './ai-reply-publisher';
 
 @Injectable()
 export class AiCustomerService {
@@ -30,6 +33,7 @@ export class AiCustomerService {
     private readonly meilisearchService: MeilisearchService,
     private readonly aiMemoryService: AiMemoryService,
     private readonly eventsGateway: EventsGateway,
+    private readonly aiActionConfirmService: AiActionConfirmService,
   ) {}
 
   /**
@@ -103,6 +107,10 @@ export class AiCustomerService {
    * @param callbacks
    * @returns
    */
+  // ══════════════════════════════════════════════════════════════
+  //  Step 流程 — 5 步，一眼看完
+  // ══════════════════════════════════════════════════════════════
+
   async chatStream(
     message: string,
     userId: string,
@@ -118,231 +126,193 @@ export class AiCustomerService {
     entryPoint?: string,
     metadata?: Record<string, any>,
   ): Promise<void> {
-    // 边界检查
-    if (!this.compiledGraph) {
-      callbacks.onError(new Error('Graph not initialized'));
-      return;
-    }
-    if (!message || !userId) {
-      callbacks.onError(new Error('Message and userId are required'));
-      return;
-    }
+    // Step 1 — 校验入参
+    if (!this.assertInputValid(message, userId, callbacks)) return;
 
     this.logger.log(`[chatStream] message="${message.slice(0, 50)}..."`);
 
     try {
-      // 获取或创建 AI 对话（支持传入已有 SUPPORT 对话 ID）
-      const conversation = await this.aiMemoryService.createOrGetAiConversation(
-        userId,
-        conversationId,
-      );
-      const threadId = conversation.threadId!;
+      // Step 2 — 准备 AI 对话线程
+      const threadId = await this.prepareThread(userId, conversationId);
 
-      // 流开始前：记下已有消息数，流结束后只取增量
-      const prevState = await this.compiledGraph.getState({
-        configurable: { thread_id: threadId },
-      });
-      const prevCount = prevState?.values?.messages?.length ?? 0;
+      // Step 3 — 记录快照 + 通知 Thinking
+      const prevCount = await this.snapshotBeforeStream(threadId);
+      this.broadcastThinking(conversationId, callbacks);
 
-      // ── streamEvents: LangGraph 事件流 ──
-      // streamEvents 是 graph.invoke() 的流式替代方案。
-      //
-      // invoke(): 等全部跑完 → 一次性返回结果（阻塞 2-5 秒）
-      // streamEvents(): 每步都发出事件 → 实时推送（首字 200ms）
-      //
-      // 事件流像一条传送带，上面有各种类型的事件包裹（eventName）：
-      //   on_chat_model_stream = LLM 正在生成文字（逐 token）
-      //   on_tool_start       = Agent 开始调工具（如查余额）
-      //   on_tool_end         = Agent 调完工具
-      //
-      // 我们用 for await 循环从传送带上逐个取包裹拆开看，
-      // 通过 callbacks 推给 Controller，Controller 再通过 SSE 推给浏览器。
-      // ────────────────────────────────────────────────────────────
-      callbacks.onStep('thinking', { content: 'analyzing your question...' });
-      // Socket 推送：AI 正在分析（让前端显示"正在分析中..."）
-      if (conversationId) {
-        this.eventsGateway.dispatch(conversationId, SocketEvents.AI_STEP, {
-          step: 'thinking',
-          content: 'analyzing your question...',
-        });
-      }
+      // Step 4 — 执行 LangGraph 流式推理（逐 token 推给前端）
+      await this.runEventStream(threadId, message, userId, conversationId, entryPoint, metadata, callbacks);
 
-      const eventStream = await this.compiledGraph.streamEvents(
-        {
-          messages: [new HumanMessage(message)],
-          userId,
-          debug: false,
-          entryPoint: entryPoint ?? '',
-          entryMetadata: metadata ?? {},
-        },
-        {
-          version: 'v2',
-          configurable: { thread_id: threadId },
-        },
-      );
-
-      this.logger.log(
-        `[chatStream] event stream started for eventStream=${eventStream}`,
-      );
-
-      // 循环遍历事件流中的每个事件
-      for await (const event of eventStream) {
-        const { event: eventName, data, name, metadata } = event;
-
-        // 1. LLM 正在生成回复 → 把当前 token 推给前端（打字机效果）
-        //    注意：streamEvents 会捕获图中所有 LLM 调用，包括 intentRouter 的 LLM fallback。
-        //    我们需要跳过非 orchestrator 节点的 LLM 输出，避免意图分类的 JSON 泄漏到回复中。
-        if (eventName === 'on_chat_model_stream') {
-          const node = metadata?.langgraph_node as string | undefined;
-          // 意图分类阶段（intentGateway / intentRouter）的 LLM 输出是内部 JSON，不推给用户
-          if (node === 'intentGateway' || node === 'intentRouter') continue;
-          const chunk = data?.chunk;
-          if (chunk?.content) {
-            callbacks.onToken(chunk.content);
-            // Socket 推送：AI 逐字 token（给 Flutter App）
-            if (conversationId) {
-              this.eventsGateway.dispatch(
-                conversationId,
-                SocketEvents.AI_TOKEN,
-                { content: chunk.content },
-              );
-            }
-          }
-        }
-        // 2. Agent 开始调工具 → 通知前端显示"正在查余额..."
-        else if (eventName === 'on_tool_start') {
-          const displayName = this.registry.getDisplayName(name) ?? name;
-          callbacks.onStep('tool_start', { tool: displayName });
-          // Socket 推送：AI 处理步骤
-          if (conversationId) {
-            this.eventsGateway.dispatch(conversationId, SocketEvents.AI_STEP, {
-              step: 'tool_start',
-              tool: displayName,
-            });
-          }
-        }
-        // 3. Agent 调完工具 → 通知前端"查完了"
-        else if (eventName === 'on_tool_end') {
-          callbacks.onStep('tool_end', { tool: name });
-          if (conversationId) {
-            this.eventsGateway.dispatch(conversationId, SocketEvents.AI_STEP, {
-              step: 'tool_end',
-              tool: name,
-            });
-          }
-        }
-      }
-      // streamEvents 把所有消息追加到了 MemorySaver
-      // 现在用 getState 读最终状态
-      const finalState = await this.compiledGraph.getState({
-        configurable: { thread_id: threadId },
-      });
-      const allMessages = finalState?.values?.messages ?? [];
-
-      // 只取本轮新增的（跳过已有消息）
-      const newMessages = allMessages.slice(prevCount);
-
-      // 保存本轮对话到数据库
-      if (newMessages.length > 0) {
-        await this.aiMemoryService.saveContext(threadId, newMessages);
-      }
-
-      // 检查是否需要转人工
-      if (finalState?.values?.transferToHuman && callbacks.onTransfer) {
-        callbacks.onTransfer('ai_determined');
-
-        // 确定要标记的目标对话 ID
-        let targetConversationId = conversationId;
-        if (!targetConversationId) {
-          // SSE 旧路径可能未传 conversationId，查找用户的 SUPPORT 对话
-          const supportConv = await this.prismaService.conversation.findFirst({
-            where: {
-              type: 'SUPPORT',
-              members: { some: { userId } },
-            },
-            orderBy: { updatedAt: 'desc' },
-            select: { id: true },
-          });
-          if (supportConv) targetConversationId = supportConv.id;
-        }
-
-        // 标记对话已转人工，后续消息不再触发 AI
-        if (targetConversationId) {
-          await this.prismaService.conversation.update({
-            where: { id: targetConversationId },
-            data: {
-              handlerId: 'awaiting_human',
-              handlerAssignedAt: new Date(),
-            },
-          });
-          this.eventsGateway.dispatch(
-            targetConversationId,
-            SocketEvents.AI_TRANSFER,
-            { conversationId: targetConversationId, reason: 'ai_determined' },
-          );
-        }
-      } else {
-        callbacks.onDone();
-        if (conversationId) {
-          // 从 newMessages 中取最后一条 AI 回复内容
-          const lastAiContent =
-            newMessages
-              .filter((m: any) => m.type === 'ai')
-              .map((m: any) => (typeof m.content === 'string' ? m.content : ''))
-              .pop() ?? '';
-          if (lastAiContent) {
-            // 找对话里另一个成员（客服 side）作为 sender
-            const otherMember = await this.prismaService.chatMember.findFirst({
-              where: { conversationId, userId: { not: userId } },
-              select: { userId: true },
-            });
-
-            if (otherMember) {
-              // 像普通消息一样生成 seqId 并写入 chat_message 表
-              const conv = await this.prismaService.conversation.update({
-                where: { id: conversationId },
-                data: { lastMsgSeqId: { increment: 1 } },
-                select: { lastMsgSeqId: true },
-              });
-
-              const msg = await this.prismaService.chatMessage.create({
-                data: {
-                  conversationId,
-                  senderId: otherMember.userId,
-                  content: lastAiContent,
-                  type: 0, // TEXT
-                  seqId: conv.lastMsgSeqId,
-                },
-                include: { sender: { select: { id: true, nickname: true, avatar: true } } },
-              });
-
-              // 广播 CHAT_MESSAGE 事件
-              // 注意：createdAt 转为时间戳 number，Flutter SocketMessage 模型要求为 int 而非 Date string
-              this.eventsGateway.dispatch(
-                conversationId,
-                SocketEvents.CHAT_MESSAGE,
-                {
-                  ...msg,
-                  isSelf: false,
-                  createdAt: msg.createdAt.getTime(),
-                },
-              );
-            }
-          }
-
-          this.eventsGateway.dispatch(conversationId, SocketEvents.AI_DONE, {
-            conversationId,
-          });
-        }
-      }
+      // Step 5 — 收尾分发：转人工 / 确认卡片 / 正常完成
+      await this.finalizeAfterStream(threadId, prevCount, userId, conversationId, callbacks);
     } catch (err: any) {
-      this.logger.error(`[chatStream] error: ${err.message}`);
-      callbacks.onError(err);
-      if (conversationId) {
-        this.eventsGateway.dispatch(conversationId, SocketEvents.AI_ERROR, {
-          content: err.message,
-        });
-      }
+      this.handleStreamError(err, conversationId, callbacks);
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  //  Step 实现
+  // ══════════════════════════════════════════════════════════════
+
+  /** Step 1 — 校验入参是否合法 */
+  private assertInputValid(
+    message: string,
+    userId: string,
+    callbacks: { onError: (err: Error) => void },
+  ): boolean {
+    if (!this.compiledGraph) {
+      callbacks.onError(new Error('Graph not initialized'));
+      return false;
+    }
+    if (!message || !userId) {
+      callbacks.onError(new Error('Message and userId are required'));
+      return false;
+    }
+    return true;
+  }
+
+  /** Step 2 — 获取/创建 AI 对话线程 ID */
+  private async prepareThread(userId: string, conversationId?: string): Promise<string> {
+    const conversation = await this.aiMemoryService.createOrGetAiConversation(userId, conversationId);
+    return conversation.threadId!;
+  }
+
+  /** Step 3 — 记录流开始前的消息数，用于后续增量 */
+  private async snapshotBeforeStream(threadId: string): Promise<number> {
+    const prevState = await this.compiledGraph!.getState({
+      configurable: { thread_id: threadId },
+    });
+    return prevState?.values?.messages?.length ?? 0;
+  }
+
+  /** Step 3 — 通知前端"Thinking" */
+  private broadcastThinking(
+    conversationId: string | undefined,
+    callbacks: { onStep: (step: string, data?: any) => void },
+  ): void {
+    callbacks.onStep('thinking', { content: 'analyzing your question...' });
+    if (conversationId) {
+      this.eventsGateway.dispatch(conversationId, SocketEvents.AI_STEP, {
+        step: 'thinking',
+        content: 'analyzing your question...',
+      });
+    }
+  }
+
+  /** Step 4 — 执行 LangGraph 流，逐事件推给前端（委托给 ai-stream.handler） */
+  private async runEventStream(
+    threadId: string,
+    message: string,
+    userId: string,
+    conversationId: string | undefined,
+    entryPoint: string | undefined,
+    metadata: Record<string, any> | undefined,
+    callbacks: { onToken: (token: string) => void; onStep: (step: string, data?: any) => void },
+  ): Promise<void> {
+    await handleEventStream(
+      this.compiledGraph!, threadId, message, userId,
+      conversationId, entryPoint, metadata,
+      this.registry, this.eventsGateway, callbacks,
+    );
+  }
+
+  /** Step 5 — 收尾：三路分发 + 错误处理 */
+  private async finalizeAfterStream(
+    threadId: string,
+    prevCount: number,
+    userId: string,
+    conversationId: string | undefined,
+    callbacks: {
+      onDone: () => void;
+      onTransfer?: (reason: string) => void;
+    },
+  ): Promise<void> {
+    // 读取最终状态
+    const finalState = await this.compiledGraph!.getState({
+      configurable: { thread_id: threadId },
+    });
+    const newMessages = (finalState?.values?.messages ?? []).slice(prevCount);
+
+    // 持久化本轮 AI 对话
+    if (newMessages.length > 0) {
+      await this.aiMemoryService.saveContext(threadId, newMessages);
+    }
+
+    // 路由 A — 转人工
+    if (finalState?.values?.transferToHuman && callbacks.onTransfer) {
+      await this.routeTransfer(userId, conversationId);
+      return;
+    }
+
+    // 路由 B — 确认卡片
+    if (finalState?.values?.pendingConfirm) {
+      await this.routeConfirm(userId, conversationId, finalState);
+      return;
+    }
+
+    // 路由 C — 正常完成（写 chat_message + 广播）
+    await this.routeNormalCompletion(newMessages, userId, conversationId);
+    callbacks.onDone();
+    if (conversationId) {
+      this.eventsGateway.dispatch(conversationId, SocketEvents.AI_DONE, {
+        conversationId,
+      });
+    }
+  }
+
+  /** 路由 A — 标记转人工 */
+  private async routeTransfer(userId: string, conversationId?: string): Promise<void> {
+    let targetConvId = conversationId;
+    if (!targetConvId) {
+      const conv = await this.prismaService.conversation.findFirst({
+        where: { type: 'SUPPORT', members: { some: { userId } } },
+        orderBy: { updatedAt: 'desc' },
+        select: { id: true },
+      });
+      if (conv) targetConvId = conv.id;
+    }
+    if (targetConvId) {
+      await this.prismaService.conversation.update({
+        where: { id: targetConvId },
+        data: { handlerId: 'awaiting_human', handlerAssignedAt: new Date() },
+      });
+      this.eventsGateway.dispatch(targetConvId, SocketEvents.AI_TRANSFER, {
+        conversationId: targetConvId, reason: 'ai_determined',
+      });
+    }
+  }
+
+  /** 路由 B — 发送确认卡片事件 */
+  private async routeConfirm(
+    userId: string,
+    conversationId: string | undefined,
+    finalState: any,
+  ): Promise<void> {
+    const pc = finalState.values.pendingConfirm;
+    const { token, expiresAt } = await this.aiActionConfirmService.generate(
+      userId, pc.action, pc.params, pc.summary,
+    );
+    if (conversationId) {
+      this.eventsGateway.dispatch(conversationId, SocketEvents.AI_CONFIRM, {
+        conversationId, action: pc.action, summary: pc.summary,
+        confirmToken: token, expiresAt,
+      });
+    }
+  }
+
+  /** 路由 C — 写 chat_message + 广播（委托给 ai-reply-publisher） */
+  private async routeNormalCompletion(newMessages: any[], userId: string, conversationId?: string): Promise<void> {
+    if (!conversationId) return;
+    await publishAiReply(this.prismaService, this.eventsGateway, conversationId, newMessages, userId);
+  }
+
+  /** 异常兜底 */
+  private handleStreamError(err: any, conversationId?: string, callbacks?: { onError: (err: Error) => void }): void {
+    this.logger.error(`[chatStream] error: ${err.message}`);
+    callbacks?.onError(err);
+    if (conversationId) {
+      this.eventsGateway.dispatch(conversationId, SocketEvents.AI_ERROR, {
+        content: err.message,
+      });
     }
   }
 

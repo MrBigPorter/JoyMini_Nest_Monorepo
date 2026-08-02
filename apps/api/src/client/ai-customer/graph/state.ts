@@ -237,7 +237,6 @@ export interface DebugInfo {
 // ============================================================
 
 export const AgentState = Annotation.Root({
-
   /**
    * messages — 对话消息列表
    *
@@ -378,5 +377,33 @@ export const AgentState = Annotation.Root({
   transferToHuman: Annotation<boolean>({
     reducer: (a: boolean, b: boolean) => b,
     default: () => false,
+  }),
+  /**
+   * pendingConfirm — 待确认操作
+   *
+   * orchestrator 在以下情况设置：
+   * 1. 用户发起需要确认的操作（如提现、修改地址等）
+   * 2. orchestrator 生成确认摘要和参数，存入 pendingConfirm
+   * AiCustomerService 收到此标记后 SSE 发 confirm 事件给前端。
+   */
+  pendingConfirm: Annotation<{
+    action: string;
+    params: Record<string, any>;
+    summary: Record<string, any>;
+  } | null>({
+    reducer: (a, b) => b ?? a,
+    default: () => null,
+  }),
+
+  /**
+   * repeatCount — 连续重复意图计数
+   *
+   * orchestrator 在每轮结束时检查 state.intent 是否与 state.previousIntent 相同。
+   * 如果相同，则 repeatCount +1；否则 reset 为 0。
+   * intentRouter 可用此计数判断用户是否多次尝试同一意图，辅助转人工决策。
+   */
+  repeatCount: Annotation<number>({
+    reducer: (a: number, b: number) => b,
+    default: () => 0,
   }),
 });

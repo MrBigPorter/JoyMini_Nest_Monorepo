@@ -769,6 +769,13 @@ export const chatApi = {
       data,
     ),
 
+  /** PATCH /v1/admin/chat/conversations/:id/handler — 切换 AI/人工 */
+  switchHandler: (conversationId: string, mode: 'ai' | 'human') =>
+    http.patch<{ success: boolean; mode: string }>(
+      `/v1/admin/chat/conversations/${conversationId}/handler`,
+      { mode },
+    ),
+
   /** POST /v1/admin/chat/upload-token — 获取媒体上传签名 URL */
   getUploadToken: (fileName: string, fileType: string) =>
     http.post<import('@/type/types').AdminUploadTokenResult>(

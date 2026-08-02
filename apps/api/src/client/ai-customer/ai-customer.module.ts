@@ -29,6 +29,7 @@ import { ClientFlashSaleService } from '@api/client/flash-sale/flash-sale.servic
 import { KycService } from '@api/client/kyc/kyc.service';
 import { TreasureService } from '@api/client/treasure/treasure.service';
 import { CategoryService } from '@api/client/category/category.service';
+import { AiActionConfirmService } from './ai-action-confirm.service';
 
 /**
  * 需要工具注册的 Agent tag 列表。
@@ -62,6 +63,7 @@ const EXPECTED_AGENT_TAGS = AGENT_TAGS_FOR_TOOLS;
     PromptResolverService,
     SseRateLimiterService,
     StreamReservationStore,
+    AiActionConfirmService,
   ],
 })
 export class AiCustomerModule implements OnApplicationBootstrap {

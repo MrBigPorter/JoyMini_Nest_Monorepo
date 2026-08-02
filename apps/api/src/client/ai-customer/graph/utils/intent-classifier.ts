@@ -121,7 +121,7 @@ export interface ClassificationResult {
  */
 export class IntentClassifier {
   /** 低置信度阈值：低于此值时使用 LLM fallback */
-  private readonly LOW_CONFIDENCE_THRESHOLD = 0.5;
+  private readonly LOW_CONFIDENCE_THRESHOLD = 0.7;
 
   /** BM25 和 pgvector 独立评分，不融合（不同域名的分数不可比） */
 
@@ -184,6 +184,9 @@ export class IntentClassifier {
     // 翻译非英文输入，供 BM25 关键词搜索
 
     const bm25Input = await this.translateToEnglish(normalizedInput);
+    logger.log(
+      `[IntentClassifier] translateToEnglish: "${normalizedInput}" → "${bm25Input}"`,
+    );
     const [bm25Result, embeddingResult] = await Promise.allSettled([
       this.meilisearchService.searchIntentExamples(bm25Input, 10),
       this.aiService.generateEmbedding(normalizedInput, {
@@ -330,22 +333,27 @@ export class IntentClassifier {
       );
     }
 
-    // ── BM25 + pgvector 独立加入 ──
-    // BM25 和 pgvector 各自独立，不融合。
-    // vector 命中的 domain 保留语义分数，BM25 独有的 domain 新增加入。
-    // 同一个 domain 两边都命中 → 保留 vector 分数（语义比关键词更可靠）。
+    // ── BM25 + pgvector 加权融合 ──
+    // vector（语义）权重 0.7，BM25（关键词）权重 0.3
+    // 只有 vector → 保留 vector 分；只有 BM25 → 打折；两边都有 → 加权求和
+    const VECTOR_WEIGHT = 0.7;
+    const BM25_WEIGHT = 0.3;
+
     if (bm25DomainMap.size > 0) {
       for (const [domain, bm25Score] of bm25DomainMap) {
         if (domainMap.has(domain)) {
-          // 两边都有 → 保留 vector 分数
+          // 两边都命中 → 加权求和
           const vectorScore = domainMap.get(domain)!;
+          const combined =
+            VECTOR_WEIGHT * vectorScore + BM25_WEIGHT * bm25Score;
+          domainMap.set(domain, Math.round(combined * 10000) / 10000);
           logger.log(
             `[IntentClassifier] both sources matched ${domain}: ` +
-              `vector=${vectorScore.toFixed(4)} (kept), bm25=${bm25Score.toFixed(4)} (independent source)`,
+              `vector=${vectorScore.toFixed(4)} ×0.7 + bm25=${bm25Score.toFixed(4)} ×0.3 = ${combined.toFixed(4)}`,
           );
         } else if (bm25Score >= this.LOW_CONFIDENCE_THRESHOLD) {
-          // BM25 独有 → 直接加入（关键词强命中，pgvector 漏检）
-          const score = Math.round(bm25Score * 10000) / 10000;
+          // 只有 BM25 → 打折加入
+          const score = Math.round(bm25Score * BM25_WEIGHT * 10000) / 10000;
           domainMap.set(domain, score);
           logger.log(
             `[IntentClassifier] bm25-only ${domain}: bm25=${bm25Score.toFixed(4)} → ${score.toFixed(4)} (vector missed)`,

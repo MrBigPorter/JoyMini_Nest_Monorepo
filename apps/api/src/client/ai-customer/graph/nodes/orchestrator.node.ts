@@ -57,459 +57,28 @@ import {
   DEPENDENCY_MAP,
 } from '@api/client/ai-customer/graph/config/orchestrator.config';
 
+import { resolveExecutionOrder } from './orchestrator-utils/dependency-resolver';
+import {
+  CONFIRM_REQUIRED_TOOLS,
+  mapToolToAction,
+  buildConfirmSummary,
+  NEGATIVE_KEYWORDS,
+} from './orchestrator-utils/confirm-utils';
+import { decideMultiIntentWithLLM } from './orchestrator-utils/multi-intent-decider';
+import {
+  handleGeneralChat,
+  handleRagQuery,
+} from './orchestrator-utils/direct-handlers';
+import {
+  synthesizeAnswers,
+  pushAgentResult,
+  pushDirectResult,
+  AGENT_ERROR_MSG,
+} from './orchestrator-utils/result-utils';
+import { detectTransferRequest } from './orchestrator-utils/transfer-detector';
+
 // (AGENT_MAP + DEPENDENCY_MAP 已抽离到 config/orchestrator.config.ts)
 
-/**
- * resolveExecutionOrder — 依赖解析排序
- *
- * ── 为什么需要？ ──
- * 某些 Agent 必须在其他 Agent 之前执行，否则 LLM 会因缺少上下文而出错。
- * 例如: "这个包的团购价多少，我有优惠券吗"
- *   - product Agent 要先执行，查出商品信息（价格、团购价）
- *   - 如果 coupon Agent 先执行，它不知道商品信息 → 无法正确推荐优惠券
- * 所以依赖规则是: product 必须先于 coupon/wallet 执行。
- *
- * ── DEPENDENCY_MAP 结构 ──
- *   { product: ['coupon', 'wallet'], order: ['coupon', 'wallet'] }
- *   ↑ 前置条件         ↑ 依赖它的 Agent
- *
- * ── 排序算法 ──
- *   1. 遍历 DEPENDENCY_MAP 的每个 entry
- *   2. 检查前置条件 (product) 是否在 labels 中
- *   3. 如果是，找出 labels 中哪些依赖者 (coupon,wallet) 也同时存在
- *   4. 重排: [前置条件, ...依赖者, ...其他]
- *   5. 如果无依赖关系，保持原顺序
- *
- * @param labels - 原始 label 数组（已按分数降序）
- * @returns 重排后的 label 数组
- *
- * @example
- * resolveExecutionOrder(['wallet', 'product', 'coupon'])
- * // DEPENDENCY_MAP['product'] = ['coupon','wallet']
- * // → ['product', 'coupon', 'wallet']
- */
-function resolveExecutionOrder(labels: string[]): string[] {
-  for (const [prerequisite, dependents] of Object.entries(DEPENDENCY_MAP)) {
-    if (labels.includes(prerequisite)) {
-      const matchedDependents = dependents.filter((d) => labels.includes(d));
-      if (matchedDependents.length > 0) {
-        // 排序: 前置依赖 → 依赖者 → 其他
-        const others = labels.filter(
-          (l) => l !== prerequisite && !matchedDependents.includes(l),
-        );
-        return [prerequisite, ...matchedDependents, ...others];
-      }
-    }
-  }
-  return labels;
-}
-
-// ============================================================
-// Multi-Intent LLM Decider — 多个 domain 匹配时由 LLM 判断
-// ============================================================
-//
-// decideMultiIntentWithLLM — 当多个 domain 同时高于阈值时，
-// 用 LLM 判断：全部执行 / 只选一个 / 问用户。
-//
-// 用于替代旧的 SCORE_GAP 逻辑（不同来源的分数不可比）。
-//
-// @returns { action, domain?, message? }
-//   action = "single" → 只执行 domain
-//   action = "all"    → 执行全部
-//   action = "ask"    → 反问用户（message 里放问句）
-// ============================================================
-
-const MULTI_INTENT_DECISION_PROMPT = ChatPromptTemplate.fromTemplate(
-  `You are an intent routing assistant. The user's message matched multiple business domains.
-
-Previous intent: {previousIntent}
-Previous assistant message: "{previousAssistantMessage}"
-
-User message: "{userInput}"
-
-Matched domains:
-{domainList}
-
-Your job: decide what to do.
-- If the user clearly wants ONE specific thing → respond: single:<domainName>
-- If the user's message relates to ALL matched domains → respond: all
-- If you are UNCERTAIN which one the user wants → respond: ask:<your clarifying question in the user's language>
-
-Rules:
-1. Use PREVIOUS INTENT as context. If user's short reply (e.g. "status", "yes", "check it") follows up on previous conversation, route to the relevant domain.
-2. "single" when user clearly wants one thing (consider previous context)
-3. "all" when query touches multiple domains
-4. "ask" when ambiguous - generate a clarifying question
-
-Examples:
-- previous=kyc, user="status" → single:kyc (user wants KYC status follow-up)
-- previous=kyc, user="check it" → single:kyc
-- previous=coupon, user="balance" → single:wallet (user switched topics)
-- "show my coupons" → single:coupon
-- "kyc" → ask:Would you like to check your KYC verification status or learn about KYC policies?
-
-Respond with ONLY one line, no explanation.`,
-);
-
-interface MultiIntentDecision {
-  action: 'single' | 'all' | 'ask';
-  domain?: string;
-  message?: string;
-}
-
-async function decideMultiIntentWithLLM(
-  llmConfig: LlmProviderConfig,
-  userInput: string,
-  domains: { label: string; score: number }[],
-  logger: Logger,
-  previousIntent?: string,
-  previousAssistantMessage?: string,
-): Promise<MultiIntentDecision> {
-  const domainList = domains
-    .map((d, i) => `${i + 1}. ${d.label} (score: ${d.score.toFixed(2)})`)
-    .join('\n');
-
-  const model = createLLM(llmConfig, { temperature: 0 });
-  const chain = MULTI_INTENT_DECISION_PROMPT.pipe(model).pipe(
-    new StringOutputParser(),
-  );
-  const raw = await chain.invoke({
-    userInput,
-    domainList,
-    previousIntent: previousIntent || 'none',
-    previousAssistantMessage:
-      previousAssistantMessage || '(no previous message)',
-  });
-  const trimmed = raw.trim().toLowerCase();
-
-  logger.log(`[orchestrator] multi-intent LLM raw decision: "${trimmed}"`);
-
-  if (trimmed.startsWith('single:')) {
-    const domain = trimmed.slice(7).trim();
-    return { action: 'single', domain };
-  }
-
-  if (trimmed === 'all') {
-    return { action: 'all' };
-  }
-
-  if (trimmed.startsWith('ask:')) {
-    const message = trimmed.slice(4).trim();
-    return { action: 'ask', message };
-  }
-
-  // Fallback: if LLM returns something unexpected, ask user
-  return {
-    action: 'ask',
-    message:
-      'I found several topics that might match your request. Could you please clarify what you need?',
-  };
-}
-
-// ============================================================
-// General Chat — Direct LLM Handler（fallback）
-// (GENERAL_CHAT_PROMPT 已抽离到 prompts/general-chat-prompt.ts)
-// ============================================================
-
-/**
- * handleGeneralChat — 无标签匹配时的 fallback 通用对话处理器
- *
- * ── 什么时候触发？ ──
- * intentRouter 没有匹配到任何业务标签（product/coupon/wallet/...）
- * → labels 为空数组 → orchestrator 执行此处理器
- *
- * ── 和标准 Agent 的区别 ──
- * 1. 没有工具调用能力，只是纯 LLM 聊天
- * 2. 用 GENERAL_CHAT_PROMPT（企业信息 + 客服角色）生成回复
- * 3. 上下文限制更严格（最多保留 9 条历史 → 防止超出无工具模型的 token 限制）
- *
- * ── 流程 ──
- * 1. 提取用户最新输入（extractUserInput）
- * 2. 截取最近对话上下文：
- *    - 取 state.messages 最后 10 条
- *    - 过滤只留 human/ai 消息（跳过 ToolMessage）
- *    - 去掉最后一条（当前用户消息 — 作为 input 单独传入）
- * 3. 用 GENERAL_CHAT_PROMPT + LLM 生成回复
- * 4. 返回: labels=[] → 下一轮 intentRouter 重新分类
- */
-async function handleGeneralChat(
-  state: typeof AgentState.State,
-  llmConfig: LlmProviderConfig,
-): Promise<Partial<typeof AgentState.State>> {
-  const userInput = extractUserInput(state);
-
-  // Build conversation context from recent history (skip ToolMessages, keep Human + AI)
-  const contextMessages = state.messages
-    .slice(-10) // last 10 messages
-    .filter((m) => m.type === 'human' || m.type === 'ai')
-    .slice(0, -1); // exclude current user message
-  const conversationContext =
-    contextMessages.length > 0
-      ? contextMessages.map(formatMessage).join('\n')
-      : '(no recent conversation)';
-
-  const model = createLLM(llmConfig, { temperature: 0.7 });
-  const chain = GENERAL_CHAT_PROMPT.pipe(model).pipe(new StringOutputParser());
-  const result = await chain.invoke({
-    input: userInput,
-    conversationContext,
-  });
-
-  return {
-    messages: [...state.messages, new AIMessage(result)],
-    previousIntent: state.intent,
-    labels: [],
-  };
-}
-
-// ============================================================
-// RAG Query Handler — DB-backed knowledge retrieval
-// ============================================================
-
-/**
- * handleRagQuery — 知识库检索处理器
- *
- * ── 什么时候触发？ ──
- * intentRouter 标签包含 'rag' → orchestrator 直接路由到此处
- * （不是标准 Agent 流水线，而是 direct handler，因为 RAG 不需要工具调用）
- *
- * ── 二分支流程 ──
- * 分支 A（检索到文档）:
- *   1. ragRetrievalService.retrieve(query, topK=3) → 从 PostgreSQL 向量库检索
- *   2. 将文档片段格式化为 markdown（含 title/domain/priority 元信息）
- *   3. RAG_PROMPT + LLM → 基于文档生成回答
- *
- * 分支 B（无相关文档）:
- *   1. 日志警告
- *   2. RAG_FALLBACK_PROMPT + LLM → 礼貌提示"未找到相关信息，请重试或联系客服"
- *   3. 不清空 labels → 但这里设置 labels=[] 因为 RAG 是独立标签
- *
- * ── 为什么是 direct handler 而不是标准 Agent？ ──
- * 标准 Agent 需要 ToolRegistry → tool binding → runAgentLoop。
- * RAG 只是一个简单的 "检索 → 生成" 流程，没有工具调用。
- * 用 direct handler 避免了不必要的复杂度。
- */
-async function handleRagQuery(
-  state: typeof AgentState.State,
-  llmConfig: LlmProviderConfig,
-  ragRetrievalService: RagRetrievalService,
-): Promise<Partial<typeof AgentState.State>> {
-  const logger = new Logger('Orchestrator');
-  const userInput = extractUserInput(state);
-
-  // Retrieve relevant documents from DB
-  const results = await ragRetrievalService.retrieve(userInput, { topK: 3 });
-
-  if (results.length === 0) {
-    // Fallback: no docs found
-    logger.log(
-      '[orchestrator] RAG: no relevant documents found, using fallback',
-    );
-    const model = createLLM(llmConfig, { temperature: 0.3 });
-    const chain = RAG_FALLBACK_PROMPT.pipe(model).pipe(
-      new StringOutputParser(),
-    );
-    const result = await chain.invoke({ input: userInput });
-    return {
-      messages: [...state.messages, new AIMessage(result)],
-      previousIntent: state.intent,
-      labels: [],
-    };
-  }
-
-  const documents = results
-    .map(
-      (r) =>
-        `## ${r.title} (domain: ${r.domain}, priority: ${r.priority})\n${r.content}`,
-    )
-    .join('\n\n---\n\n');
-
-  const model = createLLM(llmConfig, { temperature: 0.3 });
-  const chain = RAG_PROMPT.pipe(model).pipe(new StringOutputParser());
-  const result = await chain.invoke({ input: userInput, documents });
-
-  return {
-    messages: [...state.messages, new AIMessage(result)],
-    previousIntent: state.intent,
-    labels: [],
-  };
-}
-
-// ============================================================
-// Answer Synthesizer — 合并多个 Agent 输出 → 最终回复
-// (SYNTHESIZER_PROMPT 已抽离到 prompts/synthesizer-prompt.ts)
-// ============================================================
-
-/**
- * synthesizeAnswers — 将多个 Agent 的输出合并为一条最终回复
- *
- * ── 为什么需要合成？ ──
- * 流水线中各 Agent 独立输出（product: "团购价 $29.99"，coupon: "有10%优惠券"）。
- * 如果直接拼接返回，用户体验差（多条割裂的消息）。
- * 合成器将这些输出整理为一条流畅的回复。
- *
- * ── 三路逻辑 ──
- * 1. 所有输出为空 → 返回固定 fallback 字符串（无 LLM 调用）
- * 2. 只有一个 Agent 有输出 → 直接返回内容（避免不必要的 LLM 调用）
- * 3. 多个 Agent 都有输出 → 用 SYNTHESIZER_PROMPT + LLM 合并
- *    - 格式: [label]: content \n\n [label2]: content2
- *    - LLM 负责将这些片段组织为连贯的一段话
- *
- * ── 为什么 single-output 不走 LLM？ ──
- * 性能优化：如果只有一个 Agent 执行了有效操作（如纯查余额），
- * 没必要浪费一次 LLM 调用来"重新表达"同一句话。
- */
-async function synthesizeAnswers(
-  llmConfig: LlmProviderConfig,
-  agentOutputs: { label: string; content: string }[],
-  userInput: string,
-): Promise<string> {
-  const validOutputs = agentOutputs.filter(
-    (o) => o.content && o.content.length > 0,
-  );
-  if (validOutputs.length === 0) {
-    return 'Sorry, I could not find the information you requested. Please try again later or contact our customer support team for assistance.';
-  }
-
-  // 只有一个 Agent 输出 → 直接使用（无需 LLM 二次处理）
-  if (validOutputs.length === 1) {
-    return validOutputs[0].content;
-  }
-
-  // 多个 Agent 输出 → 用 LLM 合成
-  const agentOutput = validOutputs
-    .map((o) => `[${o.label}]: ${o.content}`)
-    .join('\n\n');
-
-  const model = createLLM(llmConfig, { temperature: 0.5 });
-  const chain = SYNTHESIZER_PROMPT.pipe(model).pipe(new StringOutputParser());
-  return chain.invoke({
-    agentOutput: agentOutput || 'No results found.',
-    userInput,
-  });
-}
-
-// ============================================================
-// Shared Helpers — 提取公共结果处理逻辑，消除代码重复
-// ============================================================
-
-/**
- * pushDirectResult — 将 direct handler 的结果推入 agentOutputs + debugAgents
- *
- * ── 用途 ──
- * 专用于 generalChat 和 RAG 这两种 direct handler。
- * 它们不走标准 Agent 流水线（无 runAgentLoop），但输出格式仍需统一。
- *
- * ── 和 pushAgentResult 的区别 ──
- * direct handler 的结果是 Partial<AgentState>（含 messages 数组），
- * 没有 error/content 字段，所以从 messages 中提取最后一条消息的内容。
- * 而标准 Agent 返回 { content?, error? } 结构。
- *
- * @param label - 标签名（'general' | 'rag'）
- * @param result - direct handler 的返回结果（含 messages[]）
- * @param agentOutputs - 全局输出数组（mutate）
- * @param debugAgents - debug 追踪数组（可选，mutate）
- */
-function pushDirectResult(
-  label: string,
-  result: Partial<typeof AgentState.State>,
-  agentOutputs: { label: string; content: string }[],
-  debugAgents?: DebugAgentExecution[],
-): void {
-  const lastMsg = result.messages?.[result.messages.length - 1];
-  const content = typeof lastMsg?.content === 'string' ? lastMsg.content : '';
-  agentOutputs.push({ label, content });
-  if (debugAgents) {
-    debugAgents.push({
-      label,
-      tools: [],
-      contextMessages: 0,
-      lastMsg: '',
-      status: 'OK',
-      resultPreview: content.slice(0, 200),
-    });
-  }
-}
-
-/**
- * AGENT_ERROR_MSG — 生成标准 Agent 错误提示文案
- *
- * ── 用途 ──
- * 当标准 Agent 返回 error 或 catch 块捕获异常时，
- * 用统一格式生成面向用户的友好错误消息。
- * 防止 LLM 级别的错误详情暴露给用户。
- *
- * @param label - 出错的 Agent 标签名
- * @returns "Sorry, I encountered an issue processing your {label} request."
- *
- * @example
- * AGENT_ERROR_MSG('coupon')
- * // → "Sorry, I encountered an issue processing your coupon request."
- */
-function AGENT_ERROR_MSG(label: string): string {
-  return `Sorry, I encountered an issue processing your ${label} request.`;
-}
-
-/**
- * pushAgentResult — 将标准 Agent 的执行结果推入 agentOutputs + debugAgents
- *
- * ── 解决的问题 ──
- * 之前每个 Agent 执行后都有 24 行重复的 if(result.error)/else 块，
- * 分别处理成功/失败两种路径的 push 逻辑。
- * 此函数统一处理两种路径，调用方只需一行。
- *
- * ── 逻辑 ──
- * 1. 检查 result.error 是否存在
- * 2. 有 error → content = AGENT_ERROR_MSG(label)；debug 状态标注 'ERROR'
- * 3. 无 error → content = result.content；debug 状态标注 'OK'
- * 4. 统一推入 agentOutputs 和 debugAgents
- *
- * ── 和 pushDirectResult 的区别 ──
- * pushAgentResult 接收标准 Agent 的 { content?, error? } 结构，
- * 且需要 toolNames/contextMessagesCount 等 debug 信息。
- * pushDirectResult 接收 direct handler 的 Partial<AgentState> 结构。
- *
- * @param label - Agent 标签名
- * @param result - runStandardAgent 的返回结果（含 content/error）
- * @param agentOutputs - 全局输出数组（mutate）
- * @param debugAgents - debug 追踪数组（可选，mutate）
- * @param toolNames - 绑定的工具名列表（逗号分隔）
- * @param contextMessagesCount - 传给 Agent 的上下文消息数
- * @param logger - 日志（未使用，保留兼容）
- */
-function pushAgentResult(
-  label: string,
-  result: { content?: string; error?: string },
-  agentOutputs: { label: string; content: string }[],
-  debugAgents: DebugAgentExecution[] | undefined,
-  toolNames: string,
-  contextMessagesCount: number,
-  logger?: Logger,
-): { forceTransfer: boolean } {
-  const isError = !!result.error;
-  let content = isError ? AGENT_ERROR_MSG(label) : (result.content ?? '');
-
-  // 检测 LLM 发出的转人工标记 [TRANSFER_TO_HUMAN]
-  const forceTransfer = content.includes('[TRANSFER_TO_HUMAN]');
-  if (forceTransfer) {
-    content = content.replace('[TRANSFER_TO_HUMAN]', '').trim();
-  }
-
-  agentOutputs.push({ label, content });
-
-  if (debugAgents) {
-    debugAgents.push({
-      label,
-      tools: toolNames.split(', ').filter(Boolean),
-      contextMessages: contextMessagesCount,
-      lastMsg: '',
-      status: isError ? 'ERROR' : 'OK',
-      resultPreview: content.slice(0, 200),
-    });
-  }
-
-  return { forceTransfer };
-}
 // ============================================================
 // Orchestrator Node Factory
 // ============================================================
@@ -659,7 +228,8 @@ export const createOrchestratorNode =
     // close-contenders 策略只保留与 top-1 差距 < SCORE_GAP 的标签。
     // ================================================================
 
-    const MIN_SCORE = 0.5; // 绝对分数及格线（和 IntentClassifier 阈值对齐）
+    const MIN_SCORE = 0.7; // 绝对分数及格线（和 IntentClassifier 阈值对齐）
+    const SCORE_MARGIN = 0.05;
 
     // Step 1: 按分数降序排列
     const sortedLabels = [...labels].sort((a, b) => b.score - a.score);
@@ -688,15 +258,19 @@ export const createOrchestratorNode =
       .map(([label, score]) => ({ label, score }))
       .sort((a, b) => b.score - a.score);
 
-    // ── 转人工检测：用户要求找人工客服 ──
-    // 如果标签中包含 human_support，用 LLM 生成友好回复后再转人工
-    if (domainLabels.some((d) => d.label === 'human_support')) {
+    // ── 情绪检测：匹配负面关键词 → 增加转人工优先级 ──
+    const userInput = extractUserInput(state);
+
+    // ── 转人工检测：关键词 / 情绪 / 循环 → 独立检测器 ──
+    const transfer = detectTransferRequest(userInput, state);
+    if (transfer.shouldTransfer) {
       logger.log(
-        '[orchestrator] human_support detected, generating transfer message via LLM',
+        `[orchestrator] transfer request detected: ${transfer.reason}`,
       );
+
       try {
         const model = createLLM(llmConfig, { temperature: 0.5 });
-        const userInput = extractUserInput(state);
+        const transferInput = extractUserInput(state);
         const response = await model.invoke([
           new SystemMessage(
             'The user has requested to speak with a human agent. ' +
@@ -704,7 +278,7 @@ export const createOrchestratorNode =
               'and telling them you are transferring them to a human representative. ' +
               'Be empathetic and professional. Do not ask questions or continue the conversation.',
           ),
-          new HumanMessage(userInput),
+          new HumanMessage(transferInput),
         ]);
         const content =
           typeof response.content === 'string'
@@ -719,7 +293,10 @@ export const createOrchestratorNode =
         logger.warn(
           `[orchestrator] LLM transfer message failed, using fallback: ${err}`,
         );
-        return { transferToHuman: true, labels: [] };
+        return {
+          transferToHuman: true,
+          labels: [],
+        };
       }
     }
 
@@ -729,7 +306,12 @@ export const createOrchestratorNode =
       logger.log(
         `[orchestrator] single domain above MIN_SCORE: ${effectiveLabels[0]}`,
       );
-    } else {
+    } else if (
+      domainLabels.length > 1 &&
+      domainLabels[0].score - domainLabels[1].score < SCORE_MARGIN
+    ) {
+      // TOP1 和 TOP2 差距 < margin → 不确定，问用户
+
       // 多个域 → 用 LLM 判断是全部执行、选一个、还是问用户
       logger.log(
         `[orchestrator] multiple domains (${domainLabels.map((l) => `${l.label}:${l.score.toFixed(2)}`).join(', ')}), asking LLM to decide`,
@@ -783,6 +365,12 @@ export const createOrchestratorNode =
           `[orchestrator] LLM decided to execute all domains: ${effectiveLabels.join(', ')}`,
         );
       }
+    } else if (domainLabels.length > 0) {
+      // 多域名但 TOP1 明显领先（gap >= margin）→ 直接执行 TOP1
+      effectiveLabels = [domainLabels[0].label];
+      logger.log(
+        `[orchestrator] clear winner: ${effectiveLabels[0]} (gap=${(domainLabels[0].score - (domainLabels[1]?.score ?? 0)).toFixed(2)})`,
+      );
     }
 
     const executionOrder = resolveExecutionOrder(effectiveLabels);
@@ -814,6 +402,7 @@ export const createOrchestratorNode =
     //   type='agent'  → 标准 Agent 流水线（含 ToolRegistry + runAgentLoop）
     // ──────────────────────────────────────────────────────────────
     let hasTransferRequest = false;
+    let hasPendingConfirm: typeof AgentState.State.pendingConfirm = null;
     for (const label of executionOrder) {
       // 从 AGENT_MAP 查找 Agent 配置
       // AGENT_MAP 在 orchestrator.config.ts 中定义，包含:
@@ -921,6 +510,21 @@ export const createOrchestratorNode =
               `[orchestrator] ${entry.label} result: OK — content preview: "${result.content.slice(0, 200)}..."`,
             );
           }
+
+          // ── 写操作拦截：检测是否需要用户确认 ──
+          const lastTool = result.lastToolCallInfo;
+          if (lastTool && CONFIRM_REQUIRED_TOOLS.has(lastTool.name)) {
+            logger.log(
+              `[orchestrator] ${entry.label} called write tool "${lastTool.name}", intercepting`,
+            );
+            hasPendingConfirm = {
+              action: mapToolToAction(lastTool.name),
+              params: lastTool.args,
+              summary: buildConfirmSummary(lastTool),
+            };
+            break; // 停止流水线，等待用户确认
+          }
+
           const pushResult = pushAgentResult(
             entry.label,
             result,
@@ -966,7 +570,21 @@ export const createOrchestratorNode =
     // ================================================================
     // 4. 合成最终回复
     // ================================================================
-    const userInput = extractUserInput(state);
+    const synthesizeInput = extractUserInput(state);
+
+    // 如果有待确认操作，跳过最终合成，直接返回，保存 pendingConfirm在 state 里，等待 AiCustomerService SSE 发 confirm 事件给前端
+    if (hasPendingConfirm) {
+      const orchestratorResult: Partial<typeof AgentState.State> = {
+        messages: [
+          ...state.messages,
+          new AIMessage('Please confirm the details.'),
+        ],
+        previousIntent: state.intent,
+        labels: [],
+        pendingConfirm: hasPendingConfirm,
+      };
+      return orchestratorResult;
+    }
 
     const finalContent = await synthesizeAnswers(
       llmConfig,
@@ -979,6 +597,10 @@ export const createOrchestratorNode =
       previousIntent: state.intent,
       labels: [],
       transferToHuman: hasTransferRequest,
+      repeatCount:
+        state.intent === state.previousIntent
+          ? (state.repeatCount ?? 0) + 1
+          : 0,
     };
 
     // debug=true 时写入执行流水线追踪数据

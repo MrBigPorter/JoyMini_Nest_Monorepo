@@ -86,6 +86,7 @@ export class AdminChatService {
         type: c.type,
         name: c.name,
         status: c.status,
+        handlerId: c.handlerId,
         lastMsgContent: c.lastMsgContent,
         lastMsgTime: c.lastMsgTime?.getTime() ?? 0,
         lastMsgSeqId: c.lastMsgSeqId,
@@ -309,6 +310,24 @@ export class AdminChatService {
     });
 
     return { success: true, conversationId };
+  }
+
+  /** 切换 AI/人工模式 */
+  async switchHandler(conversationId: string, mode: 'ai' | 'human') {
+    const data =
+      mode === 'ai'
+        ? { handlerId: null as string | null, handlerAssignedAt: null as Date | null }
+        : { handlerId: 'awaiting_human' as string | null, handlerAssignedAt: new Date() };
+
+    await this.prisma.conversation.update({
+      where: { id: conversationId },
+      data,
+    });
+
+    this.logger.log(
+      `[Admin] Switched conversation ${conversationId} to ${mode} mode`,
+    );
+    return { success: true, mode };
   }
 
   // ─────────────────────────────────────────────
