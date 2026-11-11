@@ -77,6 +77,7 @@ import {
   AGENT_ERROR_MSG,
 } from './orchestrator-utils/result-utils';
 import { detectTransferRequest } from './orchestrator-utils/transfer-detector';
+import { emitStage } from '@api/common/logger/structured-logger';
 
 // (AGENT_MAP + DEPENDENCY_MAP 已抽离到 config/orchestrator.config.ts)
 
@@ -191,76 +192,33 @@ export const createOrchestratorNode =
     promptResolver?: PromptResolverService,
   ) =>
   async (state: typeof AgentState.State): Promise<OrchestratorStateUpdate> => {
+    // 意图决策耗时从这里开始算（#89 FR-3：进入节点 → 决策完成）
+    const nodeStartedAt = Date.now();
     const logger = new Logger('Orchestrator');
     const labels = state.labels ?? [];
+
+    /** 标签压成 top3、两位小数：labels 可能被 BM25 + 向量各送一份，全量会撑爆日志 */
+    const top3 = (list: { label: string; score: number }[]) =>
+      [...list]
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 3)
+        .map((l) => ({ label: l.label, score: Number(l.score.toFixed(2)) }));
+
     logger.log(
       `[orchestrator] processing labels: ${labels.map((l) => `${l.label}:${l.score.toFixed(2)}`).join(', ')}`,
     );
 
     // ================================================================
-    // 1. 空 labels → fallback 到 generalChat
-    // ================================================================
-    if (labels.length === 0) {
-      logger.log('[orchestrator] no labels, falling back to general chat');
-      return handleGeneralChat(state, llmConfig);
-    }
-
-    // ================================================================
-    // 2. 排序 + Score Gap Check
+    // 0. 转人工检测（必须放在所有 fallback 之前）
     // ================================================================
     //
-    // Score Gap Check 是两层过滤：
-    //   Step 1 — MIN_SCORE: 去掉绝对分数太低的"噪音"标签
-    //   Step 2 — SCORE_GAP: 检查第1名和第2名的差距
-    //     ├─ gap ≥ 0.15 → 只执行 top-1（明确主意图）
-    //     ├─ gap < 0.15 → 保留与 top-1 差距内的候选者（模糊意图，排除尾部）
-    //     └─ 无标签 → fallback 到 generalChat
-    //
-    // ── 为什么需要 MIN_SCORE？ ──
-    // 如果所有标签分数都很低（如 rag=0.35, wallet=0.15），gap=0.20 看似"明确"，
-    // 但这是低分中的明确，实际上 query 可能跟任何业务都不相关。
-    // MIN_SCORE 确保只有"有信心"的标签才会被考虑执行。
-    //
-    // ── 为什么需要 close-contenders？ ──
-    // 如果 rag=0.90, wallet=0.88, order=0.50, product=0.30，gap=0.02 < 0.15，
-    // 此时不应该把 order 和 product 也放进去执行，它们是被高分的 rag/wallet 带进来的。
-    // close-contenders 策略只保留与 top-1 差距 < SCORE_GAP 的标签。
-    // ================================================================
-
-    const MIN_SCORE = 0.7; // 绝对分数及格线（和 IntentClassifier 阈值对齐）
-    const SCORE_MARGIN = 0.05;
-
-    // Step 1: 按分数降序排列
-    const sortedLabels = [...labels].sort((a, b) => b.score - a.score);
-
-    // Step 2: MIN_SCORE 过滤 — 去掉低分噪音标签
-    const validLabels = sortedLabels.filter((l) => l.score >= MIN_SCORE);
-
-    let effectiveLabels: string[] = [];
-
-    if (validLabels.length === 0) {
-      // 没有标签达到 MIN_SCORE → fallback 到 generalChat
-      logger.log(
-        `[orchestrator] no labels above MIN_SCORE (${MIN_SCORE}), ` +
-          `falling back to general chat`,
-      );
-      return handleGeneralChat(state, llmConfig);
-    }
-
-    // 去重：同一 domain 可能出现多次（BM25 + vector 各来一次），取最高分
-    const uniqueDomains = new Map<string, number>();
-    for (const l of validLabels) {
-      const existing = uniqueDomains.get(l.label) ?? 0;
-      if (l.score > existing) uniqueDomains.set(l.label, l.score);
-    }
-    const domainLabels = Array.from(uniqueDomains.entries())
-      .map(([label, score]) => ({ label, score }))
-      .sort((a, b) => b.score - a.score);
-
-    // ── 情绪检测：匹配负面关键词 → 增加转人工优先级 ──
+    // ── 为什么放在最前？ ──
+    // 转人工是"用户的明确指令"，不依赖意图分类的质量。
+    // 如果放在 MIN_SCORE 过滤之后，会出现反常识的结果：
+    //   用户越着急、句子越不完整 → 意图分数越低 → 越早被当成闲聊 return
+    //   → "我要转人工" 反而永远转不出去。
+    // 所以先看"是不是要找人工"，再看他"要办什么业务"。
     const userInput = extractUserInput(state);
-
-    // ── 转人工检测：关键词 / 情绪 / 循环 → 独立检测器 ──
     const transfer = detectTransferRequest(userInput, state);
     if (transfer.shouldTransfer) {
       logger.log(
@@ -301,6 +259,81 @@ export const createOrchestratorNode =
       }
     }
 
+    // ================================================================
+    // 1. 空 labels → fallback 到 generalChat
+    // ================================================================
+    if (labels.length === 0) {
+      emitStage('intent', {
+        intent: 'general',
+        labels: [],
+        fallback: 'no_labels',
+        latencyMs: Date.now() - nodeStartedAt,
+      });
+      logger.log('[orchestrator] no labels, falling back to general chat');
+      return handleGeneralChat(state, llmConfig);
+    }
+
+    // ================================================================
+    // 2. 排序 + Score Gap Check
+    // ================================================================
+    //
+    // Score Gap Check 是两层过滤：
+    //   Step 1 — MIN_SCORE: 去掉绝对分数太低的"噪音"标签
+    //   Step 2 — SCORE_GAP: 检查第1名和第2名的差距
+    //     ├─ gap ≥ 0.15 → 只执行 top-1（明确主意图）
+    //     ├─ gap < 0.15 → 保留与 top-1 差距内的候选者（模糊意图，排除尾部）
+    //     └─ 无标签 → fallback 到 generalChat
+    //
+    // ── 为什么需要 MIN_SCORE？ ──
+    // 如果所有标签分数都很低（如 rag=0.35, wallet=0.15），gap=0.20 看似"明确"，
+    // 但这是低分中的明确，实际上 query 可能跟任何业务都不相关。
+    // MIN_SCORE 确保只有"有信心"的标签才会被考虑执行。
+    //
+    // ── 为什么需要 close-contenders？ ──
+    // 如果 rag=0.90, wallet=0.88, order=0.50, product=0.30，gap=0.02 < 0.15，
+    // 此时不应该把 order 和 product 也放进去执行，它们是被高分的 rag/wallet 带进来的。
+    // close-contenders 策略只保留与 top-1 差距 < SCORE_GAP 的标签。
+    // ================================================================
+
+    const MIN_SCORE = 0.7; // 绝对分数及格线（和 IntentClassifier 阈值对齐）
+    const SCORE_MARGIN = 0.05;
+
+    // Step 1: 按分数降序排列
+    const sortedLabels = [...labels].sort((a, b) => b.score - a.score);
+
+    // Step 2: MIN_SCORE 过滤 — 去掉低分噪音标签
+    const validLabels = sortedLabels.filter((l) => l.score >= MIN_SCORE);
+
+    let effectiveLabels: string[] = [];
+
+    if (validLabels.length === 0) {
+      // 没有标签达到 MIN_SCORE → fallback 到 generalChat
+      // 这里把 sortedLabels 的 top3 记下来：能看到"最高分也只有 0.6"这类信息
+      emitStage('intent', {
+        intent: 'general',
+        labels: top3(sortedLabels),
+        fallback: 'below_min_score',
+        latencyMs: Date.now() - nodeStartedAt,
+      });
+      logger.log(
+        `[orchestrator] no labels above MIN_SCORE (${MIN_SCORE}), ` +
+          `falling back to general chat`,
+      );
+      return handleGeneralChat(state, llmConfig);
+    }
+
+    // 去重：同一 domain 可能出现多次（BM25 + vector 各来一次），取最高分
+    const uniqueDomains = new Map<string, number>();
+    for (const l of validLabels) {
+      const existing = uniqueDomains.get(l.label) ?? 0;
+      if (l.score > existing) uniqueDomains.set(l.label, l.score);
+    }
+    const domainLabels = Array.from(uniqueDomains.entries())
+      .map(([label, score]) => ({ label, score }))
+      .sort((a, b) => b.score - a.score);
+
+    // ── 转人工检测已在函数开头完成（见「0. 转人工检测」）──
+
     if (domainLabels.length === 1) {
       // 只有一个域及格，直接执行
       effectiveLabels = [domainLabels[0].label];
@@ -339,9 +372,7 @@ export const createOrchestratorNode =
 
       if (llmDecision.action === 'ask') {
         // LLM 认为不确定 → 回复反问句，不执行任何 agent
-        logger.log(
-          `[orchestrator] LLM decided to ask user: ${llmDecision.message}`,
-        );
+        // 反问句内容不写日志（#89 FR-7），意图可以由 stage="intent" 事件统计
         return {
           messages: [
             ...state.messages,
@@ -376,6 +407,15 @@ export const createOrchestratorNode =
     }
 
     const executionOrder = resolveExecutionOrder(effectiveLabels);
+
+    // 决策已完成，此时记 intent：耗时只含分类 + 路由，不含后面 agent 跑工具
+    emitStage('intent', {
+      intent: effectiveLabels[0] ?? 'general',
+      labels: top3(labels),
+      fallback: 'none',
+      latencyMs: Date.now() - nodeStartedAt,
+      executionOrder,
+    });
 
     logger.log(
       `[orchestrator] execution order: ${executionOrder.join(' → ')} ` +
@@ -509,7 +549,7 @@ export const createOrchestratorNode =
             );
           } else {
             logger.log(
-              `[orchestrator] ${entry.label} result: OK — content preview: "${result.content.slice(0, 200)}..."`,
+              `[orchestrator] ${entry.label} result: OK — contentLength=${result.content.length}`,
             );
           }
 

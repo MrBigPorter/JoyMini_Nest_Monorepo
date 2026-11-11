@@ -402,7 +402,7 @@ export class MeilisearchService implements OnModuleInit {
 
       const hits = response.hits || [];
       this.logger.log(
-        `[Meili Intent] search "${query}" took ${elapsed}ms, estimatedTotalHits=${response.estimatedTotalHits}, hits=${hits.length}`,
+        `[Meili Intent] search ${query.length} chars took ${elapsed}ms, estimatedTotalHits=${response.estimatedTotalHits}, hits=${hits.length}`,
       );
       // Position-based scoring: Meilisearch JS client doesn't expose _rankingScore.
       // Since results are sorted by BM25 relevance, top hit = 1.0, decreasing linearly.

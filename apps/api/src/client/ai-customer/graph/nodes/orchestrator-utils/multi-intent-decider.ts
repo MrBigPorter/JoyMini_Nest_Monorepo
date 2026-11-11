@@ -65,7 +65,10 @@ export async function decideMultiIntentWithLLM(
     previousAssistantMessage: previousAssistantMessage || '(no previous message)',
   });
   const trimmed = raw.trim().toLowerCase();
-  logger.log(`[orchestrator] multi-intent LLM raw decision: "${trimmed}"`);
+  // 只记决策动作和长度：ask 分支里的问句可能包含用户原话，不落日志（#89 FR-7）
+  logger.log(
+    `[orchestrator] multi-intent LLM decision: action="${trimmed.split(':')[0]}", length=${trimmed.length}`,
+  );
 
   if (trimmed.startsWith('single:')) {
     return { action: 'single', domain: trimmed.slice(7).trim() };

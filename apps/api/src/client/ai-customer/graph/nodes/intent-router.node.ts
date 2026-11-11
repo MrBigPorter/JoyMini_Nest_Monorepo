@@ -175,9 +175,9 @@ export const createIntentRouterNode = (
     state: typeof AgentState.State,
   ): Promise<Partial<typeof AgentState.State>> => {
     const userInput = extractUserInput(state);
-    logger.debug('lastMessage', state.messages[state.messages.length - 1]);
 
-    logger.log(`[intentRouter] classify: "${userInput.slice(0, 50)}..."`);
+    // 只记长度，不落原文（#89 FR-7 / AC-6）
+    logger.log(`[intentRouter] classify: length=${userInput.length}`);
 
     // ============================================================
     // Phase 1: Try Embedding-based Classification
@@ -279,9 +279,9 @@ async function llmFallback(
     return parsed;
   }
 
-  // JSON 解析失败，使用回退
+  // JSON 解析失败，使用回退（只记长度，不落 LLM 原文）
   logger.warn(
-    `[intentRouter] LLM fallback JSON parse failed: "${raw.slice(0, 100)}"`,
+    `[intentRouter] LLM fallback JSON parse failed: length=${raw.length}`,
   );
   return parseFallback(raw.trim());
 }

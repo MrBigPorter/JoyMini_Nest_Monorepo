@@ -24,6 +24,7 @@ import { LuckyDrawService } from '@api/common/lucky-draw/lucky-draw.service';
 import { ApplyWithdrawDto } from '../wallet/dto/apply-withdraw.dto';
 import { OtpService } from '../otp/otp.service';
 import { CODE_TYPE } from '@lucky/shared';
+import { emitStage } from '@api/common/logger/structured-logger';
 
 @Injectable()
 export class AiCustomerService {
@@ -142,7 +143,15 @@ export class AiCustomerService {
     // Step 1 — 校验入参
     if (!this.assertInputValid(message, userId, callbacks)) return;
 
-    this.logger.log(`[chatStream] message="${message.slice(0, 50)}..."`);
+    // 本轮对话的起点。chat.done / chat.error 用它算总耗时。
+    const startedAt = Date.now();
+
+    // 只记长度，不记原文（隐私约束，见 #89 FR-7）。
+    emitStage('chat.start', {
+      messageLength: message.length,
+      conversationId,
+      entryPoint,
+    });
 
     try {
       // Step 2 — 准备 AI 对话线程
@@ -153,7 +162,7 @@ export class AiCustomerService {
       this.broadcastThinking(conversationId, callbacks);
 
       // Step 4 — 执行 LangGraph 流式推理（逐 token 推给前端）
-      await this.runEventStream(
+      const streamUsage = await this.runEventStream(
         threadId,
         message,
         userId,
@@ -170,8 +179,20 @@ export class AiCustomerService {
         userId,
         conversationId,
         callbacks,
+        startedAt,
+        streamUsage.totalTokens,
       );
     } catch (err: any) {
+      emitStage(
+        'chat.error',
+        {
+          errorName: err?.name ?? 'Error',
+          errorMessage: err?.message ?? 'unknown error',
+          conversationId,
+          totalMs: Date.now() - startedAt,
+        },
+        'error',
+      );
       this.handleStreamError(err, conversationId, callbacks);
     }
   }
@@ -243,8 +264,8 @@ export class AiCustomerService {
       onToken: (token: string) => void;
       onStep: (step: string, data?: any) => void;
     },
-  ): Promise<void> {
-    await handleEventStream(
+  ): Promise<{ totalTokens: number }> {
+    return handleEventStream(
       this.compiledGraph!,
       threadId,
       message,
@@ -268,6 +289,8 @@ export class AiCustomerService {
       onDone: () => void;
       onTransfer?: (reason: string) => void;
     },
+    startedAt: number,
+    tokenTotal: number,
   ): Promise<void> {
     // 读取最终状态
     const finalState = await this.compiledGraph!.getState({
@@ -280,26 +303,40 @@ export class AiCustomerService {
       await this.aiMemoryService.saveContext(threadId, newMessages);
     }
 
-    // 路由 A — 转人工
-    if (finalState?.values?.transferToHuman && callbacks.onTransfer) {
-      await this.routeTransfer(userId, conversationId);
-      return;
-    }
+    // 先判定走向，再执行副作用；最后统一记一条 chat.done。
+    const transferred = Boolean(finalState?.values?.transferToHuman);
+    const confirmCard = Boolean(finalState?.values?.pendingConfirm);
 
-    // 路由 B — 确认卡片
-    if (finalState?.values?.pendingConfirm) {
-      await this.routeConfirm(userId, conversationId, finalState);
-      return;
-    }
-
-    // 路由 C — 正常完成（写 chat_message + 广播）
-    await this.routeNormalCompletion(newMessages, userId, conversationId);
-    callbacks.onDone();
-    if (conversationId) {
-      this.eventsGateway.dispatch(conversationId, SocketEvents.AI_DONE, {
+    if (transferred && callbacks.onTransfer) {
+      // 路由 A — 转人工
+      emitStage('transfer', {
         conversationId,
+        source: 'orchestrator',
+        reason: 'transfer_flag',
       });
+      await this.routeTransfer(userId, conversationId);
+    } else if (confirmCard) {
+      // 路由 B — 确认卡片
+      await this.routeConfirm(userId, conversationId, finalState);
+    } else {
+      // 路由 C — 正常完成（写 chat_message + 广播）
+      await this.routeNormalCompletion(newMessages, userId, conversationId);
+      callbacks.onDone();
+      if (conversationId) {
+        this.eventsGateway.dispatch(conversationId, SocketEvents.AI_DONE, {
+          conversationId,
+        });
+      }
     }
+
+    emitStage('chat.done', {
+      conversationId,
+      totalMs: Date.now() - startedAt,
+      transferred,
+      confirmCard,
+      tokenTotal,
+      answerLength: newMessages.at(-1)?.content?.length ?? 0,
+    });
   }
 
   /** 路由 A — 标记转人工 */

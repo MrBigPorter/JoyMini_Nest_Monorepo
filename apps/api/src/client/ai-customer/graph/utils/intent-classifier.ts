@@ -184,8 +184,9 @@ export class IntentClassifier {
     // 翻译非英文输入，供 BM25 关键词搜索
 
     const bm25Input = await this.translateToEnglish(normalizedInput);
+    // 只记长度，不落用户原文（#89 FR-7 / AC-6）
     logger.log(
-      `[IntentClassifier] translateToEnglish: "${normalizedInput}" → "${bm25Input}"`,
+      `[IntentClassifier] translateToEnglish: ${normalizedInput.length} → ${bm25Input.length} chars`,
     );
     const [bm25Result, embeddingResult] = await Promise.allSettled([
       this.meilisearchService.searchIntentExamples(bm25Input, 10),

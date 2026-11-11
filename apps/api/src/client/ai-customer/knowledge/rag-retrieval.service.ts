@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { AiService } from '@api/common/ai/ai.service';
 import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service';
+import { emitStage } from '@api/common/logger/structured-logger';
 
 // =============================================================================
 // 检索结果类型
@@ -104,6 +105,9 @@ export class RagRetrievalService {
 
     if (!query || query.trim().length === 0) return [];
 
+    // 本次检索的起点，两个出口都用它算 latencyMs（#89 FR-6）
+    const startedAt = Date.now();
+
     // =====================================================================
     // Hybrid Retrieval: 从所有层收集结果，合并去重，再重排序
     // =====================================================================
@@ -169,8 +173,23 @@ export class RagRetrievalService {
 
     let merged = Array.from(mergedMap.values());
 
+    // 各层命中数：看"哪一层没货"比看总耗时更能定位问题
+    const layers = {
+      vector: vectorResults.length,
+      meili: meiliResults.length,
+      chunk: chunkResults.length,
+      doc: docResults.length,
+    };
+
     if (merged.length === 0) {
       this.logger.debug('[retrieve] No results from any layer');
+      emitStage('retrieval', {
+        layers,
+        candidates: 0,
+        returned: 0,
+        topScore: 0,
+        latencyMs: Date.now() - startedAt,
+      });
       return [];
     }
 
@@ -184,7 +203,20 @@ export class RagRetrievalService {
     // =====================================================================
     // Reranker: 用 bge-reranker-v2-m3 对合并结果重排序
     // =====================================================================
+    // 记录重排前的候选数和最高分：reranker 的分数量纲和召回层不同，
+    // 混在一起看会误导（召回 0.72 / 重排 0.98 不是同一种分）
+    const candidates = merged.length;
+    const topScore = Math.max(...merged.map((c) => c.score));
+
     merged = await this.rerank(query, merged, topK);
+
+    emitStage('retrieval', {
+      layers,
+      candidates,
+      returned: merged.length,
+      topScore: Number(topScore.toFixed(4)),
+      latencyMs: Date.now() - startedAt,
+    });
 
     return merged;
   }

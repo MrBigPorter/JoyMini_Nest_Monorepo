@@ -40,6 +40,9 @@ export function createLLM(
     return new ChatOpenAI({
       model: config.model,
       temperature: options.temperature ?? 0,
+      // 流式模式下让 provider 在最后一条 chunk 带 usage，
+      // 否则 usage_metadata 永远是 undefined，token 统计全为 0（#89 FR-4）
+      streamUsage: true,
       configuration: {
         baseURL: config.baseURL,
       },

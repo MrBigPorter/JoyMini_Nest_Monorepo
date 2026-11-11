@@ -1,9 +1,12 @@
+import { runWithTrace } from '@api/common/logger/trace-context';
+
 import {
   Controller,
   Get,
   Post,
   Body,
   Param,
+  Req,
   UseGuards,
   HttpCode,
   Res,
@@ -157,6 +160,7 @@ export class AiCustomerController {
   async chatStream(
     @Param('streamId') streamId: string,
     @CurrentUserId() userId: string,
+    @Req() req: { id?: string }, // 3. 注入 request，拿中间件生成的 id
     @Res() res: any,
   ): Promise<void> {
     // ── 1. 原子消耗预留记录 ──
@@ -212,35 +216,37 @@ export class AiCustomerController {
       this.logger.log(`Client disconnected from stream ${streamId}`);
     });
 
-    // ── 6. 执行 LangGraph 流 ──
+    // ── 6. 执行 LangGraph 流（整个异步链带上 traceId） ──
     try {
-      await this.aiCustomerService.chatStream(
-        reservation.message,
-        userId,
-        reservation.sessionId,
-        {
-          onToken: (token: string) => {
-            sendSSE('token', { content: token });
+      await runWithTrace(req.id, () =>
+        this.aiCustomerService.chatStream(
+          reservation.message,
+          userId,
+          reservation.sessionId,
+          {
+            onToken: (token: string) => {
+              sendSSE('token', { content: token });
+            },
+            onStep: (step: string, data?: any) => {
+              sendSSE('step', { step, ...data });
+            },
+            onDone: () => {
+              sendSSE('done');
+            },
+            onError: (error: Error) => {
+              sendSSE('error', { content: error.message || '服务器错误' });
+            },
+            onTransfer: (reason: string) => {
+              sendSSE('transfer', {
+                conversationId: reservation.conversationId,
+                reason,
+              });
+            },
           },
-          onStep: (step: string, data?: any) => {
-            sendSSE('step', { step, ...data });
-          },
-          onDone: () => {
-            sendSSE('done');
-          },
-          onError: (error: Error) => {
-            sendSSE('error', { content: error.message || '服务器错误' });
-          },
-          onTransfer: (reason: string) => {
-            sendSSE('transfer', {
-              conversationId: reservation.conversationId,
-              reason,
-            });
-          },
-        },
-        reservation.conversationId,
-        reservation.entryPoint,
-        reservation.metadata,
+          reservation.conversationId,
+          reservation.entryPoint,
+          reservation.metadata,
+        ),
       );
     } catch (error: any) {
       sendSSE('error', { content: error.message || '服务器错误' });
@@ -309,6 +315,7 @@ export class AiCustomerController {
     @CurrentUserId() userId: string,
     @RealIP() ip: string,
     @CurrentDevice() device: any,
+    @Req() req: { id?: string },
     @Res() res: any,
   ): Promise<void> {
     const { message, sessionId } = dto;
@@ -367,28 +374,30 @@ export class AiCustomerController {
     // 通过 callbacks 把 LangGraph 的 streamEvents 事件
     // 桥接到 sendSSE，推送给浏览器。
     try {
-      await this.aiCustomerService.chatStream(
-        message,
-        userId,
-        sessionId ?? `${userId}:${Date.now()}`,
-        {
-          // LLM 生成一个 token → 实时推给前端
-          onToken: (token: string) => {
-            sendSSE('token', { content: token });
+      await runWithTrace(req.id, () =>
+        this.aiCustomerService.chatStream(
+          message,
+          userId,
+          sessionId ?? `${userId}:${Date.now()}`,
+          {
+            // LLM 生成一个 token → 实时推给前端
+            onToken: (token: string) => {
+              sendSSE('token', { content: token });
+            },
+            // Graph 执行到某个步骤（正在查余额/正在调用工具等）
+            onStep: (step: string, data?: any) => {
+              sendSSE('step', { step, ...data });
+            },
+            // 流正常结束
+            onDone: () => {
+              sendSSE('done');
+            },
+            // 流处理中出错
+            onError: (error: Error) => {
+              sendSSE('error', { content: error.message || '服务器错误' });
+            },
           },
-          // Graph 执行到某个步骤（正在查余额/正在调用工具等）
-          onStep: (step: string, data?: any) => {
-            sendSSE('step', { step, ...data });
-          },
-          // 流正常结束
-          onDone: () => {
-            sendSSE('done');
-          },
-          // 流处理中出错
-          onError: (error: Error) => {
-            sendSSE('error', { content: error.message || '服务器错误' });
-          },
-        },
+        ),
       );
     } catch (error: any) {
       sendSSE('error', { content: error.message || '服务器错误' });

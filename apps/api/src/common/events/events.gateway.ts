@@ -156,11 +156,15 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const clientCount = roomClients ? roomClients.size : 0;
 
     // 记录数据摘要（避免日志过大）
+    // 生产环境只记 type，不记 payload：广播内容里带用户消息原文，
+    // 会被采集进 Loki 长期留存（#89 FR-7 / AC-6）
     const dataSummary =
-      typeof data === 'object' && data !== null
-        ? JSON.stringify(data).substring(0, 200) +
-          (JSON.stringify(data).length > 200 ? '...' : '')
-        : String(data);
+      process.env.NODE_ENV === 'production'
+        ? '[redacted]'
+        : typeof data === 'object' && data !== null
+          ? JSON.stringify(data).substring(0, 200) +
+            (JSON.stringify(data).length > 200 ? '...' : '')
+          : String(data);
 
     if (excludeRoom) {
       this.server

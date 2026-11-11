@@ -20,12 +20,14 @@
 | # | 任务 | 文件 | 产出 | 状态 |
 |:--:|---|---|---|:--:|
 | T0-1 | 提交工作区 16 个文件 | — | 基线 commit，`tsc --noEmit` 通过 | ✅ 2026-11-11 |
-| T0-2 | 结构化日志：traceId + 意图 + 耗时 + token | 新建 `common/logger/`，埋点 `ai-customer.service.ts`、`orchestrator.node.ts`、`rag-retrieval.service.ts` | 一条对话可按 traceId 串起来 | ☐ |
+| T0-2 | 结构化日志：traceId + 意图 + 耗时 + token | 新建 `common/logger/`，埋点 `ai-customer.service.ts`、`orchestrator.node.ts`、`rag-retrieval.service.ts` | 一条对话可按 traceId 串起来 | ✅ 2026-11-11 |
 | T0-3 | golden set + 回放脚本（Python） | 新建 `tools/eval/` | `python replay.py` 输出当前基线分 | ☐ |
 
 > 为什么先做这 3 件：没有 T0-2 看不到问题，没有 T0-3 证明不了修好了。
 >
 > T0-1 已完成（2026-11-11）：基线提交 `d1eda1b0` → `de8e8f0e`，含 #88 元数据合并、导入/校验 CLI、知识库批量上传、N-6 向量化健壮性修复；`tsc --noEmit` 0 error。
+>
+> T0-2 已完成（2026-11-11）：按 [#89 SDD](./AI-joymini/89-AI对话可观测性-SDD.md) 落地 `common/logger/`（`runWithTrace` / `emitStage`），埋 8 类事件；App 真实对话走 `AiMessageListener`（事件总线）而非 SSE 控制器，trace 在该入口生成。真实对话实测同 traceId 串起 5~7 条事件，`tokenTotal` 1275 / 1072 / 120，转人工 `transferred:true`；单测 11/11、全量 153/153。生产 Loki 验收（AC-9/AC-10）随发布进行。顺带修复 N-7（转人工被分数门槛短路）、N-8（三处日志泄露原文），遗留 N-9（Socket 重连不重放 `join_chat`）。
 
 ### 🥈 T1 — 安全与资金（Day 3-8）
 
