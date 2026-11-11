@@ -81,9 +81,10 @@ up-backend: check-dockerfiles
 up-ai: check-dockerfiles
 	docker compose up -d --build --remove-orphans db redis backend nginx meilisearch
 
-## [Docker] 🚀 Start core + AI + admin (日常开发, ~4.2GB)
+## [Docker] 🚀 Start core + AI (日常开发, ~3.2GB；admin 需另开终端跑 make dev-admin)
 up-dev: check-dockerfiles
-	docker compose up -d --build --remove-orphans db redis backend nginx meilisearch admin-next
+	docker compose up -d --build --remove-orphans db redis backend nginx meilisearch
+	@echo "✅ 后端链路已起：http://admin-dev.joyminis.com（admin 前端在宿主机跑：make dev-admin）"
 
 ## [Docker] 🚀 Start core + blog (blog 管理, ~1.6GB)
 up-blog: check-dockerfiles
@@ -100,12 +101,12 @@ stop-ai:
 
 ## [Docker] ⏹️ Stop frontend (省 ~200MB)
 stop-frontend:
-	docker compose stop admin-next frontend-blog nginx
+	docker compose stop frontend-blog nginx
 	@echo "✅ 前端已停"
 
 ## [Docker] ⏹️ Stop all extra (保留 db+redis+backend)
 stop-extra:
-	docker compose stop meilisearch admin-next frontend-blog nginx
+	docker compose stop meilisearch frontend-blog nginx
 	@echo "✅ 非核心已停"
 
 ## [Docker] 🚀 Start dev environment (后端 + nginx，admin-next 本地跑：make dev-admin)
@@ -146,14 +147,21 @@ stop-ollama-host:
 		echo "⏭️  Ollama not running"; \
 	fi
 
+start-meilisearch:
 	docker compose up -d meilisearch
 stop-meilisearch:
 	docker compose stop meilisearch
 
+## [Frontend] ▶️ Start admin 前端（宿主机后台运行，端口 4001）
+##  注意：compose.yml 里没有 admin-next 服务，前端跑在宿主机、由 nginx 反代
 start-admin:
-	docker compose up -d admin-next
+	@lsof -ti:4001 | xargs kill -9 2>/dev/null; \
+	PATH="$$(pwd)/node_modules/.bin:$$PATH" nohup yarn workspace @lucky/admin-next dev:turbo > /tmp/admin-next.log 2>&1 & \
+	sleep 3; \
+	echo "✅ admin 已后台启动 → http://admin-dev.joyminis.com  (日志: /tmp/admin-next.log)"
 stop-admin:
-	docker compose stop admin-next
+	@lsof -ti:4001 | xargs kill -9 2>/dev/null; \
+	echo "✅ admin 已停（4001 已释放）"
 
 start-blog:
 	docker compose up -d admin-blog frontend-blog
@@ -164,8 +172,8 @@ stop-nginx:
 	docker compose stop nginx
 
 start-frontend:
-	docker compose up -d admin-next frontend-blog nginx
-	@echo "✅ 前端已启动"
+	docker compose up -d frontend-blog nginx
+	@echo "✅ 前端已启动（admin 请用 make start-admin）"
 
 unstructured-status:
 	@echo "📋 Unstructured container status:"

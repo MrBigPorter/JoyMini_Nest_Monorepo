@@ -12,6 +12,8 @@ node_modules
 
 # Local env files
 .env
+.env.bak
+.env.*.bak
 .env.local
 .env.development.local
 .env.test.local
