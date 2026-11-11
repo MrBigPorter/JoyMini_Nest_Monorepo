@@ -69,6 +69,8 @@ export interface AgentLoopResult {
   iterations: number;
   /** Information about the last tool call (if any) */
   lastToolCallInfo: LastToolCallInfo | null;
+  /** 被截停的写操作（confirmRequiredTools 命中，未执行） */
+  pendingToolCall: LastToolCallInfo | null;
   /** Error message if the loop failed */
   error?: string;
   /** Maximum iterations reached (potential infinite loop detection) */
@@ -93,6 +95,8 @@ export interface AgentLoopOptions {
    * Used by wallet agent for flow state management.
    */
   flowDataAccumulator?: FlowDataAccumulator;
+  /** 需要用户确认的写工具集合——命中时不执行，截停并返回 pendingToolCall */
+  confirmRequiredTools?: Set<string>;
 }
 
 // ============================================================
@@ -189,12 +193,14 @@ export async function runAgentLoop(
     agentName,
     logger,
     flowDataAccumulator,
+    confirmRequiredTools,
   } = options;
   let currentMessages = [...initialMessages];
 
   let iterations = 0;
   let totalToolCalls = 0;
   let lastToolCallInfo: LastToolCallInfo | null = null;
+  let pendingToolCall: LastToolCallInfo | null = null;
 
   try {
     while (iterations < MAX_ITERATIONS) {
@@ -210,13 +216,23 @@ export async function runAgentLoop(
         break;
       }
 
-      // 执行工具调用
+      // ── 写操作截停：命中 confirmRequiredTools 的工具不执行，只记录参数 ──
+      let intercepted = false;
       for (const toolCall of response.tool_calls) {
         // Extract flow data BEFORE executing the tool (wallet agent only)
         if (flowDataAccumulator) {
           extractFlowData(toolCall, flowDataAccumulator);
         }
 
+        // 需要用户确认的写操作 → 截停（不 invoke！）
+        if (confirmRequiredTools?.has(toolCall.name)) {
+          pendingToolCall = {
+            name: toolCall.name,
+            args: toolCall.args,
+          };
+          intercepted = true;
+          break;
+        }
         const foundTool = tools.find((t) => t.name === toolCall.name);
         if (foundTool) {
           const result = await (foundTool as any).invoke(toolCall.args);
@@ -240,6 +256,8 @@ export async function runAgentLoop(
           ];
         }
       }
+      // 写操作被截停 → 立即退出整个 while 循环
+      if (intercepted) break;
       iterations++;
     }
 
@@ -277,6 +295,7 @@ export async function runAgentLoop(
       totalToolCalls,
       iterations,
       lastToolCallInfo,
+      pendingToolCall,
     };
   } catch (error) {
     logger.error(`[${agentName}] agent error:`, error);
@@ -287,6 +306,7 @@ export async function runAgentLoop(
       totalToolCalls: 0,
       iterations,
       lastToolCallInfo: null,
+      pendingToolCall,
       error: error instanceof Error ? error.message : String(error),
     };
   }

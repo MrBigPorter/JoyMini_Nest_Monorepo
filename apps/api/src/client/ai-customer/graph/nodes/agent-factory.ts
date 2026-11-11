@@ -40,12 +40,20 @@ import { Logger } from '@nestjs/common';
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { AgentPromptConfig } from '@api/client/ai-customer/graph/agents/prompt-builder';
 import { buildAgentPrompt } from '@api/client/ai-customer/graph/agents/prompt-builder';
-import { buildInitialMessages, createAgentLLM, buildAgentResult } from '@api/client/ai-customer/graph/agents/agent-result';
-import { runAgentLoop, AgentLoopResult } from '@api/client/ai-customer/graph/agents/agent-runner';
+import {
+  buildInitialMessages,
+  createAgentLLM,
+  buildAgentResult,
+} from '@api/client/ai-customer/graph/agents/agent-result';
+import {
+  runAgentLoop,
+  AgentLoopResult,
+} from '@api/client/ai-customer/graph/agents/agent-runner';
 import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-registry.service';
 import { LlmProviderConfig } from '@api/client/ai-customer/graph/llm-factory';
 import { MAX_CONTEXT_MESSAGES } from '@api/client/ai-customer/graph/constants';
 import { AgentNodeOutput } from '@api/client/ai-customer/graph/types/agent-types';
+import { CONFIRM_REQUIRED_TOOLS } from './orchestrator-utils/confirm-utils';
 
 // ============================================================
 // Interfaces
@@ -132,6 +140,7 @@ export async function runStandardAgent(
     tools: allTools,
     agentName: opts.agentName,
     logger,
+    confirmRequiredTools: CONFIRM_REQUIRED_TOOLS,
   });
 
   // ⑤ Output — 构建结果

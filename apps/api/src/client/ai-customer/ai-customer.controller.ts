@@ -22,6 +22,8 @@ import { ChatStreamDto } from './dto/chat-stream.dto';
 import { SseRateLimiterService } from '@api/client/ai-customer/sse-rate-limiter.service';
 import { RealIP } from '@api/common/decorators/real-ip.decorator';
 import { CurrentDevice } from '@api/common/decorators/http.decorators';
+import { ConfirmActionDto } from './dto/confirm-action.dto';
+import { ConfirmOtpDto } from './dto/confirm-otp.dto';
 
 @ApiTags('AI Customer')
 @Controller('ai/customer')
@@ -92,7 +94,10 @@ export class AiCustomerController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @HttpCode(200)
-  @ApiOperation({ summary: 'Initiate AI chat (Phase 1). Returns streamId for SSE consumption.' })
+  @ApiOperation({
+    summary:
+      'Initiate AI chat (Phase 1). Returns streamId for SSE consumption.',
+  })
   @ApiBody({ type: ChatStreamDto })
   @Post('chat')
   async initChat(
@@ -128,7 +133,9 @@ export class AiCustomerController {
       metadata,
     );
 
-    this.logger.log(`[initChat] streamId=${streamId} userId=${userId} message="${message.slice(0, 50)}..."`);
+    this.logger.log(
+      `[initChat] streamId=${streamId} userId=${userId} message="${message.slice(0, 50)}..."`,
+    );
 
     return { streamId };
   }
@@ -142,7 +149,10 @@ export class AiCustomerController {
   @ApiBearerAuth()
   @UseGuards(SseJwtAuthGuard)
   @HttpCode(200)
-  @ApiOperation({ summary: 'Stream AI chat response (Phase 2). Consumes streamId and streams SSE events.' })
+  @ApiOperation({
+    summary:
+      'Stream AI chat response (Phase 2). Consumes streamId and streams SSE events.',
+  })
   @Get('chat/stream/:streamId')
   async chatStream(
     @Param('streamId') streamId: string,
@@ -194,7 +204,11 @@ export class AiCustomerController {
     // ── 5. 断连清理 ──
     res.on('close', () => {
       closed = true;
-      this.rateLimiter.releaseStream(userId, reservation.ip, reservation.device?.deviceId);
+      this.rateLimiter.releaseStream(
+        userId,
+        reservation.ip,
+        reservation.device?.deviceId,
+      );
       this.logger.log(`Client disconnected from stream ${streamId}`);
     });
 
@@ -218,7 +232,10 @@ export class AiCustomerController {
             sendSSE('error', { content: error.message || '服务器错误' });
           },
           onTransfer: (reason: string) => {
-            sendSSE('transfer', { conversationId: reservation.conversationId, reason });
+            sendSSE('transfer', {
+              conversationId: reservation.conversationId,
+              reason,
+            });
           },
         },
         reservation.conversationId,
@@ -230,6 +247,47 @@ export class AiCustomerController {
     } finally {
       res.end();
     }
+  }
+
+  /**
+   *
+   * @param dto
+   * @param userId
+   * @returns
+   */
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(200)
+  @ApiOperation({
+    summary:
+      'Execute a confirmed AI write action (consumes one-time confirm token)',
+  })
+  @Post('confirm')
+  async confirmAction(
+    @Body() dto: ConfirmActionDto,
+    @CurrentUserId() userId: string,
+  ) {
+    return this.aiCustomerService.confirmAction(dto.token, userId);
+  }
+
+  /**
+   *
+   * @param dto
+   * @param userId
+   * @returns
+   */
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Confirm withdrawal OTP',
+  })
+  @Post('confirm/otp')
+  async confirmWithdrawOtp(
+    @Body() dto: ConfirmOtpDto,
+    @CurrentUserId() userId: string,
+  ) {
+    return this.aiCustomerService.confirmWithdrawOtp(dto.code, userId);
   }
 
   /**

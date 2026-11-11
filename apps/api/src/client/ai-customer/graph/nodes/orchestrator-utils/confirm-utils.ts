@@ -44,7 +44,9 @@ export function buildConfirmSummary(tool: {
   switch (tool.name) {
     case 'applyWithdraw':
       summary.amount = tool.args.amount;
-      summary.channel = tool.args.channelId;
+      summary.channelId = tool.args.channelId;
+      summary.account = tool.args.account;
+      summary.accountName = tool.args.accountName;
       break;
     case 'claimCoupon':
       summary.couponId = tool.args.couponId;

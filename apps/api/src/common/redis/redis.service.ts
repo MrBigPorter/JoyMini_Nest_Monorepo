@@ -157,6 +157,14 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * 原子读+删（Redis 6.2+ GETDEL）
+   * 防重放场景：读到值的同时删除——并发下只有第一个请求能读到，其余返回 null
+   */
+  async getDel(key: string): Promise<string | null> {
+    return await this.client.getDel(key);
+  }
+
+  /**
    * withTimeout — 给任何 Redis 操作加超时
    * Redis 变慢时不至于让请求卡死
    */

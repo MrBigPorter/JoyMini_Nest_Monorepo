@@ -2,7 +2,10 @@ import { AIMessage } from '@langchain/core/messages';
 import { StringOutputParser } from '@langchain/core/output_parsers';
 import { createLLM } from '@api/client/ai-customer/graph/llm-factory';
 import type { LlmProviderConfig } from '@api/client/ai-customer/graph/llm-factory';
-import { AgentState } from '@api/client/ai-customer/graph/state';
+import {
+  AgentState,
+  OrchestratorStateUpdate,
+} from '@api/client/ai-customer/graph/state';
 import { extractUserInput } from '@api/client/ai-customer/graph/utils/extract-user-input';
 import { formatMessage } from '@api/client/ai-customer/graph/utils/format-message-preview';
 import { RagRetrievalService } from '@api/client/ai-customer/knowledge/rag-retrieval.service';
@@ -16,7 +19,7 @@ import { Logger } from '@nestjs/common';
 export async function handleGeneralChat(
   state: typeof AgentState.State,
   llmConfig: LlmProviderConfig,
-): Promise<Partial<typeof AgentState.State>> {
+): Promise<OrchestratorStateUpdate> {
   const userInput = extractUserInput(state);
   const contextMessages = state.messages
     .slice(-10)
@@ -33,6 +36,7 @@ export async function handleGeneralChat(
     messages: [...state.messages, new AIMessage(result)],
     previousIntent: state.intent,
     labels: [],
+    pendingConfirm: null,
   };
 }
 
@@ -43,7 +47,7 @@ export async function handleRagQuery(
   state: typeof AgentState.State,
   llmConfig: LlmProviderConfig,
   ragRetrievalService: RagRetrievalService,
-): Promise<Partial<typeof AgentState.State>> {
+): Promise<OrchestratorStateUpdate> {
   const logger = new Logger('Orchestrator');
   const userInput = extractUserInput(state);
   const results = await ragRetrievalService.retrieve(userInput, { topK: 3 });
@@ -56,6 +60,7 @@ export async function handleRagQuery(
       messages: [...state.messages, new AIMessage(result)],
       previousIntent: state.intent,
       labels: [],
+      pendingConfirm: null,
     };
   }
   const documents = results
@@ -68,5 +73,6 @@ export async function handleRagQuery(
     messages: [...state.messages, new AIMessage(result)],
     previousIntent: state.intent,
     labels: [],
+    pendingConfirm: null,
   };
 }

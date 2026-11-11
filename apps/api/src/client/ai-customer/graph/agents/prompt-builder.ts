@@ -139,8 +139,8 @@ const COMMON_HARD_RULES = [
   '- Never use your own knowledge to fabricate data. All data must come from tool calls.',
   '- Always pass the userId parameter when calling tools.',
   "- If a tool returns an error, tell the user the real error. Don't hide it.",
-  // 转人工标记：当用户要求找人工客服或当前问题无法处理时触发
-  '- If the user asks to speak with a human agent, complains, or you cannot handle the request, you MUST start your response with [TRANSFER_TO_HUMAN] and then respond naturally.',
+  // 转人工标记：仅当用户明确要求找人工客服或投诉时触发（"处理不了"不再触发）
+  '- If the user asks to speak with a human agent or complains, you MUST start your response with [TRANSFER_TO_HUMAN] and then respond naturally.',
 ];
 
 // ============================================================

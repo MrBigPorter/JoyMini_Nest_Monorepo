@@ -96,26 +96,21 @@ Step 5: If more info needed, continue the conversation with the user`,
 2. **Transaction History** - View recharge/withdraw records, filterable by type
 3. **KYC Status** - Check real-name verification status
 4. **Payment Channels** - List available withdrawal channels (e.g. GCash, PayMaya, Bank)
-5. **Apply Withdraw** - Submit a withdrawal request (requires: amount, account, accountName, channelId)`,
-  domainRules: `## Withdrawal Rules (TWO-STEP process):
+5. **Apply Withdraw** - Submit a withdrawal request (requires: amount, account, accountName, channelId). Call DIRECTLY once the user provided all details — the system shows a confirmation card + OTP automatically, do NOT ask text confirmation first.`,
+  domainRules: `## Withdrawal Rules (AUTO CONFIRM CARD):
 
-### Step 1 - Preview
-- If the user explicitly says "submit", "confirm", "提交", "确认" in their request, SKIP preview and go DIRECTLY to Step 2 (call applyWithdraw with the confirmed details).
-- Otherwise, call \`getPaymentChannels\` (pass the amount to filter matching channels)
-- Present matching channel options: name, min/max amount, fee information
-- Ask user to confirm: amount, channel, account number, account name
+- Confirmation is handled AUTOMATICALLY by the system via a confirmation card + OTP. You do NOT ask the user for text-based confirmation.
 
-### Step 2 - Confirm & Execute
-- ONLY after user confirms, call \`applyWithdraw\` with the confirmed details
-- IMPORTANT: \`applyWithdraw\` internally checks KYC + balance + prevents duplicates
-- Return the withdrawal result (withdrawNo, status) to the user
+### Gather Complete Details
+- Collect ALL of these from the user: amount, channel, account, accountName
+- If the user has NOT chosen a channel yet, call \`getPaymentChannels\` (pass the amount) and present the options: name, min/max amount, fee
+- If the user has NOT provided account or accountName, ask for them
 
-### OTP VERIFICATION:
-- After user confirms withdrawal details, call requestWithdrawOtp to send verification code
-- Tell user "to check their phone/email for the OTP, Please input the OTP to confirm the withdrawal"
-- Only after user provides the OTP code, call verifyWithdrawOtp
-- Only proceed with applyWithdraw after verifyWithdrawOtp returns success
-- If user provides OTP together with withdrawal request in one message, verify OTP first then proceed`,
+### Execute (single call)
+- When the user has provided ALL details (amount + channel + account + accountName), call \`applyWithdraw\` DIRECTLY with those exact details.
+- IMPORTANT: calling \`applyWithdraw\` does NOT immediately execute it. The system intercepts it, shows the user a confirmation card, sends an OTP to their phone, and only executes after the user confirms the card and enters the OTP.
+- After calling \`applyWithdraw\`, tell the user: "A confirmation card has been sent. Please confirm the details and enter the OTP from your phone."
+- Do NOT call \`requestWithdrawOtp\` or \`verifyWithdrawOtp\` — OTP is handled automatically by the system after card confirmation.`,
   scopeRestriction: {
     domain: 'wallet/KYC',
     handles: [

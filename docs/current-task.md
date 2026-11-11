@@ -1,86 +1,93 @@
-# Current Task — AI 操作确认卡片 + Callback 机制补全
+# Current Task — 两周补齐计划（生产化 + 岗位就绪）
+
+> 更新: 2026-11-11
+> 依据: [#85 生产化差距审计](./AI-joymini/85-生产化差距审计与企业上线清单.md)、[#86 岗位匹配度与路线图](./AI-joymini/86-岗位匹配度评估与两周补齐路线图.md)
+> 当前得分: **56 / 100**（进面 65，稳妥 70）
 
 ---
 
-## 需求背景
+## 核心原则
 
-两个问题共享同一个根因——**callback 机制不完整**：
-
-| 问题 | 现象 | 根因 |
-|------|------|------|
-| **转人工信号被吞** | Socket 路径转人工后 handlerId 没写，下次消息又触发 AI | `AiMessageListener` 传的 callbacks 缺 `onTransfer` |
-| **写操作无卡片确认** | 提现/领券全靠 LLM 文字"确认吗？"，可被 prompt injection 绕过 | 没有 `AI_CONFIRM` 事件 + 按钮回调机制 |
-
-详见 `docs/AI-joymini/81-AI操作确认卡片与Callback补全.md`
+**先建度量，再改代码。**
+每个修复都要能说出一句话：「这条改动把 X 指标从 A 提到 B」。没有数字的改动，在面试里等于没做。
 
 ---
 
-## 实施计划（分批）
+## 优先级队列（严格按顺序，不要跳）
 
-### P0 🚨 — 修 listener callback（~0.5d）
+### 🥇 T0 — 先做（Day 0-2）
 
-| 改动 | 文件 | 说明 |
-|------|------|------|
-| 补全 `onTransfer` | `ai-message.listener.ts` | 加 onTransfer callback，确保 Socket 路径转人工正常 |
-| 确认所有路径一致 | `ai-customer.controller.ts`、`ai-message.listener.ts` | onTransfer/onConfirm 全部传参 |
+| # | 任务 | 文件 | 产出 | 状态 |
+|:--:|---|---|---|:--:|
+| T0-1 | 提交工作区 16 个文件 | — | 基线 commit，`tsc --noEmit` 通过 | ☐ |
+| T0-2 | 结构化日志：traceId + 意图 + 耗时 + token | 新建 `common/logger/`，埋点 `ai-customer.service.ts`、`orchestrator.node.ts`、`rag-retrieval.service.ts` | 一条对话可按 traceId 串起来 | ☐ |
+| T0-3 | golden set + 回放脚本（Python） | 新建 `tools/eval/` | `python replay.py` 输出当前基线分 | ☐ |
 
-### P1 🔵 — 后端确认机制（~1.5d）
+> 为什么先做这 3 件：没有 T0-2 看不到问题，没有 T0-3 证明不了修好了。
 
-| 改动 | 文件 | 说明 |
-|------|------|------|
-| 新建 `AiActionConfirmService` | `ai-action-confirm.service.ts` | ConfirmToken 生成/验证/过期管理（UUID + 60s TTL） |
-| 扩展 Socket 事件 | `packages/shared/src/im/constants.ts` | +3 事件：AI_CONFIRM / AI_CONFIRM_RESPONSE / AI_ACTION_RESULT |
-| 修改 orchestrator | `orchestrator.node.ts` | 写操作前插入确认检查点，替代直接调 tool |
-| 声明需要卡片确认的操作 | `wallet-tools.ts`、`coupon-tools.ts`、`lucky-tools.ts`、`user-tools.ts` | 标记写操作为 confirm-required |
-| 扩展 callback 接口 | 相关文件 | onConfirm/onConfirmResult |
+### 🥈 T1 — 安全与资金（Day 3-8）
 
-### P2 🟢 — Flutter 确认卡片 UI（~1d）
+| # | 任务 | #85 ID | 文件 | 状态 |
+|:--:|---|:--:|---|:--:|
+| T1-1 | 生产 OTP：接短信 + 启动校验 pepper + 去明文日志 | P0-4 | `client/otp/otp.service.ts` | ☐ |
+| T1-2 | 确认链路三洞：验码后再删 / TTL 对齐 300s / 复用 DTO 校验 | P1-7/17/18 | `ai-customer.service.ts`、`ai-action-confirm.service.ts` | ☐ |
+| T1-3 | 提现冻结状态机：审核只置 PROCESSING + `settleWithdrawal` | P0-3 | `admin/finance/finance.service.ts`、`client/wallet/client-wallet.service.ts` | ☐ |
+| T1-4 | Socket 成员校验 + AI 会话 IDOR + `AI_CONFIRM` 改私有房间 | P0-1/2 | `events.gateway.ts`、`ai-memory.service.ts`、`ai-customer.service.ts` | ☐ |
+| T1-5 | 领券原子扣减 + 唯一约束 | P0-5 | `client/coupon/coupon.service.ts`、`schema.prisma` | ☐ |
 
-| 改动 | 文件 | 说明 |
-|------|------|------|
-| 新增数据模型 | `ai_action_model.dart` | AI_CONFIRM / ACTION_RESULT 模型 |
-| 新增卡片 widget | `ai_confirm_card.dart` | 确认卡片（金额/渠道/费用 + 确认/取消按钮） |
-| 修改 chat_bubble | `chat_bubble.dart` | _buildContentFactory 加 case MessageType.card |
-| 处理 AI_CONFIRM 事件 | `chat_event_handler.dart` | 收到确认事件 → 渲染卡片 |
-| 同步事件常量 | `socket_events.dart`、`chat_extension.dart` | 后端事件 + 发送确认回执 |
+### 🥉 T2 — AI 质量（Day 8-9）
 
-### 📋 待办（低优先级，不 blocking）
+| # | 任务 | #85 ID | 文件 | 状态 |
+|:--:|---|:--:|---|:--:|
+| T2-1 | 转人工：词边界匹配 + 情绪分级 + 工单写入 + 消费者 | P1-19 | `transfer-detector.ts`、新增 admin 消费者 | ☐ |
+| T2-2 | 意图阈值统一为单一常量 + 融合后再过滤 | P1-20 | `intent-classifier.ts`、`intent-router.node.ts`、`orchestrator.node.ts` | ☐ |
+| T2-3 | RAG：中文分词 + Layer 2 占位符 + 向量相关性门槛 | P1-21 | `rag-retrieval.service.ts` | ☐ |
+| T2-4 | 流式白名单：只转发 `answerSynthesizer`/`orchestrator` 最终文本 | P1-22 | `ai-stream.handler.ts` | ☐ |
 
-| 任务 | 优先级 |
-|------|--------|
-| Flutter SSE 代码清理（删除已标记文件） | 🟡 中 |
-| Flutter 端重新编译部署 | 🟡 中 |
-| 中文 human_support 示例（Admin 面板） | 🟢 低 |
-| ChatPage 刷新后 handlerId 判断 | 🟢 低 |
+### 🏅 T3 — 收口（Day 10）
 
----
+| # | 任务 | #85 ID | 状态 |
+|:--:|---|:--:|:--:|
+| T3-1 | 3 个集成测试：转人工 / 确认卡片 / RAG 降级 | P1-25 | ☐ |
+| T3-2 | 复跑 golden set，出「改前 vs 改后」对比表 | — | ☐ |
+| T3-3 | 更新 #86 §10 进度追踪（填真实分数） | — | ☐ |
 
-## Review 发现的 Bug（code-review + security-review）
+### 🧊 T4 — 有余力再做
 
-### 🔴 需要在本任务中修复
-
-| Bug | 文件 | 说明 |
-|-----|------|------|
-| Socket 路径缺 conversation type 过滤 | `events.gateway.ts:419` | 群聊/私聊也会触发 AI（只检查 handlerId，没检查对话类型） |
-| Socket 路径 handler 永不超时 | `events.gateway.ts:412-417` | 无 timeout 检查，无条件刷新 handlerAssignedAt |
-| listener 缺 onTransfer | `ai-message.listener.ts` | 转人工信号被静默吞掉 |
-| applyWithdraw 无 OTP 强制校验 | `wallet-tools.ts:387` | 纯靠 LLM prompt 约束，可被 bypass |
-| 超时 reset 在事务外 | `chat.service.ts:107-136` | 事务失败时 handlerId 已修改，无法回滚 |
-
-### 🟡 已知但非阻塞
-
-| Bug | 文件 | 说明 |
-|-----|------|------|
-| LLM 转人工文案没流到用户 | `orchestrator.node.ts:713` | model.invoke() 非流式，transfer 路径不 token |
-| LLM 异常时无 fallback 消息 | `orchestrator.node.ts:722` | catch 返回 messages: undefined |
-| 缺 previousIntent | `orchestrator.node.ts:713` | human_support 路径漏了 |
+| 项 | #85 ID |
+|---|---|
+| 状态机版本 / 绑定切换 / 回滚 | 新增（JD 明确要求） |
+| Outbox + 死信消费 + 消费端幂等 | P2-5 |
+| 长期记忆（PG checkpointer + `saveContext` 落库） | P1-23 |
+| PromptResolver 真合并 | P1-24 |
+| AI 回复 `isAi` 标记 + 走 `MESSAGE_CREATED` | P1-1/2 |
 
 ---
 
-## 参考文档
+## 每次开工前的 3 个问题
 
-| 文档 | 内容 |
-|------|------|
-| `docs/AI-joymini/81-AI操作确认卡片与Callback补全.md` | 完整规格：方案/状态穷举/技术方案/工作量 |
-| `docs/AI-joymini/PROGRESS.md` | 项目整体进度 |
-| `docs/coding-standards.md` | 9 维度检查清单 |
+1. 今天动的是 T 几？**不要跨级做**。
+2. 这件事改完，我能说出一句带数字的话吗？说不出来就先补度量。
+3. 改完跑 `yarn workspace @lucky/api tsc --noEmit --pretty` 了吗？
+
+---
+
+## 已知会踩的坑
+
+| 坑 | 说明 |
+|---|---|
+| 行号会漂移 | #85 的行号基于 2026-11-11 工作区，改文件后以内容搜索为准 |
+| `state.spec.ts` 是自证测试 | 它测的是本地复制的 reducer，不是生产代码。补测试别照抄这个模式 |
+| `prompt-resolver` 是 replace 不是 merge | 改 prompt 前先看 DB 里 override 是否只写了部分字段 |
+| OTP 有两个 TTL | `otp.service.ts` 300s、`ai-action-confirm.service.ts` 60s，改一个必须看另一个 |
+
+---
+
+## 参考
+
+| 文档 | 用途 |
+|---|---|
+| `docs/AI-joymini/85-生产化差距审计与企业上线清单.md` | 问题台账（P0/P1/P2 + 证据 + 修复方案） |
+| `docs/AI-joymini/86-岗位匹配度评估与两周补齐路线图.md` | 打分、JD 对照、面试素材 |
+| `docs/coding-standards.md` | 9 维度检查 |
+| `docs/AI-joymini/81` / `83` / `84` | 确认卡片设计与历史差距 |

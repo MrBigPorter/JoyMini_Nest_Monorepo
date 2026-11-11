@@ -385,13 +385,20 @@ export const AgentState = Annotation.Root({
    * 1. 用户发起需要确认的操作（如提现、修改地址等）
    * 2. orchestrator 生成确认摘要和参数，存入 pendingConfirm
    * AiCustomerService 收到此标记后 SSE 发 confirm 事件给前端。
+   *
+   * ⚠️ reducer 用 `(a, b) => b`（而非 `b ?? a`）：
+   * 这是"每轮一次性"字段 —— 本轮生成确认就是对象，没生成就是 null。
+   * 如果 `b` 为 null 时保留旧值 `a`，上一轮的确认会跨轮残留，
+   * 导致下一轮误弹旧的确认卡片（如"取款"弹出上一轮的"领券"卡）。
+   * orchestrator 每个返回路径都必须显式带 pendingConfirm（对象或 null），
+   * 由 OrchestratorStateUpdate 类型在编译期强制保证。
    */
   pendingConfirm: Annotation<{
     action: string;
     params: Record<string, any>;
     summary: Record<string, any>;
   } | null>({
-    reducer: (a, b) => b ?? a,
+    reducer: (a, b) => b,
     default: () => null,
   }),
 
@@ -407,3 +414,28 @@ export const AgentState = Annotation.Root({
     default: () => 0,
   }),
 });
+
+// ============================================================
+// OrchestratorStateUpdate — orchestrator / direct handler 返回类型
+// ============================================================
+
+/**
+ * OrchestratorStateUpdate — orchestrator 节点及其 direct handler 的返回类型
+ *
+ * 在 `Partial<typeof AgentState.State>` 基础上，把 pendingConfirm 设为【必填】：
+ *  - 本轮生成了确认操作 → 返回确认对象
+ *  - 本轮没有确认操作   → 必须返回 null（显式清空，防止跨轮残留）
+ *
+ * ── 为什么要必填？ ──
+ * LangGraph 对 node 返回值中【缺失的字段不调用 reducer】，旧值会原样保留。
+ * 之前 pendingConfirm 在非确认路径被省略 → 上一轮的确认跨轮残留
+ * （例如"取款"误弹上一轮的"领券"确认卡片）。
+ * 把这个字段设为必填后，TypeScript 会在任何返回路径漏掉它时报编译错误，
+ * 从类型层面保证 orchestrator 每一轮都显式输出 pendingConfirm（对象或 null）。
+ */
+export type OrchestratorStateUpdate = Omit<
+  Partial<typeof AgentState.State>,
+  'pendingConfirm'
+> & {
+  pendingConfirm: typeof AgentState.State['pendingConfirm'];
+};

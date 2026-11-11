@@ -43,6 +43,9 @@ export async function publishAiReply(
   });
 
   eventsGateway.dispatch(conversationId, SocketEvents.CHAT_MESSAGE, {
-    ...msg, isSelf: false,
+    ...msg,
+    isSelf: false,
+    // createdAt 转时间戳 number（Flutter SocketMessage 要求 int，Date 会被序列化成 ISO 字符串导致解析失败）
+    createdAt: msg.createdAt.getTime(),
   });
 }

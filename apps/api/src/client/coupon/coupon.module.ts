@@ -9,7 +9,7 @@ import { createCouponTools } from '@api/client/ai-customer/graph/tools/coupon-to
   imports: [PrismaModule],
   controllers: [ClientCouponController],
   providers: [ClientCouponService],
-  exports: [],
+  exports: [ClientCouponService],
 })
 export class ClientCouponModule implements OnApplicationBootstrap {
   constructor(

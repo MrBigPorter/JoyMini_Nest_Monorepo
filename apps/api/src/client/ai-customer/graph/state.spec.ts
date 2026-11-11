@@ -341,3 +341,57 @@ describe('End-to-end: flowData lifecycle with topic switching', () => {
     expect(flowDataReducer(existing, undefined as any)).toEqual(existing);
   });
 });
+
+// ================================================================
+// Tests: pendingConfirmReducer
+// ================================================================
+// pendingConfirm 是"每轮一次性"字段：本轮生成确认就是对象，没生成就是 null。
+// 关键：reducer 必须采用新值 b（null 就清空）—— 而不是 `b ?? a` 保留旧值。
+// 如果保留旧值，上一轮的确认（如"领券"）会跨轮残留，导致下一轮
+// "取款"误弹上一轮的领券确认卡片。
+// 本 reducer 为 state.ts 中 pendingConfirm 字段 reducer 逻辑的镜像副本。
+function pendingConfirmReducer(
+  a: {
+    action: string;
+    params: Record<string, any>;
+    summary: Record<string, any>;
+  } | null,
+  b: {
+    action: string;
+    params: Record<string, any>;
+    summary: Record<string, any>;
+  } | null,
+) {
+  return b;
+}
+
+describe('pendingConfirmReducer', () => {
+  const couponConfirm = {
+    action: 'claim_coupon',
+    params: { couponId: 'c1' },
+    summary: { action: 'claim_coupon', couponId: 'c1' },
+  };
+
+  it('should set pendingConfirm when b is a confirm object (领券 → claim_coupon)', () => {
+    expect(pendingConfirmReducer(null, couponConfirm)).toEqual(couponConfirm);
+  });
+
+  it('should REPLACE old confirm when b is a new confirm object (取款 → withdraw)', () => {
+    const withdrawConfirm = {
+      action: 'withdraw',
+      params: { amount: 100, channelId: 2 },
+      summary: { action: 'withdraw', amount: 100, channelId: 2 },
+    };
+    expect(pendingConfirmReducer(couponConfirm, withdrawConfirm)).toEqual(
+      withdrawConfirm,
+    );
+  });
+
+  it('should CLEAR old confirm when b is null (本轮无确认 → 清空残留的领券卡)', () => {
+    expect(pendingConfirmReducer(couponConfirm, null)).toBeNull();
+  });
+
+  it('should stay null when both a and b are null (连续两轮无确认)', () => {
+    expect(pendingConfirmReducer(null, null)).toBeNull();
+  });
+});

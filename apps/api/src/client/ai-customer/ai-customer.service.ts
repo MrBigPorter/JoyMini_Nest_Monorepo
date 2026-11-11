@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { HumanMessage } from '@langchain/core/messages';
 import { buildCustomerGraph } from '@api/client/ai-customer/graph/customer.graph';
 import { ConfigService } from '@nestjs/config';
@@ -9,6 +9,7 @@ import { SocketEvents } from '@lucky/shared';
 import { TestChatResult } from '@api/client/ai-customer/graph/types/agent-types';
 import { AiService } from '@api/common/ai/ai.service';
 import { PrismaService } from '@api/common/prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 import { RagRetrievalService } from '@api/client/ai-customer/knowledge/rag-retrieval.service';
 import { PromptResolverService } from '@api/client/ai-customer/knowledge/prompt-resolver.service';
 import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service';
@@ -16,6 +17,13 @@ import { AiMemoryService } from '@api/common/ai/ai-memory.service';
 import { AiActionConfirmService } from './ai-action-confirm.service';
 import { handleEventStream } from './ai-stream.handler';
 import { publishAiReply } from './ai-reply-publisher';
+import { AddressService } from '../address/address.service';
+import { ClientWalletService } from '../wallet/client-wallet.service';
+import { ClientCouponService } from '../coupon/coupon.service';
+import { LuckyDrawService } from '@api/common/lucky-draw/lucky-draw.service';
+import { ApplyWithdrawDto } from '../wallet/dto/apply-withdraw.dto';
+import { OtpService } from '../otp/otp.service';
+import { CODE_TYPE } from '@lucky/shared';
 
 @Injectable()
 export class AiCustomerService {
@@ -34,6 +42,11 @@ export class AiCustomerService {
     private readonly aiMemoryService: AiMemoryService,
     private readonly eventsGateway: EventsGateway,
     private readonly aiActionConfirmService: AiActionConfirmService,
+    private readonly clientWalletService: ClientWalletService,
+    private readonly clientCouponService: ClientCouponService,
+    private readonly luckyDrawService: LuckyDrawService,
+    private readonly addressService: AddressService,
+    private readonly otpService: OtpService,
   ) {}
 
   /**
@@ -140,10 +153,24 @@ export class AiCustomerService {
       this.broadcastThinking(conversationId, callbacks);
 
       // Step 4 — 执行 LangGraph 流式推理（逐 token 推给前端）
-      await this.runEventStream(threadId, message, userId, conversationId, entryPoint, metadata, callbacks);
+      await this.runEventStream(
+        threadId,
+        message,
+        userId,
+        conversationId,
+        entryPoint,
+        metadata,
+        callbacks,
+      );
 
       // Step 5 — 收尾分发：转人工 / 确认卡片 / 正常完成
-      await this.finalizeAfterStream(threadId, prevCount, userId, conversationId, callbacks);
+      await this.finalizeAfterStream(
+        threadId,
+        prevCount,
+        userId,
+        conversationId,
+        callbacks,
+      );
     } catch (err: any) {
       this.handleStreamError(err, conversationId, callbacks);
     }
@@ -171,8 +198,14 @@ export class AiCustomerService {
   }
 
   /** Step 2 — 获取/创建 AI 对话线程 ID */
-  private async prepareThread(userId: string, conversationId?: string): Promise<string> {
-    const conversation = await this.aiMemoryService.createOrGetAiConversation(userId, conversationId);
+  private async prepareThread(
+    userId: string,
+    conversationId?: string,
+  ): Promise<string> {
+    const conversation = await this.aiMemoryService.createOrGetAiConversation(
+      userId,
+      conversationId,
+    );
     return conversation.threadId!;
   }
 
@@ -206,12 +239,22 @@ export class AiCustomerService {
     conversationId: string | undefined,
     entryPoint: string | undefined,
     metadata: Record<string, any> | undefined,
-    callbacks: { onToken: (token: string) => void; onStep: (step: string, data?: any) => void },
+    callbacks: {
+      onToken: (token: string) => void;
+      onStep: (step: string, data?: any) => void;
+    },
   ): Promise<void> {
     await handleEventStream(
-      this.compiledGraph!, threadId, message, userId,
-      conversationId, entryPoint, metadata,
-      this.registry, this.eventsGateway, callbacks,
+      this.compiledGraph!,
+      threadId,
+      message,
+      userId,
+      conversationId,
+      entryPoint,
+      metadata,
+      this.registry,
+      this.eventsGateway,
+      callbacks,
     );
   }
 
@@ -260,7 +303,10 @@ export class AiCustomerService {
   }
 
   /** 路由 A — 标记转人工 */
-  private async routeTransfer(userId: string, conversationId?: string): Promise<void> {
+  private async routeTransfer(
+    userId: string,
+    conversationId?: string,
+  ): Promise<void> {
     let targetConvId = conversationId;
     if (!targetConvId) {
       const conv = await this.prismaService.conversation.findFirst({
@@ -276,7 +322,8 @@ export class AiCustomerService {
         data: { handlerId: 'awaiting_human', handlerAssignedAt: new Date() },
       });
       this.eventsGateway.dispatch(targetConvId, SocketEvents.AI_TRANSFER, {
-        conversationId: targetConvId, reason: 'ai_determined',
+        conversationId: targetConvId,
+        reason: 'ai_determined',
       });
     }
   }
@@ -288,25 +335,159 @@ export class AiCustomerService {
     finalState: any,
   ): Promise<void> {
     const pc = finalState.values.pendingConfirm;
+
+    // 提现卡补全：手续费 + 到账金额（与 applyWithdraw 内算费公式一致：
+    // fee = amount * feeRate + feeFixed，net = amount - fee）
+    if (pc.action === 'withdraw') {
+      const channel = await this.prismaService.paymentChannel.findUnique({
+        where: { id: Number(pc.params.channelId), status: 1 },
+      });
+      if (channel) {
+        const amount = new Prisma.Decimal(pc.params.amount ?? 0);
+        const feeRate = channel.feeRate || new Prisma.Decimal(0);
+        const feeFixed = channel.feeFixed || new Prisma.Decimal(0);
+        const fee = amount.mul(feeRate).add(feeFixed);
+        const netAmount = amount.sub(fee);
+        pc.summary.fee = fee.toString();
+        pc.summary.netAmount = netAmount.toString();
+      }
+    }
+
     const { token, expiresAt } = await this.aiActionConfirmService.generate(
-      userId, pc.action, pc.params, pc.summary,
+      userId,
+      pc.action,
+      pc.params,
+      pc.summary,
     );
     if (conversationId) {
       this.eventsGateway.dispatch(conversationId, SocketEvents.AI_CONFIRM, {
-        conversationId, action: pc.action, summary: pc.summary,
-        confirmToken: token, expiresAt,
+        conversationId,
+        action: pc.action,
+        summary: pc.summary,
+        confirmToken: token,
+        expiresAt,
       });
     }
   }
 
+  /**
+   * AI 确认卡片执行入口（P1-1）
+   *
+   * 用户点卡片[确认] → Flutter 调 POST /ai/customer/confirm → 本方法：
+   *   ① consume(token) 校验：一次性 + 60s 过期 + userId 匹配
+   *   ② 校验通过 → 按 action 分发到对应业务 service 执行
+   *
+   * 关键不变式：写操作只有一个执行点（这里，用户确认之后），服务端绝不先执行。
+   */
+
+  async confirmAction(token: string, userId: string) {
+    const payload = await this.aiActionConfirmService.consume(token, userId);
+    if (!payload) {
+      throw new BadRequestException('Confirm token invalid or expired');
+    }
+    const { action, params } = payload;
+
+    switch (action) {
+      case 'withdraw': {
+        // 提现走 OTP 双保险：先发验证码 + 暂存任务，验码后（confirmWithdrawOtp）才真正执行
+        const user = await this.prismaService.user.findUnique({
+          where: { id: userId },
+          select: { phone: true },
+        });
+        if (!user || !user.phone) {
+          throw new BadRequestException('User phone not found');
+        }
+        await this.otpService.request({
+          phone: user.phone,
+          codeType: CODE_TYPE.WITHDRAW,
+        });
+
+        await this.aiActionConfirmService.stagePendingExecution(
+          userId,
+          payload,
+        );
+        return {
+          needOtp: true,
+          message: 'OTP sent to user phone, please confirm with code',
+        };
+      }
+      case 'claim_coupon':
+        return this.clientCouponService.claimCoupon(userId, params.couponId, 2);
+      case 'redeem_code':
+        return this.clientCouponService.redeemCode(userId, params.code);
+      case 'draw':
+        return this.luckyDrawService.draw(userId, params.ticketId);
+      case 'delete_address':
+        return this.addressService.delete(userId, params.addressId);
+      default:
+        throw new BadRequestException(`Unknown confirm action: ${action}`);
+    }
+  }
+
+  /**
+   * 提现 OTP 验码并执行（P1-2 第二道闸门）
+   * 用户输入验证码 → 本方法：
+   *   ① popPendingExecution 取回待执行任务（一次性，防重放）
+   *   ② verify OTP（对用户手机号）
+   *   ③ 验码通过 → 真正执行 applyWithdraw
+   */
+
+  async confirmWithdrawOtp(code: string, userId: string) {
+    const pending =
+      await this.aiActionConfirmService.popPendingExecution(userId);
+    if (!pending) {
+      throw new BadRequestException('No pending withdraw action found');
+    }
+
+    const user = await this.prismaService.user.findUnique({
+      where: { id: userId },
+      select: { phone: true },
+    });
+    if (!user || !user.phone) {
+      throw new BadRequestException('User phone not found');
+    }
+
+    const isValidOtp = await this.otpService.verify({
+      phone: user.phone,
+      codeType: CODE_TYPE.WITHDRAW,
+      code,
+    });
+
+    if (!isValidOtp) {
+      throw new BadRequestException('Invalid OTP code');
+    }
+
+    const { params } = pending;
+    const dto = new ApplyWithdrawDto();
+    dto.amount = Number(params.amount);
+    dto.channelId = Number(params.channelId);
+    dto.account = String(params.account ?? '');
+    dto.accountName = String(params.accountName ?? '');
+    return this.clientWalletService.applyWithdraw(userId, dto);
+  }
+
   /** 路由 C — 写 chat_message + 广播（委托给 ai-reply-publisher） */
-  private async routeNormalCompletion(newMessages: any[], userId: string, conversationId?: string): Promise<void> {
+  private async routeNormalCompletion(
+    newMessages: any[],
+    userId: string,
+    conversationId?: string,
+  ): Promise<void> {
     if (!conversationId) return;
-    await publishAiReply(this.prismaService, this.eventsGateway, conversationId, newMessages, userId);
+    await publishAiReply(
+      this.prismaService,
+      this.eventsGateway,
+      conversationId,
+      newMessages,
+      userId,
+    );
   }
 
   /** 异常兜底 */
-  private handleStreamError(err: any, conversationId?: string, callbacks?: { onError: (err: Error) => void }): void {
+  private handleStreamError(
+    err: any,
+    conversationId?: string,
+    callbacks?: { onError: (err: Error) => void },
+  ): void {
     this.logger.error(`[chatStream] error: ${err.message}`);
     callbacks?.onError(err);
     if (conversationId) {

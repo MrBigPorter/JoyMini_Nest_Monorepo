@@ -36,6 +36,7 @@ import { Logger } from '@nestjs/common';
 import {
   AgentState,
   DebugAgentExecution,
+  OrchestratorStateUpdate,
 } from '@api/client/ai-customer/graph/state';
 import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-registry.service';
 import { extractUserInput } from '@api/client/ai-customer/graph/utils/extract-user-input';
@@ -189,9 +190,7 @@ export const createOrchestratorNode =
     ragRetrievalService?: RagRetrievalService,
     promptResolver?: PromptResolverService,
   ) =>
-  async (
-    state: typeof AgentState.State,
-  ): Promise<Partial<typeof AgentState.State>> => {
+  async (state: typeof AgentState.State): Promise<OrchestratorStateUpdate> => {
     const logger = new Logger('Orchestrator');
     const labels = state.labels ?? [];
     logger.log(
@@ -288,6 +287,7 @@ export const createOrchestratorNode =
           messages: [...state.messages, new AIMessage(content)],
           transferToHuman: true,
           labels: [],
+          pendingConfirm: null,
         };
       } catch (err) {
         logger.warn(
@@ -296,6 +296,7 @@ export const createOrchestratorNode =
         return {
           transferToHuman: true,
           labels: [],
+          pendingConfirm: null,
         };
       }
     }
@@ -350,6 +351,7 @@ export const createOrchestratorNode =
           ],
           previousIntent: state.intent,
           labels: [],
+          pendingConfirm: null,
         };
       }
 
@@ -512,7 +514,8 @@ export const createOrchestratorNode =
           }
 
           // ── 写操作拦截：检测是否需要用户确认 ──
-          const lastTool = result.lastToolCallInfo;
+          const lastTool = result.pendingToolCall; //工具被截停、未执行）——若读 lastToolCallInfo（已执行），
+          // 卡片出现时操作已提交，用户再点确认 = 双执行（资金风险）
           if (lastTool && CONFIRM_REQUIRED_TOOLS.has(lastTool.name)) {
             logger.log(
               `[orchestrator] ${entry.label} called write tool "${lastTool.name}", intercepting`,
@@ -574,7 +577,7 @@ export const createOrchestratorNode =
 
     // 如果有待确认操作，跳过最终合成，直接返回，保存 pendingConfirm在 state 里，等待 AiCustomerService SSE 发 confirm 事件给前端
     if (hasPendingConfirm) {
-      const orchestratorResult: Partial<typeof AgentState.State> = {
+      const orchestratorResult: OrchestratorStateUpdate = {
         messages: [
           ...state.messages,
           new AIMessage('Please confirm the details.'),
@@ -592,10 +595,11 @@ export const createOrchestratorNode =
       userInput,
     );
 
-    const orchestratorResult: Partial<typeof AgentState.State> = {
+    const orchestratorResult: OrchestratorStateUpdate = {
       messages: [...state.messages, new AIMessage(finalContent)],
       previousIntent: state.intent,
       labels: [],
+      pendingConfirm: null,
       transferToHuman: hasTransferRequest,
       repeatCount:
         state.intent === state.previousIntent
