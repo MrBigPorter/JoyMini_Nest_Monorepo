@@ -26,6 +26,8 @@
     "seed:treasures": "tsx scripts/seed/seed-treasures.ts",
     "seed:blog": "tsx scripts/seed/seed-blog-categories-tags.ts",
     "create-admin": "tsx scripts/cli/create-admin.ts",
+    "import-knowledge": "tsx scripts/cli/import-knowledge.ts",
+    "verify-knowledge": "tsx scripts/cli/verify-knowledge.ts",
     "batch-retranscode-videos": "tsx scripts/cli/batch-retranscode-videos.ts",
     "gen-types": "TS_NODE_TRANSPILE_ONLY=true node_modules/.bin/ts-node -r tsconfig-paths/register scripts/cli/gen-types.ts",
     "gen-types:full": "yarn export:swagger:full && TS_NODE_TRANSPILE_ONLY=true node_modules/.bin/ts-node -r tsconfig-paths/register scripts/cli/gen-types.ts",
