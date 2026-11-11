@@ -1,7 +1,7 @@
 # 88 · 知识库元数据合并与入库校验（N-3）— SDD
 
-> 版本: v1.1
-> 状态: 代码已实现（AC-1/2/6 已验证；AC-3/4/5 待数据重传后验证）
+> 版本: v1.2
+> 状态: **已完成**（AC-1~AC-6 全部验证通过；2026-11-11 数据重传后 `verify-knowledge` PASS 27/27）
 > 日期: 2026-11-11
 > 关联: [#87 N-1 / N-3](./87-全项目问题总清单.md)、[#54 Admin 知识库 UI](./RAG/54-admin-rag-knowledge-base-ui-design.md)
 > 对应代码: `apps/api/src/admin/rag/rag-sync.service.ts`、`apps/api/src/admin/rag/knowledge-metadata.util.ts`、`apps/api/scripts/cli/verify-knowledge.ts`
@@ -187,6 +187,19 @@ yarn workspace @lucky/api verify-knowledge
 | AC-5 | `size-guide.domain=product`、`vip-benefits.content_type=policy` | 校验脚本第 5 项 |
 | AC-6 | 校验脚本能识别缺失文档（构造 `coupon-rules` 缺失时退出码 1） | 手工验证 |
 
+### 验收记录（2026-11-11）
+
+| AC | 结果 | 证据 |
+|:--:|:--:|---|
+| AC-1 | ✅ | `tsc --noEmit` 0 error |
+| AC-2 | ✅ | `knowledge-metadata.util.spec.ts` 6/6 |
+| AC-3 | ✅ | 重传后 `verify-knowledge` → PASS 27/27，exit 0 |
+| AC-4 | ✅ | 27 篇标题均无 ` (domain)` 后缀 |
+| AC-5 | ✅ | `size-guide.domain=product`、`vip-benefits.content_type=policy` |
+| AC-6 | ✅ | 构造 `coupon-rules` 缺失 → exit 1 |
+
+> 补充：302/302 chunk 均有向量（含补跑 contact-support 6 个、platform-rules 3 个）；N-6 修复见 #87、提交 `de8e8f0e`。
+
 ---
 
 ## 九、附录
@@ -202,3 +215,4 @@ yarn workspace @lucky/api verify-knowledge
 |---|---|---|
 | 2026-11-11 | v1.0 | 首版：#87 N-1 执行后暴露的元数据问题 + N-3 校验 |
 | 2026-11-11 | v1.1 | 代码落地：新增 `knowledge-metadata.util.ts`（+6 个单测）、`rag-sync.service.ts` 接入、`verify-knowledge` CLI；顺手修正 `contact-support.en.md` 的 `domain: rag` → `common` |
+| 2026-11-11 | v1.2 | 状态改为已完成：AC-1~AC-6 全部通过（重传 27 篇 + 补跑 9 个缺失 chunk，302/302 有向量）；补「验收记录」表 |

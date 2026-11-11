@@ -19,11 +19,13 @@
 
 | # | 任务 | 文件 | 产出 | 状态 |
 |:--:|---|---|---|:--:|
-| T0-1 | 提交工作区 16 个文件 | — | 基线 commit，`tsc --noEmit` 通过 | ☐ |
+| T0-1 | 提交工作区 16 个文件 | — | 基线 commit，`tsc --noEmit` 通过 | ✅ 2026-11-11 |
 | T0-2 | 结构化日志：traceId + 意图 + 耗时 + token | 新建 `common/logger/`，埋点 `ai-customer.service.ts`、`orchestrator.node.ts`、`rag-retrieval.service.ts` | 一条对话可按 traceId 串起来 | ☐ |
 | T0-3 | golden set + 回放脚本（Python） | 新建 `tools/eval/` | `python replay.py` 输出当前基线分 | ☐ |
 
 > 为什么先做这 3 件：没有 T0-2 看不到问题，没有 T0-3 证明不了修好了。
+>
+> T0-1 已完成（2026-11-11）：基线提交 `d1eda1b0` → `de8e8f0e`，含 #88 元数据合并、导入/校验 CLI、知识库批量上传、N-6 向量化健壮性修复；`tsc --noEmit` 0 error。
 
 ### 🥈 T1 — 安全与资金（Day 3-8）
 
