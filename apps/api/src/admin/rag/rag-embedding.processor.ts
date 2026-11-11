@@ -98,20 +98,28 @@ export class RagEmbeddingProcessor extends WorkerHost {
         ` in ${result.durationMs}ms`,
     );
 
-    // 如果有失败的 chunk，记录警告但不抛异常
-    // 不抛异常 = BullMQ 不会重试，失败的 chunk 保持 embedding IS NULL
-    // 用户可以通过前端的 reindex 按钮手动重试
+    // 有 chunk 失败 → 不标记 indexed，抛异常交给 BullMQ 重试。
+    // 重试是幂等的：embedDocument(force=false) 只处理 embedding IS NULL 的 chunk，
+    // 已成功的不会重算，只补缺口。
     if (result.failCount > 0) {
+      const attempts = job.opts.attempts ?? 1; // 队列默认 3 次
+      const attempt = job.attemptsMade + 1; // 当前是第几次
+
       this.logger.warn(
-        `[Job ${job.id}] ${result.failCount} chunks failed for document ${documentId}: ` +
+        `[Job ${job.id}] ${result.failCount} chunks failed for document ${documentId} ` +
+          `(attempt ${attempt}/${attempts}): ` +
           result.errors
             .map((e) => `chunk[${e.chunkIndex}]: ${e.reason}`)
             .join('; '),
       );
+
+      throw new Error(
+        `${result.failCount} chunk(s) failed embedding for ${documentId}`,
+      );
     }
 
-    // 无论是否有失败的 chunk，都更新文档状态为 indexed
-    // 因为至少部分 chunk 已经向量化 + 索引到 Meilisearch
+    // 只有全部成功才标记 indexed。
+    // 部分失败的文档保持 chunked，后台可见，verify-knowledge 会报 FAIL。
     try {
       await this.prisma.knowledgeDocument.update({
         where: { id: documentId },

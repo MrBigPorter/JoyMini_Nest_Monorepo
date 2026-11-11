@@ -502,6 +502,13 @@ export class RagSyncService {
       this.logger.log(
         `Created ${chunks.length} chunks for document ${document.id} (v${document.version})`,
       );
+
+      // 切片完成、向量未就绪：状态必须如实反映。
+      // 否则重传老文档时会沿用上一次的 indexed，出现"状态全绿但 chunk 无向量"。
+      await this.prisma.knowledgeDocument.update({
+        where: { id: document.id },
+        data: { processStatus: 'chunked' },
+      });
     }
 
     // ==================== 第 6 步：提交向量化任务到队列 ====================
