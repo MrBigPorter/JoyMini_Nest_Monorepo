@@ -330,6 +330,71 @@ function DocFormModal({
 
 // ───────────────────────────── UploadModal ─────────────────────────────
 
+/** 支持的上传后缀 — 与后端 uploadFile 的解析器保持一致 */
+const UPLOAD_ACCEPTED = ['.md', '.pdf'];
+const isAcceptedFile = (name: string) =>
+  UPLOAD_ACCEPTED.some((ext) => name.toLowerCase().endsWith(ext));
+
+/**
+ * 读完一个目录的全部子项。
+ * readEntries() 每次最多只返回 100 条，必须反复读到返回空数组为止，
+ * 否则超过 100 个文件的目录会静默截断。
+ */
+async function readAllDirEntries(
+  reader: FileSystemDirectoryReader,
+): Promise<FileSystemEntry[]> {
+  const all: FileSystemEntry[] = [];
+  for (;;) {
+    const batch = await new Promise<FileSystemEntry[]>((resolve) =>
+      reader.readEntries(resolve, () => resolve([])),
+    );
+    if (batch.length === 0) return all;
+    all.push(...batch);
+  }
+}
+
+/** 把一个拖入项（文件或目录）递归展开成 File[] */
+async function collectEntry(entry: FileSystemEntry): Promise<File[]> {
+  if (entry.isFile) {
+    return new Promise<File[]>((resolve) =>
+      (entry as FileSystemFileEntry).file(
+        (file) => resolve([file]),
+        () => resolve([]),
+      ),
+    );
+  }
+
+  if (entry.isDirectory) {
+    const children = await readAllDirEntries(
+      (entry as FileSystemDirectoryEntry).createReader(),
+    );
+    const nested = await Promise.all(children.map(collectEntry));
+    return nested.flat();
+  }
+
+  return [];
+}
+
+/**
+ * 展开一次拖拽里的所有文件。
+ * 浏览器原生的 <input type="file" multiple> 不能跨目录多选，
+ * 但拖拽拿到的是 DataTransferItem，可以 webkitGetAsEntry() 递归遍历目录
+ * —— 所以拖整个 knowledge/ 文件夹进来，27 个文件会一次填满表单。
+ */
+async function collectDroppedFiles(dt: DataTransfer): Promise<File[]> {
+  const entries = Array.from(dt.items)
+    .map((item) => item.webkitGetAsEntry?.() ?? null)
+    .filter((entry): entry is FileSystemEntry => entry !== null);
+
+  if (entries.length > 0) {
+    const nested = await Promise.all(entries.map(collectEntry));
+    return nested.flat();
+  }
+
+  // 少数浏览器没有 webkitGetAsEntry，退回平铺文件列表
+  return Array.from(dt.files);
+}
+
 function UploadModal({
   onClose,
   onUploaded,
@@ -339,52 +404,101 @@ function UploadModal({
   onUploaded: () => void;
   t: TFunc;
 }) {
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [domain, setDomain] = useState('');
   const [locale, setLocale] = useState('en');
   const [keywordsStr, setKeywordsStr] = useState('');
   const [contentType, setContentType] = useState('');
   const [priority, setPriority] = useState('');
   const [progress, setProgress] = useState(0);
+  const [uploading, setUploading] = useState(false);
+  const [result, setResult] = useState<{ ok: number; failed: string[] } | null>(
+    null,
+  );
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const dirInputRef = useRef<HTMLInputElement>(null);
 
-  const { run: doUpload, loading: uploading } = useRequest(
-    async () => {
-      if (!file) return;
-      const extraFields: Record<string, string> = {};
-      if (domain) extraFields.domain = domain;
-      if (locale) extraFields.locale = locale;
-      if (keywordsStr) extraFields.keywords = keywordsStr;
-      if (contentType) extraFields.contentType = contentType;
-      if (priority) extraFields.priority = priority;
+  /**
+   * 批量上传 — 串行逐个调后端。
+   *
+   * 为什么不用 useRequest / 不并行：
+   * 每个文件上传后会触发一次切分，并向 BullMQ 投递一条向量化任务。
+   * 并行只在队列里堆任务，对总耗时没有帮助，反而让单文件进度无法表达。
+   */
+  const doUpload = async () => {
+    if (files.length === 0 || uploading) return;
 
-      await knowledgeApi.upload(file, extraFields, setProgress);
-    },
-    {
-      manual: true,
-      onSuccess: () => {
-        onUploaded();
-        onClose();
-      },
-    },
-  );
+    const extraFields: Record<string, string> = {};
+    if (domain) extraFields.domain = domain;
+    if (locale) extraFields.locale = locale;
+    if (keywordsStr) extraFields.keywords = keywordsStr;
+    if (contentType) extraFields.contentType = contentType;
+    if (priority) extraFields.priority = priority;
+
+    setUploading(true);
+    setResult(null);
+    const failed: string[] = [];
+    let ok = 0;
+
+    for (let i = 0; i < files.length; i++) {
+      const current = files[i];
+      try {
+        await knowledgeApi.upload(current, extraFields, (percent) => {
+          const done = (i + percent / 100) / files.length;
+          setProgress(Math.round(done * 100));
+        });
+        ok++;
+      } catch {
+        failed.push(current.name);
+      }
+    }
+
+    setProgress(100);
+    setUploading(false);
+    setResult({ ok, failed });
+    onUploaded();
+
+    if (failed.length === 0) {
+      onClose();
+    } else {
+      // 只把失败的文件留在选择框里，方便直接重试，不用重新挑一遍
+      setFiles(files.filter((f) => failed.includes(f.name)));
+    }
+  };
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
-    const droppedFile = e.dataTransfer.files[0];
-    if (
-      droppedFile &&
-      (droppedFile.name.endsWith('.md') || droppedFile.name.endsWith('.pdf'))
-    ) {
-      setFile(droppedFile);
-    }
+    // 注意：dataTransfer 在事件回调返回后就失效，必须在同步阶段先拿到
+    const dt = e.dataTransfer;
+
+    void (async () => {
+      const dropped = await collectDroppedFiles(dt);
+      const accepted = dropped
+        .filter((f) => isAcceptedFile(f.name))
+        .sort((a, b) => a.name.localeCompare(b.name));
+      if (accepted.length > 0) setFiles(accepted);
+    })();
   }, []);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = e.target.files?.[0];
-    if (selected) setFile(selected);
+    const selected = Array.from(e.target.files ?? []).filter((f) =>
+      isAcceptedFile(f.name),
+    );
+    if (selected.length > 0) {
+      setFiles(selected.sort((a, b) => a.name.localeCompare(b.name)));
+    }
+  };
+
+  /** 选整个文件夹 — webkitdirectory 会递归把目录下所有文件塞进 files */
+  const handleDirSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = Array.from(e.target.files ?? []).filter((f) =>
+      isAcceptedFile(f.name),
+    );
+    if (selected.length > 0) {
+      setFiles(selected.sort((a, b) => a.name.localeCompare(b.name)));
+    }
   };
 
   const inputClass =
@@ -425,17 +539,19 @@ function UploadModal({
               ref={inputRef}
               type="file"
               accept=".md,.pdf"
+              multiple
               className="hidden"
               onChange={handleFileSelect}
             />
-            {file ? (
+            {files.length > 0 ? (
               <>
                 <FileText size={32} className="text-teal-500" />
                 <p className="text-sm font-medium text-gray-900 dark:text-white">
-                  {file.name}
+                  {t('knowledgeBase.filesSelected', { count: files.length })}
                 </p>
                 <p className="text-xs text-gray-400">
-                  {(file.size / 1024).toFixed(1)} KB
+                  {(files.reduce((sum, f) => sum + f.size, 0) / 1024).toFixed(1)}{' '}
+                  {t('knowledgeBase.clickToReselect')}
                 </p>
               </>
             ) : (
@@ -450,6 +566,42 @@ function UploadModal({
               </>
             )}
           </div>
+
+          {/* 选文件夹 — 浏览器原生文件框不能跨目录多选，webkitdirectory 可以 */}
+          <input
+            ref={dirInputRef}
+            type="file"
+            multiple
+            className="hidden"
+            onChange={handleDirSelect}
+            {...{ webkitdirectory: 'true', directory: 'true' }}
+          />
+          <button
+            type="button"
+            onClick={() => dirInputRef.current?.click()}
+            className="text-xs text-teal-600 underline-offset-2 hover:underline dark:text-teal-400"
+          >
+            {t('knowledgeBase.chooseFolder')}
+          </button>
+
+          {/* 已选文件列表 — 多选时展示，方便核对有没有漏掉 */}
+          {files.length > 1 && (
+            <div className="max-h-36 overflow-y-auto rounded-xl border border-gray-200 dark:border-white/10">
+              {files.map((f) => (
+                <div
+                  key={f.name}
+                  className="flex items-center justify-between border-b border-gray-100 px-3 py-1.5 text-xs last:border-b-0 dark:border-white/5"
+                >
+                  <span className="truncate text-gray-600 dark:text-gray-300">
+                    {f.name}
+                  </span>
+                  <span className="ml-2 shrink-0 text-gray-400">
+                    {(f.size / 1024).toFixed(1)} KB
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Override fields */}
           <div className="grid grid-cols-2 gap-3">
@@ -534,12 +686,35 @@ function UploadModal({
           </div>
 
           {/* Progress bar */}
-          {progress > 0 && progress < 100 && (
-            <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-white/10">
-              <div
-                className="h-full rounded-full bg-teal-500 transition-all duration-300"
-                style={{ width: `${progress}%` }}
-              />
+          {uploading && (
+            <div className="flex flex-col gap-1">
+              <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-white/10">
+                <div
+                  className="h-full rounded-full bg-teal-500 transition-all duration-300"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+              <p className="text-xs text-gray-400">
+                {t('knowledgeBase.uploadProgressHint', { percent: progress })}
+              </p>
+            </div>
+          )}
+
+          {/* 批量上传结果 — 有失败就留在弹窗里，不要静默关掉 */}
+          {result && (
+            <div
+              className={`rounded-xl px-3 py-2 text-xs ${
+                result.failed.length === 0
+                  ? 'bg-teal-50 text-teal-700 dark:bg-teal-950/30 dark:text-teal-300'
+                  : 'bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300'
+              }`}
+            >
+              {t('knowledgeBase.uploadBatchOk', { ok: result.ok })}
+              {result.failed.length > 0 &&
+                t('knowledgeBase.uploadBatchFailed', {
+                  failed: result.failed.length,
+                  names: result.failed.join(', '),
+                })}
             </div>
           )}
 
@@ -552,8 +727,8 @@ function UploadModal({
               {t('knowledgeBase.cancel')}
             </button>
             <button
-              disabled={!file || uploading}
-              onClick={() => doUpload()}
+              disabled={files.length === 0 || uploading}
+              onClick={() => void doUpload()}
               className="flex items-center gap-1.5 rounded-xl bg-teal-500 px-4 py-2 text-sm text-white transition-colors hover:bg-teal-600 disabled:opacity-50"
             >
               {uploading ? (
@@ -561,7 +736,9 @@ function UploadModal({
               ) : (
                 <Upload size={14} />
               )}
-              Upload
+              {files.length > 1
+                ? t('knowledgeBase.uploadCount', { count: files.length })
+                : 'Upload'}
             </button>
           </div>
         </div>
