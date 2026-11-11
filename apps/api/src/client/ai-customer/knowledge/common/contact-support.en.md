@@ -1,6 +1,6 @@
 ---
 title: Contact Support
-domain: rag
+domain: common
 docId: contact-support
 keywords: [support, help, contact, customer service, assistant,客服, 帮助, 联系]
 locale: en

@@ -9,6 +9,7 @@ import { UploadService } from '@api/common/upload/upload.service';
 import { AiService } from '@api/common/ai/ai.service';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { RAG_EMBEDDING_QUEUE } from './rag-embedding-queue.constants';
+import { mergeKnowledgeMetadata } from './knowledge-metadata.util';
 
 // =============================================================================
 // 策略接口 — TextExtractor
@@ -428,12 +429,15 @@ export class RagSyncService {
     }
 
     // ==================== 第 3 步：合并元数据 ====================
-    // 优先级：frontmatter 中的值 > 前端用户填写 > 代码默认值
-    // 例如：.md 文件的 frontmatter 中写了 domain: order，
-    //       但用户在弹窗里填了 domain: product，则用户填的覆盖（overrides.domain）。
+    // 优先级：frontmatter > 前端用户填写 > 代码默认值（见 #88 SDD）。
+    // 规则集中在 mergeKnowledgeMetadata()，这里不再内联判断：
+    //   - .md 以文件 frontmatter 为准，弹窗里填的值只补缺
+    //   - .pdf 没有 frontmatter，全部回落到 overrides
+    //   - 标题不拼接任何后缀（历史版本曾拼 " (domain)"）
     const docId =
       doc.metadata.docId || file.originalname.replace(/\.[^.]+$/, '');
-    const locale = overrides?.locale || doc.metadata.locale || 'en';
+    const merged = mergeKnowledgeMetadata(doc, overrides);
+    const locale = merged.locale;
 
     // 检查是否已存在相同 docId + locale 的文档
     const existing = await this.prisma.knowledgeDocument.findUnique({
@@ -442,20 +446,13 @@ export class RagSyncService {
 
 
     const data = {
-      title: overrides?.domain
-        ? `${doc.title} (${overrides.domain})`
-        : doc.title,
-      domain: overrides?.domain || doc.metadata.domain || 'general',
+      title: merged.title,
+      domain: merged.domain,
       qualityScore: qualityResult.overallScore,
       qualityFlags: qualityResult.flags.length > 0 ? qualityResult.flags.join(',') : null,
-      keywords: overrides?.keywords
-        ? overrides.keywords.split(',').map((s) => s.trim())
-        : Array.isArray(doc.metadata.keywords)
-          ? doc.metadata.keywords
-          : [],
-      contentType:
-        overrides?.contentType || doc.metadata.contentType || 'policy',
-      priority: overrides?.priority || doc.metadata.priority || 'P2',
+      keywords: merged.keywords,
+      contentType: merged.contentType,
+      priority: merged.priority,
       content: doc.content,
       rawContent: rawContent,
       fileUrl: fileUrl,
