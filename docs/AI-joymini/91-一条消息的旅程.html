@@ -1,0 +1,656 @@
+<title>一条消息的旅程</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  *,*::before,*::after{box-sizing:border-box}
+
+  :root{
+    /* 蓝图配色：冷灰纸 + 墨蓝主色 + 铁锈红表示"转人工/失败分支" */
+    --bg:#EDF1F4;
+    --bg-elev:#FFFFFF;
+    --bg-sink:#E3E9EE;
+    --fg:#0F1A22;
+    --fg-muted:#51636F;
+    --line:#C7D3DB;
+    --accent:#1C5C8A;
+    --accent-soft:#DCEAF4;
+    --signal:#A83E2A;
+    --signal-soft:#F6E2DC;
+    --ok:#2E6B4F;
+    --ok-soft:#DFEDE5;
+
+    --font-display:"Space Grotesk",-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB",sans-serif;
+    --font-body:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    --font-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0B1319;
+      --bg-elev:#111C24;
+      --bg-sink:#0E171E;
+      --fg:#DBE5EC;
+      --fg-muted:#93A5B2;
+      --line:#26343E;
+      --accent:#7CB6DD;
+      --accent-soft:#16293A;
+      --signal:#E88A72;
+      --signal-soft:#3A2119;
+      --ok:#7FC0A0;
+      --ok-soft:#16302A;
+      color-scheme:dark;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0B1319;
+    --bg-elev:#111C24;
+    --bg-sink:#0E171E;
+    --fg:#DBE5EC;
+    --fg-muted:#93A5B2;
+    --line:#26343E;
+    --accent:#7CB6DD;
+    --accent-soft:#16293A;
+    --signal:#E88A72;
+    --signal-soft:#3A2119;
+    --ok:#7FC0A0;
+    --ok-soft:#16302A;
+    color-scheme:dark;
+  }
+
+  html{ -webkit-text-size-adjust:100% }
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--fg);
+    font-family:var(--font-body);
+    font-size:16px;
+    line-height:1.7;
+    padding-left:max(16px, env(safe-area-inset-left, 0px));
+    padding-right:max(16px, env(safe-area-inset-right, 0px));
+    padding-block:0 72px;
+  }
+
+  main{ max-width:860px; margin:0 auto }
+
+  /* ── 页头 ───────────────────────────────── */
+  header{
+    padding-block:56px 40px;
+    border-bottom:1px solid var(--line);
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+  }
+  .eyebrow{
+    font-family:var(--font-mono);
+    font-size:12px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--fg-muted);
+    margin:0;
+  }
+  h1{
+    font-family:var(--font-display);
+    font-size:clamp(34px, 6vw, 54px);
+    line-height:1.08;
+    letter-spacing:-.02em;
+    font-weight:700;
+    margin:0;
+    text-wrap:balance;
+  }
+  .lede{
+    margin:0;
+    max-width:56ch;
+    color:var(--fg-muted);
+    font-size:17px;
+  }
+
+  /* ── 区块 ───────────────────────────────── */
+  section{ padding-block:44px 0 }
+  h2{
+    font-family:var(--font-display);
+    font-size:22px;
+    font-weight:500;
+    letter-spacing:-.01em;
+    margin:0 0 8px;
+    display:flex;
+    align-items:baseline;
+    gap:12px;
+    text-wrap:balance;
+  }
+  h2 .idx{
+    font-family:var(--font-mono);
+    font-size:12px;
+    color:var(--accent);
+    letter-spacing:.08em;
+  }
+  .sub{
+    margin:0 0 26px;
+    color:var(--fg-muted);
+    max-width:62ch;
+    font-size:15px;
+  }
+  p{ margin:0 0 16px; max-width:66ch }
+  code{
+    font-family:var(--font-mono);
+    font-size:.86em;
+    background:var(--bg-sink);
+    border:1px solid var(--line);
+    border-radius:4px;
+    padding:.1em .38em;
+    white-space:nowrap;
+  }
+  a{ color:var(--accent) }
+
+  /* ── 主干 rails ─────────────────────────── */
+  .rail{
+    list-style:none;
+    margin:0;
+    padding:0;
+    display:grid;
+    gap:0;
+  }
+  .step{
+    display:grid;
+    grid-template-columns:46px minmax(0,1fr);
+    gap:18px;
+    position:relative;
+    padding-bottom:26px;
+  }
+  .step::before{
+    content:"";
+    position:absolute;
+    left:22px;
+    top:34px;
+    bottom:0;
+    width:2px;
+    background:var(--line);
+  }
+  .step:last-child::before{ display:none }
+  .step-no{
+    position:relative;
+    z-index:1;
+    width:46px;
+    height:34px;
+    display:grid;
+    place-items:center;
+    font-family:var(--font-mono);
+    font-size:12px;
+    font-weight:500;
+    color:var(--fg-muted);
+    background:var(--bg-elev);
+    border:1px solid var(--line);
+    border-radius:6px;
+  }
+  .step.is-signal .step-no{ color:var(--signal); border-color:var(--signal); background:var(--signal-soft) }
+  .step-body{ min-width:0 }
+  .step-body h3{
+    font-family:var(--font-display);
+    font-size:17px;
+    font-weight:500;
+    margin:4px 0 6px;
+    line-height:1.35;
+  }
+  .what{ margin:0 0 10px; font-size:15px; max-width:60ch }
+  .where{
+    margin:0;
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    align-items:center;
+  }
+  .file{
+    font-family:var(--font-mono);
+    font-size:12px;
+    color:var(--fg-muted);
+    background:var(--bg-sink);
+    border:1px solid var(--line);
+    border-radius:4px;
+    padding:2px 7px;
+    white-space:nowrap;
+  }
+  .chip{
+    font-family:var(--font-mono);
+    font-size:11px;
+    letter-spacing:.03em;
+    padding:2px 7px;
+    border-radius:999px;
+    border:1px solid var(--line);
+    color:var(--fg-muted);
+    white-space:nowrap;
+  }
+  .chip.gate{ border-color:var(--accent); color:var(--accent); background:var(--accent-soft) }
+  .chip.warn{ border-color:var(--signal); color:var(--signal); background:var(--signal-soft) }
+
+  /* ── 图 ─────────────────────────────────── */
+  figure{
+    margin:26px 0 8px;
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+  }
+  .fig-frame{
+    background:var(--bg-elev);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:18px 14px 10px;
+    overflow-x:auto;
+  }
+  .fig-frame svg{ display:block; width:100%; height:auto; max-width:100%; color:var(--fg) }
+  figcaption{
+    font-size:13px;
+    color:var(--fg-muted);
+    max-width:64ch;
+    line-height:1.6;
+  }
+  .legend{
+    display:flex;
+    flex-wrap:wrap;
+    gap:16px;
+    font-family:var(--font-mono);
+    font-size:11px;
+    color:var(--fg-muted);
+  }
+  .legend span{ display:inline-flex; align-items:center; gap:6px }
+  .swatch{ width:16px; height:2px; border-radius:2px; display:inline-block }
+  .swatch.sig{ background:var(--signal) }
+  .swatch.ok{ background:var(--ok) }
+  .swatch.acc{ background:var(--accent) }
+
+  /* ── 表 ─────────────────────────────────── */
+  .table-wrap{
+    overflow-x:auto;
+    border:1px solid var(--line);
+    border-radius:10px;
+    background:var(--bg-elev);
+  }
+  table{
+    border-collapse:collapse;
+    width:100%;
+    font-size:14px;
+    min-width:520px;
+  }
+  th,td{
+    text-align:left;
+    padding:11px 14px;
+    border-bottom:1px solid var(--line);
+    vertical-align:top;
+  }
+  thead th{
+    font-family:var(--font-mono);
+    font-size:11px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--fg-muted);
+    font-weight:500;
+    background:var(--bg-sink);
+  }
+  tbody tr:last-child td{ border-bottom:none }
+  td code{ white-space:nowrap }
+  td.num{ font-family:var(--font-mono); color:var(--fg-muted); white-space:nowrap }
+
+  /* ── 规则卡 ─────────────────────────────── */
+  .rules{
+    display:grid;
+    gap:14px;
+    margin:22px 0 0;
+    padding:0;
+    list-style:none;
+  }
+  .rules li{
+    background:var(--bg-elev);
+    border:1px solid var(--line);
+    border-left:3px solid var(--accent);
+    border-radius:6px;
+    padding:14px 16px;
+    font-size:15px;
+  }
+  .rules b{ font-weight:600 }
+
+  .callout{
+    background:var(--signal-soft);
+    border:1px solid var(--signal);
+    border-radius:8px;
+    padding:16px 18px;
+    font-size:15px;
+    margin:24px 0 0;
+  }
+  .callout b{ color:var(--signal) }
+
+  .quote{
+    border-left:3px solid var(--accent);
+    padding:4px 0 4px 18px;
+    margin:20px 0;
+    color:var(--fg);
+    font-size:15.5px;
+    max-width:62ch;
+  }
+  .quote p:last-child{ margin-bottom:0 }
+
+  footer{
+    margin-top:56px;
+    padding-top:20px;
+    border-top:1px solid var(--line);
+    font-family:var(--font-mono);
+    font-size:12px;
+    color:var(--fg-muted);
+    line-height:1.8;
+  }
+  footer a{ text-decoration:none }
+  footer a:hover{ text-decoration:underline }
+
+  @media (max-width:560px){
+    .step{ grid-template-columns:34px minmax(0,1fr); gap:12px }
+    .step::before{ left:16px }
+    .step-no{ width:34px; height:28px; font-size:11px }
+    .step-body h3{ font-size:16px; margin-top:2px }
+    .fig-frame{ padding:12px 6px 6px }
+  }
+  @media (prefers-reduced-motion: reduce){
+    *{ animation:none !important; transition:none !important }
+  }
+</style>
+
+<main>
+  <header>
+    <p class="eyebrow">JoyMini · AI 客服 · 调用链</p>
+    <h1>一条消息的旅程</h1>
+    <p class="lede">从用户按下发送，到 AI 那句回复出现在屏幕上。七个框，全部来自真实代码，不是示意图。</p>
+  </header>
+
+  <!-- ═══ 主干 ═══ -->
+  <section>
+    <h2><span class="idx">01</span>主干</h2>
+    <p class="sub">只有主线。所有异常、限流、超时分支都先砍掉 —— 它们都挂在某个框的旁边，看懂主干就能挂上去。</p>
+
+    <ol class="rail">
+      <li class="step">
+        <div class="step-no">01</div>
+        <div class="step-body">
+          <h3>用户发消息 —— 两个入口，同一个事件</h3>
+          <p class="what">HTTP 走 <code>ChatService.sendMessage</code>，socket 走 <code>EventsGateway</code>。两边都做同一件事：先把用户消息写库、广播给会话成员，然后判断要不要叫 AI。</p>
+          <p class="where">
+            <span class="file">chat.service.ts:236</span>
+            <span class="file">events.gateway.ts:493</span>
+            <span class="chip gate">type ∈ {SUPPORT, AI}</span>
+            <span class="chip gate">handlerId == null</span>
+          </p>
+        </div>
+      </li>
+
+      <li class="step">
+        <div class="step-no">02</div>
+        <div class="step-body">
+          <h3>事件总线 → 监听器</h3>
+          <p class="what">发出去的是 <code>AI_MESSAGE_REQUESTED</code>。监听器自己生成一个 traceId 并挂在异步上下文上，然后调 <code>chatStream</code>。</p>
+          <p class="where">
+            <span class="file">ai-message.listener.ts:37</span>
+            <span class="chip">为什么自己生成 traceId</span>
+          </p>
+        </div>
+      </li>
+
+      <li class="step">
+        <div class="step-no">03</div>
+        <div class="step-body">
+          <h3>chatStream 的前四步：准备、快照、思考中、跑图</h3>
+          <p class="what">找到一个 thread（对话线程），把成员列表查一次（后面每个 token 都要用，不能每条查库），记下当前消息数当"之前的长度"，推一条 <code>thinking</code>，然后进 LangGraph。</p>
+          <p class="where">
+            <span class="file">ai-customer.service.ts:128</span>
+            <span class="file">ai-stream.handler.ts:39</span>
+            <span class="chip">streamEvents</span>
+          </p>
+        </div>
+      </li>
+
+      <li class="step is-signal">
+        <div class="step-no">04</div>
+        <div class="step-body">
+          <h3>LangGraph 图里：分类 → 路由 → 干活</h3>
+          <p class="what">先给用户这句话打意图标签（向量检索），再进 orchestrator。orchestrator 的第一件事就是判转人工，然后才轮到"分数够不够、要不要调 agent"。这一步的顺序，就是 N-7 那个 bug 的现场。</p>
+          <p class="where">
+            <span class="file">orchestrator.node.ts:237</span>
+            <span class="file">transfer-detector.ts:94</span>
+            <span class="chip warn">顺序 = 语义</span>
+          </p>
+        </div>
+      </li>
+
+      <li class="step">
+        <div class="step-no">05</div>
+        <div class="step-body">
+          <h3>图跑完，取"新增了什么"</h3>
+          <p class="what">读最终 state，用第 3 步记下的长度切出本轮新增的消息，先存进 Redis 热缓存（<code>saveContext</code>），然后按 state 里的两个布尔值决定走哪条路。</p>
+          <p class="where">
+            <span class="file">ai-customer.service.ts:347</span>
+            <span class="chip gate">transferToHuman</span>
+            <span class="chip gate">pendingConfirm</span>
+          </p>
+        </div>
+      </li>
+
+      <li class="step is-signal">
+        <div class="step-no">06</div>
+        <div class="step-body">
+          <h3>三路分发（互斥）</h3>
+          <p class="what">转人工 / 确认卡片 / 正常完成。三选一，各自有各自的副作用 —— 这张图就是下面那张 fork。</p>
+          <p class="where">
+            <span class="file">ai-customer.service.ts:364</span>
+            <span class="chip">if / else if / else</span>
+          </p>
+        </div>
+      </li>
+
+      <li class="step">
+        <div class="step-no">07</div>
+        <div class="step-body">
+          <h3>广播：一条消息，两个通道</h3>
+          <p class="what">AI 的话写进 <code>ChatMessage</code>（带上 <code>role=assistant / source=ai</code>），然后推给"会话房间"和"每个成员的私有房间"，用 <code>.except()</code> 把重复的那一份挡掉。</p>
+          <p class="where">
+            <span class="file">ai-reply-publisher.ts:42</span>
+            <span class="file">events.gateway.ts:225</span>
+            <span class="chip">.except(conversationId)</span>
+          </p>
+        </div>
+      </li>
+    </ol>
+  </section>
+
+  <!-- ═══ 图 1：三路分发 ═══ -->
+  <section>
+    <h2><span class="idx">02</span>第 6 步展开：一个 if，三条路</h2>
+    <p class="sub">finalizeAfterStream 读完 state 后做的事。三条路互斥 —— 走错一条，用户就收不到该收的东西。</p>
+
+    <figure>
+      <div class="fig-frame">
+        <svg viewBox="0 0 760 340" role="img" aria-label="finalizeAfterStream 根据 state 分成三条互斥的路由：transferToHuman 走 routeTransfer，pendingConfirm 走 routeConfirm，否则走 routeNormalCompletion，每条路产生不同的副作用事件">
+          <defs>
+            <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"></path>
+            </marker>
+            <marker id="ar-sig" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#A83E2A"></path>
+            </marker>
+            <marker id="ar-ok" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#2E6B4F"></path>
+            </marker>
+          </defs>
+
+          <!-- 起点 -->
+          <rect x="2" y="142" width="152" height="56" rx="8" fill="none" stroke="currentColor" stroke-width="1.5"></rect>
+          <text x="78" y="166" text-anchor="middle" font-family="'IBM Plex Mono',monospace" font-size="11.5" fill="currentColor">finalize</text>
+          <text x="78" y="183" text-anchor="middle" font-family="'IBM Plex Mono',monospace" font-size="11.5" fill="currentColor">AfterStream</text>
+
+          <!-- 分支线 -->
+          <path d="M 154 170 L 196 170 L 196 52 L 232 52" fill="none" stroke="#A83E2A" stroke-width="1.5" marker-end="url(#ar-sig)"></path>
+          <path d="M 154 170 L 232 170" fill="none" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar)"></path>
+          <path d="M 154 170 L 196 170 L 196 288 L 232 288" fill="none" stroke="#2E6B4F" stroke-width="1.5" marker-end="url(#ar-ok)"></path>
+
+          <!-- 条件标签 -->
+          <text x="160" y="66" font-family="'IBM Plex Mono',monospace" font-size="10.5" fill="#A83E2A">transferred</text>
+          <text x="164" y="164" font-family="'IBM Plex Mono',monospace" font-size="10.5" fill="currentColor">confirmCard</text>
+          <text x="160" y="282" font-family="'IBM Plex Mono',monospace" font-size="10.5" fill="#2E6B4F">否则</text>
+
+          <!-- 路由框 -->
+          <rect x="236" y="26" width="176" height="52" rx="8" fill="none" stroke="#A83E2A" stroke-width="1.5"></rect>
+          <text x="324" y="57" text-anchor="middle" font-family="'IBM Plex Mono',monospace" font-size="11.5" fill="#A83E2A">routeTransfer</text>
+
+          <rect x="236" y="144" width="176" height="52" rx="8" fill="none" stroke="currentColor" stroke-width="1.5"></rect>
+          <text x="324" y="175" text-anchor="middle" font-family="'IBM Plex Mono',monospace" font-size="11.5" fill="currentColor">routeConfirm</text>
+
+          <rect x="236" y="262" width="176" height="52" rx="8" fill="none" stroke="#2E6B4F" stroke-width="1.5"></rect>
+          <text x="324" y="293" text-anchor="middle" font-family="'IBM Plex Mono',monospace" font-size="11.5" fill="#2E6B4F">routeNormalCompletion</text>
+
+          <!-- 副作用 -->
+          <path d="M 414 52 L 438 52" fill="none" stroke="#A83E2A" stroke-width="1.5" marker-end="url(#ar-sig)"></path>
+          <text x="450" y="40" font-family="'IBM Plex Mono',monospace" font-size="10.5" fill="currentColor">handlerId = 'awaiting_human'</text>
+          <text x="450" y="58" font-family="'IBM Plex Mono',monospace" font-size="10.5" fill="currentColor">落库告别语 · 再发 AI_TRANSFER</text>
+          <text x="450" y="76" font-family="'IBM Plex Mono',monospace" font-size="10" fill="#A83E2A">顺序反了 → 用户先看到结论</text>
+
+          <path d="M 414 170 L 438 170" fill="none" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar)"></path>
+          <text x="450" y="166" font-family="'IBM Plex Mono',monospace" font-size="10.5" fill="currentColor">发 AI_CONFIRM</text>
+          <text x="450" y="184" font-family="'IBM Plex Mono',monospace" font-size="10" fill="currentColor">只发给提问者本人</text>
+
+          <path d="M 414 288 L 438 288" fill="none" stroke="#2E6B4F" stroke-width="1.5" marker-end="url(#ar-ok)"></path>
+          <text x="450" y="284" font-family="'IBM Plex Mono',monospace" font-size="10.5" fill="currentColor">写 chat_message · 广播</text>
+          <text x="450" y="302" font-family="'IBM Plex Mono',monospace" font-size="10.5" fill="currentColor">callbacks.onDone · 发 AI_DONE</text>
+        </svg>
+      </div>
+      <figcaption>三条路最后都会记一条 <code>chat.done</code> —— 它是唯一一个"三条路共享"的事件，所以它能回答"这一轮有没有转人工"，但回答不了"为什么转"。</figcaption>
+    </figure>
+  </section>
+
+  <!-- ═══ 图 2：双通道 ═══ -->
+  <section>
+    <h2><span class="idx">03</span>第 7 步展开：为什么一条消息要发两遍</h2>
+    <p class="sub">这是整条链路里最"看不出必要性"的一段。不画出来，靠读代码永远想不通。</p>
+
+    <figure>
+      <div class="fig-frame">
+        <svg viewBox="0 0 720 250" role="img" aria-label="dispatchToConversation 同时向会话房间和每个成员的私有房间推送，再用 except 排除已经在会话房间里的人，避免同一客户端收到两次">
+          <defs>
+            <marker id="br" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"></path>
+            </marker>
+            <marker id="br-acc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#1C5C8A"></path>
+            </marker>
+            <marker id="br-sig" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#A83E2A"></path>
+            </marker>
+          </defs>
+
+          <!-- 入口 -->
+          <rect x="2" y="96" width="176" height="58" rx="8" fill="none" stroke="currentColor" stroke-width="1.5"></rect>
+          <text x="90" y="120" text-anchor="middle" font-family="'IBM Plex Mono',monospace" font-size="11" fill="currentColor">dispatchTo</text>
+          <text x="90" y="137" text-anchor="middle" font-family="'IBM Plex Mono',monospace" font-size="11" fill="currentColor">Conversation</text>
+
+          <!-- 通道 1 -->
+          <path d="M 180 120 L 234 120 L 234 56 L 292 56" fill="none" stroke="#1C5C8A" stroke-width="1.6" marker-end="url(#br-acc)"></path>
+          <text x="196" y="44" font-family="'IBM Plex Mono',monospace" font-size="10.5" fill="#1C5C8A">① server.to(conversationId)</text>
+
+          <rect x="296" y="28" width="264" height="58" rx="8" fill="none" stroke="#1C5C8A" stroke-width="1.6"></rect>
+          <text x="428" y="52" text-anchor="middle" font-family="'IBM Plex Mono',monospace" font-size="11" fill="currentColor">会话房间</text>
+          <text x="428" y="70" text-anchor="middle" font-family="'IBM Plex Mono',monospace" font-size="10" fill="currentColor">所有在线成员都在这里</text>
+
+          <!-- 通道 2 -->
+          <path d="M 180 130 L 234 130 L 234 196 L 292 196" fill="none" stroke="currentColor" stroke-width="1.6" marker-end="url(#br)"></path>
+          <text x="196" y="216" font-family="'IBM Plex Mono',monospace" font-size="10.5" fill="currentColor">② server.to(user_1..user_N)</text>
+
+          <rect x="296" y="168" width="264" height="58" rx="8" fill="none" stroke="currentColor" stroke-width="1.6"></rect>
+          <text x="428" y="192" text-anchor="middle" font-family="'IBM Plex Mono',monospace" font-size="11" fill="currentColor">每个成员的私有房间</text>
+          <text x="428" y="210" text-anchor="middle" font-family="'IBM Plex Mono',monospace" font-size="10" fill="currentColor">用来兜底：不在会话房间里也能收到</text>
+
+          <!-- 去重 -->
+          <path d="M 590 168 L 620 168 L 620 86" fill="none" stroke="#A83E2A" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#br-sig)"></path>
+          <text x="612" y="132" text-anchor="end" font-family="'IBM Plex Mono',monospace" font-size="10.5" fill="#A83E2A">.except(</text>
+          <text x="612" y="148" text-anchor="end" font-family="'IBM Plex Mono',monospace" font-size="10.5" fill="#A83E2A">conversationId)</text>
+        </svg>
+      </div>
+      <div class="legend">
+        <span><i class="swatch acc"></i>主通道</span>
+        <span><i class="swatch"></i>兜底通道</span>
+        <span><i class="swatch sig"></i>去重约束</span>
+      </div>
+      <figcaption>如果只发会话房间：刚打开 App 还没 <code>join_chat</code> 的客户端收不到。如果只发私有房间：用户刚登录、多端在线时容易漏发。两个都发，再用 <code>.except()</code> 把重复的那一份减掉。</figcaption>
+    </figure>
+  </section>
+
+  <!-- ═══ 代码地图 ═══ -->
+  <section>
+    <h2><span class="idx">04</span>框 → 文件</h2>
+    <p class="sub">看不懂的时候不要从头往下读，先在这张表里找到"我现在在哪个框"，只读那一个框。</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>框</th><th>做什么</th><th>位置</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="num">01</td><td>HTTP 入口 + AI 路由判断</td><td><code>common/chat/chat.service.ts:236</code></td></tr>
+          <tr><td class="num">01'</td><td>socket 入口 + 同样的判断</td><td><code>common/events/events.gateway.ts:493</code></td></tr>
+          <tr><td class="num">02</td><td>事件监听 + traceId</td><td><code>ai-customer/ai-message.listener.ts:37</code></td></tr>
+          <tr><td class="num">03</td><td>thread / 成员 / 快照 / 思考中</td><td><code>ai-customer/ai-customer.service.ts:128</code></td></tr>
+          <tr><td class="num">03'</td><td>streamEvents → 逐 token 推送</td><td><code>ai-customer/ai-stream.handler.ts:39</code></td></tr>
+          <tr><td class="num">04</td><td>orchestrator（判转人工 → 路由）</td><td><code>graph/nodes/orchestrator.node.ts:462</code></td></tr>
+          <tr><td class="num">05</td><td>读 finalState + 切新增消息</td><td><code>ai-customer.service.ts:347</code></td></tr>
+          <tr><td class="num">06</td><td>三路分发</td><td><code>ai-customer.service.ts:364</code></td></tr>
+          <tr><td class="num">07</td><td>落库 + 双通道广播</td><td><code>ai-customer/ai-reply-publisher.ts:42</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ═══ 补丁挂点 ═══ -->
+  <section>
+    <h2><span class="idx">05</span>为什么你觉得乱：补丁都挂在框上</h2>
+    <p class="sub">这几天修的每一处，都不是改结构，而是在某个框上加一个条件。单看都对，叠在一起就看不见全貌了 —— 所以先有框图，补丁才有地方挂。</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>问题</th><th>挂在哪个框</th><th>加的是什么</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>N-7 转人工永远转不出去</td><td class="num">04</td><td>把检测前移到所有 fallback 之前</td></tr>
+          <tr><td>N-9 部分客户端收不到 AI 回复</td><td class="num">07</td><td>加第二个通道 + <code>.except()</code> 去重</td></tr>
+          <tr><td>N-10 "麻烦""没用过"被误判成投诉</td><td class="num">04</td><td>强负面词改成整词匹配 / 不参与</td></tr>
+          <tr><td>N-11 SSE 客户端不知道已转人工</td><td class="num">06</td><td>补 <code>callbacks.onTransfer()</code></td></tr>
+          <tr><td>N-12 告别语不落库</td><td class="num">06</td><td><code>routeTransfer</code> 多收一个 <code>newMessages</code></td></tr>
+          <tr><td>N-12 分不清 AI 和真人</td><td class="num">07</td><td>写库时补 <code>role/source</code></td></tr>
+          <tr><td>N-12 "垃圾袋"被判成骂人</td><td class="num">04</td><td>匹配前先剥商品复合词</td></tr>
+          <tr><td>#89 查不到一轮对话</td><td class="num">全程</td><td>每个框发一个 <code>emitStage</code>，共享 traceId</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout">
+      <b>结论：</b>你不需要一次记住所有分支。你需要的是七个框 —— 每看到一个陌生的 <code>if</code>，都能说出它守在哪个框门口、在防什么。剩下的是查表，不是靠记忆。
+    </div>
+  </section>
+
+  <!-- ═══ 读法 ═══ -->
+  <section>
+    <h2><span class="idx">06</span>三条读法</h2>
+    <ul class="rules">
+      <li><b>先找出口，再读入口。</b>任何一段流程，先看它有几条 <code>return</code> / 几个结局，再倒着读进去。正向读一定会被中间的分支绊住。</li>
+      <li><b>每一行先问一句：这是承诺，还是装饰？</b>更新 <code>handlerId</code> 是承诺（失败必须报错）；写一条消息记录、查成员列表是装饰（失败 warn 一下就过）。分不清这两类，就会觉得代码"有时严谨有时随便"，其实一直很一致。</li>
+      <li><b>状态只在两个地方。</b>图里是 <code>AgentState</code>（一个所有人共用的抽屉），图外是 <code>Conversation</code> 表 + Redis 热缓存。看到一个字段不知道谁写的，去这两处找，不要在图里瞎找。</li>
+    </ul>
+  </section>
+
+  <!-- ═══ 面试 ═══ -->
+  <section>
+    <h2><span class="idx">07</span>面试就讲这 60 秒</h2>
+    <div class="quote">
+      <p>「用户发一条消息，我们先落库广播，然后判断这个会话是不是 AI 在处理 —— 条件是 SUPPORT 类型且没有人工接手。是的话发一个领域事件，监听器包一层 traceId 再进 LangGraph。</p>
+      <p>图里先打意图标签，然后进 orchestrator。orchestrator 第一件事是判转人工，在分数门槛之前 —— 因为"我要转人工"这种短句意图分天然很低，放后面就永远转不出去。</p>
+      <p>图跑完，我们比对前后消息数切出本轮新增的，按 state 上的两个布尔值三路分发：转人工、确认卡片、正常完成。正常完成就把消息落库，同时推会话房间和成员私有房间，再用 except 去重 —— 只推会话房间会漏掉还没 join 的客户端。</p>
+      <p>整个过程每个决策点发一条结构化日志，共享一个 traceId，所以能按对话聚合出意图、耗时、token 和转人工原因。」</p>
+    </div>
+    <p class="sub" style="margin-top:18px">这段话里没有一个 API 名字，全是取舍和它们的原因。面试官追问的方向，会从这里往回收依赖、限流、幂等 —— 那也是同样的读法：先找出口。</p>
+  </section>
+
+  <footer>
+    框与行号来自当前工作区代码。行号会漂，框不会。<br>
+    配套：<code>scripts/ai-e2e-smoke.sh</code> · <code>docs/AI-joymini/90-AI客服端到端自测脚本.md</code>
+  </footer>
+</main>

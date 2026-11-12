@@ -1,6 +1,6 @@
 # 89 · AI 对话可观测性（traceId + 意图 + 耗时 + token）— SDD
 
-> 版本: v1.4
+> 版本: v1.6
 > 状态: 已完成（本地验收通过；生产 Loki 验收待发布，对应 AC-9/AC-10）
 > 日期: 2026-11-11
 > 关联: [#87 P2-3](./87-全项目问题总清单.md)、[#85 P2-3](./85-生产化差距审计与企业上线清单.md)、[#86 §10](./86-岗位匹配度评估与两周补齐路线图.md)、`docs/current-task.md` T0-2
@@ -291,13 +291,13 @@ docker logs lucky-backend-dev 2>&1 | grep 'obs-test-1'
 | ID | 结果 | 证据 |
 |:--:|---|---|
 | AC-1 | ✅ | `a087bacc6e3640c4bc97b721f351008c` 一条 traceId 串起 5 条：`chat.start` → 2×`llm.usage` → `transfer` → `chat.done`；另一次对话 `a57dbf40…` 串起 7 条（含 `intent`、`retrieval`） |
-| AC-2 | ⚠️ 2/3 | `below_min_score`（15:17）与 `none`（15:09）已实测；`no_labels` 未在真实流量中出现（分类器兜底总会给 `general:0.5`），由代码路径保证 |
+| AC-2 | ✅（4 出口全覆盖） | `below_min_score`（15:17）与 `none`（15:09）实测；`no_labels` 由 `orchestrator.node.spec.ts` 单元用例覆盖；**转人工出口原先不发 `intent`**，复审时补上（`intent:'transfer'`, `fallback:'transfer_request'`），否则意图分布会漏掉全部转人工对话（#87 N-11） |
 | AC-3 | ✅ | `{"layers":{"vector":20,"meili":0,"chunk":0,"doc":0},"candidates":20,"returned":3,"topScore":0.5967,"latencyMs":2650}` |
 | AC-4 | ✅ | `tokenTotal` 实测 1275 / 1072 / 120，均 `usageSource:"provider"` |
-| AC-5 | ✅ | 发送「我要转人工」→ `transfer` 事件 + `chat.done.transferred:true` |
+| AC-5 | ✅ | 发送「我要转人工」→ `transfer` 事件 + `chat.done.transferred:true`。复审修正：`reason` 原先写死 `transfer_flag`、Socket 用 `ai_determined`，现已统一为 `explicit_request / negative_sentiment / repeated_attempts`（#87 N-11） |
 | AC-6 | ⚠️ 口径修正 | 结构化事件 0 泄露。全量 `grep` 命中的原文来自基础设施日志，见下方「实施中发现并修复」；残留的 SQL/请求体日志仅 dev 生效（`isDev` / `!isProd` 开关），生产不输出 |
 | AC-7 | ⚠️ | 单测覆盖 5 并发随机延迟隔离；真实并发未压测 |
-| AC-8 | ✅ | `tsc --noEmit` 0 error；`src/common/logger` + `src/client/ai-customer/graph` 共 8 suites / 153 tests 全绿 |
+| AC-8 | ✅ | `tsc --noEmit` 0 error；`src/common` + `src/client/ai-customer` 共 13 suites / 187 tests 全绿（含 `transfer-detector.spec.ts` 20 例、`orchestrator.node.spec.ts` 4 例、`events.gateway.spec.ts` 4 例）。API 全量 279 例中 3 例失败（`auth` 1 / `flash-sale` 2），已验证在本次改动前的基线上同样失败，与可观测性无关 |
 | AC-9 | ⏳ | 依赖发布到 `lucky-backend-prod` |
 | AC-10 | ⏳ | 依赖发布后 Grafana 验证 |
 
@@ -313,7 +313,7 @@ docker logs lucky-backend-dev 2>&1 | grep 'obs-test-1'
 
 ### 尚未覆盖
 
-- **socket 重连后不重放 `join_chat`**（客户端缺陷，非本次范围）：后端重启后客户端会重连，但不会重新加入会话房间，导致 AI 回复广播到 0 个客户端。已记录到 #87。
+- ~~**socket 重连后不重放 `join_chat`**~~ → 已在 #87 N-9 从服务端解决（2026-11-12）：`publishAiReply` 原来只发会话房间，导致 `SocketListener` 的私有房间兜底从未生效。现改为 `EventsGateway.dispatchToConversation`（会话房间 + 成员 `user_X` 私有房间，`.except()` 去重），投递不再依赖客户端是否重放 `join_chat`。真机验证待一次后端重启后进行。
 
 ---
 
@@ -354,3 +354,5 @@ docker logs lucky-backend-dev 2>&1 | grep 'obs-test-1'
 | 2026-11-11 | v1.2 | 实地核实监控栈：与 `lucky-backend-prod` 同机（`129.121.97.120`），Promtail docker.sock 采集、Loki 3.4 保留 10 天、仅 `level` 提升为 label；按实际 Promtail 配置更新 FR-9，新增 AC-10；记录双生产容器待确认 |
 | 2026-11-11 | v1.3 | Loki API 实测：`lucky-backend-prod` 已在入库（`compose_project="lucky"`、`service="backend"`），现有行含 Nest 前缀与 ANSI，确认必须纯 JSON；事件字段去掉 `service`（与 label 撞名）改用 `app`，补充撞名与 ANSI 约定 |
 | 2026-11-11 | v1.4 | 实施完成并本地验收：状态改为已完成；新增「七之二 验收记录」（AC-1~AC-8 结果与证据）；记录实施中发现的 3 类问题（事件入口缺 traceId、转人工检测被分数门槛短路、三处隐私泄露）及修复；AC-9/AC-10 待发布后验证 |
+| 2026-11-11 | v1.5 | 提交后代码复审：修 2 个逻辑缺陷（N-10 转人工词表 `'烦'`/`'没用'` 子串误判；N-11 转人工原因丢失 / SSE 转人工帧从不发送 / `transferred` 与路由不一致），补 `intent` 到转人工出口并新增 17 个单测；AC-2 更新为 4 出口全覆盖，AC-5/AC-8 证据同步 |
+| 2026-11-12 | v1.6 | 投递链路修复同步：#87 N-9 从服务端解决（双通道投递），AC-8 证据更新为 13 suites / 187 tests，并记录 API 全量中 3 例既有失败（`auth` / `flash-sale`，基线同样失败） |
