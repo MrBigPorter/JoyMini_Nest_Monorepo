@@ -85,3 +85,7 @@ apps/frontend-blog/public/workbox-*.js.br
 /resume/
 /study/
 /plans/
+
+# Eval tool runtime artifacts
+__pycache__/
+tools/eval/reports/

@@ -1,0 +1,81 @@
+{
+  "run_at": "2026-11-12T13:17:30",
+  "golden_file": "golden/intent.jsonl",
+  "total": 63,
+  "accuracy": 0.6825,
+  "macro_f1": 0.6864,
+  "per_domain": {
+    "coupon": {
+      "expected": 8,
+      "predicted": 7,
+      "tp": 7,
+      "precision": 1.0,
+      "recall": 0.875,
+      "f1": 0.9333
+    },
+    "general": {
+      "expected": 6,
+      "predicted": 9,
+      "tp": 6,
+      "precision": 0.6667,
+      "recall": 1.0,
+      "f1": 0.8
+    },
+    "kyc": {
+      "expected": 6,
+      "predicted": 2,
+      "tp": 2,
+      "precision": 1.0,
+      "recall": 0.3333,
+      "f1": 0.5
+    },
+    "lucky-draw": {
+      "expected": 6,
+      "predicted": 4,
+      "tp": 4,
+      "precision": 1.0,
+      "recall": 0.6667,
+      "f1": 0.8
+    },
+    "order": {
+      "expected": 8,
+      "predicted": 8,
+      "tp": 5,
+      "precision": 0.625,
+      "recall": 0.625,
+      "f1": 0.625
+    },
+    "product": {
+      "expected": 7,
+      "predicted": 5,
+      "tp": 4,
+      "precision": 0.8,
+      "recall": 0.5714,
+      "f1": 0.6667
+    },
+    "rag": {
+      "expected": 8,
+      "predicted": 18,
+      "tp": 7,
+      "precision": 0.3889,
+      "recall": 0.875,
+      "f1": 0.5385
+    },
+    "user": {
+      "expected": 7,
+      "predicted": 7,
+      "tp": 5,
+      "precision": 0.7143,
+      "recall": 0.7143,
+      "f1": 0.7143
+    },
+    "wallet": {
+      "expected": 7,
+      "predicted": 3,
+      "tp": 3,
+      "precision": 1.0,
+      "recall": 0.4286,
+      "f1": 0.6
+    }
+  }
+}

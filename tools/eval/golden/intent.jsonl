@@ -1,0 +1,63 @@
+{"id": "o01", "input": "我的订单到哪了", "expect": "order", "tags": ["order"], "note": "典型订单查询"}
+{"id": "o02", "input": "帮我查一下上个月的订单", "expect": "order", "tags": ["order"], "note": "带时间范围的查询"}
+{"id": "o03", "input": "这个单还能改地址吗", "expect": "order", "tags": ["order"], "note": "订单操作"}
+{"id": "o04", "input": "退款进度怎么样了", "expect": "order", "tags": ["order"], "note": "按规则：退款进度归 order"}
+{"id": "o05", "input": "我要取消这个订单", "expect": "order", "tags": ["order"], "note": "订单操作"}
+{"id": "o06", "input": "快递显示签收了但我没收到", "expect": "order", "tags": ["order"], "note": "物流异常"}
+{"id": "o07", "input": "昨天的订单怎么还没发货", "expect": "order", "tags": ["order"], "note": "发货延迟"}
+{"id": "w01", "input": "我钱包还有多少钱", "expect": "wallet", "tags": ["wallet"], "note": "余额查询"}
+{"id": "w02", "input": "怎么充值", "expect": "wallet", "tags": ["wallet"], "note": "充值"}
+{"id": "w03", "input": "我要提现", "expect": "wallet", "tags": ["wallet"], "note": "提现"}
+{"id": "w04", "input": "提现多久到账", "expect": "wallet", "tags": ["wallet"], "note": "按规则：余额/充值/提现归 wallet"}
+{"id": "w05", "input": "我的交易记录在哪看", "expect": "wallet", "tags": ["wallet"], "note": "流水查询"}
+{"id": "w06", "input": "提现被拒绝了怎么回事", "expect": "wallet", "tags": ["wallet"], "note": "提现异常"}
+{"id": "w07", "input": "充值没到账", "expect": "wallet", "tags": ["wallet"], "note": "充值异常"}
+{"id": "c01", "input": "我有哪些优惠券", "expect": "coupon", "tags": ["coupon"], "note": "券列表"}
+{"id": "c02", "input": "这个券怎么用", "expect": "coupon", "tags": ["coupon"], "note": "券使用"}
+{"id": "c03", "input": "帮我领一张优惠券", "expect": "coupon", "tags": ["coupon"], "note": "领券"}
+{"id": "c04", "input": "我的券过期了能补吗", "expect": "coupon", "tags": ["coupon"], "note": "券过期"}
+{"id": "c05", "input": "有没有满减活动", "expect": "coupon", "tags": ["coupon"], "note": "活动"}
+{"id": "c06", "input": "优惠券用不了是什么原因", "expect": "coupon", "tags": ["coupon"], "note": "券异常"}
+{"id": "c07", "input": "这个折扣码在哪里输入", "expect": "coupon", "tags": ["coupon"], "note": "折扣码"}
+{"id": "u01", "input": "我的会员等级是什么", "expect": "user", "tags": ["user"], "note": "等级查询"}
+{"id": "u02", "input": "怎么改手机号", "expect": "user", "tags": ["user"], "note": "资料修改"}
+{"id": "u03", "input": "我的收货地址在哪改", "expect": "user", "tags": ["user"], "note": "地址属于 user 域"}
+{"id": "u04", "input": "修改一下我的昵称", "expect": "user", "tags": ["user"], "note": "资料修改"}
+{"id": "u05", "input": "我的头像怎么换", "expect": "user", "tags": ["user"], "note": "资料修改"}
+{"id": "u06", "input": "我的账号被限制了怎么办", "expect": "user", "tags": ["user"], "note": "账号状态"}
+{"id": "u07", "input": "怎么看我的个人信息", "expect": "user", "tags": ["user"], "note": "资料查询"}
+{"id": "p01", "input": "这个商品还有货吗", "expect": "product", "tags": ["product"], "note": "库存"}
+{"id": "p02", "input": "这件衣服有几个颜色", "expect": "product", "tags": ["product"], "note": "规格"}
+{"id": "p03", "input": "这个多少钱", "expect": "product", "tags": ["product"], "note": "价格"}
+{"id": "p04", "input": "帮我看看这款的尺寸", "expect": "product", "tags": ["product"], "note": "规格"}
+{"id": "p05", "input": "这个商品什么时候补货", "expect": "product", "tags": ["product"], "note": "补货"}
+{"id": "p06", "input": "这个和刚才那个有什么区别", "expect": "product", "tags": ["product"], "note": "对比"}
+{"id": "p07", "input": "商品的详情页在哪里", "expect": "product", "tags": ["product"], "note": "导航"}
+{"id": "l01", "input": "今天能抽奖吗", "expect": "lucky-draw", "tags": ["lucky-draw"], "note": "抽奖资格"}
+{"id": "l02", "input": "我中奖了吗", "expect": "lucky-draw", "tags": ["lucky-draw"], "note": "开奖结果"}
+{"id": "l03", "input": "奖品怎么领取", "expect": "lucky-draw", "tags": ["lucky-draw"], "note": "奖品领取"}
+{"id": "l04", "input": "我的抽奖次数还有几次", "expect": "lucky-draw", "tags": ["lucky-draw"], "note": "次数查询"}
+{"id": "l05", "input": "我昨天抽的奖在哪看", "expect": "lucky-draw", "tags": ["lucky-draw"], "note": "记录查询"}
+{"id": "l06", "input": "这个转盘怎么玩", "expect": "lucky-draw", "tags": ["lucky-draw"], "note": "玩法"}
+{"id": "k01", "input": "怎么实名认证", "expect": "kyc", "tags": ["kyc"], "note": "认证入口"}
+{"id": "k02", "input": "上传身份证一直失败", "expect": "kyc", "tags": ["kyc"], "note": "认证异常"}
+{"id": "k03", "input": "认证要多久", "expect": "kyc", "tags": ["kyc"], "note": "认证时长"}
+{"id": "k04", "input": "我的实名认证过了吗", "expect": "kyc", "tags": ["kyc"], "note": "认证状态"}
+{"id": "k05", "input": "人脸识别不通过", "expect": "kyc", "tags": ["kyc"], "note": "认证异常"}
+{"id": "k06", "input": "认证信息可以修改吗", "expect": "kyc", "tags": ["kyc"], "note": "认证修改"}
+{"id": "r01", "input": "退款政策是什么", "expect": "rag", "tags": ["rag"], "note": "政策类"}
+{"id": "r02", "input": "运费谁出", "expect": "rag", "tags": ["rag"], "note": "规则类"}
+{"id": "r03", "input": "多少天可以无理由退货", "expect": "rag", "tags": ["rag"], "note": "规则类"}
+{"id": "r04", "input": "会员有什么权益", "expect": "rag", "tags": ["rag"], "note": "权益说明"}
+{"id": "r05", "input": "平台支持哪些支付方式", "expect": "rag", "tags": ["rag"], "note": "支持项"}
+{"id": "r06", "input": "隐私政策在哪里看", "expect": "rag", "tags": ["rag"], "note": "政策文档"}
+{"id": "r07", "input": "海外能发货吗", "expect": "rag", "tags": ["rag"], "note": "覆盖范围"}
+{"id": "g01", "input": "你好", "expect": "general", "tags": ["general"], "note": "问候"}
+{"id": "g02", "input": "在吗", "expect": "general", "tags": ["general", "trap"], "note": "极短输入"}
+{"id": "g03", "input": "谢谢", "expect": "general", "tags": ["general"], "note": "致谢"}
+{"id": "g04", "input": "嗯", "expect": "general", "tags": ["general", "trap"], "note": "极短输入"}
+{"id": "g05", "input": "?", "expect": "general", "tags": ["general", "trap"], "note": "极短输入"}
+{"id": "g06", "input": "你能做什么", "expect": "general", "tags": ["general"], "note": "能力询问"}
+{"id": "t01", "input": "麻烦帮我查一下订单", "expect": "order", "tags": ["order", "trap"], "note": "N-10 陷阱：麻烦≠转人工，也不能带偏意图"}
+{"id": "t02", "input": "这个券我没用过", "expect": "coupon", "tags": ["coupon", "trap"], "note": "N-10 陷阱：没用≠负面情绪"}
+{"id": "t03", "input": "退款怎么弄", "expect": "rag", "tags": ["rag", "trap"], "note": "歧义题：按口径「规则/流程→rag」判 rag（首跑时误标 order，已修正）"}
