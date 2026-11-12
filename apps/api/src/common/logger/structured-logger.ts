@@ -91,7 +91,11 @@ export function emitStage(
   level: LogLevel = 'info',
 ): void {
   try {
+    // 注意展开顺序：业务字段在前，固定字段在后。
+    // 反过来写的话，调用方传 { traceId: 'xxx' } 就能覆盖掉真实 traceId，
+    // 固定字段必须"不可被业务字段篡改"。
     const event: Record<string, unknown> = {
+      ...sanitizeFields(fields),
       ts: new Date().toISOString(),
       level,
       app: 'api',
@@ -99,7 +103,6 @@ export function emitStage(
       // 没有 trace 上下文时用 '-'，保证字段永远存在、查询不会因为缺字段而漏行
       traceId: getTraceId() ?? '-',
       stage,
-      ...sanitizeFields(fields),
     };
 
     process.stdout.write(JSON.stringify(event) + '\n');

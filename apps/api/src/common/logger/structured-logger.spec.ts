@@ -134,4 +134,17 @@ describe('structured-logger', () => {
     emitStage('chat.error', { errorName: 'X' }, 'error');
     expect(lastEvent().level).toBe('error');
   });
+
+  it('固定字段不可被业务字段覆盖（traceId / stage 以框架为准）', () => {
+    emitStage('intent', {
+      traceId: '伪造的-trace',
+      stage: '伪造的-stage',
+      level: 'error',
+    });
+
+    const event = lastEvent();
+    expect(event.traceId).toBe('-');
+    expect(event.stage).toBe('intent');
+    expect(event.level).toBe('info');
+  });
 });

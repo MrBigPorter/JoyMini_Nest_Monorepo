@@ -10,10 +10,12 @@ import { SocketEvents } from '@lucky/shared';
 describe('SocketListener', () => {
   // 提取 mock 函数为独立变量，避免 @typescript-eslint/unbound-method
   const dispatchMock = jest.fn();
+  const dispatchToConversationMock = jest.fn();
   const findManyMock = jest.fn();
 
   const eventsGateway = {
     dispatch: dispatchMock,
+    dispatchToConversation: dispatchToConversationMock,
   } as unknown as EventsGateway;
 
   const prismaService = {
@@ -28,7 +30,7 @@ describe('SocketListener', () => {
     jest.clearAllMocks();
   });
 
-  it('dispatches message to conversation room and member private rooms (except sender)', async () => {
+  it('dispatches message via dual channel (conversation room + member private rooms)', async () => {
     const memberIds = ['client_user_1', 'user_2', 'user_3'];
 
     const event = new MessageCreatedEvent(
@@ -47,24 +49,18 @@ describe('SocketListener', () => {
 
     await listener.handleMessageCreated(event);
 
-    expect(dispatchMock).toHaveBeenCalledWith(
+    // 走双通道：会话房间 + 全体成员私有房间（去重由 dispatchToConversation 的 .except 负责）
+    expect(dispatchToConversationMock).toHaveBeenCalledWith(
       'conv_1',
+      memberIds,
       SocketEvents.CHAT_MESSAGE,
       expect.objectContaining({
         id: 'msg_1',
         conversationId: 'conv_1',
       }),
     );
-    expect(dispatchMock).toHaveBeenCalledWith(
-      'user_user_2',
-      SocketEvents.CHAT_MESSAGE,
-      expect.any(Object),
-    );
-    expect(dispatchMock).toHaveBeenCalledWith(
-      'user_user_3',
-      SocketEvents.CHAT_MESSAGE,
-      expect.any(Object),
-    );
+    // 不再逐个成员单独 dispatch，避免与房间广播重复投递
+    expect(dispatchMock).not.toHaveBeenCalled();
   });
 
   it('skips member private-room fan-out when member count exceeds threshold', async () => {
@@ -88,6 +84,7 @@ describe('SocketListener', () => {
     await listener.handleMessageCreated(event);
 
     expect(findManyMock).not.toHaveBeenCalled();
+    expect(dispatchToConversationMock).not.toHaveBeenCalled();
     expect(dispatchMock).toHaveBeenCalledTimes(1);
     expect(dispatchMock).toHaveBeenCalledWith(
       'conv_2',

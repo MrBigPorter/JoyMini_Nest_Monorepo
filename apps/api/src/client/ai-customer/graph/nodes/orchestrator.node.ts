@@ -225,6 +225,20 @@ export const createOrchestratorNode =
         `[orchestrator] transfer request detected: ${transfer.reason}`,
       );
 
+      // 转人工也是一条出口，必须补 intent 事件：
+      // 否则按 intent 统计的意图分布会漏掉全部转人工对话（#89 AC-2）
+      emitStage('intent', {
+        intent: 'transfer',
+        labels: top3(labels),
+        fallback: 'transfer_request',
+        executionOrder: ['transfer'],
+        latencyMs: Date.now() - nodeStartedAt,
+      });
+      emitStage('transfer', {
+        source: 'orchestrator',
+        reason: transfer.reason,
+      });
+
       try {
         const model = createLLM(llmConfig, { temperature: 0.5 });
         const transferInput = extractUserInput(state);
@@ -244,6 +258,7 @@ export const createOrchestratorNode =
         return {
           messages: [...state.messages, new AIMessage(content)],
           transferToHuman: true,
+          transferReason: transfer.reason,
           labels: [],
           pendingConfirm: null,
         };
@@ -253,6 +268,7 @@ export const createOrchestratorNode =
         );
         return {
           transferToHuman: true,
+          transferReason: transfer.reason,
           labels: [],
           pendingConfirm: null,
         };
@@ -635,12 +651,22 @@ export const createOrchestratorNode =
       userInput,
     );
 
+    // 工具侧判定转人工（agent 返回 [TRANSFER_TO_HUMAN]）也要记一条 transfer 事件。
+    // 否则按 reason 统计转人工来源时，这条出口是黑洞 —— 只有 chat.done 能看到
+    // transferred=true，却不知道是谁触发的（#89 AC-5 覆盖所有出口）。
+    if (hasTransferRequest) {
+      emitStage('transfer', { source: 'agent', reason: 'agent_request' });
+    }
+
     const orchestratorResult: OrchestratorStateUpdate = {
       messages: [...state.messages, new AIMessage(finalContent)],
       previousIntent: state.intent,
       labels: [],
       pendingConfirm: null,
       transferToHuman: hasTransferRequest,
+      // 第二条转人工路径：某个 agent 结果带 forceTransfer（工具侧判定要转）
+      // 没有这个字段的话，服务端只能记成 'unknown'，转人工原因分布就会多出一个黑洞
+      transferReason: hasTransferRequest ? 'agent_request' : '',
       repeatCount:
         state.intent === state.previousIntent
           ? (state.repeatCount ?? 0) + 1

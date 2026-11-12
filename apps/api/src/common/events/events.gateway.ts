@@ -206,6 +206,49 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.dispatch(privateRoom, type, payload);
   }
 
+  /**
+   * 投递到「会话房间 + 每个成员的私有房间」（双通道）
+   *
+   * ── 为什么需要私有房间兜底？ ──
+   * 会话房间依赖客户端主动 `join_chat`。一旦断线重连（后端发布、网络抖动、切后台），
+   * 客户端不会重放 `join_chat`，房间就空了 —— 消息写进 DB 却推不到人（#87 N-9）。
+   * 而 `user_X` 是连接建立时服务端在 `handleConnection` 里自动 join 的，重连必恢复。
+   *
+   * ── 为什么用 .except()？ ──
+   * 同一个 socket 可能同时在会话房间和自己的私有房间里。
+   * 先广播房间、再给每个私有房间补一遍，若不去重，客户端会收到两条同样的消息。
+   * `.except(conversationId)` 让"已经在会话房间里的连接"不再从私有房间收一次。
+   *
+   * @param conversationId 会话 ID（也是房间名）
+   * @param memberIds      会话成员 userId 列表；空数组时退化为只发会话房间（和以前行为一致）
+   */
+  dispatchToConversation(
+    conversationId: string,
+    memberIds: string[],
+    type: string,
+    data: unknown,
+  ): void {
+    // A. 会话房间：给正在看这个会话的人（含多端）
+    this.dispatch(conversationId, type, data);
+
+    // B. 成员私有房间：给"不在会话房间但连着 socket"的人兜底（重连、列表页、切后台回来）
+    const rooms = memberIds
+      .filter((id): id is string => Boolean(id))
+      .map((id) => `user_${id}`);
+
+    for (const room of rooms) {
+      this.server.to(room).except(conversationId).emit(SocketEvents.DISPATCH, {
+        type,
+        data,
+      });
+    }
+
+    this.logger.debug(
+      `[DispatchFallback] Room: ${conversationId}, Type: ${type}, ` +
+        `private rooms: ${rooms.length}`,
+    );
+  }
+
   dispatchToUser(userId: string, type: string, data: unknown) {
     const privateRoom = `user_${userId}`;
     // 直接复用 dispatch 逻辑，发送到该用户的私有房间

@@ -43,6 +43,14 @@ export function createLLM(
       // 流式模式下让 provider 在最后一条 chunk 带 usage，
       // 否则 usage_metadata 永远是 undefined，token 统计全为 0（#89 FR-4）
       streamUsage: true,
+      // ── 为什么要 timeout？(#87 N-15) ──
+      // 不设的话，provider 卡住时这个请求会一直挂着：
+      // 用户既收不到回复、也收不到错误，只能等客户端自己超时。
+      // 15s 是"单次模型调用"的量级，整轮（多 agent）由上层兜。
+      timeout: 15000,
+      // 网络抖动重试一次就够。重试本身有延迟，
+      // 客服场景里"退给人工"比"无限重试、让用户干等"更合理。
+      maxRetries: 1,
       configuration: {
         baseURL: config.baseURL,
       },

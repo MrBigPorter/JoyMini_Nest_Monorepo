@@ -10,7 +10,10 @@ interface ConfirmPayload {
 }
 
 const TOKEN_PREFIX = 'ai:confirm:';
-const TTL_SEC = 60;
+/** 卡片凭证有效期：用户点「确认」前的窗口，短一点更安全（不变） */
+const TOKEN_TTL_SEC = 60;
+/** 待执行任务有效期：用户要去看短信、输码，必须 ≥ OTP 有效期，多留 30s 缓冲 */
+const PENDING_TTL_SEC = (Number(process.env.OTP_TTL_SECONDS) || 300) + 30;
 
 @Injectable()
 export class AiActionConfirmService {
@@ -31,9 +34,9 @@ export class AiActionConfirmService {
     await this.redisService.set(
       `${TOKEN_PREFIX}${token}`,
       JSON.stringify(payload),
-      TTL_SEC,
+      TOKEN_TTL_SEC,
     );
-    return { token, expiresAt: Date.now() + TTL_SEC * 1000 };
+    return { token, expiresAt: Date.now() + TOKEN_TTL_SEC * 1000 };
   }
 
   async consume(token: string, userId: string): Promise<ConfirmPayload | null> {
@@ -59,8 +62,22 @@ export class AiActionConfirmService {
     await this.redisService.set(
       `${this.PENDING_KEY}${userId}`,
       JSON.stringify(payload),
-      TTL_SEC,
+      PENDING_TTL_SEC,
     );
+  }
+
+  /**
+   * 只看不删：验码失败时任务还在，用户可以重新输码。
+   * 真正的删除留给验码通过后的 popPendingExecution（getDel 保原子性）。
+   */
+  async peekPendingExecution(userId: string): Promise<ConfirmPayload | null> {
+    const key = `${this.PENDING_KEY}${userId}`;
+    const raw = await this.redisService.get(key);
+
+    if (!raw) {
+      return null;
+    }
+    return JSON.parse(raw);
   }
 
   async popPendingExecution(userId: string): Promise<ConfirmPayload | null> {

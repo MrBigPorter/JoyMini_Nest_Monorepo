@@ -378,6 +378,22 @@ export const AgentState = Annotation.Root({
     reducer: (a: boolean, b: boolean) => b,
     default: () => false,
   }),
+
+  /**
+   * transferReason — 本次转人工的触发原因（与 transferToHuman 成对出现）
+   *
+   * 取值来自 detectTransferRequest：
+   *   explicit_request（用户明确要求）/ negative_sentiment（负面情绪）/ repeated_attempts（同一意图反复）
+   *
+   * ── 为什么要单独存？ ──
+   * 只记 transferToHuman=true 的话，日志里只能写一个笼统的 "transfer_flag"，
+   * 统计不出"多少是用户主动要人工、多少是被情绪词误触发的"。
+   * #89 FR-4 要求转人工率可按原因拆分，所以原因必须随状态传到收尾阶段。
+   */
+  transferReason: Annotation<string>({
+    reducer: (a: string, b: string) => b,
+    default: () => '',
+  }),
   /**
    * pendingConfirm — 待确认操作
    *

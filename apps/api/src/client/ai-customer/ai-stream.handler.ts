@@ -29,6 +29,12 @@ export async function handleEventStream(
   registry: ToolRegistryService,
   eventsGateway: EventsGateway,
   callbacks: StreamHandlerCallbacks,
+  /**
+   * 会话成员 userId 列表，由调用方每轮查一次后传进来。
+   * 用途：给 `user_X` 私有房间兜底推送（客户端重连不重放 join_chat 时仍能收到，见 #87 N-9）。
+   * 不在这里查库，是因为这里每收到一个 token 都会调用，查库会把 DB 打爆。
+   */
+  memberUserIds: string[] = [],
 ): Promise<StreamUsageSummary> {
   const eventStream = await compiledGraph.streamEvents(
     {
@@ -58,9 +64,12 @@ export async function handleEventStream(
       if (chunk?.content) {
         callbacks.onToken(chunk.content);
         if (conversationId) {
-          eventsGateway.dispatch(conversationId, SocketEvents.AI_TOKEN, {
-            content: chunk.content,
-          });
+          eventsGateway.dispatchToConversation(
+            conversationId,
+            memberUserIds,
+            SocketEvents.AI_TOKEN,
+            { content: chunk.content },
+          );
         }
       }
     } else if (eventName === 'on_chat_model_start') {
@@ -95,9 +104,15 @@ export async function handleEventStream(
       const displayName = registry.getDisplayName(name) ?? name;
       callbacks.onStep('tool_start', { tool: displayName });
       if (conversationId) {
-        eventsGateway.dispatch(conversationId, SocketEvents.AI_STEP, {
-          step: 'tool_start', tool: displayName,
-        });
+        eventsGateway.dispatchToConversation(
+          conversationId,
+          memberUserIds,
+          SocketEvents.AI_STEP,
+          {
+            step: 'tool_start',
+            tool: displayName,
+          },
+        );
       }
     } else if (eventName === 'on_tool_end') {
       // Agent 调完工具
@@ -110,9 +125,12 @@ export async function handleEventStream(
       });
       callbacks.onStep('tool_end', { tool: name });
       if (conversationId) {
-        eventsGateway.dispatch(conversationId, SocketEvents.AI_STEP, {
-          step: 'tool_end', tool: name,
-        });
+        eventsGateway.dispatchToConversation(
+          conversationId,
+          memberUserIds,
+          SocketEvents.AI_STEP,
+          { step: 'tool_end', tool: name },
+        );
       }
     }
   }

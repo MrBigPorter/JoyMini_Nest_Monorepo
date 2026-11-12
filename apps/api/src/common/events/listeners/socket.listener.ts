@@ -64,37 +64,26 @@ export class SocketListener {
       `[SocketListener] Room ${event.conversationId} has ${clientCount} clients before dispatch`,
     );
 
-    this.eventsGateway.dispatch(
-      event.conversationId,
-      SocketEvents.CHAT_MESSAGE,
-      socketPayload,
-    );
-
-    //  B. 列表预览：只针对小群或在线个人进行分发
-    // 设定阈值（如500人），超过此人数的群不再执行 forEach 个人分发，靠"前台自愈"同步
+    //  A + B. 双通道投递：会话房间 + 成员私有房间（私有房间用 .except 去重）
+    //  以前是「先发房间、再 forEach 每个成员」，同一个连接若同时在两个房间
+    //  就会收到两条一样的消息；统一走 dispatchToConversation 后只收一条。
     if (
       event.memberIds &&
       event.memberIds.length > 0 &&
       event.memberIds.length <= this.LARGE_GROUP_THRESHOLD
     ) {
-      this.logger.debug(
-        `[SocketListener] Dispatching to ${event.memberIds.length - 1} members (excluding sender)`,
+      this.eventsGateway.dispatchToConversation(
+        event.conversationId,
+        event.memberIds,
+        SocketEvents.CHAT_MESSAGE,
+        socketPayload,
       );
-      event.memberIds.forEach((userId) => {
-        if (userId !== event.senderId) {
-          this.eventsGateway.dispatch(
-            `user_${userId}`,
-            SocketEvents.CHAT_MESSAGE,
-            socketPayload,
-          );
-        }
-      });
-    } else if (
-      event.memberIds &&
-      event.memberIds.length > this.LARGE_GROUP_THRESHOLD
-    ) {
-      this.logger.debug(
-        `[SocketListener] Skipping member-by-member dispatch for large group (${event.memberIds.length} members > ${this.LARGE_GROUP_THRESHOLD} threshold)`,
+    } else {
+      // 大群（> 阈值）只发房间，避免 O(成员数) 的 fan-out
+      this.eventsGateway.dispatch(
+        event.conversationId,
+        SocketEvents.CHAT_MESSAGE,
+        socketPayload,
       );
     }
 
