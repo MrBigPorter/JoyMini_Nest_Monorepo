@@ -3,6 +3,7 @@ import { Throttle } from '@nestjs/throttler';
 import { ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { OtpRequestDto, OtpVerifyDto } from './otp.dto';
 import { OtpService } from './otp.service';
+import { RealIP } from '@api/common/decorators/real-ip.decorator';
 
 @ApiTags('otp')
 @Controller('otp')
@@ -26,8 +27,8 @@ export class OtpController {
       example: { code: 999999, message: 'success', tid: '...', data: null },
     },
   })
-  async request(@Body() dto: OtpRequestDto) {
-    return await this.otp.request(dto);
+  async request(@Body() dto: OtpRequestDto, @RealIP() ip: string) {
+    return await this.otp.request({ ...dto, requestIp: ip });
   }
 
   @Post('verify')

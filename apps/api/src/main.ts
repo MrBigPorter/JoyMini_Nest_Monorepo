@@ -28,6 +28,17 @@ async function bootstrap() {
 
   // 配置
   const config = app.get(ConfigService);
+
+  // 生产环境必须配置 OTP pepper，否则 6 位验证码可被离线爆破
+  if (isProd) {
+    const pepper = config.get<string>('OTP_PEPPER') ?? '';
+    if (pepper.length < 16) {
+      throw new Error(
+        'FATAL: OTP_PEPPER is required and must be at least 16 chars in production',
+      );
+    }
+  }
+
   const port = config.get<number>('PORT', 3000);
   const host = config.get<string>('HOST', '0.0.0.0');
   const corsOrigin = config.get<string>('CORS_ORIGIN');
@@ -122,7 +133,9 @@ async function bootstrap() {
     try {
       applyFieldMetaToSwagger(doc, 'zh');
     } catch (err) {
-      Logger.warn('applyFieldMetaToSwagger failed (non-blocking): ' + String(err));
+      Logger.warn(
+        'applyFieldMetaToSwagger failed (non-blocking): ' + String(err),
+      );
     }
 
     SwaggerModule.setup('docs', app, doc);

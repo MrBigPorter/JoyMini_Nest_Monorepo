@@ -35,6 +35,8 @@
 >
 > T2-6 运行时验证（2026-11-12）：`WITH_FAILURE=1` 追加第 9 场景「模型故障降级」——Redis 写故障开关 + 发 `__CHAOS__ 你好`，断言兜底话术落库、`handler_id=awaiting_human`、`transfer{source:fallback,reason:ai_error}`、`chat.error`。**9/9 PASS**，N-15 转 ✅。
 >
+> T1-1 部分闭环（2026-11-12）：删掉所有环境都执行的验证码明文日志；`isProd` 改 `isDev`（fail-closed，只有明确 `development` 才用固定码并返回 `devCode`）；生产环境 `OTP_PEPPER` 缺失或 < 16 字符直接拒绝启动；`requestIp` 经 `@RealIP()` 入库；发送状态改为 `PENDING → send → SENT/FAILED`，不再抢在实际发送之前写「已发送」；发短信抽成 `SmsProvider` 接口 + 工厂，生产暂用显式抛错的占位实现。顺带修两处未登记缺陷：`verifyTimes` 每次尝试被 +2（5 次实为 3 次）、`verify` 用未 trim 的 `phone` 查单。**仍缺真实短信供应商**（生产调用抛 `NotImplementedException`），另遗留 pepper 两个读取时机的隐患（#87 N-19）。`tsc` 0 error，全量 308 passed。
+>
 > T1-3 闭环（2026-11-12）：审核只置 `PROCESSING`、回调/cron/审核失败统一走 `settleWithdrawal`（新建 `withdraw-settlement.service.ts`）、冻结扣毛额 `withdrawAmount` 而累计提现记净额 `actualAmount`、补单 cron 修掉"查询异常当成查无此单"的误判。新增单测 8 例；`tsc` 0 error，全量 308 passed。
 >
 > T1-2 闭环（2026-11-12）：`peek → verify → pop`（验码失败不再毁任务）、`TOKEN_TTL_SEC=60` / `PENDING_TTL_SEC=330` 拆开、`plainToInstance + validate` 真校验并拒多余字段。新增 `ai-action-confirm.service.spec.ts`（6 例）+ `ai-customer.service.spec.ts`（8 例）；`tsc --noEmit` 0 error，全量 300 passed（`auth` / `flash-sale` 两个已知过期 suite 除外）。
@@ -43,7 +45,7 @@
 
 | # | 任务 | #85 ID | 文件 | 状态 |
 |:--:|---|:--:|---|:--:|
-| T1-1 | 生产 OTP：接短信 + 启动校验 pepper + 去明文日志 | P0-4 | `client/otp/otp.service.ts` | ☐ |
+| T1-1 | 生产 OTP：接短信 + 启动校验 pepper + 去明文日志 | P0-4 | `client/otp/otp.service.ts` | 🟡 2026-11-12 部分完成（供应商待接入，见 [#96 §5](./AI-joymini/96-OTP生产化-SDD.md)） |
 | T1-2 | 确认链路三洞：验码后再删 / TTL 对齐 300s / 复用 DTO 校验 | P1-7/17/18 | `ai-customer.service.ts`、`ai-action-confirm.service.ts` | ✅ 2026-11-12（单测 14 例，见 [#93 §3.1](./AI-joymini/93-确认链路三个洞-SDD.md)） |
 | T1-3 | 提现冻结状态机：审核只置 PROCESSING + `settleWithdrawal` | P0-3 | `admin/finance/finance.service.ts`、`client/wallet/client-wallet.service.ts` | ✅ 2026-11-12（单测 8 例，见 [#95 §5.1](./AI-joymini/95-提现冻结状态机-SDD.md)） |
 | T1-4 | Socket 成员校验 + AI 会话 IDOR + `AI_CONFIRM` 改私有房间 | P0-1/2 | `events.gateway.ts`、`ai-memory.service.ts`、`ai-customer.service.ts` | ☐ |
@@ -111,6 +113,8 @@
 | `docs/AI-joymini/92-求职准备与业务下一步.md` | 求职定位、讲解练习、业务缺口排序（G1–G6） |
 | `docs/AI-joymini/93-确认链路三个洞-SDD.md` | T1-2 修复规格：先撕票/两张票/手搓 DTO |
 | `docs/AI-joymini/94-意图准确率基线-T0-3.md` | 意图准确率的度量口径与首次基线 |
+| `docs/AI-joymini/95-提现冻结状态机-SDD.md` | T1-3 修复规格：单一结算出口 + 状态 CAS + 账目不变式 |
+| `docs/AI-joymini/96-OTP生产化-SDD.md` | T1-1 修复规格：fail-closed、pepper 启动校验、SmsProvider 抽象 |
 | `tools/eval/` | 回放工具（`run-replay.sh`）与基线文件 |
 | `docs/AI-joymini/91-一条消息的旅程.html` | 调用链主干 7 框，读懂代码的地图 |
 | `docs/coding-standards.md` | 9 维度检查 |
