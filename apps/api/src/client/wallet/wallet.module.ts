@@ -2,6 +2,7 @@ import { Module, OnApplicationBootstrap } from '@nestjs/common';
 import { WalletService } from '@api/client/wallet/wallet.service';
 import { WalletController } from '@api/client/wallet/wallet.controller';
 import { ClientWalletService } from '@api/client/wallet/client-wallet.service';
+import { WithdrawSettlementService } from '@api/client/wallet/withdraw-settlement.service';
 import { PaymentWebhookController } from '@api/client/wallet/payment-webhook.controller';
 import { PaymentChannelService } from '@api/common/payment-channel/payment-channel.service';
 import { KycModule } from '@api/client/kyc/kyc.module';
@@ -13,9 +14,14 @@ import { OtpModule } from '@api/client/otp/otp.module';
 
 @Module({
   imports: [KycModule, OtpModule],
-  providers: [WalletService, ClientWalletService, PaymentChannelService],
+  providers: [
+    WalletService,
+    ClientWalletService,
+    PaymentChannelService,
+    WithdrawSettlementService,
+  ],
   controllers: [WalletController, PaymentWebhookController],
-  exports: [WalletService, ClientWalletService],
+  exports: [WalletService, ClientWalletService, WithdrawSettlementService],
 })
 export class WalletModule implements OnApplicationBootstrap {
   constructor(

@@ -355,23 +355,28 @@ export class FinanceService {
           description: `Withdrawal for ${order.withdrawNo}`,
         });
       } catch (error: any) {
-        // 打款失败，更新订单状态为失败
-        // 比如你的账户余额不足，Xendit拒绝打款
+        // 打款请求失败，但这里无法区分「Xendit 明确拒绝」和「网络超时」：
+        // 后者钱可能已经打出去了。PaymentService 把所有异常统一包成
+        // Payment Gateway Error，调用方拿不到 HTTP 状态码。
+        //
+        // 因此不改终态，保持 PROCESSING，由补单任务按 Xendit 的真实记录落定
+        // （查无此单 → 失败并解冻；查有成功 → 成功并扣冻结）。见 #95 §8。
         await this.prismaService.withdrawOrder.update({
           where: { withdrawId },
           data: {
-            withdrawStatus: WITHDRAW_STATUS.FAILED,
-            auditResult: `Payout failed: ${error.message}`,
+            auditResult: `Payout request failed, awaiting reconciliation: ${error.message}`,
           },
         });
         throw new BadRequestException(`Xendit API Failed: ${error.message}`);
       }
 
-      // 2. 更新提现订单状态为处理中
+      // 2. 只补记第三方单号与回执信息，不改状态。
+      //    此刻 Xendit 只表示"请求已受理"，最终结果由回调或补单任务落定。
+      //    若这里提前置 SUCCESS，回调的幂等判断会误以为"账已记过"直接返回，
+      //    冻结金额将永远不被扣减（见 docs/AI-joymini/95 第 1 节）。
       return this.prismaService.withdrawOrder.update({
         where: { withdrawId },
         data: {
-          withdrawStatus: WITHDRAW_STATUS.SUCCESS,
           thirdPartyOrderNo: xenditResp?.id,
           auditorId: adminId,
           auditedAt: new Date(),

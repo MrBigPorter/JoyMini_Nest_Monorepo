@@ -15,13 +15,16 @@ import {
   OrderNoHelper,
   RECHARGE_STATUS,
   RelatedType,
-  TRANSACTION_STATUS,
   WITHDRAW_STATUS,
 } from '@lucky/shared';
 import { CreateRechargeDto } from '@api/client/wallet/dto/create-recharge.dto';
 import { WithdrawalHistoryQueryDto } from '@api/client/wallet/dto/withdrawal-history-query.dto';
 import { PaymentService } from '@api/common/payment/payment.service';
 import { GetRechargeHistoryDto } from '@api/client/wallet/dto/recharge.dto';
+import {
+  WithdrawOutcome,
+  WithdrawSettlementService,
+} from '@api/client/wallet/withdraw-settlement.service';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
@@ -46,6 +49,7 @@ export class ClientWalletService {
     private paymentService: PaymentService,
     private prismaService: PrismaService,
     private walletService: WalletService,
+    private withdrawSettlementService: WithdrawSettlementService,
   ) {}
 
   async handleUniversalWebhook(payload: unknown) {
@@ -265,8 +269,31 @@ export class ClientWalletService {
 
     this.logger.log(`[Payout Logic] Processing ${orderNo}, Status: ${status}`);
 
-    return this.prismaService.$transaction(async (ctx) => {
-      // Find the withdrawal order
+    // Xendit 回执状态映射：只有明确的成功/失败才落终态，
+    // PENDING / ACCEPTED 等中间态一律不落定，等后续回调或补单任务。
+    const outcome: WithdrawOutcome | null =
+      status === 'SUCCEEDED' || status === 'COMPLETED'
+        ? 'SUCCESS'
+        : status === 'FAILED'
+          ? 'FAILED'
+          : null;
+
+    if (!outcome) {
+      this.logger.log(
+        `[Payout] ${orderNo} status=${status}, awaiting final state`,
+      );
+      return { status: 'IGNORED', xendit_status: status };
+    }
+
+    if (outcome === 'FAILED') {
+      this.logger.warn(
+        `Disbursement Failed for ${orderNo}: ${payoutPayload.failure_code ?? 'UNKNOWN'}`,
+      );
+    }
+
+    // 结算统一交给 WithdrawSettlementService：落终态 + 动钱包在同一事务，
+    // 并以订单状态做原子抢占，重复回调只会结算一次（见 #95 §4）。
+    const result = await this.prismaService.$transaction(async (ctx) => {
       const order = await ctx.withdrawOrder.findUnique({
         where: { withdrawNo: orderNo },
       });
@@ -274,100 +301,23 @@ export class ClientWalletService {
         throw new NotFoundException(`Withdrawal order not found: ${orderNo}`);
       }
 
-      // Idempotency check: return if already processed
-      if (
-        order.withdrawStatus === WITHDRAW_STATUS.SUCCESS ||
-        order.withdrawStatus === WITHDRAW_STATUS.FAILED
-      ) {
-        return {
-          message: 'Withdrawal order already processed',
-          order,
-        };
-      }
-
-      const amount = order.actualAmount;
-
-      if (status === 'SUCCEEDED' || status === 'COMPLETED') {
-        // ：使用 updateMany 但允许"强制扣减"
-        // 这里的逻辑是：钱已经没了，我们要扣减冻结金额并增加总提现额
-        // 即使 frozenBalance 不足，理论上也应该扣，但为了数据健康，我们还是加 gte 校验
-        // 如果 gte 校验失败，说明系统有严重 Bug (冻结金额丢了)，但不能让回调死循环
-        const r = await ctx.userWallet.updateMany({
-          where: { userId: order.userId, frozenBalance: { gte: amount } },
-          data: {
-            frozenBalance: { decrement: amount }, // Unfreeze the amount
-            totalWithdraw: { increment: amount }, // Increment total withdrawn
-          },
-        });
-
-        if (r.count !== 1) {
-          //  严重警报：钱转出去了，但冻结金额不够扣！
-          // 策略：记录严重日志，强制把订单标为完成，防止死循环。
-          // 也可以选择强制扣减 frozenBalance 到负数
-          this.logger.error(
-            `CRITICAL: User ${order.userId} withdraw success but insufficient frozen balance! Order: ${orderNo}`,
-          );
-
-          // 兜底操作：强制扣减 (移除 gte 条件)，或者手动修数据
-          await ctx.userWallet.update({
-            where: { userId: order.userId },
-            data: {
-              frozenBalance: { decrement: amount }, // Unfreeze the amount
-              totalWithdraw: { increment: amount }, // Increment total withdrawn
-            },
-          });
-        }
-
-        // Update withdrawal order status to SUCCESS
-        await ctx.walletTransaction.updateMany({
-          where: {
-            relatedId: order.withdrawId,
-            relatedType: RelatedType.WITHDRAWAL,
-          },
-          data: {
-            status: TRANSACTION_STATUS.SUCCESS,
-            description: 'Withdrawal completed successfully',
-          },
-        });
-
-        // Update withdrawal order status
-        await ctx.withdrawOrder.update({
-          where: { withdrawId: order.withdrawId },
-          data: {
-            withdrawStatus: WITHDRAW_STATUS.SUCCESS,
-            completedAt: new Date(),
-          },
-        });
-      } else if (status === 'FAILED') {
-        this.logger.warn(
-          `Disbursement Failed for ${orderNo}: ${payoutPayload.failure_code ?? 'UNKNOWN'}`,
-        );
-        // Unfreeze the amount back to available balance
-        await this.walletService.unfreezeCash(
-          {
-            userId: order.userId,
-            amount: amount,
-            related: {
-              id: order.withdrawId,
-              type: RelatedType.WITHDRAWAL,
-            },
-            desc: `Withdrawal failed: ${payoutPayload.failure_code ?? 'UNKNOWN'}`,
-          },
-          ctx,
-        );
-        // Update withdrawal order status to FAILED
-        await ctx.withdrawOrder.update({
-          where: { withdrawId: order.withdrawId },
-          data: {
-            withdrawStatus: WITHDRAW_STATUS.FAILED,
-            completedAt: new Date(),
-            rejectReason: `Disbursement failed: ${payoutPayload.failure_code ?? 'UNKNOWN'}`,
-          },
-        });
-
-        return { status: 'PROCESSED', xendit_status: status };
-      }
+      return this.withdrawSettlementService.settleWithdrawal({
+        withdrawId: order.withdrawId,
+        outcome,
+        reason: payoutPayload.failure_code,
+        tx: ctx,
+      });
     });
+
+    if (!result.settled) {
+      this.logger.log(`[Payout] ${orderNo} already settled, ignored`);
+      return {
+        status: 'IGNORED',
+        message: 'Withdrawal order already processed',
+      };
+    }
+
+    return { status: 'PROCESSED', xendit_status: status };
   }
 
   /**

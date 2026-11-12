@@ -35,6 +35,8 @@
 >
 > T2-6 运行时验证（2026-11-12）：`WITH_FAILURE=1` 追加第 9 场景「模型故障降级」——Redis 写故障开关 + 发 `__CHAOS__ 你好`，断言兜底话术落库、`handler_id=awaiting_human`、`transfer{source:fallback,reason:ai_error}`、`chat.error`。**9/9 PASS**，N-15 转 ✅。
 >
+> T1-3 闭环（2026-11-12）：审核只置 `PROCESSING`、回调/cron/审核失败统一走 `settleWithdrawal`（新建 `withdraw-settlement.service.ts`）、冻结扣毛额 `withdrawAmount` 而累计提现记净额 `actualAmount`、补单 cron 修掉"查询异常当成查无此单"的误判。新增单测 8 例；`tsc` 0 error，全量 308 passed。
+>
 > T1-2 闭环（2026-11-12）：`peek → verify → pop`（验码失败不再毁任务）、`TOKEN_TTL_SEC=60` / `PENDING_TTL_SEC=330` 拆开、`plainToInstance + validate` 真校验并拒多余字段。新增 `ai-action-confirm.service.spec.ts`（6 例）+ `ai-customer.service.spec.ts`（8 例）；`tsc --noEmit` 0 error，全量 300 passed（`auth` / `flash-sale` 两个已知过期 suite 除外）。
 
 ### 🥈 T1 — 安全与资金（Day 3-8）
@@ -43,7 +45,7 @@
 |:--:|---|:--:|---|:--:|
 | T1-1 | 生产 OTP：接短信 + 启动校验 pepper + 去明文日志 | P0-4 | `client/otp/otp.service.ts` | ☐ |
 | T1-2 | 确认链路三洞：验码后再删 / TTL 对齐 300s / 复用 DTO 校验 | P1-7/17/18 | `ai-customer.service.ts`、`ai-action-confirm.service.ts` | ✅ 2026-11-12（单测 14 例，见 [#93 §3.1](./AI-joymini/93-确认链路三个洞-SDD.md)） |
-| T1-3 | 提现冻结状态机：审核只置 PROCESSING + `settleWithdrawal` | P0-3 | `admin/finance/finance.service.ts`、`client/wallet/client-wallet.service.ts` | ☐ |
+| T1-3 | 提现冻结状态机：审核只置 PROCESSING + `settleWithdrawal` | P0-3 | `admin/finance/finance.service.ts`、`client/wallet/client-wallet.service.ts` | ✅ 2026-11-12（单测 8 例，见 [#95 §5.1](./AI-joymini/95-提现冻结状态机-SDD.md)） |
 | T1-4 | Socket 成员校验 + AI 会话 IDOR + `AI_CONFIRM` 改私有房间 | P0-1/2 | `events.gateway.ts`、`ai-memory.service.ts`、`ai-customer.service.ts` | ☐ |
 | T1-5 | 领券原子扣减 + 唯一约束 | P0-5 | `client/coupon/coupon.service.ts`、`schema.prisma` | ☐ |
 

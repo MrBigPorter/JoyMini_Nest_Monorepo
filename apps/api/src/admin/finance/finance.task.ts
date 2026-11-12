@@ -6,6 +6,7 @@ import { RECHARGE_STATUS, TimeHelper, WITHDRAW_STATUS } from '@lucky/shared';
 import dayjs from 'dayjs';
 import { RedisLockService } from '@api/common/redis/redis-lock.service';
 import { PaymentService } from '@api/common/payment/payment.service';
+import { WithdrawSettlementService } from '@api/client/wallet/withdraw-settlement.service';
 
 @Injectable()
 export class FinanceTask {
@@ -19,6 +20,7 @@ export class FinanceTask {
     private prismaService: PrismaService,
     private paymentService: PaymentService,
     private lockService: RedisLockService,
+    private withdrawSettlementService: WithdrawSettlementService,
   ) {}
 
   /**
@@ -119,8 +121,7 @@ export class FinanceTask {
 
           for (const order of stuckOrders) {
             try {
-              // 1. 去 Xendit 查这笔单到底什么情况
-              // 使用 withdrawId 作为 external_id (根据我们之前定的幂等键规则)
+              // 1. 去 Xendit 查这笔单的真实状态（referenceId = withdrawNo）
               let xenditData;
               try {
                 xenditData =
@@ -128,62 +129,50 @@ export class FinanceTask {
                     order.withdrawNo,
                   );
               } catch (err: any) {
+                // 查询失败 ≠ 查无此单。拿不到结果就不能落定，
+                // 否则会在钱其实已打出的情况下错误退款。留到下一轮再查。
                 this.logger.warn(
-                  `[Withdraw-Fix] Connect error for ${order.withdrawNo}: ${err.message}`,
+                  `[Withdraw-Fix] Query failed for ${order.withdrawNo}: ${err.message}, skip this round`,
                 );
+                continue;
               }
 
-              // 2. 根据查到的结果更新数据库
+              // 2. 按 Xendit 的真实状态落终态，并结算钱包
               if (!xenditData) {
-                // A. Xendit 查无此单 -> 说明代码断电在“改库为Processing”之后，“发请求”之前
-                // 结果：钱没出去。
-                // 动作：标记为 FAILED (或者回滚为 PENDING_AUDIT)
-                await this.prismaService.withdrawOrder.update({
-                  where: { withdrawId: order.withdrawId },
-                  data: {
-                    withdrawStatus: WITHDRAW_STATUS.FAILED,
-                    updatedAt: new Date(),
-                    auditResult: 'Auto-Fix: Not found on Xendit (Ghost Order)',
-                  },
+                // A. 查无此单：确认真金没出去 → 置失败 + 解冻
+                await this.withdrawSettlementService.settleWithdrawal({
+                  withdrawId: order.withdrawId,
+                  outcome: 'FAILED',
+                  reason: 'Auto-Fix: Not found on Xendit (ghost order)',
                 });
-
-                // 注意：这里可能需要人工介入退还冻结金额，或者自动退还。
-                // 为安全起见，先标记为 FAILED，让财务手动处理“退款”按钮更稳妥。
                 this.logger.log(
-                  `[Withdraw-Fix] ${order.withdrawNo} marked FAILED (Not found in Xendit)`,
+                  `[Withdraw-Fix] ${order.withdrawNo} settled FAILED (not found on Xendit), frozen amount released`,
                 );
               } else if (xenditData.status === 'SUCCEEDED') {
-                // B. Xendit 状态是 COMPLETED -> 说明代码断电在“改库为Processing”之后，“发请求”之后
-                // 结果：钱已经出去。
-                // 动作：标记为 SUCCESS
-                await this.prismaService.withdrawOrder.update({
-                  where: { withdrawId: order.withdrawId },
-                  data: {
-                    withdrawStatus: WITHDRAW_STATUS.SUCCESS,
-                    thirdPartyOrderNo: xenditData.id,
-                    updatedAt: new Date(),
-                    auditResult:
-                      'Auto-Fix: Marked SUCCESS (Completed on Xendit)',
-                  },
+                // B. 钱已经出去 → 置成功 + 扣冻结
+                await this.withdrawSettlementService.settleWithdrawal({
+                  withdrawId: order.withdrawId,
+                  outcome: 'SUCCESS',
+                  thirdPartyOrderNo: xenditData.id,
                 });
                 this.logger.log(
-                  `[Withdraw-Fix] ${order.withdrawNo} marked SUCCESS (Completed on Xendit)`,
+                  `[Withdraw-Fix] ${order.withdrawNo} settled SUCCESS (Xendit: ${xenditData.status})`,
                 );
               } else if (xenditData.status === 'FAILED') {
-                // C. Xendit 状态是 FAILED
-                // 结果：钱没出去。
-                // 动作：标记为 FAILED
-                await this.prismaService.withdrawOrder.update({
-                  where: { withdrawId: order.withdrawId },
-                  data: {
-                    withdrawStatus: WITHDRAW_STATUS.FAILED,
-                    thirdPartyOrderNo: xenditData.id,
-                    updatedAt: new Date(),
-                    auditResult: `Auto-Fix: Xendit status is ${xenditData.status}`,
-                  },
+                // C. 钱没出去 → 置失败 + 解冻
+                await this.withdrawSettlementService.settleWithdrawal({
+                  withdrawId: order.withdrawId,
+                  outcome: 'FAILED',
+                  thirdPartyOrderNo: xenditData.id,
+                  reason: `Auto-Fix: Xendit status is ${xenditData.status}`,
                 });
                 this.logger.log(
-                  `[Withdraw-Fix] ${order.withdrawNo} marked FAILED (Xendit status: ${xenditData.status})`,
+                  `[Withdraw-Fix] ${order.withdrawNo} settled FAILED (Xendit: ${xenditData.status}), frozen amount released`,
+                );
+              } else {
+                // D. PENDING / ACCEPTED 等中间态：还看不出结果，继续等下一轮
+                this.logger.log(
+                  `[Withdraw-Fix] ${order.withdrawNo} still ${xenditData.status}, skip`,
                 );
               }
 
