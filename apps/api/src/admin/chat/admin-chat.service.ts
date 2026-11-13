@@ -237,7 +237,38 @@ export class AdminChatService {
         },
       },
     });
+
+    // 判空永远在第一行：会话不存在时，下面任何 conv.handlerId 都会 TypeError（500）
     if (!conv) throw new NotFoundException('Conversation not found');
+
+    // ── 回复即接管（T2-5 / S2-B）──────────────────────────────
+    // 排队中   → CAS 认领；撞车就 409，这条消息不发（让客服先看见"被接了"）
+    // AI 处理中 → 直接接管；否则 AI 下一条还会插话
+    // 别人的会话 → 帮答，不改归属（团队可以互相顶班）
+    let claimedNow = false;
+
+    if (conv.handlerId === AWAITING_HUMAN) {
+      const result = await this.supportHandlerService.claim(
+        conversationId,
+        adminId,
+      );
+      if (result.status !== 'claimed') {
+        throw new ConflictException(
+          'Conversation has already been claimed by another agent',
+        );
+      }
+      claimedNow = true;
+    } else if (conv.handlerId === null) {
+      // 用条件更新而不是 update：两个客服同时回复 AI 会话时只有一个人抢到
+      const taken = await this.prisma.conversation.updateMany({
+        where: { id: conversationId, handlerId: null },
+        data: {
+          handlerId: adminId,
+          handlerAssignedAt: new Date(),
+        },
+      });
+      claimedNow = taken.count === 1; // 只有抢到的那个人才算接管成功
+    }
 
     const botMember = conv.members.find((m) => m.user?.isRobot);
     if (!botMember) {
@@ -270,6 +301,9 @@ export class AdminChatService {
       createdAt: message.createdAt,
       isSystem: false,
       meta: message.meta,
+      // 前端据此把会话从「待接入」挪到「我的」，并提示是否抢到
+      claimedNow,
+      handlerId: claimedNow ? adminId : conv.handlerId,
     };
   }
 

@@ -125,8 +125,7 @@ function whereOf(prisma: any) {
   return prisma.conversation.findMany.mock.calls[0][0].where;
 }
 
-describe('AdminChatService.getConversations 队列筛选（T2-5 / S2-A）', () => {
-  it('queue=awaiting → handlerId = awaiting_human，并且只查未关闭的', async () => {
+describe('AdminChatService.getConversations 队列筛选（T2-5 / S2-A）', () => {  it('queue=awaiting → handlerId = awaiting_human，并且只查未关闭的', async () => {
     const { service, prisma } = createListService();
 
     await service.getConversations({ queue: 'awaiting' } as any, 'admin-1');
@@ -193,5 +192,141 @@ describe('AdminChatService.getConversations 队列筛选（T2-5 / S2-A）', () =
 
     // null = 没在排队；0 = 刚排队。两者不能混
     expect(res.list[0].waitingSeconds).toBeNull();
+  });
+});
+
+// ==================================================================
+//  #98 S2-B：回复即接管（T2-5）
+//
+//  三条路径：
+//    排队中   → CAS 认领；失败 409 且【消息不发】
+//    AI(null) → 条件更新接管；抢输也照发（帮答）
+//    别人名下 → 照发，归属不动
+// ==================================================================
+
+function convRow(handlerId: string | null) {
+  return {
+    id: 'conv-1',
+    handlerId,
+    status: 1,
+    members: [{ userId: 'bot-1', user: { id: 'bot-1', isRobot: true } }],
+  };
+}
+
+function createReplyService(opts: {
+  handlerId: string | null;
+  convExists?: boolean;
+  claimStatus?: 'claimed' | 'conflict' | 'not_found';
+  takeCount?: number;
+}) {
+  const prisma = {
+    conversation: {
+      findUnique: jest
+        .fn()
+        .mockResolvedValue(opts.convExists === false ? null : convRow(opts.handlerId)),
+      updateMany: jest.fn().mockResolvedValue({ count: opts.takeCount ?? 1 }),
+    },
+  };
+  const chatService = {
+    sendMessage: jest.fn().mockResolvedValue({
+      id: 'msg-1',
+      seqId: 1,
+      content: '你好',
+      createdAt: new Date(),
+      meta: {},
+    }),
+  };
+  const supportHandler = {
+    claim: jest.fn().mockResolvedValue({
+      status: opts.claimStatus ?? 'claimed',
+      handlerId: 'admin-1',
+    }),
+  };
+  const service = new AdminChatService(
+    prisma as any,
+    {} as any,
+    {} as any,
+    chatService as any,
+    supportHandler as any,
+  );
+  return { service, prisma, chatService, supportHandler };
+}
+
+const REPLY_DTO = { content: '您好，我帮您查', type: 0 } as any;
+
+describe('AdminChatService.replyToConversation 回复即接管（T2-5 / S2-B）', () => {
+  it('排队中 + 认领成功 → 消息发出，claimedNow=true，返回本人 handlerId', async () => {
+    const { service, chatService } = createReplyService({
+      handlerId: AWAITING_HUMAN,
+      claimStatus: 'claimed',
+    });
+
+    const res = await service.replyToConversation('conv-1', REPLY_DTO, '客服A', 'admin-1');
+
+    expect(chatService.sendMessage).toHaveBeenCalledTimes(1);
+    expect(res.claimedNow).toBe(true);
+    expect(res.handlerId).toBe('admin-1');
+  });
+
+  it('排队中 + 认领撞车 → 409，并且这条消息【绝不能发】', async () => {
+    const { service, chatService, supportHandler } = createReplyService({
+      handlerId: AWAITING_HUMAN,
+      claimStatus: 'conflict',
+    });
+
+    await expect(
+      service.replyToConversation('conv-1', REPLY_DTO, '客服B', 'admin-2'),
+    ).rejects.toThrow(ConflictException);
+
+    // 这条断言是本节的核心：否则两个客服的话都会出现在用户屏幕上
+    expect(supportHandler.claim).toHaveBeenCalled();
+    expect(chatService.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('AI 处理中 → 接管成功，claimedNow=true', async () => {
+    const { service, prisma } = createReplyService({ handlerId: null, takeCount: 1 });
+
+    const res = await service.replyToConversation('conv-1', REPLY_DTO, '客服A', 'admin-1');
+
+    // 条件更新必须只认 handlerId 仍为 null 的那一行
+    expect(prisma.conversation.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ handlerId: null }) }),
+    );
+    expect(res.claimedNow).toBe(true);
+  });
+
+  it('AI 处理中但被同事抢先 → 消息照发，claimedNow=false（帮答）', async () => {
+    const { service, chatService } = createReplyService({ handlerId: null, takeCount: 0 });
+
+    const res = await service.replyToConversation('conv-1', REPLY_DTO, '客服B', 'admin-2');
+
+    expect(chatService.sendMessage).toHaveBeenCalledTimes(1);
+    expect(res.claimedNow).toBe(false);
+  });
+
+  it('别人名下的会话 → 照发，归属不变', async () => {
+    const { service, chatService, supportHandler, prisma } = createReplyService({
+      handlerId: 'admin-A',
+    });
+
+    const res = await service.replyToConversation('conv-1', REPLY_DTO, '客服B', 'admin-B');
+
+    expect(chatService.sendMessage).toHaveBeenCalledTimes(1);
+    expect(supportHandler.claim).not.toHaveBeenCalled();
+    expect(prisma.conversation.updateMany).not.toHaveBeenCalled();
+    expect(res.claimedNow).toBe(false);
+    expect(res.handlerId).toBe('admin-A');
+  });
+
+  it('会话不存在 → 404（不是 TypeError / 500）', async () => {
+    const { service, chatService } = createReplyService({
+      handlerId: null,
+      convExists: false,
+    });
+
+    await expect(
+      service.replyToConversation('conv-missing', REPLY_DTO, '客服A', 'admin-1'),
+    ).rejects.toThrow(NotFoundException);
+    expect(chatService.sendMessage).not.toHaveBeenCalled();
   });
 });
