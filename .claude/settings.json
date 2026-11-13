@@ -1,4 +1,66 @@
 {
+  "permissions": {
+    "deny": [
+      "Read(./**/.env)",
+      "Read(./**/.env.local)",
+      "Read(./**/.env.production)",
+      "Read(./**/.env.development)",
+      "Read(./deploy/.env.*)",
+      "Bash(rm -rf:*)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(prisma migrate reset:*)",
+      "Bash(npx prisma migrate reset:*)",
+      "Bash(yarn pr:m:reset)",
+      "Bash(make pr:m:reset)"
+    ],
+    "allow": [
+      "Bash(git status)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git branch:*)",
+      "Bash(yarn:*)",
+      "Bash(make:*)",
+      "Bash(docker ps:*)",
+      "Bash(docker logs:*)",
+      "Bash(colima status)"
+    ],
+    "additionalDirectories": ["/Users/porter/Developer/JoyMini_Flutter_App"]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '=== 任务 ==='; head -16 docs/current-task.md; echo; echo '=== 分支 ==='; git branch --show-current; git status --short"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/guard.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=$(jq -r '.tool_input.file_path'); case \"$f\" in *.ts|*.tsx|*.js|*.jsx|*.json) yarn prettier --write \"$f\" >/dev/null 2>&1;; esac"
+          }
+        ]
+      }
+    ]
+  },
   "skills": {
     "superpowers": {
       "path": ".claude/skills/superpowers/SKILL.md",
@@ -35,6 +97,10 @@
     "business-analysis": {
       "path": ".claude/skills/business-analysis/SKILL.md",
       "description": "业务功能分析, 需求讨论, 风险评估, 行业调研, 原型状态穷举, 技术方案, 工作量估算"
+    },
+    "check": {
+      "path": ".claude/skills/check/SKILL.md",
+      "description": "提交前检查, 跑一遍 check, 类型检查, lint 检查, pre-commit check, run checks, 检查代码"
     },
     "help": {
       "path": ".claude/skills/help/SKILL.md",

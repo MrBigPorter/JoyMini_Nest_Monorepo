@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "postgres-dev": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-postgres",
+        "${JOYMINI_DEV_DB_URL}"
+      ]
+    }
+  }
+}
