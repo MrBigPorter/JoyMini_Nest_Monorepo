@@ -34,4 +34,15 @@ export class QueryConversationsDto {
   @Type(() => Number)
   @IsInt()
   status?: number;
+
+  /**
+   * 归属筛选（和 status 是两个维度）：
+   *   awaiting = 待接入（handlerId = 'awaiting_human'）
+   *   mine     = 我的（handlerId = 当前登录客服）
+   *   ai       = AI 处理中（handlerId = null）
+   *   all      = 不限（默认）
+   */
+  @IsOptional()
+  @IsIn(['awaiting', 'mine', 'ai', 'all'])
+  queue?: 'awaiting' | 'mine' | 'ai' | 'all' = 'all';
 }

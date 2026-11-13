@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '@api/common/prisma/prisma.service';
+import { ConversationStatus } from '@lucky/shared';
 
 /** 待接入哨兵值：handlerId 等于它 = 在排队，等客服认领 */
 export const AWAITING_HUMAN = 'awaiting_human';
@@ -28,6 +29,8 @@ export class SupportHandlerService {
       where: {
         id: conversationId,
         handlerId: AWAITING_HUMAN,
+        // 已关闭的会话不能被认领：历史数据里存在 handlerId 没清干净的关闭会话
+        status: ConversationStatus.NORMAL,
       },
       data: {
         handlerId: adminId,

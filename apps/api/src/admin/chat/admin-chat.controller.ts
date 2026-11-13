@@ -52,8 +52,11 @@ export class AdminChatController {
   /** GET /v1/admin/chat/conversations — 客服会话列表 */
   @Get('conversations')
   @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.EDITOR, Role.VIEWER)
-  getConversations(@Query() query: QueryConversationsDto) {
-    return this.service.getConversations(query);
+  getConversations(
+    @Query() query: QueryConversationsDto,
+    @CurrentAdminId() adminId: string,
+  ) {
+    return this.service.getConversations(query, adminId);
   }
 
   /** POST /v1/admin/chat/conversations/:id/claim — 客服认领会话 */

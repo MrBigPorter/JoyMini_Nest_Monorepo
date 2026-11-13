@@ -17,7 +17,10 @@ import {
   CloseConversationDto,
   QueryMessagesDto,
 } from './dto/admin-chat.dto';
-import { SupportHandlerService } from '@api/common/chat/support-handler.service';
+import {
+  SupportHandlerService,
+  AWAITING_HUMAN,
+} from '@api/common/chat/support-handler.service';
 
 /** Conversation.status 枚举值 */
 const CONV_STATUS = { NORMAL: 1, CLOSED: 2 } as const;
@@ -42,13 +45,23 @@ export class AdminChatService {
   // ─────────────────────────────────────────────
   // 1. 会话列表
   // ─────────────────────────────────────────────
-  async getConversations(dto: QueryConversationsDto) {
-    const { page = 1, pageSize = 20, type, keyword, status } = dto;
+  async getConversations(dto: QueryConversationsDto, adminId: string) {
+    const { page = 1, pageSize = 20, type, keyword, status, queue } = dto;
 
     const where: Prisma.ConversationWhereInput = {
       // 默认只看 SUPPORT，若传了 type 则按传入值
       type: type ?? ConversationType.SUPPORT,
     };
+
+    // 归属维度 → handlerId 条件（和 status 是两个正交的筛选）
+    if (queue === 'awaiting') {
+      where.handlerId = AWAITING_HUMAN;
+      if (status === undefined) where.status = CONV_STATUS.NORMAL; // 待接入只看正常的
+    } else if (queue === 'mine') {
+      where.handlerId = adminId; // 只看当前登录客服的
+    } else if (queue === 'ai') {
+      where.handlerId = null; // 只看 AI 处理中（未被客服认领）的
+    }
 
     if (status !== undefined) {
       where.status = status;
@@ -69,11 +82,17 @@ export class AdminChatService {
       ];
     }
 
+    // 待接入：等得最久的排最前（防止老会话被新会话淹没）
+    // 其他视图：最近有消息的排最前
+    const orderBy: Prisma.ConversationOrderByWithRelationInput =
+      queue === 'awaiting'
+        ? { handlerAssignedAt: 'asc' }
+        : { lastMsgTime: 'desc' };
     const [total, list] = await Promise.all([
       this.prisma.conversation.count({ where }),
       this.prisma.conversation.findMany({
         where,
-        orderBy: { lastMsgTime: 'desc' },
+        orderBy,
         skip: (page - 1) * pageSize,
         take: pageSize,
         include: {
@@ -87,6 +106,8 @@ export class AdminChatService {
       }),
     ]);
 
+    const now = Date.now();
+
     return {
       list: list.map((c) => ({
         id: c.id,
@@ -94,6 +115,13 @@ export class AdminChatService {
         name: c.name,
         status: c.status,
         handlerId: c.handlerId,
+        transferReason: c.transferReason,
+        waitingSeconds: (() => {
+          const since = c.transferredAt ?? c.handlerAssignedAt;
+          return since
+            ? Math.max(0, Math.floor((now - since.getTime()) / 1000))
+            : null;
+        })(),
         lastMsgContent: c.lastMsgContent,
         lastMsgTime: c.lastMsgTime?.getTime() ?? 0,
         lastMsgSeqId: c.lastMsgSeqId,
@@ -300,6 +328,9 @@ export class AdminChatService {
         where: { id: conversationId },
         data: {
           status: CONV_STATUS.CLOSED,
+          // 释放归属：否则关掉的会话会一直挂在客服的「我的」列表里
+          handlerId: null,
+          handlerAssignedAt: null,
           lastMsgSeqId: { increment: 1 },
           lastMsgContent: `[System]: ${reason}`,
           lastMsgType: MSG_TYPE_SYSTEM,

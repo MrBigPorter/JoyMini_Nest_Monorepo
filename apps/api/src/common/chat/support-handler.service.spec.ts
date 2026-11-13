@@ -1,4 +1,5 @@
 import { SupportHandlerService, AWAITING_HUMAN } from './support-handler.service';
+import { ConversationStatus } from '@lucky/shared';
 
 // ==================================================================
 //  #98 S1：客服认领（T2-5）
@@ -45,6 +46,23 @@ describe('SupportHandlerService.claim 认领互斥（T2-5）', () => {
         data: expect.objectContaining({
           handlerId: 'admin-1',
           handlerAssignedAt: expect.any(Date),
+        }),
+      }),
+    );
+  });
+
+  it('CAS 探针②：WHERE 必须限制 status = NORMAL，已关闭的会话不能被接走', async () => {
+    const { service, prisma } = createService();
+    prisma.conversation.updateMany.mockResolvedValue({ count: 1 });
+
+    await service.claim('conv-1', 'admin-1');
+
+    // 历史数据里存在 handlerId 还是 awaiting_human 但 status 已关闭的会话；
+    // 少了这个条件，客服会接走一个已经结束的会话
+    expect(prisma.conversation.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          status: ConversationStatus.NORMAL,
         }),
       }),
     );
