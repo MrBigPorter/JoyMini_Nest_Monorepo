@@ -56,6 +56,17 @@ export class AdminChatController {
     return this.service.getConversations(query);
   }
 
+  /** POST /v1/admin/chat/conversations/:id/claim — 客服认领会话 */
+  @Post('conversations/:id/claim')
+  @HttpCode(HttpStatus.OK)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.EDITOR)
+  claimConversation(
+    @Param('id') conversationId: string,
+    @CurrentAdminId() adminId: string,
+  ) {
+    return this.service.claimConversation(conversationId, adminId);
+  }
+
   /** GET /v1/admin/chat/conversations/:id/messages — 消息历史 */
   @Get('conversations/:id/messages')
   @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.EDITOR, Role.VIEWER)

@@ -43,6 +43,8 @@
 >
 > T1-6 闭环（2026-11-13）：`claimCoupon` 的「每人限领」检查从扣库存**之前**挪到**之后**。没有新增任何锁机制，靠的是已有的**行锁**——`updateMany` 扣库存会给券模板那一行加写锁并持有到事务提交，同一张券的并发请求因此被迫排队；排队结束再 `count()`，READ COMMITTED 下新语句拿新快照，能看见前一个事务刚提交的券，超限即抛错（扣掉的库存随事务一起回滚）。没走唯一索引，因为 `perUserLimit` 是变量，索引只能表达「1」。新增 2 条测试，其中一条是**顺序探针**（`invocationCallOrder` 断言 `updateMany` 先于 `count`）——顺序调回去它立刻变红，而行为测试在 mock 下抓不到这个回归（mock 没有锁）。同时修掉 `// 悲观锁锁定券模板` 那句假注释（`findUnique` 是普通读，根本不上锁）。`tsc` 0 error，全量 324 passed（3 条已知过期断言不变）。**代价**：这个保证是隐式的，依赖「扣库存在前、且与查限领同一事务」，代码里已用注释钉死。
 >
+> T2-5 S1 完成（2026-11-13）：转人工闭环的**认领动作**落地。`SupportHandlerService.claim` 用条件 `updateMany({ where: { id, handlerId: 'awaiting_human' } })` 把「还在排队」下推到 SQL——改到 1 行=抢到，0 行=被抢走；随后才查一次库只为区分 404 / 409（结论仍由 CAS 定死，那次查询不参与判定）。`AdminChatService.claimConversation` 只做「三选一 → HTTP」翻译，自身不查库（有测试钉住）。接口 `POST /api/v1/admin/chat/conversations/:id/claim`，`VIEWER` 角色不可调用。新增迁移 `20261113080843`：三个可空列（`transfer_reason` / `transferred_at` / `first_response_at`）+ 待接入队列索引 `idx_conv_support_queue`，`Conversation` 首次有索引。**实测**：同一会话连点两次 200 → 409；8 个并发只有 1 个 200、7 个 409。单测 9 例（含 CAS 探针与「翻译层不碰库」）。**未做**：admin 待接入列表、socket 事件推送、SLA 定时回收（S2–S4）。
+>
 > T1-4 闭环（2026-11-13）：`join_chat` 补成员校验（匿名直接拒、不查库）；`send_message` 在 `$transaction` **之前**补成员校验（非成员连事务都开不起来），并把缺 `conversationId` 的错误码从 `Forbidden` 纠正为 `Invalid payload`；`createOrGetAiConversation` 改为 `findFirst` + `members: { some: { userId } }`，非成员与「会话不存在」同走 404（不泄露会话是否存在）。Socket 两侧共用 `EventsGateway.isConversationMember`；AI 侧用 Prisma 关系过滤，不重复写校验逻辑。新增 `events.gateway.spec.ts` 7 条 + `ai-memory.service.spec.ts` 3 条，均做过「拆锁 → 红、装锁 → 绿」验证。`tsc` 0 error，全量 318 passed（3 条已知过期断言不变）。**遗留**：若 App 存在「未登录游客浏览公开群」场景，`join_chat` 现在会拒绝 —— 需要公开群白名单（N-20）。
 >
 > T1-2 闭环（2026-11-12）：`peek → verify → pop`（验码失败不再毁任务）、`TOKEN_TTL_SEC=60` / `PENDING_TTL_SEC=330` 拆开、`plainToInstance + validate` 真校验并拒多余字段。新增 `ai-action-confirm.service.spec.ts`（6 例）+ `ai-customer.service.spec.ts`（8 例）；`tsc --noEmit` 0 error，全量 300 passed（`auth` / `flash-sale` 两个已知过期 suite 除外）。
@@ -66,7 +68,7 @@
 | T2-2 | 意图阈值统一为单一常量 + 融合后再过滤 | P1-20 | `intent-classifier.ts`、`intent-router.node.ts`、`orchestrator.node.ts` | ☐ |
 | T2-3 | RAG：中文分词 + Layer 2 占位符 + 向量相关性门槛 | P1-21 | `rag-retrieval.service.ts` | ☐ |
 | T2-4 | 流式白名单：只转发 `answerSynthesizer`/`orchestrator` 最终文本 | P1-22 | `ai-stream.handler.ts` | ☐ |
-| T2-5 | **转人工闭环**：admin「待接入」列表 + 订阅 `AI_TRANSFER` 通知 + 超时定时回收（现在只在用户下条消息时懒判定） | N-13 / N-14 | `admin/chat/`、`admin-next/.../customer-service/`、新增 cron | ☐ |
+| T2-5 | **转人工闭环**：admin「待接入」列表 + 订阅 `AI_TRANSFER` 通知 + 超时定时回收（现在只在用户下条消息时懒判定） | N-13 / N-14 | `admin/chat/`、`admin-next/.../customer-service/`、新增 cron | 🚧 2026-11-13 S1 完成（认领 CAS + API + 9 测试；S2 列表过滤 / S3 socket / S4 cron 待做） |
 | T2-6 | **模型兜底**：`timeout 15s + maxRetries 1`；`degradeToHuman` 落固定话术 + 置 `awaiting_human` + 发 `AI_TRANSFER` + 记 `transfer{source:fallback}`；测试用故障注入（`__CHAOS__` 前缀 + Redis 开关，生产隔离） | N-15 | `graph/llm-factory.ts`、新增 `ai-failure-handler.ts` | ✅ 2026-11-12（单测 5 例 + E2E 第 9 场景实测，全套 9/9 PASS） |
 | T2-7 | **成本限额**：按天聚合客服 token，超阈值降级转人工 + 记 `cost.guard`（复用 blog budget 写法） | N-16 | `ai-customer.service.ts`、新增 cost-guard | ☐ |
 
@@ -124,6 +126,7 @@
 | `docs/AI-joymini/95-提现冻结状态机-SDD.md` | T1-3 修复规格：单一结算出口 + 状态 CAS + 账目不变式 |
 | `docs/AI-joymini/96-OTP生产化-SDD.md` | T1-1 修复规格：fail-closed、pepper 启动校验、SmsProvider 抽象 |
 | `docs/AI-joymini/97-项目全景评估与落地清单.md` | **全景评估**：42 项能力总账、落地三档、剩余 14 项难度与顺序 |
+| `docs/AI-joymini/98-转人工闭环-SDD.md` | T2-5 修复规格：状态机 + 认领 CAS + SLA 扫描 + **G6（T1-4 把客服 join_chat 挡住了）** |
 | `tools/eval/` | 回放工具（`run-replay.sh`）与基线文件 |
 | `docs/AI-joymini/91-一条消息的旅程.html` | 调用链主干 7 框，读懂代码的地图 |
 | `docs/coding-standards.md` | 9 维度检查 |

@@ -1213,20 +1213,27 @@ model Conversation {
   lastMsgSenderId String?
 
   // 关联
-  messages     ChatMessage[]
-  members      ChatMember[]
-  threadId     String?  @unique @map("thread_id") // LangGraph 的 thread_id，接上下文用
-  aiTitle      String?  @map("ai_title") // AI 对话的标题 (用于列表页显示)
-  aiMetadata   Json?    @map("ai_metadata") // AI 对话的元数据 (用于存储上下文信息)
+  messages          ChatMessage[]
+  members           ChatMember[]
+  threadId          String?            @unique @map("thread_id") // LangGraph 的 thread_id，接上下文用
+  aiTitle           String?            @map("ai_title") // AI 对话的标题 (用于列表页显示)
+  aiMetadata        Json?              @map("ai_metadata") // AI 对话的元数据 (用于存储上下文信息)
   /// 当前处理者 ID: null=AI 处理, 'awaiting_human'=转人工待分配, 非空=人工/admin 处理中
-  handlerId         String?   @map("handler_id")
+  handlerId         String?            @map("handler_id")
   /// 处理者分配时间（用于超时判断，超过 N 分钟无回复自动切回 AI）
-  handlerAssignedAt DateTime? @map("handler_assigned_at")
-  joinRequests GroupJoinRequest[]
+  handlerAssignedAt DateTime?          @map("handler_assigned_at")
+  /// 转人工原因: explicit_request / negative_sentiment / repeated_attempts / ai_error
+  transferReason    String?            @map("transfer_reason") @db.VarChar(50)
+  /// 本轮转人工的入队时间
+  transferredAt     DateTime?          @map("transferred_at")
+  /// 客服首次回复时间（只写一次，用于算响应时长）
+  firstResponseAt   DateTime?          @map("first_response_at")
+  joinRequests      GroupJoinRequest[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
+  @@index([type, handlerId, handlerAssignedAt], map: "idx_conv_support_queue")
 }
 
 enum ConversationType {
@@ -1287,12 +1294,11 @@ model ChatMessage {
 
   // 好比"购买渠道：线上/线下" — 同一件商品不同渠道买的，标签不一样
   // role 告诉 LangGraph："这条是用户说的"还是"AI 回的"
-  role String? @default("user") // user/assistant/system/tool (用于系统消息区分)
+  role       String? @default("user") // user/assistant/system/tool (用于系统消息区分)
   // 好比"卡路里" — 减肥时才需要算，平时不看
   // tokenCount 在 AI 对话超出上下文窗口时，按 token 数裁剪最旧的消息
-  tokenCount Int? @map("token_count") // 预留：消息的 token 数量 (用于计费/统计)
-  source     String? @default("user")  // user/ai/human_agent
-
+  tokenCount Int?    @map("token_count") // 预留：消息的 token 数量 (用于计费/统计)
+  source     String? @default("user") // user/ai/human_agent
 
   // 这里的 [] 已经是“可选”含义，代表一个消息可以有 0 个或多个隐藏记录
   hiddenByUsers ChatMessageHide[]
@@ -1915,23 +1921,23 @@ model TranslationJob {
 
 /// Prompt config: stored in DB, overrides hardcoded TS AgentPromptConfig
 model KnowledgePrompt {
-  id            String @id @default(cuid()) @db.VarChar(32)
-  name          String @unique @db.VarChar(64)   // e.g. "order-agent", "wallet-agent"
-  displayName   String @db.VarChar(128)          // e.g. "Order Agent Prompt"
-  description   String? @db.VarChar(512)
-  category      String @db.VarChar(32)           // "agent" | "system" | "intent"
-  domain        String? @db.VarChar(32)          // domain if agent, null if system
+  id          String  @id @default(cuid()) @db.VarChar(32)
+  name        String  @unique @db.VarChar(64) // e.g. "order-agent", "wallet-agent"
+  displayName String  @db.VarChar(128) // e.g. "Order Agent Prompt"
+  description String? @db.VarChar(512)
+  category    String  @db.VarChar(32) // "agent" | "system" | "intent"
+  domain      String? @db.VarChar(32) // domain if agent, null if system
 
   /// TS file as fallback — if true and no DB override found, use TS defaults
   tsFallback    Boolean @default(true)
-  activeVersion Int @default(1)
+  activeVersion Int     @default(1)
 
-  status        String @default("active")         // active | inactive | draft | archived
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  status    String   @default("active") // active | inactive | draft | archived
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  versions      KnowledgePromptVersion[]
-  testRuns      KnowledgePromptTestRun[]
+  versions KnowledgePromptVersion[]
+  testRuns KnowledgePromptTestRun[]
 
   @@index([category, status])
   @@index([domain])
@@ -1940,19 +1946,19 @@ model KnowledgePrompt {
 
 /// Prompt version: auto-created on each admin edit
 model KnowledgePromptVersion {
-  id            String @id @default(cuid()) @db.VarChar(32)
-  promptId      String
-  version       Int                               // auto-increment within prompt
-  config        Json                              // FULL merged AgentPromptConfig snapshot
-  changeLog     String? @db.VarChar(512)
-  authorId      String? @db.VarChar(32)
+  id        String  @id @default(cuid()) @db.VarChar(32)
+  promptId  String
+  version   Int // auto-increment within prompt
+  config    Json // FULL merged AgentPromptConfig snapshot
+  changeLog String? @db.VarChar(512)
+  authorId  String? @db.VarChar(32)
 
   /// Aggregated metrics (updated by background job)
-  metrics       Json?                             // {avgToolSuccess, totalConversations, avgLatency, hallucinationRate}
-  isActive      Boolean @default(false)
+  metrics  Json? // {avgToolSuccess, totalConversations, avgLatency, hallucinationRate}
+  isActive Boolean @default(false)
 
-  prompt        KnowledgePrompt @relation(fields: [promptId], references: [id], onDelete: Cascade)
-  createdAt     DateTime @default(now())
+  prompt    KnowledgePrompt @relation(fields: [promptId], references: [id], onDelete: Cascade)
+  createdAt DateTime        @default(now())
 
   @@unique([promptId, version])
   @@index([promptId])
@@ -1961,19 +1967,19 @@ model KnowledgePromptVersion {
 
 /// Prompt test run: admin can manually test a prompt version
 model KnowledgePromptTestRun {
-  id              String @id @default(cuid()) @db.VarChar(32)
+  id              String   @id @default(cuid()) @db.VarChar(32)
   promptId        String
   version         Int
-  testQuery       String @db.VarChar(512)
-  expectedOutcome String? @db.Text
-  actualOutput    String? @db.Text
-  score           Float?                          // 0-100
+  testQuery       String   @db.VarChar(512)
+  expectedOutcome String?  @db.Text
+  actualOutput    String?  @db.Text
+  score           Float? // 0-100
   latencyMs       Int?
   passed          Boolean?
-  createdBy       String? @db.VarChar(32)
+  createdBy       String?  @db.VarChar(32)
   createdAt       DateTime @default(now())
 
-  prompt          KnowledgePrompt @relation(fields: [promptId], references: [id], onDelete: Cascade)
+  prompt KnowledgePrompt @relation(fields: [promptId], references: [id], onDelete: Cascade)
 
   @@index([promptId, version])
   @@map("knowledge_prompt_test_runs")
@@ -1981,23 +1987,23 @@ model KnowledgePromptTestRun {
 
 /// Evaluation log: per-conversation metrics (fire-and-forget, non-blocking)
 model KnowledgePromptEvalLog {
-  id              String @id @default(cuid()) @db.VarChar(32)
-  promptName      String @db.VarChar(64)
-  version         Int
-  sessionId       String @db.VarChar(64)
+  id         String @id @default(cuid()) @db.VarChar(32)
+  promptName String @db.VarChar(64)
+  version    Int
+  sessionId  String @db.VarChar(64)
 
   /// Auto metrics (always collected)
-  toolCallCount   Int @default(0)
-  toolFailCount   Int @default(0)
-  totalTokens     Int @default(0)
-  latencyMs       Int?
-  hallucinationFlagged Boolean @default(false)    // heuristic: tool result mentions "no data"
+  toolCallCount        Int     @default(0)
+  toolFailCount        Int     @default(0)
+  totalTokens          Int     @default(0)
+  latencyMs            Int?
+  hallucinationFlagged Boolean @default(false) // heuristic: tool result mentions "no data"
 
   /// LLM-as-Judge (nullable, sampled — future use)
-  judgeScore      Float?                          // 0-1, null if not sampled
-  judgeReason     String? @db.Text
+  judgeScore  Float? // 0-1, null if not sampled
+  judgeReason String? @db.Text
 
-  createdAt       DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@index([promptName, version])
   @@index([createdAt])

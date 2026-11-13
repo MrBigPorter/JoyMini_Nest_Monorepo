@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { Prisma, ConversationType } from '@prisma/client';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { UploadService } from '@api/common/upload/upload.service';
@@ -12,6 +17,7 @@ import {
   CloseConversationDto,
   QueryMessagesDto,
 } from './dto/admin-chat.dto';
+import { SupportHandlerService } from '@api/common/chat/support-handler.service';
 
 /** Conversation.status 枚举值 */
 const CONV_STATUS = { NORMAL: 1, CLOSED: 2 } as const;
@@ -30,6 +36,7 @@ export class AdminChatService {
     private readonly uploadService: UploadService,
     private readonly eventsGateway: EventsGateway,
     private readonly chatService: ChatService,
+    private readonly supportHandlerService: SupportHandlerService,
   ) {}
 
   // ─────────────────────────────────────────────
@@ -102,6 +109,32 @@ export class AdminChatService {
       page,
       pageSize,
     };
+  }
+
+  // ─────────────────────────────────────────────
+  // 1.1 客服认领会话（T2-5）
+  // ─────────────────────────────────────────────
+  //
+  // 只做一件事：把 service 的三种结果翻译成 HTTP 语义。
+  // 判定本身在 SupportHandlerService.claim 的那条 CAS 里，
+  // 这里不查库、不判断"能不能接"。
+
+  async claimConversation(conversationId: string, adminId: string) {
+    const result = await this.supportHandlerService.claim(
+      conversationId,
+      adminId,
+    );
+
+    if (result.status === 'not_found') {
+      throw new NotFoundException('Conversation not found');
+    }
+    if (result.status === 'conflict') {
+      throw new ConflictException(
+        'Conversation has already been claimed by another agent',
+      );
+    }
+
+    return { success: true, conversationId, handlerId: result.handlerId };
   }
 
   // ─────────────────────────────────────────────
@@ -316,8 +349,14 @@ export class AdminChatService {
   async switchHandler(conversationId: string, mode: 'ai' | 'human') {
     const data =
       mode === 'ai'
-        ? { handlerId: null as string | null, handlerAssignedAt: null as Date | null }
-        : { handlerId: 'awaiting_human' as string | null, handlerAssignedAt: new Date() };
+        ? {
+            handlerId: null as string | null,
+            handlerAssignedAt: null as Date | null,
+          }
+        : {
+            handlerId: 'awaiting_human' as string | null,
+            handlerAssignedAt: new Date(),
+          };
 
     await this.prisma.conversation.update({
       where: { id: conversationId },
