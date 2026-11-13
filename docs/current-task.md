@@ -41,7 +41,7 @@
 >
 > T1-5 闭环（2026-11-13）：`claimCoupon` 删掉「先查库存再无条件 +1」，改为 `updateMany({ where: { id, issuedQuantity: { lt: totalQuantity } } })` + `count !== 1` 抛错（`totalQuantity = -1` 不限量时不给 `WHERE` 加条件）。顺带做了一次全项目并发审计：**9 处已正确使用条件更新**（秒杀/盲盒库存 raw CAS、钱包扣减与冻结、充值回调幂等、抽奖券与奖品库存、拼团 version 乐观锁），**2 处漏掉**并已一并修复：① [order.service.ts](../apps/api/src/client/orders/order.service.ts) 同一张券可被并发两单抵扣（`findFirst(status:0)` → 无条件 `update(status:1)` 改为条件 `updateMany` + `count`）；② [lucky-draw.service.ts](../apps/api/src/common/lucky-draw/lucky-draw.service.ts) 抽奖发券超发（`issueCouponInTx` 同款问题）。新增 `coupon.service.spec.ts` 4 条，做过「去掉 `count` 判断 → 并发用例变红」验证。`tsc` 0 error，全量 322 passed（3 条已知过期断言不变）。
 >
-> **遗留 T1-6**：`claimCoupon` 的「每人限领」仍是 `count()` + `create()`，同一用户并发两个请求可突破 `perUserLimit`。不能直接加唯一索引（限领数量是变量），需要单独设计方案。
+> T1-6 闭环（2026-11-13）：`claimCoupon` 的「每人限领」检查从扣库存**之前**挪到**之后**。没有新增任何锁机制，靠的是已有的**行锁**——`updateMany` 扣库存会给券模板那一行加写锁并持有到事务提交，同一张券的并发请求因此被迫排队；排队结束再 `count()`，READ COMMITTED 下新语句拿新快照，能看见前一个事务刚提交的券，超限即抛错（扣掉的库存随事务一起回滚）。没走唯一索引，因为 `perUserLimit` 是变量，索引只能表达「1」。新增 2 条测试，其中一条是**顺序探针**（`invocationCallOrder` 断言 `updateMany` 先于 `count`）——顺序调回去它立刻变红，而行为测试在 mock 下抓不到这个回归（mock 没有锁）。同时修掉 `// 悲观锁锁定券模板` 那句假注释（`findUnique` 是普通读，根本不上锁）。`tsc` 0 error，全量 324 passed（3 条已知过期断言不变）。**代价**：这个保证是隐式的，依赖「扣库存在前、且与查限领同一事务」，代码里已用注释钉死。
 >
 > T1-4 闭环（2026-11-13）：`join_chat` 补成员校验（匿名直接拒、不查库）；`send_message` 在 `$transaction` **之前**补成员校验（非成员连事务都开不起来），并把缺 `conversationId` 的错误码从 `Forbidden` 纠正为 `Invalid payload`；`createOrGetAiConversation` 改为 `findFirst` + `members: { some: { userId } }`，非成员与「会话不存在」同走 404（不泄露会话是否存在）。Socket 两侧共用 `EventsGateway.isConversationMember`；AI 侧用 Prisma 关系过滤，不重复写校验逻辑。新增 `events.gateway.spec.ts` 7 条 + `ai-memory.service.spec.ts` 3 条，均做过「拆锁 → 红、装锁 → 绿」验证。`tsc` 0 error，全量 318 passed（3 条已知过期断言不变）。**遗留**：若 App 存在「未登录游客浏览公开群」场景，`join_chat` 现在会拒绝 —— 需要公开群白名单（N-20）。
 >
@@ -56,7 +56,7 @@
 | T1-3 | 提现冻结状态机：审核只置 PROCESSING + `settleWithdrawal` | P0-3 | `admin/finance/finance.service.ts`、`client/wallet/client-wallet.service.ts` | ✅ 2026-11-12（单测 8 例，见 [#95 §5.1](./AI-joymini/95-提现冻结状态机-SDD.md)） |
 | T1-4 | Socket 成员校验 + AI 会话 IDOR + `AI_CONFIRM` 改私有房间 | P0-1/2 | `events.gateway.ts`、`ai-memory.service.ts`、`ai-customer.service.ts` | ✅ 2026-11-13（3 处入口 + 14 条测试） |
 | T1-5 | 领券原子扣减（含全项目并发审计，顺带修优惠券重复抵扣 / 抽奖发券超发） | P0-5 | `client/coupon/coupon.service.ts`、`client/orders/order.service.ts`、`common/lucky-draw/lucky-draw.service.ts` | ✅ 2026-11-13（超卖已修，4 条测试） |
-| T1-6 | 每人限领并发：`count()` + `create()` 可被同一用户并发突破 | P0-5 余项 | `client/coupon/coupon.service.ts` | ☐ |
+| T1-6 | 每人限领并发：`count()` + `create()` 可被同一用户并发突破 | P0-5 余项 | `client/coupon/coupon.service.ts` | ✅ 2026-11-13（检查后置 + 顺序测试） |
 
 ### 🥉 T2 — AI 质量（Day 8-9）
 
@@ -108,6 +108,7 @@
 | OTP 有两个 TTL | `otp.service.ts` 300s、`ai-action-confirm.service.ts` 60s，改一个必须看另一个（T1-2 洞 2） |
 | 两个过期单测 | `auth.service.spec.ts` 断言 `github` 非法（代码已支持）、`flash-sale.service.spec.ts` 断言少一个返回字段；都是测试没跟上代码，**不是产品 bug**。跑全量会看到 2 suites / 3 tests 失败 |
 | 故障注入只在非生产 | `__CHAOS__` 前缀 + Redis `ai:chaos:fail`；跑完记得 `DEL`（脚本会自动清），生产 `NODE_ENV=production` 物理隔离 |
+| 领券限领是**隐式锁** | `claimCoupon` 的限领判断依赖「扣库存 `updateMany` 在前」——锁是那条 `UPDATE` 加的，不是代码里显式要的。顺序对调 = T1-6 复活，`coupon.service.spec.ts` 的顺序探针会红。别在这两段之间插入任何慢操作（外部 API / LLM），否则锁被长时间持有，Prisma 事务 5s 超时报 `P2028` |
 
 ---
 

@@ -74,7 +74,7 @@ export class ClientCouponService {
     expectedIssueType?: number,
   ) {
     return this.prisma.$transaction(async (tx) => {
-      // 1. 悲观锁锁定券模板 (防止高并发超卖)
+      // 1. 读取券模板（只读，不上锁；真正的锁在下面的 updateMany 产生）
       const coupon = await tx.coupon.findUnique({
         where: { id: couponId },
       });
@@ -89,17 +89,7 @@ export class ClientCouponService {
         throw new BadRequestException('Invalid claiming method');
       }
 
-      // 3. 校验用户个人限领数量
-      const userClaimedCount = await tx.userCoupon.count({
-        where: { userId, couponId },
-      });
-      if (userClaimedCount >= coupon.perUserLimit) {
-        throw new BadRequestException(
-          'You have reached the maximum claim limit',
-        );
-      }
-
-      // 4. 动态计算实例有效期
+      // 3. 动态计算实例有效期
       const now = new Date();
       let validStartAt = now;
       let validEndAt = now;
@@ -118,7 +108,7 @@ export class ClientCouponService {
         );
       }
 
-      // 5. 条件扣减库存：把「检查」和「修改」焊成同一条 SQL
+      // 4. 条件扣减库存：把「检查」和「修改」焊成同一条 SQL
       //    totalQuantity === -1 表示不限量，此时不加库存上限条件
       const claimed = await tx.coupon.updateMany({
         where: {
@@ -133,6 +123,23 @@ export class ClientCouponService {
       // 改了 0 行 = 在这一瞬间被别人抢光了
       if (claimed.count !== 1) {
         throw new BadRequestException('This coupon has been fully claimed');
+      }
+
+      // 5. 校验用户个人限领数量 —— 必须放在扣减库存【之后】
+      //
+      // 为什么不能提前：上面的 updateMany 会锁住这张券的那一行，
+      // 同一张券的并发请求必须排队等前一个提交。
+      // 排队之后再查，才能看到别人刚领走的那张券。
+      // 顺序一旦对调，并发下同一用户就会突破 perUserLimit（T1-6）。
+
+      const userClaimedCount = await tx.userCoupon.count({
+        where: { userId, couponId },
+      });
+      if (userClaimedCount >= coupon.perUserLimit) {
+        // 这里抛错会回滚整个事务，上面扣掉的库存也一起还原
+        throw new BadRequestException(
+          'You have reached the maximum claim limit',
+        );
       }
 
       return tx.userCoupon.create({

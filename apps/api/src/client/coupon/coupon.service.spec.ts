@@ -105,4 +105,43 @@ describe('ClientCouponService.claimCoupon 原子扣减（T1-5）', () => {
     const call = tx.coupon.updateMany.mock.calls[0][0];
     expect(call.where).not.toHaveProperty('issuedQuantity');
   });
+
+  // ── T1-6：每人限领的并发洞 ──
+  //
+  //  修复前：count（查已领）在 updateMany（扣库存）【之前】。
+  //          同一用户并发 N 个请求，在扣库存排队之前就都通过了限领判断，
+  //          最终一个人领走 N 张（只受库存限制）。
+  //  修复后：count 挪到 updateMany 之后。updateMany 会锁住券模板那一行，
+  //          并发请求被迫排队；排队结束后再 count，才能看到别人刚提交的券。
+
+  it('已达每人限领上限（扣完库存才查到 1 张）→ 抛错，不发券', async () => {
+    const { service, tx } = createService();
+    tx.coupon.findUnique.mockResolvedValue(activeCoupon);
+    // 关键：库存扣减成功了，但查到用户已经有 1 张（perUserLimit = 1）
+    tx.coupon.updateMany.mockResolvedValue({ count: 1 });
+    tx.userCoupon.count.mockResolvedValue(1);
+
+    await expect(service.claimCoupon('u-1', 'coupon-1')).rejects.toThrow(
+      BadRequestException,
+    );
+
+    // 库存虽然扣了，但抛错会回滚整个事务；券绝对不能发出去
+    expect(tx.userCoupon.create).not.toHaveBeenCalled();
+  });
+
+  it('必须先扣库存、后查已领（锁的顺序不能被调回去）', async () => {
+    const { service, tx } = createService();
+    tx.coupon.findUnique.mockResolvedValue(activeCoupon);
+    tx.coupon.updateMany.mockResolvedValue({ count: 1 });
+    tx.userCoupon.count.mockResolvedValue(0);
+    tx.userCoupon.create.mockResolvedValue({ id: 'uc-1' });
+
+    await service.claimCoupon('u-1', 'coupon-1');
+
+    // invocationCallOrder 是 jest 记录的全局调用序号，比大小即知先后
+    const updateOrder = tx.coupon.updateMany.mock.invocationCallOrder[0];
+    const countOrder = tx.userCoupon.count.mock.invocationCallOrder[0];
+
+    expect(updateOrder).toBeLessThan(countOrder);
+  });
 });
