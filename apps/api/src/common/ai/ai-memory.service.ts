@@ -65,14 +65,16 @@ export class AiMemoryService {
   //     → 再次点击直接复用旧会话，历史记录不断
   //   type = ConversationType.AI
   //     → Flutter 端通过 conv.type 区分 AI / 普通对话
-  async createOrGetAiConversation(
-    userId: string,
-    conversationId?: string,
-  ) {
+  async createOrGetAiConversation(userId: string, conversationId?: string) {
     // ── 指定了 conversationId → 使用已有 SUPPORT 对话 ──
     if (conversationId) {
-      const conv = await this.prisma.conversation.findUnique({
-        where: { id: conversationId },
+      const conv = await this.prisma.conversation.findFirst({
+        where: {
+          id: conversationId,
+          type: ConversationType.SUPPORT, // 关键：会话的成员里必须有当前用户
+          // 不是成员 → 查不到 → 和「会话不存在」走同一个出口
+          members: { some: { userId } },
+        },
         select: { id: true, threadId: true, type: true },
       });
       if (!conv || conv.type !== 'SUPPORT') {
@@ -130,10 +132,7 @@ export class AiMemoryService {
   //   3. 在一个事务里: 批量创建消息 + 更新对话快照
   //   4. Redis 热缓存
 
-  async saveContext(
-    threadId: string,
-    messages: BaseMessage[],
-  ): Promise<void> {
+  async saveContext(threadId: string, messages: BaseMessage[]): Promise<void> {
     // ===== 边界检查 =====
     if (!messages || messages.length === 0) {
       this.logger.warn(`saveContext: empty messages for threadId=${threadId}`);
@@ -178,11 +177,14 @@ export class AiMemoryService {
   /** LangChain role → ChatMessage.type */
   private mapRoleToChatType(role: string): number {
     switch (role) {
-      case 'ai':     return 8;   // AI 消息
-      case 'system': return 99;  // 系统消息
+      case 'ai':
+        return 8; // AI 消息
+      case 'system':
+        return 99; // 系统消息
       case 'human':
       case 'tool':
-      default:       return 0;   // 文本
+      default:
+        return 0; // 文本
     }
   }
 
@@ -199,9 +201,7 @@ export class AiMemoryService {
 
   /** 从 messages 中提取对话列表预览文本 */
   private getLastMsgPreview(messages: BaseMessage[]): string {
-    const lastAiMsg = [...messages]
-      .reverse()
-      .find((m) => m.type === 'ai');
+    const lastAiMsg = [...messages].reverse().find((m) => m.type === 'ai');
     if (lastAiMsg) {
       return this.truncateContent(this.serializeContent(lastAiMsg), 100);
     }

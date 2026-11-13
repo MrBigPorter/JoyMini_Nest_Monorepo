@@ -249,6 +249,35 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     );
   }
 
+  /**
+   * 判断「某人是不是某会话的成员」
+   *
+   * 为什么不直接写在调用处：
+   *   join_chat / send_message / AI 会话三个入口都要用它，
+   *   抽成一个方法，改逻辑只用改一处。
+   *
+   * 返回 false 的两种情况：
+   *   1. userId 为 null（匿名连接）
+   *   2. 数据库里查不到成员记录（已登录，但不是这个会话的人）
+   */
+
+  private async isConversationMember(
+    userId: string | null,
+    conversationId: string,
+  ): Promise<boolean> {
+    // 没有身份，直接判否。连数据库都不用查。
+    if (!userId) return false;
+    // conversationId_userId 是 Prisma 根据 schema 里的
+    // @@unique([conversationId, userId]) 自动生成的复合键名
+    const member = await this.prismaService.chatMember.findUnique({
+      where: { conversationId_userId: { conversationId, userId } },
+      select: { id: true }, // 只取 id：我们只关心「有没有」，不关心「是什么」
+    });
+
+    // 查到 → 是成员；查到 null → 不是
+    return member !== null;
+  }
+
   dispatchToUser(userId: string, type: string, data: unknown) {
     const privateRoom = `user_${userId}`;
     // 直接复用 dispatch 逻辑，发送到该用户的私有房间
@@ -294,6 +323,16 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
 
     const userId = getSocketUserId(client);
+
+    // ── 门禁：不是这个会话的成员，不许进 ──   // 326-333 ← 新插入
+    const isMember = await this.isConversationMember(userId, conversationId);
+    if (!isMember) {
+      this.logger.warn(
+        `[Join Chat] Access denied: User ${userId || 'unknown'} is not a member of conversation ${conversationId}`,
+      );
+      return { status: 'forbidden', conversationId };
+    }
+
     const clientId = client.id;
     const roomName = conversationId;
 
@@ -373,6 +412,26 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     if (!userId) return { error: 'Unauthorized' };
 
     const { conversationId, content, type, tempId } = payload;
+
+    // ── 输入校验：conversationId 必须存在 ──
+    // payload 的类型声明是 string，但运行时可能是 undefined，
+    // 不拦的话会带着 undefined 去查库，抛一个很难看的 Prisma 错误
+    if (!conversationId) {
+      this.logger.warn(
+        `[Send Message] Missing conversationId in payload: ${JSON.stringify(
+          payload,
+        )}`,
+      );
+      return { error: 'Invalid payload' };
+    }
+    // ── 门禁：不是这个会话的成员，不许往里写 ──
+    const isMember = await this.isConversationMember(userId, conversationId);
+    if (!isMember) {
+      this.logger.warn(
+        `[Send Message] Access denied: User ${userId} is not a member of conversation ${conversationId}`,
+      );
+      return { error: 'Forbidden' };
+    }
 
     try {
       const result = await this.prismaService.$transaction(
