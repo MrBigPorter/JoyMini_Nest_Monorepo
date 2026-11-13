@@ -455,11 +455,23 @@ export class LuckyDrawService {
         ? (coupon.validEndAt ?? new Date(now.getTime() + 365 * 86400_000))
         : new Date(now.getTime() + (coupon.validDays ?? 30) * 86400_000);
 
-    await tx.coupon.update({
-      where: { id: couponId },
+    // ③ 条件扣减：原来的 if 检查被删掉，检查下推到 SQL
+    const claimed = await tx.coupon.updateMany({
+      where: {
+        id: couponId,
+        status: 1,
+        ...(coupon.totalQuantity === -1
+          ? {}
+          : { issuedQuantity: { lt: coupon.totalQuantity } }),
+      },
       data: { issuedQuantity: { increment: 1 } },
     });
 
+    if (claimed.count !== 1) {
+      throw new Error(`Coupon ${couponId} fully claimed`);
+    }
+
+    // ④ 创建 UserCoupon 发券
     const uc = await tx.userCoupon.create({
       data: {
         userId,

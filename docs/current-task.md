@@ -39,6 +39,12 @@
 >
 > T1-3 闭环（2026-11-12）：审核只置 `PROCESSING`、回调/cron/审核失败统一走 `settleWithdrawal`（新建 `withdraw-settlement.service.ts`）、冻结扣毛额 `withdrawAmount` 而累计提现记净额 `actualAmount`、补单 cron 修掉"查询异常当成查无此单"的误判。新增单测 8 例；`tsc` 0 error，全量 308 passed。
 >
+> T1-5 闭环（2026-11-13）：`claimCoupon` 删掉「先查库存再无条件 +1」，改为 `updateMany({ where: { id, issuedQuantity: { lt: totalQuantity } } })` + `count !== 1` 抛错（`totalQuantity = -1` 不限量时不给 `WHERE` 加条件）。顺带做了一次全项目并发审计：**9 处已正确使用条件更新**（秒杀/盲盒库存 raw CAS、钱包扣减与冻结、充值回调幂等、抽奖券与奖品库存、拼团 version 乐观锁），**2 处漏掉**并已一并修复：① [order.service.ts](../apps/api/src/client/orders/order.service.ts) 同一张券可被并发两单抵扣（`findFirst(status:0)` → 无条件 `update(status:1)` 改为条件 `updateMany` + `count`）；② [lucky-draw.service.ts](../apps/api/src/common/lucky-draw/lucky-draw.service.ts) 抽奖发券超发（`issueCouponInTx` 同款问题）。新增 `coupon.service.spec.ts` 4 条，做过「去掉 `count` 判断 → 并发用例变红」验证。`tsc` 0 error，全量 322 passed（3 条已知过期断言不变）。
+>
+> **遗留 T1-6**：`claimCoupon` 的「每人限领」仍是 `count()` + `create()`，同一用户并发两个请求可突破 `perUserLimit`。不能直接加唯一索引（限领数量是变量），需要单独设计方案。
+>
+> T1-4 闭环（2026-11-13）：`join_chat` 补成员校验（匿名直接拒、不查库）；`send_message` 在 `$transaction` **之前**补成员校验（非成员连事务都开不起来），并把缺 `conversationId` 的错误码从 `Forbidden` 纠正为 `Invalid payload`；`createOrGetAiConversation` 改为 `findFirst` + `members: { some: { userId } }`，非成员与「会话不存在」同走 404（不泄露会话是否存在）。Socket 两侧共用 `EventsGateway.isConversationMember`；AI 侧用 Prisma 关系过滤，不重复写校验逻辑。新增 `events.gateway.spec.ts` 7 条 + `ai-memory.service.spec.ts` 3 条，均做过「拆锁 → 红、装锁 → 绿」验证。`tsc` 0 error，全量 318 passed（3 条已知过期断言不变）。**遗留**：若 App 存在「未登录游客浏览公开群」场景，`join_chat` 现在会拒绝 —— 需要公开群白名单（N-20）。
+>
 > T1-2 闭环（2026-11-12）：`peek → verify → pop`（验码失败不再毁任务）、`TOKEN_TTL_SEC=60` / `PENDING_TTL_SEC=330` 拆开、`plainToInstance + validate` 真校验并拒多余字段。新增 `ai-action-confirm.service.spec.ts`（6 例）+ `ai-customer.service.spec.ts`（8 例）；`tsc --noEmit` 0 error，全量 300 passed（`auth` / `flash-sale` 两个已知过期 suite 除外）。
 
 ### 🥈 T1 — 安全与资金（Day 3-8）
@@ -48,8 +54,9 @@
 | T1-1 | 生产 OTP：接短信 + 启动校验 pepper + 去明文日志 | P0-4 | `client/otp/otp.service.ts` | 🟡 2026-11-12 部分完成（供应商待接入，见 [#96 §5](./AI-joymini/96-OTP生产化-SDD.md)） |
 | T1-2 | 确认链路三洞：验码后再删 / TTL 对齐 300s / 复用 DTO 校验 | P1-7/17/18 | `ai-customer.service.ts`、`ai-action-confirm.service.ts` | ✅ 2026-11-12（单测 14 例，见 [#93 §3.1](./AI-joymini/93-确认链路三个洞-SDD.md)） |
 | T1-3 | 提现冻结状态机：审核只置 PROCESSING + `settleWithdrawal` | P0-3 | `admin/finance/finance.service.ts`、`client/wallet/client-wallet.service.ts` | ✅ 2026-11-12（单测 8 例，见 [#95 §5.1](./AI-joymini/95-提现冻结状态机-SDD.md)） |
-| T1-4 | Socket 成员校验 + AI 会话 IDOR + `AI_CONFIRM` 改私有房间 | P0-1/2 | `events.gateway.ts`、`ai-memory.service.ts`、`ai-customer.service.ts` | ☐ |
-| T1-5 | 领券原子扣减 + 唯一约束 | P0-5 | `client/coupon/coupon.service.ts`、`schema.prisma` | ☐ |
+| T1-4 | Socket 成员校验 + AI 会话 IDOR + `AI_CONFIRM` 改私有房间 | P0-1/2 | `events.gateway.ts`、`ai-memory.service.ts`、`ai-customer.service.ts` | ✅ 2026-11-13（3 处入口 + 14 条测试） |
+| T1-5 | 领券原子扣减（含全项目并发审计，顺带修优惠券重复抵扣 / 抽奖发券超发） | P0-5 | `client/coupon/coupon.service.ts`、`client/orders/order.service.ts`、`common/lucky-draw/lucky-draw.service.ts` | ✅ 2026-11-13（超卖已修，4 条测试） |
+| T1-6 | 每人限领并发：`count()` + `create()` 可被同一用户并发突破 | P0-5 余项 | `client/coupon/coupon.service.ts` | ☐ |
 
 ### 🥉 T2 — AI 质量（Day 8-9）
 
@@ -115,6 +122,7 @@
 | `docs/AI-joymini/94-意图准确率基线-T0-3.md` | 意图准确率的度量口径与首次基线 |
 | `docs/AI-joymini/95-提现冻结状态机-SDD.md` | T1-3 修复规格：单一结算出口 + 状态 CAS + 账目不变式 |
 | `docs/AI-joymini/96-OTP生产化-SDD.md` | T1-1 修复规格：fail-closed、pepper 启动校验、SmsProvider 抽象 |
+| `docs/AI-joymini/97-项目全景评估与落地清单.md` | **全景评估**：42 项能力总账、落地三档、剩余 14 项难度与顺序 |
 | `tools/eval/` | 回放工具（`run-replay.sh`）与基线文件 |
 | `docs/AI-joymini/91-一条消息的旅程.html` | 调用链主干 7 框，读懂代码的地图 |
 | `docs/coding-standards.md` | 9 维度检查 |

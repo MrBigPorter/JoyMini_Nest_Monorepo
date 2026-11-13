@@ -261,15 +261,19 @@ export class OrderService implements IOrderService {
             couponAmount = originalAmount;
           }
 
-          // 立即更新优惠券为已使用状态，并记录【真实抵扣金额】
-          await tx.userCoupon.update({
-            where: { id: couponId },
+          // 条件更新：只有「此刻仍是未使用」才标记为已使用
+          // 并发两单同时用同一张券时，第二个到这里 count = 0 → 整笔事务回滚
+          const used = await tx.userCoupon.updateMany({
+            where: { id: couponId, userId: userId, status: 0 },
             data: {
               status: 1,
               usedAt: new Date(),
               discountAmount: couponAmount,
             },
           });
+          if (used.count !== 1) {
+            throw new BadRequestException('Coupon has already been used.');
+          }
         }
 
         // Calculate remaining amount after applying the coupon

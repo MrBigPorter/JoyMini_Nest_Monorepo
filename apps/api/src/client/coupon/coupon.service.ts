@@ -89,14 +89,6 @@ export class ClientCouponService {
         throw new BadRequestException('Invalid claiming method');
       }
 
-      // 2. 校验总库存 (-1 为不限量)
-      if (
-        coupon.totalQuantity !== -1 &&
-        coupon.issuedQuantity >= coupon.totalQuantity
-      ) {
-        throw new BadRequestException('This coupon has been fully claimed');
-      }
-
       // 3. 校验用户个人限领数量
       const userClaimedCount = await tx.userCoupon.count({
         where: { userId, couponId },
@@ -126,11 +118,22 @@ export class ClientCouponService {
         );
       }
 
-      // 5. 原子扣减库存并生成记录
-      await tx.coupon.update({
-        where: { id: couponId },
+      // 5. 条件扣减库存：把「检查」和「修改」焊成同一条 SQL
+      //    totalQuantity === -1 表示不限量，此时不加库存上限条件
+      const claimed = await tx.coupon.updateMany({
+        where: {
+          id: couponId,
+          ...(coupon.totalQuantity === -1
+            ? {}
+            : { issuedQuantity: { lt: coupon.totalQuantity } }),
+        },
         data: { issuedQuantity: { increment: 1 } },
       });
+
+      // 改了 0 行 = 在这一瞬间被别人抢光了
+      if (claimed.count !== 1) {
+        throw new BadRequestException('This coupon has been fully claimed');
+      }
 
       return tx.userCoupon.create({
         data: {
