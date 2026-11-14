@@ -447,7 +447,14 @@ export class AiCustomerService {
     if (targetConvId) {
       await this.prismaService.conversation.update({
         where: { id: targetConvId },
-        data: { handlerId: 'awaiting_human', handlerAssignedAt: new Date() },
+        data: {
+          handlerId: 'awaiting_human',
+          handlerAssignedAt: new Date(),
+          // 排队起点只认 transferredAt：handlerAssignedAt 会被后续每条消息刷新，
+          // 拿它算排队时长/排序会让"刚发过消息的用户"排到队尾
+          transferredAt: new Date(),
+          transferReason: reason,
+        },
       });
 
       // 先把 AI 的告别语写进 chat_message（双通道广播），再发转人工事件：

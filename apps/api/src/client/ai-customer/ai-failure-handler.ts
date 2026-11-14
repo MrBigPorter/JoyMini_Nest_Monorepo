@@ -68,7 +68,13 @@ export async function degradeToHuman(
   try {
     await deps.prisma.conversation.update({
       where: { id: conversationId },
-      data: { handlerId: 'awaiting_human', handlerAssignedAt: new Date() },
+      data: {
+        handlerId: 'awaiting_human',
+        handlerAssignedAt: new Date(),
+        // 与 routeTransfer 对齐：排队起点/原因在这里同样落库
+        transferredAt: new Date(),
+        transferReason: 'ai_error',
+      },
     });
   } catch (e: any) {
     deps.logger.warn(`[fallback] mark awaiting_human failed: ${e?.message}`);
