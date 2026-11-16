@@ -212,6 +212,9 @@ export class MeilisearchService implements OnModuleInit {
         'keywords',
         'locale',
         'isActive',
+        // 版本切换：检索固定过滤 isActiveVersion = true；documentVersion 用于清理旧版本
+        'documentVersion',
+        'isActiveVersion',
       ]);
 
       // ── 第四步：配置排序字段（sortableAttributes）──
@@ -505,6 +508,13 @@ export class MeilisearchService implements OnModuleInit {
     contentType: string;
     locale: string;
     isActive: boolean;
+    /** 该 chunk 来自文档的哪个版本（用于清理旧版本） */
+    documentVersion?: number;
+    /**
+     * 是否为当前对外版本。检索固定过滤 isActiveVersion = true。
+     * 缺省 true：老调用点在引入版本切换前保持原行为。
+     */
+    isActiveVersion?: boolean;
   }): Promise<void> {
     // Meilisearch 连不上 → 记录 error。调用方会把它当作"这条没索引成功"。
     if (!this.client) {
@@ -533,6 +543,8 @@ export class MeilisearchService implements OnModuleInit {
           contentType: data.contentType,
           locale: data.locale,
           isActive: data.isActive,
+          documentVersion: data.documentVersion ?? 1,
+          isActiveVersion: data.isActiveVersion ?? true,
         },
       ]);
 
@@ -635,6 +647,8 @@ export class MeilisearchService implements OnModuleInit {
       contentType: string;
       locale: string;
       isActive: boolean;
+      documentVersion?: number;
+      isActiveVersion?: boolean;
     }>,
   ): Promise<void> {
     if (!this.client || chunks.length === 0) return;
@@ -655,6 +669,8 @@ export class MeilisearchService implements OnModuleInit {
         contentType: chunk.contentType,
         locale: chunk.locale,
         isActive: chunk.isActive,
+        documentVersion: chunk.documentVersion ?? 1,
+        isActiveVersion: chunk.isActiveVersion ?? true,
       }));
 
       const response = await index.addDocuments(documents);

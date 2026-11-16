@@ -1856,6 +1856,11 @@ model KnowledgeDocument {
   qualityFlags   String?         @map("quality_flags") @db.VarChar(200)
   /// 版本号（每次更新 +1）
   version        Int             @default(1) @map("version") @db.SmallInt
+  /// 当前对外服务的版本。新版本 chunk 写入后，只有 activeVersion 那一版被检索。
+  /// 与 version 的关系：version 是「最新写入」，activeVersion 是「已通过门、正在对外」。
+  activeVersion   Int             @default(1) @map("active_version") @db.SmallInt
+  /// activeVersion 的切换时间。清理任务按它算保留期（保留期 = 回滚窗口）
+  activeVersionAt DateTime?       @map("active_version_at")
   documentChunks DocumentChunk[]
 
   /// 唯一约束：同一语言的同一文档只能有一条记录

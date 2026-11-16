@@ -90,6 +90,37 @@ describe('MeilisearchService.indexChunk（缺陷 A）', () => {
     await expect(service.indexChunk(chunkData())).rejects.toThrow('meili down');
   });
 
+  it('写入版本字段：documentVersion 与 isActiveVersion 必须进索引体', async () => {
+    const addDocuments = jest.fn().mockResolvedValue({ taskUid: 7 });
+    const service = makeService({
+      index: () => ({ addDocuments }),
+      tasks: { waitForTask: jest.fn().mockResolvedValue({}) },
+    });
+
+    await service.indexChunk({
+      ...chunkData(),
+      documentVersion: 3,
+      isActiveVersion: false,
+    });
+
+    const [doc] = addDocuments.mock.calls[0][0];
+    expect(doc.documentVersion).toBe(3);
+    expect(doc.isActiveVersion).toBe(false);
+  });
+
+  it('缺省 isActiveVersion = true，保证老调用点写入的条目仍可被检索', async () => {
+    const addDocuments = jest.fn().mockResolvedValue({ taskUid: 8 });
+    const service = makeService({
+      index: () => ({ addDocuments }),
+      tasks: { waitForTask: jest.fn().mockResolvedValue({}) },
+    });
+
+    await service.indexChunk(chunkData());
+
+    const [doc] = addDocuments.mock.calls[0][0];
+    expect(doc.isActiveVersion).toBe(true);
+  });
+
   it('提交后等索引任务真正完成才返回', async () => {
     const addDocuments = jest.fn().mockResolvedValue({ taskUid: 42 });
     // waitForTask 在 client.tasks 上，不在 index 上（meilisearch@0.59）
