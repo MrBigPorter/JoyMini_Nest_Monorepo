@@ -23,6 +23,11 @@ export interface RagEmbeddingJobData {
    * - true：所有 chunk 重新生成
    */
   force?: boolean;
+  /**
+   * 本次要处理的文档版本。更新文档时新版本追加写入、旧版本保留，
+   * 只给这一版做向量化与索引。
+   */
+  targetVersion?: number;
 }
 
 /**
@@ -79,7 +84,7 @@ export class RagEmbeddingProcessor extends WorkerHost {
    * 6. BullMQ 自动从窗口撕掉这张化验单
    */
   async process(job: Job<RagEmbeddingJobData, any, string>): Promise<void> {
-    const { documentId, force } = job.data;
+    const { documentId, force, targetVersion } = job.data;
 
     this.logger.log(
       `[Job ${job.id}] Processing embedding for document ${documentId}` +
@@ -90,6 +95,7 @@ export class RagEmbeddingProcessor extends WorkerHost {
     // 这样核心逻辑可测试、可复用（比如直接调用 embedDocument 做同步处理）
     const result = await this.ragEmbeddingService.embedDocument(documentId, {
       force,
+      targetVersion,
     });
 
     this.logger.log(

@@ -503,10 +503,9 @@ export class RagSyncService {
     // 总比「PG 已经是新版、BM25 还返回旧版」好。
     await this.meilisearchService.deleteChunksByDocument(document.id);
 
-    await this.prisma.documentChunk.deleteMany({
-      where: { documentId: document.id },
-    });
-
+    // 不删旧 chunk：新版本以 documentVersion = 新版本号追加写入，旧版本原地保留。
+    // 旧版本是读请求在切换前的唯一数据来源（删了就有"查不到"窗口），
+    // 也是回滚窗口期内切回去的依据。清理由 KbVersionService 按保留期统一做。
     const chunks = await this.ragChunkService.chunkText(document.content);
 
     if (chunks.length > 0) {
@@ -545,6 +544,9 @@ export class RagSyncService {
     try {
       await this.ragEmbeddingQueue.add('embed', {
         documentId: document.id,
+        // 让 worker 知道这次要处理的是哪一版：只给这一版做向量化与索引，
+        // 完成后才能拿它去过门、切 activeVersion。
+        targetVersion: document.version,
       });
       this.logger.log(
         `Submitted embedding job for document ${document.id} (${chunks.length} chunks)`,

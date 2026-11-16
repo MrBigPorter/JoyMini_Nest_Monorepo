@@ -26,6 +26,11 @@ export interface EmbeddingOptions {
    * - true：无论是否有 embedding，全部重新生成
    */
   force?: boolean;
+  /**
+   * 只处理这个版本的 chunk。更新文档时新版本与旧版本并存，
+   * 不指定就会把旧版本也一起处理（force 时尤其浪费）。
+   */
+  targetVersion?: number;
 }
 
 // ========== Service ==========
@@ -118,17 +123,25 @@ export class RagEmbeddingService {
     // $queryRaw 只接受模板字面量标签，不接受普通字符串变量。
     //
     // 参考 intent-classifier.ts 第 149-157 行使用 $executeRawUnsafe 的模式。
+    // 指定 targetVersion 时只处理这一版：旧版本的 chunk 已经向量化过，
+    // 不能被这次更新重复处理（force=true 时尤其重要）。
+    const targetVersion = options?.targetVersion;
+    const versionClause =
+      targetVersion != null ? ` AND document_version = $2` : '';
     const sql = force
-      ? `SELECT id, chunk_index, content FROM document_chunks WHERE document_id = $1 ORDER BY chunk_index ASC`
-      : `SELECT id, chunk_index, content FROM document_chunks WHERE document_id = $1 AND embedding IS NULL ORDER BY chunk_index ASC`;
+      ? `SELECT id, chunk_index, content, document_version FROM document_chunks WHERE document_id = $1${versionClause} ORDER BY chunk_index ASC`
+      : `SELECT id, chunk_index, content, document_version FROM document_chunks WHERE document_id = $1 AND embedding IS NULL${versionClause} ORDER BY chunk_index ASC`;
+    const sqlParams: unknown[] =
+      targetVersion != null ? [documentId, targetVersion] : [documentId];
 
     const chunks = await this.prisma.$queryRawUnsafe<
       {
         id: string;
         chunk_index: number;
         content: string;
+        document_version: number;
       }[]
-    >(sql, documentId);
+    >(sql, ...sqlParams);
 
     if (chunks.length === 0) {
       this.logger.log(
@@ -186,6 +199,7 @@ export class RagEmbeddingService {
       id: c.id,
       chunkIndex: c.chunk_index,
       content: c.content,
+      documentVersion: c.document_version,
     }));
 
     // 用 p-limit 做并发控制（已存在于项目依赖中）
@@ -224,7 +238,12 @@ export class RagEmbeddingService {
    * @param document 文档元数据（用于 ES 索引）
    */
   private async embedSingleChunk(
-    chunk: { id: string; chunkIndex: number; content: string },
+    chunk: {
+      id: string;
+      chunkIndex: number;
+      content: string;
+      documentVersion: number;
+    },
     result: EmbeddingResult,
     document?: {
       id: string;
@@ -280,6 +299,10 @@ export class RagEmbeddingService {
           contentType: document.contentType,
           locale: document.locale,
           isActive: document.isActive,
+          documentVersion: chunk.documentVersion,
+          // 暂存期不可见：新版本要等 KbVersionService 过门、切换 activeVersion
+          // 之后才翻转成 true。在此之前检索只返回旧版本。
+          isActiveVersion: false,
         });
       }
 
