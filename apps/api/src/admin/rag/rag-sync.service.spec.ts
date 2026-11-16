@@ -58,9 +58,6 @@ describe('RagSyncService 更新路径改为追加（Task 4）', () => {
         .fn()
         .mockReturnValue({ passed: true, overallScore: 90, flags: [] }),
     };
-    const meilisearchService = {
-      deleteChunksByDocument: jest.fn().mockResolvedValue(undefined),
-    };
     const queue = { add: jest.fn().mockResolvedValue({ id: 'job-1' }) };
 
     const service = new RagSyncService(
@@ -69,11 +66,10 @@ describe('RagSyncService 更新路径改为追加（Task 4）', () => {
       {} as any, // ragEmbeddingService
       ragQualityService as any,
       {} as any, // uploadService
-      meilisearchService as any,
       queue as any,
     );
 
-    return { service, prisma, queue, meilisearchService };
+    return { service, prisma, queue };
   };
 
   const file = {
@@ -106,15 +102,6 @@ describe('RagSyncService 更新路径改为追加（Task 4）', () => {
     });
   });
 
-  it('仍先把该文档在 Meili 的旧条目删掉（缺陷 B 的修复不能被回退）', async () => {
-    const { service, meilisearchService } = build();
-
-    await service.uploadFile(file);
-
-    expect(meilisearchService.deleteChunksByDocument).toHaveBeenCalledWith(
-      'doc_1',
-    );
-  });
 
   it('新建文档时 activeVersion 从 0 开始，首轮激活才会真正翻标记', async () => {
     const { service, prisma } = build(null);

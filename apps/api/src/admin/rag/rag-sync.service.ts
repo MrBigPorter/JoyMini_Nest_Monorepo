@@ -6,7 +6,6 @@ import { RagChunkService } from './rag-chunk.service';
 import { RagEmbeddingService } from './rag-embedding.service';
 import { RagQualityService } from './rag-quality.service';
 import { UploadService } from '@api/common/upload/upload.service';
-import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service';
 import { AiService } from '@api/common/ai/ai.service';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { RAG_EMBEDDING_QUEUE } from './rag-embedding-queue.constants';
@@ -330,7 +329,6 @@ export class RagSyncService {
     private readonly ragEmbeddingService: RagEmbeddingService,
     private readonly ragQualityService: RagQualityService,
     private readonly uploadService: UploadService,
-    private readonly meilisearchService: MeilisearchService,
     @InjectQueue(RAG_EMBEDDING_QUEUE)
     private readonly ragEmbeddingQueue: Queue,
   ) {
@@ -499,13 +497,6 @@ export class RagSyncService {
     // 先删除旧 chunks（CASCADE 会自动清理 document_chunks 中外键关联的记录）
     // 然后使用 LangChain 的 RecursiveCharacterTextSplitter 按 Markdown 结构切分
     // 切分依据优先级：## 标题 → ### 子标题 → 段落 → 行 → 中文句号 → 字符
-    // 先把这篇文档在 Meili 里的旧条目删干净（缺陷 B）。
-    // 必须在删 PG chunk 之前做：删完之后就再也查不到旧 chunk id，定位不到该删哪些，
-    // 旧内容会永远留在 BM25 索引里和向量层打架。
-    // 这里故意不 catch：删不掉就整次更新失败，旧版本继续对外服务，
-    // 总比「PG 已经是新版、BM25 还返回旧版」好。
-    await this.meilisearchService.deleteChunksByDocument(document.id);
-
     // 不删旧 chunk：新版本以 documentVersion = 新版本号追加写入，旧版本原地保留。
     // 旧版本是读请求在切换前的唯一数据来源（删了就有"查不到"窗口），
     // 也是回滚窗口期内切回去的依据。清理由 KbVersionService 按保留期统一做。

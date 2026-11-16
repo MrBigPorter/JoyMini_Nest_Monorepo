@@ -147,16 +147,28 @@ export class RagEmbeddingProcessor extends WorkerHost {
     // 到这里说明这一版的 chunk 全部向量化并索引成功了，
     // 可以尝试把对外版本切过去。切不动不算失败——旧版本继续服务，
     // 由人工在后台处理（这与"任务重试"是两件事，不该让 BullMQ 重跑整个向量化）。
-    if (targetVersion != null) {
+    // targetVersion 缺省时回退到文档当前版本：reindex / updateContent / 分步流程
+    // 都不带这个字段，但它们同样会写出 isActiveVersion=false 的条目。
+    // 不回退激活的话，这些路径产出的内容在 BM25 层永远不可见。
+    const versionToActivate =
+      targetVersion ??
+      (
+        await this.prisma.knowledgeDocument.findUnique({
+          where: { id: documentId },
+          select: { version: true },
+        })
+      )?.version;
+
+    if (versionToActivate != null) {
       try {
         const switchResult = await this.kbVersionService.activate(
           documentId,
-          targetVersion,
+          versionToActivate,
         );
         if (!switchResult.switched) {
           this.logger.error(
             `[Job ${job.id}] version switch skipped for ${documentId} ` +
-              `v${targetVersion}: ${switchResult.reason}`,
+              `v${versionToActivate}: ${switchResult.reason}`,
           );
         }
       } catch (error) {
@@ -164,7 +176,7 @@ export class RagEmbeddingProcessor extends WorkerHost {
           error instanceof Error ? error.message : 'Unknown error';
         this.logger.error(
           `[Job ${job.id}] version switch failed for ${documentId} ` +
-            `v${targetVersion}: ${message}`,
+            `v${versionToActivate}: ${message}`,
         );
       }
     }

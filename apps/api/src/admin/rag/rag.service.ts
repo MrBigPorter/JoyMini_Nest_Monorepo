@@ -41,6 +41,9 @@ export class RagService {
         contentType: dto.contentType ?? 'policy',
         priority: dto.priority ?? 'P2',
         content: dto.content,
+        // 从 0 开始：文档在切片+向量化完成、走到 activate 之前没有任何可读版本。
+        // 若与 version 同为 1，activate 会走「already-active」，标记永远是 false。
+        activeVersion: 0,
       },
     });
   }
@@ -93,7 +96,9 @@ export class RagService {
       where: { id },
       data: {
         ...dto,
-        version: { increment: 1 },
+        // 不在这里 +1：这次只改元数据，没有重新切片。
+        // 一 +1 就会让 version 跑到 activeVersion 前面，而 chunks 还停在旧版本，
+        // 整文档兜底层（activeVersion === version）会把这个文档排除掉。
       },
     });
   }

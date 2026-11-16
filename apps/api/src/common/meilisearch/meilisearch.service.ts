@@ -518,12 +518,13 @@ export class MeilisearchService implements OnModuleInit {
      */
     isActiveVersion?: boolean;
   }): Promise<void> {
-    // Meilisearch 连不上 → 记录 error。调用方会把它当作"这条没索引成功"。
+    // Meilisearch 连不上 → 必须抛。静默返回会让调用方 successCount++、
+    // 文档被标 indexed，而 Meili 里根本没有这条内容，门就撒谎了。
     if (!this.client) {
       this.logger.error(
-        `[indexChunk] Meilisearch client unavailable; chunk ${data.chunkId} will not be searchable`,
+        `[indexChunk] Meilisearch client unavailable; chunk ${data.chunkId} not indexed`,
       );
-      return;
+      throw new Error('Meilisearch client unavailable');
     }
 
     try {
@@ -640,7 +641,8 @@ export class MeilisearchService implements OnModuleInit {
       this.logger.error(
         '[setChunkActiveFlags] Meilisearch client unavailable; version flags not switched',
       );
-      return;
+      // 必须抛：标记没翻成功却继续写 PG，会造成「库说新版、搜索还是旧版」
+      throw new Error('Meilisearch client unavailable');
     }
     if (flags.length === 0) return;
 

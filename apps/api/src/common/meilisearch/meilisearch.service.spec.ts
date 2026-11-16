@@ -83,6 +83,14 @@ describe('MeilisearchService.indexChunk（缺陷 A）', () => {
     isActive: true,
   });
 
+  it('client 不可用时抛错，不能假装索引成功', async () => {
+    const service = makeService(null);
+
+    // 静默返回会让 embedSingleChunk 记 successCount++，文档被标 indexed，
+    // 而 Meili 里什么都没有——门就撒谎了。
+    await expect(service.indexChunk(chunkData())).rejects.toThrow();
+  });
+
   it('索引失败时抛错，交给上层记失败（不能只 warn）', async () => {
     const addDocuments = jest.fn().mockRejectedValue(new Error('meili down'));
     const service = makeService({ index: () => ({ addDocuments }) });

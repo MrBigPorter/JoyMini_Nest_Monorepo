@@ -21,6 +21,7 @@ import { toResultChain } from '@lucky/shared';
  */
 export const createCouponTools = (
   couponService: ClientCouponService,
+  ctx: { userId: string },
 ): TaggedTool[] => {
   const logger = new Logger('CouponTools');
 
@@ -35,18 +36,16 @@ export const createCouponTools = (
     {
       tool: tool(
         async ({
-          userId,
           status,
           page,
           pageSize,
         }: {
-          userId: string;
           status?: number;
           page?: number;
           pageSize?: number;
         }) =>
           toResultChain(
-            couponService.getMyCoupons(userId, {
+            couponService.getMyCoupons(ctx.userId, {
               status,
               page: page ?? 1,
               pageSize: pageSize ?? 10,
@@ -101,7 +100,9 @@ export const createCouponTools = (
           logger.log(
             `[coupon-tools:claimCoupon] userId="${userId}", couponId="${couponId}"`,
           );
-          return toResultChain(couponService.claimCoupon(userId, couponId, 2))
+          return toResultChain(
+            couponService.claimCoupon(ctx.userId, couponId, 2),
+          )
             .then((result) =>
               toolSuccess({
                 userCouponId: result.id,
@@ -183,9 +184,7 @@ export const createCouponTools = (
               });
             })
             .catch((err) =>
-              toolFailure(
-                `Failed to get claimable coupons: ${err.message}`,
-              ),
+              toolFailure(`Failed to get claimable coupons: ${err.message}`),
             ),
         {
           name: 'getClaimableCoupons',

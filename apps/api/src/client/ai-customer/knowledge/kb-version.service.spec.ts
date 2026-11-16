@@ -153,7 +153,21 @@ describe('KbVersionService（Task 6）', () => {
 
     expect(result.switched).toBe(true);
     expect(result.reason).toBe('already-active');
-    expect(meilisearch.setChunkActiveFlags).not.toHaveBeenCalled();
+  });
+
+  it('已经是当前版本也要重刷标记（reindex 等「同版本重建」靠它恢复）', async () => {
+    const { service, prisma, meilisearch } = build({ activeVersion: 4 });
+
+    await service.activate('doc_1', 4);
+
+    // reindex 会删掉全部 chunk 再按同一版本号重建，此时 activeVersion 早就等于
+    // 目标版本；如果这里短路不翻标记，重建出来的条目全是 isActiveVersion=false，
+    // BM25 层会永久空掉。
+    expect(meilisearch.setChunkActiveFlags).toHaveBeenCalledWith([
+      { chunkId: 'c_old', isActiveVersion: false },
+      { chunkId: 'c_new', isActiveVersion: true },
+    ]);
+    expect(prisma.knowledgeDocument.updateMany).not.toHaveBeenCalled();
   });
 });
 

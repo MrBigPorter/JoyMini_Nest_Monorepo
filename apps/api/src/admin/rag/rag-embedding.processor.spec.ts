@@ -35,7 +35,10 @@ describe('RagEmbeddingProcessor 状态语义（N-6）', () => {
       embedDocument: jest.fn().mockResolvedValue(result),
     };
     const prisma = {
-      knowledgeDocument: { update: jest.fn().mockResolvedValue({}) },
+      knowledgeDocument: {
+        update: jest.fn().mockResolvedValue({}),
+        findUnique: jest.fn().mockResolvedValue({ version: 3 }),
+      },
     };
     const kbVersion = {
       activate: jest.fn().mockResolvedValue({ switched: true }),
@@ -116,7 +119,7 @@ describe('RagEmbeddingProcessor 状态语义（N-6）', () => {
     ).resolves.toBeUndefined();
   });
 
-  it('不带 targetVersion（老的队列任务）：不触发切换', async () => {
+  it('不带 targetVersion（reindex/updateContent 等老路径）：用文档当前版本激活', async () => {
     const { processor, kbVersion } = makeProcessor({
       successCount: 3,
       failCount: 0,
@@ -126,6 +129,8 @@ describe('RagEmbeddingProcessor 状态语义（N-6）', () => {
 
     await processor.process(makeJob());
 
-    expect(kbVersion.activate).not.toHaveBeenCalled();
+    // 这些路径照样会写出 isActiveVersion=false 的条目；不激活的话
+    // BM25 层就永久空着。回退到 document.version 是唯一安全的兜底。
+    expect(kbVersion.activate).toHaveBeenCalledWith('doc-1', 3);
   });
 });

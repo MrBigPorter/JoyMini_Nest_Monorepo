@@ -120,8 +120,26 @@ export class KbVersionService {
     });
 
     if (!doc) return { switched: false, reason: 'not-found' };
+
+    const chunks = await this.prisma.documentChunk.findMany({
+      where: { documentId },
+      select: { id: true, documentVersion: true },
+    });
+
+    /** 目标版本翻 true、其余版本翻 false */
+    const flagsFor = (activeVersion: number) =>
+      chunks.map((c) => ({
+        chunkId: c.id,
+        isActiveVersion: c.documentVersion === activeVersion,
+      }));
+
     if (doc.activeVersion === targetVersion) {
-      // 幂等：重复触发（例如任务重试）不该再翻一次标记
+      // 幂等，但仍要重刷标记：reindex / processStep 这类「按同一版本号重建」
+      // 的路径，重建出来的条目都是 isActiveVersion=false，
+      // 这里短路不翻，BM25 层就永久空了。
+      await this.meilisearchService.setChunkActiveFlags(
+        flagsFor(targetVersion),
+      );
       return { switched: true, reason: 'already-active' };
     }
 
@@ -149,18 +167,6 @@ export class KbVersionService {
       );
       return { switched: false, reason: 'chunks-not-ready' };
     }
-
-    const chunks = await this.prisma.documentChunk.findMany({
-      where: { documentId },
-      select: { id: true, documentVersion: true },
-    });
-
-    /** 目标版本翻 true、其余版本翻 false */
-    const flagsFor = (activeVersion: number) =>
-      chunks.map((c) => ({
-        chunkId: c.id,
-        isActiveVersion: c.documentVersion === activeVersion,
-      }));
 
     const previousVersion = doc.activeVersion;
 
