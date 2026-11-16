@@ -121,6 +121,27 @@ describe('MeilisearchService.indexChunk（缺陷 A）', () => {
     expect(doc.isActiveVersion).toBe(true);
   });
 
+  it('searchChunks 只返回当前对外版本的条目（Task 5）', async () => {
+    const search = jest.fn().mockResolvedValue({ hits: [] });
+    const service = makeService({ index: () => ({ search }) });
+
+    await service.searchChunks('退款多久到账');
+
+    expect(search.mock.calls[0][1].filter).toEqual(['isActiveVersion = true']);
+  });
+
+  it('searchChunks 带 domain 时版本条件与域条件同时生效', async () => {
+    const search = jest.fn().mockResolvedValue({ hits: [] });
+    const service = makeService({ index: () => ({ search }) });
+
+    await service.searchChunks('退款多久到账', 'wallet');
+
+    expect(search.mock.calls[0][1].filter).toEqual([
+      'isActiveVersion = true',
+      'domain = "wallet"',
+    ]);
+  });
+
   it('提交后等索引任务真正完成才返回', async () => {
     const addDocuments = jest.fn().mockResolvedValue({ taskUid: 42 });
     // waitForTask 在 client.tasks 上，不在 index 上（meilisearch@0.59）

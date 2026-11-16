@@ -336,7 +336,9 @@ export class MeilisearchService implements OnModuleInit {
 
       // 构建过滤条件
       // 相当于 SQL 的 WHERE 子句
-      const filterParts: string[] = ['isActive = true'];
+      // isActiveVersion 是版本切换的开关：新版本 chunk 入库时是 false，
+      // 过门切换时才翻成 true。检索只认 true 的那一版。
+      const filterParts: string[] = ['isActiveVersion = true'];
       if (domain) {
         filterParts.push(`domain = "${domain}"`);
       }

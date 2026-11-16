@@ -274,6 +274,7 @@ export class RagRetrievalService {
         JOIN knowledge_documents kd ON kd.id = dc.document_id
         WHERE dc.embedding IS NOT NULL
           AND kd.is_active = true
+          AND dc.document_version = kd.active_version
       `;
       const params: any[] = [vectorStr];
 
@@ -356,6 +357,7 @@ export class RagRetrievalService {
         JOIN knowledge_documents kd ON kd.id = dc.document_id
         WHERE (${conditions.join(' OR ')})
           AND kd.is_active = true
+          AND dc.document_version = kd.active_version
       `;
       const params: any[] = [];
 
@@ -421,7 +423,12 @@ export class RagRetrievalService {
       const where: any = { isActive: true };
       if (domain) where.domain = domain;
 
-      const docs = await this.prisma.knowledgeDocument.findMany({ where });
+      const allDocs = await this.prisma.knowledgeDocument.findMany({ where });
+
+      // 版本过滤：这一层读的是 Document.content（最新写入的正文），不是某一版的 chunk。
+      // 正在暂存新版本的文档（version > activeVersion）如果参与，就会把还没上线的
+      // 正文提前返回给用户——那正是"规则改了但用户看到的是新版/旧版对不上"的另一条路径。
+      const docs = allDocs.filter((d) => d.activeVersion === d.version);
 
       if (docs.length === 0) return [];
 
@@ -550,9 +557,7 @@ export class RagRetrievalService {
     chunks: RetrievedChunk[],
     topK: number,
   ): RetrievedChunk[] {
-    return [...chunks]
-      .sort((a, b) => b.score - a.score)
-      .slice(0, topK);
+    return [...chunks].sort((a, b) => b.score - a.score).slice(0, topK);
   }
 
   // ===========================================================================
