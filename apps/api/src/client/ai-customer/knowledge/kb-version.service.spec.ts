@@ -51,8 +51,14 @@ describe('KbVersionService（Task 6）', () => {
       deleteChunkVersionsBelow: jest.fn().mockResolvedValue(undefined),
     };
 
-    const service = new KbVersionService(prisma as any, meilisearch as any);
-    return { service, prisma, meilisearch };
+    const redis = { set: jest.fn().mockResolvedValue('OK') };
+
+    const service = new KbVersionService(
+      prisma as any,
+      meilisearch as any,
+      redis as any,
+    );
+    return { service, prisma, meilisearch, redis };
   };
 
   it('有 chunk 还没向量化 → 不切换，旧版本继续服务', async () => {
@@ -127,6 +133,17 @@ describe('KbVersionService（Task 6）', () => {
       where: { id: 'doc_1', activeVersion: 4 },
       data: { activeVersion: 3, activeVersionAt: expect.any(Date) },
     });
+  });
+
+  it('切换成功 → 记录知识库纪元（供跨版本告知）', async () => {
+    const { service, redis } = build({ total: 2, ready: 2 });
+
+    await service.activate('doc_1', 4);
+
+    expect(redis.set).toHaveBeenCalledWith(
+      'kb:version:epoch',
+      expect.any(String),
+    );
   });
 
   it('目标版本就是当前版本 → 幂等返回，不翻标记', async () => {

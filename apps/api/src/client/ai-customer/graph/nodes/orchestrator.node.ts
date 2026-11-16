@@ -190,6 +190,11 @@ export const createOrchestratorNode =
     registry: ToolRegistryService,
     ragRetrievalService?: RagRetrievalService,
     promptResolver?: PromptResolverService,
+    /**
+     * 跨版本告知：返回该用户需要被提醒的话（没有则 null）。
+     * 只有 RAG 分支会用；拿不到（Redis 故障）就当没有。
+     */
+    getKbVersionNotice?: (userId: string) => Promise<string | null>,
   ) =>
   async (state: typeof AgentState.State): Promise<OrchestratorStateUpdate> => {
     // 意图决策耗时从这里开始算（#89 FR-3：进入节点 → 决策完成）
@@ -498,10 +503,17 @@ export const createOrchestratorNode =
                 );
                 return false;
               }
+              // 跨版本告知：上一轮用的是旧版政策时，本轮先提醒一句，
+              // 避免模型跟着上下文里的旧数字自我一致。
+              const versionNotice = getKbVersionNotice
+                ? await getKbVersionNotice(state.userId ?? '').catch(() => null)
+                : null;
+
               const result = await handleRagQuery(
                 state,
                 llmConfig,
                 ragRetrievalService,
+                versionNotice,
               );
               pushDirectResult(entry.label, result, agentOutputs, debugAgents);
               return true;

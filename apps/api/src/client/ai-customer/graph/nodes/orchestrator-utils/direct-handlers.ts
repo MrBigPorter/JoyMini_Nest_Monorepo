@@ -9,7 +9,10 @@ import {
 import { extractUserInput } from '@api/client/ai-customer/graph/utils/extract-user-input';
 import { formatMessage } from '@api/client/ai-customer/graph/utils/format-message-preview';
 import { RagRetrievalService } from '@api/client/ai-customer/knowledge/rag-retrieval.service';
-import { RAG_PROMPT, RAG_FALLBACK_PROMPT } from '@api/client/ai-customer/graph/agents/prompts/rag-prompt';
+import {
+  RAG_PROMPT,
+  RAG_FALLBACK_PROMPT,
+} from '@api/client/ai-customer/graph/agents/prompts/rag-prompt';
 import { GENERAL_CHAT_PROMPT } from '@api/client/ai-customer/graph/agents/prompts/general-chat-prompt';
 import { Logger } from '@nestjs/common';
 
@@ -47,14 +50,23 @@ export async function handleRagQuery(
   state: typeof AgentState.State,
   llmConfig: LlmProviderConfig,
   ragRetrievalService: RagRetrievalService,
+  /**
+   * 跨版本告知（可选）：上一轮用的是旧版政策时，提醒模型以本次为准。
+   * 放在文档块最前面，模型会把它当作本次检索的上下文提示。
+   */
+  versionNotice?: string | null,
 ): Promise<OrchestratorStateUpdate> {
   const logger = new Logger('Orchestrator');
   const userInput = extractUserInput(state);
   const results = await ragRetrievalService.retrieve(userInput, { topK: 3 });
   if (results.length === 0) {
-    logger.log('[orchestrator] RAG: no relevant documents found, using fallback');
+    logger.log(
+      '[orchestrator] RAG: no relevant documents found, using fallback',
+    );
     const model = createLLM(llmConfig, { temperature: 0.3 });
-    const chain = RAG_FALLBACK_PROMPT.pipe(model).pipe(new StringOutputParser());
+    const chain = RAG_FALLBACK_PROMPT.pipe(model).pipe(
+      new StringOutputParser(),
+    );
     const result = await chain.invoke({ input: userInput });
     return {
       messages: [...state.messages, new AIMessage(result)],
@@ -63,8 +75,14 @@ export async function handleRagQuery(
       pendingConfirm: null,
     };
   }
-  const documents = results
-    .map((r: any) => `## ${r.title} (domain: ${r.domain}, priority: ${r.priority})\n${r.content}`)
+  const documents = [
+    versionNotice ?? null,
+    ...results.map(
+      (r: any) =>
+        `## ${r.title} (domain: ${r.domain}, priority: ${r.priority})\n${r.content}`,
+    ),
+  ]
+    .filter(Boolean)
     .join('\n\n---\n\n');
   const model = createLLM(llmConfig, { temperature: 0.3 });
   const chain = RAG_PROMPT.pipe(model).pipe(new StringOutputParser());

@@ -1,6 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service';
+import { RedisService } from '@api/common/redis/redis.service';
+import { KB_EPOCH_KEY } from './kb-version-notice';
 
 /** 切换结果。switched=false 时旧版本继续对外服务。 */
 export interface ActivateResult {
@@ -32,6 +34,9 @@ export class KbVersionService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly meilisearchService: MeilisearchService,
+    // Redis 只用于记录「知识库变过」的纪元，供跨版本告知使用。
+    // 拿不到就跳过告知，不影响切换本身，所以是可选的。
+    @Optional() private readonly redisService?: RedisService,
   ) {}
 
   /** 把对外版本切到 targetVersion（通常是刚完成向量化的最新版本） */
@@ -180,6 +185,15 @@ export class KbVersionService {
       `[kb.version.switched] doc=${documentId} ${previousVersion} -> ${targetVersion} ` +
         `chunks=${total}`,
     );
+
+    // 记录「知识库变过」：下一轮对话用它与用户上次的纪元比较，决定要不要告知。
+    // 失败只是少一次告知，不能影响已经完成的切换。
+    try {
+      await this.redisService?.set(KB_EPOCH_KEY, String(Date.now()));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.warn(`[kb.version.switched] epoch bump failed: ${message}`);
+    }
 
     return { switched: true };
   }

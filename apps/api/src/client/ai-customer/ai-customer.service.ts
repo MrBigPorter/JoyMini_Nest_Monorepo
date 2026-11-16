@@ -99,6 +99,7 @@ export class AiCustomerService {
         this.meilisearchService,
         this.ragRetrievalService,
         this.promptResolver,
+        this.redisService,
       );
     } catch (error) {
       this.logger.error('Failed to compile AiCustomer Graph', error);

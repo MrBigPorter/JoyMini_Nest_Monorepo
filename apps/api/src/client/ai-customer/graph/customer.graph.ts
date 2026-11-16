@@ -31,6 +31,8 @@ import { PrismaService } from '@api/common/prisma/prisma.service';
 import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service';
 import { RagRetrievalService } from '@api/client/ai-customer/knowledge/rag-retrieval.service';
 import { PromptResolverService } from '@api/client/ai-customer/knowledge/prompt-resolver.service';
+import { takeKbVersionNotice } from '@api/client/ai-customer/knowledge/kb-version-notice';
+import { RedisService } from '@api/common/redis/redis.service';
 
 /**
  * intentGateway — 强制走 intentRouter 重新分类
@@ -139,6 +141,7 @@ export function buildCustomerGraph(
   meilisearchService: MeilisearchService,
   ragRetrievalService?: RagRetrievalService,
   promptResolver?: PromptResolverService,
+  redisService?: RedisService,
 ) {
   const workflow = new StateGraph(AgentState)
 
@@ -159,6 +162,8 @@ export function buildCustomerGraph(
         registry,
         ragRetrievalService,
         promptResolver,
+        // 跨版本告知：知识库切换过版本时，提醒模型以最新内容为准
+        (userId) => takeKbVersionNotice(redisService, userId),
       ),
     )
 
