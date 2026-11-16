@@ -625,6 +625,43 @@ export class MeilisearchService implements OnModuleInit {
   }
 
   /**
+   * 翻转一批 chunk 的「是否当前对外版本」标记
+   *
+   * 知识库切换版本时调用：目标版本 → true，其余 → false。
+   * 用 updateDocuments 只更新 isActiveVersion 一个字段，正文不动。
+   *
+   * 为什么不用 filter 批量更新？
+   *   Meilisearch 没有「按过滤条件批量更新字段」的 API，只能给 id 列表。
+   */
+  async setChunkActiveFlags(
+    flags: Array<{ chunkId: string; isActiveVersion: boolean }>,
+  ): Promise<void> {
+    if (!this.client) {
+      this.logger.error(
+        '[setChunkActiveFlags] Meilisearch client unavailable; version flags not switched',
+      );
+      return;
+    }
+    if (flags.length === 0) return;
+
+    try {
+      const index = this.client.index(this.indexName);
+      const task = await index.updateDocuments(
+        flags.map((f) => ({
+          id: f.chunkId,
+          isActiveVersion: f.isActiveVersion,
+        })),
+      );
+      await this.client.tasks.waitForTask(task.taskUid);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`[setChunkActiveFlags] Failed: ${message}`);
+      // 必须抛：翻标记失败却继续写 PG，会造成「库说新版、搜索还是旧版」
+      throw error;
+    }
+  }
+
+  /**
    * 批量存入 chunks（一次性存多个）
    *
    * 什么时候用:

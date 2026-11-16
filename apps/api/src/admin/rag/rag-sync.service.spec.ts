@@ -25,16 +25,20 @@ import { RagSyncService } from './rag-sync.service';
  * 保留旧版本 + 新版本并存，由 activeVersion 决定读哪一份。
  */
 describe('RagSyncService 更新路径改为追加（Task 4）', () => {
-  const build = () => {
+  const build = (existingDoc: any = { id: 'doc_1', version: 2 }) => {
     const prisma = {
       knowledgeDocument: {
-        findUnique: jest.fn().mockResolvedValue({ id: 'doc_1', version: 2 }),
+        findUnique: jest.fn().mockResolvedValue(existingDoc),
         update: jest.fn().mockImplementation(async ({ data }: any) => ({
           id: 'doc_1',
           version: data?.version ?? 2,
           domain: 'wallet',
         })),
-        create: jest.fn(),
+        create: jest.fn().mockImplementation(async ({ data }: any) => ({
+          id: 'doc_new',
+          version: 1,
+          ...data,
+        })),
       },
       documentChunk: {
         deleteMany: jest.fn().mockResolvedValue({ count: 3 }),
@@ -110,5 +114,16 @@ describe('RagSyncService 更新路径改为追加（Task 4）', () => {
     expect(meilisearchService.deleteChunksByDocument).toHaveBeenCalledWith(
       'doc_1',
     );
+  });
+
+  it('新建文档时 activeVersion 从 0 开始，首轮激活才会真正翻标记', async () => {
+    const { service, prisma } = build(null);
+
+    await service.uploadFile(file);
+
+    const [createArgs] = prisma.knowledgeDocument.create.mock.calls[0];
+    // version=1 且 activeVersion=1 会让 activate 走 already-active 短路，
+    // 而那时 chunk 的 isActiveVersion 还是 false —— 文档将永远搜不到。
+    expect(createArgs.data.activeVersion).toBe(0);
   });
 });

@@ -5,6 +5,7 @@ import { RagEmbeddingProcessor } from './rag-embedding.processor';
 import { RagEmbeddingService } from './rag-embedding.service';
 import { PrismaModule } from '@api/common/prisma/prisma.module';
 import { AiModule } from '@api/common/ai/ai.module';
+import { KbVersionService } from '@api/client/ai-customer/knowledge/kb-version.service';
 
 /**
  * RagEmbeddingQueueModule — 知识库文档 Chunk 向量化队列模块
@@ -41,7 +42,7 @@ import { AiModule } from '@api/common/ai/ai.module';
     PrismaModule,
     AiModule,
   ],
-  providers: [RagEmbeddingProcessor, RagEmbeddingService],
-  exports: [BullModule],
+  providers: [RagEmbeddingProcessor, RagEmbeddingService, KbVersionService],
+  exports: [BullModule, KbVersionService],
 })
 export class RagEmbeddingQueueModule {}

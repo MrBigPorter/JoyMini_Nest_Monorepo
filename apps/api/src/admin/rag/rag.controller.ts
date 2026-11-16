@@ -37,6 +37,8 @@ import { CreateRagDocDto } from './dto/create-rag-doc.dto';
 import { UpdateRagDocDto } from './dto/update-rag-doc.dto';
 import { QueryRagDocDto } from './dto/query-rag-doc.dto';
 import { UploadRagDocDto } from './dto/upload-rag-doc.dto';
+import { RollbackVersionDto } from './dto/rollback-version.dto';
+import { KbVersionService } from '@api/client/ai-customer/knowledge/kb-version.service';
 import {
   RagDocResponseDto,
   RagDocListResponseDto,
@@ -49,6 +51,7 @@ export class RagController {
   constructor(
     private readonly ragService: RagService,
     private readonly ragSyncService: RagSyncService,
+    private readonly kbVersionService: KbVersionService,
   ) {}
 
   // ==================== CRUD ====================
@@ -220,6 +223,20 @@ export class RagController {
     return this.ragService.reindex(id);
   }
 
+  @Post(':id/rollback')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Roll back to a previous version (flags only, no re-index)',
+  })
+  @ApiParam({ name: 'id', description: 'Document ID' })
+  async rollbackVersion(
+    @Param('id') id: string,
+    @Body() dto: RollbackVersionDto,
+  ) {
+    return this.kbVersionService.rollback(id, dto.toVersion);
+  }
+
   // ==================== 分步处理 ====================
 
   @Post(':id/process/chunk')
@@ -233,7 +250,9 @@ export class RagController {
   @Post(':id/process/embed')
   @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Embed a document (chunked → embedded), submit to BullMQ' })
+  @ApiOperation({
+    summary: 'Embed a document (chunked → embedded), submit to BullMQ',
+  })
   async processEmbed(@Param('id') id: string) {
     return this.ragService.processStepEmbed(id);
   }
@@ -251,7 +270,8 @@ export class RagController {
   @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Reindex all active documents (bulk re-chunk + re-embed + sync to Meilisearch)',
+    summary:
+      'Reindex all active documents (bulk re-chunk + re-embed + sync to Meilisearch)',
   })
   async reindexAll() {
     return this.ragService.reindexAll();
@@ -292,7 +312,8 @@ export class RagController {
   @Patch(':id/content')
   @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   @ApiOperation({
-    summary: 'Update document content (after manual review), triggers re-chunk + re-embed',
+    summary:
+      'Update document content (after manual review), triggers re-chunk + re-embed',
   })
   @ApiParam({ name: 'id', description: 'Document UUID' })
   async updateContent(

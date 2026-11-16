@@ -487,7 +487,10 @@ export class RagSyncService {
       action = 'updated';
     } else {
       document = await this.prisma.knowledgeDocument.create({
-        data: { docId, locale, ...data },
+        // activeVersion 从 0 开始：新文档在向量化完成前没有任何可读版本。
+        // 如果让它和 version 同为 1，首轮 activate 会走「already-active」短路，
+        // 而这时 chunk 的 isActiveVersion 还是 false —— 文档会永远搜不到。
+        data: { docId, locale, ...data, activeVersion: 0 },
       });
       action = 'created';
     }

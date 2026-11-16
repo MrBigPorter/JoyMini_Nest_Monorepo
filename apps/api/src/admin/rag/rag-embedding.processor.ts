@@ -4,6 +4,7 @@ import { Logger } from '@nestjs/common';
 import { RagEmbeddingService } from './rag-embedding.service';
 import { RAG_EMBEDDING_QUEUE } from './rag-embedding-queue.constants';
 import { PrismaService } from '@api/common/prisma/prisma.service';
+import { KbVersionService } from '@api/client/ai-customer/knowledge/kb-version.service';
 
 /**
  * Rag Embedding Job 数据类型
@@ -67,6 +68,7 @@ export class RagEmbeddingProcessor extends WorkerHost {
   constructor(
     private readonly ragEmbeddingService: RagEmbeddingService,
     private readonly prisma: PrismaService,
+    private readonly kbVersionService: KbVersionService,
   ) {
     super();
   }
@@ -139,6 +141,32 @@ export class RagEmbeddingProcessor extends WorkerHost {
       this.logger.error(
         `[Job ${job.id}] Failed to update status to indexed: ${message}`,
       );
+    }
+
+    // ---------- 过门切换 ----------
+    // 到这里说明这一版的 chunk 全部向量化并索引成功了，
+    // 可以尝试把对外版本切过去。切不动不算失败——旧版本继续服务，
+    // 由人工在后台处理（这与"任务重试"是两件事，不该让 BullMQ 重跑整个向量化）。
+    if (targetVersion != null) {
+      try {
+        const switchResult = await this.kbVersionService.activate(
+          documentId,
+          targetVersion,
+        );
+        if (!switchResult.switched) {
+          this.logger.error(
+            `[Job ${job.id}] version switch skipped for ${documentId} ` +
+              `v${targetVersion}: ${switchResult.reason}`,
+          );
+        }
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Unknown error';
+        this.logger.error(
+          `[Job ${job.id}] version switch failed for ${documentId} ` +
+            `v${targetVersion}: ${message}`,
+        );
+      }
     }
   }
 
