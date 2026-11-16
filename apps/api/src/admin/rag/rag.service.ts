@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { PrismaService } from '@api/common/prisma/prisma.service';
@@ -262,7 +267,10 @@ export class RagService {
   /**
    * 更新文档处理状态
    */
-  private async updateStatus(documentId: string, status: string): Promise<void> {
+  private async updateStatus(
+    documentId: string,
+    status: string,
+  ): Promise<void> {
     await this.prisma.knowledgeDocument.update({
       where: { id: documentId },
       data: { processStatus: status },
@@ -281,7 +289,9 @@ export class RagService {
   /**
    * 执行切片步骤: parsed → chunked
    */
-  async processStepChunk(documentId: string): Promise<{ chunksCreated: number }> {
+  async processStepChunk(
+    documentId: string,
+  ): Promise<{ chunksCreated: number }> {
     const doc = await this.getById(documentId);
 
     // 删除旧 chunks
@@ -340,7 +350,8 @@ export class RagService {
     chunkInfo: { total: number; embedded: number; pending: number } | null;
   }> {
     const doc = await this.getById(documentId);
-    const chunkInfo = await this.ragEmbeddingService.getEmbeddingStatus(documentId);
+    const chunkInfo =
+      await this.ragEmbeddingService.getEmbeddingStatus(documentId);
     return {
       status: doc.processStatus,
       chunkInfo,
@@ -363,22 +374,16 @@ export class RagService {
    */
   private async deleteMeilisearchChunks(documentId: string): Promise<void> {
     try {
-      const oldChunks = await this.prisma.documentChunk.findMany({
-        where: { documentId },
-        select: { id: true },
-      });
-
-      if (oldChunks.length === 0) return;
-
-      for (const chunk of oldChunks) {
-        await this.meilisearchService.deleteChunk(chunk.id);
-      }
+      // 按 documentId 过滤一次删完（缺陷 B）：不再先查 PG 拿 chunk id 再逐条删。
+      // 逐条删有个隐患——如果 PG 里的 chunk 已经先被删掉，就查不到 id、一条也删不掉。
+      await this.meilisearchService.deleteChunksByDocument(documentId);
 
       this.logger.log(
-        `Deleted ${oldChunks.length} chunks from Meilisearch for document ${documentId}`,
+        `Deleted all chunks from Meilisearch for document ${documentId}`,
       );
     } catch (error) {
-      // 删除失败不抛异常，Meilisearch 不可用时跳过
+      // 删除路径不阻断主流程（与更新路径相反：更新必须保证旧条目消失，
+      // 否则会让新版向量和旧版 BM25 同时对外）。
       const message = error instanceof Error ? error.message : 'Unknown error';
       this.logger.warn(
         `Failed to delete Meilisearch chunks for document ${documentId}: ${message}`,
@@ -472,7 +477,9 @@ export class RagService {
     } catch (error) {
       // 存储失败不影响前端展示
       const message = error instanceof Error ? error.message : 'Unknown error';
-      this.logger.warn(`Failed to persist auditResult for ${documentId}: ${message}`);
+      this.logger.warn(
+        `Failed to persist auditResult for ${documentId}: ${message}`,
+      );
     }
 
     return {

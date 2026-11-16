@@ -560,6 +560,43 @@ export class MeilisearchService implements OnModuleInit {
   }
 
   /**
+   * 删除一篇文档在 Meilisearch 里的全部 chunk
+   *
+   * 为什么需要它（缺陷 B）:
+   *   更新文档时 PG 会删掉旧 chunk、再建新 chunk（新 id）。
+   *   如果 Meili 不同步删除，旧版本的条目会永久留着——BM25 层照样能命中旧内容，
+   *   而向量层已经换成新版，两层结论互相矛盾。
+   *   按 documentId 过滤一次删完，不依赖「PG 里还查不查得到旧 chunk id」。
+   *
+   * 与 deleteChunk 的区别:
+   *   deleteChunk            → 已知 chunk id，删一条
+   *   deleteChunksByDocument → 不知道 chunk id，按文档一次删完
+   *
+   * 注意: 这里失败必须抛。孤儿条目是这条路径存在的唯一理由，
+   *       静默跳过等于回到修复前的状态。
+   */
+  async deleteChunksByDocument(documentId: string): Promise<void> {
+    if (!this.client) {
+      this.logger.error(
+        `[deleteChunksByDocument] Meilisearch client unavailable; ` +
+          `orphan chunks may remain for document ${documentId}`,
+      );
+      return;
+    }
+
+    try {
+      const index = this.client.index(this.indexName);
+      await index.deleteDocuments({ filter: `documentId = "${documentId}"` });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(
+        `[deleteChunksByDocument] Failed to delete chunks of ${documentId}: ${message}`,
+      );
+      throw error;
+    }
+  }
+
+  /**
    * 批量存入 chunks（一次性存多个）
    *
    * 什么时候用:

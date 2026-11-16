@@ -6,6 +6,7 @@ import { RagChunkService } from './rag-chunk.service';
 import { RagEmbeddingService } from './rag-embedding.service';
 import { RagQualityService } from './rag-quality.service';
 import { UploadService } from '@api/common/upload/upload.service';
+import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service';
 import { AiService } from '@api/common/ai/ai.service';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { RAG_EMBEDDING_QUEUE } from './rag-embedding-queue.constants';
@@ -182,7 +183,9 @@ class PdfExtractor implements TextExtractor {
     try {
       rawContent = await this.extractWithPdfParse(file);
     } catch (err) {
-      logger.warn(`pdf-parse failed: ${err instanceof Error ? err.message : 'Unknown'}`);
+      logger.warn(
+        `pdf-parse failed: ${err instanceof Error ? err.message : 'Unknown'}`,
+      );
     }
 
     // ── 2. 优先尝试 Unstructured API（AI 解析线）──
@@ -195,11 +198,19 @@ class PdfExtractor implements TextExtractor {
           const usPlain = content.replace(/\s+/g, '').slice(0, 200);
           const match = pdfPlain === usPlain;
           logger.debug(`[COMPARE] ${file.originalname}`);
-          logger.debug(`[COMPARE] pdf-parse(${rawContent.length}chars) vs Unstructured(${content.length}chars)`);
-          logger.debug(`[COMPARE] Content match (no format): ${match ? '✅' : '❌'}`);
+          logger.debug(
+            `[COMPARE] pdf-parse(${rawContent.length}chars) vs Unstructured(${content.length}chars)`,
+          );
+          logger.debug(
+            `[COMPARE] Content match (no format): ${match ? '✅' : '❌'}`,
+          );
           if (!match) {
-            logger.debug(`[COMPARE] pdf-parse raw[0:200]: ${rawContent.slice(0, 200)}`);
-            logger.debug(`[COMPARE] Unstructured raw[0:200]: ${content.slice(0, 200)}`);
+            logger.debug(
+              `[COMPARE] pdf-parse raw[0:200]: ${rawContent.slice(0, 200)}`,
+            );
+            logger.debug(
+              `[COMPARE] Unstructured raw[0:200]: ${content.slice(0, 200)}`,
+            );
           }
         }
 
@@ -215,7 +226,7 @@ class PdfExtractor implements TextExtractor {
     }
 
     // ── 降级: pdf-parse 同时作为 content 和 rawContent ──
-    const content = rawContent ?? await this.extractWithPdfParse(file);
+    const content = rawContent ?? (await this.extractWithPdfParse(file));
 
     return {
       title,
@@ -319,14 +330,12 @@ export class RagSyncService {
     private readonly ragEmbeddingService: RagEmbeddingService,
     private readonly ragQualityService: RagQualityService,
     private readonly uploadService: UploadService,
+    private readonly meilisearchService: MeilisearchService,
     @InjectQueue(RAG_EMBEDDING_QUEUE)
     private readonly ragEmbeddingQueue: Queue,
   ) {
     // 注册提取器。新增格式只需在这里 push。
-    this.extractors = [
-      new MarkdownExtractor(),
-      new PdfExtractor(),
-    ];
+    this.extractors = [new MarkdownExtractor(), new PdfExtractor()];
   }
 
   /**
@@ -400,11 +409,15 @@ export class RagSyncService {
     if (isPdf) {
       // ── 原始文件上传到 R2 → fileUrl（PDF 预览用）──
       try {
-        const uploadResult = await this.uploadService.uploadFile(file, 'knowledge');
+        const uploadResult = await this.uploadService.uploadFile(
+          file,
+          'knowledge',
+        );
         fileUrl = uploadResult.url;
         this.logger.log(`[R2] Uploaded original file: ${uploadResult.url}`);
       } catch (r2Error) {
-        const msg = r2Error instanceof Error ? r2Error.message : 'Unknown error';
+        const msg =
+          r2Error instanceof Error ? r2Error.message : 'Unknown error';
         this.logger.warn(`[R2] Upload failed for ${file.originalname}: ${msg}`);
       }
     } else {
@@ -423,8 +436,8 @@ export class RagSyncService {
     if (!qualityResult.passed) {
       this.logger.warn(
         `[Quality] ${file.originalname}: ` +
-        `score=${qualityResult.overallScore}, ` +
-        `flags=[${qualityResult.flags.join(', ')}]`,
+          `score=${qualityResult.overallScore}, ` +
+          `flags=[${qualityResult.flags.join(', ')}]`,
       );
     }
 
@@ -444,12 +457,12 @@ export class RagSyncService {
       where: { docId_locale: { docId, locale } },
     });
 
-
     const data = {
       title: merged.title,
       domain: merged.domain,
       qualityScore: qualityResult.overallScore,
-      qualityFlags: qualityResult.flags.length > 0 ? qualityResult.flags.join(',') : null,
+      qualityFlags:
+        qualityResult.flags.length > 0 ? qualityResult.flags.join(',') : null,
       keywords: merged.keywords,
       contentType: merged.contentType,
       priority: merged.priority,
@@ -483,6 +496,13 @@ export class RagSyncService {
     // 先删除旧 chunks（CASCADE 会自动清理 document_chunks 中外键关联的记录）
     // 然后使用 LangChain 的 RecursiveCharacterTextSplitter 按 Markdown 结构切分
     // 切分依据优先级：## 标题 → ### 子标题 → 段落 → 行 → 中文句号 → 字符
+    // 先把这篇文档在 Meili 里的旧条目删干净（缺陷 B）。
+    // 必须在删 PG chunk 之前做：删完之后就再也查不到旧 chunk id，定位不到该删哪些，
+    // 旧内容会永远留在 BM25 索引里和向量层打架。
+    // 这里故意不 catch：删不掉就整次更新失败，旧版本继续对外服务，
+    // 总比「PG 已经是新版、BM25 还返回旧版」好。
+    await this.meilisearchService.deleteChunksByDocument(document.id);
+
     await this.prisma.documentChunk.deleteMany({
       where: { documentId: document.id },
     });
