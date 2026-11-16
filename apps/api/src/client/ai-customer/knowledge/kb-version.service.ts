@@ -50,6 +50,61 @@ export class KbVersionService {
     return this.switchTo(documentId, toVersion);
   }
 
+  /** 旧版本保留天数。保留期 = 回滚窗口，缩短它就等于缩短回滚能力。 */
+  private static readonly RETENTION_DAYS = 7;
+
+  /**
+   * 清理切换后已稳定超过保留期的旧版本（PG 与 Meili 两侧一起清）。
+   *
+   * 只清一侧的后果：回滚后那一层是空的。所以两侧必须成对执行。
+   * 单篇失败不中断整轮——清理是后台维护动作，不该把别的文档也拖住。
+   */
+  async purgeStaleVersions(
+    now: Date = new Date(),
+  ): Promise<{ documents: number; chunks: number }> {
+    const cutoff = new Date(
+      now.getTime() - KbVersionService.RETENTION_DAYS * 24 * 60 * 60 * 1000,
+    );
+
+    const docs = await this.prisma.knowledgeDocument.findMany({
+      where: { activeVersionAt: { lt: cutoff } },
+      select: { id: true, activeVersion: true },
+    });
+
+    let documents = 0;
+    let chunks = 0;
+
+    for (const doc of docs) {
+      try {
+        const { count } = await this.prisma.documentChunk.deleteMany({
+          where: {
+            documentId: doc.id,
+            documentVersion: { lt: doc.activeVersion },
+          },
+        });
+
+        await this.meilisearchService.deleteChunkVersionsBelow(
+          doc.id,
+          doc.activeVersion,
+        );
+
+        documents += 1;
+        chunks += count ?? 0;
+        this.logger.log(
+          `[kb.version.purged] doc=${doc.id} active=${doc.activeVersion} chunks=${count}`,
+        );
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Unknown error';
+        this.logger.error(
+          `[kb.version.purged] doc=${doc.id} failed: ${message}`,
+        );
+      }
+    }
+
+    return { documents, chunks };
+  }
+
   private async switchTo(
     documentId: string,
     targetVersion: number,

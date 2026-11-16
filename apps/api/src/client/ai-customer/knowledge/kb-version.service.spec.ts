@@ -139,3 +139,84 @@ describe('KbVersionService（Task 6）', () => {
     expect(meilisearch.setChunkActiveFlags).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * Task 7：保留期 = 回滚窗口。
+ *
+ * 旧版本 chunk 不能切完就删——回滚要用它们。只有「切换后稳定 N 天」才清，
+ * 而且 PG 与 Meili 两侧一起清（只清一侧，回滚后那一层就是空的）。
+ */
+describe('KbVersionService.purgeStaleVersions（Task 7）', () => {
+  const DAY = 24 * 60 * 60 * 1000;
+
+  const build = (opts: {
+    staleDocs: Array<{ id: string; activeVersion: number }>;
+    deleteRejects?: boolean;
+  }) => {
+    const prisma = {
+      knowledgeDocument: {
+        findMany: jest.fn().mockResolvedValue(opts.staleDocs),
+        updateMany: jest.fn(),
+      },
+      documentChunk: {
+        count: jest.fn(),
+        findMany: jest.fn(),
+        deleteMany: opts.deleteRejects
+          ? jest.fn().mockRejectedValue(new Error('db down'))
+          : jest.fn().mockResolvedValue({ count: 3 }),
+      },
+      $queryRawUnsafe: jest.fn(),
+    };
+    const meilisearch = {
+      setChunkActiveFlags: jest.fn(),
+      deleteChunkVersionsBelow:
+        opts.deleteRejects === true
+          ? jest.fn().mockResolvedValue(undefined)
+          : jest.fn().mockResolvedValue(undefined),
+      deleteChunksByDocument: jest.fn(),
+    };
+    const service = new KbVersionService(prisma as any, meilisearch as any);
+    return { service, prisma, meilisearch };
+  };
+
+  it('切换已稳定超过 7 天：两侧都清理旧版本', async () => {
+    const { service, prisma, meilisearch } = build({
+      staleDocs: [{ id: 'doc_1', activeVersion: 4 }],
+    });
+
+    const result = await service.purgeStaleVersions(new Date());
+
+    expect(prisma.knowledgeDocument.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { activeVersionAt: { lt: expect.any(Date) } },
+      }),
+    );
+    expect(prisma.documentChunk.deleteMany).toHaveBeenCalledWith({
+      where: { documentId: 'doc_1', documentVersion: { lt: 4 } },
+    });
+    expect(meilisearch.deleteChunkVersionsBelow).toHaveBeenCalledWith(
+      'doc_1',
+      4,
+    );
+    expect(result.documents).toBe(1);
+  });
+
+  it('没有到保留期的文档：什么都不做', async () => {
+    const { service, prisma, meilisearch } = build({ staleDocs: [] });
+
+    const result = await service.purgeStaleVersions(new Date());
+
+    expect(result).toEqual({ documents: 0, chunks: 0 });
+    expect(prisma.documentChunk.deleteMany).not.toHaveBeenCalled();
+    expect(meilisearch.deleteChunkVersionsBelow).not.toHaveBeenCalled();
+  });
+
+  it('清理失败不抛异常（不能因为清理把主流程带崩）', async () => {
+    const { service } = build({
+      staleDocs: [{ id: 'doc_1', activeVersion: 4 }],
+      deleteRejects: true,
+    });
+
+    await expect(service.purgeStaleVersions(new Date())).resolves.toBeDefined();
+  });
+});

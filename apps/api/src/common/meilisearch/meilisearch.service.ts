@@ -662,6 +662,32 @@ export class MeilisearchService implements OnModuleInit {
   }
 
   /**
+   * 删除一篇文档里低于指定版本的 chunk 索引
+   *
+   * 保留期结束后由 KbVersionService 调用。必须与 PG 侧的删除成对执行——
+   * 只删一侧的话，回滚后那一侧就是空的。
+   */
+  async deleteChunkVersionsBelow(
+    documentId: string,
+    version: number,
+  ): Promise<void> {
+    if (!this.client) return;
+
+    try {
+      const index = this.client.index(this.indexName);
+      const task = await index.deleteDocuments({
+        filter: `documentId = "${documentId}" AND documentVersion < ${version}`,
+      });
+      await this.client.tasks.waitForTask(task.taskUid);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.warn(
+        `[deleteChunkVersionsBelow] Failed for ${documentId} < v${version}: ${message}`,
+      );
+    }
+  }
+
+  /**
    * 批量存入 chunks（一次性存多个）
    *
    * 什么时候用:
