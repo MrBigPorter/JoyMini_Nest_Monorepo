@@ -261,18 +261,11 @@ export class RagEmbeddingService {
       // 参考 intent-classifier.ts 第 143 行同样的格式
       const vectorStr = `[${vec.join(',')}]`;
 
-      // 写入 pgvector 的 embedding 列
-      // 必须用 $executeRawUnsafe 因为 Prisma 不支持 Unsupported("vector(1024)") 类型
-      // 参考 intent-classifier.ts 第 149-157 行同样的模式
-      await this.prisma.$executeRawUnsafe(
-        `UPDATE document_chunks SET embedding = $1::vector WHERE id = $2`,
-        vectorStr,
-        chunk.id,
-      );
-
-      // ---------- 同步索引到 Meilisearch ----------
-      // 向量化成功后，将 chunk 内容同步到 Meilisearch 的 BM25 索引。
-      // Meilisearch 索引失败不会影响向量化结果（降级策略）。
+      // ---------- 先同步索引到 Meilisearch ----------
+      // 顺序很关键：embedDocument({ force: false }) 只处理 embedding IS NULL 的 chunk。
+      // 如果先写向量再写 Meili，Meili 一失败，这条 chunk 下次就不再进入处理集，
+      // 索引永久缺失。先写 Meili：失败时向量还没落库，重试会整条重做
+      // （addDocuments 按 chunkId 是幂等 upsert）。
       if (document) {
         await this.meilisearchService.indexChunk({
           chunkId: chunk.id,
@@ -289,6 +282,15 @@ export class RagEmbeddingService {
           isActive: document.isActive,
         });
       }
+
+      // 写入 pgvector 的 embedding 列
+      // 必须用 $executeRawUnsafe 因为 Prisma 不支持 Unsupported("vector(1024)") 类型
+      // 参考 intent-classifier.ts 第 149-157 行同样的模式
+      await this.prisma.$executeRawUnsafe(
+        `UPDATE document_chunks SET embedding = $1::vector WHERE id = $2`,
+        vectorStr,
+        chunk.id,
+      );
 
       result.successCount++;
     } catch (error) {

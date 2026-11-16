@@ -506,14 +506,19 @@ export class MeilisearchService implements OnModuleInit {
     locale: string;
     isActive: boolean;
   }): Promise<void> {
-    // Meilisearch 连不上 → 跳过，不影响主流程
-    if (!this.client) return;
+    // Meilisearch 连不上 → 记录 error。调用方会把它当作"这条没索引成功"。
+    if (!this.client) {
+      this.logger.error(
+        `[indexChunk] Meilisearch client unavailable; chunk ${data.chunkId} will not be searchable`,
+      );
+      return;
+    }
 
     try {
       const index = this.client.index(this.indexName);
       // Meilisearch 强制要求每个文档有个 id 字段作为主键
       // 我们用 chunkId 作为 id
-      await index.addDocuments([
+      const task = await index.addDocuments([
         {
           id: data.chunkId,
           chunkId: data.chunkId,
@@ -530,11 +535,20 @@ export class MeilisearchService implements OnModuleInit {
           isActive: data.isActive,
         },
       ]);
+
+      // addDocuments 只是把任务提交进队列，Meilisearch 异步建索引。
+      // 不等它完成就返回，等于"提交成功 ≠ 能搜到"——上层会把状态标成 indexed，
+      // 而这条内容其实还搜不出来。必须等到任务真正结束。
+      // 注意：等待任务在 client.tasks 上（meilisearch@0.59 的 Index 上没有这个方法）
+      await this.client.tasks.waitForTask(task.taskUid);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
-      this.logger.warn(
+      this.logger.error(
         `[indexChunk] Failed to index chunk ${data.chunkId}: ${message}`,
       );
+      // 必须抛：吞掉会让 chunk 记成 successCount++，文档被标 indexed，
+      // 但 Meili 里没有这条内容——状态与实际不一致。
+      throw error;
     }
   }
 

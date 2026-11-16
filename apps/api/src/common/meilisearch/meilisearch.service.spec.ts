@@ -51,3 +51,56 @@ describe('MeilisearchService.deleteChunksByDocument（缺陷 B）', () => {
     ).resolves.toBeUndefined();
   });
 });
+
+/**
+ * 缺陷 A：indexChunk 的 catch 只打 warn 不抛，失败也照样 successCount++，
+ * 于是 processStatus 被标成 indexed——但 Meili 里根本没这条内容。
+ *
+ * 另外 addDocuments 返回的是 taskUid，Meilisearch 异步建索引，
+ * 提交成功 ≠ 已经能被搜到。要真就绪必须 waitForTask。
+ */
+describe('MeilisearchService.indexChunk（缺陷 A）', () => {
+  const makeService = (client: any) => {
+    const service = new MeilisearchService({
+      get: jest.fn().mockReturnValue(undefined),
+    } as any);
+    (service as any).client = client;
+    return service;
+  };
+
+  const chunkData = () => ({
+    chunkId: 'chunk_1',
+    chunkIndex: 0,
+    content: '退款 5 个工作日到账',
+    documentId: 'doc_1',
+    title: '退款政策',
+    domain: 'wallet',
+    docId: 'refund-policy',
+    keywords: ['refund'],
+    priority: 'P0',
+    contentType: 'policy',
+    locale: 'zh',
+    isActive: true,
+  });
+
+  it('索引失败时抛错，交给上层记失败（不能只 warn）', async () => {
+    const addDocuments = jest.fn().mockRejectedValue(new Error('meili down'));
+    const service = makeService({ index: () => ({ addDocuments }) });
+
+    await expect(service.indexChunk(chunkData())).rejects.toThrow('meili down');
+  });
+
+  it('提交后等索引任务真正完成才返回', async () => {
+    const addDocuments = jest.fn().mockResolvedValue({ taskUid: 42 });
+    // waitForTask 在 client.tasks 上，不在 index 上（meilisearch@0.59）
+    const waitForTask = jest.fn().mockResolvedValue({});
+    const service = makeService({
+      index: () => ({ addDocuments }),
+      tasks: { waitForTask },
+    });
+
+    await service.indexChunk(chunkData());
+
+    expect(waitForTask).toHaveBeenCalledWith(42);
+  });
+});
