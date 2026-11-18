@@ -19,7 +19,10 @@ describe('wallet-tools 身份边界', () => {
   let kycService: { getMyKyc: jest.Mock };
   let paymentChannelService: { getClientConfig: jest.Mock };
   let otpService: { request: jest.Mock; verify: jest.Mock };
+  let prisma: { user: { findUnique: jest.Mock } };
   let tools: ReturnType<typeof createWalletTools>;
+
+  const BOUND_PHONE = '09171234567';
 
   const getTool = (name: string) => {
     const found = tools.find((t) => t.tool.name === name);
@@ -59,6 +62,11 @@ describe('wallet-tools 身份边界', () => {
       request: jest.fn().mockResolvedValue(undefined),
       verify: jest.fn().mockResolvedValue(true),
     };
+    prisma = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({ phone: BOUND_PHONE }),
+      },
+    };
 
     tools = createWalletTools(
       walletService as any,
@@ -66,6 +74,7 @@ describe('wallet-tools 身份边界', () => {
       kycService as any,
       paymentChannelService as any,
       otpService as any,
+      prisma as any,
     );
   });
 
@@ -118,30 +127,60 @@ describe('wallet-tools 身份边界', () => {
     );
   });
 
-  it('OTP 工具使用请求上下文身份，但仍校验用户提交的 phone/code', async () => {
-    await runWithContext({ userId: 'user-A' }, () =>
+  it('OTP 目标号码来自服务端绑定号码，模型伪造的 phone 被忽略', async () => {
+    const requestRaw = await runWithContext({ userId: 'user-A' }, () =>
       getTool('requestWithdrawOtp').invoke({
-        phone: '09170000000',
+        phone: '09999999999',
         userId: 'user-B',
       } as any),
     );
-    await runWithContext({ userId: 'user-A' }, () =>
+    const verifyRaw = await runWithContext({ userId: 'user-A' }, () =>
       getTool('verifyWithdrawOtp').invoke({
-        phone: '09170000000',
+        phone: '09999999999',
         code: '123456',
         userId: 'user-B',
       } as any),
     );
 
+    expect(prisma.user.findUnique).toHaveBeenCalledWith({
+      where: { id: 'user-A' },
+      select: { phone: true },
+    });
     expect(otpService.request).toHaveBeenCalledWith({
-      phone: '09170000000',
+      phone: BOUND_PHONE,
       codeType: CODE_TYPE.WITHDRAW,
     });
     expect(otpService.verify).toHaveBeenCalledWith({
-      phone: '09170000000',
+      phone: BOUND_PHONE,
       code: '123456',
       codeType: CODE_TYPE.WITHDRAW,
     });
+
+    // 响应只回显后 4 位，绝不回显完整号码
+    for (const raw of [requestRaw, verifyRaw]) {
+      expect(raw).not.toContain(BOUND_PHONE);
+      expect(raw).toContain('4567');
+    }
+  });
+
+  it('无绑定手机号时 OTP 工具 fail-closed', async () => {
+    prisma.user.findUnique.mockResolvedValue(null);
+
+    const requestRes = JSON.parse(
+      (await runWithContext({ userId: 'user-A' }, () =>
+        getTool('requestWithdrawOtp').invoke({} as any),
+      )) as string,
+    );
+    const verifyRes = JSON.parse(
+      (await runWithContext({ userId: 'user-A' }, () =>
+        getTool('verifyWithdrawOtp').invoke({ code: '123456' } as any),
+      )) as string,
+    );
+
+    expect(requestRes.ok).toBe(false);
+    expect(verifyRes.ok).toBe(false);
+    expect(otpService.request).not.toHaveBeenCalled();
+    expect(otpService.verify).not.toHaveBeenCalled();
   });
 
   it('公共提现渠道不依赖请求身份', async () => {
@@ -177,6 +216,7 @@ describe('wallet-tools 身份边界', () => {
     }
     expect(walletService.balance).not.toHaveBeenCalled();
     expect(kycService.getMyKyc).not.toHaveBeenCalled();
+    expect(prisma.user.findUnique).not.toHaveBeenCalled();
     expect(otpService.request).not.toHaveBeenCalled();
     expect(otpService.verify).not.toHaveBeenCalled();
     expect(clientWalletService.applyWithdraw).not.toHaveBeenCalled();

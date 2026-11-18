@@ -46,6 +46,31 @@ import {
   requireToolUserId,
 } from '@api/client/ai-customer/graph/tools/tool-identity';
 import { toResult, toResultChain } from '@lucky/shared';
+import { PrismaService } from '@api/common/prisma/prisma.service';
+
+/** 手机号脱敏：只保留后 4 位，绝不把完整号码回显给 LLM/用户 */
+function maskPhone(phone: string): string {
+  const digits = phone.trim();
+  if (digits.length <= 4) return '****';
+  return `****${digits.slice(-4)}`;
+}
+
+/**
+ * 从服务端用户档案读取绑定手机号。
+ * OTP 目标号码只能来自这里，模型传入的 phone 一律忽略。
+ * 查不到（用户不存在 / 未绑定）返回 null，调用方必须 fail-closed。
+ */
+async function findBoundPhone(
+  prisma: PrismaService,
+  userId: string,
+): Promise<string | null> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { phone: true },
+  });
+  const phone = user?.phone?.trim();
+  return phone ? phone : null;
+}
 
 /** getWalletBalance 返回数据 */
 interface BalanceData {
@@ -95,6 +120,7 @@ export const createWalletTools = (
   kycService: KycService,
   paymentChannelService: PaymentChannelService,
   otpService: OtpService,
+  prisma: PrismaService,
 ): TaggedTool[] => {
   const logger = new Logger('walletTools');
   return [
@@ -135,16 +161,29 @@ export const createWalletTools = (
     {
       /**
        * 请求提现 OTP 验证码
-       * 1. phone — 用户手机号（接收 OTP）
-       * 2. userId — 当前用户 ID
+       * 目标手机号由服务端根据请求上下文 userId 查询绑定号码，
+       * 模型传入的任何 phone 都被忽略（防止诱导向任意号码发码）。
        */
       tool: tool(
-        async ({ phone }: { phone: string }) => {
+        async () => {
           const userId = requireToolUserId('requestWithdrawOtp');
           if (!userId) return toolFailure(MISSING_USER_CONTEXT);
 
+          const phoneResult = await toResult(findBoundPhone(prisma, userId));
+          if (!phoneResult.success) {
+            return toolFailure(
+              `Failed to resolve bound phone: ${phoneResult.error.message}`,
+            );
+          }
+          const phone = phoneResult.data;
+          if (!phone) {
+            return toolFailure(
+              'No phone number is bound to this account. Please bind a phone number first.',
+            );
+          }
+
           logger.log(
-            `[wallet:requestWithdrawOtp] userId="${userId}", phoneProvided=true`,
+            `[wallet:requestWithdrawOtp] userId="${userId}", boundPhone=${maskPhone(phone)}`,
           );
 
           return toResultChain(
@@ -155,7 +194,7 @@ export const createWalletTools = (
           )
             .then(() =>
               toolSuccess({
-                message: `OTP sent successfully to ${phone}. Please check your phone for the verification code.`,
+                message: `OTP sent successfully to ${maskPhone(phone)}. Please check your phone for the verification code.`,
               }),
             )
             .catch((err: Error) =>
@@ -164,24 +203,39 @@ export const createWalletTools = (
         },
         {
           name: 'requestWithdrawOtp',
-          schema: z.object({
-            phone: z.string().describe('User phone number to receive SMS OTP'),
-          }),
+          schema: z.object({}),
           description:
-            'Send an OTP verification code to the user phone for withdrawal authorization. Call this after user confirms withdrawal details.',
+            'Send an OTP verification code to the phone number bound to the current user account for withdrawal authorization. Call this after user confirms withdrawal details.',
         },
       ),
       displayName: 'Sending verification code...',
       tags: ['wallet'],
     },
     {
+      /**
+       * 校验提现 OTP
+       * 手机号同样取自服务端绑定号码，模型只能提供 code。
+       */
       tool: tool(
-        async ({ phone, code }: { phone: string; code: string }) => {
+        async ({ code }: { code: string }) => {
           const userId = requireToolUserId('verifyWithdrawOtp');
           if (!userId) return toolFailure(MISSING_USER_CONTEXT);
 
+          const phoneResult = await toResult(findBoundPhone(prisma, userId));
+          if (!phoneResult.success) {
+            return toolFailure(
+              `Failed to resolve bound phone: ${phoneResult.error.message}`,
+            );
+          }
+          const phone = phoneResult.data;
+          if (!phone) {
+            return toolFailure(
+              'No phone number is bound to this account. Please bind a phone number first.',
+            );
+          }
+
           logger.log(
-            `[wallet:verifyWithdrawOtp] userId="${userId}", phoneProvided=true`,
+            `[wallet:verifyWithdrawOtp] userId="${userId}", boundPhone=${maskPhone(phone)}`,
           );
 
           return toResultChain(
@@ -194,7 +248,7 @@ export const createWalletTools = (
             .then(() =>
               toolSuccess({
                 verified: true,
-                message: `OTP verified successfully for ${phone}. You can now proceed with the withdrawal.`,
+                message: `OTP verified successfully for ${maskPhone(phone)}. You can now proceed with the withdrawal.`,
               }),
             )
             .catch((err: Error) =>
@@ -204,13 +258,10 @@ export const createWalletTools = (
         {
           name: 'verifyWithdrawOtp',
           schema: z.object({
-            phone: z
-              .string()
-              .describe('User phone number bound to the account'),
             code: z.string().describe('OTP code received via SMS, 6 digits'),
           }),
           description:
-            'Verify the OTP code sent to the user phone for withdrawal authorization. Must call after requestWithdrawOtp.',
+            'Verify the OTP code sent to the phone number bound to the current user account for withdrawal authorization. Must call after requestWithdrawOtp.',
         },
       ),
       displayName: 'Verifying your code...',
