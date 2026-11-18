@@ -225,7 +225,7 @@ LangGraph（customer.graph.ts:146-186）
 | 1 | RAG 第二层关键词 chunk 召回永久为空（[rag-retrieval.service.ts:339-403](../../apps/api/src/client/ai-customer/knowledge/rag-retrieval.service.ts#L339-L403)） | 动态 SQL 占位符从 `$2` 起，参数从 `$1` 传；异常被 catch 成 `[]` | 「你的四层召回怎么实现的？」 | 「发现过一处 off-by-one：占位符错位导致该层 fail-closed 且被静默吞掉。修复方式是把参数构造和占位符绑定成同一份列表，并加单测；同时补检索评测防止再退化。」 | 0.5-1d |
 | 2 | 图只有 2 节点，Agent 串行（[customer.graph.ts:146-186](../../apps/api/src/client/ai-customer/graph/customer.graph.ts#L146-L186)、[orchestrator.node.ts:469](../../apps/api/src/client/ai-customer/graph/nodes/orchestrator.node.ts#L469)） | 从 Supervisor 架构收敛为「单编排器 + 子 Agent 循环」，文档未同步 | 「多 Agent 怎么协作/并行？」 | 「现在是编排式 Agent 骨架：一个编排器按静态依赖顺序跑子 Agent，不是并行多 Agent。我有 supervisor 的设计，但没上，因为 3 轮工具调用内串行已经够用，先保正确性。」 | 3-5d 才可真并行 |
 | 3 | `MemorySaver` 进程内；`ai:hot` 只写不读（[customer.graph.ts:185](../../apps/api/src/client/ai-customer/graph/customer.graph.ts#L185)、[ai-memory.service.ts:152-166](../../apps/api/src/common/ai/ai-memory.service.ts#L152-L166)） | Checkpointer 未替换；长期记忆读取路径没接线 | 「服务重启后多轮上下文还在吗？」 | 「跨轮状态在进程内 MemorySaver，重启会丢；长期记忆写 Redis 但还没接读取。这是我知道的最大的状态管理缺口，方案是 Redis/PG Checkpointer + 影子双写。」 | 3-5d |
-| 4 | 工具 `userId` 由 LLM 传参查库（[order-tools.ts:28-54](../../apps/api/src/client/ai-customer/graph/tools/order-tools.ts#L28-L54)） | 工具 schema 暴露 userId，Agent 层未强制用请求上下文覆盖 | 「Prompt injection 怎么防越权？」 | 「确认卡和 OTP 很强，但工具身份曾是信任边界上的真洞：userId 来自模型参数。coupon / order / wallet / user 四个域已改为 AsyncLocalStorage 请求上下文注入，模型看不到 userId 参数；product / lucky-draw / kyc 待迁。」 | 剩余域 0.5-1d |
+| 4 | 工具 `userId` 由 LLM 传参查库（[order-tools.ts:28-54](../../apps/api/src/client/ai-customer/graph/tools/order-tools.ts#L28-L54)） | 工具 schema 暴露 userId，Agent 层未强制用请求上下文覆盖 | 「Prompt injection 怎么防越权？」 | 「确认卡和 OTP 很强，但工具身份曾是信任边界上的真洞：userId 来自模型参数。现在 7 个工具文件全部改为 AsyncLocalStorage 请求上下文注入，模型在 tool schema 里看不到 userId；无上下文时 fail-closed。」 | 已完成 |
 | 5 | 断连无 AbortSignal；同会话无单飞；多实例无 Socket Redis adapter（[ai-customer.controller.ts:169-217](../../apps/api/src/client/ai-customer/ai-customer.controller.ts#L169-L217)） | 单实例假设 + 未接 AbortController/分布式锁 | 「客户端关了页面，模型还跑吗？」「两个实例呢？」 | 「SSE 限流和原子消费是完整的，但断连不会中止模型调用，同会话快速发两条会并发跑图，Socket 也没有 Redis adapter。这三条都在 P1，我按成本排序：单飞 → abort → adapter。」 | 2-3d |
 | 6 | 无 `/metrics`、token 不落库、无配额、无 LLM 结果缓存（L2） | 只做了日志，没做指标与账本 | 「AI 的质量和成本怎么度量？」 | 「结构化日志有 traceId 和 `llm.usage`，但只能离线查日志；没有 metrics 端点、没有 token 账本、没有用户配额。我在 P1 补四黄金信号和用量表。」 | 2-3d |
 | 7 | 意图阈值三处不一致：0.7 / 0.5 / 0.7（[intent-classifier.ts:124](../../apps/api/src/client/ai-customer/graph/utils/intent-classifier.ts#L124)、[intent-router.node.ts:39](../../apps/api/src/client/ai-customer/graph/nodes/intent-router.node.ts#L39)、[orchestrator.node.ts:319](../../apps/api/src/client/ai-customer/graph/nodes/orchestrator.node.ts#L319)） | 三个模块各自定义阈值 | 「0.6 分的结果去哪了？」 | 「分类器认为过线（0.5），编排器认为不过线（0.7），最后被静默降级成闲聊。这是配置一致性问题，也是可观测性问题；修复是单点配置 + fail-loud 日志，再重跑 golden。」 | 0.5-1d |
@@ -243,7 +243,7 @@ LangGraph（customer.graph.ts:146-186）
 
 ### 6.3 还有一个「诚实但扎心」的事实
 
-[order-tools.ts:28-54](../../apps/api/src/client/ai-customer/graph/tools/order-tools.ts#L28-L54) 这类把 `userId` 暴露给 LLM 的写法，原本在 7 个工具文件里普遍存在（order / wallet / user / coupon / product / lucky-draw / kyc）。**2026-11-19 已把 coupon / order / wallet / user 四个域迁到请求上下文注入（并配伪造 userId 负向测试），剩余 product / lucky-draw / kyc 三个文件待迁。** 它不一定已经造成越权（部分 service 可能二次校验），但**在 Agent 信任边界上是明确的错误模式**。面试官如果做过 Agent 安全，一定会问。主动承认 + 说明已完成的迁移路径，是最优解。
+[order-tools.ts:28-54](../../apps/api/src/client/ai-customer/graph/tools/order-tools.ts#L28-L54) 这类把 `userId` 暴露给 LLM 的写法，原本在 7 个工具文件里普遍存在（order / wallet / user / coupon / product / lucky-draw / kyc）。**2026-11-19 已完成全部 7 个工具文件的迁移：userId 改由请求上下文注入，tool schema 不再暴露该参数，并配伪造 userId 负向测试。** 这曾是 Agent 信任边界上明确的错误模式；现在面试官如果追问，可以直接指代码和测试。
 
 ---
 
@@ -255,7 +255,7 @@ LangGraph（customer.graph.ts:146-186）
 |---|:--:|---|---|
 | `kb-hot-swap`（不在 openspec） | — | 8 个 commit 已实现（版本激活/回滚/清理/续话） | 代码领先文档 |
 | `admin-frontend-closure` | 0/18 | `useMutation` 全仓 0 处 | 文档与代码都未开始 |
-| `agent-trust-boundary` | 0/28 | `userId` 仍在 3 个工具文件（product / lucky-draw / kyc）；coupon / order / wallet / user 已迁；无能力标记/流白名单 | 部分完成 |
+| `agent-trust-boundary` | 0/28 | `userId` 已从 7 个工具文件全部移除（请求上下文注入）；剩余能力标记/流白名单未做 | 部分完成 |
 | `ai-quality-loop` | 0/22 | golden 仍 63 题；无反馈表/标注页 | 未开始 |
 | `reliable-ai-runtime` | 0/23 | 仍 MemorySaver；无 Redis adapter/Abort | 未开始 |
 | `intent-classification-baseline` | 0/28 | 已有 63 题 baseline | 代码领先文档 |
@@ -308,8 +308,8 @@ LangGraph（customer.graph.ts:146-186）
 |:--:|---|---:|---|---|
 | P0-1 | 修 `keywordSearchChunks` 占位符 + 单测 | 0.5-1d | Layer2 非空率 >90%；单测覆盖 1/2/3 token 与 domain 分支 | 「定位并修复 SQL off-by-one + fail-closed」 |
 | P0-2 | 统一意图阈值 + fail-loud | 0.5-1d | 0.5-0.7 band 静默降级数 = 0；63 题 accuracy 不下降 | 配置一致性、可解释决策 |
-| P0-3 | 工具身份服务端注入（order/wallet/user 三域） | 1-2d | 伪造 userId 负向用例全部拒绝；工具签名不再暴露 userId | 信任边界、OWASP LLM Top10 |
-| — | **进展（2026-11-19）**：coupon / order / wallet / user 已完成上下文注入并配负向测试；剩余 product / lucky-draw / kyc | — | — | — |
+| P0-3 | 工具身份服务端注入（全部 7 个工具域） | 1-2d | 伪造 userId 负向用例全部拒绝；工具签名不再暴露 userId | 信任边界、OWASP LLM Top10 |
+| — | **进展（2026-11-19）**：coupon / order / wallet / user / product / lucky-draw / kyc 全部完成上下文注入并配负向测试 | — | — | — |
 | P0-4 | CI 收紧 | 0.5d | API lint 入闸；API 单测阻断；故意回归 PR 必红 | 质量门禁有红绿证据 |
 | P0-5 | RAG 检索评测集（30-50 题） | 1.5d | 产出 HitRate@3 / MRR / Layer2 非空率基线 | 「RAG 我评过」的核心数字 |
 | P0-6 | SSE AbortSignal + 心跳 + owner 校验前移 | 1d | 断连后 `llm.usage` 不再增长；15s ping；他人 streamId 无法被消费 | 成本与资源治理 |
@@ -521,6 +521,7 @@ P1-5 先影子，观察 1 周再切
 | 2026-11-19 | 首版：三路代码扫描 + 主线抽验；双口径打分；8 周路线 |
 | 2026-11-19 | 修复 coupon 工具身份边界：userId 改由 AsyncLocalStorage 请求上下文注入；补齐 trace-context / 工具 / 流式边界单测 |
 | 2026-11-19 | 迁移 order / wallet / user 三域工具身份；新增 `tool-identity.ts` 统一 fail-closed 逻辑与 17 个负向/正向用例 |
+| 2026-11-19 | 迁移 product / lucky-draw / kyc 三域；全部 7 个工具文件不再向 LLM 暴露 userId |
 
 ---
 
