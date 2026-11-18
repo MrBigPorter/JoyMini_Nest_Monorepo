@@ -19,15 +19,17 @@
 | 口径 | 分数 | 含义 |
 |---|---:|---|
 | **自评口径**（#86 / #85 / #97） | **56-60** | 按「能力是否存在」计分，部分能力按设计文档计入 |
-| **证据口径**（本报告） | **46** | 只计可运行、可复现、有测试或指标支撑的部分 |
+| **证据口径（基线）** | **46** | 2026-11-19 修复前的代码证据分 |
+| **证据口径（当前）** | **51** | 完成 3 组 P0 + 单飞/认证/CI/HNSW 后，按同一 rubric 重算 |
 | **8 周后目标（证据口径）** | **58-64** | 对应自评口径约 **70-72** |
-| **面试进面线** | 65（自评口径） | 结论：**够用，但必须先修 5 个洞 + 产出 4 组数字** |
+| **面试进面线** | 65（自评口径） | 结论：**已经可以拿出去，但要带着「已知差距」讲** |
 
-> 为什么两个口径差约 10 分：自评把「设计过但没接线」算进去了。典型四项：
+> 基线时两个口径差约 10 分：自评把「设计过但没接线」算进去了。典型四项：
 > RAG 四层按四层计（实际一层是坏的）、多 Agent 按文档计（实际串行）、长期记忆按 saveContext 计（实际只写不读）、可观测按日志计（实际无指标端点）。逐项分解见 §7.3。
+> 修复后差距缩小到约 5-9 分，剩余主要来自「长期记忆/多实例/检索评测/指标」。
 > **面试时用证据口径，主动说出差距**，比被问穿更可信。
 
-**截至 2026-11-19 的进展**：已完成 P0-1（RAG Layer2 占位符）、P0-2（意图阈值统一）、P0-3（7 个工具文件身份注入）、P0-6（共享层取消信号管道；SSE 已废弃，不接生产）。剩余：P0-4 CI 收紧、P0-5 RAG 检索评测、P0-7 HNSW/队列重试，以及 Socket 单飞（P1-1）。
+**截至 2026-11-19 的进展**：已完成 P0-1（RAG Layer2）、P0-2（意图阈值）、P0-3（7 个工具文件身份注入）、P0-4（CI 硬门禁）、P0-6（取消信号管道）、P0-7（HNSW + 队列重试），以及 P1-1（Socket 同会话单飞）、P1-9（OTP 手机号绑定）、P1-10（确认 token 原子鉴权）。63 题意图回放 **68.2% / macro-F1 68.6%**，与基线一致。剩余主要项：P0-5 RAG 检索评测、P1-2 Redis Socket adapter、P1-3 `/metrics` 与 token 账本、P1-5 记忆持久化。
 
 ### 0.2 与淘宝 / 京东的关系
 
@@ -45,7 +47,7 @@
 1. 全链路跑得通：意图 → 多意图编排 → 35 个业务工具 → 两阶段确认 → 转人工 → 知识库版本切换。
 2. 真正强的是：写操作安全、转人工闭环、KB 版本化、传输层限流与结构化日志。
 3. 真正弱的是：Agent 编排是串行、重启失忆、多实例失真、没有指标端点；RAG Layer2 与工具身份已在 2026-11-19 修复。
-4. 已完成 3 个 P0；下一步是 RAG 检索评测、CI 收紧、Socket 单飞，再拿出去投。
+4. 已完成 7 个 P0 + 3 个 P1；下一步是 RAG 检索评测、指标端点与记忆持久化，再拿出去投。
 
 ---
 
@@ -126,20 +128,20 @@ LangGraph（customer.graph.ts:146-186）
 
 | # | 维度 | 权重 | 分数 | 判定 | 关键证据 | 一句话风险 |
 |:--:|---|---:|---:|:--:|---|---|
-| A | 意图理解与路由 | 12 | **55** | 原型 | 63 条 golden，accuracy 68.25%、macro-F1 0.6864（[baseline.json](../../tools/eval/baseline.json)）；阈值 0.7 / 0.5 / 0.7 三处不一致 | 0.5-0.7 的结果被静默降级为闲聊，决策不可解释 |
-| B | RAG 与引用 | 15 | **30** | 缺失 | Layer2 SQL 占位符错位，永久抛错返回空（[rag-retrieval.service.ts:339-403](../../apps/api/src/client/ai-customer/knowledge/rag-retrieval.service.ts#L339-L403)）；无结构化引用回填、无检索评测、embedding 无 HNSW | 「四层召回」实际三层可用；RAG 质量没有数字 |
+| A | 意图理解与路由 | 12 | **60** | 及格 | 63 条 golden，2026-11-19 回放 accuracy 68.2%、macro-F1 68.6%；阈值已统一到 `intent-thresholds.ts`，0.5-0.7 降级有 warn | 准确率仍低于理想线，需继续调融合/例句 |
+| B | RAG 与引用 | 15 | **45** | 原型 | Layer2 占位符已修 + 回归测试（[rag-retrieval.service.ts:339-403](../../apps/api/src/client/ai-customer/knowledge/rag-retrieval.service.ts#L339-L403)）；HNSW 索引已加；仍无结构化引用回填、无检索评测 | 「四层」现在可用，但 RAG 质量仍没有 HitRate/MRR |
 | C | Agent 规划与编排 | 12 | **40** | 原型 | 2 节点图；串行 for；`MAX_ITERATIONS=3`（[constants.ts:6](../../apps/api/src/client/ai-customer/graph/constants.ts#L6)）；无 supervisor/reroute | 无法支撑「多 Agent 协作」叙事 |
-| D | 工具权限与注入防护 | 12 | **62** | 及格 | 35 个工具；5 个写工具执行前截停 + 60s 一次性 token + OTP 原子核销；但 `userId` 由 LLM 传参查库（[order-tools.ts:28-54](../../apps/api/src/client/ai-customer/graph/tools/order-tools.ts#L28-L54)） | 模型被诱导传他人 userId 即可越权 |
+| D | 工具权限与注入防护 | 12 | **70** | 及格 | 35 个工具；7 个文件身份改为请求上下文注入；写工具双闸门 + OTP；确认 token 改为 Lua 先鉴权后删除 | 仍缺能力标记/输入注入检测 |
 | E | 会话状态与记忆 | 10 | **25** | 缺失 | `MemorySaver`（[customer.graph.ts:185](../../apps/api/src/client/ai-customer/graph/customer.graph.ts#L185)）；`ai:hot:` 只有写没有读（[ai-memory.service.ts:152-166](../../apps/api/src/common/ai/ai-memory.service.ts#L152-L166)） | 重启失忆、多副本不一致 |
 | F | 人机协同 | 10 | **78** | 及格 | 关键词/情绪/重复触发、`awaiting_human`、CAS 认领、10 分钟懒回收、故障静态兜底 | 无排队 SLA、无坐席助手、无质检 |
-| G | 实时与并发 | 8 | **55** | 原型 | SSE 两阶段 + Redis Lua 原子消费 + 五层限流 + 熔断；已铺好可选取消信号管道；无同会话单飞、无 Socket Redis adapter | 同会话并发无保护；SSE 死路径仍有 owner/consume 竞态；多实例广播失真 |
+| G | 实时与并发 | 8 | **62** | 及格 | SSE 两阶段 + 五层限流 + 熔断；Socket 同会话单飞（进程内队列 + Redis 锁）；可选取消信号管道 | 多实例仍缺 Socket Redis adapter；SSE 死路径 owner/consume 竞态未修 |
 | H | 可观测与成本 | 8 | **30** | 缺失 | 单行 JSON 日志 + traceId + `llm.usage`；无 `/metrics`、无 token 落库、无用户配额、无 LLM 结果缓存 | 质量和成本无法度量 |
-| I | 质量工程与 CI | 8 | **40** | 原型 | 39 个 spec；63 题 golden；但 CI 排除 API lint、其余包测试 `continue-on-error`（[ci.yml:98-115](../../.github/workflows/ci.yml#L98-L115)） | 回归不会被拦住 |
+| I | 质量工程与 CI | 8 | **55** | 原型 | 47 个 spec / 452 tests 全绿；API lint 0 error；CI 已把 API lint + 单测转硬门禁（[ci.yml:98-121](../../.github/workflows/ci.yml#L98-L121)） | 仍无 AI e2e 门禁；覆盖率未统计 |
 | J | 文档与可复现 | 5 | **45** | 原型 | 文档量大；6 个 OpenSpec change 勾选 0%，任务清单严重滞后 | 文档会反噬：声称的能力被代码打脸 |
 
-**加权合计：45.9 ≈ 46 / 100。**
+**加权合计：51.5 ≈ 51 / 100（基线 46）。**
 
-> 分数不是目的。它的用途只有一个：**告诉你哪一维最值得先花时间**——B（RAG 15% 权重只拿 30 分）和 E（10% 权重只拿 25 分）是杠杆最大的两个洞。
+> 分数不是目的。它的用途只有一个：**告诉你哪一维最值得先花时间**——E（记忆 25）和 H（可观测/成本 30）是现在杠杆最大的两个洞；B 已从 30 修到 45，但检索评测仍缺。
 
 ---
 
@@ -224,25 +226,25 @@ LangGraph（customer.graph.ts:146-186）
 
 | # | 现象（证据） | 根因 | 面试官可能怎么问 | 诚实答法（建议背） | 成本 |
 |:--:|---|---|---|---|---|
-| 1 | RAG 第二层关键词 chunk 召回永久为空（[rag-retrieval.service.ts:339-403](../../apps/api/src/client/ai-customer/knowledge/rag-retrieval.service.ts#L339-L403)） | 动态 SQL 占位符从 `$2` 起，参数从 `$1` 传；异常被 catch 成 `[]` | 「你的四层召回怎么实现的？」 | 「发现过一处 off-by-one：占位符错位导致该层 fail-closed 且被静默吞掉。修复方式是把参数构造和占位符绑定成同一份列表，并加单测；同时补检索评测防止再退化。」 | 0.5-1d |
+| 1 | RAG 第二层关键词 chunk 召回曾永久为空（2026-11-19 已修，[rag-retrieval.service.ts:339-403](../../apps/api/src/client/ai-customer/knowledge/rag-retrieval.service.ts#L339-L403)） | 动态 SQL 占位符从 `$2` 起，参数从 `$1` 传；异常被 catch 成 `[]` | 「你的四层召回怎么实现的？」 | 「发现过一处 off-by-one：占位符错位导致该层 fail-closed 且被静默吞掉。修复是把参数构造和占位符绑定成同一份列表，并加了回归测试；下一步补 HitRate/MRR 检索评测。」 | 已完成 |
 | 2 | 图只有 2 节点，Agent 串行（[customer.graph.ts:146-186](../../apps/api/src/client/ai-customer/graph/customer.graph.ts#L146-L186)、[orchestrator.node.ts:469](../../apps/api/src/client/ai-customer/graph/nodes/orchestrator.node.ts#L469)） | 从 Supervisor 架构收敛为「单编排器 + 子 Agent 循环」，文档未同步 | 「多 Agent 怎么协作/并行？」 | 「现在是编排式 Agent 骨架：一个编排器按静态依赖顺序跑子 Agent，不是并行多 Agent。我有 supervisor 的设计，但没上，因为 3 轮工具调用内串行已经够用，先保正确性。」 | 3-5d 才可真并行 |
 | 3 | `MemorySaver` 进程内；`ai:hot` 只写不读（[customer.graph.ts:185](../../apps/api/src/client/ai-customer/graph/customer.graph.ts#L185)、[ai-memory.service.ts:152-166](../../apps/api/src/common/ai/ai-memory.service.ts#L152-L166)） | Checkpointer 未替换；长期记忆读取路径没接线 | 「服务重启后多轮上下文还在吗？」 | 「跨轮状态在进程内 MemorySaver，重启会丢；长期记忆写 Redis 但还没接读取。这是我知道的最大的状态管理缺口，方案是 Redis/PG Checkpointer + 影子双写。」 | 3-5d |
 | 4 | 工具 `userId` 由 LLM 传参查库（[order-tools.ts:28-54](../../apps/api/src/client/ai-customer/graph/tools/order-tools.ts#L28-L54)） | 工具 schema 暴露 userId，Agent 层未强制用请求上下文覆盖 | 「Prompt injection 怎么防越权？」 | 「确认卡和 OTP 很强，但工具身份曾是信任边界上的真洞：userId 来自模型参数。现在 7 个工具文件全部改为 AsyncLocalStorage 请求上下文注入，模型在 tool schema 里看不到 userId；无上下文时 fail-closed。」 | 已完成 |
-| 5 | Socket 生产链路无同会话单飞、无显式取消接入；SSE 死路径 owner 校验在 consume 之后；多实例无 Socket Redis adapter（[chat.service.ts:227-241](../../apps/api/src/common/chat/chat.service.ts#L227-L241)） | 单实例假设 + 未接分布式锁；SSE 已废弃 | 「用户连发两条会怎样？」「关页面后模型还跑吗？」 | 「现网走 Socket，AI 回复会落库并用私有房间补推，所以断线不一定该取消。真正的风险是同会话并发跑两个 LangGraph，以及没有显式取消入口。取消信号管道已经铺好（可选 signal → streamEvents），下一步接单飞和 cancel 事件。」 | 单飞 0.5-1d |
+| 5 | Socket 生产链路曾有同会话并发；SSE 死路径 owner 校验在 consume 之后；多实例无 Socket Redis adapter（[chat.service.ts:227-241](../../apps/api/src/common/chat/chat.service.ts#L227-L241)） | 单实例假设 + 未接分布式锁；SSE 已废弃 | 「用户连发两条会怎样？」「关页面后模型还跑吗？」 | 「已用进程内 Promise 链 + Redis 锁做同会话单飞，不同会话仍可并发；Redis 故障降级为进程内串行，30s 抢不到锁会记 warn 放弃。断线不等于取消，因为回复会落库并补推；显式取消管道已铺好，但生产 Socket 还没接 cancel 事件。多实例还缺 Socket Redis adapter。」 | 单飞已完成；adapter 1d |
 | 6 | 无 `/metrics`、token 不落库、无配额、无 LLM 结果缓存（L2） | 只做了日志，没做指标与账本 | 「AI 的质量和成本怎么度量？」 | 「结构化日志有 traceId 和 `llm.usage`，但只能离线查日志；没有 metrics 端点、没有 token 账本、没有用户配额。我在 P1 补四黄金信号和用量表。」 | 2-3d |
-| 7 | 意图阈值三处不一致：0.7 / 0.5 / 0.7（[intent-classifier.ts:124](../../apps/api/src/client/ai-customer/graph/utils/intent-classifier.ts#L124)、[intent-router.node.ts:39](../../apps/api/src/client/ai-customer/graph/nodes/intent-router.node.ts#L39)、[orchestrator.node.ts:319](../../apps/api/src/client/ai-customer/graph/nodes/orchestrator.node.ts#L319)） | 三个模块各自定义阈值 | 「0.6 分的结果去哪了？」 | 「分类器认为过线（0.5），编排器认为不过线（0.7），最后被静默降级成闲聊。这是配置一致性问题，也是可观测性问题；修复是单点配置 + fail-loud 日志，再重跑 golden。」 | 0.5-1d |
-| 8 | CI 排除 API lint、单测软门禁（[ci.yml:98-115](../../.github/workflows/ci.yml#L98-L115)） | 历史债务 + flaky 顾虑 | 「你的 CI 能拦住回归吗？」 | 「前端是硬门禁，后端目前是软门禁：API lint 被排除、其余包测试 continue-on-error。这在个人项目里是妥协，但不该带进面试叙事；我已经把它列为 P0，先 warning 一周再转硬。」 | 0.5-1d |
+| 7 | 意图阈值曾三处不一致：0.7 / 0.5 / 0.7（2026-11-19 已统一） | 三个模块各自定义阈值 | 「0.6 分的结果去哪了？」 | 「已拆成三个语义独立的常量放进 `intent-thresholds.ts`：接纳 0.7、LLM fallback 0.5、执行 0.7。0.5-0.7 的融合分会明确记录 score/threshold/destination，不再无痕变闲聊。63 题回放 68.2%，与基线一致。」 | 已完成 |
+| 8 | CI 曾排除 API lint、单测软门禁（2026-11-19 已修，[ci.yml:98-121](../../.github/workflows/ci.yml#L98-L121)） | 历史债务 + flaky 顾虑 | 「你的 CI 能拦住回归吗？」 | 「API lint 0 error、API 单测 47 suites / 452 tests 全绿，已经转成硬门禁；其他包测试仍是软门禁。E2E 和 AI 主链路门禁还没接。」 | 已完成 |
 
-> **额外发现（未在本次 userId 迁移范围）**：`requestWithdrawOtp` / `verifyWithdrawOtp` 仍接受 LLM 传入的 `phone`，可以诱导 AI 向任意号码发 OTP。正确做法是用请求上下文里的 userId 查出绑定手机号，忽略模型传参。建议列入 P1（0.5-1d），与身份迁移同一套请求上下文即可实现。
+> **已修（2026-11-19）**：`requestWithdrawOtp` / `verifyWithdrawOtp` 不再接受 LLM 传入的 `phone`，改为用请求上下文 userId 查服务端绑定号码，并只回显脱敏后 4 位；无绑定号码时 fail-closed。
 
-> **另一处同类模式（未修）**：`ai-action-confirm.service.ts` 的 `consume()` 先 `getDel` 再校验 userId。确认 token 被泄露/误传时，他人可以先把它消费掉（DoS）。建议改成 Lua 内先校验 owner 再删除，与工具身份迁移一并排期。
+> **已修（2026-11-19）**：`ai-action-confirm.service.ts` 的 `consume()` 改为 Lua 先校验 owner 再 `DEL`；错 owner 不删除、不返回 payload，正确 owner 只能消费一次。
 
 ### 6.2 三句必须改口的表述
 
 | 现在的说法 | 改成 | 为什么 |
 |---|---|---|
 | 「多 Agent 并行协作」 | 「编排式 Agent 骨架：单编排器 + 串行子 Agent + 静态依赖重排」 | 代码里没有并行，被追问就崩 |
-| 「四层 RAG 召回」 | 「四路召回框架；其中关键词 chunk 层曾因 SQL 占位符错位失效，已定位并纳入修复」 | 修复后可以恢复「四层」，但修复前不能这么说 |
+| 「四层 RAG 召回」 | 「四路召回；其中关键词 chunk 层曾因 SQL 占位符错位失效，已修复并加回归；检索质量评测还在补」 | Layer2 已修，但还没有 HitRate/MRR |
 | 「长期记忆」 | 「会话内跨轮状态（进程内）+ 待接线的长期记忆写路径」 | `ai:hot` 没有读取方 |
 
 ### 6.3 还有一个「诚实但扎心」的事实
@@ -319,7 +321,7 @@ LangGraph（customer.graph.ts:146-186）
 | P0-6 | 取消信号管道（共享层；SSE 已废弃，不接生产） | 0.5d | 可选 signal 透传到 `streamEvents`；abort 后不再消费事件/落库；生产 Socket 接入待 P1-1 | 运行时治理 |
 | P0-7 | HNSW 索引 + 队列重试配置对齐 | 0.5d | `EXPLAIN` 走索引；重试次数与注释一致 | 性能证据 + 注释可信 |
 
-**P0 合计约 5 个工作日。** 完成后应能拿出 4 组 before/after：意图 accuracy、Layer2 非空率、RAG HitRate@3、同会话并发 LLM 调用数（单飞后 = 1）。
+**P0 合计约 5 个工作日。** **状态（2026-11-19）**：P0-1 / P0-2 / P0-3 / P0-4 / P0-6 / P0-7 已完成；仅 P0-5（RAG 检索评测）未做，约 1.5d。已能拿出 4 组数字：意图 accuracy 68.2%、Layer2 修复回归、HNSW 索引、同会话并发 = 1。
 
 ### 8.3 P1（W3-W6，选做 5-7 项）
 
@@ -335,6 +337,8 @@ LangGraph（customer.graph.ts:146-186）
 | P1-8 | 流式帧白名单 | 0.5d | 内部决策 JSON 不出网；协议单测 | 低 |
 | P1-9 | 提现 OTP 手机号改为服务端绑定 | 0.5-1d | 模型传任意 phone 被忽略；OTP 只发绑定号码 | 低 |
 | P1-10 | action-confirm token 原子鉴权 | 0.5d | 先校验 userId 再 getDel（Lua）；他人 token 无法被消费 | 低 |
+
+**状态（2026-11-19）**：P1-1（单飞）、P1-9（OTP 手机号）、P1-10（token 原子鉴权）已完成；P1-2 / P1-3 / P1-5 / P1-6 / P1-7 / P1-8 待做。
 
 ### 8.4 P2（W7-W8 + 之后，加分项）
 
@@ -372,7 +376,7 @@ P1-5 先影子，观察 1 周再切
 | 目的 | 命令 | 备注 |
 |---|---|---|
 | 类型检查 | `yarn workspace @lucky/api tsc --noEmit --pretty` | 提交前必跑 |
-| 单测 | `yarn workspace @lucky/api test` | 39 个 spec；AI 相关约 14 个 |
+| 单测 | `yarn workspace @lucky/api test` | 47 个 spec / 452 tests；全绿 |
 | 意图基线 | `bash tools/eval/run-replay.sh` | 需 `lucky-backend-dev` 容器 |
 | 意图带门禁 | `bash tools/eval/run-replay.sh --fail-under 0.7` | 修复后使用；注意全局限流 60 次/60s |
 | 端到端冒烟 | `bash scripts/ai-e2e-smoke.sh` | 真实 Socket 链路 + traceId 日志断言 |
@@ -381,17 +385,23 @@ P1-5 先影子，观察 1 周再切
 | 索引验证 | `EXPLAIN (ANALYZE, BUFFERS) SELECT ... ORDER BY embedding <=> ...` | 确认走 HNSW |
 | 双实例 | 两副本 + Redis adapter，同会话发消息 | 断言每轮 1 次 LLM 调用、投递一致 |
 
+**2026-11-19 实测**：
+- `yarn workspace @lucky/api test` → **47 suites / 452 tests passed**
+- `yarn workspace @lucky/api lint` → **0 errors / 139 warnings**
+- `bash tools/eval/run-replay.sh` → **accuracy 68.2% / macro-F1 68.6%（43/63）**，与基线一致
+- HNSW 索引已在本地库确认：`idx_document_chunks_embedding_hnsw`（`hnsw (embedding vector_cosine_ops)`）
+
 ### 9.2 指标口径（面试直接引用）
 
 | 指标 | 定义 | 当前 | 目标 |
 |---|---|---:|---:|
-| 意图 accuracy | 63 题 golden Top-1 | 68.25% | ≥75% |
-| 意图 macro-F1 | 分域平均 | 0.6864 | ≥0.75 |
-| Layer2 非空率 | 关键词 chunk 层返回非空请求占比 | 0%（估算） | >90% |
+| 意图 accuracy | 63 题 golden Top-1 | 68.2% | ≥75% |
+| 意图 macro-F1 | 分域平均 | 0.686 | ≥0.75 |
+| Layer2 非空率 | 关键词 chunk 层返回非空请求占比 | 修复后未实测 | >90% |
 | RAG HitRate@3 | 前 3 条含正确文档的题占比 | 未测 | 建基线后 +10pt |
 | RAG MRR | 正确文档排名倒数均值 | 未测 | 建基线 |
-| 取消后 token 增量 | 显式取消后仍产生的 completion tokens | 未接入 | 0 |
-| 同会话并发 LLM 数 | 同 conversation 同时执行的图数 | 无限制 | 1 |
+| 取消后 token 增量 | 显式取消后仍产生的 completion tokens | 管道已铺，未接生产 | 0 |
+| 同会话并发 LLM 数 | 同 conversation 同时执行的图数 | **1（单飞后）** | 1 |
 | 每轮 prompt DB 查询 | prompt resolver 查库次数 | 每 agent 每轮 1 次 | 0（缓存） |
 | 成本/会话 | token × 单价 | 未落库 | 可查询 |
 
@@ -421,9 +431,9 @@ P1-5 先影子，观察 1 周再切
 
 | 类别 | 内容 | 表述方式 |
 |---|---|---|
-| **能说「已实现」** | 写操作双闸门 + OTP 原子核销；转人工闭环 + CAS 认领 + 10 分钟懒回收；KB 版本化 + CAS 回滚 + 双写；SSE 两阶段 + Lua 原子消费 + 五层限流 + 熔断；提现资金状态机；63 题意图 golden；traceId 结构化日志 | 讲约束、失败模式、单测怎么钉住顺序 |
-| **只能限定说** | 多标签融合（仅 top1-top2<0.05 问 LLM，非并行）；混合 RAG（Layer2 修复后才可称四层可用）；编排式 Agent（2 节点，非多 Agent 协作）；记忆（单实例 MemorySaver）；注入防护（system prompt + DTO 白名单，非三级）；可观测（有日志，指标在建） | 「已实现 X，边界是 Y，下一步用 Z 指标验证」 |
-| **必须改口** | 「多 Agent 协作」→「编排式 Agent 骨架」；「企业级」→「工程化原型 + 已量化差距」；「意图 92%」→「自有 63 题 68.25%，与厂商口径不可比」；「全链路可观测」→「traceId 日志，指标补齐中」；「生产验证」→「单实例/双实例验证」 | 主动给差距，显得可信 |
+| **能说「已实现」** | 写操作双闸门 + OTP 原子核销；转人工闭环 + CAS 认领 + 10 分钟懒回收；KB 版本化 + CAS 回滚 + 双写；SSE 两阶段 + 五层限流 + 熔断；提现资金状态机；63 题意图 golden；traceId 结构化日志；**7 域工具身份注入（请求上下文）**；**Socket 同会话单飞（进程内队列 + Redis 锁）**；**API lint/单测硬门禁（47 suites / 452 tests）**；**OTP 手机号服务端绑定**；**确认 token 原子鉴权** | 讲约束、失败模式、单测怎么钉住顺序 |
+| **只能限定说** | 多标签融合（仅 top1-top2<0.05 问 LLM，非并行）；四路 RAG（Layer2 已修，但无 HitRate/MRR）；编排式 Agent（2 节点，非多 Agent 协作）；记忆（单实例 MemorySaver）；可观测（有日志，指标在建）；多实例（Socket 无 Redis adapter）；取消（管道已铺，生产未接） | 「已实现 X，边界是 Y，下一步用 Z 指标验证」 |
+| **必须改口** | 「多 Agent 协作」→「编排式 Agent 骨架」；「企业级」→「工程化原型 + 已量化差距」；「意图 92%」→「自有 63 题 68.2%，与厂商口径不可比」；「全链路可观测」→「traceId 日志，指标补齐中」；「生产验证」→「单实例 + 本地容器验证」 | 主动给差距，显得可信 |
 
 ### 10.3 五个必被问的问题与答法
 
@@ -529,7 +539,11 @@ P1-5 先影子，观察 1 周再切
 | 2026-11-19 | 迁移 product / lucky-draw / kyc 三域；全部 7 个工具文件不再向 LLM 暴露 userId |
 | 2026-11-19 | 修复 RAG Layer2 占位符错位（+3 回归用例）；统一意图阈值到单一配置源并消除静默降级 |
 | 2026-11-19 | 增加共享层取消信号管道；按「SSE 已废弃」回退 controller/reservation 改动，P0-6 口径修正 |
+| 2026-11-19 | Socket AI 同会话单飞：进程内 Promise 链 + Redis 锁，4 个并发用例 |
+| 2026-11-19 | 提现 OTP 手机号改服务端绑定；确认 token 改 Lua 先鉴权后删除 |
+| 2026-11-19 | CI 的 API lint/单测转硬门禁；HNSW 索引迁移；队列重试配置对齐 |
+| 2026-11-19 | 63 题意图回放 68.2% / macro-F1 68.6%；47 suites / 452 tests 全绿；证据分 46 → 51 |
 
 ---
 
-> **最后一句**：这个项目最缺的不是功能，是「数字」和「诚实」。补上 4 组 before/after 指标、把三个夸大表述改掉，你就从「不敢拿出去」变成「经得起追问」。
+> **最后一句**：这个项目最缺的不是功能，是「数字」和「诚实」。现在你已经有第一组可复现的数字（63 题意图、47 套单测、HNSW 索引）；下一步补上 RAG 的 HitRate/MRR，把剩下三个夸大表述改掉，你就从「不敢拿出去」变成「经得起追问」。
