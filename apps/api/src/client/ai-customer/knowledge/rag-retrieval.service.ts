@@ -336,8 +336,9 @@ export class RagRetrievalService {
     try {
       // 为每个 token 生成 ILIKE 条件
       // 使用 content ILIKE '%token%' 做子串匹配
+      // 占位符从 $1 开始，与下方 params 的 push 顺序一一对应
       const conditions = tokens.map(
-        (_, i) => `dc.content ILIKE $${i + 2}::varchar`,
+        (_, i) => `dc.content ILIKE $${i + 1}::varchar`,
       );
 
       let sql = `
@@ -359,11 +360,12 @@ export class RagRetrievalService {
           AND kd.is_active = true
           AND dc.document_version = kd.active_version
       `;
+      // 参数顺序必须与 SQL 占位符严格一致：
+      //   $1..$N   → 各 token 的 ILIKE 模式
+      //   $N+1     → domain（可选）
+      //   最后一位 → LIMIT topK
       const params: any[] = [];
 
-      // $1 is used for the first token pattern (all tokens combined as a simple phrase)
-      // $2, $3, ... are used for individual token patterns
-      // Actually, let me simplify - just search for any token matching
       const likeParams = tokens.map((t) => `%${t}%`);
       params.push(...likeParams);
 

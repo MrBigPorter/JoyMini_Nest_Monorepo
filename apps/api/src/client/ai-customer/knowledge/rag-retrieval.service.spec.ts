@@ -96,3 +96,111 @@ describe('RagRetrievalService 版本过滤（Task 5）', () => {
     expect(ids).not.toContain('d2');
   });
 });
+
+/**
+ * 回归：Layer 2（keywordSearchChunks）的 SQL 占位符必须从 $1 开始，
+ * 且与 params 数组一一对应。曾经用 `$i + 2` 生成条件，首个占位符变成 $2，
+ * 而 params 从 $1 开始，最终 PostgreSQL 报参数不匹配，被 catch 吞掉返回 []，
+ * 导致 Layer 2 永久失效。
+ */
+describe('RagRetrievalService Layer 2 SQL 参数绑定回归', () => {
+  const build = () => {
+    const prisma = {
+      $queryRawUnsafe: jest.fn().mockResolvedValue([]),
+      knowledgeDocument: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const aiService = {
+      generateEmbedding: jest.fn().mockResolvedValue([0.1, 0.2]),
+    };
+    const meilisearchService = {
+      searchChunks: jest.fn().mockResolvedValue([]),
+      isAvailable: true,
+    };
+    const configService = { get: jest.fn().mockReturnValue(undefined) };
+
+    const service = new RagRetrievalService(
+      prisma as any,
+      aiService as any,
+      meilisearchService as any,
+      configService as any,
+    );
+
+    return { service, prisma };
+  };
+
+  /** 按出现顺序取出 SQL 中的 $n 占位符编号 */
+  const placeholderRefs = (sql: string): number[] =>
+    Array.from(sql.matchAll(/\$(\d+)/g), (m) => Number(m[1]));
+
+  it('无 domain：占位符 $1..$N 与 params 顺序一致', async () => {
+    const { service, prisma } = build();
+
+    await (service as any).keywordSearchChunks(['退款', '到账'], undefined, 5);
+
+    const [sql, ...params] = prisma.$queryRawUnsafe.mock.calls[0];
+
+    // params 顺序：token 模式 → LIMIT topK
+    expect(params).toEqual(['%退款%', '%到账%', 5]);
+
+    // 条件从 $1 开始，domain 不存在，LIMIT 顺延到 $3
+    expect(sql).toContain('dc.content ILIKE $1::varchar');
+    expect(sql).toContain('dc.content ILIKE $2::varchar');
+    expect(sql).toContain('LIMIT $3::smallint');
+
+    // 所有占位符编号恰好覆盖 1..params.length，且升序出现
+    expect(placeholderRefs(sql)).toEqual([1, 2, 3]);
+  });
+
+  it('有 domain：$N+1 归 domain，LIMIT 再顺延', async () => {
+    const { service, prisma } = build();
+
+    await (service as any).keywordSearchChunks(['退款'], 'wallet', 3);
+
+    const [sql, ...params] = prisma.$queryRawUnsafe.mock.calls[0];
+
+    // params 顺序：token 模式 → domain → LIMIT topK
+    expect(params).toEqual(['%退款%', 'wallet', 3]);
+
+    expect(sql).toContain('dc.content ILIKE $1::varchar');
+    expect(sql).toContain('kd.domain = $2::varchar');
+    expect(sql).toContain('LIMIT $3::smallint');
+
+    expect(placeholderRefs(sql)).toEqual([1, 2, 3]);
+  });
+
+  it('查询成功时返回 chunk（不再被参数错位异常吞掉）', async () => {
+    const { service, prisma } = build();
+    prisma.$queryRawUnsafe.mockResolvedValue([
+      {
+        chunk_id: 'c1',
+        chunk_index: 0,
+        content: '退款 5 个工作日到账',
+        document_id: 'd1',
+        title: '退款政策',
+        domain: 'wallet',
+        doc_id: 'refund',
+        keywords: '{退款,到账}',
+        priority: 'P0',
+        content_type: 'policy',
+      },
+    ]);
+
+    const results = await (service as any).keywordSearchChunks(
+      ['退款'],
+      'wallet',
+      5,
+    );
+
+    expect(results).toHaveLength(1);
+    expect(results[0]).toMatchObject({
+      chunkId: 'c1',
+      chunkIndex: 0,
+      content: '退款 5 个工作日到账',
+      documentId: 'd1',
+      docId: 'refund',
+      domain: 'wallet',
+      keywords: ['退款', '到账'],
+      score: 0.5,
+    });
+  });
+});
