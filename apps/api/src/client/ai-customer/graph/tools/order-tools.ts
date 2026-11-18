@@ -9,13 +9,19 @@ import {
   toolFailure,
   toolSuccess,
 } from '@api/client/ai-customer/graph/tools/tool-result';
+import {
+  MISSING_USER_CONTEXT,
+  requireToolUserId,
+} from '@api/client/ai-customer/graph/tools/tool-identity';
 import { toResultChain } from '@lucky/shared';
 
 /**
  * "纯函数" 工厂：创建订单查询工具
  * @param orderService - 从 NestJS DI 注入的 OrderService
  *
- * userId 由 LLM 通过 tool 参数自动传递（方案A）
+ * ── 身份边界 ──
+ * userId 由请求上下文（AsyncLocalStorage）提供服务端身份，
+ * 不再作为 tool 参数暴露给 LLM。模型无法通过传参查询别人的订单。
  *
  * 所有返回数据通过 toLLM() 语义化后再序列化，
  * 避免 LLM 看到 raw DB 字段（如 virtual: 1）后错误猜测。
@@ -26,7 +32,6 @@ export const createOrderTools = (orderService: IOrderService): TaggedTool[] => {
   return [
     /**
      * 获取当前用户的订单列表
-     * @param userId - 当前用户 ID，由 LLM 自动传递
      * @param status - 订单状态过滤，可选值：all, paid, unpaid, refunded, cancelled
      * @param page - 分页页码，默认 1
      * @param pageSize - 分页大小，默认 10
@@ -35,17 +40,18 @@ export const createOrderTools = (orderService: IOrderService): TaggedTool[] => {
     {
       tool: tool(
         async ({
-          userId,
           status,
           page,
           pageSize,
         }: {
-          userId: string;
           status?: string;
           page?: number;
           pageSize?: number;
-        }) =>
-          toResultChain(
+        }) => {
+          const userId = requireToolUserId('getUserOrders');
+          if (!userId) return toolFailure(MISSING_USER_CONTEXT);
+
+          return toResultChain(
             orderService.listOrders(userId, {
               status: (status as any) ?? 'all',
               page: page ?? 1,
@@ -53,9 +59,8 @@ export const createOrderTools = (orderService: IOrderService): TaggedTool[] => {
             }),
           )
             .then((result) => {
-              const llmList = (result.list ?? []).map(
-                (item: OrderItemDto) =>
-                  toLLM(item, OrderItemDto, 'en'),
+              const llmList = (result.list ?? []).map((item: OrderItemDto) =>
+                toLLM(item, OrderItemDto, 'en'),
               );
               return toolSuccess({
                 total: result.total,
@@ -66,11 +71,11 @@ export const createOrderTools = (orderService: IOrderService): TaggedTool[] => {
             })
             .catch((err) =>
               toolFailure(`Failed to query orders: ${err.message}`),
-            ),
+            );
+        },
         {
           name: 'getUserOrders',
           schema: z.object({
-            userId: z.string().describe('The current user ID'),
             status: z
               .enum(['all', 'paid', 'unpaid', 'refunded', 'cancelled'])
               .optional()
@@ -87,16 +92,19 @@ export const createOrderTools = (orderService: IOrderService): TaggedTool[] => {
     },
     /**
      * 获取指定订单的详细信息
-     * @param userId - 当前用户 ID，由 LLM 自动传递
      * @param orderId - 订单 ID
      * @returns JSON 字符串，包含订单详情
      */
     {
       tool: tool(
-        async ({ userId, orderId }: { userId: string; orderId: string }) => {
+        async ({ orderId }: { orderId: string }) => {
+          const userId = requireToolUserId('getOrderInfo');
+          if (!userId) return toolFailure(MISSING_USER_CONTEXT);
+
           logger.log(
             `[order-tools:getOrderInfo] userId="${userId}", orderId="${orderId}"`,
           );
+
           return toResultChain(orderService.getOrderDetail(userId, orderId))
             .then((result) => {
               const llmResult = toLLM(result, OrderItemDto, 'en');
@@ -111,7 +119,6 @@ export const createOrderTools = (orderService: IOrderService): TaggedTool[] => {
         {
           name: 'getOrderInfo',
           schema: z.object({
-            userId: z.string().describe('The current user ID'),
             orderId: z.string().describe('The order ID to look up'),
           }),
           description:

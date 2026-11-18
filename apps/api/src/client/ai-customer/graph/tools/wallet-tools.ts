@@ -3,10 +3,16 @@
  *
  * 当前工具：
  *   1. getWalletBalance      — 查询余额
- *   2. getWalletTransactions — 查询充值/提现记录
- *   3. getKycStatus          — 查询实名认证状态
- *   4. getPaymentChannels    — 查询提现渠道
- *   5. applyWithdraw         — 申请提现（两阶段确认）
+ *   2. requestWithdrawOtp    — 请求提现 OTP
+ *   3. verifyWithdrawOtp     — 校验提现 OTP
+ *   4. getWalletTransactions — 查询充值/提现记录
+ *   5. getKycStatus          — 查询实名认证状态
+ *   6. getPaymentChannels    — 查询提现渠道
+ *   7. applyWithdraw         — 申请提现（两阶段确认）
+ *
+ * ── 身份边界 ──
+ * userId 从请求上下文（AsyncLocalStorage）读取，不再作为 tool 参数
+ * 暴露给 LLM。模型无法通过传参查询/操作别人的钱包。
  *
  * 所有返回数据通过 toLLM() 语义化，避免 LLM 看到 raw DB 字段。
  */
@@ -35,6 +41,10 @@ import {
 } from '@api/client/ai-customer/graph/tools/tool-result';
 import { CODE_TYPE, KYC_STATUS, KYC_STATUS_LABEL } from '@lucky/shared';
 import { OtpService } from '@api/client/otp/otp.service';
+import {
+  MISSING_USER_CONTEXT,
+  requireToolUserId,
+} from '@api/client/ai-customer/graph/tools/tool-identity';
 import { toResult, toResultChain } from '@lucky/shared';
 
 /** getWalletBalance 返回数据 */
@@ -98,8 +108,11 @@ export const createWalletTools = (
        * 5. totalWithdraw — 累计提现金额
        */
       tool: tool(
-        async ({ userId }: { userId: string }) =>
-          toResultChain(walletService.balance(userId))
+        async () => {
+          const userId = requireToolUserId('getWalletBalance');
+          if (!userId) return toolFailure(MISSING_USER_CONTEXT);
+
+          return toResultChain(walletService.balance(userId))
             .then((data) => {
               const dto = plainToInstance(WalletBalanceResponseDto, data);
               const llmResult = toLLM(dto, WalletBalanceResponseDto, 'en');
@@ -107,12 +120,11 @@ export const createWalletTools = (
             })
             .catch((err: Error) =>
               toolFailure(`Failed to query wallet balance: ${err.message}`),
-            ),
+            );
+        },
         {
           name: 'getWalletBalance',
-          schema: z.object({
-            userId: z.string().describe('The Current user ID'),
-          }),
+          schema: z.object({}),
           description:
             'Get the current user wallet balance,including real balance (cash), coin balance,frozen balance,total recharge and total withdraw.',
         },
@@ -127,8 +139,15 @@ export const createWalletTools = (
        * 2. userId — 当前用户 ID
        */
       tool: tool(
-        async ({ userId, phone }: { userId: string; phone: string }) =>
-          toResultChain(
+        async ({ phone }: { phone: string }) => {
+          const userId = requireToolUserId('requestWithdrawOtp');
+          if (!userId) return toolFailure(MISSING_USER_CONTEXT);
+
+          logger.log(
+            `[wallet:requestWithdrawOtp] userId="${userId}", phoneProvided=true`,
+          );
+
+          return toResultChain(
             otpService.request({
               phone,
               codeType: CODE_TYPE.WITHDRAW,
@@ -141,11 +160,11 @@ export const createWalletTools = (
             )
             .catch((err: Error) =>
               toolFailure(`Failed to send OTP: ${err.message}`),
-            ),
+            );
+        },
         {
           name: 'requestWithdrawOtp',
           schema: z.object({
-            userId: z.string().describe('The Current user ID'),
             phone: z.string().describe('User phone number to receive SMS OTP'),
           }),
           description:
@@ -157,16 +176,15 @@ export const createWalletTools = (
     },
     {
       tool: tool(
-        async ({
-          userId,
-          phone,
-          code,
-        }: {
-          userId: string;
-          phone: string;
-          code: string;
-        }) =>
-          toResultChain(
+        async ({ phone, code }: { phone: string; code: string }) => {
+          const userId = requireToolUserId('verifyWithdrawOtp');
+          if (!userId) return toolFailure(MISSING_USER_CONTEXT);
+
+          logger.log(
+            `[wallet:verifyWithdrawOtp] userId="${userId}", phoneProvided=true`,
+          );
+
+          return toResultChain(
             otpService.verify({
               phone,
               code,
@@ -181,11 +199,11 @@ export const createWalletTools = (
             )
             .catch((err: Error) =>
               toolFailure(`Failed to verify OTP: ${err.message}`),
-            ),
+            );
+        },
         {
           name: 'verifyWithdrawOtp',
           schema: z.object({
-            userId: z.string().describe('The Current user ID'),
             phone: z
               .string()
               .describe('User phone number bound to the account'),
@@ -210,16 +228,17 @@ export const createWalletTools = (
        */
       tool: tool(
         async ({
-          userId,
           type,
           page,
           pageSize,
         }: {
-          userId: string;
           type?: string;
           page?: number;
           pageSize?: number;
         }): Promise<string> => {
+          const userId = requireToolUserId('getWalletTransactions');
+          if (!userId) return toolFailure(MISSING_USER_CONTEXT);
+
           const result: Record<string, any> = {};
 
           if (!type || type === 'recharge' || type === 'all') {
@@ -234,8 +253,8 @@ export const createWalletTools = (
                 `Failed to query wallet transactions: ${rechargeRes.error.message}`,
               );
             }
-            result.recharges = (rechargeRes.data.list ?? []).map(
-              (item: any) => toLLM(item, RechargeHistoryItemDto, 'en'),
+            result.recharges = (rechargeRes.data.list ?? []).map((item: any) =>
+              toLLM(item, RechargeHistoryItemDto, 'en'),
             );
             result.rechargeTotal = rechargeRes.data.total;
           }
@@ -264,7 +283,6 @@ export const createWalletTools = (
         {
           name: 'getWalletTransactions',
           schema: z.object({
-            userId: z.string().describe('The Current user ID'),
             type: z
               .enum(['recharge', 'withdrawal', 'all'])
               .optional()
@@ -298,8 +316,11 @@ export const createWalletTools = (
        *  3. riskLevel — 风险等级（low / medium / high）
        */
       tool: tool(
-        async ({ userId }: { userId: string }) =>
-          toResultChain(kycService.getMyKyc(userId))
+        async () => {
+          const userId = requireToolUserId('getKycStatus');
+          if (!userId) return toolFailure(MISSING_USER_CONTEXT);
+
+          return toResultChain(kycService.getMyKyc(userId))
             .then((data) => {
               const dto = plainToInstance(KycResponseDto, data);
               const llmResult = toLLM(dto, KycResponseDto, 'en');
@@ -307,12 +328,11 @@ export const createWalletTools = (
             })
             .catch((err: Error) =>
               toolFailure(`Failed to query KYC status: ${err.message}`),
-            ),
+            );
+        },
         {
           name: 'getKycStatus',
-          schema: z.object({
-            userId: z.string().describe('The Current user ID'),
-          }),
+          schema: z.object({}),
           description: `Get the current user's KYC (Know Your Customer / identity verification) status. Returns approval status, submitted documents and risk level.`,
         },
       ),
@@ -332,7 +352,7 @@ export const createWalletTools = (
        *  8. description — 渠道描述
        */
       tool: tool(
-        async ({ userId, amount }: { userId: string; amount?: number }) =>
+        async ({ amount }: { amount?: number }) =>
           toResultChain(paymentChannelService.getClientConfig(2))
             .then((channels) => {
               const filtered =
@@ -361,7 +381,6 @@ export const createWalletTools = (
         {
           name: 'getPaymentChannels',
           schema: z.object({
-            userId: z.string().describe('The Current user ID'),
             amount: z
               .number()
               .positive()
@@ -386,18 +405,19 @@ export const createWalletTools = (
        */
       tool: tool(
         async ({
-          userId,
           amount,
           channelId,
           account,
           accountName,
         }: {
-          userId: string;
           amount: number;
           channelId: number;
           account: string;
           accountName: string;
         }) => {
+          const userId = requireToolUserId('applyWithdraw');
+          if (!userId) return toolFailure(MISSING_USER_CONTEXT);
+
           // KYC 检查
           const kycResult = await toResult(kycService.getMyKyc(userId));
           if (!kycResult.success) {
@@ -458,7 +478,6 @@ export const createWalletTools = (
         {
           name: 'applyWithdraw',
           schema: z.object({
-            userId: z.string().describe('The Current user ID'),
             amount: z.number().positive().describe('Withdrawal amount in PHP'),
             channelId: z
               .number()

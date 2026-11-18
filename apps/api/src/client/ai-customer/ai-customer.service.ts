@@ -25,6 +25,7 @@ import { ApplyWithdrawDto } from '../wallet/dto/apply-withdraw.dto';
 import { OtpService } from '../otp/otp.service';
 import { CODE_TYPE } from '@lucky/shared';
 import { emitStage } from '@api/common/logger/structured-logger';
+import { runWithContext } from '@api/common/logger/trace-context';
 import { RedisService } from '@api/common/redis/redis.service';
 import { degradeToHuman } from './ai-failure-handler';
 import { plainToInstance } from 'class-transformer';
@@ -756,17 +757,21 @@ export class AiCustomerService {
 
     const threadId = sessionId ?? `${userId}:${Date.now()}`;
 
-    const result = await this.compiledGraph.invoke(
-      {
-        messages: [new HumanMessage(message)],
-        userId: userId,
-        debug,
-      },
-      {
-        configurable: {
-          thread_id: threadId,
+    // testChat 也走 Agent 运行时：工具身份同样从请求上下文读取。
+    const graph = this.compiledGraph;
+    const result = await runWithContext({ userId }, () =>
+      graph.invoke(
+        {
+          messages: [new HumanMessage(message)],
+          userId: userId,
+          debug,
         },
-      },
+        {
+          configurable: {
+            thread_id: threadId,
+          },
+        },
+      ),
     );
 
     // 从 messages 中取最后一条消息作为最终输出

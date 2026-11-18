@@ -1,4 +1,9 @@
-import { getTraceId, runWithTrace } from './trace-context';
+import {
+  getRequestUserId,
+  getTraceId,
+  runWithContext,
+  runWithTrace,
+} from './trace-context';
 
 /**
  * trace-context 单测
@@ -75,6 +80,56 @@ describe('trace-context', () => {
   it('traceId 首尾空白会被裁剪', async () => {
     await runWithTrace('  trace-x  ', async () => {
       expect(getTraceId()).toBe('trace-x');
+    });
+  });
+
+  it('runWithContext 能绑定 userId，退出后恢复 undefined', async () => {
+    expect(getRequestUserId()).toBeUndefined();
+
+    const inside = await runWithContext({ userId: 'user-1' }, async () => {
+      await Promise.resolve();
+      return getRequestUserId();
+    });
+
+    expect(inside).toBe('user-1');
+    expect(getRequestUserId()).toBeUndefined();
+  });
+
+  it('嵌套时合并字段：内层覆盖 traceId，但保留外层 userId', async () => {
+    await runWithContext({ traceId: 'outer', userId: 'user-1' }, async () => {
+      await runWithTrace('inner', async () => {
+        expect(getTraceId()).toBe('inner');
+        expect(getRequestUserId()).toBe('user-1');
+      });
+
+      expect(getTraceId()).toBe('outer');
+      expect(getRequestUserId()).toBe('user-1');
+    });
+  });
+
+  it('并发请求的 userId 互相隔离', async () => {
+    const users = ['u-1', 'u-2', 'u-3', 'u-4', 'u-5'];
+
+    const results = await Promise.all(
+      users.map((userId) =>
+        runWithContext(
+          { userId },
+          () =>
+            new Promise<string | undefined>((resolve) => {
+              setTimeout(() => resolve(getRequestUserId()), Math.random() * 15);
+            }),
+        ),
+      ),
+    );
+
+    expect(results).toEqual(users);
+  });
+
+  it('空 userId 不会覆盖外层身份', async () => {
+    await runWithContext({ userId: 'user-1' }, async () => {
+      await runWithContext({ userId: '   ' }, async () => {
+        expect(getRequestUserId()).toBe('user-1');
+      });
     });
   });
 });
