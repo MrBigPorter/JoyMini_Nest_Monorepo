@@ -1,4 +1,8 @@
 import { HumanMessage } from '@langchain/core/messages';
+import {
+  INTENT_EXECUTION_MIN_SCORE,
+  INTENT_LLM_FALLBACK_SCORE,
+} from '@api/client/ai-customer/graph/config/intent-thresholds';
 import type { AgentState } from '../state';
 
 /**
@@ -14,7 +18,9 @@ import type { AgentState } from '../state';
  * 没有这条用例，谁再把检测挪回 fallback 后面都不会有人发现。
  */
 
-const invokeMock = jest.fn(async () => ({ content: 'I will transfer you now.' }));
+const invokeMock = jest.fn(async () => ({
+  content: 'I will transfer you now.',
+}));
 
 jest.mock('@api/client/ai-customer/graph/llm-factory', () => ({
   createLLM: jest.fn(() => ({ invoke: invokeMock })),
@@ -87,6 +93,51 @@ describe('orchestrator · 转人工排序（N-7 回归）', () => {
 
     expect(result.transferToHuman).toBeFalsy();
     expect(handleGeneralChat).toHaveBeenCalledTimes(1);
+  });
+
+  it('0.5-0.7 区间：有分数但低于执行门槛 → 明确降级闲聊并记录 warn', async () => {
+    // 分数高于 LLM fallback 门槛、低于执行门槛：有信号，但不值得派 Agent。
+    // 这条路径过去只是 logger.log 一句，看起来像无痕变闲聊；
+    // 现在必须发出结构化 warn，带分数/阈值/去向。
+    const inGap = (INTENT_LLM_FALLBACK_SCORE + INTENT_EXECUTION_MIN_SCORE) / 2;
+
+    const writes: string[] = [];
+    const spy = jest
+      .spyOn(process.stdout, 'write')
+      .mockImplementation((chunk: any) => {
+        writes.push(String(chunk));
+        return true;
+      });
+
+    try {
+      await node(
+        makeState('hello there', [
+          { label: 'order', score: inGap },
+          { label: 'coupon', score: inGap - 0.01 },
+        ]),
+      );
+    } finally {
+      spy.mockRestore();
+    }
+
+    // 没被执行，落到闲聊
+    expect(handleGeneralChat).toHaveBeenCalledTimes(1);
+
+    const events = writes
+      .filter((line) => line.trim().startsWith('{'))
+      .map((line) => JSON.parse(line));
+    const intent = events.find((e) => e.stage === 'intent');
+
+    expect(intent).toMatchObject({
+      intent: 'general',
+      fallback: 'below_min_score',
+      level: 'warn',
+      score: Number(inGap.toFixed(2)),
+      threshold: INTENT_EXECUTION_MIN_SCORE,
+      destination: 'general_chat',
+    });
+    // 日志不能带用户原文
+    expect(JSON.stringify(intent)).not.toContain('hello there');
   });
 
   it('转人工分支要同时发出 intent 和 transfer 两个事件（否则意图分布漏掉转人工）', async () => {

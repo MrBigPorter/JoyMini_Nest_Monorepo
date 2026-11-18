@@ -57,6 +57,10 @@ import {
   AGENT_MAP,
   DEPENDENCY_MAP,
 } from '@api/client/ai-customer/graph/config/orchestrator.config';
+import {
+  INTENT_EXECUTION_MIN_SCORE,
+  meetsExecutionThreshold,
+} from '@api/client/ai-customer/graph/config/intent-thresholds';
 
 import { resolveExecutionOrder } from './orchestrator-utils/dependency-resolver';
 import {
@@ -219,7 +223,7 @@ export const createOrchestratorNode =
     //
     // ── 为什么放在最前？ ──
     // 转人工是"用户的明确指令"，不依赖意图分类的质量。
-    // 如果放在 MIN_SCORE 过滤之后，会出现反常识的结果：
+    // 如果放在 INTENT_EXECUTION_MIN_SCORE 过滤之后，会出现反常识的结果：
     //   用户越着急、句子越不完整 → 意图分数越低 → 越早被当成闲聊 return
     //   → "我要转人工" 反而永远转不出去。
     // 所以先看"是不是要找人工"，再看他"要办什么业务"。
@@ -299,16 +303,16 @@ export const createOrchestratorNode =
     // ================================================================
     //
     // Score Gap Check 是两层过滤：
-    //   Step 1 — MIN_SCORE: 去掉绝对分数太低的"噪音"标签
+    //   Step 1 — INTENT_EXECUTION_MIN_SCORE: 去掉绝对分数太低的"噪音"标签
     //   Step 2 — SCORE_GAP: 检查第1名和第2名的差距
     //     ├─ gap ≥ 0.15 → 只执行 top-1（明确主意图）
     //     ├─ gap < 0.15 → 保留与 top-1 差距内的候选者（模糊意图，排除尾部）
     //     └─ 无标签 → fallback 到 generalChat
     //
-    // ── 为什么需要 MIN_SCORE？ ──
+    // ── 为什么需要 INTENT_EXECUTION_MIN_SCORE？ ──
     // 如果所有标签分数都很低（如 rag=0.35, wallet=0.15），gap=0.20 看似"明确"，
     // 但这是低分中的明确，实际上 query 可能跟任何业务都不相关。
-    // MIN_SCORE 确保只有"有信心"的标签才会被考虑执行。
+    // 该门槛确保只有"有信心"的标签才会被考虑执行。
     //
     // ── 为什么需要 close-contenders？ ──
     // 如果 rag=0.90, wallet=0.88, order=0.50, product=0.30，gap=0.02 < 0.15，
@@ -316,31 +320,60 @@ export const createOrchestratorNode =
     // close-contenders 策略只保留与 top-1 差距 < SCORE_GAP 的标签。
     // ================================================================
 
-    const MIN_SCORE = 0.7; // 绝对分数及格线（和 IntentClassifier 阈值对齐）
     const SCORE_MARGIN = 0.05;
 
     // Step 1: 按分数降序排列
     const sortedLabels = [...labels].sort((a, b) => b.score - a.score);
 
-    // Step 2: MIN_SCORE 过滤 — 去掉低分噪音标签
-    const validLabels = sortedLabels.filter((l) => l.score >= MIN_SCORE);
+    // Step 2: INTENT_EXECUTION_MIN_SCORE 过滤 — 去掉低分噪音标签
+    const validLabels = sortedLabels.filter((l) =>
+      meetsExecutionThreshold(l.score),
+    );
 
     let effectiveLabels: string[] = [];
 
     if (validLabels.length === 0) {
-      // 没有标签达到 MIN_SCORE → fallback 到 generalChat
-      // 这里把 sortedLabels 的 top3 记下来：能看到"最高分也只有 0.6"这类信息
-      emitStage('intent', {
-        intent: 'general',
-        labels: top3(sortedLabels),
-        fallback: 'below_min_score',
-        latencyMs: Date.now() - nodeStartedAt,
-      });
-      logger.log(
-        `[orchestrator] no labels above MIN_SCORE (${MIN_SCORE}), ` +
-          `falling back to general chat`,
+      // 没有标签达到执行门槛 → fallback 到 generalChat。
+      // 这是"有分数、但分数不够执行"的静默降级点，必须留下可解释的 warn：
+      // 带最高分、阈值、最终去向，不落用户原文（#89 FR-7 / AC-6）。
+      const topScore = sortedLabels[0]?.score ?? 0;
+      emitStage(
+        'intent',
+        {
+          intent: 'general',
+          labels: top3(sortedLabels),
+          fallback: 'below_min_score',
+          score: Number(topScore.toFixed(2)),
+          threshold: INTENT_EXECUTION_MIN_SCORE,
+          destination: 'general_chat',
+          latencyMs: Date.now() - nodeStartedAt,
+        },
+        'warn',
+      );
+      logger.warn(
+        `[orchestrator] intent fallback: ${JSON.stringify({
+          reason: 'below_execution_threshold',
+          score: Number(topScore.toFixed(2)),
+          threshold: INTENT_EXECUTION_MIN_SCORE,
+          destination: 'general_chat',
+        })}`,
       );
       return handleGeneralChat(state, llmConfig);
+    }
+
+    // 部分标签被门槛过滤时记一条 debug：多意图场景里这是正常裁剪，
+    // 但保留痕迹，排查"某个意图没执行"时能直接看到分数。
+    const droppedLabels = sortedLabels.filter(
+      (l) => !meetsExecutionThreshold(l.score),
+    );
+    if (droppedLabels.length > 0) {
+      logger.debug(
+        `[orchestrator] dropped ${droppedLabels.length} label(s) below ` +
+          `INTENT_EXECUTION_MIN_SCORE (${INTENT_EXECUTION_MIN_SCORE}): ` +
+          droppedLabels
+            .map((l) => `${l.label}:${l.score.toFixed(2)}`)
+            .join(', '),
+      );
     }
 
     // 去重：同一 domain 可能出现多次（BM25 + vector 各来一次），取最高分
@@ -359,7 +392,7 @@ export const createOrchestratorNode =
       // 只有一个域及格，直接执行
       effectiveLabels = [domainLabels[0].label];
       logger.log(
-        `[orchestrator] single domain above MIN_SCORE: ${effectiveLabels[0]}`,
+        `[orchestrator] single domain above INTENT_EXECUTION_MIN_SCORE: ${effectiveLabels[0]}`,
       );
     } else if (
       domainLabels.length > 1 &&
