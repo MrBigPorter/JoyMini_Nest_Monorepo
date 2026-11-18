@@ -1,9 +1,12 @@
 import { HumanMessage } from '@langchain/core/messages';
+import { Logger } from '@nestjs/common';
 import { SocketEvents } from '@lucky/shared';
 import { EventsGateway } from '@api/common/events/events.gateway';
 import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-registry.service';
 import { emitStage } from '@api/common/logger/structured-logger';
 import { runWithContext } from '@api/common/logger/trace-context';
+
+const logger = new Logger('AiStreamHandler');
 
 export interface StreamHandlerCallbacks {
   onToken: (token: string) => void;
@@ -41,8 +44,25 @@ export async function handleEventStream(
    * 不在这里查库，是因为这里每收到一个 token 都会调用，查库会把 DB 打爆。
    */
   memberUserIds: string[] = [],
+  /**
+   * 显式取消信号（可选）。作为 RunnableConfig.signal 传给 LangGraph：
+   * Pregel 会把它并入每个节点的 config，底层 ChatOpenAI 再把它交给
+   * OpenAI SDK 的 request options（见 @langchain/openai completions.js）。
+   * 即使 provider 不响应，下面的循环也会在每次迭代检查并停止消费事件。
+   *
+   * 当前 Socket 生产链路尚未接入。注意：客户端断线不等于应取消——
+   * AI 回复会落库并通过用户私有房间补推，继续生成可能是正确的。
+   */
+  signal?: AbortSignal,
 ): Promise<StreamUsageSummary> {
   return runWithContext({ userId }, async () => {
+    const config: Record<string, any> = {
+      version: 'v2',
+      configurable: { thread_id: threadId },
+    };
+    // 只有真的有 signal 时才放进 config，保持老调用方行为不变
+    if (signal) config.signal = signal;
+
     const eventStream = await compiledGraph.streamEvents(
       {
         messages: [new HumanMessage(message)],
@@ -51,7 +71,7 @@ export async function handleEventStream(
         entryPoint: entryPoint ?? '',
         entryMetadata: metadata ?? {},
       },
-      { version: 'v2', configurable: { thread_id: threadId } },
+      config,
     );
 
     // 用 run_id 记"开始时间"，等待对应的 end 事件到达后再相减得出耗时。
@@ -61,6 +81,13 @@ export async function handleEventStream(
     let totalTokens = 0;
 
     for await (const event of eventStream) {
+      // 兜底：provider/图没响应 signal 时，至少不再消费事件、不再推 token
+      if (signal?.aborted) {
+        logger.log(
+          `[stream] abort observed in handler loop, stop consuming events (thread=${threadId})`,
+        );
+        break;
+      }
       const { event: eventName, data, name, metadata: meta, run_id } = event;
       const node = meta?.langgraph_node as string | undefined;
 

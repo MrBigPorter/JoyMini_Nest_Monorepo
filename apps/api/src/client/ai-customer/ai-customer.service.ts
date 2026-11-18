@@ -147,6 +147,8 @@ export class AiCustomerService {
       onDone: () => void;
       onError: (error: Error) => void;
       onTransfer?: (reason: string) => void;
+      /** 显式取消信号（留给后续 single-flight/取消设计）；透传给 LangGraph */
+      signal?: AbortSignal;
     },
     conversationId?: string,
     entryPoint?: string,
@@ -154,6 +156,14 @@ export class AiCustomerService {
   ): Promise<void> {
     // Step 1 — 校验入参
     if (!this.assertInputValid(message, userId, callbacks)) return;
+
+    // 调用方在启动前已显式取消：连图都不用启动
+    if (callbacks.signal?.aborted) {
+      this.logger.log(
+        `[chatStream] abort observed before graph start, conversationId=${conversationId ?? 'n/a'}`,
+      );
+      return;
+    }
 
     // 本轮对话的起点。chat.done / chat.error 用它算总耗时。
     const startedAt = Date.now();
@@ -194,7 +204,17 @@ export class AiCustomerService {
         metadata,
         callbacks,
         memberIds,
+        callbacks.signal,
       );
+
+      // 取消信号在流结束后才观察到：图可能正常返回（provider 没响应 signal），
+      // 但不再继续落库/广播。
+      if (callbacks.signal?.aborted) {
+        this.logger.log(
+          `[chatStream] abort observed after stream, skip finalize, conversationId=${conversationId ?? 'n/a'}`,
+        );
+        return;
+      }
 
       // Step 5 — 收尾分发：转人工 / 确认卡片 / 正常完成
       await this.finalizeAfterStream(
@@ -208,6 +228,14 @@ export class AiCustomerService {
         memberIds,
       );
     } catch (err: any) {
+      // 取消触发的 AbortError 不是「模型故障」：不降级转人工、不广播 AI_ERROR，
+      // 避免在会话里留下一条无意义的人工介入记录。
+      if (callbacks.signal?.aborted) {
+        this.logger.log(
+          `[chatStream] abort observed in error path (${err?.name ?? 'Error'}), skip degrade, conversationId=${conversationId ?? 'n/a'}`,
+        );
+        return;
+      }
       emitStage(
         'chat.error',
         {
@@ -330,6 +358,7 @@ export class AiCustomerService {
       onStep: (step: string, data?: any) => void;
     },
     memberIds: string[],
+    signal?: AbortSignal,
   ): Promise<{ totalTokens: number }> {
     return handleEventStream(
       this.compiledGraph!,
@@ -343,6 +372,7 @@ export class AiCustomerService {
       this.eventsGateway,
       callbacks,
       memberIds,
+      signal,
     );
   }
 

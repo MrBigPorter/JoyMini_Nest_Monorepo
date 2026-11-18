@@ -66,4 +66,81 @@ describe('ai-stream.handler 请求上下文', () => {
 
     expect(seen).toEqual([{ userId: 'user-42', traceId: 'trace-1' }]);
   });
+
+  it('把 AbortSignal 作为 RunnableConfig.signal 传给 LangGraph', async () => {
+    const controller = new AbortController();
+    let captured: any;
+
+    const graph = {
+      streamEvents: jest.fn(async (_input: any, config: any) => {
+        captured = config;
+        return (async function* () {
+          yield {
+            event: 'on_chat_model_end',
+            data: {},
+            name: 'fakeModel',
+            metadata: { langgraph_node: 'orchestrator' },
+            run_id: 'run-1',
+          };
+        })();
+      }),
+    };
+
+    await handleEventStream(
+      graph as any,
+      'thread-1',
+      'hello',
+      'user-42',
+      undefined,
+      undefined,
+      undefined,
+      registry,
+      gateway,
+      callbacks,
+      [],
+      controller.signal,
+    );
+
+    expect(captured.version).toBe('v2');
+    expect(captured.configurable).toEqual({ thread_id: 'thread-1' });
+    // 关键断言：signal 必须原样出现在 streamEvents 的 config 上
+    expect(captured.signal).toBe(controller.signal);
+  });
+
+  it('signal 已 abort 时不再消费事件（兜底停止）', async () => {
+    const controller = new AbortController();
+    controller.abort();
+
+    const graph = {
+      streamEvents: jest.fn(async () =>
+        (async function* () {
+          yield {
+            event: 'on_chat_model_stream',
+            data: { chunk: { content: 'should-not-arrive' } },
+            name: 'fakeModel',
+            metadata: { langgraph_node: 'orchestrator' },
+            run_id: 'run-1',
+          };
+        })(),
+      ),
+    };
+
+    await handleEventStream(
+      graph as any,
+      'thread-1',
+      'hello',
+      'user-42',
+      undefined,
+      undefined,
+      undefined,
+      registry,
+      gateway,
+      callbacks,
+      [],
+      controller.signal,
+    );
+
+    expect(callbacks.onToken).not.toHaveBeenCalled();
+    expect(gateway.dispatchToConversation).not.toHaveBeenCalled();
+  });
 });
