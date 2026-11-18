@@ -154,6 +154,7 @@ describe('ClientFlashSaleService', () => {
               treasureName: 'Gaming Mouse',
               productName: 'Wireless Gaming Mouse',
               treasureCoverImg: 'https://img.example.com/mouse-cover.jpg',
+              blurhash: '',
               unitAmount: '120.00',
               marketAmount: '159.00',
             },
@@ -241,6 +242,7 @@ describe('ClientFlashSaleService', () => {
           treasureName: 'Compact Air Fryer',
           productName: '4L Touch Panel Air Fryer',
           treasureCoverImg: 'https://img.example.com/fryer-cover.jpg',
+          blurhash: '',
           mainImageList: [
             'https://img.example.com/fryer-1.jpg',
             'https://img.example.com/fryer-2.jpg',

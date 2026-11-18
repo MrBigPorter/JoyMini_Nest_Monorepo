@@ -1875,6 +1875,9 @@ model DocumentChunk {
   documentId      String                       @map("document_id") @db.VarChar(32)
   chunkIndex      Int                          @map("chunk_index") @db.SmallInt
   content         String                       @map("content") @db.Text
+  /// 向量索引（HNSW, vector_cosine_ops）由迁移
+  /// 20261119120000_add_hnsw_embedding_index 维护；Prisma schema 无法声明
+  /// pgvector 索引，此处仅作说明，不要改字段类型。
   embedding       Unsupported("vector(1024)")?
   tokenCount      Int?                         @map("token_count") @db.SmallInt
   /// 生成此 chunk 时对应的文档版本（用于检测过期）

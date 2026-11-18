@@ -38,6 +38,15 @@ import { KbVersionService } from '@api/client/ai-customer/knowledge/kb-version.s
   imports: [
     BullModule.registerQueue({
       name: RAG_EMBEDDING_QUEUE,
+      // 与 processor 的幂等重试语义对齐：失败任务重试 3 次，指数退避。
+      // 处理器里 embedDocument(force=false) 只补 embedding IS NULL 的 chunk，
+      // 所以重试不会重复计算已成功的部分。
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 2000 },
+        removeOnComplete: true,
+        removeOnFail: false,
+      },
     }),
     PrismaModule,
     AiModule,

@@ -95,23 +95,28 @@ jobs:
           node packages/shared/scripts/build.js
           node packages/ui/scripts/build.js
 
-      # 8) 执行 Lint（硬门禁 — 失败即阻断，跳过 API 的 TypeScript-checked ESLint）
+      # 8) 执行 Lint（硬门禁 — 失败即阻断，包含 API）
       - name: Lint
-        run: yarn turbo run lint --filter=!@lucky/api
+        run: yarn turbo run lint
 
       # 9) 执行 TypeScript 类型检查（硬门禁）
       - name: Type Check
         run: yarn turbo run check-types
 
+      # API 单元测试 — 必须通过
+      # 10) 运行 API 单测（硬门禁）
+      - name: Unit Test — api (required)
+        run: yarn workspace @lucky/api test
+
       # admin-next 单元测试 — 必须通过
-      # 10) 运行 admin-next 单测（硬门禁）
+      # 11) 运行 admin-next 单测（硬门禁）
       - name: Unit Test — admin-next (required)
         run: yarn workspace @lucky/admin-next test
 
-      # 其他包测试 — 允许跳过
-      # 11) 运行其他包测试（软门禁）
+      # 其他包测试 — 允许跳过（api/admin-next 已单独作为硬门禁执行）
+      # 12) 运行其他包测试（软门禁）
       - name: Unit Test — other packages (optional)
-        run: yarn turbo run test --filter=!@lucky/admin-next
+        run: yarn turbo run test --filter=!@lucky/admin-next --filter=!@lucky/api
         continue-on-error: true
 
       # frontend-blog 构建验证 — 确保 blog 能正常 build
