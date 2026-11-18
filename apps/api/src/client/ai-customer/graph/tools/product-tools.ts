@@ -26,12 +26,21 @@ import {
   toolFailure,
   toolSuccess,
 } from '@api/client/ai-customer/graph/tools/tool-result';
+import {
+  MISSING_USER_CONTEXT,
+  requireToolUserId,
+} from '@api/client/ai-customer/graph/tools/tool-identity';
 import { toResultChain } from '@lucky/shared';
 
 /**
  * "纯函数" 工厂：创建商品浏览/搜索工具
  * @param treasureService - 从 NestJS DI 注入的 TreasureService
  * @param categoryService - 从 NestJS DI 注入的 CategoryService
+ *
+ * ── 身份边界 ──
+ * 公共查询（搜索/详情/状态/分类）不需要用户身份；
+ * 只有热门商品（按用户个性化）从请求上下文读 userId，
+ * 不再把 userId 作为 tool 参数暴露给 LLM。
  *
  * 所有返回数据通过 toLLM() 语义化后再序列化，
  * 避免 LLM 看到 raw DB 字段（如 virtual: 1）后错误猜测。
@@ -44,8 +53,7 @@ export const createProductTools = (
 
   return [
     /**
-     * 搜索/浏览商品列表
-     * @param userId - 当前用户 ID，由 LLM 自动传递
+     * 搜索/浏览商品列表（公共查询，不依赖用户身份）
      * @param q - 关键词搜索
      * @param categoryId - 分类筛选
      * @param filterType - 销售状态筛选: ALL, ON_SALE, PRE_SALE
@@ -56,14 +64,12 @@ export const createProductTools = (
     {
       tool: tool(
         async ({
-          userId,
           q,
           categoryId,
           filterType,
           page,
           pageSize,
         }: {
-          userId: string;
           q?: string;
           categoryId?: number;
           filterType?: string;
@@ -97,7 +103,6 @@ export const createProductTools = (
         {
           name: 'searchProducts',
           schema: z.object({
-            userId: z.string().describe('The current user ID'),
             q: z
               .string()
               .optional()
@@ -120,22 +125,15 @@ export const createProductTools = (
     },
 
     /**
-     * 获取指定商品的详细信息
-     * @param userId - 当前用户 ID，由 LLM 自动传递
+     * 获取指定商品的详细信息（公共查询）
      * @param productId - 商品 ID
      * @returns JSON 字符串，包含商品详情（含描述、图片、分类等）
      */
     {
       tool: tool(
-        async ({
-          userId,
-          productId,
-        }: {
-          userId: string;
-          productId: string;
-        }) => {
+        async ({ productId }: { productId: string }) => {
           logger.log(
-            `[product-tools:getProductDetail] userId="${userId}", productId="${productId}"`,
+            `[product-tools:getProductDetail] productId="${productId}"`,
           );
           return toResultChain(treasureService.detail(productId))
             .then((data) => {
@@ -151,7 +149,6 @@ export const createProductTools = (
         {
           name: 'getProductDetail',
           schema: z.object({
-            userId: z.string().describe('The current user ID'),
             productId: z.string().describe('The product ID to look up'),
           }),
           description:
@@ -163,22 +160,15 @@ export const createProductTools = (
     },
 
     /**
-     * 获取商品的实时状态（库存、价格、上下架等）
-     * @param userId - 当前用户 ID，由 LLM 自动传递
+     * 获取商品的实时状态（库存、价格、上下架等，公共查询）
      * @param productId - 商品 ID
      * @returns JSON 字符串，包含实时状态
      */
     {
       tool: tool(
-        async ({
-          userId,
-          productId,
-        }: {
-          userId: string;
-          productId: string;
-        }) => {
+        async ({ productId }: { productId: string }) => {
           logger.log(
-            `[product-tools:getProductStatus] userId="${userId}", productId="${productId}"`,
+            `[product-tools:getProductStatus] productId="${productId}"`,
           );
           return toResultChain(treasureService.getStatus(productId))
             .then((data) => {
@@ -194,7 +184,6 @@ export const createProductTools = (
         {
           name: 'getProductStatus',
           schema: z.object({
-            userId: z.string().describe('The current user ID'),
             productId: z.string().describe('The product ID to check status'),
           }),
           description:
@@ -206,14 +195,16 @@ export const createProductTools = (
     },
 
     /**
-     * 获取热门商品列表
-     * @param userId - 当前用户 ID，由 LLM 自动传递
+     * 获取热门商品列表（按用户个性化）
      * @param limit - 返回数量，默认 10，最大 20
      * @returns JSON 字符串，包含热门商品列表
      */
     {
       tool: tool(
-        async ({ userId, limit }: { userId: string; limit?: number }) => {
+        async ({ limit }: { limit?: number }) => {
+          const userId = requireToolUserId('getHotProducts');
+          if (!userId) return toolFailure(MISSING_USER_CONTEXT);
+
           const take = Math.min(Number(limit) || 10, 20);
           return toResultChain(treasureService.getHotGroups(take, userId))
             .then((data) => {
@@ -229,7 +220,6 @@ export const createProductTools = (
         {
           name: 'getHotProducts',
           schema: z.object({
-            userId: z.string().describe('The current user ID'),
             limit: z
               .number()
               .optional()
@@ -245,13 +235,12 @@ export const createProductTools = (
     },
 
     /**
-     * 获取商品分类列表
-     * @param userId - 当前用户 ID，由 LLM 自动传递
+     * 获取商品分类列表（公共查询）
      * @returns JSON 字符串，包含所有启用的商品分类
      */
     {
       tool: tool(
-        async ({ userId }: { userId: string }) =>
+        async () =>
           toResultChain(categoryService.list({ state: 1 }))
             .then((data) => {
               const categories = (data ?? []).map((c: any) => ({
@@ -265,9 +254,7 @@ export const createProductTools = (
             ),
         {
           name: 'getProductCategories',
-          schema: z.object({
-            userId: z.string().describe('The current user ID'),
-          }),
+          schema: z.object({}),
           description: 'Get the list of available product categories.',
         },
       ),

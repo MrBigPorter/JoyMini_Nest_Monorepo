@@ -70,11 +70,19 @@ import {
   toolFailure,
   toolSuccess,
 } from '@api/client/ai-customer/graph/tools/tool-result';
+import {
+  MISSING_USER_CONTEXT,
+  requireToolUserId,
+} from '@api/client/ai-customer/graph/tools/tool-identity';
 import { toResultChain } from '@lucky/shared';
 import { z } from 'zod';
 
 /**
  * 创建 KYC Agent 的所有工具
+ *
+ * ── 身份边界 ──
+ * KYC 状态查询使用请求上下文（AsyncLocalStorage）里的 userId，
+ * 不再作为 tool 参数暴露给 LLM；证件类型列表是公共配置，无需身份。
  *
  * @param kycService  - KYC 领域服务（状态查询、证件类型）
  * @returns TaggedTool[] - 2 个标记好标签的工具
@@ -89,7 +97,10 @@ export const createKycTools = (kycService: KycService): TaggedTool[] => {
     // ================================================================
     {
       tool: tool(
-        async ({ userId }: { userId: string }) => {
+        async () => {
+          const userId = requireToolUserId('getKycDetail');
+          if (!userId) return toolFailure(MISSING_USER_CONTEXT);
+
           logger.log(`[kyc-tools:getKycDetail] userId="${userId}"`);
           return toResultChain(kycService.getMyKyc(userId))
             .then((result) => {
@@ -103,9 +114,7 @@ export const createKycTools = (kycService: KycService): TaggedTool[] => {
         },
         {
           name: 'getKycDetail',
-          schema: z.object({
-            userId: z.string().describe('The current user ID'),
-          }),
+          schema: z.object({}),
           description:
             'Check the user KYC (real-name verification) status. Returns: kycStatus (0=draft/not-submitted, 1=pending-review, 2=approved, 3=rejected), idType, riskLevel, and timestamps. Use this to answer user questions about their KYC verification progress.',
         },
