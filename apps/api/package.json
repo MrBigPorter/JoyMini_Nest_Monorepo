@@ -34,7 +34,8 @@
     "build:cli": "tsc -p tsconfig.cli.json",
     "export:swagger": "TS_NODE_TRANSPILE_ONLY=true node_modules/.bin/ts-node -r tsconfig-paths/register scripts/cli/export-swagger.ts",
     "export:swagger:full": "TS_NODE_TRANSPILE_ONLY=true node_modules/.bin/ts-node -r tsconfig-paths/register scripts/cli/export-swagger.ts --full --output ../../apps/swagger-docs",
-    "seed:ai-eval-fixture": "tsx scripts/seed/seed-ai-eval-fixture.ts"
+    "seed:ai-eval-fixture": "tsx scripts/seed/seed-ai-eval-fixture.ts",
+    "sync-ai-data": "tsx scripts/cli/sync-ai-data.ts"
   },
   "prisma": {
     "schema": "prisma/schema.prisma",

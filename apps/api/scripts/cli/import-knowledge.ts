@@ -213,8 +213,12 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(`找到 ${files.length} 个文件：`);
-  for (const f of files) {
+  // 冒烟/分批导入：只取前 N 个文件（默认全部）
+  const limit = Number(process.env.IMPORT_LIMIT || 0);
+  const selected = limit > 0 ? files.slice(0, limit) : files;
+
+  console.log(`找到 ${files.length} 个文件，本次导入 ${selected.length} 个：`);
+  for (const f of selected) {
     console.log(`  · ${f.replace(KNOWLEDGE_DIR + '/', '')}`);
   }
   console.log('');
@@ -224,20 +228,26 @@ async function main() {
     return;
   }
 
-  // ── 登录 ──
-  const username = process.env.ADMIN_USERNAME || 'admin';
-  console.log(`→ 以 ${username} 登录 ${API_BASE} ...`);
+  // 已签发的 admin token（本地/生产一键脚本用），优先于账号密码
+  let token = process.env.ADMIN_TOKEN?.trim() || '';
+  if (token) {
+    console.log('  ✅ 使用 ADMIN_TOKEN（跳过账号密码登录）\n');
+  } else {
+    // ── 登录 ──
+    const username = process.env.ADMIN_USERNAME || 'admin';
+    console.log(`→ 以 ${username} 登录 ${API_BASE} ...`);
 
-  // 密码优先取环境变量（CI 用），否则隐藏输入
-  const password =
-    process.env.ADMIN_PASSWORD || (await askPassword('  密码 (Password): '));
-  if (!password) {
-    console.error('❌ 密码不能为空');
-    process.exit(1);
+    // 密码优先取环境变量（CI 用），否则隐藏输入
+    const password =
+      process.env.ADMIN_PASSWORD || (await askPassword('  密码 (Password): '));
+    if (!password) {
+      console.error('❌ 密码不能为空');
+      process.exit(1);
+    }
+
+    token = await login(username, password);
+    console.log('  ✅ 登录成功\n');
   }
-
-  const token = await login(username, password);
-  console.log('  ✅ 登录成功\n');
 
   // ── 上传 ──
   const started = Date.now();
@@ -245,10 +255,10 @@ async function main() {
   let created = 0;
   let updated = 0;
 
-  for (let i = 0; i < files.length; i++) {
-    const file = files[i];
+  for (let i = 0; i < selected.length; i++) {
+    const file = selected[i];
     const rel = file.replace(KNOWLEDGE_DIR + '/', '');
-    const tag = `[${i + 1}/${files.length}]`;
+    const tag = `[${i + 1}/${selected.length}]`;
 
     try {
       const action = await uploadOne(token, file);
@@ -261,13 +271,13 @@ async function main() {
       console.log(`  ❌ ${tag} ${rel} → ${reason}`);
     }
 
-    if (i < files.length - 1) await sleep(DELAY_MS);
+    if (i < selected.length - 1) await sleep(DELAY_MS);
   }
 
   // ── 汇总 ──
   const secs = ((Date.now() - started) / 1000).toFixed(1);
   console.log('\n=========================================');
-  console.log(`  成功 ${created + updated} / ${files.length}（新建 ${created}，更新 ${updated}）`);
+  console.log(`  成功 ${created + updated} / ${selected.length}（新建 ${created}，更新 ${updated}）`);
   console.log(`  耗时 ${secs}s`);
 
   if (failed.length > 0) {
