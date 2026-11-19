@@ -1,13 +1,15 @@
 name: Deploy API Backend to ECS
 
+# 已停用（2026-11-19）：生产后端走 VPS Docker（deploy-backend.yml）。
+# 自动 push 触发已注释，避免 main 合并时产生必然失败的 ECS 部署。
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'apps/api/**'
-      - 'packages/shared/**'
-      - 'Dockerfile.prod'
-      - '.github/workflows/deploy-backend-ecs.yml'
+  # push:
+  #   branches: [main]
+  #   paths:
+  #     - 'apps/api/**'
+  #     - 'packages/shared/**'
+  #     - 'Dockerfile.prod'
+  #     - '.github/workflows/deploy-backend-ecs.yml'
   workflow_dispatch:
 
 env:

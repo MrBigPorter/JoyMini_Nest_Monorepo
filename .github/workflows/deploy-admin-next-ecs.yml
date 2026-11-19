@@ -1,12 +1,14 @@
 name: Deploy Admin Next to ECS
 
+# 已停用（2026-11-19）：生产 admin 走 Cloudflare Workers（deploy-admin-cloudflare.yml）。
+# 自动 push 触发已注释，避免 main 合并时产生必然失败的 ECS 部署。
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'apps/admin-next/**'
-      - 'packages/shared/**'
-      - '.github/workflows/deploy-admin-next-ecs.yml'
+  # push:
+  #   branches: [main]
+  #   paths:
+  #     - 'apps/admin-next/**'
+  #     - 'packages/shared/**'
+  #     - '.github/workflows/deploy-admin-next-ecs.yml'
   workflow_dispatch:
 
 env:

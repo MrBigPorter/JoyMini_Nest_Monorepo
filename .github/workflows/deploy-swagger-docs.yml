@@ -78,13 +78,12 @@ jobs:
           fi
 
       - name: 2. Deploy to Cloudflare Pages
-        uses: cloudflare/pages-action@v1
+        # cloudflare/pages-action 已从 Marketplace 移除；改用 wrangler-action
+        uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          projectName: "joyminis-api-platform"
-          directory: apps/swagger-docs
-          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+          command: pages deploy apps/swagger-docs --project-name=joyminis-api-platform
 
       - name: 3. Publish Deployment Summary
         if: always()
