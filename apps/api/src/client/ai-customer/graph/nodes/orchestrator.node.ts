@@ -37,6 +37,7 @@ import {
   AgentState,
   DebugAgentExecution,
   OrchestratorStateUpdate,
+  RagCitation,
 } from '@api/client/ai-customer/graph/state';
 import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-registry.service';
 import { extractUserInput } from '@api/client/ai-customer/graph/utils/extract-user-input';
@@ -270,6 +271,7 @@ export const createOrchestratorNode =
           transferReason: transfer.reason,
           labels: [],
           pendingConfirm: null,
+          ragSources: [],
         };
       } catch (err) {
         logger.warn(
@@ -280,6 +282,7 @@ export const createOrchestratorNode =
           transferReason: transfer.reason,
           labels: [],
           pendingConfirm: null,
+          ragSources: [],
         };
       }
     }
@@ -295,7 +298,10 @@ export const createOrchestratorNode =
         latencyMs: Date.now() - nodeStartedAt,
       });
       logger.log('[orchestrator] no labels, falling back to general chat');
-      return handleGeneralChat(state, llmConfig);
+      return {
+        ...(await handleGeneralChat(state, llmConfig)),
+        ragSources: [],
+      };
     }
 
     // ================================================================
@@ -437,6 +443,7 @@ export const createOrchestratorNode =
           previousIntent: state.intent,
           labels: [],
           pendingConfirm: null,
+          ragSources: [],
         };
       }
 
@@ -499,6 +506,7 @@ export const createOrchestratorNode =
     // ──────────────────────────────────────────────────────────────
     let hasTransferRequest = false;
     let hasPendingConfirm: typeof AgentState.State.pendingConfirm = null;
+    let ragSources: RagCitation[] = [];
     for (const label of executionOrder) {
       // 从 AGENT_MAP 查找 Agent 配置
       // AGENT_MAP 在 orchestrator.config.ts 中定义，包含:
@@ -548,6 +556,7 @@ export const createOrchestratorNode =
                 ragRetrievalService,
                 versionNotice,
               );
+              ragSources = result.ragSources ?? [];
               pushDirectResult(entry.label, result, agentOutputs, debugAgents);
               return true;
             },
@@ -686,6 +695,7 @@ export const createOrchestratorNode =
         previousIntent: state.intent,
         labels: [],
         pendingConfirm: hasPendingConfirm,
+        ragSources: [],
       };
       return orchestratorResult;
     }
@@ -716,6 +726,7 @@ export const createOrchestratorNode =
         state.intent === state.previousIntent
           ? (state.repeatCount ?? 0) + 1
           : 0,
+      ragSources,
     };
 
     // debug=true 时写入执行流水线追踪数据

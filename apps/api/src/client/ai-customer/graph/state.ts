@@ -232,6 +232,18 @@ export interface DebugInfo {
   execution: DebugExecutionInfo;
 }
 
+/** RAG 引用：本轮回答可追溯到的知识片段。 */
+export interface RagCitation {
+  chunkId: string;
+  documentId: string;
+  docId: string;
+  title: string;
+  domain: string;
+  score: number;
+  /** 片段预览（截断），完整内容仍只进入当轮 prompt，不落库。 */
+  content: string;
+}
+
 // ============================================================
 // AgentState — LangGraph State Schema
 // ============================================================
@@ -429,6 +441,19 @@ export const AgentState = Annotation.Root({
     reducer: (a: number, b: number) => b,
     default: () => 0,
   }),
+
+  /**
+   * ragSources — 本轮 RAG 检索命中的引用
+   *
+   * 每轮显式覆盖（含空数组），避免上一轮的引用残留到无关回答。
+   * 由 orchestrator 的 RAG direct handler 写入，收尾阶段用于：
+   *   - SSE onDone / chat.done 附带 sources
+   *   - ChatMessage.meta.sources 持久化并随 Socket 消息下发
+   */
+  ragSources: Annotation<RagCitation[]>({
+    reducer: (_a: RagCitation[], b: RagCitation[]) => b ?? [],
+    default: () => [],
+  }),
 });
 
 // ============================================================
@@ -453,5 +478,5 @@ export type OrchestratorStateUpdate = Omit<
   Partial<typeof AgentState.State>,
   'pendingConfirm'
 > & {
-  pendingConfirm: typeof AgentState.State['pendingConfirm'];
+  pendingConfirm: (typeof AgentState.State)['pendingConfirm'];
 };

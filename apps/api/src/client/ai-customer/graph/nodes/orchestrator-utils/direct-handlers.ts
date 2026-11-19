@@ -5,10 +5,12 @@ import type { LlmProviderConfig } from '@api/client/ai-customer/graph/llm-factor
 import {
   AgentState,
   OrchestratorStateUpdate,
+  RagCitation,
 } from '@api/client/ai-customer/graph/state';
 import { extractUserInput } from '@api/client/ai-customer/graph/utils/extract-user-input';
 import { formatMessage } from '@api/client/ai-customer/graph/utils/format-message-preview';
 import { RagRetrievalService } from '@api/client/ai-customer/knowledge/rag-retrieval.service';
+import type { RetrievedChunk } from '@api/client/ai-customer/knowledge/rag-retrieval.service';
 import {
   RAG_PROMPT,
   RAG_FALLBACK_PROMPT,
@@ -46,6 +48,21 @@ export async function handleGeneralChat(
 /**
  * handleRagQuery — 知识库检索处理器
  */
+const CITATION_PREVIEW_CHARS = 500;
+
+/** 把检索结果转成可下发/可落库的引用（内容截断，避免把整篇文档写进 meta）。 */
+export function toRagCitations(results: RetrievedChunk[]): RagCitation[] {
+  return results.map((r) => ({
+    chunkId: r.chunkId,
+    documentId: r.documentId,
+    docId: r.docId,
+    title: r.title,
+    domain: r.domain,
+    score: r.score,
+    content: r.content.slice(0, CITATION_PREVIEW_CHARS),
+  }));
+}
+
 export async function handleRagQuery(
   state: typeof AgentState.State,
   llmConfig: LlmProviderConfig,
@@ -73,6 +90,7 @@ export async function handleRagQuery(
       previousIntent: state.intent,
       labels: [],
       pendingConfirm: null,
+      ragSources: [],
     };
   }
   const documents = [
@@ -92,5 +110,6 @@ export async function handleRagQuery(
     previousIntent: state.intent,
     labels: [],
     pendingConfirm: null,
+    ragSources: toRagCitations(results),
   };
 }

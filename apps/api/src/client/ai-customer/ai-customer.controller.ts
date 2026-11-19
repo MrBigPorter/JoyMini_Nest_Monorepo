@@ -230,8 +230,8 @@ export class AiCustomerController {
             onStep: (step: string, data?: any) => {
               sendSSE('step', { step, ...data });
             },
-            onDone: () => {
-              sendSSE('done');
+            onDone: (payload?: { sources?: unknown[] }) => {
+              sendSSE('done', { sources: payload?.sources ?? [] });
             },
             onError: (error: Error) => {
               sendSSE('error', { content: error.message || '服务器错误' });
@@ -389,8 +389,8 @@ export class AiCustomerController {
               sendSSE('step', { step, ...data });
             },
             // 流正常结束
-            onDone: () => {
-              sendSSE('done');
+            onDone: (payload?: { sources?: unknown[] }) => {
+              sendSSE('done', { sources: payload?.sources ?? [] });
             },
             // 流处理中出错
             onError: (error: Error) => {

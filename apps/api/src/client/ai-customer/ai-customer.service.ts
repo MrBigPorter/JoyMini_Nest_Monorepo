@@ -28,6 +28,7 @@ import { CODE_TYPE } from '@lucky/shared';
 import { emitStage } from '@api/common/logger/structured-logger';
 import { runWithContext } from '@api/common/logger/trace-context';
 import { decGauge, incCounter, incGauge } from '@api/common/metrics/metrics';
+import type { RagCitation } from '@api/client/ai-customer/graph/state';
 import { RedisService } from '@api/common/redis/redis.service';
 import { degradeToHuman } from './ai-failure-handler';
 import { plainToInstance } from 'class-transformer';
@@ -147,7 +148,7 @@ export class AiCustomerService {
     callbacks: {
       onToken: (token: string) => void;
       onStep: (step: string, data?: any) => void;
-      onDone: () => void;
+      onDone: (payload?: { sources?: RagCitation[] }) => void;
       onError: (error: Error) => void;
       onTransfer?: (reason: string) => void;
       /** 显式取消信号（留给后续 single-flight/取消设计）；透传给 LangGraph */
@@ -418,7 +419,7 @@ export class AiCustomerService {
     userId: string,
     conversationId: string | undefined,
     callbacks: {
-      onDone: () => void;
+      onDone: (payload?: { sources?: RagCitation[] }) => void;
       onTransfer?: (reason: string) => void;
     },
     startedAt: number,
@@ -430,6 +431,8 @@ export class AiCustomerService {
       configurable: { thread_id: threadId },
     });
     const newMessages = (finalState?.values?.messages ?? []).slice(prevCount);
+    const ragSources =
+      (finalState?.values?.ragSources as RagCitation[] | undefined) ?? [];
 
     // 持久化本轮 AI 对话
     if (newMessages.length > 0) {
@@ -466,8 +469,9 @@ export class AiCustomerService {
         userId,
         conversationId,
         memberIds,
+        ragSources,
       );
-      callbacks.onDone();
+      callbacks.onDone({ sources: ragSources });
       if (conversationId) {
         this.eventsGateway.dispatchToConversation(
           conversationId,
@@ -484,6 +488,7 @@ export class AiCustomerService {
       transferred,
       confirmCard,
       tokenTotal,
+      sourceCount: ragSources.length,
       answerLength: newMessages.at(-1)?.content?.length ?? 0,
     });
   }
@@ -728,6 +733,7 @@ export class AiCustomerService {
     userId: string,
     conversationId?: string,
     memberIds: string[] = [],
+    sources: RagCitation[] = [],
   ): Promise<void> {
     if (!conversationId) return;
     await publishAiReply(
@@ -737,6 +743,7 @@ export class AiCustomerService {
       newMessages,
       userId,
       memberIds,
+      sources.length > 0 ? { sources } : undefined,
     );
   }
 
