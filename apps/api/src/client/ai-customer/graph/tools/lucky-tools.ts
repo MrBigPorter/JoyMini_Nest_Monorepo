@@ -293,6 +293,7 @@ export const createLuckyTools = (
         },
       ),
       displayName: 'Entering the draw...',
+      capability: { kind: 'write', requiresOwnership: true },
       tags: ['lucky-draw', 'flow'],
     },
 

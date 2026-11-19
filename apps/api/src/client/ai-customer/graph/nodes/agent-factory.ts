@@ -53,7 +53,6 @@ import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-re
 import { LlmProviderConfig } from '@api/client/ai-customer/graph/llm-factory';
 import { MAX_CONTEXT_MESSAGES } from '@api/client/ai-customer/graph/constants';
 import { AgentNodeOutput } from '@api/client/ai-customer/graph/types/agent-types';
-import { CONFIRM_REQUIRED_TOOLS } from './orchestrator-utils/confirm-utils';
 
 // ============================================================
 // Interfaces
@@ -140,7 +139,7 @@ export async function runStandardAgent(
     tools: allTools,
     agentName: opts.agentName,
     logger,
-    confirmRequiredTools: CONFIRM_REQUIRED_TOOLS,
+    confirmRequiredTools: new Set(opts.registry.getWriteToolNames()),
   });
 
   // ⑤ Output — 构建结果

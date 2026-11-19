@@ -65,7 +65,6 @@ import {
 
 import { resolveExecutionOrder } from './orchestrator-utils/dependency-resolver';
 import {
-  CONFIRM_REQUIRED_TOOLS,
   mapToolToAction,
   buildConfirmSummary,
   NEGATIVE_KEYWORDS,
@@ -626,7 +625,7 @@ export const createOrchestratorNode =
           // ── 写操作拦截：检测是否需要用户确认 ──
           const lastTool = result.pendingToolCall; //工具被截停、未执行）——若读 lastToolCallInfo（已执行），
           // 卡片出现时操作已提交，用户再点确认 = 双执行（资金风险）
-          if (lastTool && CONFIRM_REQUIRED_TOOLS.has(lastTool.name)) {
+          if (lastTool && registry.requiresConfirmation(lastTool.name)) {
             logger.log(
               `[orchestrator] ${entry.label} called write tool "${lastTool.name}", intercepting`,
             );

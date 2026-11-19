@@ -1,11 +1,5 @@
-/** 需要用户确认的写操作工具 */
-export const CONFIRM_REQUIRED_TOOLS = new Set([
-  'applyWithdraw',
-  'claimCoupon',
-  'redeemCouponCode',
-  'draw',
-  'deleteAddress',
-]);
+// 需要确认的工具不再维护静态清单：
+// 由 ToolRegistry 从工具的 capability.kind === 'write' 推导。
 
 export const NEGATIVE_KEYWORDS = [
   '烦',

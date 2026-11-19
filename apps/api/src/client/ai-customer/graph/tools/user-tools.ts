@@ -267,6 +267,7 @@ export const createUserTools = (
         },
       ),
       displayName: 'Saving new address...',
+      capability: { kind: 'write', requiresOwnership: true },
       tags: ['user'],
     },
     /**
@@ -392,6 +393,7 @@ export const createUserTools = (
         },
       ),
       displayName: 'Updating address...',
+      capability: { kind: 'write', requiresOwnership: true },
       tags: ['user'],
     },
     /**
@@ -428,6 +430,7 @@ export const createUserTools = (
         },
       ),
       displayName: 'Deleting address...',
+      capability: { kind: 'write', requiresOwnership: true },
       tags: ['user'],
     },
   ];

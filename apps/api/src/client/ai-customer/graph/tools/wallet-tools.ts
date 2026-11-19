@@ -544,6 +544,7 @@ export const createWalletTools = (
         },
       ),
       displayName: 'Processing withdrawal...',
+      capability: { kind: 'write', requiresOwnership: true },
       tags: ['wallet'],
     },
   ];

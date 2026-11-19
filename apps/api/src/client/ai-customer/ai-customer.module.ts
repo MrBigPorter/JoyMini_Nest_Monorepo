@@ -112,6 +112,8 @@ export class AiCustomerModule implements OnApplicationBootstrap {
     this.toolRegistry.registerMany(createKycTools(this.kycService));
     this.logger.log('✅ KYC tools registered');
 
+    this.toolRegistry.auditCapabilities(this.logger);
+
     this.toolRegistry.validateRegistration(EXPECTED_AGENT_TAGS, {
       error: (msg: string) => this.logger.error(msg),
       log: (msg: string) => this.logger.log(msg),

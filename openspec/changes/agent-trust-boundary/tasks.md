@@ -11,10 +11,10 @@
 
 ## 2. 能力标记与确认流程
 
-- [ ] 2.1 为 `TaggedTool` 增加 `capability: { kind: 'read' | 'write'; requiresOwnership: boolean }`；验证：`tsc` 0 error
-- [ ] 2.2 为全部工具声明能力标记；验证：注册表遍历能列出每个工具的能力，无 `undefined`
-- [ ] 2.3 确认流程改为从能力标记推导，不再读 `CONFIRM_REQUIRED_TOOLS` 字符串集合；验证：删除该集合后 `tsc` 无引用错误，且既有确认用例全绿
-- [ ] 2.4 补全 `createAddress` / `updateAddress` 的截停；验证：新增两条用例断言"未确认前不调用 service"
+- [x] 2.1 为 `TaggedTool` 增加 `capability: { kind: 'read' | 'write'; requiresOwnership: boolean }`；验证：`tsc` 0 error
+- [x] 2.2 为全部工具声明能力标记；验证：注册表遍历能列出每个工具的能力，无 `undefined`
+- [x] 2.3 确认流程改为从能力标记推导，不再读 `CONFIRM_REQUIRED_TOOLS` 字符串集合；验证：删除该集合后 `tsc` 无引用错误，且既有确认用例全绿
+- [x] 2.4 补全 `createAddress` / `updateAddress` 的截停；验证：新增两条用例断言"未确认前不调用 service"
 - [ ] 2.5 增加启动自检：存在 `kind === 'write'` 但未纳入确认流程的工具时打 `error` 日志；验证：临时把一个工具的能力标为 write 且排除确认，启动后可见 error 日志
 - [ ] 2.6 归属校验：`requiresOwnership` 的工具在执行前比对目标归属；验证：构造指向他人数据的参数，返回结构化拒绝且写 `tool.denied` 事件
 
