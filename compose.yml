@@ -53,6 +53,8 @@ services:
       - backend_nm:/app/node_modules
     environment:
       CHOKIDAR_USEPOLLING: "true"
+      # AI 回答反馈入口开关（默认关闭，验证后开启）
+      AI_FEEDBACK_UI_ENABLED: "${AI_FEEDBACK_UI_ENABLED:-false}"
     depends_on:
       db:
         condition: service_healthy
