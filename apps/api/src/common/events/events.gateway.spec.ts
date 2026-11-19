@@ -1,4 +1,9 @@
+import { createClient } from 'redis';
+import { createAdapter } from '@socket.io/redis-adapter';
 import { EventsGateway } from './events.gateway';
+
+jest.mock('redis', () => ({ createClient: jest.fn() }));
+jest.mock('@socket.io/redis-adapter', () => ({ createAdapter: jest.fn() }));
 
 /**
  * 投递语义的回归测试（#87 N-9）
@@ -47,6 +52,7 @@ function createGateway() {
     {} as any,
     {} as any,
     {} as any,
+    { get: jest.fn().mockReturnValue(undefined) } as any,
   );
   const { server, emissions } = createFakeServer();
   gateway.server = server;
@@ -151,6 +157,7 @@ function createGatewayWithPrisma() {
     prisma as any, // prismaService：这次的主角
     {} as any, // redisService
     {} as any, // eventEmitter
+    { get: jest.fn().mockReturnValue(undefined) } as any, // configService
   );
   const { server } = createFakeServer();
   gateway.server = server;
@@ -264,5 +271,86 @@ describe('EventsGateway.handleSendMessage 成员校验（T1-4）', () => {
     // 事务被调用 = 门禁放行了；后面失败是 mock 不完整，不影响本断言
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
     expect(result).toMatchObject({ status: 'error' });
+  });
+});
+
+describe('EventsGateway.afterInit Redis adapter', () => {
+  const makeGateway = (get = jest.fn().mockReturnValue('redis://test')) =>
+    new EventsGateway(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      { get } as any,
+    );
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('Redis 可用时挂载 adapter，并在销毁时关闭 pub/sub', async () => {
+    const subClient = {
+      connect: jest.fn().mockResolvedValue(undefined),
+      quit: jest.fn().mockResolvedValue(undefined),
+      on: jest.fn(),
+    };
+    const pubClient = {
+      connect: jest.fn().mockResolvedValue(undefined),
+      quit: jest.fn().mockResolvedValue(undefined),
+      on: jest.fn(),
+      duplicate: jest.fn().mockReturnValue(subClient),
+    };
+    (createClient as jest.Mock).mockReturnValue(pubClient);
+    const adapter = jest.fn();
+    (createAdapter as jest.Mock).mockReturnValue(adapter);
+    // 生产环境 Nest 传的是 Namespace，adapter() 在根 server 上
+    const rootServer = { adapter: jest.fn() };
+    const namespace = { server: rootServer };
+
+    const gateway = makeGateway();
+    await gateway.afterInit(namespace as any);
+
+    expect(rootServer.adapter).toHaveBeenCalledWith(adapter);
+    await gateway.onModuleDestroy();
+    expect(pubClient.quit).toHaveBeenCalled();
+    expect(subClient.quit).toHaveBeenCalled();
+  });
+
+  it('Redis 连接失败时降级为内存 adapter，不阻塞启动', async () => {
+    const subClient = {
+      connect: jest.fn().mockRejectedValue(new Error('redis down')),
+      quit: jest.fn().mockResolvedValue(undefined),
+      on: jest.fn(),
+    };
+    const pubClient = {
+      connect: jest.fn().mockRejectedValue(new Error('redis down')),
+      quit: jest.fn().mockResolvedValue(undefined),
+      on: jest.fn(),
+      duplicate: jest.fn().mockReturnValue(subClient),
+    };
+    (createClient as jest.Mock).mockReturnValue(pubClient);
+    (createAdapter as jest.Mock).mockReturnValue(jest.fn());
+    const server = { adapter: jest.fn() };
+    const gateway = makeGateway();
+    const warn = jest
+      .spyOn((gateway as any).logger, 'warn')
+      .mockImplementation(() => undefined);
+
+    await expect(gateway.afterInit(server as any)).resolves.toBeUndefined();
+
+    expect(server.adapter).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('falling back to in-memory'),
+    );
+  });
+
+  it('REDIS_URL 缺失时不创建客户端', async () => {
+    const gateway = makeGateway(jest.fn().mockReturnValue(undefined));
+    const server = { adapter: jest.fn() };
+
+    await gateway.afterInit(server as any);
+
+    expect(createClient).not.toHaveBeenCalled();
+    expect(server.adapter).not.toHaveBeenCalled();
   });
 });

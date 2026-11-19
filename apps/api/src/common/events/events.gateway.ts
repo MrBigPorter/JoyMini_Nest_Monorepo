@@ -5,11 +5,15 @@ import {
   ConnectedSocket,
   OnGatewayConnection,
   OnGatewayDisconnect,
+  OnGatewayInit,
   MessageBody,
 } from '@nestjs/websockets';
-import { Socket } from 'socket.io';
-import { Logger } from '@nestjs/common';
+import { Server, Socket } from 'socket.io';
+import { Logger, OnModuleDestroy } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
+import { createAdapter } from '@socket.io/redis-adapter';
+import { createClient } from 'redis';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { RedisService } from '@api/common/redis/redis.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -67,18 +71,75 @@ export enum PushEventType {
     origin: '*', // 解决开发环境跨域
   },
 })
-export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class EventsGateway
+  implements
+    OnGatewayConnection,
+    OnGatewayDisconnect,
+    OnGatewayInit,
+    OnModuleDestroy
+{
   @WebSocketServer()
   server!: any;
 
   private readonly logger = new Logger(EventsGateway.name);
+  private pubClient?: ReturnType<typeof createClient>;
+  private subClient?: ReturnType<typeof createClient>;
 
   constructor(
     private readonly jwtService: JwtService,
     private readonly prismaService: PrismaService,
     private readonly redisService: RedisService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly configService: ConfigService,
   ) {}
+
+  /**
+   * 多实例广播：用 Redis adapter 把消息从当前实例扇出到所有副本。
+   * Redis 不可用时不阻塞启动，降级为单实例内存广播（并明确告警）。
+   */
+  async afterInit(server: Server): Promise<void> {
+    const redisUrl = this.configService.get<string>('REDIS_URL');
+    if (!redisUrl) {
+      this.logger.warn(
+        'REDIS_URL missing; Socket.IO stays on the in-memory adapter',
+      );
+      return;
+    }
+
+    const pubClient = createClient({ url: redisUrl });
+    const subClient = pubClient.duplicate();
+    pubClient.on('error', (err) =>
+      this.logger.error('Socket.IO Redis pub client error', err),
+    );
+    subClient.on('error', (err) =>
+      this.logger.error('Socket.IO Redis sub client error', err),
+    );
+
+    try {
+      await Promise.all([pubClient.connect(), subClient.connect()]);
+      // 命名空间网关的 afterInit 参数是 Namespace；adapter() 在根 Server 上。
+      const rootServer = (server as any).server ?? server;
+      if (typeof rootServer.adapter !== 'function') {
+        throw new Error('root Socket.IO server has no adapter() method');
+      }
+      rootServer.adapter(createAdapter(pubClient as any, subClient as any));
+      this.pubClient = pubClient;
+      this.subClient = subClient;
+      this.logger.log('✅ Socket.IO Redis adapter enabled');
+    } catch (err) {
+      this.logger.warn(
+        `Socket.IO Redis adapter unavailable, falling back to in-memory: ${extractErrorMessage(err)}`,
+      );
+      await Promise.allSettled([pubClient.quit(), subClient.quit()]);
+    }
+  }
+
+  async onModuleDestroy(): Promise<void> {
+    const clients = [this.pubClient, this.subClient].filter(
+      Boolean,
+    ) as ReturnType<typeof createClient>[];
+    await Promise.allSettled(clients.map((client) => client.quit()));
+  }
 
   async handleConnection(client: Socket) {
     try {
