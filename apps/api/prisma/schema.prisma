@@ -1303,7 +1303,7 @@ model ChatMessage {
   // 这里的 [] 已经是“可选”含义，代表一个消息可以有 0 个或多个隐藏记录
   hiddenByUsers ChatMessageHide[]
 
-  @@index([conversationId, seqId]) // 关键索引：拉取历史记录
+  @@unique([conversationId, seqId], map: "idx_chat_message_conv_seq") // 会话内序号唯一
 }
 
 model ChatMessageHide {
