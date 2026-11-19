@@ -6,6 +6,36 @@ import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service'
 import { emitStage } from '@api/common/logger/structured-logger';
 import { ConfigService } from '@nestjs/config';
 
+/**
+ * CJK 连续片段。JS 的 `\w` 只含 [A-Za-z0-9_]，中文会被当成标点删掉，
+ * 所以中文必须单独走一条提取路径。
+ */
+const CJK_RUN_RE = /[㐀-䶿一-鿿豈-﫿]+/g;
+const CJK_RUN_RE_FOR_STRIP = /[㐀-䶿一-鿿豈-﫿]+/g;
+
+/** 单次查询最多保留的词项数，防止长文把 SQL 的 OR 条件撑爆 */
+const MAX_QUERY_TOKENS = 40;
+
+/**
+ * 中文停用二元组：只滤掉纯疑问/客套的组合，不按单字过滤，
+ * 避免把「问题」「退货」这类有实义的词误杀。
+ */
+const CJK_STOP_BIGRAMS = new Set([
+  '怎么',
+  '什么',
+  '如何',
+  '请问',
+  '可以',
+  '能否',
+  '是否',
+  '我想',
+  '想问',
+  '一下',
+  '帮我',
+  '麻烦',
+  '谢谢',
+]);
+
 // =============================================================================
 // 检索结果类型
 // =============================================================================
@@ -41,6 +71,38 @@ export interface RetrievedChunk {
   contentType: string;
   /** 相似度分数（pgvector: 0~1 余弦相似度 / ES BM25: 0~∞ / 关键字: 0.5 固定值） */
   score: number;
+}
+
+/** 分层召回明细：每层按返回顺序去重后的 docId，以及该层原始命中数 */
+export interface RetrievalLayerDebug {
+  count: number;
+  docIds: string[];
+}
+
+/** 检索的分层调试信息（只在管理端 debug=true 时返回） */
+export interface RetrievalDebug {
+  layers: {
+    vector: RetrievalLayerDebug;
+    meili: RetrievalLayerDebug;
+    chunk: RetrievalLayerDebug;
+    doc: RetrievalLayerDebug;
+  };
+  /** 合并去重后的候选数（rerank 前） */
+  candidates: number;
+  /** 最终返回条数 */
+  returned: number;
+  /** rerank 前的最高原始分（混合量纲，仅供排查） */
+  topScoreBeforeRerank: number;
+  /** 是否执行了 rerank */
+  rerank: boolean;
+}
+
+export interface RetrievalOptions {
+  domain?: string;
+  topK?: number;
+  minScore?: number;
+  /** false 时跳过 reranker，用原始分排序（评测/降级用） */
+  useRerank?: boolean;
 }
 
 // =============================================================================
@@ -100,14 +162,19 @@ export class RagRetrievalService {
    */
   async retrieve(
     query: string,
-    options?: {
-      domain?: string;
-      topK?: number;
-      minScore?: number;
-      /** false 时跳过 reranker，用原始分排序（评测/降级用） */
-      useRerank?: boolean;
-    },
+    options?: RetrievalOptions,
   ): Promise<RetrievedChunk[]> {
+    return (await this.retrieveDetailed(query, options)).results;
+  }
+
+  /**
+   * 与 retrieve 同一条链路，额外返回分层召回明细。
+   * 只给管理端评测/调试使用，线上默认不拿这份数据。
+   */
+  async retrieveDetailed(
+    query: string,
+    options?: RetrievalOptions,
+  ): Promise<{ results: RetrievedChunk[]; debug: RetrievalDebug }> {
     const {
       domain,
       topK = 5,
@@ -115,7 +182,12 @@ export class RagRetrievalService {
       useRerank = true,
     } = options ?? {};
 
-    if (!query || query.trim().length === 0) return [];
+    if (!query || query.trim().length === 0) {
+      return {
+        results: [],
+        debug: this.buildDebug([], [], [], [], [], 0, 0, useRerank),
+      };
+    }
 
     incCounter('ai_retrieval_requests_total', { domain: domain ?? 'all' });
 
@@ -204,7 +276,19 @@ export class RagRetrievalService {
         topScore: 0,
         latencyMs: Date.now() - startedAt,
       });
-      return [];
+      return {
+        results: [],
+        debug: this.buildDebug(
+          vectorResults,
+          meiliResults,
+          chunkResults,
+          docResults,
+          [],
+          0,
+          0,
+          useRerank,
+        ),
+      };
     }
 
     this.logger.log(
@@ -230,12 +314,57 @@ export class RagRetrievalService {
       layers,
       candidates,
       returned: merged.length,
-      topScore: Number(topScore.toFixed(4)),
+      // 两个分不能混：rerank 前的分是混合量纲，只看它判断不了最终质量
+      topScoreBeforeRerank: Number(topScore.toFixed(4)),
+      topScoreAfterRerank: Number((merged[0]?.score ?? 0).toFixed(4)),
       rerank: useRerank,
       latencyMs: Date.now() - startedAt,
     });
 
-    return merged;
+    return {
+      results: merged,
+      debug: this.buildDebug(
+        vectorResults,
+        meiliResults,
+        chunkResults,
+        docResults,
+        merged,
+        candidates,
+        topScore,
+        useRerank,
+      ),
+    };
+  }
+
+  /** 汇总四层的召回明细；docId 按层内出现顺序去重。 */
+  private buildDebug(
+    vectorResults: RetrievedChunk[],
+    meiliResults: RetrievedChunk[],
+    chunkResults: RetrievedChunk[],
+    docResults: RetrievedChunk[],
+    finalResults: RetrievedChunk[],
+    candidates: number,
+    topScoreBeforeRerank: number,
+    rerank: boolean,
+  ): RetrievalDebug {
+    const layer = (chunks: RetrievedChunk[]) => ({
+      count: chunks.length,
+      docIds: [...new Set(chunks.map((c) => c.docId))],
+    });
+    return {
+      layers: {
+        vector: layer(vectorResults),
+        meili: layer(meiliResults),
+        chunk: layer(chunkResults),
+        doc: layer(docResults),
+      },
+      candidates,
+      returned: finalResults.length,
+      topScoreBeforeRerank: Number.isFinite(topScoreBeforeRerank)
+        ? Number(topScoreBeforeRerank.toFixed(4))
+        : 0,
+      rerank,
+    };
   }
 
   // ===========================================================================
@@ -351,12 +480,27 @@ export class RagRetrievalService {
     topK: number = 5,
   ): Promise<RetrievedChunk[]> {
     try {
-      // 为每个 token 生成 ILIKE 条件
-      // 使用 content ILIKE '%token%' 做子串匹配
-      // 占位符从 $1 开始，与下方 params 的 push 顺序一一对应
+      // 没有词项就不要生成 `WHERE ()`：那会变成 SQL 语法错误，
+      // 只能靠 catch 吞掉，看起来像"没命中"，实际是查询根本没执行。
+      if (tokens.length === 0) return [];
+
+      // 每个 token 同时匹配分块正文与文档关键词。
+      // 现成知识文档正文是英文、keywords 是双语，只查 content 的话
+      // 中文 query 永远命不中。
       const conditions = tokens.map(
-        (_, i) => `dc.content ILIKE $${i + 1}::varchar`,
+        (_, i) =>
+          `(dc.content ILIKE $${i + 1}::varchar OR array_to_string(kd.keywords, ' ') ILIKE $${i + 1}::varchar)`,
       );
+
+      // 命中词项越多越靠前；只按 chunk_index 排会让 OR + LIMIT
+      // 先返回"任意文档的前几个 chunk"，相关 chunk 反而进不了候选集。
+      const hitScore = tokens
+        .map(
+          (_, i) =>
+            `(CASE WHEN dc.content ILIKE $${i + 1}::varchar THEN 1 ELSE 0 END` +
+            ` + CASE WHEN array_to_string(kd.keywords, ' ') ILIKE $${i + 1}::varchar THEN 1 ELSE 0 END)`,
+        )
+        .join(' + ');
 
       let sql = `
         SELECT
@@ -391,7 +535,7 @@ export class RagRetrievalService {
         sql += ` AND kd.domain = $${params.length}::varchar`;
       }
 
-      sql += ` ORDER BY dc.chunk_index ASC LIMIT $${params.length + 1}::smallint`;
+      sql += ` ORDER BY (${hitScore}) DESC, dc.chunk_index ASC LIMIT $${params.length + 1}::smallint`;
       params.push(topK);
 
       const rows: any[] = await this.prisma.$queryRawUnsafe(sql, ...params);
@@ -583,8 +727,7 @@ export class RagRetrievalService {
   // Helper: 分词
   // ===========================================================================
 
-  private tokenize(text: string): string[] {
-    const STOPWORDS = new Set([
+  private tokenize(text: string): string[] {    const STOPWORDS = new Set([
       'the',
       'a',
       'an',
@@ -640,11 +783,44 @@ export class RagRetrievalService {
       'help',
     ]);
 
-    return text
+    // ── Latin 词项：保持变更前行为 ──
+    // 先把 CJK 片段替换成空格，再走原来的标点清理 + split + 停用词过滤。
+    // 这样纯英文 query 的词项集合与改动前完全一致。
+    const cjkRuns = text.match(CJK_RUN_RE) ?? [];
+    const latinTokens = text
+      .replace(CJK_RUN_RE_FOR_STRIP, ' ')
       .toLowerCase()
       .replace(/[^\w\s]/g, ' ')
       .split(/\s+/)
       .filter((t) => t.length > 1 && !STOPWORDS.has(t));
+
+    // ── CJK 词项：二元组为主，单字兜底 ──
+    // 为什么不用按字切分：单字「退」会命中「退休」，「款」会命中「款式」，
+    // 误召回比二元组多；二元组能覆盖「退货」「邮费」这类 FAQ 关键词。
+    const cjkTokens: string[] = [];
+    for (const run of cjkRuns) {
+      if (run.length === 1) {
+        cjkTokens.push(run);
+        continue;
+      }
+      for (let i = 0; i < run.length - 1; i++) {
+        const bigram = run.slice(i, i + 2);
+        if (!CJK_STOP_BIGRAMS.has(bigram)) {
+          cjkTokens.push(bigram);
+        }
+      }
+    }
+
+    // 去重（保持出现顺序）+ 上限：长 query 不能让 SQL 的 OR 条件无限增长
+    const seen = new Set<string>();
+    const tokens: string[] = [];
+    for (const token of [...latinTokens, ...cjkTokens]) {
+      if (seen.has(token)) continue;
+      seen.add(token);
+      tokens.push(token);
+      if (tokens.length >= MAX_QUERY_TOKENS) break;
+    }
+    return tokens;
   }
 
   // ===========================================================================

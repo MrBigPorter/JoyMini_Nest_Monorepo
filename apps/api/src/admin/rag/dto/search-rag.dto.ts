@@ -44,4 +44,13 @@ export class SearchRagDto {
   @IsOptional()
   @IsBoolean()
   rerank?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      '返回分层召回明细（vector/meili/chunk/doc）；默认关闭，仅评测/调试使用',
+    example: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  debug?: boolean;
 }

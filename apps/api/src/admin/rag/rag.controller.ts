@@ -86,14 +86,14 @@ export class RagController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Retrieve knowledge chunks (eval/debug)' })
   async search(@Body() dto: SearchRagDto) {
-    const results = await this.ragRetrievalService.retrieve(dto.query, {
+    const options = {
       domain: dto.domain,
       topK: dto.topK ?? 5,
       minScore: dto.minScore,
       useRerank: dto.rerank,
-    });
+    };
 
-    return results.map((r) => ({
+    const toResponse = (r: any) => ({
       chunkId: r.chunkId,
       documentId: r.documentId,
       docId: r.docId,
@@ -101,7 +101,17 @@ export class RagController {
       domain: r.domain,
       score: r.score,
       contentPreview: r.content.slice(0, 300),
-    }));
+    });
+
+    // debug=true 才多返回分层明细；默认响应结构保持不变
+    if (dto.debug) {
+      const { results, debug } =
+        await this.ragRetrievalService.retrieveDetailed(dto.query, options);
+      return { results: results.map(toResponse), debug };
+    }
+
+    const results = await this.ragRetrievalService.retrieve(dto.query, options);
+    return results.map(toResponse);
   }
 
   // ==================== CRUD ====================

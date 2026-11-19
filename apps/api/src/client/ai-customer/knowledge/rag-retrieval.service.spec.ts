@@ -214,8 +214,11 @@ describe('RagRetrievalService Layer 2 SQL 参数绑定回归', () => {
     expect(sql).toContain('dc.content ILIKE $2::varchar');
     expect(sql).toContain('LIMIT $3::smallint');
 
-    // 所有占位符编号恰好覆盖 1..params.length，且升序出现
-    expect(placeholderRefs(sql)).toEqual([1, 2, 3]);
+    // 同一个 token 会在条件与排序表达式里各引用一次；
+    // 去重后必须恰好覆盖 1..params.length，且整体升序
+    const refs = placeholderRefs(sql);
+    expect([...new Set(refs)]).toEqual([1, 2, 3]);
+    expect(refs.every((n) => n >= 1 && n <= params.length)).toBe(true);
   });
 
   it('有 domain：$N+1 归 domain，LIMIT 再顺延', async () => {
@@ -232,7 +235,28 @@ describe('RagRetrievalService Layer 2 SQL 参数绑定回归', () => {
     expect(sql).toContain('kd.domain = $2::varchar');
     expect(sql).toContain('LIMIT $3::smallint');
 
-    expect(placeholderRefs(sql)).toEqual([1, 2, 3]);
+    const refs = placeholderRefs(sql);
+    expect([...new Set(refs)]).toEqual([1, 2, 3]);
+    expect(refs.every((n) => n >= 1 && n <= params.length)).toBe(true);
+  });
+
+  it('同时匹配正文与 keywords，并按命中数排序', async () => {
+    const { service, prisma } = build();
+
+    await (service as any).keywordSearchChunks(['退货'], undefined, 5);
+
+    const [sql] = prisma.$queryRawUnsafe.mock.calls[0];
+    expect(sql).toContain("array_to_string(kd.keywords, ' ') ILIKE $1::varchar");
+    expect(sql).toMatch(/ORDER BY \(.*\) DESC, dc\.chunk_index ASC/);
+  });
+
+  it('空 tokens：直接返回空，不执行 SQL', async () => {
+    const { service, prisma } = build();
+
+    const results = await (service as any).keywordSearchChunks([], undefined, 5);
+
+    expect(results).toEqual([]);
+    expect(prisma.$queryRawUnsafe).not.toHaveBeenCalled();
   });
 
   it('查询成功时返回 chunk（不再被参数错位异常吞掉）', async () => {
@@ -269,5 +293,142 @@ describe('RagRetrievalService Layer 2 SQL 参数绑定回归', () => {
       keywords: ['退款', '到账'],
       score: 0.5,
     });
+  });
+});
+
+/**
+ * T2-3：中文分词。
+ *
+ * 变更前 `tokenize()` 用 `/[^\w\s]/`，JS 的 `\w` 不含 CJK，
+ * 「怎么退货」会得到空数组 → Layer 2 跳过、Layer 3 恒空。
+ */
+describe('RagRetrievalService 中文分词', () => {
+  const build = () => {
+    const prisma = {
+      $queryRawUnsafe: jest.fn().mockResolvedValue([]),
+      knowledgeDocument: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const aiService = {
+      generateEmbedding: jest.fn().mockResolvedValue([0.1, 0.2]),
+    };
+    const meilisearchService = {
+      searchChunks: jest.fn().mockResolvedValue([]),
+      isAvailable: true,
+    };
+    const configService = { get: jest.fn().mockReturnValue(undefined) };
+    return new RagRetrievalService(
+      prisma as any,
+      aiService as any,
+      meilisearchService as any,
+      configService as any,
+    );
+  };
+
+  it('纯中文：产生二元组，疑问词被过滤', () => {
+    const tokens = (build() as any).tokenize('怎么退货？');
+    expect(tokens.length).toBeGreaterThan(0);
+    expect(tokens).toContain('退货');
+    expect(tokens).not.toContain('怎么');
+  });
+
+  it('中英混排：中文二元组与 Latin 词项同时保留', () => {
+    const tokens = (build() as any).tokenize('退货 refund 怎么申请');
+    expect(tokens).toContain('退货');
+    expect(tokens).toContain('refund');
+  });
+
+  it('纯标点 / 空输入：返回空数组', () => {
+    expect((build() as any).tokenize('？！。')).toEqual([]);
+    expect((build() as any).tokenize('')).toEqual([]);
+  });
+
+  it('单字中文保留，作为兜底', () => {
+    expect((build() as any).tokenize('退')).toEqual(['退']);
+  });
+
+  it('纯英文词项与变更前一致（停用词、长度过滤不变）', () => {
+    expect((build() as any).tokenize('Where is my refund?')).toEqual([
+      'refund',
+    ]);
+  });
+
+  it('去重：重复片段不会重复出现', () => {
+    const tokens = (build() as any).tokenize('退货退货');
+    expect(new Set(tokens).size).toBe(tokens.length);
+  });
+
+  it('上限：长输入词项数不超过 40', () => {
+    const long = Array.from({ length: 80 }, (_, i) => `word${i}`).join(' ');
+    const tokens = (build() as any).tokenize(long);
+    expect(tokens.length).toBeLessThanOrEqual(40);
+    expect(tokens.length).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * T2-3 / 3.1：debug=true 时返回分层召回明细，默认不改变 retrieve 的返回类型。
+ */
+describe('RagRetrievalService 分层 debug', () => {
+  const chunk = (docId: string, score: number, chunkId = `${docId}-c1`) => ({
+    chunkId,
+    chunkIndex: 0,
+    content: `${docId} content`,
+    documentId: `${docId}-d`,
+    title: docId,
+    domain: 'common',
+    docId,
+    keywords: [],
+    priority: 'P0',
+    contentType: 'faq',
+    score,
+  });
+
+  const build = () => {
+    const prisma = { $queryRawUnsafe: jest.fn(), knowledgeDocument: { findMany: jest.fn() } };
+    const aiService = { generateEmbedding: jest.fn().mockResolvedValue([0.1]) };
+    const meilisearchService = { searchChunks: jest.fn(), isAvailable: true };
+    const configService = { get: jest.fn().mockReturnValue(undefined) };
+    return new RagRetrievalService(
+      prisma as any,
+      aiService as any,
+      meilisearchService as any,
+      configService as any,
+    );
+  };
+
+  it('retrieveDetailed 返回四层 docId 与 rerank 前后分数', async () => {
+    const service: any = build();
+    jest.spyOn(service, 'vectorSearch').mockResolvedValue([chunk('v', 0.8)]);
+    jest.spyOn(service, 'keywordSearchChunks').mockResolvedValue([chunk('k', 0.5)]);
+    jest.spyOn(service, 'keywordSearchDocs').mockResolvedValue([]);
+    service.meilisearchService.searchChunks.mockResolvedValue([chunk('m', 0.7)]);
+    service.rerank = jest.fn(async (_q: string, c: any[]) =>
+      c.slice(0, 2).map((x) => ({ ...x, score: 0.9 })),
+    );
+
+    const { results, debug } = await service.retrieveDetailed('退货运费谁出');
+
+    expect(results).toHaveLength(2);
+    expect(debug.layers.vector.docIds).toEqual(['v']);
+    expect(debug.layers.meili.docIds).toEqual(['m']);
+    expect(debug.layers.chunk.docIds).toEqual(['k']);
+    expect(debug.layers.doc.docIds).toEqual([]);
+    expect(debug.candidates).toBe(3);
+    expect(debug.returned).toBe(2);
+    expect(debug.rerank).toBe(true);
+    expect(debug.topScoreBeforeRerank).toBe(0.8);
+  });
+
+  it('retrieve 仍只返回数组（默认行为不变）', async () => {
+    const service: any = build();
+    jest.spyOn(service, 'vectorSearch').mockResolvedValue([chunk('v', 0.8)]);
+    jest.spyOn(service, 'keywordSearchChunks').mockResolvedValue([]);
+    jest.spyOn(service, 'keywordSearchDocs').mockResolvedValue([]);
+    service.meilisearchService.searchChunks.mockResolvedValue([]);
+    service.rerank = jest.fn(async (_q: string, c: any[]) => c);
+
+    const results = await service.retrieve('退货');
+    expect(Array.isArray(results)).toBe(true);
+    expect(results[0].docId).toBe('v');
   });
 });

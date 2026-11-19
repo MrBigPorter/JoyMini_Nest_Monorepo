@@ -1,0 +1,206 @@
+{
+  "run_at": "2026-11-19T22:09:10",
+  "base_url": "http://localhost/api/v1",
+  "golden_file": "/Volumes/MySSD/work/JoyMini_Nest_Monorepo/tools/eval/rag/golden.jsonl",
+  "topk": 5,
+  "total": 3,
+  "versions": {
+    "git_sha": "68da4ed3353c5c14265382d6710dd90b8be93ecd",
+    "golden_sha256": "df81faed2f5915b16f9f2380df17f05a1617a372c320d5c166327f7f0035d26d",
+    "knowledge_documents": 27,
+    "document_chunks": 302,
+    "embedding_model": "bge-m3",
+    "reranker_model": "bge-reranker-v2-m3",
+    "meili_index": "document_chunks"
+  },
+  "global": {
+    "n": 3,
+    "hit1": 1.0,
+    "hit3": 1.0,
+    "mrr": 1.0,
+    "p50": 775,
+    "p95": 928
+  },
+  "domain_filtered": {
+    "n": 3,
+    "hit1": 1.0,
+    "hit3": 1.0,
+    "mrr": 1.0,
+    "p50": 776,
+    "p95": 802
+  },
+  "no_rerank": null,
+  "layer_metrics": {
+    "vector": {
+      "n": 3,
+      "hit": 3,
+      "recall": 1.0
+    },
+    "meili": {
+      "n": 3,
+      "hit": 1,
+      "recall": 0.3333333333333333
+    },
+    "chunk": {
+      "n": 3,
+      "hit": 3,
+      "recall": 1.0
+    },
+    "doc": {
+      "n": 3,
+      "hit": 3,
+      "recall": 1.0
+    },
+    "keyword": {
+      "n": 3,
+      "hit": 3,
+      "recall": 1.0
+    }
+  },
+  "negative": {
+    "n": 0,
+    "falsePositive": 0,
+    "falsePositiveRate": null
+  },
+  "per_domain": {
+    "common": {
+      "n": 3,
+      "hit1": 1.0,
+      "hit3": 1.0,
+      "mrr": 1.0,
+      "p50": 775,
+      "p95": 928
+    }
+  },
+  "per_lang": {
+    "en": {
+      "n": 1,
+      "hit1": 1.0,
+      "hit3": 1.0,
+      "mrr": 1.0,
+      "p50": 2776,
+      "p95": 2776
+    },
+    "zh": {
+      "n": 2,
+      "hit1": 1.0,
+      "hit3": 1.0,
+      "mrr": 1.0,
+      "p50": 775,
+      "p95": 775
+    }
+  },
+  "records": [
+    {
+      "id": "r01",
+      "expect": "contact-support",
+      "predicted": "contact-support",
+      "correct": true
+    },
+    {
+      "id": "r02",
+      "expect": "contact-support",
+      "predicted": "contact-support",
+      "correct": true
+    },
+    {
+      "id": "r03",
+      "expect": "platform-rules",
+      "predicted": "platform-rules",
+      "correct": true
+    }
+  ],
+  "rows": [
+    {
+      "id": "r01",
+      "query": "How do I contact customer support?",
+      "domain": "common",
+      "lang": "en",
+      "sourceType": "typical",
+      "expectedDocIds": [
+        "contact-support"
+      ],
+      "retrievedDocIds": [
+        "contact-support",
+        "product-authenticity",
+        "account-troubleshooting",
+        "product-faq"
+      ],
+      "retrievedCount": 5,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": 5,
+        "meili": 1,
+        "chunk": 1,
+        "doc": 1,
+        "keyword": 1
+      },
+      "latencyMs": 2776,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 943,
+      "error": null
+    },
+    {
+      "id": "r02",
+      "query": "怎么联系人工客服？",
+      "domain": "common",
+      "lang": "zh",
+      "sourceType": "typical",
+      "expectedDocIds": [
+        "contact-support"
+      ],
+      "retrievedDocIds": [
+        "contact-support",
+        "account-troubleshooting",
+        "product-authenticity",
+        "privacy-policy"
+      ],
+      "retrievedCount": 5,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": 1,
+        "meili": 0,
+        "chunk": 1,
+        "doc": 1,
+        "keyword": 1
+      },
+      "latencyMs": 775,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 776,
+      "error": null
+    },
+    {
+      "id": "r03",
+      "query": "哪些商品是禁售的？",
+      "domain": "common",
+      "lang": "zh",
+      "sourceType": "typical",
+      "expectedDocIds": [
+        "platform-rules"
+      ],
+      "retrievedDocIds": [
+        "platform-rules",
+        "report-seller"
+      ],
+      "retrievedCount": 5,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": 1,
+        "meili": 0,
+        "chunk": 1,
+        "doc": 1,
+        "keyword": 1
+      },
+      "latencyMs": 928,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 802,
+      "error": null
+    }
+  ]
+}

@@ -1,40 +1,129 @@
-{"id":"r01","query":"How do I contact customer support?","expectedDocIds":["contact-support"],"domain":"common"}
-{"id":"r02","query":"怎么联系人工客服？","expectedDocIds":["contact-support"],"domain":"common"}
-{"id":"r03","query":"哪些商品是禁售的？","expectedDocIds":["platform-rules"],"domain":"common"}
-{"id":"r04","query":"What items are prohibited on the platform?","expectedDocIds":["platform-rules"],"domain":"common"}
-{"id":"r05","query":"你们怎么保护我的个人信息？","expectedDocIds":["privacy-policy"],"domain":"common"}
-{"id":"r06","query":"双十一活动规则是什么？","expectedDocIds":["promotion-rules"],"domain":"common"}
-{"id":"r07","query":"怎么举报卖家？","expectedDocIds":["report-seller"],"domain":"common"}
-{"id":"r08","query":"优惠券用不了怎么办？","expectedDocIds":["coupon-faq"],"domain":"coupon"}
-{"id":"r09","query":"优惠券可以叠加使用吗？","expectedDocIds":["coupon-rules"],"domain":"coupon"}
-{"id":"r10","query":"KYC 需要准备什么证件？","expectedDocIds":["kyc-guide"],"domain":"kyc"}
-{"id":"r11","query":"身份证上传一直失败怎么办？","expectedDocIds":["kyc-troubleshooting"],"domain":"kyc"}
-{"id":"r12","query":"人脸识别不通过怎么办？","expectedDocIds":["kyc-troubleshooting"],"domain":"kyc"}
-{"id":"r13","query":"抽奖奖品怎么领取？","expectedDocIds":["lucky-draw-rules"],"domain":"lucky-draw"}
-{"id":"r14","query":"支持货到付款吗？","expectedDocIds":["cod-payment"],"domain":"order"}
-{"id":"r15","query":"怎么取消订单？","expectedDocIds":["order-management"],"domain":"order"}
-{"id":"r16","query":"订单一直没发货怎么办？","expectedDocIds":["order-troubleshooting"],"domain":"order"}
-{"id":"r17","query":"退款多久到账？","expectedDocIds":["refund-policy"],"domain":"order"}
-{"id":"r18","query":"What is the refund policy?","expectedDocIds":["refund-policy"],"domain":"order"}
-{"id":"r19","query":"退货邮费谁出？","expectedDocIds":["return-shipping-faq"],"domain":"order"}
-{"id":"r20","query":"运费怎么计算？","expectedDocIds":["shipping-policy"],"domain":"order"}
-{"id":"r21","query":"一般多久发货？","expectedDocIds":["shipping-policy"],"domain":"order"}
-{"id":"r22","query":"How much is shipping?","expectedDocIds":["shipping-policy"],"domain":"order"}
-{"id":"r23","query":"怎么发起拼团？","expectedDocIds":["group-buying-guide"],"domain":"product"}
-{"id":"r24","query":"怎么确认商品是正品？","expectedDocIds":["product-authenticity"],"domain":"product"}
-{"id":"r25","query":"商品缺货什么时候补货？","expectedDocIds":["product-faq"],"domain":"product"}
-{"id":"r26","query":"商品有保修吗？","expectedDocIds":["product-faq"],"domain":"product"}
-{"id":"r27","query":"怎么修改商品评价？","expectedDocIds":["review-guide"],"domain":"product"}
-{"id":"r28","query":"怎么选尺码？","expectedDocIds":["size-guide"],"domain":"product"}
-{"id":"r29","query":"怎么修改登录密码？","expectedDocIds":["account-guide"],"domain":"user"}
-{"id":"r30","query":"收不到 OTP 验证码怎么办？","expectedDocIds":["account-troubleshooting"],"domain":"user"}
-{"id":"r31","query":"账号被锁定了怎么办？","expectedDocIds":["account-troubleshooting"],"domain":"user"}
-{"id":"r32","query":"VIP 会员有什么权益？","expectedDocIds":["vip-benefits"],"domain":"user"}
-{"id":"r33","query":"怎么充值？","expectedDocIds":["deposit-guide"],"domain":"wallet"}
-{"id":"r34","query":"支持 GCash 充值吗？","expectedDocIds":["deposit-guide"],"domain":"wallet"}
-{"id":"r35","query":"充值没到账怎么办？","expectedDocIds":["wallet-troubleshooting"],"domain":"wallet"}
-{"id":"r36","query":"提现失败了怎么办？","expectedDocIds":["wallet-troubleshooting"],"domain":"wallet"}
-{"id":"r37","query":"提现手续费是多少？","expectedDocIds":["withdrawal-guide"],"domain":"wallet"}
-{"id":"r38","query":"How long does withdrawal take?","expectedDocIds":["withdrawal-guide"],"domain":"wallet"}
-{"id":"r39","query":"I didn't receive the OTP code","expectedDocIds":["account-troubleshooting"],"domain":"user"}
-{"id":"r40","query":"Can I sell counterfeit goods?","expectedDocIds":["platform-rules"],"domain":"common"}
+{"id": "r01", "query": "How do I contact customer support?", "expectedDocIds": ["contact-support"], "domain": "common", "lang": "en", "sourceType": "typical"}
+{"id": "r02", "query": "怎么联系人工客服？", "expectedDocIds": ["contact-support"], "domain": "common", "lang": "zh", "sourceType": "typical"}
+{"id": "r03", "query": "哪些商品是禁售的？", "expectedDocIds": ["platform-rules"], "domain": "common", "lang": "zh", "sourceType": "typical"}
+{"id": "r04", "query": "What items are prohibited on the platform?", "expectedDocIds": ["platform-rules"], "domain": "common", "lang": "en", "sourceType": "typical"}
+{"id": "r05", "query": "你们怎么保护我的个人信息？", "expectedDocIds": ["privacy-policy"], "domain": "common", "lang": "zh", "sourceType": "typical"}
+{"id": "r06", "query": "双十一活动规则是什么？", "expectedDocIds": ["promotion-rules"], "domain": "common", "lang": "zh", "sourceType": "typical"}
+{"id": "r07", "query": "怎么举报卖家？", "expectedDocIds": ["report-seller"], "domain": "common", "lang": "zh", "sourceType": "typical"}
+{"id": "r08", "query": "优惠券用不了怎么办？", "expectedDocIds": ["coupon-faq"], "domain": "coupon", "lang": "zh", "sourceType": "typical"}
+{"id": "r09", "query": "优惠券可以叠加使用吗？", "expectedDocIds": ["coupon-rules"], "domain": "coupon", "lang": "zh", "sourceType": "typical"}
+{"id": "r10", "query": "KYC 需要准备什么证件？", "expectedDocIds": ["kyc-guide"], "domain": "kyc", "lang": "mixed", "sourceType": "typical"}
+{"id": "r11", "query": "身份证上传一直失败怎么办？", "expectedDocIds": ["kyc-troubleshooting"], "domain": "kyc", "lang": "zh", "sourceType": "typical"}
+{"id": "r12", "query": "人脸识别不通过怎么办？", "expectedDocIds": ["kyc-troubleshooting"], "domain": "kyc", "lang": "zh", "sourceType": "typical"}
+{"id": "r13", "query": "抽奖奖品怎么领取？", "expectedDocIds": ["lucky-draw-rules"], "domain": "lucky-draw", "lang": "zh", "sourceType": "typical"}
+{"id": "r14", "query": "支持货到付款吗？", "expectedDocIds": ["cod-payment"], "domain": "order", "lang": "zh", "sourceType": "typical"}
+{"id": "r15", "query": "怎么取消订单？", "expectedDocIds": ["order-management"], "domain": "order", "lang": "zh", "sourceType": "typical"}
+{"id": "r16", "query": "订单一直没发货怎么办？", "expectedDocIds": ["order-troubleshooting"], "domain": "order", "lang": "zh", "sourceType": "typical"}
+{"id": "r17", "query": "退款多久到账？", "expectedDocIds": ["refund-policy"], "domain": "order", "lang": "zh", "sourceType": "typical"}
+{"id": "r18", "query": "What is the refund policy?", "expectedDocIds": ["refund-policy"], "domain": "order", "lang": "en", "sourceType": "typical"}
+{"id": "r19", "query": "退货邮费谁出？", "expectedDocIds": ["return-shipping-faq"], "domain": "order", "lang": "zh", "sourceType": "typical"}
+{"id": "r20", "query": "运费怎么计算？", "expectedDocIds": ["shipping-policy"], "domain": "order", "lang": "zh", "sourceType": "typical"}
+{"id": "r21", "query": "一般多久发货？", "expectedDocIds": ["shipping-policy"], "domain": "order", "lang": "zh", "sourceType": "typical"}
+{"id": "r22", "query": "How much is shipping?", "expectedDocIds": ["shipping-policy"], "domain": "order", "lang": "en", "sourceType": "typical"}
+{"id": "r23", "query": "怎么发起拼团？", "expectedDocIds": ["group-buying-guide"], "domain": "product", "lang": "zh", "sourceType": "typical"}
+{"id": "r24", "query": "怎么确认商品是正品？", "expectedDocIds": ["product-authenticity"], "domain": "product", "lang": "zh", "sourceType": "typical"}
+{"id": "r25", "query": "商品缺货什么时候补货？", "expectedDocIds": ["product-faq"], "domain": "product", "lang": "zh", "sourceType": "typical"}
+{"id": "r26", "query": "商品有保修吗？", "expectedDocIds": ["product-faq"], "domain": "product", "lang": "zh", "sourceType": "typical"}
+{"id": "r27", "query": "怎么修改商品评价？", "expectedDocIds": ["review-guide"], "domain": "product", "lang": "zh", "sourceType": "typical"}
+{"id": "r28", "query": "怎么选尺码？", "expectedDocIds": ["size-guide"], "domain": "product", "lang": "zh", "sourceType": "typical"}
+{"id": "r29", "query": "怎么修改登录密码？", "expectedDocIds": ["account-guide"], "domain": "user", "lang": "zh", "sourceType": "typical"}
+{"id": "r30", "query": "收不到 OTP 验证码怎么办？", "expectedDocIds": ["account-troubleshooting"], "domain": "user", "lang": "mixed", "sourceType": "typical"}
+{"id": "r31", "query": "账号被锁定了怎么办？", "expectedDocIds": ["account-troubleshooting"], "domain": "user", "lang": "zh", "sourceType": "typical"}
+{"id": "r32", "query": "VIP 会员有什么权益？", "expectedDocIds": ["vip-benefits"], "domain": "user", "lang": "mixed", "sourceType": "typical"}
+{"id": "r33", "query": "怎么充值？", "expectedDocIds": ["deposit-guide"], "domain": "wallet", "lang": "zh", "sourceType": "typical"}
+{"id": "r34", "query": "支持 GCash 充值吗？", "expectedDocIds": ["deposit-guide"], "domain": "wallet", "lang": "mixed", "sourceType": "typical"}
+{"id": "r35", "query": "充值没到账怎么办？", "expectedDocIds": ["wallet-troubleshooting"], "domain": "wallet", "lang": "zh", "sourceType": "typical"}
+{"id": "r36", "query": "提现失败了怎么办？", "expectedDocIds": ["wallet-troubleshooting"], "domain": "wallet", "lang": "zh", "sourceType": "typical"}
+{"id": "r37", "query": "提现手续费是多少？", "expectedDocIds": ["withdrawal-guide"], "domain": "wallet", "lang": "zh", "sourceType": "typical"}
+{"id": "r38", "query": "How long does withdrawal take?", "expectedDocIds": ["withdrawal-guide"], "domain": "wallet", "lang": "en", "sourceType": "typical"}
+{"id": "r39", "query": "I didn't receive the OTP code", "expectedDocIds": ["account-troubleshooting"], "domain": "user", "lang": "en", "sourceType": "typical"}
+{"id": "r40", "query": "Can I sell counterfeit goods?", "expectedDocIds": ["platform-rules"], "domain": "common", "lang": "en", "sourceType": "typical"}
+{"id": "r41", "query": "客服电话是多少", "expectedDocIds": ["contact-support"], "domain": "common", "lang": "zh", "sourceType": "paraphrase", "note": "中文改写"}
+{"id": "r42", "query": "我想找人工客服", "expectedDocIds": ["contact-support"], "domain": "common", "lang": "zh", "sourceType": "paraphrase", "note": "中文改写"}
+{"id": "r43", "query": "平台允许卖假货吗", "expectedDocIds": ["platform-rules"], "domain": "common", "lang": "zh", "sourceType": "paraphrase", "note": "中文改写"}
+{"id": "r44", "query": "哪些东西不能卖", "expectedDocIds": ["platform-rules"], "domain": "common", "lang": "zh", "sourceType": "paraphrase", "note": "中文改写"}
+{"id": "r45", "query": "我的隐私数据安全吗", "expectedDocIds": ["privacy-policy"], "domain": "common", "lang": "zh", "sourceType": "paraphrase", "note": "中文改写"}
+{"id": "r46", "query": "大促活动怎么参加", "expectedDocIds": ["promotion-rules"], "domain": "common", "lang": "zh", "sourceType": "paraphrase", "note": "中文改写"}
+{"id": "r47", "query": "遇到骗子卖家怎么投诉", "expectedDocIds": ["report-seller"], "domain": "common", "lang": "zh", "sourceType": "paraphrase", "note": "中文改写"}
+{"id": "r48", "query": "优惠券失效了怎么办", "expectedDocIds": ["coupon-faq"], "domain": "coupon", "lang": "zh", "sourceType": "paraphrase", "note": "中文改写"}
+{"id": "r49", "query": "两张券能一起用吗", "expectedDocIds": ["coupon-rules"], "domain": "coupon", "lang": "zh", "sourceType": "paraphrase", "note": "中文改写"}
+{"id": "r50", "query": "实名认证要上传哪些材料", "expectedDocIds": ["kyc-guide"], "domain": "kyc", "lang": "zh", "sourceType": "paraphrase", "note": "中文改写"}
+{"id": "r51", "query": "证件照片总是上传不上去", "expectedDocIds": ["kyc-troubleshooting"], "domain": "kyc", "lang": "zh", "sourceType": "paraphrase", "note": "中文改写"}
+{"id": "r52", "query": "刷脸认证失败", "expectedDocIds": ["kyc-troubleshooting"], "domain": "kyc", "lang": "zh", "sourceType": "paraphrase", "note": "中文改写"}
+{"id": "r53", "query": "中奖后怎么领奖", "expectedDocIds": ["lucky-draw-rules"], "domain": "lucky-draw", "lang": "zh", "sourceType": "paraphrase", "note": "中文改写"}
+{"id": "r54", "query": "可以货到付款吗", "expectedDocIds": ["cod-payment"], "domain": "order", "lang": "zh", "sourceType": "paraphrase", "note": "中文改写"}
+{"id": "r55", "query": "下单后怎么取消", "expectedDocIds": ["order-management"], "domain": "order", "lang": "zh", "sourceType": "paraphrase", "note": "中文改写"}
+{"id": "r56", "query": "下单很久还没发货", "expectedDocIds": ["order-troubleshooting"], "domain": "order", "lang": "zh", "sourceType": "paraphrase", "note": "中文改写"}
+{"id": "r57", "query": "退款什么时候能到账", "expectedDocIds": ["refund-policy"], "domain": "order", "lang": "zh", "sourceType": "paraphrase", "note": "中文改写"}
+{"id": "r58", "query": "退货运费由谁承担", "expectedDocIds": ["return-shipping-faq"], "domain": "order", "lang": "zh", "sourceType": "paraphrase", "note": "中文改写"}
+{"id": "r59", "query": "邮费怎么算", "expectedDocIds": ["shipping-policy"], "domain": "order", "lang": "zh", "sourceType": "paraphrase", "note": "中文改写"}
+{"id": "r60", "query": "发货要等多久", "expectedDocIds": ["shipping-policy"], "domain": "order", "lang": "zh", "sourceType": "paraphrase", "note": "中文改写"}
+{"id": "r61", "query": "如何开团", "expectedDocIds": ["group-buying-guide"], "domain": "product", "lang": "zh", "sourceType": "paraphrase", "note": "中文改写"}
+{"id": "r62", "query": "怎么辨别是不是正品", "expectedDocIds": ["product-authenticity"], "domain": "product", "lang": "zh", "sourceType": "paraphrase", "note": "中文改写"}
+{"id": "r63", "query": "没货了什么时候补", "expectedDocIds": ["product-faq"], "domain": "product", "lang": "zh", "sourceType": "paraphrase", "note": "中文改写"}
+{"id": "r64", "query": "商品保修多久", "expectedDocIds": ["product-faq"], "domain": "product", "lang": "zh", "sourceType": "paraphrase", "note": "中文改写"}
+{"id": "r65", "query": "评价写错了怎么改", "expectedDocIds": ["review-guide"], "domain": "product", "lang": "zh", "sourceType": "paraphrase", "note": "中文改写"}
+{"id": "r66", "query": "尺码怎么选", "expectedDocIds": ["size-guide"], "domain": "product", "lang": "zh", "sourceType": "paraphrase", "note": "中文改写"}
+{"id": "r67", "query": "密码忘了怎么改", "expectedDocIds": ["account-guide"], "domain": "user", "lang": "zh", "sourceType": "paraphrase", "note": "中文改写"}
+{"id": "r68", "query": "验证码收不到", "expectedDocIds": ["account-troubleshooting"], "domain": "user", "lang": "zh", "sourceType": "paraphrase", "note": "中文改写"}
+{"id": "r69", "query": "账号登录被锁", "expectedDocIds": ["account-troubleshooting"], "domain": "user", "lang": "zh", "sourceType": "paraphrase", "note": "中文改写"}
+{"id": "r70", "query": "会员有什么好处", "expectedDocIds": ["vip-benefits"], "domain": "user", "lang": "zh", "sourceType": "paraphrase", "note": "中文改写"}
+{"id": "r71", "query": "怎么给钱包充值", "expectedDocIds": ["deposit-guide"], "domain": "wallet", "lang": "zh", "sourceType": "paraphrase", "note": "中文改写"}
+{"id": "r72", "query": "可以用 GCash 充钱吗", "expectedDocIds": ["deposit-guide"], "domain": "wallet", "lang": "mixed", "sourceType": "paraphrase", "note": "中文改写"}
+{"id": "r73", "query": "充值的钱没到账", "expectedDocIds": ["wallet-troubleshooting"], "domain": "wallet", "lang": "zh", "sourceType": "paraphrase", "note": "中文改写"}
+{"id": "r74", "query": "提现失败怎么处理", "expectedDocIds": ["wallet-troubleshooting"], "domain": "wallet", "lang": "zh", "sourceType": "paraphrase", "note": "中文改写"}
+{"id": "r75", "query": "提现要扣多少手续费", "expectedDocIds": ["withdrawal-guide"], "domain": "wallet", "lang": "zh", "sourceType": "paraphrase", "note": "中文改写"}
+{"id": "r76", "query": "How can I reach a human agent?", "expectedDocIds": ["contact-support"], "domain": "common", "lang": "en", "sourceType": "paraphrase", "note": "英文对照"}
+{"id": "r77", "query": "Are counterfeit products allowed?", "expectedDocIds": ["platform-rules"], "domain": "common", "lang": "en", "sourceType": "paraphrase", "note": "英文对照"}
+{"id": "r78", "query": "Which items cannot be listed?", "expectedDocIds": ["platform-rules"], "domain": "common", "lang": "en", "sourceType": "paraphrase", "note": "英文对照"}
+{"id": "r79", "query": "How is my personal data protected?", "expectedDocIds": ["privacy-policy"], "domain": "common", "lang": "en", "sourceType": "paraphrase", "note": "英文对照"}
+{"id": "r80", "query": "What are the rules for the Double 11 promotion?", "expectedDocIds": ["promotion-rules"], "domain": "common", "lang": "en", "sourceType": "paraphrase", "note": "英文对照"}
+{"id": "r81", "query": "How do I report a seller?", "expectedDocIds": ["report-seller"], "domain": "common", "lang": "en", "sourceType": "paraphrase", "note": "英文对照"}
+{"id": "r82", "query": "Why can't I use my coupon?", "expectedDocIds": ["coupon-faq"], "domain": "coupon", "lang": "en", "sourceType": "paraphrase", "note": "英文对照"}
+{"id": "r83", "query": "Can I stack multiple coupons?", "expectedDocIds": ["coupon-rules"], "domain": "coupon", "lang": "en", "sourceType": "paraphrase", "note": "英文对照"}
+{"id": "r84", "query": "What documents do I need for KYC?", "expectedDocIds": ["kyc-guide"], "domain": "kyc", "lang": "en", "sourceType": "paraphrase", "note": "英文对照"}
+{"id": "r85", "query": "My ID upload keeps failing", "expectedDocIds": ["kyc-troubleshooting"], "domain": "kyc", "lang": "en", "sourceType": "paraphrase", "note": "英文对照"}
+{"id": "r86", "query": "Face verification keeps failing", "expectedDocIds": ["kyc-troubleshooting"], "domain": "kyc", "lang": "en", "sourceType": "paraphrase", "note": "英文对照"}
+{"id": "r87", "query": "How do I claim a lucky draw prize?", "expectedDocIds": ["lucky-draw-rules"], "domain": "lucky-draw", "lang": "en", "sourceType": "paraphrase", "note": "英文对照"}
+{"id": "r88", "query": "Do you support cash on delivery?", "expectedDocIds": ["cod-payment"], "domain": "order", "lang": "en", "sourceType": "paraphrase", "note": "英文对照"}
+{"id": "r89", "query": "How do I cancel an order?", "expectedDocIds": ["order-management"], "domain": "order", "lang": "en", "sourceType": "paraphrase", "note": "英文对照"}
+{"id": "r90", "query": "My order has not shipped yet", "expectedDocIds": ["order-troubleshooting"], "domain": "order", "lang": "en", "sourceType": "paraphrase", "note": "英文对照"}
+{"id": "r91", "query": "When will I receive my refund?", "expectedDocIds": ["refund-policy"], "domain": "order", "lang": "en", "sourceType": "paraphrase", "note": "英文对照"}
+{"id": "r92", "query": "Who pays for return shipping?", "expectedDocIds": ["return-shipping-faq"], "domain": "order", "lang": "en", "sourceType": "paraphrase", "note": "英文对照"}
+{"id": "r93", "query": "How are shipping fees calculated?", "expectedDocIds": ["shipping-policy"], "domain": "order", "lang": "en", "sourceType": "paraphrase", "note": "英文对照"}
+{"id": "r94", "query": "How long does delivery take?", "expectedDocIds": ["shipping-policy"], "domain": "order", "lang": "en", "sourceType": "paraphrase", "note": "英文对照"}
+{"id": "r95", "query": "How do I start a group buy?", "expectedDocIds": ["group-buying-guide"], "domain": "product", "lang": "en", "sourceType": "paraphrase", "note": "英文对照"}
+{"id": "r96", "query": "How can I verify a product is authentic?", "expectedDocIds": ["product-authenticity"], "domain": "product", "lang": "en", "sourceType": "paraphrase", "note": "英文对照"}
+{"id": "r97", "query": "When will out-of-stock items be restocked?", "expectedDocIds": ["product-faq"], "domain": "product", "lang": "en", "sourceType": "paraphrase", "note": "英文对照"}
+{"id": "r98", "query": "Does the product come with a warranty?", "expectedDocIds": ["product-faq"], "domain": "product", "lang": "en", "sourceType": "paraphrase", "note": "英文对照"}
+{"id": "r99", "query": "How can I edit my product review?", "expectedDocIds": ["review-guide"], "domain": "product", "lang": "en", "sourceType": "paraphrase", "note": "英文对照"}
+{"id": "r100", "query": "How do I choose the right size?", "expectedDocIds": ["size-guide"], "domain": "product", "lang": "en", "sourceType": "paraphrase", "note": "英文对照"}
+{"id": "r101", "query": "How do I change my password?", "expectedDocIds": ["account-guide"], "domain": "user", "lang": "en", "sourceType": "paraphrase", "note": "英文对照"}
+{"id": "r102", "query": "I can't receive the OTP", "expectedDocIds": ["account-troubleshooting"], "domain": "user", "lang": "en", "sourceType": "paraphrase", "note": "英文对照"}
+{"id": "r103", "query": "Why is my account locked?", "expectedDocIds": ["account-troubleshooting"], "domain": "user", "lang": "en", "sourceType": "paraphrase", "note": "英文对照"}
+{"id": "r104", "query": "What are the VIP benefits?", "expectedDocIds": ["vip-benefits"], "domain": "user", "lang": "en", "sourceType": "paraphrase", "note": "英文对照"}
+{"id": "r105", "query": "How do I top up my wallet?", "expectedDocIds": ["deposit-guide"], "domain": "wallet", "lang": "en", "sourceType": "paraphrase", "note": "英文对照"}
+{"id": "r106", "query": "Can I deposit with GCash?", "expectedDocIds": ["deposit-guide"], "domain": "wallet", "lang": "en", "sourceType": "paraphrase", "note": "英文对照"}
+{"id": "r107", "query": "My deposit did not arrive", "expectedDocIds": ["wallet-troubleshooting"], "domain": "wallet", "lang": "en", "sourceType": "paraphrase", "note": "英文对照"}
+{"id": "r108", "query": "What should I do if withdrawal fails?", "expectedDocIds": ["wallet-troubleshooting"], "domain": "wallet", "lang": "en", "sourceType": "paraphrase", "note": "英文对照"}
+{"id": "r109", "query": "What is the withdrawal fee?", "expectedDocIds": ["withdrawal-guide"], "domain": "wallet", "lang": "en", "sourceType": "paraphrase", "note": "英文对照"}
+{"id": "n01", "query": "今天天气怎么样", "expectedDocIds": [], "domain": "common", "lang": "zh", "sourceType": "negative", "note": "无答案/域外"}
+{"id": "n02", "query": "帮我写一首诗", "expectedDocIds": [], "domain": "common", "lang": "zh", "sourceType": "negative", "note": "无答案/域外"}
+{"id": "n03", "query": "推荐一部电影", "expectedDocIds": [], "domain": "common", "lang": "zh", "sourceType": "negative", "note": "无答案/域外"}
+{"id": "n04", "query": "What's the weather today?", "expectedDocIds": [], "domain": "common", "lang": "en", "sourceType": "negative", "note": "无答案/域外"}
+{"id": "n05", "query": "Tell me a joke", "expectedDocIds": [], "domain": "common", "lang": "en", "sourceType": "negative", "note": "无答案/域外"}
+{"id": "n06", "query": "怎么学英语", "expectedDocIds": [], "domain": "common", "lang": "zh", "sourceType": "negative", "note": "无答案/域外"}
+{"id": "n07", "query": "附近有什么好吃的", "expectedDocIds": [], "domain": "common", "lang": "zh", "sourceType": "negative", "note": "无答案/域外"}
+{"id": "n08", "query": "你叫什么名字", "expectedDocIds": [], "domain": "common", "lang": "zh", "sourceType": "negative", "note": "无答案/域外"}
+{"id": "n09", "query": "1+1 等于几", "expectedDocIds": [], "domain": "common", "lang": "zh", "sourceType": "negative", "note": "无答案/域外"}
+{"id": "n10", "query": "帮我订一张机票", "expectedDocIds": [], "domain": "common", "lang": "zh", "sourceType": "negative", "note": "无答案/域外"}
+{"id": "n11", "query": "How do I cook pasta?", "expectedDocIds": [], "domain": "common", "lang": "en", "sourceType": "negative", "note": "无答案/域外"}
+{"id": "n12", "query": "明天会下雨吗", "expectedDocIds": [], "domain": "common", "lang": "zh", "sourceType": "negative", "note": "无答案/域外"}
+{"id": "n13", "query": "我想买股票", "expectedDocIds": [], "domain": "common", "lang": "zh", "sourceType": "negative", "note": "无答案/域外"}
+{"id": "n14", "query": "讲个故事", "expectedDocIds": [], "domain": "common", "lang": "zh", "sourceType": "negative", "note": "无答案/域外"}
+{"id": "n15", "query": "现在几点了", "expectedDocIds": [], "domain": "common", "lang": "zh", "sourceType": "negative", "note": "无答案/域外"}
+{"id": "n16", "query": "Who is the president?", "expectedDocIds": [], "domain": "common", "lang": "en", "sourceType": "negative", "note": "无答案/域外"}
+{"id": "n17", "query": "如何减肥", "expectedDocIds": [], "domain": "common", "lang": "zh", "sourceType": "negative", "note": "无答案/域外"}
+{"id": "n18", "query": "帮我翻译一段话", "expectedDocIds": [], "domain": "common", "lang": "zh", "sourceType": "negative", "note": "无答案/域外"}
+{"id": "n19", "query": "北京到上海多远", "expectedDocIds": [], "domain": "common", "lang": "zh", "sourceType": "negative", "note": "无答案/域外"}
+{"id": "n20", "query": "你是机器人吗", "expectedDocIds": [], "domain": "common", "lang": "zh", "sourceType": "negative", "note": "无答案/域外"}

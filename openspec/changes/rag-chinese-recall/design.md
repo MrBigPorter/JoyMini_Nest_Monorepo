@@ -88,4 +88,6 @@ golden 增加 `lang`、`sourceType`、`expectedLayers`、`note` 字段；中文�
 4. 评测脚本与补题（只影响工具）
 5. 改前/改后回放，出对比表
 
+**存量 Meili 文档回填**：本地验证发现 317 条 chunk 缺少 `isActiveVersion` 字段，而检索过滤条件是 `isActiveVersion = true`，导致 Meili 层一直返回空。本次已在本地用 `PUT /indexes/document_chunks/documents` 补齐（`{id, isActiveVersion: true}`，317 条）。上线时必须执行同样的回填或全量重建，否则 keywords 可搜也不会生效。
+
 回滚：第 1–3 步按提交单独 revert；评测数据与报告不回滚，保留历史。

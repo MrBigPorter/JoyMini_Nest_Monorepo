@@ -14,9 +14,11 @@ RAG 检索离线评测（只依赖标准库）
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import statistics
+import subprocess
 import sys
 import time
 import urllib.error
@@ -39,8 +41,18 @@ def load_golden(path: Path) -> list[dict]:
         if not line:
             continue
         item = json.loads(line)
-        if not item.get("id") or not item.get("query") or not item.get("expectedDocIds"):
+        source_type = item.get("sourceType", "typical")
+        if source_type not in {"typical", "paraphrase", "boundary", "negative"}:
+            raise SystemExit(f"golden.jsonl line {lineno}: invalid sourceType")
+        if item.get("lang") and item["lang"] not in {"zh", "en", "mixed"}:
+            raise SystemExit(f"golden.jsonl line {lineno}: invalid lang")
+        if "expectedLayers" in item and not isinstance(item["expectedLayers"], list):
+            raise SystemExit(f"golden.jsonl line {lineno}: expectedLayers must be a list")
+        # 负样本允许 expectedDocIds 为空；正样本仍必须给出期望文档
+        if not item.get("id") or not item.get("query"):
             raise SystemExit(f"golden.jsonl line {lineno} is invalid")
+        if source_type != "negative" and not item.get("expectedDocIds"):
+            raise SystemExit(f"golden.jsonl line {lineno}: expectedDocIds required")
         items.append(item)
     return items
 
@@ -52,12 +64,15 @@ def search(
     topk: int,
     domain: str | None,
     rerank: bool | None = None,
+    debug: bool = False,
 ):
     payload = {"query": query, "topK": topk}
     if domain:
         payload["domain"] = domain
     if rerank is not None:
         payload["rerank"] = rerank
+    if debug:
+        payload["debug"] = True
 
     request = urllib.request.Request(
         f"{base_url.rstrip('/')}/admin/rag/documents/search",
@@ -84,6 +99,13 @@ def search(
             raise
 
 
+def split_response(data) -> tuple[list[dict], dict | None]:
+    """debug=true 时接口返回 {results, debug}；老服务端仍返回数组。"""
+    if isinstance(data, dict):
+        return data.get("results") or [], data.get("debug")
+    return data or [], None
+
+
 def unique_doc_ids(results: list[dict]) -> list[str]:
     seen: set[str] = set()
     doc_ids: list[str] = []
@@ -100,6 +122,22 @@ def first_hit_rank(doc_ids: list[str], expected: list[str]) -> int:
         if doc_id in expected:
             return index
     return 0
+
+
+def layer_rank(debug: dict | None, layer: str, expected: list[str]) -> int | None:
+    if not debug or not expected:
+        return None
+    if layer == "keyword":
+        merged: list[str] = []
+        seen: set[str] = set()
+        for name in ("chunk", "doc"):
+            for doc_id in debug.get("layers", {}).get(name, {}).get("docIds", []):
+                if doc_id not in seen:
+                    seen.add(doc_id)
+                    merged.append(doc_id)
+        return first_hit_rank(merged, expected)
+    doc_ids = debug.get("layers", {}).get(layer, {}).get("docIds", [])
+    return first_hit_rank(doc_ids, expected)
 
 
 def summarize(rows: list[dict], rank_key: str, latency_key: str) -> dict:
@@ -124,6 +162,58 @@ def pct(value: float) -> str:
     return f"{value * 100:.1f}%"
 
 
+def version_snapshot(golden_path: Path) -> dict:
+    """记录可追溯信息；拿不到的字段写 None，不猜。"""
+    try:
+        git_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+    except Exception:
+        git_sha = None
+
+    counts = {"documents": None, "chunks": None}
+    try:
+        sql = (
+            "SELECT (SELECT count(*) FROM knowledge_documents),"
+            " (SELECT count(*) FROM document_chunks);"
+        )
+        proc = subprocess.run(
+            [
+                "docker",
+                "exec",
+                "-e",
+                f"SQL={sql}",
+                "lucky-db",
+                "sh",
+                "-c",
+                'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tA -F "," -c "$SQL"',
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        docs, chunks = proc.stdout.strip().split(",")
+        counts = {"documents": int(docs), "chunks": int(chunks)}
+    except Exception:
+        pass
+
+    return {
+        "git_sha": git_sha,
+        "golden_sha256": hashlib.sha256(golden_path.read_bytes()).hexdigest(),
+        "knowledge_documents": counts["documents"],
+        "document_chunks": counts["chunks"],
+        "embedding_model": os.environ.get("EVAL_EMBEDDING_MODEL", "bge-m3"),
+        "reranker_model": os.environ.get(
+            "EVAL_RERANKER_MODEL", "bge-reranker-v2-m3"
+        ),
+        "meili_index": "document_chunks",
+    }
+
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="RAG retrieval offline evaluation")
     parser.add_argument("--base-url", default=os.environ.get("EVAL_BASE_URL", DEFAULT_BASE_URL))
@@ -136,7 +226,45 @@ def main() -> int:
         action="store_true",
         help="同时跑 rerank=false，比较 reranker 的贡献",
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="只读取并校验题集，不发起请求（不需要 EVAL_TOKEN）",
+    )
     args = parser.parse_args()
+
+    items = load_golden(Path(args.golden))
+    if args.limit:
+        items = items[: args.limit]
+
+    if args.dry_run:
+        langs = {}
+        types = {}
+        for item in items:
+            langs[item.get("lang", "unknown")] = langs.get(item.get("lang", "unknown"), 0) + 1
+            source = item.get("sourceType", "typical")
+            types[source] = types.get(source, 0) + 1
+        # 查重：精确重复 + 高相似（≥0.9）；重复会让指标虚高
+        from difflib import SequenceMatcher
+
+        norms = [
+            "".join(ch.lower() for ch in item["query"] if ch.isalnum())
+            for item in items
+        ]
+        duplicates = []
+        for i in range(len(norms)):
+            for j in range(i + 1, len(norms)):
+                if norms[i] == norms[j] or SequenceMatcher(
+                    None, norms[i], norms[j]
+                ).ratio() >= 0.9:
+                    duplicates.append((items[i]["id"], items[j]["id"]))
+        if duplicates:
+            print(f"❌ 题集重复：{duplicates[:10]}")
+            return 1
+        print(
+            f"✓ 题集可读：{len(items)} 条 | lang={langs} | sourceType={types}"
+        )
+        return 0
 
     token = os.environ.get("EVAL_TOKEN", "").strip()
     if not token:
@@ -155,11 +283,15 @@ def main() -> int:
             "id": item["id"],
             "query": item["query"],
             "domain": item.get("domain"),
-            "expectedDocIds": item["expectedDocIds"],
+            "lang": item.get("lang", "unknown"),
+            "sourceType": item.get("sourceType", "typical"),
+            "expectedDocIds": item.get("expectedDocIds") or [],
             "retrievedDocIds": [],
+            "retrievedCount": 0,
             "globalRank": 0,
             "noRerankRank": None,
             "domainRank": None,
+            "layerRanks": {},
             "latencyMs": 0,
             "noRerankLatencyMs": None,
             "domainLatencyMs": None,
@@ -168,12 +300,22 @@ def main() -> int:
 
         try:
             started = time.perf_counter()
-            results = search(args.base_url, token, item["query"], args.topk, None)
+            data = search(
+                args.base_url, token, item["query"], args.topk, None, debug=True
+            )
+            results, debug = split_response(data)
             row["latencyMs"] = round((time.perf_counter() - started) * 1000)
             row["retrievedDocIds"] = unique_doc_ids(results)
-            row["globalRank"] = first_hit_rank(
-                row["retrievedDocIds"], item["expectedDocIds"]
-            )
+            row["retrievedCount"] = len(results)
+            if row["sourceType"] != "negative":
+                row["globalRank"] = first_hit_rank(
+                    row["retrievedDocIds"], row["expectedDocIds"]
+                )
+            expected = row["expectedDocIds"]
+            row["layerRanks"] = {
+                layer: layer_rank(debug, layer, expected)
+                for layer in ("vector", "meili", "chunk", "doc", "keyword")
+            }
             if args.delay:
                 time.sleep(args.delay)
 
@@ -213,24 +355,62 @@ def main() -> int:
             row["error"] = str(error)
 
         rows.append(row)
-        mark = "✅" if 1 <= row["globalRank"] <= 3 else "❌"
+        if row["sourceType"] == "negative":
+            mark = "✅" if row["retrievedCount"] == 0 else "❌"
+            detail = f"returned={row['retrievedCount']}"
+        else:
+            mark = "✅" if 1 <= row["globalRank"] <= 3 else "❌"
+            detail = f"rank={row['globalRank'] or 'miss'}"
         print(
             f"  {mark} [{row['id']}] {row['query']} → "
-            f"rank={row['globalRank'] or 'miss'} ({row['latencyMs']}ms)"
+            f"{detail} ({row['latencyMs']}ms)"
         )
 
-    global_metrics = summarize(rows, "globalRank", "latencyMs")
-    domain_metrics = summarize(rows, "domainRank", "domainLatencyMs")
+    positives = [row for row in rows if row["sourceType"] != "negative"]
+    negatives = [row for row in rows if row["sourceType"] == "negative"]
+
+    global_metrics = summarize(positives, "globalRank", "latencyMs")
+    domain_metrics = summarize(positives, "domainRank", "domainLatencyMs")
     no_rerank_metrics = (
-        summarize(rows, "noRerankRank", "noRerankLatencyMs")
+        summarize(positives, "noRerankRank", "noRerankLatencyMs")
         if args.compare_rerank
         else None
     )
     per_domain = {}
-    for domain in sorted({row["domain"] for row in rows if row.get("domain")}):
+    for domain in sorted({row["domain"] for row in positives if row.get("domain")}):
         per_domain[domain] = summarize(
-            [row for row in rows if row["domain"] == domain], "globalRank", "latencyMs"
+            [row for row in positives if row["domain"] == domain],
+            "globalRank",
+            "latencyMs",
         )
+    per_lang = {}
+    for lang in sorted({row["lang"] for row in positives}):
+        per_lang[lang] = summarize(
+            [row for row in positives if row["lang"] == lang],
+            "globalRank",
+            "latencyMs",
+        )
+    layer_metrics = {}
+    for layer in ("vector", "meili", "chunk", "doc", "keyword"):
+        hit = sum(
+            1
+            for row in positives
+            if (row["layerRanks"].get(layer) or 0) > 0
+        )
+        layer_metrics[layer] = {
+            "n": len(positives),
+            "hit": hit,
+            "recall": hit / len(positives) if positives else 0.0,
+        }
+    negative_metrics = {
+        "n": len(negatives),
+        "falsePositive": sum(1 for row in negatives if row["retrievedCount"] > 0),
+        "falsePositiveRate": (
+            sum(1 for row in negatives if row["retrievedCount"] > 0) / len(negatives)
+            if negatives
+            else None
+        ),
+    }
 
     report = {
         "run_at": datetime.now().isoformat(timespec="seconds"),
@@ -238,10 +418,28 @@ def main() -> int:
         "golden_file": str(args.golden),
         "topk": args.topk,
         "total": len(rows),
+        "versions": version_snapshot(Path(args.golden)),
         "global": global_metrics,
         "domain_filtered": domain_metrics,
         "no_rerank": no_rerank_metrics,
+        "layer_metrics": layer_metrics,
+        "negative": negative_metrics,
         "per_domain": per_domain,
+        "per_lang": per_lang,
+        # compare.py 读取 records[{expect,predicted}]；RAG 报告补这一层
+        "records": [
+            {
+                "id": row["id"],
+                "expect": row["expectedDocIds"][0] if row["expectedDocIds"] else "",
+                "predicted": row["retrievedDocIds"][0] if row["retrievedDocIds"] else "",
+                "correct": (
+                    row["retrievedCount"] == 0
+                    if row["sourceType"] == "negative"
+                    else row["globalRank"] == 1
+                ),
+            }
+            for row in rows
+        ],
         "rows": rows,
     }
 
@@ -277,6 +475,19 @@ def main() -> int:
         print(
             f"  {domain:<11} Hit@1={pct(metrics['hit1'])} "
             f"Hit@3={pct(metrics['hit3'])} MRR={metrics['mrr']:.3f}"
+        )
+    print(
+        "  layers    "
+        + " ".join(
+            f"{name}={pct(metrics['recall'])}"
+            for name, metrics in layer_metrics.items()
+        )
+    )
+    if negatives:
+        print(
+            f"  negative  n={negative_metrics['n']} "
+            f"false-positive={negative_metrics['falsePositive']} "
+            f"({pct(negative_metrics['falsePositiveRate'] or 0)})"
         )
     print(f"\nreport: {report_path}")
     return 0

@@ -29,23 +29,38 @@ EVAL_TOKEN=<admin-jwt> python3 tools/eval/rag/run.py
 ```
 
 > 全局限流是 60 次/分钟。默认每道题会请求两次（全局 + domain 过滤），
-> 40 题约 80 次请求，建议 `--delay 1.1`，否则可能触发 60s 冷却。
+> 129 题约 260 次请求，建议 `--delay 1.1`，否则可能触发 60s 冷却。
 
 ## 黄金集
 
 `golden.jsonl`，一行一题：
 
 ```json
-{"id":"r01","query":"退款多久到账？","expectedDocIds":["refund-policy"],"domain":"order"}
+{"id":"r01","query":"退款多久到账？","expectedDocIds":["refund-policy"],"domain":"order","lang":"zh","sourceType":"typical"}
 ```
 
-- `expectedDocIds` 用知识库的 `doc_id`（不是数据库 cuid）
-- 当前 40 题覆盖 8 个域、中英文混合
+- `expectedDocIds` 用知识库的 `doc_id`（不是数据库 cuid）；负样本允许为空
+- `lang`：`zh` / `en` / `mixed`
+- `sourceType`：`typical` / `paraphrase` / `boundary` / `negative`
+- `expectedLayers`（可选）：期望主要靠哪一层命中，如 `["keyword"]`
+- 2026-11-19 扩容：129 题（中文 79、英文 45、混合 5；负样本 20）
 - 知识库文档变更后，记得同步维护黄金集
+
+只校验、不发请求：
+
+```bash
+python3 tools/eval/rag/run.py --dry-run
+```
+
+会同时检查精确重复与相似度 ≥0.9 的近似重复。
 
 ## 结果存档
 
-`reports/<timestamp>.json`：包含汇总、按域指标和逐题明细（retrievedDocIds / rank / latency）。
+`reports/<timestamp>.json`：包含汇总、按域/语言指标、分层召回（vector/meili/chunk/doc/keyword）、负样本误召回、版本快照（git SHA、golden 哈希、文档/chunk 数、模型与索引）和逐题明细。
+
+`records` 字段与 `tools/eval/compare.py` 兼容，可直接做 McNemar 配对检验。
+
+> 评测默认用 `--topk 3` 对齐线上 `handleRagQuery`；`--topk 5` 只用于和旧基线对比。
 
 ## 2026-11-19 基线
 
