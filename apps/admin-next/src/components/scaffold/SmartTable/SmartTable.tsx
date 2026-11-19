@@ -35,6 +35,14 @@ interface SmartTableProps<T extends Record<string, any>> {
   columns: ProColumns<T>[];
   searchSchema?: FormSchema[];
   request?: RequestData<T>;
+  /**
+   * React Query 取数（与 request 二选一）。
+   *
+   * 传了 query 后，首屏（可能来自 HydrationBoundary）与翻页/筛选
+   * 走同一套 queryKey + queryFn；组件内部的 fetchData 不再执行。
+   * 见 openspec admin-frontend-closure D5 / 5.1–5.2。
+   */
+  query?: SmartTableQuery<T>;
   dataSource?: T[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   params?: Record<string, any>;
@@ -65,6 +73,23 @@ interface SmartTableProps<T extends Record<string, any>> {
    * 默认使用 ['smart-table-hydration']，保持向后兼容
    */
   hydrationQueryKey?: readonly unknown[];
+}
+
+/** 传给 queryKey/queryFn 的当前表格状态 */
+export interface SmartTableQueryState {
+  page: number;
+  pageSize: number;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  search: Record<string, any>;
+}
+
+/** SmartTable 的统一取数定义：首屏与翻页共用 */
+export interface SmartTableQuery<T> {
+  queryKey: (state: SmartTableQueryState) => readonly unknown[];
+  queryFn: (
+    state: SmartTableQueryState,
+  ) => Promise<{ data: T[]; total: number }>;
+  enabled?: boolean;
 }
 
 // ------------------------------------
@@ -192,6 +217,7 @@ const SmartTableInner = <T extends Record<string, any>>(
     columns,
     searchSchema: explicitSearchSchema,
     request,
+    query,
     dataSource,
     rowKey,
     headerTitle,
@@ -213,13 +239,37 @@ const SmartTableInner = <T extends Record<string, any>>(
   const [total, setTotal] = useState(0);
 
   const [pagination, setPagination] = useState({
-    page: 1,
-    pageSize: defaultPageSize,
+    page:
+      Number(initialFormParams.page) > 0 ? Number(initialFormParams.page) : 1,
+    pageSize:
+      Number(initialFormParams.pageSize) > 0
+        ? Number(initialFormParams.pageSize)
+        : defaultPageSize,
   });
 
   const [formParams, setFormParams] =
     useState<Record<string, unknown>>(initialFormParams);
   const hydrationConsumedRef = useRef(false);
+
+  // ── 统一取数：首屏（可能来自 HydrationBoundary）与翻页/筛选同一套 query ──
+  const queryState = useMemo<SmartTableQueryState>(
+    () => ({
+      page: pagination.page,
+      pageSize: pagination.pageSize,
+      search: formParams,
+    }),
+    [pagination.page, pagination.pageSize, formParams],
+  );
+
+  const tableQuery = useQuery<{ data: T[]; total: number }>({
+    // query 未传时给一个稳定且不会被使用的 key，保证 hooks 顺序不变
+    queryKey: query ? query.queryKey(queryState) : ['smart-table:no-query'],
+    queryFn: query
+      ? () => query.queryFn(queryState)
+      : async () => ({ data: [], total: 0 }),
+    enabled: Boolean(query) && (query?.enabled ?? true),
+    staleTime: 30_000,
+  });
 
   // ── Hydration 支持：若启用，优先消费 hydrated 数据 ──
   const hydrationQuery = useQuery<{ data: T[]; total: number }>({
@@ -233,7 +283,7 @@ const SmartTableInner = <T extends Record<string, any>>(
   });
 
   const hasHydratedRows =
-    enableHydration && (hydrationQuery.data?.data?.length ?? 0) > 0;
+    !query && enableHydration && (hydrationQuery.data?.data?.length ?? 0) > 0;
 
   // 首次加载时，如启用 hydration 且有数据，直接使用
   useEffect(() => {
@@ -244,22 +294,37 @@ const SmartTableInner = <T extends Record<string, any>>(
     }
   }, [hasHydratedRows, hydrationQuery.data]);
 
-  const onPageChange = useCallback((p: number, ps: number) => {
-    setPagination((prev) => {
-      if (prev.page === p && prev.pageSize === ps) return prev;
-      return { page: p, pageSize: ps };
-    });
-  }, []);
+  // query 模式：数据由 useQuery 驱动（含注水数据），同步到内部状态
+  useEffect(() => {
+    if (!query || !tableQuery.data) return;
+    setData(tableQuery.data.data);
+    setTotal(tableQuery.data.total);
+    setLoading(false);
+  }, [query, tableQuery.data]);
+
+  const effectiveLoading = query ? tableQuery.isFetching : loading;
+
+  const onPageChange = useCallback(
+    (p: number, ps: number) => {
+      setPagination((prev) => {
+        if (prev.page === p && prev.pageSize === ps) return prev;
+        return { page: p, pageSize: ps };
+      });
+      // 页码进入 URL：刷新/前进后退能恢复同一个视图（spec 5.2）
+      onParamsChange?.({ ...formParams, page: p, pageSize: ps });
+    },
+    [formParams, onParamsChange],
+  );
 
   const paginationProps = useMemo(() => {
-    if (!request) return undefined;
+    if (!request && !query) return undefined;
     return {
       current: pagination.page,
       pageSize: pagination.pageSize,
       total,
       onChange: onPageChange,
     };
-  }, [request, pagination, total, onPageChange]);
+  }, [request, query, pagination, total, onPageChange]);
 
   const fetchData = useCallback(
     async (pageParams = pagination, searchParams = formParams) => {
@@ -329,6 +394,8 @@ const SmartTableInner = <T extends Record<string, any>>(
   );
 
   useEffect(() => {
+    // query 模式由 useQuery 统一取数，绝不能再走内部 fetchData（否则两套数据源打架）
+    if (query) return;
     // Skip fetch only once when hydrated rows exist.
     // After first render, pagination/search must always drive normal requests.
     if (hasHydratedRows && !hydrationConsumedRef.current) {
@@ -338,12 +405,20 @@ const SmartTableInner = <T extends Record<string, any>>(
     // 否则走原有逻辑
     if (request) fetchData().catch();
     else if (dataSource) setData(dataSource);
-  }, [request, dataSource, fetchData, hasHydratedRows]);
+  }, [query, request, dataSource, fetchData, hasHydratedRows]);
 
   useImperativeHandle(
     ref,
     () => ({
       reload: (resetPage = false) => {
+        if (query) {
+          if (resetPage && pagination.page !== 1) {
+            setPagination((p) => ({ ...p, page: 1 }));
+            return;
+          }
+          void tableQuery.refetch();
+          return;
+        }
         if (resetPage) {
           setPagination((p) => {
             if (p.page === 1) return p;
@@ -359,7 +434,7 @@ const SmartTableInner = <T extends Record<string, any>>(
         setPagination((p) => ({ ...p, page: 1 }));
       },
     }),
-    [fetchData, pagination, formParams],
+    [query, tableQuery, fetchData, pagination, formParams],
   );
 
   const finalSearchSchema = useMemo(
@@ -444,9 +519,12 @@ const SmartTableInner = <T extends Record<string, any>>(
 
     // If state is already reset, effects won't re-fire; force one fetch.
     if (isAlreadyReset) {
-      fetchData(resetPage, {}).catch();
+      if (query) void tableQuery.refetch();
+      else fetchData(resetPage, {}).catch();
     }
   }, [
+    query,
+    tableQuery,
     fetchData,
     formParams,
     onParamsChange,
@@ -465,7 +543,7 @@ const SmartTableInner = <T extends Record<string, any>>(
         />
       )}
 
-      {(headerTitle || toolBarRender || onExport || request) && (
+      {(headerTitle || toolBarRender || onExport || request || query) && (
         <div className="flex justify-between items-center px-1">
           {headerTitle ? (
             <div className="text-lg font-bold text-gray-900 dark:text-gray-100">
@@ -485,15 +563,15 @@ const SmartTableInner = <T extends Record<string, any>>(
                 <Download size={14} className="mr-1.5" /> Export
               </Button>
             )}
-            {request && (
+            {(request || query) && (
               <Button
                 variant="ghost"
                 onClick={handleRefresh}
-                disabled={loading}
+                disabled={effectiveLoading}
               >
                 <RefreshCw
                   size={16}
-                  className={loading ? 'animate-spin' : ''}
+                  className={effectiveLoading ? 'animate-spin' : ''}
                 />
               </Button>
             )}
@@ -504,7 +582,7 @@ const SmartTableInner = <T extends Record<string, any>>(
       <BaseTable
         data={data}
         columns={tableColumns}
-        loading={loading}
+        loading={effectiveLoading}
         rowKey={rowKey as string}
         pagination={paginationProps}
       />

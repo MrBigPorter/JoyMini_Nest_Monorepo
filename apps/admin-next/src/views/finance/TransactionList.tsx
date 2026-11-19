@@ -123,7 +123,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({
           if (row.transactionType === TRANSACTION_TYPE.RECHARGE) {
             icon = <ArrowDownRight size={14} className="mr-1 inline" />;
             color = 'success';
-          } else if (row.transactionType === TRANSACTION_TYPE.WITHDRAWAL) {
+          } else if (row.transactionType === TRANSACTION_TYPE.WITHDRAW) {
             icon = <ArrowUpRight size={14} className="mr-1 inline" />;
             color = 'warning';
           }

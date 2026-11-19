@@ -1856,6 +1856,11 @@ model KnowledgeDocument {
   qualityFlags   String?         @map("quality_flags") @db.VarChar(200)
   /// 版本号（每次更新 +1）
   version        Int             @default(1) @map("version") @db.SmallInt
+  /// 当前对外服务的版本。新版本 chunk 写入后，只有 activeVersion 那一版被检索。
+  /// 与 version 的关系：version 是「最新写入」，activeVersion 是「已通过门、正在对外」。
+  activeVersion   Int             @default(1) @map("active_version") @db.SmallInt
+  /// activeVersion 的切换时间。清理任务按它算保留期（保留期 = 回滚窗口）
+  activeVersionAt DateTime?       @map("active_version_at")
   documentChunks DocumentChunk[]
 
   /// 唯一约束：同一语言的同一文档只能有一条记录
@@ -1870,6 +1875,9 @@ model DocumentChunk {
   documentId      String                       @map("document_id") @db.VarChar(32)
   chunkIndex      Int                          @map("chunk_index") @db.SmallInt
   content         String                       @map("content") @db.Text
+  /// 向量索引（HNSW, vector_cosine_ops）由迁移
+  /// 20261119120000_add_hnsw_embedding_index 维护；Prisma schema 无法声明
+  /// pgvector 索引，此处仅作说明，不要改字段类型。
   embedding       Unsupported("vector(1024)")?
   tokenCount      Int?                         @map("token_count") @db.SmallInt
   /// 生成此 chunk 时对应的文档版本（用于检测过期）
@@ -1881,6 +1889,23 @@ model DocumentChunk {
 
   @@index([documentId])
   @@map("document_chunks")
+}
+
+/// AI 每日 token 用量（配额与成本统计）
+model AiUsageDaily {
+  id               String   @id @default(cuid()) @db.VarChar(32)
+  userId           String   @map("user_id") @db.VarChar(32)
+  date             DateTime @db.Date
+  promptTokens     Int      @default(0) @map("prompt_tokens")
+  completionTokens Int      @default(0) @map("completion_tokens")
+  totalTokens      Int      @default(0) @map("total_tokens")
+  requests         Int      @default(0)
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, date])
+  @@index([date])
+  @@map("ai_usage_daily")
 }
 
 /// 翻译任务日志

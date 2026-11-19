@@ -92,7 +92,10 @@ export class RagQualityService {
 
   // ──────────── 规则 1: 截断检测 ────────────
 
-  private checkTruncation(content: string): { passed: boolean; detail: string } {
+  private checkTruncation(content: string): {
+    passed: boolean;
+    detail: string;
+  } {
     if (content.length < 100) {
       return { passed: true, detail: 'Content too short for truncation check' };
     }
@@ -143,6 +146,7 @@ export class RagQualityService {
     if (content.length === 0) {
       return { passed: true, detail: 'Empty content, skipping encoding check' };
     }
+    // eslint-disable-next-line no-control-regex -- 检测控制字符本身就是这条规则的需求
     const garbageMatches = content.match(/[�\x00-\x08\x0B\x0C\x0E-\x1F]/g);
     const garbageCount = garbageMatches ? garbageMatches.length : 0;
     const garbageRatio = garbageCount / content.length;
@@ -154,18 +158,25 @@ export class RagQualityService {
     }
     return {
       passed: true,
-      detail: garbageCount > 0
-        ? `Minor encoding artifacts (${garbageCount} char(s), ${(garbageRatio * 100).toFixed(2)}%)`
-        : 'No encoding issues detected',
+      detail:
+        garbageCount > 0
+          ? `Minor encoding artifacts (${garbageCount} char(s), ${(garbageRatio * 100).toFixed(2)}%)`
+          : 'No encoding issues detected',
     };
   }
 
   // ──────────── 规则 4: 空内容检测 ────────────
 
-  private checkEmptyContent(content: string): { passed: boolean; detail: string } {
+  private checkEmptyContent(content: string): {
+    passed: boolean;
+    detail: string;
+  } {
     const trimmed = content.trim();
     if (trimmed.length === 0) {
-      return { passed: false, detail: 'Content is empty — parsing may have failed completely' };
+      return {
+        passed: false,
+        detail: 'Content is empty — parsing may have failed completely',
+      };
     }
     if (trimmed.length < 50) {
       return {
@@ -197,11 +208,11 @@ export class RagQualityService {
    */
   private extractPlainText(text: string): string {
     return text
-      .replace(/#{1,6}\s/g, '')         // 去掉 Markdown 标题标记
-      .replace(/\|/g, ' ')               // 去掉表格分隔符
-      .replace(/[-]{3,}/g, '')           // 去掉表格分割线
-      .replace(/[`*_~]/g, '')            // 去掉 Markdown 强调符号
-      .replace(/\s+/g, ' ')              // 多个空白→一个空格（保留可读性）
+      .replace(/#{1,6}\s/g, '') // 去掉 Markdown 标题标记
+      .replace(/\|/g, ' ') // 去掉表格分隔符
+      .replace(/[-]{3,}/g, '') // 去掉表格分割线
+      .replace(/[`*_~]/g, '') // 去掉 Markdown 强调符号
+      .replace(/\s+/g, ' ') // 多个空白→一个空格（保留可读性）
       .trim();
   }
 
@@ -257,25 +268,48 @@ export class RagQualityService {
       // 检查是否是 "date-like" 错位（一个缺失，另一个是年份/月份数字）
       const rawIsYear = err.raw && /^(19|20)\d{2}$/.test(err.raw);
       const parsedIsYear = err.parsed && /^(19|20)\d{2}$/.test(err.parsed);
-      const rawIsSingleDigit = err.raw && /^\d{1,2}$/.test(err.raw) && !err.raw.includes(',') && !err.raw.includes('.');
-      const parsedIsSingleDigit = err.parsed && /^\d{1,2}$/.test(err.parsed) && !err.parsed.includes(',') && !err.parsed.includes('.');
+      const rawIsSingleDigit =
+        err.raw &&
+        /^\d{1,2}$/.test(err.raw) &&
+        !err.raw.includes(',') &&
+        !err.raw.includes('.');
+      const parsedIsSingleDigit =
+        err.parsed &&
+        /^\d{1,2}$/.test(err.parsed) &&
+        !err.parsed.includes(',') &&
+        !err.parsed.includes('.');
       const oneMissing = err.raw === '(missing)' || err.parsed === '(missing)';
 
       // 检查是否一端缺失，另一端存在并匹配相邻位置
       let isShiftMatch = false;
       if (oneMissing) {
         // 向左错位检查：raw[i] == parsed[i-1]
-        if (err.raw !== '(missing)' && parsedIdx > 0 && err.raw === parsedNums[parsedIdx - 1]) {
+        if (
+          err.raw !== '(missing)' &&
+          parsedIdx > 0 &&
+          err.raw === parsedNums[parsedIdx - 1]
+        ) {
           isShiftMatch = true;
         }
         // 向右错位检查：parsed[i] == raw[i-1]
-        if (err.parsed !== '(missing)' && rawIdx > 0 && err.parsed === rawNums[rawIdx - 1]) {
+        if (
+          err.parsed !== '(missing)' &&
+          rawIdx > 0 &&
+          err.parsed === rawNums[rawIdx - 1]
+        ) {
           isShiftMatch = true;
         }
       }
 
       // 年份/月份错位 - 可能是日期格式差异
-      if (rawIsYear || parsedIsYear || rawIsSingleDigit || parsedIsSingleDigit || oneMissing || isShiftMatch) {
+      if (
+        rawIsYear ||
+        parsedIsYear ||
+        rawIsSingleDigit ||
+        parsedIsSingleDigit ||
+        oneMissing ||
+        isShiftMatch
+      ) {
         consecutiveBlock++;
       } else {
         // 遇到真正的数字差异（如金额），重置计数器
@@ -302,7 +336,9 @@ export class RagQualityService {
       const isMonetary = /[,.]/.test(err.raw) || /[,.]/.test(err.parsed);
       // 检查是否包含 % 附近（百分比）
       // 如果两端数字长度差距很大，很可能是格式问题
-      const lengthDiff = Math.abs((err.raw?.length || 0) - (err.parsed?.length || 0));
+      const lengthDiff = Math.abs(
+        (err.raw?.length || 0) - (err.parsed?.length || 0),
+      );
       if (lengthDiff > 4 && !isMonetary) {
         err.severity = 'minor';
       }
@@ -356,7 +392,8 @@ export class RagQualityService {
 
       return {
         type: c.added ? 'added' : c.removed ? 'removed' : 'equal',
-        value: c.count && c.count > 200 ? c.value.slice(0, 200) + '...' : c.value,
+        value:
+          c.count && c.count > 200 ? c.value.slice(0, 200) + '...' : c.value,
         count: c.count,
         severity,
       };
@@ -370,7 +407,7 @@ export class RagQualityService {
     let changedChars = 0;
     for (const c of changes) {
       if (c.added || c.removed) {
-        changedChars += (c.count || c.value.length);
+        changedChars += c.count || c.value.length;
       }
     }
     const wer = Math.round((changedChars / totalLength) * 10000) / 100;
@@ -427,11 +464,13 @@ ${engineBResult.slice(0, 3000)}
         const parsed = JSON.parse(response);
         return {
           selected: parsed.selected === 'B' ? 'B' : 'A',
-          selectedContent: parsed.selected === 'B' ? engineBResult : engineAResult,
+          selectedContent:
+            parsed.selected === 'B' ? engineBResult : engineAResult,
           score: typeof parsed.score === 'number' ? parsed.score : 3,
           reasoning: parsed.reasoning || '',
           issues: Array.isArray(parsed.issues) ? parsed.issues : [],
-          verdict: parsed.verdict === 'needs_review' ? 'needs_review' : 'approved',
+          verdict:
+            parsed.verdict === 'needs_review' ? 'needs_review' : 'approved',
         };
       } catch {
         // JSON 解析失败，用正则提取
@@ -440,19 +479,28 @@ ${engineBResult.slice(0, 3000)}
           const parsed = JSON.parse(jsonMatch[0]);
           return {
             selected: parsed.selected === 'B' ? 'B' : 'A',
-            selectedContent: parsed.selected === 'B' ? engineBResult : engineAResult,
+            selectedContent:
+              parsed.selected === 'B' ? engineBResult : engineAResult,
             score: typeof parsed.score === 'number' ? parsed.score : 3,
             reasoning: parsed.reasoning || '',
             issues: Array.isArray(parsed.issues) ? parsed.issues : [],
-            verdict: parsed.verdict === 'needs_review' ? 'needs_review' : 'approved',
+            verdict:
+              parsed.verdict === 'needs_review' ? 'needs_review' : 'approved',
           };
         }
-        this.logger.warn('LLM Diff audit: failed to parse response, falling back to engine A');
-        return this.fallbackResult(engineAResult, 'LLM response parsing failed');
+        this.logger.warn(
+          'LLM Diff audit: failed to parse response, falling back to engine A',
+        );
+        return this.fallbackResult(
+          engineAResult,
+          'LLM response parsing failed',
+        );
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
-      this.logger.warn(`LLM Diff audit failed: ${message}, falling back to engine A`);
+      this.logger.warn(
+        `LLM Diff audit failed: ${message}, falling back to engine A`,
+      );
       return this.fallbackResult(engineAResult, `LLM error: ${message}`);
     }
   }

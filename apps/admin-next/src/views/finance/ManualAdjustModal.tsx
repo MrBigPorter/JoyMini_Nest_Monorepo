@@ -92,7 +92,7 @@ export const ManualAdjustModal: React.FC<Props> = ({
                 },
                 {
                   label: t('finance.manualAdjust.deduct'),
-                  value: String(DIRECTION.EXPENDITURE),
+                  value: String(DIRECTION.EXPENSE),
                 },
               ]}
             />

@@ -68,8 +68,14 @@ export function ConversationItem({
           >
             {conv.lastMsgContent ?? t('customerService.noMessages')}
           </p>
-          <div className="mt-1">
+          <div className="mt-1 flex items-center gap-2">
             <StatusBadge status={conv.status} />
+            {conv.handlerId === 'awaiting_human' &&
+              conv.waitingSeconds != null && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400">
+                  ⏳ {Math.floor(conv.waitingSeconds / 60)}m
+                </span>
+              )}
           </div>
         </div>
       </div>

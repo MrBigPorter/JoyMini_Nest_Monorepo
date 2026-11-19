@@ -291,6 +291,13 @@ export class IntentExamplesService {
     // Submit only new sentences to embedding queue
     const jobCount = await this.submitEmbeddingJobs(domain, trulyNew, newHash);
 
+    // BM25 索引同样要更新：只写向量不写 Meili，新句子永远不会被
+    // 关键词通道命中（append 曾经漏了这一步）。
+    void this.meilisearchService.indexIntentExamples(domain, [
+      ...existing.map((r) => r.sentence),
+      ...trulyNew,
+    ]);
+
     this.logger.log(
       `Appended to "${domain}": ${jobCount}/${trulyNew.length} embedding jobs submitted to queue`,
     );

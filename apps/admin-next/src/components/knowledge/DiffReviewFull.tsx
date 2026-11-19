@@ -1,6 +1,12 @@
 'use client';
 
-import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
+import React, {
+  useMemo,
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+} from 'react';
 import {
   ArrowLeft,
   Loader2,
@@ -107,17 +113,22 @@ function DiffSegment({
     );
   }
 
-  const style = SEVERITY_STYLES[range.severity ?? 'minor'] ?? SEVERITY_STYLES.minor;
+  const style =
+    SEVERITY_STYLES[range.severity ?? 'minor'] ?? SEVERITY_STYLES.minor;
 
   // Editing mode → textarea
   if (isEditing) {
     return (
       <span className="inline-block align-top w-full my-1">
         <div className="flex items-center gap-1 mb-1">
-          <span className={`text-[9px] font-bold uppercase tracking-wider ${style.text}`}>
+          <span
+            className={`text-[9px] font-bold uppercase tracking-wider ${style.text}`}
+          >
             {TYPE_LABELS[range.type]} — Edit this segment
           </span>
-          <span className="text-[9px] text-gray-400">({range.value.length} chars)</span>
+          <span className="text-[9px] text-gray-400">
+            ({range.value.length} chars)
+          </span>
         </div>
         <textarea
           ref={inputRef}
@@ -155,7 +166,9 @@ function DiffSegment({
       title={`${TYPE_LABELS[range.type]}${range.severity ? ` (${range.severity})` : ''} — Click to edit`}
     >
       {/* Severity dot indicator */}
-      <span className={`inline-block w-1 h-3 rounded-full align-middle mr-0.5 ${style.tag}`} />
+      <span
+        className={`inline-block w-1 h-3 rounded-full align-middle mr-0.5 ${style.tag}`}
+      />
       <span
         className={`${style.text} border-b border-dashed ${
           range.type === 'removed'
@@ -315,15 +328,19 @@ function SyncScrollContainer({
   const sidebarRef = useRef<HTMLDivElement>(null);
   const isSyncing = useRef(false);
 
-  const syncScroll = useCallback((source: HTMLDivElement, target: HTMLDivElement) => {
-    if (isSyncing.current) return;
-    isSyncing.current = true;
-    const ratio = source.scrollTop / (source.scrollHeight - source.clientHeight);
-    target.scrollTop = ratio * (target.scrollHeight - target.clientHeight);
-    requestAnimationFrame(() => {
-      isSyncing.current = false;
-    });
-  }, []);
+  const syncScroll = useCallback(
+    (source: HTMLDivElement, target: HTMLDivElement) => {
+      if (isSyncing.current) return;
+      isSyncing.current = true;
+      const ratio =
+        source.scrollTop / (source.scrollHeight - source.clientHeight);
+      target.scrollTop = ratio * (target.scrollHeight - target.clientHeight);
+      requestAnimationFrame(() => {
+        isSyncing.current = false;
+      });
+    },
+    [],
+  );
 
   return (
     <div className="flex flex-1 overflow-hidden">
@@ -342,7 +359,11 @@ function SyncScrollContainer({
         </div>
         <div
           ref={leftRef}
-          onScroll={() => leftRef.current && rightRef.current && syncScroll(leftRef.current, rightRef.current)}
+          onScroll={() =>
+            leftRef.current &&
+            rightRef.current &&
+            syncScroll(leftRef.current, rightRef.current)
+          }
           className="flex-1 overflow-auto p-4 scroll-smooth"
         >
           {left}
@@ -356,7 +377,11 @@ function SyncScrollContainer({
         </div>
         <div
           ref={rightRef}
-          onScroll={() => rightRef.current && leftRef.current && syncScroll(rightRef.current, leftRef.current)}
+          onScroll={() =>
+            rightRef.current &&
+            leftRef.current &&
+            syncScroll(rightRef.current, leftRef.current)
+          }
           className="flex-1 overflow-auto p-4 scroll-smooth"
         >
           {right}
@@ -389,7 +414,9 @@ function NumberErrorsPanel({
       >
         {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
         <Hash size={11} className="text-purple-400" />
-        <span>{errors.length} Number Mismatch{errors.length !== 1 ? 'es' : ''}</span>
+        <span>
+          {errors.length} Number Mismatch{errors.length !== 1 ? 'es' : ''}
+        </span>
         <span className="text-gray-300 dark:text-gray-600">·</span>
         <span className="text-gray-400">Click to review</span>
       </button>
@@ -590,7 +617,10 @@ export function DiffReviewFull({ document }: { document: KnowledgeDocument }) {
 
   const flags = useMemo(() => {
     if (!document.qualityFlags) return [];
-    return document.qualityFlags.split(',').map((f) => f.trim()).filter(Boolean);
+    return document.qualityFlags
+      .split(',')
+      .map((f) => f.trim())
+      .filter(Boolean);
   }, [document.qualityFlags]);
 
   // ── Reconstruct full content from segments ──────────────────────────────
@@ -664,7 +694,10 @@ export function DiffReviewFull({ document }: { document: KnowledgeDocument }) {
           const localIdx = pos - cursor;
           const before = actualValue.slice(0, localIdx);
           const after = actualValue.slice(localIdx + parsedNum.length);
-          setEditedValues((prev) => ({ ...prev, [i]: before + correctValue + after }));
+          setEditedValues((prev) => ({
+            ...prev,
+            [i]: before + correctValue + after,
+          }));
           return;
         }
         cursor = segEnd;
@@ -810,7 +843,8 @@ export function DiffReviewFull({ document }: { document: KnowledgeDocument }) {
       {/* No rawContent (Markdown files) */}
       {!loading && !diffData && !document.rawContent && (
         <div className="flex flex-1 items-center justify-center text-gray-400 text-sm">
-          ⚪ Diff not available — document has no pdf-parse baseline (Markdown files only)
+          ⚪ Diff not available — document has no pdf-parse baseline (Markdown
+          files only)
         </div>
       )}
 
@@ -844,8 +878,7 @@ export function DiffReviewFull({ document }: { document: KnowledgeDocument }) {
           }
           rightHeader={
             <span className="text-xs font-medium text-gray-400">
-              ✏️ Unstructured{' '}
-              <span className="text-gray-300">(AI Parsed)</span>
+              ✏️ Unstructured <span className="text-gray-300">(AI Parsed)</span>
               <span className="ml-2 text-[10px] text-gray-300">
                 — click colored text to edit
               </span>
@@ -863,9 +896,14 @@ export function DiffReviewFull({ document }: { document: KnowledgeDocument }) {
       )}
 
       {/* ════════ Number Errors Panel (bottom) ════════ */}
-      {diffData && !diffData.contentMatch && diffData.numberErrors.length > 0 && (
-        <NumberErrorsPanel errors={diffData.numberErrors} onFix={handleNumberFix} />
-      )}
+      {diffData &&
+        !diffData.contentMatch &&
+        diffData.numberErrors.length > 0 && (
+          <NumberErrorsPanel
+            errors={diffData.numberErrors}
+            onFix={handleNumberFix}
+          />
+        )}
     </div>
   );
 }

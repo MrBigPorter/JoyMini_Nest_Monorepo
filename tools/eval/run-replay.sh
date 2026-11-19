@@ -41,4 +41,17 @@ EVAL_TOKEN=$(docker exec -e SUB="eval-runner" "$BACKEND" node -e '
 [ -n "$EVAL_TOKEN" ] || { echo "❌ 签发 admin token 失败（密钥为空？）" >&2; exit 1; }
 
 export EVAL_TOKEN
+
+# 查重门禁：题集内部重复 / 近似重复直接拒绝回放。
+# 设 EVAL_DEDUP_AGAINST_API=1 时还会和线上例句库比对（更慢，但更严格）。
+DEDUP_ARGS=()
+if [ "${EVAL_DEDUP_AGAINST_API:-0}" = "1" ]; then
+  DEDUP_ARGS[0]="--against-api"
+fi
+# macOS 自带 bash 3.2：空数组在 set -u 下直接展开会报 unbound
+"$PYTHON" "$SCRIPT_DIR/check_duplicates.py" ${DEDUP_ARGS[@]+"${DEDUP_ARGS[@]}"} || {
+  echo "❌ 查重未通过，已拒绝回放。先替换/删除重复样本。" >&2
+  exit 1
+}
+
 exec "$PYTHON" "$SCRIPT_DIR/replay.py" "$@"

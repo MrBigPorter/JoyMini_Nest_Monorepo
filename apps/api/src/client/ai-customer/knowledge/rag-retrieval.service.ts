@@ -1,9 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { incCounter } from '@api/common/metrics/metrics';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { AiService } from '@api/common/ai/ai.service';
 import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service';
 import { emitStage } from '@api/common/logger/structured-logger';
+import { ConfigService } from '@nestjs/config';
 
 // =============================================================================
 // 检索结果类型
@@ -99,11 +100,24 @@ export class RagRetrievalService {
    */
   async retrieve(
     query: string,
-    options?: { domain?: string; topK?: number; minScore?: number },
+    options?: {
+      domain?: string;
+      topK?: number;
+      minScore?: number;
+      /** false 时跳过 reranker，用原始分排序（评测/降级用） */
+      useRerank?: boolean;
+    },
   ): Promise<RetrievedChunk[]> {
-    const { domain, topK = 5, minScore = 0.1 } = options ?? {};
+    const {
+      domain,
+      topK = 5,
+      minScore = 0.1,
+      useRerank = true,
+    } = options ?? {};
 
     if (!query || query.trim().length === 0) return [];
+
+    incCounter('ai_retrieval_requests_total', { domain: domain ?? 'all' });
 
     // 本次检索的起点，两个出口都用它算 latencyMs（#89 FR-6）
     const startedAt = Date.now();
@@ -208,13 +222,16 @@ export class RagRetrievalService {
     const candidates = merged.length;
     const topScore = Math.max(...merged.map((c) => c.score));
 
-    merged = await this.rerank(query, merged, topK);
+    merged = useRerank
+      ? await this.rerank(query, merged, topK)
+      : this.fallbackSort(merged, topK);
 
     emitStage('retrieval', {
       layers,
       candidates,
       returned: merged.length,
       topScore: Number(topScore.toFixed(4)),
+      rerank: useRerank,
       latencyMs: Date.now() - startedAt,
     });
 
@@ -274,6 +291,7 @@ export class RagRetrievalService {
         JOIN knowledge_documents kd ON kd.id = dc.document_id
         WHERE dc.embedding IS NOT NULL
           AND kd.is_active = true
+          AND dc.document_version = kd.active_version
       `;
       const params: any[] = [vectorStr];
 
@@ -335,8 +353,9 @@ export class RagRetrievalService {
     try {
       // 为每个 token 生成 ILIKE 条件
       // 使用 content ILIKE '%token%' 做子串匹配
+      // 占位符从 $1 开始，与下方 params 的 push 顺序一一对应
       const conditions = tokens.map(
-        (_, i) => `dc.content ILIKE $${i + 2}::varchar`,
+        (_, i) => `dc.content ILIKE $${i + 1}::varchar`,
       );
 
       let sql = `
@@ -356,12 +375,14 @@ export class RagRetrievalService {
         JOIN knowledge_documents kd ON kd.id = dc.document_id
         WHERE (${conditions.join(' OR ')})
           AND kd.is_active = true
+          AND dc.document_version = kd.active_version
       `;
+      // 参数顺序必须与 SQL 占位符严格一致：
+      //   $1..$N   → 各 token 的 ILIKE 模式
+      //   $N+1     → domain（可选）
+      //   最后一位 → LIMIT topK
       const params: any[] = [];
 
-      // $1 is used for the first token pattern (all tokens combined as a simple phrase)
-      // $2, $3, ... are used for individual token patterns
-      // Actually, let me simplify - just search for any token matching
       const likeParams = tokens.map((t) => `%${t}%`);
       params.push(...likeParams);
 
@@ -421,7 +442,12 @@ export class RagRetrievalService {
       const where: any = { isActive: true };
       if (domain) where.domain = domain;
 
-      const docs = await this.prisma.knowledgeDocument.findMany({ where });
+      const allDocs = await this.prisma.knowledgeDocument.findMany({ where });
+
+      // 版本过滤：这一层读的是 Document.content（最新写入的正文），不是某一版的 chunk。
+      // 正在暂存新版本的文档（version > activeVersion）如果参与，就会把还没上线的
+      // 正文提前返回给用户——那正是"规则改了但用户看到的是新版/旧版对不上"的另一条路径。
+      const docs = allDocs.filter((d) => d.activeVersion === d.version);
 
       if (docs.length === 0) return [];
 
@@ -550,9 +576,7 @@ export class RagRetrievalService {
     chunks: RetrievedChunk[],
     topK: number,
   ): RetrievedChunk[] {
-    return [...chunks]
-      .sort((a, b) => b.score - a.score)
-      .slice(0, topK);
+    return [...chunks].sort((a, b) => b.score - a.score).slice(0, topK);
   }
 
   // ===========================================================================

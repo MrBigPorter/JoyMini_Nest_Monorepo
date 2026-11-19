@@ -8,6 +8,7 @@ import {
   WithdrawStatus,
 } from '@/lib/shared-wrapper';
 import type { Locale } from '@/lib/shared-wrapper';
+import type { components } from './generated-api';
 
 export type Language = Locale;
 export type Theme = 'light' | 'dark';
@@ -19,10 +20,11 @@ export interface dateRange {
   to: string;
 }
 
-export interface Tokens {
-  accessToken: string;
-  refreshToken?: string;
-}
+/**
+ * 与后端 AdminTokenPairDto 结构完全一致，直接复用生成类型。
+ * 其余 DTO 与视图模型存在字段差异，按 design D4 在各页面迁移时映射。
+ */
+export type Tokens = components['schemas']['AdminTokenPairDto'];
 
 export interface AdminUser {
   id: string;
@@ -1264,6 +1266,9 @@ export interface ChatConversation {
   name: string | null;
   status: number; // 1=正常 2=已关闭
   handlerId: string | null;
+  transferReason?: string | null;
+  /** 转人工排队秒数；非待接入会话为 null */
+  waitingSeconds?: number | null;
   lastMsgContent: string | null;
   lastMsgTime: number;
   lastMsgSeqId: number;
@@ -1290,6 +1295,8 @@ export interface QueryConversationsParams {
   type?: ConversationType;
   keyword?: string;
   status?: number;
+  /** awaiting=待接入；mine=我的；ai=AI 处理中 */
+  queue?: 'awaiting' | 'mine' | 'ai';
 }
 
 export interface QueryMessagesParams {
@@ -1827,7 +1834,11 @@ export interface PromptMetrics {
   evalStats: Array<{
     version: number;
     _count: { id: number };
-    _avg: { toolFailCount: number | null; latencyMs: number | null; totalTokens: number | null };
+    _avg: {
+      toolFailCount: number | null;
+      latencyMs: number | null;
+      totalTokens: number | null;
+    };
   }>;
 }
 

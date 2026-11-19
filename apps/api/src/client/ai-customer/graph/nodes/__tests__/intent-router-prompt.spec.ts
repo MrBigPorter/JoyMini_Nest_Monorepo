@@ -22,6 +22,13 @@
 import { ChatPromptTemplate } from '@langchain/core/prompts';
 import { describe, it, expect } from '@jest/globals';
 import { VALID_INTENTS } from '@api/client/ai-customer/graph/agents/prompts/intent-label-categories';
+import {
+  INTENT_ACCEPT_SCORE,
+  INTENT_EXECUTION_MIN_SCORE,
+  INTENT_LLM_FALLBACK_SCORE,
+  meetsExecutionThreshold,
+  shouldUseLlmFallback,
+} from '@api/client/ai-customer/graph/config/intent-thresholds';
 
 // ============================================================
 // Group A: 模板解析 — 修复验证
@@ -109,10 +116,10 @@ describe('Group A: INTENT_PROMPT template parsing', () => {
       conversationContext: 'User: check balance',
     });
 
-    expect((result[0].content as string)).toBe(
+    expect(result[0].content as string).toBe(
       'A: wallet\nB: User: check balance',
     );
-    expect((result[1].content as string)).toBe('show my orders');
+    expect(result[1].content as string).toBe('show my orders');
   });
 
   /**
@@ -129,8 +136,8 @@ describe('Group A: INTENT_PROMPT template parsing', () => {
       previousIntent: '',
     });
 
-    expect((result[0].content as string)).toBe('prev: ');
-    expect((result[1].content as string)).toBe('');
+    expect(result[0].content as string).toBe('prev: ');
+    expect(result[1].content as string).toBe('');
   });
 });
 
@@ -142,13 +149,12 @@ describe('Group B: Intent Router JSON parsing logic', () => {
    * 模拟 createIntentRouterNode 中的 JSON 解析逻辑（完全一致）
    * 注意: labels 返回原始顺序（未排序），sortedByScore 仅用于确定 intent
    */
-  function parseIntentOutput(
-    raw: string,
-  ): { intent: string; labels: { label: string; score: number }[] } {
+  function parseIntentOutput(raw: string): {
+    intent: string;
+    labels: { label: string; score: number }[];
+  } {
     const trimmed = raw.trim();
-    const jsonStr = trimmed
-      .replace(/```json\s*/g, '')
-      .replace(/```\s*/g, '');
+    const jsonStr = trimmed.replace(/```json\s*/g, '').replace(/```\s*/g, '');
     let parsed: any;
     try {
       parsed = JSON.parse(jsonStr);
@@ -192,7 +198,10 @@ describe('Group B: Intent Router JSON parsing logic', () => {
 
   it('B1: single-label JSON', () => {
     const result = parseIntentOutput(
-      JSON.stringify({ intent: 'order', labels: [{ label: 'order', score: 0.92 }] }),
+      JSON.stringify({
+        intent: 'order',
+        labels: [{ label: 'order', score: 0.92 }],
+      }),
     );
     expect(result.intent).toBe('order');
     expect(result.labels).toEqual([{ label: 'order', score: 0.92 }]);
@@ -259,7 +268,10 @@ describe('Group B: Intent Router JSON parsing logic', () => {
       }),
     );
     expect(result.labels).toHaveLength(2);
-    expect(result.labels.map((l) => l.label).sort()).toEqual(['order', 'product']);
+    expect(result.labels.map((l) => l.label).sort()).toEqual([
+      'order',
+      'product',
+    ]);
   });
 
   it('B9: intent is highest-scoring label regardless of input order', () => {
@@ -306,8 +318,11 @@ describe('Group C: Edge cases', () => {
       ['system', 'test: {previousIntent}'],
       ['human', '{input}'],
     ]);
-    const r = await prompt.formatMessages({ input: '', previousIntent: 'general' });
-    expect((r[1].content as string)).toBe('');
+    const r = await prompt.formatMessages({
+      input: '',
+      previousIntent: 'general',
+    });
+    expect(r[1].content as string).toBe('');
   });
 
   it('C2: very long input', async () => {
@@ -332,12 +347,45 @@ describe('Group C: Edge cases', () => {
       input: 'show orders',
       previousIntent: 'none',
     });
-    expect((r1[0].content as string)).toBe('prev: none');
+    expect(r1[0].content as string).toBe('prev: none');
 
     const r2 = await prompt.formatMessages({
       input: 'check balance',
       previousIntent: 'order',
     });
-    expect((r2[0].content as string)).toBe('prev: order');
+    expect(r2[0].content as string).toBe('prev: order');
+  });
+});
+
+// ============================================================
+// Group D: 阈值语义（graph/config/intent-thresholds.ts）
+// ============================================================
+describe('Group D: Intent threshold semantics', () => {
+  /** 0.5 ~ 0.7 之间：有分数，但没到标签接纳/执行门槛 */
+  const midGap = (INTENT_LLM_FALLBACK_SCORE + INTENT_ACCEPT_SCORE) / 2;
+
+  it('D1: LLM fallback gate 必须低于接纳门槛，否则 fallback 永不触发', () => {
+    expect(INTENT_LLM_FALLBACK_SCORE).toBeLessThan(INTENT_ACCEPT_SCORE);
+  });
+
+  it('D2: 低于 fallback gate 才触发 LLM fallback（边界含等于）', () => {
+    expect(shouldUseLlmFallback(INTENT_LLM_FALLBACK_SCORE - 0.001)).toBe(true);
+    expect(shouldUseLlmFallback(INTENT_LLM_FALLBACK_SCORE)).toBe(false);
+  });
+
+  it('D3: 0.5-0.7 区间 router 不下沉，但 orchestrator 不执行', () => {
+    // router 认为整次分类仍可信（>= 0.5），把降级交给下游；
+    // orchestrator 则因为 < 执行门槛而明确降级闲聊（并打 warn）。
+    expect(midGap).toBeGreaterThan(INTENT_LLM_FALLBACK_SCORE);
+    expect(midGap).toBeLessThan(INTENT_ACCEPT_SCORE);
+    expect(shouldUseLlmFallback(midGap)).toBe(false);
+    expect(meetsExecutionThreshold(midGap)).toBe(false);
+  });
+
+  it('D4: 达到执行门槛才允许派发 Agent（边界含等于）', () => {
+    expect(meetsExecutionThreshold(INTENT_EXECUTION_MIN_SCORE)).toBe(true);
+    expect(meetsExecutionThreshold(INTENT_EXECUTION_MIN_SCORE - 0.001)).toBe(
+      false,
+    );
   });
 });

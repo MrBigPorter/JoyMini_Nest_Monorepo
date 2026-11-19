@@ -14,7 +14,7 @@
  * ── 为什么保留 LLM Fallback？ ──
  * 1. 短输入（1-3 词）如 "yes", "proceed" 语义泛化能力弱，需要 previousIntent 上下文
  * 2. Embedding 服务可能不可用（Ollama 未本地运行）
- * 3. 低置信度场景（所有域 < 0.5）需要 LLM 结合对话历史判断
+ * 3. 低置信度场景（最高分 < INTENT_LLM_FALLBACK_SCORE）需要 LLM 结合对话历史判断
  */
 import { StringOutputParser } from '@langchain/core/output_parsers';
 import { AgentState } from '@api/client/ai-customer/graph/state';
@@ -31,12 +31,12 @@ import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service'
 import { Logger } from '@nestjs/common';
 import { extractUserInput } from '@api/client/ai-customer/graph/utils/extract-user-input';
 import { formatMessagePreview } from '@api/client/ai-customer/graph/utils/format-message-preview';
+import {
+  INTENT_LLM_FALLBACK_SCORE,
+  shouldUseLlmFallback,
+} from '@api/client/ai-customer/graph/config/intent-thresholds';
 
 const logger = new Logger('IntentRouter');
-/**
- * 低置信度阈值：最高余弦相似度低于此值时使用 LLM fallback
- */
-const LOW_CONFIDENCE_THRESHOLD = 0.5;
 
 /**
  * 解析 LLM JSON 输出，提取 labels 数组和主 intent
@@ -99,7 +99,7 @@ function parseFallback(trimmed: string): {
  * ── 流程 ──
  * 1. 优先使用 IntentClassifier（embedding 余弦相似度）
  * 2. 如果 embedding 返回 llm_fallback（服务不可用），降级到 LLM
- * 3. 如果 embedding 最高置信度 < 0.5，降级到 LLM（短输入 / 模糊意图）
+ * 3. 如果 embedding 最高置信度 < INTENT_LLM_FALLBACK_SCORE，降级到 LLM（短输入 / 模糊意图）
  * 4. LLM 使用简化 prompt（无 Label Categories 章节）
  *
  * ════════════════════════════════════════════════════════════════
@@ -122,7 +122,7 @@ function parseFallback(trimmed: string): {
  *   → 返回 ClassificationResult:
  *     {
  *       intent: 'product',             ← 最高分域
- *       labels: [                      ← 多标签（全部 >= 0.5）
+ *       labels: [                      ← 多标签（融合分，接纳门槛见 INTENT_ACCEPT_SCORE）
  *         {label:'product', score:0.86},
  *         {label:'coupon',  score:0.60},
  *         {label:'wallet',  score:0.59}
@@ -197,9 +197,15 @@ export const createIntentRouterNode = (
 
     // 低置信度时降级到 LLM
     const topScore = embeddingResult.labels[0]?.score ?? 0;
-    if (topScore < LOW_CONFIDENCE_THRESHOLD) {
-      logger.log(
-        `[intentRouter] Low confidence (${topScore.toFixed(2)} < ${LOW_CONFIDENCE_THRESHOLD}), falling back to LLM`,
+    if (shouldUseLlmFallback(topScore)) {
+      // 明确记录降级：分数、阈值、最终去向；不落用户原文（#89 FR-7 / AC-6）。
+      logger.warn(
+        `[intentRouter] intent fallback: ${JSON.stringify({
+          reason: 'below_llm_fallback_threshold',
+          topScore: Number(topScore.toFixed(2)),
+          threshold: INTENT_LLM_FALLBACK_SCORE,
+          destination: 'llm_fallback',
+        })}`,
       );
       return await llmFallback(llmConfig, state, userInput);
     }

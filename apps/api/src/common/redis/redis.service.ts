@@ -98,6 +98,11 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     return await this.client.incr(key);
   }
 
+  /** 原子自增指定步长（token 会话计数等）；返回自增后的值 */
+  async incrBy(key: string, increment: number): Promise<number> {
+    return await this.client.incrBy(key, increment);
+  }
+
   async decr(key: string): Promise<number> {
     return await this.client.decr(key);
   }

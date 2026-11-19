@@ -27,6 +27,9 @@ export function CustomerServiceDesk() {
   const [statusFilter, setStatusFilter] = useState<number | undefined>(
     undefined,
   );
+  const [queueFilter, setQueueFilter] = useState<'awaiting' | undefined>(
+    undefined,
+  );
   const [page, setPage] = useState(1);
   const [lastSeenSeqId, setLastSeenSeqId] = useState<Record<string, number>>(
     {},
@@ -38,6 +41,7 @@ export function CustomerServiceDesk() {
     type: 'SUPPORT',
     keyword: keyword || undefined,
     status: statusFilter,
+    queue: queueFilter,
   };
 
   const {
@@ -47,7 +51,7 @@ export function CustomerServiceDesk() {
   } = useRequest(
     () => chatApi.getConversations(queryParams, { trace: false }),
     {
-      refreshDeps: [page, keyword, statusFilter],
+      refreshDeps: [page, keyword, statusFilter, queueFilter],
       pollingInterval: 30000,
     },
   );
@@ -117,6 +121,12 @@ export function CustomerServiceDesk() {
           page={page}
           keyword={keyword}
           statusFilter={statusFilter}
+          queueFilter={queueFilter}
+          onQueueFilterChangeAction={(queue) => {
+            setQueueFilter(queue);
+            if (queue === 'awaiting') setStatusFilter(undefined);
+            setPage(1);
+          }}
           lastSeenSeqId={lastSeenSeqId}
           onKeywordChangeAction={setKeyword}
           onStatusFilterChangeAction={setStatusFilter}

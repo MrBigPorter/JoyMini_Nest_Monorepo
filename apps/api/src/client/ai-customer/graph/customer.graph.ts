@@ -18,6 +18,7 @@
  * 4. orchestrator 自己处理合成回复，无需 answerSynthesizer 节点
  */
 import { END, MemorySaver, START, StateGraph } from '@langchain/langgraph';
+import type { BaseCheckpointSaver } from '@langchain/langgraph-checkpoint';
 import { AgentState } from './state';
 import {
   createIntentRouterNode,
@@ -31,6 +32,8 @@ import { PrismaService } from '@api/common/prisma/prisma.service';
 import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service';
 import { RagRetrievalService } from '@api/client/ai-customer/knowledge/rag-retrieval.service';
 import { PromptResolverService } from '@api/client/ai-customer/knowledge/prompt-resolver.service';
+import { takeKbVersionNotice } from '@api/client/ai-customer/knowledge/kb-version-notice';
+import { RedisService } from '@api/common/redis/redis.service';
 
 /**
  * intentGateway — 强制走 intentRouter 重新分类
@@ -139,6 +142,12 @@ export function buildCustomerGraph(
   meilisearchService: MeilisearchService,
   ragRetrievalService?: RagRetrievalService,
   promptResolver?: PromptResolverService,
+  redisService?: RedisService,
+  /**
+   * 状态持久化：生产传 PostgresSaver，测试/降级不传则用 MemorySaver。
+   * checkpointer 决定 thread_id 的状态是否跨进程/重启保留。
+   */
+  checkpointer?: BaseCheckpointSaver,
 ) {
   const workflow = new StateGraph(AgentState)
 
@@ -159,6 +168,8 @@ export function buildCustomerGraph(
         registry,
         ragRetrievalService,
         promptResolver,
+        // 跨版本告知：知识库切换过版本时，提醒模型以最新内容为准
+        (userId) => takeKbVersionNotice(redisService, userId),
       ),
     )
 
@@ -177,6 +188,6 @@ export function buildCustomerGraph(
 
   // 编译图
   return workflow.compile({
-    checkpointer: new MemorySaver(),
+    checkpointer: checkpointer ?? new MemorySaver(),
   });
 }

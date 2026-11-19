@@ -16,8 +16,19 @@ import {
   CreateAddressDto,
   UpdateAddressDto,
 } from '@api/client/address/dto/address.dto';
+import {
+  MISSING_USER_CONTEXT,
+  requireToolUserId,
+} from '@api/client/ai-customer/graph/tools/tool-identity';
 import { toResultChain } from '@lucky/shared';
 
+/**
+ * 用户 / 地址工具
+ *
+ * ── 身份边界 ──
+ * userId 从请求上下文（AsyncLocalStorage）读取，不再作为 tool 参数
+ * 暴露给 LLM。模型无法通过传参查看/修改别人的资料或地址。
+ */
 export const createUserTools = (
   authService: AuthService,
   addressService: AddressService,
@@ -26,12 +37,14 @@ export const createUserTools = (
   return [
     /**
      * 获取当前用户的个人信息
-     * @param userId - 当前用户 ID，由 LLM 自动传递
      */
     {
       tool: tool(
-        async ({ userId }: { userId: string }) =>
-          toResultChain(authService.profile(userId))
+        async () => {
+          const userId = requireToolUserId('getUserProfile');
+          if (!userId) return toolFailure(MISSING_USER_CONTEXT);
+
+          return toResultChain(authService.profile(userId))
             .then((result) =>
               toolSuccess({
                 profile: toLLM(
@@ -43,12 +56,11 @@ export const createUserTools = (
             )
             .catch((err) =>
               toolFailure(`Failed to get profile: ${err.message}`),
-            ),
+            );
+        },
         {
           name: 'getUserProfile',
-          schema: z.object({
-            userId: z.string().describe('The current user ID'),
-          }),
+          schema: z.object({}),
           description:
             'Get the current user personal profile info: nickname, avatar, phone, invite code, VIP level, KYC status, last login time.',
         },
@@ -58,16 +70,11 @@ export const createUserTools = (
     },
     {
       tool: tool(
-        async ({
-          userId,
-          page,
-          pageSize,
-        }: {
-          userId: string;
-          page?: number;
-          pageSize?: number;
-        }) =>
-          toResultChain(
+        async ({ page, pageSize }: { page?: number; pageSize?: number }) => {
+          const userId = requireToolUserId('listAddresses');
+          if (!userId) return toolFailure(MISSING_USER_CONTEXT);
+
+          return toResultChain(
             addressService.list(userId, {
               page: page ?? 1,
               pageSize: pageSize ?? 10,
@@ -89,11 +96,11 @@ export const createUserTools = (
             )
             .catch((err) =>
               toolFailure(`Failed to list addresses: ${err.message}`),
-            ),
+            );
+        },
         {
           name: 'listAddresses',
           schema: z.object({
-            userId: z.string().describe('The current user ID'),
             page: z
               .number()
               .optional()
@@ -111,12 +118,14 @@ export const createUserTools = (
     {
       /**
        * 查看单个地址详情
-       * @param userId - 当前用户 ID
        * @param addressId - 地址 ID
        */
       tool: tool(
-        async ({ userId, addressId }: { userId: string; addressId: string }) =>
-          toResultChain(addressService.detail(userId, addressId))
+        async ({ addressId }: { addressId: string }) => {
+          const userId = requireToolUserId('getAddressDetail');
+          if (!userId) return toolFailure(MISSING_USER_CONTEXT);
+
+          return toResultChain(addressService.detail(userId, addressId))
             .then((result) =>
               toolSuccess({
                 address: toLLM(
@@ -128,11 +137,11 @@ export const createUserTools = (
             )
             .catch((err) =>
               toolFailure(`Failed to get address detail: ${err.message}`),
-            ),
+            );
+        },
         {
           name: 'getAddressDetail',
           schema: z.object({
-            userId: z.string().describe('The current user ID'),
             addressId: z.string().describe('The address ID to query'),
           }),
           description:
@@ -156,7 +165,6 @@ export const createUserTools = (
     {
       tool: tool(
         async ({
-          userId,
           contactName,
           phone,
           province,
@@ -166,7 +174,6 @@ export const createUserTools = (
           label,
           isDefault,
         }: {
-          userId: string;
           contactName: string;
           phone: string;
           province: string;
@@ -176,6 +183,9 @@ export const createUserTools = (
           label?: string;
           isDefault?: boolean;
         }) => {
+          const userId = requireToolUserId('createAddress');
+          if (!userId) return toolFailure(MISSING_USER_CONTEXT);
+
           logger.log(
             `[user-tools:createAddress] userId="${userId}", contactName="${contactName}"`,
           );
@@ -213,7 +223,6 @@ export const createUserTools = (
            */
           name: 'createAddress',
           schema: z.object({
-            userId: z.string().describe('The current user ID'),
             contactName: z
               .string()
               .describe(
@@ -267,7 +276,6 @@ export const createUserTools = (
     {
       tool: tool(
         async ({
-          userId,
           addressId,
           contactName,
           phone,
@@ -278,7 +286,6 @@ export const createUserTools = (
           label,
           isDefault,
         }: {
-          userId: string;
           addressId: string;
           contactName?: string;
           phone?: string;
@@ -289,6 +296,9 @@ export const createUserTools = (
           label?: string;
           isDefault?: boolean;
         }) => {
+          const userId = requireToolUserId('updateAddress');
+          if (!userId) return toolFailure(MISSING_USER_CONTEXT);
+
           logger.log(
             `[user-tools:updateAddress] userId="${userId}", addressId="${addressId}"`,
           );
@@ -341,7 +351,6 @@ export const createUserTools = (
         {
           name: 'updateAddress',
           schema: z.object({
-            userId: z.string().describe('The current user ID'),
             addressId: z.string().describe('The address ID to update'),
             contactName: z.string().optional().describe('New contact name'),
             phone: z.string().optional().describe('New phone number'),
@@ -391,13 +400,10 @@ export const createUserTools = (
      */
     {
       tool: tool(
-        async ({
-          userId,
-          addressId,
-        }: {
-          userId: string;
-          addressId: string;
-        }) => {
+        async ({ addressId }: { addressId: string }) => {
+          const userId = requireToolUserId('deleteAddress');
+          if (!userId) return toolFailure(MISSING_USER_CONTEXT);
+
           logger.log(
             `[user-tools:deleteAddress] userId="${userId}", addressId="${addressId}"`,
           );
@@ -415,7 +421,6 @@ export const createUserTools = (
         {
           name: 'deleteAddress',
           schema: z.object({
-            userId: z.string().describe('The current user ID'),
             addressId: z.string().describe('The address ID to delete'),
           }),
           description:

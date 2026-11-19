@@ -171,6 +171,7 @@ describe('WithdrawSettlementService', () => {
         totalWithdraw: { increment: 95 },
       },
     });
+    // eslint-disable-next-line @typescript-eslint/unbound-method -- jest mock 引用，无需绑定 this
     expect(service['logger'].error).toHaveBeenCalledWith(
       expect.stringContaining('CRITICAL'),
     );

@@ -142,9 +142,15 @@ export const CouponModal: React.FC<CouponFormModalProps> = ({
   // Core change: Unified handling of submit logic
   const { run, loading } = useRequest(
     async (values: CreateCouponSchemaFormInput) => {
-      console.log('[CouponModal] transformFormToPayload input:', JSON.stringify(values, null, 2));
+      console.log(
+        '[CouponModal] transformFormToPayload input:',
+        JSON.stringify(values, null, 2),
+      );
       const data: CreateCouponPayload = transformFormToPayload(values);
-      console.log('[CouponModal] transformFormToPayload output:', JSON.stringify(data, null, 2));
+      console.log(
+        '[CouponModal] transformFormToPayload output:',
+        JSON.stringify(data, null, 2),
+      );
 
       if (isEditMode && editingData) {
         // CRITICAL FIX: Strip sensitive fields if the coupon is already issued
@@ -192,13 +198,19 @@ export const CouponModal: React.FC<CouponFormModalProps> = ({
   const validTypeNum = Number(validType || VALID_TYPE.RANGE);
 
   const onSubmit = (values: CreateCouponSchemaFormInput) => {
-    console.log('[CouponModal] onSubmit called with values:', JSON.stringify(values, null, 2));
+    console.log(
+      '[CouponModal] onSubmit called with values:',
+      JSON.stringify(values, null, 2),
+    );
     run(values);
   };
 
   // Log form errors for debugging
   const formErrors = form.formState.errors;
-  console.log('[CouponModal] form errors:', JSON.stringify(formErrors, null, 2));
+  console.log(
+    '[CouponModal] form errors:',
+    JSON.stringify(formErrors, null, 2),
+  );
 
   return (
     <div className="space-y-6">

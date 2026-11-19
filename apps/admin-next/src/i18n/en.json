@@ -1066,6 +1066,8 @@
     "emptyDescription": "Choose a support ticket from the left to start responding",
     "searchPlaceholder": "Search user or keyword…",
     "filterAll": "All",
+    "queueAll": "All conversations",
+    "queueAwaiting": "Awaiting",
     "filterActive": "Active",
     "filterClosed": "Closed",
     "loading": "Loading…",
@@ -1080,6 +1082,8 @@
     "socketConnecting": "Connecting…",
     "socketPolling": "Polling",
     "closeTicket": "Close Ticket",
+    "claim": "Claim",
+    "claiming": "Claiming…",
     "closing": "Closing…",
     "loadEarlier": "Load earlier messages",
     "loadingMessages": "Loading messages…",
@@ -1353,7 +1357,8 @@
       "auditResult": "Audit Result:",
       "noRemark": "No remark recorded.",
       "reject": "Reject",
-      "approveAndPay": "Approve & Pay"
+      "approveAndPay": "Approve & Pay",
+      "auditFailed": "Failed to submit audit, please retry"
     },
     "transactionDetail": {
       "transactionAmount": "Transaction Amount",

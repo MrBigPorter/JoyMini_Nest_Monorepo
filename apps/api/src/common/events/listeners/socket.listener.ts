@@ -5,6 +5,7 @@ import {
   MessageCreatedEvent,
   MessageRecalledEvent,
   SupportConversationStartedEvent,
+  SupportQueueChangedEvent,
 } from '@api/common/chat/events/chat.events';
 import { OnEvent } from '@nestjs/event-emitter';
 import { Injectable, Logger } from '@nestjs/common';
@@ -190,6 +191,44 @@ export class SocketListener {
     } catch (error: unknown) {
       this.logger.error(
         `Support conversation notify failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  // ===========================================================================
+  // 5. 转人工队列变化 (Support Queue Changed)
+  //    入队 / 认领 / 释放 / 关闭时通知所有在线客服，
+  //    让「待接入」列表无需刷新即可增减（#98 AC-1 / AC-2）。
+  // ===========================================================================
+  @OnEvent(CHAT_EVENTS.SUPPORT_QUEUE_CHANGED)
+  async handleSupportQueueChanged(event: SupportQueueChangedEvent) {
+    try {
+      const admins = await this.prismaService.adminUser.findMany({
+        where: { status: 1, deletedAt: null },
+        select: { id: true },
+      });
+
+      const payload = {
+        conversationId: event.conversationId,
+        reason: event.reason,
+        handlerId: event.handlerId,
+        timestamp: Date.now(),
+      };
+
+      for (const admin of admins) {
+        this.eventsGateway.dispatch(
+          `user_${admin.id}`,
+          SocketEvents.SUPPORT_QUEUE_CHANGED,
+          payload,
+        );
+      }
+
+      this.logger.log(
+        `[SupportQueueChanged] reason=${event.reason} conv=${event.conversationId} -> ${admins.length} admin(s)`,
+      );
+    } catch (error: unknown) {
+      this.logger.error(
+        `Support queue notify failed: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }

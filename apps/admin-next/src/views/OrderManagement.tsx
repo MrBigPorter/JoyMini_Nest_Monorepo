@@ -3,6 +3,7 @@
 import React, { useCallback, useMemo } from 'react';
 import { Truck, XCircle, Trash2, Eye } from 'lucide-react';
 import { Card, Button, Badge, Input } from '@/components/UIComponents'; // Assuming Input exists
+import type { BadgeColor } from '@/components/UIComponents';
 import { useToastStore } from '@/store/useToastStore';
 import { Order, OrderListParams, OrderSearchForm } from '@/type/types';
 import { PageHeader } from '@/components/scaffold/PageHeader';
@@ -210,9 +211,9 @@ export const OrderManagement: React.FC = () => {
               )}*/}
 
               {/* Logic: Allow Cancel only if Pending or Paid */}
-              {[ORDER_STATUS.PENDING_PAYMENT, ORDER_STATUS.PAID].includes(
-                data.orderStatus,
-              ) && (
+              {(
+                [ORDER_STATUS.PENDING_PAYMENT, ORDER_STATUS.PAID] as number[]
+              ).includes(data.orderStatus) && (
                 <Button
                   onClick={() =>
                     handleUpdateStatus(data.orderId, ORDER_STATUS.CANCELED)
@@ -271,7 +272,7 @@ export const OrderManagement: React.FC = () => {
         header: 'Status',
         cell: (info) => {
           const status = info.getValue();
-          const color = ORDER_STATUS_COLORS[status] || 'gray';
+          const color = (ORDER_STATUS_COLORS[status] || 'gray') as BadgeColor;
           return <Badge color={color}>{ORDER_STATUS_LABEL[status]}</Badge>;
         },
       }),
@@ -288,9 +289,9 @@ export const OrderManagement: React.FC = () => {
               <Eye size={16} />
             </Button>
             {/* Show Delete only for Canceled/Refunded orders to keep history clean */}
-            {[ORDER_STATUS.CANCELED, ORDER_STATUS.REFUNDED].includes(
-              info.row.original.orderStatus,
-            ) && (
+            {(
+              [ORDER_STATUS.CANCELED, ORDER_STATUS.REFUNDED] as number[]
+            ).includes(info.row.original.orderStatus) && (
               <Button
                 size="sm"
                 variant="ghost"

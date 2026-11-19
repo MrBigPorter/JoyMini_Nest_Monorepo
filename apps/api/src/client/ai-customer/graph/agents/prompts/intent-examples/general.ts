@@ -60,4 +60,14 @@ export const generalExamples: string[] = [
   'That was wrong',
   'Never mind',
   'This is frustrating',
+
+  // ── 中文补充（2026-11-19：提升中文召回） ──
+  '你好呀',
+  '在吗在吗',
+  '谢谢你',
+  '再见',
+  '不客气',
+  '你是谁呀',
+  '有什么功能',
+  '没事了',
 ];

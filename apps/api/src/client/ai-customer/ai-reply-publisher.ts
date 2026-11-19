@@ -20,11 +20,14 @@ export async function publishAiReply(
   userId: string,
   /** 会话成员 userId 列表；调用方已查过，直接复用，避免重复查询 */
   memberIds: string[] = [],
+  /** 附加元数据（如 RAG sources），写入 ChatMessage.meta 并随消息推送 */
+  meta?: Record<string, any>,
 ): Promise<void> {
-  const lastAiContent = newMessages
-    .filter((m: any) => m.type === 'ai')
-    .map((m: any) => (typeof m.content === 'string' ? m.content : ''))
-    .pop() ?? '';
+  const lastAiContent =
+    newMessages
+      .filter((m: any) => m.type === 'ai')
+      .map((m: any) => (typeof m.content === 'string' ? m.content : ''))
+      .pop() ?? '';
   if (!lastAiContent) return;
 
   const otherMember = await prisma.chatMember.findFirst({
@@ -51,6 +54,7 @@ export async function publishAiReply(
       // 给 LangGraph 时，就分不清哪句是谁说的了。
       role: 'assistant',
       source: 'ai',
+      meta: meta ?? undefined,
     },
     include: { sender: { select: { id: true, nickname: true, avatar: true } } },
   });

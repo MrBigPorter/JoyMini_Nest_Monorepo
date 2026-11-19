@@ -18,6 +18,16 @@ export const CHAT_EVENTS = {
    * ChatService 发出，AiCustomerListener 消费
    */
   AI_MESSAGE_REQUESTED: 'ai.message.requested',
+  /**
+   * 转人工队列发生变化（入队 / 认领 / 释放 / 关闭）
+   * 由业务侧发出，SocketListener 扇出给所有在线客服
+   */
+  SUPPORT_QUEUE_CHANGED: 'chat.support.queue.changed',
+  /**
+   * 请求取消某个会话正在进行的 AI 生成
+   * 触发方：客户端断开 / 主动离开会话房间，且房间已无其他连接
+   */
+  AI_CANCEL_REQUESTED: 'ai.cancel.requested',
 };
 
 export class MessageCreatedEvent {
@@ -75,5 +85,33 @@ export class AiMessageRequestedEvent {
     public readonly conversationId: string,
     public readonly content: string,
     public readonly userId: string,
+    /** 触发消息 ID；用作队列 jobId 与幂等键 */
+    public readonly messageId?: string,
+  ) {}
+}
+
+/**
+ * 转人工队列变化：让所有在线客服在不刷新页面的情况下看到「待接入」增减。
+ *
+ * reason 取值：
+ *   transferred       AI 判定转人工入队
+ *   manual_switch     客服手动切人工
+ *   claimed           被某个客服认领
+ *   released          空闲超时 / 切回 AI，退回队列或回到 AI
+ *   closed            会话关闭
+ */
+export class SupportQueueChangedEvent {
+  constructor(
+    public readonly conversationId: string,
+    public readonly reason: string,
+    public readonly handlerId: string | null,
+  ) {}
+}
+
+/** 取消某会话的 AI 生成：会话房间已无在线连接（或不值得继续跑） */
+export class AiCancelRequestedEvent {
+  constructor(
+    public readonly conversationId: string,
+    public readonly reason: string,
   ) {}
 }

@@ -22,49 +22,91 @@ import { AsyncLocalStorage } from 'node:async_hooks';
  * AsyncLocalStorage 把值绑定在"异步上下文"上，各条调用链互不干扰。
  *
  * ── 使用方式 ──
- *   await runWithTrace(req.id, () => this.aiCustomerService.chatStream(...));
+ *   await runWithContext(
+ *     { traceId: req.id, userId },
+ *     () => this.aiCustomerService.chatStream(...),
+ *   );
  *   // 之后链路里任何地方：
- *   const traceId = getTraceId(); // → req.id，或 undefined
+ *   const traceId = getTraceId();       // → req.id，或 undefined
+ *   const userId = getRequestUserId();  // → 登录用户，或 undefined
+ *
+ * ── 为什么把 userId 也放在这里？ ──
+ * AI 工具是启动时注册的全局单例，不能为每个用户各建一份。
+ * 如果工具从模型参数里拿 userId，模型就能伪造身份；
+ * 如果启动时绑定一个 userId，所有用户会共用同一个身份。
+ * 把 userId 绑在异步上下文上，才能做到「工具是单例，身份按请求隔离」。
  */
 
-/** 存在异步上下文里的数据结构。后续要加 userId 等字段时在这里扩展。 */
-interface TraceContext {
-  traceId: string;
+/** 存在异步上下文里的数据结构。 */
+interface RequestContext {
+  traceId?: string;
+  userId?: string;
 }
 
 /**
  * 模块级单例：整个进程只有一个"工牌架"。
  * 注意它保存的不是某一个值，而是"当前异步上下文的映射"。
  */
-const storage = new AsyncLocalStorage<TraceContext>();
+const storage = new AsyncLocalStorage<RequestContext>();
+
+function normalize(value: string | undefined): string | undefined {
+  // trim() 防止客户端传来 "   " 这种看起来有值、实际是空的 ID
+  const normalized = value?.trim();
+  return normalized ? normalized : undefined;
+}
 
 /**
- * 在指定 traceId 的上下文中执行 fn
+ * 在请求上下文中执行 fn。
  *
- * @param traceId 请求 ID；空串 / 空白 / undefined 时视为"没有工牌"，
- *                直接执行 fn，不创建上下文（日志器会降级为 "-"）。
- * @param fn      要执行的函数，可以是同步函数，也可以是返回 Promise 的异步函数。
- * @returns       fn 的返回值（包括 Promise 本身）。
+ * 嵌套调用时合并父上下文：内层只覆盖自己显式提供的字段。
+ * 例如外层只有 traceId，内层只提供 userId，内层仍能读到外层的 traceId。
  *
- * ⚠️ 关键点：fn 内部的 await / setTimeout / Promise 链都会自动继承这个上下文。
- *    不需要在每一层手动传 traceId。
+ * @param context 要绑定的请求字段；空串 / 空白 / undefined 会被忽略。
+ * @param fn      同步或异步函数。
+ */
+export function runWithContext<T>(
+  context: { traceId?: string; userId?: string },
+  fn: () => T,
+): T {
+  const parent = storage.getStore();
+  const next: RequestContext = { ...parent };
+
+  const traceId = normalize(context.traceId);
+  const userId = normalize(context.userId);
+  if (traceId) next.traceId = traceId;
+  if (userId) next.userId = userId;
+
+  return storage.run(next, fn);
+}
+
+/**
+ * 在指定 traceId 的上下文中执行 fn（保留旧签名，兼容既有调用方）。
+ *
+ * 空串 / 空白 / undefined 时直接执行 fn，不创建新上下文；
+ * 若调用方已在某个上下文中，则继续继承父上下文。
  */
 export function runWithTrace<T>(traceId: string | undefined, fn: () => T): T {
-  // trim() 防止客户端传来 "   " 这种看起来有值、实际是空的 ID
-  const normalized = traceId?.trim();
-
-  // 没有有效 ID → 不创建上下文。getTraceId() 后续会返回 undefined，
-  // 日志器据此降级，而不是抛错。
+  const normalized = normalize(traceId);
   if (!normalized) return fn();
-
-  return storage.run({ traceId: normalized }, fn);
+  return runWithContext({ traceId: normalized }, fn);
 }
 
 /**
  * 读取当前异步上下文的 traceId
  *
- * @returns 当前上下文里的 traceId；不在 runWithTrace 内时返回 undefined。
+ * @returns 当前上下文里的 traceId；不在上下文中时返回 undefined。
  */
 export function getTraceId(): string | undefined {
   return storage.getStore()?.traceId;
+}
+
+/**
+ * 读取当前请求的登录用户 ID。
+ *
+ * AI 工具用它做身份校验；业务代码仍应优先使用显式传入的 userId。
+ * 没有上下文时返回 undefined，调用方必须 fail-closed（拒绝执行），
+ * 不能回退到模型传参或默认用户。
+ */
+export function getRequestUserId(): string | undefined {
+  return storage.getStore()?.userId;
 }

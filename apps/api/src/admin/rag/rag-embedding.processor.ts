@@ -4,6 +4,7 @@ import { Logger } from '@nestjs/common';
 import { RagEmbeddingService } from './rag-embedding.service';
 import { RAG_EMBEDDING_QUEUE } from './rag-embedding-queue.constants';
 import { PrismaService } from '@api/common/prisma/prisma.service';
+import { KbVersionService } from '@api/client/ai-customer/knowledge/kb-version.service';
 
 /**
  * Rag Embedding Job 数据类型
@@ -23,6 +24,11 @@ export interface RagEmbeddingJobData {
    * - true：所有 chunk 重新生成
    */
   force?: boolean;
+  /**
+   * 本次要处理的文档版本。更新文档时新版本追加写入、旧版本保留，
+   * 只给这一版做向量化与索引。
+   */
+  targetVersion?: number;
 }
 
 /**
@@ -62,6 +68,7 @@ export class RagEmbeddingProcessor extends WorkerHost {
   constructor(
     private readonly ragEmbeddingService: RagEmbeddingService,
     private readonly prisma: PrismaService,
+    private readonly kbVersionService: KbVersionService,
   ) {
     super();
   }
@@ -79,7 +86,7 @@ export class RagEmbeddingProcessor extends WorkerHost {
    * 6. BullMQ 自动从窗口撕掉这张化验单
    */
   async process(job: Job<RagEmbeddingJobData, any, string>): Promise<void> {
-    const { documentId, force } = job.data;
+    const { documentId, force, targetVersion } = job.data;
 
     this.logger.log(
       `[Job ${job.id}] Processing embedding for document ${documentId}` +
@@ -90,6 +97,7 @@ export class RagEmbeddingProcessor extends WorkerHost {
     // 这样核心逻辑可测试、可复用（比如直接调用 embedDocument 做同步处理）
     const result = await this.ragEmbeddingService.embedDocument(documentId, {
       force,
+      targetVersion,
     });
 
     this.logger.log(
@@ -133,6 +141,44 @@ export class RagEmbeddingProcessor extends WorkerHost {
       this.logger.error(
         `[Job ${job.id}] Failed to update status to indexed: ${message}`,
       );
+    }
+
+    // ---------- 过门切换 ----------
+    // 到这里说明这一版的 chunk 全部向量化并索引成功了，
+    // 可以尝试把对外版本切过去。切不动不算失败——旧版本继续服务，
+    // 由人工在后台处理（这与"任务重试"是两件事，不该让 BullMQ 重跑整个向量化）。
+    // targetVersion 缺省时回退到文档当前版本：reindex / updateContent / 分步流程
+    // 都不带这个字段，但它们同样会写出 isActiveVersion=false 的条目。
+    // 不回退激活的话，这些路径产出的内容在 BM25 层永远不可见。
+    const versionToActivate =
+      targetVersion ??
+      (
+        await this.prisma.knowledgeDocument.findUnique({
+          where: { id: documentId },
+          select: { version: true },
+        })
+      )?.version;
+
+    if (versionToActivate != null) {
+      try {
+        const switchResult = await this.kbVersionService.activate(
+          documentId,
+          versionToActivate,
+        );
+        if (!switchResult.switched) {
+          this.logger.error(
+            `[Job ${job.id}] version switch skipped for ${documentId} ` +
+              `v${versionToActivate}: ${switchResult.reason}`,
+          );
+        }
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Unknown error';
+        this.logger.error(
+          `[Job ${job.id}] version switch failed for ${documentId} ` +
+            `v${versionToActivate}: ${message}`,
+        );
+      }
     }
   }
 

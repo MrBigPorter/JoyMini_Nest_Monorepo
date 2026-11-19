@@ -22,7 +22,9 @@
       // Point to pre-built dist/ so Next.js doesn't need transpilePackages.
       // TypeScript resolves types from the .d.ts file; Next.js resolves runtime
       // from package.json exports (dist/index.js).
-      "@lucky/shared": ["../../packages/shared/dist/index.d.ts"]
+      "@lucky/shared": ["../../packages/shared/dist/index.d.ts"],
+      // shared-wrapper 直接引源码（绕开 esbuild getter）；TS 需要同样的映射
+      "@lucky/shared/src/*": ["../../packages/shared/src/*"]
     }
   },
   "include": [

@@ -26,7 +26,7 @@ function createService() {
     get: jest.fn(),
     set: jest.fn(),
   };
-  const service = new AiMemoryService(prisma as any, redis as any);
+  const service = new AiMemoryService(prisma as any);
   return { service, prisma, redis };
 }
 

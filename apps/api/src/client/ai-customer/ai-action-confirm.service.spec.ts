@@ -16,6 +16,7 @@ function makeRedis() {
     get: jest.fn(),
     getDel: jest.fn(),
     set: jest.fn(),
+    eval: jest.fn(),
   };
 }
 
@@ -98,12 +99,72 @@ describe('AiActionConfirmService · 确认凭证', () => {
     });
   });
 
-  describe('consume：一次性 + 归属校验', () => {
-    it('token 属于别人时返回 null', async () => {
-      redis.getDel.mockResolvedValue(payload('other'));
+  describe('consume：原子「校验 owner + 删除」', () => {
+    /**
+     * 模拟 CONSUME_IF_OWNER_LUA 的语义：
+     *   key 不存在 → null；userId 不匹配 → null 且保留；匹配 → 删除并返回 raw。
+     * 真实 Redis 中 GET/比较/DEL 是单线程原子执行的，这里用内存 Map 复刻。
+     */
+    let store: Map<string, string>;
+    const installLua = () => {
+      store = new Map();
+      redis.eval.mockImplementation(
+        async (_script: string, keys: string[], args: string[]) => {
+          const key = keys[0];
+          const raw = store.get(key);
+          if (raw == null) return null;
+          const parsed = JSON.parse(raw);
+          if (parsed.userId !== args[0]) return null;
+          store.delete(key);
+          return raw;
+        },
+      );
+    };
 
-      expect(await service.consume('t1', 'u1')).toBeNull();
-      expect(redis.getDel).toHaveBeenCalledWith('ai:confirm:t1');
+    it('错 owner 返回 null，且不删除 token（真主人仍可消费）', async () => {
+      installLua();
+      store.set('ai:confirm:t1', payload('owner'));
+
+      expect(await service.consume('t1', 'intruder')).toBeNull();
+
+      expect(redis.eval).toHaveBeenCalledWith(
+        expect.any(String),
+        ['ai:confirm:t1'],
+        ['intruder'],
+      );
+      expect(store.has('ai:confirm:t1')).toBe(true);
+    });
+
+    it('正确 owner 只能消费一次，第二次返回 null', async () => {
+      installLua();
+      store.set('ai:confirm:t1', payload('u1'));
+
+      const first = await service.consume('t1', 'u1');
+      const second = await service.consume('t1', 'u1');
+
+      expect(first?.params.amount).toBe(500);
+      expect(second).toBeNull();
+      expect(store.has('ai:confirm:t1')).toBe(false);
+    });
+
+    it('并发消费时只有一个成功', async () => {
+      installLua();
+      store.set('ai:confirm:t1', payload('u1'));
+
+      const [a, b] = await Promise.all([
+        service.consume('t1', 'u1'),
+        service.consume('t1', 'u1'),
+      ]);
+
+      const succeeded = [a, b].filter((r) => r !== null);
+      expect(succeeded).toHaveLength(1);
+      expect(store.has('ai:confirm:t1')).toBe(false);
+    });
+
+    it('token 不存在或已过期时返回 null', async () => {
+      installLua();
+
+      expect(await service.consume('missing', 'u1')).toBeNull();
     });
   });
 });

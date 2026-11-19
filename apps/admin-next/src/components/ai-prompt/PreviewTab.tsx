@@ -31,10 +31,7 @@ export function PreviewTab({ form, domainName }: PreviewTabProps) {
     [config],
   );
 
-  const renderedPreview = React.useMemo(
-    () => renderPrompt(config),
-    [config],
-  );
+  const renderedPreview = React.useMemo(() => renderPrompt(config), [config]);
 
   const copyToClipboard = async (
     text: string,

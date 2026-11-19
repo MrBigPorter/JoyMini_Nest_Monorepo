@@ -1,4 +1,9 @@
+import { createClient } from 'redis';
+import { createAdapter } from '@socket.io/redis-adapter';
 import { EventsGateway } from './events.gateway';
+
+jest.mock('redis', () => ({ createClient: jest.fn() }));
+jest.mock('@socket.io/redis-adapter', () => ({ createAdapter: jest.fn() }));
 
 /**
  * 投递语义的回归测试（#87 N-9）
@@ -47,6 +52,8 @@ function createGateway() {
     {} as any,
     {} as any,
     {} as any,
+    { get: jest.fn().mockReturnValue(undefined) } as any,
+    { enqueue: jest.fn().mockResolvedValue(undefined) } as any,
   );
   const { server, emissions } = createFakeServer();
   gateway.server = server;
@@ -125,10 +132,14 @@ type FakeSocket = {
 
 // 返回 any：真实的 Socket 有 70+ 个属性，测试里只需要它用到的 4 个。
 // FakeSocket 类型仅作文档，说明我们到底伪造了什么。
-function createFakeSocket(userId: string | null, id = 'sock-1'): any {
+function createFakeSocket(
+  userId: string | null,
+  id = 'sock-1',
+  isAdmin = false,
+): any {
   const socket: FakeSocket = {
     id,
-    data: userId ? { userId } : {},
+    data: userId ? { userId, ...(isAdmin ? { isAdmin: true } : {}) } : {},
     rooms: new Set<string>(),
     joined: [],
     async join(room: string) {
@@ -144,17 +155,23 @@ function createGatewayWithPrisma() {
     chatMember: {
       findUnique: jest.fn(),
     },
+    conversation: {
+      findUnique: jest.fn(),
+    },
     $transaction: jest.fn(),
   };
+  const eventEmitter = { emit: jest.fn() };
   const gateway = new EventsGateway(
     {} as any, // jwtService：连接阶段才用，join_chat 不走
     prisma as any, // prismaService：这次的主角
     {} as any, // redisService
-    {} as any, // eventEmitter
+    eventEmitter as any, // eventEmitter
+    { get: jest.fn().mockReturnValue(undefined) } as any, // configService
+    { enqueue: jest.fn().mockResolvedValue(undefined) } as any, // aiQueueService
   );
   const { server } = createFakeServer();
   gateway.server = server;
-  return { gateway, prisma };
+  return { gateway, prisma, eventEmitter };
 }
 
 describe('EventsGateway.handleJoinChat 成员校验（T1-4）', () => {
@@ -198,6 +215,97 @@ describe('EventsGateway.handleJoinChat 成员校验（T1-4）', () => {
     expect(result).toMatchObject({ status: 'forbidden' });
     // 没有身份就没必要查库：省一次 DB 往返，也避免被刷
     expect(prisma.chatMember.findUnique).not.toHaveBeenCalled();
+  });
+
+  // ── #98 G6：客服端必须有合法入口 ──
+  it('admin 连接可以进 SUPPORT 会话（客服不是会话成员）', async () => {
+    const { gateway, prisma } = createGatewayWithPrisma();
+    prisma.chatMember.findUnique.mockResolvedValue(null); // 客服不在成员表
+    prisma.conversation.findUnique.mockResolvedValue({
+      type: 'SUPPORT',
+      status: 1,
+    });
+    const socket = createFakeSocket('admin-1', 'sock-admin', true);
+
+    const result = await gateway.handleJoinChat(socket, {
+      conversationId: 'conv-support-1',
+    });
+
+    expect(socket.joined).toEqual(['conv-support-1']);
+    expect(result).toMatchObject({ status: 'joined' });
+  });
+
+  it('admin 也不能进用户与 AI 的私聊（type=AI）', async () => {
+    const { gateway, prisma } = createGatewayWithPrisma();
+    prisma.chatMember.findUnique.mockResolvedValue(null);
+    prisma.conversation.findUnique.mockResolvedValue({
+      type: 'AI',
+      status: 1,
+    });
+    const socket = createFakeSocket('admin-1', 'sock-admin', true);
+
+    const result = await gateway.handleJoinChat(socket, {
+      conversationId: 'conv-ai-1',
+    });
+
+    expect(socket.joined).toEqual([]);
+    expect(result).toMatchObject({ status: 'forbidden' });
+  });
+
+  it('普通用户走 admin 分支也进不去 SUPPORT 会话', async () => {
+    const { gateway, prisma } = createGatewayWithPrisma();
+    prisma.chatMember.findUnique.mockResolvedValue(null);
+    const socket = createFakeSocket('u-attacker');
+
+    const result = await gateway.handleJoinChat(socket, {
+      conversationId: 'conv-support-1',
+    });
+
+    expect(socket.joined).toEqual([]);
+    expect(result).toMatchObject({ status: 'forbidden' });
+    // 不是 admin 连接，连 conversation 表都不该查
+    expect(prisma.conversation.findUnique).not.toHaveBeenCalled();
+  });
+
+  // ── 断开连接 → 最后一个人离开 → 取消这轮 AI 生成 ──
+  it('房间里最后一个连接断开 → 发出 AI 取消事件', async () => {
+    const { gateway, prisma, eventEmitter } = createGatewayWithPrisma();
+    prisma.chatMember.findUnique.mockResolvedValue({ id: 'member-1' });
+    const socket = createFakeSocket('u-xiaohong', 'sock-1');
+
+    await gateway.handleJoinChat(socket, { conversationId: 'conv-1' });
+    gateway.handleDisconnect(socket);
+
+    expect(eventEmitter.emit).toHaveBeenCalledWith(
+      'ai.cancel.requested',
+      expect.objectContaining({
+        conversationId: 'conv-1',
+        reason: 'client_disconnected',
+      }),
+    );
+  });
+
+  it('房间里还有其他连接时不断开 AI（多端 / 客服仍在看）', async () => {
+    const { gateway, prisma, eventEmitter } = createGatewayWithPrisma();
+    prisma.chatMember.findUnique.mockResolvedValue({ id: 'member-1' });
+    const phone = createFakeSocket('u-xiaohong', 'sock-phone');
+    const tablet = createFakeSocket('u-xiaohong', 'sock-tablet');
+
+    await gateway.handleJoinChat(phone, { conversationId: 'conv-1' });
+    await gateway.handleJoinChat(tablet, { conversationId: 'conv-1' });
+    gateway.handleDisconnect(phone);
+
+    expect(eventEmitter.emit).not.toHaveBeenCalledWith(
+      'ai.cancel.requested',
+      expect.anything(),
+    );
+
+    // 最后一个也断开时才取消
+    gateway.handleDisconnect(tablet);
+    expect(eventEmitter.emit).toHaveBeenCalledWith(
+      'ai.cancel.requested',
+      expect.objectContaining({ conversationId: 'conv-1' }),
+    );
   });
 });
 
@@ -264,5 +372,87 @@ describe('EventsGateway.handleSendMessage 成员校验（T1-4）', () => {
     // 事务被调用 = 门禁放行了；后面失败是 mock 不完整，不影响本断言
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
     expect(result).toMatchObject({ status: 'error' });
+  });
+});
+
+describe('EventsGateway.afterInit Redis adapter', () => {
+  const makeGateway = (get = jest.fn().mockReturnValue('redis://test')) =>
+    new EventsGateway(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      { get } as any,
+      { enqueue: jest.fn().mockResolvedValue(undefined) } as any,
+    );
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('Redis 可用时挂载 adapter，并在销毁时关闭 pub/sub', async () => {
+    const subClient = {
+      connect: jest.fn().mockResolvedValue(undefined),
+      quit: jest.fn().mockResolvedValue(undefined),
+      on: jest.fn(),
+    };
+    const pubClient = {
+      connect: jest.fn().mockResolvedValue(undefined),
+      quit: jest.fn().mockResolvedValue(undefined),
+      on: jest.fn(),
+      duplicate: jest.fn().mockReturnValue(subClient),
+    };
+    (createClient as jest.Mock).mockReturnValue(pubClient);
+    const adapter = jest.fn();
+    (createAdapter as jest.Mock).mockReturnValue(adapter);
+    // 生产环境 Nest 传的是 Namespace，adapter() 在根 server 上
+    const rootServer = { adapter: jest.fn() };
+    const namespace = { server: rootServer };
+
+    const gateway = makeGateway();
+    await gateway.afterInit(namespace as any);
+
+    expect(rootServer.adapter).toHaveBeenCalledWith(adapter);
+    await gateway.onModuleDestroy();
+    expect(pubClient.quit).toHaveBeenCalled();
+    expect(subClient.quit).toHaveBeenCalled();
+  });
+
+  it('Redis 连接失败时降级为内存 adapter，不阻塞启动', async () => {
+    const subClient = {
+      connect: jest.fn().mockRejectedValue(new Error('redis down')),
+      quit: jest.fn().mockResolvedValue(undefined),
+      on: jest.fn(),
+    };
+    const pubClient = {
+      connect: jest.fn().mockRejectedValue(new Error('redis down')),
+      quit: jest.fn().mockResolvedValue(undefined),
+      on: jest.fn(),
+      duplicate: jest.fn().mockReturnValue(subClient),
+    };
+    (createClient as jest.Mock).mockReturnValue(pubClient);
+    (createAdapter as jest.Mock).mockReturnValue(jest.fn());
+    const server = { adapter: jest.fn() };
+    const gateway = makeGateway();
+    const warn = jest
+      .spyOn((gateway as any).logger, 'warn')
+      .mockImplementation(() => undefined);
+
+    await expect(gateway.afterInit(server as any)).resolves.toBeUndefined();
+
+    expect(server.adapter).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('staying on in-memory'),
+    );
+  });
+
+  it('REDIS_URL 缺失时不创建客户端', async () => {
+    const gateway = makeGateway(jest.fn().mockReturnValue(undefined));
+    const server = { adapter: jest.fn() };
+
+    await gateway.afterInit(server as any);
+
+    expect(createClient).not.toHaveBeenCalled();
+    expect(server.adapter).not.toHaveBeenCalled();
   });
 });

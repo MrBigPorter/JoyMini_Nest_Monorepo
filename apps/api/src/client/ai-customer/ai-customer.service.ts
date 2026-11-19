@@ -1,7 +1,19 @@
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  BadRequestException,
+  OnModuleDestroy,
+} from '@nestjs/common';
+import { MemorySaver } from '@langchain/langgraph';
+import type { BaseCheckpointSaver } from '@langchain/langgraph-checkpoint';
 import { HumanMessage } from '@langchain/core/messages';
 import { buildCustomerGraph } from '@api/client/ai-customer/graph/customer.graph';
 import { ConfigService } from '@nestjs/config';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import {
+  CHAT_EVENTS,
+  SupportQueueChangedEvent,
+} from '@api/common/chat/events/chat.events';
 import { LlmProviderConfig } from '@api/client/ai-customer/graph/llm-factory';
 import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-registry.service';
 import { EventsGateway } from '@api/common/events/events.gateway';
@@ -15,7 +27,12 @@ import { PromptResolverService } from '@api/client/ai-customer/knowledge/prompt-
 import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service';
 import { AiMemoryService } from '@api/common/ai/ai-memory.service';
 import { AiActionConfirmService } from './ai-action-confirm.service';
-import { handleEventStream } from './ai-stream.handler';
+import {
+  AiUsageService,
+  QuotaExceededError,
+  SessionQuotaExceededError,
+} from './ai-usage.service';
+import { handleEventStream, StreamUsageSummary } from './ai-stream.handler';
 import { publishAiReply } from './ai-reply-publisher';
 import { AddressService } from '../address/address.service';
 import { ClientWalletService } from '../wallet/client-wallet.service';
@@ -25,6 +42,9 @@ import { ApplyWithdrawDto } from '../wallet/dto/apply-withdraw.dto';
 import { OtpService } from '../otp/otp.service';
 import { CODE_TYPE } from '@lucky/shared';
 import { emitStage } from '@api/common/logger/structured-logger';
+import { runWithContext } from '@api/common/logger/trace-context';
+import { decGauge, incCounter, incGauge } from '@api/common/metrics/metrics';
+import type { RagCitation } from '@api/client/ai-customer/graph/state';
 import { RedisService } from '@api/common/redis/redis.service';
 import { degradeToHuman } from './ai-failure-handler';
 import { plainToInstance } from 'class-transformer';
@@ -36,9 +56,13 @@ const CHAOS_PREFIX = '__CHAOS__';
 const CHAOS_KEY = 'ai:chaos:fail';
 
 @Injectable()
-export class AiCustomerService {
+export class AiCustomerService implements OnModuleDestroy {
   private readonly logger = new Logger(AiCustomerService.name);
   private compiledGraph: ReturnType<typeof buildCustomerGraph> | null = null;
+  /** 生产用 PostgresSaver；memory 模式或初始化失败时为 undefined（图内部用 MemorySaver）。 */
+  private checkpointer?: BaseCheckpointSaver & {
+    end?: () => Promise<void>;
+  };
   private llmConfig: LlmProviderConfig | null = null;
 
   constructor(
@@ -52,12 +76,14 @@ export class AiCustomerService {
     private readonly aiMemoryService: AiMemoryService,
     private readonly eventsGateway: EventsGateway,
     private readonly aiActionConfirmService: AiActionConfirmService,
+    private readonly aiUsageService: AiUsageService,
     private readonly clientWalletService: ClientWalletService,
     private readonly clientCouponService: ClientCouponService,
     private readonly luckyDrawService: LuckyDrawService,
     private readonly addressService: AddressService,
     private readonly otpService: OtpService,
     private readonly redisService: RedisService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   /**
@@ -91,6 +117,7 @@ export class AiCustomerService {
         ),
         apiKey: this.configService.get<string>('DEEPSEEK_API_KEY'),
       };
+      const checkpointer = await this.createCheckpointer();
       this.compiledGraph = buildCustomerGraph(
         this.llmConfig,
         this.registry,
@@ -99,10 +126,68 @@ export class AiCustomerService {
         this.meilisearchService,
         this.ragRetrievalService,
         this.promptResolver,
+        this.redisService,
+        checkpointer,
       );
     } catch (error) {
       this.logger.error('Failed to compile AiCustomer Graph', error);
       throw error;
+    }
+  }
+
+  /**
+   * 状态持久化选型：
+   * - 默认 postgres：跨重启/多实例共享 thread 状态
+   * - AI_CHECKPOINTER=memory：显式关闭（测试/本地）
+   * - Postgres 初始化失败：降级 MemorySaver，应用仍可启动
+   */
+  private async createCheckpointer(): Promise<BaseCheckpointSaver> {
+    const mode = (
+      this.configService.get<string>('AI_CHECKPOINTER') ?? 'postgres'
+    ).toLowerCase();
+
+    if (mode === 'memory') {
+      this.logger.log('AI checkpointer: memory (AI_CHECKPOINTER=memory)');
+      return new MemorySaver();
+    }
+
+    const url =
+      this.configService.get<string>('DATABASE_URL') ??
+      process.env.DATABASE_URL;
+    if (!url) {
+      this.logger.warn(
+        'DATABASE_URL missing; AI checkpointer falls back to MemorySaver',
+      );
+      return new MemorySaver();
+    }
+
+    try {
+      const { PostgresSaver } =
+        await import('@langchain/langgraph-checkpoint-postgres');
+      const saver = PostgresSaver.fromConnString(url);
+      await saver.setup();
+      this.checkpointer = saver;
+      this.logger.log(
+        '✅ AI checkpointer: Postgres (state persists across restarts)',
+      );
+      return saver;
+    } catch (err: any) {
+      this.logger.warn(
+        `Postgres checkpointer unavailable, falling back to MemorySaver: ${
+          err?.message ?? err
+        }`,
+      );
+      return new MemorySaver();
+    }
+  }
+
+  async onModuleDestroy(): Promise<void> {
+    if (!this.checkpointer?.end) return;
+    try {
+      await this.checkpointer.end();
+      this.logger.log('AI checkpointer closed');
+    } catch (err: any) {
+      this.logger.warn(`AI checkpointer close failed: ${err?.message ?? err}`);
     }
   }
 
@@ -142,9 +227,11 @@ export class AiCustomerService {
     callbacks: {
       onToken: (token: string) => void;
       onStep: (step: string, data?: any) => void;
-      onDone: () => void;
+      onDone: (payload?: { sources?: RagCitation[] }) => void;
       onError: (error: Error) => void;
       onTransfer?: (reason: string) => void;
+      /** 显式取消信号（留给后续 single-flight/取消设计）；透传给 LangGraph */
+      signal?: AbortSignal;
     },
     conversationId?: string,
     entryPoint?: string,
@@ -152,6 +239,14 @@ export class AiCustomerService {
   ): Promise<void> {
     // Step 1 — 校验入参
     if (!this.assertInputValid(message, userId, callbacks)) return;
+
+    // 调用方在启动前已显式取消：连图都不用启动
+    if (callbacks.signal?.aborted) {
+      this.logger.log(
+        `[chatStream] abort observed before graph start, conversationId=${conversationId ?? 'n/a'}`,
+      );
+      return;
+    }
 
     // 本轮对话的起点。chat.done / chat.error 用它算总耗时。
     const startedAt = Date.now();
@@ -163,6 +258,9 @@ export class AiCustomerService {
       entryPoint,
     });
 
+    incGauge('ai_active_streams', {}, 1);
+    let outcome = 'success';
+
     // 会话成员列表：本轮只查一次，供"会话房间 + 成员私有房间"双通道推送使用。
     // 放在 try 外面声明、里面赋值，是为了 error 分支也能拿到（可能仍是空数组）。
     let memberIds: string[] = [];
@@ -171,6 +269,12 @@ export class AiCustomerService {
       // 故障注入（仅测试）：故意抛错，用来验证降级转人工链路。
       // 放在 try 内部，才能走到 catch → chat.error → handleStreamError → degradeToHuman。
       await this.maybeInjectChaos(message);
+
+      // 日 token 配额：超限时抛 QuotaExceededError，走降级转人工。
+      await this.aiUsageService.assertWithinQuota(userId);
+
+      // 会话级配额：只降级这一条对话，不牵连用户当天其他会话。
+      await this.aiUsageService.assertWithinSessionQuota(conversationId);
 
       // Step 2 — 准备 AI 对话线程
       const threadId = await this.prepareThread(userId, conversationId);
@@ -192,7 +296,38 @@ export class AiCustomerService {
         metadata,
         callbacks,
         memberIds,
+        callbacks.signal,
       );
+
+      // 记录 token 用量（失败不阻断对话）
+      try {
+        await this.aiUsageService.recordUsage(
+          userId,
+          streamUsage.promptTokens ?? 0,
+          streamUsage.completionTokens ?? 0,
+          1,
+        );
+      } catch (usageErr: any) {
+        this.logger.warn(
+          `[chatStream] usage record failed: ${usageErr?.message ?? usageErr}`,
+        );
+      }
+
+      // 会话级记账：Redis 故障自己吞掉，不影响本轮对话
+      await this.aiUsageService.recordSessionUsage(
+        conversationId,
+        streamUsage.totalTokens ?? 0,
+      );
+
+      // 取消信号在流结束后才观察到：图可能正常返回（provider 没响应 signal），
+      // 但不再继续落库/广播。
+      if (callbacks.signal?.aborted) {
+        outcome = 'aborted';
+        this.logger.log(
+          `[chatStream] abort observed after stream, skip finalize, conversationId=${conversationId ?? 'n/a'}`,
+        );
+        return;
+      }
 
       // Step 5 — 收尾分发：转人工 / 确认卡片 / 正常完成
       await this.finalizeAfterStream(
@@ -206,6 +341,26 @@ export class AiCustomerService {
         memberIds,
       );
     } catch (err: any) {
+      outcome = err instanceof QuotaExceededError ? 'quota_exceeded' : 'error';
+      // 取消触发的 AbortError 不是「模型故障」：不降级转人工、不广播 AI_ERROR，
+      // 避免在会话里留下一条无意义的人工介入记录。
+      if (callbacks.signal?.aborted) {
+        outcome = 'aborted';
+        this.logger.log(
+          `[chatStream] abort observed in error path (${err?.name ?? 'Error'}), skip degrade, conversationId=${conversationId ?? 'n/a'}`,
+        );
+        return;
+      }
+      if (err instanceof QuotaExceededError) {
+        this.logger.warn(
+          `[chatStream] quota exceeded: userId=${userId}, limit=${err.limit}, used=${err.used}`,
+        );
+      }
+      if (err instanceof SessionQuotaExceededError) {
+        this.logger.warn(
+          `[chatStream] session quota exceeded: conversationId=${conversationId ?? 'n/a'}, limit=${err.limit}, used=${err.used}`,
+        );
+      }
       emitStage(
         'chat.error',
         {
@@ -225,6 +380,10 @@ export class AiCustomerService {
         callbacks,
         memberIds,
       );
+    } finally {
+      decGauge('ai_active_streams');
+      incCounter('ai_chat_requests_total', { outcome });
+      incCounter('ai_chat_duration_ms_total', {}, Date.now() - startedAt);
     }
   }
 
@@ -328,7 +487,8 @@ export class AiCustomerService {
       onStep: (step: string, data?: any) => void;
     },
     memberIds: string[],
-  ): Promise<{ totalTokens: number }> {
+    signal?: AbortSignal,
+  ): Promise<StreamUsageSummary> {
     return handleEventStream(
       this.compiledGraph!,
       threadId,
@@ -341,6 +501,7 @@ export class AiCustomerService {
       this.eventsGateway,
       callbacks,
       memberIds,
+      signal,
     );
   }
 
@@ -351,7 +512,7 @@ export class AiCustomerService {
     userId: string,
     conversationId: string | undefined,
     callbacks: {
-      onDone: () => void;
+      onDone: (payload?: { sources?: RagCitation[] }) => void;
       onTransfer?: (reason: string) => void;
     },
     startedAt: number,
@@ -363,11 +524,11 @@ export class AiCustomerService {
       configurable: { thread_id: threadId },
     });
     const newMessages = (finalState?.values?.messages ?? []).slice(prevCount);
+    const ragSources =
+      (finalState?.values?.ragSources as RagCitation[] | undefined) ?? [];
 
-    // 持久化本轮 AI 对话
-    if (newMessages.length > 0) {
-      await this.aiMemoryService.saveContext(threadId, newMessages);
-    }
+    // 持久化本轮 AI 对话：跨轮状态由 Postgres checkpointer 负责；
+    // IM 消息由 AiReplyPublisher 写入 ChatMessage（这里不再维护 ai:hot 缓存）。
 
     // 先判定走向，再执行副作用；最后统一记一条 chat.done。
     const transferred = Boolean(finalState?.values?.transferToHuman);
@@ -399,8 +560,9 @@ export class AiCustomerService {
         userId,
         conversationId,
         memberIds,
+        ragSources,
       );
-      callbacks.onDone();
+      callbacks.onDone({ sources: ragSources });
       if (conversationId) {
         this.eventsGateway.dispatchToConversation(
           conversationId,
@@ -417,6 +579,7 @@ export class AiCustomerService {
       transferred,
       confirmCard,
       tokenTotal,
+      sourceCount: ragSources.length,
       answerLength: newMessages.at(-1)?.content?.length ?? 0,
     });
   }
@@ -447,7 +610,14 @@ export class AiCustomerService {
     if (targetConvId) {
       await this.prismaService.conversation.update({
         where: { id: targetConvId },
-        data: { handlerId: 'awaiting_human', handlerAssignedAt: new Date() },
+        data: {
+          handlerId: 'awaiting_human',
+          handlerAssignedAt: new Date(),
+          // 排队起点只认 transferredAt：handlerAssignedAt 会被后续每条消息刷新，
+          // 拿它算排队时长/排序会让"刚发过消息的用户"排到队尾
+          transferredAt: new Date(),
+          transferReason: reason,
+        },
       });
 
       // 先把 AI 的告别语写进 chat_message（双通道广播），再发转人工事件：
@@ -478,6 +648,16 @@ export class AiCustomerService {
           conversationId: targetConvId,
           reason,
         },
+      );
+
+      // 客服侧：让所有在线客服的「待接入」列表立即出现这条（#98 AC-1）
+      this.eventEmitter.emit(
+        CHAT_EVENTS.SUPPORT_QUEUE_CHANGED,
+        new SupportQueueChangedEvent(
+          targetConvId,
+          'transferred',
+          'awaiting_human',
+        ),
       );
     }
     // SSE 调用方（POST + GET /chat/stream 老协议）靠这个回调收尾，
@@ -654,6 +834,7 @@ export class AiCustomerService {
     userId: string,
     conversationId?: string,
     memberIds: string[] = [],
+    sources: RagCitation[] = [],
   ): Promise<void> {
     if (!conversationId) return;
     await publishAiReply(
@@ -663,6 +844,7 @@ export class AiCustomerService {
       newMessages,
       userId,
       memberIds,
+      sources.length > 0 ? { sources } : undefined,
     );
   }
 
@@ -748,17 +930,21 @@ export class AiCustomerService {
 
     const threadId = sessionId ?? `${userId}:${Date.now()}`;
 
-    const result = await this.compiledGraph.invoke(
-      {
-        messages: [new HumanMessage(message)],
-        userId: userId,
-        debug,
-      },
-      {
-        configurable: {
-          thread_id: threadId,
+    // testChat 也走 Agent 运行时：工具身份同样从请求上下文读取。
+    const graph = this.compiledGraph;
+    const result = await runWithContext({ userId }, () =>
+      graph.invoke(
+        {
+          messages: [new HumanMessage(message)],
+          userId: userId,
+          debug,
         },
-      },
+        {
+          configurable: {
+            thread_id: threadId,
+          },
+        },
+      ),
     );
 
     // 从 messages 中取最后一条消息作为最终输出
@@ -775,6 +961,7 @@ export class AiCustomerService {
     const response: TestChatResult = {
       intent: result.intent ?? '',
       agentOutput,
+      sources: result.ragSources ?? [],
     };
     if (debug) {
       response.debug = result.debugInfo ?? undefined;

@@ -87,9 +87,7 @@ export function ProcessPipeline({
                 </div>
                 <span
                   className={`text-[10px] ${
-                    isCurrent
-                      ? 'font-medium text-blue-600'
-                      : 'text-gray-400'
+                    isCurrent ? 'font-medium text-blue-600' : 'text-gray-400'
                   }`}
                 >
                   {step.label}

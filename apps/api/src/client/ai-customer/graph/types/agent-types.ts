@@ -4,7 +4,11 @@
  * 用于前端展示「思考链」和调试
  */
 import { BaseMessage } from '@langchain/core/messages';
-import { AgentState, DebugInfo } from '@api/client/ai-customer/graph/state';
+import {
+  AgentState,
+  DebugInfo,
+  RagCitation,
+} from '@api/client/ai-customer/graph/state';
 import { LlmProviderConfig } from '@api/client/ai-customer/graph/llm-factory';
 import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-registry.service';
 
@@ -80,6 +84,8 @@ export type AgentNodeFactory = (
 export interface TestChatResult {
   intent: string;
   agentOutput: string;
+  /** 本轮 RAG 引用（非 RAG 回答为空数组） */
+  sources: RagCitation[];
   /** debug=true 时返回完整流水线追踪数据 */
   debug?: DebugInfo;
 }

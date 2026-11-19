@@ -1,0 +1,780 @@
+{
+  "run_at": "2026-11-19T14:44:23",
+  "base_url": "http://localhost/api/v1",
+  "golden_file": "/Volumes/MySSD/work/JoyMini_Nest_Monorepo/tools/eval/rag/golden.jsonl",
+  "limit": 20,
+  "summary": {
+    "total": 20,
+    "rag_answers": 14,
+    "with_sources_rate": 0.7,
+    "citation_rate": 0.9285714285714286,
+    "numeric_rows": 10,
+    "numeric_support_rate": 0.7,
+    "expected_source_hit_rate": 1.0,
+    "avg_sources": 3.0,
+    "p50": 3760,
+    "p95": 4477,
+    "intents": {
+      "rag": 16,
+      "general": 1,
+      "coupon": 2,
+      "order": 1
+    }
+  },
+  "rows": [
+    {
+      "id": "r01",
+      "query": "How do I contact customer support?",
+      "expectedDocIds": [
+        "contact-support"
+      ],
+      "intent": "rag",
+      "answer": "According to our **Contact Support** policy, here are the ways to reach us:\n\n| Method | Details | Availability |\n|:-------|:--------|:-------------|\n| **In-App Chat** | Account → Help → Chat with us | 24/7 |\n| **Email** | support@joymini.com | Response within 24 hours |\n| **Phone** | 02-8888-7777 | Mon-Sat, 9AM-6PM |\n| **Facebook** | fb.com/JoyMiniPH | Mon-Sat, 9AM-6PM |\n| **Messenger** | m.me/JoyMiniPH | Mon-Sat, 9AM-6PM |\n\n**Helpful tips:**\n- Chat responses are usually within **5-10 minutes**; email responses within **24 hours**.\n- Our support team speaks **English**, **Tagalog**, and **Cebuano**.\n- You can request a **callback** via in-app chat — we'll call within **30 minutes** during business hours.\n- JoyMini is **online-only**; all support is handled through the channels above.\n\nWhen contacting us, please have ready: your **order number** (if about an order), **account email/registered mobile number**, **screenshots/photos** of the issue, and **payment reference** (if about payment).",
+      "sources": [
+        {
+          "chunkId": "",
+          "documentId": "cmwbx7msa0002mj3e8ccaamhw",
+          "docId": "contact-support",
+          "title": "Contact Support",
+          "domain": "common",
+          "score": 0.29112448,
+          "content": "# Contact Support\n\n> **This is the fallback document** — if no specific policy matches the user's question, guide them to contact support.\n\n## How to Reach Us\n\n| Method | Details | Availability |\n|:-------|:--------|:-------------|\n| **In-App Chat** | Account → Help → Chat with us | 24/7 |\n| **Email** | support@joymini.com | Response within 24 hours |\n| **Phone** | 02-8888-7777 | Mon-Sat, 9AM-6PM |\n| **Facebook** | fb.com/JoyMiniPH | Mon-Sat, 9AM-6PM |\n| **Messenger** | m.me/JoyMiniPH | Mon-Sat,"
+        },
+        {
+          "chunkId": "cmwc1qqne0051mj3dep16urzm",
+          "documentId": "cmwbxlh54004imj3ea1qn5kfd",
+          "docId": "product-authenticity",
+          "title": "Product Authenticity",
+          "domain": "product",
+          "score": 0.16740672,
+          "content": "### Method 3: Contact Support\nIf you have doubts about any product, contact support with:\n- Order number\n- Product photos (packaging, labels, serial number)\n- Receipt\n\nSee [Contact Support](../common/contact-support.en.md)."
+        },
+        {
+          "chunkId": "cmwc1qnya0005mj3dp5lrz814",
+          "documentId": "cmwbx7msa0002mj3e8ccaamhw",
+          "docId": "contact-support",
+          "title": "Contact Support",
+          "domain": "common",
+          "score": 0.15410863,
+          "content": "## How to Reach Us\n\n| Method | Details | Availability |\n|:-------|:--------|:-------------|\n| **In-App Chat** | Account → Help → Chat with us | 24/7 |\n| **Email** | support@joymini.com | Response within 24 hours |\n| **Phone** | 02-8888-7777 | Mon-Sat, 9AM-6PM |\n| **Facebook** | fb.com/JoyMiniPH | Mon-Sat, 9AM-6PM |\n| **Messenger** | m.me/JoyMiniPH | Mon-Sat, 9AM-6PM |"
+        }
+      ],
+      "hasSources": true,
+      "cited": true,
+      "numericTotal": 16,
+      "numericUnsupported": [
+        "5",
+        "10",
+        "30"
+      ],
+      "expectedHit": true,
+      "latencyMs": 5278,
+      "error": null
+    },
+    {
+      "id": "r02",
+      "query": "怎么联系人工客服？",
+      "expectedDocIds": [
+        "contact-support"
+      ],
+      "intent": "rag",
+      "answer": "好的，我这就为您转接人工客服，请您稍等片刻，会有专人为您服务。",
+      "sources": [],
+      "hasSources": false,
+      "cited": false,
+      "numericTotal": 0,
+      "numericUnsupported": [],
+      "expectedHit": false,
+      "latencyMs": 1823,
+      "error": null
+    },
+    {
+      "id": "r03",
+      "query": "哪些商品是禁售的？",
+      "expectedDocIds": [
+        "platform-rules"
+      ],
+      "intent": "rag",
+      "answer": "根据 JoyMini 的《Platform Rules》政策文件，以下商品禁止在平台上架、销售或购买：\n\n**非法物品**\n- 毒品、麻醉品及吸毒器具\n- 枪支、武器及弹药\n- 赃物\n- 假币和假邮票\n- 濒危物种及野生动物制品\n\n**受限物品**\n- 酒精和烟草制品（需特殊许可证）\n- 处方药\n- 烟花和爆炸物\n- 硝酸盐制品（受 PNP 监管）\n- 放射性材料\n\n**其他禁售物品**\n- 人体遗骸或身体部位\n- 淫秽或色情材料\n- 宣扬歧视或仇恨的物品\n- 政府签发的身份证件和文件\n- 彩票和抽奖券\n\n**禁售数字商品**\n- 黑客工具和服务\n- 伪造文件和身份证件\n- 账户黑客服务\n- 侵犯版权的内容（盗版电影、软件）\n- 赌博相关服务\n\n请注意：该清单并非详尽无遗，JoyMini 保留移除任何违反政策商品的权利。\n\n如需了解更多详情，请联系我们的客服团队。",
+      "sources": [
+        {
+          "chunkId": "cmwc1qo4b000cmj3d7gemxk3i",
+          "documentId": "cmwbrlntt000amj3dn0ug7ge6",
+          "docId": "platform-rules",
+          "title": "Platform Rules",
+          "domain": "common",
+          "score": 0.254419,
+          "content": "## Prohibited Items\n\nThe following items **may not** be listed, sold, or purchased on JoyMini:\n\n### Illegal Items\n- Drugs, narcotics, and drug paraphernalia\n- Firearms, weapons, and ammunition\n- Stolen goods\n- Counterfeit currency and stamps\n- Endangered species and wildlife products\n\n### Restricted Items\n- Alcohol and tobacco products (requires special license)\n- Prescription medications\n- Fireworks and explosives\n- Nitrate products (regulated by PNP)\n- Radioactive materials"
+        },
+        {
+          "chunkId": "cmwc1qo4b000emj3d1wqy9qf3",
+          "documentId": "cmwbrlntt000amj3dn0ug7ge6",
+          "docId": "platform-rules",
+          "title": "Platform Rules",
+          "domain": "common",
+          "score": 0.17051763,
+          "content": "### Other Prohibited Items\n- Human remains or body parts\n- Obscene or pornographic materials\n- Items promoting discrimination or hate\n- Government-issued IDs and documents\n- Lottery tickets and sweepstakes\n\n> **Note**: This list is not exhaustive. JoyMini reserves the right to remove any listing that violates our policies."
+        },
+        {
+          "chunkId": "cmwc1qo4b000dmj3dlzjj48k7",
+          "documentId": "cmwbrlntt000amj3dn0ug7ge6",
+          "docId": "platform-rules",
+          "title": "Platform Rules",
+          "domain": "common",
+          "score": 0.14874537,
+          "content": "### Prohibited Digital Goods\n- Hacking tools and services\n- Fake documents and IDs\n- Account hacking services\n- Copyright-infringing content (pirated movies, software)\n- Gambling-related services"
+        }
+      ],
+      "hasSources": true,
+      "cited": true,
+      "numericTotal": 0,
+      "numericUnsupported": [],
+      "expectedHit": true,
+      "latencyMs": 3806,
+      "error": null
+    },
+    {
+      "id": "r04",
+      "query": "What items are prohibited on the platform?",
+      "expectedDocIds": [
+        "platform-rules"
+      ],
+      "intent": "rag",
+      "answer": "Based on our **Platform Rules**, the following items may not be listed, sold, or purchased on JoyMini:\n\n**Illegal Items**\n- Drugs, narcotics, and drug paraphernalia\n- Firearms, weapons, and ammunition\n- Stolen goods\n- Counterfeit currency and stamps\n- Endangered species and wildlife products\n\n**Restricted Items**\n- Alcohol and tobacco products (requires special license)\n- Prescription medications\n- Fireworks and explosives\n- Nitrate products (regulated by PNP)\n- Radioactive materials\n\n**Prohibited Digital Goods**\n- Hacking tools and services\n- Fake documents and IDs\n- Account hacking services\n- Copyright-infringing content (pirated movies, software)\n- Gambling-related services\n\n**Other Prohibited Items**\n- Human remains or body parts\n- Obscene or pornographic materials\n- Items promoting discrimination or hate\n- Government-issued IDs and documents\n- Lottery tickets and sweepstakes\n\nPlease note this list is not exhaustive — JoyMini reserves the right to remove any listing that violates our policies.",
+      "sources": [
+        {
+          "chunkId": "",
+          "documentId": "cmwbrlntt000amj3dn0ug7ge6",
+          "docId": "platform-rules",
+          "title": "Platform Rules",
+          "domain": "common",
+          "score": 0.41616748,
+          "content": "# Platform Rules\n\n## Prohibited Items\n\nThe following items **may not** be listed, sold, or purchased on JoyMini:\n\n### Illegal Items\n- Drugs, narcotics, and drug paraphernalia\n- Firearms, weapons, and ammunition\n- Stolen goods\n- Counterfeit currency and stamps\n- Endangered species and wildlife products\n\n### Restricted Items\n- Alcohol and tobacco products (requires special license)\n- Prescription medications\n- Fireworks and explosives\n- Nitrate products (regulated by PNP)\n- Radioactive materials\n\n"
+        },
+        {
+          "chunkId": "cmwc1qo4b000cmj3d7gemxk3i",
+          "documentId": "cmwbrlntt000amj3dn0ug7ge6",
+          "docId": "platform-rules",
+          "title": "Platform Rules",
+          "domain": "common",
+          "score": 0.28628412,
+          "content": "## Prohibited Items\n\nThe following items **may not** be listed, sold, or purchased on JoyMini:\n\n### Illegal Items\n- Drugs, narcotics, and drug paraphernalia\n- Firearms, weapons, and ammunition\n- Stolen goods\n- Counterfeit currency and stamps\n- Endangered species and wildlife products\n\n### Restricted Items\n- Alcohol and tobacco products (requires special license)\n- Prescription medications\n- Fireworks and explosives\n- Nitrate products (regulated by PNP)\n- Radioactive materials"
+        },
+        {
+          "chunkId": "cmwc1qo4b000emj3d1wqy9qf3",
+          "documentId": "cmwbrlntt000amj3dn0ug7ge6",
+          "docId": "platform-rules",
+          "title": "Platform Rules",
+          "domain": "common",
+          "score": 0.2241746,
+          "content": "### Other Prohibited Items\n- Human remains or body parts\n- Obscene or pornographic materials\n- Items promoting discrimination or hate\n- Government-issued IDs and documents\n- Lottery tickets and sweepstakes\n\n> **Note**: This list is not exhaustive. JoyMini reserves the right to remove any listing that violates our policies."
+        }
+      ],
+      "hasSources": true,
+      "cited": true,
+      "numericTotal": 0,
+      "numericUnsupported": [],
+      "expectedHit": true,
+      "latencyMs": 3907,
+      "error": null
+    },
+    {
+      "id": "r05",
+      "query": "你们怎么保护我的个人信息？",
+      "expectedDocIds": [
+        "privacy-policy"
+      ],
+      "intent": "rag",
+      "answer": "根据我们的隐私政策，以下是关于您个人信息保护的相关说明：\n\n**数据共享方面：**\n我们**不会出售**您的个人信息。仅在以下必要情况下与第三方共享数据（《隐私政策》）：\n- **支付处理商**（GCash、PayMaya、银行）：仅共享令牌化的支付信息\n- **物流合作伙伴**（J&T、LBC、Ninja Van、2GO）：仅共享姓名、地址、电话用于配送\n- **KYC 验证服务商**：用于身份验证\n- **执法机构**：依法要求时提供\n\n**信息收集与用途：**\n我们收集的信息包括账户信息（姓名、邮箱、电话、地址）、身份文件（用于菲律宾法规要求的 KYC 验证）、支付信息（令牌化处理）以及设备信息（用于安全和防欺诈）（《隐私政策》）。\n\n**隐私问题联系方式：**\n- 邮箱：privacy@joymini.com\n- 应用内：账户 → 隐私设置 → 联系我们\n- 数据保护官（DPO）：dpo@joymini.com\n\n如需了解更多详情，建议您查阅完整的《隐私政策》或通过上述方式联系我们。",
+      "sources": [
+        {
+          "chunkId": "cmwc1qoa7000vmj3dthz1n4at",
+          "documentId": "cmwbxa47o000pmj3e0yen4dd5",
+          "docId": "privacy-policy",
+          "title": "Privacy Policy",
+          "domain": "common",
+          "score": 0.19871443,
+          "content": "## Data Sharing\n\nWe **do not sell** your personal information. We may share data with:\n\n| Recipient | Purpose | Data Shared |\n|:----------|:--------|:------------|\n| Payment processors (GCash, PayMaya, banks) | Payment processing | Payment details (tokenized) |\n| Logistics partners (J&T, LBC, Ninja Van, 2GO) | Order delivery | Name, address, phone |\n| KYC verification providers | Identity verification | ID documents |\n| Law enforcement | Legal compliance | As required by law |"
+        },
+        {
+          "chunkId": "cmwc1qoa7000smj3dpu2i02vg",
+          "documentId": "cmwbxa47o000pmj3e0yen4dd5",
+          "docId": "privacy-policy",
+          "title": "Privacy Policy",
+          "domain": "common",
+          "score": 0.08068256,
+          "content": "| Category | Examples | Purpose |\n|:---------|:---------|:--------|\n| **Account Info** | Name, email, phone number, address | Account registration, order delivery |\n| **Identity Documents** | Passport, UMID, Driver's License | KYC verification (required by Philippine regulations) |\n| **Payment Info** | GCash number, card details (tokenized) | Payment processing |\n| **Device Info** | IP address, device type, browser | Security, fraud prevention |"
+        },
+        {
+          "chunkId": "cmwc1qoa70010mj3dfqpbnrbr",
+          "documentId": "cmwbxa47o000pmj3e0yen4dd5",
+          "docId": "privacy-policy",
+          "title": "Privacy Policy",
+          "domain": "common",
+          "score": 0.07914922,
+          "content": "## Contact for Privacy Concerns\n\n| Method | Details |\n|:-------|:--------|\n| **Email** | privacy@joymini.com |\n| **In-app** | Account → Privacy Settings → Contact |\n| **DPO** | Data Protection Officer: dpo@joymini.com |\n\nFor more contact options, see [Contact Support](contact-support.en.md)."
+        }
+      ],
+      "hasSources": true,
+      "cited": false,
+      "numericTotal": 1,
+      "numericUnsupported": [],
+      "expectedHit": true,
+      "latencyMs": 3515,
+      "error": null
+    },
+    {
+      "id": "r06",
+      "query": "双十一活动规则是什么？",
+      "expectedDocIds": [
+        "promotion-rules"
+      ],
+      "intent": "general",
+      "answer": "关于双十一的具体活动规则（比如满减门槛、预售时间、优惠券叠加方式等），我这边没有实时活动数据，没法给你准确的官方信息，怕说错了误导你。\n\n建议你通过这几个方式获取准确规则：\n- 查看App首页的双十一活动专区或活动说明页\n- 咨询在线人工客服，确认最新规则\n- 关注官方公告，活动规则可能会有调整\n\n如果你有具体想了解的方向（比如想查某个订单、优惠券状态），可以告诉我，我帮你看看怎么操作～",
+      "sources": [],
+      "hasSources": false,
+      "cited": false,
+      "numericTotal": 0,
+      "numericUnsupported": [],
+      "expectedHit": false,
+      "latencyMs": 3857,
+      "error": null
+    },
+    {
+      "id": "r07",
+      "query": "怎么举报卖家？",
+      "expectedDocIds": [
+        "report-seller"
+      ],
+      "intent": "rag",
+      "answer": "根据《Report a Seller or Listing》政策文件，举报卖家的步骤如下：\n\n1. 进入**卖家的店铺页面**。\n2. 点击**三个点（⋯）**或**\"更多\"菜单**。\n3. 选择**\"举报卖家\"（Report Seller）**。\n4. 选择**举报原因**。\n5. 添加详细信息和证据。\n6. 点击**提交**。\n\n另外，如果卖家发送了不当消息，您也可以：\n1. 打开与该卖家的**聊天/对话**。\n2. 长按该消息。\n3. 选择**\"举报\"**。\n4. 选择原因。\n5. 提交。\n\n如需进一步帮助，请联系我们的客服团队。",
+      "sources": [
+        {
+          "chunkId": "cmwc1qom2001smj3dlzj9l0kr",
+          "documentId": "cmwbxvgze008omj3eyujq35dy",
+          "docId": "report-seller",
+          "title": "Report a Seller or Listing",
+          "domain": "common",
+          "score": 0.36762841,
+          "content": "### Report a Seller\n\n1. Go to the **seller's store page**.\n2. Tap the **three dots** (⋯) or **\"More\"** menu.\n3. Select **\"Report Seller\"**.\n4. Choose the **reason** for reporting.\n5. Add details and evidence.\n6. Tap **Submit**.\n\n### Report a Message\n\nIf a seller sends inappropriate messages:\n1. Open the **chat/conversation** with the seller.\n2. Tap and hold the message.\n3. Select **\"Report\"**.\n4. Choose the reason.\n5. Submit."
+        },
+        {
+          "chunkId": "cmwc1qom2001lmj3dx6wwz8ko",
+          "documentId": "cmwbxvgze008omj3eyujq35dy",
+          "docId": "report-seller",
+          "title": "Report a Seller or Listing",
+          "domain": "common",
+          "score": 0.18243152,
+          "content": "# Report a Seller or Listing"
+        },
+        {
+          "chunkId": "cmwc1qom2001rmj3dwphi3r1w",
+          "documentId": "cmwbxvgze008omj3eyujq35dy",
+          "docId": "report-seller",
+          "title": "Report a Seller or Listing",
+          "domain": "common",
+          "score": 0.12119917,
+          "content": "## How to Report\n\n### Report a Product Listing\n\n1. Go to the **product page**.\n2. Tap the **flag icon** (⚑) or **\"Report\"** button near the listing.\n3. Select the **violation type** from the list.\n4. Add any **additional details** or evidence (optional but helpful).\n5. Tap **Submit**."
+        }
+      ],
+      "hasSources": true,
+      "cited": true,
+      "numericTotal": 11,
+      "numericUnsupported": [],
+      "expectedHit": true,
+      "latencyMs": 3405,
+      "error": null
+    },
+    {
+      "id": "r08",
+      "query": "优惠券用不了怎么办？",
+      "expectedDocIds": [
+        "coupon-faq"
+      ],
+      "intent": "coupon",
+      "answer": "I checked your coupon list, and it looks like you currently have **no coupons** in your account (total: 0). That's likely why you can't use any — there's nothing available to apply.\n\nHere are a few things you can do:\n1. **Browse claimable coupons** — I can show you coupons available in the coupon center that you can claim.\n2. **Redeem a coupon code** — if you have a code, I can help you redeem it.\n\nWould you like me to show you the claimable coupons, or do you have a coupon code to redeem?",
+      "sources": [],
+      "hasSources": false,
+      "cited": false,
+      "numericTotal": 0,
+      "numericUnsupported": [],
+      "expectedHit": false,
+      "latencyMs": 3880,
+      "error": null
+    },
+    {
+      "id": "r09",
+      "query": "优惠券可以叠加使用吗？",
+      "expectedDocIds": [
+        "coupon-rules"
+      ],
+      "intent": "coupon",
+      "answer": "I don't have information about whether coupons can be stacked — that's a policy detail not included in my coupon data, so I can't confirm it for you.\n\nAs for your account, you currently have **no coupons** in your list.\n\nWould you like me to show you the coupons available to claim in the coupon center?",
+      "sources": [],
+      "hasSources": false,
+      "cited": false,
+      "numericTotal": 0,
+      "numericUnsupported": [],
+      "expectedHit": false,
+      "latencyMs": 3964,
+      "error": null
+    },
+    {
+      "id": "r10",
+      "query": "KYC 需要准备什么证件？",
+      "expectedDocIds": [
+        "kyc-guide"
+      ],
+      "intent": "rag",
+      "answer": "根据 **KYC Guide** 文件，KYC 认证可接受的证件如下：\n\n| 证件类型 | 正面照片 | 反面照片 | 备注 |\n|:--------|:--------|:--------|:-----|\n| 菲律宾护照 | ✅ | ❌ | 必须在有效期内 |\n| UMID / 统一身份证 | ✅ | ✅ | 需正反两面 |\n| 驾照 | ✅ | ✅ | 需正反两面 |\n| PRC ID | ✅ | ❌ | 仅正面 |\n| 邮政 ID | ✅ | ❌ | 仅正面 |\n| 老年公民 ID | ✅ | ❌ | 仅正面 |\n| 国民身份证（PhilSys） | ✅ | ✅ | 需正反两面（接受电子版） |\n\n**此外，不同认证等级所需材料不同：**\n- **Level 1（基础）**：手机号 + 邮箱\n- **Level 2（标准）**：Level 1 + 有效身份证件 + 自拍\n- **Level 3（高级）**：Level 2 + 地址证明\n\n**注意事项：**\n- 证件必须在有效期内，照片需清晰可读。\n- 证件上的姓名必须与账户姓名一致。\n- 如要求正反两面，需上传完整。\n- 请上传原始照片，不要上传截图。\n\n提交后，审核团队将在 **24 小时内**完成审核。",
+      "sources": [
+        {
+          "chunkId": "cmwc1qp3o002rmj3d1zxulakn",
+          "documentId": "cmwbxfmf00022mj3enngqr92l",
+          "docId": "kyc-guide",
+          "title": "KYC Guide",
+          "domain": "kyc",
+          "score": 0.31260061,
+          "content": "# KYC Guide — Account Verification\n\n## Why Verify Your Account?\n\n| Level | Requirements | Benefits |\n|:------|:-------------|:---------|\n| Level 0 (Unverified) | None | Browse products only |\n| Level 1 (Basic) | Phone number + Email | Place orders, use coupons |\n| Level 2 (Standard) | Level 1 + Valid ID + Selfie | Wallet withdrawal, lucky draw |\n| Level 3 (Advanced) | Level 2 + Proof of address | Higher withdrawal limits |"
+        },
+        {
+          "chunkId": "cmwc1qp9k0037mj3d2hrwgg8m",
+          "documentId": "cmwbxg65k0029mj3eb1rehbu1",
+          "docId": "kyc-troubleshooting",
+          "title": "KYC Troubleshooting",
+          "domain": "kyc",
+          "score": 0.09100251,
+          "content": "## Still Can't Pass KYC?\n\nIf you've tried everything and still can't complete verification:\n\n1. Contact support via in-app chat.\n2. Provide:\n   - A clear photo of your valid government ID\n   - A selfie holding the ID next to your face\n   - Your User ID\n3. Our team will manually verify your identity.\n\nSee [KYC Guide](kyc-guide.en.md) for the full KYC process, or [Contact Support](../common/contact-support.en.md)."
+        },
+        {
+          "chunkId": "",
+          "documentId": "cmwbxfmf00022mj3enngqr92l",
+          "docId": "kyc-guide",
+          "title": "KYC Guide",
+          "domain": "kyc",
+          "score": 0.03949073,
+          "content": "# KYC Guide — Account Verification\n\n## Why Verify Your Account?\n\n| Level | Requirements | Benefits |\n|:------|:-------------|:---------|\n| Level 0 (Unverified) | None | Browse products only |\n| Level 1 (Basic) | Phone number + Email | Place orders, use coupons |\n| Level 2 (Standard) | Level 1 + Valid ID + Selfie | Wallet withdrawal, lucky draw |\n| Level 3 (Advanced) | Level 2 + Proof of address | Higher withdrawal limits |\n\n## Accepted IDs\n\n| ID Type | Front Photo | Back Photo | Remarks |\n|:----"
+        }
+      ],
+      "hasSources": true,
+      "cited": true,
+      "numericTotal": 6,
+      "numericUnsupported": [
+        "24"
+      ],
+      "expectedHit": true,
+      "latencyMs": 4267,
+      "error": null
+    },
+    {
+      "id": "r11",
+      "query": "身份证上传一直失败怎么办？",
+      "expectedDocIds": [
+        "kyc-troubleshooting"
+      ],
+      "intent": "rag",
+      "answer": "您是想咨询身份证上传失败的技术问题（rag/帮助中心），还是与钱包实名认证相关的问题？",
+      "sources": [],
+      "hasSources": false,
+      "cited": false,
+      "numericTotal": 0,
+      "numericUnsupported": [],
+      "expectedHit": false,
+      "latencyMs": 1693,
+      "error": null
+    },
+    {
+      "id": "r12",
+      "query": "人脸识别不通过怎么办？",
+      "expectedDocIds": [
+        "kyc-troubleshooting"
+      ],
+      "intent": "rag",
+      "answer": "根据 KYC 相关文档，人脸识别不通过通常有以下几种情况和对应的解决办法：\n\n**1. 自拍与证件照片不匹配（\"Face does not match ID photo\"）**\n- 移除可能改变外貌的配饰（墨镜、口罩、浓妆等）。\n- 确保面部光线均匀。\n- 正对摄像头拍摄。\n- 如果证件签发后你的外貌变化较大，请使用更新的证件。\n\n**2. 照片模糊或不清晰（\"Photo is blurry or unclear\"）**\n- 在光线充足的地方拍摄（自然日光最佳）。\n- 保持相机稳定，避免手抖。\n- 确保整个证件都在画面内（不要裁剪）。\n- 避免证件反光。\n- 在纯色背景（如白墙）前拍摄。\n\n**3. 自拍不匹配（\"Selfie doesn't match\"，见《KYC Guide》）**\n- 确保在光线充足的地方拍摄。\n- 不要戴墨镜或口罩。\n\n如果以上方法仍无法解决，建议联系我们的客服团队获取进一步帮助。",
+      "sources": [
+        {
+          "chunkId": "cmwc1qp9j0031mj3dpxpsoczk",
+          "documentId": "cmwbxg65k0029mj3eb1rehbu1",
+          "docId": "kyc-troubleshooting",
+          "title": "KYC Troubleshooting",
+          "domain": "kyc",
+          "score": 0.2122808,
+          "content": "### \"Face does not match ID photo\"\n\n**Why**: The selfie you took does not match the photo on your government ID.\n\n**Solution**:\n1. Remove any accessories that may alter your appearance (sunglasses, masks, heavy makeup).\n2. Ensure the lighting is even on your face.\n3. Make sure you are facing the camera directly.\n4. If you've changed significantly since your ID was issued, use a more recent ID."
+        },
+        {
+          "chunkId": "cmwc1qp9j002ymj3dllpw4d9o",
+          "documentId": "cmwbxg65k0029mj3eb1rehbu1",
+          "docId": "kyc-troubleshooting",
+          "title": "KYC Troubleshooting",
+          "domain": "kyc",
+          "score": 0.14118329,
+          "content": "## Common Rejection Reasons\n\n### \"Photo is blurry or unclear\"\n\n**Why**: The uploaded photo of your ID or selfie is not clear enough for verification.\n\n**Solution**:\n1. Ensure you are in a **well-lit area** (natural daylight is best).\n2. Hold the camera **steady** — avoid shaky hands.\n3. Make sure the **entire ID** is visible in the frame (no cropping).\n4. Ensure **no glare** or reflection on the ID.\n5. Take the photo against a **plain background** (white wall)."
+        },
+        {
+          "chunkId": "cmwc1qp3o002vmj3d60bs644k",
+          "documentId": "cmwbxfmf00022mj3enngqr92l",
+          "docId": "kyc-guide",
+          "title": "KYC Guide",
+          "domain": "kyc",
+          "score": 0.07415339,
+          "content": "## Common Rejection Reasons\n\n| Reason | Solution |\n|:-------|:---------|\n| Blurry photo | Retake with good lighting, ensure all text is readable |\n| Expired ID | Use a valid, non-expired ID |\n| ID mismatch | The name on the ID must match your account name |\n| Selfie doesn't match | Ensure you are in a well-lit area, no sunglasses or mask |\n| Incomplete document | Upload **both sides** if required |\n| Edited/screensho | Upload the **original photo**, not a screenshot of a photo |"
+        }
+      ],
+      "hasSources": true,
+      "cited": true,
+      "numericTotal": 3,
+      "numericUnsupported": [],
+      "expectedHit": true,
+      "latencyMs": 3744,
+      "error": null
+    },
+    {
+      "id": "r13",
+      "query": "抽奖奖品怎么领取？",
+      "expectedDocIds": [
+        "lucky-draw-rules"
+      ],
+      "intent": "rag",
+      "answer": "根据《Lucky Draw Rules》文档，奖品领取方式取决于奖品类型：\n\n- **实物奖品**：将在 **5 个工作日内**发货。\n- **数字奖品**：通过应用内通知**即时发放**。\n- **钱包余额**：直接发放至您的钱包余额。\n\n另外请注意，中奖者需自行承担任何适用的税费。\n\n如果您是未中奖者，票款将**自动**退还至钱包余额（无需申请），并在开奖结果公布后 **1 小时内**处理完成。",
+      "sources": [
+        {
+          "chunkId": "cmwc1qpfg0038mj3dv0m0tciv",
+          "documentId": "cmwbxgwen002lmj3eaftjj889",
+          "docId": "lucky-draw-rules",
+          "title": "Lucky Draw Rules",
+          "domain": "lucky-draw",
+          "score": 0.10215553,
+          "content": "# Lucky Draw Rules\n\n## How Lucky Draw Works\n\n1. Browse **Flash Sale** items in the app.\n2. Each item has a **ticket price** (not the full retail price).\n3. Purchase **tickets** for the item you want.\n4. Each ticket gives you **one entry** into the draw.\n5. The winner is randomly selected when the draw closes.\n6. Non-winners get their ticket price refunded as **wallet credit**."
+        },
+        {
+          "chunkId": "cmwc1qqtd005vmj3dr6a9pvy9",
+          "documentId": "cmwbxmcah004tmj3eqaxdl8cz",
+          "docId": "product-faq",
+          "title": "Product FAQ",
+          "domain": "product",
+          "score": 0.06059043,
+          "content": "See [Lucky Draw Rules](../lucky-draw/lucky-draw-rules.en.md) for Lucky Draw product rules."
+        },
+        {
+          "chunkId": "cmwc1qpfg003bmj3d80kar0yi",
+          "documentId": "cmwbxgwen002lmj3eaftjj889",
+          "docId": "lucky-draw-rules",
+          "title": "Lucky Draw Rules",
+          "domain": "lucky-draw",
+          "score": 0.00134896,
+          "content": "## Prize Information\n\n- **Prize type**: Physical item, digital code, or wallet credit.\n- **Delivery**: Physical items shipped within **5 business days**.\n- **Digital prizes**: Delivered instantly via in-app notification.\n- **Tax**: Winners are responsible for any applicable taxes.\n\n## Refunds for Non-Winners\n\n- Refund is **automatic** — no need to request.\n- Refund goes to **wallet balance**, usable for any purchase.\n- Processing time: Within **1 hour** after draw results."
+        }
+      ],
+      "hasSources": true,
+      "cited": true,
+      "numericTotal": 2,
+      "numericUnsupported": [],
+      "expectedHit": true,
+      "latencyMs": 2922,
+      "error": null
+    },
+    {
+      "id": "r14",
+      "query": "支持货到付款吗？",
+      "expectedDocIds": [
+        "cod-payment"
+      ],
+      "intent": "rag",
+      "answer": "是的，我们支持货到付款（COD）。\n\n根据《COD Payment Guide》：\n\n- **货到付款**：下单时选择\"Cash on Delivery\"作为支付方式，无需预先付款，订单会正常处理和发货。\n- **付款方式**：快递员送货上门时，请**以现金支付准确金额**，付款后快递员会将包裹交给您。\n- **无需联网**：使用货到付款不需要网络即可完成支付。\n- **可使用优惠券**：货到付款支持使用优惠券。\n- **退货运费**：货到付款订单的退货运费由我们承担。\n\n需要注意的是，货到付款**不享受返现（cashback）**优惠。\n\n如您还有其他订单相关问题，欢迎随时咨询。",
+      "sources": [
+        {
+          "chunkId": "cmwc1qple003lmj3dqhlj1nlq",
+          "documentId": "cmwbxjw2w003hmj3ea5jcl8m0",
+          "docId": "cod-payment",
+          "title": "COD Payment Guide",
+          "domain": "order",
+          "score": 0.24578399,
+          "content": "## COD vs Other Payment Methods\n\n| Feature | COD | GCash | Card |\n|:--------|:---:|:-----:|:----:|\n| Pay at delivery | ✅ | ❌ | ❌ |\n| Need internet to pay | ❌ | ✅ | ✅ |\n| Can use vouchers | ✅ | ✅ | ✅ |\n| Cashback eligible | ❌ | ✅ | ✅ |\n| Return shipping covered | ✅ | ✅ | ✅ |\n\n## Still Have Questions?\n\nSee [Order Management](order-management.en.md) for order-related questions, or [Contact Support](../common/contact-support.en.md)."
+        },
+        {
+          "chunkId": "cmwc1qpld003dmj3d98wsd6q0",
+          "documentId": "cmwbxjw2w003hmj3ea5jcl8m0",
+          "docId": "cod-payment",
+          "title": "COD Payment Guide",
+          "domain": "order",
+          "score": 0.06617789,
+          "content": "# COD (Cash on Delivery) Payment Guide\n\n## What is COD?\n\nCash on Delivery (COD) is a payment method where you **pay in cash** when your order is delivered to your door. This is one of the most popular payment methods in the Philippines."
+        },
+        {
+          "chunkId": "cmwc1qpld003fmj3d4fhbqla5",
+          "documentId": "cmwbxjw2w003hmj3ea5jcl8m0",
+          "docId": "cod-payment",
+          "title": "COD Payment Guide",
+          "domain": "order",
+          "score": 0.04411486,
+          "content": "## How COD Works\n\n1. Place an order and select **Cash on Delivery** as payment method.\n2. No upfront payment needed.\n3. The order is processed and shipped as usual.\n4. When the courier arrives at your door, **pay the exact amount in cash**.\n5. The courier will hand over your package after payment."
+        }
+      ],
+      "hasSources": true,
+      "cited": true,
+      "numericTotal": 0,
+      "numericUnsupported": [],
+      "expectedHit": true,
+      "latencyMs": 3470,
+      "error": null
+    },
+    {
+      "id": "r15",
+      "query": "怎么取消订单？",
+      "expectedDocIds": [
+        "order-management"
+      ],
+      "intent": "rag",
+      "answer": "根据《How to Cancel an Order》文档，取消订单的步骤如下：\n\n1. 进入 **My Orders（我的订单）** 页面。\n2. 找到要取消的订单，点击 **Cancel（取消）**。\n3. 选择取消原因。\n4. 提交。\n\n**重要提示**：订单只能在**发货前**取消。一旦发货，就需要改为申请退货（return）。\n\n如果您无法取消订单，根据《Order Troubleshooting》文档，可能的原因包括：\n- 订单已发货：请通过 My Orders → Request Return 申请退货。\n- 订单处于\"Processing（处理中）\"状态：请联系客服申请取消。\n- 团购订单：只能在成团前取消。\n\n另外，根据《COD Payment Guide》，如果您是货到付款且想在**发货前**取消，可以免费取消，同样通过 **My Orders → Cancel Order** 操作。",
+      "sources": [
+        {
+          "chunkId": "cmwc1qpr8003nmj3d2z9b0zbq",
+          "documentId": "cmwbxhq85002rmj3erss0zqn4",
+          "docId": "order-management",
+          "title": "Order Management",
+          "domain": "order",
+          "score": 0.44953791,
+          "content": "## How to Cancel an Order\n\n1. Go to **My Orders** page.\n2. Find the order and click **Cancel**.\n3. Select a cancellation reason.\n4. Submit.\n\n**Important**: Orders can only be cancelled **before** they are shipped. Once shipped, you need to request a return instead."
+        },
+        {
+          "chunkId": "cmwc1qpu1003smj3dto3hit3k",
+          "documentId": "cmwbxi88o002xmj3ex5o7vo2h",
+          "docId": "order-troubleshooting",
+          "title": "Order Troubleshooting",
+          "domain": "order",
+          "score": 0.16693596,
+          "content": "## Cannot Cancel Order\n\n**Possible causes**:\n- Order is already shipped\n- Order is in \"Processing\" state\n\n**Solutions**:\n1. If shipped: Request a **return** instead via My Orders → Request Return.\n2. If processing: Contact support to request cancellation.\n3. For group buying orders: Cancellation only possible before group is formed."
+        },
+        {
+          "chunkId": "cmwc1qple003jmj3dngcng1c9",
+          "documentId": "cmwbxjw2w003hmj3ea5jcl8m0",
+          "docId": "cod-payment",
+          "title": "COD Payment Guide",
+          "domain": "order",
+          "score": 0.04648617,
+          "content": "## Can I Change My Mind?\n\n| Scenario | What Happens |\n|:---------|:-------------|\n| I want to cancel before delivery | Free cancellation. Go to **My Orders** → Cancel Order. |\n| I refuse the package at delivery | Order is returned. No charge. |\n| Courier arrives but I have insufficient cash | Partial payment is **not accepted**. Reschedule delivery. |"
+        }
+      ],
+      "hasSources": true,
+      "cited": true,
+      "numericTotal": 4,
+      "numericUnsupported": [],
+      "expectedHit": true,
+      "latencyMs": 3634,
+      "error": null
+    },
+    {
+      "id": "r16",
+      "query": "订单一直没发货怎么办？",
+      "expectedDocIds": [
+        "order-troubleshooting"
+      ],
+      "intent": "order",
+      "answer": "I checked your account, but I don't see any orders on record — the order list is currently empty. This means I can't find a specific order that's awaiting shipment.\n\nA few possibilities:\n- The order may have been placed under a different account.\n- The order number may need to be verified.\n\nCould you please provide the **order number** you're concerned about? I can then look up its details and check the shipping status for you.\n\nAlso, please note: I don't have information about shipping timeframes or delivery policies. For specific questions about when an order should ship, please check our help center or contact support.",
+      "sources": [],
+      "hasSources": false,
+      "cited": false,
+      "numericTotal": 0,
+      "numericUnsupported": [],
+      "expectedHit": false,
+      "latencyMs": 4477,
+      "error": null
+    },
+    {
+      "id": "r17",
+      "query": "退款多久到账？",
+      "expectedDocIds": [
+        "refund-policy"
+      ],
+      "intent": "rag",
+      "answer": "根据我们的退款政策文件，退款到账时间取决于您的原支付方式（**Refund Policy - Refund Methods**）：\n\n| 原支付方式 | 退款方式 | 处理时间 |\n|:---|:---|:---|\n| GCash / PayMaya | 钱包余额 | 1-3 个工作日 |\n| 银行转账 | 银行账户 | 3-7 个工作日 |\n| 信用卡/借记卡 | 卡片冲正 | 5-10 个工作日 |\n| COD（货到付款） | 钱包余额 | 1-3 个工作日 |\n\n此外，整个退款流程还包括以下环节（**Refund Policy - Timeline**）：\n- **审核**：提交后 24-48 小时\n- **退货物流**：3-7 天（视地区而定）\n- **验货**：收到商品后 1-2 个工作日\n- **退款**：验货通过后 5 个工作日内处理\n\n请注意，部分商品有例外情况（**Refund Policy - Exceptions**）：拼团订单需拼团失败后才退款；抽奖商品不可退货（损坏可换货）；数字/激活码一经交付不可退款。\n\n如需了解具体订单的退款进度，建议联系客服团队协助查询。",
+      "sources": [
+        {
+          "chunkId": "cmwc1qpzv0040mj3dn0zkxc40",
+          "documentId": "cmwbxiub50034mj3e6i0l99tn",
+          "docId": "refund-policy",
+          "title": "Refund Policy",
+          "domain": "order",
+          "score": 0.2321828,
+          "content": "## Refund Methods\n\n| Original Payment Method | Refund Method | Processing Time |\n|:------------------------|:--------------|:----------------|\n| GCash / PayMaya | Wallet credit | 1-3 business days |\n| Bank Transfer | Bank account | 3-7 business days |\n| Credit/Debit Card | Card reversal | 5-10 business days |\n| COD (Cash on Delivery) | Wallet credit | 1-3 business days |"
+        },
+        {
+          "chunkId": "cmwc1qpzv003ymj3dus3icwtz",
+          "documentId": "cmwbxiub50034mj3e6i0l99tn",
+          "docId": "refund-policy",
+          "title": "Refund Policy",
+          "domain": "order",
+          "score": 0.22266551,
+          "content": "## Refund Process\n\n1. Go to **My Orders** page.\n2. Select the order and click **Request Return/Refund**.\n3. Fill in the reason and upload photos if needed.\n4. Submit the request. Our team will review within **24-48 hours**.\n5. Once approved, you will receive a return shipping label.\n6. Ship the item back. Refund will be processed **within 5 business days** after we receive the item."
+        },
+        {
+          "chunkId": "cmwc1qpzv0041mj3d1298ux0x",
+          "documentId": "cmwbxiub50034mj3e6i0l99tn",
+          "docId": "refund-policy",
+          "title": "Refund Policy",
+          "domain": "order",
+          "score": 0.09697782,
+          "content": "## Timeline\n\n- **Review**: 24-48 hours after submission\n- **Return shipping**: 3-7 days (depending on location)\n- **Inspection**: 1-2 business days after receipt\n- **Refund**: 5 business days after inspection approval\n\n## Exceptions\n\n- **Group buying orders**: Refund processed only after group fails. See [Group Buying Guide](../product/group-buying-guide.en.md).\n- **Lucky draw items**: Cannot be returned. Damaged items may be replaced.\n- **Digital/pin codes**: Non-refundable once delivered."
+        }
+      ],
+      "hasSources": true,
+      "cited": true,
+      "numericTotal": 15,
+      "numericUnsupported": [],
+      "expectedHit": true,
+      "latencyMs": 3942,
+      "error": null
+    },
+    {
+      "id": "r18",
+      "query": "What is the refund policy?",
+      "expectedDocIds": [
+        "refund-policy"
+      ],
+      "intent": "rag",
+      "answer": "Based on our **Refund Policy**, here's a summary:\n\n## Return Conditions\n- Items can be returned within **30 days** of delivery.\n- Items must be **unused** and in **original packaging**.\n- Certain items (e.g., digital goods, perishables) are **not eligible** for return.\n- Promotional or \"Flash Sale\" items may have **different return policies** — check the product page for details.\n\n## Refund Process\n1. Go to **My Orders** page.\n2. Select the order and click **Request Return/Refund**.\n3. Fill in the reason and upload photos if needed.\n4. Submit the request. Our team will review within **24-48 hours**.\n5. Once approved, you'll receive a return shipping label.\n6. Ship the item back. Refund is processed **within 5 business days** after we receive the item.\n\n## Refund Amount\n| Condition | Refund Amount |\n|:----------|:--------------|\n| Item not received | 100% refund |\n| Item defective/damaged | 100% refund + return shipping covered |\n| Changed mind | 100% refund (buyer pays return shipping) |\n| Late delivery (>7 days) | 100% refund + 10% compensation coupon |\n\n## Refund Methods\n| Original Payment Method | Refund Method | Processing Time |\n|:------------------------|:--------------|:----------------|\n| GCash / PayMaya | Wallet credit | 1-3 business days |\n| Bank Transfer | Bank account | 3-7 business days |\n| Credit/Debit Card | Card reversal | 5-10 business days |\n| COD (Cash on Delivery) | Wallet credit | 1-3 business days |\n\n## Exceptions\n- **Group buying orders**: Refund processed only after group fails.\n- **Lucky draw items**: Cannot be returned. Damaged items may be replaced.\n- **Digital/pin codes**: Non-refundable once delivered.\n\nLet me know if you have a specific order or situation you'd like help with!",
+      "sources": [
+        {
+          "chunkId": "cmwc1qpzv003xmj3dnl00x457",
+          "documentId": "cmwbxiub50034mj3e6i0l99tn",
+          "docId": "refund-policy",
+          "title": "Refund Policy",
+          "domain": "order",
+          "score": 0.34584205,
+          "content": "# Refund Policy\n\n## Return Conditions\n\n- Items can be returned within **30 days** of delivery.\n- Items must be **unused** and in **original packaging**.\n- Certain items (e.g., digital goods, perishables) are **not eligible** for return.\n- Promotional or \"Flash Sale\" items may have **different return policies**. Check the product page for details."
+        },
+        {
+          "chunkId": "cmwc1qq5q0044mj3d6t5s609z",
+          "documentId": "cmwbxkc1y003rmj3ela7c8sx2",
+          "docId": "return-shipping-faq",
+          "title": "Return Shipping FAQ",
+          "domain": "order",
+          "score": 0.31433042,
+          "content": "See [Refund Policy](refund-policy.en.md) for detailed return conditions."
+        },
+        {
+          "chunkId": "",
+          "documentId": "cmwbxiub50034mj3e6i0l99tn",
+          "docId": "refund-policy",
+          "title": "Refund Policy",
+          "domain": "order",
+          "score": 0.28724275,
+          "content": "# Refund Policy\n\n## Return Conditions\n\n- Items can be returned within **30 days** of delivery.\n- Items must be **unused** and in **original packaging**.\n- Certain items (e.g., digital goods, perishables) are **not eligible** for return.\n- Promotional or \"Flash Sale\" items may have **different return policies**. Check the product page for details.\n\n## Refund Process\n\n1. Go to **My Orders** page.\n2. Select the order and click **Request Return/Refund**.\n3. Fill in the reason and upload photos if ne"
+        }
+      ],
+      "hasSources": true,
+      "cited": true,
+      "numericTotal": 24,
+      "numericUnsupported": [
+        "4",
+        "24",
+        "48",
+        "5",
+        "6",
+        "5",
+        "100",
+        "100",
+        "100",
+        "7",
+        "100",
+        "10",
+        "7",
+        "5",
+        "10"
+      ],
+      "expectedHit": true,
+      "latencyMs": 3760,
+      "error": null
+    },
+    {
+      "id": "r19",
+      "query": "退货邮费谁出？",
+      "expectedDocIds": [
+        "return-shipping-faq"
+      ],
+      "intent": "rag",
+      "answer": "根据《Return Shipping FAQ》文档，退货邮费的承担方取决于退货原因：\n\n| 退货原因 | 谁承担退货运费 |\n|:--|:--|\n| 商品有缺陷/损坏 | JoyMini 承担 |\n| 发错商品 | JoyMini 承担 |\n| 商品与描述不符 | JoyMini 承担 |\n| 改变主意/不喜欢 | **您**承担 |\n| 下单尺码/颜色错误 | **您**承担 |\n| 不再需要该商品 | **您**承担 |\n\n另外，如果您因**我们的失误**（商品缺陷/发错货）已先行支付了退货运费，可以保留快递收据，在退货处理完成后联系客服，我们将通过**钱包余额（wallet credit）**报销运费。但如果是**改变主意**的退货，则运费需由您自行承担，不予报销。",
+      "sources": [
+        {
+          "chunkId": "cmwc1qq5q0043mj3db2mwlf8v",
+          "documentId": "cmwbxkc1y003rmj3ela7c8sx2",
+          "docId": "return-shipping-faq",
+          "title": "Return Shipping FAQ",
+          "domain": "order",
+          "score": 0.40749167,
+          "content": "## Who Pays for Return Shipping?\n\n| Reason for Return | Who Pays Return Shipping |\n|:------------------|:------------------------|\n| **Item defective / damaged** | JoyMini covers the cost |\n| **Wrong item sent** | JoyMini covers the cost |\n| **Item not as described** | JoyMini covers the cost |\n| **Changed mind / don't like it** | **You** pay return shipping |\n| **Ordered wrong size/color** | **You** pay return shipping |\n| **No longer need the item** | **You** pay return shipping |"
+        },
+        {
+          "chunkId": "cmwc1qq5q004dmj3dwu4yv1cp",
+          "documentId": "cmwbxkc1y003rmj3ela7c8sx2",
+          "docId": "return-shipping-faq",
+          "title": "Return Shipping FAQ",
+          "domain": "order",
+          "score": 0.06360237,
+          "content": "### \"I already paid for return shipping — can I get reimbursed?\"\n\nIf the return was due to **our error** (defective/wrong item), yes:\n1. Keep the **shipping receipt** from the courier.\n2. After the return is processed, contact support with the receipt.\n3. We will reimburse the shipping cost via **wallet credit**.\n\nIf the return was a **change of mind**, no — return shipping is your responsibility."
+        },
+        {
+          "chunkId": "cmwc1qq5q0042mj3dnk7q4j32",
+          "documentId": "cmwbxkc1y003rmj3ela7c8sx2",
+          "docId": "return-shipping-faq",
+          "title": "Return Shipping FAQ",
+          "domain": "order",
+          "score": 0.02829195,
+          "content": "# Return Shipping FAQ"
+        }
+      ],
+      "hasSources": true,
+      "cited": true,
+      "numericTotal": 0,
+      "numericUnsupported": [],
+      "expectedHit": true,
+      "latencyMs": 3370,
+      "error": null
+    },
+    {
+      "id": "r20",
+      "query": "运费怎么计算？",
+      "expectedDocIds": [
+        "shipping-policy"
+      ],
+      "intent": "rag",
+      "answer": "根据我们的 **Shipping Policy（运费政策）**，运费按订单金额和配送方式计算：\n\n**标准配送（Standard Shipping）**\n| 订单金额 | 运费 |\n|:--|:--|\n| 低于 ₱500 | ₱50 |\n| ₱500 – ₱999 | 免费 |\n| ₱1,000 及以上 | 免费 |\n\n**加急配送（Express Shipping）**\n| 订单金额 | 运费 |\n|:--|:--|\n| 低于 ₱500 | ₱120 |\n| ₱500 – ₱999 | ₱80 |\n| ₱1,000 及以上 | 免费 |\n\n**配送合作伙伴：**\n- **J&T Express** — 标准配送（全国）\n- **LBC** — 省级地区、偏远地区\n- **Ninja Van** — 大马尼拉地区加急配送\n- **2GO** — 巴拉望、米沙鄢、棉兰老岛偏远地区\n\n如果您使用 **货到付款（COD）**，还会根据订单金额额外收取 COD 手续费（₱20–₱100，详见 COD Payment Guide）。\n\n如需了解退货时的运费，请参考 Return Shipping FAQ：因改变主意退货时，标准小件商品约 ₱50–₱150，大件/重件约 ₱150–₱500，家具家电等大件约 ₱500–₱2,000。",
+      "sources": [
+        {
+          "chunkId": "cmwc1qqbn004omj3d6gsw2z4w",
+          "documentId": "cmwbxjhcx003amj3ewaat956s",
+          "docId": "shipping-policy",
+          "title": "Shipping Policy",
+          "domain": "order",
+          "score": 0.26890119,
+          "content": "## Shipping Fees\n\n| Order Amount | Standard Shipping | Express Shipping |\n|:------------|:-----------------|:-----------------|\n| Below ₱500 | ₱50 | ₱120 |\n| ₱500 - ₱999 | Free | ₱80 |\n| ₱1,000+ | Free | Free |\n\n## Shipping Partners\n\n- **J&T Express** — Standard delivery (nationwide)\n- **LBC** — Provincial areas, remote locations\n- **Ninja Van** — Metro Manila express delivery\n- **2GO** — Palawan, Visayas, Mindanao remote areas"
+        },
+        {
+          "chunkId": "cmwc1qq5q0046mj3d4rfo41ui",
+          "documentId": "cmwbxkc1y003rmj3ela7c8sx2",
+          "docId": "return-shipping-faq",
+          "title": "Return Shipping FAQ",
+          "domain": "order",
+          "score": 0.0368251,
+          "content": "### When You Pay Shipping\n\nIf the return is due to a change of mind:\n\n| Scenario | Estimated Cost |\n|:---------|:--------------|\n| Standard item (small/light) | ₱50 – ₱150 |\n| Large/heavy item | ₱150 – ₱500 |\n| Bulky item (furniture, appliances) | ₱500 – ₱2,000 (may require special pickup) |\n\nThe exact cost depends on:\n- **Item weight and dimensions**\n- **Your location** and the **seller's location**\n- **Shipping method** (standard or express)"
+        },
+        {
+          "chunkId": "cmwc1qpld003gmj3d441p4g0u",
+          "documentId": "cmwbxjw2w003hmj3ea5jcl8m0",
+          "docId": "cod-payment",
+          "title": "COD Payment Guide",
+          "domain": "order",
+          "score": -0.03951364,
+          "content": "## COD Fees\n\n| Order Amount | COD Fee |\n|:------------|:--------|\n| ₱100 — ₱500 | ₱20 |\n| ₱500 — ₱1,000 | ₱30 |\n| ₱1,000 — ₱3,000 | ₱50 |\n| ₱3,000 — ₱5,000 | ₱70 |\n| ₱5,000 — ₱10,000 | ₱100 |\n\nThe COD fee is added to your order total at checkout."
+        }
+      ],
+      "hasSources": true,
+      "cited": true,
+      "numericTotal": 20,
+      "numericUnsupported": [],
+      "expectedHit": true,
+      "latencyMs": 4013,
+      "error": null
+    }
+  ]
+}

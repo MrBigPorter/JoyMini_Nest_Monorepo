@@ -11,13 +11,24 @@ import {
   toolFailure,
   toolSuccess,
 } from '@api/client/ai-customer/graph/tools/tool-result';
+import {
+  MISSING_USER_CONTEXT,
+  requireToolUserId,
+} from '@api/client/ai-customer/graph/tools/tool-identity';
 import { toResultChain } from '@lucky/shared';
 
 /**
  * "纯函数" 工厂：创建优惠券查询/领取工具
  * @param couponService - 从 NestJS DI 注入的 ClientCouponService
  *
- * userId 由 LLM 通过 tool 参数自动传递（方案A）
+ * ── 身份边界（重要）──
+ * userId 不再由 LLM 通过 tool 参数传递，也不在启动时绑定。
+ * 工具是全局单例，每次调用从 AsyncLocalStorage 请求上下文读取
+ * "当前登录用户"；模型即使伪造 userId 参数，也查不到别人的数据。
+ *
+ * 为什么不能在工厂里传一个固定 ctx：
+ * 工具在应用启动时一次性注册，如果启动时绑定 userId，
+ * 所有并发用户会共用同一个身份。
  */
 export const createCouponTools = (
   couponService: ClientCouponService,
@@ -27,7 +38,6 @@ export const createCouponTools = (
   return [
     /**
      * 获取当前用户的优惠券列表
-     * @param userId - 当前用户 ID，由 LLM 自动传递
      * @param status - 优惠券状态：0=未使用, 1=已使用, 2=已过期
      * @param page - 分页页码，默认 1
      * @param pageSize - 分页大小，默认 10
@@ -35,17 +45,18 @@ export const createCouponTools = (
     {
       tool: tool(
         async ({
-          userId,
           status,
           page,
           pageSize,
         }: {
-          userId: string;
           status?: number;
           page?: number;
           pageSize?: number;
-        }) =>
-          toResultChain(
+        }) => {
+          const userId = requireToolUserId('getUserCoupons');
+          if (!userId) return toolFailure(MISSING_USER_CONTEXT);
+
+          return toResultChain(
             couponService.getMyCoupons(userId, {
               status,
               page: page ?? 1,
@@ -69,11 +80,11 @@ export const createCouponTools = (
             })
             .catch((err) =>
               toolFailure(`Failed to query coupons: ${err.message}`),
-            ),
+            );
+        },
         {
           name: 'getUserCoupons',
           schema: z.object({
-            userId: z.string().describe('The current user ID'),
             status: z
               .number()
               .optional()
@@ -92,15 +103,18 @@ export const createCouponTools = (
     },
     /**
      * 领取/申领一张优惠券
-     * @param userId - 当前用户 ID
      * @param couponId - 优惠券模板 ID
      */
     {
       tool: tool(
-        async ({ userId, couponId }: { userId: string; couponId: string }) => {
+        async ({ couponId }: { couponId: string }) => {
+          const userId = requireToolUserId('claimCoupon');
+          if (!userId) return toolFailure(MISSING_USER_CONTEXT);
+
           logger.log(
             `[coupon-tools:claimCoupon] userId="${userId}", couponId="${couponId}"`,
           );
+
           return toResultChain(couponService.claimCoupon(userId, couponId, 2))
             .then((result) =>
               toolSuccess({
@@ -116,7 +130,6 @@ export const createCouponTools = (
         {
           name: 'claimCoupon',
           schema: z.object({
-            userId: z.string().describe('The current user ID'),
             couponId: z.string().describe('The coupon template ID to claim'),
           }),
           description:
@@ -128,15 +141,19 @@ export const createCouponTools = (
     },
     /**
      * 兑换码兑换优惠券
-     * @param userId - 当前用户 ID
      * @param code - 兑换码
      */
     {
       tool: tool(
-        async ({ userId, code }: { userId: string; code: string }) => {
+        async ({ code }: { code: string }) => {
+          const userId = requireToolUserId('redeemCouponCode');
+          if (!userId) return toolFailure(MISSING_USER_CONTEXT);
+
+          // 兑换码是 bearer secret：日志只记长度，不落明文。
           logger.log(
-            `[coupon-tools:redeemCode] userId="${userId}", code="${code}"`,
+            `[coupon-tools:redeemCode] userId="${userId}", codeLength=${code.length}`,
           );
+
           return toResultChain(couponService.redeemCode(userId, code))
             .then(() =>
               toolSuccess({
@@ -151,7 +168,6 @@ export const createCouponTools = (
         {
           name: 'redeemCouponCode',
           schema: z.object({
-            userId: z.string().describe('The current user ID'),
             code: z.string().describe('The redeem/coupon code to redeem'),
           }),
           description:
@@ -163,12 +179,14 @@ export const createCouponTools = (
     },
     /**
      * 获取可领取的优惠券列表（领券中心）
-     * @param userId - 当前用户 ID
      */
     {
       tool: tool(
-        async ({ userId }: { userId: string }) =>
-          toResultChain(couponService.getClaimableCoupons(userId))
+        async () => {
+          const userId = requireToolUserId('getClaimableCoupons');
+          if (!userId) return toolFailure(MISSING_USER_CONTEXT);
+
+          return toResultChain(couponService.getClaimableCoupons(userId))
             .then((result) => {
               const llmList = (result ?? []).map((item: any) =>
                 toLLM(
@@ -183,15 +201,12 @@ export const createCouponTools = (
               });
             })
             .catch((err) =>
-              toolFailure(
-                `Failed to get claimable coupons: ${err.message}`,
-              ),
-            ),
+              toolFailure(`Failed to get claimable coupons: ${err.message}`),
+            );
+        },
         {
           name: 'getClaimableCoupons',
-          schema: z.object({
-            userId: z.string().describe('The current user ID'),
-          }),
+          schema: z.object({}),
           description:
             'Get the list of coupons available for claiming (coupon center). Only active coupons (status=1) are shown.',
         },

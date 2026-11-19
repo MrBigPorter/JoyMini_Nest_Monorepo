@@ -37,8 +37,8 @@
  * 1. 把顾客的话转成「语义指纹」（embedding 向量）
  * 2. 拿这个指纹去手册里比对（pgvector 余弦相似度）
  * 3. 找到最匹配的场景（相似度最高的 domain）
- * 4. 如果匹配度 > 0.5，直接领到对应区域
- * 5. 如果匹配度 < 0.5，交给经理（LLM）处理
+ * 4. 如果匹配度达到 INTENT_ACCEPT_SCORE（默认 0.7），直接领到对应区域
+ * 5. 如果匹配度低于该门槛，交给经理（LLM）处理
  *
  * 【为什么 "退款政策" 会匹配到 order？】
  * 因为 order 手册里也写了 "What is the return policy?"，
@@ -55,7 +55,7 @@
  *
  * -- 流程 --
  * 1. classify() 把用户输入转成向量，用 pgvector <=> 找最匹配的 domain
- *    如果匹配度 > 0.5 直接返回 domain，否则降级到 LLM
+ *    如果匹配度达到 INTENT_ACCEPT_SCORE（默认 0.7）直接返回 domain，否则降级到 LLM
  * 2. 无论何种结果，fire-and-forget 日志记录
  *
  * -- 管理后台修改流程 --
@@ -69,6 +69,10 @@ import { PrismaService } from '@api/common/prisma/prisma.service';
 import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service';
 import { Logger } from '@nestjs/common';
 import { deduplicateLabels } from '@api/client/ai-customer/graph/agents/prompts/intent-label-categories';
+import {
+  INTENT_ACCEPT_SCORE,
+  meetsAcceptThreshold,
+} from '@api/client/ai-customer/graph/config/intent-thresholds';
 import { createLLM, LlmProviderConfig } from '../llm-factory';
 
 const logger = new Logger('IntentClassifier');
@@ -120,9 +124,6 @@ export interface ClassificationResult {
  * 详见 OllamaProvider 的注释。
  */
 export class IntentClassifier {
-  /** 低置信度阈值：低于此值时使用 LLM fallback */
-  private readonly LOW_CONFIDENCE_THRESHOLD = 0.7;
-
   /** BM25 和 pgvector 独立评分，不融合（不同域名的分数不可比） */
 
   constructor(
@@ -156,8 +157,8 @@ export class IntentClassifier {
    *
    * 第3步：去重 + 阈值过滤
    *   同一个 domain 可能有多个例句匹配，取最高分。
-   *   去掉低于 0.5 的（太低的不确定）。
-   *   如果所有 domain 都低于 0.5，找经理（LLM fallback）。
+   *   去掉低于 INTENT_ACCEPT_SCORE（默认 0.7）的（太低的不确定）。
+   *   如果所有 domain 都低于该门槛，找经理（LLM fallback）。
    *
    * 【为什么 "退款政策" 会同时匹配 order 和 rag？】
    * 因为 order 手册和 rag 手册里都有 "What is the return policy?"
@@ -312,9 +313,9 @@ export class IntentClassifier {
     const domainMap = new Map<string, number>();
     for (const row of rows) {
       logger.log(
-        `[IntentClassifier] row: domain="${row.domain}", similarity=${row.similarity.toFixed(4)}, threshold=${this.LOW_CONFIDENCE_THRESHOLD}, passes=${row.similarity >= this.LOW_CONFIDENCE_THRESHOLD}`,
+        `[IntentClassifier] row: domain="${row.domain}", similarity=${row.similarity.toFixed(4)}, threshold=${INTENT_ACCEPT_SCORE}, passes=${meetsAcceptThreshold(row.similarity)}`,
       );
-      if (row.similarity >= this.LOW_CONFIDENCE_THRESHOLD) {
+      if (meetsAcceptThreshold(row.similarity)) {
         const existing = domainMap.get(row.domain) ?? 0;
         if (row.similarity > existing) {
           domainMap.set(row.domain, row.similarity);
@@ -352,7 +353,7 @@ export class IntentClassifier {
             `[IntentClassifier] both sources matched ${domain}: ` +
               `vector=${vectorScore.toFixed(4)} ×0.7 + bm25=${bm25Score.toFixed(4)} ×0.3 = ${combined.toFixed(4)}`,
           );
-        } else if (bm25Score >= this.LOW_CONFIDENCE_THRESHOLD) {
+        } else if (meetsAcceptThreshold(bm25Score)) {
           // 只有 BM25 → 打折加入
           const score = Math.round(bm25Score * BM25_WEIGHT * 10000) / 10000;
           domainMap.set(domain, score);
@@ -377,11 +378,19 @@ export class IntentClassifier {
     const labels = deduplicateLabels(sortedLabels);
 
     // 如果没有域通过阈值 -> LLM fallback
-    // 🏪 类比：所有场景的匹配度都太低（< 0.5），
+    // 🏪 类比：所有场景的匹配度都低于接纳门槛，
     // 领位员拿不准，找经理（LLM）来处理
     if (labels.length === 0) {
-      logger.log(
-        `[IntentClassifier] all domains below threshold (${rows[0].similarity.toFixed(2)} < ${this.LOW_CONFIDENCE_THRESHOLD}), using LLM fallback`,
+      // 明确记录降级：分数、阈值、最终去向，避免"无痕变闲聊"。
+      // 不落用户原文（#89 FR-7 / AC-6）。
+      const topSimilarity = rows[0]?.similarity ?? 0;
+      logger.warn(
+        `[IntentClassifier] intent fallback: ${JSON.stringify({
+          reason: 'below_accept_threshold',
+          topScore: Number(topSimilarity.toFixed(4)),
+          threshold: INTENT_ACCEPT_SCORE,
+          destination: 'llm_fallback',
+        })}`,
       );
       const result: ClassificationResult = {
         intent: 'general',

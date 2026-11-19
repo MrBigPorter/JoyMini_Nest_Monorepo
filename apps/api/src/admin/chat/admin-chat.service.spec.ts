@@ -27,6 +27,7 @@ function createService(claimResult: any) {
     {} as any,
     {} as any,
     supportHandler as any,
+    { emit: jest.fn() } as any,
   );
   return { service, prisma, supportHandler };
 }
@@ -52,9 +53,9 @@ describe('AdminChatService.claimConversation 认领结果翻译（T2-5）', () =
   it('conflict → 409（会话存在，但已被别人接走）', async () => {
     const { service } = createService({ status: 'conflict' });
 
-    await expect(service.claimConversation('conv-1', 'admin-2')).rejects.toThrow(
-      ConflictException,
-    );
+    await expect(
+      service.claimConversation('conv-1', 'admin-2'),
+    ).rejects.toThrow(ConflictException);
   });
 
   it('not_found → 404（会话不存在，不该让前端以为是"被抢了"）', async () => {
@@ -116,6 +117,7 @@ function createListService(rows: any[] = []) {
     {} as any,
     {} as any,
     {} as any,
+    { emit: jest.fn() } as any,
   );
   return { service, prisma };
 }
@@ -125,7 +127,8 @@ function whereOf(prisma: any) {
   return prisma.conversation.findMany.mock.calls[0][0].where;
 }
 
-describe('AdminChatService.getConversations 队列筛选（T2-5 / S2-A）', () => {  it('queue=awaiting → handlerId = awaiting_human，并且只查未关闭的', async () => {
+describe('AdminChatService.getConversations 队列筛选（T2-5 / S2-A）', () => {
+  it('queue=awaiting → handlerId = awaiting_human，并且只查未关闭的', async () => {
     const { service, prisma } = createListService();
 
     await service.getConversations({ queue: 'awaiting' } as any, 'admin-1');
@@ -163,20 +166,25 @@ describe('AdminChatService.getConversations 队列筛选（T2-5 / S2-A）', () =
     expect(whereOf(prisma)).not.toHaveProperty('handlerId');
   });
 
-  it('queue=awaiting → 按 handlerAssignedAt 升序（等最久的排最前）', async () => {
+  it('queue=awaiting → 按 transferredAt 升序（等最久的排最前）', async () => {
     const { service, prisma } = createListService();
 
     await service.getConversations({ queue: 'awaiting' } as any, 'admin-1');
 
+    // 不能用 handlerAssignedAt：它会被用户每发一条消息刷新，
+    // 按它排序等于"刚催过的用户排到最后"。nulls last 让老数据垫底而不是抢占队首。
     expect(prisma.conversation.findMany.mock.calls[0][0].orderBy).toEqual({
-      handlerAssignedAt: 'asc',
+      transferredAt: { sort: 'asc', nulls: 'last' },
     });
   });
 
   it('waitingSeconds 是数字（从 transferredAt 算），不是函数', async () => {
     const { service } = createListService([CONV_ROW]);
 
-    const res = await service.getConversations({ queue: 'awaiting' } as any, 'admin-1');
+    const res = await service.getConversations(
+      { queue: 'awaiting' } as any,
+      'admin-1',
+    );
 
     // 写成 () => number 时 Jest 也会显示 "not a function"，而 JSON 里字段会整个消失
     expect(typeof res.list[0].waitingSeconds).toBe('number');
@@ -185,10 +193,18 @@ describe('AdminChatService.getConversations 队列筛选（T2-5 / S2-A）', () =
 
   it('没有排队时间（AI 会话）→ waitingSeconds 是 null，不是 0', async () => {
     const { service } = createListService([
-      { ...CONV_ROW, handlerId: null, transferredAt: null, handlerAssignedAt: null },
+      {
+        ...CONV_ROW,
+        handlerId: null,
+        transferredAt: null,
+        handlerAssignedAt: null,
+      },
     ]);
 
-    const res = await service.getConversations({ queue: 'ai' } as any, 'admin-1');
+    const res = await service.getConversations(
+      { queue: 'ai' } as any,
+      'admin-1',
+    );
 
     // null = 没在排队；0 = 刚排队。两者不能混
     expect(res.list[0].waitingSeconds).toBeNull();
@@ -223,7 +239,9 @@ function createReplyService(opts: {
     conversation: {
       findUnique: jest
         .fn()
-        .mockResolvedValue(opts.convExists === false ? null : convRow(opts.handlerId)),
+        .mockResolvedValue(
+          opts.convExists === false ? null : convRow(opts.handlerId),
+        ),
       updateMany: jest.fn().mockResolvedValue({ count: opts.takeCount ?? 1 }),
     },
   };
@@ -248,6 +266,7 @@ function createReplyService(opts: {
     {} as any,
     chatService as any,
     supportHandler as any,
+    { emit: jest.fn() } as any,
   );
   return { service, prisma, chatService, supportHandler };
 }
@@ -261,7 +280,12 @@ describe('AdminChatService.replyToConversation 回复即接管（T2-5 / S2-B）'
       claimStatus: 'claimed',
     });
 
-    const res = await service.replyToConversation('conv-1', REPLY_DTO, '客服A', 'admin-1');
+    const res = await service.replyToConversation(
+      'conv-1',
+      REPLY_DTO,
+      '客服A',
+      'admin-1',
+    );
 
     expect(chatService.sendMessage).toHaveBeenCalledTimes(1);
     expect(res.claimedNow).toBe(true);
@@ -284,36 +308,66 @@ describe('AdminChatService.replyToConversation 回复即接管（T2-5 / S2-B）'
   });
 
   it('AI 处理中 → 接管成功，claimedNow=true', async () => {
-    const { service, prisma } = createReplyService({ handlerId: null, takeCount: 1 });
+    const { service, prisma } = createReplyService({
+      handlerId: null,
+      takeCount: 1,
+    });
 
-    const res = await service.replyToConversation('conv-1', REPLY_DTO, '客服A', 'admin-1');
+    const res = await service.replyToConversation(
+      'conv-1',
+      REPLY_DTO,
+      '客服A',
+      'admin-1',
+    );
 
     // 条件更新必须只认 handlerId 仍为 null 的那一行
     expect(prisma.conversation.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.objectContaining({ handlerId: null }) }),
+      expect.objectContaining({
+        where: expect.objectContaining({ handlerId: null }),
+      }),
     );
     expect(res.claimedNow).toBe(true);
   });
 
   it('AI 处理中但被同事抢先 → 消息照发，claimedNow=false（帮答）', async () => {
-    const { service, chatService } = createReplyService({ handlerId: null, takeCount: 0 });
+    const { service, chatService } = createReplyService({
+      handlerId: null,
+      takeCount: 0,
+    });
 
-    const res = await service.replyToConversation('conv-1', REPLY_DTO, '客服B', 'admin-2');
+    const res = await service.replyToConversation(
+      'conv-1',
+      REPLY_DTO,
+      '客服B',
+      'admin-2',
+    );
 
     expect(chatService.sendMessage).toHaveBeenCalledTimes(1);
     expect(res.claimedNow).toBe(false);
   });
 
   it('别人名下的会话 → 照发，归属不变', async () => {
-    const { service, chatService, supportHandler, prisma } = createReplyService({
-      handlerId: 'admin-A',
-    });
+    const { service, chatService, supportHandler, prisma } = createReplyService(
+      {
+        handlerId: 'admin-A',
+      },
+    );
 
-    const res = await service.replyToConversation('conv-1', REPLY_DTO, '客服B', 'admin-B');
+    const res = await service.replyToConversation(
+      'conv-1',
+      REPLY_DTO,
+      '客服B',
+      'admin-B',
+    );
 
     expect(chatService.sendMessage).toHaveBeenCalledTimes(1);
     expect(supportHandler.claim).not.toHaveBeenCalled();
-    expect(prisma.conversation.updateMany).not.toHaveBeenCalled();
+    // 只断言"没改归属"，不断言"没写任何东西"——S2-C 之后还会写 firstResponseAt
+    expect(prisma.conversation.updateMany).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ handlerId: 'admin-B' }),
+      }),
+    );
     expect(res.claimedNow).toBe(false);
     expect(res.handlerId).toBe('admin-A');
   });
@@ -325,8 +379,54 @@ describe('AdminChatService.replyToConversation 回复即接管（T2-5 / S2-B）'
     });
 
     await expect(
-      service.replyToConversation('conv-missing', REPLY_DTO, '客服A', 'admin-1'),
+      service.replyToConversation(
+        'conv-missing',
+        REPLY_DTO,
+        '客服A',
+        'admin-1',
+      ),
     ).rejects.toThrow(NotFoundException);
     expect(chatService.sendMessage).not.toHaveBeenCalled();
+  });
+
+  // ── S2-C：首次回复时间 ──────────────────────────────────────────
+
+  it('回复成功 → 用 where firstResponseAt=null 写首次回复时间（只写一次）', async () => {
+    const { service, prisma } = createReplyService({ handlerId: 'admin-A' });
+
+    await service.replyToConversation('conv-1', REPLY_DTO, '客服A', 'admin-1');
+
+    // update 会覆盖；updateMany + where null 才能保证"首次"永远是首次
+    expect(prisma.conversation.updateMany).toHaveBeenCalledWith({
+      where: { id: 'conv-1', firstResponseAt: null },
+      data: { firstResponseAt: expect.any(Date) },
+    });
+  });
+
+  it('顺序探针：先发消息、后记时间（否则记录的是"没发出去"的时刻）', async () => {
+    const { service, prisma, chatService } = createReplyService({
+      handlerId: 'admin-A',
+    });
+
+    await service.replyToConversation('conv-1', REPLY_DTO, '客服A', 'admin-1');
+
+    const sendOrder = chatService.sendMessage.mock.invocationCallOrder[0];
+    // 别人名下的会话只会产生一次 updateMany，就是记时间的那次
+    const recordOrder =
+      prisma.conversation.updateMany.mock.invocationCallOrder[0];
+    expect(recordOrder).toBeGreaterThan(sendOrder);
+  });
+
+  it('409 撞车路径 → 不写首次回复时间（消息本来就没发）', async () => {
+    const { service, prisma } = createReplyService({
+      handlerId: AWAITING_HUMAN,
+      claimStatus: 'conflict',
+    });
+
+    await expect(
+      service.replyToConversation('conv-1', REPLY_DTO, '客服B', 'admin-2'),
+    ).rejects.toThrow(ConflictException);
+
+    expect(prisma.conversation.updateMany).not.toHaveBeenCalled();
   });
 });

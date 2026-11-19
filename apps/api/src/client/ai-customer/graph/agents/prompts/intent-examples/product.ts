@@ -60,4 +60,16 @@ export const productExamples: string[] = [
   // ── Stock (operation: real-time availability) ──
   'Is this item in stock?',
   'Check availability for product 123',
+
+  // ── 中文补充（2026-11-19：提升中文召回） ──
+  '商品规格',
+  '商品库存',
+  '商品价格',
+  '商品详情',
+  '有没有现货',
+  '补货时间',
+  '商品尺寸',
+  '商品参数',
+  '这款有货吗',
+  '商品上下架',
 ];

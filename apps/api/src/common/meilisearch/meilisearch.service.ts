@@ -212,6 +212,9 @@ export class MeilisearchService implements OnModuleInit {
         'keywords',
         'locale',
         'isActive',
+        // 版本切换：检索固定过滤 isActiveVersion = true；documentVersion 用于清理旧版本
+        'documentVersion',
+        'isActiveVersion',
       ]);
 
       // ── 第四步：配置排序字段（sortableAttributes）──
@@ -333,7 +336,9 @@ export class MeilisearchService implements OnModuleInit {
 
       // 构建过滤条件
       // 相当于 SQL 的 WHERE 子句
-      const filterParts: string[] = ['isActive = true'];
+      // isActiveVersion 是版本切换的开关：新版本 chunk 入库时是 false，
+      // 过门切换时才翻成 true。检索只认 true 的那一版。
+      const filterParts: string[] = ['isActiveVersion = true'];
       if (domain) {
         filterParts.push(`domain = "${domain}"`);
       }
@@ -433,11 +438,18 @@ export class MeilisearchService implements OnModuleInit {
     try {
       const index = this.client.index('intent_examples');
 
-      // 删除该 domain 的旧索引数据
+      // 删除该 domain 的旧索引数据。
+      //
+      // 不能用 `deleteDocuments({ filter: 'domain = ...' })`：
+      // 需要先把 domain 配成 filterable attribute，否则会抛错并被下面的
+      // catch 静默吞掉 —— 旧文档留在索引里，BM25 会继续命中已删除的句子。
+      // 文档 id 是 `${domain}_${index}`，直接按 id 批量删除最稳。
+      // 上限 200 与 UpdateIntentExamplesDto 的 ArrayMaxSize 对齐。
+      const staleIds = Array.from({ length: 200 }, (_, i) => `${domain}_${i}`);
       try {
-        await index.deleteDocuments({ filter: `domain = "${domain}"` });
+        await index.deleteDocuments(staleIds);
       } catch {
-        // 索引为空或 domain 不存在时忽略
+        // 索引为空时忽略
       }
 
       // 写入新数据
@@ -505,15 +517,28 @@ export class MeilisearchService implements OnModuleInit {
     contentType: string;
     locale: string;
     isActive: boolean;
+    /** 该 chunk 来自文档的哪个版本（用于清理旧版本） */
+    documentVersion?: number;
+    /**
+     * 是否为当前对外版本。检索固定过滤 isActiveVersion = true。
+     * 缺省 true：老调用点在引入版本切换前保持原行为。
+     */
+    isActiveVersion?: boolean;
   }): Promise<void> {
-    // Meilisearch 连不上 → 跳过，不影响主流程
-    if (!this.client) return;
+    // Meilisearch 连不上 → 必须抛。静默返回会让调用方 successCount++、
+    // 文档被标 indexed，而 Meili 里根本没有这条内容，门就撒谎了。
+    if (!this.client) {
+      this.logger.error(
+        `[indexChunk] Meilisearch client unavailable; chunk ${data.chunkId} not indexed`,
+      );
+      throw new Error('Meilisearch client unavailable');
+    }
 
     try {
       const index = this.client.index(this.indexName);
       // Meilisearch 强制要求每个文档有个 id 字段作为主键
       // 我们用 chunkId 作为 id
-      await index.addDocuments([
+      const task = await index.addDocuments([
         {
           id: data.chunkId,
           chunkId: data.chunkId,
@@ -528,13 +553,24 @@ export class MeilisearchService implements OnModuleInit {
           contentType: data.contentType,
           locale: data.locale,
           isActive: data.isActive,
+          documentVersion: data.documentVersion ?? 1,
+          isActiveVersion: data.isActiveVersion ?? true,
         },
       ]);
+
+      // addDocuments 只是把任务提交进队列，Meilisearch 异步建索引。
+      // 不等它完成就返回，等于"提交成功 ≠ 能搜到"——上层会把状态标成 indexed，
+      // 而这条内容其实还搜不出来。必须等到任务真正结束。
+      // 注意：等待任务在 client.tasks 上（meilisearch@0.59 的 Index 上没有这个方法）
+      await this.client.tasks.waitForTask(task.taskUid);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
-      this.logger.warn(
+      this.logger.error(
         `[indexChunk] Failed to index chunk ${data.chunkId}: ${message}`,
       );
+      // 必须抛：吞掉会让 chunk 记成 successCount++，文档被标 indexed，
+      // 但 Meili 里没有这条内容——状态与实际不一致。
+      throw error;
     }
   }
 
@@ -555,6 +591,107 @@ export class MeilisearchService implements OnModuleInit {
       const message = error instanceof Error ? error.message : 'Unknown error';
       this.logger.warn(
         `[deleteChunk] Failed to delete chunk ${chunkId}: ${message}`,
+      );
+    }
+  }
+
+  /**
+   * 删除一篇文档在 Meilisearch 里的全部 chunk
+   *
+   * 为什么需要它（缺陷 B）:
+   *   更新文档时 PG 会删掉旧 chunk、再建新 chunk（新 id）。
+   *   如果 Meili 不同步删除，旧版本的条目会永久留着——BM25 层照样能命中旧内容，
+   *   而向量层已经换成新版，两层结论互相矛盾。
+   *   按 documentId 过滤一次删完，不依赖「PG 里还查不查得到旧 chunk id」。
+   *
+   * 与 deleteChunk 的区别:
+   *   deleteChunk            → 已知 chunk id，删一条
+   *   deleteChunksByDocument → 不知道 chunk id，按文档一次删完
+   *
+   * 注意: 这里失败必须抛。孤儿条目是这条路径存在的唯一理由，
+   *       静默跳过等于回到修复前的状态。
+   */
+  async deleteChunksByDocument(documentId: string): Promise<void> {
+    if (!this.client) {
+      this.logger.error(
+        `[deleteChunksByDocument] Meilisearch client unavailable; ` +
+          `orphan chunks may remain for document ${documentId}`,
+      );
+      return;
+    }
+
+    try {
+      const index = this.client.index(this.indexName);
+      await index.deleteDocuments({ filter: `documentId = "${documentId}"` });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(
+        `[deleteChunksByDocument] Failed to delete chunks of ${documentId}: ${message}`,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * 翻转一批 chunk 的「是否当前对外版本」标记
+   *
+   * 知识库切换版本时调用：目标版本 → true，其余 → false。
+   * 用 updateDocuments 只更新 isActiveVersion 一个字段，正文不动。
+   *
+   * 为什么不用 filter 批量更新？
+   *   Meilisearch 没有「按过滤条件批量更新字段」的 API，只能给 id 列表。
+   */
+  async setChunkActiveFlags(
+    flags: Array<{ chunkId: string; isActiveVersion: boolean }>,
+  ): Promise<void> {
+    if (!this.client) {
+      this.logger.error(
+        '[setChunkActiveFlags] Meilisearch client unavailable; version flags not switched',
+      );
+      // 必须抛：标记没翻成功却继续写 PG，会造成「库说新版、搜索还是旧版」
+      throw new Error('Meilisearch client unavailable');
+    }
+    if (flags.length === 0) return;
+
+    try {
+      const index = this.client.index(this.indexName);
+      const task = await index.updateDocuments(
+        flags.map((f) => ({
+          id: f.chunkId,
+          isActiveVersion: f.isActiveVersion,
+        })),
+      );
+      await this.client.tasks.waitForTask(task.taskUid);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`[setChunkActiveFlags] Failed: ${message}`);
+      // 必须抛：翻标记失败却继续写 PG，会造成「库说新版、搜索还是旧版」
+      throw error;
+    }
+  }
+
+  /**
+   * 删除一篇文档里低于指定版本的 chunk 索引
+   *
+   * 保留期结束后由 KbVersionService 调用。必须与 PG 侧的删除成对执行——
+   * 只删一侧的话，回滚后那一侧就是空的。
+   */
+  async deleteChunkVersionsBelow(
+    documentId: string,
+    version: number,
+  ): Promise<void> {
+    if (!this.client) return;
+
+    try {
+      const index = this.client.index(this.indexName);
+      const task = await index.deleteDocuments({
+        filter: `documentId = "${documentId}" AND documentVersion < ${version}`,
+      });
+      await this.client.tasks.waitForTask(task.taskUid);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.warn(
+        `[deleteChunkVersionsBelow] Failed for ${documentId} < v${version}: ${message}`,
       );
     }
   }
@@ -584,6 +721,8 @@ export class MeilisearchService implements OnModuleInit {
       contentType: string;
       locale: string;
       isActive: boolean;
+      documentVersion?: number;
+      isActiveVersion?: boolean;
     }>,
   ): Promise<void> {
     if (!this.client || chunks.length === 0) return;
@@ -604,6 +743,8 @@ export class MeilisearchService implements OnModuleInit {
         contentType: chunk.contentType,
         locale: chunk.locale,
         isActive: chunk.isActive,
+        documentVersion: chunk.documentVersion ?? 1,
+        isActiveVersion: chunk.isActiveVersion ?? true,
       }));
 
       const response = await index.addDocuments(documents);

@@ -40,4 +40,16 @@ export const luckyDrawExamples: string[] = [
 
   // ── Rules / issues (operation: needs user's ticket data) ──
   'My ticket is not showing',
+
+  // ── 中文补充（2026-11-19：提升中文召回） ──
+  '抽奖次数',
+  '中奖记录',
+  '奖品领取',
+  '抽奖入口',
+  '转盘活动',
+  '开奖结果',
+  '抽奖机会',
+  '活动奖品',
+  '幸运抽奖',
+  '抽奖转盘',
 ];

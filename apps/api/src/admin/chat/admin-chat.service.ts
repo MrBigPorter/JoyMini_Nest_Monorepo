@@ -9,6 +9,11 @@ import { PrismaService } from '@api/common/prisma/prisma.service';
 import { UploadService } from '@api/common/upload/upload.service';
 import { EventsGateway } from '@api/common/events/events.gateway';
 import { ChatService } from '@api/common/chat/chat.service';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import {
+  CHAT_EVENTS,
+  SupportQueueChangedEvent,
+} from '@api/common/chat/events/chat.events';
 import { v4 as uuidv4 } from 'uuid';
 import { QueryConversationsDto } from './dto/query-conversations.dto';
 import {
@@ -40,7 +45,23 @@ export class AdminChatService {
     private readonly eventsGateway: EventsGateway,
     private readonly chatService: ChatService,
     private readonly supportHandlerService: SupportHandlerService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
+
+  /**
+   * 广播队列变化：交给 SocketListener 扇出给所有在线客服。
+   * 这里不直接遍历 admin，避免业务层关心「谁在线」。
+   */
+  private notifyQueueChanged(
+    conversationId: string,
+    reason: string,
+    handlerId: string | null,
+  ): void {
+    this.eventEmitter.emit(
+      CHAT_EVENTS.SUPPORT_QUEUE_CHANGED,
+      new SupportQueueChangedEvent(conversationId, reason, handlerId),
+    );
+  }
 
   // ─────────────────────────────────────────────
   // 1. 会话列表
@@ -86,7 +107,9 @@ export class AdminChatService {
     // 其他视图：最近有消息的排最前
     const orderBy: Prisma.ConversationOrderByWithRelationInput =
       queue === 'awaiting'
-        ? { handlerAssignedAt: 'asc' }
+        ? // 排队先后看 transferredAt（转人工那一刻），不是 handlerAssignedAt ——
+          // 后者会被用户每发一条消息刷新，等于按"最后活跃时间"排队
+          { transferredAt: { sort: 'asc', nulls: 'last' } }
         : { lastMsgTime: 'desc' };
     const [total, list] = await Promise.all([
       this.prisma.conversation.count({ where }),
@@ -161,6 +184,8 @@ export class AdminChatService {
         'Conversation has already been claimed by another agent',
       );
     }
+
+    this.notifyQueueChanged(conversationId, 'claimed', result.handlerId);
 
     return { success: true, conversationId, handlerId: result.handlerId };
   }
@@ -290,9 +315,22 @@ export class AdminChatService {
       },
     });
 
+    // 首次人工回复时间：只写一次。
+    // 用 updateMany + where null 而不是 update —— 帮答场景下两个人几乎同时回复，
+    // 第二次不能把"首次"冲成"最后一次"。
+    await this.prisma.conversation.updateMany({
+      where: { id: conversationId, firstResponseAt: null },
+      data: { firstResponseAt: new Date() },
+    });
+
     this.logger.log(
       `Admin [${adminName}] replied to conversation ${conversationId} via bot ${botMember.userId} (type=${msgType})`,
     );
+
+    // 抢到归属 → 其他客服的待接入列表要立即移除这条
+    if (claimedNow) {
+      this.notifyQueueChanged(conversationId, 'claimed', adminId);
+    }
 
     return {
       id: message.id,
@@ -391,6 +429,9 @@ export class AdminChatService {
       `Admin [${adminName}] closed conversation ${conversationId}`,
     );
 
+    // 关闭 = 离开队列 / 离开「我的」，两种情况都要让客服列表立刻更新
+    this.notifyQueueChanged(conversationId, 'closed', null);
+
     // 🔔 推送关闭系统消息到会话房间
     this.eventsGateway.dispatch(conversationId, 'chat_message', {
       id: messageId,
@@ -417,10 +458,15 @@ export class AdminChatService {
         ? {
             handlerId: null as string | null,
             handlerAssignedAt: null as Date | null,
+            // 切回 AI = 本轮转人工结束，清掉排队起点
+            transferredAt: null as Date | null,
           }
         : {
             handlerId: 'awaiting_human' as string | null,
             handlerAssignedAt: new Date(),
+            // 手工切人工也是"排队"，同样要写排队起点，否则它在待接入列表里没有排序依据
+            transferredAt: new Date(),
+            transferReason: 'manual_switch',
           };
 
     await this.prisma.conversation.update({
@@ -431,6 +477,13 @@ export class AdminChatService {
     this.logger.log(
       `[Admin] Switched conversation ${conversationId} to ${mode} mode`,
     );
+
+    this.notifyQueueChanged(
+      conversationId,
+      mode === 'human' ? 'manual_switch' : 'released',
+      mode === 'human' ? 'awaiting_human' : null,
+    );
+
     return { success: true, mode };
   }
 

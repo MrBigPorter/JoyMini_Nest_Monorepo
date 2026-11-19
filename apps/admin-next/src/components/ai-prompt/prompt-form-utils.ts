@@ -27,8 +27,8 @@ export interface FormState {
   examples: string;
 
   // Tool selector (replaces manual text input)
-  selectedTools: string[];       // tool names selected via checkbox
-  availableTools: string;        // legacy field — kept for backward compat
+  selectedTools: string[]; // tool names selected via checkbox
+  availableTools: string; // legacy field — kept for backward compat
 
   // Technical fixed fields (hidden)
   flowContext: boolean;
@@ -36,8 +36,8 @@ export interface FormState {
   flowStatus: string;
 
   // Template metadata
-  templateDomain: string;        // which domain template is loaded
-  isTemplateLoaded: boolean;     // whether template was loaded
+  templateDomain: string; // which domain template is loaded
+  isTemplateLoaded: boolean; // whether template was loaded
 }
 
 /**
@@ -91,8 +91,10 @@ export function configToForm(config: Record<string, unknown>): FormState {
     flowContext: !!config.flowContext,
     flowType: (config.flowType as string) ?? '',
     flowStatus: (config.flowStatus as string) ?? '',
-    extraSections: parseExtraSections(config.extraSections as string[] | undefined),
-    templateDomain: (config.templateDomain as string) ?? (scope?.domain ?? ''),
+    extraSections: parseExtraSections(
+      config.extraSections as string[] | undefined,
+    ),
+    templateDomain: (config.templateDomain as string) ?? scope?.domain ?? '',
     isTemplateLoaded: false,
   };
 }

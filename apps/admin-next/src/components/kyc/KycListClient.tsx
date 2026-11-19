@@ -176,29 +176,30 @@ export const KycList: React.FC<KycListProps> = ({
 
   // --- Configs ---
   const statusConfig = useMemo(
-    () => ({
-      [KYC_STATUS.DRAFT]: { label: t('kyc_statusDraft'), color: 'secondary' },
-      [KYC_STATUS.REVIEWING]: {
-        label: t('kyc_statusReviewing'),
-        color: 'primary',
-      },
-      [KYC_STATUS.APPROVED]: {
-        label: t('kyc_statusApproved'),
-        color: 'success',
-      },
-      [KYC_STATUS.REJECTED]: {
-        label: t('kyc_statusRejected'),
-        color: 'danger',
-      },
-      [KYC_STATUS.NEED_MORE]: {
-        label: t('kyc_statusNeedMore'),
-        color: 'warning',
-      },
-      [KYC_STATUS.AUTO_REJECTED]: {
-        label: t('kyc_statusAutoRejected'),
-        color: 'danger',
-      },
-    }),
+    () =>
+      ({
+        [KYC_STATUS.DRAFT]: { label: t('kyc_statusDraft'), color: 'secondary' },
+        [KYC_STATUS.REVIEWING]: {
+          label: t('kyc_statusReviewing'),
+          color: 'primary',
+        },
+        [KYC_STATUS.APPROVED]: {
+          label: t('kyc_statusApproved'),
+          color: 'success',
+        },
+        [KYC_STATUS.REJECTED]: {
+          label: t('kyc_statusRejected'),
+          color: 'danger',
+        },
+        [KYC_STATUS.NEED_MORE]: {
+          label: t('kyc_statusNeedMore'),
+          color: 'warning',
+        },
+        [KYC_STATUS.AUTO_REJECTED]: {
+          label: t('kyc_statusAutoRejected'),
+          color: 'danger',
+        },
+      }) as Record<number, { label: string; color: string }>,
     [t],
   );
 

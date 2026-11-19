@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { useRequest } from 'ahooks';
+import { useMutation } from '@tanstack/react-query';
 import { Button, ModalManager } from '@repo/ui';
 import { financeApi } from '@/api';
 import { revalidateFinanceAfterWithdrawAudit } from '@/lib/actions/finance-revalidate';
+import { useToastStore } from '@/store/useToastStore';
 import {
   User,
   CreditCard,
@@ -40,10 +41,33 @@ export const WithdrawAuditModal: React.FC<Props> = ({
 }) => {
   const [remark, setRemark] = useState('');
   const { copy } = useCopyToClipboard();
+  const addToast = useToastStore((state) => state.addToast);
 
-  const { runAsync, loading } = useRequest(financeApi.withdrawalsAudit, {
-    manual: true,
+  // 资金操作保守策略：不做乐观更新（design D2 / spec 资金类例外）。
+  // 提交后保持处理中态；成功才触发失效与关闭；失败保持列表原状并明确提示。
+  const auditMutation = useMutation({
+    mutationFn: (status: WithdrawStatus) =>
+      financeApi.withdrawalsAudit({
+        withdrawId: data.withdrawId,
+        status,
+        remark,
+      }),
+    onSuccess: () => {
+      void revalidateFinanceAfterWithdrawAudit();
+      confirmAction();
+    },
+    onError: (error: unknown) => {
+      const status = (error as { response?: { status?: number } })?.response
+        ?.status;
+      // 4xx 由 HTTP 拦截器统一 toast；5xx/网络错误这里明确提示
+      if (!status || status >= 500) {
+        console.error(error);
+        addToast('error', t('finance.withdrawAudit.auditFailed'));
+      }
+    },
   });
+
+  const loading = auditMutation.isPending;
 
   const isWaitForAudit = useMemo(() => {
     return data.withdrawStatus === WITHDRAW_STATUS.PENDING_AUDIT;
@@ -52,14 +76,9 @@ export const WithdrawAuditModal: React.FC<Props> = ({
   // 1. 提交逻辑
   const submitAudit = async (status: WithdrawStatus) => {
     try {
-      await runAsync({ withdrawId: data.withdrawId, status, remark });
-      void revalidateFinanceAfterWithdrawAudit();
-      confirmAction();
-    } catch (e) {
-      // 4xx 由 HTTP 拦截器统一 toast，此处不重复 console.error
-      const status = (e as { response?: { status?: number } })?.response
-        ?.status;
-      if (!status || status < 400 || status >= 500) console.error(e);
+      await auditMutation.mutateAsync(status);
+    } catch {
+      // 失败提示与状态保持由 mutation.onError 负责；这里只保证不抛到 UI
     }
   };
 

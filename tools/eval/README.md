@@ -42,11 +42,38 @@ tools/eval/run-replay.sh --delay 0              # 不怕限流时关掉间隔
 
 | 文件 | 说明 |
 |---|---|
-| `golden/intent.jsonl` | 63 条人工标注题（一行一条 JSON） |
-| `replay.py` | 回放 + 打分 + 出报告（仅标准库） |
-| `run-replay.sh` | 签 token + 调 Python |
+| `golden/intent.jsonl` | 153 条人工标注题（9 个意图，每个 ≥16 条；一行一条 JSON） |
+| `replay.py` | 回放 + 打分 + 出报告（含 95% Wilson 置信区间，仅标准库） |
+| `run-replay.sh` | 签 token → 查重门禁 → 调 Python |
+| `check_duplicates.py` | 题集内部/线上例句库查重；有重复则拒绝回放 |
+| `compare.py` | 两次回放的 McNemar 配对检验（改前 vs 改后） |
+| `seed-zh-examples.py` | 把代码 seed 里的中文示例 append 进 `intent_examples`（一次性运维） |
 | `baseline.json` | 当前基线（提交进仓库，改代码后对比它） |
 | `reports/*.md` / `*.json` | 每次运行的完整结果，`*.md` 给人看 |
+
+## 改了代码，怎么证明变好了
+
+```bash
+# 1) 改前跑一次，记下报告路径
+tools/eval/run-replay.sh
+
+# 2) 改完再跑一次
+tools/eval/run-replay.sh
+
+# 3) 配对检验：同一批题上的差异是不是噪音
+python3 tools/eval/compare.py \
+  tools/eval/reports/<改前>.json tools/eval/reports/<改后>.json \
+  --out tools/eval/reports/compare-<日期>.md
+```
+
+结论只看 McNemar 的 p 值（<0.05 才算显著），不要只看准确率的百分点。
+样本量小时置信区间会很宽，报告里已同时给出 95% CI。
+
+## 查重门禁
+
+`run-replay.sh` 每次都会先跑 `check_duplicates.py`：规范化后完全相同的样本、
+或相似度 ≥0.9 的样本，都会拒绝回放。默认只查题集内部；加
+`EVAL_DEDUP_AGAINST_API=1` 会和线上 `intent_examples` 表比对（需要后端与 token）。
 
 ## 更新基线前的自查
 

@@ -769,6 +769,13 @@ export const chatApi = {
       data,
     ),
 
+  /** POST /v1/admin/chat/conversations/:id/claim — 认领排队中的会话 */
+  claim: (conversationId: string) =>
+    http.post<{ success: boolean; conversationId: string; handlerId: string }>(
+      `/v1/admin/chat/conversations/${conversationId}/claim`,
+      {},
+    ),
+
   /** PATCH /v1/admin/chat/conversations/:id/handler — 切换 AI/人工 */
   switchHandler: (conversationId: string, mode: 'ai' | 'human') =>
     http.patch<{ success: boolean; mode: string }>(

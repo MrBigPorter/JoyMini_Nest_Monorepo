@@ -65,6 +65,10 @@ import {
   toolFailure,
   toolSuccess,
 } from '@api/client/ai-customer/graph/tools/tool-result';
+import {
+  MISSING_USER_CONTEXT,
+  requireToolUserId,
+} from '@api/client/ai-customer/graph/tools/tool-identity';
 import { toResultChain } from '@lucky/shared';
 import { z } from 'zod';
 import { toLLM } from '@api/common/ai/utils/to-llm';
@@ -81,6 +85,11 @@ import {
 
 /**
  * 创建 LuckyDraw + Flash Sale Agent 的所有工具
+ *
+ * ── 身份边界 ──
+ * 抽奖类工具（票/结果/抽奖/订单关联票）的 userId 从请求上下文
+ * （AsyncLocalStorage）读取，不再作为 tool 参数暴露给 LLM；
+ * 闪购类工具是公共查询，不需要身份。
  *
  * @param luckyDrawService  - 抽奖领域服务（票、结果、抽奖）
  * @param flashSaleService   - 闪购领域服务（场次、商品）
@@ -103,16 +112,17 @@ export const createLuckyTools = (
     {
       tool: tool(
         async ({
-          userId,
           page,
           pageSize,
           unusedOnly,
         }: {
-          userId: string;
           page?: number;
           pageSize?: number;
           unusedOnly?: boolean;
         }) => {
+          const userId = requireToolUserId('listTickets');
+          if (!userId) return toolFailure(MISSING_USER_CONTEXT);
+
           logger.log(
             `[lucky-tools:listTickets] userId="${userId}", page=${page ?? 1}`,
           );
@@ -125,7 +135,11 @@ export const createLuckyTools = (
           )
             .then((data) => {
               const llmList = (data.list ?? []).map((item: any) =>
-                toLLM(plainToInstance(LuckyDrawTicketDto, item), LuckyDrawTicketDto, 'en'),
+                toLLM(
+                  plainToInstance(LuckyDrawTicketDto, item),
+                  LuckyDrawTicketDto,
+                  'en',
+                ),
               );
               return toolSuccess({
                 total: data.total,
@@ -141,7 +155,6 @@ export const createLuckyTools = (
         {
           name: 'listTickets',
           schema: z.object({
-            userId: z.string().describe('The current user ID'),
             page: z
               .number()
               .optional()
@@ -174,15 +187,10 @@ export const createLuckyTools = (
     // ================================================================
     {
       tool: tool(
-        async ({
-          userId,
-          page,
-          pageSize,
-        }: {
-          userId: string;
-          page?: number;
-          pageSize?: number;
-        }) => {
+        async ({ page, pageSize }: { page?: number; pageSize?: number }) => {
+          const userId = requireToolUserId('listResults');
+          if (!userId) return toolFailure(MISSING_USER_CONTEXT);
+
           logger.log(
             `[lucky-tools:listResults] userId="${userId}", page=${page ?? 1}`,
           );
@@ -194,7 +202,11 @@ export const createLuckyTools = (
           )
             .then((data) => {
               const llmList = (data.list ?? []).map((item: any) =>
-                toLLM(plainToInstance(LuckyDrawResultItemDto, item), LuckyDrawResultItemDto, 'en'),
+                toLLM(
+                  plainToInstance(LuckyDrawResultItemDto, item),
+                  LuckyDrawResultItemDto,
+                  'en',
+                ),
               );
               return toolSuccess({
                 total: data.total,
@@ -210,7 +222,6 @@ export const createLuckyTools = (
         {
           name: 'listResults',
           schema: z.object({
-            userId: z.string().describe('The current user ID'),
             page: z
               .number()
               .optional()
@@ -249,13 +260,10 @@ export const createLuckyTools = (
     // ================================================================
     {
       tool: tool(
-        async ({
-          userId,
-          ticketId,
-        }: {
-          userId: string;
-          ticketId: string;
-        }) => {
+        async ({ ticketId }: { ticketId: string }) => {
+          const userId = requireToolUserId('draw');
+          if (!userId) return toolFailure(MISSING_USER_CONTEXT);
+
           logger.log(
             `[lucky-tools:draw] userId="${userId}", ticketId="${ticketId}"`,
           );
@@ -278,7 +286,6 @@ export const createLuckyTools = (
         {
           name: 'draw',
           schema: z.object({
-            userId: z.string().describe('The current user ID'),
             ticketId: z.string().describe('The ticket ID to use for drawing'),
           }),
           description:
@@ -298,17 +305,16 @@ export const createLuckyTools = (
     // ================================================================
     {
       tool: tool(
-        async ({
-          userId,
-          orderId,
-        }: {
-          userId: string;
-          orderId: string;
-        }) => {
+        async ({ orderId }: { orderId: string }) => {
+          const userId = requireToolUserId('getTicketByOrder');
+          if (!userId) return toolFailure(MISSING_USER_CONTEXT);
+
           logger.log(
             `[lucky-tools:getTicketByOrder] userId="${userId}", orderId="${orderId}"`,
           );
-          return toResultChain(luckyDrawService.getTicketByOrder(userId, orderId))
+          return toResultChain(
+            luckyDrawService.getTicketByOrder(userId, orderId),
+          )
             .then((data) => {
               if (!data || !data.hasTicket) {
                 return toolSuccess({ hasTicket: false });
@@ -327,7 +333,6 @@ export const createLuckyTools = (
         {
           name: 'getTicketByOrder',
           schema: z.object({
-            userId: z.string().describe('The current user ID'),
             orderId: z.string().describe('The order ID to check for tickets'),
           }),
           description:
@@ -352,7 +357,11 @@ export const createLuckyTools = (
           return toResultChain(flashSaleService.getActiveSessions())
             .then((data) => {
               const llmList = (data.list ?? []).map((item: any) =>
-                toLLM(plainToInstance(FlashSaleSessionItemDto, item), FlashSaleSessionItemDto, 'en'),
+                toLLM(
+                  plainToInstance(FlashSaleSessionItemDto, item),
+                  FlashSaleSessionItemDto,
+                  'en',
+                ),
               );
               return toolSuccess({ sessions: llmList });
             })
@@ -392,7 +401,11 @@ export const createLuckyTools = (
                 'en',
               );
               const llmList = (data.list ?? []).map((item: any) =>
-                toLLM(plainToInstance(FlashSaleProductItemDto, item), FlashSaleProductItemDto, 'en'),
+                toLLM(
+                  plainToInstance(FlashSaleProductItemDto, item),
+                  FlashSaleProductItemDto,
+                  'en',
+                ),
               );
               return toolSuccess({
                 session: llmSession,
@@ -433,8 +446,13 @@ export const createLuckyTools = (
           );
           return toResultChain(flashSaleService.getProductDetail(productId))
             .then((data) => {
-              const dto = plainToInstance(FlashSaleProductDetailResponseDto, data);
-              return toolSuccess(toLLM(dto, FlashSaleProductDetailResponseDto, 'en'));
+              const dto = plainToInstance(
+                FlashSaleProductDetailResponseDto,
+                data,
+              );
+              return toolSuccess(
+                toLLM(dto, FlashSaleProductDetailResponseDto, 'en'),
+              );
             })
             .catch((err: Error) =>
               toolFailure(`Failed to get flash product detail: ${err.message}`),

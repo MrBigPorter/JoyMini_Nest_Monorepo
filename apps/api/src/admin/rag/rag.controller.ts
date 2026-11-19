@@ -37,6 +37,12 @@ import { CreateRagDocDto } from './dto/create-rag-doc.dto';
 import { UpdateRagDocDto } from './dto/update-rag-doc.dto';
 import { QueryRagDocDto } from './dto/query-rag-doc.dto';
 import { UploadRagDocDto } from './dto/upload-rag-doc.dto';
+import { RollbackVersionDto } from './dto/rollback-version.dto';
+import { SearchRagDto } from './dto/search-rag.dto';
+import { JudgeRagDto } from './dto/judge-rag.dto';
+import { KbVersionService } from '@api/client/ai-customer/knowledge/kb-version.service';
+import { RagRetrievalService } from '@api/client/ai-customer/knowledge/rag-retrieval.service';
+import { RagFaithfulnessService } from './rag-faithfulness.service';
 import {
   RagDocResponseDto,
   RagDocListResponseDto,
@@ -49,7 +55,54 @@ export class RagController {
   constructor(
     private readonly ragService: RagService,
     private readonly ragSyncService: RagSyncService,
+    private readonly kbVersionService: KbVersionService,
+    private readonly ragRetrievalService: RagRetrievalService,
+    private readonly ragFaithfulnessService: RagFaithfulnessService,
   ) {}
+
+  // ==================== Retrieval Eval ====================
+
+  /**
+   * LLM-as-Judge：判断回答是否被 sources 支持（faithfulness）。
+   */
+  @Post('judge')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Judge RAG faithfulness (LLM-as-Judge)' })
+  async judge(@Body() dto: JudgeRagDto) {
+    return this.ragFaithfulnessService.judge(
+      dto.question,
+      dto.answer,
+      dto.sources,
+    );
+  }
+
+  /**
+   * 管理端知识库检索（离线评测/调试用）。
+   * 与线上 AI 对话共用 RagRetrievalService，确保评测的是同一条检索链路。
+   */
+  @Post('search')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Retrieve knowledge chunks (eval/debug)' })
+  async search(@Body() dto: SearchRagDto) {
+    const results = await this.ragRetrievalService.retrieve(dto.query, {
+      domain: dto.domain,
+      topK: dto.topK ?? 5,
+      minScore: dto.minScore,
+      useRerank: dto.rerank,
+    });
+
+    return results.map((r) => ({
+      chunkId: r.chunkId,
+      documentId: r.documentId,
+      docId: r.docId,
+      title: r.title,
+      domain: r.domain,
+      score: r.score,
+      contentPreview: r.content.slice(0, 300),
+    }));
+  }
 
   // ==================== CRUD ====================
 
@@ -220,6 +273,20 @@ export class RagController {
     return this.ragService.reindex(id);
   }
 
+  @Post(':id/rollback')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Roll back to a previous version (flags only, no re-index)',
+  })
+  @ApiParam({ name: 'id', description: 'Document ID' })
+  async rollbackVersion(
+    @Param('id') id: string,
+    @Body() dto: RollbackVersionDto,
+  ) {
+    return this.kbVersionService.rollback(id, dto.toVersion);
+  }
+
   // ==================== 分步处理 ====================
 
   @Post(':id/process/chunk')
@@ -233,7 +300,9 @@ export class RagController {
   @Post(':id/process/embed')
   @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Embed a document (chunked → embedded), submit to BullMQ' })
+  @ApiOperation({
+    summary: 'Embed a document (chunked → embedded), submit to BullMQ',
+  })
   async processEmbed(@Param('id') id: string) {
     return this.ragService.processStepEmbed(id);
   }
@@ -251,7 +320,8 @@ export class RagController {
   @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Reindex all active documents (bulk re-chunk + re-embed + sync to Meilisearch)',
+    summary:
+      'Reindex all active documents (bulk re-chunk + re-embed + sync to Meilisearch)',
   })
   async reindexAll() {
     return this.ragService.reindexAll();
@@ -292,7 +362,8 @@ export class RagController {
   @Patch(':id/content')
   @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   @ApiOperation({
-    summary: 'Update document content (after manual review), triggers re-chunk + re-embed',
+    summary:
+      'Update document content (after manual review), triggers re-chunk + re-embed',
   })
   @ApiParam({ name: 'id', description: 'Document UUID' })
   async updateContent(

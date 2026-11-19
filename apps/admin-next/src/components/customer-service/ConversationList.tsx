@@ -14,9 +14,11 @@ interface ConversationListProps {
   page: number;
   keyword: string;
   statusFilter: number | undefined;
+  queueFilter: 'awaiting' | undefined;
   lastSeenSeqId: Record<string, number>;
   onKeywordChangeAction: (keyword: string) => void;
   onStatusFilterChangeAction: (status: number | undefined) => void;
+  onQueueFilterChangeAction: (queue: 'awaiting' | undefined) => void;
   onPageChangeAction: (page: number) => void;
   onSelectConversationAction: (conv: ChatConversation) => void;
   onRefreshAction: () => void;
@@ -30,9 +32,11 @@ export function ConversationList({
   page,
   keyword,
   statusFilter,
+  queueFilter,
   lastSeenSeqId,
   onKeywordChangeAction,
   onStatusFilterChangeAction,
+  onQueueFilterChangeAction,
   onPageChangeAction,
   onSelectConversationAction,
   onRefreshAction,
@@ -57,6 +61,28 @@ export function ConversationList({
             }}
             className="w-full pl-8 pr-3 py-2 text-sm rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/10 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500/50"
           />
+        </div>
+        {/* 待接入队列 */}
+        <div className="flex gap-1.5">
+          {[
+            { label: t('customerService.queueAll'), value: undefined },
+            {
+              label: t('customerService.queueAwaiting'),
+              value: 'awaiting' as const,
+            },
+          ].map((opt) => (
+            <button
+              key={String(opt.value)}
+              onClick={() => onQueueFilterChangeAction(opt.value)}
+              className={`flex-1 text-xs py-1.5 rounded-lg transition-colors ${
+                queueFilter === opt.value
+                  ? 'bg-amber-500 text-white'
+                  : 'bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
         </div>
         {/* 状态标签 */}
         <div className="flex gap-1.5">

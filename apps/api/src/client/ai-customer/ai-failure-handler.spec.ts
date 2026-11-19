@@ -65,11 +65,15 @@ describe('degradeToHuman · 模型故障降级（N-15）', () => {
     expect(args[5]).toBe(memberIds);
 
     // ② 置 awaiting_human，阻断下一轮
+    // transferredAt 必须一起写：排队时长和待接入排序只认它，
+    // handlerAssignedAt 会被后续消息不断刷新
     expect(prisma.conversation.update).toHaveBeenCalledWith({
       where: { id: 'conv-1' },
       data: {
         handlerId: 'awaiting_human',
         handlerAssignedAt: expect.any(Date),
+        transferredAt: expect.any(Date),
+        transferReason: 'ai_error',
       },
     });
 
@@ -124,7 +128,9 @@ describe('degradeToHuman · 模型故障降级（N-15）', () => {
 
   it('兜底话术落库失败也不影响置人工态和转人工事件', async () => {
     const { prisma, gateway, logger } = makeDeps();
-    (publishAiReply as jest.Mock).mockRejectedValueOnce(new Error('write failed'));
+    (publishAiReply as jest.Mock).mockRejectedValueOnce(
+      new Error('write failed'),
+    );
 
     await degradeToHuman(
       { prisma: prisma as any, gateway: gateway as any, logger },

@@ -15,6 +15,34 @@ const TOKEN_TTL_SEC = 60;
 /** 待执行任务有效期：用户要去看短信、输码，必须 ≥ OTP 有效期，多留 30s 缓冲 */
 const PENDING_TTL_SEC = (Number(process.env.OTP_TTL_SECONDS) || 300) + 30;
 
+/**
+ * 原子「校验归属 + 删除」。
+ *
+ * 旧实现 getDel 先删再比较 userId：别人拿到/误传 token 可以先消费掉，
+ * 导致真正的持有者拿到 null（DoS）。
+ *
+ * 这里把检查与删除放进同一个 Lua 脚本，Redis 单线程原子执行：
+ *   - key 不存在 / 已过期        → 返回 nil（不删除任何东西）
+ *   - JSON 中的 userId ≠ ARGV[1] → 返回 nil，**保留 key**（真主人仍可消费）
+ *   - userId 匹配                → DEL 并返回原始 payload
+ * 因此只有正确 owner 能消费，且只能消费一次。
+ */
+const CONSUME_IF_OWNER_LUA = `
+local raw = redis.call('GET', KEYS[1])
+if not raw then
+  return nil
+end
+local ok, decoded = pcall(cjson.decode, raw)
+if not ok or type(decoded) ~= 'table' then
+  return nil
+end
+if decoded['userId'] ~= ARGV[1] then
+  return nil
+end
+redis.call('DEL', KEYS[1])
+return raw
+`;
+
 @Injectable()
 export class AiActionConfirmService {
   private readonly logger = new Logger(AiActionConfirmService.name);
@@ -41,18 +69,19 @@ export class AiActionConfirmService {
 
   async consume(token: string, userId: string): Promise<ConfirmPayload | null> {
     const key = `${TOKEN_PREFIX}${token}`;
-    const raw = await this.redisService.getDel(key); // 原子读+删，防重放
+    // 原子：先校验 owner，匹配才删；错 owner 不删除、不返回 payload
+    const raw = await this.redisService.eval(
+      CONSUME_IF_OWNER_LUA,
+      [key],
+      [userId],
+    );
 
     if (!raw) {
-      this.logger.warn(`Token ${token} not found or expired`);
+      // 不存在 / 已过期 / owner 不匹配，统一不区分以避免泄露 token 归属
+      this.logger.warn(`Token ${token} not consumable (missing/expired/owner)`);
       return null;
     }
-    const payload: ConfirmPayload = JSON.parse(raw);
-    if (payload.userId !== userId) {
-      this.logger.warn(`Token ${token} userId mismatch`);
-      return null;
-    }
-    return payload;
+    return JSON.parse(raw as string);
   }
 
   async stagePendingExecution(

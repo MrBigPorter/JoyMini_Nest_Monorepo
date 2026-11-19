@@ -1,6 +1,6 @@
 # 98 · 转人工闭环（T2-5 / N-13、N-14）
 
-> 状态: 📋 规格已定，待实施
+> 状态: ✅ 2026-11-19 收尾（S3 实时推送 + S4 空闲回收落地，见文末「实施记录」）
 > 日期: 2026-11-13
 > 关联: [#85 N-13 / N-14](./85-生产化差距审计与企业上线清单.md)、[`current-task.md`](../current-task.md) T2-5
 > 前置阅读: [#89 可观测性 SDD](./89-AI对话可观测性-SDD.md)（`chat.done` 已记 `transferred`）
@@ -371,3 +371,21 @@ async sweep() {
 - [ ] 双账号手工验证：待接入通知、认领互斥、超时回收、关闭清态
 - [ ] 数据巡检 SQL 通过：`SELECT count(*) FROM conversations WHERE status = 2 AND handler_id IS NOT NULL` = 0
 - [ ] 一条会话能在日志里按 traceId 串起：`AI 转人工 → 入队 → 认领 → 首次回复 → 关闭`
+
+---
+
+## 14. 实施记录（2026-11-19 收尾）
+
+| 项 | 实现 | 证据 |
+|---|---|---|
+| 实时通知（AC-1） | `SupportQueueChangedEvent` → `SocketListener` 扇出到每个 admin 的 `user_<id>` 房间，类型 `support_queue_changed`；前端 `useChatSocket` 收到后立即 `refreshList()` | `socket.listener.spec.ts` 新增广播用例；`apps/admin-next/src/hooks/useChatSocket.ts` |
+| 认领互斥（AC-2） | 已有 `claim` CAS；新增返回后广播 `claimed`，其他客服列表秒级移除；前端补「认领」按钮 + `chatApi.claim` | `admin-chat.service.ts` / `ChatWindow.tsx` |
+| 排队超时提醒（AC-3） | `SupportQueueService` 每分钟扫描 `transferredAt` 超阈值的会话，Redis `SET NX` 限频后重新广播 | `support-queue.service.ts` |
+| 空闲回收（AC-4） | `SupportHandlerService.releaseIfIdle` + `sweepIdle`（CAS）；`SupportQueueService` cron 主动执行，不再依赖用户再发消息 | `support-handler.service.spec.ts` 新增 4 条 |
+| 客服进房间（AC-6 / G6） | admin token 连接打 `isAdmin` 标记；`join_chat` 放行 SUPPORT 会话，AI 私聊仍拒绝；私有房间 `user_<自己>` 放行 | `events.gateway.spec.ts` 新增 3 条 |
+| 关闭清归属（AC-7） | 已有（S2-A/D）；本次补广播 `closed` | `admin-chat.service.ts` |
+| 排队时钟缺陷 | 删掉 Socket 发送路径里对 `awaiting_human` 刷新 `handlerAssignedAt` 的旧逻辑 | `events.gateway.ts` |
+
+**验证**：`yarn workspace @lucky/api tsc --noEmit` 0 error；全量 56 suites / 506 tests 通过；`yarn workspace @lucky/admin-next tsc --noEmit` 0 error；本地重建 backend 后确认 `bull:ai-processing:*` 队列已注册、`/api/v1/metrics` 200。
+
+**仍缺**：客服端不做未读红点/提示音（G9）；转接历史表仍按 §12 留到 T4。

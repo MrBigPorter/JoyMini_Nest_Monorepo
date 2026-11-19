@@ -48,6 +48,12 @@
 
 **本期不做**：OTel 接入、Prometheus 指标、日志采集/告警、前端展示、badcase 回流、成本看板、采样。
 
+> **2026-11-19 更新（指标链路）**：`/api/v1/metrics` 已上线，指标接入另立对接文档：
+> `infra-platform/docs/metrics/joymini-backend-integration.md`。
+> 该文档定义 Prometheus 抓取、Grafana 看板、告警规则与输入/输出契约；本文的
+> 「不引入 Prometheus」仅指本 SDD 当时的日志可观测性范围，不再代表指标现状。
+> 日志链路（Loki/Promtail）仍按本文约定，不变。
+
 ---
 
 ## 三、功能需求

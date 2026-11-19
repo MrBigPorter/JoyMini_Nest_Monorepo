@@ -182,7 +182,9 @@ class PdfExtractor implements TextExtractor {
     try {
       rawContent = await this.extractWithPdfParse(file);
     } catch (err) {
-      logger.warn(`pdf-parse failed: ${err instanceof Error ? err.message : 'Unknown'}`);
+      logger.warn(
+        `pdf-parse failed: ${err instanceof Error ? err.message : 'Unknown'}`,
+      );
     }
 
     // ── 2. 优先尝试 Unstructured API（AI 解析线）──
@@ -195,11 +197,19 @@ class PdfExtractor implements TextExtractor {
           const usPlain = content.replace(/\s+/g, '').slice(0, 200);
           const match = pdfPlain === usPlain;
           logger.debug(`[COMPARE] ${file.originalname}`);
-          logger.debug(`[COMPARE] pdf-parse(${rawContent.length}chars) vs Unstructured(${content.length}chars)`);
-          logger.debug(`[COMPARE] Content match (no format): ${match ? '✅' : '❌'}`);
+          logger.debug(
+            `[COMPARE] pdf-parse(${rawContent.length}chars) vs Unstructured(${content.length}chars)`,
+          );
+          logger.debug(
+            `[COMPARE] Content match (no format): ${match ? '✅' : '❌'}`,
+          );
           if (!match) {
-            logger.debug(`[COMPARE] pdf-parse raw[0:200]: ${rawContent.slice(0, 200)}`);
-            logger.debug(`[COMPARE] Unstructured raw[0:200]: ${content.slice(0, 200)}`);
+            logger.debug(
+              `[COMPARE] pdf-parse raw[0:200]: ${rawContent.slice(0, 200)}`,
+            );
+            logger.debug(
+              `[COMPARE] Unstructured raw[0:200]: ${content.slice(0, 200)}`,
+            );
           }
         }
 
@@ -215,7 +225,7 @@ class PdfExtractor implements TextExtractor {
     }
 
     // ── 降级: pdf-parse 同时作为 content 和 rawContent ──
-    const content = rawContent ?? await this.extractWithPdfParse(file);
+    const content = rawContent ?? (await this.extractWithPdfParse(file));
 
     return {
       title,
@@ -323,10 +333,7 @@ export class RagSyncService {
     private readonly ragEmbeddingQueue: Queue,
   ) {
     // 注册提取器。新增格式只需在这里 push。
-    this.extractors = [
-      new MarkdownExtractor(),
-      new PdfExtractor(),
-    ];
+    this.extractors = [new MarkdownExtractor(), new PdfExtractor()];
   }
 
   /**
@@ -400,11 +407,15 @@ export class RagSyncService {
     if (isPdf) {
       // ── 原始文件上传到 R2 → fileUrl（PDF 预览用）──
       try {
-        const uploadResult = await this.uploadService.uploadFile(file, 'knowledge');
+        const uploadResult = await this.uploadService.uploadFile(
+          file,
+          'knowledge',
+        );
         fileUrl = uploadResult.url;
         this.logger.log(`[R2] Uploaded original file: ${uploadResult.url}`);
       } catch (r2Error) {
-        const msg = r2Error instanceof Error ? r2Error.message : 'Unknown error';
+        const msg =
+          r2Error instanceof Error ? r2Error.message : 'Unknown error';
         this.logger.warn(`[R2] Upload failed for ${file.originalname}: ${msg}`);
       }
     } else {
@@ -423,8 +434,8 @@ export class RagSyncService {
     if (!qualityResult.passed) {
       this.logger.warn(
         `[Quality] ${file.originalname}: ` +
-        `score=${qualityResult.overallScore}, ` +
-        `flags=[${qualityResult.flags.join(', ')}]`,
+          `score=${qualityResult.overallScore}, ` +
+          `flags=[${qualityResult.flags.join(', ')}]`,
       );
     }
 
@@ -444,12 +455,12 @@ export class RagSyncService {
       where: { docId_locale: { docId, locale } },
     });
 
-
     const data = {
       title: merged.title,
       domain: merged.domain,
       qualityScore: qualityResult.overallScore,
-      qualityFlags: qualityResult.flags.length > 0 ? qualityResult.flags.join(',') : null,
+      qualityFlags:
+        qualityResult.flags.length > 0 ? qualityResult.flags.join(',') : null,
       keywords: merged.keywords,
       contentType: merged.contentType,
       priority: merged.priority,
@@ -474,7 +485,10 @@ export class RagSyncService {
       action = 'updated';
     } else {
       document = await this.prisma.knowledgeDocument.create({
-        data: { docId, locale, ...data },
+        // activeVersion 从 0 开始：新文档在向量化完成前没有任何可读版本。
+        // 如果让它和 version 同为 1，首轮 activate 会走「already-active」短路，
+        // 而这时 chunk 的 isActiveVersion 还是 false —— 文档会永远搜不到。
+        data: { docId, locale, ...data, activeVersion: 0 },
       });
       action = 'created';
     }
@@ -483,10 +497,9 @@ export class RagSyncService {
     // 先删除旧 chunks（CASCADE 会自动清理 document_chunks 中外键关联的记录）
     // 然后使用 LangChain 的 RecursiveCharacterTextSplitter 按 Markdown 结构切分
     // 切分依据优先级：## 标题 → ### 子标题 → 段落 → 行 → 中文句号 → 字符
-    await this.prisma.documentChunk.deleteMany({
-      where: { documentId: document.id },
-    });
-
+    // 不删旧 chunk：新版本以 documentVersion = 新版本号追加写入，旧版本原地保留。
+    // 旧版本是读请求在切换前的唯一数据来源（删了就有"查不到"窗口），
+    // 也是回滚窗口期内切回去的依据。清理由 KbVersionService 按保留期统一做。
     const chunks = await this.ragChunkService.chunkText(document.content);
 
     if (chunks.length > 0) {
@@ -525,6 +538,9 @@ export class RagSyncService {
     try {
       await this.ragEmbeddingQueue.add('embed', {
         documentId: document.id,
+        // 让 worker 知道这次要处理的是哪一版：只给这一版做向量化与索引，
+        // 完成后才能拿它去过门、切 activeVersion。
+        targetVersion: document.version,
       });
       this.logger.log(
         `Submitted embedding job for document ${document.id} (${chunks.length} chunks)`,

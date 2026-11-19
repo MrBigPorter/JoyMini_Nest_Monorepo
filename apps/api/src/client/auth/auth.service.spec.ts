@@ -211,7 +211,7 @@ describe('AuthService', () => {
   });
 
   it('throws on unsupported provider', async () => {
-    const invalidProvider = 'github' as never;
+    const invalidProvider = 'twitter' as never;
 
     await expect(
       service.loginWithOauth(invalidProvider, {

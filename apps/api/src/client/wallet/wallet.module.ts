@@ -11,9 +11,11 @@ import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-re
 import { createWalletTools } from '@api/client/ai-customer/graph/tools/wallet-tools';
 import { OtpService } from '@api/client/otp/otp.service';
 import { OtpModule } from '@api/client/otp/otp.module';
+import { PrismaModule } from '@api/common/prisma/prisma.module';
+import { PrismaService } from '@api/common/prisma/prisma.service';
 
 @Module({
-  imports: [KycModule, OtpModule],
+  imports: [KycModule, OtpModule, PrismaModule],
   providers: [
     WalletService,
     ClientWalletService,
@@ -31,6 +33,7 @@ export class WalletModule implements OnApplicationBootstrap {
     private readonly toolRegistry: ToolRegistryService,
     private readonly paymentChannelService: PaymentChannelService,
     private readonly otpService: OtpService,
+    private readonly prisma: PrismaService,
   ) {}
 
   /**
@@ -44,6 +47,7 @@ export class WalletModule implements OnApplicationBootstrap {
       this.kycService,
       this.paymentChannelService,
       this.otpService,
+      this.prisma,
     );
     this.toolRegistry.registerMany(tools);
   }

@@ -57,9 +57,7 @@ export function ServiceStatusBar() {
           >
             <span
               className={`inline-block w-2 h-2 rounded-full ${
-                svc.available
-                  ? 'bg-green-500'
-                  : 'bg-red-400'
+                svc.available ? 'bg-green-500' : 'bg-red-400'
               }`}
             />
             <span

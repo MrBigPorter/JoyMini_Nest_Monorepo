@@ -45,6 +45,8 @@
 >
 > T2-5 S2-B 完成（2026-11-13）：**回复即接管**。客服打字回复这件事本身就是接单动作，不再依赖没人会点的「接入」按钮。`replyToConversation` 按读到的 `handlerId` 三分支：① `awaiting_human` → 复用 S1 的 `claim` CAS，抢输抛 409 **且消息不发**；② `null`（AI 处理中）→ 条件更新 `WHERE handler_id IS NULL` 接管，抢输仍照发（否则 AI 下一条还会插话）；③ 别人/自己名下 → 照发、归属不动（产品决策：允许帮答，团队可顶班）。返回体加 `claimedNow` / `handlerId`，前端据此把卡片从「待接入」移到「我的」。**修掉两个自己写出来的 bug**：`if (!conv) throw` 被放到使用之后（会话不存在时 `null.handlerId` → 500 而非 404，被 `tsc` 的 `'conv' is possibly null` 抓到）；认领成功但漏写 `claimedNow = true`（数据库归你了、接口却回 false，UI 与真实状态分叉）。**实测**：排队中回复 → `claimedNow=true`；别人名下 → `claimedNow=false` 且归属不变；AI 会话 → 接管；不存在 → 404；**两个不同身份并发回复排队会话 → 409 + 201，只落库 1 条消息**。红绿验证：短路 `if (result.status !== 'claimed')` 后「撞车不发」立刻变红。累计 23 条测试。**已知边界**：409 只覆盖「两人同时读到 awaiting_human」的窗口；晚到的客服走帮答分支照常发送——主防线是 S3 的实时列表移除，409 只是兜底。**未做**：`firstResponseAt`、socket 推送、SLA 回收。
 >
+> T2-5 S2-C 完成 + 排队时钟修正（2026-11-14）：`replyToConversation` 在消息发出**之后**写 `firstResponseAt`，用 `updateMany({ where: { id, firstResponseAt: null } })` 而不是 `update`——帮答场景两人几乎同时回复，后者会把「首次」冲成「最后一次」（有顺序探针测试钉住「先发消息、后记时间」，按时间倒过来记的是「没发出去」的时刻）。**实测暴露出一个存量缺陷**：`handlerAssignedAt` 比 `firstResponseAt` 还晚 3 秒——`chat.service.ts` 的懒超时逻辑在 `handlerId != null` 时每条消息都刷新它，而 `'awaiting_human'` 也满足这个条件。后果：① 排队用户再发一句，`waitingSeconds` 被重置；② 按 `handlerAssignedAt asc` 排序等于「按最后活跃时间排」，催得越急排得越后；③ 响应时长 KPI 算出负数。**修法**（把两个时钟的职责拆开）：`transferredAt` = 排队起点（不动），`handlerAssignedAt` = 活跃时间（可刷新）。两处转人工写入补齐 `transferredAt` + `transferReason`（`ai-customer.service.ts` 的 `routeTransfer`、`ai-failure-handler.ts` 的 `degradeToHuman`），手工切人工的 `switchHandler` 同样补；待接入排序改为 `{ transferredAt: { sort: 'asc', nulls: 'last' } }`（老数据垫底而不是抢占队首）。**实测**：A 会话 10 分钟前转人工、1 秒前刚有消息，B 会话 2 分钟前转人工——A 仍排第一且 `waitingSeconds=600`（修复前会变成 1s 并掉到队尾）。`tsc` 0 error，三个套件 216 passed。**未做**：让 `chat.service` 对 `awaiting_human` 不再刷新 `handlerAssignedAt`（影响面在 socket 侧，留给 S4 与超时回收一起改）、socket 推送、SLA 回收。
+>
 > T2-5 S2-A/D 完成（2026-11-13）：**队列第一次可见**。`GET /admin/chat/conversations` 新增 `queue=awaiting|mine|ai|all`（与 `status` 正交），`mine` 的 adminId 只从 JWT 取（有防越权测试）；返回体加 `waitingSeconds` + `transferReason`，待接入按 `handlerAssignedAt` **升序**（等最久的排最前，防老会话被新会话淹没）。两个已存在的错一并修掉：① `claim` 的 CAS 加 `status: ConversationStatus.NORMAL`（否则历史脏数据里「已关闭但 handlerId 仍是 awaiting_human」的会话能被接走）；② `closeConversation` 在**同一事务**里清 `handlerId` / `handlerAssignedAt`，但保留 `transferredAt` / `transferReason` / `firstResponseAt`（状态要清、审计要留）。**踩坑记录**：`waitingSeconds` 曾写成 `() => {...}`（函数而非值），`tsc` 不报错、JSON 序列化把字段整个丢掉；已用「`typeof === 'number'`」测试钉住，红绿验证过（改回函数形式恰好 2 条变红）。实测：`queue=awaiting` 返回 1563s/123s/8s 且顺序正确，`queue=ai` 的 `waitingSeconds` 为 `null`（不再拿 `createdAt` 冒充），关闭后会话从待接入和「我的」同时消失、`transferReason` 保留。累计 17 条测试。**未做**：回复即认领、`firstResponseAt`、socket 推送、SLA 回收。
 >
 > T2-5 S1 完成（2026-11-13）：转人工闭环的**认领动作**落地。`SupportHandlerService.claim` 用条件 `updateMany({ where: { id, handlerId: 'awaiting_human' } })` 把「还在排队」下推到 SQL——改到 1 行=抢到，0 行=被抢走；随后才查一次库只为区分 404 / 409（结论仍由 CAS 定死，那次查询不参与判定）。`AdminChatService.claimConversation` 只做「三选一 → HTTP」翻译，自身不查库（有测试钉住）。接口 `POST /api/v1/admin/chat/conversations/:id/claim`，`VIEWER` 角色不可调用。新增迁移 `20261113080843`：三个可空列（`transfer_reason` / `transferred_at` / `first_response_at`）+ 待接入队列索引 `idx_conv_support_queue`，`Conversation` 首次有索引。**实测**：同一会话连点两次 200 → 409；8 个并发只有 1 个 200、7 个 409。单测 9 例（含 CAS 探针与「翻译层不碰库」）。**未做**：admin 待接入列表、socket 事件推送、SLA 定时回收（S2–S4）。
@@ -72,7 +74,7 @@
 | T2-2 | 意图阈值统一为单一常量 + 融合后再过滤 | P1-20 | `intent-classifier.ts`、`intent-router.node.ts`、`orchestrator.node.ts` | ☐ |
 | T2-3 | RAG：中文分词 + Layer 2 占位符 + 向量相关性门槛 | P1-21 | `rag-retrieval.service.ts` | ☐ |
 | T2-4 | 流式白名单：只转发 `answerSynthesizer`/`orchestrator` 最终文本 | P1-22 | `ai-stream.handler.ts` | ☐ |
-| T2-5 | **转人工闭环**：admin「待接入」列表 + 订阅 `AI_TRANSFER` 通知 + 超时定时回收（现在只在用户下条消息时懒判定） | N-13 / N-14 | `admin/chat/`、`admin-next/.../customer-service/`、新增 cron | 🚧 2026-11-13 S1 + S2-A/B/D 完成（认领 CAS + 队列筛选 + 回复即接管 + 关闭释放；S2-C、S3、S4 待做） |
+| T2-5 | **转人工闭环**：admin「待接入」列表 + 订阅 `AI_TRANSFER` 通知 + 超时定时回收（现在只在用户下条消息时懒判定） | N-13 / N-14 | `admin/chat/`、`admin-next/.../customer-service/`、新增 cron | ✅ 2026-11-19（S1/S2 + S3 实时推送 + S4 空闲回收；见 [#98 §14](./AI-joymini/98-转人工闭环-SDD.md)） |
 | T2-6 | **模型兜底**：`timeout 15s + maxRetries 1`；`degradeToHuman` 落固定话术 + 置 `awaiting_human` + 发 `AI_TRANSFER` + 记 `transfer{source:fallback}`；测试用故障注入（`__CHAOS__` 前缀 + Redis 开关，生产隔离） | N-15 | `graph/llm-factory.ts`、新增 `ai-failure-handler.ts` | ✅ 2026-11-12（单测 5 例 + E2E 第 9 场景实测，全套 9/9 PASS） |
 | T2-7 | **成本限额**：按天聚合客服 token，超阈值降级转人工 + 记 `cost.guard`（复用 blog budget 写法） | N-16 | `ai-customer.service.ts`、新增 cost-guard | ☐ |
 
@@ -81,7 +83,7 @@
 | # | 任务 | #85 ID | 状态 |
 |:--:|---|:--:|:--:|
 | T3-1 | 3 个集成测试：转人工 / 确认卡片 / RAG 降级 | P1-25 | ☐ |
-| T3-2 | 复跑 golden set，出「改前 vs 改后」对比表 | — | ☐ |
+| T3-2 | 复跑 golden set，出「改前 vs 改后」对比表 | — | ✅ 2026-11-19（153 题 55.6% → 84.3%，McNemar p<0.0001；见 [#100](./AI-joymini/100-意图评测扩容与中文召回修复.md)） |
 | T3-3 | 更新 #86 §10 进度追踪（填真实分数） | — | ☐ |
 
 ### 🧊 T4 — 有余力再做

@@ -588,8 +588,13 @@ export function AiPromptDetailClient() {
             <Eye size={18} className="text-gray-500" />
             <h3 className="text-sm font-semibold">Overview</h3>
           </div>
-          <span className="text-gray-400 text-lg transition-transform duration-200"
-            style={{ transform: collapsedSections.has('overview') ? 'rotate(-90deg)' : 'rotate(0deg)' }}
+          <span
+            className="text-gray-400 text-lg transition-transform duration-200"
+            style={{
+              transform: collapsedSections.has('overview')
+                ? 'rotate(-90deg)'
+                : 'rotate(0deg)',
+            }}
           >
             ▼
           </span>
@@ -660,7 +665,12 @@ export function AiPromptDetailClient() {
           role="button"
           tabIndex={0}
           onClick={() => toggleSection('versions')}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleSection('versions'); } }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              toggleSection('versions');
+            }
+          }}
           className="w-full flex items-center justify-between px-5 py-4 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-750 transition-colors cursor-pointer"
         >
           <div className="flex items-center gap-2">
@@ -679,8 +689,13 @@ export function AiPromptDetailClient() {
               <Plus size={14} />
               New Version
             </Button>
-            <span className="text-gray-400 text-lg transition-transform duration-200"
-              style={{ transform: collapsedSections.has('versions') ? 'rotate(-90deg)' : 'rotate(0deg)' }}
+            <span
+              className="text-gray-400 text-lg transition-transform duration-200"
+              style={{
+                transform: collapsedSections.has('versions')
+                  ? 'rotate(-90deg)'
+                  : 'rotate(0deg)',
+              }}
             >
               ▼
             </span>
@@ -691,11 +706,21 @@ export function AiPromptDetailClient() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
-                  <th className="px-4 py-3 text-left font-medium text-gray-500">Version</th>
-                  <th className="px-4 py-3 text-left font-medium text-gray-500">Status</th>
-                  <th className="px-4 py-3 text-left font-medium text-gray-500">Change Log</th>
-                  <th className="px-4 py-3 text-left font-medium text-gray-500">Created</th>
-                  <th className="px-4 py-3 text-right font-medium text-gray-500">Actions</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-500">
+                    Version
+                  </th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-500">
+                    Status
+                  </th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-500">
+                    Change Log
+                  </th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-500">
+                    Created
+                  </th>
+                  <th className="px-4 py-3 text-right font-medium text-gray-500">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -707,7 +732,9 @@ export function AiPromptDetailClient() {
                       v.isActive && 'bg-blue-50/50 dark:bg-blue-900/10',
                     )}
                   >
-                    <td className="px-4 py-3 font-mono text-sm">v{v.version}</td>
+                    <td className="px-4 py-3 font-mono text-sm">
+                      v{v.version}
+                    </td>
                     <td className="px-4 py-3">
                       {v.isActive ? (
                         <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
@@ -755,8 +782,13 @@ export function AiPromptDetailClient() {
             <FileDiff size={18} className="text-gray-500" />
             <h3 className="text-sm font-semibold">Version Diff</h3>
           </div>
-          <span className="text-gray-400 text-lg transition-transform duration-200"
-            style={{ transform: collapsedSections.has('diff') ? 'rotate(-90deg)' : 'rotate(0deg)' }}
+          <span
+            className="text-gray-400 text-lg transition-transform duration-200"
+            style={{
+              transform: collapsedSections.has('diff')
+                ? 'rotate(-90deg)'
+                : 'rotate(0deg)',
+            }}
           >
             ▼
           </span>
@@ -778,8 +810,13 @@ export function AiPromptDetailClient() {
             <Activity size={18} className="text-gray-500" />
             <h3 className="text-sm font-semibold">Metrics</h3>
           </div>
-          <span className="text-gray-400 text-lg transition-transform duration-200"
-            style={{ transform: collapsedSections.has('metrics') ? 'rotate(-90deg)' : 'rotate(0deg)' }}
+          <span
+            className="text-gray-400 text-lg transition-transform duration-200"
+            style={{
+              transform: collapsedSections.has('metrics')
+                ? 'rotate(-90deg)'
+                : 'rotate(0deg)',
+            }}
           >
             ▼
           </span>

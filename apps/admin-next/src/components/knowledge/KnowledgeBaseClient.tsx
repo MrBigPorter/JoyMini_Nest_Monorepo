@@ -550,7 +550,9 @@ function UploadModal({
                   {t('knowledgeBase.filesSelected', { count: files.length })}
                 </p>
                 <p className="text-xs text-gray-400">
-                  {(files.reduce((sum, f) => sum + f.size, 0) / 1024).toFixed(1)}{' '}
+                  {(files.reduce((sum, f) => sum + f.size, 0) / 1024).toFixed(
+                    1,
+                  )}{' '}
                   {t('knowledgeBase.clickToReselect')}
                 </p>
               </>
@@ -1211,18 +1213,30 @@ export function KnowledgeBaseClient() {
                         {/* Diff summary from auditResult */}
                         {doc.auditResult ? (
                           <div className="flex items-center gap-1.5">
-                            <span className={`text-[11px] font-mono font-semibold ${
-                              (100 - doc.auditResult.wer) >= 98
-                                ? 'text-green-600 dark:text-green-400'
-                                : (100 - doc.auditResult.wer) >= 90
-                                  ? 'text-yellow-600 dark:text-yellow-400'
-                                  : 'text-red-600 dark:text-red-400'
-                            }`}>
+                            <span
+                              className={`text-[11px] font-mono font-semibold ${
+                                100 - doc.auditResult.wer >= 98
+                                  ? 'text-green-600 dark:text-green-400'
+                                  : 100 - doc.auditResult.wer >= 90
+                                    ? 'text-yellow-600 dark:text-yellow-400'
+                                    : 'text-red-600 dark:text-red-400'
+                              }`}
+                            >
                               {(100 - doc.auditResult.wer).toFixed(1)}%
                             </span>
-                            {doc.auditResult.diffRanges.filter(r => r.severity === 'critical' && r.type !== 'equal').length > 0 && (
+                            {doc.auditResult.diffRanges.filter(
+                              (r) =>
+                                r.severity === 'critical' && r.type !== 'equal',
+                            ).length > 0 && (
                               <span className="text-[10px] text-red-500 font-medium">
-                                {doc.auditResult.diffRanges.filter(r => r.severity === 'critical' && r.type !== 'equal').length} critical
+                                {
+                                  doc.auditResult.diffRanges.filter(
+                                    (r) =>
+                                      r.severity === 'critical' &&
+                                      r.type !== 'equal',
+                                  ).length
+                                }{' '}
+                                critical
                               </span>
                             )}
                             {doc.auditResult.numberErrors.length > 0 && (
@@ -1252,13 +1266,19 @@ export function KnowledgeBaseClient() {
                       </button>
                     </td>
                     <td className="px-4 py-4">
-                      <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium ${
-                        doc.processStatus === 'indexed' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-                        doc.processStatus === 'embedded' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
-                        doc.processStatus === 'chunked' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
-                        doc.processStatus === 'parsed' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' :
-                        'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
-                      }`}>
+                      <span
+                        className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                          doc.processStatus === 'indexed'
+                            ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                            : doc.processStatus === 'embedded'
+                              ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                              : doc.processStatus === 'chunked'
+                                ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                                : doc.processStatus === 'parsed'
+                                  ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
+                                  : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
+                        }`}
+                      >
                         {doc.processStatus || 'uploaded'}
                       </span>
                     </td>
@@ -1337,7 +1357,6 @@ export function KnowledgeBaseClient() {
           t={t}
         />
       )}
-
     </div>
   );
 }

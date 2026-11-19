@@ -28,4 +28,16 @@ export const kycExamples: string[] = [
 
   // ── Start verification (operation: initiate process) ──
   'I want to start KYC verification',
+
+  // ── 中文补充（2026-11-19：提升中文召回） ──
+  '身份认证',
+  '证件审核',
+  '认证申请',
+  '证件照上传失败',
+  '身份核验',
+  '认证审核进度',
+  '证件一直不通过',
+  '实名信息核验',
+  '认证资料提交',
+  '身份认证流程',
 ];

@@ -6,6 +6,7 @@ import {
   SmartTable,
   ProColumns,
   ActionType,
+  type SmartTableQueryState,
 } from '@/components/scaffold/SmartTable';
 import { financeApi } from '@/api';
 import { WithdrawListParams, WithdrawOrder } from '@/type/types';
@@ -50,6 +51,28 @@ const ChannelIcon = ({
   );
 };
 
+/** 把 SmartTable 的内部状态映射为 withdrawals 查询参数（首屏/翻页共用） */
+function toWithdrawalsQueryInput(state: SmartTableQueryState) {
+  const search = state.search as Record<string, unknown>;
+  const dateRange = search.dateRange as
+    | { from?: string; to?: string }
+    | undefined;
+
+  return parseWithdrawalsSearchParams({
+    page: String(state.page),
+    pageSize: String(state.pageSize),
+    keyword: typeof search.keyword === 'string' ? search.keyword : undefined,
+    status:
+      typeof search.status === 'string' || typeof search.status === 'number'
+        ? String(search.status)
+        : undefined,
+    startDate:
+      typeof search.startDate === 'string' ? search.startDate : dateRange?.from,
+    endDate:
+      typeof search.endDate === 'string' ? search.endDate : dateRange?.to,
+  });
+}
+
 interface WithdrawalListProps {
   initialFormParams?: Record<string, unknown>;
   onParamsChange?: (params: Record<string, unknown>) => void;
@@ -75,9 +98,20 @@ export const WithdrawalList: React.FC<WithdrawalListProps> = ({
     });
   }, [initialFormParams]);
 
-  const hydrationQueryKey = useMemo(
-    () => withdrawalsListQueryKey(normalizedInitialFormParams),
-    [normalizedInitialFormParams],
+  // 统一取数：首屏（HydrationBoundary）与翻页/筛选共用同一套 queryKey + queryFn
+  const withdrawalsQuery = useMemo(
+    () => ({
+      queryKey: (state: SmartTableQueryState) =>
+        withdrawalsListQueryKey(toWithdrawalsQueryInput(state)),
+      queryFn: async (state: SmartTableQueryState) => {
+        const queryInput = toWithdrawalsQueryInput(state);
+        const res = await financeApi.getWithdrawals(
+          buildWithdrawalsListParams(queryInput) as WithdrawListParams,
+        );
+        return { data: res.list, total: res.total };
+      },
+    }),
+    [],
   );
 
   const handleAudit = useCallback(
@@ -275,35 +309,6 @@ export const WithdrawalList: React.FC<WithdrawalListProps> = ({
     [t],
   );
 
-  const requestWithdrawals = useCallback(async (params: WithdrawListParams) => {
-    const input = params as Record<string, unknown>;
-    const dateRange = input.dateRange as
-      | { from?: string; to?: string }
-      | undefined;
-    const queryInput = parseWithdrawalsSearchParams({
-      page: String(params.page ?? 1),
-      pageSize: String(params.pageSize ?? 10),
-      keyword: typeof input.keyword === 'string' ? input.keyword : undefined,
-      status:
-        typeof input.status === 'string' || typeof input.status === 'number'
-          ? String(input.status)
-          : undefined,
-      startDate:
-        typeof input.startDate === 'string' ? input.startDate : dateRange?.from,
-      endDate:
-        typeof input.endDate === 'string' ? input.endDate : dateRange?.to,
-    });
-
-    const res = await financeApi.getWithdrawals(
-      buildWithdrawalsListParams(queryInput) as WithdrawListParams,
-    );
-    return {
-      data: res.list,
-      total: res.total,
-      success: true,
-    };
-  }, []);
-
   return (
     <div className="p-4 ">
       <SmartTable<WithdrawOrder>
@@ -314,9 +319,7 @@ export const WithdrawalList: React.FC<WithdrawalListProps> = ({
         searchSchema={searchSchema}
         initialFormParams={normalizedInitialFormParams}
         onParamsChange={onParamsChange}
-        request={requestWithdrawals}
-        enableHydration={true}
-        hydrationQueryKey={hydrationQueryKey}
+        query={withdrawalsQuery}
       />
     </div>
   );

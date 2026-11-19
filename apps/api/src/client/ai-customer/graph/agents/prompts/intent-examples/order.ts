@@ -59,4 +59,18 @@ export const orderExamples: string[] = [
   'What is my order number?',
   'I want to change my shipping address',
   'Can I modify my order?',
+
+  // ── 中文补充（2026-11-19：提升中文召回） ──
+  '订单物流',
+  '订单状态',
+  '发货时间',
+  '订单退款',
+  '查订单',
+  '订单详情',
+  '订单编号查询',
+  '包裹位置',
+  '订单取消申请',
+
+  // ── 地址语境补充（订单改址 vs 地址簿管理） ──
+  '修改订单收货地址',
 ];
