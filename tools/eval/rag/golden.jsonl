@@ -1,0 +1,40 @@
+{"id":"r01","query":"How do I contact customer support?","expectedDocIds":["contact-support"],"domain":"common"}
+{"id":"r02","query":"怎么联系人工客服？","expectedDocIds":["contact-support"],"domain":"common"}
+{"id":"r03","query":"哪些商品是禁售的？","expectedDocIds":["platform-rules"],"domain":"common"}
+{"id":"r04","query":"What items are prohibited on the platform?","expectedDocIds":["platform-rules"],"domain":"common"}
+{"id":"r05","query":"你们怎么保护我的个人信息？","expectedDocIds":["privacy-policy"],"domain":"common"}
+{"id":"r06","query":"双十一活动规则是什么？","expectedDocIds":["promotion-rules"],"domain":"common"}
+{"id":"r07","query":"怎么举报卖家？","expectedDocIds":["report-seller"],"domain":"common"}
+{"id":"r08","query":"优惠券用不了怎么办？","expectedDocIds":["coupon-faq"],"domain":"coupon"}
+{"id":"r09","query":"优惠券可以叠加使用吗？","expectedDocIds":["coupon-rules"],"domain":"coupon"}
+{"id":"r10","query":"KYC 需要准备什么证件？","expectedDocIds":["kyc-guide"],"domain":"kyc"}
+{"id":"r11","query":"身份证上传一直失败怎么办？","expectedDocIds":["kyc-troubleshooting"],"domain":"kyc"}
+{"id":"r12","query":"人脸识别不通过怎么办？","expectedDocIds":["kyc-troubleshooting"],"domain":"kyc"}
+{"id":"r13","query":"抽奖奖品怎么领取？","expectedDocIds":["lucky-draw-rules"],"domain":"lucky-draw"}
+{"id":"r14","query":"支持货到付款吗？","expectedDocIds":["cod-payment"],"domain":"order"}
+{"id":"r15","query":"怎么取消订单？","expectedDocIds":["order-management"],"domain":"order"}
+{"id":"r16","query":"订单一直没发货怎么办？","expectedDocIds":["order-troubleshooting"],"domain":"order"}
+{"id":"r17","query":"退款多久到账？","expectedDocIds":["refund-policy"],"domain":"order"}
+{"id":"r18","query":"What is the refund policy?","expectedDocIds":["refund-policy"],"domain":"order"}
+{"id":"r19","query":"退货邮费谁出？","expectedDocIds":["return-shipping-faq"],"domain":"order"}
+{"id":"r20","query":"运费怎么计算？","expectedDocIds":["shipping-policy"],"domain":"order"}
+{"id":"r21","query":"一般多久发货？","expectedDocIds":["shipping-policy"],"domain":"order"}
+{"id":"r22","query":"How much is shipping?","expectedDocIds":["shipping-policy"],"domain":"order"}
+{"id":"r23","query":"怎么发起拼团？","expectedDocIds":["group-buying-guide"],"domain":"product"}
+{"id":"r24","query":"怎么确认商品是正品？","expectedDocIds":["product-authenticity"],"domain":"product"}
+{"id":"r25","query":"商品缺货什么时候补货？","expectedDocIds":["product-faq"],"domain":"product"}
+{"id":"r26","query":"商品有保修吗？","expectedDocIds":["product-faq"],"domain":"product"}
+{"id":"r27","query":"怎么修改商品评价？","expectedDocIds":["review-guide"],"domain":"product"}
+{"id":"r28","query":"怎么选尺码？","expectedDocIds":["size-guide"],"domain":"product"}
+{"id":"r29","query":"怎么修改登录密码？","expectedDocIds":["account-guide"],"domain":"user"}
+{"id":"r30","query":"收不到 OTP 验证码怎么办？","expectedDocIds":["account-troubleshooting"],"domain":"user"}
+{"id":"r31","query":"账号被锁定了怎么办？","expectedDocIds":["account-troubleshooting"],"domain":"user"}
+{"id":"r32","query":"VIP 会员有什么权益？","expectedDocIds":["vip-benefits"],"domain":"user"}
+{"id":"r33","query":"怎么充值？","expectedDocIds":["deposit-guide"],"domain":"wallet"}
+{"id":"r34","query":"支持 GCash 充值吗？","expectedDocIds":["deposit-guide"],"domain":"wallet"}
+{"id":"r35","query":"充值没到账怎么办？","expectedDocIds":["wallet-troubleshooting"],"domain":"wallet"}
+{"id":"r36","query":"提现失败了怎么办？","expectedDocIds":["wallet-troubleshooting"],"domain":"wallet"}
+{"id":"r37","query":"提现手续费是多少？","expectedDocIds":["withdrawal-guide"],"domain":"wallet"}
+{"id":"r38","query":"How long does withdrawal take?","expectedDocIds":["withdrawal-guide"],"domain":"wallet"}
+{"id":"r39","query":"I didn't receive the OTP code","expectedDocIds":["account-troubleshooting"],"domain":"user"}
+{"id":"r40","query":"Can I sell counterfeit goods?","expectedDocIds":["platform-rules"],"domain":"common"}

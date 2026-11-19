@@ -1,0 +1,797 @@
+{
+  "run_at": "2026-11-19T13:12:35",
+  "base_url": "http://localhost/api/v1",
+  "golden_file": "/Volumes/MySSD/work/JoyMini_Nest_Monorepo/tools/eval/rag/golden.jsonl",
+  "topk": 5,
+  "total": 40,
+  "global": {
+    "n": 40,
+    "hit1": 0.825,
+    "hit3": 0.975,
+    "mrr": 0.8979166666666666,
+    "p50": 751,
+    "p95": 858
+  },
+  "domain_filtered": {
+    "n": 40,
+    "hit1": 0.925,
+    "hit3": 0.975,
+    "mrr": 0.95625,
+    "p50": 711,
+    "p95": 777
+  },
+  "per_domain": {
+    "common": {
+      "n": 8,
+      "hit1": 0.75,
+      "hit3": 1.0,
+      "mrr": 0.8541666666666666,
+      "p50": 745,
+      "p95": 780
+    },
+    "coupon": {
+      "n": 2,
+      "hit1": 0.5,
+      "hit3": 1.0,
+      "mrr": 0.75,
+      "p50": 673,
+      "p95": 673
+    },
+    "kyc": {
+      "n": 3,
+      "hit1": 1.0,
+      "hit3": 1.0,
+      "mrr": 1.0,
+      "p50": 736,
+      "p95": 748
+    },
+    "lucky-draw": {
+      "n": 1,
+      "hit1": 1.0,
+      "hit3": 1.0,
+      "mrr": 1.0,
+      "p50": 767,
+      "p95": 767
+    },
+    "order": {
+      "n": 9,
+      "hit1": 0.8888888888888888,
+      "hit3": 0.8888888888888888,
+      "mrr": 0.9166666666666666,
+      "p50": 746,
+      "p95": 784
+    },
+    "product": {
+      "n": 6,
+      "hit1": 1.0,
+      "hit3": 1.0,
+      "mrr": 1.0,
+      "p50": 746,
+      "p95": 767
+    },
+    "user": {
+      "n": 5,
+      "hit1": 0.6,
+      "hit3": 1.0,
+      "mrr": 0.8,
+      "p50": 777,
+      "p95": 783
+    },
+    "wallet": {
+      "n": 6,
+      "hit1": 0.8333333333333334,
+      "hit3": 1.0,
+      "mrr": 0.8888888888888888,
+      "p50": 744,
+      "p95": 777
+    }
+  },
+  "rows": [
+    {
+      "id": "r01",
+      "query": "How do I contact customer support?",
+      "domain": "common",
+      "expectedDocIds": [
+        "contact-support"
+      ],
+      "retrievedDocIds": [
+        "product-authenticity",
+        "contact-support",
+        "account-troubleshooting",
+        "privacy-policy",
+        "product-faq"
+      ],
+      "globalRank": 2,
+      "domainRank": 1,
+      "latencyMs": 906,
+      "domainLatencyMs": 736,
+      "error": null
+    },
+    {
+      "id": "r02",
+      "query": "怎么联系人工客服？",
+      "domain": "common",
+      "expectedDocIds": [
+        "contact-support"
+      ],
+      "retrievedDocIds": [
+        "contact-support",
+        "account-troubleshooting",
+        "product-authenticity",
+        "product-faq",
+        "privacy-policy"
+      ],
+      "globalRank": 1,
+      "domainRank": 1,
+      "latencyMs": 745,
+      "domainLatencyMs": 685,
+      "error": null
+    },
+    {
+      "id": "r03",
+      "query": "哪些商品是禁售的？",
+      "domain": "common",
+      "expectedDocIds": [
+        "platform-rules"
+      ],
+      "retrievedDocIds": [
+        "platform-rules",
+        "report-seller",
+        "product-faq"
+      ],
+      "globalRank": 1,
+      "domainRank": 1,
+      "latencyMs": 741,
+      "domainLatencyMs": 720,
+      "error": null
+    },
+    {
+      "id": "r04",
+      "query": "What items are prohibited on the platform?",
+      "domain": "common",
+      "expectedDocIds": [
+        "platform-rules"
+      ],
+      "retrievedDocIds": [
+        "platform-rules"
+      ],
+      "globalRank": 1,
+      "domainRank": 1,
+      "latencyMs": 780,
+      "domainLatencyMs": 759,
+      "error": null
+    },
+    {
+      "id": "r05",
+      "query": "你们怎么保护我的个人信息？",
+      "domain": "common",
+      "expectedDocIds": [
+        "privacy-policy"
+      ],
+      "retrievedDocIds": [
+        "privacy-policy"
+      ],
+      "globalRank": 1,
+      "domainRank": 1,
+      "latencyMs": 760,
+      "domainLatencyMs": 777,
+      "error": null
+    },
+    {
+      "id": "r06",
+      "query": "双十一活动规则是什么？",
+      "domain": "common",
+      "expectedDocIds": [
+        "promotion-rules"
+      ],
+      "retrievedDocIds": [
+        "promotion-rules",
+        "lucky-draw-rules",
+        "platform-rules",
+        "group-buying-guide"
+      ],
+      "globalRank": 1,
+      "domainRank": 1,
+      "latencyMs": 725,
+      "domainLatencyMs": 749,
+      "error": null
+    },
+    {
+      "id": "r07",
+      "query": "怎么举报卖家？",
+      "domain": "common",
+      "expectedDocIds": [
+        "report-seller"
+      ],
+      "retrievedDocIds": [
+        "report-seller",
+        "platform-rules"
+      ],
+      "globalRank": 1,
+      "domainRank": 1,
+      "latencyMs": 669,
+      "domainLatencyMs": 668,
+      "error": null
+    },
+    {
+      "id": "r08",
+      "query": "优惠券用不了怎么办？",
+      "domain": "coupon",
+      "expectedDocIds": [
+        "coupon-faq"
+      ],
+      "retrievedDocIds": [
+        "coupon-faq"
+      ],
+      "globalRank": 1,
+      "domainRank": 1,
+      "latencyMs": 673,
+      "domainLatencyMs": 677,
+      "error": null
+    },
+    {
+      "id": "r09",
+      "query": "优惠券可以叠加使用吗？",
+      "domain": "coupon",
+      "expectedDocIds": [
+        "coupon-rules"
+      ],
+      "retrievedDocIds": [
+        "promotion-rules",
+        "coupon-rules",
+        "coupon-faq"
+      ],
+      "globalRank": 2,
+      "domainRank": 1,
+      "latencyMs": 761,
+      "domainLatencyMs": 721,
+      "error": null
+    },
+    {
+      "id": "r10",
+      "query": "KYC 需要准备什么证件？",
+      "domain": "kyc",
+      "expectedDocIds": [
+        "kyc-guide"
+      ],
+      "retrievedDocIds": [
+        "kyc-guide",
+        "kyc-troubleshooting",
+        "account-troubleshooting"
+      ],
+      "globalRank": 1,
+      "domainRank": 1,
+      "latencyMs": 769,
+      "domainLatencyMs": 688,
+      "error": null
+    },
+    {
+      "id": "r11",
+      "query": "身份证上传一直失败怎么办？",
+      "domain": "kyc",
+      "expectedDocIds": [
+        "kyc-troubleshooting"
+      ],
+      "retrievedDocIds": [
+        "kyc-troubleshooting",
+        "kyc-guide",
+        "account-troubleshooting",
+        "wallet-troubleshooting"
+      ],
+      "globalRank": 1,
+      "domainRank": 1,
+      "latencyMs": 736,
+      "domainLatencyMs": 689,
+      "error": null
+    },
+    {
+      "id": "r12",
+      "query": "人脸识别不通过怎么办？",
+      "domain": "kyc",
+      "expectedDocIds": [
+        "kyc-troubleshooting"
+      ],
+      "retrievedDocIds": [
+        "kyc-troubleshooting",
+        "kyc-guide",
+        "account-troubleshooting",
+        "wallet-troubleshooting"
+      ],
+      "globalRank": 1,
+      "domainRank": 1,
+      "latencyMs": 748,
+      "domainLatencyMs": 694,
+      "error": null
+    },
+    {
+      "id": "r13",
+      "query": "抽奖奖品怎么领取？",
+      "domain": "lucky-draw",
+      "expectedDocIds": [
+        "lucky-draw-rules"
+      ],
+      "retrievedDocIds": [
+        "lucky-draw-rules",
+        "product-faq"
+      ],
+      "globalRank": 1,
+      "domainRank": 1,
+      "latencyMs": 767,
+      "domainLatencyMs": 689,
+      "error": null
+    },
+    {
+      "id": "r14",
+      "query": "支持货到付款吗？",
+      "domain": "order",
+      "expectedDocIds": [
+        "cod-payment"
+      ],
+      "retrievedDocIds": [
+        "cod-payment",
+        "contact-support"
+      ],
+      "globalRank": 1,
+      "domainRank": 1,
+      "latencyMs": 751,
+      "domainLatencyMs": 705,
+      "error": null
+    },
+    {
+      "id": "r15",
+      "query": "怎么取消订单？",
+      "domain": "order",
+      "expectedDocIds": [
+        "order-management"
+      ],
+      "retrievedDocIds": [
+        "order-management",
+        "order-troubleshooting",
+        "cod-payment",
+        "contact-support"
+      ],
+      "globalRank": 1,
+      "domainRank": 1,
+      "latencyMs": 721,
+      "domainLatencyMs": 701,
+      "error": null
+    },
+    {
+      "id": "r16",
+      "query": "订单一直没发货怎么办？",
+      "domain": "order",
+      "expectedDocIds": [
+        "order-troubleshooting"
+      ],
+      "retrievedDocIds": [
+        "wallet-troubleshooting",
+        "cod-payment",
+        "order-management",
+        "order-troubleshooting",
+        "return-shipping-faq"
+      ],
+      "globalRank": 4,
+      "domainRank": 4,
+      "latencyMs": 743,
+      "domainLatencyMs": 712,
+      "error": null
+    },
+    {
+      "id": "r17",
+      "query": "退款多久到账？",
+      "domain": "order",
+      "expectedDocIds": [
+        "refund-policy"
+      ],
+      "retrievedDocIds": [
+        "refund-policy",
+        "return-shipping-faq",
+        "lucky-draw-rules"
+      ],
+      "globalRank": 1,
+      "domainRank": 1,
+      "latencyMs": 746,
+      "domainLatencyMs": 687,
+      "error": null
+    },
+    {
+      "id": "r18",
+      "query": "What is the refund policy?",
+      "domain": "order",
+      "expectedDocIds": [
+        "refund-policy"
+      ],
+      "retrievedDocIds": [
+        "refund-policy",
+        "return-shipping-faq",
+        "promotion-rules",
+        "coupon-faq"
+      ],
+      "globalRank": 1,
+      "domainRank": 1,
+      "latencyMs": 815,
+      "domainLatencyMs": 706,
+      "error": null
+    },
+    {
+      "id": "r19",
+      "query": "退货邮费谁出？",
+      "domain": "order",
+      "expectedDocIds": [
+        "return-shipping-faq"
+      ],
+      "retrievedDocIds": [
+        "return-shipping-faq"
+      ],
+      "globalRank": 1,
+      "domainRank": 1,
+      "latencyMs": 784,
+      "domainLatencyMs": 700,
+      "error": null
+    },
+    {
+      "id": "r20",
+      "query": "运费怎么计算？",
+      "domain": "order",
+      "expectedDocIds": [
+        "shipping-policy"
+      ],
+      "retrievedDocIds": [
+        "shipping-policy",
+        "return-shipping-faq",
+        "cod-payment"
+      ],
+      "globalRank": 1,
+      "domainRank": 1,
+      "latencyMs": 715,
+      "domainLatencyMs": 798,
+      "error": null
+    },
+    {
+      "id": "r21",
+      "query": "一般多久发货？",
+      "domain": "order",
+      "expectedDocIds": [
+        "shipping-policy"
+      ],
+      "retrievedDocIds": [
+        "shipping-policy",
+        "lucky-draw-rules",
+        "refund-policy",
+        "product-faq",
+        "coupon-faq"
+      ],
+      "globalRank": 1,
+      "domainRank": 1,
+      "latencyMs": 768,
+      "domainLatencyMs": 770,
+      "error": null
+    },
+    {
+      "id": "r22",
+      "query": "How much is shipping?",
+      "domain": "order",
+      "expectedDocIds": [
+        "shipping-policy"
+      ],
+      "retrievedDocIds": [
+        "shipping-policy",
+        "return-shipping-faq",
+        "refund-policy"
+      ],
+      "globalRank": 1,
+      "domainRank": 1,
+      "latencyMs": 770,
+      "domainLatencyMs": 724,
+      "error": null
+    },
+    {
+      "id": "r23",
+      "query": "怎么发起拼团？",
+      "domain": "product",
+      "expectedDocIds": [
+        "group-buying-guide"
+      ],
+      "retrievedDocIds": [
+        "group-buying-guide",
+        "promotion-rules"
+      ],
+      "globalRank": 1,
+      "domainRank": 1,
+      "latencyMs": 710,
+      "domainLatencyMs": 701,
+      "error": null
+    },
+    {
+      "id": "r24",
+      "query": "怎么确认商品是正品？",
+      "domain": "product",
+      "expectedDocIds": [
+        "product-authenticity"
+      ],
+      "retrievedDocIds": [
+        "product-authenticity"
+      ],
+      "globalRank": 1,
+      "domainRank": 1,
+      "latencyMs": 748,
+      "domainLatencyMs": 711,
+      "error": null
+    },
+    {
+      "id": "r25",
+      "query": "商品缺货什么时候补货？",
+      "domain": "product",
+      "expectedDocIds": [
+        "product-faq"
+      ],
+      "retrievedDocIds": [
+        "product-faq"
+      ],
+      "globalRank": 1,
+      "domainRank": 1,
+      "latencyMs": 738,
+      "domainLatencyMs": 1006,
+      "error": null
+    },
+    {
+      "id": "r26",
+      "query": "商品有保修吗？",
+      "domain": "product",
+      "expectedDocIds": [
+        "product-faq"
+      ],
+      "retrievedDocIds": [
+        "product-faq"
+      ],
+      "globalRank": 1,
+      "domainRank": 1,
+      "latencyMs": 746,
+      "domainLatencyMs": 721,
+      "error": null
+    },
+    {
+      "id": "r27",
+      "query": "怎么修改商品评价？",
+      "domain": "product",
+      "expectedDocIds": [
+        "review-guide"
+      ],
+      "retrievedDocIds": [
+        "review-guide",
+        "promotion-rules"
+      ],
+      "globalRank": 1,
+      "domainRank": 1,
+      "latencyMs": 858,
+      "domainLatencyMs": 770,
+      "error": null
+    },
+    {
+      "id": "r28",
+      "query": "怎么选尺码？",
+      "domain": "product",
+      "expectedDocIds": [
+        "size-guide"
+      ],
+      "retrievedDocIds": [
+        "size-guide"
+      ],
+      "globalRank": 1,
+      "domainRank": 1,
+      "latencyMs": 767,
+      "domainLatencyMs": 728,
+      "error": null
+    },
+    {
+      "id": "r29",
+      "query": "怎么修改登录密码？",
+      "domain": "user",
+      "expectedDocIds": [
+        "account-guide"
+      ],
+      "retrievedDocIds": [
+        "account-guide",
+        "account-troubleshooting",
+        "contact-support"
+      ],
+      "globalRank": 1,
+      "domainRank": 1,
+      "latencyMs": 798,
+      "domainLatencyMs": 736,
+      "error": null
+    },
+    {
+      "id": "r30",
+      "query": "收不到 OTP 验证码怎么办？",
+      "domain": "user",
+      "expectedDocIds": [
+        "account-troubleshooting"
+      ],
+      "retrievedDocIds": [
+        "wallet-troubleshooting",
+        "account-troubleshooting"
+      ],
+      "globalRank": 2,
+      "domainRank": 1,
+      "latencyMs": 777,
+      "domainLatencyMs": 700,
+      "error": null
+    },
+    {
+      "id": "r31",
+      "query": "账号被锁定了怎么办？",
+      "domain": "user",
+      "expectedDocIds": [
+        "account-troubleshooting"
+      ],
+      "retrievedDocIds": [
+        "account-troubleshooting",
+        "wallet-troubleshooting"
+      ],
+      "globalRank": 1,
+      "domainRank": 1,
+      "latencyMs": 780,
+      "domainLatencyMs": 689,
+      "error": null
+    },
+    {
+      "id": "r32",
+      "query": "VIP 会员有什么权益？",
+      "domain": "user",
+      "expectedDocIds": [
+        "vip-benefits"
+      ],
+      "retrievedDocIds": [
+        "vip-benefits",
+        "review-guide"
+      ],
+      "globalRank": 1,
+      "domainRank": 1,
+      "latencyMs": 737,
+      "domainLatencyMs": 739,
+      "error": null
+    },
+    {
+      "id": "r33",
+      "query": "怎么充值？",
+      "domain": "wallet",
+      "expectedDocIds": [
+        "deposit-guide"
+      ],
+      "retrievedDocIds": [
+        "deposit-guide"
+      ],
+      "globalRank": 1,
+      "domainRank": 1,
+      "latencyMs": 777,
+      "domainLatencyMs": 718,
+      "error": null
+    },
+    {
+      "id": "r34",
+      "query": "支持 GCash 充值吗？",
+      "domain": "wallet",
+      "expectedDocIds": [
+        "deposit-guide"
+      ],
+      "retrievedDocIds": [
+        "deposit-guide",
+        "wallet-troubleshooting"
+      ],
+      "globalRank": 1,
+      "domainRank": 1,
+      "latencyMs": 744,
+      "domainLatencyMs": 706,
+      "error": null
+    },
+    {
+      "id": "r35",
+      "query": "充值没到账怎么办？",
+      "domain": "wallet",
+      "expectedDocIds": [
+        "wallet-troubleshooting"
+      ],
+      "retrievedDocIds": [
+        "deposit-guide",
+        "withdrawal-guide",
+        "wallet-troubleshooting"
+      ],
+      "globalRank": 3,
+      "domainRank": 2,
+      "latencyMs": 738,
+      "domainLatencyMs": 695,
+      "error": null
+    },
+    {
+      "id": "r36",
+      "query": "提现失败了怎么办？",
+      "domain": "wallet",
+      "expectedDocIds": [
+        "wallet-troubleshooting"
+      ],
+      "retrievedDocIds": [
+        "wallet-troubleshooting",
+        "withdrawal-guide"
+      ],
+      "globalRank": 1,
+      "domainRank": 1,
+      "latencyMs": 720,
+      "domainLatencyMs": 712,
+      "error": null
+    },
+    {
+      "id": "r37",
+      "query": "提现手续费是多少？",
+      "domain": "wallet",
+      "expectedDocIds": [
+        "withdrawal-guide"
+      ],
+      "retrievedDocIds": [
+        "withdrawal-guide",
+        "deposit-guide",
+        "wallet-troubleshooting",
+        "cod-payment"
+      ],
+      "globalRank": 1,
+      "domainRank": 1,
+      "latencyMs": 767,
+      "domainLatencyMs": 700,
+      "error": null
+    },
+    {
+      "id": "r38",
+      "query": "How long does withdrawal take?",
+      "domain": "wallet",
+      "expectedDocIds": [
+        "withdrawal-guide"
+      ],
+      "retrievedDocIds": [
+        "withdrawal-guide",
+        "refund-policy",
+        "product-authenticity"
+      ],
+      "globalRank": 1,
+      "domainRank": 1,
+      "latencyMs": 962,
+      "domainLatencyMs": 732,
+      "error": null
+    },
+    {
+      "id": "r39",
+      "query": "I didn't receive the OTP code",
+      "domain": "user",
+      "expectedDocIds": [
+        "account-troubleshooting"
+      ],
+      "retrievedDocIds": [
+        "wallet-troubleshooting",
+        "account-troubleshooting",
+        "withdrawal-guide"
+      ],
+      "globalRank": 2,
+      "domainRank": 1,
+      "latencyMs": 783,
+      "domainLatencyMs": 693,
+      "error": null
+    },
+    {
+      "id": "r40",
+      "query": "Can I sell counterfeit goods?",
+      "domain": "common",
+      "expectedDocIds": [
+        "platform-rules"
+      ],
+      "retrievedDocIds": [
+        "product-authenticity",
+        "report-seller",
+        "platform-rules"
+      ],
+      "globalRank": 3,
+      "domainRank": 2,
+      "latencyMs": 756,
+      "domainLatencyMs": 718,
+      "error": null
+    }
+  ]
+}
