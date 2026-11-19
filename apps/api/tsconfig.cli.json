@@ -3,8 +3,31 @@
   "compilerOptions": {
     "outDir": "./dist/cli",
     "noEmit": false,
-    "strict": false,
-    "module": "commonjs"
+    "module": "commonjs",
+    "paths": {
+      "@api/*": [
+        "src/*"
+      ],
+      "@common/*": [
+        "../common/src/*"
+      ],
+      "@lucky/shared": [
+        "../../packages/shared/dist/index"
+      ],
+      "@lucky/shared/*": [
+        "../../packages/shared/dist/*"
+      ],
+      "@langchain/langgraph/prebuilt": [
+        "../../node_modules/@langchain/langgraph/dist/prebuilt/index"
+      ],
+      "meilisearch": [
+        "../../node_modules/meilisearch/dist/index.d.ts"
+      ]
+    }
   },
-  "include": ["scripts/cli/**/*.ts", "scripts/seed/**/*.ts", "scripts/utils/**/*.ts"]
+  "include": [
+    "scripts/cli/**/*.ts",
+    "scripts/seed/**/*.ts",
+    "scripts/utils/**/*.ts"
+  ]
 }
