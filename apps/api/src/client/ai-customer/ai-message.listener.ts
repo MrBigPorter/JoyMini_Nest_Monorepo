@@ -9,6 +9,7 @@ import {
 import { runWithTrace } from '@api/common/logger/trace-context';
 import { RedisLockService } from '@api/common/redis/redis-lock.service';
 import { RedisService } from '@api/common/redis/redis.service';
+import { AiFeedbackService } from '@api/common/ai/ai-feedback.service';
 
 /**
  * 同会话单飞的 Redis 锁 TTL。
@@ -74,6 +75,7 @@ export class AiMessageListener {
     private readonly aiCustomerService: AiCustomerService,
     private readonly redisLockService: RedisLockService,
     private readonly redisService: RedisService,
+    private readonly aiFeedbackService: AiFeedbackService,
   ) {}
 
   @OnEvent(CHAT_EVENTS.AI_MESSAGE_REQUESTED)
@@ -101,6 +103,18 @@ export class AiMessageListener {
         );
         return;
       }
+    }
+
+    if (messageId) {
+      // 隐式反馈：重复追问（廉价 Jaccard，不额外调模型）
+      void this.aiFeedbackService
+        .recordRepeatedQuestionIfAny(
+          conversationId,
+          userId,
+          messageId,
+          content,
+        )
+        .catch(() => undefined);
     }
 
     try {
@@ -145,6 +159,14 @@ export class AiMessageListener {
       `[AiMessageListener] cancel requested: conv=${event.conversationId}, reason=${event.reason}`,
     );
     controller.abort();
+    // 隐式反馈：生成中途被取消，视为“中途放弃”线索
+    void this.aiFeedbackService
+      .recordImplicit({
+        conversationId: event.conversationId,
+        signal: 'abandoned',
+        metadata: { reason: event.reason },
+      })
+      .catch(() => undefined);
   }
 
   /**

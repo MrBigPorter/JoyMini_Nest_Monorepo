@@ -27,6 +27,7 @@ import { PromptResolverService } from '@api/client/ai-customer/knowledge/prompt-
 import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service';
 import { AiMemoryService } from '@api/common/ai/ai-memory.service';
 import { AiActionConfirmService } from './ai-action-confirm.service';
+import { AiFeedbackService } from '@api/common/ai/ai-feedback.service';
 import {
   AiUsageService,
   QuotaExceededError,
@@ -84,6 +85,7 @@ export class AiCustomerService implements OnModuleDestroy {
     private readonly otpService: OtpService,
     private readonly redisService: RedisService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly aiFeedbackService: AiFeedbackService,
   ) {}
 
   /**
@@ -659,6 +661,16 @@ export class AiCustomerService implements OnModuleDestroy {
           'awaiting_human',
         ),
       );
+
+      // 隐式反馈：转人工是“AI 没解决”的线索，进入待标注池
+      void this.aiFeedbackService
+        .recordImplicit({
+          conversationId: targetConvId,
+          userId,
+          signal: 'transferred',
+          metadata: { reason },
+        })
+        .catch(() => undefined);
     }
     // SSE 调用方（POST + GET /chat/stream 老协议）靠这个回调收尾，
     // 之前从未被调用过 → 客户端只看到连接关闭，不知道已经转人工

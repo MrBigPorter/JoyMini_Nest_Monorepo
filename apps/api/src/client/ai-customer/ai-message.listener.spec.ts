@@ -40,10 +40,20 @@ function makeListener(
 ) {
   const service = { chatStream };
   const lock = { runWithLock };
+  const feedback = {
+    recordRepeatedQuestionIfAny: jest.fn().mockResolvedValue(undefined),
+    recordImplicit: jest.fn().mockResolvedValue(undefined),
+  };
   return {
-    listener: new AiMessageListener(service as any, lock as any, redis as any),
+    listener: new AiMessageListener(
+      service as any,
+      lock as any,
+      redis as any,
+      feedback as any,
+    ),
     lock,
     redis,
+    feedback,
   };
 }
 
