@@ -23,7 +23,6 @@ import { ChatPromptTemplate } from '@langchain/core/prompts';
 import { describe, it, expect } from '@jest/globals';
 import { VALID_INTENTS } from '@api/client/ai-customer/graph/agents/prompts/intent-label-categories';
 import {
-  INTENT_ACCEPT_SCORE,
   INTENT_EXECUTION_MIN_SCORE,
   INTENT_LLM_FALLBACK_SCORE,
   meetsExecutionThreshold,
@@ -361,11 +360,11 @@ describe('Group C: Edge cases', () => {
 // Group D: 阈值语义（graph/config/intent-thresholds.ts）
 // ============================================================
 describe('Group D: Intent threshold semantics', () => {
-  /** 0.5 ~ 0.7 之间：有分数，但没到标签接纳/执行门槛 */
-  const midGap = (INTENT_LLM_FALLBACK_SCORE + INTENT_ACCEPT_SCORE) / 2;
+  /** 0.5 ~ 0.7 之间：有分数，但没到执行门槛 */
+  const midGap = (INTENT_LLM_FALLBACK_SCORE + INTENT_EXECUTION_MIN_SCORE) / 2;
 
-  it('D1: LLM fallback gate 必须低于接纳门槛，否则 fallback 永不触发', () => {
-    expect(INTENT_LLM_FALLBACK_SCORE).toBeLessThan(INTENT_ACCEPT_SCORE);
+  it('D1: LLM fallback gate 必须低于执行门槛，否则 fallback 永不触发', () => {
+    expect(INTENT_LLM_FALLBACK_SCORE).toBeLessThan(INTENT_EXECUTION_MIN_SCORE);
   });
 
   it('D2: 低于 fallback gate 才触发 LLM fallback（边界含等于）', () => {
@@ -377,7 +376,7 @@ describe('Group D: Intent threshold semantics', () => {
     // router 认为整次分类仍可信（>= 0.5），把降级交给下游；
     // orchestrator 则因为 < 执行门槛而明确降级闲聊（并打 warn）。
     expect(midGap).toBeGreaterThan(INTENT_LLM_FALLBACK_SCORE);
-    expect(midGap).toBeLessThan(INTENT_ACCEPT_SCORE);
+    expect(midGap).toBeLessThan(INTENT_EXECUTION_MIN_SCORE);
     expect(shouldUseLlmFallback(midGap)).toBe(false);
     expect(meetsExecutionThreshold(midGap)).toBe(false);
   });

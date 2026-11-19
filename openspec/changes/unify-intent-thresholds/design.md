@@ -41,22 +41,21 @@
 `apps/api/src/client/ai-customer/graph/config/intent-thresholds.ts`，当前已导出：
 
 ```ts
-/** 单条向量/BM25 召回的及格线（融合前原始分） */
-export const INTENT_ACCEPT_SCORE = 0.7;
 /** embedding 整体不可信、整轮交 LLM 的阈值 */
 export const INTENT_LLM_FALLBACK_SCORE = 0.5;
-/** 融合后标签分是否值得派 Agent 执行 */
+/** 融合后标签分是否值得派 Agent 执行（分类器与编排层共用，只判一次） */
 export const INTENT_EXECUTION_MIN_SCORE = 0.7;
+/** 融合权重 / 分差阈值 */
+export const VECTOR_FUSION_WEIGHT = 0.7;
+export const BM25_FUSION_WEIGHT = 0.3;
+export const INTENT_SCORE_MARGIN = 0.05;
+export const INTENT_TIE_EPSILON = 0.02;
+export const HUMAN_SUPPORT_MISSING_BM25_PENALTY = 0.7;
 ```
 
-外加 `meetsAcceptThreshold` / `shouldUseLlmFallback` / `meetsExecutionThreshold`
-三个语义化判定函数，消费方不再写裸比较。
-
-**尚未迁移的裸常量**（下一步补）：
-
-- `intent-classifier.ts` 的 `VECTOR_WEIGHT = 0.7` / `BM25_WEIGHT = 0.3`
-- 同文件的 `GAP_THRESHOLD = 0.02`（catch-all 让位）
-- `orchestrator.node.ts` 的 `SCORE_MARGIN = 0.05`（近距离竞争者保留）
+外加 `shouldUseLlmFallback` / `meetsExecutionThreshold` 两个语义化判定函数，
+消费方不再写裸比较。原先的 `INTENT_ACCEPT_SCORE` 在门禁后移后已无消费方，
+随 1.7 一并删除，避免留下「文档说是融合前门槛、代码却没人用」的死常量。
 
 **为什么仍用扁平常量而非嵌套对象**：调用点必须一眼看出比较的是哪个量；
 **为什么不进配置中心**：阈值变更必须配 golden set 回放才能合入。

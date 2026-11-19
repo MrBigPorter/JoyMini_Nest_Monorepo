@@ -61,6 +61,7 @@ import {
 import {
   INTENT_EXECUTION_MIN_SCORE,
   meetsExecutionThreshold,
+  INTENT_SCORE_MARGIN,
 } from '@api/client/ai-customer/graph/config/intent-thresholds';
 
 import { resolveExecutionOrder } from './orchestrator-utils/dependency-resolver';
@@ -310,8 +311,8 @@ export const createOrchestratorNode =
     // Score Gap Check 是两层过滤：
     //   Step 1 — INTENT_EXECUTION_MIN_SCORE: 去掉绝对分数太低的"噪音"标签
     //   Step 2 — SCORE_GAP: 检查第1名和第2名的差距
-    //     ├─ gap ≥ 0.15 → 只执行 top-1（明确主意图）
-    //     ├─ gap < 0.15 → 保留与 top-1 差距内的候选者（模糊意图，排除尾部）
+    //     ├─ gap ≥ INTENT_SCORE_MARGIN → 只执行 top-1（明确主意图）
+    //     ├─ gap < INTENT_SCORE_MARGIN → 保留与 top-1 差距内的候选者（模糊意图，排除尾部）
     //     └─ 无标签 → fallback 到 generalChat
     //
     // ── 为什么需要 INTENT_EXECUTION_MIN_SCORE？ ──
@@ -320,12 +321,10 @@ export const createOrchestratorNode =
     // 该门槛确保只有"有信心"的标签才会被考虑执行。
     //
     // ── 为什么需要 close-contenders？ ──
-    // 如果 rag=0.90, wallet=0.88, order=0.50, product=0.30，gap=0.02 < 0.15，
+    // 如果 rag=0.90, wallet=0.88, order=0.50, product=0.30，gap 小于 INTENT_SCORE_MARGIN，
     // 此时不应该把 order 和 product 也放进去执行，它们是被高分的 rag/wallet 带进来的。
     // close-contenders 策略只保留与 top-1 差距 < SCORE_GAP 的标签。
     // ================================================================
-
-    const SCORE_MARGIN = 0.05;
 
     // Step 1: 按分数降序排列
     const sortedLabels = [...labels].sort((a, b) => b.score - a.score);
@@ -381,7 +380,7 @@ export const createOrchestratorNode =
       );
     }
 
-    // 去重：同一 domain 可能出现多次（BM25 + vector 各来一次），取最高分
+    // 防御性排序：classified labels 已按域去重，这里只保证降序
     const uniqueDomains = new Map<string, number>();
     for (const l of validLabels) {
       const existing = uniqueDomains.get(l.label) ?? 0;
@@ -401,7 +400,7 @@ export const createOrchestratorNode =
       );
     } else if (
       domainLabels.length > 1 &&
-      domainLabels[0].score - domainLabels[1].score < SCORE_MARGIN
+      domainLabels[0].score - domainLabels[1].score < INTENT_SCORE_MARGIN
     ) {
       // TOP1 和 TOP2 差距 < margin → 不确定，问用户
 

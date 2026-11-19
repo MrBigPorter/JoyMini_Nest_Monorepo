@@ -127,7 +127,7 @@ function parseFallback(trimmed: string): {
  *   → 返回 ClassificationResult:
  *     {
  *       intent: 'product',             ← 最高分域
- *       labels: [                      ← 多标签（融合分，接纳门槛见 INTENT_ACCEPT_SCORE）
+ *       labels: [                      ← 多标签（融合分，执行门槛见 INTENT_EXECUTION_MIN_SCORE）
  *         {label:'product', score:0.86},
  *         {label:'coupon',  score:0.60},
  *         {label:'wallet',  score:0.59}

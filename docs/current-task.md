@@ -71,7 +71,7 @@
 | # | 任务 | #85 ID | 文件 | 状态 |
 |:--:|---|:--:|---|:--:|
 | T2-1 | 转人工：词边界匹配 + 情绪分级 + 工单写入 + 消费者 | P1-19 | `transfer-detector.ts`、新增 admin 消费者 | ☐ |
-| T2-2 | 意图阈值统一为单一常量 + 融合后再过滤 | P1-20 | `intent-classifier.ts`、`intent-router.node.ts`、`orchestrator.node.ts` | ☐ |
+| T2-2 | 意图阈值统一为单一常量 + 融合后再过滤 | P1-20 | `intent-classifier.ts`、`intent-router.node.ts`、`orchestrator.node.ts` | ✅ 2026-11-19（常量收口 + 门槛移到融合后；回放 83.7%→84.3%，rag 精确率 78.6%→80.0%） |
 | T2-3 | RAG：中文分词 + Layer 2 占位符 + 向量相关性门槛 | P1-21 | `rag-retrieval.service.ts` | ☐ |
 | T2-4 | 流式白名单：帧类型白名单 + `step` 帧字段白名单（非「只转发最终文本」） | P1-22 | `ai-stream-frames.ts`、`ai-customer.controller.ts` | ✅ 2026-11-19（5 类帧 + `step/content/tool`；`ai-stream-frames.spec.ts` 9 例；开关 `AI_STREAM_FRAME_WHITELIST_ENABLED` 默认开启） |
 | T2-5 | **转人工闭环**：admin「待接入」列表 + 订阅 `AI_TRANSFER` 通知 + 超时定时回收（现在只在用户下条消息时懒判定） | N-13 / N-14 | `admin/chat/`、`admin-next/.../customer-service/`、新增 cron | ✅ 2026-11-19（S1/S2 + S3 实时推送 + S4 空闲回收；见 [#98 §14](./AI-joymini/98-转人工闭环-SDD.md)） |

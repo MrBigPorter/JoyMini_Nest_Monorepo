@@ -14,7 +14,6 @@ import { AiService } from '@api/common/ai/ai.service';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service';
 import {
-  INTENT_ACCEPT_SCORE,
   INTENT_EXECUTION_MIN_SCORE,
   INTENT_LLM_FALLBACK_SCORE,
 } from '@api/client/ai-customer/graph/config/intent-thresholds';
@@ -194,7 +193,7 @@ describe('IntentClassifier', () => {
 
     it('should return llm_fallback when confidence is below threshold', async () => {
       const prismaService = createMockPrismaService({
-        // pgvector 返回低置信度 0.32（< INTENT_ACCEPT_SCORE）
+        // pgvector 返回低置信度 0.32（< INTENT_EXECUTION_MIN_SCORE）
         queryRawUnsafeResults: {
           'SELECT domain': [{ domain: 'general', similarity: 0.32 }],
         },
@@ -220,9 +219,9 @@ describe('IntentClassifier', () => {
     });
 
     it('should fall back (with a warn log) when best score is in the 0.5-0.7 gap', async () => {
-      // 0.5 ~ 0.7 之间：有分数，但没达到标签接纳门槛。
+      // 0.5 ~ 0.7 之间：有分数，但没达到执行门槛。
       // 过去这种结果会被上游悄悄丢掉，现在必须明确走 llm_fallback 并记录原因。
-      const inGap = (INTENT_LLM_FALLBACK_SCORE + INTENT_ACCEPT_SCORE) / 2;
+      const inGap = (INTENT_LLM_FALLBACK_SCORE + INTENT_EXECUTION_MIN_SCORE) / 2;
       const prismaService = createMockPrismaService({
         queryRawUnsafeResults: {
           'SELECT domain': [{ domain: 'order', similarity: inGap }],
@@ -258,7 +257,7 @@ describe('IntentClassifier', () => {
         expect(warnSpy).toHaveBeenCalledTimes(1);
         const warnMessage = String(warnSpy.mock.calls[0][0]);
         expect(warnMessage).toContain('below_accept_threshold');
-        expect(warnMessage).toContain(`"threshold":${INTENT_ACCEPT_SCORE}`);
+        expect(warnMessage).toContain(`"threshold":${INTENT_EXECUTION_MIN_SCORE}`);
         expect(warnMessage).toContain('"destination":"llm_fallback"');
         expect(warnMessage).not.toContain('maybe later');
       } finally {
@@ -266,9 +265,9 @@ describe('IntentClassifier', () => {
       }
     });
 
-    it('should accept best score at or above accept threshold', async () => {
+    it('should accept best score at or above execution threshold', async () => {
       // 门槛以上（0.75）应正常返回 embedding 结果
-      const score = INTENT_ACCEPT_SCORE + 0.05;
+      const score = INTENT_EXECUTION_MIN_SCORE + 0.05;
       const prismaService = createMockPrismaService({
         queryRawUnsafeResults: {
           'SELECT domain': [{ domain: 'order', similarity: score }],
@@ -323,7 +322,6 @@ describe('IntentClassifier', () => {
   describe('threshold config contract', () => {
     it('keeps every threshold inside (0, 1]', () => {
       for (const value of [
-        INTENT_ACCEPT_SCORE,
         INTENT_LLM_FALLBACK_SCORE,
         INTENT_EXECUTION_MIN_SCORE,
       ]) {
@@ -332,12 +330,68 @@ describe('IntentClassifier', () => {
       }
     });
 
-    it('LLM fallback gate is more permissive than the accept threshold', () => {
+    it('LLM fallback gate is more permissive than the execution threshold', () => {
       // 否则 classifier 接纳不了任何东西，router 的 fallback 也永远不会触发
-      expect(INTENT_LLM_FALLBACK_SCORE).toBeLessThan(INTENT_ACCEPT_SCORE);
+      expect(INTENT_LLM_FALLBACK_SCORE).toBeLessThan(INTENT_EXECUTION_MIN_SCORE);
       expect(INTENT_LLM_FALLBACK_SCORE).toBeLessThan(
         INTENT_EXECUTION_MIN_SCORE,
       );
+    });
+  });
+
+  describe('融合顺序（2.3 / 2.4）', () => {
+    it('向量 0.69 + 关键词 0.90 → 融合 0.753，进入候选集', async () => {
+      const prismaService = createMockPrismaService({
+        queryRawUnsafeResults: {
+          'SELECT domain': [{ domain: 'wallet', similarity: 0.69 }],
+        },
+      }) as PrismaService;
+      const embeddingMap = new Map<string, number[]>();
+      embeddingMap.set('余额', [0.1, 0.2]);
+      const aiService = createMockAiService(embeddingMap) as AiService;
+      const meilisearchService = {
+        searchIntentExamples: jest
+          .fn()
+          .mockResolvedValue([{ domain: 'wallet', score: 0.9 }]),
+      } as unknown as MeilisearchService;
+
+      const classifier = new IntentClassifier(
+        aiService,
+        prismaService,
+        meilisearchService,
+        mockLlmConfig,
+      );
+      const result = await classifier.classify('余额');
+
+      expect(result.intent).toBe('wallet');
+      expect(result.labels[0].score).toBeCloseTo(0.75, 2);
+    });
+
+    it('两路融合后仍低于 INTENT_EXECUTION_MIN_SCORE → 淘汰并降级', async () => {
+      const prismaService = createMockPrismaService({
+        queryRawUnsafeResults: {
+          'SELECT domain': [{ domain: 'wallet', similarity: 0.2 }],
+        },
+      }) as PrismaService;
+      const embeddingMap = new Map<string, number[]>();
+      embeddingMap.set('余额', [0.1, 0.2]);
+      const aiService = createMockAiService(embeddingMap) as AiService;
+      const meilisearchService = {
+        searchIntentExamples: jest
+          .fn()
+          .mockResolvedValue([{ domain: 'wallet', score: 0.9 }]),
+      } as unknown as MeilisearchService;
+
+      const classifier = new IntentClassifier(
+        aiService,
+        prismaService,
+        meilisearchService,
+        mockLlmConfig,
+      );
+      const result = await classifier.classify('余额');
+
+      expect(result.method).toBe('llm_fallback');
+      expect(result.labels).toEqual([{ label: 'general', score: 0.5 }]);
     });
   });
 });

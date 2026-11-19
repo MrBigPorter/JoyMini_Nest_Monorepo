@@ -30,7 +30,7 @@ docs/AI-joymini/             — Feature specs & architecture docs
 ## Key Architecture
 
 - **LangGraph**: StateGraph with orchestrator node, 9 intent routing via pgvector
-- **Orchestrator node**: Score Gap Check (MIN_SCORE=0.65, SCORE_GAP=0.15), close-contenders truncation
+- **Orchestrator node**: Score Gap Check（阈值见 `graph/config/intent-thresholds.ts`），close-contenders truncation
 - **RAG**: 4-tier retrieval + Meilisearch + Infinity (embedding + reranker) + reranker
 - **Infinity**: Unified embedding (bge-m3) + reranker (bge-reranker-v2-m3), replaced Ollama for embedding
 - **Chat LLM**: DeepSeek API (cloud), no local LLM needed
