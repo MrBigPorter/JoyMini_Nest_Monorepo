@@ -2057,6 +2057,9 @@ model AiAnswerFeedback {
   /// 隐式信号：transferred | repeated_question | abandoned
   signal String? @db.VarChar(32)
 
+  /// 触发该回答的用户提问（截断 2000 字），用于导出评测样本
+  input String? @db.Text
+
   /// 标注备注 / 原因（不含用户原文）
   note String? @db.VarChar(500)
   /// 标注人（显式反馈时）

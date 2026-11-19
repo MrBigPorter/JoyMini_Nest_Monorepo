@@ -1330,6 +1330,8 @@ export interface CloseConversationPayload {
 export interface AiFeedbackItem {
   id: string;
   conversationId: string;
+  /** 触发该回答的用户提问（导出回放用） */
+  input: string | null;
   messageId: string | null;
   userId: string | null;
   source: 'explicit' | 'implicit';

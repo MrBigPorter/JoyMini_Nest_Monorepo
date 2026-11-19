@@ -48,10 +48,15 @@ export class AiFeedbackService {
   constructor(private readonly prisma: PrismaService) {}
 
   async recordExplicit(input: ExplicitFeedbackInput): Promise<{ id: string }> {
+    const userInput = await this.resolveUserInput(
+      input.conversationId,
+      input.messageId,
+    );
     const row = await this.prisma.aiAnswerFeedback.create({
       data: {
         conversationId: input.conversationId,
         messageId: input.messageId ?? null,
+        input: userInput,
         userId: input.userId ?? null,
         source: 'explicit',
         verdict: input.verdict,
@@ -134,6 +139,29 @@ export class AiFeedbackService {
       signal: 'repeated_question',
       metadata: { similarity: Number(similarity.toFixed(2)) },
     });
+  }
+
+  /** 找到被评价 AI 消息之前最近一条用户消息，作为回放输入。 */
+  private async resolveUserInput(
+    conversationId: string,
+    messageId?: string,
+  ): Promise<string | null> {
+    if (!messageId) return null;
+    const target = await this.prisma.chatMessage.findUnique({
+      where: { id: messageId },
+      select: { seqId: true },
+    });
+    if (!target) return null;
+    const prev = await this.prisma.chatMessage.findFirst({
+      where: {
+        conversationId,
+        seqId: { lt: target.seqId },
+        source: 'user',
+      },
+      orderBy: { seqId: 'desc' },
+      select: { content: true },
+    });
+    return prev?.content?.slice(0, 2000) ?? null;
   }
 
   async list(params: {

@@ -38,6 +38,7 @@
 | 字段 | 说明 |
 |---|---|
 | `conversation_id` / `message_id` / `user_id` | 关联会话与被评价消息 |
+| `input` | 被评价 AI 消息之前最近一条用户提问（≤2000 字，导出回放用） |
 | `source` | `explicit` / `implicit` |
 | `verdict` / `error_type` | 显式：`correct` / `incorrect` + `irrelevant` / `outdated` / `overreach` / `format` |
 | `signal` | 隐式：`transferred` / `repeated_question` / `abandoned` |

@@ -48,7 +48,7 @@ export function AiFeedbackClient() {
     const lines = list.map((item: AiFeedbackItem) =>
       JSON.stringify({
         id: item.id,
-        input: '',
+        input: item.input ?? '',
         // 回放要求 expect 非空；待人工补标
         expect: null,
         tags: [
