@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  IsBoolean,
   IsInt,
   IsNotEmpty,
   IsNumber,
@@ -35,4 +36,12 @@ export class SearchRagDto {
   @Type(() => Number)
   @IsNumber()
   minScore?: number;
+
+  @ApiPropertyOptional({
+    description: '是否启用 reranker，默认 true；false 用于评测对比',
+    example: true,
+  })
+  @IsOptional()
+  @IsBoolean()
+  rerank?: boolean;
 }

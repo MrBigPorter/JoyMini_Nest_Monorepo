@@ -72,6 +72,7 @@ export class RagController {
       domain: dto.domain,
       topK: dto.topK ?? 5,
       minScore: dto.minScore,
+      useRerank: dto.rerank,
     });
 
     return results.map((r) => ({

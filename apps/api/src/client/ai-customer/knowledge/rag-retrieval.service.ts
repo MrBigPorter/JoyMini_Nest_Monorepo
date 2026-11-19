@@ -100,9 +100,20 @@ export class RagRetrievalService {
    */
   async retrieve(
     query: string,
-    options?: { domain?: string; topK?: number; minScore?: number },
+    options?: {
+      domain?: string;
+      topK?: number;
+      minScore?: number;
+      /** false 时跳过 reranker，用原始分排序（评测/降级用） */
+      useRerank?: boolean;
+    },
   ): Promise<RetrievedChunk[]> {
-    const { domain, topK = 5, minScore = 0.1 } = options ?? {};
+    const {
+      domain,
+      topK = 5,
+      minScore = 0.1,
+      useRerank = true,
+    } = options ?? {};
 
     if (!query || query.trim().length === 0) return [];
 
@@ -211,13 +222,16 @@ export class RagRetrievalService {
     const candidates = merged.length;
     const topScore = Math.max(...merged.map((c) => c.score));
 
-    merged = await this.rerank(query, merged, topK);
+    merged = useRerank
+      ? await this.rerank(query, merged, topK)
+      : this.fallbackSort(merged, topK);
 
     emitStage('retrieval', {
       layers,
       candidates,
       returned: merged.length,
       topScore: Number(topScore.toFixed(4)),
+      rerank: useRerank,
       latencyMs: Date.now() - startedAt,
     });
 

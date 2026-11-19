@@ -21,6 +21,9 @@ tools/eval/rag/run-replay.sh
 # 自定义
 tools/eval/rag/run-replay.sh --topk 5 --delay 1.1 --limit 10
 
+# rerank 贡献对比（同一批题跑 rerank=true / false）
+tools/eval/rag/run-replay.sh --compare-rerank
+
 # 手动传 token
 EVAL_TOKEN=<admin-jwt> python3 tools/eval/rag/run.py
 ```
@@ -46,12 +49,28 @@ EVAL_TOKEN=<admin-jwt> python3 tools/eval/rag/run.py
 
 ## 2026-11-19 基线
 
+### 检索主链路（rerank=true）
+
 | 指标 | 全局 | domain 过滤 |
 |---|---:|---:|
-| Hit@1 | 82.5% | 92.5% |
-| Hit@3 | 97.5% | 97.5% |
-| MRR | 0.898 | 0.956 |
-| p50 | 751ms | 711ms |
-| p95 | 858ms | 777ms |
+| Hit@1 | 85.0% | 92.5% |
+| Hit@3 | 95.0% | 97.5% |
+| MRR | 0.902 | 0.956 |
+| p50 | 762ms | 745ms |
+| p95 | 1179ms | 1031ms |
 
-唯一未进前 3 的题：`r16 订单一直没发货怎么办？`（rank=4，期望 `order-troubleshooting`）。
+> 同一批题在更早一次运行中是 Hit@1 82.5% / Hit@3 97.5% / MRR 0.898；
+> 单题（r40「Can I sell counterfeit goods?」）的召回波动会带来 ±2.5pp 的 Hit@3 差异。
+
+### Rerank 贡献（同一次 `--compare-rerank` 运行）
+
+| 指标 | rerank=true | rerank=false | 差值 |
+|---|---:|---:|---:|
+| Hit@1 | 85.0% | 77.5% | **+7.5pp** |
+| Hit@3 | 95.0% | 97.5% | **-2.5pp** |
+| MRR | 0.902 | 0.877 | **+0.025** |
+| p50 | 762ms | 428ms | **+334ms** |
+| p95 | 1179ms | 482ms | **+697ms** |
+
+结论：reranker 明显提升 top-1 精度和 MRR，代价是延迟约 1.8 倍；
+Hit@3 的 -2.5pp 来自单题波动，不应解读为系统性退化。

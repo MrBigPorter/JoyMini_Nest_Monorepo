@@ -45,10 +45,19 @@ def load_golden(path: Path) -> list[dict]:
     return items
 
 
-def search(base_url: str, token: str, query: str, topk: int, domain: str | None):
+def search(
+    base_url: str,
+    token: str,
+    query: str,
+    topk: int,
+    domain: str | None,
+    rerank: bool | None = None,
+):
     payload = {"query": query, "topK": topk}
     if domain:
         payload["domain"] = domain
+    if rerank is not None:
+        payload["rerank"] = rerank
 
     request = urllib.request.Request(
         f"{base_url.rstrip('/')}/admin/rag/documents/search",
@@ -122,6 +131,11 @@ def main() -> int:
     parser.add_argument("--topk", type=int, default=5)
     parser.add_argument("--delay", type=float, default=DEFAULT_DELAY)
     parser.add_argument("--limit", type=int, default=None)
+    parser.add_argument(
+        "--compare-rerank",
+        action="store_true",
+        help="同时跑 rerank=false，比较 reranker 的贡献",
+    )
     args = parser.parse_args()
 
     token = os.environ.get("EVAL_TOKEN", "").strip()
@@ -144,8 +158,10 @@ def main() -> int:
             "expectedDocIds": item["expectedDocIds"],
             "retrievedDocIds": [],
             "globalRank": 0,
+            "noRerankRank": None,
             "domainRank": None,
             "latencyMs": 0,
+            "noRerankLatencyMs": None,
             "domainLatencyMs": None,
             "error": None,
         }
@@ -155,17 +171,44 @@ def main() -> int:
             results = search(args.base_url, token, item["query"], args.topk, None)
             row["latencyMs"] = round((time.perf_counter() - started) * 1000)
             row["retrievedDocIds"] = unique_doc_ids(results)
-            row["globalRank"] = first_hit_rank(row["retrievedDocIds"], item["expectedDocIds"])
+            row["globalRank"] = first_hit_rank(
+                row["retrievedDocIds"], item["expectedDocIds"]
+            )
+            if args.delay:
+                time.sleep(args.delay)
+
+            if args.compare_rerank:
+                started = time.perf_counter()
+                no_rerank_results = search(
+                    args.base_url,
+                    token,
+                    item["query"],
+                    args.topk,
+                    None,
+                    rerank=False,
+                )
+                row["noRerankLatencyMs"] = round(
+                    (time.perf_counter() - started) * 1000
+                )
+                row["noRerankRank"] = first_hit_rank(
+                    unique_doc_ids(no_rerank_results), item["expectedDocIds"]
+                )
+                if args.delay:
+                    time.sleep(args.delay)
 
             if item.get("domain"):
                 started = time.perf_counter()
                 domain_results = search(
                     args.base_url, token, item["query"], args.topk, item["domain"]
                 )
-                row["domainLatencyMs"] = round((time.perf_counter() - started) * 1000)
+                row["domainLatencyMs"] = round(
+                    (time.perf_counter() - started) * 1000
+                )
                 row["domainRank"] = first_hit_rank(
                     unique_doc_ids(domain_results), item["expectedDocIds"]
                 )
+                if args.delay:
+                    time.sleep(args.delay)
         except Exception as error:  # noqa: BLE001 - eval harness should keep going
             row["error"] = str(error)
 
@@ -175,11 +218,14 @@ def main() -> int:
             f"  {mark} [{row['id']}] {row['query']} → "
             f"rank={row['globalRank'] or 'miss'} ({row['latencyMs']}ms)"
         )
-        if args.delay:
-            time.sleep(args.delay)
 
     global_metrics = summarize(rows, "globalRank", "latencyMs")
     domain_metrics = summarize(rows, "domainRank", "domainLatencyMs")
+    no_rerank_metrics = (
+        summarize(rows, "noRerankRank", "noRerankLatencyMs")
+        if args.compare_rerank
+        else None
+    )
     per_domain = {}
     for domain in sorted({row["domain"] for row in rows if row.get("domain")}):
         per_domain[domain] = summarize(
@@ -194,6 +240,7 @@ def main() -> int:
         "total": len(rows),
         "global": global_metrics,
         "domain_filtered": domain_metrics,
+        "no_rerank": no_rerank_metrics,
         "per_domain": per_domain,
         "rows": rows,
     }
@@ -214,6 +261,18 @@ def main() -> int:
         f"p50={domain_metrics['p50']}ms p95={domain_metrics['p95']}ms "
         f"(n={domain_metrics['n']})"
     )
+    if no_rerank_metrics:
+        print(
+            f"no-rank Hit@1={pct(no_rerank_metrics['hit1'])} "
+            f"Hit@3={pct(no_rerank_metrics['hit3'])} "
+            f"MRR={no_rerank_metrics['mrr']:.3f} "
+            f"p50={no_rerank_metrics['p50']}ms p95={no_rerank_metrics['p95']}ms"
+        )
+        print(
+            f"delta   Hit@1={100 * (global_metrics['hit1'] - no_rerank_metrics['hit1']):+.1f}pp "
+            f"Hit@3={100 * (global_metrics['hit3'] - no_rerank_metrics['hit3']):+.1f}pp "
+            f"MRR={global_metrics['mrr'] - no_rerank_metrics['mrr']:+.3f}"
+        )
     for domain, metrics in per_domain.items():
         print(
             f"  {domain:<11} Hit@1={pct(metrics['hit1'])} "

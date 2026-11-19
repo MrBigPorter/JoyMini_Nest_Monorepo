@@ -97,6 +97,73 @@ describe('RagRetrievalService 版本过滤（Task 5）', () => {
   });
 });
 
+describe('RagRetrievalService rerank 开关', () => {
+  const chunk = (id: string, score: number) => ({
+    chunkId: id,
+    chunkIndex: 0,
+    content: `content-${id}`,
+    documentId: `doc-${id}`,
+    title: `title-${id}`,
+    domain: 'order',
+    docId: `doc-${id}`,
+    keywords: [],
+    priority: 'P0',
+    contentType: 'policy',
+    score,
+  });
+
+  const build = () => {
+    const prisma = {
+      $queryRawUnsafe: jest.fn().mockResolvedValue([]),
+      knowledgeDocument: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const aiService = {
+      generateEmbedding: jest.fn().mockResolvedValue([0.1, 0.2]),
+      rerank: jest.fn().mockResolvedValue([]),
+    };
+    const meilisearchService = {
+      searchChunks: jest.fn().mockResolvedValue([]),
+      isAvailable: true,
+    };
+    const service = new RagRetrievalService(
+      prisma as any,
+      aiService as any,
+      meilisearchService as any,
+      { get: jest.fn().mockReturnValue(undefined) } as any,
+    );
+    const chunks = [chunk('low', 0.2), chunk('high', 0.9)];
+    jest.spyOn(service as any, 'vectorSearch').mockResolvedValue(chunks);
+    return { service, aiService, chunks };
+  };
+
+  it('useRerank=false 时不调用 reranker，按原始分降序', async () => {
+    const { service, aiService } = build();
+
+    const results = await service.retrieve('退款', {
+      topK: 2,
+      useRerank: false,
+    });
+
+    expect(aiService.rerank).not.toHaveBeenCalled();
+    expect(results.map((r) => r.chunkId)).toEqual(['high', 'low']);
+  });
+
+  it('默认启用 reranker，并用 relevance_score 覆盖原始分', async () => {
+    const { service, aiService, chunks } = build();
+    aiService.rerank.mockResolvedValue([
+      { index: 0, relevance_score: 0.1 },
+      { index: 1, relevance_score: 0.99 },
+    ]);
+
+    const results = await service.retrieve('退款', { topK: 2 });
+
+    expect(aiService.rerank).toHaveBeenCalledTimes(1);
+    expect(results.map((r) => r.chunkId)).toEqual(['high', 'low']);
+    expect(results[0].score).toBe(0.99);
+    expect(chunks).toHaveLength(2);
+  });
+});
+
 /**
  * 回归：Layer 2（keywordSearchChunks）的 SQL 占位符必须从 $1 开始，
  * 且与 params 数组一一对应。曾经用 `$i + 2` 生成条件，首个占位符变成 $2，
