@@ -16,6 +16,9 @@ const CJK_RUN_RE_FOR_STRIP = /[㐀-䶿一-鿿豈-﫿]+/g;
 /** 单次查询最多保留的词项数，防止长文把 SQL 的 OR 条件撑爆 */
 const MAX_QUERY_TOKENS = 40;
 
+/** RRF 平滑常数：标准默认 60，只看排名、不比较跨层原始分 */
+const RRF_K = 60;
+
 /**
  * 中文停用二元组：只滤掉纯疑问/客套的组合，不按单字过滤，
  * 避免把「问题」「退货」这类有实义的词误杀。
@@ -71,6 +74,8 @@ export interface RetrievedChunk {
   contentType: string;
   /** 相似度分数（pgvector: 0~1 余弦相似度 / ES BM25: 0~∞ / 关键字: 0.5 固定值） */
   score: number;
+  /** RRF 融合分（仅内部降级排序使用；reranker 可用时不参与） */
+  rrfScore?: number;
 }
 
 /** 分层召回明细：每层按返回顺序去重后的 docId，以及该层原始命中数 */
@@ -241,10 +246,15 @@ export class RagRetrievalService {
     // Merge & Deduplicate: 按 chunkId 去重，保留最高分
     // =====================================================================
     const mergedMap = new Map<string, RetrievedChunk>();
+    // RRF：每层只贡献排名，不比较跨层原始分。
+    // 同一 chunk 被多层命中时累加，降级排序就不会被固定 0.5 的关键词分带偏。
+    const rrfMap = new Map<string, number>();
+
+    const chunkKey = (chunk: RetrievedChunk) => chunk.chunkId || chunk.docId;
 
     const addToMap = (chunks: RetrievedChunk[]) => {
       for (const chunk of chunks) {
-        const key = chunk.chunkId || chunk.docId; // chunkId 为空时用 docId
+        const key = chunkKey(chunk);
         const existing = mergedMap.get(key);
         if (!existing || chunk.score > existing.score) {
           mergedMap.set(key, chunk);
@@ -252,12 +262,32 @@ export class RagRetrievalService {
       }
     };
 
+    const addRrf = (chunks: RetrievedChunk[]) => {
+      // 层内先按自己的分数降序，再取排名；层内量纲一致，这样不依赖上游数组顺序。
+      [...chunks]
+        .sort((a, b) => b.score - a.score)
+        .forEach((chunk, index) => {
+          const key = chunkKey(chunk);
+          const score = 1 / (RRF_K + index + 1);
+          rrfMap.set(key, (rrfMap.get(key) ?? 0) + score);
+        });
+    };
+
     addToMap(vectorResults);
     addToMap(meiliResults);
     addToMap(chunkResults);
     addToMap(docResults);
+    addRrf(vectorResults);
+    addRrf(meiliResults);
+    addRrf(chunkResults);
+    addRrf(docResults);
 
-    let merged = Array.from(mergedMap.values());
+    let merged: RetrievedChunk[] = Array.from(mergedMap.values()).map(
+      (chunk) => ({
+        ...chunk,
+        rrfScore: rrfMap.get(chunkKey(chunk)) ?? 0,
+      }),
+    );
 
     // 各层命中数：看"哪一层没货"比看总耗时更能定位问题
     const layers = {
@@ -713,14 +743,19 @@ export class RagRetrievalService {
   }
 
   /**
-   * fallbackSort — 当 reranker 不可用时的降级排序
-   * 按原始 score 降序排列，取 topK。
+   * fallbackSort — reranker 不可用时的降级排序
+   *
+   * 优先用 RRF 分：各层原始分量纲不同（余弦 0~1、BM25 0~∞、关键词固定 0.5），
+   * 直接比大小会让关键词候选压过更相关的向量候选。
+   * 没有 RRF 分时（直接调用/旧数据）才退回原始分。
    */
   private fallbackSort(
     chunks: RetrievedChunk[],
     topK: number,
   ): RetrievedChunk[] {
-    return [...chunks].sort((a, b) => b.score - a.score).slice(0, topK);
+    return [...chunks]
+      .sort((a, b) => (b.rrfScore ?? b.score) - (a.rrfScore ?? a.score))
+      .slice(0, topK);
   }
 
   // ===========================================================================

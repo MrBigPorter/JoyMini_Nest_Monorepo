@@ -71,6 +71,16 @@ golden 增加 `lang`、`sourceType`、`expectedLayers`、`note` 字段；中文�
 
 - **为什么拆开**：没有负样本时加阈值只可能降低 Hit@K，无法证明收益；先有数据再定阈值。
 
+### D7. reranker 不可用时用 RRF 排序（实施中追加）
+
+关键词层固定 0.5 分和向量余弦分不可比；直接按原始分 `fallbackSort` 会让关键词候选压过更相关的向量候选。实测改后 no-rerank Hit@1 从 71.6% 掉到 68.8%。
+
+降级排序改为 Reciprocal Rank Fusion：每层按自己的排名贡献 `1/(k + rank)`（k=60），同一 chunk 多层命中则累加。reranker 可用时仍以 reranker 分数为准；reranker 返回 null/未启用时按 RRF 排序。
+
+- **为什么现在做**：它同时修复“关键词层拖累 fallback”和“reranker 缺失时按混合原始分排序”两个问题。
+- **为什么不是主排序**：cross-encoder 仍优于 RRF；RRF 只作降级路径，避免改变线上 rerank 正常时的行为。
+- **备选**：给关键词层换一个更低的固定分——只能缓解单层，解决不了多层量纲问题，否决。
+
 ## Risks / Trade-offs
 
 - **[bigram 噪声拉低 Layer 3 分数]** → 中文停用 bigram 不计入分母；用覆盖度而非简单除以全部 token 的方案作为备选，回放验证后再定。

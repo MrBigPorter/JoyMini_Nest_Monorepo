@@ -432,3 +432,68 @@ describe('RagRetrievalService 分层 debug', () => {
     expect(results[0].docId).toBe('v');
   });
 });
+
+/**
+ * RRF 降级排序：reranker 不可用时，按各层排名融合，
+ * 而不是把余弦/BM25/固定 0.5 混在一起比大小。
+ */
+describe('RagRetrievalService RRF 降级', () => {
+  const chunk = (docId: string, score: number, chunkId = `${docId}-c1`) => ({
+    chunkId,
+    chunkIndex: 0,
+    content: `${docId} content`,
+    documentId: `${docId}-d`,
+    title: docId,
+    domain: 'common',
+    docId,
+    keywords: [],
+    priority: 'P0',
+    contentType: 'faq',
+    score,
+  });
+
+  const build = () => {
+    const prisma = { $queryRawUnsafe: jest.fn(), knowledgeDocument: { findMany: jest.fn() } };
+    const aiService = { generateEmbedding: jest.fn().mockResolvedValue([0.1]) };
+    const meilisearchService = { searchChunks: jest.fn(), isAvailable: true };
+    const configService = { get: jest.fn().mockReturnValue(undefined) };
+    return new RagRetrievalService(
+      prisma as any,
+      aiService as any,
+      meilisearchService as any,
+      configService as any,
+    );
+  };
+
+  it('低原始分但多层命中的 chunk 排到第一', async () => {
+    const service: any = build();
+    const a = chunk('vector-only', 0.9);
+    const b = chunk('multi-layer', 0.3);
+    jest.spyOn(service, 'vectorSearch').mockResolvedValue([a]);
+    service.meilisearchService.searchChunks.mockResolvedValue([b]);
+    jest.spyOn(service, 'keywordSearchChunks').mockResolvedValue([b]);
+    jest.spyOn(service, 'keywordSearchDocs').mockResolvedValue([]);
+    service.aiService.rerank = jest.fn().mockResolvedValue(null);
+
+    const results = await service.retrieve('退款', { topK: 5 });
+
+    expect(results[0].docId).toBe('multi-layer');
+  });
+
+  it('reranker 可用时保留 reranker 顺序，RRF 不生效', async () => {
+    const service: any = build();
+    const a = chunk('vector-only', 0.9);
+    const b = chunk('multi-layer', 0.3);
+    jest.spyOn(service, 'vectorSearch').mockResolvedValue([a]);
+    service.meilisearchService.searchChunks.mockResolvedValue([b]);
+    jest.spyOn(service, 'keywordSearchChunks').mockResolvedValue([b]);
+    jest.spyOn(service, 'keywordSearchDocs').mockResolvedValue([]);
+    service.aiService.rerank = jest
+      .fn()
+      .mockResolvedValue([{ index: 0, relevance_score: 0.9 }, { index: 1, relevance_score: 0.1 }]);
+
+    const results = await service.retrieve('退款', { topK: 5 });
+
+    expect(results[0].docId).toBe('vector-only');
+  });
+});
