@@ -26,6 +26,7 @@ import {
 } from '@api/common/chat/events/chat.events';
 import type { Prisma } from '@prisma/client';
 import { AiQueueService } from '@api/common/queue/ai-queue.module';
+import { SseRateLimiterService } from '@api/common/rate-limit/sse-rate-limiter.service';
 
 interface JwtPayloadLike {
   sub?: string;
@@ -116,6 +117,7 @@ export class EventsGateway
     private readonly eventEmitter: EventEmitter2,
     private readonly configService: ConfigService,
     private readonly aiQueueService: AiQueueService,
+    private readonly sseRateLimiter: SseRateLimiterService,
   ) {}
 
   /**
@@ -470,6 +472,29 @@ export class EventsGateway
     return conv?.type === 'SUPPORT' && conv.status === 1;
   }
 
+  /**
+   * AI 触发入口限流。
+   *
+   * 复用 SseRateLimiterService 的轻量令牌桶（`tryAcquireLight`，与 HTTP
+   * POST /chat 同一个 key），只允许 AI 触发路径调用 —— 普通人工/客服消息
+   * 不经过这里，因此不会被限流。
+   *
+   * fail-open：Redis 故障时限流器内部已选择放行，这里再包一层，防止意外
+   * 异常冒泡到发送流程（消息此时已经落库，不应因限流器不可用而报错）。
+   */
+  private async checkAiTriggerRateLimit(
+    userId: string,
+  ): Promise<{ ok: true } | { ok: false; reason: string }> {
+    try {
+      return await this.sseRateLimiter.tryAcquireLight(userId);
+    } catch (err: unknown) {
+      this.logger.warn(
+        `[AI Trigger] rate limiter unavailable, allowing: ${extractErrorMessage(err)}`,
+      );
+      return { ok: true };
+    }
+  }
+
   dispatchToUser(userId: string, type: string, data: unknown) {
     const privateRoom = `user_${userId}`;
     // 直接复用 dispatch 逻辑，发送到该用户的私有房间
@@ -726,6 +751,8 @@ export class EventsGateway
       });
       const isAiType = conv?.type === 'SUPPORT' || conv?.type === 'AI';
       const isAiHandler = conv?.handlerId == null;
+      // 本轮的 AI 是否真的被触发（供 ack 返回结构化状态）
+      let aiTriggered = false;
 
       if (conv?.handlerId != null && conv.handlerId !== 'awaiting_human') {
         // 真实客服名下：这条用户消息算一次「活跃」，刷新空闲计时。
@@ -739,26 +766,41 @@ export class EventsGateway
       // 排队中（awaiting_human）不刷新：排队时钟只看 transferredAt，
       // 刷新会让「催得越急排得越后」（#98 S2-C 已记录的同类缺陷）。
       if (isAiType && isAiHandler) {
-        try {
-          await this.aiQueueService.enqueue({
-            conversationId,
-            content,
-            userId,
-            messageId: result.id,
-          });
-        } catch (err: unknown) {
+        // ── 入口限流（trust 4.1） ──
+        // 复用 HTTP POST /chat 的同一个令牌桶（SseRateLimiterService），
+        // 不另写一套；同一 userId 的 Socket 与 HTTP 触发共享预算（D5）。
+        // 只拦「AI 触发」，消息本身已经落库：超限不能让客户端以为发送失败
+        // 而重发。人工/客服会话（isAiType && isAiHandler 为假）根本不走这里。
+        const rateLimit = await this.checkAiTriggerRateLimit(userId);
+        if (!rateLimit.ok) {
           this.logger.warn(
-            `[AI Queue] enqueue failed, falling back to in-process event: ${extractErrorMessage(err)}`,
+            `[AI Trigger] rate_limited: userId=${userId}, conv=${conversationId}, ` +
+              `reason=${rateLimit.reason}`,
           );
-          this.eventEmitter.emit(
-            CHAT_EVENTS.AI_MESSAGE_REQUESTED,
-            new AiMessageRequestedEvent(
+        } else {
+          try {
+            await this.aiQueueService.enqueue({
               conversationId,
               content,
               userId,
-              result.id,
-            ),
-          );
+              messageId: result.id,
+            });
+            aiTriggered = true;
+          } catch (err: unknown) {
+            this.logger.warn(
+              `[AI Queue] enqueue failed, falling back to in-process event: ${extractErrorMessage(err)}`,
+            );
+            this.eventEmitter.emit(
+              CHAT_EVENTS.AI_MESSAGE_REQUESTED,
+              new AiMessageRequestedEvent(
+                conversationId,
+                content,
+                userId,
+                result.id,
+              ),
+            );
+            aiTriggered = true;
+          }
         }
       }
 
@@ -770,6 +812,9 @@ export class EventsGateway
           tempId: tempId,
           createdAt: result.createdAt,
         },
+        // 结构化状态：消息已落库，但本轮 AI 可能因入口限流被抑制。
+        // 前端可据此提示"发送过于频繁"，而不会误以为消息丢失去重发。
+        aiTriggered,
       };
     } catch (error: unknown) {
       const message = extractErrorMessage(error);
