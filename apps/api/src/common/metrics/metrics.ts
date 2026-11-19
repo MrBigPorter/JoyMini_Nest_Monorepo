@@ -169,6 +169,12 @@ registerMetric(
   'Support conversations past the SLA threshold',
   'gauge',
 );
+registerMetric(
+  'ai_queue_jobs_failed_total',
+  'AI processing jobs that failed (retry or dead-letter)',
+  'counter',
+  true,
+);
 setGauge('ai_active_streams', {}, 0);
 setGauge('support_queue_waiting', {}, 0);
 setGauge('support_sla_breaches', {}, 0);
