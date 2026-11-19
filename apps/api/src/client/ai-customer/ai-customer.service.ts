@@ -238,6 +238,8 @@ export class AiCustomerService implements OnModuleDestroy {
     conversationId?: string,
     entryPoint?: string,
     metadata?: Record<string, any>,
+    /** 触发本轮回复的用户消息 id；用于 AI 回复落库的幂等唯一键 */
+    triggerMessageId?: string,
   ): Promise<void> {
     // Step 1 — 校验入参
     if (!this.assertInputValid(message, userId, callbacks)) return;
@@ -341,6 +343,7 @@ export class AiCustomerService implements OnModuleDestroy {
         startedAt,
         streamUsage.totalTokens,
         memberIds,
+        triggerMessageId,
       );
     } catch (err: any) {
       outcome = err instanceof QuotaExceededError ? 'quota_exceeded' : 'error';
@@ -381,6 +384,7 @@ export class AiCustomerService implements OnModuleDestroy {
         conversationId,
         callbacks,
         memberIds,
+        triggerMessageId,
       );
     } finally {
       decGauge('ai_active_streams');
@@ -520,6 +524,7 @@ export class AiCustomerService implements OnModuleDestroy {
     startedAt: number,
     tokenTotal: number,
     memberIds: string[],
+    triggerMessageId?: string,
   ): Promise<void> {
     // 读取最终状态
     const finalState = await this.compiledGraph!.getState({
@@ -551,6 +556,7 @@ export class AiCustomerService implements OnModuleDestroy {
         callbacks,
         memberIds,
         newMessages,
+        triggerMessageId,
       );
     } else if (confirmCard) {
       // 路由 B — 确认卡片（只发提问者本人的私有房间，见 routeConfirm 注释）
@@ -563,6 +569,7 @@ export class AiCustomerService implements OnModuleDestroy {
         conversationId,
         memberIds,
         ragSources,
+        triggerMessageId,
       );
       callbacks.onDone({ sources: ragSources });
       if (conversationId) {
@@ -599,6 +606,7 @@ export class AiCustomerService implements OnModuleDestroy {
      * 用户重进对话看不到任何转接记录，线上排查时也看不出 AI 说过什么。
      */
     newMessages: any[] = [],
+    triggerMessageId?: string,
   ): Promise<void> {
     let targetConvId = conversationId;
     if (!targetConvId) {
@@ -634,6 +642,8 @@ export class AiCustomerService implements OnModuleDestroy {
             newMessages,
             userId,
             memberIds,
+            undefined,
+            triggerMessageId,
           );
         } catch (err: any) {
           this.logger.warn(
@@ -847,6 +857,7 @@ export class AiCustomerService implements OnModuleDestroy {
     conversationId?: string,
     memberIds: string[] = [],
     sources: RagCitation[] = [],
+    triggerMessageId?: string,
   ): Promise<void> {
     if (!conversationId) return;
     await publishAiReply(
@@ -857,6 +868,7 @@ export class AiCustomerService implements OnModuleDestroy {
       userId,
       memberIds,
       sources.length > 0 ? { sources } : undefined,
+      triggerMessageId,
     );
   }
 
@@ -902,6 +914,7 @@ export class AiCustomerService implements OnModuleDestroy {
       onTransfer?: (reason: string) => void;
     },
     memberIds: string[] = [],
+    triggerMessageId?: string,
   ): Promise<void> {
     this.logger.error(`[chatStream] error: ${err.message}`);
     callbacks?.onError(err);
@@ -923,7 +936,7 @@ export class AiCustomerService implements OnModuleDestroy {
         gateway: this.eventsGateway,
         logger: this.logger,
       },
-      { conversationId, userId, memberIds },
+      { conversationId, userId, memberIds, triggerMessageId },
     );
 
     callbacks?.onTransfer?.('ai_error');

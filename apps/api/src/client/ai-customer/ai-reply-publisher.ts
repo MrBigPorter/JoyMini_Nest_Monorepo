@@ -1,6 +1,9 @@
+import { Logger } from '@nestjs/common';
 import { SocketEvents } from '@lucky/shared';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { EventsGateway } from '@api/common/events/events.gateway';
+
+const logger = new Logger('AiReplyPublisher');
 
 /**
  * 把 AI 回复写入 chat_message 表 + 广播 CHAT_MESSAGE 事件
@@ -22,6 +25,12 @@ export async function publishAiReply(
   memberIds: string[] = [],
   /** 附加元数据（如 RAG sources），写入 ChatMessage.meta 并随消息推送 */
   meta?: Record<string, any>,
+  /**
+   * 触发本次回复的用户消息 id。
+   * 写入 ChatMessage.triggerMessageId（唯一索引）：崩溃重放时插入会撞唯一键，
+   * 被下面的捕获逻辑吸收，不会产生第二条 AI 回复。
+   */
+  triggerMessageId?: string,
 ): Promise<void> {
   const lastAiContent =
     newMessages
@@ -36,28 +45,48 @@ export async function publishAiReply(
   });
   if (!otherMember) return;
 
-  const conv = await prisma.conversation.update({
-    where: { id: conversationId },
-    data: { lastMsgSeqId: { increment: 1 } },
-    select: { lastMsgSeqId: true },
-  });
+  let msg: any;
+  try {
+    // 取序号与写消息必须同事务：唯一键冲突时序号自增一起回滚，
+    // 否则重放被吸收后会留下一个永远不会被使用的 seqId 空洞。
+    msg = await prisma.$transaction(async (tx) => {
+      const conv = await tx.conversation.update({
+        where: { id: conversationId },
+        data: { lastMsgSeqId: { increment: 1 } },
+        select: { lastMsgSeqId: true },
+      });
 
-  const msg = await prisma.chatMessage.create({
-    data: {
-      conversationId,
-      senderId: otherMember.userId,
-      content: lastAiContent,
-      type: 0,
-      seqId: conv.lastMsgSeqId,
-      // 这两列 schema 默认都是 'user'。不显式写的话，AI 回复在库里
-      // 和用户消息长得一模一样：做"AI 回复占比"、或者以后从 DB 回放历史
-      // 给 LangGraph 时，就分不清哪句是谁说的了。
-      role: 'assistant',
-      source: 'ai',
-      meta: meta ?? undefined,
-    },
-    include: { sender: { select: { id: true, nickname: true, avatar: true } } },
-  });
+      return tx.chatMessage.create({
+        data: {
+          conversationId,
+          senderId: otherMember.userId,
+          content: lastAiContent,
+          type: 0,
+          seqId: conv.lastMsgSeqId,
+          triggerMessageId,
+          // 这两列 schema 默认都是 'user'。不显式写的话，AI 回复在库里
+          // 和用户消息长得一模一样：做"AI 回复占比"、或者以后从 DB 回放历史
+          // 给 LangGraph 时，就分不清哪句是谁说的了。
+          role: 'assistant',
+          source: 'ai',
+          meta: meta ?? undefined,
+        },
+        include: {
+          sender: { select: { id: true, nickname: true, avatar: true } },
+        },
+      });
+    });
+  } catch (err: any) {
+    if (err?.code === 'P2002') {
+      // 同一触发消息已经回复过：崩溃恢复重放走到这里。
+      // 不重复广播 —— 第一次能写库通常也已广播；这里只记录以便排查。
+      logger.warn(
+        `[publishAiReply] duplicate reply suppressed: conv=${conversationId}, triggerMessageId=${triggerMessageId}`,
+      );
+      return;
+    }
+    throw err;
+  }
 
   eventsGateway.dispatchToConversation(
     conversationId,

@@ -25,6 +25,10 @@
 
 消息 ID 天然唯一，且发送方在落库时已保证。事件 payload 需补 `messageId`（现状只有 `conversationId/content/userId`）。重复投递语义：**丢弃第二次**，不返回第一次结果（避免用户多等）。
 
+Redis 键 `ai:msg:done:<messageId>` 写在回复落库之后，存在一个毫秒级窗口：回复已写库、done 未写时进程崩溃，重放会再写一条回复。因此再加一层数据库兜底：`ChatMessage.triggerMessageId` 唯一索引，回复与触发消息一对一；重放插入撞 `P2002` 时静默吸收（只记 warn，不重复广播）。序号自增与消息写入放在同一事务，冲突时不会留下 seqId 空洞。
+
+另：崩溃会让会话级 Redis 锁 `ai:conv:<id>` 留到 TTL 到期。`LOCK_MAX_WAIT_MS` 必须大于 `LOCK_TTL_MS`，否则重启后的恢复消费会在锁过期前放弃，任务被记为成功但用户收不到回复。
+
 ### D3. 取消信号用 `AbortSignal` 沿调用链传递
 
 `controller(close) → service → orchestrator → agent-runner → LLM`。漏传一层等于没做，因此每层都要显式接收并向下传，任何新增中间层必须补参数。

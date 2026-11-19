@@ -1285,6 +1285,11 @@ model ChatMessage {
   content String // 文本或 URL
   meta    Json? // {w, h, duration, size,blurHash }
 
+  // 触发这条 AI 回复的用户消息 id。
+  // 唯一约束是崩溃重放的最后一道防线：回复已落库、幂等标记还没写时进程崩溃，
+  // 重启后重放会撞唯一键而不是再写一条回复。
+  triggerMessageId String? @unique(map: "idx_chat_message_trigger_unique")
+
   //  核心机制
   seqId        Int // 序列号
   clientTempId String? // 前端生成的 UUID (用于去重/ACK)

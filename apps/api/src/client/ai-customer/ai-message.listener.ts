@@ -18,8 +18,13 @@ import { AiFeedbackService } from '@api/common/ai/ai-feedback.service';
  */
 const LOCK_TTL_MS = 120_000;
 
-/** 抢锁失败后的最大有界等待时间。 */
-const LOCK_MAX_WAIT_MS = 30_000;
+/**
+ * 抢锁失败后的最大有界等待时间。
+ * 必须比 LOCK_TTL_MS 长：进程崩溃时锁不会主动释放，重启后的 worker
+ * 只能等它自然过期。等待上限短于 TTL 会让恢复消费直接放弃，
+ * BullMQ 记为成功，但用户永远收不到回复。
+ */
+const LOCK_MAX_WAIT_MS = LOCK_TTL_MS + 10_000;
 
 /** 抢锁重试的间隔。 */
 const LOCK_RETRY_DELAY_MS = 200;
@@ -122,7 +127,7 @@ export class AiMessageListener {
       // 日志等无关工作留在锁外。
       await this.enqueue(conversationId, () =>
         this.runExclusive(conversationId, () =>
-          this.executeGraph(conversationId, content, userId),
+          this.executeGraph(conversationId, content, userId, messageId),
         ),
       );
       if (doneKey) {
@@ -269,6 +274,7 @@ export class AiMessageListener {
     conversationId: string,
     content: string,
     userId: string,
+    messageId?: string,
   ): Promise<void> {
     // 这一轮的中止器：客户端断开时由 handleCancel 触发。
     // finally 里按引用清理，避免上一轮结束时删掉下一轮刚创建的 controller。
@@ -292,6 +298,9 @@ export class AiMessageListener {
           signal: controller.signal,
         },
         conversationId,
+        undefined,
+        undefined,
+        messageId,
       ),
     );
 

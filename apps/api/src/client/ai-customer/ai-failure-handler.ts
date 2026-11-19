@@ -40,13 +40,15 @@ export interface DegradeParams {
   /** 提问者，用于选推送对象与兜底消息归属 */
   userId: string;
   memberIds?: string[];
+  /** 触发本轮回复的用户消息 id；作为 AI 回复幂等唯一键 */
+  triggerMessageId?: string;
 }
 
 export async function degradeToHuman(
   deps: DegradeDeps,
   params: DegradeParams,
 ): Promise<void> {
-  const { conversationId, userId, memberIds = [] } = params;
+  const { conversationId, userId, memberIds = [], triggerMessageId } = params;
 
   emitStage('transfer', { source: 'fallback', reason: 'ai_error' }, 'warn');
 
@@ -59,6 +61,8 @@ export async function degradeToHuman(
       [{ type: 'ai', content: AI_FAILURE_REPLY }],
       userId,
       memberIds,
+      undefined,
+      triggerMessageId,
     );
   } catch (e: any) {
     deps.logger.warn(`[fallback] persist failure reply failed: ${e?.message}`);
