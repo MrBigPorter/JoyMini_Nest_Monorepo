@@ -21,6 +21,10 @@ function makeService() {
     peekPendingExecution: jest.fn(),
     popPendingExecution: jest.fn(),
   };
+  const usage = {
+    assertWithinQuota: jest.fn(async () => undefined),
+    recordUsage: jest.fn(async () => undefined),
+  };
   const wallet = {
     applyWithdraw: jest.fn(async () => ({ withdrawId: 'w-1' })),
   };
@@ -40,6 +44,7 @@ function makeService() {
     unused(), // AiMemoryService
     unused(), // EventsGateway
     confirm as any, // AiActionConfirmService
+    usage as any, // AiUsageService
     wallet as any, // ClientWalletService
     unused(), // ClientCouponService
     unused(), // LuckyDrawService
@@ -48,7 +53,7 @@ function makeService() {
     unused(), // RedisService
   );
 
-  return { service, prisma, confirm, wallet, otp };
+  return { service, prisma, confirm, wallet, otp, usage };
 }
 
 function pending(params: Record<string, any> = {}) {

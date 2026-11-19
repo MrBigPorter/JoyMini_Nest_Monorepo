@@ -15,7 +15,8 @@ import { PromptResolverService } from '@api/client/ai-customer/knowledge/prompt-
 import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service';
 import { AiMemoryService } from '@api/common/ai/ai-memory.service';
 import { AiActionConfirmService } from './ai-action-confirm.service';
-import { handleEventStream } from './ai-stream.handler';
+import { AiUsageService, QuotaExceededError } from './ai-usage.service';
+import { handleEventStream, StreamUsageSummary } from './ai-stream.handler';
 import { publishAiReply } from './ai-reply-publisher';
 import { AddressService } from '../address/address.service';
 import { ClientWalletService } from '../wallet/client-wallet.service';
@@ -26,6 +27,7 @@ import { OtpService } from '../otp/otp.service';
 import { CODE_TYPE } from '@lucky/shared';
 import { emitStage } from '@api/common/logger/structured-logger';
 import { runWithContext } from '@api/common/logger/trace-context';
+import { decGauge, incCounter, incGauge } from '@api/common/metrics/metrics';
 import { RedisService } from '@api/common/redis/redis.service';
 import { degradeToHuman } from './ai-failure-handler';
 import { plainToInstance } from 'class-transformer';
@@ -53,6 +55,7 @@ export class AiCustomerService {
     private readonly aiMemoryService: AiMemoryService,
     private readonly eventsGateway: EventsGateway,
     private readonly aiActionConfirmService: AiActionConfirmService,
+    private readonly aiUsageService: AiUsageService,
     private readonly clientWalletService: ClientWalletService,
     private readonly clientCouponService: ClientCouponService,
     private readonly luckyDrawService: LuckyDrawService,
@@ -175,6 +178,9 @@ export class AiCustomerService {
       entryPoint,
     });
 
+    incGauge('ai_active_streams', {}, 1);
+    let outcome = 'success';
+
     // 会话成员列表：本轮只查一次，供"会话房间 + 成员私有房间"双通道推送使用。
     // 放在 try 外面声明、里面赋值，是为了 error 分支也能拿到（可能仍是空数组）。
     let memberIds: string[] = [];
@@ -183,6 +189,9 @@ export class AiCustomerService {
       // 故障注入（仅测试）：故意抛错，用来验证降级转人工链路。
       // 放在 try 内部，才能走到 catch → chat.error → handleStreamError → degradeToHuman。
       await this.maybeInjectChaos(message);
+
+      // 日 token 配额：超限时抛 QuotaExceededError，走降级转人工。
+      await this.aiUsageService.assertWithinQuota(userId);
 
       // Step 2 — 准备 AI 对话线程
       const threadId = await this.prepareThread(userId, conversationId);
@@ -207,9 +216,24 @@ export class AiCustomerService {
         callbacks.signal,
       );
 
+      // 记录 token 用量（失败不阻断对话）
+      try {
+        await this.aiUsageService.recordUsage(
+          userId,
+          streamUsage.promptTokens ?? 0,
+          streamUsage.completionTokens ?? 0,
+          1,
+        );
+      } catch (usageErr: any) {
+        this.logger.warn(
+          `[chatStream] usage record failed: ${usageErr?.message ?? usageErr}`,
+        );
+      }
+
       // 取消信号在流结束后才观察到：图可能正常返回（provider 没响应 signal），
       // 但不再继续落库/广播。
       if (callbacks.signal?.aborted) {
+        outcome = 'aborted';
         this.logger.log(
           `[chatStream] abort observed after stream, skip finalize, conversationId=${conversationId ?? 'n/a'}`,
         );
@@ -228,13 +252,20 @@ export class AiCustomerService {
         memberIds,
       );
     } catch (err: any) {
+      outcome = err instanceof QuotaExceededError ? 'quota_exceeded' : 'error';
       // 取消触发的 AbortError 不是「模型故障」：不降级转人工、不广播 AI_ERROR，
       // 避免在会话里留下一条无意义的人工介入记录。
       if (callbacks.signal?.aborted) {
+        outcome = 'aborted';
         this.logger.log(
           `[chatStream] abort observed in error path (${err?.name ?? 'Error'}), skip degrade, conversationId=${conversationId ?? 'n/a'}`,
         );
         return;
+      }
+      if (err instanceof QuotaExceededError) {
+        this.logger.warn(
+          `[chatStream] quota exceeded: userId=${userId}, limit=${err.limit}, used=${err.used}`,
+        );
       }
       emitStage(
         'chat.error',
@@ -255,6 +286,10 @@ export class AiCustomerService {
         callbacks,
         memberIds,
       );
+    } finally {
+      decGauge('ai_active_streams');
+      incCounter('ai_chat_requests_total', { outcome });
+      incCounter('ai_chat_duration_ms_total', {}, Date.now() - startedAt);
     }
   }
 
@@ -359,7 +394,7 @@ export class AiCustomerService {
     },
     memberIds: string[],
     signal?: AbortSignal,
-  ): Promise<{ totalTokens: number }> {
+  ): Promise<StreamUsageSummary> {
     return handleEventStream(
       this.compiledGraph!,
       threadId,

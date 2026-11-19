@@ -1,9 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { incCounter } from '@api/common/metrics/metrics';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { AiService } from '@api/common/ai/ai.service';
 import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service';
 import { emitStage } from '@api/common/logger/structured-logger';
+import { ConfigService } from '@nestjs/config';
 
 // =============================================================================
 // 检索结果类型
@@ -104,6 +105,8 @@ export class RagRetrievalService {
     const { domain, topK = 5, minScore = 0.1 } = options ?? {};
 
     if (!query || query.trim().length === 0) return [];
+
+    incCounter('ai_retrieval_requests_total', { domain: domain ?? 'all' });
 
     // 本次检索的起点，两个出口都用它算 latencyMs（#89 FR-6）
     const startedAt = Date.now();

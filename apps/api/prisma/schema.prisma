@@ -1891,6 +1891,23 @@ model DocumentChunk {
   @@map("document_chunks")
 }
 
+/// AI 每日 token 用量（配额与成本统计）
+model AiUsageDaily {
+  id               String   @id @default(cuid()) @db.VarChar(32)
+  userId           String   @map("user_id") @db.VarChar(32)
+  date             DateTime @db.Date
+  promptTokens     Int      @default(0) @map("prompt_tokens")
+  completionTokens Int      @default(0) @map("completion_tokens")
+  totalTokens      Int      @default(0) @map("total_tokens")
+  requests         Int      @default(0)
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, date])
+  @@index([date])
+  @@map("ai_usage_daily")
+}
+
 /// 翻译任务日志
 model TranslationJob {
   id          String    @id @default(cuid()) @db.VarChar(32)

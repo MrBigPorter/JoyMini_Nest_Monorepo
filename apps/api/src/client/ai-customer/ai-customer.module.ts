@@ -30,6 +30,7 @@ import { KycService } from '@api/client/kyc/kyc.service';
 import { TreasureService } from '@api/client/treasure/treasure.service';
 import { CategoryService } from '@api/client/category/category.service';
 import { AiActionConfirmService } from './ai-action-confirm.service';
+import { AiUsageService } from './ai-usage.service';
 import { OtpModule } from '../otp/otp.module';
 
 /**
@@ -66,6 +67,7 @@ const EXPECTED_AGENT_TAGS = AGENT_TAGS_FOR_TOOLS;
     SseRateLimiterService,
     StreamReservationStore,
     AiActionConfirmService,
+    AiUsageService,
   ],
 })
 export class AiCustomerModule implements OnApplicationBootstrap {

@@ -15,6 +15,7 @@ import { UploadModule } from '@api/common/upload/upload.module';
 import { PaymentModule } from '@api/common/payment/payment.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { RedisLockModule } from '@api/common/redis/redis-lock.module';
+import { MetricsModule } from '@api/common/metrics/metrics.module';
 import { PaymentChannelModule } from '@api/common/payment-channel/payment-channel.module';
 import { BullModule } from '@nestjs/bullmq';
 import { ChatModule } from '@api/common/chat/chat.module';
@@ -149,6 +150,7 @@ import { AiCustomerModule } from '@api/client/ai-customer/ai-customer.module';
     ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: 60 }]),
     //根模块，把业务模块“挂进来”。Nest 会读这些元数据，生成依赖图。
     RedisLockModule,
+    MetricsModule,
     PrismaModule,
     UploadModule,
     ClientModule,

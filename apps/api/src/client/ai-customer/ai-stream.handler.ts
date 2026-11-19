@@ -5,6 +5,7 @@ import { EventsGateway } from '@api/common/events/events.gateway';
 import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-registry.service';
 import { emitStage } from '@api/common/logger/structured-logger';
 import { runWithContext } from '@api/common/logger/trace-context';
+import { incCounter } from '@api/common/metrics/metrics';
 
 const logger = new Logger('AiStreamHandler');
 
@@ -16,6 +17,8 @@ export interface StreamHandlerCallbacks {
 /** 一次对话的总 token 用量，回传给 chat.done 记 tokenTotal */
 export interface StreamUsageSummary {
   totalTokens: number;
+  promptTokens: number;
+  completionTokens: number;
 }
 
 /**
@@ -79,6 +82,8 @@ export async function handleEventStream(
     const modelStartedAt = new Map<string, number>();
     const toolStartedAt = new Map<string, number>();
     let totalTokens = 0;
+    let promptTokensTotal = 0;
+    let completionTokensTotal = 0;
 
     for await (const event of eventStream) {
       // 兜底：provider/图没响应 signal 时，至少不再消费事件、不再推 token
@@ -116,6 +121,16 @@ export async function handleEventStream(
         const eventTokens =
           usage?.total_tokens ?? promptTokens + completionTokens;
         totalTokens += eventTokens;
+        promptTokensTotal += promptTokens;
+        completionTokensTotal += completionTokens;
+
+        incCounter('ai_llm_tokens_total', { type: 'prompt' }, promptTokens);
+        incCounter(
+          'ai_llm_tokens_total',
+          { type: 'completion' },
+          completionTokens,
+        );
+        incCounter('ai_llm_tokens_total', { type: 'total' }, eventTokens);
 
         const startAt = modelStartedAt.get(run_id);
         modelStartedAt.delete(run_id);
@@ -135,6 +150,7 @@ export async function handleEventStream(
       } else if (eventName === 'on_tool_start') {
         // Agent 开始调工具
         toolStartedAt.set(run_id, Date.now());
+        incCounter('ai_tool_calls_total', { tool: name });
         emitStage('tool.start', { tool: name, node });
         const displayName = registry.getDisplayName(name) ?? name;
         callbacks.onStep('tool_start', { tool: displayName });
@@ -170,6 +186,10 @@ export async function handleEventStream(
       }
     }
 
-    return { totalTokens };
+    return {
+      totalTokens,
+      promptTokens: promptTokensTotal,
+      completionTokens: completionTokensTotal,
+    };
   });
 }
