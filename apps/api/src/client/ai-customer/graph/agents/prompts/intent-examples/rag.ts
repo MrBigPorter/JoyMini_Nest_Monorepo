@@ -176,4 +176,16 @@ export const ragExamples: string[] = [
 	'How to get help',
 	'Customer service phone number',
 
+
+  // ── 中文补充（2026-11-19：提升中文召回） ──
+  '退货规则',
+  '运费说明',
+  '发票说明',
+  '会员权益',
+  '配送范围',
+  '支付方式',
+  '售后流程',
+  '隐私政策',
+  '积分说明',
+  '退款政策说明',
 ];

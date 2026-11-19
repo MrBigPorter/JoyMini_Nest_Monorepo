@@ -51,4 +51,16 @@ export const couponExamples: string[] = [
   'This voucher cannot be applied',
   "Why can't I use this coupon?",
   'My discount code was rejected',
+
+  // ── 中文补充（2026-11-19：提升中文召回） ──
+  '优惠券领取',
+  '优惠券使用',
+  '我的优惠券',
+  '优惠券过期',
+  '满减活动',
+  '折扣码',
+  '券码输入',
+  '优惠活动',
+  '券适用范围',
+  '领券中心',
 ];

@@ -65,4 +65,16 @@ export const walletExamples: string[] = [
   'What is my cashback amount?',
   'Show my reward points',
   'Claim my free credit',
+
+  // ── 中文补充（2026-11-19：提升中文召回） ──
+  '余额提现',
+  '充值到账',
+  '提现申请',
+  '交易流水',
+  '钱包余额查询',
+  '提现审核',
+  '充值失败',
+  '账户充值',
+  '提现进度',
+  '钱包账单',
 ];

@@ -1,81 +1,86 @@
 {
-  "run_at": "2026-11-12T13:17:30",
+  "run_at": "2026-11-19T16:51:25",
   "golden_file": "golden/intent.jsonl",
-  "total": 63,
-  "accuracy": 0.6825,
-  "macro_f1": 0.6864,
+  "golden_total": 153,
+  "accuracy": 0.8693,
+  "accuracy_ci95": [
+    0.8067,
+    0.9138
+  ],
+  "macro_f1": 0.8705,
   "per_domain": {
     "coupon": {
-      "expected": 8,
-      "predicted": 7,
-      "tp": 7,
+      "expected": 18,
+      "predicted": 19,
+      "tp": 17,
+      "precision": 0.8947,
+      "recall": 0.9444,
+      "f1": 0.9189
+    },
+    "general": {
+      "expected": 16,
+      "predicted": 20,
+      "tp": 14,
+      "precision": 0.7,
+      "recall": 0.875,
+      "f1": 0.7778
+    },
+    "kyc": {
+      "expected": 16,
+      "predicted": 14,
+      "tp": 14,
       "precision": 1.0,
       "recall": 0.875,
       "f1": 0.9333
     },
-    "general": {
-      "expected": 6,
-      "predicted": 9,
-      "tp": 6,
-      "precision": 0.6667,
-      "recall": 1.0,
-      "f1": 0.8
-    },
-    "kyc": {
-      "expected": 6,
-      "predicted": 2,
-      "tp": 2,
-      "precision": 1.0,
-      "recall": 0.3333,
-      "f1": 0.5
-    },
     "lucky-draw": {
-      "expected": 6,
-      "predicted": 4,
-      "tp": 4,
+      "expected": 16,
+      "predicted": 14,
+      "tp": 14,
       "precision": 1.0,
-      "recall": 0.6667,
-      "f1": 0.8
+      "recall": 0.875,
+      "f1": 0.9333
     },
     "order": {
-      "expected": 8,
-      "predicted": 8,
-      "tp": 5,
-      "precision": 0.625,
-      "recall": 0.625,
-      "f1": 0.625
+      "expected": 18,
+      "predicted": 17,
+      "tp": 15,
+      "precision": 0.8824,
+      "recall": 0.8333,
+      "f1": 0.8571
     },
     "product": {
-      "expected": 7,
-      "predicted": 5,
-      "tp": 4,
-      "precision": 0.8,
-      "recall": 0.5714,
-      "f1": 0.6667
+      "expected": 17,
+      "predicted": 14,
+      "tp": 14,
+      "precision": 1.0,
+      "recall": 0.8235,
+      "f1": 0.9032
     },
     "rag": {
-      "expected": 8,
-      "predicted": 18,
-      "tp": 7,
-      "precision": 0.3889,
-      "recall": 0.875,
-      "f1": 0.5385
+      "expected": 18,
+      "predicted": 15,
+      "tp": 12,
+      "precision": 0.8,
+      "recall": 0.6667,
+      "f1": 0.7273
     },
     "user": {
-      "expected": 7,
-      "predicted": 7,
-      "tp": 5,
-      "precision": 0.7143,
-      "recall": 0.7143,
-      "f1": 0.7143
+      "expected": 17,
+      "predicted": 20,
+      "tp": 16,
+      "precision": 0.8,
+      "recall": 0.9412,
+      "f1": 0.8649
     },
     "wallet": {
-      "expected": 7,
-      "predicted": 3,
-      "tp": 3,
-      "precision": 1.0,
-      "recall": 0.4286,
-      "f1": 0.6
+      "expected": 17,
+      "predicted": 20,
+      "tp": 17,
+      "precision": 0.85,
+      "recall": 1.0,
+      "f1": 0.9189
     }
-  }
+  },
+  "note": "153 题基线。2026-11-19：补中文 seed 55.6%→84.3%（p<0.0001）；随后修 Meili 增删同步 + 地址语境例句 84.3%→86.9%（p=0.42，未达显著，但地址路由语义正确）。"
 }

@@ -74,7 +74,7 @@
 | T2-2 | 意图阈值统一为单一常量 + 融合后再过滤 | P1-20 | `intent-classifier.ts`、`intent-router.node.ts`、`orchestrator.node.ts` | ☐ |
 | T2-3 | RAG：中文分词 + Layer 2 占位符 + 向量相关性门槛 | P1-21 | `rag-retrieval.service.ts` | ☐ |
 | T2-4 | 流式白名单：只转发 `answerSynthesizer`/`orchestrator` 最终文本 | P1-22 | `ai-stream.handler.ts` | ☐ |
-| T2-5 | **转人工闭环**：admin「待接入」列表 + 订阅 `AI_TRANSFER` 通知 + 超时定时回收（现在只在用户下条消息时懒判定） | N-13 / N-14 | `admin/chat/`、`admin-next/.../customer-service/`、新增 cron | 🚧 2026-11-13 S1 + S2-A/B/D 完成（认领 CAS + 队列筛选 + 回复即接管 + 关闭释放；S2-C、S3、S4 待做） |
+| T2-5 | **转人工闭环**：admin「待接入」列表 + 订阅 `AI_TRANSFER` 通知 + 超时定时回收（现在只在用户下条消息时懒判定） | N-13 / N-14 | `admin/chat/`、`admin-next/.../customer-service/`、新增 cron | ✅ 2026-11-19（S1/S2 + S3 实时推送 + S4 空闲回收；见 [#98 §14](./AI-joymini/98-转人工闭环-SDD.md)） |
 | T2-6 | **模型兜底**：`timeout 15s + maxRetries 1`；`degradeToHuman` 落固定话术 + 置 `awaiting_human` + 发 `AI_TRANSFER` + 记 `transfer{source:fallback}`；测试用故障注入（`__CHAOS__` 前缀 + Redis 开关，生产隔离） | N-15 | `graph/llm-factory.ts`、新增 `ai-failure-handler.ts` | ✅ 2026-11-12（单测 5 例 + E2E 第 9 场景实测，全套 9/9 PASS） |
 | T2-7 | **成本限额**：按天聚合客服 token，超阈值降级转人工 + 记 `cost.guard`（复用 blog budget 写法） | N-16 | `ai-customer.service.ts`、新增 cost-guard | ☐ |
 
@@ -83,7 +83,7 @@
 | # | 任务 | #85 ID | 状态 |
 |:--:|---|:--:|:--:|
 | T3-1 | 3 个集成测试：转人工 / 确认卡片 / RAG 降级 | P1-25 | ☐ |
-| T3-2 | 复跑 golden set，出「改前 vs 改后」对比表 | — | ☐ |
+| T3-2 | 复跑 golden set，出「改前 vs 改后」对比表 | — | ✅ 2026-11-19（153 题 55.6% → 84.3%，McNemar p<0.0001；见 [#100](./AI-joymini/100-意图评测扩容与中文召回修复.md)） |
 | T3-3 | 更新 #86 §10 进度追踪（填真实分数） | — | ☐ |
 
 ### 🧊 T4 — 有余力再做

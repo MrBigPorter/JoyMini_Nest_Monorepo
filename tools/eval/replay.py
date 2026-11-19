@@ -168,6 +168,23 @@ def percentile(values: list[float], p: float) -> float | None:
     return ordered[idx]
 
 
+def wilson_interval(correct: int, total: int, z: float = 1.96) -> list[float]:
+    """
+    准确率的 95% Wilson 置信区间。
+
+    为什么不用正态近似 (p ± z*sqrt(p(1-p)/n))：
+    63 题时正态区间会越界（例如给出 105%），Wilson 在 n 小、p 接近 0/1 时仍稳定。
+    没有区间，两套题集的 "68.2% vs 70.1%" 根本没法判断是不是噪音。
+    """
+    if total <= 0:
+        return [0.0, 0.0]
+    p = correct / total
+    denom = 1 + z * z / total
+    centre = (p + z * z / (2 * total)) / denom
+    margin = (z / denom) * ((p * (1 - p) / total + z * z / (4 * total * total)) ** 0.5)
+    return [round(max(0.0, centre - margin), 4), round(min(1.0, centre + margin), 4)]
+
+
 def compute_metrics(records: list[dict]) -> dict:
     """
     混淆矩阵为主，其余指标从矩阵推导。
@@ -222,6 +239,7 @@ def compute_metrics(records: list[dict]) -> dict:
         "correct": correct,
         "errors": sum(1 for r in records if r["error"]),
         "accuracy": round(correct / total, 4) if total else 0.0,
+        "accuracy_ci95": wilson_interval(correct, total),
         "macro_f1": round(macro_f1, 4),
         "method_distribution": methods,
         "latency_ms": {
@@ -285,8 +303,8 @@ def write_report(result: dict, out_dir: Path) -> tuple[Path, Path]:
         "",
         "| 指标 | 本次 | 基线 | 变化 |",
         "|---|---|---|---|",
-        f"| Top-1 准确率 | **{pct(m['accuracy'])}** | {pct(cmp.get('baseline_accuracy'))} "
-        f"| {acc_delta} |",
+        f"| Top-1 准确率 | **{pct(m['accuracy'])}**（95% CI {pct(m['accuracy_ci95'][0])}–{pct(m['accuracy_ci95'][1])}） "
+        f"| {pct(cmp.get('baseline_accuracy'))} | {acc_delta} |",
         f"| macro-F1 | {pct(m['macro_f1'])} | {pct(cmp.get('baseline_macro_f1'))} "
         f"| {f1_delta} |",
         f"| 答对 / 总数 | {m['correct']} / {m['total']} | - | - |",
