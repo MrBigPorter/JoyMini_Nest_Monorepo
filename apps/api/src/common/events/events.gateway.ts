@@ -22,8 +22,10 @@ import {
   CHAT_EVENTS,
   MessageCreatedEvent,
   AiMessageRequestedEvent,
+  AiCancelRequestedEvent,
 } from '@api/common/chat/events/chat.events';
 import type { Prisma } from '@prisma/client';
+import { AiQueueService } from '@api/common/queue/ai-queue.module';
 
 interface JwtPayloadLike {
   sub?: string;
@@ -41,6 +43,19 @@ const setSocketUserId = (client: Socket, userId: string): void => {
   const data = client.data as Record<string, unknown>;
   data.userId = userId;
 };
+
+/**
+ * 标记这是一条客服（admin）连接。
+ * 客服端与普通用户共用 /events 命名空间，靠 JWT 的 type 区分；
+ * join_chat 的门禁据此放行 SUPPORT 会话（#98 G6）。
+ */
+const setSocketIsAdmin = (client: Socket, isAdmin: boolean): void => {
+  const data = client.data as Record<string, unknown>;
+  data.isAdmin = isAdmin;
+};
+
+const getSocketIsAdmin = (client: Socket): boolean =>
+  (client.data as Record<string, unknown>).isAdmin === true;
 
 const isConversationSeqRows = (
   value: unknown,
@@ -85,12 +100,22 @@ export class EventsGateway
   private pubClient?: ReturnType<typeof createClient>;
   private subClient?: ReturnType<typeof createClient>;
 
+  /**
+   * conversationId → 当前在这个房间里的 socket id 集合。
+   *
+   * 为什么要自己记：socket.io 的 disconnect 事件里 rooms 已被清空，
+   * 拿不到「他刚才在哪些房间」。用它判断「最后一个连接离开了」，
+   * 才决定是否取消这轮 AI 生成（#98 / reliable-ai-runtime 4.x）。
+   */
+  private readonly roomMembers = new Map<string, Set<string>>();
+
   constructor(
     private readonly jwtService: JwtService,
     private readonly prismaService: PrismaService,
     private readonly redisService: RedisService,
     private readonly eventEmitter: EventEmitter2,
     private readonly configService: ConfigService,
+    private readonly aiQueueService: AiQueueService,
   ) {}
 
   /**
@@ -106,32 +131,62 @@ export class EventsGateway
       return;
     }
 
-    const pubClient = createClient({ url: redisUrl });
-    const subClient = pubClient.duplicate();
-    pubClient.on('error', (err) =>
-      this.logger.error('Socket.IO Redis pub client error', err),
-    );
-    subClient.on('error', (err) =>
-      this.logger.error('Socket.IO Redis sub client error', err),
-    );
+    const MAX_INITIAL_ATTEMPTS = 5;
+    const RETRY_BASE_MS = 3_000;
 
-    try {
-      await Promise.all([pubClient.connect(), subClient.connect()]);
-      // 命名空间网关的 afterInit 参数是 Namespace；adapter() 在根 Server 上。
-      const rootServer = (server as any).server ?? server;
-      if (typeof rootServer.adapter !== 'function') {
-        throw new Error('root Socket.IO server has no adapter() method');
-      }
-      rootServer.adapter(createAdapter(pubClient as any, subClient as any));
-      this.pubClient = pubClient;
-      this.subClient = subClient;
-      this.logger.log('✅ Socket.IO Redis adapter enabled');
-    } catch (err) {
-      this.logger.warn(
-        `Socket.IO Redis adapter unavailable, falling back to in-memory: ${extractErrorMessage(err)}`,
+    /**
+     * 每次尝试都重建 client：
+     * quit() 之后的 node-redis client 不能复用，失败重试必须换一对新的。
+     */
+    const attemptInstall = async (attempt: number): Promise<void> => {
+      const pubClient = createClient({
+        url: redisUrl,
+        // 连上之后的断线重连：node-redis 默认策略过密，这里显式限速
+        socket: {
+          reconnectStrategy: (retries: number) =>
+            Math.min(retries * 200, 3_000),
+        },
+      });
+      const subClient = pubClient.duplicate();
+      pubClient.on('error', (err) =>
+        this.logger.warn(`Socket.IO Redis pub client error: ${String(err)}`),
       );
-      await Promise.allSettled([pubClient.quit(), subClient.quit()]);
-    }
+      subClient.on('error', (err) =>
+        this.logger.warn(`Socket.IO Redis sub client error: ${String(err)}`),
+      );
+
+      try {
+        await Promise.all([pubClient.connect(), subClient.connect()]);
+        // 命名空间网关的 afterInit 参数是 Namespace；adapter() 在根 Server 上。
+        const rootServer = (server as any).server ?? server;
+        if (typeof rootServer.adapter !== 'function') {
+          throw new Error('root Socket.IO server has no adapter() method');
+        }
+        rootServer.adapter(createAdapter(pubClient as any, subClient as any));
+        this.pubClient = pubClient;
+        this.subClient = subClient;
+        this.logger.log('✅ Socket.IO Redis adapter enabled');
+        return;
+      } catch (err) {
+        this.logger.warn(
+          `Socket.IO Redis adapter unavailable (attempt ${attempt}/${MAX_INITIAL_ATTEMPTS}), ` +
+            `staying on in-memory: ${extractErrorMessage(err)}`,
+        );
+        await Promise.allSettled([pubClient.quit(), subClient.quit()]);
+
+        // 启动不阻塞：后台重试，连上后自动升级为 Redis adapter。
+        // 测试环境不排定时器，避免 Jest 挂住。
+        if (attempt < MAX_INITIAL_ATTEMPTS && process.env.NODE_ENV !== 'test') {
+          const timer = setTimeout(
+            () => void attemptInstall(attempt + 1),
+            RETRY_BASE_MS * attempt,
+          );
+          timer.unref?.();
+        }
+      }
+    };
+
+    await attemptInstall(1);
   }
 
   async onModuleDestroy(): Promise<void> {
@@ -152,6 +207,7 @@ export class EventsGateway
           : undefined);
 
       let userId: string | null = null;
+      let isAdmin = false;
       if (token) {
         // Try client JWT secret first, then admin JWT secret
         const secrets = [
@@ -165,7 +221,11 @@ export class EventsGateway
               secret,
             });
             userId = typeof payload.sub === 'string' ? payload.sub : null;
-            this.logger.debug(` User verified via JWT: ${userId}`);
+            // admin token 由 AuthService 签入 type='admin'；客户端 token 没有这个值
+            isAdmin = (payload as { type?: string }).type === 'admin';
+            this.logger.debug(
+              ` User verified via JWT: ${userId}${isAdmin ? ' (admin)' : ''}`,
+            );
             break;
           } catch {
             // try next secret
@@ -176,6 +236,7 @@ export class EventsGateway
           const privateRoom = `user_${userId}`;
           await client.join(privateRoom);
           setSocketUserId(client, userId);
+          setSocketIsAdmin(client, isAdmin);
           this.logger.log(
             `🔌 Client connected: ${client.id} (User: ${userId})`,
           );
@@ -203,6 +264,57 @@ export class EventsGateway
 
   handleDisconnect(client: Socket) {
     this.logger.log(`Client disconnected: ${client.id}`);
+
+    // 该 socket 可能同时在看多个会话；逐个从房间登记表移除，
+    // 只有当某个会话再也没有连接时，才取消它正在跑的 AI。
+    for (const [conversationId, members] of this.roomMembers) {
+      if (!members.delete(client.id)) continue;
+      if (members.size === 0) {
+        this.roomMembers.delete(conversationId);
+        this.cancelAiIfRoomEmpty(conversationId, 'client_disconnected');
+      }
+    }
+  }
+
+  // ---------------------------------------------------------
+  // 房间登记：判断「最后一个连接是否离开」
+  // ---------------------------------------------------------
+
+  private trackRoom(conversationId: string, socketId: string): void {
+    if (conversationId.startsWith('user_')) return;
+    let members = this.roomMembers.get(conversationId);
+    if (!members) {
+      members = new Set<string>();
+      this.roomMembers.set(conversationId, members);
+    }
+    members.add(socketId);
+  }
+
+  private untrackRoom(conversationId: string, socketId: string): void {
+    const members = this.roomMembers.get(conversationId);
+    if (!members) return;
+    members.delete(socketId);
+    if (members.size === 0) {
+      this.roomMembers.delete(conversationId);
+      this.cancelAiIfRoomEmpty(conversationId, 'client_left');
+    }
+  }
+
+  /**
+   * 房间空了 → 通知 AI 层中止本轮生成。
+   * 房间还有人（多端 / 客服也在看）时什么都不做。
+   */
+  private cancelAiIfRoomEmpty(conversationId: string, reason: string): void {
+    const members = this.roomMembers.get(conversationId);
+    if (members && members.size > 0) return;
+
+    this.eventEmitter.emit(
+      CHAT_EVENTS.AI_CANCEL_REQUESTED,
+      new AiCancelRequestedEvent(conversationId, reason),
+    );
+    this.logger.debug(
+      `[AiCancel] room empty, requested cancel: conv=${conversationId}, reason=${reason}`,
+    );
   }
 
   // ---------------------------------------------------------
@@ -339,6 +451,25 @@ export class EventsGateway
     return member !== null;
   }
 
+  /**
+   * 客服能否进入这个会话房间。
+   *
+   * 条件：连接来自 admin token + 会话类型是 SUPPORT + 会话未关闭。
+   * AI 会话（type=AI）不放行 —— 那是用户和 AI 的私聊，客服没有介入点。
+   */
+  private async isAdminSupportConversation(
+    client: Socket,
+    conversationId: string,
+  ): Promise<boolean> {
+    if (!getSocketIsAdmin(client)) return false;
+
+    const conv = await this.prismaService.conversation.findUnique({
+      where: { id: conversationId },
+      select: { type: true, status: true },
+    });
+    return conv?.type === 'SUPPORT' && conv.status === 1;
+  }
+
   dispatchToUser(userId: string, type: string, data: unknown) {
     const privateRoom = `user_${userId}`;
     // 直接复用 dispatch 逻辑，发送到该用户的私有房间
@@ -385,13 +516,27 @@ export class EventsGateway
 
     const userId = getSocketUserId(client);
 
-    // ── 门禁：不是这个会话的成员，不许进 ──   // 326-333 ← 新插入
-    const isMember = await this.isConversationMember(userId, conversationId);
+    // ── 门禁 ──
+    // 普通用户：必须是会话成员。
+    // 客服（admin）：允许进入任意 SUPPORT 会话读取实时消息 —— 客服本来就不是
+    // 会话成员，T1-4 的成员校验把客服一起挡在门外（#98 G6）。
+    // 私有房间 user_<自己的 id> 在连接时已自动 join，这里也放行以便客户端重放。
+    const isOwnPrivateRoom =
+      userId !== null && conversationId === `user_${userId}`;
+    const isMember = isOwnPrivateRoom
+      ? true
+      : await this.isConversationMember(userId, conversationId);
     if (!isMember) {
-      this.logger.warn(
-        `[Join Chat] Access denied: User ${userId || 'unknown'} is not a member of conversation ${conversationId}`,
+      const adminAllowed = await this.isAdminSupportConversation(
+        client,
+        conversationId,
       );
-      return { status: 'forbidden', conversationId };
+      if (!adminAllowed) {
+        this.logger.warn(
+          `[Join Chat] Access denied: User ${userId || 'unknown'} is not a member of conversation ${conversationId}`,
+        );
+        return { status: 'forbidden', conversationId };
+      }
     }
 
     const clientId = client.id;
@@ -403,6 +548,7 @@ export class EventsGateway
 
     // 使用 await 确保加入房间成功
     await client.join(roomName);
+    this.trackRoom(roomName, clientId);
 
     // 👈 修改点：去掉了多余的 .sockets
     const roomClients = this.server.adapter.rooms.get(roomName);
@@ -452,6 +598,7 @@ export class EventsGateway
     }
 
     void client.leave(conversationId);
+    this.untrackRoom(conversationId, client.id);
 
     this.logger.debug(
       `[Leave Chat] Client: ${client.id}, Room: ${conversationId}`,
@@ -572,47 +719,47 @@ export class EventsGateway
 
       // AI 路由：Socket 发消息也触发 AI 处理（与 ChatService.sendMessage 一致）
       // 只有 handlerId == null（AI 处理中）时才触发
-      // 同时刷新 handlerAssignedAt（延长超时计时）
+      // 同时刷新 handlerAssignedAt（延长空闲计时）
       const conv = await this.prismaService.conversation.findUnique({
         where: { id: conversationId },
         select: { handlerId: true, handlerAssignedAt: true, type: true },
       });
-      // 超时判定：如果 handlerAssignedAt 超过 10 分钟，则认为超时，handlerId 置 null
-      // handlerId 为空时，表示 AI 正在处理，触发 AI_MESSAGE_REQUESTED 事件
       const isAiType = conv?.type === 'SUPPORT' || conv?.type === 'AI';
       const isAiHandler = conv?.handlerId == null;
 
-      if (conv?.handlerId != null) {
-        // 未超时 → 刷新 handlerAssignedAt
-        const HANDLER_TIMEOUT_MS = 10 * 60 * 1000;
-        if (conv.handlerAssignedAt) {
-          const elapsed = Date.now() - conv.handlerAssignedAt.getTime();
-          if (elapsed > HANDLER_TIMEOUT_MS) {
-            // 超时 → 重置为 AI 处理
-            await this.prismaService.conversation.update({
-              where: { id: conversationId },
-              data: { handlerId: null, handlerAssignedAt: null },
-            });
-          } else {
-            // 未超时 → 刷新 handlerAssignedAt
-            await this.prismaService.conversation.update({
-              where: { id: conversationId },
-              data: { handlerAssignedAt: new Date() },
-            });
-          }
-        } else {
-          // 有 handlerId 但没有分配时间 → 设一个初始时间
-          await this.prismaService.conversation.update({
-            where: { id: conversationId },
-            data: { handlerAssignedAt: new Date() },
-          });
-        }
+      if (conv?.handlerId != null && conv.handlerId !== 'awaiting_human') {
+        // 真实客服名下：这条用户消息算一次「活跃」，刷新空闲计时。
+        // 空闲超时的回收由 SupportQueueService 的 cron 主动扫描，
+        // 不再在这里懒判定 —— 用户沉默时这里永远不会执行（#98 AC-4）。
+        await this.prismaService.conversation.update({
+          where: { id: conversationId },
+          data: { handlerAssignedAt: new Date() },
+        });
       }
+      // 排队中（awaiting_human）不刷新：排队时钟只看 transferredAt，
+      // 刷新会让「催得越急排得越后」（#98 S2-C 已记录的同类缺陷）。
       if (isAiType && isAiHandler) {
-        this.eventEmitter.emit(
-          CHAT_EVENTS.AI_MESSAGE_REQUESTED,
-          new AiMessageRequestedEvent(conversationId, content, userId),
-        );
+        try {
+          await this.aiQueueService.enqueue({
+            conversationId,
+            content,
+            userId,
+            messageId: result.id,
+          });
+        } catch (err: unknown) {
+          this.logger.warn(
+            `[AI Queue] enqueue failed, falling back to in-process event: ${extractErrorMessage(err)}`,
+          );
+          this.eventEmitter.emit(
+            CHAT_EVENTS.AI_MESSAGE_REQUESTED,
+            new AiMessageRequestedEvent(
+              conversationId,
+              content,
+              userId,
+              result.id,
+            ),
+          );
+        }
       }
 
       return {

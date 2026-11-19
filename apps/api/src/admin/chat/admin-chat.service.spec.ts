@@ -27,6 +27,7 @@ function createService(claimResult: any) {
     {} as any,
     {} as any,
     supportHandler as any,
+    { emit: jest.fn() } as any,
   );
   return { service, prisma, supportHandler };
 }
@@ -116,6 +117,7 @@ function createListService(rows: any[] = []) {
     {} as any,
     {} as any,
     {} as any,
+    { emit: jest.fn() } as any,
   );
   return { service, prisma };
 }
@@ -264,6 +266,7 @@ function createReplyService(opts: {
     {} as any,
     chatService as any,
     supportHandler as any,
+    { emit: jest.fn() } as any,
   );
   return { service, prisma, chatService, supportHandler };
 }

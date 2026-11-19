@@ -9,6 +9,11 @@ import type { BaseCheckpointSaver } from '@langchain/langgraph-checkpoint';
 import { HumanMessage } from '@langchain/core/messages';
 import { buildCustomerGraph } from '@api/client/ai-customer/graph/customer.graph';
 import { ConfigService } from '@nestjs/config';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import {
+  CHAT_EVENTS,
+  SupportQueueChangedEvent,
+} from '@api/common/chat/events/chat.events';
 import { LlmProviderConfig } from '@api/client/ai-customer/graph/llm-factory';
 import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-registry.service';
 import { EventsGateway } from '@api/common/events/events.gateway';
@@ -22,7 +27,11 @@ import { PromptResolverService } from '@api/client/ai-customer/knowledge/prompt-
 import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service';
 import { AiMemoryService } from '@api/common/ai/ai-memory.service';
 import { AiActionConfirmService } from './ai-action-confirm.service';
-import { AiUsageService, QuotaExceededError } from './ai-usage.service';
+import {
+  AiUsageService,
+  QuotaExceededError,
+  SessionQuotaExceededError,
+} from './ai-usage.service';
 import { handleEventStream, StreamUsageSummary } from './ai-stream.handler';
 import { publishAiReply } from './ai-reply-publisher';
 import { AddressService } from '../address/address.service';
@@ -74,6 +83,7 @@ export class AiCustomerService implements OnModuleDestroy {
     private readonly addressService: AddressService,
     private readonly otpService: OtpService,
     private readonly redisService: RedisService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   /**
@@ -263,6 +273,9 @@ export class AiCustomerService implements OnModuleDestroy {
       // 日 token 配额：超限时抛 QuotaExceededError，走降级转人工。
       await this.aiUsageService.assertWithinQuota(userId);
 
+      // 会话级配额：只降级这一条对话，不牵连用户当天其他会话。
+      await this.aiUsageService.assertWithinSessionQuota(conversationId);
+
       // Step 2 — 准备 AI 对话线程
       const threadId = await this.prepareThread(userId, conversationId);
 
@@ -300,6 +313,12 @@ export class AiCustomerService implements OnModuleDestroy {
         );
       }
 
+      // 会话级记账：Redis 故障自己吞掉，不影响本轮对话
+      await this.aiUsageService.recordSessionUsage(
+        conversationId,
+        streamUsage.totalTokens ?? 0,
+      );
+
       // 取消信号在流结束后才观察到：图可能正常返回（provider 没响应 signal），
       // 但不再继续落库/广播。
       if (callbacks.signal?.aborted) {
@@ -335,6 +354,11 @@ export class AiCustomerService implements OnModuleDestroy {
       if (err instanceof QuotaExceededError) {
         this.logger.warn(
           `[chatStream] quota exceeded: userId=${userId}, limit=${err.limit}, used=${err.used}`,
+        );
+      }
+      if (err instanceof SessionQuotaExceededError) {
+        this.logger.warn(
+          `[chatStream] session quota exceeded: conversationId=${conversationId ?? 'n/a'}, limit=${err.limit}, used=${err.used}`,
         );
       }
       emitStage(
@@ -624,6 +648,16 @@ export class AiCustomerService implements OnModuleDestroy {
           conversationId: targetConvId,
           reason,
         },
+      );
+
+      // 客服侧：让所有在线客服的「待接入」列表立即出现这条（#98 AC-1）
+      this.eventEmitter.emit(
+        CHAT_EVENTS.SUPPORT_QUEUE_CHANGED,
+        new SupportQueueChangedEvent(
+          targetConvId,
+          'transferred',
+          'awaiting_human',
+        ),
       );
     }
     // SSE 调用方（POST + GET /chat/stream 老协议）靠这个回调收尾，

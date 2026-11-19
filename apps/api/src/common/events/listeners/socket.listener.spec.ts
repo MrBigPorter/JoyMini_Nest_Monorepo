@@ -4,6 +4,7 @@ import { PrismaService } from '@api/common/prisma/prisma.service';
 import {
   MessageCreatedEvent,
   SupportConversationStartedEvent,
+  SupportQueueChangedEvent,
 } from '@api/common/chat/events/chat.events';
 import { SocketEvents } from '@lucky/shared';
 
@@ -122,5 +123,25 @@ describe('SocketListener', () => {
       'support_new_conversation',
       expect.objectContaining({ conversationId: 'conv_support_1' }),
     );
+  });
+
+  it('broadcasts support_queue_changed to every admin private room', async () => {
+    findManyMock.mockResolvedValue([{ id: 'admin_1' }, { id: 'admin_2' }]);
+
+    await listener.handleSupportQueueChanged(
+      new SupportQueueChangedEvent('conv_q1', 'claimed', 'admin_1'),
+    );
+
+    for (const adminId of ['admin_1', 'admin_2']) {
+      expect(dispatchMock).toHaveBeenCalledWith(
+        `user_${adminId}`,
+        'support_queue_changed',
+        expect.objectContaining({
+          conversationId: 'conv_q1',
+          reason: 'claimed',
+          handlerId: 'admin_1',
+        }),
+      );
+    }
   });
 });

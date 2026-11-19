@@ -41,6 +41,7 @@ import {
 import { CHAT_GROUP_EVENTS } from '@api/common/chat/events/chat-group.events';
 import { ForwardMessageDto } from '@api/common/chat/dto/forward-message.dto';
 import { ConfigService } from '@nestjs/config';
+import { AiQueueService } from '@api/common/queue/ai-queue.module';
 
 const SUPPORT_CONVERSATION_STARTED = 'chat.support.conversation.started';
 
@@ -53,6 +54,7 @@ export class ChatService {
     private readonly notificationService: NotificationService,
     private readonly configService: ConfigService,
     @InjectQueue(AVATAR_QUEUE_NAME) private readonly avatarQueue: Queue,
+    private readonly aiQueueService: AiQueueService,
   ) {}
 
   // =================================================================
@@ -232,10 +234,29 @@ export class ChatService {
       conversationMeta.type === 'SUPPORT' || conversationMeta.type === 'AI';
     const isAiHandler = conversationMeta.handlerId == null;
     if (isAiType && isAiHandler) {
-      this.eventEmitter.emit(
-        CHAT_EVENTS.AI_MESSAGE_REQUESTED,
-        new AiMessageRequestedEvent(conversationId, content, userId),
-      );
+      // 入队而不是直接跑：进程重启不丢、失败可重试、最终失败留死信。
+      // Redis/Bull 不可用时退回进程内事件，保证这轮对话仍有人处理。
+      try {
+        await this.aiQueueService.enqueue({
+          conversationId,
+          content,
+          userId,
+          messageId: message.id,
+        });
+      } catch (err: any) {
+        this.logger.warn(
+          `[AI Queue] enqueue failed, falling back to in-process event: ${err?.message ?? err}`,
+        );
+        this.eventEmitter.emit(
+          CHAT_EVENTS.AI_MESSAGE_REQUESTED,
+          new AiMessageRequestedEvent(
+            conversationId,
+            content,
+            userId,
+            message.id,
+          ),
+        );
+      }
     }
 
     return { ...messageDto, isSelf: true };

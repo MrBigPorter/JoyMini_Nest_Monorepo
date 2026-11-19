@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '@api/common/prisma/prisma.service';
+import { RedisService } from '@api/common/redis/redis.service';
 
 /** 日 token 配额超限。调用方应转为人工/友好提示，而不是当成模型故障重试。 */
 export class QuotaExceededError extends Error {
@@ -15,6 +16,25 @@ export class QuotaExceededError extends Error {
 }
 
 /**
+ * 单会话 token 配额超限。
+ *
+ * 与日配额的区别：日配额超限拒绝的是「这个用户今天还能不能继续聊」；
+ * 会话配额超限只把「这一条对话」降级为静态回复 + 转人工，
+ * 用户开新会话或人工处理后仍可继续。
+ */
+export class SessionQuotaExceededError extends Error {
+  readonly code = 'AI_SESSION_TOKEN_LIMIT_EXCEEDED';
+
+  constructor(
+    readonly limit: number,
+    readonly used: number,
+  ) {
+    super(`Session AI token limit exceeded: used ${used}/${limit}`);
+    this.name = 'SessionQuotaExceededError';
+  }
+}
+
+/**
  * AI token 用量与日配额。
  *
  * 用量按「用户 + UTC 日期」聚合到 ai_usage_daily；
@@ -25,7 +45,10 @@ export class QuotaExceededError extends Error {
 export class AiUsageService {
   private readonly logger = new Logger(AiUsageService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly redis: RedisService,
+  ) {}
 
   /** UTC 当天 00:00，作为 @db.Date 的唯一键。 */
   private todayUtc(): Date {
@@ -108,6 +131,66 @@ export class AiUsageService {
         `[AiUsage] quota exceeded: userId=${userId}, used=${usage.totalTokens}, limit=${limit}`,
       );
       throw new QuotaExceededError(limit, usage.totalTokens);
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  //  会话级配额（reliable-ai-runtime 5.x）
+  //
+  //  存在 Redis 而不是 DB：
+  //    - 只活一条对话的生命周期（TTL 24h），不需要进报表；
+  //    - 每条消息都要读，放 Redis 避免给 PG 增加热路径查询。
+  //  多实例安全：INCRBY 是原子的，两个副本同时加不会丢计数。
+  // ══════════════════════════════════════════════════════════════
+
+  private sessionLimit(): number {
+    const raw = process.env.AI_SESSION_TOKEN_LIMIT;
+    if (raw === undefined || raw === '') return 50_000;
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) ? parsed : 50_000;
+  }
+
+  private sessionKey(conversationId: string): string {
+    return `ai:session:tokens:${conversationId}`;
+  }
+
+  /** 会话累计 token 超限抛 SessionQuotaExceededError；limit <= 0 关闭。 */
+  async assertWithinSessionQuota(conversationId?: string): Promise<void> {
+    if (!conversationId) return;
+    const limit = this.sessionLimit();
+    if (limit <= 0) return;
+
+    const raw = await this.redis.get(this.sessionKey(conversationId));
+    const used = raw ? Number(raw) : 0;
+    if (Number.isFinite(used) && used >= limit) {
+      this.logger.warn(
+        `[AiUsage] session quota exceeded: conv=${conversationId}, used=${used}, limit=${limit}`,
+      );
+      throw new SessionQuotaExceededError(limit, used);
+    }
+  }
+
+  /**
+   * 累加会话 token 用量。
+   * Redis 故障只 warn，不能因为记账失败打断已经完成的对话。
+   */
+  async recordSessionUsage(
+    conversationId: string | undefined,
+    totalTokens: number,
+  ): Promise<void> {
+    if (!conversationId) return;
+    const tokens = Math.max(0, Math.trunc(totalTokens));
+    if (tokens === 0) return;
+
+    try {
+      const key = this.sessionKey(conversationId);
+      await this.redis.incrBy(key, tokens);
+      // TTL 24h：会话通常更短；过期后重新开始计数，不会无限增长
+      await this.redis.expire(key, 24 * 60 * 60);
+    } catch (err: any) {
+      this.logger.warn(
+        `[AiUsage] session usage record failed: conv=${conversationId}, reason=${err?.message ?? err}`,
+      );
     }
   }
 }

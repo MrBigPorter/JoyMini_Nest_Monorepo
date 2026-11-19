@@ -2,9 +2,13 @@ import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { randomUUID } from 'node:crypto';
 import { AiCustomerService } from '@api/client/ai-customer/ai-customer.service';
-import { CHAT_EVENTS } from '@api/common/chat/events/chat.events';
+import {
+  AiCancelRequestedEvent,
+  CHAT_EVENTS,
+} from '@api/common/chat/events/chat.events';
 import { runWithTrace } from '@api/common/logger/trace-context';
 import { RedisLockService } from '@api/common/redis/redis-lock.service';
+import { RedisService } from '@api/common/redis/redis.service';
 
 /**
  * 同会话单飞的 Redis 锁 TTL。
@@ -56,6 +60,12 @@ export class AiMessageListener {
   /** conversationId → 队尾 Promise。同一实例内严格串行、先进先出。 */
   private readonly conversationQueues = new Map<string, Promise<void>>();
 
+  /**
+   * conversationId → 本轮 AI 生成的中止器。
+   * 客户端断开（房间空了）时由 AI_CANCEL_REQUESTED 事件触发 abort。
+   */
+  private readonly activeControllers = new Map<string, AbortController>();
+
   // 非 readonly：测试可覆盖，避免真的空等 30s。
   private lockMaxWaitMs = LOCK_MAX_WAIT_MS;
   private lockRetryDelayMs = LOCK_RETRY_DELAY_MS;
@@ -63,6 +73,7 @@ export class AiMessageListener {
   constructor(
     private readonly aiCustomerService: AiCustomerService,
     private readonly redisLockService: RedisLockService,
+    private readonly redisService: RedisService,
   ) {}
 
   @OnEvent(CHAT_EVENTS.AI_MESSAGE_REQUESTED)
@@ -70,12 +81,27 @@ export class AiMessageListener {
     conversationId: string;
     content: string;
     userId: string;
+    messageId?: string;
   }): Promise<void> {
-    const { conversationId, content, userId } = payload;
+    const { conversationId, content, userId, messageId } = payload;
     // 只记长度，不落原文（#89 FR-7 / AC-6）
     this.logger.log(
       `[AiMessageListener] AI request: conv=${conversationId}, messageLength=${content.length}`,
     );
+
+    // 幂等：同一条消息已经处理成功过就不再跑一遍。
+    // 标记写在「成功之后」（见下方 finally 后的 done 标记），
+    // 这样队列重试不会被自己的标记挡住。
+    const doneKey = messageId ? `ai:msg:done:${messageId}` : null;
+    if (doneKey) {
+      const done = await this.safeRedisGet(doneKey);
+      if (done) {
+        this.logger.warn(
+          `[AiMessageListener] duplicate delivery skipped: conv=${conversationId}, messageId=${messageId}`,
+        );
+        return;
+      }
+    }
 
     try {
       // 只有 LangGraph 执行（chatStream）被纳入单飞范围；
@@ -85,6 +111,10 @@ export class AiMessageListener {
           this.executeGraph(conversationId, content, userId),
         ),
       );
+      if (doneKey) {
+        // 1h 足够覆盖队列重投窗口；过期后即使重放也只是一次多余调用
+        await this.safeRedisSet(doneKey, 60 * 60);
+      }
     } catch (err: any) {
       if (err instanceof ConversationLockTimeoutError) {
         // 明确告警 + 可观测原因，不静默丢、也不让进程崩。
@@ -98,6 +128,23 @@ export class AiMessageListener {
         `[AiMessageListener] AI processing failed: ${err?.message ?? err}`,
       );
     }
+  }
+
+  /**
+   * 取消某会话正在进行的生成（客户端断开 / 离开房间且房间已空）。
+   *
+   * 只 abort 当前这一轮：后续若用户又发消息，会创建新的 controller。
+   * 没有进行中的任务时静默返回（事件可能比任务早到或晚到）。
+   */
+  @OnEvent(CHAT_EVENTS.AI_CANCEL_REQUESTED)
+  handleCancel(event: AiCancelRequestedEvent): void {
+    const controller = this.activeControllers.get(event.conversationId);
+    if (!controller) return;
+
+    this.logger.log(
+      `[AiMessageListener] cancel requested: conv=${event.conversationId}, reason=${event.reason}`,
+    );
+    controller.abort();
   }
 
   /**
@@ -201,10 +248,15 @@ export class AiMessageListener {
     content: string,
     userId: string,
   ): Promise<void> {
+    // 这一轮的中止器：客户端断开时由 handleCancel 触发。
+    // finally 里按引用清理，避免上一轮结束时删掉下一轮刚创建的 controller。
+    const controller = new AbortController();
+    this.activeControllers.set(conversationId, controller);
+
     // 这条是事件驱动路径，没有 HTTP 请求、也就没有 req.id。
     // 这里自己生成一个 traceId 并挂到异步上下文上，
     // 否则 chat.start / intent / llm.usage 的 traceId 全是 "-"，Loki 无法按对话聚合。
-    return runWithTrace(randomUUID().replaceAll('-', ''), () =>
+    const run = runWithTrace(randomUUID().replaceAll('-', ''), () =>
       this.aiCustomerService.chatStream(
         content,
         userId,
@@ -215,10 +267,40 @@ export class AiMessageListener {
           onDone: () => {},
           onError: () => {},
           onTransfer: () => {},
+          signal: controller.signal,
         },
         conversationId,
       ),
     );
+
+    return run.finally(() => {
+      // 按引用清理：本轮结束前可能已有下一轮把 map 覆盖成新 controller
+      if (this.activeControllers.get(conversationId) === controller) {
+        this.activeControllers.delete(conversationId);
+      }
+    });
+  }
+
+  /** Redis 只用于幂等辅助：故障时退回「照常处理」，不能因此丢消息 */
+  private async safeRedisGet(key: string): Promise<string | null> {
+    try {
+      return await this.redisService.get(key);
+    } catch (err: unknown) {
+      this.logger.warn(
+        `[AiMessageListener] idempotency read failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return null;
+    }
+  }
+
+  private async safeRedisSet(key: string, ttlSeconds: number): Promise<void> {
+    try {
+      await this.redisService.set(key, '1', ttlSeconds);
+    } catch (err: unknown) {
+      this.logger.warn(
+        `[AiMessageListener] idempotency write failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
 
   private sleep(ms: number): Promise<void> {

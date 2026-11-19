@@ -1,4 +1,7 @@
-import { SupportHandlerService, AWAITING_HUMAN } from './support-handler.service';
+import {
+  SupportHandlerService,
+  AWAITING_HUMAN,
+} from './support-handler.service';
 import { ConversationStatus } from '@lucky/shared';
 
 // ==================================================================
@@ -15,6 +18,7 @@ function createService() {
     conversation: {
       updateMany: jest.fn(),
       findUnique: jest.fn(),
+      findMany: jest.fn(),
     },
   };
   const service = new SupportHandlerService(prisma as any);
@@ -95,5 +99,83 @@ describe('SupportHandlerService.claim 认领互斥（T2-5）', () => {
     await service.claim('conv-1', 'admin-1');
 
     expect(prisma.conversation.findUnique).not.toHaveBeenCalled();
+  });
+});
+
+// ==================================================================
+//  #98 AC-4：空闲回收（cron 主动扫描，不依赖用户再发消息）
+// ==================================================================
+
+describe('SupportHandlerService 空闲回收（#98 AC-4）', () => {
+  const NOW = new Date('2026-11-19T12:00:00Z');
+  const IDLE_MS = 10 * 60_000;
+
+  it('releaseIfIdle 用 CAS 限定「仍在超时区间、且归属是真实客服」', async () => {
+    const { service, prisma } = createService();
+    prisma.conversation.updateMany.mockResolvedValue({ count: 1 });
+
+    const released = await service.releaseIfIdle('conv-1', IDLE_MS, NOW);
+
+    expect(released).toBe(true);
+    expect(prisma.conversation.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: 'conv-1',
+          status: ConversationStatus.NORMAL,
+          // 排队中的会话不能被空闲回收吞掉
+          handlerId: { not: AWAITING_HUMAN },
+          handlerAssignedAt: { lt: new Date(NOW.getTime() - IDLE_MS) },
+        }),
+        data: expect.objectContaining({
+          handlerId: null,
+          handlerAssignedAt: null,
+          transferredAt: null,
+        }),
+      }),
+    );
+  });
+
+  it('CAS 改到 0 行 → 客服刚有新消息，不能回收（false）', async () => {
+    const { service, prisma } = createService();
+    prisma.conversation.updateMany.mockResolvedValue({ count: 0 });
+
+    expect(await service.releaseIfIdle('conv-1', IDLE_MS, NOW)).toBe(false);
+  });
+
+  it('sweepIdle 只返回真正被回收的会话 ID', async () => {
+    const { service, prisma } = createService();
+    prisma.conversation.findMany.mockResolvedValue([{ id: 'a' }, { id: 'b' }]);
+    prisma.conversation.updateMany
+      .mockResolvedValueOnce({ count: 1 })
+      .mockResolvedValueOnce({ count: 0 });
+
+    const released = await service.sweepIdle(IDLE_MS, 200, NOW);
+
+    expect(released).toEqual(['a']);
+    expect(prisma.conversation.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          handlerId: { not: AWAITING_HUMAN },
+          handlerAssignedAt: { lt: new Date(NOW.getTime() - IDLE_MS) },
+        }),
+      }),
+    );
+  });
+
+  it('findStaleQueue 以 transferredAt（不是 handlerAssignedAt）判定排队超时', async () => {
+    const { service, prisma } = createService();
+    prisma.conversation.findMany.mockResolvedValue([{ id: 'q1' }]);
+
+    const stale = await service.findStaleQueue(10 * 60_000, 100, NOW);
+
+    expect(stale).toEqual([{ id: 'q1' }]);
+    expect(prisma.conversation.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          handlerId: AWAITING_HUMAN,
+          transferredAt: { lt: new Date(NOW.getTime() - 10 * 60_000) },
+        }),
+      }),
+    );
   });
 });

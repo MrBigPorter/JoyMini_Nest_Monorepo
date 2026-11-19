@@ -29,6 +29,7 @@ import { AiModule } from '@api/common/ai/ai.module';
 import { MeilisearchModule } from '@api/common/meilisearch/meilisearch.module';
 import { BlogModule } from '@api/blog/blog.module';
 import { AiCustomerModule } from '@api/client/ai-customer/ai-customer.module';
+import { AiQueueModule } from '@api/common/queue/ai-queue.module';
 
 // 根模块（第2步，挂子模块、配置、JWT等）
 @Module({
@@ -167,6 +168,7 @@ import { AiCustomerModule } from '@api/client/ai-customer/ai-customer.module';
     BlogModule,
     AiModule,
     MeilisearchModule,
+    AiQueueModule,
     AiCustomerModule,
 
     // 其他模块：PrismaModule、ThrottlerModule、UsersModule、AuthModule 等

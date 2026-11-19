@@ -173,6 +173,8 @@ export const SocketEvents = {
   AI_DONE: "ai_done", // AI 回复完成
   AI_ERROR: "ai_error", // AI 处理出错
   AI_TRANSFER: "ai_transfer", // 转人工
+  // 待接入队列发生变化（转人工入队 / 被认领 / 释放 / 关闭）→ 推给所有在线客服
+  SUPPORT_QUEUE_CHANGED: "support_queue_changed",
 
   // --- 好友/联系人业务 ---
   CONTACT_APPLY: "contact_apply",

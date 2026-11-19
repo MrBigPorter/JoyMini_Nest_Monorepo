@@ -1,4 +1,8 @@
-import { AiUsageService, QuotaExceededError } from './ai-usage.service';
+import {
+  AiUsageService,
+  QuotaExceededError,
+  SessionQuotaExceededError,
+} from './ai-usage.service';
 
 describe('AiUsageService', () => {
   let prisma: {
@@ -6,6 +10,11 @@ describe('AiUsageService', () => {
       upsert: jest.Mock;
       findUnique: jest.Mock;
     };
+  };
+  let redis: {
+    get: jest.Mock;
+    incrBy: jest.Mock;
+    expire: jest.Mock;
   };
   let service: AiUsageService;
 
@@ -16,12 +25,19 @@ describe('AiUsageService', () => {
         findUnique: jest.fn().mockResolvedValue(null),
       },
     };
-    service = new AiUsageService(prisma as any);
+    redis = {
+      get: jest.fn().mockResolvedValue(null),
+      incrBy: jest.fn().mockResolvedValue(0),
+      expire: jest.fn().mockResolvedValue(true),
+    };
+    service = new AiUsageService(prisma as any, redis as any);
     delete process.env.AI_DAILY_TOKEN_LIMIT;
+    delete process.env.AI_SESSION_TOKEN_LIMIT;
   });
 
   afterEach(() => {
     delete process.env.AI_DAILY_TOKEN_LIMIT;
+    delete process.env.AI_SESSION_TOKEN_LIMIT;
   });
 
   it('按用户+UTC 日期累加 token 与请求数', async () => {
@@ -73,5 +89,51 @@ describe('AiUsageService', () => {
 
     await expect(service.assertWithinQuota('user-1')).resolves.toBeUndefined();
     expect(prisma.aiUsageDaily.findUnique).not.toHaveBeenCalled();
+  });
+
+  // ── 会话级配额 ──
+  it('会话累计达到阈值 → SessionQuotaExceededError', async () => {
+    process.env.AI_SESSION_TOKEN_LIMIT = '1000';
+    redis.get.mockResolvedValue('1000');
+
+    await expect(
+      service.assertWithinSessionQuota('conv-1'),
+    ).rejects.toBeInstanceOf(SessionQuotaExceededError);
+    expect(redis.get).toHaveBeenCalledWith('ai:session:tokens:conv-1');
+  });
+
+  it('会话级超限不影响日配额判断口径（读的是不同 key）', async () => {
+    process.env.AI_SESSION_TOKEN_LIMIT = '1000';
+    redis.get.mockResolvedValue('10');
+
+    await expect(
+      service.assertWithinSessionQuota('conv-1'),
+    ).resolves.toBeUndefined();
+    expect(prisma.aiUsageDaily.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('没有 conversationId 时跳过会话配额（例如测试对话）', async () => {
+    await expect(
+      service.assertWithinSessionQuota(undefined),
+    ).resolves.toBeUndefined();
+    expect(redis.get).not.toHaveBeenCalled();
+  });
+
+  it('recordSessionUsage 原子累加并设置 24h TTL', async () => {
+    await service.recordSessionUsage('conv-1', 42);
+
+    expect(redis.incrBy).toHaveBeenCalledWith('ai:session:tokens:conv-1', 42);
+    expect(redis.expire).toHaveBeenCalledWith(
+      'ai:session:tokens:conv-1',
+      24 * 60 * 60,
+    );
+  });
+
+  it('Redis 故障不打断对话（recordSessionUsage 吞掉异常）', async () => {
+    redis.incrBy.mockRejectedValue(new Error('redis down'));
+
+    await expect(
+      service.recordSessionUsage('conv-1', 42),
+    ).resolves.toBeUndefined();
   });
 });

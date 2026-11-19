@@ -1,4 +1,5 @@
 import { AiMessageListener } from './ai-message.listener';
+import { AiCancelRequestedEvent } from '@api/common/chat/events/chat.events';
 
 // 依赖链里的 AiCustomerService 会加载纯 ESM 包，Jest（CJS）默认不转译 node_modules。
 // 本套用例不触达这些模块，只需它们能"加载成功"。
@@ -32,12 +33,17 @@ const flush = () => new Promise<void>((resolve) => setImmediate(resolve));
 function makeListener(
   chatStream: jest.Mock,
   runWithLock: jest.Mock = jest.fn((_k, _t, cb) => cb()),
+  redis: { get: jest.Mock; set: jest.Mock } = {
+    get: jest.fn().mockResolvedValue(null),
+    set: jest.fn().mockResolvedValue(undefined),
+  },
 ) {
   const service = { chatStream };
   const lock = { runWithLock };
   return {
-    listener: new AiMessageListener(service as any, lock as any),
+    listener: new AiMessageListener(service as any, lock as any, redis as any),
     lock,
+    redis,
   };
 }
 
@@ -161,5 +167,166 @@ describe('AiMessageListener · 同会话单飞', () => {
     await listener.handleAiMessageRequest(event('c1', 'second'));
 
     expect(chatStream).toHaveBeenCalledTimes(2);
+  });
+});
+
+// ==================================================================
+//  取消信号（reliable-ai-runtime 4.x）
+//
+//  客户端断开且房间空了 → 网关发 AI_CANCEL_REQUESTED → listener abort。
+//  chatStream 的 callbacks.signal 必须真实透传，取消才有效。
+// ==================================================================
+
+describe('AiMessageListener · 取消信号', () => {
+  it('把 AbortSignal 透传给 chatStream，收到取消事件后置为 aborted', async () => {
+    const gate = deferred();
+    let callbacks: { signal?: AbortSignal } | undefined;
+    const chatStream = jest.fn((_msg, _uid, _tid, cbs) => {
+      callbacks = cbs;
+      return gate.promise;
+    });
+    const { listener } = makeListener(chatStream);
+
+    const running = listener.handleAiMessageRequest(event('c1'));
+    await flush();
+
+    expect(callbacks?.signal).toBeInstanceOf(AbortSignal);
+    expect(callbacks?.signal?.aborted).toBe(false);
+
+    listener.handleCancel(
+      new AiCancelRequestedEvent('c1', 'client_disconnected'),
+    );
+
+    expect(callbacks?.signal?.aborted).toBe(true);
+
+    gate.resolve();
+    await running;
+  });
+
+  it('没有进行中的任务时取消事件是 no-op（不抛错）', () => {
+    const { listener } = makeListener(jest.fn());
+    expect(() =>
+      listener.handleCancel(
+        new AiCancelRequestedEvent('missing', 'client_left'),
+      ),
+    ).not.toThrow();
+  });
+
+  it('同一会话第二轮拿到新的 controller，上一轮的取消不会误伤', async () => {
+    const first = deferred();
+    const second = deferred();
+    const signals: AbortSignal[] = [];
+    let call = 0;
+    const chatStream = jest.fn((_msg, _uid, _tid, cbs) => {
+      signals.push(cbs.signal);
+      return call++ === 0 ? first.promise : second.promise;
+    });
+    const { listener } = makeListener(chatStream);
+
+    const p1 = listener.handleAiMessageRequest(event('c1', 'one'));
+    await flush();
+    listener.handleCancel(new AiCancelRequestedEvent('c1', 'client_left'));
+    first.resolve();
+    await p1;
+
+    // 第二轮开始后，第一轮的取消事件已经过去
+    const p2 = listener.handleAiMessageRequest(event('c1', 'two'));
+    await flush();
+
+    expect(signals).toHaveLength(2);
+    expect(signals[1]).not.toBe(signals[0]);
+    expect(signals[1].aborted).toBe(false);
+
+    second.resolve();
+    await p2;
+  });
+});
+
+// ==================================================================
+//  幂等（reliable-ai-runtime 2.3）
+//
+//  队列是 at-least-once：同一条消息可能被投递两次。
+//  处理成功打 Redis 标记；失败不打，保证重试还能跑。
+// ==================================================================
+
+describe('AiMessageListener · 消息幂等', () => {
+  it('已成功处理过的 messageId 再次投递 → 跳过', async () => {
+    const chatStream = jest.fn().mockResolvedValue(undefined);
+    const redis = {
+      get: jest.fn().mockResolvedValue('1'),
+      set: jest.fn(),
+    };
+    const { listener } = makeListener(chatStream, undefined, redis);
+
+    await listener.handleAiMessageRequest({
+      conversationId: 'c1',
+      content: 'hi',
+      userId: 'u1',
+      messageId: 'm1',
+    });
+
+    expect(chatStream).not.toHaveBeenCalled();
+    expect(redis.get).toHaveBeenCalledWith('ai:msg:done:m1');
+  });
+
+  it('首次处理成功后写入 done 标记（TTL 1h）', async () => {
+    const chatStream = jest.fn().mockResolvedValue(undefined);
+    const redis = {
+      get: jest.fn().mockResolvedValue(null),
+      set: jest.fn().mockResolvedValue(undefined),
+    };
+    const { listener } = makeListener(chatStream, undefined, redis);
+
+    await listener.handleAiMessageRequest({
+      conversationId: 'c1',
+      content: 'hi',
+      userId: 'u1',
+      messageId: 'm1',
+    });
+
+    expect(chatStream).toHaveBeenCalledTimes(1);
+    expect(redis.set).toHaveBeenCalledWith('ai:msg:done:m1', '1', 60 * 60);
+  });
+
+  it('处理失败不写 done 标记 → 队列重试仍会执行', async () => {
+    const chatStream = jest
+      .fn()
+      .mockRejectedValueOnce(new Error('graph boom'))
+      .mockResolvedValueOnce(undefined);
+    const redis = {
+      get: jest.fn().mockResolvedValue(null),
+      set: jest.fn().mockResolvedValue(undefined),
+    };
+    const { listener } = makeListener(chatStream, undefined, redis);
+    jest
+      .spyOn((listener as any).logger, 'error')
+      .mockImplementation(() => undefined);
+
+    await listener.handleAiMessageRequest({
+      conversationId: 'c1',
+      content: 'hi',
+      userId: 'u1',
+      messageId: 'm2',
+    });
+    expect(redis.set).not.toHaveBeenCalled();
+
+    await listener.handleAiMessageRequest({
+      conversationId: 'c1',
+      content: 'hi',
+      userId: 'u1',
+      messageId: 'm2',
+    });
+    expect(chatStream).toHaveBeenCalledTimes(2);
+  });
+
+  it('没有 messageId 的旧调用方保持原行为（不去重）', async () => {
+    const chatStream = jest.fn().mockResolvedValue(undefined);
+    const { listener, redis } = makeListener(chatStream);
+
+    await listener.handleAiMessageRequest(event('c1'));
+    await listener.handleAiMessageRequest(event('c1'));
+
+    expect(chatStream).toHaveBeenCalledTimes(2);
+    expect(redis.get).not.toHaveBeenCalled();
   });
 });

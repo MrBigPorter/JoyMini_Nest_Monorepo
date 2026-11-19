@@ -164,3 +164,44 @@ describe('MeilisearchService.indexChunk（缺陷 A）', () => {
     expect(waitForTask).toHaveBeenCalledWith(42);
   });
 });
+
+describe('MeilisearchService.indexIntentExamples（删除必须按 id）', () => {
+  const makeService = (index: any) => {
+    const service = new MeilisearchService({
+      get: jest.fn().mockReturnValue(undefined),
+    } as any);
+    (service as any).client = { index: () => index };
+    return service;
+  };
+
+  it('按 domain_i 批量删除旧文档，再写入新文档', async () => {
+    const deleteDocuments = jest.fn().mockResolvedValue({ taskUid: 1 });
+    const addDocuments = jest.fn().mockResolvedValue({ taskUid: 2 });
+    const service = makeService({ deleteDocuments, addDocuments });
+
+    await service.indexIntentExamples('order', ['订单状态', '查物流']);
+
+    // 关键：不能依赖 filterable attribute；必须按固定 id 删除，
+    // 否则已删除的句子会留在索引里被 BM25 继续命中
+    const ids = deleteDocuments.mock.calls[0][0] as string[];
+    expect(ids).toHaveLength(200);
+    expect(ids[0]).toBe('order_0');
+    expect(ids[199]).toBe('order_199');
+
+    expect(addDocuments).toHaveBeenCalledWith([
+      { id: 'order_0', domain: 'order', text: '订单状态' },
+      { id: 'order_1', domain: 'order', text: '查物流' },
+    ]);
+  });
+
+  it('空列表只删除、不写入', async () => {
+    const deleteDocuments = jest.fn().mockResolvedValue({ taskUid: 1 });
+    const addDocuments = jest.fn().mockResolvedValue({ taskUid: 2 });
+    const service = makeService({ deleteDocuments, addDocuments });
+
+    await service.indexIntentExamples('order', []);
+
+    expect(deleteDocuments).toHaveBeenCalled();
+    expect(addDocuments).not.toHaveBeenCalled();
+  });
+});

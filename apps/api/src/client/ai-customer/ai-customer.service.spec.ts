@@ -23,7 +23,9 @@ function makeService() {
   };
   const usage = {
     assertWithinQuota: jest.fn(async () => undefined),
+    assertWithinSessionQuota: jest.fn(async () => undefined),
     recordUsage: jest.fn(async () => undefined),
+    recordSessionUsage: jest.fn(async () => undefined),
   };
   const wallet = {
     applyWithdraw: jest.fn(async () => ({ withdrawId: 'w-1' })),
@@ -51,6 +53,7 @@ function makeService() {
     unused(), // AddressService
     otp as any, // OtpService
     unused(), // RedisService
+    unused(), // EventEmitter2
   );
 
   return { service, prisma, confirm, wallet, otp, usage };

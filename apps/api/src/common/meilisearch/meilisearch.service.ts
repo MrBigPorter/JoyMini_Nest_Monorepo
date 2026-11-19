@@ -438,11 +438,18 @@ export class MeilisearchService implements OnModuleInit {
     try {
       const index = this.client.index('intent_examples');
 
-      // 删除该 domain 的旧索引数据
+      // 删除该 domain 的旧索引数据。
+      //
+      // 不能用 `deleteDocuments({ filter: 'domain = ...' })`：
+      // 需要先把 domain 配成 filterable attribute，否则会抛错并被下面的
+      // catch 静默吞掉 —— 旧文档留在索引里，BM25 会继续命中已删除的句子。
+      // 文档 id 是 `${domain}_${index}`，直接按 id 批量删除最稳。
+      // 上限 200 与 UpdateIntentExamplesDto 的 ArrayMaxSize 对齐。
+      const staleIds = Array.from({ length: 200 }, (_, i) => `${domain}_${i}`);
       try {
-        await index.deleteDocuments({ filter: `domain = "${domain}"` });
+        await index.deleteDocuments(staleIds);
       } catch {
-        // 索引为空或 domain 不存在时忽略
+        // 索引为空时忽略
       }
 
       // 写入新数据
