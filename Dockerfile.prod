@@ -1,7 +1,7 @@
 # ============================================================
 # Stage 1: Builder — 安装依赖 + 编译
 # ============================================================
-FROM node:20-bullseye-slim AS builder
+FROM node:20-bookworm-slim AS builder
 WORKDIR /app
 
 # 构建原生模块所需工具
@@ -61,7 +61,7 @@ RUN mkdir -p apps/api/node_modules packages/shared/node_modules
 # ============================================================
 # Stage 2: Pruner — 裁剪 node_modules (中间层)
 # ============================================================
-FROM node:20-bullseye-slim AS pruner
+FROM node:20-bookworm-slim AS pruner
 WORKDIR /app
 
 # 拷贝所有需要裁剪的 node_modules

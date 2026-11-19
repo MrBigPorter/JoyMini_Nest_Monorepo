@@ -170,7 +170,9 @@ jobs:
           SENTRY_SUPPRESS_GLOBAL_ERROR_HANDLER_FILE_WARNING: "1"
         run: |
           # opennextjs-cloudflare build auto-reads open-next.config.ts — no -c needed.
-          yarn exec opennextjs-cloudflare build
+          # OpenNext 1.17 会拒绝 Next 15.2.4（超出 2 年支持窗口）。
+          # 先用 official flag 解除阻塞；Next 升级单独排期。
+          yarn exec opennextjs-cloudflare build --dangerouslyUseUnsupportedNextVersion
 
       # Step 7 / 步骤 7: Validate Cloudflare credentials before deploy
       - name: 7. Validate Cloudflare Secrets
