@@ -306,6 +306,11 @@ def main() -> int:
         )
     else:
         lines.append("- judge 与人工标注一致率：未提供 `manual-labels.jsonl`")
+    if valid and all(r.get("vendorIndependent") is False for r in valid):
+        lines.append(
+            "- ⚠️ judge 与被测模型同厂商（本地临时校准），"
+            "结论不能作为正式的不同厂商校准证据"
+        )
     lines += ["", "## 分意图", "", "| 意图 | n | solved | partial | unsolved |", "|---|---:|---:|---:|---:|"]
     for intent, rows in sorted(by_intent.items()):
         c = Counter(r["verdict"] for r in rows)

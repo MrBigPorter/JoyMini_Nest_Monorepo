@@ -1,4 +1,5 @@
 import {
+  allowSameVendor,
   assertIndependentVendor,
   parseJudgeOutput,
   vendorOf,
@@ -70,5 +71,18 @@ describe('vendorOf / assertIndependentVendor', () => {
         apiKey: 'x',
       }),
     ).not.toThrow();
+  });
+
+  it('同厂商 judge 只在显式开关或 development 下允许', () => {
+    expect(allowSameVendor({})).toBe(false);
+    expect(allowSameVendor({ NODE_ENV: 'production' })).toBe(
+      false,
+    );
+    expect(
+      allowSameVendor({ AI_EVAL_JUDGE_ALLOW_SAME_VENDOR: 'true' }),
+    ).toBe(true);
+    expect(allowSameVendor({ NODE_ENV: 'development' })).toBe(
+      true,
+    );
   });
 });

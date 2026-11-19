@@ -38,6 +38,9 @@ export interface TaskJudgeResult {
   score: number;
   reason: string;
   judgeModel: string;
+  judgeVendor: string;
+  /** judge 是否与被测模型（DeepSeek）不同厂商 */
+  vendorIndependent: boolean;
 }
 
 const JUDGE_SYSTEM_PROMPT = `你是 AI 客服任务完成度的严格评审员。
@@ -52,7 +55,12 @@ const JUDGE_SYSTEM_PROMPT = `你是 AI 客服任务完成度的严格评审员�
 {"verdict":"solved|partial|unsolved","score":0.0-1.0,"reason":"不超过 80 字的中文理由"}`;
 
 /** 从模型输出里解析 JSON；容忍 ```json 代码块。解析失败返回 null。 */
-export function parseJudgeOutput(raw: string): Omit<TaskJudgeResult, 'judgeModel'> | null {
+export function parseJudgeOutput(
+  raw: string,
+): Omit<
+  TaskJudgeResult,
+  'judgeModel' | 'judgeVendor' | 'vendorIndependent'
+> | null {
   const text = raw
     .trim()
     .replace(/^```(?:json)?\s*/i, '')
@@ -93,25 +101,74 @@ export function assertIndependentVendor(config: LlmProviderConfig): void {
   }
 }
 
+/** 是否允许 judge 与被测模型同厂商。生产默认禁止；本地评测可显式打开。 */
+export function allowSameVendor(
+  env: Record<string, string | undefined> = process.env,
+): boolean {
+  return (
+    env.AI_EVAL_JUDGE_ALLOW_SAME_VENDOR === 'true' ||
+    env.NODE_ENV === 'development'
+  );
+}
+
+/**
+ * 解析 judge 配置。
+ * - 默认：Groq（不同厂商）
+ * - AI_EVAL_JUDGE_ALLOW_SAME_VENDOR=true 或 NODE_ENV=development：DeepSeek 同厂judge
+ *   （报告里会标 vendorIndependent=false，不能当作正式校准结论）
+ */
+export function resolveJudgeConfig(
+  configService: ConfigService,
+  env: Record<string, string | undefined> = process.env,
+): LlmProviderConfig {
+  if (allowSameVendor(env)) {
+    return {
+      type: 'online',
+      model: configService.get<string>('AI_EVAL_JUDGE_SAME_MODEL', 'deepseek-chat'),
+      baseURL: configService.get<string>(
+        'AI_EVAL_JUDGE_SAME_BASE_URL',
+        'https://api.deepseek.com',
+      ),
+      apiKey: configService.get<string>('DEEPSEEK_API_KEY'),
+    };
+  }
+  return {
+    type: 'online',
+    model: configService.get<string>(
+      'AI_EVAL_JUDGE_MODEL',
+      'llama-3.3-70b-versatile',
+    ),
+    baseURL: configService.get<string>(
+      'AI_EVAL_JUDGE_BASE_URL',
+      'https://api.groq.com/openai/v1',
+    ),
+    apiKey: configService.get<string>('GROQ_API_KEY'),
+  };
+}
+
 @Injectable()
 export class AiEvalJudgeService {
   private readonly logger = new Logger(AiEvalJudgeService.name);
   private readonly chain: any;
+  private readonly judgeModel: string;
+  private readonly judgeVendor: string;
+  private readonly vendorIndependent: boolean;
+  private readonly apiKey?: string;
 
   constructor(private readonly configService: ConfigService) {
-    const config: LlmProviderConfig = {
-      type: 'online',
-      model: this.configService.get<string>(
-        'AI_EVAL_JUDGE_MODEL',
-        'llama-3.3-70b-versatile',
-      ),
-      baseURL: this.configService.get<string>(
-        'AI_EVAL_JUDGE_BASE_URL',
-        'https://api.groq.com/openai/v1',
-      ),
-      apiKey: this.configService.get<string>('GROQ_API_KEY'),
-    };
-    assertIndependentVendor(config);
+    const config = resolveJudgeConfig(configService);
+    this.apiKey = config.apiKey;
+    this.judgeModel = config.model;
+    this.judgeVendor = vendorOf(config.model, config.baseURL);
+    this.vendorIndependent = this.judgeVendor !== 'deepseek';
+    if (this.vendorIndependent) {
+      assertIndependentVendor(config);
+    } else if (!allowSameVendor()) {
+      throw new Error(
+        'AI eval judge must use a different vendor than the chat model (deepseek). ' +
+          'Set AI_EVAL_JUDGE_ALLOW_SAME_VENDOR=true only for local calibration.',
+      );
+    }
 
     const prompt = ChatPromptTemplate.fromMessages([
       // 用 SystemMessage 实例：prompt 里的 JSON 花括号会被当成模板变量。
@@ -124,17 +181,13 @@ export class AiEvalJudgeService {
   }
 
   async judge(input: TaskJudgeInput): Promise<TaskJudgeResult> {
-    const apiKey = this.configService.get<string>('GROQ_API_KEY');
-    if (!apiKey) {
+    if (!this.apiKey) {
       throw new ServiceUnavailableException(
-        'AI eval judge is not configured (GROQ_API_KEY missing)',
+        `AI eval judge is not configured (${this.vendorIndependent ? 'GROQ_API_KEY' : 'DEEPSEEK_API_KEY'} missing)`,
       );
     }
 
-    const judgeModel = this.configService.get<string>(
-      'AI_EVAL_JUDGE_MODEL',
-      'llama-3.3-70b-versatile',
-    );
+    const judgeModel = this.judgeModel;
     const payload = {
       question: input.question,
       answer: input.answer.slice(0, 4000),
@@ -154,9 +207,16 @@ export class AiEvalJudgeService {
           score: 0,
           reason: 'judge_parse_failed',
           judgeModel,
+          judgeVendor: this.judgeVendor,
+          vendorIndependent: this.vendorIndependent,
         };
       }
-      return { ...parsed, judgeModel };
+      return {
+        ...parsed,
+        judgeModel,
+        judgeVendor: this.judgeVendor,
+        vendorIndependent: this.vendorIndependent,
+      };
     } catch (err: any) {
       this.logger.error(`[task-judge] judge call failed: ${err?.message ?? err}`);
       throw new ServiceUnavailableException('AI eval judge call failed');
