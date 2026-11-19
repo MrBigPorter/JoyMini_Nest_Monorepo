@@ -71,9 +71,8 @@ export function MessageBubble({
         const type = (
           document.getElementById('fb-error-type') as HTMLSelectElement
         )?.value;
-        const note = (
-          document.getElementById('fb-note') as HTMLTextAreaElement
-        )?.value;
+        const note = (document.getElementById('fb-note') as HTMLTextAreaElement)
+          ?.value;
         await submitFeedback('incorrect', type, note);
       },
       renderChildren: (
