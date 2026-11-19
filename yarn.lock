@@ -7537,12 +7537,34 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@langchain/langgraph-checkpoint-postgres@npm:^1.1.4":
+  version: 1.1.4
+  resolution: "@langchain/langgraph-checkpoint-postgres@npm:1.1.4"
+  dependencies:
+    pg: "npm:^8.12.0"
+    postgres-array: "npm:^3.0.4"
+  peerDependencies:
+    "@langchain/core": ^1.1.44
+    "@langchain/langgraph-checkpoint": ^1.2.0
+  checksum: 10c0/147cd1c768431488e63eecd91422c4c1233d27c2b558b73fe3e6eafafc24d0544a75e67c837a4d0a9e6093a5792e8aef16369cf2737a19ff666374384fe5f09c
+  languageName: node
+  linkType: hard
+
 "@langchain/langgraph-checkpoint@npm:^1.1.2, @langchain/langgraph-checkpoint@npm:^1.1.3":
   version: 1.1.3
   resolution: "@langchain/langgraph-checkpoint@npm:1.1.3"
   peerDependencies:
     "@langchain/core": ^1.1.48
   checksum: 10c0/7f096cab126cecb2bd854081f795c91b2c3a9b9bf9f442efc28f335894c7490e0ccb61479759566893b686d5e17852002aa05a4e3686b30a9ebff659d61a100c
+  languageName: node
+  linkType: hard
+
+"@langchain/langgraph-checkpoint@npm:^1.2.0":
+  version: 1.2.3
+  resolution: "@langchain/langgraph-checkpoint@npm:1.2.3"
+  peerDependencies:
+    "@langchain/core": ^1.1.48
+  checksum: 10c0/d236d47f8865752f3c83383dbc5e2e2825759eb78ebe05427f53053703c64ac11986ae7b36d69ded4916b6fddfa3317e00929aa47ea4009bfab4629721737ae7
   languageName: node
   linkType: hard
 
@@ -7810,6 +7832,8 @@ __metadata:
     "@google/generative-ai": "npm:^0.21.0"
     "@langchain/core": "npm:^1.2.1"
     "@langchain/langgraph": "npm:^1.4.7"
+    "@langchain/langgraph-checkpoint": "npm:^1.2.0"
+    "@langchain/langgraph-checkpoint-postgres": "npm:^1.1.4"
     "@langchain/ollama": "npm:^1.3.0"
     "@langchain/openai": "npm:^1.5.3"
     "@langchain/textsplitters": "npm:^1.0.1"
@@ -28343,10 +28367,33 @@ __metadata:
   languageName: node
   linkType: hard
 
+"pg-cloudflare@npm:^1.4.1":
+  version: 1.4.1
+  resolution: "pg-cloudflare@npm:1.4.1"
+  checksum: 10c0/32e62c987073472e81c0dc218f850b1212b4e2c1f35d50433d87d054fe268f549ebaf8fc6c1227ab24c12b318f3e3a2a191ffbdfb2daa30b39aa6802ab8fe2f6
+  languageName: node
+  linkType: hard
+
+"pg-connection-string@npm:^2.14.1":
+  version: 2.14.1
+  resolution: "pg-connection-string@npm:2.14.1"
+  checksum: 10c0/7321eed97579b4972a714909e7a444beb2186780fe7fd86ea719ff7c8f1fad07d7e5f85722c4992245b23683ed7d2fe2bdda8f7469fed4c016bb5c3379c575ca
+  languageName: node
+  linkType: hard
+
 "pg-int8@npm:1.0.1":
   version: 1.0.1
   resolution: "pg-int8@npm:1.0.1"
   checksum: 10c0/be6a02d851fc2a4ae3e9de81710d861de3ba35ac927268973eb3cb618873a05b9424656df464dd43bd7dc3fc5295c3f5b3c8349494f87c7af50ec59ef14e0b98
+  languageName: node
+  linkType: hard
+
+"pg-pool@npm:^3.14.0":
+  version: 3.14.0
+  resolution: "pg-pool@npm:3.14.0"
+  peerDependencies:
+    pg: ">=8.0"
+  checksum: 10c0/3dd706e67e3b317e29409d9eb3bd44e960eabd86db2a9711a9391bbd43881f8ce7a5f7054a341509558ee05e9bf0a3cc7aef037039da0790ce1e16762ade3ba6
   languageName: node
   linkType: hard
 
@@ -28357,7 +28404,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"pg-types@npm:^2.2.0":
+"pg-protocol@npm:^1.16.1":
+  version: 1.16.1
+  resolution: "pg-protocol@npm:1.16.1"
+  checksum: 10c0/84e8bf05c3548c8ffcad29247c075f8f1cf477600c92a7eb0ab27c6c4cbdbe1280433582bfba91f629b1f68bcaf4ae26436a898f430e884d7887543931e8ade6
+  languageName: node
+  linkType: hard
+
+"pg-types@npm:2.2.0, pg-types@npm:^2.2.0":
   version: 2.2.0
   resolution: "pg-types@npm:2.2.0"
   dependencies:
@@ -28367,6 +28421,37 @@ __metadata:
     postgres-date: "npm:~1.0.4"
     postgres-interval: "npm:^1.1.0"
   checksum: 10c0/ab3f8069a323f601cd2d2279ca8c425447dab3f9b61d933b0601d7ffc00d6200df25e26a4290b2b0783b59278198f7dd2ed03e94c4875797919605116a577c65
+  languageName: node
+  linkType: hard
+
+"pg@npm:^8.12.0":
+  version: 8.23.1
+  resolution: "pg@npm:8.23.1"
+  dependencies:
+    pg-cloudflare: "npm:^1.4.1"
+    pg-connection-string: "npm:^2.14.1"
+    pg-pool: "npm:^3.14.0"
+    pg-protocol: "npm:^1.16.1"
+    pg-types: "npm:2.2.0"
+    pgpass: "npm:1.0.5"
+  peerDependencies:
+    pg-native: ">=3.0.1"
+  dependenciesMeta:
+    pg-cloudflare:
+      optional: true
+  peerDependenciesMeta:
+    pg-native:
+      optional: true
+  checksum: 10c0/084ce2bcd025705105d4d9a4c4438b178117acbaae5c766e3d3c9fb812cc55d826a212189e19937b8e3b0a8914a3c3e4ba78ad62af73890f37406a676c1f9e0c
+  languageName: node
+  linkType: hard
+
+"pgpass@npm:1.0.5":
+  version: 1.0.5
+  resolution: "pgpass@npm:1.0.5"
+  dependencies:
+    split2: "npm:^4.1.0"
+  checksum: 10c0/5ea6c9b2de04c33abb08d33a2dded303c4a3c7162a9264519cbe85c0a9857d712463140ba42fad0c7cd4b21f644dd870b45bb2e02fcbe505b4de0744fd802c1d
   languageName: node
   linkType: hard
 
@@ -28592,6 +28677,13 @@ __metadata:
     picocolors: "npm:^1.1.1"
     source-map-js: "npm:^1.2.1"
   checksum: 10c0/7f2e63ae22fbe43aace1bf652bd99da4e90737c64194d49e51ddc9cd0f9e51ff2861a7d734379b494deffa03a880a5c65eec70bc29ee9ebaa7136dde3eee8f31
+  languageName: node
+  linkType: hard
+
+"postgres-array@npm:^3.0.4":
+  version: 3.0.4
+  resolution: "postgres-array@npm:3.0.4"
+  checksum: 10c0/47f3e648da512bacdd6a5ed55cf770605ec271330789faeece0fd13805a49f376d6e5c9e0e353377be11a9545e727dceaa2473566c505432bf06366ccd04c6b2
   languageName: node
   linkType: hard
 
@@ -31013,7 +31105,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"split2@npm:^4.2.0":
+"split2@npm:^4.1.0, split2@npm:^4.2.0":
   version: 4.2.0
   resolution: "split2@npm:4.2.0"
   checksum: 10c0/b292beb8ce9215f8c642bb68be6249c5a4c7f332fc8ecadae7be5cbdf1ea95addc95f0459ef2e7ad9d45fd1064698a097e4eb211c83e772b49bc0ee423e91534

@@ -1,4 +1,11 @@
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  BadRequestException,
+  OnModuleDestroy,
+} from '@nestjs/common';
+import { MemorySaver } from '@langchain/langgraph';
+import type { BaseCheckpointSaver } from '@langchain/langgraph-checkpoint';
 import { HumanMessage } from '@langchain/core/messages';
 import { buildCustomerGraph } from '@api/client/ai-customer/graph/customer.graph';
 import { ConfigService } from '@nestjs/config';
@@ -40,9 +47,13 @@ const CHAOS_PREFIX = '__CHAOS__';
 const CHAOS_KEY = 'ai:chaos:fail';
 
 @Injectable()
-export class AiCustomerService {
+export class AiCustomerService implements OnModuleDestroy {
   private readonly logger = new Logger(AiCustomerService.name);
   private compiledGraph: ReturnType<typeof buildCustomerGraph> | null = null;
+  /** 生产用 PostgresSaver；memory 模式或初始化失败时为 undefined（图内部用 MemorySaver）。 */
+  private checkpointer?: BaseCheckpointSaver & {
+    end?: () => Promise<void>;
+  };
   private llmConfig: LlmProviderConfig | null = null;
 
   constructor(
@@ -96,6 +107,7 @@ export class AiCustomerService {
         ),
         apiKey: this.configService.get<string>('DEEPSEEK_API_KEY'),
       };
+      const checkpointer = await this.createCheckpointer();
       this.compiledGraph = buildCustomerGraph(
         this.llmConfig,
         this.registry,
@@ -105,10 +117,67 @@ export class AiCustomerService {
         this.ragRetrievalService,
         this.promptResolver,
         this.redisService,
+        checkpointer,
       );
     } catch (error) {
       this.logger.error('Failed to compile AiCustomer Graph', error);
       throw error;
+    }
+  }
+
+  /**
+   * 状态持久化选型：
+   * - 默认 postgres：跨重启/多实例共享 thread 状态
+   * - AI_CHECKPOINTER=memory：显式关闭（测试/本地）
+   * - Postgres 初始化失败：降级 MemorySaver，应用仍可启动
+   */
+  private async createCheckpointer(): Promise<BaseCheckpointSaver> {
+    const mode = (
+      this.configService.get<string>('AI_CHECKPOINTER') ?? 'postgres'
+    ).toLowerCase();
+
+    if (mode === 'memory') {
+      this.logger.log('AI checkpointer: memory (AI_CHECKPOINTER=memory)');
+      return new MemorySaver();
+    }
+
+    const url =
+      this.configService.get<string>('DATABASE_URL') ??
+      process.env.DATABASE_URL;
+    if (!url) {
+      this.logger.warn(
+        'DATABASE_URL missing; AI checkpointer falls back to MemorySaver',
+      );
+      return new MemorySaver();
+    }
+
+    try {
+      const { PostgresSaver } =
+        await import('@langchain/langgraph-checkpoint-postgres');
+      const saver = PostgresSaver.fromConnString(url);
+      await saver.setup();
+      this.checkpointer = saver;
+      this.logger.log(
+        '✅ AI checkpointer: Postgres (state persists across restarts)',
+      );
+      return saver;
+    } catch (err: any) {
+      this.logger.warn(
+        `Postgres checkpointer unavailable, falling back to MemorySaver: ${
+          err?.message ?? err
+        }`,
+      );
+      return new MemorySaver();
+    }
+  }
+
+  async onModuleDestroy(): Promise<void> {
+    if (!this.checkpointer?.end) return;
+    try {
+      await this.checkpointer.end();
+      this.logger.log('AI checkpointer closed');
+    } catch (err: any) {
+      this.logger.warn(`AI checkpointer close failed: ${err?.message ?? err}`);
     }
   }
 

@@ -18,6 +18,7 @@
  * 4. orchestrator 自己处理合成回复，无需 answerSynthesizer 节点
  */
 import { END, MemorySaver, START, StateGraph } from '@langchain/langgraph';
+import type { BaseCheckpointSaver } from '@langchain/langgraph-checkpoint';
 import { AgentState } from './state';
 import {
   createIntentRouterNode,
@@ -142,6 +143,11 @@ export function buildCustomerGraph(
   ragRetrievalService?: RagRetrievalService,
   promptResolver?: PromptResolverService,
   redisService?: RedisService,
+  /**
+   * 状态持久化：生产传 PostgresSaver，测试/降级不传则用 MemorySaver。
+   * checkpointer 决定 thread_id 的状态是否跨进程/重启保留。
+   */
+  checkpointer?: BaseCheckpointSaver,
 ) {
   const workflow = new StateGraph(AgentState)
 
@@ -182,6 +188,6 @@ export function buildCustomerGraph(
 
   // 编译图
   return workflow.compile({
-    checkpointer: new MemorySaver(),
+    checkpointer: checkpointer ?? new MemorySaver(),
   });
 }
