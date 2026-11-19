@@ -98,8 +98,7 @@ export function DocDetailModal({
               </span>
               <span
                 className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                  PRIORITY_BADGE[doc.priority] ??
-                  'bg-gray-100 text-gray-500'
+                  PRIORITY_BADGE[doc.priority] ?? 'bg-gray-100 text-gray-500'
                 }`}
               >
                 {doc.priority}
@@ -135,17 +134,13 @@ export function DocDetailModal({
           </div>
 
           <div className="flex items-center gap-2 text-xs text-gray-400">
-            <span>
-              {t('knowledgeBase.version', { version: doc.version })}
-            </span>
+            <span>{t('knowledgeBase.version', { version: doc.version })}</span>
             <span>·</span>
             <span>{new Date(doc.createdAt).toLocaleString()}</span>
             {doc.updatedAt !== doc.createdAt && (
               <>
                 <span>·</span>
-                <span>
-                  updated {new Date(doc.updatedAt).toLocaleString()}
-                </span>
+                <span>updated {new Date(doc.updatedAt).toLocaleString()}</span>
               </>
             )}
           </div>

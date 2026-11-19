@@ -211,9 +211,9 @@ export const OrderManagement: React.FC = () => {
               )}*/}
 
               {/* Logic: Allow Cancel only if Pending or Paid */}
-              {([ORDER_STATUS.PENDING_PAYMENT, ORDER_STATUS.PAID] as number[]).includes(
-                data.orderStatus,
-              ) && (
+              {(
+                [ORDER_STATUS.PENDING_PAYMENT, ORDER_STATUS.PAID] as number[]
+              ).includes(data.orderStatus) && (
                 <Button
                   onClick={() =>
                     handleUpdateStatus(data.orderId, ORDER_STATUS.CANCELED)
@@ -289,9 +289,9 @@ export const OrderManagement: React.FC = () => {
               <Eye size={16} />
             </Button>
             {/* Show Delete only for Canceled/Refunded orders to keep history clean */}
-            {([ORDER_STATUS.CANCELED, ORDER_STATUS.REFUNDED] as number[]).includes(
-              info.row.original.orderStatus,
-            ) && (
+            {(
+              [ORDER_STATUS.CANCELED, ORDER_STATUS.REFUNDED] as number[]
+            ).includes(info.row.original.orderStatus) && (
               <Button
                 size="sm"
                 variant="ghost"

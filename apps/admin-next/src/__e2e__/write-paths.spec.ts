@@ -40,7 +40,12 @@ const ORDER = {
   orderStatus: 8, // SHIPPED → 详情里可 Mark Completed
   paidAt: Date.now(),
   createdAt: Date.now(),
-  user: { id: 'u-e2e', nickname: 'E2E User', phone: '+639170000000', avatar: null },
+  user: {
+    id: 'u-e2e',
+    nickname: 'E2E User',
+    phone: '+639170000000',
+    avatar: null,
+  },
   treasure: {
     treasureId: 't-e2e',
     treasureName: 'E2E Item',

@@ -53,9 +53,7 @@ export function FieldRow({
           placeholder={placeholder}
           className={cn(
             'px-3 py-2 border rounded-lg bg-transparent text-sm',
-            error
-              ? 'border-red-500'
-              : 'border-gray-200 dark:border-gray-700',
+            error ? 'border-red-500' : 'border-gray-200 dark:border-gray-700',
           )}
         />
       ) : (
@@ -66,9 +64,7 @@ export function FieldRow({
           placeholder={placeholder}
           className={cn(
             'px-3 py-2 border rounded-lg bg-transparent text-sm font-mono resize-none',
-            error
-              ? 'border-red-500'
-              : 'border-gray-200 dark:border-gray-700',
+            error ? 'border-red-500' : 'border-gray-200 dark:border-gray-700',
           )}
         />
       )}

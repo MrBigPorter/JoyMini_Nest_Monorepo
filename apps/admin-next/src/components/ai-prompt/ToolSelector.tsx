@@ -50,7 +50,8 @@ export function ToolSelector({
   }, [tools, search]);
 
   const isAllSelected = useMemo(
-    () => filtered.length > 0 && filtered.every((t) => selected.includes(t.name)),
+    () =>
+      filtered.length > 0 && filtered.every((t) => selected.includes(t.name)),
     [filtered, selected],
   );
 
@@ -168,9 +169,7 @@ export function ToolSelector({
       >
         {filtered.length === 0 ? (
           <div className="px-3 py-6 text-center text-sm text-gray-400 dark:text-gray-500">
-            {search
-              ? 'No tools match your search'
-              : 'No tools available'}
+            {search ? 'No tools match your search' : 'No tools available'}
           </div>
         ) : (
           filtered.map((tool) => {

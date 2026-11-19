@@ -76,7 +76,7 @@ const nextConfig: NextConfig = {
   experimental: {
     turbo: {
       resolveAlias: {
-        "node:crypto": "./src/lib/crypto-shim.ts",
+        'node:crypto': './src/lib/crypto-shim.ts',
       },
     },
     // Tree-shake heavy barrel-export packages so Turbopack only compiles used exports

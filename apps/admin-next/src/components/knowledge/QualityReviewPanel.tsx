@@ -26,7 +26,10 @@ interface QualityReviewPanelProps {
 // Severity-based color mapping
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const SEVERITY_COLORS: Record<string, { bg: string; text: string; border: string }> = {
+const SEVERITY_COLORS: Record<
+  string,
+  { bg: string; text: string; border: string }
+> = {
   critical: {
     bg: 'bg-red-50 dark:bg-red-950/30',
     text: 'text-red-700 dark:text-red-300',
@@ -44,23 +47,24 @@ const SEVERITY_COLORS: Record<string, { bg: string; text: string; border: string
   },
 };
 
-const TYPE_COLORS: Record<string, { bg: string; text: string; label: string }> = {
-  added: {
-    bg: 'bg-green-100 dark:bg-green-900/40',
-    text: 'text-green-800 dark:text-green-200',
-    label: 'Added in Unstructured',
-  },
-  removed: {
-    bg: 'bg-red-100 dark:bg-red-900/40',
-    text: 'text-red-800 dark:text-red-200',
-    label: 'Missing from Unstructured',
-  },
-  equal: {
-    bg: 'bg-transparent',
-    text: 'text-gray-700 dark:text-gray-300',
-    label: 'Identical',
-  },
-};
+const TYPE_COLORS: Record<string, { bg: string; text: string; label: string }> =
+  {
+    added: {
+      bg: 'bg-green-100 dark:bg-green-900/40',
+      text: 'text-green-800 dark:text-green-200',
+      label: 'Added in Unstructured',
+    },
+    removed: {
+      bg: 'bg-red-100 dark:bg-red-900/40',
+      text: 'text-red-800 dark:text-red-200',
+      label: 'Missing from Unstructured',
+    },
+    equal: {
+      bg: 'bg-transparent',
+      text: 'text-gray-700 dark:text-gray-300',
+      label: 'Identical',
+    },
+  };
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // CollapsibleSection — fold identical lines to reduce visual noise
@@ -104,19 +108,21 @@ function CollapsibleSection({
 
 function DiffLine({ range }: { range: DiffRange }) {
   const typeColor = TYPE_COLORS[range.type] || TYPE_COLORS.equal;
-  const severityColor = range.severity
-    ? SEVERITY_COLORS[range.severity]
-    : null;
+  const severityColor = range.severity ? SEVERITY_COLORS[range.severity] : null;
 
-  const colorClass = range.type === 'equal'
-    ? 'text-gray-500 dark:text-gray-400'
-    : severityColor
-      ? severityColor.text
-      : typeColor.text;
+  const colorClass =
+    range.type === 'equal'
+      ? 'text-gray-500 dark:text-gray-400'
+      : severityColor
+        ? severityColor.text
+        : typeColor.text;
 
-  const bgClass = range.type === 'equal'
-    ? ''
-    : (severityColor ? severityColor.bg : typeColor.bg);
+  const bgClass =
+    range.type === 'equal'
+      ? ''
+      : severityColor
+        ? severityColor.bg
+        : typeColor.bg;
 
   return (
     <div
@@ -132,7 +138,11 @@ function DiffLine({ range }: { range: DiffRange }) {
     >
       {/* Type badge */}
       <span className="shrink-0 w-14 text-[9px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 pt-0.5">
-        {range.type === 'equal' ? '=' : range.type === 'added' ? '+ add' : '- del'}
+        {range.type === 'equal'
+          ? '='
+          : range.type === 'added'
+            ? '+ add'
+            : '- del'}
       </span>
       {/* Content */}
       <span className={`${colorClass} whitespace-pre-wrap break-all min-w-0`}>
@@ -237,9 +247,7 @@ export function QualityReviewPanel({
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err: unknown) {
-      setError(
-        err instanceof Error ? err.message : 'Failed to save content',
-      );
+      setError(err instanceof Error ? err.message : 'Failed to save content');
     } finally {
       setSaving(false);
     }
@@ -441,11 +449,7 @@ export function QualityReviewPanel({
                   🔢 Number Mismatches ({diffData.numberErrors.length})
                 </p>
                 {diffData.numberErrors.map((ne, idx) => (
-                  <NumberErrorBadge
-                    key={idx}
-                    raw={ne.raw}
-                    parsed={ne.parsed}
-                  />
+                  <NumberErrorBadge key={idx} raw={ne.raw} parsed={ne.parsed} />
                 ))}
               </div>
             )}
@@ -543,7 +547,11 @@ export function QualityReviewPanel({
                 className="flex items-center gap-1.5 rounded-xl bg-blue-500 px-4 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-600 disabled:opacity-50"
               >
                 <Save size={12} />
-                {saving ? 'Saving...' : saveSuccess ? '✅ Saved!' : 'Save Changes'}
+                {saving
+                  ? 'Saving...'
+                  : saveSuccess
+                    ? '✅ Saved!'
+                    : 'Save Changes'}
               </button>
             )}
 
