@@ -35,29 +35,31 @@
 
 ## Decisions
 
-### D1. 常量以扁平具名导出，不用嵌套配置对象
+### D1. 常量集中到 `graph/config/intent-thresholds.ts`（实现路径与初稿不同）
 
-新增 `graph/constants/intent.ts`，按语义扁平导出，每个常量自带单位与作用对象注释。
+实施时没有新建 `graph/constants/intent.ts`，而是落在
+`apps/api/src/client/ai-customer/graph/config/intent-thresholds.ts`，当前已导出：
 
 ```ts
-/** 向量/关键词单路召回的及格线（0–1 余弦相似度），作用于单条例句 */
-export const RECALL_MIN_SIMILARITY = 0.7;
-/** 融合后意图分的及格线，作用于按域去重后的意图 */
-export const INTENT_MIN_SCORE = 0.7;
-/** 两个意图分差小于此值时视为模糊，需保留竞争者 */
-export const INTENT_SCORE_MARGIN = 0.05;
-/** 两个意图分差小于此值时触发 catch-all 让位 */
-export const INTENT_TIE_EPSILON = 0.02;
-/** 分类结果弱于此值时整轮交大模型重判 */
-export const ROUTER_FALLBACK_THRESHOLD = 0.5;
-/** 向量路 / 关键词路的融合权重 */
-export const VECTOR_FUSION_WEIGHT = 0.7;
-export const BM25_FUSION_WEIGHT = 0.3;
+/** 单条向量/BM25 召回的及格线（融合前原始分） */
+export const INTENT_ACCEPT_SCORE = 0.7;
+/** embedding 整体不可信、整轮交 LLM 的阈值 */
+export const INTENT_LLM_FALLBACK_SCORE = 0.5;
+/** 融合后标签分是否值得派 Agent 执行 */
+export const INTENT_EXECUTION_MIN_SCORE = 0.7;
 ```
 
-**为什么不用嵌套对象**（`INTENT.THRESHOLDS.RECALL`）：嵌套会让调用点读起来是 `x >= INTENT.THRESHOLDS.RECALL`，评审时无法一眼看出比较的是哪个量，而这次的 bug 恰恰是「比较对象错了」。**为什么不进配置中心**：阈值变更必须配 golden set 回放才能合入，放进 DB 会让变更绕过代码评审，把行为差异藏进数据。
+外加 `meetsAcceptThreshold` / `shouldUseLlmFallback` / `meetsExecutionThreshold`
+三个语义化判定函数，消费方不再写裸比较。
 
-**为什么 `RECALL_MIN_SIMILARITY` 与 `INTENT_MIN_SCORE` 数值相同仍要分开**：它们作用对象不同（单条例句 vs 去重后的意图），且未来大概率会分道——合并成一个常量会让 D2 的顺序修正无从表达。
+**尚未迁移的裸常量**（下一步补）：
+
+- `intent-classifier.ts` 的 `VECTOR_WEIGHT = 0.7` / `BM25_WEIGHT = 0.3`
+- 同文件的 `GAP_THRESHOLD = 0.02`（catch-all 让位）
+- `orchestrator.node.ts` 的 `SCORE_MARGIN = 0.05`（近距离竞争者保留）
+
+**为什么仍用扁平常量而非嵌套对象**：调用点必须一眼看出比较的是哪个量；
+**为什么不进配置中心**：阈值变更必须配 golden set 回放才能合入。
 
 ### D2. 门禁迁移到融合之后，且只判一次
 

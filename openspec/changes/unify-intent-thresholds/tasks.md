@@ -2,12 +2,13 @@
 
 ## 1. 常量模块落地（行为不变）
 
-- [ ] 1.1 新增 `apps/api/src/client/ai-customer/graph/constants/intent.ts`，按 `design.md` D1 导出 7 个常量，每个常量带单位与作用对象注释；验证：`yarn workspace @lucky/api tsc --noEmit --pretty` 0 error
-- [ ] 1.2 在模块文件顶部写明「本文件是意图链路阈值唯一事实来源，新增阈值必须落在这里」；验证：文件存在该说明且评审可见
-- [ ] 1.3 把 `intent-classifier.ts` 的 `LOW_CONFIDENCE_THRESHOLD`、`GAP_THRESHOLD`、`VECTOR_WEIGHT`、`BM25_WEIGHT` 改为引用常量模块；验证：文件内不再出现裸浮点阈值字面量，`grep -n '0\.7\|0\.3\|0\.02' intent-classifier.ts` 仅剩注释与测试数据
-- [ ] 1.4 把 `intent-router.node.ts` 的 `LOW_CONFIDENCE_THRESHOLD`（0.5）改为引用 `ROUTER_FALLBACK_THRESHOLD`；验证：该文件不再有同名常量声明，`tsc` 0 error
-- [ ] 1.5 把 `orchestrator.node.ts` 的 `MIN_SCORE`、`SCORE_MARGIN` 改为引用 `INTENT_MIN_SCORE`、`INTENT_SCORE_MARGIN`；验证：`tsc` 0 error，且该文件不再声明这两个局部常量
-- [ ] 1.6 跑全量单测，确认替换后行为完全不变；验证：`yarn workspace @lucky/api test` 中 `intent-classifier`、`intent-router`、`orchestrator` 相关套件全绿，无新增失败
+- [x] 1.1 新增 `apps/api/src/client/ai-customer/graph/config/intent-thresholds.ts`，导出 3 个阈值常量与 3 个语义化判定函数；验证：`tsc` 0 error
+- [x] 1.2 在模块文件顶部写明「本文件是意图链路阈值的唯一配置源，新增阈值必须落在这里」；验证：文件存在该说明且评审可见
+- [x] 1.3 把 `intent-classifier.ts` 的招募门槛改为 `INTENT_ACCEPT_SCORE`；验证：不再出现 `LOW_CONFIDENCE_THRESHOLD`，`tsc` 0 error
+- [x] 1.4 把 `intent-router.node.ts` 的 fallback 门槛改为 `INTENT_LLM_FALLBACK_SCORE`；验证：该文件不再有同名常量声明，`tsc` 0 error
+- [x] 1.5 把 `orchestrator.node.ts` 的执行门槛改为 `INTENT_EXECUTION_MIN_SCORE`；验证：`tsc` 0 error
+- [x] 1.6 跑全量单测，确认替换后行为完全不变；验证：相关套件全绿，无新增失败
+- [ ] 1.7 把 `VECTOR_WEIGHT` / `BM25_WEIGHT` / `GAP_THRESHOLD` / `SCORE_MARGIN` 迁入同一常量文件；验证：两个文件不再出现这些裸浮点字面量，`tsc` 0 error
 
 ## 2. 融合与门禁顺序修正（行为变更，独立提交）
 

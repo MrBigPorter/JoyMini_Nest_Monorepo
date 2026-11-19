@@ -37,6 +37,17 @@
 
 现有 `emitStage` 已覆盖关键节点，先用离线聚合脚本产出指标，验证口径正确后再考虑 Prometheus。避免先上系统后改口径。
 
+离线报告固定四项，口径如下（时间窗默认最近 7 天）：
+
+| 指标 | 分子 | 分母 | 数据源 |
+|---|---|---|---|
+| 独立解决率 | 窗口内未转人工（`transferredAt IS NULL`）且至少有一条 AI 回复的会话数 | 有 AI 参与的会话数 | `conversations` + `chat_messages` |
+| 首响 P95 | `percentile_cont(0.95)` of `firstResponseAt - transferredAt` | 仅统计两者均非空的会话 | `conversations` |
+| 单会话消耗 | 会话累计 token | 会话数 | **当前不可得**：`ai_usage_daily` 只按用户+日聚合，没有 conversation 维度 |
+| 转人工原因分布 | 按 `transferReason` 分组的会话数 | 转人工会话总数 | `conversations` |
+
+**不可得规则**：缺数据源的指标必须输出 `"不可得"` 并注明原因，不得用用户日用量平均等近似值冒充。等 token 账本增加 conversation 维度后再补第三项。
+
 ### D6. Redis adapter 复用现有连接配置
 
 `main.ts` 换 `RedisIoAdapter`，不新增运维对象。

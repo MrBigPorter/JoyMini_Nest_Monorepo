@@ -33,15 +33,41 @@
 
 ### D4. 反馈分显式与隐式两类，同表不同来源
 
-- 显式：客服在管理端标注（正确 / 有误 + 错误类型枚举）。
-- 隐式：转人工、重复追问、中途放弃，自动写入。
-- 两者用 `source` 字段区分，进入同一待标注池。
+落表 `ai_answer_feedback`（迁移 `20261119150000_add_ai_answer_feedback`）：
+
+| 字段 | 说明 |
+|---|---|
+| `conversation_id` / `message_id` / `user_id` | 关联会话与被评价消息 |
+| `source` | `explicit` / `implicit` |
+| `verdict` / `error_type` | 显式：`correct` / `incorrect` + `irrelevant` / `outdated` / `overreach` / `format` |
+| `signal` | 隐式：`transferred` / `repeated_question` / `abandoned` |
+| `note` / `admin_id` | 标注备注与标注人 |
+| `metadata` | 结构化线索（如转人工 reason、相似度），不存用户原文 |
+
+写入路径：
+
+- 显式：`POST /admin/ai-feedback`（ADMIN/SUPER_ADMIN），`GET /admin/ai-feedback` 支持 source/signal/errorType 筛选与分页。
+- 隐式：转人工时写 `transferred`；同用户最近一条消息与当前内容 Jaccard ≥0.8 写 `repeated_question`；生成被取消写 `abandoned`。隐式信号 10 分钟窗口内同 signal 去重。
 
 **为什么不把两类混为一谈**：客服标注是判断，隐式信号只是线索，导出时的可信度不同。
 
 ### D5. 评测集 schema 升级，保留旧字段
 
 从 `{id, input, expect, tags, note}` 扩展到增加 `fixtures`、`expectTask`；旧字段不变，旧的 63 条可平滑迁移。
+
+### D6. 管理端标注入口与导出契约
+
+- 会话页消息气泡提供「正确 / 有误」入口；有误时必选四类错误之一，可填备注。
+- 新增「待标注」列表：source/signal/errorType 筛选 + 分页；显式与隐式用不同来源标签展示。
+- 入口受开关控制：`AI_FEEDBACK_UI_ENABLED`，默认关闭，验证通过后开启；关闭时页面不渲染入口且接口拒绝写入。
+- 导出格式为 JSONL，字段与回放工具兼容：
+  `{ id, input, expect, tags, note, source, errorType }`。
+  `expect` 对隐式信号/未判定样本为空，导出后需人工补标才能进入回放；
+  回放工具遇到空 `expect` 必须拒绝而不是当成 `general`。
+
+**为什么导出不直接产出 golden**：隐式信号只说明“可能有问题”，
+
+并不知道正确答案；把空 expect 当标签会让评测分数虚高。
 
 ## Risks / Trade-offs
 

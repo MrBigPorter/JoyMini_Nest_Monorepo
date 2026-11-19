@@ -38,26 +38,27 @@ userId: z.string().describe('The current user ID'),
 
 ## Decisions
 
-### D1. 身份用闭包注入，工具工厂签名增加身份入参
+### D1. 身份用请求上下文注入，工具通过 `requireToolUserId` 读取（实现与初稿不同）
+
+初稿设想「工厂签名增加 `ctx: { userId }`」。实施时改为 **AsyncLocalStorage 请求上下文**，
+工厂签名保持不变：
 
 ```ts
-// 之前
-export function createCouponTools(couponService: ClientCouponService) {
-  return [tool(async ({ couponId, userId }) => { ... })];
-}
+// 入口（HTTP / Socket / 队列）统一包一层：
+runWithContext({ traceId, userId }, () => graph.invoke(...));
 
-// 之后
-export function createCouponTools(
-  couponService: ClientCouponService,
-  ctx: { userId: string },
-) {
-  return [tool(async ({ couponId }) => { ... /* 用 ctx.userId */ })];
-}
+// 工具内部：
+const userId = requireToolUserId('claimCoupon'); // 缺失直接抛 MISSING_USER_CONTEXT
 ```
 
-**为什么不用「删掉参数但仍在 runtime 注入」**：`DynamicStructuredTool` 支持在调用时合并参数，但那样"身份从哪来"仍然隐式。工厂签名带 `ctx` 让它在类型上强制：不传身份就构造不出工具。
+**为什么改**：工具工厂有 9 个，且分布在多个 Nest Module；逐个加 `ctx` 会把身份参数
+穿过装配链，任何一处漏传都会在运行期才暴露。AsyncLocalStorage 让身份在请求入口
+一次性绑定，工具侧强制读取，模型 schema 中不再出现 `userId`。
 
-**替代方案**：在 `runAgentLoop` 里拦截消息、改写 tool_calls 的参数。否决——那是在错误发生后才修，且模型仍可能把身份写进其它字段。
+**代价**：所有触发 AI 的入口都必须先建立上下文（HTTP、Socket、BullMQ worker 均已接入）；
+单测必须显式包 `runWithContext`，否则会按预期 fail-closed 抛错。
+
+**替代方案**：在 `runAgentLoop` 里拦截并改写 tool_calls 参数——否决，仍允许模型伪造身份字段。
 
 ### D2. 能力标记用工具元数据声明，而不是另一个清单
 
