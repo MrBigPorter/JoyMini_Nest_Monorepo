@@ -137,13 +137,46 @@ export class ToolRegistryService {
       .map((t) => t.tool.name);
   }
 
-  /** 启动自检：列出写工具，缺失能力声明的工具按只读处理并告警 */
+  /** 启动自检：写工具必须进入确认流程；疑似有副作用的工具必须显式声明 */
   auditCapabilities(logger: {
     log: (msg: string) => void;
     warn: (msg: string) => void;
+    error?: (msg: string) => void;
   }): void {
     const writes = this.getWriteToolNames();
-    logger.log(`[ToolRegistry] write tools requiring confirmation: ${writes.join(', ') || '(none)'}`);
+    logger.log(
+      `[ToolRegistry] write tools requiring confirmation: ${writes.join(', ') || '(none)'}`,
+    );
+
+    // 确认名单由 write 能力推导，理论上不会漏；这里做结构断言，
+    // 防止以后有人把推导改成手工清单却没同步。
+    const confirmSet = new Set(writes);
+    const missingFromConfirm = writes.filter((name) => !confirmSet.has(name));
+    if (missingFromConfirm.length > 0) {
+      const msg = `[ToolRegistry] write tools missing from confirmation flow: ${missingFromConfirm.join(', ')}`;
+      if (logger.error) logger.error(msg);
+      else logger.warn(msg);
+    }
+
+    // 名称像副作用的工具（request/verify/claim/...）如果被当成只读，
+    // 就是「有副作用但绕过确认」的漏洞。启动时直接报 error。
+    const sideEffectPattern =
+      /^(apply|claim|create|delete|draw|redeem|request|verify|submit|pay)/i;
+    const suspicious = this.allTaggedTools
+      .filter(
+        (t) =>
+          t.capability?.kind !== 'write' &&
+          sideEffectPattern.test(t.tool.name),
+      )
+      .map((t) => t.tool.name);
+    if (suspicious.length > 0) {
+      const msg =
+        `[ToolRegistry] side-effect-looking tools not declared write: ${suspicious.join(', ')}. ` +
+        `They will bypass confirmation until capability is fixed.`;
+      if (logger.error) logger.error(msg);
+      else logger.warn(msg);
+    }
+
     const undeclared = this.allTaggedTools
       .filter((t) => t.capability === undefined)
       .map((t) => t.tool.name);

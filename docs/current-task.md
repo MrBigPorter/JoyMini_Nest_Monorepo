@@ -86,7 +86,7 @@
 | # | 任务 | #87 ID | 文件 | 状态 |
 |:--:|---|:--:|---|---|
 | TB-1 | 工具身份只来自请求上下文（`requireToolUserId` / AsyncLocalStorage），schema 删除 `userId` | P1-6 根因 | `graph/tools/tool-identity.ts`、`common/logger/trace-context.ts` | ✅ 2026-11-19（无上下文 fail-closed；7 个工具套件断言模型伪造 `userId` 无效） |
-| TB-2 | 写工具能力标记 + 确认流程由 `capability.kind === 'write'` 推导 | P1-6 | `tool-registry.service.ts`、`orchestrator.node.ts` | ✅ 2026-11-19（7 个写工具；`createAddress`/`updateAddress` 进入截停；启动自检 2.5 仍未完成） |
+| TB-2 | 写工具能力标记 + 确认流程由 `capability.kind === 'write'` 推导 | P1-6 | `tool-registry.service.ts`、`orchestrator.node.ts` | ✅ 2026-11-20（7 个写工具；启动自检已落地，实测报出 `requestWithdrawOtp`/`verifyWithdrawOtp` 未声明 write） |
 | TB-3 | 归属校验：`draw` / `updateAddress` / `deleteAddress` 执行前比对归属 | P1-6 / P2-4 | `lucky-tools.ts`、`user-tools.ts` | ✅ 2026-11-19（他人目标 → 结构化 `FORBIDDEN` + `tool.denied`） |
 | TB-4 | 输入注入检测（覆盖指令 / 索取内部结构 / 越权试探），命中降级 `general` | P2-4 | `injection-detector.ts`、`intent-router.node.ts` | 🟡 2026-11-19（代码完成；`AI_INJECTION_DETECTION_ENABLED` **默认关闭**，生产尚未启用） |
 | TB-5 | SSE 帧白名单（类型 + `step` 字段） | P1-22 | `ai-stream-frames.ts`、`ai-customer.controller.ts` | ✅ 2026-11-19（见 T2-4） |
