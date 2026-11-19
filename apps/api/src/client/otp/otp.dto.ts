@@ -1,12 +1,13 @@
 import { IsString, Length } from 'class-validator';
+import { IsSmartPhone } from '@api/common/dto/transforms';
 
 export class OtpRequestDto {
-  @IsString()
+  @IsSmartPhone()
   phone!: string;
 }
 
 export class OtpVerifyDto {
-  @IsString()
+  @IsSmartPhone()
   phone!: string;
 
   @IsString()

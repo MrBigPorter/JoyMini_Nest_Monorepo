@@ -1,6 +1,6 @@
 # 96 · 生产 OTP 收口（T1-1 / P0-4）
 
-> 状态: 🟡 **部分实施**（2026-11-12）——代码路径已收口，真实短信供应商待接入
+> 状态: 🟡 **代码完成，待账号验证**（2026-11-20）——Semaphore 已接入，待 API key / Sender Name / 真实短信验证
 > 日期: 2026-11-12
 > 关联: [#85 §P0-4](./85-生产化差距审计与企业上线清单.md)、[#87](./87-全项目问题总清单.md)、[`current-task.md`](../current-task.md) T1-1
 > 前置阅读: [#85 §P0-4](./85-生产化差距审计与企业上线清单.md)
@@ -117,8 +117,7 @@ providers: [
 
 ## 5. 尚未完成（诚实清单）
 
-1. **真实短信供应商未接入** —— 生产环境调用 `sms.send()` 会抛 `NotImplementedException`。
-   候选：Semaphore（菲律宾本地）、Twilio（全球）。接入时只需新增一个 `implements SmsProvider` 的类并改工厂。
+1. **真实短信供应商已接入代码** —— `SemaphoreSmsProvider` 已实现；生产仍需配置 `SMS_PROVIDER=semaphore` + `SEMAPHORE_API_KEY` + 已审核 Sender Name，并做真实短信验证。详见 [#106](./106-Semaphore短信对接.md)。
 2. **pepper 存在两个读取时机（本次遗留，见 #87 N-19）**：
    `otp.service.ts:16` 在**模块 import 时**读 `process.env`，而 `main.ts` 的校验发生在 `NestFactory.create()` **之后**（`.env` 此时才加载）。
    若 `OTP_PEPPER` 只写在 `.env` 文件中（非真实环境变量），会出现「校验通过、实际哈希用的是空串」。

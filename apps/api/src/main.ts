@@ -37,6 +37,21 @@ async function bootstrap() {
         'FATAL: OTP_PEPPER is required and must be at least 16 chars in production',
       );
     }
+
+    const smsProvider = config.get<string>('SMS_PROVIDER') ?? 'none';
+    if (smsProvider === 'console') {
+      throw new Error('FATAL: SMS_PROVIDER=console is not allowed in production');
+    }
+    if (smsProvider === 'semaphore' && !config.get<string>('SEMAPHORE_API_KEY')) {
+      throw new Error(
+        'FATAL: SEMAPHORE_API_KEY is required when SMS_PROVIDER=semaphore',
+      );
+    }
+    if (smsProvider === 'none') {
+      console.error(
+        'WARN: SMS_PROVIDER is not configured; production OTP sending will fail',
+      );
+    }
   }
 
   const port = config.get<number>('PORT', 3000);

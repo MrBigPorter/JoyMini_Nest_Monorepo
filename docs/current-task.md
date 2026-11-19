@@ -59,7 +59,7 @@
 
 | # | 任务 | #85 ID | 文件 | 状态 |
 |:--:|---|:--:|---|:--:|
-| T1-1 | 生产 OTP：接短信 + 启动校验 pepper + 去明文日志 | P0-4 | `client/otp/otp.service.ts` | 🟡 2026-11-12 部分完成（供应商待接入，见 [#96 §5](./AI-joymini/96-OTP生产化-SDD.md)） |
+| T1-1 | 生产 OTP：接短信 + 启动校验 pepper + 去明文日志 | P0-4 | `client/otp/otp.service.ts` | 🟡 2026-11-20（Semaphore 代码已接入；待生产 key/Sender Name/真实短信验证，见 [#106](./AI-joymini/106-Semaphore短信对接.md)） |
 | T1-2 | 确认链路三洞：验码后再删 / TTL 对齐 300s / 复用 DTO 校验 | P1-7/17/18 | `ai-customer.service.ts`、`ai-action-confirm.service.ts` | ✅ 2026-11-12（单测 14 例，见 [#93 §3.1](./AI-joymini/93-确认链路三个洞-SDD.md)） |
 | T1-3 | 提现冻结状态机：审核只置 PROCESSING + `settleWithdrawal` | P0-3 | `admin/finance/finance.service.ts`、`client/wallet/client-wallet.service.ts` | ✅ 2026-11-12（单测 8 例，见 [#95 §5.1](./AI-joymini/95-提现冻结状态机-SDD.md)） |
 | T1-4 | Socket 成员校验 + AI 会话 IDOR + `AI_CONFIRM` 改私有房间 | P0-1/2 | `events.gateway.ts`、`ai-memory.service.ts`、`ai-customer.service.ts` | ✅ 2026-11-13（3 处入口 + 14 条测试） |

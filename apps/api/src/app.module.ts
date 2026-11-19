@@ -95,6 +95,15 @@ import { AiQueueModule } from '@api/common/queue/ai-queue.module';
         EMAIL_OTP_MAX_ATTEMPTS: Joi.number().integer().positive().default(5),
         EMAIL_OTP_DEV_CODE: Joi.string().min(4).max(20).optional(),
 
+        // SMS OTP provider (Semaphore / console / none)
+        SMS_PROVIDER: Joi.string()
+          .valid('semaphore', 'console', 'none')
+          .optional(),
+        SEMAPHORE_API_KEY: Joi.string().allow('').optional(),
+        SEMAPHORE_SENDER_NAME: Joi.string().allow('').optional(),
+        SEMAPHORE_OTP_MESSAGE: Joi.string().max(500).optional(),
+        SMS_HTTP_TIMEOUT_MS: Joi.number().integer().positive().optional(),
+
         CACHE_TTL: Joi.number().integer().positive().default(300),
         CACHE_PREFIX: Joi.string().default('lucky:'),
         REDIS_URL: Joi.string().required(),

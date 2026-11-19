@@ -4,6 +4,7 @@ import {
   Inject,
   UnauthorizedException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { gen6Code } from '../../common/crypto.util';
 import { addSeconds, isBefore } from 'date-fns';
@@ -11,20 +12,49 @@ import { throwBiz } from '@api/common/exceptions/biz.exception';
 import { ERROR_KEYS } from '@api/common/error-codes.gen';
 import { otpHash, verifyOtpHash } from '@api/common/otp.util';
 import { CODE_TYPE, SEND_STATUS, VERIFY_STATUS } from '@lucky/shared';
+import { parsePhoneNumberFromString } from 'libphonenumber-js';
 import { SmsProvider } from './sms.provider';
-
-const OTP_PEPPER = process.env.OTP_PEPPER || '';
-const OTP_TTL_SECONDS = Number(process.env.OTP_TTL_SECONDS) || 300;
-const OTP_MAX_ATTEMPTS = Number(process.env.OTP_MAX_ATTEMPTS) || 5;
-const OTP_INTERVAL_SECONDS = Number(process.env.OTP_INTERVAL_SECONDS) || 60;
-const isDev = process.env.NODE_ENV === 'development';
 
 @Injectable()
 export class OtpService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly config: ConfigService,
     @Inject('SMS_PROVIDER') private readonly sms: SmsProvider,
   ) {}
+
+  /** 统一在调用时读取，避免 .env 加载顺序导致 pepper 为空（#96 N-19） */
+  private get pepper(): string {
+    return this.config.get<string>('OTP_PEPPER') ?? '';
+  }
+
+  private get ttlSeconds(): number {
+    return Number(this.config.get<string>('OTP_TTL_SECONDS')) || 300;
+  }
+
+  private get maxAttempts(): number {
+    return Number(this.config.get<string>('OTP_MAX_ATTEMPTS')) || 5;
+  }
+
+  private get intervalSeconds(): number {
+    return Number(this.config.get<string>('OTP_INTERVAL_SECONDS')) || 60;
+  }
+
+  private get isDev(): boolean {
+    return (
+      (this.config.get<string>('NODE_ENV') ?? process.env.NODE_ENV) ===
+      'development'
+    );
+  }
+
+  /** 统一存 E.164（+63...），与 auth.service 的查询口径一致 */
+  private normalizePhone(phone: string): string {
+    const parsed = parsePhoneNumberFromString((phone ?? '').trim(), 'PH');
+    if (!parsed || !parsed.isValid() || parsed.country !== 'PH') {
+      throw new BadRequestException('Invalid Philippines phone number');
+    }
+    return parsed.number;
+  }
 
   // 1) 请求验证码
   async request({
@@ -36,15 +66,18 @@ export class OtpService {
     codeType?: number;
     requestIp?: string;
   }) {
-    const p = phone.trim();
-    if (!p) throw new BadRequestException({ message: 'phone required' });
+    const p = this.normalizePhone(phone);
 
-    // DB 限流：同手机号最近 OTP_INTERVAL_SECONDS 内只能申请一次
+    // DB 限流：同手机号最近 OTP_INTERVAL_SECONDS 内只能申请一次。
+    // 排除 FAILED：供应商抖动导致发送失败时，用户应能立即重试。
     const recent = await this.prisma.smsVerificationCode.findFirst({
       where: {
         phone: p,
         codeType: codeType,
-        createdAt: { gte: new Date(Date.now() - OTP_INTERVAL_SECONDS * 1000) },
+        sendStatus: { not: SEND_STATUS.FAILED },
+        createdAt: {
+          gte: new Date(Date.now() - this.intervalSeconds * 1000),
+        },
       },
       select: { id: true },
     });
@@ -54,9 +87,11 @@ export class OtpService {
     }
 
     //开发环境固定验证码
-    const code = isDev ? (process.env.OTP_DEV_CODE ?? '999999') : gen6Code();
-    const codeHash = otpHash(p, code, OTP_PEPPER);
-    const expiresAt = addSeconds(new Date(), OTP_TTL_SECONDS);
+    const code = this.isDev
+      ? (this.config.get<string>('OTP_DEV_CODE') ?? '999999')
+      : gen6Code();
+    const codeHash = otpHash(p, code, this.pepper);
+    const expiresAt = addSeconds(new Date(), this.ttlSeconds);
 
     // 入库（先记待发送，发送成功后再置 SENT）
     const record = await this.prisma.smsVerificationCode.create({
@@ -67,33 +102,39 @@ export class OtpService {
         sendStatus: SEND_STATUS.PENDING,
         verifyStatus: VERIFY_STATUS.PENDING,
         verifyTimes: 0,
-        maxVerifyTimes: OTP_MAX_ATTEMPTS,
+        maxVerifyTimes: this.maxAttempts,
         expiresAt,
         requestIp: requestIp || null,
       },
     });
 
     try {
-      await this.sms.send(p, code);
-    } catch (err) {
+      const result = await this.sms.send(p, code);
+      await this.prisma.smsVerificationCode.update({
+        where: { id: record.id },
+        data: {
+          sendStatus: SEND_STATUS.SENT,
+          smsProvider: result.provider,
+          smsMessageId: result.messageId ?? null,
+          sendResult: result.status ?? null,
+        },
+      });
+    } catch (err: any) {
       // 发送失败：如实记录，不假装成功
       await this.prisma.smsVerificationCode.update({
         where: { id: record.id },
-        data: { sendStatus: SEND_STATUS.FAILED },
+        data: {
+          sendStatus: SEND_STATUS.FAILED,
+          sendResult: String(err?.message ?? 'unknown').slice(0, 200),
+        },
       });
       throw err;
     }
 
-    await this.prisma.smsVerificationCode.update({
-      where: { id: record.id },
-      data: { sendStatus: SEND_STATUS.SENT },
-    });
-
-    if (isDev) {
+    if (this.isDev) {
       return { devCode: code };
     }
 
-    // 生产环境的短信实现见 sms.provider.ts（当前为未配置占位，接入供应商后替换）
     return true;
   }
 
@@ -107,9 +148,9 @@ export class OtpService {
     code: string;
     codeType?: number;
   }) {
-    const p = (phone || '').trim();
+    const p = this.normalizePhone(phone);
     const c = (code || '').trim();
-    if (!p || !c) throw new BadRequestException('phone required');
+    if (!c) throw new BadRequestException('code required');
 
     // 找最近一条待验证的登录验证码
     const req = await this.prisma.smsVerificationCode.findFirst({
@@ -130,7 +171,7 @@ export class OtpService {
       });
       throwBiz(ERROR_KEYS.OTP_EXPIRED);
     }
-    if (req.verifyTimes >= OTP_MAX_ATTEMPTS) {
+    if (req.verifyTimes >= this.maxAttempts) {
       await this.prisma.smsVerificationCode.update({
         where: { id: req.id, verifyStatus: VERIFY_STATUS.PENDING },
         data: { verifyStatus: VERIFY_STATUS.LOCKED },
@@ -139,7 +180,7 @@ export class OtpService {
     }
 
     //比对验证码
-    const isMatch = verifyOtpHash(p, c, req.codeHash, OTP_PEPPER);
+    const isMatch = verifyOtpHash(p, c, req.codeHash, this.pepper);
 
     // 原子更新：仍为 PENDING 且未达上限才+1；成功则置 VERIFIED 并写 verifiedAt
     const updated = await this.prisma.smsVerificationCode.updateMany({
@@ -165,7 +206,7 @@ export class OtpService {
     }
 
     if (!isMatch) {
-      if (req.verifyTimes + 1 >= OTP_MAX_ATTEMPTS) {
+      if (req.verifyTimes + 1 >= this.maxAttempts) {
         await this.prisma.smsVerificationCode.updateMany({
           where: {
             id: req.id,
