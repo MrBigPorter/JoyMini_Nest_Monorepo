@@ -13,26 +13,30 @@ describe('publishAiReply — RAG 引用回填', () => {
     },
   ];
 
-  const makePrisma = () => ({
-    chatMember: {
-      findFirst: jest.fn().mockResolvedValue({ userId: 'ai-member' }),
-    },
-    conversation: {
-      update: jest.fn().mockResolvedValue({ lastMsgSeqId: 7 }),
-    },
-    chatMessage: {
-      create: jest.fn().mockResolvedValue({
-        id: 'msg-1',
-        conversationId: 'conv-1',
-        content: 'You can get a refund within 1-3 days.',
-        type: 0,
-        seqId: 7,
-        createdAt: new Date('2026-11-19T00:00:00Z'),
-        sender: { id: 'ai-member', nickname: 'AI', avatar: '' },
-        meta: { sources },
-      }),
-    },
-  });
+  const makePrisma = () => {
+    const prisma: any = {
+      chatMember: {
+        findFirst: jest.fn().mockResolvedValue({ userId: 'ai-member' }),
+      },
+      conversation: {
+        update: jest.fn().mockResolvedValue({ lastMsgSeqId: 7 }),
+      },
+      chatMessage: {
+        create: jest.fn().mockResolvedValue({
+          id: 'msg-1',
+          conversationId: 'conv-1',
+          content: 'You can get a refund within 1-3 days.',
+          type: 0,
+          seqId: 7,
+          createdAt: new Date('2026-11-19T00:00:00Z'),
+          sender: { id: 'ai-member', nickname: 'AI', avatar: '' },
+          meta: { sources },
+        }),
+      },
+    };
+    prisma.$transaction = jest.fn(async (cb: (tx: any) => any) => cb(prisma));
+    return prisma;
+  };
 
   it('把 sources 写入 ChatMessage.meta 并随消息广播', async () => {
     const prisma = makePrisma();
@@ -84,5 +88,52 @@ describe('publishAiReply — RAG 引用回填', () => {
         data: expect.objectContaining({ meta: undefined }),
       }),
     );
+  });
+
+  it('把触发消息 id 写入 triggerMessageId', async () => {
+    const prisma = makePrisma();
+    const gateway = { dispatchToConversation: jest.fn() };
+
+    await publishAiReply(
+      prisma as any,
+      gateway as any,
+      'conv-1',
+      [{ type: 'ai', content: 'hello' }],
+      'user-1',
+      ['user-1'],
+      undefined,
+      'user-msg-1',
+    );
+
+    expect(prisma.chatMessage.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ triggerMessageId: 'user-msg-1' }),
+      }),
+    );
+  });
+
+  it('同一触发消息重放（唯一键冲突）→ 不写第二条、不重复广播、不抛错', async () => {
+    const prisma = makePrisma();
+    const conflict = Object.assign(new Error('unique violation'), {
+      code: 'P2002',
+    });
+    prisma.chatMessage.create.mockRejectedValue(conflict);
+    const gateway = { dispatchToConversation: jest.fn() };
+
+    await expect(
+      publishAiReply(
+        prisma as any,
+        gateway as any,
+        'conv-1',
+        [{ type: 'ai', content: 'hello' }],
+        'user-1',
+        ['user-1'],
+        undefined,
+        'user-msg-1',
+      ),
+    ).resolves.toBeUndefined();
+
+    expect(prisma.chatMessage.create).toHaveBeenCalledTimes(1);
+    expect(gateway.dispatchToConversation).not.toHaveBeenCalled();
   });
 });

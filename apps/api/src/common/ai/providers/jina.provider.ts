@@ -60,13 +60,26 @@ export class JinaProvider implements AiProviderInstance {
     blockedUntil: number;
   }[] = [];
 
-  /** 每个账户每日限额（Jina Free: 1M tokens/day） */
-  private readonly DAILY_LIMIT = 1_000_000;
+  /**
+   * 每个账户每日额度。Jina 控制台的实际承载量会高于 1M，
+   * 因此改成可配置，默认 3M；达到 80% 先告警，到顶才停用。
+   */
+  private readonly dailyLimit: number;
+  private readonly dailyLimitWarnAt: number;
+  private warned80 = false;
 
   /** 429 后冷却时间 */
   private readonly KEY_429_COOLDOWN = 60000;
 
   constructor(private configService: ConfigService) {
+    const configured = Number(
+      this.configService.get<string>('JINA_DAILY_TOKEN_LIMIT', '3000000'),
+    );
+    this.dailyLimit =
+      Number.isFinite(configured) && configured > 0
+        ? configured
+        : 3_000_000;
+    this.dailyLimitWarnAt = Math.floor(this.dailyLimit * 0.8);
     this.initialize();
   }
 
@@ -111,7 +124,8 @@ export class JinaProvider implements AiProviderInstance {
     this.activeKeyIndex = 0;
     this.available = true;
     this.logger.log(
-      `🤖 Jina AI provider initialized with ${keys.length} key(s)`,
+      `🤖 Jina AI provider initialized with ${keys.length} key(s), ` +
+        `dailyLimit=${this.dailyLimit}`,
     );
   }
 
@@ -160,7 +174,7 @@ export class JinaProvider implements AiProviderInstance {
 
       if (!currentKey) return null;
 
-      if (currentKey.blocked || currentKey.dailyTokens >= this.DAILY_LIMIT) {
+      if (currentKey.blocked || currentKey.dailyTokens >= this.dailyLimit) {
         this.rotateToNextKey();
         continue;
       }
@@ -190,7 +204,7 @@ export class JinaProvider implements AiProviderInstance {
         const tokensUsed = response.data?.usage?.total_tokens ?? 0;
 
         if (Array.isArray(embedding) && embedding.length > 0) {
-          currentKey.dailyTokens += tokensUsed;
+          this.trackTokens(currentKey, tokensUsed);
           currentKey.dailyRequests++;
           return embedding as number[];
         }
@@ -254,7 +268,7 @@ export class JinaProvider implements AiProviderInstance {
 
       if (!currentKey) return null;
 
-      if (currentKey.blocked || currentKey.dailyTokens >= this.DAILY_LIMIT) {
+      if (currentKey.blocked || currentKey.dailyTokens >= this.dailyLimit) {
         this.rotateToNextKey();
         continue;
       }
@@ -280,7 +294,7 @@ export class JinaProvider implements AiProviderInstance {
         const tokensUsed = response.data?.usage?.total_tokens ?? 0;
 
         if (Array.isArray(results)) {
-          currentKey.dailyTokens += tokensUsed;
+          this.trackTokens(currentKey, tokensUsed);
           currentKey.dailyRequests++;
 
           return results
@@ -319,11 +333,26 @@ export class JinaProvider implements AiProviderInstance {
   // AiProviderInstance 接口实现
   // ===========================================================================
 
+  /** 记账 + 80% 预警；到顶由 isAvailable() 统一停用。 */
+  private trackTokens(
+    key: { dailyTokens: number; keySuffix: string },
+    tokensUsed: number,
+  ): void {
+    key.dailyTokens += tokensUsed;
+    if (!this.warned80 && key.dailyTokens >= this.dailyLimitWarnAt) {
+      this.warned80 = true;
+      this.logger.warn(
+        `⚠️ Jina 日额度已用 ${key.dailyTokens}/${this.dailyLimit} tokens ` +
+          `（key ...${key.keySuffix}），到顶后将降级到 RRF`,
+      );
+    }
+  }
+
   isAvailable(): boolean {
     return (
       this.keyInstances.length > 0 &&
       this.keyInstances.some(
-        (k) => !k.blocked && k.dailyTokens < this.DAILY_LIMIT,
+        (k) => !k.blocked && k.dailyTokens < this.dailyLimit,
       )
     );
   }
@@ -339,7 +368,7 @@ export class JinaProvider implements AiProviderInstance {
         keySuffix: k.keySuffix,
         dailyTokens: k.dailyTokens,
         dailyRequests: k.dailyRequests,
-        dailyLimit: this.DAILY_LIMIT,
+        dailyLimit: this.dailyLimit,
         blocked: k.blocked,
         blockedReason: k.blockedReason,
         isActive: i === this.activeKeyIndex,
@@ -368,7 +397,7 @@ export class JinaProvider implements AiProviderInstance {
       const candidate = this.keyInstances[candidateIndex];
 
       const isBlocked = candidate.blocked;
-      const isExhausted = candidate.dailyTokens >= this.DAILY_LIMIT;
+      const isExhausted = candidate.dailyTokens >= this.dailyLimit;
 
       if (!isBlocked && !isExhausted) {
         this.activeKeyIndex = candidateIndex;
@@ -392,6 +421,7 @@ export class JinaProvider implements AiProviderInstance {
       key.blockedUntil = 0;
     }
     this.activeKeyIndex = 0;
+    this.warned80 = false;
     this.logger.log(
       `📅 Jina daily counters reset for ${this.keyInstances.length} keys`,
     );

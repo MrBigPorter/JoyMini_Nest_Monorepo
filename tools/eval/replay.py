@@ -73,6 +73,26 @@ def load_cases(path: Path) -> list[dict]:
             for key in ("id", "input", "expect"):
                 if key not in case:
                     sys.exit(f"❌ {path}:{lineno} 缺少字段 {key}")
+            # 1.5：可选的任务评测字段。旧题不写这两个字段，行为完全不变。
+            if "fixtures" in case and not isinstance(
+                case["fixtures"], (dict, list)
+            ):
+                sys.exit(f"❌ {path}:{lineno} fixtures 必须是对象或数组")
+            if "expectTask" in case:
+                et = case["expectTask"]
+                if not isinstance(et, dict):
+                    sys.exit(f"❌ {path}:{lineno} expectTask 必须是对象")
+                allowed = {"mustMention", "confirmAction", "forbidExecution", "intent"}
+                unknown = set(et) - allowed
+                if unknown:
+                    sys.exit(
+                        f"❌ {path}:{lineno} expectTask 含未知字段：{sorted(unknown)}"
+                    )
+                if "mustMention" in et and not (
+                    isinstance(et["mustMention"], list)
+                    and all(isinstance(x, str) for x in et["mustMention"])
+                ):
+                    sys.exit(f"❌ {path}:{lineno} expectTask.mustMention 必须是字符串数组")
             cases.append(case)
     return cases
 
@@ -372,15 +392,9 @@ def main() -> int:
                         help="每条之间的间隔秒数，避免撞全局限流")
     parser.add_argument("--allow-errors", action="store_true",
                         help="有请求失败也继续（默认失败即退出 1，且不更新基线）")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="只读取并校验题集，不发起请求（不需要 EVAL_TOKEN）")
     args = parser.parse_args()
-
-    token = os.environ.get("EVAL_TOKEN", "").strip()
-    if not token:
-        sys.exit(
-            "❌ 缺少 EVAL_TOKEN。\n"
-            "   推荐用 tools/eval/run-replay.sh（会自动在容器内签一个 admin token）\n"
-            "   或手动：EVAL_TOKEN=<admin jwt> python3 tools/eval/replay.py"
-        )
 
     cases = load_cases(Path(args.golden))
     if args.tag:
@@ -389,6 +403,22 @@ def main() -> int:
         cases = cases[: args.limit]
     if not cases:
         sys.exit("❌ 过滤后没有题目")
+
+    if args.dry_run:
+        with_task = sum(1 for c in cases if "expectTask" in c)
+        print(
+            f"✓ 题集可读：{len(cases)} 条（含 expectTask {with_task} 条），"
+            f"文件 {args.golden}"
+        )
+        return 0
+
+    token = os.environ.get("EVAL_TOKEN", "").strip()
+    if not token:
+        sys.exit(
+            "❌ 缺少 EVAL_TOKEN。\n"
+            "   推荐用 tools/eval/run-replay.sh（会自动在容器内签一个 admin token）\n"
+            "   或手动：EVAL_TOKEN=<admin jwt> python3 tools/eval/replay.py"
+        )
 
     print(f"▶ 回放 {len(cases)} 题 → {args.base_url}")
     records = []

@@ -2,6 +2,7 @@ import { AuthService } from '@api/client/auth/auth.service';
 import { AddressService } from '@api/client/address/address.service';
 import { TaggedTool } from '@api/client/ai-customer/graph/tools/tool-registry.service';
 import { Logger } from '@nestjs/common';
+import { emitStage } from '@api/common/logger/structured-logger';
 import { tool } from '@langchain/core/tools';
 import { toLLM } from '@api/common/ai/utils/to-llm';
 import { plainToInstance } from 'class-transformer';
@@ -267,6 +268,7 @@ export const createUserTools = (
         },
       ),
       displayName: 'Saving new address...',
+      capability: { kind: 'write', requiresOwnership: false },
       tags: ['user'],
     },
     /**
@@ -302,6 +304,16 @@ export const createUserTools = (
           logger.log(
             `[user-tools:updateAddress] userId="${userId}", addressId="${addressId}"`,
           );
+          try {
+            await addressService.detail(userId, addressId);
+          } catch {
+            emitStage(
+              'tool.denied',
+              { tool: 'updateAddress', reason: 'not_owned' },
+              'warn',
+            );
+            return toolFailure('FORBIDDEN: address not found or not owned');
+          }
           // Resolve text region names to IDs if provided
           let provinceId: number | undefined;
           let cityId: number | undefined;
@@ -392,6 +404,7 @@ export const createUserTools = (
         },
       ),
       displayName: 'Updating address...',
+      capability: { kind: 'write', requiresOwnership: true },
       tags: ['user'],
     },
     /**
@@ -407,6 +420,16 @@ export const createUserTools = (
           logger.log(
             `[user-tools:deleteAddress] userId="${userId}", addressId="${addressId}"`,
           );
+          try {
+            await addressService.detail(userId, addressId);
+          } catch {
+            emitStage(
+              'tool.denied',
+              { tool: 'deleteAddress', reason: 'not_owned' },
+              'warn',
+            );
+            return toolFailure('FORBIDDEN: address not found or not owned');
+          }
           return toResultChain(addressService.delete(userId, addressId))
             .then(() =>
               toolSuccess({
@@ -428,6 +451,7 @@ export const createUserTools = (
         },
       ),
       displayName: 'Deleting address...',
+      capability: { kind: 'write', requiresOwnership: true },
       tags: ['user'],
     },
   ];

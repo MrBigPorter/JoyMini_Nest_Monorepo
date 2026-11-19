@@ -60,6 +60,7 @@ import { LuckyDrawService } from '@api/common/lucky-draw/lucky-draw.service';
 import { ClientFlashSaleService } from '@api/client/flash-sale/flash-sale.service';
 import { TaggedTool } from '@api/client/ai-customer/graph/tools/tool-registry.service';
 import { Logger } from '@nestjs/common';
+import { emitStage } from '@api/common/logger/structured-logger';
 import { tool } from '@langchain/core/tools';
 import {
   toolFailure,
@@ -267,6 +268,15 @@ export const createLuckyTools = (
           logger.log(
             `[lucky-tools:draw] userId="${userId}", ticketId="${ticketId}"`,
           );
+          // 归属校验：ticket 必须属于当前用户
+          const owned = await luckyDrawService.getTicketForUser(
+            userId,
+            ticketId,
+          );
+          if (!owned) {
+            emitStage('tool.denied', { tool: 'draw', reason: 'not_owned' }, 'warn');
+            return toolFailure('FORBIDDEN: ticket not found or not owned');
+          }
           return toResultChain(luckyDrawService.draw(userId, ticketId))
             .then((data) =>
               toolSuccess({
@@ -293,6 +303,7 @@ export const createLuckyTools = (
         },
       ),
       displayName: 'Entering the draw...',
+      capability: { kind: 'write', requiresOwnership: true },
       tags: ['lucky-draw', 'flow'],
     },
 

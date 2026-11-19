@@ -150,6 +150,19 @@ describe('MeilisearchService.indexChunk（缺陷 A）', () => {
     ]);
   });
 
+  it('searchChunks 在 keywords 里也搜索（中文 query 能命中英文正文）', async () => {
+    const search = jest.fn().mockResolvedValue({ hits: [] });
+    const service = makeService({ index: () => ({ search }) });
+
+    await service.searchChunks('退货运费谁出');
+
+    expect(search.mock.calls[0][1].attributesToSearchOn).toEqual([
+      'content',
+      'title',
+      'keywords',
+    ]);
+  });
+
   it('提交后等索引任务真正完成才返回', async () => {
     const addDocuments = jest.fn().mockResolvedValue({ taskUid: 42 });
     // waitForTask 在 client.tasks 上，不在 index 上（meilisearch@0.59）

@@ -54,6 +54,7 @@ function makeService() {
     otp as any, // OtpService
     unused(), // RedisService
     unused(), // EventEmitter2
+    unused(), // AiFeedbackService
   );
 
   return { service, prisma, confirm, wallet, otp, usage };

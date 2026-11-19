@@ -228,6 +228,8 @@ export class AdminChatService {
         isRecalled: m.isRecalled,
         createdAt: m.createdAt.getTime(),
         meta: m.meta,
+        role: m.role,
+        source: m.source,
         senderId: m.senderId,
         sender: m.sender
           ? {

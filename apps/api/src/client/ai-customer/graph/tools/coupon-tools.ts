@@ -137,6 +137,7 @@ export const createCouponTools = (
         },
       ),
       displayName: 'Claiming coupon...',
+      capability: { kind: 'write', requiresOwnership: false },
       tags: ['coupon'],
     },
     /**
@@ -175,6 +176,7 @@ export const createCouponTools = (
         },
       ),
       displayName: 'Redeeming coupon code...',
+      capability: { kind: 'write', requiresOwnership: false },
       tags: ['coupon'],
     },
     /**

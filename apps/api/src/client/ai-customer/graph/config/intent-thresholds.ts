@@ -6,40 +6,29 @@
  * 或 MIN_SCORE，看起来像"同一个东西"，实际控制的是链路上三个不同环节：
  *
  *   IntentClassifier（领位员）
- *     └─ INTENT_ACCEPT_SCORE：单条向量/BM25 命中的原始分，够不够进入标签集
+ *     └─ INTENT_EXECUTION_MIN_SCORE：融合后的标签分，够不够进入候选集
  *   IntentRouter（引座员）
  *     └─ INTENT_LLM_FALLBACK_SCORE：embedding 整体结果可不可信，要不要交给 LLM
  *   Orchestrator（大堂经理）
- *     └─ INTENT_EXECUTION_MIN_SCORE：融合后的标签分，够不够真的派 Agent 去执行
+ *     └─ INTENT_EXECUTION_MIN_SCORE：候选集里的标签分，够不够真的派 Agent 去执行
  *
- * 三者语义不同，只是当前取值恰好重合（ACCEPT 与 EXECUTION 都是 0.7）。
- * 不做合并，避免把"检索接纳"和"执行授权"绑死成一个概念。
+ * 分类器与编排层当前共用同一个执行门槛（融合之后只判一次）；
+ * 保留与 router 回落线的区分，避免把"检索接纳"和"整轮回落"绑死成一个概念。
  *
  * ── 数据流与 0.5 ~ 0.7 这个区间 ──
- *   pgvector 原始相似度
- *     --INTENT_ACCEPT_SCORE(0.7)--> 进入 domainMap（标签集）
- *     --BM25 加权融合-------------> 融合分可能被拉低到 0.5 ~ 0.7
- *     --INTENT_LLM_FALLBACK_SCORE(0.5)--> 低于 0.5 整体交给 LLM
- *     --INTENT_EXECUTION_MIN_SCORE(0.7)--> 低于 0.7 不执行，降级闲聊（必须有 warn）
+ *   pgvector 原始相似度 + BM25 原始分
+ *     --各自取域内最高分----------> 不做阈值判断
+ *     --加权融合-----------------> 融合分可能被拉低到 0.5 ~ 0.7
+ *     --INTENT_EXECUTION_MIN_SCORE(0.7)--> 低于 0.7 全部丢弃，classifier 走 LLM fallback
+ *     --INTENT_LLM_FALLBACK_SCORE(0.5)--> router 侧低于 0.5 再整体交给 LLM
  *
- * 也就是说：原始分落在 0.5 ~ 0.7 时，classifier 不会把它放进标签集（走 LLM fallback）；
- * 融合分落在 0.5 ~ 0.7 时，router 认为足够可信不下沉，但 orchestrator 不会执行。
+ * 注意：门禁只施加一次，且在融合、去重之后（见 design.md D2）。
+ * 融合分落在 0.5 ~ 0.7 时，router 认为足够可信不下沉，但 orchestrator 不会执行；
  * 后者过去是"静默降级"，现在必须记录 score / threshold / destination。
  *
  * ── 修改指引 ──
- * 调整任何阈值只改本文件；三个消费方都从这里 import，不要再写本地字面量。
+ * 调整任何阈值只改本文件；消费方都从这里 import，不要再写本地字面量。
  */
-
-/**
- * 标签接纳门槛（IntentClassifier）
- *
- * 单条 pgvector 相似度 / 单条 BM25 候选必须达到此分，才允许进入 domainMap。
- * 低于此分的命中直接丢弃，不参与后续融合；若所有候选都低于此分，
- * classifier 返回 `method: 'llm_fallback'`。
- *
- * 注意：这是"融合前"的原始分门槛，不是最终标签分。
- */
-export const INTENT_ACCEPT_SCORE = 0.7;
 
 /**
  * LLM fallback 门槛（IntentRouter）
@@ -69,11 +58,6 @@ export const INTENT_EXECUTION_MIN_SCORE = 0.7;
 // 语义化判定函数 —— 避免各消费方重复写裸比较
 // ============================================================
 
-/** 原始命中分是否达到标签接纳门槛。 */
-export function meetsAcceptThreshold(score: number): boolean {
-  return score >= INTENT_ACCEPT_SCORE;
-}
-
 /** embedding 最高分是否低到需要走 LLM fallback。 */
 export function shouldUseLlmFallback(topScore: number): boolean {
   return topScore < INTENT_LLM_FALLBACK_SCORE;
@@ -83,3 +67,21 @@ export function shouldUseLlmFallback(topScore: number): boolean {
 export function meetsExecutionThreshold(score: number): boolean {
   return score >= INTENT_EXECUTION_MIN_SCORE;
 }
+
+/** 向量路 / 关键词路的融合权重 */
+export const VECTOR_FUSION_WEIGHT = 0.7;
+export const BM25_FUSION_WEIGHT = 0.3;
+
+/** 两个意图分差小于此值时视为模糊，保留近距离竞争者（orchestrator） */
+export const INTENT_SCORE_MARGIN = 0.05;
+
+/** 两个意图分差小于此值时触发 catch-all 让位（classifier） */
+export const INTENT_TIE_EPSILON = 0.02;
+
+/**
+ * human_support 的 BM25 缺失惩罚系数（作用在融合前的向量分上）
+ *
+ * pgvector 命中转人工、但 BM25 没命中任何转人工关键词时，大概率是语义误匹配，
+ * 向量分先乘以该系数再参与融合。
+ */
+export const HUMAN_SUPPORT_MISSING_BM25_PENALTY = 0.7;

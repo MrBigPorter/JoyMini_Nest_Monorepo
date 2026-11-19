@@ -15,6 +15,7 @@ import { ContextEnricher } from './auto-reply/context-enricher';
 import { ReplyValidator } from './auto-reply/reply-validator';
 import { AiMemoryService } from './ai-memory.service';
 import { SystemConfigModule } from '@api/admin/system-config/system-config.module';
+import { AiFeedbackService } from './ai-feedback.service';
 
 @Global()
 @Module({
@@ -33,7 +34,8 @@ import { SystemConfigModule } from '@api/admin/system-config/system-config.modul
     ContextEnricher,
     ReplyValidator,
     AiMemoryService,
+    AiFeedbackService,
   ],
-  exports: [AiService, AiMemoryService],
+  exports: [AiService, AiMemoryService, AiFeedbackService],
 })
 export class AiModule {}

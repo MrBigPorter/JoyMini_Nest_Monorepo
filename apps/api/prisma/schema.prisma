@@ -1285,6 +1285,11 @@ model ChatMessage {
   content String // 文本或 URL
   meta    Json? // {w, h, duration, size,blurHash }
 
+  // 触发这条 AI 回复的用户消息 id。
+  // 唯一约束是崩溃重放的最后一道防线：回复已落库、幂等标记还没写时进程崩溃，
+  // 重启后重放会撞唯一键而不是再写一条回复。
+  triggerMessageId String? @unique(map: "idx_chat_message_trigger_unique")
+
   //  核心机制
   seqId        Int // 序列号
   clientTempId String? // 前端生成的 UUID (用于去重/ACK)
@@ -1303,7 +1308,7 @@ model ChatMessage {
   // 这里的 [] 已经是“可选”含义，代表一个消息可以有 0 个或多个隐藏记录
   hiddenByUsers ChatMessageHide[]
 
-  @@index([conversationId, seqId]) // 关键索引：拉取历史记录
+  @@unique([conversationId, seqId], map: "idx_chat_message_conv_seq") // 会话内序号唯一
 }
 
 model ChatMessageHide {
@@ -2033,4 +2038,43 @@ model KnowledgePromptEvalLog {
   @@index([promptName, version])
   @@index([createdAt])
   @@map("knowledge_prompt_eval_logs")
+}
+
+/// AI 回答反馈 — 显式标注与隐式信号（ai-quality-loop 4.x）
+///
+/// 显式：客服在管理端标注正确 / 有误 + 错误类型。
+/// 隐式：转人工、重复追问、中途放弃，自动写入。
+/// 两类同表，用 source 区分可信度；不落用户原文。
+model AiAnswerFeedback {
+  id             String   @id @default(cuid()) @db.VarChar(32)
+  conversationId String   @map("conversation_id") @db.VarChar(32)
+  messageId      String?  @map("message_id") @db.VarChar(32)
+  userId         String?  @map("user_id") @db.VarChar(32)
+
+  /// explicit | implicit
+  source String @db.VarChar(16)
+
+  /// 显式标注：correct | incorrect
+  verdict String? @db.VarChar(16)
+  /// 显式错误类型：irrelevant | outdated | overreach | format
+  errorType String? @map("error_type") @db.VarChar(32)
+
+  /// 隐式信号：transferred | repeated_question | abandoned
+  signal String? @db.VarChar(32)
+
+  /// 触发该回答的用户提问（截断 2000 字），用于导出评测样本
+  input String? @db.Text
+
+  /// 标注备注 / 原因（不含用户原文）
+  note String? @db.VarChar(500)
+  /// 标注人（显式反馈时）
+  adminId String? @map("admin_id") @db.VarChar(32)
+
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([conversationId], map: "idx_ai_feedback_conversation")
+  @@index([source, createdAt], map: "idx_ai_feedback_source_created")
+  @@index([signal], map: "idx_ai_feedback_signal")
+  @@map("ai_answer_feedback")
 }

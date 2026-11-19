@@ -9,11 +9,23 @@ import { DynamicStructuredTool } from '@langchain/core/tools';
  * 一个工具可以有多个标签（如提现工具可以同时属于 'wallet' 和 'flow'）。
  * tags 就像超市商品的条形码——扫一下就知道属于哪个货架。
  */
+export interface ToolCapability {
+  /** read = 只读；write = 修改业务状态，必须走用户确认 */
+  kind: 'read' | 'write';
+  /** 写操作是否要求目标数据属于当前用户 */
+  requiresOwnership: boolean;
+}
+
 export interface TaggedTool {
   tool: DynamicStructuredTool;
   tags: string[];
   /** 用户友好描述（英文），SSE 推送时用。例如 "Searching products..." */
   displayName?: string;
+  /**
+   * 能力声明。缺省视为只读 —— 读工具无需逐个声明；
+   * 写工具必须显式声明 kind:'write'，确认流程据此推导。
+   */
+  capability?: ToolCapability;
 }
 
 /**
@@ -90,13 +102,89 @@ export class ToolRegistryService {
    */
   registerMany(tools: TaggedTool[]): void {
     const existingNames = new Set(this.allTaggedTools.map((t) => t.tool.name));
-    const newTools = tools.filter((t) => !existingNames.has(t.tool.name));
+    const newTools = tools
+      .filter((t) => !existingNames.has(t.tool.name))
+      .map((t) => ({
+        ...t,
+        // 缺省只读；写工具必须显式声明
+        capability: t.capability ?? {
+          kind: 'read' as const,
+          requiresOwnership: false,
+        },
+      }));
     for (const t of newTools) {
       if (t.displayName) {
         this.displayNameMap.set(t.tool.name, t.displayName);
       }
     }
     this.allTaggedTools.push(...newTools);
+  }
+
+  /** 工具能力；未注册返回 undefined（调用方应 fail-closed） */
+  getCapability(toolName: string): ToolCapability | undefined {
+    return this.allTaggedTools.find((t) => t.tool.name === toolName)?.capability;
+  }
+
+  /** 是否需要用户确认：唯一判据是 capability.kind === 'write' */
+  requiresConfirmation(toolName: string): boolean {
+    return this.getCapability(toolName)?.kind === 'write';
+  }
+
+  /** 所有写工具名（供启动自检/审计） */
+  getWriteToolNames(): string[] {
+    return this.allTaggedTools
+      .filter((t) => t.capability?.kind === 'write')
+      .map((t) => t.tool.name);
+  }
+
+  /** 启动自检：写工具必须进入确认流程；疑似有副作用的工具必须显式声明 */
+  auditCapabilities(logger: {
+    log: (msg: string) => void;
+    warn: (msg: string) => void;
+    error?: (msg: string) => void;
+  }): void {
+    const writes = this.getWriteToolNames();
+    logger.log(
+      `[ToolRegistry] write tools requiring confirmation: ${writes.join(', ') || '(none)'}`,
+    );
+
+    // 确认名单由 write 能力推导，理论上不会漏；这里做结构断言，
+    // 防止以后有人把推导改成手工清单却没同步。
+    const confirmSet = new Set(writes);
+    const missingFromConfirm = writes.filter((name) => !confirmSet.has(name));
+    if (missingFromConfirm.length > 0) {
+      const msg = `[ToolRegistry] write tools missing from confirmation flow: ${missingFromConfirm.join(', ')}`;
+      if (logger.error) logger.error(msg);
+      else logger.warn(msg);
+    }
+
+    // 名称像副作用的工具（request/verify/claim/...）如果被当成只读，
+    // 就是「有副作用但绕过确认」的漏洞。启动时直接报 error。
+    const sideEffectPattern =
+      /^(apply|claim|create|delete|draw|redeem|request|verify|submit|pay)/i;
+    const suspicious = this.allTaggedTools
+      .filter(
+        (t) =>
+          t.capability?.kind !== 'write' &&
+          sideEffectPattern.test(t.tool.name),
+      )
+      .map((t) => t.tool.name);
+    if (suspicious.length > 0) {
+      const msg =
+        `[ToolRegistry] side-effect-looking tools not declared write: ${suspicious.join(', ')}. ` +
+        `They will bypass confirmation until capability is fixed.`;
+      if (logger.error) logger.error(msg);
+      else logger.warn(msg);
+    }
+
+    const undeclared = this.allTaggedTools
+      .filter((t) => t.capability === undefined)
+      .map((t) => t.tool.name);
+    if (undeclared.length > 0) {
+      logger.warn(
+        `[ToolRegistry] ${undeclared.length} tool(s) missing capability; treated as read: ${undeclared.join(', ')}`,
+      );
+    }
   }
 
   /**

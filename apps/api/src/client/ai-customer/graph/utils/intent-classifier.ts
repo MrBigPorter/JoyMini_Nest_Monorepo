@@ -37,7 +37,7 @@
  * 1. 把顾客的话转成「语义指纹」（embedding 向量）
  * 2. 拿这个指纹去手册里比对（pgvector 余弦相似度）
  * 3. 找到最匹配的场景（相似度最高的 domain）
- * 4. 如果匹配度达到 INTENT_ACCEPT_SCORE（默认 0.7），直接领到对应区域
+ * 4. 两路融合、按域去重后，达到 INTENT_EXECUTION_MIN_SCORE 才领到对应区域
  * 5. 如果匹配度低于该门槛，交给经理（LLM）处理
  *
  * 【为什么 "退款政策" 会匹配到 order？】
@@ -55,7 +55,7 @@
  *
  * -- 流程 --
  * 1. classify() 把用户输入转成向量，用 pgvector <=> 找最匹配的 domain
- *    如果匹配度达到 INTENT_ACCEPT_SCORE（默认 0.7）直接返回 domain，否则降级到 LLM
+ *    如果融合分达到 INTENT_EXECUTION_MIN_SCORE（默认 0.7）直接返回 domain，否则降级到 LLM
  * 2. 无论何种结果，fire-and-forget 日志记录
  *
  * -- 管理后台修改流程 --
@@ -70,8 +70,11 @@ import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service'
 import { Logger } from '@nestjs/common';
 import { deduplicateLabels } from '@api/client/ai-customer/graph/agents/prompts/intent-label-categories';
 import {
-  INTENT_ACCEPT_SCORE,
-  meetsAcceptThreshold,
+  HUMAN_SUPPORT_MISSING_BM25_PENALTY,
+  INTENT_EXECUTION_MIN_SCORE,
+  INTENT_TIE_EPSILON,
+  VECTOR_FUSION_WEIGHT,
+  BM25_FUSION_WEIGHT,
 } from '@api/client/ai-customer/graph/config/intent-thresholds';
 import { createLLM, LlmProviderConfig } from '../llm-factory';
 
@@ -157,7 +160,7 @@ export class IntentClassifier {
    *
    * 第3步：去重 + 阈值过滤
    *   同一个 domain 可能有多个例句匹配，取最高分。
-   *   去掉低于 INTENT_ACCEPT_SCORE（默认 0.7）的（太低的不确定）。
+   *   融合后去掉低于 INTENT_EXECUTION_MIN_SCORE（默认 0.7）的（太低的不确定）。
    *   如果所有 domain 都低于该门槛，找经理（LLM fallback）。
    *
    * 【为什么 "退款政策" 会同时匹配 order 和 rag？】
@@ -307,60 +310,60 @@ export class IntentClassifier {
           .join('\n'),
     );
 
-    // 按域去重 + 阈值过滤：同一个域可能有多个例句匹配，取最高分
-    // 🏪 类比：同一个场景有多条标准问法，取最匹配的那条
-    // 比如 order 有 "我要退货"(0.92) 和 "退货流程"(0.85)，取 0.92
-    const domainMap = new Map<string, number>();
+    // ── 两路各自取域内最高分（先不施加门槛） ──
+    // 同一域可能有多条例句命中，只保留最高分；门槛留到融合、去重之后统一判定。
+    const vectorDomainMap = new Map<string, number>();
     for (const row of rows) {
-      logger.log(
-        `[IntentClassifier] row: domain="${row.domain}", similarity=${row.similarity.toFixed(4)}, threshold=${INTENT_ACCEPT_SCORE}, passes=${meetsAcceptThreshold(row.similarity)}`,
-      );
-      if (meetsAcceptThreshold(row.similarity)) {
-        const existing = domainMap.get(row.domain) ?? 0;
-        if (row.similarity > existing) {
-          domainMap.set(row.domain, row.similarity);
-        }
+      const existing = vectorDomainMap.get(row.domain) ?? 0;
+      if (row.similarity > existing) {
+        vectorDomainMap.set(row.domain, row.similarity);
       }
     }
-    // ── human_support BM25 惩罚 ──
-    // pgvector 命中了 human_support,如果 BM25 没命中 human_support 关键词，说明用户大概率没说要转人工，是语义误匹配
-    // 防止中文查询（如"优惠"）在翻译失败时误入 human_support
-    if (domainMap.has('human_support') && !bm25DomainMap.has('human_support')) {
-      const originalScore = domainMap.get('human_support') ?? 0;
-      // 0.7 惩罚系数，保留 4 位小数
-      const penalized = Math.round(originalScore * 0.7 * 10000) / 10000;
-      domainMap.set('human_support', penalized);
+
+    // ── human_support BM25 惩罚（作用在融合前的向量分上）──
+    // pgvector 命中 human_support、但 BM25 没命中转人工关键词时，
+    // 大概率是语义误匹配；先打折再参与融合。
+    if (
+      vectorDomainMap.has('human_support') &&
+      !bm25DomainMap.has('human_support')
+    ) {
+      const originalScore = vectorDomainMap.get('human_support') ?? 0;
+      const penalized =
+        Math.round(originalScore * HUMAN_SUPPORT_MISSING_BM25_PENALTY * 10000) /
+        10000;
+      vectorDomainMap.set('human_support', penalized);
       logger.log(
         `[IntentClassifier] human_support penalized: original=${originalScore.toFixed(4)}, penalized=${penalized.toFixed(4)} (BM25 missed)`,
       );
     }
 
-    // ── BM25 + pgvector 加权融合 ──
-    // vector（语义）权重 0.7，BM25（关键词）权重 0.3
-    // 只有 vector → 保留 vector 分；只有 BM25 → 打折；两边都有 → 加权求和
-    const VECTOR_WEIGHT = 0.7;
-    const BM25_WEIGHT = 0.3;
-
-    if (bm25DomainMap.size > 0) {
-      for (const [domain, bm25Score] of bm25DomainMap) {
-        if (domainMap.has(domain)) {
-          // 两边都命中 → 加权求和
-          const vectorScore = domainMap.get(domain)!;
-          const combined =
-            VECTOR_WEIGHT * vectorScore + BM25_WEIGHT * bm25Score;
-          domainMap.set(domain, Math.round(combined * 10000) / 10000);
-          logger.log(
-            `[IntentClassifier] both sources matched ${domain}: ` +
-              `vector=${vectorScore.toFixed(4)} ×0.7 + bm25=${bm25Score.toFixed(4)} ×0.3 = ${combined.toFixed(4)}`,
-          );
-        } else if (meetsAcceptThreshold(bm25Score)) {
-          // 只有 BM25 → 打折加入
-          const score = Math.round(bm25Score * BM25_WEIGHT * 10000) / 10000;
-          domainMap.set(domain, score);
-          logger.log(
-            `[IntentClassifier] bm25-only ${domain}: bm25=${bm25Score.toFixed(4)} → ${score.toFixed(4)} (vector missed)`,
-          );
-        }
+    // ── 加权融合：两边都有 → 加权求和；只有一路 → 按对应权重打折 ──
+    const fusedMap = new Map<string, number>();
+    for (const [domain, vectorScore] of vectorDomainMap) {
+      fusedMap.set(domain, vectorScore);
+    }
+    for (const [domain, bm25Score] of bm25DomainMap) {
+      if (fusedMap.has(domain)) {
+        const vectorScore = fusedMap.get(domain)!;
+        const combined =
+          VECTOR_FUSION_WEIGHT * vectorScore +
+          BM25_FUSION_WEIGHT * bm25Score;
+        const rounded = Math.round(combined * 10000) / 10000;
+        fusedMap.set(domain, rounded);
+        logger.log(
+          `[IntentClassifier] both sources matched ${domain}: ` +
+            `vector=${vectorScore.toFixed(4)} ×${VECTOR_FUSION_WEIGHT} + ` +
+            `bm25=${bm25Score.toFixed(4)} ×${BM25_FUSION_WEIGHT} = ${combined.toFixed(4)}`,
+        );
+      } else {
+        // 仅 BM25 命中的意图上限就是 BM25_FUSION_WEIGHT（0.3），
+        // 永远达不到 INTENT_EXECUTION_MIN_SCORE，必然落到 LLM 重判。
+        // 这是刻意保留的高召回低精度通道，不要为了“能命中”抬高权重。
+        const score = Math.round(bm25Score * BM25_FUSION_WEIGHT * 10000) / 10000;
+        fusedMap.set(domain, score);
+        logger.log(
+          `[IntentClassifier] bm25-only ${domain}: bm25=${bm25Score.toFixed(4)} → ${score.toFixed(4)} (vector missed)`,
+        );
       }
     }
 
@@ -369,13 +372,21 @@ export class IntentClassifier {
     // 🏪 类比：把匹配的场景按匹配度从高到低排好
     // 如果有 general（通用）和其他业务场景同时匹配，
     // 业务场景优先（比如 order 优先于 general）
-    const sortedLabels = Array.from(domainMap.entries())
+    const sortedLabels = Array.from(fusedMap.entries())
       .map(([label, rawScore]) => ({
         label,
         score: Math.round(rawScore * 100) / 100,
       }))
       .sort((a, b) => b.score - a.score);
-    const labels = deduplicateLabels(sortedLabels);
+    // 门槛只在「融合 + 去重」之后判一次
+    const labels = deduplicateLabels(sortedLabels).filter(
+      (label) => label.score >= INTENT_EXECUTION_MIN_SCORE,
+    );
+    logger.log(
+      `[IntentClassifier] gate: threshold=${INTENT_EXECUTION_MIN_SCORE}, ` +
+        `raw=${JSON.stringify(Array.from(fusedMap.entries()))}, ` +
+        `kept=${JSON.stringify(labels)}`,
+    );
 
     // 如果没有域通过阈值 -> LLM fallback
     // 🏪 类比：所有场景的匹配度都低于接纳门槛，
@@ -388,7 +399,7 @@ export class IntentClassifier {
         `[IntentClassifier] intent fallback: ${JSON.stringify({
           reason: 'below_accept_threshold',
           topScore: Number(topSimilarity.toFixed(4)),
-          threshold: INTENT_ACCEPT_SCORE,
+          threshold: INTENT_EXECUTION_MIN_SCORE,
           destination: 'llm_fallback',
         })}`,
       );
@@ -421,19 +432,18 @@ export class IntentClassifier {
     //
     //   general 同理：它是 LLM fallback 的兜底标签，不应该在
     //   有具体业务意图匹配时胜出。
-    const GAP_THRESHOLD = 0.02;
     const CATCH_ALL_INTENTS = new Set(['rag', 'general']);
     let primaryLabel = labels[0];
     if (labels.length >= 2) {
       const gap = labels[0].score - labels[1].score;
       if (
         gap >= 0 &&
-        gap < GAP_THRESHOLD &&
+        gap < INTENT_TIE_EPSILON &&
         CATCH_ALL_INTENTS.has(labels[0].label)
       ) {
         primaryLabel = labels[1];
         logger.log(
-          `[IntentClassifier] tiebreaker: ${labels[0].label}=${labels[0].score} vs ${labels[1].label}=${labels[1].score} (gap=${gap.toFixed(4)} < ${GAP_THRESHOLD}), chose: ${primaryLabel.label}`,
+          `[IntentClassifier] tiebreaker: ${labels[0].label}=${labels[0].score} vs ${labels[1].label}=${labels[1].score} (gap=${gap.toFixed(4)} < ${INTENT_TIE_EPSILON}), chose: ${primaryLabel.label}`,
         );
       }
     }

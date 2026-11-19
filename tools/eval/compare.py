@@ -89,10 +89,10 @@ def main() -> int:
             both_correct += 1
         elif ok_a and not ok_b:
             only_a_right += 1
-            rows.append((cid, ra["input"], ra["expect"], ra["predicted"], rb["predicted"], "A 对 → B 错"))
+            rows.append((cid, ra.get("input", ra.get("id", "")), ra["expect"], ra["predicted"], rb["predicted"], "A 对 → B 错"))
         elif not ok_a and ok_b:
             only_b_right += 1
-            rows.append((cid, ra["input"], ra["expect"], ra["predicted"], rb["predicted"], "A 错 → B 对"))
+            rows.append((cid, ra.get("input", ra.get("id", "")), ra["expect"], ra["predicted"], rb["predicted"], "A 错 → B 对"))
         else:
             both_wrong += 1
 

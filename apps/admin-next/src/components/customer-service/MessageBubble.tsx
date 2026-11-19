@@ -1,7 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { Headphones, User, Undo2 } from 'lucide-react';
+import { Headphones, User, Undo2, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { ModalManager } from '@repo/ui';
+import { chatApi } from '@/api';
+import { useToastStore } from '@/store/useToastStore';
 import {
   ImageMessage,
   AudioMessage,
@@ -15,13 +18,99 @@ import type { ChatMessage } from '@/type/types';
 
 export function MessageBubble({
   msg,
+  conversationId,
   onRecallAction,
 }: {
   msg: ChatMessage;
+  /** 反馈需要会话 ID；由 ChatWindow 传入 */
+  conversationId?: string;
   onRecallAction?: (id: string) => void;
 }) {
   const { t } = useTranslation();
+  const addToast = useToastStore((state) => state.addToast);
   const [hovered, setHovered] = useState(false);
+  const [feedbackSent, setFeedbackSent] = useState<
+    'correct' | 'incorrect' | null
+  >(null);
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
+  const feedbackEnabled =
+    process.env.NEXT_PUBLIC_AI_FEEDBACK_UI_ENABLED === 'true' &&
+    msg.source === 'ai' &&
+    Boolean(conversationId);
+
+  const submitFeedback = async (
+    verdict: 'correct' | 'incorrect',
+    errorType?: string,
+    note?: string,
+  ) => {
+    if (!conversationId) return;
+    setFeedbackLoading(true);
+    try {
+      await chatApi.submitFeedback({
+        conversationId,
+        messageId: msg.id,
+        verdict,
+        errorType,
+        note: note?.trim() || undefined,
+      });
+      setFeedbackSent(verdict);
+      addToast('success', t('customerService.feedbackThanks'));
+    } catch {
+      addToast('error', t('customerService.feedbackFailed'));
+    } finally {
+      setFeedbackLoading(false);
+    }
+  };
+
+  const openIncorrectFeedback = () => {
+    ModalManager.open({
+      title: t('customerService.feedbackTitle'),
+      confirmText: t('customerService.feedbackSubmit'),
+      cancelText: t('customerService.feedbackCancel'),
+      onConfirm: async () => {
+        const type = (
+          document.getElementById('fb-error-type') as HTMLSelectElement
+        )?.value;
+        const note = (document.getElementById('fb-note') as HTMLTextAreaElement)
+          ?.value;
+        await submitFeedback('incorrect', type, note);
+      },
+      renderChildren: (
+        <div className="space-y-3">
+          <label className="block text-sm font-medium">
+            {t('customerService.feedbackErrorType')}
+            <select
+              id="fb-error-type"
+              defaultValue="irrelevant"
+              className="mt-1 w-full border rounded-lg p-2 text-sm dark:bg-gray-800 dark:border-white/10"
+            >
+              <option value="irrelevant">
+                {t('customerService.feedbackIrrelevant')}
+              </option>
+              <option value="outdated">
+                {t('customerService.feedbackOutdated')}
+              </option>
+              <option value="overreach">
+                {t('customerService.feedbackOverreach')}
+              </option>
+              <option value="format">
+                {t('customerService.feedbackFormat')}
+              </option>
+            </select>
+          </label>
+          <label className="block text-sm font-medium">
+            {t('customerService.feedbackNote')}
+            <textarea
+              id="fb-note"
+              rows={3}
+              maxLength={500}
+              className="mt-1 w-full border rounded-lg p-2 text-sm dark:bg-gray-800 dark:border-white/10"
+            />
+          </label>
+        </div>
+      ),
+    });
+  };
 
   // type=99 系统通知（关闭会话等）
   if (msg.type === 99) {
@@ -127,6 +216,32 @@ export function MessageBubble({
           <span className="text-xs text-gray-400">
             {formatMsgTime(msg.createdAt)}
           </span>
+          {/* AI 回答反馈（默认关闭，验证后开启） */}
+          {feedbackEnabled && !feedbackSent && (
+            <span className="flex items-center gap-1">
+              <button
+                disabled={feedbackLoading}
+                onClick={() => void submitFeedback('correct')}
+                title={t('customerService.feedbackCorrect')}
+                className="text-gray-400 hover:text-teal-500 transition-colors disabled:opacity-40"
+              >
+                <ThumbsUp size={12} />
+              </button>
+              <button
+                disabled={feedbackLoading}
+                onClick={openIncorrectFeedback}
+                title={t('customerService.feedbackWrong')}
+                className="text-gray-400 hover:text-red-500 transition-colors disabled:opacity-40"
+              >
+                <ThumbsDown size={12} />
+              </button>
+            </span>
+          )}
+          {feedbackSent && (
+            <span className="text-[10px] text-teal-500">
+              {t('customerService.feedbackThanks')}
+            </span>
+          )}
           {/* 撤回按钮 — 仅对客服消息且非已撤回 */}
           {isSupport && !msg.isRecalled && onRecallAction && hovered && (
             <button

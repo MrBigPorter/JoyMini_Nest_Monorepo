@@ -40,10 +40,20 @@ function makeListener(
 ) {
   const service = { chatStream };
   const lock = { runWithLock };
+  const feedback = {
+    recordRepeatedQuestionIfAny: jest.fn().mockResolvedValue(undefined),
+    recordImplicit: jest.fn().mockResolvedValue(undefined),
+  };
   return {
-    listener: new AiMessageListener(service as any, lock as any, redis as any),
+    listener: new AiMessageListener(
+      service as any,
+      lock as any,
+      redis as any,
+      feedback as any,
+    ),
     lock,
     redis,
+    feedback,
   };
 }
 
@@ -317,6 +327,49 @@ describe('AiMessageListener · 消息幂等', () => {
       messageId: 'm2',
     });
     expect(chatStream).toHaveBeenCalledTimes(2);
+  });
+
+  it('崩溃重放：新实例共享同一 Redis，未写 done → 重新执行并只写一次标记', async () => {
+    // 模拟「执行中进程被杀」：第一次 chatStream 拒绝、done 未写；
+    // 重启后的新 listener 拿到同一条队列任务，应重新执行。
+    const store = new Map<string, string>();
+    const redis = {
+      get: jest.fn(async (k: string) => store.get(k) ?? null),
+      set: jest.fn(async (k: string, v: string) => {
+        store.set(k, v);
+      }),
+    };
+    const crashedStream = jest.fn().mockRejectedValue(new Error('process killed'));
+    const { listener: crashed } = makeListener(crashedStream, undefined, redis);
+    jest
+      .spyOn((crashed as any).logger, 'error')
+      .mockImplementation(() => undefined);
+
+    await crashed.handleAiMessageRequest({
+      conversationId: 'c1',
+      content: 'hi',
+      userId: 'u1',
+      messageId: 'm3',
+    });
+    expect(store.has('ai:msg:done:m3')).toBe(false);
+
+    const replayStream = jest.fn().mockResolvedValue(undefined);
+    const { listener: restarted } = makeListener(
+      replayStream,
+      undefined,
+      redis,
+    );
+    await restarted.handleAiMessageRequest({
+      conversationId: 'c1',
+      content: 'hi',
+      userId: 'u1',
+      messageId: 'm3',
+    });
+
+    expect(replayStream).toHaveBeenCalledTimes(1);
+    expect(store.get('ai:msg:done:m3')).toBe('1');
+    // 触发消息 id 必须透传到 chatStream，回复才能带幂等唯一键
+    expect(replayStream.mock.calls[0][7]).toBe('m3');
   });
 
   it('没有 messageId 的旧调用方保持原行为（不去重）', async () => {

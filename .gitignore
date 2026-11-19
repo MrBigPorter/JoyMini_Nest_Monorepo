@@ -89,3 +89,4 @@ apps/frontend-blog/public/workbox-*.js.br
 # Eval tool runtime artifacts
 __pycache__/
 tools/eval/reports/
+tools/eval/task/reports/

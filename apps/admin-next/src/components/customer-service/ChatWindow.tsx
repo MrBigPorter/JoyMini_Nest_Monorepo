@@ -325,7 +325,12 @@ export function ChatWindow({
         )}
 
         {allMessages.map((msg) => (
-          <MessageBubble key={msg.id} msg={msg} onRecallAction={handleRecall} />
+          <MessageBubble
+            key={msg.id}
+            msg={msg}
+            conversationId={conversation.id}
+            onRecallAction={handleRecall}
+          />
         ))}
         <div ref={messagesEndRef} />
       </div>

@@ -519,7 +519,8 @@
     "aiPrompt": "AI Prompt",
     "intentExamples": "Intent Examples",
     "create": "Create",
-    "saving": "Saving..."
+    "saving": "Saving...",
+    "aiFeedback": "AI Feedback"
   },
   "actSections": {
     "pageTitle": "Activity Sections",
@@ -1101,7 +1102,20 @@
     "user": "User",
     "messageRecalled": "[Message recalled]",
     "recall": "Recall",
-    "location": "Location"
+    "location": "Location",
+    "feedbackCorrect": "Correct answer",
+    "feedbackWrong": "Wrong answer",
+    "feedbackTitle": "What was wrong?",
+    "feedbackErrorType": "Error type",
+    "feedbackIrrelevant": "Irrelevant",
+    "feedbackOutdated": "Outdated info",
+    "feedbackOverreach": "Overreach",
+    "feedbackFormat": "Bad format",
+    "feedbackNote": "Note (optional)",
+    "feedbackSubmit": "Submit",
+    "feedbackCancel": "Cancel",
+    "feedbackThanks": "Thanks for the feedback",
+    "feedbackFailed": "Failed to submit feedback"
   },
   "supportChannels": {
     "pageTitle": "Support Channels",

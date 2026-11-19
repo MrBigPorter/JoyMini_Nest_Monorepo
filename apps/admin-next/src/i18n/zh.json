@@ -517,7 +517,8 @@
     "banners_prev": "上一页",
     "banners_next": "下一页",
     "banners_validation_titleRequired": "标题为必填项",
-    "banners_validation_relatedTitleRequired": "当跳转类型为商品时，必须提供关联商品 ID"
+    "banners_validation_relatedTitleRequired": "当跳转类型为商品时，必须提供关联商品 ID",
+    "aiFeedback": "AI 反馈"
   },
   "actSections": {
     "pageTitle": "活动专区",
@@ -1021,7 +1022,20 @@
     "user": "用户",
     "messageRecalled": "[消息已撤回]",
     "recall": "撤回",
-    "location": "位置"
+    "location": "位置",
+    "feedbackCorrect": "回答正确",
+    "feedbackWrong": "回答有误",
+    "feedbackTitle": "哪里有问题？",
+    "feedbackErrorType": "错误类型",
+    "feedbackIrrelevant": "答非所问",
+    "feedbackOutdated": "信息过时",
+    "feedbackOverreach": "越权试探",
+    "feedbackFormat": "格式错误",
+    "feedbackNote": "备注（可选）",
+    "feedbackSubmit": "提交",
+    "feedbackCancel": "取消",
+    "feedbackThanks": "感谢反馈",
+    "feedbackFailed": "反馈提交失败"
   },
   "supportChannels": {
     "pageTitle": "支持频道",

@@ -177,15 +177,12 @@ export class MeilisearchService implements OnModuleInit {
       // ── 第二步：配置搜索字段（searchableAttributes）──
       //
       // 翻译成人话:
-      //   告诉 Meilisearch："用户搜词的时候，只在 content 和 title 里找"
+      //   告诉 Meilisearch："用户搜词的时候，在 content、title、keywords 里找"
       //
-      // 为什么是 content 和 title？
-      //   content = chunk 正文（"GCash withdrawal fee is ₱15"）
-      //   title   = 文档标题（"Withdrawal Guide"）
-      //
-      // 相当于告诉服务员：
-      //   "客人点菜的时候，只看菜名和菜品描述，不用看别的"
-      await index.updateSearchableAttributes(['content', 'title']);
+      // 为什么加 keywords？
+      //   现成知识文档正文是英文，但 keywords 是双语的（如「退货邮费」）。
+      //   不搜 keywords，中文 query 对英文正文没有词项重叠，BM25 等于白开。
+      await index.updateSearchableAttributes(['content', 'title', 'keywords']);
 
       // ── 第三步：配置过滤字段（filterableAttributes）──
       //
@@ -346,8 +343,8 @@ export class MeilisearchService implements OnModuleInit {
       const searchParams: any = {
         limit: topK,
         filter: filterParts,
-        // 只在 content 和 title 两个字段里搜
-        attributesToSearchOn: ['content', 'title'],
+        // content/title 是正文，keywords 是双语关键词（中文 query 靠它命中英文文档）
+        attributesToSearchOn: ['content', 'title', 'keywords'],
       };
 
       // 调用 Meilisearch API 搜索

@@ -1,3 +1,7 @@
+> **迁移说明（2026-11-19）**：本文是历史档案。当前阈值的事实来源是
+> `apps/api/src/client/ai-customer/graph/config/intent-thresholds.ts`；
+> 文中具体数值不再维护，阅读时请以代码为准。
+
 # 意图路由 Score Gap Check — Spec
 
 ## 1. 问题背景

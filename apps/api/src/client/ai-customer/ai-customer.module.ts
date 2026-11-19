@@ -1,6 +1,6 @@
 import { Module, OnApplicationBootstrap, Logger } from '@nestjs/common';
 import { EventsModule } from '@api/common/events/events.module';
-import { SseRateLimiterService } from '@api/client/ai-customer/sse-rate-limiter.service';
+import { SseRateLimiterModule } from '@api/common/rate-limit/sse-rate-limiter.module';
 import { StreamReservationStore } from '@api/client/ai-customer/stream-reservation.store';
 import { OrderModule } from '@api/client/orders/order.module';
 import { WalletModule } from '@api/client/wallet/wallet.module';
@@ -48,6 +48,7 @@ const EXPECTED_AGENT_TAGS = AGENT_TAGS_FOR_TOOLS;
 @Module({
   imports: [
     EventsModule,
+    SseRateLimiterModule,
     OrderModule,
     WalletModule,
     TreasureModule,
@@ -68,7 +69,6 @@ const EXPECTED_AGENT_TAGS = AGENT_TAGS_FOR_TOOLS;
     AiMessageListener,
     RagRetrievalService,
     PromptResolverService,
-    SseRateLimiterService,
     StreamReservationStore,
     AiActionConfirmService,
     AiUsageService,
@@ -111,6 +111,8 @@ export class AiCustomerModule implements OnApplicationBootstrap {
     // 注册 KYC 工具（依赖 KycService）
     this.toolRegistry.registerMany(createKycTools(this.kycService));
     this.logger.log('✅ KYC tools registered');
+
+    this.toolRegistry.auditCapabilities(this.logger);
 
     this.toolRegistry.validateRegistration(EXPECTED_AGENT_TAGS, {
       error: (msg: string) => this.logger.error(msg),
