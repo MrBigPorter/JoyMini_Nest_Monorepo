@@ -41,6 +41,7 @@ export function ChatWindow({
   const [handlerMode, setHandlerMode] = useState<'ai' | 'human'>(
     conversation.handlerId ? 'human' : 'ai',
   );
+  const [claiming, setClaiming] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -202,6 +203,24 @@ export function ChatWindow({
     }
   };
 
+  /**
+   * 认领排队中的会话（#98 AC-2）。
+   * 409 = 被别的客服抢先，刷新列表让 UI 对齐真实归属。
+   */
+  const handleClaim = async () => {
+    setClaiming(true);
+    try {
+      await chatApi.claim(conversation.id);
+      setHandlerMode('human');
+      conversation.handlerId = 'me';
+      onMessageSentAction();
+    } catch {
+      onMessageSentAction();
+    } finally {
+      setClaiming(false);
+    }
+  };
+
   const isClosed = conversation.status === 2;
 
   return (
@@ -224,11 +243,23 @@ export function ChatWindow({
         <div className="flex items-center gap-2">
           {!isClosed && (
             <>
+              {conversation.handlerId === 'awaiting_human' && (
+                <button
+                  onClick={() => void handleClaim()}
+                  disabled={claiming}
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-teal-600 text-white hover:bg-teal-700 transition-colors disabled:opacity-50"
+                >
+                  {claiming
+                    ? t('customerService.claiming')
+                    : t('customerService.claim')}
+                </button>
+              )}
               <button
                 onClick={async () => {
                   const mode = conversation.handlerId ? 'ai' : 'human';
                   await chatApi.switchHandler(conversation.id, mode);
-                  conversation.handlerId = mode === 'human' ? 'awaiting_human' : null;
+                  conversation.handlerId =
+                    mode === 'human' ? 'awaiting_human' : null;
                   setHandlerMode(mode);
                 }}
                 className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors ${
@@ -237,7 +268,9 @@ export function ChatWindow({
                     : 'border-teal-200 dark:border-teal-500/30 text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-500/10'
                 }`}
               >
-                {handlerMode === 'human' || conversation.handlerId ? '👤 Human' : '🤖 AI'}
+                {handlerMode === 'human' || conversation.handlerId
+                  ? '👤 Human'
+                  : '🤖 AI'}
               </button>
               <button
                 onClick={() => void handleClose()}

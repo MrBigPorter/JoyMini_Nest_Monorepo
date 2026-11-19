@@ -1001,6 +1001,8 @@
     "socketConnecting": "接続中…",
     "socketPolling": "ポーリング中",
     "closeTicket": "チケットを閉じる",
+    "claim": "引き継ぐ",
+    "claiming": "引き継ぎ中…",
     "closing": "閉じています…",
     "loadEarlier": "以前のメッセージを読み込む",
     "loadingMessages": "メッセージを読み込み中…",
@@ -1274,7 +1276,8 @@
       "auditResult": "監査結果:",
       "noRemark": "記録された備考はありません。",
       "reject": "拒否",
-      "approveAndPay": "承認して支払う"
+      "approveAndPay": "承認して支払う",
+      "auditFailed": "審査の送信に失敗しました。再試行してください"
     },
     "transactionDetail": {
       "transactionAmount": "取引金額",

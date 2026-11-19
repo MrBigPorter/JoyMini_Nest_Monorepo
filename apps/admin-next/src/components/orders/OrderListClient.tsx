@@ -2,8 +2,7 @@
 
 import React, { useCallback, useMemo, useState } from 'react';
 import { createColumnHelper, type ColumnDef } from '@tanstack/react-table';
-import { useQuery } from '@tanstack/react-query';
-import { useRequest } from 'ahooks';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ModalManager } from '@repo/ui';
 import { Truck, XCircle, Trash2, Eye } from 'lucide-react';
 import dayjs from 'dayjs';
@@ -12,6 +11,7 @@ import { BaseTable } from '@/components/scaffold/BaseTable';
 import { PageHeader } from '@/components/scaffold/PageHeader';
 import { SchemaSearchForm } from '@/components/scaffold/SchemaSearchForm';
 import { Badge, Button, Card, Input } from '@/components/UIComponents';
+import type { BadgeColor } from '@/components/UIComponents';
 import { ORDER_STATUS_COLORS } from '@/consts';
 import { useToastStore } from '@/store/useToastStore';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -23,10 +23,23 @@ import {
   ordersListQueryKey,
   parseOrdersSearchParams,
 } from '@/lib/cache/orders-cache';
+import { revalidateOrdersList } from '@/lib/actions/orders-revalidate';
 
 interface OrderListClientProps {
   initialFormParams?: Record<string, unknown>;
   onParamsChange?: (params: Record<string, unknown>) => void;
+}
+
+/** orders 列表 query cache 的形状（与 page.tsx 预取一致） */
+interface OrdersQueryData {
+  list: Order[];
+  total: number;
+}
+
+interface StatusMutationVars {
+  orderId: string;
+  status: number;
+  successMessage: string;
 }
 
 const ORDER_STATUS_I18N_KEY: Record<number, string> = {
@@ -109,36 +122,77 @@ export function OrderListClient({
     await refetch();
   }, [refetch]);
 
-  const { runAsync: updateStatusApi } = useRequest(orderApi.updateState, {
-    manual: true,
-  });
-  const { runAsync: deleteOrderApi } = useRequest(orderApi.delete, {
-    manual: true,
-  });
+  // ── 写操作：状态变更 / 删除（useMutation） ──
+  //
+  // 状态变更做乐观更新（低冲突、可回滚）；删除不做乐观更新，
+  // 等服务端确认后再移除，避免"看起来删了其实没删"。见 design D2。
+  const queryClient = useQueryClient();
 
   const invalidateOrdersCache = useCallback(async () => {
-    const { revalidateOrdersList } =
-      await import('@/lib/actions/orders-revalidate');
     await revalidateOrdersList();
   }, []);
+
+  const statusMutation = useMutation({
+    mutationFn: (vars: StatusMutationVars) =>
+      orderApi.updateState(vars.orderId, vars.status),
+    onMutate: async (vars) => {
+      const queryKey = ordersListQueryKey(ordersQueryInput);
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<OrdersQueryData>(queryKey);
+
+      if (previous) {
+        queryClient.setQueryData<OrdersQueryData>(queryKey, {
+          ...previous,
+          list: previous.list.map((order) =>
+            order.orderId === vars.orderId
+              ? { ...order, orderStatus: vars.status }
+              : order,
+          ),
+        });
+      }
+
+      return { previous, queryKey };
+    },
+    onError: (_error, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(context.queryKey, context.previous);
+      }
+      addToast('error', t('orders.toastStatusFailed'));
+    },
+    onSuccess: async (_data, vars) => {
+      addToast('success', vars.successMessage);
+      await invalidateOrdersCache();
+      await refresh();
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (orderId: string) => orderApi.delete(orderId),
+    onSuccess: async () => {
+      addToast('success', t('orders.toastDeleted'));
+      await invalidateOrdersCache();
+      await refresh();
+    },
+    onError: () => {
+      addToast('error', t('orders.toastDeleteFailed'));
+    },
+  });
 
   const handleUpdateStatus = useCallback(
     async (orderId: string, status: number) => {
       try {
-        await updateStatusApi(orderId, status);
-        addToast(
-          'success',
-          t('orders.toastStatusUpdated', {
+        await statusMutation.mutateAsync({
+          orderId,
+          status,
+          successMessage: t('orders.toastStatusUpdated', {
             status: t(ORDER_STATUS_I18N_KEY[status]),
           }),
-        );
-        await refresh();
-        void invalidateOrdersCache();
+        });
       } catch {
-        addToast('error', t('orders.toastStatusFailed'));
+        // 回滚与提示已在 mutation.onError 处理
       }
     },
-    [addToast, t, updateStatusApi, refresh, invalidateOrdersCache],
+    [statusMutation, t],
   );
 
   const handleDelete = useCallback(
@@ -155,13 +209,10 @@ export function OrderListClient({
               <Button
                 onClick={async () => {
                   try {
-                    await deleteOrderApi(orderId);
-                    addToast('success', t('orders.toastDeleted'));
-                    await refresh();
-                    void invalidateOrdersCache();
+                    await deleteMutation.mutateAsync(orderId);
                     close();
                   } catch {
-                    addToast('error', t('orders.toastDeleteFailed'));
+                    // 错误提示已在 mutation.onError 处理，弹窗保持打开
                   }
                 }}
               >
@@ -172,7 +223,7 @@ export function OrderListClient({
         ),
       });
     },
-    [addToast, t, deleteOrderApi, refresh, invalidateOrdersCache],
+    [deleteMutation, t],
   );
 
   const openShippingModal = useCallback(
@@ -280,9 +331,9 @@ export function OrderListClient({
               </Button>
 
               {/* Ship 按钮: Paid(3) 或 Ready to Ship(7) 均可发货 */}
-              {[ORDER_STATUS.PAID, ORDER_STATUS.WAIT_DELIVERY].includes(
-                data.orderStatus,
-              ) && (
+              {(
+                [ORDER_STATUS.PAID, ORDER_STATUS.WAIT_DELIVERY] as number[]
+              ).includes(data.orderStatus) && (
                 <Button
                   onClick={() => {
                     close();
@@ -305,12 +356,14 @@ export function OrderListClient({
                 </Button>
               )}
 
-              {[
-                ORDER_STATUS.PENDING_PAYMENT,
-                ORDER_STATUS.PAID,
-                ORDER_STATUS.WAIT_GROUP,
-                ORDER_STATUS.WAIT_DELIVERY,
-              ].includes(data.orderStatus) && (
+              {(
+                [
+                  ORDER_STATUS.PENDING_PAYMENT,
+                  ORDER_STATUS.PAID,
+                  ORDER_STATUS.WAIT_GROUP,
+                  ORDER_STATUS.WAIT_DELIVERY,
+                ] as number[]
+              ).includes(data.orderStatus) && (
                 <Button
                   onClick={() =>
                     handleUpdateStatus(data.orderId, ORDER_STATUS.CANCELED)
@@ -369,7 +422,7 @@ export function OrderListClient({
         header: t('orders.columnStatus'),
         cell: (info) => {
           const status = info.getValue();
-          const color = ORDER_STATUS_COLORS[status] || 'gray';
+          const color = (ORDER_STATUS_COLORS[status] || 'gray') as BadgeColor;
           return (
             <Badge color={color}>{t(ORDER_STATUS_I18N_KEY[status])}</Badge>
           );
@@ -387,9 +440,9 @@ export function OrderListClient({
             >
               <Eye size={16} />
             </Button>
-            {[ORDER_STATUS.CANCELED, ORDER_STATUS.REFUNDED].includes(
-              info.row.original.orderStatus,
-            ) && (
+            {(
+              [ORDER_STATUS.CANCELED, ORDER_STATUS.REFUNDED] as number[]
+            ).includes(info.row.original.orderStatus) && (
               <Button
                 size="sm"
                 variant="ghost"

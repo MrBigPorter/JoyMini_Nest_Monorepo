@@ -4,7 +4,7 @@ import React, { useCallback, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import { Button, ModalManager, cn } from '@repo/ui';
 import { createColumnHelper, type ColumnDef } from '@tanstack/react-table';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { User as UserIcon, Eye, Ban, CheckCircle } from 'lucide-react';
 import { Badge, type BadgeVariant } from '@repo/ui';
 import { KYC_STATUS } from '@/lib/locale-constants';
@@ -23,6 +23,7 @@ import {
   parseUsersSearchParams,
   usersListQueryKey,
 } from '@/lib/cache/users-cache';
+import { revalidateUsersList } from '@/lib/actions/users-revalidate';
 
 interface DateRangeValue {
   from?: string;
@@ -35,6 +36,20 @@ interface UsersSearchFormValues {
   status: string;
   kycStatus: string;
   dateRange?: DateRangeValue | '';
+}
+
+/** users 列表 query cache 的形状（与 page.tsx 预取一致） */
+interface UsersQueryData {
+  data: ClientUserListItem[];
+  total: number;
+}
+
+interface StatusMutationVars {
+  id: string;
+  /** 0=封禁 1=正常，与 UpdateUserStatusParams 对齐 */
+  status: 0 | 1;
+  remark?: string;
+  successMessage: string;
 }
 
 interface UserListClientProps {
@@ -138,6 +153,51 @@ export function UserListClient({
     await refetch();
   }, [refetch]);
 
+  // ── 写操作：封禁 / 解封（乐观更新 + 失败回滚） ──
+  //
+  // 设计依据：openspec admin-frontend-closure D2 / spec「写操作必须立即反馈」
+  //   onMutate  → 先改 query cache（界面立即变）
+  //   onError   → 用快照回滚，并给出可理解的提示
+  //   onSuccess → 失效 Next Data Cache（revalidateTag）+ 本地 refetch
+  const queryClient = useQueryClient();
+
+  const statusMutation = useMutation({
+    mutationFn: (vars: StatusMutationVars) =>
+      clientUserApi.updateUser(vars.id, {
+        status: vars.status,
+        remark: vars.remark,
+      }),
+    onMutate: async (vars) => {
+      const queryKey = usersListQueryKey(usersQueryInput);
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<UsersQueryData>(queryKey);
+
+      if (previous) {
+        queryClient.setQueryData<UsersQueryData>(queryKey, {
+          ...previous,
+          data: previous.data.map((user) =>
+            user.id === vars.id ? { ...user, status: vars.status } : user,
+          ),
+        });
+      }
+
+      return { previous, queryKey };
+    },
+    onError: (_error, _vars, context) => {
+      // 回滚到提交前的快照；没有快照（首屏未加载）时无需回滚
+      if (context?.previous) {
+        queryClient.setQueryData(context.queryKey, context.previous);
+      }
+      addToast('error', t('users_toastOperationFailed'));
+    },
+    onSuccess: async (_data, vars) => {
+      addToast('success', vars.successMessage);
+      // 双层失效：Next Data Cache（tag）+ React Query 本地缓存
+      await revalidateUsersList();
+      await refetch();
+    },
+  });
+
   reloadRef.current = () => {
     void refresh();
   };
@@ -163,7 +223,7 @@ export function UserListClient({
   const handleStatusChange = useCallback(
     async (record: ClientUserListItem) => {
       const isBanning = record.status === 1;
-      const targetStatus = isBanning ? 0 : 1;
+      const targetStatus: 0 | 1 = isBanning ? 0 : 1;
 
       ModalManager.open({
         title: isBanning
@@ -198,24 +258,21 @@ export function UserListClient({
                     return;
                   }
                   try {
-                    await clientUserApi.updateUser(record.id, {
+                    await statusMutation.mutateAsync({
+                      id: record.id,
                       status: targetStatus,
                       remark:
                         remark?.trim() ||
                         (isBanning
                           ? t('users_remarkBan')
                           : t('users_remarkUnban')),
-                    });
-                    addToast(
-                      'success',
-                      isBanning
+                      successMessage: isBanning
                         ? t('users_toastFrozenSuccess')
                         : t('users_toastRestoredSuccess'),
-                    );
-                    await refresh();
+                    });
                     close();
                   } catch {
-                    addToast('error', t('users_toastOperationFailed'));
+                    // 回滚与错误提示已在 mutation.onError 处理，这里不重复提示
                   }
                 }}
               >
@@ -228,7 +285,7 @@ export function UserListClient({
         ),
       });
     },
-    [addToast, refresh, t],
+    [addToast, statusMutation, t],
   );
 
   const kycStatusConfig: Record<number, { label: string; color: string }> =

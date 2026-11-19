@@ -198,7 +198,7 @@ export const KycList: React.FC<KycListProps> = ({
         label: t('kyc_statusAutoRejected'),
         color: 'danger',
       },
-    }),
+    } as Record<number, { label: string; color: string }>),
     [t],
   );
 

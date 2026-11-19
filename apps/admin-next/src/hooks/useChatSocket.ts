@@ -169,6 +169,15 @@ export function useChatSocket({
             payload.data.conversationId as string | undefined,
           );
           break;
+
+        // 转人工队列变化：入队 / 被认领 / 释放 / 关闭
+        // 后端 SocketListener 扇出到每个 admin 的私有房间（#98 AC-1/AC-2）
+        case 'support_queue_changed':
+        case 'ai_transfer':
+          onConversationUpdatedRef.current?.(
+            payload.data.conversationId as string | undefined,
+          );
+          break;
       }
     });
 

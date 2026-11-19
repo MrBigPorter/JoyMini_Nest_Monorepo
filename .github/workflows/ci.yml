@@ -95,6 +95,16 @@ jobs:
           node packages/shared/scripts/build.js
           node packages/ui/scripts/build.js
 
+      # 7.5) 校验前端 API 类型与已提交的 OpenAPI spec 一致
+      #    - 生成器只读 apps/swagger-docs/swagger-spec.json，不启动后端
+      #    - 不校验 spec 本身是否最新（那需要 db/redis，见 openspec design D4）
+      - name: Verify generated API types are up to date
+        run: |
+          # 生成物必须已提交；缺失说明忘记提交，直接失败
+          test -f apps/admin-next/src/type/generated-api.d.ts
+          yarn workspace @lucky/admin-next generate:api-types
+          git diff --exit-code -- apps/admin-next/src/type/generated-api.d.ts
+
       # 8) 执行 Lint（硬门禁 — 失败即阻断，包含 API）
       - name: Lint
         run: yarn turbo run lint

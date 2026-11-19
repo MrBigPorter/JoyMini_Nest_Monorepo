@@ -32,6 +32,7 @@ export {
 // ── Finance / Wallet ──
 export {
   TRANSACTION_TYPE,
+  TRANSACTION_TYPE_LABEL,
   BALANCE_TYPE,
   DIRECTION,
   TRANSACTION_STATUS,
@@ -63,5 +64,14 @@ export { KYC_STATUS } from '@lucky/shared/src/constants/kyc.constants';
 
 // ── Type-only re-exports (resolved at compile-time, stripped at runtime) ──
 export type { WithdrawStatus } from '@lucky/shared/src/types/finance';
-export type { TransactionTypeValue } from '@lucky/shared/src/types/wallet';
-export type { Locale, LocalizedString } from '@lucky/shared/src/types/localized-string';
+export type {
+  TransactionTypeValue,
+  BalanceTypeValue,
+  TransactionStatusValue,
+} from '@lucky/shared/src/types/wallet';
+export type {
+  Locale,
+  LocalizedString,
+} from '@lucky/shared/src/types/localized-string';
+export type { KycStatus } from '@lucky/shared/src/constants/kyc.constants';
+export type { RelatedType } from '@lucky/shared/src/constants/business.constants';

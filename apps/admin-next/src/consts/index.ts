@@ -1,6 +1,6 @@
 import { ORDER_STATUS } from '@/lib/locale-constants';
 
-export const ORDER_STATUS_COLORS = {
+export const ORDER_STATUS_COLORS: Record<number, string> = {
   [ORDER_STATUS.PENDING_PAYMENT]: 'yellow', // 1 待支付
   [ORDER_STATUS.PROCESSING_PAYMENT]: 'blue', // 2 支付中
   [ORDER_STATUS.PAID]: 'green', // 3 已支付

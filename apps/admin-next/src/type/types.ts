@@ -8,6 +8,7 @@ import {
   WithdrawStatus,
 } from '@/lib/shared-wrapper';
 import type { Locale } from '@/lib/shared-wrapper';
+import type { components } from './generated-api';
 
 export type Language = Locale;
 export type Theme = 'light' | 'dark';
@@ -19,10 +20,11 @@ export interface dateRange {
   to: string;
 }
 
-export interface Tokens {
-  accessToken: string;
-  refreshToken?: string;
-}
+/**
+ * 与后端 AdminTokenPairDto 结构完全一致，直接复用生成类型。
+ * 其余 DTO 与视图模型存在字段差异，按 design D4 在各页面迁移时映射。
+ */
+export type Tokens = components['schemas']['AdminTokenPairDto'];
 
 export interface AdminUser {
   id: string;

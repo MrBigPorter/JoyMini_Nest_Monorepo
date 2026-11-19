@@ -6,11 +6,13 @@ import {
   BaseTableMock,
   SchemaSearchFormMock,
   PageHeaderMock,
-  makeUseRequest,
 } from '../../mocks/view-helpers';
 
 const mockUseQuery = vi.hoisted(() => vi.fn());
-const mockUseRequest = vi.hoisted(() => vi.fn());
+const mockUseMutation = vi.hoisted(() => vi.fn());
+const mockUseQueryClient = vi.hoisted(() => vi.fn());
+const mockAddToast = vi.hoisted(() => vi.fn());
+const mockRevalidateOrdersList = vi.hoisted(() => vi.fn());
 
 vi.mock('@repo/ui', () => repoUiMock);
 vi.mock('@/components/scaffold/BaseTable', () => ({
@@ -43,9 +45,12 @@ vi.mock('@/components/UIComponents', () => ({
 }));
 vi.mock('@tanstack/react-query', () => ({
   useQuery: (...args: unknown[]) => mockUseQuery(...args),
+  useMutation: (...args: unknown[]) => mockUseMutation(...args),
+  useQueryClient: (...args: unknown[]) => mockUseQueryClient(...args),
 }));
-vi.mock('ahooks', () => ({
-  useRequest: (...args: unknown[]) => mockUseRequest(...args),
+vi.mock('@/lib/actions/orders-revalidate', () => ({
+  revalidateOrdersList: (...args: unknown[]) =>
+    mockRevalidateOrdersList(...args),
 }));
 vi.mock('@/api', () => ({
   orderApi: {
@@ -84,7 +89,7 @@ vi.mock('@/consts', () => ({
 vi.mock('@/store/useToastStore', () => ({
   useToastStore: (
     sel: (s: { addToast: ReturnType<typeof vi.fn> }) => unknown,
-  ) => sel({ addToast: vi.fn() }),
+  ) => sel({ addToast: mockAddToast }),
 }));
 
 import { OrderListClient } from '@/components/orders/OrderListClient';
@@ -97,7 +102,12 @@ describe('OrderListClient', () => {
       isFetching: false,
       refetch: vi.fn(),
     });
-    mockUseRequest.mockReturnValue(makeUseRequest(undefined));
+    mockUseMutation.mockReturnValue({ mutateAsync: vi.fn() });
+    mockUseQueryClient.mockReturnValue({
+      cancelQueries: vi.fn().mockResolvedValue(undefined),
+      getQueryData: vi.fn(),
+      setQueryData: vi.fn(),
+    });
   });
 
   it('renders without crashing', () => {
@@ -148,5 +158,59 @@ describe('OrderListClient', () => {
     const onParamsChange = vi.fn();
     render(<OrderListClient onParamsChange={onParamsChange} />);
     expect(screen.getByTestId('base-table')).toBeInTheDocument();
+  });
+
+  it('状态变更：onMutate 立即改缓存，onError 回滚并提示', async () => {
+    const previous = {
+      list: [{ orderId: 'o-1', orderStatus: 1 }],
+      total: 1,
+    };
+    const setQueryData = vi.fn();
+    mockUseQueryClient.mockReturnValue({
+      cancelQueries: vi.fn().mockResolvedValue(undefined),
+      getQueryData: vi.fn().mockReturnValue(previous),
+      setQueryData,
+    });
+    let statusConfig: any;
+    mockUseMutation.mockImplementationOnce((config) => {
+      statusConfig = config;
+      return { mutateAsync: vi.fn() };
+    });
+
+    render(<OrderListClient />);
+    const context = await statusConfig.onMutate({
+      orderId: 'o-1',
+      status: 2,
+      successMessage: 'ok',
+    });
+
+    expect(setQueryData).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        list: [expect.objectContaining({ orderId: 'o-1', orderStatus: 2 })],
+      }),
+    );
+
+    statusConfig.onError(
+      new Error('boom'),
+      { orderId: 'o-1', status: 2 },
+      context,
+    );
+    expect(setQueryData).toHaveBeenLastCalledWith(context.queryKey, previous);
+    expect(mockAddToast).toHaveBeenCalledWith('error', expect.any(String));
+  });
+
+  it('状态变更成功：失效订单/首页缓存并提示', async () => {
+    let statusConfig: any;
+    mockUseMutation.mockImplementationOnce((config) => {
+      statusConfig = config;
+      return { mutateAsync: vi.fn() };
+    });
+
+    render(<OrderListClient />);
+    await statusConfig.onSuccess(null, { successMessage: 'ok' });
+
+    expect(mockRevalidateOrdersList).toHaveBeenCalled();
+    expect(mockAddToast).toHaveBeenCalledWith('success', 'ok');
   });
 });

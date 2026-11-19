@@ -1002,6 +1002,8 @@
     "socketConnecting": "连接中…",
     "socketPolling": "轮询中",
     "closeTicket": "关闭工单",
+    "claim": "认领",
+    "claiming": "认领中…",
     "closing": "关闭中…",
     "loadEarlier": "加载更早的消息",
     "loadingMessages": "消息加载中…",
@@ -1275,7 +1277,8 @@
       "auditResult": "审核结果：",
       "noRemark": "无备注记录。",
       "reject": "拒绝",
-      "approveAndPay": "批准并放款"
+      "approveAndPay": "批准并放款",
+      "auditFailed": "审核提交失败，请重试"
     },
     "transactionDetail": {
       "transactionAmount": "交易金额",
