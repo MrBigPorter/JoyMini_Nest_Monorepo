@@ -1287,6 +1287,10 @@ export interface ChatMessage {
   senderId: string | null;
   sender: { id: string; nickname: string; avatar: string | null } | null;
   isSystem: boolean;
+  /** 消息角色：user | assistant（AI 回复为 assistant） */
+  role?: string;
+  /** 消息来源：user | ai（AI 回复为 ai） */
+  source?: string;
 }
 
 export interface QueryConversationsParams {
@@ -1321,6 +1325,37 @@ export interface AdminUploadTokenResult {
 
 export interface CloseConversationPayload {
   reason?: string;
+}
+
+export interface AiFeedbackItem {
+  id: string;
+  conversationId: string;
+  messageId: string | null;
+  userId: string | null;
+  source: 'explicit' | 'implicit';
+  verdict: 'correct' | 'incorrect' | null;
+  errorType: string | null;
+  signal: string | null;
+  note: string | null;
+  adminId: string | null;
+  createdAt: string;
+}
+
+export interface QueryAiFeedbackParams {
+  source?: 'explicit' | 'implicit';
+  signal?: string;
+  errorType?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface CreateAiFeedbackPayload {
+  conversationId: string;
+  messageId?: string;
+  userId?: string;
+  verdict: 'correct' | 'incorrect';
+  errorType?: string;
+  note?: string;
 }
 
 export interface ChatMessagesResult {

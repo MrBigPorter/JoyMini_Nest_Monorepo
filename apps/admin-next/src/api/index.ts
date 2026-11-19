@@ -783,6 +783,17 @@ export const chatApi = {
       { mode },
     ),
 
+  /** POST /v1/admin/ai-feedback — 提交回答标注 */
+  submitFeedback: (data: import('@/type/types').CreateAiFeedbackPayload) =>
+    http.post<{ id: string }>('/v1/admin/ai-feedback', data),
+
+  /** GET /v1/admin/ai-feedback — 待标注/反馈列表 */
+  getFeedbackList: (params: import('@/type/types').QueryAiFeedbackParams) =>
+    http.get<{
+      list: import('@/type/types').AiFeedbackItem[];
+      total: number;
+    }>('/v1/admin/ai-feedback', params),
+
   /** POST /v1/admin/chat/upload-token — 获取媒体上传签名 URL */
   getUploadToken: (fileName: string, fileType: string) =>
     http.post<import('@/type/types').AdminUploadTokenResult>(

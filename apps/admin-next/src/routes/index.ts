@@ -27,6 +27,7 @@ import {
   Sparkles,
   Activity,
   BrainCircuit,
+  ListChecks,
 } from 'lucide-react';
 
 export type RouteGroup =
@@ -133,6 +134,14 @@ export const routes: RouteConfig[] = [
     name: 'supportChannelMgmt',
     icon: Headphones,
     group: 'Customer Service',
+  },
+
+  {
+    path: '/ai-feedback',
+    name: 'aiFeedback',
+    icon: ListChecks,
+    group: 'Customer Service',
+    hidden: process.env.NEXT_PUBLIC_AI_FEEDBACK_UI_ENABLED !== 'true',
   },
 
   // Analytics

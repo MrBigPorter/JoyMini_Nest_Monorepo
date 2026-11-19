@@ -516,7 +516,8 @@
     "banners_prev": "前へ",
     "banners_next": "次へ",
     "banners_validation_titleRequired": "タイトルは必須です",
-    "banners_validation_relatedTitleRequired": "ジャンプカテゴリが商品の場合、関連商品IDが必要です"
+    "banners_validation_relatedTitleRequired": "ジャンプカテゴリが商品の場合、関連商品IDが必要です",
+    "aiFeedback": "AI フィードバック"
   },
   "actSections": {
     "pageTitle": "アクティビティセクション",
@@ -1020,7 +1021,20 @@
     "user": "ユーザー",
     "messageRecalled": "[メッセージは撤回されました]",
     "recall": "撤回",
-    "location": "場所"
+    "location": "場所",
+    "feedbackCorrect": "正しい回答",
+    "feedbackWrong": "誤った回答",
+    "feedbackTitle": "どこが問題ですか？",
+    "feedbackErrorType": "エラー種別",
+    "feedbackIrrelevant": "的外れ",
+    "feedbackOutdated": "情報が古い",
+    "feedbackOverreach": "権限外",
+    "feedbackFormat": "形式エラー",
+    "feedbackNote": "メモ（任意）",
+    "feedbackSubmit": "送信",
+    "feedbackCancel": "キャンセル",
+    "feedbackThanks": "フィードバックありがとうございます",
+    "feedbackFailed": "フィードバックの送信に失敗しました"
   },
   "supportChannels": {
     "pageTitle": "サポートチャンネル",

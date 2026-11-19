@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { Request } from 'express';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ForbiddenException } from '@nestjs/common';
 import { Role } from '@lucky/shared';
 import { AdminJwtAuthGuard } from '../auth/admin-jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -37,6 +38,13 @@ const CurrentAdminId = createParamDecorator(
 export class AiFeedbackController {
   constructor(private readonly feedbackService: AiFeedbackService) {}
 
+  /** 功能开关：默认关闭，验证通过后再置 true */
+  private assertEnabled(): void {
+    if (process.env.AI_FEEDBACK_UI_ENABLED !== 'true') {
+      throw new ForbiddenException('AI feedback is disabled');
+    }
+  }
+
   @Post()
   @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   @HttpCode(HttpStatus.CREATED)
@@ -45,6 +53,7 @@ export class AiFeedbackController {
     @Body() dto: CreateAiFeedbackDto,
     @CurrentAdminId() adminId: string,
   ) {
+    this.assertEnabled();
     return this.feedbackService.recordExplicit({
       conversationId: dto.conversationId,
       messageId: dto.messageId,
@@ -60,6 +69,7 @@ export class AiFeedbackController {
   @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
   @ApiOperation({ summary: '查询反馈列表（显式 + 隐式）' })
   async list(@Query() query: QueryAiFeedbackDto) {
+    this.assertEnabled();
     return this.feedbackService.list(query);
   }
 }
