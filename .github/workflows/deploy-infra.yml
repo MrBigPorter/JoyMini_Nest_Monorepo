@@ -1,5 +1,7 @@
 name: Deploy AWS Infra (CDK)
 
+# 已停用（2026-11-19）：AWS/ECS/CDK 管线不再使用。
+# 保留 workflow_dispatch 仅作历史参考；job 层加 if: false，避免误触后真的改 AWS 资源。
 on:
   workflow_dispatch:
     inputs:
@@ -23,6 +25,8 @@ concurrency:
 jobs:
   deploy:
     name: 🏗️ CDK Deploy
+    # 已停用：即使手动 dispatch 也不执行，避免误改 AWS 资源
+    if: false
     runs-on: ${{ inputs.runner }}
     environment: production
 
