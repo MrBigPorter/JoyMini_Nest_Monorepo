@@ -20,7 +20,7 @@
 |---|---:|---|
 | **自评口径**（#86 / #85 / #97） | **56-60** | 按「能力是否存在」计分，部分能力按设计文档计入 |
 | **证据口径（基线）** | **46** | 2026-11-19 修复前的代码证据分 |
-| **证据口径（当前）** | **58** | 完成全部 P0 + 单飞/多实例 adapter/认证/CI/HNSW/RAG 评测/指标账本/引用回填后重算 |
+| **证据口径（当前）** | **62** | 完成全部 P0 + 单飞/多实例/记忆持久化/认证/CI/HNSW/RAG 评测/指标账本/引用回填后重算 |
 | **8 周后目标（证据口径）** | **58-64** | 对应自评口径约 **70-72** |
 | **面试进面线** | 65（自评口径） | 结论：**已经可以拿出去，但要带着「已知差距」讲** |
 
@@ -29,7 +29,7 @@
 > 修复后差距缩小到约 5-9 分，剩余主要来自「长期记忆/多实例/检索评测/指标」。
 > **面试时用证据口径，主动说出差距**，比被问穿更可信。
 
-**截至 2026-11-19 的进展**：全部 P0 已完成，以及 P1-1（Socket 同会话单飞）、P1-2（Socket.IO Redis adapter）、P1-3（`/metrics` + token 日账本 + 日配额）、P1-6（RAG 引用回填）、P1-9（OTP 手机号绑定）、P1-10（确认 token 原子鉴权）。实测：意图 63 题 **68.2% / macro-F1 68.6%**；RAG 40 题 **Hit@1 82.5% / Hit@3 97.5% / MRR 0.898**；真实 RAG 回答已把 3 条引用写入 `ChatMessage.meta.sources`；8 次对话落库 **9198 tokens**；Socket.IO Redis adapter 已启用（pub/sub 频道已确认）。剩余主要项：P1-5 记忆持久化、P1-7 转人工 SLA UI、P1-8 流式帧白名单、P1-6 的 rerank 评测，以及双实例 e2e。
+**截至 2026-11-19 的进展**：全部 P0 已完成，以及 P1-1（Socket 同会话单飞）、P1-2（Socket.IO Redis adapter）、P1-3（`/metrics` + token 日账本 + 日配额）、P1-5（Postgres checkpointer 记忆持久化）、P1-6（RAG 引用回填）、P1-9（OTP 手机号绑定）、P1-10（确认 token 原子鉴权）。实测：意图 63 题 **68.2% / macro-F1 68.6%**；RAG 40 题 **Hit@1 82.5% / Hit@3 97.5% / MRR 0.898**；真实 RAG 回答已把 3 条引用写入 `ChatMessage.meta.sources`；8 次对话落库 **9198 tokens**；Redis adapter pub/sub 已确认；**重启后同 thread 仍记得上一轮问题（跨重启上下文恢复）**。剩余主要项：P1-7 转人工 SLA UI、P1-8 流式帧白名单、P1-6 的 rerank 评测、双实例 e2e，以及长期记忆读路径。
 
 ### 0.2 与淘宝 / 京东的关系
 
@@ -47,7 +47,7 @@
 1. 全链路跑得通：意图 → 多意图编排 → 35 个业务工具 → 两阶段确认 → 转人工 → 知识库版本切换。
 2. 真正强的是：写操作安全、转人工闭环、KB 版本化、传输层限流与结构化日志。
 3. 真正弱的是：Agent 编排是串行、重启失忆、多实例失真、没有指标端点；RAG Layer2 与工具身份已在 2026-11-19 修复。
-4. P0 全部完成 + 6 个 P1（含引用回填、多实例 adapter）；下一步是记忆持久化、SLA UI 与双实例 e2e。
+4. P0 全部完成 + 7 个 P1（含记忆持久化、多实例 adapter）；下一步是 SLA UI、流式帧白名单与双实例 e2e。
 
 ---
 
@@ -132,14 +132,14 @@ LangGraph（customer.graph.ts:146-186）
 | B | RAG 与引用 | 15 | **70** | 及格 | Layer2 已修 + 回归；HNSW；40 题 Hit@1 82.5% / Hit@3 97.5% / MRR 0.898；RAG 回答把 3 条引用写入 `ChatMessage.meta.sources`（docId/title/score/预览） | faithfulness 与 rerank 贡献度未单独评测 |
 | C | Agent 规划与编排 | 12 | **40** | 原型 | 2 节点图；串行 for；`MAX_ITERATIONS=3`（[constants.ts:6](../../apps/api/src/client/ai-customer/graph/constants.ts#L6)）；无 supervisor/reroute | 无法支撑「多 Agent 协作」叙事 |
 | D | 工具权限与注入防护 | 12 | **70** | 及格 | 35 个工具；7 个文件身份改为请求上下文注入；写工具双闸门 + OTP；确认 token 改为 Lua 先鉴权后删除 | 仍缺能力标记/输入注入检测 |
-| E | 会话状态与记忆 | 10 | **25** | 缺失 | `MemorySaver`（[customer.graph.ts:185](../../apps/api/src/client/ai-customer/graph/customer.graph.ts#L185)）；`ai:hot:` 只有写没有读（[ai-memory.service.ts:152-166](../../apps/api/src/common/ai/ai-memory.service.ts#L152-L166)） | 重启失忆、多副本不一致 |
+| E | 会话状态与记忆 | 10 | **65** | 及格 | Postgres checkpointer（`PostgresSaver`）持久化 thread 状态；跨重启实测同 thread 记得上一轮问题；失败降级 MemorySaver；`AI_CHECKPOINTER=memory` 可关闭 | checkpointer 表不由 Prisma 迁移管理；`ai:hot` 长期记忆读路径与 flowState 仍未接 |
 | F | 人机协同 | 10 | **78** | 及格 | 关键词/情绪/重复触发、`awaiting_human`、CAS 认领、10 分钟懒回收、故障静态兜底 | 无排队 SLA、无坐席助手、无质检 |
 | G | 实时与并发 | 8 | **72** | 及格 | Socket 同会话单飞（进程内队列 + Redis 锁）；Socket.IO Redis adapter 已启用（多实例广播）；可选取消信号管道 | 双实例 e2e 未跑；Redis 故障不自动重连；SSE 死路径 owner/consume 竞态未修 |
 | H | 可观测与成本 | 8 | **55** | 原型 | 单行 JSON 日志 + traceId；新增 `/metrics`（请求/token/工具/检索/活跃流）、`ai_usage_daily` 日账本、用户日配额；e2e 8 次对话落库 9198 tokens | 有指标无仪表盘/告警；配额超限走转人工，未做 e2e 验证 |
 | I | 质量工程与 CI | 8 | **55** | 原型 | 47 个 spec / 452 tests 全绿；API lint 0 error；CI 已把 API lint + 单测转硬门禁（[ci.yml:98-121](../../.github/workflows/ci.yml#L98-L121)） | 仍无 AI e2e 门禁；覆盖率未统计 |
 | J | 文档与可复现 | 5 | **45** | 原型 | 文档量大；6 个 OpenSpec change 勾选 0%，任务清单严重滞后 | 文档会反噬：声称的能力被代码打脸 |
 
-**加权合计：58.0 ≈ 58 / 100（基线 46）。**
+**加权合计：62.0 ≈ 62 / 100（基线 46）。**
 
 > 分数不是目的。它的用途只有一个：**告诉你哪一维最值得先花时间**——E（记忆 25）和 H（可观测/成本 30）是现在杠杆最大的两个洞；B 已从 30 修到 45，但检索评测仍缺。
 
@@ -228,7 +228,7 @@ LangGraph（customer.graph.ts:146-186）
 |:--:|---|---|---|---|---|
 | 1 | RAG 第二层关键词 chunk 召回曾永久为空（2026-11-19 已修，[rag-retrieval.service.ts:339-403](../../apps/api/src/client/ai-customer/knowledge/rag-retrieval.service.ts#L339-L403)） | 动态 SQL 占位符从 `$2` 起，参数从 `$1` 传；异常被 catch 成 `[]` | 「你的四层召回怎么实现的？」 | 「发现过一处 off-by-one：占位符错位导致该层 fail-closed 且被静默吞掉。修复是把参数构造和占位符绑定成同一份列表，并加了回归测试；下一步补 HitRate/MRR 检索评测。」 | 已完成 |
 | 2 | 图只有 2 节点，Agent 串行（[customer.graph.ts:146-186](../../apps/api/src/client/ai-customer/graph/customer.graph.ts#L146-L186)、[orchestrator.node.ts:469](../../apps/api/src/client/ai-customer/graph/nodes/orchestrator.node.ts#L469)） | 从 Supervisor 架构收敛为「单编排器 + 子 Agent 循环」，文档未同步 | 「多 Agent 怎么协作/并行？」 | 「现在是编排式 Agent 骨架：一个编排器按静态依赖顺序跑子 Agent，不是并行多 Agent。我有 supervisor 的设计，但没上，因为 3 轮工具调用内串行已经够用，先保正确性。」 | 3-5d 才可真并行 |
-| 3 | `MemorySaver` 进程内；`ai:hot` 只写不读（[customer.graph.ts:185](../../apps/api/src/client/ai-customer/graph/customer.graph.ts#L185)、[ai-memory.service.ts:152-166](../../apps/api/src/common/ai/ai-memory.service.ts#L152-L166)） | Checkpointer 未替换；长期记忆读取路径没接线 | 「服务重启后多轮上下文还在吗？」 | 「跨轮状态在进程内 MemorySaver，重启会丢；长期记忆写 Redis 但还没接读取。这是我知道的最大的状态管理缺口，方案是 Redis/PG Checkpointer + 影子双写。」 | 3-5d |
+| 3 | 曾用 `MemorySaver` 进程内；`ai:hot` 只写不读（2026-11-19 已切 Postgres checkpointer） | Checkpointer 已替换；长期记忆读取路径仍未接线 | 「服务重启后多轮上下文还在吗？」 | 「已切到 Postgres checkpointer，实测重启后同一个 thread 仍记得上一轮问题；Postgres 不可用时降级 MemorySaver，`AI_CHECKPOINTER=memory` 可显式关闭。长期记忆 `ai:hot` 仍只有写路径，这是下一步。」 | 已完成主链路 |
 | 4 | 工具 `userId` 由 LLM 传参查库（[order-tools.ts:28-54](../../apps/api/src/client/ai-customer/graph/tools/order-tools.ts#L28-L54)） | 工具 schema 暴露 userId，Agent 层未强制用请求上下文覆盖 | 「Prompt injection 怎么防越权？」 | 「确认卡和 OTP 很强，但工具身份曾是信任边界上的真洞：userId 来自模型参数。现在 7 个工具文件全部改为 AsyncLocalStorage 请求上下文注入，模型在 tool schema 里看不到 userId；无上下文时 fail-closed。」 | 已完成 |
 | 5 | Socket 生产链路曾有同会话并发；SSE 死路径 owner 校验在 consume 之后；多实例无 Socket Redis adapter（[chat.service.ts:227-241](../../apps/api/src/common/chat/chat.service.ts#L227-L241)） | 单实例假设 + 未接分布式锁；SSE 已废弃 | 「用户连发两条会怎样？」「关页面后模型还跑吗？」 | 「已用进程内 Promise 链 + Redis 锁做同会话单飞，不同会话仍可并发；Redis 故障降级为进程内串行，30s 抢不到锁会记 warn 放弃。断线不等于取消，因为回复会落库并补推；显式取消管道已铺好，但生产 Socket 还没接 cancel 事件。多实例还缺 Socket Redis adapter。」 | 单飞已完成；adapter 1d |
 | 6 | 无 `/metrics`、token 不落库、无配额、无 LLM 结果缓存（L2） | 只做了日志，没做指标与账本 | 「AI 的质量和成本怎么度量？」 | 「结构化日志有 traceId 和 `llm.usage`，但只能离线查日志；没有 metrics 端点、没有 token 账本、没有用户配额。我在 P1 补四黄金信号和用量表。」 | 2-3d |
@@ -330,14 +330,14 @@ LangGraph（customer.graph.ts:146-186）
 | P1-2 | Socket Redis adapter + 双实例验证 | 1d | 两个 backend 副本投递一致 | 中 | **adapter 已完成**；双实例 e2e 待跑 |
 | P1-3 | `/metrics` + token 用量表 + 用户日配额 | 2-3d | 4 个黄金信号可查；超配额拦截率 100% | 中 |
 | P1-4 | prompt resolver 缓存 + LLM 结果缓存 | 1-2d | 每轮 DB 查询下降；同 prompt P95 下降 | 低 |
-| P1-5 | 记忆持久化影子双写 | 3-5d | 重启连续性 100%；影子回放一致率 | **高**（先影子，不切主链路） |
+| P1-5 | 记忆持久化（Postgres checkpointer） | 3-5d | 重启连续性 100%；跨重启上下文恢复 | **高**（已完成直接切换 + 失败降级；影子回放未做） |
 | P1-6 | 引用回填 + rerank 评测 | 2-3d | 引用覆盖率、faithfulness、MRR | 中 | **引用回填已完成**；rerank 评测待做 |
 | P1-7 | 转人工 SLA cron + admin 队列 UI | 1.5d | 超时升级可演示；「待接入」列表可用 | 低 |
 | P1-8 | 流式帧白名单 | 0.5d | 内部决策 JSON 不出网；协议单测 | 低 |
 | P1-9 | 提现 OTP 手机号改为服务端绑定 | 0.5-1d | 模型传任意 phone 被忽略；OTP 只发绑定号码 | 低 |
 | P1-10 | action-confirm token 原子鉴权 | 0.5d | 先校验 userId 再 getDel（Lua）；他人 token 无法被消费 | 低 |
 
-**状态（2026-11-19）**：P1-1（单飞）、P1-2（Redis adapter）、P1-3（指标/账本/配额）、P1-6（引用回填，rerank 评测待做）、P1-9（OTP 手机号）、P1-10（token 原子鉴权）已完成；P1-5 / P1-7 / P1-8 待做。
+**状态（2026-11-19）**：P1-1（单飞）、P1-2（Redis adapter）、P1-3（指标/账本/配额）、P1-5（Postgres checkpointer）、P1-6（引用回填，rerank 评测待做）、P1-9（OTP 手机号）、P1-10（token 原子鉴权）已完成；P1-7 / P1-8 待做。
 
 ### 8.4 P2（W7-W8 + 之后，加分项）
 
@@ -392,6 +392,7 @@ P1-5 先影子，观察 1 周再切
 - `curl /api/v1/metrics` + 真实 e2e 8 次对话 → `ai_chat_requests_total{outcome="success"} 8`、`ai_llm_tokens_total{type="total"} 9174`；`ai_usage_daily` 落库同值
 - 真实 RAG 回答 → `ChatMessage.meta.sources` 含 3 条引用（`refund-policy` ×2、`return-shipping-faq` ×1），回答正文带「依据《Refund Policy》」
 - Socket.IO Redis adapter → 启动日志 `✅ Socket.IO Redis adapter enabled`；Redis pub/sub 频道 `socket.io-request#/events#`、`socket.io-response#/events#...` 存在；单实例 e2e 8/8 PASS（双实例 e2e 未跑）
+- Postgres checkpointer → 启动日志 `✅ AI checkpointer: Postgres`；`checkpoints`/`checkpoint_blobs`/`checkpoint_writes` 表创建；e2e 后 32 checkpoints / 8 threads；重启后行仍在；同一 thread 追问「我刚才问的是什么？」返回「你刚才说的是：这个券我没用过」
 - HNSW 索引已在本地库确认：`idx_document_chunks_embedding_hnsw`（`hnsw (embedding vector_cosine_ops)`）
 
 ### 9.2 指标口径（面试直接引用）
@@ -414,6 +415,7 @@ P1-5 先影子，观察 1 周再切
 | 日配额 | `AI_DAILY_TOKEN_LIMIT` 超限拦截 | 单测覆盖；超限走转人工 | 100% |
 | 指标端点 | `/api/v1/metrics` 可抓取 | **已验证** | 持续可抓 |
 | 多实例广播 | Socket.IO Redis adapter | **已启用（pub/sub 频道确认）** | 双实例投递一致 |
+| 记忆连续性 | 重启后同 thread 是否保留上下文 | **已验证（重启后仍记得上一轮问题）** | 100% |
 | 成本/会话 | token × 单价 | **可查询（ai_usage_daily）** | 可查询 |
 
 ### 9.3 before/after 模板
@@ -442,8 +444,8 @@ P1-5 先影子，观察 1 周再切
 
 | 类别 | 内容 | 表述方式 |
 |---|---|---|
-| **能说「已实现」** | 写操作双闸门 + OTP 原子核销；转人工闭环 + CAS 认领 + 10 分钟懒回收；KB 版本化 + CAS 回滚 + 双写；SSE 两阶段 + 五层限流 + 熔断；提现资金状态机；63 题意图 golden（68.2%）；**RAG 40 题 Hit@1 82.5% / Hit@3 97.5% / MRR 0.898**；**RAG 引用回填到 `ChatMessage.meta.sources`**；**Prometheus `/metrics` + token 日账本 + 日配额**；traceId 结构化日志；**7 域工具身份注入**；**Socket 同会话单飞**；**Socket.IO Redis adapter（多实例广播）**；**API lint/单测硬门禁（52 suites / 468 tests）**；**OTP 手机号服务端绑定**；**确认 token 原子鉴权** | 讲约束、失败模式、单测怎么钉住顺序 |
-| **只能限定说** | 多标签融合（仅 top1-top2<0.05 问 LLM，非并行）；四路 RAG（Layer2 已修，40 题 Hit@3 97.5%，引用已回填，但 faithfulness 未测）；编排式 Agent（2 节点，非多 Agent 协作）；记忆（单实例 MemorySaver）；可观测（有 `/metrics` 与 token 账本，缺仪表盘/告警/缓存）；多实例（adapter 已启，双实例 e2e 未跑，Redis 故障不自动重连）；取消（管道已铺，生产未接）；配额（单测覆盖，未 e2e） | 「已实现 X，边界是 Y，下一步用 Z 指标验证」 |
+| **能说「已实现」** | 写操作双闸门 + OTP 原子核销；转人工闭环 + CAS 认领 + 10 分钟懒回收；KB 版本化 + CAS 回滚 + 双写；SSE 两阶段 + 五层限流 + 熔断；提现资金状态机；63 题意图 golden（68.2%）；**RAG 40 题 Hit@1 82.5% / Hit@3 97.5% / MRR 0.898**；**RAG 引用回填到 `ChatMessage.meta.sources`**；**Prometheus `/metrics` + token 日账本 + 日配额**；**Postgres checkpointer（跨重启上下文恢复）**；traceId 结构化日志；**7 域工具身份注入**；**Socket 同会话单飞**；**Socket.IO Redis adapter（多实例广播）**；**API lint/单测硬门禁（52 suites / 468 tests）**；**OTP 手机号服务端绑定**；**确认 token 原子鉴权** | 讲约束、失败模式、单测怎么钉住顺序 |
+| **只能限定说** | 多标签融合（仅 top1-top2<0.05 问 LLM，非并行）；四路 RAG（Layer2 已修，40 题 Hit@3 97.5%，引用已回填，但 faithfulness 未测）；编排式 Agent（2 节点，非多 Agent 协作）；记忆（checkpointer 已持久化，但 `ai:hot` 长期记忆读路径未接）；可观测（有 `/metrics` 与 token 账本，缺仪表盘/告警/缓存）；多实例（adapter 已启，双实例 e2e 未跑，Redis 故障不自动重连）；取消（管道已铺，生产未接）；配额（单测覆盖，未 e2e） | 「已实现 X，边界是 Y，下一步用 Z 指标验证」 |
 | **必须改口** | 「多 Agent 协作」→「编排式 Agent 骨架」；「企业级」→「工程化原型 + 已量化差距」；「意图 92%」→「自有 63 题 68.2%，与厂商口径不可比」；「全链路可观测」→「traceId 日志，指标补齐中」；「生产验证」→「单实例 + 本地容器验证」 | 主动给差距，显得可信 |
 
 ### 10.3 五个必被问的问题与答法
@@ -558,6 +560,7 @@ P1-5 先影子，观察 1 周再切
 | 2026-11-19 | 新增 `/metrics`、`ai_usage_daily` token 日账本、用户日配额；e2e 8 次对话落库 9198 tokens；证据分 54 → 56 |
 | 2026-11-19 | RAG 引用回填：orchestrator 写入 ragSources，SSE onDone 带 sources，ChatMessage.meta.sources 持久化；真实回答验证 3 条引用；证据分 56 → 57 |
 | 2026-11-19 | Socket.IO Redis adapter：多实例广播启用，Redis 不可用时降级内存；单实例 e2e 8/8；证据分 57 → 58 |
+| 2026-11-19 | Postgres checkpointer：thread 状态跨重启持久化，失败降级 MemorySaver；重启后同 thread 上下文恢复；证据分 58 → 62 |
 
 ---
 
