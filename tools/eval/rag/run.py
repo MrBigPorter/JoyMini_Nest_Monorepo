@@ -293,6 +293,7 @@ def main() -> int:
             "expectedDocIds": item.get("expectedDocIds") or [],
             "retrievedDocIds": [],
             "retrievedCount": 0,
+            "topScore": None,
             "globalRank": 0,
             "noRerankRank": None,
             "domainRank": None,
@@ -312,6 +313,7 @@ def main() -> int:
             row["latencyMs"] = round((time.perf_counter() - started) * 1000)
             row["retrievedDocIds"] = unique_doc_ids(results)
             row["retrievedCount"] = len(results)
+            row["topScore"] = results[0].get("score") if results else None
             if row["sourceType"] != "negative":
                 row["globalRank"] = first_hit_rank(
                     row["retrievedDocIds"], row["expectedDocIds"]

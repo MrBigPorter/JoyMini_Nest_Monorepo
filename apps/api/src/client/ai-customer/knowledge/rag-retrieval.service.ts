@@ -336,9 +336,25 @@ export class RagRetrievalService {
     const candidates = merged.length;
     const topScore = Math.max(...merged.map((c) => c.score));
 
-    merged = useRerank
+    const rerankOutcome = useRerank
       ? await this.rerank(query, merged, topK)
-      : this.fallbackSort(merged, topK);
+      : { results: this.fallbackSort(merged, topK), used: false };
+    merged = rerankOutcome.results;
+
+    // ── 相关性门卫 ──
+    // 关键词层命中 = “这个问题属于知识库”的强信号，直接放行；
+    // 没有关键词命中时，才用 reranker 的 0~1 分数卡阈值。
+    // reranker 不可用时走 RRF，分数不可比，不套用该阈值。
+    const hasKeywordHit = chunkResults.length > 0 || docResults.length > 0;
+    const gateThreshold = this.relevanceGateThreshold();
+    let gateApplied = false;
+    let gateBlocked = 0;
+    if (rerankOutcome.used && !hasKeywordHit && merged.length > 0) {
+      gateApplied = true;
+      const before = merged.length;
+      merged = merged.filter((chunk) => chunk.score >= gateThreshold);
+      gateBlocked = before - merged.length;
+    }
 
     emitStage('retrieval', {
       layers,
@@ -348,6 +364,11 @@ export class RagRetrievalService {
       topScoreBeforeRerank: Number(topScore.toFixed(4)),
       topScoreAfterRerank: Number((merged[0]?.score ?? 0).toFixed(4)),
       rerank: useRerank,
+      relevanceGate: {
+        applied: gateApplied,
+        threshold: gateThreshold,
+        blocked: gateBlocked,
+      },
       latencyMs: Date.now() - startedAt,
     });
 
@@ -706,12 +727,23 @@ export class RagRetrievalService {
   // Response: { "results": [{"index": 0, "relevance_score": 0.95}, ...] }
   // ===========================================================================
 
+  /**
+   * 相关性阈值：由正负样本校准（20 负样本最高 0.131），可配置。
+   * 只用于 reranker 分数，不影响 RRF/召回层。
+   */
+  private relevanceGateThreshold(): number {
+    const raw = Number(
+      this.configService.get<string>('RAG_RERANK_MIN_SCORE', '0.131'),
+    );
+    return Number.isFinite(raw) && raw >= 0 ? raw : 0.131;
+  }
+
   private async rerank(
     query: string,
     chunks: RetrievedChunk[],
     topK: number,
-  ): Promise<RetrievedChunk[]> {
-    if (chunks.length === 0) return chunks;
+  ): Promise<{ results: RetrievedChunk[]; used: boolean }> {
+    if (chunks.length === 0) return { results: chunks, used: false };
 
     const documents = chunks.map((c) => c.content);
 
@@ -721,7 +753,7 @@ export class RagRetrievalService {
       this.logger.warn(
         '[rerank] AiService.rerank returned empty/null, falling back to unranked results',
       );
-      return this.fallbackSort(chunks, topK);
+      return { results: this.fallbackSort(chunks, topK), used: false };
     }
 
     // 按 reranker 分数降序排列，取 topK
@@ -739,7 +771,7 @@ export class RagRetrievalService {
         `(top score: ${reranked[0]?.score.toFixed(4) ?? 'N/A'})`,
     );
 
-    return reranked;
+    return { results: reranked, used: true };
   }
 
   /**

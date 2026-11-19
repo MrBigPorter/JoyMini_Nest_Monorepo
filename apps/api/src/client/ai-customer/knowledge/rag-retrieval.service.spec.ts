@@ -158,7 +158,8 @@ describe('RagRetrievalService rerank 开关', () => {
     const results = await service.retrieve('退款', { topK: 2 });
 
     expect(aiService.rerank).toHaveBeenCalledTimes(1);
-    expect(results.map((r) => r.chunkId)).toEqual(['high', 'low']);
+    // 没有关键词命中，0.1 低于默认门卫阈值 0.131 → 被拒；只保留 high
+    expect(results.map((r) => r.chunkId)).toEqual(['high']);
     expect(results[0].score).toBe(0.99);
     expect(chunks).toHaveLength(2);
   });
@@ -402,9 +403,10 @@ describe('RagRetrievalService 分层 debug', () => {
     jest.spyOn(service, 'keywordSearchChunks').mockResolvedValue([chunk('k', 0.5)]);
     jest.spyOn(service, 'keywordSearchDocs').mockResolvedValue([]);
     service.meilisearchService.searchChunks.mockResolvedValue([chunk('m', 0.7)]);
-    service.rerank = jest.fn(async (_q: string, c: any[]) =>
-      c.slice(0, 2).map((x) => ({ ...x, score: 0.9 })),
-    );
+    service.rerank = jest.fn(async (_q: string, c: any[]) => ({
+      results: c.slice(0, 2).map((x) => ({ ...x, score: 0.9 })),
+      used: true,
+    }));
 
     const { results, debug } = await service.retrieveDetailed('退货运费谁出');
 
@@ -425,7 +427,7 @@ describe('RagRetrievalService 分层 debug', () => {
     jest.spyOn(service, 'keywordSearchChunks').mockResolvedValue([]);
     jest.spyOn(service, 'keywordSearchDocs').mockResolvedValue([]);
     service.meilisearchService.searchChunks.mockResolvedValue([]);
-    service.rerank = jest.fn(async (_q: string, c: any[]) => c);
+    service.rerank = jest.fn(async (_q: string, c: any[]) => ({ results: c, used: true }));
 
     const results = await service.retrieve('退货');
     expect(Array.isArray(results)).toBe(true);
@@ -495,5 +497,72 @@ describe('RagRetrievalService RRF 降级', () => {
     const results = await service.retrieve('退款', { topK: 5 });
 
     expect(results[0].docId).toBe('vector-only');
+  });
+});
+
+describe('RagRetrievalService 相关性门卫', () => {
+  const chunk = (docId: string, score: number) => ({
+    chunkId: `${docId}-c1`,
+    chunkIndex: 0,
+    content: `${docId} content`,
+    documentId: `${docId}-d`,
+    title: docId,
+    domain: 'common',
+    docId,
+    keywords: [],
+    priority: 'P0',
+    contentType: 'faq',
+    score,
+  });
+  const build = () => {
+    const prisma = { $queryRawUnsafe: jest.fn(), knowledgeDocument: { findMany: jest.fn() } };
+    const aiService = {
+      generateEmbedding: jest.fn().mockResolvedValue([0.1]),
+      rerank: jest.fn(),
+    };
+    const meilisearchService = { searchChunks: jest.fn(), isAvailable: true };
+    const configService = { get: jest.fn().mockReturnValue(undefined) };
+    return new RagRetrievalService(
+      prisma as any,
+      aiService as any,
+      meilisearchService as any,
+      configService as any,
+    );
+  };
+
+  it('无关键词命中且 rerank 分数低于阈值 → 返回空（域外问题拒答）', async () => {
+    const service: any = build();
+    jest.spyOn(service, 'vectorSearch').mockResolvedValue([chunk('irrelevant', 0.9)]);
+    service.meilisearchService.searchChunks.mockResolvedValue([]);
+    jest.spyOn(service, 'keywordSearchChunks').mockResolvedValue([]);
+    jest.spyOn(service, 'keywordSearchDocs').mockResolvedValue([]);
+    service.aiService.rerank.mockResolvedValue([{ index: 0, relevance_score: 0.05 }]);
+
+    const results = await service.retrieve('今天天气怎么样', { topK: 3 });
+    expect(results).toEqual([]);
+  });
+
+  it('关键词层命中 → 即使 rerank 分低也保留', async () => {
+    const service: any = build();
+    jest.spyOn(service, 'vectorSearch').mockResolvedValue([]);
+    service.meilisearchService.searchChunks.mockResolvedValue([]);
+    jest.spyOn(service, 'keywordSearchChunks').mockResolvedValue([chunk('refund', 0.5)]);
+    jest.spyOn(service, 'keywordSearchDocs').mockResolvedValue([]);
+    service.aiService.rerank.mockResolvedValue([{ index: 0, relevance_score: 0.01 }]);
+
+    const results = await service.retrieve('退款', { topK: 3 });
+    expect(results.map((r: any) => r.docId)).toEqual(['refund']);
+  });
+
+  it('reranker 不可用 → 不套用阈值，保留 RRF 结果', async () => {
+    const service: any = build();
+    jest.spyOn(service, 'vectorSearch').mockResolvedValue([chunk('v', 0.2)]);
+    service.meilisearchService.searchChunks.mockResolvedValue([]);
+    jest.spyOn(service, 'keywordSearchChunks').mockResolvedValue([]);
+    jest.spyOn(service, 'keywordSearchDocs').mockResolvedValue([]);
+    service.aiService.rerank.mockResolvedValue(null);
+
+    const results = await service.retrieve('无关问题', { topK: 3 });
+    expect(results.map((r: any) => r.docId)).toEqual(['v']);
   });
 });
