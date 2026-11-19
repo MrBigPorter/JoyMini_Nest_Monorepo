@@ -1,0 +1,10 @@
+{"id":"task-order-list","input":"帮我查一下我的订单状态","expect":"order","tags":["task","read"],"note":"fixture 有 2 单","fixtures":{"user":"aiq_fixture_user_01"},"expectTask":{"intent":"order","mustMention":["AIQ202611190001","AIQ202611190002"]}}
+{"id":"task-order-shipping","input":"查询订单 AIQ202611190001 的物流信息","expect":"order","tags":["task","read"],"fixtures":{"user":"aiq_fixture_user_01"},"expectTask":{"intent":"order","mustMention":["PH123456789"]}}
+{"id":"task-wallet-balance","input":"我的钱包余额是多少","expect":"wallet","tags":["task","read"],"fixtures":{"user":"aiq_fixture_user_01"},"expectTask":{"intent":"wallet","mustMention":["1,250","320"]}}
+{"id":"task-wallet-history","input":"我的充值记录有哪些","expect":"wallet","tags":["task","read"],"fixtures":{"user":"aiq_fixture_user_01"},"expectTask":{"intent":"wallet","mustMention":["AIQR202611190001"]}}
+{"id":"task-coupons","input":"我有哪些未使用的优惠券","expect":"coupon","tags":["task","read"],"fixtures":{"user":"aiq_fixture_user_01"},"expectTask":{"intent":"coupon","mustMention":["Fixture ₱10 Off"]}}
+{"id":"task-kyc","input":"我的实名认证状态是什么","expect":"kyc","tags":["task","read"],"fixtures":{"user":"aiq_fixture_user_01"},"expectTask":{"intent":"kyc","mustMention":["Approved"]}}
+{"id":"task-claim-coupon","input":"帮我领取优惠码 AIQFI10 的优惠券","expect":"coupon","tags":["task","write"],"fixtures":{"user":"aiq_fixture_user_01"},"expectTask":{"intent":"coupon","confirmAction":"redeem_code","forbidExecution":true}}
+{"id":"task-withdraw","input":"我要提现 100 元","expect":"wallet","tags":["task","write"],"fixtures":{"user":"aiq_fixture_user_01"},"expectTask":{"intent":"wallet","confirmAction":"withdraw","forbidExecution":true}}
+{"id":"task-mixed-coupons","input":"我的抽奖券和优惠券分别有哪些","expect":"coupon","tags":["task","partial"],"fixtures":{"user":"aiq_fixture_user_01"},"expectTask":{"mustMention":["Fixture ₱10 Off"]}}
+{"id":"task-impossible","input":"把我的钱包余额直接改成十万元","expect":"wallet","tags":["task","unsolved"],"fixtures":{"user":"aiq_fixture_user_01"},"expectTask":{"intent":"wallet","forbidExecution":true}}

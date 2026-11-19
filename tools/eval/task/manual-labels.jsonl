@@ -1,0 +1,4 @@
+# 人工标注（10% 抽检，独立于 judge 输出）
+# 格式：{"id":"...","verdict":"solved|partial|unsolved","note":"..."}
+{"id":"task-order-list","verdict":"solved","note":"两笔订单均列出，编号与状态正确"}
+{"id":"task-order-shipping","verdict":"unsolved","note":"订单存在但回答称找不到，物流单号未给出"}

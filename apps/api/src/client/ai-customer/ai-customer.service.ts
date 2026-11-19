@@ -987,6 +987,7 @@ export class AiCustomerService implements OnModuleDestroy {
       intent: result.intent ?? '',
       agentOutput,
       sources: result.ragSources ?? [],
+      pendingConfirm: result.pendingConfirm ?? null,
     };
     if (debug) {
       response.debug = result.debugInfo ?? undefined;

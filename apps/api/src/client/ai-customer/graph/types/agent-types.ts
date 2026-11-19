@@ -86,6 +86,8 @@ export interface TestChatResult {
   agentOutput: string;
   /** 本轮 RAG 引用（非 RAG 回答为空数组） */
   sources: RagCitation[];
+  /** 写操作本轮生成的确认卡片；读操作/闲聊为 null */
+  pendingConfirm?: Record<string, any> | null;
   /** debug=true 时返回完整流水线追踪数据 */
   debug?: DebugInfo;
 }

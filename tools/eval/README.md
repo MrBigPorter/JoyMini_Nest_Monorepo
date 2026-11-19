@@ -22,6 +22,37 @@ tools/eval/run-replay.sh --update-baseline      # 人工确认后更新基线
 tools/eval/run-replay.sh --delay 0              # 不怕限流时关掉间隔
 ```
 
+## 题集 schema（1.5）
+
+一行一条 JSON。基础字段与旧题完全兼容，新增两个可选字段：
+
+```jsonc
+{
+  "id": "order-01",
+  "input": "我的订单到哪了",
+  "expect": "order",
+  "tags": ["typical"],
+  "note": "",
+
+  // 可选：评测时需要的 fixture 说明（由 task runner 读取）
+  "fixtures": { "user": "eval-fixture", "orders": ["ORD-1"] },
+
+  // 可选：任务成功率的期望，交给不同厂商的 judge
+  "expectTask": {
+    "mustMention": ["已发货", "运单号"],
+    "confirmAction": "claim_coupon",   // 写操作只要求确认卡片
+    "forbidExecution": true,           // 不允许直接落库
+    "intent": "order"
+  }
+}
+```
+
+旧的 153 条没有 `fixtures` / `expectTask`，回放行为不变。只校验、不发请求：
+
+```bash
+python3 tools/eval/replay.py --dry-run
+```
+
 ## 看看它测什么
 
 | 测 | 不测（用别的工具） |

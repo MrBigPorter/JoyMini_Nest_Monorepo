@@ -29,6 +29,7 @@ import { RagModule } from '@api/admin/rag/rag.module';
 import { AiPromptModule } from '@api/admin/ai-prompt/ai-prompt.module';
 import { IntentExamplesModule } from '@api/admin/intent-examples/intent-examples.module';
 import { AiFeedbackModule } from '@api/admin/ai-feedback/ai-feedback.module';
+import { AiEvalModule } from '@api/admin/ai-eval/ai-eval.module';
 import { HealthModule } from '@api/admin/services/health.module';
 
 @Module({
@@ -63,6 +64,7 @@ import { HealthModule } from '@api/admin/services/health.module';
     AiPromptModule,
     IntentExamplesModule,
     AiFeedbackModule,
+    AiEvalModule,
     HealthModule,
   ],
   providers: [],
