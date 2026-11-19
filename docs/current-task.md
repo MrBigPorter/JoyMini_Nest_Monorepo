@@ -1,6 +1,6 @@
 # Current Task — 两周补齐计划（生产化 + 岗位就绪）
 
-> 更新: 2026-11-12
+> 更新: 2026-11-19
 > 依据: [#85 生产化差距审计](./AI-joymini/85-生产化差距审计与企业上线清单.md)、[#86 岗位匹配度与路线图](./AI-joymini/86-岗位匹配度评估与两周补齐路线图.md)
 > 当前得分: **≈60 / 100**（2026-11-12 粗估；基线 56，待 T1 全部完成后按 #86 §10 重新逐维打分）
 
@@ -73,10 +73,26 @@
 | T2-1 | 转人工：词边界匹配 + 情绪分级 + 工单写入 + 消费者 | P1-19 | `transfer-detector.ts`、新增 admin 消费者 | ☐ |
 | T2-2 | 意图阈值统一为单一常量 + 融合后再过滤 | P1-20 | `intent-classifier.ts`、`intent-router.node.ts`、`orchestrator.node.ts` | ☐ |
 | T2-3 | RAG：中文分词 + Layer 2 占位符 + 向量相关性门槛 | P1-21 | `rag-retrieval.service.ts` | ☐ |
-| T2-4 | 流式白名单：只转发 `answerSynthesizer`/`orchestrator` 最终文本 | P1-22 | `ai-stream.handler.ts` | ☐ |
+| T2-4 | 流式白名单：帧类型白名单 + `step` 帧字段白名单（非「只转发最终文本」） | P1-22 | `ai-stream-frames.ts`、`ai-customer.controller.ts` | ✅ 2026-11-19（5 类帧 + `step/content/tool`；`ai-stream-frames.spec.ts` 9 例；开关 `AI_STREAM_FRAME_WHITELIST_ENABLED` 默认开启） |
 | T2-5 | **转人工闭环**：admin「待接入」列表 + 订阅 `AI_TRANSFER` 通知 + 超时定时回收（现在只在用户下条消息时懒判定） | N-13 / N-14 | `admin/chat/`、`admin-next/.../customer-service/`、新增 cron | ✅ 2026-11-19（S1/S2 + S3 实时推送 + S4 空闲回收；见 [#98 §14](./AI-joymini/98-转人工闭环-SDD.md)） |
 | T2-6 | **模型兜底**：`timeout 15s + maxRetries 1`；`degradeToHuman` 落固定话术 + 置 `awaiting_human` + 发 `AI_TRANSFER` + 记 `transfer{source:fallback}`；测试用故障注入（`__CHAOS__` 前缀 + Redis 开关，生产隔离） | N-15 | `graph/llm-factory.ts`、新增 `ai-failure-handler.ts` | ✅ 2026-11-12（单测 5 例 + E2E 第 9 场景实测，全套 9/9 PASS） |
 | T2-7 | **成本限额**：按天聚合客服 token，超阈值降级转人工 + 记 `cost.guard`（复用 blog budget 写法） | N-16 | `ai-customer.service.ts`、新增 cost-guard | ☐ |
+
+### 🛡️ T2.5 — 信任边界（agent-trust-boundary，规格见 `openspec/changes/agent-trust-boundary/`）
+
+> 目标：让「操作主体」不可能来自模型、写操作不可能绕过确认、内部结构不可能从 SSE 出网。
+> 边界与残余风险见 [`docs/system-review/agent-trust-boundary-安全边界说明.md`](./system-review/agent-trust-boundary-安全边界说明.md)。
+
+| # | 任务 | #87 ID | 文件 | 状态 |
+|:--:|---|:--:|---|---|
+| TB-1 | 工具身份只来自请求上下文（`requireToolUserId` / AsyncLocalStorage），schema 删除 `userId` | P1-6 根因 | `graph/tools/tool-identity.ts`、`common/logger/trace-context.ts` | ✅ 2026-11-19（无上下文 fail-closed；7 个工具套件断言模型伪造 `userId` 无效） |
+| TB-2 | 写工具能力标记 + 确认流程由 `capability.kind === 'write'` 推导 | P1-6 | `tool-registry.service.ts`、`orchestrator.node.ts` | ✅ 2026-11-19（7 个写工具；`createAddress`/`updateAddress` 进入截停；启动自检 2.5 仍未完成） |
+| TB-3 | 归属校验：`draw` / `updateAddress` / `deleteAddress` 执行前比对归属 | P1-6 / P2-4 | `lucky-tools.ts`、`user-tools.ts` | ✅ 2026-11-19（他人目标 → 结构化 `FORBIDDEN` + `tool.denied`） |
+| TB-4 | 输入注入检测（覆盖指令 / 索取内部结构 / 越权试探），命中降级 `general` | P2-4 | `injection-detector.ts`、`intent-router.node.ts` | 🟡 2026-11-19（代码完成；`AI_INJECTION_DETECTION_ENABLED` **默认关闭**，生产尚未启用） |
+| TB-5 | SSE 帧白名单（类型 + `step` 字段） | P1-22 | `ai-stream-frames.ts`、`ai-customer.controller.ts` | ✅ 2026-11-19（见 T2-4） |
+| TB-6 | 同会话单飞：进程内队列 + Redis `SET NX PX` 锁，异常路径释放 | P1-3 | `ai-message.listener.ts`、`redis-lock.service.ts` | ✅ 2026-11-19（`ai-message.listener.spec.ts` 4 例；超时有界等待后 warn 放弃） |
+| TB-7 | Socket 触发 AI 入口复用 SSE 令牌桶 | P1-3 | `events.gateway.ts`、`common/rate-limit/sse-rate-limiter.service.ts` | ✅ 2026-11-19（工作区已接 `tryAcquireLight`，与 HTTP 共用 key；`events.gateway.ai-rate-limit.spec.ts` 4 例 + `sse-rate-limiter.service.spec.ts` 3 例；生成文档时**未提交**） |
+| TB-8 | `(conversationId, seqId)` 唯一约束 | P1-11 | `prisma/schema.prisma`、迁移 `20261119170000` | 🟡 2026-11-19（DB 唯一索引已落；发送路径为事务内递增取号、无重试循环；API 级并发用例 5.4 待补） |
 
 ### 🏅 T3 — 收口（Day 10）
 
