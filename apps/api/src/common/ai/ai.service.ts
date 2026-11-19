@@ -712,6 +712,10 @@ Return JSON format:
 
     try {
       const results = await rerankProvider.rerank(query, documents);
+      // 归属必须可见：否则 Jina / 自建 / embedding 兜底混在一起，评测无法解释差异
+      this.logger.log(
+        `[rerank] provider=${rerankProvider.name} results=${results?.length ?? 0}`,
+      );
       return results as Array<{ index: number; relevance_score: number }> | null;
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Unknown error';

@@ -124,7 +124,8 @@ export class JinaProvider implements AiProviderInstance {
     this.activeKeyIndex = 0;
     this.available = true;
     this.logger.log(
-      `🤖 Jina AI provider initialized with ${keys.length} key(s)`,
+      `🤖 Jina AI provider initialized with ${keys.length} key(s), ` +
+        `dailyLimit=${this.dailyLimit}`,
     );
   }
 

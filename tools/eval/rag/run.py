@@ -227,6 +227,11 @@ def main() -> int:
         help="同时跑 rerank=false，比较 reranker 的贡献",
     )
     parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="请求分层召回明细（需要新版后端；默认关闭）",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="只读取并校验题集，不发起请求（不需要 EVAL_TOKEN）",
@@ -301,7 +306,7 @@ def main() -> int:
         try:
             started = time.perf_counter()
             data = search(
-                args.base_url, token, item["query"], args.topk, None, debug=True
+                args.base_url, token, item["query"], args.topk, None, debug=args.debug
             )
             results, debug = split_response(data)
             row["latencyMs"] = round((time.perf_counter() - started) * 1000)
@@ -430,6 +435,7 @@ def main() -> int:
         "records": [
             {
                 "id": row["id"],
+                "input": row["query"],
                 "expect": row["expectedDocIds"][0] if row["expectedDocIds"] else "",
                 "predicted": row["retrievedDocIds"][0] if row["retrievedDocIds"] else "",
                 "correct": (
