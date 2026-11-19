@@ -334,9 +334,19 @@ jobs:
             upsert_env "APPLE_PRIVATE_KEY_BASE64" "$APPLE_PRIVATE_KEY_BASE64"
             upsert_env "GRAFANA_AUTH_SECRET"      "$GRAFANA_AUTH_SECRET"
 
-            # 3. 确保 db + redis 已就绪 (迁移前必须确保数据库运行)
-            echo "→ 确保 PostgreSQL + Redis 已就绪..."
-            docker compose -f compose.prod.yml --env-file deploy/.env.prod up -d db redis
+            # 3. 确保 db + redis + meilisearch 已就绪 (迁移前必须确保数据库运行)
+            #    兼容历史上手工 docker run 的 Meili：没有 compose label 时先移除，
+            #    数据卷 meili_data 保留，由 compose 以 512MB 限制重建。
+            if docker inspect joymini-meilisearch >/dev/null 2>&1; then
+              MEILI_PROJECT=$(docker inspect joymini-meilisearch \
+                --format '{{index .Config.Labels "com.docker.compose.project"}}' 2>/dev/null || true)
+              if [ "$MEILI_PROJECT" != "lucky" ]; then
+                echo "→ 移除手工创建的 joymini-meilisearch（保留数据卷）"
+                docker rm -f joymini-meilisearch
+              fi
+            fi
+            echo "→ 确保 PostgreSQL + Redis + Meilisearch 已就绪..."
+            docker compose -f compose.prod.yml --env-file deploy/.env.prod up -d db redis meilisearch
 
             echo "→ 等待 PostgreSQL 就绪 (最多 60s)..."
             for i in $(seq 1 30); do

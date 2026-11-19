@@ -11,6 +11,7 @@
 #   Backend:     ≤2 GB  (Node.js 1.5GB + ffmpeg 512MB)
 #   PostgreSQL:  ≤2 GB
 #   Redis:       ≤512 MB (maxmemory 400MB)
+#   Meilisearch: ≤512 MB (BM25 关键词检索)
 #   Nginx:       ≤64 MB
 #   Infinity:    ≤3 GB  (bge-m3 embedding 模型)
 #   Swap 兜底:   2 GB
@@ -133,6 +134,36 @@ services:
         ]
       interval: 5s
       timeout: 3s
+      retries: 10
+    networks: [app]
+
+  # =========================================
+  # Meilisearch (BM25 关键词检索)
+  # =========================================
+  # RAG 的 Layer 1.5：中文/英文关键词召回。
+  # 不对外暴露端口，只在 app 网络内被 backend 访问。
+  # 内存预算：512MB limit / 128MB reservation。
+  meilisearch:
+    image: getmeili/meilisearch:v1.57.0
+    container_name: joymini-meilisearch
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
+    volumes:
+      - meili_data:/meili_data
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:7700/health || exit 1"]
+      interval: 10s
+      timeout: 5s
       retries: 10
     networks: [app]
 
@@ -285,4 +316,5 @@ volumes:
   redis_data:
   ollama_data:
   nginx_cache:
+  meili_data:
   infinity_hf_cache:
