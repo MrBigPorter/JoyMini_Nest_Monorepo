@@ -159,4 +159,16 @@ registerMetric(
   'counter',
   true,
 );
+registerMetric(
+  'support_queue_waiting',
+  'Support conversations waiting for a human',
+  'gauge',
+);
+registerMetric(
+  'support_sla_breaches',
+  'Support conversations past the SLA threshold',
+  'gauge',
+);
 setGauge('ai_active_streams', {}, 0);
+setGauge('support_queue_waiting', {}, 0);
+setGauge('support_sla_breaches', {}, 0);

@@ -1066,6 +1066,8 @@
     "emptyDescription": "Choose a support ticket from the left to start responding",
     "searchPlaceholder": "Search user or keyword…",
     "filterAll": "All",
+    "queueAll": "All conversations",
+    "queueAwaiting": "Awaiting",
     "filterActive": "Active",
     "filterClosed": "Closed",
     "loading": "Loading…",

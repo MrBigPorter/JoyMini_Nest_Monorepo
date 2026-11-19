@@ -15,6 +15,7 @@ import {
   HttpException,
 } from '@nestjs/common';
 import { AiCustomerService } from './ai-customer.service';
+import { isAllowedSseType, sanitizeStepFrame } from './ai-stream-frames';
 import { CurrentUserId } from '@api/common/decorators/user.decorator';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '@api/common/jwt/jwt.guard';
@@ -202,6 +203,10 @@ export class AiCustomerController {
 
     const sendSSE = (type: string, data: any = {}) => {
       if (closed) return;
+      if (!isAllowedSseType(type)) {
+        this.logger.warn(`Dropped non-whitelisted SSE frame: ${type}`);
+        return;
+      }
       res.write(`data: ${JSON.stringify({ type, ...data })}\n\n`);
     };
 
@@ -228,7 +233,7 @@ export class AiCustomerController {
               sendSSE('token', { content: token });
             },
             onStep: (step: string, data?: any) => {
-              sendSSE('step', { step, ...data });
+              sendSSE('step', sanitizeStepFrame(step, data));
             },
             onDone: (payload?: { sources?: unknown[] }) => {
               sendSSE('done', { sources: payload?.sources ?? [] });
@@ -360,6 +365,10 @@ export class AiCustomerController {
         this.logger.log('Client disconnected from chat stream');
         return;
       }
+      if (!isAllowedSseType(type)) {
+        this.logger.warn(`Dropped non-whitelisted SSE frame: ${type}`);
+        return;
+      }
       res.write(`data: ${JSON.stringify({ type, ...data })}\n\n`);
     };
 
@@ -386,7 +395,7 @@ export class AiCustomerController {
             },
             // Graph 执行到某个步骤（正在查余额/正在调用工具等）
             onStep: (step: string, data?: any) => {
-              sendSSE('step', { step, ...data });
+              sendSSE('step', sanitizeStepFrame(step, data));
             },
             // 流正常结束
             onDone: (payload?: { sources?: unknown[] }) => {

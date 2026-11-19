@@ -1264,6 +1264,9 @@ export interface ChatConversation {
   name: string | null;
   status: number; // 1=正常 2=已关闭
   handlerId: string | null;
+  transferReason?: string | null;
+  /** 转人工排队秒数；非待接入会话为 null */
+  waitingSeconds?: number | null;
   lastMsgContent: string | null;
   lastMsgTime: number;
   lastMsgSeqId: number;
@@ -1290,6 +1293,8 @@ export interface QueryConversationsParams {
   type?: ConversationType;
   keyword?: string;
   status?: number;
+  /** awaiting=待接入；mine=我的；ai=AI 处理中 */
+  queue?: 'awaiting' | 'mine' | 'ai';
 }
 
 export interface QueryMessagesParams {
@@ -1827,7 +1832,11 @@ export interface PromptMetrics {
   evalStats: Array<{
     version: number;
     _count: { id: number };
-    _avg: { toolFailCount: number | null; latencyMs: number | null; totalTokens: number | null };
+    _avg: {
+      toolFailCount: number | null;
+      latencyMs: number | null;
+      totalTokens: number | null;
+    };
   }>;
 }
 

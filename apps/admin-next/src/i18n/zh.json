@@ -986,6 +986,8 @@
     "emptyDescription": "从左侧选择一个客服工单开始回复",
     "searchPlaceholder": "搜索用户或关键词…",
     "filterAll": "全部",
+    "queueAll": "全部会话",
+    "queueAwaiting": "待接入",
     "filterActive": "进行中",
     "filterClosed": "已关闭",
     "loading": "加载中…",
