@@ -157,4 +157,15 @@ describe('user-tools 身份边界', () => {
     expect(addressService.delete).not.toHaveBeenCalled();
     expect(addressService.resolveGeoIds).not.toHaveBeenCalled();
   });
+
+  it('归属校验：地址不属于当前用户时结构化拒绝（2.6）', async () => {
+    addressService.detail.mockRejectedValue(new Error('not found'));
+
+    const result: any = await runWithContext({ userId: 'user-A' }, () =>
+      getTool('updateAddress').invoke({ addressId: 'addr-of-user-B' } as any),
+    );
+
+    expect(JSON.parse(String(result)).error).toContain('FORBIDDEN');
+    expect(addressService.update).not.toHaveBeenCalled();
+  });
 });

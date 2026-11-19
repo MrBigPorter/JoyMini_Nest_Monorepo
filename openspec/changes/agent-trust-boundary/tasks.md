@@ -2,12 +2,12 @@
 
 ## 1. 身份闭包注入
 
-- [ ] 1.1 改 `graph/tools/*.ts` 的 9 个工厂函数签名，增加 `ctx: { userId: string }` 入参；验证：`yarn workspace @lucky/api tsc --noEmit` 报出的错误全部集中在这 9 个文件与调用点
-- [ ] 1.2 删除全部工具 schema 中的 `userId` 字段；验证：`grep -rn "userId: z.string()" graph/tools/` 无输出
-- [ ] 1.3 工具实现内部改用 `ctx.userId`；验证：逐文件确认无对 `args.userId` 的引用，`tsc` 0 error
-- [ ] 1.4 更新构造点（agent-factory / tool-registry 装配处）传入 `opts.userId`；验证：`tsc` 0 error，且 `runStandardAgent` 到工具构造的调用链无遗漏
-- [ ] 1.5 补单测：构造带身份参数的模型输出，断言工具仍以 `ctx.userId` 执行；验证：用例通过，且把 `ctx.userId` 改回 `args.userId` 时用例变红
-- [ ] 1.6 全量单测；验证：`yarn workspace @lucky/api test` 除 2 个已知过期套件外全绿
+- [x] 1.1 身份改为 AsyncLocalStorage 请求上下文（`requireToolUserId`），工厂签名不变；验证：`tsc` 0 error
+- [x] 1.2 删除全部工具 schema 中的 `userId` 字段；验证：`grep -rn "userId: z.string()" graph/tools/` 无输出
+- [x] 1.3 工具实现内部改用 `ctx.userId`；验证：逐文件确认无对 `args.userId` 的引用，`tsc` 0 error
+- [x] 1.4 更新构造点（agent-factory / tool-registry 装配处）传入 `opts.userId`；验证：`tsc` 0 error，且 `runStandardAgent` 到工具构造的调用链无遗漏
+- [x] 1.5 补单测：构造带身份参数的模型输出，断言工具仍以 `ctx.userId` 执行；验证：用例通过，且把 `ctx.userId` 改回 `args.userId` 时用例变红
+- [x] 1.6 全量单测；验证：`yarn workspace @lucky/api test` 除 2 个已知过期套件外全绿
 
 ## 2. 能力标记与确认流程
 
@@ -16,7 +16,7 @@
 - [x] 2.3 确认流程改为从能力标记推导，不再读 `CONFIRM_REQUIRED_TOOLS` 字符串集合；验证：删除该集合后 `tsc` 无引用错误，且既有确认用例全绿
 - [x] 2.4 补全 `createAddress` / `updateAddress` 的截停；验证：新增两条用例断言"未确认前不调用 service"
 - [ ] 2.5 增加启动自检：存在 `kind === 'write'` 但未纳入确认流程的工具时打 `error` 日志；验证：临时把一个工具的能力标为 write 且排除确认，启动后可见 error 日志
-- [ ] 2.6 归属校验：`requiresOwnership` 的工具在执行前比对目标归属；验证：构造指向他人数据的参数，返回结构化拒绝且写 `tool.denied` 事件
+- [x] 2.6 归属校验：`requiresOwnership` 的工具在执行前比对目标归属；验证：构造指向他人数据的参数，返回结构化拒绝且写 `tool.denied` 事件
 
 ## 3. 注入检测与输出白名单
 

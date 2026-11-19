@@ -13,6 +13,7 @@ describe('lucky-tools 身份边界', () => {
     listResults: jest.Mock;
     draw: jest.Mock;
     getTicketByOrder: jest.Mock;
+    getTicketForUser: jest.Mock;
   };
   let flashSaleService: {
     getActiveSessions: jest.Mock;
@@ -51,6 +52,7 @@ describe('lucky-tools 身份边界', () => {
         drawnAt: new Date().toISOString(),
       }),
       getTicketByOrder: jest.fn().mockResolvedValue({ hasTicket: false }),
+      getTicketForUser: jest.fn().mockResolvedValue({ id: 'ticket-1' }),
     };
     flashSaleService = {
       getActiveSessions: jest.fn().mockResolvedValue({ list: [] }),
@@ -132,5 +134,16 @@ describe('lucky-tools 身份边界', () => {
     await getTool('getActiveSessions').invoke({} as any);
 
     expect(flashSaleService.getActiveSessions).toHaveBeenCalled();
+  });
+
+  it('归属校验：ticket 不属于当前用户时结构化拒绝（2.6）', async () => {
+    luckyDrawService.getTicketForUser.mockResolvedValue(null);
+
+    const result: any = await runWithContext({ userId: 'user-A' }, () =>
+      getTool('draw').invoke({ ticketId: 'ticket-of-user-B' } as any),
+    );
+
+    expect(JSON.parse(String(result)).error).toContain('FORBIDDEN');
+    expect(luckyDrawService.draw).not.toHaveBeenCalled();
   });
 });

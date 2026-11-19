@@ -35,6 +35,7 @@ export type Stage =
   | 'llm.usage'
   | 'tool.start'
   | 'tool.end'
+  | 'tool.denied'
   | 'transfer'
   | 'chat.done'
   | 'chat.error'

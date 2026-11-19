@@ -201,6 +201,14 @@ export class LuckyDrawService {
   // =====================================================================
   // 抽奖 — 用户点击「抽一下」时
   // =====================================================================
+  /** 归属校验：只返回属于该用户的 ticket（供工具执行前检查） */
+  async getTicketForUser(userId: string, ticketId: string) {
+    return this.prisma.luckyDrawTicket.findFirst({
+      where: { id: ticketId, userId },
+      select: { id: true },
+    });
+  }
+
   async draw(userId: string, ticketId: string): Promise<DrawResult> {
     return this.prisma.$transaction(async (tx) => {
       // 1. 原子标记 ticket（防止并发重复抽）
