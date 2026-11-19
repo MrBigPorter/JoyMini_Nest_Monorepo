@@ -64,6 +64,12 @@ jobs:
           HTTP_CODE=$(echo "$RESPONSE" | tail -1)
           BODY=$(echo "$RESPONSE" | head -n -1)
           if [ "$HTTP_CODE" != "200" ]; then
+            # 凭据失效不应阻断发布流水线：降级为跳过采集，并给出明确提示。
+            if [ "$HTTP_CODE" = "401" ] || [ "$HTTP_CODE" = "403" ]; then
+              echo "::warning::Lighthouse login rejected (HTTP $HTTP_CODE). Skipping Lighthouse CI; update LIGHTHOUSE_ADMIN_USERNAME/PASSWORD secrets."
+              echo "token=SKIP" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
             echo "::error::Login failed with HTTP $HTTP_CODE: $BODY"
             echo "See read/devops/LIGHTHOUSE_CI_SETUP_CN.md for troubleshooting."
             exit 1
