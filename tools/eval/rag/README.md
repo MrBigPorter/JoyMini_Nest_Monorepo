@@ -74,3 +74,23 @@ EVAL_TOKEN=<admin-jwt> python3 tools/eval/rag/run.py
 
 结论：reranker 明显提升 top-1 精度和 MRR，代价是延迟约 1.8 倍；
 Hit@3 的 -2.5pp 来自单题波动，不应解读为系统性退化。
+
+## Faithfulness proxy（引用/数字支持）
+
+通过真实 `test-chat` 图路径拿 `answer + sources`：
+
+```bash
+tools/eval/rag/faithfulness.sh --limit 20
+```
+
+| 指标 | 结果 | 说明 |
+|---|---:|---|
+| RAG answers | 14/20（70%） | 其余题被分类到 general/coupon/order，未走 RAG |
+| citation rate | 92.9% | 回答正文引用了来源标题/docId |
+| numeric support | 70.0%（n=10） | 回答里的数字能全部在 sources 中找到 |
+| expected source hit | 100% | 期望文档出现在 sources |
+| p50 / p95 | 3760ms / 4477ms | 完整图路径 |
+
+> **这是 proxy，不是 LLM-as-Judge**：数字支持率只能抓「编造数字」，
+> 抓不到「语义歪曲」；citation rate 只证明引用了来源，不证明回答被来源支持。
+> 下一步应补 LLM judge + 人工抽检。

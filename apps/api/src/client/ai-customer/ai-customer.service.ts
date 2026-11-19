@@ -503,10 +503,8 @@ export class AiCustomerService implements OnModuleDestroy {
     const ragSources =
       (finalState?.values?.ragSources as RagCitation[] | undefined) ?? [];
 
-    // 持久化本轮 AI 对话
-    if (newMessages.length > 0) {
-      await this.aiMemoryService.saveContext(threadId, newMessages);
-    }
+    // 持久化本轮 AI 对话：跨轮状态由 Postgres checkpointer 负责；
+    // IM 消息由 AiReplyPublisher 写入 ChatMessage（这里不再维护 ai:hot 缓存）。
 
     // 先判定走向，再执行副作用；最后统一记一条 chat.done。
     const transferred = Boolean(finalState?.values?.transferToHuman);
@@ -929,6 +927,7 @@ export class AiCustomerService implements OnModuleDestroy {
     const response: TestChatResult = {
       intent: result.intent ?? '',
       agentOutput,
+      sources: result.ragSources ?? [],
     };
     if (debug) {
       response.debug = result.debugInfo ?? undefined;
