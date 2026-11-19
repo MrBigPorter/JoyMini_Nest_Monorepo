@@ -1,13 +1,15 @@
 name: Deploy Frontend Blog to ECS
 
+# 已停用（2026-11-19）：ECS 管线不再使用。
+# 自动 push 触发已注释，避免 main 合并时产生必然失败的 ECS 部署。
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'apps/frontend-blog/**'
-      - 'packages/**'
-      - 'apps/frontend-blog/Dockerfile'
-      - '.github/workflows/deploy-frontend-blog.yml'
+  # push:
+  #   branches: [main]
+  #   paths:
+  #     - 'apps/frontend-blog/**'
+  #     - 'packages/**'
+  #     - 'apps/frontend-blog/Dockerfile'
+  #     - '.github/workflows/deploy-frontend-blog.yml'
   workflow_dispatch:
 
 env:
