@@ -20,7 +20,7 @@
 |---|---:|---|
 | **自评口径**（#86 / #85 / #97） | **56-60** | 按「能力是否存在」计分，部分能力按设计文档计入 |
 | **证据口径（基线）** | **46** | 2026-11-19 修复前的代码证据分 |
-| **证据口径（当前）** | **56** | 完成全部 P0 + 单飞/认证/CI/HNSW/RAG 评测/指标账本后，按同一 rubric 重算 |
+| **证据口径（当前）** | **57** | 完成全部 P0 + 单飞/认证/CI/HNSW/RAG 评测/指标账本/引用回填后，按同一 rubric 重算 |
 | **8 周后目标（证据口径）** | **58-64** | 对应自评口径约 **70-72** |
 | **面试进面线** | 65（自评口径） | 结论：**已经可以拿出去，但要带着「已知差距」讲** |
 
@@ -29,7 +29,7 @@
 > 修复后差距缩小到约 5-9 分，剩余主要来自「长期记忆/多实例/检索评测/指标」。
 > **面试时用证据口径，主动说出差距**，比被问穿更可信。
 
-**截至 2026-11-19 的进展**：全部 P0 已完成（RAG Layer2、意图阈值、7 个工具文件身份注入、CI 硬门禁、取消信号管道、HNSW + 队列重试、RAG 检索评测），以及 P1-1（Socket 同会话单飞）、P1-3（`/metrics` + token 日账本 + 日配额）、P1-9（OTP 手机号绑定）、P1-10（确认 token 原子鉴权）。实测：意图 63 题 **68.2% / macro-F1 68.6%**；RAG 40 题 **Hit@1 82.5% / Hit@3 97.5% / MRR 0.898**；真实链路 8 次对话落库 **9198 tokens**，`/metrics` 同步可见。剩余主要项：P1-2 Redis Socket adapter、P1-5 记忆持久化、P1-6 引用回填、P1-7 转人工 SLA UI、P1-8 流式帧白名单。
+**截至 2026-11-19 的进展**：全部 P0 已完成（RAG Layer2、意图阈值、7 个工具文件身份注入、CI 硬门禁、取消信号管道、HNSW + 队列重试、RAG 检索评测），以及 P1-1（Socket 同会话单飞）、P1-3（`/metrics` + token 日账本 + 日配额）、P1-6（RAG 引用回填）、P1-9（OTP 手机号绑定）、P1-10（确认 token 原子鉴权）。实测：意图 63 题 **68.2% / macro-F1 68.6%**；RAG 40 题 **Hit@1 82.5% / Hit@3 97.5% / MRR 0.898**；真实 RAG 回答已把 3 条引用写入 `ChatMessage.meta.sources`；8 次对话落库 **9198 tokens**。剩余主要项：P1-2 Redis Socket adapter、P1-5 记忆持久化、P1-7 转人工 SLA UI、P1-8 流式帧白名单、P1-6 的 rerank 评测。
 
 ### 0.2 与淘宝 / 京东的关系
 
@@ -47,7 +47,7 @@
 1. 全链路跑得通：意图 → 多意图编排 → 35 个业务工具 → 两阶段确认 → 转人工 → 知识库版本切换。
 2. 真正强的是：写操作安全、转人工闭环、KB 版本化、传输层限流与结构化日志。
 3. 真正弱的是：Agent 编排是串行、重启失忆、多实例失真、没有指标端点；RAG Layer2 与工具身份已在 2026-11-19 修复。
-4. P0 全部完成 + 3 个 P1；下一步是指标端点、记忆持久化与多实例广播。
+4. P0 全部完成 + 5 个 P1（含引用回填）；下一步是记忆持久化、多实例广播与 SLA UI。
 
 ---
 
@@ -129,7 +129,7 @@ LangGraph（customer.graph.ts:146-186）
 | # | 维度 | 权重 | 分数 | 判定 | 关键证据 | 一句话风险 |
 |:--:|---|---:|---:|:--:|---|---|
 | A | 意图理解与路由 | 12 | **60** | 及格 | 63 条 golden，2026-11-19 回放 accuracy 68.2%、macro-F1 68.6%；阈值已统一到 `intent-thresholds.ts`，0.5-0.7 降级有 warn | 准确率仍低于理想线，需继续调融合/例句 |
-| B | RAG 与引用 | 15 | **60** | 及格 | Layer2 已修 + 回归测试；HNSW 索引已加；40 题实测 Hit@1 82.5% / Hit@3 97.5% / MRR 0.898（[README](../../tools/eval/rag/README.md)）；仍无结构化引用回填 | RAG 有数字了，但引用回填与幻觉率仍缺 |
+| B | RAG 与引用 | 15 | **70** | 及格 | Layer2 已修 + 回归；HNSW；40 题 Hit@1 82.5% / Hit@3 97.5% / MRR 0.898；RAG 回答把 3 条引用写入 `ChatMessage.meta.sources`（docId/title/score/预览） | faithfulness 与 rerank 贡献度未单独评测 |
 | C | Agent 规划与编排 | 12 | **40** | 原型 | 2 节点图；串行 for；`MAX_ITERATIONS=3`（[constants.ts:6](../../apps/api/src/client/ai-customer/graph/constants.ts#L6)）；无 supervisor/reroute | 无法支撑「多 Agent 协作」叙事 |
 | D | 工具权限与注入防护 | 12 | **70** | 及格 | 35 个工具；7 个文件身份改为请求上下文注入；写工具双闸门 + OTP；确认 token 改为 Lua 先鉴权后删除 | 仍缺能力标记/输入注入检测 |
 | E | 会话状态与记忆 | 10 | **25** | 缺失 | `MemorySaver`（[customer.graph.ts:185](../../apps/api/src/client/ai-customer/graph/customer.graph.ts#L185)）；`ai:hot:` 只有写没有读（[ai-memory.service.ts:152-166](../../apps/api/src/common/ai/ai-memory.service.ts#L152-L166)） | 重启失忆、多副本不一致 |
@@ -139,7 +139,7 @@ LangGraph（customer.graph.ts:146-186）
 | I | 质量工程与 CI | 8 | **55** | 原型 | 47 个 spec / 452 tests 全绿；API lint 0 error；CI 已把 API lint + 单测转硬门禁（[ci.yml:98-121](../../.github/workflows/ci.yml#L98-L121)） | 仍无 AI e2e 门禁；覆盖率未统计 |
 | J | 文档与可复现 | 5 | **45** | 原型 | 文档量大；6 个 OpenSpec change 勾选 0%，任务清单严重滞后 | 文档会反噬：声称的能力被代码打脸 |
 
-**加权合计：55.8 ≈ 56 / 100（基线 46）。**
+**加权合计：57.2 ≈ 57 / 100（基线 46）。**
 
 > 分数不是目的。它的用途只有一个：**告诉你哪一维最值得先花时间**——E（记忆 25）和 H（可观测/成本 30）是现在杠杆最大的两个洞；B 已从 30 修到 45，但检索评测仍缺。
 
@@ -331,13 +331,13 @@ LangGraph（customer.graph.ts:146-186）
 | P1-3 | `/metrics` + token 用量表 + 用户日配额 | 2-3d | 4 个黄金信号可查；超配额拦截率 100% | 中 |
 | P1-4 | prompt resolver 缓存 + LLM 结果缓存 | 1-2d | 每轮 DB 查询下降；同 prompt P95 下降 | 低 |
 | P1-5 | 记忆持久化影子双写 | 3-5d | 重启连续性 100%；影子回放一致率 | **高**（先影子，不切主链路） |
-| P1-6 | 引用回填 + rerank 评测 | 2-3d | 引用覆盖率、faithfulness、MRR | 中 |
+| P1-6 | 引用回填 + rerank 评测 | 2-3d | 引用覆盖率、faithfulness、MRR | 中 | **引用回填已完成**；rerank 评测待做 |
 | P1-7 | 转人工 SLA cron + admin 队列 UI | 1.5d | 超时升级可演示；「待接入」列表可用 | 低 |
 | P1-8 | 流式帧白名单 | 0.5d | 内部决策 JSON 不出网；协议单测 | 低 |
 | P1-9 | 提现 OTP 手机号改为服务端绑定 | 0.5-1d | 模型传任意 phone 被忽略；OTP 只发绑定号码 | 低 |
 | P1-10 | action-confirm token 原子鉴权 | 0.5d | 先校验 userId 再 getDel（Lua）；他人 token 无法被消费 | 低 |
 
-**状态（2026-11-19）**：P1-1（单飞）、P1-3（指标/账本/配额）、P1-9（OTP 手机号）、P1-10（token 原子鉴权）已完成；P1-2 / P1-5 / P1-6 / P1-7 / P1-8 待做。
+**状态（2026-11-19）**：P1-1（单飞）、P1-3（指标/账本/配额）、P1-6（引用回填，rerank 评测待做）、P1-9（OTP 手机号）、P1-10（token 原子鉴权）已完成；P1-2 / P1-5 / P1-7 / P1-8 待做。
 
 ### 8.4 P2（W7-W8 + 之后，加分项）
 
@@ -389,7 +389,8 @@ P1-5 先影子，观察 1 周再切
 - `yarn workspace @lucky/api lint` → **0 errors / 139 warnings**
 - `bash tools/eval/run-replay.sh` → **accuracy 68.2% / macro-F1 68.6%（43/63）**，与基线一致
 - `bash tools/eval/rag/run-replay.sh` → **Hit@1 82.5% / Hit@3 97.5% / MRR 0.898；p50 751ms / p95 858ms**（40 题；domain 过滤 Hit@1 92.5% / MRR 0.956）
-- `curl /api/v1/metrics` + 真实 e2e 8 次对话 → `ai_chat_requests_total{outcome="success"} 8`、`ai_llm_tokens_total{type="total"} 9198`；`ai_usage_daily` 落库同值（8300 prompt + 898 completion）
+- `curl /api/v1/metrics` + 真实 e2e 8 次对话 → `ai_chat_requests_total{outcome="success"} 8`、`ai_llm_tokens_total{type="total"} 9174`；`ai_usage_daily` 落库同值
+- 真实 RAG 回答 → `ChatMessage.meta.sources` 含 3 条引用（`refund-policy` ×2、`return-shipping-faq` ×1），回答正文带「依据《Refund Policy》」
 - HNSW 索引已在本地库确认：`idx_document_chunks_embedding_hnsw`（`hnsw (embedding vector_cosine_ops)`）
 
 ### 9.2 指标口径（面试直接引用）
@@ -406,7 +407,9 @@ P1-5 先影子，观察 1 周再切
 | 取消后 token 增量 | 显式取消后仍产生的 completion tokens | 管道已铺，未接生产 | 0 |
 | 同会话并发 LLM 数 | 同 conversation 同时执行的图数 | **1（单飞后）** | 1 |
 | 每轮 prompt DB 查询 | prompt resolver 查库次数 | 每 agent 每轮 1 次 | 0（缓存） |
-| token 日账本 | `ai_usage_daily` 是否记录 | **已验证（9198 tokens / 8 次）** | 100% |
+| token 日账本 | `ai_usage_daily` 是否记录 | **已验证（18372 tokens / 16 次）** | 100% |
+| 引用覆盖率 | RAG 回答是否带 `meta.sources` | **已验证（3 条引用落库）** | 100% |
+| 引用 faithfulness | 回答是否被 sources 支持 | 未测 | 建评测 |
 | 日配额 | `AI_DAILY_TOKEN_LIMIT` 超限拦截 | 单测覆盖；超限走转人工 | 100% |
 | 指标端点 | `/api/v1/metrics` 可抓取 | **已验证** | 持续可抓 |
 | 成本/会话 | token × 单价 | **可查询（ai_usage_daily）** | 可查询 |
@@ -437,8 +440,8 @@ P1-5 先影子，观察 1 周再切
 
 | 类别 | 内容 | 表述方式 |
 |---|---|---|
-| **能说「已实现」** | 写操作双闸门 + OTP 原子核销；转人工闭环 + CAS 认领 + 10 分钟懒回收；KB 版本化 + CAS 回滚 + 双写；SSE 两阶段 + 五层限流 + 熔断；提现资金状态机；63 题意图 golden（68.2%）；**RAG 40 题 Hit@1 82.5% / Hit@3 97.5% / MRR 0.898**；**Prometheus `/metrics` + token 日账本 + 日配额**；traceId 结构化日志；**7 域工具身份注入**；**Socket 同会话单飞**；**API lint/单测硬门禁（50 suites / 462 tests）**；**OTP 手机号服务端绑定**；**确认 token 原子鉴权** | 讲约束、失败模式、单测怎么钉住顺序 |
-| **只能限定说** | 多标签融合（仅 top1-top2<0.05 问 LLM，非并行）；四路 RAG（Layer2 已修，40 题 Hit@3 97.5%，但引用回填缺）；编排式 Agent（2 节点，非多 Agent 协作）；记忆（单实例 MemorySaver）；可观测（有 `/metrics` 与 token 账本，缺仪表盘/告警/缓存）；多实例（Socket 无 Redis adapter）；取消（管道已铺，生产未接）；配额（单测覆盖，未 e2e） | 「已实现 X，边界是 Y，下一步用 Z 指标验证」 |
+| **能说「已实现」** | 写操作双闸门 + OTP 原子核销；转人工闭环 + CAS 认领 + 10 分钟懒回收；KB 版本化 + CAS 回滚 + 双写；SSE 两阶段 + 五层限流 + 熔断；提现资金状态机；63 题意图 golden（68.2%）；**RAG 40 题 Hit@1 82.5% / Hit@3 97.5% / MRR 0.898**；**RAG 引用回填到 `ChatMessage.meta.sources`**；**Prometheus `/metrics` + token 日账本 + 日配额**；traceId 结构化日志；**7 域工具身份注入**；**Socket 同会话单飞**；**API lint/单测硬门禁（52 suites / 465 tests）**；**OTP 手机号服务端绑定**；**确认 token 原子鉴权** | 讲约束、失败模式、单测怎么钉住顺序 |
+| **只能限定说** | 多标签融合（仅 top1-top2<0.05 问 LLM，非并行）；四路 RAG（Layer2 已修，40 题 Hit@3 97.5%，引用已回填，但 faithfulness 未测）；编排式 Agent（2 节点，非多 Agent 协作）；记忆（单实例 MemorySaver）；可观测（有 `/metrics` 与 token 账本，缺仪表盘/告警/缓存）；多实例（Socket 无 Redis adapter）；取消（管道已铺，生产未接）；配额（单测覆盖，未 e2e） | 「已实现 X，边界是 Y，下一步用 Z 指标验证」 |
 | **必须改口** | 「多 Agent 协作」→「编排式 Agent 骨架」；「企业级」→「工程化原型 + 已量化差距」；「意图 92%」→「自有 63 题 68.2%，与厂商口径不可比」；「全链路可观测」→「traceId 日志，指标补齐中」；「生产验证」→「单实例 + 本地容器验证」 | 主动给差距，显得可信 |
 
 ### 10.3 五个必被问的问题与答法
@@ -450,7 +453,7 @@ P1-5 先影子，观察 1 周再切
 > 「成本、延迟和可解释性。embedding + BM25 可以在毫秒级给出分数和分域，LLM 只做低置信度 fallback。代价是阈值和融合权重需要评测来调，所以我建了 golden。」
 
 **Q3：RAG 效果怎么样？**
-> 「40 题黄金集：Hit@1 82.5%、Hit@3 97.5%、MRR 0.898，p95 858ms；带 domain 过滤时 Hit@1 92.5%、MRR 0.956。Layer2 曾因占位符错位失效，我修复后加了回归测试，才建了这套评测。引用回填和幻觉率还没做。」
+> 「40 题黄金集：Hit@1 82.5%、Hit@3 97.5%、MRR 0.898，p95 858ms；带 domain 过滤时 Hit@1 92.5%、MRR 0.956。Layer2 曾因占位符错位失效，我修复后加了回归测试，才建了这套评测。引用已经回填到 `ChatMessage.meta.sources`，回答正文也会带『依据《Refund Policy》』；faithfulness 还没有单独评。」
 
 **Q4：Prompt injection 和越权怎么防？**
 > 「分层：system prompt 约束、工具白名单、写操作服务端确认、DTO 白名单、日志不落原文。7 个工具文件的 userId 已改为请求上下文注入，模型在 schema 里看不到；确认 token 也改成先鉴权后删除。仍缺输入注入检测与能力标记，我不会说已经全防住。」
@@ -551,6 +554,7 @@ P1-5 先影子，观察 1 周再切
 | 2026-11-19 | 63 题意图回放 68.2% / macro-F1 68.6%；47 suites / 452 tests 全绿；证据分 46 → 51 |
 | 2026-11-19 | 新增 admin RAG 检索调试接口 + 40 题检索评测：Hit@1 82.5% / Hit@3 97.5% / MRR 0.898；证据分 51 → 54 |
 | 2026-11-19 | 新增 `/metrics`、`ai_usage_daily` token 日账本、用户日配额；e2e 8 次对话落库 9198 tokens；证据分 54 → 56 |
+| 2026-11-19 | RAG 引用回填：orchestrator 写入 ragSources，SSE onDone 带 sources，ChatMessage.meta.sources 持久化；真实回答验证 3 条引用；证据分 56 → 57 |
 
 ---
 
