@@ -70,13 +70,13 @@
 
 | # | 任务 | #85 ID | 文件 | 状态 |
 |:--:|---|:--:|---|:--:|
-| T2-1 | 转人工：词边界匹配 + 情绪分级 + 工单写入 + 消费者 | P1-19 | `transfer-detector.ts`、新增 admin 消费者 | ☐ |
+| T2-1 | 转人工：词边界匹配 + 情绪分级 + 工单写入 + 消费者 | P1-19 | `transfer-detector.ts`、新增 admin 消费者 | ✅ 2026-11-19（强/弱负面分级 + SupportQueueChanged 事件消费者；见 #98） |
 | T2-2 | 意图阈值统一为单一常量 + 融合后再过滤 | P1-20 | `intent-classifier.ts`、`intent-router.node.ts`、`orchestrator.node.ts` | ✅ 2026-11-19（常量收口 + 门槛移到融合后；回放 83.7%→84.3%，rag 精确率 78.6%→80.0%） |
 | T2-3 | RAG：中文分词 + Layer 2 占位符 + 向量相关性门槛 | P1-21 | `rag-retrieval.service.ts` | ☐ |
 | T2-4 | 流式白名单：帧类型白名单 + `step` 帧字段白名单（非「只转发最终文本」） | P1-22 | `ai-stream-frames.ts`、`ai-customer.controller.ts` | ✅ 2026-11-19（5 类帧 + `step/content/tool`；`ai-stream-frames.spec.ts` 9 例；开关 `AI_STREAM_FRAME_WHITELIST_ENABLED` 默认开启） |
 | T2-5 | **转人工闭环**：admin「待接入」列表 + 订阅 `AI_TRANSFER` 通知 + 超时定时回收（现在只在用户下条消息时懒判定） | N-13 / N-14 | `admin/chat/`、`admin-next/.../customer-service/`、新增 cron | ✅ 2026-11-19（S1/S2 + S3 实时推送 + S4 空闲回收；见 [#98 §14](./AI-joymini/98-转人工闭环-SDD.md)） |
 | T2-6 | **模型兜底**：`timeout 15s + maxRetries 1`；`degradeToHuman` 落固定话术 + 置 `awaiting_human` + 发 `AI_TRANSFER` + 记 `transfer{source:fallback}`；测试用故障注入（`__CHAOS__` 前缀 + Redis 开关，生产隔离） | N-15 | `graph/llm-factory.ts`、新增 `ai-failure-handler.ts` | ✅ 2026-11-12（单测 5 例 + E2E 第 9 场景实测，全套 9/9 PASS） |
-| T2-7 | **成本限额**：按天聚合客服 token，超阈值降级转人工 + 记 `cost.guard`（复用 blog budget 写法） | N-16 | `ai-customer.service.ts`、新增 cost-guard | ☐ |
+| T2-7 | **成本限额**：按天聚合客服 token，超阈值降级转人工 + 记 `cost.guard`（复用 blog budget 写法） | N-16 | `ai-customer.service.ts`、新增 cost-guard | ✅ 2026-11-19（日累计 + 会话累计两级配额，超限走 quota_exceeded 降级；见 reliable-ai-runtime 5.x） |
 
 ### 🛡️ T2.5 — 信任边界（agent-trust-boundary，规格见 `openspec/changes/agent-trust-boundary/`）
 
@@ -92,14 +92,14 @@
 | TB-5 | SSE 帧白名单（类型 + `step` 字段） | P1-22 | `ai-stream-frames.ts`、`ai-customer.controller.ts` | ✅ 2026-11-19（见 T2-4） |
 | TB-6 | 同会话单飞：进程内队列 + Redis `SET NX PX` 锁，异常路径释放 | P1-3 | `ai-message.listener.ts`、`redis-lock.service.ts` | ✅ 2026-11-19（`ai-message.listener.spec.ts` 4 例；超时有界等待后 warn 放弃） |
 | TB-7 | Socket 触发 AI 入口复用 SSE 令牌桶 | P1-3 | `events.gateway.ts`、`common/rate-limit/sse-rate-limiter.service.ts` | ✅ 2026-11-19（工作区已接 `tryAcquireLight`，与 HTTP 共用 key；`events.gateway.ai-rate-limit.spec.ts` 4 例 + `sse-rate-limiter.service.spec.ts` 3 例；生成文档时**未提交**） |
-| TB-8 | `(conversationId, seqId)` 唯一约束 | P1-11 | `prisma/schema.prisma`、迁移 `20261119170000` | 🟡 2026-11-19（DB 唯一索引已落；发送路径为事务内递增取号、无重试循环；API 级并发用例 5.4 待补） |
+| TB-8 | `(conversationId, seqId)` 唯一约束 | P1-11 | `prisma/schema.prisma`、迁移 `20261119170000` | ✅ 2026-11-19（DB 唯一索引 + `scripts/e2e-message-seq.js` 并发实测：两条消息 seq 不同且都落库） |
 
 ### 🏅 T3 — 收口（Day 10）
 
 | # | 任务 | #85 ID | 状态 |
 |:--:|---|:--:|:--:|
-| T3-1 | 3 个集成测试：转人工 / 确认卡片 / RAG 降级 | P1-25 | ☐ |
-| T3-2 | 复跑 golden set，出「改前 vs 改后」对比表 | — | ✅ 2026-11-19（153 题 55.6% → 84.3%，McNemar p<0.0001；见 [#100](./AI-joymini/100-意图评测扩容与中文召回修复.md)） |
+| T3-1 | 3 个集成测试：转人工 / 确认卡片 / RAG 降级 | P1-25 | 🟡 2026-11-19（转人工 + RAG 降级已有 `scripts/ai-e2e-smoke.sh`；确认卡片尚未脚本化） |
+| T3-2 | 复跑 golden set，出「改前 vs 改后」对比表 | — | ✅ 2026-11-19（153 题 55.6% → 86.9%；见 [#100](./AI-joymini/100-意图评测扩容与中文召回修复.md)、[#101](./AI-joymini/101-意图阈值收口与融合顺序修正.md)） |
 | T3-3 | 更新 #86 §10 进度追踪（填真实分数） | — | ☐ |
 
 ### 🧊 T4 — 有余力再做
