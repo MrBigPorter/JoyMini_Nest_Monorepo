@@ -36,6 +36,7 @@ export type Stage =
   | 'tool.start'
   | 'tool.end'
   | 'tool.denied'
+  | 'injection.detected'
   | 'transfer'
   | 'chat.done'
   | 'chat.error'
