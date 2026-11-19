@@ -29,7 +29,7 @@
 > 修复后差距缩小到约 5-9 分，剩余主要来自「长期记忆/多实例/检索评测/指标」。
 > **面试时用证据口径，主动说出差距**，比被问穿更可信。
 
-**截至 2026-11-19 的进展**：全部 P0 已完成，以及 P1-1（Socket 同会话单飞）、P1-2（Socket.IO Redis adapter + 双实例 e2e）、P1-3（`/metrics` + token 日账本 + 日配额）、P1-5（Postgres checkpointer 记忆持久化）、P1-6（RAG 引用回填 + rerank + faithfulness proxy）、P1-7（转人工队列 UI + SLA 指标）、P1-8（SSE 帧白名单）、P1-9（OTP 手机号绑定）、P1-10（确认 token 原子鉴权）。实测：意图 63 题 **68.2% / macro-F1 68.6%**；RAG 40 题 **Hit@1 85.0% / Hit@3 95.0% / MRR 0.902**；rerank **+7.5pp Hit@1**、p50 +334ms；faithfulness proxy **citation 92.9% / numeric support 70% / expected source 100%**；8 次对话落库 **9198 tokens**；**双实例 e2e PASS**；**重启后同 thread 仍记得上一轮问题**。剩余主要项：LLM-as-Judge、指标看板、flowState 接线。
+**截至 2026-11-19 的进展**：全部 P0 已完成，以及 P1-1（Socket 同会话单飞）、P1-2（Socket.IO Redis adapter + 双实例 e2e）、P1-3（`/metrics` + token 日账本 + 日配额）、P1-5（Postgres checkpointer 记忆持久化）、P1-6（RAG 引用回填 + rerank + faithfulness proxy + LLM-as-Judge）、P1-7（转人工队列 UI + SLA 指标）、P1-8（SSE 帧白名单）、P1-9（OTP 手机号绑定）、P1-10（确认 token 原子鉴权）。实测：意图 63 题 **68.2% / macro-F1 68.6%**；RAG 40 题 **Hit@1 85.0% / Hit@3 95.0% / MRR 0.902**；rerank **+7.5pp Hit@1**；faithfulness **LLM judge 5/6（83.3%）、avg 0.93**；8 次对话落库 **9198 tokens**；**双实例 e2e PASS**；**重启后同 thread 仍记得上一轮问题**。剩余主要项：指标看板、flowState 接线。
 
 ### 0.2 与淘宝 / 京东的关系
 
@@ -47,7 +47,7 @@
 1. 全链路跑得通：意图 → 多意图编排 → 35 个业务工具 → 两阶段确认 → 转人工 → 知识库版本切换。
 2. 真正强的是：写操作安全、转人工闭环、KB 版本化、传输层限流与结构化日志。
 3. 真正弱的是：Agent 编排是串行、重启失忆、多实例失真、没有指标端点；RAG Layer2 与工具身份已在 2026-11-19 修复。
-4. P0 全部完成 + 10 个 P1；下一步是 LLM-as-Judge、指标看板与 flowState 接线。
+4. P0 全部完成 + 10 个 P1；下一步是指标看板与 flowState 接线。
 
 ---
 
@@ -129,7 +129,7 @@ LangGraph（customer.graph.ts:146-186）
 | # | 维度 | 权重 | 分数 | 判定 | 关键证据 | 一句话风险 |
 |:--:|---|---:|---:|:--:|---|---|
 | A | 意图理解与路由 | 12 | **60** | 及格 | 63 条 golden，2026-11-19 回放 accuracy 68.2%、macro-F1 68.6%；阈值已统一到 `intent-thresholds.ts`，0.5-0.7 降级有 warn | 准确率仍低于理想线，需继续调融合/例句 |
-| B | RAG 与引用 | 15 | **74** | 及格 | Layer2 已修 + 回归；HNSW；40 题 Hit@1 85.0% / Hit@3 95.0% / MRR 0.902；rerank 对比 +7.5pp Hit@1；引用回填；faithfulness proxy：citation 92.9% / numeric support 70% / expected source 100% | LLM-as-Judge 未做；numeric support 仍有 30% 不匹配 |
+| B | RAG 与引用 | 15 | **78** | 及格 | Layer2 已修 + 回归；HNSW；40 题 Hit@1 85.0% / Hit@3 95.0% / MRR 0.902；rerank +7.5pp Hit@1；引用回填；faithfulness proxy citation 92.9% / numeric 70%；**LLM-as-Judge 5/6 faithful（83.3%）、avg score 0.93** | LLM judge 本身需人工抽检；r01 被判 0.6 |
 | C | Agent 规划与编排 | 12 | **40** | 原型 | 2 节点图；串行 for；`MAX_ITERATIONS=3`（[constants.ts:6](../../apps/api/src/client/ai-customer/graph/constants.ts#L6)）；无 supervisor/reroute | 无法支撑「多 Agent 协作」叙事 |
 | D | 工具权限与注入防护 | 12 | **70** | 及格 | 35 个工具；7 个文件身份改为请求上下文注入；写工具双闸门 + OTP；确认 token 改为 Lua 先鉴权后删除 | 仍缺能力标记/输入注入检测 |
 | E | 会话状态与记忆 | 10 | **68** | 及格 | Postgres checkpointer 持久化 thread 状态；跨重启实测同 thread 记得上一轮问题；失败降级 MemorySaver；`ai:hot` 死缓存已删除，避免双记忆源 | checkpointer 表不由 Prisma 迁移管理；flowState 仍未接线 |
@@ -139,7 +139,7 @@ LangGraph（customer.graph.ts:146-186）
 | I | 质量工程与 CI | 8 | **58** | 原型 | 54 个 spec / 474 tests 全绿；API lint 0 error；API lint + 单测硬门禁；SSE step 帧白名单单测 | 仍无 AI e2e 门禁；覆盖率未统计 |
 | J | 文档与可复现 | 5 | **45** | 原型 | 文档量大；6 个 OpenSpec change 勾选 0%，任务清单严重滞后 | 文档会反噬：声称的能力被代码打脸 |
 
-**加权合计：64.4 ≈ 64 / 100（基线 46）。**
+**加权合计：65.0 ≈ 65 / 100（基线 46）。**
 
 > 分数不是目的。它的用途只有一个：**告诉你哪一维最值得先花时间**——E（记忆 25）和 H（可观测/成本 30）是现在杠杆最大的两个洞；B 已从 30 修到 45，但检索评测仍缺。
 
@@ -331,13 +331,13 @@ LangGraph（customer.graph.ts:146-186）
 | P1-3 | `/metrics` + token 用量表 + 用户日配额 | 2-3d | 4 个黄金信号可查；超配额拦截率 100% | 中 |
 | P1-4 | prompt resolver 缓存 + LLM 结果缓存 | 1-2d | 每轮 DB 查询下降；同 prompt P95 下降 | 低 |
 | P1-5 | 记忆持久化（Postgres checkpointer） | 3-5d | 重启连续性 100%；跨重启上下文恢复 | **高**（已完成直接切换 + 失败降级；影子回放未做） |
-| P1-6 | 引用回填 + rerank/faithfulness 评测 | 2-3d | 引用覆盖率、faithfulness、MRR | 中 | **已完成**：引用回填 + rerank 对比 + faithfulness proxy；LLM-as-Judge 待做 |
+| P1-6 | 引用回填 + rerank/faithfulness 评测 | 2-3d | 引用覆盖率、faithfulness、MRR | 中 | **已完成**：引用回填 + rerank 对比 + faithfulness proxy + LLM-as-Judge |
 | P1-7 | 转人工 SLA cron + admin 队列 UI | 1.5d | 超时升级可演示；「待接入」列表可用 | 低 | **已完成**：待接入 tab + 等待时长 + 每分钟 SLA 指标 |
 | P1-8 | 流式帧白名单 | 0.5d | 内部决策 JSON 不出网；协议单测 | 低 | **已完成**：SSE 类型/step 字段白名单 + 单测 |
 | P1-9 | 提现 OTP 手机号改为服务端绑定 | 0.5-1d | 模型传任意 phone 被忽略；OTP 只发绑定号码 | 低 |
 | P1-10 | action-confirm token 原子鉴权 | 0.5d | 先校验 userId 再 getDel（Lua）；他人 token 无法被消费 | 低 |
 
-**状态（2026-11-19）**：P1-1（单飞）、P1-2（Redis adapter + 双实例 e2e）、P1-3（指标/账本/配额）、P1-5（Postgres checkpointer）、P1-6（引用回填 + rerank/faithfulness proxy）、P1-7（队列 UI + SLA）、P1-8（帧白名单）、P1-9（OTP 手机号）、P1-10（token 原子鉴权）已完成；剩余 LLM-as-Judge、指标看板与 flowState 接线。
+**状态（2026-11-19）**：P1-1（单飞）、P1-2（Redis adapter + 双实例 e2e）、P1-3（指标/账本/配额）、P1-5（Postgres checkpointer）、P1-6（引用回填 + rerank + faithfulness judge）、P1-7（队列 UI + SLA）、P1-8（帧白名单）、P1-9（OTP 手机号）、P1-10（token 原子鉴权）已完成；剩余指标看板与 flowState 接线。
 
 ### 8.4 P2（W7-W8 + 之后，加分项）
 
@@ -391,6 +391,7 @@ P1-5 先影子，观察 1 周再切
 - `bash tools/eval/rag/run-replay.sh` → **Hit@1 82.5% / Hit@3 97.5% / MRR 0.898；p50 751ms / p95 858ms**（40 题；domain 过滤 Hit@1 92.5% / MRR 0.956）
 - `bash tools/eval/rag/run-replay.sh --compare-rerank` → rerank=true **Hit@1 85.0% / Hit@3 95.0% / MRR 0.902 / p50 762ms**；rerank=false **77.5% / 97.5% / 0.877 / p50 428ms**；差值 **Hit@1 +7.5pp / Hit@3 -2.5pp / MRR +0.025 / p50 +334ms**（Hit@3 差异来自单题波动）
 - `bash tools/eval/rag/faithfulness.sh --limit 20` → RAG answers **14/20**；citation **92.9%**；numeric support **70.0%（n=10）**；expected source **100%**；p50 3760ms / p95 4477ms（proxy，非 LLM-as-Judge）
+- `bash tools/eval/rag/faithfulness-llm.sh --limit 10` → RAG answers **6/10**；judged 6；faithful **5/6（83.3%）**；avg score **0.93**；judge errors **0**；p50 4279ms / p95 5489ms
 - `curl /api/v1/metrics` + 真实 e2e 8 次对话 → `ai_chat_requests_total{outcome="success"} 8`、`ai_llm_tokens_total{type="total"} 9174`；`ai_usage_daily` 落库同值
 - 真实 RAG 回答 → `ChatMessage.meta.sources` 含 3 条引用（`refund-policy` ×2、`return-shipping-faq` ×1），回答正文带「依据《Refund Policy》」
 - Socket.IO Redis adapter → 双实例 e2e **PASS**：`docker exec -w /app lucky-backend-dev node scripts/e2e-socket-multi-instance.js`，客户端 A 连 3000、B 连 3001，A 发消息后 B 收到；两实例 pub/sub 订阅数 = 2
@@ -418,7 +419,7 @@ P1-5 先影子，观察 1 周再切
 | 引用率 | RAG 回答正文引用来源标题/docId | **92.9%（13/14）** | ≥95% |
 | 数字支持率 | 回答数字都能在 sources 中找到 | **70.0%（n=10）** | ≥95% |
 | 期望来源命中 | 期望文档出现在 sources | **100%** | 100% |
-| 引用 faithfulness | LLM-as-Judge 评估回答是否被 sources 支持 | proxy 已做；judge 未做 | 建 LLM judge |
+| 引用 faithfulness | LLM-as-Judge 评估回答是否被 sources 支持 | **5/6 faithful（83.3%）；avg score 0.93；0 judge error** | ≥90% |
 | Rerank 贡献 | 同批题 rerank on/off 的 Hit@1/MRR/p50 差值 | **Hit@1 +7.5pp, MRR +0.025, p50 +334ms** | 保持正收益 |
 | 日配额 | `AI_DAILY_TOKEN_LIMIT` 超限拦截 | 单测覆盖；超限走转人工 | 100% |
 | 指标端点 | `/api/v1/metrics` 可抓取 | **已验证** | 持续可抓 |
@@ -454,8 +455,8 @@ P1-5 先影子，观察 1 周再切
 
 | 类别 | 内容 | 表述方式 |
 |---|---|---|
-| **能说「已实现」** | 写操作双闸门 + OTP 原子核销；**转人工闭环 + admin 待接入队列 + SLA 指标**；KB 版本化 + CAS 回滚 + 双写；SSE 两阶段 + 五层限流 + 熔断 + **帧白名单**；提现资金状态机；63 题意图 golden（68.2%）；**RAG 40 题 Hit@1 85.0% / Hit@3 95.0% / MRR 0.902，rerank 对比 +7.5pp Hit@1**；**RAG 引用回填 + faithfulness proxy（citation 92.9% / numeric 70%）**；**Prometheus `/metrics` + token 日账本 + 日配额**；**Postgres checkpointer（跨重启上下文恢复）**；traceId 结构化日志；**7 域工具身份注入**；**Socket 同会话单飞**；**Socket.IO Redis adapter + 双实例 e2e**；**API lint/单测硬门禁（54 suites / 476 tests）**；**OTP 手机号服务端绑定**；**确认 token 原子鉴权** | 讲约束、失败模式、单测怎么钉住顺序 |
-| **只能限定说** | 多标签融合（仅 top1-top2<0.05 问 LLM，非并行）；四路 RAG（Layer2 已修，40 题 Hit@3 95.0%，rerank 有 on/off 对比，引用已回填，faithfulness 是 proxy、numeric 70%，LLM judge 未做）；编排式 Agent（2 节点，非多 Agent 协作）；记忆（checkpointer 已持久化，`ai:hot` 已删除，flowState 未接）；可观测（有 `/metrics` 与 token 账本，缺仪表盘/告警/缓存）；多实例（adapter 与双实例 e2e 已过，Redis 故障不自动重连）；取消（管道已铺，生产未接）；配额（单测覆盖，未 e2e）；SLA（指标已暴露，未做自动升级动作） | 「已实现 X，边界是 Y，下一步用 Z 指标验证」 |
+| **能说「已实现」** | 写操作双闸门 + OTP 原子核销；**转人工闭环 + admin 待接入队列 + SLA 指标**；KB 版本化 + CAS 回滚 + 双写；SSE 两阶段 + 五层限流 + 熔断 + **帧白名单**；提现资金状态机；63 题意图 golden（68.2%）；**RAG 40 题 Hit@1 85.0% / Hit@3 95.0% / MRR 0.902，rerank +7.5pp Hit@1**；**RAG 引用回填 + faithfulness（LLM judge 5/6, avg 0.93）**；**Prometheus `/metrics` + token 日账本 + 日配额**；**Postgres checkpointer（跨重启上下文恢复）**；traceId 结构化日志；**7 域工具身份注入**；**Socket 同会话单飞**；**Socket.IO Redis adapter + 双实例 e2e**；**API lint/单测硬门禁（55 suites / 481 tests）**；**OTP 手机号服务端绑定**；**确认 token 原子鉴权** | 讲约束、失败模式、单测怎么钉住顺序 |
+| **只能限定说** | 多标签融合（仅 top1-top2<0.05 问 LLM，非并行）；四路 RAG（Layer2 已修，40 题 Hit@3 95.0%，rerank 有 on/off 对比，引用已回填，LLM judge 83.3% faithful / avg 0.93，但 judge 本身需人工抽检）；编排式 Agent（2 节点，非多 Agent 协作）；记忆（checkpointer 已持久化，`ai:hot` 已删除，flowState 未接）；可观测（有 `/metrics` 与 token 账本，缺仪表盘/告警/缓存）；多实例（adapter 与双实例 e2e 已过，Redis 故障不自动重连）；取消（管道已铺，生产未接）；配额（单测覆盖，未 e2e）；SLA（指标已暴露，未做自动升级动作） | 「已实现 X，边界是 Y，下一步用 Z 指标验证」 |
 | **必须改口** | 「多 Agent 协作」→「编排式 Agent 骨架」；「企业级」→「工程化原型 + 已量化差距」；「意图 92%」→「自有 63 题 68.2%，与厂商口径不可比」；「全链路可观测」→「traceId 日志，指标补齐中」；「生产验证」→「单实例 + 本地容器验证」 | 主动给差距，显得可信 |
 
 ### 10.3 五个必被问的问题与答法
@@ -575,6 +576,7 @@ P1-5 先影子，观察 1 周再切
 | 2026-11-19 | 双实例 Socket.IO e2e 通过（3000 → Redis → 3001）；证据分 63 → 64 |
 | 2026-11-19 | Rerank 贡献评测：Hit@1 +7.5pp / MRR +0.025 / p50 +334ms；P1-6 完成 |
 | 2026-11-19 | 删除 ai:hot 死缓存（checkpointer 为唯一记忆源）；新增 faithfulness proxy：citation 92.9% / numeric 70% / expected source 100% |
+| 2026-11-19 | 新增 LLM-as-Judge faithfulness：5/6 faithful（83.3%）、avg 0.93；证据分 64 → 65 |
 
 ---
 
