@@ -48,7 +48,7 @@ export async function handleGeneralChat(
 /**
  * handleRagQuery — 知识库检索处理器
  */
-const CITATION_PREVIEW_CHARS = 500;
+const CITATION_PREVIEW_CHARS = 1500;
 
 /** 把检索结果转成可下发/可落库的引用（内容截断，避免把整篇文档写进 meta）。 */
 export function toRagCitations(results: RetrievedChunk[]): RagCitation[] {

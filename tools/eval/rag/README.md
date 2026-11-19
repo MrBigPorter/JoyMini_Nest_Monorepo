@@ -94,3 +94,22 @@ tools/eval/rag/faithfulness.sh --limit 20
 > **这是 proxy，不是 LLM-as-Judge**：数字支持率只能抓「编造数字」，
 > 抓不到「语义歪曲」；citation rate 只证明引用了来源，不证明回答被来源支持。
 > 下一步应补 LLM judge + 人工抽检。
+
+## Faithfulness（LLM-as-Judge）
+
+```bash
+tools/eval/rag/faithfulness-llm.sh --limit 10
+```
+
+| 指标 | 结果 |
+|---|---:|
+| RAG answers | 6/10 |
+| judged | 6 |
+| faithful | **5/6（83.3%）** |
+| avg score | **0.93** |
+| judge errors | 0 |
+| p50 / p95 | 4279ms / 5489ms |
+
+> r01（联系客服）得 0.6：判官认为「支持英语/他加禄语/宿务语」「30 分钟回电」
+> 「纯线上无门店」不在本次 retrieved sources 中。这说明引用率 100% ≠ 回答有据，
+> 也说明 judge 本身仍需人工抽检（judge 也会误判）。

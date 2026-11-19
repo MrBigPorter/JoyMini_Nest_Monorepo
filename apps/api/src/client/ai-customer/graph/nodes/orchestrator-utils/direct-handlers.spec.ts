@@ -2,7 +2,7 @@ import { toRagCitations } from './direct-handlers';
 
 describe('toRagCitations', () => {
   it('保留引用元数据，并截断内容预览', () => {
-    const longContent = 'x'.repeat(800);
+    const longContent = 'x'.repeat(1800);
     const citations = toRagCitations([
       {
         chunkId: 'chunk-1',
@@ -27,7 +27,7 @@ describe('toRagCitations', () => {
         title: 'Refund Policy',
         domain: 'order',
         score: 0.91,
-        content: 'x'.repeat(500),
+        content: 'x'.repeat(1500),
       },
     ]);
   });

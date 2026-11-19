@@ -1,0 +1,158 @@
+{
+  "run_at": "2026-11-19T14:51:22",
+  "base_url": "http://localhost/api/v1",
+  "golden_file": "/Volumes/MySSD/work/JoyMini_Nest_Monorepo/tools/eval/rag/golden.jsonl",
+  "limit": 10,
+  "summary": {
+    "total": 10,
+    "rag_answers": 6,
+    "judged": 6,
+    "faithful": 5,
+    "faithful_rate": 0.8333333333333334,
+    "avg_score": 0.9333333333333332,
+    "judge_errors": 0,
+    "p50": 4279,
+    "p95": 5489,
+    "intents": {
+      "rag": 7,
+      "general": 1,
+      "coupon": 2
+    }
+  },
+  "rows": [
+    {
+      "id": "r01",
+      "query": "How do I contact customer support?",
+      "intent": "rag",
+      "sources": 3,
+      "ragAnswer": true,
+      "faithful": false,
+      "score": 0.6,
+      "unsupportedClaims": [
+        "Our team speaks English, Tagalog, and Cebuano",
+        "You can request a callback via in-app chat — we'll call within 30 minutes during business hours",
+        "JoyMini is online-only; there is no physical store to visit"
+      ],
+      "reason": "The contact methods, availability, preparation items, and chat/email response times are supported by the sources. However, the claim about languages (English, Tagalog, Cebuano) is only partially supported—the source is truncated at 'Yes! Our supp' and does not confirm Cebuano or English. The callback within 30 minutes and the online-only/no physical store statements are not present in the sources.",
+      "error": null,
+      "latencyMs": 5489
+    },
+    {
+      "id": "r02",
+      "query": "怎么联系人工客服？",
+      "intent": "rag",
+      "sources": 0,
+      "ragAnswer": false,
+      "faithful": null,
+      "score": null,
+      "unsupportedClaims": [],
+      "reason": "",
+      "error": null,
+      "latencyMs": 1938
+    },
+    {
+      "id": "r03",
+      "query": "哪些商品是禁售的？",
+      "intent": "rag",
+      "sources": 3,
+      "ragAnswer": true,
+      "faithful": true,
+      "score": 1,
+      "unsupportedClaims": [],
+      "reason": "All prohibited item categories and the non-exhaustive disclaimer in the answer are directly supported by the three Platform Rules sources.",
+      "error": null,
+      "latencyMs": 4535
+    },
+    {
+      "id": "r04",
+      "query": "What items are prohibited on the platform?",
+      "intent": "rag",
+      "sources": 3,
+      "ragAnswer": true,
+      "faithful": true,
+      "score": 1,
+      "unsupportedClaims": [],
+      "reason": "Every item listed in the answer appears verbatim in the provided Platform Rules sources, including the note that the list is not exhaustive and JoyMini reserves the right to remove violating listings.",
+      "error": null,
+      "latencyMs": 4605
+    },
+    {
+      "id": "r05",
+      "query": "你们怎么保护我的个人信息？",
+      "intent": "rag",
+      "sources": 3,
+      "ragAnswer": true,
+      "faithful": true,
+      "score": 1,
+      "unsupportedClaims": [],
+      "reason": "All factual claims in the answer—data sharing recipients and purposes, non-sale of personal information, information collection categories and purposes, and privacy contact methods—are directly supported by the three Privacy Policy sources.",
+      "error": null,
+      "latencyMs": 5034
+    },
+    {
+      "id": "r06",
+      "query": "双十一活动规则是什么？",
+      "intent": "general",
+      "sources": 0,
+      "ragAnswer": false,
+      "faithful": null,
+      "score": null,
+      "unsupportedClaims": [],
+      "reason": "",
+      "error": null,
+      "latencyMs": 3307
+    },
+    {
+      "id": "r07",
+      "query": "怎么举报卖家？",
+      "intent": "rag",
+      "sources": 3,
+      "ragAnswer": true,
+      "faithful": true,
+      "score": 1,
+      "unsupportedClaims": [],
+      "reason": "All steps for reporting a seller and reporting a message match the source document exactly, including the store page, three dots/More menu, Report Seller, reason, details/evidence, Submit, and the chat long-press Report flow. The closing offer to contact customer service is a generic courtesy statement not contradicting sources.",
+      "error": null,
+      "latencyMs": 4279
+    },
+    {
+      "id": "r08",
+      "query": "优惠券用不了怎么办？",
+      "intent": "coupon",
+      "sources": 0,
+      "ragAnswer": false,
+      "faithful": null,
+      "score": null,
+      "unsupportedClaims": [],
+      "reason": "",
+      "error": null,
+      "latencyMs": 3184
+    },
+    {
+      "id": "r09",
+      "query": "优惠券可以叠加使用吗？",
+      "intent": "coupon",
+      "sources": 0,
+      "ragAnswer": false,
+      "faithful": null,
+      "score": null,
+      "unsupportedClaims": [],
+      "reason": "",
+      "error": null,
+      "latencyMs": 2453
+    },
+    {
+      "id": "r10",
+      "query": "KYC 需要准备什么证件？",
+      "intent": "rag",
+      "sources": 3,
+      "ragAnswer": true,
+      "faithful": true,
+      "score": 1,
+      "unsupportedClaims": [],
+      "reason": "All factual claims in the answer—the accepted ID table (front/back requirements and remarks), the verification level requirements, the 24-hour review time, and the notes about validity, clarity, no screenshots, and name matching—are supported by the KYC Guide source. The name-matching note is a reasonable inference from the face-matching/verification context, and all other specifics appear directly in the sources.",
+      "error": null,
+      "latencyMs": 6527
+    }
+  ]
+}
