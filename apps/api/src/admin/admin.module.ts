@@ -33,6 +33,11 @@ import { AiEvalModule } from '@api/admin/ai-eval/ai-eval.module';
 import { HealthModule } from '@api/admin/services/health.module';
 import { QueueMonitorModule } from '@api/admin/queue/queue-monitor.module';
 import { FlowVersioningAdminModule } from '@api/admin/flow-versioning/flow-versioning.module';
+import { AiUsageAdminModule } from '@api/admin/ai-usage/ai-usage.module';
+import { AiMemoryAdminModule } from '@api/admin/ai-memory/ai-memory-admin.module';
+import { AiSecurityAdminModule } from '@api/admin/ai-security/ai-security.module';
+import { AiInsightsAdminModule } from '@api/admin/ai-insights/ai-insights.module';
+import { AiContextAdminModule } from '@api/admin/ai-context/ai-context.module';
 
 @Module({
   imports: [
@@ -70,6 +75,11 @@ import { FlowVersioningAdminModule } from '@api/admin/flow-versioning/flow-versi
     HealthModule,
     QueueMonitorModule,
     FlowVersioningAdminModule,
+    AiUsageAdminModule,
+    AiMemoryAdminModule,
+    AiSecurityAdminModule,
+    AiInsightsAdminModule,
+    AiContextAdminModule,
   ],
   providers: [],
   controllers: [],

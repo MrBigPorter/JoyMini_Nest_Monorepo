@@ -5,6 +5,10 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '@api/common/prisma/prisma.service';
+import { ConfigService } from '@nestjs/config';
+import { HumanMessage, SystemMessage } from '@langchain/core/messages';
+import { createLLM } from '@api/client/ai-customer/graph/llm-factory';
+import { buildAgentPrompt } from '@api/client/ai-customer/graph/agents/prompt-builder';
 import { AgentPromptConfig } from '@api/client/ai-customer/graph/agents/prompt-builder';
 import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-registry.service';
 import { orderPromptConfig } from '@api/client/ai-customer/graph/agents/prompts/order-prompt';
@@ -40,6 +44,7 @@ export class AiPromptService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly toolRegistry: ToolRegistryService,
+    private readonly configService: ConfigService,
   ) {}
 
   async create(dto: CreatePromptDto) {
@@ -333,17 +338,61 @@ export class AiPromptService {
       throw new NotFoundException(`Prompt "${promptId}" not found`);
     }
 
-    // Record test run (actual LLM call will be added in Phase 2)
-    const testRun = await this.prisma.knowledgePromptTestRun.create({
+    const version = await this.prisma.knowledgePromptVersion.findUnique({
+      where: {
+        promptId_version: { promptId, version: prompt.activeVersion },
+      },
+    });
+    if (!version) {
+      throw new NotFoundException(
+        `Active version ${prompt.activeVersion} not found`,
+      );
+    }
+
+    const startedAt = Date.now();
+    let actualOutput: string | null = null;
+    let latencyMs: number | null = null;
+    try {
+      const llmConfig = {
+        type: this.configService.get<'online' | 'local'>(
+          'AI_LLM_TYPE',
+          'local',
+        ),
+        model: this.configService.get<string>('OLLAMA_MODEL', 'qwen3.5:0.8b'),
+        baseURL: this.configService.get<string>(
+          'AI_OLLAMA_BASE_URL',
+          'http://localhost:11434',
+        ),
+        apiKey: this.configService.get<string>('DEEPSEEK_API_KEY'),
+      };
+      const systemPrompt = buildAgentPrompt({
+        ...(version.config as unknown as AgentPromptConfig),
+        userId: 'admin-prompt-test',
+      });
+      const model = createLLM(llmConfig as any, { temperature: 0 });
+      const response = await model.invoke([
+        new SystemMessage(systemPrompt),
+        new HumanMessage(testQuery),
+      ]);
+      actualOutput =
+        typeof response.content === 'string'
+          ? response.content
+          : JSON.stringify(response.content);
+      latencyMs = Date.now() - startedAt;
+    } catch (err: any) {
+      this.logger.warn(`Prompt test LLM call failed: ${err?.message ?? err}`);
+    }
+
+    return this.prisma.knowledgePromptTestRun.create({
       data: {
         promptId,
         version: prompt.activeVersion,
         testQuery,
-        passed: null, // pending evaluation
+        actualOutput,
+        latencyMs,
+        passed: null,
       },
     });
-
-    return testRun;
   }
 
   // ---- Metrics ----

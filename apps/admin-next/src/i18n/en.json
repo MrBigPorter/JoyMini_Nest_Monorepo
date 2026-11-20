@@ -1,5 +1,15 @@
 {
   "translations": {
+    "aiOpsOverview": "AI Ops Overview",
+    "aiOpsRuntime": "AI Runtime",
+    "aiOpsFlows": "AI Flows",
+    "aiOpsUsage": "AI Usage",
+    "aiOpsMemory": "AI Memory",
+    "aiOpsQuality": "Quality",
+    "aiOpsSecurity": "AI Security",
+    "aiOpsSupport": "Support Ops",
+    "aiOpsInsights": "AI Insights",
+    "aiOpsContext": "Context Debug",
     "dashboard": "Dashboard",
     "dashboard_realTimeOverview": "Real-time overview",
     "dashboard_refresh": "Refresh",

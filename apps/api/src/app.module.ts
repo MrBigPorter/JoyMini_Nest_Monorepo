@@ -32,6 +32,7 @@ import { AiCustomerModule } from '@api/client/ai-customer/ai-customer.module';
 import { AiQueueModule } from '@api/common/queue/ai-queue.module';
 import { AiTaskOutboxModule } from '@api/common/queue/ai-task-outbox.module';
 import { FlowVersioningModule } from '@api/client/ai-customer/flow-versioning/flow-versioning.module';
+import { AiConversationDebugModule } from '@api/client/ai-customer/debug/ai-conversation-debug.module';
 
 // 根模块（第2步，挂子模块、配置、JWT等）
 @Module({
@@ -179,6 +180,7 @@ import { FlowVersioningModule } from '@api/client/ai-customer/flow-versioning/fl
     AiQueueModule,
     AiTaskOutboxModule,
     FlowVersioningModule,
+    AiConversationDebugModule,
     AiCustomerModule,
 
     // 其他模块：PrismaModule、ThrottlerModule、UsersModule、AuthModule 等

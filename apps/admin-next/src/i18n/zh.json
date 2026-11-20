@@ -1,5 +1,15 @@
 {
   "translations": {
+    "aiOpsOverview": "AI 运营概览",
+    "aiOpsRuntime": "AI 运行时",
+    "aiOpsFlows": "流程版本",
+    "aiOpsUsage": "Token 用量",
+    "aiOpsMemory": "用户记忆",
+    "aiOpsQuality": "质量闭环",
+    "aiOpsSecurity": "AI 安全",
+    "aiOpsSupport": "客服 SLA",
+    "aiOpsInsights": "AI 洞察",
+    "aiOpsContext": "上下文调试",
     "dashboard": "仪表盘",
     "dashboard_realTimeOverview": "实时概览",
     "dashboard_refresh": "刷新",

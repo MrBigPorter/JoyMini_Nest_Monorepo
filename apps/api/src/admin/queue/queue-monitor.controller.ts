@@ -19,6 +19,9 @@ import {
   QueueMonitoringResponse,
 } from '@api/common/queue/queue-monitor.service';
 import { AiTaskOutboxService } from '@api/common/queue/ai-task-outbox.service';
+import { CurrentUserId } from '@api/common/decorators/user.decorator';
+import { OperationLogService } from '../operation-log/operation-log.service';
+import { QueueActionDto } from './dto/queue-action.dto';
 
 @ApiTags('Admin - Queue Monitor')
 @Controller('admin/queues')
@@ -27,7 +30,18 @@ export class QueueMonitorController {
   constructor(
     private readonly queueMonitorService: QueueMonitorService,
     private readonly aiTaskOutboxService: AiTaskOutboxService,
+    private readonly operationLog: OperationLogService,
   ) {}
+
+  private writeLog(adminId: string, action: string, details: string) {
+    void this.operationLog.log({
+      adminId,
+      adminName: adminId,
+      module: 'ai-queues',
+      action,
+      details,
+    });
+  }
 
   @Get()
   @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
@@ -41,8 +55,12 @@ export class QueueMonitorController {
   @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   @ApiOperation({ summary: '暂停指定队列' })
   @ApiResponse({ status: 200, description: '队列已暂停' })
-  async pauseQueue(@Body() body: { queueName: string }) {
+  async pauseQueue(
+    @Body() body: QueueActionDto,
+    @CurrentUserId() adminId: string,
+  ) {
     const success = await this.queueMonitorService.pauseQueue(body.queueName);
+    if (success) this.writeLog(adminId, 'pause', body.queueName);
     return {
       success,
       message: success ? 'Queue paused' : 'Failed to pause queue',
@@ -53,8 +71,12 @@ export class QueueMonitorController {
   @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   @ApiOperation({ summary: '恢复指定队列' })
   @ApiResponse({ status: 200, description: '队列已恢复' })
-  async resumeQueue(@Body() body: { queueName: string }) {
+  async resumeQueue(
+    @Body() body: QueueActionDto,
+    @CurrentUserId() adminId: string,
+  ) {
     const success = await this.queueMonitorService.resumeQueue(body.queueName);
+    if (success) this.writeLog(adminId, 'resume', body.queueName);
     return {
       success,
       message: success ? 'Queue resumed' : 'Failed to resume queue',
@@ -66,17 +88,18 @@ export class QueueMonitorController {
   @ApiOperation({ summary: '清理队列中的旧任务' })
   @ApiResponse({ status: 200, description: '清理完成' })
   async cleanQueue(
-    @Query('queueName') queueName: string,
-    @Query('grace') grace: string = '86400000', // 默认24小时
+    @Query() query: QueueActionDto,
+    @CurrentUserId() adminId: string,
   ) {
-    const graceMs = parseInt(grace, 10);
+    const graceMs = query.grace ?? 86_400_000;
     const cleanedCount = await this.queueMonitorService.cleanQueue(
-      queueName,
+      query.queueName,
       graceMs,
     );
+    this.writeLog(adminId, 'clean', `${query.queueName}, grace=${graceMs}`);
     return {
       success: true,
-      message: `Cleaned ${cleanedCount} jobs from queue ${queueName}`,
+      message: `Cleaned ${cleanedCount} jobs from queue ${query.queueName}`,
       cleanedCount,
     };
   }
@@ -91,8 +114,23 @@ export class QueueMonitorController {
   @Post('ai/:messageId/replay')
   @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   @ApiOperation({ summary: '按 messageId 重放 AI 死信' })
-  async replayAiJob(@Param('messageId') messageId: string) {
-    return this.queueMonitorService.replayAiJob(messageId);
+  async replayAiJob(
+    @Param('messageId') messageId: string,
+    @CurrentUserId() adminId: string,
+  ) {
+    const result = await this.queueMonitorService.replayAiJob(messageId);
+    if (result.ok) this.writeLog(adminId, 'replay-ai', messageId);
+    return result;
+  }
+
+  @Get('ai/outbox')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
+  @ApiOperation({ summary: 'AI 任务 Outbox 列表（可按状态筛选）' })
+  async getAiOutbox(
+    @Query('status') status?: string,
+    @Query('limit') limit: string = '50',
+  ) {
+    return this.aiTaskOutboxService.list(status, parseInt(limit, 10) || 50);
   }
 
   @Get('ai/outbox-failed')
@@ -105,8 +143,12 @@ export class QueueMonitorController {
   @Post('ai/outbox/:messageId/replay')
   @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   @ApiOperation({ summary: '重放 Outbox 入队失败任务' })
-  async replayAiOutbox(@Param('messageId') messageId: string) {
+  async replayAiOutbox(
+    @Param('messageId') messageId: string,
+    @CurrentUserId() adminId: string,
+  ) {
     const ok = await this.aiTaskOutboxService.replayFailed(messageId);
+    if (ok) this.writeLog(adminId, 'replay-outbox', messageId);
     return { ok, reason: ok ? undefined : 'not_failed_or_missing' };
   }
 

@@ -2,8 +2,10 @@ import {
   Body,
   Controller,
   ForbiddenException,
+  Get,
   HttpCode,
   HttpStatus,
+  Param,
   Post,
   UseGuards,
 } from '@nestjs/common';
@@ -14,12 +16,18 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { AiEvalJudgeService } from './ai-eval-judge.service';
 import { JudgeTaskDto } from './dto/judge-task.dto';
+import { AiEvalDatasetService } from './ai-eval-dataset.service';
+import { AddEvalCasesDto, CreateEvalDatasetDto } from './dto/eval-dataset.dto';
+import { CurrentUserId } from '@api/common/decorators/user.decorator';
 
 @ApiTags('Admin AI Eval')
 @Controller('admin/ai-eval')
 @UseGuards(AdminJwtAuthGuard, RolesGuard)
 export class AiEvalController {
-  constructor(private readonly judgeService: AiEvalJudgeService) {}
+  constructor(
+    private readonly judgeService: AiEvalJudgeService,
+    private readonly datasetService: AiEvalDatasetService,
+  ) {}
 
   /**
    * 仅评测环境启用：
@@ -34,6 +42,52 @@ export class AiEvalController {
     if (!enabled) {
       throw new ForbiddenException('AI eval is disabled');
     }
+  }
+
+  @Get('datasets')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
+  @ApiOperation({ summary: '评测集列表' })
+  async listDatasets() {
+    return this.datasetService.listDatasets();
+  }
+
+  @Post('datasets')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @ApiOperation({ summary: '创建评测集' })
+  async createDataset(
+    @Body() dto: CreateEvalDatasetDto,
+    @CurrentUserId() adminId: string,
+  ) {
+    return this.datasetService.createDataset({ ...dto, createdBy: adminId });
+  }
+
+  @Get('datasets/:id')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
+  @ApiOperation({ summary: '评测集详情' })
+  async getDataset(@Param('id') id: string) {
+    return this.datasetService.getDataset(id);
+  }
+
+  @Post('datasets/:id/cases')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @ApiOperation({ summary: '批量添加评测用例' })
+  async addCases(@Param('id') id: string, @Body() dto: AddEvalCasesDto) {
+    return this.datasetService.addCases(id, dto);
+  }
+
+  @Post('datasets/:id/runs')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @ApiOperation({ summary: '启动一次批量评测（后台执行）' })
+  async startRun(@Param('id') id: string, @CurrentUserId() adminId: string) {
+    this.assertEnabled();
+    return this.datasetService.startRun(id, adminId);
+  }
+
+  @Get('runs/:id')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
+  @ApiOperation({ summary: '评测运行结果' })
+  async getRun(@Param('id') id: string) {
+    return this.datasetService.getRun(id);
   }
 
   @Post('judge')

@@ -21,6 +21,10 @@ export class QueryAiFeedbackDto {
   errorType?: FeedbackErrorType;
 
   @IsOptional()
+  @IsIn(['PENDING', 'REVIEWED', 'IGNORED'])
+  reviewStatus?: 'PENDING' | 'REVIEWED' | 'IGNORED';
+
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)

@@ -84,8 +84,15 @@ export class AiTaskOutboxService {
 
   /** 管理端查询入队失败（FAILED）的 Outbox 行。 */
   async listFailed(limit = 50) {
+    return this.list('FAILED', limit);
+  }
+
+  /** 运营页：按状态查看 Outbox（PENDING/SENDING/SENT/FAILED）。 */
+  async list(status?: string, limit = 50) {
+    const normalized = (status ?? '').toUpperCase();
+    const allowed = ['PENDING', 'SENDING', 'SENT', 'FAILED'];
     return this.prisma.aiTaskOutbox.findMany({
-      where: { status: 'FAILED' },
+      where: allowed.includes(normalized) ? { status: normalized } : undefined,
       orderBy: { createdAt: 'desc' },
       take: Math.min(Math.max(limit, 1), 200),
       select: {
@@ -93,8 +100,11 @@ export class AiTaskOutboxService {
         messageId: true,
         conversationId: true,
         userId: true,
+        status: true,
         attempts: true,
         lastError: true,
+        nextAttemptAt: true,
+        sentAt: true,
         createdAt: true,
       },
     });

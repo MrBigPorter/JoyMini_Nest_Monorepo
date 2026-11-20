@@ -32,6 +32,7 @@ function makeService() {
     unused(),
     unused(),
     unused(),
+    unused(),
   );
   jest
     .spyOn((service as any).logger, 'log')

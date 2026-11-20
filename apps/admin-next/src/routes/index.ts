@@ -28,6 +28,16 @@ import {
   Activity,
   BrainCircuit,
   ListChecks,
+  Gauge,
+  ServerCog,
+  Workflow,
+  Coins,
+  Brain,
+  ClipboardCheck,
+  ShieldAlert,
+  Headset,
+  BarChart3,
+  Braces,
 } from 'lucide-react';
 
 export type RouteGroup =
@@ -37,6 +47,7 @@ export type RouteGroup =
   | 'Commerce'
   | 'Marketing'
   | 'Customer Service'
+  | 'AI Operations'
   | 'Analytics'
   | 'System';
 
@@ -142,6 +153,70 @@ export const routes: RouteConfig[] = [
     icon: ListChecks,
     group: 'Customer Service',
     hidden: process.env.NEXT_PUBLIC_AI_FEEDBACK_UI_ENABLED !== 'true',
+  },
+
+  // AI Operations
+  {
+    path: '/ai-ops',
+    name: 'aiOpsOverview',
+    icon: Gauge,
+    group: 'AI Operations',
+  },
+  {
+    path: '/ai-ops/runtime',
+    name: 'aiOpsRuntime',
+    icon: ServerCog,
+    group: 'AI Operations',
+  },
+  {
+    path: '/ai-ops/flows',
+    name: 'aiOpsFlows',
+    icon: Workflow,
+    group: 'AI Operations',
+  },
+  {
+    path: '/ai-ops/usage',
+    name: 'aiOpsUsage',
+    icon: Coins,
+    group: 'AI Operations',
+  },
+  {
+    path: '/ai-ops/memory',
+    name: 'aiOpsMemory',
+    icon: Brain,
+    group: 'AI Operations',
+  },
+
+  {
+    path: '/ai-ops/quality',
+    name: 'aiOpsQuality',
+    icon: ClipboardCheck,
+    group: 'AI Operations',
+  },
+  {
+    path: '/ai-ops/security',
+    name: 'aiOpsSecurity',
+    icon: ShieldAlert,
+    group: 'AI Operations',
+  },
+  {
+    path: '/ai-ops/support',
+    name: 'aiOpsSupport',
+    icon: Headset,
+    group: 'AI Operations',
+  },
+  {
+    path: '/ai-ops/insights',
+    name: 'aiOpsInsights',
+    icon: BarChart3,
+    group: 'AI Operations',
+  },
+
+  {
+    path: '/ai-ops/context',
+    name: 'aiOpsContext',
+    icon: Braces,
+    group: 'AI Operations',
   },
 
   // Analytics

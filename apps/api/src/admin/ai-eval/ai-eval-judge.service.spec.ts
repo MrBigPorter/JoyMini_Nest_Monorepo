@@ -20,9 +20,7 @@ describe('parseJudgeOutput', () => {
     ).toEqual({ verdict: 'partial', score: 0.5, reason: '缺少金额' });
 
     expect(
-      parseJudgeOutput(
-        '{"verdict":"unsolved","score":0,"reason":"答非所问"}',
-      ),
+      parseJudgeOutput('{"verdict":"unsolved","score":0,"reason":"答非所问"}'),
     ).toEqual({ verdict: 'unsolved', score: 0, reason: '答非所问' });
   });
 
@@ -75,14 +73,10 @@ describe('vendorOf / assertIndependentVendor', () => {
 
   it('同厂商 judge 只在显式开关或 development 下允许', () => {
     expect(allowSameVendor({})).toBe(false);
-    expect(allowSameVendor({ NODE_ENV: 'production' })).toBe(
-      false,
-    );
-    expect(
-      allowSameVendor({ AI_EVAL_JUDGE_ALLOW_SAME_VENDOR: 'true' }),
-    ).toBe(true);
-    expect(allowSameVendor({ NODE_ENV: 'development' })).toBe(
+    expect(allowSameVendor({ NODE_ENV: 'production' })).toBe(false);
+    expect(allowSameVendor({ AI_EVAL_JUDGE_ALLOW_SAME_VENDOR: 'true' })).toBe(
       true,
     );
+    expect(allowSameVendor({ NODE_ENV: 'development' })).toBe(true);
   });
 });

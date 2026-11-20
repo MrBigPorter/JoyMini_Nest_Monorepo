@@ -2155,12 +2155,109 @@ model AiAnswerFeedback {
   adminId String? @map("admin_id") @db.VarChar(32)
 
   metadata  Json?
+  /// PENDING | REVIEWED | IGNORED
+  reviewStatus String  @default("PENDING") @map("review_status") @db.VarChar(16)
+  reviewedBy   String? @map("reviewed_by") @db.VarChar(32)
+  reviewedAt   DateTime? @map("reviewed_at")
   createdAt DateTime @default(now()) @map("created_at")
 
   @@index([conversationId], map: "idx_ai_feedback_conversation")
+  @@index([reviewStatus, createdAt], map: "idx_ai_feedback_review")
   @@index([source, createdAt], map: "idx_ai_feedback_source_created")
   @@index([signal], map: "idx_ai_feedback_signal")
   @@map("ai_answer_feedback")
+}
+
+/// 评测集：一组可重复运行的任务用例。
+model AiEvalDataset {
+  id          String   @id @default(cuid()) @db.VarChar(32)
+  name        String   @unique @db.VarChar(100)
+  description String?  @db.VarChar(500)
+  createdBy   String?  @map("created_by") @db.VarChar(32)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  cases AiEvalCase[]
+  runs  AiEvalRun[]
+
+  @@map("ai_eval_datasets")
+}
+
+model AiEvalCase {
+  id        String   @id @default(cuid()) @db.VarChar(32)
+  datasetId String   @map("dataset_id") @db.VarChar(32)
+  question  String   @db.Text
+  answer    String   @db.Text
+  expect    Json
+  tags      Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  dataset AiEvalDataset @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  results AiEvalResult[]
+
+  @@index([datasetId])
+  @@map("ai_eval_cases")
+}
+
+model AiEvalRun {
+  id          String    @id @default(cuid()) @db.VarChar(32)
+  datasetId   String    @map("dataset_id") @db.VarChar(32)
+  /// RUNNING | COMPLETED | FAILED
+  status      String    @default("RUNNING") @db.VarChar(16)
+  createdBy   String?   @map("created_by") @db.VarChar(32)
+  summary     Json?
+  startedAt   DateTime  @default(now()) @map("started_at")
+  finishedAt  DateTime? @map("finished_at")
+
+  dataset AiEvalDataset  @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  results AiEvalResult[]
+
+  @@index([datasetId, startedAt])
+  @@map("ai_eval_runs")
+}
+
+model AiEvalResult {
+  id        String   @id @default(cuid()) @db.VarChar(32)
+  runId     String   @map("run_id") @db.VarChar(32)
+  caseId    String   @map("case_id") @db.VarChar(32)
+  verdict   String   @db.VarChar(16)
+  score     Float
+  reason    String   @db.Text
+  latencyMs Int?     @map("latency_ms")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  run  AiEvalRun  @relation(fields: [runId], references: [id], onDelete: Cascade)
+  case AiEvalCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@map("ai_eval_results")
+}
+
+/// 注入检测命中事件（不存用户原文）。
+model AiSecurityEvent {
+  id             String   @id @default(cuid()) @db.VarChar(32)
+  type           String   @db.VarChar(32)
+  mode           String   @db.VarChar(16)
+  length         Int
+  userIdHash     String?  @map("user_id_hash") @db.VarChar(64)
+  conversationId String?  @map("conversation_id") @db.VarChar(32)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([type, createdAt])
+  @@index([createdAt])
+  @@map("ai_security_events")
+}
+
+/// SLA 历史快照：每分钟记录一次等待/超时，支持按天趋势。
+model SupportSlaSnapshot {
+  id          String   @id @default(cuid()) @db.VarChar(32)
+  waiting     Int
+  breached    Int
+  longestWait Int      @map("longest_wait")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("support_sla_snapshots")
 }
 
 /// 跨会话用户记忆：只存蒸馏后的偏好/事实，不存原文与敏感信息。
