@@ -6,6 +6,7 @@ import { ConfigService } from '@nestjs/config';
 import { EMBEDDING_QUEUE } from '@api/common/ai/queues/embedding/embedding-queue.constants';
 import { AI_PROCESSING_QUEUE } from '@api/common/queue/ai-queue.module';
 import { PrismaService } from '@api/common/prisma/prisma.service';
+import { RAG_EMBEDDING_QUEUE } from '@api/admin/rag/rag-embedding-queue.constants';
 
 export interface QueueStats {
   name: string;
@@ -52,6 +53,7 @@ export class QueueMonitorService {
     'group_settlement',
     EMBEDDING_QUEUE,
     AI_PROCESSING_QUEUE,
+    RAG_EMBEDDING_QUEUE,
   ];
 
   constructor(
@@ -60,6 +62,7 @@ export class QueueMonitorService {
     @InjectQueue('group_settlement') private settlementQueue: Queue,
     @InjectQueue(EMBEDDING_QUEUE) private embeddingQueue: Queue,
     @InjectQueue(AI_PROCESSING_QUEUE) private aiProcessingQueue: Queue,
+    @InjectQueue(RAG_EMBEDDING_QUEUE) private ragEmbeddingQueue: Queue,
     private configService: ConfigService,
     private readonly prisma: PrismaService,
   ) {}
@@ -99,6 +102,9 @@ export class QueueMonitorService {
         break;
       case AI_PROCESSING_QUEUE:
         queue = this.aiProcessingQueue;
+        break;
+      case RAG_EMBEDDING_QUEUE:
+        queue = this.ragEmbeddingQueue;
         break;
       default:
         throw new Error(`Unknown queue: ${queueName}`);
@@ -176,8 +182,38 @@ export class QueueMonitorService {
 
     // Get job stats for AI processing queue（死信查询走 getAiFailedJobs）
     result[AI_PROCESSING_QUEUE] = await this.getAiProcessingJobStats();
+    result[RAG_EMBEDDING_QUEUE] = await this.getRagEmbeddingJobStats();
 
     return result;
+  }
+
+  private async getRagEmbeddingJobStats(): Promise<JobStats[]> {
+    try {
+      const jobs = await this.ragEmbeddingQueue.getJobs([
+        'completed',
+        'failed',
+      ]);
+      const completed = jobs.filter((j) => j.finishedOn && !j.failedReason);
+      const failed = jobs.filter((j) => j.failedReason);
+
+      return [
+        {
+          type: 'embed-document',
+          count: jobs.length,
+          lastCompleted:
+            completed.length > 0
+              ? new Date(Math.max(...completed.map((j) => j.finishedOn || 0)))
+              : undefined,
+          lastFailed:
+            failed.length > 0
+              ? new Date(Math.max(...failed.map((j) => j.finishedOn || 0)))
+              : undefined,
+        },
+      ];
+    } catch (error) {
+      this.logger.error('Failed to get rag-embedding job stats:', error);
+      return [];
+    }
   }
 
   private async getAiProcessingJobStats(): Promise<JobStats[]> {
@@ -460,6 +496,8 @@ export class QueueMonitorService {
         return this.embeddingQueue;
       case AI_PROCESSING_QUEUE:
         return this.aiProcessingQueue;
+      case RAG_EMBEDDING_QUEUE:
+        return this.ragEmbeddingQueue;
       default:
         throw new Error(`Unknown queue: ${queueName}`);
     }

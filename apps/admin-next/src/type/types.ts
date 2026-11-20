@@ -1921,3 +1921,141 @@ export interface TestClassificationResponse {
   method: 'embedding' | 'llm_fallback';
   rawTop5?: { domain: string; similarity: number }[];
 }
+
+// ==================== AI Operations (admin-ai-ops) ====================
+
+export interface AiQueueStats {
+  name: string;
+  waiting: number;
+  active: number;
+  completed: number;
+  failed: number;
+  delayed: number;
+  paused: number;
+  total: number;
+  isPaused: boolean;
+}
+
+export interface AiFailedJob {
+  messageId: string;
+  conversationId?: string;
+  attemptsMade: number;
+  failedReason: string;
+  failedAt: string | null;
+}
+
+export interface AiOutboxItem {
+  id: string;
+  messageId: string;
+  conversationId: string;
+  userId: string;
+  status: 'PENDING' | 'SENDING' | 'SENT' | 'FAILED';
+  attempts: number;
+  lastError: string | null;
+  nextAttemptAt: string;
+  sentAt: string | null;
+  createdAt: string;
+}
+
+export interface AiFlowDefinition {
+  id: string;
+  flowType: string;
+  version: number;
+  definitionHash: string;
+  status: string;
+  createdBy: string | null;
+  createdAt: string;
+}
+
+export interface AiFlowDefinitionDetail extends AiFlowDefinition {
+  payload: Record<string, unknown>;
+}
+
+export interface AiFlowBinding {
+  id: string;
+  conversationId: string;
+  flowType: string;
+  definitionVersionId: string;
+  definitionHash: string;
+  status: string;
+  flowStep: string;
+  threadId: string | null;
+  checkpointId: string | null;
+  updatedAt: string;
+  definition?: { version: number; status: string; definitionHash: string };
+}
+
+export interface AiFlowAudit {
+  id: string;
+  conversationId: string;
+  flowType: string;
+  action: string;
+  actorId: string | null;
+  reason: string | null;
+  fromVersionId: string | null;
+  toVersionId: string | null;
+  threadId: string | null;
+  checkpointId: string | null;
+  createdAt: string;
+}
+
+export interface AiUsageSummary {
+  range: { from: string; to: string; timezone: string };
+  coverage: { scope: string; note: string };
+  totals: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+    requests: number;
+    users: number;
+  };
+  quota: { dailyTokenLimit: number; sessionTokenLimit: number };
+  daily: Array<{
+    date: string;
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+    requests: number;
+  }>;
+}
+
+export interface AiUsageUser {
+  userId: string;
+  nickname: string | null;
+  phoneMasked: string | null;
+  avatar: string | null;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  requests: number;
+  overDailyLimit: boolean;
+}
+
+export interface AiMemoryRow {
+  id: string;
+  userId: string;
+  kind: string;
+  key: string;
+  value: string;
+  confidence: number;
+  sourceConversationId: string | null;
+  sourceMessageId: string | null;
+  version: number;
+  status: string;
+  expiresAt: string;
+  lastUsedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AiMemorySummaryRow {
+  id: string;
+  userId: string;
+  threadId: string | null;
+  conversationId: string | null;
+  summary: string;
+  coveredToSeqId: number;
+  tokenCount: number;
+  expiresAt: string;
+  updatedAt: string;
+}

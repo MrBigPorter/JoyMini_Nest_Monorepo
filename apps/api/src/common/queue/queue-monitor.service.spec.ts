@@ -15,6 +15,7 @@ function makeService() {
     {} as any,
     {} as any,
     aiQueue,
+    {} as any,
     { get: jest.fn() } as any,
     prisma,
   );

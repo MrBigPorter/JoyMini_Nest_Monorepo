@@ -1,5 +1,10 @@
 {
   "translations": {
+    "aiOpsOverview": "AI Ops Overview",
+    "aiOpsRuntime": "AI Runtime",
+    "aiOpsFlows": "AI Flows",
+    "aiOpsUsage": "AI Usage",
+    "aiOpsMemory": "AI Memory",
     "dashboard": "ダッシュボード",
     "dashboard_realTimeOverview": "リアルタイム概要",
     "dashboard_refresh": "更新",

@@ -29,6 +29,7 @@ test.describe('Sidebar — 侧边栏导航', () => {
       timeout: 15_000,
     });
     await expect(sidebar.getByText('Customer Service')).toBeVisible();
+    await expect(sidebar.getByText('AI Operations')).toBeVisible();
     await expect(sidebar.getByText('Analytics')).toBeVisible();
     await expect(sidebar.getByText('System')).toBeVisible();
   });
@@ -52,6 +53,11 @@ test.describe('Sidebar — 侧边栏导航', () => {
     { name: 'Notifications', path: '/notifications/' },
     { name: 'Roles', path: '/roles/' },
     { name: 'Operation Logs', path: '/operation-logs/' },
+    { name: 'AI Operations', path: '/ai-ops/' },
+    { name: 'AI Runtime', path: '/ai-ops/runtime/' },
+    { name: 'AI Flows', path: '/ai-ops/flows/' },
+    { name: 'AI Usage', path: '/ai-ops/usage/' },
+    { name: 'AI Memory', path: '/ai-ops/memory/' },
   ];
 
   for (const route of routes) {

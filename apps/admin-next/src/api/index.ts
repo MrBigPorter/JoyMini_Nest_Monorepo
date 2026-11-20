@@ -1462,3 +1462,110 @@ export const intentExamplesApi = {
       data,
     ),
 };
+
+/**
+ * AI Operations — 队列 / 流程版本 / 用量 / 记忆
+ */
+export const aiOpsApi = {
+  getQueues: () =>
+    http.get<
+      | import('@/type/types').AiQueueStats[]
+      | { queues: import('@/type/types').AiQueueStats[] }
+    >('/v1/admin/queues'),
+  pauseQueue: (queueName: string) =>
+    http.patch('/v1/admin/queues/pause', { queueName }),
+  resumeQueue: (queueName: string) =>
+    http.patch('/v1/admin/queues/resume', { queueName }),
+  cleanQueue: (queueName: string, grace = 86_400_000) =>
+    http.delete('/v1/admin/queues/clean', {
+      params: { queueName, grace },
+    }),
+
+  getAiFailed: (limit = 50) =>
+    http.get<import('@/type/types').AiFailedJob[]>(
+      '/v1/admin/queues/ai/failed',
+      { limit },
+    ),
+  replayAiJob: (messageId: string) =>
+    http.post(`/v1/admin/queues/ai/${messageId}/replay`),
+
+  getOutbox: (status?: string, limit = 50) =>
+    http.get<import('@/type/types').AiOutboxItem[]>(
+      '/v1/admin/queues/ai/outbox',
+      { ...(status ? { status } : {}), limit },
+    ),
+  replayOutbox: (messageId: string) =>
+    http.post(`/v1/admin/queues/ai/outbox/${messageId}/replay`),
+
+  getFlowDefinitions: (flowType?: string) =>
+    http.get<import('@/type/types').AiFlowDefinition[]>(
+      '/v1/admin/ai-flows/definitions',
+      flowType ? { flowType } : undefined,
+    ),
+  getFlowDefinition: (id: string) =>
+    http.get<import('@/type/types').AiFlowDefinitionDetail>(
+      `/v1/admin/ai-flows/definitions/${id}`,
+    ),
+  getFlowBindings: (conversationId: string) =>
+    http.get<import('@/type/types').AiFlowBinding[]>(
+      '/v1/admin/ai-flows/bindings',
+      { conversationId },
+    ),
+  getFlowAudit: (params: {
+    conversationId?: string;
+    flowType?: string;
+    limit?: number;
+  }) =>
+    http.get<import('@/type/types').AiFlowAudit[]>(
+      '/v1/admin/ai-flows/audit',
+      params,
+    ),
+  switchFlow: (data: {
+    conversationId: string;
+    toVersionId: string;
+    flowType?: string;
+    reason?: string;
+  }) => http.post('/v1/admin/ai-flows/switch', data),
+  rollbackFlow: (data: {
+    conversationId: string;
+    toVersionId: string;
+    flowType?: string;
+    reason?: string;
+  }) => http.post('/v1/admin/ai-flows/rollback-definition', data),
+  bindFlow: (data: {
+    conversationId: string;
+    flowType: string;
+    threadId?: string;
+  }) => http.post('/v1/admin/ai-flows/bind', data),
+
+  getUsageSummary: (params?: { from?: string; to?: string }) =>
+    http.get<import('@/type/types').AiUsageSummary>(
+      '/v1/admin/ai-usage/summary',
+      params,
+    ),
+  getUsageUsers: (params?: {
+    from?: string;
+    to?: string;
+    page?: number;
+    pageSize?: number;
+    keyword?: string;
+  }) =>
+    http.get<{
+      list: import('@/type/types').AiUsageUser[];
+      total: number;
+      page: number;
+      pageSize: number;
+    }>('/v1/admin/ai-usage/users', params),
+  getUserUsage: (userId: string, params?: { from?: string; to?: string }) =>
+    http.get(`/v1/admin/ai-usage/users/${userId}`, params),
+
+  getMemoryUser: (userId: string) =>
+    http.get<{
+      userId: string;
+      memories: import('@/type/types').AiMemoryRow[];
+      summaries: import('@/type/types').AiMemorySummaryRow[];
+    }>(`/v1/admin/ai-memory/users/${userId}`),
+  deleteMemory: (id: string) => http.delete(`/v1/admin/ai-memory/${id}`),
+  deleteUserMemories: (userId: string) =>
+    http.delete(`/v1/admin/ai-memory/users/${userId}`),
+};

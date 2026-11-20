@@ -279,6 +279,27 @@ export class FlowStateVersioningService {
     });
   }
 
+  async getDefinition(id: string) {
+    return this.prisma.flowDefinitionVersion.findUnique({ where: { id } });
+  }
+
+  async listAudit(input: {
+    conversationId?: string;
+    flowType?: string;
+    limit?: number;
+  }) {
+    return this.prisma.flowBindingAuditLog.findMany({
+      where: {
+        ...(input.conversationId
+          ? { conversationId: input.conversationId }
+          : {}),
+        ...(input.flowType ? { flowType: input.flowType } : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(Math.max(input.limit ?? 50, 1), 200),
+    });
+  }
+
   async listBindings(conversationId: string) {
     return this.prisma.conversationFlowBinding.findMany({
       where: { conversationId },
