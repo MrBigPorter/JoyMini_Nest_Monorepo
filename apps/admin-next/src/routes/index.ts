@@ -47,7 +47,9 @@ export type RouteGroup =
   | 'Commerce'
   | 'Marketing'
   | 'Customer Service'
-  | 'AI Operations'
+  | 'AI Operations · 今日'
+  | 'AI Operations · 业务'
+  | 'AI Operations · 工程'
   | 'Analytics'
   | 'System';
 
@@ -160,63 +162,61 @@ export const routes: RouteConfig[] = [
     path: '/ai-ops',
     name: 'aiOpsOverview',
     icon: Gauge,
-    group: 'AI Operations',
+    group: 'AI Operations · 今日',
   },
-  {
-    path: '/ai-ops/runtime',
-    name: 'aiOpsRuntime',
-    icon: ServerCog,
-    group: 'AI Operations',
-  },
-  {
-    path: '/ai-ops/flows',
-    name: 'aiOpsFlows',
-    icon: Workflow,
-    group: 'AI Operations',
-  },
-  {
-    path: '/ai-ops/usage',
-    name: 'aiOpsUsage',
-    icon: Coins,
-    group: 'AI Operations',
-  },
-  {
-    path: '/ai-ops/memory',
-    name: 'aiOpsMemory',
-    icon: Brain,
-    group: 'AI Operations',
-  },
-
   {
     path: '/ai-ops/quality',
     name: 'aiOpsQuality',
     icon: ClipboardCheck,
-    group: 'AI Operations',
-  },
-  {
-    path: '/ai-ops/security',
-    name: 'aiOpsSecurity',
-    icon: ShieldAlert,
-    group: 'AI Operations',
+    group: 'AI Operations · 业务',
   },
   {
     path: '/ai-ops/support',
     name: 'aiOpsSupport',
     icon: Headset,
-    group: 'AI Operations',
+    group: 'AI Operations · 业务',
   },
   {
     path: '/ai-ops/insights',
     name: 'aiOpsInsights',
     icon: BarChart3,
-    group: 'AI Operations',
+    group: 'AI Operations · 业务',
   },
-
+  {
+    path: '/ai-ops/runtime',
+    name: 'aiOpsRuntime',
+    icon: ServerCog,
+    group: 'AI Operations · 工程',
+  },
+  {
+    path: '/ai-ops/flows',
+    name: 'aiOpsFlows',
+    icon: Workflow,
+    group: 'AI Operations · 工程',
+  },
+  {
+    path: '/ai-ops/usage',
+    name: 'aiOpsUsage',
+    icon: Coins,
+    group: 'AI Operations · 工程',
+  },
+  {
+    path: '/ai-ops/memory',
+    name: 'aiOpsMemory',
+    icon: Brain,
+    group: 'AI Operations · 工程',
+  },
+  {
+    path: '/ai-ops/security',
+    name: 'aiOpsSecurity',
+    icon: ShieldAlert,
+    group: 'AI Operations · 工程',
+  },
   {
     path: '/ai-ops/context',
     name: 'aiOpsContext',
     icon: Braces,
-    group: 'AI Operations',
+    group: 'AI Operations · 工程',
   },
 
   // Analytics

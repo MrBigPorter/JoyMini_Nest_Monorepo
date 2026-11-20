@@ -74,5 +74,6 @@ describe('SupportSlaService.getHistory', () => {
     expect(result.snapshots.map((s: any) => s.id)).toEqual(['s1', 's2']);
     expect(result.latest).toBe(newer);
     expect(result.windowHours).toBe(24);
+    expect(result.thresholdMinutes).toBe(5);
   });
 });

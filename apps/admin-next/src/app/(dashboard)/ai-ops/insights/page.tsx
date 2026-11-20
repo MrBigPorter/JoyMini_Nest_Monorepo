@@ -1,10 +1,31 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useRequest } from 'ahooks';
 import { aiQualityApi } from '@/api';
 import { PageHeader } from '@/components/scaffold/PageHeader';
+import { AiErrorBanner } from '@/components/ai-ops/AiErrorBanner';
 import type { AiInsightsOverview } from '@/type/types';
+
+const TRANSFER_REASON_LABELS: Record<string, string> = {
+  explicit_request: '用户明确要求',
+  negative_sentiment: '负面情绪',
+  repeated_attempts: '反复追问未解决',
+  agent_request: '客服主动接管',
+  ai_error: 'AI 异常',
+  manual_switch: '人工手动切换',
+  below_accept_threshold: '意图置信度不足',
+  below_llm_fallback_threshold: 'LLM 兜底置信度不足',
+  below_execution_threshold: '执行阈值不足',
+  unknown: '未知',
+};
+
+const REVIEW_STATUS_LABELS: Record<string, string> = {
+  PENDING: '待审核',
+  REVIEWED: '已审核',
+  IGNORED: '已忽略',
+};
 
 function isoDaysAgo(days: number) {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000)
@@ -12,79 +33,177 @@ function isoDaysAgo(days: number) {
     .slice(0, 10);
 }
 
+function labelOf(map: Record<string, string>, raw: string): string {
+  return map[raw] ?? raw;
+}
+
+function formatNumber(value: number | undefined): string {
+  return typeof value === 'number' ? value.toLocaleString() : '—';
+}
+
+function formatTransferRate(overview: AiInsightsOverview): string {
+  const denominator = overview.conversations;
+  if (!denominator) return '—';
+  const numerator = overview.transfers.total;
+  const pct = (numerator / denominator) * 100;
+  return `${pct.toFixed(1)}% (${numerator}/${denominator})`;
+}
+
 export default function AiInsightsPage() {
   const [from, setFrom] = useState(isoDaysAgo(7));
   const [to, setTo] = useState(isoDaysAgo(0));
-  const { data, loading } = useRequest(
-    () => aiQualityApi.insightsOverview({ from, to }),
+  const invalidRange = Boolean(from && to && from > to);
+
+  const { data, loading, error, refresh } = useRequest(
+    () =>
+      invalidRange
+        ? Promise.resolve(null)
+        : aiQualityApi.insightsOverview({ from, to }),
     { refreshDeps: [from, to] },
   );
-  const overview = data as AiInsightsOverview | undefined;
+  const overview = data as AiInsightsOverview | null | undefined;
+
+  const kpis: Array<{ label: string; value: string; href?: string }> = [
+    {
+      label: 'Conversations',
+      value: formatNumber(overview?.conversations),
+      href: '/customer-service',
+    },
+    {
+      label: 'AI messages',
+      value: formatNumber(overview?.messages.ai),
+    },
+    {
+      label: 'Transfer rate',
+      value: overview ? formatTransferRate(overview) : '—',
+      href: '/ai-ops/quality',
+    },
+    {
+      label: 'Repeated questions',
+      value: formatNumber(overview?.feedback.repeatedQuestion),
+      href: '/ai-ops/quality',
+    },
+    {
+      label: 'Abandoned',
+      value: formatNumber(overview?.feedback.abandoned),
+      href: '/ai-ops/quality',
+    },
+    {
+      label: 'Human messages',
+      value: formatNumber(overview?.messages.human),
+    },
+    {
+      label: 'Total tokens',
+      value: formatNumber(overview?.usage.totalTokens),
+      href: '/ai-ops/usage',
+    },
+    {
+      label: 'Requests',
+      value: formatNumber(overview?.usage.requests),
+      href: '/ai-ops/usage',
+    },
+  ];
 
   return (
     <div className="space-y-5 p-4">
       <PageHeader
-        title="AI Insights"
+        title="运营洞察"
         description="AI 对话、转人工、反馈与用量的运营指标（UTC）"
       />
 
-      <div className="flex items-center gap-2 text-sm">
-        <input
-          type="date"
-          className="rounded-lg border px-3 py-1.5 dark:border-white/10 dark:bg-gray-800"
-          value={from}
-          onChange={(e) => setFrom(e.target.value)}
-        />
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <label className="flex items-center gap-2">
+          <span className="text-xs text-gray-500">From</span>
+          <input
+            type="date"
+            aria-label="From date"
+            className="rounded-lg border px-3 py-1.5 dark:border-white/10 dark:bg-gray-800"
+            value={from}
+            onChange={(e) => setFrom(e.target.value)}
+          />
+        </label>
         <span>→</span>
-        <input
-          type="date"
-          className="rounded-lg border px-3 py-1.5 dark:border-white/10 dark:bg-gray-800"
-          value={to}
-          onChange={(e) => setTo(e.target.value)}
-        />
+        <label className="flex items-center gap-2">
+          <span className="text-xs text-gray-500">To</span>
+          <input
+            type="date"
+            aria-label="To date"
+            className="rounded-lg border px-3 py-1.5 dark:border-white/10 dark:bg-gray-800"
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+          />
+        </label>
+        <span className="text-xs text-gray-500">
+          时间范围：
+          {overview?.range
+            ? `${overview.range.from} → ${overview.range.to}`
+            : `${from || '—'} → ${to || '—'}`}
+          {' · '}
+          {overview?.range?.timezone ?? 'UTC'}
+        </span>
       </div>
 
-      {loading ? (
+      {invalidRange ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
+          开始日期不能晚于结束日期，请调整筛选范围。
+        </div>
+      ) : loading ? (
         <div className="py-6 text-center text-sm text-gray-400">Loading...</div>
+      ) : error ? (
+        <AiErrorBanner
+          message="洞察数据加载失败，请重试"
+          onRetry={refresh}
+        />
+      ) : !overview ? (
+        <div className="py-6 text-center text-sm text-gray-400">暂无数据</div>
       ) : (
         <>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {[
-              ['Conversations', overview?.conversations],
-              ['AI messages', overview?.messages.ai],
-              ['Transfer rate', overview?.transfers.rate],
-              ['Repeated questions', overview?.feedback.repeatedQuestion],
-              ['Abandoned', overview?.feedback.abandoned],
-              ['Human messages', overview?.messages.human],
-              ['Total tokens', overview?.usage.totalTokens],
-              ['Requests', overview?.usage.requests],
-            ].map(([label, value]) => (
-              <div
-                key={String(label)}
-                className="rounded-xl border p-4 dark:border-white/10"
-              >
-                <div className="text-xs text-gray-500">{label}</div>
-                <div className="mt-1 text-2xl font-semibold">
-                  {typeof value === 'number' ? value.toLocaleString() : '—'}
+            {kpis.map((kpi) => {
+              const content = (
+                <>
+                  <div className="text-xs text-gray-500">{kpi.label}</div>
+                  <div className="mt-1 text-2xl font-semibold">
+                    {kpi.value}
+                  </div>
+                </>
+              );
+
+              return kpi.href ? (
+                <Link
+                  key={kpi.label}
+                  href={kpi.href}
+                  className="rounded-xl border p-4 transition hover:border-blue-400 dark:border-white/10"
+                >
+                  {content}
+                </Link>
+              ) : (
+                <div
+                  key={kpi.label}
+                  className="rounded-xl border p-4 dark:border-white/10"
+                >
+                  {content}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
             <section className="rounded-xl border p-4 dark:border-white/10">
               <h2 className="mb-2 text-sm font-semibold">转人工原因</h2>
-              {(overview?.transfers.byReason ?? []).length === 0 ? (
+              {overview.transfers.byReason.length === 0 ? (
                 <div className="py-4 text-sm text-gray-400">暂无</div>
               ) : (
                 <table className="min-w-full text-sm">
                   <tbody>
-                    {overview?.transfers.byReason.map((item) => (
+                    {overview.transfers.byReason.map((item) => (
                       <tr
                         key={item.reason}
                         className="border-t dark:border-white/5"
                       >
-                        <td className="py-1">{item.reason}</td>
+                        <td className="py-1" title={item.reason}>
+                          {labelOf(TRANSFER_REASON_LABELS, item.reason)}
+                        </td>
                         <td className="py-1 text-right">{item.count}</td>
                       </tr>
                     ))}
@@ -95,17 +214,19 @@ export default function AiInsightsPage() {
 
             <section className="rounded-xl border p-4 dark:border-white/10">
               <h2 className="mb-2 text-sm font-semibold">反馈分诊状态</h2>
-              {(overview?.feedback.byReviewStatus ?? []).length === 0 ? (
+              {overview.feedback.byReviewStatus.length === 0 ? (
                 <div className="py-4 text-sm text-gray-400">暂无</div>
               ) : (
                 <table className="min-w-full text-sm">
                   <tbody>
-                    {overview?.feedback.byReviewStatus.map((item) => (
+                    {overview.feedback.byReviewStatus.map((item) => (
                       <tr
                         key={item.status}
                         className="border-t dark:border-white/5"
                       >
-                        <td className="py-1">{item.status}</td>
+                        <td className="py-1" title={item.status}>
+                          {labelOf(REVIEW_STATUS_LABELS, item.status)}
+                        </td>
                         <td className="py-1 text-right">{item.count}</td>
                       </tr>
                     ))}
@@ -116,7 +237,7 @@ export default function AiInsightsPage() {
           </div>
 
           <div className="rounded-xl border p-4 text-xs text-gray-500 dark:border-white/10">
-            {(overview?.notes ?? []).map((note) => (
+            {(overview.notes ?? []).map((note) => (
               <div key={note}>· {note}</div>
             ))}
           </div>

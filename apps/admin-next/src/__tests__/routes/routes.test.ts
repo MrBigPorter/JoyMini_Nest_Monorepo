@@ -45,7 +45,9 @@ describe('routes 配置', () => {
       'Commerce',
       'Marketing',
       'Customer Service',
-      'AI Operations',
+      'AI Operations · 今日',
+      'AI Operations · 业务',
+      'AI Operations · 工程',
       'Analytics',
       'System',
     ];

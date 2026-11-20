@@ -116,6 +116,11 @@ export class SupportSlaService {
 
   async getHistory(hours = 24) {
     const safeHours = Math.min(Math.max(hours, 1), 168);
+    const configured = Number(
+      this.configService.get<string>('SUPPORT_SLA_MINUTES') ?? 5,
+    );
+    const thresholdMinutes =
+      Number.isFinite(configured) && configured > 0 ? configured : 5;
     const since = new Date(Date.now() - safeHours * 60 * 60 * 1000);
     const [recentSnapshots, latest] = await Promise.all([
       // 先取窗口内最新的 2000 条（desc），再反转为升序返回给图表/表格。
@@ -132,6 +137,7 @@ export class SupportSlaService {
     ]);
     return {
       windowHours: safeHours,
+      thresholdMinutes,
       latest,
       snapshots: recentSnapshots.slice().reverse(),
     };

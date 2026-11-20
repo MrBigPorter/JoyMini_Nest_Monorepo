@@ -1640,7 +1640,7 @@ export const aiQualityApi = {
       page: number;
       pageSize: number;
     }>('/v1/admin/ai-security/events', params),
-  securitySummary: (params?: { from?: string; to?: string }) =>
+  securitySummary: (params?: { type?: string; from?: string; to?: string }) =>
     http.get<import('@/type/types').AiSecuritySummary>(
       '/v1/admin/ai-security/summary',
       params,
@@ -1649,6 +1649,7 @@ export const aiQualityApi = {
   slaHistory: (hours = 24) =>
     http.get<{
       windowHours: number;
+      thresholdMinutes: number;
       latest: import('@/type/types').SupportSlaSnapshotRow | null;
       snapshots: import('@/type/types').SupportSlaSnapshotRow[];
     }>('/v1/admin/chat/sla', { hours }),
