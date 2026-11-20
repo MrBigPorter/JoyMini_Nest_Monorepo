@@ -17,7 +17,7 @@ import { Roles } from '../auth/roles.decorator';
 import { AiEvalJudgeService } from './ai-eval-judge.service';
 import { JudgeTaskDto } from './dto/judge-task.dto';
 import { AiEvalDatasetService } from './ai-eval-dataset.service';
-import { AddEvalCasesDto, CreateEvalDatasetDto } from './dto/eval-dataset.dto';
+import { AddEvalCasesDto, CreateEvalDatasetDto, StartEvalRunDto } from './dto/eval-dataset.dto';
 import { CurrentUserId } from '@api/common/decorators/user.decorator';
 
 @ApiTags('Admin AI Eval')
@@ -77,10 +77,17 @@ export class AiEvalController {
 
   @Post('datasets/:id/runs')
   @Roles(Role.SUPER_ADMIN, Role.ADMIN)
-  @ApiOperation({ summary: '启动一次批量评测（后台执行）' })
-  async startRun(@Param('id') id: string, @CurrentUserId() adminId: string) {
+  @ApiOperation({ summary: '启动一次批量评测（STORED 历史回答 / LIVE 实时跑 AI）' })
+  async startRun(
+    @Param('id') id: string,
+    @CurrentUserId() adminId: string,
+    @Body() dto: StartEvalRunDto = {},
+  ) {
     this.assertEnabled();
-    return this.datasetService.startRun(id, adminId);
+    return this.datasetService.startRun(id, adminId, {
+      mode: dto.mode,
+      baselineRunId: dto.baselineRunId,
+    });
   }
 
   @Get('runs/:id')

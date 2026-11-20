@@ -74,6 +74,7 @@ const EXPECTED_AGENT_TAGS = AGENT_TAGS_FOR_TOOLS;
     AiUsageService,
     AiProcessingProcessor,
   ],
+  exports: [AiCustomerService],
 })
 export class AiCustomerModule implements OnApplicationBootstrap {
   private readonly logger = new Logger(AiCustomerModule.name);

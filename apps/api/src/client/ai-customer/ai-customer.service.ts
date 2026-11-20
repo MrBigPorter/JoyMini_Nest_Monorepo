@@ -3,6 +3,7 @@ import {
   Logger,
   BadRequestException,
   OnModuleDestroy,
+  Optional,
 } from '@nestjs/common';
 import { MemorySaver, REMOVE_ALL_MESSAGES } from '@langchain/langgraph';
 import type { BaseCheckpointSaver } from '@langchain/langgraph-checkpoint';
@@ -56,6 +57,10 @@ import { runWithContext } from '@api/common/logger/trace-context';
 import { decGauge, incCounter, incGauge } from '@api/common/metrics/metrics';
 import type { RagCitation } from '@api/client/ai-customer/graph/state';
 import { RedisService } from '@api/common/redis/redis.service';
+import {
+  RecordTraceSpanInput,
+  TraceService,
+} from '@api/admin/ai-traces/ai-traces.service';
 import { degradeToHuman } from './ai-failure-handler';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
@@ -97,6 +102,12 @@ export class AiCustomerService implements OnModuleDestroy {
     private readonly aiFeedbackService: AiFeedbackService,
     private readonly flowVersioning: FlowStateVersioningService,
     private readonly conversationDebug: AiConversationDebugService,
+    /**
+     * 链路埋点（可选）：单元测试直接 new 本服务时不注入也不影响。
+     * TraceService 内部吞掉写入异常，埋点失败不会反向影响对话。
+     */
+    @Optional()
+    private readonly traceService?: TraceService,
   ) {}
 
   /**
@@ -428,6 +439,9 @@ export class AiCustomerService implements OnModuleDestroy {
 
     incGauge('ai_active_streams', {}, 1);
     let outcome = 'success';
+    // 正常情况下由收尾分支写一条成功/转人工/确认链路；
+    // 只有收尾前就抛错时才补写 ERROR 链路，避免同一轮写两条 trace。
+    let traceRecorded = false;
 
     // 会话成员列表：本轮只查一次，供"会话房间 + 成员私有房间"双通道推送使用。
     // 放在 try 外面声明、里面赋值，是为了 error 分支也能拿到（可能仍是空数组）。
@@ -516,7 +530,7 @@ export class AiCustomerService implements OnModuleDestroy {
       }
 
       // Step 5 — 收尾分发：转人工 / 确认卡片 / 正常完成
-      await this.finalizeAfterStream(
+      const reply = await this.finalizeAfterStream(
         threadId,
         prevCount,
         userId,
@@ -527,6 +541,22 @@ export class AiCustomerService implements OnModuleDestroy {
         memberIds,
         triggerMessageId,
       );
+
+      // 链路追踪：一次回复一条 trace，best-effort，不影响对话结果。
+      await this.recordReplyTrace({
+        message,
+        userId,
+        conversationId,
+        triggerMessageId,
+        startedAt,
+        status: reply.status,
+        finalState: reply.finalState,
+        newMessages: reply.newMessages,
+        ragSources: reply.ragSources,
+        transferReason: reply.transferReason,
+        streamUsage,
+      });
+      traceRecorded = true;
     } catch (err: any) {
       outcome = err instanceof QuotaExceededError ? 'quota_exceeded' : 'error';
       // 取消触发的 AbortError 不是「模型故障」：不降级转人工、不广播 AI_ERROR，
@@ -560,6 +590,19 @@ export class AiCustomerService implements OnModuleDestroy {
         },
         'error',
       );
+
+      if (!traceRecorded) {
+        await this.recordErrorTrace({
+          message,
+          userId,
+          conversationId,
+          triggerMessageId,
+          startedAt,
+          error: err,
+        });
+        traceRecorded = true;
+      }
+
       await this.handleStreamError(
         err,
         userId,
@@ -709,7 +752,13 @@ export class AiCustomerService implements OnModuleDestroy {
     tokenTotal: number,
     memberIds: string[],
     triggerMessageId?: string,
-  ): Promise<void> {
+  ): Promise<{
+    status: 'SUCCESS' | 'TRANSFERRED' | 'CONFIRM';
+    finalState: any;
+    newMessages: any[];
+    ragSources: RagCitation[];
+    transferReason: string;
+  }> {
     // 读取最终状态
     const finalState = await this.compiledGraph!.getState({
       configurable: { thread_id: threadId },
@@ -787,6 +836,202 @@ export class AiCustomerService implements OnModuleDestroy {
       sourceCount: ragSources.length,
       answerLength: newMessages.at(-1)?.content?.length ?? 0,
     });
+
+    return {
+      status: transferred ? 'TRANSFERRED' : confirmCard ? 'CONFIRM' : 'SUCCESS',
+      finalState,
+      newMessages,
+      ragSources,
+      transferReason,
+    };
+  }
+
+  /**
+   * 一次正常回复收尾后写一条 trace。
+   *
+   * 为什么放在收尾之后：此时 finalState / 最终回复 / 转人工与确认标志都已知，
+   * 一条记录即可覆盖 intent、rag、llm 三段，不需要在流程中间反复落库。
+   * 为什么不 await 失败：TraceService 自己吞异常，这里不会让埋点拖垮对话。
+   */
+  private async recordReplyTrace(params: {
+    message: string;
+    userId: string;
+    conversationId?: string;
+    triggerMessageId?: string;
+    startedAt: number;
+    status: 'SUCCESS' | 'TRANSFERRED' | 'CONFIRM';
+    finalState: any;
+    newMessages: any[];
+    ragSources: RagCitation[];
+    transferReason?: string;
+    streamUsage?: StreamUsageSummary;
+  }): Promise<void> {
+    if (!this.traceService || !params.conversationId) return;
+
+    try {
+      const values = params.finalState?.values ?? {};
+      const flow = values.flowState ?? {};
+      const intent =
+        typeof values.intent === 'string' && values.intent
+          ? values.intent
+          : null;
+      const lastMessage =
+        params.newMessages[params.newMessages.length - 1];
+      const output = this.extractText(lastMessage?.content);
+      const latencyMs = Date.now() - params.startedAt;
+      const traceStart = new Date(params.startedAt);
+
+      // 只保留链路骨架：intent → rag → llm。
+      // RAG 片段只留预览，避免把知识库全文再复制一份进追踪表。
+      const spans: RecordTraceSpanInput[] = [
+        {
+          type: 'intent',
+          name: 'intent-router',
+          status: 'OK',
+          output: {
+            intent,
+            previousIntent:
+              typeof values.previousIntent === 'string'
+                ? values.previousIntent
+                : null,
+          },
+          startedAt: traceStart,
+        },
+        {
+          type: 'rag',
+          name: 'rag-retrieval',
+          status: 'OK',
+          output: {
+            sourceCount: params.ragSources.length,
+            sources: params.ragSources.slice(0, 5).map((source) => ({
+              documentId: source.documentId,
+              title: source.title,
+              domain: source.domain,
+              score: source.score,
+              preview: source.content?.slice(0, 200) ?? null,
+            })),
+          },
+          startedAt: traceStart,
+        },
+        {
+          type: 'llm',
+          name: 'llm-response',
+          status: 'OK',
+          output: {
+            contentLength: output?.length ?? 0,
+            snippet: output?.slice(0, 200) ?? null,
+          },
+          startedAt: traceStart,
+          endedAt: new Date(params.startedAt + latencyMs),
+          durationMs: latencyMs,
+        },
+      ];
+
+      await this.traceService.recordTrace({
+        conversationId: params.conversationId,
+        triggerMessageId: params.triggerMessageId,
+        userId: params.userId,
+        intent,
+        input: this.truncateText(params.message, 1000),
+        output: this.truncateText(output, 2000),
+        status: params.status,
+        latencyMs,
+        promptTokens: params.streamUsage?.promptTokens,
+        completionTokens: params.streamUsage?.completionTokens,
+        metadata: {
+          flow: flow.activeFlow || undefined,
+          step: flow.step || undefined,
+          transferReason:
+            params.status === 'TRANSFERRED'
+              ? params.transferReason
+              : undefined,
+          ragSourceCount: params.ragSources.length,
+        },
+        spans,
+      });
+    } catch (err: any) {
+      // TraceService 已兜底，这里再兜一层，确保埋点永远不冒泡到对话主流程。
+      this.logger.warn(
+        `[recordReplyTrace] skipped: ${err?.message ?? err}`,
+      );
+    }
+  }
+
+  /** 本轮在收尾前失败时补一条 ERROR trace（无最终 state）。 */
+  private async recordErrorTrace(params: {
+    message: string;
+    userId: string;
+    conversationId?: string;
+    triggerMessageId?: string;
+    startedAt: number;
+    error: any;
+  }): Promise<void> {
+    if (!this.traceService || !params.conversationId) return;
+
+    try {
+      const latencyMs = Date.now() - params.startedAt;
+      const errorMessage = String(
+        params.error?.message ?? params.error ?? 'unknown error',
+      );
+
+      await this.traceService.recordTrace({
+        conversationId: params.conversationId,
+        triggerMessageId: params.triggerMessageId,
+        userId: params.userId,
+        input: this.truncateText(params.message, 1000),
+        status: 'ERROR',
+        latencyMs,
+        metadata: { errorName: params.error?.name ?? 'Error' },
+        spans: [
+          {
+            type: 'llm',
+            name: 'llm-response',
+            status: 'ERROR',
+            error: this.truncateText(errorMessage, 500) ?? undefined,
+            startedAt: new Date(params.startedAt),
+            endedAt: new Date(),
+            durationMs: latencyMs,
+          },
+        ],
+      });
+    } catch (err: any) {
+      this.logger.warn(
+        `[recordErrorTrace] skipped: ${err?.message ?? err}`,
+      );
+    }
+  }
+
+  /** 把字符串/多段 content 统一成纯文本；未知结构返回 null。 */
+  private extractText(content: unknown): string | null {
+    if (typeof content === 'string') return content;
+    if (Array.isArray(content)) {
+      const text = content
+        .map((part) => {
+          if (typeof part === 'string') return part;
+          if (
+            part &&
+            typeof part === 'object' &&
+            typeof (part as { text?: unknown }).text === 'string'
+          ) {
+            return (part as { text: string }).text;
+          }
+          return '';
+        })
+        .join('');
+      return text || null;
+    }
+    return null;
+  }
+
+  /** 截断埋点文本，避免大 payload 写穿 DB / 管理端渲染卡顿。 */
+  private truncateText(
+    value: string | null | undefined,
+    max: number,
+  ): string | null {
+    if (value === null || value === undefined) return null;
+    const text = String(value);
+    if (!text) return null;
+    return text.length > max ? `${text.slice(0, max)}…` : text;
   }
 
   /** 路由 A — 标记转人工 */

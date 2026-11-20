@@ -33,6 +33,7 @@ import { AiQueueModule } from '@api/common/queue/ai-queue.module';
 import { AiTaskOutboxModule } from '@api/common/queue/ai-task-outbox.module';
 import { FlowVersioningModule } from '@api/client/ai-customer/flow-versioning/flow-versioning.module';
 import { AiConversationDebugModule } from '@api/client/ai-customer/debug/ai-conversation-debug.module';
+import { AiTracesModule } from '@api/admin/ai-traces/ai-traces.module';
 
 // 根模块（第2步，挂子模块、配置、JWT等）
 const cacheRedisLogger = new Logger('CacheRedis');
@@ -193,6 +194,7 @@ const cacheRedisLogger = new Logger('CacheRedis');
     AiTaskOutboxModule,
     FlowVersioningModule,
     AiConversationDebugModule,
+    AiTracesModule,
     AiCustomerModule,
 
     // 其他模块：PrismaModule、ThrottlerModule、UsersModule、AuthModule 等

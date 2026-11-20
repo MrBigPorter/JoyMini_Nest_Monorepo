@@ -57,6 +57,8 @@ services:
       AI_FEEDBACK_UI_ENABLED: "${AI_FEEDBACK_UI_ENABLED:-false}"
       # 注入检测：本地联调可设 log，命中写 ai_security_events
       AI_INJECTION_DETECTION_MODE: "${AI_INJECTION_DETECTION_MODE:-off}"
+      # LIVE 评测必须指定一个真实测试用户，避免工具查询落到不存在的用户
+      AI_EVAL_LIVE_USER_ID: "${AI_EVAL_LIVE_USER_ID:-}"
     depends_on:
       db:
         condition: service_healthy
