@@ -8,6 +8,7 @@ import { aiQualityApi, chatApi } from '@/api';
 import { PageHeader } from '@/components/scaffold/PageHeader';
 import { AiErrorBanner } from '@/components/ai-ops/AiErrorBanner';
 import { useAiOpsRole } from '@/lib/ai-ops-permissions';
+import { buildCustomerServiceConversationHref } from '@/lib/customer-service-cache';
 import type { SupportSlaSnapshotRow } from '@/type/types';
 
 function formatWait(seconds: number): string {
@@ -334,7 +335,9 @@ export default function AiSupportPage() {
                         )}
                         <Link
                           className="text-xs text-blue-600 hover:underline"
-                          href="/customer-service"
+                          href={buildCustomerServiceConversationHref(
+                            item.conversationId,
+                          )}
                         >
                           打开
                         </Link>

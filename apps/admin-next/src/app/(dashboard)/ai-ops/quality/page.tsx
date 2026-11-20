@@ -102,6 +102,13 @@ function formatPassRate(summary?: Record<string, any> | null): string {
   return typeof rate === 'number' ? `${(rate * 100).toFixed(1)}%` : '-';
 }
 
+/** 基线差值：正数表示通过率提升，带符号展示。 */
+function formatDelta(value?: number | null): string {
+  if (typeof value !== 'number') return '-';
+  const sign = value > 0 ? '+' : '';
+  return `${sign}${(value * 100).toFixed(1)}%`;
+}
+
 function reviewStatusLabel(raw?: string | null): string {
   return raw ? (REVIEW_STATUS_LABELS[raw as ReviewStatus] ?? raw) : '-';
 }
@@ -809,8 +816,12 @@ function EvalPanel() {
   const [selectedId, setSelectedId] = useState('');
   const [casesJson, setCasesJson] = useState('[]');
   const [runId, setRunId] = useState('');
+  const [mode, setMode] = useState<'STORED' | 'LIVE'>('STORED');
+  const [baselineRunId, setBaselineRunId] = useState('');
   const [message, setMessage] = useState('');
   const [advanced, setAdvanced] = useState(false);
+  const role = useAiOpsRole();
+  const canStartRun = role === 'SUPER_ADMIN' || role === 'ADMIN';
 
   const { data: datasets, refresh: refreshDatasets } = useRequest(
     aiQualityApi.listDatasets,
@@ -853,9 +864,16 @@ function EvalPanel() {
 
   const start = async () => {
     if (!selectedId) return;
-    if (!window.confirm('确认启动批量评测？会调用 judge 模型。')) return;
+    const isLive = mode === 'LIVE';
+    const confirmText = isLive
+      ? '确认启动实时评测？会真实调用 AI 客服与 judge 模型。'
+      : '确认启动批量评测？会调用 judge 模型。';
+    if (!window.confirm(confirmText)) return;
     try {
-      const created = await aiQualityApi.startRun(selectedId);
+      const created = await aiQualityApi.startRun(selectedId, {
+        mode,
+        ...(baselineRunId ? { baselineRunId } : {}),
+      });
       setRunId(created.id);
       setMessage('已启动，正在轮询结果…');
     } catch (err: any) {
@@ -872,6 +890,9 @@ function EvalPanel() {
     : [];
   const selectedMeta = list.find((item) => item.id === selectedId);
   const lastRun = ds?.runs?.[0];
+  const completedRuns = (ds?.runs ?? []).filter(
+    (item) => item.status === 'COMPLETED',
+  );
 
   return (
     <section className="space-y-4">
@@ -889,6 +910,7 @@ function EvalPanel() {
           value={selectedId}
           onChange={(e) => {
             setSelectedId(e.target.value);
+            setBaselineRunId('');
             setRunId('');
           }}
         >
@@ -943,10 +965,43 @@ function EvalPanel() {
               </div>
             </div>
           </div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Button size="sm" onClick={start}>
+          <div className="mt-3 flex flex-wrap items-end gap-2">
+            <label className="flex flex-col gap-1 text-xs text-gray-500">
+              评测模式
+              <select
+                aria-label="评测模式"
+                className="rounded-lg border px-3 py-2 text-sm text-gray-900 dark:border-white/10 dark:bg-gray-800 dark:text-gray-100"
+                value={mode}
+                onChange={(e) =>
+                  setMode(e.target.value === 'LIVE' ? 'LIVE' : 'STORED')
+                }
+              >
+                <option value="STORED">历史回答</option>
+                <option value="LIVE">实时跑 AI</option>
+              </select>
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-gray-500">
+              对比基线（可选）
+              <select
+                aria-label="对比基线"
+                className="rounded-lg border px-3 py-2 text-sm text-gray-900 dark:border-white/10 dark:bg-gray-800 dark:text-gray-100"
+                value={baselineRunId}
+                onChange={(e) => setBaselineRunId(e.target.value)}
+              >
+                <option value="">不对比基线</option>
+                {completedRuns.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.id.slice(0, 8)} · {formatPassRate(item.summary)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <Button size="sm" onClick={start} disabled={!canStartRun}>
               启动批量评测
             </Button>
+            {!canStartRun ? (
+              <span className="text-xs text-gray-500">只读角色仅可查看结果</span>
+            ) : null}
           </div>
         </div>
       ) : null}
@@ -1006,6 +1061,9 @@ function EvalPanel() {
             <span className="rounded-lg border px-2 py-0.5 text-xs dark:border-white/10">
               {labelOf(RUN_STATUS_LABELS, runData.status)}
             </span>
+            <span className="rounded-lg border px-2 py-0.5 text-xs dark:border-white/10">
+              模式：{runData.mode === 'LIVE' ? '实时跑 AI' : '历史回答'}
+            </span>
             <span className="text-xs text-gray-500">
               通过率 {formatPassRate(runData.summary)}
             </span>
@@ -1015,6 +1073,17 @@ function EvalPanel() {
                 {runData.summary.solved ?? 0} · 部分{' '}
                 {runData.summary.partial ?? 0} · 未解决{' '}
                 {runData.summary.unsolved ?? 0}
+              </span>
+            ) : null}
+            {typeof runData.summary?.baselinePassRate === 'number' ? (
+              <span className="text-xs text-gray-500">
+                基线{' '}
+                {formatPassRate({
+                  passRate: runData.summary.baselinePassRate,
+                })}{' '}
+                · 变化 {formatDelta(runData.summary.delta)} · 新增失败{' '}
+                {runData.summary.newFailures ?? 0} · 修复{' '}
+                {runData.summary.fixed ?? 0}
               </span>
             ) : null}
           </div>
@@ -1036,6 +1105,11 @@ function EvalPanel() {
                     {r.score} · {r.latencyMs ?? '-'}ms
                   </div>
                   <div>{r.case?.question}</div>
+                  {r.actualAnswer ? (
+                    <div className="text-gray-500">
+                      实际回答：{r.actualAnswer}
+                    </div>
+                  ) : null}
                   <div className="text-gray-500">{r.reason}</div>
                 </div>
               ))

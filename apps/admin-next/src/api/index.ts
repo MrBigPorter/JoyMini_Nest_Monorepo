@@ -1572,6 +1572,21 @@ export const aiOpsApi = {
   getUserUsage: (userId: string, params?: { from?: string; to?: string }) =>
     http.get(`/v1/admin/ai-usage/users/${userId}`, params),
 
+  getTraces: (params?: {
+    conversationId?: string;
+    intent?: string;
+    page?: number;
+    pageSize?: number;
+  }) =>
+    http.get<{
+      list: import('@/type/types').AiTraceRow[];
+      total: number;
+      page: number;
+      pageSize: number;
+    }>('/v1/admin/ai-traces', params),
+  getTrace: (id: string) =>
+    http.get<import('@/type/types').AiTraceDetail>(`/v1/admin/ai-traces/${id}`),
+
   getMemoryUser: (userId: string) =>
     http.get<{
       userId: string;
@@ -1630,9 +1645,13 @@ export const aiQualityApi = {
       }>;
     },
   ) => http.post(`/v1/admin/ai-eval/datasets/${id}/cases`, data),
-  startRun: (id: string) =>
+  startRun: (
+    id: string,
+    data?: { mode?: 'STORED' | 'LIVE'; baselineRunId?: string },
+  ) =>
     http.post<import('@/type/types').EvalRun>(
       `/v1/admin/ai-eval/datasets/${id}/runs`,
+      data ?? {},
     ),
   getRun: (id: string) =>
     http.get<import('@/type/types').EvalRun>(`/v1/admin/ai-eval/runs/${id}`),

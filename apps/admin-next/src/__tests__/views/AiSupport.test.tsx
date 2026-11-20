@@ -131,6 +131,16 @@ describe('AiSupportPage', () => {
     vi.restoreAllMocks();
   });
 
+  it('links the 打开 action to the exact conversation deep link', () => {
+    queueRequests();
+    render(<AiSupportPage />);
+
+    const link = screen.getByRole('link', { name: '打开' });
+    expect(link.getAttribute('href')).toBe(
+      '/customer-service?conversationId=conv-1',
+    );
+  });
+
   it('shows claim and close actions for ADMIN', () => {
     queueRequests();
     render(<AiSupportPage />);

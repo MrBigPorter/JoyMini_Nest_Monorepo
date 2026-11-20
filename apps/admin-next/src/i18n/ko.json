@@ -10,6 +10,7 @@
     "aiOpsSupport": "Human Handoff",
     "aiOpsInsights": "Insights",
     "aiOpsContext": "Conversation Context",
+    "aiOpsTraces": "트레이스",
     "dashboard": "대시보드",
     "dashboard_realTimeOverview": "실시간 개요",
     "dashboard_refresh": "새로고침",

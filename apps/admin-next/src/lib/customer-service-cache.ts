@@ -50,6 +50,33 @@ export async function prefetchCustomerServiceList(
 }
 
 /**
+ * 从 URL searchParams 解析出深链会话 ID（?conversationId=xxx）
+ *
+ * 兼容 Next.js 对重复参数的数组形式；空串 / 纯空白视为未提供，
+ * 避免把非法值传给后续查询。
+ */
+export function parseConversationIdParam(searchParams: {
+  [key: string]: string | string[] | undefined;
+}): string | undefined {
+  const raw = searchParams.conversationId;
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+/**
+ * 构建客服工作台的会话深链，供转人工队列等页面跳转使用
+ */
+export function buildCustomerServiceConversationHref(
+  conversationId: string,
+): string {
+  return `/customer-service?conversationId=${encodeURIComponent(
+    conversationId,
+  )}`;
+}
+
+/**
  * 从 URL searchParams 解析出查询参数
  */
 export function parseCustomerServiceSearchParams(searchParams: {

@@ -38,6 +38,7 @@ import {
   Headset,
   BarChart3,
   Braces,
+  GitBranch,
 } from 'lucide-react';
 
 export type RouteGroup =
@@ -216,6 +217,12 @@ export const routes: RouteConfig[] = [
     path: '/ai-ops/context',
     name: 'aiOpsContext',
     icon: Braces,
+    group: 'AI Operations · 工程',
+  },
+  {
+    path: '/ai-ops/traces',
+    name: 'aiOpsTraces',
+    icon: GitBranch,
     group: 'AI Operations · 工程',
   },
 

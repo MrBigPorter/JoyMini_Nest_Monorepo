@@ -10,6 +10,7 @@ import { PageSkeleton } from '@/components/ui/PageSkeleton';
 import {
   prefetchCustomerServiceList,
   parseCustomerServiceSearchParams,
+  parseConversationIdParam,
 } from '@/lib/customer-service-cache';
 import { getTranslations } from 'next-intl/server';
 
@@ -36,6 +37,8 @@ export default async function CustomerServicePage({
 
   // 解析搜索参数
   const queryParams = parseCustomerServiceSearchParams(params);
+  // 深链会话 ID（来自转人工队列「打开」等入口）
+  const initialConversationId = parseConversationIdParam(params);
 
   // 预取会话列表数据
   await prefetchCustomerServiceList(queryClient, queryParams);
@@ -43,7 +46,7 @@ export default async function CustomerServicePage({
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
       <Suspense fallback={<PageSkeleton rows={8} />}>
-        <CustomerServiceDesk />
+        <CustomerServiceDesk initialConversationId={initialConversationId} />
       </Suspense>
     </HydrationBoundary>
   );

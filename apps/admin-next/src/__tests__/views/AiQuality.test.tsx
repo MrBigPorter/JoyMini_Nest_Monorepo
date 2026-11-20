@@ -19,6 +19,7 @@ const mockGetFeedbackSummary = vi.hoisted(() => vi.fn());
 const mockUpdateFeedback = vi.hoisted(() => vi.fn());
 const mockListDatasets = vi.hoisted(() => vi.fn());
 const mockAddCases = vi.hoisted(() => vi.fn());
+const mockStartRun = vi.hoisted(() => vi.fn());
 const mockRagSearch = vi.hoisted(() => vi.fn());
 const mockQualityStats = vi.hoisted(() => vi.fn());
 const mockCanTriage = vi.hoisted(() => vi.fn(() => true));
@@ -38,7 +39,7 @@ vi.mock('@/api', () => ({
     getDataset: vi.fn(),
     createDataset: vi.fn(),
     addCases: (...args: unknown[]) => mockAddCases(...args),
-    startRun: vi.fn(),
+    startRun: (...args: unknown[]) => mockStartRun(...args),
     getRun: vi.fn(),
     ragSearch: (...args: unknown[]) => mockRagSearch(...args),
   },
@@ -117,6 +118,45 @@ const datasets = [
   },
 ];
 
+const evalDatasetDetail = {
+  ...datasets[0],
+  cases: [
+    {
+      id: 'case-1',
+      datasetId: 'ds-1',
+      question: '怎么退款',
+      answer: '旧的历史回答',
+      expect: {},
+      tags: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+    },
+  ],
+  runs: [
+    {
+      id: 'base-run-1',
+      datasetId: 'ds-1',
+      status: 'COMPLETED',
+      mode: 'STORED',
+      baselineRunId: null,
+      createdBy: 'admin',
+      summary: { passRate: 0.5, total: 2, solved: 1 },
+      startedAt: '2026-01-01T00:00:00.000Z',
+      finishedAt: '2026-01-01T01:00:00.000Z',
+    },
+    {
+      id: 'running-run',
+      datasetId: 'ds-1',
+      status: 'RUNNING',
+      mode: 'LIVE',
+      baselineRunId: null,
+      createdBy: 'admin',
+      summary: null,
+      startedAt: '2026-01-02T00:00:00.000Z',
+      finishedAt: null,
+    },
+  ],
+};
+
 function wireFeedback(
   options: {
     summaryData?: unknown;
@@ -162,6 +202,31 @@ function openTab(name: string) {
   fireEvent.click(screen.getByRole('button', { name }));
 }
 
+/**
+ * EvalPanel 每轮渲染固定注册 3 个 useRequest（列表 / 详情 / 运行），
+ * 用同一个 3 槽位循环切换数据；返回的函数在打开页签前调用。
+ */
+function wireEvalTab(detail: unknown, runData: unknown = null) {
+  let index = 0;
+  let inEval = false;
+  mockUseRequest.mockImplementation((service: unknown) => {
+    if (typeof service === 'function') void (service as () => unknown)();
+    const slot = index % 3;
+    index += 1;
+    if (!inEval) {
+      if (slot === 0) return makeUseRequest(summary);
+      if (slot === 1) return makeUseRequest({ list: [feedback], total: 1 });
+      return makeUseRequest(datasets);
+    }
+    if (slot === 0) return makeUseRequest(datasets);
+    if (slot === 1) return makeUseRequest(detail);
+    return makeUseRequest(runData);
+  });
+  return () => {
+    inEval = true;
+  };
+}
+
 describe('AiQualityPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -171,6 +236,7 @@ describe('AiQualityPage', () => {
     mockGetFeedbackSummary.mockResolvedValue(summary);
     mockListDatasets.mockResolvedValue(datasets);
     mockAddCases.mockResolvedValue({ id: 'ds-1', cases: [] });
+    mockStartRun.mockResolvedValue({ id: 'run-new', status: 'RUNNING' });
     mockRagSearch.mockResolvedValue({ results: [], debug: {} });
     mockQualityStats.mockResolvedValue(stats);
     wireFeedback();
@@ -415,6 +481,79 @@ describe('AiQualityPage', () => {
     fireEvent.click(screen.getByRole('button', { name: '高级模式' }));
 
     expect(screen.getByLabelText('评测用例 JSON')).toBeTruthy();
+  });
+
+  it('starts a live run with the selected mode and baseline', async () => {
+    const enterEval = wireEvalTab(evalDatasetDetail);
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'ds-1' },
+    });
+    fireEvent.change(screen.getByLabelText(/评测模式/), {
+      target: { value: 'LIVE' },
+    });
+    fireEvent.change(screen.getByLabelText(/对比基线/), {
+      target: { value: 'base-run-1' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '启动批量评测' }));
+
+    await waitFor(() =>
+      expect(mockStartRun).toHaveBeenCalledWith('ds-1', {
+        mode: 'LIVE',
+        baselineRunId: 'base-run-1',
+      }),
+    );
+  });
+
+  it('shows mode, baseline delta, new failures and fixed on the run card', () => {
+    const enterEval = wireEvalTab(evalDatasetDetail, {
+      id: 'run-1',
+      datasetId: 'ds-1',
+      status: 'COMPLETED',
+      mode: 'LIVE',
+      baselineRunId: 'base-run-1',
+      createdBy: 'admin',
+      summary: {
+        total: 5,
+        solved: 4,
+        partial: 0,
+        unsolved: 1,
+        passRate: 0.8,
+        mode: 'LIVE',
+        baselineRunId: 'base-run-1',
+        baselinePassRate: 0.6,
+        delta: 0.2,
+        newFailures: 1,
+        fixed: 2,
+      },
+      startedAt: '2026-01-02T00:00:00.000Z',
+      finishedAt: '2026-01-02T00:10:00.000Z',
+      results: [
+        {
+          id: 'res-1',
+          verdict: 'solved',
+          score: 0.9,
+          reason: '关键信息齐全',
+          actualAnswer: '实时回答：请点申请退款',
+          latencyMs: 1200,
+          case: evalDatasetDetail.cases[0],
+        },
+      ],
+    });
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+
+    expect(screen.getByText('模式：实时跑 AI')).toBeTruthy();
+    expect(screen.getByText(/基线 60\.0%/)).toBeTruthy();
+    expect(screen.getByText(/变化 \+20\.0%/)).toBeTruthy();
+    expect(screen.getByText(/新增失败 1/)).toBeTruthy();
+    expect(screen.getByText(/修复 2/)).toBeTruthy();
+    expect(screen.getByText('实际回答：实时回答：请点申请退款')).toBeTruthy();
   });
 
   it('renders explicit RAG stat cards and a recent flags table', () => {

@@ -10,6 +10,7 @@
     "aiOpsSupport": "Human Handoff",
     "aiOpsInsights": "Insights",
     "aiOpsContext": "Conversation Context",
+    "aiOpsTraces": "Traces",
     "dashboard": "Tableau de bord",
     "dashboard_realTimeOverview": "Aperçu en temps réel",
     "dashboard_refresh": "Actualiser",

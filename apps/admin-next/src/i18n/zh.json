@@ -10,6 +10,7 @@
     "aiOpsSupport": "转人工队列",
     "aiOpsInsights": "运营洞察",
     "aiOpsContext": "会话上下文",
+    "aiOpsTraces": "链路追踪",
     "dashboard": "仪表盘",
     "dashboard_realTimeOverview": "实时概览",
     "dashboard_refresh": "刷新",

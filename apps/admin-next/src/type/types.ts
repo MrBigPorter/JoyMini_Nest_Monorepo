@@ -2133,6 +2133,8 @@ export interface EvalRun {
   id: string;
   datasetId: string;
   status: string;
+  mode?: 'STORED' | 'LIVE';
+  baselineRunId?: string | null;
   createdBy: string | null;
   summary: Record<string, any> | null;
   startedAt: string;
@@ -2142,9 +2144,52 @@ export interface EvalRun {
     verdict: string;
     score: number;
     reason: string;
+    actualAnswer?: string | null;
+    judgeModel?: string | null;
+    judgeVendor?: string | null;
+    vendorIndependent?: boolean | null;
     latencyMs: number | null;
     case: EvalCase;
   }>;
+}
+
+export interface AiTraceRow {
+  id: string;
+  conversationId: string;
+  triggerMessageId: string | null;
+  aiMessageId: string | null;
+  userId: string | null;
+  source: string;
+  intent: string | null;
+  input: string | null;
+  output: string | null;
+  status: string;
+  latencyMs: number | null;
+  promptTokens: number | null;
+  completionTokens: number | null;
+  promptName: string | null;
+  promptVersion: number | null;
+  metadata: Record<string, any> | null;
+  createdAt: string;
+}
+
+export interface AiSpanRow {
+  id: string;
+  traceId: string;
+  type: string;
+  name: string;
+  status: string;
+  input: Record<string, any> | null;
+  output: Record<string, any> | null;
+  error: string | null;
+  startedAt: string;
+  endedAt: string | null;
+  durationMs: number | null;
+  metadata: Record<string, any> | null;
+}
+
+export interface AiTraceDetail extends AiTraceRow {
+  spans: AiSpanRow[];
 }
 
 export interface AiSecurityEventRow {
