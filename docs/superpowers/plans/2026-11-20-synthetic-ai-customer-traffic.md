@@ -26,7 +26,7 @@
 - **确认卡片被误执行**：driver 必须把 `ai_confirm` 视为终止信号，不调用任何确认接口；也不得创建支付单/订单/提现单
 - **OTP 建号被 IP 限流**：30 个账号必须分批，每批 5 个、间隔 60 秒
 - **Socket 事件形态不一致**：等待 `chat_message` 时同时兼容 `isAi=true` 与 `senderId=botUserId`
-- **模拟流量污染真实指标**：所有会话必须落在 `simulation_support_v1`，报告按 businessId 校验
+- **模拟流量污染真实指标**：所有会话必须带 `aiMetadata.trafficSource=simulation_support_v1`，报告按该标记校验
 - **无回复/超时**：每轮等待上限 90 秒，超时记 `no_reply` 并结束会话，不无限挂起
 
 ---
@@ -333,7 +333,7 @@ Expected: 无进程崩溃；summary 覆盖 9 intents；队列 waiting 不持续�
 
 - [ ] **Step 4: 安全检查**
 
-查询 DB：`ChatMessage` 中无 confirm 执行记录；`Conversation.aiMetadata->>'trafficSource'='simulation_support_v1'` 全部隔离；后台 `/ai-ops` 有数据。
+查询 DB：`ChatMessage` 中无 confirm 执行记录；`"ai_metadata"->>'trafficSource'='simulation_support_v1'` 全部隔离；后台 `/ai-ops` 有数据。
 
 - [ ] **Step 5: Commit 报告**
 

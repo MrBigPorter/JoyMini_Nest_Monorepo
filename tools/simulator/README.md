@@ -21,7 +21,7 @@
 
 ## 前置条件
 
-- Node.js >= 18（使用内置 `fetch`，无需 `npm install`）
+- Node.js >= 18（使用内置 `fetch` 与根依赖 `socket.io-client`；正常 `yarn install` 后无需额外安装）
 - 生产环境已配置固定 OTP（`OTP_PROVIDER=fixed` 或 `OTP_FIXED_MODE=true`）；
   生产环境还需要 `OTP_ALLOW_FIXED_IN_PROD=true` 作为第二道确认，否则应用启动失败；完全未配置固定 OTP 时才会在发送阶段返回 501。
 - 渠道已由人工创建并启用（见下一节）。
