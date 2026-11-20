@@ -1,27 +1,32 @@
 import { Logger } from '@nestjs/common';
-import { SocketEvents } from '@lucky/shared';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { EventsGateway } from '@api/common/events/events.gateway';
+import {
+  CHAT_EVENTS,
+  MessageCreatedEvent,
+} from '@api/common/chat/events/chat.events';
 
 const logger = new Logger('AiReplyPublisher');
 
 /**
- * 把 AI 回复写入 chat_message 表 + 广播 CHAT_MESSAGE 事件
- * 让 AI 回复像普通 IM 消息一样进入统一的消息流
+ * 把 AI 回复写入 chat_message 表，并发布统一的 MESSAGE_CREATED 事件。
  *
- * ── 为什么必须走 dispatchToConversation（双通道）？ ──
- * 这里以前只发会话房间。客户端的 join_chat 一旦丢失（断线重连不重放），
- * 房间就是空的 → AI 回复写进了表，用户却一条都收不到（#87 N-9，2026-11-11 实测）。
- * 走双通道后，即使房间为空，`user_X` 私有房间仍能把消息送到，
- * 与普通 IM 消息的投递语义对齐。
+ * ── 为什么不再直接 dispatchToConversation？ ──
+ * 以前这里手动双通道补齐，socket 实时投递没漏，但绕过了统一事件：
+ * 离线 FCM 推送、以及未来任何 MESSAGE_CREATED 消费者都看不到 AI 消息。
+ * 现在改为落库后 emit 一次事件，由 SocketListener / PushListener 统一处理。
+ *
+ * 注意：事件只能发一次。P2002 重放分支必须直接 return，不能再次广播。
  */
 export async function publishAiReply(
   prisma: PrismaService,
   eventsGateway: EventsGateway,
+  eventEmitter: EventEmitter2,
   conversationId: string,
   newMessages: any[],
   userId: string,
-  /** 会话成员 userId 列表；调用方已查过，直接复用，避免重复查询 */
+  /** 会话成员 userId 列表；调用方已查过，直接复用 */
   memberIds: string[] = [],
   /** 附加元数据（如 RAG sources），写入 ChatMessage.meta 并随消息推送 */
   meta?: Record<string, any>,
@@ -45,16 +50,48 @@ export async function publishAiReply(
   });
   if (!otherMember) return;
 
-  let msg: any;
+  // 推送名单：免打扰成员只收 socket，不收 FCM。
+  // 查询失败时退化为调用方传入的成员列表，不阻断消息。
+  let allMemberIds = memberIds.length > 0 ? memberIds : [userId];
+  let pushMemberIds = allMemberIds;
   try {
-    // 取序号与写消息必须同事务：唯一键冲突时序号自增一起回滚，
-    // 否则重放被吸收后会留下一个永远不会被使用的 seqId 空洞。
+    const members = await prisma.chatMember.findMany({
+      where: { conversationId },
+      select: { userId: true, isMuted: true },
+    });
+    if (members.length > 0) {
+      allMemberIds = members.map((m) => m.userId);
+      pushMemberIds = members.filter((m) => !m.isMuted).map((m) => m.userId);
+    }
+  } catch (err: any) {
+    logger.warn(
+      `[publishAiReply] member lookup failed: ${err?.message ?? err}`,
+    );
+  }
+
+  let msg: any;
+  let conversationType: string | undefined;
+  let businessId: string | undefined;
+  try {
+    // 取序号、写消息、更新会话快照必须同事务：
+    // 唯一键冲突时一起回滚，不留 seqId 空洞，也不会出现列表快照领先于消息。
     msg = await prisma.$transaction(async (tx) => {
       const conv = await tx.conversation.update({
         where: { id: conversationId },
-        data: { lastMsgSeqId: { increment: 1 } },
-        select: { lastMsgSeqId: true },
+        data: {
+          lastMsgSeqId: { increment: 1 },
+          lastMsgContent: lastAiContent,
+          lastMsgType: 0,
+          lastMsgTime: new Date(),
+        },
+        select: {
+          lastMsgSeqId: true,
+          type: true,
+          businessId: true,
+        },
       });
+      conversationType = String(conv.type);
+      businessId = conv.businessId ?? undefined;
 
       return tx.chatMessage.create({
         data: {
@@ -88,16 +125,24 @@ export async function publishAiReply(
     throw err;
   }
 
-  eventsGateway.dispatchToConversation(
-    conversationId,
-    // 成员列表为空时至少要把消息推给提问者本人（senderId 是 AI 占位成员，不在推送对象里）
-    memberIds.length > 0 ? memberIds : [userId],
-    SocketEvents.CHAT_MESSAGE,
-    {
-      ...msg,
-      isSelf: false,
-      // createdAt 转时间戳 number（Flutter SocketMessage 要求 int，Date 会被序列化成 ISO 字符串导致解析失败）
-      createdAt: msg.createdAt.getTime(),
-    },
+  eventEmitter.emit(
+    CHAT_EVENTS.MESSAGE_CREATED,
+    new MessageCreatedEvent(
+      msg.id,
+      conversationId,
+      msg.content,
+      msg.type,
+      msg.sender?.id ?? otherMember.userId,
+      msg.sender?.nickname ?? '',
+      msg.sender?.avatar ?? '',
+      msg.createdAt.getTime(),
+      allMemberIds,
+      msg.seqId,
+      msg.meta,
+      conversationType,
+      businessId,
+      pushMemberIds,
+      true,
+    ),
   );
 }

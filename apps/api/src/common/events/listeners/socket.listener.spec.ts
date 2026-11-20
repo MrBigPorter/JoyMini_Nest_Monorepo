@@ -46,6 +46,10 @@ describe('SocketListener', () => {
       memberIds,
       1,
       null,
+      'SUPPORT',
+      undefined,
+      memberIds,
+      true,
     );
 
     await listener.handleMessageCreated(event);
@@ -58,6 +62,7 @@ describe('SocketListener', () => {
       expect.objectContaining({
         id: 'msg_1',
         conversationId: 'conv_1',
+        isAi: true,
       }),
     );
     // 不再逐个成员单独 dispatch，避免与房间广播重复投递

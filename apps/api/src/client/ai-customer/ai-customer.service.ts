@@ -638,6 +638,7 @@ export class AiCustomerService implements OnModuleDestroy {
           await publishAiReply(
             this.prismaService,
             this.eventsGateway,
+            this.eventEmitter,
             targetConvId,
             newMessages,
             userId,
@@ -863,6 +864,7 @@ export class AiCustomerService implements OnModuleDestroy {
     await publishAiReply(
       this.prismaService,
       this.eventsGateway,
+      this.eventEmitter,
       conversationId,
       newMessages,
       userId,
@@ -934,6 +936,7 @@ export class AiCustomerService implements OnModuleDestroy {
       {
         prisma: this.prismaService,
         gateway: this.eventsGateway,
+        eventEmitter: this.eventEmitter,
         logger: this.logger,
       },
       { conversationId, userId, memberIds, triggerMessageId },

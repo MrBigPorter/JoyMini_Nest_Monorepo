@@ -666,6 +666,7 @@ export class ChatService {
         createdAt: m.createdAt.getTime(),
         isSelf: m.senderId === userId,
         meta: m.meta,
+        isAi: m.source === 'ai',
         sender: m.sender,
       })),
       nextCursor,
