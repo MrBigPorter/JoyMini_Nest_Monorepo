@@ -44,11 +44,17 @@ test("每个 intent 至少 3 个场景", () => {
   }
 });
 
-test("特殊场景覆盖 transfer / correction / injection / ambiguous", () => {
+test("特殊场景覆盖 transfer / correction / injection / ambiguous / confirm", () => {
   const specials = new Set(
     SCENARIOS.map((s) => s.special).filter((value) => value !== undefined),
   );
-  for (const special of ["transfer", "correction", "injection", "ambiguous"]) {
+  for (const special of [
+    "transfer",
+    "correction",
+    "injection",
+    "ambiguous",
+    "confirm",
+  ]) {
     assert.ok(specials.has(special), special);
   }
 });
@@ -73,9 +79,16 @@ test("场景 id 唯一、turns 非空且不含未定义的确认指令", () => {
   }
 });
 
-test("确认类场景必须只有一轮（只触发确认卡片）", () => {
+test("确认类场景最多两轮，且不得包含确认执行指令", () => {
   for (const scenario of SCENARIOS.filter((s) => s.expectConfirm)) {
-    assert.equal(scenario.turns.length, 1, scenario.id);
+    assert.ok(scenario.turns.length <= 2, scenario.id);
+    if (scenario.turns.length > 1) {
+      assert.doesNotMatch(
+        scenario.turns[1],
+        /确认(支付|提现|领取|充值|下单|删除)|执行确认/i,
+        scenario.id,
+      );
+    }
   }
 });
 

@@ -211,6 +211,17 @@ export const SCENARIOS = Object.freeze([
     turns: ["hello", "hi, can you help me with my account?"],
   },
 
+  {
+    id: "user_memory_profile",
+    intent: "user",
+    turns: ["你好，叫我小明", "我来自上海，已经实名认证了"],
+  },
+  {
+    id: "special_repeated",
+    intent: "order",
+    turns: ["帮我查一下订单状态", "帮我查一下订单状态"],
+  },
+
   // ── 特殊场景：转人工、改口、注入、指代不明、长会话 ──────────────────
   {
     id: "special_transfer",
@@ -239,6 +250,18 @@ export const SCENARIOS = Object.freeze([
     intent: "general",
     turns: ["那个怎么样了？", "就是上次那个", "你懂的"],
     special: "ambiguous",
+  },
+  {
+    // 两轮只为让 AI 选到一张可领取的券；claimCoupon 是 write 工具，
+    // orchestrator 会在执行前截停并返回 ai_confirm，driver 收到即停止。
+    id: "special_confirm_coupon",
+    intent: "coupon",
+    turns: [
+      "帮我看看有哪些优惠券可以领",
+      "帮我领 Big Spender — ₱200 Off",
+    ],
+    expectConfirm: true,
+    special: "confirm",
   },
   {
     id: "special_long_session",

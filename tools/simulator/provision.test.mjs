@@ -298,12 +298,15 @@ test("probeChannel 在 404/403 时提示先创建渠道", async () => {
   );
 });
 
-test("probeChannel 成功时返回 conversationId", async () => {
-  const { fetchImpl } = createMockFetch();
+test("probeChannel 成功时返回 conversationId 并带上 trafficSource", async () => {
+  const { fetchImpl, calls } = createMockFetch();
   const conversationId = await probeChannel(loadConfig({}), "token", {
     fetchImpl,
   });
   assert.equal(conversationId, "conversation-1");
+  const probe = calls.find((call) => call.url.includes("/v1/chat/business"));
+  assert.ok(probe);
+  assert.match(probe.url, /trafficSource=simulation_support_v1/);
 });
 
 test("refreshAccountToken 用 refreshToken 换新 token 并保留其余字段", async () => {

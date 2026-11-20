@@ -505,7 +505,7 @@ export async function probeChannel(
   token,
   { fetchImpl = globalThis.fetch, deviceId, timeoutMs } = {},
 ) {
-  const route = `/v1/chat/business?businessId=${encodeURIComponent(config.businessId)}`;
+  const route = `/v1/chat/business?businessId=${encodeURIComponent(config.businessId)}&trafficSource=${encodeURIComponent(config.trafficSource)}`;
 
   try {
     const data = await requestJson({

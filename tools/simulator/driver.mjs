@@ -242,6 +242,7 @@ async function openConversation({
   config,
   account,
   businessId,
+  trafficSource,
   fetchImpl,
   onTokenRefresh,
 }) {
@@ -254,6 +255,7 @@ async function openConversation({
         config,
         account: current,
         businessId,
+        trafficSource,
         fetchImpl,
       });
     } catch (error) {
@@ -499,6 +501,7 @@ export async function runConversation(account, scenario, opts = {}) {
       config,
       account,
       businessId,
+      trafficSource: config.trafficSource,
       fetchImpl,
       onTokenRefresh,
     });
