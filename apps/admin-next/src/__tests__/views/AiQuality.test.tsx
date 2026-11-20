@@ -181,6 +181,7 @@ function wireFeedback(
         ...makeUseRequest(options.summaryData ?? summary),
         ...(options.summaryError ? { error: options.summaryError } : {}),
         refresh,
+        refreshAsync: refresh,
       };
     }
     if (slot === 1) {
@@ -190,11 +191,13 @@ function wireFeedback(
         ),
         ...(options.listError ? { error: options.listError } : {}),
         refresh,
+        refreshAsync: refresh,
       };
     }
     return {
       ...makeUseRequest(options.datasetsData ?? datasets),
       refresh,
+      refreshAsync: refresh,
     };
   });
   return refresh;
@@ -216,9 +219,9 @@ function wireEvalTab(detail: unknown, runData: unknown = null) {
     const slot = index % 3;
     index += 1;
     if (!inEval) {
-      if (slot === 0) return makeUseRequest(summary);
-      if (slot === 1) return makeUseRequest({ list: [feedback], total: 1 });
-      return makeUseRequest(datasets);
+      if (slot === 0) return { ...makeUseRequest(summary), refreshAsync: vi.fn() };
+      if (slot === 1) return { ...makeUseRequest({ list: [feedback], total: 1 }), refreshAsync: vi.fn() };
+      return { ...makeUseRequest(datasets), refreshAsync: vi.fn() };
     }
     if (slot === 0) return makeUseRequest(datasets);
     if (slot === 1) return makeUseRequest(detail);
@@ -312,12 +315,34 @@ describe('AiQualityPage', () => {
       screen
         .getByRole('link', { name: '待处理，查看对应反馈' })
         .getAttribute('href'),
-    ).toBe('/ai-ops/quality?reviewStatus=PENDING');
+    ).toBe('/ai-ops/quality?queue=TODO');
+    expect(
+      screen
+        .getByRole('link', { name: '系统信号，查看对应反馈' })
+        .getAttribute('href'),
+    ).toBe('/ai-ops/quality?queue=SIGNAL');
     expect(
       screen
         .getByRole('link', { name: '已进回归，查看对应反馈' })
         .getAttribute('href'),
     ).toBe('/ai-ops/quality?resolution=ADDED_TO_EVAL');
+  });
+
+  it('marks a correct answer as NO_ISSUE instead of CONFIRMED', async () => {
+    wireFeedback();
+    render(<AiQualityPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: '开始质检' }));
+    fireEvent.click(screen.getByRole('button', { name: '回答正确' }));
+
+    await waitFor(() =>
+      expect(mockUpdateFeedback).toHaveBeenCalledWith('fb-1', {
+        reviewStatus: 'REVIEWED',
+        resolution: 'NO_ISSUE',
+        verdict: 'correct',
+        note: '已确认是模型答非所问',
+      }),
+    );
   });
 
   it('writes filter changes to the URL and clears them', () => {

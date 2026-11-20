@@ -29,11 +29,15 @@ export const SIGNAL_VALUES = [
 ] as const;
 export type FeedbackSignal = (typeof SIGNAL_VALUES)[number];
 
+export const QUEUE_VALUES = ['TODO', 'SIGNAL'] as const;
+export type FeedbackQueue = (typeof QUEUE_VALUES)[number];
+
 export interface FeedbackFilters {
   reviewStatus: '' | FeedbackReviewStatus;
   failureKind: '' | FeedbackFailureKind;
   resolution: '' | FeedbackResolution;
   signal: '' | FeedbackSignal;
+  queue: '' | FeedbackQueue;
 }
 
 export const EMPTY_FEEDBACK_FILTERS: FeedbackFilters = {
@@ -41,6 +45,7 @@ export const EMPTY_FEEDBACK_FILTERS: FeedbackFilters = {
   failureKind: '',
   resolution: '',
   signal: '',
+  queue: '',
 };
 
 function pick<T extends readonly string[]>(
@@ -70,6 +75,7 @@ export function parseFeedbackFilters(search: string): FeedbackFilters {
       params.get('resolution'),
     ) as FeedbackFilters['resolution'],
     signal: pick(SIGNAL_VALUES, params.get('signal')) as FeedbackFilters['signal'],
+    queue: pick(QUEUE_VALUES, params.get('queue')) as FeedbackFilters['queue'],
   };
 }
 
@@ -84,6 +90,7 @@ export function applyFeedbackFilters(
     'failureKind',
     'resolution',
     'signal',
+    'queue',
   ] as const) {
     if (!(key in patch)) continue;
     const value = patch[key];
@@ -103,6 +110,7 @@ export function buildQualityHref(
     'failureKind',
     'resolution',
     'signal',
+    'queue',
   ] as const) {
     const value = filters[key];
     if (value) params.set(key, value);
@@ -116,6 +124,7 @@ export function hasFeedbackFilters(filters: FeedbackFilters): boolean {
     filters.reviewStatus ||
       filters.failureKind ||
       filters.resolution ||
-      filters.signal,
+      filters.signal ||
+      filters.queue,
   );
 }

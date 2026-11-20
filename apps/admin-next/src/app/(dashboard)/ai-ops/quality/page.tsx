@@ -71,6 +71,7 @@ const RESOLUTION_LABELS: Record<string, string> = {
   ADDED_TO_EVAL: '已进回归',
   FIXED_PENDING_VERIFY: '已修复待验证',
   CLOSED: '已关闭',
+  NO_ISSUE: '无问题',
 };
 
 const FAILURE_KIND_OPTIONS = Object.entries(FAILURE_KIND_LABELS).map(
@@ -202,7 +203,13 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
   const filters = parseFeedbackFilters(searchParams.toString());
-  const { reviewStatus, failureKind: failureKindFilter, resolution: resolutionFilter, signal: signalFilter } = filters;
+  const {
+    reviewStatus,
+    failureKind: failureKindFilter,
+    resolution: resolutionFilter,
+    signal: signalFilter,
+    queue: queueFilter,
+  } = filters;
   const [failureKind, setFailureKind] = useState('UNKNOWN');
   const [page, setPage] = useState(1);
   const [actionError, setActionError] = useState('');
@@ -231,16 +238,29 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
   // URL 是筛选的唯一来源；直达链接或后退时也要回到第一页。
   useEffect(() => {
     setPage(1);
-  }, [reviewStatus, failureKindFilter, resolutionFilter, signalFilter]);
+  }, [
+    reviewStatus,
+    failureKindFilter,
+    resolutionFilter,
+    signalFilter,
+    queueFilter,
+  ]);
 
   const {
     data: summaryData,
     loading: summaryLoading,
     error: summaryError,
     refresh: refreshSummary,
+    refreshAsync: refreshSummaryAsync,
   } = useRequest(() => chatApi.getFeedbackSummary());
 
-  const { data, loading, error, refresh } = useRequest(
+  const {
+    data,
+    loading,
+    error,
+    refresh,
+    refreshAsync: refreshListAsync,
+  } = useRequest(
     () =>
       chatApi.getFeedbackList({
         page,
@@ -249,6 +269,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
         ...(failureKindFilter ? { failureKind: failureKindFilter } : {}),
         ...(resolutionFilter ? { resolution: resolutionFilter } : {}),
         ...(signalFilter ? { signal: signalFilter } : {}),
+        ...(queueFilter ? { queue: queueFilter } : {}),
       } as any),
     {
       refreshDeps: [
@@ -257,6 +278,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
         failureKindFilter,
         resolutionFilter,
         signalFilter,
+        queueFilter,
       ],
     },
   );
@@ -275,7 +297,12 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
     {
       label: '待处理',
       value: summary?.pending,
-      href: buildQualityHref({ reviewStatus: 'PENDING' }),
+      href: buildQualityHref({ queue: 'TODO' }),
+    },
+    {
+      label: '系统信号',
+      value: summary?.signals ?? 0,
+      href: buildQualityHref({ queue: 'SIGNAL' }),
     },
     {
       label: '模型答错',
@@ -319,7 +346,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
     id: string,
     patch: {
       reviewStatus: ReviewStatus;
-      resolution: 'CONFIRMED' | 'EXCLUDED';
+      resolution: 'CONFIRMED' | 'EXCLUDED' | 'NO_ISSUE';
       failureKind?: string;
       verdict?: 'correct' | 'incorrect';
       errorType?: string;
@@ -329,7 +356,8 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
     setActionError('');
     try {
       await aiQualityApi.updateFeedback(id, { ...patch, note } as any);
-      await Promise.all([refresh(), refreshSummary()]);
+      // 必须等刷新完成再前进，否则候选列表还是旧数据，会跳过下一条。
+      await Promise.all([refreshListAsync(), refreshSummaryAsync()]);
       return true;
     } catch (err: any) {
       setActionError(err?.message ?? '分诊失败，请重试');
@@ -390,17 +418,23 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
   const candidates = list.filter(
     (item) => !item.reviewStatus || item.reviewStatus === 'PENDING',
   );
-  const reviewList = candidates.length > 0 ? candidates : list;
+  const reviewList = candidates;
   const current = reviewMode ? reviewList[reviewIndex] : null;
 
-  const advanceReview = () => {
-    if (reviewIndex + 1 >= reviewList.length) {
+  useEffect(() => {
+    if (!reviewMode) return;
+    if (reviewList.length === 0) {
       setReviewMode(false);
       setReviewIndex(0);
       return;
     }
-    setReviewIndex((index) => index + 1);
-  };
+    if (reviewIndex >= reviewList.length) {
+      setReviewIndex(reviewList.length - 1);
+    }
+  }, [reviewMode, reviewIndex, reviewList.length]);
+
+  // 当前条目已被分诊移除，下一条会顶到同一位置，所以索引保持不动。
+  const advanceReview = () => setReviewIndex(0);
 
   const handleReview = async (
     kind: 'correct' | 'incorrect' | 'exclude',
@@ -410,9 +444,8 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
       kind === 'correct'
         ? {
             reviewStatus: 'REVIEWED' as const,
-            resolution: 'CONFIRMED' as const,
+            resolution: 'NO_ISSUE' as const,
             verdict: 'correct' as const,
-            failureKind: 'UNKNOWN',
           }
         : kind === 'incorrect'
           ? {
@@ -432,7 +465,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
 
   return (
     <section className="space-y-3">
-      <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {kpis.map(({ label, value, href }) => (
           <Link
             key={label}
@@ -521,6 +554,23 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
           </select>
         </label>
         <label className="flex items-center gap-2 text-xs text-gray-500">
+          队列
+          <select
+            aria-label="反馈队列筛选"
+            className="rounded-lg border px-3 py-1.5 text-sm dark:border-white/10 dark:bg-gray-800"
+            value={queueFilter}
+            onChange={(e) => {
+              updateFilter({
+                queue: e.target.value as FeedbackFilters['queue'],
+              });
+            }}
+          >
+            <option value="">全部队列</option>
+            <option value="TODO">待办</option>
+            <option value="SIGNAL">系统信号</option>
+          </select>
+        </label>
+        <label className="flex items-center gap-2 text-xs text-gray-500">
           来源信号
           <select
             aria-label="来源信号筛选"
@@ -550,6 +600,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
                 failureKind: '',
                 resolution: '',
                 signal: '',
+                queue: '',
               });
             }}
           >

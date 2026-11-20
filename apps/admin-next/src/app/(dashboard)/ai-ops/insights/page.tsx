@@ -76,17 +76,17 @@ export default function AiInsightsPage() {
     {
       label: 'Transfer rate',
       value: overview ? formatTransferRate(overview) : '—',
-      href: '/ai-ops/quality?signal=transferred',
+      href: '/ai-ops/quality?queue=SIGNAL&signal=transferred',
     },
     {
       label: 'Repeated questions',
       value: formatNumber(overview?.feedback.repeatedQuestion),
-      href: '/ai-ops/quality?signal=repeated_question',
+      href: '/ai-ops/quality?queue=SIGNAL&signal=repeated_question',
     },
     {
       label: 'Abandoned',
       value: formatNumber(overview?.feedback.abandoned),
-      href: '/ai-ops/quality?signal=abandoned',
+      href: '/ai-ops/quality?queue=SIGNAL&signal=abandoned',
     },
     {
       label: 'Human messages',

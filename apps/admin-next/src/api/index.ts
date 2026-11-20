@@ -785,9 +785,12 @@ export const chatApi = {
     ),
 
   /** GET /v1/admin/ai-feedback/summary — 反馈分诊汇总 */
-  getFeedbackSummary: () =>
+  getFeedbackSummary: (
+    params?: import('@/type/types').QueryAiFeedbackParams,
+  ) =>
     http.get<import('@/type/types').AiFeedbackSummary>(
       '/v1/admin/ai-feedback/summary',
+      params,
     ),
 
   /** POST /v1/admin/ai-feedback — 提交回答标注 */

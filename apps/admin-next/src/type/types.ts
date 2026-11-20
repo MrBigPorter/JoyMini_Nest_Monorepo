@@ -1357,6 +1357,8 @@ export interface AiFeedbackItem {
 export interface AiFeedbackSummary {
   total: number;
   pending: number;
+  /** 系统信号数；旧后端没有该字段时前端按 0 处理。 */
+  signals?: number;
   byFailureKind: Array<{ failureKind: string | null; count: number }>;
   byResolution: Array<{ resolution: string | null; count: number }>;
 }
@@ -1368,6 +1370,10 @@ export interface QueryAiFeedbackParams {
   reviewStatus?: 'PENDING' | 'REVIEWED' | 'IGNORED';
   failureKind?: string;
   resolution?: string;
+  /** TODO = 需要人判断；SIGNAL = 系统信号；不传 = 全部 */
+  queue?: 'TODO' | 'SIGNAL';
+  from?: string;
+  to?: string;
   page?: number;
   pageSize?: number;
 }

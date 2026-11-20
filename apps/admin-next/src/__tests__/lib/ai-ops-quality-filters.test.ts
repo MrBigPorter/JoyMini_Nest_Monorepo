@@ -17,6 +17,7 @@ describe('ai-ops-quality-filters', () => {
       failureKind: 'SERVICE_ERROR',
       resolution: 'OPEN',
       signal: 'abandoned',
+      queue: '',
     });
   });
 
@@ -30,6 +31,7 @@ describe('ai-ops-quality-filters', () => {
       failureKind: '',
       resolution: '',
       signal: '',
+      queue: '',
     });
   });
 
@@ -66,6 +68,7 @@ describe('ai-ops-quality-filters', () => {
         failureKind: '',
         resolution: '',
         signal: '',
+        queue: '',
       }),
     ).toBe(false);
     expect(
@@ -74,6 +77,7 @@ describe('ai-ops-quality-filters', () => {
         failureKind: '',
         resolution: '',
         signal: '',
+        queue: '',
       }),
     ).toBe(true);
   });

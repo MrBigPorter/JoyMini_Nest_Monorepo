@@ -220,7 +220,7 @@ export default function AiOpsOverviewPage() {
     loading: feedbackLoading,
     error: feedbackError,
     refresh: refreshFeedback,
-  } = useRequest(() => chatApi.getFeedbackSummary(), {
+  } = useRequest(() => chatApi.getFeedbackSummary({ from: today, to: today }), {
     pollingInterval: 60_000,
   });
   const {
@@ -228,9 +228,10 @@ export default function AiOpsOverviewPage() {
     loading: securityLoading,
     error: securityError,
     refresh: refreshSecurity,
-  } = useRequest(() => aiQualityApi.securitySummary(), {
-    pollingInterval: 60_000,
-  });
+  } = useRequest(
+    () => aiQualityApi.securitySummary({ from: today, to: today }),
+    { pollingInterval: 60_000 },
+  );
   const {
     data: slaData,
     loading: slaLoading,
