@@ -643,7 +643,7 @@ aiMessageId + feedbackId       连通消息与反馈
 
 | # | 修复 | 改动面 | 工作量 | 验收标准 |
 |---|---|---|---|---|
-| 1 | VIEWER 去原文 | traces / feedback / support 的读接口与页面；judge 角色；Sidebar 角色过滤 | S | VIEWER 调 traces/feedback 不再返回 input/output/answer；Support 不带最后消息；sidebar 不显示工程页；judge 对 VIEWER 403 |
+| 1 | VIEWER 去原文 | traces / feedback / support / 聊天会话与消息的读接口与页面；judge 角色；Sidebar 角色过滤 | S | VIEWER 调 traces/feedback 不再返回 input/output/answer；Support 不带最后消息；聊天消息 `content/meta` 置空；sidebar 不显示工程组；judge 对 VIEWER 403。Eval 数据集/结果的原文留给 Batch 4 |
 | 2 | 修下钻 | `quality/page.tsx` 读 `reviewStatus/failureKind/resolution/signal`；KPI 卡变链接；Insights 链接带参 | S | 首页点「服务故障 3」→ 列表只显示 3 条 SERVICE_ERROR；刷新后筛选保留 |
 | 3 | 回归诚实化 | eval DTO 增 `expected/sourceFeedbackId`；加入回归要求期望；空期望拒绝启动；STORED 明确标注；用例编辑/删除 | M | 新用例 `expected` 非空；空期望 run 返回 400；结果面板显示“历史回答回放” |
 | 4 | 分诊语义 + 分轨 | 按 §4.3 实现待办/信号口径；`updateTriage` 原子派生 reviewStatus/resolution；正确→`NO_ISSUE`；隐式线索移入信号区；仅判定变化写 score；修 `refresh()` 未等待导致的跳条 | M | 回答正确后行显示“无问题”；转人工/取消/重复追问只出现在信号区且不抬高待处理；连续审 A/B/C 不漏；只改备注不新增 score |
