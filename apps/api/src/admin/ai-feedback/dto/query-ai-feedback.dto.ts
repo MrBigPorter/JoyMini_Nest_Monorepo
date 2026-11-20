@@ -1,5 +1,12 @@
 import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, Max, Min } from 'class-validator';
+import {
+  IsDateString,
+  IsIn,
+  IsInt,
+  IsOptional,
+  Max,
+  Min,
+} from 'class-validator';
 import {
   FEEDBACK_ERROR_TYPES,
   FEEDBACK_FAILURE_KINDS,
@@ -35,6 +42,18 @@ export class QueryAiFeedbackDto {
   @IsOptional()
   @IsIn(FEEDBACK_RESOLUTIONS as unknown as string[])
   resolution?: FeedbackResolution;
+
+  @IsOptional()
+  @IsIn(['TODO', 'SIGNAL'])
+  queue?: 'TODO' | 'SIGNAL';
+
+  @IsOptional()
+  @IsDateString()
+  from?: string;
+
+  @IsOptional()
+  @IsDateString()
+  to?: string;
 
   @IsOptional()
   @Type(() => Number)

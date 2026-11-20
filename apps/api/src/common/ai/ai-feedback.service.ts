@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 
 export type FeedbackSource = 'explicit' | 'implicit';
@@ -33,6 +33,7 @@ export const FEEDBACK_RESOLUTIONS = [
   'ADDED_TO_EVAL',
   'FIXED_PENDING_VERIFY',
   'CLOSED',
+  'NO_ISSUE',
 ] as const;
 export type FeedbackResolution = (typeof FEEDBACK_RESOLUTIONS)[number];
 
@@ -43,6 +44,7 @@ const RESOLUTION_TO_REVIEW_STATUS: Record<FeedbackResolution, string> = {
   ADDED_TO_EVAL: 'REVIEWED',
   FIXED_PENDING_VERIFY: 'REVIEWED',
   CLOSED: 'REVIEWED',
+  NO_ISSUE: 'REVIEWED',
 };
 
 const REVIEW_STATUS_TO_RESOLUTION: Record<string, FeedbackResolution> = {
@@ -50,6 +52,126 @@ const REVIEW_STATUS_TO_RESOLUTION: Record<string, FeedbackResolution> = {
   REVIEWED: 'CONFIRMED',
   IGNORED: 'EXCLUDED',
 };
+
+export type FeedbackQueue = 'TODO' | 'SIGNAL';
+
+export interface FeedbackRange {
+  from?: string;
+  to?: string;
+}
+
+/** 日期参数按 UTC 日界处理；完整 ISO 时间也兼容。 */
+function buildCreatedAtRange(
+  range: FeedbackRange,
+): Record<string, Date> | null {
+  if (!range.from && !range.to) return null;
+  const startOfDay = (value: string) =>
+    value.includes('T') ? new Date(value) : new Date(`${value}T00:00:00.000Z`);
+  const endOfDay = (value: string) =>
+    value.includes('T') ? new Date(value) : new Date(`${value}T23:59:59.999Z`);
+  return {
+    ...(range.from ? { gte: startOfDay(range.from) } : {}),
+    ...(range.to ? { lte: endOfDay(range.to) } : {}),
+  };
+}
+
+/**
+ * 待办：需要人判断的条目（113 §9.1）。
+ * 系统信号（转人工/取消/重复追问）默认不进待办。
+ */
+export function actionableFeedbackWhere(): Record<string, unknown> {
+  return {
+    resolution: 'OPEN',
+    OR: [
+      { source: 'explicit', verdict: 'incorrect' },
+      { failureKind: 'SERVICE_ERROR' },
+      { ownerAdminId: { not: null } },
+    ],
+  };
+}
+
+/** 信号区：隐式线索，且未自动排除、未被人工认领。 */
+export function signalFeedbackWhere(): Record<string, unknown> {
+  return {
+    source: 'implicit',
+    resolution: { notIn: ['EXCLUDED', 'NO_ISSUE'] },
+    failureKind: { not: 'SERVICE_ERROR' },
+    ownerAdminId: null,
+  };
+}
+
+function mergeWhere(
+  createdAt: Record<string, Date> | null,
+  extra?: Record<string, unknown>,
+): Record<string, unknown> {
+  return {
+    ...(createdAt ? { createdAt } : {}),
+    ...(extra ?? {}),
+  };
+}
+
+interface DerivedTriage {
+  failureKind: FeedbackFailureKind | null;
+  resolution: FeedbackResolution;
+  reviewStatus: 'PENDING' | 'REVIEWED' | 'IGNORED';
+}
+
+function deriveExplicit(verdict: FeedbackVerdict): DerivedTriage {
+  if (verdict === 'correct') {
+    return {
+      failureKind: null,
+      resolution: 'NO_ISSUE',
+      reviewStatus: 'REVIEWED',
+    };
+  }
+  return {
+    failureKind: 'MODEL_ERROR',
+    resolution: 'OPEN',
+    reviewStatus: 'PENDING',
+  };
+}
+
+function deriveImplicit(
+  signal: FeedbackSignal,
+  metadata?: Record<string, unknown>,
+): DerivedTriage {
+  const reason = typeof metadata?.reason === 'string' ? metadata.reason : null;
+  if (reason === 'ai_error') {
+    return {
+      failureKind: 'SERVICE_ERROR',
+      resolution: 'OPEN',
+      reviewStatus: 'PENDING',
+    };
+  }
+  if (reason === 'explicit_request') {
+    return {
+      failureKind: 'EXPECTED_TRANSFER',
+      resolution: 'EXCLUDED',
+      reviewStatus: 'IGNORED',
+    };
+  }
+  switch (signal) {
+    case 'abandoned':
+      return {
+        failureKind: 'USER_ABANDONED',
+        resolution: 'OPEN',
+        reviewStatus: 'PENDING',
+      };
+    case 'repeated_question':
+      return {
+        failureKind: 'REPEATED_QUESTION',
+        resolution: 'OPEN',
+        reviewStatus: 'PENDING',
+      };
+    case 'transferred':
+    default:
+      return {
+        failureKind: 'UNKNOWN',
+        resolution: 'OPEN',
+        reviewStatus: 'PENDING',
+      };
+  }
+}
 
 export interface ExplicitFeedbackInput {
   conversationId: string;
@@ -90,6 +212,7 @@ export class AiFeedbackService {
       input.conversationId,
       input.messageId,
     );
+    const derived = deriveExplicit(input.verdict);
     const row = await this.prisma.aiAnswerFeedback.create({
       data: {
         conversationId: input.conversationId,
@@ -103,6 +226,9 @@ export class AiFeedbackService {
           input.verdict === 'incorrect' ? (input.errorType ?? null) : null,
         note: input.note?.slice(0, 500) ?? null,
         adminId: input.adminId ?? null,
+        failureKind: derived.failureKind,
+        resolution: derived.resolution,
+        reviewStatus: derived.reviewStatus,
       },
       select: { id: true },
     });
@@ -125,6 +251,7 @@ export class AiFeedbackService {
     });
     if (existing) return;
 
+    const derived = deriveImplicit(input.signal, input.metadata);
     await this.prisma.aiAnswerFeedback.create({
       data: {
         conversationId: input.conversationId,
@@ -133,6 +260,9 @@ export class AiFeedbackService {
         source: 'implicit',
         signal: input.signal,
         metadata: (input.metadata ?? undefined) as never,
+        failureKind: derived.failureKind,
+        resolution: derived.resolution,
+        reviewStatus: derived.reviewStatus,
       },
     });
     this.logger.log(
@@ -209,11 +339,21 @@ export class AiFeedbackService {
     reviewStatus?: 'PENDING' | 'REVIEWED' | 'IGNORED';
     failureKind?: FeedbackFailureKind;
     resolution?: FeedbackResolution;
+    queue?: FeedbackQueue;
+    from?: string;
+    to?: string;
     page?: number;
     pageSize?: number;
   }) {
     const page = Math.max(1, params.page ?? 1);
     const pageSize = Math.min(100, Math.max(1, params.pageSize ?? 20));
+    const createdAt = buildCreatedAtRange(params);
+    const queueWhere =
+      params.queue === 'TODO'
+        ? actionableFeedbackWhere()
+        : params.queue === 'SIGNAL'
+          ? signalFeedbackWhere()
+          : null;
     const where = {
       ...(params.source ? { source: params.source } : {}),
       ...(params.signal ? { signal: params.signal } : {}),
@@ -221,6 +361,8 @@ export class AiFeedbackService {
       ...(params.reviewStatus ? { reviewStatus: params.reviewStatus } : {}),
       ...(params.failureKind ? { failureKind: params.failureKind } : {}),
       ...(params.resolution ? { resolution: params.resolution } : {}),
+      ...(createdAt ? { createdAt } : {}),
+      ...(queueWhere ? { AND: [queueWhere] } : {}),
     };
 
     const [list, total] = await this.prisma.$transaction([
@@ -234,7 +376,9 @@ export class AiFeedbackService {
     ]);
 
     const withContext = await this.attachMessageContext(list);
-    const conversationIds = [...new Set(withContext.map((row) => row.conversationId))];
+    const conversationIds = [
+      ...new Set(withContext.map((row) => row.conversationId)),
+    ];
     const conversations = conversationIds.length
       ? await this.prisma.conversation.findMany({
           where: { id: { in: conversationIds } },
@@ -334,24 +478,36 @@ export class AiFeedbackService {
   }
 
   /** 运营首页/质量待办的分组计数。 */
-  async summary() {
-    const [total, pending, byFailureKind, byResolution] = await Promise.all([
-      this.prisma.aiAnswerFeedback.count(),
-      this.prisma.aiAnswerFeedback.count({
-        where: { reviewStatus: 'PENDING' },
-      }),
-      this.prisma.aiAnswerFeedback.groupBy({
-        by: ['failureKind'],
-        _count: { id: true },
-      }),
-      this.prisma.aiAnswerFeedback.groupBy({
-        by: ['resolution'],
-        _count: { id: true },
-      }),
-    ]);
+  async summary(query: FeedbackRange = {}) {
+    const createdAt = buildCreatedAtRange(query);
+    const base = createdAt ? { createdAt } : {};
+    const actionable = actionableFeedbackWhere();
+    const signal = signalFeedbackWhere();
+    const pendingWhere = createdAt
+      ? { AND: [{ createdAt }, actionable] }
+      : actionable;
+    const signalWhere = createdAt ? { AND: [{ createdAt }, signal] } : signal;
+
+    const [total, pending, signals, byFailureKind, byResolution] =
+      await Promise.all([
+        this.prisma.aiAnswerFeedback.count({ where: base }),
+        this.prisma.aiAnswerFeedback.count({ where: pendingWhere as never }),
+        this.prisma.aiAnswerFeedback.count({ where: signalWhere as never }),
+        this.prisma.aiAnswerFeedback.groupBy({
+          by: ['failureKind'],
+          where: base,
+          _count: { id: true },
+        }),
+        this.prisma.aiAnswerFeedback.groupBy({
+          by: ['resolution'],
+          where: base,
+          _count: { id: true },
+        }),
+      ]);
     return {
       total,
       pending,
+      signals,
       byFailureKind: byFailureKind.map((row) => ({
         failureKind: row.failureKind,
         count: row._count.id,
@@ -377,21 +533,66 @@ export class AiFeedbackService {
     },
     adminId: string,
   ) {
-    const resolution =
-      input.resolution ??
-      (input.reviewStatus
-        ? REVIEW_STATUS_TO_RESOLUTION[input.reviewStatus]
-        : undefined);
-    const reviewStatus =
-      input.reviewStatus ??
-      (input.resolution ? RESOLUTION_TO_REVIEW_STATUS[input.resolution] : undefined);
+    const existing = await this.prisma.aiAnswerFeedback.findUnique({
+      where: { id },
+      select: {
+        verdict: true,
+        failureKind: true,
+        resolution: true,
+        reviewStatus: true,
+      },
+    });
+    if (!existing) {
+      throw new NotFoundException('Feedback not found');
+    }
+
+    const nextVerdict = input.verdict ?? existing.verdict;
+    const nextFailureKind =
+      nextVerdict === 'correct'
+        ? null
+        : (input.failureKind ?? existing.failureKind);
+
+    // 结论与旧状态必须同时派生，避免 reviewStatus / resolution 分叉（113 §9）。
+    let nextResolution: FeedbackResolution | undefined;
+    let nextReviewStatus: string | undefined;
+    if (input.resolution) {
+      nextResolution = input.resolution;
+      nextReviewStatus = RESOLUTION_TO_REVIEW_STATUS[input.resolution];
+    } else if (input.reviewStatus) {
+      nextResolution =
+        nextVerdict === 'correct'
+          ? 'NO_ISSUE'
+          : REVIEW_STATUS_TO_RESOLUTION[input.reviewStatus];
+      nextReviewStatus = RESOLUTION_TO_REVIEW_STATUS[nextResolution];
+    } else if (input.verdict === 'correct') {
+      nextResolution = 'NO_ISSUE';
+      nextReviewStatus = 'REVIEWED';
+    } else if (input.verdict === 'incorrect' && !existing.resolution) {
+      nextResolution = 'OPEN';
+      nextReviewStatus = 'PENDING';
+    }
+
+    const judgmentProvided = Boolean(
+      input.verdict ||
+      input.failureKind ||
+      input.reviewStatus ||
+      input.resolution,
+    );
+    const judgmentChanged =
+      (input.verdict != null && nextVerdict !== existing.verdict) ||
+      (input.failureKind != null && nextFailureKind !== existing.failureKind);
 
     const updated = await this.prisma.aiAnswerFeedback.update({
       where: { id },
       data: {
-        ...(reviewStatus ? { reviewStatus } : {}),
-        ...(input.resolution ? { resolution: input.resolution } : {}),
-        ...(input.failureKind ? { failureKind: input.failureKind } : {}),
+        ...(nextResolution
+          ? { resolution: nextResolution, reviewStatus: nextReviewStatus }
+          : {}),
+        ...(nextVerdict === 'correct'
+          ? { failureKind: null }
+          : input.failureKind
+            ? { failureKind: input.failureKind }
+            : {}),
         ...(input.verdict ? { verdict: input.verdict } : {}),
         ...(input.errorType !== undefined
           ? { errorType: input.errorType ?? null }
@@ -403,41 +604,43 @@ export class AiFeedbackService {
         ...(input.linkedEvalCaseId !== undefined
           ? { linkedEvalCaseId: input.linkedEvalCaseId }
           : {}),
-        ...(reviewStatus
+        ...(judgmentProvided
           ? { reviewedBy: adminId, reviewedAt: new Date() }
           : {}),
       },
     });
 
-    // 人工分诊同时写一条统一评分，供 trace/质量趋势复用。
-    await this.prisma.aiScore
-      .create({
-        data: {
-          conversationId: updated.conversationId,
-          messageId: updated.messageId ?? null,
-          traceId: updated.traceId ?? null,
-          source: 'HUMAN',
-          value:
-            updated.verdict === 'correct'
-              ? 1
-              : updated.verdict === 'incorrect'
-                ? 0
-                : null,
-          stringValue: updated.failureKind ?? updated.resolution ?? null,
-          comment: updated.note ?? null,
-          adminId,
-          metadata: {
-            feedbackId: updated.id,
-            resolution: updated.resolution,
-            failureKind: updated.failureKind,
+    // 只有判定变化才写评分；仅改备注/指派不重复写 HUMAN score。
+    if (judgmentChanged) {
+      await this.prisma.aiScore
+        .create({
+          data: {
+            conversationId: updated.conversationId,
+            messageId: updated.messageId ?? null,
+            traceId: updated.traceId ?? null,
+            source: 'HUMAN',
+            value:
+              updated.verdict === 'correct'
+                ? 1
+                : updated.verdict === 'incorrect'
+                  ? 0
+                  : null,
+            stringValue: updated.failureKind ?? updated.resolution ?? null,
+            comment: updated.note ?? null,
+            adminId,
+            metadata: {
+              feedbackId: updated.id,
+              resolution: updated.resolution,
+              failureKind: updated.failureKind,
+            },
           },
-        },
-      })
-      .catch((err) =>
-        this.logger.warn(
-          `[feedback] score write failed for feedback ${updated.id}: ${err?.message ?? err}`,
-        ),
-      );
+        })
+        .catch((err) =>
+          this.logger.warn(
+            `[feedback] score write failed for feedback ${updated.id}: ${err?.message ?? err}`,
+          ),
+        );
+    }
 
     return updated;
   }

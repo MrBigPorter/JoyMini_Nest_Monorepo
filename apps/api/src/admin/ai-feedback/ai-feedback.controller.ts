@@ -73,8 +73,8 @@ export class AiFeedbackController {
   @Get('summary')
   @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
   @ApiOperation({ summary: '反馈分诊汇总' })
-  async summary() {
-    return this.feedbackService.summary();
+  async summary(@Query() query: QueryAiFeedbackDto) {
+    return this.feedbackService.summary(query);
   }
 
   @Get()
