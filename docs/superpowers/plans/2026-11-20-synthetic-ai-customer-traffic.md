@@ -45,7 +45,7 @@
 
 - Produces: `loadConfig(): { apiBaseUrl, socketUrl, businessId, accountCount, concurrency, otpCode, runtimeDir }`
 - Produces: `provisionAccounts({ count, startIndex }): Promise<Account[]>`
-- `Account = { phone, userId, token, deviceId }`
+- `Account = { phone, userId, token, refreshToken, deviceId }`
 - Produces: `.runtime/accounts.json`（权限 600）
 
 - [ ] **Step 1: 写配置读取**
@@ -61,7 +61,7 @@
 2. `POST /api/v1/otp/request {phone}`
 3. `POST /api/v1/otp/verify {phone, code}`
 4. `POST /api/v1/auth/login/otp {phone}`
-5. 取 `data.tokens.accessToken` 与 `data.user.id`
+5. 取 `data.tokens.accessToken`、`data.tokens.refreshToken` 与 `data.id`（兼容 `data.user.id`）
 6. 每个账号 `deviceId = sim-<phone>-<random>`
 7. 每 5 个账号等待 60 秒；写入 `.runtime/accounts.json`
 
@@ -208,6 +208,7 @@ git commit -m "feat(sim): 人类化延迟与文本扰动"
 
 - `runConversation(account, scenario, opts): Promise<ConversationResult>`
 - `ConversationResult = { conversationId, turnsSent, replies, confirms, transferred, noReply, errors }`
+- Driver 在 401 时调用 `refreshAccountToken` 并重试一次
 - Consumes `Account`、`Scenario`、`renderTurns`、`humanize`、`nextDelayMs`
 - 使用 `socket.io-client`，连接 `socketUrl`，`auth: { token }`
 

@@ -11,7 +11,7 @@ export class OtpController {
   constructor(private readonly otp: OtpService) {}
 
   @Post('request')
-  @Throttle({ otpRequest: { limit: 5, ttl: 60_000 } }) // 每 IP/手机号 60 秒 5 次
+  @Throttle({ default: { limit: 5, ttl: 60_000 } }) // 每 IP/手机号 60 秒 5 次
   @ApiOperation({ summary: 'request OTP' })
   @ApiBody({
     schema: {
@@ -32,7 +32,7 @@ export class OtpController {
   }
 
   @Post('verify')
-  @Throttle({ otpRequest: { limit: 10, ttl: 60_000 } }) //每 IP/手机号 60 秒 10 次
+  @Throttle({ default: { limit: 10, ttl: 60_000 } }) //每 IP/手机号 60 秒 10 次
   @ApiOperation({ summary: 'verify OTP' })
   @ApiBody({
     schema: {
