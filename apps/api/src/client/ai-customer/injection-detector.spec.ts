@@ -1,13 +1,17 @@
 import {
   detectInjection,
+  injectionDetectionMode,
   isInjectionDetectionEnabled,
 } from './injection-detector';
 
 describe('injection-detector（3.x）', () => {
-  const original = process.env.AI_INJECTION_DETECTION_ENABLED;
+  const originalEnabled = process.env.AI_INJECTION_DETECTION_ENABLED;
+  const originalMode = process.env.AI_INJECTION_DETECTION_MODE;
   afterEach(() => {
-    if (original === undefined) delete process.env.AI_INJECTION_DETECTION_ENABLED;
-    else process.env.AI_INJECTION_DETECTION_ENABLED = original;
+    if (originalEnabled === undefined) delete process.env.AI_INJECTION_DETECTION_ENABLED;
+    else process.env.AI_INJECTION_DETECTION_ENABLED = originalEnabled;
+    if (originalMode === undefined) delete process.env.AI_INJECTION_DETECTION_MODE;
+    else process.env.AI_INJECTION_DETECTION_MODE = originalMode;
   });
 
   it('识别覆盖系统指令', () => {
@@ -36,12 +40,27 @@ describe('injection-detector（3.x）', () => {
     expect(detectInjection('怎么申请退款')).toEqual({ detected: false });
   });
 
-  it('开关默认关闭，仅显式 true 启用', () => {
+  it('开关默认关闭，仅显式 true 启用（兼容旧变量）', () => {
     delete process.env.AI_INJECTION_DETECTION_ENABLED;
+    delete process.env.AI_INJECTION_DETECTION_MODE;
     expect(isInjectionDetectionEnabled()).toBe(false);
     process.env.AI_INJECTION_DETECTION_ENABLED = '1';
     expect(isInjectionDetectionEnabled()).toBe(false);
     process.env.AI_INJECTION_DETECTION_ENABLED = 'true';
     expect(isInjectionDetectionEnabled()).toBe(true);
+    expect(injectionDetectionMode()).toBe('enforce');
+  });
+
+  it('三档模式：log 只观察，enforce 降级，off 覆盖旧变量', () => {
+    process.env.AI_INJECTION_DETECTION_MODE = 'log';
+    expect(injectionDetectionMode()).toBe('log');
+    expect(isInjectionDetectionEnabled()).toBe(true);
+
+    process.env.AI_INJECTION_DETECTION_MODE = 'enforce';
+    expect(injectionDetectionMode()).toBe('enforce');
+
+    process.env.AI_INJECTION_DETECTION_ENABLED = 'true';
+    process.env.AI_INJECTION_DETECTION_MODE = 'off';
+    expect(injectionDetectionMode()).toBe('off');
   });
 });
