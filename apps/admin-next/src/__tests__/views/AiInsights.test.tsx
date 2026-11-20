@@ -94,7 +94,7 @@ describe('AiInsightsPage', () => {
 
     expect(
       screen.getByRole('link', { name: /Transfer rate/ }).getAttribute('href'),
-    ).toBe('/ai-ops/quality?queue=SIGNAL&signal=transferred');
+    ).toBe('/ai-ops/quality?signal=transferred');
     expect(
       screen
         .getByRole('link', { name: /Repeated questions/ })

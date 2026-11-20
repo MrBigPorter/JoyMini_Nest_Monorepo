@@ -19,6 +19,7 @@ export const RESOLUTION_VALUES = [
   'ADDED_TO_EVAL',
   'FIXED_PENDING_VERIFY',
   'CLOSED',
+  'NO_ISSUE',
 ] as const;
 export type FeedbackResolution = (typeof RESOLUTION_VALUES)[number];
 
@@ -38,6 +39,8 @@ export interface FeedbackFilters {
   resolution: '' | FeedbackResolution;
   signal: '' | FeedbackSignal;
   queue: '' | FeedbackQueue;
+  from: string;
+  to: string;
 }
 
 export const EMPTY_FEEDBACK_FILTERS: FeedbackFilters = {
@@ -46,7 +49,18 @@ export const EMPTY_FEEDBACK_FILTERS: FeedbackFilters = {
   resolution: '',
   signal: '',
   queue: '',
+  from: '',
+  to: '',
 };
+
+function parseDate(value: string | null): string {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return '';
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(date.getTime()) &&
+    date.toISOString().slice(0, 10) === value
+    ? value
+    : '';
+}
 
 function pick<T extends readonly string[]>(
   values: T,
@@ -76,6 +90,8 @@ export function parseFeedbackFilters(search: string): FeedbackFilters {
     ) as FeedbackFilters['resolution'],
     signal: pick(SIGNAL_VALUES, params.get('signal')) as FeedbackFilters['signal'],
     queue: pick(QUEUE_VALUES, params.get('queue')) as FeedbackFilters['queue'],
+    from: parseDate(params.get('from')),
+    to: parseDate(params.get('to')),
   };
 }
 
@@ -91,6 +107,8 @@ export function applyFeedbackFilters(
     'resolution',
     'signal',
     'queue',
+    'from',
+    'to',
   ] as const) {
     if (!(key in patch)) continue;
     const value = patch[key];
@@ -111,6 +129,8 @@ export function buildQualityHref(
     'resolution',
     'signal',
     'queue',
+    'from',
+    'to',
   ] as const) {
     const value = filters[key];
     if (value) params.set(key, value);
@@ -125,6 +145,8 @@ export function hasFeedbackFilters(filters: FeedbackFilters): boolean {
       filters.failureKind ||
       filters.resolution ||
       filters.signal ||
-      filters.queue,
+      filters.queue ||
+      filters.from ||
+      filters.to,
   );
 }

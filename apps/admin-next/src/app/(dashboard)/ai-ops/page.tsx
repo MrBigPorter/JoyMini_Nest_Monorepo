@@ -311,7 +311,7 @@ export default function AiOpsOverviewPage() {
       label: '待处理反馈',
       description: '尚未分诊的用户反馈队列',
       count: pendingFeedback ?? 0,
-      href: '/ai-ops/quality?reviewStatus=PENDING',
+      href: `/ai-ops/quality?queue=TODO&from=${today}&to=${today}`,
       updatedAt: feedbackDataAt,
     });
   }
@@ -480,7 +480,7 @@ export default function AiOpsOverviewPage() {
             error={feedbackError}
             updatedAt={feedbackDataAt}
             hint="尚未分诊的用户反馈"
-            href="/ai-ops/quality?reviewStatus=PENDING"
+            href={`/ai-ops/quality?queue=TODO&from=${today}&to=${today}`}
             testId="anomaly-pending-feedback"
           />
           <AnomalyCard

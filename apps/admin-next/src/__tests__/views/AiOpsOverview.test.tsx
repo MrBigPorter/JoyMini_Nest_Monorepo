@@ -16,6 +16,7 @@ const mockGetFeedbackSummary = vi.hoisted(() => vi.fn());
 const mockSecuritySummary = vi.hoisted(() => vi.fn());
 const mockSlaQueue = vi.hoisted(() => vi.fn());
 const mockRole = vi.hoisted(() => ({ current: 'ADMIN' }));
+const today = new Date().toISOString().slice(0, 10);
 
 vi.mock('ahooks', () => ({
   useRequest: (...args: unknown[]) => mockUseRequest(...args),
@@ -219,7 +220,11 @@ describe('AiOpsOverviewPage', () => {
     render(<AiOpsOverviewPage />);
 
     const cases: Array<[string, string, string]> = [
-      ['anomaly-pending-feedback', '3', '/ai-ops/quality?reviewStatus=PENDING'],
+      [
+        'anomaly-pending-feedback',
+        '3',
+        `/ai-ops/quality?queue=TODO&from=${today}&to=${today}`,
+      ],
       ['anomaly-model-error', '2', '/ai-ops/quality?failureKind=MODEL_ERROR'],
       [
         'anomaly-service-error',
@@ -284,7 +289,7 @@ describe('AiOpsOverviewPage', () => {
     expect(rows).toHaveLength(4);
     expect(rows.map((row) => row.getAttribute('href'))).toEqual([
       '/ai-ops/quality?failureKind=SERVICE_ERROR',
-      '/ai-ops/quality?reviewStatus=PENDING',
+      `/ai-ops/quality?queue=TODO&from=${today}&to=${today}`,
       '/ai-ops/support',
       '/ai-ops/security',
     ]);

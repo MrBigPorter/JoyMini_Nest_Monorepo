@@ -18,6 +18,8 @@ describe('ai-ops-quality-filters', () => {
       resolution: 'OPEN',
       signal: 'abandoned',
       queue: '',
+      from: '',
+      to: '',
     });
   });
 
@@ -32,6 +34,8 @@ describe('ai-ops-quality-filters', () => {
       resolution: '',
       signal: '',
       queue: '',
+      from: '',
+      to: '',
     });
   });
 
@@ -61,6 +65,25 @@ describe('ai-ops-quality-filters', () => {
     expect(buildQualityHref({})).toBe('/ai-ops/quality');
   });
 
+  it('解析日期窗并在下钻链接中保留', () => {
+    const filters = parseFeedbackFilters(
+      '?queue=TODO&from=2026-11-20&to=2026-11-20',
+    );
+
+    expect(filters.from).toBe('2026-11-20');
+    expect(filters.to).toBe('2026-11-20');
+    expect(
+      buildQualityHref({
+        queue: 'TODO',
+        from: filters.from,
+        to: filters.to,
+      }),
+    ).toBe(
+      '/ai-ops/quality?queue=TODO&from=2026-11-20&to=2026-11-20',
+    );
+    expect(parseFeedbackFilters('?from=2026-13-99').from).toBe('');
+  });
+
   it('hasFeedbackFilters 只在有筛选时为 true', () => {
     expect(
       hasFeedbackFilters({
@@ -69,6 +92,8 @@ describe('ai-ops-quality-filters', () => {
         resolution: '',
         signal: '',
         queue: '',
+        from: '',
+        to: '',
       }),
     ).toBe(false);
     expect(
@@ -78,6 +103,8 @@ describe('ai-ops-quality-filters', () => {
         resolution: '',
         signal: '',
         queue: '',
+        from: '',
+        to: '',
       }),
     ).toBe(true);
   });

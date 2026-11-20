@@ -76,7 +76,9 @@ export default function AiInsightsPage() {
     {
       label: 'Transfer rate',
       value: overview ? formatTransferRate(overview) : '—',
-      href: '/ai-ops/quality?queue=SIGNAL&signal=transferred',
+      // Transfer rate 统计所有 implicit transferred（含 SERVICE_ERROR / EXCLUDED），
+      // 不带 queue 才能与 KPI 数字一致。
+      href: '/ai-ops/quality?signal=transferred',
     },
     {
       label: 'Repeated questions',

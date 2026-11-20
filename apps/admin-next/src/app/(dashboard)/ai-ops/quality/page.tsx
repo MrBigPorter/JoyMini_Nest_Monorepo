@@ -209,7 +209,11 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
     resolution: resolutionFilter,
     signal: signalFilter,
     queue: queueFilter,
+    from: fromDate,
+    to: toDate,
   } = filters;
+  const withRange = (patch: Partial<FeedbackFilters>) =>
+    buildQualityHref({ ...patch, from: fromDate, to: toDate });
   const [failureKind, setFailureKind] = useState('UNKNOWN');
   const [page, setPage] = useState(1);
   const [actionError, setActionError] = useState('');
@@ -244,6 +248,8 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
     resolutionFilter,
     signalFilter,
     queueFilter,
+    fromDate,
+    toDate,
   ]);
 
   const {
@@ -252,7 +258,14 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
     error: summaryError,
     refresh: refreshSummary,
     refreshAsync: refreshSummaryAsync,
-  } = useRequest(() => chatApi.getFeedbackSummary());
+  } = useRequest(
+    () =>
+      chatApi.getFeedbackSummary({
+        ...(fromDate ? { from: fromDate } : {}),
+        ...(toDate ? { to: toDate } : {}),
+      }),
+    { refreshDeps: [fromDate, toDate] },
+  );
 
   const {
     data,
@@ -270,6 +283,8 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
         ...(resolutionFilter ? { resolution: resolutionFilter } : {}),
         ...(signalFilter ? { signal: signalFilter } : {}),
         ...(queueFilter ? { queue: queueFilter } : {}),
+        ...(fromDate ? { from: fromDate } : {}),
+        ...(toDate ? { to: toDate } : {}),
       } as any),
     {
       refreshDeps: [
@@ -279,6 +294,8 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
         resolutionFilter,
         signalFilter,
         queueFilter,
+        fromDate,
+        toDate,
       ],
     },
   );
@@ -297,12 +314,12 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
     {
       label: '待处理',
       value: summary?.pending,
-      href: buildQualityHref({ queue: 'TODO' }),
+      href: withRange({ queue: 'TODO' }),
     },
     {
       label: '系统信号',
       value: summary?.signals ?? 0,
-      href: buildQualityHref({ queue: 'SIGNAL' }),
+      href: withRange({ queue: 'SIGNAL' }),
     },
     {
       label: '模型答错',
@@ -311,7 +328,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
         'failureKind',
         'MODEL_ERROR',
       ),
-      href: buildQualityHref({ failureKind: 'MODEL_ERROR' }),
+      href: withRange({ failureKind: 'MODEL_ERROR' }),
     },
     {
       label: '服务故障',
@@ -320,7 +337,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
         'failureKind',
         'SERVICE_ERROR',
       ),
-      href: buildQualityHref({ failureKind: 'SERVICE_ERROR' }),
+      href: withRange({ failureKind: 'SERVICE_ERROR' }),
     },
     {
       label: '误转',
@@ -329,7 +346,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
         'failureKind',
         'UNEXPECTED_TRANSFER',
       ),
-      href: buildQualityHref({ failureKind: 'UNEXPECTED_TRANSFER' }),
+      href: withRange({ failureKind: 'UNEXPECTED_TRANSFER' }),
     },
     {
       label: '已进回归',
@@ -338,7 +355,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
         'resolution',
         'ADDED_TO_EVAL',
       ),
-      href: buildQualityHref({ resolution: 'ADDED_TO_EVAL' }),
+      href: withRange({ resolution: 'ADDED_TO_EVAL' }),
     },
   ];
 
@@ -554,6 +571,26 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
           </select>
         </label>
         <label className="flex items-center gap-2 text-xs text-gray-500">
+          开始日期
+          <input
+            type="date"
+            aria-label="反馈开始日期"
+            className="rounded-lg border px-3 py-1.5 text-sm dark:border-white/10 dark:bg-gray-800"
+            value={fromDate}
+            onChange={(e) => updateFilter({ from: e.target.value })}
+          />
+        </label>
+        <label className="flex items-center gap-2 text-xs text-gray-500">
+          结束日期
+          <input
+            type="date"
+            aria-label="反馈结束日期"
+            className="rounded-lg border px-3 py-1.5 text-sm dark:border-white/10 dark:bg-gray-800"
+            value={toDate}
+            onChange={(e) => updateFilter({ to: e.target.value })}
+          />
+        </label>
+        <label className="flex items-center gap-2 text-xs text-gray-500">
           队列
           <select
             aria-label="反馈队列筛选"
@@ -601,6 +638,8 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
                 resolution: '',
                 signal: '',
                 queue: '',
+                from: '',
+                to: '',
               });
             }}
           >
