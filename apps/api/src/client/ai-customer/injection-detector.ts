@@ -7,7 +7,7 @@
  *   - privilege_probe：冒充管理员/客服，要求越权访问他人数据
  *
  * 检测结果只记录类型与长度，不记录用户原文（#89 FR-7）。
- * 默认关闭，需 AI_INJECTION_DETECTION_ENABLED=true 才生效。
+ * 默认关闭；AI_INJECTION_DETECTION_MODE=log 只观察，enforce 才降级。
  */
 
 export type InjectionType =
@@ -38,8 +38,31 @@ const PATTERNS: Array<{ type: InjectionType; regex: RegExp }> = [
   },
 ];
 
+export type InjectionDetectionMode = 'off' | 'log' | 'enforce';
+
+/**
+ * 三档开关：
+ * - off：默认，不检测
+ * - log：只记录命中，不改变回答（用于灰度观察误报）
+ * - enforce：命中后降级为 general
+ *
+ * 兼容旧变量 AI_INJECTION_DETECTION_ENABLED=true → enforce。
+ */
+export function injectionDetectionMode(): InjectionDetectionMode {
+  const raw = (process.env.AI_INJECTION_DETECTION_MODE ?? '')
+    .trim()
+    .toLowerCase();
+  if (raw === 'off' || raw === 'log' || raw === 'enforce') {
+    return raw;
+  }
+  if (process.env.AI_INJECTION_DETECTION_ENABLED === 'true') {
+    return 'enforce';
+  }
+  return 'off';
+}
+
 export function isInjectionDetectionEnabled(): boolean {
-  return process.env.AI_INJECTION_DETECTION_ENABLED === 'true';
+  return injectionDetectionMode() !== 'off';
 }
 
 export function detectInjection(input: string): InjectionResult {
