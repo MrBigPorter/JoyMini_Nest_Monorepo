@@ -17,6 +17,7 @@ import { FlowStateVersioningService } from '@api/client/ai-customer/flow-version
 import {
   BindFlowDto,
   RegisterFlowDefinitionDto,
+  RollbackStateDto,
   SwitchFlowDefinitionDto,
 } from './dto/flow-versioning.dto';
 
@@ -74,8 +75,8 @@ export class FlowVersioningController {
   @Post('rollback-state')
   @Roles(Role.SUPER_ADMIN)
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: '状态回滚（当前 fail-closed）' })
-  async rollbackState() {
-    return this.flowVersioning.rollbackState();
+  @ApiOperation({ summary: '状态回滚到指定 checkpoint（不撤销业务副作用）' })
+  async rollbackState(@Body() dto: RollbackStateDto) {
+    return this.flowVersioning.rollbackState(dto);
   }
 }

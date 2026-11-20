@@ -4,9 +4,9 @@ import {
   BadRequestException,
   OnModuleDestroy,
 } from '@nestjs/common';
-import { MemorySaver } from '@langchain/langgraph';
+import { MemorySaver, REMOVE_ALL_MESSAGES } from '@langchain/langgraph';
 import type { BaseCheckpointSaver } from '@langchain/langgraph-checkpoint';
-import { HumanMessage } from '@langchain/core/messages';
+import { HumanMessage, RemoveMessage } from '@langchain/core/messages';
 import { buildCustomerGraph } from '@api/client/ai-customer/graph/customer.graph';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -28,7 +28,11 @@ import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service'
 import { AiMemoryService } from '@api/common/ai/ai-memory.service';
 import { AiActionConfirmService } from './ai-action-confirm.service';
 import { AiFeedbackService } from '@api/common/ai/ai-feedback.service';
-import { FlowStateVersioningService } from '@api/client/ai-customer/flow-versioning/flow-state-versioning.service';
+import {
+  FlowStateVersioningService,
+  RollbackStateInput,
+  RollbackStateResult,
+} from '@api/client/ai-customer/flow-versioning/flow-state-versioning.service';
 import {
   AiUsageService,
   QuotaExceededError,
@@ -98,6 +102,10 @@ export class AiCustomerService implements OnModuleDestroy {
    */
   async onModuleInit() {
     await this.initGraph();
+    // 状态回滚需要 compiledGraph；FlowVersioningService 只做安全点/绑定/审计。
+    this.flowVersioning.registerStateRollbackHandler((input) =>
+      this.rollbackConversationState(input),
+    );
   }
 
   /**
@@ -183,6 +191,81 @@ export class AiCustomerService implements OnModuleDestroy {
       );
       return new MemorySaver();
     }
+  }
+
+  /**
+   * 把会话 thread 恢复到指定 checkpoint 的 values。
+   *
+   * 只回滚 LangGraph 状态，不撤销已完成的业务写操作（退款/下单等），
+   * 也不改 ChatMessage 历史 —— UI 与 AI 上下文可能短暂不一致，这是设计边界。
+   * 使用 updateState 生成新的 checkpoint，不直接改旧 checkpoint 行。
+   */
+  private async rollbackConversationState(
+    input: RollbackStateInput,
+  ): Promise<RollbackStateResult> {
+    if (!this.compiledGraph) {
+      return { ok: false, reason: 'graph_not_initialized' };
+    }
+
+    const conversation = await this.prismaService.conversation.findUnique({
+      where: { id: input.conversationId },
+      select: { threadId: true },
+    });
+    if (!conversation?.threadId) {
+      return { ok: false, reason: 'thread_not_found' };
+    }
+
+    const config = {
+      configurable: { thread_id: conversation.threadId },
+    };
+    const history: any[] = [];
+    for await (const snapshot of this.compiledGraph.getStateHistory(config)) {
+      history.push(snapshot);
+    }
+
+    const targetIndex = history.findIndex(
+      (snapshot) =>
+        snapshot?.config?.configurable?.checkpoint_id === input.checkpointId,
+    );
+    if (targetIndex < 0) {
+      return { ok: false, reason: 'checkpoint_not_found' };
+    }
+    if (targetIndex === 0) {
+      return { ok: false, reason: 'same_checkpoint' };
+    }
+
+    const target = history[targetIndex];
+    const values = target.values ?? {};
+    const restoredMessages = Array.isArray(values.messages)
+      ? values.messages
+      : [];
+
+    // 用 RemoveMessage 哨兵清空当前 messages，再写回目标快照，
+    // 避免 messagesStateReducer 把旧消息追加到当前列表上。
+    const nextConfig = await this.compiledGraph.updateState(config, {
+      messages: [
+        new RemoveMessage({ id: REMOVE_ALL_MESSAGES }),
+        ...restoredMessages,
+      ],
+      flowState: values.flowState ?? { activeFlow: '', step: '', data: {} },
+      contextState: values.contextState,
+      intent: values.previousIntent ?? '',
+      previousIntent: values.previousIntent ?? '',
+      labels: [],
+      pendingConfirm: null,
+      transferToHuman: false,
+      transferReason: '',
+      ragSources: [],
+      userMemory: '',
+      repeatCount: 0,
+    });
+
+    const checkpointId =
+      nextConfig?.configurable?.checkpoint_id ?? input.checkpointId;
+    this.logger.log(
+      `[chatStream] state rolled back: conv=${input.conversationId}, checkpoint=${input.checkpointId}, newCheckpoint=${checkpointId}`,
+    );
+    return { ok: true, checkpointId };
   }
 
   async onModuleDestroy(): Promise<void> {

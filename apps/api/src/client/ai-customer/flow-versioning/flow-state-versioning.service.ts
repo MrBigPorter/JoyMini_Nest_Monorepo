@@ -42,6 +42,22 @@ export interface SwitchFlowDefinitionResult {
   reason?: string;
 }
 
+export interface RollbackStateInput {
+  conversationId: string;
+  flowType?: string;
+  checkpointId: string;
+  actorId?: string;
+  reason?: string;
+}
+
+export interface RollbackStateResult extends SwitchFlowDefinitionResult {
+  checkpointId?: string;
+}
+
+type StateRollbackHandler = (
+  input: RollbackStateInput,
+) => Promise<RollbackStateResult>;
+
 /**
  * 稳定序列化：对象 key 递归排序。
  * JSON.stringify 的 key 顺序取决于插入顺序，直接哈希会让内容相同的定义
@@ -75,6 +91,11 @@ export function computeDefinitionHash(payload: unknown): string {
 @Injectable()
 export class FlowStateVersioningService {
   private readonly logger = new Logger(FlowStateVersioningService.name);
+  /**
+   * 状态回滚需要访问已编译的 LangGraph，只有 AiCustomerService 持有。
+   * 由它在启动时注册回调，避免 FlowVersioning ↔ AiCustomer 循环依赖。
+   */
+  private stateRollbackHandler?: StateRollbackHandler;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -337,12 +358,70 @@ export class FlowStateVersioningService {
     return { ok: true };
   }
 
+  registerStateRollbackHandler(handler: StateRollbackHandler): void {
+    this.stateRollbackHandler = handler;
+  }
+
   /**
-   * 状态回滚（恢复 checkpoint）需要清理 blobs/writes 并处理消息一致性，
-   * 当前没有安全的 checkpoint 回滚工具，必须 fail-closed，不能假装成功。
+   * 状态回滚：把 thread 恢复到指定 checkpoint 的 values。
+   *
+   * 实现放在 AiCustomerService（持有 compiledGraph），这里只做安全点校验、
+   * 绑定更新与审计；未注册时 fail-closed，不能假装成功。
    */
-  async rollbackState(): Promise<SwitchFlowDefinitionResult> {
-    return { ok: false, reason: 'state_rollback_not_supported' };
+  async rollbackState(input: RollbackStateInput): Promise<RollbackStateResult> {
+    if (!this.stateRollbackHandler) {
+      return { ok: false, reason: 'state_rollback_unavailable' };
+    }
+
+    const binding = await this.getBinding(input.conversationId, input.flowType);
+    if (!binding) return { ok: false, reason: 'binding_not_found' };
+
+    const guard = await this.checkSafePoint(input.conversationId, binding);
+    if (!guard.ok) return guard;
+    if (binding.checkpointId === input.checkpointId) {
+      return { ok: false, reason: 'same_checkpoint' };
+    }
+
+    const result = await this.stateRollbackHandler(input);
+    if (!result.ok) return result;
+
+    await this.prisma.conversationFlowBinding.update({
+      where: { id: binding.id },
+      data: {
+        checkpointId: result.checkpointId ?? input.checkpointId,
+        flowStep: 'IDLE',
+      },
+    });
+    await this.writeAudit({
+      conversationId: input.conversationId,
+      flowType: binding.flowType,
+      action: 'ROLLBACK_STATE',
+      actorId: input.actorId,
+      reason: input.reason,
+      fromVersionId: binding.definitionVersionId,
+      toVersionId: binding.definitionVersionId,
+      threadId: binding.threadId,
+      checkpointId: result.checkpointId ?? input.checkpointId,
+    });
+    this.logger.log(
+      `[FlowVersioning] ROLLBACK_STATE: conv=${input.conversationId}, checkpoint=${input.checkpointId}`,
+    );
+    return result;
+  }
+
+  /** 供回滚实现读取当前绑定（含 flowType 推导）。 */
+  async getBinding(conversationId: string, flowType?: string) {
+    if (flowType) {
+      return this.prisma.conversationFlowBinding.findUnique({
+        where: {
+          conversationId_flowType: { conversationId, flowType },
+        },
+      });
+    }
+    return this.prisma.conversationFlowBinding.findFirst({
+      where: { conversationId, status: 'ACTIVE' },
+      orderBy: { updatedAt: 'desc' },
+    });
   }
 
   private async checkSafePoint(

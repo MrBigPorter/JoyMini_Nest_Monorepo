@@ -15,6 +15,7 @@ function makeService() {
     },
     conversationFlowBinding: {
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
       findMany: jest.fn().mockResolvedValue([]),
       create: jest.fn(),
       update: jest.fn(),
@@ -179,6 +180,7 @@ describe('FlowStateVersioningService · 安全切换', () => {
     const ctx = makeService();
     ctx.prisma.flowDefinitionVersion.findUnique.mockResolvedValue(definition);
     ctx.prisma.conversationFlowBinding.findUnique.mockResolvedValue(binding);
+    ctx.prisma.conversationFlowBinding.findFirst.mockResolvedValue(binding);
     ctx.prisma.conversation.findUnique.mockResolvedValue(
       overrides.conversation ?? { handlerId: null, threadId: 'thread-1' },
     );
@@ -318,11 +320,66 @@ describe('FlowStateVersioningService · 安全切换', () => {
     });
   });
 
-  it('回滚状态 fail-closed，不假装成功', async () => {
+  it('未注册回滚实现时 fail-closed，不假装成功', async () => {
     const { service } = makeService();
-    await expect(service.rollbackState()).resolves.toEqual({
+    await expect(
+      service.rollbackState({
+        conversationId: 'conv-1',
+        checkpointId: 'cp-old',
+      }),
+    ).resolves.toEqual({
       ok: false,
-      reason: 'state_rollback_not_supported',
+      reason: 'state_rollback_unavailable',
     });
+  });
+
+  it('注册实现后：安全点通过 → 调用实现、更新绑定并写 ROLLBACK_STATE 审计', async () => {
+    const { service, prisma } = arrange();
+    const handler = jest.fn().mockResolvedValue({
+      ok: true,
+      checkpointId: 'cp-new',
+    });
+    service.registerStateRollbackHandler(handler);
+
+    const result = await service.rollbackState({
+      conversationId: 'conv-1',
+      checkpointId: 'cp-old',
+      actorId: 'admin',
+      reason: 'bad state',
+    });
+
+    expect(result).toEqual({ ok: true, checkpointId: 'cp-new' });
+    expect(handler).toHaveBeenCalledWith(
+      expect.objectContaining({ checkpointId: 'cp-old' }),
+    );
+    expect(prisma.conversationFlowBinding.update).toHaveBeenCalledWith({
+      where: { id: 'bind-1' },
+      data: expect.objectContaining({
+        checkpointId: 'cp-new',
+        flowStep: 'IDLE',
+      }),
+    });
+    expect(prisma.flowBindingAuditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: 'ROLLBACK_STATE',
+        checkpointId: 'cp-new',
+      }),
+    });
+  });
+
+  it('回滚状态同样受人工接管守卫限制', async () => {
+    const { service, prisma } = arrange({
+      conversation: { handlerId: 'admin-1', threadId: 'thread-1' },
+    });
+    const handler = jest.fn();
+    service.registerStateRollbackHandler(handler);
+
+    await expect(
+      service.rollbackState({
+        conversationId: 'conv-1',
+        checkpointId: 'cp-old',
+      }),
+    ).resolves.toEqual({ ok: false, reason: 'human_handling' });
+    expect(handler).not.toHaveBeenCalled();
   });
 });

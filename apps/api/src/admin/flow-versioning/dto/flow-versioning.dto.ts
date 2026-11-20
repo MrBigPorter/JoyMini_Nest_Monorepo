@@ -28,6 +28,31 @@ export class BindFlowDto {
   threadId?: string;
 }
 
+export class RollbackStateDto {
+  @IsString()
+  @MaxLength(64)
+  conversationId!: string;
+
+  @IsString()
+  @MaxLength(128)
+  checkpointId!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  flowType?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  actorId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  reason?: string;
+}
+
 export class SwitchFlowDefinitionDto {
   @IsString()
   @MaxLength(64)
