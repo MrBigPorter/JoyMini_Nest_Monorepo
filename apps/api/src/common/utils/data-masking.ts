@@ -127,6 +127,7 @@ export function maskSensitiveFields<T>(
   if (role !== Role.VIEWER) return data;
   if (!data) return data;
 
+
   // Handle paginated result with a `list` array
   if (
     typeof data === 'object' &&
@@ -148,4 +149,65 @@ export function maskSensitiveFields<T>(
   }
 
   return data;
+}
+
+/**
+ * Redact (set to null) sensitive fields for VIEWER responses.
+ *
+ * Unlike `maskSensitiveFields`, this removes the content entirely instead of
+ * masking part of it. Keys are kept so the response shape stays stable for
+ * the frontend.
+ *
+ * Supported paths:
+ * - `input`                      → data.input
+ * - `list.input`                 → each item in data.list
+ * - `items.lastMessage`          → each item in data.items
+ * - `spans.input`                → each item in data.spans (arrays supported)
+ *
+ * Only VIEWER is redacted; ADMIN / SUPER_ADMIN / EDITOR keep the original
+ * payload. Role comparison is case-insensitive so a legacy lowercase role
+ * cannot bypass the check.
+ */
+export function redactSensitiveFields<T>(
+  data: T,
+  role: string | undefined | null,
+  fieldPaths: readonly string[],
+): T {
+  if (String(role ?? '').toUpperCase() !== String(Role.VIEWER)) return data;
+  if (!data || fieldPaths.length === 0) return data;
+
+  for (const path of fieldPaths) {
+    redactPath(data, path.split('.'), 0);
+  }
+  return data;
+}
+
+function redactPath(
+  current: unknown,
+  keys: string[],
+  index: number,
+): void {
+  if (current === null || current === undefined) return;
+
+  // Arrays: apply the same path segment to every item.
+  if (Array.isArray(current)) {
+    for (const item of current) {
+      redactPath(item, keys, index);
+    }
+    return;
+  }
+
+  if (typeof current !== 'object') return;
+
+  const key = keys[index];
+  const record = current as Record<string, unknown>;
+
+  if (index === keys.length - 1) {
+    if (Object.prototype.hasOwnProperty.call(record, key)) {
+      record[key] = null;
+    }
+    return;
+  }
+
+  redactPath(record[key], keys, index + 1);
 }

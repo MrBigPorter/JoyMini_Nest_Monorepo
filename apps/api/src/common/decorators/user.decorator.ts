@@ -19,3 +19,11 @@ export const CurrentUserId = createParamDecorator(
     return request.user.userId;
   },
 );
+
+/** 当前管理员角色；未登录或 payload 缺失时返回 null。 */
+export const CurrentRole = createParamDecorator(
+  (_: unknown, ctx: ExecutionContext): string | null => {
+    const request = ctx.switchToHttp().getRequest();
+    return request.user?.role ?? null;
+  },
+);
