@@ -103,7 +103,8 @@ export default function AiUsagePage() {
                   'Prompt',
                   'Completion',
                   'Requests',
-                  'Over limit',
+                  '单日最高',
+                  '单日超限',
                 ].map((h) => (
                   <th key={h} className="px-3 py-2">
                     {h}
@@ -115,7 +116,7 @@ export default function AiUsagePage() {
               {usersLoading && (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={8}
                     className="px-3 py-6 text-center text-gray-400"
                   >
                     Loading...
@@ -125,7 +126,7 @@ export default function AiUsagePage() {
               {!usersLoading && (users?.list.length ?? 0) === 0 && (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={8}
                     className="px-3 py-6 text-center text-gray-400"
                   >
                     该时间段没有 AI 用量
@@ -156,6 +157,9 @@ export default function AiUsagePage() {
                     {u.completionTokens.toLocaleString()}
                   </td>
                   <td className="px-3 py-2">{u.requests}</td>
+                  <td className="px-3 py-2">
+                    {(u.maxDailyTokens ?? 0).toLocaleString()}
+                  </td>
                   <td className="px-3 py-2">{u.overDailyLimit ? '是' : '-'}</td>
                 </tr>
               ))}

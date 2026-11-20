@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRequest } from 'ahooks';
 import { aiOpsApi } from '@/api';
 import { PageHeader } from '@/components/scaffold/PageHeader';
+import { AiErrorBanner } from '@/components/ai-ops/AiErrorBanner';
 import type {
   AiFailedJob,
   AiOutboxItem,
@@ -36,22 +37,35 @@ function StatCard({
 }
 
 export default function AiOpsOverviewPage() {
-  const { data: queueData, loading: queueLoading } = useRequest(
-    aiOpsApi.getQueues,
-    { pollingInterval: 15_000 },
-  );
-  const { data: failed } = useRequest(() => aiOpsApi.getAiFailed(100), {
+  const today = new Date().toISOString().slice(0, 10);
+  const {
+    data: queueData,
+    loading: queueLoading,
+    error: queueError,
+    refresh: refreshQueues,
+  } = useRequest(aiOpsApi.getQueues, { pollingInterval: 15_000 });
+  const {
+    data: failed,
+    error: failedError,
+    refresh: refreshFailed,
+  } = useRequest(() => aiOpsApi.getAiFailed(100), {
     pollingInterval: 30_000,
   });
-  const { data: outbox } = useRequest(
-    () => aiOpsApi.getOutbox(undefined, 100),
-    {
-      pollingInterval: 30_000,
-    },
-  );
-  const { data: usage } = useRequest(aiOpsApi.getUsageSummary, {
-    pollingInterval: 60_000,
+  const {
+    data: outbox,
+    error: outboxError,
+    refresh: refreshOutbox,
+  } = useRequest(() => aiOpsApi.getOutbox(undefined, 100), {
+    pollingInterval: 30_000,
   });
+  const {
+    data: usage,
+    error: usageError,
+    refresh: refreshUsage,
+  } = useRequest(
+    () => aiOpsApi.getUsageSummary({ from: today, to: today }),
+    { pollingInterval: 60_000 },
+  );
 
   const queues = normalizeQueues(queueData);
   const aiQueue = queues.find((q) => q.name === 'ai-processing');
@@ -61,13 +75,26 @@ export default function AiOpsOverviewPage() {
     (outbox as AiOutboxItem[] | undefined)?.filter((i) => i.status === 'FAILED')
       .length ?? 0;
   const summary = usage as AiUsageSummary | undefined;
+  const hasError = Boolean(queueError || failedError || outboxError || usageError);
 
   return (
     <div className="space-y-5 p-4">
       <PageHeader
         title="AI Operations"
-        description="AI 客服生产运营总览：队列、死信、Outbox、Token 用量"
+        description="AI 客服生产运营总览：队列、死信、Outbox、今日 Token"
       />
+
+      {hasError ? (
+        <AiErrorBanner
+          message="部分数据加载失败，下面的数字可能不完整。"
+          onRetry={() => {
+            void refreshQueues();
+            void refreshFailed();
+            void refreshOutbox();
+            void refreshUsage();
+          }}
+        />
+      ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
@@ -77,32 +104,61 @@ export default function AiOpsOverviewPage() {
         />
         <StatCard
           label="AI 死信"
-          value={failedCount}
-          hint="需在 Runtime 页重放"
+          value={failedError ? '—' : failedCount}
+          hint={failedError ? '加载失败' : '需在 Runtime 页重放'}
         />
         <StatCard
           label="Outbox 失败"
-          value={outboxFailed}
-          hint="消息已落库但未入队"
+          value={outboxError ? '—' : outboxFailed}
+          hint={outboxError ? '加载失败' : '消息已落库但未入队'}
         />
         <StatCard
-          label="今日 Token"
-          value={summary?.totals.totalTokens?.toLocaleString() ?? '—'}
-          hint={`${summary?.totals.requests ?? 0} requests（UTC）`}
+          label="今日 Token（UTC）"
+          value={
+            usageError
+              ? '—'
+              : (summary?.totals.totalTokens?.toLocaleString() ?? '—')
+          }
+          hint={
+            usageError
+              ? '加载失败'
+              : `${summary?.totals.requests ?? 0} requests`
+          }
         />
         <StatCard
           label="RAG 向量队列"
           value={ragQueue?.waiting ?? 0}
           hint={`failed ${ragQueue?.failed ?? 0}`}
         />
-        <StatCard label="反馈覆盖" value="—" hint="Quality 页（P1）" />
-        <StatCard label="注入命中" value="—" hint="Security 页（P1）" />
-        <StatCard label="客服排队" value="—" hint="Support Ops 页（P1）" />
       </div>
 
       <div className="rounded-xl border border-gray-100 bg-white p-4 dark:border-white/10 dark:bg-gray-900">
         <h2 className="text-sm font-semibold">快速入口</h2>
         <div className="mt-3 flex flex-wrap gap-2 text-sm">
+          <Link
+            className="rounded-lg border px-3 py-1.5"
+            href="/ai-ops/quality"
+          >
+            质量待办
+          </Link>
+          <Link
+            className="rounded-lg border px-3 py-1.5"
+            href="/ai-ops/support"
+          >
+            转人工队列
+          </Link>
+          <Link
+            className="rounded-lg border px-3 py-1.5"
+            href="/ai-ops/security"
+          >
+            安全事件
+          </Link>
+          <Link
+            className="rounded-lg border px-3 py-1.5"
+            href="/ai-ops/insights"
+          >
+            运营洞察
+          </Link>
           <Link
             className="rounded-lg border px-3 py-1.5"
             href="/ai-ops/runtime"
@@ -113,10 +169,10 @@ export default function AiOpsOverviewPage() {
             流程版本
           </Link>
           <Link className="rounded-lg border px-3 py-1.5" href="/ai-ops/usage">
-            Token 用量
+            用量与成本
           </Link>
           <Link className="rounded-lg border px-3 py-1.5" href="/ai-ops/memory">
-            用户记忆
+            客户记忆
           </Link>
         </div>
       </div>

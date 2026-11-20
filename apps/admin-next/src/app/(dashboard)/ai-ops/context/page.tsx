@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRequest } from 'ahooks';
 import { Button } from '@repo/ui';
 import { aiContextApi } from '@/api';
@@ -15,6 +15,17 @@ export default function AiContextPage() {
     { refreshDeps: [queryId] },
   );
   const snapshot = data as ConversationDebugSnapshot | null;
+
+  // 从反馈列表的 Context 链接进入时，自动查询对应会话。
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get(
+      'conversationId',
+    );
+    if (id) {
+      setConversationId(id);
+      setQueryId(id);
+    }
+  }, []);
 
   return (
     <div className="space-y-5 p-4">

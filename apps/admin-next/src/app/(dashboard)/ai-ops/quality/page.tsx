@@ -95,6 +95,8 @@ function FeedbackPanel() {
                 'Time',
                 'Source',
                 'Verdict/Signal',
+                '用户问题',
+                'AI 回答',
                 'Review',
                 'Note',
                 'Actions',
@@ -108,14 +110,14 @@ function FeedbackPanel() {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={6} className="px-3 py-6 text-center text-gray-400">
+                <td colSpan={8} className="px-3 py-6 text-center text-gray-400">
                   Loading...
                 </td>
               </tr>
             )}
             {!loading && list.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-3 py-6 text-center text-gray-400">
+                <td colSpan={8} className="px-3 py-6 text-center text-gray-400">
                   暂无反馈
                 </td>
               </tr>
@@ -131,6 +133,18 @@ function FeedbackPanel() {
                 <td className="px-3 py-2">{item.source}</td>
                 <td className="px-3 py-2">
                   {item.verdict ?? item.signal ?? '-'}
+                </td>
+                <td
+                  className="max-w-[260px] truncate px-3 py-2"
+                  title={item.input ?? ''}
+                >
+                  {item.input ?? '-'}
+                </td>
+                <td
+                  className="max-w-[320px] truncate px-3 py-2 text-gray-600 dark:text-gray-300"
+                  title={item.answer ?? ''}
+                >
+                  {item.answer ?? '-'}
                 </td>
                 <td className="px-3 py-2">{item.reviewStatus}</td>
                 <td
@@ -154,6 +168,12 @@ function FeedbackPanel() {
                     >
                       Ignore
                     </Button>
+                    <a
+                      className="inline-flex items-center rounded-lg border px-2 py-1 text-xs hover:bg-gray-50 dark:border-white/10 dark:hover:bg-white/5"
+                      href={`/ai-ops/context?conversationId=${item.conversationId}`}
+                    >
+                      Context
+                    </a>
                   </div>
                 </td>
               </tr>

@@ -1334,6 +1334,8 @@ export interface AiFeedbackItem {
   conversationId: string;
   /** 触发该回答的用户提问（导出回放用） */
   input: string | null;
+  /** 被评价的 AI 回答（列表回查补全，便于分诊） */
+  answer?: string | null;
   messageId: string | null;
   userId: string | null;
   source: 'explicit' | 'implicit';
@@ -2030,6 +2032,8 @@ export interface AiUsageUser {
   completionTokens: number;
   totalTokens: number;
   requests: number;
+  /** 所选区间内单日最高 token，用于判断是否真的触发每日限额 */
+  maxDailyTokens?: number;
   overDailyLimit: boolean;
 }
 

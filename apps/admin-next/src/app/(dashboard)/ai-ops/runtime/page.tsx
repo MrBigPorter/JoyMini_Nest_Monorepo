@@ -5,6 +5,11 @@ import { useRequest } from 'ahooks';
 import { Button } from '@repo/ui';
 import { aiOpsApi } from '@/api';
 import { PageHeader } from '@/components/scaffold/PageHeader';
+import { AiErrorBanner } from '@/components/ai-ops/AiErrorBanner';
+import {
+  canManageQueues,
+  useAiOpsRole,
+} from '@/lib/ai-ops-permissions';
 import type { AiFailedJob, AiOutboxItem, AiQueueStats } from '@/type/types';
 
 function normalizeQueues(data: unknown): AiQueueStats[] {
@@ -15,20 +20,25 @@ function normalizeQueues(data: unknown): AiQueueStats[] {
 
 export default function AiRuntimePage() {
   const [outboxStatus, setOutboxStatus] = useState('');
+  const role = useAiOpsRole();
+  const canWrite = canManageQueues(role);
 
   const {
     data: queueData,
     loading: queueLoading,
+    error: queueError,
     refresh: refreshQueues,
   } = useRequest(aiOpsApi.getQueues, { pollingInterval: 15_000 });
   const {
     data: failed,
     loading: failedLoading,
+    error: failedError,
     refresh: refreshFailed,
   } = useRequest(() => aiOpsApi.getAiFailed(100), { pollingInterval: 30_000 });
   const {
     data: outbox,
     loading: outboxLoading,
+    error: outboxError,
     refresh: refreshOutbox,
   } = useRequest(() => aiOpsApi.getOutbox(outboxStatus || undefined, 100), {
     refreshDeps: [outboxStatus],
@@ -38,16 +48,38 @@ export default function AiRuntimePage() {
   const queues = normalizeQueues(queueData);
   const failedJobs = (failed as AiFailedJob[] | undefined) ?? [];
   const outboxRows = (outbox as AiOutboxItem[] | undefined) ?? [];
+  const hasError = Boolean(queueError || failedError || outboxError);
 
   const runQueueAction = async (
     action: 'pause' | 'resume' | 'clean',
-    name: string,
+    q: AiQueueStats,
   ) => {
-    if (!window.confirm(`确认对队列 ${name} 执行 ${action}？`)) return;
+    const name = q.name;
+    const impact =
+      action === 'clean'
+        ? '只清理已完成任务，失败任务会保留。'
+        : `当前排队 ${q.waiting} 条、处理中 ${q.active} 条。`;
+    const labels = {
+      pause: '暂停 AI 回复',
+      resume: '恢复 AI 回复',
+      clean: '清理已完成任务',
+    };
+    if (
+      !window.confirm(
+        `${labels[action]}：队列 ${name}。${impact} 确认执行？`,
+      )
+    )
+      return;
     try {
-      if (action === 'pause') await aiOpsApi.pauseQueue(name);
-      else if (action === 'resume') await aiOpsApi.resumeQueue(name);
-      else await aiOpsApi.cleanQueue(name);
+      const result: any =
+        action === 'pause'
+          ? await aiOpsApi.pauseQueue(name)
+          : action === 'resume'
+            ? await aiOpsApi.resumeQueue(name)
+            : await aiOpsApi.cleanQueue(name);
+      if (result?.success === false) {
+        throw new Error(result?.message ?? '服务端未执行该操作');
+      }
       await refreshQueues();
     } catch (err: any) {
       window.alert(err?.message ?? '操作失败');
@@ -82,6 +114,23 @@ export default function AiRuntimePage() {
         title="AI Runtime"
         description="队列、AI 死信、Outbox 投递状态；写操作会二次确认"
       />
+
+      {hasError ? (
+        <AiErrorBanner
+          message="部分运行数据加载失败，下面的空表不代表系统正常。"
+          onRetry={() => {
+            void refreshQueues();
+            void refreshFailed();
+            void refreshOutbox();
+          }}
+        />
+      ) : null}
+
+      {!canWrite ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
+          当前角色为只读，可以查看队列和失败任务，但不能暂停、恢复或重放。
+        </div>
+      ) : null}
 
       <section className="rounded-xl border border-gray-100 bg-white p-4 dark:border-white/10 dark:bg-gray-900">
         <h2 className="mb-3 text-sm font-semibold">队列</h2>
@@ -121,7 +170,7 @@ export default function AiRuntimePage() {
                     colSpan={7}
                     className="px-3 py-6 text-center text-gray-400"
                   >
-                    暂无队列数据
+                    {queueError ? '队列加载失败，请重试' : '暂无队列数据'}
                   </td>
                 </tr>
               )}
@@ -138,27 +187,33 @@ export default function AiRuntimePage() {
                   <td className="px-3 py-2">{q.isPaused ? '是' : '否'}</td>
                   <td className="px-3 py-2">
                     <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => runQueueAction('pause', q.name)}
-                      >
-                        Pause
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => runQueueAction('resume', q.name)}
-                      >
-                        Resume
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => runQueueAction('clean', q.name)}
-                      >
-                        Clean
-                      </Button>
+                      {canWrite ? (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => runQueueAction('pause', q)}
+                          >
+                            暂停
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => runQueueAction('resume', q)}
+                          >
+                            恢复
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => runQueueAction('clean', q)}
+                          >
+                            清理已完成
+                          </Button>
+                        </>
+                      ) : (
+                        <span className="text-xs text-gray-400">只读</span>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -210,7 +265,7 @@ export default function AiRuntimePage() {
                     colSpan={6}
                     className="px-3 py-6 text-center text-gray-400"
                   >
-                    没有死信
+                    {failedError ? '死信加载失败，请重试' : '没有死信'}
                   </td>
                 </tr>
               )}
@@ -238,9 +293,13 @@ export default function AiRuntimePage() {
                       : '-'}
                   </td>
                   <td className="px-3 py-2">
-                    <Button size="sm" onClick={() => replayAi(job.messageId)}>
-                      Replay
-                    </Button>
+                    {canWrite ? (
+                      <Button size="sm" onClick={() => replayAi(job.messageId)}>
+                        重新处理
+                      </Button>
+                    ) : (
+                      <span className="text-xs text-gray-400">只读</span>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -305,7 +364,9 @@ export default function AiRuntimePage() {
                     colSpan={7}
                     className="px-3 py-6 text-center text-gray-400"
                   >
-                    没有 Outbox 任务
+                    {outboxError
+                      ? 'Outbox 加载失败，请重试'
+                      : '没有 Outbox 任务'}
                   </td>
                 </tr>
               )}
@@ -332,12 +393,12 @@ export default function AiRuntimePage() {
                     {new Date(item.nextAttemptAt).toLocaleString()}
                   </td>
                   <td className="px-3 py-2">
-                    {item.status === 'FAILED' ? (
+                    {item.status === 'FAILED' && canWrite ? (
                       <Button
                         size="sm"
                         onClick={() => replayOutbox(item.messageId)}
                       >
-                        Replay
+                        重新投递
                       </Button>
                     ) : (
                       '-'
