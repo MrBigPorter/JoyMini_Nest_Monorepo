@@ -95,6 +95,8 @@ export interface RunStandardAgentOptions {
   pendingConfirm?: { action?: string } | null;
   /** 覆盖默认 token 预算（测试/特殊 Agent 用）。 */
   contextTokenBudget?: number;
+  /** 用户长期记忆（已格式化，作为独立 system 消息注入）。 */
+  userMemory?: string;
 }
 
 export interface RunStandardAgentResult {
@@ -171,10 +173,14 @@ export async function runStandardAgent(
   // 结构化摘要作为独立 system 消息注入：不写进 state.messages，
   // 下一轮不会伪装成用户/AI 原话重复出现。
   const summary = formatContextSummary(opts.contextState, opts.pendingConfirm);
+  const injected = [
+    summary ? new SystemMessage(summary) : null,
+    opts.userMemory ? new SystemMessage(opts.userMemory) : null,
+  ].filter((item): item is SystemMessage => item !== null);
   const initialMessages = buildInitialMessages(
     systemPrompt,
     contextMessages,
-    summary ? { inject: [new SystemMessage(summary)] } : undefined,
+    injected.length > 0 ? { inject: injected } : undefined,
   );
 
   // ④ Loop — 执行 ReAct Agent 循环

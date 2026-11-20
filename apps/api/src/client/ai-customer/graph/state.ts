@@ -391,6 +391,17 @@ export const AgentState = Annotation.Root({
   }),
 
   /**
+   * userMemory — 本轮注入的用户长期记忆（独立 system 上下文）
+   *
+   * 每轮由 AiCustomerService 读取并覆盖，不写入 messages。
+   * 只作为数据提示，不能当指令执行。
+   */
+  userMemory: Annotation<string>({
+    reducer: (_a: string, b: string) => b ?? '',
+    default: () => '',
+  }),
+
+  /**
    * entryPoint — 用户入口上下文
    *
    * 用户从哪个业务页面进入客服，如 'order_detail' / 'deposit' / 'profile'。

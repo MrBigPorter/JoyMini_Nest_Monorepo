@@ -2159,3 +2159,49 @@ model AiAnswerFeedback {
   @@index([signal], map: "idx_ai_feedback_signal")
   @@map("ai_answer_feedback")
 }
+
+/// 跨会话用户记忆：只存蒸馏后的偏好/事实，不存原文与敏感信息。
+model AiUserMemory {
+  id     String @id @default(cuid()) @db.VarChar(32)
+  userId String @map("user_id") @db.VarChar(32)
+  /// preference | fact | summary
+  kind   String @db.VarChar(16)
+  key    String @db.VarChar(64)
+  value  String @db.VarChar(500)
+
+  confidence Float @default(1)
+  /// 来源：哪条用户消息触发写入（唯一，重复写入幂等）
+  sourceConversationId String? @map("source_conversation_id") @db.VarChar(32)
+  sourceMessageId      String? @map("source_message_id") @db.VarChar(32)
+  version              Int     @default(1)
+  /// ACTIVE | DELETED
+  status               String  @default("ACTIVE") @db.VarChar(16)
+  expiresAt            DateTime @map("expires_at")
+  lastUsedAt           DateTime? @map("last_used_at")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, kind, key], map: "idx_ai_memory_user_kind_key")
+  // 一条消息可能抽取多个字段，幂等键必须是 (message, kind, key)
+  @@unique([sourceMessageId, kind, key], map: "idx_ai_memory_source_message")
+  @@index([userId, status, expiresAt], map: "idx_ai_memory_lookup")
+  @@map("ai_user_memories")
+}
+
+/// 会话级摘要记忆（与短期 checkpointer 分开；可单独清理）。
+model AiMemorySummary {
+  id             String   @id @default(cuid()) @db.VarChar(32)
+  userId         String   @map("user_id") @db.VarChar(32)
+  threadId       String?  @map("thread_id") @db.VarChar(64)
+  conversationId String?  @map("conversation_id") @db.VarChar(32)
+  summary        String   @db.VarChar(1000)
+  coveredToSeqId Int      @default(0) @map("covered_to_seq_id")
+  tokenCount     Int      @default(0) @map("token_count")
+  expiresAt      DateTime @map("expires_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, threadId], map: "idx_ai_memory_summary_thread")
+  @@index([userId, expiresAt], map: "idx_ai_memory_summary_expiry")
+  @@map("ai_memory_summaries")
+}

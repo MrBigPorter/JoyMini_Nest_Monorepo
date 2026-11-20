@@ -111,7 +111,14 @@ export class AuthService {
       where: { userId },
     });
 
-    // 4. 软删除用户账号（status=0）
+    // 4. 删除跨会话 AI 记忆（偏好 + 会话摘要）
+    //    注销是删除权场景，不能只软删账号而留下记忆。
+    const [memoryDeleted, summaryDeleted] = await Promise.all([
+      this.prisma.aiUserMemory.deleteMany({ where: { userId } }),
+      this.prisma.aiMemorySummary.deleteMany({ where: { userId } }),
+    ]);
+
+    // 5. 软删除用户账号（status=0）
     //    财务记录（订单/钱包/交易）保留，Apple/Google 审核均允许保留财务数据
     await this.prisma.user.update({
       where: { id: userId },
@@ -119,7 +126,9 @@ export class AuthService {
     });
 
     this.logger.log(
-      `User ${userId} account soft-deleted, ${anonymizedComments} comments anonymized, ${bookmarkResult.count} bookmarks deleted`,
+      `User ${userId} account soft-deleted, ${anonymizedComments} comments anonymized, ` +
+        `${bookmarkResult.count} bookmarks deleted, ` +
+        `${memoryDeleted.count} memories + ${summaryDeleted.count} summaries deleted`,
     );
 
     return {

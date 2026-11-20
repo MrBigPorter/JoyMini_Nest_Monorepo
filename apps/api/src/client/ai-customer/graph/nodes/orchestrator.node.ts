@@ -652,6 +652,7 @@ export const createOrchestratorNode =
               logger,
               flowDataAccumulator: flowAccumulator,
               contextState: nextContextState,
+              userMemory: state.userMemory,
             });
 
           // 日志：记录该 Agent 的执行上下文和工具绑定情况
@@ -758,6 +759,7 @@ export const createOrchestratorNode =
       llmConfig,
       agentOutputs,
       userInput,
+      state.userMemory,
     );
 
     // 工具侧判定转人工（agent 返回 [TRANSFER_TO_HUMAN]）也要记一条 transfer 事件。

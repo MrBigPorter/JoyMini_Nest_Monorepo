@@ -36,6 +36,7 @@ export async function handleGeneralChat(
     .filter((m: any) => m.type === 'human' || m.type === 'ai')
     .slice(0, -1);
   const conversationContext = [
+    state.userMemory,
     formatContextSummary(state.contextState),
     contextMessages.length > 0
       ? contextMessages.map(formatMessage).join('\n')
@@ -93,7 +94,10 @@ export async function handleRagQuery(
     const chain = RAG_FALLBACK_PROMPT.pipe(model).pipe(
       new StringOutputParser(),
     );
-    const result = await chain.invoke({ input: userInput });
+    const result = await chain.invoke({
+      input: userInput,
+      memory: state.userMemory ?? '',
+    });
     return {
       messages: [...state.messages, new AIMessage(result)],
       previousIntent: state.intent,
@@ -113,7 +117,11 @@ export async function handleRagQuery(
     .join('\n\n---\n\n');
   const model = createLLM(llmConfig, { temperature: 0.3 });
   const chain = RAG_PROMPT.pipe(model).pipe(new StringOutputParser());
-  const result = await chain.invoke({ input: userInput, documents });
+  const result = await chain.invoke({
+    input: userInput,
+    documents,
+    memory: state.userMemory ?? '',
+  });
   return {
     messages: [...state.messages, new AIMessage(result)],
     previousIntent: state.intent,

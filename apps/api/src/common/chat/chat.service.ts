@@ -41,6 +41,7 @@ import { CHAT_GROUP_EVENTS } from '@api/common/chat/events/chat-group.events';
 import { ForwardMessageDto } from '@api/common/chat/dto/forward-message.dto';
 import { ConfigService } from '@nestjs/config';
 import { AiTaskOutboxService } from '@api/common/queue/ai-task-outbox.service';
+import { AiMemoryService } from '@api/common/ai/ai-memory.service';
 
 const SUPPORT_CONVERSATION_STARTED = 'chat.support.conversation.started';
 
@@ -54,6 +55,7 @@ export class ChatService {
     private readonly configService: ConfigService,
     @InjectQueue(AVATAR_QUEUE_NAME) private readonly avatarQueue: Queue,
     private readonly aiTaskOutboxService: AiTaskOutboxService,
+    private readonly aiMemoryService: AiMemoryService,
   ) {}
 
   // =================================================================
@@ -397,6 +399,16 @@ export class ChatService {
       where: { conversationId_userId: { conversationId, userId } },
       data: { clearedSeqId: conv.lastMsgSeqId },
     });
+
+    // 清历史只清本会话摘要，不删用户偏好/事实（避免“清聊天记录 = 失忆”）。
+    await this.aiMemoryService
+      .clearConversationSummaries(userId, conversationId)
+      .catch((err: any) => {
+        this.logger.warn(
+          `[clearHistory] memory summary clear failed: ${err?.message ?? err}`,
+        );
+      });
+
     return { success: true };
   }
 

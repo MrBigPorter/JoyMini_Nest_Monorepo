@@ -57,6 +57,11 @@ export async function handleEventStream(
    * AI 回复会落库并通过用户私有房间补推，继续生成可能是正确的。
    */
   signal?: AbortSignal,
+  /**
+   * 本轮注入的用户长期记忆（已格式化为 system 文本）。
+   * 只作为数据传入，不写入 messages，避免污染对话与放大隐私数据。
+   */
+  userMemory = '',
 ): Promise<StreamUsageSummary> {
   return runWithContext({ userId }, async () => {
     const config: Record<string, any> = {
@@ -73,6 +78,7 @@ export async function handleEventStream(
         debug: false,
         entryPoint: entryPoint ?? '',
         entryMetadata: metadata ?? {},
+        userMemory,
       },
       config,
     );

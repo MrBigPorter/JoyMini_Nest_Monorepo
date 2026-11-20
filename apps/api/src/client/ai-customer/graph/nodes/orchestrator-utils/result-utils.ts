@@ -3,7 +3,10 @@ import { StringOutputParser } from '@langchain/core/output_parsers';
 import { createLLM } from '@api/client/ai-customer/graph/llm-factory';
 import type { LlmProviderConfig } from '@api/client/ai-customer/graph/llm-factory';
 import { SYNTHESIZER_PROMPT } from '@api/client/ai-customer/graph/agents/prompts/synthesizer-prompt';
-import { AgentState, DebugAgentExecution } from '@api/client/ai-customer/graph/state';
+import {
+  AgentState,
+  DebugAgentExecution,
+} from '@api/client/ai-customer/graph/state';
 
 /**
  * synthesizeAnswers — 将多个 Agent 的输出合并为一条最终回复
@@ -13,6 +16,7 @@ export async function synthesizeAnswers(
   llmConfig: LlmProviderConfig,
   agentOutputs: { label: string; content: string }[],
   userInput: string,
+  userMemory = '',
 ): Promise<string> {
   const validOutputs = agentOutputs.filter(
     (o) => o.content && o.content.length > 0,
@@ -31,6 +35,7 @@ export async function synthesizeAnswers(
   return chain.invoke({
     agentOutput: agentOutput || 'No results found.',
     userInput,
+    memory: userMemory,
   });
 }
 
