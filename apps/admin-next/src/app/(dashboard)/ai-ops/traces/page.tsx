@@ -7,6 +7,7 @@ import { Button } from '@repo/ui';
 import { aiOpsApi } from '@/api';
 import { AiErrorBanner } from '@/components/ai-ops/AiErrorBanner';
 import { PageHeader } from '@/components/scaffold/PageHeader';
+import { useAiOpsRole } from '@/lib/ai-ops-permissions';
 import type { AiSpanRow, AiTraceDetail, AiTraceRow } from '@/type/types';
 
 const PAGE_SIZE = 20;
@@ -59,6 +60,9 @@ function jsonBlock(value: unknown): string {
 }
 
 export default function AiTracesPage() {
+  const role = useAiOpsRole();
+  const rawTextPlaceholder =
+    role === 'VIEWER' ? '只读账号不显示原文' : null;
   const [conversationInput, setConversationInput] = useState('');
   const [intentInput, setIntentInput] = useState('');
   const [filters, setFilters] = useState<{
@@ -248,9 +252,9 @@ export default function AiTracesPage() {
                     </td>
                     <td
                       className="max-w-xs truncate px-2 py-2 text-gray-600 dark:text-gray-300"
-                      title={row.output ?? undefined}
+                      title={rawTextPlaceholder ?? row.output ?? undefined}
                     >
-                      {snippet(row.output)}
+                      {rawTextPlaceholder ?? snippet(row.output)}
                     </td>
                     <td className="whitespace-nowrap px-2 py-2 text-right">
                       <Button
@@ -338,6 +342,9 @@ export default function AiTracesPage() {
 }
 
 function TraceDetailBody({ detail }: { detail: AiTraceDetail }) {
+  const role = useAiOpsRole();
+  const rawTextPlaceholder =
+    role === 'VIEWER' ? '只读账号不显示原文' : null;
   return (
     <>
       <dl className="mt-4 grid gap-3 text-xs sm:grid-cols-2 lg:grid-cols-4">
@@ -398,13 +405,13 @@ function TraceDetailBody({ detail }: { detail: AiTraceDetail }) {
         <div>
           <div className="text-xs text-gray-500">用户输入（截断）</div>
           <div className="mt-1 whitespace-pre-wrap break-words rounded-lg bg-gray-50 p-3 text-sm dark:bg-gray-950/40">
-            {detail.input || '—'}
+            {rawTextPlaceholder ?? detail.input ?? '—'}
           </div>
         </div>
         <div>
           <div className="text-xs text-gray-500">AI 输出（截断）</div>
           <div className="mt-1 whitespace-pre-wrap break-words rounded-lg bg-gray-50 p-3 text-sm dark:bg-gray-950/40">
-            {detail.output || '—'}
+            {rawTextPlaceholder ?? detail.output ?? '—'}
           </div>
         </div>
       </div>
@@ -464,6 +471,9 @@ function TraceDetailBody({ detail }: { detail: AiTraceDetail }) {
 }
 
 function SpanRow({ span }: { span: AiSpanRow }) {
+  const role = useAiOpsRole();
+  const rawTextPlaceholder =
+    role === 'VIEWER' ? '只读账号不显示原文' : null;
   const isError = span.status === 'ERROR';
   return (
     <div
@@ -502,13 +512,13 @@ function SpanRow({ span }: { span: AiSpanRow }) {
           <div>
             <div className="text-[11px] text-gray-400">input</div>
             <pre className="mt-1 max-h-48 overflow-auto rounded bg-gray-50 p-2 dark:bg-gray-950/40">
-              {jsonBlock(span.input)}
+              {rawTextPlaceholder ?? jsonBlock(span.input)}
             </pre>
           </div>
           <div>
             <div className="text-[11px] text-gray-400">output</div>
             <pre className="mt-1 max-h-48 overflow-auto rounded bg-gray-50 p-2 dark:bg-gray-950/40">
-              {jsonBlock(span.output)}
+              {rawTextPlaceholder ?? jsonBlock(span.output)}
             </pre>
           </div>
         </div>

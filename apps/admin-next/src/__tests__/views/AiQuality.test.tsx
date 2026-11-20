@@ -12,6 +12,7 @@ import {
   PageHeaderMock,
   repoUiMock,
 } from '../mocks/view-helpers';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 const mockUseRequest = vi.hoisted(() => vi.fn());
 const mockGetFeedbackList = vi.hoisted(() => vi.fn());
@@ -23,6 +24,7 @@ const mockStartRun = vi.hoisted(() => vi.fn());
 const mockRagSearch = vi.hoisted(() => vi.fn());
 const mockQualityStats = vi.hoisted(() => vi.fn());
 const mockCanTriage = vi.hoisted(() => vi.fn(() => true));
+const mockRole = vi.hoisted(() => ({ current: 'ADMIN' }));
 
 vi.mock('ahooks', () => ({
   useRequest: (...args: unknown[]) => mockUseRequest(...args),
@@ -49,7 +51,7 @@ vi.mock('@/api', () => ({
 }));
 
 vi.mock('@/lib/ai-ops-permissions', () => ({
-  useAiOpsRole: () => 'ADMIN',
+  useAiOpsRole: () => mockRole.current,
   canTriageFeedback: () => mockCanTriage(),
 }));
 
@@ -227,10 +229,22 @@ function wireEvalTab(detail: unknown, runData: unknown = null) {
   };
 }
 
+const mockReplace = vi.fn();
+
 describe('AiQualityPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    (useSearchParams as any).mockReturnValue(new URLSearchParams());
+    (usePathname as any).mockReturnValue('/ai-ops/quality');
+    (useRouter as any).mockReturnValue({
+      push: vi.fn(),
+      replace: mockReplace,
+      back: vi.fn(),
+      prefetch: vi.fn(),
+      refresh: vi.fn(),
+    });
     mockCanTriage.mockReturnValue(true);
+    mockRole.current = 'ADMIN';
     mockUpdateFeedback.mockResolvedValue({});
     mockGetFeedbackList.mockResolvedValue({ list: [feedback], total: 1 });
     mockGetFeedbackSummary.mockResolvedValue(summary);
@@ -268,6 +282,63 @@ describe('AiQualityPage', () => {
     expect(screen.getByText('2')).toBeTruthy();
     expect(screen.getByText('4')).toBeTruthy();
     expect(mockGetFeedbackSummary).toHaveBeenCalled();
+  });
+
+  it('reads drill-down filters from the URL and requests them', () => {
+    (useSearchParams as any).mockReturnValue(
+      new URLSearchParams('failureKind=SERVICE_ERROR&signal=abandoned'),
+    );
+
+    render(<AiQualityPage />);
+
+    expect(mockGetFeedbackList).toHaveBeenCalledWith(
+      expect.objectContaining({
+        page: 1,
+        failureKind: 'SERVICE_ERROR',
+        signal: 'abandoned',
+      }),
+    );
+  });
+
+  it('KPI cards link to the matching filtered list', () => {
+    render(<AiQualityPage />);
+
+    expect(
+      screen
+        .getByRole('link', { name: '服务故障，查看对应反馈' })
+        .getAttribute('href'),
+    ).toBe('/ai-ops/quality?failureKind=SERVICE_ERROR');
+    expect(
+      screen
+        .getByRole('link', { name: '待处理，查看对应反馈' })
+        .getAttribute('href'),
+    ).toBe('/ai-ops/quality?reviewStatus=PENDING');
+    expect(
+      screen
+        .getByRole('link', { name: '已进回归，查看对应反馈' })
+        .getAttribute('href'),
+    ).toBe('/ai-ops/quality?resolution=ADDED_TO_EVAL');
+  });
+
+  it('writes filter changes to the URL and clears them', () => {
+    (useSearchParams as any).mockReturnValue(
+      new URLSearchParams('failureKind=SERVICE_ERROR&signal=abandoned'),
+    );
+
+    render(<AiQualityPage />);
+
+    fireEvent.change(screen.getByLabelText('来源信号筛选'), {
+      target: { value: 'repeated_question' },
+    });
+    expect(mockReplace).toHaveBeenLastCalledWith(
+      '/ai-ops/quality?failureKind=SERVICE_ERROR&signal=repeated_question',
+      { scroll: false },
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '清除筛选' }));
+    expect(mockReplace).toHaveBeenLastCalledWith('/ai-ops/quality', {
+      scroll: false,
+    });
   });
 
   it('translates feedback source, signal, attribution and resolution', () => {
@@ -411,6 +482,18 @@ describe('AiQualityPage', () => {
     expect(screen.getByRole('button', { name: '创建评测集' })).toBeTruthy();
   });
 
+  it('hides raw question and answer for VIEWER', () => {
+    mockRole.current = 'VIEWER';
+    mockCanTriage.mockReturnValue(false);
+    render(<AiQualityPage />);
+
+    expect(screen.queryByText('我的券怎么还不发')).toBeNull();
+    expect(screen.queryByText('请稍等，正在为你查询')).toBeNull();
+    expect(
+      screen.getAllByText('只读账号不显示原文').length,
+    ).toBeGreaterThan(0);
+  });
+
   it('hides triage actions but keeps status and context for read-only roles', () => {
     mockCanTriage.mockReturnValue(false);
     render(<AiQualityPage />);
@@ -424,23 +507,23 @@ describe('AiQualityPage', () => {
     expect(screen.getByRole('link', { name: '查看上下文' })).toBeTruthy();
   });
 
-  it('passes failureKind and resolution filters to the list query', async () => {
+  it('writes failureKind and resolution filters to the URL', () => {
     render(<AiQualityPage />);
 
     fireEvent.change(screen.getByLabelText('归因筛选'), {
       target: { value: 'MODEL_ERROR' },
     });
+    expect(mockReplace).toHaveBeenLastCalledWith(
+      '/ai-ops/quality?failureKind=MODEL_ERROR',
+      { scroll: false },
+    );
+
     fireEvent.change(screen.getByLabelText('处理状态筛选'), {
       target: { value: 'CONFIRMED' },
     });
-
-    await waitFor(() =>
-      expect(mockGetFeedbackList).toHaveBeenLastCalledWith({
-        page: 1,
-        pageSize: 20,
-        failureKind: 'MODEL_ERROR',
-        resolution: 'CONFIRMED',
-      }),
+    expect(mockReplace).toHaveBeenLastCalledWith(
+      '/ai-ops/quality?resolution=CONFIRMED',
+      { scroll: false },
     );
   });
 

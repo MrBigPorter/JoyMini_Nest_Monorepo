@@ -167,6 +167,10 @@ describe('AiSupportPage', () => {
       screen.getByText(/当前角色为只读，可以查看转人工队列/),
     ).toBeTruthy();
     expect(screen.getByText('只读')).toBeTruthy();
+    expect(screen.queryByText('我的券怎么还没发')).toBeNull();
+    expect(
+      screen.getAllByText('只读账号不显示原文').length,
+    ).toBeGreaterThan(0);
   });
 
   it('claims a conversation after confirmation and refreshes data', async () => {

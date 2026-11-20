@@ -278,7 +278,7 @@ describe('AiOpsOverviewPage', () => {
     expect(rows).toHaveLength(4);
     expect(rows.map((row) => row.getAttribute('href'))).toEqual([
       '/ai-ops/quality?failureKind=SERVICE_ERROR',
-      '/ai-ops/quality',
+      '/ai-ops/quality?reviewStatus=PENDING',
       '/ai-ops/support',
       '/ai-ops/security',
     ]);

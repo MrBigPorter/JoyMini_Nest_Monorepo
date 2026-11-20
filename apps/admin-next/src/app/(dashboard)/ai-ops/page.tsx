@@ -280,7 +280,7 @@ export default function AiOpsOverviewPage() {
       label: '待处理反馈',
       description: '尚未分诊的用户反馈队列',
       count: pendingFeedback ?? 0,
-      href: '/ai-ops/quality',
+      href: '/ai-ops/quality?reviewStatus=PENDING',
       updatedAt: feedbackDataAt,
     });
   }

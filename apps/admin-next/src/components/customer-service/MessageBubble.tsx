@@ -117,7 +117,7 @@ export function MessageBubble({
     return (
       <div className="flex justify-center my-2">
         <span className="text-xs px-3 py-1 rounded-full bg-gray-100 dark:bg-white/10 text-gray-500 dark:text-gray-400">
-          {msg.content}
+          {msg.content ?? '只读账号不显示消息内容'}
         </span>
       </div>
     );
@@ -134,6 +134,14 @@ export function MessageBubble({
       return (
         <span className="italic opacity-60 text-sm">
           {t('customerService.messageRecalled')}
+        </span>
+      );
+    }
+    // VIEWER 读接口返回 content=null；媒体类型不能拿 null 去拼 URL。
+    if (msg.content == null) {
+      return (
+        <span className="italic opacity-60 text-sm">
+          只读账号不显示消息内容
         </span>
       );
     }

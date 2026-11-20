@@ -1,12 +1,21 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
+import Link from 'next/link';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useRequest } from 'ahooks';
 import { Button } from '@repo/ui';
 import { aiQualityApi, chatApi, knowledgeApi } from '@/api';
 import { PageHeader } from '@/components/scaffold/PageHeader';
 import { AiErrorBanner } from '@/components/ai-ops/AiErrorBanner';
 import { canTriageFeedback, useAiOpsRole } from '@/lib/ai-ops-permissions';
+import {
+  applyFeedbackFilters,
+  buildQualityHref,
+  hasFeedbackFilters,
+  parseFeedbackFilters,
+  type FeedbackFilters,
+} from '@/lib/ai-ops-quality-filters';
 import type {
   AiFeedbackItem,
   AiFeedbackSummary,
@@ -172,7 +181,15 @@ export default function AiQualityPage() {
         ))}
       </div>
       {tab === 'feedback' ? (
-        <FeedbackPanel onGoToEval={() => setTab('eval')} />
+        <Suspense
+          fallback={
+            <div className="py-8 text-center text-sm text-gray-400">
+              Loading...
+            </div>
+          }
+        >
+          <FeedbackPanel onGoToEval={() => setTab('eval')} />
+        </Suspense>
       ) : null}
       {tab === 'eval' ? <EvalPanel /> : null}
       {tab === 'rag' ? <RagPanel /> : null}
@@ -181,9 +198,11 @@ export default function AiQualityPage() {
 }
 
 function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
-  const [reviewStatus, setReviewStatus] = useState('');
-  const [failureKindFilter, setFailureKindFilter] = useState('');
-  const [resolutionFilter, setResolutionFilter] = useState('');
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const router = useRouter();
+  const filters = parseFeedbackFilters(searchParams.toString());
+  const { reviewStatus, failureKind: failureKindFilter, resolution: resolutionFilter, signal: signalFilter } = filters;
   const [failureKind, setFailureKind] = useState('UNKNOWN');
   const [page, setPage] = useState(1);
   const [actionError, setActionError] = useState('');
@@ -195,6 +214,24 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
   const [reviewIndex, setReviewIndex] = useState(0);
   const role = useAiOpsRole();
   const canTriage = canTriageFeedback(role);
+  const rawTextPlaceholder = role === 'VIEWER' ? '只读账号不显示原文' : null;
+
+  const updateFilter = (patch: Partial<FeedbackFilters>) => {
+    const next = applyFeedbackFilters(
+      new URLSearchParams(searchParams.toString()),
+      patch,
+    );
+    const query = next.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, {
+      scroll: false,
+    });
+    setPage(1);
+  };
+
+  // URL 是筛选的唯一来源；直达链接或后退时也要回到第一页。
+  useEffect(() => {
+    setPage(1);
+  }, [reviewStatus, failureKindFilter, resolutionFilter, signalFilter]);
 
   const {
     data: summaryData,
@@ -211,8 +248,17 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
         ...(reviewStatus ? { reviewStatus } : {}),
         ...(failureKindFilter ? { failureKind: failureKindFilter } : {}),
         ...(resolutionFilter ? { resolution: resolutionFilter } : {}),
+        ...(signalFilter ? { signal: signalFilter } : {}),
       } as any),
-    { refreshDeps: [page, reviewStatus, failureKindFilter, resolutionFilter] },
+    {
+      refreshDeps: [
+        page,
+        reviewStatus,
+        failureKindFilter,
+        resolutionFilter,
+        signalFilter,
+      ],
+    },
   );
 
   const { data: datasetListData, refresh: refreshDatasets } = useRequest(
@@ -225,28 +271,48 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
     ? (datasetListData as EvalDataset[])
     : [];
   const total = (data as any)?.total ?? 0;
-  const kpis: Array<[string, number | undefined]> = [
-    ['待处理', summary?.pending],
-    [
-      '模型答错',
-      countByValue(summary?.byFailureKind, 'failureKind', 'MODEL_ERROR'),
-    ],
-    [
-      '服务故障',
-      countByValue(summary?.byFailureKind, 'failureKind', 'SERVICE_ERROR'),
-    ],
-    [
-      '误转',
-      countByValue(
+  const kpis: Array<{ label: string; value?: number; href: string }> = [
+    {
+      label: '待处理',
+      value: summary?.pending,
+      href: buildQualityHref({ reviewStatus: 'PENDING' }),
+    },
+    {
+      label: '模型答错',
+      value: countByValue(
+        summary?.byFailureKind,
+        'failureKind',
+        'MODEL_ERROR',
+      ),
+      href: buildQualityHref({ failureKind: 'MODEL_ERROR' }),
+    },
+    {
+      label: '服务故障',
+      value: countByValue(
+        summary?.byFailureKind,
+        'failureKind',
+        'SERVICE_ERROR',
+      ),
+      href: buildQualityHref({ failureKind: 'SERVICE_ERROR' }),
+    },
+    {
+      label: '误转',
+      value: countByValue(
         summary?.byFailureKind,
         'failureKind',
         'UNEXPECTED_TRANSFER',
       ),
-    ],
-    [
-      '已进回归',
-      countByValue(summary?.byResolution, 'resolution', 'ADDED_TO_EVAL'),
-    ],
+      href: buildQualityHref({ failureKind: 'UNEXPECTED_TRANSFER' }),
+    },
+    {
+      label: '已进回归',
+      value: countByValue(
+        summary?.byResolution,
+        'resolution',
+        'ADDED_TO_EVAL',
+      ),
+      href: buildQualityHref({ resolution: 'ADDED_TO_EVAL' }),
+    },
   ];
 
   const triage = async (
@@ -367,16 +433,18 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
   return (
     <section className="space-y-3">
       <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        {kpis.map(([label, value]) => (
-          <div
+        {kpis.map(({ label, value, href }) => (
+          <Link
             key={label}
-            className="rounded-xl border p-3 dark:border-white/10"
+            href={href}
+            aria-label={`${label}，查看对应反馈`}
+            className="rounded-xl border p-3 transition-colors hover:border-blue-300 hover:bg-blue-50/50 dark:border-white/10 dark:hover:border-blue-500/40 dark:hover:bg-blue-500/5"
           >
             <div className="text-xs text-gray-500">{label}</div>
             <div className="text-lg font-semibold">
               {value != null ? value : summaryLoading ? '加载中…' : '—'}
             </div>
-          </div>
+          </Link>
         ))}
       </div>
 
@@ -395,8 +463,9 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
             className="rounded-lg border px-3 py-1.5 text-sm dark:border-white/10 dark:bg-gray-800"
             value={reviewStatus}
             onChange={(e) => {
-              setReviewStatus(e.target.value);
-              setPage(1);
+              updateFilter({
+                reviewStatus: e.target.value as FeedbackFilters['reviewStatus'],
+              });
             }}
           >
             <option value="">全部状态</option>
@@ -418,8 +487,9 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
             className="rounded-lg border px-3 py-1.5 text-sm dark:border-white/10 dark:bg-gray-800"
             value={failureKindFilter}
             onChange={(e) => {
-              setFailureKindFilter(e.target.value);
-              setPage(1);
+              updateFilter({
+                failureKind: e.target.value as FeedbackFilters['failureKind'],
+              });
             }}
           >
             <option value="">全部归因</option>
@@ -437,8 +507,9 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
             className="rounded-lg border px-3 py-1.5 text-sm dark:border-white/10 dark:bg-gray-800"
             value={resolutionFilter}
             onChange={(e) => {
-              setResolutionFilter(e.target.value);
-              setPage(1);
+              updateFilter({
+                resolution: e.target.value as FeedbackFilters['resolution'],
+              });
             }}
           >
             <option value="">全部处理状态</option>
@@ -449,6 +520,42 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
             ))}
           </select>
         </label>
+        <label className="flex items-center gap-2 text-xs text-gray-500">
+          来源信号
+          <select
+            aria-label="来源信号筛选"
+            className="rounded-lg border px-3 py-1.5 text-sm dark:border-white/10 dark:bg-gray-800"
+            value={signalFilter}
+            onChange={(e) => {
+              updateFilter({
+                signal: e.target.value as FeedbackFilters['signal'],
+              });
+            }}
+          >
+            <option value="">全部信号</option>
+            {Object.entries(SIGNAL_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        {hasFeedbackFilters(filters) ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              updateFilter({
+                reviewStatus: '',
+                failureKind: '',
+                resolution: '',
+                signal: '',
+              });
+            }}
+          >
+            清除筛选
+          </Button>
+        ) : null}
         <Button size="sm" variant="outline" onClick={refresh}>
           刷新
         </Button>
@@ -586,10 +693,10 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
           <div className="grid gap-3 lg:grid-cols-2">
             <div className="rounded-lg border bg-white p-3 text-sm dark:border-white/10 dark:bg-gray-900">
               <div className="mb-1 text-xs text-gray-500">用户问题</div>
-              <div>{current.input ?? '-'}</div>
+              <div>{rawTextPlaceholder ?? current.input ?? '-'}</div>
               <div className="mb-1 mt-3 text-xs text-gray-500">AI 回答</div>
               <div className="max-h-40 overflow-y-auto text-gray-700 dark:text-gray-300">
-                {current.answer ?? '-'}
+                {rawTextPlaceholder ?? current.answer ?? '-'}
               </div>
               <div className="mt-3 text-xs text-gray-500">
                 来源：{labelOf(SOURCE_LABELS, current.source)} · 信号：
@@ -715,15 +822,15 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
                   </td>
                   <td
                     className="max-w-[260px] truncate px-3 py-2"
-                    title={item.input ?? ''}
+                    title={rawTextPlaceholder ?? item.input ?? ''}
                   >
-                    {item.input ?? '-'}
+                    {rawTextPlaceholder ?? item.input ?? '-'}
                   </td>
                   <td
                     className="max-w-[320px] truncate px-3 py-2 text-gray-600 dark:text-gray-300"
-                    title={item.answer ?? ''}
+                    title={rawTextPlaceholder ?? item.answer ?? ''}
                   >
-                    {item.answer ?? '-'}
+                    {rawTextPlaceholder ?? item.answer ?? '-'}
                   </td>
                   <td
                     className="max-w-[220px] truncate px-3 py-2"

@@ -94,15 +94,15 @@ describe('AiInsightsPage', () => {
 
     expect(
       screen.getByRole('link', { name: /Transfer rate/ }).getAttribute('href'),
-    ).toBe('/ai-ops/quality');
+    ).toBe('/ai-ops/quality?signal=transferred');
     expect(
       screen
         .getByRole('link', { name: /Repeated questions/ })
         .getAttribute('href'),
-    ).toBe('/ai-ops/quality');
+    ).toBe('/ai-ops/quality?signal=repeated_question');
     expect(
       screen.getByRole('link', { name: /Abandoned/ }).getAttribute('href'),
-    ).toBe('/ai-ops/quality');
+    ).toBe('/ai-ops/quality?signal=abandoned');
     expect(
       screen.getByRole('link', { name: /Total tokens/ }).getAttribute('href'),
     ).toBe('/ai-ops/usage');

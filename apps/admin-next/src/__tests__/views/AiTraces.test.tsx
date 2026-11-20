@@ -10,6 +10,7 @@ import {
 const mockUseRequest = vi.hoisted(() => vi.fn());
 const mockGetTraces = vi.hoisted(() => vi.fn());
 const mockGetTrace = vi.hoisted(() => vi.fn());
+const mockRole = vi.hoisted(() => ({ current: 'ADMIN' }));
 
 vi.mock('ahooks', () => ({
   useRequest: (...args: unknown[]) => mockUseRequest(...args),
@@ -28,6 +29,10 @@ vi.mock('next/link', () => ({
       {children}
     </a>
   ),
+}));
+
+vi.mock('@/lib/ai-ops-permissions', () => ({
+  useAiOpsRole: () => mockRole.current,
 }));
 
 vi.mock('@/components/scaffold/PageHeader', () => ({
@@ -116,6 +121,7 @@ function wireList(
 describe('AiTracesPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockRole.current = 'ADMIN';
     mockGetTraces.mockResolvedValue({ list: [row], total: 1 });
     mockGetTrace.mockResolvedValue(detail);
     wireList();
@@ -136,6 +142,22 @@ describe('AiTracesPage', () => {
     expect(link.getAttribute('href')).toBe(
       '/ai-ops/context?conversationId=conv-1',
     );
+  });
+
+  it('VIEWER 看不到链路原文', async () => {
+    mockRole.current = 'VIEWER';
+    render(<AiTracesPage />);
+
+    expect(
+      screen.queryByText('您的订单已发货，请留意物流信息'),
+    ).toBeNull();
+    expect(screen.getAllByText('只读账号不显示原文').length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByRole('button', { name: '详情' }));
+    await waitFor(() => {
+      expect(screen.getByText('用户输入（截断）')).toBeTruthy();
+    });
+    expect(screen.queryByText('我想查订单')).toBeNull();
   });
 
   it('applies conversationId and intent filters and resets page', async () => {

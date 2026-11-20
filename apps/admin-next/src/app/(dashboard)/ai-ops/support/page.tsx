@@ -40,6 +40,8 @@ export default function AiSupportPage() {
   const [pendingId, setPendingId] = useState<string | null>(null);
   const role = useAiOpsRole();
   const canWrite = canManageSupport(role);
+  const rawTextPlaceholder =
+    role === 'VIEWER' ? '只读账号不显示原文' : null;
   const { data, loading, error, refresh } = useRequest(
     () => aiQualityApi.slaHistory(hours),
     { refreshDeps: [hours], pollingInterval: 60_000 },
@@ -290,9 +292,9 @@ export default function AiSupportPage() {
                     </td>
                     <td
                       className="max-w-[260px] truncate px-3 py-2"
-                      title={item.lastMessage ?? ''}
+                      title={rawTextPlaceholder ?? item.lastMessage ?? ''}
                     >
-                      {item.lastMessage ?? '-'}
+                      {rawTextPlaceholder ?? item.lastMessage ?? '-'}
                     </td>
                     <td className="px-3 py-2">
                       {item.breached ? (
