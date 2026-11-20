@@ -97,9 +97,23 @@ node tools/simulator/provision.mjs --count 30
 2. 生成 PH 手机号 `+63917` + 7 位数字
 3. `POST /v1/otp/request {phone}`
 4. `POST /v1/otp/verify {phone, code}`
-5. `POST /v1/auth/login/otp {phone}`，读取 `data.tokens.accessToken` 与 `data.user.id`（兼容 `data.id`）
+5. `POST /v1/auth/login/otp {phone}`，读取 `data.tokens.accessToken`、`data.tokens.refreshToken` 与 `data.user.id`（兼容 `data.id`）
 6. 每 5 个账号等待 60 秒，避免 OTP IP 限流
 7. 每个账号成功后**立即**原子写入 `accounts.json`，中途失败不会丢已建账号
+
+账号对象：
+
+```json
+{
+  "phone": "+63917*******",
+  "userId": "cm...",
+  "token": "<accessToken>",
+  "refreshToken": "<refreshToken>",
+  "deviceId": "sim-+63917*******-ab12cd34"
+}
+```
+
+`--skip-channel-check` 会打印醒目警告；没有探测渠道就建号可能把账号写进错误的渠道假设里，只在明确知道渠道已存在时使用。
 
 选项：
 
@@ -128,7 +142,24 @@ GET /v1/chat/business?businessId=simulation_support_v1
 - `404`/`403`：立即停止，并提示先到 `/support-channels` 创建/启用渠道
 - `401`：提示 token 失效，删除 `.runtime/accounts.json` 或使用 `--replace`
 
-## 4. 验证 token
+## 4. Token 过期与刷新
+
+access token 会过期，长期运行时不要重新建号。用 `refreshToken` 刷新：
+
+```js
+// 在 tools/simulator 目录内运行；从仓库根则用 "./tools/simulator/provision.mjs"
+import { loadConfig, refreshAccountToken } from "./provision.mjs";
+
+const config = loadConfig();
+const account = /* 从 accounts.json 读取 */;
+const refreshed = await refreshAccountToken(config, account);
+
+// 把 refreshed.token / refreshed.refreshToken 写回 accounts.json
+```
+
+`refreshAccountToken()` 调用 `POST /v1/auth/refresh {refreshToken}`，返回更新后的完整账号对象（`phone/userId/deviceId` 不变）。后续 runner 应在收到 `401` 时刷新一次、写回文件并重试当前请求；刷新失败（refresh token 也过期）才需要 `--replace` 重新建号。
+
+## 5. 验证 token
 
 建号完成后可抽查第一个账号（命令不会输出 token）：
 
@@ -144,7 +175,7 @@ node -e "const a=require('./tools/simulator/.runtime/accounts.json')[0]; fetch('
 jq 'map({phone:(.phone[0:6]+"****"),userId,deviceId})' tools/simulator/.runtime/accounts.json
 ```
 
-## 5. 清理
+## 6. 清理
 
 ```bash
 # 删除本地账号池（只删本地文件，服务端用户仍存在）
@@ -163,7 +194,7 @@ rm -f tools/simulator/.runtime/accounts.json
 | `HTTP 429` | OTP/登录限流。脚本会按 `Retry-After` 自动重试；仍失败时等待 60 秒后重跑（已建账号会自动保留）。 |
 | `HTTP 404` + `support channel not found` | 渠道不存在或未启用；先创建/启用渠道。 |
 | `HTTP 501 SMS provider not configured` | 生产未开启固定 OTP；配置 `OTP_PROVIDER=fixed` + `OTP_ALLOW_FIXED_IN_PROD=true`。 |
-| `账号 token 无效或已过期` | 删除 `.runtime/accounts.json` 或用 `--replace` 重新建号。 |
+| `账号 token 无效或已过期（401）` | 先调用 `refreshAccountToken()` 用 refreshToken 刷新；refreshToken 也失效时删除 `.runtime/accounts.json` 或用 `--replace` 重新建号。 |
 | 文件权限不是 600 | 重新执行 provisioning 会自动 `chmod 600`；不要手动放宽权限。 |
 
 ## 安全约束（必须遵守）

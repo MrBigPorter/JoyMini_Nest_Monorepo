@@ -113,7 +113,7 @@ export function accountsPath(runtimeDir) {
   return path.join(runtimeDir, ACCOUNTS_FILE);
 }
 
-const ACCOUNT_FIELDS = ["phone", "userId", "token", "deviceId"];
+const ACCOUNT_FIELDS = ["phone", "userId", "token", "refreshToken", "deviceId"];
 
 /** 读取 accounts.json；文件不存在时返回空数组。 */
 export function loadAccounts(runtimeDir) {
@@ -150,10 +150,11 @@ export function loadAccounts(runtimeDir) {
     }
   });
 
-  return parsed.map(({ phone, userId, token, deviceId }) => ({
+  return parsed.map(({ phone, userId, token, refreshToken, deviceId }) => ({
     phone,
     userId,
     token,
+    refreshToken,
     deviceId,
   }));
 }
@@ -361,12 +362,15 @@ async function createAccountWithRetry({
         body: { phone },
       });
       const token = data?.tokens?.accessToken;
+      const refreshToken = data?.tokens?.refreshToken;
       const userId = data?.user?.id ?? data?.id;
-      if (!token || !userId) {
-        throw new Error("登录响应缺少 tokens.accessToken 或 user.id");
+      if (!token || !refreshToken || !userId) {
+        throw new Error(
+          "登录响应缺少 tokens.accessToken / tokens.refreshToken 或 user.id",
+        );
       }
 
-      return { phone, userId, token, deviceId };
+      return { phone, userId, token, refreshToken, deviceId };
     } catch (error) {
       const retryable =
         error instanceof SimulatorHttpError &&
@@ -382,6 +386,40 @@ async function createAccountWithRetry({
   }
 
   throw new Error("建号重试次数耗尽");
+}
+
+/**
+ * 用 refreshToken 换取新的 accessToken / refreshToken。
+ * 长期运行时 access token 会过期；runner 应在 401 时刷新并把结果写回 accounts.json。
+ */
+export async function refreshAccountToken(
+  config,
+  account,
+  { fetchImpl = globalThis.fetch, timeoutMs } = {},
+) {
+  if (!account?.refreshToken) {
+    throw new Error("账号缺少 refreshToken，无法刷新 token");
+  }
+
+  const data = await requestJson({
+    config,
+    route: "/v1/auth/refresh",
+    method: "POST",
+    body: { refreshToken: account.refreshToken },
+    deviceId: account.deviceId,
+    fetchImpl,
+    timeoutMs,
+  });
+
+  // 后端返回 { tokens: { accessToken, refreshToken } }
+  const tokens = data?.tokens ?? data;
+  const token = tokens?.accessToken;
+  const refreshToken = tokens?.refreshToken ?? account.refreshToken;
+  if (!token) {
+    throw new Error("刷新 token 响应缺少 accessToken");
+  }
+
+  return { ...account, token, refreshToken };
 }
 
 /**
@@ -623,6 +661,13 @@ export async function main(argv = process.argv.slice(2), deps = {}) {
       logger.log(`  #${startIndex + i + 1} ${maskPhone(phone)}`);
     }
     return 0;
+  }
+
+  if (options.skipChannelCheck) {
+    logger.warn(
+      `警告：已使用 --skip-channel-check，跳过渠道 ${config.businessId} 存在性探测；` +
+        "请自行确认该渠道已在 admin /support-channels 创建并启用。",
+    );
   }
 
   const existing = options.replace ? [] : loadAccounts(config.runtimeDir);

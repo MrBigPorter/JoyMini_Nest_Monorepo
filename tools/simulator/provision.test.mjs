@@ -10,10 +10,12 @@ import {
   accountsPath,
   generatePhone,
   loadAccounts,
+  main,
   maskPhone,
   probeChannel,
   provisionAccounts,
   redactSecrets,
+  refreshAccountToken,
   saveAccounts,
 } from "./provision.mjs";
 
@@ -68,7 +70,7 @@ function createMockFetch() {
         data: {
           tokens: {
             accessToken: `token-${loginCount}`,
-            refreshToken: "refresh",
+            refreshToken: `refresh-${loginCount}`,
           },
           user: { id: `user-${loginCount}` },
         },
@@ -138,10 +140,12 @@ test("provisionAccounts 按顺序调用 OTP -> 登录，并返回账号", async 
     assert.match(account.phone, /^\+63917\d{7}$/);
     assert.match(account.userId, /^user-\d+$/);
     assert.match(account.token, /^token-\d+$/);
+    assert.match(account.refreshToken, /^refresh-\d+$/);
     assert.equal(account.deviceId.startsWith(`sim-${account.phone}-`), true);
     assert.deepEqual(Object.keys(account).sort(), [
       "deviceId",
       "phone",
+      "refreshToken",
       "token",
       "userId",
     ]);
@@ -188,7 +192,13 @@ test("provisionAccounts 兼容 data.id 老响应形态", async () => {
     if (parsed.pathname.endsWith("/auth/login/otp")) {
       return jsonResponse({
         code: 10000,
-        data: { tokens: { accessToken: "legacy-token" }, id: "legacy-user" },
+        data: {
+          tokens: {
+            accessToken: "legacy-token",
+            refreshToken: "legacy-refresh",
+          },
+          id: "legacy-user",
+        },
       });
     }
     return jsonResponse({ code: 10000, data: null });
@@ -245,7 +255,10 @@ test("provisionAccounts 遇到 429 会按 Retry-After 重试", async () => {
     if (parsed.pathname.endsWith("/auth/login/otp")) {
       return jsonResponse({
         code: 10000,
-        data: { tokens: { accessToken: "t" }, user: { id: "u" } },
+        data: {
+          tokens: { accessToken: "t", refreshToken: "r" },
+          user: { id: "u" },
+        },
       });
     }
     return jsonResponse({ code: 10000, data: null });
@@ -293,6 +306,87 @@ test("probeChannel 成功时返回 conversationId", async () => {
   assert.equal(conversationId, "conversation-1");
 });
 
+test("refreshAccountToken 用 refreshToken 换新 token 并保留其余字段", async () => {
+  const calls = [];
+  const fetchImpl = async (url, init = {}) => {
+    const parsed = new URL(url);
+    calls.push({
+      pathname: parsed.pathname,
+      method: init.method,
+      headers: init.headers,
+      body: init.body ? JSON.parse(init.body) : undefined,
+    });
+    return jsonResponse({
+      code: 10000,
+      message: "success",
+      data: {
+        tokens: {
+          accessToken: "new-access-token",
+          refreshToken: "new-refresh-token",
+        },
+      },
+    });
+  };
+
+  const account = {
+    phone: "+639171234567",
+    userId: "u1",
+    token: "old-access-token",
+    refreshToken: "old-refresh-token",
+    deviceId: "sim-+639171234567-abcd1234",
+  };
+  const refreshed = await refreshAccountToken(loadConfig({}), account, {
+    fetchImpl,
+  });
+
+  assert.deepEqual(refreshed, {
+    ...account,
+    token: "new-access-token",
+    refreshToken: "new-refresh-token",
+  });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].pathname, "/api/v1/auth/refresh");
+  assert.equal(calls[0].method, "POST");
+  assert.deepEqual(calls[0].body, { refreshToken: "old-refresh-token" });
+  assert.equal(calls[0].headers["x-device-id"], account.deviceId);
+});
+
+test("refreshAccountToken 缺少 refreshToken 时明确报错", async () => {
+  await assert.rejects(
+    () =>
+      refreshAccountToken(
+        loadConfig({}),
+        { phone: "+639171234567", userId: "u1", token: "t", deviceId: "d" },
+        { fetchImpl: async () => jsonResponse({ code: 10000, data: null }) },
+      ),
+    /refreshToken/,
+  );
+});
+
+test("main 在 --skip-channel-check 时输出警告并落盘 refreshToken", async () => {
+  const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "sim-main-"));
+  try {
+    const config = loadConfig({ SIM_RUNTIME_DIR: dir });
+    const { fetchImpl } = createMockFetch();
+    const { logger, lines } = createLogger();
+
+    const code = await main(["--count", "1", "--skip-channel-check"], {
+      config,
+      fetchImpl,
+      sleep: async () => {},
+      logger,
+    });
+
+    assert.equal(code, 0);
+    assert.ok(lines.some((line) => line.includes("跳过渠道")));
+    const saved = loadAccounts(dir);
+    assert.equal(saved.length, 1);
+    assert.match(saved[0].refreshToken, /^refresh-\d+$/);
+  } finally {
+    await fs.promises.rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("saveAccounts 写入 600 权限文件，loadAccounts 可读回", async () => {
   const dir = await fs.promises.mkdtemp(
     path.join(os.tmpdir(), "sim-accounts-"),
@@ -302,6 +396,7 @@ test("saveAccounts 写入 600 权限文件，loadAccounts 可读回", async () =
       phone: "+639170000001",
       userId: "u1",
       token: "t1",
+      refreshToken: "r1",
       deviceId: "sim-+639170000001-abcd1234",
     },
   ];
