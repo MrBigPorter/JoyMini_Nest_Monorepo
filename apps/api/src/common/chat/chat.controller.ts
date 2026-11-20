@@ -181,6 +181,7 @@ export class ChatController {
     const member = await this.chatService.addMemberToBusinessGroup(
       query.businessId,
       userId,
+      query.trafficSource,
     );
     return { conversationId: member.conversationId };
   }

@@ -23,6 +23,13 @@ test("buildBusinessUrl 拼接渠道查询参数", () => {
     buildBusinessUrl(config, "sim test&x"),
     "https://api.joyminis.com/api/v1/chat/business?businessId=sim%20test%26x",
   );
+  assert.equal(
+    buildBusinessUrl(
+      { ...config, trafficSource: "simulation_support_v1" },
+      "official_platform_support_v1",
+    ),
+    "https://api.joyminis.com/api/v1/chat/business?businessId=official_platform_support_v1&trafficSource=simulation_support_v1",
+  );
   assert.throws(() => buildBusinessUrl(config, "  "), /businessId/);
 });
 
