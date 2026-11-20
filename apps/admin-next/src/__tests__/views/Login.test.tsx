@@ -128,6 +128,11 @@ describe('Login page', () => {
       tokens: { accessToken: 'jwt-abc' },
       userInfo: MOCK_USER_INFO,
     });
+    const replaceMock = vi.fn();
+    Object.defineProperty(window, 'location', {
+      writable: true,
+      value: { href: 'http://localhost/login', replace: replaceMock },
+    });
     const user = userEvent.setup();
     render(<Login />);
     await user.type(screen.getByPlaceholderText('Username'), 'admin');
@@ -144,7 +149,7 @@ describe('Login page', () => {
         'success',
         expect.stringContaining('Welcome'),
       );
-      expect(mockRouterPush).toHaveBeenCalledWith('/');
+      expect(replaceMock).toHaveBeenCalledWith('/');
     });
   });
 

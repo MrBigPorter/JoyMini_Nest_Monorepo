@@ -560,6 +560,7 @@ export const authApi = {
     recaptchaToken?: string;
   }) =>
     http.post<LoginResponse>('/v1/auth/admin/login', data, {
+      withCredentials: true,
       headers: { 'x-skip-auth-refresh': '1' },
     }),
 

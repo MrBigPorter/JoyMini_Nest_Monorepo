@@ -82,8 +82,19 @@ export class AuthController {
     @Body() dto: AdminLoginDto,
     @RealIp() ip: string,
     @UserAgent() ua: string,
+    @Res({ passthrough: true }) res: Response,
   ) {
-    return this.auth.adminLogin(dto, ip, ua);
+    const result = await this.auth.adminLogin(dto, ip, ua);
+    // 登录响应直接下发 HttpOnly Cookie，避免前端再发一次 set-cookie 失败后
+    // 出现“登录成功但 middleware 读不到 Cookie、跳转被弹回登录页”。
+    if (result?.tokens?.accessToken) {
+      res.cookie(
+        'auth_token',
+        result.tokens.accessToken,
+        this.buildAdminSetCookieOptions(),
+      );
+    }
+    return result;
   }
 
   /**

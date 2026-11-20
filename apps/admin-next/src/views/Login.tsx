@@ -3,7 +3,7 @@
 import React, { useTransition } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 
@@ -41,9 +41,8 @@ async function signIn(
 }
 
 export const Login: React.FC = () => {
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const [isPending, startTransition] = useTransition();
+  const [isPending] = useTransition();
   const loginAction = useAuthStore((state) => state.login);
   const addToast = useToastStore((state) => state.addToast);
   const [csrfToken, setCsrfToken] = React.useState<string>('');
@@ -98,10 +97,9 @@ export const Login: React.FC = () => {
           result.tokens.refreshToken ?? null,
         );
         addToast('success', t('login.welcomeBack'));
-        // 使用 startTransition 优化路由转换性能
-        startTransition(() => {
-          router.push('/');
-        });
+        // 登录 Cookie 由登录响应直接下发；整页跳转让 middleware 读取最新 Cookie，
+        // 避免 client router 复用旧 RSC 后被弹回 /login。
+        window.location.replace('/');
       } else {
         addToast('error', t('login.loginFailedNoToken'));
       }
@@ -233,7 +231,14 @@ export const Login: React.FC = () => {
             </p>
           </div>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+          <form
+            onSubmit={(event) => {
+              // 明确阻止浏览器原生 GET 提交，避免账号密码出现在 URL 上。
+              event.preventDefault();
+              void handleSubmit(onSubmit)(event);
+            }}
+            className="space-y-5"
+          >
             {/* CSRF Token */}
             <input type="hidden" name="_csrf" value={csrfToken} />
 
