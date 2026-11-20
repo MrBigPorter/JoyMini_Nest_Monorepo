@@ -4,7 +4,10 @@ import { AiFeedbackController } from './ai-feedback.controller';
 function createController() {
   const service = {
     recordExplicit: jest.fn().mockResolvedValue({ id: 'fb-1' }),
-    list: jest.fn().mockResolvedValue({ list: [], total: 0 }),
+    list: jest.fn().mockResolvedValue({
+      list: [{ id: 'fb-1', input: '用户问题', answer: 'AI 回答' }],
+      total: 1,
+    }),
   };
   return {
     service,
@@ -37,8 +40,32 @@ describe('AiFeedbackController 开关（5.3）', () => {
     delete process.env.AI_FEEDBACK_UI_ENABLED;
     const { controller, service } = createController();
 
-    await controller.list({} as any);
+    await controller.list({} as any, null);
     expect(service.list).toHaveBeenCalledWith({});
+  });
+
+  it('VIEWER 读取时原始问答置空', async () => {
+    const { controller } = createController();
+
+    const result: any = await controller.list({} as any, 'VIEWER');
+
+    expect(result.list[0]).toEqual({
+      id: 'fb-1',
+      input: null,
+      answer: null,
+    });
+  });
+
+  it('ADMIN 读取时保留原始问答', async () => {
+    const { controller } = createController();
+
+    const result: any = await controller.list({} as any, 'ADMIN');
+
+    expect(result.list[0]).toEqual({
+      id: 'fb-1',
+      input: '用户问题',
+      answer: 'AI 回答',
+    });
   });
 
   it('开关打开后正常写入', async () => {

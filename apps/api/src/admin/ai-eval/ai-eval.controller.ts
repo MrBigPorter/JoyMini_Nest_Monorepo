@@ -98,7 +98,7 @@ export class AiEvalController {
   }
 
   @Post('judge')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: '任务成功率判分（不同厂商 judge，仅评测环境）' })
   async judge(@Body() dto: JudgeTaskDto) {

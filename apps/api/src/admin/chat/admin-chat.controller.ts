@@ -27,6 +27,8 @@ import {
   CloseConversationDto,
   QueryMessagesDto,
 } from './dto/admin-chat.dto';
+import { CurrentRole } from '@api/common/decorators/user.decorator';
+import { redactSensitiveFields } from '@api/common/utils/data-masking';
 
 interface AdminRequest extends Request {
   user?: { userId?: string; username?: string; realName?: string };
@@ -57,11 +59,13 @@ export class AdminChatController {
   /** GET /v1/admin/chat/conversations — 客服会话列表 */
   @Get('conversations')
   @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.EDITOR, Role.VIEWER)
-  getConversations(
+  async getConversations(
     @Query() query: QueryConversationsDto,
     @CurrentAdminId() adminId: string,
+    @CurrentRole() role: string | null,
   ) {
-    return this.service.getConversations(query, adminId);
+    const result = await this.service.getConversations(query, adminId);
+    return redactSensitiveFields(result, role, ['list.lastMsgContent']);
   }
 
   /** POST /v1/admin/chat/conversations/:id/claim — 客服认领会话 */
@@ -78,11 +82,13 @@ export class AdminChatController {
   /** GET /v1/admin/chat/conversations/:id/messages — 消息历史 */
   @Get('conversations/:id/messages')
   @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.EDITOR, Role.VIEWER)
-  getMessages(
+  async getMessages(
     @Param('id') conversationId: string,
     @Query() query: QueryMessagesDto,
+    @CurrentRole() role: string | null,
   ) {
-    return this.service.getMessages(conversationId, query);
+    const result = await this.service.getMessages(conversationId, query);
+    return redactSensitiveFields(result, role, ['list.content', 'list.meta']);
   }
 
   /** POST /v1/admin/chat/conversations/:id/reply — 客服回复 */
@@ -144,8 +150,9 @@ export class AdminChatController {
   @Get('sla/queue')
   @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
   @ApiOperation({ summary: '当前等待人工接入的会话队列' })
-  async getSlaQueue() {
-    return this.supportSlaService.waitingQueue();
+  async getSlaQueue(@CurrentRole() role: string | null) {
+    const result = await this.supportSlaService.waitingQueue();
+    return redactSensitiveFields(result, role, ['items.lastMessage']);
   }
 
   @Get('sla')

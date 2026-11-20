@@ -23,6 +23,8 @@ import { AiFeedbackService } from '@api/common/ai/ai-feedback.service';
 import { CreateAiFeedbackDto } from './dto/create-ai-feedback.dto';
 import { UpdateAiFeedbackDto } from './dto/update-ai-feedback.dto';
 import { QueryAiFeedbackDto } from './dto/query-ai-feedback.dto';
+import { CurrentRole } from '@api/common/decorators/user.decorator';
+import { redactSensitiveFields } from '@api/common/utils/data-masking';
 
 interface AdminRequest extends Request {
   user?: { userId?: string; username?: string; realName?: string };
@@ -78,9 +80,13 @@ export class AiFeedbackController {
   @Get()
   @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
   @ApiOperation({ summary: '查询反馈列表（显式 + 隐式）' })
-  async list(@Query() query: QueryAiFeedbackDto) {
+  async list(
+    @Query() query: QueryAiFeedbackDto,
+    @CurrentRole() role: string | null,
+  ) {
     // 读取不依赖写开关：运营需要能查看历史反馈；关闭开关只关闭写入。
-    return this.feedbackService.list(query);
+    const result = await this.feedbackService.list(query);
+    return redactSensitiveFields(result, role, ['list.input', 'list.answer']);
   }
 
   @Patch(':id')
