@@ -66,7 +66,7 @@ export class AuthController {
   // 使用手机号登陆
   @Post('login/otp')
   @ApiOperation({ summary: 'login with OTP' })
-  @Throttle({ otpRequest: { limit: 20, ttl: 60_000 } })
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @ApiOkResponse({ type: LoginResultResponseDto })
   @HttpCode(HttpStatus.OK)
   async loginWithOtp(
@@ -108,7 +108,7 @@ export class AuthController {
 
   @Post('oauth/google')
   @ApiOperation({ summary: 'login with Google OAuth' })
-  @Throttle({ otpRequest: { limit: 15, ttl: 60_000 } })
+  @Throttle({ default: { limit: 15, ttl: 60_000 } })
   @ApiOkResponse({ type: OauthLoginResponseDto })
   @HttpCode(HttpStatus.OK)
   async loginWithGoogleOauth(
@@ -130,7 +130,7 @@ export class AuthController {
 
   @Post('oauth/facebook')
   @ApiOperation({ summary: 'login with Facebook OAuth' })
-  @Throttle({ otpRequest: { limit: 15, ttl: 60_000 } })
+  @Throttle({ default: { limit: 15, ttl: 60_000 } })
   @ApiOkResponse({ type: OauthLoginResponseDto })
   @HttpCode(HttpStatus.OK)
   async loginWithFacebookOauth(
@@ -155,7 +155,7 @@ export class AuthController {
 
   @Post('oauth/apple')
   @ApiOperation({ summary: 'login with Apple OAuth' })
-  @Throttle({ otpRequest: { limit: 15, ttl: 60_000 } })
+  @Throttle({ default: { limit: 15, ttl: 60_000 } })
   @ApiOkResponse({ type: OauthLoginResponseDto })
   @HttpCode(HttpStatus.OK)
   async loginWithAppleOauth(
@@ -172,7 +172,7 @@ export class AuthController {
 
   @Post('email/send-code')
   @ApiOperation({ summary: 'send email otp code for login' })
-  @Throttle({ otpRequest: { limit: 10, ttl: 60_000 } })
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOkResponse({ type: SendEmailCodeResponseDto })
   @HttpCode(HttpStatus.OK)
   async sendEmailCode(
@@ -186,7 +186,7 @@ export class AuthController {
 
   @Post('email/login')
   @ApiOperation({ summary: 'login with email otp code' })
-  @Throttle({ otpRequest: { limit: 20, ttl: 60_000 } })
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @ApiOkResponse({ type: LoginResultResponseDto })
   @HttpCode(HttpStatus.OK)
   async loginWithEmailCode(
@@ -201,7 +201,7 @@ export class AuthController {
 
   @Post('oauth/github')
   @ApiOperation({ summary: 'login with Github OAuth' })
-  @Throttle({ otpRequest: { limit: 15, ttl: 60_000 } })
+  @Throttle({ default: { limit: 15, ttl: 60_000 } })
   @ApiOkResponse({ type: OauthLoginResponseDto })
   @HttpCode(HttpStatus.OK)
   async loginWithGithubOauth(
@@ -231,7 +231,7 @@ export class AuthController {
 
   @Post('firebase')
   @ApiOperation({ summary: 'Firebase unified login (Google/Facebook/Apple)' })
-  @Throttle({ otpRequest: { limit: 15, ttl: 60_000 } })
+  @Throttle({ default: { limit: 15, ttl: 60_000 } })
   @ApiOkResponse({ type: OauthLoginResponseDto })
   @HttpCode(HttpStatus.OK)
   async loginWithFirebase(
