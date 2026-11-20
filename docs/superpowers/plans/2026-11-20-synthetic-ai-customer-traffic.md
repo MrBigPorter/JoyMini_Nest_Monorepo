@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - 账号数：30；并发：5
-- 渠道：`simulation_support_v1`
+- 渠道：`simulation_support_v1`（或复用 official + `trafficSource=simulation_support_v1`）
 - 固定 OTP：`999999`
 - 写操作只到确认卡片，永不调用 `/confirm` 或 `/confirm/otp`
 - 存款、取款、购买、领券、抽奖等真实资金/库存流程不在 P0 执行；由人工后续验证

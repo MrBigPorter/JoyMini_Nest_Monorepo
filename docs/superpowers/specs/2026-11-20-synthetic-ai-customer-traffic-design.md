@@ -75,8 +75,8 @@ Admin AI Ops 页面 / AiEvalRun / 指标
 
 ### 6.1 专用渠道
 
-- `SupportChannel.id = simulation_support_v1`
-- 一次性创建（Prisma seed 或 admin API），带 bot 占位用户
+- 首选专用 `SupportChannel.id = simulation_support_v1`（一次性创建）
+- 若无法创建专用渠道：复用 `official_platform_support_v1`，请求带 `trafficSource=simulation_support_v1`，会话仍按 aiMetadata 隔离
 - 新建 SUPPORT 会话时写入 `Conversation.aiMetadata.trafficSource = 'simulation_support_v1'`
 - `Conversation.businessId` 是拼团业务唯一钩子，不能用于渠道隔离
 - P1 后台按 `aiMetadata.trafficSource` 过滤
