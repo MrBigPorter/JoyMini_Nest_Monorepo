@@ -125,17 +125,26 @@ export class AiCustomerService implements OnModuleDestroy {
   async initGraph() {
     if (this.compiledGraph) return;
     try {
+      // 生产环境如果漏配 AI_LLM_TYPE，不能静默退回本地 Ollama：
+      // 容器里没有 Ollama，会 100% 报错并把用户全部转人工。
+      // 有 DeepSeek key 时默认 online；显式 AI_LLM_TYPE=local 仍可覆盖。
+      const apiKey = this.configService.get<string>('DEEPSEEK_API_KEY');
+      const type =
+        this.configService.get<'online' | 'local'>('AI_LLM_TYPE') ??
+        (apiKey ? 'online' : 'local');
       this.llmConfig = {
-        type: this.configService.get<'online' | 'local'>(
-          'AI_LLM_TYPE',
-          'local',
+        type,
+        model: this.configService.get<string>(
+          'OLLAMA_MODEL',
+          type === 'online' ? 'deepseek-chat' : 'qwen3.5:0.8b',
         ),
-        model: this.configService.get<string>('OLLAMA_MODEL', 'qwen3.5:0.8b'),
         baseURL: this.configService.get<string>(
           'AI_OLLAMA_BASE_URL',
-          'http://localhost:11434',
+          type === 'online'
+            ? 'https://api.deepseek.com'
+            : 'http://localhost:11434',
         ),
-        apiKey: this.configService.get<string>('DEEPSEEK_API_KEY'),
+        apiKey,
       };
       const checkpointer = await this.createCheckpointer();
       this.compiledGraph = buildCustomerGraph(
