@@ -63,13 +63,9 @@ async function bootstrap() {
   // 请求 ID
   app.use(requestId());
 
-  // CSRF 保护中间件
-  const csrfTokenMiddleware = new CsrfTokenMiddleware();
-  const csrfMiddleware = new CsrfMiddleware();
-  app.use(csrfTokenMiddleware.use.bind(csrfTokenMiddleware));
-  app.use(csrfMiddleware.use.bind(csrfMiddleware));
-
   // 安全 / cookie / CORS
+  // cookieParser 必须在 CSRF 中间件之前：CSRF 从 req.cookies 读取 token，
+  // 注册晚了会让所有非跳过路径的 POST 都报 "No CSRF token found in session"。
   //禁用 Helmet 的跨域资源策略，否则 Nginx 的 CORS 头会被覆盖或冲突
   app.use(
     helmet({
@@ -77,6 +73,12 @@ async function bootstrap() {
     }),
   );
   app.use(cookieParser());
+
+  // CSRF 保护中间件（依赖上面的 cookieParser）
+  const csrfTokenMiddleware = new CsrfTokenMiddleware();
+  const csrfMiddleware = new CsrfMiddleware();
+  app.use(csrfTokenMiddleware.use.bind(csrfTokenMiddleware));
+  app.use(csrfMiddleware.use.bind(csrfMiddleware));
   app.enableCors({
     origin: (
       origin: string | undefined,

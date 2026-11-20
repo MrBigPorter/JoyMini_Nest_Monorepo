@@ -64,7 +64,7 @@ export class KycController {
    */
   @Post('session')
   @HttpCode(HttpStatus.OK)
-  @Throttle({ kycSessionRequest: { limit: 1, ttl: 60_000 } })
+  @Throttle({ default: { limit: 1, ttl: 60_000 } })
   @DistributedLock('kyc:session:create:{0}', 15000) // 每用户每 15 秒只能创建一次
   @ApiOkResponse({ type: SessionResponseDto })
   async createSession(@CurrentUserId() userId: string) {

@@ -755,7 +755,20 @@ export class ChatService {
     const existingMember = existingConversation?.members.find(
       (m) => m.userId === userId,
     );
-    if (existingMember) {
+    if (existingMember && existingConversation) {
+      // 老会话/其他渠道复用时补齐来源标记，便于后台区分模拟流量。
+      const metadata = (existingConversation.aiMetadata ?? {}) as Record<
+        string,
+        unknown
+      >;
+      if (metadata.trafficSource !== businessId) {
+        await this.prisma.conversation.update({
+          where: { id: existingConversation.id },
+          data: {
+            aiMetadata: { ...metadata, trafficSource: businessId },
+          },
+        });
+      }
       return existingMember;
     }
 
@@ -768,6 +781,9 @@ export class ChatService {
           status: ConversationStatus.NORMAL,
           lastMsgContent: 'Welcome!',
           lastMsgTime: new Date(),
+          // 客服渠道来源标记：用于区分正式客服与合成流量/测试渠道。
+          // 不写 businessId（唯一键属于拼团业务钩子），避免冲突。
+          aiMetadata: { trafficSource: businessId },
           members: {
             create: [
               { userId, role: ChatMemberRole.MEMBER },

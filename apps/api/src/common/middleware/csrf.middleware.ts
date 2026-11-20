@@ -47,8 +47,12 @@ export class CsrfMiddleware implements NestMiddleware {
       return next();
     }
 
-    // 跳过登录、刷新token等认证相关接口
-    if (req.path.startsWith('/api/v1/auth/')) {
+    // 跳过登录、刷新 token、OTP 请求/校验等登录前接口。
+    // OTP 接口在登录前调用，没有会话/JWT；强制 CSRF 会直接阻断客户端登录。
+    if (
+      req.path.startsWith('/api/v1/auth/') ||
+      req.path.startsWith('/api/v1/otp/')
+    ) {
       return next();
     }
 
