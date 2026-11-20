@@ -270,7 +270,10 @@ function pickFrom(list, rng) {
 
 /** 加权随机：权重大的场景更容易被选中。 */
 function weightedPick(items, rng) {
-  const total = items.reduce((sum, scenario) => sum + scenarioWeight(scenario), 0);
+  const total = items.reduce(
+    (sum, scenario) => sum + scenarioWeight(scenario),
+    0,
+  );
   if (total <= 0) return items[items.length - 1];
 
   let roll = rng() * total;
@@ -302,7 +305,9 @@ export function pickScenario(options = {}) {
   const rng = options.rng ?? Math.random;
   const exclude = new Set(options.excludeIntents ?? []);
 
-  let candidates = SCENARIOS.filter((scenario) => !exclude.has(scenario.intent));
+  let candidates = SCENARIOS.filter(
+    (scenario) => !exclude.has(scenario.intent),
+  );
   if (candidates.length === 0) {
     throw new Error(
       `pickScenario: excludeIntents 排除了所有场景（${[...exclude].join(", ")}）`,
