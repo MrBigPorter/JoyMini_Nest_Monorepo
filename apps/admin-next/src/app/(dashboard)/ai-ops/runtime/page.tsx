@@ -9,7 +9,8 @@ import type { AiFailedJob, AiOutboxItem, AiQueueStats } from '@/type/types';
 
 function normalizeQueues(data: unknown): AiQueueStats[] {
   if (Array.isArray(data)) return data as AiQueueStats[];
-  return ((data as { queues?: AiQueueStats[] })?.queues ?? []) as AiQueueStats[];
+  return ((data as { queues?: AiQueueStats[] })?.queues ??
+    []) as AiQueueStats[];
 }
 
 export default function AiRuntimePage() {
@@ -29,10 +30,10 @@ export default function AiRuntimePage() {
     data: outbox,
     loading: outboxLoading,
     refresh: refreshOutbox,
-  } = useRequest(
-    () => aiOpsApi.getOutbox(outboxStatus || undefined, 100),
-    { refreshDeps: [outboxStatus], pollingInterval: 30_000 },
-  );
+  } = useRequest(() => aiOpsApi.getOutbox(outboxStatus || undefined, 100), {
+    refreshDeps: [outboxStatus],
+    pollingInterval: 30_000,
+  });
 
   const queues = normalizeQueues(queueData);
   const failedJobs = (failed as AiFailedJob[] | undefined) ?? [];
@@ -88,22 +89,47 @@ export default function AiRuntimePage() {
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50 text-left dark:bg-white/5">
               <tr>
-                {['Queue', 'Waiting', 'Active', 'Failed', 'Delayed', 'Paused', 'Actions'].map(
-                  (h) => (
-                    <th key={h} className="px-3 py-2">{h}</th>
-                  ),
-                )}
+                {[
+                  'Queue',
+                  'Waiting',
+                  'Active',
+                  'Failed',
+                  'Delayed',
+                  'Paused',
+                  'Actions',
+                ].map((h) => (
+                  <th key={h} className="px-3 py-2">
+                    {h}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {queueLoading && (
-                <tr><td colSpan={7} className="px-3 py-6 text-center text-gray-400">Loading...</td></tr>
+                <tr>
+                  <td
+                    colSpan={7}
+                    className="px-3 py-6 text-center text-gray-400"
+                  >
+                    Loading...
+                  </td>
+                </tr>
               )}
               {!queueLoading && queues.length === 0 && (
-                <tr><td colSpan={7} className="px-3 py-6 text-center text-gray-400">暂无队列数据</td></tr>
+                <tr>
+                  <td
+                    colSpan={7}
+                    className="px-3 py-6 text-center text-gray-400"
+                  >
+                    暂无队列数据
+                  </td>
+                </tr>
               )}
               {queues.map((q) => (
-                <tr key={q.name} className="border-t border-gray-100 dark:border-white/5">
+                <tr
+                  key={q.name}
+                  className="border-t border-gray-100 dark:border-white/5"
+                >
                   <td className="px-3 py-2 font-mono text-xs">{q.name}</td>
                   <td className="px-3 py-2">{q.waiting}</td>
                   <td className="px-3 py-2">{q.active}</td>
@@ -112,9 +138,27 @@ export default function AiRuntimePage() {
                   <td className="px-3 py-2">{q.isPaused ? '是' : '否'}</td>
                   <td className="px-3 py-2">
                     <div className="flex gap-2">
-                      <Button size="sm" variant="outline" onClick={() => runQueueAction('pause', q.name)}>Pause</Button>
-                      <Button size="sm" variant="outline" onClick={() => runQueueAction('resume', q.name)}>Resume</Button>
-                      <Button size="sm" variant="outline" onClick={() => runQueueAction('clean', q.name)}>Clean</Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => runQueueAction('pause', q.name)}
+                      >
+                        Pause
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => runQueueAction('resume', q.name)}
+                      >
+                        Resume
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => runQueueAction('clean', q.name)}
+                      >
+                        Clean
+                      </Button>
                     </div>
                   </td>
                 </tr>
@@ -127,33 +171,76 @@ export default function AiRuntimePage() {
       <section className="rounded-xl border border-gray-100 bg-white p-4 dark:border-white/10 dark:bg-gray-900">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-semibold">AI 死信</h2>
-          <Button size="sm" variant="outline" onClick={refreshFailed}>刷新</Button>
+          <Button size="sm" variant="outline" onClick={refreshFailed}>
+            刷新
+          </Button>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50 text-left dark:bg-white/5">
               <tr>
-                {['Message', 'Conversation', 'Attempts', 'Reason', 'Failed At', 'Action'].map((h) => (
-                  <th key={h} className="px-3 py-2">{h}</th>
+                {[
+                  'Message',
+                  'Conversation',
+                  'Attempts',
+                  'Reason',
+                  'Failed At',
+                  'Action',
+                ].map((h) => (
+                  <th key={h} className="px-3 py-2">
+                    {h}
+                  </th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {failedLoading && (
-                <tr><td colSpan={6} className="px-3 py-6 text-center text-gray-400">Loading...</td></tr>
+                <tr>
+                  <td
+                    colSpan={6}
+                    className="px-3 py-6 text-center text-gray-400"
+                  >
+                    Loading...
+                  </td>
+                </tr>
               )}
               {!failedLoading && failedJobs.length === 0 && (
-                <tr><td colSpan={6} className="px-3 py-6 text-center text-gray-400">没有死信</td></tr>
+                <tr>
+                  <td
+                    colSpan={6}
+                    className="px-3 py-6 text-center text-gray-400"
+                  >
+                    没有死信
+                  </td>
+                </tr>
               )}
               {failedJobs.map((job) => (
-                <tr key={job.messageId} className="border-t border-gray-100 dark:border-white/5">
-                  <td className="px-3 py-2 font-mono text-xs">{job.messageId}</td>
-                  <td className="px-3 py-2 font-mono text-xs">{job.conversationId ?? '-'}</td>
+                <tr
+                  key={job.messageId}
+                  className="border-t border-gray-100 dark:border-white/5"
+                >
+                  <td className="px-3 py-2 font-mono text-xs">
+                    {job.messageId}
+                  </td>
+                  <td className="px-3 py-2 font-mono text-xs">
+                    {job.conversationId ?? '-'}
+                  </td>
                   <td className="px-3 py-2">{job.attemptsMade}</td>
-                  <td className="max-w-[280px] truncate px-3 py-2" title={job.failedReason}>{job.failedReason}</td>
-                  <td className="px-3 py-2">{job.failedAt ? new Date(job.failedAt).toLocaleString() : '-'}</td>
+                  <td
+                    className="max-w-[280px] truncate px-3 py-2"
+                    title={job.failedReason}
+                  >
+                    {job.failedReason}
+                  </td>
                   <td className="px-3 py-2">
-                    <Button size="sm" onClick={() => replayAi(job.messageId)}>Replay</Button>
+                    {job.failedAt
+                      ? new Date(job.failedAt).toLocaleString()
+                      : '-'}
+                  </td>
+                  <td className="px-3 py-2">
+                    <Button size="sm" onClick={() => replayAi(job.messageId)}>
+                      Replay
+                    </Button>
                   </td>
                 </tr>
               ))}
@@ -177,37 +264,84 @@ export default function AiRuntimePage() {
               <option value="SENT">SENT</option>
               <option value="FAILED">FAILED</option>
             </select>
-            <Button size="sm" variant="outline" onClick={refreshOutbox}>刷新</Button>
+            <Button size="sm" variant="outline" onClick={refreshOutbox}>
+              刷新
+            </Button>
           </div>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50 text-left dark:bg-white/5">
               <tr>
-                {['Message', 'Conversation', 'Status', 'Attempts', 'Last Error', 'Next Attempt', 'Action'].map((h) => (
-                  <th key={h} className="px-3 py-2">{h}</th>
+                {[
+                  'Message',
+                  'Conversation',
+                  'Status',
+                  'Attempts',
+                  'Last Error',
+                  'Next Attempt',
+                  'Action',
+                ].map((h) => (
+                  <th key={h} className="px-3 py-2">
+                    {h}
+                  </th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {outboxLoading && (
-                <tr><td colSpan={7} className="px-3 py-6 text-center text-gray-400">Loading...</td></tr>
+                <tr>
+                  <td
+                    colSpan={7}
+                    className="px-3 py-6 text-center text-gray-400"
+                  >
+                    Loading...
+                  </td>
+                </tr>
               )}
               {!outboxLoading && outboxRows.length === 0 && (
-                <tr><td colSpan={7} className="px-3 py-6 text-center text-gray-400">没有 Outbox 任务</td></tr>
+                <tr>
+                  <td
+                    colSpan={7}
+                    className="px-3 py-6 text-center text-gray-400"
+                  >
+                    没有 Outbox 任务
+                  </td>
+                </tr>
               )}
               {outboxRows.map((item) => (
-                <tr key={item.id} className="border-t border-gray-100 dark:border-white/5">
-                  <td className="px-3 py-2 font-mono text-xs">{item.messageId}</td>
-                  <td className="px-3 py-2 font-mono text-xs">{item.conversationId}</td>
+                <tr
+                  key={item.id}
+                  className="border-t border-gray-100 dark:border-white/5"
+                >
+                  <td className="px-3 py-2 font-mono text-xs">
+                    {item.messageId}
+                  </td>
+                  <td className="px-3 py-2 font-mono text-xs">
+                    {item.conversationId}
+                  </td>
                   <td className="px-3 py-2">{item.status}</td>
                   <td className="px-3 py-2">{item.attempts}</td>
-                  <td className="max-w-[240px] truncate px-3 py-2" title={item.lastError ?? ''}>{item.lastError ?? '-'}</td>
-                  <td className="px-3 py-2">{new Date(item.nextAttemptAt).toLocaleString()}</td>
+                  <td
+                    className="max-w-[240px] truncate px-3 py-2"
+                    title={item.lastError ?? ''}
+                  >
+                    {item.lastError ?? '-'}
+                  </td>
+                  <td className="px-3 py-2">
+                    {new Date(item.nextAttemptAt).toLocaleString()}
+                  </td>
                   <td className="px-3 py-2">
                     {item.status === 'FAILED' ? (
-                      <Button size="sm" onClick={() => replayOutbox(item.messageId)}>Replay</Button>
-                    ) : '-'}
+                      <Button
+                        size="sm"
+                        onClick={() => replayOutbox(item.messageId)}
+                      >
+                        Replay
+                      </Button>
+                    ) : (
+                      '-'
+                    )}
                   </td>
                 </tr>
               ))}

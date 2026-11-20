@@ -72,39 +72,88 @@ function FeedbackPanel() {
         <select
           className="rounded-lg border px-3 py-1.5 text-sm dark:border-white/10 dark:bg-gray-800"
           value={reviewStatus}
-          onChange={(e) => { setReviewStatus(e.target.value); setPage(1); }}
+          onChange={(e) => {
+            setReviewStatus(e.target.value);
+            setPage(1);
+          }}
         >
           <option value="">All status</option>
           <option value="PENDING">PENDING</option>
           <option value="REVIEWED">REVIEWED</option>
           <option value="IGNORED">IGNORED</option>
         </select>
-        <Button size="sm" variant="outline" onClick={refresh}>刷新</Button>
+        <Button size="sm" variant="outline" onClick={refresh}>
+          刷新
+        </Button>
         <span className="text-xs text-gray-500">Total {total}</span>
       </div>
       <div className="overflow-x-auto rounded-xl border border-gray-100 dark:border-white/10">
         <table className="min-w-full text-sm">
           <thead className="bg-gray-50 text-left dark:bg-white/5">
             <tr>
-              {['Time', 'Source', 'Verdict/Signal', 'Review', 'Note', 'Actions'].map((h) => (
-                <th key={h} className="px-3 py-2">{h}</th>
+              {[
+                'Time',
+                'Source',
+                'Verdict/Signal',
+                'Review',
+                'Note',
+                'Actions',
+              ].map((h) => (
+                <th key={h} className="px-3 py-2">
+                  {h}
+                </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {loading && <tr><td colSpan={6} className="px-3 py-6 text-center text-gray-400">Loading...</td></tr>}
-            {!loading && list.length === 0 && <tr><td colSpan={6} className="px-3 py-6 text-center text-gray-400">暂无反馈</td></tr>}
+            {loading && (
+              <tr>
+                <td colSpan={6} className="px-3 py-6 text-center text-gray-400">
+                  Loading...
+                </td>
+              </tr>
+            )}
+            {!loading && list.length === 0 && (
+              <tr>
+                <td colSpan={6} className="px-3 py-6 text-center text-gray-400">
+                  暂无反馈
+                </td>
+              </tr>
+            )}
             {list.map((item: any) => (
-              <tr key={item.id} className="border-t border-gray-100 dark:border-white/5">
-                <td className="px-3 py-2">{new Date(item.createdAt).toLocaleString()}</td>
+              <tr
+                key={item.id}
+                className="border-t border-gray-100 dark:border-white/5"
+              >
+                <td className="px-3 py-2">
+                  {new Date(item.createdAt).toLocaleString()}
+                </td>
                 <td className="px-3 py-2">{item.source}</td>
-                <td className="px-3 py-2">{item.verdict ?? item.signal ?? '-'}</td>
+                <td className="px-3 py-2">
+                  {item.verdict ?? item.signal ?? '-'}
+                </td>
                 <td className="px-3 py-2">{item.reviewStatus}</td>
-                <td className="max-w-[220px] truncate px-3 py-2" title={item.note ?? ''}>{item.note ?? '-'}</td>
+                <td
+                  className="max-w-[220px] truncate px-3 py-2"
+                  title={item.note ?? ''}
+                >
+                  {item.note ?? '-'}
+                </td>
                 <td className="px-3 py-2">
                   <div className="flex gap-2">
-                    <Button size="sm" onClick={() => triage(item.id, 'REVIEWED')}>Reviewed</Button>
-                    <Button size="sm" variant="outline" onClick={() => triage(item.id, 'IGNORED')}>Ignore</Button>
+                    <Button
+                      size="sm"
+                      onClick={() => triage(item.id, 'REVIEWED')}
+                    >
+                      Reviewed
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => triage(item.id, 'IGNORED')}
+                    >
+                      Ignore
+                    </Button>
                   </div>
                 </td>
               </tr>
@@ -113,8 +162,22 @@ function FeedbackPanel() {
         </table>
       </div>
       <div className="flex justify-end gap-2">
-        <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Prev</Button>
-        <Button size="sm" variant="outline" disabled={page * 20 >= total} onClick={() => setPage((p) => p + 1)}>Next</Button>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={page <= 1}
+          onClick={() => setPage((p) => p - 1)}
+        >
+          Prev
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={page * 20 >= total}
+          onClick={() => setPage((p) => p + 1)}
+        >
+          Next
+        </Button>
       </div>
     </section>
   );
@@ -131,7 +194,8 @@ function EvalPanel() {
     aiQualityApi.listDatasets,
   );
   const { data: dataset, refresh: refreshDataset } = useRequest(
-    () => (selectedId ? aiQualityApi.getDataset(selectedId) : Promise.resolve(null)),
+    () =>
+      selectedId ? aiQualityApi.getDataset(selectedId) : Promise.resolve(null),
     { refreshDeps: [selectedId] },
   );
   const { data: run } = useRequest(
@@ -194,7 +258,10 @@ function EvalPanel() {
         <select
           className="rounded-lg border px-3 py-2 text-sm dark:border-white/10 dark:bg-gray-800"
           value={selectedId}
-          onChange={(e) => { setSelectedId(e.target.value); setRunId(''); }}
+          onChange={(e) => {
+            setSelectedId(e.target.value);
+            setRunId('');
+          }}
         >
           <option value="">选择评测集</option>
           {list.map((d) => (
@@ -204,7 +271,11 @@ function EvalPanel() {
           ))}
         </select>
       </div>
-      {message ? <div className="text-sm text-gray-600 dark:text-gray-300">{message}</div> : null}
+      {message ? (
+        <div className="text-sm text-gray-600 dark:text-gray-300">
+          {message}
+        </div>
+      ) : null}
 
       {selectedId ? (
         <div className="grid gap-4 lg:grid-cols-2">
@@ -216,11 +287,16 @@ function EvalPanel() {
               onChange={(e) => setCasesJson(e.target.value)}
             />
             <div className="mt-2 flex gap-2">
-              <Button size="sm" onClick={addCases}>导入</Button>
-              <Button size="sm" variant="outline" onClick={start}>启动批量评测</Button>
+              <Button size="sm" onClick={addCases}>
+                导入
+              </Button>
+              <Button size="sm" variant="outline" onClick={start}>
+                启动批量评测
+              </Button>
             </div>
             <p className="mt-2 text-xs text-gray-500">
-              每条格式：{`{"question":"...","answer":"...","expect":{"mustMention":["..."]}}`}
+              每条格式：
+              {`{"question":"...","answer":"...","expect":{"mustMention":["..."]}}`}
             </p>
           </div>
 
@@ -230,7 +306,10 @@ function EvalPanel() {
             </h3>
             <div className="max-h-52 space-y-2 overflow-y-auto text-xs">
               {(ds?.cases ?? []).map((c: any) => (
-                <div key={c.id} className="rounded-lg border p-2 dark:border-white/10">
+                <div
+                  key={c.id}
+                  className="rounded-lg border p-2 dark:border-white/10"
+                >
                   <div className="font-medium">{c.question}</div>
                   <div className="text-gray-500">{c.answer}</div>
                 </div>
@@ -243,11 +322,15 @@ function EvalPanel() {
       {runData ? (
         <div className="rounded-xl border border-gray-100 bg-white p-4 dark:border-white/10 dark:bg-gray-900">
           <h3 className="mb-2 text-sm font-semibold">
-            Run {runData.id} · {runData.status} · {JSON.stringify(runData.summary ?? {})}
+            Run {runData.id} · {runData.status} ·{' '}
+            {JSON.stringify(runData.summary ?? {})}
           </h3>
           <div className="space-y-2 text-xs">
             {(runData.results ?? []).map((r) => (
-              <div key={r.id} className="rounded-lg border p-2 dark:border-white/10">
+              <div
+                key={r.id}
+                className="rounded-lg border p-2 dark:border-white/10"
+              >
                 <div className="font-medium">
                   {r.verdict} · score {r.score} · {r.latencyMs ?? '-'}ms
                 </div>

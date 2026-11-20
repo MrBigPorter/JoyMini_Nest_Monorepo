@@ -295,8 +295,7 @@ export class AiCustomerService implements OnModuleDestroy {
     return {
       conversationId,
       threadId: conversation.threadId,
-      checkpointId:
-        (state as any)?.config?.configurable?.checkpoint_id ?? null,
+      checkpointId: (state as any)?.config?.configurable?.checkpoint_id ?? null,
       flowState: values.flowState ?? {},
       contextState: values.contextState ?? {},
       pendingConfirm: values.pendingConfirm ?? null,

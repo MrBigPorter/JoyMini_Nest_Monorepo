@@ -14,7 +14,9 @@ export class AiContextController {
 
   @Get(':conversationId')
   @Roles(Role.SUPER_ADMIN, Role.ADMIN)
-  @ApiOperation({ summary: '单会话上下文调试（flowState/contextState/messages）' })
+  @ApiOperation({
+    summary: '单会话上下文调试（flowState/contextState/messages）',
+  })
   async inspect(@Param('conversationId') conversationId: string) {
     return this.debug.inspect(conversationId);
   }

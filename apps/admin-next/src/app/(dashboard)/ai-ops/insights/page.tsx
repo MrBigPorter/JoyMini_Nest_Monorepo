@@ -59,7 +59,10 @@ export default function AiInsightsPage() {
               ['Total tokens', overview?.usage.totalTokens],
               ['Requests', overview?.usage.requests],
             ].map(([label, value]) => (
-              <div key={String(label)} className="rounded-xl border p-4 dark:border-white/10">
+              <div
+                key={String(label)}
+                className="rounded-xl border p-4 dark:border-white/10"
+              >
                 <div className="text-xs text-gray-500">{label}</div>
                 <div className="mt-1 text-2xl font-semibold">
                   {typeof value === 'number' ? value.toLocaleString() : '—'}
@@ -77,7 +80,10 @@ export default function AiInsightsPage() {
                 <table className="min-w-full text-sm">
                   <tbody>
                     {overview?.transfers.byReason.map((item) => (
-                      <tr key={item.reason} className="border-t dark:border-white/5">
+                      <tr
+                        key={item.reason}
+                        className="border-t dark:border-white/5"
+                      >
                         <td className="py-1">{item.reason}</td>
                         <td className="py-1 text-right">{item.count}</td>
                       </tr>
@@ -95,7 +101,10 @@ export default function AiInsightsPage() {
                 <table className="min-w-full text-sm">
                   <tbody>
                     {overview?.feedback.byReviewStatus.map((item) => (
-                      <tr key={item.status} className="border-t dark:border-white/5">
+                      <tr
+                        key={item.status}
+                        className="border-t dark:border-white/5"
+                      >
                         <td className="py-1">{item.status}</td>
                         <td className="py-1 text-right">{item.count}</td>
                       </tr>

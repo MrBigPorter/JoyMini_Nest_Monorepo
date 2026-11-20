@@ -40,11 +40,15 @@ export default function AiSupportPage() {
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="rounded-xl border p-4 dark:border-white/10">
           <div className="text-xs text-gray-500">Waiting</div>
-          <div className="mt-1 text-2xl font-semibold">{latest?.waiting ?? '—'}</div>
+          <div className="mt-1 text-2xl font-semibold">
+            {latest?.waiting ?? '—'}
+          </div>
         </div>
         <div className="rounded-xl border p-4 dark:border-white/10">
           <div className="text-xs text-gray-500">SLA breached</div>
-          <div className="mt-1 text-2xl font-semibold">{latest?.breached ?? '—'}</div>
+          <div className="mt-1 text-2xl font-semibold">
+            {latest?.breached ?? '—'}
+          </div>
         </div>
         <div className="rounded-xl border p-4 dark:border-white/10">
           <div className="text-xs text-gray-500">Longest wait</div>
@@ -57,7 +61,9 @@ export default function AiSupportPage() {
       <section className="rounded-xl border border-gray-100 bg-white p-4 dark:border-white/10 dark:bg-gray-900">
         <h2 className="mb-3 text-sm font-semibold">Waiting trend</h2>
         {loading ? (
-          <div className="py-6 text-center text-sm text-gray-400">Loading...</div>
+          <div className="py-6 text-center text-sm text-gray-400">
+            Loading...
+          </div>
         ) : snapshots.length === 0 ? (
           <div className="py-6 text-center text-sm text-gray-400">
             暂无快照；cron 每分钟写入一次
@@ -69,7 +75,9 @@ export default function AiSupportPage() {
                 <div
                   key={s.id}
                   className="flex-1 rounded-t bg-blue-500/70"
-                  style={{ height: `${Math.max(4, (s.waiting / maxWaiting) * 100)}%` }}
+                  style={{
+                    height: `${Math.max(4, (s.waiting / maxWaiting) * 100)}%`,
+                  }}
                   title={`${new Date(s.createdAt).toLocaleString()} waiting=${s.waiting} breached=${s.breached}`}
                 />
               ))}
@@ -85,14 +93,19 @@ export default function AiSupportPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {[...snapshots].reverse().slice(0, 50).map((s) => (
-                    <tr key={s.id} className="border-t dark:border-white/5">
-                      <td className="py-1">{new Date(s.createdAt).toLocaleString()}</td>
-                      <td className="py-1">{s.waiting}</td>
-                      <td className="py-1">{s.breached}</td>
-                      <td className="py-1">{s.longestWait}s</td>
-                    </tr>
-                  ))}
+                  {[...snapshots]
+                    .reverse()
+                    .slice(0, 50)
+                    .map((s) => (
+                      <tr key={s.id} className="border-t dark:border-white/5">
+                        <td className="py-1">
+                          {new Date(s.createdAt).toLocaleString()}
+                        </td>
+                        <td className="py-1">{s.waiting}</td>
+                        <td className="py-1">{s.breached}</td>
+                        <td className="py-1">{s.longestWait}s</td>
+                      </tr>
+                    ))}
                 </tbody>
               </table>
             </div>

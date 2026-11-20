@@ -11,10 +11,7 @@ export default function AiContextPage() {
   const [conversationId, setConversationId] = useState('');
   const [queryId, setQueryId] = useState('');
   const { data, loading } = useRequest(
-    () =>
-      queryId
-        ? aiContextApi.inspect(queryId)
-        : Promise.resolve(null),
+    () => (queryId ? aiContextApi.inspect(queryId) : Promise.resolve(null)),
     { refreshDeps: [queryId] },
   );
   const snapshot = data as ConversationDebugSnapshot | null;
@@ -42,7 +39,9 @@ export default function AiContextPage() {
       {loading ? (
         <div className="py-6 text-center text-sm text-gray-400">Loading...</div>
       ) : !queryId ? (
-        <div className="py-6 text-center text-sm text-gray-400">输入 conversationId 查询</div>
+        <div className="py-6 text-center text-sm text-gray-400">
+          输入 conversationId 查询
+        </div>
       ) : snapshot?.error ? (
         <div className="rounded-xl border border-orange-200 p-4 text-sm text-orange-700 dark:border-orange-500/30 dark:text-orange-300">
           {snapshot.error}
@@ -52,11 +51,15 @@ export default function AiContextPage() {
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-xl border p-3 text-xs dark:border-white/10">
               <div className="text-gray-500">Thread</div>
-              <div className="mt-1 break-all font-mono">{snapshot.threadId ?? '-'}</div>
+              <div className="mt-1 break-all font-mono">
+                {snapshot.threadId ?? '-'}
+              </div>
             </div>
             <div className="rounded-xl border p-3 text-xs dark:border-white/10">
               <div className="text-gray-500">Checkpoint</div>
-              <div className="mt-1 break-all font-mono">{snapshot.checkpointId ?? '-'}</div>
+              <div className="mt-1 break-all font-mono">
+                {snapshot.checkpointId ?? '-'}
+              </div>
             </div>
             <div className="rounded-xl border p-3 text-xs dark:border-white/10">
               <div className="text-gray-500">Previous intent</div>
@@ -90,7 +93,10 @@ export default function AiContextPage() {
                   <div className="text-gray-400">没有消息</div>
                 )}
                 {snapshot.messages.map((m, index) => (
-                  <div key={index} className="rounded-lg border p-2 dark:border-white/10">
+                  <div
+                    key={index}
+                    className="rounded-lg border p-2 dark:border-white/10"
+                  >
                     <div className="text-gray-500">{m.type}</div>
                     <div>{m.content}</div>
                   </div>

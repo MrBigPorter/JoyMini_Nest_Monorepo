@@ -13,7 +13,8 @@ import type {
 
 function normalizeQueues(data: unknown): AiQueueStats[] {
   if (Array.isArray(data)) return data as AiQueueStats[];
-  return ((data as { queues?: AiQueueStats[] })?.queues ?? []) as AiQueueStats[];
+  return ((data as { queues?: AiQueueStats[] })?.queues ??
+    []) as AiQueueStats[];
 }
 
 function StatCard({
@@ -42,9 +43,12 @@ export default function AiOpsOverviewPage() {
   const { data: failed } = useRequest(() => aiOpsApi.getAiFailed(100), {
     pollingInterval: 30_000,
   });
-  const { data: outbox } = useRequest(() => aiOpsApi.getOutbox(undefined, 100), {
-    pollingInterval: 30_000,
-  });
+  const { data: outbox } = useRequest(
+    () => aiOpsApi.getOutbox(undefined, 100),
+    {
+      pollingInterval: 30_000,
+    },
+  );
   const { data: usage } = useRequest(aiOpsApi.getUsageSummary, {
     pollingInterval: 60_000,
   });
@@ -91,27 +95,18 @@ export default function AiOpsOverviewPage() {
           value={ragQueue?.waiting ?? 0}
           hint={`failed ${ragQueue?.failed ?? 0}`}
         />
-        <StatCard
-          label="反馈覆盖"
-          value="—"
-          hint="Quality 页（P1）"
-        />
-        <StatCard
-          label="注入命中"
-          value="—"
-          hint="Security 页（P1）"
-        />
-        <StatCard
-          label="客服排队"
-          value="—"
-          hint="Support Ops 页（P1）"
-        />
+        <StatCard label="反馈覆盖" value="—" hint="Quality 页（P1）" />
+        <StatCard label="注入命中" value="—" hint="Security 页（P1）" />
+        <StatCard label="客服排队" value="—" hint="Support Ops 页（P1）" />
       </div>
 
       <div className="rounded-xl border border-gray-100 bg-white p-4 dark:border-white/10 dark:bg-gray-900">
         <h2 className="text-sm font-semibold">快速入口</h2>
         <div className="mt-3 flex flex-wrap gap-2 text-sm">
-          <Link className="rounded-lg border px-3 py-1.5" href="/ai-ops/runtime">
+          <Link
+            className="rounded-lg border px-3 py-1.5"
+            href="/ai-ops/runtime"
+          >
             AI Runtime
           </Link>
           <Link className="rounded-lg border px-3 py-1.5" href="/ai-ops/flows">

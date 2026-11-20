@@ -44,14 +44,20 @@ export default function AiUsagePage() {
           type="date"
           className="rounded-lg border px-3 py-1.5 dark:border-white/10 dark:bg-gray-800"
           value={from}
-          onChange={(e) => { setFrom(e.target.value); setPage(1); }}
+          onChange={(e) => {
+            setFrom(e.target.value);
+            setPage(1);
+          }}
         />
         <label className="text-gray-500">To</label>
         <input
           type="date"
           className="rounded-lg border px-3 py-1.5 dark:border-white/10 dark:bg-gray-800"
           value={to}
-          onChange={(e) => { setTo(e.target.value); setPage(1); }}
+          onChange={(e) => {
+            setTo(e.target.value);
+            setPage(1);
+          }}
         />
       </div>
 
@@ -90,30 +96,65 @@ export default function AiUsagePage() {
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50 text-left dark:bg-white/5">
               <tr>
-                {['User', 'Phone', 'Total', 'Prompt', 'Completion', 'Requests', 'Over limit'].map((h) => (
-                  <th key={h} className="px-3 py-2">{h}</th>
+                {[
+                  'User',
+                  'Phone',
+                  'Total',
+                  'Prompt',
+                  'Completion',
+                  'Requests',
+                  'Over limit',
+                ].map((h) => (
+                  <th key={h} className="px-3 py-2">
+                    {h}
+                  </th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {usersLoading && (
-                <tr><td colSpan={7} className="px-3 py-6 text-center text-gray-400">Loading...</td></tr>
+                <tr>
+                  <td
+                    colSpan={7}
+                    className="px-3 py-6 text-center text-gray-400"
+                  >
+                    Loading...
+                  </td>
+                </tr>
               )}
               {!usersLoading && (users?.list.length ?? 0) === 0 && (
-                <tr><td colSpan={7} className="px-3 py-6 text-center text-gray-400">
-                  该时间段没有 AI 用量
-                </td></tr>
+                <tr>
+                  <td
+                    colSpan={7}
+                    className="px-3 py-6 text-center text-gray-400"
+                  >
+                    该时间段没有 AI 用量
+                  </td>
+                </tr>
               )}
               {users?.list.map((u) => (
-                <tr key={u.userId} className="border-t border-gray-100 dark:border-white/5">
+                <tr
+                  key={u.userId}
+                  className="border-t border-gray-100 dark:border-white/5"
+                >
                   <td className="px-3 py-2">
-                    <div className="font-medium">{u.nickname ?? '(unknown)'}</div>
-                    <div className="font-mono text-xs text-gray-400">{u.userId}</div>
+                    <div className="font-medium">
+                      {u.nickname ?? '(unknown)'}
+                    </div>
+                    <div className="font-mono text-xs text-gray-400">
+                      {u.userId}
+                    </div>
                   </td>
                   <td className="px-3 py-2">{u.phoneMasked ?? '-'}</td>
-                  <td className="px-3 py-2">{u.totalTokens.toLocaleString()}</td>
-                  <td className="px-3 py-2">{u.promptTokens.toLocaleString()}</td>
-                  <td className="px-3 py-2">{u.completionTokens.toLocaleString()}</td>
+                  <td className="px-3 py-2">
+                    {u.totalTokens.toLocaleString()}
+                  </td>
+                  <td className="px-3 py-2">
+                    {u.promptTokens.toLocaleString()}
+                  </td>
+                  <td className="px-3 py-2">
+                    {u.completionTokens.toLocaleString()}
+                  </td>
                   <td className="px-3 py-2">{u.requests}</td>
                   <td className="px-3 py-2">{u.overDailyLimit ? '是' : '-'}</td>
                 </tr>
@@ -122,9 +163,7 @@ export default function AiUsagePage() {
           </table>
         </div>
         <div className="mt-3 flex items-center justify-between text-sm">
-          <span className="text-gray-500">
-            Total {users?.total ?? 0}
-          </span>
+          <span className="text-gray-500">Total {users?.total ?? 0}</span>
           <div className="flex gap-2">
             <button
               className="rounded-lg border px-3 py-1.5 disabled:opacity-40"

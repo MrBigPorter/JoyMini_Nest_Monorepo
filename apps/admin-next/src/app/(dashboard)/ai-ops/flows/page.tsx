@@ -56,7 +56,9 @@ export default function AiFlowsPage() {
       setActionMessage('需要填写 conversationId 并选择目标版本');
       return;
     }
-    if (!window.confirm(`确认${rollback ? '回滚' : '切换'}该会话的流程版本？`)) {
+    if (
+      !window.confirm(`确认${rollback ? '回滚' : '切换'}该会话的流程版本？`)
+    ) {
       return;
     }
     try {
@@ -89,7 +91,9 @@ export default function AiFlowsPage() {
       <section className="rounded-xl border border-gray-100 bg-white p-4 dark:border-white/10 dark:bg-gray-900">
         <h2 className="mb-3 text-sm font-semibold">定义版本</h2>
         {definitionsLoading ? (
-          <div className="py-6 text-center text-sm text-gray-400">Loading...</div>
+          <div className="py-6 text-center text-sm text-gray-400">
+            Loading...
+          </div>
         ) : grouped.length === 0 ? (
           <div className="py-6 text-center text-sm text-gray-400">
             暂无定义；首个会话进入流程时会懒注册
@@ -98,7 +102,9 @@ export default function AiFlowsPage() {
           <div className="space-y-3">
             {grouped.map(([flowType, versions]) => (
               <div key={flowType}>
-                <div className="mb-1 text-xs font-medium text-gray-500">{flowType}</div>
+                <div className="mb-1 text-xs font-medium text-gray-500">
+                  {flowType}
+                </div>
                 <div className="flex flex-wrap gap-2">
                   {versions.map((v) => (
                     <button
@@ -151,28 +157,51 @@ export default function AiFlowsPage() {
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50 text-left dark:bg-white/5">
               <tr>
-                {['Flow', 'Version', 'Step', 'Thread', 'Status', 'Updated'].map((h) => (
-                  <th key={h} className="px-3 py-2">{h}</th>
-                ))}
+                {['Flow', 'Version', 'Step', 'Thread', 'Status', 'Updated'].map(
+                  (h) => (
+                    <th key={h} className="px-3 py-2">
+                      {h}
+                    </th>
+                  ),
+                )}
               </tr>
             </thead>
             <tbody>
               {bindingsLoading && (
-                <tr><td colSpan={6} className="px-3 py-6 text-center text-gray-400">Loading...</td></tr>
+                <tr>
+                  <td
+                    colSpan={6}
+                    className="px-3 py-6 text-center text-gray-400"
+                  >
+                    Loading...
+                  </td>
+                </tr>
               )}
               {!bindingsLoading && bindings.length === 0 && (
-                <tr><td colSpan={6} className="px-3 py-6 text-center text-gray-400">
-                  输入 conversationId 查询绑定
-                </td></tr>
+                <tr>
+                  <td
+                    colSpan={6}
+                    className="px-3 py-6 text-center text-gray-400"
+                  >
+                    输入 conversationId 查询绑定
+                  </td>
+                </tr>
               )}
               {bindings.map((b) => (
-                <tr key={b.id} className="border-t border-gray-100 dark:border-white/5">
+                <tr
+                  key={b.id}
+                  className="border-t border-gray-100 dark:border-white/5"
+                >
                   <td className="px-3 py-2">{b.flowType}</td>
                   <td className="px-3 py-2">{b.definition?.version ?? '-'}</td>
                   <td className="px-3 py-2">{b.flowStep}</td>
-                  <td className="px-3 py-2 font-mono text-xs">{b.threadId ?? '-'}</td>
+                  <td className="px-3 py-2 font-mono text-xs">
+                    {b.threadId ?? '-'}
+                  </td>
                   <td className="px-3 py-2">{b.status}</td>
-                  <td className="px-3 py-2">{new Date(b.updatedAt).toLocaleString()}</td>
+                  <td className="px-3 py-2">
+                    {new Date(b.updatedAt).toLocaleString()}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -186,24 +215,57 @@ export default function AiFlowsPage() {
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50 text-left dark:bg-white/5">
               <tr>
-                {['Time', 'Action', 'Flow', 'From', 'To', 'Actor', 'Reason'].map((h) => (
-                  <th key={h} className="px-3 py-2">{h}</th>
+                {[
+                  'Time',
+                  'Action',
+                  'Flow',
+                  'From',
+                  'To',
+                  'Actor',
+                  'Reason',
+                ].map((h) => (
+                  <th key={h} className="px-3 py-2">
+                    {h}
+                  </th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {audits.length === 0 && (
-                <tr><td colSpan={7} className="px-3 py-6 text-center text-gray-400">暂无审计记录</td></tr>
+                <tr>
+                  <td
+                    colSpan={7}
+                    className="px-3 py-6 text-center text-gray-400"
+                  >
+                    暂无审计记录
+                  </td>
+                </tr>
               )}
               {audits.map((a) => (
-                <tr key={a.id} className="border-t border-gray-100 dark:border-white/5">
-                  <td className="px-3 py-2">{new Date(a.createdAt).toLocaleString()}</td>
+                <tr
+                  key={a.id}
+                  className="border-t border-gray-100 dark:border-white/5"
+                >
+                  <td className="px-3 py-2">
+                    {new Date(a.createdAt).toLocaleString()}
+                  </td>
                   <td className="px-3 py-2">{a.action}</td>
                   <td className="px-3 py-2">{a.flowType}</td>
-                  <td className="px-3 py-2 font-mono text-xs">{a.fromVersionId?.slice(0, 8) ?? '-'}</td>
-                  <td className="px-3 py-2 font-mono text-xs">{a.toVersionId?.slice(0, 8) ?? '-'}</td>
-                  <td className="px-3 py-2 font-mono text-xs">{a.actorId ?? '-'}</td>
-                  <td className="max-w-[220px] truncate px-3 py-2" title={a.reason ?? ''}>{a.reason ?? '-'}</td>
+                  <td className="px-3 py-2 font-mono text-xs">
+                    {a.fromVersionId?.slice(0, 8) ?? '-'}
+                  </td>
+                  <td className="px-3 py-2 font-mono text-xs">
+                    {a.toVersionId?.slice(0, 8) ?? '-'}
+                  </td>
+                  <td className="px-3 py-2 font-mono text-xs">
+                    {a.actorId ?? '-'}
+                  </td>
+                  <td
+                    className="max-w-[220px] truncate px-3 py-2"
+                    title={a.reason ?? ''}
+                  >
+                    {a.reason ?? '-'}
+                  </td>
                 </tr>
               ))}
             </tbody>
