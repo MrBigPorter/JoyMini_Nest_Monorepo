@@ -56,6 +56,7 @@ function makeService() {
     unused(), // EventEmitter2
     unused(), // AiFeedbackService
     unused(), // FlowStateVersioningService
+    unused(), // AiConversationDebugService
   );
 
   return { service, prisma, confirm, wallet, otp, usage };

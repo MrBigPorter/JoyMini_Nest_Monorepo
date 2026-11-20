@@ -62,6 +62,7 @@ test.describe('Sidebar — 侧边栏导航', () => {
     { name: 'AI Security', path: '/ai-ops/security/' },
     { name: 'Support Ops', path: '/ai-ops/support/' },
     { name: 'AI Insights', path: '/ai-ops/insights/' },
+    { name: 'Context Debug', path: '/ai-ops/context/' },
   ];
 
   for (const route of routes) {

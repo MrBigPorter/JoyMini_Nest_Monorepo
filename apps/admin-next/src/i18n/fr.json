@@ -9,6 +9,7 @@
     "aiOpsSecurity": "AI Security",
     "aiOpsSupport": "Support Ops",
     "aiOpsInsights": "AI Insights",
+    "aiOpsContext": "Context Debug",
     "dashboard": "Tableau de bord",
     "dashboard_realTimeOverview": "Aperçu en temps réel",
     "dashboard_refresh": "Actualiser",

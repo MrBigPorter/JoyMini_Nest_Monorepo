@@ -2144,3 +2144,15 @@ export interface AiInsightsOverview {
   usage: { totalTokens: number; requests: number };
   notes: string[];
 }
+
+export interface ConversationDebugSnapshot {
+  conversationId: string;
+  threadId: string | null;
+  checkpointId: string | null;
+  flowState: Record<string, any>;
+  contextState: Record<string, any>;
+  pendingConfirm: Record<string, any> | null;
+  previousIntent: string;
+  messages: Array<{ type: string; content: string }>;
+  error?: string;
+}

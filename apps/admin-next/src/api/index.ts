@@ -1659,3 +1659,10 @@ export const aiQualityApi = {
       params,
     ),
 };
+
+export const aiContextApi = {
+  inspect: (conversationId: string) =>
+    http.get<import('@/type/types').ConversationDebugSnapshot>(
+      `/v1/admin/ai-context/${conversationId}`,
+    ),
+};

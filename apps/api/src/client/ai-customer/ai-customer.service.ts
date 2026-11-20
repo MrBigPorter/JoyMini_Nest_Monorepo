@@ -29,6 +29,10 @@ import { AiMemoryService } from '@api/common/ai/ai-memory.service';
 import { AiActionConfirmService } from './ai-action-confirm.service';
 import { AiFeedbackService } from '@api/common/ai/ai-feedback.service';
 import {
+  AiConversationDebugService,
+  ConversationDebugSnapshot,
+} from '@api/client/ai-customer/debug/ai-conversation-debug.service';
+import {
   FlowStateVersioningService,
   RollbackStateInput,
   RollbackStateResult,
@@ -92,6 +96,7 @@ export class AiCustomerService implements OnModuleDestroy {
     private readonly eventEmitter: EventEmitter2,
     private readonly aiFeedbackService: AiFeedbackService,
     private readonly flowVersioning: FlowStateVersioningService,
+    private readonly conversationDebug: AiConversationDebugService,
   ) {}
 
   /**
@@ -105,6 +110,9 @@ export class AiCustomerService implements OnModuleDestroy {
     // 状态回滚需要 compiledGraph；FlowVersioningService 只做安全点/绑定/审计。
     this.flowVersioning.registerStateRollbackHandler((input) =>
       this.rollbackConversationState(input),
+    );
+    this.conversationDebug.registerInspector((conversationId) =>
+      this.inspectConversationState(conversationId),
     );
   }
 
@@ -266,6 +274,41 @@ export class AiCustomerService implements OnModuleDestroy {
       `[chatStream] state rolled back: conv=${input.conversationId}, checkpoint=${input.checkpointId}, newCheckpoint=${checkpointId}`,
     );
     return { ok: true, checkpointId };
+  }
+
+  /** 单会话上下文调试：只读 graph state，不写消息、不触发模型。 */
+  private async inspectConversationState(
+    conversationId: string,
+  ): Promise<ConversationDebugSnapshot | { error: string }> {
+    if (!this.compiledGraph) return { error: 'graph_not_initialized' };
+    const conversation = await this.prismaService.conversation.findUnique({
+      where: { id: conversationId },
+      select: { threadId: true },
+    });
+    if (!conversation?.threadId) return { error: 'thread_not_found' };
+
+    const state = await this.compiledGraph.getState({
+      configurable: { thread_id: conversation.threadId },
+    });
+    const values = (state as any)?.values ?? {};
+    const rawMessages = Array.isArray(values.messages) ? values.messages : [];
+    return {
+      conversationId,
+      threadId: conversation.threadId,
+      checkpointId:
+        (state as any)?.config?.configurable?.checkpoint_id ?? null,
+      flowState: values.flowState ?? {},
+      contextState: values.contextState ?? {},
+      pendingConfirm: values.pendingConfirm ?? null,
+      previousIntent: values.previousIntent ?? '',
+      messages: rawMessages.slice(-20).map((message: any) => ({
+        type: String(message?.type ?? message?._getType?.() ?? 'unknown'),
+        content:
+          typeof message?.content === 'string'
+            ? message.content.slice(0, 300)
+            : JSON.stringify(message?.content ?? '').slice(0, 300),
+      })),
+    };
   }
 
   async onModuleDestroy(): Promise<void> {

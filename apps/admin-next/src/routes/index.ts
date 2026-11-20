@@ -37,6 +37,7 @@ import {
   ShieldAlert,
   Headset,
   BarChart3,
+  Braces,
 } from 'lucide-react';
 
 export type RouteGroup =
@@ -208,6 +209,13 @@ export const routes: RouteConfig[] = [
     path: '/ai-ops/insights',
     name: 'aiOpsInsights',
     icon: BarChart3,
+    group: 'AI Operations',
+  },
+
+  {
+    path: '/ai-ops/context',
+    name: 'aiOpsContext',
+    icon: Braces,
     group: 'AI Operations',
   },
 

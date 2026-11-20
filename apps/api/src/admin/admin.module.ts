@@ -37,6 +37,7 @@ import { AiUsageAdminModule } from '@api/admin/ai-usage/ai-usage.module';
 import { AiMemoryAdminModule } from '@api/admin/ai-memory/ai-memory-admin.module';
 import { AiSecurityAdminModule } from '@api/admin/ai-security/ai-security.module';
 import { AiInsightsAdminModule } from '@api/admin/ai-insights/ai-insights.module';
+import { AiContextAdminModule } from '@api/admin/ai-context/ai-context.module';
 
 @Module({
   imports: [
@@ -78,6 +79,7 @@ import { AiInsightsAdminModule } from '@api/admin/ai-insights/ai-insights.module
     AiMemoryAdminModule,
     AiSecurityAdminModule,
     AiInsightsAdminModule,
+    AiContextAdminModule,
   ],
   providers: [],
   controllers: [],
