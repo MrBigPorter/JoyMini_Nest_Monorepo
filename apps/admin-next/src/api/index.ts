@@ -783,6 +783,12 @@ export const chatApi = {
       { mode },
     ),
 
+  /** GET /v1/admin/ai-feedback/summary — 反馈分诊汇总 */
+  getFeedbackSummary: () =>
+    http.get<import('@/type/types').AiFeedbackSummary>(
+      '/v1/admin/ai-feedback/summary',
+    ),
+
   /** POST /v1/admin/ai-feedback — 提交回答标注 */
   submitFeedback: (data: import('@/type/types').CreateAiFeedbackPayload) =>
     http.post<{ id: string }>('/v1/admin/ai-feedback', data),
@@ -1578,9 +1584,13 @@ export const aiQualityApi = {
     id: string,
     data: {
       reviewStatus?: 'PENDING' | 'REVIEWED' | 'IGNORED';
+      resolution?: string;
+      failureKind?: string;
       verdict?: 'correct' | 'incorrect';
       errorType?: string;
       note?: string;
+      ownerAdminId?: string;
+      linkedEvalCaseId?: string;
     },
   ) => http.patch(`/v1/admin/ai-feedback/${id}`, data),
 
@@ -1640,6 +1650,11 @@ export const aiQualityApi = {
       page: number;
       pageSize: number;
     }>('/v1/admin/ai-security/events', params),
+  securityTriage: (
+    id: string,
+    data: { status?: string; note?: string },
+  ) => http.patch(`/v1/admin/ai-security/events/${id}`, data),
+
   securitySummary: (params?: { type?: string; from?: string; to?: string }) =>
     http.get<import('@/type/types').AiSecuritySummary>(
       '/v1/admin/ai-security/summary',

@@ -20,6 +20,7 @@ vi.mock('@/api', () => ({
   aiQualityApi: {
     securityEvents: (...args: unknown[]) => mockSecurityEvents(...args),
     securitySummary: (...args: unknown[]) => mockSecuritySummary(...args),
+    securityTriage: vi.fn().mockResolvedValue({ id: 'evt-1' }),
   },
 }));
 
@@ -38,6 +39,7 @@ vi.mock('@/components/scaffold/PageHeader', () => ({
 vi.mock('@/lib/ai-ops-permissions', () => ({
   useAiOpsRole: () => 'ADMIN',
   canReadContext: () => mockCanReadContext(),
+  canTriageSecurity: () => true,
 }));
 
 vi.mock('@repo/ui', () => repoUiMock);

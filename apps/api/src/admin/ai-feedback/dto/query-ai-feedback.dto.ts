@@ -2,7 +2,11 @@ import { Type } from 'class-transformer';
 import { IsIn, IsInt, IsOptional, Max, Min } from 'class-validator';
 import {
   FEEDBACK_ERROR_TYPES,
+  FEEDBACK_FAILURE_KINDS,
+  FEEDBACK_RESOLUTIONS,
   FeedbackErrorType,
+  FeedbackFailureKind,
+  FeedbackResolution,
   FeedbackSignal,
   FeedbackSource,
 } from '@api/common/ai/ai-feedback.service';
@@ -23,6 +27,14 @@ export class QueryAiFeedbackDto {
   @IsOptional()
   @IsIn(['PENDING', 'REVIEWED', 'IGNORED'])
   reviewStatus?: 'PENDING' | 'REVIEWED' | 'IGNORED';
+
+  @IsOptional()
+  @IsIn(FEEDBACK_FAILURE_KINDS as unknown as string[])
+  failureKind?: FeedbackFailureKind;
+
+  @IsOptional()
+  @IsIn(FEEDBACK_RESOLUTIONS as unknown as string[])
+  resolution?: FeedbackResolution;
 
   @IsOptional()
   @Type(() => Number)

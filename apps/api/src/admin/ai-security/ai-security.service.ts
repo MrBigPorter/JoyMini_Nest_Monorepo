@@ -22,9 +22,26 @@ export class AiSecurityService {
     return { list, total, page, pageSize };
   }
 
+  async triage(
+    id: string,
+    input: { status?: string; note?: string },
+    adminId: string,
+  ) {
+    return this.prisma.aiSecurityEvent.update({
+      where: { id },
+      data: {
+        ...(input.status ? { status: input.status } : {}),
+        ...(input.note !== undefined ? { note: input.note.slice(0, 500) } : {}),
+        ...(input.status
+          ? { reviewedBy: adminId, reviewedAt: new Date() }
+          : {}),
+      },
+    });
+  }
+
   async summary(query: QuerySecurityEventsDto) {
     const where = this.buildWhere(query);
-    const [total, byType, byMode, latest] = await Promise.all([
+    const [total, byType, byMode, byStatus, latest] = await Promise.all([
       this.prisma.aiSecurityEvent.count({ where }),
       this.prisma.aiSecurityEvent.groupBy({
         by: ['type'],
@@ -33,6 +50,11 @@ export class AiSecurityService {
       }),
       this.prisma.aiSecurityEvent.groupBy({
         by: ['mode'],
+        where,
+        _count: { id: true },
+      }),
+      this.prisma.aiSecurityEvent.groupBy({
+        by: ['status'],
         where,
         _count: { id: true },
       }),
@@ -53,6 +75,10 @@ export class AiSecurityService {
         mode: row.mode,
         count: row._count.id,
       })),
+      byStatus: byStatus.map((row) => ({
+        status: row.status,
+        count: row._count.id,
+      })),
       latestAt: latest?.createdAt ?? null,
       mode: process.env.AI_INJECTION_DETECTION_MODE ?? 'off',
     };
@@ -61,6 +87,7 @@ export class AiSecurityService {
   private buildWhere(query: QuerySecurityEventsDto) {
     return {
       ...(query.type ? { type: query.type } : {}),
+      ...(query.status ? { status: query.status } : {}),
       ...(query.from || query.to
         ? {
             createdAt: {

@@ -7,6 +7,11 @@ function createService() {
       findFirst: jest.fn().mockResolvedValue(null),
       findMany: jest.fn().mockResolvedValue([]),
       count: jest.fn().mockResolvedValue(0),
+      update: jest.fn().mockResolvedValue({ id: 'fb-1' }),
+      groupBy: jest.fn().mockResolvedValue([]),
+    },
+    conversation: {
+      findMany: jest.fn().mockResolvedValue([]),
     },
     chatMessage: {
       findMany: jest.fn().mockResolvedValue([]),
@@ -175,6 +180,47 @@ describe('AiFeedbackService（ai-quality-loop 4.x）', () => {
       expect.objectContaining({
         input: '帮我查订单',
         answer: '你还没有订单',
+      }),
+    );
+  });
+
+  it('summary 返回待处理与归因分布', async () => {
+    const { service, prisma } = createService();
+    prisma.aiAnswerFeedback.count
+      .mockResolvedValueOnce(10)
+      .mockResolvedValueOnce(4);
+    prisma.aiAnswerFeedback.groupBy
+      .mockResolvedValueOnce([{ failureKind: 'MODEL_ERROR', _count: { id: 2 } }])
+      .mockResolvedValueOnce([{ resolution: 'OPEN', _count: { id: 4 } }]);
+
+    const result = await service.summary();
+
+    expect(result.total).toBe(10);
+    expect(result.pending).toBe(4);
+    expect(result.byFailureKind[0]).toEqual({
+      failureKind: 'MODEL_ERROR',
+      count: 2,
+    });
+  });
+
+  it('updateTriage 用 resolution 双写 reviewStatus', async () => {
+    const { service, prisma } = createService();
+
+    await service.updateTriage('fb-1', {
+      resolution: 'CONFIRMED',
+      failureKind: 'MODEL_ERROR',
+      note: '答非所问',
+    }, 'admin-1');
+
+    expect(prisma.aiAnswerFeedback.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'fb-1' },
+        data: expect.objectContaining({
+          reviewStatus: 'REVIEWED',
+          resolution: 'CONFIRMED',
+          failureKind: 'MODEL_ERROR',
+          reviewedBy: 'admin-1',
+        }),
       }),
     );
   });

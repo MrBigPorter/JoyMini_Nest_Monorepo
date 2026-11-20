@@ -2155,6 +2155,18 @@ model AiAnswerFeedback {
   adminId String? @map("admin_id") @db.VarChar(32)
 
   metadata  Json?
+
+  /// 运营归因：MODEL_ERROR | SERVICE_ERROR | EXPECTED_TRANSFER | UNEXPECTED_TRANSFER | USER_ABANDONED | REPEATED_QUESTION | UNKNOWN
+  failureKind String? @map("failure_kind") @db.VarChar(32)
+  /// 处理结论：OPEN | CONFIRMED | EXCLUDED | ADDED_TO_EVAL | FIXED_PENDING_VERIFY | CLOSED
+  resolution  String? @db.VarChar(24)
+  /// 当前负责人
+  ownerAdminId String? @map("owner_admin_id") @db.VarChar(32)
+  /// 已转成的评测用例
+  linkedEvalCaseId String? @map("linked_eval_case_id") @db.VarChar(32)
+  /// 关联的 trace（Phase 2 启用）
+  traceId String? @map("trace_id") @db.VarChar(32)
+
   /// PENDING | REVIEWED | IGNORED
   reviewStatus String  @default("PENDING") @map("review_status") @db.VarChar(16)
   reviewedBy   String? @map("reviewed_by") @db.VarChar(32)
@@ -2165,6 +2177,8 @@ model AiAnswerFeedback {
   @@index([reviewStatus, createdAt], map: "idx_ai_feedback_review")
   @@index([source, createdAt], map: "idx_ai_feedback_source_created")
   @@index([signal], map: "idx_ai_feedback_signal")
+  @@index([failureKind, createdAt], map: "idx_ai_feedback_failure")
+  @@index([resolution, createdAt], map: "idx_ai_feedback_resolution")
   @@map("ai_answer_feedback")
 }
 
@@ -2241,9 +2255,16 @@ model AiSecurityEvent {
   length         Int
   userIdHash     String?  @map("user_id_hash") @db.VarChar(64)
   conversationId String?  @map("conversation_id") @db.VarChar(32)
+
+  /// NEW | CONFIRMED | FALSE_POSITIVE | BLOCKED
+  status String @default("NEW") @db.VarChar(16)
+  note   String? @db.VarChar(500)
+  reviewedBy String? @map("reviewed_by") @db.VarChar(32)
+  reviewedAt DateTime? @map("reviewed_at")
   createdAt      DateTime @default(now()) @map("created_at")
 
   @@index([type, createdAt])
+  @@index([status, createdAt])
   @@index([createdAt])
   @@map("ai_security_events")
 }

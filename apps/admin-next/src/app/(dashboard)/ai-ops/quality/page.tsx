@@ -7,7 +7,12 @@ import { aiQualityApi, chatApi, knowledgeApi } from '@/api';
 import { PageHeader } from '@/components/scaffold/PageHeader';
 import { AiErrorBanner } from '@/components/ai-ops/AiErrorBanner';
 import { canTriageFeedback, useAiOpsRole } from '@/lib/ai-ops-permissions';
-import type { AiFeedbackItem, EvalDataset, EvalRun } from '@/type/types';
+import type {
+  AiFeedbackItem,
+  AiFeedbackSummary,
+  EvalDataset,
+  EvalRun,
+} from '@/type/types';
 
 type Tab = 'feedback' | 'eval' | 'rag';
 
@@ -38,6 +43,33 @@ const SIGNAL_LABELS: Record<string, string> = {
   repeated_question: '重复追问',
   abandoned: '中途放弃',
 };
+
+const FAILURE_KIND_LABELS: Record<string, string> = {
+  MODEL_ERROR: '模型答错',
+  SERVICE_ERROR: '服务故障',
+  EXPECTED_TRANSFER: '正常转人工',
+  UNEXPECTED_TRANSFER: '误转',
+  USER_ABANDONED: '用户放弃',
+  REPEATED_QUESTION: '重复追问',
+  UNKNOWN: '未知',
+};
+
+const RESOLUTION_LABELS: Record<string, string> = {
+  OPEN: '待处理',
+  CONFIRMED: '确认问题',
+  EXCLUDED: '已排除',
+  ADDED_TO_EVAL: '已进回归',
+  FIXED_PENDING_VERIFY: '已修复待验证',
+  CLOSED: '已关闭',
+};
+
+const FAILURE_KIND_OPTIONS = Object.entries(FAILURE_KIND_LABELS).map(
+  ([value, label]) => ({ value, label }),
+);
+
+const RESOLUTION_OPTIONS = Object.entries(RESOLUTION_LABELS).map(
+  ([value, label]) => ({ value, label }),
+);
 
 const RUN_STATUS_LABELS: Record<string, string> = {
   QUEUED: '排队中',
@@ -71,6 +103,14 @@ function formatPassRate(summary?: Record<string, any> | null): string {
 
 function reviewStatusLabel(raw?: string | null): string {
   return raw ? (REVIEW_STATUS_LABELS[raw as ReviewStatus] ?? raw) : '-';
+}
+
+function countByValue(
+  rows: Array<Record<string, any>> | undefined,
+  key: string,
+  value: string,
+): number {
+  return (rows ?? []).find((row) => row[key] === value)?.count ?? 0;
 }
 
 export default function AiQualityPage() {
@@ -113,6 +153,9 @@ export default function AiQualityPage() {
 
 function FeedbackPanel() {
   const [reviewStatus, setReviewStatus] = useState('');
+  const [failureKindFilter, setFailureKindFilter] = useState('');
+  const [resolutionFilter, setResolutionFilter] = useState('');
+  const [failureKind, setFailureKind] = useState('UNKNOWN');
   const [page, setPage] = useState(1);
   const [actionError, setActionError] = useState('');
   const [reviewMode, setReviewMode] = useState(false);
@@ -120,23 +163,58 @@ function FeedbackPanel() {
   const role = useAiOpsRole();
   const canTriage = canTriageFeedback(role);
 
+  const {
+    data: summaryData,
+    loading: summaryLoading,
+    error: summaryError,
+    refresh: refreshSummary,
+  } = useRequest(() => chatApi.getFeedbackSummary());
+
   const { data, loading, error, refresh } = useRequest(
     () =>
       chatApi.getFeedbackList({
         page,
         pageSize: 20,
         ...(reviewStatus ? { reviewStatus } : {}),
+        ...(failureKindFilter ? { failureKind: failureKindFilter } : {}),
+        ...(resolutionFilter ? { resolution: resolutionFilter } : {}),
       } as any),
-    { refreshDeps: [page, reviewStatus] },
+    { refreshDeps: [page, reviewStatus, failureKindFilter, resolutionFilter] },
   );
 
+  const summary = summaryData as AiFeedbackSummary | undefined;
   const list = ((data as any)?.list ?? []) as FeedbackRow[];
   const total = (data as any)?.total ?? 0;
+  const kpis: Array<[string, number | undefined]> = [
+    ['待处理', summary?.pending],
+    [
+      '模型答错',
+      countByValue(summary?.byFailureKind, 'failureKind', 'MODEL_ERROR'),
+    ],
+    [
+      '服务故障',
+      countByValue(summary?.byFailureKind, 'failureKind', 'SERVICE_ERROR'),
+    ],
+    [
+      '误转',
+      countByValue(
+        summary?.byFailureKind,
+        'failureKind',
+        'UNEXPECTED_TRANSFER',
+      ),
+    ],
+    [
+      '已进回归',
+      countByValue(summary?.byResolution, 'resolution', 'ADDED_TO_EVAL'),
+    ],
+  ];
 
   const triage = async (
     id: string,
     patch: {
       reviewStatus: ReviewStatus;
+      resolution: 'CONFIRMED' | 'EXCLUDED';
+      failureKind?: string;
       verdict?: 'correct' | 'incorrect';
       errorType?: string;
     },
@@ -144,8 +222,8 @@ function FeedbackPanel() {
     const note = window.prompt('备注（可选，用于记录分诊原因）') ?? undefined;
     setActionError('');
     try {
-      await aiQualityApi.updateFeedback(id, { ...patch, note });
-      await refresh();
+      await aiQualityApi.updateFeedback(id, { ...patch, note } as any);
+      await Promise.all([refresh(), refreshSummary()]);
       return true;
     } catch (err: any) {
       setActionError(err?.message ?? '分诊失败，请重试');
@@ -174,16 +252,51 @@ function FeedbackPanel() {
     if (!current) return;
     const patch =
       kind === 'correct'
-        ? { reviewStatus: 'REVIEWED' as const, verdict: 'correct' as const }
+        ? {
+            reviewStatus: 'REVIEWED' as const,
+            resolution: 'CONFIRMED' as const,
+            verdict: 'correct' as const,
+            failureKind: 'UNKNOWN',
+          }
         : kind === 'incorrect'
-          ? { reviewStatus: 'REVIEWED' as const, verdict: 'incorrect' as const }
-          : { reviewStatus: 'IGNORED' as const };
+          ? {
+              reviewStatus: 'REVIEWED' as const,
+              resolution: 'CONFIRMED' as const,
+              verdict: 'incorrect' as const,
+              failureKind,
+            }
+          : {
+              reviewStatus: 'IGNORED' as const,
+              resolution: 'EXCLUDED' as const,
+              failureKind,
+            };
     const ok = await triage(current.id, patch);
     if (ok) advanceReview();
   };
 
   return (
     <section className="space-y-3">
+      <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        {kpis.map(([label, value]) => (
+          <div
+            key={label}
+            className="rounded-xl border p-3 dark:border-white/10"
+          >
+            <div className="text-xs text-gray-500">{label}</div>
+            <div className="text-lg font-semibold">
+              {value != null ? value : summaryLoading ? '加载中…' : '—'}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {summaryError ? (
+        <AiErrorBanner
+          message="反馈汇总加载失败，请重试"
+          onRetry={refreshSummary}
+        />
+      ) : null}
+
       <div className="flex flex-wrap items-center gap-2">
         <label className="flex items-center gap-2 text-xs text-gray-500">
           分诊状态
@@ -204,6 +317,44 @@ function FeedbackPanel() {
             ).map(([value, label]) => (
               <option key={value} value={value}>
                 {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex items-center gap-2 text-xs text-gray-500">
+          归因
+          <select
+            aria-label="归因筛选"
+            className="rounded-lg border px-3 py-1.5 text-sm dark:border-white/10 dark:bg-gray-800"
+            value={failureKindFilter}
+            onChange={(e) => {
+              setFailureKindFilter(e.target.value);
+              setPage(1);
+            }}
+          >
+            <option value="">全部归因</option>
+            {FAILURE_KIND_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex items-center gap-2 text-xs text-gray-500">
+          处理状态
+          <select
+            aria-label="处理状态筛选"
+            className="rounded-lg border px-3 py-1.5 text-sm dark:border-white/10 dark:bg-gray-800"
+            value={resolutionFilter}
+            onChange={(e) => {
+              setResolutionFilter(e.target.value);
+              setPage(1);
+            }}
+          >
+            <option value="">全部处理状态</option>
+            {RESOLUTION_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
               </option>
             ))}
           </select>
@@ -229,6 +380,30 @@ function FeedbackPanel() {
           </span>
         ) : null}
       </div>
+
+      {canTriage ? (
+        <div className="rounded-xl border border-gray-100 bg-white p-4 dark:border-white/10 dark:bg-gray-900">
+          <div className="text-sm font-semibold">分诊归因</div>
+          <p className="mt-1 text-xs text-gray-500">
+            先选择主要原因，再用行内「确认问题 / 排除」完成分诊；「回答正确」会标记为已确认且非故障。
+          </p>
+          <label className="mt-2 flex items-center gap-2 text-xs text-gray-500">
+            主要原因
+            <select
+              aria-label="主要原因"
+              className="rounded-lg border px-3 py-1.5 text-sm dark:border-white/10 dark:bg-gray-800"
+              value={failureKind}
+              onChange={(e) => setFailureKind(e.target.value)}
+            >
+              {FAILURE_KIND_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      ) : null}
 
       {error ? (
         <AiErrorBanner message="反馈列表加载失败，请重试" onRetry={refresh} />
@@ -313,9 +488,11 @@ function FeedbackPanel() {
                 '时间',
                 '来源',
                 '判定/信号',
+                '归因',
+                '分诊状态',
+                '处理状态',
                 '用户问题',
                 'AI 回答',
-                '分诊状态',
                 '备注',
                 '操作',
               ].map((h) => (
@@ -328,13 +505,13 @@ function FeedbackPanel() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={8} className="px-3 py-6 text-center text-gray-400">
+                <td colSpan={10} className="px-3 py-6 text-center text-gray-400">
                   加载中…
                 </td>
               </tr>
             ) : error ? null : list.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-3 py-6 text-center text-gray-400">
+                <td colSpan={10} className="px-3 py-6 text-center text-gray-400">
                   暂无反馈
                 </td>
               </tr>
@@ -357,6 +534,15 @@ function FeedbackPanel() {
                         ? labelOf(SIGNAL_LABELS, item.signal)
                         : '-'}
                   </td>
+                  <td className="px-3 py-2">
+                    {labelOf(FAILURE_KIND_LABELS, item.failureKind)}
+                  </td>
+                  <td className="px-3 py-2">
+                    {reviewStatusLabel(item.reviewStatus)}
+                  </td>
+                  <td className="px-3 py-2">
+                    {labelOf(RESOLUTION_LABELS, item.resolution)}
+                  </td>
                   <td
                     className="max-w-[260px] truncate px-3 py-2"
                     title={item.input ?? ''}
@@ -368,9 +554,6 @@ function FeedbackPanel() {
                     title={item.answer ?? ''}
                   >
                     {item.answer ?? '-'}
-                  </td>
-                  <td className="px-3 py-2">
-                    {reviewStatusLabel(item.reviewStatus)}
                   </td>
                   <td
                     className="max-w-[220px] truncate px-3 py-2"
@@ -384,14 +567,26 @@ function FeedbackPanel() {
                         <>
                           <Button
                             size="sm"
-                            onClick={() => void triage(item.id, { reviewStatus: 'REVIEWED' })}
+                            onClick={() =>
+                              void triage(item.id, {
+                                reviewStatus: 'REVIEWED',
+                                resolution: 'CONFIRMED',
+                                failureKind,
+                              })
+                            }
                           >
                             确认问题
                           </Button>
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => void triage(item.id, { reviewStatus: 'IGNORED' })}
+                            onClick={() =>
+                              void triage(item.id, {
+                                reviewStatus: 'IGNORED',
+                                resolution: 'EXCLUDED',
+                                failureKind,
+                              })
+                            }
                           >
                             排除
                           </Button>

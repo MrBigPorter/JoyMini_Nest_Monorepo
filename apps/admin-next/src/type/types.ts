@@ -1344,13 +1344,30 @@ export interface AiFeedbackItem {
   signal: string | null;
   note: string | null;
   adminId: string | null;
+  reviewStatus?: string | null;
+  failureKind?: string | null;
+  resolution?: string | null;
+  ownerAdminId?: string | null;
+  linkedEvalCaseId?: string | null;
+  transferReason?: string | null;
+  handlerId?: string | null;
   createdAt: string;
+}
+
+export interface AiFeedbackSummary {
+  total: number;
+  pending: number;
+  byFailureKind: Array<{ failureKind: string | null; count: number }>;
+  byResolution: Array<{ resolution: string | null; count: number }>;
 }
 
 export interface QueryAiFeedbackParams {
   source?: 'explicit' | 'implicit';
   signal?: string;
   errorType?: string;
+  reviewStatus?: 'PENDING' | 'REVIEWED' | 'IGNORED';
+  failureKind?: string;
+  resolution?: string;
   page?: number;
   pageSize?: number;
 }
@@ -2013,13 +2030,35 @@ export interface AiUsageSummary {
     requests: number;
     users: number;
   };
-  quota: { dailyTokenLimit: number; sessionTokenLimit: number };
+  pricing: {
+    inputPer1M: number;
+    outputPer1M: number;
+    currency: string;
+    configured: boolean;
+  };
+  cost: {
+    inputCost: number;
+    outputCost: number;
+    totalCost: number;
+    currency: string;
+    configured: boolean;
+  };
+  quota: {
+    dailyTokenLimit: number;
+    sessionTokenLimit: number;
+    dailyCostLimit: number;
+  };
   daily: Array<{
     date: string;
     promptTokens: number;
     completionTokens: number;
     totalTokens: number;
     requests: number;
+    inputCost: number;
+    outputCost: number;
+    totalCost: number;
+    currency: string;
+    configured: boolean;
   }>;
 }
 
@@ -2034,6 +2073,8 @@ export interface AiUsageUser {
   requests: number;
   /** 所选区间内单日最高 token，用于判断是否真的触发每日限额 */
   maxDailyTokens?: number;
+  estimatedCost?: number;
+  costCurrency?: string;
   overDailyLimit: boolean;
 }
 
@@ -2113,6 +2154,10 @@ export interface AiSecurityEventRow {
   length: number;
   userIdHash: string | null;
   conversationId: string | null;
+  status?: string;
+  note?: string | null;
+  reviewedBy?: string | null;
+  reviewedAt?: string | null;
   createdAt: string;
 }
 
@@ -2120,6 +2165,7 @@ export interface AiSecuritySummary {
   total: number;
   byType: Array<{ type: string; count: number }>;
   byMode: Array<{ mode: string; count: number }>;
+  byStatus?: Array<{ status: string; count: number }>;
   latestAt: string | null;
   mode: string;
 }

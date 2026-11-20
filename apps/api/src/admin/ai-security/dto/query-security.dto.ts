@@ -14,6 +14,10 @@ export class QuerySecurityEventsDto {
   type?: string;
 
   @IsOptional()
+  @IsIn(['NEW', 'CONFIRMED', 'FALSE_POSITIVE', 'BLOCKED'])
+  status?: string;
+
+  @IsOptional()
   @IsDateString()
   from?: string;
 

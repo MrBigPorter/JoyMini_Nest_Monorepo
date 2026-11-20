@@ -68,6 +68,13 @@ export class AiFeedbackController {
     });
   }
 
+  @Get('summary')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
+  @ApiOperation({ summary: '反馈分诊汇总' })
+  async summary() {
+    return this.feedbackService.summary();
+  }
+
   @Get()
   @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
   @ApiOperation({ summary: '查询反馈列表（显式 + 隐式）' })

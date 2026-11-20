@@ -13,6 +13,44 @@ export const FEEDBACK_ERROR_TYPES = [
 export type FeedbackErrorType = (typeof FEEDBACK_ERROR_TYPES)[number];
 export type FeedbackSignal = 'transferred' | 'repeated_question' | 'abandoned';
 
+/** 运营归因；与 113 数据模型保持一致。 */
+export const FEEDBACK_FAILURE_KINDS = [
+  'MODEL_ERROR',
+  'SERVICE_ERROR',
+  'EXPECTED_TRANSFER',
+  'UNEXPECTED_TRANSFER',
+  'USER_ABANDONED',
+  'REPEATED_QUESTION',
+  'UNKNOWN',
+] as const;
+export type FeedbackFailureKind = (typeof FEEDBACK_FAILURE_KINDS)[number];
+
+/** 处理结论；与旧 reviewStatus 双写兼容。 */
+export const FEEDBACK_RESOLUTIONS = [
+  'OPEN',
+  'CONFIRMED',
+  'EXCLUDED',
+  'ADDED_TO_EVAL',
+  'FIXED_PENDING_VERIFY',
+  'CLOSED',
+] as const;
+export type FeedbackResolution = (typeof FEEDBACK_RESOLUTIONS)[number];
+
+const RESOLUTION_TO_REVIEW_STATUS: Record<FeedbackResolution, string> = {
+  OPEN: 'PENDING',
+  CONFIRMED: 'REVIEWED',
+  EXCLUDED: 'IGNORED',
+  ADDED_TO_EVAL: 'REVIEWED',
+  FIXED_PENDING_VERIFY: 'REVIEWED',
+  CLOSED: 'REVIEWED',
+};
+
+const REVIEW_STATUS_TO_RESOLUTION: Record<string, FeedbackResolution> = {
+  PENDING: 'OPEN',
+  REVIEWED: 'CONFIRMED',
+  IGNORED: 'EXCLUDED',
+};
+
 export interface ExplicitFeedbackInput {
   conversationId: string;
   messageId?: string;
@@ -169,6 +207,8 @@ export class AiFeedbackService {
     signal?: FeedbackSignal;
     errorType?: FeedbackErrorType;
     reviewStatus?: 'PENDING' | 'REVIEWED' | 'IGNORED';
+    failureKind?: FeedbackFailureKind;
+    resolution?: FeedbackResolution;
     page?: number;
     pageSize?: number;
   }) {
@@ -179,6 +219,8 @@ export class AiFeedbackService {
       ...(params.signal ? { signal: params.signal } : {}),
       ...(params.errorType ? { errorType: params.errorType } : {}),
       ...(params.reviewStatus ? { reviewStatus: params.reviewStatus } : {}),
+      ...(params.failureKind ? { failureKind: params.failureKind } : {}),
+      ...(params.resolution ? { resolution: params.resolution } : {}),
     };
 
     const [list, total] = await this.prisma.$transaction([
@@ -191,8 +233,25 @@ export class AiFeedbackService {
       this.prisma.aiAnswerFeedback.count({ where }),
     ]);
 
+    const withContext = await this.attachMessageContext(list);
+    const conversationIds = [...new Set(withContext.map((row) => row.conversationId))];
+    const conversations = conversationIds.length
+      ? await this.prisma.conversation.findMany({
+          where: { id: { in: conversationIds } },
+          select: { id: true, transferReason: true, handlerId: true },
+        })
+      : [];
+    const conversationMap = new Map(
+      conversations.map((conversation) => [conversation.id, conversation]),
+    );
+
     return {
-      list: await this.attachMessageContext(list),
+      list: withContext.map((row) => ({
+        ...row,
+        transferReason:
+          conversationMap.get(row.conversationId)?.transferReason ?? null,
+        handlerId: conversationMap.get(row.conversationId)?.handlerId ?? null,
+      })),
       total,
       page,
       pageSize,
@@ -274,26 +333,77 @@ export class AiFeedbackService {
     );
   }
 
+  /** 运营首页/质量待办的分组计数。 */
+  async summary() {
+    const [total, pending, byFailureKind, byResolution] = await Promise.all([
+      this.prisma.aiAnswerFeedback.count(),
+      this.prisma.aiAnswerFeedback.count({
+        where: { reviewStatus: 'PENDING' },
+      }),
+      this.prisma.aiAnswerFeedback.groupBy({
+        by: ['failureKind'],
+        _count: { id: true },
+      }),
+      this.prisma.aiAnswerFeedback.groupBy({
+        by: ['resolution'],
+        _count: { id: true },
+      }),
+    ]);
+    return {
+      total,
+      pending,
+      byFailureKind: byFailureKind.map((row) => ({
+        failureKind: row.failureKind,
+        count: row._count.id,
+      })),
+      byResolution: byResolution.map((row) => ({
+        resolution: row.resolution,
+        count: row._count.id,
+      })),
+    };
+  }
+
   async updateTriage(
     id: string,
     input: {
       reviewStatus?: 'PENDING' | 'REVIEWED' | 'IGNORED';
+      resolution?: FeedbackResolution;
+      failureKind?: FeedbackFailureKind;
       verdict?: FeedbackVerdict;
       errorType?: FeedbackErrorType;
       note?: string;
+      ownerAdminId?: string;
+      linkedEvalCaseId?: string;
     },
     adminId: string,
   ) {
+    const resolution =
+      input.resolution ??
+      (input.reviewStatus
+        ? REVIEW_STATUS_TO_RESOLUTION[input.reviewStatus]
+        : undefined);
+    const reviewStatus =
+      input.reviewStatus ??
+      (input.resolution ? RESOLUTION_TO_REVIEW_STATUS[input.resolution] : undefined);
+
     return this.prisma.aiAnswerFeedback.update({
       where: { id },
       data: {
-        ...(input.reviewStatus ? { reviewStatus: input.reviewStatus } : {}),
+        ...(reviewStatus ? { reviewStatus } : {}),
+        ...(input.resolution ? { resolution: input.resolution } : {}),
+        ...(input.failureKind ? { failureKind: input.failureKind } : {}),
         ...(input.verdict ? { verdict: input.verdict } : {}),
         ...(input.errorType !== undefined
           ? { errorType: input.errorType ?? null }
           : {}),
         ...(input.note !== undefined ? { note: input.note.slice(0, 500) } : {}),
-        ...(input.reviewStatus
+        ...(input.ownerAdminId !== undefined
+          ? { ownerAdminId: input.ownerAdminId }
+          : {}),
+        ...(input.linkedEvalCaseId !== undefined
+          ? { linkedEvalCaseId: input.linkedEvalCaseId }
+          : {}),
+        ...(reviewStatus
           ? { reviewedBy: adminId, reviewedAt: new Date() }
           : {}),
       },

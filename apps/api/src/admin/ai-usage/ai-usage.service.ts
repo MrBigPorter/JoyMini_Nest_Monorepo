@@ -42,6 +42,13 @@ export class AiUsageService {
 
     const dailyLimit = this.numberEnv('AI_DAILY_TOKEN_LIMIT', 200_000);
     const sessionLimit = this.numberEnv('AI_SESSION_TOKEN_LIMIT', 50_000);
+    const dailyCostLimit = this.numberEnv('AI_DAILY_COST_LIMIT', 0);
+    const pricing = this.getPricing();
+    const cost = this.calculateCost(
+      totals._sum.promptTokens ?? 0,
+      totals._sum.completionTokens ?? 0,
+      pricing,
+    );
 
     return {
       range: {
@@ -60,9 +67,12 @@ export class AiUsageService {
         requests: totals._sum.requests ?? 0,
         users: distinctUsers.length,
       },
+      pricing,
+      cost,
       quota: {
         dailyTokenLimit: dailyLimit,
         sessionTokenLimit: sessionLimit,
+        dailyCostLimit,
       },
       daily: daily.map((row) => ({
         date: row.date.toISOString().slice(0, 10),
@@ -70,6 +80,11 @@ export class AiUsageService {
         completionTokens: row._sum.completionTokens ?? 0,
         totalTokens: row._sum.totalTokens ?? 0,
         requests: row._sum.requests ?? 0,
+        ...this.calculateCost(
+          row._sum.promptTokens ?? 0,
+          row._sum.completionTokens ?? 0,
+          pricing,
+        ),
       })),
     };
   }
@@ -148,6 +163,10 @@ export class AiUsageService {
         const user = userMap.get(g.userId);
         const totalTokens = g._sum.totalTokens ?? 0;
         const maxDailyTokens = maxDailyByUser.get(g.userId) ?? 0;
+        const cost = this.calculateCost(
+          g._sum.promptTokens ?? 0,
+          g._sum.completionTokens ?? 0,
+        );
         return {
           userId: g.userId,
           nickname: user?.nickname ?? null,
@@ -158,6 +177,8 @@ export class AiUsageService {
           totalTokens,
           requests: g._sum.requests ?? 0,
           maxDailyTokens,
+          estimatedCost: cost.totalCost,
+          costCurrency: cost.currency,
           overDailyLimit: dailyLimit > 0 && maxDailyTokens >= dailyLimit,
         };
       }),
@@ -211,6 +232,10 @@ export class AiUsageService {
         totalTokens: totals._sum.totalTokens ?? 0,
         requests: totals._sum.requests ?? 0,
       },
+      cost: this.calculateCost(
+        totals._sum.promptTokens ?? 0,
+        totals._sum.completionTokens ?? 0,
+      ),
       quota: { dailyTokenLimit: dailyLimit },
       daily: rows.map((row) => ({
         date: row.date.toISOString().slice(0, 10),
@@ -229,6 +254,33 @@ export class AiUsageService {
       ? new Date(`${from}T00:00:00.000Z`)
       : new Date(end.getTime() - DEFAULT_DAYS * 24 * 60 * 60 * 1000);
     return { from: start, to: end };
+  }
+
+  private getPricing() {
+    const inputPer1M = this.numberEnv('AI_PRICE_INPUT_PER_1M', 0);
+    const outputPer1M = this.numberEnv('AI_PRICE_OUTPUT_PER_1M', 0);
+    return {
+      inputPer1M,
+      outputPer1M,
+      currency: process.env.AI_COST_CURRENCY ?? 'USD',
+      configured: inputPer1M > 0 || outputPer1M > 0,
+    };
+  }
+
+  private calculateCost(
+    promptTokens: number,
+    completionTokens: number,
+    pricing = this.getPricing(),
+  ) {
+    const inputCost = (promptTokens / 1_000_000) * pricing.inputPer1M;
+    const outputCost = (completionTokens / 1_000_000) * pricing.outputPer1M;
+    return {
+      inputCost: Number(inputCost.toFixed(6)),
+      outputCost: Number(outputCost.toFixed(6)),
+      totalCost: Number((inputCost + outputCost).toFixed(6)),
+      currency: pricing.currency,
+      configured: pricing.configured,
+    };
   }
 
   private numberEnv(key: string, fallback: number): number {

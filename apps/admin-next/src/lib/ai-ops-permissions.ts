@@ -28,3 +28,7 @@ export function canReadContext(role: string): boolean {
 export function canTriageFeedback(role: string): boolean {
   return role === 'SUPER_ADMIN' || role === 'ADMIN';
 }
+
+export function canTriageSecurity(role: string): boolean {
+  return role === 'SUPER_ADMIN' || role === 'ADMIN';
+}

@@ -1,6 +1,12 @@
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import {
   makeUseRequest,
   PageHeaderMock,
@@ -9,9 +15,9 @@ import {
 
 const mockUseRequest = vi.hoisted(() => vi.fn());
 const mockGetFeedbackList = vi.hoisted(() => vi.fn());
+const mockGetFeedbackSummary = vi.hoisted(() => vi.fn());
 const mockUpdateFeedback = vi.hoisted(() => vi.fn());
 const mockListDatasets = vi.hoisted(() => vi.fn());
-const mockGetDataset = vi.hoisted(() => vi.fn());
 const mockRagSearch = vi.hoisted(() => vi.fn());
 const mockQualityStats = vi.hoisted(() => vi.fn());
 const mockCanTriage = vi.hoisted(() => vi.fn(() => true));
@@ -23,11 +29,12 @@ vi.mock('ahooks', () => ({
 vi.mock('@/api', () => ({
   chatApi: {
     getFeedbackList: (...args: unknown[]) => mockGetFeedbackList(...args),
+    getFeedbackSummary: (...args: unknown[]) => mockGetFeedbackSummary(...args),
   },
   aiQualityApi: {
     updateFeedback: (...args: unknown[]) => mockUpdateFeedback(...args),
     listDatasets: (...args: unknown[]) => mockListDatasets(...args),
-    getDataset: (...args: unknown[]) => mockGetDataset(...args),
+    getDataset: vi.fn(),
     createDataset: vi.fn(),
     addCases: vi.fn(),
     startRun: vi.fn(),
@@ -66,7 +73,20 @@ const feedback = {
   note: null,
   adminId: null,
   reviewStatus: 'PENDING',
+  failureKind: 'UNEXPECTED_TRANSFER',
+  resolution: 'OPEN',
   createdAt: '2026-01-01T00:00:00.000Z',
+};
+
+const summary = {
+  total: 12,
+  pending: 7,
+  byFailureKind: [
+    { failureKind: 'MODEL_ERROR', count: 2 },
+    { failureKind: 'SERVICE_ERROR', count: 1 },
+    { failureKind: 'UNEXPECTED_TRANSFER', count: 3 },
+  ],
+  byResolution: [{ resolution: 'ADDED_TO_EVAL', count: 4 }],
 };
 
 const stats = {
@@ -96,6 +116,39 @@ const datasets = [
   },
 ];
 
+function wireFeedback(
+  options: {
+    summaryData?: unknown;
+    listData?: unknown;
+    summaryError?: Error;
+    listError?: Error;
+    refresh?: () => void;
+  } = {},
+) {
+  const refresh = options.refresh ?? vi.fn();
+  let index = 0;
+  mockUseRequest.mockImplementation((service: unknown) => {
+    if (typeof service === 'function') void (service as () => unknown)();
+    const isSummary = index % 2 === 0;
+    index += 1;
+    if (isSummary) {
+      return {
+        ...makeUseRequest(options.summaryData ?? summary),
+        ...(options.summaryError ? { error: options.summaryError } : {}),
+        refresh,
+      };
+    }
+    return {
+      ...makeUseRequest(
+        options.listData ?? { list: [feedback], total: 1 },
+      ),
+      ...(options.listError ? { error: options.listError } : {}),
+      refresh,
+    };
+  });
+  return refresh;
+}
+
 function openTab(name: string) {
   fireEvent.click(screen.getByRole('button', { name }));
 }
@@ -106,12 +159,11 @@ describe('AiQualityPage', () => {
     mockCanTriage.mockReturnValue(true);
     mockUpdateFeedback.mockResolvedValue({});
     mockGetFeedbackList.mockResolvedValue({ list: [feedback], total: 1 });
+    mockGetFeedbackSummary.mockResolvedValue(summary);
     mockListDatasets.mockResolvedValue(datasets);
     mockRagSearch.mockResolvedValue({ results: [], debug: {} });
     mockQualityStats.mockResolvedValue(stats);
-    mockUseRequest.mockReturnValue(
-      makeUseRequest({ list: [feedback], total: 1 }),
-    );
+    wireFeedback();
     vi.spyOn(window, 'prompt').mockReturnValue('已确认是模型答非所问');
   });
 
@@ -128,14 +180,31 @@ describe('AiQualityPage', () => {
     expect(screen.getByRole('button', { name: '知识质量' })).toBeTruthy();
   });
 
-  it('translates feedback source, signal and review status', () => {
+  it('renders feedback summary KPI cards from the taxonomy summary', () => {
     render(<AiQualityPage />);
 
-    expect(screen.getByText('隐式信号')).toBeTruthy();
-    expect(screen.getByText('转人工')).toBeTruthy();
     expect(screen.getAllByText('待处理').length).toBeGreaterThan(0);
-    expect(screen.getByText('确认问题')).toBeTruthy();
-    expect(screen.getByText('排除')).toBeTruthy();
+    expect(screen.getAllByText('模型答错').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('服务故障').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('误转').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('已进回归').length).toBeGreaterThan(0);
+    expect(screen.getByText('7')).toBeTruthy();
+    expect(screen.getByText('2')).toBeTruthy();
+    expect(screen.getByText('4')).toBeTruthy();
+    expect(mockGetFeedbackSummary).toHaveBeenCalled();
+  });
+
+  it('translates feedback source, signal, attribution and resolution', () => {
+    render(<AiQualityPage />);
+
+    const table = screen.getByRole('table');
+    expect(within(table).getByText('隐式信号')).toBeTruthy();
+    expect(within(table).getByText('转人工')).toBeTruthy();
+    expect(within(table).getAllByText('误转').length).toBeGreaterThan(0);
+    expect(within(table).getAllByText('待处理').length).toBeGreaterThan(0);
+    expect(within(table).getAllByText('-').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: '确认问题' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: '排除' })).toBeTruthy();
 
     const link = screen.getByRole('link', { name: '查看上下文' });
     expect(link.getAttribute('href')).toBe(
@@ -143,23 +212,40 @@ describe('AiQualityPage', () => {
     );
   });
 
-  it('sends REVIEWED with the operator note', async () => {
-    const refresh = vi.fn();
-    mockUseRequest.mockReturnValue({
-      ...makeUseRequest({ list: [feedback], total: 1 }),
-      refresh,
-    });
+  it('sends resolution and the selected failure kind on triage', async () => {
+    const refresh = wireFeedback();
     render(<AiQualityPage />);
 
+    fireEvent.change(screen.getByLabelText('主要原因'), {
+      target: { value: 'MODEL_ERROR' },
+    });
     fireEvent.click(screen.getByRole('button', { name: '确认问题' }));
 
     await waitFor(() =>
       expect(mockUpdateFeedback).toHaveBeenCalledWith('fb-1', {
         reviewStatus: 'REVIEWED',
+        resolution: 'CONFIRMED',
+        failureKind: 'MODEL_ERROR',
         note: '已确认是模型答非所问',
       }),
     );
     expect(refresh).toHaveBeenCalled();
+  });
+
+  it('sends IGNORED + EXCLUDED from the row quick action', async () => {
+    wireFeedback();
+    render(<AiQualityPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: '排除' }));
+
+    await waitFor(() =>
+      expect(mockUpdateFeedback).toHaveBeenCalledWith('fb-1', {
+        reviewStatus: 'IGNORED',
+        resolution: 'EXCLUDED',
+        failureKind: 'UNKNOWN',
+        note: '已确认是模型答非所问',
+      }),
+    );
   });
 
   it('hides triage actions but keeps status and context for read-only roles', () => {
@@ -168,15 +254,37 @@ describe('AiQualityPage', () => {
 
     expect(screen.queryByRole('button', { name: '确认问题' })).toBeNull();
     expect(screen.queryByRole('button', { name: '排除' })).toBeNull();
+    expect(screen.queryByRole('button', { name: '开始质检' })).toBeNull();
+    expect(screen.queryByLabelText('主要原因')).toBeNull();
     expect(screen.getByText('只读')).toBeTruthy();
     expect(screen.getAllByText('待处理').length).toBeGreaterThan(0);
     expect(screen.getByRole('link', { name: '查看上下文' })).toBeTruthy();
   });
 
+  it('passes failureKind and resolution filters to the list query', async () => {
+    render(<AiQualityPage />);
+
+    fireEvent.change(screen.getByLabelText('归因筛选'), {
+      target: { value: 'MODEL_ERROR' },
+    });
+    fireEvent.change(screen.getByLabelText('处理状态筛选'), {
+      target: { value: 'CONFIRMED' },
+    });
+
+    await waitFor(() =>
+      expect(mockGetFeedbackList).toHaveBeenLastCalledWith({
+        page: 1,
+        pageSize: 20,
+        failureKind: 'MODEL_ERROR',
+        resolution: 'CONFIRMED',
+      }),
+    );
+  });
+
   it('shows an error banner instead of the empty state when the request fails', () => {
-    mockUseRequest.mockReturnValue({
-      ...makeUseRequest({ list: [], total: 0 }),
-      error: new Error('feedback down'),
+    wireFeedback({
+      listData: { list: [], total: 0 },
+      listError: new Error('feedback down'),
     });
     render(<AiQualityPage />);
 
@@ -184,17 +292,22 @@ describe('AiQualityPage', () => {
     expect(screen.queryByText('暂无反馈')).toBeNull();
   });
 
+  it('shows an error banner when the summary request fails', () => {
+    wireFeedback({ summaryError: new Error('summary down') });
+    render(<AiQualityPage />);
+
+    expect(screen.getByText('反馈汇总加载失败，请重试')).toBeTruthy();
+  });
+
   it('shows the empty state only when the request has no error', () => {
-    mockUseRequest.mockReturnValue(makeUseRequest({ list: [], total: 0 }));
+    wireFeedback({ listData: { list: [], total: 0 } });
     render(<AiQualityPage />);
 
     expect(screen.getByText('暂无反馈')).toBeTruthy();
   });
 
   it('keeps the JSON import behind a collapsed advanced-mode toggle', () => {
-    mockUseRequest
-      .mockReturnValueOnce(makeUseRequest({ list: [], total: 0 }))
-      .mockReturnValue(makeUseRequest(datasets));
+    mockUseRequest.mockReturnValue(makeUseRequest(datasets));
     render(<AiQualityPage />);
     openTab('回归测试');
 
