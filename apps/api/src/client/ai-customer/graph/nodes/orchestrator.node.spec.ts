@@ -239,6 +239,28 @@ describe('orchestrator · 转人工排序（N-7 回归）', () => {
     });
   });
 
+  it('纠正后再提旧实体：先澄清，不执行 Agent', async () => {
+    const nodeWithContext = createOrchestratorNode({} as any, {} as any);
+    (runStandardAgent as jest.Mock).mockClear();
+
+    const result = await nodeWithContext(
+      makeState('说说手机', [{ label: 'order', score: 0.95 }], {
+        intent: 'order',
+        contextState: {
+          activeEntity: '包包',
+          slots: {},
+          corrections: [{ from: '苹果手机', to: '包包', at: Date.now() }],
+          unresolved: [],
+        },
+      }),
+    );
+
+    const last = result.messages[result.messages.length - 1];
+    expect(String(last.content)).toContain('苹果手机');
+    expect(String(last.content)).toContain('包包');
+    expect(runStandardAgent).not.toHaveBeenCalled();
+  });
+
   it('agent 返回 [TRANSFER_TO_HUMAN] 时，也要补一条 transfer 事件（agent_request）', async () => {
     // 这是第二条转人工出口：工具/agent 自己判定要转人工。
     // 以前只置了 transferToHuman + transferReason，没发 transfer 事件，

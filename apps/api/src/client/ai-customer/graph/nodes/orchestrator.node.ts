@@ -82,6 +82,7 @@ import {
   AGENT_ERROR_MSG,
 } from './orchestrator-utils/result-utils';
 import { detectTransferRequest } from './orchestrator-utils/transfer-detector';
+import { updateContextState } from '@api/client/ai-customer/graph/utils/context-state-utils';
 import {
   createFlowAccumulator,
   finalizeFlowState,
@@ -241,6 +242,9 @@ export const createOrchestratorNode =
     //   → "我要转人工" 反而永远转不出去。
     // 所以先看"是不是要找人工"，再看他"要办什么业务"。
     const userInput = extractUserInput(state);
+    // 结构化对话状态每轮更新：改口覆盖旧实体，旧实体只进 corrections。
+    const contextUpdate = updateContextState(state.contextState, userInput);
+    const nextContextState = contextUpdate.state;
     const transfer = detectTransferRequest(userInput, state);
     if (transfer.shouldTransfer) {
       logger.log(
@@ -285,6 +289,7 @@ export const createOrchestratorNode =
           pendingConfirm: null,
           ragSources: [],
           flowState: preserveFlowState(state),
+          contextState: nextContextState,
         };
       } catch (err) {
         logger.warn(
@@ -297,8 +302,32 @@ export const createOrchestratorNode =
           pendingConfirm: null,
           ragSources: [],
           flowState: preserveFlowState(state),
+          contextState: nextContextState,
         };
       }
+    }
+
+    // ================================================================
+    // 0.5 指代不明 → 先澄清，不进入 Agent
+    // ================================================================
+    // 例：先说苹果手机，改口包包，再说“说说手机”。
+    // 旧实体仍在 corrections 里，但当前有效实体是包包；此时猜哪个都错。
+    if (contextUpdate.clarification) {
+      logger.log(
+        `[orchestrator] clarification required: activeEntity=${nextContextState.activeEntity}`,
+      );
+      return {
+        messages: [
+          ...state.messages,
+          new AIMessage(contextUpdate.clarification),
+        ],
+        previousIntent: state.intent,
+        labels: [],
+        pendingConfirm: null,
+        ragSources: [],
+        flowState: preserveFlowState(state),
+        contextState: nextContextState,
+      };
     }
 
     // ================================================================
@@ -316,6 +345,7 @@ export const createOrchestratorNode =
         ...(await handleGeneralChat(state, llmConfig)),
         ragSources: [],
         flowState: finalizeFlowState(flowAccumulator, targetFlowType),
+        contextState: nextContextState,
       };
     }
 
@@ -380,6 +410,7 @@ export const createOrchestratorNode =
       return {
         ...(await handleGeneralChat(state, llmConfig)),
         flowState: finalizeFlowState(flowAccumulator, targetFlowType),
+        contextState: nextContextState,
       };
     }
 
@@ -620,6 +651,7 @@ export const createOrchestratorNode =
               registry,
               logger,
               flowDataAccumulator: flowAccumulator,
+              contextState: nextContextState,
             });
 
           // 日志：记录该 Agent 的执行上下文和工具绑定情况
@@ -717,6 +749,7 @@ export const createOrchestratorNode =
         flowState: finalizeFlowState(flowAccumulator, targetFlowType, {
           forceStep: 'CONFIRMING',
         }),
+        contextState: nextContextState,
       };
       return orchestratorResult;
     }
@@ -752,6 +785,7 @@ export const createOrchestratorNode =
       flowState: hasTransferRequest
         ? preserveFlowState(state)
         : finalizeFlowState(flowAccumulator, targetFlowType),
+      contextState: nextContextState,
     };
 
     // debug=true 时写入执行流水线追踪数据

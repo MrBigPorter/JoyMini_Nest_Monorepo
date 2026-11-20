@@ -14,3 +14,12 @@ export const MAX_ITERATIONS = 3;
  * Adjust based on actual token usage monitoring.
  */
 export const MAX_CONTEXT_MESSAGES = 20;
+
+/**
+ * 发给模型的上下文 token 预算（按字符数近似，1 token ≈ 4 chars）。
+ * 超过预算时按“消息组”从旧到新裁剪，工具调用与结果不可拆开。
+ */
+export const CONTEXT_TOKEN_BUDGET = 6_000;
+
+/** 无论如何都保留的最近消息条数，避免预算估算偏低时把当前问题裁掉。 */
+export const MIN_CONTEXT_MESSAGES = 6;

@@ -248,6 +248,25 @@ export interface RagCitation {
 // AgentState — LangGraph State Schema
 // ============================================================
 
+/** 一次对话内的结构化状态：当前实体、槽位、纠正历史、未解决问题。 */
+export interface ConversationContextState {
+  /** 当前有效实体（用户改口后被覆盖） */
+  activeEntity: string;
+  /** 已收集的槽位，如 { amount: '500' } */
+  slots: Record<string, any>;
+  /** 纠正历史：from 是错误实体，to 是正确实体 */
+  corrections: { from: string; to: string; at: number }[];
+  /** 尚未解决的问题 */
+  unresolved: string[];
+}
+
+export const emptyContextState = (): ConversationContextState => ({
+  activeEntity: '',
+  slots: {},
+  corrections: [],
+  unresolved: [],
+});
+
 export const AgentState = Annotation.Root({
   /**
    * messages — 对话消息列表
@@ -354,6 +373,21 @@ export const AgentState = Annotation.Root({
   }>({
     reducer: (a, b) => b,
     default: () => ({ activeFlow: '', step: '', data: {} }),
+  }),
+
+  /**
+   * contextState — 对话内结构化状态（实体/槽位/纠正/未解决）
+   *
+   * 与 flowState 分开：
+   *   - flowState 记录业务流程走到哪一步
+   *   - contextState 记录“用户当前在说哪个东西”
+   *
+   * 用户改口时直接覆盖 activeEntity，不把旧实体当成并列候选。
+   * 该字段随 checkpoint 持久化，下一轮可直接读取。
+   */
+  contextState: Annotation<ConversationContextState>({
+    reducer: (_a, b) => b ?? emptyContextState(),
+    default: () => emptyContextState(),
   }),
 
   /**

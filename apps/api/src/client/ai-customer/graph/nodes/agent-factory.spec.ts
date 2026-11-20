@@ -74,6 +74,33 @@ describe('runStandardAgent · flowState 接通', () => {
     expect(result.flowDataAccumulator).toBe(accumulator);
   });
 
+  it('结构化上下文作为独立 system 消息注入，不写进历史消息', async () => {
+    const registry = makeRegistry();
+
+    await runStandardAgent({
+      userId: 'u1',
+      messages: [],
+      promptConfig: promptConfig as any,
+      tag: 'wallet',
+      agentName: 'wallet',
+      llmConfig: {} as any,
+      registry: registry as any,
+      logger: { log: jest.fn(), error: jest.fn() } as any,
+      contextState: {
+        activeEntity: '包包',
+        slots: {},
+        corrections: [{ from: '苹果手机', to: '包包', at: 1 }],
+        unresolved: [],
+      },
+    });
+
+    const initialMessages = (runAgentLoop as jest.Mock).mock.calls[0][0]
+      .initialMessages;
+    expect(initialMessages[0].content).toContain('You are wallet assistant');
+    expect(initialMessages[1].content).toContain('activeEntity: 包包');
+    expect(initialMessages[1].content).toContain('苹果手机 -> 包包');
+  });
+
   it('不再强制关闭 flowContext：prompt 里出现当前流程状态', async () => {
     const registry = makeRegistry();
 

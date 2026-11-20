@@ -16,6 +16,10 @@ import {
   RAG_FALLBACK_PROMPT,
 } from '@api/client/ai-customer/graph/agents/prompts/rag-prompt';
 import { GENERAL_CHAT_PROMPT } from '@api/client/ai-customer/graph/agents/prompts/general-chat-prompt';
+import {
+  formatContextSummary,
+  trimContextToBudget,
+} from '@api/client/ai-customer/graph/utils/context-manager';
 import { Logger } from '@nestjs/common';
 
 /**
@@ -26,14 +30,19 @@ export async function handleGeneralChat(
   llmConfig: LlmProviderConfig,
 ): Promise<OrchestratorStateUpdate> {
   const userInput = extractUserInput(state);
-  const contextMessages = state.messages
-    .slice(-10)
+  const contextMessages = trimContextToBudget(state.messages, {
+    maxTokens: 3_000,
+  })
     .filter((m: any) => m.type === 'human' || m.type === 'ai')
     .slice(0, -1);
-  const conversationContext =
+  const conversationContext = [
+    formatContextSummary(state.contextState),
     contextMessages.length > 0
       ? contextMessages.map(formatMessage).join('\n')
-      : '(no recent conversation)';
+      : '(no recent conversation)',
+  ]
+    .filter(Boolean)
+    .join('\n\n');
   const model = createLLM(llmConfig, { temperature: 0.7 });
   const chain = GENERAL_CHAT_PROMPT.pipe(model).pipe(new StringOutputParser());
   const result = await chain.invoke({ input: userInput, conversationContext });

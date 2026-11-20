@@ -35,7 +35,7 @@
  * 此工厂定义"Agent 如何执行"（运行时逻辑）。
  */
 
-import { BaseMessage } from '@langchain/core/messages';
+import { BaseMessage, SystemMessage } from '@langchain/core/messages';
 import { Logger } from '@nestjs/common';
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { AgentPromptConfig } from '@api/client/ai-customer/graph/agents/prompt-builder';
@@ -52,8 +52,13 @@ import {
 } from '@api/client/ai-customer/graph/agents/agent-runner';
 import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-registry.service';
 import { LlmProviderConfig } from '@api/client/ai-customer/graph/llm-factory';
-import { MAX_CONTEXT_MESSAGES } from '@api/client/ai-customer/graph/constants';
+import { CONTEXT_TOKEN_BUDGET } from '@api/client/ai-customer/graph/constants';
 import { AgentNodeOutput } from '@api/client/ai-customer/graph/types/agent-types';
+import { ConversationContextState } from '@api/client/ai-customer/graph/state';
+import {
+  formatContextSummary,
+  trimContextToBudget,
+} from '@api/client/ai-customer/graph/utils/context-manager';
 
 // ============================================================
 // Interfaces
@@ -84,6 +89,12 @@ export interface RunStandardAgentOptions {
    * 的结果会进入对象，orchestrator 在一个流水线结束后写回 state.flowState。
    */
   flowDataAccumulator?: FlowDataAccumulator;
+  /** 对话内实体/纠正状态；会作为独立 SystemMessage 注入，不写进历史。 */
+  contextState?: ConversationContextState;
+  /** 当前待确认操作（用于摘要保护，不让确认信息被裁掉）。 */
+  pendingConfirm?: { action?: string } | null;
+  /** 覆盖默认 token 预算（测试/特殊 Agent 用）。 */
+  contextTokenBudget?: number;
 }
 
 export interface RunStandardAgentResult {
@@ -142,8 +153,10 @@ export async function runStandardAgent(
   });
   const llmWithTools = createAgentLLM(opts.llmConfig, allTools);
 
-  // ② Filter — 上下文过滤（取最近 N 条消息）
-  const contextMessages = opts.messages.slice(-MAX_CONTEXT_MESSAGES);
+  // ② Filter — 按 token 预算裁剪，工具调用与结果成组保留
+  const contextMessages = trimContextToBudget(opts.messages, {
+    maxTokens: opts.contextTokenBudget ?? CONTEXT_TOKEN_BUDGET,
+  });
 
   // ③ Prompt — 构建系统提示词 + 初始消息
   // flowContext 由 promptConfig 声明（order/wallet/kyc 等需要），
@@ -155,7 +168,14 @@ export async function runStandardAgent(
     flowStatus:
       opts.flowDataAccumulator?.flowStatus ?? opts.promptConfig.flowStatus,
   });
-  const initialMessages = buildInitialMessages(systemPrompt, contextMessages);
+  // 结构化摘要作为独立 system 消息注入：不写进 state.messages，
+  // 下一轮不会伪装成用户/AI 原话重复出现。
+  const summary = formatContextSummary(opts.contextState, opts.pendingConfirm);
+  const initialMessages = buildInitialMessages(
+    systemPrompt,
+    contextMessages,
+    summary ? { inject: [new SystemMessage(summary)] } : undefined,
+  );
 
   // ④ Loop — 执行 ReAct Agent 循环
   const result = await runAgentLoop({
