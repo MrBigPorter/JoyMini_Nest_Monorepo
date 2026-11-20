@@ -19,7 +19,7 @@
 - 存款、取款、购买、领券、抽奖等真实资金/库存流程不在 P0 执行；由人工后续验证
 - 消息间隔 5–60 秒；每会话 2–6 轮
 - 不把 token/手机号写入日志；运行态文件放 `tools/simulator/.runtime/` 并 gitignore
-- 不新增数据库表；数据隔离靠 `businessId` + 账号昵称/手机号前缀
+- 不新增数据库表；数据隔离靠 `Conversation.aiMetadata.trafficSource` + 专用渠道 botUserId
 
 ## Review Focus
 
@@ -333,7 +333,7 @@ Expected: 无进程崩溃；summary 覆盖 9 intents；队列 waiting 不持续�
 
 - [ ] **Step 4: 安全检查**
 
-查询 DB：`ChatMessage` 中无 confirm 执行记录；`Conversation.businessId='simulation_support_v1'` 全部隔离；后台 `/ai-ops` 有数据。
+查询 DB：`ChatMessage` 中无 confirm 执行记录；`Conversation.aiMetadata->>'trafficSource'='simulation_support_v1'` 全部隔离；后台 `/ai-ops` 有数据。
 
 - [ ] **Step 5: Commit 报告**
 

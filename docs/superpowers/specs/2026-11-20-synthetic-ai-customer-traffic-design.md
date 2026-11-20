@@ -77,8 +77,9 @@ Admin AI Ops 页面 / AiEvalRun / 指标
 
 - `SupportChannel.id = simulation_support_v1`
 - 一次性创建（Prisma seed 或 admin API），带 bot 占位用户
-- 所有模拟会话的 `businessId` 固定为该 ID
-- 后台按 `businessId` 过滤；后续再加 `trafficSource` 字段
+- 新建 SUPPORT 会话时写入 `Conversation.aiMetadata.trafficSource = 'simulation_support_v1'`
+- `Conversation.businessId` 是拼团业务唯一钩子，不能用于渠道隔离
+- 后台按 `aiMetadata.trafficSource` 过滤
 
 ### 6.2 账号池
 
@@ -125,9 +126,9 @@ Admin AI Ops 页面 / AiEvalRun / 指标
 
 ### 数据隔离
 
-- 会话：`businessId=simulation_support_v1`
-- 用户：昵称/手机号前缀 `sim_`
-- 后台页面后续加「模拟流量」过滤；先按 businessId 区分
+- 会话：`aiMetadata.trafficSource=simulation_support_v1`
+- 用户：专用渠道的 botUserId + 生成手机号；昵称是后端 `ms_*`，不强制改
+- 后台页面后续加「模拟流量」过滤；先按 aiMetadata.trafficSource 区分
 
 ### 安全阀
 

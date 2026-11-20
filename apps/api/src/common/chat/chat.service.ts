@@ -768,6 +768,9 @@ export class ChatService {
           status: ConversationStatus.NORMAL,
           lastMsgContent: 'Welcome!',
           lastMsgTime: new Date(),
+          // 客服渠道来源标记：用于区分正式客服与合成流量/测试渠道。
+          // 不写 businessId（唯一键属于拼团业务钩子），避免冲突。
+          aiMetadata: { trafficSource: businessId },
           members: {
             create: [
               { userId, role: ChatMemberRole.MEMBER },
