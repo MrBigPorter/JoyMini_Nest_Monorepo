@@ -103,7 +103,7 @@ function AnomalyCard({
   label: string;
   value: number | string | null | undefined;
   hint?: string;
-  href: string;
+  href?: string;
   error?: unknown;
   updatedAt?: string | null;
   testId?: string;
@@ -111,12 +111,10 @@ function AnomalyCard({
   const isError = Boolean(error);
   const display = isError ? '—' : (value ?? '—');
   const dataTime = formatDataTime(updatedAt);
-  return (
-    <Link
-      href={href}
-      data-testid={testId}
-      className="block rounded-xl border border-gray-100 bg-white p-4 hover:bg-gray-50 dark:border-white/10 dark:bg-gray-900 dark:hover:bg-white/5"
-    >
+  const className =
+    'block rounded-xl border border-gray-100 bg-white p-4 dark:border-white/10 dark:bg-gray-900';
+  const content = (
+    <>
       <div className="flex items-start justify-between gap-2">
         <div className="text-xs text-gray-500">{label}</div>
         {!isError && typeof value === 'number' && value > 0 ? (
@@ -144,7 +142,21 @@ function AnomalyCard({
             ? `数据截止 ${dataTime}`
             : '数据加载中…'}
       </div>
+    </>
+  );
+
+  return href ? (
+    <Link
+      href={href}
+      data-testid={testId}
+      className={`${className} hover:bg-gray-50 dark:hover:bg-white/5`}
+    >
+      {content}
     </Link>
+  ) : (
+    <div data-testid={testId} className={className}>
+      {content}
+    </div>
   );
 }
 
@@ -312,7 +324,7 @@ export default function AiOpsOverviewPage() {
       updatedAt: slaDataAt,
     });
   }
-  if (securityReady && (securityNew ?? 0) > 0) {
+  if (engineeringVisible && securityReady && (securityNew ?? 0) > 0) {
     attentionRows.push({
       key: 'security-new',
       label: '安全待处理',
@@ -411,19 +423,25 @@ export default function AiOpsOverviewPage() {
           label="AI 队列等待"
           value={queueLoading ? '—' : (aiQueue?.waiting ?? 0)}
           hint={`active ${aiQueue?.active ?? 0} / failed ${aiQueue?.failed ?? 0}`}
-          href="/ai-ops/runtime"
+          href={engineeringVisible ? '/ai-ops/runtime' : undefined}
         />
         <StatCard
           label="AI 死信"
           value={failedError ? '—' : failedCount}
-          hint={failedError ? '加载失败' : '需在 Runtime 页重放'}
-          href="/ai-ops/runtime"
+          hint={
+            failedError
+              ? '加载失败'
+              : engineeringVisible
+                ? '需在 Runtime 页重放'
+                : '需联系管理员处理'
+          }
+          href={engineeringVisible ? '/ai-ops/runtime' : undefined}
         />
         <StatCard
           label="Outbox 失败"
           value={outboxError ? '—' : outboxFailed}
           hint={outboxError ? '加载失败' : '消息已落库但未入队'}
-          href="/ai-ops/runtime"
+          href={engineeringVisible ? '/ai-ops/runtime' : undefined}
         />
         <StatCard
           label="今日 Token（UTC）"
@@ -437,13 +455,13 @@ export default function AiOpsOverviewPage() {
               ? '加载失败'
               : `${summary?.totals.requests ?? 0} requests`
           }
-          href="/ai-ops/usage"
+          href={engineeringVisible ? '/ai-ops/usage' : undefined}
         />
         <StatCard
           label="RAG 向量队列"
           value={ragQueue?.waiting ?? 0}
           hint={`failed ${ragQueue?.failed ?? 0}`}
-          href="/ai-ops/runtime"
+          href={engineeringVisible ? '/ai-ops/runtime' : undefined}
         />
       </div>
 
@@ -512,7 +530,7 @@ export default function AiOpsOverviewPage() {
             error={securityError}
             updatedAt={securityDataAt}
             hint="NEW 状态 / 全部安全事件"
-            href="/ai-ops/security"
+            href={engineeringVisible ? '/ai-ops/security' : undefined}
             testId="anomaly-security"
           />
           <AnomalyCard

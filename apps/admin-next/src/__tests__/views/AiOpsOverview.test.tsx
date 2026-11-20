@@ -335,6 +335,15 @@ describe('AiOpsOverviewPage', () => {
     expect(screen.queryByRole('link', { name: /^AI Runtime$/ })).toBeNull();
     expect(screen.queryByRole('link', { name: /^安全事件$/ })).toBeNull();
     expect(screen.queryByRole('link', { name: /^客户记忆$/ })).toBeNull();
+    expect(
+      screen.queryByRole('link', { name: /AI 队列等待/ }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole('link', { name: /今日 Token/ }),
+    ).toBeNull();
+    expect(
+      screen.getByTestId('anomaly-security').tagName,
+    ).not.toBe('A');
   });
 
   it('shows engineering quick links for ADMIN', () => {
@@ -343,5 +352,9 @@ describe('AiOpsOverviewPage', () => {
 
     expect(screen.getByRole('link', { name: /^AI Runtime$/ })).toBeTruthy();
     expect(screen.getByRole('link', { name: /^客户记忆$/ })).toBeTruthy();
+    expect(
+      screen.getByRole('link', { name: /AI 队列等待/ }),
+    ).toBeTruthy();
+    expect(screen.getByTestId('anomaly-security').tagName).toBe('A');
   });
 });
