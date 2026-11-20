@@ -30,6 +30,8 @@ import { MeilisearchModule } from '@api/common/meilisearch/meilisearch.module';
 import { BlogModule } from '@api/blog/blog.module';
 import { AiCustomerModule } from '@api/client/ai-customer/ai-customer.module';
 import { AiQueueModule } from '@api/common/queue/ai-queue.module';
+import { AiTaskOutboxModule } from '@api/common/queue/ai-task-outbox.module';
+import { FlowVersioningModule } from '@api/client/ai-customer/flow-versioning/flow-versioning.module';
 
 // 根模块（第2步，挂子模块、配置、JWT等）
 @Module({
@@ -94,6 +96,12 @@ import { AiQueueModule } from '@api/common/queue/ai-queue.module';
           .default(60),
         EMAIL_OTP_MAX_ATTEMPTS: Joi.number().integer().positive().default(5),
         EMAIL_OTP_DEV_CODE: Joi.string().min(4).max(20).optional(),
+
+        // SMS OTP 固定码模式（无供应商账号时跑通流程；生产需第二道确认）
+        OTP_PROVIDER: Joi.string().valid('fixed', 'console').optional(),
+        OTP_FIXED_MODE: Joi.string().valid('true', 'false').optional(),
+        OTP_FIXED_CODE: Joi.string().min(4).max(20).optional(),
+        OTP_ALLOW_FIXED_IN_PROD: Joi.string().valid('true', 'false').optional(),
 
         CACHE_TTL: Joi.number().integer().positive().default(300),
         CACHE_PREFIX: Joi.string().default('lucky:'),
@@ -169,6 +177,8 @@ import { AiQueueModule } from '@api/common/queue/ai-queue.module';
     AiModule,
     MeilisearchModule,
     AiQueueModule,
+    AiTaskOutboxModule,
+    FlowVersioningModule,
     AiCustomerModule,
 
     // 其他模块：PrismaModule、ThrottlerModule、UsersModule、AuthModule 等

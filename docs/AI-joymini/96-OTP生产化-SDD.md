@@ -17,15 +17,15 @@
 
 ## 1. 现状（逐条核过代码）
 
-| # | 问题 | 位置 | 后果 |
-|:--:|---|---|---|
-| 1 | `console.log('[OTP]==> ... code=...')` 在**所有**环境执行 | `otp.service.ts:75` | 能看日志的人可直接登录 / 提现 |
-| 2 | 生产分支只有 `// TODO` + `return true` | `otp.service.ts:81` | 用户收不到码，注册登录全断 |
-| 3 | `OTP_PEPPER = process.env.OTP_PEPPER \|\| ''`，未配置不报错 | `otp.service.ts:14` | 哈希退化为 `sha256(phone:code:)`，6 位码离线可枚举 |
-| 4 | `isProd` 判据是「等于 production」，其余一律当开发 | `otp.service.ts:18` | `NODE_ENV` 拼错 / 缺失 → 固定码 `999999` 且接口直接返回 |
-| 5 | `requestIp: null` 写死 | `otp.service.ts:71` | 只能按手机号限流，换号即可绕过 |
-| 6 | **`verifyTimes` 每次尝试被 +2**（`updateMany` 一次 + 后续 `update` 再一次） | `otp.service.ts:130-159`（改前） | `maxVerifyTimes=5` 实际只允许 3 次 |
-| 7 | 查询用未清理的 `phone`，哈希用 `phone.trim()` 后的 `p` | `otp.service.ts:101` vs `:95`（改前） | 手机号带空格时查不到刚创建的单，报 `Otp not found` |
+|  #  | 问题                                                                        | 位置                                  | 后果                                                    |
+| :-: | --------------------------------------------------------------------------- | ------------------------------------- | ------------------------------------------------------- |
+|  1  | `console.log('[OTP]==> ... code=...')` 在**所有**环境执行                   | `otp.service.ts:75`                   | 能看日志的人可直接登录 / 提现                           |
+|  2  | 生产分支只有 `// TODO` + `return true`                                      | `otp.service.ts:81`                   | 用户收不到码，注册登录全断                              |
+|  3  | `OTP_PEPPER = process.env.OTP_PEPPER \|\| ''`，未配置不报错                 | `otp.service.ts:14`                   | 哈希退化为 `sha256(phone:code:)`，6 位码离线可枚举      |
+|  4  | `isProd` 判据是「等于 production」，其余一律当开发                          | `otp.service.ts:18`                   | `NODE_ENV` 拼错 / 缺失 → 固定码 `999999` 且接口直接返回 |
+|  5  | `requestIp: null` 写死                                                      | `otp.service.ts:71`                   | 只能按手机号限流，换号即可绕过                          |
+|  6  | **`verifyTimes` 每次尝试被 +2**（`updateMany` 一次 + 后续 `update` 再一次） | `otp.service.ts:130-159`（改前）      | `maxVerifyTimes=5` 实际只允许 3 次                      |
+|  7  | 查询用未清理的 `phone`，哈希用 `phone.trim()` 后的 `p`                      | `otp.service.ts:101` vs `:95`（改前） | 手机号带空格时查不到刚创建的单，报 `Otp not found`      |
 
 第 6、7 条为本次新发现，此前未在 #85 / #87 登记。
 
@@ -33,13 +33,13 @@
 
 ## 2. 改动清单
 
-| 文件 | 改动 |
-|---|---|
-| `apps/api/src/client/otp/sms.provider.ts` | **新建**：`SmsProvider` 接口 + `ConsoleSmsProvider`（开发）+ `UnconfiguredSmsProvider`（生产占位，**发送即抛错**） |
-| `apps/api/src/client/otp/otp.module.ts` | 以 `'SMS_PROVIDER'` 字符串 token 注册工厂，按 `NODE_ENV` 选择实现 |
-| `apps/api/src/client/otp/otp.service.ts` | 删明文日志；`isProd` → `isDev`（fail-closed）；删重复计数；写入 `requestIp`；`where` 统一用 `p`；发送改走 `SmsProvider`；`sendStatus` 不再抢跑 |
-| `apps/api/src/client/otp/otp.controller.ts` | `@RealIP()` 收取客户端 IP 并传给 service |
-| `apps/api/src/main.ts` | 生产环境 `OTP_PEPPER` 缺失或长度 < 16 → **启动即失败** |
+| 文件                                        | 改动                                                                                                                                           |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/api/src/client/otp/sms.provider.ts`   | **新建**：`SmsProvider` 接口 + `ConsoleSmsProvider`（开发）+ `UnconfiguredSmsProvider`（生产占位，**发送即抛错**）                             |
+| `apps/api/src/client/otp/otp.module.ts`     | 以 `'SMS_PROVIDER'` 字符串 token 注册工厂，按 `NODE_ENV` 选择实现                                                                              |
+| `apps/api/src/client/otp/otp.service.ts`    | 删明文日志；`isProd` → `isDev`（fail-closed）；删重复计数；写入 `requestIp`；`where` 统一用 `p`；发送改走 `SmsProvider`；`sendStatus` 不再抢跑 |
+| `apps/api/src/client/otp/otp.controller.ts` | `@RealIP()` 收取客户端 IP 并传给 service                                                                                                       |
+| `apps/api/src/main.ts`                      | 生产环境 `OTP_PEPPER` 缺失或长度 < 16 → **启动即失败**                                                                                         |
 
 ---
 
@@ -48,7 +48,7 @@
 ### 3.1 fail-closed：只认「明确是开发」
 
 ```ts
-const isDev = process.env.NODE_ENV === 'development';
+const isDev = process.env.NODE_ENV === "development";
 ```
 
 改前是 `isProd = NODE_ENV === 'production'`，即「除生产外全算开发」。
@@ -72,11 +72,11 @@ create({ sendStatus: PENDING })
 
 三种结局都如实反映现实：
 
-| 结局 | `sendStatus` | 接口返回 |
-|---|:--:|---|
-| 发送成功 | `SENT`(2) | 正常 |
-| 发送失败 | `FAILED`(3) | 抛错给前端 |
-| 未走到发送即中断 | `PENDING`(1) | 抛错 |
+| 结局             | `sendStatus` | 接口返回   |
+| ---------------- | :----------: | ---------- |
+| 发送成功         |  `SENT`(2)   | 正常       |
+| 发送失败         | `FAILED`(3)  | 抛错给前端 |
+| 未走到发送即中断 | `PENDING`(1) | 抛错       |
 
 与 [#95](./95-提现冻结状态机-SDD.md) 同一条原则：**谁拿到结果，谁才能写终态。**
 
@@ -88,28 +88,45 @@ create({ sendStatus: PENDING })
 providers: [
   OtpService,
   {
-    provide: 'SMS_PROVIDER',
+    provide: "SMS_PROVIDER",
     useFactory: () =>
-      process.env.NODE_ENV === 'production'
+      process.env.NODE_ENV === "production"
         ? new UnconfiguredSmsProvider()
         : new ConsoleSmsProvider(),
   },
-]
+];
 ```
 
 `UnconfiguredSmsProvider.send()` 直接抛 `NotImplementedException`。
 **生产未接供应商时，表现是「明确报错」，不是「假装成功」。**
 
+### 3.1 固定验证码演练模式（无供应商账号）
+
+没有 Semaphore / Twilio 账号时，用固定码跑通全流程：
+
+```bash
+OTP_PROVIDER=fixed
+OTP_FIXED_CODE=999999
+```
+
+- 请求不生成随机码，`sms.send()` 只打日志，接口返回 `{ devCode, fixed: true }`
+- 生产环境默认**禁止**；必须再加 `OTP_ALLOW_FIXED_IN_PROD=true`，否则启动直接失败
+- 本仓库的 `compose.prod.yml` 已按业务要求显式设置上述三项，生产同样使用固定码
+
+> ⚠️ **安全边界**：生产固定码意味着所有手机号共用一个 OTP，且 `/otp/request` 会返回该码。
+> 任何能访问接口的人都可以用固定码登录任意手机号。当前按业务要求**永久作为测试码**使用；
+> 若未来面向真实用户开放登录，必须删除 compose 中的三行并接入真实短信供应商。
+
 ---
 
 ## 4. 验证
 
-| 项 | 结果 |
-|---|---|
-| `yarn workspace @lucky/api tsc --noEmit` | EXIT=0 |
-| 全量测试 | **308 passed**；3 例失败仍是 `auth` / `flash-sale` 两个已知过期 suite，与本次无关 |
-| `grep -c 'console.log.*code=' otp.service.ts` | 0 |
-| `grep -c 'sendSmsDev' otp.service.ts` | 0 |
+| 项                                            | 结果                                                                              |
+| --------------------------------------------- | --------------------------------------------------------------------------------- |
+| `yarn workspace @lucky/api tsc --noEmit`      | EXIT=0                                                                            |
+| 全量测试                                      | **308 passed**；3 例失败仍是 `auth` / `flash-sale` 两个已知过期 suite，与本次无关 |
+| `grep -c 'console.log.*code=' otp.service.ts` | 0                                                                                 |
+| `grep -c 'sendSmsDev' otp.service.ts`         | 0                                                                                 |
 
 未做：真机收码验证（缺供应商账号）。
 

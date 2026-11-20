@@ -17,11 +17,11 @@
 
 ### 🥇 T0 — 先做（Day 0-2）
 
-| # | 任务 | 文件 | 产出 | 状态 |
-|:--:|---|---|---|:--:|
-| T0-1 | 提交工作区 16 个文件 | — | 基线 commit，`tsc --noEmit` 通过 | ✅ 2026-11-11 |
-| T0-2 | 结构化日志：traceId + 意图 + 耗时 + token | 新建 `common/logger/`，埋点 `ai-customer.service.ts`、`orchestrator.node.ts`、`rag-retrieval.service.ts` | 一条对话可按 traceId 串起来 | ✅ 2026-11-11 |
-| T0-3 | golden set + 回放脚本（Python） | 新建 `tools/eval/` | `tools/eval/run-replay.sh` 输出基线分 | ✅ 2026-11-12（63 题，准确率 68.2%，macro-F1 68.6%） |
+|  #   | 任务                                      | 文件                                                                                                     | 产出                                  |                         状态                         |
+| :--: | ----------------------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------- | :--------------------------------------------------: |
+| T0-1 | 提交工作区 16 个文件                      | —                                                                                                        | 基线 commit，`tsc --noEmit` 通过      |                    ✅ 2026-11-11                     |
+| T0-2 | 结构化日志：traceId + 意图 + 耗时 + token | 新建 `common/logger/`，埋点 `ai-customer.service.ts`、`orchestrator.node.ts`、`rag-retrieval.service.ts` | 一条对话可按 traceId 串起来           |                    ✅ 2026-11-11                     |
+| T0-3 | golden set + 回放脚本（Python）           | 新建 `tools/eval/`                                                                                       | `tools/eval/run-replay.sh` 输出基线分 | ✅ 2026-11-12（63 题，准确率 68.2%，macro-F1 68.6%） |
 
 > 为什么先做这 3 件：没有 T0-2 看不到问题，没有 T0-3 证明不了修好了。
 >
@@ -57,60 +57,61 @@
 
 ### 🥈 T1 — 安全与资金（Day 3-8）
 
-| # | 任务 | #85 ID | 文件 | 状态 |
-|:--:|---|:--:|---|:--:|
-| T1-1 | 生产 OTP：接短信 + 启动校验 pepper + 去明文日志 | P0-4 | `client/otp/otp.service.ts` | 🟡 2026-11-12 部分完成（供应商待接入，见 [#96 §5](./AI-joymini/96-OTP生产化-SDD.md)） |
-| T1-2 | 确认链路三洞：验码后再删 / TTL 对齐 300s / 复用 DTO 校验 | P1-7/17/18 | `ai-customer.service.ts`、`ai-action-confirm.service.ts` | ✅ 2026-11-12（单测 14 例，见 [#93 §3.1](./AI-joymini/93-确认链路三个洞-SDD.md)） |
-| T1-3 | 提现冻结状态机：审核只置 PROCESSING + `settleWithdrawal` | P0-3 | `admin/finance/finance.service.ts`、`client/wallet/client-wallet.service.ts` | ✅ 2026-11-12（单测 8 例，见 [#95 §5.1](./AI-joymini/95-提现冻结状态机-SDD.md)） |
-| T1-4 | Socket 成员校验 + AI 会话 IDOR + `AI_CONFIRM` 改私有房间 | P0-1/2 | `events.gateway.ts`、`ai-memory.service.ts`、`ai-customer.service.ts` | ✅ 2026-11-13（3 处入口 + 14 条测试） |
-| T1-5 | 领券原子扣减（含全项目并发审计，顺带修优惠券重复抵扣 / 抽奖发券超发） | P0-5 | `client/coupon/coupon.service.ts`、`client/orders/order.service.ts`、`common/lucky-draw/lucky-draw.service.ts` | ✅ 2026-11-13（超卖已修，4 条测试） |
-| T1-6 | 每人限领并发：`count()` + `create()` 可被同一用户并发突破 | P0-5 余项 | `client/coupon/coupon.service.ts` | ✅ 2026-11-13（检查后置 + 顺序测试） |
+|  #   | 任务                                                                  |   #85 ID   | 文件                                                                                                           |                                                         状态                                                          |
+| :--: | --------------------------------------------------------------------- | :--------: | -------------------------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------: |
+| T1-1 | 生产 OTP：接短信 + 启动校验 pepper + 去明文日志                       |    P0-4    | `client/otp/otp.service.ts`                                                                                    | ✅ 2026-11-20 生产永久使用测试码（`compose.prod.yml`，默认 `999999`，可用 `OTP_FIXED_CODE` 覆盖；不再计划接真实短信） |
+| T1-2 | 确认链路三洞：验码后再删 / TTL 对齐 300s / 复用 DTO 校验              | P1-7/17/18 | `ai-customer.service.ts`、`ai-action-confirm.service.ts`                                                       |                   ✅ 2026-11-12（单测 14 例，见 [#93 §3.1](./AI-joymini/93-确认链路三个洞-SDD.md)）                   |
+| T1-3 | 提现冻结状态机：审核只置 PROCESSING + `settleWithdrawal`              |    P0-3    | `admin/finance/finance.service.ts`、`client/wallet/client-wallet.service.ts`                                   |                   ✅ 2026-11-12（单测 8 例，见 [#95 §5.1](./AI-joymini/95-提现冻结状态机-SDD.md)）                    |
+| T1-4 | Socket 成员校验 + AI 会话 IDOR + `AI_CONFIRM` 改私有房间              |   P0-1/2   | `events.gateway.ts`、`ai-memory.service.ts`、`ai-customer.service.ts`                                          |                                         ✅ 2026-11-13（3 处入口 + 14 条测试）                                         |
+| T1-5 | 领券原子扣减（含全项目并发审计，顺带修优惠券重复抵扣 / 抽奖发券超发） |    P0-5    | `client/coupon/coupon.service.ts`、`client/orders/order.service.ts`、`common/lucky-draw/lucky-draw.service.ts` |                                          ✅ 2026-11-13（超卖已修，4 条测试）                                          |
+| T1-6 | 每人限领并发：`count()` + `create()` 可被同一用户并发突破             | P0-5 余项  | `client/coupon/coupon.service.ts`                                                                              |                                         ✅ 2026-11-13（检查后置 + 顺序测试）                                          |
 
 ### 🥉 T2 — AI 质量（Day 8-9）
 
-| # | 任务 | #85 ID | 文件 | 状态 |
-|:--:|---|:--:|---|:--:|
-| T2-1 | 转人工：词边界匹配 + 情绪分级 + 工单写入 + 消费者 | P1-19 | `transfer-detector.ts`、新增 admin 消费者 | ✅ 2026-11-19（强/弱负面分级 + SupportQueueChanged 事件消费者；见 #98） |
-| T2-2 | 意图阈值统一为单一常量 + 融合后再过滤 | P1-20 | `intent-classifier.ts`、`intent-router.node.ts`、`orchestrator.node.ts` | ✅ 2026-11-19（常量收口 + 门槛移到融合后；回放 83.7%→84.3%，rag 精确率 78.6%→80.0%） |
-| T2-3 | RAG：中文分词 + Layer 2 占位符 + 向量相关性门槛 | P1-21 | `rag-retrieval.service.ts` | ✅ 2026-11-20（分词/Layer2/RRF + rerank 相关性门卫；关键词层 Recall 0→89.9%，负样本误召回 100%→5%；见 [#104](./AI-joymini/104-RAG中文召回修复与分层验收.md)、[#105](./AI-joymini/105-RAG相关性门卫验收.md)） |
-| T2-4 | 流式白名单：帧类型白名单 + `step` 帧字段白名单（非「只转发最终文本」） | P1-22 | `ai-stream-frames.ts`、`ai-customer.controller.ts` | ✅ 2026-11-19（5 类帧 + `step/content/tool`；`ai-stream-frames.spec.ts` 9 例；开关 `AI_STREAM_FRAME_WHITELIST_ENABLED` 默认开启） |
-| T2-5 | **转人工闭环**：admin「待接入」列表 + 订阅 `AI_TRANSFER` 通知 + 超时定时回收（现在只在用户下条消息时懒判定） | N-13 / N-14 | `admin/chat/`、`admin-next/.../customer-service/`、新增 cron | ✅ 2026-11-19（S1/S2 + S3 实时推送 + S4 空闲回收；见 [#98 §14](./AI-joymini/98-转人工闭环-SDD.md)） |
-| T2-6 | **模型兜底**：`timeout 15s + maxRetries 1`；`degradeToHuman` 落固定话术 + 置 `awaiting_human` + 发 `AI_TRANSFER` + 记 `transfer{source:fallback}`；测试用故障注入（`__CHAOS__` 前缀 + Redis 开关，生产隔离） | N-15 | `graph/llm-factory.ts`、新增 `ai-failure-handler.ts` | ✅ 2026-11-12（单测 5 例 + E2E 第 9 场景实测，全套 9/9 PASS） |
-| T2-7 | **成本限额**：按天聚合客服 token，超阈值降级转人工 + 记 `cost.guard`（复用 blog budget 写法） | N-16 | `ai-customer.service.ts`、新增 cost-guard | ✅ 2026-11-19（日累计 + 会话累计两级配额，超限走 quota_exceeded 降级；见 reliable-ai-runtime 5.x） |
+|  #   | 任务                                                                                                                                                                                                         |   #85 ID    | 文件                                                                    |                                                                                                     状态                                                                                                     |
+| :--: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | :---------: | ----------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
+| T2-1 | 转人工：词边界匹配 + 情绪分级 + 工单写入 + 消费者                                                                                                                                                            |    P1-19    | `transfer-detector.ts`、新增 admin 消费者                               |                                                                   ✅ 2026-11-19（强/弱负面分级 + SupportQueueChanged 事件消费者；见 #98）                                                                    |
+| T2-2 | 意图阈值统一为单一常量 + 融合后再过滤                                                                                                                                                                        |    P1-20    | `intent-classifier.ts`、`intent-router.node.ts`、`orchestrator.node.ts` |                                                             ✅ 2026-11-19（常量收口 + 门槛移到融合后；回放 83.7%→84.3%，rag 精确率 78.6%→80.0%）                                                             |
+| T2-3 | RAG：中文分词 + Layer 2 占位符 + 向量相关性门槛                                                                                                                                                              |    P1-21    | `rag-retrieval.service.ts`                                              | ✅ 2026-11-20（分词/Layer2/RRF + rerank 相关性门卫；关键词层 Recall 0→89.9%，负样本误召回 100%→5%；见 [#104](./AI-joymini/104-RAG中文召回修复与分层验收.md)、[#105](./AI-joymini/105-RAG相关性门卫验收.md)） |
+| T2-4 | 流式白名单：帧类型白名单 + `step` 帧字段白名单（非「只转发最终文本」）                                                                                                                                       |    P1-22    | `ai-stream-frames.ts`、`ai-customer.controller.ts`                      |                                      ✅ 2026-11-19（5 类帧 + `step/content/tool`；`ai-stream-frames.spec.ts` 9 例；开关 `AI_STREAM_FRAME_WHITELIST_ENABLED` 默认开启）                                       |
+| T2-5 | **转人工闭环**：admin「待接入」列表 + 订阅 `AI_TRANSFER` 通知 + 超时定时回收（现在只在用户下条消息时懒判定）                                                                                                 | N-13 / N-14 | `admin/chat/`、`admin-next/.../customer-service/`、新增 cron            |                                                     ✅ 2026-11-19（S1/S2 + S3 实时推送 + S4 空闲回收；见 [#98 §14](./AI-joymini/98-转人工闭环-SDD.md)）                                                      |
+| T2-6 | **模型兜底**：`timeout 15s + maxRetries 1`；`degradeToHuman` 落固定话术 + 置 `awaiting_human` + 发 `AI_TRANSFER` + 记 `transfer{source:fallback}`；测试用故障注入（`__CHAOS__` 前缀 + Redis 开关，生产隔离） |    N-15     | `graph/llm-factory.ts`、新增 `ai-failure-handler.ts`                    |                                                                        ✅ 2026-11-12（单测 5 例 + E2E 第 9 场景实测，全套 9/9 PASS）                                                                         |
+| T2-7 | **成本限额**：按天聚合客服 token，超阈值降级转人工 + 记 `cost.guard`（复用 blog budget 写法）                                                                                                                |    N-16     | `ai-customer.service.ts`、新增 cost-guard                               |                                                      ✅ 2026-11-19（日累计 + 会话累计两级配额，超限走 quota_exceeded 降级；见 reliable-ai-runtime 5.x）                                                      |
 
 ### 🛡️ T2.5 — 信任边界（agent-trust-boundary，规格见 `openspec/changes/agent-trust-boundary/`）
 
 > 目标：让「操作主体」不可能来自模型、写操作不可能绕过确认、内部结构不可能从 SSE 出网。
 > 边界与残余风险见 [`docs/system-review/agent-trust-boundary-安全边界说明.md`](./system-review/agent-trust-boundary-安全边界说明.md)。
 
-| # | 任务 | #87 ID | 文件 | 状态 |
-|:--:|---|:--:|---|---|
-| TB-1 | 工具身份只来自请求上下文（`requireToolUserId` / AsyncLocalStorage），schema 删除 `userId` | P1-6 根因 | `graph/tools/tool-identity.ts`、`common/logger/trace-context.ts` | ✅ 2026-11-19（无上下文 fail-closed；7 个工具套件断言模型伪造 `userId` 无效） |
-| TB-2 | 写工具能力标记 + 确认流程由 `capability.kind === 'write'` 推导 | P1-6 | `tool-registry.service.ts`、`orchestrator.node.ts` | ✅ 2026-11-20（7 个写工具；启动自检已落地，实测报出 `requestWithdrawOtp`/`verifyWithdrawOtp` 未声明 write） |
-| TB-3 | 归属校验：`draw` / `updateAddress` / `deleteAddress` 执行前比对归属 | P1-6 / P2-4 | `lucky-tools.ts`、`user-tools.ts` | ✅ 2026-11-19（他人目标 → 结构化 `FORBIDDEN` + `tool.denied`） |
-| TB-4 | 输入注入检测（覆盖指令 / 索取内部结构 / 越权试探），命中降级 `general` | P2-4 | `injection-detector.ts`、`intent-router.node.ts` | 🟡 2026-11-19（代码完成；`AI_INJECTION_DETECTION_ENABLED` **默认关闭**，生产尚未启用） |
-| TB-5 | SSE 帧白名单（类型 + `step` 字段） | P1-22 | `ai-stream-frames.ts`、`ai-customer.controller.ts` | ✅ 2026-11-19（见 T2-4） |
-| TB-6 | 同会话单飞：进程内队列 + Redis `SET NX PX` 锁，异常路径释放 | P1-3 | `ai-message.listener.ts`、`redis-lock.service.ts` | ✅ 2026-11-19（`ai-message.listener.spec.ts` 4 例；超时有界等待后 warn 放弃） |
-| TB-7 | Socket 触发 AI 入口复用 SSE 令牌桶 | P1-3 | `events.gateway.ts`、`common/rate-limit/sse-rate-limiter.service.ts` | ✅ 2026-11-19（工作区已接 `tryAcquireLight`，与 HTTP 共用 key；`events.gateway.ai-rate-limit.spec.ts` 4 例 + `sse-rate-limiter.service.spec.ts` 3 例；生成文档时**未提交**） |
-| TB-8 | `(conversationId, seqId)` 唯一约束 | P1-11 | `prisma/schema.prisma`、迁移 `20261119170000` | ✅ 2026-11-19（DB 唯一索引 + `scripts/e2e-message-seq.js` 并发实测：两条消息 seq 不同且都落库） |
+|  #   | 任务                                                                                      |   #87 ID    | 文件                                                                 | 状态                                                                                                                                                                         |
+| :--: | ----------------------------------------------------------------------------------------- | :---------: | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| TB-1 | 工具身份只来自请求上下文（`requireToolUserId` / AsyncLocalStorage），schema 删除 `userId` |  P1-6 根因  | `graph/tools/tool-identity.ts`、`common/logger/trace-context.ts`     | ✅ 2026-11-19（无上下文 fail-closed；7 个工具套件断言模型伪造 `userId` 无效）                                                                                                |
+| TB-2 | 写工具能力标记 + 确认流程由 `capability.kind === 'write'` 推导                            |    P1-6     | `tool-registry.service.ts`、`orchestrator.node.ts`                   | ✅ 2026-11-20（7 个写工具；启动自检已落地，实测报出 `requestWithdrawOtp`/`verifyWithdrawOtp` 未声明 write）                                                                  |
+| TB-3 | 归属校验：`draw` / `updateAddress` / `deleteAddress` 执行前比对归属                       | P1-6 / P2-4 | `lucky-tools.ts`、`user-tools.ts`                                    | ✅ 2026-11-19（他人目标 → 结构化 `FORBIDDEN` + `tool.denied`）                                                                                                               |
+| TB-4 | 输入注入检测（覆盖指令 / 索取内部结构 / 越权试探），命中降级 `general`                    |    P2-4     | `injection-detector.ts`、`intent-router.node.ts`                     | ✅ 2026-11-20（三档模式 off/log/enforce 已合入；生产 `compose.prod.yml` 使用 log 观察，误报率确认后切 enforce）                                                              |
+| TB-5 | SSE 帧白名单（类型 + `step` 字段）                                                        |    P1-22    | `ai-stream-frames.ts`、`ai-customer.controller.ts`                   | ✅ 2026-11-19（见 T2-4）                                                                                                                                                     |
+| TB-6 | 同会话单飞：进程内队列 + Redis `SET NX PX` 锁，异常路径释放                               |    P1-3     | `ai-message.listener.ts`、`redis-lock.service.ts`                    | ✅ 2026-11-19（`ai-message.listener.spec.ts` 4 例；超时有界等待后 warn 放弃）                                                                                                |
+| TB-7 | Socket 触发 AI 入口复用 SSE 令牌桶                                                        |    P1-3     | `events.gateway.ts`、`common/rate-limit/sse-rate-limiter.service.ts` | ✅ 2026-11-19（工作区已接 `tryAcquireLight`，与 HTTP 共用 key；`events.gateway.ai-rate-limit.spec.ts` 4 例 + `sse-rate-limiter.service.spec.ts` 3 例；生成文档时**未提交**） |
+| TB-8 | `(conversationId, seqId)` 唯一约束                                                        |    P1-11    | `prisma/schema.prisma`、迁移 `20261119170000`                        | ✅ 2026-11-19（DB 唯一索引 + `scripts/e2e-message-seq.js` 并发实测：两条消息 seq 不同且都落库）                                                                              |
 
 ### 🏅 T3 — 收口（Day 10）
 
-| # | 任务 | #85 ID | 状态 |
-|:--:|---|:--:|:--:|
-| T3-1 | 3 个集成测试：转人工 / 确认卡片 / RAG 降级 | P1-25 | ✅ 2026-11-20（转人工 + RAG 降级已有 smoke；确认卡片由 `scripts/ai-confirm-card-e2e.sh` 覆盖：生成 pendingConfirm 且不落库） |
-| T3-2 | 复跑 golden set，出「改前 vs 改后」对比表 | — | ✅ 2026-11-19（153 题 55.6% → 86.9%；见 [#100](./AI-joymini/100-意图评测扩容与中文召回修复.md)、[#101](./AI-joymini/101-意图阈值收口与融合顺序修正.md)） |
-| T3-3 | 更新 #86 §10 进度追踪（填真实分数） | — | ✅ 2026-11-20（逐维重评 75/85/80/80/75，总分 79） |
+|  #   | 任务                                       | #85 ID |                                                                           状态                                                                           |
+| :--: | ------------------------------------------ | :----: | :------------------------------------------------------------------------------------------------------------------------------------------------------: |
+| T3-1 | 3 个集成测试：转人工 / 确认卡片 / RAG 降级 | P1-25  |               ✅ 2026-11-20（转人工 + RAG 降级已有 smoke；确认卡片由 `scripts/ai-confirm-card-e2e.sh` 覆盖：生成 pendingConfirm 且不落库）               |
+| T3-2 | 复跑 golden set，出「改前 vs 改后」对比表  |   —    | ✅ 2026-11-19（153 题 55.6% → 86.9%；见 [#100](./AI-joymini/100-意图评测扩容与中文召回修复.md)、[#101](./AI-joymini/101-意图阈值收口与融合顺序修正.md)） |
+| T3-3 | 更新 #86 §10 进度追踪（填真实分数）        |   —    |                                                    ✅ 2026-11-20（逐维重评 75/85/80/80/75，总分 79）                                                     |
 
 ### 🧊 T4 — 有余力再做
 
-| 项 | #85 ID |
-|---|---|
-| 状态机版本 / 绑定切换 / 回滚 | 新增（JD 明确要求） |
-| Outbox + 死信消费 + 消费端幂等 | P2-5 |
-| 长期记忆（PG checkpointer + `saveContext` 落库） | P1-23 |
-| PromptResolver 真合并 | P1-24 |
-| AI 回复 `isAi` 标记 + 走 `MESSAGE_CREATED` | P1-1/2 |
+| 项                                               | #85 ID              | 状态                                                                               |
+| ------------------------------------------------ | ------------------- | ---------------------------------------------------------------------------------- |
+| 状态机版本 / 绑定切换 / 回滚                     | 新增（JD 明确要求） | ✅ 2026-11-20（flowState 接通 + 定义版本/绑定/审计 + checkpoint 状态回滚）         |
+| Outbox + 死信消费 + 消费端幂等                   | P2-5                | ✅ 2026-11-20（事务登记 + relay + 单条重放 + 保留期清理）                          |
+| 长期记忆（PG checkpointer + `saveContext` 落库） | P1-23               | ✅ 2026-11-20（用户级蒸馏记忆 + 白名单 + TTL/注销删除）                            |
+| PromptResolver 真合并                            | P1-24               | ✅ 2026-11-20（PR #70 深合并）                                                     |
+| AI 回复 `isAi` 标记 + 走 `MESSAGE_CREATED`       | P1-1/2              | ✅ 2026-11-20（后端 + Flutter 均已提交；Flutter 分支 feat/chat-ai-message-events） |
+| 上下文预算 / 摘要 / 实体纠正 / 澄清              | 新增                | ✅ 2026-11-20（token 预算 + contextState + 指代澄清）                              |
 
 ---
 
@@ -124,32 +125,32 @@
 
 ## 已知会踩的坑
 
-| 坑 | 说明 |
-|---|---|
-| 行号会漂移 | #85 的行号基于 2026-11-11 工作区，改文件后以内容搜索为准 |
-| `state.spec.ts` 是自证测试 | 它测的是本地复制的 reducer，不是生产代码。补测试别照抄这个模式 |
-| `prompt-resolver` 是 replace 不是 merge | 改 prompt 前先看 DB 里 override 是否只写了部分字段 |
-| OTP 有两个 TTL | `otp.service.ts` 300s、`ai-action-confirm.service.ts` 60s，改一个必须看另一个（T1-2 洞 2） |
-| 两个过期单测 | `auth.service.spec.ts` 断言 `github` 非法（代码已支持）、`flash-sale.service.spec.ts` 断言少一个返回字段；都是测试没跟上代码，**不是产品 bug**。跑全量会看到 2 suites / 3 tests 失败 |
-| 故障注入只在非生产 | `__CHAOS__` 前缀 + Redis `ai:chaos:fail`；跑完记得 `DEL`（脚本会自动清），生产 `NODE_ENV=production` 物理隔离 |
-| 领券限领是**隐式锁** | `claimCoupon` 的限领判断依赖「扣库存 `updateMany` 在前」——锁是那条 `UPDATE` 加的，不是代码里显式要的。顺序对调 = T1-6 复活，`coupon.service.spec.ts` 的顺序探针会红。别在这两段之间插入任何慢操作（外部 API / LLM），否则锁被长时间持有，Prisma 事务 5s 超时报 `P2028` |
+| 坑                                      | 说明                                                                                                                                                                                                                                                                   |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 行号会漂移                              | #85 的行号基于 2026-11-11 工作区，改文件后以内容搜索为准                                                                                                                                                                                                               |
+| `state.spec.ts` 是自证测试              | 它测的是本地复制的 reducer，不是生产代码。补测试别照抄这个模式                                                                                                                                                                                                         |
+| `prompt-resolver` 是 replace 不是 merge | 改 prompt 前先看 DB 里 override 是否只写了部分字段                                                                                                                                                                                                                     |
+| OTP 有两个 TTL                          | `otp.service.ts` 300s、`ai-action-confirm.service.ts` 60s，改一个必须看另一个（T1-2 洞 2）                                                                                                                                                                             |
+| 两个过期单测                            | `auth.service.spec.ts` 断言 `github` 非法（代码已支持）、`flash-sale.service.spec.ts` 断言少一个返回字段；都是测试没跟上代码，**不是产品 bug**。跑全量会看到 2 suites / 3 tests 失败                                                                                   |
+| 故障注入只在非生产                      | `__CHAOS__` 前缀 + Redis `ai:chaos:fail`；跑完记得 `DEL`（脚本会自动清），生产 `NODE_ENV=production` 物理隔离                                                                                                                                                          |
+| 领券限领是**隐式锁**                    | `claimCoupon` 的限领判断依赖「扣库存 `updateMany` 在前」——锁是那条 `UPDATE` 加的，不是代码里显式要的。顺序对调 = T1-6 复活，`coupon.service.spec.ts` 的顺序探针会红。别在这两段之间插入任何慢操作（外部 API / LLM），否则锁被长时间持有，Prisma 事务 5s 超时报 `P2028` |
 
 ---
 
 ## 参考
 
-| 文档 | 用途 |
-|---|---|
-| `docs/AI-joymini/85-生产化差距审计与企业上线清单.md` | 问题台账（P0/P1/P2 + 证据 + 修复方案） |
-| `docs/AI-joymini/86-岗位匹配度评估与两周补齐路线图.md` | 打分、JD 对照、面试素材 |
-| `docs/AI-joymini/92-求职准备与业务下一步.md` | 求职定位、讲解练习、业务缺口排序（G1–G6） |
-| `docs/AI-joymini/93-确认链路三个洞-SDD.md` | T1-2 修复规格：先撕票/两张票/手搓 DTO |
-| `docs/AI-joymini/94-意图准确率基线-T0-3.md` | 意图准确率的度量口径与首次基线 |
-| `docs/AI-joymini/95-提现冻结状态机-SDD.md` | T1-3 修复规格：单一结算出口 + 状态 CAS + 账目不变式 |
-| `docs/AI-joymini/96-OTP生产化-SDD.md` | T1-1 修复规格：fail-closed、pepper 启动校验、SmsProvider 抽象 |
-| `docs/AI-joymini/97-项目全景评估与落地清单.md` | **全景评估**：42 项能力总账、落地三档、剩余 14 项难度与顺序 |
-| `docs/AI-joymini/98-转人工闭环-SDD.md` | T2-5 修复规格：状态机 + 认领 CAS + SLA 扫描 + **G6（T1-4 把客服 join_chat 挡住了）** |
-| `tools/eval/` | 回放工具（`run-replay.sh`）与基线文件 |
-| `docs/AI-joymini/91-一条消息的旅程.html` | 调用链主干 7 框，读懂代码的地图 |
-| `docs/coding-standards.md` | 9 维度检查 |
-| `docs/AI-joymini/81` / `83` / `84` | 确认卡片设计与历史差距 |
+| 文档                                                   | 用途                                                                                 |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| `docs/AI-joymini/85-生产化差距审计与企业上线清单.md`   | 问题台账（P0/P1/P2 + 证据 + 修复方案）                                               |
+| `docs/AI-joymini/86-岗位匹配度评估与两周补齐路线图.md` | 打分、JD 对照、面试素材                                                              |
+| `docs/AI-joymini/92-求职准备与业务下一步.md`           | 求职定位、讲解练习、业务缺口排序（G1–G6）                                            |
+| `docs/AI-joymini/93-确认链路三个洞-SDD.md`             | T1-2 修复规格：先撕票/两张票/手搓 DTO                                                |
+| `docs/AI-joymini/94-意图准确率基线-T0-3.md`            | 意图准确率的度量口径与首次基线                                                       |
+| `docs/AI-joymini/95-提现冻结状态机-SDD.md`             | T1-3 修复规格：单一结算出口 + 状态 CAS + 账目不变式                                  |
+| `docs/AI-joymini/96-OTP生产化-SDD.md`                  | T1-1 修复规格：fail-closed、pepper 启动校验、SmsProvider 抽象                        |
+| `docs/AI-joymini/97-项目全景评估与落地清单.md`         | **全景评估**：42 项能力总账、落地三档、剩余 14 项难度与顺序                          |
+| `docs/AI-joymini/98-转人工闭环-SDD.md`                 | T2-5 修复规格：状态机 + 认领 CAS + SLA 扫描 + **G6（T1-4 把客服 join_chat 挡住了）** |
+| `tools/eval/`                                          | 回放工具（`run-replay.sh`）与基线文件                                                |
+| `docs/AI-joymini/91-一条消息的旅程.html`               | 调用链主干 7 框，读懂代码的地图                                                      |
+| `docs/coding-standards.md`                             | 9 维度检查                                                                           |
+| `docs/AI-joymini/81` / `83` / `84`                     | 确认卡片设计与历史差距                                                               |

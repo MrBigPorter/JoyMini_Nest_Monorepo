@@ -82,6 +82,13 @@ import {
   AGENT_ERROR_MSG,
 } from './orchestrator-utils/result-utils';
 import { detectTransferRequest } from './orchestrator-utils/transfer-detector';
+import { updateContextState } from '@api/client/ai-customer/graph/utils/context-state-utils';
+import {
+  createFlowAccumulator,
+  finalizeFlowState,
+  preserveFlowState,
+  resolveTargetFlowType,
+} from './orchestrator-utils/flow-state-utils';
 import { emitStage } from '@api/common/logger/structured-logger';
 
 // (AGENT_MAP + DEPENDENCY_MAP 已抽离到 config/orchestrator.config.ts)
@@ -207,6 +214,12 @@ export const createOrchestratorNode =
     const logger = new Logger('Orchestrator');
     const labels = state.labels ?? [];
 
+    // ── flowState 的真正写入起点 ──
+    // 上一轮状态在这里恢复；本轮 Agent 的 updateFlowData/updateFlowStatus
+    // 都写进同一个 accumulator，最后在每条返回路径落回 state。
+    const targetFlowType = resolveTargetFlowType(state.intent, labels);
+    const flowAccumulator = createFlowAccumulator(state);
+
     /** 标签压成 top3、两位小数：labels 可能被 BM25 + 向量各送一份，全量会撑爆日志 */
     const top3 = (list: { label: string; score: number }[]) =>
       [...list]
@@ -229,6 +242,9 @@ export const createOrchestratorNode =
     //   → "我要转人工" 反而永远转不出去。
     // 所以先看"是不是要找人工"，再看他"要办什么业务"。
     const userInput = extractUserInput(state);
+    // 结构化对话状态每轮更新：改口覆盖旧实体，旧实体只进 corrections。
+    const contextUpdate = updateContextState(state.contextState, userInput);
+    const nextContextState = contextUpdate.state;
     const transfer = detectTransferRequest(userInput, state);
     if (transfer.shouldTransfer) {
       logger.log(
@@ -272,6 +288,8 @@ export const createOrchestratorNode =
           labels: [],
           pendingConfirm: null,
           ragSources: [],
+          flowState: preserveFlowState(state),
+          contextState: nextContextState,
         };
       } catch (err) {
         logger.warn(
@@ -283,8 +301,33 @@ export const createOrchestratorNode =
           labels: [],
           pendingConfirm: null,
           ragSources: [],
+          flowState: preserveFlowState(state),
+          contextState: nextContextState,
         };
       }
+    }
+
+    // ================================================================
+    // 0.5 指代不明 → 先澄清，不进入 Agent
+    // ================================================================
+    // 例：先说苹果手机，改口包包，再说“说说手机”。
+    // 旧实体仍在 corrections 里，但当前有效实体是包包；此时猜哪个都错。
+    if (contextUpdate.clarification) {
+      logger.log(
+        `[orchestrator] clarification required: activeEntity=${nextContextState.activeEntity}`,
+      );
+      return {
+        messages: [
+          ...state.messages,
+          new AIMessage(contextUpdate.clarification),
+        ],
+        previousIntent: state.intent,
+        labels: [],
+        pendingConfirm: null,
+        ragSources: [],
+        flowState: preserveFlowState(state),
+        contextState: nextContextState,
+      };
     }
 
     // ================================================================
@@ -301,6 +344,8 @@ export const createOrchestratorNode =
       return {
         ...(await handleGeneralChat(state, llmConfig)),
         ragSources: [],
+        flowState: finalizeFlowState(flowAccumulator, targetFlowType),
+        contextState: nextContextState,
       };
     }
 
@@ -362,7 +407,11 @@ export const createOrchestratorNode =
           destination: 'general_chat',
         })}`,
       );
-      return handleGeneralChat(state, llmConfig);
+      return {
+        ...(await handleGeneralChat(state, llmConfig)),
+        flowState: finalizeFlowState(flowAccumulator, targetFlowType),
+        contextState: nextContextState,
+      };
     }
 
     // 部分标签被门槛过滤时记一条 debug：多意图场景里这是正常裁剪，
@@ -442,6 +491,7 @@ export const createOrchestratorNode =
           labels: [],
           pendingConfirm: null,
           ragSources: [],
+          flowState: preserveFlowState(state),
         };
       }
 
@@ -600,6 +650,9 @@ export const createOrchestratorNode =
               llmConfig,
               registry,
               logger,
+              flowDataAccumulator: flowAccumulator,
+              contextState: nextContextState,
+              userMemory: state.userMemory,
             });
 
           // 日志：记录该 Agent 的执行上下文和工具绑定情况
@@ -694,6 +747,10 @@ export const createOrchestratorNode =
         labels: [],
         pendingConfirm: hasPendingConfirm,
         ragSources: [],
+        flowState: finalizeFlowState(flowAccumulator, targetFlowType, {
+          forceStep: 'CONFIRMING',
+        }),
+        contextState: nextContextState,
       };
       return orchestratorResult;
     }
@@ -702,6 +759,7 @@ export const createOrchestratorNode =
       llmConfig,
       agentOutputs,
       userInput,
+      state.userMemory,
     );
 
     // 工具侧判定转人工（agent 返回 [TRANSFER_TO_HUMAN]）也要记一条 transfer 事件。
@@ -725,6 +783,11 @@ export const createOrchestratorNode =
           ? (state.repeatCount ?? 0) + 1
           : 0,
       ragSources,
+      // 转人工的结果仍保留原流程数据，方便人工接手时看到用户填到哪一步。
+      flowState: hasTransferRequest
+        ? preserveFlowState(state)
+        : finalizeFlowState(flowAccumulator, targetFlowType),
+      contextState: nextContextState,
     };
 
     // debug=true 时写入执行流水线追踪数据

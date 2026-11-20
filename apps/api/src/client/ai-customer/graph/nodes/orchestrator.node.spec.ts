@@ -49,6 +49,8 @@ jest.mock('@api/client/ai-customer/graph/nodes/agent-factory', () => ({
 const { createOrchestratorNode } = require('./orchestrator.node');
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { handleGeneralChat } = require('./orchestrator-utils/direct-handlers');
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { runStandardAgent } = require('./agent-factory');
 
 function makeState(
   userText: string,
@@ -170,6 +172,93 @@ describe('orchestrator · 转人工排序（N-7 回归）', () => {
       source: 'orchestrator',
       reason: 'explicit_request',
     });
+  });
+
+  it('两轮对话：第一轮写入的 flowType/step/data 第二轮仍能读到', async () => {
+    const nodeWithFlow = createOrchestratorNode({} as any, {} as any);
+
+    // 模拟真实 factory：把 accumulator 写回给 orchestrator。
+    (runStandardAgent as jest.Mock).mockImplementationOnce(
+      async (opts: any) => {
+        opts.flowDataAccumulator.flowType = 'WITHDRAWAL';
+        opts.flowDataAccumulator.flowStatus = 'FILLING';
+        opts.flowDataAccumulator.flowData.amount = '500';
+        return {
+          result: { content: 'How would you like to receive it?' },
+          tools: [],
+          contextMessagesCount: 1,
+          flowDataAccumulator: opts.flowDataAccumulator,
+        };
+      },
+    );
+
+    const first = await nodeWithFlow(
+      makeState('我要提现 500', [{ label: 'wallet', score: 0.95 }], {
+        intent: 'wallet',
+        flowState: { activeFlow: '', step: '', data: {} },
+      }),
+    );
+
+    expect(first.flowState).toMatchObject({
+      activeFlow: 'WITHDRAWAL',
+      step: 'FILLING',
+      data: { amount: '500' },
+    });
+
+    // 第二轮：新 state 只带上一轮的 flowState，不重新提供 amount。
+    // 第二轮 agent 没有再调用 updateFlowData，但 accumulator 必须从 state 恢复。
+    let seenAccumulator: any;
+    (runStandardAgent as jest.Mock).mockImplementationOnce(
+      async (opts: any) => {
+        seenAccumulator = opts.flowDataAccumulator;
+        return {
+          result: { content: 'Confirm?' },
+          tools: [],
+          contextMessagesCount: 1,
+          flowDataAccumulator: opts.flowDataAccumulator,
+        };
+      },
+    );
+
+    const second = await nodeWithFlow(
+      makeState('继续', [{ label: 'wallet', score: 0.95 }], {
+        intent: 'wallet',
+        flowState: first.flowState,
+      }),
+    );
+
+    expect(seenAccumulator).toMatchObject({
+      flowType: 'WITHDRAWAL',
+      flowStatus: 'FILLING',
+      flowData: { amount: '500' },
+    });
+    expect(second.flowState).toMatchObject({
+      activeFlow: 'WITHDRAWAL',
+      step: 'FILLING',
+      data: { amount: '500' },
+    });
+  });
+
+  it('纠正后再提旧实体：先澄清，不执行 Agent', async () => {
+    const nodeWithContext = createOrchestratorNode({} as any, {} as any);
+    (runStandardAgent as jest.Mock).mockClear();
+
+    const result = await nodeWithContext(
+      makeState('说说手机', [{ label: 'order', score: 0.95 }], {
+        intent: 'order',
+        contextState: {
+          activeEntity: '包包',
+          slots: {},
+          corrections: [{ from: '苹果手机', to: '包包', at: Date.now() }],
+          unresolved: [],
+        },
+      }),
+    );
+
+    const last = result.messages[result.messages.length - 1];
+    expect(String(last.content)).toContain('苹果手机');
+    expect(String(last.content)).toContain('包包');
+    expect(runStandardAgent).not.toHaveBeenCalled();
   });
 
   it('agent 返回 [TRANSFER_TO_HUMAN] 时，也要补一条 transfer 事件（agent_request）', async () => {

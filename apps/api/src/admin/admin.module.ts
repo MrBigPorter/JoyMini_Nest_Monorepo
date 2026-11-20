@@ -31,6 +31,8 @@ import { IntentExamplesModule } from '@api/admin/intent-examples/intent-examples
 import { AiFeedbackModule } from '@api/admin/ai-feedback/ai-feedback.module';
 import { AiEvalModule } from '@api/admin/ai-eval/ai-eval.module';
 import { HealthModule } from '@api/admin/services/health.module';
+import { QueueMonitorModule } from '@api/admin/queue/queue-monitor.module';
+import { FlowVersioningAdminModule } from '@api/admin/flow-versioning/flow-versioning.module';
 
 @Module({
   imports: [
@@ -66,6 +68,8 @@ import { HealthModule } from '@api/admin/services/health.module';
     AiFeedbackModule,
     AiEvalModule,
     HealthModule,
+    QueueMonitorModule,
+    FlowVersioningAdminModule,
   ],
   providers: [],
   controllers: [],

@@ -137,7 +137,7 @@ describe('AiMessageListener · 同会话单飞', () => {
     await Promise.all([pa, pb]);
   });
 
-  it('抢锁失败（被占用）：有界等待后记 warn 放弃，不崩、不执行', async () => {
+  it('抢锁失败（被占用）：有界等待后抛错交给队列重试，不执行', async () => {
     const chatStream = jest.fn();
     const runWithLock = jest.fn().mockResolvedValue(undefined); // 永远抢不到
     const { listener } = makeListener(chatStream, runWithLock);
@@ -149,9 +149,10 @@ describe('AiMessageListener · 同会话单飞', () => {
       .spyOn((listener as any).logger, 'warn')
       .mockImplementation(() => undefined);
 
+    // 锁超时不再返回成功：BullMQ 需要看到失败才能重试/进死信
     await expect(
       listener.handleAiMessageRequest(event('busy')),
-    ).resolves.toBeUndefined();
+    ).rejects.toThrow(/lock not acquired/);
 
     expect(chatStream).not.toHaveBeenCalled();
     expect(runWithLock).toHaveBeenCalled();
@@ -173,7 +174,9 @@ describe('AiMessageListener · 同会话单飞', () => {
       .spyOn((listener as any).logger, 'error')
       .mockImplementation(() => undefined);
 
-    await listener.handleAiMessageRequest(event('c1', 'first'));
+    await expect(
+      listener.handleAiMessageRequest(event('c1', 'first')),
+    ).rejects.toThrow('graph boom');
     await listener.handleAiMessageRequest(event('c1', 'second'));
 
     expect(chatStream).toHaveBeenCalledTimes(2);
@@ -312,12 +315,14 @@ describe('AiMessageListener · 消息幂等', () => {
       .spyOn((listener as any).logger, 'error')
       .mockImplementation(() => undefined);
 
-    await listener.handleAiMessageRequest({
-      conversationId: 'c1',
-      content: 'hi',
-      userId: 'u1',
-      messageId: 'm2',
-    });
+    await expect(
+      listener.handleAiMessageRequest({
+        conversationId: 'c1',
+        content: 'hi',
+        userId: 'u1',
+        messageId: 'm2',
+      }),
+    ).rejects.toThrow('graph boom');
     expect(redis.set).not.toHaveBeenCalled();
 
     await listener.handleAiMessageRequest({
@@ -339,18 +344,22 @@ describe('AiMessageListener · 消息幂等', () => {
         store.set(k, v);
       }),
     };
-    const crashedStream = jest.fn().mockRejectedValue(new Error('process killed'));
+    const crashedStream = jest
+      .fn()
+      .mockRejectedValue(new Error('process killed'));
     const { listener: crashed } = makeListener(crashedStream, undefined, redis);
     jest
       .spyOn((crashed as any).logger, 'error')
       .mockImplementation(() => undefined);
 
-    await crashed.handleAiMessageRequest({
-      conversationId: 'c1',
-      content: 'hi',
-      userId: 'u1',
-      messageId: 'm3',
-    });
+    await expect(
+      crashed.handleAiMessageRequest({
+        conversationId: 'c1',
+        content: 'hi',
+        userId: 'u1',
+        messageId: 'm3',
+      }),
+    ).rejects.toThrow('process killed');
     expect(store.has('ai:msg:done:m3')).toBe(false);
 
     const replayStream = jest.fn().mockResolvedValue(undefined);

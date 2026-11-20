@@ -35,7 +35,7 @@
  * 此工厂定义"Agent 如何执行"（运行时逻辑）。
  */
 
-import { BaseMessage } from '@langchain/core/messages';
+import { BaseMessage, SystemMessage } from '@langchain/core/messages';
 import { Logger } from '@nestjs/common';
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { AgentPromptConfig } from '@api/client/ai-customer/graph/agents/prompt-builder';
@@ -48,11 +48,17 @@ import {
 import {
   runAgentLoop,
   AgentLoopResult,
+  FlowDataAccumulator,
 } from '@api/client/ai-customer/graph/agents/agent-runner';
 import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-registry.service';
 import { LlmProviderConfig } from '@api/client/ai-customer/graph/llm-factory';
-import { MAX_CONTEXT_MESSAGES } from '@api/client/ai-customer/graph/constants';
+import { CONTEXT_TOKEN_BUDGET } from '@api/client/ai-customer/graph/constants';
 import { AgentNodeOutput } from '@api/client/ai-customer/graph/types/agent-types';
+import { ConversationContextState } from '@api/client/ai-customer/graph/state';
+import {
+  formatContextSummary,
+  trimContextToBudget,
+} from '@api/client/ai-customer/graph/utils/context-manager';
 
 // ============================================================
 // Interfaces
@@ -77,6 +83,20 @@ export interface RunStandardAgentOptions {
   logger: Logger;
   /** 额外工具（如 wallet 的 flow tools） */
   extraTools?: DynamicStructuredTool[];
+  /**
+   * 跨 Agent 共享的 flow 状态累加器。
+   * 传入同一对象时，前一个 Agent 调用 updateFlowData/updateFlowStatus
+   * 的结果会进入对象，orchestrator 在一个流水线结束后写回 state.flowState。
+   */
+  flowDataAccumulator?: FlowDataAccumulator;
+  /** 对话内实体/纠正状态；会作为独立 SystemMessage 注入，不写进历史。 */
+  contextState?: ConversationContextState;
+  /** 当前待确认操作（用于摘要保护，不让确认信息被裁掉）。 */
+  pendingConfirm?: { action?: string } | null;
+  /** 覆盖默认 token 预算（测试/特殊 Agent 用）。 */
+  contextTokenBudget?: number;
+  /** 用户长期记忆（已格式化，作为独立 system 消息注入）。 */
+  userMemory?: string;
 }
 
 export interface RunStandardAgentResult {
@@ -88,6 +108,8 @@ export interface RunStandardAgentResult {
   tools: DynamicStructuredTool[];
   /** 上下文消息数量 */
   contextMessagesCount: number;
+  /** 本次执行期间累积的 flow 状态（可能被工具更新） */
+  flowDataAccumulator?: FlowDataAccumulator;
 }
 
 // ============================================================
@@ -116,21 +138,50 @@ export async function runStandardAgent(
 ): Promise<RunStandardAgentResult> {
   const logger = opts.logger;
 
-  // ① Handoff — 获取域工具 + 额外工具
+  // ① Handoff — 获取域工具 + flow 状态工具 + 额外工具
+  // updateFlowData/updateFlowStatus 注册在 'flow' 标签下，不是某个域独有；
+  // 不注入的话 Agent 无法写 flow 状态，状态机就是死代码。
   const domainTools = opts.registry.getToolsByTag(opts.tag);
-  const allTools = [...domainTools, ...(opts.extraTools ?? [])];
+  const flowTools = opts.registry.getToolsByTag('flow');
+  const seen = new Set<string>();
+  const allTools = [
+    ...domainTools,
+    ...flowTools,
+    ...(opts.extraTools ?? []),
+  ].filter((tool) => {
+    if (seen.has(tool.name)) return false;
+    seen.add(tool.name);
+    return true;
+  });
   const llmWithTools = createAgentLLM(opts.llmConfig, allTools);
 
-  // ② Filter — 上下文过滤（取最近 N 条消息）
-  const contextMessages = opts.messages.slice(-MAX_CONTEXT_MESSAGES);
+  // ② Filter — 按 token 预算裁剪，工具调用与结果成组保留
+  const contextMessages = trimContextToBudget(opts.messages, {
+    maxTokens: opts.contextTokenBudget ?? CONTEXT_TOKEN_BUDGET,
+  });
 
   // ③ Prompt — 构建系统提示词 + 初始消息
+  // flowContext 由 promptConfig 声明（order/wallet/kyc 等需要），
+  // 不再在这里强制关闭；当前值来自 accumulator，第二轮能看到第一轮状态。
   const systemPrompt = buildAgentPrompt({
     ...opts.promptConfig,
     userId: opts.userId,
-    flowContext: false,
+    flowType: opts.flowDataAccumulator?.flowType ?? opts.promptConfig.flowType,
+    flowStatus:
+      opts.flowDataAccumulator?.flowStatus ?? opts.promptConfig.flowStatus,
   });
-  const initialMessages = buildInitialMessages(systemPrompt, contextMessages);
+  // 结构化摘要作为独立 system 消息注入：不写进 state.messages，
+  // 下一轮不会伪装成用户/AI 原话重复出现。
+  const summary = formatContextSummary(opts.contextState, opts.pendingConfirm);
+  const injected = [
+    summary ? new SystemMessage(summary) : null,
+    opts.userMemory ? new SystemMessage(opts.userMemory) : null,
+  ].filter((item): item is SystemMessage => item !== null);
+  const initialMessages = buildInitialMessages(
+    systemPrompt,
+    contextMessages,
+    injected.length > 0 ? { inject: injected } : undefined,
+  );
 
   // ④ Loop — 执行 ReAct Agent 循环
   const result = await runAgentLoop({
@@ -140,6 +191,7 @@ export async function runStandardAgent(
     agentName: opts.agentName,
     logger,
     confirmRequiredTools: new Set(opts.registry.getWriteToolNames()),
+    flowDataAccumulator: opts.flowDataAccumulator,
   });
 
   // ⑤ Output — 构建结果
@@ -153,5 +205,6 @@ export async function runStandardAgent(
     output,
     tools: allTools,
     contextMessagesCount: contextMessages.length,
+    flowDataAccumulator: opts.flowDataAccumulator,
   };
 }

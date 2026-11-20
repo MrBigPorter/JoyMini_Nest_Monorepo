@@ -4,9 +4,9 @@ import {
   BadRequestException,
   OnModuleDestroy,
 } from '@nestjs/common';
-import { MemorySaver } from '@langchain/langgraph';
+import { MemorySaver, REMOVE_ALL_MESSAGES } from '@langchain/langgraph';
 import type { BaseCheckpointSaver } from '@langchain/langgraph-checkpoint';
-import { HumanMessage } from '@langchain/core/messages';
+import { HumanMessage, RemoveMessage } from '@langchain/core/messages';
 import { buildCustomerGraph } from '@api/client/ai-customer/graph/customer.graph';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -28,6 +28,11 @@ import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service'
 import { AiMemoryService } from '@api/common/ai/ai-memory.service';
 import { AiActionConfirmService } from './ai-action-confirm.service';
 import { AiFeedbackService } from '@api/common/ai/ai-feedback.service';
+import {
+  FlowStateVersioningService,
+  RollbackStateInput,
+  RollbackStateResult,
+} from '@api/client/ai-customer/flow-versioning/flow-state-versioning.service';
 import {
   AiUsageService,
   QuotaExceededError,
@@ -86,6 +91,7 @@ export class AiCustomerService implements OnModuleDestroy {
     private readonly redisService: RedisService,
     private readonly eventEmitter: EventEmitter2,
     private readonly aiFeedbackService: AiFeedbackService,
+    private readonly flowVersioning: FlowStateVersioningService,
   ) {}
 
   /**
@@ -96,6 +102,10 @@ export class AiCustomerService implements OnModuleDestroy {
    */
   async onModuleInit() {
     await this.initGraph();
+    // 状态回滚需要 compiledGraph；FlowVersioningService 只做安全点/绑定/审计。
+    this.flowVersioning.registerStateRollbackHandler((input) =>
+      this.rollbackConversationState(input),
+    );
   }
 
   /**
@@ -181,6 +191,81 @@ export class AiCustomerService implements OnModuleDestroy {
       );
       return new MemorySaver();
     }
+  }
+
+  /**
+   * 把会话 thread 恢复到指定 checkpoint 的 values。
+   *
+   * 只回滚 LangGraph 状态，不撤销已完成的业务写操作（退款/下单等），
+   * 也不改 ChatMessage 历史 —— UI 与 AI 上下文可能短暂不一致，这是设计边界。
+   * 使用 updateState 生成新的 checkpoint，不直接改旧 checkpoint 行。
+   */
+  private async rollbackConversationState(
+    input: RollbackStateInput,
+  ): Promise<RollbackStateResult> {
+    if (!this.compiledGraph) {
+      return { ok: false, reason: 'graph_not_initialized' };
+    }
+
+    const conversation = await this.prismaService.conversation.findUnique({
+      where: { id: input.conversationId },
+      select: { threadId: true },
+    });
+    if (!conversation?.threadId) {
+      return { ok: false, reason: 'thread_not_found' };
+    }
+
+    const config = {
+      configurable: { thread_id: conversation.threadId },
+    };
+    const history: any[] = [];
+    for await (const snapshot of this.compiledGraph.getStateHistory(config)) {
+      history.push(snapshot);
+    }
+
+    const targetIndex = history.findIndex(
+      (snapshot) =>
+        snapshot?.config?.configurable?.checkpoint_id === input.checkpointId,
+    );
+    if (targetIndex < 0) {
+      return { ok: false, reason: 'checkpoint_not_found' };
+    }
+    if (targetIndex === 0) {
+      return { ok: false, reason: 'same_checkpoint' };
+    }
+
+    const target = history[targetIndex];
+    const values = target.values ?? {};
+    const restoredMessages = Array.isArray(values.messages)
+      ? values.messages
+      : [];
+
+    // 用 RemoveMessage 哨兵清空当前 messages，再写回目标快照，
+    // 避免 messagesStateReducer 把旧消息追加到当前列表上。
+    const nextConfig = await this.compiledGraph.updateState(config, {
+      messages: [
+        new RemoveMessage({ id: REMOVE_ALL_MESSAGES }),
+        ...restoredMessages,
+      ],
+      flowState: values.flowState ?? { activeFlow: '', step: '', data: {} },
+      contextState: values.contextState,
+      intent: values.previousIntent ?? '',
+      previousIntent: values.previousIntent ?? '',
+      labels: [],
+      pendingConfirm: null,
+      transferToHuman: false,
+      transferReason: '',
+      ragSources: [],
+      userMemory: '',
+      repeatCount: 0,
+    });
+
+    const checkpointId =
+      nextConfig?.configurable?.checkpoint_id ?? input.checkpointId;
+    this.logger.log(
+      `[chatStream] state rolled back: conv=${input.conversationId}, checkpoint=${input.checkpointId}, newCheckpoint=${checkpointId}`,
+    );
+    return { ok: true, checkpointId };
   }
 
   async onModuleDestroy(): Promise<void> {
@@ -291,6 +376,9 @@ export class AiCustomerService implements OnModuleDestroy {
       this.broadcastThinking(conversationId, callbacks, memberIds);
 
       // Step 4 — 执行 LangGraph 流式推理（逐 token 推给前端）
+      // 每轮读取一次长期记忆，覆盖注入；读取失败返回空串，不阻断对话。
+      const userMemory = await this.aiMemoryService.getMemoryPrompt(userId);
+
       const streamUsage = await this.runEventStream(
         threadId,
         message,
@@ -301,7 +389,22 @@ export class AiCustomerService implements OnModuleDestroy {
         callbacks,
         memberIds,
         callbacks.signal,
+        userMemory,
       );
+
+      // 异步抽取蒸馏记忆：失败只记日志，不影响本轮回复。
+      void this.aiMemoryService
+        .recordFromUserMessage({
+          userId,
+          conversationId,
+          messageId: triggerMessageId,
+          text: message,
+        })
+        .catch((err: any) => {
+          this.logger.warn(
+            `[chatStream] memory extraction failed: ${err?.message ?? err}`,
+          );
+        });
 
       // 记录 token 用量（失败不阻断对话）
       try {
@@ -494,6 +597,7 @@ export class AiCustomerService implements OnModuleDestroy {
     },
     memberIds: string[],
     signal?: AbortSignal,
+    userMemory = '',
   ): Promise<StreamUsageSummary> {
     return handleEventStream(
       this.compiledGraph!,
@@ -508,6 +612,7 @@ export class AiCustomerService implements OnModuleDestroy {
       callbacks,
       memberIds,
       signal,
+      userMemory,
     );
   }
 
@@ -533,6 +638,18 @@ export class AiCustomerService implements OnModuleDestroy {
     const newMessages = (finalState?.values?.messages ?? []).slice(prevCount);
     const ragSources =
       (finalState?.values?.ragSources as RagCitation[] | undefined) ?? [];
+
+    // 新会话第一次进入某个 flowType 时绑定最新定义。
+    // 已绑定的旧会话不会跟随升级；绑定失败只记日志，不影响本轮回复。
+    const activeFlow = finalState?.values?.flowState?.activeFlow as
+      | string
+      | undefined;
+    const flowStep = finalState?.values?.flowState?.step as string | undefined;
+    void this.flowVersioning.ensureBindingQuietly(
+      conversationId,
+      activeFlow,
+      flowStep,
+    );
 
     // 持久化本轮 AI 对话：跨轮状态由 Postgres checkpointer 负责；
     // IM 消息由 AiReplyPublisher 写入 ChatMessage（这里不再维护 ai:hot 缓存）。
@@ -638,6 +755,7 @@ export class AiCustomerService implements OnModuleDestroy {
           await publishAiReply(
             this.prismaService,
             this.eventsGateway,
+            this.eventEmitter,
             targetConvId,
             newMessages,
             userId,
@@ -863,6 +981,7 @@ export class AiCustomerService implements OnModuleDestroy {
     await publishAiReply(
       this.prismaService,
       this.eventsGateway,
+      this.eventEmitter,
       conversationId,
       newMessages,
       userId,
@@ -934,6 +1053,7 @@ export class AiCustomerService implements OnModuleDestroy {
       {
         prisma: this.prismaService,
         gateway: this.eventsGateway,
+        eventEmitter: this.eventEmitter,
         logger: this.logger,
       },
       { conversationId, userId, memberIds, triggerMessageId },

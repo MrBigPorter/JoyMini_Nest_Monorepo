@@ -53,7 +53,7 @@ function createGateway() {
     {} as any,
     {} as any,
     { get: jest.fn().mockReturnValue(undefined) } as any,
-    { enqueue: jest.fn().mockResolvedValue(undefined) } as any,
+    { relayByMessageId: jest.fn().mockResolvedValue(undefined) } as any,
     // SseRateLimiterService：这条路径不触发 AI，只需可注入
     { tryAcquireLight: jest.fn().mockResolvedValue({ ok: true }) } as any,
   );
@@ -169,7 +169,7 @@ function createGatewayWithPrisma() {
     {} as any, // redisService
     eventEmitter as any, // eventEmitter
     { get: jest.fn().mockReturnValue(undefined) } as any, // configService
-    { enqueue: jest.fn().mockResolvedValue(undefined) } as any, // aiQueueService
+    { relayByMessageId: jest.fn().mockResolvedValue(undefined) } as any, // aiTaskOutboxService
     { tryAcquireLight: jest.fn().mockResolvedValue({ ok: true }) } as any, // sseRateLimiter
   );
   const { server } = createFakeServer();
@@ -386,7 +386,7 @@ describe('EventsGateway.afterInit Redis adapter', () => {
       {} as any,
       {} as any,
       { get } as any,
-      { enqueue: jest.fn().mockResolvedValue(undefined) } as any,
+      { relayByMessageId: jest.fn().mockResolvedValue(undefined) } as any,
       { tryAcquireLight: jest.fn().mockResolvedValue({ ok: true }) } as any,
     );
 

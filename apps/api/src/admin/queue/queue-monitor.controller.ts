@@ -1,9 +1,11 @@
 import {
   Controller,
   Get,
+  Post,
   Patch,
   Delete,
   Query,
+  Param,
   Body,
   UseGuards,
 } from '@nestjs/common';
@@ -16,12 +18,16 @@ import {
   QueueMonitorService,
   QueueMonitoringResponse,
 } from '@api/common/queue/queue-monitor.service';
+import { AiTaskOutboxService } from '@api/common/queue/ai-task-outbox.service';
 
 @ApiTags('Admin - Queue Monitor')
 @Controller('admin/queues')
 @UseGuards(AdminJwtAuthGuard, RolesGuard)
 export class QueueMonitorController {
-  constructor(private readonly queueMonitorService: QueueMonitorService) {}
+  constructor(
+    private readonly queueMonitorService: QueueMonitorService,
+    private readonly aiTaskOutboxService: AiTaskOutboxService,
+  ) {}
 
   @Get()
   @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
@@ -73,6 +79,35 @@ export class QueueMonitorController {
       message: `Cleaned ${cleanedCount} jobs from queue ${queueName}`,
       cleanedCount,
     };
+  }
+
+  @Get('ai/failed')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
+  @ApiOperation({ summary: 'AI 队列死信列表' })
+  async getAiFailedJobs(@Query('limit') limit: string = '50') {
+    return this.queueMonitorService.getAiFailedJobs(parseInt(limit, 10) || 50);
+  }
+
+  @Post('ai/:messageId/replay')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @ApiOperation({ summary: '按 messageId 重放 AI 死信' })
+  async replayAiJob(@Param('messageId') messageId: string) {
+    return this.queueMonitorService.replayAiJob(messageId);
+  }
+
+  @Get('ai/outbox-failed')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
+  @ApiOperation({ summary: '入队失败（Outbox FAILED）的任务' })
+  async getAiOutboxFailures(@Query('limit') limit: string = '50') {
+    return this.aiTaskOutboxService.listFailed(parseInt(limit, 10) || 50);
+  }
+
+  @Post('ai/outbox/:messageId/replay')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @ApiOperation({ summary: '重放 Outbox 入队失败任务' })
+  async replayAiOutbox(@Param('messageId') messageId: string) {
+    const ok = await this.aiTaskOutboxService.replayFailed(messageId);
+    return { ok, reason: ok ? undefined : 'not_failed_or_missing' };
   }
 
   @Get('blog-ai/translation-stats')

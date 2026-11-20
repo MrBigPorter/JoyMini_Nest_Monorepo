@@ -34,8 +34,9 @@ describe('AiQueueService', () => {
       },
       expect.objectContaining({
         jobId: 'msg-1',
-        attempts: 2,
-        backoff: { type: 'fixed', delay: 2_000 },
+        attempts: 3,
+        // 必须大于会话锁 TTL（120s），否则重试会立刻撞锁
+        backoff: { type: 'fixed', delay: 130_000 },
         removeOnFail: false,
       }),
     );

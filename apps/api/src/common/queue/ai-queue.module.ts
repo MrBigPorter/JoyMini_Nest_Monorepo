@@ -4,6 +4,12 @@ import { Queue } from 'bullmq';
 
 export const AI_PROCESSING_QUEUE = 'ai-processing';
 
+/**
+ * 消费失败后的重试间隔：必须大于会话锁 TTL（120s）。
+ * 小于 TTL 时重试会立刻撞上仍未释放的锁，白白耗尽 attempts 后进死信。
+ */
+export const AI_LOCK_BACKOFF_MS = 130_000;
+
 export interface AiProcessingJobData {
   conversationId: string;
   content: string;
@@ -43,8 +49,9 @@ export class AiQueueService {
     await this.queue.add('process-message', data, {
       // 消息级去重：同一条消息并发/重复投递只保留一份
       jobId: data.messageId,
-      attempts: 2,
-      backoff: { type: 'fixed', delay: 2_000 },
+      attempts: 3,
+      // 固定等待锁 TTL 过期后再重试；指数退避会让 120s 锁等待变成数分钟。
+      backoff: { type: 'fixed', delay: AI_LOCK_BACKOFF_MS },
       removeOnComplete: 1_000,
       // 失败任务保留 = 死信队列；排查后可按 jobId 手工重放
       removeOnFail: false,

@@ -28,8 +28,9 @@ function makeDeps() {
     conversation: { update: jest.fn(async () => ({ id: 'conv-1' })) },
   };
   const gateway = { dispatchToConversation: jest.fn() };
+  const eventEmitter = { emit: jest.fn() };
   const logger = { warn: jest.fn() };
-  return { prisma, gateway, logger };
+  return { prisma, gateway, eventEmitter, logger };
 }
 
 describe('degradeToHuman · 模型故障降级（N-15）', () => {
@@ -48,21 +49,21 @@ describe('degradeToHuman · 模型故障降级（N-15）', () => {
   });
 
   it('落兜底话术 + 置人工态 + 发 AI_TRANSFER', async () => {
-    const { prisma, gateway, logger } = makeDeps();
+    const { prisma, gateway, eventEmitter, logger } = makeDeps();
     const memberIds = ['user-1', 'bot-1'];
 
     await degradeToHuman(
-      { prisma: prisma as any, gateway: gateway as any, logger },
+      { prisma: prisma as any, gateway: gateway as any, eventEmitter: eventEmitter as any, logger },
       { conversationId: 'conv-1', userId: 'user-1', memberIds },
     );
 
     // ① 兜底话术走和正常回复同一条链路（落库 + 双通道广播）
     expect(publishAiReply).toHaveBeenCalledTimes(1);
     const args = (publishAiReply as jest.Mock).mock.calls[0];
-    expect(args[2]).toBe('conv-1');
-    expect(args[3]).toEqual([{ type: 'ai', content: AI_FAILURE_REPLY }]);
-    expect(args[4]).toBe('user-1');
-    expect(args[5]).toBe(memberIds);
+    expect(args[3]).toBe('conv-1');
+    expect(args[4]).toEqual([{ type: 'ai', content: AI_FAILURE_REPLY }]);
+    expect(args[5]).toBe('user-1');
+    expect(args[6]).toBe(memberIds);
 
     // ② 置 awaiting_human，阻断下一轮
     // transferredAt 必须一起写：排队时长和待接入排序只认它，
@@ -87,10 +88,10 @@ describe('degradeToHuman · 模型故障降级（N-15）', () => {
   });
 
   it('记一条 transfer 事件（source=fallback），供按原因统计', async () => {
-    const { prisma, gateway, logger } = makeDeps();
+    const { prisma, gateway, eventEmitter, logger } = makeDeps();
 
     await degradeToHuman(
-      { prisma: prisma as any, gateway: gateway as any, logger },
+      { prisma: prisma as any, gateway: gateway as any, eventEmitter: eventEmitter as any, logger },
       { conversationId: 'conv-1', userId: 'user-1' },
     );
 
@@ -106,11 +107,11 @@ describe('degradeToHuman · 模型故障降级（N-15）', () => {
   });
 
   it('落库失败不能吞掉转人工事件（承诺 vs 装饰）', async () => {
-    const { prisma, gateway, logger } = makeDeps();
+    const { prisma, gateway, eventEmitter, logger } = makeDeps();
     prisma.conversation.update.mockRejectedValueOnce(new Error('db down'));
 
     await degradeToHuman(
-      { prisma: prisma as any, gateway: gateway as any, logger },
+      { prisma: prisma as any, gateway: gateway as any, eventEmitter: eventEmitter as any, logger },
       { conversationId: 'conv-1', userId: 'user-1', memberIds: ['user-1'] },
     );
 
@@ -127,13 +128,13 @@ describe('degradeToHuman · 模型故障降级（N-15）', () => {
   });
 
   it('兜底话术落库失败也不影响置人工态和转人工事件', async () => {
-    const { prisma, gateway, logger } = makeDeps();
+    const { prisma, gateway, eventEmitter, logger } = makeDeps();
     (publishAiReply as jest.Mock).mockRejectedValueOnce(
       new Error('write failed'),
     );
 
     await degradeToHuman(
-      { prisma: prisma as any, gateway: gateway as any, logger },
+      { prisma: prisma as any, gateway: gateway as any, eventEmitter: eventEmitter as any, logger },
       { conversationId: 'conv-1', userId: 'user-1', memberIds: ['user-1'] },
     );
 
@@ -150,10 +151,10 @@ describe('degradeToHuman · 模型故障降级（N-15）', () => {
   });
 
   it('成员列表为空时，至少推给提问者本人', async () => {
-    const { prisma, gateway, logger } = makeDeps();
+    const { prisma, gateway, eventEmitter, logger } = makeDeps();
 
     await degradeToHuman(
-      { prisma: prisma as any, gateway: gateway as any, logger },
+      { prisma: prisma as any, gateway: gateway as any, eventEmitter: eventEmitter as any, logger },
       { conversationId: 'conv-1', userId: 'user-1' },
     );
 

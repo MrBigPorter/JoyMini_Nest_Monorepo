@@ -3,6 +3,7 @@ import { emitStage } from '@api/common/logger/structured-logger';
 import { publishAiReply } from './ai-reply-publisher';
 import type { PrismaService } from '@api/common/prisma/prisma.service';
 import type { EventsGateway } from '@api/common/events/events.gateway';
+import type { EventEmitter2 } from '@nestjs/event-emitter';
 
 /**
  * AI 链路故障降级 —— #87 N-15
@@ -31,6 +32,7 @@ export const AI_FAILURE_REPLY =
 export interface DegradeDeps {
   prisma: PrismaService;
   gateway: EventsGateway;
+  eventEmitter: EventEmitter2;
   /** 只用到 warn；失败不该中断降级流程 */
   logger: { warn: (msg: string) => void };
 }
@@ -57,6 +59,7 @@ export async function degradeToHuman(
     await publishAiReply(
       deps.prisma,
       deps.gateway,
+      deps.eventEmitter,
       conversationId,
       [{ type: 'ai', content: AI_FAILURE_REPLY }],
       userId,

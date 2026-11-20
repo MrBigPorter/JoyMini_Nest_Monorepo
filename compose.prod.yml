@@ -42,6 +42,17 @@ services:
       # 限制 Node.js 堆内存 (防 OOM) — 配合 2G 容器限制，留 ~512MB 给 ffmpeg 视频转码
       - NODE_OPTIONS=--max-old-space-size=1536
       # 迁移默认自动执行（entrypoint.sh）；若需跳过设 SKIP_MIGRATIONS=true
+      #
+      # ⚠️ 生产固定验证码（按业务要求显式开启）
+      # 这会让所有手机号使用同一个固定 OTP，且 /otp/request 会返回该码。
+      # 任何能访问接口的人都可以用固定码登录任意手机号 —— 仅适用于演示/验收环境。
+      # 关闭方式：删除以下三行，或用 OTP_PROVIDER=console 覆盖。
+      - OTP_PROVIDER=fixed
+      - OTP_FIXED_CODE=${OTP_FIXED_CODE:-999999}
+      - OTP_ALLOW_FIXED_IN_PROD=true
+      # 注入检测先观察不拦截：命中写 injection.detected，回答路径不变。
+      # 观察一段时间误报率后，再切 enforce。
+      - AI_INJECTION_DETECTION_MODE=log
     deploy:
       resources:
         limits:
@@ -65,7 +76,6 @@ services:
       redis:
         condition: service_healthy
     networks: [app]
-
 
   # =========================================
   # Nginx 反向代理 + API 网关

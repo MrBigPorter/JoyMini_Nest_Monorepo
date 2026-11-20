@@ -49,6 +49,8 @@ export class MessageCreatedEvent {
     public readonly conversationType?: string,
     public readonly businessId?: string,
     public readonly pushMemberIds?: string[], //only for push notification, can be omitted in Socket broadcast
+    /** AI 生成消息标记；缺省 false，兼容既有 emit 点 */
+    public readonly isAi?: boolean,
   ) {}
 }
 

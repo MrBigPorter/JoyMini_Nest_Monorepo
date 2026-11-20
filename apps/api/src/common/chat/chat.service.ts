@@ -35,13 +35,13 @@ import {
   ConversationReadEvent,
   MessageCreatedEvent,
   MessageRecalledEvent,
-  AiMessageRequestedEvent,
 } from '@api/common/chat/events/chat.events';
 
 import { CHAT_GROUP_EVENTS } from '@api/common/chat/events/chat-group.events';
 import { ForwardMessageDto } from '@api/common/chat/dto/forward-message.dto';
 import { ConfigService } from '@nestjs/config';
-import { AiQueueService } from '@api/common/queue/ai-queue.module';
+import { AiTaskOutboxService } from '@api/common/queue/ai-task-outbox.service';
+import { AiMemoryService } from '@api/common/ai/ai-memory.service';
 
 const SUPPORT_CONVERSATION_STARTED = 'chat.support.conversation.started';
 
@@ -54,7 +54,8 @@ export class ChatService {
     private readonly notificationService: NotificationService,
     private readonly configService: ConfigService,
     @InjectQueue(AVATAR_QUEUE_NAME) private readonly avatarQueue: Queue,
-    private readonly aiQueueService: AiQueueService,
+    private readonly aiTaskOutboxService: AiTaskOutboxService,
+    private readonly aiMemoryService: AiMemoryService,
   ) {}
 
   // =================================================================
@@ -176,6 +177,19 @@ export class ChatService {
           data: { lastReadSeqId: conv.lastMsgSeqId },
         });
 
+        // 与消息同事务登记 AI 投递任务：
+        // 提交后、queue.add 前崩溃也不会丢，relay cron 会补投。
+        const isAiType = conv.type === 'SUPPORT' || conv.type === 'AI';
+        if (isAiType && conv.handlerId == null) {
+          await tx.aiTaskOutbox.create({
+            data: {
+              messageId: msg.id,
+              conversationId,
+              userId,
+            },
+          });
+        }
+
         return {
           message: msg,
           conversationMeta: {
@@ -234,29 +248,9 @@ export class ChatService {
       conversationMeta.type === 'SUPPORT' || conversationMeta.type === 'AI';
     const isAiHandler = conversationMeta.handlerId == null;
     if (isAiType && isAiHandler) {
-      // 入队而不是直接跑：进程重启不丢、失败可重试、最终失败留死信。
-      // Redis/Bull 不可用时退回进程内事件，保证这轮对话仍有人处理。
-      try {
-        await this.aiQueueService.enqueue({
-          conversationId,
-          content,
-          userId,
-          messageId: message.id,
-        });
-      } catch (err: any) {
-        this.logger.warn(
-          `[AI Queue] enqueue failed, falling back to in-process event: ${err?.message ?? err}`,
-        );
-        this.eventEmitter.emit(
-          CHAT_EVENTS.AI_MESSAGE_REQUESTED,
-          new AiMessageRequestedEvent(
-            conversationId,
-            content,
-            userId,
-            message.id,
-          ),
-        );
-      }
+      // Outbox 行已在事务内落库。这里只做一次立即投递以保持正常路径的延迟；
+      // 失败不抛错，任务留在 PENDING 由 relay cron 补投。
+      await this.aiTaskOutboxService.relayByMessageId(message.id);
     }
 
     return { ...messageDto, isSelf: true };
@@ -405,6 +399,16 @@ export class ChatService {
       where: { conversationId_userId: { conversationId, userId } },
       data: { clearedSeqId: conv.lastMsgSeqId },
     });
+
+    // 清历史只清本会话摘要，不删用户偏好/事实（避免“清聊天记录 = 失忆”）。
+    await this.aiMemoryService
+      .clearConversationSummaries(userId, conversationId)
+      .catch((err: any) => {
+        this.logger.warn(
+          `[clearHistory] memory summary clear failed: ${err?.message ?? err}`,
+        );
+      });
+
     return { success: true };
   }
 
@@ -666,6 +670,7 @@ export class ChatService {
         createdAt: m.createdAt.getTime(),
         isSelf: m.senderId === userId,
         meta: m.meta,
+        isAi: m.source === 'ai',
         sender: m.sender,
       })),
       nextCursor,

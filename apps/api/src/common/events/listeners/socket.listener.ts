@@ -49,6 +49,7 @@ export class SocketListener {
         avatar: event.senderAvatar,
       },
       isSelf: false,
+      isAi: event.isAi ?? false,
     };
 
     //  A. 房间广播 (O(1))，保证聊天窗口内实时更新
