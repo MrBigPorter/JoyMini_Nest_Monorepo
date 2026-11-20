@@ -1272,6 +1272,8 @@ export interface ChatConversation {
   lastMsgContent: string | null;
   lastMsgTime: number;
   lastMsgSeqId: number;
+  /** 会话流量来源，如 simulation_support_v1 */
+  trafficSource?: string | null;
   memberCount: number;
   members: ChatConversationMember[];
 }

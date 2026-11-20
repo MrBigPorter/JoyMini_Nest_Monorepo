@@ -147,6 +147,9 @@ export class AdminChatService {
         })(),
         lastMsgContent: c.lastMsgContent,
         lastMsgTime: c.lastMsgTime?.getTime() ?? 0,
+        trafficSource:
+          (c.aiMetadata as Record<string, unknown> | null)?.trafficSource ??
+          null,
         lastMsgSeqId: c.lastMsgSeqId,
         memberCount: c.members.length,
         members: c.members.map((m) => ({
