@@ -1571,6 +1571,8 @@ export const aiOpsApi = {
       memories: import('@/type/types').AiMemoryRow[];
       summaries: import('@/type/types').AiMemorySummaryRow[];
     }>(`/v1/admin/ai-memory/users/${userId}`),
+  restoreMemory: (id: string) =>
+    http.patch(`/v1/admin/ai-memory/${id}/restore`),
   deleteMemory: (id: string) => http.delete(`/v1/admin/ai-memory/${id}`),
   deleteUserMemories: (userId: string) =>
     http.delete(`/v1/admin/ai-memory/users/${userId}`),

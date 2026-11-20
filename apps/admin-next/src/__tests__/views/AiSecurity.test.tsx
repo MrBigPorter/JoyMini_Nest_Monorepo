@@ -11,6 +11,7 @@ const mockUseRequest = vi.hoisted(() => vi.fn());
 const mockSecurityEvents = vi.hoisted(() => vi.fn());
 const mockSecuritySummary = vi.hoisted(() => vi.fn());
 const mockCanReadContext = vi.hoisted(() => vi.fn());
+const mockSecurityTriage = vi.hoisted(() => vi.fn());
 
 vi.mock('ahooks', () => ({
   useRequest: (...args: unknown[]) => mockUseRequest(...args),
@@ -20,7 +21,7 @@ vi.mock('@/api', () => ({
   aiQualityApi: {
     securityEvents: (...args: unknown[]) => mockSecurityEvents(...args),
     securitySummary: (...args: unknown[]) => mockSecuritySummary(...args),
-    securityTriage: vi.fn().mockResolvedValue({ id: 'evt-1' }),
+    securityTriage: (...args: unknown[]) => mockSecurityTriage(...args),
   },
 }));
 
@@ -110,6 +111,7 @@ describe('AiSecurityPage', () => {
     mockCanReadContext.mockReturnValue(true);
     mockSecuritySummary.mockResolvedValue(summary);
     mockSecurityEvents.mockResolvedValue({ list: [row], total: 42 });
+    mockSecurityTriage.mockResolvedValue({ id: 'evt-1' });
     wireRequests();
   });
 
@@ -209,5 +211,22 @@ describe('AiSecurityPage', () => {
 
     expect(screen.getByText('conv-1')).toBeTruthy();
     expect(screen.queryByRole('link', { name: 'conv-1' })).toBeNull();
+  });
+
+  it('submits a triage status from the row action', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const promptSpy = vi.spyOn(window, 'prompt').mockReturnValue('确认攻击');
+    render(<AiSecurityPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: '确认攻击' }));
+
+    await waitFor(() =>
+      expect(mockSecurityTriage).toHaveBeenCalledWith('evt-1', {
+        status: 'CONFIRMED',
+        note: '确认攻击',
+      }),
+    );
+    confirmSpy.mockRestore();
+    promptSpy.mockRestore();
   });
 });

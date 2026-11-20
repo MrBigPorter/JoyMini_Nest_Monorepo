@@ -1,4 +1,4 @@
-import { Controller, Delete, Get, Param, UseGuards } from '@nestjs/common';
+import { Controller, Delete, Get, Param, Patch, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Role } from '@lucky/shared';
 import { AdminJwtAuthGuard } from '../auth/admin-jwt-auth.guard';
@@ -28,6 +28,16 @@ export class AiMemoryAdminController {
     @CurrentUserId() adminId: string,
   ) {
     return this.memory.deleteMemory(id, adminId);
+  }
+
+  @Patch(':id/restore')
+  @Roles(Role.SUPER_ADMIN)
+  @ApiOperation({ summary: '恢复单条软删除的用户记忆' })
+  async restoreMemory(
+    @Param('id') id: string,
+    @CurrentUserId() adminId: string,
+  ) {
+    return this.memory.restoreMemory(id, adminId);
   }
 
   @Delete('users/:userId')

@@ -240,6 +240,19 @@ export default function AiMemoryPage() {
     }
   };
 
+  const restoreOne = async (id: string) => {
+    if (!canDelete) return;
+    if (!window.confirm('确认恢复这条记忆？恢复后会重新参与 AI 上下文。')) {
+      return;
+    }
+    try {
+      await aiOpsApi.restoreMemory(id);
+      await refresh();
+    } catch (err) {
+      window.alert(errorMessage(err) || '恢复失败');
+    }
+  };
+
   const deleteAll = async () => {
     if (!selectedUserId || !canDelete) return;
 
@@ -479,13 +492,23 @@ export default function AiMemoryPage() {
                                 </p>
                               </div>
                               {canDelete ? (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => void deleteOne(memory.id)}
-                                >
-                                  删除
-                                </Button>
+                                memory.status === 'DELETED' ? (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => void restoreOne(memory.id)}
+                                  >
+                                    恢复
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => void deleteOne(memory.id)}
+                                  >
+                                    删除
+                                  </Button>
+                                )
                               ) : null}
                             </div>
 

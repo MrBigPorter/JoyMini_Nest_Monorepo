@@ -45,6 +45,27 @@ export class AiMemoryAdminService {
     return updated;
   }
 
+  async restoreMemory(id: string, adminId: string) {
+    const memory = await this.prisma.aiUserMemory.findUnique({ where: { id } });
+    if (!memory) throw new NotFoundException('Memory not found');
+
+    const expiresAt = new Date(
+      Math.max(Date.now() + 30 * 24 * 60 * 60 * 1000, memory.expiresAt.getTime()),
+    );
+    const updated = await this.prisma.aiUserMemory.update({
+      where: { id },
+      data: { status: 'ACTIVE', expiresAt },
+    });
+    await this.operationLog.log({
+      adminId,
+      adminName: adminId,
+      module: 'ai-memory',
+      action: 'restore',
+      details: `restore memory ${id} for user ${memory.userId}`,
+    });
+    return updated;
+  }
+
   async deleteUserMemories(userId: string, adminId: string) {
     const result = await this.memory.deleteUserMemories(userId);
     await this.operationLog.log({

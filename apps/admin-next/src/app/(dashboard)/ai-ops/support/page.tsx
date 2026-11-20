@@ -4,9 +4,10 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRequest } from 'ahooks';
 import { Button } from '@repo/ui';
-import { aiQualityApi } from '@/api';
+import { aiQualityApi, chatApi } from '@/api';
 import { PageHeader } from '@/components/scaffold/PageHeader';
 import { AiErrorBanner } from '@/components/ai-ops/AiErrorBanner';
+import { useAiOpsRole } from '@/lib/ai-ops-permissions';
 import type { SupportSlaSnapshotRow } from '@/type/types';
 
 function formatWait(seconds: number): string {
@@ -16,8 +17,28 @@ function formatWait(seconds: number): string {
   return rest > 0 ? `${minutes} 分 ${rest} 秒` : `${minutes} 分钟`;
 }
 
+/** 转人工队列的写操作角色：ADMIN / SUPER_ADMIN / EDITOR。后端 RolesGuard 仍是最终边界。 */
+function canManageSupport(role: string): boolean {
+  const normalized = (role ?? '').toUpperCase();
+  return (
+    normalized === 'SUPER_ADMIN' ||
+    normalized === 'ADMIN' ||
+    normalized === 'EDITOR'
+  );
+}
+
+interface ActionFeedback {
+  type: 'success' | 'error';
+  message: string;
+}
+
 export default function AiSupportPage() {
   const [hours, setHours] = useState(24);
+  const [actionFeedback, setActionFeedback] =
+    useState<ActionFeedback | null>(null);
+  const [pendingId, setPendingId] = useState<string | null>(null);
+  const role = useAiOpsRole();
+  const canWrite = canManageSupport(role);
   const { data, loading, error, refresh } = useRequest(
     () => aiQualityApi.slaHistory(hours),
     { refreshDeps: [hours], pollingInterval: 60_000 },
@@ -36,6 +57,91 @@ export default function AiSupportPage() {
   const visible = snapshots.slice(-120);
   const queueItems = queueData?.items ?? [];
 
+  const refreshAfterAction = async () => {
+    await Promise.all([refreshQueue(), refresh()]);
+  };
+
+  const runClaim = async (conversationId: string) => {
+    if (!canWrite || pendingId) return;
+    if (
+      !window.confirm(
+        `确认认领会话 ${conversationId}？认领后将由你进行人工接待。`,
+      )
+    ) {
+      return;
+    }
+    setPendingId(conversationId);
+    setActionFeedback(null);
+    try {
+      const result = await chatApi.claim(conversationId);
+      if (!result || result.success === false) {
+        throw new Error('服务端未确认认领，请刷新队列后重试');
+      }
+      setActionFeedback({
+        type: 'success',
+        message: `已认领会话 ${conversationId}`,
+      });
+      await refreshAfterAction();
+    } catch (err) {
+      setActionFeedback({
+        type: 'error',
+        message: `认领失败：${
+          err instanceof Error ? err.message : '请稍后重试'
+        }`,
+      });
+    } finally {
+      setPendingId(null);
+    }
+  };
+
+  const runClose = async (conversationId: string) => {
+    if (!canWrite || pendingId) return;
+    const reason = window.prompt(
+      `关闭会话 ${conversationId}，请填写关闭原因（必填）：`,
+      '',
+    );
+    if (reason === null) return;
+    const trimmedReason = reason.trim();
+    if (!trimmedReason) {
+      setActionFeedback({
+        type: 'error',
+        message: '关闭原因不能为空，已取消关闭',
+      });
+      return;
+    }
+    if (
+      !window.confirm(
+        `确认关闭会话 ${conversationId}？\n关闭原因：${trimmedReason}`,
+      )
+    ) {
+      return;
+    }
+    setPendingId(conversationId);
+    setActionFeedback(null);
+    try {
+      const result = await chatApi.closeConversation(conversationId, {
+        reason: trimmedReason,
+      });
+      if (!result || result.success === false) {
+        throw new Error('服务端未确认关闭，请刷新队列后重试');
+      }
+      setActionFeedback({
+        type: 'success',
+        message: `已关闭会话 ${conversationId}`,
+      });
+      await refreshAfterAction();
+    } catch (err) {
+      setActionFeedback({
+        type: 'error',
+        message: `关闭失败：${
+          err instanceof Error ? err.message : '请稍后重试'
+        }`,
+      });
+    } finally {
+      setPendingId(null);
+    }
+  };
+
   return (
     <div className="space-y-5 p-4">
       <PageHeader
@@ -48,6 +154,32 @@ export default function AiSupportPage() {
           message="SLA 数据加载失败，下面的数字可能不是最新。"
           onRetry={() => void refresh()}
         />
+      ) : null}
+
+      {!canWrite ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
+          当前角色为只读，可以查看转人工队列，但不能认领或关闭会话。
+        </div>
+      ) : null}
+
+      {actionFeedback ? (
+        <div
+          role={actionFeedback.type === 'error' ? 'alert' : 'status'}
+          className={
+            actionFeedback.type === 'error'
+              ? 'flex flex-wrap items-center justify-between gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300'
+              : 'flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300'
+          }
+        >
+          <span>{actionFeedback.message}</span>
+          <button
+            type="button"
+            className="text-xs underline underline-offset-2"
+            onClick={() => setActionFeedback(null)}
+          >
+            知道了
+          </button>
+        </div>
       ) : null}
 
       <div className="flex flex-wrap items-center gap-3 text-sm">
@@ -131,7 +263,7 @@ export default function AiSupportPage() {
             <table className="min-w-full text-sm">
               <thead className="bg-gray-50 text-left dark:bg-white/5">
                 <tr>
-                  {['会话', '等待', '转人工原因', '最后消息', '状态', ''].map(
+                  {['会话', '等待', '转人工原因', '最后消息', '状态', '操作'].map(
                     (h) => (
                       <th key={h} className="px-3 py-2">
                         {h}
@@ -171,12 +303,42 @@ export default function AiSupportPage() {
                       )}
                     </td>
                     <td className="px-3 py-2">
-                      <Link
-                        className="text-xs text-blue-600 hover:underline"
-                        href="/customer-service"
-                      >
-                        打开
-                      </Link>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {canWrite ? (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={pendingId === item.conversationId}
+                              onClick={() =>
+                                void runClaim(item.conversationId)
+                              }
+                            >
+                              {pendingId === item.conversationId
+                                ? '处理中...'
+                                : '认领'}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={pendingId === item.conversationId}
+                              onClick={() =>
+                                void runClose(item.conversationId)
+                              }
+                            >
+                              关闭
+                            </Button>
+                          </>
+                        ) : (
+                          <span className="text-xs text-gray-400">只读</span>
+                        )}
+                        <Link
+                          className="text-xs text-blue-600 hover:underline"
+                          href="/customer-service"
+                        >
+                          打开
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 ))}

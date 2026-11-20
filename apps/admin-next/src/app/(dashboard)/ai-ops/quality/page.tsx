@@ -10,6 +10,7 @@ import { canTriageFeedback, useAiOpsRole } from '@/lib/ai-ops-permissions';
 import type {
   AiFeedbackItem,
   AiFeedbackSummary,
+  EvalCase,
   EvalDataset,
   EvalRun,
 } from '@/type/types';
@@ -113,6 +114,25 @@ function countByValue(
   return (rows ?? []).find((row) => row[key] === value)?.count ?? 0;
 }
 
+/**
+ * 只有确认的模型问题才允许沉淀为回归用例：
+ * 模型答错 / 误转 / 判定错误；服务故障、正常转人工不算模型问题。
+ */
+function isModelProblem(item: FeedbackRow | null | undefined): boolean {
+  if (!item) return false;
+  if (
+    item.failureKind === 'SERVICE_ERROR' ||
+    item.failureKind === 'EXPECTED_TRANSFER'
+  ) {
+    return false;
+  }
+  return (
+    item.failureKind === 'MODEL_ERROR' ||
+    item.failureKind === 'UNEXPECTED_TRANSFER' ||
+    item.verdict === 'incorrect'
+  );
+}
+
 export default function AiQualityPage() {
   const [tab, setTab] = useState<Tab>('feedback');
 
@@ -144,20 +164,26 @@ export default function AiQualityPage() {
           </button>
         ))}
       </div>
-      {tab === 'feedback' ? <FeedbackPanel /> : null}
+      {tab === 'feedback' ? (
+        <FeedbackPanel onGoToEval={() => setTab('eval')} />
+      ) : null}
       {tab === 'eval' ? <EvalPanel /> : null}
       {tab === 'rag' ? <RagPanel /> : null}
     </div>
   );
 }
 
-function FeedbackPanel() {
+function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
   const [reviewStatus, setReviewStatus] = useState('');
   const [failureKindFilter, setFailureKindFilter] = useState('');
   const [resolutionFilter, setResolutionFilter] = useState('');
   const [failureKind, setFailureKind] = useState('UNKNOWN');
   const [page, setPage] = useState(1);
   const [actionError, setActionError] = useState('');
+  const [actionInfo, setActionInfo] = useState('');
+  const [addTarget, setAddTarget] = useState<FeedbackRow | null>(null);
+  const [addDatasetId, setAddDatasetId] = useState('');
+  const [adding, setAdding] = useState(false);
   const [reviewMode, setReviewMode] = useState(false);
   const [reviewIndex, setReviewIndex] = useState(0);
   const role = useAiOpsRole();
@@ -182,8 +208,15 @@ function FeedbackPanel() {
     { refreshDeps: [page, reviewStatus, failureKindFilter, resolutionFilter] },
   );
 
+  const { data: datasetListData, refresh: refreshDatasets } = useRequest(
+    aiQualityApi.listDatasets,
+  );
+
   const summary = summaryData as AiFeedbackSummary | undefined;
   const list = ((data as any)?.list ?? []) as FeedbackRow[];
+  const datasetList: EvalDataset[] = Array.isArray(datasetListData)
+    ? (datasetListData as EvalDataset[])
+    : [];
   const total = (data as any)?.total ?? 0;
   const kpis: Array<[string, number | undefined]> = [
     ['待处理', summary?.pending],
@@ -228,6 +261,56 @@ function FeedbackPanel() {
     } catch (err: any) {
       setActionError(err?.message ?? '分诊失败，请重试');
       return false;
+    }
+  };
+
+  const openAddToRegression = (item: FeedbackRow) => {
+    setAddTarget(item);
+    setAddDatasetId((current) => current || datasetList[0]?.id || '');
+    setActionError('');
+    setActionInfo('');
+  };
+
+  const addToRegression = async () => {
+    if (!addTarget) return;
+    if (!addDatasetId) {
+      setActionError('请先选择评测集');
+      return;
+    }
+    const target = addTarget;
+    setAdding(true);
+    setActionError('');
+    setActionInfo('');
+    try {
+      const result = (await aiQualityApi.addCases(addDatasetId, {
+        cases: [
+          {
+            question: target.input ?? '',
+            answer: target.answer ?? '',
+            expect: {},
+            tags: ['from-feedback', target.failureKind ?? 'UNKNOWN'],
+          },
+        ],
+      })) as (EvalDataset & { cases?: EvalCase[] }) | undefined;
+      const cases = result?.cases ?? [];
+      // 用例按创建时间升序返回，取最后一条与问题匹配的用例即本次新建项。
+      const created = [...cases]
+        .reverse()
+        .find((item) => item.question === (target.input ?? ''));
+      if (!created) {
+        throw new Error('用例已提交，但未能定位新建用例，请刷新后手动关联');
+      }
+      await aiQualityApi.updateFeedback(target.id, {
+        linkedEvalCaseId: created.id,
+        resolution: 'ADDED_TO_EVAL',
+      });
+      setAddTarget(null);
+      setActionInfo('已加入回归评测集');
+      await Promise.all([refresh(), refreshSummary(), refreshDatasets()]);
+    } catch (err: any) {
+      setActionError(err?.message ?? '加入回归失败，请重试');
+    } finally {
+      setAdding(false);
     }
   };
 
@@ -411,6 +494,73 @@ function FeedbackPanel() {
       {actionError ? (
         <AiErrorBanner message={actionError} onRetry={() => setActionError('')} />
       ) : null}
+      {actionInfo ? (
+        <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 dark:border-green-500/30 dark:bg-green-500/10 dark:text-green-300">
+          {actionInfo}
+        </div>
+      ) : null}
+
+      {addTarget ? (
+        <section className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 dark:border-emerald-500/30 dark:bg-emerald-500/5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold">加入回归</h2>
+            <button
+              type="button"
+              className="text-xs text-gray-500 hover:underline"
+              onClick={() => setAddTarget(null)}
+            >
+              取消
+            </button>
+          </div>
+          <p className="mt-1 text-xs text-gray-500">
+            将这条反馈沉淀为一条评测用例，期望结果可稍后在回归测试中补充。
+          </p>
+          <div className="mt-2 text-xs text-gray-500">
+            问题：{addTarget.input ?? '-'} · 归因：
+            {labelOf(FAILURE_KIND_LABELS, addTarget.failureKind)}
+          </div>
+          {datasetList.length === 0 ? (
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <span className="text-sm text-amber-700 dark:text-amber-300">
+                先创建评测集
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setAddTarget(null);
+                  onGoToEval();
+                }}
+              >
+                去创建评测集
+              </Button>
+            </div>
+          ) : (
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <select
+                aria-label="选择回归评测集"
+                className="rounded-lg border px-3 py-1.5 text-sm dark:border-white/10 dark:bg-gray-800"
+                value={addDatasetId}
+                onChange={(e) => setAddDatasetId(e.target.value)}
+              >
+                <option value="">选择评测集</option>
+                {datasetList.map((dataset) => (
+                  <option key={dataset.id} value={dataset.id}>
+                    {dataset.name}（{dataset._count?.cases ?? 0} 条用例）
+                  </option>
+                ))}
+              </select>
+              <Button
+                size="sm"
+                disabled={adding || !addDatasetId}
+                onClick={() => void addToRegression()}
+              >
+                {adding ? '加入中…' : '确认加入回归'}
+              </Button>
+            </div>
+          )}
+        </section>
+      ) : null}
 
       {current ? (
         <section className="rounded-xl border border-blue-200 bg-blue-50/50 p-4 dark:border-blue-500/30 dark:bg-blue-500/5">
@@ -460,6 +610,19 @@ function FeedbackPanel() {
                   onClick={() => void handleReview('exclude')}
                 >
                   排除
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!isModelProblem(current)}
+                  title={
+                    isModelProblem(current)
+                      ? '将这条反馈加入回归评测集'
+                      : '仅模型答错、误转或判定错误的反馈可加入回归'
+                  }
+                  onClick={() => openAddToRegression(current)}
+                >
+                  加入回归
                 </Button>
                 <Button
                   size="sm"
@@ -590,6 +753,19 @@ function FeedbackPanel() {
                           >
                             排除
                           </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={!isModelProblem(item)}
+                            title={
+                              isModelProblem(item)
+                                ? '将这条反馈加入回归评测集'
+                                : '仅模型答错、误转或判定错误的反馈可加入回归'
+                            }
+                            onClick={() => openAddToRegression(item)}
+                          >
+                            加入回归
+                          </Button>
                         </>
                       ) : null}
                       <a
@@ -691,7 +867,9 @@ function EvalPanel() {
     | (EvalDataset & { cases: any[]; runs: EvalRun[] })
     | null;
   const runData = run as EvalRun | null;
-  const list = (datasets as EvalDataset[] | undefined) ?? [];
+  const list = Array.isArray(datasets)
+    ? (datasets as EvalDataset[])
+    : [];
   const selectedMeta = list.find((item) => item.id === selectedId);
   const lastRun = ds?.runs?.[0];
 

@@ -18,6 +18,7 @@ const mockGetFeedbackList = vi.hoisted(() => vi.fn());
 const mockGetFeedbackSummary = vi.hoisted(() => vi.fn());
 const mockUpdateFeedback = vi.hoisted(() => vi.fn());
 const mockListDatasets = vi.hoisted(() => vi.fn());
+const mockAddCases = vi.hoisted(() => vi.fn());
 const mockRagSearch = vi.hoisted(() => vi.fn());
 const mockQualityStats = vi.hoisted(() => vi.fn());
 const mockCanTriage = vi.hoisted(() => vi.fn(() => true));
@@ -36,7 +37,7 @@ vi.mock('@/api', () => ({
     listDatasets: (...args: unknown[]) => mockListDatasets(...args),
     getDataset: vi.fn(),
     createDataset: vi.fn(),
-    addCases: vi.fn(),
+    addCases: (...args: unknown[]) => mockAddCases(...args),
     startRun: vi.fn(),
     getRun: vi.fn(),
     ragSearch: (...args: unknown[]) => mockRagSearch(...args),
@@ -120,6 +121,7 @@ function wireFeedback(
   options: {
     summaryData?: unknown;
     listData?: unknown;
+    datasetsData?: unknown;
     summaryError?: Error;
     listError?: Error;
     refresh?: () => void;
@@ -129,20 +131,27 @@ function wireFeedback(
   let index = 0;
   mockUseRequest.mockImplementation((service: unknown) => {
     if (typeof service === 'function') void (service as () => unknown)();
-    const isSummary = index % 2 === 0;
+    // FeedbackPanel registers three hooks in order: summary, list, datasets.
+    const slot = index % 3;
     index += 1;
-    if (isSummary) {
+    if (slot === 0) {
       return {
         ...makeUseRequest(options.summaryData ?? summary),
         ...(options.summaryError ? { error: options.summaryError } : {}),
         refresh,
       };
     }
+    if (slot === 1) {
+      return {
+        ...makeUseRequest(
+          options.listData ?? { list: [feedback], total: 1 },
+        ),
+        ...(options.listError ? { error: options.listError } : {}),
+        refresh,
+      };
+    }
     return {
-      ...makeUseRequest(
-        options.listData ?? { list: [feedback], total: 1 },
-      ),
-      ...(options.listError ? { error: options.listError } : {}),
+      ...makeUseRequest(options.datasetsData ?? datasets),
       refresh,
     };
   });
@@ -161,6 +170,7 @@ describe('AiQualityPage', () => {
     mockGetFeedbackList.mockResolvedValue({ list: [feedback], total: 1 });
     mockGetFeedbackSummary.mockResolvedValue(summary);
     mockListDatasets.mockResolvedValue(datasets);
+    mockAddCases.mockResolvedValue({ id: 'ds-1', cases: [] });
     mockRagSearch.mockResolvedValue({ results: [], debug: {} });
     mockQualityStats.mockResolvedValue(stats);
     wireFeedback();
@@ -246,6 +256,93 @@ describe('AiQualityPage', () => {
         note: '已确认是模型答非所问',
       }),
     );
+  });
+
+  it('disables the add-to-regression action for service-error and expected-transfer rows', () => {
+    wireFeedback({
+      listData: {
+        list: [
+          { ...feedback, id: 'fb-svc', failureKind: 'SERVICE_ERROR' },
+          { ...feedback, id: 'fb-expected', failureKind: 'EXPECTED_TRANSFER' },
+          { ...feedback, id: 'fb-model', failureKind: 'MODEL_ERROR' },
+        ],
+        total: 3,
+      },
+    });
+    render(<AiQualityPage />);
+
+    const actions = screen.getAllByRole('button', { name: '加入回归' });
+    expect(actions).toHaveLength(3);
+    expect((actions[0] as HTMLButtonElement).disabled).toBe(true);
+    expect((actions[1] as HTMLButtonElement).disabled).toBe(true);
+    expect((actions[2] as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('creates a regression case and links it back to the feedback', async () => {
+    const refresh = wireFeedback();
+    mockAddCases.mockResolvedValue({
+      id: 'ds-1',
+      cases: [
+        {
+          id: 'case-old',
+          datasetId: 'ds-1',
+          question: feedback.input,
+          answer: '旧用例',
+          expect: {},
+          tags: [],
+          createdAt: '2026-01-01T00:00:00.000Z',
+        },
+        {
+          id: 'case-new',
+          datasetId: 'ds-1',
+          question: feedback.input,
+          answer: feedback.answer,
+          expect: {},
+          tags: ['from-feedback', 'UNEXPECTED_TRANSFER'],
+          createdAt: '2026-01-02T00:00:00.000Z',
+        },
+      ],
+    });
+    render(<AiQualityPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: '加入回归' }));
+    fireEvent.change(screen.getByLabelText('选择回归评测集'), {
+      target: { value: 'ds-1' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '确认加入回归' }));
+
+    await waitFor(() =>
+      expect(mockAddCases).toHaveBeenCalledWith('ds-1', {
+        cases: [
+          {
+            question: feedback.input,
+            answer: feedback.answer,
+            expect: {},
+            tags: ['from-feedback', 'UNEXPECTED_TRANSFER'],
+          },
+        ],
+      }),
+    );
+    await waitFor(() =>
+      expect(mockUpdateFeedback).toHaveBeenCalledWith('fb-1', {
+        linkedEvalCaseId: 'case-new',
+        resolution: 'ADDED_TO_EVAL',
+      }),
+    );
+    expect(refresh).toHaveBeenCalled();
+  });
+
+  it('routes to the eval tab when no regression dataset exists', () => {
+    wireFeedback({ datasetsData: [] });
+    render(<AiQualityPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: '加入回归' }));
+    expect(screen.getByText('先创建评测集')).toBeTruthy();
+
+    mockUseRequest.mockReturnValue(makeUseRequest([]));
+    fireEvent.click(screen.getByRole('button', { name: '去创建评测集' }));
+
+    expect(screen.getByRole('button', { name: '创建评测集' })).toBeTruthy();
   });
 
   it('hides triage actions but keeps status and context for read-only roles', () => {
