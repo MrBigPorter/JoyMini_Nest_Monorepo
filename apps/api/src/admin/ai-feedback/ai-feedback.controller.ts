@@ -72,7 +72,7 @@ export class AiFeedbackController {
   @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
   @ApiOperation({ summary: '查询反馈列表（显式 + 隐式）' })
   async list(@Query() query: QueryAiFeedbackDto) {
-    this.assertEnabled();
+    // 读取不依赖写开关：运营需要能查看历史反馈；关闭开关只关闭写入。
     return this.feedbackService.list(query);
   }
 

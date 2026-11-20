@@ -33,13 +33,12 @@ describe('AiFeedbackController 开关（5.3）', () => {
     expect(service.recordExplicit).not.toHaveBeenCalled();
   });
 
-  it('默认关闭：列表接口也拒绝', async () => {
+  it('默认关闭：列表仍可读取，只关闭写入', async () => {
     delete process.env.AI_FEEDBACK_UI_ENABLED;
-    const { controller } = createController();
+    const { controller, service } = createController();
 
-    await expect(controller.list({} as any)).rejects.toBeInstanceOf(
-      ForbiddenException,
-    );
+    await controller.list({} as any);
+    expect(service.list).toHaveBeenCalledWith({});
   });
 
   it('开关打开后正常写入', async () => {
