@@ -244,7 +244,7 @@ export class AiEvalDatasetService {
         else unsolved += 1;
         caseVerdicts.push({ caseId: item.id, verdict: verdict.verdict });
 
-        await this.prisma.aiEvalResult.create({
+        const result = await this.prisma.aiEvalResult.create({
           data: {
             runId,
             caseId: item.id,
@@ -259,6 +259,32 @@ export class AiEvalDatasetService {
             latencyMs: Date.now() - started,
           },
         });
+
+        // 统一评分：评测结果同时落一条 AiScore，供 trace 详情和质量趋势复用。
+        await this.prisma.aiScore
+          .create({
+            data: {
+              traceId,
+              conversationId: null,
+              messageId: null,
+              source: 'LLM',
+              value: verdict.score,
+              stringValue: verdict.verdict,
+              comment: verdict.reason.slice(0, 500),
+              metadata: {
+                evalRunId: runId,
+                evalResultId: result.id,
+                caseId: item.id,
+                judgeModel: verdict.judgeModel ?? null,
+                judgeVendor: verdict.judgeVendor ?? null,
+              },
+            },
+          })
+          .catch((err) =>
+            this.logger.warn(
+              `[eval] score write failed for result ${result.id}: ${err?.message ?? err}`,
+            ),
+          );
       }
       const total = run.dataset.cases.length;
       const passRate =

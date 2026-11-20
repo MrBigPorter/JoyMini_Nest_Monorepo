@@ -9,6 +9,7 @@ function makeService() {
       count: jest.fn().mockResolvedValue(1),
       findUnique: jest.fn(),
     },
+    aiScore: { findMany: jest.fn().mockResolvedValue([]) },
   };
   return { service: new TraceService(prisma), prisma };
 }
@@ -139,7 +140,7 @@ describe('TraceService', () => {
     const detail = { id: 'trace-1', spans: [{ id: 'span-1' }] };
     prisma.aiTrace.findUnique.mockResolvedValue(detail);
 
-    await expect(service.get('trace-1')).resolves.toEqual(detail);
+    await expect(service.get('trace-1')).resolves.toEqual({ ...detail, scores: [] });
     expect(prisma.aiTrace.findUnique).toHaveBeenCalledWith({
       where: { id: 'trace-1' },
       include: {

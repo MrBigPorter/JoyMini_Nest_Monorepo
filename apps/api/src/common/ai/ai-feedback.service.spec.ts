@@ -2,6 +2,7 @@ import { AiFeedbackService } from './ai-feedback.service';
 
 function createService() {
   const prisma = {
+    aiScore: { create: jest.fn().mockResolvedValue({ id: 'score-1' }) },
     aiAnswerFeedback: {
       create: jest.fn().mockResolvedValue({ id: 'fb-1' }),
       findFirst: jest.fn().mockResolvedValue(null),

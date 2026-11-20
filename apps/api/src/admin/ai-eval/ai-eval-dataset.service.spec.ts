@@ -49,6 +49,7 @@ function verdictOf(verdict: string) {
 
 function makeService() {
   const prisma = {
+    aiScore: { create: jest.fn().mockResolvedValue({ id: 'score-1' }) },
     aiEvalDataset: { findUnique: jest.fn() },
     aiEvalRun: {
       create: jest.fn(),

@@ -386,7 +386,7 @@ export class AiFeedbackService {
       input.reviewStatus ??
       (input.resolution ? RESOLUTION_TO_REVIEW_STATUS[input.resolution] : undefined);
 
-    return this.prisma.aiAnswerFeedback.update({
+    const updated = await this.prisma.aiAnswerFeedback.update({
       where: { id },
       data: {
         ...(reviewStatus ? { reviewStatus } : {}),
@@ -408,6 +408,38 @@ export class AiFeedbackService {
           : {}),
       },
     });
+
+    // 人工分诊同时写一条统一评分，供 trace/质量趋势复用。
+    await this.prisma.aiScore
+      .create({
+        data: {
+          conversationId: updated.conversationId,
+          messageId: updated.messageId ?? null,
+          traceId: updated.traceId ?? null,
+          source: 'HUMAN',
+          value:
+            updated.verdict === 'correct'
+              ? 1
+              : updated.verdict === 'incorrect'
+                ? 0
+                : null,
+          stringValue: updated.failureKind ?? updated.resolution ?? null,
+          comment: updated.note ?? null,
+          adminId,
+          metadata: {
+            feedbackId: updated.id,
+            resolution: updated.resolution,
+            failureKind: updated.failureKind,
+          },
+        },
+      })
+      .catch((err) =>
+        this.logger.warn(
+          `[feedback] score write failed for feedback ${updated.id}: ${err?.message ?? err}`,
+        ),
+      );
+
+    return updated;
   }
 }
 

@@ -151,15 +151,21 @@ export class TraceService {
 
   /** 详情：附上 span 时间线，按开始时间升序。 */
   async get(id: string) {
-    const trace = await this.prisma.aiTrace.findUnique({
-      where: { id },
-      include: {
-        spans: { orderBy: [{ startedAt: 'asc' }, { id: 'asc' }] },
-      },
-    });
+    const [trace, scores] = await Promise.all([
+      this.prisma.aiTrace.findUnique({
+        where: { id },
+        include: {
+          spans: { orderBy: [{ startedAt: 'asc' }, { id: 'asc' }] },
+        },
+      }),
+      this.prisma.aiScore.findMany({
+        where: { traceId: id },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
 
     if (!trace) throw new NotFoundException('Trace not found');
-    return trace;
+    return { ...trace, scores };
   }
 }
 

@@ -2188,8 +2188,25 @@ export interface AiSpanRow {
   metadata: Record<string, any> | null;
 }
 
+export interface AiScoreRow {
+  id: string;
+  configId: string | null;
+  traceId: string | null;
+  spanId: string | null;
+  conversationId: string | null;
+  messageId: string | null;
+  source: string;
+  value: number | null;
+  stringValue: string | null;
+  comment: string | null;
+  adminId: string | null;
+  metadata: Record<string, any> | null;
+  createdAt: string;
+}
+
 export interface AiTraceDetail extends AiTraceRow {
   spans: AiSpanRow[];
+  scores?: AiScoreRow[];
 }
 
 export interface AiSecurityEventRow {

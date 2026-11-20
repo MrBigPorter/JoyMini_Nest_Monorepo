@@ -411,6 +411,33 @@ function TraceDetailBody({ detail }: { detail: AiTraceDetail }) {
 
       <div className="mt-5">
         <h3 className="text-sm font-semibold">
+          评分（{detail.scores?.length ?? 0}）
+        </h3>
+        {detail.scores?.length ? (
+          <div className="mt-2 space-y-2">
+            {detail.scores.map((score) => (
+              <div
+                key={score.id}
+                className="rounded-lg border p-2 text-xs dark:border-white/10"
+              >
+                <span className="font-mono">{score.source}</span>
+                <span className="mx-2">·</span>
+                <span>{score.stringValue ?? '-'}</span>
+                <span className="mx-2">·</span>
+                <span>{score.value ?? '-'}</span>
+                {score.comment ? (
+                  <div className="mt-1 text-gray-500">{score.comment}</div>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-2 text-sm text-gray-500">该链路没有评分记录。</p>
+        )}
+      </div>
+
+      <div className="mt-5">
+        <h3 className="text-sm font-semibold">
           Spans（{detail.spans?.length ?? 0}）
         </h3>
         {detail.spans?.length ? (
