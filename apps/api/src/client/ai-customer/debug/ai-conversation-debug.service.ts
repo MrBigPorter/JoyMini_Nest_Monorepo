@@ -9,6 +9,14 @@ export interface ConversationDebugSnapshot {
   pendingConfirm: Record<string, any> | null;
   previousIntent: string;
   messages: Array<{ type: string; content: string }>;
+  checkpoints?: Array<{
+    checkpointId: string;
+    createdAt: string | null;
+    previousIntent: string;
+    flowType: string | null;
+    step: string | null;
+    messageCount: number;
+  }>;
 }
 
 type Inspector = (

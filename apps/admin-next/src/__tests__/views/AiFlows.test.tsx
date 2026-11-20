@@ -107,15 +107,17 @@ function requestsWith(
   definitionsResponse: unknown,
   bindingsResponse: unknown,
   auditResponse: unknown,
+  contextResponse: unknown = makeUseRequest(null),
 ) {
   requestResponses = [
     definitionsResponse,
     bindingsResponse,
     auditResponse,
+    contextResponse,
   ];
   requestCallIndex = 0;
   mockUseRequest.mockImplementation(() => {
-    const response = requestResponses[requestCallIndex % 3];
+    const response = requestResponses[requestCallIndex % 4];
     requestCallIndex += 1;
     return response;
   });

@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useRequest } from 'ahooks';
 import { Button } from '@repo/ui';
-import { aiOpsApi } from '@/api';
+import { aiContextApi, aiOpsApi } from '@/api';
 import { PageHeader } from '@/components/scaffold/PageHeader';
 import {
   canManageFlows,
@@ -120,6 +120,9 @@ export default function AiFlowsPage() {
   const [reason, setReason] = useState('');
   const [actionState, setActionState] = useState<ActionState>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [checkpointId, setCheckpointId] = useState('');
+  const [stateReason, setStateReason] = useState('');
+  const [stateMessage, setStateMessage] = useState<ActionState>(null);
 
   const {
     data: definitionsData,
@@ -150,6 +153,19 @@ export default function AiFlowsPage() {
         conversationId: conversationId.trim() || undefined,
         limit: 100,
       }),
+    { refreshDeps: [conversationId] },
+  );
+
+  const {
+    data: contextData,
+    loading: contextLoading,
+    error: contextError,
+    refresh: refreshContext,
+  } = useRequest(
+    () =>
+      conversationId.trim()
+        ? aiContextApi.inspect(conversationId.trim())
+        : Promise.resolve(null),
     { refreshDeps: [conversationId] },
   );
 
@@ -305,6 +321,47 @@ export default function AiFlowsPage() {
       });
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const checkpoints = (contextData as any)?.checkpoints ?? [];
+  const canRollbackState = role === 'SUPER_ADMIN';
+
+  const doRollbackState = async () => {
+    if (!conversationId.trim() || !checkpointId) {
+      setStateMessage({ tone: 'error', message: '请选择会话和检查点' });
+      return;
+    }
+    if (!stateReason.trim()) {
+      setStateMessage({ tone: 'error', message: '请填写状态回滚原因' });
+      return;
+    }
+    if (
+      !window.confirm(
+        '只回滚 AI 会话状态，不撤销退款/订单/优惠券，也不修改消息历史。确认继续？',
+      )
+    ) {
+      return;
+    }
+    try {
+      const result: any = await aiOpsApi.rollbackFlowState({
+        conversationId: conversationId.trim(),
+        checkpointId,
+        reason: stateReason.trim(),
+      });
+      if (result?.ok === false) {
+        setStateMessage({
+          tone: 'error',
+          message: translateRejection(result.reason ?? 'unknown'),
+        });
+      } else {
+        setStateMessage({ tone: 'success', message: '会话状态已回滚' });
+        setCheckpointId('');
+        setStateReason('');
+        await Promise.all([refreshContext(), refreshAudit()]);
+      }
+    } catch (err) {
+      setStateMessage({ tone: 'error', message: errorText(err) });
     }
   };
 

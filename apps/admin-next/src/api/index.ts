@@ -1532,6 +1532,13 @@ export const aiOpsApi = {
     flowType?: string;
     reason?: string;
   }) => http.post('/v1/admin/ai-flows/switch', data),
+  rollbackFlowState: (data: {
+    conversationId: string;
+    checkpointId: string;
+    flowType?: string;
+    reason?: string;
+  }) => http.post('/v1/admin/ai-flows/rollback-state', data),
+
   rollbackFlow: (data: {
     conversationId: string;
     toVersionId: string;

@@ -301,6 +301,33 @@ export class AiCustomerService implements OnModuleDestroy {
     });
     const values = (state as any)?.values ?? {};
     const rawMessages = Array.isArray(values.messages) ? values.messages : [];
+    const checkpoints: Array<{
+      checkpointId: string;
+      createdAt: string | null;
+      previousIntent: string;
+      flowType: string | null;
+      step: string | null;
+      messageCount: number;
+    }> = [];
+    for await (const snapshot of this.compiledGraph.getStateHistory({
+      configurable: { thread_id: conversation.threadId },
+    })) {
+      const snapshotValues = (snapshot as any)?.values ?? {};
+      const checkpointId =
+        (snapshot as any)?.config?.configurable?.checkpoint_id ?? null;
+      if (!checkpointId) continue;
+      checkpoints.push({
+        checkpointId,
+        createdAt: (snapshot as any)?.createdAt ?? null,
+        previousIntent: snapshotValues.previousIntent ?? '',
+        flowType: snapshotValues.flowState?.activeFlow ?? null,
+        step: snapshotValues.flowState?.step ?? null,
+        messageCount: Array.isArray(snapshotValues.messages)
+          ? snapshotValues.messages.length
+          : 0,
+      });
+      if (checkpoints.length >= 50) break;
+    }
     return {
       conversationId,
       threadId: conversation.threadId,
@@ -316,6 +343,7 @@ export class AiCustomerService implements OnModuleDestroy {
             ? message.content.slice(0, 300)
             : JSON.stringify(message?.content ?? '').slice(0, 300),
       })),
+      checkpoints,
     };
   }
 
