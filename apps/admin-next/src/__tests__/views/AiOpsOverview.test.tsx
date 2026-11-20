@@ -15,6 +15,7 @@ const mockGetUsageSummary = vi.hoisted(() => vi.fn());
 const mockGetFeedbackSummary = vi.hoisted(() => vi.fn());
 const mockSecuritySummary = vi.hoisted(() => vi.fn());
 const mockSlaQueue = vi.hoisted(() => vi.fn());
+const mockRole = vi.hoisted(() => ({ current: 'ADMIN' }));
 
 vi.mock('ahooks', () => ({
   useRequest: (...args: unknown[]) => mockUseRequest(...args),
@@ -34,6 +35,10 @@ vi.mock('@/api', () => ({
     securitySummary: (...args: unknown[]) => mockSecuritySummary(...args),
     slaQueue: (...args: unknown[]) => mockSlaQueue(...args),
   },
+}));
+
+vi.mock('@/lib/ai-ops-permissions', () => ({
+  useAiOpsRole: () => mockRole.current,
 }));
 
 vi.mock('next/link', () => ({
@@ -130,6 +135,7 @@ function setupRequests(overrides: RequestOverrides = {}) {
 describe('AiOpsOverviewPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockRole.current = 'ADMIN';
     mockUseRequest.mockReset();
     mockGetQueues.mockResolvedValue([
       {
@@ -318,5 +324,24 @@ describe('AiOpsOverviewPage', () => {
       within(section).getByText('异常数据加载失败，暂无法确认是否无异常。'),
     ).toBeTruthy();
     expect(within(section).queryByText('今天暂无异常')).toBeNull();
+  });
+
+  it('hides engineering quick links for VIEWER', () => {
+    mockRole.current = 'VIEWER';
+    render(<AiOpsOverviewPage />);
+
+    expect(screen.getByRole('link', { name: /^质量待办$/ })).toBeTruthy();
+    expect(screen.getByRole('link', { name: /^运营洞察$/ })).toBeTruthy();
+    expect(screen.queryByRole('link', { name: /^AI Runtime$/ })).toBeNull();
+    expect(screen.queryByRole('link', { name: /^安全事件$/ })).toBeNull();
+    expect(screen.queryByRole('link', { name: /^客户记忆$/ })).toBeNull();
+  });
+
+  it('shows engineering quick links for ADMIN', () => {
+    mockRole.current = 'ADMIN';
+    render(<AiOpsOverviewPage />);
+
+    expect(screen.getByRole('link', { name: /^AI Runtime$/ })).toBeTruthy();
+    expect(screen.getByRole('link', { name: /^客户记忆$/ })).toBeTruthy();
   });
 });

@@ -5,6 +5,8 @@ import { useRequest } from 'ahooks';
 import { aiOpsApi, aiQualityApi, chatApi } from '@/api';
 import { PageHeader } from '@/components/scaffold/PageHeader';
 import { AiErrorBanner } from '@/components/ai-ops/AiErrorBanner';
+import { getVisibleRoutes } from '@/routes';
+import { useAiOpsRole } from '@/lib/ai-ops-permissions';
 import type {
   AiFailedJob,
   AiFeedbackSummary,
@@ -156,6 +158,22 @@ interface AttentionRow {
 }
 
 export default function AiOpsOverviewPage() {
+  const role = useAiOpsRole();
+  // 侧边栏隐藏工程组后，首页快捷入口必须使用同一份可见性规则，避免单点隐藏。
+  const engineeringVisible = getVisibleRoutes(role).some(
+    (route) => route.group === 'AI Operations · 工程',
+  );
+  const quickLinks = [
+    { href: '/ai-ops/quality', label: '质量待办', engineering: false },
+    { href: '/ai-ops/support', label: '转人工队列', engineering: false },
+    { href: '/ai-ops/security', label: '安全事件', engineering: true },
+    { href: '/ai-ops/insights', label: '运营洞察', engineering: false },
+    { href: '/ai-ops/runtime', label: 'AI Runtime', engineering: true },
+    { href: '/ai-ops/flows', label: '流程版本', engineering: true },
+    { href: '/ai-ops/usage', label: '用量与成本', engineering: true },
+    { href: '/ai-ops/memory', label: '客户记忆', engineering: true },
+  ].filter((link) => engineeringVisible || !link.engineering);
+
   const today = new Date().toISOString().slice(0, 10);
   const {
     data: queueData,
@@ -525,45 +543,15 @@ export default function AiOpsOverviewPage() {
       <div className="rounded-xl border border-gray-100 bg-white p-4 dark:border-white/10 dark:bg-gray-900">
         <h2 className="text-sm font-semibold">快速入口</h2>
         <div className="mt-3 flex flex-wrap gap-2 text-sm">
-          <Link
-            className="rounded-lg border px-3 py-1.5"
-            href="/ai-ops/quality"
-          >
-            质量待办
-          </Link>
-          <Link
-            className="rounded-lg border px-3 py-1.5"
-            href="/ai-ops/support"
-          >
-            转人工队列
-          </Link>
-          <Link
-            className="rounded-lg border px-3 py-1.5"
-            href="/ai-ops/security"
-          >
-            安全事件
-          </Link>
-          <Link
-            className="rounded-lg border px-3 py-1.5"
-            href="/ai-ops/insights"
-          >
-            运营洞察
-          </Link>
-          <Link
-            className="rounded-lg border px-3 py-1.5"
-            href="/ai-ops/runtime"
-          >
-            AI Runtime
-          </Link>
-          <Link className="rounded-lg border px-3 py-1.5" href="/ai-ops/flows">
-            流程版本
-          </Link>
-          <Link className="rounded-lg border px-3 py-1.5" href="/ai-ops/usage">
-            用量与成本
-          </Link>
-          <Link className="rounded-lg border px-3 py-1.5" href="/ai-ops/memory">
-            客户记忆
-          </Link>
+          {quickLinks.map((link) => (
+            <Link
+              key={link.href}
+              className="rounded-lg border px-3 py-1.5"
+              href={link.href}
+            >
+              {link.label}
+            </Link>
+          ))}
         </div>
       </div>
     </div>
