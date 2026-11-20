@@ -1375,6 +1375,9 @@ model ConversationFlowBinding {
   definitionHash      String   @map("definition_hash") @db.VarChar(64)
   /// ACTIVE / ROLLED_BACK
   status              String   @default("ACTIVE") @db.VarChar(16)
+  /// 当前流程步骤（IDLE/FILLING/CONFIRMING/QUERYING/RAG/COMPLETED/FAILED）
+  /// 用于安全切换：进行中的流程不能直接换定义。
+  flowStep            String   @default("IDLE") @map("flow_step") @db.VarChar(16)
   threadId            String?  @map("thread_id")
   checkpointId        String?  @map("checkpoint_id")
   createdAt           DateTime @default(now()) @map("created_at")

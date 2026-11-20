@@ -561,7 +561,12 @@ export class AiCustomerService implements OnModuleDestroy {
     const activeFlow = finalState?.values?.flowState?.activeFlow as
       | string
       | undefined;
-    void this.flowVersioning.ensureBindingQuietly(conversationId, activeFlow);
+    const flowStep = finalState?.values?.flowState?.step as string | undefined;
+    void this.flowVersioning.ensureBindingQuietly(
+      conversationId,
+      activeFlow,
+      flowStep,
+    );
 
     // 持久化本轮 AI 对话：跨轮状态由 Postgres checkpointer 负责；
     // IM 消息由 AiReplyPublisher 写入 ChatMessage（这里不再维护 ai:hot 缓存）。

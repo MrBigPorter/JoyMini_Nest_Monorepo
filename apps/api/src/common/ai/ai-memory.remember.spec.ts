@@ -98,6 +98,26 @@ describe('AiMemoryService · 写入与读取', () => {
     expect(call.create.expiresAt).toBeInstanceOf(Date);
   });
 
+  it('两个用户的记忆写入互不覆盖（按 userId 隔离）', async () => {
+    const { service, prisma } = makeService();
+
+    await service.recordFromUserMessage({
+      userId: 'u1',
+      messageId: 'm-u1',
+      text: '叫我小明',
+    });
+    await service.recordFromUserMessage({
+      userId: 'u2',
+      messageId: 'm-u2',
+      text: '叫我小红',
+    });
+
+    const userIds = prisma.aiUserMemory.upsert.mock.calls.map(
+      (call: any[]) => call[0].where.userId_kind_key.userId,
+    );
+    expect(userIds).toEqual(['u1', 'u1', 'u2', 'u2']);
+  });
+
   it('注入文本只包含当前用户记忆，且限制 20 条', async () => {
     const { service, prisma } = makeService();
     prisma.aiUserMemory.findMany.mockResolvedValue(

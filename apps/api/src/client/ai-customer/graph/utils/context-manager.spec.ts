@@ -72,6 +72,29 @@ describe('context-manager · token 预算裁剪', () => {
     expect(trimmed.map((m: any) => m.type)).toEqual(['human']);
   });
 
+  it('长会话（60 轮）仍保留最近问题，且不超过预算', () => {
+    const messages = Array.from({ length: 120 }, (_, i) =>
+      i % 2 === 0
+        ? human(`turn-${i}-${'用户问题'.repeat(60)}`)
+        : ai(`answer-${i}-${'回答内容'.repeat(60)}`),
+    );
+
+    const trimmed = trimContextToBudget(messages, {
+      maxTokens: 6_000,
+      minRecent: 6,
+    });
+
+    const tokens = trimmed.reduce(
+      (sum: number, message: any) => sum + estimateTokens(message),
+      0,
+    );
+    expect(tokens).toBeLessThanOrEqual(6_000);
+    expect(trimmed.length).toBeLessThan(messages.length);
+    expect(
+      trimmed.some((message: any) => message.content.includes('turn-118')),
+    ).toBe(true);
+  });
+
   it('token 估算随内容增长', () => {
     expect(estimateTokens(human('x'.repeat(100)))).toBeGreaterThan(
       estimateTokens(human('short')),

@@ -160,6 +160,7 @@ export class FlowStateVersioningService {
     flowType: string;
     threadId?: string;
     actorId?: string;
+    flowStep?: string;
   }) {
     this.assertKnownFlowType(input.flowType);
     const flowType = input.flowType as FlowTypeKey;
@@ -198,6 +199,7 @@ export class FlowStateVersioningService {
         definitionVersionId: definition.id,
         definitionHash: definition.definitionHash,
         status: 'ACTIVE',
+        flowStep: input.flowStep ?? 'IDLE',
         threadId,
       },
     });
@@ -216,10 +218,22 @@ export class FlowStateVersioningService {
   async ensureBindingQuietly(
     conversationId: string | undefined,
     flowType: string | undefined,
+    flowStep?: string,
   ): Promise<void> {
     if (!conversationId || !flowType) return;
     try {
-      await this.bindLatest({ conversationId, flowType });
+      const binding = await this.bindLatest({
+        conversationId,
+        flowType,
+        flowStep,
+      });
+      // 已绑定的旧会话只更新“走到哪一步”，定义版本保持不变。
+      if (flowStep && binding.flowStep !== flowStep) {
+        await this.prisma.conversationFlowBinding.updateMany({
+          where: { conversationId, flowType },
+          data: { flowStep },
+        });
+      }
     } catch (err: unknown) {
       this.logger.warn(
         `[FlowVersioning] lazy bind failed: conv=${conversationId}, flow=${flowType}, reason=${this.errText(err)}`,
@@ -333,8 +347,14 @@ export class FlowStateVersioningService {
 
   private async checkSafePoint(
     conversationId: string,
-    binding: { threadId: string | null },
+    binding: { threadId: string | null; flowStep: string },
   ): Promise<SwitchFlowDefinitionResult> {
+    // 填表/确认/查询进行中时切定义，会让同一条流程前后两半使用不同规则。
+    if (
+      ['FILLING', 'CONFIRMING', 'QUERYING', 'RAG'].includes(binding.flowStep)
+    ) {
+      return { ok: false, reason: 'flow_in_progress' };
+    }
     const conversation = await this.prisma.conversation.findUnique({
       where: { id: conversationId },
       select: { handlerId: true, threadId: true },

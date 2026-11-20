@@ -55,6 +55,7 @@ const binding = {
   definitionVersionId: 'def-1',
   definitionHash: 'hash-1',
   status: 'ACTIVE',
+  flowStep: 'COMPLETED',
   threadId: 'thread-1',
   checkpointId: null,
 };
@@ -234,6 +235,21 @@ describe('FlowStateVersioningService · 安全切换', () => {
         toVersionId: 'def-2',
       }),
     ).resolves.toEqual({ ok: false, reason: 'thread_drift' });
+  });
+
+  it('流程进行中（FILLING/CONFIRMING）→ 拒绝切换', async () => {
+    const { service, prisma } = arrange();
+    prisma.conversationFlowBinding.findUnique.mockResolvedValue({
+      ...binding,
+      flowStep: 'CONFIRMING',
+    });
+
+    await expect(
+      service.switchDefinition({
+        conversationId: 'conv-1',
+        toVersionId: 'def-2',
+      }),
+    ).resolves.toEqual({ ok: false, reason: 'flow_in_progress' });
   });
 
   it('存在待确认操作 → 拒绝', async () => {

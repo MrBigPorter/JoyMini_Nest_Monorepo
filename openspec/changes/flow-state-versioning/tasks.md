@@ -14,13 +14,13 @@
 - [x] B2 实现定义快照与 `definitionHash`（含 allowedStatuses、step 图、确认映射、prompt 版本、工具 capability）；验证：同内容哈希稳定，变化生成新版本
 - [x] B3 新增 `ConversationFlowBinding` 表与绑定服务；验证：新会话绑最新、旧会话保持
 - [x] B4 新增 `FlowBindingAuditLog`；验证：bind/switch/rollback 都有记录
-- [ ] B5 安全切换守卫：pendingConfirm、Redis pending、进行中流、handlerId、thread 漂移；验证：每类拒绝都有单测（已覆盖 pending/handler/thread/Redis；进行中流待 checkpoint 接入）
+- [x] B5 安全切换守卫：pendingConfirm、Redis pending、进行中流、handlerId、thread 漂移；验证：每类拒绝都有单测（进行中流由 binding.flowStep 判定）
 - [x] B6 定义回滚（只切绑定指针）；验证：切换后下一轮使用目标版本
 - [ ] B7 状态回滚（checkpoint 恢复）设计实现；验证：只在安全点可用，且不撤销业务副作用（当前 API fail-closed）
-- [ ] B8 迁移/回滚演练；验证：新旧版本会话共存、回滚审计可查
+- [x] B8 迁移/回滚演练；验证：新旧版本会话共存、回滚审计可查
 
 ## 验证
 
 - [x] V1 全量测试与 `tsc --noEmit`；验证：全绿
 - [x] V2 本地两轮流程实测；验证：flowType/step/data 跨轮保持
-- [ ] V3 版本切换/回滚演练；验证：拒绝条件与审计符合规格
+- [x] V3 版本切换/回滚演练；验证：拒绝条件与审计符合规格
