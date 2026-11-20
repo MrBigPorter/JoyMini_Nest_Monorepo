@@ -90,3 +90,6 @@ apps/frontend-blog/public/workbox-*.js.br
 __pycache__/
 tools/eval/reports/
 tools/eval/task/reports/
+
+# Synthetic AI traffic simulator runtime (accounts.json contains tokens)
+tools/simulator/.runtime/

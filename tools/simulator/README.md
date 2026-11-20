@@ -1,0 +1,183 @@
+# 合成 AI 客服流量 — 账号池（P0 / Task 1）
+
+`tools/simulator/` 是生产合成流量的无头客户端。本目录当前提供**专用渠道探测**与**账号池 provisioning**，后续任务会在此基础上增加场景库、人类化节奏、Socket driver 和并发 runner。
+
+所有流量只落在专用渠道 `simulation_support_v1`，不会创建渠道、不会调用任何 `/confirm` 接口，也不会执行存款/取款/购买等真实资金流程。
+
+## 文件
+
+| 文件 | 作用 |
+| --- | --- |
+| `config.mjs` | 读取 `SIM_*` 环境变量（不读 `.env`），提供默认值与安全阀 |
+| `provision.mjs` | 建号 CLI + `provisionAccounts()`；渠道存在性探测 |
+| `config.test.mjs` / `provision.test.mjs` | Node 内置测试，纯函数 + mock 网络 |
+
+运行态文件：`tools/simulator/.runtime/accounts.json`（已 gitignore，权限 `600`）。
+
+## 前置条件
+
+- Node.js >= 18（使用内置 `fetch`，无需 `npm install`）
+- 生产环境已配置固定 OTP（`OTP_PROVIDER=fixed` 或 `OTP_FIXED_MODE=true`）；
+  生产环境还需要 `OTP_ALLOW_FIXED_IN_PROD=true` 作为第二道确认，否则短信发送会抛 501。
+- 渠道已由人工创建并启用（见下一节）。
+
+## 1. 创建专用渠道（一次性，人工）
+
+脚本**不会**自动创建渠道。任选一种方式：
+
+### Admin UI
+
+1. 打开 admin 后台 `/support-channels`
+2. 新建渠道：
+   - `id`: `simulation_support_v1`
+   - `name`: `Simulation Support`
+   - 保持启用（创建时默认 `isActive=true`）
+
+### Admin API
+
+```bash
+curl -X POST 'https://api.joyminis.com/api/v1/admin/support-channels' \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer <ADMIN_TOKEN>' \
+  -d '{"id":"simulation_support_v1","name":"Simulation Support","description":"Synthetic AI traffic (P0)"}'
+```
+
+停用/重新启用：
+
+```bash
+curl -X PATCH 'https://api.joyminis.com/api/v1/admin/support-channels/simulation_support_v1/toggle' \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer <ADMIN_TOKEN>' \
+  -d '{"isActive":false}'
+```
+
+## 2. 配置
+
+| 环境变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `SIM_API_BASE_URL` | `https://api.joyminis.com/api` | API 根地址（已含 `/api`） |
+| `SIM_SOCKET_URL` | `https://api.joyminis.com/events` | Socket 地址（后续 driver 使用） |
+| `SIM_BUSINESS_ID` | `simulation_support_v1` | 专用渠道 ID |
+| `SIM_ACCOUNT_COUNT` | `30` | 默认建号数量（1–100） |
+| `SIM_CONCURRENCY` | `5` | 并发，安全阀上限 5 |
+| `SIM_OTP_CODE` | `999999` | 固定 OTP |
+| `SIM_RUNTIME_DIR` | `tools/simulator/.runtime` | 运行态目录 |
+
+示例：
+
+```bash
+SIM_API_BASE_URL='https://api.joyminis.com/api' \
+SIM_ACCOUNT_COUNT=30 \
+node tools/simulator/provision.mjs
+```
+
+## 3. 建号
+
+先看计划，不联网、不写文件：
+
+```bash
+node tools/simulator/provision.mjs --count 2 --dry-run
+```
+
+正式建 2 个临时账号：
+
+```bash
+node tools/simulator/provision.mjs --count 2
+```
+
+正式建 30 个（默认值）：
+
+```bash
+node tools/simulator/provision.mjs --count 30
+```
+
+执行过程：
+
+1. `GET /api/health` 获取 CSRF cookie + `X-CSRF-Token`（正规握手，不绕过）
+2. 生成 PH 手机号 `+63917` + 7 位数字
+3. `POST /v1/otp/request {phone}`
+4. `POST /v1/otp/verify {phone, code}`
+5. `POST /v1/auth/login/otp {phone}`，读取 `data.tokens.accessToken` 与 `data.user.id`（兼容 `data.id`）
+6. 每 5 个账号等待 60 秒，避免 OTP IP 限流
+7. 每个账号成功后**立即**原子写入 `accounts.json`，中途失败不会丢已建账号
+
+选项：
+
+```text
+--count <n>             新账号数量（默认 SIM_ACCOUNT_COUNT）
+--start-index <n>       账号编号起点（默认沿用已有账号数）
+--dry-run               只生成计划，不联网、不写文件
+--replace               忽略已有 accounts.json 重新建号（不会删除服务端用户）
+--skip-channel-check    跳过 /chat/business 渠道探测
+--batch-size <n>        每批账号数（默认 5）
+--batch-wait-ms <ms>    批间隔（默认 60000）
+-h, --help              帮助
+```
+
+已有账号默认会保留并追加；新账号手机号会避开已有手机号。
+
+### 渠道探测
+
+建完第一个账号后，脚本会用该账号 token 调用：
+
+```text
+GET /v1/chat/business?businessId=simulation_support_v1
+```
+
+- 成功：继续建号
+- `404`/`403`：立即停止，并提示先到 `/support-channels` 创建/启用渠道
+- `401`：提示 token 失效，删除 `.runtime/accounts.json` 或使用 `--replace`
+
+## 4. 验证 token
+
+建号完成后可抽查第一个账号（命令不会输出 token）：
+
+```bash
+node -e "const a=require('./tools/simulator/.runtime/accounts.json')[0]; fetch('https://api.joyminis.com/api/v1/auth/profile',{headers:{authorization:'Bearer '+a.token}}).then(async r=>{console.log('HTTP',r.status);console.log((await r.json()).data?.nickname ?? '');})"
+```
+
+预期 `HTTP 200`。
+
+也可以直接查看文件结构（会显示 token，请勿粘贴到聊天/工单）：
+
+```bash
+jq 'map({phone:(.phone[0:6]+"****"),userId,deviceId})' tools/simulator/.runtime/accounts.json
+```
+
+## 5. 清理
+
+```bash
+# 删除本地账号池（只删本地文件，服务端用户仍存在）
+rm -f tools/simulator/.runtime/accounts.json
+```
+
+- 服务端测试用户不会自动删除；如需清理，走 admin 用户管理或数据库运维流程。
+- 渠道可停用：admin `/support-channels` 或上面的 toggle API。
+- 不要删除正在被 runner 使用的 `accounts.json`；先停 runner。
+
+## 故障排查
+
+| 现象 | 原因 / 处理 |
+| --- | --- |
+| `HTTP 403 CSRF token missing` | 后端 CSRF 中间件若注册在 `cookieParser()` 之前，cookie 永远读不到。模拟器已按正规流程从 `GET /api/health` 获取 cookie + header；若仍 403，需要后端调整中间件顺序，或把 `/v1/otp` 加入 CSRF 跳过列表。**不要绕过 CSRF。** |
+| `HTTP 429` | OTP/登录限流。脚本会按 `Retry-After` 自动重试；仍失败时等待 60 秒后重跑（已建账号会自动保留）。 |
+| `HTTP 404` + `support channel not found` | 渠道不存在或未启用；先创建/启用渠道。 |
+| `HTTP 501 SMS provider not configured` | 生产未开启固定 OTP；配置 `OTP_PROVIDER=fixed` + `OTP_ALLOW_FIXED_IN_PROD=true`。 |
+| `账号 token 无效或已过期` | 删除 `.runtime/accounts.json` 或用 `--replace` 重新建号。 |
+| 文件权限不是 600 | 重新执行 provisioning 会自动 `chmod 600`；不要手动放宽权限。 |
+
+## 安全约束（必须遵守）
+
+- token、完整手机号**不写日志**；错误信息统一脱敏
+- `accounts.json` 只落本地、权限 600、已 gitignore
+- 不调用 `/confirm`、`/confirm/otp`，不创建支付/订单/提现记录
+- 不把模拟流量发到 `simulation_support_v1` 以外的渠道
+- 并发上限 5；账号池默认 30
+
+## 测试
+
+```bash
+node --test tools/simulator/config.test.mjs tools/simulator/provision.test.mjs
+```
+
+测试全部使用 mock 网络，不会访问生产 API。
