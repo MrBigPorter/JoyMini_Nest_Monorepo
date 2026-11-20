@@ -70,6 +70,11 @@ export function ConversationItem({
           </p>
           <div className="mt-1 flex items-center gap-2">
             <StatusBadge status={conv.status} />
+            {conv.trafficSource ? (
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-600 dark:bg-purple-500/10 dark:text-purple-300">
+                SIM
+              </span>
+            ) : null}
             {conv.handlerId === 'awaiting_human' &&
               conv.waitingSeconds != null && (
                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400">
