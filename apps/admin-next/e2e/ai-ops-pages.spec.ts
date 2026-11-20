@@ -33,6 +33,26 @@ test.describe('AI Ops navigation', () => {
   });
 });
 
+test.describe('AI Ops navigation — VIEWER', () => {
+  test.use({ role: 'VIEWER' });
+
+  test('hides the engineering group but keeps business pages', async ({
+    page,
+  }) => {
+    await page.goto('/ai-ops/');
+    await expect(
+      page.getByRole('heading', { name: '今日运营' }),
+    ).toBeVisible({ timeout: 20_000 });
+
+    const sidebar = page.locator('aside').first();
+    await expect(sidebar.getByText('AI Operations · 工程')).toHaveCount(0);
+    await expect(sidebar.getByText('AI Operations · 业务')).toBeVisible();
+    await expect(
+      sidebar.locator('a[href^="/ai-ops/quality"]'),
+    ).toBeVisible();
+  });
+});
+
 test.describe('AI Ops overview — anomaly cards', () => {
   test('renders attention section and all anomaly cards', async ({ page }) => {
     await page.goto('/ai-ops/');
@@ -120,6 +140,24 @@ test.describe('AI Ops quality — tabs & review card', () => {
 
     await page.getByRole('button', { name: '知识质量' }).click();
     await expect(page.getByPlaceholder('检索问题')).toBeVisible();
+  });
+
+  test('KPI card opens a filtered URL and survives reload', async ({
+    page,
+  }) => {
+    await page.goto('/ai-ops/quality/');
+    await expect(
+      page.getByRole('heading', { name: 'AI 质量' }),
+    ).toBeVisible({ timeout: 20_000 });
+
+    await dismissDevOverlay(page);
+    await page
+      .getByRole('link', { name: '服务故障，查看对应反馈' })
+      .click();
+
+    await expect(page).toHaveURL(/failureKind=SERVICE_ERROR/);
+    await page.reload();
+    await expect(page).toHaveURL(/failureKind=SERVICE_ERROR/);
   });
 });
 

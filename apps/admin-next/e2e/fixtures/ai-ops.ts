@@ -18,14 +18,14 @@ export { expect };
 const DEFAULT_ORIGIN = 'http://127.0.0.1:4001';
 
 /** Build a fake, unsigned JWT that passes middleware exp validation. */
-function makeFakeJwt(): string {
+function makeFakeJwt(role: string): string {
   const encode = (value: object) =>
     Buffer.from(JSON.stringify(value)).toString('base64url');
   return [
     encode({ alg: 'none', typ: 'JWT' }),
     encode({
       sub: 'e2e-admin',
-      role: 'ADMIN',
+      role,
       exp: Math.floor(Date.now() / 1000) + 60 * 60,
     }),
     'e2e-signature-not-verified',
@@ -286,7 +286,11 @@ function ok(data: unknown) {
   return JSON.stringify({ code: 10000, message: 'ok', data });
 }
 
-function installApiMocks(page: Page, origin: string): ApiRecorder {
+function installApiMocks(
+  page: Page,
+  origin: string,
+  role: string,
+): ApiRecorder {
   const requests: RecordedRequest[] = [];
   const recorder: ApiRecorder = {
     requests,
@@ -345,7 +349,7 @@ function installApiMocks(page: Page, origin: string): ApiRecorder {
     // Reads.
     switch (path) {
       case '/v1/auth/admin/me':
-        return fulfill(ADMIN_USER);
+        return fulfill({ ...ADMIN_USER, role, roleName: role });
       case '/v1/admin/queues':
         return fulfill(QUEUES);
       case '/v1/admin/queues/ai/failed':
@@ -404,19 +408,22 @@ export async function dismissDevOverlay(page: Page): Promise<void> {
 
 export const test = base.extend<{
   authenticated: boolean;
+  role: string;
   api: ApiRecorder;
 }>({
   /** Set `test.use({ authenticated: false })` for login/redirect specs. */
   authenticated: [true, { option: true }],
+  /** Set `test.use({ role: 'VIEWER' })` to exercise the read-only shell. */
+  role: ['ADMIN', { option: true }],
 
   api: [
-    async ({ page, context, baseURL, authenticated }, use) => {
+    async ({ page, context, baseURL, authenticated, role }, use) => {
       const origin = new URL(baseURL ?? DEFAULT_ORIGIN).origin;
 
       if (authenticated) {
         // middleware reads the cookie; the dashboard fetchMe reads localStorage.
         await context.addCookies([
-          { name: 'auth_token', value: makeFakeJwt(), url: origin },
+          { name: 'auth_token', value: makeFakeJwt(role), url: origin },
         ]);
         await context.addInitScript(() => {
           try {
@@ -427,7 +434,7 @@ export const test = base.extend<{
         });
       }
 
-      const recorder = installApiMocks(page, origin);
+      const recorder = installApiMocks(page, origin, role);
       await use(recorder);
     },
     { auto: true },
