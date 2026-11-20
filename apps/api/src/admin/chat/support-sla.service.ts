@@ -114,13 +114,54 @@ export class SupportSlaService {
     }
   }
 
-  async getHistory(hours = 24) {
-    const safeHours = Math.min(Math.max(hours, 1), 168);
+  private getThresholdMinutes(): number {
     const configured = Number(
       this.configService.get<string>('SUPPORT_SLA_MINUTES') ?? 5,
     );
-    const thresholdMinutes =
-      Number.isFinite(configured) && configured > 0 ? configured : 5;
+    return Number.isFinite(configured) && configured > 0 ? configured : 5;
+  }
+
+  /** 当前等待人工接入的会话队列（只返回会话级信息，不返回用户隐私）。 */
+  async waitingQueue() {
+    const thresholdMinutes = this.getThresholdMinutes();
+    const rows = await this.prisma.conversation.findMany({
+      where: {
+        type: ConversationType.SUPPORT,
+        handlerId: AWAITING_HUMAN,
+        status: CONV_STATUS_NORMAL,
+      },
+      orderBy: { transferredAt: 'asc' },
+      take: 100,
+      select: {
+        id: true,
+        transferredAt: true,
+        transferReason: true,
+        lastMsgContent: true,
+        lastMsgTime: true,
+      },
+    });
+    const now = Date.now();
+    return {
+      thresholdMinutes,
+      items: rows.map((row) => ({
+        conversationId: row.id,
+        transferredAt: row.transferredAt,
+        transferReason: row.transferReason,
+        lastMessage: row.lastMsgContent,
+        lastMessageAt: row.lastMsgTime,
+        waitingSeconds: row.transferredAt
+          ? Math.max(0, Math.round((now - row.transferredAt.getTime()) / 1000))
+          : 0,
+        breached: row.transferredAt
+          ? now - row.transferredAt.getTime() >= thresholdMinutes * 60_000
+          : false,
+      })),
+    };
+  }
+
+  async getHistory(hours = 24) {
+    const safeHours = Math.min(Math.max(hours, 1), 168);
+    const thresholdMinutes = this.getThresholdMinutes();
     const since = new Date(Date.now() - safeHours * 60 * 60 * 1000);
     const [recentSnapshots, latest] = await Promise.all([
       // 先取窗口内最新的 2000 条（desc），再反转为升序返回给图表/表格。

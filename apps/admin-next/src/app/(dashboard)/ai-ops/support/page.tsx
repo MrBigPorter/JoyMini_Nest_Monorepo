@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRequest } from 'ahooks';
+import { Button } from '@repo/ui';
 import { aiQualityApi } from '@/api';
 import { PageHeader } from '@/components/scaffold/PageHeader';
 import { AiErrorBanner } from '@/components/ai-ops/AiErrorBanner';
@@ -21,12 +22,19 @@ export default function AiSupportPage() {
     () => aiQualityApi.slaHistory(hours),
     { refreshDeps: [hours], pollingInterval: 60_000 },
   );
+  const {
+    data: queueData,
+    loading: queueLoading,
+    error: queueError,
+    refresh: refreshQueue,
+  } = useRequest(aiQualityApi.slaQueue, { pollingInterval: 30_000 });
 
   const latest = data?.latest as SupportSlaSnapshotRow | null | undefined;
   const snapshots = (data?.snapshots ?? []) as SupportSlaSnapshotRow[];
   const thresholdMinutes = data?.thresholdMinutes;
   const maxWaiting = Math.max(1, ...snapshots.map((s) => s.waiting));
   const visible = snapshots.slice(-120);
+  const queueItems = queueData?.items ?? [];
 
   return (
     <div className="space-y-5 p-4">
@@ -98,6 +106,85 @@ export default function AiSupportPage() {
           <div className="mt-1 text-xs text-gray-400">当前排队最久的会话</div>
         </div>
       </div>
+
+      <section className="rounded-xl border border-gray-100 bg-white p-4 dark:border-white/10 dark:bg-gray-900">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold">等待中的会话</h2>
+          <Button size="sm" variant="outline" onClick={() => void refreshQueue()}>
+            刷新
+          </Button>
+        </div>
+        {queueError ? (
+          <div className="py-6 text-center text-sm text-red-500">
+            队列加载失败，请重试
+          </div>
+        ) : queueLoading ? (
+          <div className="py-6 text-center text-sm text-gray-400">
+            Loading...
+          </div>
+        ) : queueItems.length === 0 ? (
+          <div className="py-6 text-center text-sm text-gray-400">
+            当前没有人等待人工接入
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead className="bg-gray-50 text-left dark:bg-white/5">
+                <tr>
+                  {['会话', '等待', '转人工原因', '最后消息', '状态', ''].map(
+                    (h) => (
+                      <th key={h} className="px-3 py-2">
+                        {h}
+                      </th>
+                    ),
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {queueItems.map((item) => (
+                  <tr
+                    key={item.conversationId}
+                    className="border-t border-gray-100 dark:border-white/5"
+                  >
+                    <td className="px-3 py-2 font-mono text-xs">
+                      {item.conversationId}
+                    </td>
+                    <td className="px-3 py-2">
+                      {formatWait(item.waitingSeconds)}
+                    </td>
+                    <td className="px-3 py-2">
+                      {item.transferReason ?? '-'}
+                    </td>
+                    <td
+                      className="max-w-[260px] truncate px-3 py-2"
+                      title={item.lastMessage ?? ''}
+                    >
+                      {item.lastMessage ?? '-'}
+                    </td>
+                    <td className="px-3 py-2">
+                      {item.breached ? (
+                        <span className="text-red-600 dark:text-red-400">
+                          超 SLA
+                        </span>
+                      ) : (
+                        '等待中'
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
+                      <Link
+                        className="text-xs text-blue-600 hover:underline"
+                        href="/customer-service"
+                      >
+                        打开
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
 
       <section className="rounded-xl border border-gray-100 bg-white p-4 dark:border-white/10 dark:bg-gray-900">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">

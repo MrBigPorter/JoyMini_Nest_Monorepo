@@ -141,6 +141,13 @@ export class AdminChatController {
     return this.service.getUploadToken(adminId, dto);
   }
 
+  @Get('sla/queue')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
+  @ApiOperation({ summary: '当前等待人工接入的会话队列' })
+  async getSlaQueue() {
+    return this.supportSlaService.waitingQueue();
+  }
+
   @Get('sla')
   @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
   @ApiOperation({ summary: '转人工 SLA 历史快照' })

@@ -22,17 +22,28 @@ function StatCard({
   label,
   value,
   hint,
+  href,
 }: {
   label: string;
   value: string | number;
   hint?: string;
+  href?: string;
 }) {
-  return (
-    <div className="rounded-xl border border-gray-100 bg-white p-4 dark:border-white/10 dark:bg-gray-900">
+  const content = (
+    <>
       <div className="text-xs text-gray-500">{label}</div>
       <div className="mt-1 text-2xl font-semibold">{value}</div>
       {hint ? <div className="mt-1 text-xs text-gray-400">{hint}</div> : null}
-    </div>
+    </>
+  );
+  const className =
+    'rounded-xl border border-gray-100 bg-white p-4 dark:border-white/10 dark:bg-gray-900';
+  return href ? (
+    <Link className={`${className} block hover:bg-gray-50 dark:hover:bg-white/5`} href={href}>
+      {content}
+    </Link>
+  ) : (
+    <div className={className}>{content}</div>
   );
 }
 
@@ -80,9 +91,13 @@ export default function AiOpsOverviewPage() {
   return (
     <div className="space-y-5 p-4">
       <PageHeader
-        title="AI Operations"
-        description="AI 客服生产运营总览：队列、死信、Outbox、今日 Token"
+        title="今日运营"
+        description="今天哪里不对：队列、未回复消息、SLA、Token"
       />
+
+      <div className="text-xs text-gray-500">
+        数据截止：{new Date().toLocaleString()}（页面每 15–60 秒刷新）
+      </div>
 
       {hasError ? (
         <AiErrorBanner
@@ -101,16 +116,19 @@ export default function AiOpsOverviewPage() {
           label="AI 队列等待"
           value={queueLoading ? '—' : (aiQueue?.waiting ?? 0)}
           hint={`active ${aiQueue?.active ?? 0} / failed ${aiQueue?.failed ?? 0}`}
+          href="/ai-ops/runtime"
         />
         <StatCard
           label="AI 死信"
           value={failedError ? '—' : failedCount}
           hint={failedError ? '加载失败' : '需在 Runtime 页重放'}
+          href="/ai-ops/runtime"
         />
         <StatCard
           label="Outbox 失败"
           value={outboxError ? '—' : outboxFailed}
           hint={outboxError ? '加载失败' : '消息已落库但未入队'}
+          href="/ai-ops/runtime"
         />
         <StatCard
           label="今日 Token（UTC）"
@@ -124,11 +142,13 @@ export default function AiOpsOverviewPage() {
               ? '加载失败'
               : `${summary?.totals.requests ?? 0} requests`
           }
+          href="/ai-ops/usage"
         />
         <StatCard
           label="RAG 向量队列"
           value={ragQueue?.waiting ?? 0}
           hint={`failed ${ragQueue?.failed ?? 0}`}
+          href="/ai-ops/runtime"
         />
       </div>
 

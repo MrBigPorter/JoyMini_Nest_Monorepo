@@ -1646,6 +1646,20 @@ export const aiQualityApi = {
       params,
     ),
 
+  slaQueue: () =>
+    http.get<{
+      thresholdMinutes: number;
+      items: Array<{
+        conversationId: string;
+        transferredAt: string | null;
+        transferReason: string | null;
+        lastMessage: string | null;
+        lastMessageAt: string | null;
+        waitingSeconds: number;
+        breached: boolean;
+      }>;
+    }>('/v1/admin/chat/sla/queue'),
+
   slaHistory: (hours = 24) =>
     http.get<{
       windowHours: number;

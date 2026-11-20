@@ -115,6 +115,8 @@ function FeedbackPanel() {
   const [reviewStatus, setReviewStatus] = useState('');
   const [page, setPage] = useState(1);
   const [actionError, setActionError] = useState('');
+  const [reviewMode, setReviewMode] = useState(false);
+  const [reviewIndex, setReviewIndex] = useState(0);
   const role = useAiOpsRole();
   const canTriage = canTriageFeedback(role);
 
@@ -131,15 +133,53 @@ function FeedbackPanel() {
   const list = ((data as any)?.list ?? []) as FeedbackRow[];
   const total = (data as any)?.total ?? 0;
 
-  const triage = async (id: string, status: ReviewStatus) => {
+  const triage = async (
+    id: string,
+    patch: {
+      reviewStatus: ReviewStatus;
+      verdict?: 'correct' | 'incorrect';
+      errorType?: string;
+    },
+  ) => {
     const note = window.prompt('备注（可选，用于记录分诊原因）') ?? undefined;
     setActionError('');
     try {
-      await aiQualityApi.updateFeedback(id, { reviewStatus: status, note });
+      await aiQualityApi.updateFeedback(id, { ...patch, note });
       await refresh();
+      return true;
     } catch (err: any) {
       setActionError(err?.message ?? '分诊失败，请重试');
+      return false;
     }
+  };
+
+  const candidates = list.filter(
+    (item) => !item.reviewStatus || item.reviewStatus === 'PENDING',
+  );
+  const reviewList = candidates.length > 0 ? candidates : list;
+  const current = reviewMode ? reviewList[reviewIndex] : null;
+
+  const advanceReview = () => {
+    if (reviewIndex + 1 >= reviewList.length) {
+      setReviewMode(false);
+      setReviewIndex(0);
+      return;
+    }
+    setReviewIndex((index) => index + 1);
+  };
+
+  const handleReview = async (
+    kind: 'correct' | 'incorrect' | 'exclude',
+  ) => {
+    if (!current) return;
+    const patch =
+      kind === 'correct'
+        ? { reviewStatus: 'REVIEWED' as const, verdict: 'correct' as const }
+        : kind === 'incorrect'
+          ? { reviewStatus: 'REVIEWED' as const, verdict: 'incorrect' as const }
+          : { reviewStatus: 'IGNORED' as const };
+    const ok = await triage(current.id, patch);
+    if (ok) advanceReview();
   };
 
   return (
@@ -171,6 +211,17 @@ function FeedbackPanel() {
         <Button size="sm" variant="outline" onClick={refresh}>
           刷新
         </Button>
+        {canTriage ? (
+          <Button
+            size="sm"
+            onClick={() => {
+              setReviewIndex(0);
+              setReviewMode(true);
+            }}
+          >
+            开始质检
+          </Button>
+        ) : null}
         <span className="text-xs text-gray-500">共 {total} 条</span>
         {!canTriage ? (
           <span className="rounded-lg border px-2 py-0.5 text-xs text-gray-500 dark:border-white/10">
@@ -184,6 +235,74 @@ function FeedbackPanel() {
       ) : null}
       {actionError ? (
         <AiErrorBanner message={actionError} onRetry={() => setActionError('')} />
+      ) : null}
+
+      {current ? (
+        <section className="rounded-xl border border-blue-200 bg-blue-50/50 p-4 dark:border-blue-500/30 dark:bg-blue-500/5">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold">
+              质检 {reviewIndex + 1} / {reviewList.length}
+            </h2>
+            <button
+              type="button"
+              className="text-xs text-gray-500 hover:underline"
+              onClick={() => setReviewMode(false)}
+            >
+              退出质检
+            </button>
+          </div>
+          <div className="grid gap-3 lg:grid-cols-2">
+            <div className="rounded-lg border bg-white p-3 text-sm dark:border-white/10 dark:bg-gray-900">
+              <div className="mb-1 text-xs text-gray-500">用户问题</div>
+              <div>{current.input ?? '-'}</div>
+              <div className="mb-1 mt-3 text-xs text-gray-500">AI 回答</div>
+              <div className="max-h-40 overflow-y-auto text-gray-700 dark:text-gray-300">
+                {current.answer ?? '-'}
+              </div>
+              <div className="mt-3 text-xs text-gray-500">
+                来源：{labelOf(SOURCE_LABELS, current.source)} · 信号：
+                {current.signal
+                  ? labelOf(SIGNAL_LABELS, current.signal)
+                  : labelOf(VERDICT_LABELS, current.verdict)}
+              </div>
+            </div>
+            <div className="rounded-lg border bg-white p-3 dark:border-white/10 dark:bg-gray-900">
+              <div className="mb-2 text-xs text-gray-500">这条怎么处理？</div>
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" onClick={() => void handleReview('correct')}>
+                  回答正确
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void handleReview('incorrect')}
+                >
+                  确认问题
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void handleReview('exclude')}
+                >
+                  排除
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={advanceReview}
+                >
+                  跳过
+                </Button>
+              </div>
+              <a
+                className="mt-3 inline-block text-xs text-blue-600 hover:underline"
+                href={`/ai-ops/context?conversationId=${current.conversationId}`}
+              >
+                查看完整上下文
+              </a>
+            </div>
+          </div>
+        </section>
       ) : null}
 
       <div className="overflow-x-auto rounded-xl border border-gray-100 dark:border-white/10">
@@ -265,14 +384,14 @@ function FeedbackPanel() {
                         <>
                           <Button
                             size="sm"
-                            onClick={() => triage(item.id, 'REVIEWED')}
+                            onClick={() => void triage(item.id, { reviewStatus: 'REVIEWED' })}
                           >
                             确认问题
                           </Button>
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => triage(item.id, 'IGNORED')}
+                            onClick={() => void triage(item.id, { reviewStatus: 'IGNORED' })}
                           >
                             排除
                           </Button>

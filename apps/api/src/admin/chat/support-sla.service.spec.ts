@@ -77,3 +77,34 @@ describe('SupportSlaService.getHistory', () => {
     expect(result.thresholdMinutes).toBe(5);
   });
 });
+
+describe('SupportSlaService.waitingQueue', () => {
+  it('返回等待秒数和是否超 SLA，不返回用户隐私', async () => {
+    const prisma: any = {
+      conversation: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'c1',
+            transferredAt: new Date(Date.now() - 10 * 60_000),
+            transferReason: 'ai_error',
+            lastMsgContent: '在吗',
+            lastMsgTime: new Date(),
+          },
+        ]),
+      },
+    };
+    const config: any = { get: jest.fn().mockReturnValue('5') };
+    const service = new SupportSlaService(prisma, config);
+
+    const result = await service.waitingQueue();
+
+    expect(result.thresholdMinutes).toBe(5);
+    expect(result.items[0]).toMatchObject({
+      conversationId: 'c1',
+      transferReason: 'ai_error',
+      breached: true,
+    });
+    expect(result.items[0].waitingSeconds).toBeGreaterThanOrEqual(600);
+    expect(result.items[0]).not.toHaveProperty('userId');
+  });
+});

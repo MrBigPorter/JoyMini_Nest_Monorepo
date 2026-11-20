@@ -154,7 +154,7 @@ export const routes: RouteConfig[] = [
     name: 'aiFeedback',
     icon: ListChecks,
     group: 'Customer Service',
-    hidden: process.env.NEXT_PUBLIC_AI_FEEDBACK_UI_ENABLED !== 'true',
+    hidden: true,
   },
 
   // AI Operations
