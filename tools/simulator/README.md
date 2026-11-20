@@ -1,19 +1,21 @@
 # 合成 AI 客服流量 — 模拟器（P0）
 
-`tools/simulator/` 是生产合成流量的无头客户端。本目录提供**专用渠道探测**、**账号池 provisioning**、**场景库**、**人类化节奏**与 **Socket 单会话 driver**；并发 runner 由后续任务实现。
+`tools/simulator/` 是生产合成流量的无头客户端。本目录提供**专用渠道探测**、**账号池 provisioning**、**场景库**、**人类化节奏**、**Socket 单会话 driver** 与**并发 runner + 覆盖报告**。
 
 所有流量只落在专用渠道 `simulation_support_v1`，不会创建渠道、不会调用任何 `/confirm` 接口，也不会执行存款/取款/购买等真实资金流程。
 
 ## 文件
 
-| 文件            | 作用                                                                     |
-| --------------- | ------------------------------------------------------------------------ |
-| `config.mjs`    | 读取 `SIM_*` 环境变量（不读 `.env`），提供默认值与安全阀                 |
-| `provision.mjs` | 建号 CLI + `provisionAccounts()`；渠道存在性探测                         |
-| `scenarios.mjs` | 9 个 intent 的场景库、加权随机、槽位渲染                                 |
-| `humanize.mjs`  | 5–60 秒人类化延迟、语气词/轻量错别字扰动、用户画像                       |
-| `driver.mjs`    | 单会话 driver：`GET /chat/business` + Socket `send_message` + 等 AI 回复 |
-| `*.test.mjs`    | Node 内置测试，纯函数 + mock 网络                                        |
+| 文件            | 作用                                                                      |
+| --------------- | ------------------------------------------------------------------------- |
+| `config.mjs`    | 读取 `SIM_*` 环境变量（不读 `.env`），提供默认值与安全阀                  |
+| `provision.mjs` | 建号 CLI + `provisionAccounts()`；渠道存在性探测                          |
+| `scenarios.mjs` | 9 个 intent 的场景库、加权随机、槽位渲染                                  |
+| `humanize.mjs`  | 5–60 秒人类化延迟、语气词/轻量错别字扰动、用户画像                        |
+| `driver.mjs`    | 单会话 driver：`GET /chat/business` + Socket `send_message` + 等 AI 回复  |
+| `run.mjs`       | 并发 runner：账号轮转、intent 去重、SIGINT 停止调度、token 刷新落盘       |
+| `report.mjs`    | `summarize()` 覆盖统计 + `writeReport()` 写 `summary.json`/`events.jsonl` |
+| `*.test.mjs`    | Node 内置测试，纯函数 + mock 网络                                         |
 
 运行态文件：`tools/simulator/.runtime/accounts.json`（已 gitignore，权限 `600`）。
 
@@ -190,7 +192,32 @@ node tools/simulator/driver.mjs --once --scenario order_status
 driver 会在收到 `ai_confirm` / `ai_transfer` 或 90 秒无回复时结束，**从不调用** `/confirm`；
 退出码 0 表示会话完成且无错误、无超时。
 
-## 7. 清理
+## 7. 并发 runner 与报告
+
+```bash
+# 1 会话冒烟
+node tools/simulator/run.mjs --once --concurrency 1
+
+# 30 分钟压测：6 轮 × 5 并发 = 30 个会话
+node tools/simulator/run.mjs --rounds 6 --concurrency 5
+
+# 固定场景
+node tools/simulator/run.mjs --once --concurrency 2 --scenario order_status
+```
+
+- 总任务数 = `rounds * concurrency`；并发上限 5。
+- 账号池轮转使用，同一账号不会连续两次落在同一 intent（`excludeIntents`）。
+- 单个会话异常只写入该条结果，不会中断进程。
+- `SIGINT`（Ctrl+C）停止调度新会话，等待在途会话结束后写报告；再次 Ctrl+C 强制退出。
+- driver 在 401 时刷新 token，runner 会把新 token 写回 `accounts.json`（权限 600）。
+- 报告目录：`tools/simulator/.runtime/runs/<ISO>/`
+  - `summary.json`：`conversations/replies/confirms/transfers/noReply/errors`、
+    按 intent 的 `byIntent`，以及特殊场景 `special` 计数（特殊场景 intent 均为
+    `general`，因此从 `byIntent` 拆出单独统计）。
+  - `events.jsonl`：每行一个会话结果（场景、计数、时间戳、脱敏错误）。
+- 报告与会话结果不含 token / 手机号。
+
+## 8. 清理
 
 ```bash
 # 删除本地账号池（只删本地文件，服务端用户仍存在）
