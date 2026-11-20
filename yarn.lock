@@ -25969,6 +25969,7 @@ __metadata:
     react: "npm:^19.2.5"
     react-blurhash: "npm:^0.3.0"
     rimraf: "npm:^6.0.1"
+    socket.io-client: "npm:^4.8.4"
     swr: "npm:^2.4.1"
     tailwindcss: "npm:^4.2.4"
     ts-jest: "npm:^29.4.5"
