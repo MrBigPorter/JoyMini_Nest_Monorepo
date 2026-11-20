@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { routes } from '@/routes';
+import { getVisibleRoutes, routes } from '@/routes';
 
 describe('routes 配置', () => {
   it('每条路由都有 path、name、icon、group', () => {
@@ -35,6 +35,38 @@ describe('routes 配置', () => {
   it('analytics 路由已上线，不被隐藏', () => {
     const analytics = routes.find((r) => r.name === 'analytics');
     expect(analytics?.hidden).toBeFalsy();
+  });
+
+  it('VIEWER 看不到工程组，ADMIN 可以看到', () => {
+    const viewerRoutes = getVisibleRoutes('viewer');
+    const adminRoutes = getVisibleRoutes('ADMIN');
+
+    expect(
+      viewerRoutes.some((r) => r.group === 'AI Operations · 工程'),
+    ).toBe(false);
+    expect(
+      adminRoutes.some((r) => r.group === 'AI Operations · 工程'),
+    ).toBe(true);
+  });
+
+  it('角色未加载时隐藏工程组，避免先闪后消失', () => {
+    const visible = getVisibleRoutes(undefined);
+
+    expect(visible.some((r) => r.group === 'AI Operations · 工程')).toBe(
+      false,
+    );
+    expect(visible.some((r) => r.path === '/ai-ops')).toBe(true);
+  });
+
+  it('七条工程路由都标记了 VIEWER 隐藏', () => {
+    const engineering = routes.filter(
+      (r) => r.group === 'AI Operations · 工程',
+    );
+
+    expect(engineering).toHaveLength(7);
+    engineering.forEach((route) => {
+      expect(route.hiddenForRoles).toContain('VIEWER');
+    });
   });
 
   it('所有 group 值合法', () => {

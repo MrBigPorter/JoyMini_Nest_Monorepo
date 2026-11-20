@@ -9,7 +9,7 @@ import { useAppStore } from '@/store/useAppStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useToastStore } from '@/store/useToastStore';
 import { getRoleI18nKey } from '@/constants';
-import { routes, RouteConfig } from '@/routes';
+import { getVisibleRoutes, RouteConfig } from '@/routes';
 import { useRequest } from 'ahooks';
 import { motion, AnimatePresence } from 'framer-motion';
 import { applicationApi, authApi } from '@/api';
@@ -161,9 +161,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     [onMobileCloseAction, addToast],
   );
 
-  const groupedRoutes = routes
-    .filter((route) => !route.hidden)
-    .reduce(
+  const groupedRoutes = getVisibleRoutes(userInfo?.role).reduce(
       (acc, route) => {
         const group = route.group;
         if (!acc[group]) acc[group] = [];

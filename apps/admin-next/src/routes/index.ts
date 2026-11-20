@@ -60,6 +60,8 @@ export interface RouteConfig {
   icon: React.ComponentType<{ size?: number; className?: string }>;
   group: RouteGroup;
   hidden?: boolean;
+  /** 这些角色看不到该路由；未加载角色时按隐藏处理，避免闪烁。 */
+  hiddenForRoles?: readonly string[];
 }
 
 export const routes: RouteConfig[] = [
@@ -188,42 +190,49 @@ export const routes: RouteConfig[] = [
     name: 'aiOpsRuntime',
     icon: ServerCog,
     group: 'AI Operations · 工程',
+    hiddenForRoles: ['VIEWER'],
   },
   {
     path: '/ai-ops/flows',
     name: 'aiOpsFlows',
     icon: Workflow,
     group: 'AI Operations · 工程',
+    hiddenForRoles: ['VIEWER'],
   },
   {
     path: '/ai-ops/usage',
     name: 'aiOpsUsage',
     icon: Coins,
     group: 'AI Operations · 工程',
+    hiddenForRoles: ['VIEWER'],
   },
   {
     path: '/ai-ops/memory',
     name: 'aiOpsMemory',
     icon: Brain,
     group: 'AI Operations · 工程',
+    hiddenForRoles: ['VIEWER'],
   },
   {
     path: '/ai-ops/security',
     name: 'aiOpsSecurity',
     icon: ShieldAlert,
     group: 'AI Operations · 工程',
+    hiddenForRoles: ['VIEWER'],
   },
   {
     path: '/ai-ops/context',
     name: 'aiOpsContext',
     icon: Braces,
     group: 'AI Operations · 工程',
+    hiddenForRoles: ['VIEWER'],
   },
   {
     path: '/ai-ops/traces',
     name: 'aiOpsTraces',
     icon: GitBranch,
     group: 'AI Operations · 工程',
+    hiddenForRoles: ['VIEWER'],
   },
 
   // Analytics
@@ -278,3 +287,20 @@ export const routes: RouteConfig[] = [
     hidden: true,
   },
 ];
+
+/**
+ * 按角色过滤导航。
+ *
+ * - `hidden` 永远不显示；
+ * - 角色未知（尚未拉取 /me）时，隐藏 `hiddenForRoles` 路由，避免先闪一下再消失；
+ * - 角色比较统一大写，兼容历史上的小写 role。
+ */
+export function getVisibleRoutes(role?: string | null): RouteConfig[] {
+  const current = String(role ?? '').toUpperCase();
+  return routes.filter((route) => {
+    if (route.hidden) return false;
+    if (!route.hiddenForRoles?.length) return true;
+    if (!current) return false;
+    return !route.hiddenForRoles.includes(current);
+  });
+}
