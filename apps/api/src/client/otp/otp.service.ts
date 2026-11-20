@@ -11,7 +11,7 @@ import { throwBiz } from '@api/common/exceptions/biz.exception';
 import { ERROR_KEYS } from '@api/common/error-codes.gen';
 import { otpHash, verifyOtpHash } from '@api/common/otp.util';
 import { CODE_TYPE, SEND_STATUS, VERIFY_STATUS } from '@lucky/shared';
-import { SmsProvider } from './sms.provider';
+import { isFixedOtpMode, SmsProvider } from './sms.provider';
 
 const OTP_PEPPER = process.env.OTP_PEPPER || '';
 const OTP_TTL_SECONDS = Number(process.env.OTP_TTL_SECONDS) || 300;
@@ -53,8 +53,13 @@ export class OtpService {
       throwBiz(ERROR_KEYS.TOO_MANY_REQUESTS);
     }
 
-    //开发环境固定验证码
-    const code = isDev ? (process.env.OTP_DEV_CODE ?? '999999') : gen6Code();
+    // 固定验证码模式（local/dev 默认；生产需显式开启）：
+    // 不生成随机码，请求直接返回 devCode，省掉短信供应商也能跑通全流程。
+    const fixedMode = isFixedOtpMode(process.env);
+    const useFixedCode = fixedMode || isDev;
+    const fixedCode =
+      process.env.OTP_FIXED_CODE ?? process.env.OTP_DEV_CODE ?? '999999';
+    const code = useFixedCode ? fixedCode : gen6Code();
     const codeHash = otpHash(p, code, OTP_PEPPER);
     const expiresAt = addSeconds(new Date(), OTP_TTL_SECONDS);
 
@@ -89,11 +94,11 @@ export class OtpService {
       data: { sendStatus: SEND_STATUS.SENT },
     });
 
-    if (isDev) {
-      return { devCode: code };
+    if (useFixedCode) {
+      return { devCode: code, fixed: true };
     }
 
-    // 生产环境的短信实现见 sms.provider.ts（当前为未配置占位，接入供应商后替换）
+    // 生产环境的短信实现见 sms.provider.ts（接入供应商后替换 Unconfigured）
     return true;
   }
 

@@ -97,6 +97,12 @@ import { FlowVersioningModule } from '@api/client/ai-customer/flow-versioning/fl
         EMAIL_OTP_MAX_ATTEMPTS: Joi.number().integer().positive().default(5),
         EMAIL_OTP_DEV_CODE: Joi.string().min(4).max(20).optional(),
 
+        // SMS OTP 固定码模式（无供应商账号时跑通流程；生产需第二道确认）
+        OTP_PROVIDER: Joi.string().valid('fixed', 'console').optional(),
+        OTP_FIXED_MODE: Joi.string().valid('true', 'false').optional(),
+        OTP_FIXED_CODE: Joi.string().min(4).max(20).optional(),
+        OTP_ALLOW_FIXED_IN_PROD: Joi.string().valid('true', 'false').optional(),
+
         CACHE_TTL: Joi.number().integer().positive().default(300),
         CACHE_PREFIX: Joi.string().default('lucky:'),
         REDIS_URL: Joi.string().required(),
