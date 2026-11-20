@@ -1345,6 +1345,66 @@ model AiTaskOutbox {
   @@map("ai_task_outbox")
 }
 
+/// 不可变的流程定义版本。payload 是决定流程行为的完整快照，
+/// definitionHash 相同的定义不会重复生成版本。
+model FlowDefinitionVersion {
+  id             String   @id @default(cuid())
+  flowType       String   @map("flow_type") @db.VarChar(32)
+  version        Int
+  definitionHash String   @map("definition_hash") @db.VarChar(64)
+  payload        Json
+  /// ACTIVE / DEPRECATED / DRAFT
+  status         String   @default("ACTIVE") @db.VarChar(16)
+  createdBy      String?  @map("created_by")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  bindings ConversationFlowBinding[]
+
+  @@unique([flowType, version], map: "idx_flow_def_type_version")
+  @@unique([flowType, definitionHash], map: "idx_flow_def_type_hash")
+  @@index([flowType, status])
+  @@map("flow_definition_versions")
+}
+
+/// 会话绑定的流程定义版本。新会话绑最新，旧会话保持不变。
+model ConversationFlowBinding {
+  id                  String   @id @default(cuid())
+  conversationId      String   @map("conversation_id")
+  flowType            String   @map("flow_type") @db.VarChar(32)
+  definitionVersionId String   @map("definition_version_id")
+  definitionHash      String   @map("definition_hash") @db.VarChar(64)
+  /// ACTIVE / ROLLED_BACK
+  status              String   @default("ACTIVE") @db.VarChar(16)
+  threadId            String?  @map("thread_id")
+  checkpointId        String?  @map("checkpoint_id")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  definition FlowDefinitionVersion @relation(fields: [definitionVersionId], references: [id])
+
+  @@unique([conversationId, flowType], map: "idx_flow_binding_conv_type")
+  @@index([definitionVersionId])
+  @@map("conversation_flow_bindings")
+}
+
+/// 绑定变更审计：bind / switch / rollback 都可追溯。
+model FlowBindingAuditLog {
+  id                  String   @id @default(cuid())
+  conversationId      String   @map("conversation_id")
+  flowType            String   @map("flow_type") @db.VarChar(32)
+  action              String   @db.VarChar(32)
+  actorId             String?  @map("actor_id")
+  reason              String?  @db.VarChar(500)
+  fromVersionId       String?  @map("from_version_id")
+  toVersionId         String?  @map("to_version_id")
+  threadId            String?  @map("thread_id")
+  checkpointId        String?  @map("checkpoint_id")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  @@index([conversationId, createdAt])
+  @@map("flow_binding_audit_logs")
+}
+
 // 3. 成员表
 model ChatMember {
   id String @id @default(cuid())

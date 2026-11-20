@@ -31,6 +31,7 @@ import { BlogModule } from '@api/blog/blog.module';
 import { AiCustomerModule } from '@api/client/ai-customer/ai-customer.module';
 import { AiQueueModule } from '@api/common/queue/ai-queue.module';
 import { AiTaskOutboxModule } from '@api/common/queue/ai-task-outbox.module';
+import { FlowVersioningModule } from '@api/client/ai-customer/flow-versioning/flow-versioning.module';
 
 // 根模块（第2步，挂子模块、配置、JWT等）
 @Module({
@@ -171,6 +172,7 @@ import { AiTaskOutboxModule } from '@api/common/queue/ai-task-outbox.module';
     MeilisearchModule,
     AiQueueModule,
     AiTaskOutboxModule,
+    FlowVersioningModule,
     AiCustomerModule,
 
     // 其他模块：PrismaModule、ThrottlerModule、UsersModule、AuthModule 等

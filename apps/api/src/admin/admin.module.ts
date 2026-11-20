@@ -32,6 +32,7 @@ import { AiFeedbackModule } from '@api/admin/ai-feedback/ai-feedback.module';
 import { AiEvalModule } from '@api/admin/ai-eval/ai-eval.module';
 import { HealthModule } from '@api/admin/services/health.module';
 import { QueueMonitorModule } from '@api/admin/queue/queue-monitor.module';
+import { FlowVersioningAdminModule } from '@api/admin/flow-versioning/flow-versioning.module';
 
 @Module({
   imports: [
@@ -68,6 +69,7 @@ import { QueueMonitorModule } from '@api/admin/queue/queue-monitor.module';
     AiEvalModule,
     HealthModule,
     QueueMonitorModule,
+    FlowVersioningAdminModule,
   ],
   providers: [],
   controllers: [],

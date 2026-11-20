@@ -28,6 +28,7 @@ import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service'
 import { AiMemoryService } from '@api/common/ai/ai-memory.service';
 import { AiActionConfirmService } from './ai-action-confirm.service';
 import { AiFeedbackService } from '@api/common/ai/ai-feedback.service';
+import { FlowStateVersioningService } from '@api/client/ai-customer/flow-versioning/flow-state-versioning.service';
 import {
   AiUsageService,
   QuotaExceededError,
@@ -86,6 +87,7 @@ export class AiCustomerService implements OnModuleDestroy {
     private readonly redisService: RedisService,
     private readonly eventEmitter: EventEmitter2,
     private readonly aiFeedbackService: AiFeedbackService,
+    private readonly flowVersioning: FlowStateVersioningService,
   ) {}
 
   /**
@@ -533,6 +535,13 @@ export class AiCustomerService implements OnModuleDestroy {
     const newMessages = (finalState?.values?.messages ?? []).slice(prevCount);
     const ragSources =
       (finalState?.values?.ragSources as RagCitation[] | undefined) ?? [];
+
+    // 新会话第一次进入某个 flowType 时绑定最新定义。
+    // 已绑定的旧会话不会跟随升级；绑定失败只记日志，不影响本轮回复。
+    const activeFlow = finalState?.values?.flowState?.activeFlow as
+      | string
+      | undefined;
+    void this.flowVersioning.ensureBindingQuietly(conversationId, activeFlow);
 
     // 持久化本轮 AI 对话：跨轮状态由 Postgres checkpointer 负责；
     // IM 消息由 AiReplyPublisher 写入 ChatMessage（这里不再维护 ai:hot 缓存）。
