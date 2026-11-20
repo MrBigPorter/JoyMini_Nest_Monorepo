@@ -3,7 +3,7 @@
 > 状态：设计稿
 > 负责人：AI 运营 / 平台
 > 更新时间：2026-11-21
-> 关联文档：[112 文档规范](./112-AI质量运营-文档规范.md)、[113 数据模型](./113-AI质量运营-数据模型.md)、[114 质量 Admin 设计](./114-AI质量运营-Admin设计.md)、[116 页面结构与 UI](./116-AI-Operations-页面结构与UI规范.md)、[117 开源方案调研](./117-AI-Operations-开源方案调研.md)
+> 关联文档：[112 文档规范](./112-AI质量运营-文档规范.md)、[113 数据模型](./113-AI质量运营-数据模型.md)、[114 质量 Admin 设计](./114-AI质量运营-Admin设计.md)、[116 页面结构与 UI](./116-AI-Operations-页面结构与UI规范.md)、[117 开源方案调研](./117-AI-Operations-开源方案调研.md)、[118 验收评审与修复计划](./118-AI-Operations-验收评审与修复计划.md)
 > 关联页面：`/ai-ops/*`
 > 设计依据：Langfuse / Arize Phoenix / bull-board / LiteLLM / Chatwoot / Mem0 / Letta / Flagsmith / Unleash / NeMo Guardrails / Promptfoo
 

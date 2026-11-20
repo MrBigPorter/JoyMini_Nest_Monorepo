@@ -90,6 +90,22 @@ KPI 不是装饰，必须能点：
 - 误转 → `UNEXPECTED_TRANSFER`
 - 已进回归 → `resolution=ADDED_TO_EVAL`
 
+**待办与信号分轨（2026-11-21 决策，详见 [118 §4.3](./118-AI-Operations-验收评审与修复计划.md)）**
+
+待办只放需要人判断的条目：
+
+- 显式负反馈（`source='explicit'` 且 `verdict='incorrect'`）
+- 服务故障（`failureKind='SERVICE_ERROR'`，含 `ai_error` 自动转入）
+- 运营从信号区认领的条目（`ownerAdminId` 非空）
+
+以下不进待办，进入页面下方独立的“系统信号”区；只展示，不计入待处理：
+
+- 转人工线索（`signal='transferred'`，原因不明）
+- 用户取消 / 离开（`USER_ABANDONED`）
+- 重复追问（`REPEATED_QUESTION`）
+
+“误转”不再由“发生了转人工”自动推断：人工确认后才写 `UNEXPECTED_TRANSFER`。信号区可以标“疑似误转”，但不进待办、不进指标。
+
 ### 4.3 质检卡：一次一条
 
 不要默认大表格。点“开始质检”进入单条模式：
@@ -243,6 +259,15 @@ Esc        退出质检
 
 只有“模型答错 / 误转 / 知识缺失 / 检索失败”可以生成用例。服务故障和正常转人工不能进回归。
 
+**判分最低要求（2026-11-21 补充，详见 [118 §5.4.1](./118-AI-Operations-验收评审与修复计划.md)）**：
+
+1. 用例没有期望（`mustMention` / `expected`）时，禁止启动评测。
+2. 期望字段至少包含 `mustMention`、`mustNot`、`expectedAction`、`language`；可选 `referenceAnswer`。
+3. 先跑确定性检查（语言一致、必须出现/禁止出现、是否调用写工具），再让 judge 判完整性与语气。
+4. judge 必须拿到参考要点和产品规则，不得自行增加标准。
+5. 页面显示 judge 模型、厂商、是否同厂；同厂结果标“非正式”。
+6. LIVE 评测必须写 trace，否则“为什么错”无证据可看。
+
 ### 5.5 高级模式
 
 JSON 导入、`expect` 规则、judge 配置收进“高级模式”，默认不显示。
@@ -265,7 +290,8 @@ JSON 导入、`expect` 规则、judge 配置收进“高级模式”，默认不
 ├── 文档质量
 │   ├── 27 篇文档
 │   ├── 优秀 22 / 良好 5 / 可疑 0
-│   ├── 需要复核：4 篇截断
+│   ├── 有标记：4 篇（需点开确认）
+│   ├── 解析失败风险：0 篇（<70 分）
 │   └── 文档列表：标题 / 分数 / flags / 版本 / 操作
 └── 检索测试
     ├── 输入问题
@@ -275,6 +301,15 @@ JSON 导入、`expect` 规则、judge 配置收进“高级模式”，默认不
 ```
 
 不要把 `byScore` 和 `recentFlags` 直接 `Object.entries` 成卡片；它们是嵌套对象。
+
+**2026-11-21 验收修订（详见 [118 §5.4.2](./118-AI-Operations-验收评审与修复计划.md)）**：
+
+- 评分是上传时的 4 项规则（截断/保留率/编码/空内容），每项 25 分；75 分 = 挂 1 项。
+- `truncation` 只看结尾字符，表格、列表、链接、emoji 结尾都会误报；这 5 篇 75 分全部是假阳性。
+- `待复核` 不能只按分数（<70）；必须同时暴露“有标记”，否则会出现“待复核 0、标记 5 篇”。
+- `parsedAt` 当前取 `createdAt`，页面应叫“上传时间”，或补真实解析时间。
+- 评分只在上传时计算；编辑/更新文档后要重算。
+- 评分只代表解析卫生，不代表检索质量或回答质量；页面要区分三层。
 
 ### 6.3 检索结果
 
@@ -319,14 +354,18 @@ JSON 导入、`expect` 规则、judge 配置收进“高级模式”，默认不
 
 | 指标 | 公式 | 运营解释 |
 |---|---|---|
-| 待处理 | `resolution=OPEN` | 今天还要看多少 |
-| 服务故障率 | `SERVICE_ERROR / 全部反馈` | 系统稳定性 |
+| 待处理 | `resolution=OPEN` + 时间窗 +（显式负反馈 或 `SERVICE_ERROR` 或 已认领） | 今天还要看多少 |
+| 系统信号 | 隐式 `transferred / abandoned / repeated_question` | 系统发现了什么，不需要逐条处理 |
+| 疑似误转 | 信号区规则命中、待人工确认 | 需要抽查的转人工 |
+| 服务故障率 | `SERVICE_ERROR / 待办候选` | 系统稳定性（分母不含系统信号） |
 | 模型错误率 | `MODEL_ERROR / (MODEL_ERROR + UNEXPECTED_TRANSFER)` | AI 本身答得好不好 |
 | 误转率 | `UNEXPECTED_TRANSFER / 全部转人工` | 转人工是不是太激进 |
 | 正常转人工率 | `EXPECTED_TRANSFER / 全部转人工` | 该转的有没有转 |
 | 回归通过率 | `solved / total` | 改动有没有变坏 |
 
 服务故障和正常转人工不能进模型错误率分母。
+
+转人工类指标一律按 `transferredAt` 落在时间窗内统计，不按 `createdAt`；分母只含已确认的转人工结论（`EXPECTED_TRANSFER` / `UNEXPECTED_TRANSFER` / `ai_error` 转人工），不含信号区线索。`UNEXPECTED_TRANSFER` 只统计人工确认后的结果。
 
 ## 9. 运营文案对照
 
@@ -335,7 +374,7 @@ JSON 导入、`expect` 规则、judge 配置收进“高级模式”，默认不
 | Feedback | 质量待办 |
 | Eval Datasets | 回归测试 |
 | RAG Quality | 知识质量 |
-| implicit | 系统自动发现 |
+| implicit | 系统信号 |
 | explicit | 人工标注 |
 | PENDING | 待处理 |
 | REVIEWED | 已确认 |
