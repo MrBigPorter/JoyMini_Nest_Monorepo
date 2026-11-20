@@ -1569,3 +1569,93 @@ export const aiOpsApi = {
   deleteUserMemories: (userId: string) =>
     http.delete(`/v1/admin/ai-memory/users/${userId}`),
 };
+
+/**
+ * AI Quality / Security / Support / Insights
+ */
+export const aiQualityApi = {
+  updateFeedback: (
+    id: string,
+    data: {
+      reviewStatus?: 'PENDING' | 'REVIEWED' | 'IGNORED';
+      verdict?: 'correct' | 'incorrect';
+      errorType?: string;
+      note?: string;
+    },
+  ) => http.patch(`/v1/admin/ai-feedback/${id}`, data),
+
+  listDatasets: () =>
+    http.get<import('@/type/types').EvalDataset[]>(
+      '/v1/admin/ai-eval/datasets',
+    ),
+  createDataset: (data: { name: string; description?: string }) =>
+    http.post<import('@/type/types').EvalDataset>(
+      '/v1/admin/ai-eval/datasets',
+      data,
+    ),
+  getDataset: (id: string) =>
+    http.get<
+      import('@/type/types').EvalDataset & {
+        cases: import('@/type/types').EvalCase[];
+        runs: import('@/type/types').EvalRun[];
+      }
+    >(`/v1/admin/ai-eval/datasets/${id}`),
+  addCases: (
+    id: string,
+    data: {
+      cases: Array<{
+        question: string;
+        answer: string;
+        expect?: Record<string, any>;
+        tags?: string[];
+      }>;
+    },
+  ) => http.post(`/v1/admin/ai-eval/datasets/${id}/cases`, data),
+  startRun: (id: string) =>
+    http.post<import('@/type/types').EvalRun>(
+      `/v1/admin/ai-eval/datasets/${id}/runs`,
+    ),
+  getRun: (id: string) =>
+    http.get<import('@/type/types').EvalRun>(`/v1/admin/ai-eval/runs/${id}`),
+
+  ragSearch: (data: {
+    query: string;
+    domain?: string;
+    topK?: number;
+    debug?: boolean;
+  }) => http.post('/v1/admin/rag/documents/search', data),
+  ragJudge: (data: { question: string; answer: string; sources: any[] }) =>
+    http.post('/v1/admin/rag/documents/judge', data),
+
+  securityEvents: (params: {
+    type?: string;
+    from?: string;
+    to?: string;
+    page?: number;
+    pageSize?: number;
+  }) =>
+    http.get<{
+      list: import('@/type/types').AiSecurityEventRow[];
+      total: number;
+      page: number;
+      pageSize: number;
+    }>('/v1/admin/ai-security/events', params),
+  securitySummary: (params?: { from?: string; to?: string }) =>
+    http.get<import('@/type/types').AiSecuritySummary>(
+      '/v1/admin/ai-security/summary',
+      params,
+    ),
+
+  slaHistory: (hours = 24) =>
+    http.get<{
+      windowHours: number;
+      latest: import('@/type/types').SupportSlaSnapshotRow | null;
+      snapshots: import('@/type/types').SupportSlaSnapshotRow[];
+    }>('/v1/admin/chat/sla', { hours }),
+
+  insightsOverview: (params?: { from?: string; to?: string }) =>
+    http.get<import('@/type/types').AiInsightsOverview>(
+      '/v1/admin/ai-insights/overview',
+      params,
+    ),
+};

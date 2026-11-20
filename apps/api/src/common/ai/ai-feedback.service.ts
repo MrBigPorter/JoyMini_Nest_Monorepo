@@ -168,6 +168,7 @@ export class AiFeedbackService {
     source?: FeedbackSource;
     signal?: FeedbackSignal;
     errorType?: FeedbackErrorType;
+    reviewStatus?: 'PENDING' | 'REVIEWED' | 'IGNORED';
     page?: number;
     pageSize?: number;
   }) {
@@ -177,6 +178,7 @@ export class AiFeedbackService {
       ...(params.source ? { source: params.source } : {}),
       ...(params.signal ? { signal: params.signal } : {}),
       ...(params.errorType ? { errorType: params.errorType } : {}),
+      ...(params.reviewStatus ? { reviewStatus: params.reviewStatus } : {}),
     };
 
     const [list, total] = await this.prisma.$transaction([
@@ -190,6 +192,32 @@ export class AiFeedbackService {
     ]);
 
     return { list, total, page, pageSize };
+  }
+
+  async updateTriage(
+    id: string,
+    input: {
+      reviewStatus?: 'PENDING' | 'REVIEWED' | 'IGNORED';
+      verdict?: FeedbackVerdict;
+      errorType?: FeedbackErrorType;
+      note?: string;
+    },
+    adminId: string,
+  ) {
+    return this.prisma.aiAnswerFeedback.update({
+      where: { id },
+      data: {
+        ...(input.reviewStatus ? { reviewStatus: input.reviewStatus } : {}),
+        ...(input.verdict ? { verdict: input.verdict } : {}),
+        ...(input.errorType !== undefined
+          ? { errorType: input.errorType ?? null }
+          : {}),
+        ...(input.note !== undefined ? { note: input.note.slice(0, 500) } : {}),
+        ...(input.reviewStatus
+          ? { reviewedBy: adminId, reviewedAt: new Date() }
+          : {}),
+      },
+    });
   }
 }
 

@@ -35,6 +35,8 @@ import { QueueMonitorModule } from '@api/admin/queue/queue-monitor.module';
 import { FlowVersioningAdminModule } from '@api/admin/flow-versioning/flow-versioning.module';
 import { AiUsageAdminModule } from '@api/admin/ai-usage/ai-usage.module';
 import { AiMemoryAdminModule } from '@api/admin/ai-memory/ai-memory-admin.module';
+import { AiSecurityAdminModule } from '@api/admin/ai-security/ai-security.module';
+import { AiInsightsAdminModule } from '@api/admin/ai-insights/ai-insights.module';
 
 @Module({
   imports: [
@@ -74,6 +76,8 @@ import { AiMemoryAdminModule } from '@api/admin/ai-memory/ai-memory-admin.module
     FlowVersioningAdminModule,
     AiUsageAdminModule,
     AiMemoryAdminModule,
+    AiSecurityAdminModule,
+    AiInsightsAdminModule,
   ],
   providers: [],
   controllers: [],

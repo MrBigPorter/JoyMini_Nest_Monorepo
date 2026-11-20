@@ -58,6 +58,10 @@ test.describe('Sidebar — 侧边栏导航', () => {
     { name: 'AI Flows', path: '/ai-ops/flows/' },
     { name: 'AI Usage', path: '/ai-ops/usage/' },
     { name: 'AI Memory', path: '/ai-ops/memory/' },
+    { name: 'AI Quality', path: '/ai-ops/quality/' },
+    { name: 'AI Security', path: '/ai-ops/security/' },
+    { name: 'Support Ops', path: '/ai-ops/support/' },
+    { name: 'AI Insights', path: '/ai-ops/insights/' },
   ];
 
   for (const route of routes) {

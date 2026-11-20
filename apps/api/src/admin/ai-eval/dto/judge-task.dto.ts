@@ -8,7 +8,10 @@ import {
 } from 'class-validator';
 
 export class TaskExpectationDto {
-  @ApiPropertyOptional({ type: [String], description: '回答必须提到的关键信息' })
+  @ApiPropertyOptional({
+    type: [String],
+    description: '回答必须提到的关键信息',
+  })
   @IsOptional()
   @IsArray()
   @IsString({ each: true })

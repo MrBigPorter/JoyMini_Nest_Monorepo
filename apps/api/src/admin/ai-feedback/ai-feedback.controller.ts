@@ -5,6 +5,8 @@ import {
   ExecutionContext,
   Get,
   HttpCode,
+  Patch,
+  Param,
   HttpStatus,
   Post,
   Query,
@@ -19,6 +21,7 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { AiFeedbackService } from '@api/common/ai/ai-feedback.service';
 import { CreateAiFeedbackDto } from './dto/create-ai-feedback.dto';
+import { UpdateAiFeedbackDto } from './dto/update-ai-feedback.dto';
 import { QueryAiFeedbackDto } from './dto/query-ai-feedback.dto';
 
 interface AdminRequest extends Request {
@@ -71,5 +74,17 @@ export class AiFeedbackController {
   async list(@Query() query: QueryAiFeedbackDto) {
     this.assertEnabled();
     return this.feedbackService.list(query);
+  }
+
+  @Patch(':id')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @ApiOperation({ summary: '反馈分诊：状态/结论/错误类型/备注' })
+  async update(
+    @Param('id') id: string,
+    @Body() dto: UpdateAiFeedbackDto,
+    @CurrentAdminId() adminId: string,
+  ) {
+    this.assertEnabled();
+    return this.feedbackService.updateTriage(id, dto, adminId);
   }
 }

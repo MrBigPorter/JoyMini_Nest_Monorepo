@@ -13,7 +13,9 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { Request } from 'express';
+import { ApiOperation } from '@nestjs/swagger';
 import { AdminChatService } from './admin-chat.service';
+import { SupportSlaService } from './support-sla.service';
 import { AdminJwtAuthGuard } from '@api/admin/auth/admin-jwt-auth.guard';
 import { RolesGuard } from '@api/admin/auth/roles.guard';
 import { Roles } from '@api/admin/auth/roles.decorator';
@@ -47,7 +49,10 @@ const CurrentAdminId = createParamDecorator(
 @Controller('admin/chat')
 @UseGuards(AdminJwtAuthGuard, RolesGuard)
 export class AdminChatController {
-  constructor(private readonly service: AdminChatService) {}
+  constructor(
+    private readonly service: AdminChatService,
+    private readonly supportSlaService: SupportSlaService,
+  ) {}
 
   /** GET /v1/admin/chat/conversations — 客服会话列表 */
   @Get('conversations')
@@ -133,5 +138,12 @@ export class AdminChatController {
     @CurrentAdminId() adminId: string,
   ) {
     return this.service.getUploadToken(adminId, dto);
+  }
+
+  @Get('sla')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
+  @ApiOperation({ summary: '转人工 SLA 历史快照' })
+  async getSlaHistory(@Query('hours') hours?: string) {
+    return this.supportSlaService.getHistory(hours ? parseInt(hours, 10) : 24);
   }
 }

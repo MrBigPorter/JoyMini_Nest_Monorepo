@@ -84,6 +84,21 @@ export class SupportSlaService {
       setGauge('support_queue_waiting', {}, snapshot.waiting);
       setGauge('support_sla_breaches', {}, snapshot.breached);
 
+      // 历史快照：只存聚合值，便于按天看趋势，不保存会话/用户信息。
+      await this.prisma.supportSlaSnapshot
+        .create({
+          data: {
+            waiting: snapshot.waiting,
+            breached: snapshot.breached,
+            longestWait: Math.round(snapshot.oldestWaitMs / 1000),
+          },
+        })
+        .catch((err: any) =>
+          this.logger.warn(
+            `[SupportSLA] snapshot write failed: ${err?.message ?? err}`,
+          ),
+        );
+
       if (snapshot.breached > 0) {
         this.logger.warn(
           `[SupportSLA] ${snapshot.breached}/${snapshot.waiting} waiting > ` +
@@ -97,5 +112,25 @@ export class SupportSlaService {
         `[SupportSLA] queue check failed: ${err?.message ?? err}`,
       );
     }
+  }
+
+  async getHistory(hours = 24) {
+    const safeHours = Math.min(Math.max(hours, 1), 168);
+    const since = new Date(Date.now() - safeHours * 60 * 60 * 1000);
+    const [snapshots, latest] = await Promise.all([
+      this.prisma.supportSlaSnapshot.findMany({
+        where: { createdAt: { gte: since } },
+        orderBy: { createdAt: 'asc' },
+        take: 2000,
+      }),
+      this.prisma.supportSlaSnapshot.findFirst({
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+    return {
+      windowHours: safeHours,
+      latest,
+      snapshots,
+    };
   }
 }

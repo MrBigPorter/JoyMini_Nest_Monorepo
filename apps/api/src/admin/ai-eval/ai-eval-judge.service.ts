@@ -74,7 +74,8 @@ export function parseJudgeOutput(
     return {
       verdict: parsed.verdict,
       score: Number.isFinite(score) ? Math.min(1, Math.max(0, score)) : 0,
-      reason: typeof parsed.reason === 'string' ? parsed.reason.slice(0, 200) : '',
+      reason:
+        typeof parsed.reason === 'string' ? parsed.reason.slice(0, 200) : '',
     };
   } catch {
     return null;
@@ -124,7 +125,10 @@ export function resolveJudgeConfig(
   if (allowSameVendor(env)) {
     return {
       type: 'online',
-      model: configService.get<string>('AI_EVAL_JUDGE_SAME_MODEL', 'deepseek-chat'),
+      model: configService.get<string>(
+        'AI_EVAL_JUDGE_SAME_MODEL',
+        'deepseek-chat',
+      ),
       baseURL: configService.get<string>(
         'AI_EVAL_JUDGE_SAME_BASE_URL',
         'https://api.deepseek.com',
@@ -218,7 +222,9 @@ export class AiEvalJudgeService {
         vendorIndependent: this.vendorIndependent,
       };
     } catch (err: any) {
-      this.logger.error(`[task-judge] judge call failed: ${err?.message ?? err}`);
+      this.logger.error(
+        `[task-judge] judge call failed: ${err?.message ?? err}`,
+      );
       throw new ServiceUnavailableException('AI eval judge call failed');
     }
   }

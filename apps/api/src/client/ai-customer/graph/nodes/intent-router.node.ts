@@ -29,6 +29,7 @@ import { AiService } from '@api/common/ai/ai.service';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service';
 import { Logger } from '@nestjs/common';
+import { createHash } from 'node:crypto';
 import { extractUserInput } from '@api/client/ai-customer/graph/utils/extract-user-input';
 import { emitStage } from '@api/common/logger/structured-logger';
 import {
@@ -193,9 +194,30 @@ export const createIntentRouterNode = (
       if (injection.detected) {
         emitStage(
           'injection.detected',
-          { type: injection.type, length: userInput.length, mode: injectionMode },
+          {
+            type: injection.type,
+            length: userInput.length,
+            mode: injectionMode,
+          },
           'warn',
         );
+        // 异步落库，失败不阻断回答；不存原文。
+        void prismaService.aiSecurityEvent
+          .create({
+            data: {
+              type: injection.type ?? 'unknown',
+              mode: injectionMode,
+              length: userInput.length,
+              userIdHash: state.userId
+                ? createHash('sha256').update(state.userId).digest('hex')
+                : null,
+            },
+          })
+          .catch((err: any) =>
+            logger.warn(
+              `[intentRouter] injection persist failed: ${err?.message ?? err}`,
+            ),
+          );
         if (injectionMode === 'enforce') {
           return {
             intent: 'general',

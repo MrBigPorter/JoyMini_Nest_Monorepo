@@ -33,6 +33,10 @@ import {
   Workflow,
   Coins,
   Brain,
+  ClipboardCheck,
+  ShieldAlert,
+  Headset,
+  BarChart3,
 } from 'lucide-react';
 
 export type RouteGroup =
@@ -179,6 +183,31 @@ export const routes: RouteConfig[] = [
     path: '/ai-ops/memory',
     name: 'aiOpsMemory',
     icon: Brain,
+    group: 'AI Operations',
+  },
+
+  {
+    path: '/ai-ops/quality',
+    name: 'aiOpsQuality',
+    icon: ClipboardCheck,
+    group: 'AI Operations',
+  },
+  {
+    path: '/ai-ops/security',
+    name: 'aiOpsSecurity',
+    icon: ShieldAlert,
+    group: 'AI Operations',
+  },
+  {
+    path: '/ai-ops/support',
+    name: 'aiOpsSupport',
+    icon: Headset,
+    group: 'AI Operations',
+  },
+  {
+    path: '/ai-ops/insights',
+    name: 'aiOpsInsights',
+    icon: BarChart3,
     group: 'AI Operations',
   },
 

@@ -2059,3 +2059,88 @@ export interface AiMemorySummaryRow {
   expiresAt: string;
   updatedAt: string;
 }
+
+// ==================== AI Quality / Security / Support / Insights ====================
+
+export interface EvalDataset {
+  id: string;
+  name: string;
+  description: string | null;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+  _count?: { cases: number; runs: number };
+}
+
+export interface EvalCase {
+  id: string;
+  datasetId: string;
+  question: string;
+  answer: string;
+  expect: Record<string, any>;
+  tags: string[] | null;
+  createdAt: string;
+}
+
+export interface EvalRun {
+  id: string;
+  datasetId: string;
+  status: string;
+  createdBy: string | null;
+  summary: Record<string, any> | null;
+  startedAt: string;
+  finishedAt: string | null;
+  results?: Array<{
+    id: string;
+    verdict: string;
+    score: number;
+    reason: string;
+    latencyMs: number | null;
+    case: EvalCase;
+  }>;
+}
+
+export interface AiSecurityEventRow {
+  id: string;
+  type: string;
+  mode: string;
+  length: number;
+  userIdHash: string | null;
+  conversationId: string | null;
+  createdAt: string;
+}
+
+export interface AiSecuritySummary {
+  total: number;
+  byType: Array<{ type: string; count: number }>;
+  byMode: Array<{ mode: string; count: number }>;
+  latestAt: string | null;
+  mode: string;
+}
+
+export interface SupportSlaSnapshotRow {
+  id: string;
+  waiting: number;
+  breached: number;
+  longestWait: number;
+  createdAt: string;
+}
+
+export interface AiInsightsOverview {
+  range: { from: string; to: string; timezone: string };
+  conversations: number;
+  messages: { ai: number; user: number; human: number };
+  feedback: {
+    repeatedQuestion: number;
+    abandoned: number;
+    transferred: number;
+    byReviewStatus: Array<{ status: string; count: number }>;
+  };
+  transfers: {
+    total: number;
+    byReason: Array<{ reason: string; count: number }>;
+    rate: number;
+  };
+  usage: { totalTokens: number; requests: number };
+  notes: string[];
+}
