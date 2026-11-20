@@ -104,13 +104,14 @@
 
 ### 🧊 T4 — 有余力再做
 
-| 项 | #85 ID |
-|---|---|
-| 状态机版本 / 绑定切换 / 回滚 | 新增（JD 明确要求） |
-| Outbox + 死信消费 + 消费端幂等 | P2-5 |
-| 长期记忆（PG checkpointer + `saveContext` 落库） | P1-23 |
-| PromptResolver 真合并 | P1-24 |
-| AI 回复 `isAi` 标记 + 走 `MESSAGE_CREATED` | P1-1/2 |
+| 项 | #85 ID | 状态 |
+|---|---|---|
+| 状态机版本 / 绑定切换 / 回滚 | 新增（JD 明确要求） | ✅ 2026-11-20（flowState 接通 + 定义版本/绑定/审计；状态回滚 fail-closed） |
+| Outbox + 死信消费 + 消费端幂等 | P2-5 | ✅ 2026-11-20（事务登记 + relay + 单条重放 + 保留期清理） |
+| 长期记忆（PG checkpointer + `saveContext` 落库） | P1-23 | ✅ 2026-11-20（用户级蒸馏记忆 + 白名单 + TTL/注销删除） |
+| PromptResolver 真合并 | P1-24 | ✅ 2026-11-20（PR #70 深合并） |
+| AI 回复 `isAi` 标记 + 走 `MESSAGE_CREATED` | P1-1/2 | ✅ 2026-11-20（后端 + Flutter 已改；Flutter 待提交） |
+| 上下文预算 / 摘要 / 实体纠正 / 澄清 | 新增 | ✅ 2026-11-20（token 预算 + contextState + 指代澄清） |
 
 ---
 
