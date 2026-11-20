@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Logger, Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from '@api/common/prisma/prisma.module';
 import { OtpController } from './otp.controller';
@@ -18,7 +18,15 @@ import {
     {
       provide: 'SMS_PROVIDER',
       useFactory: () => {
-        switch (resolveSmsProviderKind()) {
+        const kind = resolveSmsProviderKind();
+        if (kind === 'fixed' && process.env.NODE_ENV === 'production') {
+          new Logger('OtpModule').warn(
+            '⚠️ SMS OTP is running in FIXED mode in production: ' +
+              'all phones share one code and /otp/request returns it. ' +
+              'This is only acceptable for demo/acceptance environments.',
+          );
+        }
+        switch (kind) {
           case 'fixed':
             return new FixedSmsProvider();
           case 'console':
