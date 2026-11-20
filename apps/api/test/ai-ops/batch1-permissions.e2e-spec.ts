@@ -206,7 +206,9 @@ describe('Batch 1 — feedback', () => {
     const res = await api('GET', '/v1/admin/ai-feedback/summary', 'VIEWER');
     expect(res.status).toBe(200);
     expect(res.data.total).toBe(9);
-    expect(res.data.pending).toBe(7);
+    // Batch 2 semantics: pending = actionable queue (not reviewStatus=PENDING).
+    expect(res.data.pending).toBe(4);
+    expect(res.data.signals).toBe(3);
   });
 });
 
@@ -337,11 +339,29 @@ describe('Batch 1 — data reconciliation (API card numbers vs SQL)', () => {
     );
     expect(summaryRes.status).toBe(200);
 
-    const [serviceError, pending, addedToEval] = await Promise.all([
+    const [serviceError, pending, signals, addedToEval] = await Promise.all([
       prisma.aiAnswerFeedback.count({
         where: { failureKind: 'SERVICE_ERROR' },
       }),
-      prisma.aiAnswerFeedback.count({ where: { reviewStatus: 'PENDING' } }),
+      // Batch 2: pending is the actionable queue (113 §9.1).
+      prisma.aiAnswerFeedback.count({
+        where: {
+          resolution: 'OPEN',
+          OR: [
+            { source: 'explicit', verdict: 'incorrect' },
+            { failureKind: 'SERVICE_ERROR' },
+            { ownerAdminId: { not: null } },
+          ],
+        },
+      }),
+      prisma.aiAnswerFeedback.count({
+        where: {
+          source: 'implicit',
+          resolution: { notIn: ['EXCLUDED', 'NO_ISSUE'] },
+          failureKind: { not: 'SERVICE_ERROR' },
+          ownerAdminId: null,
+        },
+      }),
       prisma.aiAnswerFeedback.count({ where: { resolution: 'ADDED_TO_EVAL' } }),
     ]);
 
@@ -356,10 +376,12 @@ describe('Batch 1 — data reconciliation (API card numbers vs SQL)', () => {
 
     // Values asserted against the seed are also checked against live SQL.
     expect(serviceError).toBe(3);
-    expect(pending).toBe(7);
+    expect(pending).toBe(4);
+    expect(signals).toBe(3);
     expect(addedToEval).toBe(2);
     expect(byFailure('SERVICE_ERROR')).toBe(serviceError);
     expect(summaryRes.data.pending).toBe(pending);
+    expect(summaryRes.data.signals).toBe(signals);
     expect(byResolution('ADDED_TO_EVAL')).toBe(addedToEval);
   });
 

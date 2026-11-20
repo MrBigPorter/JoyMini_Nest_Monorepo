@@ -27,7 +27,7 @@ function readQaEnv(): Record<string, string> {
   return env;
 }
 
-const QA_ENV = readQaEnv();
+export const QA_ENV = readQaEnv();
 // qa/.env.qa is authoritative; a developer shell exporting the dev secret must
 // not silently sign tokens that the QA API will reject.
 const ADMIN_SECRET =

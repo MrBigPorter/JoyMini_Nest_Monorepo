@@ -151,3 +151,87 @@ QA_NO_WEB_SERVER=1 QA_ADMIN_URL=http://127.0.0.1:4101 QA_API_URL=http://127.0.0.
 ## 附：非缺陷但需注意
 
 - `apps/api/src/main.ts` 启动日志写 `Health → /api/health`，真实健康路由为 `/api/v1/health`（`/api/health` 返回 404）。仅影响运维脚本提示，与本批无关，未单列缺陷。
+
+---
+
+# Batch 2 — 缺陷（commit `ef757859`）
+
+> Batch 2 API 18/18、Playwright 4/4 通过；Batch 1 回归 8/9，唯一失败即 D-B2-01。
+
+## D-B2-01 — 首页「待处理」卡/提醒行数量是新口径，下钻仍是旧 `reviewStatus=PENDING`
+
+| 项 | 内容 |
+|---|---|
+| 严重度 | **P1（阻断）** |
+| 状态 | OPEN（QA 只记录，未修） |
+| 位置 | `apps/admin-next/src/app/(dashboard)/ai-ops/page.tsx:314`（提醒行）与 `:483`（异常卡）：`href="/ai-ops/quality?reviewStatus=PENDING"` |
+| 影响 | 卡片/提醒行数字 = `summary.pending`（113 §9.1 actionable，UTC 今日），但点击进入的列表按旧 `reviewStatus=PENDING` 过滤，包含系统信号等非待办；数字与列表不一致，运营无法从“待处理 8”得到 8 条待办 |
+
+**复现**（batch1 + batch2 种子，UTC 今日 `2026-11-20`）：
+
+```text
+GET /v1/admin/ai-feedback/summary?from=2026-11-20&to=2026-11-20
+  -> pending = 8                       # 卡片显示 8
+GET /v1/admin/ai-feedback?reviewStatus=PENDING&pageSize=100
+  -> total = 16                        # 点击后的列表
+
+Playwright:
+  card[data-testid="anomaly-pending-feedback"] 显示 8
+  click -> /ai-ops/quality/?reviewStatus=PENDING
+  quality list -> 共 16 条
+```
+
+**期望**：href 改为 `?queue=TODO`（与质量页 KPI 一致，全量 10）或带 `from/to` 的 TODO（今日 8）；至少必须使用 113 §9.1 的 actionable 口径，而不是 `reviewStatus=PENDING`。
+**实际**：`reviewStatus=PENDING`。
+**证据**：`qa/logs/batch2-batch1-playwright.log`（Expected `/queue=TODO/`，Received `/quality/?reviewStatus=PENDING`；1 failed / 8 passed）；`qa/logs/batch2-reconciliation.log`。
+**备注**：即使改为 `queue=TODO`，首页（今日 8）与质量页（全量 10）仍有窗口差，见 Batch 2 报告 §7 已知限制。
+
+## D-B2-02 — Insights「Transfer rate」KPI 与 SIGNAL 队列下钻数量不一致
+
+| 项 | 内容 |
+|---|---|
+| 严重度 | P2（指标下钻不一致；非本批阻断） |
+| 状态 | OPEN |
+| 位置 | `apps/admin-next/src/app/(dashboard)/ai-ops/insights/page.tsx`（链接 `queue=SIGNAL&signal=transferred`）；`apps/api/src/admin/ai-insights/ai-insights.service.ts`（统计所有 implicit `signal='transferred'`） |
+| 影响 | Insights KPI 显示 6，点击后质量页 SIGNAL 队列只有 1 条；运营会认为数据丢失 |
+
+**复现**（batch1 + batch2 种子，UTC 今日）：
+
+```text
+GET /v1/admin/ai-insights/overview?from=2026-11-20&to=2026-11-20
+  -> feedback.transferred = 6
+GET /v1/admin/ai-feedback?queue=SIGNAL&signal=transferred&pageSize=100
+  -> total = 1
+
+# 对照：repeated_question 2 = 2；abandoned 2 = 2
+```
+
+**原因**：Insights 统计所有 `source='implicit' AND signal='transferred'`，包含 `SERVICE_ERROR`（4 条）与 `EXPECTED_TRANSFER/EXCLUDED`（1 条）；SIGNAL 队列按 113 §9.1 排除 `SERVICE_ERROR` 和 `EXCLUDED`，只剩 `UNKNOWN` 1 条。
+**期望**：KPI 与下钻使用同一口径（例如 Insights 也排除 SERVICE_ERROR/EXCLUDED），或在页面上明确“KPI 是原始信号数，下钻是待处理信号”。
+**证据**：`qa/logs/batch2-reconciliation.log`（insights feedback + queue totals）；`qa/logs/batch2-batch1-playwright.log`（Insights 用例通过，但只对账同 query 的 list total）。
+
+## D-B2-03 — 前端缺少 `NO_ISSUE`，选择“无问题”筛选会被静默丢弃
+
+| 项 | 内容 |
+|---|---|
+| 严重度 | P2（非关键筛选） |
+| 状态 | OPEN |
+| 位置 | `apps/admin-next/src/lib/ai-ops-quality-filters.ts` 的 `RESOLUTION_VALUES` 未包含 `NO_ISSUE`；`quality/page.tsx` 的 `RESOLUTION_LABELS` 已包含 `NO_ISSUE`，因此下拉框会出现“无问题” |
+| 影响 | 用户选择“无问题”后 URL 写入 `resolution=NO_ISSUE`，但 `parseFeedbackFilters` 不认该值并清空，筛选不生效 |
+
+**复现**：
+
+```text
+$ npx tsx -e "import {parseFeedbackFilters} from './apps/admin-next/src/lib/ai-ops-quality-filters'; \
+  console.log(JSON.stringify(parseFeedbackFilters('resolution=NO_ISSUE')))"
+{"reviewStatus":"","failureKind":"","resolution":"","signal":"","queue":""}
+```
+
+**期望**：`RESOLUTION_VALUES` 增加 `NO_ISSUE`，与表格/下拉框标签一致。
+**实际**：值被丢成空字符串。
+**证据**：上条命令输出；源码 `ai-ops-quality-filters.ts` 的 `RESOLUTION_VALUES`。
+
+## Batch 2 已知限制（非新缺陷）
+
+- **首页今日 vs 质量页全量**：首页卡按 UTC 今日；质量页 summary/list 无日期选择器（handoff 已知限制 #1）。服务故障卡今日 4 → 列表全量 5。属已知窗口差，需产品决定是否补 `from/to`。
+- **历史回填未执行**：handoff 明确本批只测新写入路径；旧 `verdict=correct`、旧 `transferred` 存量未验证。

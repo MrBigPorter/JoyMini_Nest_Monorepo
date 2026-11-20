@@ -1,8 +1,11 @@
 /**
- * Batch 1 — KPI drill-down, real admin + real API.
+ * Batch 1/2 — KPI drill-down, real admin + real API.
  *
- * Seed contract (qa/seed/batch1.ts):
- *   SERVICE_ERROR = 3, PENDING = 7, ADDED_TO_EVAL = 2, total feedback = 9
+ * Seed contract (qa/seed/batch1.ts, all rows created today UTC):
+ *   SERVICE_ERROR = 3, actionable TODO = 4, SIGNAL = 3, ADDED_TO_EVAL = 2,
+ *   total feedback = 9.
+ *
+ * Batch 2 changed pending to the actionable queue and added the signal queue.
  */
 import { test, expect, waitForRole } from './fixtures';
 
@@ -46,7 +49,8 @@ test.describe('Overview anomaly card drill-down', () => {
     expect(listCall).toBeDefined();
   });
 
-  test('"待处理 7" opens the PENDING review queue', async ({ page }) => {
+  test('"待处理 4" opens the actionable TODO queue for today', async ({ page }) => {
+    const today = new Date().toISOString().slice(0, 10);
     await page.goto('/ai-ops/');
     await expect(
       page.getByRole('heading', { name: '今日运营' }),
@@ -54,10 +58,26 @@ test.describe('Overview anomaly card drill-down', () => {
     await waitForRole(page, 'ADMIN');
 
     const card = page.getByTestId('anomaly-pending-feedback');
-    await expect(card).toContainText('7', { timeout: 120_000 });
+    await expect(card).toContainText('4', { timeout: 120_000 });
     await card.click();
-    await expect(page).toHaveURL(/\/ai-ops\/quality\/\?reviewStatus=PENDING/);
-    await expect(page.getByText('共 7 条')).toBeVisible({ timeout: 120_000 });
+    await expect(page).toHaveURL(
+      new RegExp(
+        `/ai-ops/quality/\\?queue=TODO&from=${today}&to=${today}`,
+      ),
+    );
+    await expect(page.getByLabel('反馈队列筛选')).toHaveValue('TODO');
+    await expect(page.getByLabel('反馈开始日期')).toHaveValue(today);
+    await expect(page.getByLabel('反馈结束日期')).toHaveValue(today);
+    await expect(page.getByText('共 4 条')).toBeVisible({ timeout: 120_000 });
+
+    // Refresh keeps the queue + UTC date window.
+    await page.reload();
+    await expect(page).toHaveURL(
+      new RegExp(
+        `/ai-ops/quality/\\?queue=TODO&from=${today}&to=${today}`,
+      ),
+    );
+    await expect(page.getByText('共 4 条')).toBeVisible({ timeout: 120_000 });
   });
 });
 
@@ -74,7 +94,8 @@ test.describe('Quality KPI cards carry exact URL params', () => {
     await waitForRole(page, 'ADMIN');
 
     const expected: Array<[string, string]> = [
-      ['待处理', '/ai-ops/quality/?reviewStatus=PENDING'],
+      ['待处理', '/ai-ops/quality/?queue=TODO'],
+      ['系统信号', '/ai-ops/quality/?queue=SIGNAL'],
       ['模型答错', '/ai-ops/quality/?failureKind=MODEL_ERROR'],
       ['服务故障', '/ai-ops/quality/?failureKind=SERVICE_ERROR'],
       ['误转', '/ai-ops/quality/?failureKind=UNEXPECTED_TRANSFER'],
