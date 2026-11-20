@@ -113,12 +113,7 @@ export class AiMessageListener {
     if (messageId) {
       // 隐式反馈：重复追问（廉价 Jaccard，不额外调模型）
       void this.aiFeedbackService
-        .recordRepeatedQuestionIfAny(
-          conversationId,
-          userId,
-          messageId,
-          content,
-        )
+        .recordRepeatedQuestionIfAny(conversationId, userId, messageId, content)
         .catch(() => undefined);
     }
 
@@ -136,16 +131,20 @@ export class AiMessageListener {
       }
     } catch (err: any) {
       if (err instanceof ConversationLockTimeoutError) {
-        // 明确告警 + 可观测原因，不静默丢、也不让进程崩。
+        // 锁超时不是“处理完成”：必须抛给 BullMQ，交给退避重试/死信，
+        // 否则 job 被记为成功，用户永远收不到回复。
         this.logger.warn(
-          `[AiMessageListener] AI request abandoned: reason=lock_timeout, ` +
+          `[AiMessageListener] AI request will retry: reason=lock_timeout, ` +
             `waitedMs=${err.waitedMs}, conv=${conversationId}`,
         );
-        return;
+        throw err;
       }
+      // chatStream 内部已经把配额/转人工等永久降级处理完并正常返回；
+      // 能冒到这里的都是基础设施或图执行异常，按可重试处理。
       this.logger.error(
-        `[AiMessageListener] AI processing failed: ${err?.message ?? err}`,
+        `[AiMessageListener] AI processing failed, will retry: ${err?.message ?? err}`,
       );
+      throw err;
     }
   }
 

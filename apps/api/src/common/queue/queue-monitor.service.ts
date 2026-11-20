@@ -1,8 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { ConfigService } from '@nestjs/config';
 import { EMBEDDING_QUEUE } from '@api/common/ai/queues/embedding/embedding-queue.constants';
+import { AI_PROCESSING_QUEUE } from '@api/common/queue/ai-queue.module';
+import { PrismaService } from '@api/common/prisma/prisma.service';
 
 export interface QueueStats {
   name: string;
@@ -48,6 +51,7 @@ export class QueueMonitorService {
     'avatar',
     'group_settlement',
     EMBEDDING_QUEUE,
+    AI_PROCESSING_QUEUE,
   ];
 
   constructor(
@@ -55,7 +59,9 @@ export class QueueMonitorService {
     @InjectQueue('avatar') private avatarQueue: Queue,
     @InjectQueue('group_settlement') private settlementQueue: Queue,
     @InjectQueue(EMBEDDING_QUEUE) private embeddingQueue: Queue,
+    @InjectQueue(AI_PROCESSING_QUEUE) private aiProcessingQueue: Queue,
     private configService: ConfigService,
+    private readonly prisma: PrismaService,
   ) {}
 
   async getQueueStats(): Promise<QueueMonitoringResponse> {
@@ -90,6 +96,9 @@ export class QueueMonitorService {
         break;
       case EMBEDDING_QUEUE:
         queue = this.embeddingQueue;
+        break;
+      case AI_PROCESSING_QUEUE:
+        queue = this.aiProcessingQueue;
         break;
       default:
         throw new Error(`Unknown queue: ${queueName}`);
@@ -165,7 +174,39 @@ export class QueueMonitorService {
     const embeddingJobs = await this.getEmbeddingJobStats();
     result[EMBEDDING_QUEUE] = embeddingJobs;
 
+    // Get job stats for AI processing queue（死信查询走 getAiFailedJobs）
+    result[AI_PROCESSING_QUEUE] = await this.getAiProcessingJobStats();
+
     return result;
+  }
+
+  private async getAiProcessingJobStats(): Promise<JobStats[]> {
+    try {
+      const jobs = await this.aiProcessingQueue.getJobs([
+        'completed',
+        'failed',
+      ]);
+      const completed = jobs.filter((j) => j.finishedOn && !j.failedReason);
+      const failed = jobs.filter((j) => j.failedReason);
+
+      return [
+        {
+          type: 'process-message',
+          count: jobs.length,
+          lastCompleted:
+            completed.length > 0
+              ? new Date(Math.max(...completed.map((j) => j.finishedOn || 0)))
+              : undefined,
+          lastFailed:
+            failed.length > 0
+              ? new Date(Math.max(...failed.map((j) => j.finishedOn || 0)))
+              : undefined,
+        },
+      ];
+    } catch (error) {
+      this.logger.error('Failed to get ai-processing job stats:', error);
+      return [];
+    }
   }
 
   private async getBlogAiJobStats(): Promise<JobStats[]> {
@@ -417,8 +458,83 @@ export class QueueMonitorService {
         return this.settlementQueue;
       case EMBEDDING_QUEUE:
         return this.embeddingQueue;
+      case AI_PROCESSING_QUEUE:
+        return this.aiProcessingQueue;
       default:
         throw new Error(`Unknown queue: ${queueName}`);
+    }
+  }
+
+  // ── AI 死信：查询 / 单条重放 / 保留窗口清理 ──
+
+  async getAiFailedJobs(limit = 50) {
+    const take = Math.min(Math.max(limit, 1), 200);
+    const jobs = await this.aiProcessingQueue.getFailed(0, take - 1);
+    return jobs.map((job) => ({
+      messageId: job.id,
+      conversationId: (job.data as { conversationId?: string })?.conversationId,
+      attemptsMade: job.attemptsMade,
+      failedReason: job.failedReason,
+      failedAt: job.finishedOn ? new Date(job.finishedOn) : null,
+    }));
+  }
+
+  /**
+   * 按 messageId 重放失败任务。
+   *
+   * 必须用 Job.retry()：failed job 仍占用 jobId，queue.add() 同 id 不会新增。
+   * 重放前查 ChatMessage.triggerMessageId，已经有 AI 回复的任务直接拒绝，
+   * 避免工具副作用被执行第二次。
+   */
+  async replayAiJob(messageId: string): Promise<{
+    ok: boolean;
+    reason?: string;
+  }> {
+    const replied = await this.prisma.chatMessage.findFirst({
+      where: { triggerMessageId: messageId, source: 'ai' },
+      select: { id: true },
+    });
+    if (replied) {
+      return { ok: false, reason: 'already_replied' };
+    }
+
+    const job = await this.aiProcessingQueue.getJob(messageId);
+    if (!job) return { ok: false, reason: 'job_not_found' };
+
+    const state = await job.getState();
+    if (state === 'failed') {
+      await job.retry('failed', { resetAttemptsMade: true });
+      this.logger.log(`[QueueMonitor] AI job replayed: messageId=${messageId}`);
+      return { ok: true };
+    }
+    if (state === 'completed') {
+      return { ok: false, reason: 'already_completed' };
+    }
+    return { ok: false, reason: `already_${state}` };
+  }
+
+  /**
+   * 每天清理超过保留窗口的 AI 失败任务。
+   * 默认 7 天，可用 AI_QUEUE_FAILED_RETENTION_DAYS 覆盖。
+   */
+  @Cron(CronExpression.EVERY_DAY_AT_4AM)
+  async cleanExpiredAiFailures(): Promise<void> {
+    const days = Number(
+      this.configService.get<string>('AI_QUEUE_FAILED_RETENTION_DAYS') ?? 7,
+    );
+    const retentionDays = Number.isFinite(days) && days > 0 ? days : 7;
+    const graceMs = retentionDays * 24 * 60 * 60 * 1000;
+    try {
+      const removed = await this.aiProcessingQueue.clean(
+        graceMs,
+        1_000,
+        'failed',
+      );
+      this.logger.log(
+        `[QueueMonitor] cleaned ${removed.length} AI failed jobs older than ${retentionDays}d`,
+      );
+    } catch (error) {
+      this.logger.error('Failed to clean ai-processing failed jobs:', error);
     }
   }
 }

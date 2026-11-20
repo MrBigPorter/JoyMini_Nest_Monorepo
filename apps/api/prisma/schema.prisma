@@ -1324,6 +1324,27 @@ model ChatMessageHide {
   @@index([userId])
 }
 
+/// AI 任务 Outbox：消息落库与 AI 入队之间的持久化桥梁。
+///
+/// 消息事务提交后、BullMQ 入队前进程崩溃，任务仍留在本表，
+/// relay cron 会按 messageId 回查消息并补投。不存 content，避免第二份 PII。
+model AiTaskOutbox {
+  id             String    @id @default(cuid())
+  messageId      String    @unique @map("message_id")
+  conversationId String    @map("conversation_id")
+  userId         String    @map("user_id")
+  /// PENDING / SENDING / SENT / FAILED
+  status         String    @default("PENDING") @db.VarChar(16)
+  attempts       Int       @default(0)
+  nextAttemptAt  DateTime  @default(now()) @map("next_attempt_at")
+  lastError      String?   @map("last_error") @db.VarChar(500)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  sentAt         DateTime? @map("sent_at")
+
+  @@index([status, nextAttemptAt], map: "idx_ai_task_outbox_due")
+  @@map("ai_task_outbox")
+}
+
 // 3. 成员表
 model ChatMember {
   id String @id @default(cuid())

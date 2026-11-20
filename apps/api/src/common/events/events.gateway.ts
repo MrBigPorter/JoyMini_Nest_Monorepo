@@ -21,11 +21,10 @@ import { SocketEvents } from '@lucky/shared';
 import {
   CHAT_EVENTS,
   MessageCreatedEvent,
-  AiMessageRequestedEvent,
   AiCancelRequestedEvent,
 } from '@api/common/chat/events/chat.events';
 import type { Prisma } from '@prisma/client';
-import { AiQueueService } from '@api/common/queue/ai-queue.module';
+import { AiTaskOutboxService } from '@api/common/queue/ai-task-outbox.service';
 import { SseRateLimiterService } from '@api/common/rate-limit/sse-rate-limiter.service';
 
 interface JwtPayloadLike {
@@ -116,7 +115,7 @@ export class EventsGateway
     private readonly redisService: RedisService,
     private readonly eventEmitter: EventEmitter2,
     private readonly configService: ConfigService,
-    private readonly aiQueueService: AiQueueService,
+    private readonly aiTaskOutboxService: AiTaskOutboxService,
     private readonly sseRateLimiter: SseRateLimiterService,
   ) {}
 
@@ -667,6 +666,32 @@ export class EventsGateway
     }
 
     try {
+      // 先判定本轮是否触发 AI，并在事务前完成入口限流：
+      // 只有真正允许触发时才写 outbox，避免限流命中后 cron 又补投一次。
+      const conv = await this.prismaService.conversation.findUnique({
+        where: { id: conversationId },
+        select: { handlerId: true, handlerAssignedAt: true, type: true },
+      });
+      const isAiType = conv?.type === 'SUPPORT' || conv?.type === 'AI';
+      const isAiHandler = conv?.handlerId == null;
+      let aiTriggerAllowed = false;
+      if (isAiType && isAiHandler) {
+        // ── 入口限流（trust 4.1） ──
+        // 复用 HTTP POST /chat 的同一个令牌桶（SseRateLimiterService），
+        // 不另写一套；同一 userId 的 Socket 与 HTTP 触发共享预算（D5）。
+        // 只拦「AI 触发」，消息本身照常落库：超限不能让客户端以为发送失败
+        // 而重发。人工/客服会话（isAiType && isAiHandler 为假）根本不走这里。
+        const rateLimit = await this.checkAiTriggerRateLimit(userId);
+        if (!rateLimit.ok) {
+          this.logger.warn(
+            `[AI Trigger] rate_limited: userId=${userId}, conv=${conversationId}, ` +
+              `reason=${rateLimit.reason}`,
+          );
+        } else {
+          aiTriggerAllowed = true;
+        }
+      }
+
       const result = await this.prismaService.$transaction(
         async (tx: Prisma.TransactionClient) => {
           await tx.conversation.updateMany({
@@ -700,6 +725,18 @@ export class EventsGateway
               lastMsgTime: new Date(),
             },
           });
+
+          // 与消息同事务登记 AI 投递任务，进程崩溃后 relay 可补投。
+          // 限流未通过时不写：这一轮本来就不允许触发模型。
+          if (aiTriggerAllowed) {
+            await tx.aiTaskOutbox.create({
+              data: {
+                messageId: msg.id,
+                conversationId,
+                userId,
+              },
+            });
+          }
           return msg;
         },
       );
@@ -742,18 +779,7 @@ export class EventsGateway
         ),
       );
 
-      // AI 路由：Socket 发消息也触发 AI 处理（与 ChatService.sendMessage 一致）
-      // 只有 handlerId == null（AI 处理中）时才触发
-      // 同时刷新 handlerAssignedAt（延长空闲计时）
-      const conv = await this.prismaService.conversation.findUnique({
-        where: { id: conversationId },
-        select: { handlerId: true, handlerAssignedAt: true, type: true },
-      });
-      const isAiType = conv?.type === 'SUPPORT' || conv?.type === 'AI';
-      const isAiHandler = conv?.handlerId == null;
-      // 本轮的 AI 是否真的被触发（供 ack 返回结构化状态）
-      let aiTriggered = false;
-
+      // 刷新人工客服的空闲计时（AI 会话不涉及）。
       if (conv?.handlerId != null && conv.handlerId !== 'awaiting_human') {
         // 真实客服名下：这条用户消息算一次「活跃」，刷新空闲计时。
         // 空闲超时的回收由 SupportQueueService 的 cron 主动扫描，
@@ -765,44 +791,13 @@ export class EventsGateway
       }
       // 排队中（awaiting_human）不刷新：排队时钟只看 transferredAt，
       // 刷新会让「催得越急排得越后」（#98 S2-C 已记录的同类缺陷）。
-      if (isAiType && isAiHandler) {
-        // ── 入口限流（trust 4.1） ──
-        // 复用 HTTP POST /chat 的同一个令牌桶（SseRateLimiterService），
-        // 不另写一套；同一 userId 的 Socket 与 HTTP 触发共享预算（D5）。
-        // 只拦「AI 触发」，消息本身已经落库：超限不能让客户端以为发送失败
-        // 而重发。人工/客服会话（isAiType && isAiHandler 为假）根本不走这里。
-        const rateLimit = await this.checkAiTriggerRateLimit(userId);
-        if (!rateLimit.ok) {
-          this.logger.warn(
-            `[AI Trigger] rate_limited: userId=${userId}, conv=${conversationId}, ` +
-              `reason=${rateLimit.reason}`,
-          );
-        } else {
-          try {
-            await this.aiQueueService.enqueue({
-              conversationId,
-              content,
-              userId,
-              messageId: result.id,
-            });
-            aiTriggered = true;
-          } catch (err: unknown) {
-            this.logger.warn(
-              `[AI Queue] enqueue failed, falling back to in-process event: ${extractErrorMessage(err)}`,
-            );
-            this.eventEmitter.emit(
-              CHAT_EVENTS.AI_MESSAGE_REQUESTED,
-              new AiMessageRequestedEvent(
-                conversationId,
-                content,
-                userId,
-                result.id,
-              ),
-            );
-            aiTriggered = true;
-          }
-        }
+
+      // Outbox 行已在事务内落库；这里只做一次立即投递，失败留给 cron。
+      if (aiTriggerAllowed) {
+        await this.aiTaskOutboxService.relayByMessageId(result.id);
       }
+      // 本轮的 AI 是否真的被触发（供 ack 返回结构化状态）
+      const aiTriggered = aiTriggerAllowed;
 
       return {
         status: 'ok',
