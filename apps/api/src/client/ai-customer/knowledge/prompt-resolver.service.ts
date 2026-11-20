@@ -68,6 +68,33 @@ export interface EvalLogData {
 // Service
 // ============================================================
 
+function isPlainObject(value: unknown): value is Record<string, any> {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value)
+  );
+}
+
+/**
+ * 深合并：DB override 只覆盖它显式提供的字段。
+ * - 纯对象递归合并
+ * - 数组/标量整体替换
+ * - undefined 视为“未提供”，不覆盖 TS 默认
+ */
+export function deepMerge<T>(base: T, override: unknown): T {
+  if (override === undefined) return base;
+  if (isPlainObject(base) && isPlainObject(override)) {
+    const out: Record<string, any> = { ...base };
+    for (const [key, value] of Object.entries(override)) {
+      if (value === undefined) continue;
+      out[key] = deepMerge((base as any)[key], value);
+    }
+    return out as T;
+  }
+  return override as T;
+}
+
 @Injectable()
 export class PromptResolverService {
   private readonly logger = new Logger(PromptResolverService.name);
@@ -131,13 +158,16 @@ export class PromptResolverService {
           `\n  flowContext: ${dbConfig.flowContext}`,
       );
 
-      // 3. 直接使用 DB 配置（不合并），TS 默认仅作为 fallback
+      // 3. 深合并：DB 只覆盖它显式提供的字段，未覆盖的保留 TS 默认。
+      //    userId 永远不从 DB 取——身份只能来自请求上下文。
+      const merged = deepMerge(tsConfig as Record<string, any>, dbConfig);
+      delete merged.userId;
       this.logger.log(
-        `[PromptResolver] mergeConfig(${domain}): using DB config directly (no merge)`,
+        `[PromptResolver] mergeConfig(${domain}): merged v${activeVersion.version} over TS defaults`,
       );
 
       return {
-        config: dbConfig as Omit<AgentPromptConfig, 'userId'>,
+        config: merged as Omit<AgentPromptConfig, 'userId'>,
         version: activeVersion.version,
         promptName: dbPrompt.name,
       };

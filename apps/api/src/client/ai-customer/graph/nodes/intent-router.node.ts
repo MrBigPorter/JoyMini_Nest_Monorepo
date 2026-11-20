@@ -33,7 +33,7 @@ import { extractUserInput } from '@api/client/ai-customer/graph/utils/extract-us
 import { emitStage } from '@api/common/logger/structured-logger';
 import {
   detectInjection,
-  isInjectionDetectionEnabled,
+  injectionDetectionMode,
 } from '@api/client/ai-customer/injection-detector';
 import { formatMessagePreview } from '@api/client/ai-customer/graph/utils/format-message-preview';
 import {
@@ -184,21 +184,24 @@ export const createIntentRouterNode = (
     // 只记长度，不落原文（#89 FR-7 / AC-6）
     logger.log(`[intentRouter] classify: length=${userInput.length}`);
 
-    // ── 输入注入检测（默认关闭，AI_INJECTION_DETECTION_ENABLED=true 启用）──
+    // ── 输入注入检测（默认 off；log 只观察，enforce 才降级）──
     // 命中后不跑分类/业务 Agent，直接降级为普通问答；只记录类型与长度。
     // 误报策略：宁可漏报也不误伤正常提问，因此模式要求“动作词 + 目标”同时出现。
-    if (isInjectionDetectionEnabled()) {
+    const injectionMode = injectionDetectionMode();
+    if (injectionMode !== 'off') {
       const injection = detectInjection(userInput);
       if (injection.detected) {
         emitStage(
           'injection.detected',
-          { type: injection.type, length: userInput.length },
+          { type: injection.type, length: userInput.length, mode: injectionMode },
           'warn',
         );
-        return {
-          intent: 'general',
-          labels: [{ label: 'general', score: 1 }],
-        };
+        if (injectionMode === 'enforce') {
+          return {
+            intent: 'general',
+            labels: [{ label: 'general', score: 1 }],
+          };
+        }
       }
     }
 
