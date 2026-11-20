@@ -1,0 +1,36 @@
+# Isolated QA data services. Never shares volumes/ports with the dev stack.
+#   docker compose -f qa/compose.qa.yml up -d
+#   docker compose -f qa/compose.qa.yml down        # keep volumes
+#   docker compose -f qa/compose.qa.yml down -v     # reset data
+services:
+  db-qa:
+    image: pgvector/pgvector:pg16
+    container_name: lucky-db-qa
+    environment:
+      POSTGRES_USER: lucky
+      POSTGRES_PASSWORD: lucky_qa_pw
+      POSTGRES_DB: joy_mini_qa
+    ports:
+      - '127.0.0.1:5433:5432'
+    volumes:
+      - lucky-db-qa-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U lucky -d joy_mini_qa']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis-qa:
+    image: redis:7-alpine
+    container_name: lucky-redis-qa
+    command: ['redis-server', '--appendonly', 'no']
+    ports:
+      - '127.0.0.1:6382:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  lucky-db-qa-data:

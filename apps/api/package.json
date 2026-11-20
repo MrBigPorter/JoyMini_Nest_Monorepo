@@ -8,6 +8,7 @@
     "test": "jest --forceExit",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage --forceExit",
+    "test:e2e:ai-ops": "jest --config ./test/jest-e2e.json --runInBand --forceExit test/ai-ops/batch1-permissions.e2e-spec.ts",
     "prestart:dev": "prisma generate --schema prisma/schema.prisma",
     "build": "nest build",
     "start": "NODE_OPTIONS=--openssl-legacy-provider node dist/main.js",

@@ -93,3 +93,8 @@ tools/eval/task/reports/
 
 # Synthetic AI traffic simulator runtime (accounts.json contains tokens)
 tools/simulator/.runtime/
+
+# QA local environment and runtime logs (may contain test secrets)
+qa/.env.qa
+qa/logs/
+qa/reports/playwright-results/
