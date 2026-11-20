@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Logger, Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import * as Joi from 'joi';
 import { PrismaModule } from '@api/common/prisma/prisma.module';
@@ -35,6 +35,8 @@ import { FlowVersioningModule } from '@api/client/ai-customer/flow-versioning/fl
 import { AiConversationDebugModule } from '@api/client/ai-customer/debug/ai-conversation-debug.module';
 
 // 根模块（第2步，挂子模块、配置、JWT等）
+const cacheRedisLogger = new Logger('CacheRedis');
+
 @Module({
   imports: [
     // 定时任务模块
@@ -144,8 +146,8 @@ import { AiConversationDebugModule } from '@api/client/ai-customer/debug/ai-conv
     CacheModule.registerAsync({
       isGlobal: true,
       inject: [ConfigService],
-      useFactory: async (cfg: ConfigService) => ({
-        store: await redisStore({
+      useFactory: async (cfg: ConfigService) => {
+        const store = await redisStore({
           url: cfg.get<string>('REDIS_URL')!,
           keyPrefix: cfg.get<string>('CACHE_PREFIX')!,
           ttl: (cfg.get<number>('CACHE_TTL') ?? 300) * 1000, // 单位：秒
@@ -153,8 +155,18 @@ import { AiConversationDebugModule } from '@api/client/ai-customer/debug/ai-conv
             // 温和重连，避免连接抖动崩溃
             reconnectStrategy: (retries) => Math.min(2000, 100 * (retries + 1)),
           },
-        }),
-      }),
+        });
+
+        // cache-manager-redis-yet 内部 createClient() 不挂 error 监听。
+        // Redis 断开时 node-redis 会 emit 'error'，没有监听就会以未处理事件
+        // 结束进程（SocketClosedUnexpectedlyError）。这里补上监听，断连只降级
+        // 缓存，不拖垮 API。
+        store.client.on('error', (err) => {
+          cacheRedisLogger.error(`Redis cache client error: ${String(err)}`);
+        });
+
+        return { store };
+      },
     }),
     //全局默认 ttl: 60,     // 60s 窗口
     ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: 60 }]),

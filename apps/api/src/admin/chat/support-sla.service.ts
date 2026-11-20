@@ -117,20 +117,23 @@ export class SupportSlaService {
   async getHistory(hours = 24) {
     const safeHours = Math.min(Math.max(hours, 1), 168);
     const since = new Date(Date.now() - safeHours * 60 * 60 * 1000);
-    const [snapshots, latest] = await Promise.all([
+    const [recentSnapshots, latest] = await Promise.all([
+      // 先取窗口内最新的 2000 条（desc），再反转为升序返回给图表/表格。
+      // 若先 asc + take，窗口内超过 2000 条时只会拿到最旧的，图表看不到近期数据。
       this.prisma.supportSlaSnapshot.findMany({
         where: { createdAt: { gte: since } },
-        orderBy: { createdAt: 'asc' },
+        orderBy: { createdAt: 'desc' },
         take: 2000,
       }),
       this.prisma.supportSlaSnapshot.findFirst({
+        where: { createdAt: { gte: since } },
         orderBy: { createdAt: 'desc' },
       }),
     ]);
     return {
       windowHours: safeHours,
       latest,
-      snapshots,
+      snapshots: recentSnapshots.slice().reverse(),
     };
   }
 }

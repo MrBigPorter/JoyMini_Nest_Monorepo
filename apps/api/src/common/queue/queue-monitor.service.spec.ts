@@ -1,6 +1,9 @@
 import { QueueMonitorService } from './queue-monitor.service';
 
 function makeService() {
+  const blogQueue: any = {
+    clean: jest.fn().mockResolvedValue([]),
+  };
   const aiQueue: any = {
     getFailed: jest.fn().mockResolvedValue([]),
     getJob: jest.fn(),
@@ -10,7 +13,7 @@ function makeService() {
     chatMessage: { findFirst: jest.fn().mockResolvedValue(null) },
   };
   const service = new QueueMonitorService(
-    {} as any,
+    blogQueue,
     {} as any,
     {} as any,
     {} as any,
@@ -19,7 +22,7 @@ function makeService() {
     { get: jest.fn() } as any,
     prisma,
   );
-  return { service, aiQueue, prisma };
+  return { service, blogQueue, aiQueue, prisma };
 }
 
 describe('QueueMonitorService · AI 死信重放', () => {
@@ -69,6 +72,39 @@ describe('QueueMonitorService · AI 死信重放', () => {
       ok: false,
       reason: 'already_completed',
     });
+  });
+
+  it('默认只清理 completed，不碰 failed 死信', async () => {
+    const { service, blogQueue } = makeService();
+    blogQueue.clean.mockResolvedValueOnce(['job-1', 'job-2']);
+
+    const result = await service.cleanQueue('blog-ai', 1000);
+
+    expect(blogQueue.clean).toHaveBeenCalledTimes(1);
+    expect(blogQueue.clean).toHaveBeenCalledWith(1000, 1000, 'completed');
+    expect(result).toEqual({ cleanedCount: 2, failedCleanedCount: 0 });
+  });
+
+  it('includeFailed=true 时才额外清理 failed', async () => {
+    const { service, blogQueue } = makeService();
+    blogQueue.clean
+      .mockResolvedValueOnce(['job-1'])
+      .mockResolvedValueOnce(['failed-1', 'failed-2']);
+
+    const result = await service.cleanQueue('blog-ai', 1000, true);
+
+    expect(blogQueue.clean).toHaveBeenNthCalledWith(1, 1000, 1000, 'completed');
+    expect(blogQueue.clean).toHaveBeenNthCalledWith(2, 1000, 1000, 'failed');
+    expect(result).toEqual({ cleanedCount: 1, failedCleanedCount: 2 });
+  });
+
+  it('queue.clean 抛错时向上抛，避免把失败伪装成清理 0 条', async () => {
+    const { service, blogQueue } = makeService();
+    blogQueue.clean.mockRejectedValueOnce(new Error('redis down'));
+
+    await expect(service.cleanQueue('blog-ai', 1000)).rejects.toThrow(
+      'redis down',
+    );
   });
 
   it('失败列表只暴露排查所需字段', async () => {

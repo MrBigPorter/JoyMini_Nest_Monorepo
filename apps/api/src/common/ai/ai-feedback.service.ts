@@ -191,7 +191,87 @@ export class AiFeedbackService {
       this.prisma.aiAnswerFeedback.count({ where }),
     ]);
 
-    return { list, total, page, pageSize };
+    return {
+      list: await this.attachMessageContext(list),
+      total,
+      page,
+      pageSize,
+    };
+  }
+
+  /**
+   * 列表默认只带 verdict/signal，分诊时看不出“到底问了什么、AI 答了什么”。
+   * 这里按 messageId / createdAt 回查上下文，给前端补 input + answer。
+   *
+   * 管理端单页最多 100 条，属于低频后台查询；用 Promise.all 并行回查，
+   * 避免把 100 条压成串行 N+1。
+   */
+  private async attachMessageContext<
+    T extends {
+      conversationId: string;
+      messageId: string | null;
+      input: string | null;
+      source: string;
+      createdAt: Date;
+    },
+  >(rows: T[]) {
+    return Promise.all(
+      rows.map(async (row) => {
+        const linked = row.messageId
+          ? await this.prisma.chatMessage.findUnique({
+              where: { id: row.messageId },
+              select: { content: true, source: true, seqId: true },
+            })
+          : null;
+
+        let input = row.input;
+        let answer: string | null = null;
+
+        if (row.source === 'explicit') {
+          // explicit 的 messageId 是被评价的 AI 消息。
+          answer = linked?.content ?? null;
+          if (!input && linked) {
+            const userMessage = await this.prisma.chatMessage.findFirst({
+              where: {
+                conversationId: row.conversationId,
+                source: 'user',
+                seqId: { lt: linked.seqId },
+              },
+              orderBy: { seqId: 'desc' },
+              select: { content: true },
+            });
+            input = userMessage?.content ?? null;
+          }
+        } else {
+          // implicit：messageId 可能是当前用户消息（重复追问），也可能为空。
+          if (!input && linked?.source === 'user') input = linked.content;
+          if (!input) {
+            const userMessage = await this.prisma.chatMessage.findFirst({
+              where: {
+                conversationId: row.conversationId,
+                source: 'user',
+                createdAt: { lte: row.createdAt },
+              },
+              orderBy: { createdAt: 'desc' },
+              select: { content: true },
+            });
+            input = userMessage?.content ?? null;
+          }
+          const aiMessage = await this.prisma.chatMessage.findFirst({
+            where: {
+              conversationId: row.conversationId,
+              source: 'ai',
+              createdAt: { lte: row.createdAt },
+            },
+            orderBy: { createdAt: 'desc' },
+            select: { content: true },
+          });
+          answer = aiMessage?.content ?? null;
+        }
+
+        return { ...row, input, answer };
+      }),
+    );
   }
 
   async updateTriage(

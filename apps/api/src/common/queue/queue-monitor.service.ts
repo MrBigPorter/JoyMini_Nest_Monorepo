@@ -457,31 +457,37 @@ export class QueueMonitorService {
     }
   }
 
+  /**
+   * 清理队列旧任务。
+   *
+   * 默认只清理已完成任务（completed）——失败任务是死信排查依据，
+   * 必须显式传 includeFailed=true 才清理。queue/Redis 异常时向上抛出，
+   * 由 controller 转成 { success:false }，避免把失败伪装成清理了 0 条。
+   */
   async cleanQueue(
     queueName: string,
     grace: number = 1000 * 60 * 60 * 24,
-  ): Promise<number> {
-    try {
-      const queue = this.getQueueByName(queueName);
+    includeFailed = false,
+  ): Promise<{ cleanedCount: number; failedCleanedCount: number }> {
+    const queue = this.getQueueByName(queueName);
 
-      // Clean completed jobs older than grace period
-      const completedJobs = await queue.clean(grace, 1000, 'completed');
-      const completedCount = Array.isArray(completedJobs)
-        ? completedJobs.length
-        : 0;
+    // Clean completed jobs older than grace period
+    const completedJobs = await queue.clean(grace, 1000, 'completed');
+    const cleanedCount = Array.isArray(completedJobs)
+      ? completedJobs.length
+      : 0;
 
-      // Clean failed jobs older than grace period
+    let failedCleanedCount = 0;
+    if (includeFailed) {
       const failedJobs = await queue.clean(grace, 1000, 'failed');
-      const failedCount = Array.isArray(failedJobs) ? failedJobs.length : 0;
-
-      this.logger.log(
-        `Cleaned ${completedCount} completed and ${failedCount} failed jobs from queue ${queueName}`,
-      );
-      return completedCount + failedCount;
-    } catch (error) {
-      this.logger.error(`Failed to clean queue ${queueName}:`, error);
-      return 0;
+      failedCleanedCount = Array.isArray(failedJobs) ? failedJobs.length : 0;
     }
+
+    this.logger.log(
+      `Cleaned ${cleanedCount} completed and ${failedCleanedCount} failed jobs from queue ${queueName}` +
+        (includeFailed ? '' : ' (failed cleanup skipped)'),
+    );
+    return { cleanedCount, failedCleanedCount };
   }
 
   private getQueueByName(queueName: string): Queue {

@@ -55,6 +55,8 @@ services:
       CHOKIDAR_USEPOLLING: "true"
       # AI 回答反馈入口开关（默认关闭，验证后开启）
       AI_FEEDBACK_UI_ENABLED: "${AI_FEEDBACK_UI_ENABLED:-false}"
+      # 注入检测：本地联调可设 log，命中写 ai_security_events
+      AI_INJECTION_DETECTION_MODE: "${AI_INJECTION_DETECTION_MODE:-off}"
     depends_on:
       db:
         condition: service_healthy

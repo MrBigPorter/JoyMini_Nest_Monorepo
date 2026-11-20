@@ -27,12 +27,8 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       socket: {
         connectTimeout: 10000,
         reconnectStrategy: (retries) => {
-          if (retries > 10) {
-            this.logger.error(
-              'Redis max reconnection attempts reached, giving up',
-            );
-            return new Error('Max reconnection attempts reached');
-          }
+          // 不设“重试 N 次就放弃”：一旦放弃，client 会永久 closed，
+          // Redis 恢复后也不会自愈。这里继续重连，只把间隔封顶 3 秒。
           this.logger.warn(`Redis reconnecting, attempt ${retries}`);
           return Math.min(retries * 100, 3000);
         },

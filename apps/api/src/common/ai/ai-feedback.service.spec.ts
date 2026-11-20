@@ -10,6 +10,8 @@ function createService() {
     },
     chatMessage: {
       findMany: jest.fn().mockResolvedValue([]),
+      findUnique: jest.fn().mockResolvedValue(null),
+      findFirst: jest.fn().mockResolvedValue(null),
     },
     $transaction: jest.fn(async (ops: Promise<unknown>[]) => Promise.all(ops)),
   };
@@ -121,5 +123,59 @@ describe('AiFeedbackService（ai-quality-loop 4.x）', () => {
     );
 
     expect(prisma.aiAnswerFeedback.create).not.toHaveBeenCalled();
+  });
+
+  it('列表：显式反馈回查用户问题与被评价的 AI 回答', async () => {
+    const { service, prisma } = createService();
+    prisma.aiAnswerFeedback.findMany.mockResolvedValue([
+      {
+        id: 'fb-1',
+        conversationId: 'c1',
+        messageId: 'ai-1',
+        input: '我的钱包余额是多少？',
+        source: 'explicit',
+        createdAt: new Date('2026-11-20T12:00:00Z'),
+      },
+    ]);
+    prisma.chatMessage.findUnique.mockResolvedValue({
+      content: '你的余额是 ₱0.00',
+      source: 'ai',
+      seqId: 2,
+    });
+
+    const result = await service.list({ page: 1, pageSize: 20 });
+
+    expect(result.list[0]).toEqual(
+      expect.objectContaining({
+        input: '我的钱包余额是多少？',
+        answer: '你的余额是 ₱0.00',
+      }),
+    );
+  });
+
+  it('列表：隐式反馈补最近一条用户问题和 AI 回答', async () => {
+    const { service, prisma } = createService();
+    prisma.aiAnswerFeedback.findMany.mockResolvedValue([
+      {
+        id: 'fb-2',
+        conversationId: 'c1',
+        messageId: null,
+        input: null,
+        source: 'implicit',
+        createdAt: new Date('2026-11-20T12:00:00Z'),
+      },
+    ]);
+    prisma.chatMessage.findFirst
+      .mockResolvedValueOnce({ content: '帮我查订单' })
+      .mockResolvedValueOnce({ content: '你还没有订单' });
+
+    const result = await service.list({ page: 1, pageSize: 20 });
+
+    expect(result.list[0]).toEqual(
+      expect.objectContaining({
+        input: '帮我查订单',
+        answer: '你还没有订单',
+      }),
+    );
   });
 });

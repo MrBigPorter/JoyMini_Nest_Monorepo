@@ -37,12 +37,7 @@ export class RedisLockService implements OnModuleInit, OnModuleDestroy {
       socket: {
         connectTimeout: 10000,
         reconnectStrategy: (retries) => {
-          if (retries > 10) {
-            this.logger.error(
-              'Redis Lock max reconnection attempts reached, giving up',
-            );
-            return new Error('Max reconnection attempts reached');
-          }
+          // 锁服务同样不能放弃重连：client 一旦 closed，后续加锁会永久失败。
           this.logger.warn(`Redis Lock reconnecting, attempt ${retries}`);
           return Math.min(retries * 100, 3000);
         },

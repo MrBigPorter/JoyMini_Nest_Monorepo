@@ -120,17 +120,34 @@ export class AiUsageService {
       }),
     ]);
 
-    const users = await this.prisma.user.findMany({
-      where: { id: { in: groups.map((g) => g.userId) } },
-      select: { id: true, nickname: true, phone: true, avatar: true },
-    });
+    const pageUserIds = groups.map((g) => g.userId);
+    const [users, dailyRows] = await Promise.all([
+      this.prisma.user.findMany({
+        where: { id: { in: pageUserIds } },
+        select: { id: true, nickname: true, phone: true, avatar: true },
+      }),
+      pageUserIds.length > 0
+        ? this.prisma.aiUsageDaily.groupBy({
+            by: ['userId', 'date'],
+            where: { ...where, userId: { in: pageUserIds } },
+            _sum: { totalTokens: true },
+          })
+        : Promise.resolve([] as Array<{ userId: string; _sum: any }>),
+    ]);
     const userMap = new Map(users.map((u) => [u.id, u]));
+    const maxDailyByUser = new Map<string, number>();
+    for (const row of dailyRows) {
+      const dayTokens = row._sum.totalTokens ?? 0;
+      const current = maxDailyByUser.get(row.userId) ?? 0;
+      if (dayTokens > current) maxDailyByUser.set(row.userId, dayTokens);
+    }
     const dailyLimit = this.numberEnv('AI_DAILY_TOKEN_LIMIT', 200_000);
 
     return {
       list: groups.map((g) => {
         const user = userMap.get(g.userId);
         const totalTokens = g._sum.totalTokens ?? 0;
+        const maxDailyTokens = maxDailyByUser.get(g.userId) ?? 0;
         return {
           userId: g.userId,
           nickname: user?.nickname ?? null,
@@ -140,7 +157,8 @@ export class AiUsageService {
           completionTokens: g._sum.completionTokens ?? 0,
           totalTokens,
           requests: g._sum.requests ?? 0,
-          overDailyLimit: dailyLimit > 0 && totalTokens >= dailyLimit,
+          maxDailyTokens,
+          overDailyLimit: dailyLimit > 0 && maxDailyTokens >= dailyLimit,
         };
       }),
       total: distinctUsers.length,

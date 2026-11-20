@@ -136,6 +136,21 @@ export class RagController {
     return this.ragService.list(query);
   }
 
+  // 静态路由必须放在 `:id` 之前，否则 `/quality-stats` 会被当成文档 ID。
+  @Get('quality-stats')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
+  @ApiOperation({ summary: 'Get quality statistics overview' })
+  async getQualityStats() {
+    return this.ragService.getQualityStats();
+  }
+
+  @Get('meta/domains')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
+  @ApiOperation({ summary: 'Get distinct domain list for filter dropdown' })
+  async getDomains(): Promise<string[]> {
+    return this.ragService.getDomains();
+  }
+
   @Get(':id')
   @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
   @ApiOperation({ summary: 'Get document detail by ID' })
@@ -337,23 +352,7 @@ export class RagController {
     return this.ragService.reindexAll();
   }
 
-  // ==================== Quality stats ====================
-
-  @Get('quality-stats')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
-  @ApiOperation({ summary: 'Get quality statistics overview' })
-  async getQualityStats() {
-    return this.ragService.getQualityStats();
-  }
-
-  // ==================== Metadata helpers ====================
-
-  @Get('meta/domains')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
-  @ApiOperation({ summary: 'Get distinct domain list for filter dropdown' })
-  async getDomains(): Promise<string[]> {
-    return this.ragService.getDomains();
-  }
+  // ==================== Quality stats moved above :id ====================
 
   // ═══════════════════════════════════════════════════════════════════════════
   // 双源对撞 — Diff + Content Edit

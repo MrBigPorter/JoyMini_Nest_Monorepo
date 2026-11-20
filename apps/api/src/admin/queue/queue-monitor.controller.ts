@@ -8,6 +8,7 @@ import {
   Param,
   Body,
   UseGuards,
+  Logger,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { Roles } from '../auth/roles.decorator';
@@ -27,6 +28,8 @@ import { QueueActionDto } from './dto/queue-action.dto';
 @Controller('admin/queues')
 @UseGuards(AdminJwtAuthGuard, RolesGuard)
 export class QueueMonitorController {
+  private readonly logger = new Logger(QueueMonitorController.name);
+
   constructor(
     private readonly queueMonitorService: QueueMonitorService,
     private readonly aiTaskOutboxService: AiTaskOutboxService,
@@ -92,16 +95,40 @@ export class QueueMonitorController {
     @CurrentUserId() adminId: string,
   ) {
     const graceMs = query.grace ?? 86_400_000;
-    const cleanedCount = await this.queueMonitorService.cleanQueue(
-      query.queueName,
-      graceMs,
-    );
-    this.writeLog(adminId, 'clean', `${query.queueName}, grace=${graceMs}`);
-    return {
-      success: true,
-      message: `Cleaned ${cleanedCount} jobs from queue ${query.queueName}`,
-      cleanedCount,
-    };
+    const includeFailed = query.includeFailed === true;
+    try {
+      const { cleanedCount, failedCleanedCount } =
+        await this.queueMonitorService.cleanQueue(
+          query.queueName,
+          graceMs,
+          includeFailed,
+        );
+      this.writeLog(
+        adminId,
+        'clean',
+        `${query.queueName}, grace=${graceMs}, includeFailed=${includeFailed}`,
+      );
+      return {
+        success: true,
+        message:
+          `Cleaned ${cleanedCount} completed` +
+          (includeFailed ? ` and ${failedCleanedCount} failed` : '') +
+          ` jobs from queue ${query.queueName}`,
+        cleanedCount,
+        failedCleanedCount,
+        includeFailed,
+      };
+    } catch (error: any) {
+      this.logger.error(
+        `[QueueMonitor] clean failed for ${query.queueName}: ${
+          error?.message ?? error
+        }`,
+      );
+      return {
+        success: false,
+        message: `Failed to clean queue ${query.queueName}`,
+      };
+    }
   }
 
   @Get('ai/failed')

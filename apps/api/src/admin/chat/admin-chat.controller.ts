@@ -123,6 +123,7 @@ export class AdminChatController {
   /** PATCH /v1/admin/chat/conversations/:id/handler — 切换 AI/人工模式 */
   @Patch('conversations/:id/handler')
   @HttpCode(HttpStatus.OK)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.EDITOR)
   async switchHandler(
     @Param('id') id: string,
     @Body() dto: { mode: 'ai' | 'human' },
