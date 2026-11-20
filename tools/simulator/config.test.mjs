@@ -10,6 +10,7 @@ test("loadConfig 返回计划约定的默认值", () => {
   assert.equal(config.apiBaseUrl, "https://api.joyminis.com/api");
   assert.equal(config.socketUrl, "https://api.joyminis.com/events");
   assert.equal(config.businessId, "simulation_support_v1");
+  assert.equal(config.trafficSource, "simulation_support_v1");
   assert.equal(config.accountCount, 30);
   assert.equal(config.concurrency, 5);
   assert.equal(config.otpCode, "999999");
@@ -30,6 +31,7 @@ test("loadConfig 读取 env 覆盖并去掉末尾斜杠", () => {
   assert.equal(config.apiBaseUrl, "http://localhost:3000/api");
   assert.equal(config.socketUrl, "http://localhost:3000/events");
   assert.equal(config.businessId, "simulation_test");
+  assert.equal(config.trafficSource, "simulation_support_v1");
   assert.equal(config.accountCount, 2);
   assert.equal(config.concurrency, 1);
   assert.equal(config.otpCode, "123456");

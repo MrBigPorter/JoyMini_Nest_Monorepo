@@ -38,8 +38,9 @@ describe('ChatService.addMemberToBusinessGroup · trafficSource', () => {
     );
 
     await service.addMemberToBusinessGroup(
-      'simulation_support_v1',
+      'official_platform_support_v1',
       'u1',
+      'simulation_support_v1',
     );
 
     expect(prisma.conversation.create).toHaveBeenCalledWith(

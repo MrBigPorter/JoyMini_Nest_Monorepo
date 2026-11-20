@@ -8,6 +8,7 @@ export const DEFAULTS = Object.freeze({
   apiBaseUrl: "https://api.joyminis.com/api",
   socketUrl: "https://api.joyminis.com/events",
   businessId: "simulation_support_v1",
+  trafficSource: "simulation_support_v1",
   accountCount: 30,
   concurrency: 5,
   otpCode: "999999",
@@ -69,6 +70,11 @@ export function loadConfig(env = process.env) {
     DEFAULTS.businessId,
     "SIM_BUSINESS_ID",
   );
+  const trafficSource = parseNonEmpty(
+    env.SIM_TRAFFIC_SOURCE,
+    DEFAULTS.trafficSource,
+    "SIM_TRAFFIC_SOURCE",
+  );
   const accountCount = parseInteger(
     env,
     "SIM_ACCOUNT_COUNT",
@@ -98,6 +104,7 @@ export function loadConfig(env = process.env) {
     apiBaseUrl,
     socketUrl,
     businessId,
+    trafficSource,
     accountCount,
     concurrency,
     otpCode,

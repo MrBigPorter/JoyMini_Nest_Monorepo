@@ -55,12 +55,20 @@ const WATCHED_SOCKET_EVENTS = Object.freeze([
  * @param {string} [businessId]
  * @returns {string}
  */
-export function buildBusinessUrl(config, businessId = config.businessId) {
+export function buildBusinessUrl(
+  config,
+  businessId = config.businessId,
+  trafficSource = config.trafficSource,
+) {
   const id = String(businessId ?? "").trim();
   if (!id) throw new Error("businessId 不能为空");
+  const source = String(trafficSource ?? "").trim();
+  const suffix = source
+    ? `&trafficSource=${encodeURIComponent(source)}`
+    : "";
   return apiUrl(
     config,
-    `/v1/chat/business?businessId=${encodeURIComponent(id)}`,
+    `/v1/chat/business?businessId=${encodeURIComponent(id)}${suffix}`,
   );
 }
 
@@ -165,10 +173,11 @@ async function fetchBusinessConversation({
   config,
   account,
   businessId,
+  trafficSource,
   fetchImpl,
   timeoutMs = HTTP_TIMEOUT_MS,
 }) {
-  const url = buildBusinessUrl(config, businessId);
+  const url = buildBusinessUrl(config, businessId, trafficSource);
   let response;
   try {
     response = await fetchImpl(url, {

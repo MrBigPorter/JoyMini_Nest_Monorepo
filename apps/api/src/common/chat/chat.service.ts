@@ -725,7 +725,11 @@ export class ChatService {
    * @param businessId
    * @param userId
    */
-  async addMemberToBusinessGroup(businessId: string, userId: string) {
+  async addMemberToBusinessGroup(
+    businessId: string,
+    userId: string,
+    trafficSource?: string,
+  ) {
     const channel = await this.prisma.supportChannel.findUnique({
       where: { id: businessId },
       include: {
@@ -761,11 +765,12 @@ export class ChatService {
         string,
         unknown
       >;
-      if (metadata.trafficSource !== businessId) {
+      const source = trafficSource ?? businessId;
+      if (metadata.trafficSource !== source) {
         await this.prisma.conversation.update({
           where: { id: existingConversation.id },
           data: {
-            aiMetadata: { ...metadata, trafficSource: businessId },
+            aiMetadata: { ...metadata, trafficSource: source },
           },
         });
       }
@@ -783,7 +788,7 @@ export class ChatService {
           lastMsgTime: new Date(),
           // 客服渠道来源标记：用于区分正式客服与合成流量/测试渠道。
           // 不写 businessId（唯一键属于拼团业务钩子），避免冲突。
-          aiMetadata: { trafficSource: businessId },
+          aiMetadata: { trafficSource: trafficSource ?? businessId },
           members: {
             create: [
               { userId, role: ChatMemberRole.MEMBER },
