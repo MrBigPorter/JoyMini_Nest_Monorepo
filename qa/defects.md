@@ -60,29 +60,91 @@ routes/index.ts:200  hiddenForRoles: ['VIEWER']   # 其余工程路由同样只�
 **证据**：上条 curl 与源码行号。
 **建议**：Batch 2/4 统一各角色的工程页权限；本批只要求 VIEWER，故不阻断。
 
-## D-03 — VIEWER 首页「快速入口」仍展示工程页链接
+## D-03 — VIEWER 首页「快速入口」仍展示工程页链接 — **FIXED**
 
 | 项 | 内容 |
 |---|---|
 | 严重度 | P2（一致性；118 #1 只要求 Sidebar 隐藏，故不阻断） |
-| 位置 | `apps/admin-next/src/app/(dashboard)/ai-ops/page.tsx`「快速入口」区块（约 536–564 行），链接未按角色过滤 |
-| 影响 | Sidebar 已对 VIEWER 隐藏工程组，但首页仍提供 `AI Runtime / 流程版本 / 用量与成本 / 客户记忆` 入口，隐藏只是单点；VIEWER 可直接进入只读工程页 |
-| 期望**（产品决策）** | 若目标是“VIEWER 看不到工程面”，快速入口也应过滤；若允许直接访问，则应显式说明“Sidebar 隐藏不等于权限边界” |
-| 实际 | VIEWER 渲染的 SSR HTML 含工程链接 |
+| 状态 | **FIXED**，提交 `5dd97bed`（父 `998bb043`） |
+| 位置 | `apps/admin-next/src/app/(dashboard)/ai-ops/page.tsx`「快速入口」区块 |
+| 原问题 | Sidebar 已对 VIEWER 隐藏工程组，但首页「快速入口」仍提供 `AI Runtime / 流程版本 / 用量与成本 / 客户记忆 / 安全事件`，隐藏只是单点 |
+| 修复 | 「快速入口」改用 `getVisibleRoutes(role)` 过滤；VIEWER 只保留质量待办 / 转人工队列 / 运营洞察 |
 
-**复现**：
+**复验命令**（QA 环境：admin 4101、API 4102）：
 
-```text
-$ curl -H "Cookie: auth_token=<VIEWER JWT>" http://127.0.0.1:4101/ai-ops/ \
-    | grep -o 'href="/ai-ops/\(runtime\|flows\|usage\|memory\)[^"]*"' | sort -u
-href="/ai-ops/flows/"
-href="/ai-ops/memory/"
-href="/ai-ops/runtime/"
-href="/ai-ops/usage/"
+```bash
+cd apps/admin-next
+QA_NO_WEB_SERVER=1 QA_ADMIN_URL=http://127.0.0.1:4101 QA_API_URL=http://127.0.0.1:4102/api \
+  ../../node_modules/.bin/playwright test --config=playwright.qa.config.ts \
+  e2e-qa/navigation.spec.ts --project=qa-chromium --reporter=list
 ```
 
-**证据**：上述 SSR 输出；页面源码中该区块无角色条件。
-**建议**：与产品确认“隐藏导航”和“禁止访问”的边界；本批验收标准只写了 Sidebar，因此不阻断。
+**复验结果（PASS）**：
+
+```text
+✓ VIEWER navigation  sidebar hides ...                       (1.9s)
+✓ ADMIN navigation   sidebar shows the engineering group ...  (1.5s)
+✓ SUPER_ADMIN navigation ...                                  (1.4s)
+3 passed (5.7s)
+```
+
+- VIEWER「快速入口」= 3 个链接，恰好 `quality/support/insights`，engineering 0。
+- ADMIN / SUPER_ADMIN「快速入口」= 8 个，含 `runtime/flows/usage/memory/security`。
+- 证据：`qa/logs/d03-reverify.log`、`qa/logs/d03-viewer-ssr.html`、`qa/reports/batch-1.md` §9。
+
+## D-04 — 快速入口之外，首页运维卡片仍向 VIEWER 链接工程页 — **FIXED**
+
+| 项 | 内容 |
+|---|---|
+| 严重度 | P2/P3（一致性；独立于 D-03 的快速入口，非 Batch 1 验收项） |
+| 状态 | **FIXED**，提交 `08eb6a7b`（父 `5dd97bed`） |
+| 位置 | `apps/admin-next/src/app/(dashboard)/ai-ops/page.tsx`：StatCard「AI 队列等待 / AI 死信 / Outbox 失败 / RAG 向量队列」、「今日 Token」、AnomalyCard「安全事件」、提醒行「安全待处理」 |
+| 原问题 | D-03 修复后，VIEWER 首页仍可通过数据卡片/异常卡进入 runtime/usage/security 工程页（SSR 中 runtime×4、usage×1、security×1） |
+| 修复 | `engineeringVisible` 统一控制：VIEWER 的上述 StatCard 变为无链接（`href=undefined`），安全异常卡变为 `<div>`，安全提醒行不再注入；ADMIN/SUPER 保持原链接 |
+
+**复验命令**（QA 环境：admin 4101、API 4102；仅跑导航 spec + SSR）：
+
+```bash
+# SSR
+curl -H "Cookie: auth_token=<VIEWER JWT>" http://127.0.0.1:4101/ai-ops/ \
+  | grep -oE 'href="/ai-ops/[a-z-]+/?"' | sort | uniq -c
+
+# Playwright
+cd apps/admin-next
+QA_NO_WEB_SERVER=1 QA_ADMIN_URL=http://127.0.0.1:4101 QA_API_URL=http://127.0.0.1:4102/api \
+  ../../node_modules/.bin/playwright test --config=playwright.qa.config.ts \
+  e2e-qa/navigation.spec.ts --project=qa-chromium --reporter=list
+```
+
+**复验结果（PASS）**：
+
+```text
+# VIEWER SSR: 所有 /ai-ops 链接
+2 href="/ai-ops/insights/"
+2 href="/ai-ops/quality/"
+4 href="/ai-ops/support/"
+# 工程链接计数：0
+
+# Playwright
+3 passed (5.9s)
+✓ VIEWER      无工程 href；统计卡显示数值但不可点；安全卡显示 1 / 1；安全提醒行不渲染
+✓ ADMIN       统计卡/安全卡/安全提醒行仍链接 /ai-ops/{runtime,usage,security}
+✓ SUPER_ADMIN 同上
+```
+
+关键断言（见 `apps/admin-next/e2e-qa/navigation.spec.ts`）：
+
+- VIEWER 页面级 `a[href^="/ai-ops/{runtime,flows,usage,memory,security}"]` 数量 = 0；
+- 「AI 队列等待 / AI 死信 / Outbox 失败 / 今日 Token（UTC） / RAG 向量队列」仍可见且含数字，但根节点不是 `<a>`；
+- 「安全事件（NEW / 总数）」卡显示 `1 / 1`，根节点不是 `<a>`；
+- VIEWER 的「安全待处理」提醒行不渲染（代码用 `engineeringVisible && ...` 直接不注入）；
+- ADMIN/SUPER 五个统计卡的 `href` 分别为 runtime×4、usage×1，安全卡/提醒行为 `/ai-ops/security/`。
+
+**测试数据**：为覆盖安全提醒行，`qa/seed/batch1.ts` 增加 1 条 `qa_security_1`（`NEW`）；清理逻辑按 `qa_` 前缀删除，不碰真实安全事件。
+
+**证据**：`qa/logs/d04-reverify.log`、`qa/logs/d04-viewer-ssr.html`、`qa/logs/d04-admin-ssr.html`、`qa/logs/d04-super-ssr.html`、`qa/reports/batch-1.md` §10。
+
+**残留**：VIEWER 页面已无任何 `runtime/flows/usage/memory/security` href；`traces/context` 仅存在于 Sidebar（VIEWER 已隐藏）。未发现其它工程 href 残留。
 
 ---
 

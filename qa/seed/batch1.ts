@@ -21,6 +21,9 @@ async function clean() {
   await prisma.aiAnswerFeedback.deleteMany({
     where: { id: { startsWith: QA } },
   });
+  await prisma.aiSecurityEvent.deleteMany({
+    where: { id: { startsWith: QA } },
+  });
   await prisma.chatMessage.deleteMany({ where: { id: { startsWith: QA } } });
   await prisma.conversation.deleteMany({ where: { id: { startsWith: QA } } });
   await prisma.adminUser.deleteMany({ where: { id: { startsWith: QA } } });
@@ -225,6 +228,19 @@ async function seed() {
     },
   });
 
+  // One NEW security event so the overview "安全待处理" attention row and the
+  // security anomaly count are exercised for ADMIN/SUPER (and omitted for
+  // VIEWER) without touching any real security data.
+  await prisma.aiSecurityEvent.create({
+    data: {
+      id: 'qa_security_1',
+      type: 'prompt_override',
+      mode: 'log',
+      length: 42,
+      status: 'NEW',
+    },
+  });
+
   const counts = {
     admins: await prisma.adminUser.count({ where: { id: { startsWith: QA } } }),
     conversations: await prisma.conversation.count({
@@ -236,6 +252,9 @@ async function seed() {
     }),
     traces: await prisma.aiTrace.count({ where: { id: { startsWith: QA } } }),
     spans: await prisma.aiSpan.count({ where: { id: { startsWith: QA } } }),
+    securityEvents: await prisma.aiSecurityEvent.count({
+      where: { id: { startsWith: QA } },
+    }),
   };
   console.log('[qa-seed] done', counts);
 }

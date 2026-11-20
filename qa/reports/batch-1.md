@@ -173,14 +173,15 @@ Batch 1 验收范围内：**无 P0/P1**。3 条非阻断观察（其中 1 条为
 |---|---|---|---|
 | D-01 | P1（延后 / 超出本批范围） | VIEWER 仍可从 `GET /admin/ai-eval/datasets/:id` 读取 case 的 `question/answer` 原文 | 否（handoff 明确留给 Batch 4） |
 | D-02 | P2（既有问题） | EDITOR 侧边栏可见工程组（含 Traces），但 traces API 对 EDITOR 返回 403，UI/API 不一致 | 否（既有，未扩大） |
-| D-03 | P2（一致性） | VIEWER 首页「快速入口」仍显示 runtime/flows/usage/memory 工程链接；Sidebar 隐藏只是单点 | 否（118 #1 只要求 Sidebar） |
+| D-03 | P2（一致性）— **已修复** | VIEWER 首页「快速入口」仍显示 runtime/flows/usage/memory 工程链接；Sidebar 隐藏只是单点 | 否（118 #1 只要求 Sidebar）；复验见 §9 |
+| D-04 | P2/P3（一致性）— **已修复** | 快速入口修复后，首页其他运维卡片仍向 VIEWER 链接 `/ai-ops/runtime`（4）、`/ai-ops/usage`（1）、`/ai-ops/security`（1） | 否；复验见 §10 |
 
 ## 7. 残留风险与未覆盖
 
 1. **API 端口 4102**：4100 被非本项目进程占用，已报告；接线与 4100 等价。
 2. **Eval 原文残留（D-01）**：按 handoff/118 计划留到 Batch 4；本报告已记录，不计入 Batch 1 结论。
 3. **EDITOR 工程导航（D-02）**：只对 VIEWER 隐藏；EDITOR 可进入部分工程页但后端可能 403。既有问题，本批未扩大。
-4. **VIEWER 快速入口（D-03）**：Sidebar 之外仍可点进工程页；runtime/flows 对 VIEWER 为只读展示。是否收紧属产品决策，未在 Batch 1 验收标准内。
+4. **VIEWER 快速入口（D-03，已修复）**：`5dd97bed` 起「快速入口」按角色过滤；VIEWER 只剩质量待办/转人工队列/运营洞察。页面其他运维卡片仍指向工程页（D-04），是否收紧属产品决策，未在 Batch 1 验收标准内。
 5. **未覆盖**：
    - LIVE eval run 生命周期、评测集写入/编辑（Batch 3/4）；
    - Runtime/Flows/Usage/Memory/Security/Context 页面的数据正确性与写入动作；
@@ -203,4 +204,76 @@ Batch 1 在冻结提交 `998bb043` 上、真实 QA 数据库/Redis、真实 API 
 - Insights 三条链接分别带 `signal=transferred/repeated_question/abandoned` 并可筛选；
 - 卡片数字与 SQL 计数一致。
 
-**Batch 1：PASS**。D-01 为已声明的 Batch 4 延后项；D-02/D-03 为非阻断一致性问题，建议在后续批次处理。
+**Batch 1：PASS**。D-01 为已声明的 Batch 4 延后项；D-02 为既有非阻断问题；D-03 已在 `5dd97bed` 修复并复验通过（§9）；D-04 已在 `08eb6a7b` 修复并复验通过（§10）。
+
+## 10. 复验记录 — D-04（commit `08eb6a7b`）
+
+> 父提交 `5dd97bed`；改动 `apps/admin-next/src/app/(dashboard)/ai-ops/page.tsx`：`engineeringVisible` 统一控制首页统计卡、今日 Token、安全异常卡与「安全待处理」提醒行；VIEWER 不可点，ADMIN/SUPER 保持原链接。
+
+**复验环境**：沿用第 2 节（admin 4101 / API 4102 / QA DB）。仅跑 navigation spec + SSR；复验前重启 admin dev server，避免切换提交造成 Next 清单失效。
+
+**命令**：
+
+```bash
+# SSR：VIEWER 页面所有 /ai-ops 链接
+curl -H "Cookie: auth_token=<VIEWER JWT>" http://127.0.0.1:4101/ai-ops/ \
+  | grep -oE 'href="/ai-ops/[a-z-]+/?"' | sort | uniq -c
+
+# 导航回归
+cd apps/admin-next
+QA_NO_WEB_SERVER=1 QA_ADMIN_URL=http://127.0.0.1:4101 QA_API_URL=http://127.0.0.1:4102/api \
+  ../../node_modules/.bin/playwright test --config=playwright.qa.config.ts \
+  e2e-qa/navigation.spec.ts --project=qa-chromium --reporter=list
+```
+
+**结果**：
+
+| 检查 | 期望 | 实际 | 结果 |
+|---|---|---|---|
+| VIEWER 页面级工程 href（runtime/flows/usage/memory/security） | 0 | **0**；所有 `/ai-ops` 链接仅 insights×2、quality×2、support×4 | PASS |
+| VIEWER 统计卡数值 | 仍显示 | 「AI 队列等待 / AI 死信 / Outbox 失败 / 今日 Token（UTC） / RAG 向量队列」可见且含数字，根节点非 `<a>` | PASS |
+| VIEWER 安全异常卡 | 显示计数、不可点 | 显示 `1 / 1`，根节点非 `<a>` | PASS |
+| VIEWER 安全提醒行 | 不再链接 security | 不渲染（`engineeringVisible` 直接不注入） | PASS |
+| ADMIN 统计卡/安全卡/提醒行 | 保持可点 | runtime×4、usage×1、security 卡与提醒行 → `/ai-ops/security/` | PASS |
+| SUPER_ADMIN 同上 | 保持可点 | 同上 | PASS |
+| 导航回归 | 3 passed | **3 passed (5.9s)** | PASS |
+
+**测试数据**：为覆盖安全提醒行，`qa/seed/batch1.ts` 增加 1 条 `qa_security_1`（`NEW`）；清理按 `qa_` 前缀删除。种子重跑输出：`securityEvents: 1`。
+
+**证据**：`qa/logs/d04-reverify.log`、`qa/logs/d04-viewer-ssr.html`、`qa/logs/d04-admin-ssr.html`、`qa/logs/d04-super-ssr.html`。
+
+**结论**：D-04 已修复。VIEWER 首页不再出现任何 runtime/flows/usage/memory/security href；统计卡与安全计数仍展示，只是不可点；ADMIN/SUPER 链接保持不变。未发现其它工程 href 残留。
+
+## 9. 复验记录 — D-03（commit `5dd97bed`）
+
+> 父提交 `998bb043`；改动 `apps/admin-next/src/app/(dashboard)/ai-ops/page.tsx`：「快速入口」改用 `getVisibleRoutes(role)` 过滤（外加 `__tests__/views/AiOpsOverview.test.tsx` 两个单测）。
+
+**复验环境**：沿用本报告第 2 节（admin 4101 / API 4102 / QA DB）。仅重跑导航相关用例，未重跑全量。为使 Next 清单与提交一致，复验前重启了 admin dev server。
+
+**命令**：
+
+```bash
+# SSR 证据
+curl -H "Cookie: auth_token=<VIEWER JWT>" http://127.0.0.1:4101/ai-ops/ \
+  | grep -oE 'href="/ai-ops/(runtime|flows|usage|memory|security)/?"' | sort | uniq -c
+
+# 导航回归（VIEWER/ADMIN/SUPER）
+cd apps/admin-next
+QA_NO_WEB_SERVER=1 QA_ADMIN_URL=http://127.0.0.1:4101 QA_API_URL=http://127.0.0.1:4102/api \
+  ../../node_modules/.bin/playwright test --config=playwright.qa.config.ts \
+  e2e-qa/navigation.spec.ts --project=qa-chromium --reporter=list
+```
+
+**结果**：
+
+| 检查 | 期望 | 实际 | 结果 |
+|---|---|---|---|
+| VIEWER「快速入口」 | 仅 quality/support/insights | 3 个链接，engineering 0 | PASS |
+| ADMIN「快速入口」 | 8 个（含 runtime/flows/usage/memory/security） | 8 个 | PASS |
+| SUPER_ADMIN「快速入口」 | 8 个（同上） | 8 个 | PASS |
+| VIEWER/ADMIN/SUPER 导航回归 | 3 passed | **3 passed**（5.7s） | PASS |
+| VIEWER 页面级 engineering href（协调者原话“页面中不再出现”） | 0 | `runtime` 4、`usage` 1、`security` 1（来自 StatCard/异常卡，非快速入口） | **FAIL**（登记为 D-04） |
+
+证据：`qa/logs/d03-reverify.log`、`qa/logs/d03-viewer-ssr.html`。
+
+**结论**：D-03（快速入口）已修复并复验通过。协调者所列“整页不再出现工程 href”的更宽口径仍未满足，原因是「AI 队列等待 / AI 死信 / Outbox 失败 / RAG 向量队列」→ runtime、「今日 Token」→ usage、「安全事件」→ security 的卡片未做角色过滤；该残留记为 D-04，不影响 D-03 的修复结论，也不影响 Batch 1 PASS（118 #1 只要求 Sidebar，且这些是概览数据卡）。
