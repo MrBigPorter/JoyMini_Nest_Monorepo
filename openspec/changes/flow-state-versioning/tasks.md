@@ -2,11 +2,11 @@
 
 ## 阶段 A：接通 flowState
 
-- [ ] A1 `agent-runner` 接收并传递 `flowDataAccumulator`；验证：工具调用的 flowData/flowStatus 能进入结果
-- [ ] A2 `agent-factory` 不再强制 `flowContext:false`；验证：prompt 中出现 Current Flow Context
-- [ ] A3 orchestrator 每个返回路径写完整 `flowState`；验证：第二轮 `getState` 能读到第一轮 flowType/step/data
-- [ ] A4 单测：两轮对话状态延续；验证：用例通过，且 A3 回退时变红
-- [ ] A5 全量测试与 `tsc`；验证：全绿
+- [x] A1 `agent-runner` 接收并传递 `flowDataAccumulator`；验证：工具调用的 flowData/flowStatus 能进入结果
+- [x] A2 `agent-factory` 不再强制 `flowContext:false`；验证：prompt 中出现 Current Flow Context
+- [x] A3 orchestrator 每个返回路径写完整 `flowState`；验证：第二轮 `getState` 能读到第一轮 flowType/step/data
+- [x] A4 单测：两轮对话状态延续；验证：用例通过，且 A3 回退时变红
+- [x] A5 全量测试与 `tsc`；验证：全绿
 
 ## 阶段 B：版本与绑定
 

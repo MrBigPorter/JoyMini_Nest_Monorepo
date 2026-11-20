@@ -82,6 +82,12 @@ import {
   AGENT_ERROR_MSG,
 } from './orchestrator-utils/result-utils';
 import { detectTransferRequest } from './orchestrator-utils/transfer-detector';
+import {
+  createFlowAccumulator,
+  finalizeFlowState,
+  preserveFlowState,
+  resolveTargetFlowType,
+} from './orchestrator-utils/flow-state-utils';
 import { emitStage } from '@api/common/logger/structured-logger';
 
 // (AGENT_MAP + DEPENDENCY_MAP 已抽离到 config/orchestrator.config.ts)
@@ -207,6 +213,12 @@ export const createOrchestratorNode =
     const logger = new Logger('Orchestrator');
     const labels = state.labels ?? [];
 
+    // ── flowState 的真正写入起点 ──
+    // 上一轮状态在这里恢复；本轮 Agent 的 updateFlowData/updateFlowStatus
+    // 都写进同一个 accumulator，最后在每条返回路径落回 state。
+    const targetFlowType = resolveTargetFlowType(state.intent, labels);
+    const flowAccumulator = createFlowAccumulator(state);
+
     /** 标签压成 top3、两位小数：labels 可能被 BM25 + 向量各送一份，全量会撑爆日志 */
     const top3 = (list: { label: string; score: number }[]) =>
       [...list]
@@ -272,6 +284,7 @@ export const createOrchestratorNode =
           labels: [],
           pendingConfirm: null,
           ragSources: [],
+          flowState: preserveFlowState(state),
         };
       } catch (err) {
         logger.warn(
@@ -283,6 +296,7 @@ export const createOrchestratorNode =
           labels: [],
           pendingConfirm: null,
           ragSources: [],
+          flowState: preserveFlowState(state),
         };
       }
     }
@@ -301,6 +315,7 @@ export const createOrchestratorNode =
       return {
         ...(await handleGeneralChat(state, llmConfig)),
         ragSources: [],
+        flowState: finalizeFlowState(flowAccumulator, targetFlowType),
       };
     }
 
@@ -362,7 +377,10 @@ export const createOrchestratorNode =
           destination: 'general_chat',
         })}`,
       );
-      return handleGeneralChat(state, llmConfig);
+      return {
+        ...(await handleGeneralChat(state, llmConfig)),
+        flowState: finalizeFlowState(flowAccumulator, targetFlowType),
+      };
     }
 
     // 部分标签被门槛过滤时记一条 debug：多意图场景里这是正常裁剪，
@@ -442,6 +460,7 @@ export const createOrchestratorNode =
           labels: [],
           pendingConfirm: null,
           ragSources: [],
+          flowState: preserveFlowState(state),
         };
       }
 
@@ -600,6 +619,7 @@ export const createOrchestratorNode =
               llmConfig,
               registry,
               logger,
+              flowDataAccumulator: flowAccumulator,
             });
 
           // 日志：记录该 Agent 的执行上下文和工具绑定情况
@@ -694,6 +714,9 @@ export const createOrchestratorNode =
         labels: [],
         pendingConfirm: hasPendingConfirm,
         ragSources: [],
+        flowState: finalizeFlowState(flowAccumulator, targetFlowType, {
+          forceStep: 'CONFIRMING',
+        }),
       };
       return orchestratorResult;
     }
@@ -725,6 +748,10 @@ export const createOrchestratorNode =
           ? (state.repeatCount ?? 0) + 1
           : 0,
       ragSources,
+      // 转人工的结果仍保留原流程数据，方便人工接手时看到用户填到哪一步。
+      flowState: hasTransferRequest
+        ? preserveFlowState(state)
+        : finalizeFlowState(flowAccumulator, targetFlowType),
     };
 
     // debug=true 时写入执行流水线追踪数据

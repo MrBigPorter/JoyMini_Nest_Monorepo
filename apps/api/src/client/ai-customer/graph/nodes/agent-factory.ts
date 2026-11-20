@@ -48,6 +48,7 @@ import {
 import {
   runAgentLoop,
   AgentLoopResult,
+  FlowDataAccumulator,
 } from '@api/client/ai-customer/graph/agents/agent-runner';
 import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-registry.service';
 import { LlmProviderConfig } from '@api/client/ai-customer/graph/llm-factory';
@@ -77,6 +78,12 @@ export interface RunStandardAgentOptions {
   logger: Logger;
   /** 额外工具（如 wallet 的 flow tools） */
   extraTools?: DynamicStructuredTool[];
+  /**
+   * 跨 Agent 共享的 flow 状态累加器。
+   * 传入同一对象时，前一个 Agent 调用 updateFlowData/updateFlowStatus
+   * 的结果会进入对象，orchestrator 在一个流水线结束后写回 state.flowState。
+   */
+  flowDataAccumulator?: FlowDataAccumulator;
 }
 
 export interface RunStandardAgentResult {
@@ -88,6 +95,8 @@ export interface RunStandardAgentResult {
   tools: DynamicStructuredTool[];
   /** 上下文消息数量 */
   contextMessagesCount: number;
+  /** 本次执行期间累积的 flow 状态（可能被工具更新） */
+  flowDataAccumulator?: FlowDataAccumulator;
 }
 
 // ============================================================
@@ -116,19 +125,35 @@ export async function runStandardAgent(
 ): Promise<RunStandardAgentResult> {
   const logger = opts.logger;
 
-  // ① Handoff — 获取域工具 + 额外工具
+  // ① Handoff — 获取域工具 + flow 状态工具 + 额外工具
+  // updateFlowData/updateFlowStatus 注册在 'flow' 标签下，不是某个域独有；
+  // 不注入的话 Agent 无法写 flow 状态，状态机就是死代码。
   const domainTools = opts.registry.getToolsByTag(opts.tag);
-  const allTools = [...domainTools, ...(opts.extraTools ?? [])];
+  const flowTools = opts.registry.getToolsByTag('flow');
+  const seen = new Set<string>();
+  const allTools = [
+    ...domainTools,
+    ...flowTools,
+    ...(opts.extraTools ?? []),
+  ].filter((tool) => {
+    if (seen.has(tool.name)) return false;
+    seen.add(tool.name);
+    return true;
+  });
   const llmWithTools = createAgentLLM(opts.llmConfig, allTools);
 
   // ② Filter — 上下文过滤（取最近 N 条消息）
   const contextMessages = opts.messages.slice(-MAX_CONTEXT_MESSAGES);
 
   // ③ Prompt — 构建系统提示词 + 初始消息
+  // flowContext 由 promptConfig 声明（order/wallet/kyc 等需要），
+  // 不再在这里强制关闭；当前值来自 accumulator，第二轮能看到第一轮状态。
   const systemPrompt = buildAgentPrompt({
     ...opts.promptConfig,
     userId: opts.userId,
-    flowContext: false,
+    flowType: opts.flowDataAccumulator?.flowType ?? opts.promptConfig.flowType,
+    flowStatus:
+      opts.flowDataAccumulator?.flowStatus ?? opts.promptConfig.flowStatus,
   });
   const initialMessages = buildInitialMessages(systemPrompt, contextMessages);
 
@@ -140,6 +165,7 @@ export async function runStandardAgent(
     agentName: opts.agentName,
     logger,
     confirmRequiredTools: new Set(opts.registry.getWriteToolNames()),
+    flowDataAccumulator: opts.flowDataAccumulator,
   });
 
   // ⑤ Output — 构建结果
@@ -153,5 +179,6 @@ export async function runStandardAgent(
     output,
     tools: allTools,
     contextMessagesCount: contextMessages.length,
+    flowDataAccumulator: opts.flowDataAccumulator,
   };
 }
