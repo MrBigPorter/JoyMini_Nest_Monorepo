@@ -1,16 +1,19 @@
-# 合成 AI 客服流量 — 账号池（P0 / Task 1）
+# 合成 AI 客服流量 — 模拟器（P0）
 
-`tools/simulator/` 是生产合成流量的无头客户端。本目录当前提供**专用渠道探测**与**账号池 provisioning**，后续任务会在此基础上增加场景库、人类化节奏、Socket driver 和并发 runner。
+`tools/simulator/` 是生产合成流量的无头客户端。本目录提供**专用渠道探测**、**账号池 provisioning**、**场景库**、**人类化节奏**与 **Socket 单会话 driver**；并发 runner 由后续任务实现。
 
 所有流量只落在专用渠道 `simulation_support_v1`，不会创建渠道、不会调用任何 `/confirm` 接口，也不会执行存款/取款/购买等真实资金流程。
 
 ## 文件
 
-| 文件 | 作用 |
-| --- | --- |
-| `config.mjs` | 读取 `SIM_*` 环境变量（不读 `.env`），提供默认值与安全阀 |
-| `provision.mjs` | 建号 CLI + `provisionAccounts()`；渠道存在性探测 |
-| `config.test.mjs` / `provision.test.mjs` | Node 内置测试，纯函数 + mock 网络 |
+| 文件            | 作用                                                                     |
+| --------------- | ------------------------------------------------------------------------ |
+| `config.mjs`    | 读取 `SIM_*` 环境变量（不读 `.env`），提供默认值与安全阀                 |
+| `provision.mjs` | 建号 CLI + `provisionAccounts()`；渠道存在性探测                         |
+| `scenarios.mjs` | 9 个 intent 的场景库、加权随机、槽位渲染                                 |
+| `humanize.mjs`  | 5–60 秒人类化延迟、语气词/轻量错别字扰动、用户画像                       |
+| `driver.mjs`    | 单会话 driver：`GET /chat/business` + Socket `send_message` + 等 AI 回复 |
+| `*.test.mjs`    | Node 内置测试，纯函数 + mock 网络                                        |
 
 运行态文件：`tools/simulator/.runtime/accounts.json`（已 gitignore，权限 `600`）。
 
@@ -53,15 +56,15 @@ curl -X PATCH 'https://api.joyminis.com/api/v1/admin/support-channels/simulation
 
 ## 2. 配置
 
-| 环境变量 | 默认值 | 说明 |
-| --- | --- | --- |
-| `SIM_API_BASE_URL` | `https://api.joyminis.com/api` | API 根地址（已含 `/api`） |
-| `SIM_SOCKET_URL` | `https://api.joyminis.com/events` | Socket 地址（后续 driver 使用） |
-| `SIM_BUSINESS_ID` | `simulation_support_v1` | 专用渠道 ID |
-| `SIM_ACCOUNT_COUNT` | `30` | 默认建号数量（1–100） |
-| `SIM_CONCURRENCY` | `5` | 并发，安全阀上限 5 |
-| `SIM_OTP_CODE` | `999999` | 固定 OTP |
-| `SIM_RUNTIME_DIR` | `tools/simulator/.runtime` | 运行态目录 |
+| 环境变量            | 默认值                            | 说明                       |
+| ------------------- | --------------------------------- | -------------------------- |
+| `SIM_API_BASE_URL`  | `https://api.joyminis.com/api`    | API 根地址（已含 `/api`）  |
+| `SIM_SOCKET_URL`    | `https://api.joyminis.com/events` | Socket 地址（driver 使用） |
+| `SIM_BUSINESS_ID`   | `simulation_support_v1`           | 专用渠道 ID                |
+| `SIM_ACCOUNT_COUNT` | `30`                              | 默认建号数量（1–100）      |
+| `SIM_CONCURRENCY`   | `5`                               | 并发，安全阀上限 5         |
+| `SIM_OTP_CODE`      | `999999`                          | 固定 OTP                   |
+| `SIM_RUNTIME_DIR`   | `tools/simulator/.runtime`        | 运行态目录                 |
 
 示例：
 
@@ -175,7 +178,19 @@ node -e "const a=require('./tools/simulator/.runtime/accounts.json')[0]; fetch('
 jq 'map({phone:(.phone[0:6]+"****"),userId,deviceId})' tools/simulator/.runtime/accounts.json
 ```
 
-## 6. 清理
+## 6. 单会话 driver 冒烟
+
+账号池建好后，可以用 driver 跑一条会话验证 Socket 链路：
+
+```bash
+node tools/simulator/driver.mjs --once --scenario order_status
+```
+
+可用场景 ID 见 `scenarios.mjs` 的 `SCENARIOS`（如 `order_status`、`rag_refund`、`special_transfer`）。
+driver 会在收到 `ai_confirm` / `ai_transfer` 或 90 秒无回复时结束，**从不调用** `/confirm`；
+退出码 0 表示会话完成且无错误、无超时。
+
+## 7. 清理
 
 ```bash
 # 删除本地账号池（只删本地文件，服务端用户仍存在）
@@ -188,14 +203,14 @@ rm -f tools/simulator/.runtime/accounts.json
 
 ## 故障排查
 
-| 现象 | 原因 / 处理 |
-| --- | --- |
-| `HTTP 403 CSRF token missing` | 后端 CSRF 中间件若注册在 `cookieParser()` 之前，cookie 永远读不到。模拟器已按正规流程从 `GET /api/health` 获取 cookie + header；若仍 403，需要后端调整中间件顺序，或把 `/v1/otp` 加入 CSRF 跳过列表。**不要绕过 CSRF。** |
-| `HTTP 429` | OTP/登录限流。脚本会按 `Retry-After` 自动重试；仍失败时等待 60 秒后重跑（已建账号会自动保留）。 |
-| `HTTP 404` + `support channel not found` | 渠道不存在或未启用；先创建/启用渠道。 |
-| `HTTP 501 SMS provider not configured` | 生产未开启固定 OTP；配置 `OTP_PROVIDER=fixed` + `OTP_ALLOW_FIXED_IN_PROD=true`。 |
-| `账号 token 无效或已过期（401）` | 先调用 `refreshAccountToken()` 用 refreshToken 刷新；refreshToken 也失效时删除 `.runtime/accounts.json` 或用 `--replace` 重新建号。 |
-| 文件权限不是 600 | 重新执行 provisioning 会自动 `chmod 600`；不要手动放宽权限。 |
+| 现象                                     | 原因 / 处理                                                                                                                                                                                                              |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `HTTP 403 CSRF token missing`            | 后端 CSRF 中间件若注册在 `cookieParser()` 之前，cookie 永远读不到。模拟器已按正规流程从 `GET /api/health` 获取 cookie + header；若仍 403，需要后端调整中间件顺序，或把 `/v1/otp` 加入 CSRF 跳过列表。**不要绕过 CSRF。** |
+| `HTTP 429`                               | OTP/登录限流。脚本会按 `Retry-After` 自动重试；仍失败时等待 60 秒后重跑（已建账号会自动保留）。                                                                                                                          |
+| `HTTP 404` + `support channel not found` | 渠道不存在或未启用；先创建/启用渠道。                                                                                                                                                                                    |
+| `HTTP 501 SMS provider not configured`   | 生产未开启固定 OTP；配置 `OTP_PROVIDER=fixed` + `OTP_ALLOW_FIXED_IN_PROD=true`。                                                                                                                                         |
+| `账号 token 无效或已过期（401）`         | 先调用 `refreshAccountToken()` 用 refreshToken 刷新；refreshToken 也失效时删除 `.runtime/accounts.json` 或用 `--replace` 重新建号。                                                                                      |
+| 文件权限不是 600                         | 重新执行 provisioning 会自动 `chmod 600`；不要手动放宽权限。                                                                                                                                                             |
 
 ## 安全约束（必须遵守）
 
@@ -208,7 +223,7 @@ rm -f tools/simulator/.runtime/accounts.json
 ## 测试
 
 ```bash
-node --test tools/simulator/config.test.mjs tools/simulator/provision.test.mjs
+node --test tools/simulator/*.test.mjs
 ```
 
 测试全部使用 mock 网络，不会访问生产 API。
