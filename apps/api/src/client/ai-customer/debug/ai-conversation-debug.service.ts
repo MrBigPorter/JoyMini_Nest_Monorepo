@@ -18,6 +18,15 @@ export interface ConversationDebugSnapshot {
     source?: string | null;
   }>;
   diagnosis?: ConversationDiagnosis;
+  actions?: Array<{
+    id: string;
+    action: string;
+    status: string;
+    messageId?: string | null;
+    createdAt: string | null;
+    expiresAt?: string | null;
+    error?: string | null;
+  }>;
   checkpoints?: Array<{
     checkpointId: string;
     createdAt: string | null;

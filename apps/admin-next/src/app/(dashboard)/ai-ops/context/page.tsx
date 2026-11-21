@@ -138,6 +138,29 @@ const MESSAGE_ROLE_LABELS: Record<string, string> = {
   tool: '工具',
 };
 
+const ACTION_STATUS_LABELS: Record<string, string> = {
+  REQUESTED: '已请求',
+  CONFIRM_CREATED: '等待确认',
+  CONFIRMED: '已确认待执行',
+  EXECUTED: '已执行',
+  EXPIRED: '已过期',
+  TRANSFERRED: '已转人工',
+  FAILED: '失败',
+};
+
+const ACTION_STATUS_CLASS: Record<string, string> = {
+  CONFIRM_CREATED:
+    'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300',
+  CONFIRMED:
+    'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300',
+  EXECUTED:
+    'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300',
+  EXPIRED: 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300',
+  FAILED: 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300',
+  TRANSFERRED:
+    'bg-gray-100 text-gray-600 dark:bg-white/10 dark:text-gray-300',
+};
+
 const cardClass =
   'rounded-xl border border-gray-100 bg-white p-4 dark:border-white/10 dark:bg-gray-900';
 
@@ -237,6 +260,7 @@ export default function AiContextPage() {
   const flowStep = compactText(flowState.step);
   const diagnosis = snapshot?.diagnosis;
   const diagnosisFlags = diagnosis?.flags ?? [];
+  const actions = snapshot?.actions ?? [];
   const extraFlowKeys = Object.keys(flowState).filter(
     (key) => !KNOWN_FLOW_KEYS.has(key) && hasContent(flowState[key]),
   );
@@ -641,6 +665,62 @@ export default function AiContextPage() {
                     <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">
                       这只是等待中的确认快照，系统尚未执行该操作；需由用户在前端确认后才会生效。
                     </p>
+                  </div>
+                )}
+              </section>
+
+              <section className={cardClass}>
+                <h2 className="text-sm font-semibold">
+                  动作生命周期（{actions.length}）
+                </h2>
+                <p className="mt-1 text-xs text-gray-500">
+                  确认卡片从创建到执行/过期/转人工的记录；没有记录代表该轮没有写操作。
+                </p>
+                {actions.length === 0 ? (
+                  <p className="mt-3 text-sm text-gray-500">暂无动作记录。</p>
+                ) : (
+                  <div className="mt-3 space-y-2 text-xs">
+                    {actions.map((action) => (
+                      <div
+                        key={action.id}
+                        className="rounded-lg border border-gray-100 p-3 dark:border-white/10"
+                      >
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-medium">
+                            {action.action}
+                          </span>
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                              ACTION_STATUS_CLASS[action.status] ??
+                              'bg-gray-100 text-gray-600 dark:bg-white/10 dark:text-gray-300'
+                            }`}
+                          >
+                            {ACTION_STATUS_LABELS[action.status] ??
+                              action.status}
+                          </span>
+                          <span className="ml-auto text-gray-400">
+                            {formatTime(action.createdAt)}
+                          </span>
+                        </div>
+                        <div className="mt-1 flex flex-wrap gap-3 text-gray-500">
+                          {action.expiresAt ? (
+                            <span>
+                              过期时间 {formatTime(action.expiresAt)}
+                            </span>
+                          ) : null}
+                          {action.messageId ? (
+                            <span className="font-mono">
+                              触发消息 {action.messageId}
+                            </span>
+                          ) : null}
+                        </div>
+                        {action.error ? (
+                          <div className="mt-1 text-red-600 dark:text-red-300">
+                            {action.error}
+                          </div>
+                        ) : null}
+                      </div>
+                    ))}
                   </div>
                 )}
               </section>

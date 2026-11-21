@@ -395,6 +395,19 @@ export class AiCustomerService implements OnModuleDestroy {
     const traceCount = await this.prismaService.aiTrace.count({
       where: { conversationId },
     });
+    const actionRows = await this.prismaService.aiActionRequest.findMany({
+      where: { conversationId },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true,
+        action: true,
+        status: true,
+        messageId: true,
+        createdAt: true,
+        expiresAt: true,
+        error: true,
+      },
+    });
     const lastUser = [...dbMessages]
       .reverse()
       .find((message) => message.source === 'user' && message.senderId);
@@ -417,6 +430,15 @@ export class AiCustomerService implements OnModuleDestroy {
       previousIntent: values.previousIntent ?? '',
       messages,
       diagnosis,
+      actions: actionRows.map((row) => ({
+        id: row.id,
+        action: row.action,
+        status: row.status,
+        messageId: row.messageId,
+        createdAt: row.createdAt?.toISOString() ?? null,
+        expiresAt: row.expiresAt?.toISOString() ?? null,
+        error: row.error,
+      })),
       checkpoints,
     };
   }
