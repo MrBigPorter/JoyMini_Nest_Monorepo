@@ -7,7 +7,7 @@ import { ConfigService } from '@nestjs/config';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
 import { SystemMessage } from '@langchain/core/messages';
 import { StringOutputParser } from '@langchain/core/output_parsers';
-import { firstApiKey } from '@api/common/utils/api-keys';
+import { firstApiKey, parseApiKeys } from '@api/common/utils/api-keys';
 import {
   createLLM,
   LlmProviderConfig,
@@ -154,18 +154,29 @@ export function resolveJudgeConfig(
 @Injectable()
 export class AiEvalJudgeService {
   private readonly logger = new Logger(AiEvalJudgeService.name);
-  private readonly chain: any;
   private readonly judgeModel: string;
   private readonly judgeVendor: string;
   private readonly vendorIndependent: boolean;
-  private readonly apiKey?: string;
+  private readonly config: LlmProviderConfig;
+  private readonly apiKeys: string[];
+  private readonly prompt: ChatPromptTemplate;
 
   constructor(private readonly configService: ConfigService) {
     const config = resolveJudgeConfig(configService);
-    this.apiKey = config.apiKey;
+    this.config = config;
     this.judgeModel = config.model;
     this.judgeVendor = vendorOf(config.model, config.baseURL);
     this.vendorIndependent = this.judgeVendor !== 'deepseek';
+    const rawKeys = this.vendorIndependent
+      ? configService.get<string>('GROQ_API_KEY')
+      : configService.get<string>('DEEPSEEK_API_KEY');
+    const keys = parseApiKeys(rawKeys);
+    this.apiKeys =
+      keys.length > 0
+        ? keys
+        : firstApiKey(config.apiKey)
+          ? [config.apiKey as string]
+          : [];
     if (this.vendorIndependent) {
       assertIndependentVendor(config);
     } else if (!allowSameVendor()) {
@@ -175,18 +186,22 @@ export class AiEvalJudgeService {
       );
     }
 
-    const prompt = ChatPromptTemplate.fromMessages([
+    this.prompt = ChatPromptTemplate.fromMessages([
       // 用 SystemMessage 实例：prompt 里的 JSON 花括号会被当成模板变量。
       new SystemMessage(JUDGE_SYSTEM_PROMPT),
       ['human', '{input}'],
     ]);
-    this.chain = prompt
-      .pipe(createLLM(config, { temperature: 0 }))
+  }
+
+  /** 每次调用单独建链，便于按 key 轮换。 */
+  private buildChain(apiKey: string) {
+    return this.prompt
+      .pipe(createLLM({ ...this.config, apiKey }, { temperature: 0 }))
       .pipe(new StringOutputParser());
   }
 
   async judge(input: TaskJudgeInput): Promise<TaskJudgeResult> {
-    if (!this.apiKey) {
+    if (this.apiKeys.length === 0) {
       throw new ServiceUnavailableException(
         `AI eval judge is not configured (${this.vendorIndependent ? 'GROQ_API_KEY' : 'DEEPSEEK_API_KEY'} missing)`,
       );
@@ -200,33 +215,41 @@ export class AiEvalJudgeService {
       pendingConfirm: input.pendingConfirm ?? null,
     };
 
-    try {
-      const raw = await this.chain.invoke({
-        input: JSON.stringify(payload),
-      });
-      const parsed = parseJudgeOutput(String(raw));
-      if (!parsed) {
-        this.logger.warn('[task-judge] judge output is not valid JSON');
+    let lastError: unknown = null;
+    for (let index = 0; index < this.apiKeys.length; index += 1) {
+      try {
+        const raw = await this.buildChain(this.apiKeys[index]).invoke({
+          input: JSON.stringify(payload),
+        });
+        const parsed = parseJudgeOutput(String(raw));
+        if (!parsed) {
+          this.logger.warn('[task-judge] judge output is not valid JSON');
+          return {
+            verdict: 'unsolved',
+            score: 0,
+            reason: 'judge_parse_failed',
+            judgeModel,
+            judgeVendor: this.judgeVendor,
+            vendorIndependent: this.vendorIndependent,
+          };
+        }
         return {
-          verdict: 'unsolved',
-          score: 0,
-          reason: 'judge_parse_failed',
+          ...parsed,
           judgeModel,
           judgeVendor: this.judgeVendor,
           vendorIndependent: this.vendorIndependent,
         };
+      } catch (err: any) {
+        lastError = err;
+        this.logger.warn(
+          `[task-judge] key ${index + 1}/${this.apiKeys.length} failed: ${err?.message ?? err}`,
+        );
       }
-      return {
-        ...parsed,
-        judgeModel,
-        judgeVendor: this.judgeVendor,
-        vendorIndependent: this.vendorIndependent,
-      };
-    } catch (err: any) {
-      this.logger.error(
-        `[task-judge] judge call failed: ${err?.message ?? err}`,
-      );
-      throw new ServiceUnavailableException('AI eval judge call failed');
     }
+
+    this.logger.error(
+      `[task-judge] judge call failed: ${(lastError as any)?.message ?? lastError}`,
+    );
+    throw new ServiceUnavailableException('AI eval judge call failed');
   }
 }

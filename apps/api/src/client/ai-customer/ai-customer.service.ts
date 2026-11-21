@@ -1349,6 +1349,21 @@ export class AiCustomerService implements OnModuleDestroy {
       request?.id,
     );
     if (conversationId) {
+      // 先发确认事件，再落聊天消息：
+      // 驱动/客户端以 ai_confirm 作为卡片到达信号；如果先落 chat_message，
+      // 客户端可能把它当普通回复处理，错过确认卡片。
+      // 只发提问者本人的私有房间，不进会话房间：
+      // payload 里带 confirmToken（一次性写操作凭证），
+      // 谁在房间里都收得到就等于把凭证广播出去（#85 P0-2 / T1-4）
+      this.eventsGateway.dispatchToUser(userId, SocketEvents.AI_CONFIRM, {
+        conversationId,
+        action: pc.action,
+        summary,
+        confirmToken: token,
+        expiresAt,
+        requestId: request?.id ?? null,
+      });
+
       // 落一条可见消息：以前确认卡片只发 socket，聊天记录里看不到，
       // 运营会以为 AI 没回复。卡片本身仍走 AI_CONFIRM 私有房间。
       const actionLabel: Record<string, string> = {
@@ -1383,18 +1398,6 @@ export class AiCustomerService implements OnModuleDestroy {
         this.logger.warn(
           `[routeConfirm] persist card message failed: ${err?.message ?? err}`,
         );
-      });
-
-      // 只发提问者本人的私有房间，不进会话房间：
-      // payload 里带 confirmToken（一次性写操作凭证），
-      // 谁在房间里都收得到就等于把凭证广播出去（#85 P0-2 / T1-4）
-      this.eventsGateway.dispatchToUser(userId, SocketEvents.AI_CONFIRM, {
-        conversationId,
-        action: pc.action,
-        summary,
-        confirmToken: token,
-        expiresAt,
-        requestId: request?.id ?? null,
       });
     }
   }
