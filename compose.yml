@@ -43,6 +43,8 @@ services:
              export PATH=/app/node_modules/.bin:$$PATH &&
              echo '>>> Building @lucky/shared (JS + .d.ts)...' &&
              node_modules/.bin/tsc -p /app/packages/shared/tsconfig.json &&
+             echo '>>> Generating Prisma Client...' &&
+             node_modules/.bin/prisma generate --schema /app/apps/api/prisma/schema.prisma &&
              echo '>>> Applying pending DB migrations...' &&
              yarn workspace @lucky/api pr:deploy &&
              yarn workspace @lucky/api start:dev"

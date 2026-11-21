@@ -2132,10 +2132,10 @@ model KnowledgePromptEvalLog {
 /// 一次用户提问到 AI 回复的完整链路。
 model AiTrace {
   id               String   @id @default(cuid()) @db.VarChar(32)
-  conversationId   String   @map("conversation_id") @db.VarChar(32)
-  triggerMessageId String?  @map("trigger_message_id") @db.VarChar(32)
-  aiMessageId      String?  @map("ai_message_id") @db.VarChar(32)
-  userId           String?  @map("user_id") @db.VarChar(32)
+  conversationId   String   @map("conversation_id") @db.VarChar(64)
+  triggerMessageId String?  @map("trigger_message_id") @db.VarChar(64)
+  aiMessageId      String?  @map("ai_message_id") @db.VarChar(64)
+  userId           String?  @map("user_id") @db.VarChar(64)
   source           String   @default("production") @db.VarChar(16)
   intent           String?  @db.VarChar(32)
   input            String?  @db.Text
@@ -2206,8 +2206,8 @@ model AiScore {
   configId       String?  @map("config_id") @db.VarChar(32)
   traceId        String?  @map("trace_id") @db.VarChar(32)
   spanId         String?  @map("span_id") @db.VarChar(32)
-  conversationId String?  @map("conversation_id") @db.VarChar(32)
-  messageId      String?  @map("message_id") @db.VarChar(32)
+  conversationId String?  @map("conversation_id") @db.VarChar(64)
+  messageId      String?  @map("message_id") @db.VarChar(64)
   source         String   @db.VarChar(16)
   value          Float?
   stringValue    String?  @map("string_value") @db.VarChar(500)
@@ -2224,8 +2224,8 @@ model AiScore {
 
 model AiAnswerFeedback {
   id             String   @id @default(cuid()) @db.VarChar(32)
-  conversationId String   @map("conversation_id") @db.VarChar(32)
-  messageId      String?  @map("message_id") @db.VarChar(32)
+  conversationId String   @map("conversation_id") @db.VarChar(64)
+  messageId      String?  @map("message_id") @db.VarChar(64)
   userId         String?  @map("user_id") @db.VarChar(32)
 
   /// explicit | implicit
@@ -2363,8 +2363,8 @@ model AiProblemEvent {
   confidence     Float    @db.Real
   source         String   @db.VarChar(16)
   sourceId       String   @map("source_id") @db.VarChar(64)
-  conversationId String?  @map("conversation_id") @db.VarChar(32)
-  messageId      String?  @map("message_id") @db.VarChar(32)
+  conversationId String?  @map("conversation_id") @db.VarChar(64)
+  messageId      String?  @map("message_id") @db.VarChar(64)
   traceId        String?  @map("trace_id") @db.VarChar(32)
   intent         String?  @db.VarChar(50)
   domain         String?  @db.VarChar(50)
@@ -2490,7 +2490,7 @@ model AiSecurityEvent {
   mode           String   @db.VarChar(16)
   length         Int
   userIdHash     String?  @map("user_id_hash") @db.VarChar(64)
-  conversationId String?  @map("conversation_id") @db.VarChar(32)
+  conversationId String?  @map("conversation_id") @db.VarChar(64)
 
   /// NEW | CONFIRMED | FALSE_POSITIVE | BLOCKED
   status String @default("NEW") @db.VarChar(16)
@@ -2530,8 +2530,8 @@ model AiUserMemory {
 
   confidence Float @default(1)
   /// 来源：哪条用户消息触发写入（唯一，重复写入幂等）
-  sourceConversationId String? @map("source_conversation_id") @db.VarChar(32)
-  sourceMessageId      String? @map("source_message_id") @db.VarChar(32)
+  sourceConversationId String? @map("source_conversation_id") @db.VarChar(64)
+  sourceMessageId      String? @map("source_message_id") @db.VarChar(64)
   version              Int     @default(1)
   /// ACTIVE | DELETED
   status               String  @default("ACTIVE") @db.VarChar(16)
@@ -2552,7 +2552,7 @@ model AiMemorySummary {
   id             String   @id @default(cuid()) @db.VarChar(32)
   userId         String   @map("user_id") @db.VarChar(32)
   threadId       String?  @map("thread_id") @db.VarChar(64)
-  conversationId String?  @map("conversation_id") @db.VarChar(32)
+  conversationId String?  @map("conversation_id") @db.VarChar(64)
   summary        String   @db.VarChar(1000)
   coveredToSeqId Int      @default(0) @map("covered_to_seq_id")
   tokenCount     Int      @default(0) @map("token_count")
@@ -2572,7 +2572,7 @@ model AiActionRequest {
   conversationId String    @map("conversation_id") @db.VarChar(32)
   userId         String    @map("user_id") @db.VarChar(32)
   /// 触发本次动作的用户消息 id
-  messageId      String?   @map("message_id") @db.VarChar(32)
+  messageId      String?   @map("message_id") @db.VarChar(64)
   action         String    @db.VarChar(32)
   params         Json?
   summary        Json?
