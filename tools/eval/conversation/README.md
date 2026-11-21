@@ -73,7 +73,9 @@ run.sh --dataset ... --mode=blocking   # 不达标退出码 1
 - `selection-2026-11-21.jsonl`：30 个会话；
 - `selection-train-2026-11-21.jsonl`：20 个训练会话；
 - `holdout-2026-11-21.jsonl`：10 个 holdout 会话（冻结，不参与标注/调参）；
-- 训练集工作表：36 行。
+- 训练集工作表：36 行；
+- 第二轮运营标注：36/36，solved 26 / partial 8 / unsolved 2；
+  报告见 [`reports/operator-annotation-2026-11-21-round2.md`](./reports/operator-annotation-2026-11-21-round2.md)。
 
 > 旧的 `selection-2026-11-22.jsonl` 引用的 sim 会话已在清理中删除，仅作历史记录，
 > 不能重跑。
