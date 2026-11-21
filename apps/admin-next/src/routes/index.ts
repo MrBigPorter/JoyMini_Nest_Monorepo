@@ -64,6 +64,13 @@ export interface RouteConfig {
   hiddenForRoles?: readonly string[];
 }
 
+/**
+ * 工程组的后端读接口当前只允许 SUPER_ADMIN / ADMIN（VIEWER、EDITOR 调用会 403）。
+ * 导航可见性必须与接口一致：整组对这两个角色隐藏，而不是逐页猜测。
+ * 若后续开放某个工程页，先给对应接口加角色 + 测试，再把该角色从这里移除。
+ */
+const ENGINEERING_HIDDEN_ROLES = ['VIEWER', 'EDITOR'] as const;
+
 export const routes: RouteConfig[] = [
   // Overview
   { path: '/', name: 'dashboard', icon: LayoutDashboard, group: 'Overview' },
@@ -190,56 +197,56 @@ export const routes: RouteConfig[] = [
     name: 'aiOpsRuntime',
     icon: ServerCog,
     group: 'AI Operations · 工程',
-    hiddenForRoles: ['VIEWER'],
+    hiddenForRoles: ENGINEERING_HIDDEN_ROLES,
   },
   {
     path: '/ai-ops/flows',
     name: 'aiOpsFlows',
     icon: Workflow,
     group: 'AI Operations · 工程',
-    hiddenForRoles: ['VIEWER'],
+    hiddenForRoles: ENGINEERING_HIDDEN_ROLES,
   },
   {
     path: '/ai-ops/usage',
     name: 'aiOpsUsage',
     icon: Coins,
     group: 'AI Operations · 工程',
-    hiddenForRoles: ['VIEWER'],
+    hiddenForRoles: ENGINEERING_HIDDEN_ROLES,
   },
   {
     path: '/ai-ops/memory',
     name: 'aiOpsMemory',
     icon: Brain,
     group: 'AI Operations · 工程',
-    hiddenForRoles: ['VIEWER'],
+    hiddenForRoles: ENGINEERING_HIDDEN_ROLES,
   },
   {
     path: '/ai-ops/security',
     name: 'aiOpsSecurity',
     icon: ShieldAlert,
     group: 'AI Operations · 工程',
-    hiddenForRoles: ['VIEWER'],
+    hiddenForRoles: ENGINEERING_HIDDEN_ROLES,
   },
   {
     path: '/ai-ops/context',
     name: 'aiOpsContext',
     icon: Braces,
     group: 'AI Operations · 工程',
-    hiddenForRoles: ['VIEWER'],
+    hiddenForRoles: ENGINEERING_HIDDEN_ROLES,
   },
   {
     path: '/ai-ops/traces',
     name: 'aiOpsTraces',
     icon: GitBranch,
     group: 'AI Operations · 工程',
-    hiddenForRoles: ['VIEWER'],
+    hiddenForRoles: ENGINEERING_HIDDEN_ROLES,
   },
   {
     path: '/ai-ops/analysis',
     name: 'aiOpsAnalysis',
     icon: BarChart3,
     group: 'AI Operations · 工程',
-    hiddenForRoles: ['VIEWER'],
+    hiddenForRoles: ENGINEERING_HIDDEN_ROLES,
   },
 
   // Analytics

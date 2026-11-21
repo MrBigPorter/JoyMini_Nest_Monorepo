@@ -68,14 +68,18 @@ AI Operations
 | 质量待办 | 只读 | ✅ | ✅ | 只读 |
 | 转人工队列 | 只读 | ✅ | ✅ | ✅ |
 | 运营洞察 | ✅ | ✅ | ✅ | ✅ |
-| AI Runtime | ❌ | ✅ | ✅ | 只读 |
-| 流程版本 | ❌ | ✅ | ✅ | 只读 |
-| 用量与成本 | ❌ | ✅ | ✅ | ✅ |
+| AI Runtime | ❌ | ✅ | ✅ | ❌ |
+| 流程版本 | ❌ | ✅ | ✅ | ❌ |
+| 用量与成本 | ❌ | ✅ | ✅ | ❌ |
 | 客户记忆 | ❌ | ✅ | ✅ | ❌ |
-| 安全事件 | ❌ | ✅ | ✅ | 只读 |
+| 安全事件 | ❌ | ✅ | ✅ | ❌ |
 | 会话上下文 | ❌ | ✅ | ✅ | ❌ |
+| 链路追踪 | ❌ | ✅ | ✅ | ❌ |
+| 问题分析 | ❌ | ✅ | ✅ | ❌ |
 
 > 2026-11-21 决策（118/120 优先）：VIEWER 隐藏整个 `AI Operations · 工程` 组，不再显示 Runtime/Flows/Usage/Security 的只读入口。聚合数据在今日运营与运营洞察查看。前端隐藏不是权限；后端 `RolesGuard` 仍是边界。
+>
+> 2026-11-21 决策（D-02）：EDITOR 同样隐藏整个 `AI Operations · 工程` 组。工程组读接口当前只允许 SUPER_ADMIN / ADMIN，EDITOR 调用 Runtime/Flows/Usage/Memory/Security/Context/Traces/Analysis 都会 403；保持“导航可见 = 接口可读”，不做逐页放行。若后续要开放某个工程页，先给对应接口补 `Role.EDITOR` 与测试，再从 `routes/index.ts` 的 `ENGINEERING_HIDDEN_ROLES` 中移除。今天的聚合数据仍从今日运营 / 运营洞察查看。
 
 ## 3. 页面模板
 

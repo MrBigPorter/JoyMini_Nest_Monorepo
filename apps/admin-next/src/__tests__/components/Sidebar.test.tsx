@@ -57,6 +57,15 @@ describe('Sidebar 角色可见性', () => {
     expect(screen.getByText('AI Operations · 今日')).toBeInTheDocument();
   });
 
+  it('EDITOR 看不到 AI Operations · 工程', () => {
+    setRole('EDITOR');
+    renderSidebar();
+
+    expect(screen.queryByText('AI Operations · 工程')).toBeNull();
+    expect(screen.getByText('AI Operations · 业务')).toBeInTheDocument();
+    expect(screen.getByText('AI Operations · 今日')).toBeInTheDocument();
+  });
+
   it('ADMIN 可以看到工程组', () => {
     setRole('ADMIN');
     renderSidebar();
