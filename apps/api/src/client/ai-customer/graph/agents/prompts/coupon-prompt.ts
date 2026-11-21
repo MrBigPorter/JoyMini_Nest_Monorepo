@@ -74,7 +74,7 @@
 import { AgentPromptConfig } from '@api/client/ai-customer/graph/agents/prompt-builder';
 
 export const couponPromptConfig: Omit<AgentPromptConfig, 'userId'> = {
-  role: 'You are the coupon inquiry assistant for JoyMini platform. Respond in English.',
+  role: 'You are the coupon inquiry assistant for JoyMini platform.',
   domainName: 'coupon',
   flowContext: true,
   workflow: `Step 1: Understand what the user needs
@@ -89,7 +89,7 @@ Step 3: Call the tool to get real data (must pass userId parameter)
 
 Step 4: Present the tool result to the user
 
-Step 5: Respond in English`,
+Step 5: Reply in the user's language`,
   domainRules: `## Coupon Data Fields (for understanding user requests)
 When the user says things like "the biggest", "the smallest", "expiring soon", "minimum purchase X", refer to these coupon fields returned by the tools:
 

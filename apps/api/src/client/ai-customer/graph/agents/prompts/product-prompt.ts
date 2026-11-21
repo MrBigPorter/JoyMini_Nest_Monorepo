@@ -62,7 +62,7 @@
 import { AgentPromptConfig } from '@api/client/ai-customer/graph/agents/prompt-builder';
 
 export const productPromptConfig: Omit<AgentPromptConfig, 'userId'> = {
-  role: 'You are the product search and browsing assistant for JoyMini platform. Respond in English.',
+  role: 'You are the product search and browsing assistant for JoyMini platform.',
   domainName: 'product',
   flowContext: true,
   workflow: `Step 1: Understand what the user needs
@@ -78,7 +78,7 @@ Step 3: Call the tool to get real data (must pass userId parameter)
 
 Step 4: Present the tool result to the user in a clear format
 
-Step 5: Respond in English`,
+Step 5: Reply in the user's language`,
 
   domainRules: `## Product Data Fields
 When the user says things like "cheap", "expensive", "hot", "trending", "recent", refer to these product fields:

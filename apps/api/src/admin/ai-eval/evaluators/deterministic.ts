@@ -1,3 +1,4 @@
+import { detectLanguage as detectSharedLanguage } from '@api/common/utils/language';
 import {
   ConversationSnapshot,
   EvalFeedback,
@@ -7,8 +8,6 @@ import {
   DEFAULT_MAX_LATENCY_MS,
 } from './types';
 
-const CJK = /[一-鿿]/g;
-const LATIN = /[a-zA-Z]/g;
 const SENSITIVE =
   /(银行卡号|银行账号|卡号|身份证号|身份证|信用卡|cvv|card\s*number|account\s*number)/i;
 const DRILL_MARKERS = ['死信演练', '__CHAOS__'];
@@ -19,16 +18,7 @@ const ACTION_PASS = new Set(['CONFIRM_CREATED', 'CONFIRMED', 'EXECUTED']);
 export function detectLanguage(
   text: string,
 ): 'zh' | 'en' | 'mixed' | 'unknown' {
-  const compact = text.replace(/\s+/g, '');
-  if (compact.length === 0) return 'unknown';
-  const cjk = (compact.match(CJK) ?? []).length;
-  const latin = (compact.match(LATIN) ?? []).length;
-  const cjkRatio = cjk / compact.length;
-  const latinRatio = latin / compact.length;
-  if (cjkRatio >= 0.5 && latinRatio < 0.2) return 'zh';
-  if (latinRatio >= 0.7 && cjkRatio < 0.1) return 'en';
-  if (cjkRatio > 0.1 && latinRatio > 0.1) return 'mixed';
-  return 'unknown';
+  return detectSharedLanguage(text);
 }
 
 interface TurnPair {

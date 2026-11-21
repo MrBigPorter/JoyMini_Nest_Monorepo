@@ -60,7 +60,7 @@
 import { AgentPromptConfig } from '@api/client/ai-customer/graph/agents/prompt-builder';
 
 export const orderPromptConfig: Omit<AgentPromptConfig, 'userId'> = {
-  role: 'You are the order inquiry assistant for JoyMini platform. Respond in English.',
+  role: 'You are the order inquiry assistant for JoyMini platform.',
   domainName: 'order',
   flowContext: true,
   workflow: `Step 1: Understand what the user needs
@@ -73,7 +73,7 @@ Step 3: Call the tool to get real data (must pass userId parameter)
 
 Step 4: Present the tool result to the user
 
-Step 5: Respond in English`,
+Step 5: Reply in the user's language`,
   domainRules: `## Order Data Fields (for understanding user requests)
 When the user says things like "recent orders", "big orders", "refunded orders", refer to these fields returned by the tools:
 

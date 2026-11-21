@@ -71,7 +71,7 @@
 import { AgentPromptConfig } from '@api/client/ai-customer/graph/agents/prompt-builder';
 
 export const luckyPromptConfig: Omit<AgentPromptConfig, 'userId'> = {
-  role: 'You are the lucky draw and flash sale assistant for JoyMini platform. Respond in English.',
+  role: 'You are the lucky draw and flash sale assistant for JoyMini platform.',
   domainName: 'lucky-draw',
   flowContext: true,
   workflow: `Step 1: Understand what the user needs

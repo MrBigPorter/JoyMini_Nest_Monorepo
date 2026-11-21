@@ -39,6 +39,7 @@ import { BaseMessage, SystemMessage } from '@langchain/core/messages';
 import { Logger } from '@nestjs/common';
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { AgentPromptConfig } from '@api/client/ai-customer/graph/agents/prompt-builder';
+import { replyLanguageInstruction } from '@api/common/utils/language';
 import { buildAgentPrompt } from '@api/client/ai-customer/graph/agents/prompt-builder';
 import {
   buildInitialMessages,
@@ -163,13 +164,32 @@ export async function runStandardAgent(
   // ③ Prompt — 构建系统提示词 + 初始消息
   // flowContext 由 promptConfig 声明（order/wallet/kyc 等需要），
   // 不再在这里强制关闭；当前值来自 accumulator，第二轮能看到第一轮状态。
-  const systemPrompt = buildAgentPrompt({
+  const lastHuman = [...opts.messages]
+    .reverse()
+    .find(
+      (message) =>
+        message._getType?.() === 'human' || message.type === 'human',
+    );
+  const lastHumanText =
+    typeof lastHuman?.content === 'string'
+      ? lastHuman.content
+      : Array.isArray(lastHuman?.content)
+        ? lastHuman.content
+            .map((part: any) =>
+              typeof part === 'string' ? part : String(part?.text ?? ''),
+            )
+            .join(' ')
+        : '';
+
+  const systemPrompt = `${buildAgentPrompt({
     ...opts.promptConfig,
     userId: opts.userId,
     flowType: opts.flowDataAccumulator?.flowType ?? opts.promptConfig.flowType,
     flowStatus:
       opts.flowDataAccumulator?.flowStatus ?? opts.promptConfig.flowStatus,
-  });
+  })}
+
+${replyLanguageInstruction(lastHumanText)}`;
   // 结构化摘要作为独立 system 消息注入：不写进 state.messages，
   // 下一轮不会伪装成用户/AI 原话重复出现。
   const summary = formatContextSummary(opts.contextState, opts.pendingConfirm);

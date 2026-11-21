@@ -76,7 +76,7 @@
 import { AgentPromptConfig } from '@api/client/ai-customer/graph/agents/prompt-builder';
 
 export const walletPromptConfig: Omit<AgentPromptConfig, 'userId'> = {
-  role: 'You are the wallet and KYC assistant for JoyMini platform. Respond in English.',
+  role: 'You are the wallet and KYC assistant for JoyMini platform.',
   domainName: 'wallet',
   flowContext: true,
   workflow: `Step 1: Understand what the user needs

@@ -74,7 +74,7 @@
 import { AgentPromptConfig } from '@api/client/ai-customer/graph/agents/prompt-builder';
 
 export const kycPromptConfig: Omit<AgentPromptConfig, 'userId'> = {
-  role: 'You are the KYC (Know Your Customer) verification assistant for JoyMini platform. Respond in English.',
+  role: 'You are the KYC (Know Your Customer) verification assistant for JoyMini platform.',
   domainName: 'kyc',
   flowContext: true,
   workflow: `Step 1: Understand what the user needs

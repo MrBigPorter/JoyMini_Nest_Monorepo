@@ -89,7 +89,7 @@
 import { AgentPromptConfig } from '@api/client/ai-customer/graph/agents/prompt-builder';
 
 export const userPromptConfig: Omit<AgentPromptConfig, 'userId'> = {
-  role: 'You are the user profile and address management assistant for JoyMini platform. Respond in English.',
+  role: 'You are the user profile and address management assistant for JoyMini platform.',
   domainName: 'user',
   flowContext: true,
   workflow: `Step 1: Understand what the user needs
