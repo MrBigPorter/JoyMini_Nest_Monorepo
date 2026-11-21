@@ -19,6 +19,61 @@ export type EvalMode = 'STORED' | 'LIVE';
 /** 注入令牌：避免评测服务直接依赖客服 graph 的庞大运行时依赖。 */
 export const AI_EVAL_LIVE_AI = 'AI_EVAL_LIVE_AI';
 
+/**
+ * Token 估算口径（不是真实 usage）。
+ *
+ * testChat / judge 都不回传 token 用量，所以只能按字符数估算：
+ *   estimatedTokens = ceil((question.length + answer.length + overhead) / 4)
+ * - 4 字符 ≈ 1 token（中英混排的粗估，中文会低估）；
+ * - overhead 是固定指令/prompt 包装开销（字符），只覆盖 judge 提示词与
+ *   JSON 外壳，不含 RAG 检索上下文；
+ * - 估算只用于预算护栏和成本可见性，不能当作真实账单。
+ */
+export const EVAL_ESTIMATE_CHARS_PER_TOKEN = 4;
+export const EVAL_ESTIMATE_PROMPT_OVERHEAD_CHARS = 600;
+
+/** 单次 run 的默认 token 预算；AI_EVAL_RUN_TOKEN_BUDGET <= 0 时关闭护栏。 */
+export const DEFAULT_EVAL_RUN_TOKEN_BUDGET = 200_000;
+
+interface EvalUsageEstimate {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+}
+
+interface EvalRunUsage {
+  estimatedTokens: number;
+  promptTokens: number;
+  completionTokens: number;
+  budget: number;
+  exceeded: boolean;
+}
+
+/**
+ * 估算一条用例的 token 用量。
+ * 总量严格按需求公式一次取整；成本拆分用 prompt 部分，回答部分取差值。
+ */
+export function estimateEvalCaseTokens(
+  question: string,
+  answer: string | null | undefined,
+  overheadChars = EVAL_ESTIMATE_PROMPT_OVERHEAD_CHARS,
+): EvalUsageEstimate {
+  const questionLength = typeof question === 'string' ? question.length : 0;
+  const answerLength = typeof answer === 'string' ? answer.length : 0;
+  const promptTokens = Math.ceil(
+    (questionLength + overheadChars) / EVAL_ESTIMATE_CHARS_PER_TOKEN,
+  );
+  const totalTokens = Math.ceil(
+    (questionLength + answerLength + overheadChars) /
+      EVAL_ESTIMATE_CHARS_PER_TOKEN,
+  );
+  return {
+    promptTokens,
+    completionTokens: Math.max(0, totalTokens - promptTokens),
+    totalTokens,
+  };
+}
+
 /** LIVE 模式只需要 testChat 这一条真实 AI 入口。 */
 export interface LiveAiRunner {
   testChat(
@@ -353,11 +408,27 @@ export class AiEvalDatasetService {
     let solved = 0;
     let partial = 0;
     let unsolved = 0;
+    let budgetExceeded = false;
     const caseVerdicts: CaseVerdict[] = [];
+    const usage = this.createUsageAccumulator();
     try {
       for (const item of run.dataset.cases) {
         // 进入下一条用例前先看状态：取消后不再发起新的 AI/judge 调用。
-        if (!(await this.ensureRunning(runId))) return;
+        if (!(await this.ensureRunning(runId, usage))) return;
+
+        // 预算护栏：用「题目 + 历史回答 + 固定 prompt 开销」预估本条成本。
+        // LIVE 模式跑之前拿不到实际回答，只能用用例里保存的回答做代理。
+        const caseEstimate = estimateEvalCaseTokens(item.question, item.answer);
+        if (
+          usage.budget > 0 &&
+          usage.estimatedTokens + caseEstimate.totalTokens > usage.budget
+        ) {
+          budgetExceeded = true;
+          this.logger.warn(
+            `[eval] run ${runId} token budget exceeded: used=${usage.estimatedTokens}, next=${caseEstimate.totalTokens}, budget=${usage.budget}`,
+          );
+          break;
+        }
 
         const started = Date.now();
         const expectTask = this.resolveExpectation(item);
@@ -403,8 +474,14 @@ export class AiEvalDatasetService {
               pendingConfirm,
             });
 
+        // 已经发生的 AI/judge 调用要计入本 run；LIVE 用实际回答修正估算。
+        this.addUsage(
+          usage,
+          estimateEvalCaseTokens(item.question, actualAnswer ?? answer),
+        );
+
         // 判分期间可能已被取消：取消后丢弃这条结果，不再写库。
-        if (!(await this.ensureRunning(runId))) return;
+        if (!(await this.ensureRunning(runId, usage))) return;
 
         if (verdict.verdict === 'solved') solved += 1;
         else if (verdict.verdict === 'partial') partial += 1;
@@ -453,6 +530,27 @@ export class AiEvalDatasetService {
             ),
           );
       }
+
+      // 预算超限：停止后续用例并落 FAILED。条件更新保证 CANCELLED 优先。
+      if (budgetExceeded) {
+        usage.exceeded = true;
+        const failed = await this.prisma.aiEvalRun.updateMany({
+          where: { id: runId, status: 'RUNNING' },
+          data: {
+            status: 'FAILED',
+            finishedAt: new Date(),
+            summary: {
+              mode,
+              baselineRunId,
+              error: 'token budget exceeded',
+              usage: this.buildUsageSummary(usage),
+            },
+          },
+        });
+        if (failed.count === 0) await this.ensureRunning(runId, usage);
+        return;
+      }
+
       const total = run.dataset.cases.length;
       const passRate = total > 0 ? Number((solved / total).toFixed(3)) : 0;
       // 条件更新：若最后一条用例期间被取消，不要把 CANCELLED 覆盖回 COMPLETED。
@@ -471,10 +569,11 @@ export class AiEvalDatasetService {
             passRate,
             caseVerdicts,
             baseline,
+            usage,
           }),
         },
       });
-      if (completed.count === 0) await this.ensureRunning(runId);
+      if (completed.count === 0) await this.ensureRunning(runId, usage);
     } catch (err: any) {
       // 条件更新：取消优先于失败，避免把 CANCELLED 覆盖成 FAILED。
       await this.prisma.aiEvalRun
@@ -487,6 +586,7 @@ export class AiEvalDatasetService {
               mode,
               baselineRunId,
               error: String(err?.message ?? err).slice(0, 300),
+              usage: this.buildUsageSummary(usage),
             },
           },
         })
@@ -505,26 +605,85 @@ export class AiEvalDatasetService {
    * - CANCELLED：补齐 finishedAt/summary 后停止；
    * - 其他终态或行已不存在：静默停止（不覆盖已有终态）。
    */
-  private async ensureRunning(runId: string): Promise<boolean> {
+  private async ensureRunning(
+    runId: string,
+    usage?: EvalRunUsage,
+  ): Promise<boolean> {
     const current = await this.prisma.aiEvalRun.findUnique({
       where: { id: runId },
       select: { status: true },
     });
     if (!current) return false;
     if (current.status === 'RUNNING') return true;
-    if (current.status === 'CANCELLED') await this.markCancelled(runId);
+    if (current.status === 'CANCELLED') await this.markCancelled(runId, usage);
     return false;
   }
 
-  private async markCancelled(runId: string): Promise<void> {
+  private async markCancelled(
+    runId: string,
+    usage?: EvalRunUsage,
+  ): Promise<void> {
+    // 取消发生在 executeRun 内时会把已消耗的估算一并落库；
+    // 外部 cancelRun 没有内存累计值，只写 cancelled 标记。
+    const summary: Record<string, any> = { cancelled: true };
+    if (usage) summary.usage = this.buildUsageSummary(usage);
+    // 只补 CANCELLED 行；避免极端竞态下把刚写好的 COMPLETED/FAILED 覆盖掉。
     await this.prisma.aiEvalRun.updateMany({
-      where: { id: runId },
+      where: { id: runId, status: 'CANCELLED' },
       data: {
         status: 'CANCELLED',
         finishedAt: new Date(),
-        summary: { cancelled: true },
+        summary,
       },
     });
+  }
+
+  private createUsageAccumulator(): EvalRunUsage {
+    return {
+      estimatedTokens: 0,
+      promptTokens: 0,
+      completionTokens: 0,
+      budget: this.resolveTokenBudget(),
+      exceeded: false,
+    };
+  }
+
+  /** 默认 200k；AI_EVAL_RUN_TOKEN_BUDGET <= 0 表示关闭预算护栏。 */
+  private resolveTokenBudget(): number {
+    const raw = Number(process.env.AI_EVAL_RUN_TOKEN_BUDGET);
+    if (!Number.isFinite(raw)) return DEFAULT_EVAL_RUN_TOKEN_BUDGET;
+    return raw <= 0 ? 0 : Math.floor(raw);
+  }
+
+  private addUsage(usage: EvalRunUsage, estimate: EvalUsageEstimate): void {
+    usage.estimatedTokens += estimate.totalTokens;
+    usage.promptTokens += estimate.promptTokens;
+    usage.completionTokens += estimate.completionTokens;
+  }
+
+  /**
+   * 只写 run.summary.usage，不写 ai_usage_daily：评测没有真实用户，
+   * 记进用户用量会污染运营报表。价格未配置时 costConfigured=false。
+   */
+  private buildUsageSummary(usage: EvalRunUsage): Record<string, any> {
+    const inputPer1M = this.numberEnv('AI_PRICE_INPUT_PER_1M', 0);
+    const outputPer1M = this.numberEnv('AI_PRICE_OUTPUT_PER_1M', 0);
+    const costConfigured = inputPer1M > 0 || outputPer1M > 0;
+    const cost =
+      (usage.promptTokens / 1_000_000) * inputPer1M +
+      (usage.completionTokens / 1_000_000) * outputPer1M;
+    return {
+      estimatedTokens: usage.estimatedTokens,
+      budget: usage.budget,
+      exceeded: usage.exceeded,
+      estimatedCostUsd: costConfigured ? Number(cost.toFixed(6)) : 0,
+      costConfigured,
+    };
+  }
+
+  private numberEnv(key: string, fallback: number): number {
+    const value = Number(process.env[key]);
+    return Number.isFinite(value) ? value : fallback;
   }
 
   /**
@@ -623,6 +782,7 @@ export class AiEvalDatasetService {
     passRate: number;
     caseVerdicts: CaseVerdict[];
     baseline: BaselineSnapshot | null;
+    usage: EvalRunUsage;
   }): Record<string, any> {
     const summary: Record<string, any> = {
       total: input.total,
@@ -632,6 +792,7 @@ export class AiEvalDatasetService {
       passRate: input.passRate,
       mode: input.mode,
       baselineRunId: input.baselineRunId,
+      usage: this.buildUsageSummary(input.usage),
     };
     if (!input.baselineRunId || !input.baseline) return summary;
 

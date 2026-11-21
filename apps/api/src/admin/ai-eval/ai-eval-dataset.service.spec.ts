@@ -1,5 +1,9 @@
 import { BadRequestException } from '@nestjs/common';
-import { AiEvalDatasetService } from './ai-eval-dataset.service';
+import {
+  AiEvalDatasetService,
+  DEFAULT_EVAL_RUN_TOKEN_BUDGET,
+  estimateEvalCaseTokens,
+} from './ai-eval-dataset.service';
 
 /**
  * 评测执行链路单测：
@@ -96,6 +100,12 @@ function summaryOf(prisma: ReturnType<typeof makeService>['prisma']) {
 describe('AiEvalDatasetService', () => {
   beforeEach(() => {
     process.env.AI_EVAL_LIVE_USER_ID = 'eval-test-user';
+  });
+
+  afterEach(() => {
+    delete process.env.AI_EVAL_RUN_TOKEN_BUDGET;
+    delete process.env.AI_PRICE_INPUT_PER_1M;
+    delete process.env.AI_PRICE_OUTPUT_PER_1M;
   });
 
   it('STORED 保持历史回答判定，并记录 judge 元数据', async () => {
@@ -417,7 +427,7 @@ describe('AiEvalDatasetService', () => {
       expect.objectContaining({
         data: expect.objectContaining({
           status: 'CANCELLED',
-          summary: { cancelled: true },
+          summary: expect.objectContaining({ cancelled: true }),
         }),
       }),
     );
@@ -444,7 +454,158 @@ describe('AiEvalDatasetService', () => {
       expect.objectContaining({
         data: expect.objectContaining({
           status: 'CANCELLED',
-          summary: { cancelled: true },
+          summary: expect.objectContaining({ cancelled: true }),
+        }),
+      }),
+    );
+    // 判分已经发生的 token 仍要记入取消快照。
+    expect(summaryOf(prisma).usage).toMatchObject({
+      estimatedTokens: estimateEvalCaseTokens('q1', 'a1').totalTokens,
+      exceeded: false,
+    });
+  });
+
+  it('超出 token 预算时停止后续用例并落 FAILED', async () => {
+    process.env.AI_EVAL_RUN_TOKEN_BUDGET = '200';
+    const { service, prisma, judge } = makeService();
+    const cases = [
+      makeCase('c1', 'q1', 'a1'),
+      makeCase('c2', 'q2', 'a2'),
+    ];
+    prisma.aiEvalRun.findUnique.mockResolvedValue(makeRun('STORED', cases));
+    judge.judge.mockResolvedValue(verdictOf('solved'));
+
+    const oneCase = estimateEvalCaseTokens('q1', 'a1').totalTokens;
+    expect(oneCase).toBeLessThanOrEqual(200);
+    expect(oneCase * 2).toBeGreaterThan(200);
+
+    await service.executeRun('run-1');
+
+    // 第一条正常判分，第二条在发调前被预算拦下。
+    expect(judge.judge).toHaveBeenCalledTimes(1);
+    expect(prisma.aiEvalResult.create).toHaveBeenCalledTimes(1);
+    expect(prisma.aiEvalRun.updateMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        where: { id: 'run-1', status: 'RUNNING' },
+        data: expect.objectContaining({
+          status: 'FAILED',
+          summary: expect.objectContaining({
+            error: 'token budget exceeded',
+            usage: {
+              estimatedTokens: oneCase,
+              budget: 200,
+              exceeded: true,
+              estimatedCostUsd: 0,
+              costConfigured: false,
+            },
+          }),
+        }),
+      }),
+    );
+  });
+
+  it('预算内完成时把 usage 写入 COMPLETED summary', async () => {
+    process.env.AI_EVAL_RUN_TOKEN_BUDGET = '10000';
+    const { service, prisma, judge } = makeService();
+    prisma.aiEvalRun.findUnique.mockResolvedValue(
+      makeRun('STORED', [makeCase('c1', 'q1', 'a1')]),
+    );
+    judge.judge.mockResolvedValue(verdictOf('solved'));
+
+    await service.executeRun('run-1');
+
+    expect(summaryOf(prisma)).toMatchObject({
+      mode: 'STORED',
+      total: 1,
+      solved: 1,
+      usage: {
+        estimatedTokens: estimateEvalCaseTokens('q1', 'a1').totalTokens,
+        budget: 10000,
+        exceeded: false,
+        estimatedCostUsd: 0,
+        costConfigured: false,
+      },
+    });
+    expect(prisma.aiEvalRun.updateMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'COMPLETED' }),
+      }),
+    );
+  });
+
+  it('配置价格时写入 estimatedCostUsd 与 costConfigured', async () => {
+    process.env.AI_PRICE_INPUT_PER_1M = '1';
+    process.env.AI_PRICE_OUTPUT_PER_1M = '2';
+    const { service, prisma, judge } = makeService();
+    const answer = 'a'.repeat(40);
+    prisma.aiEvalRun.findUnique.mockResolvedValue(
+      makeRun('STORED', [makeCase('c1', 'q1', answer)]),
+    );
+    judge.judge.mockResolvedValue(verdictOf('solved'));
+
+    await service.executeRun('run-1');
+
+    const estimate = estimateEvalCaseTokens('q1', answer);
+    expect(estimate.completionTokens).toBeGreaterThan(0);
+    const expectedCost = Number(
+      (
+        (estimate.promptTokens / 1_000_000) * 1 +
+        (estimate.completionTokens / 1_000_000) * 2
+      ).toFixed(6),
+    );
+    expect(summaryOf(prisma).usage).toMatchObject({
+      estimatedTokens: estimate.totalTokens,
+      budget: DEFAULT_EVAL_RUN_TOKEN_BUDGET,
+      costConfigured: true,
+      estimatedCostUsd: expectedCost,
+    });
+  });
+
+  it('AI_EVAL_RUN_TOKEN_BUDGET <= 0 时关闭预算护栏', async () => {
+    process.env.AI_EVAL_RUN_TOKEN_BUDGET = '0';
+    const { service, prisma, judge } = makeService();
+    prisma.aiEvalRun.findUnique.mockResolvedValue(
+      makeRun('STORED', [
+        makeCase('c1', 'q1', 'a1'),
+        makeCase('c2', 'q2', 'a2'),
+      ]),
+    );
+    judge.judge.mockResolvedValue(verdictOf('solved'));
+
+    await service.executeRun('run-1');
+
+    expect(judge.judge).toHaveBeenCalledTimes(2);
+    expect(summaryOf(prisma)).toMatchObject({
+      usage: { budget: 0, exceeded: false },
+    });
+  });
+
+  it('预算超限与取消竞争时保持 CANCELLED', async () => {
+    process.env.AI_EVAL_RUN_TOKEN_BUDGET = '200';
+    const { service, prisma, judge } = makeService();
+    const cases = [
+      makeCase('c1', 'q1', 'a1'),
+      makeCase('c2', 'q2', 'a2'),
+    ];
+    prisma.aiEvalRun.findUnique
+      .mockResolvedValueOnce(makeRun('STORED', cases))
+      .mockResolvedValueOnce({ status: 'RUNNING' })
+      .mockResolvedValueOnce({ status: 'RUNNING' })
+      .mockResolvedValueOnce({ status: 'RUNNING' })
+      .mockResolvedValueOnce({ status: 'CANCELLED' });
+    prisma.aiEvalRun.updateMany
+      // FAILED 条件更新输给并发取消
+      .mockResolvedValueOnce({ count: 0 })
+      .mockResolvedValue({ count: 1 });
+    judge.judge.mockResolvedValue(verdictOf('solved'));
+
+    await service.executeRun('run-1');
+
+    expect(prisma.aiEvalRun.updateMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: 'CANCELLED',
+          summary: expect.objectContaining({ cancelled: true }),
         }),
       }),
     );

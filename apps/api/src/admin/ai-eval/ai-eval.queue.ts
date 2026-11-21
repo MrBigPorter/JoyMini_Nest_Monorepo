@@ -6,7 +6,8 @@
  *   - 同一 run 用 run.id 作 jobId，重复投递只会保留一个 job；
  *   - 失败由 executeRun 落 FAILED + summary.error，不走无意义的重试。
  *
- * 尚未实现（后续任务）：token/成本预算与 usage 记账；本任务只做作业化与取消。
+ * 预算与 usage 估算在 executeRun 内完成：testChat/judge 不回传真实 usage，
+ * 因此只按字符数估算并写入 run.summary.usage（详见 ai-eval-dataset.service.ts）。
  */
 export const AI_EVAL_QUEUE = 'ai-eval';
 
