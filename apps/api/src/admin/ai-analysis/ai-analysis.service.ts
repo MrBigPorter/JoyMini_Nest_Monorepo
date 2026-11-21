@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '@api/common/prisma/prisma.service';
+import { RedisLockService } from '@api/common/redis/redis-lock.service';
 
 export type ProblemEventType =
   | 'EXPLICIT_NEGATIVE'
@@ -41,77 +42,89 @@ interface MetricDraft {
   denominator: number;
 }
 
-const LOCK_KEY = 'ai-analysis-run';
-
 @Injectable()
 export class AiAnalysisService {
   private readonly logger = new Logger(AiAnalysisService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly locks: RedisLockService,
+  ) {}
 
   /** 手动/定时跑一个 UTC 日窗口；幂等，可重跑覆盖同一窗口。 */
   async runWindow(date?: string, createdBy?: string) {
     const window = this.resolveWindow(date);
-    const locked = await this.tryLock();
-    if (!locked) {
-      throw new ConflictException('Another analysis run is in progress');
-    }
     try {
-      const run = await this.prisma.aiAnalysisRun.upsert({
-        where: {
-          jobType_windowStart: {
-            jobType: 'EVENT_BUILD',
-            windowStart: window.start,
-          },
-        },
-        create: {
+      return await this.locks.runWithLock(
+        `ai:analysis:${window.start.toISOString()}`,
+        30 * 60 * 1000,
+        () => this.executeWindow(window, createdBy),
+        true,
+      );
+    } catch (err: any) {
+      if (String(err?.message ?? '').startsWith('Lock busy')) {
+        throw new ConflictException('Another analysis run is in progress');
+      }
+      throw err;
+    }
+  }
+
+  private async executeWindow(
+    window: { start: Date; end: Date },
+    createdBy?: string,
+  ) {
+    const run = await this.prisma.aiAnalysisRun.upsert({
+      where: {
+        jobType_windowStart: {
           jobType: 'EVENT_BUILD',
           windowStart: window.start,
-          windowEnd: window.end,
-          status: 'RUNNING',
-          metadata: { createdBy: createdBy ?? null },
         },
-        update: {
-          status: 'RUNNING',
-          startedAt: new Date(),
-          finishedAt: null,
-          error: null,
-          processed: 0,
-          createdEvents: 0,
+      },
+      create: {
+        jobType: 'EVENT_BUILD',
+        windowStart: window.start,
+        windowEnd: window.end,
+        status: 'RUNNING',
+        metadata: { createdBy: createdBy ?? null },
+      },
+      update: {
+        status: 'RUNNING',
+        startedAt: new Date(),
+        finishedAt: null,
+        error: null,
+        processed: 0,
+        createdEvents: 0,
+      },
+    });
+
+    try {
+      const events = await this.collectEvents(window.start, window.end);
+      await this.persistEvents(window.start, events);
+      const metrics = await this.collectMetrics(
+        window.start,
+        window.end,
+        events,
+      );
+      await this.persistMetrics(window.start, metrics);
+      return await this.prisma.aiAnalysisRun.update({
+        where: { id: run.id },
+        data: {
+          status: 'COMPLETED',
+          finishedAt: new Date(),
+          processed: events.length,
+          createdEvents: events.length,
         },
       });
-
-      try {
-        const events = await this.collectEvents(window.start, window.end);
-        await this.persistEvents(window.start, events);
-        const metrics = await this.collectMetrics(
-          window.start,
-          window.end,
-          events,
-        );
-        await this.persistMetrics(window.start, metrics);
-        return await this.prisma.aiAnalysisRun.update({
-          where: { id: run.id },
-          data: {
-            status: 'COMPLETED',
-            finishedAt: new Date(),
-            processed: events.length,
-            createdEvents: events.length,
-          },
-        });
-      } catch (err: any) {
-        await this.prisma.aiAnalysisRun.update({
-          where: { id: run.id },
-          data: {
-            status: 'FAILED',
-            finishedAt: new Date(),
-            error: String(err?.message ?? err).slice(0, 1000),
-          },
-        });
-        throw err;
-      }
-    } finally {
-      await this.unlock();
+    } catch (err: any) {
+      await this.prisma.aiAnalysisRun.update({
+        where: { id: run.id },
+        data: {
+          status: 'FAILED',
+          finishedAt: new Date(),
+          error: String(err?.message ?? err).slice(0, 1000),
+        },
+      });
+      throw err;
     }
   }
 
@@ -124,9 +137,7 @@ export class AiAnalysisService {
     try {
       await this.runWindow(yesterday, 'system');
     } catch (err: any) {
-      this.logger.warn(
-        `[analysis] daily run failed: ${err?.message ?? err}`,
-      );
+      this.logger.warn(`[analysis] daily run failed: ${err?.message ?? err}`);
     }
   }
 
@@ -138,9 +149,7 @@ export class AiAnalysisService {
   }
 
   async listMetrics(date?: string) {
-    const window = date
-      ? this.resolveWindow(date)
-      : await this.latestWindow();
+    const window = date ? this.resolveWindow(date) : await this.latestWindow();
     if (!window) return { windowStart: null, metrics: [] };
     const metrics = await this.prisma.aiMetricWindow.findMany({
       where: { windowStart: window.start, windowType: 'DAY' },
@@ -198,32 +207,7 @@ export class AiAnalysisService {
     return latest ? { start: latest.windowStart } : null;
   }
 
-  private async tryLock(): Promise<boolean> {
-    try {
-      const rows = await this.prisma.$queryRaw<Array<{ locked: boolean }>>`
-        SELECT pg_try_advisory_lock(hashtext(${LOCK_KEY})) AS locked
-      `;
-      return rows[0]?.locked === true;
-    } catch (err: any) {
-      this.logger.warn(`[analysis] lock unavailable: ${err?.message ?? err}`);
-      return false;
-    }
-  }
-
-  private async unlock(): Promise<void> {
-    try {
-      await this.prisma.$queryRaw`
-        SELECT pg_advisory_unlock(hashtext(${LOCK_KEY}))
-      `;
-    } catch {
-      // 连接断开时锁会随会话释放，不需要额外处理。
-    }
-  }
-
-  private async collectEvents(
-    start: Date,
-    end: Date,
-  ): Promise<EventDraft[]> {
+  private async collectEvents(start: Date, end: Date): Promise<EventDraft[]> {
     const events: EventDraft[] = [];
 
     const feedback = await this.prisma.aiAnswerFeedback.findMany({
@@ -451,20 +435,29 @@ export class AiAnalysisService {
     end: Date,
     events: EventDraft[],
   ): Promise<MetricDraft[]> {
-    const [replies, conversations, tracesByIntent] = await Promise.all([
-      this.prisma.aiTrace.count({ where: { createdAt: { gte: start, lt: end } } }),
-      this.prisma.conversation.count({
-        where: { createdAt: { gte: start, lt: end } },
-      }),
-      this.prisma.aiTrace.groupBy({
-        by: ['intent'],
-        where: {
-          createdAt: { gte: start, lt: end },
-          intent: { not: null },
-        },
-        _count: { id: true },
-      }),
-    ]);
+    const [replies, ragEligible, conversations, tracesByIntent] =
+      await Promise.all([
+        this.prisma.aiTrace.count({
+          where: { createdAt: { gte: start, lt: end } },
+        }),
+        this.prisma.aiTrace.count({
+          where: {
+            createdAt: { gte: start, lt: end },
+            spans: { some: { type: 'rag' } },
+          },
+        }),
+        this.prisma.conversation.count({
+          where: { createdAt: { gte: start, lt: end } },
+        }),
+        this.prisma.aiTrace.groupBy({
+          by: ['intent'],
+          where: {
+            createdAt: { gte: start, lt: end },
+            intent: { not: null },
+          },
+          _count: { id: true },
+        }),
+      ]);
 
     const counts = this.countByType(events);
     const rows: MetricDraft[] = [];
@@ -474,11 +467,18 @@ export class AiAnalysisService {
       dimensionValue: string,
       numerator: number,
       denominator: number,
-    ) => rows.push({ metric, dimension, dimensionValue, numerator, denominator });
+    ) =>
+      rows.push({ metric, dimension, dimensionValue, numerator, denominator });
 
     add('problem_rate', 'ALL', 'ALL', events.length, replies);
     add('service_error_rate', 'ALL', 'ALL', counts.SERVICE_ERROR ?? 0, replies);
-    add('zero_hit_rate', 'ALL', 'ALL', counts.ZERO_HIT ?? 0, replies);
+    add(
+      'zero_hit_rate',
+      'ALL',
+      'ALL',
+      counts.ZERO_HIT ?? 0,
+      ragEligible,
+    );
     add(
       'explicit_negative_rate',
       'ALL',
@@ -542,7 +542,9 @@ export class AiAnalysisService {
     });
   }
 
-  private countByType(events: EventDraft[]): Partial<Record<ProblemEventType, number>> {
+  private countByType(
+    events: EventDraft[],
+  ): Partial<Record<ProblemEventType, number>> {
     const counts: Partial<Record<ProblemEventType, number>> = {};
     for (const event of events) {
       counts[event.type] = (counts[event.type] ?? 0) + 1;
