@@ -1,4 +1,5 @@
 import { detectLanguage as detectSharedLanguage } from '@api/common/utils/language';
+import { isSensitiveRequest } from '@api/common/utils/sensitive-content';
 import {
   ConversationSnapshot,
   EvalFeedback,
@@ -8,8 +9,6 @@ import {
   DEFAULT_MAX_LATENCY_MS,
 } from './types';
 
-const SENSITIVE =
-  /(银行卡号|银行账号|卡号|身份证号|身份证|信用卡|cvv|card\s*number|account\s*number)/i;
 const DRILL_MARKERS = ['死信演练', '__CHAOS__'];
 const ACTION_INTENT =
   /(我要|我想|帮我|给我|可以帮我)[^。！？]{0,10}(领|领取|兑换|提现|下单|购买|退款)/;
@@ -170,12 +169,12 @@ export function evaluateSensitiveRequest(
     if (!ai) {
       return statusFeedback('sensitive_request', turn, 'unknown', '无 AI 回复');
     }
-    const match = SENSITIVE.exec(ai.content);
+    const hit = isSensitiveRequest(ai.content);
     return statusFeedback(
       'sensitive_request',
       turn,
-      match ? 'fail' : 'pass',
-      match ? `命中敏感词：${match[0]}` : '未索要敏感信息',
+      hit ? 'fail' : 'pass',
+      hit ? '命中敏感信息请求' : '未索要敏感信息',
     );
   });
 }

@@ -65,6 +65,7 @@ import {
   TraceService,
 } from '@api/admin/ai-traces/ai-traces.service';
 import { degradeToHuman } from './ai-failure-handler';
+import { isSensitiveRequest } from '@api/common/utils/sensitive-content';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 
@@ -840,6 +841,32 @@ export class AiCustomerService implements OnModuleDestroy {
     const newMessages = (finalState?.values?.messages ?? []).slice(prevCount);
     const ragSources =
       (finalState?.values?.ragSources as RagCitation[] | undefined) ?? [];
+
+    // 运行时安全闸门：AI 只要在聊天里索要银行卡/身份证/密码，就不允许把
+    // 这句原文发给用户；改写成安全话术并转人工。
+    const SAFE_SENSITIVE_REPLY =
+      '为了你的账户安全，请不要在聊天中提供银行卡号、身份证或密码。提现请到 App「我的 → 钱包 → 提现」操作，或由人工客服协助。';
+    for (let index = newMessages.length - 1; index >= 0; index -= 1) {
+      const candidate = newMessages[index];
+      if (
+        candidate?.type === 'ai' &&
+        isSensitiveRequest(candidate.content)
+      ) {
+        newMessages[index] = {
+          type: 'ai',
+          content: SAFE_SENSITIVE_REPLY,
+        };
+        if (finalState?.values) {
+          finalState.values.transferToHuman = true;
+          finalState.values.transferReason = 'sensitive_request';
+          finalState.values.pendingConfirm = null;
+        }
+        this.logger.warn(
+          `[chatStream] sensitive request blocked: conv=${conversationId ?? 'n/a'}, action=transfer`,
+        );
+        break;
+      }
+    }
 
     // 新会话第一次进入某个 flowType 时绑定最新定义。
     // 已绑定的旧会话不会跟随升级；绑定失败只记日志，不影响本轮回复。

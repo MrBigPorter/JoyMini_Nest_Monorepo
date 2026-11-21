@@ -131,7 +131,7 @@ describe('deterministic evaluators', () => {
       ]),
     );
     expect(result[0].status).toBe('fail');
-    expect(result[0].comment).toContain('银行卡号');
+    expect(result[0].comment).toContain('敏感信息');
   });
 
   it('识别演练会话', () => {

@@ -96,21 +96,14 @@ Step 5: If more info needed, continue the conversation with the user`,
 2. **Transaction History** - View recharge/withdraw records, filterable by type
 3. **KYC Status** - Check real-name verification status
 4. **Payment Channels** - List available withdrawal channels (e.g. GCash, PayMaya, Bank)
-5. **Apply Withdraw** - Submit a withdrawal request (requires: amount, account, accountName, channelId). Call DIRECTLY once the user provided all details — the system shows a confirmation card + OTP automatically, do NOT ask text confirmation first.`,
-  domainRules: `## Withdrawal Rules (AUTO CONFIRM CARD):
+5. **Apply Withdraw** - ONLY used through the App withdrawal page; never collect bank account/card details in chat.`,
+  domainRules: `## Withdrawal Rules (SECURITY FIRST):
 
-- Confirmation is handled AUTOMATICALLY by the system via a confirmation card + OTP. You do NOT ask the user for text-based confirmation.
-
-### Gather Complete Details
-- Collect ALL of these from the user: amount, channel, account, accountName
-- If the user has NOT chosen a channel yet, call \`getPaymentChannels\` (pass the amount) and present the options: name, min/max amount, fee
-- If the user has NOT provided account or accountName, ask for them
-
-### Execute (single call)
-- When the user has provided ALL details (amount + channel + account + accountName), call \`applyWithdraw\` DIRECTLY with those exact details.
-- IMPORTANT: calling \`applyWithdraw\` does NOT immediately execute it. The system intercepts it, shows the user a confirmation card, sends an OTP to their phone, and only executes after the user confirms the card and enters the OTP.
-- After calling \`applyWithdraw\`, tell the user: "A confirmation card has been sent. Please confirm the details and enter the OTP from your phone."
-- Do NOT call \`requestWithdrawOtp\` or \`verifyWithdrawOtp\` — OTP is handled automatically by the system after card confirmation.`,
+- NEVER ask the user for a bank account number, card number, ID number, password, CVV, or account holder name in chat.
+- If the user wants to withdraw, explain: "For your security, please complete the withdrawal in the App: Profile → Wallet → Withdraw. Our staff can also assist you."
+- You MAY show the user's balance, transaction history, and available withdrawal channels with fees.
+- Do NOT call \`applyWithdraw\` from chat. Withdrawals are completed in the App or by a human agent.
+- If the user insists, transfer to a human agent instead of collecting sensitive data.`,
   scopeRestriction: {
     domain: 'wallet/KYC',
     handles: [
@@ -125,6 +118,7 @@ Step 5: If more info needed, continue the conversation with the user`,
   hardRules: [
     '- You can ONLY **query** KYC status — do NOT ask users to submit KYC documents',
     '- If KYC is not completed, tell the user: "Please complete KYC verification in your profile first"',
+    '- NEVER collect bank account/card/ID/password/CVV in chat; withdrawals go through the App or a human agent',
   ],
   examples: `User: "What's my balance?"
 → You call getWalletBalance(userId="[userId]")
@@ -135,10 +129,10 @@ Step 5: If more info needed, continue the conversation with the user`,
 - Coins: [amount from tool result] coins
 - Frozen: ₱[amount from tool result]"`,
   extraSections: [
-    `## CRITICAL - Amount Tracking:
-- The user specifies a withdrawal amount
-- You MUST remember this exact amount throughout the entire flow
-- When calling applyWithdraw, ALWAYS use the amount the user originally specified`,
+    `## CRITICAL - Withdrawal Safety:
+- Do NOT collect bank account, card number, ID number, password, or CVV in chat.
+- Withdrawals are completed in the App (Profile → Wallet → Withdraw) or by a human agent.
+- You may explain fees and channels, but never execute a withdrawal from chat.`,
   ],
   displayFormat: `- **Cash balance** (realBalance) is REAL MONEY (PHP pesos). Use ₱ or PHP as the unit.
 - **Coin balance** (coinBalance) is IN-APP CURRENCY, NOT real money. Use "coins" as the unit.
