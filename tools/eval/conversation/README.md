@@ -55,6 +55,17 @@ DAILY_GATE=1 tools/eval/conversation/daily.sh
 门禁阈值（advisory，`--gate` 时阻断）：语言 ≥98%、answered ≥99%、latency ≥95%、
 trace ≥99%、sensitive 失败数 = 0、action ≥95%。
 
+模式：
+
+```bash
+run.sh --dataset ... --mode=shadow     # 只报告，永不非零退出
+run.sh --dataset ... --mode=advisory   # 报告，退出码 0（默认）
+run.sh --dataset ... --mode=blocking   # 不达标退出码 1
+```
+
+报告同时输出 `fairness`：按 language/intent/source 切片，每层 n≥30 才比较；
+层间差 >10 个百分点标记为需调查。
+
 
 ## 校验
 

@@ -22,13 +22,12 @@ fi
 cd "$ROOT"
 python3 tools/eval/validate.py --selection "$SELECTION"
 
+MODE="${DAILY_MODE:-advisory}"
 if [[ "${DAILY_GATE:-0}" == "1" ]]; then
-  tools/eval/conversation/run.sh \
-    --dataset "$SELECTION" \
-    --out-dir "$OUT_DIR" \
-    --gate
-else
-  tools/eval/conversation/run.sh \
-    --dataset "$SELECTION" \
-    --out-dir "$OUT_DIR"
+  MODE="blocking"
 fi
+
+tools/eval/conversation/run.sh \
+  --dataset "$SELECTION" \
+  --out-dir "$OUT_DIR" \
+  --mode="$MODE"

@@ -170,6 +170,13 @@ function buildMarkdown(
   results: ConversationResult[],
   aggregates: CountsByKey,
   gates: Array<{ key: string; label: string; ok: boolean; detail: string }>,
+  fairness: Array<{
+    dimension: string;
+    key: string;
+    spread: number | null;
+    flagged: boolean;
+    note: string;
+  }>,
   slices: Record<string, SliceCounts>,
   datasetVersion: string,
   runId: string,
@@ -201,6 +208,17 @@ function buildMarkdown(
   lines.push('|---|---|---|');
   for (const gate of gates) {
     lines.push(`| ${gate.label} | ${gate.ok ? 'PASS' : 'FAIL'} | ${gate.detail} |`);
+  }
+  lines.push('');
+
+  lines.push('## 公平性（层间差）');
+  lines.push('');
+  lines.push('| 维度 | key | 层间差 | 结论 |');
+  lines.push('|---|---|---:|---|');
+  for (const item of fairness) {
+    lines.push(
+      `| ${item.dimension} | ${item.key} | ${item.spread == null ? '—' : `${(item.spread * 100).toFixed(1)}pp`} | ${item.note} |`,
+    );
   }
   lines.push('');
 
@@ -352,6 +370,51 @@ async function main() {
     return { key, label: rule.label, ok, detail };
   });
   const gatePassed = gates.every((gate) => gate.ok);
+  const MIN_SLICE_N = 30;
+  const FAIRNESS_KEYS = ['language_match', 'answered', 'action_completed'];
+  const fairness = ['language', 'intent', 'source'].flatMap((dimension) =>
+    FAIRNESS_KEYS.map((key) => {
+      const values = Object.entries(slices[dimension] ?? {}).map(
+        ([value, byKey]) => {
+          const row = byKey[key];
+          const n = row ? row.pass + row.fail : 0;
+          return {
+            value,
+            n,
+            rate: n >= MIN_SLICE_N ? row?.rate ?? null : null,
+          };
+        },
+      );
+      const eligible = values.filter(
+        (item) => item.rate != null,
+      ) as Array<{ value: string; n: number; rate: number }>;
+      const spread =
+        eligible.length >= 2
+          ? Math.max(...eligible.map((item) => item.rate)) -
+            Math.min(...eligible.map((item) => item.rate))
+          : null;
+      return {
+        dimension,
+        key,
+        values,
+        spread,
+        flagged: spread != null && spread > 0.1,
+        note:
+          eligible.length < 2
+            ? '样本不足（每层 n>=30 才比较）'
+            : spread != null && spread > 0.1
+              ? '层间差 >10 个百分点，需调查'
+              : '未发现显著差异',
+      };
+    }),
+  );
+
+  const mode =
+    argValue('mode') ??
+    (args.includes('--gate') ? 'blocking' : 'advisory');
+  if (!['shadow', 'advisory', 'blocking'].includes(mode)) {
+    throw new Error(`invalid --mode: ${mode}`);
+  }
 
   const report = {
     runId,
@@ -373,6 +436,8 @@ async function main() {
     aggregates,
     gates,
     gatePassed,
+    mode,
+    fairness,
     slices,
     drillConversations: results.filter((result) => result.drill).map((r) => r.id),
     conversations: results,
@@ -390,6 +455,7 @@ async function main() {
       results,
       aggregates,
       gates,
+      fairness,
       slices,
       [...datasetVersions][0],
       runId,
@@ -401,12 +467,17 @@ async function main() {
   for (const [key, row] of Object.entries(aggregates)) {
     console.log(`  ${key}: ${formatRate(row)} unknown=${row.unknown}`);
   }
-  console.log(`[eval] gates: ${gatePassed ? 'PASS' : 'FAIL'} (advisory)`);
+  console.log(`[eval] gates: ${gatePassed ? 'PASS' : 'FAIL'} (${mode})`);
+  for (const item of fairness.filter((row) => row.flagged)) {
+    console.log(
+      `  FAIRNESS ${item.dimension}/${item.key}: spread=${(item.spread! * 100).toFixed(1)}pp`,
+    );
+  }
   for (const gate of gates) {
     console.log(`  ${gate.ok ? 'PASS' : 'FAIL'} ${gate.key}: ${gate.detail}`);
   }
   console.log(`[eval] report: ${mdPath}`);
-  if (args.includes('--gate') && !gatePassed) {
+  if (mode === 'blocking' && !gatePassed) {
     process.exitCode = 1;
   }
 }
