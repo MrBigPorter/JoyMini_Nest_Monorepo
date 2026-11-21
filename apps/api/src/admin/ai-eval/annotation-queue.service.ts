@@ -53,12 +53,30 @@ export class AnnotationQueueService {
     return join(this.dir, `annotations-${this.safeId(adminId)}.jsonl`);
   }
 
-  private async worksheetFile(): Promise<string> {
+  /** 工作表文件名只允许简单名字，避免通过查询参数读到目录外文件。 */
+  private readonly worksheetNamePattern = /^worksheet-[A-Za-z0-9._-]+\.jsonl$/;
+
+  async listWorksheets(): Promise<string[]> {
+    const names = await readdir(this.dir);
+    return names.filter((name) => this.worksheetNamePattern.test(name)).sort();
+  }
+
+  private async worksheetFile(name?: string): Promise<string> {
+    if (name) {
+      if (!this.worksheetNamePattern.test(name)) {
+        throw new NotFoundException('Invalid annotation worksheet name');
+      }
+      return join(this.dir, name);
+    }
+
     const configured = process.env.EVAL_ANNOTATION_WORKSHEET;
     if (configured) return resolve(this.dir, configured);
-    const names = (await readdir(this.dir))
-      .filter((name) => /^worksheet-.*\.jsonl$/.test(name))
-      .sort();
+
+    // 默认只认「日期型」工作表，smoke/实验工作表必须显式选择，
+    // 否则新建一个 worksheet-smoke-* 就会把运营队列顶掉。
+    const names = (await this.listWorksheets()).filter((n) =>
+      /^worksheet-\d{4}-\d{2}-\d{2}\.jsonl$/.test(n),
+    );
     if (names.length === 0) {
       throw new NotFoundException('No annotation worksheet found');
     }
@@ -92,8 +110,11 @@ export class AnnotationQueueService {
   async queue(
     adminId: string,
     status: 'pending' | 'done' | 'all' = 'all',
+    worksheetName?: string,
   ): Promise<{ rows: AnnotationRow[]; total: number; done: number }> {
-    const worksheet = await this.readJsonl<any>(await this.worksheetFile());
+    const worksheet = await this.readJsonl<any>(
+      await this.worksheetFile(worksheetName),
+    );
     const saved = new Map(
       (await this.readJsonl<any>(this.annotationFile(adminId))).map((row) => [
         `${row.caseId}#${row.turn}`,
@@ -120,9 +141,7 @@ export class AnnotationQueueService {
     const done = rows.filter((row) => row.status === 'done').length;
     return {
       rows:
-        status === 'all'
-          ? rows
-          : rows.filter((row) => row.status === status),
+        status === 'all' ? rows : rows.filter((row) => row.status === status),
       total: rows.length,
       done,
     };
@@ -143,9 +162,7 @@ export class AnnotationQueueService {
     const file = this.annotationFile(adminId);
     const saved = await this.readJsonl<any>(file);
     const key = `${caseId}#${turn}`;
-    const next = saved.filter(
-      (row) => `${row.caseId}#${row.turn}` !== key,
-    );
+    const next = saved.filter((row) => `${row.caseId}#${row.turn}` !== key);
     next.push({
       ...source,
       labels,

@@ -29,10 +29,18 @@ export class AnnotationQueueController {
   queue(
     @CurrentUserId() adminId: string,
     @Query('status') status?: string,
+    @Query('worksheet') worksheet?: string,
   ) {
     const normalized =
       status === 'pending' || status === 'done' ? status : 'all';
-    return this.service.queue(adminId, normalized);
+    return this.service.queue(adminId, normalized, worksheet);
+  }
+
+  @Get('worksheets')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @ApiOperation({ summary: '可选的标注工作表列表' })
+  async worksheets() {
+    return { worksheets: await this.service.listWorksheets() };
   }
 
   @Patch(':caseId/:turn')

@@ -51,14 +51,20 @@ export default function AiAnnotationsPage() {
   const role = useAiOpsRole();
   const allowed = canAnnotate(role);
   const [filter, setFilter] = useState<'pending' | 'done' | 'all'>('pending');
+  const [worksheet, setWorksheet] = useState('');
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [form, setForm] = useState<AiAnnotationLabels>(EMPTY_LABELS);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  const { data: worksheetData } = useRequest(
+    () => aiOpsApi.getAnnotationWorksheets(),
+    { ready: allowed },
+  );
+
   const { data, loading, error, refresh } = useRequest(
-    () => aiOpsApi.getAnnotationQueue(filter),
-    { ready: allowed, refreshDeps: [filter, allowed] },
+    () => aiOpsApi.getAnnotationQueue(filter, worksheet || undefined),
+    { ready: allowed, refreshDeps: [filter, worksheet, allowed] },
   );
 
   const rows = data?.rows ?? [];
@@ -144,6 +150,24 @@ export default function AiAnnotationsPage() {
             {label}
           </Button>
         ))}
+        <label className="ml-2 flex items-center gap-2 text-sm text-gray-500">
+          工作表
+          <select
+            className="rounded-lg border px-2 py-1.5 text-sm dark:border-white/10 dark:bg-gray-800"
+            value={worksheet}
+            onChange={(event) => {
+              setWorksheet(event.target.value);
+              setSelectedKey(null);
+            }}
+          >
+            <option value="">默认（最新日期表）</option>
+            {(worksheetData?.worksheets ?? []).map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
+        </label>
         <span className="ml-auto text-sm text-gray-500">
           已完成 {data?.done ?? 0} / {data?.total ?? 0}
         </span>
@@ -239,7 +263,8 @@ export default function AiAnnotationsPage() {
                         setForm({
                           ...form,
                           correctness:
-                            (event.target.value as AiAnnotationLabels['correctness']) ||
+                            (event.target
+                              .value as AiAnnotationLabels['correctness']) ||
                             null,
                         })
                       }

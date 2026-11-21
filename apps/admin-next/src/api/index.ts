@@ -785,9 +785,7 @@ export const chatApi = {
     ),
 
   /** GET /v1/admin/ai-feedback/summary — 反馈分诊汇总 */
-  getFeedbackSummary: (
-    params?: import('@/type/types').QueryAiFeedbackParams,
-  ) =>
+  getFeedbackSummary: (params?: import('@/type/types').QueryAiFeedbackParams) =>
     http.get<import('@/type/types').AiFeedbackSummary>(
       '/v1/admin/ai-feedback/summary',
       params,
@@ -1479,12 +1477,23 @@ export const intentExamplesApi = {
  */
 export const aiOpsApi = {
   /** GET /v1/admin/ai-eval/annotations/queue — 当前管理员标注队列 */
-  getAnnotationQueue: (status: 'pending' | 'done' | 'all' = 'all') =>
+  getAnnotationQueue: (
+    status: 'pending' | 'done' | 'all' = 'all',
+    worksheet?: string,
+  ) =>
     http.get<{
       rows: import('@/type/types').AiAnnotationRow[];
       total: number;
       done: number;
-    }>('/v1/admin/ai-eval/annotations/queue', { status }),
+    }>('/v1/admin/ai-eval/annotations/queue', {
+      status,
+      ...(worksheet ? { worksheet } : {}),
+    }),
+  /** GET /v1/admin/ai-eval/annotations/worksheets — 可选工作表 */
+  getAnnotationWorksheets: () =>
+    http.get<{ worksheets: string[] }>(
+      '/v1/admin/ai-eval/annotations/worksheets',
+    ),
   /** PATCH /v1/admin/ai-eval/annotations/:caseId/:turn — 保存标注 */
   saveAnnotation: (
     caseId: string,
@@ -1561,11 +1570,7 @@ export const aiOpsApi = {
   createClusterRegression: (
     id: string,
     data: { datasetId: string; expected: string },
-  ) =>
-    http.post(
-      `/v1/admin/ai-analysis/clusters/${id}/regression`,
-      data,
-    ),
+  ) => http.post(`/v1/admin/ai-analysis/clusters/${id}/regression`, data),
   /** GET /v1/admin/ai-analysis/alerts */
   getAnalysisAlerts: (params?: { status?: string; page?: number }) =>
     http.get<{
@@ -1577,9 +1582,7 @@ export const aiOpsApi = {
     http.patch(`/v1/admin/ai-analysis/alerts/${id}/ack`, {}),
   /** GET /v1/admin/ai-ops/features — 功能开关只读视图 */
   getFeatures: () =>
-    http.get<import('@/type/types').AiOpsFeatures>(
-      '/v1/admin/ai-ops/features',
-    ),
+    http.get<import('@/type/types').AiOpsFeatures>('/v1/admin/ai-ops/features'),
   getQueues: () =>
     http.get<
       | import('@/type/types').AiQueueStats[]
@@ -1768,11 +1771,7 @@ export const aiQualityApi = {
       metadata?: Record<string, any>;
       tags?: string[];
     },
-  ) =>
-    http.patch(
-      `/v1/admin/ai-eval/datasets/${id}/cases/${caseId}`,
-      data,
-    ),
+  ) => http.patch(`/v1/admin/ai-eval/datasets/${id}/cases/${caseId}`, data),
   deleteCase: (id: string, caseId: string) =>
     http.delete(`/v1/admin/ai-eval/datasets/${id}/cases/${caseId}`),
   startRun: (
@@ -1812,10 +1811,8 @@ export const aiQualityApi = {
       page: number;
       pageSize: number;
     }>('/v1/admin/ai-security/events', params),
-  securityTriage: (
-    id: string,
-    data: { status?: string; note?: string },
-  ) => http.patch(`/v1/admin/ai-security/events/${id}`, data),
+  securityTriage: (id: string, data: { status?: string; note?: string }) =>
+    http.patch(`/v1/admin/ai-security/events/${id}`, data),
 
   securitySummary: (params?: { type?: string; from?: string; to?: string }) =>
     http.get<import('@/type/types').AiSecuritySummary>(
