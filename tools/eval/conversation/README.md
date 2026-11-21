@@ -135,6 +135,11 @@ cd apps/api
 预标注只是草稿，**不参与最终 kappa**；实现细节、prompt、输出格式、隐私与
 限制见 [`prelabel-guide.md`](./prelabel-guide.md)。
 
+已跑结果（`openai/gpt-oss-120b`）：46 ok / 2 invalid / 0 error；与严格运营
+一致率 83.0%、kappa 0.646；与业务运营一致率 78.7%、kappa 0.566。
+分歧与 invalid 明细见
+[`reports/ai-vs-operator-2026-11-21.md`](./reports/ai-vs-operator-2026-11-21.md)。
+
 ## 定时运行
 
 ```bash

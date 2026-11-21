@@ -181,7 +181,7 @@ async function main() {
                 model: candidate,
                 messages,
                 temperature: 0,
-                max_tokens: 300,
+                max_tokens: 600,
               }),
               signal: AbortSignal.timeout(30_000),
             },
