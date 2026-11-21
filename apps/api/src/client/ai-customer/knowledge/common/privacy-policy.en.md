@@ -2,13 +2,19 @@
 title: Privacy Policy
 domain: common
 docId: privacy-policy
-keywords: [privacy, data, personal information, GDPR, data protection, cookie, privacy policy,隐私, 数据保护]
+keywords: [privacy, data, personal information, GDPR, data protection, cookie, privacy policy,隐私, 隐私政策, 数据保护, 个人数据, 数据怎么使用, 数据使用, 个人信息]
 locale: en
 contentType: policy
 priority: P0
 ---
 
 # Privacy Policy
+
+## Where to Find This Policy
+
+- **App**: Profile → Settings → Privacy Policy
+- **Website**: the footer link labelled “Privacy Policy”
+- **Direct page**: `/privacy-policy`
 
 ## Information We Collect
 

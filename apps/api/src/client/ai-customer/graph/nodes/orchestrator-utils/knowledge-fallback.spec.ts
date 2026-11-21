@@ -12,6 +12,39 @@ describe('shouldUseKnowledgeFallback', () => {
     ).toBe(true);
   });
 
+  it('“没有直接信息/怕误导”这类软拒绝也兜底', () => {
+    expect(
+      shouldUseKnowledgeFallback('你们的隐私政策在哪里看？', [
+        {
+          content:
+            '关于隐私政策的具体位置，我这边没有直接的信息可以查询，怕说错了误导你。',
+        },
+      ]),
+    ).toBe(true);
+  });
+
+  it('只给页脚/人工客服的软回答也兜底', () => {
+    expect(
+      shouldUseKnowledgeFallback('你们的隐私政策在哪里看？', [
+        {
+          content:
+            '您可以在网站或 App 的页面底部找到「隐私政策」链接，如果找不到建议联系人工客服。',
+        },
+      ]),
+    ).toBe(true);
+  });
+
+  it('“没有查看/解释功能”也兜底', () => {
+    expect(
+      shouldUseKnowledgeFallback('我的个人数据会怎么使用？', [
+        {
+          content:
+            '我这边没有权限查看或解释隐私政策的具体条款，建议你通过 App 内或人工客服确认。',
+        },
+      ]),
+    ).toBe(true);
+  });
+
   it('动作请求不兜底', () => {
     expect(
       shouldUseKnowledgeFallback('帮我提现 500 到银行卡', [
