@@ -87,7 +87,7 @@ System prompt 固定为：
 
 | 变量 | 默认 | 说明 |
 |---|---|---|
-| `AI_PRELABEL_MODEL` | `llama-3.3-70b-versatile` | judge 模型 |
+| `AI_PRELABEL_MODEL` | 自动选择 | 显式指定时优先；否则从 key 的 `/models` 里选 |
 | `AI_PRELABEL_BASE_URL` | `https://api.groq.com/openai/v1` | OpenAI 兼容地址 |
 | `AI_PRELABEL_API_KEY` | 空 | 优先；否则读 `GROQ_API_KEY` |
 | `GROQ_API_KEY` | 空 | 支持逗号分隔多把 key：`key1,key2,key3` |
@@ -100,6 +100,7 @@ System prompt 固定为：
 - 同厂商必须显式 `AI_PRELABEL_ALLOW_SAME_VENDOR=true`，报告里 `vendorIndependent=false`；
 - 没有 key 时脚本报错退出，**不允许静默降级**；
 - 多把 key 时脚本先请求 `/models` 探活，401/403 跳过，只打印 key 序号，不打印值；
+- 模型自动选择顺序：`llama-3.3-70b-versatile` → `llama-3.1-8b-instant` → `gemma2-9b-it`，选 key 实际可用的第一个；显式指定但不可用时告警并回退；
 - 免费档有速率限制；多把 key 主要解决限流，不保证叠加额度（同一组织通常共享配额）。
 
 ## 6. 命令
