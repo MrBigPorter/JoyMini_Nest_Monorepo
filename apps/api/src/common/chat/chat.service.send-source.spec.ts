@@ -105,7 +105,10 @@ describe('ChatService.sendMessage · ChatMessage.source', () => {
 
     await service.sendMessage('user-1', DTO);
 
-    // 旧实现会先查 handlerAssignedAt，再按 10 分钟阈值懒释放/续期
+    // 旧实现会先查 handlerAssignedAt，再按 10 分钟阈值懒释放/续期。
+    // 本用例未注入 HandoffLifecycleService（可选依赖），因此不会为了
+    // 「归档重开」去查会话；生产路径的查询/重开由 handoff-gate 用例覆盖。
+    // 无论如何都不能读/写 handlerAssignedAt。
     expect(prisma.conversation.findUnique).not.toHaveBeenCalled();
     expect(prisma.conversation.update).not.toHaveBeenCalledWith(
       expect.objectContaining({

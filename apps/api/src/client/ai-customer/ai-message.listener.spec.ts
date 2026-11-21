@@ -37,8 +37,13 @@ function makeListener(
     get: jest.fn().mockResolvedValue(null),
     set: jest.fn().mockResolvedValue(undefined),
   },
+  canRunAi: jest.Mock = jest.fn().mockResolvedValue(true),
 ) {
-  const service = { chatStream };
+  const service = {
+    chatStream,
+    // Task 5：跑图前先过 AI 门禁；默认放行，单独用例可覆盖。
+    canRunAi,
+  };
   const lock = { runWithLock };
   const feedback = {
     recordRepeatedQuestionIfAny: jest.fn().mockResolvedValue(undefined),
@@ -54,6 +59,7 @@ function makeListener(
     lock,
     redis,
     feedback,
+    service,
   };
 }
 
@@ -390,5 +396,53 @@ describe('AiMessageListener · 消息幂等', () => {
 
     expect(chatStream).toHaveBeenCalledTimes(2);
     expect(redis.get).not.toHaveBeenCalled();
+  });
+});
+
+// ==================================================================
+//  Task 5：AI 门禁
+//
+//  人工正在处理 / 会话已归档时，消息仍已落库，但不应再跑图。
+//  门禁放在 trace 上下文与 chatStream 之前，被拦下的一轮不留下链路。
+// ==================================================================
+
+describe('AiMessageListener · AI 门禁（Task 5）', () => {
+  it('canRunAi=false 时不调用 chatStream，但该消息记为已处理', async () => {
+    const chatStream = jest.fn().mockResolvedValue(undefined);
+    const canRunAi = jest.fn().mockResolvedValue(false);
+    const { listener, redis } = makeListener(
+      chatStream,
+      undefined,
+      undefined,
+      canRunAi,
+    );
+
+    await listener.handleAiMessageRequest({
+      conversationId: 'c1',
+      content: 'hi',
+      userId: 'u1',
+      messageId: 'm-gated',
+    });
+
+    expect(canRunAi).toHaveBeenCalledWith('c1');
+    expect(chatStream).not.toHaveBeenCalled();
+    // 消息已落库且这轮被门禁判定为无需 AI：写 done 防止重投时再跑一次图
+    expect(redis.set).toHaveBeenCalledWith('ai:msg:done:m-gated', '1', 3600);
+  });
+
+  it('canRunAi=true 时照常跑图', async () => {
+    const chatStream = jest.fn().mockResolvedValue(undefined);
+    const canRunAi = jest.fn().mockResolvedValue(true);
+    const { listener } = makeListener(
+      chatStream,
+      undefined,
+      undefined,
+      canRunAi,
+    );
+
+    await listener.handleAiMessageRequest(event('c1'));
+
+    expect(canRunAi).toHaveBeenCalledWith('c1');
+    expect(chatStream).toHaveBeenCalledTimes(1);
   });
 });

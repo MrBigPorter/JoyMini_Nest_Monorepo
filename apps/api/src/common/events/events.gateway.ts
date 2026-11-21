@@ -9,7 +9,7 @@ import {
   MessageBody,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Logger, OnModuleDestroy } from '@nestjs/common';
+import { Inject, Logger, OnModuleDestroy, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { createAdapter } from '@socket.io/redis-adapter';
@@ -17,7 +17,7 @@ import { createClient } from 'redis';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { RedisService } from '@api/common/redis/redis.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { SocketEvents } from '@lucky/shared';
+import { ConversationStatus, SocketEvents } from '@lucky/shared';
 import {
   CHAT_EVENTS,
   MessageCreatedEvent,
@@ -26,6 +26,10 @@ import {
 import type { Prisma } from '@prisma/client';
 import { AiTaskOutboxService } from '@api/common/queue/ai-task-outbox.service';
 import { SseRateLimiterService } from '@api/common/rate-limit/sse-rate-limiter.service';
+import {
+  HANDOFF_LIFECYCLE,
+  HandoffReopenPort,
+} from '@api/common/chat/handoff/handoff.tokens';
 
 interface JwtPayloadLike {
   sub?: string;
@@ -126,6 +130,14 @@ export class EventsGateway
     private readonly configService: ConfigService,
     private readonly aiTaskOutboxService: AiTaskOutboxService,
     private readonly sseRateLimiter: SseRateLimiterService,
+    /**
+     * 交接生命周期（窄接口）：Socket 写消息前处理关闭后的 SUPPORT 重开。
+     * 用 symbol 令牌注入，避免与 handoff 服务形成文件级循环依赖；
+     * 单测直接 new 不注入时保持旧行为。
+     */
+    @Optional()
+    @Inject(HANDOFF_LIFECYCLE)
+    private readonly handoffLifecycle?: HandoffReopenPort,
   ) {}
 
   /**
@@ -694,10 +706,25 @@ export class EventsGateway
     try {
       // 先判定本轮是否触发 AI，并在事务前完成入口限流：
       // 只有真正允许触发时才写 outbox，避免限流命中后 cron 又补投一次。
-      const conv = await this.prismaService.conversation.findUnique({
+      let conv = await this.prismaService.conversation.findUnique({
         where: { id: conversationId },
-        select: { handlerId: true, type: true },
+        select: { handlerId: true, type: true, status: true },
       });
+
+      // 关闭后的 SUPPORT 会话收到用户消息：先按 CAS 重开再落库/投递 AI。
+      // 重开失败（另一请求已抢先）时重新读取，避免用旧的归档快照做判断。
+      if (
+        this.handoffLifecycle &&
+        conv?.type === 'SUPPORT' &&
+        conv.status === ConversationStatus.ARCHIVED
+      ) {
+        await this.handoffLifecycle.reopenForUser(conversationId);
+        conv = await this.prismaService.conversation.findUnique({
+          where: { id: conversationId },
+          select: { handlerId: true, type: true, status: true },
+        });
+      }
+
       const isAiType = conv?.type === 'SUPPORT' || conv?.type === 'AI';
       const isAiHandler = conv?.handlerId == null;
       let aiTriggerAllowed = false;

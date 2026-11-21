@@ -269,12 +269,21 @@ export class AiMessageListener {
   /**
    * 真正的 LangGraph 执行。trace 上下文与 chatStream 调用都只在这里。
    */
-  private executeGraph(
+  private async executeGraph(
     conversationId: string,
     content: string,
     userId: string,
     messageId?: string,
   ): Promise<void> {
+    // AI 门禁：消息已经落库，但人工正在处理 / 会话已归档时不该再跑图。
+    // 放在抢锁之后、建 trace 之前——被拦下的一轮不会留下链路记录。
+    if (!(await this.aiCustomerService.canRunAi(conversationId))) {
+      this.logger.log(
+        `[AiMessageListener] ai gate blocked: conv=${conversationId}`,
+      );
+      return;
+    }
+
     // 这一轮的中止器：客户端断开时由 handleCancel 触发。
     // finally 里按引用清理，避免上一轮结束时删掉下一轮刚创建的 controller。
     const controller = new AbortController();

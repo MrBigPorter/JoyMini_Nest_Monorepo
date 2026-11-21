@@ -4,6 +4,7 @@ import {
   InternalServerErrorException,
   Logger,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { Prisma } from '@prisma/client';
@@ -42,6 +43,7 @@ import { ForwardMessageDto } from '@api/common/chat/dto/forward-message.dto';
 import { ConfigService } from '@nestjs/config';
 import { AiTaskOutboxService } from '@api/common/queue/ai-task-outbox.service';
 import { AiMemoryService } from '@api/common/ai/ai-memory.service';
+import { HandoffLifecycleService } from '@api/common/chat/handoff/handoff-lifecycle.service';
 
 const SUPPORT_CONVERSATION_STARTED = 'chat.support.conversation.started';
 
@@ -56,6 +58,12 @@ export class ChatService {
     @InjectQueue(AVATAR_QUEUE_NAME) private readonly avatarQueue: Queue,
     private readonly aiTaskOutboxService: AiTaskOutboxService,
     private readonly aiMemoryService: AiMemoryService,
+    /**
+     * 交接生命周期（可选）：关闭后的 SUPPORT 会话收到用户消息时先重开。
+     * 单测直接 new 不注入时保持旧行为（不重开）。
+     */
+    @Optional()
+    private readonly handoffLifecycle?: HandoffLifecycleService,
   ) {}
 
   // =================================================================
@@ -79,6 +87,23 @@ export class ChatService {
         createdAt: existingMessage.createdAt.getTime(),
         isSelf: true,
       };
+    }
+
+    // 关闭后的 SUPPORT 会话收到用户消息：先按 CAS 重开，再落库/触发 AI。
+    // 重开写系统消息并回到 NORMAL；否则 AI 门禁会拦掉这一轮，
+    // 而且系统消息应该排在用户消息之前。客服回复（human_agent）不触发重开。
+    const source = options?.source ?? 'user';
+    if (source === 'user' && this.handoffLifecycle) {
+      const guard = await this.prisma.conversation.findUnique({
+        where: { id: conversationId },
+        select: { type: true, status: true },
+      });
+      if (
+        guard?.type === 'SUPPORT' &&
+        guard.status === ConversationStatus.ARCHIVED
+      ) {
+        await this.handoffLifecycle.reopenForUser(conversationId);
+      }
     }
 
     const finalMeta: Record<string, any> = dto.meta || {};

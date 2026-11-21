@@ -18,7 +18,7 @@ import {
 import { LlmProviderConfig } from '@api/client/ai-customer/graph/llm-factory';
 import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-registry.service';
 import { EventsGateway } from '@api/common/events/events.gateway';
-import { SocketEvents } from '@lucky/shared';
+import { ConversationStatus, SocketEvents } from '@lucky/shared';
 import { TestChatResult } from '@api/client/ai-customer/graph/types/agent-types';
 import { AiService } from '@api/common/ai/ai.service';
 import { PrismaService } from '@api/common/prisma/prisma.service';
@@ -531,6 +531,40 @@ export class AiCustomerService implements OnModuleDestroy {
       return;
     }
 
+    // Step 0 — AI 门禁 + 交接复位消费。
+    // 消息已由写入链路落库，这里只决定「AI 是否该接这一轮」：
+    //   - 只有 SUPPORT/AI + NORMAL + handlerId=null 才允许跑图；
+    //   - 人工处理中/已归档时直接 onDone，不跑图、不写 trace（消息保留）。
+    // 门禁放在 startedAt 之前，确保被拦下的一轮不会留下 trace。
+    if (conversationId) {
+      const gate = await this.prismaService.conversation.findUnique({
+        where: { id: conversationId },
+        select: {
+          type: true,
+          status: true,
+          handlerId: true,
+          threadId: true,
+          aiMetadata: true,
+        },
+      });
+
+      if (!this.isAiEligibleConversation(gate)) {
+        this.logger.log(
+          `[chatStream] ai gate blocked: conv=${conversationId}, ` +
+            `type=${gate?.type ?? 'unknown'}, ` +
+            `status=${gate?.status ?? 'unknown'}, ` +
+            `handlerId=${gate?.handlerId ?? 'unknown'}`,
+        );
+        callbacks.onDone();
+        return;
+      }
+
+      // 自动回 AI 后留下的复位标记：本轮开图前消费一次。
+      if (this.hasHandoffResetFlag(gate?.aiMetadata ?? null)) {
+        await this.consumeHandoffReset(conversationId, gate?.threadId ?? null);
+      }
+    }
+
     // 本轮对话的起点。chat.done / chat.error 用它算总耗时。
     const startedAt = Date.now();
 
@@ -733,6 +767,124 @@ export class AiCustomerService implements OnModuleDestroy {
       incCounter('ai_chat_requests_total', { outcome });
       incCounter('ai_chat_duration_ms_total', {}, Date.now() - startedAt);
     }
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  //  交接门禁 / 复位消费（Task 5）
+  // ══════════════════════════════════════════════════════════════
+
+  /**
+   * 是否允许 AI 接管这一轮。
+   *
+   * 供 AiMessageListener 在抢锁/跑图前做一次轻量预检；
+   * chatStream 内部有同样的门禁作为最终判定（消息可能已被并发转人工）。
+   */
+  async canRunAi(conversationId: string): Promise<boolean> {
+    const conv = await this.prismaService.conversation.findUnique({
+      where: { id: conversationId },
+      select: { type: true, status: true, handlerId: true },
+    });
+    return this.isAiEligibleConversation(conv);
+  }
+
+  /**
+   * 消费 aiMetadata.handoffResetPending（自动回 AI 后由交接服务写入）。
+   *
+   *   - 有 thread：updateState 清零失败计数/意图/确认态；
+   *     不传 messages/userMemory/flowState，避免删掉上下文；
+   *   - 无 thread：新线程本就是干净的，只清标记；
+   *   - updateState 失败：保留标记，下一轮重试（不能带着旧失败计数继续）。
+   *
+   * 清标记用带条件的 updateMany：where 仍要求标记等于本次读到的值，
+   * 多实例/并发下只有一个消费者能把它清掉。
+   */
+  async consumeHandoffReset(
+    conversationId: string,
+    threadId: string | null,
+  ): Promise<void> {
+    const conversation = await this.prismaService.conversation.findUnique({
+      where: { id: conversationId },
+      select: { aiMetadata: true },
+    });
+    const metadata = this.toMetadataRecord(conversation?.aiMetadata ?? null);
+    const flag = metadata?.handoffResetPending;
+    if (flag == null) return;
+
+    if (threadId) {
+      if (!this.compiledGraph) return;
+      try {
+        await this.compiledGraph.updateState(
+          { configurable: { thread_id: threadId } },
+          {
+            repeatCount: 0,
+            previousIntent: '',
+            intent: '',
+            labels: [],
+            pendingConfirm: null,
+            transferToHuman: false,
+            transferReason: '',
+          },
+        );
+      } catch (err: any) {
+        // 图状态没复位成功就不能消费标记，否则失败计数会残留在下一轮。
+        this.logger.warn(
+          `[chatStream] handoff reset updateState failed, keeping flag for retry: ` +
+            `conv=${conversationId}, error=${err?.message ?? err}`,
+        );
+        return;
+      }
+    }
+
+    // 合并写：只移除 handoffResetPending，保留 trafficSource / handoffHistory 等。
+    const nextMetadata: Record<string, unknown> = { ...metadata };
+    delete nextMetadata.handoffResetPending;
+
+    const consumed = await this.prismaService.conversation.updateMany({
+      where: {
+        id: conversationId,
+        aiMetadata: {
+          path: ['handoffResetPending'],
+          equals: flag as Prisma.InputJsonValue,
+        },
+      },
+      data: {
+        aiMetadata: nextMetadata as Prisma.InputJsonValue,
+      },
+    });
+
+    if (consumed.count > 0) {
+      this.logger.log(
+        `[chatStream] handoff reset consumed: conv=${conversationId}, thread=${threadId ?? 'none'}`,
+      );
+    }
+  }
+
+  /** AI 门禁：只有 SUPPORT/AI + NORMAL + handlerId=null 才允许接话。 */
+  private isAiEligibleConversation(
+    conv: {
+      type: string;
+      status: number;
+      handlerId: string | null;
+    } | null,
+  ): boolean {
+    if (!conv) return false;
+    const isAiType = conv.type === 'SUPPORT' || conv.type === 'AI';
+    return (
+      isAiType &&
+      conv.status === ConversationStatus.NORMAL &&
+      conv.handlerId == null
+    );
+  }
+
+  private hasHandoffResetFlag(raw: Prisma.JsonValue | null): boolean {
+    return this.toMetadataRecord(raw)?.handoffResetPending != null;
+  }
+
+  private toMetadataRecord(
+    raw: Prisma.JsonValue | null,
+  ): Record<string, unknown> | null {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+    return raw as Record<string, unknown>;
   }
 
   /**

@@ -16,6 +16,7 @@ import { ChatGroupService } from '@api/common/chat/chat-group.service';
 import { ChatGroupController } from '@api/common/chat/chat-group.controller';
 import { ChatListener } from '@api/common/events/listeners/chat.listener';
 import { SupportHandlerService } from '@api/common/chat/support-handler.service';
+import { HandoffModule } from '@api/common/chat/handoff/handoff.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { SupportHandlerService } from '@api/common/chat/support-handler.service'
     AvatarModule,
     NotificationModule,
     EventEmitterModule.forRoot({ global: true }),
+    HandoffModule,
   ],
   controllers: [ChatController, ContactController, ChatGroupController],
   providers: [
