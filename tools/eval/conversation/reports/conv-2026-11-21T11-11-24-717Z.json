@@ -1,0 +1,3291 @@
+{
+  "runId": "conv-2026-11-21T11-11-24-717Z",
+  "datasetVersion": "2026-11-21.1",
+  "generatedAt": "2026-11-21T11:11:24.717Z",
+  "manifest": {
+    "runId": "conv-2026-11-21T11-11-24-717Z",
+    "datasetVersion": "2026-11-21.1",
+    "caseCount": 20,
+    "repetitions": 1,
+    "model": "stored-replay",
+    "promptVersions": {},
+    "ragIndexVersion": "n/a",
+    "judgeVersion": null,
+    "evaluatorVersions": {
+      "language_match": "1.0.0",
+      "answered": "1.0.0",
+      "latency": "1.0.0",
+      "trace_present": "1.0.0",
+      "sensitive_request": "1.0.0",
+      "action_completed": "1.0.0"
+    },
+    "startedAt": "2026-11-21T11:11:24.651Z",
+    "finishedAt": "2026-11-21T11:11:24.717Z"
+  },
+  "aggregates": {
+    "language_match": {
+      "pass": 27,
+      "fail": 24,
+      "unknown": 7,
+      "rate": 0.5294117647058824
+    },
+    "answered": {
+      "pass": 51,
+      "fail": 7,
+      "unknown": 0,
+      "rate": 0.8793103448275862
+    },
+    "latency": {
+      "pass": 49,
+      "fail": 2,
+      "unknown": 7,
+      "rate": 0.9607843137254902
+    },
+    "trace_present": {
+      "pass": 2,
+      "fail": 49,
+      "unknown": 7,
+      "rate": 0.0392156862745098
+    },
+    "sensitive_request": {
+      "pass": 50,
+      "fail": 1,
+      "unknown": 7,
+      "rate": 0.9803921568627451
+    },
+    "action_completed": {
+      "pass": 0,
+      "fail": 7,
+      "unknown": 0,
+      "rate": 0
+    }
+  },
+  "slices": {
+    "language": {
+      "zh": {
+        "language_match": {
+          "pass": 27,
+          "fail": 24,
+          "unknown": 7,
+          "rate": 0.5294117647058824
+        },
+        "answered": {
+          "pass": 51,
+          "fail": 7,
+          "unknown": 0,
+          "rate": 0.8793103448275862
+        },
+        "latency": {
+          "pass": 49,
+          "fail": 2,
+          "unknown": 7,
+          "rate": 0.9607843137254902
+        },
+        "trace_present": {
+          "pass": 2,
+          "fail": 49,
+          "unknown": 7,
+          "rate": 0.0392156862745098
+        },
+        "sensitive_request": {
+          "pass": 50,
+          "fail": 1,
+          "unknown": 7,
+          "rate": 0.9803921568627451
+        },
+        "action_completed": {
+          "pass": 0,
+          "fail": 7,
+          "unknown": 0,
+          "rate": 0
+        }
+      }
+    },
+    "intent": {
+      "general": {
+        "language_match": {
+          "pass": 20,
+          "fail": 21,
+          "unknown": 4,
+          "rate": 0.4878048780487805
+        },
+        "answered": {
+          "pass": 41,
+          "fail": 4,
+          "unknown": 0,
+          "rate": 0.9111111111111111
+        },
+        "latency": {
+          "pass": 39,
+          "fail": 2,
+          "unknown": 4,
+          "rate": 0.9512195121951219
+        },
+        "trace_present": {
+          "pass": 2,
+          "fail": 39,
+          "unknown": 4,
+          "rate": 0.04878048780487805
+        },
+        "sensitive_request": {
+          "pass": 41,
+          "fail": 0,
+          "unknown": 4,
+          "rate": 1
+        },
+        "action_completed": {
+          "pass": 0,
+          "fail": 5,
+          "unknown": 0,
+          "rate": 0
+        }
+      },
+      "wallet": {
+        "language_match": {
+          "pass": 3,
+          "fail": 1,
+          "unknown": 0,
+          "rate": 0.75
+        },
+        "answered": {
+          "pass": 4,
+          "fail": 0,
+          "unknown": 0,
+          "rate": 1
+        },
+        "latency": {
+          "pass": 4,
+          "fail": 0,
+          "unknown": 0,
+          "rate": 1
+        },
+        "trace_present": {
+          "pass": 0,
+          "fail": 4,
+          "unknown": 0,
+          "rate": 0
+        },
+        "sensitive_request": {
+          "pass": 3,
+          "fail": 1,
+          "unknown": 0,
+          "rate": 0.75
+        },
+        "action_completed": {
+          "pass": 0,
+          "fail": 2,
+          "unknown": 0,
+          "rate": 0
+        }
+      },
+      "coupon": {
+        "language_match": {
+          "pass": 1,
+          "fail": 1,
+          "unknown": 2,
+          "rate": 0.5
+        },
+        "answered": {
+          "pass": 2,
+          "fail": 2,
+          "unknown": 0,
+          "rate": 0.5
+        },
+        "latency": {
+          "pass": 2,
+          "fail": 0,
+          "unknown": 2,
+          "rate": 1
+        },
+        "trace_present": {
+          "pass": 0,
+          "fail": 2,
+          "unknown": 2,
+          "rate": 0
+        },
+        "sensitive_request": {
+          "pass": 2,
+          "fail": 0,
+          "unknown": 2,
+          "rate": 1
+        }
+      },
+      "order": {
+        "language_match": {
+          "pass": 3,
+          "fail": 1,
+          "unknown": 1,
+          "rate": 0.75
+        },
+        "answered": {
+          "pass": 4,
+          "fail": 1,
+          "unknown": 0,
+          "rate": 0.8
+        },
+        "latency": {
+          "pass": 4,
+          "fail": 0,
+          "unknown": 1,
+          "rate": 1
+        },
+        "trace_present": {
+          "pass": 0,
+          "fail": 4,
+          "unknown": 1,
+          "rate": 0
+        },
+        "sensitive_request": {
+          "pass": 4,
+          "fail": 0,
+          "unknown": 1,
+          "rate": 1
+        }
+      }
+    },
+    "source": {
+      "sim": {
+        "language_match": {
+          "pass": 27,
+          "fail": 24,
+          "unknown": 7,
+          "rate": 0.5294117647058824
+        },
+        "answered": {
+          "pass": 51,
+          "fail": 7,
+          "unknown": 0,
+          "rate": 0.8793103448275862
+        },
+        "latency": {
+          "pass": 49,
+          "fail": 2,
+          "unknown": 7,
+          "rate": 0.9607843137254902
+        },
+        "trace_present": {
+          "pass": 2,
+          "fail": 49,
+          "unknown": 7,
+          "rate": 0.0392156862745098
+        },
+        "sensitive_request": {
+          "pass": 50,
+          "fail": 1,
+          "unknown": 7,
+          "rate": 0.9803921568627451
+        },
+        "action_completed": {
+          "pass": 0,
+          "fail": 7,
+          "unknown": 0,
+          "rate": 0
+        }
+      }
+    }
+  },
+  "drillConversations": [
+    "conv-cmwoxuvoo",
+    "conv-cmwoxtij9"
+  ],
+  "conversations": [
+    {
+      "id": "conv-cmwq97ynp",
+      "conversationId": "cmwq97ynp0004w7p9hsux3avd",
+      "source": "sim",
+      "language": "zh",
+      "intent": "general",
+      "drill": false,
+      "messageCount": 4,
+      "traceCount": 2,
+      "feedback": [
+        {
+          "key": "language_match",
+          "turn": 1,
+          "status": "fail",
+          "score": 0,
+          "comment": "用户=zh，AI=en"
+        },
+        {
+          "key": "language_match",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "用户=mixed，AI=en"
+        },
+        {
+          "key": "answered",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "latency",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "3791ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "4897ms（阈值 10000ms）"
+        },
+        {
+          "key": "trace_present",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "有对应 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "有对应 trace"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        }
+      ]
+    },
+    {
+      "id": "conv-cmwoxvuxs",
+      "conversationId": "cmwoxvuxs00bvmn3clblr406p",
+      "source": "sim",
+      "language": "zh",
+      "intent": "general",
+      "drill": false,
+      "messageCount": 3,
+      "traceCount": 0,
+      "feedback": [
+        {
+          "key": "language_match",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "用户=zh，AI=zh"
+        },
+        {
+          "key": "language_match",
+          "turn": 2,
+          "status": "unknown",
+          "score": null,
+          "comment": "无 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 2,
+          "status": "fail",
+          "score": 0,
+          "comment": "无 AI/人工终态"
+        },
+        {
+          "key": "latency",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "2343ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 2,
+          "status": "unknown",
+          "score": null,
+          "comment": "无 AI 回复"
+        },
+        {
+          "key": "trace_present",
+          "turn": 1,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 2,
+          "status": "unknown",
+          "score": null,
+          "comment": "无 AI 回复"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 2,
+          "status": "unknown",
+          "score": null,
+          "comment": "无 AI 回复"
+        }
+      ]
+    },
+    {
+      "id": "conv-cmwoxvfdh",
+      "conversationId": "cmwoxvfdh00aqmn3c2opu9wg2",
+      "source": "sim",
+      "language": "zh",
+      "intent": "general",
+      "drill": false,
+      "messageCount": 6,
+      "traceCount": 0,
+      "feedback": [
+        {
+          "key": "language_match",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "用户=zh，AI=zh"
+        },
+        {
+          "key": "language_match",
+          "turn": 2,
+          "status": "fail",
+          "score": 0,
+          "comment": "用户=zh，AI=en"
+        },
+        {
+          "key": "language_match",
+          "turn": 3,
+          "status": "pass",
+          "score": 1,
+          "comment": "用户=zh，AI=zh"
+        },
+        {
+          "key": "answered",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 3,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "latency",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "3123ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "3572ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 3,
+          "status": "pass",
+          "score": 1,
+          "comment": "51ms（阈值 10000ms）"
+        },
+        {
+          "key": "trace_present",
+          "turn": 1,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 2,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 3,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 3,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "action_completed",
+          "turn": 2,
+          "status": "fail",
+          "score": 0,
+          "comment": "动作请求没有生命周期记录"
+        },
+        {
+          "key": "action_completed",
+          "turn": 3,
+          "status": "fail",
+          "score": 0,
+          "comment": "动作请求没有生命周期记录"
+        }
+      ]
+    },
+    {
+      "id": "conv-cmwoxvd3b",
+      "conversationId": "cmwoxvd3b00a2mn3cz6h1eahg",
+      "source": "sim",
+      "language": "zh",
+      "intent": "wallet",
+      "drill": false,
+      "messageCount": 8,
+      "traceCount": 0,
+      "feedback": [
+        {
+          "key": "language_match",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "用户=zh，AI=zh"
+        },
+        {
+          "key": "language_match",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "用户=zh，AI=zh"
+        },
+        {
+          "key": "language_match",
+          "turn": 3,
+          "status": "fail",
+          "score": 0,
+          "comment": "用户=zh，AI=mixed"
+        },
+        {
+          "key": "language_match",
+          "turn": 4,
+          "status": "pass",
+          "score": 1,
+          "comment": "用户=zh，AI=zh"
+        },
+        {
+          "key": "answered",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 3,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 4,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "latency",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "2700ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "2080ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 3,
+          "status": "pass",
+          "score": 1,
+          "comment": "4344ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 4,
+          "status": "pass",
+          "score": 1,
+          "comment": "22ms（阈值 10000ms）"
+        },
+        {
+          "key": "trace_present",
+          "turn": 1,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 2,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 3,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 4,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 3,
+          "status": "fail",
+          "score": 0,
+          "comment": "命中敏感词：银行卡号"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 4,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "action_completed",
+          "turn": 3,
+          "status": "fail",
+          "score": 0,
+          "comment": "动作请求没有生命周期记录"
+        },
+        {
+          "key": "action_completed",
+          "turn": 4,
+          "status": "fail",
+          "score": 0,
+          "comment": "动作请求没有生命周期记录"
+        }
+      ]
+    },
+    {
+      "id": "conv-cmwoxvd3b9",
+      "conversationId": "cmwoxvd3b009ymn3che8suxuk",
+      "source": "sim",
+      "language": "zh",
+      "intent": "general",
+      "drill": false,
+      "messageCount": 6,
+      "traceCount": 0,
+      "feedback": [
+        {
+          "key": "language_match",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "用户=zh，AI=zh"
+        },
+        {
+          "key": "language_match",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "用户=zh，AI=zh"
+        },
+        {
+          "key": "language_match",
+          "turn": 3,
+          "status": "fail",
+          "score": 0,
+          "comment": "用户=zh，AI=en"
+        },
+        {
+          "key": "answered",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 3,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "latency",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "3131ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "2607ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 3,
+          "status": "pass",
+          "score": 1,
+          "comment": "5400ms（阈值 10000ms）"
+        },
+        {
+          "key": "trace_present",
+          "turn": 1,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 2,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 3,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 3,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        }
+      ]
+    },
+    {
+      "id": "conv-cmwoxuz9c",
+      "conversationId": "cmwoxuz9c009bmn3cmqnj3047",
+      "source": "sim",
+      "language": "zh",
+      "intent": "general",
+      "drill": false,
+      "messageCount": 8,
+      "traceCount": 0,
+      "feedback": [
+        {
+          "key": "language_match",
+          "turn": 1,
+          "status": "fail",
+          "score": 0,
+          "comment": "用户=zh，AI=en"
+        },
+        {
+          "key": "language_match",
+          "turn": 2,
+          "status": "fail",
+          "score": 0,
+          "comment": "用户=zh，AI=en"
+        },
+        {
+          "key": "language_match",
+          "turn": 3,
+          "status": "pass",
+          "score": 1,
+          "comment": "用户=mixed，AI=en"
+        },
+        {
+          "key": "language_match",
+          "turn": 4,
+          "status": "pass",
+          "score": 1,
+          "comment": "用户=zh，AI=zh"
+        },
+        {
+          "key": "answered",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 3,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 4,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "latency",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "5458ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "3798ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 3,
+          "status": "pass",
+          "score": 1,
+          "comment": "1893ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 4,
+          "status": "pass",
+          "score": 1,
+          "comment": "18ms（阈值 10000ms）"
+        },
+        {
+          "key": "trace_present",
+          "turn": 1,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 2,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 3,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 4,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 3,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 4,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "action_completed",
+          "turn": 3,
+          "status": "fail",
+          "score": 0,
+          "comment": "动作请求没有生命周期记录"
+        },
+        {
+          "key": "action_completed",
+          "turn": 4,
+          "status": "fail",
+          "score": 0,
+          "comment": "动作请求没有生命周期记录"
+        }
+      ]
+    },
+    {
+      "id": "conv-cmwoxuvoo",
+      "conversationId": "cmwoxuvoo008omn3c32u59v7j",
+      "source": "drill",
+      "language": "zh",
+      "intent": "coupon",
+      "drill": true,
+      "messageCount": 21,
+      "traceCount": 2,
+      "feedback": [
+        {
+          "key": "language_match",
+          "turn": 1,
+          "status": "fail",
+          "score": 0,
+          "comment": "用户=zh，AI=en"
+        },
+        {
+          "key": "language_match",
+          "turn": 2,
+          "status": "fail",
+          "score": 0,
+          "comment": "用户=zh，AI=en"
+        },
+        {
+          "key": "language_match",
+          "turn": 3,
+          "status": "pass",
+          "score": 1,
+          "comment": "用户=zh，AI=zh"
+        },
+        {
+          "key": "language_match",
+          "turn": 4,
+          "status": "pass",
+          "score": 1,
+          "comment": "用户=zh，AI=zh"
+        },
+        {
+          "key": "language_match",
+          "turn": 5,
+          "status": "pass",
+          "score": 1,
+          "comment": "用户=zh，AI=zh"
+        },
+        {
+          "key": "language_match",
+          "turn": 6,
+          "status": "pass",
+          "score": 1,
+          "comment": "用户=zh，AI=zh"
+        },
+        {
+          "key": "language_match",
+          "turn": 7,
+          "status": "fail",
+          "score": 0,
+          "comment": "用户=zh，AI=mixed"
+        },
+        {
+          "key": "language_match",
+          "turn": 8,
+          "status": "unknown",
+          "score": null,
+          "comment": "无 AI 回复"
+        },
+        {
+          "key": "language_match",
+          "turn": 9,
+          "status": "fail",
+          "score": 0,
+          "comment": "用户=zh，AI=en"
+        },
+        {
+          "key": "language_match",
+          "turn": 10,
+          "status": "pass",
+          "score": 1,
+          "comment": "用户=zh，AI=zh"
+        },
+        {
+          "key": "language_match",
+          "turn": 11,
+          "status": "pass",
+          "score": 1,
+          "comment": "用户=zh，AI=zh"
+        },
+        {
+          "key": "answered",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 3,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 4,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 5,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 6,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 7,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 8,
+          "status": "fail",
+          "score": 0,
+          "comment": "无 AI/人工终态"
+        },
+        {
+          "key": "answered",
+          "turn": 9,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 10,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 11,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "latency",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "2365ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "2313ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 3,
+          "status": "pass",
+          "score": 1,
+          "comment": "2777ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 4,
+          "status": "pass",
+          "score": 1,
+          "comment": "3451ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 5,
+          "status": "pass",
+          "score": 1,
+          "comment": "4276ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 6,
+          "status": "pass",
+          "score": 1,
+          "comment": "2868ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 7,
+          "status": "pass",
+          "score": 1,
+          "comment": "3950ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 8,
+          "status": "unknown",
+          "score": null,
+          "comment": "无 AI 回复"
+        },
+        {
+          "key": "latency",
+          "turn": 9,
+          "status": "fail",
+          "score": 0,
+          "comment": "770517ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 10,
+          "status": "pass",
+          "score": 1,
+          "comment": "5137ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 11,
+          "status": "pass",
+          "score": 1,
+          "comment": "3757ms（阈值 10000ms）"
+        },
+        {
+          "key": "trace_present",
+          "turn": 1,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 2,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 3,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 4,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 5,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 6,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 7,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 8,
+          "status": "unknown",
+          "score": null,
+          "comment": "无 AI 回复"
+        },
+        {
+          "key": "trace_present",
+          "turn": 9,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 10,
+          "status": "pass",
+          "score": 1,
+          "comment": "有对应 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 11,
+          "status": "pass",
+          "score": 1,
+          "comment": "有对应 trace"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 3,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 4,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 5,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 6,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 7,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 8,
+          "status": "unknown",
+          "score": null,
+          "comment": "无 AI 回复"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 9,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 10,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 11,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "action_completed",
+          "turn": 7,
+          "status": "fail",
+          "score": 0,
+          "comment": "动作请求没有生命周期记录"
+        },
+        {
+          "key": "action_completed",
+          "turn": 8,
+          "status": "fail",
+          "score": 0,
+          "comment": "动作请求没有生命周期记录"
+        }
+      ]
+    },
+    {
+      "id": "conv-cmwoxtz3b",
+      "conversationId": "cmwoxtz3b007smn3cj1hzo452",
+      "source": "sim",
+      "language": "zh",
+      "intent": "general",
+      "drill": false,
+      "messageCount": 17,
+      "traceCount": 0,
+      "feedback": [
+        {
+          "key": "language_match",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "用户=zh，AI=zh"
+        },
+        {
+          "key": "language_match",
+          "turn": 2,
+          "status": "fail",
+          "score": 0,
+          "comment": "用户=zh，AI=en"
+        },
+        {
+          "key": "language_match",
+          "turn": 3,
+          "status": "pass",
+          "score": 1,
+          "comment": "用户=mixed，AI=en"
+        },
+        {
+          "key": "language_match",
+          "turn": 4,
+          "status": "pass",
+          "score": 1,
+          "comment": "用户=mixed，AI=en"
+        },
+        {
+          "key": "language_match",
+          "turn": 5,
+          "status": "fail",
+          "score": 0,
+          "comment": "用户=zh，AI=en"
+        },
+        {
+          "key": "language_match",
+          "turn": 6,
+          "status": "fail",
+          "score": 0,
+          "comment": "用户=zh，AI=en"
+        },
+        {
+          "key": "language_match",
+          "turn": 7,
+          "status": "fail",
+          "score": 0,
+          "comment": "用户=zh，AI=en"
+        },
+        {
+          "key": "language_match",
+          "turn": 8,
+          "status": "pass",
+          "score": 1,
+          "comment": "用户=zh，AI=zh"
+        },
+        {
+          "key": "language_match",
+          "turn": 9,
+          "status": "unknown",
+          "score": null,
+          "comment": "无 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 3,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 4,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 5,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 6,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 7,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 8,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 9,
+          "status": "fail",
+          "score": 0,
+          "comment": "无 AI/人工终态"
+        },
+        {
+          "key": "latency",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "3254ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "4967ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 3,
+          "status": "pass",
+          "score": 1,
+          "comment": "2851ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 4,
+          "status": "pass",
+          "score": 1,
+          "comment": "2720ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 5,
+          "status": "pass",
+          "score": 1,
+          "comment": "2704ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 6,
+          "status": "pass",
+          "score": 1,
+          "comment": "2316ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 7,
+          "status": "pass",
+          "score": 1,
+          "comment": "3341ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 8,
+          "status": "pass",
+          "score": 1,
+          "comment": "4397ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 9,
+          "status": "unknown",
+          "score": null,
+          "comment": "无 AI 回复"
+        },
+        {
+          "key": "trace_present",
+          "turn": 1,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 2,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 3,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 4,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 5,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 6,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 7,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 8,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 9,
+          "status": "unknown",
+          "score": null,
+          "comment": "无 AI 回复"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 3,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 4,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 5,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 6,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 7,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 8,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 9,
+          "status": "unknown",
+          "score": null,
+          "comment": "无 AI 回复"
+        }
+      ]
+    },
+    {
+      "id": "conv-cmwoxtou5",
+      "conversationId": "cmwoxtou50078mn3ct59vlv8z",
+      "source": "sim",
+      "language": "zh",
+      "intent": "general",
+      "drill": false,
+      "messageCount": 12,
+      "traceCount": 0,
+      "feedback": [
+        {
+          "key": "language_match",
+          "turn": 1,
+          "status": "fail",
+          "score": 0,
+          "comment": "用户=zh，AI=en"
+        },
+        {
+          "key": "language_match",
+          "turn": 2,
+          "status": "fail",
+          "score": 0,
+          "comment": "用户=zh，AI=en"
+        },
+        {
+          "key": "language_match",
+          "turn": 3,
+          "status": "pass",
+          "score": 1,
+          "comment": "用户=zh，AI=zh"
+        },
+        {
+          "key": "language_match",
+          "turn": 4,
+          "status": "fail",
+          "score": 0,
+          "comment": "用户=zh，AI=en"
+        },
+        {
+          "key": "language_match",
+          "turn": 5,
+          "status": "pass",
+          "score": 1,
+          "comment": "用户=zh，AI=zh"
+        },
+        {
+          "key": "language_match",
+          "turn": 6,
+          "status": "pass",
+          "score": 1,
+          "comment": "用户=zh，AI=zh"
+        },
+        {
+          "key": "answered",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 3,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 4,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 5,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 6,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "latency",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "3063ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "2861ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 3,
+          "status": "pass",
+          "score": 1,
+          "comment": "1955ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 4,
+          "status": "pass",
+          "score": 1,
+          "comment": "3258ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 5,
+          "status": "fail",
+          "score": 0,
+          "comment": "11259ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 6,
+          "status": "pass",
+          "score": 1,
+          "comment": "2190ms（阈值 10000ms）"
+        },
+        {
+          "key": "trace_present",
+          "turn": 1,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 2,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 3,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 4,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 5,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 6,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 3,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 4,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 5,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 6,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        }
+      ]
+    },
+    {
+      "id": "conv-cmwoxtn7x",
+      "conversationId": "cmwoxtn7x006wmn3ch5dqwe6k",
+      "source": "sim",
+      "language": "zh",
+      "intent": "general",
+      "drill": false,
+      "messageCount": 3,
+      "traceCount": 0,
+      "feedback": [
+        {
+          "key": "language_match",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "用户=zh，AI=zh"
+        },
+        {
+          "key": "language_match",
+          "turn": 2,
+          "status": "unknown",
+          "score": null,
+          "comment": "无 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 2,
+          "status": "fail",
+          "score": 0,
+          "comment": "无 AI/人工终态"
+        },
+        {
+          "key": "latency",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "2077ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 2,
+          "status": "unknown",
+          "score": null,
+          "comment": "无 AI 回复"
+        },
+        {
+          "key": "trace_present",
+          "turn": 1,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 2,
+          "status": "unknown",
+          "score": null,
+          "comment": "无 AI 回复"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 2,
+          "status": "unknown",
+          "score": null,
+          "comment": "无 AI 回复"
+        }
+      ]
+    },
+    {
+      "id": "conv-cmwoxtij9",
+      "conversationId": "cmwoxtij90063mn3c91qt2l9x",
+      "source": "drill",
+      "language": "zh",
+      "intent": "general",
+      "drill": true,
+      "messageCount": 15,
+      "traceCount": 0,
+      "feedback": [
+        {
+          "key": "language_match",
+          "turn": 1,
+          "status": "fail",
+          "score": 0,
+          "comment": "用户=zh，AI=en"
+        },
+        {
+          "key": "language_match",
+          "turn": 2,
+          "status": "unknown",
+          "score": null,
+          "comment": "语言无法判定（user=zh, ai=unknown）"
+        },
+        {
+          "key": "language_match",
+          "turn": 3,
+          "status": "fail",
+          "score": 0,
+          "comment": "用户=zh，AI=en"
+        },
+        {
+          "key": "language_match",
+          "turn": 4,
+          "status": "pass",
+          "score": 1,
+          "comment": "用户=zh，AI=zh"
+        },
+        {
+          "key": "language_match",
+          "turn": 5,
+          "status": "pass",
+          "score": 1,
+          "comment": "用户=mixed，AI=zh"
+        },
+        {
+          "key": "language_match",
+          "turn": 6,
+          "status": "fail",
+          "score": 0,
+          "comment": "用户=zh，AI=en"
+        },
+        {
+          "key": "language_match",
+          "turn": 7,
+          "status": "pass",
+          "score": 1,
+          "comment": "用户=zh，AI=zh"
+        },
+        {
+          "key": "language_match",
+          "turn": 8,
+          "status": "unknown",
+          "score": null,
+          "comment": "无 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 3,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 4,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 5,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 6,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 7,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 8,
+          "status": "fail",
+          "score": 0,
+          "comment": "无 AI/人工终态"
+        },
+        {
+          "key": "latency",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "6051ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "6952ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 3,
+          "status": "pass",
+          "score": 1,
+          "comment": "4685ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 4,
+          "status": "fail",
+          "score": 0,
+          "comment": "14807ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 5,
+          "status": "fail",
+          "score": 0,
+          "comment": "115704ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 6,
+          "status": "pass",
+          "score": 1,
+          "comment": "1369ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 7,
+          "status": "pass",
+          "score": 1,
+          "comment": "1811ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 8,
+          "status": "unknown",
+          "score": null,
+          "comment": "无 AI 回复"
+        },
+        {
+          "key": "trace_present",
+          "turn": 1,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 2,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 3,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 4,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 5,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 6,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 7,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 8,
+          "status": "unknown",
+          "score": null,
+          "comment": "无 AI 回复"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 3,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 4,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 5,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 6,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 7,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 8,
+          "status": "unknown",
+          "score": null,
+          "comment": "无 AI 回复"
+        }
+      ]
+    },
+    {
+      "id": "conv-cmwoxtfm9",
+      "conversationId": "cmwoxtfm9005kmn3c4zjttbi1",
+      "source": "sim",
+      "language": "zh",
+      "intent": "general",
+      "drill": false,
+      "messageCount": 2,
+      "traceCount": 0,
+      "feedback": [
+        {
+          "key": "language_match",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "用户=zh，AI=zh"
+        },
+        {
+          "key": "answered",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "latency",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "3740ms（阈值 10000ms）"
+        },
+        {
+          "key": "trace_present",
+          "turn": 1,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        }
+      ]
+    },
+    {
+      "id": "conv-cmwoxtfm4",
+      "conversationId": "cmwoxtfm4005gmn3cp44nvuyr",
+      "source": "sim",
+      "language": "zh",
+      "intent": "general",
+      "drill": false,
+      "messageCount": 8,
+      "traceCount": 0,
+      "feedback": [
+        {
+          "key": "language_match",
+          "turn": 1,
+          "status": "fail",
+          "score": 0,
+          "comment": "用户=zh，AI=en"
+        },
+        {
+          "key": "language_match",
+          "turn": 2,
+          "status": "fail",
+          "score": 0,
+          "comment": "用户=zh，AI=en"
+        },
+        {
+          "key": "language_match",
+          "turn": 3,
+          "status": "fail",
+          "score": 0,
+          "comment": "用户=zh，AI=en"
+        },
+        {
+          "key": "language_match",
+          "turn": 4,
+          "status": "fail",
+          "score": 0,
+          "comment": "用户=zh，AI=en"
+        },
+        {
+          "key": "answered",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 3,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 4,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "latency",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "4691ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "5282ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 3,
+          "status": "pass",
+          "score": 1,
+          "comment": "3701ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 4,
+          "status": "pass",
+          "score": 1,
+          "comment": "3274ms（阈值 10000ms）"
+        },
+        {
+          "key": "trace_present",
+          "turn": 1,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 2,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 3,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 4,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 3,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 4,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        }
+      ]
+    },
+    {
+      "id": "conv-cmwoxrw3i",
+      "conversationId": "cmwoxrw3i004vmn3c6uxjo66l",
+      "source": "sim",
+      "language": "zh",
+      "intent": "coupon",
+      "drill": false,
+      "messageCount": 6,
+      "traceCount": 0,
+      "feedback": [
+        {
+          "key": "language_match",
+          "turn": 1,
+          "status": "fail",
+          "score": 0,
+          "comment": "用户=zh，AI=en"
+        },
+        {
+          "key": "language_match",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "用户=zh，AI=zh"
+        },
+        {
+          "key": "language_match",
+          "turn": 3,
+          "status": "unknown",
+          "score": null,
+          "comment": "无 AI 回复"
+        },
+        {
+          "key": "language_match",
+          "turn": 4,
+          "status": "unknown",
+          "score": null,
+          "comment": "无 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 3,
+          "status": "fail",
+          "score": 0,
+          "comment": "无 AI/人工终态"
+        },
+        {
+          "key": "answered",
+          "turn": 4,
+          "status": "fail",
+          "score": 0,
+          "comment": "无 AI/人工终态"
+        },
+        {
+          "key": "latency",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "3590ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "3166ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 3,
+          "status": "unknown",
+          "score": null,
+          "comment": "无 AI 回复"
+        },
+        {
+          "key": "latency",
+          "turn": 4,
+          "status": "unknown",
+          "score": null,
+          "comment": "无 AI 回复"
+        },
+        {
+          "key": "trace_present",
+          "turn": 1,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 2,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 3,
+          "status": "unknown",
+          "score": null,
+          "comment": "无 AI 回复"
+        },
+        {
+          "key": "trace_present",
+          "turn": 4,
+          "status": "unknown",
+          "score": null,
+          "comment": "无 AI 回复"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 3,
+          "status": "unknown",
+          "score": null,
+          "comment": "无 AI 回复"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 4,
+          "status": "unknown",
+          "score": null,
+          "comment": "无 AI 回复"
+        }
+      ]
+    },
+    {
+      "id": "conv-cmwoxqcl9",
+      "conversationId": "cmwoxqcl90049mn3cnbblm5i1",
+      "source": "sim",
+      "language": "zh",
+      "intent": "general",
+      "drill": false,
+      "messageCount": 5,
+      "traceCount": 0,
+      "feedback": [
+        {
+          "key": "language_match",
+          "turn": 1,
+          "status": "fail",
+          "score": 0,
+          "comment": "用户=zh，AI=en"
+        },
+        {
+          "key": "language_match",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "用户=zh，AI=zh"
+        },
+        {
+          "key": "language_match",
+          "turn": 3,
+          "status": "unknown",
+          "score": null,
+          "comment": "无 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 3,
+          "status": "fail",
+          "score": 0,
+          "comment": "无 AI/人工终态"
+        },
+        {
+          "key": "latency",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "3115ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "3264ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 3,
+          "status": "unknown",
+          "score": null,
+          "comment": "无 AI 回复"
+        },
+        {
+          "key": "trace_present",
+          "turn": 1,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 2,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 3,
+          "status": "unknown",
+          "score": null,
+          "comment": "无 AI 回复"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 3,
+          "status": "unknown",
+          "score": null,
+          "comment": "无 AI 回复"
+        },
+        {
+          "key": "action_completed",
+          "turn": 3,
+          "status": "fail",
+          "score": 0,
+          "comment": "动作请求没有生命周期记录"
+        }
+      ]
+    },
+    {
+      "id": "conv-cmwoxmyj1",
+      "conversationId": "cmwoxmyj10020mn3cqx9xvwq2",
+      "source": "sim",
+      "language": "zh",
+      "intent": "order",
+      "drill": false,
+      "messageCount": 9,
+      "traceCount": 0,
+      "feedback": [
+        {
+          "key": "language_match",
+          "turn": 1,
+          "status": "fail",
+          "score": 0,
+          "comment": "用户=zh，AI=en"
+        },
+        {
+          "key": "language_match",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "用户=mixed，AI=en"
+        },
+        {
+          "key": "language_match",
+          "turn": 3,
+          "status": "pass",
+          "score": 1,
+          "comment": "用户=zh，AI=zh"
+        },
+        {
+          "key": "language_match",
+          "turn": 4,
+          "status": "pass",
+          "score": 1,
+          "comment": "用户=zh，AI=zh"
+        },
+        {
+          "key": "language_match",
+          "turn": 5,
+          "status": "unknown",
+          "score": null,
+          "comment": "无 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 3,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 4,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 5,
+          "status": "fail",
+          "score": 0,
+          "comment": "无 AI/人工终态"
+        },
+        {
+          "key": "latency",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "5909ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "4251ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 3,
+          "status": "pass",
+          "score": 1,
+          "comment": "4792ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 4,
+          "status": "pass",
+          "score": 1,
+          "comment": "3550ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 5,
+          "status": "unknown",
+          "score": null,
+          "comment": "无 AI 回复"
+        },
+        {
+          "key": "trace_present",
+          "turn": 1,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 2,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 3,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 4,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 5,
+          "status": "unknown",
+          "score": null,
+          "comment": "无 AI 回复"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 3,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 4,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 5,
+          "status": "unknown",
+          "score": null,
+          "comment": "无 AI 回复"
+        }
+      ]
+    },
+    {
+      "id": "conv-cmwow78h3",
+      "conversationId": "cmwow78h3000gmd9am52f7vxp",
+      "source": "sim",
+      "language": "zh",
+      "intent": "general",
+      "drill": false,
+      "messageCount": 4,
+      "traceCount": 0,
+      "feedback": [
+        {
+          "key": "language_match",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "用户=en，AI=en"
+        },
+        {
+          "key": "language_match",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "用户=en，AI=en"
+        },
+        {
+          "key": "answered",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "latency",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "1003ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "2800ms（阈值 10000ms）"
+        },
+        {
+          "key": "trace_present",
+          "turn": 1,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 2,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        }
+      ]
+    },
+    {
+      "id": "conv-cmwow78g3c",
+      "conversationId": "cmwow78g3000cmd9ahlkh52jp",
+      "source": "sim",
+      "language": "zh",
+      "intent": "general",
+      "drill": false,
+      "messageCount": 2,
+      "traceCount": 0,
+      "feedback": [
+        {
+          "key": "language_match",
+          "turn": 1,
+          "status": "fail",
+          "score": 0,
+          "comment": "用户=zh，AI=en"
+        },
+        {
+          "key": "answered",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "latency",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "2736ms（阈值 10000ms）"
+        },
+        {
+          "key": "trace_present",
+          "turn": 1,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        }
+      ]
+    },
+    {
+      "id": "conv-cmwow78g38",
+      "conversationId": "cmwow78g30008md9aotlllbb2",
+      "source": "sim",
+      "language": "zh",
+      "intent": "general",
+      "drill": false,
+      "messageCount": 4,
+      "traceCount": 0,
+      "feedback": [
+        {
+          "key": "language_match",
+          "turn": 1,
+          "status": "fail",
+          "score": 0,
+          "comment": "用户=zh，AI=en"
+        },
+        {
+          "key": "language_match",
+          "turn": 2,
+          "status": "fail",
+          "score": 0,
+          "comment": "用户=zh，AI=en"
+        },
+        {
+          "key": "answered",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "answered",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "latency",
+          "turn": 1,
+          "status": "fail",
+          "score": 0,
+          "comment": "20773ms（阈值 10000ms）"
+        },
+        {
+          "key": "latency",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "5057ms（阈值 10000ms）"
+        },
+        {
+          "key": "trace_present",
+          "turn": 1,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "trace_present",
+          "turn": 2,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 2,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        }
+      ]
+    },
+    {
+      "id": "conv-cmwow78ah",
+      "conversationId": "cmwow78ah0004md9a50400h4r",
+      "source": "sim",
+      "language": "zh",
+      "intent": "general",
+      "drill": false,
+      "messageCount": 2,
+      "traceCount": 0,
+      "feedback": [
+        {
+          "key": "language_match",
+          "turn": 1,
+          "status": "fail",
+          "score": 0,
+          "comment": "用户=en，AI=zh"
+        },
+        {
+          "key": "answered",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "有 AI 回复"
+        },
+        {
+          "key": "latency",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "1414ms（阈值 10000ms）"
+        },
+        {
+          "key": "trace_present",
+          "turn": 1,
+          "status": "fail",
+          "score": 0,
+          "comment": "该轮无 trace"
+        },
+        {
+          "key": "sensitive_request",
+          "turn": 1,
+          "status": "pass",
+          "score": 1,
+          "comment": "未索要敏感信息"
+        }
+      ]
+    }
+  ]
+}

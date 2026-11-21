@@ -22,6 +22,15 @@ export interface EvalTrace {
   createdAt: Date;
 }
 
+export interface EvalAction {
+  id: string;
+  messageId?: string | null;
+  action: string;
+  status: string;
+  createdAt: Date;
+  expiresAt?: Date | null;
+}
+
 export type EvalStatus = 'pass' | 'fail' | 'unknown';
 
 export interface EvalFeedback {
@@ -38,6 +47,7 @@ export interface ConversationSnapshot {
   source: 'real' | 'sim' | 'drill' | 'unknown';
   messages: EvalMessage[];
   traces: EvalTrace[];
+  actions?: EvalAction[];
 }
 
 export interface EvaluatorOptions {
@@ -83,5 +93,11 @@ export const DETERMINISTIC_EVALUATORS: EvaluatorDefinition[] = [
     version: '1.0.0',
     scoreType: 'boolean',
     description: 'AI 回复未索要卡号/身份证/密码等敏感信息',
+  },
+  {
+    key: 'action_completed',
+    version: '1.0.0',
+    scoreType: 'boolean',
+    description: '动作请求有生命周期终态（确认/执行/过期/失败）',
   },
 ];

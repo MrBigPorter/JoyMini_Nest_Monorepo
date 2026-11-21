@@ -2564,3 +2564,28 @@ model AiMemorySummary {
   @@index([userId, expiresAt], map: "idx_ai_memory_summary_expiry")
   @@map("ai_memory_summaries")
 }
+
+/// AI 写操作的生命周期：确认卡片不再只活在 socket / 一轮 state 里。
+/// 状态：REQUESTED → CONFIRM_CREATED → CONFIRMED / EXECUTED / EXPIRED / TRANSFERRED / FAILED
+model AiActionRequest {
+  id             String    @id @default(cuid()) @db.VarChar(32)
+  conversationId String    @map("conversation_id") @db.VarChar(32)
+  userId         String    @map("user_id") @db.VarChar(32)
+  /// 触发本次动作的用户消息 id
+  messageId      String?   @map("message_id") @db.VarChar(32)
+  action         String    @db.VarChar(32)
+  params         Json?
+  summary        Json?
+  status         String    @default("REQUESTED") @db.VarChar(16)
+  result         Json?
+  error          String?   @db.VarChar(500)
+  expiresAt      DateTime? @map("expires_at")
+  confirmedAt    DateTime? @map("confirmed_at")
+  executedAt     DateTime? @map("executed_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  @@index([conversationId, createdAt], map: "idx_ai_action_conv")
+  @@index([status, expiresAt], map: "idx_ai_action_status_expiry")
+  @@map("ai_action_requests")
+}

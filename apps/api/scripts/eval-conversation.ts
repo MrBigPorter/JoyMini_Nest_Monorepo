@@ -105,7 +105,7 @@ function formatRate(row: { pass: number; fail: number; rate: number | null }) {
 }
 
 async function loadSnapshot(row: SelectionRow): Promise<ConversationSnapshot> {
-  const [messages, traces] = await Promise.all([
+  const [messages, traces, actions] = await Promise.all([
     prisma.chatMessage.findMany({
       where: { conversationId: row.conversationId },
       orderBy: { seqId: 'asc' },
@@ -126,6 +126,17 @@ async function loadSnapshot(row: SelectionRow): Promise<ConversationSnapshot> {
         createdAt: true,
       },
     }),
+    prisma.aiActionRequest.findMany({
+      where: { conversationId: row.conversationId },
+      select: {
+        id: true,
+        messageId: true,
+        action: true,
+        status: true,
+        createdAt: true,
+        expiresAt: true,
+      },
+    }),
   ]);
 
   return {
@@ -139,6 +150,7 @@ async function loadSnapshot(row: SelectionRow): Promise<ConversationSnapshot> {
       triggerMessageId: message.triggerMessageId,
     })),
     traces,
+    actions,
   };
 }
 

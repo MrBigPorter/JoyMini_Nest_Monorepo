@@ -1,5 +1,6 @@
 import {
   detectLanguage,
+  evaluateActionCompleted,
   evaluateAnswered,
   evaluateDeterministic,
   evaluateLanguageMatch,
@@ -172,5 +173,47 @@ describe('deterministic evaluators', () => {
         'sensitive_request',
       ]),
     );
+  });
+
+  it('动作请求无生命周期记录判 fail', () => {
+    const result = evaluateActionCompleted(
+      snapshot([msg('u1', 'user', '帮我领 Big Spender', 0)]),
+    );
+    expect(result[0]).toMatchObject({
+      key: 'action_completed',
+      status: 'fail',
+    });
+  });
+
+  it('确认卡片/执行算完成，过期算失败', () => {
+    const base = snapshot([msg('u1', 'user', '帮我领券', 0)]);
+    const withAction = (status: string) => ({
+      ...base,
+      actions: [
+        {
+          id: 'act1',
+          messageId: 'u1',
+          action: 'claim_coupon',
+          status,
+          createdAt: t0,
+        },
+      ],
+    });
+
+    expect(evaluateActionCompleted(withAction('CONFIRM_CREATED'))[0].status).toBe(
+      'pass',
+    );
+    expect(evaluateActionCompleted(withAction('EXECUTED'))[0].status).toBe(
+      'pass',
+    );
+    expect(evaluateActionCompleted(withAction('EXPIRED'))[0].status).toBe(
+      'fail',
+    );
+  });
+
+  it('非动作消息不产生 action 反馈', () => {
+    expect(
+      evaluateActionCompleted(snapshot([msg('u1', 'user', '你好', 0)])),
+    ).toEqual([]);
   });
 });

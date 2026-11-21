@@ -12,6 +12,9 @@ const LATIN = /[a-zA-Z]/g;
 const SENSITIVE =
   /(银行卡号|银行账号|卡号|身份证号|身份证|信用卡|cvv|card\s*number|account\s*number)/i;
 const DRILL_MARKERS = ['死信演练', '__CHAOS__'];
+const ACTION_INTENT =
+  /(我要|我想|帮我|给我|可以帮我)[^。！？]{0,10}(领|领取|兑换|提现|下单|购买|退款)/;
+const ACTION_PASS = new Set(['CONFIRM_CREATED', 'CONFIRMED', 'EXECUTED']);
 
 export function detectLanguage(
   text: string,
@@ -187,6 +190,53 @@ export function evaluateSensitiveRequest(
   });
 }
 
+export function evaluateActionCompleted(
+  snapshot: ConversationSnapshot,
+): EvalFeedback[] {
+  const actions = snapshot.actions ?? [];
+  const pairs = pairTurns(snapshot.messages);
+  const feedback: EvalFeedback[] = [];
+
+  for (const { turn, user } of pairs) {
+    const intendsAction = ACTION_INTENT.test(user.content);
+    const record =
+      actions.find((item) => item.messageId === user.id) ??
+      actions.find(
+        (item) =>
+          item.createdAt.getTime() >= user.createdAt.getTime() &&
+          item.createdAt.getTime() < user.createdAt.getTime() + 10 * 60_000,
+      );
+
+    if (!record) {
+      if (intendsAction) {
+        feedback.push(
+          statusFeedback(
+            'action_completed',
+            turn,
+            'fail',
+            '动作请求没有生命周期记录',
+          ),
+        );
+      }
+      continue;
+    }
+
+    const status = record.status.toUpperCase();
+    const passed = ACTION_PASS.has(status);
+    const failed = ['EXPIRED', 'FAILED', 'TRANSFERRED'].includes(status);
+    feedback.push(
+      statusFeedback(
+        'action_completed',
+        turn,
+        passed ? 'pass' : failed ? 'fail' : 'unknown',
+        `action=${record.action}, status=${record.status}`,
+      ),
+    );
+  }
+
+  return feedback;
+}
+
 export function isDrillConversation(snapshot: ConversationSnapshot): boolean {
   if (snapshot.source === 'drill') return true;
   return snapshot.messages.some((message) =>
@@ -204,6 +254,7 @@ export function evaluateDeterministic(
     ...evaluateLatency(snapshot, options),
     ...evaluateTracePresent(snapshot),
     ...evaluateSensitiveRequest(snapshot),
+    ...evaluateActionCompleted(snapshot),
   ];
 }
 

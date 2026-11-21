@@ -26,8 +26,10 @@ tools/eval/conversation/run.sh \
 - `reports/<runId>.md`：总体、切片、失败明细；
 - `reports/<runId>.feedback.jsonl`：key 级 feedback，可被 `validate.py` 校验。
 
-evaluator：`language_match / answered / latency / trace_present / sensitive_request`。
+evaluator：`language_match / answered / latency / trace_present / sensitive_request / action_completed`。
 `source=drill` 的会话默认从聚合中排除，只在失败明细里标注。
+`action_completed` 依赖 `ai_action_requests`；历史会话没有生命周期记录时按失败计，
+新流量从确认卡片产生那一刻起有终态。
 
 
 ## 校验

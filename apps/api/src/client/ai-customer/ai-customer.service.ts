@@ -28,6 +28,7 @@ import { PromptResolverService } from '@api/client/ai-customer/knowledge/prompt-
 import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service';
 import { AiMemoryService } from '@api/common/ai/ai-memory.service';
 import { AiActionConfirmService } from './ai-action-confirm.service';
+import { AiActionLifecycleService } from './ai-action-lifecycle.service';
 import { AiFeedbackService } from '@api/common/ai/ai-feedback.service';
 import {
   AiConversationDebugService,
@@ -110,6 +111,12 @@ export class AiCustomerService implements OnModuleDestroy {
      */
     @Optional()
     private readonly traceService?: TraceService,
+    /**
+     * 写操作生命周期：确认卡片/执行/过期落库。
+     * 可选注入，单测直接 new 时不影响；生产由模块提供。
+     */
+    @Optional()
+    private readonly actionLifecycle?: AiActionLifecycleService,
   ) {}
 
   /**
@@ -516,6 +523,18 @@ export class AiCustomerService implements OnModuleDestroy {
       // Step 2 — 准备 AI 对话线程
       const threadId = await this.prepareThread(userId, conversationId);
 
+      // 新消息到来：上一张确认卡片已不可能再被确认，写明确终态。
+      // 只影响确认状态，不阻断本轮对话。
+      if (conversationId && this.actionLifecycle) {
+        await this.actionLifecycle
+          .expireForConversation(conversationId)
+          .catch((err: any) => {
+            this.logger.warn(
+              `[chatStream] expire confirm cards failed: ${err?.message ?? err}`,
+            );
+          });
+      }
+
       // 查成员不能影响对话主流程：失败就退化为只发会话房间
       memberIds = await this.resolveMemberIds(conversationId);
 
@@ -860,7 +879,12 @@ export class AiCustomerService implements OnModuleDestroy {
       );
     } else if (confirmCard) {
       // 路由 B — 确认卡片（只发提问者本人的私有房间，见 routeConfirm 注释）
-      await this.routeConfirm(userId, conversationId, finalState);
+      await this.routeConfirm(
+        userId,
+        conversationId,
+        finalState,
+        triggerMessageId,
+      );
     } else {
       // 路由 C — 正常完成（写 chat_message + 双通道广播）
       await this.routeNormalCompletion(
@@ -1223,11 +1247,15 @@ export class AiCustomerService implements OnModuleDestroy {
     userId: string,
     conversationId: string | undefined,
     finalState: any,
+    triggerMessageId?: string,
   ): Promise<void> {
     const pc = finalState.values.pendingConfirm;
+    if (!pc?.action) return;
+    const summary = pc.summary ?? {};
+    const params = pc.params ?? {};
 
     // 提现卡补全：手续费 + 到账金额（与 applyWithdraw 内算费公式一致：
-    // fee = amount * feeRate + feeFixed，net = amount - fee）
+    // fee = amount * feeRate + feeFixed, net = amount - fee）
     if (pc.action === 'withdraw') {
       const channel = await this.prismaService.paymentChannel.findUnique({
         where: { id: Number(pc.params.channelId), status: 1 },
@@ -1238,8 +1266,29 @@ export class AiCustomerService implements OnModuleDestroy {
         const feeFixed = channel.feeFixed || new Prisma.Decimal(0);
         const fee = amount.mul(feeRate).add(feeFixed);
         const netAmount = amount.sub(fee);
-        pc.summary.fee = fee.toString();
-        pc.summary.netAmount = netAmount.toString();
+        summary.fee = fee.toString();
+        summary.netAmount = netAmount.toString();
+      }
+    }
+
+    // 先生命周期记录，再发卡片：即使 socket 丢包，运营/评测仍能查到
+    // 这次动作存在、等待确认、何时过期。
+    let request: { id: string; expiresAt: Date } | null = null;
+    if (conversationId && this.actionLifecycle) {
+      try {
+        request = await this.actionLifecycle.createConfirm({
+          conversationId,
+          userId,
+          messageId: triggerMessageId ?? null,
+          action: pc.action,
+          params,
+          summary,
+        });
+      } catch (err: any) {
+        // 状态记录失败不能阻断卡片；只留日志。
+        this.logger.warn(
+          `[routeConfirm] lifecycle create failed: ${err?.message ?? err}`,
+        );
       }
     }
 
@@ -1247,18 +1296,56 @@ export class AiCustomerService implements OnModuleDestroy {
       userId,
       pc.action,
       pc.params,
-      pc.summary,
+      summary,
+      request?.id,
     );
     if (conversationId) {
+      // 落一条可见消息：以前确认卡片只发 socket，聊天记录里看不到，
+      // 运营会以为 AI 没回复。卡片本身仍走 AI_CONFIRM 私有房间。
+      const actionLabel: Record<string, string> = {
+        claim_coupon: '领取优惠券',
+        redeem_code: '兑换优惠码',
+        withdraw: '提现',
+        draw: '抽奖',
+        delete_address: '删除地址',
+      };
+      await publishAiReply(
+        this.prismaService,
+        this.eventsGateway,
+        this.eventEmitter,
+        conversationId,
+        [
+          {
+            type: 'ai',
+            content: `请确认：${actionLabel[pc.action] ?? pc.action}。确认后才会执行，60 秒内有效。`,
+          },
+        ],
+        userId,
+        [],
+        {
+          kind: 'confirm_card',
+          action: pc.action,
+          requestId: request?.id ?? null,
+          expiresAt,
+          summary,
+        },
+        triggerMessageId,
+      ).catch((err: any) => {
+        this.logger.warn(
+          `[routeConfirm] persist card message failed: ${err?.message ?? err}`,
+        );
+      });
+
       // 只发提问者本人的私有房间，不进会话房间：
       // payload 里带 confirmToken（一次性写操作凭证），
       // 谁在房间里都收得到就等于把凭证广播出去（#85 P0-2 / T1-4）
       this.eventsGateway.dispatchToUser(userId, SocketEvents.AI_CONFIRM, {
         conversationId,
         action: pc.action,
-        summary: pc.summary,
+        summary,
         confirmToken: token,
         expiresAt,
+        requestId: request?.id ?? null,
       });
     }
   }
@@ -1278,42 +1365,75 @@ export class AiCustomerService implements OnModuleDestroy {
     if (!payload) {
       throw new BadRequestException('Confirm token invalid or expired');
     }
-    const { action, params } = payload;
+    const { action, params, requestId } = payload;
 
-    switch (action) {
-      case 'withdraw': {
-        // 提现走 OTP 双保险：先发验证码 + 暂存任务，验码后（confirmWithdrawOtp）才真正执行
-        const user = await this.prismaService.user.findUnique({
-          where: { id: userId },
-          select: { phone: true },
-        });
-        if (!user || !user.phone) {
-          throw new BadRequestException('User phone not found');
+    try {
+      switch (action) {
+        case 'withdraw': {
+          // 提现走 OTP 双保险：先发验证码 + 暂存任务，验码后（confirmWithdrawOtp）才真正执行
+          const user = await this.prismaService.user.findUnique({
+            where: { id: userId },
+            select: { phone: true },
+          });
+          if (!user || !user.phone) {
+            throw new BadRequestException('User phone not found');
+          }
+          await this.otpService.request({
+            phone: user.phone,
+            codeType: CODE_TYPE.WITHDRAW,
+          });
+
+          await this.aiActionConfirmService.stagePendingExecution(
+            userId,
+            payload,
+          );
+          await this.actionLifecycle?.markConfirmed(requestId);
+          return {
+            needOtp: true,
+            message: 'OTP sent to user phone, please confirm with code',
+          };
         }
-        await this.otpService.request({
-          phone: user.phone,
-          codeType: CODE_TYPE.WITHDRAW,
-        });
-
-        await this.aiActionConfirmService.stagePendingExecution(
-          userId,
-          payload,
-        );
-        return {
-          needOtp: true,
-          message: 'OTP sent to user phone, please confirm with code',
-        };
+        case 'claim_coupon': {
+          const result = await this.clientCouponService.claimCoupon(
+            userId,
+            params.couponId,
+            2,
+          );
+          await this.actionLifecycle?.markExecuted(requestId, result);
+          return result;
+        }
+        case 'redeem_code': {
+          const result = await this.clientCouponService.redeemCode(
+            userId,
+            params.code,
+          );
+          await this.actionLifecycle?.markExecuted(requestId, result);
+          return result;
+        }
+        case 'draw': {
+          const result = await this.luckyDrawService.draw(
+            userId,
+            params.ticketId,
+          );
+          await this.actionLifecycle?.markExecuted(requestId, result);
+          return result;
+        }
+        case 'delete_address': {
+          const result = await this.addressService.delete(
+            userId,
+            params.addressId,
+          );
+          await this.actionLifecycle?.markExecuted(requestId, result);
+          return result;
+        }
+        default:
+          throw new BadRequestException(
+            `Unknown confirm action: ${action}`,
+          );
       }
-      case 'claim_coupon':
-        return this.clientCouponService.claimCoupon(userId, params.couponId, 2);
-      case 'redeem_code':
-        return this.clientCouponService.redeemCode(userId, params.code);
-      case 'draw':
-        return this.luckyDrawService.draw(userId, params.ticketId);
-      case 'delete_address':
-        return this.addressService.delete(userId, params.addressId);
-      default:
-        throw new BadRequestException(`Unknown confirm action: ${action}`);
+    } catch (err: any) {
+      await this.actionLifecycle?.markFailed(requestId, err?.message ?? err);
+      throw err;
     }
   }
 
@@ -1378,7 +1498,17 @@ export class AiCustomerService implements OnModuleDestroy {
           .join('; ')}`,
       );
     }
-    return this.clientWalletService.applyWithdraw(userId, dto);
+    try {
+      const result = await this.clientWalletService.applyWithdraw(userId, dto);
+      await this.actionLifecycle?.markExecuted(consumed.requestId, result);
+      return result;
+    } catch (err: any) {
+      await this.actionLifecycle?.markFailed(
+        consumed.requestId,
+        err?.message ?? err,
+      );
+      throw err;
+    }
   }
 
   /** 路由 C — 写 chat_message + 广播（委托给 ai-reply-publisher） */

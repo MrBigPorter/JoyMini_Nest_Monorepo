@@ -7,11 +7,13 @@ interface ConfirmPayload {
   params: Record<string, any>;
   summary: Record<string, any>;
   userId: string;
+  /** 对应 ai_action_requests.id，用于回写确认/执行/失败终态。 */
+  requestId?: string;
 }
 
+import { CONFIRM_TOKEN_TTL_SEC } from './ai-action.constants';
+
 const TOKEN_PREFIX = 'ai:confirm:';
-/** 卡片凭证有效期：用户点「确认」前的窗口，短一点更安全（不变） */
-const TOKEN_TTL_SEC = 60;
 /** 待执行任务有效期：用户要去看短信、输码，必须 ≥ OTP 有效期，多留 30s 缓冲 */
 const PENDING_TTL_SEC = (Number(process.env.OTP_TTL_SECONDS) || 300) + 30;
 
@@ -56,15 +58,22 @@ export class AiActionConfirmService {
     action: string,
     params: Record<string, any>,
     summary: Record<string, any>,
+    requestId?: string,
   ) {
     const token = uuidv4();
-    const payload: ConfirmPayload = { action, params, summary, userId };
+    const payload: ConfirmPayload = {
+      action,
+      params,
+      summary,
+      userId,
+      ...(requestId ? { requestId } : {}),
+    };
     await this.redisService.set(
       `${TOKEN_PREFIX}${token}`,
       JSON.stringify(payload),
-      TOKEN_TTL_SEC,
+      CONFIRM_TOKEN_TTL_SEC,
     );
-    return { token, expiresAt: Date.now() + TOKEN_TTL_SEC * 1000 };
+    return { token, expiresAt: Date.now() + CONFIRM_TOKEN_TTL_SEC * 1000 };
   }
 
   async consume(token: string, userId: string): Promise<ConfirmPayload | null> {
