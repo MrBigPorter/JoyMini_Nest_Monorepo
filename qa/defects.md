@@ -442,12 +442,12 @@ ai_spans.llm.output.snippet -> 已登记：13812341234 / user@example.com / 1101
 
 > Insights API 3/3、metrics 页面 1/1、既有 insights 链接 1/1、AiInsights.test.tsx 7/7。**无 P0/P1/P2 阻断缺陷。**
 
-## D-IM-01 — 「转人工率」KPI 与下钻链接不是同一总体（P2）
+## D-IM-01 — 「转人工率」KPI 与下钻链接不是同一总体（P2）— **FIXED**
 
 | 项 | 内容 |
 |---|---|
 | 严重度 | P2（下钻口径；非本批主验收项） |
-| 状态 | OPEN（QA 只记录） |
+| 状态 | **FIXED**，提交 `e730b4a8`：转人工率 KPI 不再挂 `signal=transferred` 链接，副标题明确「会话口径；分母 = 窗口内创建或转人工的 SUPPORT/AI 会话（暂无列表下钻）」 |
 | 位置 | `apps/admin-next/src/app/(dashboard)/ai-ops/insights/page.tsx`：转人工率值 = `transfers.numerator/denominator`（会话），href = `/ai-ops/quality?signal=transferred`（反馈信号） |
 | 问题 | KPI 2/3 是转人工会话；链接落地是 implicit transferred 反馈（D 窗口 5 条），数量/总体不一致 |
 | 影响 | 运营点 66.7% (2/3) 看到 5 条反馈信号，容易误解；不影响本批 labels/fractions 验收 |
@@ -461,3 +461,38 @@ ai_spans.llm.output.snippet -> 已登记：13812341234 / user@example.com / 1101
 - 只验证单日 2026-11-15；未覆盖跨日/7 天窗口、多实例、多客服并发回复。
 - 人工消息 fixture 依赖 bot 成员；生产依赖真实 SupportChannel bot。
 - 只跑 `AiInsights.test.tsx`（7/7），未跑前端全量。
+
+---
+
+# Editor Nav / Account Deletion / Chat Desk — 缺陷（`d7bdced2`）
+
+> 账号删除级联 API/service 2/2 PASS；隐私六语言 PASS；EDITOR 工程导航 4/4 PASS；Chat desk 首轮 4/5（D-CD-01），复验 `09a28081` **5/5**。回归：Batch 1 24/24、Batch 2 18/18、Batch 4 9/9、Batch 5 9/9。
+
+## D-CD-01 — 上滚后 10s 轮询仍把客服甩回底部（P2）— **FIXED**
+
+| 项 | 内容 |
+|---|---|
+| 严重度 | P2（阅读体验；首轮「用户上滚时轮询不强制到底」失败） |
+| 状态 | **FIXED**，提交 `09a28081`（父 `d7bdced2`）；复验 chat-desk 5/5，滚动用例 repeat 2/2 |
+| 位置（首轮） | `apps/admin-next/src/components/customer-service/ChatWindow.tsx:55,130-131,346-350`；`apps/admin-next/src/components/layout/MainContent.tsx:13`；`apps/admin-next/src/components/customer-service/CustomerServiceDesk.tsx:217,224,275` |
+| 首轮问题 | `nearBottomRef` 只跟踪 ChatWindow 内部消息区；该元素 `clientHeight == scrollHeight`（不滚动），所以 ref 恒为 `true`。真正滚动的是 `<main overflow-auto>`，轮询触发 `scrollIntoView` 会把页面拉到底 |
+| 首轮复现 | `main.scrollTop` 0 → 3254 |
+| 修复 | `ChatWindow` 用 `messagesScrollRef.closest('main')` 找到真实滚动容器，在其上监听 `scroll` 维护 near-bottom，并用该容器 `scrollTo` 回底 |
+| 复验 | `main.scrollTop` 轮询后保持 0（<50）；其余 4 项仍 PASS |
+| 证据 | `qa/logs/chat-desk-playwright.log`（首轮失败）、`qa/logs/chat-desk-playwright-reverify.log`（5/5）；`qa/reports/chat-desk.md` §3.2 |
+
+## D-ED-01 — 业务页对 EDITOR 仍 403（P2，OPEN，既有残留）
+
+| 项 | 内容 |
+|---|---|
+| 严重度 | P2（UI 可见性与 API 角色矩阵不一致） |
+| 状态 | OPEN（既有问题；D-02/本轮只修「工程组隐藏」，未新增或扩大） |
+| 位置 | `apps/admin-next/src/routes/index.ts`（业务组对 EDITOR 可见）；`apps/api/src/admin/**` 各业务 controller 的 `@Roles` 不含 EDITOR |
+| 问题 | EDITOR 侧边栏保留「今日 / 业务」，但 `queues`、`ai-usage/summary`、`ai-security/summary`、`ai-feedback/summary`、`rag/documents/quality-stats`、`chat/sla/queue`、`ai-insights/overview`、`ai-eval/datasets` 均 403；只有 `chat/conversations` 200 |
+| 影响 | EDITOR 打开今日/质量/转人工/洞察页会看到加载失败；不影响本轮「工程组对齐」验收 |
+| 证据 | `qa/logs/editor-business-403.log`；`qa/reports/editor-nav.md` §4 |
+| 建议 | 明确 EDITOR 的业务页权限：要么 API 放开只读，要么业务组也对 EDITOR 隐藏，避免可见不可用 |
+
+## 账号删除 / 隐私文案
+
+**无缺陷。** `clearUserData` 级联、共享会话保留、资金/KYC 保留、六语言披露均通过（`qa/reports/account-deletion.md`）。
