@@ -36,6 +36,7 @@ import { OtpModule } from '../otp/otp.module';
 import { BullModule } from '@nestjs/bullmq';
 import { AI_PROCESSING_QUEUE } from '@api/common/queue/ai-queue.module';
 import { AiProcessingProcessor } from './ai-processing.processor';
+import { HandoffModule } from '@api/common/chat/handoff/handoff.module';
 
 /**
  * 需要工具注册的 Agent tag 列表。
@@ -62,6 +63,7 @@ const EXPECTED_AGENT_TAGS = AGENT_TAGS_FOR_TOOLS;
     ClientCouponModule,
     ClientFlashSaleModule,
     OtpModule,
+    HandoffModule,
     BullModule.registerQueue({ name: AI_PROCESSING_QUEUE }),
   ],
   controllers: [AiCustomerController],
