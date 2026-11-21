@@ -1,11 +1,13 @@
 import {
   Body,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
   Param,
+  Patch,
   Post,
   UseGuards,
 } from '@nestjs/common';
@@ -17,7 +19,12 @@ import { Roles } from '../auth/roles.decorator';
 import { AiEvalJudgeService } from './ai-eval-judge.service';
 import { JudgeTaskDto } from './dto/judge-task.dto';
 import { AiEvalDatasetService } from './ai-eval-dataset.service';
-import { AddEvalCasesDto, CreateEvalDatasetDto, StartEvalRunDto } from './dto/eval-dataset.dto';
+import {
+  AddEvalCasesDto,
+  CreateEvalDatasetDto,
+  StartEvalRunDto,
+  UpdateEvalCaseDto,
+} from './dto/eval-dataset.dto';
 import { CurrentUserId } from '@api/common/decorators/user.decorator';
 
 @ApiTags('Admin AI Eval')
@@ -75,6 +82,29 @@ export class AiEvalController {
   async addCases(@Param('id') id: string, @Body() dto: AddEvalCasesDto) {
     this.assertEnabled();
     return this.datasetService.addCases(id, dto);
+  }
+
+  @Patch('datasets/:id/cases/:caseId')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @ApiOperation({ summary: '编辑评测用例（期望答案/要点等）' })
+  async updateCase(
+    @Param('id') id: string,
+    @Param('caseId') caseId: string,
+    @Body() dto: UpdateEvalCaseDto,
+  ) {
+    this.assertEnabled();
+    return this.datasetService.updateCase(id, caseId, dto);
+  }
+
+  @Delete('datasets/:id/cases/:caseId')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @ApiOperation({ summary: '删除评测用例' })
+  async deleteCase(
+    @Param('id') id: string,
+    @Param('caseId') caseId: string,
+  ) {
+    this.assertEnabled();
+    return this.datasetService.deleteCase(id, caseId);
   }
 
   @Post('datasets/:id/runs')

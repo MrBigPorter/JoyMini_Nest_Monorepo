@@ -54,7 +54,14 @@ function makeService() {
     aiEvalRun: {
       create: jest.fn(),
       findUnique: jest.fn(),
+      findFirst: jest.fn().mockResolvedValue(null),
       update: jest.fn(),
+      updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
+    aiEvalCase: {
+      findUnique: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
     },
     aiEvalResult: { create: jest.fn().mockResolvedValue({}) },
   };
@@ -137,7 +144,7 @@ describe('AiEvalDatasetService', () => {
     });
     const result = prisma.aiEvalResult.create.mock.calls[0][0].data;
     expect(result.actualAnswer).toBe('实时回答：请点申请退款');
-    expect(result.traceId).toHaveLength(32);
+    expect(result.traceId).toBeNull();
     expect(summaryOf(prisma)).toMatchObject({
       mode: 'LIVE',
       total: 1,
@@ -238,6 +245,100 @@ describe('AiEvalDatasetService', () => {
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.aiEvalRun.create).not.toHaveBeenCalled();
+  });
+
+  it('startRun 拒绝没有期望的用例', async () => {
+    const { service, prisma } = makeService();
+    prisma.aiEvalDataset.findUnique.mockResolvedValue({
+      id: 'ds-1',
+      cases: [
+        {
+          ...makeCase('c1', 'q1', 'a1'),
+          expect: {},
+          expected: null,
+        },
+      ],
+    });
+
+    await expect(
+      service.startRun('ds-1', 'admin-1', { mode: 'STORED' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.aiEvalRun.create).not.toHaveBeenCalled();
+  });
+
+  it('startRun 拒绝同一评测集的并发运行', async () => {
+    const { service, prisma } = makeService();
+    prisma.aiEvalDataset.findUnique.mockResolvedValue({
+      id: 'ds-1',
+      cases: [makeCase('c1', 'q1', 'a1')],
+    });
+    prisma.aiEvalRun.findFirst.mockResolvedValueOnce({ id: 'running-1' });
+
+    await expect(
+      service.startRun('ds-1', 'admin-1', { mode: 'STORED' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.aiEvalRun.create).not.toHaveBeenCalled();
+  });
+
+  it('updateCase 校验归属并写入期望', async () => {
+    const { service, prisma } = makeService();
+    prisma.aiEvalCase.findUnique.mockResolvedValue({
+      id: 'case-1',
+      datasetId: 'ds-1',
+    });
+    prisma.aiEvalDataset.findUnique.mockResolvedValue({
+      id: 'ds-1',
+      cases: [],
+      runs: [],
+    });
+
+    await service.updateCase('ds-1', 'case-1', {
+      expected: '必须提到 7 天退款',
+    });
+
+    expect(prisma.aiEvalCase.update).toHaveBeenCalledWith({
+      where: { id: 'case-1' },
+      data: expect.objectContaining({
+        expected: '必须提到 7 天退款',
+      }),
+    });
+  });
+
+  it('deleteCase 校验归属后删除', async () => {
+    const { service, prisma } = makeService();
+    prisma.aiEvalCase.findUnique.mockResolvedValue({
+      id: 'case-1',
+      datasetId: 'ds-1',
+    });
+    prisma.aiEvalDataset.findUnique.mockResolvedValue({
+      id: 'ds-1',
+      cases: [],
+      runs: [],
+    });
+
+    await service.deleteCase('ds-1', 'case-1');
+
+    expect(prisma.aiEvalCase.delete).toHaveBeenCalledWith({
+      where: { id: 'case-1' },
+    });
+  });
+
+  it('getDataset 会把超时 RUNNING 标成 FAILED', async () => {
+    const { service, prisma } = makeService();
+    prisma.aiEvalDataset.findUnique.mockResolvedValue({
+      id: 'ds-1',
+      cases: [],
+      runs: [],
+    });
+
+    await service.getDataset('ds-1');
+
+    expect(prisma.aiEvalRun.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ status: 'RUNNING' }),
+        data: expect.objectContaining({ status: 'FAILED' }),
+      }),
+    );
   });
 
   it('startRun 持久化 mode 与 baselineRunId', async () => {

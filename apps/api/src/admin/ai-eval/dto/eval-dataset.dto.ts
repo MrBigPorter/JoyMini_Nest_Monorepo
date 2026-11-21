@@ -29,6 +29,49 @@ export class EvalCaseDto {
   @IsOptional()
   expect?: Record<string, any>;
 
+  /** 期望答案/要点；与 expect 二选一，至少有一个非空。 */
+  @IsOptional()
+  expected?: string | Record<string, any>;
+
+  @IsOptional()
+  metadata?: Record<string, any>;
+
+  /** 来源反馈；从质量待办生成时写入。 */
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  sourceFeedbackId?: string;
+
+  /** 来源：feedback / manual / import */
+  @IsOptional()
+  @IsString()
+  @MaxLength(16)
+  source?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  tags?: string[];
+}
+
+export class UpdateEvalCaseDto {
+  @IsOptional()
+  @IsString()
+  question?: string;
+
+  @IsOptional()
+  @IsString()
+  answer?: string;
+
+  @IsOptional()
+  expect?: Record<string, any>;
+
+  @IsOptional()
+  expected?: string | Record<string, any>;
+
+  @IsOptional()
+  metadata?: Record<string, any>;
+
   @IsOptional()
   @IsArray()
   @IsString({ each: true })

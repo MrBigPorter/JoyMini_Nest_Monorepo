@@ -5,7 +5,6 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import type { AiCustomerService } from '@api/client/ai-customer/ai-customer.service';
 import { runWithContext } from '@api/common/logger/trace-context';
@@ -56,6 +55,7 @@ export class AiEvalDatasetService {
   ) {}
 
   async listDatasets() {
+    await this.recoverStaleRuns();
     return this.prisma.aiEvalDataset.findMany({
       orderBy: { updatedAt: 'desc' },
       include: { _count: { select: { cases: true, runs: true } } },
@@ -77,6 +77,7 @@ export class AiEvalDatasetService {
   }
 
   async getDataset(id: string) {
+    await this.recoverStaleRuns();
     const dataset = await this.prisma.aiEvalDataset.findUnique({
       where: { id },
       include: {
@@ -85,6 +86,7 @@ export class AiEvalDatasetService {
           orderBy: { startedAt: 'desc' },
           take: 20,
         },
+        _count: { select: { runs: true, cases: true } },
       },
     });
     if (!dataset) throw new NotFoundException('Eval dataset not found');
@@ -104,10 +106,82 @@ export class AiEvalDatasetService {
         question: item.question,
         answer: item.answer,
         expect: (item.expect ?? {}) as any,
+        expected: (item.expected ?? null) as any,
+        metadata: (item.metadata ?? null) as any,
+        sourceFeedbackId: item.sourceFeedbackId ?? null,
+        source: item.source ?? null,
         tags: (item.tags ?? []) as any,
       })),
     });
     return this.getDataset(datasetId);
+  }
+
+  async updateCase(
+    datasetId: string,
+    caseId: string,
+    dto: {
+      question?: string;
+      answer?: string;
+      expect?: Record<string, any>;
+      expected?: string | Record<string, any>;
+      metadata?: Record<string, any>;
+      tags?: string[];
+    },
+  ) {
+    const existing = await this.prisma.aiEvalCase.findUnique({
+      where: { id: caseId },
+      select: { id: true, datasetId: true },
+    });
+    if (!existing || existing.datasetId !== datasetId) {
+      throw new NotFoundException('Eval case not found');
+    }
+    await this.prisma.aiEvalCase.update({
+      where: { id: caseId },
+      data: {
+        ...(dto.question !== undefined ? { question: dto.question } : {}),
+        ...(dto.answer !== undefined ? { answer: dto.answer } : {}),
+        ...(dto.expect !== undefined ? { expect: dto.expect as any } : {}),
+        ...(dto.expected !== undefined
+          ? { expected: dto.expected as any }
+          : {}),
+        ...(dto.metadata !== undefined
+          ? { metadata: dto.metadata as any }
+          : {}),
+        ...(dto.tags !== undefined ? { tags: dto.tags as any } : {}),
+      },
+    });
+    return this.getDataset(datasetId);
+  }
+
+  async deleteCase(datasetId: string, caseId: string) {
+    const existing = await this.prisma.aiEvalCase.findUnique({
+      where: { id: caseId },
+      select: { id: true, datasetId: true },
+    });
+    if (!existing || existing.datasetId !== datasetId) {
+      throw new NotFoundException('Eval case not found');
+    }
+    await this.prisma.aiEvalCase.delete({ where: { id: caseId } });
+    return this.getDataset(datasetId);
+  }
+
+  /** 进程重启后遗留的 RUNNING：超过 30 分钟统一标 FAILED。 */
+  private async recoverStaleRuns(): Promise<void> {
+    const cutoff = new Date(Date.now() - 30 * 60 * 1000);
+    await this.prisma.aiEvalRun
+      .updateMany({
+        where: { status: 'RUNNING', startedAt: { lt: cutoff } },
+        data: {
+          status: 'FAILED',
+          finishedAt: new Date(),
+          summary: { error: 'run interrupted: stale RUNNING' },
+        },
+      })
+      .catch((err) =>
+        this.logger.warn(
+          `[eval] stale run recovery failed: ${err?.message ?? err}`,
+        ),
+      );
   }
 
   async startRun(
@@ -122,6 +196,26 @@ export class AiEvalDatasetService {
     if (!dataset) throw new NotFoundException('Eval dataset not found');
     if (dataset.cases.length === 0) {
       throw new NotFoundException('Eval dataset has no cases');
+    }
+
+    const missingExpectation = dataset.cases.filter(
+      (item) => !this.hasKeys(this.resolveExpectation(item)),
+    );
+    if (missingExpectation.length > 0) {
+      throw new BadRequestException(
+        `${missingExpectation.length} case(s) have no expectation; add expect.mustMention or expected before running`,
+      );
+    }
+
+    await this.recoverStaleRuns();
+    const running = await this.prisma.aiEvalRun.findFirst({
+      where: { datasetId, status: 'RUNNING' },
+      select: { id: true },
+    });
+    if (running) {
+      throw new BadRequestException(
+        'This dataset already has a run in progress',
+      );
     }
 
     const mode: EvalMode = options.mode === 'LIVE' ? 'LIVE' : 'STORED';
@@ -164,6 +258,7 @@ export class AiEvalDatasetService {
   }
 
   async getRun(id: string) {
+    await this.recoverStaleRuns();
     const run = await this.prisma.aiEvalRun.findUnique({
       where: { id },
       include: {
@@ -213,7 +308,8 @@ export class AiEvalDatasetService {
             answer = live.answer;
             actualAnswer = live.answer;
             pendingConfirm = live.pendingConfirm;
-            traceId = live.traceId;
+            // eval 不再伪造 traceId：testChat 不写 trace，留 null 比悬空 id 诚实。
+            traceId = null;
           } catch (err: any) {
             // 单条用例的 AI 故障不拖垮整次评测：记 unsolved 并继续下一条。
             liveError = String(err?.message ?? err).slice(0, 200);
@@ -349,7 +445,7 @@ export class AiEvalDatasetService {
 
   /**
    * 实时评测适配器：走真实 AI 客服 graph（testChat），不复用 SSE/落库链路。
-   * 每条用例独立 thread，避免上下文互相污染；traceId 用于把结果回链到日志。
+   * 每条用例独立 thread，避免上下文互相污染；testChat 不写 trace，结果 traceId 留空。
    */
   private async runLiveCase(
     runId: string,
@@ -358,15 +454,13 @@ export class AiEvalDatasetService {
   ): Promise<{
     answer: string;
     pendingConfirm: Record<string, any> | null;
-    traceId: string;
   }> {
     const userId = process.env.AI_EVAL_LIVE_USER_ID?.trim();
     if (!userId) {
       throw new Error('AI_EVAL_LIVE_USER_ID is not configured');
     }
-    const traceId = randomUUID().replace(/-/g, '');
     const sessionId = `eval-${runId}-${caseId}`;
-    const result = await runWithContext({ traceId, userId }, () =>
+    const result = await runWithContext({ userId }, () =>
       this.aiCustomer.testChat(question, userId, false, sessionId),
     );
     const answer =
@@ -377,7 +471,6 @@ export class AiEvalDatasetService {
     return {
       answer,
       pendingConfirm: result?.pendingConfirm ?? null,
-      traceId,
     };
   }
 
