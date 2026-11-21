@@ -13,7 +13,6 @@
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { createLLM } from '../src/client/ai-customer/graph/llm-factory';
 import {
   buildPrelabelMessages,
   parsePrelabelOutput,
@@ -42,22 +41,6 @@ function argValue(args: string[], name: string): string | undefined {
 
 function keyOf(row: { caseId: string; turn: number }): string {
   return `${row.caseId}#${row.turn}`;
-}
-
-function extractText(content: unknown): string {
-  if (typeof content === 'string') return content;
-  if (Array.isArray(content)) {
-    return content
-      .map((part) => {
-        if (typeof part === 'string') return part;
-        if (part && typeof part === 'object' && 'text' in part) {
-          return String((part as { text?: unknown }).text ?? '');
-        }
-        return '';
-      })
-      .join('');
-  }
-  return '';
 }
 
 async function main() {
@@ -125,88 +108,98 @@ async function main() {
     }
   }
 
-  // 多 key 时先探活：401/403 跳过，其他状态/网络错误先用第一把。
-  // 不打印 key 本身，只打印序号。
-  async function pickApiKey(): Promise<{
-    key: string;
-    index: number;
-    modelIds: string[];
-  } | null> {
-    if (dryRun) return null;
-    for (let index = 0; index < apiKeys.length; index += 1) {
-      const key = apiKeys[index];
-      try {
-        const response = await fetch(
-          `${baseURL.replace(/\/$/, '')}/models`,
-          {
-            headers: { Authorization: `Bearer ${key}` },
-            signal: AbortSignal.timeout(10_000),
-          },
-        );
-        if (response.status === 401 || response.status === 403) continue;
-        const body = (await response.json().catch(() => ({}))) as {
-          data?: Array<{ id?: string }>;
-        };
-        const modelIds = Array.isArray(body.data)
-          ? body.data
-              .map((item) => item.id)
-              .filter((id): id is string => !!id)
-          : [];
-        console.log(
-          `[prelabel] using key ${index + 1}/${apiKeys.length} (status=${response.status}, models=${modelIds.length})`,
-        );
-        return { key, index, modelIds };
-      } catch {
-        // 网络不可达时不要误杀 key，交给真正的 invoke 决定。
-        console.warn(
-          `[prelabel] key ${index + 1} preflight network error, will try it`,
-        );
-        return { key, index, modelIds: [] };
-      }
-    }
-    return null;
-  }
-
-  const selected = await pickApiKey();
-  if (!dryRun && !selected) {
-    throw new Error(
-      'No usable judge API key: all keys returned 401/403. Rotate the key or check GROQ_API_KEY.',
-    );
-  }
-
-  const model = dryRun
-    ? (explicitModel ?? preferredModels[0])
-    : (preferredModels.find((id) => selected!.modelIds.includes(id)) ??
-      preferredModels[0]);
-
-  if (selected && explicitModel && !selected.modelIds.includes(explicitModel)) {
-    console.warn(
-      `[prelabel] configured model ${explicitModel} is not available to this key; using ${model}`,
-    );
-  }
-  console.log(`[prelabel] using model ${model}`);
-
-  const vendorIndependent = vendorOf(model, baseURL) !== 'deepseek';
-  if (!vendorIndependent && !allowSameVendor) {
+  if (
+    explicitModel &&
+    vendorOf(explicitModel, baseURL) === 'deepseek' &&
+    !allowSameVendor
+  ) {
     throw new Error(
       'AI prelabel judge must use a different vendor from the chat model (deepseek); set AI_PRELABEL_ALLOW_SAME_VENDOR=true only for local experiments',
     );
   }
-  const judgeVersion =
-    process.env.AI_PRELABEL_VERSION ??
-    `${model}@${new Date().toISOString().slice(0, 10)}`;
 
-  const llm = dryRun
-    ? null
-    : createLLM(
-        {
-          type: 'online',
-          model,
-          baseURL,
-          apiKey: selected!.key,
-        },
-        { temperature: 0 },
-      );
+  let loggedJudge = false;
+  /**
+   * 直接调用 OpenAI 兼容的 /chat/completions：
+   * - 401/403 换下一把 key；
+   * - 404 换下一个候选模型；
+   * - 429 短暂等待后换 key；
+   * - 网络错误换 key。
+   * 不打印 key，只打印命中的模型和 key 序号。
+   */
+  async function callJudge(
+    messages: Array<{ role: string; content: string }>,
+  ): Promise<{ raw: string; model: string }> {
+    let lastError: unknown = null;
+    for (const candidate of preferredModels) {
+      let modelUnavailable = false;
+      for (let index = 0; index < apiKeys.length; index += 1) {
+        try {
+          const response = await fetch(
+            `${baseURL.replace(/\/$/, '')}/chat/completions`,
+            {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${apiKeys[index]}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                model: candidate,
+                messages,
+                temperature: 0,
+                max_tokens: 300,
+              }),
+              signal: AbortSignal.timeout(30_000),
+            },
+          );
+
+          if (response.status === 401 || response.status === 403) {
+            lastError = new Error(`key ${index + 1} unauthorized`);
+            continue;
+          }
+          if (response.status === 404) {
+            lastError = new Error(`model ${candidate} unavailable`);
+            modelUnavailable = true;
+            break;
+          }
+          if (response.status === 429) {
+            lastError = new Error('rate limited');
+            await new Promise((resolveSleep) =>
+              setTimeout(resolveSleep, 1000),
+            );
+            continue;
+          }
+          if (!response.ok) {
+            const detail = (await response.text()).slice(0, 200);
+            lastError = new Error(`HTTP ${response.status}: ${detail}`);
+            continue;
+          }
+
+          const body = (await response.json()) as {
+            choices?: Array<{ message?: { content?: unknown } }>;
+          };
+          const raw = body.choices?.[0]?.message?.content;
+          if (typeof raw !== 'string' || !raw.trim()) {
+            lastError = new Error('empty completion');
+            continue;
+          }
+          if (!loggedJudge) {
+            console.log(
+              `[prelabel] judge model=${candidate} key=${index + 1}/${apiKeys.length}`,
+            );
+            loggedJudge = true;
+          }
+          return { raw, model: candidate };
+        } catch (error) {
+          lastError = error;
+        }
+      }
+      if (modelUnavailable) continue;
+    }
+    throw lastError instanceof Error
+      ? lastError
+      : new Error('judge call failed');
+  }
 
   let processed = 0;
   let skipped = 0;
@@ -248,9 +241,11 @@ async function main() {
     let parsed: PrelabelResult | null = null;
     let status = 'ok';
     let errorText: string | null = null;
+    let usedModel = explicitModel ?? preferredModels[0];
     try {
-      const response = await llm!.invoke(messages as any);
-      parsed = parsePrelabelOutput(extractText(response.content));
+      const completion = await callJudge(messages);
+      usedModel = completion.model;
+      parsed = parsePrelabelOutput(completion.raw);
       if (!parsed) status = 'invalid';
       else if (parsed.correctness === 'abstain') status = 'abstain';
     } catch (error: any) {
@@ -268,12 +263,12 @@ async function main() {
       },
       prelabel: {
         source: 'LLM',
-        judgeModel: model,
-        judgeVersion,
+        judgeModel: usedModel,
+        judgeVersion: `${usedModel}@${new Date().toISOString().slice(0, 10)}`,
         confidence: parsed?.confidence ?? 0,
         reason: parsed?.reason ?? errorText ?? '',
         status,
-        vendorIndependent,
+        vendorIndependent: vendorOf(usedModel, baseURL) !== 'deepseek',
       },
     };
 
