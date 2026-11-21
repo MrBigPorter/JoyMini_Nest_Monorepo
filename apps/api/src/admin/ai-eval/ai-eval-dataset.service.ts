@@ -431,6 +431,10 @@ export class AiEvalDatasetService {
     const primary = item.expect;
     if (this.hasKeys(primary)) return primary as Record<string, any>;
     const fallback = item.expected;
+    // 允许调用方只给一句期望答案：等价于 mustMention。
+    if (typeof fallback === 'string' && fallback.trim()) {
+      return { mustMention: [fallback.trim()] };
+    }
     if (this.hasKeys(fallback)) return fallback as Record<string, any>;
     return (primary as Record<string, any>) ?? {};
   }

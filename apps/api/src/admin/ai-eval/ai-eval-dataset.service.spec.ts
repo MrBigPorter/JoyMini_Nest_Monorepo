@@ -266,6 +266,27 @@ describe('AiEvalDatasetService', () => {
     expect(prisma.aiEvalRun.create).not.toHaveBeenCalled();
   });
 
+  it('startRun 接受非空字符串 expected', async () => {
+    const { service, prisma } = makeService();
+    prisma.aiEvalDataset.findUnique.mockResolvedValue({
+      id: 'ds-1',
+      cases: [
+        {
+          ...makeCase('c1', 'q1', 'a1'),
+          expect: {},
+          expected: 'must mention 7 days',
+        },
+      ],
+    });
+    prisma.aiEvalRun.create.mockResolvedValue({ id: 'run-new' });
+    prisma.aiEvalRun.findUnique.mockResolvedValue(null);
+
+    const run = await service.startRun('ds-1', 'admin-1', { mode: 'STORED' });
+
+    expect(run).toEqual({ id: 'run-new' });
+    expect(prisma.aiEvalRun.create).toHaveBeenCalled();
+  });
+
   it('startRun 拒绝同一评测集的并发运行', async () => {
     const { service, prisma } = makeService();
     prisma.aiEvalDataset.findUnique.mockResolvedValue({
