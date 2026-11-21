@@ -1,14 +1,23 @@
 import { Injectable, Logger } from '@nestjs/common';
+import type { ConversationDiagnosis } from './conversation-diagnosis';
 
 export interface ConversationDebugSnapshot {
   conversationId: string;
   threadId: string | null;
   checkpointId: string | null;
+  userId: string | null;
   flowState: Record<string, any>;
   contextState: Record<string, any>;
   pendingConfirm: Record<string, any> | null;
   previousIntent: string;
-  messages: Array<{ type: string; content: string }>;
+  messages: Array<{
+    id?: string;
+    type: string;
+    content: string;
+    createdAt?: string | null;
+    source?: string | null;
+  }>;
+  diagnosis?: ConversationDiagnosis;
   checkpoints?: Array<{
     checkpointId: string;
     createdAt: string | null;

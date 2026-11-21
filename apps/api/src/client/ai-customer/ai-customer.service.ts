@@ -33,6 +33,7 @@ import {
   AiConversationDebugService,
   ConversationDebugSnapshot,
 } from '@api/client/ai-customer/debug/ai-conversation-debug.service';
+import { buildConversationDiagnosis } from '@api/client/ai-customer/debug/conversation-diagnosis';
 import {
   FlowStateVersioningService,
   RollbackStateInput,
@@ -340,21 +341,74 @@ export class AiCustomerService implements OnModuleDestroy {
       });
       if (checkpoints.length >= 50) break;
     }
+    // 消息时间线以 ChatMessage 为准：graph state 里的消息只有 type/content，
+    // 没有时间，运营无法判断「卡了多久」。落库消息还带 source，能区分 AI/人工。
+    const dbMessages = await this.prismaService.chatMessage.findMany({
+      where: { conversationId },
+      orderBy: { seqId: 'desc' },
+      take: 20,
+      select: {
+        id: true,
+        type: true,
+        content: true,
+        createdAt: true,
+        source: true,
+        senderId: true,
+      },
+    });
+    dbMessages.reverse();
+
+    const messages =
+      dbMessages.length > 0
+        ? dbMessages.map((message) => ({
+            id: message.id,
+            type:
+              message.source === 'ai'
+                ? 'ai'
+                : message.source === 'human_agent'
+                  ? 'human_agent'
+                  : 'human',
+            content: (message.content ?? '').slice(0, 2000),
+            createdAt: message.createdAt?.toISOString() ?? null,
+            source: message.source ?? null,
+          }))
+        : rawMessages.slice(-20).map((message: any) => ({
+            type: String(message?.type ?? message?._getType?.() ?? 'unknown'),
+            content:
+              typeof message?.content === 'string'
+                ? message.content.slice(0, 2000)
+                : JSON.stringify(message?.content ?? '').slice(0, 2000),
+            createdAt: null,
+            source: null,
+          }));
+
+    // 这个会话有没有链路可查：没有 trace 时运营必须看到「无法定位」，
+    // 而不是以为页面只是没展示。
+    const traceCount = await this.prismaService.aiTrace.count({
+      where: { conversationId },
+    });
+    const lastUser = [...dbMessages]
+      .reverse()
+      .find((message) => message.source === 'user' && message.senderId);
+
+    const flowState = values.flowState ?? {};
+    const diagnosis = buildConversationDiagnosis({
+      messages,
+      flowState,
+      hasTrace: traceCount > 0,
+    });
+
     return {
       conversationId,
       threadId: conversation.threadId,
       checkpointId: (state as any)?.config?.configurable?.checkpoint_id ?? null,
-      flowState: values.flowState ?? {},
+      userId: lastUser?.senderId ?? null,
+      flowState,
       contextState: values.contextState ?? {},
       pendingConfirm: values.pendingConfirm ?? null,
       previousIntent: values.previousIntent ?? '',
-      messages: rawMessages.slice(-20).map((message: any) => ({
-        type: String(message?.type ?? message?._getType?.() ?? 'unknown'),
-        content:
-          typeof message?.content === 'string'
-            ? message.content.slice(0, 300)
-            : JSON.stringify(message?.content ?? '').slice(0, 300),
-      })),
+      messages,
+      diagnosis,
       checkpoints,
     };
   }

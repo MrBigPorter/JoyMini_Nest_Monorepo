@@ -133,6 +133,7 @@ const MESSAGE_ROLE_LABELS: Record<string, string> = {
   user: '用户',
   ai: 'AI',
   assistant: 'AI',
+  human_agent: '人工客服',
   system: '系统',
   tool: '工具',
 };
@@ -234,6 +235,8 @@ export default function AiContextPage() {
 
   const flowName = compactText(pick(flowState, ['flow', 'activeFlow']));
   const flowStep = compactText(flowState.step);
+  const diagnosis = snapshot?.diagnosis;
+  const diagnosisFlags = diagnosis?.flags ?? [];
   const extraFlowKeys = Object.keys(flowState).filter(
     (key) => !KNOWN_FLOW_KEYS.has(key) && hasContent(flowState[key]),
   );
@@ -260,7 +263,9 @@ export default function AiContextPage() {
     : pendingConfirm
       ? `等待确认：${readable(pendingConfirm.action)}（未执行）`
       : flowName
-        ? `流程「${flowName}」进行中${flowStep ? `，当前步骤 ${flowStep}` : ''}`
+        ? flowStep === 'COMPLETED'
+          ? `流程「${flowName}」已结束（COMPLETED）`
+          : `流程「${flowName}」进行中${flowStep ? `，当前步骤 ${flowStep}` : ''}`
         : messages.length > 0
           ? '无进行中的业务流程，最近有对话记录'
           : '暂无上下文数据';
@@ -306,6 +311,49 @@ export default function AiContextPage() {
         />
         <Button onClick={() => runQuery(conversationId)}>查询</Button>
       </div>
+
+      {snapshot && !snapshot.error && diagnosis ? (
+        diagnosisFlags.length > 0 ? (
+          <section className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-sm font-semibold">
+                诊断摘要 · {diagnosisFlags.length} 项
+              </h2>
+              {diagnosis.lastUserMessageAt ? (
+                <span className="text-xs text-amber-700 dark:text-amber-300/80">
+                  最后用户消息 {formatTime(diagnosis.lastUserMessageAt)}
+                </span>
+              ) : null}
+            </div>
+            <ul className="mt-3 space-y-2">
+              {diagnosisFlags.map((flag) => (
+                <li key={flag.key} className="flex items-start gap-2">
+                  <span
+                    className={
+                      flag.severity === 'high'
+                        ? 'mt-0.5 rounded-full bg-red-100 px-1.5 py-0.5 text-[11px] font-medium text-red-700 dark:bg-red-500/20 dark:text-red-300'
+                        : 'mt-0.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-700 dark:bg-amber-500/20 dark:text-amber-300'
+                    }
+                  >
+                    异常
+                  </span>
+                  <span>
+                    <span className="font-medium">{flag.label}</span>
+                    <span className="text-amber-800/80 dark:text-amber-200/70">
+                      {' '}
+                      — {flag.detail}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : (
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
+            未发现未回复、语言不一致、敏感信息索要或流程错位等明显异常。
+          </div>
+        )
+      ) : null}
 
       {loading ? (
         <div className="py-6 text-center text-sm text-gray-400">Loading...</div>
@@ -632,6 +680,12 @@ export default function AiContextPage() {
                             {source ? (
                               <span className="text-[11px] text-gray-400">
                                 来源 {source}
+                              </span>
+                            ) : null}
+                            {diagnosis?.unanswered &&
+                            index === messages.length - 1 ? (
+                              <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-medium text-red-700 dark:bg-red-500/20 dark:text-red-300">
+                                未回复
                               </span>
                             ) : null}
                             <span className="ml-auto text-[11px] text-gray-400">

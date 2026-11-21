@@ -2365,15 +2365,41 @@ export interface AiInsightsOverview {
   notes: string[];
 }
 
+export interface ConversationDiagnosisFlag {
+  key: string;
+  label: string;
+  detail: string;
+  severity: 'high' | 'medium' | 'low';
+}
+
+export interface ConversationDiagnosis {
+  unanswered: boolean;
+  lastUserMessageAt: string | null;
+  idleMinutes: number | null;
+  sensitiveRequest: boolean;
+  languageMismatch: boolean;
+  intentFlowMismatch: boolean;
+  hasTrace: boolean;
+  flags: ConversationDiagnosisFlag[];
+}
+
 export interface ConversationDebugSnapshot {
   conversationId: string;
   threadId: string | null;
   checkpointId: string | null;
+  userId?: string | null;
   flowState: Record<string, any>;
   contextState: Record<string, any>;
   pendingConfirm: Record<string, any> | null;
   previousIntent: string;
-  messages: Array<{ type: string; content: string }>;
+  messages: Array<{
+    id?: string;
+    type: string;
+    content: string;
+    createdAt?: string | null;
+    source?: string | null;
+  }>;
+  diagnosis?: ConversationDiagnosis;
   checkpoints?: Array<{
     checkpointId: string;
     createdAt: string | null;
