@@ -28,6 +28,9 @@
 | LIVE eval 作业化 + 取消 | **PASS** | `8052f29`、`3d4d3387` | 5/5 |
 | EDITOR 全隐藏（D-ED-01） | **PASS** | `c7322b3c` | 8/8 |
 | 119 Phase 2–5：聚类/告警/修复闭环/保留 | **PASS** | `2a8fc31a`、`4cc2954a` | 9 API + 3 UI |
+| 语义聚类（pgvector embedding） | **PASS** | `87794db9`、`ec114966` | 4 API（含 provider/回退/维度） |
+| 运营面补完（owner/状态机/批量/快捷键/知识） | **PASS** | `e117b51c` | 4 UI |
+| 评测 run 预算与 usage 估算 | **PASS** | `7bec0f8f` | 3 API |
 
 ## 已交付能力
 
@@ -40,9 +43,9 @@
 
 ## 剩余（未做）
 
-- 118 §8.2 剩余：运营面补完（质量待办的 owner/状态机/批量/快捷键/知识动作）；eval token/成本预算与 usage 记账。
-- 119 Phase 2 的聚类是“规范化签名”，不是 embedding 语义聚类；同义改写不会合并。若要做语义聚类，需要 pgvector + embedding 的下一轮。
-- 未覆盖：eval 取消只测 STORED；active job 被 kill 后的 stalled 重投递；多实例 job 去重；停 Redis 的 enqueue 失败路径；保留未等真实 cron/多实例；告警只验证 ALL 维度。
+- 118/119 计划内的开发项已全部完成（Batch 1–5、Phase 1–5、Quick Wins、PII、运营面、评测预算）。
+- 剩余是上线/生产治理项，不是功能缺口：真实 Jina 语义质量与阈值校准、多实例/stalled job/Redis 故障演练、生产固定 OTP、DPA/跨境传输法务、表分区与真实 retention 演练、EDITOR 直接 URL 拦截（导航隐藏已做）。
+- 已知限制见各 handoff：`batch-6-phase2-5.md`、`quickwins-1.md`、`batch-3.md` 等。
 - D-ED-01、D-IM-01、D-02、D-01、D-PR-01、D-B2-01/02/03、D-B4-01、D-B5-01/02、D-CD-01 均已 FIXED。
 - 119 Phase 2–5：聚类、问题簇页、小时级告警、修复闭环、分区/保留。
 - 已完成：SLA 分钟唯一、知识评分 truncation 误报、编辑重算。
