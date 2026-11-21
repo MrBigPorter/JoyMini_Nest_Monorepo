@@ -15,12 +15,17 @@ describe('policyFallback', () => {
     expect(policyFallback('我的券什么时候过期？')).toContain('没有过期时间');
   });
 
+  it('积分/闲聊/上下文兜底不转人工', () => {
+    expect(policyFallback('还有多少可用积分？')).toContain('积分');
+    expect(policyFallback('今天天气不错')).toContain('我在的');
+    expect(policyFallback('上次那个呢')).toContain('没跟上');
+  });
+
   it('余额失败给重试/App 路径', () => {
     expect(policyFallback('我的钱包余额是多少？')).toContain('余额查询暂时失败');
   });
 
   it('无关问题不兜底', () => {
-    expect(policyFallback('你好')).toBeNull();
     expect(policyFallback('帮我查订单')).toBeNull();
   });
 });

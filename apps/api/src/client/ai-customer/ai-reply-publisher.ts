@@ -1,6 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '@api/common/prisma/prisma.service';
+import { redactPiiText } from '@api/common/utils/pii-redaction';
 import { EventsGateway } from '@api/common/events/events.gateway';
 import {
   CHAT_EVENTS,
@@ -37,11 +38,13 @@ export async function publishAiReply(
    */
   triggerMessageId?: string,
 ): Promise<void> {
-  const lastAiContent =
+  const rawAiContent =
     newMessages
       .filter((m: any) => m.type === 'ai')
       .map((m: any) => (typeof m.content === 'string' ? m.content : ''))
       .pop() ?? '';
+  // 对外回复统一脱敏：资料页回显手机号/邮箱/证件号时不能原样发给用户。
+  const lastAiContent = redactPiiText(rawAiContent) ?? rawAiContent;
   if (!lastAiContent) return;
 
   const otherMember = await prisma.chatMember.findFirst({

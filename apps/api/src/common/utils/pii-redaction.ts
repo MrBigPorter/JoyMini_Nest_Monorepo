@@ -10,6 +10,12 @@ export function redactPiiText(
 ): string | null {
   if (text === null || text === undefined || text === '') return null;
   return text
+    // 菲律宾手机号：+639xxxxxxxxx / 09xxxxxxxxx
+    .replace(/(?<!\d)((?:\+63|0)9\d{9})(?!\d)/g, (phone) => {
+      const digits = phone.replace(/\D/g, '');
+      const prefix = phone.startsWith('+63') ? '+63' : '0';
+      return `${prefix}9****${digits.slice(-3)}`;
+    })
     .replace(/(?<!\d)(1[3-9]\d{9})(?!\d)/g, (phone) => {
       return `${phone.slice(0, 3)}****${phone.slice(-4)}`;
     })

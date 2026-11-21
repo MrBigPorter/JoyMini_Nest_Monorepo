@@ -5,6 +5,13 @@ describe('redactPiiText', () => {
     expect(redactPiiText('联系电话 13812341234')).toBe('联系电话 138****1234');
   });
 
+  it('菲律宾手机号打码', () => {
+    expect(redactPiiText('手机号 +639173936187')).toBe(
+      '手机号 +639****187',
+    );
+    expect(redactPiiText('手机号 09173936187')).toBe('手机号 09****187');
+  });
+
   it('邮箱打码', () => {
     expect(redactPiiText('发到 user@example.com')).toBe(
       '发到 u***@example.com',

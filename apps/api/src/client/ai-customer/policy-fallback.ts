@@ -21,6 +21,18 @@ export function policyFallback(message: string): string | null {
     return '如果当前没有优惠券，就没有过期时间。你可以在 App「我的 → 优惠券」查看每张券的有效期和状态。';
   }
 
+  if (/积分|金币|coins?/i.test(message)) {
+    return '积分/金币查询暂时失败，请稍后再试，或在 App「我的 → 积分/金币」查看当前余额。';
+  }
+
+  if (/上次那个|那个怎么样/.test(message)) {
+    return '抱歉，我没跟上你说的“那个”，能具体说是订单、优惠券还是余额吗？';
+  }
+
+  if (/天气|在吗|你好|谢谢|聊天/.test(message)) {
+    return '我在的～有什么可以帮你？订单、余额、优惠券等问题可以告诉我，我会尽量帮你查询。';
+  }
+
   if (/(余额|钱包).{0,10}(多少|查询|还有)|balance/i.test(text)) {
     return '余额查询暂时失败，请稍后再试，或在 App「我的 → 钱包」查看当前余额。';
   }
