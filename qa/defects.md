@@ -264,3 +264,50 @@ Playwright: 处理状态筛选 NO_ISSUE -> URL 保留 -> 共 1 条，行处理�
 - **历史反馈/安全事件未回填** `traceId` / `conversationId`（handoff #3）。
 - **`AiFeedbackClient` 旧页面仍读 `NEXT_PUBLIC_AI_FEEDBACK_UI_ENABLED`**（`/ai-feedback` 导出桩，非 AI Ops 主路径；handoff #4）。
 - **EDITOR 工程导航/接口不一致（D-02）**未处理（既有问题）。
+
+---
+
+# Batch 4 — 缺陷（首轮 `b67a3cbb`；复验 `2561806f`）
+
+> 首轮：API 8/9（1 failed = D-B4-01）、Playwright 3/3。复验：API **9/9**、Playwright **3/3**；D-B4-01 **FIXED**。
+
+## D-B4-01 — 字符串 `expected` 仍被判定为空期望（P1）— **FIXED**
+
+| 项 | 内容 |
+|---|---|
+| 严重度 | **P1（首轮阻断）** |
+| 状态 | **FIXED**，提交 `2561806f`（HEAD） |
+| 位置 | `apps/api/src/admin/ai-eval/ai-eval-dataset.service.ts`：`resolveExpectation()` / `hasKeys()` |
+| 首轮问题 | `EvalCaseDto.expected` 类型为 `string \| Record`，但 `hasKeys` 只接受对象；非空字符串 `expected` 被忽略，`startRun` 仍返回 400 |
+| 修复 | 非空字符串 `expected` → `{ mustMention: [expected.trim()] }`（新增单测） |
+
+**首轮复现**（`b67a3cbb`）：
+
+```text
+POST /admin/ai-eval/datasets/:id/cases
+  {"cases":[{"question":"q","answer":"a","expect":{},"expected":"must mention 7 days"}]}  -> 201
+POST /admin/ai-eval/datasets/:id/runs                                                     -> 400
+  "1 case(s) have no expectation; add expect.mustMention or expected before running"
+```
+
+**复验（PASS，`2561806f`）**：
+
+```text
+POST /admin/ai-eval/datasets/:id/cases
+  {"cases":[{"question":"qa_b4_string_q","answer":"qa_b4_answer","expect":{},"expected":"must mention 7 days"}]}  -> 201
+POST /admin/ai-eval/datasets/:id/runs -> 201
+GET  /admin/ai-eval/runs/:id          -> COMPLETED
+
+# 对象 expected / expect.mustMention 路径未回归，仍 201 + COMPLETED
+```
+
+**证据**：`qa/logs/batch4-reverify-api.log`（9/9）、`qa/logs/batch4-reverify-playwright.log`（3/3）；首轮 `qa/logs/batch4-api-e2e.log`。
+**备注**：Batch 4 UI 的“加入回归 / 编辑期望”同时发 `expect.mustMention` 与 `expected`，首轮 UI 即 3/3 通过。
+
+## Batch 4 已知限制 / 未覆盖（非新缺陷）
+
+- **LIVE 用本地 chat stub**：`AiEvalResult.traceId`/`AiScore.traceId=null` 已验证；真实模型质量/超时/provider 行为未覆盖。
+- **并发锁是应用层检查**：单实例通过；多实例极端并发仍可能双通过（handoff #5）。
+- **孤儿回收惰性触发**：仅在 list/get/start 时执行，无独立 cron；无人访问的 RUNNING 不会在 5 分钟内自动变化（本批验收按“调用 list/get 后”通过）。
+- **历史悬空 `AiEvalResult.traceId` 未清理**（handoff #3）。
+- **用例硬删除**级联删除 results（handoff #4）。

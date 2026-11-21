@@ -29,6 +29,18 @@ const server = http.createServer((req, res) => {
       body += chunk;
     });
     req.on('end', () => {
+      // Deterministic failure hook for the Batch 4 FAILED-run UI test.
+      // A question containing qa_judge_fail makes the judge call throw.
+      if (body.includes('qa_judge_fail')) {
+        res.writeHead(500, { 'content-type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            error: { message: 'qa simulated judge failure', type: 'qa' },
+          }),
+        );
+        return;
+      }
+
       // Read the payload only to prove it arrived; never log user content.
       const payload = JSON.stringify({
         id: 'chatcmpl-qa-stub',
