@@ -66,6 +66,33 @@ run.sh --dataset ... --mode=blocking   # 不达标退出码 1
 报告同时输出 `fairness`：按 language/intent/source 切片，每层 n≥30 才比较；
 层间差 >10 个百分点标记为需调查。
 
+## 人工标注（Phase 3）
+
+```bash
+# 导出工作表（标签为空）
+cd apps/api
+../../node_modules/.bin/tsx --env-file=.env scripts/export-annotation-worksheet.ts \
+  --dataset tools/eval/conversation/selection-2026-11-21.jsonl \
+  --out tools/eval/conversation/annotations/worksheet-2026-11-21.jsonl
+
+# 两人独立标注后算 kappa
+python3 tools/eval/conversation/annotate.py score \
+  --a annotations-a.jsonl --b annotations-b.jsonl \
+  --out tools/eval/conversation/reports/annotation-kappa.md
+```
+
+规则见 [`annotation-guide.md`](./annotation-guide.md)：盲标、kappa ≥0.6、n<30 只作参考。
+
+## 定时运行
+
+```bash
+# crontab: 每天 01:10 UTC 跑前一天
+10 1 * * * /path/to/repo/tools/eval/conversation/daily-cron.sh
+```
+
+日志在 `logs/daily-<date>.log`；非零退出码由 cron 邮件/上层监控告警。
+脚本不主动向外部服务发送数据。
+
 
 ## 校验
 
