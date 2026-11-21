@@ -7,9 +7,12 @@ import { aiOpsApi } from '@/api';
 import { PageHeader } from '@/components/scaffold/PageHeader';
 import { AiErrorBanner } from '@/components/ai-ops/AiErrorBanner';
 import { useAiOpsRole } from '@/lib/ai-ops-permissions';
+import { useAuthStore } from '@/store/useAuthStore';
 import type {
+  AiAnalysisAlertRow,
   AiAnalysisRunRow,
   AiMetricWindowRow,
+  AiProblemClusterRow,
   AiProblemEventRow,
 } from '@/type/types';
 
@@ -36,6 +39,28 @@ const STATUS_LABELS: Record<string, string> = {
   RUNNING: '运行中',
   COMPLETED: '已完成',
   FAILED: '失败',
+};
+
+const CLUSTER_STATUS_LABELS: Record<string, string> = {
+  NEW: '待处理',
+  ASSIGNED: '已分配',
+  FIXING: '修复中',
+  VERIFYING: '验证中',
+  CLOSED: '已关闭',
+  IGNORED: '已忽略',
+};
+
+const FIX_TYPE_LABELS: Record<string, string> = {
+  KNOWLEDGE: '补知识',
+  PROMPT: '改 Prompt',
+  ROUTING: '调路由',
+  TOOL: '修工具',
+  MODEL: '模型能力',
+  INFRA: '基础设施',
+  SERVICE: '服务故障',
+  SECURITY: '安全',
+  UX: '体验',
+  UNKNOWN: '待判断',
 };
 
 function today(): string {
@@ -79,6 +104,72 @@ export default function AiAnalysisPage() {
     () => aiOpsApi.getAnalysisEvents({ date, pageSize: 50 }),
     { refreshDeps: [date] },
   );
+  const {
+    data: clustersData,
+    loading: clustersLoading,
+    error: clustersError,
+    refresh: refreshClusters,
+  } = useRequest(() => aiOpsApi.getAnalysisClusters({ page: 1 }));
+  const {
+    data: alertsData,
+    loading: alertsLoading,
+    error: alertsError,
+    refresh: refreshAlerts,
+  } = useRequest(() =>
+    aiOpsApi.getAnalysisAlerts({ status: 'NEW', page: 1 }),
+  );
+  const adminId = useAuthStore((state) => state.userInfo?.id);
+
+  const clusters = (clustersData?.list ?? []) as AiProblemClusterRow[];
+  const alerts = (alertsData?.list ?? []) as AiAnalysisAlertRow[];
+
+  const patchCluster = async (
+    id: string,
+    patch: {
+      status?: string;
+      ownerAdminId?: string | null;
+      fixType?: string | null;
+    },
+  ) => {
+    try {
+      await aiOpsApi.updateAnalysisCluster(id, patch);
+      await refreshClusters();
+      setMessage('问题簇已更新');
+    } catch (err: any) {
+      setMessage(err?.message ?? '更新问题簇失败');
+    }
+  };
+
+  const createRegression = async (cluster: AiProblemClusterRow) => {
+    const datasetId = window.prompt('目标评测集 ID（可在回归测试页找到）');
+    if (!datasetId) return;
+    const expected = window.prompt(
+      '期望答案 / 必须提到的要点（必填，作为回归判分标准）',
+    );
+    if (!expected?.trim()) {
+      setMessage('回归用例必须填写期望答案');
+      return;
+    }
+    try {
+      await aiOpsApi.createClusterRegression(cluster.id, {
+        datasetId,
+        expected: expected.trim(),
+      });
+      await refreshClusters();
+      setMessage('已生成回归用例，问题簇进入修复中');
+    } catch (err: any) {
+      setMessage(err?.message ?? '生成回归用例失败');
+    }
+  };
+
+  const ack = async (id: string) => {
+    try {
+      await aiOpsApi.ackAnalysisAlert(id);
+      await refreshAlerts();
+    } catch (err: any) {
+      setMessage(err?.message ?? '确认告警失败');
+    }
+  };
 
   const runs = (runsData ?? []) as AiAnalysisRunRow[];
   const metrics = (metricsData?.metrics ?? []) as AiMetricWindowRow[];
@@ -93,7 +184,13 @@ export default function AiAnalysisPage() {
       setMessage(
         `分析完成：${result.createdEvents} 条事件，窗口 ${date}`,
       );
-      await Promise.all([refreshRuns(), refreshMetrics(), refreshEvents()]);
+      await Promise.all([
+        refreshRuns(),
+        refreshMetrics(),
+        refreshEvents(),
+        refreshClusters(),
+        refreshAlerts(),
+      ]);
     } catch (err: any) {
       setMessage(err?.message ?? '分析失败，请重试');
     } finally {
@@ -312,6 +409,213 @@ export default function AiAnalysisPage() {
                       {item.conversationId ?? '—'}
                     </td>
                     <td className="px-2 py-2">{item.status}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {clustersError ? (
+        <AiErrorBanner
+          message="问题簇加载失败"
+          onRetry={() => void refreshClusters()}
+        />
+      ) : null}
+      <section className={card}>
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-sm font-semibold">
+            问题簇（{clustersData?.total ?? 0}）
+          </h2>
+          <span className="text-xs text-gray-500">
+            按规范化问题归并；运营按簇处理，不逐条看
+          </span>
+        </div>
+        {clustersLoading ? (
+          <div className="py-4 text-sm text-gray-400">Loading...</div>
+        ) : clusters.length === 0 ? (
+          <div className="py-4 text-sm text-gray-500">
+            当前没有问题簇；先运行分析。
+          </div>
+        ) : (
+          <div className="mt-3 overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead className="text-left text-xs text-gray-500">
+                <tr>
+                  <th className="px-2 py-2">代表问题</th>
+                  <th className="px-2 py-2">条数</th>
+                  <th className="px-2 py-2">严重度</th>
+                  <th className="px-2 py-2">意图</th>
+                  <th className="px-2 py-2">建议归因</th>
+                  <th className="px-2 py-2">状态</th>
+                  <th className="px-2 py-2">修复类型</th>
+                  <th className="px-2 py-2">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {clusters.map((item) => (
+                  <tr
+                    key={item.id}
+                    className="border-t border-gray-100 align-top dark:border-white/5"
+                  >
+                    <td className="max-w-[320px] px-2 py-2">
+                      <div className="break-words">{item.representativeText}</div>
+                      <div className="mt-1 font-mono text-[11px] text-gray-400">
+                        {item.id}
+                      </div>
+                    </td>
+                    <td className="px-2 py-2">{item.count}</td>
+                    <td className="px-2 py-2">{item.severity}</td>
+                    <td className="px-2 py-2">{item.intent ?? '—'}</td>
+                    <td className="px-2 py-2">
+                      {FIX_TYPE_LABELS[item.suggestedCause ?? ''] ??
+                        item.suggestedCause ??
+                        '—'}
+                    </td>
+                    <td className="px-2 py-2">
+                      <select
+                        aria-label={`问题簇状态 ${item.id}`}
+                        className="rounded border px-2 py-1 text-xs dark:border-white/10 dark:bg-gray-800"
+                        value={item.status}
+                        disabled={!canRun}
+                        onChange={(e) =>
+                          void patchCluster(item.id, {
+                            status: e.target.value,
+                          })
+                        }
+                      >
+                        {Object.entries(CLUSTER_STATUS_LABELS).map(
+                          ([value, label]) => (
+                            <option key={value} value={value}>
+                              {label}
+                            </option>
+                          ),
+                        )}
+                      </select>
+                    </td>
+                    <td className="px-2 py-2">
+                      <select
+                        aria-label={`修复类型 ${item.id}`}
+                        className="rounded border px-2 py-1 text-xs dark:border-white/10 dark:bg-gray-800"
+                        value={item.fixType ?? ''}
+                        disabled={!canRun}
+                        onChange={(e) =>
+                          void patchCluster(item.id, {
+                            fixType: e.target.value || null,
+                          })
+                        }
+                      >
+                        <option value="">未定</option>
+                        {Object.entries(FIX_TYPE_LABELS).map(
+                          ([value, label]) => (
+                            <option key={value} value={value}>
+                              {label}
+                            </option>
+                          ),
+                        )}
+                      </select>
+                    </td>
+                    <td className="px-2 py-2">
+                      <div className="flex flex-wrap gap-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={!canRun}
+                          onClick={() =>
+                            void patchCluster(item.id, {
+                              status: 'ASSIGNED',
+                              ownerAdminId: adminId ?? null,
+                            })
+                          }
+                        >
+                          认领
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={!canRun}
+                          onClick={() => void createRegression(item)}
+                        >
+                          建回归
+                        </Button>
+                        <span className="text-[11px] text-gray-400">
+                          {item.ownerAdminId ?? '未分配'}
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {alertsError ? (
+        <AiErrorBanner
+          message="告警加载失败"
+          onRetry={() => void refreshAlerts()}
+        />
+      ) : null}
+      <section className={card}>
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-sm font-semibold">
+            待确认告警（{alertsData?.total ?? 0}）
+          </h2>
+          <span className="text-xs text-gray-500">
+            当前窗口 vs 近 7 天基线；样本不足不告警
+          </span>
+        </div>
+        {alertsLoading ? (
+          <div className="py-4 text-sm text-gray-400">Loading...</div>
+        ) : alerts.length === 0 ? (
+          <div className="py-4 text-sm text-gray-500">没有待确认告警。</div>
+        ) : (
+          <div className="mt-3 overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead className="text-left text-xs text-gray-500">
+                <tr>
+                  <th className="px-2 py-2">窗口</th>
+                  <th className="px-2 py-2">指标</th>
+                  <th className="px-2 py-2">当前 / 基线</th>
+                  <th className="px-2 py-2">样本</th>
+                  <th className="px-2 py-2">严重度</th>
+                  <th className="px-2 py-2">说明</th>
+                  <th className="px-2 py-2">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {alerts.map((item) => (
+                  <tr
+                    key={item.id}
+                    className="border-t border-gray-100 dark:border-white/5"
+                  >
+                    <td className="whitespace-nowrap px-2 py-2 text-xs">
+                      {item.windowStart.slice(0, 10)}
+                    </td>
+                    <td className="px-2 py-2">
+                      {METRIC_LABELS[item.metric] ?? item.metric}
+                    </td>
+                    <td className="px-2 py-2">
+                      {formatPercent(item.value)} /{' '}
+                      {formatPercent(item.baseline)}
+                    </td>
+                    <td className="px-2 py-2">{item.sampleSize}</td>
+                    <td className="px-2 py-2">{item.severity}</td>
+                    <td className="max-w-[360px] px-2 py-2 text-xs">
+                      {item.message}
+                    </td>
+                    <td className="px-2 py-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={!canRun}
+                        onClick={() => void ack(item.id)}
+                      >
+                        确认
+                      </Button>
+                    </td>
                   </tr>
                 ))}
               </tbody>

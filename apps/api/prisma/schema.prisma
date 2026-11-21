@@ -2421,6 +2421,64 @@ model AiAnalysisRun {
   @@map("ai_analysis_runs")
 }
 
+/// 问题簇：同一类问题事件的聚合，运营按簇处理而不是逐条。
+model AiProblemCluster {
+  id                 String   @id @default(cuid()) @db.VarChar(32)
+  /// 规范化问题的 hash，精确去重；语义聚类后续再引入
+  signature          String   @unique @db.VarChar(64)
+  representativeText String   @map("representative_text") @db.Text
+  count              Int      @default(0)
+  severity           Int      @default(1) @db.SmallInt
+  intent             String?  @db.VarChar(50)
+  domain             String?  @db.VarChar(50)
+  suggestedCause     String?  @map("suggested_cause") @db.VarChar(32)
+  fixType            String?  @map("fix_type") @db.VarChar(32)
+  /// NEW / ASSIGNED / FIXING / VERIFYING / CLOSED / IGNORED
+  status             String   @default("NEW") @db.VarChar(16)
+  ownerAdminId       String?  @map("owner_admin_id") @db.VarChar(32)
+  firstSeenAt        DateTime @map("first_seen_at")
+  lastSeenAt         DateTime @map("last_seen_at")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@index([status, lastSeenAt])
+  @@index([intent, domain])
+  @@map("ai_problem_clusters")
+}
+
+model AiProblemClusterDay {
+  id        String   @id @default(cuid()) @db.VarChar(32)
+  clusterId String   @map("cluster_id") @db.VarChar(32)
+  day       DateTime
+  count     Int
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([clusterId, day])
+  @@index([day])
+  @@map("ai_problem_cluster_days")
+}
+
+/// 指标异常告警（Phase 3）。
+model AiAnalysisAlert {
+  id             String   @id @default(cuid()) @db.VarChar(32)
+  windowStart    DateTime @map("window_start")
+  metric         String   @db.VarChar(40)
+  dimension      String   @db.VarChar(16)
+  dimensionValue String   @map("dimension_value") @db.VarChar(50)
+  value          Float    @db.Real
+  baseline       Float    @db.Real
+  sampleSize     Int      @map("sample_size")
+  severity       String   @db.VarChar(16)
+  message        String   @db.Text
+  /// NEW / ACK
+  status         String   @default("NEW") @db.VarChar(16)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@unique([windowStart, metric, dimension, dimensionValue])
+  @@index([status, createdAt])
+  @@map("ai_analysis_alerts")
+}
+
 /// 注入检测命中事件（不存用户原文）。
 model AiSecurityEvent {
   id             String   @id @default(cuid()) @db.VarChar(32)

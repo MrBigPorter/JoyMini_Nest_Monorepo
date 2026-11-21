@@ -1381,6 +1381,41 @@ export interface AiMetricWindowRow {
   sampleSize: number;
 }
 
+export interface AiProblemClusterRow {
+  id: string;
+  signature: string;
+  representativeText: string;
+  count: number;
+  severity: number;
+  intent?: string | null;
+  domain?: string | null;
+  suggestedCause?: string | null;
+  fixType?: string | null;
+  status: string;
+  ownerAdminId?: string | null;
+  firstSeenAt: string;
+  lastSeenAt: string;
+}
+
+export interface AiProblemClusterDetail extends AiProblemClusterRow {
+  days: Array<{ day: string; count: number }>;
+}
+
+export interface AiAnalysisAlertRow {
+  id: string;
+  windowStart: string;
+  metric: string;
+  dimension: string;
+  dimensionValue: string;
+  value: number;
+  baseline: number;
+  sampleSize: number;
+  severity: string;
+  message: string;
+  status: string;
+  createdAt: string;
+}
+
 export interface AiAnalysisRunRow {
   id: string;
   jobType: string;

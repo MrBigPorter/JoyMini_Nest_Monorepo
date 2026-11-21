@@ -1508,6 +1508,45 @@ export const aiOpsApi = {
       list: import('@/type/types').AiProblemEventRow[];
       total: number;
     }>('/v1/admin/ai-analysis/events', params),
+  /** GET /v1/admin/ai-analysis/clusters — 问题簇 */
+  getAnalysisClusters: (params?: { status?: string; page?: number }) =>
+    http.get<{
+      list: import('@/type/types').AiProblemClusterRow[];
+      total: number;
+    }>('/v1/admin/ai-analysis/clusters', params),
+  /** GET /v1/admin/ai-analysis/clusters/:id */
+  getAnalysisCluster: (id: string) =>
+    http.get<import('@/type/types').AiProblemClusterDetail>(
+      `/v1/admin/ai-analysis/clusters/${id}`,
+    ),
+  /** PATCH /v1/admin/ai-analysis/clusters/:id */
+  updateAnalysisCluster: (
+    id: string,
+    data: {
+      status?: string;
+      ownerAdminId?: string | null;
+      fixType?: string | null;
+      suggestedCause?: string | null;
+    },
+  ) => http.patch(`/v1/admin/ai-analysis/clusters/${id}`, data),
+  /** POST /v1/admin/ai-analysis/clusters/:id/regression */
+  createClusterRegression: (
+    id: string,
+    data: { datasetId: string; expected: string },
+  ) =>
+    http.post(
+      `/v1/admin/ai-analysis/clusters/${id}/regression`,
+      data,
+    ),
+  /** GET /v1/admin/ai-analysis/alerts */
+  getAnalysisAlerts: (params?: { status?: string; page?: number }) =>
+    http.get<{
+      list: import('@/type/types').AiAnalysisAlertRow[];
+      total: number;
+    }>('/v1/admin/ai-analysis/alerts', params),
+  /** PATCH /v1/admin/ai-analysis/alerts/:id/ack */
+  ackAnalysisAlert: (id: string) =>
+    http.patch(`/v1/admin/ai-analysis/alerts/${id}/ack`, {}),
   /** GET /v1/admin/ai-ops/features — 功能开关只读视图 */
   getFeatures: () =>
     http.get<import('@/type/types').AiOpsFeatures>(

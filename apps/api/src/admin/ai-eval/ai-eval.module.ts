@@ -18,6 +18,7 @@ import { AiEvalProcessor } from './ai-eval.processor';
     BullModule.registerQueue({ name: AI_EVAL_QUEUE }),
   ],
   controllers: [AiEvalController],
+  exports: [AiEvalDatasetService],
   providers: [
     AiEvalJudgeService,
     AiEvalDatasetService,

@@ -4,9 +4,12 @@ import {
   Injectable,
   Logger,
 } from '@nestjs/common';
+import { createHash } from 'node:crypto';
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { RedisLockService } from '@api/common/redis/redis-lock.service';
+import { redactPiiText } from '@api/common/utils/pii-redaction';
+import { AiEvalDatasetService } from '@api/admin/ai-eval/ai-eval-dataset.service';
 
 export type ProblemEventType =
   | 'EXPLICIT_NEGATIVE'
@@ -49,6 +52,7 @@ export class AiAnalysisService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly locks: RedisLockService,
+    private readonly evalDatasets: AiEvalDatasetService,
   ) {}
 
   /** 手动/定时跑一个 UTC 日窗口；幂等，可重跑覆盖同一窗口。 */
@@ -100,12 +104,14 @@ export class AiAnalysisService {
     try {
       const events = await this.collectEvents(window.start, window.end);
       await this.persistEvents(window.start, events);
+      const createdClusters = await this.clusterWindow(window.start);
       const metrics = await this.collectMetrics(
         window.start,
         window.end,
         events,
       );
       await this.persistMetrics(window.start, metrics);
+      await this.evaluateAlerts(window.start, metrics);
       return await this.prisma.aiAnalysisRun.update({
         where: { id: run.id },
         data: {
@@ -113,6 +119,7 @@ export class AiAnalysisService {
           finishedAt: new Date(),
           processed: events.length,
           createdEvents: events.length,
+          createdClusters,
         },
       });
     } catch (err: any) {
@@ -221,12 +228,14 @@ export class AiAnalysisService {
         verdict: true,
         signal: true,
         failureKind: true,
+        input: true,
         createdAt: true,
       },
     });
     const feedbackTraceIds = new Set<string>();
     for (const row of feedback) {
       if (row.traceId) feedbackTraceIds.add(row.traceId);
+      const preview = redactPiiText(row.input)?.slice(0, 200) ?? null;
       const base = {
         occurredAt: row.createdAt,
         source: 'feedback',
@@ -235,6 +244,7 @@ export class AiAnalysisService {
         messageId: row.messageId ?? null,
         traceId: row.traceId ?? null,
         failureKind: row.failureKind ?? null,
+        metadata: preview ? { questionPreview: preview } : null,
       };
       if (row.failureKind === 'SERVICE_ERROR') {
         events.push({
@@ -290,11 +300,13 @@ export class AiAnalysisService {
         triggerMessageId: true,
         intent: true,
         status: true,
+        input: true,
         createdAt: true,
         spans: { select: { type: true, output: true } },
       },
     });
     for (const trace of traces) {
+      const preview = redactPiiText(trace.input)?.slice(0, 200) ?? null;
       const base = {
         occurredAt: trace.createdAt,
         source: 'trace',
@@ -303,6 +315,7 @@ export class AiAnalysisService {
         messageId: trace.triggerMessageId ?? null,
         traceId: trace.id,
         intent: trace.intent ?? null,
+        metadata: preview ? { questionPreview: preview } : null,
       };
       if (trace.status === 'ERROR' && !feedbackTraceIds.has(trace.id)) {
         events.push({
@@ -540,6 +553,377 @@ export class AiAnalysisService {
         sampleSize: row.denominator,
       })),
     });
+  }
+
+  /** 每小时刷新当天窗口，让问题簇/指标不必等到第二天。 */
+  @Cron('5 * * * *', { timeZone: 'UTC' })
+  async hourlyRun(): Promise<void> {
+    const today = new Date().toISOString().slice(0, 10);
+    try {
+      await this.runWindow(today, 'system');
+    } catch (err: any) {
+      this.logger.warn(
+        `[analysis] hourly run failed: ${err?.message ?? err}`,
+      );
+    }
+  }
+
+  /** 按签名聚类；重复跑同一窗口只会覆盖计数，不累加。 */
+  private async clusterWindow(windowStart: Date): Promise<number> {
+    const rows = await this.prisma.aiProblemEvent.findMany({
+      where: { windowStart },
+      select: {
+        id: true,
+        type: true,
+        intent: true,
+        domain: true,
+        severity: true,
+        occurredAt: true,
+        metadata: true,
+      },
+    });
+
+    const groups = new Map<
+      string,
+      {
+        preview: string;
+        ids: string[];
+        types: Set<string>;
+        severity: number;
+        intent?: string;
+        domain?: string;
+        first: Date;
+        last: Date;
+      }
+    >();
+
+    for (const row of rows) {
+      const metadata = row.metadata as Record<string, unknown> | null;
+      const raw = metadata?.questionPreview;
+      if (typeof raw !== 'string') continue;
+      const preview = raw.trim();
+      if (!preview) continue;
+      const normalized = preview
+        .toLowerCase()
+        .replace(/[\s\p{P}\p{S}]+/gu, '');
+      if (!normalized) continue;
+      const signature = createHash('sha256')
+        .update(normalized)
+        .digest('hex')
+        .slice(0, 64);
+      const existing = groups.get(signature);
+      if (existing) {
+        existing.ids.push(row.id);
+        existing.types.add(row.type);
+        existing.severity = Math.max(existing.severity, row.severity);
+        existing.intent = existing.intent ?? row.intent ?? undefined;
+        existing.domain = existing.domain ?? row.domain ?? undefined;
+        if (row.occurredAt < existing.first) existing.first = row.occurredAt;
+        if (row.occurredAt > existing.last) existing.last = row.occurredAt;
+      } else {
+        groups.set(signature, {
+          preview,
+          ids: [row.id],
+          types: new Set([row.type]),
+          severity: row.severity,
+          intent: row.intent ?? undefined,
+          domain: row.domain ?? undefined,
+          first: row.occurredAt,
+          last: row.occurredAt,
+        });
+      }
+    }
+
+    for (const [signature, group] of groups) {
+      const cluster = await this.prisma.aiProblemCluster.upsert({
+        where: { signature },
+        create: {
+          signature,
+          representativeText: group.preview,
+          count: 0,
+          severity: group.severity,
+          intent: group.intent ?? null,
+          domain: group.domain ?? null,
+          suggestedCause: this.suggestCause(group.types),
+          firstSeenAt: group.first,
+          lastSeenAt: group.last,
+        },
+        update: {
+          severity: group.severity,
+          lastSeenAt: group.last,
+          suggestedCause: this.suggestCause(group.types),
+          ...(group.intent ? { intent: group.intent } : {}),
+          ...(group.domain ? { domain: group.domain } : {}),
+        },
+      });
+
+      await this.prisma.aiProblemEvent.updateMany({
+        where: { id: { in: group.ids } },
+        data: { clusterId: cluster.id },
+      });
+
+      const total = await this.prisma.aiProblemEvent.count({
+        where: { clusterId: cluster.id },
+      });
+      await this.prisma.aiProblemCluster.update({
+        where: { id: cluster.id },
+        data: { count: total },
+      });
+
+      await this.prisma.aiProblemClusterDay.upsert({
+        where: {
+          clusterId_day: { clusterId: cluster.id, day: windowStart },
+        },
+        create: {
+          clusterId: cluster.id,
+          day: windowStart,
+          count: group.ids.length,
+        },
+        update: { count: group.ids.length },
+      });
+    }
+
+    return groups.size;
+  }
+
+  private suggestCause(types: Set<string>): string {
+    if (types.has('SERVICE_ERROR')) return 'SERVICE';
+    if (types.has('ZERO_HIT')) return 'KNOWLEDGE_GAP';
+    if (types.has('UNEXPECTED_TRANSFER')) return 'ROUTING';
+    if (types.has('EVAL_UNSOLVED')) return 'MODEL';
+    if (types.has('SECURITY_HIT')) return 'SECURITY';
+    if (types.has('USER_ABANDONED') || types.has('REPEATED_QUESTION')) {
+      return 'UX';
+    }
+    if (types.has('EXPLICIT_NEGATIVE')) return 'MODEL';
+    return 'UNKNOWN';
+  }
+
+  /** 与过去 7 天同指标均值比较；样本太少不告警。 */
+  private async evaluateAlerts(
+    windowStart: Date,
+    metrics: MetricDraft[],
+  ): Promise<void> {
+    const candidates = metrics.filter(
+      (row) => row.dimension === 'ALL' && row.denominator >= 5,
+    );
+    for (const row of candidates) {
+      const previous = await this.prisma.aiMetricWindow.findMany({
+        where: {
+          metric: row.metric,
+          dimension: row.dimension,
+          dimensionValue: row.dimensionValue,
+          windowStart: { lt: windowStart },
+          windowType: 'DAY',
+        },
+        orderBy: { windowStart: 'desc' },
+        take: 7,
+        select: { value: true },
+      });
+      if (previous.length < 3) continue;
+      const baseline =
+        previous.reduce((sum, item) => sum + item.value, 0) /
+        previous.length;
+      const value =
+        row.denominator > 0 ? row.numerator / row.denominator : 0;
+      if (value <= 0.05) continue;
+      if (value <= baseline * 1.5 && value < 0.2) continue;
+      const severity = value > Math.max(baseline * 2, 0.3) ? 'HIGH' : 'MEDIUM';
+      const message = `${row.metric} ${(value * 100).toFixed(1)}% 高于近 7 天基线 ${(baseline * 100).toFixed(1)}%（样本 ${row.denominator}）`;
+      await this.prisma.aiAnalysisAlert.upsert({
+        where: {
+          windowStart_metric_dimension_dimensionValue: {
+            windowStart,
+            metric: row.metric,
+            dimension: row.dimension,
+            dimensionValue: row.dimensionValue,
+          },
+        },
+        create: {
+          windowStart,
+          metric: row.metric,
+          dimension: row.dimension,
+          dimensionValue: row.dimensionValue,
+          value,
+          baseline,
+          sampleSize: row.denominator,
+          severity,
+          message,
+        },
+        update: {
+          value,
+          baseline,
+          sampleSize: row.denominator,
+          severity,
+          message,
+        },
+      });
+    }
+  }
+
+  async listClusters(input: {
+    status?: string;
+    page?: number;
+    pageSize?: number;
+  }) {
+    const page = Math.max(1, input.page ?? 1);
+    const pageSize = Math.min(100, Math.max(1, input.pageSize ?? 20));
+    const where = input.status ? { status: input.status } : {};
+    const [list, total] = await Promise.all([
+      this.prisma.aiProblemCluster.findMany({
+        where,
+        orderBy: [{ severity: 'desc' }, { count: 'desc' }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.aiProblemCluster.count({ where }),
+    ]);
+    return { list, total, page, pageSize };
+  }
+
+  async getCluster(id: string) {
+    const cluster = await this.prisma.aiProblemCluster.findUnique({
+      where: { id },
+    });
+    if (!cluster) throw new BadRequestException('Cluster not found');
+    const days = await this.prisma.aiProblemClusterDay.findMany({
+      where: { clusterId: id },
+      orderBy: { day: 'asc' },
+      take: 30,
+    });
+    return { ...cluster, days };
+  }
+
+  async updateCluster(
+    id: string,
+    input: {
+      status?: string;
+      ownerAdminId?: string | null;
+      fixType?: string | null;
+      suggestedCause?: string | null;
+    },
+  ) {
+    const allowedStatus = [
+      'NEW',
+      'ASSIGNED',
+      'FIXING',
+      'VERIFYING',
+      'CLOSED',
+      'IGNORED',
+    ];
+    if (input.status && !allowedStatus.includes(input.status)) {
+      throw new BadRequestException('invalid cluster status');
+    }
+    const existing = await this.prisma.aiProblemCluster.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+    if (!existing) throw new BadRequestException('Cluster not found');
+    await this.prisma.aiProblemCluster.update({
+      where: { id },
+      data: {
+        ...(input.status ? { status: input.status } : {}),
+        ...(input.ownerAdminId !== undefined
+          ? { ownerAdminId: input.ownerAdminId }
+          : {}),
+        ...(input.fixType !== undefined ? { fixType: input.fixType } : {}),
+        ...(input.suggestedCause !== undefined
+          ? { suggestedCause: input.suggestedCause }
+          : {}),
+      },
+    });
+    return this.getCluster(id);
+  }
+
+  async createRegressionFromCluster(
+    id: string,
+    datasetId: string,
+    expected: string,
+  ) {
+    const cluster = await this.prisma.aiProblemCluster.findUnique({
+      where: { id },
+      select: { id: true, representativeText: true },
+    });
+    if (!cluster) throw new BadRequestException('Cluster not found');
+    if (!expected.trim()) {
+      throw new BadRequestException('expected answer is required');
+    }
+    await this.evalDatasets.addCases(datasetId, {
+      cases: [
+        {
+          question: cluster.representativeText,
+          answer: '',
+          expect: { mustMention: [expected.trim()] },
+          expected: expected.trim(),
+          source: 'cluster',
+          metadata: { clusterId: id },
+          tags: ['from-cluster'],
+        },
+      ],
+    });
+    await this.prisma.aiProblemCluster.update({
+      where: { id },
+      data: { status: 'FIXING' },
+    });
+    return this.getCluster(id);
+  }
+
+  async listAlerts(input: {
+    status?: string;
+    page?: number;
+    pageSize?: number;
+  }) {
+    const page = Math.max(1, input.page ?? 1);
+    const pageSize = Math.min(100, Math.max(1, input.pageSize ?? 20));
+    const where = input.status ? { status: input.status } : {};
+    const [list, total] = await Promise.all([
+      this.prisma.aiAnalysisAlert.findMany({
+        where,
+        orderBy: [{ createdAt: 'desc' }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.aiAnalysisAlert.count({ where }),
+    ]);
+    return { list, total, page, pageSize };
+  }
+
+  async ackAlert(id: string) {
+    const existing = await this.prisma.aiAnalysisAlert.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+    if (!existing) throw new BadRequestException('Alert not found');
+    return this.prisma.aiAnalysisAlert.update({
+      where: { id },
+      data: { status: 'ACK' },
+    });
+  }
+
+  /** Phase 5：事件 180 天、运行 90 天、簇日 365 天、告警 180 天。 */
+  @Cron('0 4 * * *', { timeZone: 'UTC' })
+  async purgeExpired(): Promise<void> {
+    const now = Date.now();
+    const daysAgo = (days: number) =>
+      new Date(now - days * 24 * 60 * 60 * 1000);
+    try {
+      await this.prisma.aiProblemEvent.deleteMany({
+        where: { occurredAt: { lt: daysAgo(180) } },
+      });
+      await this.prisma.aiAnalysisRun.deleteMany({
+        where: { startedAt: { lt: daysAgo(90) } },
+      });
+      await this.prisma.aiProblemClusterDay.deleteMany({
+        where: { day: { lt: daysAgo(365) } },
+      });
+      await this.prisma.aiAnalysisAlert.deleteMany({
+        where: { createdAt: { lt: daysAgo(180) } },
+      });
+    } catch (err: any) {
+      this.logger.warn(
+        `[analysis] retention purge failed: ${err?.message ?? err}`,
+      );
+    }
   }
 
   private countByType(

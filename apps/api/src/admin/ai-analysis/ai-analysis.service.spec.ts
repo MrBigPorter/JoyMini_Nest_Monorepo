@@ -22,8 +22,35 @@ function makeService() {
     aiEvalResult: { findMany: jest.fn().mockResolvedValue([]) },
     conversation: { count: jest.fn().mockResolvedValue(0) },
     aiMetricWindow: {
+      findMany: jest.fn().mockResolvedValue([]),
       deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
       createMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
+    aiProblemEvent: {
+      findMany: jest.fn().mockResolvedValue([]),
+      updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+      count: jest.fn().mockResolvedValue(0),
+      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
+    aiProblemCluster: {
+      upsert: jest.fn(),
+      update: jest.fn(),
+      findMany: jest.fn().mockResolvedValue([]),
+      findUnique: jest.fn(),
+      count: jest.fn().mockResolvedValue(0),
+    },
+    aiProblemClusterDay: {
+      upsert: jest.fn(),
+      findMany: jest.fn().mockResolvedValue([]),
+      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
+    aiAnalysisAlert: {
+      upsert: jest.fn(),
+      findMany: jest.fn().mockResolvedValue([]),
+      findUnique: jest.fn(),
+      update: jest.fn(),
+      count: jest.fn().mockResolvedValue(0),
+      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
     },
     $transaction: jest.fn(async (ops: Promise<unknown>[]) =>
       Promise.all(ops),
@@ -41,7 +68,12 @@ function makeService() {
   return {
     prisma,
     locks,
-    service: new AiAnalysisService(prisma as any, locks as any),
+    evalDatasets: { addCases: jest.fn() },
+    service: new AiAnalysisService(
+      prisma as any,
+      locks as any,
+      { addCases: jest.fn() } as any,
+    ),
   };
 }
 
