@@ -879,6 +879,8 @@ export class AiCustomerService implements OnModuleDestroy {
       const lastMessage =
         params.newMessages[params.newMessages.length - 1];
       const output = this.extractText(lastMessage?.content);
+      // trace 与 span 必须用同一份脱敏文本，否则 snippet 会泄露原文。
+      const safeOutput = redactPiiText(output);
       const latencyMs = Date.now() - params.startedAt;
       const traceStart = new Date(params.startedAt);
 
@@ -933,7 +935,7 @@ export class AiCustomerService implements OnModuleDestroy {
           status: 'OK',
           output: {
             contentLength: output?.length ?? 0,
-            snippet: output?.slice(0, 200) ?? null,
+            snippet: safeOutput?.slice(0, 200) ?? null,
           },
           startedAt: traceStart,
           endedAt: new Date(params.startedAt + latencyMs),
@@ -948,7 +950,7 @@ export class AiCustomerService implements OnModuleDestroy {
         userId: params.userId,
         intent,
         input: this.truncateText(redactPiiText(params.message), 1000),
-        output: this.truncateText(redactPiiText(output), 2000),
+        output: this.truncateText(safeOutput, 2000),
         status: params.status,
         latencyMs,
         promptTokens: params.streamUsage?.promptTokens,
