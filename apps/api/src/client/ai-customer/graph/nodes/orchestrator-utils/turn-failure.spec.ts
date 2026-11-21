@@ -42,7 +42,7 @@ describe('evaluateTurnFailure', () => {
     expect(
       evaluateTurnFailure({
         ...base,
-        outputs: [{ content: '我这边没有找到相关信息，建议联系人工客服。' }],
+        outputs: [{ content: '我这边查不到这张订单的信息。' }],
       }),
     ).toEqual({ failed: true, reason: 'no_evidence' });
   });
@@ -85,5 +85,14 @@ describe('nextRepeatCount', () => {
 
   it('强制清零（转人工/回 AI）', () => {
     expect(nextRepeatCount(same, true, true)).toBe(0);
+  });
+
+  it('复位后的空意图不算同一意图，从 0 开始', () => {
+    expect(
+      nextRepeatCount(
+        { intent: '', previousIntent: '', repeatCount: 0 },
+        true,
+      ),
+    ).toBe(0);
   });
 });

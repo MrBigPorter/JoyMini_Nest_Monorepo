@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EventsGateway } from '@api/common/events/events.gateway';
-import { incCounter, registerMetric } from '@api/common/metrics/metrics';
+import { incCounter } from '@api/common/metrics/metrics';
 
 /**
  * 在线客服状态。
@@ -18,12 +18,6 @@ export interface AgentPresence {
 
 /** fail-open 未配置时的默认值：宁可按有客服处理，也不把用户卡在离线分支 */
 const DEFAULT_FAIL_OPEN = true;
-
-registerMetric(
-  'handoff_presence_check_failed_total',
-  'Handoff presence checks that failed because the Socket.IO adapter was unavailable',
-  'counter',
-);
 
 /**
  * 转人工前的在线客服探测。

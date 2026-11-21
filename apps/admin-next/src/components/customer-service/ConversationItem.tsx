@@ -1,10 +1,11 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { StatusBadge } from './StatusBadge';
 import { formatTime, getInitials } from '@/lib/format-utils';
 import { useTranslation } from '@/hooks/useTranslation';
 import type { ChatConversation } from '@/type/types';
-import { describeHandoff, formatCountdown } from './handoff-display';
+import { describeHandoff, formatCountdown, handoffLabel } from './handoff-display';
 
 export function ConversationItem({
   conv,
@@ -18,8 +19,16 @@ export function ConversationItem({
   onClickAction: () => void;
 }) {
   const { t } = useTranslation();
-  const handoff = describeHandoff(conv);
+  const [now, setNow] = useState(Date.now());
+  const ticking = conv.autoReturnAt != null;
+  useEffect(() => {
+    if (!ticking) return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [ticking]);
+  const handoff = describeHandoff(conv, now);
   const countdown = formatCountdown(handoff.countdownSeconds);
+  const label = handoffLabel(handoff, t);
   const user = conv.members.find((m) => m.role !== 'OWNER') ?? conv.members[0];
   const displayName =
     user?.nickname ?? conv.name ?? t('customerService.unknownUser');
@@ -86,7 +95,7 @@ export function ConversationItem({
                     : 'bg-purple-50 text-purple-600 dark:bg-purple-500/10 dark:text-purple-300'
                 }`}
               >
-                {handoff.label}
+                {label}
                 {countdown ? ` · ${countdown}` : ''}
               </span>
             )}

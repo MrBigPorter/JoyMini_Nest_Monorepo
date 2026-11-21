@@ -32,6 +32,7 @@ function makeConfig(values: Record<string, string> = {}) {
 function makeService(configValues: Record<string, string> = {}) {
   const config = makeConfig(configValues);
   const prisma = {
+    $executeRaw: jest.fn(async () => 1),
     conversation: {
       findFirst: jest.fn(async (_args: any) => null),
       findUnique: jest.fn(async (_args: any): Promise<any> => ({
@@ -109,22 +110,10 @@ describe('routeTransfer · 在线检查与离线留言（Task 3）', () => {
       'msg-1',
     );
 
-    // ① 不进入排队态：不写 awaiting_human / transferredAt
-    const updateArg = prisma.conversation.update.mock.calls[0]![0] as any;
-    expect(updateArg.where).toEqual({ id: 'conv-1' });
-    expect(updateArg.data.handlerId).not.toBe('awaiting_human');
-    expect(updateArg.data.transferredAt).toBeUndefined();
-    expect(updateArg.data.transferReason).toBeUndefined();
-
-    // ② 合并写 callback 元数据，且不覆盖 trafficSource
-    expect(updateArg.data.aiMetadata).toMatchObject({
-      trafficSource: 'simulation_support_v1',
-      handoffCallback: {
-        status: 'pending',
-        reason: 'explicit_request',
-        requestedAt: expect.any(String),
-      },
-    });
+    // ① 不进入排队态：不写 handlerId/transferredAt
+    expect(prisma.conversation.update).not.toHaveBeenCalled();
+    // ② callback 用 jsonb 原子合并写入
+    expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
 
     // ③ 落离线提示，而不是 orchestrator 的“正在转接”
     expect(publishAiReply).toHaveBeenCalledTimes(1);

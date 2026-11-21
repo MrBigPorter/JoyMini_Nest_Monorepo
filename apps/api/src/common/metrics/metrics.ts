@@ -199,6 +199,11 @@ registerMetric(
   true,
 );
 registerMetric(
+  'handoff_presence_check_failed_total',
+  'Handoff presence checks that failed because the Socket.IO adapter was unavailable',
+  'counter',
+);
+registerMetric(
   'handoff_returns_total',
   'Conversations returned from human to AI by reason',
   'counter',

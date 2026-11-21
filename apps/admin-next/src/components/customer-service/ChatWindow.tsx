@@ -19,7 +19,7 @@ import type { ChatConversation, ChatMessage } from '@/type/types';
 import { ModalManager } from '@repo/ui';
 import { useTranslation } from '@/hooks/useTranslation';
 import { MessageBubble, QuickRepliesPanel } from './index';
-import { describeHandoff, formatCountdown } from './handoff-display';
+import { describeHandoff, formatCountdown, handoffLabel } from './handoff-display';
 
 interface ChatWindowProps {
   conversation: ChatConversation;
@@ -272,6 +272,7 @@ export function ChatWindow({
   const isClosed = conversation.status === 2;
   const handoff = describeHandoff(conversation, nowTick);
   const countdown = formatCountdown(handoff.countdownSeconds);
+  const handoffText = handoffLabel(handoff, t);
 
   return (
     <div className="flex flex-col h-full">
@@ -289,8 +290,8 @@ export function ChatWindow({
               {conversation.id.slice(0, 12)}…
             </p>
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              {handoff.label}
-              {countdown ? ` · 自动回 AI ${countdown}` : ''}
+              {handoffText}
+              {countdown ? ` · ${countdown}` : ''}
             </p>
           </div>
         </div>
@@ -315,7 +316,7 @@ export function ChatWindow({
                       if (handoff.tone === 'human') {
                         if (
                           !window.confirm(
-                            '切回 AI 后，客服将失去该会话，确认继续？',
+                            t('customerService.handoffConfirmReturn'),
                           )
                         ) {
                           return;
@@ -331,7 +332,7 @@ export function ChatWindow({
                       }
                       onMessageSentAction();
                     } catch (err: any) {
-                      addToast('error', err?.message ?? '切换失败，请重试');
+                      addToast('error', err?.message ?? t('customerService.handoffSwitchFailed'));
                     }
                   }}
                   className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors ${
@@ -340,7 +341,9 @@ export function ChatWindow({
                       : 'border-teal-200 dark:border-teal-500/30 text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-500/10'
                   }`}
                 >
-                  {handoff.tone === 'human' ? '切回 AI' : '切人工'}
+                  {handoff.tone === 'human'
+                    ? t('customerService.handoffSwitchToAi')
+                    : t('customerService.handoffSwitchToHuman')}
                 </button>
               )}
               <button

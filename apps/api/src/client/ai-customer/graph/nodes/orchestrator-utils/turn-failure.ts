@@ -21,7 +21,7 @@ export interface TurnFailureResult {
 }
 
 const NO_EVIDENCE =
-  /(没有找到|没找到|找不到|查不到|无法确认|没有相关|没有记录|暂无|失败|failed to|error)/i;
+  /(没有找到|没找到|找不到|查不到|无法确认|无法查询|没有权限查询)/i;
 
 export function isInformational(text: string): boolean {
   return INFORMATIONAL.test(text);
@@ -43,6 +43,10 @@ export function evaluateTurnFailure(
     return { failed: true, reason: 'tool_error' };
   }
 
+  if (outputs.length > 0 && outputs.every((o) => isScopeRefusal(o.content))) {
+    return { failed: true, reason: 'refusal' };
+  }
+
   if (
     isInformational(input.userInput) &&
     input.ragSourceCount === 0 &&
@@ -50,10 +54,6 @@ export function evaluateTurnFailure(
     outputs.every((o) => NO_EVIDENCE.test(o.content))
   ) {
     return { failed: true, reason: 'no_evidence' };
-  }
-
-  if (outputs.length > 0 && outputs.every((o) => isScopeRefusal(o.content))) {
-    return { failed: true, reason: 'refusal' };
   }
 
   return { failed: false, reason: null };
@@ -66,6 +66,7 @@ export function nextRepeatCount(
   forceReset = false,
 ): number {
   if (forceReset) return 0;
+  if (!state.intent || !state.previousIntent) return 0;
   if (!failed || state.intent !== state.previousIntent) return 0;
   return (state.repeatCount ?? 0) + 1;
 }

@@ -78,6 +78,10 @@ import {
 import { HandoffPresenceService } from '@api/common/chat/handoff/handoff-presence.service';
 import { isSensitiveRequest } from '@api/common/utils/sensitive-content';
 import { policyFallback } from './policy-fallback';
+import {
+  setHandoffCallbackPending,
+  consumeHandoffResetFlag,
+} from '@api/common/chat/handoff/ai-metadata';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 
@@ -835,24 +839,14 @@ export class AiCustomerService implements OnModuleDestroy {
       }
     }
 
-    // 合并写：只移除 handoffResetPending，保留 trafficSource / handoffHistory 等。
-    const nextMetadata: Record<string, unknown> = { ...metadata };
-    delete nextMetadata.handoffResetPending;
+    // 原子删除：只移除 handoffResetPending，保留 trafficSource / handoffHistory 等。
+    const consumed = await consumeHandoffResetFlag(
+      this.prismaService,
+      conversationId,
+      flag,
+    );
 
-    const consumed = await this.prismaService.conversation.updateMany({
-      where: {
-        id: conversationId,
-        aiMetadata: {
-          path: ['handoffResetPending'],
-          equals: flag as Prisma.InputJsonValue,
-        },
-      },
-      data: {
-        aiMetadata: nextMetadata as Prisma.InputJsonValue,
-      },
-    });
-
-    if (consumed.count > 0) {
+    if (consumed > 0) {
       this.logger.log(
         `[chatStream] handoff reset consumed: conv=${conversationId}, thread=${threadId ?? 'none'}`,
       );
@@ -1544,21 +1538,14 @@ export class AiCustomerService implements OnModuleDestroy {
     const requestedAt = new Date();
 
     try {
-      const conv = await this.prismaService.conversation.findUnique({
-        where: { id: targetConvId },
-        select: { aiMetadata: true },
-      });
-      await this.prismaService.conversation.update({
-        where: { id: targetConvId },
-        data: {
-          // 合并不覆盖 trafficSource；不写 handlerId/transferredAt，避免被排队 sweep 认领
-          aiMetadata: mergeHandoffCallback(
-            conv?.aiMetadata,
-            reason,
-            requestedAt,
-          ) as Prisma.InputJsonValue,
-        },
-      });
+      // 原子合并：只替换 handoffCallback，保留 trafficSource / 复位标记等。
+      // 不写 handlerId/transferredAt，避免被排队 sweep 认领。
+      await setHandoffCallbackPending(
+        this.prismaService,
+        targetConvId,
+        reason,
+        requestedAt,
+      );
     } catch (err: any) {
       this.logger.warn(
         `[chatStream] persist offline callback failed: ${err?.message}`,

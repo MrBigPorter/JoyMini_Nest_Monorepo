@@ -27,6 +27,7 @@ import {
   AWAITING_HUMAN,
 } from '@api/common/chat/support-handler.service';
 import { HandoffLifecycleService } from '@api/common/chat/handoff/handoff-lifecycle.service';
+import { markHandoffCallbackHandled as markCallbackHandledAtomic } from '@api/common/chat/handoff/ai-metadata';
 import { deriveHandoffState } from '@api/common/chat/handoff/handoff-state';
 
 /** Conversation.status 枚举值 */
@@ -74,21 +75,8 @@ export class AdminChatService {
    */
   private async markHandoffCallbackHandled(
     conversationId: string,
-    raw: Prisma.JsonValue | null,
   ): Promise<void> {
-    const merged = mergeHandoffCallbackHandled(raw);
-    if (!merged) return;
-
-    await this.prisma.conversation.updateMany({
-      where: {
-        id: conversationId,
-        aiMetadata: {
-          path: ['handoffCallback', 'status'],
-          equals: 'pending',
-        },
-      },
-      data: { aiMetadata: merged as Prisma.InputJsonValue },
-    });
+    await markCallbackHandledAtomic(this.prisma, conversationId);
   }
 
   // ─────────────────────────────────────────────
@@ -403,7 +391,7 @@ export class AdminChatService {
     });
 
     // 离线留言被人工回复后，callback 队列里不应再显示。
-    await this.markHandoffCallbackHandled(conversationId, conv.aiMetadata);
+    await this.markHandoffCallbackHandled(conversationId);
 
     // 首次人工回复时间：只写一次。
     // 用 updateMany + where null 而不是 update —— 帮答场景下两个人几乎同时回复，
@@ -568,7 +556,7 @@ export class AdminChatService {
     if (mode === 'ai') {
       // 先清 callback，再让生命周期服务读取最新 aiMetadata，
       // 避免后写的 callback 合并覆盖 handoffResetPending / handoffHistory。
-      await this.markHandoffCallbackHandled(conversationId, conv.aiMetadata);
+      await this.markHandoffCallbackHandled(conversationId);
 
       const changed = await this.handoffLifecycleService.returnToAi(
         conversationId,

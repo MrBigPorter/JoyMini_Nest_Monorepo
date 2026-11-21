@@ -24,6 +24,7 @@ const unused = () => ({}) as any;
 
 function makeAiService() {
   const prisma = {
+    $executeRaw: jest.fn(async () => 1),
     conversation: {
       findUnique: jest.fn(),
       updateMany: jest.fn(),
@@ -164,18 +165,8 @@ describe('AiCustomerService.consumeHandoffReset · 复位标记只消费一次',
     expect(values).not.toHaveProperty('userMemory');
     expect(values).not.toHaveProperty('flowState');
 
-    const updateArg = prisma.conversation.updateMany.mock.calls[0][0] as any;
-    expect(updateArg.where).toMatchObject({
-      id: 'conv-1',
-      aiMetadata: {
-        path: ['handoffResetPending'],
-        equals: flag,
-      },
-    });
-    // 合并写：只移除标记，保留 trafficSource
-    expect(updateArg.data.aiMetadata).toEqual({
-      trafficSource: 'simulation_support_v1',
-    });
+    // 原子删除标记；不再整份重写 aiMetadata。
+    expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
   });
 
   it('没有复位标记：不调用 updateState、不写库', async () => {
@@ -207,12 +198,10 @@ describe('AiCustomerService.consumeHandoffReset · 复位标记只消费一次',
     prisma.conversation.findUnique.mockResolvedValue({
       aiMetadata: { handoffResetPending: flag },
     });
-    prisma.conversation.updateMany.mockResolvedValue({ count: 1 });
-
     await service.consumeHandoffReset('conv-1', null);
 
     expect(graph.updateState).not.toHaveBeenCalled();
-    expect(prisma.conversation.updateMany).toHaveBeenCalledTimes(1);
+    expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
   });
 });
 
