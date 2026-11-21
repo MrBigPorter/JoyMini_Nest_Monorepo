@@ -25,7 +25,11 @@ import {
   StartEvalRunDto,
   UpdateEvalCaseDto,
 } from './dto/eval-dataset.dto';
-import { CurrentUserId } from '@api/common/decorators/user.decorator';
+import {
+  CurrentRole,
+  CurrentUserId,
+} from '@api/common/decorators/user.decorator';
+import { redactSensitiveFields } from '@api/common/utils/data-masking';
 
 @ApiTags('Admin AI Eval')
 @Controller('admin/ai-eval')
@@ -72,8 +76,17 @@ export class AiEvalController {
   @Get('datasets/:id')
   @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
   @ApiOperation({ summary: '评测集详情' })
-  async getDataset(@Param('id') id: string) {
-    return this.datasetService.getDataset(id);
+  async getDataset(
+    @Param('id') id: string,
+    @CurrentRole() role: string | null,
+  ) {
+    const dataset = await this.datasetService.getDataset(id);
+    return redactSensitiveFields(dataset, role, [
+      'cases.question',
+      'cases.answer',
+      'cases.expected',
+      'cases.expect',
+    ]);
   }
 
   @Post('datasets/:id/cases')
@@ -125,8 +138,16 @@ export class AiEvalController {
   @Get('runs/:id')
   @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
   @ApiOperation({ summary: '评测运行结果' })
-  async getRun(@Param('id') id: string) {
-    return this.datasetService.getRun(id);
+  async getRun(@Param('id') id: string, @CurrentRole() role: string | null) {
+    const run = await this.datasetService.getRun(id);
+    return redactSensitiveFields(run, role, [
+      'results.actualAnswer',
+      'results.reason',
+      'results.case.question',
+      'results.case.answer',
+      'results.case.expected',
+      'results.case.expect',
+    ]);
   }
 
   @Post('judge')
