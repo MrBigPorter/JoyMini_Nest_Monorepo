@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { PrismaModule } from '@api/common/prisma/prisma.module';
 import { HandoffLifecycleService } from './handoff-lifecycle.service';
+import { HandoffPresenceService } from './handoff-presence.service';
 
 /**
  * 交接生命周期模块。
@@ -10,7 +11,7 @@ import { HandoffLifecycleService } from './handoff-lifecycle.service';
  */
 @Module({
   imports: [PrismaModule],
-  providers: [HandoffLifecycleService],
-  exports: [HandoffLifecycleService],
+  providers: [HandoffLifecycleService, HandoffPresenceService],
+  exports: [HandoffLifecycleService, HandoffPresenceService],
 })
 export class HandoffModule {}

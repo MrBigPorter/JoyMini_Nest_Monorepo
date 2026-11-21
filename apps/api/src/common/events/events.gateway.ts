@@ -74,6 +74,15 @@ export enum SocketRoom {
   LOBBY = 'group_lobby', // 拼团大厅
 }
 
+/**
+ * 在线客服房间名。
+ *
+ * 客服（admin）连接在 handleConnection 里自动加入；socket.io 在 disconnect 时
+ * 自动把连接移出所有房间，所以这里不需要手动离房逻辑。
+ * 转人工入口通过 `EventsGateway.countOnlineAgents()` 读取这个房间的连接数。
+ */
+export const ADMIN_ONLINE_ROOM = 'admin_online';
+
 // 定义推送子类型
 export enum PushEventType {
   GROUP_SUCCESS = 'group_success',
@@ -238,6 +247,11 @@ export class EventsGateway
           await client.join(privateRoom);
           setSocketUserId(client, userId);
           setSocketIsAdmin(client, isAdmin);
+          // 客服连接统一进 admin_online 房间：转人工排队前用它判断
+          // 「现在有没有客服在线」。disconnect 时 socket.io 自动离房。
+          if (isAdmin) {
+            await client.join(ADMIN_ONLINE_ROOM);
+          }
           this.logger.log(
             `🔌 Client connected: ${client.id} (User: ${userId})`,
           );
@@ -275,6 +289,18 @@ export class EventsGateway
         this.cancelAiIfRoomEmpty(conversationId, 'client_disconnected');
       }
     }
+  }
+
+  /**
+   * 当前在线的客服连接数。
+   *
+   * 挂 Redis adapter 时 `fetchSockets()` 会跨实例聚合，得到全局值；
+   * 降级为内存 adapter 时只反映本实例。调用方（HandoffPresenceService）
+   * 负责容错，这里让 adapter 异常自然冒泡。
+   */
+  async countOnlineAgents(): Promise<number> {
+    const sockets = await this.server.in(ADMIN_ONLINE_ROOM).fetchSockets();
+    return Array.isArray(sockets) ? sockets.length : 0;
   }
 
   // ---------------------------------------------------------
