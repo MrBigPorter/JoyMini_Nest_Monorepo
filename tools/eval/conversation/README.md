@@ -68,11 +68,14 @@ run.sh --dataset ... --mode=blocking   # 不达标退出码 1
 
 ## 人工标注（Phase 3）
 
+当前第一轮样本：`selection-2026-11-22.jsonl`（27 个会话），导出工作表 49 行。
+工作表在 `annotations/worksheet-2026-11-21.jsonl`（gitignored，含原文）。
+
 ```bash
 # 导出工作表（标签为空）
 cd apps/api
 ../../node_modules/.bin/tsx --env-file=.env scripts/export-annotation-worksheet.ts \
-  --dataset tools/eval/conversation/selection-2026-11-21.jsonl \
+  --dataset tools/eval/conversation/selection-2026-11-22.jsonl \
   --out tools/eval/conversation/annotations/worksheet-2026-11-21.jsonl
 
 # 两人独立标注后算 kappa

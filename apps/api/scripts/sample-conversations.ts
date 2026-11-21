@@ -67,13 +67,20 @@ async function main() {
       [...date].reduce((sum, ch) => sum + ch.charCodeAt(0), 0),
   );
   const includeDrill = args.includes('--include-drill');
+  const root = resolve(__dirname, '../../..');
   const outPath = resolve(
+    root,
     argValue(args, 'out') ??
-      `../../tools/eval/conversation/selection-daily-${date}.jsonl`,
+      `tools/eval/conversation/selection-daily-${date}.jsonl`,
   );
 
-  const start = new Date(`${date}T00:00:00.000Z`);
-  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+  const from = argValue(args, 'from');
+  const to = argValue(args, 'to');
+  const start = new Date(`${from ?? date}T00:00:00.000Z`);
+  const end = to
+    ? new Date(`${to}T00:00:00.000Z`)
+    : new Date(start.getTime() + 24 * 60 * 60 * 1000);
+  const versionDate = to ?? date;
 
   const conversations = await prisma.conversation.findMany({
     where: { type: 'SUPPORT', createdAt: { gte: start, lt: end } },
@@ -163,6 +170,22 @@ async function main() {
     if (seenFirstUser.has(dedupeKey)) continue;
     seenFirstUser.add(dedupeKey);
 
+    const rawIntent = intentByConversation.get(conversation.id) ?? 'general';
+    const intent =
+      rawIntent === 'lucky-draw' ? 'lucky' : rawIntent;
+    const allowedIntents = [
+      'order',
+      'wallet',
+      'coupon',
+      'product',
+      'user',
+      'kyc',
+      'lucky',
+      'rag',
+      'general',
+    ];
+    const normalizedIntent = allowedIntents.includes(intent) ? intent : 'general';
+
     const metadata = (conversation.aiMetadata ?? {}) as Record<string, unknown>;
     const source: Candidate['source'] =
       metadata.trafficSource === 'simulation_support_v1' ? 'sim' : 'real';
@@ -181,7 +204,7 @@ async function main() {
       conversationId: conversation.id,
       source,
       language,
-      intent: intentByConversation.get(conversation.id) ?? 'general',
+      intent: normalizedIntent,
       outcome,
       messageCount,
       firstUser,
@@ -220,7 +243,7 @@ async function main() {
     if (groupKeys.every((item) => (groups.get(item) ?? []).length === 0)) break;
   }
 
-  const datasetVersion = `${date}.1`;
+  const datasetVersion = `${versionDate}.1`;
   const usedIds = new Set<string>();
   const rows = selected.map((candidate, index) => {
     let id = `conv-${candidate.conversationId.slice(0, 10)}`;
