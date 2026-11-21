@@ -19,6 +19,7 @@ import type { ChatConversation, ChatMessage } from '@/type/types';
 import { ModalManager } from '@repo/ui';
 import { useTranslation } from '@/hooks/useTranslation';
 import { MessageBubble, QuickRepliesPanel } from './index';
+import { describeHandoff, formatCountdown } from './handoff-display';
 
 interface ChatWindowProps {
   conversation: ChatConversation;
@@ -41,10 +42,12 @@ export function ChatWindow({
   const [closing, setClosing] = useState(false);
   const [showQuickReplies, setShowQuickReplies] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [handlerMode, setHandlerMode] = useState<'ai' | 'human'>(
-    conversation.handlerId ? 'human' : 'ai',
-  );
+  const [nowTick, setNowTick] = useState(Date.now());
   const [claiming, setClaiming] = useState(false);
+  useEffect(() => {
+    const timer = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -251,8 +254,6 @@ export function ChatWindow({
     setClaiming(true);
     try {
       await chatApi.claim(conversation.id);
-      setHandlerMode('human');
-      conversation.handlerId = 'me';
       onMessageSentAction();
     } catch (err: any) {
       const status = err?.response?.status;
@@ -269,6 +270,8 @@ export function ChatWindow({
   };
 
   const isClosed = conversation.status === 2;
+  const handoff = describeHandoff(conversation, nowTick);
+  const countdown = formatCountdown(handoff.countdownSeconds);
 
   return (
     <div className="flex flex-col h-full">
@@ -285,12 +288,16 @@ export function ChatWindow({
             <p className="text-xs text-gray-400">
               {conversation.id.slice(0, 12)}…
             </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {handoff.label}
+              {countdown ? ` · 自动回 AI ${countdown}` : ''}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           {!isClosed && (
             <>
-              {conversation.handlerId === 'awaiting_human' && (
+              {handoff.tone === 'waiting' && (
                 <button
                   onClick={() => void handleClaim()}
                   disabled={claiming}
@@ -301,42 +308,41 @@ export function ChatWindow({
                     : t('customerService.claim')}
                 </button>
               )}
-              <button
-                onClick={async () => {
-                  // 等待人工时，点“Human”应该是认领，而不是把用户送回 AI。
-                  if (conversation.handlerId === 'awaiting_human') {
-                    await handleClaim();
-                    return;
-                  }
-                  const mode = conversation.handlerId ? 'ai' : 'human';
-                  try {
-                    await chatApi.switchHandler(conversation.id, mode);
-                    if (mode === 'human') {
-                      // 切到人工后立刻认领，避免只进队列却没有归属。
-                      try {
-                        await chatApi.claim(conversation.id);
-                        conversation.handlerId = 'me';
-                      } catch {
-                        conversation.handlerId = 'awaiting_human';
+              {handoff.tone !== 'waiting' && (
+                <button
+                  onClick={async () => {
+                    try {
+                      if (handoff.tone === 'human') {
+                        if (
+                          !window.confirm(
+                            '切回 AI 后，客服将失去该会话，确认继续？',
+                          )
+                        ) {
+                          return;
+                        }
+                        await chatApi.switchHandler(conversation.id, 'ai');
+                      } else {
+                        await chatApi.switchHandler(conversation.id, 'human');
+                        try {
+                          await chatApi.claim(conversation.id);
+                        } catch {
+                          // 已进入待接入队列，认领失败不影响状态。
+                        }
                       }
-                    } else {
-                      conversation.handlerId = null;
+                      onMessageSentAction();
+                    } catch (err: any) {
+                      addToast('error', err?.message ?? '切换失败，请重试');
                     }
-                    setHandlerMode(mode);
-                  } catch (err: any) {
-                    addToast('error', err?.message ?? '切换失败，请重试');
-                  }
-                }}
-                className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors ${
-                  handlerMode === 'human' || conversation.handlerId
-                    ? 'border-purple-200 dark:border-purple-500/30 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-500/10'
-                    : 'border-teal-200 dark:border-teal-500/30 text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-500/10'
-                }`}
-              >
-                {handlerMode === 'human' || conversation.handlerId
-                  ? '👤 Human'
-                  : '🤖 AI'}
-              </button>
+                  }}
+                  className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+                    handoff.tone === 'human'
+                      ? 'border-purple-200 dark:border-purple-500/30 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-500/10'
+                      : 'border-teal-200 dark:border-teal-500/30 text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-500/10'
+                  }`}
+                >
+                  {handoff.tone === 'human' ? '切回 AI' : '切人工'}
+                </button>
+              )}
               <button
                 onClick={() => void handleClose()}
                 disabled={closing}

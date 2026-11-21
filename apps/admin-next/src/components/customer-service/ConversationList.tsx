@@ -14,11 +14,11 @@ interface ConversationListProps {
   page: number;
   keyword: string;
   statusFilter: number | undefined;
-  queueFilter: 'awaiting' | undefined;
+  queueFilter: 'awaiting' | 'callback' | undefined;
   lastSeenSeqId: Record<string, number>;
   onKeywordChangeAction: (keyword: string) => void;
   onStatusFilterChangeAction: (status: number | undefined) => void;
-  onQueueFilterChangeAction: (queue: 'awaiting' | undefined) => void;
+  onQueueFilterChangeAction: (queue: 'awaiting' | 'callback' | undefined) => void;
   onPageChangeAction: (page: number) => void;
   onSelectConversationAction: (conv: ChatConversation) => void;
   onRefreshAction: () => void;
@@ -69,6 +69,10 @@ export function ConversationList({
             {
               label: t('customerService.queueAwaiting'),
               value: 'awaiting' as const,
+            },
+            {
+              label: t('customerService.queueCallback'),
+              value: 'callback' as const,
             },
           ].map((opt) => (
             <button

@@ -1266,6 +1266,10 @@ export interface ChatConversation {
   name: string | null;
   status: number; // 1=正常 2=已关闭
   handlerId: string | null;
+  handoffState?: 'AI_ACTIVE' | 'WAITING_HUMAN' | 'HUMAN_ACTIVE' | 'CLOSED';
+  handlerName?: string | null;
+  /** 自动回 AI 的时间戳（epoch ms）；null 表示不自动回 */
+  autoReturnAt?: number | null;
   transferReason?: string | null;
   /** 转人工排队秒数；非待接入会话为 null */
   waitingSeconds?: number | null;
@@ -1302,7 +1306,7 @@ export interface QueryConversationsParams {
   keyword?: string;
   status?: number;
   /** awaiting=待接入；mine=我的；ai=AI 处理中 */
-  queue?: 'awaiting' | 'mine' | 'ai';
+  queue?: 'awaiting' | 'mine' | 'ai' | 'callback';
 }
 
 export interface QueryMessagesParams {

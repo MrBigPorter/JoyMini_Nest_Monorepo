@@ -4,6 +4,7 @@ import { StatusBadge } from './StatusBadge';
 import { formatTime, getInitials } from '@/lib/format-utils';
 import { useTranslation } from '@/hooks/useTranslation';
 import type { ChatConversation } from '@/type/types';
+import { describeHandoff, formatCountdown } from './handoff-display';
 
 export function ConversationItem({
   conv,
@@ -17,6 +18,8 @@ export function ConversationItem({
   onClickAction: () => void;
 }) {
   const { t } = useTranslation();
+  const handoff = describeHandoff(conv);
+  const countdown = formatCountdown(handoff.countdownSeconds);
   const user = conv.members.find((m) => m.role !== 'OWNER') ?? conv.members[0];
   const displayName =
     user?.nickname ?? conv.name ?? t('customerService.unknownUser');
@@ -75,12 +78,18 @@ export function ConversationItem({
                 SIM
               </span>
             ) : null}
-            {conv.handlerId === 'awaiting_human' &&
-              conv.waitingSeconds != null && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400">
-                  ⏳ {Math.floor(conv.waitingSeconds / 60)}m
-                </span>
-              )}
+            {handoff.tone !== 'ai' && handoff.tone !== 'closed' && (
+              <span
+                className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                  handoff.tone === 'waiting'
+                    ? 'bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400'
+                    : 'bg-purple-50 text-purple-600 dark:bg-purple-500/10 dark:text-purple-300'
+                }`}
+              >
+                {handoff.label}
+                {countdown ? ` · ${countdown}` : ''}
+              </span>
+            )}
           </div>
         </div>
       </div>

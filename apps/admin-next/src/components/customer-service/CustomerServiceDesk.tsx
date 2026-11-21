@@ -46,7 +46,7 @@ export function CustomerServiceDesk({
   const [statusFilter, setStatusFilter] = useState<number | undefined>(
     undefined,
   );
-  const [queueFilter, setQueueFilter] = useState<'awaiting' | undefined>(
+  const [queueFilter, setQueueFilter] = useState<'awaiting' | 'callback' | undefined>(
     undefined,
   );
   const [page, setPage] = useState(1);
