@@ -374,3 +374,22 @@ zero_hit_rate ALL = 1 / 3 = 0.3333；problem_rate 仍 8/4=2
 - **连续 7 天/小时窗口**未覆盖：只验证固定 UTC 日窗口与日级 cron 代码路径。
 - **多实例未实测**：Redis `SET NX PX` 锁语义可跨实例，但本批单 API 进程。
 - **页面无趋势图**（handoff #7）。
+
+---
+
+# Quick Wins 1 — 缺陷（commit `0f6518d5` / 代码 `e4eff5ab`）
+
+> 迁移审核 **PASS**（仅 ALTER ADD COLUMN + CREATE UNIQUE INDEX）。Quick Wins API 4/4、Playwright 1/1；Batch 5 API 9/9、质量页 Playwright 8/8。
+
+## 缺陷
+
+**无 P0/P1/P2 缺陷。**
+
+## 已知限制 / 观察（非新缺陷，handoff 已声明）
+
+- **历史 `support_sla_snapshots.bucket` 为 null**：唯一索引允许多个 null；旧数据不回填，也不受影响。
+- **同分钟后写覆盖前写**：快照是“该分钟最后一次观测”，不是多实例平均。
+- **`needReview` 是并集**：低分 + 高标记（score≥70 但有 flags），与 `flagged` 可能重叠；本 seed 两者均为 5。
+- **评分是启发式卫生分**：不代表检索/回答质量；“上传时间”仍使用 `createdAt`，没有真实 parsedAt。
+- **多实例未端到端**：用同一 DB 的唯一约束/upsert 验证并发收敛，未起两个 API 进程。
+- **截断规则局限**：只看最后 200 字符的最后一个非空行；正文中间截断但结尾合法不会被发现。
