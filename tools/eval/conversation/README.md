@@ -86,6 +86,25 @@ python3 tools/eval/conversation/annotate.py score \
 
 规则见 [`annotation-guide.md`](./annotation-guide.md)：盲标、kappa ≥0.6、n<30 只作参考。
 
+### AI 预标注（可选）
+
+```bash
+cd apps/api
+# 先 dry-run 检查 prompt
+../../node_modules/.bin/tsx --env-file=.env scripts/prelabel-annotations.ts \
+  --worksheet tools/eval/conversation/annotations/worksheet-2026-11-21.jsonl \
+  --out tools/eval/conversation/annotations/annotations-ai.jsonl \
+  --dry-run --limit=3
+
+# 有 AI_PRELABEL_API_KEY / GROQ_API_KEY 后正式跑
+../../node_modules/.bin/tsx --env-file=.env scripts/prelabel-annotations.ts \
+  --worksheet tools/eval/conversation/annotations/worksheet-2026-11-21.jsonl \
+  --out tools/eval/conversation/annotations/annotations-ai.jsonl --resume
+```
+
+预标注只是草稿，**不参与最终 kappa**；实现细节、prompt、输出格式、隐私与
+限制见 [`prelabel-guide.md`](./prelabel-guide.md)。
+
 ## 定时运行
 
 ```bash
