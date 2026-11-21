@@ -23,6 +23,20 @@ describe('ai-ops-quality-filters', () => {
     });
   });
 
+  it('接受人工复核用的归因值', () => {
+    for (const kind of [
+      'KNOWLEDGE_GAP',
+      'ROUTING',
+      'PROMPT',
+      'PRODUCT_GAP',
+      'LANGUAGE',
+    ]) {
+      expect(parseFeedbackFilters(`?failureKind=${kind}`).failureKind).toBe(
+        kind,
+      );
+    }
+  });
+
   it('非法值被忽略，不产生筛选', () => {
     expect(
       parseFeedbackFilters(

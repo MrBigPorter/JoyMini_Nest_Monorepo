@@ -63,6 +63,11 @@ const FAILURE_KIND_LABELS: Record<string, string> = {
   UNEXPECTED_TRANSFER: '误转',
   USER_ABANDONED: '用户放弃',
   REPEATED_QUESTION: '重复追问',
+  KNOWLEDGE_GAP: '知识缺失',
+  ROUTING: '路由错误',
+  PROMPT: '提示词问题',
+  PRODUCT_GAP: '产品流程缺口',
+  LANGUAGE: '语言不一致',
   UNKNOWN: '未知',
 };
 
@@ -217,20 +222,26 @@ function countByValue(
 }
 
 /**
- * 只有确认的模型问题才允许沉淀为回归用例：
- * 模型答错 / 误转 / 判定错误；服务故障、正常转人工不算模型问题。
+ * 只有可归因到 AI 行为的问题才允许沉淀为回归用例：
+ * 模型答错 / 误转 / 知识缺失 / 路由错误 / 提示词 / 语言 / 判定错误；
+ * 服务故障、正常转人工、产品流程缺口不算 AI 回归问题。
  */
 function isModelProblem(item: FeedbackRow | null | undefined): boolean {
   if (!item) return false;
   if (
     item.failureKind === 'SERVICE_ERROR' ||
-    item.failureKind === 'EXPECTED_TRANSFER'
+    item.failureKind === 'EXPECTED_TRANSFER' ||
+    item.failureKind === 'PRODUCT_GAP'
   ) {
     return false;
   }
   return (
     item.failureKind === 'MODEL_ERROR' ||
     item.failureKind === 'UNEXPECTED_TRANSFER' ||
+    item.failureKind === 'KNOWLEDGE_GAP' ||
+    item.failureKind === 'ROUTING' ||
+    item.failureKind === 'PROMPT' ||
+    item.failureKind === 'LANGUAGE' ||
     item.verdict === 'incorrect'
   );
 }
@@ -1114,7 +1125,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
                   title={
                     isModelProblem(current)
                       ? '将这条反馈加入回归评测集'
-                      : '仅模型答错、误转或判定错误的反馈可加入回归'
+                      : '仅模型答错、知识缺失、路由、提示词、语言或判定错误的反馈可加入回归'
                   }
                   onClick={() => openAddToRegression(current)}
                 >
@@ -1312,7 +1323,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
                             title={
                               isModelProblem(item)
                                 ? '将这条反馈加入回归评测集'
-                                : '仅模型答错、误转或判定错误的反馈可加入回归'
+                                : '仅模型答错、知识缺失、路由、提示词、语言或判定错误的反馈可加入回归'
                             }
                             onClick={() => openAddToRegression(item)}
                           >

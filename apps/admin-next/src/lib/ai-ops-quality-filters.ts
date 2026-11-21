@@ -8,6 +8,11 @@ export const FAILURE_KIND_VALUES = [
   'UNEXPECTED_TRANSFER',
   'USER_ABANDONED',
   'REPEATED_QUESTION',
+  'KNOWLEDGE_GAP',
+  'ROUTING',
+  'PROMPT',
+  'PRODUCT_GAP',
+  'LANGUAGE',
   'UNKNOWN',
 ] as const;
 export type FeedbackFailureKind = (typeof FAILURE_KIND_VALUES)[number];
