@@ -7,8 +7,28 @@
 | 文件 | 说明 |
 |---|---|
 | `golden.jsonl` | 10 条从 `task/golden.jsonl` 迁移的单轮用例，`datasetVersion=2026-11-21.1` |
+| `selection-2026-11-21.jsonl` | 20 条已落库会话的选择清单（Phase 1） |
+| `run.sh` | 对选择清单跑确定性 evaluator，只读 `ChatMessage/AiTrace` |
+| `reports/` | 每次运行的 JSON/Markdown/feedback JSONL |
 
 旧的 `tools/eval/task/golden.jsonl` 保留给现有单轮 runner，不删除、不改写；新用例统一进本目录。
+
+## 跑 Phase 1
+
+```bash
+tools/eval/conversation/run.sh \
+  --dataset tools/eval/conversation/selection-2026-11-21.jsonl
+```
+
+输出：
+
+- `reports/<runId>.json`：完整结果 + manifest；
+- `reports/<runId>.md`：总体、切片、失败明细；
+- `reports/<runId>.feedback.jsonl`：key 级 feedback，可被 `validate.py` 校验。
+
+evaluator：`language_match / answered / latency / trace_present / sensitive_request`。
+`source=drill` 的会话默认从聚合中排除，只在失败明细里标注。
+
 
 ## 校验
 

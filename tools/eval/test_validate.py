@@ -78,6 +78,31 @@ class DatasetValidationTest(unittest.TestCase):
         self.assertEqual(first, second)
 
 
+class SelectionValidationTest(unittest.TestCase):
+    def selection(self, **overrides):
+        data = {
+            "id": "conv-1",
+            "datasetVersion": "2026-11-21.1",
+            "conversationId": "cmwoxvd3b00a2mn3cz6h1eahg",
+            "source": "sim",
+            "language": "zh",
+            "intent": "general",
+        }
+        data.update(overrides)
+        return data
+
+    def test_valid(self):
+        path = write_jsonl([self.selection()])
+        self.assertEqual(validate.validate_selection(path), [])
+
+    def test_duplicate_conversation_rejected(self):
+        path = write_jsonl(
+            [self.selection(), self.selection(id="conv-2")]
+        )
+        errors = validate.validate_selection(path)
+        self.assertTrue(any("duplicate conversationId" in e for e in errors), errors)
+
+
 class FeedbackValidationTest(unittest.TestCase):
     def test_boolean_requires_zero_or_one(self):
         path = write_jsonl(
@@ -111,6 +136,22 @@ class FeedbackValidationTest(unittest.TestCase):
         )
         errors = validate.validate_feedback(path)
         self.assertTrue(any("requires value" in e for e in errors), errors)
+
+    def test_boolean_unknown_allowed_without_score(self):
+        path = write_jsonl(
+            [
+                {
+                    "caseId": "task-order-list",
+                    "turn": 1,
+                    "key": "language_match",
+                    "scoreType": "boolean",
+                    "value": "unknown",
+                    "source": "CODE",
+                    "evaluatorVersion": "1.0.0",
+                }
+            ]
+        )
+        self.assertEqual(validate.validate_feedback(path), [])
 
 
 class ManifestValidationTest(unittest.TestCase):

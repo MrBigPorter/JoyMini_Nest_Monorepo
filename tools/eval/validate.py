@@ -21,6 +21,7 @@ from typing import Any
 
 SCHEMA_DIR = Path(__file__).resolve().parent / "schema"
 CASE_SCHEMA = SCHEMA_DIR / "case.schema.json"
+SELECTION_SCHEMA = SCHEMA_DIR / "selection.schema.json"
 FEEDBACK_SCHEMA = SCHEMA_DIR / "feedback.schema.json"
 MANIFEST_SCHEMA = SCHEMA_DIR / "manifest.schema.json"
 
@@ -164,6 +165,36 @@ def validate_dataset(path: Path) -> list[str]:
     return errors
 
 
+def validate_selection(path: Path) -> list[str]:
+    schema = load_json(SELECTION_SCHEMA)
+    errors: list[str] = []
+    seen_ids: set[str] = set()
+    seen_conversations: set[str] = set()
+    versions: set[str] = set()
+
+    for lineno, row in load_jsonl(path):
+        prefix = f"{path}:{lineno}"
+        node_errors = validate_node(row, schema, prefix)
+        errors.extend(node_errors)
+        if node_errors:
+            continue
+
+        if row["id"] in seen_ids:
+            errors.append(f"{prefix}: duplicate selection id {row['id']!r}")
+        seen_ids.add(row["id"])
+        if row["conversationId"] in seen_conversations:
+            errors.append(
+                f"{prefix}: duplicate conversationId {row['conversationId']!r}"
+            )
+        seen_conversations.add(row["conversationId"])
+        versions.add(row["datasetVersion"])
+
+    if len(versions) > 1:
+        errors.append(f"{path}: mixed datasetVersion values: {sorted(versions)}")
+
+    return errors
+
+
 def validate_feedback(path: Path) -> list[str]:
     schema = load_json(FEEDBACK_SCHEMA)
     errors: list[str] = []
@@ -177,6 +208,8 @@ def validate_feedback(path: Path) -> list[str]:
 
         score_type = row["scoreType"]
         if score_type == "boolean":
+            if row.get("value") == "unknown":
+                continue
             if row.get("score") not in (0, 1):
                 errors.append(f"{prefix}: boolean score must be 0 or 1")
         elif score_type == "categorical":
@@ -210,17 +243,20 @@ def validate_manifest(path: Path) -> list[str]:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Validate eval contracts")
     parser.add_argument("--dataset", type=Path, help="case JSONL to validate")
+    parser.add_argument("--selection", type=Path, help="selection JSONL to validate")
     parser.add_argument("--feedback", type=Path, help="feedback JSONL to validate")
     parser.add_argument("--manifest", type=Path, help="manifest JSON to validate")
     args = parser.parse_args(argv)
 
-    if not any([args.dataset, args.feedback, args.manifest]):
+    if not any([args.dataset, args.selection, args.feedback, args.manifest]):
         parser.print_help()
         return 2
 
     all_errors: list[str] = []
     if args.dataset:
         all_errors.extend(validate_dataset(args.dataset))
+    if args.selection:
+        all_errors.extend(validate_selection(args.selection))
     if args.feedback:
         all_errors.extend(validate_feedback(args.feedback))
     if args.manifest:
@@ -236,6 +272,10 @@ def main(argv: list[str] | None = None) -> int:
         rows = load_jsonl(args.dataset)
         versions = sorted({row["datasetVersion"] for _, row in rows})
         print(f"OK dataset: {len(rows)} case(s), datasetVersion={versions[0]}")
+    if args.selection:
+        rows = load_jsonl(args.selection)
+        versions = sorted({row["datasetVersion"] for _, row in rows})
+        print(f"OK selection: {len(rows)} conversation(s), datasetVersion={versions[0]}")
     if args.feedback:
         print(f"OK feedback: {len(load_jsonl(args.feedback))} row(s)")
     if args.manifest:
