@@ -70,10 +70,10 @@ run.sh --dataset ... --mode=blocking   # 不达标退出码 1
 
 2026-11-21 重新生成流量后：
 
-- `selection-2026-11-21.jsonl`：15 个会话；
-- `selection-train-2026-11-21.jsonl`：10 个训练会话；
-- `holdout-2026-11-21.jsonl`：5 个 holdout 会话（冻结，不参与标注/调参）；
-- 训练集工作表：18 行。
+- `selection-2026-11-21.jsonl`：30 个会话；
+- `selection-train-2026-11-21.jsonl`：20 个训练会话；
+- `holdout-2026-11-21.jsonl`：10 个 holdout 会话（冻结，不参与标注/调参）；
+- 训练集工作表：36 行。
 
 > 旧的 `selection-2026-11-22.jsonl` 引用的 sim 会话已在清理中删除，仅作历史记录，
 > 不能重跑。
