@@ -199,11 +199,15 @@ export const ACTION_CATALOG: readonly ActionCatalogEntry[] = [
     needsOtp: false,
     ttlSec: CONFIRM_TOKEN_TTL_SEC,
     buildSummary(args) {
-      return { action: 'claim_coupon', couponId: args.couponId };
+      return {
+        action: 'claim_coupon',
+        couponId: args.couponId,
+        ...(args.couponName ? { couponName: args.couponName } : {}),
+      };
     },
     buildFields(args) {
       const fields: ActionField[] = [];
-      field(fields, '优惠券', args.couponId);
+      field(fields, '优惠券', args.couponName ?? args.couponId);
       return fields;
     },
     buildParams(args) {

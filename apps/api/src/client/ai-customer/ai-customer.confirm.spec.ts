@@ -46,6 +46,9 @@ function makeService() {
   const coupon = {
     claimCoupon: jest.fn(async () => ({ id: 'uc-1', status: 0 })),
     redeemCode: jest.fn(async () => ({ success: true })),
+    getClaimableCoupons: jest.fn(async () => [
+      { couponId: 'coupon-1', couponName: 'Big Spender ₱200 Off' },
+    ]),
   };
   const luckyDraw = { draw: jest.fn(async () => ({ isWin: true })) };
   const address = {
@@ -177,6 +180,35 @@ describe('AiCustomerService · routeConfirm lifecycle', () => {
         confirmToken: 'token-1',
         expiresAt: expect.any(Number),
       }),
+    );
+  });
+
+  it('领券卡片展示券名而不是内部 ID，但执行参数不变', async () => {
+    const { service, gateway, confirm } = makeService();
+    const finalState = {
+      values: {
+        pendingConfirm: {
+          action: 'claim_coupon',
+          params: { couponId: 'coupon-1' },
+          summary: {},
+        },
+      },
+    };
+
+    await (service as any).routeConfirm('u1', 'c1', finalState, 'm1');
+
+    const payload = (gateway.dispatchToUser as jest.Mock).mock.calls[0][2];
+    expect(payload.fields).toEqual([
+      { label: '优惠券', value: 'Big Spender ₱200 Off' },
+    ]);
+    // 展示字段只影响卡片，不进入服务端令牌参数。
+    expect(confirm.generate).toHaveBeenCalledWith(
+      'u1',
+      'claim_coupon',
+      { couponId: 'coupon-1' },
+      expect.any(Object),
+      'act-1',
+      'c1',
     );
   });
 

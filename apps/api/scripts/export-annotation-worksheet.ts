@@ -75,8 +75,12 @@ async function main() {
         source: true,
         createdAt: true,
         triggerMessageId: true,
+        meta: true,
       },
     });
+    const metaById = new Map(
+      messages.map((message) => [message.id, message.meta]),
+    );
 
     const turns = pairTurns(
       messages.map((message) => ({
@@ -89,6 +93,22 @@ async function main() {
     ).filter((turn) => turn.ai);
 
     for (const turn of turns.slice(0, maxTurns)) {
+      // 确认卡片的正文只是一句“请确认…”，用户真正看到的是 meta 里的
+      // title + fields。标注时把这些字段带上，否则标注者无法判断卡片内容。
+      const meta = turn.ai ? (metaById.get(turn.ai.id) as any) : null;
+      let answer = (turn.ai?.content ?? '').slice(0, 2000);
+      if (meta?.kind === 'confirm_card') {
+        const fields = Array.isArray(meta.fields) ? meta.fields : [];
+        const lines = [
+          `[确认卡片] ${meta.title ?? ''}`,
+          ...fields.map(
+            (field: any) => `- ${field.label ?? ''}：${field.value ?? ''}`,
+          ),
+          meta.needsOtp ? '- 需要短信验证码' : '',
+        ].filter(Boolean);
+        answer = `${answer}\n\n${lines.join('\n')}`.slice(0, 2000);
+      }
+
       rows.push({
         caseId: item.id,
         conversationId: item.conversationId,
@@ -97,7 +117,7 @@ async function main() {
         language: item.language,
         intent: item.intent,
         question: turn.user.content.slice(0, 1000),
-        answer: (turn.ai?.content ?? '').slice(0, 2000),
+        answer,
         labels: {
           correctness: null,
           helpfulness: null,

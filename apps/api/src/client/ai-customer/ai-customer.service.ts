@@ -1356,11 +1356,27 @@ export class AiCustomerService implements OnModuleDestroy {
 
     const catalogEntry = getCatalogEntryByAction(pc.action);
     const actionMeta = getConfirmActionMeta(pc.action);
+    // 卡片展示只给人看：内部 ID 尽量换成可读名称，但绝不改变执行参数。
+    let displayArgs: Record<string, any> = pc.params ?? {};
+    if (pc.action === 'claim_coupon' && pc.params?.couponId) {
+      try {
+        const claimable =
+          await this.clientCouponService.getClaimableCoupons(userId);
+        const coupon = claimable.find(
+          (item: any) =>
+            item.couponId === pc.params.couponId ||
+            item.id === pc.params.couponId,
+        );
+        if (coupon?.couponName) {
+          displayArgs = { ...displayArgs, couponName: coupon.couponName };
+        }
+      } catch {
+        // 展示名称查不到不影响弹卡，继续用 ID 兜底。
+      }
+    }
     // 展示字段由服务端从目录渲染，客户端只负责 title + fields；
     // params 只存在服务端令牌里，客户端绝不用展示字段当执行参数。
-    const fields = catalogEntry
-      ? catalogEntry.buildFields(pc.params ?? {})
-      : [];
+    const fields = catalogEntry ? catalogEntry.buildFields(displayArgs) : [];
     const needsOtp = catalogEntry?.needsOtp ?? false;
 
     const { token, expiresAt } = await this.aiActionConfirmService.generate(
@@ -1669,7 +1685,10 @@ export class AiCustomerService implements OnModuleDestroy {
 
     if (!isValidOtp) {
       // 输入错误是可重试事件，不发终态结果；由 HTTP 400 让客户端保留输入框。
-      incCounter('ai_action_total', { action: 'withdraw', result: 'otp_invalid' });
+      incCounter('ai_action_total', {
+        action: 'withdraw',
+        result: 'otp_invalid',
+      });
       throw new BadRequestException('Invalid OTP code');
     }
 
@@ -1711,7 +1730,11 @@ export class AiCustomerService implements OnModuleDestroy {
       );
       await this.actionLifecycle?.markExecuted(consumed.requestId, result);
       incCounter('ai_action_total', { action: 'withdraw', result: 'executed' });
-      this.emitActionResult(consumed, true, '提现申请已提交，预计 1-3 个工作日到账');
+      this.emitActionResult(
+        consumed,
+        true,
+        '提现申请已提交，预计 1-3 个工作日到账',
+      );
       return result;
     } catch (err: any) {
       const message = err?.message ?? String(err);
