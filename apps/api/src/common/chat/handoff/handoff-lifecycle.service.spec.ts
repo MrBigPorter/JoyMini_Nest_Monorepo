@@ -432,3 +432,88 @@ describe('HandoffLifecycleService.reopenForUser', () => {
     expect(prisma.chatMessage.create).not.toHaveBeenCalled();
   });
 });
+
+// ==================================================================
+//  Task 4：列表展示「预计自动回 AI 时间」
+//
+//  由生命周期服务统一计算，避免 admin 列表自己读一套阈值、
+//  cron 再读另一套。waiting 用 transferredAt（排队起点），
+//  human 用 handlerAssignedAt（最后人工活动）。
+// ==================================================================
+
+describe('HandoffLifecycleService.getAutoReturnAt', () => {
+  it('WAITING_HUMAN：transferredAt + 10 分钟（默认）', () => {
+    const { service } = createService();
+    const transferredAt = new Date('2026-11-22T12:00:00Z');
+
+    const autoReturnAt = service.getAutoReturnAt({
+      status: ConversationStatus.NORMAL,
+      handlerId: AWAITING_HUMAN,
+      transferredAt,
+      handlerAssignedAt: null,
+    });
+
+    expect(autoReturnAt?.toISOString()).toBe('2026-11-22T12:10:00.000Z');
+  });
+
+  it('HUMAN_ACTIVE：handlerAssignedAt + 60 分钟（默认）', () => {
+    const { service } = createService();
+    const handlerAssignedAt = new Date('2026-11-22T12:00:00Z');
+
+    const autoReturnAt = service.getAutoReturnAt({
+      status: ConversationStatus.NORMAL,
+      handlerId: 'admin-1',
+      transferredAt: null,
+      handlerAssignedAt,
+    });
+
+    expect(autoReturnAt?.toISOString()).toBe('2026-11-22T13:00:00.000Z');
+  });
+
+  it('AI_ACTIVE / CLOSED 没有自动回 AI 时间', () => {
+    const { service } = createService();
+
+    expect(
+      service.getAutoReturnAt({
+        status: ConversationStatus.NORMAL,
+        handlerId: null,
+        transferredAt: null,
+        handlerAssignedAt: null,
+      }),
+    ).toBeNull();
+    expect(
+      service.getAutoReturnAt({
+        status: ConversationStatus.ARCHIVED,
+        handlerId: 'admin-1',
+        transferredAt: null,
+        handlerAssignedAt: new Date(),
+      }),
+    ).toBeNull();
+  });
+
+  it('env=0 时对应项返回 null（关闭即不提示）', () => {
+    const waiting = createService({
+      SUPPORT_WAIT_TIMEOUT_MINUTES: '0',
+    }).service;
+    const human = createService({
+      SUPPORT_IDLE_TIMEOUT_MINUTES: '0',
+    }).service;
+
+    expect(
+      waiting.getAutoReturnAt({
+        status: ConversationStatus.NORMAL,
+        handlerId: AWAITING_HUMAN,
+        transferredAt: new Date(),
+        handlerAssignedAt: null,
+      }),
+    ).toBeNull();
+    expect(
+      human.getAutoReturnAt({
+        status: ConversationStatus.NORMAL,
+        handlerId: 'admin-1',
+        transferredAt: null,
+        handlerAssignedAt: new Date(),
+      }),
+    ).toBeNull();
+  });
+});

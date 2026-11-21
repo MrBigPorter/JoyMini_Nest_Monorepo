@@ -28,6 +28,7 @@ function createService(claimResult: any) {
     {} as any,
     supportHandler as any,
     { emit: jest.fn() } as any,
+    { getAutoReturnAt: jest.fn().mockReturnValue(null) } as any,
   );
   return { service, prisma, supportHandler };
 }
@@ -104,12 +105,18 @@ const CONV_ROW = {
   members: [],
 };
 
-function createListService(rows: any[] = []) {
+function createListService(rows: any[] = [], admins: any[] = []) {
   const prisma = {
     conversation: {
       count: jest.fn().mockResolvedValue(rows.length),
       findMany: jest.fn().mockResolvedValue(rows),
     },
+    adminUser: {
+      findMany: jest.fn().mockResolvedValue(admins),
+    },
+  };
+  const handoff = {
+    getAutoReturnAt: jest.fn().mockReturnValue(null),
   };
   const service = new AdminChatService(
     prisma as any,
@@ -118,8 +125,9 @@ function createListService(rows: any[] = []) {
     {} as any,
     {} as any,
     { emit: jest.fn() } as any,
+    handoff as any,
   );
-  return { service, prisma };
+  return { service, prisma, handoff };
 }
 
 /** 取出 findMany 实际收到的 where 条件 */
@@ -220,17 +228,19 @@ describe('AdminChatService.getConversations 队列筛选（T2-5 / S2-A）', () =
 //    别人名下 → 照发，归属不动
 // ==================================================================
 
-function convRow(handlerId: string | null) {
+function convRow(handlerId: string | null, aiMetadata: unknown = null) {
   return {
     id: 'conv-1',
     handlerId,
     status: 1,
+    aiMetadata,
     members: [{ userId: 'bot-1', user: { id: 'bot-1', isRobot: true } }],
   };
 }
 
 function createReplyService(opts: {
   handlerId: string | null;
+  aiMetadata?: unknown;
   convExists?: boolean;
   claimStatus?: 'claimed' | 'conflict' | 'not_found';
   takeCount?: number;
@@ -240,7 +250,9 @@ function createReplyService(opts: {
       findUnique: jest
         .fn()
         .mockResolvedValue(
-          opts.convExists === false ? null : convRow(opts.handlerId),
+          opts.convExists === false
+            ? null
+            : convRow(opts.handlerId, opts.aiMetadata),
         ),
       updateMany: jest.fn().mockResolvedValue({ count: opts.takeCount ?? 1 }),
     },
@@ -267,6 +279,7 @@ function createReplyService(opts: {
     chatService as any,
     supportHandler as any,
     { emit: jest.fn() } as any,
+    { getAutoReturnAt: jest.fn().mockReturnValue(null) } as any,
   );
   return { service, prisma, chatService, supportHandler };
 }
@@ -400,7 +413,10 @@ describe('AdminChatService.replyToConversation 回复即接管（T2-5 / S2-B）'
 
     expect(chatService.sendMessage).toHaveBeenCalledWith(
       'bot-1',
-      expect.objectContaining({ conversationId: 'conv-1', content: '您好，我帮您查' }),
+      expect.objectContaining({
+        conversationId: 'conv-1',
+        content: '您好，我帮您查',
+      }),
       { source: 'human_agent' },
     );
   });
@@ -444,5 +460,193 @@ describe('AdminChatService.replyToConversation 回复即接管（T2-5 / S2-B）'
     ).rejects.toThrow(ConflictException);
 
     expect(prisma.conversation.updateMany).not.toHaveBeenCalled();
+  });
+});
+
+// ==================================================================
+//  Task 4：handlerAssignedAt = 最后人工活动
+//
+//  只有客服回复能刷新它；用户消息不刷新（由 chat.service / events.gateway
+//  的用例覆盖）。刷新必须带 handlerId=当前客服 的条件：
+//  帮答别人名下的会话不能延长别人的空闲计时。
+// ==================================================================
+
+describe('AdminChatService.replyToConversation 刷新人工活动时间（Task 4）', () => {
+  it('回复成功后刷新 handlerAssignedAt，且限定 id+handlerId+status=NORMAL', async () => {
+    const { service, prisma } = createReplyService({ handlerId: 'admin-1' });
+
+    await service.replyToConversation('conv-1', REPLY_DTO, '客服A', 'admin-1');
+
+    expect(prisma.conversation.updateMany).toHaveBeenCalledWith({
+      where: { id: 'conv-1', handlerId: 'admin-1', status: 1 },
+      data: { handlerAssignedAt: expect.any(Date) },
+    });
+  });
+
+  it('回复成功后把 pending 的离线 callback 标记为 handled', async () => {
+    const { service, prisma } = createReplyService({
+      handlerId: 'admin-1',
+      aiMetadata: {
+        trafficSource: 'simulation_support_v1',
+        handoffCallback: {
+          status: 'pending',
+          requestedAt: '2026-11-22T10:00:00.000Z',
+          reason: 'offline',
+        },
+      },
+    });
+
+    await service.replyToConversation('conv-1', REPLY_DTO, '客服A', 'admin-1');
+
+    expect(prisma.conversation.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: 'conv-1',
+          aiMetadata: {
+            path: ['handoffCallback', 'status'],
+            equals: 'pending',
+          },
+        }),
+        data: expect.objectContaining({
+          aiMetadata: expect.objectContaining({
+            trafficSource: 'simulation_support_v1',
+            handoffCallback: expect.objectContaining({ status: 'handled' }),
+          }),
+        }),
+      }),
+    );
+  });
+});
+
+// ==================================================================
+//  Task 4：switchHandler 走统一生命周期
+// ==================================================================
+
+function createSwitchService(conv: any) {
+  const prisma = {
+    conversation: {
+      findUnique: jest.fn().mockResolvedValue(conv),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+    },
+  };
+  const handoff = { returnToAi: jest.fn().mockResolvedValue(true) };
+  const eventEmitter = { emit: jest.fn() };
+  const service = new AdminChatService(
+    prisma as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    eventEmitter as any,
+    handoff as any,
+  );
+  return { service, prisma, handoff, eventEmitter };
+}
+
+describe('AdminChatService.switchHandler 统一生命周期（Task 4）', () => {
+  it("切回 AI 调 returnToAi('admin_return')，不在本地直接写 DB", async () => {
+    const { service, prisma, handoff } = createSwitchService({
+      id: 'conv-1',
+      handlerId: 'admin-9',
+      status: 1,
+      aiMetadata: null,
+    });
+
+    const res = await service.switchHandler('conv-1', 'ai', 'admin-9');
+
+    expect(handoff.returnToAi).toHaveBeenCalledWith('conv-1', 'admin_return', {
+      actor: 'admin-9',
+    });
+    expect(res).toMatchObject({ success: true, mode: 'ai' });
+    // 状态写入只能发生在生命周期服务里
+    expect(prisma.conversation.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('切人工：只允许从 AI(null) 进入，写入排队哨兵', async () => {
+    const { service, prisma, eventEmitter } = createSwitchService({
+      id: 'conv-1',
+      handlerId: null,
+      status: 1,
+      aiMetadata: null,
+    });
+
+    const res = await service.switchHandler('conv-1', 'human');
+
+    expect(prisma.conversation.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'conv-1', handlerId: null, status: 1 },
+        data: expect.objectContaining({ handlerId: AWAITING_HUMAN }),
+      }),
+    );
+    expect(res).toMatchObject({ success: true, mode: 'human' });
+    expect(eventEmitter.emit).toHaveBeenCalledWith(
+      'chat.support.queue.changed',
+      expect.objectContaining({ reason: 'manual_switch' }),
+    );
+  });
+
+  it('切人工：已认领的会话 no-op，不覆盖现有客服', async () => {
+    const { service, prisma } = createSwitchService({
+      id: 'conv-1',
+      handlerId: 'admin-1',
+      status: 1,
+      aiMetadata: null,
+    });
+
+    const res = await service.switchHandler('conv-1', 'human');
+
+    expect(prisma.conversation.updateMany).not.toHaveBeenCalled();
+    expect(res).toMatchObject({ success: true, mode: 'human' });
+  });
+});
+
+// ==================================================================
+//  Task 4：列表 handoff 字段与 callback 队列
+// ==================================================================
+
+describe('AdminChatService.getConversations handoff 字段（Task 4）', () => {
+  it('返回 handoffState / handlerName / autoReturnAt，并保留既有字段', async () => {
+    const { service, handoff } = createListService(
+      [
+        {
+          ...CONV_ROW,
+          handlerId: 'admin-1',
+          aiMetadata: null,
+        },
+      ],
+      [{ id: 'admin-1', username: 'agent1', realName: '客服A' }],
+    );
+    const autoReturnAt = new Date('2026-11-22T12:00:00.000Z');
+    handoff.getAutoReturnAt.mockReturnValue(autoReturnAt);
+
+    const res = await service.getConversations(
+      { queue: 'all' } as any,
+      'admin-1',
+    );
+
+    expect(res.list[0]).toMatchObject({
+      id: 'conv-1',
+      status: 1,
+      handlerId: 'admin-1',
+      handoffState: 'HUMAN_ACTIVE',
+      handlerName: '客服A',
+      autoReturnAt: autoReturnAt.getTime(),
+    });
+  });
+
+  it('queue=callback → 只筛 aiMetadata.handoffCallback.status=pending 的正常会话', async () => {
+    const { service, prisma } = createListService();
+
+    await service.getConversations({ queue: 'callback' } as any, 'admin-1');
+
+    expect(whereOf(prisma)).toMatchObject({
+      status: 1,
+      aiMetadata: {
+        path: ['handoffCallback', 'status'],
+        equals: 'pending',
+      },
+    });
+    // callback 队列不按 handlerId 筛选：离线留言时 AI 仍持有会话（handlerId=null）
+    expect(whereOf(prisma)).not.toHaveProperty('handlerId');
   });
 });

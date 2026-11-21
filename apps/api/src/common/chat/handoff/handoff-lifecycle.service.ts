@@ -65,8 +65,9 @@ export class HandoffLifecycleService {
       this.readTimeoutMinutes(
         configService,
         [
+          // 规范名：SUPPORT_WAIT_TIMEOUT_MINUTES（默认 10 分钟，0=关闭）
           'SUPPORT_WAIT_TIMEOUT_MINUTES',
-          // 兼容旧配置：之前用 SUPPORT_QUEUE_TIMEOUT_MINUTES 表示排队提醒窗口
+          // 兼容旧配置：排队提醒窗口 / 早期设计稿命名
           'SUPPORT_QUEUE_TIMEOUT_MINUTES',
           'HANDOFF_NO_CLAIM_MINUTES',
         ],
@@ -77,7 +78,12 @@ export class HandoffLifecycleService {
     this.inactiveTimeoutMs =
       this.readTimeoutMinutes(
         configService,
-        ['SUPPORT_IDLE_TIMEOUT_MINUTES', 'HANDOFF_INACTIVE_MINUTES'],
+        [
+          // 规范名：SUPPORT_IDLE_TIMEOUT_MINUTES（默认 60 分钟，0=关闭）
+          'SUPPORT_IDLE_TIMEOUT_MINUTES',
+          // 兼容早期设计稿命名
+          'HANDOFF_INACTIVE_MINUTES',
+        ],
         DEFAULT_INACTIVE_TIMEOUT_MINUTES,
       ) *
       60 *
@@ -252,6 +258,39 @@ export class HandoffLifecycleService {
    */
   async reopenForUser(id: string): Promise<boolean> {
     return this.returnToAi(id, 'closed_reopen');
+  }
+
+  /**
+   * 列表展示用的「预计自动回 AI 时间」。
+   *
+   * 与 sweepTimedOut 使用同一组阈值，避免后台展示和 cron 实际行为漂移：
+   *   - WAITING_HUMAN：排队起点 + wait 超时（旧数据没有 transferredAt 时兜底 handlerAssignedAt）
+   *   - HUMAN_ACTIVE：最后人工活动 + inactive 超时
+   *   - AI_ACTIVE / CLOSED：没有自动转换，返回 null
+   *   - 对应阈值配置为 0：该项关闭，也返回 null
+   */
+  getAutoReturnAt(conv: {
+    status: number;
+    handlerId: string | null;
+    transferredAt: Date | null;
+    handlerAssignedAt: Date | null;
+  }): Date | null {
+    const state = deriveHandoffState(conv);
+
+    if (state === 'WAITING_HUMAN') {
+      if (this.waitTimeoutMs <= 0) return null;
+      const base = conv.transferredAt ?? conv.handlerAssignedAt;
+      return base ? new Date(base.getTime() + this.waitTimeoutMs) : null;
+    }
+
+    if (state === 'HUMAN_ACTIVE') {
+      if (this.inactiveTimeoutMs <= 0) return null;
+      return conv.handlerAssignedAt
+        ? new Date(conv.handlerAssignedAt.getTime() + this.inactiveTimeoutMs)
+        : null;
+    }
+
+    return null;
   }
 
   // ------------------------------------------------------------------

@@ -696,7 +696,7 @@ export class EventsGateway
       // 只有真正允许触发时才写 outbox，避免限流命中后 cron 又补投一次。
       const conv = await this.prismaService.conversation.findUnique({
         where: { id: conversationId },
-        select: { handlerId: true, handlerAssignedAt: true, type: true },
+        select: { handlerId: true, type: true },
       });
       const isAiType = conv?.type === 'SUPPORT' || conv?.type === 'AI';
       const isAiHandler = conv?.handlerId == null;
@@ -805,18 +805,9 @@ export class EventsGateway
         ),
       );
 
-      // 刷新人工客服的空闲计时（AI 会话不涉及）。
-      if (conv?.handlerId != null && conv.handlerId !== 'awaiting_human') {
-        // 真实客服名下：这条用户消息算一次「活跃」，刷新空闲计时。
-        // 空闲超时的回收由 SupportQueueService 的 cron 主动扫描，
-        // 不再在这里懒判定 —— 用户沉默时这里永远不会执行（#98 AC-4）。
-        await this.prismaService.conversation.update({
-          where: { id: conversationId },
-          data: { handlerAssignedAt: new Date() },
-        });
-      }
-      // 排队中（awaiting_human）不刷新：排队时钟只看 transferredAt，
-      // 刷新会让「催得越急排得越后」（#98 S2-C 已记录的同类缺陷）。
+      // 用户消息不刷新人工客服的空闲计时（AI 会话不涉及）。
+      // 用户消息不算人工侧活动：handlerAssignedAt 只由客服回复刷新，
+      // 自动回收统一交给 SupportQueueService 的 cron（#98 AC-4 / Task 4）。
 
       // Outbox 行已在事务内落库；这里只做一次立即投递，失败留给 cron。
       if (aiTriggerAllowed) {

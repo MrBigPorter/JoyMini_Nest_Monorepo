@@ -107,41 +107,9 @@ export class ChatService {
       if (meta?.thumb) finalMeta.thumb = meta.thumb;
     }
 
-    // ── Handler 超时检测：超过 10 分钟无回复，自动切回 AI ──
-    // 超时判定基于最后一条消息的时间（每次发消息刷新 handlerAssignedAt）
-    // 如果用户持续与人工聊天，超时计时会不断延长
-    const HANDLER_TIMEOUT_MS = 10 * 60 * 1000;
-    const currentConv = await this.prisma.conversation.findUnique({
-      where: { id: conversationId },
-      select: { handlerId: true, handlerAssignedAt: true, type: true },
-    });
-    if (currentConv?.handlerId != null) {
-      if (currentConv.handlerAssignedAt) {
-        const elapsed = Date.now() - currentConv.handlerAssignedAt.getTime();
-        if (elapsed > HANDLER_TIMEOUT_MS) {
-          this.logger.log(
-            `[Handler Timeout] conversation=${conversationId}, handler=${currentConv.handlerId}, resetting to AI`,
-          );
-          await this.prisma.conversation.update({
-            where: { id: conversationId },
-            data: { handlerId: null, handlerAssignedAt: null },
-          });
-          // 超时后不再刷新，让后续消息走 AI
-        } else {
-          // 未超时 → 刷新 handlerAssignedAt，延长超时计时
-          await this.prisma.conversation.update({
-            where: { id: conversationId },
-            data: { handlerAssignedAt: new Date() },
-          });
-        }
-      } else {
-        // 有 handlerId 但没有分配时间 → 设一个初始时间
-        await this.prisma.conversation.update({
-          where: { id: conversationId },
-          data: { handlerAssignedAt: new Date() },
-        });
-      }
-    }
+    // 注意：用户发消息不是「人工侧活动」，这里不再刷新 handlerAssignedAt。
+    // 人工超时统一由 HandoffLifecycleService.sweepTimedOut() 处理，
+    // 只有客服回复才刷新「最后人工活动」计时。
 
     const { message, conversationMeta } = await this.prisma.$transaction(
       async (tx) => {

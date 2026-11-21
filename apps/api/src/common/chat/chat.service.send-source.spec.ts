@@ -92,4 +92,27 @@ describe('ChatService.sendMessage · ChatMessage.source', () => {
       }),
     );
   });
+
+  // ── Task 4：handlerAssignedAt = 最后一次人工侧活动 ──────────────
+  it('用户消息不刷新 handlerAssignedAt、不懒释放 handler', async () => {
+    const { service, prisma } = makeService();
+    prisma.conversation.findUnique.mockResolvedValue({
+      handlerId: 'admin-1',
+      // 即使已经「超时」10 分钟，也应该交给 cron 统一处理，而不是在这里改状态
+      handlerAssignedAt: new Date(Date.now() - 11 * 60_000),
+      type: 'SUPPORT',
+    });
+
+    await service.sendMessage('user-1', DTO);
+
+    // 旧实现会先查 handlerAssignedAt，再按 10 分钟阈值懒释放/续期
+    expect(prisma.conversation.findUnique).not.toHaveBeenCalled();
+    expect(prisma.conversation.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          handlerAssignedAt: expect.anything(),
+        }),
+      }),
+    );
+  });
 });

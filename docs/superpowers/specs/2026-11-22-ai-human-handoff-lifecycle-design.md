@@ -117,11 +117,16 @@ CLOSED --(用户新消息)--> AI_ACTIVE（同会话重开、历史保留、状�
 
 ### D4. 统一的自动回 AI
 
-替换现有两套超时，只保留一个 cron，可配置：
+替换现有两套超时，只保留一个 cron，可配置（0 = 关闭该项）：
 
 ```
-HANDOFF_NO_CLAIM_MINUTES=10   # WAITING_HUMAN 超时回 AI（0=关闭）
-HANDOFF_INACTIVE_MINUTES=60   # HUMAN_ACTIVE 坐席不活跃超时回 AI（0=关闭）
+# 规范名（推荐）
+SUPPORT_WAIT_TIMEOUT_MINUTES=10   # WAITING_HUMAN 超时回 AI（0=关闭）
+SUPPORT_IDLE_TIMEOUT_MINUTES=60   # HUMAN_ACTIVE 坐席不活跃超时回 AI（0=关闭）
+
+# 兼容别名（优先级低于规范名，保留旧部署不漂移）
+# SUPPORT_QUEUE_TIMEOUT_MINUTES / HANDOFF_NO_CLAIM_MINUTES → SUPPORT_WAIT_TIMEOUT_MINUTES
+# HANDOFF_INACTIVE_MINUTES → SUPPORT_IDLE_TIMEOUT_MINUTES
 ```
 
 - 坐席不活跃以**客服最后一条消息**为准，不是用户消息。复用 `handlerAssignedAt`，把它定义为“最后一次人工侧活动”：认领时写入、客服每次回复时更新；用户发消息不再刷新它

@@ -26,6 +26,8 @@ import {
   SupportHandlerService,
   AWAITING_HUMAN,
 } from '@api/common/chat/support-handler.service';
+import { HandoffLifecycleService } from '@api/common/chat/handoff/handoff-lifecycle.service';
+import { deriveHandoffState } from '@api/common/chat/handoff/handoff-state';
 
 /** Conversation.status 枚举值 */
 const CONV_STATUS = { NORMAL: 1, CLOSED: 2 } as const;
@@ -46,6 +48,7 @@ export class AdminChatService {
     private readonly chatService: ChatService,
     private readonly supportHandlerService: SupportHandlerService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly handoffLifecycleService: HandoffLifecycleService,
   ) {}
 
   /**
@@ -61,6 +64,31 @@ export class AdminChatService {
       CHAT_EVENTS.SUPPORT_QUEUE_CHANGED,
       new SupportQueueChangedEvent(conversationId, reason, handlerId),
     );
+  }
+
+  /**
+   * 人工回复/手动切回 AI 后，离线留言视为已处理。
+   *
+   * 不新增表：只把 aiMetadata.handoffCallback.status 从 pending 改成 handled。
+   * WHERE 里再带一次 pending 条件，重复回复不会反复写。
+   */
+  private async markHandoffCallbackHandled(
+    conversationId: string,
+    raw: Prisma.JsonValue | null,
+  ): Promise<void> {
+    const merged = mergeHandoffCallbackHandled(raw);
+    if (!merged) return;
+
+    await this.prisma.conversation.updateMany({
+      where: {
+        id: conversationId,
+        aiMetadata: {
+          path: ['handoffCallback', 'status'],
+          equals: 'pending',
+        },
+      },
+      data: { aiMetadata: merged as Prisma.InputJsonValue },
+    });
   }
 
   // ─────────────────────────────────────────────
@@ -82,6 +110,14 @@ export class AdminChatService {
       where.handlerId = adminId; // 只看当前登录客服的
     } else if (queue === 'ai') {
       where.handlerId = null; // 只看 AI 处理中（未被客服认领）的
+    } else if (queue === 'callback') {
+      // 离线留言：无人在线时 AI 继续服务，只记 aiMetadata.handoffCallback。
+      // 不新增表，直接用 JSON 条件筛 pending。
+      where.aiMetadata = {
+        path: ['handoffCallback', 'status'],
+        equals: 'pending',
+      };
+      if (status === undefined) where.status = CONV_STATUS.NORMAL;
     }
 
     if (status !== undefined) {
@@ -129,36 +165,65 @@ export class AdminChatService {
       }),
     ]);
 
+    // handlerId 是 admin_users.id，但 Conversation 没有到 AdminUser 的关系，
+    // 这里一次性批量取名字，避免列表 N+1；排队哨兵不查。
+    const handlerIds = Array.from(
+      new Set(
+        list
+          .map((c) => c.handlerId)
+          .filter((id): id is string => id != null && id !== AWAITING_HUMAN),
+      ),
+    );
+    const handlerNames = new Map<string, string>();
+    if (handlerIds.length > 0) {
+      const admins = await this.prisma.adminUser.findMany({
+        where: { id: { in: handlerIds } },
+        select: { id: true, username: true, realName: true },
+      });
+      for (const admin of admins) {
+        handlerNames.set(admin.id, admin.realName?.trim() || admin.username);
+      }
+    }
+
     const now = Date.now();
 
     return {
-      list: list.map((c) => ({
-        id: c.id,
-        type: c.type,
-        name: c.name,
-        status: c.status,
-        handlerId: c.handlerId,
-        transferReason: c.transferReason,
-        waitingSeconds: (() => {
-          const since = c.transferredAt ?? c.handlerAssignedAt;
-          return since
-            ? Math.max(0, Math.floor((now - since.getTime()) / 1000))
-            : null;
-        })(),
-        lastMsgContent: c.lastMsgContent,
-        lastMsgTime: c.lastMsgTime?.getTime() ?? 0,
-        trafficSource:
-          (c.aiMetadata as Record<string, unknown> | null)?.trafficSource ??
-          null,
-        lastMsgSeqId: c.lastMsgSeqId,
-        memberCount: c.members.length,
-        members: c.members.map((m) => ({
-          userId: m.userId,
-          nickname: m.user?.nickname ?? null,
-          avatar: m.user?.avatar ?? null,
-          role: m.role,
-        })),
-      })),
+      list: list.map((c) => {
+        const autoReturnAt =
+          this.handoffLifecycleService.getAutoReturnAt(c) ?? null;
+        return {
+          id: c.id,
+          type: c.type,
+          name: c.name,
+          status: c.status,
+          handlerId: c.handlerId,
+          handlerName: c.handlerId
+            ? (handlerNames.get(c.handlerId) ?? null)
+            : null,
+          handoffState: deriveHandoffState(c),
+          autoReturnAt: autoReturnAt?.getTime() ?? null,
+          transferReason: c.transferReason,
+          waitingSeconds: (() => {
+            const since = c.transferredAt ?? c.handlerAssignedAt;
+            return since
+              ? Math.max(0, Math.floor((now - since.getTime()) / 1000))
+              : null;
+          })(),
+          lastMsgContent: c.lastMsgContent,
+          lastMsgTime: c.lastMsgTime?.getTime() ?? 0,
+          trafficSource:
+            (c.aiMetadata as Record<string, unknown> | null)?.trafficSource ??
+            null,
+          lastMsgSeqId: c.lastMsgSeqId,
+          memberCount: c.members.length,
+          members: c.members.map((m) => ({
+            userId: m.userId,
+            nickname: m.user?.nickname ?? null,
+            avatar: m.user?.avatar ?? null,
+            role: m.role,
+          })),
+        };
+      }),
       total,
       page,
       pageSize,
@@ -326,6 +391,20 @@ export class AdminChatService {
       { source: 'human_agent' },
     );
 
+    // 客服回复 = 最后一次人工侧活动，刷新空闲回收计时。
+    // 条件里带 handlerId：帮答别人名下的会话不能延长别人的计时。
+    await this.prisma.conversation.updateMany({
+      where: {
+        id: conversationId,
+        handlerId: adminId,
+        status: CONV_STATUS.NORMAL,
+      },
+      data: { handlerAssignedAt: new Date() },
+    });
+
+    // 离线留言被人工回复后，callback 队列里不应再显示。
+    await this.markHandoffCallbackHandled(conversationId, conv.aiMetadata);
+
     // 首次人工回复时间：只写一次。
     // 用 updateMany + where null 而不是 update —— 帮答场景下两个人几乎同时回复，
     // 第二次不能把"首次"冲成"最后一次"。
@@ -462,40 +541,79 @@ export class AdminChatService {
     return { success: true, conversationId };
   }
 
-  /** 切换 AI/人工模式 */
-  async switchHandler(conversationId: string, mode: 'ai' | 'human') {
-    const data =
-      mode === 'ai'
-        ? {
-            handlerId: null as string | null,
-            handlerAssignedAt: null as Date | null,
-            // 切回 AI = 本轮转人工结束，清掉排队起点
-            transferredAt: null as Date | null,
-          }
-        : {
-            handlerId: 'awaiting_human' as string | null,
-            handlerAssignedAt: new Date(),
-            // 手工切人工也是"排队"，同样要写排队起点，否则它在待接入列表里没有排序依据
-            transferredAt: new Date(),
-            transferReason: 'manual_switch',
-          };
-
-    await this.prisma.conversation.update({
+  /**
+   * 切换 AI/人工模式。
+   *
+   * - 切回 AI：交给 HandoffLifecycleService.returnToAi('admin_return')，
+   *   由它 CAS + 写审计/系统消息 + 广播；权限由 controller 的 @Roles 保证。
+   * - 切人工：只允许从 AI_ACTIVE（handlerId=null）进入排队；
+   *   已有客服（或已在排队）时 no-op，不能把别人的会话抢走。
+   */
+  async switchHandler(
+    conversationId: string,
+    mode: 'ai' | 'human',
+    actor = 'admin',
+  ) {
+    const conv = await this.prisma.conversation.findUnique({
       where: { id: conversationId },
-      data,
+      select: {
+        id: true,
+        handlerId: true,
+        status: true,
+        aiMetadata: true,
+      },
+    });
+    if (!conv) throw new NotFoundException('Conversation not found');
+
+    if (mode === 'ai') {
+      // 先清 callback，再让生命周期服务读取最新 aiMetadata，
+      // 避免后写的 callback 合并覆盖 handoffResetPending / handoffHistory。
+      await this.markHandoffCallbackHandled(conversationId, conv.aiMetadata);
+
+      const changed = await this.handoffLifecycleService.returnToAi(
+        conversationId,
+        'admin_return',
+        { actor },
+      );
+
+      this.logger.log(
+        `[Admin] Switched conversation ${conversationId} to AI mode (actor=${actor}, changed=${changed})`,
+      );
+      return { success: true, mode, changed };
+    }
+
+    // 已经有人接管 / 已在排队：no-op，绝不覆盖现有客服。
+    if (conv.handlerId != null) {
+      return { success: true, mode, changed: false };
+    }
+
+    // 只在 handlerId 仍为 null 时写入排队哨兵（CAS），避免与认领竞态。
+    const result = await this.prisma.conversation.updateMany({
+      where: {
+        id: conversationId,
+        handlerId: null,
+        status: CONV_STATUS.NORMAL,
+      },
+      data: {
+        handlerId: AWAITING_HUMAN,
+        handlerAssignedAt: new Date(),
+        // 手工切人工也是「排队」，同样要写排队起点
+        transferredAt: new Date(),
+        transferReason: 'manual_switch',
+      },
     });
 
+    if (result.count === 0) {
+      // 会话在这期间被关闭/认领，按 no-op 处理
+      return { success: true, mode, changed: false };
+    }
+
     this.logger.log(
-      `[Admin] Switched conversation ${conversationId} to ${mode} mode`,
+      `[Admin] Switched conversation ${conversationId} to human mode (actor=${actor})`,
     );
+    this.notifyQueueChanged(conversationId, 'manual_switch', AWAITING_HUMAN);
 
-    this.notifyQueueChanged(
-      conversationId,
-      mode === 'human' ? 'manual_switch' : 'released',
-      mode === 'human' ? 'awaiting_human' : null,
-    );
-
-    return { success: true, mode };
+    return { success: true, mode, changed: true };
   }
 
   // ─────────────────────────────────────────────
@@ -509,4 +627,34 @@ export class AdminChatService {
       'chat',
     );
   }
+}
+
+/**
+ * 把 pending 的离线 callback 合并为 handled。
+ *
+ * 保留 aiMetadata 里的其他字段（trafficSource / handoffHistory 等）；
+ * 已经是 handled 或没有 callback 时返回 null，调用方跳过写库。
+ */
+function mergeHandoffCallbackHandled(
+  raw: Prisma.JsonValue | null,
+): Record<string, unknown> | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+
+  const base = raw as Record<string, unknown>;
+  const callback = base.handoffCallback;
+  if (!callback || typeof callback !== 'object' || Array.isArray(callback)) {
+    return null;
+  }
+
+  const callbackRecord = callback as Record<string, unknown>;
+  if (callbackRecord.status !== 'pending') return null;
+
+  return {
+    ...base,
+    handoffCallback: {
+      ...callbackRecord,
+      status: 'handled',
+      handledAt: new Date().toISOString(),
+    },
+  };
 }

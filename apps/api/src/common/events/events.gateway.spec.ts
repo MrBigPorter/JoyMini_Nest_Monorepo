@@ -159,6 +159,7 @@ function createGatewayWithPrisma() {
     },
     conversation: {
       findUnique: jest.fn(),
+      update: jest.fn(),
     },
     $transaction: jest.fn(),
   };
@@ -458,5 +459,61 @@ describe('EventsGateway.afterInit Redis adapter', () => {
 
     expect(createClient).not.toHaveBeenCalled();
     expect(server.adapter).not.toHaveBeenCalled();
+  });
+});
+
+// ==================================================================
+//  Task 4：handlerAssignedAt 只由「人工侧活动」刷新
+//
+//  用户发消息不是人工活动。以前 Socket 路径会顺手刷新它，
+//  导致坐席明明 60 分钟没说话，却被用户的消息一直续命。
+//  自动回收由 SupportQueueService → HandoffLifecycleService 统一处理。
+// ==================================================================
+
+describe('EventsGateway.handleSendMessage 人工活动计时（Task 4）', () => {
+  it('用户消息不刷新 handlerAssignedAt', async () => {
+    const { gateway, prisma } = createGatewayWithPrisma();
+    prisma.chatMember.findUnique.mockResolvedValue({ id: 'member-1' });
+    prisma.conversation.findUnique.mockResolvedValue({
+      handlerId: 'admin-1',
+      handlerAssignedAt: new Date('2026-11-22T10:00:00.000Z'),
+      type: 'SUPPORT',
+    });
+    (prisma.chatMember as any).findMany = jest.fn().mockResolvedValue([]);
+
+    const tx = {
+      conversation: {
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      $queryRaw: jest.fn().mockResolvedValue([{ lastMsgSeqId: 1 }]),
+      chatMessage: {
+        create: jest.fn().mockResolvedValue({
+          id: 'msg-1',
+          conversationId: 'conv-1',
+          senderId: 'u-xiaohong',
+          content: '在吗',
+          type: 0,
+          seqId: 1,
+          createdAt: new Date(),
+          meta: null,
+          sender: null,
+        }),
+      },
+      aiTaskOutbox: { create: jest.fn() },
+    };
+    prisma.$transaction.mockImplementation(async (cb: any) => cb(tx));
+
+    const socket = createFakeSocket('u-xiaohong');
+    const result = await gateway.handleSendMessage(socket, sendPayload);
+
+    expect(result).toMatchObject({ status: 'ok' });
+    // 关键：旧的「用户消息刷新 handlerAssignedAt」分支必须已删除
+    expect(prisma.conversation.update).not.toHaveBeenCalled();
+    expect(tx.conversation.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ handlerAssignedAt: expect.anything() }),
+      }),
+    );
   });
 });

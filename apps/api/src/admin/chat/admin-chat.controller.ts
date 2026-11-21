@@ -133,8 +133,9 @@ export class AdminChatController {
   async switchHandler(
     @Param('id') id: string,
     @Body() dto: { mode: 'ai' | 'human' },
+    @CurrentAdminId() adminId: string,
   ) {
-    return this.service.switchHandler(id, dto.mode);
+    return this.service.switchHandler(id, dto.mode, adminId);
   }
 
   /** POST /v1/admin/chat/upload-token — 获取媒体上传签名 URL */
