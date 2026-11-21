@@ -45,6 +45,11 @@ const ADMIN_TOKEN = jwt.sign(
   ENV.ADMIN_JWT_SECRET ?? 'qa_admin_jwt_secret_change_me_0123456789',
   { expiresIn: '2h' },
 );
+const EDITOR_TOKEN = jwt.sign(
+  { sub: 'qa_admin_editor', role: 'EDITOR', type: 'admin', username: 'qa_editor' },
+  ENV.ADMIN_JWT_SECRET ?? 'qa_admin_jwt_secret_change_me_0123456789',
+  { expiresIn: '2h' },
+);
 
 const PREFIX = 'qa_p25_';
 const CLUSTER_DAY = '2026-12-20';
@@ -90,11 +95,12 @@ async function api(
   method: string,
   endpoint: string,
   body?: unknown,
+  token = ADMIN_TOKEN,
 ): Promise<ApiResult> {
   const res = await fetch(`${API_BASE}${endpoint}`, {
     method,
     headers: {
-      Authorization: `Bearer ${ADMIN_TOKEN}`,
+      Authorization: `Bearer ${token}`,
       ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -506,6 +512,37 @@ describe('Phase 4 — fix loop', () => {
       { datasetId, expected: '' },
     );
     expect(empty.status).toBe(400);
+  });
+
+  it('returns 404 for a missing cluster on GET/PATCH', async () => {
+    const missing = `${PREFIX}missing_cluster`;
+    const get = await api(
+      'GET',
+      `/v1/admin/ai-analysis/clusters/${missing}`,
+    );
+    expect(get.status).toBe(404);
+    const patch = await api(
+      'PATCH',
+      `/v1/admin/ai-analysis/clusters/${missing}`,
+      { status: 'ASSIGNED' },
+    );
+    expect(patch.status).toBe(404);
+  });
+});
+
+describe('Phase 2–5 — roles', () => {
+  it('EDITOR is denied analysis reads while ADMIN is allowed', async () => {
+    for (const endpoint of ['clusters', 'alerts', 'metrics', 'events', 'runs']) {
+      const editor = await api(
+        'GET',
+        `/v1/admin/ai-analysis/${endpoint}`,
+        undefined,
+        EDITOR_TOKEN,
+      );
+      expect(editor.status).toBe(403);
+      const admin = await api('GET', `/v1/admin/ai-analysis/${endpoint}`);
+      expect(admin.status).toBe(200);
+    }
   });
 });
 

@@ -1,7 +1,7 @@
 # QA Report — 119 Phase 2–5 (Clusters / Alerts / Fix Loop / Retention)
 
-> 冻结提交 `50e7aaaf`（代码 `2a8fc31a`，handoff `batch-6-phase2-5.md`）
-> 结论：**PASS**（迁移审核 PASS；Phase 2–5 API 7/7；页面 3/3；Batch 1/2/4/5 回归 24/18/9/9）。2 个 P3 非阻断观察。
+> 冻结提交 `50e7aaaf`（代码 `2a8fc31a`，handoff `batch-6-phase2-5.md`）；复验 `515ef779`（修复 `4cc2954a`）
+> 结论：**PASS**（迁移审核 PASS；首轮 Phase 2–5 API 7/7、页面 3/3；复验 API **9/9**、页面 3/3；Batch 1/2/4/5 回归 24/18/9/9）。D-P25-01/02 已修复。
 
 ## 1. 测试对象
 
@@ -9,7 +9,7 @@
 |---|---|
 | 仓库 | `/Volumes/MySSD/work/JoyMini_Nest_Monorepo` |
 | 分支 | `feat/ai-ops-operator-console` |
-| 冻结提交 | `50e7aaaf`（代码 `2a8fc31a`） |
+| 冻结提交 | `50e7aaaf`（代码 `2a8fc31a`）；复验 `515ef779`（`4cc2954a`） |
 | 范围 | 问题簇、指标告警、修复闭环、保留清理、`/ai-ops/analysis` 页面、角色入口 |
 | 产品代码改动 | 无（QA 只改 `qa/**` 与测试文件） |
 
@@ -65,7 +65,8 @@ npx tsx qa/seed/batch5.ts && npx jest ... batch5-analysis.e2e-spec.ts
 
 | 套件 | 结果 |
 |---|---|
-| Phase 2–5 API（7 cases） | **7 passed / 0 failed** |
+| Phase 2–5 API（首轮 7 cases） | **7 passed / 0 failed** |
+| Phase 2–5 API（复验 9 cases，含角色/404） | **9 passed / 0 failed** |
 | Phase 2–5 页面（3 cases） | **3 passed / 0 failed** |
 | Batch 1 权限 | 24/24 |
 | Batch 2 triage | 18/18 |
@@ -113,44 +114,63 @@ npx tsx qa/seed/batch5.ts && npx jest ... batch5-analysis.e2e-spec.ts
 
 ### 4.5 页面 `/ai-ops/analysis` — PASS
 
-- ADMIN：问题簇表显示代表问题/条数/严重度/状态/修复类型；告警表显示指标/HIGH/MEDIUM/样本；
+- ADMIN：页面 `<title>` 为「问题分析 / Problem Analysis」，无 `MISSING_MESSAGE`；问题簇表显示代表问题/条数/严重度/状态/修复类型；告警表显示指标/HIGH/MEDIUM/样本；
 - 认领 → owner 显示 `qa_admin_admin`；
 - 状态下拉 → `FIXING`，修复类型下拉 → `PROMPT`；
 - 「建回归」弹出两次 prompt（目标评测集 ID、期望答案），成功后提示「已生成回归用例，问题簇进入修复中」，簇保持 FIXING；
 - 告警「确认」→ 行从待确认列表消失；
 - VIEWER/EDITOR：侧边栏无 `/ai-ops/analysis` 入口。
 
+### 4.6 复验 `515ef779` / `4cc2954a` — PASS
+
+| 项 | 结果 |
+|---|---|
+| EDITOR `clusters/alerts/metrics/events/runs` | 全部 **403** |
+| ADMIN 同 5 个接口 | 全部 **200** |
+| `/ai-ops/analysis` 页面标题 | 「问题分析 / Problem Analysis」；日志 `MISSING_MESSAGE` **0 条** |
+| 不存在 cluster GET / PATCH | **404 / 404** |
+| Phase 2–5 主流程（跑分析→簇→告警） | API **9/9**（新增角色与 404 用例） |
+| 页面复跑 | **3/3** |
+
+日志：`qa/logs/phase2-5-reverify-api.log`、`qa/logs/phase2-5-reverify-playwright.log`。
+
 ## 5. 缺陷
 
-### D-P25-01 — 新页面缺 `aiOpsAnalysis` 翻译键（P3，OPEN）
+### D-P25-01 — 新页面缺 `aiOpsAnalysis` 翻译键（P3）— **FIXED**
 
 | 项 | 内容 |
 |---|---|
 | 严重度 | P3（文案/日志；页面功能不受影响） |
+| 状态 | **FIXED**，提交 `4cc2954a`（含于 `515ef779`）：六语言补齐 key |
+| 复验 | 页面标题「问题分析 / Problem Analysis」；日志 `MISSING_MESSAGE` 0 条 |
 | 位置 | `apps/admin-next/src/routes/index.ts` 路由名 `aiOpsAnalysis`；`src/i18n/{en,zh,ja,ko,fr,de}.json` 均无该 key |
 | 现象 | 访问 `/ai-ops/analysis` 时服务端/客户端输出 `MISSING_MESSAGE: Could not resolve 'aiOpsAnalysis'`；面包屑/标题回退为 key |
 | 证据 | `qa/logs/phase2-5-playwright.log`（WebServer 日志） |
 | 建议 | 六个语言文件补 `aiOpsAnalysis`（如“问题分析”） |
 
-### D-P25-02 — EDITOR 无入口但仍可读 analysis API（P3，OPEN）
+### D-P25-02 — EDITOR 无入口但仍可读 analysis API（P3）— **FIXED**
 
 | 项 | 内容 |
 |---|---|
 | 严重度 | P3（UI/API 角色一致性；只读聚合数据，无原始对话） |
+| 状态 | **FIXED**，提交 `4cc2954a`：analysis 读接口改为 SUPER/ADMIN |
+| 复验 | EDITOR 5 个读接口 403；ADMIN 200 |
 | 位置 | `apps/admin-next/src/routes/index.ts`（analysis 对 EDITOR 隐藏）；`apps/api/src/admin/ai-analysis/ai-analysis.controller.ts`（GET 接口 `@Roles` 含 EDITOR） |
 | 现象 | EDITOR `GET /clusters`、`/alerts`、`/metrics`、`/events`、`/runs` 均 200；VIEWER 同接口 403 |
 | 证据 | 本报告 §6 的 curl 探测 |
-| 判定 | 不阻断「VIEWER/EDITOR 无入口」验收；是否允许 EDITOR 直接读分析 API 需产品确认 |
+| 判定 | 首轮不阻断验收；复验已按 ADMIN/SUPER 收紧 |
 
 ## 6. 补充探测
 
 ```text
-EDITOR  GET /v1/admin/ai-analysis/clusters  200
-EDITOR  GET /v1/admin/ai-analysis/alerts    200
-EDITOR  GET /v1/admin/ai-analysis/metrics   200
-EDITOR  GET /v1/admin/ai-analysis/events    200
-EDITOR  GET /v1/admin/ai-analysis/runs      200
-VIEWER  GET /v1/admin/ai-analysis/clusters  403
+EDITOR  GET /v1/admin/ai-analysis/clusters  403
+EDITOR  GET /v1/admin/ai-analysis/alerts    403
+EDITOR  GET /v1/admin/ai-analysis/metrics   403
+EDITOR  GET /v1/admin/ai-analysis/events    403
+EDITOR  GET /v1/admin/ai-analysis/runs      403
+ADMIN   同上 5 个接口                        200
+GET     /clusters/qa_p25_missing_cluster    404
+PATCH   /clusters/qa_p25_missing_cluster    404
 ```
 
 ## 7. 测试侧调整（非产品缺陷）
@@ -168,4 +188,4 @@ VIEWER  GET /v1/admin/ai-analysis/clusters  403
 2. 告警阈值为启发式；只验证 `ALL` 维度，未覆盖 `INTENT` 维度告警。
 3. 保留直接调用 `purgeExpired()`，未等待 04:00 UTC cron，也未验证多实例并发。
 4. 页面回归只跑 phase2-5 与 nav 相关，未跑前端全量（提交方已声明 356 通过）。
-5. `getCluster`/`updateCluster` 对不存在 id 返回 400 而非 404（未列入验收，未记为缺陷）。
+5. ~~`getCluster`/`updateCluster` 返回 400~~ 已在 `4cc2954a` 修为 404（复验通过）。

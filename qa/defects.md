@@ -507,27 +507,30 @@ ai_spans.llm.output.snippet -> 已登记：13812341234 / user@example.com / 1101
 
 > 迁移 PASS（仅 CREATE TABLE/INDEX）。API 7/7、页面 3/3；Batch 1/2/4/5 = 24/18/9/9。无阻断缺陷；以下为 P3 观察。
 
-## D-P25-01 — `/ai-ops/analysis` 缺 `aiOpsAnalysis` 翻译键（P3，OPEN）
+## D-P25-01 — `/ai-ops/analysis` 缺 `aiOpsAnalysis` 翻译键（P3）— **FIXED**
 
 | 项 | 内容 |
 |---|---|
 | 严重度 | P3（文案与错误日志；页面功能不受影响） |
-| 状态 | OPEN（QA 只记录，不改产品代码） |
+| 状态 | **FIXED**，提交 `4cc2954a`（含于 `515ef779`）：六语言补齐 key |
 | 位置 | `apps/admin-next/src/routes/index.ts`（`name: 'aiOpsAnalysis'`）；`apps/admin-next/src/i18n/{en,zh,ja,ko,fr,de}.json` |
 | 现象 | 打开 `/ai-ops/analysis` 时 Next 日志输出 `MISSING_MESSAGE: Could not resolve 'aiOpsAnalysis' for locale en`；标题/面包屑回退为 key |
-| 证据 | `qa/logs/phase2-5-playwright.log` |
-| 建议 | 六个语言文件补齐 key（如“问题分析”） |
+| 复验 | 页面标题「问题分析 / Problem Analysis」；`MISSING_MESSAGE` 0 条；`qa/logs/phase2-5-reverify-playwright.log` |
+| 证据 | `qa/logs/phase2-5-playwright.log`（首轮） |
 
-## D-P25-02 — EDITOR 无分析入口但仍可读 analysis API（P3，OPEN）
+## D-P25-02 — EDITOR 无分析入口但仍可读 analysis API（P3）— **FIXED**
 
 | 项 | 内容 |
 |---|---|
 | 严重度 | P3（UI/API 角色矩阵不一致；只读聚合数据） |
-| 状态 | OPEN（待产品确认是否允许 EDITOR 只读） |
+| 状态 | **FIXED**，提交 `4cc2954a`：analysis 读接口改为 SUPER/ADMIN |
 | 位置 | `apps/admin-next/src/routes/index.ts`（analysis 对 VIEWER/EDITOR 隐藏）；`apps/api/src/admin/ai-analysis/ai-analysis.controller.ts`（GET 接口 `@Roles` 含 EDITOR） |
 | 现象 | EDITOR `GET /clusters`、`/alerts`、`/metrics`、`/events`、`/runs` 均 200；VIEWER 同接口 403 |
 | 影响 | 不阻断「VIEWER/EDITOR 无入口」验收；EDITOR 知道 URL 时仍可读分析聚合 |
+| 复验 | EDITOR `clusters/alerts/metrics/events/runs` 全部 403；ADMIN 全部 200；`qa/logs/phase2-5-reverify-api.log` |
 | 证据 | `qa/reports/phase2-5.md` §6 |
+
+**404 观察**：不存在 cluster 的 GET/PATCH 首轮为 400，已由 `4cc2954a` 修为 404，复验通过，关闭。
 
 ## Phase 2–5 测试侧调整（非产品缺陷）
 

@@ -47,6 +47,8 @@ test.describe('ADMIN — analysis page actions', () => {
     await expect(page.getByRole('heading', { name: '问题分析' })).toBeVisible({
       timeout: 180_000,
     });
+    // D-P25-01: the new route must have a real title, not the raw key.
+    await expect(page).toHaveTitle(/问题分析|Problem Analysis/);
     await waitForRole(page, 'ADMIN');
 
     // ADMIN keeps the engineering navigation entry.
