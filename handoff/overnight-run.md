@@ -1,63 +1,44 @@
 # Overnight Run — 2026-11-21
 
-> **状态：用户要求停止，未继续自动执行。** 早上从这里接着做。
+> 状态：Batch 1–5 全部 PASS；用户已恢复交互，可继续两周项或收尾。
 > 依据：`docs/AI-joymini/118`、`119`、`120`。
 
 ## 当前状态
 
-- 最后提交：`2347f3a5`（Batch 2 QA 缺陷修复）
-- QA 容器/进程：**已停止**（`lucky-db-qa` / `lucky-redis-qa` / 4101 / 4102 / 4199）
-- QA agent：已停止；Batch 2 复验被打断，报告未最终定稿
+- 最后提交：`b7f54227`（Batch 5 QA PASS）
+- 工作区：clean
+- QA 环境：仍运行（API 4102 / Admin 4101 / DB 5433 / Redis 6382）
+- 停止命令：`bash qa/scripts/run-batch1.sh --stop`
 
 ## 批次进度
 
-| 批次 | 状态 | 提交 | QA |
+| 批次 | 状态 | 关键提交 | QA |
 |---|---|---|---|
-| Batch 1 | **PASS** | `09fd7072`（含 D-03/D-04 复验） | 通过 |
-| Batch 2 | 代码完成；**QA 首轮 FAIL，修复已提交，待复验** | `0f5f8b8b`、`db52a60a`、`2347f3a5` | 首轮 18 API + 4 Playwright 通过；1 P1 + 2 P2 |
-| Batch 3 | 未开始 | — | — |
-| Batch 4 | 未开始 | — | — |
-| Batch 5 | 未开始 | — | — |
+| Batch 1 权限 + 下钻 | **PASS** | `de578ca5`…`09fd7072` | 24 API + 9 UI + D-03/D-04 |
+| Batch 2 分诊语义 + 今日 | **PASS** | `0f5f8b8b`、`db52a60a`、`2347f3a5` | 18 API + 9 UI |
+| Batch 3 开关 + 血缘 | **PASS** | `56879855`、`07245b1b`、`a86e96fb` | 13 API + 2 UI |
+| Batch 4 回归期望 + 生命周期 | **PASS** | `f6e39769`、`c08df55c`、`2561806f` | 9 API + 3 UI |
+| Batch 5 119 Phase 1 | **PASS** | `4be75eaf`、`7aaeda85`、`0bcdcc80` | 9 API + 2 UI |
 
-## Batch 2 明细
+## 已交付能力
 
-- QA 首轮（测 `ef757859`）：FAIL
-  - D-B2-01（P1）：首页「待处理 8」→ `reviewStatus=PENDING`（16 条）
-  - D-B2-02（P2）：Transfer rate 6 → `queue=SIGNAL&signal=transferred` 1
-  - D-B2-03（P2）：前端缺 `NO_ISSUE` 枚举
-- 修复（`2347f3a5`）：
-  - 首页「待处理」提醒行/异常卡 → `queue=TODO&from=<today>&to=<today>`
-  - 质量页支持 `from/to` URL 参数与日期输入；KPI 保留日期窗
-  - Transfer rate → `?signal=transferred`（与 KPI 总体一致）
-  - `RESOLUTION_VALUES` 补 `NO_ISSUE`
-- 复验：QA agent 被用户停止前最后一行提示“All re-verification checks pass”，但**报告未落盘，不能算 PASS**。
-- 待办：重启 QA 环境，只复验：
-  1. 首页「待处理 N」→ `queue=TODO&from=今天&to=今天`，列表 total = N；
-  2. 质量页日期窗 + TODO 只含今天；
-  3. `resolution=NO_ISSUE` 可筛选；
-  4. Insights Transfer rate 6 → 列表 6；
-  5. 跑 Batch 2 API e2e + Playwright，更新 `qa/reports/batch-2.md` 与 `qa/defects.md`。
+- VIEWER 不再读到原始用户文本；工程导航与首页入口对 VIEWER 隐藏。
+- 质量页 URL 下钻、KPI 链接、待办/信号分轨、`NO_ISSUE`、今日窗口、日期筛选。
+- trace `aiMessageId`、feedback `traceId`、security `conversationId` 已接通。
+- 功能开关统一走 `/admin/ai-ops/features`；eval 写接口受门禁。
+- 回归用例必须有期望答案；用例可编辑/删除；run 并发锁、孤儿回收、终态停轮询。
+- 119 Phase 1：问题事件、指标窗口、分析运行、`/ai-ops/analysis` 页面。
 
-## 未提交/已提交
+## 剩余（未做）
 
-- 已提交：Batch 2 代码、handoff、Batch 1 QA 报告。
-- 本次停止前的 QA Batch 2 首轮产物（`qa/reports/batch-2.md`、`qa/defects.md`、`qa/seed/batch2.ts`、两个 batch2 测试文件、更新后的 batch1 测试）将作为“首轮 FAIL 证据”提交，不代表最终 PASS。
+- 118 §8.2 两周项：SLA 单写者/统一窗口、运营核心指标、知识质量评分修正、LIVE eval 作业化、PII 治理、运营面补完。
+- 119 Phase 2–5：聚类、问题簇页、小时级告警、修复闭环、分区/保留。
+- D-01：VIEWER 仍可读 eval 数据集/结果原文（Batch 4 未处理，需后续）。
+- D-02：EDITOR 工程导航与接口 403 不一致。
+- `AI_QUALITY_V2_ENABLED` 已从文档移除，代码中不存在。
 
-## 明天怎么接
+## 早上/下次接续
 
-```bash
-# 1. 起 QA 环境（隔离 5433/6382/4101/4102/4199）
-bash qa/scripts/run-batch1.sh
-
-# 2. 复验 Batch 2（见上）
-cd apps/api && npx jest --config test/jest-e2e.json --runInBand --forceExit test/ai-ops/batch2-triage.e2e-spec.ts
-cd apps/admin-next && QA_NO_WEB_SERVER=1 QA_ADMIN_URL=http://127.0.0.1:4101 QA_API_URL=http://127.0.0.1:4102/api \
-  ../../node_modules/.bin/playwright test --config=playwright.qa.config.ts e2e-qa/batch2-triage.spec.ts --project=qa-chromium
-
-# 3. PASS 后进入 Batch 3：开关统一 + 血缘
-```
-
-## 边界
-
-- 不做 push / 部署 / 改权限 / 生产操作。
-- 需要产品拍板的规则（语言策略、资金操作）继续标记 blocked。
+1. 如需继续：先做 118 §8.2 的 SLA 分钟唯一 + 知识评分 truncation 修正（已准备好方案）。
+2. 再做 119 Phase 2 聚类。
+3. QA 环境可随时用 `bash qa/scripts/run-batch1.sh` 起；停止用 `--stop`。
