@@ -311,3 +311,66 @@ GET  /admin/ai-eval/runs/:id          -> COMPLETED
 - **孤儿回收惰性触发**：仅在 list/get/start 时执行，无独立 cron；无人访问的 RUNNING 不会在 5 分钟内自动变化（本批验收按“调用 list/get 后”通过）。
 - **历史悬空 `AiEvalResult.traceId` 未清理**（handoff #3）。
 - **用例硬删除**级联删除 results（handoff #4）。
+
+---
+
+# Batch 5 — 缺陷（首轮 `2c5fc116`；复验 `0bcdcc80`）
+
+> 迁移安全审核：**PASS**（仅 3 张新表 + 索引，无任何 DROP/RENAME/ALTER/TRUNCATE）。
+> 首轮：API 7/8（D-B5-01）、Playwright 2/2。复验：API **9/9**、Playwright **2/2**；D-B5-01/02 **FIXED**。
+
+## D-B5-01 — advisory lock 泄漏，同窗口重跑 409（P1）— **FIXED**
+
+| 项 | 内容 |
+|---|---|
+| 严重度 | **P1（首轮阻断）** |
+| 状态 | **FIXED**，提交 `0bcdcc80`（HEAD） |
+| 位置 | `apps/api/src/admin/ai-analysis/ai-analysis.service.ts` |
+| 首轮问题 | `pg_try_advisory_lock` / `pg_advisory_unlock` 是 session 级；Prisma `$queryRaw` 两次调用可能使用池内不同连接，unlock 成为 no-op，锁泄漏 |
+| 修复 | 改用 `RedisLockService.runWithLock`：Redis `SET NX PX`（30min）+ UUID + compare-and-delete Lua；锁占用抛 `Lock busy` → 409；key=`ai:analysis:<windowStart ISO>` |
+
+**首轮复现**（`2c5fc116`）：
+
+```text
+POST /admin/ai-analysis/runs {"date":"2026-11-18"} -> 201 COMPLETED (8 events)
+POST /admin/ai-analysis/runs {"date":"2026-11-18"} -> 409 "Another analysis run is in progress"
+```
+
+**复验（PASS，`0bcdcc80`）**：
+
+```text
+run 1: HTTP 201 COMPLETED events=8
+run 2: HTTP 201 COMPLETED events=8
+metrics=7, events=8, analysis_runs=1；Redis key PTTL after runs = -2 (released)
+并发：500 events 首跑持锁；第二个请求 409；PTTL ∈ (0,1800000]；结束后释放
+```
+
+**证据**：`qa/logs/batch5-reverify-api.log`（9/9）、`qa/logs/batch5-reverify-numbers.log`；首轮 `qa/logs/batch5-api-e2e.log`。
+
+## D-B5-02 — `zero_hit_rate` 分母使用全部 trace（P2）— **FIXED**
+
+| 项 | 内容 |
+|---|---|
+| 严重度 | P2（首轮指标口径） |
+| 状态 | **FIXED**，提交 `0bcdcc80` |
+| 位置 | `ai-analysis.service.ts` `collectMetrics()` |
+| 首轮问题 | 119 §7.1 要求 `ZERO_HIT / 需要知识的请求`；实现用全部 AI trace（1/4=0.25） |
+| 修复 | 分母改为窗口内有 `rag` span 的 trace 数（1/3=0.3333） |
+
+**复验（PASS）**：
+
+```text
+seed: ZERO_HIT=1；有 RAG span 的 trace=3
+zero_hit_rate ALL = 1 / 3 = 0.3333；problem_rate 仍 8/4=2
+页面显示 33.3% / 1 / 3
+```
+
+**证据**：`qa/logs/batch5-reverify-api.log`（B5-05）、`qa/logs/batch5-reverify-numbers.log`。
+
+## Batch 5 已知限制 / 未覆盖（非新缺陷）
+
+- **无聚类/告警/修复闭环**：Phase 1 范围；`ai_problem_clusters` 留给 Phase 2。
+- **失败模拟使用 QA trigger**：验证“持久化异常 → run FAILED + error”；未注入真实表不可用。
+- **连续 7 天/小时窗口**未覆盖：只验证固定 UTC 日窗口与日级 cron 代码路径。
+- **多实例未实测**：Redis `SET NX PX` 锁语义可跨实例，但本批单 API 进程。
+- **页面无趋势图**（handoff #7）。
