@@ -70,10 +70,11 @@ async function main() {
   const preferredModels = explicitModel
     ? [explicitModel]
     : [
+        'openai/gpt-oss-120b',
+        'openai/gpt-oss-20b',
+        'qwen/qwen3.8-27b',
         'llama-3.3-70b-versatile',
         'llama-3.1-8b-instant',
-        'meta-llama/llama-4-scout-17b-16e-instruct',
-        'openai/gpt-oss-20b',
       ];
   const baseURL =
     process.env.AI_PRELABEL_BASE_URL ?? 'https://api.groq.com/openai/v1';
