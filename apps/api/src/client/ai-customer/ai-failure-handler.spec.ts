@@ -83,7 +83,7 @@ describe('degradeToHuman · 模型故障降级（N-15）', () => {
       'conv-1',
       memberIds,
       SocketEvents.AI_TRANSFER,
-      { conversationId: 'conv-1', reason: 'ai_error' },
+      { conversationId: 'conv-1', reason: 'ai_error', mode: 'online' },
     );
   });
 
@@ -123,7 +123,7 @@ describe('degradeToHuman · 模型故障降级（N-15）', () => {
       'conv-1',
       ['user-1'],
       SocketEvents.AI_TRANSFER,
-      { conversationId: 'conv-1', reason: 'ai_error' },
+      { conversationId: 'conv-1', reason: 'ai_error', mode: 'online' },
     );
   });
 
@@ -146,7 +146,7 @@ describe('degradeToHuman · 模型故障降级（N-15）', () => {
       'conv-1',
       ['user-1'],
       SocketEvents.AI_TRANSFER,
-      { conversationId: 'conv-1', reason: 'ai_error' },
+      { conversationId: 'conv-1', reason: 'ai_error', mode: 'online' },
     );
   });
 
@@ -162,7 +162,7 @@ describe('degradeToHuman · 模型故障降级（N-15）', () => {
       'conv-1',
       ['user-1'],
       SocketEvents.AI_TRANSFER,
-      { conversationId: 'conv-1', reason: 'ai_error' },
+      { conversationId: 'conv-1', reason: 'ai_error', mode: 'online' },
     );
   });
 });

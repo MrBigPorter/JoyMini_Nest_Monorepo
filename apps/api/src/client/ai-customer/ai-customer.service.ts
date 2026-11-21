@@ -70,7 +70,12 @@ import {
   RecordTraceSpanInput,
   TraceService,
 } from '@api/admin/ai-traces/ai-traces.service';
-import { degradeToHuman } from './ai-failure-handler';
+import {
+  degradeToHuman,
+  mergeHandoffCallback,
+  OFFLINE_HANDOFF_REPLY,
+} from './ai-failure-handler';
+import { HandoffPresenceService } from '@api/common/chat/handoff/handoff-presence.service';
 import { isSensitiveRequest } from '@api/common/utils/sensitive-content';
 import { policyFallback } from './policy-fallback';
 import { plainToInstance } from 'class-transformer';
@@ -125,6 +130,12 @@ export class AiCustomerService implements OnModuleDestroy {
      */
     @Optional()
     private readonly actionLifecycle?: AiActionLifecycleService,
+    /**
+     * 在线客服探测（可选）：单测直接 new 时不注入。
+     * 缺省时转人工一律按在线处理，保持旧行为。
+     */
+    @Optional()
+    private readonly handoffPresence?: HandoffPresenceService,
   ) {}
 
   /**
@@ -1241,74 +1252,194 @@ export class AiCustomerService implements OnModuleDestroy {
       if (conv) targetConvId = conv.id;
     }
     if (targetConvId) {
-      await this.prismaService.conversation.update({
-        where: { id: targetConvId },
-        data: {
-          handlerId: 'awaiting_human',
-          handlerAssignedAt: new Date(),
-          // 排队起点只认 transferredAt：handlerAssignedAt 会被后续每条消息刷新，
-          // 拿它算排队时长/排序会让"刚发过消息的用户"排到队尾
-          transferredAt: new Date(),
-          transferReason: reason,
-        },
-      });
-
-      // 先把 AI 的告别语写进 chat_message（双通道广播），再发转人工事件：
-      // 顺序反了的话，客户端会先收到"已转人工"、后收到本应在前的那句回复。
-      // 落库失败不能吞掉转人工事件，所以单独 try/catch。
-      if (newMessages.length > 0) {
-        try {
-          await publishAiReply(
-            this.prismaService,
-            this.eventsGateway,
-            this.eventEmitter,
-            targetConvId,
-            newMessages,
-            userId,
-            memberIds,
-            undefined,
-            triggerMessageId,
-          );
-        } catch (err: any) {
-          this.logger.warn(
-            `[chatStream] publish transfer message failed: ${err?.message}`,
-          );
-        }
-      }
-
-      this.eventsGateway.dispatchToConversation(
-        targetConvId,
-        memberIds.length > 0 ? memberIds : [userId],
-        SocketEvents.AI_TRANSFER,
-        {
-          conversationId: targetConvId,
-          reason,
-        },
-      );
-
-      // 客服侧：让所有在线客服的「待接入」列表立即出现这条（#98 AC-1）
-      this.eventEmitter.emit(
-        CHAT_EVENTS.SUPPORT_QUEUE_CHANGED,
-        new SupportQueueChangedEvent(
+      // 转人工前先看有没有客服在线：无人在线时入队只会让用户空等，
+      // 改为留一条 callback 元数据 + 离线提示，AI 继续服务。
+      const mode = await this.resolveTransferMode();
+      if (mode === 'offline') {
+        await this.routeOfflineTransfer(
           targetConvId,
-          'transferred',
-          'awaiting_human',
-        ),
-      );
-
-      // 隐式反馈：转人工是“AI 没解决”的线索，进入待标注池
-      void this.aiFeedbackService
-        .recordImplicit({
-          conversationId: targetConvId,
           userId,
-          signal: 'transferred',
-          metadata: { reason },
-        })
-        .catch(() => undefined);
+          reason,
+          memberIds,
+          triggerMessageId,
+        );
+      } else {
+        await this.prismaService.conversation.update({
+          where: { id: targetConvId },
+          data: {
+            handlerId: 'awaiting_human',
+            handlerAssignedAt: new Date(),
+            // 排队起点只认 transferredAt：handlerAssignedAt 会被后续每条消息刷新，
+            // 拿它算排队时长/排序会让"刚发过消息的用户"排到队尾
+            transferredAt: new Date(),
+            transferReason: reason,
+          },
+        });
+
+        // 先把 AI 的告别语写进 chat_message（双通道广播），再发转人工事件：
+        // 顺序反了的话，客户端会先收到"已转人工"、后收到本应在前的那句回复。
+        // 落库失败不能吞掉转人工事件，所以单独 try/catch。
+        if (newMessages.length > 0) {
+          try {
+            await publishAiReply(
+              this.prismaService,
+              this.eventsGateway,
+              this.eventEmitter,
+              targetConvId,
+              newMessages,
+              userId,
+              memberIds,
+              undefined,
+              triggerMessageId,
+            );
+          } catch (err: any) {
+            this.logger.warn(
+              `[chatStream] publish transfer message failed: ${err?.message}`,
+            );
+          }
+        }
+
+        this.eventsGateway.dispatchToConversation(
+          targetConvId,
+          memberIds.length > 0 ? memberIds : [userId],
+          SocketEvents.AI_TRANSFER,
+          {
+            conversationId: targetConvId,
+            reason,
+            mode: 'online',
+          },
+        );
+
+        // 客服侧：让所有在线客服的「待接入」列表立即出现这条（#98 AC-1）
+        this.eventEmitter.emit(
+          CHAT_EVENTS.SUPPORT_QUEUE_CHANGED,
+          new SupportQueueChangedEvent(
+            targetConvId,
+            'transferred',
+            'awaiting_human',
+          ),
+        );
+
+        // 隐式反馈：转人工是“AI 没解决”的线索，进入待标注池
+        void this.aiFeedbackService
+          .recordImplicit({
+            conversationId: targetConvId,
+            userId,
+            signal: 'transferred',
+            metadata: { reason, mode: 'online' },
+          })
+          .catch(() => undefined);
+      }
     }
     // SSE 调用方（POST + GET /chat/stream 老协议）靠这个回调收尾，
     // 之前从未被调用过 → 客户端只看到连接关闭，不知道已经转人工
     callbacks.onTransfer?.(reason);
+  }
+
+  /** HANDOFF_PRESENCE_CHECK_ENABLED 默认 true；显式 false 时跳过在线检查 */
+  private isPresenceCheckEnabled(): boolean {
+    try {
+      const raw = this.configService.get<unknown>(
+        'HANDOFF_PRESENCE_CHECK_ENABLED',
+      );
+      if (raw === undefined || raw === null || String(raw).trim() === '') {
+        return true;
+      }
+      return !['false', '0', 'no', 'off'].includes(
+        String(raw).trim().toLowerCase(),
+      );
+    } catch {
+      // 配置读取失败时保守地照旧走在线分支
+      return true;
+    }
+  }
+
+  /**
+   * 转人工分支判定：在线 → 入队；离线 → 留言。
+   * 检查关闭、探测器缺失或探测异常时都按在线处理（fail-open）。
+   */
+  private async resolveTransferMode(): Promise<'online' | 'offline'> {
+    if (!this.isPresenceCheckEnabled() || !this.handoffPresence) return 'online';
+    try {
+      const presence = await this.handoffPresence.isAnyAgentOnline();
+      return presence.online ? 'online' : 'offline';
+    } catch (err: any) {
+      this.logger.warn(
+        `[chatStream] presence check failed, assume online: ${err?.message ?? err}`,
+      );
+      return 'online';
+    }
+  }
+
+  /**
+   * 离线转人工：不进入排队（handlerId 保持 null），只落一条 callback 元数据、
+   * 一句留言提示，并通知端上走离线横幅。留言由客服在管理端“留言/待回电”处理。
+   */
+  private async routeOfflineTransfer(
+    targetConvId: string,
+    userId: string,
+    reason: string,
+    memberIds: string[],
+    triggerMessageId?: string,
+  ): Promise<void> {
+    const requestedAt = new Date();
+
+    try {
+      const conv = await this.prismaService.conversation.findUnique({
+        where: { id: targetConvId },
+        select: { aiMetadata: true },
+      });
+      await this.prismaService.conversation.update({
+        where: { id: targetConvId },
+        data: {
+          // 合并不覆盖 trafficSource；不写 handlerId/transferredAt，避免被排队 sweep 认领
+          aiMetadata: mergeHandoffCallback(
+            conv?.aiMetadata,
+            reason,
+            requestedAt,
+          ) as Prisma.InputJsonValue,
+        },
+      });
+    } catch (err: any) {
+      this.logger.warn(
+        `[chatStream] persist offline callback failed: ${err?.message}`,
+      );
+    }
+
+    try {
+      await publishAiReply(
+        this.prismaService,
+        this.eventsGateway,
+        this.eventEmitter,
+        targetConvId,
+        [{ type: 'ai', content: OFFLINE_HANDOFF_REPLY }],
+        userId,
+        memberIds,
+        undefined,
+        triggerMessageId,
+      );
+    } catch (err: any) {
+      this.logger.warn(
+        `[chatStream] publish offline notice failed: ${err?.message}`,
+      );
+    }
+
+    this.eventsGateway.dispatchToConversation(
+      targetConvId,
+      memberIds.length > 0 ? memberIds : [userId],
+      SocketEvents.AI_TRANSFER,
+      { conversationId: targetConvId, reason, mode: 'offline' },
+    );
+
+    // 线下留言同样计入隐式反馈：用户明确表达了“需要人”的意图
+    void this.aiFeedbackService
+      .recordImplicit({
+        conversationId: targetConvId,
+        userId,
+        signal: 'transferred',
+        metadata: { reason, mode: 'offline' },
+      })
+      .catch(() => undefined);
   }
 
   /** 路由 B — 发送确认卡片事件 */
@@ -1988,6 +2119,9 @@ export class AiCustomerService implements OnModuleDestroy {
         gateway: this.eventsGateway,
         eventEmitter: this.eventEmitter,
         logger: this.logger,
+        presence: this.handoffPresence,
+        presenceCheckEnabled: this.isPresenceCheckEnabled(),
+        aiFeedback: this.aiFeedbackService,
       },
       { conversationId, userId, memberIds, triggerMessageId },
     );
