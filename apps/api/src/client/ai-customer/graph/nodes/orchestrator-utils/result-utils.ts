@@ -8,13 +8,21 @@ import {
   DebugAgentExecution,
 } from '@api/client/ai-customer/graph/state';
 
+/** 一个 Agent 的一轮输出；success/error 用于失败计数。 */
+export interface AgentOutput {
+  label: string;
+  content: string;
+  success?: boolean;
+  error?: string;
+}
+
 /**
  * synthesizeAnswers — 将多个 Agent 的输出合并为一条最终回复
  * 三路逻辑：空→fallback、单个→直接返回、多个→LLM 合成
  */
 export async function synthesizeAnswers(
   llmConfig: LlmProviderConfig,
-  agentOutputs: { label: string; content: string }[],
+  agentOutputs: AgentOutput[],
   userInput: string,
   userMemory = '',
 ): Promise<string> {
@@ -50,12 +58,12 @@ export function AGENT_ERROR_MSG(label: string): string {
 export function pushDirectResult(
   label: string,
   result: Partial<typeof AgentState.State>,
-  agentOutputs: { label: string; content: string }[],
+  agentOutputs: AgentOutput[],
   debugAgents?: DebugAgentExecution[],
 ): void {
   const lastMsg = result.messages?.[result.messages.length - 1];
   const content = typeof lastMsg?.content === 'string' ? lastMsg.content : '';
-  agentOutputs.push({ label, content });
+  agentOutputs.push({ label, content, success: true });
   if (debugAgents) {
     debugAgents.push({
       label,
@@ -74,7 +82,7 @@ export function pushDirectResult(
 export function pushAgentResult(
   label: string,
   result: { content?: string; error?: string },
-  agentOutputs: { label: string; content: string }[],
+  agentOutputs: AgentOutput[],
   debugAgents: DebugAgentExecution[] | undefined,
   toolNames: string,
   contextMessagesCount: number,
@@ -86,7 +94,12 @@ export function pushAgentResult(
   if (forceTransfer) {
     content = content.replace('[TRANSFER_TO_HUMAN]', '').trim();
   }
-  agentOutputs.push({ label, content });
+  agentOutputs.push({
+    label,
+    content,
+    success: result.error ? false : true,
+    ...(result.error ? { error: result.error } : {}),
+  });
   if (debugAgents) {
     debugAgents.push({
       label,

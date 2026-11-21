@@ -80,8 +80,13 @@ import {
   pushAgentResult,
   pushDirectResult,
   AGENT_ERROR_MSG,
+  AgentOutput,
 } from './orchestrator-utils/result-utils';
 import { shouldUseKnowledgeFallback } from './orchestrator-utils/knowledge-fallback';
+import {
+  evaluateTurnFailure,
+  nextRepeatCount,
+} from './orchestrator-utils/turn-failure';
 import { detectTransferRequest } from './orchestrator-utils/transfer-detector';
 import { updateContextState } from '@api/client/ai-customer/graph/utils/context-state-utils';
 import {
@@ -286,6 +291,8 @@ export const createOrchestratorNode =
           messages: [...state.messages, new AIMessage(content)],
           transferToHuman: true,
           transferReason: transfer.reason,
+          previousIntent: state.intent,
+          repeatCount: 0,
           labels: [],
           pendingConfirm: null,
           ragSources: [],
@@ -299,6 +306,8 @@ export const createOrchestratorNode =
         return {
           transferToHuman: true,
           transferReason: transfer.reason,
+          previousIntent: state.intent,
+          repeatCount: 0,
           labels: [],
           pendingConfirm: null,
           ragSources: [],
@@ -323,6 +332,7 @@ export const createOrchestratorNode =
           new AIMessage(contextUpdate.clarification),
         ],
         previousIntent: state.intent,
+        repeatCount: 0,
         labels: [],
         pendingConfirm: null,
         ragSources: [],
@@ -344,6 +354,8 @@ export const createOrchestratorNode =
       logger.log('[orchestrator] no labels, falling back to general chat');
       return {
         ...(await handleGeneralChat(state, llmConfig)),
+        previousIntent: state.intent,
+        repeatCount: 0,
         ragSources: [],
         flowState: finalizeFlowState(flowAccumulator, targetFlowType),
         contextState: nextContextState,
@@ -410,6 +422,8 @@ export const createOrchestratorNode =
       );
       return {
         ...(await handleGeneralChat(state, llmConfig)),
+        previousIntent: state.intent,
+        repeatCount: 0,
         flowState: finalizeFlowState(flowAccumulator, targetFlowType),
         contextState: nextContextState,
       };
@@ -489,6 +503,7 @@ export const createOrchestratorNode =
             ),
           ],
           previousIntent: state.intent,
+          repeatCount: 0,
           labels: [],
           pendingConfirm: null,
           ragSources: [],
@@ -535,7 +550,8 @@ export const createOrchestratorNode =
     // ================================================================
     // 3. 流水线执行
     // ================================================================
-    const agentOutputs: { label: string; content: string }[] = [];
+    const agentOutputs: AgentOutput[] = [];
+    let hasAgentError = false;
 
     // debug 执行追踪
     let debugAgents: DebugAgentExecution[] | undefined;
@@ -666,6 +682,7 @@ export const createOrchestratorNode =
 
           // 分别记录成功/失败的日志（pushAgentResult 内部统一处理结果写入）
           if (result.error) {
+            hasAgentError = true;
             logger.error(
               `[orchestrator] ${entry.label} result: ERROR — ${result.error}`,
             );
@@ -722,10 +739,13 @@ export const createOrchestratorNode =
         // 即使某个 Agent 抛出异常，整个流水线不应中断。
         // 其他 Agent 仍需继续执行（例如 coupon 异常不应阻塞 wallet）。
         // 错误信息写入 agentOutputs（含友好提示），不会让用户看到堆栈。
+        hasAgentError = true;
         logger.error(`[orchestrator] ${entry.label} exception: ${err.message}`);
         agentOutputs.push({
           label: entry.label,
           content: AGENT_ERROR_MSG(label),
+          success: false,
+          error: err?.message ?? String(err),
         });
         // 注意: 异常时 debugAgents 不会追加（无 debug 记录）
         // 这是有意为之 — 异常意味着未完成标准流程，debug 信息不完整
@@ -745,6 +765,7 @@ export const createOrchestratorNode =
           new AIMessage('Please confirm the details.'),
         ],
         previousIntent: state.intent,
+        repeatCount: 0,
         labels: [],
         pendingConfirm: hasPendingConfirm,
         ragSources: [],
@@ -803,6 +824,18 @@ export const createOrchestratorNode =
       emitStage('transfer', { source: 'agent', reason: 'agent_request' });
     }
 
+    const turnFailure = evaluateTurnFailure({
+      userInput: synthesizeInput,
+      outputs: finalOutputs,
+      ragSourceCount: ragSources.length,
+      hasAgentError,
+    });
+    if (turnFailure.failed) {
+      logger.warn(
+        `[orchestrator] turn failed: reason=${turnFailure.reason}, intent=${state.intent}`,
+      );
+    }
+
     const orchestratorResult: OrchestratorStateUpdate = {
       messages: [...state.messages, new AIMessage(finalContent)],
       previousIntent: state.intent,
@@ -812,10 +845,11 @@ export const createOrchestratorNode =
       // 第二条转人工路径：某个 agent 结果带 forceTransfer（工具侧判定要转）
       // 没有这个字段的话，服务端只能记成 'unknown'，转人工原因分布就会多出一个黑洞
       transferReason: hasTransferRequest ? 'agent_request' : '',
-      repeatCount:
-        state.intent === state.previousIntent
-          ? (state.repeatCount ?? 0) + 1
-          : 0,
+      repeatCount: nextRepeatCount(
+        state,
+        turnFailure.failed,
+        hasTransferRequest,
+      ),
       ragSources,
       // 转人工的结果仍保留原流程数据，方便人工接手时看到用户填到哪一步。
       flowState: hasTransferRequest
