@@ -680,7 +680,18 @@ export class AiAnalysisService {
 
       if (embedding) {
         const vectorStr = `[${embedding.join(',')}]`;
-        const nearest = await this.findNearestCluster(vectorStr);
+        // 原生查询失败（例如迁移尚未应用）不能拖垮整个分析窗口：
+        // 退回签名聚类，下次窗口再尝试语义合并。
+        const nearest = await this.findNearestCluster(vectorStr).catch(
+          (err: any) => {
+            this.logger.warn(
+              `[analysis] nearest cluster lookup failed; falling back to signature: ${
+                err?.message ?? err
+              }`,
+            );
+            return null;
+          },
+        );
         if (nearest && nearest.distance <= threshold) {
           // 语义命中：代表问题保留目标簇已有文本，不覆盖人工编辑过的内容。
           await this.prisma.aiProblemCluster.update({
@@ -773,6 +784,7 @@ export class AiAnalysisService {
               last_seen_at
          FROM ai_problem_clusters
         WHERE embedding IS NOT NULL
+          AND status NOT IN ('CLOSED', 'IGNORED')
         ORDER BY embedding <=> $1::vector
         LIMIT 1`,
       vectorStr,
