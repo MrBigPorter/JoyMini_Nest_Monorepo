@@ -9,7 +9,8 @@ import {
   MessageBody,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Inject, Logger, OnModuleDestroy, Optional } from '@nestjs/common';
+import { Logger, OnModuleDestroy, Optional } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { createAdapter } from '@socket.io/redis-adapter';
@@ -131,14 +132,22 @@ export class EventsGateway
     private readonly aiTaskOutboxService: AiTaskOutboxService,
     private readonly sseRateLimiter: SseRateLimiterService,
     /**
-     * 交接生命周期（窄接口）：Socket 写消息前处理关闭后的 SUPPORT 重开。
-     * 用 symbol 令牌注入，避免与 handoff 服务形成文件级循环依赖；
-     * 单测直接 new 不注入时保持旧行为。
+     * 交接生命周期按调用时懒查，而不是构造注入：
+     * HandoffLifecycleService 依赖 EventsGateway，构造注入会形成 Nest 的
+     * provider 循环（启动时卡在 InstanceLoader）。ModuleRef.get 在消息
+     * 到达时取全局令牌，启动阶段不参与解析。
      */
     @Optional()
-    @Inject(HANDOFF_LIFECYCLE)
-    private readonly handoffLifecycle?: HandoffReopenPort,
+    private readonly moduleRef?: ModuleRef,
   ) {}
+
+  private getHandoffLifecycle(): HandoffReopenPort | undefined {
+    try {
+      return this.moduleRef?.get(HANDOFF_LIFECYCLE, { strict: false });
+    } catch {
+      return undefined;
+    }
+  }
 
   /**
    * 多实例广播：用 Redis adapter 把消息从当前实例扇出到所有副本。
@@ -713,12 +722,13 @@ export class EventsGateway
 
       // 关闭后的 SUPPORT 会话收到用户消息：先按 CAS 重开再落库/投递 AI。
       // 重开失败（另一请求已抢先）时重新读取，避免用旧的归档快照做判断。
+      const handoffLifecycle = this.getHandoffLifecycle();
       if (
-        this.handoffLifecycle &&
+        handoffLifecycle &&
         conv?.type === 'SUPPORT' &&
         conv.status === ConversationStatus.ARCHIVED
       ) {
-        await this.handoffLifecycle.reopenForUser(conversationId);
+        await handoffLifecycle.reopenForUser(conversationId);
         conv = await this.prismaService.conversation.findUnique({
           where: { id: conversationId },
           select: { handlerId: true, type: true, status: true },

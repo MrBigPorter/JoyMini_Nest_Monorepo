@@ -364,7 +364,7 @@ function makeGateway() {
     { get: jest.fn().mockReturnValue(undefined) } as any, // configService
     { relayByMessageId: relay } as any, // aiTaskOutboxService
     { tryAcquireLight: jest.fn().mockResolvedValue({ ok: true }) } as any,
-    handoffLifecycle as any,
+    { get: jest.fn(() => handoffLifecycle) } as any, // ModuleRef
   );
   const { server } = createFakeServer();
   gateway.server = server;
