@@ -18,9 +18,9 @@ const tsConfig: Omit<AgentPromptConfig, 'userId'> = {
 function build(dbPrompt: any, reject = false) {
   const prisma: any = {
     knowledgePrompt: {
-      findFirst: reject
+      findMany: reject
         ? jest.fn().mockRejectedValue(new Error('db down'))
-        : jest.fn().mockResolvedValue(dbPrompt),
+        : jest.fn().mockResolvedValue(dbPrompt ? [dbPrompt] : []),
     },
   };
   return new PromptResolverService(prisma);
@@ -53,6 +53,17 @@ describe('PromptResolverService.mergeConfig', () => {
       outside: ['orders'],
     });
     expect(result.config.hardRules).toEqual(['rule-a']);
+  });
+
+  it('兼容历史命名 wallet-agent', async () => {
+    const service = build({
+      name: 'wallet-agent',
+      versions: [{ version: 3, config: { role: 'legacy role' } }],
+    });
+
+    const result = await service.mergeConfig('wallet', tsConfig);
+    expect(result.version).toBe(3);
+    expect(result.config.role).toBe('legacy role');
   });
 
   it('数组整体替换，不拼接', async () => {

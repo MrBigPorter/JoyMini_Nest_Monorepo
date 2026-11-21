@@ -20,6 +20,7 @@ function makeService() {
     $transaction: jest.fn(),
   };
   const confirm = {
+    consume: jest.fn(),
     generate: jest.fn(async () => ({
       token: 'token-1',
       expiresAt: Date.now() + 60_000,
@@ -30,8 +31,15 @@ function makeService() {
       id: 'act-1',
       expiresAt: new Date(Date.now() + 60_000),
     })),
+    markConfirmed: jest.fn(async () => undefined),
+    markExecuted: jest.fn(async () => undefined),
+    markFailed: jest.fn(async () => undefined),
   };
   const gateway = { dispatchToUser: jest.fn() };
+  const coupon = {
+    claimCoupon: jest.fn(async () => ({ id: 'uc-1', status: 0 })),
+    redeemCode: jest.fn(),
+  };
 
   const service = new AiCustomerService(
     unused(),
@@ -46,7 +54,7 @@ function makeService() {
     confirm as any,
     unused(),
     unused(),
-    unused(),
+    coupon as any,
     unused(),
     unused(),
     unused(),
@@ -58,7 +66,7 @@ function makeService() {
     undefined,
     lifecycle as any,
   );
-  return { service, confirm, lifecycle, gateway };
+  return { service, confirm, lifecycle, gateway, coupon };
 }
 
 describe('AiCustomerService · routeConfirm lifecycle', () => {
@@ -127,5 +135,25 @@ describe('AiCustomerService · routeConfirm lifecycle', () => {
     ).resolves.toBeUndefined();
 
     expect(gateway.dispatchToUser).toHaveBeenCalled();
+  });
+
+  it('确认领券后写 EXECUTED 与结果', async () => {
+    const { service, confirm, lifecycle, coupon } = makeService();
+    confirm.consume.mockResolvedValue({
+      action: 'claim_coupon',
+      params: { couponId: 'coupon-1' },
+      requestId: 'act-1',
+      userId: 'u1',
+      summary: {},
+    });
+
+    const result = await (service as any).confirmAction('token-1', 'u1');
+
+    expect(coupon.claimCoupon).toHaveBeenCalledWith('u1', 'coupon-1', 2);
+    expect(lifecycle.markExecuted).toHaveBeenCalledWith('act-1', {
+      id: 'uc-1',
+      status: 0,
+    });
+    expect(result).toEqual({ id: 'uc-1', status: 0 });
   });
 });

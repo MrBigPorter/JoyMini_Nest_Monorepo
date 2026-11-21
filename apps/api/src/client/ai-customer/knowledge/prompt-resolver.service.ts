@@ -124,10 +124,15 @@ export class PromptResolverService {
     tsConfig: Omit<AgentPromptConfig, 'userId'>,
   ): Promise<MergedPromptResult> {
     try {
-      // 1. 查找活跃的 KnowledgePrompt
-      const dbPrompt = await this.prisma.knowledgePrompt.findFirst({
+      // 1. 查找活跃的 KnowledgePrompt。
+      // 历史数据把 agent prompt 命名为 `wallet-agent`，代码按 tag `wallet`
+      // 查找；两种都接受，精确 tag 优先。
+      const names = domain.endsWith('-agent')
+        ? [domain]
+        : [domain, `${domain}-agent`];
+      const candidates = await this.prisma.knowledgePrompt.findMany({
         where: {
-          name: domain,
+          name: { in: names },
           status: 'active',
         },
         include: {
@@ -138,6 +143,8 @@ export class PromptResolverService {
           },
         },
       });
+      const dbPrompt =
+        candidates.find((item) => item.name === domain) ?? candidates[0];
 
       // 2. 没有活跃 override → 返回 TS 默认
       if (!dbPrompt || dbPrompt.versions.length === 0) {
