@@ -59,7 +59,12 @@ const DATES = [...HISTORY_DAYS, CLUSTER_DAY, LOW_DAY];
 const DATASET_NAME = `${PREFIX}regression_ds`;
 
 const prisma = new PrismaService();
-const analysis = new AiAnalysisService(prisma, {} as never, {} as never);
+const analysis = new AiAnalysisService(
+  prisma,
+  {} as never,
+  {} as never,
+  { generateEmbedding: async () => null } as never,
+);
 
 const SAME_QUESTION = [
   'QA_P25_退款未到账 请帮我看看',

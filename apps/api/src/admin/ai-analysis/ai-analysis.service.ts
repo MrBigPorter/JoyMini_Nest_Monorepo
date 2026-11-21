@@ -11,6 +11,7 @@ import { PrismaService } from '@api/common/prisma/prisma.service';
 import { RedisLockService } from '@api/common/redis/redis-lock.service';
 import { redactPiiText } from '@api/common/utils/pii-redaction';
 import { AiEvalDatasetService } from '@api/admin/ai-eval/ai-eval-dataset.service';
+import { AiService } from '@api/common/ai/ai.service';
 
 export type ProblemEventType =
   | 'EXPLICIT_NEGATIVE'
@@ -50,10 +51,14 @@ interface MetricDraft {
 export class AiAnalysisService {
   private readonly logger = new Logger(AiAnalysisService.name);
 
+  /** 与 document_chunks / intent_examples 保持一致的 embedding 维度。 */
+  private static readonly CLUSTER_EMBEDDING_DIM = 1024;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly locks: RedisLockService,
     private readonly evalDatasets: AiEvalDatasetService,
+    private readonly aiService: AiService,
   ) {}
 
   /** 手动/定时跑一个 UTC 日窗口；幂等，可重跑覆盖同一窗口。 */
@@ -569,7 +574,14 @@ export class AiAnalysisService {
     }
   }
 
-  /** 按签名聚类；重复跑同一窗口只会覆盖计数，不累加。 */
+  /**
+   * 聚类：先按签名精确分组，再对每组代表文本做 embedding 语义合并。
+   *
+   * - 语义命中（余弦距离 <= AI_CLUSTER_DISTANCE_THRESHOLD）时并入最近簇，
+   *   代表问题保留已有文本，事件改挂到目标簇；
+   * - 未命中或 embedding 不可用时回退到 signature 精确聚类（原有行为）；
+   * - 重跑同一窗口只按事件重算计数，不累加。
+   */
   private async clusterWindow(windowStart: Date): Promise<number> {
     const rows = await this.prisma.aiProblemEvent.findMany({
       where: { windowStart },
@@ -581,6 +593,7 @@ export class AiAnalysisService {
         severity: true,
         occurredAt: true,
         metadata: true,
+        clusterId: true,
       },
     });
 
@@ -635,7 +648,60 @@ export class AiAnalysisService {
       }
     }
 
+    // 事件在本窗口重跑时可能从旧簇移走，也要重算这些旧簇的计数。
+    const touchedClusterIds = new Set<string>();
+    for (const row of rows) {
+      if (row.clusterId) touchedClusterIds.add(row.clusterId);
+    }
+
+    const threshold = this.clusterDistanceThreshold();
+    // embedding 不可用时整窗回退，且只记一次日志，避免刷屏。
+    let embeddingAvailable = true;
+    let embeddingFallbackLogged = false;
+
     for (const [signature, group] of groups) {
+      let embedding: number[] | null = null;
+      if (embeddingAvailable) {
+        embedding = await this.aiService.generateEmbedding(group.preview);
+        if (
+          !embedding ||
+          embedding.length !== AiAnalysisService.CLUSTER_EMBEDDING_DIM
+        ) {
+          embedding = null;
+          embeddingAvailable = false;
+          if (!embeddingFallbackLogged) {
+            embeddingFallbackLogged = true;
+            this.logger.warn(
+              '[analysis] cluster embedding unavailable or dimension mismatch; falling back to exact signature',
+            );
+          }
+        }
+      }
+
+      if (embedding) {
+        const vectorStr = `[${embedding.join(',')}]`;
+        const nearest = await this.findNearestCluster(vectorStr);
+        if (nearest && nearest.distance <= threshold) {
+          // 语义命中：代表问题保留目标簇已有文本，不覆盖人工编辑过的内容。
+          await this.prisma.aiProblemCluster.update({
+            where: { id: nearest.id },
+            data: {
+              severity: Math.max(nearest.severity, group.severity),
+              lastSeenAt:
+                group.last > nearest.lastSeenAt
+                  ? group.last
+                  : nearest.lastSeenAt,
+            },
+          });
+          await this.prisma.aiProblemEvent.updateMany({
+            where: { id: { in: group.ids } },
+            data: { clusterId: nearest.id },
+          });
+          touchedClusterIds.add(nearest.id);
+          continue;
+        }
+      }
+
       const cluster = await this.prisma.aiProblemCluster.upsert({
         where: { signature },
         create: {
@@ -658,33 +724,119 @@ export class AiAnalysisService {
         },
       });
 
+      if (embedding) {
+        await this.writeClusterEmbedding(cluster.id, embedding);
+      }
+
       await this.prisma.aiProblemEvent.updateMany({
         where: { id: { in: group.ids } },
         data: { clusterId: cluster.id },
       });
+      touchedClusterIds.add(cluster.id);
+    }
 
-      const total = await this.prisma.aiProblemEvent.count({
-        where: { clusterId: cluster.id },
-      });
-      await this.prisma.aiProblemCluster.update({
-        where: { id: cluster.id },
-        data: { count: total },
-      });
-
-      await this.prisma.aiProblemClusterDay.upsert({
-        where: {
-          clusterId_day: { clusterId: cluster.id, day: windowStart },
-        },
-        create: {
-          clusterId: cluster.id,
-          day: windowStart,
-          count: group.ids.length,
-        },
-        update: { count: group.ids.length },
-      });
+    // 统一按事件重算计数与当日计数，保证重跑幂等（不累加）。
+    for (const clusterId of touchedClusterIds) {
+      await this.refreshClusterStats(clusterId, windowStart);
     }
 
     return groups.size;
+  }
+
+  /** 环境变量 AI_CLUSTER_DISTANCE_THRESHOLD，默认 0.15（≈ 余弦相似度 0.85）。 */
+  private clusterDistanceThreshold(): number {
+    const raw = process.env.AI_CLUSTER_DISTANCE_THRESHOLD?.trim();
+    if (!raw) return 0.15;
+    const value = Number(raw);
+    if (!Number.isFinite(value) || value < 0 || value > 2) return 0.15;
+    return value;
+  }
+
+  /** 找到 embedding 最近的已有簇；distance 为 pgvector 余弦距离（0~2）。 */
+  private async findNearestCluster(vectorStr: string): Promise<{
+    id: string;
+    distance: number;
+    severity: number;
+    lastSeenAt: Date;
+  } | null> {
+    const rows = await this.prisma.$queryRawUnsafe<
+      Array<{
+        id: string;
+        distance: number | string;
+        severity: number;
+        last_seen_at: Date | string;
+      }>
+    >(
+      `SELECT id,
+              (embedding <=> $1::vector) AS distance,
+              severity,
+              last_seen_at
+         FROM ai_problem_clusters
+        WHERE embedding IS NOT NULL
+        ORDER BY embedding <=> $1::vector
+        LIMIT 1`,
+      vectorStr,
+    );
+    const row = rows[0];
+    if (!row) return null;
+    return {
+      id: row.id,
+      distance: Number(row.distance),
+      severity: row.severity,
+      lastSeenAt: new Date(row.last_seen_at),
+    };
+  }
+
+  /** Prisma 不支持 vector 列，写入必须走原生 SQL。 */
+  private async writeClusterEmbedding(
+    clusterId: string,
+    embedding: number[],
+  ): Promise<void> {
+    const vectorStr = `[${embedding.join(',')}]`;
+    try {
+      await this.prisma.$executeRawUnsafe(
+        `UPDATE ai_problem_clusters SET embedding = $1::vector WHERE id = $2`,
+        vectorStr,
+        clusterId,
+      );
+    } catch (err: any) {
+      // 向量写失败不影响签名聚类；下次窗口会重试。
+      this.logger.warn(
+        `[analysis] failed to persist cluster embedding ${clusterId}: ${
+          err?.message ?? err
+        }`,
+      );
+    }
+  }
+
+  /** count 取全量事件数，当日 count 取本窗口事件数，均从事件重算。 */
+  private async refreshClusterStats(
+    clusterId: string,
+    windowStart: Date,
+  ): Promise<void> {
+    const total = await this.prisma.aiProblemEvent.count({
+      where: { clusterId },
+    });
+    await this.prisma.aiProblemCluster.update({
+      where: { id: clusterId },
+      data: { count: total },
+    });
+
+    const dayCount = await this.prisma.aiProblemEvent.count({
+      where: { clusterId, windowStart },
+    });
+    if (dayCount > 0) {
+      await this.prisma.aiProblemClusterDay.upsert({
+        where: { clusterId_day: { clusterId, day: windowStart } },
+        create: { clusterId, day: windowStart, count: dayCount },
+        update: { count: dayCount },
+      });
+    } else {
+      // 语义重分配后该簇在本窗口已无事件，清掉当天计数。
+      await this.prisma.aiProblemClusterDay.deleteMany({
+        where: { clusterId, day: windowStart },
+      });
+    }
   }
 
   private suggestCause(types: Set<string>): string {

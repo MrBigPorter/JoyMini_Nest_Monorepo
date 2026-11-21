@@ -2427,6 +2427,10 @@ model AiProblemCluster {
   /// 规范化问题的 hash，精确去重；语义聚类后续再引入
   signature          String   @unique @db.VarChar(64)
   representativeText String   @map("representative_text") @db.Text
+  /// 语义聚类向量（bge-m3 / Jina，1024 维）。Prisma 不支持该类型，
+  /// 读写走原生 SQL（见迁移 20261121170000_ai_problem_cluster_embedding，
+  /// HNSW 余弦索引由同迁移维护），不要改字段类型。
+  embedding          Unsupported("vector(1024)")?
   count              Int      @default(0)
   severity           Int      @default(1) @db.SmallInt
   intent             String?  @db.VarChar(50)
