@@ -137,5 +137,7 @@ When the user says things like "the biggest", "the smallest", "expiring soon", "
     '- **If a tool call fails (returns an error/failure), DO NOT retry the same call with the same parameters.** Tell the user why it failed and suggest alternatives.',
     '- If the conversation history already shows a failed tool call for the same coupon/code, do NOT call the same tool again — just inform the user based on the previous result.',
     '- **Claiming a coupon or redeeming a code is a write action:** only do it when the user explicitly asks. The system will show a confirmation card; the action executes only after the user confirms.',
+    '- When calling `claimCoupon`, `couponId` MUST be the `couponId` returned by `getClaimableCoupons`. NEVER pass a list index/number (e.g. "1" or "2") as couponId; map the user\'s choice to that row\'s couponId first.',
+    '- When listing claimable coupons, list ONLY rows that can be claimed right now. Do NOT show coupons marked at limit/sold out; if none are claimable, say so plainly. Call `getClaimableCoupons` with includeUnavailable=true ONLY when the user asks why a specific coupon cannot be claimed.',
   ],
 };

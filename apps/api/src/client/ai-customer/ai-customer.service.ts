@@ -1340,6 +1340,52 @@ export class AiCustomerService implements OnModuleDestroy {
       }
     }
 
+    // 领券动作先确认 couponId 真在可领取列表里。
+    // 模型有时会把列表序号（"1"、"2"）当成 couponId，直接弹卡会让用户
+    // 确认一张根本不存在的券；这里直接回消息让用户重选。
+    let claimableCoupon: any = null;
+    let claimableLookupOk = false;
+    if (pc.action === 'claim_coupon' && pc.params?.couponId) {
+      try {
+        const claimable =
+          await this.clientCouponService.getClaimableCoupons(userId);
+        claimableLookupOk = true;
+        claimableCoupon = claimable.find(
+          (item: any) =>
+            item.couponId === pc.params.couponId ||
+            item.id === pc.params.couponId,
+        );
+      } catch (err: any) {
+        this.logger.warn(
+          `[routeConfirm] claimable lookup failed: ${err?.message ?? err}`,
+        );
+      }
+    }
+    if (claimableLookupOk && !claimableCoupon) {
+      if (conversationId) {
+        await publishAiReply(
+          this.prismaService,
+          this.eventsGateway,
+          this.eventEmitter,
+          conversationId,
+          [
+            {
+              type: 'ai',
+              content:
+                '没有找到这张可领取的优惠券，可能已经领过或已下架。请从可领取列表里重新选择一张。',
+            },
+          ],
+          userId,
+          [],
+        ).catch((err: any) => {
+          this.logger.warn(
+            `[routeConfirm] reject invalid coupon message failed: ${err?.message ?? err}`,
+          );
+        });
+      }
+      return;
+    }
+
     // 先生命周期记录，再发卡片：即使 socket 丢包，运营/评测仍能查到
     // 这次动作存在、等待确认、何时过期。
     let request: { id: string; expiresAt: Date } | null = null;
@@ -1365,21 +1411,11 @@ export class AiCustomerService implements OnModuleDestroy {
     const actionMeta = getConfirmActionMeta(pc.action);
     // 卡片展示只给人看：内部 ID 尽量换成可读名称，但绝不改变执行参数。
     let displayArgs: Record<string, any> = pc.params ?? {};
-    if (pc.action === 'claim_coupon' && pc.params?.couponId) {
-      try {
-        const claimable =
-          await this.clientCouponService.getClaimableCoupons(userId);
-        const coupon = claimable.find(
-          (item: any) =>
-            item.couponId === pc.params.couponId ||
-            item.id === pc.params.couponId,
-        );
-        if (coupon?.couponName) {
-          displayArgs = { ...displayArgs, couponName: coupon.couponName };
-        }
-      } catch {
-        // 展示名称查不到不影响弹卡，继续用 ID 兜底。
-      }
+    if (claimableCoupon?.couponName) {
+      displayArgs = {
+        ...displayArgs,
+        couponName: claimableCoupon.couponName,
+      };
     }
     // 展示字段由服务端从目录渲染，客户端只负责 title + fields；
     // params 只存在服务端令牌里，客户端绝不用展示字段当执行参数。

@@ -85,6 +85,29 @@ describe('coupon-tools 身份边界', () => {
     expect(couponService.getClaimableCoupons).toHaveBeenCalledWith('user-A');
   });
 
+  it('默认隐藏不可领取的券，显式请求时才返回', async () => {
+    couponService.getClaimableCoupons.mockResolvedValue([
+      { couponId: 'c1', couponName: '可用券', canClaim: true },
+      { couponId: 'c2', couponName: '已达上限', canClaim: false },
+    ]);
+
+    const visible = JSON.parse(
+      (await runWithContext({ userId: 'user-A' }, () =>
+        getTool('getClaimableCoupons').invoke({} as any),
+      )) as string,
+    );
+    expect(visible.data.coupons).toHaveLength(1);
+
+    const all = JSON.parse(
+      (await runWithContext({ userId: 'user-A' }, () =>
+        getTool('getClaimableCoupons').invoke({
+          includeUnavailable: true,
+        } as any),
+      )) as string,
+    );
+    expect(all.data.coupons).toHaveLength(2);
+  });
+
   it('没有请求上下文时 fail-closed，不调用业务服务', async () => {
     const raw = await getTool('getUserCoupons').invoke({ status: 0 } as any);
 

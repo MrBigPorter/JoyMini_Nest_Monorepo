@@ -184,13 +184,18 @@ export const createCouponTools = (
      */
     {
       tool: tool(
-        async () => {
+        async ({ includeUnavailable }: { includeUnavailable?: boolean }) => {
           const userId = requireToolUserId('getClaimableCoupons');
           if (!userId) return toolFailure(MISSING_USER_CONTEXT);
 
           return toResultChain(couponService.getClaimableCoupons(userId))
             .then((result) => {
-              const llmList = (result ?? []).map((item: any) =>
+              // 默认只返回“现在真的能领”的券：
+              // 已达上限/抢光的券不展示，避免用户看到一串点不了的选项。
+              const visible = includeUnavailable
+                ? (result ?? [])
+                : (result ?? []).filter((item: any) => item.canClaim !== false);
+              const llmList = visible.map((item: any) =>
                 toLLM(
                   plainToInstance(ClaimableCouponResponseDto, item),
                   ClaimableCouponResponseDto,
@@ -208,9 +213,16 @@ export const createCouponTools = (
         },
         {
           name: 'getClaimableCoupons',
-          schema: z.object({}),
+          schema: z.object({
+            includeUnavailable: z
+              .boolean()
+              .optional()
+              .describe(
+                'When true, also include coupons the user cannot claim (limit reached/sold out). Use only when the user asks why a coupon is unavailable.',
+              ),
+          }),
           description:
-            'Get the list of coupons available for claiming (coupon center). Only active coupons (status=1) are shown.',
+            'Get coupons the user can claim right now. Unclaimable coupons are hidden unless includeUnavailable=true.',
         },
       ),
       displayName: 'Finding available coupons...',

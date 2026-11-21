@@ -50,6 +50,7 @@ function makeService() {
     redeemCode: jest.fn(async () => ({ success: true })),
     getClaimableCoupons: jest.fn(async () => [
       { couponId: 'coupon-1', couponName: 'Big Spender ₱200 Off' },
+      { couponId: 'c1', couponName: 'C1 Coupon' },
     ]),
   };
   const luckyDraw = { draw: jest.fn(async () => ({ isWin: true })) };
@@ -182,6 +183,28 @@ describe('AiCustomerService · routeConfirm lifecycle', () => {
         confirmToken: 'token-1',
         expiresAt: expect.any(Number),
       }),
+    );
+  });
+
+  it('couponId 是列表序号时：不弹卡，提示重新选择', async () => {
+    const { service, gateway, lifecycle } = makeService();
+    const finalState = {
+      values: {
+        pendingConfirm: {
+          action: 'claim_coupon',
+          params: { couponId: '2' },
+          summary: {},
+        },
+      },
+    };
+
+    await (service as any).routeConfirm('u1', 'c1', finalState, 'm1');
+
+    expect(lifecycle.createConfirm).not.toHaveBeenCalled();
+    expect(gateway.dispatchToUser).not.toHaveBeenCalledWith(
+      'u1',
+      SocketEvents.AI_CONFIRM,
+      expect.anything(),
     );
   });
 
