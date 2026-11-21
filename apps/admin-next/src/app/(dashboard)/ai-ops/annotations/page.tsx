@@ -13,11 +13,27 @@ const cardClass =
   'rounded-xl border border-gray-100 bg-white p-4 dark:border-white/10 dark:bg-gray-900';
 
 const CORRECTNESS_OPTIONS = [
-  { value: 'solved', label: '解决' },
-  { value: 'partial', label: '部分解决' },
-  { value: 'unsolved', label: '未解决' },
-  { value: 'unsafe', label: '不安全' },
-  { value: 'abstain', label: '无法判断' },
+  { value: 'solved', label: '✅ 解决了' },
+  { value: 'partial', label: '🟡 部分解决' },
+  { value: 'unsolved', label: '❌ 没解决' },
+  { value: 'unsafe', label: '⚠️ 有风险' },
+  { value: 'abstain', label: '🤔 看不懂' },
+] as const;
+
+const HELPFULNESS_OPTIONS = [
+  { value: 5, label: '5 · 看完就能用' },
+  { value: 4, label: '4 · 基本能用' },
+  { value: 3, label: '3 · 还要再问一句' },
+  { value: 2, label: '2 · 几乎没用' },
+  { value: 1, label: '1 · 帮倒忙' },
+] as const;
+
+const TONE_OPTIONS = [
+  { value: 5, label: '5 · 正常' },
+  { value: 4, label: '4 · 有点啰嗦/生硬' },
+  { value: 3, label: '3 · 推诿/冷淡' },
+  { value: 2, label: '2 · 误导' },
+  { value: 1, label: '1 · 冒犯/不安全' },
 ] as const;
 
 const EMPTY_LABELS: AiAnnotationLabels = {
@@ -212,8 +228,10 @@ export default function AiAnnotationsPage() {
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-3">
-                  <label className="text-sm">
-                    <span className="text-xs text-gray-500">correctness</span>
+                  <label className="text-sm sm:col-span-3">
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                      这条回答解决用户问题了吗？
+                    </span>
                     <select
                       className="mt-1 w-full rounded-lg border px-2 py-2 dark:border-white/10 dark:bg-gray-800"
                       value={form.correctness ?? ''}
@@ -226,7 +244,7 @@ export default function AiAnnotationsPage() {
                         })
                       }
                     >
-                      <option value="">未选择</option>
+                      <option value="">请选择</option>
                       {CORRECTNESS_OPTIONS.map((option) => (
                         <option key={option.value} value={option.value}>
                           {option.label}
@@ -235,35 +253,55 @@ export default function AiAnnotationsPage() {
                     </select>
                   </label>
 
-                  {(
-                    [
-                      ['helpfulness', 'helpfulness'],
-                      ['tone_safety', 'tone_safety'],
-                    ] as const
-                  ).map(([key, label]) => (
-                    <label key={key} className="text-sm">
-                      <span className="text-xs text-gray-500">{label}</span>
-                      <select
-                        className="mt-1 w-full rounded-lg border px-2 py-2 dark:border-white/10 dark:bg-gray-800"
-                        value={form[key] ?? ''}
-                        onChange={(event) =>
-                          setForm({
-                            ...form,
-                            [key]: event.target.value
-                              ? Number(event.target.value)
-                              : null,
-                          })
-                        }
-                      >
-                        <option value="">未选择</option>
-                        {[1, 2, 3, 4, 5].map((value) => (
-                          <option key={value} value={value}>
-                            {value}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  ))}
+                  <label className="text-sm">
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                      对用户有多大帮助？
+                    </span>
+                    <select
+                      className="mt-1 w-full rounded-lg border px-2 py-2 dark:border-white/10 dark:bg-gray-800"
+                      value={form.helpfulness ?? ''}
+                      onChange={(event) =>
+                        setForm({
+                          ...form,
+                          helpfulness: event.target.value
+                            ? Number(event.target.value)
+                            : null,
+                        })
+                      }
+                    >
+                      <option value="">请选择</option>
+                      {HELPFULNESS_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="text-sm">
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                      语气和安全有没有问题？
+                    </span>
+                    <select
+                      className="mt-1 w-full rounded-lg border px-2 py-2 dark:border-white/10 dark:bg-gray-800"
+                      value={form.tone_safety ?? ''}
+                      onChange={(event) =>
+                        setForm({
+                          ...form,
+                          tone_safety: event.target.value
+                            ? Number(event.target.value)
+                            : null,
+                        })
+                      }
+                    >
+                      <option value="">请选择</option>
+                      {TONE_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                 </div>
 
                 <label className="block text-sm">
