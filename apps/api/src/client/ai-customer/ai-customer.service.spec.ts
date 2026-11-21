@@ -11,7 +11,7 @@ jest.mock('meilisearch', () => ({ Meilisearch: class {} }));
  *
  * 洞 1：verify 失败时不能 pop —— 否则用户输错一次码，待办单永久丢失。
  * 洞 3：params 必须走 class-validator；手搓 DTO 不执行装饰器，
- *   amount="abc" / amount=50 会一路流到 applyWithdraw（NaN 比较全 false）。
+ *   amount="abc" / amount=50 会一路流到 applyWithdrawVerified（NaN 比较全 false）。
  */
 function makeService() {
   const prisma = {
@@ -28,7 +28,7 @@ function makeService() {
     recordSessionUsage: jest.fn(async () => undefined),
   };
   const wallet = {
-    applyWithdraw: jest.fn(async () => ({ withdrawId: 'w-1' })),
+    applyWithdrawVerified: jest.fn(async () => ({ withdrawId: 'w-1' })),
   };
   const otp = {
     verify: jest.fn(async () => true),
@@ -87,7 +87,7 @@ describe('confirmWithdrawOtp · 确认链路（T1-2）', () => {
     );
     expect(otp.verify).not.toHaveBeenCalled();
     expect(confirm.popPendingExecution).not.toHaveBeenCalled();
-    expect(wallet.applyWithdraw).not.toHaveBeenCalled();
+    expect(wallet.applyWithdrawVerified).not.toHaveBeenCalled();
   });
 
   it('洞 1：验码失败时，待办单不能被删除', async () => {
@@ -99,7 +99,7 @@ describe('confirmWithdrawOtp · 确认链路（T1-2）', () => {
       'Invalid OTP code',
     );
     expect(confirm.popPendingExecution).not.toHaveBeenCalled();
-    expect(wallet.applyWithdraw).not.toHaveBeenCalled();
+    expect(wallet.applyWithdrawVerified).not.toHaveBeenCalled();
   });
 
   it('顺序：peek 在 verify 之前，pop 在 verify 之后', async () => {
@@ -126,7 +126,7 @@ describe('confirmWithdrawOtp · 确认链路（T1-2）', () => {
     expect(prisma.user.findUnique).toHaveBeenCalled();
     expect(confirm.peekPendingExecution).toHaveBeenCalledWith('u1');
     expect(confirm.popPendingExecution).toHaveBeenCalledWith('u1');
-    expect(wallet.applyWithdraw).toHaveBeenCalledWith(
+    expect(wallet.applyWithdrawVerified).toHaveBeenCalledWith(
       'u1',
       expect.objectContaining({
         amount: 500,
@@ -135,6 +135,8 @@ describe('confirmWithdrawOtp · 确认链路（T1-2）', () => {
         accountName: '张三',
       }),
     );
+    // 只执行一次：确认端点不再重复调用公开入口/重复验码
+    expect(wallet.applyWithdrawVerified).toHaveBeenCalledTimes(1);
   });
 
   it('验证码通过后待办单被并发取走：中止，不执行', async () => {
@@ -145,7 +147,7 @@ describe('confirmWithdrawOtp · 确认链路（T1-2）', () => {
     await expect(service.confirmWithdrawOtp('123456', 'u1')).rejects.toThrow(
       'Pending withdraw action expired',
     );
-    expect(wallet.applyWithdraw).not.toHaveBeenCalled();
+    expect(wallet.applyWithdrawVerified).not.toHaveBeenCalled();
   });
 
   it('洞 3：amount 不是数字 → 400，不进业务层', async () => {
@@ -157,7 +159,7 @@ describe('confirmWithdrawOtp · 确认链路（T1-2）', () => {
     await expect(service.confirmWithdrawOtp('123456', 'u1')).rejects.toThrow(
       'Invalid withdraw parameters',
     );
-    expect(wallet.applyWithdraw).not.toHaveBeenCalled();
+    expect(wallet.applyWithdrawVerified).not.toHaveBeenCalled();
   });
 
   it('洞 3：amount 低于 @Min(100) → 400', async () => {
@@ -169,7 +171,7 @@ describe('confirmWithdrawOtp · 确认链路（T1-2）', () => {
     await expect(service.confirmWithdrawOtp('123456', 'u1')).rejects.toThrow(
       'Minimum withdrawal amount is 100',
     );
-    expect(wallet.applyWithdraw).not.toHaveBeenCalled();
+    expect(wallet.applyWithdrawVerified).not.toHaveBeenCalled();
   });
 
   it('洞 3：多余字段 → 400（forbidNonWhitelisted）', async () => {
@@ -181,6 +183,6 @@ describe('confirmWithdrawOtp · 确认链路（T1-2）', () => {
     await expect(service.confirmWithdrawOtp('123456', 'u1')).rejects.toThrow(
       'Invalid withdraw parameters',
     );
-    expect(wallet.applyWithdraw).not.toHaveBeenCalled();
+    expect(wallet.applyWithdrawVerified).not.toHaveBeenCalled();
   });
 });

@@ -52,7 +52,13 @@ import { ClientWalletService } from '../wallet/client-wallet.service';
 import { ClientCouponService } from '../coupon/coupon.service';
 import { LuckyDrawService } from '@api/common/lucky-draw/lucky-draw.service';
 import { ApplyWithdrawDto } from '../wallet/dto/apply-withdraw.dto';
+import { CreateAddressDto, UpdateAddressDto } from '../address/dto/address.dto';
 import { OtpService } from '../otp/otp.service';
+import {
+  ActionExecutionServices,
+  getCatalogEntryByAction,
+} from '@api/client/ai-customer/graph/config/action-catalog';
+import { getConfirmActionMeta } from '@api/client/ai-customer/graph/nodes/orchestrator-utils/confirm-utils';
 import { CODE_TYPE } from '@lucky/shared';
 import { emitStage } from '@api/common/logger/structured-logger';
 import { runWithContext } from '@api/common/logger/trace-context';
@@ -418,6 +424,7 @@ export class AiCustomerService implements OnModuleDestroy {
       messages,
       flowState,
       hasTrace: traceCount > 0,
+      actions: actionRows,
     });
 
     return {
@@ -872,10 +879,7 @@ export class AiCustomerService implements OnModuleDestroy {
       '为了你的账户安全，请不要在聊天中提供银行卡号、身份证或密码。提现请到 App「我的 → 钱包 → 提现」操作，或由人工客服协助。';
     for (let index = newMessages.length - 1; index >= 0; index -= 1) {
       const candidate = newMessages[index];
-      if (
-        candidate?.type === 'ai' &&
-        isSensitiveRequest(candidate.content)
-      ) {
+      if (candidate?.type === 'ai' && isSensitiveRequest(candidate.content)) {
         newMessages[index] = {
           type: 'ai',
           content: SAFE_SENSITIVE_REPLY,
@@ -1005,8 +1009,7 @@ export class AiCustomerService implements OnModuleDestroy {
         typeof values.intent === 'string' && values.intent
           ? values.intent
           : null;
-      const lastMessage =
-        params.newMessages[params.newMessages.length - 1];
+      const lastMessage = params.newMessages[params.newMessages.length - 1];
       const output = this.extractText(lastMessage?.content);
       // trace 与 span 必须用同一份脱敏文本，否则 snippet 会泄露原文。
       const safeOutput = redactPiiText(output);
@@ -1026,7 +1029,21 @@ export class AiCustomerService implements OnModuleDestroy {
           })
         : null;
 
-      // 只保留链路骨架：intent → rag → llm。
+      // 工具调用留痕：type=tool，含工具名、状态、耗时与脱敏参数摘要。
+      // 放在 rag 之后、llm 之前，时间线上就是「检索 → 调工具 → 生成回答」。
+      const toolSpans: RecordTraceSpanInput[] = (
+        params.streamUsage?.toolSpans ?? []
+      ).map((tool) => ({
+        type: 'tool',
+        name: tool.name,
+        status: tool.status,
+        input: tool.argsSummary ? { argsSummary: tool.argsSummary } : undefined,
+        startedAt: new Date(tool.startedAt),
+        endedAt: new Date(tool.startedAt + tool.durationMs),
+        durationMs: tool.durationMs,
+      }));
+
+      // 只保留链路骨架：intent → rag → tool → llm。
       // RAG 片段只留预览，避免把知识库全文再复制一份进追踪表。
       const spans: RecordTraceSpanInput[] = [
         {
@@ -1058,6 +1075,7 @@ export class AiCustomerService implements OnModuleDestroy {
           },
           startedAt: traceStart,
         },
+        ...toolSpans,
         {
           type: 'llm',
           name: 'llm-response',
@@ -1088,9 +1106,7 @@ export class AiCustomerService implements OnModuleDestroy {
           flow: flow.activeFlow || undefined,
           step: flow.step || undefined,
           transferReason:
-            params.status === 'TRANSFERRED'
-              ? params.transferReason
-              : undefined,
+            params.status === 'TRANSFERRED' ? params.transferReason : undefined,
           ragSourceCount: params.ragSources.length,
         },
         spans,
@@ -1105,9 +1121,7 @@ export class AiCustomerService implements OnModuleDestroy {
         result: 'error',
       });
       // TraceService 已兜底，这里再兜一层，确保埋点永远不冒泡到对话主流程。
-      this.logger.warn(
-        `[recordReplyTrace] skipped: ${err?.message ?? err}`,
-      );
+      this.logger.warn(`[recordReplyTrace] skipped: ${err?.message ?? err}`);
     }
   }
 
@@ -1142,8 +1156,7 @@ export class AiCustomerService implements OnModuleDestroy {
             name: 'llm-response',
             status: 'ERROR',
             error:
-              this.truncateText(redactPiiText(errorMessage), 500) ??
-              undefined,
+              this.truncateText(redactPiiText(errorMessage), 500) ?? undefined,
             startedAt: new Date(params.startedAt),
             endedAt: new Date(),
             durationMs: latencyMs,
@@ -1159,9 +1172,7 @@ export class AiCustomerService implements OnModuleDestroy {
         path: 'error',
         result: 'error',
       });
-      this.logger.warn(
-        `[recordErrorTrace] skipped: ${err?.message ?? err}`,
-      );
+      this.logger.warn(`[recordErrorTrace] skipped: ${err?.message ?? err}`);
     }
   }
 
@@ -1343,12 +1354,22 @@ export class AiCustomerService implements OnModuleDestroy {
       }
     }
 
+    const catalogEntry = getCatalogEntryByAction(pc.action);
+    const actionMeta = getConfirmActionMeta(pc.action);
+    // 展示字段由服务端从目录渲染，客户端只负责 title + fields；
+    // params 只存在服务端令牌里，客户端绝不用展示字段当执行参数。
+    const fields = catalogEntry
+      ? catalogEntry.buildFields(pc.params ?? {})
+      : [];
+    const needsOtp = catalogEntry?.needsOtp ?? false;
+
     const { token, expiresAt } = await this.aiActionConfirmService.generate(
       userId,
       pc.action,
       pc.params,
       summary,
       request?.id,
+      conversationId,
     );
     if (conversationId) {
       // 先发确认事件，再落聊天消息：
@@ -1360,21 +1381,23 @@ export class AiCustomerService implements OnModuleDestroy {
       this.eventsGateway.dispatchToUser(userId, SocketEvents.AI_CONFIRM, {
         conversationId,
         action: pc.action,
+        // 向后兼容：旧客户端读 summary；新客户端读 title + fields。
         summary,
+        title: actionMeta?.title ?? pc.action,
+        fields,
+        needsOtp,
         confirmToken: token,
         expiresAt,
         requestId: request?.id ?? null,
       });
+      incCounter('ai_action_total', {
+        action: pc.action,
+        result: 'created',
+      });
 
       // 落一条可见消息：以前确认卡片只发 socket，聊天记录里看不到，
       // 运营会以为 AI 没回复。卡片本身仍走 AI_CONFIRM 私有房间。
-      const actionLabel: Record<string, string> = {
-        claim_coupon: '领取优惠券',
-        redeem_code: '兑换优惠码',
-        withdraw: '提现',
-        draw: '抽奖',
-        delete_address: '删除地址',
-      };
+      const actionLabel = actionMeta?.title ?? pc.action;
       await publishAiReply(
         this.prismaService,
         this.eventsGateway,
@@ -1383,7 +1406,7 @@ export class AiCustomerService implements OnModuleDestroy {
         [
           {
             type: 'ai',
-            content: `请确认：${actionLabel[pc.action] ?? pc.action}。确认后才会执行，60 秒内有效。`,
+            content: `请确认：${actionLabel}。确认后才会执行，60 秒内有效。`,
           },
         ],
         userId,
@@ -1391,6 +1414,9 @@ export class AiCustomerService implements OnModuleDestroy {
         {
           kind: 'confirm_card',
           action: pc.action,
+          title: actionMeta?.title ?? pc.action,
+          fields,
+          needsOtp,
           requestId: request?.id ?? null,
           expiresAt,
           summary,
@@ -1419,76 +1445,195 @@ export class AiCustomerService implements OnModuleDestroy {
     if (!payload) {
       throw new BadRequestException('Confirm token invalid or expired');
     }
-    const { action, params, requestId } = payload;
+    const { action, params, summary, requestId } = payload;
+
+    // 动作目录是唯一事实源：未知 action 直接失败终态，不执行任何写操作。
+    const entry = getCatalogEntryByAction(action);
+    if (!entry) {
+      const message = `Unknown confirm action: ${action}`;
+      await this.actionLifecycle?.markFailed(requestId, message);
+      incCounter('ai_action_total', { action, result: 'failed' });
+      this.emitActionResult(payload, false, message);
+      throw new BadRequestException(message);
+    }
 
     try {
-      switch (action) {
-        case 'withdraw': {
-          // 提现走 OTP 双保险：先发验证码 + 暂存任务，验码后（confirmWithdrawOtp）才真正执行
-          const user = await this.prismaService.user.findUnique({
-            where: { id: userId },
-            select: { phone: true },
-          });
-          if (!user || !user.phone) {
-            throw new BadRequestException('User phone not found');
-          }
-          await this.otpService.request({
-            phone: user.phone,
-            codeType: CODE_TYPE.WITHDRAW,
-          });
+      const result = await entry.execute({
+        userId,
+        params,
+        summary: summary ?? {},
+        requestId,
+        services: this.buildActionServices(),
+      });
 
-          await this.aiActionConfirmService.stagePendingExecution(
-            userId,
-            payload,
-          );
-          await this.actionLifecycle?.markConfirmed(requestId);
-          return {
-            needOtp: true,
-            message: 'OTP sent to user phone, please confirm with code',
-          };
-        }
-        case 'claim_coupon': {
-          const result = await this.clientCouponService.claimCoupon(
-            userId,
-            params.couponId,
-            2,
-          );
-          await this.actionLifecycle?.markExecuted(requestId, result);
-          return result;
-        }
-        case 'redeem_code': {
-          const result = await this.clientCouponService.redeemCode(
-            userId,
-            params.code,
-          );
-          await this.actionLifecycle?.markExecuted(requestId, result);
-          return result;
-        }
-        case 'draw': {
-          const result = await this.luckyDrawService.draw(
-            userId,
-            params.ticketId,
-          );
-          await this.actionLifecycle?.markExecuted(requestId, result);
-          return result;
-        }
-        case 'delete_address': {
-          const result = await this.addressService.delete(
-            userId,
-            params.addressId,
-          );
-          await this.actionLifecycle?.markExecuted(requestId, result);
-          return result;
-        }
-        default:
-          throw new BadRequestException(
-            `Unknown confirm action: ${action}`,
-          );
+      if (entry.needsOtp) {
+        // 提现：确认后只发 OTP，真正执行在 confirmWithdrawOtp。
+        incCounter('ai_action_total', { action, result: 'confirmed' });
+        return result;
       }
+
+      await this.actionLifecycle?.markExecuted(requestId, result);
+      incCounter('ai_action_total', { action, result: 'executed' });
+      this.emitActionResult(payload, true, entry.successMessage);
+      return result;
     } catch (err: any) {
-      await this.actionLifecycle?.markFailed(requestId, err?.message ?? err);
+      const message = err?.message ?? String(err);
+      await this.actionLifecycle?.markFailed(requestId, message);
+      incCounter('ai_action_total', { action, result: 'failed' });
+      this.emitActionResult(payload, false, message);
       throw err;
     }
+  }
+
+  /**
+   * 用户主动取消确认卡片：owner 校验消费令牌，动作记录置 CANCELLED。
+   * 重复取消 / 跨用户 / 已过期统一拒绝，且不泄露令牌归属。
+   */
+  async cancelAction(token: string, userId: string) {
+    const payload = await this.aiActionConfirmService.consume(token, userId);
+    if (!payload) {
+      throw new BadRequestException('Confirm token invalid or expired');
+    }
+    await this.actionLifecycle?.markCancelled(payload.requestId);
+    incCounter('ai_action_total', {
+      action: payload.action,
+      result: 'cancelled',
+    });
+    return { cancelled: true };
+  }
+
+  /** 动作结果事件：与 AI_CONFIRM 走同一私有房间分发通道。 */
+  private emitActionResult(
+    payload: { conversationId?: string; action?: string; userId: string },
+    success: boolean,
+    message: string,
+  ): void {
+    if (!payload.conversationId) return;
+    this.eventsGateway.dispatchToUser(
+      payload.userId,
+      SocketEvents.AI_ACTION_RESULT,
+      {
+        conversationId: payload.conversationId,
+        action: payload.action ?? null,
+        success,
+        message,
+      },
+    );
+  }
+
+  /** 把业务服务适配成动作目录要求的执行接口。 */
+  private buildActionServices(): ActionExecutionServices {
+    return {
+      claimCoupon: (uid, couponId) =>
+        this.clientCouponService.claimCoupon(uid, couponId, 2),
+      redeemCouponCode: (uid, code) =>
+        this.clientCouponService.redeemCode(uid, code),
+      draw: (uid, ticketId) => this.luckyDrawService.draw(uid, ticketId),
+      createAddress: (uid, params) => this.executeCreateAddress(uid, params),
+      updateAddress: (uid, addressId, params) =>
+        this.executeUpdateAddress(uid, addressId, params),
+      deleteAddress: (uid, addressId) =>
+        this.addressService.delete(uid, addressId),
+      startWithdrawOtp: (uid, params, summary, requestId) =>
+        this.startWithdrawOtp(uid, params, summary, requestId),
+    };
+  }
+
+  /** 新增地址：确认时把卡片里的文本省市区解析成 ID，并用完整参数执行。 */
+  private async executeCreateAddress(
+    userId: string,
+    params: Record<string, any>,
+  ) {
+    const geo = await this.addressService.resolveGeoIds(
+      params.province,
+      params.city,
+      params.barangay,
+    );
+    const dto: CreateAddressDto = {
+      contactName: params.contactName,
+      phone: params.phone,
+      provinceId: geo.provinceId,
+      cityId: geo.cityId,
+      barangayId: geo.barangayId,
+      fullAddress: params.fullAddress,
+      label: params.label,
+      isDefault: params.isDefault ? 1 : 0,
+    };
+    return this.addressService.create(userId, dto);
+  }
+
+  /** 修改地址：省市区三件套齐全才重新解析，否则沿用当前地址的 ID。 */
+  private async executeUpdateAddress(
+    userId: string,
+    addressId: string,
+    params: Record<string, any>,
+  ) {
+    let provinceId: number;
+    let cityId: number;
+    let barangayId: number;
+    if (params.province && params.city && params.barangay) {
+      const geo = await this.addressService.resolveGeoIds(
+        params.province,
+        params.city,
+        params.barangay,
+      );
+      provinceId = geo.provinceId;
+      cityId = geo.cityId;
+      barangayId = geo.barangayId;
+    } else {
+      // 只改电话/门牌等局部字段时，用当前地址的行政区划补齐，
+      // 避免 addressService.update 因缺少 region ID 而失败。
+      const current = await this.addressService.detail(userId, addressId);
+      provinceId = current.provinceId;
+      cityId = current.cityId;
+      barangayId = current.barangayId;
+    }
+
+    const dto = {
+      contactName: params.contactName,
+      phone: params.phone,
+      provinceId,
+      cityId,
+      barangayId,
+      fullAddress: params.fullAddress,
+      label: params.label,
+      isDefault:
+        params.isDefault === undefined ? undefined : params.isDefault ? 1 : 0,
+    } as UpdateAddressDto;
+
+    return this.addressService.update(userId, addressId, dto);
+  }
+
+  /** 提现确认后第一段：发 OTP + 暂存待执行参数（不执行提现）。 */
+  private async startWithdrawOtp(
+    userId: string,
+    params: Record<string, any>,
+    summary: Record<string, any>,
+    requestId?: string,
+  ) {
+    const user = await this.prismaService.user.findUnique({
+      where: { id: userId },
+      select: { phone: true },
+    });
+    if (!user || !user.phone) {
+      throw new BadRequestException('User phone not found');
+    }
+    await this.otpService.request({
+      phone: user.phone,
+      codeType: CODE_TYPE.WITHDRAW,
+    });
+    await this.aiActionConfirmService.stagePendingExecution(userId, {
+      action: 'withdraw',
+      params,
+      summary,
+      userId,
+      requestId,
+    });
+    await this.actionLifecycle?.markConfirmed(requestId);
+    return {
+      needOtp: true,
+      message: '验证码已发送到绑定手机号，请输入 6 位验证码',
+    };
   }
 
   /**
@@ -1523,6 +1668,8 @@ export class AiCustomerService implements OnModuleDestroy {
     });
 
     if (!isValidOtp) {
+      // 输入错误是可重试事件，不发终态结果；由 HTTP 400 让客户端保留输入框。
+      incCounter('ai_action_total', { action: 'withdraw', result: 'otp_invalid' });
       throw new BadRequestException('Invalid OTP code');
     }
 
@@ -1531,6 +1678,8 @@ export class AiCustomerService implements OnModuleDestroy {
     const consumed =
       await this.aiActionConfirmService.popPendingExecution(userId);
     if (!consumed) {
+      this.emitActionResult(pending, false, '验证已过期，请重新发起提现');
+      incCounter('ai_action_total', { action: 'withdraw', result: 'failed' });
       throw new BadRequestException(
         'Pending withdraw action expired, please try again',
       );
@@ -1538,7 +1687,7 @@ export class AiCustomerService implements OnModuleDestroy {
 
     // 手搓 new ApplyWithdrawDto() 不会跑任何装饰器：
     // @IsNumber / @Min(100) 只有 validate() 才会执行。
-    // whitelist + forbidNonWhitelisted：多余字段直接拒，不让 LLM 夹带的东西流到 applyWithdraw。
+    // whitelist + forbidNonWhitelisted：多余字段直接拒，不让 LLM 夹带的东西流到执行点。
     const { params } = consumed;
     const dto = plainToInstance(ApplyWithdrawDto, params);
     const errors = await validate(dto, {
@@ -1546,21 +1695,29 @@ export class AiCustomerService implements OnModuleDestroy {
       forbidNonWhitelisted: true,
     });
     if (errors.length > 0) {
-      throw new BadRequestException(
-        `Invalid withdraw parameters: ${errors
-          .map((e) => Object.values(e.constraints ?? {}).join(', '))
-          .join('; ')}`,
-      );
+      const detail = errors
+        .map((e) => Object.values(e.constraints ?? {}).join(', '))
+        .join('; ');
+      this.logger.warn(`[confirmWithdrawOtp] invalid params: ${detail}`);
+      this.emitActionResult(consumed, false, '提现参数不合法，请重新发起');
+      incCounter('ai_action_total', { action: 'withdraw', result: 'failed' });
+      throw new BadRequestException(`Invalid withdraw parameters: ${detail}`);
     }
     try {
-      const result = await this.clientWalletService.applyWithdraw(userId, dto);
+      // OTP 已在上方核销：直接调用唯一执行点，不再重复验码。
+      const result = await this.clientWalletService.applyWithdrawVerified(
+        userId,
+        dto,
+      );
       await this.actionLifecycle?.markExecuted(consumed.requestId, result);
+      incCounter('ai_action_total', { action: 'withdraw', result: 'executed' });
+      this.emitActionResult(consumed, true, '提现申请已提交，预计 1-3 个工作日到账');
       return result;
     } catch (err: any) {
-      await this.actionLifecycle?.markFailed(
-        consumed.requestId,
-        err?.message ?? err,
-      );
+      const message = err?.message ?? String(err);
+      await this.actionLifecycle?.markFailed(consumed.requestId, message);
+      incCounter('ai_action_total', { action: 'withdraw', result: 'failed' });
+      this.emitActionResult(consumed, false, message);
       throw err;
     }
   }

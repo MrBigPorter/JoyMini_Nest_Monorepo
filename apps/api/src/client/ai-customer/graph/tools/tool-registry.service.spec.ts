@@ -52,14 +52,12 @@ describe('ToolRegistryService 能力标记（2.x）', () => {
     const error = jest.fn();
     registry.auditCapabilities({ log, warn, error });
 
-    expect(log).toHaveBeenCalledWith(
-      expect.stringContaining('applyWithdraw'),
-    );
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('applyWithdraw'));
     expect(warn).not.toHaveBeenCalled();
     expect(error).not.toHaveBeenCalled();
   });
 
-  it('启动自检对「有副作用但未声明 write」的工具报 error', () => {
+  it('显式声明为 read 的副作用工具不阻断启动', () => {
     registry.registerMany([
       tool('requestWithdrawOtp', { kind: 'read', requiresOwnership: false }),
       tool('verifyWithdrawOtp', { kind: 'read', requiresOwnership: false }),
@@ -67,13 +65,39 @@ describe('ToolRegistryService 能力标记（2.x）', () => {
     ]);
     const error = jest.fn();
 
-    registry.auditCapabilities({ log: jest.fn(), warn: jest.fn(), error });
+    expect(() =>
+      registry.auditCapabilities({ log: jest.fn(), warn: jest.fn(), error }),
+    ).not.toThrow();
+    expect(error).not.toHaveBeenCalled();
+  });
 
+  it('完全未声明能力的副作用工具阻断启动', () => {
+    registry.registerMany([
+      tool('requestWithdrawOtp'), // 没有 capability，会被当成只读
+      tool('claimCoupon', { kind: 'write', requiresOwnership: true }),
+    ]);
+    const error = jest.fn();
+
+    expect(() =>
+      registry.auditCapabilities({ log: jest.fn(), warn: jest.fn(), error }),
+    ).toThrow(/requestWithdrawOtp/);
     expect(error).toHaveBeenCalledWith(
       expect.stringContaining('requestWithdrawOtp'),
     );
-    expect(error).toHaveBeenCalledWith(
-      expect.stringContaining('verifyWithdrawOtp'),
-    );
+  });
+
+  it('故意漏登记一个 write 工具 → 自检抛错（写工具 ⊆ 目录）', () => {
+    registry.registerMany([
+      tool('claimCoupon', { kind: 'write', requiresOwnership: true }),
+      tool('transferFunds', { kind: 'write', requiresOwnership: true }),
+    ]);
+
+    expect(() =>
+      registry.auditCapabilities({
+        log: jest.fn(),
+        warn: jest.fn(),
+        error: jest.fn(),
+      }),
+    ).toThrow(/transferFunds/);
   });
 });

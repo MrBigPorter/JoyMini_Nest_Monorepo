@@ -1,5 +1,8 @@
 import { AiCustomerService } from './ai-customer.service';
-import { renderMetrics, resetMetricsForTest } from '@api/common/metrics/metrics';
+import {
+  renderMetrics,
+  resetMetricsForTest,
+} from '@api/common/metrics/metrics';
 
 jest.mock('uuid', () => ({ v4: jest.fn(() => 'test-token') }));
 jest.mock('meilisearch', () => ({ Meilisearch: class {} }));
@@ -129,5 +132,60 @@ describe('AiCustomerService · trace coverage', () => {
     expect(renderMetrics()).toContain(
       'ai_trace_recorded_total{path="error",result="ok"} 1',
     );
+  });
+
+  it('工具调用成功与失败各写一条 type=tool span', async () => {
+    const recordTrace = jest.fn(async (_input: any) => ({ id: 'trace-3' }));
+    const { service } = makeService(recordTrace);
+    const now = Date.now();
+
+    await (service as any).recordReplyTrace({
+      message: '帮我领券',
+      userId: 'u1',
+      conversationId: 'c1',
+      triggerMessageId: 'm1',
+      startedAt: now - 100,
+      status: 'SUCCESS',
+      finalState: { values: { intent: 'coupon' } },
+      newMessages: [{ content: '已领取' }],
+      ragSources: [],
+      streamUsage: {
+        promptTokens: 1,
+        completionTokens: 2,
+        totalTokens: 3,
+        toolSpans: [
+          {
+            name: 'claimCoupon',
+            status: 'OK',
+            durationMs: 12,
+            argsSummary: '{"couponId":"c1"}',
+            startedAt: now - 50,
+          },
+          {
+            name: 'getUserCoupons',
+            status: 'ERROR',
+            durationMs: 7,
+            argsSummary: '{"page":1}',
+            startedAt: now - 40,
+          },
+        ],
+      },
+    });
+
+    const input = recordTrace.mock.calls[0]![0] as any;
+    const toolSpans = input.spans.filter((span: any) => span.type === 'tool');
+    expect(toolSpans).toHaveLength(2);
+    expect(toolSpans[0]).toMatchObject({
+      type: 'tool',
+      name: 'claimCoupon',
+      status: 'OK',
+      durationMs: 12,
+      input: { argsSummary: '{"couponId":"c1"}' },
+    });
+    expect(toolSpans[1]).toMatchObject({
+      type: 'tool',
+      name: 'getUserCoupons',
+      status: 'ERROR',
+    });
   });
 });

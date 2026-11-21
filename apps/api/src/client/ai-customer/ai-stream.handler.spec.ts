@@ -143,4 +143,64 @@ describe('ai-stream.handler 请求上下文', () => {
     expect(callbacks.onToken).not.toHaveBeenCalled();
     expect(gateway.dispatchToConversation).not.toHaveBeenCalled();
   });
+
+  it('收集工具 span：成功与失败各一条，参数脱敏', async () => {
+    const graph = {
+      streamEvents: () =>
+        (async function* () {
+          yield {
+            event: 'on_tool_start',
+            data: { input: { phone: '09991234567' } },
+            name: 'sendOtp',
+            metadata: { langgraph_node: 'wallet' },
+            run_id: 'run-ok',
+          };
+          yield {
+            event: 'on_tool_end',
+            data: { output: '{"ok":true,"data":{}}' },
+            name: 'sendOtp',
+            metadata: { langgraph_node: 'wallet' },
+            run_id: 'run-ok',
+          };
+          yield {
+            event: 'on_tool_start',
+            data: { input: { couponId: 'c1' } },
+            name: 'claimCoupon',
+            metadata: { langgraph_node: 'coupon' },
+            run_id: 'run-fail',
+          };
+          yield {
+            event: 'on_tool_end',
+            data: { output: 'Error: sold out' },
+            name: 'claimCoupon',
+            metadata: { langgraph_node: 'coupon' },
+            run_id: 'run-fail',
+          };
+        })(),
+    };
+
+    const summary = await handleEventStream(
+      graph as any,
+      'thread-1',
+      'hello',
+      'user-42',
+      undefined,
+      undefined,
+      undefined,
+      registry,
+      gateway,
+      callbacks,
+    );
+
+    expect(summary.toolSpans).toHaveLength(2);
+    expect(summary.toolSpans![0]).toMatchObject({
+      name: 'sendOtp',
+      status: 'OK',
+    });
+    expect(summary.toolSpans![0].argsSummary).not.toContain('09991234567');
+    expect(summary.toolSpans![1]).toMatchObject({
+      name: 'claimCoupon',
+      status: 'ERROR',
+    });
+  });
 });

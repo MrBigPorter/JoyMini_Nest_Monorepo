@@ -181,6 +181,17 @@ registerMetric(
   'counter',
   true,
 );
+registerMetric(
+  'ai_action_total',
+  'AI write-action lifecycle events by action and result (created/confirmed/executed/failed/cancelled/expired)',
+  'counter',
+  true,
+);
+registerMetric(
+  'withdraw_otp_missing_total',
+  'Withdraw applications accepted without OTP while WITHDRAW_OTP_ENFORCE is off',
+  'counter',
+);
 setGauge('ai_active_streams', {}, 0);
 setGauge('support_queue_waiting', {}, 0);
 setGauge('support_sla_breaches', {}, 0);

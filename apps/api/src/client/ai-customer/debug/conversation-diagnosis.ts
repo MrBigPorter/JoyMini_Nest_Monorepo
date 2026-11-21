@@ -17,12 +17,19 @@ export interface DiagnosisMessage {
   createdAt: string | null;
 }
 
+export interface DiagnosisAction {
+  action: string;
+  status: string;
+  error?: string | null;
+}
+
 export interface ConversationDiagnosisFlag {
   key:
     | 'unanswered'
     | 'sensitive_request'
     | 'language_mismatch'
     | 'intent_flow_mismatch'
+    | 'action_unfinished'
     | 'no_trace';
   label: string;
   detail: string;
@@ -65,6 +72,7 @@ export function buildConversationDiagnosis(input: {
   messages: DiagnosisMessage[];
   flowState: Record<string, unknown>;
   hasTrace: boolean;
+  actions?: DiagnosisAction[];
   now?: Date;
 }): ConversationDiagnosis {
   const now = input.now ?? new Date();
@@ -154,6 +162,23 @@ export function buildConversationDiagnosis(input: {
         flowStep ? `（${flowStep}）` : ''
       }`,
       severity: 'medium',
+    });
+  }
+
+  // 确认卡片动作的终态：取消/失败/过期都要在诊断里说明，
+  // 否则运营只看到「用户点了确认却没动静」，不知道卡片早已终结。
+  const unfinishedActions = (input.actions ?? []).filter((action) =>
+    ['CANCELLED', 'FAILED', 'EXPIRED'].includes(action.status),
+  );
+  if (unfinishedActions.length > 0) {
+    const latest = unfinishedActions[unfinishedActions.length - 1];
+    flags.push({
+      key: 'action_unfinished',
+      label: '确认卡片动作未完成',
+      detail: `${latest.action} 状态 ${latest.status}${
+        latest.error ? `：${latest.error}` : ''
+      }`,
+      severity: latest.status === 'FAILED' ? 'high' : 'medium',
     });
   }
 

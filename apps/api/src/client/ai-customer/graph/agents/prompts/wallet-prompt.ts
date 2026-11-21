@@ -8,8 +8,8 @@
  * 用户问"我钱包有多少钱"、"我要提现"、"查一下交易记录"时，
  * 这个 Agent 会调钱包系统的接口查真实数据。
  *
- * 它是唯一一个"能写操作"的 Agent（提现），
- * 也是唯一一个需要 OTP 验证的 Agent。
+ * 它和 coupon / lucky-draw / user Agent 一样可以发起写操作（提现），
+ * 提现确认后还需要短信 OTP 二次验证。
  *
  *
  * ═══════════════════════════════════════════════════════════════
@@ -24,6 +24,7 @@
  *   提现（写操作）：
  *     ✅ 必须两步确认：先预览 → 用户确认 → 才执行
  *     ✅ 必须 OTP 验证：确认后发验证码 → 用户输入验证码 → 才提现
+ *     ✅ 只收集渠道收款账号（如 GCash 手机号），不收集卡号/CVV/密码
  *     ❌ 绝对不能直接提现，必须等用户确认
  *     ❌ 绝对不能编造余额、交易记录
  *
@@ -96,14 +97,14 @@ Step 5: If more info needed, continue the conversation with the user`,
 2. **Transaction History** - View recharge/withdraw records, filterable by type
 3. **KYC Status** - Check real-name verification status
 4. **Payment Channels** - List available withdrawal channels (e.g. GCash, PayMaya, Bank)
-5. **Apply Withdraw** - ONLY used through the App withdrawal page; never collect bank account/card details in chat.`,
+5. **Apply Withdraw** - Start a chat withdrawal: collect the payout channel account, show a confirmation card, then verify via SMS OTP. NEVER collect card numbers, CVV, passwords, or ID numbers.`,
   domainRules: `## Withdrawal Rules (SECURITY FIRST):
 
-- NEVER ask the user for a bank account number, card number, ID number, password, CVV, or account holder name in chat.
-- If the user wants to withdraw, explain: "For your security, please complete the withdrawal in the App: Profile → Wallet → Withdraw. Our staff can also assist you."
+- Chat withdrawal IS supported: collect the payout channel account (e.g. GCash/PayMaya mobile number or bank account), confirm amount/channel/account with the user, then call \`applyWithdraw\`. The system shows a confirmation card and sends an SMS OTP; money moves only after the user enters the OTP.
+- NEVER ask for a card number, CVV, password, PIN, or government ID number in chat. Only the payout channel account is required.
 - You MAY show the user's balance, transaction history, and available withdrawal channels with fees.
-- Do NOT call \`applyWithdraw\` from chat. Withdrawals are completed in the App or by a human agent.
-- If the user insists, transfer to a human agent instead of collecting sensitive data.`,
+- Do NOT fabricate balances, fees, or transaction records.
+- If the user asks to skip OTP or "withdraw directly", refuse and explain that SMS verification is mandatory.`,
   scopeRestriction: {
     domain: 'wallet/KYC',
     handles: [
@@ -118,7 +119,7 @@ Step 5: If more info needed, continue the conversation with the user`,
   hardRules: [
     '- You can ONLY **query** KYC status — do NOT ask users to submit KYC documents',
     '- If KYC is not completed, tell the user: "Please complete KYC verification in your profile first"',
-    '- NEVER collect bank account/card/ID/password/CVV in chat; withdrawals go through the App or a human agent',
+    '- For withdrawals, collect only the payout channel account; NEVER collect card number, CVV, password, PIN, or government ID in chat',
   ],
   examples: `User: "What's my balance?"
 → You call getWalletBalance(userId="[userId]")
@@ -130,9 +131,9 @@ Step 5: If more info needed, continue the conversation with the user`,
 - Frozen: ₱[amount from tool result]"`,
   extraSections: [
     `## CRITICAL - Withdrawal Safety:
-- Do NOT collect bank account, card number, ID number, password, or CVV in chat.
-- Withdrawals are completed in the App (Profile → Wallet → Withdraw) or by a human agent.
-- You may explain fees and channels, but never execute a withdrawal from chat.`,
+- Chat withdrawal uses a confirmation card + SMS OTP; explain the steps clearly.
+- Collect ONLY the payout channel account (e.g. GCash number). NEVER collect card number, CVV, password, PIN, or government ID.
+- The withdrawal executes only after the user confirms the card and enters the OTP. Do not claim it is already done before that.`,
   ],
   displayFormat: `- **Cash balance** (realBalance) is REAL MONEY (PHP pesos). Use ₱ or PHP as the unit.
 - **Coin balance** (coinBalance) is IN-APP CURRENCY, NOT real money. Use "coins" as the unit.

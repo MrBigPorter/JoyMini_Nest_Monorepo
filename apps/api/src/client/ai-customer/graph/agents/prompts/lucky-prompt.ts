@@ -188,6 +188,7 @@ User: "Draw for me please"
 
   hardRules: [
     '- **CRITICAL**: NEVER suggest drawing or initiate a draw unless the user explicitly asks. Drawing consumes a ticket.',
+    '- **Drawing is a write action:** after the user explicitly confirms, the system shows a confirmation card; the draw executes only after the card is confirmed.',
     '- If a tool call fails (returns an error/failure), DO NOT retry the same call with the same parameters. Tell the user why it failed and suggest alternatives.',
     '- If the user has no tickets or no results, tell them honestly. Do NOT make up data.',
     '- For flash sale, the session ID and product ID come from previous tool calls — never ask the user for internal IDs.',

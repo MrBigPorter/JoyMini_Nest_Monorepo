@@ -12,11 +12,15 @@ import { ApplyWithdrawDto } from '@api/client/wallet/dto/apply-withdraw.dto';
 import { Prisma } from '@prisma/client';
 import {
   BizPrefix,
+  CODE_TYPE,
+  KYC_STATUS,
   OrderNoHelper,
   RECHARGE_STATUS,
   RelatedType,
   WITHDRAW_STATUS,
 } from '@lucky/shared';
+import { OtpService } from '@api/client/otp/otp.service';
+import { incCounter } from '@api/common/metrics/metrics';
 import { CreateRechargeDto } from '@api/client/wallet/dto/create-recharge.dto';
 import { WithdrawalHistoryQueryDto } from '@api/client/wallet/dto/withdrawal-history-query.dto';
 import { PaymentService } from '@api/common/payment/payment.service';
@@ -50,6 +54,7 @@ export class ClientWalletService {
     private prismaService: PrismaService,
     private walletService: WalletService,
     private withdrawSettlementService: WithdrawSettlementService,
+    private otpService: OtpService,
   ) {}
 
   async handleUniversalWebhook(payload: unknown) {
@@ -366,13 +371,71 @@ export class ClientWalletService {
     };
   }
 
-  /** Apply for a withdrawal
+  /**
+   * 公开提现入口：必须携带短信验证码（App 提现页 / 任何非卡片路径）。
    *
-   * @param userId
-   * @param dto
+   * WITHDRAW_OTP_ENFORCE 灰度开关：
+   *   - 开启：缺少 otpCode 直接拒绝；
+   *   - 关闭：放行旧版客户端，但记录「未携带 OTP」计数，观察期满再转强制。
+   *
+   * 验码是 OTP 原子核销，重放同一验证码会失败，因此这里天然防重放。
    */
   async applyWithdraw(userId: string, dto: ApplyWithdrawDto) {
+    const enforce = process.env.WITHDRAW_OTP_ENFORCE === 'true';
+    const otpCode = dto.otpCode?.trim();
+
+    if (!otpCode) {
+      if (enforce) {
+        throw new BadRequestException('OTP code is required for withdrawal');
+      }
+      incCounter('withdraw_otp_missing_total');
+      return this.applyWithdrawVerified(userId, dto);
+    }
+
+    const user = await this.prismaService.user.findUnique({
+      where: { id: userId },
+      select: { phone: true },
+    });
+    if (!user || !user.phone) {
+      throw new BadRequestException('User phone not found');
+    }
+
+    const isValidOtp = await this.otpService.verify({
+      phone: user.phone,
+      codeType: CODE_TYPE.WITHDRAW,
+      code: otpCode,
+    });
+    if (!isValidOtp) {
+      throw new BadRequestException('Invalid OTP code');
+    }
+
+    return this.applyWithdrawVerified(userId, dto);
+  }
+
+  /**
+   * 提现唯一执行点（内部）：不做 OTP 校验，只做渠道/金额校验与冻结。
+   *
+   * 两个调用方：
+   *   - 公开入口 applyWithdraw（已验码后调用）
+   *   - AI 卡片路径 confirmWithdrawOtp（OTP 已在确认端点核销后调用）
+   * 任何新入口都必须先完成验证，再调用本方法。
+   */
+  async applyWithdrawVerified(userId: string, dto: ApplyWithdrawDto) {
     const { amount: amountNum, account, accountName } = dto;
+
+    // 实名认证是提现的前置条件。AI 卡片路径不会真正执行工具，
+    // 因此工具里的 KYC 检查不会自动发生，必须在这里兜住。
+    // 直接读表而不注入 KycService：避免把上传/加密模块拖进钱包服务的依赖链。
+    const kyc = await this.prismaService.kycRecord.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      select: { kycStatus: true },
+    });
+    if (!kyc || kyc.kycStatus !== KYC_STATUS.APPROVED) {
+      throw new BadRequestException(
+        'KYC not approved. Please complete identity verification first.',
+      );
+    }
 
     // check channel existence
     const channel = await this.prismaService.paymentChannel.findUnique({

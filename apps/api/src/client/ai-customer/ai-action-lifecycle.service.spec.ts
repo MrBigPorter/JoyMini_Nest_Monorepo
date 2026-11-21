@@ -67,6 +67,18 @@ describe('AiActionLifecycleService', () => {
     );
   });
 
+  it('用户取消写 CANCELLED 终态（与 EXPIRED 区分）', async () => {
+    const { service, prisma } = makeService();
+    await service.markCancelled('act-1');
+
+    expect(prisma.aiActionRequest.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'act-1' },
+        data: { status: 'CANCELLED' },
+      }),
+    );
+  });
+
   it('新消息让未完成的卡片过期', async () => {
     const { service, prisma } = makeService();
     await service.expireForConversation('c1');

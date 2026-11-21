@@ -1,5 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { DynamicStructuredTool } from '@langchain/core/tools';
+import {
+  ACTION_CATALOG,
+  getCatalogToolNames,
+} from '@api/client/ai-customer/graph/config/action-catalog';
 
 /**
  * TaggedTool — 带标签的工具
@@ -26,6 +30,15 @@ export interface TaggedTool {
    * 写工具必须显式声明 kind:'write'，确认流程据此推导。
    */
   capability?: ToolCapability;
+  /**
+   * 注册时是否显式声明了 capability。
+   *
+   * 为什么需要单独记：registerMany 会把缺省值补成 read，
+   * 注册后 capability 永远不为 undefined，单看它无法区分
+   * 「没写」和「写了 read」。启动自检判断「未声明能力的副作用工具」
+   * 必须用这个标记，否则永远报不出来。
+   */
+  capabilityDeclared?: boolean;
 }
 
 /**
@@ -107,6 +120,7 @@ export class ToolRegistryService {
       .map((t) => ({
         ...t,
         // 缺省只读；写工具必须显式声明
+        capabilityDeclared: t.capability !== undefined,
         capability: t.capability ?? {
           kind: 'read' as const,
           requiresOwnership: false,
@@ -122,7 +136,8 @@ export class ToolRegistryService {
 
   /** 工具能力；未注册返回 undefined（调用方应 fail-closed） */
   getCapability(toolName: string): ToolCapability | undefined {
-    return this.allTaggedTools.find((t) => t.tool.name === toolName)?.capability;
+    return this.allTaggedTools.find((t) => t.tool.name === toolName)
+      ?.capability;
   }
 
   /** 是否需要用户确认：唯一判据是 capability.kind === 'write' */
@@ -137,7 +152,16 @@ export class ToolRegistryService {
       .map((t) => t.tool.name);
   }
 
-  /** 启动自检：写工具必须进入确认流程；疑似有副作用的工具必须显式声明 */
+  /**
+   * 启动自检：跨层一致性断言。
+   *
+   * 校验三件事，任何一条不满足都抛错阻止启动：
+   *   1. 所有 capability.kind === 'write' 的工具都在 ACTION_CATALOG 中；
+   *   2. 目录里每个 action 都有确认执行分支（execute 函数）；
+   *   3. 名称像副作用、却没有显式声明能力的工具（会被当成只读绕过确认）。
+   *
+   * 以前这里拿写工具名单跟自己比较，永远是空集 —— 自检形同虚设。
+   */
   auditCapabilities(logger: {
     log: (msg: string) => void;
     warn: (msg: string) => void;
@@ -148,37 +172,53 @@ export class ToolRegistryService {
       `[ToolRegistry] write tools requiring confirmation: ${writes.join(', ') || '(none)'}`,
     );
 
-    // 确认名单由 write 能力推导，理论上不会漏；这里做结构断言，
-    // 防止以后有人把推导改成手工清单却没同步。
-    const confirmSet = new Set(writes);
-    const missingFromConfirm = writes.filter((name) => !confirmSet.has(name));
-    if (missingFromConfirm.length > 0) {
-      const msg = `[ToolRegistry] write tools missing from confirmation flow: ${missingFromConfirm.join(', ')}`;
-      if (logger.error) logger.error(msg);
-      else logger.warn(msg);
+    const violations: string[] = [];
+
+    // 1. 写工具必须进目录：否则卡片没有摘要/标题/执行分支。
+    const catalogTools = new Set(getCatalogToolNames());
+    const missingFromCatalog = writes.filter((name) => !catalogTools.has(name));
+    if (missingFromCatalog.length > 0) {
+      violations.push(
+        `write tools missing from ACTION_CATALOG: ${missingFromCatalog.join(', ')}`,
+      );
     }
 
-    // 名称像副作用的工具（request/verify/claim/...）如果被当成只读，
-    // 就是「有副作用但绕过确认」的漏洞。启动时直接报 error。
+    // 2. 目录 action 必须有确认执行分支。
+    const missingBranches = ACTION_CATALOG.filter(
+      (entry) => typeof entry.execute !== 'function',
+    ).map((entry) => entry.action);
+    if (missingBranches.length > 0) {
+      violations.push(
+        `ACTION_CATALOG actions missing a confirm branch: ${missingBranches.join(', ')}`,
+      );
+    }
+
+    // 3. 疑似有副作用、但未声明能力的工具直接阻断启动。
+    //    显式声明为 read 的工具视为「有意为之」（如 OTP 申请/校验是辅助步骤），
+    //    只有完全没写 capability 的才拦。
     const sideEffectPattern =
       /^(apply|claim|create|delete|draw|redeem|request|verify|submit|pay)/i;
     const suspicious = this.allTaggedTools
       .filter(
-        (t) =>
-          t.capability?.kind !== 'write' &&
-          sideEffectPattern.test(t.tool.name),
+        (t) => !t.capabilityDeclared && sideEffectPattern.test(t.tool.name),
       )
       .map((t) => t.tool.name);
     if (suspicious.length > 0) {
-      const msg =
-        `[ToolRegistry] side-effect-looking tools not declared write: ${suspicious.join(', ')}. ` +
-        `They will bypass confirmation until capability is fixed.`;
-      if (logger.error) logger.error(msg);
-      else logger.warn(msg);
+      violations.push(
+        `side-effect-looking tools without a capability declaration: ${suspicious.join(', ')}. ` +
+          `Declare capability.kind explicitly; undeclared tools are treated as read and would bypass confirmation.`,
+      );
+    }
+
+    if (violations.length > 0) {
+      const message = `[ToolRegistry] capability audit FAILED:\n- ${violations.join('\n- ')}`;
+      if (logger.error) logger.error(message);
+      else logger.warn(message);
+      throw new Error(message);
     }
 
     const undeclared = this.allTaggedTools
-      .filter((t) => t.capability === undefined)
+      .filter((t) => !t.capabilityDeclared)
       .map((t) => t.tool.name);
     if (undeclared.length > 0) {
       logger.warn(

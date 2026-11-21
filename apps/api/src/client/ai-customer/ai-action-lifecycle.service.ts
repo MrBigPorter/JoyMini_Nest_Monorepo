@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '@api/common/prisma/prisma.service';
+import { incCounter } from '@api/common/metrics/metrics';
 import { CONFIRM_TOKEN_TTL_SEC } from './ai-action.constants';
 
 export type AiActionStatus =
@@ -10,6 +11,7 @@ export type AiActionStatus =
   | 'CONFIRMED'
   | 'EXECUTED'
   | 'EXPIRED'
+  | 'CANCELLED'
   | 'TRANSFERRED'
   | 'FAILED';
 
@@ -70,10 +72,7 @@ export class AiActionLifecycleService {
     });
   }
 
-  async markExecuted(
-    id?: string | null,
-    result?: unknown,
-  ): Promise<void> {
+  async markExecuted(id?: string | null, result?: unknown): Promise<void> {
     if (!id) return;
     await this.updateStatus(id, 'EXECUTED', {
       executedAt: new Date(),
@@ -88,6 +87,12 @@ export class AiActionLifecycleService {
     await this.updateStatus(id, 'FAILED', {
       error: error?.slice(0, 500) ?? 'unknown error',
     });
+  }
+
+  /** 用户主动取消：与 EXPIRED 区分，保留「谁在什么时候取消」的终态。 */
+  async markCancelled(id?: string | null): Promise<void> {
+    if (!id) return;
+    await this.updateStatus(id, 'CANCELLED');
   }
 
   async markTransferred(conversationId: string): Promise<void> {
@@ -118,6 +123,14 @@ export class AiActionLifecycleService {
         error: reason === 'superseded' ? 'superseded by new message' : reason,
       },
     });
+    if (result.count > 0) {
+      // 过期是批量迁移，单条 action 已不可区分；用 '*' 汇总，避免伪造 action 维度。
+      incCounter(
+        'ai_action_total',
+        { action: '*', result: 'expired' },
+        result.count,
+      );
+    }
     return result.count;
   }
 
@@ -133,6 +146,11 @@ export class AiActionLifecycleService {
         data: { status: 'EXPIRED', error: 'confirm token expired' },
       });
       if (result.count > 0) {
+        incCounter(
+          'ai_action_total',
+          { action: '*', result: 'expired' },
+          result.count,
+        );
         this.logger.log(`[action-lifecycle] expired ${result.count} card(s)`);
       }
     } catch (err: any) {

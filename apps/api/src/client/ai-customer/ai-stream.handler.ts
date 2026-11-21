@@ -6,6 +6,7 @@ import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-re
 import { emitStage } from '@api/common/logger/structured-logger';
 import { runWithContext } from '@api/common/logger/trace-context';
 import { incCounter } from '@api/common/metrics/metrics';
+import { redactPiiText } from '@api/common/utils/pii-redaction';
 
 const logger = new Logger('AiStreamHandler');
 
@@ -14,11 +15,52 @@ export interface StreamHandlerCallbacks {
   onStep: (step: string, data?: any) => void;
 }
 
+/** 一次工具调用的落库摘要（用于 ai_spans type=tool）。 */
+export interface ToolSpanSummary {
+  name: string;
+  status: 'OK' | 'ERROR';
+  durationMs: number;
+  /** 已脱敏、截断的参数摘要；绝不含完整手机号/邮箱/证件号。 */
+  argsSummary: string | null;
+  startedAt: number;
+}
+
 /** 一次对话的总 token 用量，回传给 chat.done 记 tokenTotal */
 export interface StreamUsageSummary {
   totalTokens: number;
   promptTokens: number;
   completionTokens: number;
+  /** 本轮工具调用摘要，供 recordReplyTrace 写成 type=tool 的 span */
+  toolSpans?: ToolSpanSummary[];
+}
+
+/** 工具输出是否表示失败：兼容 ToolResult JSON 字符串、Error: 文本与对象。 */
+function toolOutputStatus(output: unknown): 'OK' | 'ERROR' {
+  if (typeof output === 'string') {
+    if (output.startsWith('Error:') || /"ok"\s*:\s*false/.test(output)) {
+      return 'ERROR';
+    }
+    return 'OK';
+  }
+  if (output && typeof output === 'object') {
+    if ((output as any).ok === false) return 'ERROR';
+    const content = (output as any).content;
+    if (typeof content === 'string') return toolOutputStatus(content);
+  }
+  return 'OK';
+}
+
+/** 序列化工具参数并脱敏；循环引用等异常降级为 null。 */
+function summarizeToolArgs(input: unknown): string | null {
+  if (input === undefined || input === null) return null;
+  try {
+    const raw = JSON.stringify(input);
+    const safe = redactPiiText(raw);
+    if (!safe) return null;
+    return safe.length > 300 ? `${safe.slice(0, 300)}…` : safe;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -88,6 +130,8 @@ export async function handleEventStream(
     // 比在每层手动传计时器干净：LangGraph 的 start/end 事件天然成对。
     const modelStartedAt = new Map<string, number>();
     const toolStartedAt = new Map<string, number>();
+    const toolArgsSummary = new Map<string, string | null>();
+    const toolSpans: ToolSpanSummary[] = [];
     let totalTokens = 0;
     let promptTokensTotal = 0;
     let completionTokensTotal = 0;
@@ -157,6 +201,7 @@ export async function handleEventStream(
       } else if (eventName === 'on_tool_start') {
         // Agent 开始调工具
         toolStartedAt.set(run_id, Date.now());
+        toolArgsSummary.set(run_id, summarizeToolArgs(data?.input));
         incCounter('ai_tool_calls_total', { tool: name });
         emitStage('tool.start', { tool: name, node });
         const displayName = registry.getDisplayName(name) ?? name;
@@ -176,10 +221,20 @@ export async function handleEventStream(
         // Agent 调完工具
         const startAt = toolStartedAt.get(run_id);
         toolStartedAt.delete(run_id);
+        const startedAt = startAt ?? Date.now();
+        const durationMs = startAt ? Date.now() - startAt : 0;
+        toolSpans.push({
+          name,
+          status: toolOutputStatus(data?.output),
+          durationMs,
+          argsSummary: toolArgsSummary.get(run_id) ?? null,
+          startedAt,
+        });
+        toolArgsSummary.delete(run_id);
         emitStage('tool.end', {
           tool: name,
           node,
-          durationMs: startAt ? Date.now() - startAt : undefined,
+          durationMs: startAt ? durationMs : undefined,
         });
         callbacks.onStep('tool_end', { tool: name });
         if (conversationId) {
@@ -197,6 +252,7 @@ export async function handleEventStream(
       totalTokens,
       promptTokens: promptTokensTotal,
       completionTokens: completionTokensTotal,
+      toolSpans,
     };
   });
 }

@@ -1,11 +1,12 @@
+import { BadRequestException } from '@nestjs/common';
+import { SocketEvents } from '@lucky/shared';
 import { AiCustomerService } from './ai-customer.service';
 
 jest.mock('uuid', () => ({ v4: jest.fn(() => 'test-token') }));
 jest.mock('meilisearch', () => ({ Meilisearch: class {} }));
 
 /**
- * routeConfirm 是确认卡片的唯一入口：
- * 现在必须同时写生命周期记录，否则“领券没回复”仍然无法审计。
+ * 确认卡片协议：目录驱动执行、结果事件、取消端点、令牌重放/过期。
  */
 function makeService() {
   const unused = () => ({}) as any;
@@ -17,6 +18,7 @@ function makeService() {
     chatMessage: { create: jest.fn(), findFirst: jest.fn() },
     conversation: { update: jest.fn() },
     paymentChannel: { findUnique: jest.fn() },
+    user: { findUnique: jest.fn(async () => ({ phone: '09990000000' })) },
     $transaction: jest.fn(),
   };
   const confirm = {
@@ -25,6 +27,7 @@ function makeService() {
       token: 'token-1',
       expiresAt: Date.now() + 60_000,
     })),
+    stagePendingExecution: jest.fn(async () => undefined),
   };
   const lifecycle = {
     createConfirm: jest.fn(async () => ({
@@ -34,39 +37,94 @@ function makeService() {
     markConfirmed: jest.fn(async () => undefined),
     markExecuted: jest.fn(async () => undefined),
     markFailed: jest.fn(async () => undefined),
+    markCancelled: jest.fn(async () => undefined),
   };
-  const gateway = { dispatchToUser: jest.fn() };
+  const gateway = {
+    dispatchToUser: jest.fn(),
+    dispatchToConversation: jest.fn(),
+  };
   const coupon = {
     claimCoupon: jest.fn(async () => ({ id: 'uc-1', status: 0 })),
-    redeemCode: jest.fn(),
+    redeemCode: jest.fn(async () => ({ success: true })),
+  };
+  const luckyDraw = { draw: jest.fn(async () => ({ isWin: true })) };
+  const address = {
+    create: jest.fn(async () => ({ addressId: 'addr-new' })),
+    update: jest.fn(async () => ({ addressId: 'addr-1' })),
+    delete: jest.fn(async () => true),
+    detail: jest.fn(async () => ({
+      addressId: 'addr-1',
+      provinceId: 1,
+      cityId: 2,
+      barangayId: 3,
+    })),
+    resolveGeoIds: jest.fn(async () => ({
+      provinceId: 1,
+      cityId: 2,
+      barangayId: 3,
+    })),
+  };
+  const otp = {
+    request: jest.fn(async () => undefined),
+    verify: jest.fn(async () => true),
+  };
+  const wallet = {
+    applyWithdrawVerified: jest.fn(async () => ({ withdrawId: 'w-1' })),
   };
 
   const service = new AiCustomerService(
-    unused(),
-    unused(),
-    unused(),
-    prisma as any,
-    unused(),
-    unused(),
-    unused(),
-    unused(),
-    gateway as any,
-    confirm as any,
-    unused(),
-    unused(),
-    coupon as any,
-    unused(),
-    unused(),
-    unused(),
-    unused(),
-    unused(),
-    unused(),
-    unused(),
-    unused(),
+    unused(), // ConfigService
+    unused(), // ToolRegistryService
+    unused(), // AiService
+    prisma as any, // PrismaService
+    unused(), // RagRetrievalService
+    unused(), // PromptResolverService
+    unused(), // MeilisearchService
+    unused(), // AiMemoryService
+    gateway as any, // EventsGateway
+    confirm as any, // AiActionConfirmService
+    unused(), // AiUsageService
+    wallet as any, // ClientWalletService
+    coupon as any, // ClientCouponService
+    luckyDraw as any, // LuckyDrawService
+    address as any, // AddressService
+    otp as any, // OtpService
+    unused(), // RedisService
+    unused(), // EventEmitter2
+    unused(), // AiFeedbackService
+    unused(), // FlowStateVersioningService
+    unused(), // AiConversationDebugService
     undefined,
     lifecycle as any,
   );
-  return { service, confirm, lifecycle, gateway, coupon };
+  return {
+    service,
+    prisma,
+    confirm,
+    lifecycle,
+    gateway,
+    coupon,
+    luckyDraw,
+    address,
+    otp,
+    wallet,
+  };
+}
+
+function payload(
+  action: string,
+  params: Record<string, any>,
+  extra: Record<string, any> = {},
+) {
+  return {
+    action,
+    params,
+    summary: {},
+    userId: 'u1',
+    requestId: 'act-1',
+    conversationId: 'c1',
+    ...extra,
+  };
 }
 
 describe('AiCustomerService · routeConfirm lifecycle', () => {
@@ -101,14 +159,23 @@ describe('AiCustomerService · routeConfirm lifecycle', () => {
       { couponId: 'coupon-1' },
       { name: 'Big Spender' },
       'act-1',
+      'c1',
     );
 
     expect(gateway.dispatchToUser).toHaveBeenCalledWith(
       'u1',
-      expect.anything(),
+      SocketEvents.AI_CONFIRM,
       expect.objectContaining({
         conversationId: 'c1',
         requestId: 'act-1',
+        // 新协议字段
+        title: expect.any(String),
+        fields: expect.any(Array),
+        needsOtp: false,
+        // 旧客户端字段仍在
+        summary: expect.any(Object),
+        confirmToken: 'token-1',
+        expiresAt: expect.any(Number),
       }),
     );
   });
@@ -136,16 +203,14 @@ describe('AiCustomerService · routeConfirm lifecycle', () => {
 
     expect(gateway.dispatchToUser).toHaveBeenCalled();
   });
+});
 
-  it('确认领券后写 EXECUTED 与结果', async () => {
-    const { service, confirm, lifecycle, coupon } = makeService();
-    confirm.consume.mockResolvedValue({
-      action: 'claim_coupon',
-      params: { couponId: 'coupon-1' },
-      requestId: 'act-1',
-      userId: 'u1',
-      summary: {},
-    });
+describe('confirmAction · 目录驱动执行', () => {
+  it('确认领券后写 EXECUTED 并投递 AI_ACTION_RESULT', async () => {
+    const { service, confirm, lifecycle, coupon, gateway } = makeService();
+    confirm.consume.mockResolvedValue(
+      payload('claim_coupon', { couponId: 'coupon-1' }),
+    );
 
     const result = await (service as any).confirmAction('token-1', 'u1');
 
@@ -154,6 +219,226 @@ describe('AiCustomerService · routeConfirm lifecycle', () => {
       id: 'uc-1',
       status: 0,
     });
+    expect(gateway.dispatchToUser).toHaveBeenCalledWith(
+      'u1',
+      SocketEvents.AI_ACTION_RESULT,
+      expect.objectContaining({
+        conversationId: 'c1',
+        action: 'claim_coupon',
+        success: true,
+        message: expect.any(String),
+      }),
+    );
     expect(result).toEqual({ id: 'uc-1', status: 0 });
+  });
+
+  it('兑换码 / 抽奖 / 删除地址走目录分支', async () => {
+    const { service, confirm, coupon, luckyDraw, address } = makeService();
+    confirm.consume
+      .mockResolvedValueOnce(payload('redeem_code', { code: 'JOY10' }))
+      .mockResolvedValueOnce(payload('draw', { ticketId: 't-1' }))
+      .mockResolvedValueOnce(payload('delete_address', { addressId: 'a-1' }));
+
+    await (service as any).confirmAction('t1', 'u1');
+    await (service as any).confirmAction('t2', 'u1');
+    await (service as any).confirmAction('t3', 'u1');
+
+    expect(coupon.redeemCode).toHaveBeenCalledWith('u1', 'JOY10');
+    expect(luckyDraw.draw).toHaveBeenCalledWith('u1', 't-1');
+    expect(address.delete).toHaveBeenCalledWith('u1', 'a-1');
+  });
+
+  it('新增地址：确认时解析省市区并用完整参数执行', async () => {
+    const { service, confirm, address } = makeService();
+    confirm.consume.mockResolvedValue(
+      payload('create_address', {
+        contactName: 'Ann',
+        phone: '09991234567',
+        province: 'Metro Manila',
+        city: 'Makati',
+        barangay: 'Bel-Air',
+        fullAddress: '1 Ayala Ave',
+        label: 'Home',
+        isDefault: true,
+      }),
+    );
+
+    await (service as any).confirmAction('t1', 'u1');
+
+    expect(address.resolveGeoIds).toHaveBeenCalledWith(
+      'Metro Manila',
+      'Makati',
+      'Bel-Air',
+    );
+    expect(address.create).toHaveBeenCalledWith(
+      'u1',
+      expect.objectContaining({
+        contactName: 'Ann',
+        phone: '09991234567',
+        provinceId: 1,
+        cityId: 2,
+        barangayId: 3,
+        fullAddress: '1 Ayala Ave',
+        label: 'Home',
+        isDefault: 1,
+      }),
+    );
+  });
+
+  it('修改地址：无省市区时用当前地址 ID 补齐', async () => {
+    const { service, confirm, address } = makeService();
+    confirm.consume.mockResolvedValue(
+      payload('update_address', {
+        addressId: 'addr-1',
+        phone: '09990001111',
+        fullAddress: '2 New Street',
+      }),
+    );
+
+    await (service as any).confirmAction('t1', 'u1');
+
+    expect(address.detail).toHaveBeenCalledWith('u1', 'addr-1');
+    expect(address.update).toHaveBeenCalledWith(
+      'u1',
+      'addr-1',
+      expect.objectContaining({
+        phone: '09990001111',
+        fullAddress: '2 New Street',
+        provinceId: 1,
+        cityId: 2,
+        barangayId: 3,
+      }),
+    );
+  });
+
+  it('提现：确认后只发 OTP 并暂存，不执行提现', async () => {
+    const { service, confirm, lifecycle, otp, wallet } = makeService();
+    confirm.consume.mockResolvedValue(
+      payload('withdraw', {
+        amount: 500,
+        channelId: 2,
+        account: '09170000000',
+        accountName: 'Ann',
+      }),
+    );
+
+    const result = await (service as any).confirmAction('t1', 'u1');
+
+    expect(otp.request).toHaveBeenCalledWith(
+      expect.objectContaining({ phone: '09990000000' }),
+    );
+    expect(confirm.stagePendingExecution).toHaveBeenCalled();
+    expect(lifecycle.markConfirmed).toHaveBeenCalledWith('act-1');
+    expect(wallet.applyWithdrawVerified).not.toHaveBeenCalled();
+    expect(result).toEqual(expect.objectContaining({ needOtp: true }));
+  });
+
+  it('未知 action：400、置失败、投递失败结果，不执行任何写操作', async () => {
+    const { service, confirm, lifecycle, coupon, gateway } = makeService();
+    confirm.consume.mockResolvedValue(payload('unknown_action', {}));
+
+    await expect((service as any).confirmAction('t1', 'u1')).rejects.toThrow(
+      BadRequestException,
+    );
+
+    expect(coupon.claimCoupon).not.toHaveBeenCalled();
+    expect(lifecycle.markFailed).toHaveBeenCalledWith(
+      'act-1',
+      expect.stringContaining('Unknown confirm action'),
+    );
+    expect(gateway.dispatchToUser).toHaveBeenCalledWith(
+      'u1',
+      SocketEvents.AI_ACTION_RESULT,
+      expect.objectContaining({ success: false }),
+    );
+  });
+
+  it('令牌过期/重放：consume 返回 null → 400，不执行', async () => {
+    const { service, confirm, coupon } = makeService();
+    confirm.consume.mockResolvedValue(null);
+
+    await expect(
+      (service as any).confirmAction('used-token', 'u1'),
+    ).rejects.toThrow('Confirm token invalid or expired');
+    expect(coupon.claimCoupon).not.toHaveBeenCalled();
+  });
+
+  it('令牌只能消费一次：第二次确认被拒绝', async () => {
+    const { service, confirm, coupon } = makeService();
+    confirm.consume
+      .mockResolvedValueOnce(payload('claim_coupon', { couponId: 'c1' }))
+      .mockResolvedValueOnce(null);
+
+    await (service as any).confirmAction('token-1', 'u1');
+    await expect(
+      (service as any).confirmAction('token-1', 'u1'),
+    ).rejects.toThrow('Confirm token invalid or expired');
+
+    expect(coupon.claimCoupon).toHaveBeenCalledTimes(1);
+  });
+
+  it('执行失败：置 FAILED 并投递失败结果', async () => {
+    const { service, confirm, lifecycle, coupon, gateway } = makeService();
+    confirm.consume.mockResolvedValue(
+      payload('claim_coupon', { couponId: 'sold-out' }),
+    );
+    coupon.claimCoupon.mockRejectedValueOnce(new Error('coupon sold out'));
+
+    await expect((service as any).confirmAction('t1', 'u1')).rejects.toThrow(
+      'coupon sold out',
+    );
+
+    expect(lifecycle.markFailed).toHaveBeenCalledWith(
+      'act-1',
+      'coupon sold out',
+    );
+    expect(gateway.dispatchToUser).toHaveBeenCalledWith(
+      'u1',
+      SocketEvents.AI_ACTION_RESULT,
+      expect.objectContaining({ success: false, message: 'coupon sold out' }),
+    );
+  });
+});
+
+describe('cancelAction · 取消终态', () => {
+  it('正常取消：消费令牌并置 CANCELLED', async () => {
+    const { service, confirm, lifecycle } = makeService();
+    confirm.consume.mockResolvedValue(
+      payload('claim_coupon', { couponId: 'coupon-1' }),
+    );
+
+    await expect(
+      (service as any).cancelAction('token-1', 'u1'),
+    ).resolves.toEqual({ cancelled: true });
+
+    expect(confirm.consume).toHaveBeenCalledWith('token-1', 'u1');
+    expect(lifecycle.markCancelled).toHaveBeenCalledWith('act-1');
+  });
+
+  it('重复取消：令牌已被消费 → 400', async () => {
+    const { service, confirm, lifecycle } = makeService();
+    confirm.consume.mockResolvedValueOnce(
+      payload('claim_coupon', { couponId: 'coupon-1' }),
+    );
+    confirm.consume.mockResolvedValueOnce(null);
+
+    await (service as any).cancelAction('token-1', 'u1');
+    await expect(
+      (service as any).cancelAction('token-1', 'u1'),
+    ).rejects.toThrow('Confirm token invalid or expired');
+
+    expect(lifecycle.markCancelled).toHaveBeenCalledTimes(1);
+  });
+
+  it('跨用户取消：owner 不匹配时 consume 返回 null → 400', async () => {
+    const { service, confirm, lifecycle } = makeService();
+    confirm.consume.mockResolvedValue(null);
+
+    await expect(
+      (service as any).cancelAction('token-1', 'other-user'),
+    ).rejects.toThrow('Confirm token invalid or expired');
+
+    expect(confirm.consume).toHaveBeenCalledWith('token-1', 'other-user');
+    expect(lifecycle.markCancelled).not.toHaveBeenCalled();
   });
 });

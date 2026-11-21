@@ -287,6 +287,25 @@ export class AiCustomerController {
   }
 
   /**
+   * 取消确认卡片：消费一次性令牌并把动作记录置为 CANCELLED。
+   * 重复取消 / 跨用户 / 已过期统一返回 400，不泄露令牌归属。
+   */
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(200)
+  @ApiOperation({
+    summary:
+      'Cancel a pending AI write action (consumes one-time confirm token)',
+  })
+  @Post('confirm/cancel')
+  async cancelAction(
+    @Body() dto: ConfirmActionDto,
+    @CurrentUserId() userId: string,
+  ) {
+    return this.aiCustomerService.cancelAction(dto.token, userId);
+  }
+
+  /**
    *
    * @param dto
    * @param userId

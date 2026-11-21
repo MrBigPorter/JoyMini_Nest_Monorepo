@@ -209,6 +209,10 @@ export const createWalletTools = (
         },
       ),
       displayName: 'Sending verification code...',
+      // 显式声明只读：OTP 申请是确认流程的辅助步骤，不修改业务状态，
+      // 不属于需要在卡片里二次确认的写操作。声明后启动自检不再把它当
+      // 「疑似副作用但未声明」阻断启动。
+      capability: { kind: 'read', requiresOwnership: false },
       tags: ['wallet'],
     },
     {
@@ -265,6 +269,9 @@ export const createWalletTools = (
         },
       ),
       displayName: 'Verifying your code...',
+      // 与 requestWithdrawOtp 同理：校验验证码不修改业务状态，
+      // 显式声明只读，避免被启动自检当成未声明的副作用工具。
+      capability: { kind: 'read', requiresOwnership: false },
       tags: ['wallet'],
     },
     {

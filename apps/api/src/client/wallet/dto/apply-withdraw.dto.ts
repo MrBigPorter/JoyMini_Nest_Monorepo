@@ -43,4 +43,22 @@ export class ApplyWithdrawDto {
   @IsOptional()
   @IsString()
   bankName?: string;
+
+  /**
+   * 短信验证码（WITHDRAW 类型）。
+   *
+   * 服务端在 WITHDRAW_OTP_ENFORCE=true 时强制要求；关闭时允许旧客户端不传，
+   * 但会记录 withdraw_otp_missing_total 指标用于灰度观察。
+   * 卡片路径不走本 DTO 的 OTP 字段（OTP 已在确认端点核销）。
+   */
+  @ApiProperty({
+    description:
+      'SMS OTP code for withdrawal (required when WITHDRAW_OTP_ENFORCE=true)',
+    example: '123456',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  otpCode?: string;
 }

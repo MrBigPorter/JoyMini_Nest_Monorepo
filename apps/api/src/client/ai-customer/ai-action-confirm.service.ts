@@ -9,6 +9,8 @@ interface ConfirmPayload {
   userId: string;
   /** 对应 ai_action_requests.id，用于回写确认/执行/失败终态。 */
   requestId?: string;
+  /** 结果事件（AI_ACTION_RESULT）要回投到哪个会话。 */
+  conversationId?: string;
 }
 
 import { CONFIRM_TOKEN_TTL_SEC } from './ai-action.constants';
@@ -59,6 +61,7 @@ export class AiActionConfirmService {
     params: Record<string, any>,
     summary: Record<string, any>,
     requestId?: string,
+    conversationId?: string,
   ) {
     const token = uuidv4();
     const payload: ConfirmPayload = {
@@ -67,6 +70,7 @@ export class AiActionConfirmService {
       summary,
       userId,
       ...(requestId ? { requestId } : {}),
+      ...(conversationId ? { conversationId } : {}),
     };
     await this.redisService.set(
       `${TOKEN_PREFIX}${token}`,

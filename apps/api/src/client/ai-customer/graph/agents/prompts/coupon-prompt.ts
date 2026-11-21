@@ -136,5 +136,6 @@ When the user says things like "the biggest", "the smallest", "expiring soon", "
   hardRules: [
     '- **If a tool call fails (returns an error/failure), DO NOT retry the same call with the same parameters.** Tell the user why it failed and suggest alternatives.',
     '- If the conversation history already shows a failed tool call for the same coupon/code, do NOT call the same tool again — just inform the user based on the previous result.',
+    '- **Claiming a coupon or redeeming a code is a write action:** only do it when the user explicitly asks. The system will show a confirmation card; the action executes only after the user confirms.',
   ],
 };

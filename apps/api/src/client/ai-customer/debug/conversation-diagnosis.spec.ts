@@ -91,11 +91,49 @@ describe('buildConversationDiagnosis', () => {
       ...base,
       flowState: { activeFlow: 'GENERAL', step: 'COMPLETED' },
       messages: [
-        { type: 'human', content: '你好', createdAt: '2026-11-21T09:59:00.000Z' },
-        { type: 'ai', content: '你好呀！有什么可以帮你？', createdAt: '2026-11-21T09:59:05.000Z' },
+        {
+          type: 'human',
+          content: '你好',
+          createdAt: '2026-11-21T09:59:00.000Z',
+        },
+        {
+          type: 'ai',
+          content: '你好呀！有什么可以帮你？',
+          createdAt: '2026-11-21T09:59:05.000Z',
+        },
       ],
     });
 
     expect(diagnosis.flags).toEqual([]);
+  });
+
+  it('确认卡片取消/失败进入诊断，并带出失败原因', () => {
+    const diagnosis = buildConversationDiagnosis({
+      ...base,
+      flowState: {},
+      messages: [
+        {
+          type: 'human',
+          content: '帮我提现',
+          createdAt: '2026-11-21T09:59:00.000Z',
+        },
+        {
+          type: 'ai',
+          content: '请确认：提现',
+          createdAt: '2026-11-21T09:59:05.000Z',
+        },
+      ],
+      actions: [
+        { action: 'claim_coupon', status: 'CANCELLED' },
+        { action: 'withdraw', status: 'FAILED', error: 'Invalid OTP code' },
+      ],
+    });
+
+    const flag = diagnosis.flags.find((f) => f.key === 'action_unfinished');
+    expect(flag).toBeDefined();
+    expect(flag!.severity).toBe('high');
+    expect(flag!.detail).toContain('withdraw');
+    expect(flag!.detail).toContain('FAILED');
+    expect(flag!.detail).toContain('Invalid OTP code');
   });
 });
