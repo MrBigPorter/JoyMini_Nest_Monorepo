@@ -10,6 +10,7 @@ import { PageHeader } from '@/components/scaffold/PageHeader';
 import { AiErrorBanner } from '@/components/ai-ops/AiErrorBanner';
 import { useAuthStore } from '@/store/useAuthStore';
 import { canTriageFeedback, useAiOpsRole } from '@/lib/ai-ops-permissions';
+import { diagnoseFeedbackRow } from '@/lib/ai-ops-feedback-diagnosis';
 import {
   applyFeedbackFilters,
   buildQualityHref,
@@ -65,8 +66,7 @@ const FAILURE_KIND_LABELS: Record<string, string> = {
   UNKNOWN: '未知',
 };
 
-const RESOLUTION_LABELS: Record<string, string> = {
-  OPEN: '待处理',
+const RESOLUTION_LABELS: Record<string, string> = {  OPEN: '待处理',
   CONFIRMED: '确认问题',
   EXCLUDED: '已排除',
   ADDED_TO_EVAL: '已进回归',
@@ -116,6 +116,35 @@ type ReviewDecision = keyof typeof DECISION_LABELS;
 const FAILURE_KIND_OPTIONS = Object.entries(FAILURE_KIND_LABELS).map(
   ([value, label]) => ({ value, label }),
 );
+
+/** 每行诊断：让运营不点进上下文也能判断这行值不值得处理。 */
+function DiagnosisBadges({ item }: { item: FeedbackRow }) {
+  const flags = diagnoseFeedbackRow({
+    signal: item.signal,
+    input: item.input,
+    answer: item.answer,
+    traceId: item.traceId,
+  });
+  if (flags.length === 0) {
+    return <span className="text-xs text-gray-400">—</span>;
+  }
+  return (
+    <div className="flex flex-wrap gap-1">
+      {flags.map((flag) => (
+        <span
+          key={flag.key}
+          className={
+            flag.severity === 'high'
+              ? 'whitespace-nowrap rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-medium text-red-700 dark:bg-red-500/20 dark:text-red-300'
+              : 'whitespace-nowrap rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:bg-amber-500/20 dark:text-amber-300'
+          }
+        >
+          {flag.label}
+        </span>
+      ))}
+    </div>
+  );
+}
 
 const RESOLUTION_OPTIONS = Object.entries(RESOLUTION_LABELS).map(
   ([value, label]) => ({ value, label }),
@@ -1133,6 +1162,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
                 '归因',
                 '分诊状态',
                 '处理状态',
+                '诊断',
                 '用户问题',
                 'AI 回答',
                 '备注',
@@ -1148,7 +1178,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
             {loading ? (
               <tr>
                 <td
-                  colSpan={10}
+                  colSpan={11}
                   className="px-3 py-6 text-center text-gray-400"
                 >
                   加载中…
@@ -1157,7 +1187,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
             ) : error ? null : list.length === 0 ? (
               <tr>
                 <td
-                  colSpan={10}
+                  colSpan={11}
                   className="px-3 py-6 text-center text-gray-400"
                 >
                   暂无反馈
@@ -1190,6 +1220,9 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
                   </td>
                   <td className="whitespace-nowrap px-3 py-2">
                     {labelOf(RESOLUTION_LABELS, item.resolution)}
+                  </td>
+                  <td className="px-3 py-2">
+                    <DiagnosisBadges item={item} />
                   </td>
                   <td
                     className="max-w-[260px] truncate px-3 py-2"

@@ -1349,6 +1349,7 @@ export interface AiFeedbackItem {
   resolution?: string | null;
   ownerAdminId?: string | null;
   linkedEvalCaseId?: string | null;
+  traceId?: string | null;
   transferReason?: string | null;
   handlerId?: string | null;
   createdAt: string;
