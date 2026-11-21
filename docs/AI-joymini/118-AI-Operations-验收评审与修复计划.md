@@ -649,7 +649,7 @@ aiMessageId + feedbackId       连通消息与反馈
 | 4 | 分诊语义 + 分轨 | 按 §4.3 实现待办/信号口径；`updateTriage` 原子派生 reviewStatus/resolution；正确→`NO_ISSUE`；隐式线索移入信号区；仅判定变化写 score；修 `refresh()` 未等待导致的跳条 | M | 回答正确后行显示“无问题”；转人工/取消/重复追问只出现在信号区且不抬高待处理；连续审 A/B/C 不漏；只改备注不新增 score |
 | 5 | 统一“今日” | feedback summary/list 增 `from/to`；首页传 UTC 今日；security summary 首页传今日；待处理按 §4.3 口径统计（OPEN + 时间窗 + 显式负反馈/SERVICE_ERROR/已认领） | M | 首页所有卡同一窗口；昨天的条目不计入今日；待处理不含系统信号；新一天自动归零 |
 | 6 | eval run 生命周期 | 同 dataset 并发锁；启动时把孤儿 RUNNING 标 FAILED；终态停轮询；渲染 `summary.error` | M | 重启后 5 分钟内 run 变 FAILED 且有原因；UI 不再无限轮询 |
-| 7 | 开关与禁用态 | 统一前后端反馈开关；质量页读开关显示“未启用”；`AI_EVAL_ENABLED` 门禁 createDataset/addCases；删或实现 `AI_QUALITY_V2_ENABLED` | S/M | 关闭开关 → 页面显示未启用且无按钮；写作接口一致 403 |
+| 7 | 开关与禁用态 | 新增 `GET /admin/ai-ops/features`；质量页与客服消息读同一开关；`AI_EVAL_ENABLED` 门禁 createDataset/addCases；删除 `AI_QUALITY_V2_ENABLED`（不再维护独立回滚开关） | S/M | 关闭开关 → 页面显示未启用且无按钮；写作接口一致 403 |
 | 8 | 接回血缘 | feedback 写 `traceId`；trace 写 `aiMessageId`；安全事件写 `conversationId`；testChat 写 trace 或 eval 不再伪造 traceId | M | trace 详情能看到人工评分；eval 结果点开能到真实 trace；安全事件能跳到会话 |
 
 ### 8.2 两周内（让运营闭环成立）
