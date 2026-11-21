@@ -940,6 +940,13 @@ export class AiCustomerService implements OnModuleDestroy {
         finalState,
         triggerMessageId,
       );
+      // 卡片轮次同样要收尾，否则客户端会一直停在「流式输入中」，
+      // 卡片消失后留下一个闪烁光标和空气泡。
+      if (conversationId) {
+        this.eventsGateway.dispatchToUser(userId, SocketEvents.AI_DONE, {
+          conversationId,
+        });
+      }
     } else {
       // 路由 C — 正常完成（写 chat_message + 双通道广播）
       await this.routeNormalCompletion(
@@ -1414,6 +1421,11 @@ export class AiCustomerService implements OnModuleDestroy {
       // 落一条可见消息：以前确认卡片只发 socket，聊天记录里看不到，
       // 运营会以为 AI 没回复。卡片本身仍走 AI_CONFIRM 私有房间。
       const actionLabel = actionMeta?.title ?? pc.action;
+      // 卡片本身是临时 UI；聊天记录里要保留用户看到的内容，
+      // 否则卡片消失或重进会话后，用户只看到“请确认”却不知道确认什么。
+      const detailLines = (fields as Array<{ label: string; value: string }>)
+        .map((item) => `- ${item.label}：${item.value}`)
+        .join('\n');
       await publishAiReply(
         this.prismaService,
         this.eventsGateway,
@@ -1422,7 +1434,9 @@ export class AiCustomerService implements OnModuleDestroy {
         [
           {
             type: 'ai',
-            content: `请确认：${actionLabel}。确认后才会执行，60 秒内有效。`,
+            content: detailLines
+              ? `请确认：${actionLabel}\n${detailLines}\n确认后才会执行，60 秒内有效。`
+              : `请确认：${actionLabel}。确认后才会执行，60 秒内有效。`,
           },
         ],
         userId,
@@ -1474,6 +1488,12 @@ export class AiCustomerService implements OnModuleDestroy {
     }
 
     try {
+      // 用户已经点了确认：非 OTP 动作在这里落 confirmedAt，再执行；
+      // 提现由 startWithdrawOtp 内部标记（它还要先发验证码）。
+      if (!entry.needsOtp) {
+        await this.actionLifecycle?.markConfirmed(requestId);
+      }
+
       const result = await entry.execute({
         userId,
         params,
@@ -1507,24 +1527,80 @@ export class AiCustomerService implements OnModuleDestroy {
    */
   async cancelAction(token: string, userId: string) {
     const payload = await this.aiActionConfirmService.consume(token, userId);
-    if (!payload) {
+    if (payload) {
+      await this.actionLifecycle?.markCancelled(payload.requestId);
+      incCounter('ai_action_total', {
+        action: payload.action,
+        result: 'cancelled',
+      });
+      return { cancelled: true };
+    }
+
+    // 提现已经确认、正在等 OTP 时，卡片 token 已被消费。
+    // 此时取消应该撤销待执行任务，而不是报“token 无效”。
+    const pending = await this.aiActionConfirmService.peekPendingExecution(userId);
+    if (!pending) {
       throw new BadRequestException('Confirm token invalid or expired');
     }
-    await this.actionLifecycle?.markCancelled(payload.requestId);
+    const consumed =
+      await this.aiActionConfirmService.popPendingExecution(userId);
+    if (!consumed) {
+      throw new BadRequestException(
+        'Pending withdraw action expired, please try again',
+      );
+    }
+    await this.actionLifecycle?.markCancelled(consumed.requestId);
     incCounter('ai_action_total', {
-      action: payload.action,
+      action: consumed.action,
       result: 'cancelled',
     });
     return { cancelled: true };
   }
 
-  /** 动作结果事件：与 AI_CONFIRM 走同一私有房间分发通道。 */
+  /** 重新发送提现验证码（仍绑定当前待执行任务）。 */
+  async resendWithdrawOtp(userId: string) {
+    const pending = await this.aiActionConfirmService.peekPendingExecution(
+      userId,
+    );
+    if (!pending) {
+      throw new BadRequestException('No pending withdraw action found');
+    }
+
+    const user = await this.prismaService.user.findUnique({
+      where: { id: userId },
+      select: { phone: true },
+    });
+    if (!user || !user.phone) {
+      throw new BadRequestException('User phone not found');
+    }
+
+    await this.otpService.request({
+      phone: user.phone,
+      codeType: CODE_TYPE.WITHDRAW,
+    });
+
+    const otpTtlSec = Number(process.env.OTP_TTL_SECONDS) || 300;
+    return {
+      sent: true,
+      message: '验证码已重新发送',
+      otpExpiresAt: Date.now() + otpTtlSec * 1000,
+    };
+  }
+
+  /**
+   * 动作结果事件：先把结果写进会话，再走私有房间通知。
+   *
+   * 只发 socket 的话，客户端本地没保存、换设备/重进会话就看不到；
+   * 结果消息必须和普通 AI 回复一样落 ChatMessage。
+   */
   private emitActionResult(
     payload: { conversationId?: string; action?: string; userId: string },
     success: boolean,
     message: string,
   ): void {
     if (!payload.conversationId) return;
+
+    // 先发事件：客户端状态更新不应等落库。
     this.eventsGateway.dispatchToUser(
       payload.userId,
       SocketEvents.AI_ACTION_RESULT,
@@ -1534,6 +1610,22 @@ export class AiCustomerService implements OnModuleDestroy {
         success,
         message,
       },
+    );
+
+    // 再把结果写进会话，保证换设备/重进会话仍能看到。
+    void publishAiReply(
+      this.prismaService,
+      this.eventsGateway,
+      this.eventEmitter,
+      payload.conversationId,
+      [{ type: 'ai', content: message }],
+      payload.userId,
+      [],
+      { kind: 'action_result', action: payload.action ?? null, success },
+    ).catch((err: any) =>
+      this.logger.warn(
+        `[emitActionResult] persist result message failed: ${err?.message ?? err}`,
+      ),
     );
   }
 
@@ -1646,9 +1738,11 @@ export class AiCustomerService implements OnModuleDestroy {
       requestId,
     });
     await this.actionLifecycle?.markConfirmed(requestId);
+    const otpTtlSec = Number(process.env.OTP_TTL_SECONDS) || 300;
     return {
       needOtp: true,
       message: '验证码已发送到绑定手机号，请输入 6 位验证码',
+      otpExpiresAt: Date.now() + otpTtlSec * 1000,
     };
   }
 

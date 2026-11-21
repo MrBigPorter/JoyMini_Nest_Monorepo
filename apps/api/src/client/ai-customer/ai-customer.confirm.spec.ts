@@ -28,6 +28,8 @@ function makeService() {
       expiresAt: Date.now() + 60_000,
     })),
     stagePendingExecution: jest.fn(async () => undefined),
+    peekPendingExecution: jest.fn(async (): Promise<any> => null),
+    popPendingExecution: jest.fn(async (): Promise<any> => null),
   };
   const lifecycle = {
     createConfirm: jest.fn(async () => ({
@@ -462,6 +464,23 @@ describe('cancelAction · 取消终态', () => {
     expect(lifecycle.markCancelled).toHaveBeenCalledTimes(1);
   });
 
+  it('提现已确认、等验证码时取消：撤销待执行任务并置 CANCELLED', async () => {
+    const { service, confirm, lifecycle } = makeService();
+    confirm.consume.mockResolvedValue(null);
+    const pending = payload('withdraw', { amount: 100 }, {
+      requestId: 'act-2',
+    });
+    confirm.peekPendingExecution.mockResolvedValue(pending);
+    confirm.popPendingExecution.mockResolvedValue(pending);
+
+    await expect(
+      (service as any).cancelAction('consumed-token', 'u1'),
+    ).resolves.toEqual({ cancelled: true });
+
+    expect(confirm.popPendingExecution).toHaveBeenCalledWith('u1');
+    expect(lifecycle.markCancelled).toHaveBeenCalledWith('act-2');
+  });
+
   it('跨用户取消：owner 不匹配时 consume 返回 null → 400', async () => {
     const { service, confirm, lifecycle } = makeService();
     confirm.consume.mockResolvedValue(null);
@@ -472,5 +491,34 @@ describe('cancelAction · 取消终态', () => {
 
     expect(confirm.consume).toHaveBeenCalledWith('token-1', 'other-user');
     expect(lifecycle.markCancelled).not.toHaveBeenCalled();
+  });
+});
+
+
+describe('resendWithdrawOtp · 重新发送验证码', () => {
+  it('没有待执行任务：400，不发短信', async () => {
+    const { service, confirm, otp } = makeService();
+    confirm.peekPendingExecution.mockResolvedValue(null);
+
+    await expect(service.resendWithdrawOtp('u1')).rejects.toThrow(
+      'No pending withdraw action found',
+    );
+    expect(otp.request).not.toHaveBeenCalled();
+  });
+
+  it('有待执行任务：重新发送并返回新的过期时间', async () => {
+    const { service, confirm, otp } = makeService();
+    confirm.peekPendingExecution.mockResolvedValue(
+      payload('withdraw', { amount: 100 }),
+    );
+
+    const result = await service.resendWithdrawOtp('u1');
+
+    expect(otp.request).toHaveBeenCalledWith(
+      expect.objectContaining({ phone: '09990000000' }),
+    );
+    expect(result.sent).toBe(true);
+    expect(result.otpExpiresAt).toBeGreaterThan(Date.now());
+    expect(confirm.peekPendingExecution).toHaveBeenCalledWith('u1');
   });
 });

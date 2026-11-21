@@ -314,6 +314,15 @@ export class AiCustomerController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @HttpCode(200)
+  @ApiOperation({ summary: 'Resend withdrawal OTP' })
+  @Post('confirm/otp/resend')
+  async resendWithdrawOtp(@CurrentUserId() userId: string) {
+    return this.aiCustomerService.resendWithdrawOtp(userId);
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(200)
   @ApiOperation({
     summary: 'Confirm withdrawal OTP',
   })
