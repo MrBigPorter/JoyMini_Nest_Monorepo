@@ -529,7 +529,8 @@
     "banners_next": "次へ",
     "banners_validation_titleRequired": "タイトルは必須です",
     "banners_validation_relatedTitleRequired": "ジャンプカテゴリが商品の場合、関連商品IDが必要です",
-    "aiFeedback": "AI フィードバック"
+    "aiFeedback": "AI フィードバック",
+    "aiOpsReports": "評価レポート"
   },
   "actSections": {
     "pageTitle": "アクティビティセクション",

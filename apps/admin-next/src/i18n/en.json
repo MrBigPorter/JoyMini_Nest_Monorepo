@@ -532,7 +532,8 @@
     "intentExamples": "Intent Examples",
     "create": "Create",
     "saving": "Saving...",
-    "aiFeedback": "AI Feedback"
+    "aiFeedback": "AI Feedback",
+    "aiOpsReports": "Eval Reports"
   },
   "actSections": {
     "pageTitle": "Activity Sections",

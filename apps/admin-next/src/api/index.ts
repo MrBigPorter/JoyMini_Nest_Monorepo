@@ -1478,6 +1478,17 @@ export const intentExamplesApi = {
  * AI Operations — 队列 / 流程版本 / 用量 / 记忆
  */
 export const aiOpsApi = {
+  /** GET /v1/admin/ai-eval/reports — 定时评测报告 */
+  getEvalReports: (limit = 20) =>
+    http.get<import('@/type/types').AiEvalReportSummary[]>(
+      '/v1/admin/ai-eval/reports',
+      { limit },
+    ),
+  /** GET /v1/admin/ai-eval/reports/latest — 最新评测报告 */
+  getLatestEvalReport: () =>
+    http.get<import('@/type/types').AiEvalReportSummary | null>(
+      '/v1/admin/ai-eval/reports/latest',
+    ),
   /** POST /v1/admin/ai-analysis/runs — 跑一个 UTC 日窗口 */
   runAnalysis: (date?: string) =>
     http.post<import('@/type/types').AiAnalysisRunRow>(

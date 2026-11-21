@@ -252,6 +252,13 @@ export const routes: RouteConfig[] = [
     group: 'AI Operations · 工程',
     hiddenForRoles: ENGINEERING_HIDDEN_ROLES,
   },
+  {
+    path: '/ai-ops/reports',
+    name: 'aiOpsReports',
+    icon: ClipboardCheck,
+    group: 'AI Operations · 工程',
+    hiddenForRoles: ENGINEERING_HIDDEN_ROLES,
+  },
 
   // Analytics
   {

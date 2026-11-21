@@ -2420,3 +2420,26 @@ export interface ConversationDebugSnapshot {
   }>;
   error?: string;
 }
+
+export interface AiEvalReportSummary {
+  file: string;
+  runId: string;
+  datasetVersion: string;
+  generatedAt: string;
+  mode: string;
+  gatePassed: boolean;
+  conversationCount: number;
+  drillCount: number;
+  aggregates: Record<
+    string,
+    { pass: number; fail: number; unknown: number; rate: number | null }
+  >;
+  gates: Array<{ key: string; label: string; ok: boolean; detail: string }>;
+  fairness: Array<{
+    dimension: string;
+    key: string;
+    spread: number | null;
+    flagged: boolean;
+    note: string;
+  }>;
+}

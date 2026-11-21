@@ -25,6 +25,10 @@ export function canReadContext(role: string): boolean {
   return role === 'SUPER_ADMIN' || role === 'ADMIN';
 }
 
+export function canReadEvalReports(role: string): boolean {
+  return role === 'SUPER_ADMIN' || role === 'ADMIN';
+}
+
 export function canTriageFeedback(role: string): boolean {
   return role === 'SUPER_ADMIN' || role === 'ADMIN';
 }
