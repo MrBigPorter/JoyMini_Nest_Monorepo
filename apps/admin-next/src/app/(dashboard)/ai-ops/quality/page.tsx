@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useRequest } from 'ahooks';
@@ -8,6 +8,7 @@ import { Button } from '@repo/ui';
 import { aiOpsApi, aiQualityApi, chatApi, knowledgeApi } from '@/api';
 import { PageHeader } from '@/components/scaffold/PageHeader';
 import { AiErrorBanner } from '@/components/ai-ops/AiErrorBanner';
+import { useAuthStore } from '@/store/useAuthStore';
 import { canTriageFeedback, useAiOpsRole } from '@/lib/ai-ops-permissions';
 import {
   applyFeedbackFilters,
@@ -73,6 +74,44 @@ const RESOLUTION_LABELS: Record<string, string> = {
   CLOSED: '已关闭',
   NO_ISSUE: '无问题',
 };
+
+/** 转人工原因翻译成运营语言；未知值原样展示，避免隐藏信息。 */
+const TRANSFER_REASON_LABELS: Record<string, string> = {
+  explicit_request: '用户明确要求',
+  negative_sentiment: '负面情绪',
+  repeated_attempts: '反复追问未解决',
+  agent_request: '客服主动接管',
+  ai_error: 'AI 异常',
+  manual_switch: '人工手动切换',
+  below_accept_threshold: '意图置信度不足',
+  below_llm_fallback_threshold: 'LLM 兜底置信度不足',
+  below_execution_threshold: '执行阈值不足',
+  unknown: '未知',
+};
+
+function handlerLabel(raw?: string | null): string {
+  if (!raw) return '未分配';
+  if (raw === 'awaiting_human') return '等待人工接手';
+  if (raw === 'me') return '我';
+  return `人工客服（${raw.slice(0, 8)}）`;
+}
+
+function ownerLabel(
+  raw: string | null | undefined,
+  currentAdminId?: string,
+): string {
+  if (!raw) return '未分配';
+  if (currentAdminId && raw === currentAdminId) return '我';
+  return `管理员（${raw.slice(0, 8)}）`;
+}
+
+const DECISION_LABELS = {
+  correct: '回答正确',
+  incorrect: '确认问题',
+  exclude: '排除',
+} as const;
+
+type ReviewDecision = keyof typeof DECISION_LABELS;
 
 const FAILURE_KIND_OPTIONS = Object.entries(FAILURE_KIND_LABELS).map(
   ([value, label]) => ({ value, label }),
@@ -240,6 +279,8 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
   const [adding, setAdding] = useState(false);
   const [reviewMode, setReviewMode] = useState(false);
   const [reviewIndex, setReviewIndex] = useState(0);
+  const [decision, setDecision] = useState<ReviewDecision | null>(null);
+  const adminId = useAuthStore((state) => state.userInfo?.id);
   const role = useAiOpsRole();
   const { data: featuresData } = useRequest(aiOpsApi.getFeatures);
   // features 未加载或加载失败时按关闭处理，避免渲染写按钮后 403。
@@ -343,11 +384,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
     },
     {
       label: '模型答错',
-      value: countByValue(
-        summary?.byFailureKind,
-        'failureKind',
-        'MODEL_ERROR',
-      ),
+      value: countByValue(summary?.byFailureKind, 'failureKind', 'MODEL_ERROR'),
       href: withRange({ failureKind: 'MODEL_ERROR' }),
     },
     {
@@ -370,11 +407,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
     },
     {
       label: '已进回归',
-      value: countByValue(
-        summary?.byResolution,
-        'resolution',
-        'ADDED_TO_EVAL',
-      ),
+      value: countByValue(summary?.byResolution, 'resolution', 'ADDED_TO_EVAL'),
       href: withRange({ resolution: 'ADDED_TO_EVAL' }),
     },
   ];
@@ -391,6 +424,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
   ) => {
     const note = window.prompt('备注（可选，用于记录分诊原因）') ?? undefined;
     setActionError('');
+    setActionInfo('');
     try {
       await aiQualityApi.updateFeedback(id, { ...patch, note } as any);
       // 必须等刷新完成再前进，否则候选列表还是旧数据，会跳过下一条。
@@ -399,6 +433,89 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
     } catch (err: any) {
       setActionError(err?.message ?? '分诊失败，请重试');
       return false;
+    }
+  };
+
+  const refreshAfterAction = async () => {
+    await Promise.all([refreshListAsync(), refreshSummaryAsync()]);
+  };
+
+  /** 已确认问题的后续处理：修复待验证 / 关闭，不重复写人工评分。 */
+  const applyResolution = async (
+    id: string,
+    resolution: 'FIXED_PENDING_VERIFY' | 'CLOSED',
+  ) => {
+    setActionError('');
+    setActionInfo('');
+    try {
+      await aiQualityApi.updateFeedback(id, { resolution } as any);
+      await refreshAfterAction();
+      setActionInfo(`已标记为${labelOf(RESOLUTION_LABELS, resolution)}`);
+    } catch (err: any) {
+      setActionError(err?.message ?? '更新处理状态失败，请重试');
+    }
+  };
+
+  /** 认领：负责人写当前管理员；已有负责人时可接手。 */
+  const claimOwner = async (id: string) => {
+    if (!adminId) {
+      setActionError('未获取到当前管理员身份，无法认领');
+      return;
+    }
+    setActionError('');
+    setActionInfo('');
+    try {
+      await aiQualityApi.updateFeedback(id, { ownerAdminId: adminId } as any);
+      await refreshAfterAction();
+      setActionInfo('已认领，负责人是你');
+    } catch (err: any) {
+      setActionError(err?.message ?? '认领失败，请重试');
+    }
+  };
+
+  /**
+   * 批量排除只针对当前页的服务故障；模型答错永不进入批量，避免误伤。
+   * 已排除/已忽略的条目不重复处理。
+   */
+  const batchExcludeTargets = list.filter(
+    (item) =>
+      item.failureKind === 'SERVICE_ERROR' &&
+      item.resolution !== 'EXCLUDED' &&
+      item.reviewStatus !== 'IGNORED',
+  );
+
+  const batchExcludeServiceErrors = async () => {
+    if (batchExcludeTargets.length === 0) {
+      setActionInfo('当前页没有可批量排除的服务故障');
+      return;
+    }
+    const ok = window.confirm(
+      `确认批量排除当前页 ${batchExcludeTargets.length} 条服务故障反馈？\n只会排除服务故障，模型答错不会受影响。`,
+    );
+    if (!ok) return;
+    setActionError('');
+    setActionInfo('');
+    const results = await Promise.allSettled(
+      batchExcludeTargets.map((item) =>
+        aiQualityApi.updateFeedback(item.id, {
+          reviewStatus: 'IGNORED',
+          resolution: 'EXCLUDED',
+          failureKind: 'SERVICE_ERROR',
+        } as any),
+      ),
+    );
+    const failed = results.filter(
+      (result) => result.status === 'rejected',
+    ).length;
+    await refreshAfterAction();
+    const succeeded = batchExcludeTargets.length - failed;
+    setActionInfo(
+      `已批量排除 ${succeeded} 条服务故障${
+        failed ? `，${failed} 条失败请重试` : ''
+      }`,
+    );
+    if (failed) {
+      setActionError(`批量排除有 ${failed} 条失败，请重试剩余条目`);
     }
   };
 
@@ -420,9 +537,9 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
       setActionError('这条反馈没有用户问题，无法生成回归用例');
       return;
     }
-    const expected = window.prompt(
-      '期望答案 / 必须提到的要点（必填，作为回归判分标准）',
-    )?.trim();
+    const expected = window
+      .prompt('期望答案 / 必须提到的要点（必填，作为回归判分标准）')
+      ?.trim();
     if (!expected) {
       setActionError('回归用例必须填写期望答案，否则无法证明修复有效');
       return;
@@ -487,9 +604,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
   // 当前条目已被分诊移除，下一条会顶到同一位置，所以索引保持不动。
   const advanceReview = () => setReviewIndex(0);
 
-  const handleReview = async (
-    kind: 'correct' | 'incorrect' | 'exclude',
-  ) => {
+  const handleReview = async (kind: 'correct' | 'incorrect' | 'exclude') => {
     if (!current) return;
     const patch =
       kind === 'correct'
@@ -511,8 +626,77 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
               failureKind,
             };
     const ok = await triage(current.id, patch);
-    if (ok) advanceReview();
+    if (ok) {
+      setDecision(null);
+      advanceReview();
+    }
   };
+
+  // 键盘监听只注册一次，通过 ref 调用最新的分诊逻辑，避免 effect 反复重建。
+  const reviewActionRef = useRef(handleReview);
+  reviewActionRef.current = handleReview;
+
+  // 质检模式快捷键：J/K 或 ↑/↓ 切换，1/2/3 选判断，Enter 保存并下一条，Esc 退出。
+  useEffect(() => {
+    if (!reviewMode) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const tag = target?.tagName?.toLowerCase();
+      if (
+        tag === 'input' ||
+        tag === 'textarea' ||
+        tag === 'select' ||
+        target?.isContentEditable
+      ) {
+        return;
+      }
+      switch (event.key) {
+        case 'j':
+        case 'J':
+        case 'ArrowDown':
+          event.preventDefault();
+          setReviewIndex((index) =>
+            Math.min(index + 1, Math.max(reviewList.length - 1, 0)),
+          );
+          setDecision(null);
+          break;
+        case 'k':
+        case 'K':
+        case 'ArrowUp':
+          event.preventDefault();
+          setReviewIndex((index) => Math.max(index - 1, 0));
+          setDecision(null);
+          break;
+        case '1':
+          event.preventDefault();
+          setDecision('correct');
+          break;
+        case '2':
+          event.preventDefault();
+          setDecision('incorrect');
+          break;
+        case '3':
+          event.preventDefault();
+          setDecision('exclude');
+          break;
+        case 'Enter':
+          if (decision) {
+            event.preventDefault();
+            void reviewActionRef.current(decision);
+          }
+          break;
+        case 'Escape':
+          event.preventDefault();
+          setReviewMode(false);
+          setDecision(null);
+          break;
+        default:
+          break;
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [reviewMode, reviewList.length, decision]);
 
   return (
     <section className="space-y-3">
@@ -691,8 +875,24 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
         {canTriage ? (
           <Button
             size="sm"
+            variant="outline"
+            disabled={batchExcludeTargets.length === 0}
+            title={
+              batchExcludeTargets.length === 0
+                ? '当前页没有可批量排除的服务故障（模型答错不允许批量排除）'
+                : '只批量排除当前页的服务故障，模型答错不会受影响'
+            }
+            onClick={() => void batchExcludeServiceErrors()}
+          >
+            批量排除服务故障（{batchExcludeTargets.length}）
+          </Button>
+        ) : null}
+        {canTriage ? (
+          <Button
+            size="sm"
             onClick={() => {
               setReviewIndex(0);
+              setDecision(null);
               setReviewMode(true);
             }}
           >
@@ -707,35 +907,14 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
         ) : null}
       </div>
 
-      {canTriage ? (
-        <div className="rounded-xl border border-gray-100 bg-white p-4 dark:border-white/10 dark:bg-gray-900">
-          <div className="text-sm font-semibold">分诊归因</div>
-          <p className="mt-1 text-xs text-gray-500">
-            先选择主要原因，再用行内「确认问题 / 排除」完成分诊；「回答正确」会标记为已确认且非故障。
-          </p>
-          <label className="mt-2 flex items-center gap-2 text-xs text-gray-500">
-            主要原因
-            <select
-              aria-label="主要原因"
-              className="rounded-lg border px-3 py-1.5 text-sm dark:border-white/10 dark:bg-gray-800"
-              value={failureKind}
-              onChange={(e) => setFailureKind(e.target.value)}
-            >
-              {FAILURE_KIND_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-      ) : null}
-
       {error ? (
         <AiErrorBanner message="反馈列表加载失败，请重试" onRetry={refresh} />
       ) : null}
       {actionError ? (
-        <AiErrorBanner message={actionError} onRetry={() => setActionError('')} />
+        <AiErrorBanner
+          message={actionError}
+          onRetry={() => setActionError('')}
+        />
       ) : null}
       {actionInfo ? (
         <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 dark:border-green-500/30 dark:bg-green-500/10 dark:text-green-300">
@@ -814,7 +993,10 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
             <button
               type="button"
               className="text-xs text-gray-500 hover:underline"
-              onClick={() => setReviewMode(false)}
+              onClick={() => {
+                setReviewMode(false);
+                setDecision(null);
+              }}
             >
               退出质检
             </button>
@@ -833,9 +1015,32 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
                   ? labelOf(SIGNAL_LABELS, current.signal)
                   : labelOf(VERDICT_LABELS, current.verdict)}
               </div>
+              <div className="mt-3 grid gap-1 border-t pt-2 text-xs text-gray-500 dark:border-white/10">
+                <div>
+                  转人工原因：
+                  {labelOf(TRANSFER_REASON_LABELS, current.transferReason)}
+                </div>
+                <div>处理客服：{handlerLabel(current.handlerId)}</div>
+                <div>负责人：{ownerLabel(current.ownerAdminId, adminId)}</div>
+              </div>
             </div>
             <div className="rounded-lg border bg-white p-3 dark:border-white/10 dark:bg-gray-900">
               <div className="mb-2 text-xs text-gray-500">这条怎么处理？</div>
+              <label className="mb-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                主要原因
+                <select
+                  aria-label="主要原因"
+                  className="rounded-lg border px-3 py-1.5 text-sm text-gray-900 dark:border-white/10 dark:bg-gray-800 dark:text-gray-100"
+                  value={failureKind}
+                  onChange={(e) => setFailureKind(e.target.value)}
+                >
+                  {FAILURE_KIND_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" onClick={() => void handleReview('correct')}>
                   回答正确
@@ -857,6 +1062,25 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
                 <Button
                   size="sm"
                   variant="outline"
+                  disabled={!adminId || current.ownerAdminId === adminId}
+                  title={
+                    !adminId
+                      ? '未获取到当前管理员身份'
+                      : current.ownerAdminId === adminId
+                        ? '你已经是这条反馈的负责人'
+                        : '把负责人设为当前管理员'
+                  }
+                  onClick={() => void claimOwner(current.id)}
+                >
+                  {current.ownerAdminId === adminId
+                    ? '已认领'
+                    : current.ownerAdminId
+                      ? '接手'
+                      : '认领'}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
                   disabled={!isModelProblem(current)}
                   title={
                     isModelProblem(current)
@@ -870,10 +1094,22 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={advanceReview}
+                  onClick={() => {
+                    setDecision(null);
+                    advanceReview();
+                  }}
                 >
                   跳过
                 </Button>
+              </div>
+              <div className="mt-3 rounded-lg bg-gray-50 px-2 py-1.5 text-xs text-gray-500 dark:bg-white/5">
+                当前选择：
+                {decision ? DECISION_LABELS[decision] : '按 1 / 2 / 3 选择'}
+                {' · '}按 Enter 保存并下一条
+              </div>
+              <div className="mt-1 text-xs text-gray-400">
+                快捷键：J / K 或 ↑ / ↓ 切换 · 1 正确 · 2 确认 · 3 排除 · Enter
+                保存并下一条 · Esc 退出
               </div>
               <a
                 className="mt-3 inline-block text-xs text-blue-600 hover:underline"
@@ -911,13 +1147,19 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={10} className="px-3 py-6 text-center text-gray-400">
+                <td
+                  colSpan={10}
+                  className="px-3 py-6 text-center text-gray-400"
+                >
                   加载中…
                 </td>
               </tr>
             ) : error ? null : list.length === 0 ? (
               <tr>
-                <td colSpan={10} className="px-3 py-6 text-center text-gray-400">
+                <td
+                  colSpan={10}
+                  className="px-3 py-6 text-center text-gray-400"
+                >
                   暂无反馈
                 </td>
               </tr>
@@ -977,7 +1219,7 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
                               void triage(item.id, {
                                 reviewStatus: 'REVIEWED',
                                 resolution: 'CONFIRMED',
-                                failureKind,
+                                failureKind: item.failureKind ?? 'UNKNOWN',
                               })
                             }
                           >
@@ -990,12 +1232,46 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
                               void triage(item.id, {
                                 reviewStatus: 'IGNORED',
                                 resolution: 'EXCLUDED',
-                                failureKind,
+                                failureKind: item.failureKind ?? 'UNKNOWN',
                               })
                             }
                           >
                             排除
                           </Button>
+                          {!item.ownerAdminId && adminId ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => void claimOwner(item.id)}
+                            >
+                              认领
+                            </Button>
+                          ) : null}
+                          {item.resolution === 'CONFIRMED' ? (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() =>
+                                  void applyResolution(
+                                    item.id,
+                                    'FIXED_PENDING_VERIFY',
+                                  )
+                                }
+                              >
+                                标记已修复待验证
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() =>
+                                  void applyResolution(item.id, 'CLOSED')
+                                }
+                              >
+                                关闭
+                              </Button>
+                            </>
+                          ) : null}
                           <Button
                             size="sm"
                             variant="outline"
@@ -1115,10 +1391,7 @@ function EvalPanel() {
 
   const editCase = async (item: any) => {
     if (!selectedId) return;
-    const next = window.prompt(
-      '期望答案 / 必须提到的要点',
-      expectedText(item),
-    );
+    const next = window.prompt('期望答案 / 必须提到的要点', expectedText(item));
     if (next == null) return;
     const expected = next.trim();
     if (!expected) {
@@ -1194,9 +1467,7 @@ function EvalPanel() {
     | (EvalDataset & { cases: any[]; runs: EvalRun[] })
     | null;
   const runData = run as EvalRun | null;
-  const list = Array.isArray(datasets)
-    ? (datasets as EvalDataset[])
-    : [];
+  const list = Array.isArray(datasets) ? (datasets as EvalDataset[]) : [];
   const selectedMeta = list.find((item) => item.id === selectedId);
   const lastRun = ds?.runs?.[0];
   const completedRuns = (ds?.runs ?? []).filter(
@@ -1312,7 +1583,9 @@ function EvalPanel() {
               启动批量评测
             </Button>
             {!canStartRun ? (
-              <span className="text-xs text-gray-500">只读角色仅可查看结果</span>
+              <span className="text-xs text-gray-500">
+                只读角色仅可查看结果
+              </span>
             ) : null}
           </div>
         </div>
@@ -1455,8 +1728,8 @@ function EvalPanel() {
                   className="rounded-lg border p-2 dark:border-white/10"
                 >
                   <div className="font-medium">
-                    {labelOf(RESULT_VERDICT_LABELS, r.verdict)} · 分数{' '}
-                    {r.score} · {r.latencyMs ?? '-'}ms
+                    {labelOf(RESULT_VERDICT_LABELS, r.verdict)} · 分数 {r.score}{' '}
+                    · {r.latencyMs ?? '-'}ms
                   </div>
                   <div>{r.case?.question}</div>
                   {r.actualAnswer ? (
@@ -1541,7 +1814,10 @@ function RagPanel() {
 
       <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-7">
         {cards.map(([label, value]) => (
-          <div key={label} className="rounded-xl border p-3 dark:border-white/10">
+          <div
+            key={label}
+            className="rounded-xl border p-3 dark:border-white/10"
+          >
             <div className="text-xs text-gray-500">{label}</div>
             <div className="text-lg font-semibold">
               {value != null ? value : statsLoading ? '加载中…' : '—'}
@@ -1645,8 +1921,31 @@ function RagPanel() {
       ) : result ? (
         <div className="space-y-3">
           {results.length === 0 ? (
-            <div className="rounded-xl border border-dashed p-6 text-center text-sm text-gray-400 dark:border-white/10">
-              暂无检索结果。
+            <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4 text-sm dark:border-amber-500/30 dark:bg-amber-500/5">
+              <div className="font-medium text-amber-800 dark:text-amber-200">
+                没有检索到相关文档
+              </div>
+              <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                按顺序检查下面几项，通常能定位到原因：
+              </p>
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-gray-600 dark:text-gray-300">
+                <li>文档缺失：知识库里还没有这个主题的文档，先上传或补充。</li>
+                <li>
+                  文档未启用：确认文档已发布；草稿、停用或解析失败的文档不会参与检索。
+                </li>
+                <li>
+                  领域不匹配：确认文档所属领域与检索时填写的 domain 一致。
+                </li>
+                <li>
+                  问题过窄或口语化：换一种更标准的问法，或给文档补同义词和常见问法。
+                </li>
+              </ul>
+              <Link
+                href="/knowledge"
+                className="mt-3 inline-block text-xs text-blue-600 hover:underline dark:text-blue-400"
+              >
+                去知识库检查/补充文档
+              </Link>
             </div>
           ) : (
             <div className="overflow-x-auto rounded-xl border border-gray-100 dark:border-white/10">
@@ -1685,14 +1984,6 @@ function RagPanel() {
               </table>
             </div>
           )}
-          <details>
-            <summary className="cursor-pointer text-xs text-gray-500">
-              原始检索结果（工程师）
-            </summary>
-            <pre className="mt-2 max-h-[420px] overflow-auto rounded-xl border bg-gray-50 p-3 text-xs dark:border-white/10 dark:bg-gray-900">
-              {JSON.stringify(result, null, 2)}
-            </pre>
-          </details>
         </div>
       ) : null}
     </section>

@@ -26,6 +26,7 @@ const mockRagSearch = vi.hoisted(() => vi.fn());
 const mockQualityStats = vi.hoisted(() => vi.fn());
 const mockCanTriage = vi.hoisted(() => vi.fn(() => true));
 const mockRole = vi.hoisted(() => ({ current: 'ADMIN' }));
+const mockAdminId = vi.hoisted(() => ({ current: 'admin-1' }));
 
 vi.mock('ahooks', () => ({
   useRequest: (...args: unknown[]) => mockUseRequest(...args),
@@ -62,6 +63,13 @@ vi.mock('@/lib/ai-ops-permissions', () => ({
   canTriageFeedback: () => mockCanTriage(),
 }));
 
+vi.mock('@/store/useAuthStore', () => ({
+  useAuthStore: (selector: (state: any) => unknown) =>
+    selector({
+      userInfo: mockAdminId.current ? { id: mockAdminId.current } : null,
+    }),
+}));
+
 vi.mock('@/components/scaffold/PageHeader', () => ({
   PageHeader: PageHeaderMock,
 }));
@@ -86,6 +94,9 @@ const feedback = {
   reviewStatus: 'PENDING',
   failureKind: 'UNEXPECTED_TRANSFER',
   resolution: 'OPEN',
+  ownerAdminId: null,
+  transferReason: 'ai_error',
+  handlerId: 'awaiting_human',
   createdAt: '2026-01-01T00:00:00.000Z',
 };
 
@@ -206,9 +217,7 @@ function wireFeedback(
     }
     if (slot === 2) {
       return {
-        ...makeUseRequest(
-          options.listData ?? { list: [feedback], total: 1 },
-        ),
+        ...makeUseRequest(options.listData ?? { list: [feedback], total: 1 }),
         ...(options.listError ? { error: options.listError } : {}),
         refresh,
         refreshAsync: refresh,
@@ -240,9 +249,18 @@ function wireEvalTab(detail: unknown, runData: unknown = null) {
     const slot = index % (inEval ? 3 : 4);
     index += 1;
     if (!inEval) {
-      if (slot === 0) return { ...makeUseRequest({ feedbackUiEnabled: true, evalEnabled: true }), refreshAsync: vi.fn() };
-      if (slot === 1) return { ...makeUseRequest(summary), refreshAsync: vi.fn() };
-      if (slot === 2) return { ...makeUseRequest({ list: [feedback], total: 1 }), refreshAsync: vi.fn() };
+      if (slot === 0)
+        return {
+          ...makeUseRequest({ feedbackUiEnabled: true, evalEnabled: true }),
+          refreshAsync: vi.fn(),
+        };
+      if (slot === 1)
+        return { ...makeUseRequest(summary), refreshAsync: vi.fn() };
+      if (slot === 2)
+        return {
+          ...makeUseRequest({ list: [feedback], total: 1 }),
+          refreshAsync: vi.fn(),
+        };
       return { ...makeUseRequest(datasets), refreshAsync: vi.fn() };
     }
     if (slot === 0) return makeUseRequest(datasets);
@@ -409,20 +427,27 @@ describe('AiQualityPage', () => {
     );
   });
 
-  it('sends resolution and the selected failure kind on triage', async () => {
+  it('records the inline cause and shows transfer context in the review card', async () => {
     const refresh = wireFeedback();
     render(<AiQualityPage />);
 
-    fireEvent.change(screen.getByLabelText('主要原因'), {
+    fireEvent.click(screen.getByRole('button', { name: '开始质检' }));
+    const card = screen.getByText(/质检 1 \/ 1/).closest('section')!;
+    expect(within(card).getByText('转人工原因：AI 异常')).toBeTruthy();
+    expect(within(card).getByText('处理客服：等待人工接手')).toBeTruthy();
+    expect(within(card).getByText('负责人：未分配')).toBeTruthy();
+
+    fireEvent.change(within(card).getByLabelText('主要原因'), {
       target: { value: 'MODEL_ERROR' },
     });
-    fireEvent.click(screen.getByRole('button', { name: '确认问题' }));
+    fireEvent.click(within(card).getByRole('button', { name: '确认问题' }));
 
     await waitFor(() =>
       expect(mockUpdateFeedback).toHaveBeenCalledWith('fb-1', {
         reviewStatus: 'REVIEWED',
         resolution: 'CONFIRMED',
         failureKind: 'MODEL_ERROR',
+        verdict: 'incorrect',
         note: '已确认是模型答非所问',
       }),
     );
@@ -439,10 +464,148 @@ describe('AiQualityPage', () => {
       expect(mockUpdateFeedback).toHaveBeenCalledWith('fb-1', {
         reviewStatus: 'IGNORED',
         resolution: 'EXCLUDED',
-        failureKind: 'UNKNOWN',
+        failureKind: 'UNEXPECTED_TRANSFER',
         note: '已确认是模型答非所问',
       }),
     );
+  });
+
+  it('marks a confirmed item as fixed-pending-verify or closed', async () => {
+    wireFeedback({
+      listData: {
+        list: [
+          {
+            ...feedback,
+            id: 'fb-confirmed',
+            reviewStatus: 'REVIEWED',
+            resolution: 'CONFIRMED',
+            failureKind: 'MODEL_ERROR',
+          },
+        ],
+        total: 1,
+      },
+    });
+    render(<AiQualityPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: '标记已修复待验证' }));
+    await waitFor(() =>
+      expect(mockUpdateFeedback).toHaveBeenCalledWith('fb-confirmed', {
+        resolution: 'FIXED_PENDING_VERIFY',
+      }),
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '关闭' }));
+    await waitFor(() =>
+      expect(mockUpdateFeedback).toHaveBeenCalledWith('fb-confirmed', {
+        resolution: 'CLOSED',
+      }),
+    );
+  });
+
+  it('claims ownership for the current admin from the review card', async () => {
+    wireFeedback();
+    render(<AiQualityPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: '开始质检' }));
+    const card = screen.getByText(/质检 1 \/ 1/).closest('section')!;
+    expect(within(card).getByText('负责人：未分配')).toBeTruthy();
+
+    fireEvent.click(within(card).getByRole('button', { name: '认领' }));
+
+    await waitFor(() =>
+      expect(mockUpdateFeedback).toHaveBeenCalledWith('fb-1', {
+        ownerAdminId: 'admin-1',
+      }),
+    );
+    expect(screen.getByText('已认领，负责人是你')).toBeTruthy();
+  });
+
+  it('supports J/K, 1/2/3, Enter and Esc shortcuts in review mode', async () => {
+    wireFeedback({
+      listData: {
+        list: [feedback, { ...feedback, id: 'fb-2', input: '第二个问题' }],
+        total: 2,
+      },
+    });
+    render(<AiQualityPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: '开始质检' }));
+    expect(screen.getByText(/质检 1 \/ 2/)).toBeTruthy();
+
+    fireEvent.keyDown(window, { key: 'j' });
+    expect(screen.getByText(/质检 2 \/ 2/)).toBeTruthy();
+    fireEvent.keyDown(window, { key: 'ArrowUp' });
+    expect(screen.getByText(/质检 1 \/ 2/)).toBeTruthy();
+
+    fireEvent.keyDown(window, { key: '2' });
+    expect(screen.getByText(/当前选择：确认问题/)).toBeTruthy();
+    fireEvent.keyDown(window, { key: 'Enter' });
+
+    await waitFor(() =>
+      expect(mockUpdateFeedback).toHaveBeenCalledWith(
+        'fb-1',
+        expect.objectContaining({
+          reviewStatus: 'REVIEWED',
+          resolution: 'CONFIRMED',
+        }),
+      ),
+    );
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByText(/质检 1 \/ 2/)).toBeNull();
+  });
+
+  it('batch-excludes only current-page service errors after showing the count', async () => {
+    wireFeedback({
+      listData: {
+        list: [
+          { ...feedback, id: 'fb-svc-1', failureKind: 'SERVICE_ERROR' },
+          { ...feedback, id: 'fb-svc-2', failureKind: 'SERVICE_ERROR' },
+          { ...feedback, id: 'fb-model', failureKind: 'MODEL_ERROR' },
+        ],
+        total: 3,
+      },
+    });
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(<AiQualityPage />);
+
+    const button = screen.getByRole('button', { name: /批量排除服务故障/ });
+    expect(button.textContent).toContain('2');
+    fireEvent.click(button);
+
+    await waitFor(() => expect(mockUpdateFeedback).toHaveBeenCalledTimes(2));
+    expect(confirmSpy).toHaveBeenCalledWith(
+      expect.stringContaining('2 条服务故障'),
+    );
+    expect(mockUpdateFeedback).toHaveBeenCalledWith('fb-svc-1', {
+      reviewStatus: 'IGNORED',
+      resolution: 'EXCLUDED',
+      failureKind: 'SERVICE_ERROR',
+    });
+    expect(mockUpdateFeedback).toHaveBeenCalledWith('fb-svc-2', {
+      reviewStatus: 'IGNORED',
+      resolution: 'EXCLUDED',
+      failureKind: 'SERVICE_ERROR',
+    });
+    expect(mockUpdateFeedback).not.toHaveBeenCalledWith(
+      'fb-model',
+      expect.anything(),
+    );
+    expect(screen.getByText('已批量排除 2 条服务故障')).toBeTruthy();
+  });
+
+  it('does not offer batch exclusion when the page only has model errors', () => {
+    wireFeedback({
+      listData: {
+        list: [{ ...feedback, failureKind: 'MODEL_ERROR' }],
+        total: 1,
+      },
+    });
+    render(<AiQualityPage />);
+
+    const button = screen.getByRole('button', { name: /批量排除服务故障/ });
+    expect(button.textContent).toContain('0');
+    expect((button as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('disables the add-to-regression action for service-error and expected-transfer rows', () => {
@@ -554,7 +717,9 @@ describe('AiQualityPage', () => {
   });
 
   it('shows disabled state when feedback UI is turned off', () => {
-    wireFeedback({ featuresData: { feedbackUiEnabled: false, evalEnabled: true } });
+    wireFeedback({
+      featuresData: { feedbackUiEnabled: false, evalEnabled: true },
+    });
     render(<AiQualityPage />);
 
     expect(
@@ -571,9 +736,7 @@ describe('AiQualityPage', () => {
 
     expect(screen.queryByText('我的券怎么还不发')).toBeNull();
     expect(screen.queryByText('请稍等，正在为你查询')).toBeNull();
-    expect(
-      screen.getAllByText('只读账号不显示原文').length,
-    ).toBeGreaterThan(0);
+    expect(screen.getAllByText('只读账号不显示原文').length).toBeGreaterThan(0);
   });
 
   it('hides triage actions but keeps status and context for read-only roles', () => {
@@ -765,9 +928,7 @@ describe('AiQualityPage', () => {
     openTab('回归测试');
 
     expect(screen.getByText('已取消')).toBeTruthy();
-    expect(
-      screen.getByText('本次运行已取消，未处理剩余用例。'),
-    ).toBeTruthy();
+    expect(screen.getByText('本次运行已取消，未处理剩余用例。')).toBeTruthy();
     expect(screen.queryByRole('button', { name: '取消运行' })).toBeNull();
   });
 
@@ -786,6 +947,33 @@ describe('AiQualityPage', () => {
     expect(screen.getAllByText('3').length).toBeGreaterThan(0);
     expect(screen.getByText('退换货政策')).toBeTruthy();
     expect(screen.queryByText(/byScore/)).toBeNull();
+  });
+
+  it('shows actionable zero-hit guidance and no raw JSON', async () => {
+    mockUseRequest.mockReturnValue(makeUseRequest(stats));
+    mockRagSearch.mockResolvedValue({ results: [], debug: { secret: 'raw' } });
+    render(<AiQualityPage />);
+    openTab('知识质量');
+
+    fireEvent.change(screen.getByPlaceholderText('检索问题'), {
+      target: { value: '优惠券怎么领' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '检索' }));
+
+    await waitFor(() =>
+      expect(screen.getByText('没有检索到相关文档')).toBeTruthy(),
+    );
+    expect(screen.getByText(/文档缺失/)).toBeTruthy();
+    expect(screen.getByText(/文档未启用/)).toBeTruthy();
+    expect(screen.getByText(/领域不匹配/)).toBeTruthy();
+    expect(screen.getByText(/问题过窄或口语化/)).toBeTruthy();
+    expect(
+      screen
+        .getByRole('link', { name: '去知识库检查/补充文档' })
+        .getAttribute('href'),
+    ).toBe('/knowledge');
+    expect(screen.queryByText(/原始检索结果/)).toBeNull();
+    expect(screen.queryByText(/secret/)).toBeNull();
   });
 
   it('shows a RAG stats error banner instead of an empty card set', () => {
