@@ -81,6 +81,7 @@ import {
   pushDirectResult,
   AGENT_ERROR_MSG,
 } from './orchestrator-utils/result-utils';
+import { shouldUseKnowledgeFallback } from './orchestrator-utils/knowledge-fallback';
 import { detectTransferRequest } from './orchestrator-utils/transfer-detector';
 import { updateContextState } from '@api/client/ai-customer/graph/utils/context-state-utils';
 import {
@@ -755,9 +756,42 @@ export const createOrchestratorNode =
       return orchestratorResult;
     }
 
+    // 知识兜底：所有 Agent 都说“不在范围”，但用户问的是流程/规则/政策，
+    // 且知识库有命中时，用 RAG 回答，避免“知识库明明有却拒答”。
+    let finalOutputs = agentOutputs;
+    if (
+      ragRetrievalService &&
+      shouldUseKnowledgeFallback(synthesizeInput, agentOutputs)
+    ) {
+      try {
+        const ragResult = await handleRagQuery(
+          state,
+          llmConfig,
+          ragRetrievalService,
+        );
+        const lastMessage =
+          ragResult.messages?.[ragResult.messages.length - 1];
+        const ragContent =
+          typeof lastMessage?.content === 'string'
+            ? lastMessage.content
+            : '';
+        if ((ragResult.ragSources?.length ?? 0) > 0 && ragContent) {
+          finalOutputs = [{ label: 'rag', content: ragContent }];
+          ragSources = ragResult.ragSources ?? [];
+          logger.log(
+            `[orchestrator] knowledge fallback used: sources=${ragSources.length}`,
+          );
+        }
+      } catch (err: any) {
+        logger.warn(
+          `[orchestrator] knowledge fallback failed: ${err?.message ?? err}`,
+        );
+      }
+    }
+
     const finalContent = await synthesizeAnswers(
       llmConfig,
-      agentOutputs,
+      finalOutputs,
       userInput,
       state.userMemory,
     );
