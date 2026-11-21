@@ -1,5 +1,16 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '@api/common/prisma/prisma.service';
+import {
+  deriveExplicit,
+  deriveImplicit,
+  FEEDBACK_FAILURE_KINDS,
+  type FeedbackFailureKind,
+  type FeedbackSignal,
+} from '@api/common/ai/feedback-triage';
+
+// 兼容既有调用方：DTO 与测试仍从这里导入常量/函数。
+export { deriveExplicit, deriveImplicit, FEEDBACK_FAILURE_KINDS };
+export type { FeedbackFailureKind, FeedbackSignal };
 
 export type FeedbackSource = 'explicit' | 'implicit';
 export type FeedbackVerdict = 'correct' | 'incorrect';
@@ -11,19 +22,6 @@ export const FEEDBACK_ERROR_TYPES = [
   'format',
 ] as const;
 export type FeedbackErrorType = (typeof FEEDBACK_ERROR_TYPES)[number];
-export type FeedbackSignal = 'transferred' | 'repeated_question' | 'abandoned';
-
-/** 运营归因；与 113 数据模型保持一致。 */
-export const FEEDBACK_FAILURE_KINDS = [
-  'MODEL_ERROR',
-  'SERVICE_ERROR',
-  'EXPECTED_TRANSFER',
-  'UNEXPECTED_TRANSFER',
-  'USER_ABANDONED',
-  'REPEATED_QUESTION',
-  'UNKNOWN',
-] as const;
-export type FeedbackFailureKind = (typeof FEEDBACK_FAILURE_KINDS)[number];
 
 /** 处理结论；与旧 reviewStatus 双写兼容。 */
 export const FEEDBACK_RESOLUTIONS = [
@@ -108,69 +106,6 @@ function mergeWhere(
     ...(createdAt ? { createdAt } : {}),
     ...(extra ?? {}),
   };
-}
-
-interface DerivedTriage {
-  failureKind: FeedbackFailureKind | null;
-  resolution: FeedbackResolution;
-  reviewStatus: 'PENDING' | 'REVIEWED' | 'IGNORED';
-}
-
-function deriveExplicit(verdict: FeedbackVerdict): DerivedTriage {
-  if (verdict === 'correct') {
-    return {
-      failureKind: null,
-      resolution: 'NO_ISSUE',
-      reviewStatus: 'REVIEWED',
-    };
-  }
-  return {
-    failureKind: 'MODEL_ERROR',
-    resolution: 'OPEN',
-    reviewStatus: 'PENDING',
-  };
-}
-
-function deriveImplicit(
-  signal: FeedbackSignal,
-  metadata?: Record<string, unknown>,
-): DerivedTriage {
-  const reason = typeof metadata?.reason === 'string' ? metadata.reason : null;
-  if (reason === 'ai_error') {
-    return {
-      failureKind: 'SERVICE_ERROR',
-      resolution: 'OPEN',
-      reviewStatus: 'PENDING',
-    };
-  }
-  if (reason === 'explicit_request') {
-    return {
-      failureKind: 'EXPECTED_TRANSFER',
-      resolution: 'EXCLUDED',
-      reviewStatus: 'IGNORED',
-    };
-  }
-  switch (signal) {
-    case 'abandoned':
-      return {
-        failureKind: 'USER_ABANDONED',
-        resolution: 'OPEN',
-        reviewStatus: 'PENDING',
-      };
-    case 'repeated_question':
-      return {
-        failureKind: 'REPEATED_QUESTION',
-        resolution: 'OPEN',
-        reviewStatus: 'PENDING',
-      };
-    case 'transferred':
-    default:
-      return {
-        failureKind: 'UNKNOWN',
-        resolution: 'OPEN',
-        reviewStatus: 'PENDING',
-      };
-  }
 }
 
 export interface ExplicitFeedbackInput {
