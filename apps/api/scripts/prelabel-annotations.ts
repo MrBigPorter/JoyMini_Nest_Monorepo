@@ -83,8 +83,14 @@ async function main() {
     throw new Error(`worksheet not found: ${worksheetPath}`);
   }
 
-  const model =
-    process.env.AI_PRELABEL_MODEL ?? 'llama-3.3-70b-versatile';
+  const explicitModel = process.env.AI_PRELABEL_MODEL;
+  const preferredModels = explicitModel
+    ? [explicitModel]
+    : [
+        'llama-3.3-70b-versatile',
+        'llama-3.1-8b-instant',
+        'gemma2-9b-it',
+      ];
   const baseURL =
     process.env.AI_PRELABEL_BASE_URL ?? 'https://api.groq.com/openai/v1';
   const allowSameVendor =
@@ -95,16 +101,6 @@ async function main() {
     (allowSameVendor ? process.env.DEEPSEEK_API_KEY : '') ??
     '';
   const apiKeys = parseApiKeys(rawKey);
-  const vendorIndependent = vendorOf(model, baseURL) !== 'deepseek';
-  const judgeVersion =
-    process.env.AI_PRELABEL_VERSION ??
-    `${model}@${new Date().toISOString().slice(0, 10)}`;
-
-  if (!vendorIndependent && !allowSameVendor) {
-    throw new Error(
-      'AI prelabel judge must use a different vendor from the chat model (deepseek); set AI_PRELABEL_ALLOW_SAME_VENDOR=true only for local experiments',
-    );
-  }
   if (apiKeys.length === 0 && !dryRun) {
     throw new Error(
       'Missing judge API key: set AI_PRELABEL_API_KEY or GROQ_API_KEY (or use --dry-run)',
@@ -131,7 +127,11 @@ async function main() {
 
   // 多 key 时先探活：401/403 跳过，其他状态/网络错误先用第一把。
   // 不打印 key 本身，只打印序号。
-  async function pickApiKey(): Promise<{ key: string; index: number } | null> {
+  async function pickApiKey(): Promise<{
+    key: string;
+    index: number;
+    modelIds: string[];
+  } | null> {
     if (dryRun) return null;
     for (let index = 0; index < apiKeys.length; index += 1) {
       const key = apiKeys[index];
@@ -144,16 +144,24 @@ async function main() {
           },
         );
         if (response.status === 401 || response.status === 403) continue;
+        const body = (await response.json().catch(() => ({}))) as {
+          data?: Array<{ id?: string }>;
+        };
+        const modelIds = Array.isArray(body.data)
+          ? body.data
+              .map((item) => item.id)
+              .filter((id): id is string => !!id)
+          : [];
         console.log(
-          `[prelabel] using key ${index + 1}/${apiKeys.length} (status=${response.status})`,
+          `[prelabel] using key ${index + 1}/${apiKeys.length} (status=${response.status}, models=${modelIds.length})`,
         );
-        return { key, index };
+        return { key, index, modelIds };
       } catch {
         // 网络不可达时不要误杀 key，交给真正的 invoke 决定。
         console.warn(
           `[prelabel] key ${index + 1} preflight network error, will try it`,
         );
-        return { key, index };
+        return { key, index, modelIds: [] };
       }
     }
     return null;
@@ -165,6 +173,28 @@ async function main() {
       'No usable judge API key: all keys returned 401/403. Rotate the key or check GROQ_API_KEY.',
     );
   }
+
+  const model = dryRun
+    ? (explicitModel ?? preferredModels[0])
+    : (preferredModels.find((id) => selected!.modelIds.includes(id)) ??
+      preferredModels[0]);
+
+  if (selected && explicitModel && !selected.modelIds.includes(explicitModel)) {
+    console.warn(
+      `[prelabel] configured model ${explicitModel} is not available to this key; using ${model}`,
+    );
+  }
+  console.log(`[prelabel] using model ${model}`);
+
+  const vendorIndependent = vendorOf(model, baseURL) !== 'deepseek';
+  if (!vendorIndependent && !allowSameVendor) {
+    throw new Error(
+      'AI prelabel judge must use a different vendor from the chat model (deepseek); set AI_PRELABEL_ALLOW_SAME_VENDOR=true only for local experiments',
+    );
+  }
+  const judgeVersion =
+    process.env.AI_PRELABEL_VERSION ??
+    `${model}@${new Date().toISOString().slice(0, 10)}`;
 
   const llm = dryRun
     ? null
