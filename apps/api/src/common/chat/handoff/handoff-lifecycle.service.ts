@@ -431,12 +431,17 @@ export class HandoffLifecycleService {
         ),
       );
 
-      this.eventsGateway.dispatch(id, SocketEvents.AI_HANDOFF_RETURNED, {
-        conversationId: id,
-        reason,
-        from: outcome.from,
-        at: now.toISOString(),
-      });
+      this.eventsGateway.dispatchToConversation(
+        id,
+        memberIds.length > 0 ? memberIds : [],
+        SocketEvents.AI_HANDOFF_RETURNED,
+        {
+          conversationId: id,
+          reason,
+          from: outcome.from,
+          at: now.toISOString(),
+        },
+      );
 
       this.eventEmitter.emit(
         CHAT_EVENTS.SUPPORT_QUEUE_CHANGED,

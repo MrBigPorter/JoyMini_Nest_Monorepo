@@ -38,7 +38,10 @@ function createService(config: Record<string, string> = {}) {
   const configService = {
     get: jest.fn((key: string) => config[key]),
   };
-  const eventsGateway = { dispatch: jest.fn() };
+  const eventsGateway = {
+    dispatch: jest.fn(),
+    dispatchToConversation: jest.fn(),
+  };
   const eventEmitter = { emit: jest.fn() };
 
   const service = new HandoffLifecycleService(
@@ -185,8 +188,9 @@ describe('HandoffLifecycleService.returnToAi', () => {
         handlerId: null,
       }),
     );
-    expect(eventsGateway.dispatch).toHaveBeenCalledWith(
+    expect(eventsGateway.dispatchToConversation).toHaveBeenCalledWith(
       'conv-1',
+      expect.any(Array),
       SocketEvents.AI_HANDOFF_RETURNED,
       expect.objectContaining({
         conversationId: 'conv-1',
