@@ -208,6 +208,7 @@ export const createIntentRouterNode = (
               type: injection.type ?? 'unknown',
               mode: injectionMode,
               length: userInput.length,
+              conversationId: state.conversationId || null,
               userIdHash: state.userId
                 ? createHash('sha256').update(state.userId).digest('hex')
                 : null,

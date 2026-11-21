@@ -27,6 +27,9 @@ function createService() {
       }),
       groupBy: jest.fn().mockResolvedValue([]),
     },
+    aiTrace: {
+      findFirst: jest.fn().mockResolvedValue(null),
+    },
     conversation: {
       findMany: jest.fn().mockResolvedValue([]),
     },
@@ -218,6 +221,19 @@ describe('AiFeedbackService（ai-quality-loop 4.x）', () => {
       failureKind: 'MODEL_ERROR',
       count: 2,
     });
+  });
+
+  it('反馈写入时回链最近一条 trace', async () => {
+    const { service, prisma } = createService();
+    prisma.aiTrace.findFirst.mockResolvedValueOnce({ id: 'trace-1' });
+
+    await service.recordExplicit({ conversationId: 'c1', verdict: 'incorrect' });
+
+    expect(prisma.aiAnswerFeedback.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ traceId: 'trace-1' }),
+      }),
+    );
   });
 
   it('显式反馈 correct：自动 NO_ISSUE + REVIEWED', async () => {

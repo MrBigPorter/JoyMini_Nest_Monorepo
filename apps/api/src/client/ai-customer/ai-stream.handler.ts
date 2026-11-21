@@ -75,6 +75,7 @@ export async function handleEventStream(
       {
         messages: [new HumanMessage(message)],
         userId,
+        conversationId: conversationId ?? '',
         debug: false,
         entryPoint: entryPoint ?? '',
         entryMetadata: metadata ?? {},

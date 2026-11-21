@@ -207,8 +207,41 @@ export class AiFeedbackService {
 
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * 反馈回链 trace：优先按 AI 消息/触发消息匹配，找不到再退回会话最近一条。
+   * 找不到不阻断反馈写入。
+   */
+  private async resolveTraceId(
+    conversationId: string,
+    messageId?: string | null,
+  ): Promise<string | null> {
+    if (messageId) {
+      const byMessage = await this.prisma.aiTrace.findFirst({
+        where: {
+          OR: [
+            { aiMessageId: messageId },
+            { triggerMessageId: messageId },
+          ],
+        },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true },
+      });
+      if (byMessage) return byMessage.id;
+    }
+    const latest = await this.prisma.aiTrace.findFirst({
+      where: { conversationId },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true },
+    });
+    return latest?.id ?? null;
+  }
+
   async recordExplicit(input: ExplicitFeedbackInput): Promise<{ id: string }> {
     const userInput = await this.resolveUserInput(
+      input.conversationId,
+      input.messageId,
+    );
+    const traceId = await this.resolveTraceId(
       input.conversationId,
       input.messageId,
     );
@@ -229,6 +262,7 @@ export class AiFeedbackService {
         failureKind: derived.failureKind,
         resolution: derived.resolution,
         reviewStatus: derived.reviewStatus,
+        traceId,
       },
       select: { id: true },
     });
@@ -252,6 +286,10 @@ export class AiFeedbackService {
     if (existing) return;
 
     const derived = deriveImplicit(input.signal, input.metadata);
+    const traceId = await this.resolveTraceId(
+      input.conversationId,
+      input.messageId,
+    );
     await this.prisma.aiAnswerFeedback.create({
       data: {
         conversationId: input.conversationId,
@@ -263,6 +301,7 @@ export class AiFeedbackService {
         failureKind: derived.failureKind,
         resolution: derived.resolution,
         reviewStatus: derived.reviewStatus,
+        traceId,
       },
     });
     this.logger.log(

@@ -881,6 +881,19 @@ export class AiCustomerService implements OnModuleDestroy {
       const latencyMs = Date.now() - params.startedAt;
       const traceStart = new Date(params.startedAt);
 
+      // 回链到本轮真正落库的 AI 消息：publishAiReply 用 triggerMessageId
+      // 做唯一键，因此这里按它反查最稳，不需要改发布函数签名。
+      const aiMessage = params.triggerMessageId
+        ? await this.prismaService.chatMessage.findFirst({
+            where: {
+              triggerMessageId: params.triggerMessageId,
+              source: 'ai',
+            },
+            orderBy: { seqId: 'desc' },
+            select: { id: true },
+          })
+        : null;
+
       // 只保留链路骨架：intent → rag → llm。
       // RAG 片段只留预览，避免把知识库全文再复制一份进追踪表。
       const spans: RecordTraceSpanInput[] = [
@@ -930,6 +943,7 @@ export class AiCustomerService implements OnModuleDestroy {
       await this.traceService.recordTrace({
         conversationId: params.conversationId,
         triggerMessageId: params.triggerMessageId,
+        aiMessageId: aiMessage?.id ?? null,
         userId: params.userId,
         intent,
         input: this.truncateText(params.message, 1000),

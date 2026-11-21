@@ -326,6 +326,17 @@ export const AgentState = Annotation.Root({
   }),
 
   /**
+   * conversationId — 当前会话 ID
+   *
+   * 由 chatStream 注入；安全事件等旁路埋点用它回链到会话。
+   * testChat 没有真实会话，保持空串。
+   */
+  conversationId: Annotation<string>({
+    reducer: (a: string, b: string) => b,
+    default: () => '',
+  }),
+
+  /**
    * debug — 调试模式开关
    *
    * true 时 Agent 会输出完整的消息链到 agentSteps，方便调试。

@@ -58,6 +58,7 @@ export class AiEvalController {
     @Body() dto: CreateEvalDatasetDto,
     @CurrentUserId() adminId: string,
   ) {
+    this.assertEnabled();
     return this.datasetService.createDataset({ ...dto, createdBy: adminId });
   }
 
@@ -72,6 +73,7 @@ export class AiEvalController {
   @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   @ApiOperation({ summary: '批量添加评测用例' })
   async addCases(@Param('id') id: string, @Body() dto: AddEvalCasesDto) {
+    this.assertEnabled();
     return this.datasetService.addCases(id, dto);
   }
 
