@@ -997,7 +997,7 @@ export class AiCustomerService implements OnModuleDestroy {
         },
       ];
 
-      await this.traceService.recordTrace({
+      const trace = await this.traceService.recordTrace({
         conversationId: params.conversationId,
         triggerMessageId: params.triggerMessageId,
         aiMessageId: aiMessage?.id ?? null,
@@ -1020,7 +1020,15 @@ export class AiCustomerService implements OnModuleDestroy {
         },
         spans,
       });
+      incCounter('ai_trace_recorded_total', {
+        path: 'reply',
+        result: trace ? 'ok' : 'skipped',
+      });
     } catch (err: any) {
+      incCounter('ai_trace_recorded_total', {
+        path: 'reply',
+        result: 'error',
+      });
       // TraceService 已兜底，这里再兜一层，确保埋点永远不冒泡到对话主流程。
       this.logger.warn(
         `[recordReplyTrace] skipped: ${err?.message ?? err}`,
@@ -1045,7 +1053,7 @@ export class AiCustomerService implements OnModuleDestroy {
         params.error?.message ?? params.error ?? 'unknown error',
       );
 
-      await this.traceService.recordTrace({
+      const trace = await this.traceService.recordTrace({
         conversationId: params.conversationId,
         triggerMessageId: params.triggerMessageId,
         userId: params.userId,
@@ -1067,7 +1075,15 @@ export class AiCustomerService implements OnModuleDestroy {
           },
         ],
       });
+      incCounter('ai_trace_recorded_total', {
+        path: 'error',
+        result: trace ? 'ok' : 'skipped',
+      });
     } catch (err: any) {
+      incCounter('ai_trace_recorded_total', {
+        path: 'error',
+        result: 'error',
+      });
       this.logger.warn(
         `[recordErrorTrace] skipped: ${err?.message ?? err}`,
       );

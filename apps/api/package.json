@@ -37,7 +37,8 @@
     "export:swagger:full": "TS_NODE_TRANSPILE_ONLY=true node_modules/.bin/ts-node -r tsconfig-paths/register scripts/cli/export-swagger.ts --full --output ../../apps/swagger-docs",
     "seed:ai-eval-fixture": "tsx scripts/seed/seed-ai-eval-fixture.ts",
     "sync-ai-data": "tsx scripts/cli/sync-ai-data.ts",
-    "backfill:feedback-triage": "tsx scripts/backfill-implicit-feedback-triage.ts"
+    "backfill:feedback-triage": "tsx scripts/backfill-implicit-feedback-triage.ts",
+    "audit:trace-coverage": "tsx scripts/audit-ai-trace-coverage.ts"
   },
   "prisma": {
     "schema": "prisma/schema.prisma",

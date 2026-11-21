@@ -175,6 +175,12 @@ registerMetric(
   'counter',
   true,
 );
+registerMetric(
+  'ai_trace_recorded_total',
+  'AI trace recording outcomes (path=reply/error, result=ok/skipped/error)',
+  'counter',
+  true,
+);
 setGauge('ai_active_streams', {}, 0);
 setGauge('support_queue_waiting', {}, 0);
 setGauge('support_sla_breaches', {}, 0);

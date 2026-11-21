@@ -17,6 +17,12 @@ export const FEEDBACK_FAILURE_KINDS = [
   'UNEXPECTED_TRANSFER',
   'USER_ABANDONED',
   'REPEATED_QUESTION',
+  // 人工复核时真正能指导修复的归因；系统派生不会自动写入这些值。
+  'KNOWLEDGE_GAP',
+  'ROUTING',
+  'PROMPT',
+  'PRODUCT_GAP',
+  'LANGUAGE',
   'UNKNOWN',
 ] as const;
 export type FeedbackFailureKind = (typeof FEEDBACK_FAILURE_KINDS)[number];
