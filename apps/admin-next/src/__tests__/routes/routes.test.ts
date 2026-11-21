@@ -58,12 +58,12 @@ describe('routes 配置', () => {
     expect(visible.some((r) => r.path === '/ai-ops')).toBe(true);
   });
 
-  it('七条工程路由都标记了 VIEWER 隐藏', () => {
+  it('工程路由都标记了 VIEWER 隐藏', () => {
     const engineering = routes.filter(
       (r) => r.group === 'AI Operations · 工程',
     );
 
-    expect(engineering).toHaveLength(7);
+    expect(engineering).toHaveLength(8);
     engineering.forEach((route) => {
       expect(route.hiddenForRoles).toContain('VIEWER');
     });

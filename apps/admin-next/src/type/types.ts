@@ -1354,6 +1354,46 @@ export interface AiFeedbackItem {
   createdAt: string;
 }
 
+export interface AiProblemEventRow {
+  id: string;
+  occurredAt: string;
+  windowStart: string;
+  type: string;
+  severity: number;
+  confidence: number;
+  source: string;
+  conversationId?: string | null;
+  traceId?: string | null;
+  intent?: string | null;
+  status: string;
+  metadata?: Record<string, unknown> | null;
+}
+
+export interface AiMetricWindowRow {
+  id: string;
+  windowStart: string;
+  metric: string;
+  dimension: string;
+  dimensionValue: string;
+  numerator: number;
+  denominator: number;
+  value: number;
+  sampleSize: number;
+}
+
+export interface AiAnalysisRunRow {
+  id: string;
+  jobType: string;
+  windowStart: string;
+  windowEnd: string;
+  status: string;
+  startedAt: string;
+  finishedAt?: string | null;
+  processed: number;
+  createdEvents: number;
+  error?: string | null;
+}
+
 export interface AiOpsFeatures {
   feedbackUiEnabled: boolean;
   evalEnabled: boolean;

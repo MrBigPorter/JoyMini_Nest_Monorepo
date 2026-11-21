@@ -1477,6 +1477,36 @@ export const intentExamplesApi = {
  * AI Operations — 队列 / 流程版本 / 用量 / 记忆
  */
 export const aiOpsApi = {
+  /** POST /v1/admin/ai-analysis/runs — 跑一个 UTC 日窗口 */
+  runAnalysis: (date?: string) =>
+    http.post<import('@/type/types').AiAnalysisRunRow>(
+      '/v1/admin/ai-analysis/runs',
+      date ? { date } : {},
+    ),
+  /** GET /v1/admin/ai-analysis/runs — 分析运行记录 */
+  getAnalysisRuns: (limit = 20) =>
+    http.get<import('@/type/types').AiAnalysisRunRow[]>(
+      '/v1/admin/ai-analysis/runs',
+      { limit },
+    ),
+  /** GET /v1/admin/ai-analysis/metrics — 指标窗口 */
+  getAnalysisMetrics: (date?: string) =>
+    http.get<{
+      windowStart: string | null;
+      metrics: import('@/type/types').AiMetricWindowRow[];
+    }>('/v1/admin/ai-analysis/metrics', date ? { date } : undefined),
+  /** GET /v1/admin/ai-analysis/events — 问题事件 */
+  getAnalysisEvents: (params: {
+    date?: string;
+    type?: string;
+    page?: number;
+    pageSize?: number;
+  }) =>
+    http.get<{
+      windowStart: string | null;
+      list: import('@/type/types').AiProblemEventRow[];
+      total: number;
+    }>('/v1/admin/ai-analysis/events', params),
   /** GET /v1/admin/ai-ops/features — 功能开关只读视图 */
   getFeatures: () =>
     http.get<import('@/type/types').AiOpsFeatures>(
