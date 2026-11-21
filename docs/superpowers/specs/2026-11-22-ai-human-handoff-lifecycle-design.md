@@ -134,7 +134,7 @@ SUPPORT_IDLE_TIMEOUT_MINUTES=60   # HUMAN_ACTIVE 坐席不活跃超时回 AI（0
 - 不新增 `lastAgentReplyAt` 列，避免 schema 变更；代价是 `handlerAssignedAt` 的语义从“分配时间”变为“最后人工活动”，需要在列表/提示文案里按这个口径解释
 - 回 AI 前发系统消息：「人工客服暂时无法继续，智能助手已恢复」
 - 删除 `chat.service.ts` 的懒 10 分钟释放，以及 `support-queue.sweepIdle` 的旧 10 分钟逻辑（合并进新服务）
-- 保留排队超时“提醒客服”的能力，但不再由它改状态
+- 排队超时不再单独提醒；超过等待阈值直接回 AI，避免“只提醒不处理”的队列。
 
 ### D5. 在线客服检查
 

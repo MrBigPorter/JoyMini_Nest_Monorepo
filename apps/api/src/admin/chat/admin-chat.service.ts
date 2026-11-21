@@ -144,7 +144,7 @@ export class AdminChatService {
     const orderBy: Prisma.ConversationOrderByWithRelationInput =
       queue === 'awaiting'
         ? // 排队先后看 transferredAt（转人工那一刻），不是 handlerAssignedAt ——
-          // 后者会被用户每发一条消息刷新，等于按"最后活跃时间"排队
+          // handlerAssignedAt 现在表示最后一次人工侧活动，用户消息不再刷新
           { transferredAt: { sort: 'asc', nulls: 'last' } }
         : { lastMsgTime: 'desc' };
     const [total, list] = await Promise.all([

@@ -192,6 +192,18 @@ registerMetric(
   'Withdraw applications accepted without OTP while WITHDRAW_OTP_ENFORCE is off',
   'counter',
 );
+registerMetric(
+  'handoff_escalations_total',
+  'AI-to-human handoff attempts by reason and path (online/offline/fallback)',
+  'counter',
+  true,
+);
+registerMetric(
+  'handoff_returns_total',
+  'Conversations returned from human to AI by reason',
+  'counter',
+  true,
+);
 setGauge('ai_active_streams', {}, 0);
 setGauge('support_queue_waiting', {}, 0);
 setGauge('support_sla_breaches', {}, 0);

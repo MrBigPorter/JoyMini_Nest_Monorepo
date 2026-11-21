@@ -298,3 +298,15 @@ AI_FEEDBACK_UI_ENABLED
 - 不做工单系统
 - 不做多租户
 - 不改现有业务表
+
+## 13. 交接生命周期（2026-11-22）
+
+转人工不再只显示队列，还明确四态与回 AI 策略：
+
+- 状态：`AI_ACTIVE / WAITING_HUMAN / HUMAN_ACTIVE / CLOSED`
+- 排队 10 分钟无人认领、坐席 60 分钟无回复 → 自动回 AI
+- 回 AI 保留上下文但重置连续失败计数，写系统消息
+- 转人工前检查在线客服；无人在线时留在 AI 并记录 `handoffCallback`
+- 关闭后用户再发消息 → 同会话重开
+
+细节见 [交接生命周期设计](../superpowers/specs/2026-11-22-ai-human-handoff-lifecycle-design.md)。

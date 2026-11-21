@@ -5,6 +5,7 @@ import { ConversationType, Prisma } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 import { MESSAGE_TYPE, ConversationStatus, SocketEvents } from '@lucky/shared';
 import { PrismaService } from '@api/common/prisma/prisma.service';
+import { incCounter } from '@api/common/metrics/metrics';
 import { EventsGateway } from '@api/common/events/events.gateway';
 import { AWAITING_HUMAN } from '@api/common/chat/support-handler.service';
 import {
@@ -174,6 +175,7 @@ export class HandoffLifecycleService {
     if (!outcome) return false;
 
     await this.publish(id, reason, now, outcome);
+    incCounter('handoff_returns_total', { reason });
     this.logger.log(
       `[Handoff] conversation=${id} returned to AI (reason=${reason}, actor=${actor})`,
     );

@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import { SocketEvents } from '@lucky/shared';
+import { incCounter } from '@api/common/metrics/metrics';
 import { emitStage } from '@api/common/logger/structured-logger';
 import { publishAiReply } from './ai-reply-publisher';
 import type { PrismaService } from '@api/common/prisma/prisma.service';
@@ -109,6 +110,10 @@ export async function degradeToHuman(
   const { conversationId, userId, memberIds = [], triggerMessageId } = params;
 
   emitStage('transfer', { source: 'fallback', reason: 'ai_error' }, 'warn');
+  incCounter('handoff_escalations_total', {
+    reason: 'ai_error',
+    source: 'fallback',
+  });
 
   const offline = await isOfflineHandoff(deps);
   const mode = offline ? 'offline' : 'online';

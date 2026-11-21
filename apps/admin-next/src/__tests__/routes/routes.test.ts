@@ -68,7 +68,7 @@ describe('routes 配置', () => {
       (r) => r.group === 'AI Operations · 工程',
     );
 
-    expect(engineering).toHaveLength(8);
+    expect(engineering).toHaveLength(10);
     engineering.forEach((route) => {
       expect(route.hiddenForRoles).toContain('VIEWER');
       expect(route.hiddenForRoles).toContain('EDITOR');

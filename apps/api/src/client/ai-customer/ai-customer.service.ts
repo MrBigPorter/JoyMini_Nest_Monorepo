@@ -1278,6 +1278,9 @@ export class AiCustomerService implements OnModuleDestroy {
           transferReason:
             params.status === 'TRANSFERRED' ? params.transferReason : undefined,
           ragSourceCount: params.ragSources.length,
+          handoffState:
+            params.status === 'TRANSFERRED' ? 'WAITING_HUMAN' : 'AI_ACTIVE',
+          handoffReason: params.transferReason ?? undefined,
         },
         spans,
       });
@@ -1407,6 +1410,10 @@ export class AiCustomerService implements OnModuleDestroy {
       // 转人工前先看有没有客服在线：无人在线时入队只会让用户空等，
       // 改为留一条 callback 元数据 + 离线提示，AI 继续服务。
       const mode = await this.resolveTransferMode();
+      incCounter('handoff_escalations_total', {
+        reason,
+        source: mode === 'offline' ? 'offline' : 'online',
+      });
       if (mode === 'offline') {
         await this.routeOfflineTransfer(
           targetConvId,
@@ -1421,7 +1428,7 @@ export class AiCustomerService implements OnModuleDestroy {
           data: {
             handlerId: 'awaiting_human',
             handlerAssignedAt: new Date(),
-            // 排队起点只认 transferredAt：handlerAssignedAt 会被后续每条消息刷新，
+            // 排队起点只认 transferredAt：handlerAssignedAt 表示最后人工活动，不是排队时间，
             // 拿它算排队时长/排序会让"刚发过消息的用户"排到队尾
             transferredAt: new Date(),
             transferReason: reason,
