@@ -80,18 +80,24 @@ export class SupportSlaService {
         select: { id: true, transferredAt: true },
       });
 
-      const snapshot = evaluateSupportQueue(items, Date.now(), thresholdMs);
+      const now = new Date();
+      const snapshot = evaluateSupportQueue(items, now.getTime(), thresholdMs);
       setGauge('support_queue_waiting', {}, snapshot.waiting);
       setGauge('support_sla_breaches', {}, snapshot.breached);
 
       // 历史快照：只存聚合值，便于按天看趋势，不保存会话/用户信息。
+      // 用 UTC 分钟桶 upsert：多实例同一分钟只留一行，后写覆盖前写。
+      const bucket = new Date(Math.floor(now.getTime() / 60_000) * 60_000);
+      const data = {
+        waiting: snapshot.waiting,
+        breached: snapshot.breached,
+        longestWait: Math.round(snapshot.oldestWaitMs / 1000),
+      };
       await this.prisma.supportSlaSnapshot
-        .create({
-          data: {
-            waiting: snapshot.waiting,
-            breached: snapshot.breached,
-            longestWait: Math.round(snapshot.oldestWaitMs / 1000),
-          },
+        .upsert({
+          where: { bucket },
+          create: { bucket, ...data },
+          update: data,
         })
         .catch((err: any) =>
           this.logger.warn(

@@ -30,9 +30,26 @@ export class RagService {
     private readonly ragEmbeddingQueue: Queue,
   ) {}
 
+  /** 直接建/改文档时也跑同一套解析质量检查，避免分数只在上传时更新。 */
+  private qualityFields(content: string): {
+    qualityScore: number;
+    qualityFlags: string | null;
+  } {
+    const result = this.ragQualityService.check(
+      content,
+      Buffer.byteLength(content, 'utf8'),
+    );
+    return {
+      qualityScore: result.overallScore,
+      qualityFlags:
+        result.flags.length > 0 ? result.flags.join(',') : null,
+    };
+  }
+
   async create(dto: CreateRagDocDto) {
     return this.prisma.knowledgeDocument.create({
       data: {
+        ...this.qualityFields(dto.content),
         title: dto.title,
         domain: dto.domain,
         docId: dto.docId,
@@ -96,6 +113,9 @@ export class RagService {
       where: { id },
       data: {
         ...dto,
+        ...(dto.content !== undefined
+          ? this.qualityFields(dto.content)
+          : {}),
         // 不在这里 +1：这次只改元数据，没有重新切片。
         // 一 +1 就会让 version 跑到 activeVersion 前面，而 chunks 还停在旧版本，
         // 整文档兜底层（activeVersion === version）会把这个文档排除掉。
@@ -133,6 +153,7 @@ export class RagService {
   async getQualityStats(): Promise<{
     total: number;
     needReview: number;
+    flagged: number;
     byScore: {
       excellent: number;
       good: number;
@@ -168,9 +189,18 @@ export class RagService {
       flags: string | null;
       parsedAt: Date;
     }> = [];
+    let flagged = 0;
+    let flaggedHighScore = 0;
 
     for (const doc of docs) {
       const score = doc.qualityScore;
+
+      if (doc.qualityFlags) {
+        flagged += 1;
+        if (score === null || score === undefined || score >= 70) {
+          flaggedHighScore += 1;
+        }
+      }
 
       if (score === null || score === undefined) {
         // uncheckd — skip
@@ -191,9 +221,11 @@ export class RagService {
       }
     }
 
-    const needReview = byScore.suspicious + byScore.fair;
+    // 有标记的文档即使分数 >=70 也要人看一眼；避免“待复核 0、标记 5 篇”。
+    const needReview =
+      byScore.suspicious + byScore.fair + flaggedHighScore;
 
-    return { total, needReview, byScore, recentFlags };
+    return { total, needReview, flagged, byScore, recentFlags };
   }
 
   // ==================== Chunk operations ====================

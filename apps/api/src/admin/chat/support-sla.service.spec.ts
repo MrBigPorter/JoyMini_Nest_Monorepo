@@ -45,6 +45,27 @@ describe('evaluateSupportQueue', () => {
   });
 });
 
+describe('SupportSlaService.checkQueue', () => {
+  it('用 UTC 分钟桶 upsert，避免多实例重复快照', async () => {
+    const prisma: any = {
+      conversation: { findMany: jest.fn().mockResolvedValue([]) },
+      supportSlaSnapshot: {
+        upsert: jest.fn().mockResolvedValue({ id: 's1' }),
+      },
+    };
+    const config: any = { get: jest.fn().mockReturnValue('5') };
+    const service = new SupportSlaService(prisma, config);
+
+    await service.checkQueue();
+
+    const args = prisma.supportSlaSnapshot.upsert.mock.calls[0][0];
+    expect(args.where.bucket).toBeInstanceOf(Date);
+    expect(args.where.bucket.getUTCSeconds()).toBe(0);
+    expect(args.create.bucket).toEqual(args.where.bucket);
+    expect(args.update).toEqual({ waiting: 0, breached: 0, longestWait: 0 });
+  });
+});
+
 describe('SupportSlaService.getHistory', () => {
   it('取窗口内最新 2000 条（desc）后反转为升序，latest 限定同一窗口', async () => {
     const newer = { id: 's2', createdAt: new Date('2026-11-20T10:00:00Z') };

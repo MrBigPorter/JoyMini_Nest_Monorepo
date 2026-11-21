@@ -1284,6 +1284,7 @@ export const knowledgeApi = {
     http.get<{
       total: number;
       needReview: number;
+      flagged: number;
       byScore: {
         excellent: number;
         good: number;

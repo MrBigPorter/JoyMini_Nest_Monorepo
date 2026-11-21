@@ -100,7 +100,32 @@ export class RagQualityService {
       return { passed: true, detail: 'Content too short for truncation check' };
     }
     const tail = content.slice(-200);
-    const isComplete = /[.!?。！？)\n]\s*$/.test(tail);
+    const lastLine =
+      tail
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .pop() ?? '';
+
+    // Markdown 表格/列表/代码块/标题本身就是合法的文档结尾，不应判截断。
+    if (/^\|.*\|$/.test(lastLine)) {
+      return { passed: true, detail: 'Content ends with a table row' };
+    }
+    if (/^[-*+]\s/.test(lastLine)) {
+      return { passed: true, detail: 'Content ends with a list item' };
+    }
+    if (/^```/.test(lastLine)) {
+      return { passed: true, detail: 'Content ends with a code fence' };
+    }
+    if (/^#{1,6}\s/.test(lastLine)) {
+      return { passed: true, detail: 'Content ends with a heading' };
+    }
+
+    // 去掉结尾 emoji、空白和 Markdown 修饰符后再看最后一个正文字符。
+    const stripped = lastLine
+      .replace(/[\p{Extended_Pictographic}\p{Emoji_Presentation}️]/gu, '')
+      .replace(/[\s)\]}>|*_`~#-]+$/g, '');
+    const isComplete = /[.!?。！？]$/.test(stripped);
     return {
       passed: isComplete,
       detail: isComplete

@@ -1479,6 +1479,7 @@ function RagPanel() {
   const byScore = stats?.byScore;
   const cards = [
     ['文档总数', stats?.total],
+    ['有标记', stats?.flagged],
     ['待复核', stats?.needReview],
     ['优秀', byScore?.excellent],
     ['良好', byScore?.good],
@@ -1497,7 +1498,7 @@ function RagPanel() {
         />
       ) : null}
 
-      <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-7">
         {cards.map(([label, value]) => (
           <div key={label} className="rounded-xl border p-3 dark:border-white/10">
             <div className="text-xs text-gray-500">{label}</div>
@@ -1522,7 +1523,7 @@ function RagPanel() {
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50 text-left dark:bg-white/5">
               <tr>
-                {['文档', '评分', '标记', '解析时间'].map((h) => (
+                {['文档', '评分', '标记', '上传时间'].map((h) => (
                   <th key={h} className="px-3 py-2">
                     {h}
                   </th>

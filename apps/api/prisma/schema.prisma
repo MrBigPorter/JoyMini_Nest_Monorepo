@@ -2444,6 +2444,8 @@ model AiSecurityEvent {
 /// SLA 历史快照：每分钟记录一次等待/超时，支持按天趋势。
 model SupportSlaSnapshot {
   id          String   @id @default(cuid()) @db.VarChar(32)
+  /// UTC 分钟桶：多实例同一分钟只允许一行，避免重复快照
+  bucket      DateTime? @unique
   waiting     Int
   breached    Int
   longestWait Int      @map("longest_wait")
