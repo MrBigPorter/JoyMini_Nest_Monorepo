@@ -501,7 +501,10 @@ describe('AiQualityPage', () => {
           {
             question: feedback.input,
             answer: feedback.answer,
-            expect: {},
+            expect: { mustMention: ['已确认是模型答非所问'] },
+            expected: '已确认是模型答非所问',
+            sourceFeedbackId: 'fb-1',
+            source: 'feedback',
             tags: ['from-feedback', 'UNEXPECTED_TRANSFER'],
           },
         ],
@@ -514,6 +517,24 @@ describe('AiQualityPage', () => {
       }),
     );
     expect(refresh).toHaveBeenCalled();
+  });
+
+  it('refuses to create a regression case without an expectation', async () => {
+    vi.spyOn(window, 'prompt').mockReturnValue('');
+    render(<AiQualityPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: '加入回归' }));
+    fireEvent.change(screen.getByLabelText('选择回归评测集'), {
+      target: { value: 'ds-1' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '确认加入回归' }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText('回归用例必须填写期望答案，否则无法证明修复有效'),
+      ).toBeTruthy(),
+    );
+    expect(mockAddCases).not.toHaveBeenCalled();
   });
 
   it('routes to the eval tab when no regression dataset exists', () => {

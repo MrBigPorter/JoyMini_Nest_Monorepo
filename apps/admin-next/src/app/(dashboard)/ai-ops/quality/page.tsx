@@ -107,6 +107,22 @@ function labelOf(map: Record<string, string>, raw?: string | null): string {
   return map[raw] ?? raw;
 }
 
+function expectedText(item: {
+  expected?: unknown;
+  expect?: Record<string, any> | null;
+}): string {
+  if (typeof item.expected === 'string') return item.expected;
+  if (item.expected && typeof item.expected === 'object') {
+    try {
+      return JSON.stringify(item.expected);
+    } catch {
+      return '';
+    }
+  }
+  const mustMention = item.expect?.mustMention;
+  return Array.isArray(mustMention) ? mustMention.join('；') : '';
+}
+
 function formatPassRate(summary?: Record<string, any> | null): string {
   const rate = summary?.passRate;
   return typeof rate === 'number' ? `${(rate * 100).toFixed(1)}%` : '-';
@@ -399,6 +415,17 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
       return;
     }
     const target = addTarget;
+    if (!target.input?.trim()) {
+      setActionError('这条反馈没有用户问题，无法生成回归用例');
+      return;
+    }
+    const expected = window.prompt(
+      '期望答案 / 必须提到的要点（必填，作为回归判分标准）',
+    )?.trim();
+    if (!expected) {
+      setActionError('回归用例必须填写期望答案，否则无法证明修复有效');
+      return;
+    }
     setAdding(true);
     setActionError('');
     setActionInfo('');
@@ -406,9 +433,12 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
       const result = (await aiQualityApi.addCases(addDatasetId, {
         cases: [
           {
-            question: target.input ?? '',
+            question: target.input,
             answer: target.answer ?? '',
-            expect: {},
+            expect: { mustMention: [expected] },
+            expected,
+            sourceFeedbackId: target.id,
+            source: 'feedback',
             tags: ['from-feedback', target.failureKind ?? 'UNKNOWN'],
           },
         ],
@@ -1025,6 +1055,7 @@ function EvalPanel() {
   const [baselineRunId, setBaselineRunId] = useState('');
   const [message, setMessage] = useState('');
   const [advanced, setAdvanced] = useState(false);
+  const [pollRun, setPollRun] = useState(false);
   const role = useAiOpsRole();
   const canStartRun = role === 'SUPER_ADMIN' || role === 'ADMIN';
 
@@ -1038,8 +1069,17 @@ function EvalPanel() {
   );
   const { data: run } = useRequest(
     () => (runId ? aiQualityApi.getRun(runId) : Promise.resolve(null)),
-    { refreshDeps: [runId], pollingInterval: runId ? 3000 : undefined },
+    {
+      refreshDeps: [runId],
+      pollingInterval: pollRun ? 3000 : undefined,
+    },
   );
+  const runStatus = (run as EvalRun | null | undefined)?.status;
+  useEffect(() => {
+    if (runStatus === 'COMPLETED' || runStatus === 'FAILED') {
+      setPollRun(false);
+    }
+  }, [runStatus]);
 
   const create = async () => {
     if (!name.trim()) return;
@@ -1067,6 +1107,43 @@ function EvalPanel() {
     }
   };
 
+  const editCase = async (item: any) => {
+    if (!selectedId) return;
+    const next = window.prompt(
+      '期望答案 / 必须提到的要点',
+      expectedText(item),
+    );
+    if (next == null) return;
+    const expected = next.trim();
+    if (!expected) {
+      setMessage('期望答案不能为空');
+      return;
+    }
+    try {
+      await aiQualityApi.updateCase(selectedId, item.id, {
+        expected,
+        expect: { mustMention: [expected] },
+      });
+      await refreshDataset();
+      setMessage('用例已更新');
+    } catch (err: any) {
+      setMessage(err?.message ?? '更新失败');
+    }
+  };
+
+  const removeCase = async (item: any) => {
+    if (!selectedId) return;
+    if (!window.confirm('删除这条用例？此操作不可撤销。')) return;
+    try {
+      await aiQualityApi.deleteCase(selectedId, item.id);
+      await refreshDataset();
+      await refreshDatasets();
+      setMessage('用例已删除');
+    } catch (err: any) {
+      setMessage(err?.message ?? '删除失败');
+    }
+  };
+
   const start = async () => {
     if (!selectedId) return;
     const isLive = mode === 'LIVE';
@@ -1080,6 +1157,7 @@ function EvalPanel() {
         ...(baselineRunId ? { baselineRunId } : {}),
       });
       setRunId(created.id);
+      setPollRun(true);
       setMessage('已启动，正在轮询结果…');
     } catch (err: any) {
       setMessage(err?.message ?? '启动失败');
@@ -1156,7 +1234,10 @@ function EvalPanel() {
             <div>
               <div className="text-xs text-gray-500">运行次数</div>
               <div className="font-medium">
-                {ds?.runs?.length ?? selectedMeta?._count?.runs ?? 0}
+                {ds?._count?.runs ??
+                  ds?.runs?.length ??
+                  selectedMeta?._count?.runs ??
+                  0}
               </div>
             </div>
             <div>
@@ -1252,6 +1333,28 @@ function EvalPanel() {
                 >
                   <div className="font-medium">{c.question}</div>
                   <div className="text-gray-500">{c.answer}</div>
+                  <div className="mt-1 text-gray-500">
+                    期望：{expectedText(c) || '未填写'}
+                    {c.source === 'feedback' ? ' · 来源：反馈' : ''}
+                  </div>
+                  {canStartRun ? (
+                    <div className="mt-1 flex gap-2">
+                      <button
+                        type="button"
+                        className="text-primary-600 hover:underline"
+                        onClick={() => void editCase(c)}
+                      >
+                        编辑期望
+                      </button>
+                      <button
+                        type="button"
+                        className="text-red-600 hover:underline"
+                        onClick={() => void removeCase(c)}
+                      >
+                        删除
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               ))
             )}
@@ -1292,6 +1395,11 @@ function EvalPanel() {
               </span>
             ) : null}
           </div>
+          {runData.summary?.error ? (
+            <div className="mt-2 text-xs text-red-600 dark:text-red-300">
+              失败原因：{runData.summary.error}
+            </div>
+          ) : null}
           <div className="mt-3 space-y-2 text-xs">
             {(runData.results ?? []).length === 0 ? (
               <div className="text-gray-400">

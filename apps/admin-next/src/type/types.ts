@@ -2136,6 +2136,10 @@ export interface EvalCase {
   question: string;
   answer: string;
   expect: Record<string, any>;
+  expected?: string | Record<string, any> | null;
+  metadata?: Record<string, any> | null;
+  sourceFeedbackId?: string | null;
+  source?: string | null;
   tags: string[] | null;
   createdAt: string;
 }

@@ -1641,6 +1641,7 @@ export const aiQualityApi = {
       import('@/type/types').EvalDataset & {
         cases: import('@/type/types').EvalCase[];
         runs: import('@/type/types').EvalRun[];
+        _count?: { cases: number; runs: number };
       }
     >(`/v1/admin/ai-eval/datasets/${id}`),
   addCases: (
@@ -1650,10 +1651,32 @@ export const aiQualityApi = {
         question: string;
         answer: string;
         expect?: Record<string, any>;
+        expected?: string | Record<string, any>;
+        metadata?: Record<string, any>;
+        sourceFeedbackId?: string;
+        source?: string;
         tags?: string[];
       }>;
     },
   ) => http.post(`/v1/admin/ai-eval/datasets/${id}/cases`, data),
+  updateCase: (
+    id: string,
+    caseId: string,
+    data: {
+      question?: string;
+      answer?: string;
+      expect?: Record<string, any>;
+      expected?: string | Record<string, any>;
+      metadata?: Record<string, any>;
+      tags?: string[];
+    },
+  ) =>
+    http.patch(
+      `/v1/admin/ai-eval/datasets/${id}/cases/${caseId}`,
+      data,
+    ),
+  deleteCase: (id: string, caseId: string) =>
+    http.delete(`/v1/admin/ai-eval/datasets/${id}/cases/${caseId}`),
   startRun: (
     id: string,
     data?: { mode?: 'STORED' | 'LIVE'; baselineRunId?: string },
