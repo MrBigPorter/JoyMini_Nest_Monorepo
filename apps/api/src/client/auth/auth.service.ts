@@ -72,16 +72,21 @@ export class AuthService {
   /**
    * 清除用户数据并软删除账号
    * 1. 匿名化博客评论（通过 OAuth email 匹配）
-   * 2. 删除所有书签
-   * 3. 软删除用户账号（status=0）
-   * 4. 财务记录（订单/钱包/交易）保留，满足法律合规要求
+   * 2. 删除 AI 对话归因数据：trace/span、feedback、score、记忆
+   * 3. 删除用户消息；只被该用户独占的空会话一并删除
+   * 4. 删除所有书签
+   * 5. 软删除用户账号（status=0）
+   * 6. 财务记录（订单/钱包/交易）保留，满足法律合规要求
+   *
+   * 注销是删除权场景：AI 归因数据必须在同一事务内清掉，
+   * 不能只软删账号而留下可回放到用户对话的 trace/feedback/score。
    */
   async clearUserData(userId: string): Promise<{
     accountDeleted: boolean;
     anonymizedComments: number;
     deletedBookmarks: number;
   }> {
-    // 1. 收集用户的 OAuth 第三方邮箱
+    // 1. 收集用户的 OAuth 第三方邮箱（只读，事务外完成）
     const oauthAccounts = await this.prisma.oauthAccount.findMany({
       where: { userId, providerEmail: { not: null } },
       select: { providerEmail: true },
@@ -93,48 +98,159 @@ export class AuthService {
       ),
     ];
 
-    // 2. 匿名化匹配的评论
-    let anonymizedComments = 0;
-    if (userEmails.length > 0) {
-      const result = await this.prisma.blogComment.updateMany({
-        where: { email: { in: userEmails } },
-        data: {
-          author: '[deleted]',
-          content: '[deleted]',
-        },
-      });
-      anonymizedComments = result.count;
-    }
+    const result = await this.prisma.$transaction(
+      async (tx: AuthTx) => {
+        // 2. 匿名化匹配的博客评论
+        let anonymizedComments = 0;
+        if (userEmails.length > 0) {
+          const comments = await tx.blogComment.updateMany({
+            where: { email: { in: userEmails } },
+            data: {
+              author: '[deleted]',
+              content: '[deleted]',
+            },
+          });
+          anonymizedComments = comments.count;
+        }
 
-    // 3. 删除所有书签
-    const bookmarkResult = await this.prisma.userBookmark.deleteMany({
-      where: { userId },
-    });
+        // 3. 先定位用户消息与所属会话；后续删除的 score/feedback 都按这些 ID 收口。
+        //    只按 senderId 找消息，绝不碰其他成员的消息。
+        const userMessages = await tx.chatMessage.findMany({
+          where: { senderId: userId },
+          select: { id: true, conversationId: true },
+        });
+        const userMessageIds = userMessages.map((m) => m.id);
 
-    // 4. 删除跨会话 AI 记忆（偏好 + 会话摘要）
-    //    注销是删除权场景，不能只软删账号而留下记忆。
-    const [memoryDeleted, summaryDeleted] = await Promise.all([
-      this.prisma.aiUserMemory.deleteMany({ where: { userId } }),
-      this.prisma.aiMemorySummary.deleteMany({ where: { userId } }),
-    ]);
+        const memberships = await tx.chatMember.findMany({
+          where: { userId },
+          select: { conversationId: true },
+        });
+        const conversationIds = [
+          ...new Set([
+            ...userMessages.map((m) => m.conversationId),
+            ...memberships.map((m) => m.conversationId),
+          ]),
+        ];
 
-    // 5. 软删除用户账号（status=0）
-    //    财务记录（订单/钱包/交易）保留，Apple/Google 审核均允许保留财务数据
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { status: 0 },
-    });
+        // 4. 收集该用户的 trace；span 依赖外键级联删除。
+        const traces = await tx.aiTrace.findMany({
+          where: { userId },
+          select: { id: true },
+        });
+        const traceIds = traces.map((t) => t.id);
+
+        // 5. 删除评分：LLM 分按 trace 收口；HUMAN 分只要挂在该用户的会话/消息上也删。
+        const scoreScope: Prisma.AiScoreWhereInput[] = [];
+        if (traceIds.length > 0) {
+          scoreScope.push({ traceId: { in: traceIds } });
+        }
+        if (conversationIds.length > 0) {
+          scoreScope.push({ conversationId: { in: conversationIds } });
+        }
+        if (userMessageIds.length > 0) {
+          scoreScope.push({ messageId: { in: userMessageIds } });
+        }
+        const scores =
+          scoreScope.length > 0
+            ? await tx.aiScore.deleteMany({ where: { OR: scoreScope } })
+            : { count: 0 };
+
+        // 6. 删除反馈：显式反馈按 userId，隐式/运营反馈按用户会话收口。
+        const feedbackScope: Prisma.AiAnswerFeedbackWhereInput[] = [{ userId }];
+        if (conversationIds.length > 0) {
+          feedbackScope.push({ conversationId: { in: conversationIds } });
+        }
+        const feedback = await tx.aiAnswerFeedback.deleteMany({
+          where: { OR: feedbackScope },
+        });
+
+        // 7. 删除 trace（spans 走 onDelete: Cascade）。
+        const deletedTraces = await tx.aiTrace.deleteMany({ where: { userId } });
+
+        // 8. 删除用户自己发送的消息与会话成员关系；其他成员消息保留。
+        const deletedMessages = await tx.chatMessage.deleteMany({
+          where: { senderId: userId },
+        });
+        const deletedMembers = await tx.chatMember.deleteMany({
+          where: { userId },
+        });
+
+        // 9. 只剩空壳的会话才删除：没有剩余消息，也没有其他成员。
+        //    有其他人的会话保留，只移除了该用户的消息。
+        const orphaned =
+          conversationIds.length > 0
+            ? await tx.conversation.findMany({
+                where: {
+                  id: { in: conversationIds },
+                  messages: { none: {} },
+                  members: { none: {} },
+                },
+                select: { id: true },
+              })
+            : [];
+        const orphanedIds = orphaned.map((c) => c.id);
+        if (orphanedIds.length > 0) {
+          // ConversationFlowBinding 没有指向 Conversation 的外键，需显式清理。
+          await tx.conversationFlowBinding.deleteMany({
+            where: { conversationId: { in: orphanedIds } },
+          });
+          await tx.groupJoinRequest.deleteMany({
+            where: { groupId: { in: orphanedIds } },
+          });
+          await tx.conversation.deleteMany({
+            where: { id: { in: orphanedIds } },
+          });
+        }
+
+        // 10. 删除跨会话 AI 记忆（偏好 + 会话摘要）
+        const [memoryDeleted, summaryDeleted] = await Promise.all([
+          tx.aiUserMemory.deleteMany({ where: { userId } }),
+          tx.aiMemorySummary.deleteMany({ where: { userId } }),
+        ]);
+
+        // 11. 删除所有书签
+        const bookmarks = await tx.userBookmark.deleteMany({
+          where: { userId },
+        });
+
+        // 12. 软删除用户账号（status=0）
+        //     财务记录（订单/钱包/交易）保留，Apple/Google 审核均允许保留财务数据
+        await tx.user.update({
+          where: { id: userId },
+          data: { status: 0 },
+        });
+
+        return {
+          anonymizedComments,
+          deletedBookmarks: bookmarks.count,
+          memoryDeleted: memoryDeleted.count,
+          summaryDeleted: summaryDeleted.count,
+          deletedTraces: deletedTraces.count,
+          deletedScores: scores.count,
+          deletedFeedback: feedback.count,
+          deletedMessages: deletedMessages.count,
+          deletedMembers: deletedMembers.count,
+          deletedConversations: orphanedIds.length,
+        };
+      },
+      // 大账号的消息/trace 可能较多，给批删留出足够时间。
+      { maxWait: 5_000, timeout: 30_000 },
+    );
 
     this.logger.log(
-      `User ${userId} account soft-deleted, ${anonymizedComments} comments anonymized, ` +
-        `${bookmarkResult.count} bookmarks deleted, ` +
-        `${memoryDeleted.count} memories + ${summaryDeleted.count} summaries deleted`,
+      `User ${userId} account soft-deleted, ` +
+        `${result.anonymizedComments} comments anonymized, ` +
+        `${result.deletedBookmarks} bookmarks deleted, ` +
+        `${result.memoryDeleted} memories + ${result.summaryDeleted} summaries deleted, ` +
+        `AI data: traces=${result.deletedTraces}, scores=${result.deletedScores}, ` +
+        `feedback=${result.deletedFeedback}, messages=${result.deletedMessages}, ` +
+        `memberships=${result.deletedMembers}, conversations=${result.deletedConversations}`,
     );
 
     return {
       accountDeleted: true,
-      anonymizedComments,
-      deletedBookmarks: bookmarkResult.count,
+      anonymizedComments: result.anonymizedComments,
+      deletedBookmarks: result.deletedBookmarks,
     };
   }
 

@@ -10,7 +10,7 @@
 export const PRIVACY_CONTENT: Record<string, string> = {
   en: `# Privacy Policy
 
-**Last updated: May 2026**
+**Last updated: November 2026**
 
 ## 1. Information We Collect
 
@@ -45,6 +45,7 @@ We use the collected information to:
 We **do not sell** your personal information to third parties. We may share data with:
 
 - **Service Providers**: Cloud hosting (AWS), analytics (Sentry for crash reporting), and push notification services. These providers are bound by data processing agreements.
+- **AI Service Providers**: When you use AI customer service, we send the content needed to answer your request to the following processors: **DeepSeek** (chat response generation — your message and the conversation context), **Jina AI** (embeddings and reranking for retrieval — your query and relevant knowledge-base text), and **Groq** (quality evaluation — test questions and answers from our evaluation set). These providers act as our data processors and are engaged only to process the data needed for the stated purpose. We do not send passwords, payment card data, identity documents, or wallet balances to them.
 - **Legal Requirements**: When required by law or to protect our rights and safety.
 - **Aggregated Data**: Anonymised, non-personally identifiable data for analytics purposes.
 
@@ -66,8 +67,13 @@ Your account itself will **not** be deleted — you can continue using the app a
 
 If you delete your account:
 - Your profile and personal data are permanently deleted within 30 days
+- Your AI customer-service traces, feedback, scores, and cross-session memories are deleted
 - Anonymised content (e.g., public comments) may be retained
 - Backup copies are purged within 90 days
+
+### 4.3 AI Chat Data
+
+AI customer-service diagnostic traces (the prompt, reply, intent, and retrieval diagnostics) are retained for up to 30 days and then deleted automatically. Feedback, scores, and evaluation records that do not identify you may be kept longer for quality and safety review. When you delete your account, your AI chat traces, feedback, scores, and cross-session memories are deleted as described in section 4.2.
 
 ## 5. Your Rights
 
@@ -90,6 +96,9 @@ Our app integrates with the following third-party services:
 | Sentry | Crash reporting & performance monitoring | Device info, app state, stack traces |
 | AWS (CloudFront/S3) | Content delivery & image hosting | IP address, requested content |
 | React Native MMKV | Local data storage | None (local only) |
+| DeepSeek | AI customer-service reply generation | Chat message, conversation context, retrieved knowledge snippets |
+| Jina AI | Embeddings and reranking for retrieval | Query text, knowledge-base text |
+| Groq | Independent quality evaluation (judge) | Evaluation questions and answers |
 
 ## 7. Children's Privacy
 
@@ -124,11 +133,11 @@ If you have questions about this Privacy Policy, please contact us:
 
 ---
 
-*This Privacy Policy is compliant with GDPR, CCPA, and Apple App Store Guidelines as of May 2026.*`,
+*This Privacy Policy is compliant with GDPR, CCPA, and Apple App Store Guidelines as of November 2026.*`,
 
   zh: `# 隐私政策
 
-**最后更新：2026年5月**
+**最后更新：2026年11月**
 
 ## 1. 我们收集的信息
 
@@ -163,6 +172,7 @@ If you have questions about this Privacy Policy, please contact us:
 我们**不会**向第三方出售您的个人信息。我们可能在以下情况共享数据：
 
 - **服务提供商**：云托管（AWS）、分析服务（Sentry用于崩溃报告）和推送通知服务。这些提供商受数据处理协议约束。
+- **AI 服务提供商**：当您使用 AI 客服时，我们会将完成请求所需的内容发送给以下处理方：**DeepSeek**（生成客服回复 — 您的消息与会话上下文）、**Jina AI**（检索用向量化与重排序 — 您的查询文本与相关知识库文本）、**Groq**（质量评估 — 我们评测集中的测试问题与答案）。这些提供商作为我们的数据处理者，仅按上述目的处理必要数据。我们不会向其发送密码、支付卡信息、身份证件或钱包余额。
 - **法律要求**：法律要求时，或为保护我们的权利和安全时。
 - **汇总数据**：经过匿名化处理的、无法识别个人身份的数据，用于分析目的。
 
@@ -184,8 +194,13 @@ If you have questions about this Privacy Policy, please contact us:
 
 如果您删除账号：
 - 您的个人资料和个人数据将在30天内永久删除
+- 您的 AI 客服 trace、反馈、评分和跨会话记忆将被删除
 - 匿名化内容（如公开评论）可能会被保留
 - 备份副本将在90天内清除
+
+### 4.3 AI 对话数据
+
+AI 客服诊断 trace（提示词、回复、意图与检索诊断信息）最多保留 30 天，之后自动删除。无法识别到您本人的反馈、评分和评测记录，可能为质量与安全审查保留更长时间。当您删除账号时，您的 AI 对话 trace、反馈、评分和跨会话记忆将按第 4.2 节删除。
 
 ## 5. 您的权利
 
@@ -208,6 +223,9 @@ If you have questions about this Privacy Policy, please contact us:
 | Sentry | 崩溃报告与性能监控 | 设备信息、应用状态、堆栈跟踪 |
 | AWS（CloudFront/S3） | 内容分发与图片托管 | IP地址、请求的内容 |
 | React Native MMKV | 本地数据存储 | 无（仅本地存储） |
+| DeepSeek | AI 客服回复生成 | 聊天消息、会话上下文、检索到的知识片段 |
+| Jina AI | 检索用向量化与重排序 | 查询文本、知识库文本 |
+| Groq | 独立质量评估（评审模型） | 评测问题与答案 |
 
 ## 7. 儿童隐私
 
@@ -242,11 +260,11 @@ If you have questions about this Privacy Policy, please contact us:
 
 ---
 
-*本隐私政策符合GDPR、CCPA以及截至2026年5月的苹果App Store指南。*`,
+*本隐私政策符合GDPR、CCPA以及截至2026年11月的苹果App Store指南。*`,
 
   ja: `# プライバシーポリシー
 
-**最終更新日：2026年5月**
+**最終更新日：2026年11月**
 
 ## 1. 収集する情報
 
@@ -281,13 +299,23 @@ If you have questions about this Privacy Policy, please contact us:
 お客様の個人情報を第三者に**販売することはありません**。以下の場合にデータを共有する可能性があります：
 
 - **サービスプロバイダー**：クラウドホスティング（AWS）、分析（Sentryによるクラッシュレポート）、プッシュ通知サービス。これらのプロバイダーはデータ処理契約に拘束されます。
+- **AI サービスプロバイダー**：AI カスタマーサービスをご利用の際、リクエストへの回答に必要な内容を以下の処理者に送信します：**DeepSeek**（チャット応答の生成 — お客様のメッセージと会話コンテキスト）、**Jina AI**（検索のための埋め込みと再ランキング — クエリテキストと関連するナレッジベースのテキスト）、**Groq**（品質評価 — 評価セットのテスト質問と回答）。これらのプロバイダーは当社のデータ処理者として、記載された目的に必要なデータのみを処理します。パスワード、支払いカード情報、身分証明書、ウォレット残高は送信しません。
 - **法的要件**：法律で要求される場合、または当社の権利と安全を保護するため。
 - **集計データ**：匿名化された個人を特定できないデータを分析目的で使用。
 
 ## 4. データの保持
 
-アカウントがアクティブである限り、お客様のデータを保持します。アカウントを削除した場合：
+アカウントがアクティブである限り、お客様のデータを保持します。
+
+### 4.1 AI チャットデータ
+
+AI カスタマーサービスの診断トレース（プロンプト、応答、意図・検索の診断情報）は最大30日間保持され、その後自動的に削除されます。お客様を特定しないフィードバック、スコア、評価記録は、品質と安全性のレビューのためにより長く保持される場合があります。
+
+### 4.2 アカウント削除
+
+アカウントを削除した場合：
 - プロフィールと個人データは30日以内に完全に削除されます
+- AI カスタマーサービスのトレース、フィードバック、スコア、セッションをまたぐ記憶は削除されます
 - 匿名化されたコンテンツ（公開コメントなど）は保持される場合があります
 - バックアップコピーは90日以内に消去されます
 
@@ -312,6 +340,9 @@ If you have questions about this Privacy Policy, please contact us:
 | Sentry | クラッシュレポートとパフォーマンス監視 | デバイス情報、アプリ状態、スタックトレース |
 | AWS（CloudFront/S3） | コンテンツ配信と画像ホスティング | IPアドレス、要求されたコンテンツ |
 | React Native MMKV | ローカルデータストレージ | なし（ローカルのみ） |
+| DeepSeek | AI カスタマーサービスの応答生成 | チャットメッセージ、会話コンテキスト、検索されたナレッジ断片 |
+| Jina AI | 検索用の埋め込みと再ランキング | クエリテキスト、ナレッジベースのテキスト |
+| Groq | 独立した品質評価（審査モデル） | 評価用の質問と回答 |
 
 ## 7. 子どものプライバシー
 
@@ -346,11 +377,11 @@ If you have questions about this Privacy Policy, please contact us:
 
 ---
 
-*本プライバシーポリシーは、2026年5月時点のGDPR、CCPA、Apple App Storeガイドラインに準拠しています。*`,
+*本プライバシーポリシーは、2026年11月時点のGDPR、CCPA、Apple App Storeガイドラインに準拠しています。*`,
 
   ko: `# 개인정보처리방침
 
-**최종 업데이트: 2026년 5월**
+**최종 업데이트: 2026년 11월**
 
 ## 1. 수집하는 정보
 
@@ -385,6 +416,7 @@ If you have questions about this Privacy Policy, please contact us:
 당사는 사용자의 개인정보를 제3자에게 **판매하지 않습니다**. 다음과 같은 경우 데이터를 공유할 수 있습니다:
 
 - **서비스 제공업체**: 클라우드 호스팅(AWS), 분석(Sentry 크래시 리포트), 푸시 알림 서비스. 이러한 제공업체는 데이터 처리 계약에 구속됩니다.
+- **AI 서비스 제공업체**: AI 고객 서비스를 이용할 때 요청에 답변하는 데 필요한 내용을 다음 처리업체에 전송합니다: **DeepSeek**(채팅 응답 생성 — 사용자 메시지 및 대화 맥락), **Jina AI**(검색을 위한 임베딩 및 재순위 — 쿼리 텍스트와 관련 지식 베이스 텍스트), **Groq**(품질 평가 — 평가 세트의 테스트 질문과 답변). 이러한 제공업체는 당사의 데이터 처리업체로서 명시된 목적에 필요한 데이터만 처리합니다. 비밀번호, 결제 카드 정보, 신분증, 지갑 잔액은 전송하지 않습니다.
 - **법적 요구사항**: 법률에서 요구하거나 당사의 권리와 안전을 보호하기 위해 필요한 경우.
 - **집계 데이터**: 분석 목적으로 익명화된 개인 식별 불가능한 데이터.
 
@@ -392,8 +424,13 @@ If you have questions about this Privacy Policy, please contact us:
 
 사용자의 계정이 활성 상태인 동안 데이터를 보관합니다. 계정을 삭제할 경우:
 - 프로필 및 개인 데이터는 30일 이내에 영구 삭제됩니다
+- AI 고객 서비스의 추적(trace), 피드백, 점수, 세션 간 기억이 삭제됩니다
 - 익명화된 콘텐츠(예: 공개 댓글)는 보관될 수 있습니다
 - 백업 복사본은 90일 이내에 제거됩니다
+
+### 4.3 AI 채팅 데이터
+
+AI 고객 서비스 진단 추적(프롬프트, 응답, 의도 및 검색 진단 정보)은 최대 30일간 보관된 후 자동으로 삭제됩니다. 사용자를 식별하지 않는 피드백, 점수, 평가 기록은 품질 및 안전 검토를 위해 더 오래 보관될 수 있습니다. 계정을 삭제하면 AI 채팅 추적, 피드백, 점수, 세션 간 기억은 4.2절에 설명된 대로 삭제됩니다.
 
 ## 5. 사용자의 권리
 
@@ -416,6 +453,9 @@ If you have questions about this Privacy Policy, please contact us:
 | Sentry | 크래시 리포트 및 성능 모니터링 | 기기 정보, 앱 상태, 스택 트레이스 |
 | AWS(CloudFront/S3) | 콘텐츠 전송 및 이미지 호스팅 | IP 주소, 요청된 콘텐츠 |
 | React Native MMKV | 로컬 데이터 저장소 | 없음(로컬 전용) |
+| DeepSeek | AI 고객 서비스 응답 생성 | 채팅 메시지, 대화 맥락, 검색된 지식 조각 |
+| Jina AI | 검색용 임베딩 및 재순위 | 쿼리 텍스트, 지식 베이스 텍스트 |
+| Groq | 독립적 품질 평가(심사 모델) | 평가 질문과 답변 |
 
 ## 7. 아동의 개인정보 보호
 
@@ -450,11 +490,11 @@ If you have questions about this Privacy Policy, please contact us:
 
 ---
 
-*본 개인정보처리방침은 2026년 5월 기준 GDPR, CCPA 및 Apple App Store 가이드라인을 준수합니다.*`,
+*본 개인정보처리방침은 2026년 11월 기준 GDPR, CCPA 및 Apple App Store 가이드라인을 준수합니다.*`,
 
   fr: `# Politique de confidentialité
 
-**Dernière mise à jour : Mai 2026**
+**Dernière mise à jour : Novembre 2026**
 
 ## 1. Informations que nous collectons
 
@@ -489,6 +529,7 @@ Nous utilisons les informations collectées pour :
 Nous **ne vendons pas** vos informations personnelles à des tiers. Nous pouvons partager des données avec :
 
 - **Prestataires de services** : Hébergement cloud (AWS), analyses (Sentry pour le signalement des crashes) et services de notifications push. Ces prestataires sont liés par des accords de traitement des données.
+- **Prestataires de services IA** : Lorsque vous utilisez le service client IA, nous envoyons le contenu nécessaire pour répondre à votre demande aux sous-traitants suivants : **DeepSeek** (génération des réponses — votre message et le contexte de la conversation), **Jina AI** (vectorisation et reclassement pour la recherche — votre requête et le texte pertinent de la base de connaissances) et **Groq** (évaluation de la qualité — questions et réponses de test de notre jeu d'évaluation). Ces prestataires agissent en tant que sous-traitants et ne traitent que les données nécessaires aux finalités indiquées. Nous ne leur transmettons pas de mots de passe, de données de carte bancaire, de documents d'identité ni de soldes de portefeuille.
 - **Obligations légales** : Lorsque la loi l'exige ou pour protéger nos droits et notre sécurité.
 - **Données agrégées** : Données anonymisées non identifiables à des fins d'analyse.
 
@@ -496,8 +537,13 @@ Nous **ne vendons pas** vos informations personnelles à des tiers. Nous pouvons
 
 Nous conservons vos données tant que votre compte est actif. Si vous supprimez votre compte :
 - Votre profil et vos données personnelles sont définitivement supprimés dans les 30 jours
+- Vos traces, retours, scores et mémoires inter-sessions du service client IA sont supprimés
 - Le contenu anonymisé (par exemple, les commentaires publics) peut être conservé
 - Les copies de sauvegarde sont purgées dans les 90 jours
+
+### 4.3 Données de conversation IA
+
+Les traces de diagnostic du service client IA (invite, réponse, intention et diagnostics de recherche) sont conservées pendant 30 jours maximum, puis supprimées automatiquement. Les retours, scores et enregistrements d'évaluation qui ne vous identifient pas peuvent être conservés plus longtemps à des fins de contrôle qualité et de sécurité. Lorsque vous supprimez votre compte, vos traces, retours, scores et mémoires inter-sessions de conversation IA sont supprimés comme indiqué à la section 4.2.
 
 ## 5. Vos droits
 
@@ -520,6 +566,9 @@ Notre application intègre les services tiers suivants :
 | Sentry | Signalement des crashes et surveillance des performances | Informations sur l'appareil, état de l'application, traces de pile |
 | AWS (CloudFront/S3) | Distribution de contenu et hébergement d'images | Adresse IP, contenu demandé |
 | React Native MMKV | Stockage local des données | Aucune (local uniquement) |
+| DeepSeek | Génération des réponses du service client IA | Message de chat, contexte de la conversation, extraits de connaissances récupérés |
+| Jina AI | Vectorisation et reclassement pour la recherche | Texte de la requête, texte de la base de connaissances |
+| Groq | Évaluation indépendante de la qualité (juge) | Questions et réponses d'évaluation |
 
 ## 7. Confidentialité des enfants
 
@@ -554,11 +603,11 @@ Si vous avez des questions concernant cette politique de confidentialité, veuil
 
 ---
 
-*Cette politique de confidentialité est conforme au RGPD, au CCPA et aux directives de l'App Store d'Apple en date de mai 2026.*`,
+*Cette politique de confidentialité est conforme au RGPD, au CCPA et aux directives de l'App Store d'Apple en date de novembre 2026.*`,
 
   de: `# Datenschutzerklärung
 
-**Stand: Mai 2026**
+**Stand: November 2026**
 
 ## 1. Welche Daten wir erfassen
 
@@ -593,6 +642,7 @@ Wir verwenden die erfassten Informationen, um:
 Wir **verkaufen nicht** Ihre persönlichen Daten an Dritte. Wir können Daten weitergeben an:
 
 - **Dienstleister**: Cloud-Hosting (AWS), Analyse (Sentry für Absturzberichte) und Push-Benachrichtigungsdienste. Diese Anbieter sind durch Datenverarbeitungsvereinbarungen gebunden.
+- **KI-Dienstleister**: Wenn Sie den KI-Kundenservice nutzen, übermitteln wir die zur Beantwortung Ihrer Anfrage erforderlichen Inhalte an folgende Auftragsverarbeiter: **DeepSeek** (Erstellung der Chat-Antwort — Ihre Nachricht und der Gesprächskontext), **Jina AI** (Embeddings und Reranking für die Suche — Ihr Suchtext und relevante Wissensdatenbank-Texte) und **Groq** (Qualitätsbewertung — Testfragen und -antworten aus unserem Bewertungsdatensatz). Diese Anbieter handeln als unsere Auftragsverarbeiter und verarbeiten nur die für die genannten Zwecke erforderlichen Daten. Wir übermitteln keine Passwörter, Zahlungskartendaten, Ausweisdokumente oder Wallet-Guthaben an sie.
 - **Gesetzliche Anforderungen**: Wenn gesetzlich vorgeschrieben oder zum Schutz unserer Rechte und Sicherheit.
 - **Aggregierte Daten**: Anonymisierte, nicht personenbezogene Daten für Analysezwecke.
 
@@ -600,8 +650,13 @@ Wir **verkaufen nicht** Ihre persönlichen Daten an Dritte. Wir können Daten we
 
 Wir bewahren Ihre Daten auf, solange Ihr Konto aktiv ist. Wenn Sie Ihr Konto löschen:
 - Ihr Profil und Ihre persönlichen Daten werden innerhalb von 30 Tagen endgültig gelöscht
+- Ihre KI-Kundenservice-Traces, Feedback-, Score- und sitzungsübergreifenden Speicherdaten werden gelöscht
 - Anonymisierte Inhalte (z. B. öffentliche Kommentare) können aufbewahrt werden
 - Sicherungskopien werden innerhalb von 90 Tagen gelöscht
+
+### 4.3 KI-Chatdaten
+
+Diagnose-Traces des KI-Kundenservice (Prompt, Antwort, Intent- und Suchdiagnosen) werden bis zu 30 Tage aufbewahrt und danach automatisch gelöscht. Feedback-, Score- und Bewertungsdatensätze, die Sie nicht identifizieren, können für Qualitäts- und Sicherheitsprüfungen länger aufbewahrt werden. Wenn Sie Ihr Konto löschen, werden Ihre KI-Chat-Traces, Feedback-, Score- und sitzungsübergreifenden Speicherdaten wie in Abschnitt 4.2 beschrieben gelöscht.
 
 ## 5. Ihre Rechte
 
@@ -624,6 +679,9 @@ Unsere App integriert die folgenden Drittanbieterdienste:
 | Sentry | Absturzberichte und Leistungsüberwachung | Geräteinformationen, App-Status, Stack-Traces |
 | AWS (CloudFront/S3) | Inhaltsbereitstellung und Bildhosting | IP-Adresse, angeforderte Inhalte |
 | React Native MMKV | Lokale Datenspeicherung | Keine (nur lokal) |
+| DeepSeek | Erstellung der Antworten im KI-Kundenservice | Chat-Nachricht, Gesprächskontext, abgerufene Wissensausschnitte |
+| Jina AI | Embeddings und Reranking für die Suche | Suchtext, Wissensdatenbank-Text |
+| Groq | Unabhängige Qualitätsbewertung (Judge) | Bewertungsfragen und -antworten |
 
 ## 7. Datenschutz von Kindern
 
@@ -658,7 +716,7 @@ Bei Fragen zu dieser Datenschutzerklärung kontaktieren Sie uns bitte:
 
 ---
 
-*Diese Datenschutzerklärung entspricht der DSGVO, dem CCPA und den Apple App Store-Richtlinien, Stand Mai 2026.*`,
+*Diese Datenschutzerklärung entspricht der DSGVO, dem CCPA und den Apple App Store-Richtlinien, Stand November 2026.*`,
 };
 
 /**

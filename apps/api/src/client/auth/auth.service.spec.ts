@@ -29,12 +29,55 @@ describe('AuthService', () => {
     userLoginLog: {
       create: jest.fn(),
     },
+    blogComment: {
+      updateMany: jest.fn(),
+    },
+    userBookmark: {
+      deleteMany: jest.fn(),
+    },
+    chatMessage: {
+      findMany: jest.fn(),
+      deleteMany: jest.fn(),
+    },
+    chatMember: {
+      findMany: jest.fn(),
+      deleteMany: jest.fn(),
+    },
+    conversation: {
+      findMany: jest.fn(),
+      deleteMany: jest.fn(),
+    },
+    conversationFlowBinding: {
+      deleteMany: jest.fn(),
+    },
+    groupJoinRequest: {
+      deleteMany: jest.fn(),
+    },
+    aiTrace: {
+      findMany: jest.fn(),
+      deleteMany: jest.fn(),
+    },
+    aiScore: {
+      deleteMany: jest.fn(),
+    },
+    aiAnswerFeedback: {
+      deleteMany: jest.fn(),
+    },
+    aiUserMemory: {
+      deleteMany: jest.fn(),
+    },
+    aiMemorySummary: {
+      deleteMany: jest.fn(),
+    },
   };
 
   const mockPrisma = {
     $transaction: jest.fn((cb: (tx: typeof mockCtx) => Promise<unknown>) =>
       cb(mockCtx),
     ),
+    oauthAccount: {
+      findMany: jest.fn(),
+    },
     user: {
       findFirst: jest.fn(),
       findUniqueOrThrow: jest.fn(),
@@ -311,5 +354,109 @@ describe('AuthService', () => {
     ).rejects.toThrow(UnauthorizedException);
 
     expect(smsCodeUpdateMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('cascades AI data and user messages on account deletion', async () => {
+    (mockPrisma.oauthAccount.findMany as jest.Mock).mockResolvedValue([
+      { providerEmail: 'demo@example.com' },
+    ]);
+    mockCtx.blogComment.updateMany.mockResolvedValue({ count: 1 });
+    mockCtx.chatMessage.findMany.mockResolvedValue([
+      { id: 'msg_1', conversationId: 'conv_user_only' },
+      { id: 'msg_2', conversationId: 'conv_shared' },
+    ]);
+    mockCtx.chatMember.findMany.mockResolvedValue([
+      { conversationId: 'conv_user_only' },
+      { conversationId: 'conv_shared' },
+    ]);
+    mockCtx.aiTrace.findMany.mockResolvedValue([
+      { id: 'trace_1' },
+      { id: 'trace_2' },
+    ]);
+    mockCtx.aiScore.deleteMany.mockResolvedValue({ count: 4 });
+    mockCtx.aiAnswerFeedback.deleteMany.mockResolvedValue({ count: 2 });
+    mockCtx.aiTrace.deleteMany.mockResolvedValue({ count: 2 });
+    mockCtx.chatMessage.deleteMany.mockResolvedValue({ count: 2 });
+    mockCtx.chatMember.deleteMany.mockResolvedValue({ count: 2 });
+    mockCtx.conversation.findMany.mockResolvedValue([
+      { id: 'conv_user_only' },
+    ]);
+    mockCtx.conversationFlowBinding.deleteMany.mockResolvedValue({ count: 1 });
+    mockCtx.groupJoinRequest.deleteMany.mockResolvedValue({ count: 0 });
+    mockCtx.conversation.deleteMany.mockResolvedValue({ count: 1 });
+    mockCtx.aiUserMemory.deleteMany.mockResolvedValue({ count: 3 });
+    mockCtx.aiMemorySummary.deleteMany.mockResolvedValue({ count: 4 });
+    mockCtx.userBookmark.deleteMany.mockResolvedValue({ count: 5 });
+    mockCtx.user.update.mockResolvedValue({});
+
+    const result = await service.clearUserData('user_1');
+
+    expect(result).toEqual({
+      accountDeleted: true,
+      anonymizedComments: 1,
+      deletedBookmarks: 5,
+    });
+
+    // 只按用户自己的消息/会话收口，不扫描其他成员的数据。
+    expect(mockCtx.aiScore.deleteMany).toHaveBeenCalledWith({
+      where: {
+        OR: [
+          { traceId: { in: ['trace_1', 'trace_2'] } },
+          { conversationId: { in: ['conv_user_only', 'conv_shared'] } },
+          { messageId: { in: ['msg_1', 'msg_2'] } },
+        ],
+      },
+    });
+    expect(mockCtx.aiAnswerFeedback.deleteMany).toHaveBeenCalledWith({
+      where: {
+        OR: [
+          { userId: 'user_1' },
+          { conversationId: { in: ['conv_user_only', 'conv_shared'] } },
+        ],
+      },
+    });
+    expect(mockCtx.aiTrace.deleteMany).toHaveBeenCalledWith({
+      where: { userId: 'user_1' },
+    });
+    expect(mockCtx.chatMessage.deleteMany).toHaveBeenCalledWith({
+      where: { senderId: 'user_1' },
+    });
+    expect(mockCtx.chatMember.deleteMany).toHaveBeenCalledWith({
+      where: { userId: 'user_1' },
+    });
+
+    // 只有“无剩余消息 + 无其他成员”的会话才删除。
+    expect(mockCtx.conversation.findMany).toHaveBeenCalledWith({
+      where: {
+        id: { in: ['conv_user_only', 'conv_shared'] },
+        messages: { none: {} },
+        members: { none: {} },
+      },
+      select: { id: true },
+    });
+    expect(mockCtx.conversationFlowBinding.deleteMany).toHaveBeenCalledWith({
+      where: { conversationId: { in: ['conv_user_only'] } },
+    });
+    expect(mockCtx.groupJoinRequest.deleteMany).toHaveBeenCalledWith({
+      where: { groupId: { in: ['conv_user_only'] } },
+    });
+    expect(mockCtx.conversation.deleteMany).toHaveBeenCalledWith({
+      where: { id: { in: ['conv_user_only'] } },
+    });
+
+    // 记忆 + 书签 + 账号软删除。
+    expect(mockCtx.aiUserMemory.deleteMany).toHaveBeenCalledWith({
+      where: { userId: 'user_1' },
+    });
+    expect(mockCtx.aiMemorySummary.deleteMany).toHaveBeenCalledWith({
+      where: { userId: 'user_1' },
+    });
+    expect(mockCtx.userBookmark.deleteMany).toHaveBeenCalledWith({
+      where: { userId: 'user_1' },
+    });
+    expect(mockCtx.user.update).toHaveBeenCalledWith({
+      where: { id: 'user_1' },
+      data: { status: 0 },
+    });
   });
 });
