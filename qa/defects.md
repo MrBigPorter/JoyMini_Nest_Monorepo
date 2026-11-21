@@ -236,3 +236,31 @@ Playwright: 处理状态筛选 NO_ISSUE -> URL 保留 -> 共 1 条，行处理�
 
 - **首页今日 vs 质量页全量**：首页卡按 UTC 今日；质量页 summary/list 无日期选择器（handoff 已知限制 #1）。服务故障卡今日 4 → 列表全量 5。属已知窗口差，需产品决定是否补 `from/to`。
 - **历史回填未执行**：handoff 明确本批只测新写入路径；旧 `verdict=correct`、旧 `transferred` 存量未验证。
+
+---
+
+# Batch 3 — 缺陷（commit `fa18bfb1`）
+
+> 阶段 A（flags on）API 8/8、阶段 B（flags off）API 5/5、UI flags true 1/1、flags false 1/1。**无 P0/P1/P2 缺陷**。
+
+## D-B3-01 — 质量页在 features 请求失败时 fail-open（P3，代码审查观察，未触发）
+
+| 项 | 内容 |
+|---|---|
+| 严重度 | P3（韧性/一致性；非阻断） |
+| 状态 | OPEN（观察；QA 只记录） |
+| 位置 | `apps/admin-next/src/app/(dashboard)/ai-ops/quality/page.tsx`：`const feedbackUiEnabled = featuresData?.feedbackUiEnabled !== false;` |
+| 问题 | `/admin/ai-ops/features` 请求失败时 `featuresData` 为 undefined，表达式结果为 `true`，ADMIN/SUPER 仍会看到「开始质检 / 确认问题 / 排除」；点击后写接口会 403。ChatWindow 使用 `?? false`（fail-closed），两处行为不一致 |
+| 影响 | features 接口故障时，质量页展示不可用按钮；不会造成写越权（后端 403 仍是边界），但 UX 与“未启用”语义冲突 |
+| 期望 | 与 ChatWindow 一致 fail-closed（未知即禁用），或显示“开关状态未知/加载失败” |
+| 证据 | 代码审查；本批 API 正常（true/false 均覆盖），未注入 features 接口故障，**未触发** |
+| 建议 | 后续把默认值改为 `=== true`，或区分 loading/error/disabled 三态 |
+
+## Batch 3 已知限制 / 未覆盖（非新缺陷）
+
+- **真实 chatStream SSE 全链路未跑**：依赖外部 LLM/embedding/RAG。`trace aiMessageId` 与 `security conversationId` 用生产方法的**最小复现**验证（`recordReplyTrace`、`createIntentRouterNode`），日志有插入证据；`ai-stream.handler` 的 `conversationId` 注入与 chatStream 传 `triggerMessageId` 为代码审查，不是端到端证据。
+- **`recordErrorTrace` 未写 `aiMessageId`**（handoff 已知限制 #1）。
+- **`testChat` / LIVE eval 仍不写 trace**，eval traceId 留 Batch 4（handoff #2）。
+- **历史反馈/安全事件未回填** `traceId` / `conversationId`（handoff #3）。
+- **`AiFeedbackClient` 旧页面仍读 `NEXT_PUBLIC_AI_FEEDBACK_UI_ENABLED`**（`/ai-feedback` 导出桩，非 AI Ops 主路径；handoff #4）。
+- **EDITOR 工程导航/接口不一致（D-02）**未处理（既有问题）。
