@@ -86,6 +86,17 @@ python3 tools/eval/conversation/annotate.py score \
 
 规则见 [`annotation-guide.md`](./annotation-guide.md)：盲标、kappa ≥0.6、n<30 只作参考。
 
+分批标注：
+
+```bash
+python3 tools/eval/conversation/split-annotation-batches.py \
+  --worksheet tools/eval/conversation/annotations/worksheet-2026-11-21.jsonl \
+  --out-dir tools/eval/conversation/annotations/batches --size 10
+```
+
+生成 5 批（10/10/10/10/9）；每批标完先 `annotate.py validate`，全部完成后
+`cat batch-*.jsonl > annotations-a.jsonl`。
+
 ### AI 预标注（可选）
 
 ```bash
