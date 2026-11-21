@@ -135,6 +135,15 @@ export class AiEvalController {
     });
   }
 
+  @Post('runs/:id/cancel')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: '取消一次运行中的评测' })
+  async cancelRun(@Param('id') id: string) {
+    // 取消是安全阀：即使功能开关已关闭，也要能停掉已在运行、仍在烧 token 的 run。
+    return this.datasetService.cancelRun(id);
+  }
+
   @Get('runs/:id')
   @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
   @ApiOperation({ summary: '评测运行结果' })

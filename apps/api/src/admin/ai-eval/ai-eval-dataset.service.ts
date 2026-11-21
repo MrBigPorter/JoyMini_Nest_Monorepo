@@ -5,11 +5,14 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import type { AiCustomerService } from '@api/client/ai-customer/ai-customer.service';
 import { runWithContext } from '@api/common/logger/trace-context';
 import { AiEvalJudgeService } from './ai-eval-judge.service';
 import { AddEvalCasesDto } from './dto/eval-dataset.dto';
+import { AI_EVAL_QUEUE, AI_EVAL_RUN_JOB, AiEvalJobData } from './ai-eval.queue';
 
 export type EvalMode = 'STORED' | 'LIVE';
 
@@ -52,6 +55,8 @@ export class AiEvalDatasetService {
     private readonly prisma: PrismaService,
     private readonly judge: AiEvalJudgeService,
     @Inject(AI_EVAL_LIVE_AI) private readonly aiCustomer: LiveAiRunner,
+    @InjectQueue(AI_EVAL_QUEUE)
+    private readonly queue: Queue<AiEvalJobData>,
   ) {}
 
   async listDatasets() {
@@ -232,9 +237,39 @@ export class AiEvalDatasetService {
     const run = await this.prisma.aiEvalRun.create({
       data: { datasetId, createdBy, mode, baselineRunId },
     });
-    void this.executeRun(run.id).catch((err) => {
-      this.logger.error(`Eval run ${run.id} failed: ${err?.message ?? err}`);
-    });
+    try {
+      await this.queue.add(
+        AI_EVAL_RUN_JOB,
+        { runId: run.id },
+        {
+          // run id 即 jobId：同一 run 重复投递只会保留一个作业。
+          jobId: run.id,
+          // executeRun 自己负责失败落库；重试会产生重复判分与重复结果。
+          attempts: 1,
+          removeOnComplete: 1_000,
+          // 失败 job 保留，便于按 run id 排查；run 本身已落 FAILED。
+          removeOnFail: false,
+        },
+      );
+    } catch (err: any) {
+      // Redis/队列不可用时不能留下一个永久 RUNNING 的 run。
+      const error = String(err?.message ?? err).slice(0, 300);
+      await this.prisma.aiEvalRun
+        .update({
+          where: { id: run.id },
+          data: {
+            status: 'FAILED',
+            finishedAt: new Date(),
+            summary: { mode, baselineRunId, error: `enqueue failed: ${error}` },
+          },
+        })
+        .catch((updateErr) =>
+          this.logger.error(
+            `Eval run ${run.id} enqueue failed and FAILED update failed: ${updateErr?.message ?? updateErr}`,
+          ),
+        );
+      throw err;
+    }
     return run;
   }
 
@@ -272,12 +307,42 @@ export class AiEvalDatasetService {
     return run;
   }
 
-  private async executeRun(runId: string): Promise<void> {
+  /**
+   * 取消一次运行：只把 RUNNING 改成 CANCELLED。
+   * 已是终态时不做任何修改，直接返回当前 run（幂等）。
+   * 正在执行的 executeRun 会在下一条用例前/判分后看到 CANCELLED 并停止。
+   */
+  async cancelRun(id: string) {
+    const existing = await this.prisma.aiEvalRun.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+    if (!existing) throw new NotFoundException('Eval run not found');
+
+    await this.prisma.aiEvalRun.updateMany({
+      where: { id, status: 'RUNNING' },
+      data: {
+        status: 'CANCELLED',
+        finishedAt: new Date(),
+        summary: { cancelled: true },
+      },
+    });
+    return this.getRun(id);
+  }
+
+  /**
+   * 由 BullMQ processor 调用（也可直接调用，便于测试/手动重放）。
+   *
+   * 幂等保护：只有 RUNNING 的 run 会执行；重复投递、已取消、已终态的
+   * run 直接返回。每条用例判分前后都会重读状态，取消后不再处理剩余用例。
+   */
+  async executeRun(runId: string): Promise<void> {
     const run = await this.prisma.aiEvalRun.findUnique({
       where: { id: runId },
       include: { dataset: { include: { cases: true } } },
     });
     if (!run) return;
+    if (run.status !== 'RUNNING') return;
 
     const mode: EvalMode = run.mode === 'LIVE' ? 'LIVE' : 'STORED';
     const baselineRunId = run.baselineRunId ?? null;
@@ -291,6 +356,9 @@ export class AiEvalDatasetService {
     const caseVerdicts: CaseVerdict[] = [];
     try {
       for (const item of run.dataset.cases) {
+        // 进入下一条用例前先看状态：取消后不再发起新的 AI/judge 调用。
+        if (!(await this.ensureRunning(runId))) return;
+
         const started = Date.now();
         const expectTask = this.resolveExpectation(item);
 
@@ -334,6 +402,9 @@ export class AiEvalDatasetService {
               expectTask: expectTask as any,
               pendingConfirm,
             });
+
+        // 判分期间可能已被取消：取消后丢弃这条结果，不再写库。
+        if (!(await this.ensureRunning(runId))) return;
 
         if (verdict.verdict === 'solved') solved += 1;
         else if (verdict.verdict === 'partial') partial += 1;
@@ -383,10 +454,10 @@ export class AiEvalDatasetService {
           );
       }
       const total = run.dataset.cases.length;
-      const passRate =
-        total > 0 ? Number((solved / total).toFixed(3)) : 0;
-      await this.prisma.aiEvalRun.update({
-        where: { id: runId },
+      const passRate = total > 0 ? Number((solved / total).toFixed(3)) : 0;
+      // 条件更新：若最后一条用例期间被取消，不要把 CANCELLED 覆盖回 COMPLETED。
+      const completed = await this.prisma.aiEvalRun.updateMany({
+        where: { id: runId, status: 'RUNNING' },
         data: {
           status: 'COMPLETED',
           finishedAt: new Date(),
@@ -403,21 +474,57 @@ export class AiEvalDatasetService {
           }),
         },
       });
+      if (completed.count === 0) await this.ensureRunning(runId);
     } catch (err: any) {
-      await this.prisma.aiEvalRun.update({
-        where: { id: runId },
-        data: {
-          status: 'FAILED',
-          finishedAt: new Date(),
-          summary: {
-            mode,
-            baselineRunId,
-            error: String(err?.message ?? err).slice(0, 300),
+      // 条件更新：取消优先于失败，避免把 CANCELLED 覆盖成 FAILED。
+      await this.prisma.aiEvalRun
+        .updateMany({
+          where: { id: runId, status: 'RUNNING' },
+          data: {
+            status: 'FAILED',
+            finishedAt: new Date(),
+            summary: {
+              mode,
+              baselineRunId,
+              error: String(err?.message ?? err).slice(0, 300),
+            },
           },
-        },
-      });
+        })
+        .catch((updateErr) =>
+          this.logger.error(
+            `Eval run ${runId} FAILED update failed: ${updateErr?.message ?? updateErr}`,
+          ),
+        );
       throw err;
     }
+  }
+
+  /**
+   * 读一次状态并返回是否还能继续。
+   * - RUNNING：继续；
+   * - CANCELLED：补齐 finishedAt/summary 后停止；
+   * - 其他终态或行已不存在：静默停止（不覆盖已有终态）。
+   */
+  private async ensureRunning(runId: string): Promise<boolean> {
+    const current = await this.prisma.aiEvalRun.findUnique({
+      where: { id: runId },
+      select: { status: true },
+    });
+    if (!current) return false;
+    if (current.status === 'RUNNING') return true;
+    if (current.status === 'CANCELLED') await this.markCancelled(runId);
+    return false;
+  }
+
+  private async markCancelled(runId: string): Promise<void> {
+    await this.prisma.aiEvalRun.updateMany({
+      where: { id: runId },
+      data: {
+        status: 'CANCELLED',
+        finishedAt: new Date(),
+        summary: { cancelled: true },
+      },
+    });
   }
 
   /**

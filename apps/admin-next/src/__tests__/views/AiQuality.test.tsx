@@ -21,6 +21,7 @@ const mockUpdateFeedback = vi.hoisted(() => vi.fn());
 const mockListDatasets = vi.hoisted(() => vi.fn());
 const mockAddCases = vi.hoisted(() => vi.fn());
 const mockStartRun = vi.hoisted(() => vi.fn());
+const mockCancelRun = vi.hoisted(() => vi.fn());
 const mockRagSearch = vi.hoisted(() => vi.fn());
 const mockQualityStats = vi.hoisted(() => vi.fn());
 const mockCanTriage = vi.hoisted(() => vi.fn(() => true));
@@ -48,6 +49,7 @@ vi.mock('@/api', () => ({
     addCases: (...args: unknown[]) => mockAddCases(...args),
     startRun: (...args: unknown[]) => mockStartRun(...args),
     getRun: vi.fn(),
+    cancelRun: (...args: unknown[]) => mockCancelRun(...args),
     ragSearch: (...args: unknown[]) => mockRagSearch(...args),
   },
   knowledgeApi: {
@@ -276,6 +278,7 @@ describe('AiQualityPage', () => {
     mockListDatasets.mockResolvedValue(datasets);
     mockAddCases.mockResolvedValue({ id: 'ds-1', cases: [] });
     mockStartRun.mockResolvedValue({ id: 'run-new', status: 'RUNNING' });
+    mockCancelRun.mockResolvedValue({ id: 'run-1', status: 'CANCELLED' });
     mockRagSearch.mockResolvedValue({ results: [], debug: {} });
     mockQualityStats.mockResolvedValue(stats);
     wireFeedback();
@@ -716,6 +719,56 @@ describe('AiQualityPage', () => {
     expect(screen.getByText(/新增失败 1/)).toBeTruthy();
     expect(screen.getByText(/修复 2/)).toBeTruthy();
     expect(screen.getByText('实际回答：实时回答：请点申请退款')).toBeTruthy();
+  });
+
+  it('cancels a RUNNING run from the run card', async () => {
+    const enterEval = wireEvalTab(evalDatasetDetail, {
+      id: 'running-run',
+      datasetId: 'ds-1',
+      status: 'RUNNING',
+      mode: 'LIVE',
+      baselineRunId: null,
+      createdBy: 'admin',
+      summary: null,
+      startedAt: '2026-01-02T00:00:00.000Z',
+      finishedAt: null,
+      results: [],
+    });
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+
+    fireEvent.click(screen.getByRole('button', { name: '取消运行' }));
+
+    await waitFor(() =>
+      expect(mockCancelRun).toHaveBeenCalledWith('running-run'),
+    );
+    expect(screen.getByText('已取消本次运行')).toBeTruthy();
+  });
+
+  it('shows the CANCELLED label and cancellation note on a run card', () => {
+    const enterEval = wireEvalTab(evalDatasetDetail, {
+      id: 'cancelled-run',
+      datasetId: 'ds-1',
+      status: 'CANCELLED',
+      mode: 'STORED',
+      baselineRunId: null,
+      createdBy: 'admin',
+      summary: { cancelled: true },
+      startedAt: '2026-01-02T00:00:00.000Z',
+      finishedAt: '2026-01-02T00:01:00.000Z',
+      results: [],
+    });
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+
+    expect(screen.getByText('已取消')).toBeTruthy();
+    expect(
+      screen.getByText('本次运行已取消，未处理剩余用例。'),
+    ).toBeTruthy();
+    expect(screen.queryByRole('button', { name: '取消运行' })).toBeNull();
   });
 
   it('renders explicit RAG stat cards and a recent flags table', () => {

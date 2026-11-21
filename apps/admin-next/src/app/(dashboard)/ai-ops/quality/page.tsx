@@ -87,6 +87,7 @@ const RUN_STATUS_LABELS: Record<string, string> = {
   RUNNING: '运行中',
   COMPLETED: '已完成',
   FAILED: '失败',
+  CANCELLED: '已取消',
 };
 
 const RESULT_VERDICT_LABELS: Record<string, string> = {
@@ -1056,6 +1057,7 @@ function EvalPanel() {
   const [message, setMessage] = useState('');
   const [advanced, setAdvanced] = useState(false);
   const [pollRun, setPollRun] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const role = useAiOpsRole();
   const canStartRun = role === 'SUPER_ADMIN' || role === 'ADMIN';
 
@@ -1067,7 +1069,7 @@ function EvalPanel() {
       selectedId ? aiQualityApi.getDataset(selectedId) : Promise.resolve(null),
     { refreshDeps: [selectedId] },
   );
-  const { data: run } = useRequest(
+  const { data: run, refresh: refreshRun } = useRequest(
     () => (runId ? aiQualityApi.getRun(runId) : Promise.resolve(null)),
     {
       refreshDeps: [runId],
@@ -1076,7 +1078,11 @@ function EvalPanel() {
   );
   const runStatus = (run as EvalRun | null | undefined)?.status;
   useEffect(() => {
-    if (runStatus === 'COMPLETED' || runStatus === 'FAILED') {
+    if (
+      runStatus === 'COMPLETED' ||
+      runStatus === 'FAILED' ||
+      runStatus === 'CANCELLED'
+    ) {
       setPollRun(false);
     }
   }, [runStatus]);
@@ -1161,6 +1167,26 @@ function EvalPanel() {
       setMessage('已启动，正在轮询结果…');
     } catch (err: any) {
       setMessage(err?.message ?? '启动失败');
+    }
+  };
+
+  const cancel = async () => {
+    const current = run as EvalRun | null;
+    if (!current || current.status !== 'RUNNING') return;
+    if (!window.confirm('确认取消这次评测运行？已判分的用例结果会保留。')) {
+      return;
+    }
+    setCancelling(true);
+    try {
+      await aiQualityApi.cancelRun(current.id);
+      setPollRun(false);
+      setMessage('已取消本次运行');
+      await refreshRun();
+      await refreshDatasets();
+    } catch (err: any) {
+      setMessage(err?.message ?? '取消失败');
+    } finally {
+      setCancelling(false);
     }
   };
 
@@ -1375,6 +1401,16 @@ function EvalPanel() {
             <span className="text-xs text-gray-500">
               通过率 {formatPassRate(runData.summary)}
             </span>
+            {runData.status === 'RUNNING' && canStartRun ? (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => void cancel()}
+                disabled={cancelling}
+              >
+                {cancelling ? '取消中…' : '取消运行'}
+              </Button>
+            ) : null}
             {runData.summary?.total != null ? (
               <span className="text-xs text-gray-500">
                 共 {runData.summary.total} 条 · 解决{' '}
@@ -1398,6 +1434,11 @@ function EvalPanel() {
           {runData.summary?.error ? (
             <div className="mt-2 text-xs text-red-600 dark:text-red-300">
               失败原因：{runData.summary.error}
+            </div>
+          ) : null}
+          {runData.summary?.cancelled ? (
+            <div className="mt-2 text-xs text-amber-600 dark:text-amber-300">
+              本次运行已取消，未处理剩余用例。
             </div>
           ) : null}
           <div className="mt-3 space-y-2 text-xs">

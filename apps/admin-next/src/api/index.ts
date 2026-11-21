@@ -1718,6 +1718,10 @@ export const aiQualityApi = {
     ),
   getRun: (id: string) =>
     http.get<import('@/type/types').EvalRun>(`/v1/admin/ai-eval/runs/${id}`),
+  cancelRun: (id: string) =>
+    http.post<import('@/type/types').EvalRun>(
+      `/v1/admin/ai-eval/runs/${id}/cancel`,
+    ),
 
   ragSearch: (data: {
     query: string;

@@ -30,6 +30,7 @@ function makeRun(
   return {
     id: 'run-1',
     datasetId: 'ds-1',
+    status: 'RUNNING',
     mode,
     baselineRunId,
     dataset: { cases },
@@ -53,9 +54,14 @@ function makeService() {
     aiEvalDataset: { findUnique: jest.fn() },
     aiEvalRun: {
       create: jest.fn(),
-      findUnique: jest.fn(),
+      // 状态检查走 select.status；默认视为 RUNNING，具体用例可覆盖。
+      findUnique: jest
+        .fn()
+        .mockImplementation((args: any) =>
+          Promise.resolve(args?.select?.status ? { status: 'RUNNING' } : null),
+        ),
       findFirst: jest.fn().mockResolvedValue(null),
-      update: jest.fn(),
+      update: jest.fn().mockResolvedValue({}),
       updateMany: jest.fn().mockResolvedValue({ count: 0 }),
     },
     aiEvalCase: {
@@ -67,15 +73,21 @@ function makeService() {
   };
   const judge = { judge: jest.fn() };
   const aiCustomer = { testChat: jest.fn() };
+  const queue = { add: jest.fn().mockResolvedValue({ id: 'job-1' }) };
   const service = new AiEvalDatasetService(
     prisma as any,
     judge as any,
     aiCustomer as any,
+    queue as any,
   );
-  return { service, prisma, judge, aiCustomer };
+  return { service, prisma, judge, aiCustomer, queue };
 }
 
 function summaryOf(prisma: ReturnType<typeof makeService>['prisma']) {
+  // 终态更新改为条件 updateMany；兼容旧的 update 断言。
+  const manyCalls = prisma.aiEvalRun.updateMany.mock.calls;
+  const many = manyCalls[manyCalls.length - 1]?.[0]?.data?.summary;
+  if (many) return many;
   const calls = prisma.aiEvalRun.update.mock.calls;
   const call = calls[calls.length - 1];
   return call?.[0]?.data?.summary;
@@ -177,7 +189,7 @@ describe('AiEvalDatasetService', () => {
     expect(first.reason).toContain('live_failed');
     const second = prisma.aiEvalResult.create.mock.calls[1][0].data;
     expect(second).toMatchObject({ caseId: 'c2', verdict: 'solved' });
-    expect(prisma.aiEvalRun.update).toHaveBeenLastCalledWith(
+    expect(prisma.aiEvalRun.updateMany).toHaveBeenLastCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ status: 'COMPLETED' }),
       }),
@@ -299,6 +311,143 @@ describe('AiEvalDatasetService', () => {
       service.startRun('ds-1', 'admin-1', { mode: 'STORED' }),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.aiEvalRun.create).not.toHaveBeenCalled();
+  });
+
+  it('startRun 用 run id 作为 jobId 入队，不再在请求线程执行', async () => {
+    const { service, prisma, queue } = makeService();
+    prisma.aiEvalDataset.findUnique.mockResolvedValue({
+      id: 'ds-1',
+      cases: [makeCase('c1', 'q1', 'a1')],
+    });
+    prisma.aiEvalRun.create.mockResolvedValue({ id: 'run-new' });
+
+    const run = await service.startRun('ds-1', 'admin-1', { mode: 'STORED' });
+
+    expect(run).toEqual({ id: 'run-new' });
+    expect(queue.add).toHaveBeenCalledWith(
+      'run-eval',
+      { runId: 'run-new' },
+      expect.objectContaining({ jobId: 'run-new', attempts: 1 }),
+    );
+  });
+
+  it('入队失败时把 run 落 FAILED，避免永久 RUNNING', async () => {
+    const { service, prisma, queue } = makeService();
+    prisma.aiEvalDataset.findUnique.mockResolvedValue({
+      id: 'ds-1',
+      cases: [makeCase('c1', 'q1', 'a1')],
+    });
+    prisma.aiEvalRun.create.mockResolvedValue({ id: 'run-new' });
+    queue.add.mockRejectedValueOnce(new Error('redis down'));
+
+    await expect(
+      service.startRun('ds-1', 'admin-1', { mode: 'STORED' }),
+    ).rejects.toThrow('redis down');
+    expect(prisma.aiEvalRun.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'run-new' },
+        data: expect.objectContaining({
+          status: 'FAILED',
+          summary: expect.objectContaining({
+            error: expect.stringContaining('enqueue failed'),
+          }),
+        }),
+      }),
+    );
+  });
+
+  it('cancelRun 只把 RUNNING 改成 CANCELLED', async () => {
+    const { service, prisma } = makeService();
+    prisma.aiEvalRun.updateMany.mockResolvedValueOnce({ count: 1 });
+    prisma.aiEvalRun.findUnique.mockResolvedValue({
+      id: 'run-1',
+      status: 'CANCELLED',
+      summary: { cancelled: true },
+      results: [],
+    });
+
+    const run = await service.cancelRun('run-1');
+
+    expect(prisma.aiEvalRun.updateMany).toHaveBeenCalledWith({
+      where: { id: 'run-1', status: 'RUNNING' },
+      data: expect.objectContaining({
+        status: 'CANCELLED',
+        summary: { cancelled: true },
+      }),
+    });
+    expect(run).toMatchObject({ id: 'run-1', status: 'CANCELLED' });
+  });
+
+  it('cancelRun 遇到终态直接返回当前 run', async () => {
+    const { service, prisma } = makeService();
+    prisma.aiEvalRun.updateMany.mockResolvedValueOnce({ count: 0 });
+    prisma.aiEvalRun.findUnique.mockResolvedValue({
+      id: 'run-1',
+      status: 'COMPLETED',
+      summary: { passRate: 1 },
+      results: [],
+    });
+
+    const run = await service.cancelRun('run-1');
+
+    expect(run).toMatchObject({ id: 'run-1', status: 'COMPLETED' });
+  });
+
+  it('cancelRun 对不存在的 run 抛 404', async () => {
+    const { service, prisma } = makeService();
+    prisma.aiEvalRun.findUnique.mockResolvedValueOnce(null);
+
+    await expect(service.cancelRun('missing')).rejects.toThrow(
+      'Eval run not found',
+    );
+    expect(prisma.aiEvalRun.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('executeRun 在第一条用例前发现 CANCELLED 即停止', async () => {
+    const { service, prisma, judge } = makeService();
+    prisma.aiEvalRun.findUnique
+      .mockResolvedValueOnce(makeRun('STORED', [makeCase('c1', 'q1', 'a1')]))
+      .mockResolvedValueOnce({ status: 'CANCELLED' });
+
+    await service.executeRun('run-1');
+
+    expect(judge.judge).not.toHaveBeenCalled();
+    expect(prisma.aiEvalResult.create).not.toHaveBeenCalled();
+    expect(prisma.aiEvalRun.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: 'CANCELLED',
+          summary: { cancelled: true },
+        }),
+      }),
+    );
+  });
+
+  it('executeRun 在判分后发现 CANCELLED 时丢弃结果并停止', async () => {
+    const { service, prisma, judge } = makeService();
+    prisma.aiEvalRun.findUnique
+      .mockResolvedValueOnce(
+        makeRun('STORED', [
+          makeCase('c1', 'q1', 'a1'),
+          makeCase('c2', 'q2', 'a2'),
+        ]),
+      )
+      .mockResolvedValueOnce({ status: 'RUNNING' })
+      .mockResolvedValueOnce({ status: 'CANCELLED' });
+    judge.judge.mockResolvedValue(verdictOf('solved'));
+
+    await service.executeRun('run-1');
+
+    expect(judge.judge).toHaveBeenCalledTimes(1);
+    expect(prisma.aiEvalResult.create).not.toHaveBeenCalled();
+    expect(prisma.aiEvalRun.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: 'CANCELLED',
+          summary: { cancelled: true },
+        }),
+      }),
+    );
   });
 
   it('updateCase 校验归属并写入期望', async () => {

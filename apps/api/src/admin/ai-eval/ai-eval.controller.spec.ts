@@ -65,6 +65,7 @@ function createController() {
     // Return a fresh object on every call: redaction mutates in place.
     getDataset: jest.fn().mockImplementation(() => Promise.resolve(dataset())),
     getRun: jest.fn().mockImplementation(() => Promise.resolve(run())),
+    cancelRun: jest.fn().mockResolvedValue({ id: 'run-1', status: 'CANCELLED' }),
   };
   const judgeService = { judge: jest.fn() };
 
@@ -95,6 +96,19 @@ describe('AiEvalController 角色边界', () => {
     ) as Role[];
 
     expect(roles).toContain(Role.VIEWER);
+  });
+
+  it('取消运行仅允许 SUPER_ADMIN / ADMIN', () => {
+    const roles = Reflect.getMetadata(
+      ROLES_KEY,
+      AiEvalController.prototype.cancelRun,
+    ) as Role[];
+
+    expect(roles).toEqual(
+      expect.arrayContaining([Role.SUPER_ADMIN, Role.ADMIN]),
+    );
+    expect(roles).not.toContain(Role.VIEWER);
+    expect(roles).not.toContain(Role.EDITOR);
   });
 });
 
