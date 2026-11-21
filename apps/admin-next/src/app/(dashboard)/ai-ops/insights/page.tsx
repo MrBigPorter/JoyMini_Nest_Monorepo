@@ -89,8 +89,7 @@ export default function AiInsightsPage() {
     {
       label: '转人工率',
       value: overview ? formatTransferRate(overview) : '—',
-      sub: '分母 = 窗口内创建或转人工的 SUPPORT/AI 会话',
-      href: '/ai-ops/quality?signal=transferred',
+      sub: '会话口径；分母 = 窗口内创建或转人工的 SUPPORT/AI 会话（暂无列表下钻）',
     },
     {
       label: '模型错误率',

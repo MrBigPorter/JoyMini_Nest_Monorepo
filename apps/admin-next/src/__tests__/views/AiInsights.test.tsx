@@ -118,9 +118,8 @@ describe('AiInsightsPage', () => {
   it('drills KPI cards down to the relevant pages', () => {
     render(<AiInsightsPage />);
 
-    expect(
-      screen.getByRole('link', { name: /转人工率/ }).getAttribute('href'),
-    ).toBe('/ai-ops/quality?signal=transferred');
+    // 转人工率是会话总体，质量页是反馈信号总体，不能互相冒充下钻。
+    expect(screen.queryByRole('link', { name: /转人工率/ })).toBeNull();
     expect(
       screen.getByRole('link', { name: /重复追问/ }).getAttribute('href'),
     ).toBe('/ai-ops/quality?queue=SIGNAL&signal=repeated_question');

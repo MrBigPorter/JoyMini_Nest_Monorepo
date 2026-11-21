@@ -13,6 +13,8 @@ import {
   Zap,
 } from 'lucide-react';
 import { aiOpsApi, chatApi } from '@/api';
+import { useToastStore } from '@/store/useToastStore';
+import { mergeChatMessages } from '@/lib/chat-message-merge';
 import type { ChatConversation, ChatMessage } from '@/type/types';
 import { ModalManager } from '@repo/ui';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -49,6 +51,10 @@ export function ChatWindow({
   const [cursor, setCursor] = useState<number | undefined>(undefined);
   const [allMessages, setAllMessages] = useState<ChatMessage[]>([]);
   const [hasMore, setHasMore] = useState(true);
+  const messagesScrollRef = useRef<HTMLDivElement>(null);
+  const nearBottomRef = useRef(true);
+  const loadedOlderRef = useRef(false);
+  const addToast = useToastStore((state) => state.addToast);
 
   const { t } = useTranslation();
   const user =
@@ -94,6 +100,11 @@ export function ChatWindow({
       pollingInterval: 10000,
       onSuccess: (data) => {
         const sorted = [...data.list].reverse();
+        if (loadedOlderRef.current) {
+          // 已经翻过更早的消息：轮询只合并最新一页，不能把历史整段替换掉。
+          setAllMessages((prev) => mergeChatMessages(prev, sorted));
+          return;
+        }
         setAllMessages(sorted);
         setCursor(data.nextCursor ?? undefined);
         setHasMore(data.nextCursor !== null);
@@ -108,12 +119,15 @@ export function ChatWindow({
       pageSize: 30,
     });
     const older = [...data.list].reverse();
+    loadedOlderRef.current = true;
     setAllMessages((prev) => [...older, ...prev]);
     setCursor(data.nextCursor ?? undefined);
     setHasMore(data.nextCursor !== null);
   }, [conversation.id, cursor, hasMore]);
 
   useEffect(() => {
+    // 只有用户本来就在底部时才自动滚到底，避免 10s 轮询打断阅读。
+    if (!nearBottomRef.current) return;
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [allMessages]);
 
@@ -215,7 +229,14 @@ export function ChatWindow({
       setHandlerMode('human');
       conversation.handlerId = 'me';
       onMessageSentAction();
-    } catch {
+    } catch (err: any) {
+      const status = err?.response?.status;
+      addToast(
+        'error',
+        status === 409
+          ? '会话已被其他客服认领，列表已刷新'
+          : '认领会话失败，请重试',
+      );
       onMessageSentAction();
     } finally {
       setClaiming(false);
@@ -257,11 +278,29 @@ export function ChatWindow({
               )}
               <button
                 onClick={async () => {
+                  // 等待人工时，点“Human”应该是认领，而不是把用户送回 AI。
+                  if (conversation.handlerId === 'awaiting_human') {
+                    await handleClaim();
+                    return;
+                  }
                   const mode = conversation.handlerId ? 'ai' : 'human';
-                  await chatApi.switchHandler(conversation.id, mode);
-                  conversation.handlerId =
-                    mode === 'human' ? 'awaiting_human' : null;
-                  setHandlerMode(mode);
+                  try {
+                    await chatApi.switchHandler(conversation.id, mode);
+                    if (mode === 'human') {
+                      // 切到人工后立刻认领，避免只进队列却没有归属。
+                      try {
+                        await chatApi.claim(conversation.id);
+                        conversation.handlerId = 'me';
+                      } catch {
+                        conversation.handlerId = 'awaiting_human';
+                      }
+                    } else {
+                      conversation.handlerId = null;
+                    }
+                    setHandlerMode(mode);
+                  } catch (err: any) {
+                    addToast('error', err?.message ?? '切换失败，请重试');
+                  }
                 }}
                 className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors ${
                   handlerMode === 'human' || conversation.handlerId
@@ -299,7 +338,16 @@ export function ChatWindow({
       </div>
 
       {/* 消息区 */}
-      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3 bg-gray-50 dark:bg-gray-950">
+      <div
+        ref={messagesScrollRef}
+        onScroll={() => {
+          const el = messagesScrollRef.current;
+          if (!el) return;
+          nearBottomRef.current =
+            el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+        }}
+        className="flex-1 overflow-y-auto px-5 py-4 space-y-3 bg-gray-50 dark:bg-gray-950"
+      >
         {hasMore && (
           <div className="flex justify-center">
             <button
