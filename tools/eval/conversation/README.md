@@ -75,7 +75,9 @@ run.sh --dataset ... --mode=blocking   # 不达标退出码 1
 - `holdout-2026-11-21.jsonl`：10 个 holdout 会话（冻结，不参与标注/调参）；
 - 训练集工作表：36 行；
 - 第二轮运营标注：36/36，solved 26 / partial 8 / unsolved 2；
-  报告见 [`reports/operator-annotation-2026-11-21-round2.md`](./reports/operator-annotation-2026-11-21-round2.md)。
+  报告见 [`reports/operator-annotation-2026-11-21-round2.md`](./reports/operator-annotation-2026-11-21-round2.md)；
+- 第二轮 AI 预标注：36/36，与运营 kappa 0.366（未达标），
+  见 [`reports/ai-vs-operator-2026-11-21-round2.md`](./reports/ai-vs-operator-2026-11-21-round2.md)。
 
 > 旧的 `selection-2026-11-22.jsonl` 引用的 sim 会话已在清理中删除，仅作历史记录，
 > 不能重跑。
