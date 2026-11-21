@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://joymini.local/eval/case.schema.json",
+  "title": "EvalCase",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "datasetVersion",
+    "source",
+    "language",
+    "intent",
+    "turns",
+    "conversationExpect"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{2,63}$"
+    },
+    "datasetVersion": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}\\.[0-9]+$"
+    },
+    "source": {
+      "type": "string",
+      "enum": ["real", "sim", "drill"]
+    },
+    "language": {
+      "type": "string",
+      "enum": ["zh", "en", "mixed"]
+    },
+    "intent": {
+      "type": "string",
+      "enum": [
+        "order",
+        "wallet",
+        "coupon",
+        "product",
+        "user",
+        "kyc",
+        "lucky",
+        "rag",
+        "general"
+      ]
+    },
+    "channel": {
+      "type": "string",
+      "enum": ["app", "web", "support", "unknown"]
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "note": { "type": "string", "maxLength": 500 },
+    "fixtures": { "type": "object" },
+    "turns": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["turn", "user", "expect"],
+        "properties": {
+          "turn": { "type": "integer", "minimum": 1 },
+          "user": { "type": "string", "minLength": 1, "maxLength": 4000 },
+          "expect": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "mustMention",
+              "mustNotMention",
+              "expectAction",
+              "expectOutcome"
+            ],
+            "properties": {
+              "answer": { "type": "string", "maxLength": 4000 },
+              "mustMention": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "mustNotMention": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "expectAction": {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "claim_coupon",
+                  "redeem_code",
+                  "withdraw",
+                  "create_address",
+                  "place_order"
+                ]
+              },
+              "expectOutcome": {
+                "type": "string",
+                "enum": [
+                  "reply",
+                  "confirm_card",
+                  "executed",
+                  "transferred",
+                  "failed"
+                ]
+              },
+              "maxLatencyMs": { "type": "integer", "minimum": 1 }
+            }
+          }
+        }
+      }
+    },
+    "conversationExpect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["finalOutcome", "maxLatencyMs"],
+      "properties": {
+        "finalOutcome": {
+          "type": "string",
+          "enum": [
+            "reply",
+            "confirm_card",
+            "executed",
+            "transferred",
+            "failed"
+          ]
+        },
+        "maxLatencyMs": { "type": "integer", "minimum": 1 }
+      }
+    }
+  }
+}

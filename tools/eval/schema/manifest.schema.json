@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://joymini.local/eval/manifest.schema.json",
+  "title": "EvalRunManifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "runId",
+    "datasetVersion",
+    "caseCount",
+    "repetitions",
+    "model",
+    "promptVersions",
+    "ragIndexVersion",
+    "judgeVersion",
+    "evaluatorVersions",
+    "startedAt",
+    "finishedAt"
+  ],
+  "properties": {
+    "runId": { "type": "string", "minLength": 3, "maxLength": 100 },
+    "datasetVersion": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}\\.[0-9]+$"
+    },
+    "caseCount": { "type": "integer", "minimum": 0 },
+    "repetitions": { "type": "integer", "minimum": 1, "maximum": 10 },
+    "model": { "type": "string", "minLength": 1, "maxLength": 100 },
+    "promptVersions": {
+      "type": "object",
+      "additionalProperties": { "type": ["integer", "string"] }
+    },
+    "ragIndexVersion": { "type": "string", "minLength": 1, "maxLength": 100 },
+    "judgeVersion": { "type": ["string", "null"], "maxLength": 200 },
+    "evaluatorVersions": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+      }
+    },
+    "startedAt": { "type": "string", "minLength": 1 },
+    "finishedAt": { "type": "string", "minLength": 1 }
+  }
+}

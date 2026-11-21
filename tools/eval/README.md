@@ -1,6 +1,10 @@
 # tools/eval — 意图准确率回放（T0-3）
 
 > 设计说明：[docs/AI-joymini/94-意图准确率基线-T0-3.md](../../docs/AI-joymini/94-意图准确率基线-T0-3.md)
+>
+> 多轮评测契约（Phase 0）：见 [`conversation/README.md`](./conversation/README.md) 与 [`schema/`](./schema/)。
+> 新用例一律进 `conversation/`，旧 `task/golden.jsonl` 保留给单轮 runner。
+
 
 ## 一条命令
 
