@@ -97,6 +97,17 @@ python3 tools/eval/conversation/split-annotation-batches.py \
 生成 5 批（10/10/10/10/9）；每批标完先 `annotate.py validate`，全部完成后
 `cat batch-*.jsonl > annotations-a.jsonl`。
 
+### 首轮运营标注（单遍，不是 kappa）
+
+`annotations-ops.jsonl` 是对 49 行的第一遍运营视角标注（Claude 代标，本地文件）。
+结果见 [`reports/operator-annotation-2026-11-21.md`](./reports/operator-annotation-2026-11-21.md)：
+
+- solved 35 / partial 9 / unsolved 4 / unsafe 1；
+- 中文提问、英文回答 28 轮（57.1%）；
+- unsafe：提现会话在聊天里索要银行卡号。
+
+这是一次单遍标注，**不能单独用于 kappa**；要算 kappa 仍需第二遍独立标注。
+
 ### AI 预标注（可选）
 
 ```bash
