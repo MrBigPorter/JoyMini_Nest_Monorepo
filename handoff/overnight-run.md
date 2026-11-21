@@ -20,6 +20,8 @@
 | Batch 4 回归期望 + 生命周期 | **PASS** | `f6e39769`、`c08df55c`、`2561806f` | 9 API + 3 UI |
 | Batch 5 119 Phase 1 | **PASS** | `4be75eaf`、`7aaeda85`、`0bcdcc80` | 9 API + 2 UI |
 | Quick Wins 1：SLA 分钟唯一 + 知识评分 | **PASS** | `e4eff5ab`、`0f6518d5` | 4 API + 1 UI + 回归 9/8 |
+| PII 治理 + eval 隐私（D-01） | **PASS** | `346fd403`、`3f780241`、`301cff59` | 7 API + 1 UI + 回归 42 |
+| Insights 指标（P1-4） | **PASS** | `42ee6d76` | 3 API + 2 UI |
 
 ## 已交付能力
 
@@ -32,7 +34,9 @@
 
 ## 剩余（未做）
 
-- 118 §8.2 两周项：运营核心指标（解决率/错误率/误转率）、LIVE eval 作业化、PII 治理（trace 脱敏/30 天保留/注销级联）、运营面补完（owner/状态机/批量/快捷键/知识动作）。
+- 118 §8.2 剩余：LIVE eval 作业化、注销级联与隐私政策披露、运营面补完（owner/状态机/批量/快捷键/知识动作）。运营核心指标与 PII trace 治理已完成。
+- D-IM-01（P2）：转人工率 KPI 是会话总体（2/3），下钻仍是 `signal=transferred` 反馈信号（5 条）；待统一总体。
+- D-02（P2）：EDITOR 工程导航与 traces 接口 403 不一致。
 - 119 Phase 2–5：聚类、问题簇页、小时级告警、修复闭环、分区/保留。
 - 已完成：SLA 分钟唯一、知识评分 truncation 误报、编辑重算。
 - D-01：VIEWER 仍可读 eval 数据集/结果原文（Batch 4 未处理，需后续）。
