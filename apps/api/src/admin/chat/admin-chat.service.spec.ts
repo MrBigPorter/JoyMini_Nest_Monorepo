@@ -389,6 +389,22 @@ describe('AdminChatService.replyToConversation 回复即接管（T2-5 / S2-B）'
     expect(chatService.sendMessage).not.toHaveBeenCalled();
   });
 
+  // ── #118 P1-4：客服回复必须落 human_agent ──────────────────────
+
+  it('客服回复显式传 source=human_agent（否则洞察“人工消息”永远为 0）', async () => {
+    const { service, chatService } = createReplyService({
+      handlerId: 'admin-A',
+    });
+
+    await service.replyToConversation('conv-1', REPLY_DTO, '客服A', 'admin-1');
+
+    expect(chatService.sendMessage).toHaveBeenCalledWith(
+      'bot-1',
+      expect.objectContaining({ conversationId: 'conv-1', content: '您好，我帮您查' }),
+      { source: 'human_agent' },
+    );
+  });
+
   // ── S2-C：首次回复时间 ──────────────────────────────────────────
 
   it('回复成功 → 用 where firstResponseAt=null 写首次回复时间（只写一次）', async () => {

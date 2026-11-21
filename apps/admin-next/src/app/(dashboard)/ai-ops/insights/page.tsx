@@ -6,7 +6,7 @@ import { useRequest } from 'ahooks';
 import { aiQualityApi } from '@/api';
 import { PageHeader } from '@/components/scaffold/PageHeader';
 import { AiErrorBanner } from '@/components/ai-ops/AiErrorBanner';
-import type { AiInsightsOverview } from '@/type/types';
+import type { AiInsightsOverview, AiInsightsRate } from '@/type/types';
 
 const TRANSFER_REASON_LABELS: Record<string, string> = {
   explicit_request: '用户明确要求',
@@ -41,10 +41,18 @@ function formatNumber(value: number | undefined): string {
   return typeof value === 'number' ? value.toLocaleString() : '—';
 }
 
+function formatRate(rate: AiInsightsRate | undefined): string {
+  return rate ? `${(rate.rate * 100).toFixed(1)}%` : '—';
+}
+
+function formatFraction(rate: AiInsightsRate | undefined): string {
+  return rate ? `分子/分母：${rate.numerator} / ${rate.denominator}` : '—';
+}
+
 function formatTransferRate(overview: AiInsightsOverview): string {
-  const denominator = overview.conversations;
+  const numerator = overview.transfers.numerator ?? overview.transfers.total;
+  const denominator = overview.transfers.denominator ?? overview.conversations;
   if (!denominator) return '—';
-  const numerator = overview.transfers.total;
   const pct = (numerator / denominator) * 100;
   return `${pct.toFixed(1)}% (${numerator}/${denominator})`;
 }
@@ -63,44 +71,71 @@ export default function AiInsightsPage() {
   );
   const overview = data as AiInsightsOverview | null | undefined;
 
-  const kpis: Array<{ label: string; value: string; href?: string }> = [
+  const kpis: Array<{
+    label: string;
+    value: string;
+    sub?: string;
+    href?: string;
+  }> = [
     {
-      label: 'Conversations',
+      label: '会话数',
       value: formatNumber(overview?.conversations),
       href: '/customer-service',
     },
     {
-      label: 'AI messages',
+      label: 'AI 消息',
       value: formatNumber(overview?.messages.ai),
     },
     {
-      label: 'Transfer rate',
+      label: '转人工率',
       value: overview ? formatTransferRate(overview) : '—',
-      // Transfer rate 统计所有 implicit transferred（含 SERVICE_ERROR / EXCLUDED），
-      // 不带 queue 才能与 KPI 数字一致。
+      sub: '分母 = 窗口内创建或转人工的 SUPPORT/AI 会话',
       href: '/ai-ops/quality?signal=transferred',
     },
     {
-      label: 'Repeated questions',
+      label: '模型错误率',
+      value: formatRate(overview?.rates?.modelError),
+      sub: formatFraction(overview?.rates?.modelError),
+    },
+    {
+      label: '服务故障率',
+      value: formatRate(overview?.rates?.serviceError),
+      sub: formatFraction(overview?.rates?.serviceError),
+    },
+    {
+      label: '误转率',
+      value: formatRate(overview?.rates?.misTransfer),
+      sub: formatFraction(overview?.rates?.misTransfer),
+    },
+    {
+      label: '重复追问',
       value: formatNumber(overview?.feedback.repeatedQuestion),
       href: '/ai-ops/quality?queue=SIGNAL&signal=repeated_question',
     },
     {
-      label: 'Abandoned',
+      label: '用户放弃',
       value: formatNumber(overview?.feedback.abandoned),
       href: '/ai-ops/quality?queue=SIGNAL&signal=abandoned',
     },
     {
-      label: 'Human messages',
+      label: '人工消息（客服回复）',
       value: formatNumber(overview?.messages.human),
     },
     {
-      label: 'Total tokens',
+      label: '疑似误转（信号区）',
+      value: formatNumber(
+        overview?.feedback.suspectedMisTransfer ??
+          overview?.feedback.transferred,
+      ),
+      href: '/ai-ops/quality?signal=transferred',
+    },
+    {
+      label: 'Token 用量',
       value: formatNumber(overview?.usage.totalTokens),
       href: '/ai-ops/usage',
     },
     {
-      label: 'Requests',
+      label: '请求数',
       value: formatNumber(overview?.usage.requests),
       href: '/ai-ops/usage',
     },
@@ -150,12 +185,9 @@ export default function AiInsightsPage() {
           开始日期不能晚于结束日期，请调整筛选范围。
         </div>
       ) : loading ? (
-        <div className="py-6 text-center text-sm text-gray-400">Loading...</div>
+        <div className="py-6 text-center text-sm text-gray-400">加载中…</div>
       ) : error ? (
-        <AiErrorBanner
-          message="洞察数据加载失败，请重试"
-          onRetry={refresh}
-        />
+        <AiErrorBanner message="洞察数据加载失败，请重试" onRetry={refresh} />
       ) : !overview ? (
         <div className="py-6 text-center text-sm text-gray-400">暂无数据</div>
       ) : (
@@ -165,9 +197,10 @@ export default function AiInsightsPage() {
               const content = (
                 <>
                   <div className="text-xs text-gray-500">{kpi.label}</div>
-                  <div className="mt-1 text-2xl font-semibold">
-                    {kpi.value}
-                  </div>
+                  <div className="mt-1 text-2xl font-semibold">{kpi.value}</div>
+                  {kpi.sub ? (
+                    <div className="mt-1 text-xs text-gray-500">{kpi.sub}</div>
+                  ) : null}
                 </>
               );
 

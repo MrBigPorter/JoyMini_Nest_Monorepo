@@ -61,7 +61,11 @@ export class ChatService {
   // =================================================================
   //  CORE OPERATION: sendMessage (Unified Meta-First Engine)
   // =================================================================
-  async sendMessage(userId: string, dto: CreateMessageDto) {
+  async sendMessage(
+    userId: string,
+    dto: CreateMessageDto,
+    options?: { source?: 'user' | 'ai' | 'human_agent' },
+  ) {
     const { id, conversationId, content, type, meta } = dto;
 
     const existingMessage = await this.prisma.chatMessage.findUnique({
@@ -164,6 +168,9 @@ export class ChatService {
             senderId: userId,
             content,
             type,
+            // 默认仍是 user（客户端/转发/通话消息都不变）；客服后台回复显式传
+            // human_agent，否则 "人工消息" 指标永远是 0（#118 P1-4）。
+            source: options?.source ?? 'user',
             meta: Object.keys(finalMeta).length > 0 ? finalMeta : undefined,
             seqId: conv.lastMsgSeqId,
           },

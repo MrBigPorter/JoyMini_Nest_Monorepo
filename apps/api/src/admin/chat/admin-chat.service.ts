@@ -307,18 +307,24 @@ export class AdminChatService {
 
     const agentLabel = dto.agentName ?? adminName ?? 'Support';
     const msgType = dto.type ?? MSG_TYPE_TEXT;
-    const message = await this.chatService.sendMessage(botMember.userId, {
-      id: uuidv4(),
-      conversationId,
-      content: dto.content,
-      type: msgType,
-      meta: {
-        isSupport: true,
-        agentName: agentLabel,
-        realAdminId: adminId,
-        ...(dto.meta ?? {}),
+    const message = await this.chatService.sendMessage(
+      botMember.userId,
+      {
+        id: uuidv4(),
+        conversationId,
+        content: dto.content,
+        type: msgType,
+        meta: {
+          isSupport: true,
+          agentName: agentLabel,
+          realAdminId: adminId,
+          ...(dto.meta ?? {}),
+        },
       },
-    });
+      // 客服后台回复必须落 human_agent：sendMessage 的默认值是 user，
+      // 不显式传的话洞察页“人工消息”恒为 0（#118 P1-4）。
+      { source: 'human_agent' },
+    );
 
     // 首次人工回复时间：只写一次。
     // 用 updateMany + where null 而不是 update —— 帮答场景下两个人几乎同时回复，

@@ -2295,6 +2295,13 @@ export interface SupportSlaSnapshotRow {
   createdAt: string;
 }
 
+export interface AiInsightsRate {
+  numerator: number;
+  denominator: number;
+  /** 0~1 小数；分母为 0 时为 0 */
+  rate: number;
+}
+
 export interface AiInsightsOverview {
   range: { from: string; to: string; timezone: string };
   conversations: number;
@@ -2303,12 +2310,21 @@ export interface AiInsightsOverview {
     repeatedQuestion: number;
     abandoned: number;
     transferred: number;
+    /** 信号区“疑似误转”，与 transferred 同值；不等于已确认误转 */
+    suspectedMisTransfer?: number;
     byReviewStatus: Array<{ status: string; count: number }>;
   };
   transfers: {
     total: number;
     byReason: Array<{ reason: string; count: number }>;
     rate: number;
+    numerator?: number;
+    denominator?: number;
+  };
+  rates?: {
+    modelError: AiInsightsRate;
+    serviceError: AiInsightsRate;
+    misTransfer: AiInsightsRate;
   };
   usage: { totalTokens: number; requests: number };
   notes: string[];

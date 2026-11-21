@@ -44,6 +44,7 @@ const overview = {
     repeatedQuestion: 4,
     abandoned: 2,
     transferred: 12,
+    suspectedMisTransfer: 12,
     byReviewStatus: [
       { status: 'PENDING', count: 3 },
       { status: 'REVIEWED', count: 1 },
@@ -56,6 +57,13 @@ const overview = {
       { reason: 'negative_sentiment', count: 5 },
     ],
     rate: 0.545,
+    numerator: 12,
+    denominator: 22,
+  },
+  rates: {
+    modelError: { numerator: 4, denominator: 5, rate: 0.8 },
+    serviceError: { numerator: 1, denominator: 5, rate: 0.2 },
+    misTransfer: { numerator: 1, denominator: 4, rate: 0.25 },
   },
   usage: { totalTokens: 12345, requests: 7 },
   notes: ['口径为 UTC'],
@@ -84,34 +92,75 @@ describe('AiInsightsPage', () => {
     expect(screen.getByText('负面情绪')).toBeTruthy();
     expect(screen.getByText('待审核')).toBeTruthy();
     expect(screen.getByText('已审核')).toBeTruthy();
-    expect(
-      screen.getByText(/2026-01-01 → 2026-01-07 · UTC/),
-    ).toBeTruthy();
+    expect(screen.getByText(/2026-01-01 → 2026-01-07 · UTC/)).toBeTruthy();
+  });
+
+  it('renders 114 §8 rates with Chinese labels and fraction', () => {
+    render(<AiInsightsPage />);
+
+    expect(screen.getByText('模型错误率')).toBeTruthy();
+    expect(screen.getByText('80.0%')).toBeTruthy();
+    expect(screen.getByText('分子/分母：4 / 5')).toBeTruthy();
+
+    expect(screen.getByText('服务故障率')).toBeTruthy();
+    expect(screen.getByText('20.0%')).toBeTruthy();
+    expect(screen.getByText('分子/分母：1 / 5')).toBeTruthy();
+
+    expect(screen.getByText('误转率')).toBeTruthy();
+    expect(screen.getByText('25.0%')).toBeTruthy();
+    expect(screen.getByText('分子/分母：1 / 4')).toBeTruthy();
+
+    // 人工消息不再恒为 0；疑似误转单独展示
+    expect(screen.getByText('人工消息（客服回复）')).toBeTruthy();
+    expect(screen.getByText('疑似误转（信号区）')).toBeTruthy();
   });
 
   it('drills KPI cards down to the relevant pages', () => {
     render(<AiInsightsPage />);
 
     expect(
-      screen.getByRole('link', { name: /Transfer rate/ }).getAttribute('href'),
+      screen.getByRole('link', { name: /转人工率/ }).getAttribute('href'),
     ).toBe('/ai-ops/quality?signal=transferred');
     expect(
-      screen
-        .getByRole('link', { name: /Repeated questions/ })
-        .getAttribute('href'),
+      screen.getByRole('link', { name: /重复追问/ }).getAttribute('href'),
     ).toBe('/ai-ops/quality?queue=SIGNAL&signal=repeated_question');
     expect(
-      screen.getByRole('link', { name: /Abandoned/ }).getAttribute('href'),
+      screen.getByRole('link', { name: /用户放弃/ }).getAttribute('href'),
     ).toBe('/ai-ops/quality?queue=SIGNAL&signal=abandoned');
     expect(
-      screen.getByRole('link', { name: /Total tokens/ }).getAttribute('href'),
+      screen.getByRole('link', { name: /Token 用量/ }).getAttribute('href'),
     ).toBe('/ai-ops/usage');
     expect(
-      screen.getByRole('link', { name: /Requests/ }).getAttribute('href'),
+      screen.getByRole('link', { name: /请求数/ }).getAttribute('href'),
     ).toBe('/ai-ops/usage');
     expect(
-      screen.getByRole('link', { name: /Conversations/ }).getAttribute('href'),
+      screen.getByRole('link', { name: /会话数/ }).getAttribute('href'),
     ).toBe('/customer-service');
+  });
+
+  it('shows 0.0% instead of NaN when denominators are 0', () => {
+    const zeroOverview = {
+      ...overview,
+      transfers: {
+        ...overview.transfers,
+        total: 0,
+        byReason: [],
+        rate: 0,
+        numerator: 0,
+        denominator: 0,
+      },
+      rates: {
+        modelError: { numerator: 0, denominator: 0, rate: 0 },
+        serviceError: { numerator: 0, denominator: 0, rate: 0 },
+        misTransfer: { numerator: 0, denominator: 0, rate: 0 },
+      },
+    };
+    wire(makeUseRequest(zeroOverview));
+
+    render(<AiInsightsPage />);
+
+    expect(screen.queryByText(/NaN/)).toBeNull();
+    expect(screen.getAllByText('0.0%').length).toBeGreaterThanOrEqual(3);
   });
 
   it('validates from <= to and does not call the API with an invalid range', async () => {
