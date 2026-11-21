@@ -52,6 +52,7 @@ export function ChatWindow({
   const [allMessages, setAllMessages] = useState<ChatMessage[]>([]);
   const [hasMore, setHasMore] = useState(true);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
+  const scrollParentRef = useRef<HTMLElement | null>(null);
   const nearBottomRef = useRef(true);
   const loadedOlderRef = useRef(false);
   const addToast = useToastStore((state) => state.addToast);
@@ -126,8 +127,32 @@ export function ChatWindow({
   }, [conversation.id, cursor, hasMore]);
 
   useEffect(() => {
+    // 实际滚动容器是外层 <main>（页面级滚动），不是消息区自己。
+    // 在真实的 scroller 上判断“是否接近底部”，否则 nearBottom 恒为 true。
+    const inner = messagesScrollRef.current;
+    const scroller =
+      (inner?.closest('main') as HTMLElement | null) ?? inner ?? null;
+    scrollParentRef.current = scroller;
+    nearBottomRef.current = true;
+    if (!scroller) return;
+    const handleScroll = () => {
+      nearBottomRef.current =
+        scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <
+        80;
+    };
+    scroller.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll();
+    return () => scroller.removeEventListener('scroll', handleScroll);
+  }, [conversation.id]);
+
+  useEffect(() => {
     // 只有用户本来就在底部时才自动滚到底，避免 10s 轮询打断阅读。
     if (!nearBottomRef.current) return;
+    const scroller = scrollParentRef.current;
+    if (scroller) {
+      scroller.scrollTo({ top: scroller.scrollHeight, behavior: 'smooth' });
+      return;
+    }
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [allMessages]);
 
@@ -340,12 +365,6 @@ export function ChatWindow({
       {/* 消息区 */}
       <div
         ref={messagesScrollRef}
-        onScroll={() => {
-          const el = messagesScrollRef.current;
-          if (!el) return;
-          nearBottomRef.current =
-            el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-        }}
         className="flex-1 overflow-y-auto px-5 py-4 space-y-3 bg-gray-50 dark:bg-gray-950"
       >
         {hasMore && (
