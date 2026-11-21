@@ -190,9 +190,15 @@ async function main() {
     if (limit > 0 && processed >= limit) break;
     const key = keyOf(row);
     if (!force && existing.has(key)) {
-      output.push(existing.get(key)!);
-      skipped += 1;
-      continue;
+      const previous = existing.get(key)!;
+      const status = (previous.prelabel as { status?: string } | undefined)
+        ?.status;
+      // 只跳过成功/弃权行；error/invalid 允许 --resume 重试。
+      if (status === 'ok' || status === 'abstain') {
+        output.push(previous);
+        skipped += 1;
+        continue;
+      }
     }
 
     const messages = buildPrelabelMessages({
