@@ -50,6 +50,15 @@ export class AiPromptController {
     return this.service.getTools(domain);
   }
 
+  @Post('sync')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @ApiOperation({
+    summary: 'Sync code prompts into the database (admin overrides are kept)',
+  })
+  async sync() {
+    return this.service.syncFromCode();
+  }
+
   @Post()
   @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.EDITOR)
   @ApiOperation({ summary: 'Create a new prompt' })

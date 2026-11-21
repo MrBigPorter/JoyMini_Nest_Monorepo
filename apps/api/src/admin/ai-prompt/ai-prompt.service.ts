@@ -3,6 +3,7 @@ import {
   Logger,
   NotFoundException,
   BadRequestException,
+  OnApplicationBootstrap,
 } from '@nestjs/common';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
@@ -11,13 +12,13 @@ import { createLLM } from '@api/client/ai-customer/graph/llm-factory';
 import { buildAgentPrompt } from '@api/client/ai-customer/graph/agents/prompt-builder';
 import { AgentPromptConfig } from '@api/client/ai-customer/graph/agents/prompt-builder';
 import { ToolRegistryService } from '@api/client/ai-customer/graph/tools/tool-registry.service';
-import { orderPromptConfig } from '@api/client/ai-customer/graph/agents/prompts/order-prompt';
-import { walletPromptConfig } from '@api/client/ai-customer/graph/agents/prompts/wallet-prompt';
 import { couponPromptConfig } from '@api/client/ai-customer/graph/agents/prompts/coupon-prompt';
-import { userPromptConfig } from '@api/client/ai-customer/graph/agents/prompts/user-prompt';
-import { productPromptConfig } from '@api/client/ai-customer/graph/agents/prompts/product-prompt';
-import { luckyPromptConfig } from '@api/client/ai-customer/graph/agents/prompts/lucky-prompt';
 import { kycPromptConfig } from '@api/client/ai-customer/graph/agents/prompts/kyc-prompt';
+import { luckyPromptConfig } from '@api/client/ai-customer/graph/agents/prompts/lucky-prompt';
+import { orderPromptConfig } from '@api/client/ai-customer/graph/agents/prompts/order-prompt';
+import { productPromptConfig } from '@api/client/ai-customer/graph/agents/prompts/product-prompt';
+import { userPromptConfig } from '@api/client/ai-customer/graph/agents/prompts/user-prompt';
+import { walletPromptConfig } from '@api/client/ai-customer/graph/agents/prompts/wallet-prompt';
 import { CreatePromptDto } from './dto/create-prompt.dto';
 import { UpdatePromptDto } from './dto/update-prompt.dto';
 import { QueryPromptDto } from './dto/query-prompt.dto';
@@ -37,8 +38,39 @@ const TEMPLATE_MAP: Record<string, Omit<AgentPromptConfig, 'userId'>> = {
   'lucky-draw': luckyPromptConfig,
 };
 
+/** 代码里维护的 Agent prompt；DB 只是它的缓存/可编辑副本。 */
+const CODE_PROMPTS: Record<string, Record<string, unknown>> = {
+  coupon: couponPromptConfig as any,
+  kyc: kycPromptConfig as any,
+  'lucky-draw': luckyPromptConfig as any,
+  order: orderPromptConfig as any,
+  product: productPromptConfig as any,
+  user: userPromptConfig as any,
+  wallet: walletPromptConfig as any,
+};
+
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value as object)
+      .sort()
+      .map(
+        (key) =>
+          `${JSON.stringify(key)}:${stableJson((value as Record<string, unknown>)[key])}`,
+      )
+      .join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function withoutMeta(config: unknown): Record<string, unknown> {
+  const copy = { ...(config as Record<string, unknown>) };
+  delete copy._meta;
+  return copy;
+}
+
 @Injectable()
-export class AiPromptService {
+export class AiPromptService implements OnApplicationBootstrap {
   private readonly logger = new Logger(AiPromptService.name);
 
   constructor(
@@ -221,7 +253,10 @@ export class AiPromptService {
       data: {
         promptId,
         version: nextVersion,
-        config: dto.config as any,
+        config: {
+          ...(dto.config as any),
+          _meta: { source: 'admin' },
+        },
         changeLog: dto.changeLog ?? `Version ${nextVersion}`,
         isActive: false, // not active until explicitly activated
       },
@@ -451,6 +486,147 @@ export class AiPromptService {
       throw new NotFoundException(`Template not found for domain: "${domain}"`);
     }
     return { domain, config };
+  }
+
+  /**
+   * 可选启动同步：PROMPT_SYNC_ON_START=true 时，等工具注册完成后再把
+   * 代码 prompt 写入 DB。延迟 5 秒是为了避开各模块 onApplicationBootstrap
+   * 注册工具的顺序。
+   */
+  onApplicationBootstrap() {
+    if (process.env.PROMPT_SYNC_ON_START !== 'true') return;
+    setTimeout(() => {
+      this.syncFromCode().catch((err) =>
+        this.logger.error(
+          `[prompt-sync] startup sync failed: ${err?.message ?? err}`,
+        ),
+      );
+    }, 5000);
+  }
+
+  /**
+   * 把代码里的 Agent prompt 同步到 DB。
+   *
+   * 规则：
+   *   - 代码是模板来源，工具列表由 ToolRegistry 当前注册的工具生成
+   *   - 运营在后台手工编辑过的版本（_meta.source='admin'）不覆盖，只报告冲突
+   *   - 内容一致时不做无意义的新版本
+   *   - 同步后的版本标记 _meta.source='code'，供下次判断
+   */
+  async syncFromCode() {
+    const results: Array<{
+      domain: string;
+      action: 'created' | 'updated' | 'unchanged' | 'skipped-admin';
+      version?: number;
+    }> = [];
+
+    for (const [domain, codeConfig] of Object.entries(CODE_PROMPTS)) {
+      const target = this.buildCodeConfig(domain, codeConfig);
+      const prompt = await this.prisma.knowledgePrompt.findUnique({
+        where: { name: domain },
+        include: { versions: true },
+      });
+
+      if (!prompt) {
+        const created = await this.prisma.knowledgePrompt.create({
+          data: {
+            name: domain,
+            displayName: this.toLabel(domain),
+            description: 'Synced from code',
+            category: 'agent',
+            domain,
+            status: 'active',
+            activeVersion: 1,
+            tsFallback: true,
+            versions: {
+              create: {
+                version: 1,
+                config: target as any,
+                changeLog: 'Synced from code',
+                isActive: true,
+              },
+            },
+          },
+        });
+        results.push({ domain, action: 'created', version: created.activeVersion });
+        continue;
+      }
+
+      const active = prompt.versions.find((v) => v.isActive);
+      const activeMeta = (active?.config as any)?._meta;
+      if (activeMeta?.source === 'admin') {
+        results.push({ domain, action: 'skipped-admin' });
+        continue;
+      }
+
+      const same =
+        active &&
+        stableJson(withoutMeta(active.config)) === stableJson(withoutMeta(target));
+      if (same) {
+        if (prompt.status !== 'active') {
+          await this.prisma.knowledgePrompt.update({
+            where: { id: prompt.id },
+            data: { status: 'active' },
+          });
+        }
+        results.push({ domain, action: 'unchanged', version: prompt.activeVersion });
+        continue;
+      }
+
+      const nextVersion =
+        Math.max(0, ...prompt.versions.map((v) => v.version)) + 1;
+      await this.prisma.$transaction([
+        this.prisma.knowledgePromptVersion.updateMany({
+          where: { promptId: prompt.id, isActive: true },
+          data: { isActive: false },
+        }),
+        this.prisma.knowledgePromptVersion.create({
+          data: {
+            promptId: prompt.id,
+            version: nextVersion,
+            config: target as any,
+            changeLog: 'Synced from code',
+            isActive: true,
+          },
+        }),
+        this.prisma.knowledgePrompt.update({
+          where: { id: prompt.id },
+          data: {
+            activeVersion: nextVersion,
+            status: 'active',
+            tsFallback: true,
+          },
+        }),
+      ]);
+      results.push({ domain, action: 'updated', version: nextVersion });
+    }
+
+    this.logger.log(
+      `Prompt sync: ${results
+        .map((r) => `${r.domain}=${r.action}${r.version ? `@${r.version}` : ''}`)
+        .join(', ')}`,
+    );
+    return { results };
+  }
+
+  private buildCodeConfig(
+    domain: string,
+    codeConfig: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const tools = this.toolRegistry.getToolsByTag(domain).map((tool) => ({
+      name: tool.name,
+      description: tool.description ?? '',
+    }));
+    const availableTools = tools
+      .map((tool, index) => `${index + 1}. **${tool.name}** - ${tool.description}`)
+      .join('\n');
+    return {
+      ...codeConfig,
+      availableTools,
+      selectedTools: tools.map((tool) => tool.name),
+      templateDomain: domain,
+      _meta: { source: 'code' },
+    };
   }
 
   /**

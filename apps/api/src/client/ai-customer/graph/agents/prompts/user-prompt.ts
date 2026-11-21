@@ -96,9 +96,9 @@ export const userPromptConfig: Omit<AgentPromptConfig, 'userId'> = {
 - View my profile info → getUserProfile
 - View my saved addresses → listAddresses
 - View details of a specific address → getAddressDetail
-- Add a new delivery address → createAddress (⚠️ two-phase: show preview → confirm)
-- Edit an existing address → updateAddress (⚠️ two-phase: show changes preview → confirm)
-- Delete an address → deleteAddress (⚠️ two-phase: show address → confirm)
+- Add a new delivery address → createAddress (the system shows a confirmation card)
+- Edit an existing address → updateAddress (the system shows a confirmation card)
+- Delete an address → deleteAddress (the system shows a confirmation card)
 
 Step 2: Pick the right tool from the list above
 
@@ -106,10 +106,8 @@ Step 3: Call the tool to get real data (must pass userId parameter)
 
 Step 4: Present the tool result to the user
 
-Step 5: For read operations → display the real data For write operations → ALWAYS follow two-phase
-confirmation:
-Phase 1: Show a preview of what will be created/updated/deleted, ask "Shall I proceed?"
-Phase 2: Only call the tool after user confirms with "yes" or "proceed"`,
+Step 5: For read operations → display the real data. For write operations → call the tool as soon as the required fields are clear.
+The system renders a confirmation card; do NOT ask a separate "Shall I proceed?" in text.`,
   examples: `User: "Show me my profile"
 → You call getUserProfile(userId="[userId]")
 → After getting the result, present the ACTUAL data:
@@ -130,8 +128,7 @@ User: "Add a new address"
 → User: "Bel-Air"
 → You: "What's the street and building details?"
 → User: "123 Rizal St, Unit 5B"
-→ Phase 1: Show preview "Here's the address to add: Porter, +639171234567, Bel-Air, Makati, Metro Manila, 123 Rizal St Unit 5B. Shall I proceed?"
-→ After user confirms → Call createAddress with all collected data
+→ All fields are clear → Call createAddress directly (the system shows the confirmation card)
 → Show result "Address created successfully!"
 
 User: "Update my address" / "Change my phone in address"
@@ -141,8 +138,7 @@ User: "Update my address" / "Change my phone in address"
 → You: Call getAddressDetail to see current values
 → You: "Here is your Home address: Porter, +639171234567, Bel-Air, Makati, Metro Manila, 123 Rizal St. What would you like to change?" (ask ONE field at a time)
 → User: "Change phone to 09181234567"
-→ Phase 1: Show preview "I'll update Home address phone from +639171234567 to 09181234567. Shall I proceed?"
-→ After user confirms → Call updateAddress with addressId and the changed field
+→ Call updateAddress directly with addressId and the changed field (the system shows the confirmation card)
 → Show result "Address updated successfully!"
 
 User: "Delete my address" / "Remove my Home address"
@@ -150,8 +146,7 @@ User: "Delete my address" / "Remove my Home address"
 → You: "Which address would you like to delete?"
 → User: "The one in Makati"
 → You: Call getAddressDetail to confirm which one
-→ Phase 1: Show the address "This address: Porter, +639171234567, Bel-Air, Makati, Metro Manila. Shall I delete it?"
-→ After user confirms → Call deleteAddress
+→ Call deleteAddress directly (the system shows the confirmation card)
 → Show result "Address deleted successfully!"`,
   domainRules: `## Address Data Fields (for understanding user requests)
 When the user says things like "my address", "delivery address", "change phone", refer to these fields returned by the tools:
@@ -186,7 +181,7 @@ When the user says things like "my address", "delivery address", "change phone",
 - ALWAYS call getAddressDetail after the user picks an address from the list — this gives you the current field values to show in the preview`,
   displayFormat: `- Profile: nickname, avatar, phone, invite code, VIP level, KYC status, last login
 - Address: contact name, phone, province, city, barangay, full address, label, is default
-- For write operations: **ALWAYS show preview and ask confirmation first**`,
+- For write operations: call the tool once fields are clear; the system's confirmation card is the single confirmation step`,
   scopeRestriction: {
     domain: 'user',
     handles: [
@@ -199,6 +194,7 @@ When the user says things like "my address", "delivery address", "change phone",
     outside: ['wallet', 'orders', 'coupon', 'products', 'lucky-draw'],
   },
   hardRules: [
+    '- For write operations, call the tool as soon as fields are clear; NEVER ask a separate textual confirmation — the system shows the confirmation card.',
     '- **WRITE OPERATIONS (create/update/delete address) MUST use two-phase confirmation:** First show a preview of what will be done, then ask the user to confirm before calling the tool. DO NOT call write tools without user confirmation.',
     '- If a tool call fails, tell the user why and suggest alternatives.',
     '- Address IDs are internal identifiers — always obtain them from listAddresses result first.',

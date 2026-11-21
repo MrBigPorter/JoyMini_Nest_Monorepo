@@ -50,6 +50,9 @@ services:
              yarn workspace @lucky/api start:dev"
     expose:
       - "3000"
+    ports:
+      # 宿主机的 admin-next 本地开发直接访问 127.0.0.1:3000
+      - "127.0.0.1:3000:3000"
     volumes:
       - .:/app
       - backend_nm:/app/node_modules
@@ -57,6 +60,10 @@ services:
       CHOKIDAR_USEPOLLING: "true"
       # macOS bind mount 下 tsc watch 收不到文件事件，改用轮询
       TSC_WATCHFILE: UsePolling
+      # 启动后把代码 prompt 同步进 DB（运营手工版本不会被覆盖）
+      PROMPT_SYNC_ON_START: "true"
+      # 本地 admin-next 可能用 localhost 或 127.0.0.1 打开，两者都放行
+      CORS_ORIGIN: "http://localhost:4001,http://127.0.0.1:4001,http://localhost:4002,http://127.0.0.1:4002,http://localhost:4003,http://127.0.0.1:4003,https://admin-dev.joyminis.com,https://dev.joyminis.com,https://blog-dev.joyminis.com,https://blog-admin-dev.joyminis.com"
       # AI 回答反馈入口开关（默认关闭，验证后开启）
       AI_FEEDBACK_UI_ENABLED: "${AI_FEEDBACK_UI_ENABLED:-false}"
       # 注入检测：本地联调可设 log，命中写 ai_security_events
