@@ -66,6 +66,7 @@ import {
 } from '@api/admin/ai-traces/ai-traces.service';
 import { degradeToHuman } from './ai-failure-handler';
 import { isSensitiveRequest } from '@api/common/utils/sensitive-content';
+import { policyFallback } from './policy-fallback';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 
@@ -702,6 +703,7 @@ export class AiCustomerService implements OnModuleDestroy {
 
       await this.handleStreamError(
         err,
+        message,
         userId,
         conversationId,
         callbacks,
@@ -1621,6 +1623,7 @@ export class AiCustomerService implements OnModuleDestroy {
    */
   private async handleStreamError(
     err: any,
+    message: string,
     userId: string | undefined,
     conversationId: string | undefined,
     callbacks?: {
@@ -1631,6 +1634,31 @@ export class AiCustomerService implements OnModuleDestroy {
     triggerMessageId?: string,
   ): Promise<void> {
     this.logger.error(`[chatStream] error: ${err.message}`);
+
+    // 策略型兜底：有明确政策答案的问题（KYC 时长、配送时效、券过期、
+    // 余额查询失败）不要无差别转人工；先给固定安全回复。
+    if (conversationId && userId) {
+      const fallback = policyFallback(message);
+      if (fallback) {
+        await this.routeNormalCompletion(
+          [{ type: 'ai', content: fallback }],
+          userId,
+          conversationId,
+          memberIds,
+          [],
+          triggerMessageId,
+        ).catch((fallbackErr: any) => {
+          this.logger.warn(
+            `[chatStream] policy fallback publish failed: ${fallbackErr?.message ?? fallbackErr}`,
+          );
+        });
+        this.logger.log(
+          `[chatStream] policy fallback used: conv=${conversationId}`,
+        );
+        return;
+      }
+    }
+
     callbacks?.onError(err);
 
     if (!conversationId) return;
