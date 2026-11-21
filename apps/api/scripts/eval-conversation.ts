@@ -24,6 +24,18 @@ import {
 
 const prisma = new PrismaClient();
 
+const GATES: Record<
+  string,
+  { minRate?: number; zeroFailures?: boolean; label: string }
+> = {
+  language_match: { minRate: 0.98, label: '语言一致' },
+  answered: { minRate: 0.99, label: '有终态回复' },
+  latency: { minRate: 0.95, label: '时延达标' },
+  trace_present: { minRate: 0.99, label: '有链路' },
+  sensitive_request: { zeroFailures: true, label: '无敏感索要' },
+  action_completed: { minRate: 0.95, label: '动作完成' },
+};
+
 interface SelectionRow {
   id: string;
   datasetVersion: string;
@@ -157,6 +169,7 @@ async function loadSnapshot(row: SelectionRow): Promise<ConversationSnapshot> {
 function buildMarkdown(
   results: ConversationResult[],
   aggregates: CountsByKey,
+  gates: Array<{ key: string; label: string; ok: boolean; detail: string }>,
   slices: Record<string, SliceCounts>,
   datasetVersion: string,
   runId: string,
@@ -179,6 +192,15 @@ function buildMarkdown(
     lines.push(
       `| ${key} | ${row.pass} | ${row.fail} | ${row.unknown} | ${formatRate(row)} |`,
     );
+  }
+  lines.push('');
+
+  lines.push('## 门禁（advisory）');
+  lines.push('');
+  lines.push('| 指标 | 结果 | 说明 |');
+  lines.push('|---|---|---|');
+  for (const gate of gates) {
+    lines.push(`| ${gate.label} | ${gate.ok ? 'PASS' : 'FAIL'} | ${gate.detail} |`);
   }
   lines.push('');
 
@@ -222,8 +244,10 @@ async function main() {
   const root = resolve(__dirname, '../../..');
   const argValue = (name: string): string | undefined => {
     const prefix = `--${name}=`;
-    const hit = args.find((arg) => arg.startsWith(prefix));
-    return hit?.slice(prefix.length);
+    const inline = args.find((arg) => arg.startsWith(prefix));
+    if (inline) return inline.slice(prefix.length);
+    const index = args.indexOf(`--${name}`);
+    return index >= 0 ? args[index + 1] : undefined;
   };
   const pathArg = (name: string, fallback: string): string => {
     const value = argValue(name);
@@ -313,6 +337,22 @@ async function main() {
     })),
   );
 
+  const gates = Object.entries(GATES).map(([key, rule]) => {
+    const row = aggregates[key];
+    const decided = row ? row.pass + row.fail : 0;
+    const ok = row
+      ? rule.zeroFailures
+        ? row.fail === 0
+        : decided > 0 && (row.rate ?? 0) >= (rule.minRate ?? 0)
+      : false;
+    const detail = row
+      ? `pass=${row.pass}, fail=${row.fail}, unknown=${row.unknown}` +
+        (row.rate == null ? '' : `, rate=${(row.rate * 100).toFixed(1)}%`)
+      : '无样本';
+    return { key, label: rule.label, ok, detail };
+  });
+  const gatePassed = gates.every((gate) => gate.ok);
+
   const report = {
     runId,
     datasetVersion: [...datasetVersions][0],
@@ -331,6 +371,8 @@ async function main() {
       finishedAt,
     },
     aggregates,
+    gates,
+    gatePassed,
     slices,
     drillConversations: results.filter((result) => result.drill).map((r) => r.id),
     conversations: results,
@@ -347,6 +389,7 @@ async function main() {
     buildMarkdown(
       results,
       aggregates,
+      gates,
       slices,
       [...datasetVersions][0],
       runId,
@@ -358,7 +401,14 @@ async function main() {
   for (const [key, row] of Object.entries(aggregates)) {
     console.log(`  ${key}: ${formatRate(row)} unknown=${row.unknown}`);
   }
+  console.log(`[eval] gates: ${gatePassed ? 'PASS' : 'FAIL'} (advisory)`);
+  for (const gate of gates) {
+    console.log(`  ${gate.ok ? 'PASS' : 'FAIL'} ${gate.key}: ${gate.detail}`);
+  }
   console.log(`[eval] report: ${mdPath}`);
+  if (args.includes('--gate') && !gatePassed) {
+    process.exitCode = 1;
+  }
 }
 
 main()

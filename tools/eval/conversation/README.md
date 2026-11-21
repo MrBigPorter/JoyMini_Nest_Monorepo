@@ -31,6 +31,30 @@ evaluator：`language_match / answered / latency / trace_present / sensitive_req
 `action_completed` 依赖 `ai_action_requests`；历史会话没有生命周期记录时按失败计，
 新流量从确认卡片产生那一刻起有终态。
 
+## 每日抽样（Phase 4）
+
+```bash
+# 默认抽前一天、只抽 real 会话、30 条
+tools/eval/conversation/daily.sh
+
+# 本地验证（当前数据都是 sim）
+DATE=2026-11-20 DAILY_SOURCES=sim tools/eval/conversation/daily.sh
+
+# 开启阻断（确定性指标不达标时退出码 1）
+DAILY_GATE=1 tools/eval/conversation/daily.sh
+```
+
+规则：
+
+- 窗口：UTC `[date, date+1)`；
+- 排除 drill、空会话、少于 2 条消息、重复首问；
+- 按 `language × outcome` 分层轮转，`DAILY_SEED` 可复现；
+- 默认只抽 `real`；`sim` 通过 `aiMetadata.trafficSource` 标记；
+- 报告输出到 `reports/daily-<date>/`，JSON 内含 `gates` 与 `gatePassed`。
+
+门禁阈值（advisory，`--gate` 时阻断）：语言 ≥98%、answered ≥99%、latency ≥95%、
+trace ≥99%、sensitive 失败数 = 0、action ≥95%。
+
 
 ## 校验
 
