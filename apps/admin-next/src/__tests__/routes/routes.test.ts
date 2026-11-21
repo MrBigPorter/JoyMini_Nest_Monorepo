@@ -51,13 +51,16 @@ describe('routes 配置', () => {
     expect(adminRoutes.some((r) => r.group === 'AI Operations · 工程')).toBe(
       true,
     );
+    // EDITOR 不是运营角色：整个 AI Operations 隐藏，避免业务页 403。
+    expect(editorRoutes.some((r) => r.path.startsWith('/ai-ops'))).toBe(false);
   });
 
   it('角色未加载时隐藏工程组，避免先闪后消失', () => {
     const visible = getVisibleRoutes(undefined);
 
     expect(visible.some((r) => r.group === 'AI Operations · 工程')).toBe(false);
-    expect(visible.some((r) => r.path === '/ai-ops')).toBe(true);
+    expect(visible.some((r) => r.path === '/ai-ops')).toBe(false);
+    expect(visible.some((r) => r.path === '/')).toBe(true);
   });
 
   it('工程路由都标记了 VIEWER / EDITOR 隐藏', () => {

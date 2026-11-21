@@ -345,14 +345,13 @@ describe('AiOpsOverviewPage', () => {
     expect(screen.getByTestId('anomaly-security').tagName).not.toBe('A');
   });
 
-  it('hides engineering quick links for EDITOR', () => {
+  it('hides all AI Ops quick links for EDITOR', () => {
     mockRole.current = 'EDITOR';
     render(<AiOpsOverviewPage />);
 
-    // 业务入口仍可见（今日运营是 EDITOR 的落地页）
-    expect(screen.getByRole('link', { name: /^质量待办$/ })).toBeTruthy();
-    expect(screen.getByRole('link', { name: /^运营洞察$/ })).toBeTruthy();
-    // 工程入口与工程指标链接对 EDITOR 隐藏，避免点进 403
+    // EDITOR 不是运营角色：整个 AI Operations 对 EDITOR 隐藏。
+    expect(screen.queryByRole('link', { name: /^质量待办$/ })).toBeNull();
+    expect(screen.queryByRole('link', { name: /^运营洞察$/ })).toBeNull();
     expect(screen.queryByRole('link', { name: /^AI Runtime$/ })).toBeNull();
     expect(screen.queryByRole('link', { name: /^安全事件$/ })).toBeNull();
     expect(screen.queryByRole('link', { name: /^客户记忆$/ })).toBeNull();

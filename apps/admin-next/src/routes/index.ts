@@ -171,24 +171,28 @@ export const routes: RouteConfig[] = [
   {
     path: '/ai-ops',
     name: 'aiOpsOverview',
+    hiddenForRoles: ['EDITOR'],
     icon: Gauge,
     group: 'AI Operations · 今日',
   },
   {
     path: '/ai-ops/quality',
     name: 'aiOpsQuality',
+    hiddenForRoles: ['EDITOR'],
     icon: ClipboardCheck,
     group: 'AI Operations · 业务',
   },
   {
     path: '/ai-ops/support',
     name: 'aiOpsSupport',
+    hiddenForRoles: ['EDITOR'],
     icon: Headset,
     group: 'AI Operations · 业务',
   },
   {
     path: '/ai-ops/insights',
     name: 'aiOpsInsights',
+    hiddenForRoles: ['EDITOR'],
     icon: BarChart3,
     group: 'AI Operations · 业务',
   },

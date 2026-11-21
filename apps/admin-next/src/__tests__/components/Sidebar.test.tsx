@@ -62,8 +62,8 @@ describe('Sidebar 角色可见性', () => {
     renderSidebar();
 
     expect(screen.queryByText('AI Operations · 工程')).toBeNull();
-    expect(screen.getByText('AI Operations · 业务')).toBeInTheDocument();
-    expect(screen.getByText('AI Operations · 今日')).toBeInTheDocument();
+    expect(screen.queryByText('AI Operations · 业务')).toBeNull();
+    expect(screen.queryByText('AI Operations · 今日')).toBeNull();
   });
 
   it('ADMIN 可以看到工程组', () => {

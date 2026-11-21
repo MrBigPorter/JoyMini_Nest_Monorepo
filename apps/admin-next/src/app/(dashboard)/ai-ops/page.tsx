@@ -172,8 +172,12 @@ interface AttentionRow {
 export default function AiOpsOverviewPage() {
   const role = useAiOpsRole();
   // 侧边栏隐藏工程组后，首页快捷入口必须使用同一份可见性规则，避免单点隐藏。
-  const engineeringVisible = getVisibleRoutes(role).some(
+  const visibleRoutes = getVisibleRoutes(role);
+  const engineeringVisible = visibleRoutes.some(
     (route) => route.group === 'AI Operations · 工程',
+  );
+  const aiOpsVisible = visibleRoutes.some(
+    (route) => route.path === '/ai-ops',
   );
   const quickLinks = [
     { href: '/ai-ops/quality', label: '质量待办', engineering: false },
@@ -184,7 +188,10 @@ export default function AiOpsOverviewPage() {
     { href: '/ai-ops/flows', label: '流程版本', engineering: true },
     { href: '/ai-ops/usage', label: '用量与成本', engineering: true },
     { href: '/ai-ops/memory', label: '客户记忆', engineering: true },
-  ].filter((link) => engineeringVisible || !link.engineering);
+  ].filter(
+    (link) =>
+      aiOpsVisible && (engineeringVisible || !link.engineering),
+  );
 
   const today = new Date().toISOString().slice(0, 10);
   const {

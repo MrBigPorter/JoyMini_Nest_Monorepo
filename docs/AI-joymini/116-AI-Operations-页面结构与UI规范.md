@@ -64,10 +64,10 @@ AI Operations
 
 | 页面 | VIEWER | ADMIN | SUPER_ADMIN | EDITOR |
 |---|---|---|---|---|
-| 今日运营 | ✅ | ✅ | ✅ | ✅ |
-| 质量待办 | 只读 | ✅ | ✅ | 只读 |
-| 转人工队列 | 只读 | ✅ | ✅ | ✅ |
-| 运营洞察 | ✅ | ✅ | ✅ | ✅ |
+| 今日运营 | ✅ | ✅ | ✅ | ❌ |
+| 质量待办 | 只读 | ✅ | ✅ | ❌ |
+| 转人工队列 | 只读 | ✅ | ✅ | ❌ |
+| 运营洞察 | ✅ | ✅ | ✅ | ❌ |
 | AI Runtime | ❌ | ✅ | ✅ | ❌ |
 | 流程版本 | ❌ | ✅ | ✅ | ❌ |
 | 用量与成本 | ❌ | ✅ | ✅ | ❌ |
@@ -79,7 +79,9 @@ AI Operations
 
 > 2026-11-21 决策（118/120 优先）：VIEWER 隐藏整个 `AI Operations · 工程` 组，不再显示 Runtime/Flows/Usage/Security 的只读入口。聚合数据在今日运营与运营洞察查看。前端隐藏不是权限；后端 `RolesGuard` 仍是边界。
 >
-> 2026-11-21 决策（D-02）：EDITOR 同样隐藏整个 `AI Operations · 工程` 组。工程组读接口当前只允许 SUPER_ADMIN / ADMIN，EDITOR 调用 Runtime/Flows/Usage/Memory/Security/Context/Traces/Analysis 都会 403；保持“导航可见 = 接口可读”，不做逐页放行。若后续要开放某个工程页，先给对应接口补 `Role.EDITOR` 与测试，再从 `routes/index.ts` 的 `ENGINEERING_HIDDEN_ROLES` 中移除。今天的聚合数据仍从今日运营 / 运营洞察查看。
+> 2026-11-21 决策（D-02）：EDITOR 同样隐藏整个 `AI Operations · 工程` 组。工程组读接口当前只允许 SUPER_ADMIN / ADMIN，EDITOR 调用 Runtime/Flows/Usage/Memory/Security/Context/Traces/Analysis 都会 403；保持“导航可见 = 接口可读”，不做逐页放行。若后续要开放某个工程页，先给对应接口补 `Role.EDITOR` 与测试，再从 `routes/index.ts` 的 `ENGINEERING_HIDDEN_ROLES` 中移除。
+>
+> 2026-11-21 决策（D-ED-01）：EDITOR 也隐藏整个 AI Operations（今日 / 质量 / 支持 / 洞察）。业务页读接口（feedback 原文、SLA、insights、usage/security）当前不含 EDITOR，且 feedback 原文对非运营角色不应开放；打开接口会扩大 PII 面。EDITOR 的职责是内容/知识编辑，不需要 AI 运营台。若产品确需 EDITOR 只读，先定义脱敏后的读模型和接口角色，再放开页面。
 
 ## 3. 页面模板
 
