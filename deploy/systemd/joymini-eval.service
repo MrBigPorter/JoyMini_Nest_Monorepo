@@ -1,0 +1,14 @@
+[Unit]
+Description=JoyMini daily AI eval (deterministic gates)
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/joymini
+Environment=DAILY_MODE=advisory
+Environment=DAILY_SOURCES=real
+Environment=DAILY_LIMIT=30
+ExecStart=/opt/joymini/tools/eval/conversation/daily-cron.sh
+# 非零退出码会落到 journal；由 systemd/监控告警消费
+SuccessExitStatus=0

@@ -1,0 +1,10 @@
+[Unit]
+Description=Run JoyMini daily AI eval every day at 01:10 UTC
+
+[Timer]
+OnCalendar=*-*-* 01:10:00 UTC
+Persistent=true
+Unit=joymini-eval.service
+
+[Install]
+WantedBy=timers.target
