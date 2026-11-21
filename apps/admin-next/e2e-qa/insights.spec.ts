@@ -56,19 +56,19 @@ test.describe('Insights signal links', () => {
       useInsightsKpi?: boolean;
     }> = [
       {
-        name: /^Transfer rate/,
+        name: /^转人工率/,
         href: '/ai-ops/quality/?signal=transferred',
         signal: 'transferred',
         useInsightsKpi: true,
       },
       {
-        name: /^Repeated questions/,
+        name: /^重复追问/,
         href: '/ai-ops/quality/?queue=SIGNAL&signal=repeated_question',
         signal: 'repeated_question',
         queue: 'SIGNAL',
       },
       {
-        name: /^Abandoned/,
+        name: /^用户放弃/,
         href: '/ai-ops/quality/?queue=SIGNAL&signal=abandoned',
         signal: 'abandoned',
         queue: 'SIGNAL',

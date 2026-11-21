@@ -393,3 +393,71 @@ zero_hit_rate ALL = 1 / 3 = 0.3333；problem_rate 仍 8/4=2
 - **评分是启发式卫生分**：不代表检索/回答质量；“上传时间”仍使用 `createdAt`，没有真实 parsedAt。
 - **多实例未端到端**：用同一 DB 的唯一约束/upsert 验证并发收敛，未起两个 API 进程。
 - **截断规则局限**：只看最后 200 字符的最后一个非空行；正文中间截断但结尾合法不会被发现。
+
+---
+
+# Privacy & Retention — 缺陷（首轮 `b152616c`；复验 `301cff59`）
+
+> 迁移审核 **PASS**（仅 CREATE INDEX ai_traces_created_at_idx）。首轮 Privacy API 6/7（D-PR-01）、UI 1/1；复验 API **7/7**、UI 1/1；Batch 1 24/24、Batch 4 9/9、Batch 5 9/9。
+
+## D-PR-01 — `ai_spans.output.snippet` 仍保存原始 PII（P1）— **FIXED**
+
+| 项 | 内容 |
+|---|---|
+| 严重度 | **P1（首轮隐私/合规；阻断）** |
+| 状态 | **FIXED**，提交 `301cff59`（HEAD） |
+| 位置 | `apps/api/src/client/ai-customer/ai-customer.service.ts` `recordReplyTrace()` |
+| 首轮问题 | LLM span `output.snippet` 用未脱敏 `output`；trace `output` 已用 `redactPiiText` |
+| 修复 | `const safeOutput = redactPiiText(output)`；trace output 与 span snippet 共用 |
+| 期望 | trace 与其 spans 的持久化文本均不含 PII 原文 |
+
+**复现**：
+
+```text
+input : 联系电话 13812341234，邮箱 user@example.com，身份证 110101199001011234，订单号 202611210001
+output: 已登记：13812341234 / user@example.com / 110101199001011234 / 订单 202611210001
+
+ai_traces.input  -> 138****1234 / u***@example.com / 1101**********1234 / 202611210001
+ai_traces.output -> 138****1234 / u***@example.com / 1101**********1234 / 202611210001
+ai_spans.llm.output.snippet -> 已登记：13812341234 / user@example.com / 110101199001011234 / 订单 202611210001  # RAW
+```
+
+**首轮证据**：`qa/logs/privacy-retention-api.log`（PR-02 断言失败）。
+**复验（PASS）**：`qa/logs/privacy-retention-reverify-api.log`（7/7）；span snippet = `138****1234 / u***@example.com / 1101**********1234 / 202611210001`，与 trace output 一致；原始 PII 不出现。
+**备注**：复验初次命中上一轮遗留旧 trace（cleanup 未按 conversationId 删除）；测试 cleanup 已修正，非产品问题。
+
+## Privacy & Retention 已知限制 / 未覆盖
+
+- **RAG span source previews** 可能含知识库原文 PII；本次只验证用户 input/output 的 PII。
+- **eval metadata/tags/sourceFeedbackId** 未在本次验收范围。
+- **HUMAN score 的 dangling traceId** 是“人工记录长期保留”的设计结果。
+- **保留 cron**：直接调用 `purgeExpired` 验证，未等待真实 03:00 UTC cron，也未验证多实例。
+- **历史 PII 未回溯清理**：只验证新写入。
+
+> 注：复验 HEAD 为 `301cff59`（含 `42ee6d76` insights 与 D-PR-01 span 修复）；隐私相关代码仍为 `b152616c` + span snippet 修复。
+
+---
+
+# Insights Metrics — 缺陷（`42ee6d76`，含于 `301cff59`）
+
+> Insights API 3/3、metrics 页面 1/1、既有 insights 链接 1/1、AiInsights.test.tsx 7/7。**无 P0/P1/P2 阻断缺陷。**
+
+## D-IM-01 — 「转人工率」KPI 与下钻链接不是同一总体（P2）
+
+| 项 | 内容 |
+|---|---|
+| 严重度 | P2（下钻口径；非本批主验收项） |
+| 状态 | OPEN（QA 只记录） |
+| 位置 | `apps/admin-next/src/app/(dashboard)/ai-ops/insights/page.tsx`：转人工率值 = `transfers.numerator/denominator`（会话），href = `/ai-ops/quality?signal=transferred`（反馈信号） |
+| 问题 | KPI 2/3 是转人工会话；链接落地是 implicit transferred 反馈（D 窗口 5 条），数量/总体不一致 |
+| 影响 | 运营点 66.7% (2/3) 看到 5 条反馈信号，容易误解；不影响本批 labels/fractions 验收 |
+| 证据 | `qa/seed/insights-metrics.ts`（transfers 2/3、feedback.transferred 5）；`qa/logs/insights-metrics-api.log` |
+| 建议 | 下钻转人工会话应指向会话列表/转人工页；若保留反馈信号下钻，KPI 应标注“信号区”或改用对应分子分母 |
+
+## Insights Metrics 已知限制 / 未覆盖
+
+- **`会话数` 2 vs 转人工率分母 3**：前者“窗口内创建”，后者“窗口内创建或转人工”；页面转人工卡 sub 已说明。
+- **`suspectedMisTransfer` = 全部 implicit transferred**（含 SERVICE_ERROR/EXPECTED/UNKNOWN），不是已确认误转；页面已标“信号区”。
+- 只验证单日 2026-11-15；未覆盖跨日/7 天窗口、多实例、多客服并发回复。
+- 人工消息 fixture 依赖 bot 成员；生产依赖真实 SupportChannel bot。
+- 只跑 `AiInsights.test.tsx`（7/7），未跑前端全量。

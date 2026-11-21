@@ -421,6 +421,8 @@ describe('Batch 5 — concurrency and lock TTL', () => {
     await prisma.aiAnswerFeedback.deleteMany({
       where: { id: { startsWith: 'qa_b5_conc_' } },
     });
+    // Clear a lock left by an interrupted previous run; the lock TTL is 30m.
+    redisCli(`DEL "${LOCK_KEY}"`);
 
     // 500 events make the first run long enough to observe the lock.
     await prisma.aiAnswerFeedback.createMany({
@@ -447,7 +449,9 @@ describe('Batch 5 — concurrency and lock TTL', () => {
       await new Promise((r) => setTimeout(r, 50));
     }
     expect(ttl).toBeGreaterThan(0);
-    expect(ttl).toBeLessThanOrEqual(30 * 60 * 1000);
+    expect(ttl).toBeGreaterThan(29 * 60 * 1000);
+    // Redis PTTL can be a few ms above the configured PX due to clock rounding.
+    expect(ttl).toBeLessThanOrEqual(30 * 60 * 1000 + 60_000);
 
     const second = await runAnalysis(CONC_DATE);
     const first = await firstPromise;
