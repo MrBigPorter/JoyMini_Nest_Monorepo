@@ -481,17 +481,21 @@ ai_spans.llm.output.snippet -> 已登记：13812341234 / user@example.com / 1101
 | 复验 | `main.scrollTop` 轮询后保持 0（<50）；其余 4 项仍 PASS |
 | 证据 | `qa/logs/chat-desk-playwright.log`（首轮失败）、`qa/logs/chat-desk-playwright-reverify.log`（5/5）；`qa/reports/chat-desk.md` §3.2 |
 
-## D-ED-01 — 业务页对 EDITOR 仍 403（P2，OPEN，既有残留）
+## D-ED-01 — 业务页对 EDITOR 可见但接口 403（P2）— **FIXED**
 
 | 项 | 内容 |
 |---|---|
 | 严重度 | P2（UI 可见性与 API 角色矩阵不一致） |
-| 状态 | OPEN（既有问题；D-02/本轮只修「工程组隐藏」，未新增或扩大） |
-| 位置 | `apps/admin-next/src/routes/index.ts`（业务组对 EDITOR 可见）；`apps/api/src/admin/**` 各业务 controller 的 `@Roles` 不含 EDITOR |
-| 问题 | EDITOR 侧边栏保留「今日 / 业务」，但 `queues`、`ai-usage/summary`、`ai-security/summary`、`ai-feedback/summary`、`rag/documents/quality-stats`、`chat/sla/queue`、`ai-insights/overview`、`ai-eval/datasets` 均 403；只有 `chat/conversations` 200 |
-| 影响 | EDITOR 打开今日/质量/转人工/洞察页会看到加载失败；不影响本轮「工程组对齐」验收 |
-| 证据 | `qa/logs/editor-business-403.log`；`qa/reports/editor-nav.md` §4 |
-| 建议 | 明确 EDITOR 的业务页权限：要么 API 放开只读，要么业务组也对 EDITOR 隐藏，避免可见不可用 |
+| 状态 | **FIXED**，提交 `c7322b3c`（含于 `3d4d3387`）：EDITOR 侧边栏隐藏全部 AI Operations，快速入口由 `aiOpsVisible` 过滤为空 |
+| 位置 | `apps/admin-next/src/routes/index.ts`（四个 `/ai-ops*` 路由增加 `hiddenForRoles: ['EDITOR']`）；`apps/admin-next/src/app/(dashboard)/ai-ops/page.tsx` |
+| 首轮问题 | EDITOR 侧边栏保留「今日 / 业务」，但 `queues`、`ai-usage/summary`、`ai-security/summary`、`ai-feedback/summary`、`rag/documents/quality-stats`、`chat/sla/queue`、`ai-insights/overview`、`ai-eval/datasets` 均 403；只有 `chat/conversations` 200 |
+| 修复后 | editor-hide + navigation 8/8：EDITOR 无任何 AI Operations 导航/快速入口；直接访问 `/ai-ops` 仍渲染但无入口；ADMIN/VIEWER 不变 |
+| API 残留 | EDITOR 直接调用上述接口仍 403（按内容角色设计保留）；无导航暴露，见 `qa/logs/editor-business-403.log` |
+| 证据 | `qa/reports/editor-hide.md`；`qa/logs/editor-hide-playwright.log` |
+
+## Eval Queue (`3d4d3387` / `8052f29`)
+
+**无缺陷。** `eval-queue` 5/5、Batch 4 9/9；取消、jobId 去重、重启消费、`AI_EVAL_ENABLED=false` 边界均通过（`qa/reports/eval-queue.md`）。
 
 ## 账号删除 / 隐私文案
 

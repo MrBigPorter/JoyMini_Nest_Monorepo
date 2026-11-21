@@ -218,7 +218,9 @@ test.describe('SUPER_ADMIN navigation', () => {
 test.describe('EDITOR navigation', () => {
   test.use({ role: 'EDITOR' });
 
-  test('sidebar and overview hide the engineering group', async ({ page }) => {
+  test('sidebar and overview hide all AI Operations from EDITOR', async ({
+    page,
+  }) => {
     await page.goto('/ai-ops/');
     await expect(
       page.getByRole('heading', { name: '今日运营' }),
@@ -226,48 +228,20 @@ test.describe('EDITOR navigation', () => {
     await waitForRole(page, 'EDITOR');
 
     const sidebar = page.locator('aside');
-    await expect(
-      sidebar.getByText('AI Operations · 今日', { exact: true }),
-    ).toBeVisible();
-    await expect(
-      sidebar.getByText('AI Operations · 业务', { exact: true }),
-    ).toBeVisible();
-    await expect(
-      sidebar.getByText('AI Operations · 工程', { exact: true }),
-    ).toHaveCount(0);
-
-    for (const href of [
-      '/ai-ops/runtime',
-      '/ai-ops/flows',
-      '/ai-ops/usage',
-      '/ai-ops/memory',
-      '/ai-ops/security',
-      '/ai-ops/context',
-      '/ai-ops/traces',
-      '/ai-ops/analysis',
+    for (const group of [
+      'AI Operations · 今日',
+      'AI Operations · 业务',
+      'AI Operations · 工程',
     ]) {
-      await expect(sidebar.locator(`a[href^="${href}"]`)).toHaveCount(0);
+      await expect(sidebar.getByText(group, { exact: true })).toHaveCount(0);
     }
+    await expect(sidebar.locator('a[href^="/ai-ops"]')).toHaveCount(0);
 
-    // Quick entries / stat cards / anomaly cards must not link engineering.
-    await expect(
-      page.locator(
-        'a[href^="/ai-ops/runtime"], a[href^="/ai-ops/flows"], ' +
-          'a[href^="/ai-ops/usage"], a[href^="/ai-ops/memory"], ' +
-          'a[href^="/ai-ops/security"]',
-      ),
-    ).toHaveCount(0);
-
+    // Route hiding only affects navigation; direct access to /ai-ops still
+    // renders, but the quick-entry list is empty.
     const quickEntry = page
       .getByRole('heading', { name: '快速入口' })
       .locator('..');
-    await expect(quickEntry.locator('a')).toHaveCount(3, { timeout: 120_000 });
-    for (const href of [
-      '/ai-ops/quality',
-      '/ai-ops/support',
-      '/ai-ops/insights',
-    ]) {
-      await expect(quickEntry.locator(`a[href^="${href}"]`)).toHaveCount(1);
-    }
+    await expect(quickEntry.locator('a')).toHaveCount(0, { timeout: 120_000 });
   });
 });

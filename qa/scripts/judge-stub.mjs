@@ -63,8 +63,18 @@ const server = http.createServer((req, res) => {
         ],
         usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 },
       });
-      res.writeHead(200, { 'content-type': 'application/json' });
-      res.end(payload);
+      const send = () => {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(payload);
+      };
+      // Deterministic slow hook: lets QA cancel a run while it is mid-judge.
+      // Only questions containing `qa_eval_slow` are delayed; other suites
+      // keep the instant response.
+      if (body.includes('qa_eval_slow')) {
+        setTimeout(send, 4_000);
+      } else {
+        send();
+      }
       void body;
     });
     return;

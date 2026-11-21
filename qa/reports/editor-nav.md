@@ -2,6 +2,7 @@
 
 > 冻结提交 `1f1f193e`（含于 `d7bdced2`）
 > 结论：**PASS（工程组隐藏）**；业务页对 EDITOR 的 403 为**既有残留**，非本次新阻塞
+> **后续（`3d4d3387` / `c7322b3c`）**：EDITOR 已隐藏全部 AI Operations，D-ED-01 修复；本报告 §4 的残留由 `qa/reports/editor-hide.md` 取代。
 
 ## 1. 测试对象
 
