@@ -68,7 +68,15 @@ run.sh --dataset ... --mode=blocking   # 不达标退出码 1
 
 ## 人工标注（Phase 3）
 
-当前第一轮样本：`selection-2026-11-22.jsonl`（27 个会话），导出工作表 49 行。
+2026-11-21 重新生成流量后：
+
+- `selection-2026-11-21.jsonl`：15 个会话；
+- `selection-train-2026-11-21.jsonl`：10 个训练会话；
+- `holdout-2026-11-21.jsonl`：5 个 holdout 会话（冻结，不参与标注/调参）；
+- 训练集工作表：18 行。
+
+> 旧的 `selection-2026-11-22.jsonl` 引用的 sim 会话已在清理中删除，仅作历史记录，
+> 不能重跑。
 工作表在 `annotations/worksheet-2026-11-21.jsonl`（gitignored，含原文）。
 
 ```bash

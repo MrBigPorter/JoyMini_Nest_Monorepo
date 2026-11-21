@@ -1,0 +1,10 @@
+{"id": "conv-cmwqhx81t0", "datasetVersion": "2026-11-22.1", "conversationId": "cmwqhx81t00d0w713n6ryf3hr", "source": "sim", "language": "zh", "intent": "product", "tags": ["daily", "failure", "msgs-4"]}
+{"id": "conv-cmwqhwnph0", "datasetVersion": "2026-11-22.1", "conversationId": "cmwqhwnph006mw713cwyekibn", "source": "sim", "language": "zh", "intent": "kyc", "tags": ["daily", "failure", "msgs-4"]}
+{"id": "conv-cmwqhwzl70", "datasetVersion": "2026-11-22.1", "conversationId": "cmwqhwzl700ayw713761wfot4", "source": "sim", "language": "zh", "intent": "general", "tags": ["daily", "failure", "msgs-4"]}
+{"id": "conv-cmwqhvmy80", "datasetVersion": "2026-11-22.1", "conversationId": "cmwqhvmy8001tw713q7pdc0yt", "source": "sim", "language": "zh", "intent": "coupon", "tags": ["daily", "failure", "msgs-2"]}
+{"id": "conv-cmwqhvkmi0", "datasetVersion": "2026-11-22.1", "conversationId": "cmwqhvkmi000rw713snd49we1", "source": "sim", "language": "zh", "intent": "lucky", "tags": ["daily", "failure", "msgs-2"]}
+{"id": "conv-cmwqhwsxr0", "datasetVersion": "2026-11-22.1", "conversationId": "cmwqhwsxr0085w713wen8h0xz", "source": "sim", "language": "zh", "intent": "product", "tags": ["daily", "failure", "msgs-4"]}
+{"id": "conv-cmwqhvp510", "datasetVersion": "2026-11-22.1", "conversationId": "cmwqhvp51002rw713f4g6lw8f", "source": "sim", "language": "zh", "intent": "product", "tags": ["daily", "failure", "msgs-4"]}
+{"id": "conv-cmwqhvqda0", "datasetVersion": "2026-11-22.1", "conversationId": "cmwqhvqda003mw713z9ncoqdg", "source": "sim", "language": "zh", "intent": "lucky", "tags": ["daily", "failure", "msgs-4"]}
+{"id": "conv-cmwqhegd70", "datasetVersion": "2026-11-22.1", "conversationId": "cmwqhegd70011w7y5qwntw4mp", "source": "sim", "language": "zh", "intent": "coupon", "tags": ["daily", "failure", "msgs-4"]}
+{"id": "conv-cmwqhvmqt0", "datasetVersion": "2026-11-22.1", "conversationId": "cmwqhvmqt001iw7138zpdk6rh", "source": "sim", "language": "zh", "intent": "wallet", "tags": ["daily", "failure", "msgs-4"]}

@@ -1,0 +1,5 @@
+{"id": "conv-cmwqhvkmq0", "datasetVersion": "2026-11-22.1", "conversationId": "cmwqhvkmq000vw713hi2anigl", "source": "sim", "language": "zh", "intent": "general", "tags": ["daily", "failure", "msgs-2"]}
+{"id": "conv-cmwqhwas80", "datasetVersion": "2026-11-22.1", "conversationId": "cmwqhwas80056w713y1g92wtd", "source": "sim", "language": "zh", "intent": "user", "tags": ["daily", "failure", "msgs-2"]}
+{"id": "conv-cmwqhwdmt0", "datasetVersion": "2026-11-22.1", "conversationId": "cmwqhwdmt005qw713yhdoy3tm", "source": "sim", "language": "zh", "intent": "general", "tags": ["daily", "failure", "msgs-4"]}
+{"id": "conv-cmwqhx2eg0", "datasetVersion": "2026-11-22.1", "conversationId": "cmwqhx2eg00c4w713iijgkste", "source": "sim", "language": "zh", "intent": "kyc", "tags": ["daily", "failure", "msgs-4"]}
+{"id": "conv-cmwqhwt7g0", "datasetVersion": "2026-11-22.1", "conversationId": "cmwqhwt7g008mw7132wbpc0xr", "source": "sim", "language": "zh", "intent": "general", "tags": ["daily", "failure", "msgs-4"]}
