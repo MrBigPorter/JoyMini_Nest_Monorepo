@@ -298,6 +298,7 @@ git commit -m "feat(ai): consume handoff reset before graph runs"
 **Files:**
 - Create: `apps/api/src/client/ai-customer/graph/nodes/orchestrator-utils/turn-failure.ts`
 - Modify: `apps/api/src/client/ai-customer/graph/nodes/orchestrator.node.ts`
+- Modify: `apps/api/src/client/ai-customer/graph/nodes/orchestrator-utils/result-utils.ts`（agentOutputs 带上 success/error）
 - Modify: `apps/api/src/client/ai-customer/graph/nodes/orchestrator-utils/knowledge-fallback.ts`
 - Modify: `apps/api/src/client/ai-customer/graph/nodes/orchestrator-utils/transfer-detector.ts`
 - Test: `apps/api/src/client/ai-customer/graph/nodes/orchestrator-utils/turn-failure.spec.ts`
@@ -394,7 +395,7 @@ git commit -m "feat(admin): show handoff state and return control"
 ### Task 8: Flutter 交接状态
 
 **Files:**
-- Modify: `packages/shared/src/im/constants.ts`
+- Modify: `packages/shared/src/im/constants.ts`（Task 1 已加，检查存在即可）
 - Modify: `/Users/porter/Developer/JoyMini_Flutter_App/lib/core/constants/socket_events.dart`
 - Modify: `/Users/porter/Developer/JoyMini_Flutter_App/lib/core/services/socket/socket_service.dart`
 - Modify: `/Users/porter/Developer/JoyMini_Flutter_App/lib/ui/chat/handlers/chat_event_handler.dart`
