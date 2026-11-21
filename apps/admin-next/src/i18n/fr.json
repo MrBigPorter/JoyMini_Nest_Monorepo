@@ -11,6 +11,7 @@
     "aiOpsInsights": "Insights",
     "aiOpsContext": "Conversation Context",
     "aiOpsTraces": "Traces",
+    "aiOpsAnalysis": "Analyse des problèmes",
     "dashboard": "Tableau de bord",
     "dashboard_realTimeOverview": "Aperçu en temps réel",
     "dashboard_refresh": "Actualiser",

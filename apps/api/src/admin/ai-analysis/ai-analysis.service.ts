@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   Logger,
+  NotFoundException,
 } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { Cron } from '@nestjs/schedule';
@@ -785,7 +786,7 @@ export class AiAnalysisService {
     const cluster = await this.prisma.aiProblemCluster.findUnique({
       where: { id },
     });
-    if (!cluster) throw new BadRequestException('Cluster not found');
+    if (!cluster) throw new NotFoundException('Cluster not found');
     const days = await this.prisma.aiProblemClusterDay.findMany({
       where: { clusterId: id },
       orderBy: { day: 'asc' },
@@ -818,7 +819,7 @@ export class AiAnalysisService {
       where: { id },
       select: { id: true },
     });
-    if (!existing) throw new BadRequestException('Cluster not found');
+    if (!existing) throw new NotFoundException('Cluster not found');
     await this.prisma.aiProblemCluster.update({
       where: { id },
       data: {
@@ -844,7 +845,7 @@ export class AiAnalysisService {
       where: { id },
       select: { id: true, representativeText: true },
     });
-    if (!cluster) throw new BadRequestException('Cluster not found');
+    if (!cluster) throw new NotFoundException('Cluster not found');
     if (!expected.trim()) {
       throw new BadRequestException('expected answer is required');
     }

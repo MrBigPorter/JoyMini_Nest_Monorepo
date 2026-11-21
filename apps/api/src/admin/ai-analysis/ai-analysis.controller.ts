@@ -63,21 +63,21 @@ export class AiAnalysisController {
   }
 
   @Get('runs')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.EDITOR)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   @ApiOperation({ summary: '分析任务运行记录' })
   runs(@Query('limit') limit?: string) {
     return this.service.listRuns(limit ? parseInt(limit, 10) : 20);
   }
 
   @Get('metrics')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.EDITOR)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   @ApiOperation({ summary: '指标窗口（默认最近一次完成窗口）' })
   metrics(@Query('date') date?: string) {
     return this.service.listMetrics(date);
   }
 
   @Get('events')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.EDITOR)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   @ApiOperation({ summary: '标准化问题事件' })
   events(
     @Query('date') date?: string,
@@ -94,7 +94,7 @@ export class AiAnalysisController {
   }
 
   @Get('clusters')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.EDITOR)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   @ApiOperation({ summary: '问题簇列表' })
   clusters(
     @Query('status') status?: string,
@@ -109,7 +109,7 @@ export class AiAnalysisController {
   }
 
   @Get('clusters/:id')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.EDITOR)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   @ApiOperation({ summary: '问题簇详情（含按天计数）' })
   cluster(@Param('id') id: string) {
     return this.service.getCluster(id);
@@ -137,7 +137,7 @@ export class AiAnalysisController {
   }
 
   @Get('alerts')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.EDITOR)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   @ApiOperation({ summary: '指标异常告警' })
   alerts(
     @Query('status') status?: string,

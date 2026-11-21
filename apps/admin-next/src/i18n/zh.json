@@ -11,6 +11,7 @@
     "aiOpsInsights": "运营洞察",
     "aiOpsContext": "会话上下文",
     "aiOpsTraces": "链路追踪",
+    "aiOpsAnalysis": "问题分析",
     "dashboard": "仪表盘",
     "dashboard_realTimeOverview": "实时概览",
     "dashboard_refresh": "刷新",
