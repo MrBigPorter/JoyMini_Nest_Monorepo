@@ -1478,6 +1478,23 @@ export const intentExamplesApi = {
  * AI Operations — 队列 / 流程版本 / 用量 / 记忆
  */
 export const aiOpsApi = {
+  /** GET /v1/admin/ai-eval/annotations/queue — 当前管理员标注队列 */
+  getAnnotationQueue: (status: 'pending' | 'done' | 'all' = 'all') =>
+    http.get<{
+      rows: import('@/type/types').AiAnnotationRow[];
+      total: number;
+      done: number;
+    }>('/v1/admin/ai-eval/annotations/queue', { status }),
+  /** PATCH /v1/admin/ai-eval/annotations/:caseId/:turn — 保存标注 */
+  saveAnnotation: (
+    caseId: string,
+    turn: number,
+    labels: import('@/type/types').AiAnnotationLabels,
+  ) =>
+    http.patch<import('@/type/types').AiAnnotationRow>(
+      `/v1/admin/ai-eval/annotations/${encodeURIComponent(caseId)}/${turn}`,
+      labels,
+    ),
   /** GET /v1/admin/ai-eval/reports — 定时评测报告 */
   getEvalReports: (limit = 20) =>
     http.get<import('@/type/types').AiEvalReportSummary[]>(

@@ -526,7 +526,8 @@
     "banners_next": "다음",
     "banners_validation_titleRequired": "제목은 필수입니다",
     "banners_validation_relatedTitleRequired": "점프 카테고리가 상품인 경우 관련 상품 ID가 필요합니다",
-    "aiOpsReports": "평가 보고서"
+    "aiOpsReports": "평가 보고서",
+    "aiOpsAnnotations": "주석 대기열"
   },
   "actSections": {
     "pageTitle": "활동 섹션",

@@ -533,7 +533,8 @@
     "create": "Create",
     "saving": "Saving...",
     "aiFeedback": "AI Feedback",
-    "aiOpsReports": "Eval Reports"
+    "aiOpsReports": "Eval Reports",
+    "aiOpsAnnotations": "Annotation Queue"
   },
   "actSections": {
     "pageTitle": "Activity Sections",

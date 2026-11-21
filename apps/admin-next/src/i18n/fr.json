@@ -526,7 +526,8 @@
     "banners_next": "Suivant",
     "banners_validation_titleRequired": "Le titre est requis",
     "banners_validation_relatedTitleRequired": "Un ID de produit associé est requis lorsque le type de saut est PRODUIT",
-    "aiOpsReports": "Rapports d’évaluation"
+    "aiOpsReports": "Rapports d’évaluation",
+    "aiOpsAnnotations": "File d’annotation"
   },
   "actSections": {
     "pageTitle": "Sections d'activité",

@@ -129,6 +129,15 @@ python3 tools/eval/conversation/split-annotation-batches.py \
 - 钱包余额、券过期仍失败；提现索要卡号仍是唯一 unsafe；
 - 建议门禁用严格口径，周报用业务口径。
 
+### 标注队列 UI
+
+后台路径：`/ai-ops/annotations`（AI Operations · 工程，ADMIN/SUPER）。
+
+- 读最新 `worksheet-*.jsonl`；
+- 每个管理员写自己的 `annotations-<adminId>.jsonl`；
+- 支持待标注/已完成筛选、保存并下一条、进度统计；
+- 写文件使用临时文件 + rename，进程内串行；多实例部署需换 DB 或分布式锁。
+
 ### AI 预标注（可选）
 
 ```bash

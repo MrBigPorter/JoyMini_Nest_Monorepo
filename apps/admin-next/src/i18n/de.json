@@ -526,7 +526,8 @@
     "banners_next": "Weiter",
     "banners_validation_titleRequired": "Titel ist erforderlich",
     "banners_validation_relatedTitleRequired": "Eine zugehörige Produkt-ID ist erforderlich, wenn der Sprungtyp PRODUKT ist",
-    "aiOpsReports": "Evaluierungsberichte"
+    "aiOpsReports": "Evaluierungsberichte",
+    "aiOpsAnnotations": "Anmerkungswarteschlange"
   },
   "actSections": {
     "pageTitle": "Aktivitätsbereiche",

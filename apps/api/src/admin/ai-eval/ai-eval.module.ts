@@ -4,6 +4,8 @@ import { AiCustomerModule } from '@api/client/ai-customer/ai-customer.module';
 import { AiCustomerService } from '@api/client/ai-customer/ai-customer.service';
 import { AiEvalController } from './ai-eval.controller';
 import { EvalReportsController } from './eval-reports.controller';
+import { AnnotationQueueController } from './annotation-queue.controller';
+import { AnnotationQueueService } from './annotation-queue.service';
 import { EvalReportsService } from './eval-reports.service';
 import { AiEvalJudgeService } from './ai-eval-judge.service';
 import {
@@ -19,12 +21,17 @@ import { AiEvalProcessor } from './ai-eval.processor';
     AiCustomerModule,
     BullModule.registerQueue({ name: AI_EVAL_QUEUE }),
   ],
-  controllers: [AiEvalController, EvalReportsController],
+  controllers: [
+    AiEvalController,
+    EvalReportsController,
+    AnnotationQueueController,
+  ],
   exports: [AiEvalDatasetService],
   providers: [
     AiEvalJudgeService,
     AiEvalDatasetService,
     EvalReportsService,
+    AnnotationQueueService,
     AiEvalProcessor,
     {
       provide: AI_EVAL_LIVE_AI,

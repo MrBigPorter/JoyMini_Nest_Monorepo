@@ -531,7 +531,8 @@
     "banners_validation_titleRequired": "标题为必填项",
     "banners_validation_relatedTitleRequired": "当跳转类型为商品时，必须提供关联商品 ID",
     "aiFeedback": "AI 反馈",
-    "aiOpsReports": "评测报告"
+    "aiOpsReports": "评测报告",
+    "aiOpsAnnotations": "人工标注"
   },
   "actSections": {
     "pageTitle": "活动专区",

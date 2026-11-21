@@ -2443,3 +2443,23 @@ export interface AiEvalReportSummary {
     note: string;
   }>;
 }
+
+export interface AiAnnotationLabels {
+  correctness: 'solved' | 'partial' | 'unsolved' | 'unsafe' | 'abstain' | null;
+  helpfulness: number | null;
+  tone_safety: number | null;
+  comment: string;
+}
+
+export interface AiAnnotationRow {
+  caseId: string;
+  turn: number;
+  conversationId?: string;
+  source?: string;
+  language?: string;
+  intent?: string;
+  question: string;
+  answer: string;
+  status: 'pending' | 'done';
+  labels: AiAnnotationLabels;
+}
