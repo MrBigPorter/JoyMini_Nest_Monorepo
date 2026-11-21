@@ -98,3 +98,4 @@ tools/simulator/.runtime/
 qa/.env.qa
 qa/logs/
 qa/reports/playwright-results/
+.claude/worktrees/
