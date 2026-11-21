@@ -7,6 +7,7 @@ import { ConfigService } from '@nestjs/config';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
 import { SystemMessage } from '@langchain/core/messages';
 import { StringOutputParser } from '@langchain/core/output_parsers';
+import { firstApiKey } from '@api/common/utils/api-keys';
 import {
   createLLM,
   LlmProviderConfig,
@@ -146,7 +147,7 @@ export function resolveJudgeConfig(
       'AI_EVAL_JUDGE_BASE_URL',
       'https://api.groq.com/openai/v1',
     ),
-    apiKey: configService.get<string>('GROQ_API_KEY'),
+    apiKey: firstApiKey(configService.get<string>('GROQ_API_KEY')),
   };
 }
 

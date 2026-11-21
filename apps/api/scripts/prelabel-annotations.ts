@@ -20,6 +20,7 @@ import {
   vendorOf,
   type PrelabelResult,
 } from '../src/admin/ai-eval/prelabel/prelabel';
+import { parseApiKeys } from '../src/common/utils/api-keys';
 
 interface WorksheetRow {
   caseId: string;
@@ -88,11 +89,12 @@ async function main() {
     process.env.AI_PRELABEL_BASE_URL ?? 'https://api.groq.com/openai/v1';
   const allowSameVendor =
     process.env.AI_PRELABEL_ALLOW_SAME_VENDOR === 'true';
-  const apiKey =
+  const rawKey =
     process.env.AI_PRELABEL_API_KEY ??
     process.env.GROQ_API_KEY ??
     (allowSameVendor ? process.env.DEEPSEEK_API_KEY : '') ??
     '';
+  const apiKeys = parseApiKeys(rawKey);
   const vendorIndependent = vendorOf(model, baseURL) !== 'deepseek';
   const judgeVersion =
     process.env.AI_PRELABEL_VERSION ??
@@ -103,7 +105,7 @@ async function main() {
       'AI prelabel judge must use a different vendor from the chat model (deepseek); set AI_PRELABEL_ALLOW_SAME_VENDOR=true only for local experiments',
     );
   }
-  if (!apiKey && !dryRun) {
+  if (apiKeys.length === 0 && !dryRun) {
     throw new Error(
       'Missing judge API key: set AI_PRELABEL_API_KEY or GROQ_API_KEY (or use --dry-run)',
     );
@@ -127,6 +129,43 @@ async function main() {
     }
   }
 
+  // 多 key 时先探活：401/403 跳过，其他状态/网络错误先用第一把。
+  // 不打印 key 本身，只打印序号。
+  async function pickApiKey(): Promise<{ key: string; index: number } | null> {
+    if (dryRun) return null;
+    for (let index = 0; index < apiKeys.length; index += 1) {
+      const key = apiKeys[index];
+      try {
+        const response = await fetch(
+          `${baseURL.replace(/\/$/, '')}/models`,
+          {
+            headers: { Authorization: `Bearer ${key}` },
+            signal: AbortSignal.timeout(10_000),
+          },
+        );
+        if (response.status === 401 || response.status === 403) continue;
+        console.log(
+          `[prelabel] using key ${index + 1}/${apiKeys.length} (status=${response.status})`,
+        );
+        return { key, index };
+      } catch {
+        // 网络不可达时不要误杀 key，交给真正的 invoke 决定。
+        console.warn(
+          `[prelabel] key ${index + 1} preflight network error, will try it`,
+        );
+        return { key, index };
+      }
+    }
+    return null;
+  }
+
+  const selected = await pickApiKey();
+  if (!dryRun && !selected) {
+    throw new Error(
+      'No usable judge API key: all keys returned 401/403. Rotate the key or check GROQ_API_KEY.',
+    );
+  }
+
   const llm = dryRun
     ? null
     : createLLM(
@@ -134,7 +173,7 @@ async function main() {
           type: 'online',
           model,
           baseURL,
-          apiKey,
+          apiKey: selected!.key,
         },
         { temperature: 0 },
       );

@@ -90,6 +90,7 @@ System prompt 固定为：
 | `AI_PRELABEL_MODEL` | `llama-3.3-70b-versatile` | judge 模型 |
 | `AI_PRELABEL_BASE_URL` | `https://api.groq.com/openai/v1` | OpenAI 兼容地址 |
 | `AI_PRELABEL_API_KEY` | 空 | 优先；否则读 `GROQ_API_KEY` |
+| `GROQ_API_KEY` | 空 | 支持逗号分隔多把 key：`key1,key2,key3` |
 | `AI_PRELABEL_VERSION` | `<model>@<date>` | 写入 `prelabel.judgeVersion` |
 | `AI_PRELABEL_ALLOW_SAME_VENDOR` | 未设置 | 仅本地实验允许 DeepSeek 同厂 |
 
@@ -97,7 +98,9 @@ System prompt 固定为：
 
 - 被测回答来自 DeepSeek，judge 默认用 Groq；
 - 同厂商必须显式 `AI_PRELABEL_ALLOW_SAME_VENDOR=true`，报告里 `vendorIndependent=false`；
-- 没有 key 时脚本报错退出，**不允许静默降级**。
+- 没有 key 时脚本报错退出，**不允许静默降级**；
+- 多把 key 时脚本先请求 `/models` 探活，401/403 跳过，只打印 key 序号，不打印值；
+- 免费档有速率限制；多把 key 主要解决限流，不保证叠加额度（同一组织通常共享配额）。
 
 ## 6. 命令
 
