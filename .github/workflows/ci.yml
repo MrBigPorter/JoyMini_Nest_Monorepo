@@ -21,6 +21,35 @@ concurrency:
 
 jobs:
   # ============================================================
+  # Job 0: 评测契约与安全回归（无依赖，先跑）
+  # ============================================================
+  eval-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate eval contracts
+        run: |
+          python3 tools/eval/validate.py --dataset tools/eval/conversation/golden.jsonl
+          python3 tools/eval/validate.py --selection tools/eval/conversation/selection-2026-11-22.jsonl
+          python3 tools/eval/test_validate.py
+
+      - name: Guard against hardcoded reply language
+        run: |
+          if grep -R "Respond in English" apps/api/src/client/ai-customer/graph/agents/prompts; then
+            echo "Hardcoded English reply instruction found" >&2
+            exit 1
+          fi
+
+      - name: Guard against collecting bank details in wallet prompt
+        run: |
+          if grep -R "Collect ALL of these.*account" apps/api/src/client/ai-customer/graph/agents/prompts; then
+            echo "Wallet prompt asks for bank details" >&2
+            exit 1
+          fi
+
+  # ============================================================
   # Job 1: Lint + 类型检查 + 单元测试
   # ============================================================
   check:
