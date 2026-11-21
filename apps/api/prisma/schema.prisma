@@ -2350,6 +2350,75 @@ model AiEvalResult {
   @@map("ai_eval_results")
 }
 
+/// 标准化问题事件（119 Phase 1）。不存原文，只存 ID 与脱敏摘要。
+model AiProblemEvent {
+  id             String   @id @default(cuid()) @db.VarChar(32)
+  occurredAt     DateTime @map("occurred_at")
+  windowStart    DateTime @map("window_start")
+  windowType     String   @map("window_type") @db.VarChar(8)
+  type           String   @db.VarChar(32)
+  severity       Int      @db.SmallInt
+  confidence     Float    @db.Real
+  source         String   @db.VarChar(16)
+  sourceId       String   @map("source_id") @db.VarChar(64)
+  conversationId String?  @map("conversation_id") @db.VarChar(32)
+  messageId      String?  @map("message_id") @db.VarChar(32)
+  traceId        String?  @map("trace_id") @db.VarChar(32)
+  intent         String?  @db.VarChar(50)
+  domain         String?  @db.VarChar(50)
+  failureKind    String?  @map("failure_kind") @db.VarChar(32)
+  clusterId      String?  @map("cluster_id") @db.VarChar(32)
+  status         String   @default("NEW") @db.VarChar(16)
+  metadata       Json?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@unique([type, sourceId])
+  @@index([windowStart, type])
+  @@index([conversationId])
+  @@index([traceId])
+  @@index([clusterId])
+  @@map("ai_problem_events")
+}
+
+/// 指标时间窗（119 Phase 1）。
+model AiMetricWindow {
+  id             String   @id @default(cuid()) @db.VarChar(32)
+  windowStart    DateTime @map("window_start")
+  windowType     String   @map("window_type") @db.VarChar(8)
+  metric         String   @db.VarChar(40)
+  dimension      String   @db.VarChar(16)
+  dimensionValue String   @map("dimension_value") @db.VarChar(50)
+  numerator      Int
+  denominator    Int
+  value          Float    @db.Real
+  sampleSize     Int      @map("sample_size")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@unique([windowStart, windowType, metric, dimension, dimensionValue])
+  @@index([windowStart, metric])
+  @@map("ai_metric_windows")
+}
+
+/// 分析任务运行记录（119 Phase 1）。
+model AiAnalysisRun {
+  id             String    @id @default(cuid()) @db.VarChar(32)
+  jobType        String    @map("job_type") @db.VarChar(24)
+  windowStart    DateTime  @map("window_start")
+  windowEnd      DateTime  @map("window_end")
+  status         String    @default("RUNNING") @db.VarChar(16)
+  startedAt      DateTime  @default(now()) @map("started_at")
+  finishedAt     DateTime? @map("finished_at")
+  processed      Int       @default(0)
+  createdEvents  Int       @default(0) @map("created_events")
+  createdClusters Int      @default(0) @map("created_clusters")
+  error          String?   @db.Text
+  metadata       Json?
+
+  @@unique([jobType, windowStart])
+  @@index([status, startedAt])
+  @@map("ai_analysis_runs")
+}
+
 /// 注入检测命中事件（不存用户原文）。
 model AiSecurityEvent {
   id             String   @id @default(cuid()) @db.VarChar(32)
