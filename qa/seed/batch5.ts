@@ -69,6 +69,20 @@ async function clean() {
   await prisma.aiAnalysisRun.deleteMany({
     where: { windowStart: start },
   });
+  // Phase 2 added clusters/alerts; keep the Batch 5 window isolated.
+  const batch5Clusters = await prisma.aiProblemCluster.findMany({
+    where: { representativeText: { contains: QA } },
+    select: { id: true },
+  });
+  await prisma.aiProblemClusterDay.deleteMany({
+    where: { clusterId: { in: batch5Clusters.map((row) => row.id) } },
+  });
+  await prisma.aiProblemCluster.deleteMany({
+    where: { id: { in: batch5Clusters.map((row) => row.id) } },
+  });
+  await prisma.aiAnalysisAlert.deleteMany({
+    where: { windowStart: start },
+  });
   await prisma.aiEvalDataset.deleteMany({
     where: {
       OR: [

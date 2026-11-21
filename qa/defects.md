@@ -500,3 +500,36 @@ ai_spans.llm.output.snippet -> 已登记：13812341234 / user@example.com / 1101
 ## 账号删除 / 隐私文案
 
 **无缺陷。** `clearUserData` 级联、共享会话保留、资金/KYC 保留、六语言披露均通过（`qa/reports/account-deletion.md`）。
+
+---
+
+# 119 Phase 2–5 — 缺陷（`50e7aaaf` / `2a8fc31a`）
+
+> 迁移 PASS（仅 CREATE TABLE/INDEX）。API 7/7、页面 3/3；Batch 1/2/4/5 = 24/18/9/9。无阻断缺陷；以下为 P3 观察。
+
+## D-P25-01 — `/ai-ops/analysis` 缺 `aiOpsAnalysis` 翻译键（P3，OPEN）
+
+| 项 | 内容 |
+|---|---|
+| 严重度 | P3（文案与错误日志；页面功能不受影响） |
+| 状态 | OPEN（QA 只记录，不改产品代码） |
+| 位置 | `apps/admin-next/src/routes/index.ts`（`name: 'aiOpsAnalysis'`）；`apps/admin-next/src/i18n/{en,zh,ja,ko,fr,de}.json` |
+| 现象 | 打开 `/ai-ops/analysis` 时 Next 日志输出 `MISSING_MESSAGE: Could not resolve 'aiOpsAnalysis' for locale en`；标题/面包屑回退为 key |
+| 证据 | `qa/logs/phase2-5-playwright.log` |
+| 建议 | 六个语言文件补齐 key（如“问题分析”） |
+
+## D-P25-02 — EDITOR 无分析入口但仍可读 analysis API（P3，OPEN）
+
+| 项 | 内容 |
+|---|---|
+| 严重度 | P3（UI/API 角色矩阵不一致；只读聚合数据） |
+| 状态 | OPEN（待产品确认是否允许 EDITOR 只读） |
+| 位置 | `apps/admin-next/src/routes/index.ts`（analysis 对 VIEWER/EDITOR 隐藏）；`apps/api/src/admin/ai-analysis/ai-analysis.controller.ts`（GET 接口 `@Roles` 含 EDITOR） |
+| 现象 | EDITOR `GET /clusters`、`/alerts`、`/metrics`、`/events`、`/runs` 均 200；VIEWER 同接口 403 |
+| 影响 | 不阻断「VIEWER/EDITOR 无入口」验收；EDITOR 知道 URL 时仍可读分析聚合 |
+| 证据 | `qa/reports/phase2-5.md` §6 |
+
+## Phase 2–5 测试侧调整（非产品缺陷）
+
+- Batch 5 的“事件不出现任何种子文本”断言已按 Phase 2 新契约更新：允许 `metadata.questionPreview`（脱敏、≤200 字），但 note/output/reason/lastMsg 等原文仍禁止；详见 `qa/reports/phase2-5.md` §7。
+- Batch 5 seed 清理补充了该窗口的 cluster / cluster-day / alert，避免跨批污染。

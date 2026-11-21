@@ -253,14 +253,44 @@ describe('Batch 5 — run + events', () => {
       SECURITY_HIT: 1,
     });
 
-    // No raw feedback/trace text in the event payload/DB.
+    // 119 Phase 2 intentionally stores a redacted, 200-char-capped
+    // `metadata.questionPreview` for clustering. The original input may appear
+    // there, but notes/outputs/reasons must never leak, and every preview is
+    // capped. Everything outside metadata stays free of the seed text.
+    const rawFields = [
+      'qa_b5_secret_feedback_note',
+      'qa_b5_secret_trace_output',
+      'qa_b5_secret_eval_reason',
+      'qa_b5_secret_last_message',
+    ];
     const apiText = JSON.stringify(events.data.list);
-    expect(apiText).not.toContain('qa_b5_secret');
+    for (const forbidden of rawFields) {
+      expect(apiText).not.toContain(forbidden);
+    }
+    const previews = events.data.list
+      .map((row: any) => row.metadata?.questionPreview)
+      .filter((value: unknown): value is string => typeof value === 'string');
+    expect(previews.length).toBeGreaterThan(0);
+    for (const preview of previews) {
+      expect(preview.length).toBeLessThanOrEqual(200);
+    }
+    for (const row of events.data.list) {
+      const withoutMetadata = { ...row, metadata: undefined };
+      expect(JSON.stringify(withoutMetadata)).not.toContain('qa_b5_secret');
+    }
+
     const dbRows = await prisma.aiProblemEvent.findMany({
       where: { windowStart: START },
     });
     expect(dbRows.length).toBe(8);
-    expect(JSON.stringify(dbRows)).not.toContain('qa_b5_secret');
+    for (const row of dbRows) {
+      const withoutMetadata = { ...row, metadata: undefined };
+      expect(JSON.stringify(withoutMetadata)).not.toContain('qa_b5_secret');
+      const preview = (row.metadata as any)?.questionPreview;
+      if (typeof preview === 'string') expect(preview.length).toBeLessThanOrEqual(200);
+    }
+    expect(JSON.stringify(dbRows)).not.toContain('qa_b5_secret_feedback_note');
+    expect(JSON.stringify(dbRows)).not.toContain('qa_b5_secret_trace_output');
 
     // Spot-check source IDs.
     const traceError = events.data.list.find(
