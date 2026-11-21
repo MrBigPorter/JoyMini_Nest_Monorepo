@@ -1354,6 +1354,11 @@ export interface AiFeedbackItem {
   createdAt: string;
 }
 
+export interface AiOpsFeatures {
+  feedbackUiEnabled: boolean;
+  evalEnabled: boolean;
+}
+
 export interface AiFeedbackSummary {
   total: number;
   pending: number;

@@ -31,6 +31,11 @@ vi.mock('ahooks', () => ({
 }));
 
 vi.mock('@/api', () => ({
+  aiOpsApi: {
+    getFeatures: vi
+      .fn()
+      .mockResolvedValue({ feedbackUiEnabled: true, evalEnabled: true }),
+  },
   chatApi: {
     getFeedbackList: (...args: unknown[]) => mockGetFeedbackList(...args),
     getFeedbackSummary: (...args: unknown[]) => mockGetFeedbackSummary(...args),
@@ -164,6 +169,7 @@ function wireFeedback(
     summaryData?: unknown;
     listData?: unknown;
     datasetsData?: unknown;
+    featuresData?: unknown;
     summaryError?: Error;
     listError?: Error;
     refresh?: () => void;
@@ -173,10 +179,22 @@ function wireFeedback(
   let index = 0;
   mockUseRequest.mockImplementation((service: unknown) => {
     if (typeof service === 'function') void (service as () => unknown)();
-    // FeedbackPanel registers three hooks in order: summary, list, datasets.
-    const slot = index % 3;
+    // FeedbackPanel registers four hooks: features, summary, list, datasets.
+    const slot = index % 4;
     index += 1;
     if (slot === 0) {
+      return {
+        ...makeUseRequest(
+          options.featuresData ?? {
+            feedbackUiEnabled: true,
+            evalEnabled: true,
+          },
+        ),
+        refresh,
+        refreshAsync: refresh,
+      };
+    }
+    if (slot === 1) {
       return {
         ...makeUseRequest(options.summaryData ?? summary),
         ...(options.summaryError ? { error: options.summaryError } : {}),
@@ -184,7 +202,7 @@ function wireFeedback(
         refreshAsync: refresh,
       };
     }
-    if (slot === 1) {
+    if (slot === 2) {
       return {
         ...makeUseRequest(
           options.listData ?? { list: [feedback], total: 1 },
@@ -209,18 +227,20 @@ function openTab(name: string) {
 
 /**
  * EvalPanel 每轮渲染固定注册 3 个 useRequest（列表 / 详情 / 运行），
- * 用同一个 3 槽位循环切换数据；返回的函数在打开页签前调用。
+ * 反馈页 4 个槽位（features/summary/list/datasets），评测页 3 个；
+ * 返回的函数在打开页签前调用。
  */
 function wireEvalTab(detail: unknown, runData: unknown = null) {
   let index = 0;
   let inEval = false;
   mockUseRequest.mockImplementation((service: unknown) => {
     if (typeof service === 'function') void (service as () => unknown)();
-    const slot = index % 3;
+    const slot = index % (inEval ? 3 : 4);
     index += 1;
     if (!inEval) {
-      if (slot === 0) return { ...makeUseRequest(summary), refreshAsync: vi.fn() };
-      if (slot === 1) return { ...makeUseRequest({ list: [feedback], total: 1 }), refreshAsync: vi.fn() };
+      if (slot === 0) return { ...makeUseRequest({ feedbackUiEnabled: true, evalEnabled: true }), refreshAsync: vi.fn() };
+      if (slot === 1) return { ...makeUseRequest(summary), refreshAsync: vi.fn() };
+      if (slot === 2) return { ...makeUseRequest({ list: [feedback], total: 1 }), refreshAsync: vi.fn() };
       return { ...makeUseRequest(datasets), refreshAsync: vi.fn() };
     }
     if (slot === 0) return makeUseRequest(datasets);
@@ -229,6 +249,8 @@ function wireEvalTab(detail: unknown, runData: unknown = null) {
   });
   return () => {
     inEval = true;
+    // 反馈页卸载后，评测页从自己的第一个 hook 重新计数。
+    index = 0;
   };
 }
 
@@ -505,6 +527,17 @@ describe('AiQualityPage', () => {
     fireEvent.click(screen.getByRole('button', { name: '去创建评测集' }));
 
     expect(screen.getByRole('button', { name: '创建评测集' })).toBeTruthy();
+  });
+
+  it('shows disabled state when feedback UI is turned off', () => {
+    wireFeedback({ featuresData: { feedbackUiEnabled: false, evalEnabled: true } });
+    render(<AiQualityPage />);
+
+    expect(
+      screen.getByText(/反馈分诊未启用（AI_FEEDBACK_UI_ENABLED=false）/),
+    ).toBeTruthy();
+    expect(screen.queryByRole('button', { name: '开始质检' })).toBeNull();
+    expect(screen.queryByRole('button', { name: '确认问题' })).toBeNull();
   });
 
   it('hides raw question and answer for VIEWER', () => {

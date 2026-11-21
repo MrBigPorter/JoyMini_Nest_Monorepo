@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useRequest } from 'ahooks';
 import { Button } from '@repo/ui';
-import { aiQualityApi, chatApi, knowledgeApi } from '@/api';
+import { aiOpsApi, aiQualityApi, chatApi, knowledgeApi } from '@/api';
 import { PageHeader } from '@/components/scaffold/PageHeader';
 import { AiErrorBanner } from '@/components/ai-ops/AiErrorBanner';
 import { canTriageFeedback, useAiOpsRole } from '@/lib/ai-ops-permissions';
@@ -224,7 +224,9 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
   const [reviewMode, setReviewMode] = useState(false);
   const [reviewIndex, setReviewIndex] = useState(0);
   const role = useAiOpsRole();
-  const canTriage = canTriageFeedback(role);
+  const { data: featuresData } = useRequest(aiOpsApi.getFeatures);
+  const feedbackUiEnabled = featuresData?.feedbackUiEnabled !== false;
+  const canTriage = canTriageFeedback(role) && feedbackUiEnabled;
   const rawTextPlaceholder = role === 'VIEWER' ? '只读账号不显示原文' : null;
 
   const updateFilter = (patch: Partial<FeedbackFilters>) => {
@@ -482,6 +484,11 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
 
   return (
     <section className="space-y-3">
+      {featuresData && !feedbackUiEnabled ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+          反馈分诊未启用（AI_FEEDBACK_UI_ENABLED=false）。当前只能查看，不能提交判断。
+        </div>
+      ) : null}
       <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {kpis.map(({ label, value, href }) => (
           <Link

@@ -1477,6 +1477,11 @@ export const intentExamplesApi = {
  * AI Operations — 队列 / 流程版本 / 用量 / 记忆
  */
 export const aiOpsApi = {
+  /** GET /v1/admin/ai-ops/features — 功能开关只读视图 */
+  getFeatures: () =>
+    http.get<import('@/type/types').AiOpsFeatures>(
+      '/v1/admin/ai-ops/features',
+    ),
   getQueues: () =>
     http.get<
       | import('@/type/types').AiQueueStats[]

@@ -19,11 +19,14 @@ import type { ChatMessage } from '@/type/types';
 export function MessageBubble({
   msg,
   conversationId,
+  feedbackUiEnabled = false,
   onRecallAction,
 }: {
   msg: ChatMessage;
   /** 反馈需要会话 ID；由 ChatWindow 传入 */
   conversationId?: string;
+  /** 功能开关由 ChatWindow 从 /admin/ai-ops/features 读取，避免前后端两个 env。 */
+  feedbackUiEnabled?: boolean;
   onRecallAction?: (id: string) => void;
 }) {
   const { t } = useTranslation();
@@ -34,9 +37,7 @@ export function MessageBubble({
   >(null);
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const feedbackEnabled =
-    process.env.NEXT_PUBLIC_AI_FEEDBACK_UI_ENABLED === 'true' &&
-    msg.source === 'ai' &&
-    Boolean(conversationId);
+    feedbackUiEnabled && msg.source === 'ai' && Boolean(conversationId);
 
   const submitFeedback = async (
     verdict: 'correct' | 'incorrect',

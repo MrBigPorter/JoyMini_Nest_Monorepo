@@ -12,7 +12,7 @@ import {
   Paperclip,
   Zap,
 } from 'lucide-react';
-import { chatApi } from '@/api';
+import { aiOpsApi, chatApi } from '@/api';
 import type { ChatConversation, ChatMessage } from '@/type/types';
 import { ModalManager } from '@repo/ui';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -33,6 +33,7 @@ export function ChatWindow({
   registerOnNewMessageAction,
   registerOnRecalledAction,
 }: ChatWindowProps) {
+  const { data: aiOpsFeatures } = useRequest(aiOpsApi.getFeatures);
   const [replyText, setReplyText] = useState('');
   const [sending, setSending] = useState(false);
   const [closing, setClosing] = useState(false);
@@ -329,6 +330,7 @@ export function ChatWindow({
             key={msg.id}
             msg={msg}
             conversationId={conversation.id}
+            feedbackUiEnabled={aiOpsFeatures?.feedbackUiEnabled ?? false}
             onRecallAction={handleRecall}
           />
         ))}
