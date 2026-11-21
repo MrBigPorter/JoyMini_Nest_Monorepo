@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Batch 1 QA runner — isolated Postgres/Redis, real API, real admin, no mocks.
+# QA runner — isolated Postgres/Redis, real API, real admin, no mocks.
 #
-#   bash qa/scripts/run-batch1.sh            # full run
+#   bash qa/scripts/run-batch1.sh            # start env + Batch 1 regression + Batch 2
 #   bash qa/scripts/run-batch1.sh --stop     # stop QA processes only
 #
 # Ports: Postgres 5433, Redis 6382, API 4102, Admin 4101, Judge stub 4199.
@@ -14,28 +14,40 @@ cd "$REPO_ROOT"
 
 QA_ENV="$REPO_ROOT/qa/.env.qa"
 LOG_DIR="$REPO_ROOT/qa/logs"
+PLAYWRIGHT="$REPO_ROOT/node_modules/.bin/playwright"
 mkdir -p "$LOG_DIR"
 
-stop_all() {
-  for name in admin api judge-stub; do
-    pid_file="$LOG_DIR/$name.pid"
-    if [[ -f "$pid_file" ]]; then
-      pid="$(cat "$pid_file")"
-      kill "$pid" 2>/dev/null || true
-      rm -f "$pid_file"
-    fi
+kill_port() {
+  local port="$1"
+  for pid in $(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null || true); do
+    kill "$pid" 2>/dev/null || true
   done
+}
+
+stop_all() {
+  kill_port 4101
+  kill_port 4102
+  kill_port 4199
+  rm -f "$LOG_DIR"/admin.pid "$LOG_DIR"/api.pid "$LOG_DIR"/judge-stub.pid
 }
 
 if [[ "${1:-}" == "--stop" ]]; then
   stop_all
-  docker compose -f qa/compose.qa.yml down
+  if colima status >/dev/null 2>&1; then
+    docker compose -f qa/compose.qa.yml down
+  fi
   exit 0
 fi
 
+# ---------- 0. colima ----------
+if ! colima status >/dev/null 2>&1; then
+  echo 'starting colima (4 CPU / 4 GiB)…'
+  colima start
+fi
+docker info >/dev/null
+
 # ---------- 1. data services ----------
 if docker inspect lucky-db-qa >/dev/null 2>&1; then
-  # Containers may have been started manually earlier; just ensure they run.
   docker start lucky-db-qa lucky-redis-qa >/dev/null 2>&1 || true
 else
   docker compose -f qa/compose.qa.yml up -d
@@ -51,7 +63,7 @@ for _ in $(seq 1 60); do
 done
 docker exec lucky-redis-qa redis-cli ping >/dev/null
 
-# ---------- 2. migrations + seed (frozen commit only) ----------
+# ---------- 2. migrations + baseline seed (frozen commit only) ----------
 set -a
 # shellcheck disable=SC1090
 . "$QA_ENV"
@@ -60,6 +72,7 @@ cd "$REPO_ROOT/apps/api"
 npx prisma migrate deploy --schema prisma/schema.prisma
 cd "$REPO_ROOT"
 npx tsx qa/seed/batch1.ts
+npx tsx qa/seed/batch2.ts --clean
 
 # ---------- 3. judge stub ----------
 if [[ ! -f "$LOG_DIR/judge-stub.pid" ]] || ! kill -0 "$(cat "$LOG_DIR/judge-stub.pid")" 2>/dev/null; then
@@ -85,10 +98,7 @@ for _ in $(seq 1 120); do
   sleep 1
 done
 
-# ---------- 5. API contract suite ----------
-yarn workspace @lucky/api test:e2e:ai-ops
-
-# ---------- 6. admin dev server ----------
+# ---------- 5. admin dev server ----------
 if [[ ! -f "$LOG_DIR/admin.pid" ]] || ! kill -0 "$(cat "$LOG_DIR/admin.pid")" 2>/dev/null; then
   ( cd "$REPO_ROOT/apps/admin-next" && \
     env -u NODE_ENV \
@@ -110,16 +120,35 @@ for _ in $(seq 1 120); do
   sleep 1
 done
 
-# ---------- 7. Playwright (real API, real admin) ----------
-cd "$REPO_ROOT/apps/admin-next"
-QA_NO_WEB_SERVER=1 \
-QA_ADMIN_URL='http://127.0.0.1:4101' \
-QA_API_URL='http://127.0.0.1:4102/api' \
-  ../../node_modules/.bin/playwright test \
-    --config=playwright.qa.config.ts \
-    --project=qa-chromium \
-    --reporter=list
+# ---------- 6. Batch 1 regression on baseline ----------
+echo '=== Batch 1 API e2e (baseline) ==='
+( cd "$REPO_ROOT/apps/api" && npx jest --config test/jest-e2e.json --runInBand --forceExit \
+    test/ai-ops/batch1-permissions.e2e-spec.ts ) 2>&1 | tee "$LOG_DIR/run-batch1-api.log"
+
+echo '=== Batch 1 Playwright (baseline) ==='
+( cd "$REPO_ROOT/apps/admin-next" && \
+  QA_NO_WEB_SERVER=1 QA_ADMIN_URL='http://127.0.0.1:4101' QA_API_URL='http://127.0.0.1:4102/api' \
+  "$PLAYWRIGHT" test --config=playwright.qa.config.ts --project=qa-chromium --reporter=list \
+    e2e-qa/navigation.spec.ts e2e-qa/drilldown.spec.ts e2e-qa/insights.spec.ts e2e-qa/redaction.spec.ts \
+) 2>&1 | tee "$LOG_DIR/run-batch1-playwright.log"
+
+# ---------- 7. Batch 2 on batch2 seed ----------
+npx tsx qa/seed/batch2.ts
+
+echo '=== Batch 2 API e2e ==='
+( cd "$REPO_ROOT/apps/api" && npx jest --config test/jest-e2e.json --runInBand --forceExit \
+    test/ai-ops/batch2-triage.e2e-spec.ts ) 2>&1 | tee "$LOG_DIR/run-batch2-api.log"
+
+echo '=== Batch 2 Playwright ==='
+( cd "$REPO_ROOT/apps/admin-next" && \
+  QA_NO_WEB_SERVER=1 QA_ADMIN_URL='http://127.0.0.1:4101' QA_API_URL='http://127.0.0.1:4102/api' \
+  "$PLAYWRIGHT" test --config=playwright.qa.config.ts --project=qa-chromium --reporter=list \
+    e2e-qa/batch2-triage.spec.ts e2e-qa/insights.spec.ts \
+) 2>&1 | tee "$LOG_DIR/run-batch2-playwright.log"
+
+# Leave a deterministic dataset for inspection.
+npx tsx qa/seed/batch2.ts
 
 echo
-echo 'Batch 1 QA complete. Reports: qa/reports/batch-1.md, qa/reports/playwright-report/'
+echo 'QA complete. Reports: qa/reports/batch-1.md, qa/reports/batch-2.md'
 echo 'Stop QA processes: bash qa/scripts/run-batch1.sh --stop'

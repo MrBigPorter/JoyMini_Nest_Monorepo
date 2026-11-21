@@ -1,7 +1,7 @@
 # QA Report — Batch 2
 
 > 依据：`docs/AI-joymini/120` §7 Batch 2；`118` §8.1 #4–5；`113` §9.1–9.2；`handoff/batch-2.md`
-> 结论：**FAIL**（1 条 P1 下钻缺陷 D-B2-01；其余 Batch 2 验收项通过）
+> 结论：**PASS**（首轮 `ef757859` 发现 D-B2-01 P1 + D-B2-02/03 P2；修复提交 `2347f3a5`，在 QA 提交 `31640c94` 上复验通过，见 §9）
 
 ## 1. 测试对象
 
@@ -9,8 +9,9 @@
 |---|---|
 | 仓库 | `/Volumes/MySSD/work/JoyMini_Nest_Monorepo` |
 | 分支 | `feat/ai-ops-operator-console` |
-| 冻结提交 | `ef757859`（后端 `0f5f8b8b` + 前端 `db52a60a` + handoff） |
-| 范围 | 摄入派生、actionable/signal 分轨、from/to UTC 日界、updateTriage 原子派生、HUMAN score、质量页队列筛选/NO_ISSUE/一次一条、首页今日计数、Insights signal 链接 |
+| 首轮提交 | `ef757859`（后端 `0f5f8b8b` + 前端 `db52a60a` + handoff） |
+| 复验提交 | `31640c94`（含前端修复 `2347f3a5`；HEAD） |
+| 范围 | 摄入派生、actionable/signal 分轨、from/to UTC 日界、updateTriage 原子派生、HUMAN score、质量页队列筛选/NO_ISSUE/一次一条/日期窗、首页今日计数 + 下钻、Insights signal 链接 |
 | 产品代码改动 | 无（QA 只改 `qa/**` 与测试文件） |
 
 ## 2. 环境
@@ -141,32 +142,77 @@ SQL: total=20 actionable=10 signals=6 service_error=5
 
 ## 6. 缺陷
 
-Batch 2 范围内发现 **1 条 P1（阻断）** 与 2 条 P2：
+Batch 2 首轮发现 **1 条 P1（阻断）** 与 2 条 P2；修复提交 `2347f3a5` 后全部复验通过：
 
-| ID | 严重度 | 摘要 | 阻断 Batch 2 |
-|---|---|---|---|
-| D-B2-01 | **P1** | 首页「待处理」卡与提醒行显示 actionable 今日数（8），点击仍跳 `reviewStatus=PENDING`（16 条），下钻口径错 | **是** |
-| D-B2-02 | P2 | Insights「Transfer rate」KPI=6，点击 `queue=SIGNAL&signal=transferred` 只有 1；repeated/abandoned 一致（2/2） | 否 |
-| D-B2-03 | P2 | 前端 `RESOLUTION_VALUES` 缺 `NO_ISSUE`，选择「无问题」筛选会被 `parseFeedbackFilters` 丢弃 | 否 |
+| ID | 严重度 | 摘要 | 首轮阻断 | 复验 |
+|---|---|---|---|---|
+| D-B2-01 | **P1** | 首页「待处理」卡与提醒行显示 actionable 今日数（8），点击仍跳 `reviewStatus=PENDING`（16 条），下钻口径错 | **是** | **FIXED**（§9） |
+| D-B2-02 | P2 | Insights「Transfer rate」KPI=6，点击 `queue=SIGNAL&signal=transferred` 只有 1；repeated/abandoned 一致（2/2） | 否 | **FIXED**（§9） |
+| D-B2-03 | P2 | 前端 `RESOLUTION_VALUES` 缺 `NO_ISSUE`，选择「无问题」筛选会被 `parseFeedbackFilters` 丢弃 | 否 | **FIXED**（§9） |
 
 详见 `qa/defects.md`。
 
 ## 7. 残留风险与未覆盖
 
 1. **首页今日卡 vs 质量页全量列表（已知限制）**：首页卡按 UTC 今日；质量页 summary/list 没有日期选择器（handoff 已知限制 #1）。例如服务故障卡 4（今日）→ 列表 5（全量）。这不是新回归，但下钻数字仍不等；需在产品上明确“今日卡只做计数”还是补日期参数。
-2. **Insights 数量一致性**：除 D-B2-02 的 transferred 外，质量页没有 from/to，Insights 的 7 天窗口与质量页全量仍不同；Batch 1 报告已把“数量对齐”列为后续项。
+2. **Insights 日期窗**：D-B2-02 的队列口径已修复（链接不再带 `queue=SIGNAL`）；Insights 默认 7 天窗口，质量页 `signal=transferred` 不带 from/to。当前种子的 transferred 全部在 2 天内，KPI=列表=7；若存在更早数据，仍可能出现窗口差。链接若要严格对齐，应同时携带 Insights 的 from/to（后续项）。
 3. **历史数据回填**：handoff 明确未执行；本次只测新写入路径。旧 `verdict=correct` / 旧 `transferred→UNEXPECTED_TRANSFER` 的存量行未验证。
 4. **未覆盖**：LIVE eval、Runtime/Flows/Usage 写动作、多实例、故障注入、移动端、非 Chromium 浏览器、真实第三方模型/judge。
 5. **端口**：API 仍使用 4102（4100 被无关进程占用），接线等价，已报告。
 
 ## 8. 结论
 
-Batch 2 的**核心语义与 UI 行为大部分通过**：
+Batch 2 的**核心语义与 UI 行为全部通过**：
 
 - 7 类摄入派生、actionable/signal 分轨、from/to UTC 日界、updateTriage 双向派生、correct→NO_ISSUE、score 只在判定变化时写，均通过真实 API + SQL 对账；
-- 质量页全部/待办/系统信号筛选、系统信号 KPI、回答正确显示“无问题”、C→A→B 不跳条、首页今日计数，均通过；
-- Insights 三个链接已带 `queue=SIGNAL&signal=...` 并可筛选。
+- 质量页全部/待办/系统信号筛选、日期窗、系统信号 KPI、回答正确显示“无问题”、C→A→B 不跳条、首页今日计数与下钻，均通过；
+- Insights 三个链接与 KPI 口径一致并可筛选。
 
-但存在 **D-B2-01（P1）**：首页「待处理」卡的数字是新口径（今日 actionable=8），点击却仍落到旧口径 `reviewStatus=PENDING`（16 条）。这违反 118 #4/#5 的“待处理不含系统信号、下钻可信”。
+首轮的 **D-B2-01（P1）** 已在 `2347f3a5` 修复：首页「待处理」链接改为 `queue=TODO&from=<UTC today>&to=<UTC today>`，列表 total = 卡片数字（8），刷新保留；D-B2-02/03 也已修复。
 
-**Batch 2：FAIL**。修复 D-B2-01（把首页提醒行/异常卡的 href 改为 `queue=TODO`，并决定是否补 from/to）后，只需复验该下钻 + Batch 2 UI 用例；D-B2-02/D-B2-03 可记录/延期。
+**Batch 2：PASS**（复验提交 `31640c94`，含 `2347f3a5`）。无遗留阻塞项。
+
+## 9. 复验记录 — D-B2-01/02/03（commit `31640c94`，含 `2347f3a5`）
+
+**复验环境**：全新启动 QA（`colima start` → `bash qa/scripts/run-batch1.sh`）：Postgres 5433、Redis 6382、API 4102、Admin 4101。脚本先跑 Batch 1 基线回归，再 seed batch2 跑 Batch 2。
+
+**命令**：
+
+```bash
+bash qa/scripts/run-batch1.sh
+```
+
+脚本内部顺序：
+
+```bash
+npx tsx qa/seed/batch1.ts && npx tsx qa/seed/batch2.ts --clean
+# Batch 1 API + Playwright(navigation/drilldown/insights/redaction)
+npx tsx qa/seed/batch2.ts
+# Batch 2 API + Playwright(batch2-triage/insights)
+npx tsx qa/seed/batch2.ts   # 复位为可复现种子
+```
+
+**结果**：
+
+| 检查 | 期望 | 实际 | 结果 |
+|---|---|---|---|
+| Batch 1 API e2e | 24 passed | **24 passed** | PASS |
+| Batch 1 Playwright（9 cases） | 全部通过 | **9 passed**（含曾失败的 pending 下钻） | PASS |
+| Batch 2 API e2e | 18 passed | **18 passed** | PASS |
+| Batch 2 Playwright（8 + insights 1） | 全部通过 | **9 passed** | PASS |
+| 首页「待处理 N」→ URL | `queue=TODO&from=today&to=today`；列表=N；刷新保留 | VIEWER/ADMIN 均通过；today pending 8 → list 8；刷新保留 | PASS |
+| 质量页日期输入 + queue TODO | 只含今天 actionable，昨天不出现 | today 8 < all 10；`qa_b2_fb_yesterday` 不在今日列表；KPI 链接保留日期 | PASS |
+| `resolution=NO_ISSUE` | URL 参数保留并筛选 | `parseFeedbackFilters` 返回 `NO_ISSUE`；筛选 1 条，行显示“无问题” | PASS |
+| Insights Transfer rate | 列表 total = KPI 口径 | KPI `feedback.transferred` = 7，列表 `signal=transferred` = 7（相等） | PASS |
+| 回归 | 无 P0/P1 | D-B2-01/02/03 全部修复 | PASS |
+
+> **关于 7 而非 6**：协调者预期 6 是按“今日”计；Insights 默认 7 天窗口包含 `qa_b2_fb_yesterday_service`（signal=transferred）。当前种子下 KPI 与列表均为 **7**，等式成立；今日窗口为 6。链接未携带 Insights 的 from/to，若未来有更早数据仍可能窗口不齐（见 §7 第 2 条，非阻塞）。
+
+**证据**：
+- `qa/logs/run-batch1-api.log`（24/24）
+- `qa/logs/run-batch1-playwright.log`（9/9）
+- `qa/logs/run-batch2-api.log`（18/18）
+- `qa/logs/run-batch2-playwright.log`（9/9）
+- `qa/logs/batch2-reverify-numbers.log`（today pending 8 / all 10 / TODO 8 / NO_ISSUE 1 / insights transferred 7 = list 7 / parse NO_ISSUE 生效）
+
+**结论**：D-B2-01/02/03 均复验通过；Batch 2 PASS，无阻塞项。
