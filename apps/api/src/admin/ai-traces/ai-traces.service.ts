@@ -1,4 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 
@@ -60,6 +61,36 @@ export class TraceService {
   private readonly logger = new Logger(TraceService.name);
 
   constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * 每天 03:00 UTC 清理过期链路。
+   * 只删 trace 与其分数；spans 通过外键级联删除。
+   * 多实例重复执行是幂等的。
+   */
+  @Cron('0 3 * * *', { timeZone: 'UTC' })
+  async purgeExpired(): Promise<void> {
+    const days = Number(process.env.AI_TRACE_RETENTION_DAYS ?? 30);
+    if (!Number.isFinite(days) || days <= 0) return;
+    const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    try {
+      // 只清理链路上的 LLM 分数；HUMAN 分数是运营记录，长期保留。
+      const scores = await this.prisma.aiScore.deleteMany({
+        where: { createdAt: { lt: cutoff }, source: 'LLM' },
+      });
+      const traces = await this.prisma.aiTrace.deleteMany({
+        where: { createdAt: { lt: cutoff } },
+      });
+      if (scores.count > 0 || traces.count > 0) {
+        this.logger.log(
+          `[trace-retention] removed traces=${traces.count}, scores=${scores.count} (older than ${days}d)`,
+        );
+      }
+    } catch (err: any) {
+      this.logger.warn(
+        `[trace-retention] purge failed: ${err?.message ?? err}`,
+      );
+    }
+  }
 
   /**
    * 创建一条 trace 及其 spans。

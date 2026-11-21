@@ -2154,6 +2154,8 @@ model AiTrace {
   @@index([conversationId, createdAt])
   @@index([intent, createdAt])
   @@index([source, createdAt])
+  /// 保留策略按 createdAt 全表删除
+  @@index([createdAt])
   @@map("ai_traces")
 }
 

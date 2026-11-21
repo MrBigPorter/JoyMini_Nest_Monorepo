@@ -54,6 +54,7 @@ import { OtpService } from '../otp/otp.service';
 import { CODE_TYPE } from '@lucky/shared';
 import { emitStage } from '@api/common/logger/structured-logger';
 import { runWithContext } from '@api/common/logger/trace-context';
+import { redactPiiText } from '@api/common/utils/pii-redaction';
 import { decGauge, incCounter, incGauge } from '@api/common/metrics/metrics';
 import type { RagCitation } from '@api/client/ai-customer/graph/state';
 import { RedisService } from '@api/common/redis/redis.service';
@@ -946,8 +947,8 @@ export class AiCustomerService implements OnModuleDestroy {
         aiMessageId: aiMessage?.id ?? null,
         userId: params.userId,
         intent,
-        input: this.truncateText(params.message, 1000),
-        output: this.truncateText(output, 2000),
+        input: this.truncateText(redactPiiText(params.message), 1000),
+        output: this.truncateText(redactPiiText(output), 2000),
         status: params.status,
         latencyMs,
         promptTokens: params.streamUsage?.promptTokens,
@@ -992,7 +993,7 @@ export class AiCustomerService implements OnModuleDestroy {
         conversationId: params.conversationId,
         triggerMessageId: params.triggerMessageId,
         userId: params.userId,
-        input: this.truncateText(params.message, 1000),
+        input: this.truncateText(redactPiiText(params.message), 1000),
         status: 'ERROR',
         latencyMs,
         metadata: { errorName: params.error?.name ?? 'Error' },
@@ -1001,7 +1002,9 @@ export class AiCustomerService implements OnModuleDestroy {
             type: 'llm',
             name: 'llm-response',
             status: 'ERROR',
-            error: this.truncateText(errorMessage, 500) ?? undefined,
+            error:
+              this.truncateText(redactPiiText(errorMessage), 500) ??
+              undefined,
             startedAt: new Date(params.startedAt),
             endedAt: new Date(),
             durationMs: latencyMs,

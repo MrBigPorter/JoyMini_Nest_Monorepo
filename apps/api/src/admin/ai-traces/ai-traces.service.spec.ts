@@ -8,13 +8,34 @@ function makeService() {
       findMany: jest.fn().mockResolvedValue([{ id: 'trace-1' }]),
       count: jest.fn().mockResolvedValue(1),
       findUnique: jest.fn(),
+      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
     },
-    aiScore: { findMany: jest.fn().mockResolvedValue([]) },
+    aiScore: {
+      findMany: jest.fn().mockResolvedValue([]),
+      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
   };
   return { service: new TraceService(prisma), prisma };
 }
 
 describe('TraceService', () => {
+  it('purgeExpired 删除保留期外的 trace 与 score', async () => {
+    const { service, prisma } = makeService();
+    prisma.aiTrace.deleteMany.mockResolvedValue({ count: 3 });
+    prisma.aiScore.deleteMany.mockResolvedValue({ count: 2 });
+    process.env.AI_TRACE_RETENTION_DAYS = '30';
+
+    await service.purgeExpired();
+
+    expect(prisma.aiTrace.deleteMany).toHaveBeenCalledWith({
+      where: { createdAt: { lt: expect.any(Date) } },
+    });
+    expect(prisma.aiScore.deleteMany).toHaveBeenCalledWith({
+      where: { createdAt: { lt: expect.any(Date) }, source: 'LLM' },
+    });
+    delete process.env.AI_TRACE_RETENTION_DAYS;
+  });
+
   it('recordTrace 创建 trace 并写入 spans', async () => {
     const { service, prisma } = makeService();
     const startedAt = new Date('2026-11-21T00:00:00.000Z');
