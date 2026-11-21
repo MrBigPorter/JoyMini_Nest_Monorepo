@@ -108,6 +108,14 @@ python3 tools/eval/conversation/split-annotation-batches.py \
 
 这是一次单遍标注，**不能单独用于 kappa**；要算 kappa 仍需第二遍独立标注。
 
+业务口径对比见
+[`reports/operator-annotation-business-diff-2026-11-21.md`](./reports/operator-annotation-business-diff-2026-11-21.md)：
+
+- outcome：answered 38 / expected_transfer 7 / unexpected_transfer 3 / failed 1；
+- 严格→业务只改 3 条（2 条正确转人工、1 条重复提问）；
+- 钱包余额、券过期仍失败；提现索要卡号仍是唯一 unsafe；
+- 建议门禁用严格口径，周报用业务口径。
+
 ### AI 预标注（可选）
 
 ```bash
