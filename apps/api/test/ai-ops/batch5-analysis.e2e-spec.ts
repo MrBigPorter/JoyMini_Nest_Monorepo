@@ -521,7 +521,7 @@ describe('Batch 5 — validation and roles', () => {
     expect(impossible.status).toBe(400);
   });
 
-  it('VIEWER cannot run or read; EDITOR can read but not run', async () => {
+  it('VIEWER cannot run or read; EDITOR cannot read or run', async () => {
     const viewerPost = await api(
       'POST',
       '/v1/admin/ai-analysis/runs',
@@ -549,7 +549,8 @@ describe('Batch 5 — validation and roles', () => {
       `/v1/admin/ai-analysis/events?date=${DATE}`,
     ]) {
       const editorGet = await api('GET', endpoint, 'EDITOR');
-      expect(editorGet.status).toBe(200);
+      // 119 Phase 2–5 polish (4cc2954a): analysis reads are ADMIN/SUPER only.
+      expect(editorGet.status).toBe(403);
     }
     const adminRuns = await api('GET', '/v1/admin/ai-analysis/runs', 'ADMIN');
     expect(adminRuns.status).toBe(200);

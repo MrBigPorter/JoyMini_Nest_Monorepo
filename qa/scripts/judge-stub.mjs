@@ -23,6 +23,35 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+
+  // Ollama-compatible embedding hook for semantic-cluster QA.
+  // Returns deterministic 1024d unit vectors; similar questions share a
+  // dimension so cosine distance is 0. `qa_dim_mismatch` returns 768d to
+  // exercise the dimension-mismatch fallback path.
+  if (req.method === 'POST' && req.url?.endsWith('/api/embeddings')) {
+    let body = '';
+    req.on('data', (chunk) => {
+      body += chunk;
+    });
+    req.on('end', () => {
+      let prompt = '';
+      try {
+        prompt = String(JSON.parse(body)?.prompt ?? '');
+      } catch {
+        prompt = '';
+      }
+      const dim = prompt.includes('qa_dim_mismatch') ? 768 : 1024;
+      const embedding = Array.from({ length: dim }, () => 0);
+      let index = 101;
+      if (/券|coupon|领券/i.test(prompt)) index = 17;
+      else if (/退款|refund/i.test(prompt)) index = 23;
+      embedding[index] = 1;
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ embedding }));
+    });
+    return;
+  }
+
   if (req.method === 'POST' && req.url?.endsWith('/chat/completions')) {
     let body = '';
     req.on('data', (chunk) => {

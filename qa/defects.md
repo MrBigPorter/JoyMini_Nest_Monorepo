@@ -536,3 +536,20 @@ ai_spans.llm.output.snippet -> 已登记：13812341234 / user@example.com / 1101
 
 - Batch 5 的“事件不出现任何种子文本”断言已按 Phase 2 新契约更新：允许 `metadata.questionPreview`（脱敏、≤200 字），但 note/output/reason/lastMsg 等原文仍禁止；详见 `qa/reports/phase2-5.md` §7。
 - Batch 5 seed 清理补充了该窗口的 cluster / cluster-day / alert，避免跨批污染。
+
+---
+
+# Final Batch — 缺陷（`ec114966`）
+
+> 迁移 PASS（仅 ADD COLUMN + HNSW INDEX）。final-batch API 7/7、运营面 UI 4/4；回归 Batch 1/2/4/5 = 24/18/9/9、Phase 2–5 = 9/9。
+
+## 产品缺陷
+
+**无。** 语义聚类/回退、CLOSED/IGNORED 保护、评测预算与取消优先级、质检运营面均通过。
+
+## 测试侧调整（非产品缺陷）
+
+- **Batch 5 角色断言更新**：`4cc2954a` 将 analysis 读接口收紧为 SUPER/ADMIN，Batch 5 原“EDITOR 200”改为 **403**；复跑 9/9。
+- **final-batch 前缀隔离**：`qa_fb_` 与 Batch 1 seed 冲突，改用 `qa_final_`。
+- **embedding provider 固定**：E2E 关闭 Jina/Infinity，走 QA Ollama 1024d stub，结束后恢复。
+- **QA stub 扩展**：`qa/scripts/judge-stub.mjs` 增加 `/api/embeddings`（`qa_dim_mismatch` 返回 768d）。
