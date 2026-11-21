@@ -225,7 +225,8 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
   const [reviewIndex, setReviewIndex] = useState(0);
   const role = useAiOpsRole();
   const { data: featuresData } = useRequest(aiOpsApi.getFeatures);
-  const feedbackUiEnabled = featuresData?.feedbackUiEnabled !== false;
+  // features 未加载或加载失败时按关闭处理，避免渲染写按钮后 403。
+  const feedbackUiEnabled = featuresData?.feedbackUiEnabled === true;
   const canTriage = canTriageFeedback(role) && feedbackUiEnabled;
   const rawTextPlaceholder = role === 'VIEWER' ? '只读账号不显示原文' : null;
 
