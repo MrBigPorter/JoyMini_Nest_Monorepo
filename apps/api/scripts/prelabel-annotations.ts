@@ -72,7 +72,8 @@ async function main() {
     : [
         'llama-3.3-70b-versatile',
         'llama-3.1-8b-instant',
-        'gemma2-9b-it',
+        'meta-llama/llama-4-scout-17b-16e-instruct',
+        'openai/gpt-oss-20b',
       ];
   const baseURL =
     process.env.AI_PRELABEL_BASE_URL ?? 'https://api.groq.com/openai/v1';
@@ -88,6 +89,37 @@ async function main() {
     throw new Error(
       'Missing judge API key: set AI_PRELABEL_API_KEY or GROQ_API_KEY (or use --dry-run)',
     );
+  }
+
+  if (args.includes('--list-models')) {
+    for (let index = 0; index < apiKeys.length; index += 1) {
+      try {
+        const response = await fetch(
+          `${baseURL.replace(/\/$/, '')}/models`,
+          {
+            headers: { Authorization: `Bearer ${apiKeys[index]}` },
+            signal: AbortSignal.timeout(15_000),
+          },
+        );
+        if (response.status === 401 || response.status === 403) {
+          console.log(`[prelabel] key ${index + 1}: unauthorized`);
+          continue;
+        }
+        const body = (await response.json().catch(() => ({}))) as {
+          data?: Array<{ id?: string }>;
+        };
+        const ids = Array.isArray(body.data)
+          ? body.data.map((item) => item.id).filter(Boolean)
+          : [];
+        console.log(`[prelabel] key ${index + 1}: ${ids.join(', ')}`);
+        return;
+      } catch (error: any) {
+        console.log(
+          `[prelabel] key ${index + 1}: network ${error?.name ?? 'error'}`,
+        );
+      }
+    }
+    throw new Error('No key could list models');
   }
 
   const rows = readFileSync(worksheetPath, 'utf8')
@@ -119,6 +151,7 @@ async function main() {
   }
 
   let loggedJudge = false;
+  const loggedFailures = new Set<string>();
   /**
    * 直接调用 OpenAI 兼容的 /chat/completions：
    * - 401/403 换下一把 key；
@@ -155,10 +188,33 @@ async function main() {
 
           if (response.status === 401 || response.status === 403) {
             lastError = new Error(`key ${index + 1} unauthorized`);
+            const tag = `key:${index + 1}:${response.status}`;
+            if (!loggedFailures.has(tag)) {
+              loggedFailures.add(tag);
+              console.warn(`[prelabel] key ${index + 1} unauthorized`);
+            }
             continue;
           }
           if (response.status === 404) {
             lastError = new Error(`model ${candidate} unavailable`);
+            const tag = `model:${candidate}:404`;
+            if (!loggedFailures.has(tag)) {
+              loggedFailures.add(tag);
+              console.warn(`[prelabel] model ${candidate} unavailable`);
+            }
+            modelUnavailable = true;
+            break;
+          }
+          if (response.status === 400) {
+            const detail = (await response.text()).slice(0, 160);
+            lastError = new Error(`model ${candidate} rejected: ${detail}`);
+            const tag = `model:${candidate}:400`;
+            if (!loggedFailures.has(tag)) {
+              loggedFailures.add(tag);
+              console.warn(
+                `[prelabel] model ${candidate} rejected: ${detail}`,
+              );
+            }
             modelUnavailable = true;
             break;
           }
