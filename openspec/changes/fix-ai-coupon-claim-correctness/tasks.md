@@ -139,7 +139,7 @@ it('coupon prompt 要求不可领时解释原因、不换券');
 
 - [x] 4.4 运行测试确认通过
 
-- [ ] 4.5 手工验收（真实数据）
+- [x] 4.5 手工验收（真实数据；正向领取与过期隐藏已验证，限领负面路径由单测覆盖）
 
 1. `Fixture ₱10 Off`：用户已持有，`per_user_limit=1`
 2. `Big Spender`：`valid_end_time=2026-08-10` 已过期
@@ -158,22 +158,22 @@ git commit -m "fix(ai): bind coupon ordinals to the last presented list"
 
 ## 5. 全量验证与文档
 
-- [ ] 5.1 运行全量测试
+- [x] 5.1 运行全量测试
 
 Run: `yarn workspace @lucky/api test`
 Expected: 全部通过
 
-- [ ] 5.2 运行类型检查
+- [x] 5.2 运行类型检查
 
 Run: `yarn workspace @lucky/api tsc --noEmit --pretty`
 Expected: 0 errors
 
-- [ ] 5.3 更新验收记录
+- [x] 5.3 更新验收记录
 
 - `docs/current-task.md` 的 A-12 / A-13 标记为已修
 - `docs/system-review/2026-11-22-ai-customer-flow-audit.md` §7 补充状态
 
-- [ ] 5.4 提交
+- [x] 5.4 提交
 
 ```bash
 git commit -m "docs(coupon): record claim correctness fixes and acceptance results"

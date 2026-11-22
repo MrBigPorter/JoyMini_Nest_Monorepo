@@ -217,6 +217,8 @@
 | A-9 卡片显示「渠道 #1」 | ✅ 已修 | `buildFields` 使用 `channelName`（T8） |
 | A-10 过期后幻觉「已提交」 | ✅ 已修 | 短确认确定性路由（T4）+ 发布事实闸门（T5） |
 | A-11 过期无提示 | ✅ 后端已修 | 文字确认对终态卡片返回「已过期/已处理」（T4）；前端倒计时仍需回归 |
+| A-12 过期券进入可领取/发卡 | ✅ 已修 | `isCouponClaimableNow` 过滤可领取列表（T6 原为 Task 1）；`claimCoupon` 补有效天数/未开始/无结束时间校验；守卫按真实原因提示；错误中文化 |
+| A-13 序号跨列表错位 | ✅ 已修 | 单一编号列表 + 编号只绑定最近展示列表 + 弹卡前复述券名 + 不可领不换券；`getUserCoupons` 默认只查未使用 |
 | 21 生产 OTP 固定码 | ⏸ Blocked | 产品决策；计划未擅自改 |
 | 22 handoff 不撤销动作 | ✅ 已修 | `routeTransfer` 调 `markTransferred`；gate/reset 作废 DB 卡片（T11） |
 | 23 成员校验越权 | ✅ 已修 | `prepareThread` 的 404 直接收尾，不写 trace/不转人工（T11） |
