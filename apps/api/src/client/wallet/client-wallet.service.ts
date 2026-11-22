@@ -445,6 +445,11 @@ export class ClientWalletService {
     if (!channel) {
       throw new NotFoundException('Payment channel not found or inactive');
     }
+    // type: 1=充值 / 2=提现。充值渠道金额与费率语义都不对，
+    // 不能因为 status=1 就允许提现（AI 模型可能传错 channelId）。
+    if (channel.type !== 2) {
+      throw new BadRequestException('Not a withdrawal channel');
+    }
 
     //检验提现金额是否在允许范围内
     if (channel.minAmount && amountNum < channel.minAmount.toNumber()) {

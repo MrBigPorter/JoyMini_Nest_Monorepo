@@ -462,76 +462,15 @@ export const createWalletTools = (
        *  5. userId — 当前用户 ID
        */
       tool: tool(
-        async ({
-          amount,
-          channelId,
-          account,
-          accountName,
-        }: {
-          amount: number;
-          channelId: number;
-          account: string;
-          accountName: string;
-        }) => {
+        async () => {
           const userId = requireToolUserId('applyWithdraw');
           if (!userId) return toolFailure(MISSING_USER_CONTEXT);
 
-          // KYC 检查
-          const kycResult = await toResult(kycService.getMyKyc(userId));
-          if (!kycResult.success) {
-            return toolFailure(
-              `KYC not approved. Please complete identity verification first.`,
-            );
-          }
-          const kyc = kycResult.data;
-          if (!kyc || kyc.kycStatus !== KYC_STATUS.APPROVED) {
-            return toolFailure(
-              `KYC not approved. Please complete identity verification first. Current status: ${kyc?.kycStatus ?? 'unknown'}`,
-            );
-          }
-          // 余额检查
-          const balanceResult = await toResult(walletService.balance(userId));
-          if (!balanceResult.success) {
-            return toolFailure(
-              `Failed to check balance: ${balanceResult.error.message}`,
-            );
-          }
-          const balance = balanceResult.data;
-          const realBalance = new Prisma.Decimal(balance.realBalance ?? '0');
-          if (realBalance.lessThan(new Prisma.Decimal(amount))) {
-            return toolFailure(
-              `Insufficient balance. Available: ₱${realBalance.toString()}, requested: ₱${amount}`,
-            );
-          }
-          // 幂等性检查（30秒内重复提现）
-          const idKey = `${userId}:${amount}:${channelId}:${account}`;
-          if (isRecentWithdraw(idKey)) {
-            return toolSuccess({
-              message:
-                'Duplicate withdrawal request detected within 30 seconds. Please wait before trying again.',
-            });
-          }
-          markRecentWithdraw(idKey);
-          // ── 执行提现 ──
-          const dto = new ApplyWithdrawDto();
-          dto.amount = amount;
-          dto.channelId = channelId;
-          dto.account = account;
-          dto.accountName = accountName;
-          const orderResult = await toResult(
-            clientWalletService.applyWithdraw(userId, dto),
+          // 写工具正常路径一定在 runAgentLoop 被截停、走确认卡片。
+          // 能执行到这里说明截停逻辑失效；fail-closed，绝不出现第二个执行点。
+          return toolFailure(
+            'Write tools must be confirmed through the action card; applyWithdraw is never executed inline.',
           );
-          if (!orderResult.success) {
-            return toolFailure(
-              `Withdrawal failed: ${orderResult.error.message}`,
-            );
-          }
-          const dtoRes = plainToInstance(
-            WithdrawApplyResponseDto,
-            orderResult.data,
-          );
-          const llmResult = toLLM(dtoRes, WithdrawApplyResponseDto, 'en');
-          return toolSuccess(llmResult);
         },
         {
           name: 'applyWithdraw',

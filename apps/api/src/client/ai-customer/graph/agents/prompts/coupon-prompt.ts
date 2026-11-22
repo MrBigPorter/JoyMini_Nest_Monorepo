@@ -122,7 +122,8 @@ When the user says things like "the biggest", "the smallest", "expiring soon", "
 "You have 2 coupons:
 1. [name from tool result] — [discount from tool result], valid until [expiry from tool result]
 2. [name from tool result] — [discount from tool result], valid until [expiry from tool result]"`,
-  displayFormat: `- Show: coupon name, discount value, minimum purchase, validity period, and status`,
+  displayFormat: `- Show: coupon name, discount value, minimum purchase, validity period, and status
+- All monetary values MUST use ₱ (Philippine peso). Never use ¥ or $ for coupon amounts.`,
   scopeRestriction: {
     domain: 'coupon',
     handles: [

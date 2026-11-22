@@ -15,6 +15,12 @@ export class ClaimableCouponResponseDto {
   @Expose()
   couponName!: string;
 
+  /** 币种（项目当前固定 PHP）。模型据此统一显示 ₱，不要自己猜符号。 */
+  @FieldMeta({ label: { zh: '币种', en: 'Currency' } })
+  @ApiProperty({ description: '币种', example: 'PHP' })
+  @Expose()
+  currency!: string;
+
   @FieldMeta({ label: { zh: '优惠券类型', en: 'Coupon Type' } })
   @ApiProperty({ description: '类型: 1-满减券 2-折扣券 3-无门槛' })
   @Expose()

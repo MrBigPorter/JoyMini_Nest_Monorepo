@@ -155,3 +155,53 @@ describe('ACTION_CATALOG · 单一动作目录', () => {
     expect(otpActions).toEqual(['withdraw']);
   });
 });
+
+describe('withdraw 卡片展示 · 渠道与费用', () => {
+  it('展示渠道名、手续费与到账金额', () => {
+    const entry = getCatalogEntryByAction('withdraw')!;
+    const fields = entry.buildFields({
+      amount: 100,
+      channelId: 5,
+      channelName: 'GCash Withdraw',
+      fee: '5.80',
+      netAmount: '94.20',
+      account: '09171234567',
+      accountName: 'Porter',
+    });
+
+    expect(fields).toEqual(
+      expect.arrayContaining([
+        { label: '渠道', value: 'GCash Withdraw' },
+        { label: '手续费', value: '₱5.80' },
+        { label: '实际到账', value: '₱94.20' },
+      ]),
+    );
+  });
+
+  it('没有渠道名时回退到 #id，不丢失信息', () => {
+    const entry = getCatalogEntryByAction('withdraw')!;
+    const fields = entry.buildFields({ amount: 100, channelId: 5 });
+
+    expect(fields).toEqual(
+      expect.arrayContaining([{ label: '渠道', value: '渠道 #5' }]),
+    );
+  });
+
+  it('执行参数只保留白名单键', () => {
+    const entry = getCatalogEntryByAction('withdraw')!;
+    const params = entry.buildParams({
+      amount: 100,
+      channelId: 5,
+      account: '0917',
+      accountName: 'P',
+      injected: 'x',
+    });
+
+    expect(params).toEqual({
+      amount: 100,
+      channelId: 5,
+      account: '0917',
+      accountName: 'P',
+    });
+  });
+});

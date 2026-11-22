@@ -60,6 +60,19 @@ export class PaymentConfigItemDto {
   @FieldMeta({ label: { zh: '手续费', en: 'Fee' }, type: 'amount' })
   fee!: string;
 
+  /**
+   * 手续费率（小数，例如 0.008 表示 0.8%）。总手续费 = 金额 × feeRate + feeFixed。
+   * 只暴露 feeFixed 会让模型报少手续费。
+   */
+  @ApiProperty({
+    description: '手续费率（小数，0.008 = 0.8%）',
+    example: '0.008',
+  })
+  @Expose()
+  @DecimalToString()
+  @FieldMeta({ label: { zh: '手续费率', en: 'Fee Rate' } })
+  feeRate!: string;
+
   @ApiProperty({ description: '是否允许输入自定义金额', example: true })
   @Expose()
   @FieldMeta({ label: { zh: '自定义金额', en: 'Custom Amount' } })

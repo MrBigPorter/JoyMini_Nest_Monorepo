@@ -1672,7 +1672,28 @@ export class AiCustomerService implements OnModuleDestroy {
     triggerMessageId?: string;
   }): Promise<{ requestId: string | null; created: boolean }> {
     const { userId, conversationId, action, params, triggerMessageId } = input;
-    const summary = { ...input.summary };
+
+    // 目录外动作不发卡：确认时必然失败，只会留下死卡片。
+    const catalogEntry = getCatalogEntryByAction(action);
+    if (!catalogEntry) {
+      await publishAiReply(
+        this.prismaService,
+        this.eventsGateway,
+        this.eventEmitter,
+        conversationId,
+        [{ type: 'ai', content: '该操作暂不支持，请换个方式或联系人工客服。' }],
+        userId,
+        [],
+      ).catch((err: any) => {
+        this.logger.warn(
+          `[routeConfirm] unsupported action message failed: ${err?.message ?? err}`,
+        );
+      });
+      return { requestId: null, created: false };
+    }
+
+    // 展示参数只给人看；执行参数稍后由 buildParams 白名单生成。
+    const displayArgs: Record<string, any> = { ...params };
 
     // 提现卡补全：手续费 + 到账金额（与 applyWithdraw 内算费公式一致：
     // fee = amount * feeRate + feeFixed, net = amount - fee）
@@ -1680,14 +1701,36 @@ export class AiCustomerService implements OnModuleDestroy {
       const channel = await this.prismaService.paymentChannel.findUnique({
         where: { id: Number(params.channelId), status: 1 },
       });
+      if (channel && channel.type !== 2) {
+        await publishAiReply(
+          this.prismaService,
+          this.eventsGateway,
+          this.eventEmitter,
+          conversationId,
+          [
+            {
+              type: 'ai',
+              content: '这个渠道不支持提现，请重新选择提现渠道。',
+            },
+          ],
+          userId,
+          [],
+        ).catch((err: any) => {
+          this.logger.warn(
+            `[routeConfirm] reject non-withdraw channel failed: ${err?.message ?? err}`,
+          );
+        });
+        return { requestId: null, created: false };
+      }
       if (channel) {
         const amount = new Prisma.Decimal(params.amount ?? 0);
         const feeRate = channel.feeRate || new Prisma.Decimal(0);
         const feeFixed = channel.feeFixed || new Prisma.Decimal(0);
         const fee = amount.mul(feeRate).add(feeFixed);
         const netAmount = amount.sub(fee);
-        summary.fee = fee.toString();
-        summary.netAmount = netAmount.toString();
+        displayArgs.channelName = channel.name;
+        displayArgs.fee = fee.toString();
+        displayArgs.netAmount = netAmount.toString();
       }
     }
 
@@ -1734,6 +1777,15 @@ export class AiCustomerService implements OnModuleDestroy {
       return { requestId: null, created: false };
     }
 
+    if (claimableCoupon?.couponName) {
+      displayArgs.couponName = claimableCoupon.couponName;
+    }
+
+    // 执行参数只走目录白名单；模型夹带的额外字段不进入令牌/DB。
+    const execParams = catalogEntry.buildParams(displayArgs);
+    // 摘要由服务端渲染：账号/手机号已掩码，作为 socket 与聊天 meta 的唯一来源。
+    const summary = catalogEntry.buildSummary(displayArgs);
+
     // 先生命周期记录，再发卡片：即使 socket 丢包，运营/评测仍能查到
     // 这次动作存在、等待确认、何时过期。
     let request: { id: string; expiresAt: Date } | null = null;
@@ -1744,7 +1796,7 @@ export class AiCustomerService implements OnModuleDestroy {
           userId,
           messageId: triggerMessageId ?? null,
           action,
-          params,
+          params: execParams,
           summary,
         });
       } catch (err: any) {
@@ -1755,25 +1807,16 @@ export class AiCustomerService implements OnModuleDestroy {
       }
     }
 
-    const catalogEntry = getCatalogEntryByAction(action);
     const actionMeta = getConfirmActionMeta(action);
-    // 卡片展示只给人看：内部 ID 尽量换成可读名称，但绝不改变执行参数。
-    let displayArgs: Record<string, any> = params;
-    if (claimableCoupon?.couponName) {
-      displayArgs = {
-        ...displayArgs,
-        couponName: claimableCoupon.couponName,
-      };
-    }
     // 展示字段由服务端从目录渲染，客户端只负责 title + fields；
-    // params 只存在服务端令牌里，客户端绝不用展示字段当执行参数。
-    const fields = catalogEntry ? catalogEntry.buildFields(displayArgs) : [];
-    const needsOtp = catalogEntry?.needsOtp ?? false;
+    // 执行参数只存在服务端令牌里，客户端绝不用展示字段当执行参数。
+    const fields = catalogEntry.buildFields(displayArgs);
+    const needsOtp = catalogEntry.needsOtp;
 
     const { token, expiresAt } = await this.aiActionConfirmService.generate(
       userId,
       action,
-      params,
+      execParams,
       summary,
       request?.id,
       conversationId,
@@ -2262,9 +2305,12 @@ export class AiCustomerService implements OnModuleDestroy {
     addressId: string,
     params: Record<string, any>,
   ) {
-    let provinceId: number;
-    let cityId: number;
-    let barangayId: number;
+    // 读当前地址做兜底：局部更新（例如只改电话）不能把未提供的字段写成 null。
+    const current = await this.addressService.detail(userId, addressId);
+
+    let provinceId = current.provinceId;
+    let cityId = current.cityId;
+    let barangayId = current.barangayId;
     if (params.province && params.city && params.barangay) {
       const geo = await this.addressService.resolveGeoIds(
         params.province,
@@ -2274,23 +2320,18 @@ export class AiCustomerService implements OnModuleDestroy {
       provinceId = geo.provinceId;
       cityId = geo.cityId;
       barangayId = geo.barangayId;
-    } else {
-      // 只改电话/门牌等局部字段时，用当前地址的行政区划补齐，
-      // 避免 addressService.update 因缺少 region ID 而失败。
-      const current = await this.addressService.detail(userId, addressId);
-      provinceId = current.provinceId;
-      cityId = current.cityId;
-      barangayId = current.barangayId;
     }
 
     const dto = {
-      contactName: params.contactName,
-      phone: params.phone,
+      contactName: params.contactName ?? current.contactName,
+      phone: params.phone ?? current.phone,
       provinceId,
       cityId,
       barangayId,
-      fullAddress: params.fullAddress,
-      label: params.label,
+      fullAddress: params.fullAddress ?? current.fullAddress,
+      label: params.label ?? current.label,
+      firstName: current.firstName ?? undefined,
+      lastName: current.lastName ?? undefined,
       isDefault:
         params.isDefault === undefined ? undefined : params.isDefault ? 1 : 0,
     } as UpdateAddressDto;

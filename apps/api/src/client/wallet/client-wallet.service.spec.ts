@@ -187,3 +187,25 @@ describe('ApplyWithdrawDto · 禁止夹带卡号/CVV/密码', () => {
     ).resolves.toHaveLength(0);
   });
 });
+
+describe('ClientWalletService · 提现渠道类型', () => {
+  it('充值渠道（type=1）不能提现', async () => {
+    const prisma = {
+      kycRecord: { findFirst: jest.fn(async () => ({ kycStatus: 4 })) },
+      paymentChannel: {
+        findUnique: jest.fn(async () => ({ id: 1, type: 1, status: 1 })),
+      },
+    };
+    const service = new ClientWalletService(
+      {} as any,
+      prisma as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+
+    await expect(
+      service.applyWithdrawVerified('u1', baseDto()),
+    ).rejects.toThrow('Not a withdrawal channel');
+  });
+});

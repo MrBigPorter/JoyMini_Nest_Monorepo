@@ -157,8 +157,11 @@ export const ACTION_CATALOG: readonly ActionCatalogEntry[] = [
         action: 'withdraw',
         amount: args.amount,
         channelId: args.channelId,
-        account: args.account,
+        ...(args.channelName ? { channelName: args.channelName } : {}),
+        account: maskAccount(args.account),
         accountName: args.accountName,
+        ...(args.fee !== undefined ? { fee: args.fee } : {}),
+        ...(args.netAmount !== undefined ? { netAmount: args.netAmount } : {}),
       };
     },
     buildFields(args) {
@@ -171,7 +174,18 @@ export const ACTION_CATALOG: readonly ActionCatalogEntry[] = [
       field(
         fields,
         '渠道',
-        args.channelId === undefined ? undefined : `渠道 #${args.channelId}`,
+        args.channelName ??
+          (args.channelId === undefined ? undefined : `渠道 #${args.channelId}`),
+      );
+      field(
+        fields,
+        '手续费',
+        args.fee === undefined ? undefined : `₱${args.fee}`,
+      );
+      field(
+        fields,
+        '实际到账',
+        args.netAmount === undefined ? undefined : `₱${args.netAmount}`,
       );
       field(
         fields,

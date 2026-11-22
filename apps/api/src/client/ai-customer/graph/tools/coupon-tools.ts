@@ -197,7 +197,10 @@ export const createCouponTools = (
                 : (result ?? []).filter((item: any) => item.canClaim !== false);
               const llmList = visible.map((item: any) =>
                 toLLM(
-                  plainToInstance(ClaimableCouponResponseDto, item),
+                  plainToInstance(ClaimableCouponResponseDto, {
+                    ...item,
+                    currency: item.currency ?? 'PHP',
+                  }),
                   ClaimableCouponResponseDto,
                   'zh',
                 ),

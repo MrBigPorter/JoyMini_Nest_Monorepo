@@ -108,8 +108,8 @@ describe('wallet-tools 身份边界', () => {
     expect(kycService.getMyKyc).toHaveBeenCalledWith('user-A');
   });
 
-  it('提现申请使用请求上下文身份，忽略模型伪造的 userId', async () => {
-    await runWithContext({ userId: 'user-A' }, () =>
+  it('applyWithdraw body 不直接执行提现（写操作只走确认卡）', async () => {
+    const raw = await runWithContext({ userId: 'user-A' }, () =>
       getTool('applyWithdraw').invoke({
         amount: 100,
         channelId: 1,
@@ -119,12 +119,10 @@ describe('wallet-tools 身份边界', () => {
       } as any),
     );
 
-    expect(kycService.getMyKyc).toHaveBeenCalledWith('user-A');
-    expect(walletService.balance).toHaveBeenCalledWith('user-A');
-    expect(clientWalletService.applyWithdraw).toHaveBeenCalledWith(
-      'user-A',
-      expect.any(ApplyWithdrawDto),
-    );
+    const parsed = JSON.parse(raw as string);
+    expect(parsed.ok).toBe(false);
+    expect(parsed.error).toContain('confirmed through the action card');
+    expect(clientWalletService.applyWithdraw).not.toHaveBeenCalled();
   });
 
   it('OTP 目标号码来自服务端绑定号码，模型伪造的 phone 被忽略', async () => {

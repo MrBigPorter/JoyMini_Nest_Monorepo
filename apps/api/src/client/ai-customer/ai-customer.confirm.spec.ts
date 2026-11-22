@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { SocketEvents } from '@lucky/shared';
 import { AiCustomerService } from './ai-customer.service';
 
@@ -177,7 +178,11 @@ describe('AiCustomerService · routeConfirm lifecycle', () => {
       'u1',
       'claim_coupon',
       { couponId: 'coupon-1' },
-      { name: 'Big Spender' },
+      expect.objectContaining({
+        action: 'claim_coupon',
+        couponId: 'coupon-1',
+        couponName: expect.any(String),
+      }),
       'act-1',
       'c1',
     );
@@ -862,5 +867,137 @@ describe('cancelAction · requestId 绑定', () => {
       'Confirm token invalid or expired',
     );
     expect(confirm.popPendingExecution).not.toHaveBeenCalled();
+  });
+});
+
+describe('executeUpdateAddress · 局部更新', () => {
+  it('只改电话不会清空姓名', async () => {
+    const { service, address } = makeService();
+    address.detail.mockResolvedValue({
+      addressId: 'addr-1',
+      firstName: 'Porter',
+      lastName: 'Q',
+      contactName: 'Porter Q',
+      phone: '09170000000',
+      provinceId: 1,
+      cityId: 2,
+      barangayId: 3,
+      fullAddress: '1 Ayala Ave',
+      label: 'Home',
+    } as any);
+
+    await (service as any).executeUpdateAddress('u1', 'addr-1', {
+      phone: '09180000000',
+    });
+
+    expect(address.update).toHaveBeenCalledWith(
+      'u1',
+      'addr-1',
+      expect.objectContaining({
+        firstName: 'Porter',
+        lastName: 'Q',
+        contactName: 'Porter Q',
+        phone: '09180000000',
+        fullAddress: '1 Ayala Ave',
+        label: 'Home',
+      }),
+    );
+  });
+});
+
+describe('issueConfirmCard · 白名单与展示', () => {
+  it('执行参数只保留目录白名单，注入字段进不了令牌', async () => {
+    const { service, confirm } = makeService();
+
+    await (service as any).issueConfirmCard({
+      userId: 'u1',
+      conversationId: 'c1',
+      action: 'claim_coupon',
+      params: { couponId: 'coupon-1', injected: 'x' },
+      summary: {},
+    });
+
+    expect(confirm.generate).toHaveBeenCalledWith(
+      'u1',
+      'claim_coupon',
+      { couponId: 'coupon-1' },
+      expect.anything(),
+      expect.anything(),
+      'c1',
+    );
+  });
+
+  it('提现卡片展示渠道名、手续费与到账', async () => {
+    const { service, prisma, gateway } = makeService();
+    prisma.paymentChannel.findUnique.mockResolvedValue({
+      id: 5,
+      name: 'GCash Withdraw',
+      type: 2,
+      status: 1,
+      feeRate: new Prisma.Decimal('0.008'),
+      feeFixed: new Prisma.Decimal('5'),
+    });
+
+    await (service as any).issueConfirmCard({
+      userId: 'u1',
+      conversationId: 'c1',
+      action: 'withdraw',
+      params: {
+        amount: 100,
+        channelId: 5,
+        account: '09171234567',
+        accountName: 'Porter',
+      },
+      summary: {},
+    });
+
+    const confirmEvent = gateway.dispatchToUser.mock.calls.find(
+      (call) => call[1] === SocketEvents.AI_CONFIRM,
+    );
+    expect(confirmEvent?.[2]?.fields).toEqual(
+      expect.arrayContaining([
+        { label: '渠道', value: 'GCash Withdraw' },
+        { label: '手续费', value: '₱5.8' },
+        { label: '实际到账', value: '₱94.2' },
+      ]),
+    );
+  });
+
+  it('充值渠道不发卡', async () => {
+    const { service, prisma, confirm } = makeService();
+    prisma.paymentChannel.findUnique.mockResolvedValue({
+      id: 1,
+      name: 'GCash',
+      type: 1,
+      status: 1,
+      feeRate: new Prisma.Decimal('0'),
+      feeFixed: new Prisma.Decimal('0'),
+    });
+
+    const result = await (service as any).issueConfirmCard({
+      userId: 'u1',
+      conversationId: 'c1',
+      action: 'withdraw',
+      params: { amount: 100, channelId: 1, account: '0917', accountName: 'P' },
+      summary: {},
+    });
+
+    expect(result).toEqual({ requestId: null, created: false });
+    expect(confirm.generate).not.toHaveBeenCalled();
+  });
+
+  it('目录外动作不发卡', async () => {
+    const { service, confirm } = makeService();
+
+    const result = await (service as any).issueConfirmCard({
+      userId: 'u1',
+      conversationId: 'c1',
+      action: 'unknown_action',
+      params: {},
+      summary: {},
+    });
+
+    expect(result).toEqual({ requestId: null, created: false });
+    expect(confirm.generate).not.toHaveBeenCalled();
   });
 });
