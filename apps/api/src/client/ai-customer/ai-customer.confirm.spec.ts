@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { SocketEvents } from '@lucky/shared';
 import { AiCustomerService } from './ai-customer.service';
+import { SessionQuotaExceededError } from './ai-usage.service';
 
 jest.mock('uuid', () => ({ v4: jest.fn(() => 'test-token') }));
 jest.mock('meilisearch', () => ({ Meilisearch: class {} }));
@@ -999,5 +1000,35 @@ describe('issueConfirmCard · 白名单与展示', () => {
 
     expect(result).toEqual({ requestId: null, created: false });
     expect(confirm.generate).not.toHaveBeenCalled();
+  });
+});
+
+describe('handleStreamError · 配额', () => {
+  it('配额耗尽给出专门话术，不转人工、不通知 onError', async () => {
+    const { service } = makeService();
+    const routeNormal = jest
+      .spyOn(service as any, 'routeNormalCompletion')
+      .mockResolvedValue(undefined);
+    const onError = jest.fn();
+
+    await (service as any).handleStreamError(
+      new SessionQuotaExceededError(1000, 1200),
+      'hi',
+      'u1',
+      'c1',
+      { onError },
+      [],
+      'm1',
+    );
+
+    expect(routeNormal).toHaveBeenCalledWith(
+      [{ type: 'ai', content: expect.stringContaining('已达到 AI 使用上限') }],
+      'u1',
+      'c1',
+      [],
+      [],
+      'm1',
+    );
+    expect(onError).not.toHaveBeenCalled();
   });
 });

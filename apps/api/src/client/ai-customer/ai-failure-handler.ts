@@ -38,6 +38,14 @@ export const OFFLINE_HANDOFF_REPLY =
   '人工客服暂时不在线，您可以先留言，我们会尽快联系您';
 
 /**
+ * 配额耗尽的专用话术。
+ * 配额不是「模型故障」也不是「客服离线」，不能复用上面两句，否则用户
+ * 会以为没人上班，而真实原因是本次对话的 token 预算用完了。
+ */
+export const QUOTA_EXCEEDED_REPLY =
+  '本次对话已达到 AI 使用上限，请稍后再试，或留言由人工跟进。';
+
+/**
  * 合并写 aiMetadata.handoffCallback，保留 trafficSource 等既有字段。
  * 无 schema 变更：callback 只是会话元数据，管理端按 status='pending' 过滤。
  */

@@ -2,6 +2,7 @@ import {
   AiUsageService,
   QuotaExceededError,
   SessionQuotaExceededError,
+  sessionDayKey,
 } from './ai-usage.service';
 
 describe('AiUsageService', () => {
@@ -99,7 +100,9 @@ describe('AiUsageService', () => {
     await expect(
       service.assertWithinSessionQuota('conv-1'),
     ).rejects.toBeInstanceOf(SessionQuotaExceededError);
-    expect(redis.get).toHaveBeenCalledWith('ai:session:tokens:conv-1');
+    expect(redis.get).toHaveBeenCalledWith(
+      `ai:session:tokens:conv-1:${sessionDayKey()}`,
+    );
   });
 
   it('会话级超限不影响日配额判断口径（读的是不同 key）', async () => {
@@ -119,14 +122,32 @@ describe('AiUsageService', () => {
     expect(redis.get).not.toHaveBeenCalled();
   });
 
-  it('recordSessionUsage 原子累加并设置 24h TTL', async () => {
+  it('recordSessionUsage 原子累加并按 48h 清理旧日期桶', async () => {
     await service.recordSessionUsage('conv-1', 42);
 
-    expect(redis.incrBy).toHaveBeenCalledWith('ai:session:tokens:conv-1', 42);
-    expect(redis.expire).toHaveBeenCalledWith(
-      'ai:session:tokens:conv-1',
-      24 * 60 * 60,
+    expect(redis.incrBy).toHaveBeenCalledWith(
+      `ai:session:tokens:conv-1:${sessionDayKey()}`,
+      42,
     );
+    expect(redis.expire).toHaveBeenCalledWith(
+      `ai:session:tokens:conv-1:${sessionDayKey()}`,
+      48 * 60 * 60,
+    );
+  });
+
+  it('跨天使用独立日期桶，不再永久累积', () => {
+    jest.useFakeTimers();
+    try {
+      jest.setSystemTime(new Date('2026-11-22T15:00:00Z'));
+      const day1 = sessionDayKey();
+      jest.setSystemTime(new Date('2026-11-23T15:00:00Z'));
+      const day2 = sessionDayKey();
+      expect(day1).not.toBe(day2);
+      expect(day1).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(day2).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('Redis 故障不打断对话（recordSessionUsage 吞掉异常）', async () => {

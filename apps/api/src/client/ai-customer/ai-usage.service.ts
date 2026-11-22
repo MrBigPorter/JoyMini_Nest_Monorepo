@@ -35,6 +35,16 @@ export class SessionQuotaExceededError extends Error {
 }
 
 /**
+ * 会话配额的日期桶（Asia/Manila，业务时区）。
+ * 返回 YYYY-MM-DD；跨天自动切到新 key，旧桶由 TTL 清理。
+ */
+export function sessionDayKey(now: Date = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Manila',
+  }).format(now);
+}
+
+/**
  * AI token 用量与日配额。
  *
  * 用量按「用户 + UTC 日期」聚合到 ai_usage_daily；
@@ -150,8 +160,18 @@ export class AiUsageService {
     return Number.isFinite(parsed) ? parsed : 50_000;
   }
 
-  private sessionKey(conversationId: string): string {
-    return `ai:session:tokens:${conversationId}`;
+  /**
+   * 会话配额按「自然日 + 会话」分桶。
+   *
+   * 旧实现 key 只含 conversationId，并且每条消息都把 TTL 续到 24h：
+   * 会话是永久的（ai_chat:{userId}），只要用户每天说话，计数器永远不过期，
+   * 攒够阈值后 AI 对该用户永久不可用。日期桶让计数每天归零。
+   */
+  private sessionKey(
+    conversationId: string,
+    day: string = sessionDayKey(),
+  ): string {
+    return `ai:session:tokens:${conversationId}:${day}`;
   }
 
   /** 会话累计 token 超限抛 SessionQuotaExceededError；limit <= 0 关闭。 */
@@ -185,8 +205,8 @@ export class AiUsageService {
     try {
       const key = this.sessionKey(conversationId);
       await this.redis.incrBy(key, tokens);
-      // TTL 24h：会话通常更短；过期后重新开始计数，不会无限增长
-      await this.redis.expire(key, 24 * 60 * 60);
+      // 日期桶本身每天换 key；48h 只是清理旧桶，不再靠续期重置配额。
+      await this.redis.expire(key, 48 * 60 * 60);
     } catch (err: any) {
       this.logger.warn(
         `[AiUsage] session usage record failed: conv=${conversationId}, reason=${err?.message ?? err}`,

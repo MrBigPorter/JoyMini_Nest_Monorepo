@@ -83,6 +83,7 @@ import {
   degradeToHuman,
   mergeHandoffCallback,
   OFFLINE_HANDOFF_REPLY,
+  QUOTA_EXCEEDED_REPLY,
 } from './ai-failure-handler';
 import { HandoffPresenceService } from '@api/common/chat/handoff/handoff-presence.service';
 import { isSensitiveRequest } from '@api/common/utils/sensitive-content';
@@ -751,7 +752,11 @@ export class AiCustomerService implements OnModuleDestroy {
       });
       traceRecorded = true;
     } catch (err: any) {
-      outcome = err instanceof QuotaExceededError ? 'quota_exceeded' : 'error';
+      outcome =
+        err instanceof QuotaExceededError ||
+        err instanceof SessionQuotaExceededError
+          ? 'quota_exceeded'
+          : 'error';
       // 取消触发的 AbortError 不是「模型故障」：不降级转人工、不广播 AI_ERROR，
       // 避免在会话里留下一条无意义的人工介入记录。
       if (callbacks.signal?.aborted) {
@@ -2572,6 +2577,31 @@ export class AiCustomerService implements OnModuleDestroy {
     triggerMessageId?: string,
   ): Promise<void> {
     this.logger.error(`[chatStream] error: ${err.message}`);
+
+    // 配额耗尽：给出真实原因，不伪装成模型故障或客服离线，也不转人工排队。
+    if (
+      err instanceof QuotaExceededError ||
+      err instanceof SessionQuotaExceededError
+    ) {
+      this.logger.warn(
+        `[chatStream] quota exceeded: conv=${conversationId ?? 'n/a'}, limit=${err.limit}, used=${err.used}`,
+      );
+      if (conversationId && userId) {
+        await this.routeNormalCompletion(
+          [{ type: 'ai', content: QUOTA_EXCEEDED_REPLY }],
+          userId,
+          conversationId,
+          memberIds,
+          [],
+          triggerMessageId,
+        ).catch((publishErr: any) => {
+          this.logger.warn(
+            `[chatStream] quota reply publish failed: ${publishErr?.message ?? publishErr}`,
+          );
+        });
+      }
+      return;
+    }
 
     // 策略型兜底：有明确政策答案的问题（KYC 时长、配送时效、券过期、
     // 余额查询失败）不要无差别转人工；先给固定安全回复。
