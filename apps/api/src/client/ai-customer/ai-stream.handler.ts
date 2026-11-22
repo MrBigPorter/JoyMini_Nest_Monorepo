@@ -7,6 +7,7 @@ import { emitStage } from '@api/common/logger/structured-logger';
 import { runWithContext } from '@api/common/logger/trace-context';
 import { incCounter } from '@api/common/metrics/metrics';
 import { redactPiiText } from '@api/common/utils/pii-redaction';
+import type { ActionContext } from '@api/client/ai-customer/action-context';
 
 const logger = new Logger('AiStreamHandler');
 
@@ -104,6 +105,10 @@ export async function handleEventStream(
    * 只作为数据传入，不写入 messages，避免污染对话与放大隐私数据。
    */
   userMemory = '',
+  /**
+   * 本轮从 DB 读取的最近一次写操作状态。只作为数据传入，不写进 messages。
+   */
+  actionContext: ActionContext | null = null,
 ): Promise<StreamUsageSummary> {
   return runWithContext({ userId }, async () => {
     const config: Record<string, any> = {
@@ -122,6 +127,7 @@ export async function handleEventStream(
         entryPoint: entryPoint ?? '',
         entryMetadata: metadata ?? {},
         userMemory,
+        actionContext,
       },
       config,
     );

@@ -60,6 +60,10 @@ import {
   formatContextSummary,
   trimContextToBudget,
 } from '@api/client/ai-customer/graph/utils/context-manager';
+import {
+  ActionContext,
+  formatActionContext,
+} from '@api/client/ai-customer/action-context';
 
 // ============================================================
 // Interfaces
@@ -94,6 +98,8 @@ export interface RunStandardAgentOptions {
   contextState?: ConversationContextState;
   /** 当前待确认操作（用于摘要保护，不让确认信息被裁掉）。 */
   pendingConfirm?: { action?: string } | null;
+  /** 服务端权威动作上下文；作为独立 SystemMessage 注入。 */
+  actionContext?: ActionContext | null;
   /** 覆盖默认 token 预算（测试/特殊 Agent 用）。 */
   contextTokenBudget?: number;
   /** 用户长期记忆（已格式化，作为独立 system 消息注入）。 */
@@ -111,6 +117,27 @@ export interface RunStandardAgentResult {
   contextMessagesCount: number;
   /** 本次执行期间累积的 flow 状态（可能被工具更新） */
   flowDataAccumulator?: FlowDataAccumulator;
+}
+
+/**
+ * 组装注入给 agent 的独立 system 消息。
+ *
+ * 这些消息不写进 state.messages：下一轮不会伪装成用户/AI 原话重复出现。
+ * 顺序固定为：结构化上下文 → 权威动作状态 → 用户长期记忆。
+ */
+export function buildAgentInjectedMessages(opts: {
+  contextState?: ConversationContextState;
+  pendingConfirm?: { action?: string } | null;
+  actionContext?: ActionContext | null;
+  userMemory?: string;
+}): SystemMessage[] {
+  const summary = formatContextSummary(opts.contextState, opts.pendingConfirm);
+  const actionContext = formatActionContext(opts.actionContext ?? null);
+  return [
+    summary ? new SystemMessage(summary) : null,
+    actionContext ? new SystemMessage(actionContext) : null,
+    opts.userMemory ? new SystemMessage(opts.userMemory) : null,
+  ].filter((item): item is SystemMessage => item !== null);
 }
 
 // ============================================================
@@ -190,13 +217,14 @@ export async function runStandardAgent(
   })}
 
 ${replyLanguageInstruction(lastHumanText)}`;
-  // 结构化摘要作为独立 system 消息注入：不写进 state.messages，
-  // 下一轮不会伪装成用户/AI 原话重复出现。
-  const summary = formatContextSummary(opts.contextState, opts.pendingConfirm);
-  const injected = [
-    summary ? new SystemMessage(summary) : null,
-    opts.userMemory ? new SystemMessage(opts.userMemory) : null,
-  ].filter((item): item is SystemMessage => item !== null);
+  // 结构化摘要 + 权威动作状态作为独立 system 消息注入：
+  // 不写进 state.messages，下一轮不会伪装成用户/AI 原话重复出现。
+  const injected = buildAgentInjectedMessages({
+    contextState: opts.contextState,
+    pendingConfirm: opts.pendingConfirm,
+    actionContext: opts.actionContext,
+    userMemory: opts.userMemory,
+  });
   const initialMessages = buildInitialMessages(
     systemPrompt,
     contextMessages,

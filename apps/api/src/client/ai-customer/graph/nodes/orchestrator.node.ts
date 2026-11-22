@@ -669,6 +669,8 @@ export const createOrchestratorNode =
               logger,
               flowDataAccumulator: flowAccumulator,
               contextState: nextContextState,
+              pendingConfirm: state.pendingConfirm,
+              actionContext: state.actionContext,
               userMemory: state.userMemory,
             });
 

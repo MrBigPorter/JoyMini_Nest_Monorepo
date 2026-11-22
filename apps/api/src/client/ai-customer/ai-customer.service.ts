@@ -29,6 +29,10 @@ import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service'
 import { AiMemoryService } from '@api/common/ai/ai-memory.service';
 import { AiActionConfirmService } from './ai-action-confirm.service';
 import { AiActionLifecycleService } from './ai-action-lifecycle.service';
+import {
+  AiActionContextService,
+  type ActionContext,
+} from './action-context';
 import { AiFeedbackService } from '@api/common/ai/ai-feedback.service';
 import {
   AiConversationDebugService,
@@ -140,6 +144,12 @@ export class AiCustomerService implements OnModuleDestroy {
      */
     @Optional()
     private readonly handoffPresence?: HandoffPresenceService,
+    /**
+     * 权威动作上下文（可选）：单测直接 new 时不注入，按「无历史动作」处理。
+     * 生产由 AiCustomerModule 提供。
+     */
+    @Optional()
+    private readonly actionContextService?: AiActionContextService,
   ) {}
 
   /**
@@ -615,6 +625,13 @@ export class AiCustomerService implements OnModuleDestroy {
           });
       }
 
+      // 过期之后再读：让动作上下文反映本轮真实状态（EXPIRED 而不是旧的 CONFIRM_CREATED）。
+      // 读取失败返回 null，不阻断对话。
+      const actionContext: ActionContext | null =
+        conversationId && this.actionContextService
+          ? await this.actionContextService.loadLatest(conversationId)
+          : null;
+
       // 查成员不能影响对话主流程：失败就退化为只发会话房间
       memberIds = await this.resolveMemberIds(conversationId);
 
@@ -637,6 +654,7 @@ export class AiCustomerService implements OnModuleDestroy {
         memberIds,
         callbacks.signal,
         userMemory,
+        actionContext,
       );
 
       // 异步抽取蒸馏记忆：失败只记日志，不影响本轮回复。
@@ -983,6 +1001,7 @@ export class AiCustomerService implements OnModuleDestroy {
     memberIds: string[],
     signal?: AbortSignal,
     userMemory = '',
+    actionContext: ActionContext | null = null,
   ): Promise<StreamUsageSummary> {
     return handleEventStream(
       this.compiledGraph!,
@@ -998,6 +1017,7 @@ export class AiCustomerService implements OnModuleDestroy {
       memberIds,
       signal,
       userMemory,
+      actionContext,
     );
   }
 

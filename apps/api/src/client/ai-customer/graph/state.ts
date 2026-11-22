@@ -190,6 +190,7 @@
 import { Annotation, messagesStateReducer } from '@langchain/langgraph';
 import { BaseMessage } from '@langchain/core/messages';
 import { LabelItem } from '@api/client/ai-customer/graph/types/agent-types';
+import type { ActionContext } from '@api/client/ai-customer/action-context';
 
 // ============================================================
 // Debug Info Types — 完整流水线追踪
@@ -482,6 +483,19 @@ export const AgentState = Annotation.Root({
     params: Record<string, any>;
     summary: Record<string, any>;
   } | null>({
+    reducer: (a, b) => b,
+    default: () => null,
+  }),
+
+  /**
+   * actionContext — 本轮从 DB 读取的最近一次写操作（权威状态）。
+   *
+   * 与 pendingConfirm 的区别：pendingConfirm 是「本轮 orchestrator 决定弹卡」，
+   * actionContext 是「服务端账本里这条动作到底处于什么状态」。两者都可能为 null，
+   * 但只有 actionContext 会因为新消息过期、handoff、多实例而反映真实状态。
+   * 每轮由 chatStream 读取后写入，agent prompt 以独立 SystemMessage 注入。
+   */
+  actionContext: Annotation<ActionContext | null>({
     reducer: (a, b) => b,
     default: () => null,
   }),
