@@ -125,16 +125,25 @@ export class ClientCouponService {
       let validEndAt = now;
 
       if (coupon.validType === 1) {
-        // 固定日期
+        // 固定日期：结束时间必须有；未开始/已结束都不能领
+        if (!coupon.validEndAt) {
+          throw new BadRequestException('Coupon has no valid period');
+        }
         validStartAt = coupon.validStartAt ?? now;
-        validEndAt = coupon.validEndAt ?? now;
+        validEndAt = coupon.validEndAt;
+        if (now < validStartAt) {
+          throw new BadRequestException('This coupon is not yet valid');
+        }
         if (now > validEndAt) {
           throw new BadRequestException('This coupon has expired');
         }
       } else {
-        // 领券后 N 天
+        // 领券后 N 天：没有有效天数会发一张立即过期的券
+        if (!coupon.validDays || coupon.validDays <= 0) {
+          throw new BadRequestException('Coupon has no valid period');
+        }
         validEndAt = new Date(
-          now.getTime() + (coupon.validDays || 0) * 24 * 60 * 60 * 1000,
+          now.getTime() + coupon.validDays * 24 * 60 * 60 * 1000,
         );
       }
 

@@ -284,3 +284,71 @@ describe('ClientCouponService.getClaimableCoupons · 过期券过滤', () => {
     expect(result.map((item) => item.couponId)).toEqual(['active']);
   });
 });
+
+// ==================================================================
+//  A-12：领取执行必须与可领取列表的有效期口径一致
+// ==================================================================
+describe('ClientCouponService.claimCoupon 有效期', () => {
+  it('固定窗口已过期 → 拒绝，不扣库存', async () => {
+    const { service, tx } = createService();
+    tx.coupon.findUnique.mockResolvedValue({
+      ...activeCoupon,
+      validType: 1,
+      validStartAt: new Date('2026-07-01T00:00:00Z'),
+      validEndAt: new Date('2026-08-10T00:00:00Z'),
+      validDays: null,
+    });
+
+    await expect(service.claimCoupon('u-1', 'coupon-1')).rejects.toThrow(
+      'This coupon has expired',
+    );
+    expect(tx.coupon.updateMany).not.toHaveBeenCalled();
+    expect(tx.userCoupon.create).not.toHaveBeenCalled();
+  });
+
+  it('固定窗口尚未开始 → 拒绝，不扣库存', async () => {
+    const { service, tx } = createService();
+    tx.coupon.findUnique.mockResolvedValue({
+      ...activeCoupon,
+      validType: 1,
+      validStartAt: new Date('2099-01-01T00:00:00Z'),
+      validEndAt: new Date('2099-12-31T00:00:00Z'),
+      validDays: null,
+    });
+
+    await expect(service.claimCoupon('u-1', 'coupon-1')).rejects.toThrow(
+      'This coupon is not yet valid',
+    );
+    expect(tx.coupon.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('固定窗口缺少结束时间 → 拒绝', async () => {
+    const { service, tx } = createService();
+    tx.coupon.findUnique.mockResolvedValue({
+      ...activeCoupon,
+      validType: 1,
+      validStartAt: null,
+      validEndAt: null,
+      validDays: null,
+    });
+
+    await expect(service.claimCoupon('u-1', 'coupon-1')).rejects.toThrow(
+      'Coupon has no valid period',
+    );
+    expect(tx.coupon.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('领取后 N 天但没有有效天数 → 拒绝', async () => {
+    const { service, tx } = createService();
+    tx.coupon.findUnique.mockResolvedValue({
+      ...activeCoupon,
+      validType: 2,
+      validDays: 0,
+    });
+
+    await expect(service.claimCoupon('u-1', 'coupon-1')).rejects.toThrow(
+      'Coupon has no valid period',
+    );
+    expect(tx.coupon.updateMany).not.toHaveBeenCalled();
+  });
+});

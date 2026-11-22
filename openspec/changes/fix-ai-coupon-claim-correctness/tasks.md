@@ -55,7 +55,7 @@ git commit -m "fix(coupon): hide expired and not-started coupons from claimable 
 - Modify: `apps/api/src/client/coupon/coupon.service.ts`（`claimCoupon`）
 - Test: `apps/api/src/client/coupon/coupon.service.spec.ts`
 
-- [ ] 2.1 写失败测试
+- [x] 2.1 写失败测试
 
 ```ts
 it('validType=2 且 validDays 为 0/null 时拒绝领取');
@@ -63,18 +63,18 @@ it('validType=1 已过期时拒绝领取（既有行为回归）');
 it('并发/限领顺序测试保持绿色');
 ```
 
-- [ ] 2.2 运行测试确认失败
+- [x] 2.2 运行测试确认失败
 
 Run: `yarn workspace @lucky/api test src/client/coupon/coupon.service.spec.ts`
 Expected: 新用例 FAIL
 
-- [ ] 2.3 实现
+- [x] 2.3 实现
 
 在 `validType===2` 分支计算有效期前，`validDays` 为空或 `<= 0` 直接抛错；不动库存扣减与限领检查顺序。
 
-- [ ] 2.4 运行测试确认通过 + 类型检查
+- [x] 2.4 运行测试确认通过 + 类型检查
 
-- [ ] 2.5 提交
+- [x] 2.5 提交
 
 ```bash
 git commit -m "fix(coupon): reject relative-day coupons without a valid period"
