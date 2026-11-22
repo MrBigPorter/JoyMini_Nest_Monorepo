@@ -31,6 +31,7 @@ import { TreasureService } from '@api/client/treasure/treasure.service';
 import { CategoryService } from '@api/client/category/category.service';
 import { AiActionConfirmService } from './ai-action-confirm.service';
 import { AiActionLifecycleService } from './ai-action-lifecycle.service';
+import { AiActionContextService } from './action-context';
 import { AiUsageService } from './ai-usage.service';
 import { OtpModule } from '../otp/otp.module';
 import { BullModule } from '@nestjs/bullmq';
@@ -75,10 +76,11 @@ const EXPECTED_AGENT_TAGS = AGENT_TAGS_FOR_TOOLS;
     StreamReservationStore,
     AiActionConfirmService,
     AiActionLifecycleService,
+    AiActionContextService,
     AiUsageService,
     AiProcessingProcessor,
   ],
-  exports: [AiCustomerService],
+  exports: [AiCustomerService, AiActionContextService],
 })
 export class AiCustomerModule implements OnApplicationBootstrap {
   private readonly logger = new Logger(AiCustomerModule.name);
