@@ -1,0 +1,43 @@
+{"id": "ri01", "input": "nasaan na ang order ko?", "expect": "order", "tags": ["realistic", "order"], "note": "Taglish 订单位置"}
+{"id": "ri02", "input": "i-cancel ang order ko", "expect": "order", "tags": ["realistic", "order"], "note": "Taglish 取消订单"}
+{"id": "ri03", "input": "maling item ang dumating", "expect": "order", "tags": ["realistic", "order"], "note": "Taglish 错货"}
+{"id": "ri04", "input": "hindi pa dumating, ilang araw na", "expect": "order", "tags": ["realistic", "order"], "note": "Taglish 延迟"}
+{"id": "ri05", "input": "order AIQ202611190001 status", "expect": "order", "tags": ["realistic", "order"], "note": "带订单号"}
+{"id": "ri06", "input": "may coupon ba ako?", "expect": "coupon", "tags": ["realistic", "coupon"], "note": "Taglish 查券"}
+{"id": "ri07", "input": "claim the fixture coupon", "expect": "coupon", "tags": ["realistic", "coupon", "mixed"], "note": "中英混合领券"}
+{"id": "ri08", "input": "bakit expired ang coupon ko?", "expect": "coupon", "tags": ["realistic", "coupon"], "note": "券过期"}
+{"id": "ri09", "input": "pwede pagsamahin ang coupon at sale?", "expect": "coupon", "tags": ["realistic", "coupon"], "note": "叠加规则（券域）"}
+{"id": "ri10", "input": "coupon code AIQFI10", "expect": "coupon", "tags": ["realistic", "coupon"], "note": "兑换码"}
+{"id": "ri11", "input": "magkano ang balance ko?", "expect": "wallet", "tags": ["realistic", "wallet"], "note": "Taglish 余额"}
+{"id": "ri12", "input": "paano mag-withdraw?", "expect": "wallet", "tags": ["realistic", "wallet"], "note": "提现操作"}
+{"id": "ri13", "input": "hindi pumasok ang deposit ko", "expect": "wallet", "tags": ["realistic", "wallet"], "note": "充值未到账"}
+{"id": "ri14", "input": "bakit pending ang withdrawal ko", "expect": "wallet", "tags": ["realistic", "wallet"], "note": "提现状态"}
+{"id": "ri15", "input": "magkano ang frozen balance", "expect": "wallet", "tags": ["realistic", "wallet"], "note": "冻结余额"}
+{"id": "ri16", "input": "paano magpalit ng password?", "expect": "user", "tags": ["realistic", "user"], "note": "改密"}
+{"id": "ri17", "input": "i-update ang phone number ko", "expect": "user", "tags": ["realistic", "user"], "note": "换绑手机"}
+{"id": "ri18", "input": "na-hack ang account ko", "expect": "user", "tags": ["realistic", "user"], "note": "账号安全"}
+{"id": "ri19", "input": "saan makikita ang account settings ko?", "expect": "user", "tags": ["realistic", "user"], "note": "账号设置入口"}
+{"id": "ri20", "input": "hanap ako ng bag", "expect": "product", "tags": ["realistic", "product"], "note": "Taglish 找商品"}
+{"id": "ri21", "input": "may size chart ba?", "expect": "product", "tags": ["realistic", "product"], "note": "尺码表"}
+{"id": "ri22", "input": "legit ba ang seller?", "expect": "product", "tags": ["realistic", "product"], "note": "卖家真实性"}
+{"id": "ri23", "input": "paano mag-review ng product?", "expect": "product", "tags": ["realistic", "product"], "note": "写评价"}
+{"id": "ri24", "input": "may ticket ba ako?", "expect": "lucky-draw", "tags": ["realistic", "lucky-draw"], "note": "抽奖券"}
+{"id": "ri25", "input": "paano sumali sa lucky draw?", "expect": "lucky-draw", "tags": ["realistic", "lucky-draw"], "note": "参与抽奖"}
+{"id": "ri26", "input": "kailan ang draw?", "expect": "lucky-draw", "tags": ["realistic", "lucky-draw"], "note": "开奖时间"}
+{"id": "ri27", "input": "paano i-claim ang prize?", "expect": "lucky-draw", "tags": ["realistic", "lucky-draw"], "note": "领奖"}
+{"id": "ri28", "input": "ano ang status ng KYC ko?", "expect": "kyc", "tags": ["realistic", "kyc"], "note": "KYC 状态"}
+{"id": "ri29", "input": "bakit rejected ang KYC?", "expect": "kyc", "tags": ["realistic", "kyc"], "note": "KYC 驳回"}
+{"id": "ri30", "input": "hindi ma-upload ang ID", "expect": "kyc", "tags": ["realistic", "kyc"], "note": "证件上传失败"}
+{"id": "ri31", "input": "paano mag-verify?", "expect": "kyc", "tags": ["realistic", "kyc"], "note": "实名流程"}
+{"id": "ri32", "input": "hello", "expect": "general", "tags": ["realistic", "general"], "note": "问候"}
+{"id": "ri33", "input": "salamat", "expect": "general", "tags": ["realistic", "general"], "note": "致谢"}
+{"id": "ri34", "input": "ano pangalan mo?", "expect": "general", "tags": ["realistic", "general"], "note": "闲聊"}
+{"id": "ri35", "input": "ano ang refund policy?", "expect": "rag", "tags": ["realistic", "rag"], "note": "退款政策"}
+{"id": "ri36", "input": "gaano katagal ang shipping?", "expect": "rag", "tags": ["realistic", "rag"], "note": "物流时效"}
+{"id": "ri37", "input": "paano i-return ang item?", "expect": "rag", "tags": ["realistic", "rag"], "note": "退货流程"}
+{"id": "ri38", "input": "ano ang privacy policy?", "expect": "rag", "tags": ["realistic", "rag"], "note": "隐私政策"}
+{"id": "ri39", "input": "嗯", "expect": "general", "tags": ["trap", "short"], "note": "极短输入"}
+{"id": "ri40", "input": "1", "expect": "general", "tags": ["trap", "short"], "note": "纯数字"}
+{"id": "ri41", "input": "ordr ko nasan na", "expect": "order", "tags": ["trap", "typo"], "note": "拼写错误"}
+{"id": "ri42", "input": "my order is late and I'm angry", "expect": "order", "tags": ["trap", "negative"], "note": "负面情绪但不改变意图"}
+{"id": "ri43", "input": "pano mag withdraw", "expect": "wallet", "tags": ["trap", "typo"], "note": "拼写错误"}

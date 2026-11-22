@@ -4,7 +4,7 @@
 #
 # 做三件事：
 #   1. 在容器内用 fixture 用户签一个 client token
-#   2. 在容器内签一个只读 admin token（judge 接口）
+#   2. 在容器内签一个 ADMIN token（judge 接口要求 ADMIN/SUPER_ADMIN）
 #   3. 调 run-task-eval.py：test-chat → 不同厂商 judge
 #
 # 前置：
@@ -43,7 +43,7 @@ EVAL_CLIENT_TOKEN=$(docker exec -e SUB="$FIXTURE_USER_ID" "$BACKEND" node -e '
 EVAL_TOKEN=$(docker exec -e SUB="eval-runner" "$BACKEND" node -e '
   const jwt = require("jsonwebtoken");
   process.stdout.write(jwt.sign(
-    { sub: process.env.SUB, role: "VIEWER", type: "admin", username: "eval-runner" },
+    { sub: process.env.SUB, role: "ADMIN", type: "admin", username: "eval-runner" },
     process.env.ADMIN_JWT_SECRET || process.env.JWT_SECRET,
     { expiresIn: "30m" },
   ));
