@@ -1120,3 +1120,55 @@ describe('confirmWithdrawOtp · DB 终态', () => {
     expect(wallet.applyWithdrawVerified).not.toHaveBeenCalled();
   });
 });
+
+describe('handlePendingActionConfirmation · 旧动作不劫持', () => {
+  it('很久以前的终态动作不拦截本次「确认」', async () => {
+    const { service, actionContext } = makeService();
+    actionContext.loadLatest.mockResolvedValue({
+      requestId: 'old-1',
+      action: 'withdraw',
+      status: 'EXPIRED',
+      summary: {},
+      params: { amount: 100, channelId: 5, account: '0917', accountName: 'P' },
+      expiresAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+      expired: true,
+    });
+    const publish = jest.spyOn(service as any, 'publishDeterministicReply');
+
+    const handled = await (service as any).handlePendingActionConfirmation({
+      userId: 'u1',
+      conversationId: 'c1',
+      message: '确认',
+      startedAt: Date.now(),
+    });
+
+    expect(handled).toBe(false);
+    expect(publish).not.toHaveBeenCalled();
+  });
+
+  it('刚刚过期的动作仍然确定性回复已过期', async () => {
+    const { service, actionContext } = makeService();
+    actionContext.loadLatest.mockResolvedValue({
+      requestId: 'recent-1',
+      action: 'withdraw',
+      status: 'EXPIRED',
+      summary: {},
+      params: {},
+      expiresAt: new Date(Date.now() - 5_000).toISOString(),
+      expired: true,
+    });
+    const publish = jest
+      .spyOn(service as any, 'publishDeterministicReply')
+      .mockResolvedValue(undefined);
+
+    const handled = await (service as any).handlePendingActionConfirmation({
+      userId: 'u1',
+      conversationId: 'c1',
+      message: '确认',
+      startedAt: Date.now(),
+    });
+
+    expect(handled).toBe(true);
+    expect(publish).toHaveBeenCalled();
+  });
+});

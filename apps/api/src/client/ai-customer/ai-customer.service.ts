@@ -103,6 +103,12 @@ const CHAOS_PREFIX = '__CHAOS__';
 /** Redis 开关名，自测脚本设置并带 TTL，忘删也会自己过期 */
 const CHAOS_KEY = 'ai:chaos:fail';
 
+/**
+ * 文字「确认」只绑定这个时间窗内的动作。
+ * 更早的终态动作（过期/已完成）不应劫持用户对当前上下文的确认。
+ */
+const CONFIRM_GATE_GRACE_MS = 10 * 60 * 1000;
+
 @Injectable()
 export class AiCustomerService implements OnModuleDestroy {
   private readonly logger = new Logger(AiCustomerService.name);
@@ -1973,6 +1979,16 @@ export class AiCustomerService implements OnModuleDestroy {
 
     const ctx = await this.actionContextService.loadLatest(args.conversationId);
     if (!ctx) return false;
+
+    // 只绑定「刚刚」的动作。几小时前的过期卡不应劫持用户对当前上下文的
+    // 「确认」：模型可能刚给了新的文字预览（还没建卡），此时回一句「已过期」
+    // 会把用户带进死路。终态动作超过宽限期就交给 graph 按当前上下文处理。
+    if (ctx.status !== 'CONFIRM_CREATED' && ctx.status !== 'CONFIRMED') {
+      const expiresAtMs = ctx.expiresAt ? Date.parse(ctx.expiresAt) : 0;
+      if (!expiresAtMs || Date.now() - expiresAtMs > CONFIRM_GATE_GRACE_MS) {
+        return false;
+      }
+    }
 
     if (ctx.status === 'CONFIRM_CREATED' && !ctx.expired) {
       // 旧卡片先作废，再发新卡；仍要求用户点卡片。
