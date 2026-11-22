@@ -2040,10 +2040,27 @@ export class AiCustomerService implements OnModuleDestroy {
     }
 
     try {
-      // 用户已经点了确认：非 OTP 动作在这里落 confirmedAt，再执行；
-      // 提现由 startWithdrawOtp 内部标记（它还要先发验证码）。
-      if (!entry.needsOtp) {
-        await this.actionLifecycle?.markConfirmed(requestId);
+      // 执行权威在 DB：令牌只是一把钥匙，必须对应一条仍可确认的动作记录。
+      // CAS 同时挡住「DB 已 EXPIRED/TRANSFERRED」与「两个并发确认」。
+      if (!requestId) {
+        throw new BadRequestException(
+          'Confirm request expired or already handled',
+        );
+      }
+      const cas = await this.prismaService.aiActionRequest.updateMany({
+        where: {
+          id: requestId,
+          status: 'CONFIRM_CREATED',
+          expiresAt: { gt: new Date() },
+        },
+        data: { status: 'CONFIRMED', confirmedAt: new Date() },
+      });
+      if (cas.count !== 1) {
+        const message = 'Confirm request expired or already handled';
+        await this.actionLifecycle?.markFailed(requestId, message);
+        incCounter('ai_action_total', { action, result: 'failed' });
+        this.emitActionResult(payload, false, message);
+        throw new BadRequestException(message);
       }
 
       const result = await entry.execute({
@@ -2289,7 +2306,6 @@ export class AiCustomerService implements OnModuleDestroy {
       userId,
       requestId,
     });
-    await this.actionLifecycle?.markConfirmed(requestId);
     const otpTtlSec = Number(process.env.OTP_TTL_SECONDS) || 300;
     return {
       needOtp: true,
@@ -2369,12 +2385,32 @@ export class AiCustomerService implements OnModuleDestroy {
       throw new BadRequestException(`Invalid withdraw parameters: ${detail}`);
     }
     try {
+      // 执行前再确认 DB 仍是 CONFIRMED：转人工/过期后即使是合法 OTP 也不能执行。
+      if (!consumed.requestId) {
+        throw new BadRequestException(
+          'Confirm request expired or already handled',
+        );
+      }
+      const cas = await this.prismaService.aiActionRequest.updateMany({
+        where: {
+          id: consumed.requestId,
+          status: 'CONFIRMED',
+          expiresAt: { gt: new Date() },
+        },
+        data: { status: 'EXECUTED', executedAt: new Date() },
+      });
+      if (cas.count !== 1) {
+        throw new BadRequestException(
+          'Confirm request expired or already handled',
+        );
+      }
+
       // OTP 已在上方核销：直接调用唯一执行点，不再重复验码。
       const result = await this.clientWalletService.applyWithdrawVerified(
         userId,
         dto,
       );
-      await this.actionLifecycle?.markExecuted(consumed.requestId, result);
+      await this.actionLifecycle?.attachResult(consumed.requestId, result);
       incCounter('ai_action_total', { action: 'withdraw', result: 'executed' });
       this.emitActionResult(
         consumed,

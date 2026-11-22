@@ -91,7 +91,9 @@ export class AiActionConfirmService {
 
     if (!raw) {
       // 不存在 / 已过期 / owner 不匹配，统一不区分以避免泄露 token 归属
-      this.logger.warn(`Token ${token} not consumable (missing/expired/owner)`);
+      this.logger.warn(
+        `Token ${token.slice(0, 8)}… not consumable (missing/expired/owner)`,
+      );
       return null;
     }
     return JSON.parse(raw as string);

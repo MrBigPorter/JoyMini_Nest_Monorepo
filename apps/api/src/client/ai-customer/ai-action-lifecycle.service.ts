@@ -42,6 +42,25 @@ export class AiActionLifecycleService {
     if (!input.conversationId) return null;
     const expiresAt = new Date(Date.now() + CONFIRM_TOKEN_TTL_SEC * 1000);
     try {
+      // 同一条用户消息重复触发时复用同一张卡片，避免签出两个都能执行的令牌。
+      if (input.messageId) {
+        const existing = await this.prisma.aiActionRequest.findFirst({
+          where: {
+            conversationId: input.conversationId,
+            action: input.action,
+            messageId: input.messageId,
+            status: 'CONFIRM_CREATED',
+          },
+          select: { id: true, expiresAt: true },
+        });
+        if (existing) {
+          return {
+            id: existing.id,
+            expiresAt: existing.expiresAt ?? expiresAt,
+          };
+        }
+      }
+
       const row = await this.prisma.aiActionRequest.create({
         data: {
           conversationId: input.conversationId,
@@ -67,32 +86,57 @@ export class AiActionLifecycleService {
 
   async markConfirmed(id?: string | null): Promise<void> {
     if (!id) return;
-    await this.updateStatus(id, 'CONFIRMED', {
-      confirmedAt: new Date(),
-    });
+    await this.updateStatus(
+      id,
+      'CONFIRMED',
+      { confirmedAt: new Date() },
+      ['CONFIRM_CREATED'],
+    );
   }
 
   async markExecuted(id?: string | null, result?: unknown): Promise<void> {
     if (!id) return;
-    await this.updateStatus(id, 'EXECUTED', {
-      executedAt: new Date(),
-      ...(result === undefined
-        ? {}
-        : { result: result as Prisma.InputJsonValue }),
-    });
+    await this.updateStatus(
+      id,
+      'EXECUTED',
+      {
+        executedAt: new Date(),
+        ...(result === undefined
+          ? {}
+          : { result: result as Prisma.InputJsonValue }),
+      },
+      ['CONFIRMED'],
+    );
+  }
+
+  /** 两段式提现：执行前已 CAS 到 EXECUTED，结果只补 result，不再迁移状态。 */
+  async attachResult(id?: string | null, result?: unknown): Promise<void> {
+    if (!id || result === undefined) return;
+    await this.updateStatus(
+      id,
+      'EXECUTED',
+      { result: result as Prisma.InputJsonValue },
+      ['EXECUTED'],
+    );
   }
 
   async markFailed(id?: string | null, error?: string): Promise<void> {
     if (!id) return;
-    await this.updateStatus(id, 'FAILED', {
-      error: error?.slice(0, 500) ?? 'unknown error',
-    });
+    await this.updateStatus(
+      id,
+      'FAILED',
+      { error: error?.slice(0, 500) ?? 'unknown error' },
+      ['CONFIRM_CREATED', 'CONFIRMED', 'EXECUTED'],
+    );
   }
 
   /** 用户主动取消：与 EXPIRED 区分，保留「谁在什么时候取消」的终态。 */
   async markCancelled(id?: string | null): Promise<void> {
     if (!id) return;
-    await this.updateStatus(id, 'CANCELLED');
+    await this.updateStatus(id, 'CANCELLED', {}, [
+      'CONFIRM_CREATED',
+      'CONFIRMED',
+    ]);
   }
 
   async markTransferred(conversationId: string): Promise<void> {
@@ -171,12 +215,20 @@ export class AiActionLifecycleService {
     id: string,
     status: AiActionStatus,
     extra: Prisma.AiActionRequestUpdateManyMutationInput = {},
+    from: AiActionStatus[] = [],
   ): Promise<void> {
     try {
-      await this.prisma.aiActionRequest.updateMany({
-        where: { id },
+      const result = await this.prisma.aiActionRequest.updateMany({
+        // 允许迁移列表把非法状态迁移挡在 SQL 层：EXPIRED 不会被迟到的
+        // EXECUTED 覆盖，审计终态可依赖。
+        where: from.length > 0 ? { id, status: { in: from } } : { id },
         data: { status, ...extra },
       });
+      if (from.length > 0 && result.count === 0) {
+        this.logger.warn(
+          `[action-lifecycle] transition skipped: ${id} -> ${status} (not in ${from.join('|')})`,
+        );
+      }
     } catch (err: any) {
       this.logger.warn(
         `[action-lifecycle] update ${id} -> ${status} failed: ${err?.message ?? err}`,

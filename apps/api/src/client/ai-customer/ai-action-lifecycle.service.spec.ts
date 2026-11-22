@@ -8,6 +8,7 @@ function makeService() {
         expiresAt: data.expiresAt,
       })),
       updateMany: jest.fn(async () => ({ count: 1 })),
+      findFirst: jest.fn(async () => null),
     },
   };
   return { service: new AiActionLifecycleService(prisma as any), prisma };
@@ -44,7 +45,7 @@ describe('AiActionLifecycleService', () => {
 
     expect(prisma.aiActionRequest.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: 'act-1' },
+        where: { id: 'act-1', status: { in: ['CONFIRMED'] } },
         data: expect.objectContaining({
           status: 'EXECUTED',
           executedAt: expect.any(Date),
@@ -73,7 +74,10 @@ describe('AiActionLifecycleService', () => {
 
     expect(prisma.aiActionRequest.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: 'act-1' },
+        where: {
+          id: 'act-1',
+          status: { in: ['CONFIRM_CREATED', 'CONFIRMED'] },
+        },
         data: { status: 'CANCELLED' },
       }),
     );

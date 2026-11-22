@@ -16,6 +16,9 @@ jest.mock('meilisearch', () => ({ Meilisearch: class {} }));
 function makeService() {
   const prisma = {
     user: { findUnique: jest.fn(async () => ({ phone: '13800000000' })) },
+    aiActionRequest: {
+      updateMany: jest.fn(async () => ({ count: 1 })),
+    },
   };
   const confirm = {
     peekPendingExecution: jest.fn(),
@@ -74,6 +77,7 @@ function pending(params: Record<string, any> = {}) {
     },
     summary: {},
     userId: 'u1',
+    requestId: 'act-1',
   };
 }
 

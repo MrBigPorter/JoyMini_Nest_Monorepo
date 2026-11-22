@@ -17,7 +17,10 @@ function makeService() {
     },
     chatMessage: { create: jest.fn(), findFirst: jest.fn() },
     conversation: { update: jest.fn() },
-    aiActionRequest: { findFirst: jest.fn() },
+    aiActionRequest: {
+      findFirst: jest.fn(),
+      updateMany: jest.fn(async () => ({ count: 1 })),
+    },
     paymentChannel: { findUnique: jest.fn() },
     user: { findUnique: jest.fn(async () => ({ phone: '09990000000' })) },
     $transaction: jest.fn(),
@@ -378,7 +381,7 @@ describe('confirmAction · 目录驱动执行', () => {
   });
 
   it('提现：确认后只发 OTP 并暂存，不执行提现', async () => {
-    const { service, confirm, lifecycle, otp, wallet } = makeService();
+    const { service, confirm, prisma, otp, wallet } = makeService();
     confirm.consume.mockResolvedValue(
       payload('withdraw', {
         amount: 500,
@@ -394,7 +397,15 @@ describe('confirmAction · 目录驱动执行', () => {
       expect.objectContaining({ phone: '09990000000' }),
     );
     expect(confirm.stagePendingExecution).toHaveBeenCalled();
-    expect(lifecycle.markConfirmed).toHaveBeenCalledWith('act-1');
+    expect(prisma.aiActionRequest.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: 'act-1',
+          status: 'CONFIRM_CREATED',
+        }),
+        data: expect.objectContaining({ status: 'CONFIRMED' }),
+      }),
+    );
     expect(wallet.applyWithdrawVerified).not.toHaveBeenCalled();
     expect(result).toEqual(expect.objectContaining({ needOtp: true }));
   });
@@ -705,5 +716,54 @@ describe('guardCompletionClaims · 发布事实闸门', () => {
     );
 
     expect(out[0].content).toBe('提现申请已提交');
+  });
+});
+
+describe('confirmAction · DB 权威 CAS', () => {
+  it('DB 已 EXPIRED 时即使令牌有效也拒绝执行', async () => {
+    const { service, confirm, prisma, lifecycle } = makeService();
+    confirm.consume.mockResolvedValue(
+      payload('claim_coupon', { couponId: 'coupon-1' }),
+    );
+    prisma.aiActionRequest.updateMany.mockResolvedValue({ count: 0 });
+    const execute = jest.spyOn(
+      (service as any).buildActionServices(),
+      'claimCoupon',
+    );
+
+    await expect(service.confirmAction('tok', 'u1')).rejects.toThrow(
+      'Confirm request expired or already handled',
+    );
+    expect(execute).not.toHaveBeenCalled();
+    expect(lifecycle.markFailed).toHaveBeenCalled();
+  });
+
+  it('两个并发确认只有一个拿到 CAS', async () => {
+    const { service, confirm, prisma } = makeService();
+    confirm.consume.mockResolvedValue(
+      payload('claim_coupon', { couponId: 'coupon-1' }),
+    );
+    prisma.aiActionRequest.updateMany
+      .mockResolvedValueOnce({ count: 1 })
+      .mockResolvedValueOnce({ count: 0 });
+
+    const results = await Promise.allSettled([
+      service.confirmAction('tok', 'u1'),
+      service.confirmAction('tok', 'u1'),
+    ]);
+
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    expect(results.filter((r) => r.status === 'rejected')).toHaveLength(1);
+  });
+
+  it('没有 requestId 的令牌 fail-closed', async () => {
+    const { service, confirm } = makeService();
+    confirm.consume.mockResolvedValue(
+      payload('claim_coupon', { couponId: 'coupon-1' }, { requestId: undefined }),
+    );
+
+    await expect(service.confirmAction('tok', 'u1')).rejects.toThrow(
+      'Confirm request expired or already handled',
+    );
   });
 });
