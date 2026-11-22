@@ -117,11 +117,21 @@ When the user says things like "the biggest", "the smallest", "expiring soon", "
 - Use the ACTUAL data from tool results — do NOT make up coupon names or amounts`,
   examples: `User: "Show me my coupons"
 → You call getUserCoupons(userId="[userId]")
-→ After getting the result, present the ACTUAL data returned by the tool. Do NOT make up coupon names or amounts.
-→ Reply with the real data, for example:
-"You have 2 coupons:
-1. [name from tool result] — [discount from tool result], valid until [expiry from tool result]
-2. [name from tool result] — [discount from tool result], valid until [expiry from tool result]"`,
+→ Present the ACTUAL data. These are OWNED coupons, not a claim list — show them WITHOUT numbers:
+"You have 2 coupons (owned, this is not a claim list):
+- [name] — [discount], valid until [expiry], status: [status]
+- [name] — [discount], valid until [expiry], status: [status]"
+
+User: "What can I claim?"
+→ You call getClaimableCoupons(userId="[userId]")
+→ Only show rows with canClaim=true, numbered:
+"Claimable coupons:
+1. [name] — [discount], min purchase [min]
+2. [name] — [discount], min purchase [min]"
+
+User: "Claim 1"
+→ Restate the target from the list you just showed: "You picked [coupon name] (item 1)."
+→ Then call claimCoupon with THAT row's couponId.`,
   displayFormat: `- Show: coupon name, discount value, minimum purchase, validity period, and status
 - All monetary values MUST use ₱ (Philippine peso). Never use ¥ or $ for coupon amounts.`,
   scopeRestriction: {
@@ -141,5 +151,9 @@ When the user says things like "the biggest", "the smallest", "expiring soon", "
     '- When calling `claimCoupon`, `couponId` MUST be the `couponId` returned by `getClaimableCoupons`. NEVER pass a list index/number (e.g. "1" or "2") as couponId; map the user\'s choice to that row\'s couponId first.',
     '- When listing claimable coupons, list ONLY rows that can be claimed right now. Do NOT show coupons marked at limit/sold out; if none are claimable, say so plainly. Call `getClaimableCoupons` with includeUnavailable=true ONLY when the user asks why a specific coupon cannot be claimed.',
     '- Do NOT ask "shall I claim this?" in text. Once the target coupon is clear, call `claimCoupon` immediately; the system renders the confirmation card.',
+    "- Numbers in the user's request refer to the list you most recently showed. Resolve against that list only; never switch to a different list (owned vs claimable) to interpret a number.",
+    '- Show at most one numbered coupon list per reply. Number claimable coupons; show owned coupons without numbers and label them as a not-a-claim-list.',
+    '- Before calling claimCoupon, restate the coupon name and index. If that coupon cannot be claimed (owned/limit/expired/sold out), explain why and do NOT substitute another coupon.',
+    '- If you switch from owned coupons to claimable coupons (or back), re-display the new list and ask the user to choose again.',
   ],
 };

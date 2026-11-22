@@ -120,7 +120,7 @@ git commit -m "fix(ai): truthful coupon card rejection and localized claim error
 - Test: `apps/api/src/client/ai-customer/graph/agents/prompt-builder.spec.ts` 或新增 coupon prompt 测试
 - Acceptance: 使用真实数据手工验证
 
-- [ ] 4.1 写失败测试（prompt 内容约束）
+- [x] 4.1 写失败测试（prompt 内容约束）
 
 ```ts
 it('coupon prompt 要求序号只绑定最近展示的列表');
@@ -129,15 +129,15 @@ it('coupon prompt 要求弹卡前复述券名与序号');
 it('coupon prompt 要求不可领时解释原因、不换券');
 ```
 
-- [ ] 4.2 运行测试确认失败
+- [x] 4.2 运行测试确认失败
 
-- [ ] 4.3 修改 prompt
+- [x] 4.3 修改 prompt
 
 - 明确「序号只指向最近展示列表」。
 - 默认先展示可领取（带编号），已持有随后展示（不带编号或标注不可领取）。
 - 弹卡前复述券名；不可领解释原因；切换列表重新展示。
 
-- [ ] 4.4 运行测试确认通过
+- [x] 4.4 运行测试确认通过
 
 - [ ] 4.5 手工验收（真实数据）
 
