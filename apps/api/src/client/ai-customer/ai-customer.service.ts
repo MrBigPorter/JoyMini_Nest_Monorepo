@@ -30,6 +30,10 @@ import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service'
 import { AiMemoryService } from '@api/common/ai/ai-memory.service';
 import { AiActionConfirmService } from './ai-action-confirm.service';
 import { isOtpCode, isShortAffirmation } from './confirmation-intent';
+import {
+  describeClaimRejection,
+  localizeClaimError,
+} from './coupon-claim-errors';
 import { resolveTurnStatus } from './turn-status';
 import {
   CLAIM_NOT_EXECUTED_REPLY,
@@ -1852,18 +1856,16 @@ export class AiCustomerService implements OnModuleDestroy {
       }
     }
     if (claimableLookupOk && !claimableCoupon) {
+      const rejection = await this.describeClaimRejectionFor(
+        userId,
+        params.couponId,
+      );
       await publishAiReply(
         this.prismaService,
         this.eventsGateway,
         this.eventEmitter,
         conversationId,
-        [
-          {
-            type: 'ai',
-            content:
-              '没有找到这张可领取的优惠券，可能已经领过或已下架。请从可领取列表里重新选择一张。',
-          },
-        ],
+        [{ type: 'ai', content: rejection }],
         userId,
         [],
       ).catch((err: any) => {
@@ -1984,6 +1986,25 @@ export class AiCustomerService implements OnModuleDestroy {
     }
 
     return { requestId: request?.id ?? null, created: true };
+  }
+
+  /** 守卫拒绝发卡时，查出真实原因用于用户提示；查询失败给通用提示。 */
+  private async describeClaimRejectionFor(
+    userId: string,
+    couponId: string,
+  ): Promise<string> {
+    try {
+      const [coupon, claimedCount] = await Promise.all([
+        this.prismaService.coupon.findUnique({ where: { id: couponId } }),
+        this.prismaService.userCoupon.count({ where: { userId, couponId } }),
+      ]);
+      return describeClaimRejection({ coupon, claimedCount });
+    } catch (err: any) {
+      this.logger.warn(
+        `[routeConfirm] describe claim rejection failed: ${err?.message ?? err}`,
+      );
+      return '这张券当前不可领取，请重新选择。';
+    }
   }
 
   /**
@@ -2291,9 +2312,15 @@ export class AiCustomerService implements OnModuleDestroy {
       return result;
     } catch (err: any) {
       const message = err?.message ?? String(err);
+      // 审计继续记原始英文错误；用户只看到中文可读结果。
+      const userMessage =
+        action === 'claim_coupon' ? localizeClaimError(message) : message;
       await this.actionLifecycle?.markFailed(requestId, message);
       incCounter('ai_action_total', { action, result: 'failed' });
-      this.emitActionResult(payload, false, message);
+      this.emitActionResult(payload, false, userMessage);
+      if (userMessage !== message) {
+        throw new BadRequestException(userMessage);
+      }
       throw err;
     }
   }

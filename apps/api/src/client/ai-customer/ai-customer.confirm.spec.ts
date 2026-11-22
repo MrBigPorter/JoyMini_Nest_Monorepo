@@ -23,6 +23,8 @@ function makeService() {
       findFirst: jest.fn(),
       updateMany: jest.fn(async (_args: any = {}) => ({ count: 1 })),
     },
+    coupon: { findUnique: jest.fn() },
+    userCoupon: { count: jest.fn(async () => 0) },
     paymentChannel: {
       findUnique: jest.fn(),
       findMany: jest.fn(async () => [{ id: 5, name: 'GCash Withdraw' }]),
@@ -1246,6 +1248,79 @@ describe('handleOtpInChat · 聊天框输验证码', () => {
     expect(publish).toHaveBeenCalledWith(
       expect.anything(),
       expect.stringContaining('验证码'),
+    );
+  });
+});
+
+describe('领券守卫 · 真实拒绝原因', () => {
+  it('过期券给出「已过期」，不是「没有找到」', async () => {
+    const { service, prisma } = makeService();
+    prisma.coupon.findUnique.mockResolvedValue({
+      id: 'coupon-1',
+      status: 1,
+      validType: 1,
+      validStartAt: new Date('2026-07-01T00:00:00Z'),
+      validEndAt: new Date('2026-08-10T00:00:00Z'),
+      validDays: null,
+      totalQuantity: 100,
+      issuedQuantity: 1,
+      perUserLimit: 10,
+    });
+
+    const reason = await (service as any).describeClaimRejectionFor(
+      'u1',
+      'coupon-1',
+    );
+
+    expect(reason).toContain('已过期');
+    expect(reason).not.toContain('没有找到');
+  });
+
+  it('已达限领给出对应原因', async () => {
+    const { service, prisma } = makeService();
+    prisma.coupon.findUnique.mockResolvedValue({
+      id: 'coupon-1',
+      status: 1,
+      validType: 2,
+      validDays: 7,
+      validStartAt: null,
+      validEndAt: null,
+      totalQuantity: 100,
+      issuedQuantity: 1,
+      perUserLimit: 1,
+    });
+    prisma.userCoupon.count.mockResolvedValue(1);
+
+    const reason = await (service as any).describeClaimRejectionFor(
+      'u1',
+      'coupon-1',
+    );
+
+    expect(reason).toContain('领取上限');
+  });
+});
+
+describe('confirmAction · 领券错误中文化', () => {
+  it('claimCoupon 返回英文过期错误 → 用户只看到中文', async () => {
+    const { service, confirm, prisma, coupon, gateway } = makeService();
+    confirm.consume.mockResolvedValue(
+      payload('claim_coupon', { couponId: 'coupon-1' }),
+    );
+    prisma.aiActionRequest.updateMany.mockResolvedValue({ count: 1 });
+    coupon.claimCoupon.mockRejectedValue(
+      new Error('This coupon has expired'),
+    );
+
+    await expect(service.confirmAction('tok', 'u1')).rejects.toThrow(
+      '这张券已过期',
+    );
+    expect(gateway.dispatchToUser).toHaveBeenCalledWith(
+      'u1',
+      'ai_action_result',
+      expect.objectContaining({
+        success: false,
+        message: expect.stringContaining('已过期'),
+      }),
     );
   });
 });

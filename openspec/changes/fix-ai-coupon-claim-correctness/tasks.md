@@ -86,7 +86,7 @@ git commit -m "fix(coupon): reject relative-day coupons without a valid period"
 - Modify: `apps/api/src/client/ai-customer/ai-customer.service.ts`（领券守卫、动作结果）
 - Test: `apps/api/src/client/ai-customer/ai-customer.confirm.spec.ts`
 
-- [ ] 3.1 写失败测试
+- [x] 3.1 写失败测试
 
 ```ts
 it('过期券不在可领取结果 → 不建卡、不写 CONFIRM_CREATED');
@@ -95,19 +95,19 @@ it('claimCoupon 返回 This coupon has expired → 用户结果中文化');
 it('已知四条错误均有中文映射');
 ```
 
-- [ ] 3.2 运行测试确认失败
+- [x] 3.2 运行测试确认失败
 
 Run: `yarn workspace @lucky/api test src/client/ai-customer/ai-customer.confirm.spec.ts`
 Expected: 新用例 FAIL
 
-- [ ] 3.3 实现
+- [x] 3.3 实现
 
 - `issueConfirmCard` 的 claim 守卫：匹配失败时按「过期/限领/抢光/不可领取」生成可读原因。
 - 动作结果发布前，对 `claim_coupon` 的已知错误做中文映射（仅 AI 层，不改服务层英文错误）。
 
-- [ ] 3.4 运行测试确认通过 + 类型检查
+- [x] 3.4 运行测试确认通过 + 类型检查
 
-- [ ] 3.5 提交
+- [x] 3.5 提交
 
 ```bash
 git commit -m "fix(ai): truthful coupon card rejection and localized claim errors"
