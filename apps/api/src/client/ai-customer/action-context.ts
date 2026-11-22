@@ -1,5 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { PrismaService } from '@api/common/prisma/prisma.service';
+// 注意：这里必须是值导入，不能用 `import type`。
+// Nest 的 DI 依赖 emitDecoratorMetadata 记录构造函数参数类型；
+// `import type` 会被擦除，元数据退化成 Object，运行时报
+// "Nest can't resolve dependencies of AiActionContextService".
+import { PrismaService } from '@api/common/prisma/prisma.service';
 
 export type ActionContextStatus =
   | 'CONFIRM_CREATED'
