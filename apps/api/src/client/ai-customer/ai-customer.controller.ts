@@ -12,6 +12,7 @@ import {
   Res,
   Logger,
   BadRequestException,
+  ForbiddenException,
   HttpException,
 } from '@nestjs/common';
 import { AiCustomerService } from './ai-customer.service';
@@ -71,6 +72,10 @@ export class AiCustomerController {
   @HttpCode(200)
   @ApiOperation({ summary: 'Test AI customer intent classification' })
   async testChat(@Body() dto: TestChatDto, @CurrentUserId() userId: string) {
+    // 调试入口绕过 gate/配额/卡片过期/outbox，生产环境必须关闭。
+    if (process.env.NODE_ENV === 'production') {
+      throw new ForbiddenException('test-chat is disabled in production');
+    }
     return this.aiCustomerService.testChat(
       dto.message,
       userId,
@@ -442,6 +447,10 @@ export class AiCustomerController {
             // 流处理中出错
             onError: (error: Error) => {
               sendSSE('error', { content: error.message || '服务器错误' });
+            },
+            // 转人工：与两阶段 SSE 保持一致，否则旧客户端收不到转接信号
+            onTransfer: (reason: string) => {
+              sendSSE('transfer', { reason });
             },
           },
         ),

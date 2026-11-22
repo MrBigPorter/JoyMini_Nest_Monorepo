@@ -83,6 +83,10 @@ export class AiMessageListener {
     private readonly aiFeedbackService: AiFeedbackService,
   ) {}
 
+  /**
+   * @deprecated 生产入口是 outbox → BullMQ → AiProcessingProcessor；
+   * src 内已无 `AI_MESSAGE_REQUESTED` emitter，本处理器仅保留给单测/旧事件。
+   */
   @OnEvent(CHAT_EVENTS.AI_MESSAGE_REQUESTED)
   async handleAiMessageRequest(payload: {
     conversationId: string;

@@ -1032,3 +1032,15 @@ describe('handleStreamError · 配额', () => {
     expect(onError).not.toHaveBeenCalled();
   });
 });
+
+describe('routeTransfer · 撤销待确认动作', () => {
+  it('转人工时把同会话待确认动作置 TRANSFERRED', async () => {
+    const { service, lifecycle } = makeService();
+
+    await (service as any)
+      .routeTransfer('u1', 'c1', 'explicit_request', { onTransfer: jest.fn() }, [], [], 'm1')
+      .catch(() => undefined);
+
+    expect(lifecycle.markTransferred).toHaveBeenCalledWith('c1');
+  });
+});

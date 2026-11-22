@@ -2,6 +2,7 @@ import {
   Injectable,
   Logger,
   BadRequestException,
+  NotFoundException,
   OnModuleDestroy,
   Optional,
 } from '@nestjs/common';
@@ -29,6 +30,7 @@ import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service'
 import { AiMemoryService } from '@api/common/ai/ai-memory.service';
 import { AiActionConfirmService } from './ai-action-confirm.service';
 import { isShortAffirmation } from './confirmation-intent';
+import { resolveTurnStatus } from './turn-status';
 import {
   CLAIM_NOT_EXECUTED_REPLY,
   detectCompletionClaim,
@@ -36,6 +38,7 @@ import {
 import { AiActionLifecycleService } from './ai-action-lifecycle.service';
 import {
   AiActionContextService,
+  maskActionSummary,
   type ActionContext,
 } from './action-context';
 import { AiFeedbackService } from '@api/common/ai/ai-feedback.service';
@@ -465,7 +468,13 @@ export class AiCustomerService implements OnModuleDestroy {
       userId: lastUser?.senderId ?? null,
       flowState,
       contextState: values.contextState ?? {},
-      pendingConfirm: values.pendingConfirm ?? null,
+      pendingConfirm: values.pendingConfirm
+        ? {
+            action: values.pendingConfirm.action,
+            params: maskActionSummary(values.pendingConfirm.params ?? {}),
+            summary: maskActionSummary(values.pendingConfirm.summary ?? {}),
+          }
+        : null,
       previousIntent: values.previousIntent ?? '',
       messages,
       diagnosis,
@@ -575,6 +584,11 @@ export class AiCustomerService implements OnModuleDestroy {
             `status=${gate?.status ?? 'unknown'}, ` +
             `handlerId=${gate?.handlerId ?? 'unknown'}`,
         );
+        // 人工处理中/已归档：待确认卡片不能继续 live，否则人工接管后
+        // 用户仍能点旧卡片执行写操作。
+        await this.actionLifecycle
+          ?.expireForConversation(conversationId, 'transferred')
+          .catch(() => undefined);
         callbacks.onDone();
         return;
       }
@@ -616,8 +630,23 @@ export class AiCustomerService implements OnModuleDestroy {
       // 会话级配额：只降级这一条对话，不牵连用户当天其他会话。
       await this.aiUsageService.assertWithinSessionQuota(conversationId);
 
-      // Step 2 — 准备 AI 对话线程
-      const threadId = await this.prepareThread(userId, conversationId);
+      // Step 2 — 准备 AI 对话线程。
+      // 成员校验失败（会话不存在或不是成员）必须在这里直接返回：
+      // 继续走 catch 会用调用方传入的 conversationId 去写消息/转人工，
+      // 认证用户就能把别人的会话踢出 AI 模式。
+      let threadId: string;
+      try {
+        threadId = await this.prepareThread(userId, conversationId);
+      } catch (err) {
+        if (err instanceof NotFoundException) {
+          this.logger.warn(
+            `[chatStream] conversation membership check failed, drop turn: conv=${conversationId ?? 'n/a'}`,
+          );
+          callbacks.onDone();
+          return;
+        }
+        throw err;
+      }
 
       // 文字「确认」必须绑定最近的写动作，且发生在「新消息作废旧卡」之前：
       // 否则用户打「确认」这件事本身会先把卡片置 EXPIRED，再被分类器判成别的意图。
@@ -891,6 +920,10 @@ export class AiCustomerService implements OnModuleDestroy {
     );
 
     if (consumed > 0) {
+      // 回到 AI 也意味着旧卡片作废：graph state 清了，DB 记录也要有终态。
+      await this.actionLifecycle
+        ?.expireForConversation(conversationId, 'transferred')
+        .catch(() => undefined);
       this.logger.log(
         `[chatStream] handoff reset consumed: conv=${conversationId}, thread=${threadId ?? 'none'}`,
       );
@@ -1062,7 +1095,7 @@ export class AiCustomerService implements OnModuleDestroy {
     memberIds: string[],
     triggerMessageId?: string,
   ): Promise<{
-    status: 'SUCCESS' | 'TRANSFERRED' | 'CONFIRM';
+    status: 'SUCCESS' | 'TRANSFERRED' | 'CONFIRM' | 'CONFIRM_REJECTED';
     finalState: any;
     newMessages: any[];
     ragSources: RagCitation[];
@@ -1126,6 +1159,8 @@ export class AiCustomerService implements OnModuleDestroy {
     // 先判定走向，再执行副作用；最后统一记一条 chat.done。
     const transferred = Boolean(finalState?.values?.transferToHuman);
     const confirmCard = Boolean(finalState?.values?.pendingConfirm);
+    // 真正发出去的卡片才算 CONFIRM；守卫拦下（如序号当 ID）记 CONFIRM_REJECTED。
+    let confirmCardCreated = false;
     // 原因由 orchestrator 经 transferReason 带下来（explicit_request / negative_sentiment / repeated_attempts）
     const transferReason =
       (finalState?.values?.transferReason as string | undefined) || 'unknown';
@@ -1146,12 +1181,13 @@ export class AiCustomerService implements OnModuleDestroy {
       );
     } else if (confirmCard) {
       // 路由 B — 确认卡片（只发提问者本人的私有房间，见 routeConfirm 注释）
-      await this.routeConfirm(
+      const issued = await this.routeConfirm(
         userId,
         conversationId,
         finalState,
         triggerMessageId,
       );
+      confirmCardCreated = issued.created;
       // 卡片轮次同样要收尾，否则客户端会一直停在「流式输入中」，
       // 卡片消失后留下一个闪烁光标和空气泡。
       if (conversationId) {
@@ -1191,7 +1227,11 @@ export class AiCustomerService implements OnModuleDestroy {
     });
 
     return {
-      status: transferred ? 'TRANSFERRED' : confirmCard ? 'CONFIRM' : 'SUCCESS',
+      status: resolveTurnStatus(
+        transferred,
+        confirmCard,
+        confirmCardCreated,
+      ),
       finalState,
       newMessages,
       ragSources,
@@ -1212,7 +1252,7 @@ export class AiCustomerService implements OnModuleDestroy {
     conversationId?: string;
     triggerMessageId?: string;
     startedAt: number;
-    status: 'SUCCESS' | 'TRANSFERRED' | 'CONFIRM';
+    status: 'SUCCESS' | 'TRANSFERRED' | 'CONFIRM' | 'CONFIRM_REJECTED';
     finalState: any;
     newMessages: any[];
     ragSources: RagCitation[];
@@ -1447,6 +1487,18 @@ export class AiCustomerService implements OnModuleDestroy {
     triggerMessageId?: string,
   ): Promise<void> {
     let targetConvId = conversationId;
+
+    // 转人工即撤销待确认动作：否则用户/攻击者还能用未过期的卡片完成提现。
+    if (targetConvId) {
+      await this.actionLifecycle
+        ?.markTransferred(targetConvId)
+        .catch((err: any) => {
+          this.logger.warn(
+            `[routeTransfer] markTransferred failed: ${err?.message ?? err}`,
+          );
+        });
+    }
+
     if (!targetConvId) {
       const conv = await this.prismaService.conversation.findFirst({
         where: { type: 'SUPPORT', members: { some: { userId } } },
