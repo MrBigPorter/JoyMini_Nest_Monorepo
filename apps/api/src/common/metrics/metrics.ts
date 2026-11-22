@@ -188,6 +188,12 @@ registerMetric(
   true,
 );
 registerMetric(
+  'ai_claim_guard_total',
+  'Completion claims without an executed action (result=rewritten)',
+  'counter',
+  true,
+);
+registerMetric(
   'withdraw_otp_missing_total',
   'Withdraw applications accepted without OTP while WITHDRAW_OTP_ENFORCE is off',
   'counter',

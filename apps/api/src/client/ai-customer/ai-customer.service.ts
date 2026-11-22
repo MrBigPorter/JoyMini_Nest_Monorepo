@@ -29,6 +29,10 @@ import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service'
 import { AiMemoryService } from '@api/common/ai/ai-memory.service';
 import { AiActionConfirmService } from './ai-action-confirm.service';
 import { isShortAffirmation } from './confirmation-intent';
+import {
+  CLAIM_NOT_EXECUTED_REPLY,
+  detectCompletionClaim,
+} from './claim-guard';
 import { AiActionLifecycleService } from './ai-action-lifecycle.service';
 import {
   AiActionContextService,
@@ -1063,9 +1067,18 @@ export class AiCustomerService implements OnModuleDestroy {
     const finalState = await this.compiledGraph!.getState({
       configurable: { thread_id: threadId },
     });
-    const newMessages = (finalState?.values?.messages ?? []).slice(prevCount);
+    let newMessages = (finalState?.values?.messages ?? []).slice(prevCount);
     const ragSources =
       (finalState?.values?.ragSources as RagCitation[] | undefined) ?? [];
+
+    // 事实闸门：本轮没有 EXECUTED 动作时，不允许发布「已提交/已领取」类完成语。
+    if (conversationId) {
+      newMessages = await this.guardCompletionClaims(
+        conversationId,
+        startedAt,
+        newMessages,
+      );
+    }
 
     // 运行时安全闸门：AI 只要在聊天里索要银行卡/身份证/密码，就不允许把
     // 这句原文发给用户；改写成安全话术并转人工。
@@ -1922,6 +1935,52 @@ export class AiCustomerService implements OnModuleDestroy {
         `[confirm-gate] publish reply failed: ${err?.message ?? err}`,
       );
     });
+  }
+
+  /**
+   * 发布前事实闸门：把没有 EXECUTED 动作支撑的「完成语」改写成未完成。
+   * 查询失败时 fail-open（保留原文）并记 warn，避免闸门本身阻断对话。
+   */
+  private async guardCompletionClaims(
+    conversationId: string,
+    startedAt: number,
+    messages: any[],
+  ): Promise<any[]> {
+    const claimIndexes = messages
+      .map((message, index) => ({ message, index }))
+      .filter(
+        ({ message }) =>
+          message?.type === 'ai' &&
+          detectCompletionClaim(String(message.content ?? '')),
+      );
+    if (claimIndexes.length === 0) return messages;
+
+    try {
+      const executed = await this.prismaService.aiActionRequest.findFirst({
+        where: {
+          conversationId,
+          status: 'EXECUTED',
+          updatedAt: { gte: new Date(startedAt) },
+        },
+        select: { id: true },
+      });
+      if (executed) return messages;
+    } catch (err: any) {
+      this.logger.warn(
+        `[claim-guard] evidence lookup failed: ${err?.message ?? err}`,
+      );
+      return messages;
+    }
+
+    const next = [...messages];
+    for (const { index } of claimIndexes) {
+      next[index] = { ...next[index], content: CLAIM_NOT_EXECUTED_REPLY };
+    }
+    incCounter('ai_claim_guard_total', { result: 'rewritten' });
+    this.logger.warn(
+      `[claim-guard] rewrote ${claimIndexes.length} unsupported completion claim(s), conv=${conversationId}`,
+    );
+    return next;
   }
 
   private recordConfirmationGateTrace(

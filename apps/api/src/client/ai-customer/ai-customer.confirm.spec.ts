@@ -17,6 +17,7 @@ function makeService() {
     },
     chatMessage: { create: jest.fn(), findFirst: jest.fn() },
     conversation: { update: jest.fn() },
+    aiActionRequest: { findFirst: jest.fn() },
     paymentChannel: { findUnique: jest.fn() },
     user: { findUnique: jest.fn(async () => ({ phone: '09990000000' })) },
     $transaction: jest.fn(),
@@ -651,5 +652,58 @@ describe('handlePendingActionConfirmation · 文字确认', () => {
 
     expect(handled).toBe(false);
     expect(actionContext.loadLatest).not.toHaveBeenCalled();
+  });
+});
+
+describe('guardCompletionClaims · 发布事实闸门', () => {
+  it('无 EXECUTED 动作时把完成语改写成未完成', async () => {
+    const { service, prisma } = makeService();
+    prisma.aiActionRequest.findFirst.mockResolvedValue(null);
+
+    const out = await (service as any).guardCompletionClaims(
+      'c1',
+      Date.now(),
+      [{ type: 'ai', content: '提现申请已提交' }],
+    );
+
+    expect(out[0].content).toContain('还没有真正完成');
+  });
+
+  it('有 EXECUTED 动作时保留原文', async () => {
+    const { service, prisma } = makeService();
+    prisma.aiActionRequest.findFirst.mockResolvedValue({ id: 'a1' });
+
+    const out = await (service as any).guardCompletionClaims(
+      'c1',
+      Date.now(),
+      [{ type: 'ai', content: '优惠券已领取' }],
+    );
+
+    expect(out[0].content).toBe('优惠券已领取');
+  });
+
+  it('普通信息与确认提示不被改写', async () => {
+    const { service } = makeService();
+
+    const out = await (service as any).guardCompletionClaims(
+      'c1',
+      Date.now(),
+      [{ type: 'ai', content: '提现需要 1-3 个工作日' }],
+    );
+
+    expect(out[0].content).toBe('提现需要 1-3 个工作日');
+  });
+
+  it('证据查询失败时 fail-open 保留原文', async () => {
+    const { service, prisma } = makeService();
+    prisma.aiActionRequest.findFirst.mockRejectedValue(new Error('db down'));
+
+    const out = await (service as any).guardCompletionClaims(
+      'c1',
+      Date.now(),
+      [{ type: 'ai', content: '提现申请已提交' }],
+    );
+
+    expect(out[0].content).toBe('提现申请已提交');
   });
 });
