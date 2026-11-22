@@ -36,9 +36,39 @@ describe('ToolRegistryService 能力标记（2.x）', () => {
     expect(registry.requiresConfirmation('deleteAddress')).toBe(true);
   });
 
-  it('未注册工具 fail-closed：不需要确认（调用方应另行拒绝）', () => {
-    expect(registry.requiresConfirmation('unknownTool')).toBe(false);
+  it('未注册工具 fail-closed：按需要确认处理', () => {
+    expect(registry.requiresConfirmation('unknownTool')).toBe(true);
     expect(registry.getCapability('unknownTool')).toBeUndefined();
+  });
+
+  it('internal 工具不进入写工具列表，但必须有声明', () => {
+    registry.registerMany([
+      tool('requestWithdrawOtp', { kind: 'internal', requiresOwnership: false }),
+      tool('updateFlowData', { kind: 'internal', requiresOwnership: false }),
+      tool('claimCoupon', { kind: 'write', requiresOwnership: true }),
+    ]);
+
+    expect(registry.getWriteToolNames()).toEqual(['claimCoupon']);
+    expect(registry.requiresConfirmation('requestWithdrawOtp')).toBe(false);
+    expect(
+      registry.getCapabilityKinds([
+        'requestWithdrawOtp',
+        'updateFlowData',
+        'claimCoupon',
+      ]),
+    ).toEqual(['internal', 'internal', 'write']);
+  });
+
+  it('update/set/bind/cancel 命名但未声明的工具阻断启动', () => {
+    registry.registerMany([tool('updateSomething')]);
+
+    expect(() =>
+      registry.auditCapabilities({
+        log: jest.fn(),
+        warn: jest.fn(),
+        error: jest.fn(),
+      }),
+    ).toThrow(/without a capability declaration/);
   });
 
   it('启动自检列出写工具，不产生缺失能力告警', () => {

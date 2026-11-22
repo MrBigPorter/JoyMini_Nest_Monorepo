@@ -57,6 +57,8 @@ export const createFlowTools = (): TaggedTool[] => {
         },
       ),
       displayName: 'Updating...',
+      // 不弹卡片，但会写 flowState：如实声明 internal，别混进 read。
+      capability: { kind: 'internal', requiresOwnership: false },
       tags: ['flow'],
     },
 
@@ -116,6 +118,8 @@ export const createFlowTools = (): TaggedTool[] => {
         },
       ),
       displayName: 'Updating...',
+      // 不弹卡片，但会写 flowState：如实声明 internal，别混进 read。
+      capability: { kind: 'internal', requiresOwnership: false },
       tags: ['flow'],
     },
   ];

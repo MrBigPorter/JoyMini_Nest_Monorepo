@@ -14,8 +14,13 @@ import {
  * tags 就像超市商品的条形码——扫一下就知道属于哪个货架。
  */
 export interface ToolCapability {
-  /** read = 只读；write = 修改业务状态，必须走用户确认 */
-  kind: 'read' | 'write';
+  /**
+   * read = 只读；
+   * write = 修改业务状态，必须走用户确认；
+   * internal = 有副作用但属于流程内部动作（发/验 OTP、写 flowState），
+   *   不弹卡片，但必须显式声明，不能混进 read 假装无副作用。
+   */
+  kind: 'read' | 'write' | 'internal';
   /** 写操作是否要求目标数据属于当前用户 */
   requiresOwnership: boolean;
 }
@@ -140,9 +145,23 @@ export class ToolRegistryService {
       ?.capability;
   }
 
-  /** 是否需要用户确认：唯一判据是 capability.kind === 'write' */
+  /**
+   * 是否需要用户确认：唯一判据是 capability.kind === 'write'。
+   * 未注册工具按「需要确认」处理（fail-closed）：宁可多弹一张卡，
+   * 也不能让一个未登记的工具绕过确认直接执行。
+   */
   requiresConfirmation(toolName: string): boolean {
-    return this.getCapability(toolName)?.kind === 'write';
+    const capability = this.getCapability(toolName);
+    return capability === undefined ? true : capability.kind === 'write';
+  }
+
+  /** 自检/测试用：批量读取能力类型。 */
+  getCapabilityKinds(
+    names: string[],
+  ): Array<'read' | 'write' | 'internal'> {
+    return names.map(
+      (name) => this.getCapability(name)?.kind ?? 'read',
+    );
   }
 
   /** 所有写工具名（供启动自检/审计） */
@@ -197,7 +216,7 @@ export class ToolRegistryService {
     //    显式声明为 read 的工具视为「有意为之」（如 OTP 申请/校验是辅助步骤），
     //    只有完全没写 capability 的才拦。
     const sideEffectPattern =
-      /^(apply|claim|create|delete|draw|redeem|request|verify|submit|pay)/i;
+      /^(apply|claim|create|delete|draw|redeem|request|verify|submit|pay|update|set|bind|cancel)/i;
     const suspicious = this.allTaggedTools
       .filter(
         (t) => !t.capabilityDeclared && sideEffectPattern.test(t.tool.name),
@@ -215,6 +234,15 @@ export class ToolRegistryService {
       if (logger.error) logger.error(message);
       else logger.warn(message);
       throw new Error(message);
+    }
+
+    const internalTools = this.allTaggedTools
+      .filter((t) => t.capability?.kind === 'internal')
+      .map((t) => t.tool.name);
+    if (internalTools.length > 0) {
+      logger.log(
+        `[ToolRegistry] internal side-effect tools (no card, declared): ${internalTools.join(', ')}`,
+      );
     }
 
     const undeclared = this.allTaggedTools
