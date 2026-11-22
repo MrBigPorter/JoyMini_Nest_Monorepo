@@ -51,3 +51,14 @@ export function isShortAffirmation(text: string): boolean {
   const normalized = normalize(text ?? '');
   return normalized.length > 0 && AFFIRMATIONS.has(normalized);
 }
+
+/**
+ * 6 位数字验证码。
+ *
+ * 用户经常直接在聊天框里输验证码，而不是点卡片里的输入框。
+ * 当存在 CONFIRMED 的提现动作时，这类消息应作为 OTP 提交处理，
+ * 而不是当成新的提现请求再建一张卡。
+ */
+export function isOtpCode(text: string): boolean {
+  return /^\d{6}$/.test((text ?? '').trim());
+}

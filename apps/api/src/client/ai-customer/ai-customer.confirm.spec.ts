@@ -1175,3 +1175,77 @@ describe('handlePendingActionConfirmation · 旧动作不劫持', () => {
     expect(publish).toHaveBeenCalled();
   });
 });
+
+describe('handleOtpInChat · 聊天框输验证码', () => {
+  it('有 CONFIRMED 动作时，6 位数字直接走 OTP 校验', async () => {
+    const { service, actionContext } = makeService();
+    actionContext.loadLatest.mockResolvedValue({
+      requestId: 'act-1',
+      action: 'withdraw',
+      status: 'CONFIRMED',
+      summary: {},
+      params: { amount: 100, channelId: 5, account: '0917', accountName: 'P' },
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      expired: false,
+    });
+    const verify = jest
+      .spyOn(service as any, 'confirmWithdrawOtp')
+      .mockResolvedValue({ withdrawId: 'w-1' });
+
+    const handled = await (service as any).handleOtpInChat({
+      userId: 'u1',
+      conversationId: 'c1',
+      message: '123456',
+      startedAt: Date.now(),
+    });
+
+    expect(handled).toBe(true);
+    expect(verify).toHaveBeenCalledWith('123456', 'u1');
+  });
+
+  it('没有 CONFIRMED 动作时，6 位数字不拦截', async () => {
+    const { service, actionContext } = makeService();
+    actionContext.loadLatest.mockResolvedValue(null);
+
+    const handled = await (service as any).handleOtpInChat({
+      userId: 'u1',
+      conversationId: 'c1',
+      message: '123456',
+      startedAt: Date.now(),
+    });
+
+    expect(handled).toBe(false);
+  });
+
+  it('验证码错误时给出可读提示，不进入 graph', async () => {
+    const { service, actionContext } = makeService();
+    actionContext.loadLatest.mockResolvedValue({
+      requestId: 'act-1',
+      action: 'withdraw',
+      status: 'CONFIRMED',
+      summary: {},
+      params: {},
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      expired: false,
+    });
+    jest
+      .spyOn(service as any, 'confirmWithdrawOtp')
+      .mockRejectedValue(new Error('Invalid OTP code'));
+    const publish = jest
+      .spyOn(service as any, 'publishDeterministicReply')
+      .mockResolvedValue(undefined);
+
+    const handled = await (service as any).handleOtpInChat({
+      userId: 'u1',
+      conversationId: 'c1',
+      message: '000000',
+      startedAt: Date.now(),
+    });
+
+    expect(handled).toBe(true);
+    expect(publish).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.stringContaining('验证码'),
+    );
+  });
+});

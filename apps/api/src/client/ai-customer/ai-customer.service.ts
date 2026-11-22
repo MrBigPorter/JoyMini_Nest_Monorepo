@@ -29,7 +29,7 @@ import { PromptResolverService } from '@api/client/ai-customer/knowledge/prompt-
 import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service';
 import { AiMemoryService } from '@api/common/ai/ai-memory.service';
 import { AiActionConfirmService } from './ai-action-confirm.service';
-import { isShortAffirmation } from './confirmation-intent';
+import { isOtpCode, isShortAffirmation } from './confirmation-intent';
 import { resolveTurnStatus } from './turn-status';
 import {
   CLAIM_NOT_EXECUTED_REPLY,
@@ -655,6 +655,21 @@ export class AiCustomerService implements OnModuleDestroy {
 
       // 会话级配额：只降级这一条对话，不牵连用户当天其他会话。
       await this.aiUsageService.assertWithinSessionQuota(conversationId);
+
+      // 聊天框里的 6 位数字：有 CONFIRMED 提现时直接当 OTP 提交。
+      if (conversationId) {
+        const otpHandled = await this.handleOtpInChat({
+          userId,
+          conversationId,
+          message,
+          startedAt,
+          triggerMessageId,
+        });
+        if (otpHandled) {
+          callbacks.onDone();
+          return;
+        }
+      }
 
       // 文字「确认」必须绑定最近的写动作，且发生在「新消息作废旧卡」之前：
       // 否则用户打「确认」这件事本身会先把卡片置 EXPIRED，再被分类器判成别的意图。
@@ -2051,6 +2066,43 @@ export class AiCustomerService implements OnModuleDestroy {
     return true;
   }
 
+  /**
+   * 聊天框里的 6 位数字：如果当前有 CONFIRMED 的提现动作，直接当作 OTP 提交。
+   *
+   * 用户习惯在底部聊天框输验证码；如果放行给 graph，模型会把它当成新的
+   * 提现请求再建一张卡，和待执行任务冲突（实测会报「已有待验证的提现」）。
+   */
+  private async handleOtpInChat(args: {
+    userId: string;
+    conversationId: string;
+    message: string;
+    startedAt: number;
+    triggerMessageId?: string;
+  }): Promise<boolean> {
+    if (!isOtpCode(args.message)) return false;
+    if (!this.actionContextService) return false;
+
+    const ctx = await this.actionContextService.loadLatest(args.conversationId);
+    if (!ctx || ctx.status !== 'CONFIRMED') return false;
+
+    try {
+      await this.confirmWithdrawOtp(args.message.trim(), args.userId);
+      this.recordConfirmationGateTrace(args, 'OTP_VERIFIED', ctx);
+    } catch (err: any) {
+      this.recordConfirmationGateTrace(args, 'OTP_FAILED', ctx);
+      // 验码失败没有终态结果事件；给用户一条可读提示。
+      // 其他错误（CAS 失败/执行失败）已经由 confirmWithdrawOtp 自己发过结果。
+      const message = String(err?.message ?? '');
+      if (/Invalid OTP|No pending withdraw/i.test(message)) {
+        await this.publishDeterministicReply(
+          args,
+          '验证码不正确或已过期，请重新发送验证码后再试。',
+        );
+      }
+    }
+    return true;
+  }
+
   private async publishDeterministicReply(
     args: { userId: string; conversationId: string; triggerMessageId?: string },
     content: string,
@@ -2120,7 +2172,13 @@ export class AiCustomerService implements OnModuleDestroy {
 
   private recordConfirmationGateTrace(
     args: { userId: string; conversationId: string; startedAt: number; message: string; triggerMessageId?: string },
-    status: 'CONFIRM_REISSUED' | 'CONFIRM_REJECTED' | 'OTP_PENDING' | 'CONFIRM_EXPIRED',
+    status:
+      | 'CONFIRM_REISSUED'
+      | 'CONFIRM_REJECTED'
+      | 'OTP_PENDING'
+      | 'CONFIRM_EXPIRED'
+      | 'OTP_VERIFIED'
+      | 'OTP_FAILED',
     ctx: ActionContext,
   ): void {
     if (!this.traceService) return;
