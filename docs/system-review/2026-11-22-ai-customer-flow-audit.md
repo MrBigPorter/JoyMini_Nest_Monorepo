@@ -199,3 +199,37 @@
 - 生产 OTP 固定码（T1-1 有意配置）。
 - 取消接口的 `requestId` 校验需要 Flutter 同步改动。
 - `ai_action_requests` 是否补唯一约束/FK（需迁移）。
+
+## 7. 修复状态（2026-11-23）
+
+> 计划：[2026-11-23-ai-customer-trustworthy-execution](../superpowers/plans/2026-11-23-ai-customer-trustworthy-execution.md)。T1–T11 已实现并提交在 `feat/ai-ops-operator-console`。
+
+| 发现 | 状态 | 落地 |
+|---|---|---|
+| A-1 币种 ₱/¥ | ✅ 已修 | `ClaimableCouponResponseDto.currency` + 工具填 PHP + coupon prompt 强制 ₱（T8） |
+| A-2 序号当 couponId | ✅ 部分修复 | 工具事实落盘后模型能拿到真实 ID（T3）；守卫保留，用于真正的不存在 ID |
+| A-3 trace 假 CONFIRM | ✅ 已修 | `resolveTurnStatus`：卡片未创建记 `CONFIRM_REJECTED`（T11） |
+| A-4 手续费漏费率 | ✅ 已修 | DTO 暴露 `feeRate`；卡片展示渠道名/手续费/到账（T8） |
+| A-5 配额误报客服离线 | ✅ 已修 | `QUOTA_EXCEEDED_REPLY`，配额错误不再走 `degradeToHuman`（T10） |
+| A-6 配额永不重置 | ✅ 已修 | 会话配额改为 `conversationId + Asia/Manila 日期` 桶（T10） |
+| A-7 双重确认 | ⏸ 未改 | 仍为「文字预览 → 用户确认 → 卡片」；留待产品决策 |
+| A-8 渠道当 ID / 类型 | ✅ 已修 | 工具事实带真实 `channelId`；`applyWithdrawVerified` 校验 `type=2`；卡片拒发充值渠道（T8） |
+| A-9 卡片显示「渠道 #1」 | ✅ 已修 | `buildFields` 使用 `channelName`（T8） |
+| A-10 过期后幻觉「已提交」 | ✅ 已修 | 短确认确定性路由（T4）+ 发布事实闸门（T5） |
+| A-11 过期无提示 | ✅ 后端已修 | 文字确认对终态卡片返回「已过期/已处理」（T4）；前端倒计时仍需回归 |
+| 21 生产 OTP 固定码 | ⏸ Blocked | 产品决策；计划未擅自改 |
+| 22 handoff 不撤销动作 | ✅ 已修 | `routeTransfer` 调 `markTransferred`；gate/reset 作废 DB 卡片（T11） |
+| 23 成员校验越权 | ✅ 已修 | `prepareThread` 的 404 直接收尾，不写 trace/不转人工（T11） |
+| 24 buildParams 死代码 | ✅ 已修 | `issueConfirmCard` 用目录白名单生成执行参数（T8） |
+| 25 完整账号泄露 | ✅ 已修 | `summary` 服务端渲染并掩码；调试快照也掩码（T8/T11） |
+| 26 令牌明文日志 | ✅ 已修 | 只打印前 8 位（T6） |
+| 27 卡片签发无幂等 | ✅ 已修 | 同消息同动作复用 `CONFIRM_CREATED` 行（T6） |
+| 28 OTP 5N 尝试 | ✅ 已修 | 重发即作废旧 PENDING（T7） |
+| 29 生命周期非状态机 | ✅ 已修 | `updateStatus` 带允许迁移列表（T6） |
+| 30 取消无令牌/单 pending | ✅ 部分修复 | pending 用 `setNx` 单占位；取消支持 `requestId` 绑定，旧客户端保留 fallback+warn（T7） |
+| 31 改地址清空姓名 | ✅ 已修 | 局部更新先读当前地址做兜底（T8） |
+| 32 调试接口泄露 | ✅ 已修 | `pendingConfirm` 的 params/summary 掩码（T11） |
+| 33 自检正则/未知工具 | ✅ 已修 | 正则补 update/set/bind/cancel；未知工具 fail-closed（T9） |
+| 34 目录外动作发死卡 | ✅ 已修 | `issueConfirmCard` 无目录项不发卡（T8） |
+
+**仍未闭环**：A-7（双重确认，产品决策）、21（生产 OTP，产品决策）、Flutter 侧 `requestId` 与卡片倒计时的回归。
