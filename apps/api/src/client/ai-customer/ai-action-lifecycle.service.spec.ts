@@ -112,3 +112,48 @@ describe('AiActionLifecycleService', () => {
     );
   });
 });
+
+describe('AiActionLifecycleService · 转人工撤销', () => {
+  it('markTransferred 同时作废 CONFIRMED（待 OTP 提现）', async () => {
+    const { service, prisma } = makeService();
+    await service.markTransferred('c1');
+
+    expect(prisma.aiActionRequest.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          conversationId: 'c1',
+          status: { in: ['REQUESTED', 'CONFIRM_CREATED', 'CONFIRMED'] },
+        },
+        data: { status: 'TRANSFERRED' },
+      }),
+    );
+  });
+
+  it('transferred 过期包含 CONFIRMED', async () => {
+    const { service, prisma } = makeService();
+    await service.expireForConversation('c1', 'transferred');
+
+    expect(prisma.aiActionRequest.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          conversationId: 'c1',
+          status: { in: ['REQUESTED', 'CONFIRM_CREATED', 'CONFIRMED'] },
+        },
+      }),
+    );
+  });
+
+  it('superseded（新消息）不误伤 CONFIRMED 等待中的提现', async () => {
+    const { service, prisma } = makeService();
+    await service.expireForConversation('c1');
+
+    expect(prisma.aiActionRequest.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          conversationId: 'c1',
+          status: { in: ['REQUESTED', 'CONFIRM_CREATED'] },
+        },
+      }),
+    );
+  });
+});

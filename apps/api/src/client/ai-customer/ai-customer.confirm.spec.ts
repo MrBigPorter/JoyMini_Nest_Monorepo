@@ -21,7 +21,7 @@ function makeService() {
     conversation: { update: jest.fn() },
     aiActionRequest: {
       findFirst: jest.fn(),
-      updateMany: jest.fn(async () => ({ count: 1 })),
+      updateMany: jest.fn(async (_args: any = {}) => ({ count: 1 })),
     },
     paymentChannel: { findUnique: jest.fn() },
     user: { findUnique: jest.fn(async () => ({ phone: '09990000000' })) },
@@ -1005,20 +1005,28 @@ describe('issueConfirmCard · 白名单与展示', () => {
 
 describe('handleStreamError · 配额', () => {
   it('配额耗尽给出专门话术，不转人工、不通知 onError', async () => {
-    const { service } = makeService();
+    const { service, gateway } = makeService();
     const routeNormal = jest
       .spyOn(service as any, 'routeNormalCompletion')
       .mockResolvedValue(undefined);
     const onError = jest.fn();
+    const onDone = jest.fn();
 
     await (service as any).handleStreamError(
       new SessionQuotaExceededError(1000, 1200),
       'hi',
       'u1',
       'c1',
-      { onError },
+      { onError, onDone },
       [],
       'm1',
+    );
+
+    expect(onDone).toHaveBeenCalled();
+    expect(gateway.dispatchToUser).toHaveBeenCalledWith(
+      'u1',
+      expect.anything(),
+      expect.objectContaining({ conversationId: 'c1' }),
     );
 
     expect(routeNormal).toHaveBeenCalledWith(
@@ -1042,5 +1050,73 @@ describe('routeTransfer · 撤销待确认动作', () => {
       .catch(() => undefined);
 
     expect(lifecycle.markTransferred).toHaveBeenCalledWith('c1');
+  });
+
+  it('转人工同时清掉待 OTP 任务', async () => {
+    const { service, confirm } = makeService();
+
+    await (service as any)
+      .routeTransfer('u1', 'c1', 'explicit_request', { onTransfer: jest.fn() }, [], [], 'm1')
+      .catch(() => undefined);
+
+    expect(confirm.clearPendingExecution).toHaveBeenCalledWith('u1');
+  });
+});
+
+describe('confirmAction · OTP 窗口', () => {
+  it('提现确认时把 expiresAt 延长到 OTP 有效期，而不是卡片 60s', async () => {
+    const { service, confirm, prisma } = makeService();
+    confirm.consume.mockResolvedValue(
+      payload('withdraw', {
+        amount: 100,
+        channelId: 5,
+        account: '0917',
+        accountName: 'P',
+      }),
+    );
+    const before = Date.now();
+
+    await (service as any).confirmAction('tok', 'u1');
+
+    const updateArgs = prisma.aiActionRequest.updateMany.mock.calls[0][0];
+    expect(updateArgs.data.expiresAt).toBeInstanceOf(Date);
+    expect(updateArgs.data.expiresAt.getTime()).toBeGreaterThanOrEqual(
+      before + 300_000,
+    );
+  });
+
+  it('非 OTP 动作不延长 expiresAt', async () => {
+    const { service, confirm, prisma } = makeService();
+    confirm.consume.mockResolvedValue(
+      payload('claim_coupon', { couponId: 'coupon-1' }),
+    );
+
+    await (service as any).confirmAction('tok', 'u1');
+
+    const updateArgs = prisma.aiActionRequest.updateMany.mock.calls[0][0];
+    expect(updateArgs.data.expiresAt).toBeUndefined();
+  });
+});
+
+describe('confirmWithdrawOtp · DB 终态', () => {
+  it('转人工后（DB 已非 CONFIRMED）输码也不执行', async () => {
+    const { service, confirm, prisma, wallet } = makeService();
+    const pendingPayload = {
+      ...payload('withdraw', {
+        amount: 100,
+        channelId: 5,
+        account: '09171234567',
+        accountName: 'Porter',
+      }),
+      conversationId: 'c1',
+    };
+    confirm.peekPendingExecution.mockResolvedValue(pendingPayload);
+    confirm.popPendingExecution.mockResolvedValue(pendingPayload);
+    prisma.aiActionRequest.updateMany.mockResolvedValue({ count: 0 });
+
+    await expect(service.confirmWithdrawOtp('999999', 'u1')).rejects.toThrow(
+      'Confirm request expired or already handled',
+    );
+    expect(wallet.applyWithdrawVerified).not.toHaveBeenCalled();
   });
 });

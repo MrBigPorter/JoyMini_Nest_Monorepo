@@ -50,7 +50,7 @@ function makeService() {
 
 describe('chatStream · 成员校验失败', () => {
   it('非成员会话：不写 trace、不落消息、直接收尾', async () => {
-    const { service, prisma } = makeService();
+    const { service, prisma, usage } = makeService();
     // 测试只验证 prepareThread 之前的门禁；给一个占位图通过入参校验。
     (service as any).compiledGraph = {};
     jest
@@ -79,5 +79,8 @@ describe('chatStream · 成员校验失败', () => {
     expect(onError).not.toHaveBeenCalled();
     expect(recordError).not.toHaveBeenCalled();
     expect(prisma.chatMessage.create).not.toHaveBeenCalled();
+    // 成员校验必须先于配额：否则配额分支会用攻击者传入的 conversationId 写消息。
+    expect(usage.assertWithinQuota).not.toHaveBeenCalled();
+    expect(usage.assertWithinSessionQuota).not.toHaveBeenCalled();
   });
 });

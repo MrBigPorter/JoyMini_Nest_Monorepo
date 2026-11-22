@@ -143,7 +143,9 @@ export class AiActionLifecycleService {
     await this.prisma.aiActionRequest.updateMany({
       where: {
         conversationId,
-        status: { in: ['REQUESTED', 'CONFIRM_CREATED'] },
+        // CONFIRMED = 已点确认、正在等 OTP 的提现，也必须作废：
+        // 否则转人工后用户仍能输码完成提现，绕过人工接管。
+        status: { in: ['REQUESTED', 'CONFIRM_CREATED', 'CONFIRMED'] },
       },
       data: { status: 'TRANSFERRED' },
     });
@@ -160,7 +162,14 @@ export class AiActionLifecycleService {
     const result = await this.prisma.aiActionRequest.updateMany({
       where: {
         conversationId,
-        status: { in: ['REQUESTED', 'CONFIRM_CREATED'] },
+        // 新消息只作废「还没点确认」的卡片；用户正在输 OTP 的 CONFIRMED
+        // 不能被一次普通提问误杀。转人工（transferred）才连 CONFIRMED 一起撤销。
+        status: {
+          in:
+            reason === 'transferred'
+              ? ['REQUESTED', 'CONFIRM_CREATED', 'CONFIRMED']
+              : ['REQUESTED', 'CONFIRM_CREATED'],
+        },
       },
       data: {
         status: 'EXPIRED',

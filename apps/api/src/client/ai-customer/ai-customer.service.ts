@@ -624,16 +624,12 @@ export class AiCustomerService implements OnModuleDestroy {
       // 放在 try 内部，才能走到 catch → chat.error → handleStreamError → degradeToHuman。
       await this.maybeInjectChaos(message);
 
-      // 日 token 配额：超限时抛 QuotaExceededError，走降级转人工。
-      await this.aiUsageService.assertWithinQuota(userId);
-
-      // 会话级配额：只降级这一条对话，不牵连用户当天其他会话。
-      await this.aiUsageService.assertWithinSessionQuota(conversationId);
-
       // Step 2 — 准备 AI 对话线程。
       // 成员校验失败（会话不存在或不是成员）必须在这里直接返回：
       // 继续走 catch 会用调用方传入的 conversationId 去写消息/转人工，
       // 认证用户就能把别人的会话踢出 AI 模式。
+      // 顺序：成员校验必须在配额之前 —— 否则配额分支也会用攻击者传入的
+      // conversationId 向受害者会话写一条配额提示。
       let threadId: string;
       try {
         threadId = await this.prepareThread(userId, conversationId);
@@ -647,6 +643,12 @@ export class AiCustomerService implements OnModuleDestroy {
         }
         throw err;
       }
+
+      // 日 token 配额：超限时抛 QuotaExceededError，走降级转人工。
+      await this.aiUsageService.assertWithinQuota(userId);
+
+      // 会话级配额：只降级这一条对话，不牵连用户当天其他会话。
+      await this.aiUsageService.assertWithinSessionQuota(conversationId);
 
       // 文字「确认」必须绑定最近的写动作，且发生在「新消息作废旧卡」之前：
       // 否则用户打「确认」这件事本身会先把卡片置 EXPIRED，再被分类器判成别的意图。
@@ -1490,13 +1492,20 @@ export class AiCustomerService implements OnModuleDestroy {
 
     // 转人工即撤销待确认动作：否则用户/攻击者还能用未过期的卡片完成提现。
     if (targetConvId) {
-      await this.actionLifecycle
-        ?.markTransferred(targetConvId)
-        .catch((err: any) => {
-          this.logger.warn(
-            `[routeTransfer] markTransferred failed: ${err?.message ?? err}`,
-          );
-        });
+      try {
+        await this.actionLifecycle?.markTransferred?.(targetConvId);
+      } catch (err: any) {
+        this.logger.warn(
+          `[routeTransfer] markTransferred failed: ${err?.message ?? err}`,
+        );
+      }
+      // 待 OTP 任务也要从 Redis 撤掉，否则 resend/cancel 还能拿到它。
+      // 清理是尽力而为：失败不能阻断转人工本身。
+      try {
+        await this.aiActionConfirmService?.clearPendingExecution?.(userId);
+      } catch {
+        /* best effort */
+      }
     }
 
     if (!targetConvId) {
@@ -2147,13 +2156,27 @@ export class AiCustomerService implements OnModuleDestroy {
           'Confirm request expired or already handled',
         );
       }
+      // 卡片令牌 60s 只是「点确认」的窗口；提现点完还要看短信、输 6 位码。
+      // 把 DB 的 expiresAt 延长到 OTP 有效期 + 30s，否则用户在最后几秒确认后
+      // 只剩几秒输码，即使 OTP 本身还有 5 分钟也会被 CAS 拒绝。
+      const confirmedData: Prisma.AiActionRequestUpdateManyMutationInput = {
+        status: 'CONFIRMED',
+        confirmedAt: new Date(),
+      };
+      if (entry.needsOtp) {
+        const otpTtlSec = Number(process.env.OTP_TTL_SECONDS) || 300;
+        confirmedData.expiresAt = new Date(
+          Date.now() + (otpTtlSec + 30) * 1000,
+        );
+      }
+
       const cas = await this.prismaService.aiActionRequest.updateMany({
         where: {
           id: requestId,
           status: 'CONFIRM_CREATED',
           expiresAt: { gt: new Date() },
         },
-        data: { status: 'CONFIRMED', confirmedAt: new Date() },
+        data: confirmedData,
       });
       if (cas.count !== 1) {
         const message = 'Confirm request expired or already handled';
@@ -2623,6 +2646,7 @@ export class AiCustomerService implements OnModuleDestroy {
     conversationId: string | undefined,
     callbacks?: {
       onError: (err: Error) => void;
+      onDone?: (payload?: { sources?: RagCitation[] }) => void;
       onTransfer?: (reason: string) => void;
     },
     memberIds: string[] = [],
@@ -2650,6 +2674,11 @@ export class AiCustomerService implements OnModuleDestroy {
           this.logger.warn(
             `[chatStream] quota reply publish failed: ${publishErr?.message ?? publishErr}`,
           );
+        });
+        // 配额也是一条正常终态：给 SSE 客户端一个 done 帧，别让它一直等。
+        callbacks?.onDone?.();
+        this.eventsGateway.dispatchToUser(userId, SocketEvents.AI_DONE, {
+          conversationId,
         });
       }
       return;
