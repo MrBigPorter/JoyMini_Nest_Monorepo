@@ -25,6 +25,7 @@ import { ToolMessage } from '@langchain/core/messages/tool';
 import { Runnable } from '@langchain/core/runnables';
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { stripToolResult } from '@api/client/ai-customer/graph/tools/tool-result';
+import { ToolCallInfo } from '@api/client/ai-customer/graph/utils/tool-facts';
 import { MAX_ITERATIONS } from '@api/client/ai-customer/graph/constants';
 import { AgentStep } from '@api/client/ai-customer/graph/types/agent-types';
 import {
@@ -69,6 +70,8 @@ export interface AgentLoopResult {
   iterations: number;
   /** Information about the last tool call (if any) */
   lastToolCallInfo: LastToolCallInfo | null;
+  /** 本轮所有成功执行过的工具调用（用于确定性事实提取） */
+  toolCallInfos: ToolCallInfo[];
   /** 被截停的写操作（confirmRequiredTools 命中，未执行） */
   pendingToolCall: LastToolCallInfo | null;
   /** Error message if the loop failed */
@@ -201,6 +204,7 @@ export async function runAgentLoop(
   let totalToolCalls = 0;
   let lastToolCallInfo: LastToolCallInfo | null = null;
   let pendingToolCall: LastToolCallInfo | null = null;
+  const toolCallInfos: ToolCallInfo[] = [];
 
   try {
     while (iterations < MAX_ITERATIONS) {
@@ -241,6 +245,11 @@ export async function runAgentLoop(
             args: toolCall.args,
             result,
           };
+          toolCallInfos.push({
+            name: toolCall.name,
+            args: toolCall.args,
+            result: typeof result === 'string' ? result : JSON.stringify(result),
+          });
           currentMessages = [
             ...currentMessages,
             new ToolMessage(stripToolResult(result), toolCall.id ?? ''),
@@ -295,6 +304,7 @@ export async function runAgentLoop(
       totalToolCalls,
       iterations,
       lastToolCallInfo,
+      toolCallInfos,
       pendingToolCall,
     };
   } catch (error) {
@@ -306,6 +316,7 @@ export async function runAgentLoop(
       totalToolCalls: 0,
       iterations,
       lastToolCallInfo: null,
+      toolCallInfos,
       pendingToolCall,
       error: error instanceof Error ? error.message : String(error),
     };

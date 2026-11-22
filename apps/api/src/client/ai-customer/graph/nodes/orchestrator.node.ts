@@ -89,6 +89,7 @@ import {
 } from './orchestrator-utils/turn-failure';
 import { detectTransferRequest } from './orchestrator-utils/transfer-detector';
 import { updateContextState } from '@api/client/ai-customer/graph/utils/context-state-utils';
+import { collectToolFacts } from '@api/client/ai-customer/graph/utils/tool-facts';
 import {
   createFlowAccumulator,
   finalizeFlowState,
@@ -250,7 +251,7 @@ export const createOrchestratorNode =
     const userInput = extractUserInput(state);
     // 结构化对话状态每轮更新：改口覆盖旧实体，旧实体只进 corrections。
     const contextUpdate = updateContextState(state.contextState, userInput);
-    const nextContextState = contextUpdate.state;
+    let nextContextState = contextUpdate.state;
     const transfer = detectTransferRequest(userInput, state);
     if (transfer.shouldTransfer) {
       logger.log(
@@ -508,6 +509,7 @@ export const createOrchestratorNode =
           pendingConfirm: null,
           ragSources: [],
           flowState: preserveFlowState(state),
+          contextState: nextContextState,
         };
       }
 
@@ -673,6 +675,16 @@ export const createOrchestratorNode =
               actionContext: state.actionContext,
               userMemory: state.userMemory,
             });
+
+          // 工具事实确定性落盘：couponId / channelId / 余额等下一轮还要用的少量字段。
+          // 只保留白名单，避免把整份业务对象塞进上下文。
+          const toolFacts = collectToolFacts(result.toolCallInfos);
+          if (toolFacts) {
+            nextContextState = {
+              ...nextContextState,
+              slots: { ...nextContextState.slots, ...toolFacts },
+            };
+          }
 
           // 日志：记录该 Agent 的执行上下文和工具绑定情况
           const toolNames = tools.map((t) => t.name).join(', ');
