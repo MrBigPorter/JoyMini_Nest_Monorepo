@@ -41,6 +41,26 @@
 
 ---
 
+### Requirement: 默认「我的券」MUST NOT 包含过期券
+
+当用户只说「看看我的优惠券」而没有指定状态时，AI 工具 MUST 只查询未使用券（`status=0`）。
+
+过期券（`status=2`）与已用券（`status=1`）MUST 只在用户明确要求时查询和展示。
+
+#### Scenario: 默认查看我的券
+
+- **WHEN** 用户说「帮我看看优惠券」且未指定状态
+- **THEN** 工具 MUST 以 `status=0` 查询
+- **AND** 回复 MUST NOT 主动列出已过期或已使用的券
+
+#### Scenario: 用户明确要看过期券
+
+- **WHEN** 用户说「我的过期券」或「用过的券」
+- **THEN** 工具 SHALL 以 `status=2` 或 `status=1` 查询
+- **AND** 回复 MUST 按实际状态展示
+
+---
+
 ### Requirement: 领券确认卡 MUST 只为可领取项创建
 
 创建 `claim_coupon` 确认卡前，系统 SHALL 用服务端可领取结果校验 `couponId`：

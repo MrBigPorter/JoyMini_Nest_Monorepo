@@ -72,6 +72,12 @@ validType=2: validDays > 0
 
 现有实现已在读取前把「未使用且已过 `validEndAt`」的券标为 `status=2`。本次只验证该行为，不重复实现。
 
+### D6. `getUserCoupons` 默认 `status=0`
+
+AI 工具 `getUserCoupons` 在未传 `status` 时改为查询未使用券（`status=0`），过期/已用只在用户明确要求时传 `status=2/1`。
+
+理由：用户说「我的优惠券」时指的是还能用的券；把过期券混进来既不符合直觉，也会给模型提供不该再操作的候选。App 的「我的券」页面本身按 tab 显式传 status，不受影响。
+
 ## Constraints
 
 - 有效期判断统一用服务端时间；数据库时间为 UTC。

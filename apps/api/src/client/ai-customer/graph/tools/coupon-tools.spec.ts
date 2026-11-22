@@ -51,6 +51,28 @@ describe('coupon-tools 身份边界', () => {
     );
   });
 
+  it('不传 status 时默认只查未使用券', async () => {
+    await runWithContext({ userId: 'user-A' }, () =>
+      getTool('getUserCoupons').invoke({} as any),
+    );
+
+    expect(couponService.getMyCoupons).toHaveBeenCalledWith(
+      'user-A',
+      expect.objectContaining({ status: 0 }),
+    );
+  });
+
+  it('明确查过期券时才传 status=2', async () => {
+    await runWithContext({ userId: 'user-A' }, () =>
+      getTool('getUserCoupons').invoke({ status: 2 } as any),
+    );
+
+    expect(couponService.getMyCoupons).toHaveBeenCalledWith(
+      'user-A',
+      expect.objectContaining({ status: 2 }),
+    );
+  });
+
   it('领券使用请求上下文身份，忽略模型伪造的 userId', async () => {
     await runWithContext({ userId: 'user-A' }, () =>
       getTool('claimCoupon').invoke({

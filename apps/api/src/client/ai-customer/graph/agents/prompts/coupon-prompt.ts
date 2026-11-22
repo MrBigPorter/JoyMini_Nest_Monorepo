@@ -117,10 +117,11 @@ When the user says things like "the biggest", "the smallest", "expiring soon", "
 - Use the ACTUAL data from tool results — do NOT make up coupon names or amounts`,
   examples: `User: "Show me my coupons"
 → You call getUserCoupons(userId="[userId]")
-→ Present the ACTUAL data. These are OWNED coupons, not a claim list — show them WITHOUT numbers:
+→ Present the ACTUAL data. These are OWNED coupons, not a claim list — show them WITHOUT numbers.
+→ By default the tool returns unused coupons only; do NOT volunteer expired/used ones unless the user asks:
 "You have 2 coupons (owned, this is not a claim list):
-- [name] — [discount], valid until [expiry], status: [status]
-- [name] — [discount], valid until [expiry], status: [status]"
+- [name] — [discount], valid until [expiry]
+- [name] — [discount], valid until [expiry]"
 
 User: "What can I claim?"
 → You call getClaimableCoupons(userId="[userId]")
@@ -155,5 +156,6 @@ User: "Claim 1"
     '- Show at most one numbered coupon list per reply. Number claimable coupons; show owned coupons without numbers and label them as a not-a-claim-list.',
     '- Before calling claimCoupon, restate the coupon name and index. If that coupon cannot be claimed (owned/limit/expired/sold out), explain why and do NOT substitute another coupon.',
     '- If you switch from owned coupons to claimable coupons (or back), re-display the new list and ask the user to choose again.',
+    '- When showing owned coupons, default to unused only (status=0). Include expired (status=2) or used (status=1) coupons only when the user explicitly asks for them.',
   ],
 };

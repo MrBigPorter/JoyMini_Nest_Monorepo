@@ -58,7 +58,9 @@ export const createCouponTools = (
 
           return toResultChain(
             couponService.getMyCoupons(userId, {
-              status,
+              // 默认只看未使用：过期/已用券不应主动出现在「我的券」里，
+              // 用户明确问“过期的券/用过的券”时才由模型传 status。
+              status: status ?? 0,
               page: page ?? 1,
               pageSize: pageSize ?? 10,
             }),
@@ -89,13 +91,13 @@ export const createCouponTools = (
               .number()
               .optional()
               .describe(
-                'Coupon status filter: 0=unused, 1=used, 2=expired. Omit for all.',
+                'Coupon status filter: 0=unused (default), 1=used, 2=expired. Omit to show unused only; pass 2 only when the user explicitly asks for expired coupons.',
               ),
             page: z.number().optional().default(1),
             pageSize: z.number().optional().default(10),
           }),
           description:
-            "Get the current user's coupon list. Can filter by status: 0=unused, 1=used, 2=expired.",
+            "Get the current user's coupon list. Defaults to unused coupons (status=0). Pass status=1 for used or status=2 for expired only when the user explicitly asks.",
         },
       ),
       displayName: 'Looking up your coupons...',

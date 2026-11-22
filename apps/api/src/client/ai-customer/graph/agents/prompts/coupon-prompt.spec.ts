@@ -20,4 +20,9 @@ describe('coupon prompt · 序号与列表规则', () => {
   it('不可领时解释原因、不替换成另一张', () => {
     expect(text).toContain('do NOT substitute another coupon');
   });
+
+  it('我的券默认只展示未使用，过期/已用需用户明确要求', () => {
+    expect(text).toContain('default to unused');
+    expect(text).toContain('only when the user explicitly asks');
+  });
 });

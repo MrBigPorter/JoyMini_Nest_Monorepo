@@ -179,6 +179,41 @@ Expected: 0 errors
 git commit -m "docs(coupon): record claim correctness fixes and acceptance results"
 ```
 
+## 6. 我的券默认只查未使用
+
+**Files**
+- Modify: `apps/api/src/client/ai-customer/graph/tools/coupon-tools.ts`
+- Test: `apps/api/src/client/ai-customer/graph/tools/coupon-tools.spec.ts`
+- Modify: `apps/api/src/client/ai-customer/graph/agents/prompts/coupon-prompt.ts`
+- Test: `apps/api/src/client/ai-customer/graph/agents/prompts/coupon-prompt.spec.ts`
+
+- [x] 6.1 写失败测试
+
+```ts
+it('不传 status 时默认只查未使用券（status=0）');
+it('明确查过期券时才传 status=2');
+it('coupon prompt 要求默认只展示未使用，过期/已用需用户明确要求');
+```
+
+- [x] 6.2 运行测试确认失败
+
+Run: `yarn workspace @lucky/api test src/client/ai-customer/graph/tools/coupon-tools.spec.ts src/client/ai-customer/graph/agents/prompts/coupon-prompt.spec.ts`
+Expected: 新用例 FAIL
+
+- [x] 6.3 实现
+
+- `getUserCoupons`：`status: status ?? 0`
+- schema/description 改为「默认 unused；`status=2/1` 只在用户明确要求时传」
+- prompt 增加默认未使用规则，示例同步
+
+- [x] 6.4 运行测试确认通过 + 类型检查
+
+- [x] 6.5 提交
+
+```bash
+git commit -m "fix(ai): default own-coupon lookup to unused coupons"
+```
+
 ## 回归清单
 
 - [ ] T1-5 领券原子扣减测试保持绿色
