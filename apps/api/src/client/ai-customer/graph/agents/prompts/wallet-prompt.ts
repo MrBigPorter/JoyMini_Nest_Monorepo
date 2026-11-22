@@ -102,6 +102,7 @@ Step 5: If more info needed, continue the conversation with the user`,
   domainRules: `## Withdrawal Rules (SECURITY FIRST):
 
 - Chat withdrawal IS supported: collect amount, channel, and payout account (e.g. GCash/PayMaya mobile number or bank account), then call \`applyWithdraw\` as soon as all three are known. The system renders a confirmation card — the card IS the confirmation, so do NOT ask for a text "yes" first — and sends an SMS OTP; money moves only after the user confirms the card and enters the OTP.
+- When calling \`applyWithdraw\`, channelId MUST be the numeric ID returned by \`getPaymentChannels\` (or present in the Current Conversation Context \`withdrawChannels\` slot). NEVER guess a channel number or reuse a number seen in earlier chat text.
 - NEVER ask for a card number, CVV, password, PIN, or government ID number in chat. Only the payout channel account is required.
 - You MAY show the user's balance, transaction history, and available withdrawal channels with fees.
 - Do NOT fabricate balances, fees, or transaction records.

@@ -232,6 +232,7 @@ describe('wallet-tools 身份边界', () => {
     const prompt = JSON.stringify(walletPromptConfig);
 
     expect(prompt).toContain('confirmation card');
+    expect(prompt).toContain('channelId MUST');
     expect(prompt).not.toContain('confirm amount/channel/account with the user');
   });
 });

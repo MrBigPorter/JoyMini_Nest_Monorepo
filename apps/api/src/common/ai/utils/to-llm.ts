@@ -17,10 +17,10 @@ import dayjs from 'dayjs';
  * @example
  * ```typescript
  * toLLM(orderItem, OrderItemDto, 'zh')
- * // { "订单状态": "已支付", "商品类型": "实体商品", "实付金额": "¥9.98" }
+ * // { "订单状态": "已支付", "商品类型": "实体商品", "实付金额": "₱9.98" }
  *
  * toLLM(orderItem, OrderItemDto, 'en')
- * // { "Order Status": "Paid", "Product Type": "Physical Product", "Amount": "¥9.98" }
+ * // { "Order Status": "Paid", "Product Type": "Physical Product", "Amount": "₱9.98" }
  * ```
  */
 export function toLLM<T extends object>(
@@ -78,8 +78,9 @@ export function toLLM<T extends object>(
           : rawValue;
         break;
       case 'amount':
-        // 统一使用 ¥ 前缀表示金额
-        result[fieldLabel] = `¥${rawValue}`;
+        // 项目结算币种是 PHP（菲律宾比索），统一用 ₱。
+        // 以前写死 ¥ 会让模型把券面值/手续费/余额都说成人民币。
+        result[fieldLabel] = `₱${rawValue}`;
         break;
       default:
         result[fieldLabel] = rawValue;

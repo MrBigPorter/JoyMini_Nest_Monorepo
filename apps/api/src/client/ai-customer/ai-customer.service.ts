@@ -1774,17 +1774,27 @@ export class AiCustomerService implements OnModuleDestroy {
         where: { id: Number(params.channelId), status: 1 },
       });
       if (channel && channel.type !== 2) {
+        // 把「为什么被拒」和「可选哪些」说清楚：模型选错渠道时，
+        // 只回一句“不支持”会让用户以为 GCash 本身不能提现。
+        const withdrawChannels = await this.prismaService.paymentChannel
+          .findMany({
+            where: { type: 2, status: 1 },
+            orderBy: { sortOrder: 'asc' },
+            select: { id: true, name: true },
+          })
+          .catch(() => []);
+        const options = withdrawChannels
+          .map((item) => `${item.name}（#${item.id}）`)
+          .join('、');
+        const content = options
+          ? `你选择的渠道（#${params.channelId}）是充值渠道，不能提现。可提现渠道：${options}。请重新选择。`
+          : `你选择的渠道（#${params.channelId}）是充值渠道，不能提现。请重新选择提现渠道。`;
         await publishAiReply(
           this.prismaService,
           this.eventsGateway,
           this.eventEmitter,
           conversationId,
-          [
-            {
-              type: 'ai',
-              content: '这个渠道不支持提现，请重新选择提现渠道。',
-            },
-          ],
+          [{ type: 'ai', content }],
           userId,
           [],
         ).catch((err: any) => {

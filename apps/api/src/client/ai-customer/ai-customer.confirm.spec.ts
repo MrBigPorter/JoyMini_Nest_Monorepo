@@ -23,7 +23,10 @@ function makeService() {
       findFirst: jest.fn(),
       updateMany: jest.fn(async (_args: any = {}) => ({ count: 1 })),
     },
-    paymentChannel: { findUnique: jest.fn() },
+    paymentChannel: {
+      findUnique: jest.fn(),
+      findMany: jest.fn(async () => [{ id: 5, name: 'GCash Withdraw' }]),
+    },
     user: { findUnique: jest.fn(async () => ({ phone: '09990000000' })) },
     $transaction: jest.fn(),
   };

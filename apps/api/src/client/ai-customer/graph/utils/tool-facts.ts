@@ -54,6 +54,20 @@ interface ChannelFact {
   feeFixed: unknown;
 }
 
+/**
+ * 按候选键取值。
+ *
+ * toLLM 会把 DTO 字段换成本地化标签（zh: 渠道ID / en: Channel ID），
+ * 所以这里必须同时兼容原始字段名与标签名。只按 `id`/`name` 取会让
+ * 渠道事实静默丢失，模型下一轮只能猜 channelId。
+ */
+function pick(item: any, keys: string[]): any {
+  for (const key of keys) {
+    if (item?.[key] !== undefined && item[key] !== null) return item[key];
+  }
+  return undefined;
+}
+
 function couponList(data: any): CouponFact[] {
   const list: any[] = Array.isArray(data)
     ? data
@@ -66,8 +80,18 @@ function couponList(data: any): CouponFact[] {
     .slice(0, MAX_LIST_ITEMS)
     .map(
       (item: any): CouponFact => ({
-        couponId: item?.couponId ?? item?.id,
-        couponName: item?.couponName ?? item?.name,
+        couponId: pick(item, [
+          'couponId',
+          'id',
+          '优惠券模板 ID',
+          'Coupon ID',
+        ]),
+        couponName: pick(item, [
+          'couponName',
+          'name',
+          '优惠券名称',
+          'Coupon Name',
+        ]),
       }),
     )
     .filter((item: CouponFact) => Boolean(item.couponId));
@@ -79,10 +103,15 @@ function channelList(data: any): ChannelFact[] {
     .slice(0, MAX_LIST_ITEMS)
     .map(
       (channel: any): ChannelFact => ({
-        channelId: channel?.id ?? channel?.channelId,
-        channelName: channel?.name ?? channel?.channelName,
-        feeRate: channel?.feeRate,
-        feeFixed: channel?.feeFixed,
+        channelId: pick(channel, ['id', 'channelId', '渠道ID', 'Channel ID']),
+        channelName: pick(channel, [
+          'name',
+          'channelName',
+          '渠道名称',
+          'Channel Name',
+        ]),
+        feeRate: pick(channel, ['feeRate', '手续费率', 'Fee Rate']),
+        feeFixed: pick(channel, ['feeFixed', 'fee', '手续费', 'Fee']),
       }),
     )
     .filter((channel: ChannelFact) => channel.channelId !== undefined);
