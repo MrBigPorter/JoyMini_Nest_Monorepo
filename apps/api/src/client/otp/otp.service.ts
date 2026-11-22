@@ -63,6 +63,17 @@ export class OtpService {
     const codeHash = otpHash(p, code, OTP_PEPPER);
     const expiresAt = addSeconds(new Date(), OTP_TTL_SECONDS);
 
+    // 重发即作废旧码：否则 verify 会落到更早的 PENDING 记录，
+    // 5 次上限被放大成 5N 次（每个旧记录一套预算）。
+    await this.prisma.smsVerificationCode.updateMany({
+      where: {
+        phone: p,
+        codeType,
+        verifyStatus: VERIFY_STATUS.PENDING,
+      },
+      data: { verifyStatus: VERIFY_STATUS.EXPIRED },
+    });
+
     // 入库（先记待发送，发送成功后再置 SENT）
     const record = await this.prisma.smsVerificationCode.create({
       data: {

@@ -63,6 +63,7 @@ describe('OtpService · 固定验证码模式', () => {
         findFirst: jest.fn().mockResolvedValue(null),
         create: jest.fn().mockResolvedValue({ id: 'r1' }),
         update: jest.fn().mockResolvedValue({}),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
     };
     const sms = { send: jest.fn().mockResolvedValue(undefined) };

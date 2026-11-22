@@ -31,7 +31,8 @@ function makeService() {
       token: 'token-1',
       expiresAt: Date.now() + 60_000,
     })),
-    stagePendingExecution: jest.fn(async () => undefined),
+    stagePendingExecution: jest.fn(async () => true),
+    clearPendingExecution: jest.fn(async () => undefined),
     peekPendingExecution: jest.fn(async (): Promise<any> => null),
     popPendingExecution: jest.fn(async (): Promise<any> => null),
   };
@@ -42,6 +43,7 @@ function makeService() {
     })),
     markConfirmed: jest.fn(async () => undefined),
     markExecuted: jest.fn(async () => undefined),
+    attachResult: jest.fn(async () => undefined),
     markFailed: jest.fn(async () => undefined),
     markCancelled: jest.fn(async () => undefined),
     markTransferred: jest.fn(async () => undefined),
@@ -765,5 +767,100 @@ describe('confirmAction · DB 权威 CAS', () => {
     await expect(service.confirmAction('tok', 'u1')).rejects.toThrow(
       'Confirm request expired or already handled',
     );
+  });
+});
+
+describe('startWithdrawOtp · 待执行任务完整性', () => {
+  it('同一用户已有待验证提现：第二次确认被拒绝', async () => {
+    const { service, confirm, otp } = makeService();
+    confirm.stagePendingExecution.mockResolvedValue(false);
+
+    await expect(
+      (service as any).startWithdrawOtp('u1', { amount: 100 }, {}, 'a2', 'c1'),
+    ).rejects.toThrow('已有待验证的提现');
+
+    expect(otp.request).not.toHaveBeenCalled();
+    expect(confirm.clearPendingExecution).not.toHaveBeenCalled();
+  });
+
+  it('发码失败时回滚暂存，避免用户卡在等验证码', async () => {
+    const { service, confirm, otp } = makeService();
+    otp.request.mockRejectedValueOnce(new Error('sms down'));
+
+    await expect(
+      (service as any).startWithdrawOtp('u1', { amount: 100 }, {}, 'a2', 'c1'),
+    ).rejects.toThrow('sms down');
+
+    expect(confirm.clearPendingExecution).toHaveBeenCalledWith('u1');
+  });
+
+  it('暂存 payload 带 conversationId（OTP 成功后结果能回投）', async () => {
+    const { service, confirm } = makeService();
+
+    await (service as any).startWithdrawOtp(
+      'u1',
+      { amount: 100, channelId: 5 },
+      { amount: 100 },
+      'a2',
+      'c1',
+    );
+
+    expect(confirm.stagePendingExecution).toHaveBeenCalledWith(
+      'u1',
+      expect.objectContaining({
+        action: 'withdraw',
+        requestId: 'a2',
+        conversationId: 'c1',
+      }),
+    );
+  });
+});
+
+describe('confirmWithdrawOtp · 结果回投', () => {
+  it('OTP 验证成功后投递 AI_ACTION_RESULT 到原会话', async () => {
+    const { service, confirm, gateway } = makeService();
+    const pendingPayload = {
+      ...payload('withdraw', {
+        amount: 100,
+        channelId: 5,
+        account: '09171234567',
+        accountName: 'Porter',
+      }),
+      conversationId: 'c1',
+    };
+    confirm.peekPendingExecution.mockResolvedValue(pendingPayload);
+    confirm.popPendingExecution.mockResolvedValue(pendingPayload);
+
+    await service.confirmWithdrawOtp('999999', 'u1');
+
+    expect(gateway.dispatchToUser).toHaveBeenCalledWith(
+      'u1',
+      'ai_action_result',
+      expect.objectContaining({
+        conversationId: 'c1',
+        action: 'withdraw',
+        success: true,
+      }),
+    );
+  });
+});
+
+describe('cancelAction · requestId 绑定', () => {
+  it('令牌已消费后取消，requestId 不匹配则拒绝', async () => {
+    const { service, confirm } = makeService();
+    confirm.consume.mockResolvedValue(null);
+    confirm.peekPendingExecution.mockResolvedValue({
+      action: 'withdraw',
+      params: {},
+      summary: {},
+      userId: 'u1',
+      requestId: 'a1',
+      conversationId: 'c1',
+    });
+
+    await expect(service.cancelAction('tok', 'u1', 'a2')).rejects.toThrow(
+      'Confirm token invalid or expired',
+    );
+    expect(confirm.popPendingExecution).not.toHaveBeenCalled();
   });
 });

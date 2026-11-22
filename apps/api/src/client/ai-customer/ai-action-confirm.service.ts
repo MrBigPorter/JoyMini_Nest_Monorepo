@@ -99,15 +99,24 @@ export class AiActionConfirmService {
     return JSON.parse(raw as string);
   }
 
+  /**
+   * 暂存提现待执行任务。同一用户同时只允许一个：setNx 失败返回 false，
+   * 调用方应拒绝本次确认，避免第二笔覆盖第一笔。
+   */
   async stagePendingExecution(
     userId: string,
     payload: ConfirmPayload,
-  ): Promise<void> {
-    await this.redisService.set(
+  ): Promise<boolean> {
+    return this.redisService.setNx(
       `${this.PENDING_KEY}${userId}`,
       JSON.stringify(payload),
       PENDING_TTL_SEC,
     );
+  }
+
+  /** 发码失败等场景回滚暂存，避免用户被一个永远等不到的验证码卡住。 */
+  async clearPendingExecution(userId: string): Promise<void> {
+    await this.redisService.del(`${this.PENDING_KEY}${userId}`);
   }
 
   /**

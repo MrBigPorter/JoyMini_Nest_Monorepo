@@ -16,6 +16,10 @@ function makeRedis() {
     get: jest.fn(),
     getDel: jest.fn(),
     set: jest.fn(),
+    setNx: jest.fn(
+      async (_key: string, _value: string, _ttlSeconds?: number) => true,
+    ),
+    del: jest.fn(async () => 1),
     eval: jest.fn(),
   };
 }
@@ -65,11 +69,24 @@ describe('AiActionConfirmService · 确认凭证', () => {
         userId: 'u1',
       });
 
-      const [key, , ttl] = redis.set.mock.calls[0];
+      const [key, , ttl] = redis.setNx.mock.calls[0];
       const otpTtl = Number(process.env.OTP_TTL_SECONDS) || 300;
       expect(key).toBe('ai:confirm:pending:u1');
       expect(ttl).toBe(otpTtl + 30);
       expect(ttl).toBeGreaterThanOrEqual(300);
+    });
+
+    it('setNx 失败时返回 false（同用户已有待执行任务）', async () => {
+      redis.setNx.mockResolvedValue(false);
+
+      const staged = await service.stagePendingExecution('u1', {
+        action: 'withdraw',
+        params: {},
+        summary: {},
+        userId: 'u1',
+      });
+
+      expect(staged).toBe(false);
     });
   });
 

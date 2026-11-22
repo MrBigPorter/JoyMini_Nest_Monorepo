@@ -2068,6 +2068,7 @@ export class AiCustomerService implements OnModuleDestroy {
         params,
         summary: summary ?? {},
         requestId,
+        conversationId: payload.conversationId,
         services: this.buildActionServices(),
       });
 
@@ -2094,7 +2095,7 @@ export class AiCustomerService implements OnModuleDestroy {
    * 用户主动取消确认卡片：owner 校验消费令牌，动作记录置 CANCELLED。
    * 重复取消 / 跨用户 / 已过期统一拒绝，且不泄露令牌归属。
    */
-  async cancelAction(token: string, userId: string) {
+  async cancelAction(token: string, userId: string, requestId?: string) {
     const payload = await this.aiActionConfirmService.consume(token, userId);
     if (payload) {
       await this.actionLifecycle?.markCancelled(payload.requestId);
@@ -2110,6 +2111,16 @@ export class AiCustomerService implements OnModuleDestroy {
     const pending = await this.aiActionConfirmService.peekPendingExecution(userId);
     if (!pending) {
       throw new BadRequestException('Confirm token invalid or expired');
+    }
+    if (requestId && pending.requestId && requestId !== pending.requestId) {
+      throw new BadRequestException('Confirm token invalid or expired');
+    }
+    if (!requestId) {
+      // 兼容旧客户端：Flutter 尚未提交 requestId 时保留按用户取消，
+      // 但记录 warn，便于上线后确认是否还有旧版本调用。
+      this.logger.warn(
+        `[cancel] requestId missing; falling back to userId-scoped pending cancel, user=${userId}`,
+      );
     }
     const consumed =
       await this.aiActionConfirmService.popPendingExecution(userId);
@@ -2211,8 +2222,14 @@ export class AiCustomerService implements OnModuleDestroy {
         this.executeUpdateAddress(uid, addressId, params),
       deleteAddress: (uid, addressId) =>
         this.addressService.delete(uid, addressId),
-      startWithdrawOtp: (uid, params, summary, requestId) =>
-        this.startWithdrawOtp(uid, params, summary, requestId),
+      startWithdrawOtp: (uid, params, summary, requestId, conversationId) =>
+        this.startWithdrawOtp(
+          uid,
+          params,
+          summary,
+          requestId,
+          conversationId,
+        ),
     };
   }
 
@@ -2287,25 +2304,43 @@ export class AiCustomerService implements OnModuleDestroy {
     params: Record<string, any>,
     summary: Record<string, any>,
     requestId?: string,
+    conversationId?: string,
   ) {
-    const user = await this.prismaService.user.findUnique({
-      where: { id: userId },
-      select: { phone: true },
-    });
-    if (!user || !user.phone) {
-      throw new BadRequestException('User phone not found');
-    }
-    await this.otpService.request({
-      phone: user.phone,
-      codeType: CODE_TYPE.WITHDRAW,
-    });
-    await this.aiActionConfirmService.stagePendingExecution(userId, {
-      action: 'withdraw',
-      params,
-      summary,
+    // 先占位再发码：发码失败可回滚；两个并发确认只有一个能占位。
+    const staged = await this.aiActionConfirmService.stagePendingExecution(
       userId,
-      requestId,
-    });
+      {
+        action: 'withdraw',
+        params,
+        summary,
+        userId,
+        requestId,
+        ...(conversationId ? { conversationId } : {}),
+      },
+    );
+    if (!staged) {
+      throw new BadRequestException('已有待验证的提现，请先完成或取消');
+    }
+
+    try {
+      const user = await this.prismaService.user.findUnique({
+        where: { id: userId },
+        select: { phone: true },
+      });
+      if (!user || !user.phone) {
+        throw new BadRequestException('User phone not found');
+      }
+      await this.otpService.request({
+        phone: user.phone,
+        codeType: CODE_TYPE.WITHDRAW,
+      });
+    } catch (err) {
+      await this.aiActionConfirmService
+        .clearPendingExecution(userId)
+        .catch(() => undefined);
+      throw err;
+    }
+
     const otpTtlSec = Number(process.env.OTP_TTL_SECONDS) || 300;
     return {
       needOtp: true,

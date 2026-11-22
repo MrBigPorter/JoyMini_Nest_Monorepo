@@ -44,6 +44,7 @@ export interface ActionExecutionServices {
     params: Record<string, any>,
     summary: Record<string, any>,
     requestId?: string,
+    conversationId?: string,
   ): Promise<unknown>;
 }
 
@@ -52,6 +53,8 @@ export interface ActionExecuteContext {
   params: Record<string, any>;
   summary: Record<string, any>;
   requestId?: string;
+  /** 动作所属会话；提现 OTP 结果要回投到它。 */
+  conversationId?: string;
   services: ActionExecutionServices;
 }
 
@@ -188,6 +191,7 @@ export const ACTION_CATALOG: readonly ActionCatalogEntry[] = [
         ctx.params,
         ctx.summary,
         ctx.requestId,
+        ctx.conversationId,
       );
     },
   },

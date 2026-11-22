@@ -302,7 +302,11 @@ export class AiCustomerController {
     @Body() dto: ConfirmActionDto,
     @CurrentUserId() userId: string,
   ) {
-    return this.aiCustomerService.cancelAction(dto.token, userId);
+    return this.aiCustomerService.cancelAction(
+      dto.token,
+      userId,
+      dto.requestId,
+    );
   }
 
   /**
