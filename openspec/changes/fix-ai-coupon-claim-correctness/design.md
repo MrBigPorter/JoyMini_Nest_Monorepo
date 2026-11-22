@@ -34,16 +34,15 @@ AI 侧同时存在两张列表：
 
 ### D1. 有效期过滤放在 `getClaimableCoupons`（服务层）
 
-查询条件追加：
+查询仍只取 `issueType=2`、`status=1`，再用纯函数 `isCouponClaimableNow(coupon, now)` 过滤：
 
 ```
-OR:
-  - validType=1 AND validEndTime >= now
-    AND (validStartTime IS NULL OR validStartTime <= now)
-  - validType=2 AND validDays > 0
+validType=1: validEndAt 非空且 >= now
+             且 (validStartAt 为空或 <= now)
+validType=2: validDays > 0
 ```
 
-保持 `issueType=2`、`status=1` 不变。
+选择纯函数而不是把 OR 写进 Prisma `where` 的理由：null/边界（无结束时间、无天数、未开始）都能用普通单测覆盖，且与 `claimCoupon` 的执行口径共用同一套判断语义。券表规模小，多取几行的成本可忽略。
 
 理由：可领取列表的语义就是「现在能领」；App 领券中心与 AI 工具共用同一份结果，口径必须一致。已抢光/已达限领仍返回，由 `canClaim` 等字段表达，避免改变调用方对「为什么不能领」的解释能力。
 

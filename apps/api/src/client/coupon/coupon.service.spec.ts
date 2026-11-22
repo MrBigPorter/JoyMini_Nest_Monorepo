@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { ClientCouponService } from './coupon.service';
+import { ClientCouponService, isCouponClaimableNow } from './coupon.service';
 
 // ==================================================================
 //  #85 P0-5 / T1-5：领券超卖
@@ -143,5 +143,144 @@ describe('ClientCouponService.claimCoupon 原子扣减（T1-5）', () => {
     const countOrder = tx.userCoupon.count.mock.invocationCallOrder[0];
 
     expect(updateOrder).toBeLessThan(countOrder);
+  });
+});
+
+// ==================================================================
+//  A-12：可领取列表必须校验有效期
+// ==================================================================
+describe('isCouponClaimableNow · 有效期谓词', () => {
+  const now = new Date('2026-11-22T18:00:00Z');
+
+  it('固定窗口且未过期 → true', () => {
+    expect(
+      isCouponClaimableNow(
+        {
+          validType: 1,
+          validStartAt: new Date('2026-11-01T00:00:00Z'),
+          validEndAt: new Date('2026-12-01T00:00:00Z'),
+        },
+        now,
+      ),
+    ).toBe(true);
+  });
+
+  it('固定窗口已过期 → false', () => {
+    expect(
+      isCouponClaimableNow(
+        {
+          validType: 1,
+          validStartAt: new Date('2026-07-01T00:00:00Z'),
+          validEndAt: new Date('2026-08-10T00:00:00Z'),
+        },
+        now,
+      ),
+    ).toBe(false);
+  });
+
+  it('固定窗口尚未开始 → false', () => {
+    expect(
+      isCouponClaimableNow(
+        {
+          validType: 1,
+          validStartAt: new Date('2026-12-01T00:00:00Z'),
+          validEndAt: new Date('2026-12-31T00:00:00Z'),
+        },
+        now,
+      ),
+    ).toBe(false);
+  });
+
+  it('固定窗口缺少结束时间 → false', () => {
+    expect(
+      isCouponClaimableNow(
+        { validType: 1, validStartAt: null, validEndAt: null },
+        now,
+      ),
+    ).toBe(false);
+  });
+
+  it('固定窗口开始时间为空视为已开始 → true', () => {
+    expect(
+      isCouponClaimableNow(
+        {
+          validType: 1,
+          validStartAt: null,
+          validEndAt: new Date('2026-12-01T00:00:00Z'),
+        },
+        now,
+      ),
+    ).toBe(true);
+  });
+
+  it('领取后 N 天且天数 > 0 → true', () => {
+    expect(
+      isCouponClaimableNow(
+        { validType: 2, validStartAt: null, validEndAt: null, validDays: 7 },
+        now,
+      ),
+    ).toBe(true);
+  });
+
+  it('领取后 N 天但天数为 0/null → false', () => {
+    expect(
+      isCouponClaimableNow(
+        { validType: 2, validStartAt: null, validEndAt: null, validDays: 0 },
+        now,
+      ),
+    ).toBe(false);
+    expect(
+      isCouponClaimableNow(
+        { validType: 2, validStartAt: null, validEndAt: null, validDays: null },
+        now,
+      ),
+    ).toBe(false);
+  });
+});
+
+describe('ClientCouponService.getClaimableCoupons · 过期券过滤', () => {
+  function createListService() {
+    const prisma = {
+      coupon: { findMany: jest.fn() },
+      userCoupon: { findMany: jest.fn(async () => []) },
+    };
+    return { service: new ClientCouponService(prisma as any), prisma };
+  }
+
+  it('已过期券从列表结果中移除', async () => {
+    const { service, prisma } = createListService();
+    prisma.coupon.findMany.mockResolvedValue([
+      {
+        id: 'expired',
+        couponName: 'Big Spender',
+        couponType: 1,
+        discountValue: '200.00',
+        minPurchase: '1000.00',
+        totalQuantity: 100,
+        issuedQuantity: 1,
+        perUserLimit: 10,
+        validType: 1,
+        validStartAt: new Date('2026-07-01T00:00:00Z'),
+        validEndAt: new Date('2026-08-10T00:00:00Z'),
+      },
+      {
+        id: 'active',
+        couponName: 'Fixture',
+        couponType: 1,
+        discountValue: '10.00',
+        minPurchase: '100.00',
+        totalQuantity: 100,
+        issuedQuantity: 3,
+        perUserLimit: 1,
+        validType: 2,
+        validDays: 7,
+        validStartAt: null,
+        validEndAt: null,
+      },
+    ]);
+
+    const result = await service.getClaimableCoupons('u1');
+
+    expect(result.map((item) => item.couponId)).toEqual(['active']);
   });
 });

@@ -3,6 +3,36 @@ import { PrismaService } from '@api/common/prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import { QueryMyCouponsDto } from '@api/client/coupon/dto/query-my-coupons-dto';
 
+/**
+ * 券模板在 `now` 时是否处于可领取有效期。
+ *
+ * 与 `claimCoupon` 的执行口径一致：
+ * - validType=1：必须有结束时间且未过期；开始时间为空视为已开始
+ * - 其他：按「领取后 N 天」处理，N 必须 > 0
+ */
+export function isCouponClaimableNow(
+  coupon: {
+    validType?: number | null;
+    validStartAt?: Date | string | null;
+    validEndAt?: Date | string | null;
+    validDays?: number | null;
+  },
+  now: Date = new Date(),
+): boolean {
+  if (coupon.validType === 1) {
+    if (!coupon.validEndAt) return false;
+    if (new Date(coupon.validEndAt).getTime() < now.getTime()) return false;
+    if (
+      coupon.validStartAt &&
+      new Date(coupon.validStartAt).getTime() > now.getTime()
+    ) {
+      return false;
+    }
+    return true;
+  }
+  return (coupon.validDays ?? 0) > 0;
+}
+
 @Injectable()
 export class ClientCouponService {
   constructor(private prisma: PrismaService) {}
@@ -181,14 +211,18 @@ export class ClientCouponService {
    * 4. 获取领券中心大厅可领取的券 (Level 3)
    */
   async getClaimableCoupons(userId: string) {
-    // 1. 查出所有允许手动领取的有效券模板
-    const claimableCoupons = await this.prisma.coupon.findMany({
-      where: {
-        issueType: 2, // 2-用户手动领取
-        status: 1, // 1-进行中
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    // 1. 查出所有允许手动领取的有效券模板，再按有效期过滤。
+    //    只按 status 过滤会让已过期的模板继续出现在领券中心（A-12）。
+    const now = new Date();
+    const claimableCoupons = (
+      await this.prisma.coupon.findMany({
+        where: {
+          issueType: 2, // 2-用户手动领取
+          status: 1, // 1-进行中
+        },
+        orderBy: { createdAt: 'desc' },
+      })
+    ).filter((coupon) => isCouponClaimableNow(coupon, now));
 
     if (claimableCoupons.length === 0) return [];
 

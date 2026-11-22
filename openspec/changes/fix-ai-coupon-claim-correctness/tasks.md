@@ -9,7 +9,7 @@
 - Modify: `apps/api/src/client/coupon/coupon.service.ts`（`getClaimableCoupons`）
 - Test: `apps/api/src/client/coupon/coupon.service.spec.ts`
 
-- [ ] 1.1 写失败测试
+- [x] 1.1 写失败测试
 
 ```ts
 it('validType=1 已过期的券不出现在可领取列表');
@@ -20,31 +20,29 @@ it('validType=2 validDays 为 0/null 的券不出现在可领取列表');
 it('有效但已抢光/已达限领的券仍返回，canClaim=false');
 ```
 
-- [ ] 1.2 运行测试确认失败
+- [x] 1.2 运行测试确认失败
 
 Run: `yarn workspace @lucky/api test src/client/coupon/coupon.service.spec.ts`
 Expected: 新增用例 FAIL（其余通过）
 
-- [ ] 1.3 实现过滤条件
+- [x] 1.3 实现过滤条件
 
-在 `getClaimableCoupons` 的 `where` 中加入：
+新增导出的纯函数 `isCouponClaimableNow(coupon, now)`：
 
 ```
-OR: [
-  { validType: 1, validEndTime: { gte: now },
-    OR: [{ validStartTime: null }, { validStartTime: { lte: now } }] },
-  { validType: 2, validDays: { gt: 0 } },
-]
+validType=1: validEndAt 非空且 >= now
+             且 (validStartAt 为空或 <= now)
+validType=2: validDays > 0
 ```
 
-保持 `issueType=2`、`status=1`。
+`getClaimableCoupons` 仍查 `issueType=2`、`status=1`，再 `.filter(isCouponClaimableNow)`。
 
-- [ ] 1.4 运行测试确认通过 + 类型检查
+- [x] 1.4 运行测试确认通过 + 类型检查
 
 Run: 同上，然后 `tsc`
 Expected: PASS / 0 errors
 
-- [ ] 1.5 提交
+- [x] 1.5 提交
 
 ```bash
 git add apps/api/src/client/coupon/coupon.service.ts apps/api/src/client/coupon/coupon.service.spec.ts
