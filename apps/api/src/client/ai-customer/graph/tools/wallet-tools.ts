@@ -484,7 +484,7 @@ export const createWalletTools = (
               .describe('Withdrawal account number e.g. GCash mobile number'),
             accountName: z.string().describe('Account holder name'),
           }),
-          description: `Submit a withdrawal request. IMPORTANT: 1. Always call getPaymentChannels first to let user choose a channel. 2. Present a preview with estimated fee. 3. Must get user explicit confirmation before calling this tool. 4. Verify KYC and balance first.`,
+          description: `Submit a withdrawal request. IMPORTANT: 1. Always call getPaymentChannels first to let the user choose a channel. 2. As soon as you have amount, channelId, account, and accountName, call this tool immediately — the system renders a confirmation card and the user confirms there. 3. Do NOT ask for confirmation in chat first and do NOT wait for a text "yes". 4. Verify KYC and balance first.`,
         },
       ),
       displayName: 'Processing withdrawal...',

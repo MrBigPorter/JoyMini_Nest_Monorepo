@@ -22,21 +22,22 @@
  *     ✅ 查 KYC 状态 → 调 getKycStatus（只查，不提交资料）
  *
  *   提现（写操作）：
- *     ✅ 必须两步确认：先预览 → 用户确认 → 才执行
- *     ✅ 必须 OTP 验证：确认后发验证码 → 用户输入验证码 → 才提现
+ *     ✅ 参数齐了直接调 applyWithdraw → 系统弹确认卡（卡片即确认）
+ *     ✅ 必须 OTP 验证：点确认后发验证码 → 用户输入验证码 → 才提现
  *     ✅ 只收集渠道收款账号（如 GCash 手机号），不收集卡号/CVV/密码
- *     ❌ 绝对不能直接提现，必须等用户确认
+ *     ❌ 不能在文字里先问一遍「确认吗」再调工具（会造成只有文字没有卡）
  *     ❌ 绝对不能编造余额、交易记录
  *
- * 为什么提现要两步确认 + OTP？
+ * 为什么提现要确认卡 + OTP？
  *
  *   如果用户说"我要提现 1000 块"，
  *   ❌ 不好的做法：直接调接口提现
  *      （用户可能口误！或者不是本人操作！）
+ *   ❌ 也不好的做法：先文字问「确认吗」，用户回「确认」后却没有卡
  *
- *   ✅ 正确做法：
- *     第1步："您要提现 1000 到 GCash 账号 0917xxxxxx 对吗？"
- *     第2步：用户确认 → 发 OTP → 用户输入验证码 → 才提现
+ *   ✅ 正确做法：参数齐了直接调 applyWithdraw
+ *     第1步：系统弹出确认卡（金额/渠道/手续费/到账）→ 用户点确认
+ *     第2步：发 OTP → 用户输入验证码 → 才提现
  *
  *
  * ═══════════════════════════════════════════════════════════════
@@ -100,7 +101,7 @@ Step 5: If more info needed, continue the conversation with the user`,
 5. **Apply Withdraw** - Start a chat withdrawal: collect the payout channel account, show a confirmation card, then verify via SMS OTP. NEVER collect card numbers, CVV, passwords, or ID numbers.`,
   domainRules: `## Withdrawal Rules (SECURITY FIRST):
 
-- Chat withdrawal IS supported: collect the payout channel account (e.g. GCash/PayMaya mobile number or bank account), confirm amount/channel/account with the user, then call \`applyWithdraw\`. The system shows a confirmation card and sends an SMS OTP; money moves only after the user enters the OTP.
+- Chat withdrawal IS supported: collect amount, channel, and payout account (e.g. GCash/PayMaya mobile number or bank account), then call \`applyWithdraw\` as soon as all three are known. The system renders a confirmation card — the card IS the confirmation, so do NOT ask for a text "yes" first — and sends an SMS OTP; money moves only after the user confirms the card and enters the OTP.
 - NEVER ask for a card number, CVV, password, PIN, or government ID number in chat. Only the payout channel account is required.
 - You MAY show the user's balance, transaction history, and available withdrawal channels with fees.
 - Do NOT fabricate balances, fees, or transaction records.
@@ -132,6 +133,7 @@ Step 5: If more info needed, continue the conversation with the user`,
   extraSections: [
     `## CRITICAL - Withdrawal Safety:
 - Chat withdrawal uses a confirmation card + SMS OTP; explain the steps clearly.
+- Do NOT ask a separate text confirmation question. When amount, channel, and account are known, call applyWithdraw and let the confirmation card be the confirmation.
 - Collect ONLY the payout channel account (e.g. GCash number). NEVER collect card number, CVV, password, PIN, or government ID.
 - The withdrawal executes only after the user confirms the card and enters the OTP. Do not claim it is already done before that.`,
   ],

@@ -2,6 +2,7 @@ import { createWalletTools } from './wallet-tools';
 import { runWithContext } from '@api/common/logger/trace-context';
 import { CODE_TYPE, KYC_STATUS } from '@lucky/shared';
 import { ApplyWithdrawDto } from '@api/client/wallet/dto/apply-withdraw.dto';
+import { walletPromptConfig } from '../agents/prompts/wallet-prompt';
 
 /**
  * 锁住钱包工具的身份边界：
@@ -218,5 +219,19 @@ describe('wallet-tools 身份边界', () => {
     expect(otpService.request).not.toHaveBeenCalled();
     expect(otpService.verify).not.toHaveBeenCalled();
     expect(clientWalletService.applyWithdraw).not.toHaveBeenCalled();
+  });
+
+  it('工具指令不再要求先做文字确认', () => {
+    const tool = getTool('applyWithdraw');
+
+    expect(tool.description).toContain('confirmation card');
+    expect(tool.description).not.toMatch(/explicit confirmation/i);
+  });
+
+  it('钱包 prompt 不再要求先文字确认再调工具', () => {
+    const prompt = JSON.stringify(walletPromptConfig);
+
+    expect(prompt).toContain('confirmation card');
+    expect(prompt).not.toContain('confirm amount/channel/account with the user');
   });
 });
