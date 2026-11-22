@@ -28,6 +28,7 @@ import { PromptResolverService } from '@api/client/ai-customer/knowledge/prompt-
 import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service';
 import { AiMemoryService } from '@api/common/ai/ai-memory.service';
 import { AiActionConfirmService } from './ai-action-confirm.service';
+import { isShortAffirmation } from './confirmation-intent';
 import { AiActionLifecycleService } from './ai-action-lifecycle.service';
 import {
   AiActionContextService,
@@ -612,6 +613,22 @@ export class AiCustomerService implements OnModuleDestroy {
 
       // Step 2 — 准备 AI 对话线程
       const threadId = await this.prepareThread(userId, conversationId);
+
+      // 文字「确认」必须绑定最近的写动作，且发生在「新消息作废旧卡」之前：
+      // 否则用户打「确认」这件事本身会先把卡片置 EXPIRED，再被分类器判成别的意图。
+      if (conversationId) {
+        const handled = await this.handlePendingActionConfirmation({
+          userId,
+          conversationId,
+          message,
+          startedAt,
+          triggerMessageId,
+        });
+        if (handled) {
+          callbacks.onDone();
+          return;
+        }
+      }
 
       // 新消息到来：上一张确认卡片已不可能再被确认，写明确终态。
       // 只影响确认状态，不阻断本轮对话。
@@ -1608,26 +1625,50 @@ export class AiCustomerService implements OnModuleDestroy {
       .catch(() => undefined);
   }
 
-  /** 路由 B — 发送确认卡片事件 */
+  /** 路由 B — 发送确认卡片事件（返回是否真的建卡） */
   private async routeConfirm(
     userId: string,
     conversationId: string | undefined,
     finalState: any,
     triggerMessageId?: string,
-  ): Promise<void> {
+  ): Promise<{ requestId: string | null; created: boolean }> {
     const pc = finalState.values.pendingConfirm;
-    if (!pc?.action) return;
-    const summary = pc.summary ?? {};
-    const params = pc.params ?? {};
+    if (!pc?.action || !conversationId) {
+      return { requestId: null, created: false };
+    }
+    return this.issueConfirmCard({
+      userId,
+      conversationId,
+      action: pc.action,
+      params: pc.params ?? {},
+      summary: pc.summary ?? {},
+      triggerMessageId,
+    });
+  }
+
+  /**
+   * 建卡与发卡。routeConfirm 与「文字确认重发」共用同一条路径，
+   * 保证两种入口展示/执行参数完全一致。
+   */
+  private async issueConfirmCard(input: {
+    userId: string;
+    conversationId: string;
+    action: string;
+    params: Record<string, any>;
+    summary: Record<string, any>;
+    triggerMessageId?: string;
+  }): Promise<{ requestId: string | null; created: boolean }> {
+    const { userId, conversationId, action, params, triggerMessageId } = input;
+    const summary = { ...input.summary };
 
     // 提现卡补全：手续费 + 到账金额（与 applyWithdraw 内算费公式一致：
     // fee = amount * feeRate + feeFixed, net = amount - fee）
-    if (pc.action === 'withdraw') {
+    if (action === 'withdraw') {
       const channel = await this.prismaService.paymentChannel.findUnique({
-        where: { id: Number(pc.params.channelId), status: 1 },
+        where: { id: Number(params.channelId), status: 1 },
       });
       if (channel) {
-        const amount = new Prisma.Decimal(pc.params.amount ?? 0);
+        const amount = new Prisma.Decimal(params.amount ?? 0);
         const feeRate = channel.feeRate || new Prisma.Decimal(0);
         const feeFixed = channel.feeFixed || new Prisma.Decimal(0);
         const fee = amount.mul(feeRate).add(feeFixed);
@@ -1642,15 +1683,14 @@ export class AiCustomerService implements OnModuleDestroy {
     // 确认一张根本不存在的券；这里直接回消息让用户重选。
     let claimableCoupon: any = null;
     let claimableLookupOk = false;
-    if (pc.action === 'claim_coupon' && pc.params?.couponId) {
+    if (action === 'claim_coupon' && params?.couponId) {
       try {
         const claimable =
           await this.clientCouponService.getClaimableCoupons(userId);
         claimableLookupOk = true;
         claimableCoupon = claimable.find(
           (item: any) =>
-            item.couponId === pc.params.couponId ||
-            item.id === pc.params.couponId,
+            item.couponId === params.couponId || item.id === params.couponId,
         );
       } catch (err: any) {
         this.logger.warn(
@@ -1659,28 +1699,26 @@ export class AiCustomerService implements OnModuleDestroy {
       }
     }
     if (claimableLookupOk && !claimableCoupon) {
-      if (conversationId) {
-        await publishAiReply(
-          this.prismaService,
-          this.eventsGateway,
-          this.eventEmitter,
-          conversationId,
-          [
-            {
-              type: 'ai',
-              content:
-                '没有找到这张可领取的优惠券，可能已经领过或已下架。请从可领取列表里重新选择一张。',
-            },
-          ],
-          userId,
-          [],
-        ).catch((err: any) => {
-          this.logger.warn(
-            `[routeConfirm] reject invalid coupon message failed: ${err?.message ?? err}`,
-          );
-        });
-      }
-      return;
+      await publishAiReply(
+        this.prismaService,
+        this.eventsGateway,
+        this.eventEmitter,
+        conversationId,
+        [
+          {
+            type: 'ai',
+            content:
+              '没有找到这张可领取的优惠券，可能已经领过或已下架。请从可领取列表里重新选择一张。',
+          },
+        ],
+        userId,
+        [],
+      ).catch((err: any) => {
+        this.logger.warn(
+          `[routeConfirm] reject invalid coupon message failed: ${err?.message ?? err}`,
+        );
+      });
+      return { requestId: null, created: false };
     }
 
     // 先生命周期记录，再发卡片：即使 socket 丢包，运营/评测仍能查到
@@ -1692,7 +1730,7 @@ export class AiCustomerService implements OnModuleDestroy {
           conversationId,
           userId,
           messageId: triggerMessageId ?? null,
-          action: pc.action,
+          action,
           params,
           summary,
         });
@@ -1704,10 +1742,10 @@ export class AiCustomerService implements OnModuleDestroy {
       }
     }
 
-    const catalogEntry = getCatalogEntryByAction(pc.action);
-    const actionMeta = getConfirmActionMeta(pc.action);
+    const catalogEntry = getCatalogEntryByAction(action);
+    const actionMeta = getConfirmActionMeta(action);
     // 卡片展示只给人看：内部 ID 尽量换成可读名称，但绝不改变执行参数。
-    let displayArgs: Record<string, any> = pc.params ?? {};
+    let displayArgs: Record<string, any> = params;
     if (claimableCoupon?.couponName) {
       displayArgs = {
         ...displayArgs,
@@ -1721,8 +1759,8 @@ export class AiCustomerService implements OnModuleDestroy {
 
     const { token, expiresAt } = await this.aiActionConfirmService.generate(
       userId,
-      pc.action,
-      pc.params,
+      action,
+      params,
       summary,
       request?.id,
       conversationId,
@@ -1736,10 +1774,10 @@ export class AiCustomerService implements OnModuleDestroy {
       // 谁在房间里都收得到就等于把凭证广播出去（#85 P0-2 / T1-4）
       this.eventsGateway.dispatchToUser(userId, SocketEvents.AI_CONFIRM, {
         conversationId,
-        action: pc.action,
+        action,
         // 向后兼容：旧客户端读 summary；新客户端读 title + fields。
         summary,
-        title: actionMeta?.title ?? pc.action,
+        title: actionMeta?.title ?? action,
         fields,
         needsOtp,
         confirmToken: token,
@@ -1747,13 +1785,13 @@ export class AiCustomerService implements OnModuleDestroy {
         requestId: request?.id ?? null,
       });
       incCounter('ai_action_total', {
-        action: pc.action,
+        action,
         result: 'created',
       });
 
       // 落一条可见消息：以前确认卡片只发 socket，聊天记录里看不到，
       // 运营会以为 AI 没回复。卡片本身仍走 AI_CONFIRM 私有房间。
-      const actionLabel = actionMeta?.title ?? pc.action;
+      const actionLabel = actionMeta?.title ?? action;
       // 卡片本身是临时 UI；聊天记录里要保留用户看到的内容，
       // 否则卡片消失或重进会话后，用户只看到“请确认”却不知道确认什么。
       const detailLines = (fields as Array<{ label: string; value: string }>)
@@ -1776,8 +1814,8 @@ export class AiCustomerService implements OnModuleDestroy {
         [],
         {
           kind: 'confirm_card',
-          action: pc.action,
-          title: actionMeta?.title ?? pc.action,
+          action,
+          title: actionMeta?.title ?? action,
           fields,
           needsOtp,
           requestId: request?.id ?? null,
@@ -1791,6 +1829,128 @@ export class AiCustomerService implements OnModuleDestroy {
         );
       });
     }
+
+    return { requestId: request?.id ?? null, created: true };
+  }
+
+  /**
+   * 文字「确认」的确定性分支：绑定最近一次写动作，不进入意图分类。
+   * 返回 true 表示已处理并发布回复，调用方应跳过 graph。
+   *
+   * 关键：文字确认不直接执行写操作——只重发卡片，执行仍要用户点卡片。
+   */
+  private async handlePendingActionConfirmation(args: {
+    userId: string;
+    conversationId: string;
+    message: string;
+    startedAt: number;
+    triggerMessageId?: string;
+  }): Promise<boolean> {
+    if (!isShortAffirmation(args.message)) return false;
+    if (!this.actionContextService) return false;
+
+    const ctx = await this.actionContextService.loadLatest(args.conversationId);
+    if (!ctx) return false;
+
+    if (ctx.status === 'CONFIRM_CREATED' && !ctx.expired) {
+      // 旧卡片先作废，再发新卡；仍要求用户点卡片。
+      if (this.actionLifecycle) {
+        await this.actionLifecycle
+          .expireForConversation(args.conversationId)
+          .catch(() => undefined);
+      }
+      const params = ctx.params ?? {};
+      const issued =
+        Object.keys(params).length > 0
+          ? await this.issueConfirmCard({
+              userId: args.userId,
+              conversationId: args.conversationId,
+              action: ctx.action,
+              params,
+              summary: ctx.summary,
+              triggerMessageId: args.triggerMessageId,
+            })
+          : { requestId: null, created: false };
+
+      await this.publishDeterministicReply(
+        args,
+        issued.created
+          ? '请点击上方卡片确认（60 秒内有效）。'
+          : '这张卡片已失效，请重新告诉我你要办理的业务。',
+      );
+      this.recordConfirmationGateTrace(
+        args,
+        issued.created ? 'CONFIRM_REISSUED' : 'CONFIRM_REJECTED',
+        ctx,
+      );
+      return true;
+    }
+
+    if (ctx.status === 'CONFIRMED') {
+      await this.publishDeterministicReply(
+        args,
+        '验证码已发送，请输入短信验证码完成操作。',
+      );
+      this.recordConfirmationGateTrace(args, 'OTP_PENDING', ctx);
+      return true;
+    }
+
+    await this.publishDeterministicReply(
+      args,
+      '上一张卡片已过期或已处理，请重新发起。',
+    );
+    this.recordConfirmationGateTrace(args, 'CONFIRM_EXPIRED', ctx);
+    return true;
+  }
+
+  private async publishDeterministicReply(
+    args: { userId: string; conversationId: string; triggerMessageId?: string },
+    content: string,
+  ): Promise<void> {
+    await publishAiReply(
+      this.prismaService,
+      this.eventsGateway,
+      this.eventEmitter,
+      args.conversationId,
+      [{ type: 'ai', content }],
+      args.userId,
+      [],
+      undefined,
+      args.triggerMessageId,
+    ).catch((err: any) => {
+      this.logger.warn(
+        `[confirm-gate] publish reply failed: ${err?.message ?? err}`,
+      );
+    });
+  }
+
+  private recordConfirmationGateTrace(
+    args: { userId: string; conversationId: string; startedAt: number; message: string; triggerMessageId?: string },
+    status: 'CONFIRM_REISSUED' | 'CONFIRM_REJECTED' | 'OTP_PENDING' | 'CONFIRM_EXPIRED',
+    ctx: ActionContext,
+  ): void {
+    if (!this.traceService) return;
+    void this.traceService
+      .recordTrace({
+        conversationId: args.conversationId,
+        triggerMessageId: args.triggerMessageId,
+        userId: args.userId,
+        input: this.truncateText(redactPiiText(args.message), 1000),
+        status,
+        latencyMs: Date.now() - args.startedAt,
+        metadata: {
+          gate: 'confirm',
+          action: ctx.action,
+          actionStatus: ctx.status,
+          requestId: ctx.requestId,
+        },
+        spans: [],
+      })
+      .catch((err: any) => {
+        this.logger.warn(
+          `[confirm-gate] trace failed: ${err?.message ?? err}`,
+        );
+      });
   }
 
   /**

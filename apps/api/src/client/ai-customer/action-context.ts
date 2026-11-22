@@ -14,8 +14,13 @@ export interface ActionContext {
   requestId: string;
   action: string;
   status: ActionContextStatus;
-  /** 已掩码的展示摘要；完整执行参数只存在服务端令牌里。 */
+  /** 已掩码的展示摘要；可注入提示词。 */
   summary: Record<string, unknown>;
+  /**
+   * 服务端执行参数（未脱敏）。只允许用于「文字确认后重发卡片」与执行，
+   * 绝不注入提示词（formatActionContext 不会读取它）。
+   */
+  params?: Record<string, unknown>;
   expiresAt: string | null;
   expired: boolean;
 }
@@ -122,6 +127,7 @@ export class AiActionContextService {
         action: row.action,
         status: row.status as ActionContextStatus,
         summary: maskActionSummary(toRecord(row.summary)),
+        params: toRecord(row.params),
         expiresAt: expiresAt ? expiresAt.toISOString() : null,
         expired,
       };

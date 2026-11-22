@@ -40,6 +40,8 @@ function makeService() {
     markExecuted: jest.fn(async () => undefined),
     markFailed: jest.fn(async () => undefined),
     markCancelled: jest.fn(async () => undefined),
+    markTransferred: jest.fn(async () => undefined),
+    expireForConversation: jest.fn(async () => 0),
   };
   const gateway = {
     dispatchToUser: jest.fn(),
@@ -77,6 +79,9 @@ function makeService() {
   const wallet = {
     applyWithdrawVerified: jest.fn(async () => ({ withdrawId: 'w-1' })),
   };
+  const actionContext = {
+    loadLatest: jest.fn(async (): Promise<any> => null),
+  };
 
   const service = new AiCustomerService(
     unused(), // ConfigService
@@ -100,8 +105,10 @@ function makeService() {
     unused(), // AiFeedbackService
     unused(), // FlowStateVersioningService
     unused(), // AiConversationDebugService
-    undefined,
+    undefined, // TraceService
     lifecycle as any,
+    undefined, // HandoffPresenceService
+    actionContext as any, // AiActionContextService
   );
   return {
     service,
@@ -114,6 +121,7 @@ function makeService() {
     address,
     otp,
     wallet,
+    actionContext,
   };
 }
 
@@ -256,7 +264,7 @@ describe('AiCustomerService · routeConfirm lifecycle', () => {
         },
         'm1',
       ),
-    ).resolves.toBeUndefined();
+    ).resolves.toEqual({ requestId: null, created: true });
 
     expect(gateway.dispatchToUser).toHaveBeenCalled();
   });
@@ -543,5 +551,105 @@ describe('resendWithdrawOtp · 重新发送验证码', () => {
     expect(result.sent).toBe(true);
     expect(result.otpExpiresAt).toBeGreaterThan(Date.now());
     expect(confirm.peekPendingExecution).toHaveBeenCalledWith('u1');
+  });
+});
+
+describe('handlePendingActionConfirmation · 文字确认', () => {
+  it('活卡片 + “确认”：重发卡片，不执行写操作', async () => {
+    const { service, confirm, lifecycle, actionContext } = makeService();
+    actionContext.loadLatest.mockResolvedValue({
+      requestId: 'act-1',
+      action: 'withdraw',
+      status: 'CONFIRM_CREATED',
+      summary: { amount: 100 },
+      params: { amount: 100, channelId: 5, account: '0917', accountName: 'P' },
+      expiresAt: new Date(Date.now() + 30_000).toISOString(),
+      expired: false,
+    });
+    const publish = jest
+      .spyOn(service as any, 'publishDeterministicReply')
+      .mockResolvedValue(undefined);
+    const issue = jest
+      .spyOn(service as any, 'issueConfirmCard')
+      .mockResolvedValue({ requestId: 'act-2', created: true });
+
+    const handled = await (service as any).handlePendingActionConfirmation({
+      userId: 'u1',
+      conversationId: 'c1',
+      message: '确认',
+      startedAt: Date.now(),
+      triggerMessageId: 'm2',
+    });
+
+    expect(handled).toBe(true);
+    expect(lifecycle.createConfirm).not.toHaveBeenCalled();
+    expect(confirm.generate).not.toHaveBeenCalled();
+    expect(issue).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'withdraw' }),
+    );
+    expect(publish).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.stringContaining('请点击上方卡片'),
+    );
+    expect(lifecycle.markExecuted).not.toHaveBeenCalled();
+  });
+
+  it('过期卡片 + “确认”：确定性回复已过期，不发卡', async () => {
+    const { service, actionContext } = makeService();
+    actionContext.loadLatest.mockResolvedValue({
+      requestId: 'act-1',
+      action: 'withdraw',
+      status: 'EXPIRED',
+      summary: {},
+      params: { amount: 100, channelId: 5, account: '0917', accountName: 'P' },
+      expiresAt: new Date(Date.now() - 1000).toISOString(),
+      expired: true,
+    });
+    const publish = jest
+      .spyOn(service as any, 'publishDeterministicReply')
+      .mockResolvedValue(undefined);
+    const issue = jest.spyOn(service as any, 'issueConfirmCard');
+
+    const handled = await (service as any).handlePendingActionConfirmation({
+      userId: 'u1',
+      conversationId: 'c1',
+      message: '确认',
+      startedAt: Date.now(),
+    });
+
+    expect(handled).toBe(true);
+    expect(issue).not.toHaveBeenCalled();
+    expect(publish).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.stringContaining('已过期'),
+    );
+  });
+
+  it('没有最近动作：不接管，继续走 graph', async () => {
+    const { service, actionContext } = makeService();
+    actionContext.loadLatest.mockResolvedValue(null);
+
+    const handled = await (service as any).handlePendingActionConfirmation({
+      userId: 'u1',
+      conversationId: 'c1',
+      message: '确认',
+      startedAt: Date.now(),
+    });
+
+    expect(handled).toBe(false);
+  });
+
+  it('非确认语不读取动作上下文', async () => {
+    const { service, actionContext } = makeService();
+
+    const handled = await (service as any).handlePendingActionConfirmation({
+      userId: 'u1',
+      conversationId: 'c1',
+      message: '帮我看看优惠券',
+      startedAt: Date.now(),
+    });
+
+    expect(handled).toBe(false);
+    expect(actionContext.loadLatest).not.toHaveBeenCalled();
   });
 });
