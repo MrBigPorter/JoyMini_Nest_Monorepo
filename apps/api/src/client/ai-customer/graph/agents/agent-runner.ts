@@ -186,6 +186,40 @@ export interface AgentLoopOptions {
  * @param options - Agent 循环配置
  * @returns AgentLoopResult
  */
+/**
+ * 从消息列表里取「真正给用户看的回复」。
+ *
+ * 只取 AI 消息的文本；跳过 ToolMessage。循环达到上限时最后一条往往是
+ * 工具结果（如 updateFlowData 的 {"ok":true,...}），直接当 content 会
+ * 把原始 JSON 发到聊天里。
+ */
+export function extractFinalContent(messages: any[]): string {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    const type =
+      typeof message?._getType === 'function'
+        ? message._getType()
+        : message?.type;
+    if (type !== 'ai') continue;
+
+    const content = message?.content;
+    if (typeof content === 'string') {
+      if (content.trim()) return content;
+      continue;
+    }
+    if (Array.isArray(content)) {
+      const text = content
+        .map((part: any) =>
+          typeof part === 'string' ? part : (part?.text ?? ''),
+        )
+        .join('')
+        .trim();
+      if (text) return text;
+    }
+  }
+  return '';
+}
+
 export async function runAgentLoop(
   options: AgentLoopOptions,
 ): Promise<AgentLoopResult> {
@@ -274,12 +308,8 @@ export async function runAgentLoop(
       `[${agentName}] totalMsgs=${currentMessages.length}, totalToolCalls=${totalToolCalls}`,
     );
 
-    // Build result
-    const lastMsg = currentMessages[currentMessages.length - 1];
-    const content =
-      typeof lastMsg.content === 'string'
-        ? lastMsg.content
-        : JSON.stringify(lastMsg.content ?? '');
+    // Build result — 只取 AI 文本，绝不把工具结果 JSON 当回复。
+    const content = extractFinalContent(currentMessages);
 
     const agentSteps: AgentStep[] = [
       {

@@ -2,8 +2,14 @@
  * AI Customer Graph — Shared Constants
  */
 
-/** Maximum iterations for ReAct agent loops */
-export const MAX_ITERATIONS = 3;
+/**
+ * Maximum iterations for ReAct agent loops.
+ *
+ * 3 轮对钱包流程不够：KYC + 余额 + 渠道 + flowData + applyWithdraw
+ * 至少需要 4~5 轮；第 3 轮就停会让模型还没弹卡就被截断。
+ * 6 轮仍能防止失控循环。
+ */
+export const MAX_ITERATIONS = 6;
 
 /**
  * Maximum recent messages to include in LLM context per agent invocation.
