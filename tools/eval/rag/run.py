@@ -205,9 +205,12 @@ def version_snapshot(golden_path: Path) -> dict:
         "golden_sha256": hashlib.sha256(golden_path.read_bytes()).hexdigest(),
         "knowledge_documents": counts["documents"],
         "document_chunks": counts["chunks"],
+        # 标签只是「本次运行时预期使用的模型」，脚本无法从 API 反查。
+        # 2026-11-23 前的默认值 bge-reranker-v2-m3 早已过时（生产走 Jina v3），
+        # 曾让 E-11 误以为是 embedding/index 版本漂移。改配置时记得同步这里。
         "embedding_model": os.environ.get("EVAL_EMBEDDING_MODEL", "bge-m3"),
         "reranker_model": os.environ.get(
-            "EVAL_RERANKER_MODEL", "bge-reranker-v2-m3"
+            "EVAL_RERANKER_MODEL", "jina-reranker-v3"
         ),
         "meili_index": "document_chunks",
     }
@@ -294,6 +297,8 @@ def main() -> int:
             "retrievedDocIds": [],
             "retrievedCount": 0,
             "topScore": None,
+            # 向量层最高余弦（不受 reranker / 门槛影响）；区分「没召回」与「被门卫挡掉」
+            "topVectorScore": None,
             "globalRank": 0,
             "noRerankRank": None,
             "domainRank": None,
@@ -314,6 +319,8 @@ def main() -> int:
             row["retrievedDocIds"] = unique_doc_ids(results)
             row["retrievedCount"] = len(results)
             row["topScore"] = results[0].get("score") if results else None
+            if debug:
+                row["topVectorScore"] = debug.get("topVectorScore")
             if row["sourceType"] != "negative":
                 row["globalRank"] = first_hit_rank(
                     row["retrievedDocIds"], row["expectedDocIds"]

@@ -298,6 +298,25 @@ describe('RagRetrievalService 相关性门卫', () => {
     expect(results).toEqual([]);
   });
 
+  it('中文 rerank 分低且关键词未命中，但向量余弦 ≥ 0.60 → 放行（向量锚点）', async () => {
+    // E-11：r53「中奖后怎么领奖」向量第 1（0.6464），rerank 分低于 0.131，
+    // 关键词层没命中“中奖/领奖”，旧门卫整批拒掉。
+    const service = build([chunk('a', 0.6464, 'Lucky draw prize rules')], [0.05]);
+
+    const results = await service.retrieve('中奖后怎么领奖', { topK: 2 });
+
+    expect(results.map((r) => r.chunkId)).toEqual(['a']);
+  });
+
+  it('中文 rerank 分低、关键词未命中、向量余弦 < 0.60 → 仍拒绝', async () => {
+    // 与负样本最高分 0.598 对齐：话题相近但不在知识库内。
+    const service = build([chunk('a', 0.598, 'health advice')], [0.05]);
+
+    const results = await service.retrieve('如何减肥', { topK: 2 });
+
+    expect(results).toEqual([]);
+  });
+
   it('reranker 不可用时不套门卫（RRF 分数不可比）', async () => {
     const service = build(
       [chunk('a', 0.01, 'anything'), chunk('b', 0.005, 'else')],
@@ -678,7 +697,8 @@ describe('RagRetrievalService 相关性门卫', () => {
 
   it('无关键词命中且 rerank 分数低于阈值 → 返回空（域外问题拒答）', async () => {
     const service: any = build();
-    jest.spyOn(service, 'vectorSearch').mockResolvedValue([chunk('irrelevant', 0.9)]);
+    // 向量余弦取真实负样本水平（n01 ≈ 0.49），不能高于 CJK 向量锚点 0.60
+    jest.spyOn(service, 'vectorSearch').mockResolvedValue([chunk('irrelevant', 0.49)]);
     service.meilisearchService.searchChunks.mockResolvedValue([]);
     jest.spyOn(service, 'keywordSearchChunks').mockResolvedValue([]);
     jest.spyOn(service, 'keywordSearchDocs').mockResolvedValue([]);

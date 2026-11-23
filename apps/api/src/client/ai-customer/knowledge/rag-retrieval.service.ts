@@ -337,6 +337,12 @@ export class RagRetrievalService {
     // 混在一起看会误导（召回 0.72 / 重排 0.98 不是同一种分）
     const candidates = merged.length;
     const topScore = Math.max(...merged.map((c) => c.score));
+    // 纯向量层最高余弦：中文问英文知识库时，reranker 分低不代表“没找到”，
+    // 向量相似度高是独立的第二证据（E-11：r53 向量第 1 / 余弦 0.6464 被门卫误杀）。
+    const topVectorScore = vectorResults.reduce(
+      (max, r) => Math.max(max, r.score),
+      0,
+    );
 
     const rerankOutcome = useRerank
       ? await this.rerank(query, merged, topK)
@@ -357,6 +363,7 @@ export class RagRetrievalService {
       chunkResults.length > 0 ||
         docResults.length > 0 ||
         meiliResults.length > 0,
+      topVectorScore,
     );
     merged = gate.results;
     const gateThreshold = gate.lexicalMinScore;
@@ -367,9 +374,7 @@ export class RagRetrievalService {
       returned: merged.length,
       // 两个分不能混：rerank 前的分是混合量纲，只看它判断不了最终质量
       topScoreBeforeRerank: Number(topScore.toFixed(4)),
-      topVectorScore: Number(
-        vectorResults.reduce((max, r) => Math.max(max, r.score), 0).toFixed(4),
-      ),
+      topVectorScore: Number(topVectorScore.toFixed(4)),
       topScoreAfterRerank: Number((merged[0]?.score ?? 0).toFixed(4)),
       rerank: useRerank,
       relevanceGate: {
@@ -754,19 +759,25 @@ export class RagRetrievalService {
    *   旧规则因此整段绕过门卫（E-20：10/12 负样本返回文档）。
    *
    * 规则（仅 reranker 成功时生效）：
-   *   top < floor                         → 拒（离题）
-   *   top < lexicalMin 且无词面锚点      → 拒（没有可解释的匹配依据）
-   *   其他                                → 放行
+   *   top < floor                                     → 拒（离题）
+   *   中文且 top < cjkFloor 且无关键词命中且向量低    → 拒（三个信号都没有）
+   *   top < lexicalMin 且无词面锚点                   → 拒（没有可解释的匹配依据）
+   *   其他                                            → 放行
    *
    * 词面锚点 = query 的任一实词（拉丁词按词边界、CJK 用二元组）
    * 出现在结果标题或正文里。它等价于“至少有一个可解释的命中”，
    * 但按词边界匹配，不会出现 cook → cookies 的子串误命中。
+   *
+   * 向量锚点 = 纯向量层最高余弦。中文问英文知识库时 rerank 分低是常态，
+   * 但语义层若仍把知识库排在第一（余弦 ≥ 0.60），说明问题确实属于知识库，
+   * 只是 reranker 不擅长跨语言。校准依据见 `cjkVectorAnchor()`。
    */
   private applyRelevanceGate(
     query: string,
     chunks: RetrievedChunk[],
     rerankUsed: boolean,
     hasKeywordHit: boolean,
+    topVectorScore: number,
   ): {
     results: RetrievedChunk[];
     applied: boolean;
@@ -811,14 +822,23 @@ export class RagRetrievalService {
       };
     }
 
-    // 中文侧：0.131 地板 或 关键词层命中，满足一个就放行。
+    // 中文侧：0.131 地板、关键词层命中、向量锚点，满足一个就放行。
     // 中文问英文知识库时 rerank 分整体低，但关键词层（含 keywords 数组）
     // 能提供“这个问题确实属于知识库”的强信号——旧门卫就是靠它保住
     // 「怎么修改登录密码」「商品缺货什么时候补货」这类正常问题。
+    // 向量锚点是第三信号：关键词层覆盖不到的近义说法（如「中奖后怎么领奖」
+    // 与 keywords 里的「抽奖/领奖」不完全重合）如果向量余弦 ≥ 0.60，
+    // 说明语义上确实落在知识库里，不能仅凭 rerank 分低就整批拒掉。
     if (!hasLatinToken) {
-      if (top < cjkFloor && !hasKeywordHit) {
+      const vectorAnchor = this.cjkVectorAnchor();
+      if (
+        top < cjkFloor &&
+        !hasKeywordHit &&
+        topVectorScore < vectorAnchor
+      ) {
         this.logger.log(
-          `[relevanceGate] rejected: CJK top=${top.toFixed(4)} < ${cjkFloor} and keyword layer missed`,
+          `[relevanceGate] rejected: CJK top=${top.toFixed(4)} < ${cjkFloor}, ` +
+            `keyword miss, vector=${topVectorScore.toFixed(4)} < ${vectorAnchor}`,
         );
         return {
           results: [],
@@ -876,6 +896,26 @@ export class RagRetrievalService {
       this.configService.get<string>('RAG_RELEVANCE_FLOOR', '0.03'),
     );
     return Number.isFinite(raw) && raw >= 0 ? raw : 0.03;
+  }
+
+  /**
+   * 中文查询的向量锚点：默认 0.60。
+   *
+   * 2026-11-23 用 129 题的分层数据校准（`--debug` 报告
+   * `20261123-151722.json`，向量分数不受 reranker 影响）：
+   *   - 63 条纯中文正样本：最低 0.560，58 条 ≥ 0.60
+   *   - 16 条纯中文负样本：最高 0.598，0 条 ≥ 0.60
+   * 0.60 是唯一能把两侧完全分开的整数阈值；再低会放进
+   * 「如何减肥 / 讲个故事 / 推荐一部电影」这类话题相近的离题问题。
+   *
+   * 注意：这不是“语义可信”的通用阈值，只在 rerank 分低于 CJK 地板
+   * 且关键词层没命中时作为第三证据使用。
+   */
+  private cjkVectorAnchor(): number {
+    const raw = Number(
+      this.configService.get<string>('RAG_CJK_VECTOR_ANCHOR', '0.6'),
+    );
+    return Number.isFinite(raw) && raw >= 0 && raw <= 1 ? raw : 0.6;
   }
 
   /**

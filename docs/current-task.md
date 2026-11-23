@@ -173,3 +173,46 @@
 | `docs/AI-joymini/91-一条消息的旅程.html`               | 调用链主干 7 框，读懂代码的地图                                                      |
 | `docs/coding-standards.md`                             | 9 维度检查                                                                           |
 | `docs/AI-joymini/81` / `83` / `84`                     | 确认卡片设计与历史差距                                                               |
+
+---
+
+## 当前进度（2026-11-23，新窗口从这里接着做）
+
+**分支**：`feat/ai-ops-operator-console`
+
+**已完成并提交：**
+
+| 提交 | 内容 | 结果 |
+|---|---|---|
+| `b61b6850` | E-17 意图边界重划 + 每域真实问法 + `generalDominates` | 标准集 86.9%→99.4%，真实集 62.8%→97.7%，盲测首跑 80.4% |
+| `873732f7` | E-20 RAG 相关性门槛按文字系统校准 + 词面锚点 | 129 题负样本 1/20→0/20；66 题 10/12→5/12；Hit@1 未动 78.9% |
+
+**当前指标**（`docs/system-review/2026-11-23-ai-eval-matrix-and-findings.md` §5.1–§5.2.2）：
+
+- RAG 129：Hit@1 78.9% / Hit@3 96.3% / MRR 0.873 / p95 1502ms / 负样本 0/20
+- RAG 66（真实问法）：Hit@1 74.1% / Hit@3 90.7% / 负样本 5/12（剩余全是注入/越权写操作）
+- 意图 153：99.4%；真实 43：97.7%
+- 全量测试 132 suites / 1161 tests 通过（E-11 新增 RAG 门卫 2 条 + provider 降级 3 条）
+
+**E-11 结论（2026-11-23，工作区未提交）**：不是 embedding/index 版本漂移。「85.0%」是 40 题子集（`20261119-143736.json`）；129 题同口径基线就是 78.9%。排查中修了两个真问题（详见 eval matrix §5.1.3）：
+
+- r53「中奖后怎么领奖」向量第 1（余弦 0.6464）被 CJK 门卫误杀 → 新增 `RAG_CJK_VECTOR_ANCHOR=0.60` 第三证据（63 正样本最低 0.560 / 16 负样本最高 0.598）
+- Jina 日配额耗尽后 embedding 余弦被当 reranker 用（量纲错配，负样本 20/20 泄漏）→ `OllamaProvider.rerank()` 不再兜底，返回 null 走 RRF
+
+**下一步（按优先级）：**
+
+1. **等 Jina 配额重置（次日 00:00）复跑 129 + 66**，回填 r53 恢复与负样本数字；预期 Hit@1 78.9% → 79.7%
+2. **E-19**：Taglish RAG Hit@1 74.1%，order 58.3% / wallet 50%
+3. E-20 剩余 5 条转注入防护/动作策略层，不要继续压检索地板
+4. E-21/E-22 Taglish 物流与充值记录
+
+**复跑命令：**
+
+```bash
+tools/eval/rag/run-replay.sh                                        # 129 题
+tools/eval/rag/run-replay.sh --golden tools/eval/rag/golden.realistic.jsonl  # 66 题
+tools/eval/run-replay.sh --golden tools/eval/golden/intent.holdout4.jsonl    # 意图盲测
+yarn workspace @lucky/api test && yarn workspace @lucky/api tsc --noEmit --pretty
+```
+
+**注意**：`tools/eval/rag/reports/` 下还有 4 个未跟踪的中间报告（134226/135003/141619/142204），是调参过程文件，未提交；`151722` 是本次 CJK 向量锚点的校准证据，已随 E-11 一起提交（注意它是 Jina 配额耗尽后的降级运行，只用于向量层校准，不能当作质量指标）。

@@ -321,7 +321,8 @@ export class OllamaProvider implements AiProviderInstance {
    * 【重排序策略】
    * 1. RERANK_BASE_URL 环境变量 → Infinity / TEI 等专用 rerank 服务
    *    POST {rerankBaseUrl}/v1/rerank  (Cohere 兼容格式)
-   * 2. 无 RERANK_BASE_URL 时 → Embedding 余弦相似度降级（兜底）
+   * 2. 无 RERANK_BASE_URL / 专用服务失败 → 返回 null，由调用方走 RRF 降级排序
+   *    （不能用 embedding 余弦冒充 rerank：量纲不同，相关性门卫会误判）
    *
    * @param query 用户问题原文
    * @param documents 候选文本列表（chunk contents）
@@ -344,20 +345,20 @@ export class OllamaProvider implements AiProviderInstance {
       );
       if (rerankResult !== null) return rerankResult;
       this.logger.warn(
-        '[rerank] Dedicated rerank failed (check RERANK_BASE_URL / endpoint), falling back to embedding-based reranking',
+        '[rerank] Dedicated rerank failed (check RERANK_BASE_URL / endpoint); returning null so the caller uses RRF',
       );
     } else {
       this.logger.warn(
-        '[rerank] No RERANK_BASE_URL configured, falling back to embedding-based reranking',
+        '[rerank] No RERANK_BASE_URL configured; returning null so the caller uses RRF',
       );
     }
 
-    // 2) Fallback: embedding-based reranking via cosine similarity
-    const embedBaseUrl =
-      this.configService.get<string>('OLLAMA_EMBEDDING_BASE_URL') ??
-      this.baseUrl.replace('/v1/chat/completions', '');
-    const baseUrl = embedBaseUrl.replace(/\/+$/, '');
-    return this.embeddingRerankFallback(baseUrl, query, documents);
+    // 不再用 embedding 余弦当 reranker：
+    // 那是向量分数，和 cross-encoder 的 relevance_score 量纲不同，
+    // 被 RagRetrievalService 的相关性门卫按 cross-encoder 阈值解释时，
+    // 0.4~0.6 的离题问题会全部放行（2026-11-23 E-11 实测负样本 20/20 泄漏）。
+    // 降级排序由 RagRetrievalService.fallbackSort 的 RRF 负责。
+    return null;
   }
 
   /**
@@ -471,92 +472,6 @@ export class OllamaProvider implements AiProviderInstance {
       this.logger.error(`Ollama rerank API error: ${e.message}`);
       return null;
     }
-  }
-
-  /**
-   * Fallback reranking using embedding cosine similarity.
-   * Embeds the query and all documents via /api/embed, then computes
-   * cosine similarity between query embedding and each document embedding.
-   */
-  private async embeddingRerankFallback(
-    baseUrl: string,
-    query: string,
-    documents: string[],
-  ): Promise<Array<{ index: number; relevance_score: number }> | null> {
-    try {
-      const model = this.configService.get<string>(
-        'OLLAMA_EMBEDDING_MODEL',
-        'bge-m3',
-      );
-      const url = `${baseUrl}/api/embed`;
-
-      // Embed query
-      const queryRes = await axios.post(
-        url,
-        { model, input: [query] },
-        { timeout: 30000 },
-      );
-      const queryEmbedding = queryRes.data?.embeddings?.[0];
-      if (!queryEmbedding) {
-        this.logger.warn('[rerank] Failed to get query embedding for fallback');
-        return null;
-      }
-
-      // Embed all documents in one batch
-      const docsRes = await axios.post(
-        url,
-        { model, input: documents },
-        { timeout: 60000 },
-      );
-      const docEmbeddings = docsRes.data?.embeddings;
-      if (!Array.isArray(docEmbeddings) || docEmbeddings.length !== documents.length) {
-        this.logger.warn('[rerank] Failed to get document embeddings for fallback');
-        return null;
-      }
-
-      // Compute cosine similarity for each document
-      const results = docEmbeddings.map((docEmb: number[], idx: number) => ({
-        index: idx,
-        relevance_score: this.cosineSimilarity(queryEmbedding, docEmb),
-      }));
-
-      // Sort by relevance score descending
-      results.sort((a, b) => b.relevance_score - a.relevance_score);
-
-      const currentKey = this.keys[this.activeKeyIndex];
-      if (currentKey) currentKey.dailyRequests++;
-
-      this.logger.log(
-        `[rerank] Embedding fallback (${model}) re-ranked ${documents.length} documents → ${results.length} results ` +
-          `(top score: ${results[0]?.relevance_score.toFixed(4) ?? 'N/A'})`,
-      );
-
-      return results;
-    } catch (e: any) {
-      if (e.code === 'ECONNREFUSED') {
-        this.logger.warn(
-          `Ollama connection refused for embedding fallback at ${baseUrl}`,
-        );
-        this.available = false;
-      } else {
-        this.logger.error(`Ollama embedding fallback error: ${e.message}`);
-      }
-      return null;
-    }
-  }
-
-  /**
-   * Compute cosine similarity between two vectors.
-   */
-  private cosineSimilarity(a: number[], b: number[]): number {
-    let dot = 0, magA = 0, magB = 0;
-    for (let i = 0; i < a.length; i++) {
-      dot += a[i] * b[i];
-      magA += a[i] * a[i];
-      magB += b[i] * b[i];
-    }
-    const denom = Math.sqrt(magA) * Math.sqrt(magB);
-    return denom === 0 ? 0 : dot / denom;
   }
 
   isAvailable(): boolean {

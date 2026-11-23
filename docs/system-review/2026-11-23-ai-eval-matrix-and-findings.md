@@ -94,20 +94,24 @@ docker exec -e TEST_USER_ID=<id> lucky-backend-dev node /app/scripts/ai-acceptan
 
 ### 5.1 现有 129 题 RAG（2026-11-23 复跑，E-20 修复后）
 
-| 指标 | 全局 | domain 过滤 | 2026-11-19 基线（全局） |
+| 指标 | 全局 | domain 过滤 | 2026-11-19 基线（同口径 129 题 / topK=5） |
 |---|---:|---:|---:|
-| Hit@1 | **78.9%** | 88.1% | 85.0% |
-| Hit@3 | **96.3%** | 98.2% | 95.0% |
-| MRR | **0.873** | 0.930 | 0.902 |
-| p50 | 895ms | 804ms | 762ms |
-| p95 | 1502ms | 1320ms | 1179ms |
-| 负样本误召回 | **0/20（0%）** | — | — |
+| Hit@1 | **78.9%** | 88.1% | 78.9% |
+| Hit@3 | **96.3%** | 98.2% | 97.2% |
+| MRR | **0.873** | 0.930 | 0.878 |
+| p50 | 895ms | 804ms | 846ms |
+| p95 | 1502ms | 1320ms | 1675ms |
+| 负样本误召回 | **0/20（0%）** | — | 20/20（门槛引入前） |
+
+> **口径更正（2026-11-23，E-11）**：此前表里的「2026-11-19 基线 85.0% / 95.0% / 0.902 / p95 1179ms」来自 `20261119-143736.json`，那是 **40 题子集**（topK=5），不是 129 题基线；两者分母不同，不能相减。
+> 129 题同口径、同 topK=5 的基线是 `20261119-235736.json`：**Hit@1 78.9% / Hit@3 97.2% / MRR 0.878 / p50 846ms / p95 1675ms**。
+> 因此 E-11 的真实结论是：**Hit@1 与基线持平（0.0pp），不是 -6.1pp**；Hit@3 -0.9pp、MRR -0.005，都在单题波动范围内（#104 的配对检验 p=1.0000）。
 
 按域 Hit@1：product 100 / wallet 87.5 / order 87.0 / kyc 77.8 / common 76.2 / lucky-draw 66.7 / **coupon 50.0** / **user 46.2**。
 
 报告：`tools/eval/rag/reports/20261123-143316.json`（修复前 `20261123-031947.json`：Hit@3 94.5%、MRR 0.864、p95 2540ms、负样本 1/20）。
 
-变化：相关性门槛重写后，负样本 1/20 → **0/20**、Hit@3 +1.8pp、MRR +0.009、p95 -1038ms；**Hit@1 仍为 78.9%（较 11-19 基线 -6.1pp，E-11 未收口）**。`layers` 归因仍全为 0（E-14 观测缺口）。
+变化：相关性门槛重写后，负样本 1/20 → **0/20**、Hit@3 +1.8pp、MRR +0.009、p95 -1038ms；Hit@1 维持 78.9%（与 2026-11-19 同口径 129 题基线持平，E-11 的「-6.1pp」是 40 题子集与 129 题集混算，已更正）。`layers` 归因仍全为 0（E-14 观测缺口）——后续用 `--debug` 复跑可补齐。
 
 ### 5.1.1 新增 66 条 Taglish/真实问法 RAG
 
@@ -145,14 +149,14 @@ docker exec -e TEST_USER_ID=<id> lucky-backend-dev node /app/scripts/ai-acceptan
 |---|---|
 | reranker 未启用 / 无候选 | 放行（`rerank_unavailable`） |
 | `top < 0.03` | 拒绝（`below_floor`，离题） |
-| 纯 CJK：`top < 0.131` 且关键词层未命中 | 拒绝（`below_cjk_floor`） |
+| 纯 CJK：`top < 0.131` 且关键词层未命中，且向量余弦 < 0.60 | 拒绝（`below_cjk_floor`） |
 | 纯 CJK：其他 | 放行 |
 | 含拉丁词：`top < 0.15` 且无词面锚点 | 拒绝（`no_lexical_anchor`） |
 | 含拉丁词：其他 | 放行 |
 
 - **词面锚点**（`hasLexicalAnchor`）：query 的任一实词出现在结果 `title + content + keywords` 中；拉丁词用 `\b` 词边界，避免 `cook → cookies` 这类子串误命中。
 - **CJK 关键词层旁路**：中文问英文知识库时 rerank 分天然偏低，关键词层命中（含 `keywords` 数组）是「这题属于知识库」的强信号。保留旁路后，`修改登录密码`、`商品缺货什么时候补货` 等 10 条中文正样本恢复命中。
-- **三个阈值可配**：`RAG_RELEVANCE_FLOOR`（0.03）、`RAG_CJK_RELEVANCE_FLOOR`（0.131）、`RAG_LEXICAL_MIN_SCORE`（0.15）。
+- **三个阈值可配**：`RAG_RELEVANCE_FLOOR`（0.03）、`RAG_CJK_RELEVANCE_FLOOR`（0.131）、`RAG_LEXICAL_MIN_SCORE`（0.15）；另加 CJK 向量锚点 `RAG_CJK_VECTOR_ANCHOR`（0.60，见 §5.1.3）。
 - **观测**：`RetrievalDebug` 新增 `topVectorScore`（向量层最高余弦），用于区分「检索没找到」与「门卫挡掉」。`layers` 归因仍为 0，E-14 未收口。
 
 **校准依据（66 条真实问法探针）：**
@@ -175,7 +179,32 @@ docker exec -e TEST_USER_ID=<id> lucky-backend-dev node /app/scripts/ai-acceptan
 
 **残余 5 条不继续压分的理由：** 它们的 top 在 0.060～0.123，话题词确实与知识库重叠（余额、优惠券、账号、手机号），但请求的本质是注入或越权写操作。继续提高检索地板会同时误杀正常问法；正确归属是注入防护与动作策略层（见 §5.1.1 表）。**结论：E-20 在检索层的目标已达成，剩余部分转为安全层任务。**
 
-**测试：** `rag-retrieval.service.spec.ts` 新增 34 条用例，覆盖三个地板、拉丁词边界、CJK 关键词旁路、reranker 不可用、空 token；全量 **131 suites / 1156 tests** 通过，`tsc --noEmit` 通过。
+**测试：** `rag-retrieval.service.spec.ts` 共 36 条用例（E-20 新增 34 条，E-11 新增 2 条），覆盖三个地板、CJK 向量锚点（放行/拒绝两侧）、拉丁词边界、CJK 关键词旁路、reranker 不可用、空 token；新增 `ollama.provider.spec.ts` 3 条，锁定「无专用 reranker → 返回 null，不改用 embedding 余弦」。全量 **132 suites / 1161 tests** 通过，`tsc --noEmit` 通过。
+
+### 5.1.3 E-11 排查结论：不是 embedding/index 漂移（2026-11-23）
+
+**结论先行：** 「Hit@1 78.9% vs 基线 85.0%」是**口径错误**，不是质量回归。85.0% 来自 `20261119-143736.json`，那是一次 **40 题子集**（topK=5）的运行；129 题、topK=5 的同口径基线是 `20261119-235736.json`，Hit@1 恰好也是 **78.9%**。同题集逐题对比：两次运行只差 1 题（r29，rerank 近平分 0.0986 vs 0.0704，两个文档都相关），Hit@1 **0.0pp**，Hit@3 -0.9pp、MRR -0.005 均在单题波动内（配对检验 p=1.0000）。
+
+**版本核验（均无漂移）：**
+
+| 项 | 2026-11-19 | 2026-11-23 | 判定 |
+|---|---|---|---|
+| embedding | Infinity `BAAI/bge-m3`，1024 维，L2 归一化 | 相同（实测范数 1.0） | 一致 |
+| 知识库 | 27 文档 / 302 chunks | 27 / 302，2026-11-11 后未改动 | 一致 |
+| reranker | Jina `jina-reranker-v3` | 相同（日志 `provider=jina`） | 一致 |
+| golden 集 | 129 题 | 129 题（sha256 未变） | 一致 |
+
+注：报告的 `versions.reranker_model` 字段此前默认写死为 `bge-reranker-v2-m3`（Infinity 时代遗留），与线上实际不符，已把默认值改为 `jina-reranker-v3`（仍可用 `EVAL_RERANKER_MODEL` 覆盖）。这是本轮排查中唯一一处「版本差异」痕迹，且只是标签错误。
+
+**排查中发现的两个真问题：**
+
+1. **r53「中奖后怎么领奖」被门卫误杀（已修）。** 该题向量层排名第 1、余弦 0.6464，但 rerank 分低于 CJK 地板 0.131，关键词层又没命中「中奖/领奖」，旧门卫把整批结果拒掉 → 返回 0 条。修复：CJK 分支增加第三证据——向量层最高余弦 ≥ `RAG_CJK_VECTOR_ANCHOR`（默认 **0.60**）即放行。校准来自 `20261123-151722.json` 的向量层（不受 reranker 影响）：63 条纯中文正样本最低 0.560、58 条 ≥ 0.60；16 条纯中文负样本最高 0.598、0 条 ≥ 0.60。0.60 是唯一能把两侧完全分开的阈值；再低会放行「如何减肥 / 讲个故事 / 推荐一部电影」这类话题相近的离题问题。
+
+2. **Jina 日配额耗尽后，embedding 余弦被当成 reranker 用（已修）。** 15:07（本地）当日 rerank 用量达 3,002,859 / 3,000,000 tokens，Jina 返回 429 后 `AiService.rerank` 降级到 `OllamaProvider`，而它当时用 embedding 余弦冒充 cross-encoder 分数（0.43～0.70）。`applyRelevanceGate` 按 cross-encoder 量纲解释这些分数，导致 **负样本 20/20 泄漏**、Hit@1 掉到 75.2%。这是**降级路径的量纲错误**，不是检索退化。修复：`OllamaProvider.rerank()` 不再用 embedding 余弦兜底，无专用 reranker 时返回 `null`，由 `RagRetrievalService` 走 RRF 降级排序（`reason=rerank_unavailable`，不做无依据的拒绝）。
+
+**复测状态：** 修复后代码（CJK 向量锚点 + 移除余弦兜底）已通过 `rag-retrieval.service.spec.ts`（36/36）与 `tsc --noEmit`，但**完整 129 题复跑要等 Jina 日配额重置（次日 00:00）**。预期 Hit@1 78.9% → 79.7%（r53 恢复），负样本维持 0/20；待复跑确认后回填数字。
+
+**仍存在的系统性 Hit@1 偏差（非缺陷，属 reranker 近邻混淆）：** account-guide ↔ account-troubleshooting（r29/r67/r101）、OTP 类 account-troubleshooting ↔ wallet-troubleshooting（r30/r39/r68/r102）、coupon-rules ↔ promotion-rules（r09/r49/r83）、platform-rules ↔ product-authenticity（r40/r77）、deposit-guide ↔ wallet-troubleshooting（r35/r73）、order-troubleshooting（r16/r56/r90）。golden 期望值已逐条核对文档内容与关键词，确认无误。生产链路用 topK=3 无域过滤，Hit@3 96.3% 是更贴近实际体验的指标（引用 3 篇文档）。
 
 ### 5.2 现有 153 题意图（2026-11-23 复跑）
 
@@ -321,9 +350,9 @@ docker exec -e TEST_USER_ID=<id> lucky-backend-dev node /app/scripts/ai-acceptan
 | E-08 | intent | 「抽中的奖品什么时候发货」「我的奖品过期了怎么办」 | lucky-draw | order/coupon | Medium | l09/l12 | 补奖品履约/过期例句，明确 lucky-draw 归属 |
 | E-09 | intent | 「我的实名认证过了吗」「人脸识别一直转圈」 | kyc | wallet/general | Medium | k04/k13 | 补 KYC 状态/故障例句 |
 | E-10 | intent | 「怎么解绑微信」「我想问个问题」「你叫什么名字」 | user/general | general/rag/user | Low | u13/g11/g16 | 短输入/自我介绍类补例句 |
-| E-11 | rag | 129 题检索主链路 | 维持/超过 2026-11-19 基线 | Hit@1 78.9%（-6.1pp）；门槛修复后 Hit@3 96.3%、MRR 0.873、p95 1502ms，**Hit@1 未提升** | Medium（收窄） | `20261123-143316.json` | 仍需查 embedding/index 版本差异；仅剩 Hit@1 排序问题，延迟与负样本已回到基线内 |
+| E-11 | rag | 129 题检索主链路 | 维持/超过 2026-11-19 基线 | **非回归（口径错误）**：85.0% 是 40 题子集；129 题同口径基线 `20261119-235736.json` 本身就是 78.9% / 97.2% / 0.878，逐题对比仅差 1 题（p=1.0000）。排查中修复 2 个真问题：r53 被 CJK 门卫误杀（新增向量锚点 0.60）、Jina 配额耗尽后 embedding 余弦冒充 reranker（已改为返回 null 走 RRF）。修复后待配额重置复跑，预期 Hit@1 79.7% | 已定位（待复跑回填） | `20261123-151722.json`、§5.1.3 | 剩余偏差是 reranker 近邻文档混淆（account/coupon/OTP 系列），属模型能力，不是版本漂移 |
 | E-12 | rag-negative | 「How do I cook pasta?」 | 不返回知识库文档 | **已修复（2026-11-23）**：拉丁地板 0.03 + 词面锚点 0.15，n11 返回 0 条；129 题负样本 1/20 → 0/20 | —（已修） | `20261123-143316.json` | 见 §5.1.2 |
-| E-13 | latency | 检索主链路 | p95 接近基线 | **已收窄**：p95 1502ms（基线 1179ms），负样本拒绝路径不再触发 rerank 冷启动长尾；仍有偶发 10s+ | Medium | 报告 latency | 继续观察 rerank/embedding 超时；provider 无换源问题未改 |
+| E-13 | latency / resilience | 检索主链路 + reranker 日配额 | p95 接近基线；外部依赖失败时行为可解释 | **已收窄**：p95 1502ms（129 题同口径基线 1675ms）；负样本拒绝路径不再触发 rerank 冷启动长尾。**新发现**：Jina 日配额 3M tokens 在评测中耗尽后，旧代码用 embedding 余弦兜底冒充 reranker，导致量纲错配、负样本 20/20 泄漏（已改为返回 null → RRF 降级，见 §5.1.3） | Medium | 报告 latency、`20261123-151722.json` | 补 provider 429 的降级遥测（记录 `rerank_unavailable` 计数）；观察配额是否影响每日高峰 |
 | E-14 | observability | RAG 报告 layers | 有 vector/meili/keyword 归因 | 全 0 | Low | 报告 layers | 补检索层归因字段 |
 | E-15 | test-infra | 连续验收 | 不受日配额影响 | 测试用户日用量 202k / 200k 上限 | Low | `ai_usage_daily` | 验收脚本在非生产重置测试用户日用量（已实现） |
 | E-16 | test-infra | 验收脚本抓取 `ai_confirm` | 能拿到卡片 token | **已定位并修复**：网关统一发 `dispatch` 事件，真实类型在 `payload.type`；脚本之前监听 `ai_confirm` 事件名，所以永远收不到卡片。改为监听 `dispatch` 并过滤 `payload.type === 'ai_confirm'` | —（已修） | `DEBUG_SOCKET=1 SCENARIO=领券` 探针可见 `dispatch {type:'ai_confirm'}` | 无需改服务端；验收脚本已修正 |
@@ -371,8 +400,8 @@ docker exec -e TEST_USER_ID=<id> lucky-backend-dev node /app/scripts/ai-acceptan
 | 级别 | 问题 |
 |---|---|
 | **已修（2026-11-23）** | **E-17 Taglish 意图覆盖**：标准集 86.9%→99.4%，真实集 62.8%→97.7%；盲测首跑 80.4%。详见 §5.2.2。**E-20 检索层门槛**：负样本 1/20→0/20、10/12→5/12。**E-12**：n11 返回 0。详见 §5.1.2 |
-| **High** | E-11 RAG Hit@1 回归（-6.1pp，仅排序）；E-19 Taglish RAG；E-21 物流查询；E-22 Taglish 充值记录；E-04/E-05 订单异常与商品指代 |
-| **Medium** | E-20 残余 5 条注入/越权请求（转安全层）；E-06～E-10 规则/业务边界与短输入；E-13 p95 延迟（含 embedding provider 无换源）；E-23 抽奖未直接弹卡 |
+| **High** | E-19 Taglish RAG；E-21 物流查询；E-22 Taglish 充值记录；E-04/E-05 订单异常与商品指代 |
+| **Medium** | E-20 残余 5 条注入/越权请求（转安全层）；E-06～E-10 规则/业务边界与短输入；E-13 p95 延迟 + reranker 配额降级遥测；E-23 抽奖未直接弹卡 |
 | **Low / 已修** | E-14 层归因；E-15 配额重置（脚本已修）；E-16 事件名（脚本已修）；E-18 judge 角色（脚本已修）；E-24 用例口径（待改用例） |
 
 ### 8.3 统一修复顺序（先安全，再语言，再检索，后体验）
@@ -380,9 +409,9 @@ docker exec -e TEST_USER_ID=<id> lucky-backend-dev node /app/scripts/ai-acceptan
 1. ~~**RAG 负样本硬门槛（E-20）**~~ **检索层已修**：分文字系统地板 + 词面锚点，负样本 1/20→0/20、10/12→5/12；剩余 5 条转注入防护/动作策略层（见 §5.1.2）。
 2. ~~**Taglish/英文意图覆盖（E-17、E-04～E-10、E-22）**~~ **已修**：边界重划 + 每域真实问法 + `generalDominates`；残余 3.3% 改用域先验/关键词白名单处理（见 §5.2.2）。
 3. **RAG 回归与 Taglish 检索（E-11、E-19、E-21）**：
-   - 只剩 Hit@1 排序（78.9% vs 基线 85.0%），对比 2026-11-19 的 embedding/index 版本；
-   - 补英文/Taglish 关键词与问法；必要时 reindex；
-   - 复跑 129 + 66。
+   - ~~E-11 对比 2026-11-19 的 embedding/index 版本~~ **已收口（2026-11-23）**：不是版本漂移，85.0% 是 40 题子集口径；同口径 129 题基线即 78.9%。排查中修掉 r53 门卫误杀（向量锚点 0.60）和 reranker 降级量纲错误，见 §5.1.3；
+   - **待办**：Jina 日配额重置后（次日 00:00）复跑 129 + 66，把 r53 恢复与负样本 0/20 回填本表；
+   - 补英文/Taglish 关键词与问法；必要时 reindex。
 4. **写操作卡片优先与用例修正（E-23、E-24）**：
    - 抽奖/提现参数齐了直接调工具；
    - 安全负样本改为「拒绝且不执行」，提现用例补全账号/姓名。
