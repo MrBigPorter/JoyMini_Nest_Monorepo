@@ -1,0 +1,27 @@
+{"id": "hd01", "input": "hindi ko natanggap ang refund ko", "expect": "order", "tags": ["blind4", "order"], "note": "退款未到账"}
+{"id": "hd02", "input": "mali ang item na pinadala", "expect": "order", "tags": ["blind4", "order"], "note": "错货"}
+{"id": "hd03", "input": "pwede bang i-hold ang delivery", "expect": "order", "tags": ["blind4", "order"], "note": "暂缓配送"}
+{"id": "hd04", "input": "may pera ba sa wallet ko", "expect": "wallet", "tags": ["blind4", "wallet"], "note": "余额"}
+{"id": "hd05", "input": "kulang ang na-credit sa account ko", "expect": "wallet", "tags": ["blind4", "wallet"], "note": "入账金额不对"}
+{"id": "hd06", "input": "paano mag-cash out", "expect": "wallet", "tags": ["blind4", "wallet"], "note": "提现"}
+{"id": "hd07", "input": "may discount coupon ba para sa akin", "expect": "coupon", "tags": ["blind4", "coupon"], "note": "可用券"}
+{"id": "hd08", "input": "hindi ako makapag-claim ng voucher", "expect": "coupon", "tags": ["blind4", "coupon"], "note": "领券失败"}
+{"id": "hd09", "input": "hanggang kailan valid ang coupon ko", "expect": "coupon", "tags": ["blind4", "coupon"], "note": "券有效期"}
+{"id": "hd10", "input": "paano baguhin ang username", "expect": "user", "tags": ["blind4", "user"], "note": "改用户名"}
+{"id": "hd11", "input": "ayaw mag-login ng account ko", "expect": "user", "tags": ["blind4", "user"], "note": "登录失败"}
+{"id": "hd12", "input": "paano i-update ang contact number", "expect": "user", "tags": ["blind4", "user"], "note": "改联系方式"}
+{"id": "hd13", "input": "may mas maliit na size ba", "expect": "product", "tags": ["blind4", "product"], "note": "尺码"}
+{"id": "hd14", "input": "ano ang material ng item", "expect": "product", "tags": ["blind4", "product"], "note": "材质"}
+{"id": "hd15", "input": "may stocks ba sa ibang branch", "expect": "product", "tags": ["blind4", "product"], "note": "库存"}
+{"id": "hd16", "input": "paano malalaman ang winner", "expect": "lucky-draw", "tags": ["blind4", "lucky-draw"], "note": "中奖公布"}
+{"id": "hd17", "input": "hindi pa dumarating ang napanalunan ko", "expect": "lucky-draw", "tags": ["blind4", "lucky-draw"], "note": "奖品未到"}
+{"id": "hd18", "input": "may ticket ba ako sa raffle", "expect": "lucky-draw", "tags": ["blind4", "lucky-draw"], "note": "抽奖券"}
+{"id": "hd19", "input": "kailan maa-approve ang aking ID", "expect": "kyc", "tags": ["blind4", "kyc"], "note": "认证进度"}
+{"id": "hd20", "input": "hindi ma-verify ang mukha ko", "expect": "kyc", "tags": ["blind4", "kyc"], "note": "人脸失败"}
+{"id": "hd21", "input": "ano ang mga alituntunin sa refund", "expect": "rag", "tags": ["blind4", "rag"], "note": "退款规则"}
+{"id": "hd22", "input": "sino ang sasagot sa return fee", "expect": "rag", "tags": ["blind4", "rag"], "note": "退货运费承担"}
+{"id": "hd23", "input": "gaano katagal bago maibalik ang pera", "expect": "rag", "tags": ["blind4", "rag"], "note": "退款时效"}
+{"id": "hd24", "input": "paano ninyo ginagamit ang data ko", "expect": "rag", "tags": ["blind4", "rag"], "note": "隐私"}
+{"id": "hd25", "input": "hello po, may kailangan ako", "expect": "general", "tags": ["blind4", "general"], "note": "开场"}
+{"id": "hd26", "input": "bot ka ba talaga", "expect": "general", "tags": ["blind4", "general"], "note": "身份"}
+{"id": "hd27", "input": "how long does shipping take", "expect": "rag", "tags": ["blind4", "rag", "english"], "note": "英文配送时效"}

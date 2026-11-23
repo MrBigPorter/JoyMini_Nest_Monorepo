@@ -1,0 +1,32 @@
+{"id": "hc01", "input": "asan na kaya ang padala ko", "expect": "order", "tags": ["blind3", "order"], "note": "包裹位置"}
+{"id": "hc02", "input": "kailan babalik ang pera ko sa order", "expect": "order", "tags": ["blind3", "order"], "note": "退款到账进度"}
+{"id": "hc03", "input": "nasira ang item pagdating", "expect": "order", "tags": ["blind3", "order"], "note": "破损到货"}
+{"id": "hc04", "input": "pwede bang baguhin ang address ng delivery", "expect": "order", "tags": ["blind3", "order"], "note": "改收货地址"}
+{"id": "hc05", "input": "ilan pa ang pera ko", "expect": "wallet", "tags": ["blind3", "wallet"], "note": "余额"}
+{"id": "hc06", "input": "bakit hindi pumasok ang bayad ko", "expect": "wallet", "tags": ["blind3", "wallet"], "note": "付款未入账"}
+{"id": "hc07", "input": "hindi ko ma-withdraw ang pera ko", "expect": "wallet", "tags": ["blind3", "wallet"], "note": "提现失败"}
+{"id": "hc08", "input": "saan nakikita ang mga bayad ko", "expect": "wallet", "tags": ["blind3", "wallet"], "note": "支付记录"}
+{"id": "hc09", "input": "may promo ba kayo ngayon", "expect": "coupon", "tags": ["blind3", "coupon"], "note": "促销"}
+{"id": "hc10", "input": "bakit hindi tumatanggap ng coupon ang checkout", "expect": "coupon", "tags": ["blind3", "coupon"], "note": "结算不能用券"}
+{"id": "hc11", "input": "may birthday discount ba", "expect": "coupon", "tags": ["blind3", "coupon"], "note": "生日优惠"}
+{"id": "hc12", "input": "paano baguhin ang aking email", "expect": "user", "tags": ["blind3", "user"], "note": "改邮箱"}
+{"id": "hc13", "input": "hindi ko ma-access ang account ko", "expect": "user", "tags": ["blind3", "user"], "note": "账号无法登录"}
+{"id": "hc14", "input": "paano i-update ang aking birthday", "expect": "user", "tags": ["blind3", "user"], "note": "改资料"}
+{"id": "hc15", "input": "may picture ba ng aktwal na item", "expect": "product", "tags": ["blind3", "product"], "note": "实物图"}
+{"id": "hc16", "input": "gaano kabigat ang item", "expect": "product", "tags": ["blind3", "product"], "note": "重量"}
+{"id": "hc17", "input": "puwede bang tingnan ang detalye ng product", "expect": "product", "tags": ["blind3", "product"], "note": "商品详情"}
+{"id": "hc18", "input": "saan makikita kung nanalo ako", "expect": "lucky-draw", "tags": ["blind3", "lucky-draw"], "note": "中奖结果"}
+{"id": "hc19", "input": "kailan ang susunod na raffle", "expect": "lucky-draw", "tags": ["blind3", "lucky-draw"], "note": "下期抽奖"}
+{"id": "hc20", "input": "paano ipapadala ang premyo", "expect": "lucky-draw", "tags": ["blind3", "lucky-draw"], "note": "奖品寄送"}
+{"id": "hc21", "input": "ok na ba ang aking verification", "expect": "kyc", "tags": ["blind3", "kyc"], "note": "认证是否完成"}
+{"id": "hc22", "input": "hindi tumatanggap ng selfie ang system", "expect": "kyc", "tags": ["blind3", "kyc"], "note": "自拍上传失败"}
+{"id": "hc23", "input": "gaano katagal bago ma-approve ang KYC", "expect": "rag", "tags": ["blind3", "rag"], "note": "认证时长"}
+{"id": "hc24", "input": "ano ang mga patakaran sa pagbabalik ng pera", "expect": "rag", "tags": ["blind3", "rag"], "note": "退款规则"}
+{"id": "hc25", "input": "may kaltas ba sa refund", "expect": "rag", "tags": ["blind3", "rag"], "note": "退款扣费"}
+{"id": "hc26", "input": "ano ang limits ng withdrawal", "expect": "rag", "tags": ["blind3", "rag"], "note": "提现限额"}
+{"id": "hc27", "input": "paano pinoprotektahan ang aking data", "expect": "rag", "tags": ["blind3", "rag"], "note": "数据保护"}
+{"id": "hc28", "input": "good morning po", "expect": "general", "tags": ["blind3", "general"], "note": "问候"}
+{"id": "hc29", "input": "ikaw ba si customer service", "expect": "general", "tags": ["blind3", "general"], "note": "身份"}
+{"id": "hc30", "input": "pwede ba kitang tanungin", "expect": "general", "tags": ["blind3", "general"], "note": "能否提问"}
+{"id": "hc31", "input": "can i change my delivery address", "expect": "order", "tags": ["blind3", "order", "english"], "note": "英文改地址"}
+{"id": "hc32", "input": "how do i verify my id", "expect": "kyc", "tags": ["blind3", "kyc", "english"], "note": "英文认证"}

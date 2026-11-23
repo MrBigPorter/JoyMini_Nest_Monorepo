@@ -1,86 +1,496 @@
 {
-  "run_at": "2026-11-19T16:51:25",
-  "golden_file": "golden/intent.jsonl",
-  "golden_total": 153,
-  "accuracy": 0.8693,
-  "accuracy_ci95": [
-    0.8067,
-    0.9138
-  ],
-  "macro_f1": 0.8705,
-  "per_domain": {
-    "coupon": {
-      "expected": 18,
-      "predicted": 19,
-      "tp": 17,
-      "precision": 0.8947,
-      "recall": 0.9444,
-      "f1": 0.9189
+  "baselines": {
+    "golden/intent.jsonl": {
+      "run_at": "2026-11-23T13:14:22",
+      "golden_file": "golden/intent.jsonl",
+      "total": 153,
+      "accuracy": 0.9935,
+      "macro_f1": 0.9938,
+      "per_domain": {
+        "coupon": {
+          "expected": 18,
+          "predicted": 18,
+          "tp": 18,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "general": {
+          "expected": 16,
+          "predicted": 16,
+          "tp": 16,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "kyc": {
+          "expected": 16,
+          "predicted": 16,
+          "tp": 16,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "lucky-draw": {
+          "expected": 16,
+          "predicted": 16,
+          "tp": 16,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "order": {
+          "expected": 18,
+          "predicted": 19,
+          "tp": 18,
+          "precision": 0.9474,
+          "recall": 1.0,
+          "f1": 0.973
+        },
+        "product": {
+          "expected": 17,
+          "predicted": 17,
+          "tp": 17,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "rag": {
+          "expected": 18,
+          "predicted": 17,
+          "tp": 17,
+          "precision": 1.0,
+          "recall": 0.9444,
+          "f1": 0.9714
+        },
+        "user": {
+          "expected": 17,
+          "predicted": 17,
+          "tp": 17,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "wallet": {
+          "expected": 17,
+          "predicted": 17,
+          "tp": 17,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        }
+      },
+      "note": "E-17 修复后基线：Taglish/英文真实问法例句 + 操作/规则边界重划；首次盲测数值见 2026-11-23-ai-eval-matrix-and-findings.md"
     },
-    "general": {
-      "expected": 16,
-      "predicted": 20,
-      "tp": 14,
-      "precision": 0.7,
-      "recall": 0.875,
-      "f1": 0.7778
+    "golden/intent.realistic.jsonl": {
+      "run_at": "2026-11-23T13:16:06",
+      "golden_file": "golden/intent.realistic.jsonl",
+      "total": 43,
+      "accuracy": 0.9767,
+      "macro_f1": 0.9791,
+      "per_domain": {
+        "coupon": {
+          "expected": 5,
+          "predicted": 5,
+          "tp": 5,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "general": {
+          "expected": 5,
+          "predicted": 5,
+          "tp": 5,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "kyc": {
+          "expected": 4,
+          "predicted": 4,
+          "tp": 4,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "lucky-draw": {
+          "expected": 4,
+          "predicted": 5,
+          "tp": 4,
+          "precision": 0.8,
+          "recall": 1.0,
+          "f1": 0.8889
+        },
+        "order": {
+          "expected": 7,
+          "predicted": 6,
+          "tp": 6,
+          "precision": 1.0,
+          "recall": 0.8571,
+          "f1": 0.9231
+        },
+        "product": {
+          "expected": 4,
+          "predicted": 4,
+          "tp": 4,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "rag": {
+          "expected": 4,
+          "predicted": 4,
+          "tp": 4,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "user": {
+          "expected": 4,
+          "predicted": 4,
+          "tp": 4,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "wallet": {
+          "expected": 6,
+          "predicted": 6,
+          "tp": 6,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        }
+      },
+      "note": "E-17 修复后基线：Taglish/英文真实问法例句 + 操作/规则边界重划；首次盲测数值见 2026-11-23-ai-eval-matrix-and-findings.md"
     },
-    "kyc": {
-      "expected": 16,
-      "predicted": 14,
-      "tp": 14,
-      "precision": 1.0,
-      "recall": 0.875,
-      "f1": 0.9333
+    "golden/intent.holdout.jsonl": {
+      "run_at": "2026-11-23T13:17:53",
+      "golden_file": "golden/intent.holdout.jsonl",
+      "total": 45,
+      "accuracy": 0.9333,
+      "macro_f1": 0.939,
+      "per_domain": {
+        "coupon": {
+          "expected": 5,
+          "predicted": 4,
+          "tp": 4,
+          "precision": 1.0,
+          "recall": 0.8,
+          "f1": 0.8889
+        },
+        "general": {
+          "expected": 4,
+          "predicted": 4,
+          "tp": 4,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "kyc": {
+          "expected": 4,
+          "predicted": 4,
+          "tp": 4,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "lucky-draw": {
+          "expected": 4,
+          "predicted": 5,
+          "tp": 4,
+          "precision": 0.8,
+          "recall": 1.0,
+          "f1": 0.8889
+        },
+        "order": {
+          "expected": 6,
+          "predicted": 5,
+          "tp": 5,
+          "precision": 1.0,
+          "recall": 0.8333,
+          "f1": 0.9091
+        },
+        "product": {
+          "expected": 5,
+          "predicted": 4,
+          "tp": 4,
+          "precision": 1.0,
+          "recall": 0.8,
+          "f1": 0.8889
+        },
+        "rag": {
+          "expected": 7,
+          "predicted": 9,
+          "tp": 7,
+          "precision": 0.7778,
+          "recall": 1.0,
+          "f1": 0.875
+        },
+        "user": {
+          "expected": 5,
+          "predicted": 5,
+          "tp": 5,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "wallet": {
+          "expected": 5,
+          "predicted": 5,
+          "tp": 5,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        }
+      },
+      "note": "E-17 修复后基线：Taglish/英文真实问法例句 + 操作/规则边界重划；首次盲测数值见 2026-11-23-ai-eval-matrix-and-findings.md"
     },
-    "lucky-draw": {
-      "expected": 16,
-      "predicted": 14,
-      "tp": 14,
-      "precision": 1.0,
-      "recall": 0.875,
-      "f1": 0.9333
+    "golden/intent.holdout2.jsonl": {
+      "run_at": "2026-11-23T13:18:27",
+      "golden_file": "golden/intent.holdout2.jsonl",
+      "total": 34,
+      "accuracy": 0.9706,
+      "macro_f1": 0.9682,
+      "per_domain": {
+        "coupon": {
+          "expected": 3,
+          "predicted": 3,
+          "tp": 3,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "general": {
+          "expected": 3,
+          "predicted": 3,
+          "tp": 3,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "kyc": {
+          "expected": 3,
+          "predicted": 3,
+          "tp": 3,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "lucky-draw": {
+          "expected": 3,
+          "predicted": 3,
+          "tp": 3,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "order": {
+          "expected": 5,
+          "predicted": 5,
+          "tp": 5,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "product": {
+          "expected": 4,
+          "predicted": 4,
+          "tp": 4,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "rag": {
+          "expected": 6,
+          "predicted": 6,
+          "tp": 6,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "user": {
+          "expected": 3,
+          "predicted": 4,
+          "tp": 3,
+          "precision": 0.75,
+          "recall": 1.0,
+          "f1": 0.8571
+        },
+        "wallet": {
+          "expected": 4,
+          "predicted": 3,
+          "tp": 3,
+          "precision": 1.0,
+          "recall": 0.75,
+          "f1": 0.8571
+        }
+      },
+      "note": "E-17 修复后基线：Taglish/英文真实问法例句 + 操作/规则边界重划；首次盲测数值见 2026-11-23-ai-eval-matrix-and-findings.md"
     },
-    "order": {
-      "expected": 18,
-      "predicted": 17,
-      "tp": 15,
-      "precision": 0.8824,
-      "recall": 0.8333,
-      "f1": 0.8571
+    "golden/intent.holdout3.jsonl": {
+      "run_at": "2026-11-23T13:20:00",
+      "golden_file": "golden/intent.holdout3.jsonl",
+      "total": 32,
+      "accuracy": 1.0,
+      "macro_f1": 1.0,
+      "per_domain": {
+        "coupon": {
+          "expected": 3,
+          "predicted": 3,
+          "tp": 3,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "general": {
+          "expected": 3,
+          "predicted": 3,
+          "tp": 3,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "kyc": {
+          "expected": 3,
+          "predicted": 3,
+          "tp": 3,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "lucky-draw": {
+          "expected": 3,
+          "predicted": 3,
+          "tp": 3,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "order": {
+          "expected": 5,
+          "predicted": 5,
+          "tp": 5,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "product": {
+          "expected": 3,
+          "predicted": 3,
+          "tp": 3,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "rag": {
+          "expected": 5,
+          "predicted": 5,
+          "tp": 5,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "user": {
+          "expected": 3,
+          "predicted": 3,
+          "tp": 3,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "wallet": {
+          "expected": 4,
+          "predicted": 4,
+          "tp": 4,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        }
+      },
+      "note": "E-17 修复后基线：Taglish/英文真实问法例句 + 操作/规则边界重划；首次盲测数值见 2026-11-23-ai-eval-matrix-and-findings.md"
     },
-    "product": {
-      "expected": 17,
-      "predicted": 14,
-      "tp": 14,
-      "precision": 1.0,
-      "recall": 0.8235,
-      "f1": 0.9032
-    },
-    "rag": {
-      "expected": 18,
-      "predicted": 15,
-      "tp": 12,
-      "precision": 0.8,
-      "recall": 0.6667,
-      "f1": 0.7273
-    },
-    "user": {
-      "expected": 17,
-      "predicted": 20,
-      "tp": 16,
-      "precision": 0.8,
-      "recall": 0.9412,
-      "f1": 0.8649
-    },
-    "wallet": {
-      "expected": 17,
-      "predicted": 20,
-      "tp": 17,
-      "precision": 0.85,
-      "recall": 1.0,
-      "f1": 0.9189
+    "golden/intent.holdout4.jsonl": {
+      "run_at": "2026-11-23T13:20:27",
+      "golden_file": "golden/intent.holdout4.jsonl",
+      "total": 27,
+      "accuracy": 0.963,
+      "macro_f1": 0.9677,
+      "per_domain": {
+        "coupon": {
+          "expected": 3,
+          "predicted": 3,
+          "tp": 3,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "general": {
+          "expected": 2,
+          "predicted": 2,
+          "tp": 2,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "kyc": {
+          "expected": 2,
+          "predicted": 2,
+          "tp": 2,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "lucky-draw": {
+          "expected": 3,
+          "predicted": 3,
+          "tp": 3,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "order": {
+          "expected": 3,
+          "predicted": 3,
+          "tp": 3,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "product": {
+          "expected": 3,
+          "predicted": 3,
+          "tp": 3,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "rag": {
+          "expected": 5,
+          "predicted": 6,
+          "tp": 5,
+          "precision": 0.8333,
+          "recall": 1.0,
+          "f1": 0.9091
+        },
+        "user": {
+          "expected": 3,
+          "predicted": 2,
+          "tp": 2,
+          "precision": 1.0,
+          "recall": 0.6667,
+          "f1": 0.8
+        },
+        "wallet": {
+          "expected": 3,
+          "predicted": 3,
+          "tp": 3,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        }
+      },
+      "note": "E-17 修复后基线：Taglish/英文真实问法例句 + 操作/规则边界重划；首次盲测数值见 2026-11-23-ai-eval-matrix-and-findings.md"
     }
-  },
-  "note": "153 题基线。2026-11-19：补中文 seed 55.6%→84.3%（p<0.0001）；随后修 Meili 增删同步 + 地址语境例句 84.3%→86.9%（p=0.42，未达显著，但地址路由语义正确）。"
+  }
 }

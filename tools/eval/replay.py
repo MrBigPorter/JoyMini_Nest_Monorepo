@@ -273,6 +273,53 @@ def compute_metrics(records: list[dict]) -> dict:
 
 
 # ── 4. 与基线比较 ────────────────────────────────────────────
+def resolve_baseline(raw: dict | None, rel_golden: str) -> dict | None:
+    """按题集文件取对应基线。
+
+    历史格式是单个扁平对象（只描述 golden/intent.jsonl），新格式是
+    {"baselines": {相对路径: 基线}}。自定义 --golden 不能再拿标准集
+    的基线做门槛，否则「真实问法 81% vs 标准基线 86.9%」会被误判为
+    回归，而它其实是另一份题集。
+    """
+    if not raw:
+        return None
+    keyed = raw.get("baselines")
+    if isinstance(keyed, dict):
+        return keyed.get(rel_golden)
+    if raw.get("golden_file") == rel_golden:
+        return raw
+    return None
+
+
+def make_baseline_entry(result: dict, metrics: dict) -> dict:
+    return {
+        "run_at": result["run_at"],
+        "golden_file": result["golden_file"],
+        "total": metrics["total"],
+        "accuracy": metrics["accuracy"],
+        "macro_f1": metrics["macro_f1"],
+        "per_domain": metrics["per_domain"],
+    }
+
+
+def write_baseline(path: Path, rel_golden: str, entry: dict) -> None:
+    raw: dict = {}
+    if path.exists():
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    keyed = raw.get("baselines")
+    if not isinstance(keyed, dict):
+        # 迁移旧的扁平基线：它只属于 golden/intent.jsonl
+        legacy_golden = raw.get("golden_file")
+        keyed = {}
+        if legacy_golden:
+            keyed[legacy_golden] = raw
+    keyed[rel_golden] = entry
+    path.write_text(
+        json.dumps({"baselines": keyed}, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
 def compare_with_baseline(metrics: dict, baseline: dict | None) -> dict:
     if not baseline:
         return {"has_baseline": False, "delta_accuracy": None, "delta_macro_f1": None}
@@ -444,8 +491,11 @@ def main() -> int:
     metrics = compute_metrics(records)
 
     baseline = None
+    rel_golden = os.path.relpath(args.golden, EVAL_DIR)
     if BASELINE.exists():
-        baseline = json.loads(BASELINE.read_text(encoding="utf-8"))
+        baseline = resolve_baseline(
+            json.loads(BASELINE.read_text(encoding="utf-8")), rel_golden
+        )
     comparison = compare_with_baseline(metrics, baseline)
 
     result = {
@@ -470,22 +520,12 @@ def main() -> int:
         if metrics["errors"] and not args.allow_errors:
             print("⛔ 有请求失败，拒绝更新基线（修好网络/限流后重跑）")
         else:
-            BASELINE.write_text(
-                json.dumps(
-                    {
-                        "run_at": result["run_at"],
-                        "golden_file": result["golden_file"],
-                        "total": metrics["total"],
-                        "accuracy": metrics["accuracy"],
-                        "macro_f1": metrics["macro_f1"],
-                        "per_domain": metrics["per_domain"],
-                    },
-                    ensure_ascii=False,
-                    indent=2,
-                ),
-                encoding="utf-8",
+            write_baseline(
+                BASELINE,
+                rel_golden,
+                make_baseline_entry(result, metrics),
             )
-            print(f"✅ 基线已更新：{BASELINE}")
+            print(f"✅ 基线已更新：{BASELINE} ({rel_golden})")
 
     # 有任何请求失败 → 这次结果不可信，直接判失败
     if metrics["errors"] and not args.allow_errors:

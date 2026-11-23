@@ -1,0 +1,45 @@
+{"id": "ho01", "input": "hindi pa dumarating ang binili ko", "expect": "order", "tags": ["holdout", "order"], "note": "包裹未到（不同措辞）"}
+{"id": "ho02", "input": "natanggap ko na ba ang order ko", "expect": "order", "tags": ["holdout", "order"], "note": "订单签收状态"}
+{"id": "ho03", "input": "pwede ko bang ibalik kung mali ang kulay", "expect": "order", "tags": ["holdout", "order"], "note": "错色退货操作"}
+{"id": "ho04", "input": "bakit hindi gumagalaw ang delivery status ko", "expect": "order", "tags": ["holdout", "order"], "note": "物流停滞"}
+{"id": "ho05", "input": "paano ako makakakuha ng refund sa order ko", "expect": "order", "tags": ["holdout", "order"], "note": "订单退款操作"}
+{"id": "ho06", "input": "magkano pa ang pera ko sa wallet", "expect": "wallet", "tags": ["holdout", "wallet"], "note": "余额查询"}
+{"id": "ho07", "input": "hindi ko makita ang cash in ko", "expect": "wallet", "tags": ["holdout", "wallet"], "note": "充值未到账"}
+{"id": "ho08", "input": "paano maglagay ng pera sa wallet", "expect": "wallet", "tags": ["holdout", "wallet"], "note": "充值操作"}
+{"id": "ho09", "input": "bakit pending pa rin ang withdraw ko", "expect": "wallet", "tags": ["holdout", "wallet"], "note": "提现进度"}
+{"id": "ho10", "input": "saan ko makikita ang mga transaksyon ko", "expect": "wallet", "tags": ["holdout", "wallet"], "note": "交易记录"}
+{"id": "ho11", "input": "may bagong voucher ba", "expect": "coupon", "tags": ["holdout", "coupon"], "note": "新券"}
+{"id": "ho12", "input": "saan ako makakakuha ng discount code", "expect": "coupon", "tags": ["holdout", "coupon"], "note": "获取折扣码"}
+{"id": "ho13", "input": "hindi magamit ang coupon ko", "expect": "coupon", "tags": ["holdout", "coupon"], "note": "券不可用"}
+{"id": "ho14", "input": "pwede ba dalawang voucher sa isang order", "expect": "coupon", "tags": ["holdout", "coupon"], "note": "叠加使用"}
+{"id": "ho15", "input": "paano ko mababago ang password ko", "expect": "user", "tags": ["holdout", "user"], "note": "改密码"}
+{"id": "ho16", "input": "gusto kong palitan ang number ko", "expect": "user", "tags": ["holdout", "user"], "note": "换手机号"}
+{"id": "ho17", "input": "ano ang email na naka-link sa account ko", "expect": "user", "tags": ["holdout", "user"], "note": "账号绑定信息"}
+{"id": "ho18", "input": "paano i-deactivate ang account ko", "expect": "user", "tags": ["holdout", "user"], "note": "注销账号"}
+{"id": "ho19", "input": "may available pa bang stock nito", "expect": "product", "tags": ["holdout", "product"], "note": "库存"}
+{"id": "ho20", "input": "ano ang sukat ng item na ito", "expect": "product", "tags": ["holdout", "product"], "note": "尺寸"}
+{"id": "ho21", "input": "totoong item ba ito", "expect": "product", "tags": ["holdout", "product"], "note": "真伪"}
+{"id": "ho22", "input": "pwede bang magpa-customize ng disenyo", "expect": "product", "tags": ["holdout", "product"], "note": "定制"}
+{"id": "ho23", "input": "saan makikita ang mga review", "expect": "product", "tags": ["holdout", "product"], "note": "评价"}
+{"id": "ho24", "input": "sumali ako sa raffle, paano malalaman kung nanalo", "expect": "lucky-draw", "tags": ["holdout", "lucky-draw"], "note": "中奖查询"}
+{"id": "ho25", "input": "kailan ang draw", "expect": "lucky-draw", "tags": ["holdout", "lucky-draw"], "note": "开奖时间（短句）"}
+{"id": "ho26", "input": "hindi ko natanggap ang premyo ko", "expect": "lucky-draw", "tags": ["holdout", "lucky-draw"], "note": "奖品未收到"}
+{"id": "ho27", "input": "saan makikita ang mga ticket ko", "expect": "lucky-draw", "tags": ["holdout", "lucky-draw"], "note": "抽奖券"}
+{"id": "ho28", "input": "tapos na ba ang verification ko", "expect": "kyc", "tags": ["holdout", "kyc"], "note": "认证状态"}
+{"id": "ho29", "input": "ano ang kailangan para ma-verify", "expect": "kyc", "tags": ["holdout", "kyc"], "note": "认证材料（操作指引）"}
+{"id": "ho30", "input": "hindi natatanggap ang ID ko", "expect": "kyc", "tags": ["holdout", "kyc"], "note": "ID 上传失败"}
+{"id": "ho31", "input": "bakit pending ang KYC ko", "expect": "kyc", "tags": ["holdout", "kyc"], "note": "KYC 进度"}
+{"id": "ho32", "input": "ano ang patakaran sa refund", "expect": "rag", "tags": ["holdout", "rag"], "note": "退款政策"}
+{"id": "ho33", "input": "magkano ang bayad sa pag-withdraw", "expect": "rag", "tags": ["holdout", "rag"], "note": "提现费率"}
+{"id": "ho34", "input": "ilang araw bago dumating ang order", "expect": "rag", "tags": ["holdout", "rag"], "note": "配送时效"}
+{"id": "ho35", "input": "paano gumagana ang lucky draw", "expect": "rag", "tags": ["holdout", "rag"], "note": "抽奖规则"}
+{"id": "ho36", "input": "ano ang patakaran sa pagbabalik ng item", "expect": "rag", "tags": ["holdout", "rag"], "note": "退货政策"}
+{"id": "ho37", "input": "sino ang may sagot sa shipping pabalik", "expect": "rag", "tags": ["holdout", "rag"], "note": "退货运费"}
+{"id": "ho38", "input": "hello, kumusta", "expect": "general", "tags": ["holdout", "general"], "note": "问候"}
+{"id": "ho39", "input": "sino ang kausap ko", "expect": "general", "tags": ["holdout", "general"], "note": "询问身份"}
+{"id": "ho40", "input": "salamat po", "expect": "general", "tags": ["holdout", "general"], "note": "致谢"}
+{"id": "ho41", "input": "ano ang kaya mong gawin", "expect": "general", "tags": ["holdout", "general"], "note": "能力询问"}
+{"id": "ho42", "input": "where is my order", "expect": "order", "tags": ["holdout", "order", "english"], "note": "英文订单查询"}
+{"id": "ho43", "input": "how much is the withdrawal fee", "expect": "rag", "tags": ["holdout", "rag", "english"], "note": "英文费率"}
+{"id": "ho44", "input": "how do i reset my password", "expect": "user", "tags": ["holdout", "user", "english"], "note": "英文改密"}
+{"id": "ho45", "input": "can i combine a coupon with a sale", "expect": "coupon", "tags": ["holdout", "coupon", "english"], "note": "英文叠加"}

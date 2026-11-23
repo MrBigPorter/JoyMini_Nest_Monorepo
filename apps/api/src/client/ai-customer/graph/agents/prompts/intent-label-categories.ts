@@ -171,6 +171,39 @@ const businessOverGeneral: DedupRule = (labels) => {
 };
 
 /**
+ * general 明显领先时的保护阈值。
+ *
+ * 当 general 比最强的业务标签高出这个分数时，说明用户就是在闲聊/问
+ * 机器人自身（"ano pangalan mo?" / "你叫什么名字"），业务标签只是
+ * 被个别词（name/pangalan）带出来的噪声。此时保留业务标签会让
+ * orchestrator 多派一个业务 Agent，产生"答非所问的附加动作"。
+ */
+const GENERAL_DOMINANCE_MARGIN = 0.05;
+
+/**
+ * 规则0: general 明显领先 → 丢弃所有业务标签
+ *
+ * 与规则1互补：
+ *   - general 领先 ≥ 0.05  → [general]（闲聊就是闲聊）
+ *   - general 只差一点     → 规则1 仍然业务优先
+ */
+const generalDominates: DedupRule = (labels) => {
+  if (labels.length < 2) return labels;
+  const general = labels.find((l) => l.label === 'general');
+  if (!general) return labels;
+  const bestBusiness = labels.find((l) => !GENERAL_LABELS.includes(l.label));
+  if (!bestBusiness) return labels;
+  const gap = general.score - bestBusiness.score;
+  if (gap >= GENERAL_DOMINANCE_MARGIN) {
+    logger.log(
+      `[generalDominates] general=${general.score} leads ${bestBusiness.label}=${bestBusiness.score} by ${gap.toFixed(3)}, kept general only`,
+    );
+    return [general];
+  }
+  return labels;
+};
+
+/**
  * 规则注册表：按顺序执行，每条规则负责一种去重策略。
  * 前一条规则的输出作为下一条规则的输入（reduce 管道）。
  *
@@ -188,7 +221,7 @@ const businessOverGeneral: DedupRule = (labels) => {
  * };
  * const DEDUP_RULES: DedupRule[] = [businessOverGeneral, scoreGapFilter];
  */
-const DEDUP_RULES: DedupRule[] = [businessOverGeneral];
+const DEDUP_RULES: DedupRule[] = [generalDominates, businessOverGeneral];
 
 /**
  * 执行所有去重规则（纯函数，不修改原数组）
