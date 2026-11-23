@@ -759,7 +759,8 @@ export class RagRetrievalService {
    *   旧规则因此整段绕过门卫（E-20：10/12 负样本返回文档）。
    *
    * 规则（仅 reranker 成功时生效）：
-   *   中文：top < max(floor, cjkFloor) 且无关键词命中且向量低 → 拒（三个信号都没有）
+   *   中文：top < floor 且向量低                       → 拒（below_floor；地板下只认向量锚点）
+   *   中文：top < cjkFloor 且无关键词命中且向量低       → 拒（below_cjk_floor）
    *   拉丁：top < floor                                → 拒（离题）
    *   拉丁：top < lexicalMin 且无词面锚点              → 拒（没有可解释的匹配依据）
    *   其他                                             → 放行
@@ -817,35 +818,39 @@ export class RagRetrievalService {
     // 与 keywords 里的「抽奖/领奖」不完全重合）如果向量余弦 ≥ 0.60，
     // 说明语义上确实落在知识库里，不能仅凭 rerank 分低就整批拒掉。
     //
-    // 中文分支必须自己兜住通用地板（取 max 防配置漂移）：否则 rerank 分极低
-    // 的近义问法会在进入本分支前被通用地板拒掉（r53 实测 Jina 分 0.0010，
+    // 中文分支必须自己兜住通用地板（取 max 防配置漂移）：否则 rerank 分极低的
+    // 近义问法会在进入本分支前被通用地板拒掉（r53 实测 Jina 分 0.0010，
     // 而向量余弦 0.6464），向量锚点形同虚设。
+    //
+    // 反过来，地板以下不能因为关键词命中就放行：n09「1+1 等于几」的 rerank 分
+    // 0.0224、向量 0.488，但 token 撞上了文档里的泛词，旧逻辑靠通用地板挡住。
+    // 所以地板以下只认向量锚点，地板与 CJK 地板之间才认关键词。
     if (!hasLatinToken) {
-      const cjkGateFloor = Math.max(floor, cjkFloor);
       const vectorAnchor = this.cjkVectorAnchor();
-      if (
-        top < cjkGateFloor &&
-        !hasKeywordHit &&
-        topVectorScore < vectorAnchor
-      ) {
+      const hasVectorAnchor = topVectorScore >= vectorAnchor;
+      const belowFloor = top < floor && !hasVectorAnchor;
+      const belowCjkFloor =
+        top < cjkFloor && !hasKeywordHit && !hasVectorAnchor;
+      if (belowFloor || belowCjkFloor) {
         this.logger.log(
-          `[relevanceGate] rejected: CJK top=${top.toFixed(4)} < ${cjkGateFloor}, ` +
-            `keyword miss, vector=${topVectorScore.toFixed(4)} < ${vectorAnchor}`,
+          `[relevanceGate] rejected: CJK top=${top.toFixed(4)} < ` +
+            `${belowFloor ? floor : cjkFloor}, keyword=${hasKeywordHit}, ` +
+            `vector=${topVectorScore.toFixed(4)} < ${vectorAnchor}`,
         );
         return {
           results: [],
           applied: true,
           blocked: chunks.length,
-          floor: cjkGateFloor,
+          floor: belowFloor ? floor : cjkFloor,
           lexicalMinScore,
-          reason: 'below_cjk_floor',
+          reason: belowFloor ? 'below_floor' : 'below_cjk_floor',
         };
       }
       return {
         results: chunks,
         applied: true,
         blocked: 0,
-        floor: cjkGateFloor,
+        floor: cjkFloor,
         lexicalMinScore,
         reason: 'accepted',
       };

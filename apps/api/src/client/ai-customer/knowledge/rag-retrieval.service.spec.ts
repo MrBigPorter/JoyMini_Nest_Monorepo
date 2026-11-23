@@ -320,6 +320,19 @@ describe('RagRetrievalService 相关性门卫', () => {
     expect(results.map((r) => r.chunkId)).toEqual(['a']);
   });
 
+  it('中文 rerank 分低于通用地板，即使关键词命中也不放行（n09 回归）', async () => {
+    // 129 题复跑发现：n09「1+1 等于几」top=0.0224、向量 0.488，
+    // token 撞上文档里的泛词，靠通用地板挡住。地板以下只认向量锚点。
+    const service = build([chunk('a', 0.0224, '优惠券 等于 什么')], [0.0224]);
+    jest
+      .spyOn(service as any, 'keywordSearchChunks')
+      .mockResolvedValue([chunk('a', 0.5, '优惠券 等于 什么')] as any);
+
+    const results = await service.retrieve('1+1 等于几', { topK: 2 });
+
+    expect(results).toEqual([]);
+  });
+
   it('中文 rerank 分低、关键词未命中、向量余弦 < 0.60 → 仍拒绝', async () => {
     // 与负样本最高分 0.598 对齐：话题相近但不在知识库内。
     const service = build([chunk('a', 0.598, 'health advice')], [0.05]);
