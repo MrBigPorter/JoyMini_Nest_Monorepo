@@ -759,10 +759,10 @@ export class RagRetrievalService {
    *   旧规则因此整段绕过门卫（E-20：10/12 负样本返回文档）。
    *
    * 规则（仅 reranker 成功时生效）：
-   *   top < floor                                     → 拒（离题）
-   *   中文且 top < cjkFloor 且无关键词命中且向量低    → 拒（三个信号都没有）
-   *   top < lexicalMin 且无词面锚点                   → 拒（没有可解释的匹配依据）
-   *   其他                                            → 放行
+   *   中文：top < max(floor, cjkFloor) 且无关键词命中且向量低 → 拒（三个信号都没有）
+   *   拉丁：top < floor                                → 拒（离题）
+   *   拉丁：top < lexicalMin 且无词面锚点              → 拒（没有可解释的匹配依据）
+   *   其他                                             → 放行
    *
    * 词面锚点 = query 的任一实词（拉丁词按词边界、CJK 用二元组）
    * 出现在结果标题或正文里。它等价于“至少有一个可解释的命中”，
@@ -808,43 +808,35 @@ export class RagRetrievalService {
     }
 
     const top = chunks[0]?.score ?? 0;
-    if (top < floor) {
-      this.logger.log(
-        `[relevanceGate] rejected: top=${top.toFixed(4)} < floor=${floor}`,
-      );
-      return {
-        results: [],
-        applied: true,
-        blocked: chunks.length,
-        floor: effectiveFloor,
-        lexicalMinScore,
-        reason: 'below_floor',
-      };
-    }
 
-    // 中文侧：0.131 地板、关键词层命中、向量锚点，满足一个就放行。
+    // 中文侧：地板、关键词层命中、向量锚点，满足一个就放行。
     // 中文问英文知识库时 rerank 分整体低，但关键词层（含 keywords 数组）
     // 能提供“这个问题确实属于知识库”的强信号——旧门卫就是靠它保住
     // 「怎么修改登录密码」「商品缺货什么时候补货」这类正常问题。
     // 向量锚点是第三信号：关键词层覆盖不到的近义说法（如「中奖后怎么领奖」
     // 与 keywords 里的「抽奖/领奖」不完全重合）如果向量余弦 ≥ 0.60，
     // 说明语义上确实落在知识库里，不能仅凭 rerank 分低就整批拒掉。
+    //
+    // 中文分支必须自己兜住通用地板（取 max 防配置漂移）：否则 rerank 分极低
+    // 的近义问法会在进入本分支前被通用地板拒掉（r53 实测 Jina 分 0.0010，
+    // 而向量余弦 0.6464），向量锚点形同虚设。
     if (!hasLatinToken) {
+      const cjkGateFloor = Math.max(floor, cjkFloor);
       const vectorAnchor = this.cjkVectorAnchor();
       if (
-        top < cjkFloor &&
+        top < cjkGateFloor &&
         !hasKeywordHit &&
         topVectorScore < vectorAnchor
       ) {
         this.logger.log(
-          `[relevanceGate] rejected: CJK top=${top.toFixed(4)} < ${cjkFloor}, ` +
+          `[relevanceGate] rejected: CJK top=${top.toFixed(4)} < ${cjkGateFloor}, ` +
             `keyword miss, vector=${topVectorScore.toFixed(4)} < ${vectorAnchor}`,
         );
         return {
           results: [],
           applied: true,
           blocked: chunks.length,
-          floor: effectiveFloor,
+          floor: cjkGateFloor,
           lexicalMinScore,
           reason: 'below_cjk_floor',
         };
@@ -853,9 +845,24 @@ export class RagRetrievalService {
         results: chunks,
         applied: true,
         blocked: 0,
-        floor: effectiveFloor,
+        floor: cjkGateFloor,
         lexicalMinScore,
         reason: 'accepted',
+      };
+    }
+
+    // 拉丁文侧：通用地板 + 词面锚点
+    if (top < floor) {
+      this.logger.log(
+        `[relevanceGate] rejected: top=${top.toFixed(4)} < floor=${floor}`,
+      );
+      return {
+        results: [],
+        applied: true,
+        blocked: chunks.length,
+        floor,
+        lexicalMinScore,
+        reason: 'below_floor',
       };
     }
 

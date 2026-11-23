@@ -308,6 +308,18 @@ describe('RagRetrievalService 相关性门卫', () => {
     expect(results.map((r) => r.chunkId)).toEqual(['a']);
   });
 
+  it('中文 rerank 分低于通用地板 0.03，但向量余弦 ≥ 0.60 → 仍放行', async () => {
+    // 线上实测（Jina v3）：r53 的 rerank 分只有 0.0010，若先套通用地板
+    // 0.03 就直接拒了，向量锚点永远没机会生效。中文分支必须自己兜住地板。
+    const service = build([chunk('a', 0.6464, 'Lucky draw prize rules')], [
+      0.001,
+    ]);
+
+    const results = await service.retrieve('中奖后怎么领奖', { topK: 2 });
+
+    expect(results.map((r) => r.chunkId)).toEqual(['a']);
+  });
+
   it('中文 rerank 分低、关键词未命中、向量余弦 < 0.60 → 仍拒绝', async () => {
     // 与负样本最高分 0.598 对齐：话题相近但不在知识库内。
     const service = build([chunk('a', 0.598, 'health advice')], [0.05]);
