@@ -70,6 +70,8 @@ services:
       AI_INJECTION_DETECTION_MODE: "${AI_INJECTION_DETECTION_MODE:-off}"
       # LIVE 评测必须指定一个真实测试用户，避免工具查询落到不存在的用户
       AI_EVAL_LIVE_USER_ID: "${AI_EVAL_LIVE_USER_ID:-}"
+      # 本地验收：会话 token 配额（默认 50k 只够约 10 轮，容易在长验收中被截断）
+      AI_SESSION_TOKEN_LIMIT: "${AI_SESSION_TOKEN_LIMIT:-200000}"
     depends_on:
       db:
         condition: service_healthy
