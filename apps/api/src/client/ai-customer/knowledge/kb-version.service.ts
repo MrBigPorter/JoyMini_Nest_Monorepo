@@ -1,13 +1,42 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service';
 import { RedisService } from '@api/common/redis/redis.service';
 import { KB_EPOCH_KEY } from './kb-version-notice';
+import {
+  KB_DOCUMENT_PUBLISHED,
+  KbDocumentPublishedEvent,
+  KbPublishTrigger,
+} from './events/kb-document-published.event';
 
 /** 切换结果。switched=false 时旧版本继续对外服务。 */
 export interface ActivateResult {
   switched: boolean;
   reason?: string;
+}
+
+export interface ActivateOptions {
+  /**
+   * 触发来源，只用于事件消费方决定是否生成候选。
+   * 缺省视为 upload，保持旧调用方行为不变。
+   */
+  trigger?: KbPublishTrigger;
+}
+
+/** 发布事件需要的文档字段（switchTo 首查时一并取出，避免二次查询） */
+interface PublishedDocumentMeta {
+  id: string;
+  activeVersion: number;
+  domain: string;
+  docId: string;
+  title: string;
+  locale: string;
+  contentType: string;
+  keywords: string[];
+  contentHash: string | null;
+  candidateTargetDomain: string | null;
+  tenantId: string | null;
 }
 
 /**
@@ -37,14 +66,17 @@ export class KbVersionService {
     // Redis 只用于记录「知识库变过」的纪元，供跨版本告知使用。
     // 拿不到就跳过告知，不影响切换本身，所以是可选的。
     @Optional() private readonly redisService?: RedisService,
+    // 发布事件是增量能力：单测/旧装配不传也不会影响切换。
+    @Optional() private readonly eventEmitter?: EventEmitter2,
   ) {}
 
   /** 把对外版本切到 targetVersion（通常是刚完成向量化的最新版本） */
   async activate(
     documentId: string,
     targetVersion: number,
+    opts: ActivateOptions = {},
   ): Promise<ActivateResult> {
-    return this.switchTo(documentId, targetVersion);
+    return this.switchTo(documentId, targetVersion, opts.trigger ?? 'upload');
   }
 
   /** 回滚到历史版本。旧版本 chunk 在保留期内仍然存在，切换只是翻标记。 */
@@ -52,7 +84,7 @@ export class KbVersionService {
     documentId: string,
     toVersion: number,
   ): Promise<ActivateResult> {
-    return this.switchTo(documentId, toVersion);
+    return this.switchTo(documentId, toVersion, 'rollback');
   }
 
   /** 旧版本保留天数。保留期 = 回滚窗口，缩短它就等于缩短回滚能力。 */
@@ -113,10 +145,23 @@ export class KbVersionService {
   private async switchTo(
     documentId: string,
     targetVersion: number,
+    trigger: KbPublishTrigger,
   ): Promise<ActivateResult> {
     const doc = await this.prisma.knowledgeDocument.findUnique({
       where: { id: documentId },
-      select: { id: true, activeVersion: true },
+      select: {
+        id: true,
+        activeVersion: true,
+        domain: true,
+        docId: true,
+        title: true,
+        locale: true,
+        contentType: true,
+        keywords: true,
+        contentHash: true,
+        candidateTargetDomain: true,
+        tenantId: true,
+      },
     });
 
     if (!doc) return { switched: false, reason: 'not-found' };
@@ -140,6 +185,9 @@ export class KbVersionService {
       await this.meilisearchService.setChunkActiveFlags(
         flagsFor(targetVersion),
       );
+      // reindex / processStep 会按同一版本号重建条目，这里虽然不是 CAS 切换，
+      // 但对外内容已经变化，仍要发事件（补偿扫描也会据此补生成）。
+      this.emitPublished(doc, targetVersion, targetVersion, trigger, true);
       return { switched: true, reason: 'already-active' };
     }
 
@@ -201,6 +249,53 @@ export class KbVersionService {
       this.logger.warn(`[kb.version.switched] epoch bump failed: ${message}`);
     }
 
+    this.emitPublished(doc, targetVersion, previousVersion, trigger, true);
+
     return { switched: true };
+  }
+
+  /**
+   * 发布事件只记录、不影响切换。
+   * 监听器/队列失败都不能让已经完成的发布变成失败。
+   */
+  private emitPublished(
+    doc: PublishedDocumentMeta,
+    documentVersion: number,
+    previousVersion: number,
+    trigger: KbPublishTrigger,
+    switched: boolean,
+  ): void {
+    if (!this.eventEmitter) return;
+
+    const payload: KbDocumentPublishedEvent = {
+      documentId: doc.id,
+      documentVersion,
+      previousVersion,
+      domain: doc.domain,
+      docId: doc.docId,
+      title: doc.title,
+      locale: doc.locale,
+      contentType: doc.contentType,
+      keywords: doc.keywords ?? [],
+      contentHash: doc.contentHash,
+      candidateTargetDomain: doc.candidateTargetDomain,
+      trigger,
+      switched,
+      publishedAt: new Date().toISOString(),
+      tenantId: doc.tenantId,
+    };
+
+    try {
+      // emit 是同步派发；监听器里的异步入队由监听器自己 catch。
+      this.eventEmitter.emit(KB_DOCUMENT_PUBLISHED, payload);
+      this.logger.log(
+        `[kb.document.published] doc=${doc.id} v=${documentVersion} trigger=${trigger}`,
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.warn(
+        `[kb.document.published] emit failed: doc=${doc.id} v=${documentVersion} ${message}`,
+      );
+    }
   }
 }

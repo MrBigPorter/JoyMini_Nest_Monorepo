@@ -22,8 +22,13 @@ import {
   createLLM,
   LlmProviderConfig,
 } from '@api/client/ai-customer/graph/llm-factory';
-import { INTENT_PROMPT } from '@api/client/ai-customer/graph/agents/prompts/intent-prompt';
+import { createIntentPrompt } from '@api/client/ai-customer/graph/agents/prompts/intent-prompt';
 import { VALID_INTENTS } from '@api/client/ai-customer/graph/agents/prompts/intent-label-categories';
+import {
+  deriveValidIntents,
+  getIntentDomains,
+  loadIntentExampleHints,
+} from '@api/client/ai-customer/graph/config/intent-domain-registry';
 import { IntentClassifier } from '@api/client/ai-customer/graph/utils/intent-classifier';
 import { AiService } from '@api/common/ai/ai.service';
 import { PrismaService } from '@api/common/prisma/prisma.service';
@@ -45,10 +50,14 @@ import {
 const logger = new Logger('IntentRouter');
 
 /**
- * 解析 LLM JSON 输出，提取 labels 数组和主 intent
+ * 解析 LLM JSON 输出，提取 labels 数组和主 intent。
+ *
+ * `validIntents` 来自 DB 注册表；任何不在允许列表里的标签都丢弃，
+ * 防止 LLM 幻觉出一个不存在的 Agent 名字（旧实现在这里接受任意字符串）。
  */
 function parseLLMOutput(
   raw: string,
+  validIntents: string[] = VALID_INTENTS,
 ): { intent: string; labels: { label: string; score: number }[] } | null {
   const trimmed = raw.trim();
 
@@ -70,8 +79,17 @@ function parseLLMOutput(
         l.score <= 1,
     );
 
+    const allowed = new Set(validIntents);
+    const beforeFilter = labels.map((l) => l.label);
+    labels = labels.filter((l) => allowed.has(l.label));
+
     if (labels.length === 0) {
-      labels = [{ label: intent, score: 0.7 }];
+      logger.warn(
+        `[intentRouter] LLM returned only unregistered labels: ${beforeFilter
+          .join(',')
+          .slice(0, 200)}; falling back to general`,
+      );
+      labels = [{ label: 'general', score: 0.5 }];
     }
 
     const sortedByScore = [...labels].sort((a, b) => b.score - a.score);
@@ -84,12 +102,14 @@ function parseLLMOutput(
 /**
  * 回退解析：尝试将 LLM 原始输出解析为单意图格式
  */
-function parseFallback(trimmed: string): {
+function parseFallback(
+  trimmed: string,
+  validIntents: string[] = VALID_INTENTS,
+): {
   intent: string;
   labels: { label: string; score: number }[];
 } {
   const singleWord = trimmed.toLowerCase().trim();
-  const validIntents = VALID_INTENTS;
   const fallbackIntent = validIntents.includes(singleWord)
     ? singleWord
     : 'general';
@@ -241,7 +261,7 @@ export const createIntentRouterNode = (
     // embedding 服务不可用时直接降级到 LLM
     if (embeddingResult.method === 'llm_fallback') {
       logger.log('[intentRouter] Embedding unavailable, falling back to LLM');
-      return await llmFallback(llmConfig, state, userInput);
+      return await llmFallback(llmConfig, state, userInput, prismaService);
     }
 
     // 低置信度时降级到 LLM
@@ -256,7 +276,7 @@ export const createIntentRouterNode = (
           destination: 'llm_fallback',
         })}`,
       );
-      return await llmFallback(llmConfig, state, userInput);
+      return await llmFallback(llmConfig, state, userInput, prismaService);
     }
 
     // Embedding 结果可用，直接返回
@@ -307,6 +327,7 @@ async function llmFallback(
   llmConfig: LlmProviderConfig,
   state: typeof AgentState.State,
   userInput: string,
+  prismaService: PrismaService,
 ): Promise<Partial<typeof AgentState.State>> {
   // 构建对话上下文（使用 formatMessagePreview 统一格式化）
   const contextMessages = state.messages.slice(-5, -1);
@@ -314,8 +335,17 @@ async function llmFallback(
     .map((msg) => formatMessagePreview(msg, 200))
     .join('\n');
 
+  // 注册表快照 + 每域少量示例（token 受控），失败时自动退化为纯标签+描述。
+  const [domains, examplesByDomain] = await Promise.all([
+    getIntentDomains(prismaService),
+    loadIntentExampleHints(prismaService),
+  ]);
+  const validIntents = deriveValidIntents(domains);
+
   const model = createLLM(llmConfig, { temperature: 0 });
-  const chain = INTENT_PROMPT.pipe(model).pipe(new StringOutputParser());
+  const chain = createIntentPrompt({ domains, examplesByDomain })
+    .pipe(model)
+    .pipe(new StringOutputParser());
 
   const raw = await chain.invoke({
     input: userInput,
@@ -326,7 +356,7 @@ async function llmFallback(
   });
 
   // 解析 LLM 输出
-  const parsed = parseLLMOutput(raw);
+  const parsed = parseLLMOutput(raw, validIntents);
   if (parsed) {
     logger.log(
       `[intentRouter] LLM fallback: ${parsed.intent}, labels: ${parsed.labels.map((l) => `${l.label}:${l.score.toFixed(2)}`).join(', ')}`,
@@ -338,7 +368,7 @@ async function llmFallback(
   logger.warn(
     `[intentRouter] LLM fallback JSON parse failed: length=${raw.length}`,
   );
-  return parseFallback(raw.trim());
+  return parseFallback(raw.trim(), validIntents);
 }
 
 /**

@@ -668,6 +668,49 @@ export class MeilisearchService implements OnModuleInit {
   }
 
   /**
+   * 只更新一批 chunk 的元数据字段（字段合并，不重嵌入、不动正文）
+   *
+   * 用于关键词自动生效/回滚：改的是 Meili 里的 keywords 字段，
+   * 让 BM25 立即看见新词，不需要重跑 embedding。
+   *
+   * 与 indexChunk 的区别:
+   *   indexChunk         → 整条覆盖（正文 + 元数据）
+   *   updateChunkMetadata → 只合并传入字段；未传字段保持原值
+   */
+  async updateChunkMetadata(
+    chunkIds: string[],
+    metadata: {
+      keywords?: string[];
+      domain?: string;
+      title?: string;
+    },
+  ): Promise<void> {
+    if (chunkIds.length === 0) return;
+
+    if (!this.client) {
+      this.logger.error(
+        '[updateChunkMetadata] Meilisearch client unavailable; metadata not updated',
+      );
+      // 必须抛：调用方要把候选标 FAILED 并等补偿任务重试
+      throw new Error('Meilisearch client unavailable');
+    }
+
+    try {
+      const index = this.client.index(this.indexName);
+      const task = await index.updateDocuments(
+        chunkIds.map((chunkId) => ({ id: chunkId, ...metadata })),
+      );
+      await this.client.tasks.waitForTask(task.taskUid);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(
+        `[updateChunkMetadata] Failed for ${chunkIds.length} chunk(s): ${message}`,
+      );
+      throw error;
+    }
+  }
+
+  /**
    * 删除一篇文档里低于指定版本的 chunk 索引
    *
    * 保留期结束后由 KbVersionService 调用。必须与 PG 侧的删除成对执行——

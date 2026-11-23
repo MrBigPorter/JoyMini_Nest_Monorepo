@@ -172,6 +172,7 @@ export class RagEmbeddingService {
         domain: true,
         docId: true,
         keywords: true,
+        autoKeywords: true,
         priority: true,
         contentType: true,
         locale: true,
@@ -251,6 +252,7 @@ export class RagEmbeddingService {
       domain: string;
       docId: string;
       keywords: string[];
+      autoKeywords: string[];
       priority: string;
       contentType: string;
       locale: string;
@@ -294,7 +296,17 @@ export class RagEmbeddingService {
           title: document.title,
           domain: document.domain,
           docId: document.docId,
-          keywords: document.keywords,
+          // 有效关键词 = frontmatter/人工 keywords ∪ 自动生效的 autoKeywords
+          keywords: Array.from(
+            [...document.keywords, ...document.autoKeywords]
+              .reduce((map, keyword) => {
+                const key = keyword.toLowerCase();
+                // 先出现的拼写优先（人工 keywords 在 autoKeywords 之前）
+                if (!map.has(key)) map.set(key, keyword);
+                return map;
+              }, new Map<string, string>())
+              .values(),
+          ),
           priority: document.priority,
           contentType: document.contentType,
           locale: document.locale,

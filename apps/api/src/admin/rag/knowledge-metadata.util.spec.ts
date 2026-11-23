@@ -47,7 +47,7 @@ describe('mergeKnowledgeMetadata', () => {
   it('两者都没有时使用默认值', () => {
     const merged = mergeKnowledgeMetadata({ title: 'X', metadata: {} });
 
-    expect(merged.domain).toBe('general');
+    expect(merged.domain).toBe('common');
     expect(merged.locale).toBe('en');
     expect(merged.contentType).toBe('policy');
     expect(merged.priority).toBe('P2');
@@ -71,6 +71,22 @@ describe('mergeKnowledgeMetadata', () => {
     );
 
     expect(merged.keywords).toEqual(['vip', 'membership']);
+  });
+
+  it('别名归一：lucky_draw / general 映射到规范文档域', () => {
+    expect(
+      mergeKnowledgeMetadata({
+        title: 'Draw Rules',
+        metadata: { domain: 'lucky_draw' },
+      }).domain,
+    ).toBe('lucky-draw');
+
+    expect(
+      mergeKnowledgeMetadata({
+        title: 'Misc',
+        metadata: { domain: 'general' },
+      }).domain,
+    ).toBe('common');
   });
 
   it('空字符串视为缺失，回落到下一优先级', () => {

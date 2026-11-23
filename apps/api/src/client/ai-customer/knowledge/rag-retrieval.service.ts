@@ -430,9 +430,7 @@ export class RagRetrievalService {
         ? Number(topScoreBeforeRerank.toFixed(4))
         : 0,
       topVectorScore: Number(
-        vectorResults
-          .reduce((max, r) => Math.max(max, r.score), 0)
-          .toFixed(4),
+        vectorResults.reduce((max, r) => Math.max(max, r.score), 0).toFixed(4),
       ),
       rerank,
     };
@@ -483,7 +481,7 @@ export class RagRetrievalService {
           kd.title            AS title,
           kd.domain           AS domain,
           kd.doc_id           AS doc_id,
-          kd.keywords         AS keywords,
+          (kd.keywords || kd.auto_keywords) AS keywords,
           kd.priority         AS priority,
           kd.content_type     AS content_type,
           1 - (dc.embedding <=> $1::vector) AS similarity
@@ -560,7 +558,7 @@ export class RagRetrievalService {
       // 中文 query 永远命不中。
       const conditions = tokens.map(
         (_, i) =>
-          `(dc.content ILIKE $${i + 1}::varchar OR array_to_string(kd.keywords, ' ') ILIKE $${i + 1}::varchar)`,
+          `(dc.content ILIKE $${i + 1}::varchar OR array_to_string(kd.keywords || kd.auto_keywords, ' ') ILIKE $${i + 1}::varchar)`,
       );
 
       // 命中词项越多越靠前；只按 chunk_index 排会让 OR + LIMIT
@@ -569,7 +567,7 @@ export class RagRetrievalService {
         .map(
           (_, i) =>
             `(CASE WHEN dc.content ILIKE $${i + 1}::varchar THEN 1 ELSE 0 END` +
-            ` + CASE WHEN array_to_string(kd.keywords, ' ') ILIKE $${i + 1}::varchar THEN 1 ELSE 0 END)`,
+            ` + CASE WHEN array_to_string(kd.keywords || kd.auto_keywords, ' ') ILIKE $${i + 1}::varchar THEN 1 ELSE 0 END)`,
         )
         .join(' + ');
 
@@ -582,7 +580,7 @@ export class RagRetrievalService {
           kd.title            AS title,
           kd.domain           AS domain,
           kd.doc_id           AS doc_id,
-          kd.keywords         AS keywords,
+          (kd.keywords || kd.auto_keywords) AS keywords,
           kd.priority         AS priority,
           kd.content_type     AS content_type,
           0.5::float8         AS similarity
@@ -872,10 +870,7 @@ export class RagRetrievalService {
     }
 
     // 中文二元组对英文知识库覆盖不足，词面锚点只用于拉丁文查询。
-    if (
-      top < lexicalMinScore &&
-      !this.hasLexicalAnchor(tokens, chunks)
-    ) {
+    if (top < lexicalMinScore && !this.hasLexicalAnchor(tokens, chunks)) {
       this.logger.log(
         `[relevanceGate] rejected: top=${top.toFixed(4)} < lexicalMin=${lexicalMinScore} and no lexical anchor`,
       );
@@ -1028,7 +1023,8 @@ export class RagRetrievalService {
   // Helper: 分词
   // ===========================================================================
 
-  private tokenize(text: string): string[] {    const STOPWORDS = new Set([
+  private tokenize(text: string): string[] {
+    const STOPWORDS = new Set([
       'the',
       'a',
       'an',

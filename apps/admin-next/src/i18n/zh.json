@@ -91,6 +91,7 @@
     "luckyDrawMgmt": "幸运抽奖",
     "aiPrompt": "AI Prompt",
     "intentExamples": "意图分类",
+    "kbCandidates": "候选审核",
     "settings": "系统配置",
     "monitor": "监控面板",
     "pendingApplications": "待审核申请",

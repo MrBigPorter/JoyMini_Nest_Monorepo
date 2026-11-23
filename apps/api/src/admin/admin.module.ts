@@ -28,6 +28,8 @@ import { SupportChannelModule } from '@api/admin/support-channel/support-channel
 import { RagModule } from '@api/admin/rag/rag.module';
 import { AiPromptModule } from '@api/admin/ai-prompt/ai-prompt.module';
 import { IntentExamplesModule } from '@api/admin/intent-examples/intent-examples.module';
+import { IntentDomainsModule } from '@api/admin/intent-domains/intent-domains.module';
+import { KbGenerationModule } from '@api/admin/kb-generation/kb-generation.module';
 import { AiFeedbackModule } from '@api/admin/ai-feedback/ai-feedback.module';
 import { AiOpsFeaturesModule } from '@api/admin/ai-ops/ai-ops-features.module';
 import { AiAnalysisModule } from '@api/admin/ai-analysis/ai-analysis.module';
@@ -72,6 +74,8 @@ import { AiContextAdminModule } from '@api/admin/ai-context/ai-context.module';
     RagModule,
     AiPromptModule,
     IntentExamplesModule,
+    IntentDomainsModule,
+    KbGenerationModule,
     AiFeedbackModule,
     AiOpsFeaturesModule,
     AiAnalysisModule,

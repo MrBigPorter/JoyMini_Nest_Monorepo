@@ -147,6 +147,12 @@ export const routes: RouteConfig[] = [
     group: 'Customer Service',
   },
   {
+    path: '/knowledge/candidates',
+    name: 'kbCandidates',
+    icon: ClipboardCheck,
+    group: 'Customer Service',
+  },
+  {
     path: '/customer-service',
     name: 'im',
     icon: MessageSquare,

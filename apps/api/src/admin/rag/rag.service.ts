@@ -15,6 +15,7 @@ import { RagEmbeddingService } from './rag-embedding.service';
 import { RagQualityService } from './rag-quality.service';
 import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service';
 import { RAG_EMBEDDING_QUEUE } from './rag-embedding-queue.constants';
+import { KnowledgeDomainService } from './knowledge-domain.service';
 
 @Injectable()
 export class RagService {
@@ -26,6 +27,7 @@ export class RagService {
     private readonly ragEmbeddingService: RagEmbeddingService,
     private readonly ragQualityService: RagQualityService,
     private readonly meilisearchService: MeilisearchService,
+    private readonly knowledgeDomainService: KnowledgeDomainService,
     @InjectQueue(RAG_EMBEDDING_QUEUE)
     private readonly ragEmbeddingQueue: Queue,
   ) {}
@@ -41,17 +43,17 @@ export class RagService {
     );
     return {
       qualityScore: result.overallScore,
-      qualityFlags:
-        result.flags.length > 0 ? result.flags.join(',') : null,
+      qualityFlags: result.flags.length > 0 ? result.flags.join(',') : null,
     };
   }
 
   async create(dto: CreateRagDocDto) {
+    const domain = await this.knowledgeDomainService.resolve(dto.domain);
     return this.prisma.knowledgeDocument.create({
       data: {
         ...this.qualityFields(dto.content),
         title: dto.title,
-        domain: dto.domain,
+        domain,
         docId: dto.docId,
         keywords: dto.keywords,
         locale: dto.locale ?? 'en',
@@ -109,13 +111,16 @@ export class RagService {
 
   async update(id: string, dto: UpdateRagDocDto) {
     await this.getById(id);
+    const domain =
+      dto.domain !== undefined
+        ? await this.knowledgeDomainService.resolve(dto.domain)
+        : undefined;
     return this.prisma.knowledgeDocument.update({
       where: { id },
       data: {
         ...dto,
-        ...(dto.content !== undefined
-          ? this.qualityFields(dto.content)
-          : {}),
+        ...(domain !== undefined ? { domain } : {}),
+        ...(dto.content !== undefined ? this.qualityFields(dto.content) : {}),
         // 不在这里 +1：这次只改元数据，没有重新切片。
         // 一 +1 就会让 version 跑到 activeVersion 前面，而 chunks 还停在旧版本，
         // 整文档兜底层（activeVersion === version）会把这个文档排除掉。
@@ -222,8 +227,7 @@ export class RagService {
     }
 
     // 有标记的文档即使分数 >=70 也要人看一眼；避免“待复核 0、标记 5 篇”。
-    const needReview =
-      byScore.suspicious + byScore.fair + flaggedHighScore;
+    const needReview = byScore.suspicious + byScore.fair + flaggedHighScore;
 
     return { total, needReview, flagged, byScore, recentFlags };
   }
@@ -282,6 +286,7 @@ export class RagService {
       await this.ragEmbeddingQueue.add('embed', {
         documentId,
         force: true,
+        trigger: 'reindex',
       });
       this.logger.log(
         `Submitted reindex embedding job for document ${documentId} (${chunks.length} chunks)`,
@@ -367,6 +372,7 @@ export class RagService {
       await this.ragEmbeddingQueue.add('embed', {
         documentId,
         force: true,
+        trigger: 'manual',
       });
       // 任务提交成功后才更新状态
       await this.updateStatus(documentId, 'embedded');
@@ -573,6 +579,7 @@ export class RagService {
       await this.ragEmbeddingQueue.add('embed', {
         documentId,
         force: true,
+        trigger: 'manual',
       });
       this.logger.log(
         `[updateContent] Submitted embedding job for ${documentId}`,

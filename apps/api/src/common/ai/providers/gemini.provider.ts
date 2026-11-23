@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import {
   GoogleGenerativeAI,
   GenerativeModel,
+  GenerationConfig,
   HarmCategory,
   HarmBlockThreshold,
 } from '@google/generative-ai';
@@ -42,6 +43,44 @@ export class GeminiProvider implements AiProviderInstance {
     this.initialize();
   }
 
+  /**
+   * 统一的模型构造入口。
+   *
+   * systemPrompt 必须走 `systemInstruction`：Gemini 的 `generationConfig`
+   * 不认识这个字段，直接透传会得到 400 Invalid JSON payload。
+   */
+  private buildModel(
+    genAI: GoogleGenerativeAI,
+    systemPrompt?: string,
+  ): GenerativeModel {
+    return genAI.getGenerativeModel({
+      model: 'gemini-2.5-flash',
+      ...(systemPrompt ? { systemInstruction: systemPrompt } : {}),
+      safetySettings: [
+        {
+          category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+          threshold: HarmBlockThreshold.BLOCK_NONE,
+        },
+        {
+          category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+          threshold: HarmBlockThreshold.BLOCK_NONE,
+        },
+        {
+          category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+          threshold: HarmBlockThreshold.BLOCK_NONE,
+        },
+        {
+          category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+          threshold: HarmBlockThreshold.BLOCK_NONE,
+        },
+      ],
+      generationConfig: {
+        temperature: 0,
+        maxOutputTokens: 2048,
+      },
+    });
+  }
+
   private initialize() {
     const apiKeyRaw = this.configService.get<string>('GOOGLE_GEMINI_API_KEY');
 
@@ -65,31 +104,7 @@ export class GeminiProvider implements AiProviderInstance {
         const apiKey = keys[i];
         const genAI = new GoogleGenerativeAI(apiKey);
 
-        const model = genAI.getGenerativeModel({
-          model: 'gemini-2.5-flash',
-          safetySettings: [
-            {
-              category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-              threshold: HarmBlockThreshold.BLOCK_NONE,
-            },
-            {
-              category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-              threshold: HarmBlockThreshold.BLOCK_NONE,
-            },
-            {
-              category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-              threshold: HarmBlockThreshold.BLOCK_NONE,
-            },
-            {
-              category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-              threshold: HarmBlockThreshold.BLOCK_NONE,
-            },
-          ],
-          generationConfig: {
-            temperature: 0,
-            maxOutputTokens: 2048,
-          },
-        });
+        const model = this.buildModel(genAI);
 
         this.keyInstances.push({
           keySuffix: apiKey.slice(-4),
@@ -124,9 +139,29 @@ export class GeminiProvider implements AiProviderInstance {
     }
 
     try {
-      const result = await currentKey.model.generateContent({
+      // 只把 Gemini 认识的字段放进 generationConfig；未知字段会被 API 拒绝。
+      const { systemPrompt, ...rest } = options ?? {};
+      const generationConfig: GenerationConfig = {
+        ...(rest.temperature !== undefined
+          ? { temperature: rest.temperature }
+          : {}),
+        ...(rest.maxOutputTokens !== undefined
+          ? { maxOutputTokens: rest.maxOutputTokens }
+          : {}),
+        ...(rest.responseMimeType
+          ? { responseMimeType: rest.responseMimeType }
+          : {}),
+      };
+
+      const model = systemPrompt
+        ? this.buildModel(currentKey.genAI, systemPrompt)
+        : currentKey.model;
+
+      const result = await model.generateContent({
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: options,
+        ...(Object.keys(generationConfig).length > 0
+          ? { generationConfig }
+          : {}),
       });
 
       const response = result.response;

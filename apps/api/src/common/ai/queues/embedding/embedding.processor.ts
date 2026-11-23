@@ -19,6 +19,14 @@ export interface EmbeddingJobData {
   domain: string;
   sentence: string;
   configHash: string;
+  /** 溯源：SEED / ADMIN / KB_CANDIDATE；缺省 SEED 保持旧调用点行为 */
+  source?: 'SEED' | 'ADMIN' | 'KB_CANDIDATE';
+  /** 来源候选 ID（仅 KB_CANDIDATE 有值） */
+  candidateId?: string;
+  /** zh / en / mixed */
+  locale?: string;
+  /** 规范化文本哈希，服务层去重用 */
+  normalizedHash?: string;
 }
 
 /**
@@ -80,7 +88,8 @@ export class EmbeddingProcessor extends WorkerHost {
    * 6. 完成，BullMQ 自动从窗口撕掉这张化验单
    */
   async process(job: Job<EmbeddingJobData, any, string>): Promise<void> {
-    const { domain, sentence, configHash } = job.data;
+    const { domain, sentence, configHash, source, candidateId, locale } =
+      job.data;
     const preview = sentence.slice(0, 40);
 
     this.logger.debug(
@@ -104,13 +113,18 @@ export class EmbeddingProcessor extends WorkerHost {
     // 把化验结果登记到数据库
     const vectorStr = `[${vector.join(',')}]`;
     await this.prisma.$executeRawUnsafe(
-      `INSERT INTO intent_examples (id, domain, sentence, embedding, "configHash")
-       VALUES ($1, $2, $3, $4::vector, $5)`,
+      `INSERT INTO intent_examples
+         (id, domain, sentence, embedding, "configHash", source, candidate_id, locale, normalized_hash)
+       VALUES ($1, $2, $3, $4::vector, $5, COALESCE($6, 'SEED'), $7, COALESCE($8, 'en'), $9)`,
       this.generateId(),
       domain,
       sentence,
       vectorStr,
       configHash,
+      source ?? null,
+      candidateId ?? null,
+      locale ?? null,
+      job.data.normalizedHash ?? null,
     );
 
     this.logger.debug(

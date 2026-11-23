@@ -94,9 +94,19 @@
  * 用户说"好的"时，LLM 知道应该路由到 wallet（因为提现流程中）。
  */
 
+import type { IntentDomainSnapshot } from '@api/client/ai-customer/graph/config/intent-domain-registry';
+import { buildIntentDomainPromptSection } from '@api/client/ai-customer/graph/config/intent-domain-registry';
+
 // ============================================================
 // Public API
 // ============================================================
+
+export interface BuildIntentPromptOptions {
+  /** DB 注册表快照；不传时退回旧的硬编码标签串 */
+  domains?: IntentDomainSnapshot[];
+  /** 每域已批准示例（控制 token，通常每域 3 条） */
+  examplesByDomain?: Record<string, string[]>;
+}
 
 /**
  * 构建 LLM fallback 使用的 INTENT_PROMPT system prompt。
@@ -107,7 +117,18 @@
  * 2. Embedding 服务不可用（Ollama 未运行）
  * 3. 所有域向量余弦相似度 < 0.5
  */
-export function buildIntentPrompt(): string {
+export function buildIntentPrompt(
+  options: BuildIntentPromptOptions = {},
+): string {
+  // 有注册表快照就用 DB 描述 + 示例；没有就保持旧行为，方便单测/回滚。
+  const labelsSection =
+    options.domains && options.domains.length > 0
+      ? buildIntentDomainPromptSection(
+          options.domains,
+          options.examplesByDomain,
+        )
+      : 'Supported labels: order, wallet, coupon, user, product, lucky-draw, kyc, rag, general.';
+
   return [
     'You are an e-commerce customer service intent classifier. Always output JSON.',
     '',
@@ -116,7 +137,7 @@ export function buildIntentPrompt(): string {
     '- "intent": string — the label name with the highest score. If no label reaches 0.5, use "general".',
     '- "labels": array of objects, each with "label" (string) and "score" (number 0.0 to 1.0)',
     '',
-    'Supported labels: order, wallet, coupon, user, product, lucky-draw, kyc, rag, general.',
+    labelsSection,
     '',
     'Example:',
     '  {{"intent": "order", "labels": [{{"label": "order", "score": 0.9}}, {{"label": "wallet", "score": 0.3}}]}}',

@@ -1392,17 +1392,17 @@ model ConversationFlowBinding {
 
 /// 绑定变更审计：bind / switch / rollback 都可追溯。
 model FlowBindingAuditLog {
-  id                  String   @id @default(cuid())
-  conversationId      String   @map("conversation_id")
-  flowType            String   @map("flow_type") @db.VarChar(32)
-  action              String   @db.VarChar(32)
-  actorId             String?  @map("actor_id")
-  reason              String?  @db.VarChar(500)
-  fromVersionId       String?  @map("from_version_id")
-  toVersionId         String?  @map("to_version_id")
-  threadId            String?  @map("thread_id")
-  checkpointId        String?  @map("checkpoint_id")
-  createdAt           DateTime @default(now()) @map("created_at")
+  id             String   @id @default(cuid())
+  conversationId String   @map("conversation_id")
+  flowType       String   @map("flow_type") @db.VarChar(32)
+  action         String   @db.VarChar(32)
+  actorId        String?  @map("actor_id")
+  reason         String?  @db.VarChar(500)
+  fromVersionId  String?  @map("from_version_id")
+  toVersionId    String?  @map("to_version_id")
+  threadId       String?  @map("thread_id")
+  checkpointId   String?  @map("checkpoint_id")
+  createdAt      DateTime @default(now()) @map("created_at")
 
   @@index([conversationId, createdAt])
   @@map("flow_binding_audit_logs")
@@ -1825,8 +1825,59 @@ model IntentExample {
   /// @default("") allows migration on existing tables — old rows get "" and trigger re-seed on next startup
   configHash String @default("") @db.VarChar(64)
 
+  /// 来源：SEED（TS 种子）/ ADMIN（后台编辑）/ KB_CANDIDATE（知识库候选审核通过）
+  source         String  @default("SEED") @map("source") @db.VarChar(16)
+  /// 来源候选 ID（仅 KB_CANDIDATE 有值，用于溯源）
+  candidateId    String? @map("candidate_id") @db.VarChar(32)
+  /// 例句语言：zh / en / mixed
+  locale         String  @default("en") @map("locale") @db.VarChar(10)
+  /// 是否参与分类打分
+  enabled        Boolean @default(true) @map("enabled")
+  /// 生成该向量的模型名（换模型后用于识别需要重嵌）
+  embeddingModel String? @map("embedding_model") @db.VarChar(50)
+  /// 规范化文本哈希，服务层去重用
+  normalizedHash String? @map("normalized_hash") @db.VarChar(64)
+  /// 多租户缝：当前恒为 null
+  tenantId       String? @map("tenant_id") @db.VarChar(32)
+
   @@index([domain], map: "idx_intent_examples_domain")
+  @@index([domain, enabled], map: "idx_intent_examples_domain_enabled")
+  @@index([normalizedHash], map: "idx_intent_examples_normalized_hash")
   @@map("intent_examples")
+}
+
+/// 意图域注册表 — 运行时唯一事实来源
+///
+/// 为什么要有这张表：
+/// 标签、域描述、Agent 映射原先散落在 4 份 TS 常量里，新增/调整域要人肉同步。
+/// 把「运行时读什么」搬到 DB 后，TS 常量退化为 bootstrap seed，
+/// 修改描述、启停域、补示例都不再需要发版。
+model IntentDomain {
+  id          String   @id @default(cuid()) @map("id") @db.VarChar(32)
+  /// 意图标签：order / wallet / coupon / user / product / lucky-draw / kyc / rag / general
+  label       String   @unique @map("label") @db.VarChar(32)
+  /// 给分类器与 LLM 兜底 prompt 看的域语义描述
+  description String   @map("description") @db.Text
+  /// business（需要 Agent）/ general（闲聊兜底）/ transfer（转人工）
+  type        String   @map("type") @db.VarChar(16)
+  /// 对应 AGENT_BASE_MAP 的 key；transfer 类型可为空
+  agentTag    String?  @map("agent_tag") @db.VarChar(32)
+  /// 是否兜底标签（general/rag），用于 close-contender 规则
+  catchAll    Boolean  @default(false) @map("catch_all")
+  enabled     Boolean  @default(true) @map("enabled")
+  locale      String   @default("en") @map("locale") @db.VarChar(10)
+  /// 域级建议关键词，生成候选与 prompt 时用
+  keywords    String[] @map("keywords") @db.VarChar(100)
+  sortOrder   Int      @default(0) @map("sort_order")
+  /// 多租户缝：当前恒为 null
+  tenantId    String?  @map("tenant_id") @db.VarChar(32)
+  /// 每次描述/关键词修改 +1，供缓存失效与审计
+  version     Int      @default(1) @map("version")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId, enabled], map: "idx_intent_domains_tenant_enabled")
+  @@map("intent_domains")
 }
 
 // ============================================================
@@ -1905,57 +1956,95 @@ model IntentClassificationLog {
   @@map("intent_classification_logs")
 }
 
+/// 文档域注册表 — 受控枚举
+///
+/// 文档域（这份文档属于哪个业务区）与意图域（这条消息交给哪个 Agent）是两套命名空间。
+/// 一份运费政策可以归属 order/common，但用户问它应路由到 rag。
+/// 所以这里不做「别名对齐」，而是显式声明 candidateTargetIntent。
+model KnowledgeDomain {
+  id                    String   @id @default(cuid()) @map("id") @db.VarChar(32)
+  /// 规范键：order / wallet / coupon / product / user / kyc / lucky-draw / common
+  key                   String   @unique @map("key") @db.VarChar(50)
+  label                 String   @map("label") @db.VarChar(100)
+  description           String   @map("description") @db.Text
+  /// 该域文档生成候选时默认投放的意图域，通常为 rag
+  candidateTargetIntent String   @default("rag") @map("candidate_target_intent") @db.VarChar(32)
+  enabled               Boolean  @default(true) @map("enabled")
+  sortOrder             Int      @default(0) @map("sort_order")
+  /// 多租户缝：当前恒为 null
+  tenantId              String?  @map("tenant_id") @db.VarChar(32)
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId, enabled], map: "idx_knowledge_domains_tenant_enabled")
+  @@map("knowledge_domains")
+}
+
 /// 知识文档 — 用于 AI Customer Service RAG 检索
 model KnowledgeDocument {
   /// 主键 ID
-  id             String          @id @default(cuid()) @map("id") @db.VarChar(32)
+  id                    String          @id @default(cuid()) @map("id") @db.VarChar(32)
   /// 创建时间
-  createdAt      DateTime        @default(now()) @map("created_at")
+  createdAt             DateTime        @default(now()) @map("created_at")
   /// 更新时间
-  updatedAt      DateTime        @updatedAt @map("updated_at")
+  updatedAt             DateTime        @updatedAt @map("updated_at")
   /// 文档标题（来自 frontmatter title）
-  title          String          @map("title") @db.VarChar(255)
+  title                 String          @map("title") @db.VarChar(255)
   /// 域名（product / order / wallet / coupon / kyc / user / lucky-draw / common）
-  domain         String          @map("domain") @db.VarChar(50)
+  domain                String          @map("domain") @db.VarChar(50)
   /// 文档 ID（来自 frontmatter docId，用于去重）
-  docId          String          @map("doc_id") @db.VarChar(100)
+  docId                 String          @map("doc_id") @db.VarChar(100)
   /// 关键词数组（来自 frontmatter keywords）
-  keywords       String[]        @map("keywords") @db.VarChar(100)
+  keywords              String[]        @map("keywords") @db.VarChar(100)
   /// 语言（en / zh / ja / ko / fr / de）
-  locale         String          @default("en") @map("locale") @db.VarChar(10)
+  locale                String          @default("en") @map("locale") @db.VarChar(10)
   /// 内容类型（policy / how-to / troubleshooting / faq / reference）
-  contentType    String          @default("policy") @map("content_type") @db.VarChar(30)
+  contentType           String          @default("policy") @map("content_type") @db.VarChar(30)
   /// 优先级（P0 / P1 / P2）
-  priority       String          @default("P2") @map("priority") @db.VarChar(5)
+  priority              String          @default("P2") @map("priority") @db.VarChar(5)
   /// 文档正文 Markdown
-  content        String          @map("content") @db.Text
+  content               String          @map("content") @db.Text
   /// pdf-parse 输出（诚实基准线），用于双源对撞对比
-  rawContent     String?         @map("raw_content") @db.Text
+  rawContent            String?         @map("raw_content") @db.Text
   /// 原始文件 R2 URL（用于 PDF 预览）
-  fileUrl        String?         @map("file_url") @db.VarChar(512)
+  fileUrl               String?         @map("file_url") @db.VarChar(512)
   /// 双源对比结果（JSON），包含 diffRanges、wer、score 等
-  auditResult    Json?           @map("audit_result")
+  auditResult           Json?           @map("audit_result")
   /// 是否启用
-  isActive       Boolean         @default(true) @map("is_active")
+  isActive              Boolean         @default(true) @map("is_active")
   /// 处理状态: uploaded → parsed → chunked → embedded → indexed
-  processStatus  String          @default("uploaded") @map("process_status") @db.VarChar(20)
+  processStatus         String          @default("uploaded") @map("process_status") @db.VarChar(20)
   /// 质量评分 0-100（null=未检查）
-  qualityScore   Int?            @map("quality_score") @db.SmallInt
+  qualityScore          Int?            @map("quality_score") @db.SmallInt
   /// 质量标记（逗号分隔，如 "truncation,encoding_issue"）
-  qualityFlags   String?         @map("quality_flags") @db.VarChar(200)
+  qualityFlags          String?         @map("quality_flags") @db.VarChar(200)
   /// 版本号（每次更新 +1）
-  version        Int             @default(1) @map("version") @db.SmallInt
+  version               Int             @default(1) @map("version") @db.SmallInt
   /// 当前对外服务的版本。新版本 chunk 写入后，只有 activeVersion 那一版被检索。
   /// 与 version 的关系：version 是「最新写入」，activeVersion 是「已通过门、正在对外」。
-  activeVersion   Int             @default(1) @map("active_version") @db.SmallInt
+  activeVersion         Int             @default(1) @map("active_version") @db.SmallInt
   /// activeVersion 的切换时间。清理任务按它算保留期（保留期 = 回滚窗口）
-  activeVersionAt DateTime?       @map("active_version_at")
-  documentChunks DocumentChunk[]
+  activeVersionAt       DateTime?       @map("active_version_at")
+  /// 正文 sha256；生成候选前比对，内容没变就跳过，省 LLM 成本
+  contentHash           String?         @map("content_hash") @db.VarChar(64)
+  /// 单文档覆盖「候选投放到哪个意图域」；空则用 knowledge_domains.candidateTargetIntent
+  candidateTargetDomain String?         @map("candidate_target_domain") @db.VarChar(32)
+  /// 已生成候选的最新文档版本，补偿扫描据此判断是否漏了任务
+  lastCandidateVersion  Int?            @map("last_candidate_version") @db.SmallInt
+  /// 自动追加的关键词。必须与 keywords 分开：
+  /// 每次上传都会用 frontmatter 覆盖 keywords，混在一起会把自动词静默抹掉。
+  autoKeywords          String[]        @map("auto_keywords") @db.VarChar(100)
+  /// 软删除时间；检索与列表默认过滤
+  deletedAt             DateTime?       @map("deleted_at")
+  /// 多租户缝：当前恒为 null
+  tenantId              String?         @map("tenant_id") @db.VarChar(32)
+  documentChunks        DocumentChunk[]
 
   /// 唯一约束：同一语言的同一文档只能有一条记录
   @@unique([docId, locale])
   /// 索引：按 domain + isActive 查询
   @@index([domain, isActive])
+  @@index([tenantId, deletedAt], map: "idx_knowledge_documents_tenant_deleted")
   @@map("knowledge_documents")
 }
 
@@ -1978,6 +2067,108 @@ model DocumentChunk {
 
   @@index([documentId])
   @@map("document_chunks")
+}
+
+/// 一次候选生成运行 — 审计、成本与补偿扫描的依据
+model KbGenerationRun {
+  id               String    @id @default(cuid()) @map("id") @db.VarChar(32)
+  /// sha256(documentId:version:contentHash)，防重复生成
+  idempotencyKey   String    @unique @map("idempotency_key") @db.VarChar(64)
+  documentId       String    @map("document_id") @db.VarChar(32)
+  documentVersion  Int       @map("document_version") @db.SmallInt
+  contentHash      String?   @map("content_hash") @db.VarChar(64)
+  targetDomain     String    @map("target_domain") @db.VarChar(32)
+  /// QUEUED | RUNNING | DONE | SKIPPED | FAILED
+  status           String    @map("status") @db.VarChar(16)
+  generatorModel   String?   @map("generator_model") @db.VarChar(64)
+  promptVersion    String    @map("prompt_version") @db.VarChar(32)
+  candidateCount   Int       @default(0) @map("candidate_count")
+  filteredCount    Int       @default(0) @map("filtered_count")
+  promptTokens     Int       @default(0) @map("prompt_tokens")
+  completionTokens Int       @default(0) @map("completion_tokens")
+  error            String?   @map("error") @db.Text
+  startedAt        DateTime? @map("started_at")
+  finishedAt       DateTime? @map("finished_at")
+  tenantId         String?   @map("tenant_id") @db.VarChar(32)
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  @@index([documentId, createdAt], map: "idx_kb_generation_runs_doc_created")
+  @@index([status, createdAt], map: "idx_kb_generation_runs_status_created")
+  @@map("kb_generation_runs")
+}
+
+/// 候选收件箱 — LLM 从文档生成、等待或已经生效的条目
+model KbGenerationCandidate {
+  id                String    @id @default(cuid()) @map("id") @db.VarChar(32)
+  runId             String    @map("run_id") @db.VarChar(32)
+  documentId        String    @map("document_id") @db.VarChar(32)
+  documentVersion   Int       @map("document_version") @db.SmallInt
+  /// INTENT_EXAMPLE | KEYWORD | GOLDEN_QUERY | DOMAIN_DESCRIPTION
+  kind              String    @map("kind") @db.VarChar(24)
+  /// PENDING | APPROVED | APPLIED | AUTO_APPLIED | REJECTED | SUPERSEDED | FAILED | ROLLED_BACK
+  status            String    @map("status") @db.VarChar(16)
+  targetDomain      String    @map("target_domain") @db.VarChar(32)
+  locale            String    @default("en") @map("locale") @db.VarChar(10)
+  /// 候选正文：例句 / 关键词 / 评测问句 / 域描述
+  text              String    @map("text") @db.Text
+  /// 规范化文本哈希，精确去重
+  normalizedHash    String    @map("normalized_hash") @db.VarChar(64)
+  /// confidence / rationale / expectedDocIds / judgeScore / applyMode 等
+  payload           Json?
+  /// 最近邻相似度与引用，供审核判断重复度
+  nearestScore      Float?    @map("nearest_score")
+  nearestRef        String?   @map("nearest_ref") @db.VarChar(64)
+  source            String    @default("LLM") @map("source") @db.VarChar(16)
+  generatorModel    String?   @map("generator_model") @db.VarChar(64)
+  promptVersion     String?   @map("prompt_version") @db.VarChar(32)
+  confidence        Float?
+  needsReview       Boolean   @default(false) @map("needs_review")
+  /// 关键词自动生效标记
+  autoApplied       Boolean   @default(false) @map("auto_applied")
+  /// 自动生效前的快照（autoKeywords / keywords），用于展示与回滚
+  previousValue     Json?     @map("previous_value")
+  /// 回滚窗口截止
+  rollbackableUntil DateTime? @map("rollbackable_until")
+  /// SYSTEM 或管理员 ID
+  appliedBy         String?   @map("applied_by") @db.VarChar(32)
+  /// sha256(runId:kind:normalizedHash)
+  idempotencyKey    String    @unique @map("idempotency_key") @db.VarChar(64)
+  reviewedBy        String?   @map("reviewed_by") @db.VarChar(32)
+  reviewedAt        DateTime? @map("reviewed_at")
+  rejectReason      String?   @map("reject_reason") @db.VarChar(200)
+  appliedAt         DateTime? @map("applied_at")
+  /// 生效目标记录的 ID（intent_example / synthetic golden 等）
+  appliedRef        String?   @map("applied_ref") @db.VarChar(64)
+  tenantId          String?   @map("tenant_id") @db.VarChar(32)
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  @@index([documentId, status], map: "idx_kb_candidates_doc_status")
+  @@index([status, kind, targetDomain], map: "idx_kb_candidates_status_kind_domain")
+  @@index([targetDomain, status, createdAt], map: "idx_kb_candidates_domain_status_created")
+  @@map("kb_generation_candidates")
+}
+
+/// 合成评测用例 — 只来自人工批准的 GOLDEN_QUERY 候选
+/// 永远不写进真实 golden 文件，报告按 cohort 分档统计。
+model KbSyntheticGolden {
+  id             String   @id @default(cuid()) @map("id") @db.VarChar(32)
+  candidateId    String?  @unique @map("candidate_id") @db.VarChar(32)
+  documentId     String   @map("document_id") @db.VarChar(32)
+  query          String   @map("query") @db.Text
+  normalizedHash String   @map("normalized_hash") @db.VarChar(64)
+  expectedDocIds String[] @map("expected_doc_ids") @db.VarChar(100)
+  domain         String   @map("domain") @db.VarChar(32)
+  /// zh | en | mixed
+  lang           String   @default("en") @map("lang") @db.VarChar(10)
+  sourceType     String   @default("synthetic") @map("source_type") @db.VarChar(16)
+  enabled        Boolean  @default(true) @map("enabled")
+  approvedBy     String?  @map("approved_by") @db.VarChar(32)
+  approvedAt     DateTime @default(now()) @map("approved_at")
+  tenantId       String?  @map("tenant_id") @db.VarChar(32)
+
+  @@index([domain, enabled], map: "idx_kb_synthetic_golden_domain_enabled")
+  @@map("kb_synthetic_golden")
 }
 
 /// AI 每日 token 用量（配额与成本统计）
@@ -2223,16 +2414,16 @@ model AiScore {
 }
 
 model AiAnswerFeedback {
-  id             String   @id @default(cuid()) @db.VarChar(32)
-  conversationId String   @map("conversation_id") @db.VarChar(64)
-  messageId      String?  @map("message_id") @db.VarChar(64)
-  userId         String?  @map("user_id") @db.VarChar(32)
+  id             String  @id @default(cuid()) @db.VarChar(32)
+  conversationId String  @map("conversation_id") @db.VarChar(64)
+  messageId      String? @map("message_id") @db.VarChar(64)
+  userId         String? @map("user_id") @db.VarChar(32)
 
   /// explicit | implicit
   source String @db.VarChar(16)
 
   /// 显式标注：correct | incorrect
-  verdict String? @db.VarChar(16)
+  verdict   String? @db.VarChar(16)
   /// 显式错误类型：irrelevant | outdated | overreach | format
   errorType String? @map("error_type") @db.VarChar(32)
 
@@ -2243,28 +2434,28 @@ model AiAnswerFeedback {
   input String? @db.Text
 
   /// 标注备注 / 原因（不含用户原文）
-  note String? @db.VarChar(500)
+  note    String? @db.VarChar(500)
   /// 标注人（显式反馈时）
   adminId String? @map("admin_id") @db.VarChar(32)
 
-  metadata  Json?
+  metadata Json?
 
   /// 运营归因：MODEL_ERROR | SERVICE_ERROR | EXPECTED_TRANSFER | UNEXPECTED_TRANSFER | USER_ABANDONED | REPEATED_QUESTION | UNKNOWN
-  failureKind String? @map("failure_kind") @db.VarChar(32)
+  failureKind      String? @map("failure_kind") @db.VarChar(32)
   /// 处理结论：OPEN | CONFIRMED | EXCLUDED | ADDED_TO_EVAL | FIXED_PENDING_VERIFY | CLOSED
-  resolution  String? @db.VarChar(24)
+  resolution       String? @db.VarChar(24)
   /// 当前负责人
-  ownerAdminId String? @map("owner_admin_id") @db.VarChar(32)
+  ownerAdminId     String? @map("owner_admin_id") @db.VarChar(32)
   /// 已转成的评测用例
   linkedEvalCaseId String? @map("linked_eval_case_id") @db.VarChar(32)
   /// 关联的 trace（Phase 2 启用）
-  traceId String? @map("trace_id") @db.VarChar(32)
+  traceId          String? @map("trace_id") @db.VarChar(32)
 
   /// PENDING | REVIEWED | IGNORED
-  reviewStatus String  @default("PENDING") @map("review_status") @db.VarChar(16)
-  reviewedBy   String? @map("reviewed_by") @db.VarChar(32)
+  reviewStatus String    @default("PENDING") @map("review_status") @db.VarChar(16)
+  reviewedBy   String?   @map("reviewed_by") @db.VarChar(32)
   reviewedAt   DateTime? @map("reviewed_at")
-  createdAt DateTime @default(now()) @map("created_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
 
   @@index([conversationId], map: "idx_ai_feedback_conversation")
   @@index([reviewStatus, createdAt], map: "idx_ai_feedback_review")
@@ -2291,19 +2482,19 @@ model AiEvalDataset {
 }
 
 model AiEvalCase {
-  id        String   @id @default(cuid()) @db.VarChar(32)
-  datasetId String   @map("dataset_id") @db.VarChar(32)
-  question  String   @db.Text
-  answer    String   @db.Text
-  expect    Json
-  tags      Json?
-  expected  Json?
-  metadata  Json?
-  sourceFeedbackId String? @map("source_feedback_id") @db.VarChar(32)
-  source    String?  @db.VarChar(16)
-  createdAt DateTime @default(now()) @map("created_at")
+  id               String   @id @default(cuid()) @db.VarChar(32)
+  datasetId        String   @map("dataset_id") @db.VarChar(32)
+  question         String   @db.Text
+  answer           String   @db.Text
+  expect           Json
+  tags             Json?
+  expected         Json?
+  metadata         Json?
+  sourceFeedbackId String?  @map("source_feedback_id") @db.VarChar(32)
+  source           String?  @db.VarChar(16)
+  createdAt        DateTime @default(now()) @map("created_at")
 
-  dataset AiEvalDataset @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  dataset AiEvalDataset  @relation(fields: [datasetId], references: [id], onDelete: Cascade)
   results AiEvalResult[]
 
   @@index([datasetId])
@@ -2311,17 +2502,19 @@ model AiEvalCase {
 }
 
 model AiEvalRun {
-  id          String    @id @default(cuid()) @db.VarChar(32)
-  datasetId   String    @map("dataset_id") @db.VarChar(32)
+  id            String    @id @default(cuid()) @db.VarChar(32)
+  datasetId     String    @map("dataset_id") @db.VarChar(32)
   /// RUNNING | COMPLETED | FAILED
-  status      String    @default("RUNNING") @db.VarChar(16)
-  /** STORED | LIVE */
-  mode        String    @default("STORED") @db.VarChar(16)
-  baselineRunId String? @map("baseline_run_id") @db.VarChar(32)
-  createdBy   String?   @map("created_by") @db.VarChar(32)
-  summary     Json?
-  startedAt   DateTime  @default(now()) @map("started_at")
-  finishedAt  DateTime? @map("finished_at")
+  status        String    @default("RUNNING") @db.VarChar(16)
+  /**
+   * STORED | LIVE
+   */
+  mode          String    @default("STORED") @db.VarChar(16)
+  baselineRunId String?   @map("baseline_run_id") @db.VarChar(32)
+  createdBy     String?   @map("created_by") @db.VarChar(32)
+  summary       Json?
+  startedAt     DateTime  @default(now()) @map("started_at")
+  finishedAt    DateTime? @map("finished_at")
 
   dataset AiEvalDataset  @relation(fields: [datasetId], references: [id], onDelete: Cascade)
   results AiEvalResult[]
@@ -2331,19 +2524,19 @@ model AiEvalRun {
 }
 
 model AiEvalResult {
-  id        String   @id @default(cuid()) @db.VarChar(32)
-  runId     String   @map("run_id") @db.VarChar(32)
-  caseId    String   @map("case_id") @db.VarChar(32)
-  verdict   String   @db.VarChar(16)
-  score     Float
-  reason    String   @db.Text
-  actualAnswer String? @map("actual_answer") @db.Text
-  judgeModel String?  @map("judge_model") @db.VarChar(100)
-  judgeVendor String? @map("judge_vendor") @db.VarChar(50)
+  id                String   @id @default(cuid()) @db.VarChar(32)
+  runId             String   @map("run_id") @db.VarChar(32)
+  caseId            String   @map("case_id") @db.VarChar(32)
+  verdict           String   @db.VarChar(16)
+  score             Float
+  reason            String   @db.Text
+  actualAnswer      String?  @map("actual_answer") @db.Text
+  judgeModel        String?  @map("judge_model") @db.VarChar(100)
+  judgeVendor       String?  @map("judge_vendor") @db.VarChar(50)
   vendorIndependent Boolean? @map("vendor_independent")
-  traceId   String?   @map("trace_id") @db.VarChar(32)
-  latencyMs Int?     @map("latency_ms")
-  createdAt DateTime @default(now()) @map("created_at")
+  traceId           String?  @map("trace_id") @db.VarChar(32)
+  latencyMs         Int?     @map("latency_ms")
+  createdAt         DateTime @default(now()) @map("created_at")
 
   run  AiEvalRun  @relation(fields: [runId], references: [id], onDelete: Cascade)
   case AiEvalCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
@@ -2403,18 +2596,18 @@ model AiMetricWindow {
 
 /// 分析任务运行记录（119 Phase 1）。
 model AiAnalysisRun {
-  id             String    @id @default(cuid()) @db.VarChar(32)
-  jobType        String    @map("job_type") @db.VarChar(24)
-  windowStart    DateTime  @map("window_start")
-  windowEnd      DateTime  @map("window_end")
-  status         String    @default("RUNNING") @db.VarChar(16)
-  startedAt      DateTime  @default(now()) @map("started_at")
-  finishedAt     DateTime? @map("finished_at")
-  processed      Int       @default(0)
-  createdEvents  Int       @default(0) @map("created_events")
-  createdClusters Int      @default(0) @map("created_clusters")
-  error          String?   @db.Text
-  metadata       Json?
+  id              String    @id @default(cuid()) @db.VarChar(32)
+  jobType         String    @map("job_type") @db.VarChar(24)
+  windowStart     DateTime  @map("window_start")
+  windowEnd       DateTime  @map("window_end")
+  status          String    @default("RUNNING") @db.VarChar(16)
+  startedAt       DateTime  @default(now()) @map("started_at")
+  finishedAt      DateTime? @map("finished_at")
+  processed       Int       @default(0)
+  createdEvents   Int       @default(0) @map("created_events")
+  createdClusters Int       @default(0) @map("created_clusters")
+  error           String?   @db.Text
+  metadata        Json?
 
   @@unique([jobType, windowStart])
   @@index([status, startedAt])
@@ -2423,27 +2616,27 @@ model AiAnalysisRun {
 
 /// 问题簇：同一类问题事件的聚合，运营按簇处理而不是逐条。
 model AiProblemCluster {
-  id                 String   @id @default(cuid()) @db.VarChar(32)
+  id                 String                       @id @default(cuid()) @db.VarChar(32)
   /// 规范化问题的 hash，精确去重；语义聚类后续再引入
-  signature          String   @unique @db.VarChar(64)
-  representativeText String   @map("representative_text") @db.Text
+  signature          String                       @unique @db.VarChar(64)
+  representativeText String                       @map("representative_text") @db.Text
   /// 语义聚类向量（bge-m3 / Jina，1024 维）。Prisma 不支持该类型，
   /// 读写走原生 SQL（见迁移 20261121170000_ai_problem_cluster_embedding，
   /// HNSW 余弦索引由同迁移维护），不要改字段类型。
   embedding          Unsupported("vector(1024)")?
-  count              Int      @default(0)
-  severity           Int      @default(1) @db.SmallInt
-  intent             String?  @db.VarChar(50)
-  domain             String?  @db.VarChar(50)
-  suggestedCause     String?  @map("suggested_cause") @db.VarChar(32)
-  fixType            String?  @map("fix_type") @db.VarChar(32)
+  count              Int                          @default(0)
+  severity           Int                          @default(1) @db.SmallInt
+  intent             String?                      @db.VarChar(50)
+  domain             String?                      @db.VarChar(50)
+  suggestedCause     String?                      @map("suggested_cause") @db.VarChar(32)
+  fixType            String?                      @map("fix_type") @db.VarChar(32)
   /// NEW / ASSIGNED / FIXING / VERIFYING / CLOSED / IGNORED
-  status             String   @default("NEW") @db.VarChar(16)
-  ownerAdminId       String?  @map("owner_admin_id") @db.VarChar(32)
-  firstSeenAt        DateTime @map("first_seen_at")
-  lastSeenAt         DateTime @map("last_seen_at")
-  createdAt          DateTime @default(now()) @map("created_at")
-  updatedAt          DateTime @updatedAt @map("updated_at")
+  status             String                       @default("NEW") @db.VarChar(16)
+  ownerAdminId       String?                      @map("owner_admin_id") @db.VarChar(32)
+  firstSeenAt        DateTime                     @map("first_seen_at")
+  lastSeenAt         DateTime                     @map("last_seen_at")
+  createdAt          DateTime                     @default(now()) @map("created_at")
+  updatedAt          DateTime                     @updatedAt @map("updated_at")
 
   @@index([status, lastSeenAt])
   @@index([intent, domain])
@@ -2485,19 +2678,19 @@ model AiAnalysisAlert {
 
 /// 注入检测命中事件（不存用户原文）。
 model AiSecurityEvent {
-  id             String   @id @default(cuid()) @db.VarChar(32)
-  type           String   @db.VarChar(32)
-  mode           String   @db.VarChar(16)
+  id             String  @id @default(cuid()) @db.VarChar(32)
+  type           String  @db.VarChar(32)
+  mode           String  @db.VarChar(16)
   length         Int
-  userIdHash     String?  @map("user_id_hash") @db.VarChar(64)
-  conversationId String?  @map("conversation_id") @db.VarChar(64)
+  userIdHash     String? @map("user_id_hash") @db.VarChar(64)
+  conversationId String? @map("conversation_id") @db.VarChar(64)
 
   /// NEW | CONFIRMED | FALSE_POSITIVE | BLOCKED
-  status String @default("NEW") @db.VarChar(16)
-  note   String? @db.VarChar(500)
-  reviewedBy String? @map("reviewed_by") @db.VarChar(32)
+  status     String    @default("NEW") @db.VarChar(16)
+  note       String?   @db.VarChar(500)
+  reviewedBy String?   @map("reviewed_by") @db.VarChar(32)
   reviewedAt DateTime? @map("reviewed_at")
-  createdAt      DateTime @default(now()) @map("created_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
 
   @@index([type, createdAt])
   @@index([status, createdAt])
@@ -2507,13 +2700,13 @@ model AiSecurityEvent {
 
 /// SLA 历史快照：每分钟记录一次等待/超时，支持按天趋势。
 model SupportSlaSnapshot {
-  id          String   @id @default(cuid()) @db.VarChar(32)
+  id          String    @id @default(cuid()) @db.VarChar(32)
   /// UTC 分钟桶：多实例同一分钟只允许一行，避免重复快照
   bucket      DateTime? @unique
   waiting     Int
   breached    Int
-  longestWait Int      @map("longest_wait")
-  createdAt   DateTime @default(now()) @map("created_at")
+  longestWait Int       @map("longest_wait")
+  createdAt   DateTime  @default(now()) @map("created_at")
 
   @@index([createdAt])
   @@map("support_sla_snapshots")
@@ -2528,17 +2721,17 @@ model AiUserMemory {
   key    String @db.VarChar(64)
   value  String @db.VarChar(500)
 
-  confidence Float @default(1)
+  confidence           Float     @default(1)
   /// 来源：哪条用户消息触发写入（唯一，重复写入幂等）
-  sourceConversationId String? @map("source_conversation_id") @db.VarChar(64)
-  sourceMessageId      String? @map("source_message_id") @db.VarChar(64)
-  version              Int     @default(1)
+  sourceConversationId String?   @map("source_conversation_id") @db.VarChar(64)
+  sourceMessageId      String?   @map("source_message_id") @db.VarChar(64)
+  version              Int       @default(1)
   /// ACTIVE | DELETED
-  status               String  @default("ACTIVE") @db.VarChar(16)
-  expiresAt            DateTime @map("expires_at")
+  status               String    @default("ACTIVE") @db.VarChar(16)
+  expiresAt            DateTime  @map("expires_at")
   lastUsedAt           DateTime? @map("last_used_at")
-  createdAt            DateTime @default(now()) @map("created_at")
-  updatedAt            DateTime @updatedAt @map("updated_at")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
 
   @@unique([userId, kind, key], map: "idx_ai_memory_user_kind_key")
   // 一条消息可能抽取多个字段，幂等键必须是 (message, kind, key)

@@ -1,8 +1,12 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X } from 'lucide-react';
-import { knowledgeApi } from '@/api';
+import { useRequest } from 'ahooks';
+import { X, Sparkles, RefreshCw } from 'lucide-react';
+import { ModalManager } from '@repo/ui';
+import { kbCandidatesApi, knowledgeApi } from '@/api';
+import { canReviewKbCandidates, useAiOpsRole } from '@/lib/ai-ops-permissions';
+import { useToastStore } from '@/store/useToastStore';
 import { ProcessPipeline } from './ProcessPipeline';
 import type { TFunc } from '@/hooks/useTranslation';
 import type { KnowledgeDocument } from '@/type/types';
@@ -29,6 +33,49 @@ export function DocDetailModal({
   t: TFunc;
 }) {
   const [doc, setDoc] = useState(initialDoc);
+  const role = useAiOpsRole();
+  const canRegenerate = canReviewKbCandidates(role);
+
+  const { data: runs, refresh: refreshRuns } = useRequest(() =>
+    kbCandidatesApi.runs(doc.id).catch(() => []),
+  );
+  const { data: candidatesData, refresh: refreshCandidates } = useRequest(() =>
+    kbCandidatesApi
+      .list({ documentId: doc.id, page: 1, pageSize: 10 })
+      .catch(() => null),
+  );
+  const latestRun = runs?.[0];
+  const candidates = candidatesData?.items ?? [];
+
+  const handleRegenerate = () => {
+    ModalManager.open({
+      title:
+        '重新生成候选？会新建一次生成运行，尚未审核的旧候选会被新运行取代。',
+      confirmText: '重新生成',
+      onConfirm: async () => {
+        try {
+          const result = await kbCandidatesApi.regenerate(doc.id);
+          if (result.enqueued) {
+            useToastStore
+              .getState()
+              .addToast('info', '已加入生成队列，稍后刷新查看候选。');
+          } else {
+            useToastStore
+              .getState()
+              .addToast(
+                'error',
+                `未入队：${result.reason ?? 'unknown'}（检查 KB_GENERATION_ENABLED 与文档发布状态）`,
+              );
+          }
+          await Promise.all([refreshRuns(), refreshCandidates()]);
+        } catch (error: any) {
+          useToastStore
+            .getState()
+            .addToast('error', `重新生成失败：${error?.message ?? '未知错误'}`);
+        }
+      },
+    });
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
@@ -161,6 +208,74 @@ export function DocDetailModal({
               } catch {}
             }}
           />
+        </div>
+
+        {/* AI 候选（知识库驱动的自动维护） */}
+        <div className="border-t border-gray-100 pt-4 mt-4 dark:border-white/10">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="flex items-center gap-1.5 text-sm font-medium text-gray-900 dark:text-white">
+              <Sparkles size={14} className="text-teal-500" />
+              发布后生成的候选
+              {latestRun ? (
+                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-normal text-gray-600 dark:bg-white/10 dark:text-gray-300">
+                  run: {latestRun.status}
+                </span>
+              ) : null}
+            </h3>
+            <button
+              type="button"
+              onClick={handleRegenerate}
+              disabled={!canRegenerate}
+              className="flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-600 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-gray-300 dark:hover:bg-white/5"
+              title={canRegenerate ? '重新生成' : '当前角色无权触发'}
+            >
+              <RefreshCw size={12} />
+              重新生成
+            </button>
+          </div>
+
+          {latestRun ? (
+            <p className="text-xs text-gray-500">
+              最近运行：v{latestRun.documentVersion} ·{' '}
+              {latestRun.candidateCount} 条候选
+              {latestRun.filteredCount > 0
+                ? ` · 过滤 ${latestRun.filteredCount}`
+                : ''}
+              {latestRun.error
+                ? ` · 错误：${latestRun.error.slice(0, 80)}`
+                : ''}
+            </p>
+          ) : (
+            <p className="text-xs text-gray-500">还没有生成运行记录。</p>
+          )}
+
+          {candidates.length > 0 ? (
+            <ul className="mt-2 max-h-40 space-y-1 overflow-y-auto">
+              {candidates.map((candidate) => (
+                <li
+                  key={candidate.id}
+                  className="flex items-start gap-2 rounded-lg bg-gray-50 px-2 py-1.5 text-xs dark:bg-white/5"
+                >
+                  <span className="shrink-0 rounded-full bg-white px-1.5 py-0.5 text-[10px] text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                    {candidate.kind}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-gray-700 dark:text-gray-300">
+                    {candidate.text}
+                  </span>
+                  <span className="shrink-0 text-[10px] text-gray-400">
+                    {candidate.status}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+
+          <a
+            href="/knowledge/candidates"
+            className="mt-2 inline-block text-xs text-teal-600 underline hover:text-teal-500"
+          >
+            去候选审核台处理 →
+          </a>
         </div>
 
         <div className="mt-5 flex justify-end">

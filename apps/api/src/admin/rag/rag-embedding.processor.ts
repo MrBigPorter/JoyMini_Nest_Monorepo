@@ -29,6 +29,8 @@ export interface RagEmbeddingJobData {
    * 只给这一版做向量化与索引。
    */
   targetVersion?: number;
+  /** 发布来源，决定发布事件是否触发候选生成；缺省 upload */
+  trigger?: 'upload' | 'reindex' | 'manual' | 'rollback';
 }
 
 /**
@@ -164,6 +166,7 @@ export class RagEmbeddingProcessor extends WorkerHost {
         const switchResult = await this.kbVersionService.activate(
           documentId,
           versionToActivate,
+          { trigger: job.data.trigger ?? 'upload' },
         );
         if (!switchResult.switched) {
           this.logger.error(

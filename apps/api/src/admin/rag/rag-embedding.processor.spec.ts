@@ -96,7 +96,9 @@ describe('RagEmbeddingProcessor 状态语义（N-6）', () => {
       data: { documentId: 'doc-1', targetVersion: 4 },
     } as any);
 
-    expect(kbVersion.activate).toHaveBeenCalledWith('doc-1', 4);
+    expect(kbVersion.activate).toHaveBeenCalledWith('doc-1', 4, {
+      trigger: 'upload',
+    });
   });
 
   it('切换被门挡下：任务本身仍算成功（旧版本继续服务）', async () => {
@@ -131,6 +133,8 @@ describe('RagEmbeddingProcessor 状态语义（N-6）', () => {
 
     // 这些路径照样会写出 isActiveVersion=false 的条目；不激活的话
     // BM25 层就永久空着。回退到 document.version 是唯一安全的兜底。
-    expect(kbVersion.activate).toHaveBeenCalledWith('doc-1', 3);
+    expect(kbVersion.activate).toHaveBeenCalledWith('doc-1', 3, {
+      trigger: 'upload',
+    });
   });
 });

@@ -530,6 +530,7 @@
     "banners_validation_relatedTitleRequired": "Related title ID must be provided when jump category is TREASURE",
     "aiPrompt": "AI Prompt",
     "intentExamples": "Intent Examples",
+    "kbCandidates": "KB Candidates",
     "create": "Create",
     "saving": "Saving...",
     "aiFeedback": "AI Feedback",

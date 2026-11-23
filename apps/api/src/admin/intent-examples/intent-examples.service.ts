@@ -3,6 +3,7 @@ import {
   Logger,
   NotFoundException,
   ConflictException,
+  BadRequestException,
 } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
@@ -13,10 +14,15 @@ import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service'
 import { IntentClassifier } from '@api/client/ai-customer/graph/utils/intent-classifier';
 import { LlmProviderConfig } from '@api/client/ai-customer/graph/llm-factory';
 import { INTENT_EXAMPLE_GROUPS } from '@api/client/ai-customer/graph/agents/prompts/intent-examples';
-import { INTENT_LABEL_CATEGORIES } from '@api/client/ai-customer/graph/agents/prompts/intent-label-categories';
+import { getIntentDomains } from '@api/client/ai-customer/graph/config/intent-domain-registry';
 import { md5 } from '@api/common/crypto.util';
 import { EMBEDDING_QUEUE } from '@api/common/ai/queues/embedding/embedding-queue.constants';
 import type { EmbeddingJobData } from '@api/common/ai/queues/embedding/embedding.processor';
+
+type EmbeddingJobMeta = Pick<
+  EmbeddingJobData,
+  'source' | 'candidateId' | 'locale' | 'normalizedHash'
+>;
 import {
   IntentExampleGroupResponseDto,
   IntentExampleSectionDto,
@@ -79,15 +85,15 @@ export class IntentExamplesService {
       });
     }
 
-    // Add code-defined domains (from INTENT_LABEL_CATEGORIES) not yet in DB
-    // This allows admin to see and manage domains like 'human_support'
-    // even before any examples have been added for them.
-    for (const cat of INTENT_LABEL_CATEGORIES) {
-      if (!cat.validLabel) continue;
-      if (!seen.has(cat.name)) {
-        const codeGroup = examplesMap.get(cat.name);
+    // Add registry domains not yet present in intent_examples.
+    // 注册表是唯一来源：停用的域不会出现，也不会再靠 TS 常量补位。
+    const registry = await getIntentDomains(this.prisma);
+    for (const domain of registry) {
+      if (domain.type === 'transfer') continue;
+      if (!seen.has(domain.label)) {
+        const codeGroup = examplesMap.get(domain.label);
         result.push({
-          name: cat.name,
+          name: domain.label,
           examples: codeGroup?.examples ?? [],
           requiredTags: codeGroup?.requiredTags,
           hasAdminOverride: false,
@@ -107,11 +113,10 @@ export class IntentExamplesService {
    * Falls back to TS defaults if no data in intent_examples.
    */
   async getByDomain(domain: string): Promise<IntentExampleGroupResponseDto> {
-    // Allow domain if it exists in categories (including code-only like human_support)
-    const validCategory = INTENT_LABEL_CATEGORIES.find(
-      (c) => c.name === domain,
-    );
-    if (!validCategory) {
+    // 注册表口径与 createDomain 保持一致：未注册/已停用的域都不可读写。
+    const domains = await getIntentDomains(this.prisma);
+    const validDomain = domains.find((d) => d.label === domain);
+    if (!validDomain) {
       throw new NotFoundException(`Domain "${domain}" not found`);
     }
 
@@ -155,6 +160,15 @@ export class IntentExamplesService {
     sentences: string[],
     userId?: string,
   ): Promise<UpdateIntentExamplesResponseDto> {
+    // 0. 域必须先注册（intent_domains）。新增业务域仍需要 Agent/代码，
+    //    这里只允许给已存在的域补示例，避免后台造出分类器不认识的标签。
+    const domains = await getIntentDomains(this.prisma);
+    if (!domains.some((d) => d.label === domain)) {
+      throw new BadRequestException(
+        `Intent domain "${domain}" is not registered. Register it in intent_domains first.`,
+      );
+    }
+
     // 1. Check domain doesn't already exist in intent_examples
     const existing = await this.prisma.$queryRawUnsafe<{ cnt: number }[]>(
       `SELECT COUNT(*) as cnt FROM intent_examples WHERE domain = $1`,
@@ -210,16 +224,9 @@ export class IntentExamplesService {
     mode: 'append' | 'replace' = 'replace',
     userId?: string,
   ): Promise<UpdateIntentExamplesResponseDto> {
-    // Validate domain exists (in categories, INTENT_EXAMPLE_GROUPS, or DB)
-    const validCategory = INTENT_LABEL_CATEGORIES.find(
-      (c) => c.name === domain,
-    );
-    const dbExists = await this.prisma.$queryRawUnsafe<{ cnt: number }[]>(
-      `SELECT COUNT(*) as cnt FROM intent_examples WHERE domain = $1`,
-      domain,
-    );
-
-    if (!validCategory && dbExists[0].cnt === 0) {
+    // 注册表是唯一校验口径：未注册/停用的域不能更新示例。
+    const domains = await getIntentDomains(this.prisma);
+    if (!domains.some((d) => d.label === domain)) {
       throw new NotFoundException(`Domain "${domain}" not found`);
     }
 
@@ -232,12 +239,37 @@ export class IntentExamplesService {
   }
 
   /**
+   * 候选审核专用入口：同时写 config 层（管理端可见、reindexDomain 不丢）
+   * 与运行层（分类器可见），并带上 KB_CANDIDATE 溯源。
+   * 应用服务是唯一写入口，审核控制器不直接碰这两张表。
+   */
+  async appendCandidateExample(
+    domain: string,
+    text: string,
+    candidate: { id: string; locale?: string; normalizedHash?: string },
+    userId?: string,
+  ): Promise<UpdateIntentExamplesResponseDto> {
+    const domains = await getIntentDomains(this.prisma);
+    if (!domains.some((d) => d.label === domain)) {
+      throw new NotFoundException(`Domain "${domain}" not found`);
+    }
+
+    return this.appendToDomain(domain, [text], userId, {
+      source: 'KB_CANDIDATE',
+      candidateId: candidate.id,
+      locale: candidate.locale,
+      normalizedHash: candidate.normalizedHash,
+    });
+  }
+
+  /**
    * Append new sentences to an existing domain (deduplicate by text).
    */
   private async appendToDomain(
     domain: string,
     newSentences: string[],
     userId?: string,
+    meta?: EmbeddingJobMeta,
   ): Promise<UpdateIntentExamplesResponseDto> {
     // Read existing sentences from intent_examples
     const existing = await this.prisma.$queryRawUnsafe<{ sentence: string }[]>(
@@ -266,7 +298,8 @@ export class IntentExamplesService {
       JSON.stringify([...existing.map((r) => r.sentence), ...trulyNew]),
     );
 
-    // Update config: merge sections
+    // Update config: merge sections. 没有 admin override 时也要建一条，
+    // 否则候选批准只写了运行表，管理端 / reindexDomain 看不到这条例句。
     if (config) {
       const parsed = this.parseConfigSentences(config.sentences);
       const mergedSections = this.mergeSections(
@@ -286,10 +319,28 @@ export class IntentExamplesService {
           updatedBy: userId,
         },
       });
+    } else {
+      const allFlat = [...existing.map((r) => r.sentence), ...trulyNew];
+      await this.prisma.intentExampleConfig.create({
+        data: {
+          domain,
+          sentences: JSON.stringify({
+            flat: allFlat,
+            sections: this.parseIntoSections(allFlat),
+          }),
+          configHash: newHash,
+          updatedBy: userId,
+        },
+      });
     }
 
     // Submit only new sentences to embedding queue
-    const jobCount = await this.submitEmbeddingJobs(domain, trulyNew, newHash);
+    const jobCount = await this.submitEmbeddingJobs(
+      domain,
+      trulyNew,
+      newHash,
+      meta,
+    );
 
     // BM25 索引同样要更新：只写向量不写 Meili，新句子永远不会被
     // 关键词通道命中（append 曾经漏了这一步）。
@@ -375,10 +426,8 @@ export class IntentExamplesService {
         return this.replaceDomain(domain, group.examples);
       }
       // Domain has no code examples and no admin config — nothing to reindex
-      const validCategory = INTENT_LABEL_CATEGORIES.find(
-        (c) => c.name === domain,
-      );
-      if (validCategory) {
+      const domains = await getIntentDomains(this.prisma);
+      if (domains.some((d) => d.label === domain)) {
         throw new NotFoundException(
           `Domain "${domain}" has no example sentences yet. Please add examples via Admin panel first.`,
         );
@@ -448,6 +497,7 @@ export class IntentExamplesService {
     domain: string,
     sentences: string[],
     configHash: string,
+    meta?: EmbeddingJobMeta,
   ): Promise<number> {
     let submittedCount = 0;
 
@@ -459,6 +509,7 @@ export class IntentExamplesService {
             domain,
             sentence,
             configHash,
+            ...meta,
           },
           {
             // 任务优先级：数字越小优先级越高

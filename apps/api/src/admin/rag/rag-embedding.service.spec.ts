@@ -38,6 +38,7 @@ describe('RagEmbeddingService 索引顺序（缺陷 A）', () => {
           domain: 'wallet',
           docId: 'refund-policy',
           keywords: ['refund'],
+          autoKeywords: [],
           priority: 'P0',
           contentType: 'policy',
           locale: 'zh',
@@ -71,6 +72,31 @@ describe('RagEmbeddingService 索引顺序（缺陷 A）', () => {
     await service.embedDocument('doc_1');
 
     expect(calls).toEqual(['meili', 'vector']);
+  });
+
+  it('索引 Meili 时把 autoKeywords 合并进有效关键词', async () => {
+    const { service, prisma } = build();
+    prisma.knowledgeDocument.findUnique.mockResolvedValue({
+      id: 'doc_1',
+      title: '退款政策',
+      domain: 'wallet',
+      docId: 'refund-policy',
+      keywords: ['refund'],
+      autoKeywords: ['Refund', 'payout'],
+      priority: 'P0',
+      contentType: 'policy',
+      locale: 'zh',
+      isActive: true,
+    });
+    const meili = (service as any).meilisearchService;
+    meili.indexChunk = jest.fn().mockResolvedValue(undefined);
+
+    await service.embedDocument('doc_1');
+
+    expect(meili.indexChunk.mock.calls[0][0].keywords).toEqual([
+      'refund',
+      'payout',
+    ]);
   });
 
   it('Meili 失败时不计成功，向量也不写（留给重试）', async () => {

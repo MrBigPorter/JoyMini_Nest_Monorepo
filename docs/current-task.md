@@ -13,6 +13,54 @@
 
 ---
 
+## 当前主线（2026-11-23 立项）：知识库驱动的自动维护
+
+> 规格：[#121 知识库驱动意图候选生成 SDD](./AI-joymini/121-知识库驱动意图候选生成-SDD.md)
+> 分支：`feat/kb-driven-ai-maintenance`（从 `feat/ai-ops-operator-console` 切出）
+
+**问题**：示例已经在 `intent_example_configs` + `intent_examples` 里可配置，但纯人工维护，和知识库没有闭环；标签/域仍硬编码在 4 处；文档发布无事件；关键词手填；RAG 评测无 CI 闸门。
+
+**方案**：发布事件 → 生成候选 → 分级审核 → 评测反馈。
+
+| 阶段 | 内容 | 状态 |
+|---|---|---|
+| M0 | `intent_domains` + `knowledge_domains` 注册表、registry 服务、prompt 改造、文档域校验、parity 测试 | ✅ 2026-11-23 |
+| M1 | 发布事件、`kb-generation` 队列、生成/过滤/裁判/去重、补偿扫描 | ✅ 2026-11-23（含端到端） |
+| M2a | 关键词自动生效（`autoKeywords`、回滚、审计） | ✅ 2026-11-23（含端到端） |
+| M2b | 示例/golden 人工审核 API + `/knowledge/candidates` | ✅ 2026-11-23（后端 + 前端） |
+| M3 | 合成评测集 + RAG 报告 API/UI | 待做 |
+| M4 | 评测 CI 闸门 + 语料指纹 + 基线治理 | 待做 |
+| M5 | 可观测与运营趋势 | 待做 |
+| M6 | 既有缺陷修复（元数据 PATCH、软删、队列错误、未注册标签） | 待做 |
+
+**M0 完成（2026-11-23）**：增量迁移 `20261123190000_add_kb_generation_pipeline` 已 apply；`intent_domains` 9 行、`knowledge_domains` 8 行已灌种子。新增 `intent-domain-registry`（DB 优先 + 60s 缓存 + 空表/报错回退 TS seed）、`IntentDomainService`、`KnowledgeDomainService`、`domain-normalization`。分类器与 LLM 兜底 prompt 改读注册表；LLM 返回未注册标签一律丢弃并回退 `general`。文档上传/创建/更新统一走域归一 + 校验（`general → common`）。parity 测试覆盖种子 ↔ 标签表 ↔ `AGENT_BASE_MAP` ↔ prompt；`tsc` 0 error，相关 19+33 条测试通过。存量盘点：文档域 8 个全部合法（order 6 / common 5 / product 5 / wallet 3 / user 3 / coupon 2 / kyc 2 / lucky-draw 1）；`intent_examples` 中 `human_support` 30 条为未注册孤儿，M0 起分类时忽略并告警，M6 决定注册为 transfer 或删除。
+
+**M1 进展（2026-11-23，代码完成）**：新增发布事件契约 `kb.document.published.v1`，在 `KbVersionService` 的 CAS 成功与 `already-active` 分支发射（`trigger` 由 upload/reindex/manual/rollback 透传，rollback 不触发生成）。新增 `admin/kb-generation/`：listener（发布即入队）、queue（jobId=sha256(documentId:version:contentHash)）、processor（concurrency=1）、生成服务（幂等 run、内容未变跳过、30 分钟失败重试、小时配额、内容类型门）、LLM 生成器（`<document>` 不可信边界 + JSON 截断）、启发式过滤器（注入/泛词/动作型 rag 例句/非问句 golden）、精确 + 同域向量 ≥0.92 去重、补偿扫描（重置 stale RUNNING、旧版 PENDING → SUPERSEDED、删除文档的合成用例失效、补投漏跑文档）。`tsc` 0 error；kb-generation 30 条单测 + RAG/示例/注册表 57 条回归通过。**待联调**：真实上传 → run + 三类候选；断 LLM 发布仍成功；停监听 10 分钟内补偿补上；内容未变不重复生成。
+
+**M2a 进展（2026-11-23，后端完成）**：`KB_KEYWORD_AUTO_APPLY=true` 时，生成后的关键词候选先过门槛（文档 `indexed`、未删除、版本未过期、非注入、长度 2–64、`keywords ∪ autoKeywords ≤ 20`），再 CAS 领取并追加到独立 `autoKeywords` 列；快照写 `previousValue`，`rollbackableUntil=30 天`。Meili 用新增的 `updateChunkMetadata(chunkIds, {keywords})` 做字段合并，不重嵌入；失败则候选 `FAILED`，补偿扫描每 10 分钟幂等重试。回滚接口 `POST /v1/admin/kb-candidates/:id/rollback-keyword` 只移除该候选加的词。检索侧统一改用 `keywords ∪ auto_keywords`：Meili 索引、pgvector/词面 SQL 均已切换。有效关键词的第一拼写优先（人工在前、自动在后）。新增 19 条自动生效/回滚/Meili 单测；`tsc` 0 error，RAG/检索/Meili 回归全绿。
+
+**M2b 进展（2026-11-23，后端完成）**：新增 `admin/kb-candidates` 读写接口：`GET /`（分页 + 队列统计，`needsReview` 置顶）、`GET /:id`（带源文档）、`POST /:id/approve`、`POST /:id/reject`（原因必填）、`POST /:id/retarget`（仅 INTENT_EXAMPLE，校验域启用）、`POST /batch`（≤50、同 kind、必须 `confirm=true`、`needsReview` 默认跳过、单域增长 >10% 默认阻断）、`GET /runs/:documentId`、`POST /documents/:documentId/regenerate`、`POST /:id/rollback-keyword`。应用语义：示例走 `appendCandidateExample` 双写 `intent_example_configs`（缺失则重建）+ `intent_examples`（`source=KB_CANDIDATE`、带 `candidateId`/`locale`/`normalizedHash`）+ 复用 EMBEDDING_QUEUE；关键词走 M2a 可逆路径；golden 只写 `kb_synthetic_golden`（`sourceType=synthetic`、`approvedBy`），绝不碰真实 golden 文件。校验类错误（域不存在）保持 PENDING 便于改派，只有真实应用失败才落 FAILED。新增 14 条服务单测（批准各 kind、驳回 CAS、改派校验、批量护栏）+ 6 条 `IntentExamplesService` 单测（双写 config/运行表、候选溯源字段、BM25 刷新、去重、未注册域拒绝、`reindexDomain` 反序列化不过滤候选）；`tsc` 0 error，kb-generation 54 条与相关回归 80 条全绿。**前端（2026-11-23）**：新增 `/knowledge/candidates` 审核台（`src/components/kb-candidates/KbCandidatesClient.tsx`）——左侧队列（勾选批量）+ 右侧详情（文本可改后批准、改派、驳回原因、自动生效关键词 30 天回滚），统计卡、状态/类型/搜索筛选、批量二次确认与 growth/needsReview 开关，VIEWER 只读；`kbCandidatesApi` 接入 9 个接口；知识库页加「候选（N）」入口徽标；文档详情弹窗新增最近运行状态、候选列表与「重新生成」（失败原因 toast）；`ai-ops-permissions` 增 `canReviewKbCandidates` / `canManageIntentDomains` 及单测；导航与 6 语言文案已补。`admin-next tsc` 0 error。**运行时验证（2026-11-23）**：重启 dev 后端后新模块装配成功——未鉴权请求 `GET /api/v1/admin/kb-candidates` 返回 401、`POST .../approve` 返回 403（CSRF），说明路由已注册且守卫生效；DB 中 5 张新表与 `knowledge_documents`/`intent_examples` 增量列齐备，`intent_domains` 9 行、`knowledge_domains` 8 行。`KB_GENERATION_ENABLED` 在 dev 环境未设置（默认关闭），端到端生成/审核流程需先置 `true`。
+
+**端到端验证（2026-11-23，本地 host 进程 + dev DB）**：`KB_GENERATION_ENABLED=true`、`KB_KEYWORD_AUTO_APPLY=true` 下上传一篇 zh FAQ（`存款到账时效说明`，domain `wallet`，contentType `faq`）走完整链路：
+
+- 发布事件 → run `DONE`（11 条候选 / 过滤 12 条），三类候选齐备：8 条 `KEYWORD` → `AUTO_APPLIED`、4 条 `INTENT_EXAMPLE` → `PENDING`（target `rag`）、5 条 `GOLDEN_QUERY` → `PENDING`。
+- 关键词：`auto_keywords` 出现 8 词、Meili `document_chunks` 同域同词表；回滚 `处理中` 后 DB 与 Meili 都只剩其余 7 词，候选落 `ROLLED_BACK`；同内容重传（version 1→2）`autoKeywords` 不丢、`lastCandidateVersion=2`、不再新建 run（日志 `content-unchanged`）。
+- 示例：批准后 `intent_examples`（`source=KB_CANDIDATE`、`candidate_id`、`locale=zh`、`normalized_hash`）与 `intent_example_configs.sentences` 同时有该句；`POST /admin/intent-examples/test` 返回 `{"intent":"rag","score":1,"method":"embedding"}`，说明向量已入库；Meili `intent_examples` 立即可搜到。
+- golden：批准写 `kb_synthetic_golden`（`source_type=synthetic`、`expected_doc_ids={docId}`、`approved_by`）；驳回空原因 400，带原因落 `REJECTED` 并保存 `reject_reason`。
+- 批量护栏：`confirm=false` → `Batch requires confirm=true`；混 kind → `Batch operations cannot mix candidate kinds`。
+- 断 LLM：dev Docker 容器因 Colima 网络问题无法出网 → run 记 `SKIPPED(llm_unavailable)`，**文档照常 `indexed` 并发布**，验证「发布不被生成阻塞」。
+
+**联调中发现并修复的两个缺陷（2026-11-23）**：
+
+1. `kb-candidate-filter` 用 `split(/\s+/).length < 2` 判断例句长度，中文没有词间空格 → 整批中文示例被误判 `example_too_short`，生成结果里一条 `INTENT_EXAMPLE` 都没有。改为 CJK 文本按字符数（≥4）、拉丁文本按词数判断，补 2 条单测。
+2. `GeminiProvider.generateText` 把整个 `options`（含 `systemPrompt`）塞进 `generationConfig` → Gemini 返回 `400 Unknown name "systemPrompt"`，主力 provider 每次都失败并落回备用。改为 `systemPrompt` 走 `systemInstruction`、`generationConfig` 仅保留白名单字段，新增 `gemini.provider.spec.ts`（2 条）锁住行为。
+
+**dev 环境已知问题（未修，非本分支引入）**：Colima VM 内所有容器 HTTPS(443) 出网被拦（`api.deepseek.com`、`registry-1.docker.io` 均 `ECONNREFUSED`），所以 Docker 里的后端跑不通 LLM/外部 API；联调用 `yarn start:dev` 在宿主进程跑 API 完成。另：`make dev-api` 只读 `apps/api/.env`，与 `deploy/.env.dev` 会漂移。
+
+**不承诺**：新业务 Agent 免代码；示例/golden 自动批准；自动改评测基线。
+
+---
+
 ## 优先级队列（严格按顺序，不要跳）
 
 ### 🥇 T0 — 先做（Day 0-2）

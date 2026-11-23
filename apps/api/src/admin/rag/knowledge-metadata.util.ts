@@ -15,6 +15,8 @@
  * ============================================================
  */
 
+import { normalizeKnowledgeDomain } from './domain-normalization';
+
 /** 前端上传弹窗可填写的字段（全部可选，留空即不传） */
 export interface KnowledgeMetadataOverrides {
   domain?: string;
@@ -99,9 +101,11 @@ export function mergeKnowledgeMetadata(
 
   return {
     title: (extracted.title ?? '').trim(),
-    domain:
-      firstNonEmpty([metadataString(metadata, 'domain'), overrides?.domain]) ??
-      'general',
+    // `general` 是意图域，不是合法文档域；缺失时归到 common。
+    // 别名归一在这里做（纯函数），合法性校验在 KnowledgeDomainService。
+    domain: normalizeKnowledgeDomain(
+      firstNonEmpty([metadataString(metadata, 'domain'), overrides?.domain]),
+    ),
     locale:
       firstNonEmpty([metadataString(metadata, 'locale'), overrides?.locale]) ??
       'en',
@@ -111,8 +115,10 @@ export function mergeKnowledgeMetadata(
         overrides?.contentType,
       ]) ?? 'policy',
     priority:
-      firstNonEmpty([metadataString(metadata, 'priority'), overrides?.priority]) ??
-      'P2',
+      firstNonEmpty([
+        metadataString(metadata, 'priority'),
+        overrides?.priority,
+      ]) ?? 'P2',
     keywords:
       keywordsFromFrontmatter.length > 0
         ? keywordsFromFrontmatter

@@ -76,6 +76,7 @@ import {
   VECTOR_FUSION_WEIGHT,
   BM25_FUSION_WEIGHT,
 } from '@api/client/ai-customer/graph/config/intent-thresholds';
+import { getIntentDomains } from '@api/client/ai-customer/graph/config/intent-domain-registry';
 import { createLLM, LlmProviderConfig } from '../llm-factory';
 
 const logger = new Logger('IntentClassifier');
@@ -180,6 +181,10 @@ export class IntentClassifier {
     // but intent examples are stored in lowercase/mixed case.
     const normalizedInput = input.trim().toLowerCase();
 
+    // 注册表读取与 BM25/embedding 并发：缓存命中时几乎零成本，
+    // 过期时也不额外拉长分类延迟。
+    const registryPromise = getIntentDomains(this.prismaService);
+
     // ── Layer 1 & 2: BM25 + Embedding 并发 ──
     // BM25 关键词搜索和 embedding 生成互不依赖，并行执行以减少延迟
     const bm25Start = Date.now();
@@ -268,7 +273,7 @@ export class IntentClassifier {
     // 技术细节：
     //   pgvector 的 <=> 是余弦距离（0=完全相同，1=完全不同）
     //   1 - (embedding <=> $1::vector) 转成余弦相似度（1=完全相同，0=完全不同）
-    const rows = await this.prismaService.$queryRawUnsafe<
+    const rawRows = await this.prismaService.$queryRawUnsafe<
       {
         domain: string;
         similarity: number;
@@ -277,10 +282,37 @@ export class IntentClassifier {
     >(
       `SELECT domain, sentence, 1 - (embedding <=> $1::vector) AS similarity
        FROM intent_examples
+       WHERE enabled = true
        ORDER BY similarity DESC
          LIMIT 5`,
       vectorStr,
     );
+
+    // ── 注册表允许列表 ──
+    // intent_examples 是历史遗留数据，可能残留已下线/拼错的域名
+    // （例如未注册的 human_support）。未注册域一律丢弃并告警，
+    // 避免分类器把流量路由到不存在的 Agent。
+    const registeredDomains = await registryPromise;
+    const allowedDomains = new Set(registeredDomains.map((d) => d.label));
+    const rows = rawRows.filter((row) => allowedDomains.has(row.domain));
+    const droppedVectorDomains = new Set(
+      rawRows
+        .filter((row) => !allowedDomains.has(row.domain))
+        .map((row) => row.domain),
+    );
+
+    for (const domain of [...bm25DomainMap.keys()]) {
+      if (!allowedDomains.has(domain)) {
+        bm25DomainMap.delete(domain);
+        droppedVectorDomains.add(domain);
+      }
+    }
+
+    if (droppedVectorDomains.size > 0) {
+      logger.warn(
+        `[IntentClassifier] ignored unregistered intent domains: ${[...droppedVectorDomains].join(', ')}`,
+      );
+    }
 
     // -- 第四步：处理多标签结果 --
 
@@ -346,8 +378,7 @@ export class IntentClassifier {
       if (fusedMap.has(domain)) {
         const vectorScore = fusedMap.get(domain)!;
         const combined =
-          VECTOR_FUSION_WEIGHT * vectorScore +
-          BM25_FUSION_WEIGHT * bm25Score;
+          VECTOR_FUSION_WEIGHT * vectorScore + BM25_FUSION_WEIGHT * bm25Score;
         const rounded = Math.round(combined * 10000) / 10000;
         fusedMap.set(domain, rounded);
         logger.log(
@@ -359,7 +390,8 @@ export class IntentClassifier {
         // 仅 BM25 命中的意图上限就是 BM25_FUSION_WEIGHT（0.3），
         // 永远达不到 INTENT_EXECUTION_MIN_SCORE，必然落到 LLM 重判。
         // 这是刻意保留的高召回低精度通道，不要为了“能命中”抬高权重。
-        const score = Math.round(bm25Score * BM25_FUSION_WEIGHT * 10000) / 10000;
+        const score =
+          Math.round(bm25Score * BM25_FUSION_WEIGHT * 10000) / 10000;
         fusedMap.set(domain, score);
         logger.log(
           `[IntentClassifier] bm25-only ${domain}: bm25=${bm25Score.toFixed(4)} → ${score.toFixed(4)} (vector missed)`,

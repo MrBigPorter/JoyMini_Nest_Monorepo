@@ -1864,6 +1864,110 @@ export interface CreateKnowledgeDocPayload {
   content: string;
 }
 
+// ==================== KB Generation Candidates (M2b) ====================
+
+export type KbCandidateKind =
+  | 'INTENT_EXAMPLE'
+  | 'KEYWORD'
+  | 'GOLDEN_QUERY'
+  | 'DOMAIN_DESCRIPTION';
+
+export type KbCandidateStatus =
+  | 'PENDING'
+  | 'APPROVED'
+  | 'APPLIED'
+  | 'AUTO_APPLIED'
+  | 'REJECTED'
+  | 'SUPERSEDED'
+  | 'FAILED'
+  | 'ROLLED_BACK';
+
+export interface KbGenerationCandidate {
+  id: string;
+  runId: string;
+  documentId: string;
+  documentVersion: number;
+  kind: KbCandidateKind;
+  status: KbCandidateStatus;
+  targetDomain: string;
+  locale: string;
+  text: string;
+  normalizedHash: string;
+  payload: Record<string, unknown> | null;
+  nearestScore: number | null;
+  nearestRef: string | null;
+  source: string;
+  generatorModel: string | null;
+  promptVersion: string | null;
+  confidence: number | null;
+  needsReview: boolean;
+  autoApplied: boolean;
+  previousValue: unknown | null;
+  rollbackableUntil: string | null;
+  appliedBy: string | null;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  rejectReason: string | null;
+  appliedAt: string | null;
+  appliedRef: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface KbGenerationCandidateDetail extends KbGenerationCandidate {
+  document: {
+    id: string;
+    title: string;
+    docId: string;
+    domain: string;
+    version: number;
+  } | null;
+}
+
+export interface KbCandidateListResponse {
+  items: KbGenerationCandidate[];
+  total: number;
+  page: number;
+  pageSize: number;
+  stats: {
+    byStatus: Partial<Record<KbCandidateStatus, number>>;
+    byKind: Partial<Record<KbCandidateKind, number>>;
+    pendingTotal: number;
+  };
+}
+
+export interface QueryKbCandidatesParams extends PaginationParams {
+  kind?: KbCandidateKind;
+  status?: KbCandidateStatus;
+  targetDomain?: string;
+  documentId?: string;
+  search?: string;
+  needsReview?: boolean;
+}
+
+export interface KbGenerationRun {
+  id: string;
+  documentId: string;
+  documentVersion: number;
+  targetDomain: string;
+  status: 'QUEUED' | 'RUNNING' | 'DONE' | 'SKIPPED' | 'FAILED';
+  generatorModel: string | null;
+  promptVersion: string;
+  candidateCount: number;
+  filteredCount: number;
+  error: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  createdAt: string;
+}
+
+export interface KbBatchResult {
+  applied: number;
+  rejected: number;
+  skipped: number;
+  failed: { id: string; error: string }[];
+}
+
 export interface UpdateKnowledgeDocPayload {
   title?: string;
   domain?: string;

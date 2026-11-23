@@ -1312,6 +1312,80 @@ export const knowledgeApi = {
     ),
 };
 
+/**
+ * KB Generation Candidates API (M2b 审核台)
+ *
+ * 所有「生效」动作由后端应用服务统一写入口完成；
+ * 前端只负责选择、改派、填理由。
+ */
+export const kbCandidatesApi = {
+  /** List candidates with queue stats */
+  list: (params?: import('@/type/types').QueryKbCandidatesParams) =>
+    http.get<import('@/type/types').KbCandidateListResponse>(
+      '/v1/admin/kb-candidates',
+      params,
+    ),
+
+  /** Candidate detail with source document summary */
+  getById: (id: string) =>
+    http.get<import('@/type/types').KbGenerationCandidateDetail>(
+      `/v1/admin/kb-candidates/${id}`,
+    ),
+
+  /** Approve and apply a candidate */
+  approve: (id: string, data: { targetDomain?: string; text?: string } = {}) =>
+    http.post<import('@/type/types').KbGenerationCandidateDetail>(
+      `/v1/admin/kb-candidates/${id}/approve`,
+      data,
+    ),
+
+  /** Reject a candidate (reason required) */
+  reject: (id: string, reason: string) =>
+    http.post<import('@/type/types').KbGenerationCandidateDetail>(
+      `/v1/admin/kb-candidates/${id}/reject`,
+      { reason },
+    ),
+
+  /** Retarget an INTENT_EXAMPLE candidate */
+  retarget: (id: string, targetDomain: string) =>
+    http.post<import('@/type/types').KbGenerationCandidateDetail>(
+      `/v1/admin/kb-candidates/${id}/retarget`,
+      { targetDomain },
+    ),
+
+  /** Batch approve/reject (same kind, max 50, confirm=true) */
+  batch: (data: {
+    ids: string[];
+    action: 'approve' | 'reject';
+    confirm: boolean;
+    reason?: string;
+    allowDomainGrowth?: boolean;
+    includeNeedsReview?: boolean;
+  }) =>
+    http.post<import('@/type/types').KbBatchResult>(
+      '/v1/admin/kb-candidates/batch',
+      data,
+    ),
+
+  /** Roll back one auto-applied keyword candidate */
+  rollbackKeyword: (id: string) =>
+    http.post<{ documentId: string; keywords: string[] }>(
+      `/v1/admin/kb-candidates/${id}/rollback-keyword`,
+    ),
+
+  /** Recent generation runs of a document */
+  runs: (documentId: string) =>
+    http.get<import('@/type/types').KbGenerationRun[]>(
+      `/v1/admin/kb-candidates/runs/${documentId}`,
+    ),
+
+  /** Force a new generation run for a document */
+  regenerate: (documentId: string) =>
+    http.post<{ enqueued: boolean; runId?: string; reason?: string }>(
+      `/v1/admin/kb-candidates/documents/${documentId}/regenerate`,
+    ),
+};
+
 /** Service Health API */
 export const serviceHealthApi = {
   /** Check all backend service health status */

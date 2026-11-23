@@ -11,6 +11,7 @@ import { RagQualityService } from './rag-quality.service';
 import { RagVersionPurgeTask } from './rag-version-purge.task';
 import { RagRetrievalService } from '@api/client/ai-customer/knowledge/rag-retrieval.service';
 import { RagFaithfulnessService } from './rag-faithfulness.service';
+import { KnowledgeDomainService } from './knowledge-domain.service';
 
 @Module({
   imports: [PrismaModule, RagEmbeddingQueueModule, UploadModule],
@@ -25,7 +26,13 @@ import { RagFaithfulnessService } from './rag-faithfulness.service';
     // 管理端检索调试/评测用；AiService / MeilisearchService 是全局模块
     RagRetrievalService,
     RagFaithfulnessService,
+    KnowledgeDomainService,
   ],
-  exports: [RagChunkService, RagEmbeddingService, RagQualityService],
+  exports: [
+    RagChunkService,
+    RagEmbeddingService,
+    RagQualityService,
+    KnowledgeDomainService,
+  ],
 })
 export class RagModule {}

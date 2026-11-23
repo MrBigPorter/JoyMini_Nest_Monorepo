@@ -218,3 +218,48 @@ describe('MeilisearchService.indexIntentExamples（删除必须按 id）', () =>
     expect(addDocuments).not.toHaveBeenCalled();
   });
 });
+
+describe('MeilisearchService.updateChunkMetadata（关键词自动生效）', () => {
+  const makeService = (client: any) => {
+    const service = new MeilisearchService({
+      get: jest.fn().mockReturnValue(undefined),
+    } as any);
+    (service as any).client = client;
+    return service;
+  };
+
+  it('按 chunk id 合并 keywords 字段并等待任务完成', async () => {
+    const updateDocuments = jest.fn().mockResolvedValue({ taskUid: 7 });
+    const waitForTask = jest.fn().mockResolvedValue({});
+    const service = makeService({
+      index: () => ({ updateDocuments }),
+      tasks: { waitForTask },
+    });
+
+    await service.updateChunkMetadata(['c1', 'c2'], {
+      keywords: ['refund', 'refund window'],
+    });
+
+    expect(updateDocuments).toHaveBeenCalledWith([
+      { id: 'c1', keywords: ['refund', 'refund window'] },
+      { id: 'c2', keywords: ['refund', 'refund window'] },
+    ]);
+    expect(waitForTask).toHaveBeenCalledWith(7);
+  });
+
+  it('Meili 不可用时抛错，让调用方把候选标 FAILED', async () => {
+    const service = makeService(null);
+
+    await expect(
+      service.updateChunkMetadata(['c1'], { keywords: ['refund'] }),
+    ).rejects.toThrow('Meilisearch client unavailable');
+  });
+
+  it('空 id 列表直接返回，不调用客户端', async () => {
+    const updateDocuments = jest.fn();
+    const service = makeService({ index: () => ({ updateDocuments }) });
+
+    await expect(service.updateChunkMetadata([], {})).resolves.toBeUndefined();
+    expect(updateDocuments).not.toHaveBeenCalled();
+  });
+});

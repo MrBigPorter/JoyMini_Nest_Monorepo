@@ -10,6 +10,7 @@ import { AiService } from '@api/common/ai/ai.service';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { RAG_EMBEDDING_QUEUE } from './rag-embedding-queue.constants';
 import { mergeKnowledgeMetadata } from './knowledge-metadata.util';
+import { KnowledgeDomainService } from './knowledge-domain.service';
 
 // =============================================================================
 // 策略接口 — TextExtractor
@@ -329,6 +330,7 @@ export class RagSyncService {
     private readonly ragEmbeddingService: RagEmbeddingService,
     private readonly ragQualityService: RagQualityService,
     private readonly uploadService: UploadService,
+    private readonly knowledgeDomainService: KnowledgeDomainService,
     @InjectQueue(RAG_EMBEDDING_QUEUE)
     private readonly ragEmbeddingQueue: Queue,
   ) {
@@ -448,6 +450,9 @@ export class RagSyncService {
     const docId =
       doc.metadata.docId || file.originalname.replace(/\.[^.]+$/, '');
     const merged = mergeKnowledgeMetadata(doc, overrides);
+    // 归一（lucky_draw → lucky-draw、general → common）后校验；
+    // 未知域直接 400，避免拼写错误变成检索过滤里的隐式域。
+    merged.domain = await this.knowledgeDomainService.resolve(merged.domain);
     const locale = merged.locale;
 
     // 检查是否已存在相同 docId + locale 的文档

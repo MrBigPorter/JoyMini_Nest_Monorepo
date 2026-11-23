@@ -27,9 +27,10 @@ import {
   CheckCircle2,
   AlertCircle,
   Clock,
+  ClipboardCheck,
 } from 'lucide-react';
 import { ModalManager } from '@repo/ui';
-import { knowledgeApi } from '@/api';
+import { kbCandidatesApi, knowledgeApi } from '@/api';
 import { PageHeader } from '@/components/scaffold/PageHeader';
 import { ServiceStatusBar } from './ServiceStatusBar';
 import { QualityBadge } from './QualityBadge';
@@ -938,6 +939,13 @@ export function KnowledgeBaseClient() {
 
   const documents = useMemo(() => data?.list ?? [], [data?.list]);
 
+  // 待审候选数（知识库驱动的自动维护闭环入口）
+  const { data: candidateStats } = useRequest(
+    () => kbCandidatesApi.list({ page: 1, pageSize: 1, status: 'PENDING' }),
+    { onError: () => {}, refreshDeps: [documents] },
+  );
+  const pendingCandidates = candidateStats?.stats.pendingTotal ?? 0;
+
   // ── Actions ──
 
   const handleDelete = (doc: KnowledgeDocument) => {
@@ -1039,6 +1047,15 @@ export function KnowledgeBaseClient() {
           )
         }
         tertiaryButtonVariant="outline"
+        action={
+          <Link
+            href="/knowledge/candidates"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-teal-200 bg-teal-50 px-3 py-2 text-sm font-medium text-teal-700 transition-colors hover:bg-teal-100 dark:border-teal-500/30 dark:bg-teal-500/10 dark:text-teal-300 dark:hover:bg-teal-500/20"
+          >
+            <ClipboardCheck size={14} />
+            候选（{pendingCandidates}）
+          </Link>
+        }
       />
 
       <ServiceStatusBar />

@@ -66,6 +66,7 @@ describe('RagSyncService 更新路径改为追加（Task 4）', () => {
       {} as any, // ragEmbeddingService
       ragQualityService as any,
       {} as any, // uploadService
+      { resolve: jest.fn(async (domain: string) => domain) } as any, // knowledgeDomainService
       queue as any,
     );
 

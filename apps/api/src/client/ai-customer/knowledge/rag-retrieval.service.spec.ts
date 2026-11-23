@@ -212,9 +212,7 @@ describe('RagRetrievalService 相关性门卫', () => {
       meilisearchService as any,
       { get: jest.fn().mockReturnValue(undefined) } as any,
     );
-    jest
-      .spyOn(service as any, 'vectorSearch')
-      .mockResolvedValue(chunks as any);
+    jest.spyOn(service as any, 'vectorSearch').mockResolvedValue(chunks as any);
     return service;
   };
 
@@ -224,7 +222,9 @@ describe('RagRetrievalService 相关性门卫', () => {
       [0.01, 0.005],
     );
 
-    const results = await service.retrieve('Ano ang weather bukas?', { topK: 2 });
+    const results = await service.retrieve('Ano ang weather bukas?', {
+      topK: 2,
+    });
 
     expect(results).toEqual([]);
   });
@@ -272,7 +272,10 @@ describe('RagRetrievalService 相关性门卫', () => {
     const tokensOf = (q: string) => (service as any).tokenize(q);
 
     expect(
-      (service as any).hasLexicalAnchor(tokensOf('How do I cook pasta?'), chunks),
+      (service as any).hasLexicalAnchor(
+        tokensOf('How do I cook pasta?'),
+        chunks,
+      ),
     ).toBe(false);
     expect(
       (service as any).hasLexicalAnchor(
@@ -301,7 +304,10 @@ describe('RagRetrievalService 相关性门卫', () => {
   it('中文 rerank 分低且关键词未命中，但向量余弦 ≥ 0.60 → 放行（向量锚点）', async () => {
     // E-11：r53「中奖后怎么领奖」向量第 1（0.6464），rerank 分低于 0.131，
     // 关键词层没命中“中奖/领奖”，旧门卫整批拒掉。
-    const service = build([chunk('a', 0.6464, 'Lucky draw prize rules')], [0.05]);
+    const service = build(
+      [chunk('a', 0.6464, 'Lucky draw prize rules')],
+      [0.05],
+    );
 
     const results = await service.retrieve('中奖后怎么领奖', { topK: 2 });
 
@@ -311,9 +317,10 @@ describe('RagRetrievalService 相关性门卫', () => {
   it('中文 rerank 分低于通用地板 0.03，但向量余弦 ≥ 0.60 → 仍放行', async () => {
     // 线上实测（Jina v3）：r53 的 rerank 分只有 0.0010，若先套通用地板
     // 0.03 就直接拒了，向量锚点永远没机会生效。中文分支必须自己兜住地板。
-    const service = build([chunk('a', 0.6464, 'Lucky draw prize rules')], [
-      0.001,
-    ]);
+    const service = build(
+      [chunk('a', 0.6464, 'Lucky draw prize rules')],
+      [0.001],
+    );
 
     const results = await service.retrieve('中奖后怎么领奖', { topK: 2 });
 
@@ -437,14 +444,20 @@ describe('RagRetrievalService Layer 2 SQL 参数绑定回归', () => {
     await (service as any).keywordSearchChunks(['退货'], undefined, 5);
 
     const [sql] = prisma.$queryRawUnsafe.mock.calls[0];
-    expect(sql).toContain("array_to_string(kd.keywords, ' ') ILIKE $1::varchar");
+    expect(sql).toContain(
+      "array_to_string(kd.keywords || kd.auto_keywords, ' ') ILIKE $1::varchar",
+    );
     expect(sql).toMatch(/ORDER BY \(.*\) DESC, dc\.chunk_index ASC/);
   });
 
   it('空 tokens：直接返回空，不执行 SQL', async () => {
     const { service, prisma } = build();
 
-    const results = await (service as any).keywordSearchChunks([], undefined, 5);
+    const results = await (service as any).keywordSearchChunks(
+      [],
+      undefined,
+      5,
+    );
 
     expect(results).toEqual([]);
     expect(prisma.$queryRawUnsafe).not.toHaveBeenCalled();
@@ -575,7 +588,10 @@ describe('RagRetrievalService 分层 debug', () => {
   });
 
   const build = () => {
-    const prisma = { $queryRawUnsafe: jest.fn(), knowledgeDocument: { findMany: jest.fn() } };
+    const prisma = {
+      $queryRawUnsafe: jest.fn(),
+      knowledgeDocument: { findMany: jest.fn() },
+    };
     const aiService = { generateEmbedding: jest.fn().mockResolvedValue([0.1]) };
     const meilisearchService = { searchChunks: jest.fn(), isAvailable: true };
     const configService = { get: jest.fn().mockReturnValue(undefined) };
@@ -590,9 +606,13 @@ describe('RagRetrievalService 分层 debug', () => {
   it('retrieveDetailed 返回四层 docId 与 rerank 前后分数', async () => {
     const service: any = build();
     jest.spyOn(service, 'vectorSearch').mockResolvedValue([chunk('v', 0.8)]);
-    jest.spyOn(service, 'keywordSearchChunks').mockResolvedValue([chunk('k', 0.5)]);
+    jest
+      .spyOn(service, 'keywordSearchChunks')
+      .mockResolvedValue([chunk('k', 0.5)]);
     jest.spyOn(service, 'keywordSearchDocs').mockResolvedValue([]);
-    service.meilisearchService.searchChunks.mockResolvedValue([chunk('m', 0.7)]);
+    service.meilisearchService.searchChunks.mockResolvedValue([
+      chunk('m', 0.7),
+    ]);
     service.rerank = jest.fn(async (_q: string, c: any[]) => ({
       results: c.slice(0, 2).map((x) => ({ ...x, score: 0.9 })),
       used: true,
@@ -617,7 +637,10 @@ describe('RagRetrievalService 分层 debug', () => {
     jest.spyOn(service, 'keywordSearchChunks').mockResolvedValue([]);
     jest.spyOn(service, 'keywordSearchDocs').mockResolvedValue([]);
     service.meilisearchService.searchChunks.mockResolvedValue([]);
-    service.rerank = jest.fn(async (_q: string, c: any[]) => ({ results: c, used: true }));
+    service.rerank = jest.fn(async (_q: string, c: any[]) => ({
+      results: c,
+      used: true,
+    }));
 
     const results = await service.retrieve('退货');
     expect(Array.isArray(results)).toBe(true);
@@ -645,7 +668,10 @@ describe('RagRetrievalService RRF 降级', () => {
   });
 
   const build = () => {
-    const prisma = { $queryRawUnsafe: jest.fn(), knowledgeDocument: { findMany: jest.fn() } };
+    const prisma = {
+      $queryRawUnsafe: jest.fn(),
+      knowledgeDocument: { findMany: jest.fn() },
+    };
     const aiService = { generateEmbedding: jest.fn().mockResolvedValue([0.1]) };
     const meilisearchService = { searchChunks: jest.fn(), isAvailable: true };
     const configService = { get: jest.fn().mockReturnValue(undefined) };
@@ -680,9 +706,10 @@ describe('RagRetrievalService RRF 降级', () => {
     service.meilisearchService.searchChunks.mockResolvedValue([b]);
     jest.spyOn(service, 'keywordSearchChunks').mockResolvedValue([b]);
     jest.spyOn(service, 'keywordSearchDocs').mockResolvedValue([]);
-    service.aiService.rerank = jest
-      .fn()
-      .mockResolvedValue([{ index: 0, relevance_score: 0.9 }, { index: 1, relevance_score: 0.1 }]);
+    service.aiService.rerank = jest.fn().mockResolvedValue([
+      { index: 0, relevance_score: 0.9 },
+      { index: 1, relevance_score: 0.1 },
+    ]);
 
     const results = await service.retrieve('退款', { topK: 5 });
 
@@ -705,7 +732,10 @@ describe('RagRetrievalService 相关性门卫', () => {
     score,
   });
   const build = () => {
-    const prisma = { $queryRawUnsafe: jest.fn(), knowledgeDocument: { findMany: jest.fn() } };
+    const prisma = {
+      $queryRawUnsafe: jest.fn(),
+      knowledgeDocument: { findMany: jest.fn() },
+    };
     const aiService = {
       generateEmbedding: jest.fn().mockResolvedValue([0.1]),
       rerank: jest.fn(),
@@ -723,11 +753,15 @@ describe('RagRetrievalService 相关性门卫', () => {
   it('无关键词命中且 rerank 分数低于阈值 → 返回空（域外问题拒答）', async () => {
     const service: any = build();
     // 向量余弦取真实负样本水平（n01 ≈ 0.49），不能高于 CJK 向量锚点 0.60
-    jest.spyOn(service, 'vectorSearch').mockResolvedValue([chunk('irrelevant', 0.49)]);
+    jest
+      .spyOn(service, 'vectorSearch')
+      .mockResolvedValue([chunk('irrelevant', 0.49)]);
     service.meilisearchService.searchChunks.mockResolvedValue([]);
     jest.spyOn(service, 'keywordSearchChunks').mockResolvedValue([]);
     jest.spyOn(service, 'keywordSearchDocs').mockResolvedValue([]);
-    service.aiService.rerank.mockResolvedValue([{ index: 0, relevance_score: 0.05 }]);
+    service.aiService.rerank.mockResolvedValue([
+      { index: 0, relevance_score: 0.05 },
+    ]);
 
     const results = await service.retrieve('今天天气怎么样', { topK: 3 });
     expect(results).toEqual([]);
@@ -737,9 +771,13 @@ describe('RagRetrievalService 相关性门卫', () => {
     const service: any = build();
     jest.spyOn(service, 'vectorSearch').mockResolvedValue([]);
     service.meilisearchService.searchChunks.mockResolvedValue([]);
-    jest.spyOn(service, 'keywordSearchChunks').mockResolvedValue([chunk('refund', 0.5)]);
+    jest
+      .spyOn(service, 'keywordSearchChunks')
+      .mockResolvedValue([chunk('refund', 0.5)]);
     jest.spyOn(service, 'keywordSearchDocs').mockResolvedValue([]);
-    service.aiService.rerank.mockResolvedValue([{ index: 0, relevance_score: 0.1 }]);
+    service.aiService.rerank.mockResolvedValue([
+      { index: 0, relevance_score: 0.1 },
+    ]);
 
     const results = await service.retrieve('refund status', { topK: 3 });
     expect(results.map((r: any) => r.docId)).toEqual(['refund']);
@@ -749,9 +787,13 @@ describe('RagRetrievalService 相关性门卫', () => {
     const service: any = build();
     jest.spyOn(service, 'vectorSearch').mockResolvedValue([]);
     service.meilisearchService.searchChunks.mockResolvedValue([]);
-    jest.spyOn(service, 'keywordSearchChunks').mockResolvedValue([chunk('refund', 0.5)]);
+    jest
+      .spyOn(service, 'keywordSearchChunks')
+      .mockResolvedValue([chunk('refund', 0.5)]);
     jest.spyOn(service, 'keywordSearchDocs').mockResolvedValue([]);
-    service.aiService.rerank.mockResolvedValue([{ index: 0, relevance_score: 0.1 }]);
+    service.aiService.rerank.mockResolvedValue([
+      { index: 0, relevance_score: 0.1 },
+    ]);
 
     const results = await service.retrieve("what's the weather today", {
       topK: 3,
@@ -763,9 +805,13 @@ describe('RagRetrievalService 相关性门卫', () => {
     const service: any = build();
     jest.spyOn(service, 'vectorSearch').mockResolvedValue([]);
     service.meilisearchService.searchChunks.mockResolvedValue([]);
-    jest.spyOn(service, 'keywordSearchChunks').mockResolvedValue([chunk('account', 0.5)]);
+    jest
+      .spyOn(service, 'keywordSearchChunks')
+      .mockResolvedValue([chunk('account', 0.5)]);
     jest.spyOn(service, 'keywordSearchDocs').mockResolvedValue([]);
-    service.aiService.rerank.mockResolvedValue([{ index: 0, relevance_score: 0.1 }]);
+    service.aiService.rerank.mockResolvedValue([
+      { index: 0, relevance_score: 0.1 },
+    ]);
 
     const results = await service.retrieve('怎么修改登录密码', { topK: 3 });
     expect(results.map((r: any) => r.docId)).toEqual(['account']);

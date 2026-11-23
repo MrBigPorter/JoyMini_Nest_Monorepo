@@ -40,3 +40,13 @@ export function canTriageFeedback(role: string): boolean {
 export function canTriageSecurity(role: string): boolean {
   return role === 'SUPER_ADMIN' || role === 'ADMIN';
 }
+
+/** 候选审核台：列表只读 VIEWER 也可（页面按角色禁用动作）。 */
+export function canReviewKbCandidates(role: string): boolean {
+  return role === 'SUPER_ADMIN' || role === 'ADMIN';
+}
+
+/** 意图域管理（含 DOMAIN_DESCRIPTION 候选生效）仅 SUPER_ADMIN。 */
+export function canManageIntentDomains(role: string): boolean {
+  return role === 'SUPER_ADMIN';
+}
