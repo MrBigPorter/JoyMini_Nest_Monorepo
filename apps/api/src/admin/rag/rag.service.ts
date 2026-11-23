@@ -134,10 +134,17 @@ export class RagService {
     // 1. 同步删除 Meilisearch 中的 chunks
     await this.deleteMeilisearchChunks(id);
 
-    // 2. 物理删除文档（CASCADE 会自动删除关联的 chunks 和向量）
-    await this.prisma.knowledgeDocument.delete({
-      where: { id },
-    });
+    // 2. 物理删除文档（CASCADE 会自动删除关联的 chunks 和向量）。
+    //    生成流水线的三张表没有 FK 级联，硬删文档后必须显式清理，
+    //    否则 run/候选/合成用例会变成永不回收的孤儿行。
+    await this.prisma.$transaction([
+      this.prisma.kbGenerationCandidate.deleteMany({
+        where: { documentId: id },
+      }),
+      this.prisma.kbGenerationRun.deleteMany({ where: { documentId: id } }),
+      this.prisma.kbSyntheticGolden.deleteMany({ where: { documentId: id } }),
+      this.prisma.knowledgeDocument.delete({ where: { id } }),
+    ]);
 
     return doc;
   }

@@ -55,6 +55,8 @@
 1. `kb-candidate-filter` 用 `split(/\s+/).length < 2` 判断例句长度，中文没有词间空格 → 整批中文示例被误判 `example_too_short`，生成结果里一条 `INTENT_EXAMPLE` 都没有。改为 CJK 文本按字符数（≥4）、拉丁文本按词数判断，补 2 条单测。
 2. `GeminiProvider.generateText` 把整个 `options`（含 `systemPrompt`）塞进 `generationConfig` → Gemini 返回 `400 Unknown name "systemPrompt"`，主力 provider 每次都失败并落回备用。改为 `systemPrompt` 走 `systemInstruction`、`generationConfig` 仅保留白名单字段，新增 `gemini.provider.spec.ts`（2 条）锁住行为。
 
+**清理测试数据时补的一处**：`DELETE /admin/rag/documents/:id` 是物理删除，而 `kb_generation_runs`/`kb_generation_candidates`/`kb_synthetic_golden` 没有 FK 级联，删文档会留下永不回收的孤儿行。已在 `RagService.delete` 里改为同一事务内先删这三张表的对应行，再删文档，补 2 条单测。
+
 **dev 环境已知问题（未修，非本分支引入）**：Colima VM 内所有容器 HTTPS(443) 出网被拦（`api.deepseek.com`、`registry-1.docker.io` 均 `ECONNREFUSED`），所以 Docker 里的后端跑不通 LLM/外部 API；联调用 `yarn start:dev` 在宿主进程跑 API 完成。另：`make dev-api` 只读 `apps/api/.env`，与 `deploy/.env.dev` 会漂移。
 
 **不承诺**：新业务 Agent 免代码；示例/golden 自动批准；自动改评测基线。
