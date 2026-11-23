@@ -1,0 +1,4851 @@
+{
+  "run_at": "2026-11-23T03:19:47",
+  "base_url": "http://localhost/api/v1",
+  "golden_file": "/Volumes/MySSD/work/JoyMini_Nest_Monorepo/tools/eval/rag/golden.jsonl",
+  "topk": 5,
+  "total": 129,
+  "versions": {
+    "git_sha": "ebc1b05f4bc595965dc28cba095bff58d004e523",
+    "golden_sha256": "df81faed2f5915b16f9f2380df17f05a1617a372c320d5c166327f7f0035d26d",
+    "knowledge_documents": 27,
+    "document_chunks": 302,
+    "embedding_model": "bge-m3",
+    "reranker_model": "bge-reranker-v2-m3",
+    "meili_index": "document_chunks"
+  },
+  "global": {
+    "n": 109,
+    "hit1": 0.7889908256880734,
+    "hit3": 0.944954128440367,
+    "mrr": 0.8642201834862385,
+    "p50": 821,
+    "p95": 2540
+  },
+  "domain_filtered": {
+    "n": 109,
+    "hit1": 0.8807339449541285,
+    "hit3": 0.9724770642201835,
+    "mrr": 0.9250764525993883,
+    "p50": 752,
+    "p95": 2818
+  },
+  "no_rerank": null,
+  "layer_metrics": {
+    "vector": {
+      "n": 109,
+      "hit": 0,
+      "recall": 0.0
+    },
+    "meili": {
+      "n": 109,
+      "hit": 0,
+      "recall": 0.0
+    },
+    "chunk": {
+      "n": 109,
+      "hit": 0,
+      "recall": 0.0
+    },
+    "doc": {
+      "n": 109,
+      "hit": 0,
+      "recall": 0.0
+    },
+    "keyword": {
+      "n": 109,
+      "hit": 0,
+      "recall": 0.0
+    }
+  },
+  "negative": {
+    "n": 20,
+    "falsePositive": 1,
+    "falsePositiveRate": 0.05
+  },
+  "per_domain": {
+    "common": {
+      "n": 21,
+      "hit1": 0.7619047619047619,
+      "hit3": 0.9047619047619048,
+      "mrr": 0.8333333333333334,
+      "p50": 825,
+      "p95": 2826
+    },
+    "coupon": {
+      "n": 6,
+      "hit1": 0.5,
+      "hit3": 0.8333333333333334,
+      "mrr": 0.6666666666666666,
+      "p50": 745,
+      "p95": 918
+    },
+    "kyc": {
+      "n": 9,
+      "hit1": 0.7777777777777778,
+      "hit3": 1.0,
+      "mrr": 0.8888888888888888,
+      "p50": 759,
+      "p95": 1107
+    },
+    "lucky-draw": {
+      "n": 3,
+      "hit1": 0.6666666666666666,
+      "hit3": 0.6666666666666666,
+      "mrr": 0.6666666666666666,
+      "p50": 725,
+      "p95": 759
+    },
+    "order": {
+      "n": 23,
+      "hit1": 0.8695652173913043,
+      "hit3": 0.9565217391304348,
+      "mrr": 0.9072463768115943,
+      "p50": 772,
+      "p95": 1486
+    },
+    "product": {
+      "n": 18,
+      "hit1": 1.0,
+      "hit3": 1.0,
+      "mrr": 1.0,
+      "p50": 835,
+      "p95": 1019
+    },
+    "user": {
+      "n": 13,
+      "hit1": 0.46153846153846156,
+      "hit3": 0.9230769230769231,
+      "mrr": 0.6923076923076923,
+      "p50": 821,
+      "p95": 1847
+    },
+    "wallet": {
+      "n": 16,
+      "hit1": 0.875,
+      "hit3": 1.0,
+      "mrr": 0.9270833333333334,
+      "p50": 842,
+      "p95": 1469
+    }
+  },
+  "per_lang": {
+    "en": {
+      "n": 41,
+      "hit1": 0.7804878048780488,
+      "hit3": 0.9512195121951219,
+      "mrr": 0.8617886178861789,
+      "p50": 1084,
+      "p95": 2981
+    },
+    "mixed": {
+      "n": 5,
+      "hit1": 0.8,
+      "hit3": 1.0,
+      "mrr": 0.9,
+      "p50": 751,
+      "p95": 759
+    },
+    "zh": {
+      "n": 63,
+      "hit1": 0.7936507936507936,
+      "hit3": 0.9365079365079365,
+      "mrr": 0.8629629629629629,
+      "p50": 748,
+      "p95": 997
+    }
+  },
+  "records": [
+    {
+      "id": "r01",
+      "input": "How do I contact customer support?",
+      "expect": "contact-support",
+      "predicted": "contact-support",
+      "correct": true
+    },
+    {
+      "id": "r02",
+      "input": "怎么联系人工客服？",
+      "expect": "contact-support",
+      "predicted": "contact-support",
+      "correct": true
+    },
+    {
+      "id": "r03",
+      "input": "哪些商品是禁售的？",
+      "expect": "platform-rules",
+      "predicted": "platform-rules",
+      "correct": true
+    },
+    {
+      "id": "r04",
+      "input": "What items are prohibited on the platform?",
+      "expect": "platform-rules",
+      "predicted": "platform-rules",
+      "correct": true
+    },
+    {
+      "id": "r05",
+      "input": "你们怎么保护我的个人信息？",
+      "expect": "privacy-policy",
+      "predicted": "privacy-policy",
+      "correct": true
+    },
+    {
+      "id": "r06",
+      "input": "双十一活动规则是什么？",
+      "expect": "promotion-rules",
+      "predicted": "promotion-rules",
+      "correct": true
+    },
+    {
+      "id": "r07",
+      "input": "怎么举报卖家？",
+      "expect": "report-seller",
+      "predicted": "report-seller",
+      "correct": true
+    },
+    {
+      "id": "r08",
+      "input": "优惠券用不了怎么办？",
+      "expect": "coupon-faq",
+      "predicted": "coupon-faq",
+      "correct": true
+    },
+    {
+      "id": "r09",
+      "input": "优惠券可以叠加使用吗？",
+      "expect": "coupon-rules",
+      "predicted": "promotion-rules",
+      "correct": false
+    },
+    {
+      "id": "r10",
+      "input": "KYC 需要准备什么证件？",
+      "expect": "kyc-guide",
+      "predicted": "kyc-guide",
+      "correct": true
+    },
+    {
+      "id": "r11",
+      "input": "身份证上传一直失败怎么办？",
+      "expect": "kyc-troubleshooting",
+      "predicted": "kyc-troubleshooting",
+      "correct": true
+    },
+    {
+      "id": "r12",
+      "input": "人脸识别不通过怎么办？",
+      "expect": "kyc-troubleshooting",
+      "predicted": "kyc-troubleshooting",
+      "correct": true
+    },
+    {
+      "id": "r13",
+      "input": "抽奖奖品怎么领取？",
+      "expect": "lucky-draw-rules",
+      "predicted": "lucky-draw-rules",
+      "correct": true
+    },
+    {
+      "id": "r14",
+      "input": "支持货到付款吗？",
+      "expect": "cod-payment",
+      "predicted": "cod-payment",
+      "correct": true
+    },
+    {
+      "id": "r15",
+      "input": "怎么取消订单？",
+      "expect": "order-management",
+      "predicted": "order-management",
+      "correct": true
+    },
+    {
+      "id": "r16",
+      "input": "订单一直没发货怎么办？",
+      "expect": "order-troubleshooting",
+      "predicted": "wallet-troubleshooting",
+      "correct": false
+    },
+    {
+      "id": "r17",
+      "input": "退款多久到账？",
+      "expect": "refund-policy",
+      "predicted": "refund-policy",
+      "correct": true
+    },
+    {
+      "id": "r18",
+      "input": "What is the refund policy?",
+      "expect": "refund-policy",
+      "predicted": "refund-policy",
+      "correct": true
+    },
+    {
+      "id": "r19",
+      "input": "退货邮费谁出？",
+      "expect": "return-shipping-faq",
+      "predicted": "return-shipping-faq",
+      "correct": true
+    },
+    {
+      "id": "r20",
+      "input": "运费怎么计算？",
+      "expect": "shipping-policy",
+      "predicted": "shipping-policy",
+      "correct": true
+    },
+    {
+      "id": "r21",
+      "input": "一般多久发货？",
+      "expect": "shipping-policy",
+      "predicted": "shipping-policy",
+      "correct": true
+    },
+    {
+      "id": "r22",
+      "input": "How much is shipping?",
+      "expect": "shipping-policy",
+      "predicted": "shipping-policy",
+      "correct": true
+    },
+    {
+      "id": "r23",
+      "input": "怎么发起拼团？",
+      "expect": "group-buying-guide",
+      "predicted": "group-buying-guide",
+      "correct": true
+    },
+    {
+      "id": "r24",
+      "input": "怎么确认商品是正品？",
+      "expect": "product-authenticity",
+      "predicted": "product-authenticity",
+      "correct": true
+    },
+    {
+      "id": "r25",
+      "input": "商品缺货什么时候补货？",
+      "expect": "product-faq",
+      "predicted": "product-faq",
+      "correct": true
+    },
+    {
+      "id": "r26",
+      "input": "商品有保修吗？",
+      "expect": "product-faq",
+      "predicted": "product-faq",
+      "correct": true
+    },
+    {
+      "id": "r27",
+      "input": "怎么修改商品评价？",
+      "expect": "review-guide",
+      "predicted": "review-guide",
+      "correct": true
+    },
+    {
+      "id": "r28",
+      "input": "怎么选尺码？",
+      "expect": "size-guide",
+      "predicted": "size-guide",
+      "correct": true
+    },
+    {
+      "id": "r29",
+      "input": "怎么修改登录密码？",
+      "expect": "account-guide",
+      "predicted": "account-troubleshooting",
+      "correct": false
+    },
+    {
+      "id": "r30",
+      "input": "收不到 OTP 验证码怎么办？",
+      "expect": "account-troubleshooting",
+      "predicted": "wallet-troubleshooting",
+      "correct": false
+    },
+    {
+      "id": "r31",
+      "input": "账号被锁定了怎么办？",
+      "expect": "account-troubleshooting",
+      "predicted": "account-troubleshooting",
+      "correct": true
+    },
+    {
+      "id": "r32",
+      "input": "VIP 会员有什么权益？",
+      "expect": "vip-benefits",
+      "predicted": "vip-benefits",
+      "correct": true
+    },
+    {
+      "id": "r33",
+      "input": "怎么充值？",
+      "expect": "deposit-guide",
+      "predicted": "deposit-guide",
+      "correct": true
+    },
+    {
+      "id": "r34",
+      "input": "支持 GCash 充值吗？",
+      "expect": "deposit-guide",
+      "predicted": "deposit-guide",
+      "correct": true
+    },
+    {
+      "id": "r35",
+      "input": "充值没到账怎么办？",
+      "expect": "wallet-troubleshooting",
+      "predicted": "deposit-guide",
+      "correct": false
+    },
+    {
+      "id": "r36",
+      "input": "提现失败了怎么办？",
+      "expect": "wallet-troubleshooting",
+      "predicted": "wallet-troubleshooting",
+      "correct": true
+    },
+    {
+      "id": "r37",
+      "input": "提现手续费是多少？",
+      "expect": "withdrawal-guide",
+      "predicted": "withdrawal-guide",
+      "correct": true
+    },
+    {
+      "id": "r38",
+      "input": "How long does withdrawal take?",
+      "expect": "withdrawal-guide",
+      "predicted": "withdrawal-guide",
+      "correct": true
+    },
+    {
+      "id": "r39",
+      "input": "I didn't receive the OTP code",
+      "expect": "account-troubleshooting",
+      "predicted": "wallet-troubleshooting",
+      "correct": false
+    },
+    {
+      "id": "r40",
+      "input": "Can I sell counterfeit goods?",
+      "expect": "platform-rules",
+      "predicted": "product-authenticity",
+      "correct": false
+    },
+    {
+      "id": "r41",
+      "input": "客服电话是多少",
+      "expect": "contact-support",
+      "predicted": "contact-support",
+      "correct": true
+    },
+    {
+      "id": "r42",
+      "input": "我想找人工客服",
+      "expect": "contact-support",
+      "predicted": "contact-support",
+      "correct": true
+    },
+    {
+      "id": "r43",
+      "input": "平台允许卖假货吗",
+      "expect": "platform-rules",
+      "predicted": "product-authenticity",
+      "correct": false
+    },
+    {
+      "id": "r44",
+      "input": "哪些东西不能卖",
+      "expect": "platform-rules",
+      "predicted": "platform-rules",
+      "correct": true
+    },
+    {
+      "id": "r45",
+      "input": "我的隐私数据安全吗",
+      "expect": "privacy-policy",
+      "predicted": "deposit-guide",
+      "correct": false
+    },
+    {
+      "id": "r46",
+      "input": "大促活动怎么参加",
+      "expect": "promotion-rules",
+      "predicted": "group-buying-guide",
+      "correct": false
+    },
+    {
+      "id": "r47",
+      "input": "遇到骗子卖家怎么投诉",
+      "expect": "report-seller",
+      "predicted": "report-seller",
+      "correct": true
+    },
+    {
+      "id": "r48",
+      "input": "优惠券失效了怎么办",
+      "expect": "coupon-faq",
+      "predicted": "coupon-faq",
+      "correct": true
+    },
+    {
+      "id": "r49",
+      "input": "两张券能一起用吗",
+      "expect": "coupon-rules",
+      "predicted": "promotion-rules",
+      "correct": false
+    },
+    {
+      "id": "r50",
+      "input": "实名认证要上传哪些材料",
+      "expect": "kyc-guide",
+      "predicted": "kyc-guide",
+      "correct": true
+    },
+    {
+      "id": "r51",
+      "input": "证件照片总是上传不上去",
+      "expect": "kyc-troubleshooting",
+      "predicted": "kyc-troubleshooting",
+      "correct": true
+    },
+    {
+      "id": "r52",
+      "input": "刷脸认证失败",
+      "expect": "kyc-troubleshooting",
+      "predicted": "kyc-troubleshooting",
+      "correct": true
+    },
+    {
+      "id": "r53",
+      "input": "中奖后怎么领奖",
+      "expect": "lucky-draw-rules",
+      "predicted": "",
+      "correct": false
+    },
+    {
+      "id": "r54",
+      "input": "可以货到付款吗",
+      "expect": "cod-payment",
+      "predicted": "cod-payment",
+      "correct": true
+    },
+    {
+      "id": "r55",
+      "input": "下单后怎么取消",
+      "expect": "order-management",
+      "predicted": "order-management",
+      "correct": true
+    },
+    {
+      "id": "r56",
+      "input": "下单很久还没发货",
+      "expect": "order-troubleshooting",
+      "predicted": "order-management",
+      "correct": false
+    },
+    {
+      "id": "r57",
+      "input": "退款什么时候能到账",
+      "expect": "refund-policy",
+      "predicted": "refund-policy",
+      "correct": true
+    },
+    {
+      "id": "r58",
+      "input": "退货运费由谁承担",
+      "expect": "return-shipping-faq",
+      "predicted": "return-shipping-faq",
+      "correct": true
+    },
+    {
+      "id": "r59",
+      "input": "邮费怎么算",
+      "expect": "shipping-policy",
+      "predicted": "shipping-policy",
+      "correct": true
+    },
+    {
+      "id": "r60",
+      "input": "发货要等多久",
+      "expect": "shipping-policy",
+      "predicted": "shipping-policy",
+      "correct": true
+    },
+    {
+      "id": "r61",
+      "input": "如何开团",
+      "expect": "group-buying-guide",
+      "predicted": "group-buying-guide",
+      "correct": true
+    },
+    {
+      "id": "r62",
+      "input": "怎么辨别是不是正品",
+      "expect": "product-authenticity",
+      "predicted": "product-authenticity",
+      "correct": true
+    },
+    {
+      "id": "r63",
+      "input": "没货了什么时候补",
+      "expect": "product-faq",
+      "predicted": "product-faq",
+      "correct": true
+    },
+    {
+      "id": "r64",
+      "input": "商品保修多久",
+      "expect": "product-faq",
+      "predicted": "product-faq",
+      "correct": true
+    },
+    {
+      "id": "r65",
+      "input": "评价写错了怎么改",
+      "expect": "review-guide",
+      "predicted": "review-guide",
+      "correct": true
+    },
+    {
+      "id": "r66",
+      "input": "尺码怎么选",
+      "expect": "size-guide",
+      "predicted": "size-guide",
+      "correct": true
+    },
+    {
+      "id": "r67",
+      "input": "密码忘了怎么改",
+      "expect": "account-guide",
+      "predicted": "account-troubleshooting",
+      "correct": false
+    },
+    {
+      "id": "r68",
+      "input": "验证码收不到",
+      "expect": "account-troubleshooting",
+      "predicted": "wallet-troubleshooting",
+      "correct": false
+    },
+    {
+      "id": "r69",
+      "input": "账号登录被锁",
+      "expect": "account-troubleshooting",
+      "predicted": "account-troubleshooting",
+      "correct": true
+    },
+    {
+      "id": "r70",
+      "input": "会员有什么好处",
+      "expect": "vip-benefits",
+      "predicted": "vip-benefits",
+      "correct": true
+    },
+    {
+      "id": "r71",
+      "input": "怎么给钱包充值",
+      "expect": "deposit-guide",
+      "predicted": "deposit-guide",
+      "correct": true
+    },
+    {
+      "id": "r72",
+      "input": "可以用 GCash 充钱吗",
+      "expect": "deposit-guide",
+      "predicted": "deposit-guide",
+      "correct": true
+    },
+    {
+      "id": "r73",
+      "input": "充值的钱没到账",
+      "expect": "wallet-troubleshooting",
+      "predicted": "deposit-guide",
+      "correct": false
+    },
+    {
+      "id": "r74",
+      "input": "提现失败怎么处理",
+      "expect": "wallet-troubleshooting",
+      "predicted": "wallet-troubleshooting",
+      "correct": true
+    },
+    {
+      "id": "r75",
+      "input": "提现要扣多少手续费",
+      "expect": "withdrawal-guide",
+      "predicted": "withdrawal-guide",
+      "correct": true
+    },
+    {
+      "id": "r76",
+      "input": "How can I reach a human agent?",
+      "expect": "contact-support",
+      "predicted": "contact-support",
+      "correct": true
+    },
+    {
+      "id": "r77",
+      "input": "Are counterfeit products allowed?",
+      "expect": "platform-rules",
+      "predicted": "report-seller",
+      "correct": false
+    },
+    {
+      "id": "r78",
+      "input": "Which items cannot be listed?",
+      "expect": "platform-rules",
+      "predicted": "platform-rules",
+      "correct": true
+    },
+    {
+      "id": "r79",
+      "input": "How is my personal data protected?",
+      "expect": "privacy-policy",
+      "predicted": "privacy-policy",
+      "correct": true
+    },
+    {
+      "id": "r80",
+      "input": "What are the rules for the Double 11 promotion?",
+      "expect": "promotion-rules",
+      "predicted": "promotion-rules",
+      "correct": true
+    },
+    {
+      "id": "r81",
+      "input": "How do I report a seller?",
+      "expect": "report-seller",
+      "predicted": "report-seller",
+      "correct": true
+    },
+    {
+      "id": "r82",
+      "input": "Why can't I use my coupon?",
+      "expect": "coupon-faq",
+      "predicted": "coupon-faq",
+      "correct": true
+    },
+    {
+      "id": "r83",
+      "input": "Can I stack multiple coupons?",
+      "expect": "coupon-rules",
+      "predicted": "promotion-rules",
+      "correct": false
+    },
+    {
+      "id": "r84",
+      "input": "What documents do I need for KYC?",
+      "expect": "kyc-guide",
+      "predicted": "privacy-policy",
+      "correct": false
+    },
+    {
+      "id": "r85",
+      "input": "My ID upload keeps failing",
+      "expect": "kyc-troubleshooting",
+      "predicted": "kyc-guide",
+      "correct": false
+    },
+    {
+      "id": "r86",
+      "input": "Face verification keeps failing",
+      "expect": "kyc-troubleshooting",
+      "predicted": "kyc-troubleshooting",
+      "correct": true
+    },
+    {
+      "id": "r87",
+      "input": "How do I claim a lucky draw prize?",
+      "expect": "lucky-draw-rules",
+      "predicted": "lucky-draw-rules",
+      "correct": true
+    },
+    {
+      "id": "r88",
+      "input": "Do you support cash on delivery?",
+      "expect": "cod-payment",
+      "predicted": "cod-payment",
+      "correct": true
+    },
+    {
+      "id": "r89",
+      "input": "How do I cancel an order?",
+      "expect": "order-management",
+      "predicted": "order-management",
+      "correct": true
+    },
+    {
+      "id": "r90",
+      "input": "My order has not shipped yet",
+      "expect": "order-troubleshooting",
+      "predicted": "contact-support",
+      "correct": false
+    },
+    {
+      "id": "r91",
+      "input": "When will I receive my refund?",
+      "expect": "refund-policy",
+      "predicted": "refund-policy",
+      "correct": true
+    },
+    {
+      "id": "r92",
+      "input": "Who pays for return shipping?",
+      "expect": "return-shipping-faq",
+      "predicted": "return-shipping-faq",
+      "correct": true
+    },
+    {
+      "id": "r93",
+      "input": "How are shipping fees calculated?",
+      "expect": "shipping-policy",
+      "predicted": "shipping-policy",
+      "correct": true
+    },
+    {
+      "id": "r94",
+      "input": "How long does delivery take?",
+      "expect": "shipping-policy",
+      "predicted": "shipping-policy",
+      "correct": true
+    },
+    {
+      "id": "r95",
+      "input": "How do I start a group buy?",
+      "expect": "group-buying-guide",
+      "predicted": "group-buying-guide",
+      "correct": true
+    },
+    {
+      "id": "r96",
+      "input": "How can I verify a product is authentic?",
+      "expect": "product-authenticity",
+      "predicted": "product-authenticity",
+      "correct": true
+    },
+    {
+      "id": "r97",
+      "input": "When will out-of-stock items be restocked?",
+      "expect": "product-faq",
+      "predicted": "product-faq",
+      "correct": true
+    },
+    {
+      "id": "r98",
+      "input": "Does the product come with a warranty?",
+      "expect": "product-faq",
+      "predicted": "product-faq",
+      "correct": true
+    },
+    {
+      "id": "r99",
+      "input": "How can I edit my product review?",
+      "expect": "review-guide",
+      "predicted": "review-guide",
+      "correct": true
+    },
+    {
+      "id": "r100",
+      "input": "How do I choose the right size?",
+      "expect": "size-guide",
+      "predicted": "size-guide",
+      "correct": true
+    },
+    {
+      "id": "r101",
+      "input": "How do I change my password?",
+      "expect": "account-guide",
+      "predicted": "account-troubleshooting",
+      "correct": false
+    },
+    {
+      "id": "r102",
+      "input": "I can't receive the OTP",
+      "expect": "account-troubleshooting",
+      "predicted": "wallet-troubleshooting",
+      "correct": false
+    },
+    {
+      "id": "r103",
+      "input": "Why is my account locked?",
+      "expect": "account-troubleshooting",
+      "predicted": "account-troubleshooting",
+      "correct": true
+    },
+    {
+      "id": "r104",
+      "input": "What are the VIP benefits?",
+      "expect": "vip-benefits",
+      "predicted": "vip-benefits",
+      "correct": true
+    },
+    {
+      "id": "r105",
+      "input": "How do I top up my wallet?",
+      "expect": "deposit-guide",
+      "predicted": "deposit-guide",
+      "correct": true
+    },
+    {
+      "id": "r106",
+      "input": "Can I deposit with GCash?",
+      "expect": "deposit-guide",
+      "predicted": "deposit-guide",
+      "correct": true
+    },
+    {
+      "id": "r107",
+      "input": "My deposit did not arrive",
+      "expect": "wallet-troubleshooting",
+      "predicted": "wallet-troubleshooting",
+      "correct": true
+    },
+    {
+      "id": "r108",
+      "input": "What should I do if withdrawal fails?",
+      "expect": "wallet-troubleshooting",
+      "predicted": "wallet-troubleshooting",
+      "correct": true
+    },
+    {
+      "id": "r109",
+      "input": "What is the withdrawal fee?",
+      "expect": "withdrawal-guide",
+      "predicted": "withdrawal-guide",
+      "correct": true
+    },
+    {
+      "id": "n01",
+      "input": "今天天气怎么样",
+      "expect": "",
+      "predicted": "",
+      "correct": true
+    },
+    {
+      "id": "n02",
+      "input": "帮我写一首诗",
+      "expect": "",
+      "predicted": "",
+      "correct": true
+    },
+    {
+      "id": "n03",
+      "input": "推荐一部电影",
+      "expect": "",
+      "predicted": "",
+      "correct": true
+    },
+    {
+      "id": "n04",
+      "input": "What's the weather today?",
+      "expect": "",
+      "predicted": "",
+      "correct": true
+    },
+    {
+      "id": "n05",
+      "input": "Tell me a joke",
+      "expect": "",
+      "predicted": "",
+      "correct": true
+    },
+    {
+      "id": "n06",
+      "input": "怎么学英语",
+      "expect": "",
+      "predicted": "",
+      "correct": true
+    },
+    {
+      "id": "n07",
+      "input": "附近有什么好吃的",
+      "expect": "",
+      "predicted": "",
+      "correct": true
+    },
+    {
+      "id": "n08",
+      "input": "你叫什么名字",
+      "expect": "",
+      "predicted": "",
+      "correct": true
+    },
+    {
+      "id": "n09",
+      "input": "1+1 等于几",
+      "expect": "",
+      "predicted": "",
+      "correct": true
+    },
+    {
+      "id": "n10",
+      "input": "帮我订一张机票",
+      "expect": "",
+      "predicted": "",
+      "correct": true
+    },
+    {
+      "id": "n11",
+      "input": "How do I cook pasta?",
+      "expect": "",
+      "predicted": "privacy-policy",
+      "correct": false
+    },
+    {
+      "id": "n12",
+      "input": "明天会下雨吗",
+      "expect": "",
+      "predicted": "",
+      "correct": true
+    },
+    {
+      "id": "n13",
+      "input": "我想买股票",
+      "expect": "",
+      "predicted": "",
+      "correct": true
+    },
+    {
+      "id": "n14",
+      "input": "讲个故事",
+      "expect": "",
+      "predicted": "",
+      "correct": true
+    },
+    {
+      "id": "n15",
+      "input": "现在几点了",
+      "expect": "",
+      "predicted": "",
+      "correct": true
+    },
+    {
+      "id": "n16",
+      "input": "Who is the president?",
+      "expect": "",
+      "predicted": "",
+      "correct": true
+    },
+    {
+      "id": "n17",
+      "input": "如何减肥",
+      "expect": "",
+      "predicted": "",
+      "correct": true
+    },
+    {
+      "id": "n18",
+      "input": "帮我翻译一段话",
+      "expect": "",
+      "predicted": "",
+      "correct": true
+    },
+    {
+      "id": "n19",
+      "input": "北京到上海多远",
+      "expect": "",
+      "predicted": "",
+      "correct": true
+    },
+    {
+      "id": "n20",
+      "input": "你是机器人吗",
+      "expect": "",
+      "predicted": "",
+      "correct": true
+    }
+  ],
+  "rows": [
+    {
+      "id": "r01",
+      "query": "How do I contact customer support?",
+      "domain": "common",
+      "lang": "en",
+      "sourceType": "typical",
+      "expectedDocIds": [
+        "contact-support"
+      ],
+      "retrievedDocIds": [
+        "contact-support",
+        "product-authenticity",
+        "account-troubleshooting",
+        "product-faq"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.28201347,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 2826,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 880,
+      "error": null
+    },
+    {
+      "id": "r02",
+      "query": "怎么联系人工客服？",
+      "domain": "common",
+      "lang": "zh",
+      "sourceType": "typical",
+      "expectedDocIds": [
+        "contact-support"
+      ],
+      "retrievedDocIds": [
+        "contact-support",
+        "account-troubleshooting",
+        "product-authenticity",
+        "privacy-policy"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.20975273,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 7660,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 762,
+      "error": null
+    },
+    {
+      "id": "r03",
+      "query": "哪些商品是禁售的？",
+      "domain": "common",
+      "lang": "zh",
+      "sourceType": "typical",
+      "expectedDocIds": [
+        "platform-rules"
+      ],
+      "retrievedDocIds": [
+        "platform-rules",
+        "report-seller"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.25989329,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 946,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 687,
+      "error": null
+    },
+    {
+      "id": "r04",
+      "query": "What items are prohibited on the platform?",
+      "domain": "common",
+      "lang": "en",
+      "sourceType": "typical",
+      "expectedDocIds": [
+        "platform-rules"
+      ],
+      "retrievedDocIds": [
+        "platform-rules"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.3828685,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 1084,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 819,
+      "error": null
+    },
+    {
+      "id": "r05",
+      "query": "你们怎么保护我的个人信息？",
+      "domain": "common",
+      "lang": "zh",
+      "sourceType": "typical",
+      "expectedDocIds": [
+        "privacy-policy"
+      ],
+      "retrievedDocIds": [
+        "privacy-policy"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.20932681,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 775,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 743,
+      "error": null
+    },
+    {
+      "id": "r06",
+      "query": "双十一活动规则是什么？",
+      "domain": "common",
+      "lang": "zh",
+      "sourceType": "typical",
+      "expectedDocIds": [
+        "promotion-rules"
+      ],
+      "retrievedDocIds": [
+        "promotion-rules",
+        "platform-rules",
+        "lucky-draw-rules"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.09678015,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 777,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 715,
+      "error": null
+    },
+    {
+      "id": "r07",
+      "query": "怎么举报卖家？",
+      "domain": "common",
+      "lang": "zh",
+      "sourceType": "typical",
+      "expectedDocIds": [
+        "report-seller"
+      ],
+      "retrievedDocIds": [
+        "report-seller",
+        "platform-rules"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.36448827,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 741,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 7799,
+      "error": null
+    },
+    {
+      "id": "r08",
+      "query": "优惠券用不了怎么办？",
+      "domain": "coupon",
+      "lang": "zh",
+      "sourceType": "typical",
+      "expectedDocIds": [
+        "coupon-faq"
+      ],
+      "retrievedDocIds": [
+        "coupon-faq"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.28372828,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 918,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 752,
+      "error": null
+    },
+    {
+      "id": "r09",
+      "query": "优惠券可以叠加使用吗？",
+      "domain": "coupon",
+      "lang": "zh",
+      "sourceType": "typical",
+      "expectedDocIds": [
+        "coupon-rules"
+      ],
+      "retrievedDocIds": [
+        "promotion-rules",
+        "coupon-rules",
+        "coupon-faq"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.437663,
+      "globalRank": 2,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 745,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 714,
+      "error": null
+    },
+    {
+      "id": "r10",
+      "query": "KYC 需要准备什么证件？",
+      "domain": "kyc",
+      "lang": "mixed",
+      "sourceType": "typical",
+      "expectedDocIds": [
+        "kyc-guide"
+      ],
+      "retrievedDocIds": [
+        "kyc-guide",
+        "kyc-troubleshooting",
+        "account-troubleshooting"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.33084409,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 759,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 726,
+      "error": null
+    },
+    {
+      "id": "r11",
+      "query": "身份证上传一直失败怎么办？",
+      "domain": "kyc",
+      "lang": "zh",
+      "sourceType": "typical",
+      "expectedDocIds": [
+        "kyc-troubleshooting"
+      ],
+      "retrievedDocIds": [
+        "kyc-troubleshooting",
+        "kyc-guide"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.39021682,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 877,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 717,
+      "error": null
+    },
+    {
+      "id": "r12",
+      "query": "人脸识别不通过怎么办？",
+      "domain": "kyc",
+      "lang": "zh",
+      "sourceType": "typical",
+      "expectedDocIds": [
+        "kyc-troubleshooting"
+      ],
+      "retrievedDocIds": [
+        "kyc-troubleshooting"
+      ],
+      "retrievedCount": 2,
+      "topScore": 0.2122808,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 747,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 682,
+      "error": null
+    },
+    {
+      "id": "r13",
+      "query": "抽奖奖品怎么领取？",
+      "domain": "lucky-draw",
+      "lang": "zh",
+      "sourceType": "typical",
+      "expectedDocIds": [
+        "lucky-draw-rules"
+      ],
+      "retrievedDocIds": [
+        "lucky-draw-rules",
+        "product-faq"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.09679204,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 725,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 662,
+      "error": null
+    },
+    {
+      "id": "r14",
+      "query": "支持货到付款吗？",
+      "domain": "order",
+      "lang": "zh",
+      "sourceType": "typical",
+      "expectedDocIds": [
+        "cod-payment"
+      ],
+      "retrievedDocIds": [
+        "cod-payment",
+        "contact-support"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.24838886,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 702,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 688,
+      "error": null
+    },
+    {
+      "id": "r15",
+      "query": "怎么取消订单？",
+      "domain": "order",
+      "lang": "zh",
+      "sourceType": "typical",
+      "expectedDocIds": [
+        "order-management"
+      ],
+      "retrievedDocIds": [
+        "order-management",
+        "order-troubleshooting",
+        "cod-payment",
+        "contact-support"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.45514178,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 754,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 694,
+      "error": null
+    },
+    {
+      "id": "r16",
+      "query": "订单一直没发货怎么办？",
+      "domain": "order",
+      "lang": "zh",
+      "sourceType": "typical",
+      "expectedDocIds": [
+        "order-troubleshooting"
+      ],
+      "retrievedDocIds": [
+        "wallet-troubleshooting",
+        "cod-payment",
+        "order-management",
+        "shipping-policy",
+        "order-troubleshooting"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.19020123,
+      "globalRank": 5,
+      "noRerankRank": null,
+      "domainRank": 0,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 790,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 686,
+      "error": null
+    },
+    {
+      "id": "r17",
+      "query": "退款多久到账？",
+      "domain": "order",
+      "lang": "zh",
+      "sourceType": "typical",
+      "expectedDocIds": [
+        "refund-policy"
+      ],
+      "retrievedDocIds": [
+        "refund-policy",
+        "return-shipping-faq"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.23940883,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 661,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 983,
+      "error": null
+    },
+    {
+      "id": "r18",
+      "query": "What is the refund policy?",
+      "domain": "order",
+      "lang": "en",
+      "sourceType": "typical",
+      "expectedDocIds": [
+        "refund-policy"
+      ],
+      "retrievedDocIds": [
+        "refund-policy",
+        "return-shipping-faq",
+        "promotion-rules"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.35518167,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 1190,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 904,
+      "error": null
+    },
+    {
+      "id": "r19",
+      "query": "退货邮费谁出？",
+      "domain": "order",
+      "lang": "zh",
+      "sourceType": "typical",
+      "expectedDocIds": [
+        "return-shipping-faq"
+      ],
+      "retrievedDocIds": [
+        "return-shipping-faq"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.42350994,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 772,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 766,
+      "error": null
+    },
+    {
+      "id": "r20",
+      "query": "运费怎么计算？",
+      "domain": "order",
+      "lang": "zh",
+      "sourceType": "typical",
+      "expectedDocIds": [
+        "shipping-policy"
+      ],
+      "retrievedDocIds": [
+        "shipping-policy",
+        "return-shipping-faq"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.26575869,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 767,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 728,
+      "error": null
+    },
+    {
+      "id": "r21",
+      "query": "一般多久发货？",
+      "domain": "order",
+      "lang": "zh",
+      "sourceType": "typical",
+      "expectedDocIds": [
+        "shipping-policy"
+      ],
+      "retrievedDocIds": [
+        "shipping-policy",
+        "lucky-draw-rules"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.27804136,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 722,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 670,
+      "error": null
+    },
+    {
+      "id": "r22",
+      "query": "How much is shipping?",
+      "domain": "order",
+      "lang": "en",
+      "sourceType": "typical",
+      "expectedDocIds": [
+        "shipping-policy"
+      ],
+      "retrievedDocIds": [
+        "shipping-policy",
+        "return-shipping-faq"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.34952732,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 1276,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 792,
+      "error": null
+    },
+    {
+      "id": "r23",
+      "query": "怎么发起拼团？",
+      "domain": "product",
+      "lang": "zh",
+      "sourceType": "typical",
+      "expectedDocIds": [
+        "group-buying-guide"
+      ],
+      "retrievedDocIds": [
+        "group-buying-guide"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.26591922,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 683,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 670,
+      "error": null
+    },
+    {
+      "id": "r24",
+      "query": "怎么确认商品是正品？",
+      "domain": "product",
+      "lang": "zh",
+      "sourceType": "typical",
+      "expectedDocIds": [
+        "product-authenticity"
+      ],
+      "retrievedDocIds": [
+        "product-authenticity"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.22561604,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 858,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 844,
+      "error": null
+    },
+    {
+      "id": "r25",
+      "query": "商品缺货什么时候补货？",
+      "domain": "product",
+      "lang": "zh",
+      "sourceType": "typical",
+      "expectedDocIds": [
+        "product-faq"
+      ],
+      "retrievedDocIds": [
+        "product-faq"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.11529165,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 875,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 785,
+      "error": null
+    },
+    {
+      "id": "r26",
+      "query": "商品有保修吗？",
+      "domain": "product",
+      "lang": "zh",
+      "sourceType": "typical",
+      "expectedDocIds": [
+        "product-faq"
+      ],
+      "retrievedDocIds": [
+        "product-faq"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.37251003,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 846,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 805,
+      "error": null
+    },
+    {
+      "id": "r27",
+      "query": "怎么修改商品评价？",
+      "domain": "product",
+      "lang": "zh",
+      "sourceType": "typical",
+      "expectedDocIds": [
+        "review-guide"
+      ],
+      "retrievedDocIds": [
+        "review-guide"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.30688499,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 748,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 738,
+      "error": null
+    },
+    {
+      "id": "r28",
+      "query": "怎么选尺码？",
+      "domain": "product",
+      "lang": "zh",
+      "sourceType": "typical",
+      "expectedDocIds": [
+        "size-guide"
+      ],
+      "retrievedDocIds": [
+        "size-guide"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.09011488,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 667,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 672,
+      "error": null
+    },
+    {
+      "id": "r29",
+      "query": "怎么修改登录密码？",
+      "domain": "user",
+      "lang": "zh",
+      "sourceType": "typical",
+      "expectedDocIds": [
+        "account-guide"
+      ],
+      "retrievedDocIds": [
+        "account-troubleshooting",
+        "account-guide"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.09856617,
+      "globalRank": 2,
+      "noRerankRank": null,
+      "domainRank": 2,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 717,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 684,
+      "error": null
+    },
+    {
+      "id": "r30",
+      "query": "收不到 OTP 验证码怎么办？",
+      "domain": "user",
+      "lang": "mixed",
+      "sourceType": "typical",
+      "expectedDocIds": [
+        "account-troubleshooting"
+      ],
+      "retrievedDocIds": [
+        "wallet-troubleshooting",
+        "account-troubleshooting"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.42107195,
+      "globalRank": 2,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 751,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 686,
+      "error": null
+    },
+    {
+      "id": "r31",
+      "query": "账号被锁定了怎么办？",
+      "domain": "user",
+      "lang": "zh",
+      "sourceType": "typical",
+      "expectedDocIds": [
+        "account-troubleshooting"
+      ],
+      "retrievedDocIds": [
+        "account-troubleshooting",
+        "wallet-troubleshooting"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.45337286,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 682,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 887,
+      "error": null
+    },
+    {
+      "id": "r32",
+      "query": "VIP 会员有什么权益？",
+      "domain": "user",
+      "lang": "mixed",
+      "sourceType": "typical",
+      "expectedDocIds": [
+        "vip-benefits"
+      ],
+      "retrievedDocIds": [
+        "vip-benefits"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.2185407,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 745,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 1062,
+      "error": null
+    },
+    {
+      "id": "r33",
+      "query": "怎么充值？",
+      "domain": "wallet",
+      "lang": "zh",
+      "sourceType": "typical",
+      "expectedDocIds": [
+        "deposit-guide"
+      ],
+      "retrievedDocIds": [
+        "deposit-guide"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.1159958,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 690,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 674,
+      "error": null
+    },
+    {
+      "id": "r34",
+      "query": "支持 GCash 充值吗？",
+      "domain": "wallet",
+      "lang": "mixed",
+      "sourceType": "typical",
+      "expectedDocIds": [
+        "deposit-guide"
+      ],
+      "retrievedDocIds": [
+        "deposit-guide",
+        "wallet-troubleshooting"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.22971344,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 758,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 791,
+      "error": null
+    },
+    {
+      "id": "r35",
+      "query": "充值没到账怎么办？",
+      "domain": "wallet",
+      "lang": "zh",
+      "sourceType": "typical",
+      "expectedDocIds": [
+        "wallet-troubleshooting"
+      ],
+      "retrievedDocIds": [
+        "deposit-guide",
+        "withdrawal-guide",
+        "wallet-troubleshooting"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.26894077,
+      "globalRank": 3,
+      "noRerankRank": null,
+      "domainRank": 2,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 835,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 734,
+      "error": null
+    },
+    {
+      "id": "r36",
+      "query": "提现失败了怎么办？",
+      "domain": "wallet",
+      "lang": "zh",
+      "sourceType": "typical",
+      "expectedDocIds": [
+        "wallet-troubleshooting"
+      ],
+      "retrievedDocIds": [
+        "wallet-troubleshooting",
+        "withdrawal-guide"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.36745092,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 865,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 840,
+      "error": null
+    },
+    {
+      "id": "r37",
+      "query": "提现手续费是多少？",
+      "domain": "wallet",
+      "lang": "zh",
+      "sourceType": "typical",
+      "expectedDocIds": [
+        "withdrawal-guide"
+      ],
+      "retrievedDocIds": [
+        "withdrawal-guide",
+        "deposit-guide",
+        "cod-payment",
+        "wallet-troubleshooting"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.20418629,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 758,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 803,
+      "error": null
+    },
+    {
+      "id": "r38",
+      "query": "How long does withdrawal take?",
+      "domain": "wallet",
+      "lang": "en",
+      "sourceType": "typical",
+      "expectedDocIds": [
+        "withdrawal-guide"
+      ],
+      "retrievedDocIds": [
+        "withdrawal-guide",
+        "refund-policy",
+        "contact-support",
+        "wallet-troubleshooting"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.21097477,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 867,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 781,
+      "error": null
+    },
+    {
+      "id": "r39",
+      "query": "I didn't receive the OTP code",
+      "domain": "user",
+      "lang": "en",
+      "sourceType": "typical",
+      "expectedDocIds": [
+        "account-troubleshooting"
+      ],
+      "retrievedDocIds": [
+        "wallet-troubleshooting",
+        "account-troubleshooting",
+        "withdrawal-guide"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.36367408,
+      "globalRank": 2,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 1313,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 956,
+      "error": null
+    },
+    {
+      "id": "r40",
+      "query": "Can I sell counterfeit goods?",
+      "domain": "common",
+      "lang": "en",
+      "sourceType": "typical",
+      "expectedDocIds": [
+        "platform-rules"
+      ],
+      "retrievedDocIds": [
+        "product-authenticity",
+        "report-seller"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.23577975,
+      "globalRank": 0,
+      "noRerankRank": null,
+      "domainRank": 2,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 990,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 986,
+      "error": null
+    },
+    {
+      "id": "r41",
+      "query": "客服电话是多少",
+      "domain": "common",
+      "lang": "zh",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "contact-support"
+      ],
+      "retrievedDocIds": [
+        "contact-support",
+        "privacy-policy"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.26478888,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 765,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 679,
+      "error": null
+    },
+    {
+      "id": "r42",
+      "query": "我想找人工客服",
+      "domain": "common",
+      "lang": "zh",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "contact-support"
+      ],
+      "retrievedDocIds": [
+        "contact-support",
+        "account-troubleshooting",
+        "privacy-policy"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.15910584,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 719,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 643,
+      "error": null
+    },
+    {
+      "id": "r43",
+      "query": "平台允许卖假货吗",
+      "domain": "common",
+      "lang": "zh",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "platform-rules"
+      ],
+      "retrievedDocIds": [
+        "product-authenticity",
+        "platform-rules",
+        "report-seller"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.24041016,
+      "globalRank": 2,
+      "noRerankRank": null,
+      "domainRank": 2,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 821,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 695,
+      "error": null
+    },
+    {
+      "id": "r44",
+      "query": "哪些东西不能卖",
+      "domain": "common",
+      "lang": "zh",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "platform-rules"
+      ],
+      "retrievedDocIds": [
+        "platform-rules",
+        "product-faq"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.29437537,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 714,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 689,
+      "error": null
+    },
+    {
+      "id": "r45",
+      "query": "我的隐私数据安全吗",
+      "domain": "common",
+      "lang": "zh",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "privacy-policy"
+      ],
+      "retrievedDocIds": [
+        "deposit-guide",
+        "privacy-policy",
+        "kyc-guide"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.18381613,
+      "globalRank": 2,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 974,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 661,
+      "error": null
+    },
+    {
+      "id": "r46",
+      "query": "大促活动怎么参加",
+      "domain": "common",
+      "lang": "zh",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "promotion-rules"
+      ],
+      "retrievedDocIds": [
+        "group-buying-guide",
+        "promotion-rules"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.11418095,
+      "globalRank": 2,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 691,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 681,
+      "error": null
+    },
+    {
+      "id": "r47",
+      "query": "遇到骗子卖家怎么投诉",
+      "domain": "common",
+      "lang": "zh",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "report-seller"
+      ],
+      "retrievedDocIds": [
+        "report-seller",
+        "product-authenticity"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.24758982,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 746,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 676,
+      "error": null
+    },
+    {
+      "id": "r48",
+      "query": "优惠券失效了怎么办",
+      "domain": "coupon",
+      "lang": "zh",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "coupon-faq"
+      ],
+      "retrievedDocIds": [
+        "coupon-faq",
+        "coupon-rules"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.35578003,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 686,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 723,
+      "error": null
+    },
+    {
+      "id": "r49",
+      "query": "两张券能一起用吗",
+      "domain": "coupon",
+      "lang": "zh",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "coupon-rules"
+      ],
+      "retrievedDocIds": [
+        "promotion-rules"
+      ],
+      "retrievedCount": 2,
+      "topScore": 0.25322877,
+      "globalRank": 0,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 649,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 679,
+      "error": null
+    },
+    {
+      "id": "r50",
+      "query": "实名认证要上传哪些材料",
+      "domain": "kyc",
+      "lang": "zh",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "kyc-guide"
+      ],
+      "retrievedDocIds": [
+        "kyc-guide",
+        "privacy-policy",
+        "kyc-troubleshooting"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.17423174,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 743,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 698,
+      "error": null
+    },
+    {
+      "id": "r51",
+      "query": "证件照片总是上传不上去",
+      "domain": "kyc",
+      "lang": "zh",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "kyc-troubleshooting"
+      ],
+      "retrievedDocIds": [
+        "kyc-troubleshooting",
+        "account-troubleshooting",
+        "wallet-troubleshooting"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.24337181,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 686,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 673,
+      "error": null
+    },
+    {
+      "id": "r52",
+      "query": "刷脸认证失败",
+      "domain": "kyc",
+      "lang": "zh",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "kyc-troubleshooting"
+      ],
+      "retrievedDocIds": [
+        "kyc-troubleshooting",
+        "kyc-guide",
+        "account-troubleshooting"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.09006599,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 769,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 60971,
+      "error": null
+    },
+    {
+      "id": "r53",
+      "query": "中奖后怎么领奖",
+      "domain": "lucky-draw",
+      "lang": "zh",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "lucky-draw-rules"
+      ],
+      "retrievedDocIds": [],
+      "retrievedCount": 0,
+      "topScore": null,
+      "globalRank": 0,
+      "noRerankRank": null,
+      "domainRank": 0,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 759,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 617,
+      "error": null
+    },
+    {
+      "id": "r54",
+      "query": "可以货到付款吗",
+      "domain": "order",
+      "lang": "zh",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "cod-payment"
+      ],
+      "retrievedDocIds": [
+        "cod-payment"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.17347043,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 782,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 735,
+      "error": null
+    },
+    {
+      "id": "r55",
+      "query": "下单后怎么取消",
+      "domain": "order",
+      "lang": "zh",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "order-management"
+      ],
+      "retrievedDocIds": [
+        "order-management",
+        "order-troubleshooting",
+        "cod-payment"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.42526962,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 681,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 726,
+      "error": null
+    },
+    {
+      "id": "r56",
+      "query": "下单很久还没发货",
+      "domain": "order",
+      "lang": "zh",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "order-troubleshooting"
+      ],
+      "retrievedDocIds": [
+        "order-management",
+        "shipping-policy",
+        "order-troubleshooting",
+        "coupon-faq"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.10781834,
+      "globalRank": 3,
+      "noRerankRank": null,
+      "domainRank": 3,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 704,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 703,
+      "error": null
+    },
+    {
+      "id": "r57",
+      "query": "退款什么时候能到账",
+      "domain": "order",
+      "lang": "zh",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "refund-policy"
+      ],
+      "retrievedDocIds": [
+        "refund-policy",
+        "return-shipping-faq"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.19632379,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 735,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 861,
+      "error": null
+    },
+    {
+      "id": "r58",
+      "query": "退货运费由谁承担",
+      "domain": "order",
+      "lang": "zh",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "return-shipping-faq"
+      ],
+      "retrievedDocIds": [
+        "return-shipping-faq"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.33109008,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 801,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 768,
+      "error": null
+    },
+    {
+      "id": "r59",
+      "query": "邮费怎么算",
+      "domain": "order",
+      "lang": "zh",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "shipping-policy"
+      ],
+      "retrievedDocIds": [
+        "shipping-policy",
+        "return-shipping-faq",
+        "cod-payment"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.24867492,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 762,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 743,
+      "error": null
+    },
+    {
+      "id": "r60",
+      "query": "发货要等多久",
+      "domain": "order",
+      "lang": "zh",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "shipping-policy"
+      ],
+      "retrievedDocIds": [
+        "shipping-policy",
+        "refund-policy"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.2489394,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 726,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 674,
+      "error": null
+    },
+    {
+      "id": "r61",
+      "query": "如何开团",
+      "domain": "product",
+      "lang": "zh",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "group-buying-guide"
+      ],
+      "retrievedDocIds": [
+        "group-buying-guide"
+      ],
+      "retrievedCount": 1,
+      "topScore": 0.27520733,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 690,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 646,
+      "error": null
+    },
+    {
+      "id": "r62",
+      "query": "怎么辨别是不是正品",
+      "domain": "product",
+      "lang": "zh",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "product-authenticity"
+      ],
+      "retrievedDocIds": [
+        "product-authenticity"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.17904095,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 699,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 741,
+      "error": null
+    },
+    {
+      "id": "r63",
+      "query": "没货了什么时候补",
+      "domain": "product",
+      "lang": "zh",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "product-faq"
+      ],
+      "retrievedDocIds": [
+        "product-faq"
+      ],
+      "retrievedCount": 1,
+      "topScore": 0.13329554,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 676,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 672,
+      "error": null
+    },
+    {
+      "id": "r64",
+      "query": "商品保修多久",
+      "domain": "product",
+      "lang": "zh",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "product-faq"
+      ],
+      "retrievedDocIds": [
+        "product-faq"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.21072784,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 835,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 778,
+      "error": null
+    },
+    {
+      "id": "r65",
+      "query": "评价写错了怎么改",
+      "domain": "product",
+      "lang": "zh",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "review-guide"
+      ],
+      "retrievedDocIds": [
+        "review-guide"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.16946022,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 725,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 836,
+      "error": null
+    },
+    {
+      "id": "r66",
+      "query": "尺码怎么选",
+      "domain": "product",
+      "lang": "zh",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "size-guide"
+      ],
+      "retrievedDocIds": [
+        "size-guide"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.13882319,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 708,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 705,
+      "error": null
+    },
+    {
+      "id": "r67",
+      "query": "密码忘了怎么改",
+      "domain": "user",
+      "lang": "zh",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "account-guide"
+      ],
+      "retrievedDocIds": [
+        "account-troubleshooting"
+      ],
+      "retrievedCount": 1,
+      "topScore": 0.32389721,
+      "globalRank": 0,
+      "noRerankRank": null,
+      "domainRank": 0,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 686,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 747,
+      "error": null
+    },
+    {
+      "id": "r68",
+      "query": "验证码收不到",
+      "domain": "user",
+      "lang": "zh",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "account-troubleshooting"
+      ],
+      "retrievedDocIds": [
+        "wallet-troubleshooting",
+        "account-troubleshooting",
+        "product-authenticity"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.35065274,
+      "globalRank": 2,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 821,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 978,
+      "error": null
+    },
+    {
+      "id": "r69",
+      "query": "账号登录被锁",
+      "domain": "user",
+      "lang": "zh",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "account-troubleshooting"
+      ],
+      "retrievedDocIds": [
+        "account-troubleshooting"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.40679626,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 1108,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 837,
+      "error": null
+    },
+    {
+      "id": "r70",
+      "query": "会员有什么好处",
+      "domain": "user",
+      "lang": "zh",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "vip-benefits"
+      ],
+      "retrievedDocIds": [
+        "vip-benefits",
+        "review-guide"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.11777231,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 997,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 693,
+      "error": null
+    },
+    {
+      "id": "r71",
+      "query": "怎么给钱包充值",
+      "domain": "wallet",
+      "lang": "zh",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "deposit-guide"
+      ],
+      "retrievedDocIds": [
+        "deposit-guide"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.23242459,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 786,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 879,
+      "error": null
+    },
+    {
+      "id": "r72",
+      "query": "可以用 GCash 充钱吗",
+      "domain": "wallet",
+      "lang": "mixed",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "deposit-guide"
+      ],
+      "retrievedDocIds": [
+        "deposit-guide",
+        "wallet-troubleshooting"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.32729881,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 819,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 728,
+      "error": null
+    },
+    {
+      "id": "r73",
+      "query": "充值的钱没到账",
+      "domain": "wallet",
+      "lang": "zh",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "wallet-troubleshooting"
+      ],
+      "retrievedDocIds": [
+        "deposit-guide",
+        "wallet-troubleshooting",
+        "withdrawal-guide"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.28775543,
+      "globalRank": 2,
+      "noRerankRank": null,
+      "domainRank": 2,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 767,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 784,
+      "error": null
+    },
+    {
+      "id": "r74",
+      "query": "提现失败怎么处理",
+      "domain": "wallet",
+      "lang": "zh",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "wallet-troubleshooting"
+      ],
+      "retrievedDocIds": [
+        "wallet-troubleshooting",
+        "withdrawal-guide"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.35084794,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 1170,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 8530,
+      "error": null
+    },
+    {
+      "id": "r75",
+      "query": "提现要扣多少手续费",
+      "domain": "wallet",
+      "lang": "zh",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "withdrawal-guide"
+      ],
+      "retrievedDocIds": [
+        "withdrawal-guide",
+        "deposit-guide",
+        "cod-payment",
+        "wallet-troubleshooting"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.18562013,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 2264,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 908,
+      "error": null
+    },
+    {
+      "id": "r76",
+      "query": "How can I reach a human agent?",
+      "domain": "common",
+      "lang": "en",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "contact-support"
+      ],
+      "retrievedDocIds": [
+        "contact-support",
+        "account-troubleshooting",
+        "privacy-policy",
+        "account-guide"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.32153961,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 16722,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 2818,
+      "error": null
+    },
+    {
+      "id": "r77",
+      "query": "Are counterfeit products allowed?",
+      "domain": "common",
+      "lang": "en",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "platform-rules"
+      ],
+      "retrievedDocIds": [
+        "report-seller",
+        "product-authenticity"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.20300897,
+      "globalRank": 0,
+      "noRerankRank": null,
+      "domainRank": 2,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 959,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 827,
+      "error": null
+    },
+    {
+      "id": "r78",
+      "query": "Which items cannot be listed?",
+      "domain": "common",
+      "lang": "en",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "platform-rules"
+      ],
+      "retrievedDocIds": [
+        "platform-rules",
+        "report-seller"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.43782759,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 1166,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 6458,
+      "error": null
+    },
+    {
+      "id": "r79",
+      "query": "How is my personal data protected?",
+      "domain": "common",
+      "lang": "en",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "privacy-policy"
+      ],
+      "retrievedDocIds": [
+        "privacy-policy"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.19701544,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 825,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 726,
+      "error": null
+    },
+    {
+      "id": "r80",
+      "query": "What are the rules for the Double 11 promotion?",
+      "domain": "common",
+      "lang": "en",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "promotion-rules"
+      ],
+      "retrievedDocIds": [
+        "promotion-rules"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.22392312,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 962,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 760,
+      "error": null
+    },
+    {
+      "id": "r81",
+      "query": "How do I report a seller?",
+      "domain": "common",
+      "lang": "en",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "report-seller"
+      ],
+      "retrievedDocIds": [
+        "report-seller",
+        "product-authenticity"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.49963755,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 1108,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 788,
+      "error": null
+    },
+    {
+      "id": "r82",
+      "query": "Why can't I use my coupon?",
+      "domain": "coupon",
+      "lang": "en",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "coupon-faq"
+      ],
+      "retrievedDocIds": [
+        "coupon-faq"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.42341707,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 1375,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 922,
+      "error": null
+    },
+    {
+      "id": "r83",
+      "query": "Can I stack multiple coupons?",
+      "domain": "coupon",
+      "lang": "en",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "coupon-rules"
+      ],
+      "retrievedDocIds": [
+        "promotion-rules",
+        "coupon-rules",
+        "coupon-faq"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.52103653,
+      "globalRank": 2,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 909,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 779,
+      "error": null
+    },
+    {
+      "id": "r84",
+      "query": "What documents do I need for KYC?",
+      "domain": "kyc",
+      "lang": "en",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "kyc-guide"
+      ],
+      "retrievedDocIds": [
+        "privacy-policy",
+        "kyc-guide",
+        "kyc-troubleshooting"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.17556607,
+      "globalRank": 2,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 1107,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 724,
+      "error": null
+    },
+    {
+      "id": "r85",
+      "query": "My ID upload keeps failing",
+      "domain": "kyc",
+      "lang": "en",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "kyc-troubleshooting"
+      ],
+      "retrievedDocIds": [
+        "kyc-guide",
+        "kyc-troubleshooting",
+        "account-troubleshooting"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.19651025,
+      "globalRank": 2,
+      "noRerankRank": null,
+      "domainRank": 2,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 1298,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 724,
+      "error": null
+    },
+    {
+      "id": "r86",
+      "query": "Face verification keeps failing",
+      "domain": "kyc",
+      "lang": "en",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "kyc-troubleshooting"
+      ],
+      "retrievedDocIds": [
+        "kyc-troubleshooting",
+        "wallet-troubleshooting",
+        "kyc-guide"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.19328048,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 821,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 799,
+      "error": null
+    },
+    {
+      "id": "r87",
+      "query": "How do I claim a lucky draw prize?",
+      "domain": "lucky-draw",
+      "lang": "en",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "lucky-draw-rules"
+      ],
+      "retrievedDocIds": [
+        "lucky-draw-rules",
+        "product-faq",
+        "withdrawal-guide"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.21983747,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 2285,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 668,
+      "error": null
+    },
+    {
+      "id": "r88",
+      "query": "Do you support cash on delivery?",
+      "domain": "order",
+      "lang": "en",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "cod-payment"
+      ],
+      "retrievedDocIds": [
+        "cod-payment",
+        "contact-support"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.21208749,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 2981,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 5219,
+      "error": null
+    },
+    {
+      "id": "r89",
+      "query": "How do I cancel an order?",
+      "domain": "order",
+      "lang": "en",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "order-management"
+      ],
+      "retrievedDocIds": [
+        "order-management",
+        "order-troubleshooting",
+        "cod-payment",
+        "contact-support"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.4971841,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 2540,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 744,
+      "error": null
+    },
+    {
+      "id": "r90",
+      "query": "My order has not shipped yet",
+      "domain": "order",
+      "lang": "en",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "order-troubleshooting"
+      ],
+      "retrievedDocIds": [
+        "contact-support",
+        "order-management",
+        "order-troubleshooting",
+        "cod-payment"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.15622484,
+      "globalRank": 3,
+      "noRerankRank": null,
+      "domainRank": 2,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 987,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 841,
+      "error": null
+    },
+    {
+      "id": "r91",
+      "query": "When will I receive my refund?",
+      "domain": "order",
+      "lang": "en",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "refund-policy"
+      ],
+      "retrievedDocIds": [
+        "refund-policy",
+        "lucky-draw-rules",
+        "return-shipping-faq"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.23186309,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 1486,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 1434,
+      "error": null
+    },
+    {
+      "id": "r92",
+      "query": "Who pays for return shipping?",
+      "domain": "order",
+      "lang": "en",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "return-shipping-faq"
+      ],
+      "retrievedDocIds": [
+        "return-shipping-faq"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.50266649,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 1045,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 1000,
+      "error": null
+    },
+    {
+      "id": "r93",
+      "query": "How are shipping fees calculated?",
+      "domain": "order",
+      "lang": "en",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "shipping-policy"
+      ],
+      "retrievedDocIds": [
+        "shipping-policy",
+        "return-shipping-faq"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.32723099,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 938,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 791,
+      "error": null
+    },
+    {
+      "id": "r94",
+      "query": "How long does delivery take?",
+      "domain": "order",
+      "lang": "en",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "shipping-policy"
+      ],
+      "retrievedDocIds": [
+        "shipping-policy",
+        "lucky-draw-rules",
+        "product-authenticity"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.15007437,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 1161,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 821,
+      "error": null
+    },
+    {
+      "id": "r95",
+      "query": "How do I start a group buy?",
+      "domain": "product",
+      "lang": "en",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "group-buying-guide"
+      ],
+      "retrievedDocIds": [
+        "group-buying-guide"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.3411463,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 856,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 827,
+      "error": null
+    },
+    {
+      "id": "r96",
+      "query": "How can I verify a product is authentic?",
+      "domain": "product",
+      "lang": "en",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "product-authenticity"
+      ],
+      "retrievedDocIds": [
+        "product-authenticity",
+        "product-faq"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.47192519,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 951,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 895,
+      "error": null
+    },
+    {
+      "id": "r97",
+      "query": "When will out-of-stock items be restocked?",
+      "domain": "product",
+      "lang": "en",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "product-faq"
+      ],
+      "retrievedDocIds": [
+        "product-faq",
+        "promotion-rules"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.35120135,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 1019,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 920,
+      "error": null
+    },
+    {
+      "id": "r98",
+      "query": "Does the product come with a warranty?",
+      "domain": "product",
+      "lang": "en",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "product-faq"
+      ],
+      "retrievedDocIds": [
+        "product-faq"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.40954548,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 956,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 945,
+      "error": null
+    },
+    {
+      "id": "r99",
+      "query": "How can I edit my product review?",
+      "domain": "product",
+      "lang": "en",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "review-guide"
+      ],
+      "retrievedDocIds": [
+        "review-guide"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.41379496,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 991,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 979,
+      "error": null
+    },
+    {
+      "id": "r100",
+      "query": "How do I choose the right size?",
+      "domain": "product",
+      "lang": "en",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "size-guide"
+      ],
+      "retrievedDocIds": [
+        "size-guide"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.25306523,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 10644,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 1757,
+      "error": null
+    },
+    {
+      "id": "r101",
+      "query": "How do I change my password?",
+      "domain": "user",
+      "lang": "en",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "account-guide"
+      ],
+      "retrievedDocIds": [
+        "account-troubleshooting",
+        "account-guide",
+        "contact-support"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.09155836,
+      "globalRank": 2,
+      "noRerankRank": null,
+      "domainRank": 2,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 17330,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 1210,
+      "error": null
+    },
+    {
+      "id": "r102",
+      "query": "I can't receive the OTP",
+      "domain": "user",
+      "lang": "en",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "account-troubleshooting"
+      ],
+      "retrievedDocIds": [
+        "wallet-troubleshooting",
+        "account-troubleshooting",
+        "account-guide"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.35169035,
+      "globalRank": 2,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 1847,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 11227,
+      "error": null
+    },
+    {
+      "id": "r103",
+      "query": "Why is my account locked?",
+      "domain": "user",
+      "lang": "en",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "account-troubleshooting"
+      ],
+      "retrievedDocIds": [
+        "account-troubleshooting",
+        "contact-support",
+        "withdrawal-guide"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.43138008,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 1418,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 739,
+      "error": null
+    },
+    {
+      "id": "r104",
+      "query": "What are the VIP benefits?",
+      "domain": "user",
+      "lang": "en",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "vip-benefits"
+      ],
+      "retrievedDocIds": [
+        "vip-benefits"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.33807783,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 942,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 741,
+      "error": null
+    },
+    {
+      "id": "r105",
+      "query": "How do I top up my wallet?",
+      "domain": "wallet",
+      "lang": "en",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "deposit-guide"
+      ],
+      "retrievedDocIds": [
+        "deposit-guide"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.05310926,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 1469,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 828,
+      "error": null
+    },
+    {
+      "id": "r106",
+      "query": "Can I deposit with GCash?",
+      "domain": "wallet",
+      "lang": "en",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "deposit-guide"
+      ],
+      "retrievedDocIds": [
+        "deposit-guide",
+        "wallet-troubleshooting"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.40937658,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 914,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 773,
+      "error": null
+    },
+    {
+      "id": "r107",
+      "query": "My deposit did not arrive",
+      "domain": "wallet",
+      "lang": "en",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "wallet-troubleshooting"
+      ],
+      "retrievedDocIds": [
+        "wallet-troubleshooting",
+        "deposit-guide",
+        "withdrawal-guide"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.24607546,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 842,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 728,
+      "error": null
+    },
+    {
+      "id": "r108",
+      "query": "What should I do if withdrawal fails?",
+      "domain": "wallet",
+      "lang": "en",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "wallet-troubleshooting"
+      ],
+      "retrievedDocIds": [
+        "wallet-troubleshooting",
+        "withdrawal-guide"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.45038151,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 909,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 728,
+      "error": null
+    },
+    {
+      "id": "r109",
+      "query": "What is the withdrawal fee?",
+      "domain": "wallet",
+      "lang": "en",
+      "sourceType": "paraphrase",
+      "expectedDocIds": [
+        "withdrawal-guide"
+      ],
+      "retrievedDocIds": [
+        "withdrawal-guide",
+        "deposit-guide",
+        "wallet-troubleshooting"
+      ],
+      "retrievedCount": 5,
+      "topScore": 0.16788313,
+      "globalRank": 1,
+      "noRerankRank": null,
+      "domainRank": 1,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 1176,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 766,
+      "error": null
+    },
+    {
+      "id": "n01",
+      "query": "今天天气怎么样",
+      "domain": "common",
+      "lang": "zh",
+      "sourceType": "negative",
+      "expectedDocIds": [],
+      "retrievedDocIds": [],
+      "retrievedCount": 0,
+      "topScore": null,
+      "globalRank": 0,
+      "noRerankRank": null,
+      "domainRank": 0,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 756,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 673,
+      "error": null
+    },
+    {
+      "id": "n02",
+      "query": "帮我写一首诗",
+      "domain": "common",
+      "lang": "zh",
+      "sourceType": "negative",
+      "expectedDocIds": [],
+      "retrievedDocIds": [],
+      "retrievedCount": 0,
+      "topScore": null,
+      "globalRank": 0,
+      "noRerankRank": null,
+      "domainRank": 0,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 676,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 633,
+      "error": null
+    },
+    {
+      "id": "n03",
+      "query": "推荐一部电影",
+      "domain": "common",
+      "lang": "zh",
+      "sourceType": "negative",
+      "expectedDocIds": [],
+      "retrievedDocIds": [],
+      "retrievedCount": 0,
+      "topScore": null,
+      "globalRank": 0,
+      "noRerankRank": null,
+      "domainRank": 0,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 875,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 647,
+      "error": null
+    },
+    {
+      "id": "n04",
+      "query": "What's the weather today?",
+      "domain": "common",
+      "lang": "en",
+      "sourceType": "negative",
+      "expectedDocIds": [],
+      "retrievedDocIds": [],
+      "retrievedCount": 0,
+      "topScore": null,
+      "globalRank": 0,
+      "noRerankRank": null,
+      "domainRank": 0,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 684,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 741,
+      "error": null
+    },
+    {
+      "id": "n05",
+      "query": "Tell me a joke",
+      "domain": "common",
+      "lang": "en",
+      "sourceType": "negative",
+      "expectedDocIds": [],
+      "retrievedDocIds": [],
+      "retrievedCount": 0,
+      "topScore": null,
+      "globalRank": 0,
+      "noRerankRank": null,
+      "domainRank": 0,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 656,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 646,
+      "error": null
+    },
+    {
+      "id": "n06",
+      "query": "怎么学英语",
+      "domain": "common",
+      "lang": "zh",
+      "sourceType": "negative",
+      "expectedDocIds": [],
+      "retrievedDocIds": [],
+      "retrievedCount": 0,
+      "topScore": null,
+      "globalRank": 0,
+      "noRerankRank": null,
+      "domainRank": 0,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 686,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 693,
+      "error": null
+    },
+    {
+      "id": "n07",
+      "query": "附近有什么好吃的",
+      "domain": "common",
+      "lang": "zh",
+      "sourceType": "negative",
+      "expectedDocIds": [],
+      "retrievedDocIds": [],
+      "retrievedCount": 0,
+      "topScore": null,
+      "globalRank": 0,
+      "noRerankRank": null,
+      "domainRank": 0,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 669,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 659,
+      "error": null
+    },
+    {
+      "id": "n08",
+      "query": "你叫什么名字",
+      "domain": "common",
+      "lang": "zh",
+      "sourceType": "negative",
+      "expectedDocIds": [],
+      "retrievedDocIds": [],
+      "retrievedCount": 0,
+      "topScore": null,
+      "globalRank": 0,
+      "noRerankRank": null,
+      "domainRank": 0,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 709,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 808,
+      "error": null
+    },
+    {
+      "id": "n09",
+      "query": "1+1 等于几",
+      "domain": "common",
+      "lang": "zh",
+      "sourceType": "negative",
+      "expectedDocIds": [],
+      "retrievedDocIds": [],
+      "retrievedCount": 0,
+      "topScore": null,
+      "globalRank": 0,
+      "noRerankRank": null,
+      "domainRank": 0,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 739,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 691,
+      "error": null
+    },
+    {
+      "id": "n10",
+      "query": "帮我订一张机票",
+      "domain": "common",
+      "lang": "zh",
+      "sourceType": "negative",
+      "expectedDocIds": [],
+      "retrievedDocIds": [],
+      "retrievedCount": 0,
+      "topScore": null,
+      "globalRank": 0,
+      "noRerankRank": null,
+      "domainRank": 0,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 676,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 732,
+      "error": null
+    },
+    {
+      "id": "n11",
+      "query": "How do I cook pasta?",
+      "domain": "common",
+      "lang": "en",
+      "sourceType": "negative",
+      "expectedDocIds": [],
+      "retrievedDocIds": [
+        "privacy-policy",
+        "size-guide",
+        "return-shipping-faq"
+      ],
+      "retrievedCount": 5,
+      "topScore": -0.00281033,
+      "globalRank": 0,
+      "noRerankRank": null,
+      "domainRank": 0,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 744,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 688,
+      "error": null
+    },
+    {
+      "id": "n12",
+      "query": "明天会下雨吗",
+      "domain": "common",
+      "lang": "zh",
+      "sourceType": "negative",
+      "expectedDocIds": [],
+      "retrievedDocIds": [],
+      "retrievedCount": 0,
+      "topScore": null,
+      "globalRank": 0,
+      "noRerankRank": null,
+      "domainRank": 0,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 678,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 710,
+      "error": null
+    },
+    {
+      "id": "n13",
+      "query": "我想买股票",
+      "domain": "common",
+      "lang": "zh",
+      "sourceType": "negative",
+      "expectedDocIds": [],
+      "retrievedDocIds": [],
+      "retrievedCount": 0,
+      "topScore": null,
+      "globalRank": 0,
+      "noRerankRank": null,
+      "domainRank": 0,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 751,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 732,
+      "error": null
+    },
+    {
+      "id": "n14",
+      "query": "讲个故事",
+      "domain": "common",
+      "lang": "zh",
+      "sourceType": "negative",
+      "expectedDocIds": [],
+      "retrievedDocIds": [],
+      "retrievedCount": 0,
+      "topScore": null,
+      "globalRank": 0,
+      "noRerankRank": null,
+      "domainRank": 0,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 741,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 675,
+      "error": null
+    },
+    {
+      "id": "n15",
+      "query": "现在几点了",
+      "domain": "common",
+      "lang": "zh",
+      "sourceType": "negative",
+      "expectedDocIds": [],
+      "retrievedDocIds": [],
+      "retrievedCount": 0,
+      "topScore": null,
+      "globalRank": 0,
+      "noRerankRank": null,
+      "domainRank": 0,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 810,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 649,
+      "error": null
+    },
+    {
+      "id": "n16",
+      "query": "Who is the president?",
+      "domain": "common",
+      "lang": "en",
+      "sourceType": "negative",
+      "expectedDocIds": [],
+      "retrievedDocIds": [],
+      "retrievedCount": 0,
+      "topScore": null,
+      "globalRank": 0,
+      "noRerankRank": null,
+      "domainRank": 0,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 802,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 672,
+      "error": null
+    },
+    {
+      "id": "n17",
+      "query": "如何减肥",
+      "domain": "common",
+      "lang": "zh",
+      "sourceType": "negative",
+      "expectedDocIds": [],
+      "retrievedDocIds": [],
+      "retrievedCount": 0,
+      "topScore": null,
+      "globalRank": 0,
+      "noRerankRank": null,
+      "domainRank": 0,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 740,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 669,
+      "error": null
+    },
+    {
+      "id": "n18",
+      "query": "帮我翻译一段话",
+      "domain": "common",
+      "lang": "zh",
+      "sourceType": "negative",
+      "expectedDocIds": [],
+      "retrievedDocIds": [],
+      "retrievedCount": 0,
+      "topScore": null,
+      "globalRank": 0,
+      "noRerankRank": null,
+      "domainRank": 0,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 725,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 729,
+      "error": null
+    },
+    {
+      "id": "n19",
+      "query": "北京到上海多远",
+      "domain": "common",
+      "lang": "zh",
+      "sourceType": "negative",
+      "expectedDocIds": [],
+      "retrievedDocIds": [],
+      "retrievedCount": 0,
+      "topScore": null,
+      "globalRank": 0,
+      "noRerankRank": null,
+      "domainRank": 0,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 845,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 718,
+      "error": null
+    },
+    {
+      "id": "n20",
+      "query": "你是机器人吗",
+      "domain": "common",
+      "lang": "zh",
+      "sourceType": "negative",
+      "expectedDocIds": [],
+      "retrievedDocIds": [],
+      "retrievedCount": 0,
+      "topScore": null,
+      "globalRank": 0,
+      "noRerankRank": null,
+      "domainRank": 0,
+      "layerRanks": {
+        "vector": null,
+        "meili": null,
+        "chunk": null,
+        "doc": null,
+        "keyword": null
+      },
+      "latencyMs": 765,
+      "noRerankLatencyMs": null,
+      "domainLatencyMs": 628,
+      "error": null
+    }
+  ]
+}
