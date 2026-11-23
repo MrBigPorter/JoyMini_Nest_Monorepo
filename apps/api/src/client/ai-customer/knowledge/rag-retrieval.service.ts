@@ -98,6 +98,8 @@ export interface RetrievalDebug {
   returned: number;
   /** rerank 前的最高原始分（混合量纲，仅供排查） */
   topScoreBeforeRerank: number;
+  /** 纯向量层最高余弦相似度（0~1，用于跨语言相关性判断） */
+  topVectorScore: number;
   /** 是否执行了 rerank */
   rerank: boolean;
 }
@@ -342,19 +344,22 @@ export class RagRetrievalService {
     merged = rerankOutcome.results;
 
     // ── 相关性门卫 ──
-    // 关键词层命中 = “这个问题属于知识库”的强信号，直接放行；
-    // 没有关键词命中时，才用 reranker 的 0~1 分数卡阈值。
-    // reranker 不可用时走 RRF，分数不可比，不套用该阈值。
-    const hasKeywordHit = chunkResults.length > 0 || docResults.length > 0;
-    const gateThreshold = this.relevanceGateThreshold();
-    let gateApplied = false;
-    let gateBlocked = 0;
-    if (rerankOutcome.used && !hasKeywordHit && merged.length > 0) {
-      gateApplied = true;
-      const before = merged.length;
-      merged = merged.filter((chunk) => chunk.score >= gateThreshold);
-      gateBlocked = before - merged.length;
-    }
+    // 旧规则是「关键词层命中就放行」，但英文/Taglish 负样本会被 account /
+    // wallet / balance 这类泛词带出关键词命中，门卫整段失效（E-20）。
+    // 新规则用两个信号：
+    //   1. rerank 最高分低于硬地板 → 直接拒（离题问题）
+    //   2. 最高分没到「语义可信」区间时，要求至少一个查询词项出现在结果里
+    //      （词面锚点；中英文都适用，拉丁词按词边界，避免 cook 命中 cookies）
+    const gate = this.applyRelevanceGate(
+      query,
+      merged,
+      rerankOutcome.used,
+      chunkResults.length > 0 ||
+        docResults.length > 0 ||
+        meiliResults.length > 0,
+    );
+    merged = gate.results;
+    const gateThreshold = gate.lexicalMinScore;
 
     emitStage('retrieval', {
       layers,
@@ -362,12 +367,17 @@ export class RagRetrievalService {
       returned: merged.length,
       // 两个分不能混：rerank 前的分是混合量纲，只看它判断不了最终质量
       topScoreBeforeRerank: Number(topScore.toFixed(4)),
+      topVectorScore: Number(
+        vectorResults.reduce((max, r) => Math.max(max, r.score), 0).toFixed(4),
+      ),
       topScoreAfterRerank: Number((merged[0]?.score ?? 0).toFixed(4)),
       rerank: useRerank,
       relevanceGate: {
-        applied: gateApplied,
+        applied: gate.applied,
         threshold: gateThreshold,
-        blocked: gateBlocked,
+        floor: gate.floor,
+        blocked: gate.blocked,
+        reason: gate.reason,
       },
       latencyMs: Date.now() - startedAt,
     });
@@ -414,6 +424,11 @@ export class RagRetrievalService {
       topScoreBeforeRerank: Number.isFinite(topScoreBeforeRerank)
         ? Number(topScoreBeforeRerank.toFixed(4))
         : 0,
+      topVectorScore: Number(
+        vectorResults
+          .reduce((max, r) => Math.max(max, r.score), 0)
+          .toFixed(4),
+      ),
       rerank,
     };
   }
@@ -728,14 +743,181 @@ export class RagRetrievalService {
   // ===========================================================================
 
   /**
-   * 相关性阈值：由正负样本校准（20 负样本最高 0.131），可配置。
-   * 只用于 reranker 分数，不影响 RRF/召回层。
+   * 相关性门卫：rerank 分数 + 词面锚点双信号。
+   *
+   * 为什么不能只看分数：
+   *   bge reranker 对跨语言/口语问题的绝对分整体偏低（真实问法正样本
+   *   top 中位数约 0.18），单一阈值会误杀大量正常问题。
+   *
+   * 为什么不能只看关键词命中：
+   *   英文负样本会被 account / wallet / balance 这类泛词带出命中，
+   *   旧规则因此整段绕过门卫（E-20：10/12 负样本返回文档）。
+   *
+   * 规则（仅 reranker 成功时生效）：
+   *   top < floor                         → 拒（离题）
+   *   top < lexicalMin 且无词面锚点      → 拒（没有可解释的匹配依据）
+   *   其他                                → 放行
+   *
+   * 词面锚点 = query 的任一实词（拉丁词按词边界、CJK 用二元组）
+   * 出现在结果标题或正文里。它等价于“至少有一个可解释的命中”，
+   * 但按词边界匹配，不会出现 cook → cookies 的子串误命中。
    */
-  private relevanceGateThreshold(): number {
+  private applyRelevanceGate(
+    query: string,
+    chunks: RetrievedChunk[],
+    rerankUsed: boolean,
+    hasKeywordHit: boolean,
+  ): {
+    results: RetrievedChunk[];
+    applied: boolean;
+    blocked: number;
+    floor: number;
+    lexicalMinScore: number;
+    reason: string;
+  } {
+    const floor = this.relevanceFloor();
+    const lexicalMinScore = this.lexicalAnchorMinScore();
+    const cjkFloor = this.cjkRelevanceFloor();
+    const tokens = this.tokenize(query);
+    const hasLatinToken = tokens.some((t) => /^[a-z0-9]+$/.test(t));
+    // 中英文分开校准：中文 query 对英文知识库是跨语言匹配，rerank 分整体
+    // 偏低（正常问题 0.13+，离题 0.12-），旧门卫的 0.131 就是这个分界；
+    // 拉丁文 query 的分更低，需要靠词面锚点补第二信号。
+    const effectiveFloor = hasLatinToken ? floor : cjkFloor;
+
+    if (!rerankUsed || chunks.length === 0) {
+      return {
+        results: chunks,
+        applied: false,
+        blocked: 0,
+        floor: effectiveFloor,
+        lexicalMinScore,
+        reason: 'rerank_unavailable',
+      };
+    }
+
+    const top = chunks[0]?.score ?? 0;
+    if (top < floor) {
+      this.logger.log(
+        `[relevanceGate] rejected: top=${top.toFixed(4)} < floor=${floor}`,
+      );
+      return {
+        results: [],
+        applied: true,
+        blocked: chunks.length,
+        floor: effectiveFloor,
+        lexicalMinScore,
+        reason: 'below_floor',
+      };
+    }
+
+    // 中文侧：0.131 地板 或 关键词层命中，满足一个就放行。
+    // 中文问英文知识库时 rerank 分整体低，但关键词层（含 keywords 数组）
+    // 能提供“这个问题确实属于知识库”的强信号——旧门卫就是靠它保住
+    // 「怎么修改登录密码」「商品缺货什么时候补货」这类正常问题。
+    if (!hasLatinToken) {
+      if (top < cjkFloor && !hasKeywordHit) {
+        this.logger.log(
+          `[relevanceGate] rejected: CJK top=${top.toFixed(4)} < ${cjkFloor} and keyword layer missed`,
+        );
+        return {
+          results: [],
+          applied: true,
+          blocked: chunks.length,
+          floor: effectiveFloor,
+          lexicalMinScore,
+          reason: 'below_cjk_floor',
+        };
+      }
+      return {
+        results: chunks,
+        applied: true,
+        blocked: 0,
+        floor: effectiveFloor,
+        lexicalMinScore,
+        reason: 'accepted',
+      };
+    }
+
+    // 中文二元组对英文知识库覆盖不足，词面锚点只用于拉丁文查询。
+    if (
+      top < lexicalMinScore &&
+      !this.hasLexicalAnchor(tokens, chunks)
+    ) {
+      this.logger.log(
+        `[relevanceGate] rejected: top=${top.toFixed(4)} < lexicalMin=${lexicalMinScore} and no lexical anchor`,
+      );
+      return {
+        results: [],
+        applied: true,
+        blocked: chunks.length,
+        floor,
+        lexicalMinScore,
+        reason: 'no_lexical_anchor',
+      };
+    }
+
+    return {
+      results: chunks,
+      applied: true,
+      blocked: 0,
+      floor,
+      lexicalMinScore,
+      reason: 'accepted',
+    };
+  }
+
+  /**
+   * 拉丁文查询地板：默认 0.03。
+   * 真实问法校准：离题负样本 top ≤0.016，正样本最低 0.036。
+   */
+  private relevanceFloor(): number {
     const raw = Number(
-      this.configService.get<string>('RAG_RERANK_MIN_SCORE', '0.131'),
+      this.configService.get<string>('RAG_RELEVANCE_FLOOR', '0.03'),
+    );
+    return Number.isFinite(raw) && raw >= 0 ? raw : 0.03;
+  }
+
+  /**
+   * 中文查询地板：默认 0.131（沿用 2026-11-20 的 20 负样本校准）。
+   * 中文问英文知识库属于跨语言匹配，分数量纲和拉丁文不同，不能共用 0.03。
+   */
+  private cjkRelevanceFloor(): number {
+    const raw = Number(
+      this.configService.get<string>('RAG_CJK_RELEVANCE_FLOOR', '0.131'),
     );
     return Number.isFinite(raw) && raw >= 0 ? raw : 0.131;
+  }
+
+  /**
+   * 语义可信线：top 低于它时必须能指出词面依据。
+   * 默认 0.15：真实问法正样本 p25 约 0.114，且有词面锚点；
+   * 负样本在这个区间里的基本都是“有话题词、但不是知识库问题”。
+   */
+  private lexicalAnchorMinScore(): number {
+    const raw = Number(
+      this.configService.get<string>('RAG_LEXICAL_MIN_SCORE', '0.15'),
+    );
+    return Number.isFinite(raw) && raw >= 0 ? raw : 0.15;
+  }
+
+  /** query 的任一实词是否出现在结果标题/正文/关键词中（拉丁词按词边界）。 */
+  private hasLexicalAnchor(
+    tokens: string[],
+    chunks: RetrievedChunk[],
+  ): boolean {
+    if (tokens.length === 0) return true; // 没有可判断的词，不据此拒绝
+
+    const haystacks = chunks.map((c) =>
+      `${c.title} ${c.content} ${c.keywords.join(' ')}`.toLowerCase(),
+    );
+    return tokens.some((token) => {
+      if (!/^[a-z0-9]+$/.test(token)) {
+        return haystacks.some((text) => text.includes(token));
+      }
+      const pattern = new RegExp(`\\b${token}\\b`);
+      return haystacks.some((text) => pattern.test(text));
+    });
   }
 
   private async rerank(

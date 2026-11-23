@@ -49,6 +49,7 @@ apps/admin-next/test-results/
 # Build Outputs
 .open-next/
 .next/
+.next.*/
 out/
 build
 dist

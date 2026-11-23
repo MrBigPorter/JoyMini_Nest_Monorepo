@@ -158,10 +158,156 @@ describe('RagRetrievalService rerank 开关', () => {
     const results = await service.retrieve('退款', { topK: 2 });
 
     expect(aiService.rerank).toHaveBeenCalledTimes(1);
-    // 没有关键词命中，0.1 低于默认门卫阈值 0.131 → 被拒；只保留 high
-    expect(results.map((r) => r.chunkId)).toEqual(['high']);
+    // top=0.99 高于语义可信线，两个候选都保留；0.1 只是排序靠后
+    expect(results.map((r) => r.chunkId)).toEqual(['high', 'low']);
     expect(results[0].score).toBe(0.99);
     expect(chunks).toHaveLength(2);
+  });
+});
+
+/**
+ * E-20：相关性门卫用「rerank 分数 + 词面锚点」双信号。
+ *
+ * 旧规则「关键词层命中就放行」会被 account / wallet / balance 这类泛词绕过，
+ * 导致英文/Taglish 离题问题也返回知识库文档。
+ */
+describe('RagRetrievalService 相关性门卫', () => {
+  const chunk = (id: string, score: number, content: string) => ({
+    chunkId: id,
+    chunkIndex: 0,
+    content,
+    documentId: `doc-${id}`,
+    title: `title-${id}`,
+    domain: 'wallet',
+    docId: `doc-${id}`,
+    keywords: [],
+    priority: 'P0',
+    contentType: 'policy',
+    score,
+  });
+
+  const build = (
+    chunks: Array<{ chunkId: string; score: number; content: string }>,
+    scores: number[],
+  ) => {
+    const prisma = {
+      $queryRawUnsafe: jest.fn().mockResolvedValue([]),
+      knowledgeDocument: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const aiService = {
+      generateEmbedding: jest.fn().mockResolvedValue([0.1, 0.2]),
+      rerank: jest
+        .fn()
+        .mockResolvedValue(
+          scores.map((score, index) => ({ index, relevance_score: score })),
+        ),
+    };
+    const meilisearchService = {
+      searchChunks: jest.fn().mockResolvedValue([]),
+      isAvailable: true,
+    };
+    const service = new RagRetrievalService(
+      prisma as any,
+      aiService as any,
+      meilisearchService as any,
+      { get: jest.fn().mockReturnValue(undefined) } as any,
+    );
+    jest
+      .spyOn(service as any, 'vectorSearch')
+      .mockResolvedValue(chunks as any);
+    return service;
+  };
+
+  it('rerank 最高分低于硬地板 → 全部拒绝（离题问题）', async () => {
+    const service = build(
+      [chunk('a', 0.01, 'wallet policy'), chunk('b', 0.005, 'shipping')],
+      [0.01, 0.005],
+    );
+
+    const results = await service.retrieve('Ano ang weather bukas?', { topK: 2 });
+
+    expect(results).toEqual([]);
+  });
+
+  it('分数在可信线以下且没有任何词面锚点 → 拒绝', async () => {
+    const service = build(
+      [chunk('a', 0.1, 'wallet policy'), chunk('b', 0.08, 'shipping')],
+      [0.1, 0.08],
+    );
+
+    const results = await service.retrieve('How do I cook adobo?', {
+      topK: 2,
+    });
+
+    expect(results).toEqual([]);
+  });
+
+  it('分数低于可信线但命中查询实词 → 放行（跨语言/口语正样本）', async () => {
+    const service = build(
+      [chunk('a', 0.12, 'frozen balance policy'), chunk('b', 0.08, 'wallet')],
+      [0.12, 0.08],
+    );
+
+    const results = await service.retrieve('magkano ang frozen balance', {
+      topK: 2,
+    });
+
+    expect(results.map((r) => r.chunkId)).toEqual(['a', 'b']);
+  });
+
+  it('分数高于可信线时不需要词面锚点', async () => {
+    const service = build(
+      [chunk('a', 0.6, '退款政策'), chunk('b', 0.2, '其他')],
+      [0.6, 0.2],
+    );
+
+    const results = await service.retrieve('可以退吗', { topK: 2 });
+
+    expect(results).toHaveLength(2);
+  });
+
+  it('拉丁词按词边界匹配：cook 不命中 cookies', () => {
+    const service = build([], []);
+    const chunks = [chunk('a', 0.1, 'browser cookies policy')];
+    const tokensOf = (q: string) => (service as any).tokenize(q);
+
+    expect(
+      (service as any).hasLexicalAnchor(tokensOf('How do I cook pasta?'), chunks),
+    ).toBe(false);
+    expect(
+      (service as any).hasLexicalAnchor(
+        tokensOf('How do I clear cookies?'),
+        chunks,
+      ),
+    ).toBe(true);
+  });
+
+  it('中文查询高于 0.131 地板即可保留（不强制词面锚点）', async () => {
+    const service = build([chunk('a', 0.14, '补货周期为 7 天')], [0.14]);
+
+    const results = await service.retrieve('没货了什么时候补', { topK: 2 });
+
+    expect(results.map((r) => r.chunkId)).toEqual(['a']);
+  });
+
+  it('中文查询低于 0.131 地板 → 拒绝（离题问题）', async () => {
+    const service = build([chunk('a', 0.12, 'contact support')], [0.12]);
+
+    const results = await service.retrieve('今天天气怎么样', { topK: 2 });
+
+    expect(results).toEqual([]);
+  });
+
+  it('reranker 不可用时不套门卫（RRF 分数不可比）', async () => {
+    const service = build(
+      [chunk('a', 0.01, 'anything'), chunk('b', 0.005, 'else')],
+      [],
+    );
+    (service as any).aiService.rerank = jest.fn().mockResolvedValue(null);
+
+    const results = await service.retrieve('weather?', { topK: 2 });
+
+    expect(results).toHaveLength(2);
   });
 });
 
@@ -542,16 +688,42 @@ describe('RagRetrievalService 相关性门卫', () => {
     expect(results).toEqual([]);
   });
 
-  it('关键词层命中 → 即使 rerank 分低也保留', async () => {
+  it('关键词层命中且结果含查询实词 → 即使 rerank 分低也保留', async () => {
     const service: any = build();
     jest.spyOn(service, 'vectorSearch').mockResolvedValue([]);
     service.meilisearchService.searchChunks.mockResolvedValue([]);
     jest.spyOn(service, 'keywordSearchChunks').mockResolvedValue([chunk('refund', 0.5)]);
     jest.spyOn(service, 'keywordSearchDocs').mockResolvedValue([]);
-    service.aiService.rerank.mockResolvedValue([{ index: 0, relevance_score: 0.01 }]);
+    service.aiService.rerank.mockResolvedValue([{ index: 0, relevance_score: 0.1 }]);
 
-    const results = await service.retrieve('退款', { topK: 3 });
+    const results = await service.retrieve('refund status', { topK: 3 });
     expect(results.map((r: any) => r.docId)).toEqual(['refund']);
+  });
+
+  it('关键词层命中但结果里没有查询实词 → 仍拒绝（泛词命中不再放行）', async () => {
+    const service: any = build();
+    jest.spyOn(service, 'vectorSearch').mockResolvedValue([]);
+    service.meilisearchService.searchChunks.mockResolvedValue([]);
+    jest.spyOn(service, 'keywordSearchChunks').mockResolvedValue([chunk('refund', 0.5)]);
+    jest.spyOn(service, 'keywordSearchDocs').mockResolvedValue([]);
+    service.aiService.rerank.mockResolvedValue([{ index: 0, relevance_score: 0.1 }]);
+
+    const results = await service.retrieve("what's the weather today", {
+      topK: 3,
+    });
+    expect(results).toEqual([]);
+  });
+
+  it('中文关键词层命中 → 低于 0.131 也保留（正常操作问题）', async () => {
+    const service: any = build();
+    jest.spyOn(service, 'vectorSearch').mockResolvedValue([]);
+    service.meilisearchService.searchChunks.mockResolvedValue([]);
+    jest.spyOn(service, 'keywordSearchChunks').mockResolvedValue([chunk('account', 0.5)]);
+    jest.spyOn(service, 'keywordSearchDocs').mockResolvedValue([]);
+    service.aiService.rerank.mockResolvedValue([{ index: 0, relevance_score: 0.1 }]);
+
+    const results = await service.retrieve('怎么修改登录密码', { topK: 3 });
+    expect(results.map((r: any) => r.docId)).toEqual(['account']);
   });
 
   it('reranker 不可用 → 不套用阈值，保留 RRF 结果', async () => {
