@@ -5,6 +5,7 @@ import {
   evalHeadline,
   evalPassRateText,
   evalPercentText,
+  evalRateText,
 } from '@/lib/ai-ops-eval';
 
 describe('ai-ops-eval 展示口径', () => {
@@ -27,6 +28,23 @@ describe('ai-ops-eval 展示口径', () => {
         value: '-',
       },
     );
+  });
+
+  it('evalRateText 按运行来源取指标，0 与缺失分开', () => {
+    expect(
+      evalRateText({
+        mode: 'EXTERNAL',
+        summary: { accuracy: 0, passRate: 0.1 },
+      }),
+    ).toBe('0.0%');
+    expect(
+      evalRateText({
+        mode: 'STORED',
+        summary: { accuracy: 0.9, passRate: 0.667 },
+      }),
+    ).toBe('66.7%');
+    expect(evalRateText({ mode: 'EXTERNAL', summary: {} })).toBe('-');
+    expect(evalRateText(null)).toBe('-');
   });
 
   it('准确率 0 是有效值，不能被当成缺失', () => {

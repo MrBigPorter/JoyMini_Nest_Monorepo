@@ -48,3 +48,12 @@ export function evalHeadline(
   }
   return { label: '通过率', value: percentText(run?.summary?.passRate) };
 }
+
+/** 一次运行的单一指标口径：EXTERNAL 读准确率，其他读任务通过率。 */
+export function evalRateText(
+  run?: { mode?: string | null; summary?: EvalSummary } | null,
+): string {
+  return run?.mode === 'EXTERNAL'
+    ? percentText(run.summary?.accuracy)
+    : percentText(run?.summary?.passRate);
+}
