@@ -14,7 +14,7 @@
 - [x] 2.2 `GET /admin/ai-usage/users`
 - [x] 2.3 `GET /admin/ai-usage/users/:userId`
 - [x] 2.4 `/ai-ops/usage` 页面与 coverage note
-- [ ] 2.5 用户详情页
+- [x] 2.5 用户详情页（`/ai-ops/usage/[userId]`，接 `GET /admin/ai-usage/users/:userId`；列表页加「查看」入口）
 - [ ] 2.6 配额在线修改（非目标，后续）
 
 ## 3. Memory

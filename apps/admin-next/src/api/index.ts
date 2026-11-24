@@ -1754,7 +1754,10 @@ export const aiOpsApi = {
       pageSize: number;
     }>('/v1/admin/ai-usage/users', params),
   getUserUsage: (userId: string, params?: { from?: string; to?: string }) =>
-    http.get(`/v1/admin/ai-usage/users/${userId}`, params),
+    http.get<import('@/type/types').AiUsageUserDetail>(
+      `/v1/admin/ai-usage/users/${userId}`,
+      params,
+    ),
 
   getTraces: (params?: {
     conversationId?: string;

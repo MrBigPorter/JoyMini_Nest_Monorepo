@@ -14,8 +14,8 @@
 - [x] 2.2 新增 `POST /ai/customer/confirm/cancel { token }`：带 owner 校验消费令牌，动作记录置 `CANCELLED`；单测覆盖正常取消、重复取消、跨用户取消
 - [x] 2.3 `ai_action_requests` 增加 `CANCELLED` 状态并更新状态机文档；单测断言取消后不可再执行
 - [x] 2.4 动作执行完成或失败后发送 `AI_ACTION_RESULT`（action、success、message）；单测断言成功与失败各发送一次且载荷可被 Flutter 模型解析
-- [ ] 2.5 确认端点补 e2e：领券成功、令牌过期、令牌重放、未知 action 四类；全部使用固定 OTP 或本地环境，不依赖真实短信
-  - 进展：服务级用例已在 `ai-customer.confirm.spec.ts` 覆盖；HTTP 层 e2e 待本地起服务后补跑
+- [x] 2.5 确认端点补 e2e：领券成功、令牌过期、令牌重放、未知 action 四类；全部使用固定 OTP 或本地环境，不依赖真实短信
+  - 完成（2026-11-24）：`apps/api/test/ai-customer/confirm.e2e-spec.ts` 用 supertest 打真实 controller + 真实 `confirmAction`，四类全绿；Redis 为内存假实现，不依赖真实短信/外部服务
 
 ## 3. 提现 OTP 强制化
 

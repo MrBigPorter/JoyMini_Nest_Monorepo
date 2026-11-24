@@ -150,7 +150,7 @@ it('coupon prompt 要求不可领时解释原因、不换券');
 - 发「帮我领取1」→ 回复没有可领取的券，解释 Fixture 已持有/Big Spender 已过期；**不建卡、不产生动作记录**
 - 让一张有效券变为可领（如提高 Fixture 限领或使用有效测试券）→ 「领取1」→ 卡片券名与列表第 1 项一致 → 确认 → EXECUTED
 
-- [ ] 4.6 提交
+- [x] 4.6 提交（`4cb0df0c`）
 
 ```bash
 git commit -m "fix(ai): bind coupon ordinals to the last presented list"
@@ -216,8 +216,8 @@ git commit -m "fix(ai): default own-coupon lookup to unused coupons"
 
 ## 回归清单
 
-- [ ] T1-5 领券原子扣减测试保持绿色
-- [ ] T1-6 每人限领并发/顺序探针保持绿色
-- [ ] 兑码（redeemCode）路径不受影响
-- [ ] App 领券中心空列表无异常
-- [ ] 提现/存款流程不受影响
+- [x] T1-5 领券原子扣减测试保持绿色（`coupon.service.spec.ts`「原子扣减（T1-5）」6 条全绿，2026-11-24）
+- [x] T1-6 每人限领并发/顺序探针保持绿色（同 spec「已达每人限领上限」「必须先扣库存、后查已领」两条全绿）
+- [x] 兑码（redeemCode）路径不受影响（`coupon-tools.spec.ts` 覆盖 redeemCode；2026-11-24 回归通过）
+- [ ] App 领券中心空列表无异常（需 App 端验证，后端未改动该接口返回结构）
+- [x] 提现/存款流程不受影响（wallet 相关 spec 44 条全绿，2026-11-24）

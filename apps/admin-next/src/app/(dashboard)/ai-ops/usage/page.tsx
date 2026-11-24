@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useRequest } from 'ahooks';
 import { aiOpsApi } from '@/api';
 import { PageHeader } from '@/components/scaffold/PageHeader';
@@ -175,6 +176,7 @@ export default function AiUsagePage() {
                   'Requests',
                   '单日最高',
                   '单日超限',
+                  '详情',
                 ].map((h) => (
                   <th key={h} className="px-3 py-2">
                     {h}
@@ -186,7 +188,7 @@ export default function AiUsagePage() {
               {usersLoading && (
                 <tr>
                   <td
-                    colSpan={9}
+                    colSpan={10}
                     className="px-3 py-6 text-center text-gray-400"
                   >
                     Loading...
@@ -196,7 +198,7 @@ export default function AiUsagePage() {
               {!usersLoading && !usersError && (users?.list.length ?? 0) === 0 && (
                 <tr>
                   <td
-                    colSpan={9}
+                    colSpan={10}
                     className="px-3 py-6 text-center text-gray-400"
                   >
                     该时间段没有 AI 用量
@@ -236,6 +238,14 @@ export default function AiUsagePage() {
                     {(u.maxDailyTokens ?? 0).toLocaleString()}
                   </td>
                   <td className="px-3 py-2">{u.overDailyLimit ? '是' : '-'}</td>
+                  <td className="px-3 py-2">
+                    <Link
+                      href={`/ai-ops/usage/${u.userId}`}
+                      className="text-blue-600 hover:underline dark:text-blue-400"
+                    >
+                      查看
+                    </Link>
+                  </td>
                 </tr>
               ))}
             </tbody>

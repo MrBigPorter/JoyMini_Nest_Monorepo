@@ -2273,6 +2273,38 @@ export interface AiUsageUser {
   overDailyLimit: boolean;
 }
 
+/** 单用户用量详情（服务端已脱敏手机号、成本按全局单价估算）。 */
+export interface AiUsageUserDetail {
+  user: {
+    id: string;
+    nickname?: string | null;
+    phone?: string | null;
+    avatar?: string | null;
+  };
+  totals: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+    requests: number;
+  };
+  cost: {
+    inputCost: number;
+    outputCost: number;
+    totalCost: number;
+    currency: string;
+    configured: boolean;
+  };
+  quota: { dailyTokenLimit: number };
+  daily: Array<{
+    date: string;
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+    requests: number;
+    overDailyLimit: boolean;
+  }>;
+}
+
 export interface AiMemoryRow {
   id: string;
   userId: string;
