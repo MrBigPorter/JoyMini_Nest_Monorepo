@@ -36,6 +36,18 @@ export const JUDGE_ERROR_KINDS = [
   'not_applicable',
 ] as const;
 
+/**
+ * 真正算「判官失败」的类型；`harness` / `not_applicable` 不是判官失败，
+ * 不计入 judgeErrorRate 的分子与分母（见 tools/eval/e2e/METRICS.md）。
+ */
+export const JUDGE_FAILURE_KINDS = [
+  'auth',
+  'rate_limit',
+  'timeout',
+  'output_format',
+  'policy',
+] as const;
+
 export type AnswerVerdict = (typeof ANSWER_VERDICTS)[number];
 export type GroundingKind = (typeof GROUNDING_KINDS)[number];
 export type JudgeErrorKind = (typeof JUDGE_ERROR_KINDS)[number];

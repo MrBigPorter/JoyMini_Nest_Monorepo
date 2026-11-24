@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import {
   AiEvalDatasetService,
   EXTERNAL_RUN_STALE_MS,
+  PROMOTE_BASELINE_LOCK_KEY,
 } from './ai-eval-dataset.service';
 
 /**
@@ -62,17 +63,32 @@ function makeExternalRun() {
   };
 }
 
+function promotableRun(overrides: Record<string, any> = {}) {
+  return {
+    id: 'run-ext-1',
+    status: 'COMPLETED',
+    summary: { judgeErrorRate: 0.01, judgeErrorKinds: [] },
+    codeVersion: 'sha-abc',
+    judgeSpecVersion: 'v2',
+    metricSpecVersion: '2',
+    datasetSnapshot: { hash: 'fp1234', cases: [] },
+    ...overrides,
+  };
+}
+
 function makeService() {
   const prisma: any = {
     aiEvalDataset: { findUnique: jest.fn(), create: jest.fn() },
     aiEvalRun: {
       create: jest.fn(),
       findUnique: jest.fn(),
+      findFirst: jest.fn().mockResolvedValue(null),
       update: jest.fn().mockResolvedValue({}),
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
     aiEvalResult: { createMany: jest.fn().mockResolvedValue({ count: 3 }) },
     aiScore: { create: jest.fn() },
+    $queryRawUnsafe: jest.fn().mockResolvedValue([{}]),
   };
   prisma.$transaction = jest.fn(async (cb: (tx: any) => unknown) => cb(prisma));
   const judge = { judge: jest.fn() };
@@ -238,6 +254,7 @@ describe('AiEvalDatasetService external runs', () => {
     expect(summary.total).toBe(3);
     expect(summary.accuracy).toBe(0.5);
     expect(summary.judgeErrorRate).toBe(0.3333);
+    expect(summary.judgeErrorKinds).toEqual([{ kind: 'timeout', count: 1 }]);
     expect(summary.answerVerdicts).toEqual({
       correct: 1,
       incorrect: 1,
@@ -245,6 +262,57 @@ describe('AiEvalDatasetService external runs', () => {
     });
     expect(summary.grounding).toEqual({ kb: 3 });
     expect(summary.mode).toBe('EXTERNAL');
+  });
+
+  it('汇总按 judgeErrorKind 输出错误类型分布（降序、同数按类型名）', async () => {
+    const { service } = makeService();
+
+    const summary = await (service as any).buildExternalSummary(
+      {
+        id: 'run-ext-1',
+        baselineRunId: null,
+        datasetSnapshot: { hash: 'fp1234', cases: [] },
+        codeVersion: 'sha-abc',
+        gateMode: 'shadow',
+        judgeSpecVersion: 'v2',
+        metricSpecVersion: '2',
+      },
+      [
+        { caseId: 'q1', answerVerdict: 'correct', reason: 'ok' },
+        {
+          caseId: 'q2',
+          answerVerdict: 'judge_error',
+          judgeErrorKind: 'timeout',
+          reason: 'judge timeout',
+        },
+        {
+          caseId: 'q3',
+          answerVerdict: 'judge_error',
+          judgeErrorKind: 'timeout',
+          reason: 'judge timeout',
+        },
+        {
+          caseId: 'q4',
+          answerVerdict: 'judge_error',
+          judgeErrorKind: 'output_format',
+          reason: 'bad json',
+        },
+        {
+          caseId: 'q5',
+          answerVerdict: 'judge_error',
+          judgeErrorKind: 'auth',
+          reason: '401',
+        },
+        { caseId: 'q6', answerVerdict: 'incorrect', reason: 'no' },
+      ],
+    );
+
+    expect(summary.judgeErrorKinds).toEqual([
+      { kind: 'timeout', count: 2 },
+      { kind: 'auth', count: 1 },
+      { kind: 'output_format', count: 1 },
+    ]);
+    expect(summary.judgeErrorRate).toBe(0.6667);
   });
 
   it('judge_error 缺少错误类型时拒绝', async () => {
@@ -283,5 +351,111 @@ describe('AiEvalDatasetService external runs', () => {
     await expect(
       service.ingestExternalResults('run-ext-1', { cases: [] }),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('未显式指定 baselineRunId 时回退到同数据集的当前基线', async () => {
+    const { service, prisma } = makeService();
+    const run = makeExternalRun();
+    prisma.aiEvalDataset.findUnique.mockResolvedValue(run.dataset);
+    prisma.aiEvalRun.create.mockResolvedValue({ id: 'run-new' });
+    prisma.aiEvalRun.findFirst.mockResolvedValue({ id: 'run-base' });
+
+    await service.createExternalRun({
+      datasetFingerprint: 'fp1234',
+      cases: snapshotCases(),
+      codeVersion: 'sha-abc',
+      gateMode: 'shadow',
+      judgeSpecVersion: 'v2',
+      metricSpecVersion: '2',
+    });
+
+    expect(prisma.aiEvalRun.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { isBaseline: true, datasetId: 'ds-e2e' },
+      }),
+    );
+    expect(prisma.aiEvalRun.create.mock.calls[0][0].data.baselineRunId).toBe(
+      'run-base',
+    );
+  });
+});
+
+describe('AiEvalDatasetService promote baseline', () => {
+  it('拒绝未完成的运行', async () => {
+    const { service, prisma } = makeService();
+    prisma.aiEvalRun.findUnique.mockResolvedValue(
+      promotableRun({ status: 'RUNNING' }),
+    );
+
+    await expect(service.promoteRun('run-ext-1')).rejects.toThrow(
+      /only COMPLETED/,
+    );
+    expect(prisma.aiEvalRun.update).not.toHaveBeenCalled();
+  });
+
+  it('判官失败率未低于阈值时拒绝，并列出错误类型', async () => {
+    const { service, prisma } = makeService();
+    prisma.aiEvalRun.findUnique.mockResolvedValue(
+      promotableRun({
+        summary: {
+          judgeErrorRate: 0.05,
+          judgeErrorKinds: [{ kind: 'timeout', count: 3 }],
+        },
+      }),
+    );
+
+    await expect(service.promoteRun('run-ext-1')).rejects.toThrow(/timeout×3/);
+    expect(prisma.aiEvalRun.update).not.toHaveBeenCalled();
+  });
+
+  it('版本或快照缺失时拒绝，并列出缺失字段', async () => {
+    const { service, prisma } = makeService();
+    prisma.aiEvalRun.findUnique.mockResolvedValue(
+      promotableRun({
+        codeVersion: null,
+        judgeSpecVersion: null,
+        datasetSnapshot: null,
+      }),
+    );
+
+    await expect(service.promoteRun('run-ext-1')).rejects.toThrow(
+      /missing codeVersion, datasetSnapshot\.hash, judgeSpecVersion/,
+    );
+    expect(prisma.aiEvalRun.update).not.toHaveBeenCalled();
+  });
+
+  it('指标定义版本不一致时拒绝', async () => {
+    const { service, prisma } = makeService();
+    prisma.aiEvalRun.findUnique.mockResolvedValue(
+      promotableRun({ metricSpecVersion: '1' }),
+    );
+
+    await expect(service.promoteRun('run-ext-1')).rejects.toThrow(
+      /metricSpecVersion 1 != current 2/,
+    );
+    expect(prisma.aiEvalRun.update).not.toHaveBeenCalled();
+  });
+
+  it('通过校验后在事务内清旧基线并登记新基线', async () => {
+    const { service, prisma } = makeService();
+    prisma.aiEvalRun.findUnique.mockResolvedValue(promotableRun());
+
+    await service.promoteRun('run-ext-1');
+
+    expect(prisma.$queryRawUnsafe).toHaveBeenCalledWith(
+      'SELECT pg_advisory_xact_lock($1)::text',
+      PROMOTE_BASELINE_LOCK_KEY,
+    );
+    const clear = prisma.aiEvalRun.updateMany.mock.calls.find(
+      (call: any[]) => call[0]?.data?.isBaseline === false,
+    );
+    expect(clear?.[0].where).toEqual({
+      isBaseline: true,
+      id: { not: 'run-ext-1' },
+    });
+    const promote = prisma.aiEvalRun.update.mock.calls.find(
+      (call: any[]) => call[0]?.data?.isBaseline === true,
+    );
+    expect(promote?.[0].where).toEqual({ id: 'run-ext-1' });
   });
 });

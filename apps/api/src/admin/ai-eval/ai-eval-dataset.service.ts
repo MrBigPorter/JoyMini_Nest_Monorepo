@@ -18,6 +18,7 @@ import {
   ExternalEvalCaseSnapshotDto,
   ExternalEvalResultDto,
   IngestExternalResultsDto,
+  JUDGE_FAILURE_KINDS,
 } from './dto/external-eval.dto';
 import { AI_EVAL_QUEUE, AI_EVAL_RUN_JOB, AiEvalJobData } from './ai-eval.queue';
 
@@ -34,6 +35,21 @@ export const INTERNAL_RUN_STALE_MS = 30 * 60 * 1000;
 
 /** 注入令牌：避免评测服务直接依赖客服 graph 的庞大运行时依赖。 */
 export const AI_EVAL_LIVE_AI = 'AI_EVAL_LIVE_AI';
+
+/**
+ * 指标定义版本（与 tools/eval/e2e/metrics-spec.mjs 的 METRIC_SPEC_VERSION 同步）。
+ * 只有同一版本下的运行才能登记为基线，否则数字不可直接比较。
+ */
+export const CURRENT_METRIC_SPEC_VERSION = '2';
+
+/** 基线准入的判官失败率上限；可用 EVAL_MAX_JUDGE_ERROR_RATE 覆盖。 */
+export const DEFAULT_MAX_JUDGE_ERROR_RATE = 0.02;
+
+/**
+ * promote 的事务级 advisory lock：并发提升基线时串行化「先清旧基线、再写新基线」，
+ * 避免两个请求同时通过校验后各写一条 isBaseline=true。
+ */
+export const PROMOTE_BASELINE_LOCK_KEY = 4127401;
 
 /**
  * Token 估算口径（不是真实 usage）。
@@ -356,10 +372,10 @@ export class AiEvalDatasetService {
         'AI_EVAL_LIVE_USER_ID must be configured for live eval',
       );
     }
-    const baselineRunId = options.baselineRunId?.trim() || null;
-    if (baselineRunId) {
-      await this.assertBaselineRun(baselineRunId, datasetId);
-    }
+    const baselineRunId = await this.resolveBaselineRunId(
+      datasetId,
+      options.baselineRunId,
+    );
 
     const run = await this.prisma.aiEvalRun.create({
       data: { datasetId, createdBy, mode, baselineRunId },
@@ -417,6 +433,135 @@ export class AiEvalDatasetService {
     if (baseline.status !== 'COMPLETED') {
       throw new BadRequestException('baselineRunId must be a completed run');
     }
+  }
+
+  /**
+   * 未显式指定 baselineRunId 时回退到当前基线。
+   * 只认同一个 dataset 的基线：跨数据集（不同 fingerprint）的用例 id 无法对齐，
+   * 拿来做对比只会产生假的「新增失败 / 修复」。
+   */
+  private async findBaselineRunId(datasetId: string): Promise<string | null> {
+    const baseline = await this.prisma.aiEvalRun.findFirst({
+      where: { isBaseline: true, datasetId },
+      orderBy: { finishedAt: 'desc' },
+      select: { id: true },
+    });
+    return baseline?.id ?? null;
+  }
+
+  private async resolveBaselineRunId(
+    datasetId: string,
+    explicit?: string | null,
+  ): Promise<string | null> {
+    const trimmed = explicit?.trim() || null;
+    if (trimmed) {
+      await this.assertBaselineRun(trimmed, datasetId);
+      return trimmed;
+    }
+    return this.findBaselineRunId(datasetId);
+  }
+
+  private maxJudgeErrorRate(): number {
+    const raw = process.env.EVAL_MAX_JUDGE_ERROR_RATE;
+    if (raw == null || raw.trim() === '') {
+      return DEFAULT_MAX_JUDGE_ERROR_RATE;
+    }
+    const value = Number(raw);
+    if (!Number.isFinite(value) || value < 0 || value > 1) {
+      this.logger.warn(
+        `[eval] invalid EVAL_MAX_JUDGE_ERROR_RATE=${raw}; falling back to ${DEFAULT_MAX_JUDGE_ERROR_RATE}`,
+      );
+      return DEFAULT_MAX_JUDGE_ERROR_RATE;
+    }
+    return value;
+  }
+
+  /**
+   * 登记基线：只有 COMPLETED、判官失败率达标、版本齐全且指标版本一致时才允许。
+   * 事务内用 advisory lock 串行化，保证全局至多一条 isBaseline。
+   */
+  async promoteRun(id: string) {
+    const run = await this.prisma.aiEvalRun.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        status: true,
+        summary: true,
+        codeVersion: true,
+        judgeSpecVersion: true,
+        metricSpecVersion: true,
+        datasetSnapshot: true,
+      },
+    });
+    if (!run) throw new NotFoundException('Eval run not found');
+    if (run.status !== 'COMPLETED') {
+      throw new BadRequestException(
+        `Run is ${run.status}; only COMPLETED runs can be promoted`,
+      );
+    }
+
+    const summary = (run.summary ?? {}) as Record<string, any>;
+    const judgeErrorRate =
+      typeof summary.judgeErrorRate === 'number'
+        ? summary.judgeErrorRate
+        : null;
+    if (judgeErrorRate === null) {
+      throw new BadRequestException(
+        'Run summary has no judgeErrorRate; cannot verify judge reliability',
+      );
+    }
+    const threshold = this.maxJudgeErrorRate();
+    if (!(judgeErrorRate < threshold)) {
+      const kinds = Array.isArray(summary.judgeErrorKinds)
+        ? summary.judgeErrorKinds
+            .map((item: any) => `${item.kind}×${item.count}`)
+            .join(', ')
+        : '—';
+      throw new BadRequestException(
+        `judgeErrorRate ${(judgeErrorRate * 100).toFixed(2)}% is not below ` +
+          `${(threshold * 100).toFixed(2)}% (${kinds})`,
+      );
+    }
+
+    const snapshot = (run.datasetSnapshot ?? null) as {
+      hash?: unknown;
+    } | null;
+    const missing: string[] = [];
+    if (!run.codeVersion?.trim()) missing.push('codeVersion');
+    if (typeof snapshot?.hash !== 'string' || !snapshot.hash.trim()) {
+      missing.push('datasetSnapshot.hash');
+    }
+    if (!run.judgeSpecVersion?.trim()) missing.push('judgeSpecVersion');
+    if (!run.metricSpecVersion?.trim()) missing.push('metricSpecVersion');
+    if (missing.length > 0) {
+      throw new BadRequestException(
+        `Cannot promote: missing ${missing.join(', ')}`,
+      );
+    }
+    if (run.metricSpecVersion !== CURRENT_METRIC_SPEC_VERSION) {
+      throw new BadRequestException(
+        `metricSpecVersion ${run.metricSpecVersion} != current ` +
+          `${CURRENT_METRIC_SPEC_VERSION}; results are not comparable`,
+      );
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      // pg_advisory_xact_lock 返回 void，Prisma 无法反序列化，显式转 text。
+      await tx.$queryRawUnsafe(
+        'SELECT pg_advisory_xact_lock($1)::text',
+        PROMOTE_BASELINE_LOCK_KEY,
+      );
+      await tx.aiEvalRun.updateMany({
+        where: { isBaseline: true, id: { not: id } },
+        data: { isBaseline: false },
+      });
+      await tx.aiEvalRun.update({
+        where: { id },
+        data: { isBaseline: true },
+      });
+    });
+
+    return this.getRun(id);
   }
 
   async getRun(id: string) {
@@ -482,10 +627,10 @@ export class AiEvalDatasetService {
       createdBy,
     );
 
-    const baselineRunId = input.baselineRunId?.trim() || null;
-    if (baselineRunId) {
-      await this.assertBaselineRun(baselineRunId, dataset.id);
-    }
+    const baselineRunId = await this.resolveBaselineRunId(
+      dataset.id,
+      input.baselineRunId,
+    );
 
     const snapshot: ExternalDatasetSnapshot = {
       hash: input.datasetFingerprint,
@@ -598,7 +743,13 @@ export class AiEvalDatasetService {
       };
     });
 
-    const summary = await this.buildExternalSummary(run, results);
+    // run 创建后可能才 promote 基线；收尾时再回退一次，保证对比用的是当前基线。
+    const baselineRunId =
+      run.baselineRunId ?? (await this.findBaselineRunId(run.datasetId));
+    const summary = await this.buildExternalSummary(
+      { ...run, baselineRunId },
+      results,
+    );
 
     await this.prisma.$transaction(async (tx) => {
       const current = await tx.aiEvalRun.findUnique({
@@ -617,6 +768,7 @@ export class AiEvalDatasetService {
           status: 'COMPLETED',
           finishedAt: new Date(),
           summary: summary as any,
+          baselineRunId,
         },
       });
     });
@@ -727,18 +879,40 @@ export class AiEvalDatasetService {
   ): Promise<Record<string, any>> {
     const counts = { correct: 0, incorrect: 0, judge_error: 0 };
     const grounding: Record<string, number> = {};
+    const judgeErrorKindCounts = new Map<string, number>();
+    let judgeAttempted = 0;
+    let judgeFailures = 0;
     for (const item of results) {
       counts[item.answerVerdict] += 1;
       const kind = item.grounding ?? 'unknown';
       grounding[kind] = (grounding[kind] ?? 0) + 1;
+      if (item.answerVerdict !== 'judge_error') {
+        judgeAttempted += 1;
+        continue;
+      }
+      const errorKind = item.judgeErrorKind ?? 'unknown';
+      // harness / not_applicable 没有调用过判官，不进错误率的分子分母。
+      if (!(JUDGE_FAILURE_KINDS as readonly string[]).includes(errorKind)) {
+        continue;
+      }
+      judgeAttempted += 1;
+      judgeFailures += 1;
+      judgeErrorKindCounts.set(
+        errorKind,
+        (judgeErrorKindCounts.get(errorKind) ?? 0) + 1,
+      );
     }
+    const judgeErrorKinds = [...judgeErrorKindCounts.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([kind, count]) => ({ kind, count }));
     const judged = counts.correct + counts.incorrect;
     const accuracy =
       judged > 0 ? Number((counts.correct / judged).toFixed(4)) : null;
+    // 与 METRICS.md 一致：分母是实际调用过判官的判定；0 次调用时无定义。
     const judgeErrorRate =
-      results.length > 0
-        ? Number((counts.judge_error / results.length).toFixed(4))
-        : 0;
+      judgeAttempted > 0
+        ? Number((judgeFailures / judgeAttempted).toFixed(4))
+        : null;
     const snapshot = run.datasetSnapshot as ExternalDatasetSnapshot | null;
 
     const summary: Record<string, any> = {
@@ -749,6 +923,7 @@ export class AiEvalDatasetService {
       judgeError: counts.judge_error,
       accuracy,
       judgeErrorRate,
+      judgeErrorKinds,
       answerVerdicts: counts,
       grounding,
       datasetFingerprint: snapshot?.hash ?? null,
@@ -842,7 +1017,18 @@ export class AiEvalDatasetService {
     if (run.status !== 'RUNNING') return;
 
     const mode: EvalMode = run.mode === 'LIVE' ? 'LIVE' : 'STORED';
-    const baselineRunId = run.baselineRunId ?? null;
+    // run 入队后才 promote 基线时，这里补一次回退并把实际基线写回 run。
+    const baselineRunId =
+      run.baselineRunId ?? (await this.findBaselineRunId(run.datasetId));
+    if (!run.baselineRunId && baselineRunId) {
+      await this.prisma.aiEvalRun
+        .update({ where: { id: runId }, data: { baselineRunId } })
+        .catch((err) =>
+          this.logger.warn(
+            `[eval] run ${runId} baseline write-back failed: ${err?.message ?? err}`,
+          ),
+        );
+    }
     const baseline = baselineRunId
       ? await this.loadBaseline(baselineRunId)
       : null;

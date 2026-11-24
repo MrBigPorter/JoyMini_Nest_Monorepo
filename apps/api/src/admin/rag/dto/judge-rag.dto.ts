@@ -39,9 +39,32 @@ export class JudgeRagDto {
   @IsNotEmpty()
   answer!: string;
 
-  @ApiProperty({ description: '检索来源', type: [JudgeSourceDto] })
+  @ApiPropertyOptional({
+    description:
+      '检索来源。传了就按传入的 sources 判（兼容旧调用方）；不传则按 expectedDocIds/citedDocIds 由服务端取 chunk。',
+    type: [JudgeSourceDto],
+  })
+  @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => JudgeSourceDto)
-  sources!: JudgeSourceDto[];
+  sources?: JudgeSourceDto[];
+
+  @ApiPropertyOptional({
+    description: 'golden 文档 docId；未传 sources 时由服务端按 docId 取 chunk',
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  expectedDocIds?: string[];
+
+  @ApiPropertyOptional({
+    description: '回答实际引用的文档 docId；未传 sources 时作为补充来源',
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  citedDocIds?: string[];
 }

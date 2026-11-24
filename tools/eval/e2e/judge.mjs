@@ -132,89 +132,45 @@ export function sourcesForJudge(sources) {
 }
 
 /**
- * 后端判官端点会截断：单条 source 2000 字符、全部 source 合计 8000 字符
- * （`rag-faithfulness.service.ts` 的 MAX_SOURCE_CHARS / MAX_TOTAL_SOURCE_CHARS）。
- * 所以「把整篇文档都传过去」没用——超出预算的部分按数组顺序被丢掉。
+ * golden 文档 → 判官。
  *
- * 旧实现固定取每篇文档的前 8 个 chunk，导致文档后半段的事实（例如隐私政策的
- * TLS 1.3 在第 9 个 chunk）永远判成「无依据」。这里改成按「与问题/回答的相关度」
- * 挑选 chunk，在预算内传最有用的那些。
+ * v2 起来源挑选、截断与脱敏都在判官端点（`judge-input-spec.ts`）完成：
+ * harness 只传 docId，服务端按 docId 取 chunk 并在预算内挑最相关的，
+ * 同时返回 `judgeInputHash` / `judgeSpecVersion` / `sourceCount`。
+ * 这样离线重判与在线判定走的是同一份规范，不会两处漂移。
  */
-export const JUDGE_MAX_SOURCE_CHARS = 2000;
-export const JUDGE_MAX_TOTAL_SOURCE_CHARS = 8000;
-
-/** 词面相关度：问题命中权重 2，回答命中权重 1；用于在预算内挑 chunk。 */
-export function chunkRelevance(question, answer, content) {
-  const questionTokens = new Set(tokenize(question));
-  const answerTokens = new Set(tokenize(answer));
-  const chunkTokens = new Set(tokenize(content));
-  let score = 0;
-  for (const token of questionTokens) if (chunkTokens.has(token)) score += 2;
-  for (const token of answerTokens) if (chunkTokens.has(token)) score += 1;
-  return score;
-}
-
-/**
- * golden 文档 → judge sources。
- *
- * 每篇文档先放「最相关的一个 chunk」保证覆盖，再按相关度填满预算。
- * 返回值里的 content 已按端点上限截断，避免把预算浪费在被丢弃的字符上。
- */
-export async function goldenSources(
+export async function judgeGoldenAgreement({
   admin,
+  question,
+  answer,
   expectedDocIds,
-  {
-    question = "",
-    answer = "",
-    maxTotalChars = JUDGE_MAX_TOTAL_SOURCE_CHARS - 200,
-    perSourceChars = JUDGE_MAX_SOURCE_CHARS,
-  } = {},
-) {
-  const docIds = Array.isArray(expectedDocIds) ? expectedDocIds : [];
-  const perDoc = [];
-  for (const docId of docIds) {
-    const chunks = await admin.getChunksByDocId(docId).catch(() => []);
-    const scored = (Array.isArray(chunks) ? chunks : [])
-      .map((chunk, index) => ({
-        docId,
-        index,
-        content: String(chunk?.content ?? ""),
-      }))
-      .filter((item) => item.content.trim().length > 0)
-      .map((item) => ({
-        ...item,
-        score: chunkRelevance(question, answer, item.content),
-      }))
-      .sort((a, b) => b.score - a.score || a.index - b.index);
-    if (scored.length > 0) perDoc.push(scored);
+  extraDocIds = [],
+}) {
+  const docIds = mergeJudgeDocIds(expectedDocIds, extraDocIds);
+  try {
+    const verdict = await admin.judgeFaithfulness({
+      question,
+      answer,
+      expectedDocIds: docIds,
+    });
+    const sourceChunks = Number(verdict?.sourceCount ?? 0);
+    return {
+      applicable: true,
+      sourceDocIds: docIds,
+      ...verdict,
+      sourceChunks,
+      // 服务端没取到任何 chunk：沿用旧报告的可读原因，便于对照
+      ...(sourceChunks === 0 ? { reason: "golden_doc_chunks_missing" } : {}),
+    };
+  } catch (error) {
+    return {
+      applicable: true,
+      faithful: null,
+      score: null,
+      reason: `judge_error: ${error?.message ?? error}`,
+      sourceChunks: 0,
+    };
   }
-
-  const sources = [];
-  let used = 0;
-  const push = (item) => {
-    const budget = Math.min(perSourceChars, maxTotalChars - used);
-    if (budget <= 0) return;
-    const content = item.content.slice(0, budget);
-    sources.push({ docId: item.docId, title: item.docId, content });
-    used += content.length;
-  };
-
-  // 第一轮：每篇文档最相关的 chunk（多文档时保证都有覆盖）
-  for (const chunks of perDoc) {
-    if (used >= maxTotalChars) break;
-    push(chunks[0]);
-  }
-  // 第二轮：其余 chunk 按相关度填满预算
-  const rest = perDoc
-    .flatMap((chunks) => chunks.slice(1))
-    .sort((a, b) => b.score - a.score || a.index - b.index);
-  for (const item of rest) {
-    if (used >= maxTotalChars) break;
-    // 与已入选内容完全重复的 chunk 跳过（同一文档可能有多版本残留）
-    if (sources.some((source) => source.content === item.content)) continue;
-    push(item);
-  }
-  return sources;
 }
 
 /**
@@ -303,48 +259,6 @@ export function mergeJudgeDocIds(expectedDocIds, extraDocIds = []) {
     }
   }
   return out;
-}
-
-export async function judgeGoldenAgreement({
-  admin,
-  question,
-  answer,
-  expectedDocIds,
-  extraDocIds = [],
-}) {
-  const docIds = mergeJudgeDocIds(expectedDocIds, extraDocIds);
-  const golden = await goldenSources(admin, docIds, { question, answer });
-  if (golden.length === 0) {
-    return {
-      applicable: true,
-      faithful: null,
-      score: null,
-      reason: "golden_doc_chunks_missing",
-      sourceChunks: 0,
-      sourceDocIds: docIds,
-    };
-  }
-  try {
-    const verdict = await admin.judgeFaithfulness({
-      question,
-      answer,
-      sources: golden,
-    });
-    return {
-      applicable: true,
-      sourceChunks: golden.length,
-      sourceDocIds: docIds,
-      ...verdict,
-    };
-  } catch (error) {
-    return {
-      applicable: true,
-      faithful: null,
-      score: null,
-      reason: `judge_error: ${error?.message ?? error}`,
-      sourceChunks: golden.length,
-    };
-  }
 }
 
 /**

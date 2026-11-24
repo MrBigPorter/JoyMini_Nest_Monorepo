@@ -13,7 +13,7 @@
  *   1. 用 `ai_traces` / `ai_spans` 判清每条回答的依据来源
  *      （兜底 > 工具 > 知识库 > 无依据）；
  *   2. 只对「知识库依据」组重新调 `/admin/rag/documents/judge`，
- *      sources 按相关度在端点预算内挑选（见 `judge.mjs` goldenSources）；
+ *      只传 docId，由端点按 JudgeInputSpec 取 chunk、挑来源并脱敏；
  *   3. 输出新旧对照（校准）：来源未变的对照组一致率、翻真/翻假清单。
  *
  * 旧判定原样保留在 `case.judge`，新判定写到 `case.rejudge`，报告同时渲染两套。

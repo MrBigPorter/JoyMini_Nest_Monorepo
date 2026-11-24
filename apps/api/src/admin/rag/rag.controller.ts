@@ -70,11 +70,13 @@ export class RagController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Judge RAG faithfulness (LLM-as-Judge)' })
   async judge(@Body() dto: JudgeRagDto) {
-    return this.ragFaithfulnessService.judge(
-      dto.question,
-      dto.answer,
-      dto.sources,
-    );
+    return this.ragFaithfulnessService.judge({
+      question: dto.question,
+      answer: dto.answer,
+      sources: dto.sources,
+      expectedDocIds: dto.expectedDocIds,
+      citedDocIds: dto.citedDocIds,
+    });
   }
 
   /**

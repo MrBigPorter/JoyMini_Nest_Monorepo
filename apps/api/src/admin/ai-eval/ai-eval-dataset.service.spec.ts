@@ -341,6 +341,24 @@ describe('AiEvalDatasetService', () => {
     );
   });
 
+  it('startRun 未显式传基线时回退到当前 isBaseline 运行', async () => {
+    const { service, prisma } = makeService();
+    prisma.aiEvalDataset.findUnique.mockResolvedValue({
+      id: 'ds-1',
+      cases: [makeCase('c1', 'q1', 'a1')],
+    });
+    prisma.aiEvalRun.findFirst
+      .mockResolvedValueOnce(null) // 没有并发 RUNNING
+      .mockResolvedValueOnce({ id: 'baseline-1' }); // 当前基线
+    prisma.aiEvalRun.create.mockResolvedValue({ id: 'run-new' });
+
+    await service.startRun('ds-1', 'admin-1', { mode: 'STORED' });
+
+    expect(prisma.aiEvalRun.create.mock.calls[0][0].data.baselineRunId).toBe(
+      'baseline-1',
+    );
+  });
+
   it('入队失败时把 run 落 FAILED，避免永久 RUNNING', async () => {
     const { service, prisma, queue } = makeService();
     prisma.aiEvalDataset.findUnique.mockResolvedValue({
@@ -468,10 +486,7 @@ describe('AiEvalDatasetService', () => {
   it('超出 token 预算时停止后续用例并落 FAILED', async () => {
     process.env.AI_EVAL_RUN_TOKEN_BUDGET = '200';
     const { service, prisma, judge } = makeService();
-    const cases = [
-      makeCase('c1', 'q1', 'a1'),
-      makeCase('c2', 'q2', 'a2'),
-    ];
+    const cases = [makeCase('c1', 'q1', 'a1'), makeCase('c2', 'q2', 'a2')];
     prisma.aiEvalRun.findUnique.mockResolvedValue(makeRun('STORED', cases));
     judge.judge.mockResolvedValue(verdictOf('solved'));
 
@@ -583,10 +598,7 @@ describe('AiEvalDatasetService', () => {
   it('预算超限与取消竞争时保持 CANCELLED', async () => {
     process.env.AI_EVAL_RUN_TOKEN_BUDGET = '200';
     const { service, prisma, judge } = makeService();
-    const cases = [
-      makeCase('c1', 'q1', 'a1'),
-      makeCase('c2', 'q2', 'a2'),
-    ];
+    const cases = [makeCase('c1', 'q1', 'a1'), makeCase('c2', 'q2', 'a2')];
     prisma.aiEvalRun.findUnique
       .mockResolvedValueOnce(makeRun('STORED', cases))
       .mockResolvedValueOnce({ status: 'RUNNING' })

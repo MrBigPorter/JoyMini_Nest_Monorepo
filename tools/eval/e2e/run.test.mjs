@@ -8,8 +8,11 @@ import {
   sanitize,
 } from "./run.mjs";
 import {
+  HARNESS_METRIC_SPEC_VERSION,
   buildExternalSnapshot,
   classifyJudgeError,
+  compareSummaryWithRecord,
+  summarizeExternalResults,
   toExternalResult,
 } from "./external-sync.mjs";
 
@@ -98,7 +101,7 @@ test("buildRunMetadata：代码/门禁/判官/指标四维齐全", () => {
     codeVersion: "f00dcafe",
     gateMode: "shadow",
     judgeSpecVersion: "v1",
-    metricSpecVersion: "1",
+    metricSpecVersion: "2",
   });
 });
 
@@ -110,7 +113,8 @@ test("buildRunMetadata：CI 无 GIT_SHA 用完整 sha；缺门禁配置时默认
   });
   assert.equal(meta.codeVersion, "abc1234567890");
   assert.equal(meta.gateMode, "shadow");
-  assert.equal(meta.metricSpecVersion, "1");
+  assert.equal(meta.judgeSpecVersion, "v2");
+  assert.equal(meta.metricSpecVersion, "2");
 });
 
 test("buildExternalSnapshot：多轮问句合并、指纹覆盖实际用例集", () => {
@@ -208,7 +212,7 @@ test("toExternalResult：harness 失败与配额跳过都不计为回答错误",
     skipReason: "账号今日 AI 配额已耗尽",
     rounds: [],
   });
-  assert.equal(quota.judgeErrorKind, "rate_limit");
+  assert.equal(quota.judgeErrorKind, "harness");
 });
 
 test("classifyJudgeError：五类错误归档", () => {
@@ -217,4 +221,61 @@ test("classifyJudgeError：五类错误归档", () => {
   assert.equal(classifyJudgeError("401 unauthorized"), "auth");
   assert.equal(classifyJudgeError("blocked by content policy"), "policy");
   assert.equal(classifyJudgeError("unparseable output"), "output_format");
+});
+
+test("HARNESS_METRIC_SPEC_VERSION 跟随指标规范升到 2", () => {
+  assert.equal(HARNESS_METRIC_SPEC_VERSION, "2");
+});
+
+test("summarizeExternalResults：与服务端同口径，排除 harness/not_applicable", () => {
+  const local = summarizeExternalResults([
+    { answerVerdict: "correct" },
+    { answerVerdict: "incorrect" },
+    { answerVerdict: "judge_error", judgeErrorKind: "timeout" },
+    { answerVerdict: "judge_error", judgeErrorKind: "timeout" },
+    { answerVerdict: "judge_error", judgeErrorKind: "harness" },
+    { answerVerdict: "judge_error", judgeErrorKind: "not_applicable" },
+  ]);
+
+  assert.deepEqual(local, {
+    total: 6,
+    correct: 1,
+    incorrect: 1,
+    judgeError: 4,
+    accuracy: 0.5,
+    // 判官实际调用 4 次（2 次成功 + 2 次 timeout），失败 2 次
+    judgeErrorRate: 0.5,
+    judgeErrorKinds: [{ kind: "timeout", count: 2 }],
+  });
+});
+
+test("compareSummaryWithRecord：逐字段核对库内 summary", () => {
+  const local = summarizeExternalResults([
+    { answerVerdict: "correct" },
+    { answerVerdict: "judge_error", judgeErrorKind: "timeout" },
+  ]);
+  const record = {
+    total: 2,
+    correct: 1,
+    incorrect: 0,
+    judgeError: 1,
+    accuracy: 1,
+    judgeErrorRate: 0.5,
+    judgeErrorKinds: [{ kind: "timeout", count: 1 }],
+  };
+
+  assert.deepEqual(compareSummaryWithRecord(local, record), {
+    ok: true,
+    mismatches: [],
+  });
+
+  const mismatch = compareSummaryWithRecord(local, {
+    ...record,
+    judgeErrorRate: 0.4,
+  });
+  assert.equal(mismatch.ok, false);
+  assert.deepEqual(
+    mismatch.mismatches.map((item) => item.field),
+    ["judgeErrorRate"],
+  );
 });

@@ -6,53 +6,31 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { cannedReplyCheck } from "./judge.mjs";
+import {
+  answerAccuracy,
+  answeredRate,
+  formatRate,
+  hitAt3Rate,
+  isApplicableJudged,
+  isJudgeError,
+  isJudged,
+  judgeErrorKinds,
+  judgeErrorRate,
+  METRIC_SPEC_VERSION,
+  percentile,
+  p95Latency,
+  rate,
+  wilson,
+} from "./metrics-spec.mjs";
 
-/** Wilson 区间（与 apps/api/scripts/eval-conversation.ts 的口径一致）。 */
-export function wilson(successes, total, z = 1.96) {
-  if (!total) return { low: null, high: null };
-  const p = successes / total;
-  const denominator = 1 + (z * z) / total;
-  const center = (p + (z * z) / (2 * total)) / denominator;
-  const margin =
-    (z * Math.sqrt((p * (1 - p)) / total + (z * z) / (4 * total * total))) /
-    denominator;
-  return {
-    low: Math.max(0, center - margin),
-    high: Math.min(1, center + margin),
-  };
-}
-
-export function rate(successes, total) {
-  const interval = wilson(successes, total);
-  if (!total) return { successes, total, pct: null, low: null, high: null };
-  const pct = (successes / total) * 100;
-  return {
-    successes,
-    total,
-    pct,
-    low: interval.low === null ? null : interval.low * 100,
-    high: interval.high === null ? null : interval.high * 100,
-  };
-}
-
-export function formatRate(bucket) {
-  if (!bucket || bucket.total === 0) return "—（0/0）";
-  const pct = bucket.pct.toFixed(1);
-  const low = bucket.low?.toFixed(1) ?? "?";
-  const high = bucket.high?.toFixed(1) ?? "?";
-  return `${bucket.successes}/${bucket.total} = ${pct}%（95% CI ${low}–${high}）`;
-}
-
-export function percentile(values, p) {
-  const list = values.filter((value) => Number.isFinite(value));
-  if (list.length === 0) return null;
-  const sorted = [...list].sort((a, b) => a - b);
-  const index = Math.min(
-    sorted.length - 1,
-    Math.max(0, Math.ceil((p / 100) * sorted.length) - 1),
-  );
-  return sorted[index];
-}
+// 指标实现集中在 metrics-spec.mjs；这里保留同名导出，兼容已有调用方与测试。
+export {
+  formatRate,
+  METRIC_SPEC_VERSION,
+  percentile,
+  rate,
+  wilson,
+} from "./metrics-spec.mjs";
 
 function countBy(list, getKey) {
   const map = new Map();
@@ -64,13 +42,6 @@ function countBy(list, getKey) {
     .sort((a, b) => b[1] - a[1])
     .map(([key, count]) => ({ key, count }));
 }
-
-const isJudged = (judge) =>
-  judge && judge.faithful !== null && judge.faithful !== undefined;
-
-/** 可计入准确率分母的判定：工具类/无依据类显式标了 applicable=false。 */
-const isApplicableJudged = (judge) =>
-  isJudged(judge) && judge.applicable !== false;
 
 /** 回答内容是否是兜底话术（不依赖存储字段，老报告也能重算）。 */
 function isCannedCase(item) {
@@ -95,6 +66,12 @@ function groundingKind(item) {
   if (kind) return kind;
   const cited = (item?.judge?.retrieval?.citedDocIds ?? []).length > 0;
   return cited ? "kb" : "unknown";
+}
+
+/** 判官错误率阈值：与基线登记规则共用同一环境变量。 */
+function judgeErrorThreshold() {
+  const raw = Number(process.env.EVAL_MAX_JUDGE_ERROR_RATE);
+  return Number.isFinite(raw) && raw >= 0 ? raw : 0.02;
 }
 
 /** 把一次运行的结果整理成指标；纯函数，方便单测。 */
@@ -152,16 +129,14 @@ export function summarize(cases) {
   const byGrounding = {};
   for (const kind of ["kb", "tool", "none", "fallback", "unknown"]) {
     const group = knowledge.filter((item) => groundingKind(item) === kind);
-    const judged = group.filter((item) =>
-      isApplicableJudged(goldenJudgeOf(item)),
-    );
-    const faithful = judged.filter((item) => goldenJudgeOf(item).faithful)
-      .length;
+    const score = answerAccuracy(group.map(goldenJudgeOf));
     byGrounding[kind] = {
       total: group.length,
-      judged: judged.length,
-      faithful,
-      accuracy: rate(faithful, judged.length),
+      judged: score.judged,
+      faithful: score.correct,
+      accuracy: rate(score.correct, score.judged),
+      judgeErrors: group.filter((item) => isJudgeError(goldenJudgeOf(item)))
+        .length,
     };
   }
   // 判 B 未通过的知识库用例，按「是谁的问题」粗分：
@@ -213,7 +188,31 @@ export function summarize(cases) {
     (item) => item.judge?.taskJudge?.verdict,
   );
 
+  const judgeObjects = ok
+    .flatMap((item) => [
+      item.judge?.faithfulness,
+      item.judge?.goldenAgreement,
+      item.rejudge?.goldenAgreement,
+      item.rejudge?.expandedAgreement,
+    ])
+    .filter(Boolean);
+  const judgeFailure = judgeErrorRate(judgeObjects);
+  const maxJudgeErrorRate = judgeErrorThreshold();
+  const judgeErrorRatio =
+    judgeFailure.attempted === 0
+      ? 0
+      : judgeFailure.failures / judgeFailure.attempted;
+  const judgeErrors = {
+    ...judgeFailure,
+    kinds: judgeErrorKinds(judgeObjects),
+    threshold: maxJudgeErrorRate,
+    /** 超过阈值：本轮只能当诊断跑，不得登记基线（METRICS.md §4）。 */
+    diagnosticOnly: judgeErrorRatio > maxJudgeErrorRate,
+  };
+
   return {
+    metricSpecVersion: METRIC_SPEC_VERSION,
+    judgeErrors,
     totals: {
       cases: cases.length,
       ok: ok.length,
@@ -223,7 +222,7 @@ export function summarize(cases) {
     knowledge: {
       answered: rate(knowledgeAnswered.length, knowledge.length),
       /** 真实回答率：排除兜底话术。兜底是「转人工」，不是回答了问题。 */
-      realAnswered: rate(knowledgeRealAnswered.length, knowledge.length),
+      realAnswered: answeredRate(knowledge),
       canned: rate(
         knowledge.filter((item) => isCannedCase(item)).length,
         knowledge.length,
@@ -266,10 +265,7 @@ export function summarize(cases) {
         knowledgeAnswered.filter((item) => item.judge?.retrieval?.hitAt1).length,
         knowledgeAnswered.length,
       ),
-      hitAt3: rate(
-        knowledgeAnswered.filter((item) => item.judge?.retrieval?.hitAt3).length,
-        knowledgeAnswered.length,
-      ),
+      hitAt3: hitAt3Rate(knowledge),
       faithful: rate(
         knowledgeJudged.filter((item) => item.judge.faithfulness.faithful).length,
         knowledgeJudged.length,
@@ -364,7 +360,7 @@ export function summarize(cases) {
     ),
     latency: {
       p50: percentile(latencies, 50),
-      p95: percentile(latencies, 95),
+      p95: p95Latency(ok),
       samples: latencies.length,
     },
     reliability: {
@@ -528,7 +524,96 @@ export function renderSummary(result) {
   push(`| 知识问答 · 真实回答率（排除兜底） | ${formatRate(summary.knowledge.realAnswered)} |`);
   push(`| 知识问答 · 兜底话术 | ${formatRate(summary.knowledge.canned)} |`);
   push(`| 多轮 · 第二轮真实回答率（排除兜底） | ${formatRate(summary.multi.realAnsweredSecond)} |`);
+  push(`| 判官失败率（分子为失败数，不进准确率分母） | ${formatRate(summary.judgeErrors)} |`);
   push();
+  if (summary.judgeErrors.total > 0) {
+    push(
+      `判官失败按类型：${
+        summary.judgeErrors.kinds.length === 0
+          ? "—"
+          : summary.judgeErrors.kinds
+              .map((item) => `${item.kind} ${item.count}`)
+              .join("、")
+      }。`,
+    );
+    push();
+  }
+  if (summary.judgeErrors.diagnosticOnly) {
+    push(
+      `> ⚠️ 判官失败率 ${summary.judgeErrors.pct.toFixed(1)}% 超过阈值 ${(summary.judgeErrors.threshold * 100).toFixed(1)}%：本轮**仅诊断**，不得登记新基线。`,
+    );
+    push();
+  }
+  // ── 库内运行记录与基线对比（6.3）──
+  const record = meta.externalRun?.summary ?? null;
+  if (record) {
+    const pct = (value) =>
+      typeof value === "number" ? `${(value * 100).toFixed(1)}%` : "—";
+    push("## 运行记录与基线（库内 summary）");
+    push();
+    push("| 字段 | 值 |");
+    push("| --- | --- |");
+    push(`| 运行 id | \`${meta.externalRun.id}\` |`);
+    push(
+      `| 版本 | 指标 \`${record.metricSpecVersion ?? "—"}\`、判官 \`${record.judgeSpecVersion ?? "—"}\`、代码 \`${record.codeVersion ?? "—"}\`、门禁 \`${record.gateMode ?? "—"}\` |`,
+    );
+    push(
+      `| 用例 / 正确 / 错误 / 判官失败 | ${record.total ?? "—"} / ${record.correct ?? 0} / ${record.incorrect ?? 0} / ${record.judgeError ?? 0} |`,
+    );
+    push(`| 答案准确率（correct/(correct+incorrect)） | ${pct(record.accuracy)} |`);
+    push(
+      `| 判官失败率（harness / not_applicable 不计） | ${pct(record.judgeErrorRate)} |`,
+    );
+    push(
+      `| 判官错误类型 | ${
+        Array.isArray(record.judgeErrorKinds) && record.judgeErrorKinds.length > 0
+          ? record.judgeErrorKinds
+              .map((item) => `${item.kind} ${item.count}`)
+              .join("、")
+          : "—"
+      } |`,
+    );
+    push();
+    if (record.baselineRunId) {
+      push(
+        `- 对比基线：\`${record.baselineRunId}\`；基准确率 ${pct(record.baselineAccuracy)}，变化 ${
+          typeof record.delta === "number"
+            ? `${record.delta >= 0 ? "+" : ""}${(record.delta * 100).toFixed(1)}%`
+            : "—"
+        }，新增错误 ${record.newFailures ?? 0}，修复 ${record.fixed ?? 0}。`,
+      );
+    } else {
+      push("- 未关联基线：同数据集还没有被 promote 的运行记录。");
+    }
+    const consistency = meta.externalRun?.consistency;
+    if (consistency) {
+      push(
+        consistency.ok
+          ? "- 核对：库内 summary 与本地提交结果**一致**。"
+          : `> ⚠️ 库内 summary 与本地复核不一致：${consistency.mismatches
+              .map(
+                (item) =>
+                  `${item.field}（库内 ${JSON.stringify(item.record)} / 本地 ${JSON.stringify(item.local)}）`,
+              )
+              .join("；")}`,
+      );
+    } else {
+      push("- 核对：运行记录未读回，无法核对库内 summary。");
+    }
+    if (
+      typeof record.judgeErrorRate === "number" &&
+      record.judgeErrorRate >= judgeErrorThreshold()
+    ) {
+      push(
+        `> ⚠️ 判官失败率 ${pct(record.judgeErrorRate)} 未低于 ${(judgeErrorThreshold() * 100).toFixed(1)}%：本轮仅诊断，不得登记为新基线。`,
+      );
+    }
+    if (meta.externalRun.isBaseline) {
+      push("- 该运行已是当前基线（`isBaseline=true`）。");
+    }
+    push();
+  }
+
   const failures = summary.knowledge.failures;
   if (failures.total > 0) {
     push(

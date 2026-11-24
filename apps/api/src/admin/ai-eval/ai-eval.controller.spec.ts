@@ -77,6 +77,9 @@ function createController() {
       id: 'run-ext-1',
       status: 'COMPLETED',
     }),
+    promoteRun: jest
+      .fn()
+      .mockResolvedValue({ id: 'run-ext-1', isBaseline: true }),
   };
   const judgeService = { judge: jest.fn() };
 
@@ -138,10 +141,11 @@ describe('AiEvalController 外部运行（harness 写入）', () => {
     else process.env.AI_EVAL_ENABLED = originalEvalFlag;
   });
 
-  it('两个写入端点仅允许 SUPER_ADMIN / ADMIN', () => {
+  it('三个写入端点仅允许 SUPER_ADMIN / ADMIN', () => {
     for (const method of [
       AiEvalController.prototype.createExternalRun,
       AiEvalController.prototype.ingestExternalResults,
+      AiEvalController.prototype.promoteRun,
     ]) {
       const roles = Reflect.getMetadata(ROLES_KEY, method) as Role[];
       expect(roles).toEqual(
@@ -191,6 +195,14 @@ describe('AiEvalController 外部运行（harness 写入）', () => {
       'run-ext-1',
       dto,
     );
+  });
+
+  it('登记基线：runId 原样转发', async () => {
+    const { controller, datasetService } = createController();
+
+    await controller.promoteRun('run-ext-1');
+
+    expect(datasetService.promoteRun).toHaveBeenCalledWith('run-ext-1');
   });
 });
 
@@ -281,7 +293,13 @@ describe('AiEvalController VIEWER 脱敏', () => {
       datasetId: 'dataset-1',
       mode: 'EXTERNAL',
       status: 'COMPLETED',
-      summary: { total: 2, accuracy: 0.5, judgeErrorRate: 0 },
+      summary: {
+        total: 3,
+        accuracy: 0.5,
+        judgeErrorRate: 0.3333,
+        judgeError: 1,
+        judgeErrorKinds: [{ kind: 'timeout', count: 1 }],
+      },
       results: [
         {
           id: 'result-ext-1',
@@ -318,6 +336,11 @@ describe('AiEvalController VIEWER 脱敏', () => {
     const result: any = await controller.getRun('run-ext-1', Role.VIEWER);
 
     expect(result.mode).toBe('EXTERNAL');
+    // 判官错误率与错误类型分布对 VIEWER 可见：这是质量信号，不是原文
+    expect(result.summary.judgeErrorRate).toBe(0.3333);
+    expect(result.summary.judgeErrorKinds).toEqual([
+      { kind: 'timeout', count: 1 },
+    ]);
     expect(result.results[0]).toMatchObject({
       verdict: null,
       score: null,

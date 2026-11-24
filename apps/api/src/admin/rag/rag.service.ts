@@ -258,6 +258,35 @@ export class RagService {
     });
   }
 
+  /**
+   * 按业务 docId 取 chunk（判官输入规范用）。
+   *
+   * `KnowledgeDocument.docId` 不是全局唯一，唯一约束是 `[docId, locale]`；
+   * 先按 `docId + locale + isActive` 定位文档，再取该文档的 chunk。
+   * 找不到返回空数组，由调用方决定是「无来源」还是判官错误。
+   */
+  async getChunksByDocId(docId: string, locale = 'en') {
+    const doc = await this.prisma.knowledgeDocument.findFirst({
+      where: { docId, locale, isActive: true },
+      select: { id: true, title: true, docId: true },
+      orderBy: { updatedAt: 'desc' },
+    });
+    if (!doc) return [];
+
+    const chunks = await this.prisma.documentChunk.findMany({
+      where: { documentId: doc.id },
+      orderBy: { chunkIndex: 'asc' },
+      select: { chunkIndex: true, content: true, documentVersion: true },
+    });
+    return chunks.map((chunk) => ({
+      docId: doc.docId,
+      title: doc.title,
+      content: chunk.content,
+      chunkIndex: chunk.chunkIndex,
+      documentVersion: chunk.documentVersion,
+    }));
+  }
+
   async reindex(documentId: string) {
     const doc = await this.getById(documentId);
 

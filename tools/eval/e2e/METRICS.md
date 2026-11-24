@@ -12,7 +12,7 @@
 | `kbAccuracy` | 知识问答与 golden 一致的比例 | `correct + incorrect` | `judge_error`；依据分型不是 `kb` 的用例 | `AiEvalResult.answerVerdict` + `grounding` |
 | `ungroundedRisk` | 无依据且发布事实断言的条数 | 知识类用例（`knowledge` + `multi`） | 纯澄清追问；兜底话术 | `ai_traces.metadata.grounding` + 门禁的 `factualAssertion` |
 | `hitAt3` | 检索前三命中 golden 文档 | 带 golden 文档的用例 | 无 golden 文档的用例 | `ai_spans(type='rag')` |
-| `judgeErrorRate` | 判官失败占全部判定的比例 | 全部判定调用 | 无 | `AiEvalResult.answerVerdict == 'judge_error'` |
+| `judgeErrorRate` | 判官失败占全部判定的比例 | 实际调用过判官的判定 | 没调过判官的用例；`harness` / `not_applicable`（不是判官失败） | `AiEvalResult.answerVerdict == 'judge_error'` + `judgeErrorKind` |
 | `p95Latency` | 单轮时延 95 分位 | 全部评测轮次 | 无 | `ai_traces.latency_ms` |
 
 ## 2. 答案判定三态
@@ -47,6 +47,11 @@
 5. 与待比较基线使用同一 `datasetSnapshot.hash`；否则只能做「不可直接比较」的诊断。
 
 任一条件不满足时，报告必须标注「仅诊断」，且不得更新基线。
+
+登记入口：`POST /admin/ai-eval/runs/:id/promote`（SUPER_ADMIN / ADMIN）。服务端会
+逐条校验上述条件并给出可读原因；通过后在事务内清掉旧基线、把本条置为
+`isBaseline=true`，全局至多一条。之后同数据集的运行未显式传 `baselineRunId` 时，
+自动以它作为对比基线。
 
 ## 5. 版本历史
 

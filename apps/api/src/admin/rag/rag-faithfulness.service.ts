@@ -7,24 +7,46 @@ import {
   createLLM,
   LlmProviderConfig,
 } from '@api/client/ai-customer/graph/llm-factory';
+import { RagService } from './rag.service';
+import {
+  buildJudgeInput,
+  classifyJudgeError,
+  JudgeErrorKind,
+  JudgeSource,
+  JudgeSpecVersion,
+  resolveJudgeDocIds,
+  resolveJudgeSpecVersion,
+} from './judge-input-spec';
 
-export interface FaithfulnessSource {
-  title?: string;
-  docId?: string;
-  content: string;
-}
+export type { JudgeSource };
 
 export interface FaithfulnessResult {
-  faithful: boolean;
-  score: number;
+  /** null 表示「判官没能给出判定」，与 `faithful:false`（回答有错）不是一回事。 */
+  faithful: boolean | null;
+  score: number | null;
   unsupportedClaims: string[];
   reason: string;
   error?: string;
+  /** 仅 `faithful === null` 时出现：判官失败或该用例不判答案准确性。 */
+  errorKind?: JudgeErrorKind;
+  judgeInputHash?: string;
+  judgeSpecVersion: JudgeSpecVersion;
+  /** 实际送审判官的来源条数（服务端解析后）。 */
+  sourceCount: number;
 }
 
-const MAX_SOURCE_CHARS = 2000;
-const MAX_TOTAL_SOURCE_CHARS = 8000;
-const MAX_ANSWER_CHARS = 4000;
+export interface FaithfulnessJudgeParams {
+  question: string;
+  answer: string;
+  /** 传了就按传入的 sources 判（兼容旧调用方）。 */
+  sources?: JudgeSource[];
+  /** 没传 sources 时，按 golden 文档 docId 取 chunk。 */
+  expectedDocIds?: string[];
+  /** 没传 sources 时，按回答实际引用的 docId 取 chunk。 */
+  citedDocIds?: string[];
+}
+
+const MAX_JUDGE_DOCS = 10;
 
 const JUDGE_SYSTEM_PROMPT = `You are a strict RAG faithfulness judge.
 Given a question, an answer, and retrieved sources, decide whether every factual claim
@@ -37,38 +59,13 @@ Rules:
 - score=1 only when every factual claim is supported; 0 when the answer contradicts or invents facts.
 - unsupportedClaims must be short quotes/phrases from the answer.`;
 
-/** 组装 judge 输入；对超长 source/answer 截断，避免超出上下文。 */
-export function buildJudgeInput(
-  question: string,
-  answer: string,
-  sources: FaithfulnessSource[],
-): string {
-  let totalSourceChars = 0;
-  const sourceBlocks: string[] = [];
-
-  for (let i = 0; i < sources.length; i += 1) {
-    if (totalSourceChars >= MAX_TOTAL_SOURCE_CHARS) break;
-    const source = sources[i];
-    const remaining = MAX_TOTAL_SOURCE_CHARS - totalSourceChars;
-    const content = String(source.content ?? '').slice(
-      0,
-      Math.min(MAX_SOURCE_CHARS, remaining),
-    );
-    totalSourceChars += content.length;
-    sourceBlocks.push(
-      `[${i + 1}] ${source.title ?? ''} (${source.docId ?? ''})\n${content}`,
-    );
-  }
-
-  return [
-    `QUESTION:\n${question}`,
-    `ANSWER:\n${String(answer ?? '').slice(0, MAX_ANSWER_CHARS)}`,
-    `SOURCES:\n${sourceBlocks.join('\n\n---\n\n')}`,
-  ].join('\n\n');
-}
-
 /** 解析 judge 输出；容忍 markdown code fence，非法输出返回 null。 */
-export function parseJudgeOutput(raw: string): FaithfulnessResult | null {
+export function parseJudgeOutput(
+  raw: string,
+): Pick<
+  FaithfulnessResult,
+  'faithful' | 'score' | 'unsupportedClaims' | 'reason'
+> | null {
   const stripped = String(raw ?? '')
     .replace(/```json/gi, '')
     .replace(/```/g, '')
@@ -110,7 +107,10 @@ export class RagFaithfulnessService {
   private readonly logger = new Logger(RagFaithfulnessService.name);
   private readonly chain;
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly ragService: RagService,
+  ) {
     const llmConfig: LlmProviderConfig = {
       type: this.configService.get<'online' | 'local'>('AI_LLM_TYPE', 'local'),
       model: this.configService.get<string>('OLLAMA_MODEL', 'qwen3.5:0.8b'),
@@ -132,46 +132,103 @@ export class RagFaithfulnessService {
       .pipe(new StringOutputParser());
   }
 
-  async judge(
-    question: string,
-    answer: string,
-    sources: FaithfulnessSource[],
-  ): Promise<FaithfulnessResult> {
-    if (!sources || sources.length === 0) {
+  async judge(params: FaithfulnessJudgeParams): Promise<FaithfulnessResult> {
+    const specVersion = resolveJudgeSpecVersion(
+      this.configService.get<string>('EVAL_JUDGE_SPEC'),
+    );
+    const sources = await this.resolveSources(params);
+    if (sources.length === 0) {
       return {
-        faithful: false,
-        score: 0,
+        faithful: null,
+        score: null,
         unsupportedClaims: [],
         reason: 'no_sources',
+        errorKind: 'not_applicable',
+        judgeSpecVersion: specVersion,
+        sourceCount: 0,
       };
     }
 
-    const input = buildJudgeInput(question, answer, sources);
+    const judgeInput = buildJudgeInput({
+      question: params.question,
+      answer: params.answer,
+      sources,
+      expectedDocIds: params.expectedDocIds,
+      citedDocIds: params.citedDocIds,
+      specVersion,
+    });
+
     try {
-      const raw = await this.chain.invoke({ input });
+      const raw = await this.chain.invoke({ input: judgeInput.input });
       const parsed = parseJudgeOutput(raw);
       if (!parsed) {
         this.logger.warn('[faithfulness] judge output is not valid JSON');
         return {
-          faithful: false,
-          score: 0,
+          faithful: null,
+          score: null,
           unsupportedClaims: [],
           reason: 'judge_parse_failed',
           error: String(raw).slice(0, 500),
+          errorKind: 'output_format',
+          judgeInputHash: judgeInput.judgeInputHash,
+          judgeSpecVersion: specVersion,
+          sourceCount: judgeInput.sourceCount,
         };
       }
-      return parsed;
-    } catch (err: any) {
+      return {
+        ...parsed,
+        judgeInputHash: judgeInput.judgeInputHash,
+        judgeSpecVersion: specVersion,
+        sourceCount: judgeInput.sourceCount,
+      };
+    } catch (err) {
       this.logger.warn(
-        `[faithfulness] judge call failed: ${err?.message ?? err}`,
+        `[faithfulness] judge call failed: ${(err as Error)?.message ?? err}`,
       );
       return {
-        faithful: false,
-        score: 0,
+        faithful: null,
+        score: null,
         unsupportedClaims: [],
         reason: 'judge_error',
-        error: String(err?.message ?? err).slice(0, 500),
+        error: String((err as Error)?.message ?? err).slice(0, 500),
+        errorKind: classifyJudgeError(err),
+        judgeInputHash: judgeInput.judgeInputHash,
+        judgeSpecVersion: specVersion,
+        sourceCount: judgeInput.sourceCount,
       };
     }
+  }
+
+  /**
+   * 来源解析：传了 sources 就用传入的；否则按 docId 取 chunk。
+   * docId 去重并限流（最多 10 篇），避免一次判官调用扫全库。
+   */
+  private async resolveSources(
+    params: FaithfulnessJudgeParams,
+  ): Promise<JudgeSource[]> {
+    if (Array.isArray(params.sources) && params.sources.length > 0) {
+      return params.sources;
+    }
+
+    const docIds = resolveJudgeDocIds(
+      params.expectedDocIds,
+      params.citedDocIds,
+      MAX_JUDGE_DOCS,
+    );
+
+    const sources: JudgeSource[] = [];
+    for (const docId of docIds) {
+      const chunks = await this.ragService
+        .getChunksByDocId(docId)
+        .catch(() => []);
+      for (const chunk of chunks) {
+        sources.push({
+          title: chunk.title,
+          docId: chunk.docId,
+          content: chunk.content,
+        });
+      }
+    }
+    return sources;
   }
 }

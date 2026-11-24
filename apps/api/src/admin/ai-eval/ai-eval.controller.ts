@@ -165,6 +165,15 @@ export class AiEvalController {
     return this.datasetService.ingestExternalResults(id, dto);
   }
 
+  @Post('runs/:id/promote')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: '把一次运行登记为当前评测基线' })
+  async promoteRun(@Param('id') id: string) {
+    this.assertEnabled();
+    return this.datasetService.promoteRun(id);
+  }
+
   @Post('runs/:id/cancel')
   @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   @HttpCode(HttpStatus.OK)

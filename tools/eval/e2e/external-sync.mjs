@@ -12,8 +12,10 @@
  * 在那之前，reason 字段保留原始判定文本，便于回查。
  */
 
-/** 与 `metrics-spec.mjs` 上线前的历史报告口径对齐（Phase 2 升到 2）。 */
-export const HARNESS_METRIC_SPEC_VERSION = "1";
+import { JUDGE_FAILURE_KINDS, METRIC_SPEC_VERSION } from "./metrics-spec.mjs";
+
+/** 外部运行写入的指标定义版本；与报告/服务端共用同一个版本号。 */
+export const HARNESS_METRIC_SPEC_VERSION = String(METRIC_SPEC_VERSION);
 
 const MAX_QUESTION_CHARS = 8000;
 
@@ -164,11 +166,10 @@ export function toExternalResult(item) {
   };
 
   if (item.status === "skipped") {
+    // harness 自己没跑完（含账号配额耗尽）不是判官失败；
+    // rate_limit 只用于判官 API 真的返回 429 的情况。
     const reason = item.skipReason ?? "skipped";
-    const kind = /quota|配额|上限|limit/i.test(reason)
-      ? "rate_limit"
-      : "harness";
-    return judgeError(base, kind, `harness_skipped: ${reason}`);
+    return judgeError(base, "harness", `harness_skipped: ${reason}`);
   }
   if (item.status === "error") {
     return judgeError(
@@ -191,6 +192,74 @@ export function toExternalResult(item) {
     return notApplicable(base, "security_assertion_dimension");
   }
   return notApplicable(base, `unknown_kind: ${item.kind ?? "none"}`);
+}
+
+/**
+ * 本地复核：按与服务端相同的口径汇总已提交的 results。
+ * 用于在报告里核对「库内 summary 与本地计算是否一致」。
+ */
+export function summarizeExternalResults(results) {
+  const counts = { correct: 0, incorrect: 0, judge_error: 0 };
+  let attempted = 0;
+  let failures = 0;
+  const kinds = new Map();
+  for (const item of results ?? []) {
+    counts[item.answerVerdict] += 1;
+    if (item.answerVerdict !== "judge_error") {
+      attempted += 1;
+      continue;
+    }
+    const kind = item.judgeErrorKind ?? "unknown";
+    if (!JUDGE_FAILURE_KINDS.includes(kind)) continue;
+    attempted += 1;
+    failures += 1;
+    kinds.set(kind, (kinds.get(kind) ?? 0) + 1);
+  }
+  const judged = counts.correct + counts.incorrect;
+  return {
+    total: results?.length ?? 0,
+    correct: counts.correct,
+    incorrect: counts.incorrect,
+    judgeError: counts.judge_error,
+    accuracy: judged > 0 ? round4(counts.correct / judged) : null,
+    judgeErrorRate: attempted > 0 ? round4(failures / attempted) : null,
+    judgeErrorKinds: [...kinds.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([kind, count]) => ({ kind, count })),
+  };
+}
+
+/** 比对本地复核值与库内 summary；字段值取服务端同样的小数位。 */
+export function compareSummaryWithRecord(local, record) {
+  const fields = [
+    "total",
+    "correct",
+    "incorrect",
+    "judgeError",
+    "accuracy",
+    "judgeErrorRate",
+  ];
+  const mismatches = fields
+    .filter((field) => (local?.[field] ?? null) !== (record?.[field] ?? null))
+    .map((field) => ({
+      field,
+      local: local?.[field] ?? null,
+      record: record?.[field] ?? null,
+    }));
+  const localKinds = JSON.stringify(local?.judgeErrorKinds ?? []);
+  const recordKinds = JSON.stringify(record?.judgeErrorKinds ?? []);
+  if (localKinds !== recordKinds) {
+    mismatches.push({
+      field: "judgeErrorKinds",
+      local: local?.judgeErrorKinds ?? [],
+      record: record?.judgeErrorKinds ?? [],
+    });
+  }
+  return { ok: mismatches.length === 0, mismatches };
+}
+
+function round4(value) {
+  return Number(value.toFixed(4));
 }
 
 /** 用例快照 + 指纹：只含实际会写进外部 run 的用例。 */

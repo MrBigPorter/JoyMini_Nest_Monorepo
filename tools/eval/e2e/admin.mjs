@@ -289,10 +289,22 @@ export function createAdminApi(
     },
 
     // ── 判定 / 证据 ───────────────────────────────────────────
-    judgeFaithfulness({ question, answer, sources }) {
+    /**
+     * 判官端点：sources 与 expectedDocIds/citedDocIds 二选一。
+     * v2 起来源挑选在服务端完成，harness 只传原始字段。
+     */
+    judgeFaithfulness({ question, answer, sources, expectedDocIds, citedDocIds }) {
+      const body = { question, answer };
+      if (Array.isArray(sources) && sources.length > 0) body.sources = sources;
+      if (Array.isArray(expectedDocIds) && expectedDocIds.length > 0) {
+        body.expectedDocIds = expectedDocIds;
+      }
+      if (Array.isArray(citedDocIds) && citedDocIds.length > 0) {
+        body.citedDocIds = citedDocIds;
+      }
       return request("/v1/admin/rag/documents/judge", {
         method: "POST",
-        body: { question, answer, sources },
+        body,
       });
     },
 
@@ -317,6 +329,21 @@ export function createAdminApi(
       return request(
         `/v1/admin/ai-eval/runs/${encodeURIComponent(runId)}/external-results`,
         { method: "POST", body: payload },
+      );
+    },
+
+    /** 读回运行记录（含库内 summary / baselineRunId / isBaseline）。 */
+    getEvalRun(runId) {
+      return request(
+        `/v1/admin/ai-eval/runs/${encodeURIComponent(runId)}`,
+      );
+    },
+
+    /** 登记基线：服务端校验完成状态、判官失败率、版本与指标版本。 */
+    promoteEvalRun(runId) {
+      return request(
+        `/v1/admin/ai-eval/runs/${encodeURIComponent(runId)}/promote`,
+        { method: "POST" },
       );
     },
 

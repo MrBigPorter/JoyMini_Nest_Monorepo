@@ -66,6 +66,8 @@ import {
 import {
   HARNESS_METRIC_SPEC_VERSION,
   buildExternalSnapshot,
+  compareSummaryWithRecord,
+  summarizeExternalResults,
   toExternalResult,
 } from "./external-sync.mjs";
 
@@ -128,8 +130,8 @@ function gitInfo() {
  * 外部运行的四维归因元数据（跑一次就锁定，事后不再推断）。
  * - codeVersion：完整 git sha（`GIT_SHA` 优先，CI 里没有 .git 也能记）
  * - gateMode：发布门禁当前模式（shadow 时数字与 enforce 不可直接对比）
- * - judgeSpecVersion：判官输入规范版本（Phase 1 固定 v1）
- * - metricSpecVersion：指标定义版本（Phase 2 前与历史报告同为 1）
+ * - judgeSpecVersion：判官输入规范版本（Phase 2 起默认 v2，v1 仅回滚用）
+ * - metricSpecVersion：指标定义版本（当前为 2）
  */
 export function buildRunMetadata({
   env = process.env,
@@ -139,7 +141,7 @@ export function buildRunMetadata({
   return {
     codeVersion: env.GIT_SHA || git.fullSha || git.sha || "unknown",
     gateMode: readEnv("AI_GROUNDING_GATE") || "shadow",
-    judgeSpecVersion: readEnv("EVAL_JUDGE_SPEC") || "v1",
+    judgeSpecVersion: readEnv("EVAL_JUDGE_SPEC") || "v2",
     metricSpecVersion: env.E2E_METRIC_SPEC_VERSION || HARNESS_METRIC_SPEC_VERSION,
   };
 }
@@ -860,7 +862,7 @@ export async function main(env = process.env) {
     goldenParts: fingerprintParts,
   });
   const snapshotIds = new Set(snapshot.cases.map((item) => item.caseId));
-  const runMetadata = buildRunMetadata({ env, git });
+  const runMetadata = buildRunMetadata({ env });
   const externalSyncEnabled = env.E2E_DISABLE_EXTERNAL_SYNC !== "1";
   let externalRunId = null;
   if (!externalSyncEnabled) {
@@ -998,6 +1000,30 @@ export async function main(env = process.env) {
       });
       externalRun.status = "completed";
       logger.log(`外部评测结果已写入：${externalRunId}（${payload.length} 条）`);
+
+      // 读回库内 summary：报告的「运行记录与基线」段与本地复核都以它为准。
+      try {
+        const record = await admin.getEvalRun(externalRunId);
+        const summary = record?.summary ?? null;
+        externalRun.baselineRunId = record?.baselineRunId ?? null;
+        externalRun.isBaseline = Boolean(record?.isBaseline);
+        externalRun.summary = summary;
+        externalRun.consistency = compareSummaryWithRecord(
+          summarizeExternalResults(payload),
+          summary,
+        );
+        if (!externalRun.consistency.ok) {
+          logger.warn(
+            `库内 summary 与本地复核不一致：${externalRun.consistency.mismatches
+              .map((item) => item.field)
+              .join(", ")}`,
+          );
+        }
+      } catch (recordError) {
+        logger.warn(
+          `运行记录读回失败（报告缺少库内对比段）：${recordError?.message ?? recordError}`,
+        );
+      }
     } catch (error) {
       externalRun.status = "failed";
       externalRun.error = error?.message ?? String(error);

@@ -87,7 +87,7 @@ node tools/eval/e2e/rejudge.mjs tools/eval/e2e/reports/<run>/detail.json
 | 名称 | 用什么 sources | 回答什么 |
 | --- | --- | --- |
 | **忠实度（A）** | 回答消息里真实下发的 `meta.sources` | 「回答是否被自己引用的内容支持」；回答没引用就**不判**，不进分母 |
-| **与 golden 一致（B）** | golden 指定文档的真实 chunk | 「答对了没有」，与 A 分开报 |
+| **与 golden 一致（B）** | golden 文档 docId 交给判官端点取 chunk | 「答对了没有」，与 A 分开报 |
 | **检索命中** | 回答 `meta.sources` 的 `docId` 顺序 vs `expectedDocIds` | Hit@1 / Hit@3 |
 | **业务动作** | 卡片 → `/ai/customer/confirm`（提现再 `/confirm/otp`）→ 客户端读接口核验 | 动作是否真的执行并落库 |
 | **任务完成度** | `POST /admin/ai-eval/judge` | 读类问答的 solved / partial / unsolved |
@@ -129,9 +129,39 @@ A 不是正确率。报告里把两者分开写，避免「拿忠实度冒充正
 切 enforce 前先用 shadow 跑一轮全量，逐条复核 `groundingGateDecision` 的 degrade
 清单；误降级（正常回答/澄清被拦）不可接受时先调判定规则，不要直接上线。
 
-判官端点有 2000 字符/条、8000 字符/合计的**静默截断**（`rag-faithfulness.service.ts`）。
-`goldenSources()` 因此按问题/回答的词面相关度挑 chunk 填满预算，不再固定取「前 8 个」——
-旧口径让长文档后半段的事实永远判「无依据」。
+## 判官输入规范（JudgeInputSpec）
+
+`POST /admin/rag/documents/judge` 是唯一拼判官输入的地方
+（`apps/api/src/admin/rag/judge-input-spec.ts`），harness 不再自行挑 sources：
+
+- 传 `sources`：按传入内容判（忠实度 A 用回答真实下发的 sources）。
+- 传 `expectedDocIds` / `citedDocIds`：服务端按 docId 取 chunk（`docId + locale`
+  定位文档），按问题/回答词面相关度挑 chunk；每篇文档先保一条覆盖，再填满预算。
+- 预算：单条 2000 字符、合计 8000 字符；同分按原始顺序，保证 `judgeInputHash` 稳定。
+- 脱敏：answer 与 sources 用同一个 `redactForJudge()`，同一邮箱在两处形态一致。
+- 响应带 `judgeInputHash`、`judgeSpecVersion`、`sourceCount`；run 元数据记录同一个版本。
+
+版本：`EVAL_JUDGE_SPEC=v1` 保留旧口径（不脱敏、按传入顺序截断），**默认 v2**。
+v1 与 v2 的准确率不可混比——换口径必须同时换 `metricSpecVersion`，历史结果按版本分组。
+
+旧实现让长文档后半段的事实永远判「无依据」；v2 由端点按相关度挑 chunk 填满预算，
+`goldenSources()` 已移除。
+
+## 运行记录与基线
+
+每轮 harness 仍以 JSON 报告为主产物，同时把结果写入 `ai_eval_runs`：
+
+1. `POST /admin/ai-eval/runs/external` 创建 `EXTERNAL` 运行（记录 `codeVersion`、
+   `gateMode`、`judgeSpecVersion`、`metricSpecVersion`）；
+2. 跑完后 `POST /admin/ai-eval/runs/:id/external-results` 写入三态结果并收尾；
+3. `GET /admin/ai-eval/runs/:id` 读回库内 `summary`，报告新增
+   「运行记录与基线（库内 summary）」一节，并逐字段核对「库内 summary vs 本地提交结果」。
+
+登记基线：`POST /admin/ai-eval/runs/:id/promote`。只有 `COMPLETED`、判官失败率低于
+`EVAL_MAX_JUDGE_ERROR_RATE`（默认 2%）、四个版本字段齐全且 `metricSpecVersion`
+与当前一致的运行才能通过；通过后全局至多一条 `isBaseline`。同一数据集的新运行
+未显式传 `baselineRunId` 时会自动以它作为对比基线，报告里出现
+`baselineAccuracy / delta / newFailures / fixed`。
 
 ## 用例构成
 

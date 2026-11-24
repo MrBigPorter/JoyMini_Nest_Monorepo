@@ -9,16 +9,16 @@
 
 ## 2. 口径层：判官输入规范
 
-- [ ] 2.1 新增 `apps/api/src/admin/rag/judge-input-spec.ts`：导出 `JUDGE_INPUT_SPEC_VERSION` 与 `buildJudgeInput({ question, answer, sources?, expectedDocIds?, citedDocIds? })`；内部完成来源挑选（相关度排序 + 固定 tie-break、单来源 2000 / 总 8000 上限）、回答截断、`redactForJudge()`。同时新增 `RagService.getChunksByDocId(docId, locale='en')`（`docId` 非全局唯一）。验证：单测覆盖「同一邮箱在 answer 与 sources 脱敏形态一致」「超限截断」「无 golden 文档时只用引用文档」「相同输入 hash 稳定」。
-- [ ] 2.2 改造 `rag-faithfulness.service.ts` 使用该规范；判官请求 DTO 的 `sources` 改可选、新增 `expectedDocIds?` / `citedDocIds?`；响应增加 `judgeInputHash` 与 `judgeSpecVersion`；判官失败返回 `faithful: null` + `errorKind`，不再返回 `faithful: false`；保留 `EVAL_JUDGE_SPEC=v1|v2` 开关，Phase 1 默认 v1。验证：现有 `rag-faithfulness` 单测全绿，新增断言 hash 稳定与失败返回结构。
-- [ ] 2.3 改造 `tools/eval/e2e/judge.mjs` 与 `rejudge.mjs`：不再自行拼接 sources，只传 `sources` 或 `expectedDocIds/citedDocIds` 原始字段并读取返回的 hash/version；同批更新 `judge.test.mjs` 的 `stubAdmin`（当前按 `sources` 判断）。验证：`node --test tools/eval/e2e/judge.test.mjs` 与一次小样本判官调用通过。
-- [ ] 2.4 更新 `tools/eval/e2e/README.md`：写明判官输入规范、`judgeSpecVersion` 的意义与 v1/v2 结果不可混比。验证：文档中的命令可照抄执行。
+- [x] 2.1 新增 `apps/api/src/admin/rag/judge-input-spec.ts`：导出 `JUDGE_INPUT_SPEC_VERSION` 与 `buildJudgeInput({ question, answer, sources?, expectedDocIds?, citedDocIds? })`；内部完成来源挑选（相关度排序 + 固定 tie-break、单来源 2000 / 总 8000 上限）、回答截断、`redactForJudge()`。同时新增 `RagService.getChunksByDocId(docId, locale='en')`（`docId` 非全局唯一）。验证：单测覆盖「同一邮箱在 answer 与 sources 脱敏形态一致」「超限截断」「无 golden 文档时只用引用文档」「相同输入 hash 稳定」。
+- [x] 2.2 改造 `rag-faithfulness.service.ts` 使用该规范；判官请求 DTO 的 `sources` 改可选、新增 `expectedDocIds?` / `citedDocIds?`；响应增加 `judgeInputHash` 与 `judgeSpecVersion`；判官失败返回 `faithful: null` + `errorKind`，不再返回 `faithful: false`；保留 `EVAL_JUDGE_SPEC=v1|v2` 开关，Phase 2 默认 v2、保留 v1 回滚入口。验证：现有 `rag-faithfulness` 单测全绿，新增断言 hash 稳定与失败返回结构。
+- [x] 2.3 改造 `tools/eval/e2e/judge.mjs` 与 `rejudge.mjs`：不再自行拼接 sources，只传 `sources` 或 `expectedDocIds/citedDocIds` 原始字段并读取返回的 hash/version；同批更新 `judge.test.mjs` 的 `stubAdmin`（当前按 `sources` 判断）。验证：`node --test tools/eval/e2e/judge.test.mjs` 与一次小样本判官调用通过。
+- [x] 2.4 更新 `tools/eval/e2e/README.md`：写明判官输入规范、`judgeSpecVersion` 的意义与 v1/v2 结果不可混比。验证：文档中的命令可照抄执行。
 
 ## 3. 判定层：三态与错误分类
 
-- [ ] 3.1 改造 `rag-faithfulness.service.ts`（答案准确性判官，不是 `ai-eval-judge.service.ts`）：判官对答案返回 `answerVerdict`（`correct | incorrect | judge_error`），解析失败、超时、鉴权、限流、内容策略分别映射 `judgeErrorKind`；失败返回 `faithful: null + errorKind`。`ai-eval-judge.service.ts` 的 `solved/partial/unsolved` 保持原语义不动。验证：单测覆盖五种错误分类各一条。
-- [ ] 3.2 更新报告指标计算：`isApplicableJudged` 必须排除 `errorKind != null`（不能只看 `faithful != null`）；`kbAccuracy` 分母使用 `answerVerdict` 且排除 `judge_error`；新增 `judgeErrorRate` 并写入 summary；判官错误率超阈值时报告标注「仅诊断」。验证：`node --test tools/eval/e2e/report.test.mjs` 全绿。
-- [ ] 3.3 管理端评测报告页显示判官错误率与错误类型分布。验证：控制器返回字段单测。
+- [x] 3.1 改造 `rag-faithfulness.service.ts`（答案准确性判官，不是 `ai-eval-judge.service.ts`）：判官对答案返回 `answerVerdict`（`correct | incorrect | judge_error`），解析失败、超时、鉴权、限流、内容策略分别映射 `judgeErrorKind`；失败返回 `faithful: null + errorKind`。`ai-eval-judge.service.ts` 的 `solved/partial/unsolved` 保持原语义不动。验证：单测覆盖五种错误分类各一条。
+- [x] 3.2 更新报告指标计算：`isApplicableJudged` 必须排除 `errorKind != null`（不能只看 `faithful != null`）；`kbAccuracy` 分母使用 `answerVerdict` 且排除 `judge_error`；新增 `judgeErrorRate` 并写入 summary；判官错误率超阈值时报告标注「仅诊断」。验证：`node --test tools/eval/e2e/report.test.mjs` 全绿。
+- [x] 3.3 管理端评测报告页显示判官错误率与错误类型分布。验证：控制器返回字段单测。
 
 ## 4. 归因层：trace 与 run 双向可查
 
@@ -28,14 +28,14 @@
 
 ## 5. 指标规范
 
-- [ ] 5.1 新增 `tools/eval/e2e/METRICS.md`：逐条写明 `answeredRate`、`kbAccuracy`、`ungroundedRisk`、`hitAt3`、`judgeErrorRate`、`p95Latency` 的定义、分母、排除项、数据来源（见 design.md D5 表）。
-- [ ] 5.2 新增 `tools/eval/e2e/metrics-spec.mjs`：导出 `METRIC_SPEC_VERSION = 2` 与各指标计算函数；`report.mjs` 改为调用它，删除内联公式。验证：`report.test.mjs` 与新增 `metrics-spec.test.mjs` 全绿。
+- [x] 5.1 新增 `tools/eval/e2e/METRICS.md`：逐条写明 `answeredRate`、`kbAccuracy`、`ungroundedRisk`、`hitAt3`、`judgeErrorRate`、`p95Latency` 的定义、分母、排除项、数据来源（见 design.md D5 表）。
+- [x] 5.2 新增 `tools/eval/e2e/metrics-spec.mjs`：导出 `METRIC_SPEC_VERSION = 2` 与各指标计算函数；`report.mjs` 改为调用它，删除内联公式。验证：`report.test.mjs` 与新增 `metrics-spec.test.mjs` 全绿。
 
 ## 6. 基线规则
 
-- [ ] 6.1 新增 `POST /admin/ai-eval/runs/:id/promote`：校验 COMPLETED、`judgeErrorRate < EVAL_MAX_JUDGE_ERROR_RATE`（默认 0.02）、四个版本字段齐全、`metricSpecVersion` 与当前一致；失败返回可读原因。验证：单测覆盖四条拒绝原因与一条成功。
-- [ ] 6.2 提升基线时在事务内把其他 run 的 `isBaseline` 置 false；`startRun` / `loadBaseline` 在未显式传 `baselineRunId` 时回退到当前 `isBaseline` run。验证：单测断言全局只有一条基线，且未传 baselineRunId 时比较用的是它。
-- [ ] 6.3 报告读取库中的 run 记录生成对比段，`detail.json` 仍导出；不复用现有的 `EvalReportsController`（它读的是 `tools/eval/conversation/reports`，与 e2e harness 无关）。验证：一次外部 run 写入后，报告核心指标与库内 summary 一致。
+- [x] 6.1 新增 `POST /admin/ai-eval/runs/:id/promote`：校验 COMPLETED、`judgeErrorRate < EVAL_MAX_JUDGE_ERROR_RATE`（默认 0.02）、四个版本字段齐全、`metricSpecVersion` 与当前一致；失败返回可读原因。验证：单测覆盖四条拒绝原因与一条成功。
+- [x] 6.2 提升基线时在事务内把其他 run 的 `isBaseline` 置 false；`startRun` / `loadBaseline` 在未显式传 `baselineRunId` 时回退到当前 `isBaseline` run。验证：单测断言全局只有一条基线，且未传 baselineRunId 时比较用的是它。
+- [x] 6.3 报告读取库中的 run 记录生成对比段，`detail.json` 仍导出；不复用现有的 `EvalReportsController`（它读的是 `tools/eval/conversation/reports`，与 e2e harness 无关）。验证：一次外部 run 写入后，报告核心指标与库内 summary 一致。
 
 ## 7. 6.2 收口
 

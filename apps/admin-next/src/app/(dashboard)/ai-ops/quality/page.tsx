@@ -1736,6 +1736,18 @@ function EvalPanel() {
                 判官错误率 {formatRate(runData.summary.judgeErrorRate)}
               </span>
             ) : null}
+            {Array.isArray(runData.summary?.judgeErrorKinds) &&
+            runData.summary.judgeErrorKinds.length > 0 ? (
+              <span className="text-xs text-gray-500">
+                判官错误类型{' '}
+                {runData.summary.judgeErrorKinds
+                  .map(
+                    (item: { kind: string; count: number }) =>
+                      `${item.kind} ${item.count}`,
+                  )
+                  .join(' · ')}
+              </span>
+            ) : null}
             {runData.status === 'RUNNING' && canStartRun ? (
               <Button
                 size="sm"

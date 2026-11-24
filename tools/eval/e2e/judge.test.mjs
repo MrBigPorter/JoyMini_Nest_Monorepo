@@ -5,12 +5,11 @@ import {
   CANNED_REPLIES,
   cannedReplyCheck,
   checkLanguage,
-  chunkRelevance,
   classifyGrounding,
   fingerprint,
-  goldenSources,
   judgeActionCase,
   judgeBoundaryCase,
+  judgeGoldenAgreement,
   judgeKnowledgeCase,
   languageProfile,
   leakCheck,
@@ -33,12 +32,18 @@ function round(question, answer, extra = {}) {
 }
 
 const stubAdmin = {
-  judgeFaithfulness: async ({ sources }) => ({
-    faithful: Array.isArray(sources) && sources.length > 0,
-    score: 1,
-    reason: "stub",
-  }),
-  getChunksByDocId: async () => [{ content: "golden chunk text" }],
+  judgeFaithfulness: async ({ sources, expectedDocIds }) => {
+    const sourceCount = Array.isArray(sources)
+      ? sources.length
+      : (expectedDocIds?.length ?? 0);
+    return {
+      faithful: sourceCount > 0,
+      score: 1,
+      reason: "stub",
+      judgeSpecVersion: "v2",
+      sourceCount,
+    };
+  },
 };
 
 test("languageProfile/checkLanguage：中文占比、英文纯净、mixed 不判", () => {
@@ -365,38 +370,74 @@ test("judgeKnowledgeCase：工具依据不判 golden 一致性，保留 answered
   assert.equal(called, 0);
 });
 
-test("chunkRelevance：问题命中的权重高于回答命中", () => {
-  const question = "TLS 用哪个版本";
-  assert.ok(chunkRelevance(question, "", "TLS 1.3") > chunkRelevance("", "TLS", "TLS 1.3"));
-});
-
-test("goldenSources：按相关度挑 chunk，预算内不取前 N 个", async () => {
-  const chunks = Array.from({ length: 12 }, (_, index) => ({
-    content: `chunk-${index} ${index === 9 ? "TLS 1.3 encryption" : "lorem ipsum"}`,
-  }));
-  const admin = { getChunksByDocId: async () => chunks };
-  const sources = await goldenSources(admin, ["privacy-policy"], {
-    question: "TLS 1.3?",
-    answer: "",
-    maxTotalChars: 260,
-  });
-  const text = sources.map((item) => item.content).join("\n");
-  assert.match(text, /TLS 1\.3/);
-  assert.ok(sources.reduce((sum, item) => sum + item.content.length, 0) <= 260);
-});
-
-test("goldenSources：多文档都拿到覆盖，不因第一篇占满提前 break", async () => {
+test("judgeGoldenAgreement：只传 docId，由服务端挑来源并回传口径版本", async () => {
+  let payload = null;
   const admin = {
-    getChunksByDocId: async (docId) => [
-      { content: `${docId}-a` },
-      { content: `${docId}-b` },
-    ],
+    judgeFaithfulness: async (input) => {
+      payload = input;
+      return {
+        faithful: true,
+        score: 1,
+        reason: "supported",
+        judgeSpecVersion: "v2",
+        judgeInputHash: "abc123",
+        sourceCount: 3,
+      };
+    },
   };
-  const sources = await goldenSources(admin, ["doc-1", "doc-2"], {
-    maxTotalChars: 20,
+  const result = await judgeGoldenAgreement({
+    admin,
+    question: "TLS 1.3?",
+    answer: "TLS 1.3",
+    expectedDocIds: ["privacy-policy"],
+    extraDocIds: ["cited-doc"],
   });
-  const docs = new Set(sources.map((item) => item.docId));
-  assert.deepEqual([...docs].sort(), ["doc-1", "doc-2"]);
+  assert.deepEqual(payload, {
+    question: "TLS 1.3?",
+    answer: "TLS 1.3",
+    expectedDocIds: ["privacy-policy", "cited-doc"],
+  });
+  assert.equal(result.sourceChunks, 3);
+  assert.equal(result.judgeSpecVersion, "v2");
+  assert.equal(result.judgeInputHash, "abc123");
+});
+
+test("judgeGoldenAgreement：服务端没取到 chunk 时标记缺失", async () => {
+  const admin = {
+    judgeFaithfulness: async () => ({
+      faithful: null,
+      score: null,
+      reason: "no_sources",
+      errorKind: "not_applicable",
+      judgeSpecVersion: "v2",
+      sourceCount: 0,
+    }),
+  };
+  const result = await judgeGoldenAgreement({
+    admin,
+    question: "q",
+    answer: "a",
+    expectedDocIds: ["missing-doc"],
+  });
+  assert.equal(result.sourceChunks, 0);
+  assert.equal(result.faithful, null);
+  assert.equal(result.reason, "golden_doc_chunks_missing");
+});
+
+test("judgeGoldenAgreement：判官失败不冒充回答错误", async () => {
+  const admin = {
+    judgeFaithfulness: async () => {
+      throw new Error("judge timed out");
+    },
+  };
+  const result = await judgeGoldenAgreement({
+    admin,
+    question: "q",
+    answer: "a",
+    expectedDocIds: ["doc-1"],
+  });
+  assert.equal(result.faithful, null);
+  assert.match(result.reason, /judge_error/);
 });
 
 test("mergeJudgeDocIds：golden 优先、去重、忽略空值", () => {
