@@ -52,6 +52,12 @@ function makeExternalRun() {
     gateMode: 'shadow',
     judgeSpecVersion: 'v1',
     metricSpecVersion: '3',
+    knowledgeFingerprint: 'corpus-1',
+    scope: 'full',
+    knowledgeSnapshot: {
+      fingerprint: 'corpus-1',
+      before: { server: 'corpus-1', harness: 'corpus-1' },
+    },
     dataset: {
       id: 'ds-e2e',
       name: 'e2e:fp1234',
@@ -78,6 +84,7 @@ function promotableRun(overrides: Record<string, any> = {}) {
     judgeSpecVersion: 'v2',
     metricSpecVersion: '3',
     datasetSnapshot: { hash: 'fp1234', cases: [] },
+    scope: 'full',
     ...overrides,
   };
 }
@@ -100,13 +107,32 @@ function makeService() {
   const judge = { judge: jest.fn() };
   const aiCustomer = { testChat: jest.fn() };
   const queue = { add: jest.fn() };
+  const corpusFingerprint = {
+    getCurrent: jest.fn().mockResolvedValue({
+      fingerprint: 'corpus-1',
+      docs: [
+        {
+          id: 'doc-1',
+          docId: 'refund-policy',
+          locale: 'en',
+          title: 'Refund',
+          activeVersion: 1,
+          activeChunkHash: 'chunk-hash',
+          activeChunkCount: 2,
+        },
+      ],
+      pendingActivation: [],
+      generatedAt: '2026-11-24T00:00:00.000Z',
+    }),
+  };
   const service = new AiEvalDatasetService(
     prisma,
     judge as any,
     aiCustomer as any,
     queue as any,
+    corpusFingerprint as any,
   );
-  return { service, prisma, judge };
+  return { service, prisma, judge, corpusFingerprint };
 }
 
 describe('AiEvalDatasetService external runs', () => {
@@ -150,6 +176,11 @@ describe('AiEvalDatasetService external runs', () => {
     );
     expect(runData.codeVersion).toBe('sha-abc');
     expect(runData.metricSpecVersion).toBe('2');
+    expect(runData.knowledgeFingerprint).toBe('corpus-1');
+    expect(runData.scope).toBe('full');
+    expect(runData.knowledgeSnapshot.stable).toBe(false);
+    expect(runData.knowledgeSnapshot.before.server).toBe('corpus-1');
+    expect(runData.knowledgeSnapshot.docs).toHaveLength(1);
   });
 
   it('同 fingerprint 复用已有数据集，不重复创建', async () => {
@@ -217,6 +248,49 @@ describe('AiEvalDatasetService external runs', () => {
     expect(Date.now() - externalCutoff).toBeGreaterThanOrEqual(
       EXTERNAL_RUN_STALE_MS - 5_000,
     );
+  });
+
+  it('收尾写入知识快照：服务端与 harness 前后一致时 stable=true', async () => {
+    const { service, prisma } = makeService();
+    prisma.aiEvalRun.findUnique.mockResolvedValue(makeExternalRun());
+
+    await service.ingestExternalResults('run-ext-1', {
+      cases: [
+        { caseId: 'q1', answerVerdict: 'correct', reason: 'ok' },
+        { caseId: 'q2', answerVerdict: 'correct', reason: 'ok' },
+        { caseId: 'q3', answerVerdict: 'correct', reason: 'ok' },
+      ],
+      knowledgeFingerprintBefore: 'corpus-1',
+      knowledgeFingerprintAfter: 'corpus-1',
+    });
+
+    const data = prisma.aiEvalRun.update.mock.calls[0][0].data;
+    expect(data.knowledgeSnapshot.stable).toBe(true);
+    expect(data.knowledgeSnapshot.stableReason).toBe('stable');
+    expect(data.knowledgeSnapshot.after).toEqual({
+      server: 'corpus-1',
+      harness: 'corpus-1',
+    });
+    expect(data.knowledgeSnapshot.docs).toHaveLength(1);
+  });
+
+  it('运行中语料变化时快照记 stable=false 并给出原因', async () => {
+    const { service, prisma } = makeService();
+    prisma.aiEvalRun.findUnique.mockResolvedValue(makeExternalRun());
+
+    await service.ingestExternalResults('run-ext-1', {
+      cases: [
+        { caseId: 'q1', answerVerdict: 'correct', reason: 'ok' },
+        { caseId: 'q2', answerVerdict: 'correct', reason: 'ok' },
+        { caseId: 'q3', answerVerdict: 'correct', reason: 'ok' },
+      ],
+      knowledgeFingerprintBefore: 'corpus-1',
+      knowledgeFingerprintAfter: 'corpus-2',
+    });
+
+    const data = prisma.aiEvalRun.update.mock.calls[0][0].data;
+    expect(data.knowledgeSnapshot.stable).toBe(false);
+    expect(data.knowledgeSnapshot.stableReason).toBe('harness_corpus_changed');
   });
 
   it('写入三态结果：verdict/score 留空，judge_error 不进准确率分母', async () => {
@@ -406,6 +480,18 @@ describe('AiEvalDatasetService promote baseline', () => {
 
     await expect(service.promoteRun('run-ext-1')).rejects.toThrow(
       /only COMPLETED/,
+    );
+    expect(prisma.aiEvalRun.update).not.toHaveBeenCalled();
+  });
+
+  it('子集运行拒绝登记基线，并说明只能作为诊断', async () => {
+    const { service, prisma } = makeService();
+    prisma.aiEvalRun.findUnique.mockResolvedValue(
+      promotableRun({ scope: 'subset' }),
+    );
+
+    await expect(service.promoteRun('run-ext-1')).rejects.toThrow(
+      /Subset runs are diagnostic only.*full-scope/,
     );
     expect(prisma.aiEvalRun.update).not.toHaveBeenCalled();
   });

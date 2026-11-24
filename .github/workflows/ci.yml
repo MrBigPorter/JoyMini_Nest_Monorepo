@@ -35,6 +35,9 @@ jobs:
           python3 tools/eval/validate.py --selection tools/eval/conversation/selection-2026-11-22.jsonl
           python3 tools/eval/test_validate.py
 
+      - name: Harness unit tests (pure functions)
+        run: node --test tools/eval/e2e/*.test.mjs
+
       - name: Guard against hardcoded reply language
         run: |
           if grep -R "Respond in English" apps/api/src/client/ai-customer/graph/agents/prompts; then

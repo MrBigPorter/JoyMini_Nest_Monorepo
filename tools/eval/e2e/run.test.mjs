@@ -10,11 +10,19 @@ import {
 import {
   HARNESS_METRIC_SPEC_VERSION,
   buildExternalSnapshot,
+  buildKnowledgeCreateFields,
+  buildKnowledgeIngestFields,
   classifyJudgeError,
   compareSummaryWithRecord,
+  readServerCommitSha,
   summarizeExternalResults,
   toExternalResult,
 } from "./external-sync.mjs";
+import { loadConfig } from "./config.mjs";
+import {
+  filterCasesToSubset,
+  selectSubsetFromFullRun,
+} from "./cases.mjs";
 
 function poolEntry(index, extra = {}) {
   return { index, busy: false, exhausted: false, reserved: false, ...extra };
@@ -117,6 +125,137 @@ test("buildRunMetadata：CI 无 GIT_SHA 用完整 sha；缺门禁配置时默认
   assert.equal(meta.metricSpecVersion, "3");
 });
 
+test("buildRunMetadata：服务端 health 的 commitSha 优先于本地 GIT_SHA", () => {
+  const meta = buildRunMetadata({
+    env: { GIT_SHA: "local-fallback" },
+    git: { sha: "abc1234", fullSha: "abc1234567890", branch: "b" },
+    readEnv: () => undefined,
+    serverCommitSha: "deployed-sha",
+  });
+  assert.equal(meta.codeVersion, "deployed-sha");
+});
+
+test("readServerCommitSha：部署注入值可用，unknown/缺失视为没有", () => {
+  assert.equal(readServerCommitSha({ commitSha: " abc123 " }), "abc123");
+  assert.equal(readServerCommitSha({ commitSha: "unknown" }), null);
+  assert.equal(readServerCommitSha({ commitSha: "" }), null);
+  assert.equal(readServerCommitSha({ ok: true }), null);
+  assert.equal(readServerCommitSha(null), null);
+});
+
+test("buildKnowledgeCreateFields：scope 与开跑前指纹按存在上送", () => {
+  assert.deepEqual(
+    buildKnowledgeCreateFields({
+      scope: "subset",
+      fingerprintBefore: "abc",
+    }),
+    { scope: "subset", knowledgeFingerprintBefore: "abc" },
+  );
+  assert.deepEqual(
+    buildKnowledgeCreateFields({ scope: "full", fingerprintBefore: null }),
+    { scope: "full" },
+  );
+  assert.deepEqual(buildKnowledgeCreateFields({ scope: "weird" }), {});
+});
+
+test("buildKnowledgeIngestFields：缺一侧就少一侧，服务端可区分缺失", () => {
+  assert.deepEqual(
+    buildKnowledgeIngestFields({
+      fingerprintBefore: "before",
+      fingerprintAfter: "after",
+    }),
+    {
+      knowledgeFingerprintBefore: "before",
+      knowledgeFingerprintAfter: "after",
+    },
+  );
+  assert.deepEqual(
+    buildKnowledgeIngestFields({ fingerprintBefore: "before" }),
+    { knowledgeFingerprintBefore: "before" },
+  );
+  assert.deepEqual(buildKnowledgeIngestFields({}), {});
+});
+
+test("loadConfig：E2E_SCOPE 默认 full，允许 subset，拒绝其他值", () => {
+  assert.equal(loadConfig({}).scope, "full");
+  assert.equal(
+    loadConfig({ E2E_SCOPE: "subset", E2E_DOC_IDS: "doc-a" }).scope,
+    "subset",
+  );
+  assert.equal(loadConfig({ E2E_SCOPE: " FULL " }).scope, "full");
+  assert.throws(
+    () => loadConfig({ E2E_SCOPE: "partial" }),
+    /E2E_SCOPE must be full or subset/,
+  );
+});
+
+test("loadConfig：E2E_SCOPE=subset 需要 E2E_DOC_IDS，并默认只跑知识与多轮", () => {
+  assert.throws(
+    () => loadConfig({ E2E_SCOPE: "subset" }),
+    /E2E_SCOPE=subset 需要 E2E_DOC_IDS/,
+  );
+  const config = loadConfig({
+    E2E_SCOPE: "subset",
+    E2E_DOC_IDS: " shipping-policy , refund-policy ",
+    E2E_BASE_RUN_ID: "run-full-1",
+    E2E_INCLUDE_NEGATIVES: "1",
+  });
+  assert.deepEqual(config.docIds, ["shipping-policy", "refund-policy"]);
+  assert.deepEqual(config.kinds, ["knowledge", "multi"]);
+  assert.equal(config.baseRunId, "run-full-1");
+  assert.equal(config.includeNegatives, true);
+});
+
+test("selectSubsetFromFullRun：无全量快照时明确要求先跑全量", () => {
+  const missing = selectSubsetFromFullRun(null, ["doc-a"]);
+  assert.match(missing.error, /需先跑一次全量/);
+  assert.deepEqual(missing.caseIds, []);
+
+  const noSnapshot = selectSubsetFromFullRun(
+    { id: "run-1", scope: "full", datasetSnapshot: null },
+    ["doc-a"],
+  );
+  assert.match(noSnapshot.error, /需先跑一次全量/);
+  assert.match(noSnapshot.error, /没有用例快照/);
+
+  const subsetRun = selectSubsetFromFullRun(
+    { id: "run-2", scope: "subset", datasetSnapshot: { cases: [] } },
+    ["doc-a"],
+  );
+  assert.match(subsetRun.error, /不是 full/);
+});
+
+test("selectSubsetFromFullRun：用全量快照的 caseId 映射受影响用例", () => {
+  const run = {
+    id: "run-full",
+    scope: "full",
+    datasetSnapshot: {
+      cases: [
+        { caseId: "knowledge:a", expectedDocIds: ["doc-a"] },
+        { caseId: "knowledge:b", expectedDocIds: ["doc-b"] },
+        { caseId: "multi:a+c", expectedDocIds: ["doc-a", "doc-c"] },
+        { caseId: "action:x", expectedDocIds: [] },
+      ],
+    },
+  };
+  const result = selectSubsetFromFullRun(run, ["doc-a"]);
+  assert.equal(result.error, null);
+  assert.deepEqual(result.caseIds, ["knowledge:a", "multi:a+c"]);
+});
+
+test("filterCasesToSubset：只保留映射命中的用例，空集合返回空", () => {
+  const cases = [
+    { id: "knowledge:a" },
+    { id: "knowledge:b" },
+    { id: "multi:a+c" },
+  ];
+  assert.deepEqual(
+    filterCasesToSubset(cases, ["knowledge:b"]).map((item) => item.id),
+    ["knowledge:b"],
+  );
+  assert.deepEqual(filterCasesToSubset(cases, new Set()), []);
+});
+
 test("buildExternalSnapshot：多轮问句合并、指纹覆盖实际用例集", () => {
   const snapshot = buildExternalSnapshot(
     [
@@ -134,6 +273,21 @@ test("buildExternalSnapshot：多轮问句合并、指纹覆盖实际用例集",
   assert.equal(snapshot.datasetFingerprint, "golden|knowledge:delivery|read:balance");
   assert.equal(snapshot.cases[0].question, "多久送达？\n宿务呢？");
   assert.deepEqual(snapshot.cases[0].expectedDocIds, ["shipping-policy"]);
+});
+
+test("buildExternalSnapshot：子集与全量落在不同数据集指纹", () => {
+  const all = [
+    { id: "knowledge:a", kind: "knowledge", turns: ["q1"], expectedDocIds: ["doc-a"] },
+    { id: "knowledge:b", kind: "knowledge", turns: ["q2"], expectedDocIds: ["doc-b"] },
+  ];
+  const fingerprint = (parts) => parts.join("|");
+  const full = buildExternalSnapshot(all, { fingerprint, goldenParts: ["golden"] });
+  const subset = buildExternalSnapshot([all[0]], {
+    fingerprint,
+    goldenParts: ["golden"],
+  });
+  assert.notEqual(subset.datasetFingerprint, full.datasetFingerprint);
+  assert.equal(subset.datasetFingerprint, "golden|knowledge:a");
 });
 
 test("toExternalResult：知识类按 golden 判定映射三态", () => {
@@ -250,7 +404,18 @@ test("summarizeExternalResults：与服务端同口径，排除 harness/not_appl
     judgeAgreement: null,
     judgeAgreementMeasured: 0,
     judgeDisagreement: 0,
+    scope: "full",
+    selectedCaseCount: null,
   });
+});
+
+test("summarizeExternalResults：子集记录 scope 与登记用例数", () => {
+  const local = summarizeExternalResults([{ answerVerdict: "correct" }], {
+    scope: "subset",
+    selectedCaseCount: 7,
+  });
+  assert.equal(local.scope, "subset");
+  assert.equal(local.selectedCaseCount, 7);
 });
 
 test("summarizeExternalResults：judgeAgreement 只统计 ≥2 次成功的用例", () => {
@@ -316,6 +481,8 @@ test("compareSummaryWithRecord：逐字段核对库内 summary", () => {
     judgeAgreement: 1,
     judgeAgreementMeasured: 1,
     judgeDisagreement: 0,
+    scope: "full",
+    selectedCaseCount: null,
   };
 
   assert.deepEqual(compareSummaryWithRecord(local, record), {

@@ -1296,6 +1296,14 @@ export const knowledgeApi = {
         flags: string | null;
         parsedAt: string;
       }>;
+      recentUpdated: Array<{
+        documentId: string;
+        title: string;
+        score: number | null;
+        flags: string | null;
+        activeVersion: number;
+        updatedAt: string;
+      }>;
     }>('/v1/admin/rag/documents/quality-stats'),
 
   /** Get dual-source diff for a document (pdf-parse vs Unstructured) */
@@ -1861,6 +1869,14 @@ export const aiQualityApi = {
     ),
   getRun: (id: string) =>
     http.get<import('@/type/types').EvalRun>(`/v1/admin/ai-eval/runs/${id}`),
+  kbRegressionStatus: () =>
+    http.get<import('@/type/types').KbRegressionStatus>(
+      '/v1/admin/ai-eval/kb-regression/status',
+    ),
+  getRunEvidence: (id: string) =>
+    http.get<import('@/type/types').RunEvidence>(
+      `/v1/admin/ai-eval/runs/${id}/evidence`,
+    ),
   cancelRun: (id: string) =>
     http.post<import('@/type/types').EvalRun>(
       `/v1/admin/ai-eval/runs/${id}/cancel`,

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { AiCustomerModule } from '@api/client/ai-customer/ai-customer.module';
 import { AiCustomerService } from '@api/client/ai-customer/ai-customer.service';
+import { CorpusFingerprintModule } from '@api/common/knowledge/corpus-fingerprint.module';
 import { AiEvalController } from './ai-eval.controller';
 import { EvalReportsController } from './eval-reports.controller';
 import { AnnotationQueueController } from './annotation-queue.controller';
@@ -19,6 +20,7 @@ import { AiEvalProcessor } from './ai-eval.processor';
   // LIVE 模式直接复用真实客服 graph；AiCustomerModule 在 AppModule 中已是单例。
   imports: [
     AiCustomerModule,
+    CorpusFingerprintModule,
     BullModule.registerQueue({ name: AI_EVAL_QUEUE }),
   ],
   controllers: [

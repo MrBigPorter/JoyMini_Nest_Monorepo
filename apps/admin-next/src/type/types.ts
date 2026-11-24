@@ -2360,6 +2360,65 @@ export interface EvalCase {
   createdAt: string;
 }
 
+/** 知识库回归状态：当前语料 vs 上次全量运行快照（服务端实时计算） */
+export interface KbRegressionStatus {
+  currentFingerprint: string;
+  generatedAt: string;
+  covered: boolean;
+  needsFullRun: boolean;
+  baseline: {
+    runId: string;
+    fingerprint: string;
+    finishedAt: string | null;
+  } | null;
+  changedDocs: Array<{
+    docId: string;
+    locale: string;
+    change: 'added' | 'removed' | 'content_changed';
+    previous: {
+      activeVersion: number;
+      activeChunkHash: string | null;
+      activeChunkCount: number;
+    } | null;
+    current: {
+      activeVersion: number;
+      activeChunkHash: string | null;
+      activeChunkCount: number;
+    } | null;
+  }>;
+  affectedCaseIds: string[];
+  affectedCaseCount: number;
+  /** 变更文档里没有任何用例覆盖的 docId：这些改动不会被回归证明 */
+  uncoveredDocIds: string[];
+  pendingActivation: Array<{
+    docId: string;
+    locale?: string;
+    reasons?: string[];
+    [key: string]: unknown;
+  }>;
+  lastSubsetRun: {
+    id: string;
+    finishedAt: string | null;
+    fingerprint: string | null;
+    stable: boolean | null;
+    summary: Record<string, any> | null;
+  } | null;
+}
+
+export interface RunEvidenceCheck {
+  id: string;
+  ok: boolean;
+  message: string;
+}
+
+export interface RunEvidence {
+  runId: string;
+  ok: boolean;
+  codeVersion: string | null;
+  knowledgeFingerprint: string | null;
+  checks: RunEvidenceCheck[];
+}
+
 export interface EvalRun {
   id: string;
   datasetId: string;

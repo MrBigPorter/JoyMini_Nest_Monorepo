@@ -107,6 +107,17 @@ export function loadConfig(env = process.env) {
   const skip = new Set(parseCsv(envText(env, "E2E_SKIP")).map((item) => item.toLowerCase()));
   const actions = parseCsv(envText(env, "E2E_ACTIONS"));
   const kinds = parseCsv(envText(env, "E2E_KINDS")).map((item) => item.toLowerCase());
+  const scope = envText(env, "E2E_SCOPE").toLowerCase() || "full";
+  if (scope !== "full" && scope !== "subset") {
+    throw new Error(`E2E_SCOPE must be full or subset, got "${scope}"`);
+  }
+  const docIds = parseCsv(envText(env, "E2E_DOC_IDS"));
+  if (scope === "subset" && docIds.length === 0) {
+    throw new Error("E2E_SCOPE=subset 需要 E2E_DOC_IDS（受影响文档 docId，逗号分隔）");
+  }
+  // 子集只跑知识与多轮：动作/读类/边界与知识文档没有可靠映射。
+  const subsetKinds = ["knowledge", "multi"];
+  if (scope === "subset" && kinds.length === 0) kinds.push(...subsetKinds);
 
   return {
     apiBaseUrl,
@@ -160,6 +171,14 @@ export function loadConfig(env = process.env) {
     actions: actions.length > 0 ? actions : null,
     /** 只跑指定类别（knowledge/multi/action/read/boundary）；空 = 全跑 */
     kinds: kinds.length > 0 ? kinds : null,
+    /** 运行范围：full=全量，subset=按 E2E_DOC_IDS 过滤后的子集（不得 promote） */
+    scope,
+    /** 受影响文档 docId；子集映射的输入（与上次全量快照取交集） */
+    docIds,
+    /** 指向上一次全量运行；子集用例快照从它的 datasetSnapshot.cases 取 */
+    baseRunId: envText(env, "E2E_BASE_RUN_ID") || null,
+    /** 子集是否纳入负样本（新文档上线时手动打开） */
+    includeNegatives: envText(env, "E2E_INCLUDE_NEGATIVES") === "1",
     /** E2E_RESUME=1 时复用 .runtime/cases/ 里已完成的用例结果 */
     resume: envText(env, "E2E_RESUME") === "1",
     skip,

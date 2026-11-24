@@ -22,6 +22,15 @@ on:
         type: choice
         options: [ubuntu-latest, self-hosted]
         default: ubuntu-latest
+      eval_run_id:
+        description: "回归 run id（留空则读提交信息 Eval-Run: <id>）"
+        required: false
+        type: string
+      eval_gate_mode:
+        description: "回归证据门禁：advisory 只告警 / enforce 阻断"
+        type: choice
+        options: [advisory, enforce]
+        default: advisory
   workflow_call:
     inputs:
       runner:
@@ -95,10 +104,144 @@ jobs:
           yarn workspace @lucky/api check-types
 
   # =========================================
+  # 阶段零·五: 发布证据门禁
+  # =========================================
+  # run id 优先级：workflow_dispatch.eval_run_id > 提交信息 `Eval-Run: <id>`。
+  # 默认 advisory：失败只告警；切 enforce 后同一 run 会阻断 build/deploy。
+  eval-evidence:
+    needs: quality
+    runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Resolve eval run id
+        id: eval-run
+        env:
+          INPUT_RUN_ID: ${{ inputs.eval_run_id }}
+          INPUT_GATE_MODE: ${{ inputs.eval_gate_mode }}
+          VAR_GATE_MODE: ${{ vars.EVAL_GATE_MODE }}
+        run: |
+          set -euo pipefail
+
+          GATE_MODE="${INPUT_GATE_MODE:-${VAR_GATE_MODE:-advisory}}"
+          run_id="${INPUT_RUN_ID:-}"
+          if [ -z "$run_id" ]; then
+            msg="$(git log -1 --pretty=%B)"
+            run_id="$(printf '%s\n' "$msg" | sed -n 's/^Eval-Run:[[:space:]]*\([A-Za-z0-9_-][A-Za-z0-9_-]*\).*$/\1/p' | tail -n 1)"
+          fi
+
+          case "$GATE_MODE" in
+            advisory|enforce) ;;
+            *)
+              echo "::error::Unsupported eval_gate_mode=$GATE_MODE (expected advisory|enforce)"
+              exit 1
+              ;;
+          esac
+
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          echo "gate_mode=$GATE_MODE" >> "$GITHUB_OUTPUT"
+          if [ -n "$run_id" ]; then
+            echo "Eval run: $run_id (mode: $GATE_MODE)"
+          else
+            echo "No eval run id provided and no Eval-Run trailer found."
+          fi
+
+      - name: Check release evidence
+        env:
+          RUN_ID: ${{ steps.eval-run.outputs.run_id }}
+          GATE_MODE: ${{ steps.eval-run.outputs.gate_mode }}
+          API_BASE_URL: ${{ vars.EVAL_EVIDENCE_API_URL || 'https://api.joyminis.com/api' }}
+          EVAL_ADMIN_TOKEN: ${{ secrets.EVAL_ADMIN_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${RUN_ID:-}" ]; then
+            if [ "$GATE_MODE" = "enforce" ]; then
+              echo "::error::enforce 模式必须提供 eval_run_id 或提交信息 Eval-Run: <id>。"
+              exit 1
+            fi
+            echo "::warning::未提供回归 run id，advisory 模式下跳过证据校验。"
+            exit 0
+          fi
+
+          if [ -z "${EVAL_ADMIN_TOKEN:-}" ]; then
+            echo "::warning::缺少 EVAL_ADMIN_TOKEN，无法读取证据端点。"
+            if [ "$GATE_MODE" = "enforce" ]; then
+              echo "::error::enforce 模式下必须配置 EVAL_ADMIN_TOKEN。"
+              exit 1
+            fi
+            exit 0
+          fi
+
+          endpoint="${API_BASE_URL%/}/v1/admin/ai-eval/runs/${RUN_ID}/evidence"
+          echo "Fetching evidence: $endpoint"
+
+          http_code="$(curl -sS -o evidence.json -w '%{http_code}' \
+            -H "Authorization: Bearer $EVAL_ADMIN_TOKEN" \
+            -H 'Accept: application/json' \
+            "$endpoint")"
+
+          if [ "$http_code" != "200" ]; then
+            echo "::warning::证据端点返回 HTTP $http_code"
+            cat evidence.json || true
+            if [ "$GATE_MODE" = "enforce" ]; then
+              echo "::error::无法读取发布证据，enforce 模式阻断。端点：$endpoint"
+              exit 1
+            fi
+            exit 0
+          fi
+
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const body = JSON.parse(fs.readFileSync('evidence.json', 'utf8'));
+          const evidence = body.data ?? body;
+          const checks = Array.isArray(evidence.checks) ? evidence.checks : [];
+          console.log(`evidence.ok=${Boolean(evidence.ok)}`);
+          for (const check of checks) {
+            const mark = check.ok ? 'PASS' : 'FAIL';
+            console.log(`[${mark}] ${check.id}: ${check.message}`);
+          }
+          const failed = checks.filter((check) => !check.ok);
+          fs.writeFileSync('evidence-failed.txt', failed.map((c) => `${c.id}: ${c.message}`).join('\n'));
+          NODE
+
+          ok="$(node -e "const b=require('./evidence.json'); const e=b.data??b; process.stdout.write(String(Boolean(e.ok)))")"
+          if [ "$ok" = "true" ]; then
+            echo "发布证据通过。"
+            exit 0
+          fi
+
+          echo "::group::未通过的校验项"
+          cat evidence-failed.txt || true
+          echo "::endgroup::"
+
+          if [ "$GATE_MODE" = "enforce" ]; then
+            echo "::error::发布证据不通过，enforce 模式阻断。证据端点：$endpoint"
+            exit 1
+          fi
+          echo "::warning::发布证据不通过（advisory 模式，仅告警）。证据端点：$endpoint"
+          exit 0
+
+      - name: Upload evidence report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-evidence-${{ github.run_id }}
+          path: |
+            evidence.json
+            evidence-failed.txt
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # =========================================
   # 阶段一: 构建 + 推送镜像到 GHCR (兵工厂打包)
   # =========================================
   build:
-    needs: quality
+    needs: [quality, eval-evidence]
     runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
     permissions:
       contents: read

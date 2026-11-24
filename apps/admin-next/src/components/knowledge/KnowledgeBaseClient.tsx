@@ -129,15 +129,17 @@ function DocFormModal({
         .map((k) => k.trim())
         .filter(Boolean);
       if (isEdit) {
+        // 正文走独立的版本化接口：升版本、追加分块、触发重新向量化。
+        // PATCH 只提交元数据，否则会被后端 400 拦下。
+        if (content !== (document!.content ?? '')) {
+          await knowledgeApi.updateContent(document!.id, content);
+        }
         const payload: UpdateKnowledgeDocPayload = {
           title: title.trim(),
           domain: domain.trim(),
-          docId: docId.trim(),
           keywords,
-          locale,
           contentType,
           priority,
-          content,
         };
         await knowledgeApi.update(document!.id, payload);
       } else {
@@ -218,8 +220,9 @@ function DocFormModal({
               <input
                 value={docId}
                 onChange={(e) => setDocId(e.target.value)}
-                className={inputClass}
+                className={`${inputClass} disabled:cursor-not-allowed disabled:opacity-60`}
                 placeholder="refund-policy"
+                disabled={isEdit}
               />
               {errors.docId && <p className={errorClass}>{errors.docId}</p>}
             </div>
@@ -232,7 +235,8 @@ function DocFormModal({
               <select
                 value={locale}
                 onChange={(e) => setLocale(e.target.value)}
-                className={inputClass}
+                className={`${inputClass} disabled:cursor-not-allowed disabled:opacity-60`}
+                disabled={isEdit}
               >
                 <option value="en">en</option>
                 <option value="zh">zh</option>
@@ -279,6 +283,12 @@ function DocFormModal({
               </select>
             </div>
           </div>
+
+          {isEdit && (
+            <p className="text-xs text-gray-400">
+              {t('knowledgeBase.immutableKeyHint')}
+            </p>
+          )}
 
           {/* Keywords */}
           <div className="flex flex-col gap-1">

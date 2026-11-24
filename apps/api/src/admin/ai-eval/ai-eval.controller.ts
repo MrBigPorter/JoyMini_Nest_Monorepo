@@ -59,6 +59,15 @@ export class AiEvalController {
     }
   }
 
+  /** 知识库回归状态：当前语料 vs 上次全量运行快照（实时计算）。 */
+  @Get('kb-regression/status')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
+  @ApiOperation({ summary: '知识库回归状态（当前语料 vs 上次全量）' })
+  async getKbRegressionStatus() {
+    this.assertEnabled();
+    return this.datasetService.getKbRegressionStatus();
+  }
+
   @Get('datasets')
   @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
   @ApiOperation({ summary: '评测集列表' })
@@ -181,6 +190,15 @@ export class AiEvalController {
   async cancelRun(@Param('id') id: string) {
     // 取消是安全阀：即使功能开关已关闭，也要能停掉已在运行、仍在烧 token 的 run。
     return this.datasetService.cancelRun(id);
+  }
+
+  /** 发布证据：逐项校验运行是否可证明「当前语料回归达标」。 */
+  @Get('runs/:id/evidence')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
+  @ApiOperation({ summary: '发布证据（逐项校验）' })
+  async getRunEvidence(@Param('id') id: string) {
+    this.assertEnabled();
+    return this.datasetService.getRunEvidence(id);
   }
 
   @Get('runs/:id')

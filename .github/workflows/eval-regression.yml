@@ -1,0 +1,113 @@
+# ============================================================
+# 知识库回归 — 手动触发
+# ============================================================
+# 只允许 workflow_dispatch：跑真实账号 + 真实模型，不能随 push 自动烧配额。
+# 子集（E2E_SCOPE=subset）必须提供 doc_ids 与 base_run_id；
+# base_run_id 指向一次全量运行，用例映射从它的 datasetSnapshot 读取。
+# ============================================================
+name: Eval Regression
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+    inputs:
+      doc_ids:
+        description: "受影响文档 docId（逗号分隔；全量可留空）"
+        required: false
+        type: string
+      scope:
+        description: "运行范围"
+        required: true
+        type: choice
+        options: [subset, full]
+        default: subset
+      base_run_id:
+        description: "全量基线 run id（子集必填；全量可留空）"
+        required: false
+        type: string
+      base_url:
+        description: "QA API 基址（例如 https://qa.example.com/api）"
+        required: true
+        type: string
+      ref:
+        description: "要跑的分支或 commit（默认当前触发分支）"
+        required: false
+        type: string
+
+concurrency:
+  # 同一时间只允许一个回归运行，避免账号池与限流互相干扰
+  group: eval-regression
+  cancel-in-progress: false
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Enable Corepack (Yarn 4)
+        run: corepack enable && corepack prepare yarn@4.9.2 --activate
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Resolve endpoints
+        id: endpoints
+        env:
+          BASE_URL: ${{ inputs.base_url }}
+        run: |
+          api="${BASE_URL%/}"
+          socket="${api%/api}/events"
+          echo "api=$api" >> "$GITHUB_OUTPUT"
+          echo "socket=$socket" >> "$GITHUB_OUTPUT"
+
+      - name: Validate subset inputs
+        if: inputs.scope == 'subset'
+        env:
+          DOC_IDS: ${{ inputs.doc_ids }}
+          BASE_RUN_ID: ${{ inputs.base_run_id }}
+        run: |
+          if [ -z "${DOC_IDS:-}" ]; then
+            echo "::error::subset 运行必须填写 doc_ids（受影响文档 docId，逗号分隔）"
+            exit 1
+          fi
+          if [ -z "${BASE_RUN_ID:-}" ]; then
+            echo "::error::subset 运行必须填写 base_run_id（一次 full 运行的 id）"
+            exit 1
+          fi
+
+      - name: Run harness
+        env:
+          E2E_ALLOW_REMOTE: "1"
+          E2E_API_BASE_URL: ${{ steps.endpoints.outputs.api }}
+          E2E_SOCKET_URL: ${{ steps.endpoints.outputs.socket }}
+          E2E_SCOPE: ${{ inputs.scope }}
+          E2E_DOC_IDS: ${{ inputs.doc_ids }}
+          E2E_BASE_RUN_ID: ${{ inputs.base_run_id }}
+          # 子集只跑 knowledge/multi（config 按 scope 自动收窄），账号只需 4 个，
+          # 避免每次手动触发都在 QA 上批量注册账号。
+          E2E_ACCOUNT_COUNT: ${{ inputs.scope == 'subset' && '4' || '12' }}
+          E2E_ADMIN_TOKEN: ${{ secrets.E2E_ADMIN_TOKEN }}
+          E2E_OTP_CODE: ${{ secrets.E2E_OTP_CODE }}
+        run: node tools/eval/e2e/run.mjs
+
+      - name: Upload harness reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-regression-${{ github.run_id }}-${{ inputs.scope }}
+          path: tools/eval/e2e/reports/
+          if-no-files-found: warn
+          retention-days: 14

@@ -10,6 +10,7 @@ import {
   pairMultiTurn,
   parseGoldenLines,
   renderSlots,
+  selectCasesForDocIds,
   splitGoldens,
 } from "./cases.mjs";
 import { ADDRESS_LABELS } from "./fixtures.mjs";
@@ -168,4 +169,61 @@ test("buildBoundaryCases：6 个边界场景；长会话依赖 orderId", () => {
   assert.match(longSession.skipReason, /orderId/);
   const injection = partial.find((item) => item.id === "boundary:injection");
   assert.equal(injection.skipReason, null);
+});
+
+test("selectCasesForDocIds：知识题取交集、多轮取并集交集", () => {
+  const cases = [
+    { id: "knowledge:a", kind: "knowledge", expectedDocIds: ["doc-a"] },
+    { id: "knowledge:b", kind: "knowledge", expectedDocIds: ["doc-b"] },
+    { id: "knowledge:ab", kind: "knowledge", expectedDocIds: ["doc-a", "doc-b"] },
+    { id: "multi:a+c", kind: "multi", expectedDocIds: ["doc-a", "doc-c"] },
+    { id: "action:x", kind: "action", expectedDocIds: [] },
+  ];
+  const selected = selectCasesForDocIds(cases, ["doc-a"]);
+  assert.deepEqual(
+    selected.map((item) => item.id),
+    ["knowledge:a", "knowledge:ab", "multi:a+c"],
+  );
+});
+
+test("selectCasesForDocIds：负样本默认排除，显式打开才纳入", () => {
+  const cases = [
+    { id: "knowledge:a", kind: "knowledge", expectedDocIds: ["doc-a"] },
+    { id: "knowledge:neg", kind: "negative", expectedDocIds: [] },
+  ];
+  assert.deepEqual(
+    selectCasesForDocIds(cases, ["doc-a"]).map((item) => item.id),
+    ["knowledge:a"],
+  );
+  assert.deepEqual(
+    selectCasesForDocIds(cases, ["doc-a"], { includeNegatives: true }).map(
+      (item) => item.id,
+    ),
+    ["knowledge:a", "knowledge:neg"],
+  );
+});
+
+test("selectCasesForDocIds：被删除文档的用例必须纳入", () => {
+  const cases = [
+    { id: "knowledge:deleted", kind: "knowledge", expectedDocIds: ["doc-gone"] },
+    { id: "knowledge:other", kind: "knowledge", expectedDocIds: ["doc-other"] },
+  ];
+  assert.deepEqual(
+    selectCasesForDocIds(cases, [], { deletedDocIds: ["doc-gone"] }).map(
+      (item) => item.id,
+    ),
+    ["knowledge:deleted"],
+  );
+});
+
+test("selectCasesForDocIds：空映射不猜测、不返回无关用例", () => {
+  const cases = [
+    { id: "knowledge:a", kind: "knowledge", expectedDocIds: ["doc-a"] },
+    { id: "knowledge:neg", kind: "negative", expectedDocIds: [] },
+  ];
+  assert.deepEqual(selectCasesForDocIds(cases, []), []);
+  assert.deepEqual(
+    selectCasesForDocIds(cases, [], { includeNegatives: true }),
+    [],
+  );
 });

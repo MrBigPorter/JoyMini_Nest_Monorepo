@@ -9,6 +9,8 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { PrismaService } from '@api/common/prisma/prisma.service';
 import { redactPiiText } from '@api/common/utils/pii-redaction';
+import { CorpusFingerprintService } from '@api/common/knowledge/corpus-fingerprint.service';
+import { evaluateKnowledgeStability } from '@api/common/knowledge/corpus-fingerprint';
 import type { AiCustomerService } from '@api/client/ai-customer/ai-customer.service';
 import { runWithContext } from '@api/common/logger/trace-context';
 import { AiEvalJudgeService } from './ai-eval-judge.service';
@@ -21,6 +23,11 @@ import {
   JUDGE_FAILURE_KINDS,
 } from './dto/external-eval.dto';
 import { AI_EVAL_QUEUE, AI_EVAL_RUN_JOB, AiEvalJobData } from './ai-eval.queue';
+import { computeKbRegressionStatus } from './kb-regression.util';
+import {
+  evaluateRunEvidence,
+  maxHarnessFailureRate,
+} from './run-evidence.util';
 
 export type EvalMode = 'STORED' | 'LIVE' | 'EXTERNAL';
 
@@ -167,6 +174,7 @@ export class AiEvalDatasetService {
     @Inject(AI_EVAL_LIVE_AI) private readonly aiCustomer: LiveAiRunner,
     @InjectQueue(AI_EVAL_QUEUE)
     private readonly queue: Queue<AiEvalJobData>,
+    private readonly corpusFingerprint: CorpusFingerprintService,
   ) {}
 
   async listDatasets() {
@@ -512,12 +520,20 @@ export class AiEvalDatasetService {
         judgeSpecVersion: true,
         metricSpecVersion: true,
         datasetSnapshot: true,
+        scope: true,
       },
     });
     if (!run) throw new NotFoundException('Eval run not found');
     if (run.status !== 'COMPLETED') {
       throw new BadRequestException(
         `Run is ${run.status}; only COMPLETED runs can be promoted`,
+      );
+    }
+    // 子集是变更后的诊断结果，语料与用例集都不是全量，不能当基线。
+    if (run.scope === 'subset') {
+      throw new BadRequestException(
+        'Subset runs are diagnostic only and cannot be promoted; ' +
+          'run a full-scope regression first',
       );
     }
 
@@ -608,6 +624,68 @@ export class AiEvalDatasetService {
     return this.getRun(id);
   }
 
+  /**
+   * 知识库回归状态：实时比对当前语料与上次全量运行快照。
+   * 不缓存，也不订阅发布事件——事件只做通知，状态以本次查询为准。
+   */
+  async getKbRegressionStatus() {
+    const current = await this.corpusFingerprint.getCurrent();
+    const [baseline, lastSubsetRun] = await Promise.all([
+      this.prisma.aiEvalRun.findFirst({
+        where: {
+          mode: 'EXTERNAL',
+          status: 'COMPLETED',
+          scope: 'full',
+          knowledgeFingerprint: { not: null },
+        },
+        orderBy: [{ finishedAt: 'desc' }, { startedAt: 'desc' }],
+        select: {
+          id: true,
+          finishedAt: true,
+          knowledgeFingerprint: true,
+          knowledgeSnapshot: true,
+          datasetSnapshot: true,
+        },
+      }),
+      this.prisma.aiEvalRun.findFirst({
+        where: { mode: 'EXTERNAL', status: 'COMPLETED', scope: 'subset' },
+        orderBy: [{ finishedAt: 'desc' }, { startedAt: 'desc' }],
+        select: {
+          id: true,
+          finishedAt: true,
+          knowledgeFingerprint: true,
+          knowledgeSnapshot: true,
+          summary: true,
+        },
+      }),
+    ]);
+    return computeKbRegressionStatus({ current, baseline, lastSubsetRun });
+  }
+
+  /**
+   * 发布证据：逐项校验并返回可读原因。
+   * 与 promote 共用同一批评测规则；部署 job 只读这里的结果。
+   */
+  async getRunEvidence(id: string) {
+    const run = await this.prisma.aiEvalRun.findUnique({
+      where: { id },
+      include: { results: { select: { judgeErrorKind: true } } },
+    });
+    if (!run) throw new NotFoundException('Eval run not found');
+    const current = await this.corpusFingerprint.getCurrent();
+    return evaluateRunEvidence({
+      run,
+      results: run.results,
+      currentFingerprint: current.fingerprint,
+      config: {
+        maxJudgeErrorRate: this.maxJudgeErrorRate(),
+        minJudgeAgreement: this.minJudgeAgreement(),
+        maxHarnessFailureRate: maxHarnessFailureRate(),
+        currentMetricSpecVersion: CURRENT_METRIC_SPEC_VERSION,
+      },
+    });
+  }
+
   async getRun(id: string) {
     await this.recoverStaleRuns();
     const run = await this.prisma.aiEvalRun.findUnique({
@@ -687,6 +765,10 @@ export class AiEvalDatasetService {
       })),
     };
 
+    // 运行开始时取一次语料指纹。收尾时再取一次，用两次结果判断语料是否稳定。
+    const corpusBefore = await this.corpusFingerprint.getCurrent();
+    const harnessBefore = input.knowledgeFingerprintBefore ?? null;
+
     return this.prisma.aiEvalRun.create({
       data: {
         datasetId: dataset.id,
@@ -698,6 +780,21 @@ export class AiEvalDatasetService {
         gateMode: input.gateMode,
         judgeSpecVersion: input.judgeSpecVersion,
         metricSpecVersion: input.metricSpecVersion,
+        knowledgeFingerprint: corpusBefore.fingerprint,
+        scope: input.scope ?? 'full',
+        knowledgeSnapshot: {
+          fingerprint: corpusBefore.fingerprint,
+          generatedAt: corpusBefore.generatedAt,
+          docs: corpusBefore.docs,
+          pendingActivation: corpusBefore.pendingActivation,
+          before: {
+            server: corpusBefore.fingerprint,
+            harness: harnessBefore,
+          },
+          after: null,
+          stable: false,
+          stableReason: 'run_in_progress',
+        } as any,
       },
     });
   }
@@ -728,12 +825,39 @@ export class AiEvalDatasetService {
     }
     const results = dto.cases ?? [];
 
+    // 收尾时再取一次指纹，与创建时那一次、harness 上报的 before/after
+    // 共同判定「这次运行是否跑在稳定语料上」。任一来源缺失都按不稳定处理。
+    const storedSnapshot = (run.knowledgeSnapshot as any) ?? null;
+    const serverBefore =
+      run.knowledgeFingerprint ?? storedSnapshot?.before?.server ?? null;
+    const harnessBefore =
+      dto.knowledgeFingerprintBefore ?? storedSnapshot?.before?.harness ?? null;
+    const harnessAfter = dto.knowledgeFingerprintAfter ?? null;
+    const corpusAfter = await this.corpusFingerprint.getCurrent();
+    const stability = evaluateKnowledgeStability({
+      serverBefore,
+      serverAfter: corpusAfter.fingerprint,
+      harnessBefore,
+      harnessAfter,
+    });
+    const knowledgeSnapshot = {
+      fingerprint: serverBefore,
+      generatedAt: corpusAfter.generatedAt,
+      docs: corpusAfter.docs,
+      pendingActivation: corpusAfter.pendingActivation,
+      before: { server: serverBefore, harness: harnessBefore },
+      after: { server: corpusAfter.fingerprint, harness: harnessAfter },
+      stable: stability.stable,
+      stableReason: stability.stableReason,
+    };
+
     if (dto.status === 'FAILED') {
       await this.prisma.aiEvalRun.updateMany({
         where: { id: runId, status: 'RUNNING' },
         data: {
           status: 'FAILED',
           finishedAt: new Date(),
+          knowledgeSnapshot: knowledgeSnapshot as any,
           summary: {
             mode: 'EXTERNAL',
             datasetFingerprint: snapshot.hash,
@@ -813,6 +937,7 @@ export class AiEvalDatasetService {
           finishedAt: new Date(),
           summary: summary as any,
           baselineRunId,
+          knowledgeSnapshot: knowledgeSnapshot as any,
         },
       });
     });
@@ -918,6 +1043,7 @@ export class AiEvalDatasetService {
       gateMode: string | null;
       judgeSpecVersion: string | null;
       metricSpecVersion: string | null;
+      scope?: string | null;
     },
     results: ExternalEvalResultDto[],
   ): Promise<Record<string, any>> {
@@ -986,6 +1112,8 @@ export class AiEvalDatasetService {
       judgeAgreement,
       judgeAgreementMeasured: agreementRows.length,
       judgeDisagreement,
+      scope: run.scope ?? 'full',
+      selectedCaseCount: snapshot?.cases?.length ?? null,
       answerVerdicts: counts,
       grounding,
       datasetFingerprint: snapshot?.hash ?? null,

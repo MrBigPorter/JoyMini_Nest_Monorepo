@@ -27,9 +27,12 @@ import {
 import type {
   AiFeedbackItem,
   AiFeedbackSummary,
+  DocumentChunk,
   EvalCase,
   EvalDataset,
   EvalRun,
+  KbRegressionStatus,
+  RunEvidence,
 } from '@/type/types';
 
 type Tab = 'feedback' | 'eval' | 'rag';
@@ -1372,6 +1375,252 @@ function FeedbackPanel({ onGoToEval }: { onGoToEval: () => void }) {
   );
 }
 
+const KB_CHANGE_LABELS: Record<string, string> = {
+  added: '新增',
+  removed: '删除',
+  content_changed: '内容变化',
+};
+
+/**
+ * 回归状态卡：当前语料 vs 上次全量快照。
+ *
+ * 三种状态必须一眼分开：没有基线（先跑全量）、已覆盖（无需子集）、
+ * 有变更（列出文档与受影响用例，并给出可复制的子集命令）。
+ */
+function KbRegressionCard() {
+  const { data, loading, error, refresh } = useRequest(
+    aiQualityApi.kbRegressionStatus,
+  );
+  const status = data as KbRegressionStatus | undefined;
+  const [copyState, setCopyState] = useState('');
+
+  const changedDocIds = Array.from(
+    new Set((status?.changedDocs ?? []).map((item) => item.docId)),
+  );
+  const subsetCommand =
+    status?.baseline && changedDocIds.length > 0
+      ? [
+          'E2E_SCOPE=subset',
+          `E2E_DOC_IDS=${changedDocIds.join(',')}`,
+          `E2E_BASE_RUN_ID=${status.baseline.runId}`,
+          'E2E_KINDS=knowledge,multi',
+          'node tools/eval/e2e/run.mjs',
+        ].join(' ')
+      : '';
+
+  const copyCommand = async () => {
+    if (!subsetCommand) return;
+    try {
+      await navigator.clipboard.writeText(subsetCommand);
+      setCopyState('已复制子集命令');
+    } catch {
+      setCopyState('浏览器阻止了复制，请手动选择命令复制');
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-gray-100 bg-white p-4 dark:border-white/10 dark:bg-gray-900">
+      <div className="flex flex-wrap items-center gap-3">
+        <h3 className="text-sm font-semibold">知识库回归</h3>
+        <Button size="sm" variant="outline" onClick={refresh}>
+          刷新状态
+        </Button>
+        {loading ? (
+          <span className="text-xs text-gray-500">加载中…</span>
+        ) : null}
+      </div>
+
+      {error ? (
+        <div className="mt-3">
+          <AiErrorBanner message="回归状态加载失败，请重试" onRetry={refresh} />
+        </div>
+      ) : null}
+
+      {status ? (
+        <div className="mt-3 space-y-3 text-sm">
+          <div className="space-y-1">
+            <div className="text-xs text-gray-500">
+              当前语料指纹（正在服务的正文与激活版本）
+            </div>
+            <code className="block break-all rounded-lg bg-gray-50 p-2 font-mono text-xs dark:bg-gray-800">
+              {status.currentFingerprint}
+            </code>
+            <div className="text-xs text-gray-500">
+              采集时间 {new Date(status.generatedAt).toLocaleString()}
+              {status.baseline ? (
+                <>
+                  {' · '}上次全量{' '}
+                  <span className="font-mono">
+                    {status.baseline.runId.slice(0, 8)}
+                  </span>{' '}
+                  {status.baseline.finishedAt
+                    ? new Date(status.baseline.finishedAt).toLocaleString()
+                    : ''}
+                </>
+              ) : null}
+            </div>
+          </div>
+
+          {status.needsFullRun ? (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
+              还没有可用于对比的全量基线。请先跑一次全量回归，系统才能算出受影响用例；全量完成后来这里刷新。
+            </div>
+          ) : status.covered ? (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
+              当前语料与上次全量一致，没有变更文档，无需跑子集。
+            </div>
+          ) : (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
+              知识库有 {status.changedDocs.length} 篇文档变更，影响{' '}
+              {status.affectedCaseCount}{' '}
+              条回归用例。建议先跑子集（约 2–5 分钟）确认变更，发版前再跑一次全量。
+            </div>
+          )}
+
+          {status.changedDocs.length > 0 ? (
+            <div>
+              <div className="mb-1 text-xs font-medium text-gray-500">
+                变更文档
+              </div>
+              <div className="max-h-56 space-y-1 overflow-y-auto text-xs">
+                {status.changedDocs.map((item) => (
+                  <div
+                    key={`${item.docId}|${item.locale}`}
+                    className="rounded-lg border p-2 dark:border-white/10"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-mono">{item.docId}</span>
+                      <span className="text-gray-500">{item.locale}</span>
+                      <span className="rounded border px-1 py-0.5 dark:border-white/10">
+                        {KB_CHANGE_LABELS[item.change] ?? item.change}
+                      </span>
+                    </div>
+                    <div className="mt-1 text-gray-500">
+                      {item.change === 'added'
+                        ? `新增 · 当前 v${item.current?.activeVersion ?? '-'} / ${
+                            item.current?.activeChunkCount ?? '-'
+                          } 块`
+                        : item.change === 'removed'
+                          ? `已删除 · 原 v${
+                              item.previous?.activeVersion ?? '-'
+                            } / ${item.previous?.activeChunkCount ?? '-'} 块`
+                          : `旧版本 v${item.previous?.activeVersion ?? '-'} / ${
+                              item.previous?.activeChunkCount ?? '-'
+                            } 块 → 新版本 v${
+                              item.current?.activeVersion ?? '-'
+                            } / ${item.current?.activeChunkCount ?? '-'} 块`}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {status.affectedCaseCount > 0 ? (
+            <details className="text-xs">
+              <summary className="cursor-pointer text-gray-500">
+                受影响用例（{status.affectedCaseCount}）
+              </summary>
+              <div className="mt-1 flex flex-wrap gap-1">
+                {status.affectedCaseIds.map((caseId) => (
+                  <span
+                    key={caseId}
+                    className="rounded border px-1 py-0.5 font-mono dark:border-white/10"
+                  >
+                    {caseId}
+                  </span>
+                ))}
+              </div>
+            </details>
+          ) : null}
+
+          {status.uncoveredDocIds.length > 0 ? (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
+              以下变更文档没有任何用例覆盖，子集无法证明它们的改动：
+              <span className="ml-1 font-mono">
+                {status.uncoveredDocIds.join(', ')}
+              </span>
+              。请先补充用例。
+            </div>
+          ) : null}
+
+          {status.pendingActivation.length > 0 ? (
+            <div className="rounded-lg border border-amber-200 p-3 text-xs text-amber-700 dark:border-amber-500/30 dark:text-amber-300">
+              有 {status.pendingActivation.length}{' '}
+              篇文档待激活或索引未完成，激活后指纹才会变化，子集应在激活后执行：
+              <span className="ml-1 font-mono">
+                {status.pendingActivation
+                  .map((item) => item.docId)
+                  .join(', ')}
+              </span>
+            </div>
+          ) : null}
+
+          {subsetCommand ? (
+            <div>
+              <div className="mb-1 flex flex-wrap items-center gap-2">
+                <span className="text-xs font-medium text-gray-500">
+                  复制子集命令（在仓库根目录执行）
+                </span>
+                <Button size="sm" variant="outline" onClick={copyCommand}>
+                  复制子集命令
+                </Button>
+                {copyState ? (
+                  <span className="text-xs text-gray-500">{copyState}</span>
+                ) : null}
+              </div>
+              <pre className="overflow-x-auto rounded-lg bg-gray-50 p-2 text-xs dark:bg-gray-800">
+                {subsetCommand}
+              </pre>
+            </div>
+          ) : null}
+
+          {status.lastSubsetRun ? (
+            <div className="text-xs text-gray-500">
+              最近子集运行{' '}
+              <span className="font-mono">
+                {status.lastSubsetRun.id.slice(0, 8)}
+              </span>
+              {status.lastSubsetRun.finishedAt
+                ? ` · ${new Date(
+                    status.lastSubsetRun.finishedAt,
+                  ).toLocaleString()}`
+                : ''}{' '}
+              · 语料稳定{' '}
+              {status.lastSubsetRun.stable === true
+                ? '是'
+                : status.lastSubsetRun.stable === false
+                  ? '否（不可作为证据）'
+                  : '未知'}
+              {status.lastSubsetRun.summary
+                ? ` · ${formatPassRate(status.lastSubsetRun.summary)}`
+                : ''}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+const EVIDENCE_CHECK_LABELS: Record<string, string> = {
+  status: '运行状态',
+  mode: '运行来源',
+  scope: '运行范围',
+  knowledgeFingerprint: '语料指纹字段',
+  stable: '运行期间语料稳定',
+  fingerprint: '指纹与当前语料一致',
+  pendingActivation: '无待激活文档',
+  codeVersion: '代码版本',
+  datasetSnapshot: '数据集快照',
+  judgeSpecVersion: '判官输入规范',
+  metricSpecVersion: '指标定义版本',
+  judgeErrorRate: '判官失败率',
+  judgeAgreement: '判官一致性',
+  executedCases: '执行用例完整',
+  harnessFailureRate: 'harness 失败率',
+};
+
 function EvalPanel() {
   const [name, setName] = useState('');
   const [selectedId, setSelectedId] = useState('');
@@ -1383,6 +1632,7 @@ function EvalPanel() {
   const [advanced, setAdvanced] = useState(false);
   const [pollRun, setPollRun] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [showEvidence, setShowEvidence] = useState(false);
   const role = useAiOpsRole();
   const canStartRun = role === 'SUPER_ADMIN' || role === 'ADMIN';
 
@@ -1401,6 +1651,18 @@ function EvalPanel() {
       pollingInterval: pollRun ? 3000 : undefined,
     },
   );
+  const {
+    data: evidence,
+    loading: evidenceLoading,
+    error: evidenceError,
+    refresh: refreshEvidence,
+  } = useRequest(
+    () =>
+      showEvidence && runId
+        ? aiQualityApi.getRunEvidence(runId)
+        : Promise.resolve(null),
+    { refreshDeps: [showEvidence, runId] },
+  );
   const runStatus = (run as EvalRun | null | undefined)?.status;
   useEffect(() => {
     if (
@@ -1411,6 +1673,9 @@ function EvalPanel() {
       setPollRun(false);
     }
   }, [runStatus]);
+  useEffect(() => {
+    setShowEvidence(false);
+  }, [runId]);
 
   const create = async () => {
     if (!name.trim()) return;
@@ -1516,6 +1781,7 @@ function EvalPanel() {
     | (EvalDataset & { cases: any[]; runs: EvalRun[] })
     | null;
   const runData = run as EvalRun | null;
+  const runEvidence = evidence as RunEvidence | null | undefined;
   const list = Array.isArray(datasets) ? (datasets as EvalDataset[]) : [];
   const selectedMeta = list.find((item) => item.id === selectedId);
   const lastRun = ds?.runs?.[0];
@@ -1525,6 +1791,7 @@ function EvalPanel() {
 
   return (
     <section className="space-y-4">
+      <KbRegressionCard />
       <div className="flex flex-wrap items-center gap-2">
         <input
           className="rounded-lg border px-3 py-2 text-sm dark:border-white/10 dark:bg-gray-800"
@@ -1597,6 +1864,30 @@ function EvalPanel() {
               </div>
             </div>
           </div>
+          {(ds?.runs ?? []).length > 0 ? (
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+              <span>最近运行</span>
+              {(ds?.runs ?? []).slice(0, 5).map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={
+                    runId === item.id
+                      ? 'rounded border border-primary-500 px-1.5 py-0.5 text-primary-600 dark:border-primary-400 dark:text-primary-300'
+                      : 'rounded border px-1.5 py-0.5 hover:border-primary-400 dark:border-white/10'
+                  }
+                  onClick={() => {
+                    setRunId(item.id);
+                    setPollRun(false);
+                  }}
+                >
+                  <span className="font-mono">{item.id.slice(0, 8)}</span> ·{' '}
+                  {labelOf(RUN_STATUS_LABELS, item.status) || item.status} ·{' '}
+                  {formatPassRate(item.summary)}
+                </button>
+              ))}
+            </div>
+          ) : null}
           <div className="mt-3 flex flex-wrap items-end gap-2">
             <label className="flex flex-col gap-1 text-xs text-gray-500">
               评测模式
@@ -1758,6 +2049,22 @@ function EvalPanel() {
                 {cancelling ? '取消中…' : '取消运行'}
               </Button>
             ) : null}
+            {runData.status !== 'RUNNING' ? (
+              <Button
+                size="sm"
+                variant="outline"
+                aria-expanded={showEvidence}
+                onClick={() => {
+                  if (showEvidence) {
+                    setShowEvidence(false);
+                  } else {
+                    setShowEvidence(true);
+                  }
+                }}
+              >
+                {showEvidence ? '收起发布证据' : '查看发布证据'}
+              </Button>
+            ) : null}
             {runData.summary?.total != null ? (
               runData.mode === 'EXTERNAL' ? (
                 <span className="text-xs text-gray-500">
@@ -1803,6 +2110,77 @@ function EvalPanel() {
           {runData.summary?.cancelled ? (
             <div className="mt-2 text-xs text-amber-600 dark:text-amber-300">
               本次运行已取消，未处理剩余用例。
+            </div>
+          ) : null}
+          {showEvidence ? (
+            <div className="mt-3 rounded-lg border p-3 dark:border-white/10">
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <span className="font-semibold">发布证据</span>
+                {evidenceLoading ? (
+                  <span className="text-xs text-gray-500">校验中…</span>
+                ) : null}
+                {evidenceError ? (
+                  <Button size="sm" variant="outline" onClick={refreshEvidence}>
+                    重试
+                  </Button>
+                ) : null}
+                {runEvidence ? (
+                  <span
+                    className={
+                      runEvidence.ok
+                        ? 'rounded border border-emerald-200 px-2 py-0.5 text-xs text-emerald-700 dark:border-emerald-500/30 dark:text-emerald-300'
+                        : 'rounded border border-red-200 px-2 py-0.5 text-xs text-red-700 dark:border-red-500/30 dark:text-red-300'
+                    }
+                  >
+                    {runEvidence.ok
+                      ? '证据通过，可用于发布'
+                      : '证据不通过，不能用于发布'}
+                  </span>
+                ) : null}
+              </div>
+              {evidenceError ? (
+                <div className="mt-2 text-xs text-red-600 dark:text-red-300">
+                  证据校验失败，请重试。
+                </div>
+              ) : null}
+              {runEvidence ? (
+                <div className="mt-2 space-y-1 text-xs">
+                  <div className="text-gray-500">
+                    运行{' '}
+                    <span className="font-mono">
+                      {runEvidence.runId.slice(0, 8)}
+                    </span>{' '}
+                    · 代码版本 {runEvidence.codeVersion ?? '缺失'} · 语料指纹{' '}
+                    {runEvidence.knowledgeFingerprint
+                      ? runEvidence.knowledgeFingerprint.slice(0, 12)
+                      : '缺失'}
+                  </div>
+                  {runEvidence.checks.map((check) => (
+                    <div
+                      key={check.id}
+                      className="flex items-start gap-2 rounded border p-2 dark:border-white/10"
+                    >
+                      <span
+                        className={
+                          check.ok
+                            ? 'text-emerald-600 dark:text-emerald-300'
+                            : 'text-red-600 dark:text-red-300'
+                        }
+                      >
+                        {check.ok ? '✓' : '✗'}
+                      </span>
+                      <div>
+                        <div className="font-medium">
+                          {EVIDENCE_CHECK_LABELS[check.id] ?? check.id}
+                        </div>
+                        <div className="text-gray-500">
+                          {check.ok ? '通过' : check.message}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             </div>
           ) : null}
           <div className="mt-3 space-y-2 text-xs">
@@ -1863,12 +2241,129 @@ function EvalPanel() {
   );
 }
 
+/**
+ * 新旧分块并排对比：旧版本在保留期内仍可读，按 chunkIndex 对齐。
+ * 只做诊断，不判断内容对错；业务事实仍由人工抽检确认。
+ */
+function ChunkVersionDiff({
+  documentId,
+  title,
+  onClose,
+}: {
+  documentId: string;
+  title: string;
+  onClose: () => void;
+}) {
+  const { data, loading, error, refresh } = useRequest(
+    () => knowledgeApi.getChunks(documentId),
+    { refreshDeps: [documentId] },
+  );
+
+  const chunks = Array.isArray(data) ? (data as DocumentChunk[]) : [];
+  const byVersion = new Map<number, Map<number, DocumentChunk>>();
+  for (const chunk of chunks) {
+    if (!byVersion.has(chunk.documentVersion)) {
+      byVersion.set(chunk.documentVersion, new Map());
+    }
+    byVersion.get(chunk.documentVersion)!.set(chunk.chunkIndex, chunk);
+  }
+  const versions = [...byVersion.keys()].sort((a, b) => b - a);
+  const currentVersion = versions[0];
+  const previousVersion = versions[1];
+  const indexes =
+    currentVersion != null && previousVersion != null
+      ? [
+          ...new Set([
+            ...byVersion.get(currentVersion)!.keys(),
+            ...byVersion.get(previousVersion)!.keys(),
+          ]),
+        ].sort((a, b) => a - b)
+      : [];
+
+  return (
+    <div className="rounded-xl border border-gray-100 bg-white p-4 dark:border-white/10 dark:bg-gray-900">
+      <div className="flex flex-wrap items-center gap-2">
+        <h3 className="text-sm font-semibold">新旧分块 · {title}</h3>
+        <Button size="sm" variant="outline" onClick={onClose}>
+          关闭
+        </Button>
+      </div>
+
+      {error ? (
+        <div className="mt-2">
+          <AiErrorBanner message="分块加载失败，请重试" onRetry={refresh} />
+        </div>
+      ) : loading ? (
+        <div className="mt-2 text-xs text-gray-500">加载中…</div>
+      ) : versions.length < 2 ? (
+        <div className="mt-2 text-xs text-gray-500">
+          当前只保留一个版本，暂无可对比的旧版本。旧分块只在更新后的 7
+          天保留期内可读。
+        </div>
+      ) : (
+        <>
+          <div className="mt-2 text-xs text-gray-500">
+            旧版本 v{previousVersion}（{byVersion.get(previousVersion)!.size}{' '}
+            块）→ 当前版本 v{currentVersion}（
+            {byVersion.get(currentVersion)!.size} 块）
+          </div>
+          <div className="mt-2 space-y-2">
+            {indexes.map((index) => {
+              const previous = byVersion.get(previousVersion)!.get(index);
+              const current = byVersion.get(currentVersion)!.get(index);
+              const change =
+                previous && current
+                  ? previous.content === current.content
+                    ? '相同'
+                    : '变化'
+                  : current
+                    ? '新增'
+                    : '删除';
+              return (
+                <div
+                  key={index}
+                  className="rounded-lg border p-2 text-xs dark:border-white/10"
+                >
+                  <div className="mb-1 flex items-center gap-2 text-gray-500">
+                    <span>分块 {index}</span>
+                    <span className="rounded border px-1 py-0.5 dark:border-white/10">
+                      {change}
+                    </span>
+                  </div>
+                  <div className="grid gap-2 md:grid-cols-2">
+                    <div>
+                      <div className="mb-1 text-gray-400">旧版本</div>
+                      <div className="max-h-40 overflow-y-auto whitespace-pre-wrap break-words rounded bg-red-50/60 p-2 dark:bg-red-500/5">
+                        {previous?.content ?? '（该版本没有这个分块）'}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="mb-1 text-gray-400">当前版本</div>
+                      <div className="max-h-40 overflow-y-auto whitespace-pre-wrap break-words rounded bg-emerald-50/60 p-2 dark:bg-emerald-500/5">
+                        {current?.content ?? '（该版本没有这个分块）'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function RagPanel() {
   const [query, setQuery] = useState('');
   const [domain, setDomain] = useState('');
   const [result, setResult] = useState<any>(null);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState('');
+  const [diffDoc, setDiffDoc] = useState<{
+    id: string;
+    title: string;
+  } | null>(null);
   const {
     data: stats,
     loading: statsLoading,
@@ -1908,6 +2403,7 @@ function RagPanel() {
     ['可疑', byScore?.suspicious],
   ] as const;
   const recentFlags = stats?.recentFlags ?? [];
+  const recentUpdated = stats?.recentUpdated ?? [];
   const results: any[] = result?.results ?? [];
 
   return (
@@ -1941,13 +2437,87 @@ function RagPanel() {
 
       <div className="rounded-xl border border-gray-100 dark:border-white/10">
         <div className="border-b px-4 py-2 text-sm font-semibold dark:border-white/10">
+          最近更新文档
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead className="bg-gray-50 text-left dark:bg-white/5">
+              <tr>
+                {['文档', '评分', '标记', '当前版本', '更新时间', '操作'].map(
+                  (h) => (
+                    <th key={h} className="px-3 py-2">
+                      {h}
+                    </th>
+                  ),
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {statsLoading ? (
+                <tr>
+                  <td
+                    colSpan={6}
+                    className="px-3 py-6 text-center text-gray-400"
+                  >
+                    加载中…
+                  </td>
+                </tr>
+              ) : recentUpdated.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={6}
+                    className="px-3 py-6 text-center text-gray-400"
+                  >
+                    暂无更新记录
+                  </td>
+                </tr>
+              ) : (
+                recentUpdated.map((doc) => (
+                  <tr
+                    key={`${doc.documentId}-${doc.activeVersion}`}
+                    className="border-t border-gray-100 dark:border-white/5"
+                  >
+                    <td className="px-3 py-2" title={doc.documentId}>
+                      {doc.title}
+                    </td>
+                    <td className="px-3 py-2">{doc.score ?? '-'}</td>
+                    <td className="px-3 py-2 text-gray-600 dark:text-gray-300">
+                      {doc.flags ?? '无标记'}
+                    </td>
+                    <td className="px-3 py-2">v{doc.activeVersion}</td>
+                    <td className="px-3 py-2">
+                      {doc.updatedAt
+                        ? new Date(doc.updatedAt).toLocaleString()
+                        : '-'}
+                    </td>
+                    <td className="px-3 py-2">
+                      <button
+                        type="button"
+                        className="text-primary-600 hover:underline"
+                        onClick={() =>
+                          setDiffDoc({ id: doc.documentId, title: doc.title })
+                        }
+                      >
+                        新旧分块
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-gray-100 dark:border-white/10">
+        <div className="border-b px-4 py-2 text-sm font-semibold dark:border-white/10">
           最近标记文档
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50 text-left dark:bg-white/5">
               <tr>
-                {['文档', '评分', '标记', '上传时间'].map((h) => (
+                {['文档', '评分', '标记', '上传时间', '操作'].map((h) => (
                   <th key={h} className="px-3 py-2">
                     {h}
                   </th>
@@ -1958,7 +2528,7 @@ function RagPanel() {
               {statsLoading ? (
                 <tr>
                   <td
-                    colSpan={4}
+                    colSpan={5}
                     className="px-3 py-6 text-center text-gray-400"
                   >
                     加载中…
@@ -1967,7 +2537,7 @@ function RagPanel() {
               ) : recentFlags.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={4}
+                    colSpan={5}
                     className="px-3 py-6 text-center text-gray-400"
                   >
                     暂无标记文档
@@ -1991,6 +2561,17 @@ function RagPanel() {
                         ? new Date(flag.parsedAt).toLocaleString()
                         : '-'}
                     </td>
+                    <td className="px-3 py-2">
+                      <button
+                        type="button"
+                        className="text-primary-600 hover:underline"
+                        onClick={() =>
+                          setDiffDoc({ id: flag.documentId, title: flag.title })
+                        }
+                      >
+                        新旧分块
+                      </button>
+                    </td>
                   </tr>
                 ))
               )}
@@ -1998,6 +2579,14 @@ function RagPanel() {
           </table>
         </div>
       </div>
+
+      {diffDoc ? (
+        <ChunkVersionDiff
+          documentId={diffDoc.id}
+          title={diffDoc.title}
+          onClose={() => setDiffDoc(null)}
+        />
+      ) : null}
 
       <div className="flex flex-wrap gap-2">
         <input

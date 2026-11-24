@@ -67,6 +67,7 @@ docs/
 ├── apple-oauth-setup.md
 ├── ai-constitution-detailed.md
 ├── full-deployment-guide.md
+├── release-checklist.md       # AI / knowledge release gate
 ├── LANGUAGE_DETECTION_IMPROVEMENT.md
 ├── HYDRATION_MISMATCH_GUIDE.md
 └── README.md                  # This file (navigation index)
@@ -100,6 +101,7 @@ docs/
 | --------------------------------------------- | -------------------------------------------------------------- |
 | Understand project architecture               | [`../RUNBOOK.md`](../RUNBOOK.md)                               |
 | Deploy or troubleshoot                        | [`full-deployment-guide.md`](full-deployment-guide.md)         |
+| Release AI or knowledge-base changes          | [`release-checklist.md`](release-checklist.md)                 |
 | Set up OAuth / third-party login              | [`oauth/README.md`](oauth/README.md)                           |
 | Write a new technical document                | [`TECHNICAL_DOCUMENT_TEMPLATE.md`](TECHNICAL_DOCUMENT_TEMPLATE.md) |
 | Read AI constitution & rules                  | [`ai-constitution-detailed.md`](ai-constitution-detailed.md)   |

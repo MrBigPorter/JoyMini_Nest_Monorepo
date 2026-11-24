@@ -78,13 +78,22 @@ function makeService() {
   const judge = { judge: jest.fn() };
   const aiCustomer = { testChat: jest.fn() };
   const queue = { add: jest.fn().mockResolvedValue({ id: 'job-1' }) };
+  const corpusFingerprint = {
+    getCurrent: jest.fn().mockResolvedValue({
+      fingerprint: 'corpus-test',
+      docs: [],
+      pendingActivation: [],
+      generatedAt: '2026-11-24T00:00:00.000Z',
+    }),
+  };
   const service = new AiEvalDatasetService(
     prisma as any,
     judge as any,
     aiCustomer as any,
     queue as any,
+    corpusFingerprint as any,
   );
-  return { service, prisma, judge, aiCustomer, queue };
+  return { service, prisma, judge, aiCustomer, queue, corpusFingerprint };
 }
 
 function summaryOf(prisma: ReturnType<typeof makeService>['prisma']) {

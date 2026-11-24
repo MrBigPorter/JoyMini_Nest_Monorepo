@@ -737,6 +737,43 @@ export class MeilisearchService implements OnModuleInit {
   }
 
   /**
+   * 删除一篇文档里指定版本的 chunk 索引
+   *
+   * 用于 reindex：只重建当前版本，保留保留期内可回滚的旧版本。
+   * 与 deleteChunksByDocument 的区别是删除范围精确到版本；
+   * 与 deleteChunkVersionsBelow 的区别是不动更低版本。
+   *
+   * 失败必须抛：调用方随后会删除 PG 侧同版本 chunk 并用新 id 重建，
+   * 如果 Meili 还留着旧 id 且标记为激活，搜索会继续返回已不存在于 PG 的内容。
+   */
+  async deleteChunkVersion(
+    documentId: string,
+    version: number,
+  ): Promise<void> {
+    if (!this.client) {
+      this.logger.error(
+        `[deleteChunkVersion] Meilisearch client unavailable; ` +
+          `stale chunks may remain for ${documentId} v${version}`,
+      );
+      return;
+    }
+
+    try {
+      const index = this.client.index(this.indexName);
+      const task = await index.deleteDocuments({
+        filter: `documentId = "${documentId}" AND documentVersion = ${version}`,
+      });
+      await this.client.tasks.waitForTask(task.taskUid);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(
+        `[deleteChunkVersion] Failed for ${documentId} v${version}: ${message}`,
+      );
+      throw error;
+    }
+  }
+
+  /**
    * 批量存入 chunks（一次性存多个）
    *
    * 什么时候用:

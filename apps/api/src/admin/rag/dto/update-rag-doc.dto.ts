@@ -62,8 +62,8 @@ export class UpdateRagDocDto {
   })
   priority?: string;
 
-  @IsString()
-  @IsOptional()
-  @ApiPropertyOptional({ description: '文档正文 Markdown' })
-  content?: string;
+  // 正文不在这里：PATCH 只改元数据。
+  // 正文必须走上传播入或 PATCH /:id/content，才能升版本、重建分块、
+  // 触发重新索引，并让语料指纹真实变化。保留 content 字段会让运营
+  // 绕过整条版本化链路，改动对评测与检索不可见。
 }

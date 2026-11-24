@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { PrismaModule } from '@api/common/prisma/prisma.module';
+import { CorpusFingerprintModule } from '@api/common/knowledge/corpus-fingerprint.module';
 import { UploadModule } from '@api/common/upload/upload.module';
 import { RagController } from './rag.controller';
 import { RagService } from './rag.service';
@@ -14,7 +15,12 @@ import { RagFaithfulnessService } from './rag-faithfulness.service';
 import { KnowledgeDomainService } from './knowledge-domain.service';
 
 @Module({
-  imports: [PrismaModule, RagEmbeddingQueueModule, UploadModule],
+  imports: [
+    PrismaModule,
+    RagEmbeddingQueueModule,
+    UploadModule,
+    CorpusFingerprintModule,
+  ],
   controllers: [RagController],
   providers: [
     RagService,

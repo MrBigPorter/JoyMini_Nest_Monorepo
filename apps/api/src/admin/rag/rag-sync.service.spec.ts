@@ -17,6 +17,7 @@ jest.mock('@api/common/prisma/prisma.service', () => ({
 }));
 
 import { RagSyncService } from './rag-sync.service';
+import { sha256 } from '@api/common/crypto.util';
 
 /**
  * Task 4：更新文档时不再删旧 chunk，改为「追加新版本」。
@@ -101,6 +102,15 @@ describe('RagSyncService 更新路径改为追加（Task 4）', () => {
       documentId: 'doc_1',
       targetVersion: 3,
     });
+  });
+
+  it('上传写入的 contentHash 等于正文 sha256', async () => {
+    const { service, prisma } = build();
+
+    await service.uploadFile(file);
+
+    const [updateArgs] = prisma.knowledgeDocument.update.mock.calls[0];
+    expect(updateArgs.data.contentHash).toBe(sha256(updateArgs.data.content));
   });
 
 

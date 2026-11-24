@@ -40,8 +40,10 @@ import { UploadRagDocDto } from './dto/upload-rag-doc.dto';
 import { RollbackVersionDto } from './dto/rollback-version.dto';
 import { SearchRagDto } from './dto/search-rag.dto';
 import { JudgeRagDto } from './dto/judge-rag.dto';
+import { RejectRagContentGuard } from './reject-rag-content.guard';
 import { KbVersionService } from '@api/client/ai-customer/knowledge/kb-version.service';
 import { RagRetrievalService } from '@api/client/ai-customer/knowledge/rag-retrieval.service';
+import { CorpusFingerprintService } from '@api/common/knowledge/corpus-fingerprint.service';
 import { RagFaithfulnessService } from './rag-faithfulness.service';
 import {
   RagDocResponseDto,
@@ -58,6 +60,7 @@ export class RagController {
     private readonly kbVersionService: KbVersionService,
     private readonly ragRetrievalService: RagRetrievalService,
     private readonly ragFaithfulnessService: RagFaithfulnessService,
+    private readonly corpusFingerprintService: CorpusFingerprintService,
   ) {}
 
   // ==================== Retrieval Eval ====================
@@ -154,6 +157,17 @@ export class RagController {
     return this.ragService.getDomains();
   }
 
+  /**
+   * 当前语料指纹（只读派生视图）。
+   * 只覆盖正在服务的 activeVersion 内容，不返回正文，不查 Meilisearch。
+   */
+  @Get('meta/corpus-fingerprint')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
+  @ApiOperation({ summary: 'Get current corpus fingerprint (active content only)' })
+  async getCorpusFingerprint() {
+    return this.corpusFingerprintService.getCurrent();
+  }
+
   @Get(':id')
   @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.VIEWER)
   @ApiOperation({ summary: 'Get document detail by ID' })
@@ -165,7 +179,8 @@ export class RagController {
 
   @Patch(':id')
   @Roles(Role.SUPER_ADMIN, Role.ADMIN)
-  @ApiOperation({ summary: 'Update document metadata or content' })
+  @UseGuards(RejectRagContentGuard)
+  @ApiOperation({ summary: 'Update document metadata (content must use upload or :id/content)' })
   @ApiOkResponse({ type: RagDocResponseDto })
   async update(
     @Param('id') id: string,

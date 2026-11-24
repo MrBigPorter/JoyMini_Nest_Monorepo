@@ -2523,6 +2523,12 @@ model AiEvalRun {
   judgeSpecVersion String? @map("judge_spec_version") @db.VarChar(32)
   /// 指标定义版本（tools/eval/e2e/metrics-spec）
   metricSpecVersion String? @map("metric_spec_version") @db.VarChar(32)
+  /// 运行开始时的知识库语料指纹（只覆盖 activeVersion 正在服务的内容）
+  knowledgeFingerprint String? @map("knowledge_fingerprint") @db.VarChar(64)
+  /// 语料快照：{ fingerprint, docs, pendingActivation, before, after, stable, stableReason }
+  knowledgeSnapshot Json? @map("knowledge_snapshot")
+  /// full | subset；子集运行不得 promote
+  scope         String?   @db.VarChar(8)
   /// 当前基线：全局至多一条，由 promote 接口维护
   isBaseline    Boolean   @default(false) @map("is_baseline")
   summary       Json?

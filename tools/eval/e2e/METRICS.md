@@ -77,9 +77,23 @@
 4. `metricSpecVersion` 与当前一致；
 5. 与待比较基线使用同一 `datasetSnapshot.hash`；否则只能做「不可直接比较」的诊断；
 6. `summary.judgeAgreement >= 0.95`（可用 `EVAL_MIN_JUDGE_AGREEMENT` 调整）；
-   缺失时视为无法验证判官稳定性，同样拒绝登记。
+   缺失时视为无法验证判官稳定性，同样拒绝登记；
+7. `scope = full`（子集运行只做变更诊断，不得登记为基线）；
+8. `knowledgeSnapshot.stable = true`，且运行记录指纹非空。
 
 任一条件不满足时，报告必须标注「仅诊断」，且不得更新基线。
+
+### 4.1 发布证据（比基线更严）
+
+`GET /v1/admin/ai-eval/runs/:id/evidence` 在基线条件之外，还要求：
+
+- 运行指纹等于**当前**语料指纹（运行后语料又变过，证据失效）；
+- `knowledgeSnapshot.pendingActivation` 为空（没有等待激活/索引的文档）；
+- 实际执行结果数等于 `datasetSnapshot.cases` 数（防「大量跳过后的高准确率」）；
+- harness 失败率 ≤5%（`EVAL_MAX_HARNESS_FAILURE_RATE` 可调）。
+
+证据不通过时，默认 `advisory` 只告警；切到 `enforce` 后部署阻断。子集运行永远不能
+作为发布证据。
 
 登记入口：`POST /admin/ai-eval/runs/:id/promote`（SUPER_ADMIN / ADMIN）。服务端会
 逐条校验上述条件并给出可读原因；通过后在事务内清掉旧基线、把本条置为

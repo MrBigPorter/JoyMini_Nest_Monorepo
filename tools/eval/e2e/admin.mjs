@@ -358,6 +358,14 @@ export function createAdminApi(
       );
     },
 
+    /**
+     * 当前正在服务语料的指纹（只含 activeVersion 的活跃 chunk；
+     * 上传未激活的版本单列 pendingActivation，不进指纹）。
+     */
+    getCorpusFingerprint() {
+      return request("/v1/admin/rag/documents/meta/corpus-fingerprint");
+    },
+
     /** 全量文档列表（27 份，一次拉完做 docId → UUID 映射） */
     async listDocuments() {
       if (cachedDocs) return cachedDocs;

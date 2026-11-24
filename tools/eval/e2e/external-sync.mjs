@@ -214,7 +214,10 @@ export function toExternalResult(item) {
  * 本地复核：按与服务端相同的口径汇总已提交的 results。
  * 用于在报告里核对「库内 summary 与本地计算是否一致」。
  */
-export function summarizeExternalResults(results) {
+export function summarizeExternalResults(
+  results,
+  { scope = "full", selectedCaseCount = null } = {},
+) {
   const counts = { correct: 0, incorrect: 0, judge_error: 0 };
   let attempted = 0;
   let failures = 0;
@@ -259,6 +262,10 @@ export function summarizeExternalResults(results) {
         : null,
     judgeAgreementMeasured: agreementRows.length,
     judgeDisagreement,
+    // 子集与全量必须可区分：scope 落 summary，selectedCaseCount 记录本次
+    // 登记到外部 run 的用例数（全量=数据集用例数）。
+    scope,
+    selectedCaseCount,
   };
 }
 
@@ -274,6 +281,8 @@ export function compareSummaryWithRecord(local, record) {
     "judgeAgreement",
     "judgeAgreementMeasured",
     "judgeDisagreement",
+    "scope",
+    "selectedCaseCount",
   ];
   const mismatches = fields
     .filter((field) => (local?.[field] ?? null) !== (record?.[field] ?? null))
@@ -296,6 +305,42 @@ export function compareSummaryWithRecord(local, record) {
 
 function round4(value) {
   return Number(value.toFixed(4));
+}
+
+/**
+ * 创建外部 run 时上送的知识上下文：运行范围 + 开跑前指纹。
+ * 指纹读不到（端点异常）时不写该字段，服务端会按缺失记 stable=false。
+ */
+export function buildKnowledgeCreateFields({
+  scope = null,
+  fingerprintBefore = null,
+} = {}) {
+  const fields = {};
+  if (scope === "full" || scope === "subset") fields.scope = scope;
+  if (fingerprintBefore) fields.knowledgeFingerprintBefore = fingerprintBefore;
+  return fields;
+}
+
+/** 收尾上送的开跑前/收尾前指纹；缺一项就少一项，让服务端能区分缺失。 */
+export function buildKnowledgeIngestFields({
+  fingerprintBefore = null,
+  fingerprintAfter = null,
+} = {}) {
+  const fields = {};
+  if (fingerprintBefore) fields.knowledgeFingerprintBefore = fingerprintBefore;
+  if (fingerprintAfter) fields.knowledgeFingerprintAfter = fingerprintAfter;
+  return fields;
+}
+
+/**
+ * 服务端 health 的 commitSha 是「部署真值」，优先于本地 git/GIT_SHA。
+ * 本地未注入时后端返回 unknown，必须当作缺失，不能覆盖本地 git sha。
+ */
+export function readServerCommitSha(health) {
+  const sha = health?.commitSha;
+  if (typeof sha !== "string") return null;
+  const trimmed = sha.trim();
+  return trimmed && trimmed !== "unknown" ? trimmed : null;
 }
 
 /** 用例快照 + 指纹：只含实际会写进外部 run 的用例。 */

@@ -48,9 +48,21 @@ node tools/eval/e2e/run.mjs
 # 断点续跑（复用 .runtime/cases/ 里已完成的用例）
 E2E_RESUME=1 node tools/eval/e2e/run.mjs
 
+# 子集：只跑受影响文档的用例（先用一次全量 run id 做映射）
+E2E_SCOPE=subset \
+E2E_DOC_IDS="refund-policy,faq-new" \
+E2E_BASE_RUN_ID="$BASE_RUN_ID" \
+E2E_KINDS=knowledge,multi \
+  node tools/eval/e2e/run.mjs
+
 # 离线重判（不重跑用例，只重判已有回答；输出到 <run>-rejudged/）
 # v3 主口径：判 B 时把 golden ∪ 回答实际引用的文档交给判官，每题默认判 3 次取多数。
 node tools/eval/e2e/rejudge.mjs tools/eval/e2e/reports/<run>/detail.json
+
+# 引用核验诊断：判官按 docId 拉当前文档，核对回答与引用是否一致
+# （子集全查；全量抽 10 条，优先判决翻转与变更文档相关用例）
+node tools/eval/e2e/verify-citations.mjs tools/eval/e2e/reports/<run>/detail.json \
+  --doc-ids "<变更文档 docId>" 
 
 # 严格口径诊断：再按 golden-only 判一遍，只写进报告的「严格口径诊断」段，
 # 用来区分「回答编造」与「golden 集不全」。不参与基线，不决定 6.2 收口。
@@ -84,6 +96,10 @@ node tools/eval/e2e/rejudge.mjs tools/eval/e2e/reports/<run>/detail.json --with-
 | `E2E_KINDS` | 全部 | `knowledge,multi,action,read,boundary` 子集 |
 | `E2E_ACTIONS` | 全部 | `claim_coupon,redeem_code,draw,create_address,update_address,delete_address,withdraw` 子集 |
 | `E2E_SKIP` | — | 跳过指定用例 id / 类别（逗号分隔） |
+| `E2E_SCOPE` | `full` | `subset` = 只跑受影响文档的用例；`full` = 全量 |
+| `E2E_DOC_IDS` | — | 受影响文档的 docId（逗号分隔）；`E2E_SCOPE=subset` 时必填 |
+| `E2E_BASE_RUN_ID` | — | 子集映射来源：一次全量 EXTERNAL run 的 id；子集时必填 |
+| `E2E_INCLUDE_NEGATIVES` | — | `1` = 子集也纳入负样本（新文档上线时用；默认排除） |
 | `E2E_RESUME` | — | `1` = 断点续跑 |
 | `E2E_CHAT_MODEL` | 自动 | 报告头里写的被测模型（默认从容器 env 推断） |
 | `E2E_RUNTIME_DIR` / `E2E_REPORTS_DIR` | `.runtime` / `reports` | 落盘位置 |
@@ -91,6 +107,52 @@ node tools/eval/e2e/rejudge.mjs tools/eval/e2e/reports/<run>/detail.json --with-
 
 后端全局限流是 60 次/分/IP，client、admin、judge 三类请求共用同一个节流器。
 调高 `E2E_HTTP_PER_MINUTE` 只会撞 429，不会更快。
+
+## 语料指纹、子集与发布证据
+
+### 语料指纹
+
+`GET /v1/admin/rag/documents/meta/corpus-fingerprint` 返回正在服务语料的指纹：
+
+- 每篇文档只取 `docId | locale | activeVersion | activeChunkHash | activeChunkCount`；
+- 按上述键排序后取 sha256，时间戳、标题、关键词不参与哈希；
+- 只列“当前正在服务”的版本；`version > activeVersion` 或索引未完成的文档单独进
+  `pendingActivation`，激活后才改变整体指纹。
+
+harness 在开跑前与收尾前各取一次指纹，连同服务端两次采集一起写进
+`AiEvalRun.knowledgeSnapshot`。四个值（服务端 before/after、harness before/after）
+缺一或任一不一致，`stable=false` 并给出 `stableReason`；这类 run 不能作为发布证据。
+
+### 子集执行
+
+`E2E_SCOPE=subset` 时：
+
+- 用例映射来自 `E2E_BASE_RUN_ID` 指向的全量 run 的 `datasetSnapshot.cases`，不重新解析 golden；
+- 知识题取 `expectedDocIds` 交集，多轮取并集交集；负样本默认排除
+  （`E2E_INCLUDE_NEGATIVES=1` 才纳入）；
+- 缺全量 run、run 不是 `full`、或没有用例快照时直接报错「需先跑一次全量」；
+- 子集结果落在自己的 `e2e:<指纹>` 数据集（指纹包含 caseId），不会改写全量基线。
+
+子集只用于变更诊断：服务端保存 `scope=subset`，`promote` 会拒绝，证据端点也会判不通过。
+
+### 发布证据
+
+`GET /v1/admin/ai-eval/runs/:id/evidence` 逐项校验：
+
+| 校验 | 要求 |
+| --- | --- |
+| `status` / `mode` | `COMPLETED` 且 `EXTERNAL` |
+| `scope` | `full` |
+| `knowledgeFingerprint` | 存在，且等于当前语料指纹 |
+| `stable` | 运行期间四个指纹值一致（`stable=true`） |
+| `pendingActivation` | 为空 |
+| `codeVersion` / `datasetSnapshot` / `judgeSpecVersion` | 存在 |
+| `metricSpecVersion` | 等于当前版本 |
+| `judgeErrorRate` / `judgeAgreement` | 分别低于阈值 / 不低于 95% |
+| `executedCases` | 实际执行数等于数据集快照用例数 |
+| `harnessFailureRate` | ≤5%（`EVAL_MAX_HARNESS_FAILURE_RATE` 可调） |
+
+任一项不通过时返回可读原因，部署工作流的 `eval-evidence` job 只读这个结果。
 
 ## 判定口径（务必区分）
 

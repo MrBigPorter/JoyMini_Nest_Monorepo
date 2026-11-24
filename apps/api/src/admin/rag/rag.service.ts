@@ -16,6 +16,7 @@ import { RagQualityService } from './rag-quality.service';
 import { MeilisearchService } from '@api/common/meilisearch/meilisearch.service';
 import { RAG_EMBEDDING_QUEUE } from './rag-embedding-queue.constants';
 import { KnowledgeDomainService } from './knowledge-domain.service';
+import { sha256 } from '@api/common/crypto.util';
 
 @Injectable()
 export class RagService {
@@ -60,6 +61,9 @@ export class RagService {
         contentType: dto.contentType ?? 'policy',
         priority: dto.priority ?? 'P2',
         content: dto.content,
+        // 正文哈希代表"这份正文是哪一版"，供生成幂等与变更检测使用。
+        // 每次正文写入都必须刷新，否则内容变了哈希还停在旧值。
+        contentHash: sha256(dto.content),
         // 从 0 开始：文档在切片+向量化完成、走到 activate 之前没有任何可读版本。
         // 若与 version 同为 1，activate 会走「already-active」，标记永远是 false。
         activeVersion: 0,
@@ -110,7 +114,21 @@ export class RagService {
   }
 
   async update(id: string, dto: UpdateRagDocDto) {
-    await this.getById(id);
+    const doc = await this.getById(id);
+
+    // docId + locale 是 golden 用例映射与检索定位的业务键，创建后不可变。
+    // 允许修改会让既有用例外静默指向另一篇文档，评测结果从此不可解释。
+    if (dto.docId !== undefined && dto.docId !== doc.docId) {
+      throw new BadRequestException(
+        'docId 创建后不可修改；如需更换标识请新建文档',
+      );
+    }
+    if (dto.locale !== undefined && dto.locale !== doc.locale) {
+      throw new BadRequestException(
+        'locale 创建后不可修改；如需其他语言请新建文档',
+      );
+    }
+
     const domain =
       dto.domain !== undefined
         ? await this.knowledgeDomainService.resolve(dto.domain)
@@ -120,10 +138,10 @@ export class RagService {
       data: {
         ...dto,
         ...(domain !== undefined ? { domain } : {}),
-        ...(dto.content !== undefined ? this.qualityFields(dto.content) : {}),
         // 不在这里 +1：这次只改元数据，没有重新切片。
         // 一 +1 就会让 version 跑到 activeVersion 前面，而 chunks 还停在旧版本，
         // 整文档兜底层（activeVersion === version）会把这个文档排除掉。
+        // contentHash 也不动：元数据编辑不改变正文。
       },
     });
   }
@@ -179,6 +197,19 @@ export class RagService {
       flags: string | null;
       parsedAt: Date;
     }>;
+    /**
+     * 最近更新文档：不论有没有质量标记都列出来。
+     * 更新正文后标记会被重算（多半清空），只按「有标记」筛会让刚改过的文档
+     * 从页面上消失，正好错过该看新旧分块的时候。
+     */
+    recentUpdated: Array<{
+      documentId: string;
+      title: string;
+      score: number | null;
+      flags: string | null;
+      activeVersion: number;
+      updatedAt: Date;
+    }>;
   }> {
     const docs = await this.prisma.knowledgeDocument.findMany({
       where: { isActive: true },
@@ -188,6 +219,8 @@ export class RagService {
         qualityScore: true,
         qualityFlags: true,
         createdAt: true,
+        updatedAt: true,
+        activeVersion: true,
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -236,7 +269,19 @@ export class RagService {
     // 有标记的文档即使分数 >=70 也要人看一眼；避免“待复核 0、标记 5 篇”。
     const needReview = byScore.suspicious + byScore.fair + flaggedHighScore;
 
-    return { total, needReview, flagged, byScore, recentFlags };
+    const recentUpdated = [...docs]
+      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
+      .slice(0, 5)
+      .map((doc) => ({
+        documentId: doc.id,
+        title: doc.title,
+        score: doc.qualityScore,
+        flags: doc.qualityFlags,
+        activeVersion: doc.activeVersion,
+        updatedAt: doc.updatedAt,
+      }));
+
+    return { total, needReview, flagged, byScore, recentFlags, recentUpdated };
   }
 
   // ==================== Chunk operations ====================
@@ -290,12 +335,17 @@ export class RagService {
   async reindex(documentId: string) {
     const doc = await this.getById(documentId);
 
-    // 1. 同步删除 Meilisearch 中的旧 chunks（防止孤儿数据残留）
-    await this.deleteMeilisearchChunks(documentId);
+    // 1. 只删当前版本在 Meilisearch 的条目，旧版本留给回滚与读请求。
+    //    删全量会让保留期内本可回滚的旧版本在搜索侧直接消失。
+    //    失败时直接抛出：先删 Meili 再删 PG，抛在这里还没有破坏任何一侧。
+    await this.meilisearchService.deleteChunkVersion(
+      documentId,
+      doc.version,
+    );
 
-    // 2. 删除 PostgreSQL 中的旧 chunks
+    // 2. 只删除 PostgreSQL 中当前版本的 chunks
     await this.prisma.documentChunk.deleteMany({
-      where: { documentId },
+      where: { documentId, documentVersion: doc.version },
     });
 
     // 2. 重新切片
@@ -573,26 +623,28 @@ export class RagService {
    * updateContent — 更新文档 content（人工审核后修改），然后重新切片 + 向量化
    */
   async updateContent(documentId: string, newContent: string) {
-    const doc = await this.getById(documentId);
+    await this.getById(documentId);
 
     if (!newContent || newContent.trim().length === 0) {
       throw new BadRequestException('Content cannot be empty');
     }
 
-    // 1. 更新 content 和版本号
+    // 1. 更新正文、哈希与版本号。质量分跟着正文重算。
     const updated = await this.prisma.knowledgeDocument.update({
       where: { id: documentId },
       data: {
         content: newContent,
+        contentHash: sha256(newContent),
+        ...this.qualityFields(newContent),
         version: { increment: 1 },
+        // 新版本分块已写、向量未就绪，状态必须如实回落。
+        processStatus: 'chunked',
       },
     });
 
-    // 2. 重新切片（删除旧 chunks，创建新 chunks）
-    await this.prisma.documentChunk.deleteMany({
-      where: { documentId },
-    });
-
+    // 2. 追加新版本分块。不删旧版本：
+    //    旧版本是切换前的读来源，也是保留期内回滚的依据；
+    //    统一由 KbVersionService 按保留期清理。
     const chunks = await this.ragChunkService.chunkText(newContent);
 
     if (chunks.length > 0) {
@@ -606,19 +658,20 @@ export class RagService {
         })),
       });
       this.logger.log(
-        `[updateContent] Re-chunked ${documentId} → ${chunks.length} chunks (v${updated.version})`,
+        `[updateContent] Appended ${chunks.length} chunks for ${documentId} (v${updated.version})`,
       );
     }
 
-    // 3. 提交向量化任务
+    // 3. 提交向量化任务，只处理这一版，完成后才能切 activeVersion。
     try {
       await this.ragEmbeddingQueue.add('embed', {
         documentId,
         force: true,
+        targetVersion: updated.version,
         trigger: 'manual',
       });
       this.logger.log(
-        `[updateContent] Submitted embedding job for ${documentId}`,
+        `[updateContent] Submitted embedding job for ${documentId} (v${updated.version})`,
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';

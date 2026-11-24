@@ -117,6 +117,17 @@ export class CreateExternalRunDto {
   @MaxLength(32)
   metricSpecVersion!: string;
 
+  /** 运行范围：全量或受影响子集；子集不得 promote */
+  @IsOptional()
+  @IsIn(['full', 'subset'])
+  scope?: 'full' | 'subset';
+
+  /** harness 开跑前读到的语料指纹（与服务端比对稳定性） */
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  knowledgeFingerprintBefore?: string;
+
   /** 可选对比基线：同一数据集内已完成的 run */
   @IsOptional()
   @IsString()
@@ -204,4 +215,15 @@ export class IngestExternalResultsDto {
   @IsString()
   @MaxLength(300)
   error?: string;
+
+  /** harness 开跑前 / 收尾前的语料指纹；用于与服务端两次读数比对稳定性 */
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  knowledgeFingerprintBefore?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  knowledgeFingerprintAfter?: string;
 }

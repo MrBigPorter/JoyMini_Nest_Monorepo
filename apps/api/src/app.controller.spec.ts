@@ -1,22 +1,39 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { AppController } from './app.controller';
-import { AppService } from './app.service';
 
-describe('AppController', () => {
-  let appController: AppController;
+describe('AppController.health', () => {
+  const ORIGINAL = {
+    APP_VERSION: process.env.APP_VERSION,
+    GIT_SHA: process.env.GIT_SHA,
+  };
 
-  beforeEach(async () => {
-    const app: TestingModule = await Test.createTestingModule({
-      controllers: [AppController],
-      providers: [AppService],
-    }).compile();
-
-    appController = app.get<AppController>(AppController);
+  afterEach(() => {
+    for (const [key, value] of Object.entries(ORIGINAL)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
   });
 
-  describe('root', () => {
-    it('should return "Hello World!"', () => {
-      //expect(appController.getHello()).toBe('Hello World!');
-    });
+  it('返回部署注入的 commitSha', () => {
+    process.env.APP_VERSION = 'abc123';
+    delete process.env.GIT_SHA;
+    const controller = new AppController({} as any);
+
+    expect(controller.health()).toEqual({ ok: true, commitSha: 'abc123' });
+  });
+
+  it('部署变量缺失时回退 GIT_SHA', () => {
+    delete process.env.APP_VERSION;
+    process.env.GIT_SHA = 'def456';
+    const controller = new AppController({} as any);
+
+    expect(controller.health()).toEqual({ ok: true, commitSha: 'def456' });
+  });
+
+  it('都缺失时返回 unknown', () => {
+    delete process.env.APP_VERSION;
+    delete process.env.GIT_SHA;
+    const controller = new AppController({} as any);
+
+    expect(controller.health()).toEqual({ ok: true, commitSha: 'unknown' });
   });
 });

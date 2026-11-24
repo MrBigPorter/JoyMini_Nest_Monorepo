@@ -7,7 +7,12 @@ export class AppController {
 
   @Get('health')
   health() {
-    return { ok: true };
+    // 部署时由 Dockerfile.prod 注入 APP_VERSION（= 构建的 git sha）。
+    // 本地/未注入时回退 GIT_SHA，再缺省为 unknown——证据链需要能区分
+    // 「不知道跑的是哪个版本」和「跑的是某个具体 commit」。
+    const commitSha =
+      process.env.APP_VERSION || process.env.GIT_SHA || 'unknown';
+    return { ok: true, commitSha };
   }
 
   @Get('dbcheck')

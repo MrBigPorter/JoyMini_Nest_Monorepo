@@ -147,6 +147,77 @@ export function pairMultiTurn(items, { maxPairs = 20 } = {}) {
   return pairs;
 }
 
+/**
+ * 从一次全量用例快照里选出「受指定文档影响」的用例。
+ *
+ * 映射只读 expectedDocIds，不解析 golden 文本：
+ * - knowledge / multi：期望文档与变更集合有交集即纳入
+ * - 负样本：默认排除（没有 expectedDocIds，改文档不会让它失效）；
+ *   `includeNegatives` 打开时全部纳入（新文档上线做一轮负样本回归）
+ * - 已删除/停用文档：其 docId 单独传入 `deletedDocIds`，对应的用例必须纳入
+ *
+ * 空映射返回空数组：没有可归因的变更时，不应悄悄跑一批无关用例。
+ */
+export function selectCasesForDocIds(
+  cases,
+  docIds,
+  { includeNegatives = false, deletedDocIds = [] } = {},
+) {
+  const targets = new Set(
+    [...(docIds ?? []), ...(deletedDocIds ?? [])].filter(Boolean),
+  );
+  if (targets.size === 0) return [];
+  return (cases ?? []).filter((item) => {
+    if (item.kind === "negative") return includeNegatives;
+    return (item.expectedDocIds ?? []).some((docId) => targets.has(docId));
+  });
+}
+
+/** 只保留子集映射选中的 caseId；用于 `buildCases` 末尾过滤。 */
+export function filterCasesToSubset(cases, caseIds) {
+  const wanted = caseIds instanceof Set ? caseIds : new Set(caseIds ?? []);
+  if (wanted.size === 0) return [];
+  return (cases ?? []).filter((item) => wanted.has(item.id));
+}
+
+/**
+ * 从「上次全量运行」的用例快照选出受影响 caseId 集合。
+ * 没有快照就明确报错，绝不回退到解析 golden 猜测映射。
+ */
+export function selectSubsetFromFullRun(
+  run,
+  docIds,
+  { includeNegatives = false, deletedDocIds = [] } = {},
+) {
+  if (!run) {
+    return {
+      caseIds: [],
+      error: "需先跑一次全量：缺少 E2E_BASE_RUN_ID 指向的全量运行",
+    };
+  }
+  if (run.scope && run.scope !== "full") {
+    return {
+      caseIds: [],
+      error: `需先跑一次全量：${run.id ?? "指定运行"} 的 scope=${run.scope} 不是 full`,
+    };
+  }
+  const snapshotCases = run.datasetSnapshot?.cases;
+  if (!Array.isArray(snapshotCases) || snapshotCases.length === 0) {
+    return {
+      caseIds: [],
+      error: `需先跑一次全量：${run.id ?? "指定运行"} 没有用例快照`,
+    };
+  }
+  const selected = selectCasesForDocIds(snapshotCases, docIds, {
+    includeNegatives,
+    deletedDocIds,
+  });
+  return {
+    caseIds: selected.map((item) => item.caseId ?? item.id),
+    error: null,
+  };
+}
+
 /** 把场景模板的 `{slot}` 换成给定值；缺槽位直接报错，避免悄悄发出占位符。 */
 export function renderSlots(template, slots) {
   return String(template).replace(/\{(\w+)\}/g, (match, key) => {

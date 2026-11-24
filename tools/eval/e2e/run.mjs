@@ -40,8 +40,10 @@ import {
   buildBoundaryCases,
   buildKnowledgeCases,
   buildReadCases,
+  filterCasesToSubset,
   loadGoldens,
   pairMultiTurn,
+  selectSubsetFromFullRun,
 } from "./cases.mjs";
 import {
   prepareFixtures,
@@ -67,7 +69,10 @@ import {
 import {
   HARNESS_METRIC_SPEC_VERSION,
   buildExternalSnapshot,
+  buildKnowledgeCreateFields,
+  buildKnowledgeIngestFields,
   compareSummaryWithRecord,
+  readServerCommitSha,
   summarizeExternalResults,
   toExternalResult,
 } from "./external-sync.mjs";
@@ -129,7 +134,8 @@ function gitInfo() {
 
 /**
  * 外部运行的四维归因元数据（跑一次就锁定，事后不再推断）。
- * - codeVersion：完整 git sha（`GIT_SHA` 优先，CI 里没有 .git 也能记）
+ * - codeVersion：服务端 health 的 commitSha 优先（部署真值），其次
+ *   `GIT_SHA`（CI 里没有 .git 也能记），最后本地 git sha
  * - gateMode：发布门禁当前模式（shadow 时数字与 enforce 不可直接对比）
  * - judgeSpecVersion：判官输入规范版本（Phase 2 起默认 v2，v1 仅回滚用）
  * - metricSpecVersion：指标定义版本（当前为 3）
@@ -138,9 +144,11 @@ export function buildRunMetadata({
   env = process.env,
   git = gitInfo(),
   readEnv = readBackendEnv,
+  serverCommitSha = null,
 } = {}) {
   return {
-    codeVersion: env.GIT_SHA || git.fullSha || git.sha || "unknown",
+    codeVersion:
+      serverCommitSha || env.GIT_SHA || git.fullSha || git.sha || "unknown",
     gateMode: readEnv("AI_GROUNDING_GATE") || "shadow",
     judgeSpecVersion: readEnv("EVAL_JUDGE_SPEC") || "v2",
     metricSpecVersion: env.E2E_METRIC_SPEC_VERSION || HARNESS_METRIC_SPEC_VERSION,
@@ -689,7 +697,22 @@ function buildCases(config, fixtureSets = []) {
     return wantedKinds.has(item.kind);
   };
 
-  return [...knowledge, ...multi, ...actions, ...reads, ...boundaries].filter(keepKinds);
+  const built = [
+    ...knowledge,
+    ...multi,
+    ...actions,
+    ...reads,
+    ...boundaries,
+  ].filter(keepKinds);
+  // 子集：caseId 集合来自上次全量运行的 datasetSnapshot.cases；
+  // buildCases 只负责把当前能装配的用例收窄到这些 id。
+  if (config.scope === "subset") {
+    const selected = filterCasesToSubset(built, config.subsetCaseIds ?? []);
+    config.subsetExcluded = built.length - selected.length;
+    return selected;
+  }
+  config.subsetExcluded = 0;
+  return built;
 }
 
 // ── 主流程 ────────────────────────────────────────────────────────────
@@ -721,13 +744,40 @@ export async function main(env = process.env) {
 
   const health = await runtime.transport.request("/v1/health");
   const healthy = health?.ok === true || health?.status === "ok";
-  logger.log(`后端健康：${healthy ? "ok" : JSON.stringify(health)}`);
+  const serverCommitSha = readServerCommitSha(health);
+  logger.log(
+    `后端健康：${healthy ? "ok" : JSON.stringify(health)}` +
+      (serverCommitSha ? `（commit ${serverCommitSha.slice(0, 8)}）` : ""),
+  );
   if (!healthy) {
     throw new Error(`后端健康检查未通过（health=${JSON.stringify(health)}）`);
   }
 
   const adminSource = await admin.whoami();
   logger.log(`管理员令牌来源：${adminSource}`);
+
+  // ── 子集映射：只信上次全量运行的用例快照，不解析 golden ──
+  if (config.scope === "subset") {
+    let baseRun = null;
+    if (config.baseRunId) {
+      try {
+        baseRun = await admin.getEvalRun(config.baseRunId);
+      } catch (error) {
+        throw new Error(
+          `需先跑一次全量：读取 E2E_BASE_RUN_ID=${config.baseRunId} 失败（${error?.message ?? error}）`,
+        );
+      }
+    }
+    const selection = selectSubsetFromFullRun(baseRun, config.docIds, {
+      includeNegatives: config.includeNegatives,
+    });
+    if (selection.error) throw new Error(selection.error);
+    config.subsetCaseIds = selection.caseIds;
+    logger.log(
+      `子集映射：全量快照 ${baseRun.datasetSnapshot.cases.length} 条 → ` +
+        `受影响 ${selection.caseIds.length} 条（文档 ${config.docIds.join(", ")}）`,
+    );
+  }
 
   const allGoldens = loadGoldens();
   const positives = allGoldens.filter((item) => item.expectedDocIds.length > 0);
@@ -827,6 +877,16 @@ export async function main(env = process.env) {
     return pinned;
   });
 
+  if (config.scope === "subset") {
+    logger.log(
+      `子集执行：选中 ${allCases.length} 条，过滤 ${config.subsetExcluded ?? 0} 条` +
+        `（映射 ${config.subsetCaseIds?.length ?? 0} 条，未装配 ${Math.max(
+          (config.subsetCaseIds?.length ?? 0) - allCases.length,
+          0,
+        )} 条）`,
+    );
+  }
+
   const existing = config.resume ? loadCaseResults(config) : [];
   if (!config.resume) {
     const dir = path.join(config.runtimeDir, CASE_DIR_NAME);
@@ -863,8 +923,23 @@ export async function main(env = process.env) {
     goldenParts: fingerprintParts,
   });
   const snapshotIds = new Set(snapshot.cases.map((item) => item.caseId));
-  const runMetadata = buildRunMetadata({ env });
+  const runMetadata = buildRunMetadata({ env, serverCommitSha });
   const externalSyncEnabled = env.E2E_DISABLE_EXTERNAL_SYNC !== "1";
+  // 开跑前读一次语料指纹；读不到就上送空，服务端会按缺失标 stable=false。
+  let knowledgeFingerprintBefore = null;
+  if (externalSyncEnabled) {
+    try {
+      const corpus = await admin.getCorpusFingerprint();
+      knowledgeFingerprintBefore = corpus?.fingerprint ?? null;
+      logger.log(
+        `语料指纹（开跑前）：${knowledgeFingerprintBefore ?? "缺失"}`,
+      );
+    } catch (error) {
+      logger.warn(
+        `语料指纹读取失败（开跑前，证据将记 stable=false）：${error?.message ?? error}`,
+      );
+    }
+  }
   let externalRunId = null;
   if (!externalSyncEnabled) {
     logger.log("E2E_DISABLE_EXTERNAL_SYNC=1：跳过外部评测运行写入");
@@ -876,6 +951,10 @@ export async function main(env = process.env) {
         datasetFingerprint: snapshot.datasetFingerprint,
         cases: snapshot.cases,
         ...runMetadata,
+        ...buildKnowledgeCreateFields({
+          scope: config.scope,
+          fingerprintBefore: knowledgeFingerprintBefore,
+        }),
       });
       externalRunId = run?.id ?? null;
       logger.log(
@@ -994,6 +1073,26 @@ export async function main(env = process.env) {
         id: null,
         status: externalSyncEnabled ? "unavailable" : "disabled",
       };
+  // 收尾前再读一次：与开跑前相同才说明本轮语料稳定，可作为发布证据。
+  let knowledgeFingerprintAfter = null;
+  if (externalRunId) {
+    try {
+      const corpus = await admin.getCorpusFingerprint();
+      knowledgeFingerprintAfter = corpus?.fingerprint ?? null;
+      logger.log(
+        `语料指纹（收尾前）：${knowledgeFingerprintAfter ?? "缺失"}` +
+          (knowledgeFingerprintBefore &&
+          knowledgeFingerprintAfter &&
+          knowledgeFingerprintBefore !== knowledgeFingerprintAfter
+            ? "（本轮语料发生变化，证据不可用）"
+            : ""),
+      );
+    } catch (error) {
+      logger.warn(
+        `语料指纹读取失败（收尾前，证据将记 stable=false）：${error?.message ?? error}`,
+      );
+    }
+  }
   if (externalRunId) {
     try {
       const payload = cases
@@ -1002,6 +1101,10 @@ export async function main(env = process.env) {
       await admin.ingestExternalEvalResults(externalRunId, {
         cases: payload,
         status: "COMPLETED",
+        ...buildKnowledgeIngestFields({
+          fingerprintBefore: knowledgeFingerprintBefore,
+          fingerprintAfter: knowledgeFingerprintAfter,
+        }),
       });
       externalRun.status = "completed";
       logger.log(`外部评测结果已写入：${externalRunId}（${payload.length} 条）`);
@@ -1014,7 +1117,10 @@ export async function main(env = process.env) {
         externalRun.isBaseline = Boolean(record?.isBaseline);
         externalRun.summary = summary;
         externalRun.consistency = compareSummaryWithRecord(
-          summarizeExternalResults(payload),
+          summarizeExternalResults(payload, {
+            scope: config.scope,
+            selectedCaseCount: snapshot.cases.length,
+          }),
           summary,
         );
         if (!externalRun.consistency.ok) {

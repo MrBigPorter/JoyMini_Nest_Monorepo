@@ -11,6 +11,7 @@ import { PrismaService } from '@api/common/prisma/prisma.service';
 import { RAG_EMBEDDING_QUEUE } from './rag-embedding-queue.constants';
 import { mergeKnowledgeMetadata } from './knowledge-metadata.util';
 import { KnowledgeDomainService } from './knowledge-domain.service';
+import { sha256 } from '@api/common/crypto.util';
 
 // =============================================================================
 // 策略接口 — TextExtractor
@@ -470,6 +471,8 @@ export class RagSyncService {
       contentType: merged.contentType,
       priority: merged.priority,
       content: doc.content,
+      // 每次上传都刷新正文哈希，供生成幂等与"正文是否变过"判断。
+      contentHash: sha256(doc.content),
       rawContent: rawContent,
       fileUrl: fileUrl,
       isActive: true,
