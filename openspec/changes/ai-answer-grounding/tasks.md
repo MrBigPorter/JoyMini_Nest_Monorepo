@@ -38,6 +38,7 @@
   - 2026-11-24 测量复核（`reports/20261124-113254-rejudged/`，`rejudge.mjs --include-cited`）：严格口径重判 76/89 = 85.4%（同一批回答，判官 ±1 条波动）；放宽到「golden + 回答实际引用的文档」38/40 = 95.0%，15 条严格失败中 12 条翻为一致，剩余 3 条真问题（`knowledge:r79`、`knowledge:r103`、`knowledge:rz28`，均为细节添油加醋）。放宽口径只做诊断，不替代验收口径；是否修改 golden 集或验收分母需单独决定。
   - 2026-11-24 delete_address 修复（真实接口复核通过，非单测）：`AddressService.delete` 改 `deleteMany + count`（where 带 userId），`update` 补 `await`；P2025 按 `error.code` 判定（`instanceof` 跨 runtime 恒假，是 500 根因）；确认卡生成前校验 addressId 归属，失败以 ToolMessage 回给模型重试（fail-closed）；prompt 删除「必须传 userId 参数」。账号实测：bogus addressId → 400 `Address not found`，create→delete→再删 → 201/200/400，无残留。剩余：下一次全量跑确认 `delete_address` 用例 7/7。
   - 2026-11-24 兜底话术本地化：四种兜底（ai_failure/offline_handoff/quota_exceeded/no_evidence）按问句语言中英切换，判语言前剔除 id/URL token（真实轮次发现「中文问句夹带地址 id」会被判 mixed 回英文）；`isCannedReply` 与 `judge.mjs` 同步识别双语，否则英文降级会被计成无依据作答。已知运维坑：`lucky-backend-dev` 的 watch 在 bind mount 上不触发重编，真实接口复核前必须 `docker restart`。
+  - 2026-11-24 v2 口径重判（`reports/20261124-113254-rejudged-v2/`，`ai-eval-loop` 7.1–7.2）：kbAccuracy 表面 78/89 = 87.6% ✓，但 10 条分层抽检只有 7/10 与人工一致，3 条翻真（`knowledge:r63`、`knowledge:r79`、`knowledge:rz28`）均不成立——判官把无来源的闪购细节与「权利可通过 Account → Privacy Settings 管理」的错误归属判成支持。按抽检修正后 **75/89 = 84.3%**，仍低于 85.5%。结论：**6.2 继续不勾选、不登记新基线**；先收紧判官提示词再重判复核。证据：`reports/20261124-113254-rejudged-v2/manual-review.md`、`summary.md` §判官理由抽检。
 - [x] 6.3 对同一批用例做新旧对照：按依据分型分别给出条数与准确率，说明提升来自「更多问题进入 kb 组」还是「kb 组本身变准」。验证：报告含分型对照表，且结论与 `reports/20261124-005755-rejudged/summary.md` 口径一致。
 
 ## Workflow follow-up

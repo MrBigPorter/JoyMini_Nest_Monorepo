@@ -436,7 +436,7 @@ export function renderSummary(result) {
   push(`- 用例总数：${summary.totals.cases}（完成 ${summary.totals.ok}，跳过 ${summary.totals.skipped}，异常 ${summary.totals.errored}）`);
   if (meta.rejudge) {
     push(
-      `- **离线重判**：${meta.rejudge.at}，输入 \`${path.basename(meta.rejudge.input ?? "")}\`，重判 ${meta.rejudge.rejudgedCases} 条（未重跑用例；旧判定保留在 \`judge\`，新判定在 \`rejudge\`）`,
+      `- **离线重判**：${meta.rejudge.at}，输入 \`${path.basename(meta.rejudge.input ?? "")}\`，重判 ${meta.rejudge.rejudgedCases} 条（未重跑用例；旧判定保留在 \`judge\`，新判定在 \`rejudge\`；判官版本 \`${meta.rejudge.judgeSpecVersion ?? "—"}\`、指标版本 \`${meta.rejudge.metricSpecVersion ?? "—"}\`）`,
     );
   }
   push();
@@ -451,6 +451,7 @@ export function renderSummary(result) {
   push(`| 知识问答 · 检索 Hit@3 | ${formatRate(summary.knowledge.hitAt3)} |`);
   push(`| 知识问答 · 忠实度（只看回答自带 sources） | ${formatRate(summary.knowledge.faithful)} |`);
   push(`| 知识问答 · 与 golden 文档一致 | ${formatRate(summary.knowledge.goldenAgreement)} |`);
+  push(`| 知识问答 · kbAccuracy（kb 组，只算判得动的） | ${formatRate(summary.knowledge.byGrounding.kb?.accuracy)} |`);
   push(`| 负样本 · 泄露 | ${summary.negatives.leaked} 条（应 0） |`);
   push(`| 负样本 · 引用了无关文档 | ${summary.negatives.citedUnrelated}/${summary.negatives.total} |`);
   push(`| 多轮 · 第二轮有回复 | ${formatRate(summary.multi.answeredSecond)} |`);

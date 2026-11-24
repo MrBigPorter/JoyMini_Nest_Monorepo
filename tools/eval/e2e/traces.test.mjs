@@ -8,6 +8,7 @@ import {
   parseGroundingRows,
 } from "./traces.mjs";
 import {
+  annotateJudgeError,
   buildCalibration,
   parseRejudgeArgs,
   selectRejudgeCases,
@@ -247,4 +248,21 @@ test("applyGrounding：优先用 trace metadata 的分型，缺失时回退推�
   );
   assert.equal(inferred.judge.grounding.kind, "kb");
   assert.equal(inferred.judge.grounding.source, "inferred");
+});
+
+test("annotateJudgeError：只给判官失败补 errorKind", () => {
+  assert.equal(annotateJudgeError(null), null);
+  assert.deepEqual(annotateJudgeError({ faithful: true }), { faithful: true });
+  // 服务端已给出结构化错误类型：不覆盖
+  const structured = { faithful: null, errorKind: "auth", reason: "judge_error: 401" };
+  assert.equal(annotateJudgeError(structured), structured);
+  // harness 端点异常：按 reason 归类
+  const timeout = annotateJudgeError({
+    faithful: null,
+    reason: "judge_error: timed out after 30s",
+  });
+  assert.equal(timeout.errorKind, "timeout");
+  // 不适用（not_applicable）没有 reason 前缀，不加错误类型
+  const notApplicable = { faithful: null, errorKind: "not_applicable", reason: "tool" };
+  assert.equal(annotateJudgeError(notApplicable), notApplicable);
 });

@@ -39,9 +39,15 @@
 
 ## 7. 6.2 收口
 
-- [ ] 7.1 用 `JUDGE_INPUT_SPEC_VERSION=v2` 重判 `20261124-005755` 与 `20261124-113254` 的既有回答，不重跑用例；两次重判使用同一 `metricSpecVersion`。验证：产出 `reports/20261124-113254-rejudged-v2/summary.md`，含 kbAccuracy、judgeErrorRate 与判官错误分布。
-- [ ] 7.2 对重判结果抽 10 条人工核对判官理由，记录一致率。验证：报告列出抽检清单与结论。
-- [ ] 7.3 依据 7.1/7.2 决定 `ai-answer-grounding` 6.2 是否勾选并登记基线；同步更新 `tasks.md`、memory 与 `docs/current-task.md`。验证：6.2 的结论有数字与链接支撑。
+- [x] 7.1 用 `JUDGE_INPUT_SPEC_VERSION=v2` 重判 `20261124-005755` 与 `20261124-113254` 的既有回答，不重跑用例；两次重判使用同一 `metricSpecVersion`。验证：产出 `reports/20261124-113254-rejudged-v2/summary.md`，含 kbAccuracy、judgeErrorRate 与判官错误分布。
+  - 2026-11-24 已重判（judgeSpecVersion `v2`、metricSpecVersion `2`，未重跑用例）：
+    - `reports/20261124-005755-rejudged-v2/summary.md`：kbAccuracy 72/83 = 86.7%，judgeErrorRate 0/273 = 0.0%，错误分布为空。
+    - `reports/20261124-113254-rejudged-v2/summary.md`：kbAccuracy 78/89 = 87.6%，judgeErrorRate 0/302 = 0.0%，错误分布为空。
+- [x] 7.2 对重判结果抽 10 条人工核对判官理由，记录一致率。验证：报告列出抽检清单与结论。
+  - 2026-11-24 分层抽检 10 条（5 条不一致、3 条翻真、2 条一致）：一致 **7/10 = 70%**；3 条不一致全部是判官过宽（把无来源/错误归属判成支持），无反向误判。清单与逐条证据见 `reports/20261124-113254-rejudged-v2/manual-review.md`，摘要已并入同目录 `summary.md`。按抽检修正后 kbAccuracy 为 **75/89 = 84.3%**。
+- [x] 7.3 依据 7.1/7.2 决定 `ai-answer-grounding` 6.2 是否勾选并登记基线；同步更新 `tasks.md`、memory 与 `docs/current-task.md`。验证：6.2 的结论有数字与链接支撑。
+  - 决定（2026-11-24）：**6.2 不勾选，不登记新基线**。v2 表面 kbAccuracy 87.6% 达标，但 3 条翻真在人工复核中均不成立，修正后 84.3% 低于 85.5%；在判官一致率稳定前，任何 v2 数字都不能作为验收依据。
+  - 阻塞项：判官对「事实断言归属到错误文档/错误路径」仍过宽（`r63` 闪购细节、`r79`/`rz28` Privacy Settings）。下一步先收紧判官提示词（每条断言必须同上下文支持、错误归属即不支持），再重判同一批回答并重新抽检。已同步 `ai-answer-grounding/tasks.md`、memory 与 `docs/current-task.md`。
 
 ## Workflow follow-up
 

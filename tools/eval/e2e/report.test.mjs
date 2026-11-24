@@ -135,6 +135,7 @@ test("renderSummary：输出结论表、动作明细与判定口径", () => {
 
   assert.match(text, /# 真实账号端到端 AI 客服验收/);
   assert.match(text, /知识问答 · 有回复 \| 1\/1 = 100\.0%/);
+  assert.match(text, /知识问答 · kbAccuracy（kb 组，只算判得动的） \| 1\/1 = 100\.0%/);
   assert.match(text, /coupon_claim：续期到 \+30d/);
   assert.match(text, /忠实度（A）/);
   assert.match(text, /未覆盖与已知限制/);

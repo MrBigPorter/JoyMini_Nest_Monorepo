@@ -23,10 +23,12 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { createAdminApi } from "./admin.mjs";
+import { createAdminApi, readBackendEnv } from "./admin.mjs";
 import { loadConfig } from "./config.mjs";
+import { classifyJudgeError } from "./external-sync.mjs";
 import { createThrottle } from "./http.mjs";
 import { cannedReplyCheck, fingerprint, judgeGoldenAgreement } from "./judge.mjs";
+import { METRIC_SPEC_VERSION } from "./metrics-spec.mjs";
 import { rate, writeReport } from "./report.mjs";
 import { applyGrounding, collectMessageIds, loadGrounding } from "./traces.mjs";
 
@@ -71,6 +73,22 @@ export function stashV1(cases) {
       },
     };
   });
+}
+
+/**
+ * 判官失败补 `errorKind`。
+ *
+ * 服务端已返回结构化 `errorKind`；只有网络/端点异常走到 harness 的 catch
+ * 分支时，才需要按 reason 归类，否则判官错误分布里会多出一堆 `unknown`。
+ * 非失败判定（有布尔结果 / 不适用）原样返回。
+ */
+export function annotateJudgeError(judge) {
+  if (!judge) return judge;
+  if (judge.faithful !== null && judge.faithful !== undefined) return judge;
+  if (judge.errorKind) return judge;
+  const reason = String(judge.reason ?? "");
+  if (!/^judge_error\b/.test(reason)) return judge;
+  return { ...judge, errorKind: classifyJudgeError(reason) };
 }
 
 /** 需要重新判 B 的用例：知识库依据、非兜底、有 golden 文档、有真实回答。 */
@@ -156,6 +174,10 @@ export async function main(env = process.env, argv = process.argv.slice(2)) {
 
   const detail = loadDetail(args.input);
   const config = loadConfig(env);
+  // 判官输入规范由后端环境决定（默认 v2）；报告记录实际口径，便于两次
+  // 重判之间确认用的是同一版本。
+  const judgeSpecVersion =
+    readBackendEnv("JUDGE_INPUT_SPEC_VERSION") === "v1" ? "v1" : "v2";
   // 与实时运行共用同一套节流：后端全局限流是 60 次/分/IP
   const stats = { requests: 0, throttled: 0, retries: 0 };
   const admin = createAdminApi(config, {
@@ -203,12 +225,14 @@ export async function main(env = process.env, argv = process.argv.slice(2)) {
       const last = item.rounds?.[item.rounds.length - 1];
       const question = last?.question ?? "";
       const answer = last?.reply?.content ?? "";
-      const goldenAgreement = await judgeGoldenAgreement({
-        admin,
-        question,
-        answer,
-        expectedDocIds: item.expectedDocIds,
-      });
+      const goldenAgreement = annotateJudgeError(
+        await judgeGoldenAgreement({
+          admin,
+          question,
+          answer,
+          expectedDocIds: item.expectedDocIds,
+        }),
+      );
       // 放宽口径：把回答实际引用、但 golden 没列出的文档也交给判官。
       // 只做诊断，不覆盖严格口径；用于区分「回答编造」与「golden 集不全」。
       let expandedAgreement = null;
@@ -222,13 +246,15 @@ export async function main(env = process.env, argv = process.argv.slice(2)) {
           ),
         ];
         if (extraDocIds.length > 0) {
-          expandedAgreement = await judgeGoldenAgreement({
-            admin,
-            question,
-            answer,
-            expectedDocIds: item.expectedDocIds,
-            extraDocIds,
-          });
+          expandedAgreement = annotateJudgeError(
+            await judgeGoldenAgreement({
+              admin,
+              question,
+              answer,
+              expectedDocIds: item.expectedDocIds,
+              extraDocIds,
+            }),
+          );
         }
       }
       item.rejudge = {
@@ -258,7 +284,7 @@ export async function main(env = process.env, argv = process.argv.slice(2)) {
       basis: item.judge.grounding.kind,
       applicable: item.judge.grounding.kind === "kb",
       evidence: item.judge.grounding,
-      goldenAgreement: item.judge.goldenAgreement ?? null,
+      goldenAgreement: annotateJudgeError(item.judge.goldenAgreement ?? null),
     };
   }
 
@@ -274,6 +300,8 @@ export async function main(env = process.env, argv = process.argv.slice(2)) {
         input: args.input,
         rejudgedCases: targets.length,
         includeCited: args.includeCited,
+        judgeSpecVersion,
+        metricSpecVersion: String(METRIC_SPEC_VERSION),
         fingerprint: fingerprint(cases.map((item) => item.id)),
         judgeModel:
           cases.find((item) => item.judge?.taskJudge?.judgeModel)?.judge

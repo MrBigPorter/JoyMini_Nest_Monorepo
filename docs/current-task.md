@@ -61,6 +61,13 @@
 
 **不承诺**：新业务 Agent 免代码；示例/golden 自动批准；自动改评测基线。
 
+**评测闭环 Phase 4（2026-11-24，`ai-eval-loop` 7.1–7.3 完成）**：用 `JUDGE_INPUT_SPEC_VERSION=v2`、指标版本 2 离线重判两批既有回答，未重跑用例。
+
+- `reports/20261124-005755-rejudged-v2/summary.md`：kbAccuracy 72/83 = 86.7%，judgeErrorRate 0/273。
+- `reports/20261124-113254-rejudged-v2/summary.md`：kbAccuracy 78/89 = 87.6%，judgeErrorRate 0/302。
+- 10 条分层抽检一致率 7/10 = 70%；3 条翻真均不成立（闪购细节无来源、Privacy Settings 错误归属，`r63`/`r79`/`rz28`），修正后 kbAccuracy 75/89 = 84.3%。
+- **决定：`ai-answer-grounding` 6.2 不勾选、不登记新基线。** 下一步收紧判官提示词（断言必须同上下文支持、错误归属即不支持）→ 重判同一批回答 → 再抽 10 条；稳定前 v2 数字只作诊断。详见 `reports/20261124-113254-rejudged-v2/manual-review.md`。
+
 ---
 
 ## 优先级队列（严格按顺序，不要跳）
