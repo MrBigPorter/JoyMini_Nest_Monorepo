@@ -197,6 +197,53 @@ const evalDatasetDetail = {
   ],
 };
 
+const harnessDatasets = [
+  {
+    id: 'e2e-1',
+    name: 'e2e:54e7ac269671',
+    description: null,
+    createdBy: 'admin',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    _count: { cases: 40, runs: 1 },
+  },
+];
+
+const harnessDatasetDetail = {
+  ...harnessDatasets[0],
+  cases: [
+    {
+      id: 'case-e1',
+      datasetId: 'e2e-1',
+      question: '怎么退款',
+      answer: '',
+      expect: {},
+      expected: ['doc-1'],
+      tags: ['knowledge'],
+      createdAt: '2026-01-01T00:00:00.000Z',
+    },
+  ],
+  runs: [
+    {
+      id: 'ext-run-1',
+      datasetId: 'e2e-1',
+      status: 'COMPLETED',
+      mode: 'EXTERNAL',
+      baselineRunId: null,
+      createdBy: 'admin',
+      summary: {
+        total: 23,
+        correct: 22,
+        incorrect: 1,
+        judgeError: 0,
+        accuracy: 0.9565,
+      },
+      startedAt: '2026-01-01T00:00:00.000Z',
+      finishedAt: '2026-01-01T01:00:00.000Z',
+    },
+  ],
+};
+
 function wireFeedback(
   options: {
     summaryData?: unknown;
@@ -262,11 +309,16 @@ function openTab(name: string) {
  * 回归状态卡片单独按 service 身份识别，不参与槽位计数。
  * 返回的函数在打开页签前调用。
  */
-function wireEvalTab(detail: unknown, runData: unknown = null) {
+function wireEvalTab(
+  detail: unknown,
+  runData: unknown = null,
+  datasetsData: unknown = datasets,
+  kbStatusData: unknown = kbRegressionStatus,
+) {
   let index = 0;
   let inEval = false;
   mockUseRequest.mockImplementation((service: unknown) => {
-    if (service === mockKbStatus) return makeUseRequest(kbRegressionStatus);
+    if (service === mockKbStatus) return makeUseRequest(kbStatusData);
     if (typeof service === 'function') void (service as () => unknown)();
     const slot = index % 4;
     index += 1;
@@ -285,7 +337,7 @@ function wireEvalTab(detail: unknown, runData: unknown = null) {
         };
       return { ...makeUseRequest(datasets), refreshAsync: vi.fn() };
     }
-    if (slot === 0) return makeUseRequest(datasets);
+    if (slot === 0) return makeUseRequest(datasetsData);
     if (slot === 1) return makeUseRequest(detail);
     if (slot === 2) return makeUseRequest(runData);
     return makeUseRequest(null);
@@ -832,6 +884,39 @@ describe('AiQualityPage', () => {
     fireEvent.click(screen.getByRole('button', { name: '高级模式' }));
 
     expect(screen.getByLabelText('评测用例 JSON')).toBeTruthy();
+  });
+
+  it('shows accuracy instead of pass rate for an EXTERNAL run', () => {
+    const enterEval = wireEvalTab(harnessDatasetDetail, null, harnessDatasets);
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+
+    fireEvent.change(screen.getByLabelText('选择评测集'), {
+      target: { value: 'e2e-1' },
+    });
+
+    expect(screen.getByText('最近一次准确率')).toBeTruthy();
+    expect(screen.getByText('95.7%（已完成）')).toBeTruthy();
+  });
+
+  it('labels the last subset run as accuracy on the KB card', () => {
+    const enterEval = wireEvalTab(evalDatasetDetail, null, datasets, {
+      ...kbRegressionStatus,
+      covered: false,
+      lastSubsetRun: {
+        id: 'subset-run',
+        finishedAt: '2026-01-01T02:00:00.000Z',
+        fingerprint: 'f'.repeat(64),
+        stable: true,
+        summary: { total: 12, accuracy: 0.9 },
+      },
+    });
+    render(<AiQualityPage />);
+    enterEval();
+    openTab('回归测试');
+
+    expect(document.body.textContent).toContain('准确率 90.0%');
   });
 
   it('starts a live run with the selected mode and baseline', async () => {

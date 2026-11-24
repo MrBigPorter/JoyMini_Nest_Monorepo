@@ -12,10 +12,12 @@ import { useAuthStore } from '@/store/useAuthStore';
 import { canTriageFeedback, useAiOpsRole } from '@/lib/ai-ops-permissions';
 import { diagnoseFeedbackRow } from '@/lib/ai-ops-feedback-diagnosis';
 import {
+  evalAccuracyText,
   evalDeltaText,
   evalHeadline,
   evalPassRateText,
   evalPercentText,
+  evalRateText,
 } from '@/lib/ai-ops-eval';
 import {
   applyFeedbackFilters,
@@ -1598,7 +1600,9 @@ function KbRegressionCard() {
                   ? '否（不可作为证据）'
                   : '未知'}
               {status.lastSubsetRun.summary
-                ? ` · ${formatPassRate(status.lastSubsetRun.summary)}`
+                ? ` · 准确率 ${evalAccuracyText(
+                    status.lastSubsetRun.summary,
+                  )}`
                 : ''}
             </div>
           ) : null}
@@ -1859,10 +1863,14 @@ function EvalPanel() {
               </div>
             </div>
             <div>
-              <div className="text-xs text-gray-500">最近一次通过率</div>
+              <div className="text-xs text-gray-500">
+                {lastRun
+                  ? `最近一次${evalHeadline(lastRun).label}`
+                  : '最近一次通过率'}
+              </div>
               <div className="font-medium">
                 {lastRun
-                  ? `${formatPassRate(lastRun.summary)}（${
+                  ? `${evalRateText(lastRun)}（${
                       labelOf(RUN_STATUS_LABELS, lastRun.status) || '-'
                     }）`
                   : '-'}
@@ -1888,7 +1896,7 @@ function EvalPanel() {
                 >
                   <span className="font-mono">{item.id.slice(0, 8)}</span> ·{' '}
                   {labelOf(RUN_STATUS_LABELS, item.status) || item.status} ·{' '}
-                  {formatPassRate(item.summary)}
+                  {evalRateText(item)}
                 </button>
               ))}
             </div>
