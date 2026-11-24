@@ -1,6 +1,6 @@
 ---
 name: superpowers
-description: Guided feature development workflow — step-by-step from requirement to implementation with user approval gates and quality checks
+description: 当一个已批准的 OpenSpec change（proposal / specs / tasks）已存在，或用户说"按方案实现 / implement the plan / 开始写代码"时使用 — 负责实现、typecheck、按 9 维标准自查。不要用于新需求入口、需求澄清或分级（那是 req-gate）。
 user-invocable: true
 ---
 
@@ -10,12 +10,15 @@ You are a senior full-stack architect for the JoyMini social e-commerce platform
 
 ## Trigger
 
-Activate when the user asks to "add", "implement", "build", "introduce", "develop" a feature, or says "let's work on" or "step-by-step".
+**只在 req-gate 的 WHAT 简报已批准、且 OpenSpec change 已存在之后激活**（用户说"按方案实现 / implement the plan / 开始写代码"也在此列）。
+
+如果用户还在问"要做什么"、要加新功能、或需求边界没定 → 停下，转 `/req-gate`。本 skill 不负责新需求入口、需求澄清和分级。
 
 ## Workflow — 7 Steps
 
 ### Step 0: Load Context (always first)
 Read these files before ANY conversation about the feature:
+0. `openspec/changes/<name>/tasks.md` — 唯一任务清单（新需求不再以 `docs/AI-joymini/` 为入口）
 1. `docs/current-task.md` — current task context, what's done, what's pending
 2. `docs/coding-standards.md` — 7-dimension quality checklist
 3. `docs/code-review-checklist.md` — symmetric ops, boundary values, race conditions
@@ -24,11 +27,11 @@ Read these files before ANY conversation about the feature:
 6. If touching admin-next: read 2 view files to match Server Component → Client Wrapper pattern
 7. If touching Flutter: read `CLAUDE.md` at `/Users/porter/Developer/JoyMini_Flutter_App/` and 2 existing files in the target area
 
-### Step 1: Brainstorm (clarify requirements)
-- Ask 2-3 clarifying questions maximum
-- Restate the feature in your own words for confirmation
-- Identify which layer(s) are affected: NestJS API / admin-next / Flutter / shared packages
-- Check if an existing spec in `docs/AI-joymini/` already covers this
+### Step 1: Read the approved change (do NOT re-ask WHAT)
+- Read `openspec/changes/<name>/proposal.md`, `specs/**`、`tasks.md` — 它们是唯一契约源
+- `tasks.md` 是唯一任务清单；**不要**新建 `docs/superpowers/plans/` 或 `docs/superpowers/specs/`
+- 缺 proposal 或 specs → 停下，走 `/req-gate`
+- 从 tasks 的 `[Req: ...]` 标注确认每条任务服务的 Requirement；标不出来的任务先问，不自行扩范围
 
 ### Step 2: Plan (architecture and design)
 Output a structured plan with:

@@ -16,6 +16,7 @@ user-invocable: true
 
 | 命令 | 用途 |
 |------|------|
+| `/req-gate` | 新需求入口：分级 → 边界四问 → WHAT 简报 → 交给 openspec 落产物 |
 | `/business-analysis` | 讨论一个业务功能要不要做、怎么做、多少工作量（7 步框架） |
 | `/deep-research` | 深度网络调研，多来源查资料写报告 |
 
@@ -23,7 +24,7 @@ user-invocable: true
 
 | 命令 | 用途 |
 |------|------|
-| `/superpowers` | 通用功能开发实现 |
+| `/superpowers` | 按已批准的 change 实现（新需求先走 `/req-gate`） |
 | `/code-review` | 审查代码 diff，找 bug + 优化建议 |
 | `/simplify` | 只做代码简化重构，不找 bug |
 | `/security-review` | 安全审查 |

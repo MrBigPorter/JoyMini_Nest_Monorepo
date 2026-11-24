@@ -64,7 +64,11 @@
   "skills": {
     "superpowers": {
       "path": ".claude/skills/superpowers/SKILL.md",
-      "description": "add feature, implement feature, build feature, develop feature, let's work on, step-by-step, feature development"
+      "description": "implement approved plan, execution, typecheck, coding standards, 按方案实现, 执行计划"
+    },
+    "req-gate": {
+      "path": ".claude/skills/req-gate/SKILL.md",
+      "description": "new requirement, add feature, 新需求, 加个功能, 加个接口, 需求澄清, 需求边界, 需求分级"
     },
     "jr-code-review": {
       "path": ".claude/skills/jr-code-review/SKILL.md",

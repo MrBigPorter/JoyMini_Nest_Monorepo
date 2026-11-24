@@ -86,10 +86,12 @@ yarn workspace @lucky/api tsc --noEmit --pretty
 
 - `docs/current-task.md` — current task context
 - `docs/coding-standards.md` — 9-dimension code quality checklist
+- `openspec/specs/` — 系统行为契约（唯一真源）；`openspec/changes/` — 进行中变更，`tasks.md` 是唯一任务清单
 - `docs/AI-joymini/` — all feature specs (numbered, ordered)
 
 ## Rules (mandatory before coding)
 
+0. 新需求先走 `/req-gate`（分级 → 边界四问 → WHAT 简报 → openspec-propose）；OpenSpec 是契约源，不要新建 `docs/superpowers/specs/` 或 `docs/superpowers/plans/`
 1. Read `docs/current-task.md` — confirm what to work on
 2. Read `docs/coding-standards.md` — check 9 dimensions (boundary, test, UX, perf, maintainability, security, observability, resilience, modularity)
 3. Check `docs/AI-joymini/` for relevant specs — don't implement without a spec
